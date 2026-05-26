@@ -1,0 +1,26 @@
+[project]
+name        = "MyBricks"
+description = "Mobile-first LEGO portfolio tracker — AI-powered pricing, camera scanning, wishlist alerts, ROI tracking."
+
+[ai]
+required    = true
+pin         = "openai"
+description = "GPT-4o identifies LEGO sets from camera photos; GPT-4o-mini estimates market values and price forecasts."
+
+[[secret]]
+key         = "REBRICKABLE_API_KEY"
+required    = false
+expose      = true
+description = "Rebrickable API key. Free signup at rebrickable.com/api — unlocks the full LEGO catalog (~20,000 sets). Optional."
+
+[[cron]]
+path     = "/api/jobs/valuate-sets"
+schedule = "0 * * * *"
+
+[[cron]]
+path     = "/api/jobs/snapshot-portfolios"
+schedule = "0 2 * * *"
+
+[[cron]]
+path     = "/api/jobs/wishlist-alerts"
+schedule = "0 8 * * *"
