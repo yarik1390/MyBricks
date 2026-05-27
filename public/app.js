@@ -1403,7 +1403,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   setupGestures();
 
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
+  }
 });
 
 window.addEventListener("hashchange", route);
