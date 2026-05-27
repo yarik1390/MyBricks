@@ -476,10 +476,9 @@ function catalogCardHTML(s) {
   const h = setHue(s);
   return `
     <button class="set-card" data-set="${escapeHtml(s.set_num)}">
-      <div class="set-card-img${hasImg ? "" : " has-tile"}">
-        ${hasImg
-          ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML+='<div class=\\"brick-tile\\" style=\\"--h:${h};width:70%;height:70%;\\"></div>'">`
-          : brickTile(s)}
+      <div class="set-card-img">
+        <div class="brick-tile" style="--h:${h};width:64%;height:64%;"></div>
+        ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ""}
         ${s.retired ? `<span class="retired-tag">RETIRED</span>` : ""}
         ${s.owned ? `<span class="owned-tag">${I.check()}OWNED</span>` : ""}
       </div>

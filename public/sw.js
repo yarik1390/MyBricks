@@ -1,5 +1,5 @@
-const STATIC_CACHE = 'mybricks-static-v1';
-const API_CACHE = 'mybricks-api-v1';
+const STATIC_CACHE = 'brickvault-static-v4';
+const API_CACHE = 'brickvault-api-v4';
 const STATIC_ASSETS = ['/', '/app.css', '/app.js', '/manifest.json', '/icon.svg'];
 
 self.addEventListener('install', e => {
