@@ -1,0 +1,16 @@
+{
+  "name": "MyBricks — LEGO Portfolio",
+  "short_name": "MyBricks",
+  "description": "Track, value, and forecast your LEGO collection.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F5F1E8",
+  "theme_color": "#FFD700",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/icon.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "maskable" }
+  ],
+  "categories": ["lifestyle", "finance"],
+  "screenshots": []
+}
