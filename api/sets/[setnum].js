@@ -1,18 +1,26 @@
 import { db } from 'hatchable';
 import { formulaValuation } from 'lib/valuation.js';
+import { getCallerId } from 'lib/caller.js';
 
 export const access = 'member';
 export const methods = ['GET'];
 
 export default async function (req, res) {
   const setnum = req.params.setnum;
+  const userId = getCallerId(req);
 
   // Try DB — also try with -1 suffix
   let r = await db.query('SELECT * FROM lego_sets WHERE set_num = $1', [setnum]);
   if (!r.rows.length) {
     r = await db.query('SELECT * FROM lego_sets WHERE set_num = $1', [setnum + '-1']);
   }
-  if (r.rows.length) return res.json({ set: r.rows[0] });
+  if (r.rows.length) {
+    const set = r.rows[0];
+    const entryRes = userId
+      ? await db.query('SELECT * FROM user_collection WHERE user_id=$1 AND set_num=$2 AND deleted_at IS NULL', [userId, set.set_num])
+      : { rows: [] };
+    return res.json({ set, entry: entryRes.rows[0] || null });
+  }
 
   // Try Rebrickable
   if (!process.env.REBRICKABLE_API_KEY) return res.status(404).json({ error: 'Set not found' });
@@ -36,7 +44,7 @@ export default async function (req, res) {
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'formula_bulk',now(),'rebrickable')
       ON CONFLICT (set_num) DO UPDATE SET cached_at=now()
     `, [row.set_num, row.name, row.year, row.pieces, row.minifigs, row.image_url, row.retail_price, row.current_value, row.forecast_2y, row.forecast_5y]);
-    return res.json({ set: row });
+    return res.json({ set: row, entry: null });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

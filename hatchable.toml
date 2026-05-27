@@ -1,6 +1,6 @@
 [project]
-name        = "MyBricks"
-description = "Mobile-first LEGO portfolio tracker — AI-powered pricing, camera scanning, wishlist alerts, ROI tracking."
+name        = "Brickvault"
+description = "A premium brick portfolio tracker — catalog from Rebrickable, AI-priced, camera-scannable."
 
 [ai]
 required    = true

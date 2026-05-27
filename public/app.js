@@ -1,1167 +1,1412 @@
-// =============================================================
-// MYBRICKS — mobile-first LEGO portfolio tracker
-// Vanilla JS, hash routing, no framework
-// =============================================================
+/* ============================================================
+   Brickvault — frontend (vanilla JS, hash routing, real API)
+   ============================================================ */
+"use strict";
 
-const API = (window.__HATCHABLE__ && window.__HATCHABLE__.api) || '/api';
+/* ---------- icon library ---------- */
+const I = (() => {
+  const s = (d, opts) => `<svg viewBox="0 0 24 24" width="${(opts&&opts.w)||22}" height="${(opts&&opts.w)||22}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  return {
+    home:     () => s('<path d="M3 11l9-8 9 8M5 10v10h14V10"/>'),
+    search:   () => s('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'),
+    scan:     () => s('<path d="M3 7V4h3M21 7V4h-3M3 17v3h3M21 17v3h-3"/><path d="M7 12h10"/>'),
+    plus:     () => s('<path d="M12 5v14M5 12h14"/>'),
+    minus:    () => s('<path d="M5 12h14"/>'),
+    check:    () => s('<path d="M5 12l5 5L20 7"/>'),
+    trash:    () => s('<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>'),
+    chev:     () => s('<path d="M9 6l6 6-6 6"/>'),
+    chevL:    () => s('<path d="M15 6l-6 6 6 6"/>'),
+    close:    () => s('<path d="M6 6l12 12M18 6L6 18"/>'),
+    gear:     () => s('<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 00-.1-1.2l2-1.6-2-3.4-2.4.9a7 7 0 00-2-1.2L14 3h-4l-.5 2.5a7 7 0 00-2 1.2l-2.4-.9-2 3.4 2 1.6A7 7 0 005 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-.9a7 7 0 002 1.2L10 21h4l.5-2.5a7 7 0 002-1.2l2.4.9 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/>'),
+    layers:   () => s('<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5M3 18l9 5 9-5"/>'),
+    bell:     () => s('<path d="M6 8a6 6 0 1112 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 21a2 2 0 004 0"/>'),
+    heart:    () => s('<path d="M12 21s-7-4.5-9.5-9A5 5 0 0112 6a5 5 0 019.5 6c-2.5 4.5-9.5 9-9.5 9z"/>'),
+    heartF:   () => `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 21s-7-4.5-9.5-9A5 5 0 0112 6a5 5 0 019.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg>`,
+    filter:   () => s('<path d="M4 5h16M7 12h10M10 19h4"/>'),
+    arrowR:   () => s('<path d="M5 12h14M13 5l7 7-7 7"/>'),
+    arrowU:   () => s('<path d="M7 15l5-5 5 5"/>'),
+    arrowD:   () => s('<path d="M7 9l5 5 5-5"/>'),
+    sparkles: () => s('<path d="M12 3l1.8 4.4L18 9l-4.2 1.6L12 15l-1.8-4.4L6 9l4.2-1.6L12 3zM19 15l.8 1.7L21 18l-1.2.7L19 21l-.8-2.3L17 18l1.2-1.3z"/>'),
+    download: () => s('<path d="M12 4v12m0 0l-5-5m5 5l5-5M4 20h16"/>'),
+    pencil:   () => s('<path d="M4 20h4l10-10-4-4L4 16v4z"/>'),
+    eye:      () => s('<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
+    dollar:   () => s('<path d="M12 2v20M17 6H9.5a3 3 0 100 6h5a3 3 0 010 6H6"/>'),
+    share:    () => s('<circle cx="6" cy="12" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.5 10.5l7-3M8.5 13.5l7 3"/>'),
+    cart:     () => s('<path d="M3 4h2l3 12h11l2-8H6"/><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/>'),
+    tag:      () => s('<path d="M3 12V3h9l9 9-9 9z"/><circle cx="8" cy="8" r="1.5"/>'),
+    figure:   () => s('<rect x="8" y="3" width="8" height="5" rx="1"/><path d="M6 8h12v6H6zM9 14v6M15 14v6"/>'),
+    star:     () => s('<path d="M12 3l2.6 6.1 6.4.6-4.9 4.3 1.5 6.3L12 17.3 6.4 20.3l1.5-6.3L3 9.7l6.4-.6L12 3z"/>'),
+    refresh:  () => s('<path d="M3 12a9 9 0 0115-6.7L21 8M21 4v4h-4M21 12a9 9 0 01-15 6.7L3 16M3 20v-4h4"/>'),
+    camera:   () => s('<path d="M3 8h4l2-3h6l2 3h4v11H3z"/><circle cx="12" cy="13" r="3.5"/>'),
+    barcode:  () => s('<path d="M4 6v12M7 6v12M10 6v12M13 6v12M16 6v12M19 6v12" stroke-width="1.8"/>'),
+    user:     () => s('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/>'),
+    box:      () => s('<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/>'),
+    flash:    () => s('<path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/>'),
+    info:     () => s('<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/>'),
+    trend:    () => s('<path d="M3 17l6-6 4 4 8-9"/><path d="M14 6h7v7"/>'),
+  };
+})();
 
-document.addEventListener('error', e => {
-  if (e.target.tagName !== 'IMG') return;
-  e.target.style.opacity = '0.15';
-}, true);
+/* ---------- DOM helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
-// ===== State =================================================
+/* ---------- state ---------- */
 const state = {
   portfolio: null,
-  portfolioHistory: null,
-  themes: [],
-  themesLoadedAt: 0,
+  catalogAll: null, catalogPage: 1, catalogPageSize: 20,
+  themes: [], themesLoadedAt: 0,
   me: null,
-  wishlist: [],
-  wishlistAlerts: [],
   filter: {
-    range: '1M',
-    sort: localStorage.getItem('mb_sort') || 'added_desc',
-    catalogYear: 'all',
-    catalogRetired: false,
-    catalogTheme: '',
-    q: '',
+    kind: "all", theme: null, range: "1M", q: "",
+    sort: localStorage.getItem("bv_sort") || "added_desc",
+    catalogSort: "value_desc", catalogYear: "all",
+    catalogRetired: false, catalogTheme: "all",
+    wishlistSort: "recent",
   },
-  detail: { tab: 'info' },
-  camera: { stream: null, mode: 'barcode', detector: null, scanning: false, timer: null },
+  detail: { tab: "info" },
+  pwa: { deferredPrompt: null },
+  wishlist: [], wishlistAlerts: [],
+  portfolioHistory: null,
+  ownedFigs: new Set(JSON.parse(localStorage.getItem("bv_figs") || "[]")),
   toastTimer: null,
+  camera: { stream: null, mode: "barcode", detector: null, scanning: false, timer: null },
 };
 
-// ===== Utilities ============================================
-const $ = (sel, ctx = document) => ctx.querySelector(sel);
-const $$ = (sel, ctx = document) => Array.from(ctx.querySelectorAll(sel));
-
-function fmtMoney(n, dp = 2) {
-  if (n == null || isNaN(n)) return '$0.00';
-  return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+/* ---------- helpers ---------- */
+function fmtMoney(n, opts = {}) {
+  if (n == null || isNaN(n)) return "—";
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  const v = abs.toLocaleString("en-US", { minimumFractionDigits: opts.cents ?? 2, maximumFractionDigits: 2 });
+  return sign + "$" + v;
 }
 function fmtMoneyShort(n) {
-  const f = Number(n) || 0;
-  if (Math.abs(f) >= 1_000_000) return '$' + (f / 1_000_000).toFixed(1) + 'M';
-  if (Math.abs(f) >= 1_000) return '$' + (f / 1_000).toFixed(1) + 'K';
-  return '$' + Math.round(f);
+  if (n == null || isNaN(n)) return "—";
+  const a = Math.abs(n); const s = n < 0 ? "-" : "";
+  if (a >= 1e6) return s + "$" + (a / 1e6).toFixed(1) + "M";
+  if (a >= 1e3) return s + "$" + (a / 1e3).toFixed(1) + "K";
+  return s + "$" + a.toFixed(0);
 }
-function fmtHero(n) {
-  if (n == null || isNaN(n)) return '$0<span class="cents">.00</span>';
-  const num = Number(n);
-  const sign = num < 0 ? '-' : '';
-  const [whole, cents] = Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).split('.');
-  return `${sign}$${whole}<span class="cents">.${cents || '00'}</span>`;
+function fmtPct(n) { return (n >= 0 ? "+" : "") + (n * 100).toFixed(1) + "%"; }
+function daysAgo(iso) { return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000); }
+function yearsAgo(iso) { return (Date.now() - new Date(iso).getTime()) / (365.25 * 86400000); }
+function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
-function pct(a, b) { return !b ? 0 : ((a - b) / b) * 100; }
-function haptic(type = 'light') {
-  try { navigator.vibrate?.(type === 'heavy' ? 30 : type === 'medium' ? 15 : 8); } catch {}
-  try { window.webkit?.messageHandlers?.haptic?.postMessage(type); } catch {}
+function haptic(t) {
+  const ms = t === "heavy" ? 30 : t === "medium" ? 15 : 8;
+  try { navigator.vibrate && navigator.vibrate(ms); } catch {}
+}
+function toast(msg, type) {
+  const el = $("#toast");
+  if (!el) return;
+  el.className = "show " + (type || "info");
+  el.innerHTML = `<span class="t-icon">${type === "success" ? I.check() : type === "error" ? I.close() : I.info()}</span><span>${msg}</span>`;
+  clearTimeout(state.toastTimer);
+  state.toastTimer = setTimeout(() => el.classList.remove("show"), 3200);
 }
 function debounce(fn, ms) {
-  let t;
-  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
-function toast(msg, type = 'info') {
-  const el = $('#toast');
-  clearTimeout(state.toastTimer);
-  el.textContent = msg;
-  el.className = 'toast show ' + type;
-  state.toastTimer = setTimeout(() => el.classList.remove('show'), 4000);
+
+/* ---------- hue from theme (deterministic) ---------- */
+function themeHue(theme = "") {
+  let h = 0;
+  for (let i = 0; i < theme.length; i++) h = (h * 31 + theme.charCodeAt(i)) & 0xFFFF;
+  return h % 360;
 }
+function setHue(set) {
+  return set.hue ?? themeHue(set.theme || "");
+}
+
+/* ---------- API ---------- */
 async function api(path, opts = {}) {
-  const { method = 'GET', body, headers = {} } = opts;
-  const fetchOpts = { method, headers: { ...headers } };
-  if (body) { fetchOpts.headers['Content-Type'] = 'application/json'; fetchOpts.body = JSON.stringify(body); }
-  const r = await fetch(API + path, fetchOpts);
-  if (r.status === 304) return null;
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
-  return data;
-}
-
-// ===== Icons ================================================
-const I = {
-  search:  '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>',
-  plus:    '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>',
-  check:   '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>',
-  trash:   '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><polyline points="3 6 5 6 21 6"/><path stroke-linecap="round" d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path stroke-linecap="round" d="M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>',
-  bell:    '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>',
-  heart:   '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>',
-  heartFill: '<svg fill="currentColor" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>',
-  arrowL:  '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M15 18l-6-6 6-6"/></svg>',
-  arrowR:  '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M9 18l6-6-6-6"/></svg>',
-  sparkles:'<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" d="M5 3l.914 2.086L8 6l-2.086.914L5 9l-.914-2.086L2 6l2.086-.914L5 3zM19 11l.914 2.086L22 14l-2.086.914L19 17l-.914-2.086L16 14l2.086-.914L19 11zM12 2l1.5 3.5L17 7l-3.5 1.5L12 12l-1.5-3.5L7 7l3.5-1.5L12 2z"/></svg>',
-  share:   '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"/></svg>',
-  eye:     '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
-  pencil:  '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>',
-  camera:  '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>',
-};
-
-// ===== Router ===============================================
-const routes = [
-  { pattern: /^\/$/, render: renderPortfolio },
-  { pattern: /^\/add$/, render: renderCatalog },
-  { pattern: /^\/pile$/, render: renderPile },
-  { pattern: /^\/blind$/, render: renderBlind },
-  { pattern: /^\/me$/, render: renderMe },
-  { pattern: /^\/wishlist$/, render: renderWishlist },
-  { pattern: /^\/set\/(.+)$/, render: m => renderSetDetail(decodeURIComponent(m[1])) },
-];
-
-function navigate(hash) { location.hash = hash; }
-
-function router() {
-  const hash = location.hash.replace('#', '') || '/';
-  updateNav(hash);
-  for (const route of routes) {
-    const m = hash.match(route.pattern);
-    if (m) { route.render(m); return; }
+  const r = await fetch(path, {
+    ...opts,
+    headers: { "content-type": "application/json", ...(opts.headers || {}) },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  if (!r.ok) {
+    let msg = r.statusText;
+    try { msg = (await r.json()).error || msg; } catch {}
+    throw new Error(msg);
   }
-  renderPortfolio();
+  if (r.status === 204) return null;
+  return r.json();
 }
 
-function updateNav(hash) {
-  $$('.nav-tab').forEach(tab => {
-    const r = tab.dataset.route;
-    tab.classList.toggle('active', hash === r || (r !== '/' && hash.startsWith(r)));
-  });
+/* ============================================================
+   Sparkline (SVG)
+   ============================================================ */
+function drawSparkline(container, data, opts = {}) {
+  if (!container || !data || data.length < 2) return;
+  const W = container.clientWidth || 300;
+  const H = container.clientHeight || 88;
+  const vals = data.map(d => d.total_value ?? d);
+  const mn = Math.min(...vals), mx = Math.max(...vals);
+  const pad = 4;
+  const xs = (i) => pad + (i / (data.length - 1)) * (W - pad * 2);
+  const ys = (v) => H - pad - ((v - mn) / ((mx - mn) || 1)) * (H - pad * 2);
+  let path = `M${xs(0).toFixed(1)} ${ys(vals[0]).toFixed(1)}`;
+  for (let i = 1; i < data.length; i++) path += ` L${xs(i).toFixed(1)} ${ys(vals[i]).toFixed(1)}`;
+  const area = path + ` L${xs(data.length - 1).toFixed(1)} ${H} L${xs(0).toFixed(1)} ${H} Z`;
+  const stroke = opts.up !== false ? "var(--up)" : "var(--down)";
+  container.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="sg${Date.now()%9999}" id="sgr" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${stroke}" stop-opacity="0.32"/>
+          <stop offset="100%" stop-color="${stroke}" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d="${area}" fill="${stroke}" fill-opacity="0.16" />
+      <path d="${path}" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      ${opts.dot !== false ? `<circle cx="${xs(data.length-1).toFixed(1)}" cy="${ys(vals[vals.length-1]).toFixed(1)}" r="4" fill="${stroke}" stroke="var(--bg)" stroke-width="2"/>` : ""}
+    </svg>`;
 }
 
-// ===== Portfolio ============================================
-async function renderPortfolio() {
-  $('#root').innerHTML = `
-    <div class="topbar">
-      <div class="brand">
-        <div class="brand-mark"></div>
-        <span class="brand-name">MyBricks</span>
-      </div>
-      <div class="topbar-actions">
-        <div style="position:relative">
-          <button class="icon-btn" id="alertsBtn" aria-label="Alerts">${I.bell}</button>
-          <span id="alertDot" style="display:none;position:absolute;top:5px;right:5px;width:9px;height:9px;background:var(--bv-red);border-radius:50%;border:2px solid var(--bg)"></span>
-        </div>
-        <button class="icon-btn" id="searchToggle" aria-label="Search">${I.search}</button>
-      </div>
-    </div>
-    <div class="page" style="padding-top:8px">
-      <div class="search-wrap" id="searchWrap">
-        <span class="s-icon">${I.search}</span>
-        <input class="search-input" id="portfolioSearch" type="search" placeholder="Search your collection…" autocomplete="off">
-      </div>
-      <div id="heroSection"><div class="skel card mb-16" style="height:210px"></div></div>
-      <div class="filter-row" id="sortRow">
-        ${[['added_desc','Recent'],['value_desc','By value'],['roi_desc','By ROI'],['name_asc','A–Z']].map(([s,l]) =>
-          `<button class="chip${state.filter.sort===s?' active':''}" data-sort="${s}">${l}</button>`
-        ).join('')}
-      </div>
-      <div id="setList">
-        <div class="skel card mb-12" style="height:84px"></div>
-        <div class="skel card mb-12" style="height:84px"></div>
-        <div class="skel card" style="height:84px"></div>
-      </div>
+/* ============================================================
+   Brick-tile / image helpers
+   ============================================================ */
+function brickTile(set) {
+  const h = setHue(set);
+  return `<div class="brick-tile" style="--h:${h};"></div>`;
+}
+
+function slImgHTML(set, { newBadge = false, qtyBadge = 0 } = {}) {
+  const h = setHue(set);
+  const hasImg = set.image_url && !set.image_url.startsWith("data:");
+  if (hasImg) {
+    return `<div class="sl-img">
+      ${newBadge ? `<span class="new-badge">NEW</span>` : ""}
+      ${qtyBadge > 1 ? `<span class="qty-badge">×${qtyBadge}</span>` : ""}
+      <img class="set-photo" src="${escapeHtml(set.image_url)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display=''">
+      <div class="brick-tile" style="--h:${h};display:none;width:80%;height:76%;margin-top:auto;border-radius:8px;"></div>
     </div>`;
+  }
+  return `<div class="sl-img has-tile">
+    ${brickTile(set)}
+    ${newBadge ? `<span class="new-badge">NEW</span>` : ""}
+    ${qtyBadge > 1 ? `<span class="qty-badge">×${qtyBadge}</span>` : ""}
+  </div>`;
+}
 
-  $('#alertsBtn').addEventListener('click', showAlertsSheet);
-  $('#searchToggle').addEventListener('click', () => {
-    const wrap = $('#searchWrap');
-    wrap.classList.toggle('open');
-    if (wrap.classList.contains('open')) $('#portfolioSearch').focus();
-    else { state.filter.q = ''; paintPortfolio(); }
+/* ============================================================
+   Router
+   ============================================================ */
+function route() {
+  const hash = location.hash.replace("#", "") || "/";
+  $$("#nav .nav-tab").forEach(t => {
+    const r = t.dataset.route;
+    const active = r === hash || (hash.startsWith("/set/") && r === "/") || (hash === "/wishlist" && r === "/");
+    t.classList.toggle("active", active);
   });
-  $('#portfolioSearch').addEventListener('input', debounce(e => {
-    state.filter.q = e.target.value.trim().toLowerCase();
-    paintPortfolio();
-  }, 200));
-  $$('.chip[data-sort]').forEach(chip => {
-    chip.addEventListener('click', () => {
-      state.filter.sort = chip.dataset.sort;
-      localStorage.setItem('mb_sort', state.filter.sort);
-      $$('.chip[data-sort]').forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-      haptic('light');
-      paintPortfolio();
-    });
-  });
+  if (hash === "/" || hash === "") renderPortfolio();
+  else if (hash === "/add") renderAdd();
+  else if (hash === "/pile") renderPile();
+  else if (hash === "/blind") renderBlind();
+  else if (hash === "/me") renderMe();
+  else if (hash === "/wishlist") renderWishlist();
+  else if (hash.startsWith("/set/")) {
+    const parts = hash.split("/");
+    const setNum = decodeURIComponent(parts[2]);
+    state.detail.tab = parts[3] || "info";
+    renderSetDetail(setNum);
+  }
+  window.scrollTo({ top: 0, behavior: "instant" });
+}
 
+/* ============================================================
+   Portfolio screen
+   ============================================================ */
+async function renderPortfolio() {
   if (!state.portfolio) {
     try {
       const [port, hist, wl] = await Promise.all([
-        api('/collection'), api('/collection/history'), api('/wishlist')
+        api("/api/collection"),
+        api("/api/collection/history?days=365"),
+        api("/api/wishlist"),
       ]);
       state.portfolio = port;
-      state.portfolioHistory = hist;
-      state.wishlist = wl.wishlist;
-      state.wishlistAlerts = wl.unread_alerts;
-    } catch (e) { toast(e.message, 'error'); }
+      state.portfolioHistory = hist.snapshots || [];
+      state.wishlist = wl.wishlist || [];
+      state.wishlistAlerts = wl.unread_alerts || [];
+    } catch (e) {
+      toast("Couldn't load collection: " + e.message, "error");
+      state.portfolio = { items: [], total_value: 0, total_paid: 0, count: 0 };
+      state.portfolioHistory = [];
+    }
   }
   paintPortfolio();
-  updateAlertBadge();
 }
 
 function paintPortfolio() {
-  if (!state.portfolio) return;
-  const { items = [], total_value, total_paid } = state.portfolio;
-  const gain = total_value - total_paid;
-  const gainPct = pct(total_value, total_paid);
+  const p = state.portfolio;
+  const hist = state.portfolioHistory || [];
+  const alertsCount = state.wishlistAlerts.length;
+  const gain = p.total_value - p.total_paid;
+  const gainPct = p.total_paid ? gain / p.total_paid : 0;
 
-  const heroEl = $('#heroSection');
-  if (heroEl) {
-    heroEl.innerHTML = `
-      <div class="hero">
-        <div class="hero-eyebrow"><span class="pulse"></span>Portfolio Value</div>
-        <div class="hero-value">${fmtHero(total_value)}</div>
-        <div class="hero-meta">
-          <span>Invested ${fmtMoney(total_paid)}</span>
-          <span class="delta ${gain >= 0 ? 'up' : 'down'}">
-            ${gain >= 0 ? '+' : ''}${fmtMoney(Math.abs(gain))} (${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(1)}%)
-          </span>
-        </div>
-        <div class="spark-wrap"><canvas id="heroChart"></canvas></div>
-        <div class="range-pills">
-          ${['1W','1M','3M','1Y','ALL'].map(r =>
-            `<button class="${state.filter.range===r?'active':''}" data-range="${r}">${r}</button>`
-          ).join('')}
-        </div>
-      </div>`;
-    $$('.range-pills button').forEach(btn => {
-      btn.addEventListener('click', () => {
-        state.filter.range = btn.dataset.range;
-        $$('.range-pills button').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        haptic('light');
-        drawHeroChart();
-      });
-    });
-    setTimeout(drawHeroChart, 50);
-  }
-
-  let display = items.filter(item => {
-    if (!state.filter.q) return true;
-    return (item.name||'').toLowerCase().includes(state.filter.q) ||
-           (item.set_num||'').toLowerCase().includes(state.filter.q);
-  });
+  let items = (p.items || []).slice();
+  const q = state.filter.q.toLowerCase().trim();
+  if (q) items = items.filter(i => i.name?.toLowerCase().includes(q) || i.set_num?.toLowerCase().includes(q) || i.theme?.toLowerCase().includes(q));
   switch (state.filter.sort) {
-    case 'value_desc': display.sort((a,b) => (b.current_value||0)-(a.current_value||0)); break;
-    case 'roi_desc':   display.sort((a,b) => pct(b.current_value,b.purchase_price)-pct(a.current_value,a.purchase_price)); break;
-    case 'name_asc':   display.sort((a,b) => (a.name||'').localeCompare(b.name||'')); break;
-    default:           display.sort((a,b) => new Date(b.added_at)-new Date(a.added_at));
+    case "added_desc": items.sort((a, b) => new Date(b.added_at) - new Date(a.added_at)); break;
+    case "value_desc": items.sort((a, b) => b.current_value - a.current_value); break;
+    case "roi_desc":   items.sort((a, b) => (b.annualized_roi ?? -1) - (a.annualized_roi ?? -1)); break;
+    case "az":         items.sort((a, b) => a.name?.localeCompare(b.name)); break;
   }
 
-  const listEl = $('#setList');
-  if (!listEl) return;
-  if (!display.length) {
-    listEl.innerHTML = `
-      <div class="card" style="text-align:center;padding:40px 20px">
-        <div style="font-size:48px;margin-bottom:12px">&#x1F9F1;</div>
-        <h3 style="font-family:var(--serif);font-size:22px;font-weight:500;margin-bottom:8px">
-          ${state.filter.q ? 'No matches' : 'Start your collection'}
-        </h3>
-        <p style="color:var(--ink-mute);margin-bottom:20px;font-size:14px">
-          ${state.filter.q ? 'Try a different search.' : 'Add your first LEGO set to track its value and ROI.'}
-        </p>
-        <button class="btn-primary" id="goAddBtn" style="width:auto;padding:12px 24px">${I.plus} Browse Catalog</button>
-      </div>`;
-    $('#goAddBtn')?.addEventListener('click', () => navigate('#/add'));
-    return;
-  }
+  const ranges = { "1W": 7, "1M": 30, "3M": 90, "1Y": 365, "ALL": 999 };
+  const days = ranges[state.filter.range] || 30;
+  const clipped = hist.slice(-Math.min(days + 1, hist.length));
 
-  const now = Date.now();
-  listEl.innerHTML = `<div class="set-list">${display.map(item => setCardHTML(item, now)).join('')}</div>`;
-  $$('.set-list-card').forEach(card =>
-    card.addEventListener('click', () => navigate('#/set/' + encodeURIComponent(card.dataset.set)))
-  );
-  wireCardLongPress();
-}
-
-function setCardHTML(item, now = Date.now()) {
-  const isNew = item.added_at && (now - new Date(item.added_at).getTime()) < 7 * 86400_000;
-  const g = item.purchase_price ? pct(item.current_value, item.purchase_price) : null;
-  return `
-    <div class="set-list-card" data-set="${item.set_num}" data-id="${item.id}">
-      <div class="sl-img">
-        ${item.image_url ? `<img src="${item.image_url}" alt="${item.name}" loading="lazy">` : '<span style="font-size:28px">&#x1F9E9;</span>'}
-        ${isNew ? '<span class="sl-badge new-badge">NEW</span>' : ''}
-        ${item.quantity > 1 ? `<span class="sl-badge qty-badge">&times;${item.quantity}</span>` : ''}
-      </div>
-      <div class="sl-body">
-        <div class="sl-name">${item.name}</div>
-        <div class="sl-meta">${item.theme||'—'} &middot; ${item.set_num}</div>
-      </div>
-      <div class="sl-right">
-        <div class="sl-value">${fmtMoney(item.current_value)}</div>
-        ${g !== null ? `<div class="sl-delta ${g>=0?'up':'down'}">${g>=0?'+':''}${g.toFixed(0)}%</div>` : ''}
-      </div>
-    </div>`;
-}
-
-function drawHeroChart() {
-  const canvas = $('#heroChart');
-  if (!canvas || !state.portfolioHistory) return;
-  const snaps = state.portfolioHistory.snapshots || [];
-  const rangeMs = { '1W':7,'1M':30,'3M':90,'1Y':365,'ALL':99999 }[state.filter.range] * 86400_000;
-  const now = Date.now();
-  const filtered = snaps.filter(s => now - new Date(s.snapshot_date).getTime() <= rangeMs);
-  let data = filtered.map(s => parseFloat(s.total_value) || 0);
-  if (!data.length) data = [state.portfolio?.total_value||0, state.portfolio?.total_value||0];
-  drawSparkline(canvas, data, { up: data[data.length-1] >= data[0] });
-}
-
-function drawSparkline(canvas, data, { up = true, dot = false } = {}) {
-  if (!canvas || !data.length) return;
-  const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth || 300, h = canvas.clientHeight || 60;
-  canvas.width = w * dpr; canvas.height = h * dpr;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-  if (data.length < 2) data = [data[0]||0, data[0]||0];
-  const min = Math.min(...data), max = Math.max(...data);
-  const range = max - min || 1;
-  const pad = 4;
-  const toX = i => pad + (i / (data.length - 1)) * (w - pad * 2);
-  const toY = v => pad + (1 - (v - min) / range) * (h - pad * 2);
-  const color = up ? '#1A7F4B' : '#C0392B';
-  ctx.clearRect(0, 0, w, h);
-  const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, up ? 'rgba(26,127,75,0.2)' : 'rgba(192,57,43,0.2)');
-  grad.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.beginPath();
-  ctx.moveTo(toX(0), toY(data[0]));
-  data.forEach((v,i) => { if (i) ctx.lineTo(toX(i), toY(v)); });
-  ctx.lineTo(toX(data.length-1), h); ctx.lineTo(toX(0), h);
-  ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(toX(0), toY(data[0]));
-  data.forEach((v,i) => { if (i) ctx.lineTo(toX(i), toY(v)); });
-  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
-  if (dot) {
-    const lx = toX(data.length-1), ly = toY(data[data.length-1]);
-    ctx.beginPath(); ctx.arc(lx, ly, 4, 0, Math.PI*2);
-    ctx.fillStyle = color; ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-  }
-}
-
-function updateAlertBadge() {
-  const dot = $('#alertDot');
-  if (dot) dot.style.display = state.wishlistAlerts?.length ? '' : 'none';
-}
-
-function showAlertsSheet() {
-  if (!state.wishlistAlerts?.length) { toast('No new alerts'); return; }
-  showSheet('Price Alerts', state.wishlistAlerts.map(a => `
-    <div class="sheet-item" data-aid="${a.id}">
-      ${I.bell}
-      <div>
-        <strong style="display:block">${a.set_name||a.set_num}</strong>
-        <span style="font-size:13px;color:var(--ink-mute)">Dropped to ${fmtMoney(a.current_value)} &middot; target ${fmtMoney(a.target_price)}</span>
-      </div>
-    </div>`).join(''), () => {
-    $$('.sheet-item[data-aid]').forEach(item => {
-      item.addEventListener('click', async () => {
-        const aid = item.dataset.aid;
-        try { await api('/wishlist/' + aid, { method: 'POST' }); } catch {}
-        state.wishlistAlerts = state.wishlistAlerts.filter(a => a.id != aid);
-        updateAlertBadge(); hideSheet();
-        navigate('#/wishlist');
-      });
-    });
-  });
-}
-
-function showSheet(title, html, afterRender) {
-  const sheet = $('#sheet'), bd = $('#sheetBackdrop');
-  sheet.innerHTML = `<div class="sheet-handle"></div><div class="sheet-title">${title}</div>${html}`;
-  sheet.classList.add('show'); bd.classList.add('show');
-  if (afterRender) afterRender();
-}
-function hideSheet() {
-  $('#sheet').classList.remove('show');
-  $('#sheetBackdrop').classList.remove('show');
-}
-
-function wireCardLongPress() {
-  $$('.set-list-card').forEach(card => {
-    let timer;
-    card.addEventListener('touchstart', () => {
-      timer = setTimeout(() => {
-        haptic('heavy');
-        const setNum = card.dataset.set, id = card.dataset.id;
-        showSheet('Quick Actions', `
-          <div class="sheet-item" id="qa-view">${I.eye} <span>View details</span></div>
-          <div class="sheet-item" id="qa-wishlist">${I.heart} <span>Add to wishlist</span></div>
-          <div class="sheet-item danger" id="qa-remove">${I.trash} <span>Remove from collection</span></div>`,
-        () => {
-          $('#qa-view')?.addEventListener('click', () => { hideSheet(); navigate('#/set/' + encodeURIComponent(setNum)); });
-          $('#qa-wishlist')?.addEventListener('click', () => { hideSheet(); quickAddWishlist(setNum); });
-          $('#qa-remove')?.addEventListener('click', async () => {
-            hideSheet(); haptic('heavy');
-            if (!confirm('Remove from collection?')) return;
-            try { await api('/collection/' + id, { method: 'DELETE' }); state.portfolio = null; renderPortfolio(); toast('Removed', 'success'); }
-            catch (e) { toast(e.message, 'error'); }
-          });
-        });
-      }, 500);
-    }, { passive: true });
-    card.addEventListener('touchend', () => clearTimeout(timer));
-    card.addEventListener('touchmove', () => clearTimeout(timer));
-  });
-}
-
-async function quickAddWishlist(setNum) {
-  try { await api('/wishlist', { method: 'POST', body: { set_num: setNum } }); haptic('medium'); toast('Added to wishlist', 'success'); }
-  catch (e) { toast(e.message, 'error'); }
-}
-
-// ===== Catalog ==============================================
-async function renderCatalog() {
-  $('#root').innerHTML = `
-    <div class="topbar"><div class="topbar-title">Catalog</div></div>
-    <div class="page" style="padding-top:8px">
-      <button class="scan-cta" id="scanCtaBtn">
-        <div class="scan-cta-icon">${I.camera}</div>
-        <div class="scan-cta-text">
-          <span class="t1">Scan a Set</span>
-          <span class="t2">Barcode or photo identification</span>
+  $("#root").innerHTML = `
+    <div class="page">
+      <div class="topbar">
+        <div class="brand">
+          <div class="brand-mark"></div>
+          <div class="brand-name">Brickvault</div>
         </div>
-        ${I.arrowR}
-      </button>
-      <div style="position:relative;margin-bottom:12px">
-        <span class="s-icon">${I.search}</span>
-        <input class="search-input" id="catalogSearch" type="search" placeholder="Search ~20,000 sets…" autocomplete="off" style="display:block;max-height:none">
-      </div>
-      <div class="filter-row" id="themeChips">
-        <button class="chip${!state.filter.catalogTheme?' active':''}" data-theme="">All</button>
-        ${state.themes.slice(0,8).map(t => `<button class="chip${state.filter.catalogTheme===t?' active':''}" data-theme="${t}">${t}</button>`).join('')}
-      </div>
-      <div class="filter-row" style="margin-bottom:14px">
-        <button class="chip${!state.filter.catalogRetired?' active':''}" id="activeToggle">Active</button>
-        <button class="chip${state.filter.catalogRetired?' active':''}" id="retiredToggle">Retired</button>
-        <select class="chip" id="yearFilter" style="padding:7px 10px">
-          <option value="all">All years</option>
-          ${Array.from({length:26},(_,i)=>2024-i).map(y=>`<option value="${y}"${state.filter.catalogYear==y?' selected':''}>${y}</option>`).join('')}
-        </select>
-      </div>
-      <div id="catalogGrid" class="grid">
-        ${Array(4).fill('<div class="skel card" style="height:200px"></div>').join('')}
-      </div>
-    </div>`;
-
-  $('#scanCtaBtn').addEventListener('click', openScan);
-  $('#activeToggle').addEventListener('click', () => { state.filter.catalogRetired = false; renderCatalog(); });
-  $('#retiredToggle').addEventListener('click', () => { state.filter.catalogRetired = true; renderCatalog(); });
-  $('#yearFilter').addEventListener('change', e => { state.filter.catalogYear = e.target.value; loadCatalog(); });
-  $('#catalogSearch').addEventListener('input', debounce(() => loadCatalog(), 300));
-
-  const wireThemes = () => {
-    $$('[data-theme]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        state.filter.catalogTheme = btn.dataset.theme;
-        $$('[data-theme]').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        haptic('light'); loadCatalog();
-      });
-    });
-  };
-  wireThemes();
-
-  if (!state.themes.length || Date.now() - state.themesLoadedAt > 60_000) {
-    try {
-      const th = await api('/themes');
-      state.themes = th.themes || [];
-      state.themesLoadedAt = Date.now();
-      const tc = $('#themeChips');
-      if (tc) {
-        tc.innerHTML = `
-          <button class="chip${!state.filter.catalogTheme?' active':''}" data-theme="">All</button>
-          ${state.themes.slice(0,8).map(t=>`<button class="chip${state.filter.catalogTheme===t?' active':''}" data-theme="${t}">${t}</button>`).join('')}`;
-        wireThemes();
-      }
-    } catch {}
-  }
-  loadCatalog();
-}
-
-async function loadCatalog() {
-  const q = $('#catalogSearch')?.value?.trim() || '';
-  const params = new URLSearchParams({ limit: '30' });
-  if (q) params.set('q', q);
-  if (state.filter.catalogTheme) params.set('theme', state.filter.catalogTheme);
-  const grid = $('#catalogGrid');
-  if (!grid) return;
-  try {
-    const data = await api('/sets/search?' + params);
-    let sets = data.sets || [];
-    if (state.filter.catalogYear !== 'all') sets = sets.filter(s => s.year == state.filter.catalogYear);
-    if (state.filter.catalogRetired) sets = sets.filter(s => s.retired);
-    const owned = new Set((state.portfolio?.items||[]).map(i => i.set_num));
-    grid.innerHTML = sets.length
-      ? sets.map(set => `
-          <div class="set-card" data-set="${set.set_num}">
-            <div class="set-card-img">
-              ${set.image_url ? `<img src="${set.image_url}" alt="${set.name}" loading="lazy">` : '<span style="font-size:40px">&#x1F9E9;</span>'}
-              ${owned.has(set.set_num) ? '<span class="owned-tag">Owned</span>' : ''}
-              ${set.retired ? '<span class="retired-tag">Retired</span>' : ''}
-            </div>
-            <div class="set-card-body">
-              <div class="set-card-name">${set.name}</div>
-              <div class="set-card-meta"><span>${set.theme||''}</span><span>${set.year||''}</span><span>${set.pieces||'?'} pcs</span></div>
-              <div class="set-card-value">${fmtMoney(set.current_value)}</div>
-            </div>
-          </div>`).join('')
-      : '<p style="color:var(--ink-mute);grid-column:1/-1;text-align:center;padding:32px 0">No sets found</p>';
-    $$('.set-card').forEach(c => c.addEventListener('click', () => navigate('#/set/' + encodeURIComponent(c.dataset.set))));
-  } catch (e) { toast(e.message, 'error'); }
-}
-
-// ===== Set Detail ===========================================
-async function renderSetDetail(setNum) {
-  $('#root').innerHTML = `<div class="page"><div class="skel card" style="height:280px;margin-bottom:16px"></div><div class="skel line" style="width:200px;margin-bottom:8px"></div></div>`;
-  try {
-    const [setData, collData] = await Promise.all([
-      api('/sets/' + encodeURIComponent(setNum)),
-      api('/collection').catch(() => null),
-    ]);
-    const set = setData.set;
-    if (!set) { toast('Set not found', 'error'); history.back(); return; }
-    const entry = collData?.items?.find(i => i.set_num === set.set_num) || null;
-    paintSetDetail(set, entry);
-  } catch (e) { toast(e.message, 'error'); history.back(); }
-}
-
-function paintSetDetail(set, entry) {
-  const inWishlist = state.wishlist.some(w => w.set_num === set.set_num);
-  const tabs = ['info', 'forecast', 'manage'];
-
-  $('#root').innerHTML = `
-    <div class="page no-pad">
-      <div class="detail-hero">
-        ${set.image_url ? `<div class="detail-hero-bg" style="background-image:url('${set.image_url}')"></div>` : ''}
-        <div class="detail-img">
-          ${set.image_url ? `<img src="${set.image_url}" alt="${set.name}">` : '<span style="font-size:64px">&#x1F9E9;</span>'}
-        </div>
-        <button class="icon-btn detail-back" id="detailBack" aria-label="Back">${I.arrowL}</button>
-        <div class="detail-hero-actions">
-          <button class="icon-btn" id="detailShare" aria-label="Share">${I.share}</button>
-          <button class="icon-btn" id="wishlistToggle" aria-label="Wishlist" style="color:${inWishlist?'var(--bv-red)':''}">
-            ${inWishlist ? I.heartFill : I.heart}
+        <div class="topbar-actions">
+          <button class="icon-btn" id="searchToggle" aria-label="Search">${I.search()}</button>
+          <button class="icon-btn" id="alertsBtn" aria-label="Alerts">
+            ${I.bell()}
+            ${alertsCount > 0 ? `<span class="dot">${alertsCount}</span>` : ""}
           </button>
         </div>
       </div>
+      <div class="search-wrap${state.filter.q ? " open" : ""}" id="searchWrap">
+        <span class="s-icon">${I.search()}</span>
+        <input class="search-input" id="portfolioSearch" placeholder="Search your vault…" autocomplete="off" value="${escapeHtml(state.filter.q)}">
+      </div>
 
-      <div class="detail-title-row">
-        <div class="detail-title-inner">
-          <div class="detail-eyebrow">${set.theme||'—'} &middot; ${set.set_num} &middot; ${set.year||'—'}</div>
-          <div class="detail-title">${set.name}</div>
+      <div class="card hero">
+        <div class="hero-eyebrow"><span class="pulse"></span>Vault · LIVE</div>
+        <div class="hero-value">${heroValueHTML(p.total_value)}</div>
+        <div class="hero-meta">
+          <span>Invested ${fmtMoney(p.total_paid)}</span>
+          <span class="delta ${gain >= 0 ? "up" : "down"}"><span class="arrow">${gain >= 0 ? "▲" : "▼"}</span>${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(Math.abs(gainPct))})</span>
+        </div>
+        <div class="spark-wrap" id="heroChart"></div>
+        <div class="range-pills" id="rangePills">
+          ${["1W","1M","3M","1Y","ALL"].map(r => `<button data-r="${r}" class="${state.filter.range === r ? "active" : ""}">${r}</button>`).join("")}
         </div>
       </div>
 
-      <div class="detail-tabs" style="margin:0 22px">
-        ${tabs.map(t => `<button class="detail-tab${state.detail.tab===t?' active':''}" data-tab="${t}">${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}
+      <div class="filter-row">
+        ${[["added_desc","Recent"],["value_desc","By value"],["roi_desc","By ROI"],["az","A–Z"]]
+          .map(([k,l]) => `<button class="chip ${state.filter.sort === k ? "active" : ""}" data-sort="${k}">${l}</button>`).join("")}
       </div>
 
-      <div id="tabPanels">${renderTabContent(set, entry, state.detail.tab)}</div>
+      <div class="set-list" id="setList">
+        ${items.length === 0 ? emptyVaultHTML() : items.map(setListCardHTML).join("")}
+      </div>
+
+      ${p.items.length > 0 ? `
+        <div style="margin-top:18px;">
+          <a href="#/wishlist" class="btn-secondary" style="display:flex;">
+            ${I.heart()}<span>Wishlist · ${state.wishlist.length} set${state.wishlist.length !== 1 ? "s" : ""}${alertsCount ? " · " + alertsCount + " alert" + (alertsCount > 1 ? "s" : "") : ""}</span>${I.chev()}
+          </a>
+        </div>` : ""}
     </div>`;
 
-  $('#detailBack').addEventListener('click', () => history.back());
-  $('#detailShare').addEventListener('click', () => {
-    const text = `${set.name} (${set.set_num}) — Value: ${fmtMoney(set.current_value)}`;
-    if (navigator.share) navigator.share({ title: set.name, text, url: location.href }).catch(()=>{});
-    else navigator.clipboard?.writeText(text).then(() => toast('Copied to clipboard'));
+  setTimeout(() => drawSparkline($("#heroChart"), clipped, { up: gain >= 0 }), 30);
+
+  $$("#rangePills button").forEach(b => b.addEventListener("click", () => {
+    state.filter.range = b.dataset.r; haptic("light"); paintPortfolio();
+  }));
+  $$(".filter-row .chip").forEach(c => c.addEventListener("click", () => {
+    state.filter.sort = c.dataset.sort; localStorage.setItem("bv_sort", c.dataset.sort); haptic("light"); paintPortfolio();
+  }));
+  $("#searchToggle")?.addEventListener("click", () => {
+    const w = $("#searchWrap");
+    w.classList.toggle("open");
+    if (w.classList.contains("open")) $("#portfolioSearch")?.focus();
+    else { state.filter.q = ""; paintPortfolio(); }
   });
-  $('#wishlistToggle').addEventListener('click', async () => {
-    haptic('medium');
-    const inWl = state.wishlist.some(w => w.set_num === set.set_num);
-    if (inWl) {
-      const wlItem = state.wishlist.find(w => w.set_num === set.set_num);
-      try { await api('/wishlist/' + wlItem.id, { method: 'DELETE' }); state.wishlist = state.wishlist.filter(w => w.set_num !== set.set_num); toast('Removed from wishlist'); paintSetDetail(set, entry); }
-      catch (e) { toast(e.message, 'error'); }
-    } else {
-      try { const r = await api('/wishlist', { method: 'POST', body: { set_num: set.set_num } }); state.wishlist.push(r.item); toast('Added to wishlist', 'success'); paintSetDetail(set, entry); }
-      catch (e) { toast(e.message, 'error'); }
+  $("#portfolioSearch")?.addEventListener("input", debounce(e => { state.filter.q = e.target.value; paintPortfolio(); }, 150));
+  $("#alertsBtn")?.addEventListener("click", () => showAlertsSheet(state.wishlistAlerts));
+  $$(".set-list-card").forEach(card => {
+    card.addEventListener("click", () => { haptic("light"); location.hash = "#/set/" + encodeURIComponent(card.dataset.set); });
+    wireLongPress(card, () => showQuickActions(card.dataset.set));
+  });
+}
+
+function heroValueHTML(n) {
+  if (n == null || isNaN(n)) return `<span>—</span>`;
+  const whole = Math.floor(Math.abs(n)).toLocaleString("en-US");
+  const cents = Math.abs(n % 1 * 100 | 0).toString().padStart(2, "0");
+  const sign = n < 0 ? "-" : "";
+  return `${sign}$${whole}<span class="cents">.${cents}</span>`;
+}
+
+function setListCardHTML(item) {
+  const delta = item.purchase_price ? (item.current_value - item.purchase_price) / item.purchase_price : null;
+  const cls = delta == null ? "flat" : delta >= 0 ? "up" : "down";
+  const arrow = delta == null ? "" : delta >= 0 ? "▲" : "▼";
+  const dStr = delta == null ? "—" : (delta * 100).toFixed(1) + "%";
+  const newBadge = item.added_at && daysAgo(item.added_at) < 7;
+  return `
+    <button class="set-list-card" data-set="${escapeHtml(item.set_num)}">
+      ${slImgHTML(item, { newBadge, qtyBadge: item.quantity || 1 })}
+      <div class="sl-body">
+        <div class="sl-name">${escapeHtml(item.name)}</div>
+        <div class="sl-meta">
+          <span>${escapeHtml(item.theme || "")}</span>
+          <span class="dot"></span>
+          <span>${escapeHtml(item.set_num)}</span>
+        </div>
+      </div>
+      <div class="sl-right">
+        <div class="sl-value">${fmtMoney(item.current_value)}</div>
+        <div class="sl-delta ${cls}"><span class="arrow">${arrow}</span>${dStr}</div>
+      </div>
+    </button>`;
+}
+
+function emptyVaultHTML() {
+  return `
+    <div class="empty card">
+      <div class="empty-icon">${I.box()}</div>
+      <h3>Build your vault</h3>
+      <p>Scan a set, search the catalog, or browse below to start tracking your collection's value.</p>
+      <a href="#/add" class="btn-primary">${I.plus()}<span>Add first set</span></a>
+    </div>`;
+}
+
+/* ============================================================
+   Catalog (Add page)
+   ============================================================ */
+async function renderAdd() {
+  if (!state.catalogAll) {
+    try {
+      const [res, themes] = await Promise.all([
+        api("/api/sets/search?limit=60"),
+        api("/api/themes"),
+      ]);
+      state.catalogAll = res.sets || [];
+      state.themes = themes.themes || [];
+      state.themesLoadedAt = Date.now();
+    } catch (e) {
+      toast("Couldn't load catalog: " + e.message, "error");
+      state.catalogAll = []; state.themes = [];
     }
-  });
-  $$('.detail-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      state.detail.tab = tab.dataset.tab; haptic('light');
-      $$('.detail-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      $('#tabPanels').innerHTML = renderTabContent(set, entry, state.detail.tab);
-      wireTabActions(set, entry);
-    });
-  });
-  wireTabActions(set, entry);
-
-  let sx;
-  const panels = $('#tabPanels');
-  if (panels) {
-    panels.addEventListener('touchstart', e => { sx = e.touches[0].clientX; }, { passive: true });
-    panels.addEventListener('touchend', e => {
-      const dx = e.changedTouches[0].clientX - sx;
-      if (Math.abs(dx) < 60) return;
-      const idx = tabs.indexOf(state.detail.tab);
-      const next = dx < 0 ? Math.min(idx+1,tabs.length-1) : Math.max(idx-1,0);
-      if (next !== idx) {
-        state.detail.tab = tabs[next]; haptic('light');
-        $$('.detail-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === state.detail.tab));
-        $('#tabPanels').innerHTML = renderTabContent(set, entry, state.detail.tab);
-        wireTabActions(set, entry);
-      }
-    }, { passive: true });
   }
+  paintAdd();
 }
 
-function renderTabContent(set, entry, tab) {
-  if (tab === 'info') return renderInfoTab(set, entry);
-  if (tab === 'forecast') return renderForecastTab(set);
-  return renderManageTab(set, entry);
-}
-
-function renderInfoTab(set, entry) {
-  const qty = entry?.quantity || 0;
-  const g = entry?.purchase_price ? pct(set.current_value, entry.purchase_price) : null;
-  return `
-    <div class="tab-panel">
-      <div class="stat-grid mb-12">
-        <div class="stat-cell"><div class="lbl">Retail</div><div class="val s">${fmtMoney(set.retail_price)}</div></div>
-        <div class="stat-cell high"><div class="lbl">Market Value</div><div class="val s">${fmtMoney(set.current_value)}</div></div>
-        <div class="stat-cell"><div class="lbl">Pieces</div><div class="val mono">${(set.pieces||0).toLocaleString()}</div></div>
-        <div class="stat-cell"><div class="lbl">Minifigs</div><div class="val mono">${set.minifigs||0}</div></div>
-        <div class="stat-cell"><div class="lbl">Year</div><div class="val mono">${set.year||'—'}</div></div>
-        <div class="stat-cell"><div class="lbl">Status</div><div class="val" style="font-size:13px">${set.retired?'🛑 Retired':'✅ Active'}</div></div>
-      </div>
-      ${entry ? `
-        <div class="qty-row mb-12">
-          <div>
-            <div class="qty-row-lbl">In Collection</div>
-            ${g !== null ? `<span class="delta ${g>=0?'up':'down'}" style="margin-top:4px;display:inline-flex">${g>=0?'+':''}${g.toFixed(1)}% ROI</span>` : ''}
-          </div>
-          <div class="qty-stepper">
-            <button class="qty-btn" id="qtyMinus">−</button>
-            <span class="qty-num" id="qtyDisplay">${qty}</span>
-            <button class="qty-btn" id="qtyPlus">+</button>
-          </div>
-        </div>` : `
-        <button class="btn-primary mb-12" id="addToCollBtn">${I.plus} Add to Collection</button>`}
-      <canvas id="detailSparkline" style="width:100%;height:48px;display:block;margin-top:4px"></canvas>
-    </div>`;
-}
-
-function renderForecastTab(set) {
-  const val = parseFloat(set.current_value) || 0;
-  const f2 = parseFloat(set.forecast_2y) || val * 1.18;
-  const f5 = parseFloat(set.forecast_5y) || val * 1.45;
-  const p2 = val ? Math.round((f2/val-1)*100) : 0;
-  const p5 = val ? Math.round((f5/val-1)*100) : 0;
-  return `
-    <div class="tab-panel">
-      <div class="forecast-card mb-12">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">${I.sparkles}<strong>AI Price Forecast</strong></div>
-        <p style="font-size:13px;color:var(--ink-mute);margin-bottom:14px">Based on theme, age, piece count, and market trends.</p>
-        <div class="forecast-label"><span>2-Year</span><span>${fmtMoney(f2)} <span style="color:var(--up)">+${p2}%</span></span></div>
-        <div class="forecast-track mb-12"><div class="forecast-fill" id="bar2" style="width:0"></div></div>
-        <div class="forecast-label"><span>5-Year</span><span>${fmtMoney(f5)} <span style="color:var(--up)">+${p5}%</span></span></div>
-        <div class="forecast-track"><div class="forecast-fill" id="bar5" style="width:0"></div></div>
-      </div>
-      <div class="card">
-        <div style="font-size:12px;color:var(--ink-mute);display:flex;align-items:center;gap:6px">${I.sparkles} AI estimates only. Not financial advice.</div>
-      </div>
-    </div>`;
-}
-
-function renderManageTab(set, entry) {
-  if (!entry) return `
-    <div class="tab-panel" style="text-align:center;padding:40px 0">
-      <p style="color:var(--ink-mute);margin-bottom:16px">Not in your collection yet.</p>
-      <button class="btn-primary" id="addToCollBtn2" style="width:auto;padding:13px 24px">${I.plus} Add to Collection</button>
-    </div>`;
-  return `
-    <div class="tab-panel">
-      <div class="form-group">
-        <label class="form-label">Purchase Price</label>
-        <input class="form-input" type="number" id="ppInput" value="${entry.purchase_price||''}" placeholder="0.00" step="0.01">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Purchase Date</label>
-        <input class="form-input" type="date" id="pdInput" value="${entry.purchased_at?.split('T')[0]||''}">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Condition</label>
-        <select class="form-input" id="condSel">
-          ${['new','sealed','used_good','used_acceptable'].map(c =>
-            `<option value="${c}"${entry.condition===c?' selected':''}>${c.replace(/_/g,' ')}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Notes</label>
-        <textarea class="form-input" id="notesInput" placeholder="Notes about this set…">${entry.notes||''}</textarea>
-        <button class="btn-secondary" id="saveNotes" style="margin-top:6px">${I.check} Save Notes</button>
-      </div>
-      <div style="padding-top:16px;border-top:1px solid var(--line-soft)">
-        <button class="btn-danger" id="removeFromColl">${I.trash} Remove from Collection</button>
-      </div>
-    </div>`;
-}
-
-function wireTabActions(set, entry) {
-  const addBtn = $('#addToCollBtn') || $('#addToCollBtn2');
-  if (addBtn) {
-    addBtn.addEventListener('click', async () => {
-      haptic('heavy');
-      try {
-        await api('/collection', { method: 'POST', body: { set_num: set.set_num } });
-        state.portfolio = null; toast('Added to collection!', 'success');
-        const [d, c] = await Promise.all([api('/sets/'+encodeURIComponent(set.set_num)), api('/collection').catch(()=>null)]);
-        paintSetDetail(d.set || set, c?.items?.find(i => i.set_num === set.set_num));
-      } catch (e) { toast(e.message, 'error'); }
-    });
-  }
-  if (entry) {
-    let qty = entry.quantity;
-    $('#qtyMinus')?.addEventListener('click', async () => {
-      if (qty <= 1) return; haptic('light'); qty--;
-      $('#qtyDisplay').textContent = qty;
-      try { await api('/collection/'+entry.id, { method:'PATCH', body:{ quantity: qty } }); state.portfolio=null; } catch {}
-    });
-    $('#qtyPlus')?.addEventListener('click', async () => {
-      haptic('light'); qty++;
-      $('#qtyDisplay').textContent = qty;
-      try { await api('/collection/'+entry.id, { method:'PATCH', body:{ quantity: qty } }); state.portfolio=null; } catch {}
-    });
-  }
-  setTimeout(() => {
-    const spark = $('#detailSparkline');
-    if (spark && state.portfolioHistory?.snapshots?.length) {
-      drawSparkline(spark, state.portfolioHistory.snapshots.map(s => parseFloat(s.total_value)), { up: true, dot: true });
-    }
-  }, 50);
-  setTimeout(() => {
-    const val = parseFloat(set.current_value) || 0;
-    const f2 = parseFloat(set.forecast_2y) || val*1.18;
-    const f5 = parseFloat(set.forecast_5y) || val*1.45;
-    const b2 = $('#bar2'), b5 = $('#bar5');
-    if (b2 && val) b2.style.width = Math.min((f2/val)*50, 95)+'%';
-    if (b5 && val) b5.style.width = Math.min((f5/val)*50, 95)+'%';
-  }, 100);
-  if (entry) {
-    $('#ppInput')?.addEventListener('blur', async e => {
-      try { await api('/collection/'+entry.id,{method:'PATCH',body:{purchase_price:parseFloat(e.target.value)||null}}); state.portfolio=null; } catch {}
-    });
-    $('#pdInput')?.addEventListener('change', async e => {
-      try { await api('/collection/'+entry.id,{method:'PATCH',body:{purchased_at:e.target.value||null}}); state.portfolio=null; } catch {}
-    });
-    $('#condSel')?.addEventListener('change', async e => {
-      try { await api('/collection/'+entry.id,{method:'PATCH',body:{condition:e.target.value}}); state.portfolio=null; } catch {}
-    });
-    $('#saveNotes')?.addEventListener('click', async () => {
-      const notes = $('#notesInput')?.value||'';
-      try { await api('/collection/'+entry.id,{method:'PATCH',body:{notes}}); toast('Saved','success'); } catch(e){toast(e.message,'error');}
-    });
-    $('#removeFromColl')?.addEventListener('click', async () => {
-      haptic('heavy');
-      if (!confirm('Remove from collection?')) return;
-      try { await api('/collection/'+entry.id,{method:'DELETE'}); state.portfolio=null; toast('Removed','success'); history.back(); }
-      catch(e){toast(e.message,'error');}
-    });
-  }
-}
-
-// ===== Wishlist =============================================
-async function renderWishlist() {
-  $('#root').innerHTML = `
-    <div class="topbar"><div class="topbar-title">Wishlist</div></div>
-    <div class="page" style="padding-top:8px">
-      <div id="wlAlerts"></div>
-      <div id="wlList"><div class="skel card" style="height:80px"></div></div>
-    </div>`;
+const debouncedCatalogSearch = debounce(async (q) => {
   try {
-    const data = await api('/wishlist');
-    state.wishlist = data.wishlist;
-    state.wishlistAlerts = data.unread_alerts;
-    updateAlertBadge();
-    paintWishlist();
-  } catch (e) { toast(e.message, 'error'); }
+    const res = await api("/api/sets/search?limit=60&q=" + encodeURIComponent(q));
+    state.catalogAll = res.sets || [];
+  } catch {}
+  paintAdd();
+}, 350);
+
+function paintAdd() {
+  let items = (state.catalogAll || []).slice();
+  const f = state.filter;
+  if (f.catalogTheme !== "all") items = items.filter(i => i.theme === f.catalogTheme);
+  if (f.catalogRetired) items = items.filter(i => i.retired);
+  switch (f.catalogSort) {
+    case "value_desc": items.sort((a, b) => b.current_value - a.current_value); break;
+    case "year_desc":  items.sort((a, b) => b.year - a.year); break;
+    case "az":         items.sort((a, b) => a.name?.localeCompare(b.name)); break;
+    case "roi_desc":   items.sort((a, b) => (b.current_value / (b.retail_price||1)) - (a.current_value / (a.retail_price||1))); break;
+  }
+
+  $("#root").innerHTML = `
+    <div class="page">
+      <div class="topbar">
+        <div class="topbar-heading">
+          <div class="topbar-eyebrow">Catalog</div>
+          <div class="topbar-title">Find a set</div>
+        </div>
+      </div>
+
+      <button class="scan-cta" id="scanCta">
+        <div class="scan-cta-icon">${I.scan()}</div>
+        <div class="scan-cta-text">
+          <div class="t1">Scan with camera</div>
+          <div class="t2">Barcode or photo · AI identifies any set</div>
+        </div>
+        <div class="scan-cta-arrow">${I.arrowR()}</div>
+      </button>
+
+      <div class="search-wrap open" style="margin-bottom:14px;">
+        <span class="s-icon">${I.search()}</span>
+        <input class="search-input" id="catalogSearch" placeholder="Search sets…" autocomplete="off" value="${escapeHtml(f.q)}">
+      </div>
+
+      <div class="filter-row">
+        <button class="chip ${f.catalogTheme === "all" ? "active" : ""}" data-theme="all">All themes</button>
+        ${state.themes.slice(0, 8).map(t => `<button class="chip ${f.catalogTheme === t ? "active" : ""}" data-theme="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join("")}
+      </div>
+
+      <div class="filter-row" style="margin-top:-4px;">
+        ${[["value_desc","Top value"],["roi_desc","Best growth"],["year_desc","Newest"],["az","A–Z"]]
+          .map(([k,l]) => `<button class="chip ${f.catalogSort === k ? "active" : ""}" data-csort="${k}">${l}</button>`).join("")}
+        <button class="chip ${f.catalogRetired ? "active" : ""}" data-retired="1">${I.tag()}<span>Retired</span></button>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin:14px 4px 10px;">${items.length} results</div>
+
+      <div class="grid" id="catalogGrid">
+        ${items.map(s => catalogCardHTML(s)).join("")}
+      </div>
+    </div>`;
+
+  $("#scanCta")?.addEventListener("click", () => openScan());
+  const catInput = $("#catalogSearch");
+  catInput?.addEventListener("input", (e) => {
+    state.filter.q = e.target.value;
+    debouncedCatalogSearch(e.target.value);
+  });
+  $$("[data-theme]").forEach(b => b.addEventListener("click", () => { state.filter.catalogTheme = b.dataset.theme; haptic("light"); paintAdd(); }));
+  $$("[data-csort]").forEach(b => b.addEventListener("click", () => { state.filter.catalogSort = b.dataset.csort; haptic("light"); paintAdd(); }));
+  $$("[data-retired]").forEach(b => b.addEventListener("click", () => { state.filter.catalogRetired = !state.filter.catalogRetired; haptic("light"); paintAdd(); }));
+  $$(".set-card").forEach(c => c.addEventListener("click", () => { haptic("light"); location.hash = "#/set/" + encodeURIComponent(c.dataset.set); }));
 }
 
-function paintWishlist() {
-  const alertsEl = $('#wlAlerts'), listEl = $('#wlList');
-  if (!alertsEl || !listEl) return;
-
-  if (state.wishlistAlerts.length) {
-    alertsEl.innerHTML = state.wishlistAlerts.map(a => `
-      <div class="alert-card mb-12" data-aid="${a.id}">
-        ${I.bell}
-        <div class="alert-card-text">
-          <strong>${a.set_name||a.set_num}</strong>
-          Now ${fmtMoney(a.current_value)} &middot; target ${fmtMoney(a.target_price)}
+function catalogCardHTML(s) {
+  const hasImg = s.image_url && !s.image_url.startsWith("data:");
+  const h = setHue(s);
+  return `
+    <button class="set-card" data-set="${escapeHtml(s.set_num)}">
+      <div class="set-card-img${hasImg ? "" : " has-tile"}">
+        ${hasImg
+          ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="" loading="lazy" onerror="this.style.display='none';this.parentElement.innerHTML+='<div class=\\"brick-tile\\" style=\\"--h:${h};width:70%;height:70%;\\"></div>'">`
+          : brickTile(s)}
+        ${s.retired ? `<span class="retired-tag">RETIRED</span>` : ""}
+        ${s.owned ? `<span class="owned-tag">${I.check()}OWNED</span>` : ""}
+      </div>
+      <div class="set-card-body">
+        <div class="set-card-name">${escapeHtml(s.name)}</div>
+        <div class="set-card-meta">
+          <span>${s.year || ""}</span>
+          <span>${s.pieces || 0}pc</span>
+          ${s.minifigs > 0 ? `<span>${s.minifigs} fig</span>` : ""}
         </div>
-      </div>`).join('');
-    $$('.alert-card[data-aid]').forEach(card => {
-      card.addEventListener('click', async () => {
-        const aid = card.dataset.aid;
-        try { await api('/wishlist/'+aid,{method:'POST'}); } catch {}
-        state.wishlistAlerts = state.wishlistAlerts.filter(a => a.id != aid);
-        updateAlertBadge(); card.remove();
+        <div class="set-card-value">${fmtMoney(s.current_value)}</div>
+      </div>
+    </button>`;
+}
+
+/* ============================================================
+   Set detail
+   ============================================================ */
+async function renderSetDetail(setNum) {
+  try {
+    const data = await api("/api/sets/" + encodeURIComponent(setNum));
+    const set = data.set || data;
+    const entry = data.entry || null;
+    paintSetDetail(set, entry);
+  } catch (e) {
+    $("#root").innerHTML = `<div class="page"><p>Set not found.</p></div>`;
+  }
+}
+
+function paintSetDetail(set, entry) {
+  const isWish = state.wishlist.some(w => w.set_num === set.set_num);
+  const owned = !!entry;
+  const h = setHue(set);
+  const hasImg = set.image_url && !set.image_url.startsWith("data:");
+
+  $("#root").innerHTML = `
+    <div class="page no-pad">
+      <div class="detail-hero">
+        ${hasImg
+          ? `<div class="detail-hero-bg" style="background-image:url('${escapeHtml(set.image_url)}')"></div>`
+          : `<div class="detail-hero-bg placeholder" style="--brick-hue:linear-gradient(135deg, oklch(0.72 0.13 ${h}), oklch(0.55 0.13 ${h}));"></div>`}
+        <div class="detail-hero-overlay"></div>
+        <button class="detail-back" id="detailBack" aria-label="Back">${I.chevL()}</button>
+        <div class="detail-img">
+          ${hasImg
+            ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="${escapeHtml(set.name)}">`
+            : `<div class="brick-art" style="--brick-color:oklch(0.72 0.13 ${h});">${escapeHtml(set.set_num)}</div>`}
+        </div>
+      </div>
+      <div class="detail-title-row">
+        <div>
+          <div class="detail-eyebrow">${escapeHtml(set.theme || "")} · #${escapeHtml(set.set_num)}${set.retired ? " · RETIRED" : ""}</div>
+          <div class="detail-title">${escapeHtml(set.name)}</div>
+        </div>
+        <button class="detail-share-btn icon-btn" id="shareBtn" aria-label="Share">${I.share()}</button>
+      </div>
+      <div class="detail-tabs" id="detailTabs">
+        ${["info","forecast","manage"].filter(t => t !== "manage" || owned).map(t =>
+          `<button data-tab="${t}" class="${state.detail.tab === t ? "active" : ""}">${t[0].toUpperCase()+t.slice(1)}</button>`
+        ).join("")}
+      </div>
+      <div class="detail-tab-panel" id="tabPanels">
+        ${state.detail.tab === "info" ? infoTabHTML(set, entry, isWish) :
+          state.detail.tab === "forecast" ? forecastTabHTML(set) :
+          manageTabHTML(set, entry)}
+      </div>
+    </div>`;
+
+  $("#detailBack")?.addEventListener("click", () => { if (history.length > 1) history.back(); else location.hash = "#/"; });
+  $("#shareBtn")?.addEventListener("click", () => shareSet(set));
+  $$("#detailTabs button").forEach(b => b.addEventListener("click", () => {
+    state.detail.tab = b.dataset.tab; haptic("light"); paintSetDetail(set, entry);
+  }));
+  if (state.detail.tab === "info") wireInfoTab(set, entry);
+  else if (state.detail.tab === "manage") wireManageTab(set, entry);
+  setupTabSwipe(set, entry);
+}
+
+function infoTabHTML(set, entry, isWish) {
+  const owned = !!entry;
+  const delta = entry && entry.purchase_price ? (set.current_value - entry.purchase_price) / entry.purchase_price : null;
+  return `
+    <div class="stat-grid">
+      <div class="stat-cell ${owned ? "high" : ""}">
+        <div class="lbl">${I.dollar()}Current value</div>
+        <div class="val">${fmtMoney(set.current_value)}</div>
+        ${delta != null ? `<div class="delta ${delta >= 0 ? "up" : "down"}" style="margin-top:6px;"><span class="arrow">${delta >= 0 ? "▲" : "▼"}</span>${fmtPct(Math.abs(delta))}</div>` : ""}
+      </div>
+      <div class="stat-cell">
+        <div class="lbl">${I.tag()}Retail</div>
+        <div class="val s">${fmtMoney(set.retail_price)}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);margin-top:4px;letter-spacing:0.08em;">${set.year || ""} · MSRP</div>
+      </div>
+      <div class="stat-cell">
+        <div class="lbl">${I.box()}Pieces</div>
+        <div class="val s">${(set.pieces || 0).toLocaleString()}</div>
+      </div>
+      <div class="stat-cell">
+        <div class="lbl">${I.figure()}Minifigs</div>
+        <div class="val s">${set.minifigs || 0}</div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Price history · 90d</div>
+      <div class="spark-wrap" id="setSpark" style="height:60px;"></div>
+    </div>
+
+    ${owned ? `
+      <div class="qty-row">
+        <div>
+          <div class="qty-row-lbl">In your vault</div>
+          <div class="qty-row-val">×${entry.quantity}</div>
+        </div>
+        <div class="qty-stepper">
+          <button class="qty-btn" id="qtyDown">${I.minus()}</button>
+          <div class="qty-num" id="qtyNum">${entry.quantity}</div>
+          <button class="qty-btn" id="qtyUp">${I.plus()}</button>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-secondary" id="wishToggle">
+          ${isWish ? I.heartF() : I.heart()}
+          <span>${isWish ? "Wishlisted" : "Wishlist"}</span>
+        </button>
+        <a class="btn-secondary" href="#/set/${encodeURIComponent(set.set_num)}/manage">
+          ${I.gear()}<span>Manage</span>
+        </a>
+      </div>
+    ` : `
+      <button class="btn-primary" id="addBtn">${I.plus()}<span>Add to vault · ${fmtMoney(set.current_value, { cents: 0 })}</span></button>
+      <button class="btn-secondary" id="wishToggle" style="margin-top:8px;">
+        ${isWish ? I.heartF() : I.heart()}
+        <span>${isWish ? "Remove from wishlist" : "Add to wishlist"}</span>
+      </button>
+    `}`;
+}
+
+function wireInfoTab(set, entry) {
+  const synthData = (() => {
+    const base = set.current_value || 100;
+    return Array.from({ length: 91 }, (_, i) => ({
+      total_value: base * (0.93 + Math.sin((90-i)/5 + setHue(set)/30)*0.04 + (Math.random()-0.45)*0.015 + (90-i)/90*0.08)
+    }));
+  })();
+  setTimeout(() => drawSparkline($("#setSpark"), synthData, { up: true }), 30);
+
+  let qty = entry?.quantity || 1;
+  $("#qtyDown")?.addEventListener("click", async () => {
+    if (qty <= 1) return;
+    haptic("medium");
+    qty--;
+    $("#qtyNum").textContent = qty;
+    try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); state.portfolio = null; }
+    catch (e) { toast("Save failed", "error"); }
+  });
+  $("#qtyUp")?.addEventListener("click", async () => {
+    haptic("medium");
+    qty++;
+    $("#qtyNum").textContent = qty;
+    try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); state.portfolio = null; }
+    catch (e) { toast("Save failed", "error"); }
+  });
+  $("#addBtn")?.addEventListener("click", async () => {
+    haptic("heavy");
+    try {
+      await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
+      state.portfolio = null; state.catalogAll = null;
+      toast("Added to vault", "success");
+      const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
+      paintSetDetail(r.set || r, r.entry || null);
+    } catch (e) { toast("Error: " + e.message, "error"); }
+  });
+  $("#wishToggle")?.addEventListener("click", async () => {
+    haptic("medium");
+    const alreadyWished = state.wishlist.some(w => w.set_num === set.set_num);
+    try {
+      if (alreadyWished) {
+        const w = state.wishlist.find(x => x.set_num === set.set_num);
+        if (w) await api("/api/wishlist/" + w.id, { method: "DELETE" });
+        state.wishlist = state.wishlist.filter(x => x.set_num !== set.set_num);
+        toast("Removed from wishlist", "info");
+      } else {
+        const res = await api("/api/wishlist", { method: "POST", body: { set_num: set.set_num } });
+        state.wishlist = [...state.wishlist, res];
+        toast("Added to wishlist", "success");
+      }
+      paintSetDetail(set, entry);
+    } catch (e) { toast("Error: " + e.message, "error"); }
+  });
+}
+
+function forecastTabHTML(set) {
+  const g2 = set.forecast_2y && set.current_value ? (set.forecast_2y - set.current_value) / set.current_value : 0.18;
+  const g5 = set.forecast_5y && set.current_value ? (set.forecast_5y - set.current_value) / set.current_value : 0.45;
+  const pct = (g) => Math.min(100, Math.max(8, g * 100 + 12)).toFixed(1);
+  return `
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        ${I.sparkles()}
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);">AI forecast · GPT-4o-mini</div>
+      </div>
+      <p style="margin:6px 0 0;font-size:13px;color:var(--ink-soft);line-height:1.45;">
+        Based on theme rarity, piece count, retirement status, and market trends for similar ${escapeHtml(set.theme || "")} sets.
+      </p>
+    </div>
+
+    <div class="forecast-card">
+      <div class="fh">
+        <div class="fh-lbl">2-year forecast</div>
+        <div class="fh-val">${fmtMoney(set.forecast_2y)}</div>
+      </div>
+      <div class="forecast-bar"><div style="--fill:${pct(g2)}%;"></div></div>
+      <div class="forecast-pct${g2 < 0 ? " down" : ""}">${g2 >= 0 ? I.arrowU() : I.arrowD()}${fmtPct(g2)} projected</div>
+    </div>
+
+    <div class="forecast-card">
+      <div class="fh">
+        <div class="fh-lbl">5-year forecast</div>
+        <div class="fh-val">${fmtMoney(set.forecast_5y)}</div>
+      </div>
+      <div class="forecast-bar"><div style="--fill:${pct(g5)}%;"></div></div>
+      <div class="forecast-pct${g5 < 0 ? " down" : ""}">${g5 >= 0 ? I.arrowU() : I.arrowD()}${fmtPct(g5)} projected</div>
+    </div>
+
+    <div class="card" style="background:var(--surface-2);margin-top:14px;">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Confidence factors</div>
+      <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--ink-soft);line-height:1.55;">
+        <li>${set.retired ? "Retired — supply is fixed" : "Active — value tied to retail"}</li>
+        <li>${(set.pieces||0) > 2000 ? "Large set, high collector appeal" : (set.pieces||0) > 500 ? "Mid-size set, moderate appeal" : "Compact set, lower aftermarket premium"}</li>
+        <li>${(set.minifigs||0) >= 5 ? "Many minifigs — strong parts-out potential" : "Few/no minifigs — value driven by set alone"}</li>
+      </ul>
+    </div>`;
+}
+
+function manageTabHTML(set, entry) {
+  if (!entry) return `<p style="color:var(--ink-mute);">Not in your vault.</p>`;
+  return `
+    <div class="field">
+      <div class="field-lbl">Purchase price</div>
+      <input id="mPrice" type="number" step="0.01" value="${entry.purchase_price ?? ""}" placeholder="0.00">
+    </div>
+    <div class="field">
+      <div class="field-lbl">Purchase date</div>
+      <input id="mDate" type="date" value="${entry.purchased_at ? entry.purchased_at.slice(0,10) : ""}">
+    </div>
+    <div class="field">
+      <div class="field-lbl">Condition</div>
+      <select id="mCondition">
+        <option value="sealed" ${entry.condition === "sealed" ? "selected" : ""}>Sealed (MISB)</option>
+        <option value="new" ${entry.condition === "new" ? "selected" : ""}>New, opened</option>
+        <option value="used_good" ${entry.condition === "used_good" ? "selected" : ""}>Used — good</option>
+        <option value="used_acceptable" ${entry.condition === "used_acceptable" ? "selected" : ""}>Used — acceptable</option>
+      </select>
+    </div>
+    <div class="field">
+      <div class="field-lbl">Notes</div>
+      <textarea id="mNotes" placeholder="Storage, completeness, story…">${escapeHtml(entry.notes || "")}</textarea>
+    </div>
+    <button class="btn-danger" id="mRemove" style="margin-top:14px;">${I.trash()}<span>Remove from vault</span></button>`;
+}
+
+function wireManageTab(set, entry) {
+  if (!entry) return;
+  const persist = async () => {
+    try {
+      await api("/api/collection/" + entry.id, {
+        method: "PATCH",
+        body: {
+          purchase_price: parseFloat($("#mPrice")?.value) || null,
+          purchased_at: $("#mDate")?.value ? new Date($("#mDate").value).toISOString() : entry.purchased_at,
+          condition: $("#mCondition")?.value,
+          notes: $("#mNotes")?.value || "",
+        }
       });
-    });
-  }
-
-  if (!state.wishlist.length) {
-    listEl.innerHTML = `
-      <div class="card" style="text-align:center;padding:40px 20px">
-        <div style="font-size:48px;margin-bottom:12px">&#x2764;&#xFE0F;</div>
-        <h3 style="font-family:var(--serif);font-size:22px;font-weight:500;margin-bottom:8px">Wishlist is empty</h3>
-        <p style="color:var(--ink-mute);margin-bottom:20px;font-size:14px">Tap the heart on any set page to save it here.</p>
-        <button class="btn-secondary" id="wlGoCatalog" style="width:auto;padding:12px 20px">${I.search} Browse Catalog</button>
-      </div>`;
-    $('#wlGoCatalog')?.addEventListener('click', () => navigate('#/add'));
-    return;
-  }
-
-  listEl.innerHTML = state.wishlist.map(item => {
-    const gap = item.target_price ? item.current_value - item.target_price : null;
-    const below = gap !== null && gap <= 0;
-    return `
-      <div class="wl-card" data-set="${item.set_num}" data-wid="${item.id}">
-        <div class="wl-img">${item.image_url ? `<img src="${item.image_url}" alt="${item.name}" loading="lazy">` : '<span style="font-size:28px">&#x1F9E9;</span>'}</div>
-        <div class="wl-body">
-          <div class="wl-name">${item.name}</div>
-          <div class="wl-sub">${item.target_price ? `Target: ${fmtMoney(item.target_price)}` : 'No target set'}</div>
-          ${below ? '<span class="wl-badge">&#x2193; Below target!</span>' : ''}
-          ${item.forecast_2y ? `<span class="wl-badge" style="margin-left:4px;background:var(--surface-2);color:var(--ink-mute)">&#x2197; 2y: ${fmtMoney(item.forecast_2y)}</span>` : ''}
-        </div>
-        <div class="wl-right">
-          <div class="wl-value">${fmtMoney(item.current_value)}</div>
-          <div class="wl-target">${fmtMoney(item.retail_price)} retail</div>
-          <button class="btn-danger" style="width:auto;padding:4px 10px;font-size:11px;margin-top:6px" data-wid="${item.id}">${I.trash}</button>
-        </div>
-      </div>`;
-  }).join('');
-
-  $$('.wl-card').forEach(card => {
-    card.addEventListener('click', e => {
-      if (e.target.closest('button')) return;
-      navigate('#/set/' + encodeURIComponent(card.dataset.set));
-    });
-  });
-  $$('button[data-wid]').forEach(btn => {
-    btn.addEventListener('click', async e => {
-      e.stopPropagation(); haptic('medium');
-      try { await api('/wishlist/'+btn.dataset.wid,{method:'DELETE'}); state.wishlist=state.wishlist.filter(w=>w.id!=btn.dataset.wid); toast('Removed from wishlist'); paintWishlist(); }
-      catch(e){toast(e.message,'error');}
-    });
+      state.portfolio = null;
+      toast("Saved", "success");
+    } catch (e) { toast("Save failed: " + e.message, "error"); }
+  };
+  ["#mPrice","#mDate"].forEach(s => $(s)?.addEventListener("blur", persist));
+  $("#mCondition")?.addEventListener("change", persist);
+  $("#mNotes")?.addEventListener("blur", persist);
+  $("#mRemove")?.addEventListener("click", async () => {
+    if (!confirm("Remove this set from your vault?")) return;
+    haptic("heavy");
+    try {
+      await api("/api/collection/" + entry.id, { method: "DELETE" });
+      state.portfolio = null; state.catalogAll = null;
+      toast("Removed from vault", "info");
+      if (history.length > 1) history.back();
+      else location.hash = "#/";
+    } catch (e) { toast("Error: " + e.message, "error"); }
   });
 }
 
-// ===== Me ===================================================
+function setupTabSwipe(set, entry) {
+  const el = $("#tabPanels"); if (!el) return;
+  let sx = 0, sy = 0, active = false;
+  el.addEventListener("touchstart", e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; active = true; }, { passive: true });
+  el.addEventListener("touchend", e => {
+    if (!active) return; active = false;
+    const dx = e.changedTouches[0].clientX - sx;
+    const dy = e.changedTouches[0].clientY - sy;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      const owned = !!entry;
+      const tabs = owned ? ["info","forecast","manage"] : ["info","forecast"];
+      const idx = tabs.indexOf(state.detail.tab);
+      const next = clamp(idx + (dx < 0 ? 1 : -1), 0, tabs.length - 1);
+      if (next !== idx) { state.detail.tab = tabs[next]; haptic("light"); paintSetDetail(set, entry); }
+    }
+  });
+}
+
+/* ============================================================
+   Wishlist screen
+   ============================================================ */
+async function renderWishlist() {
+  try {
+    const wl = await api("/api/wishlist");
+    state.wishlist = wl.wishlist || [];
+    state.wishlistAlerts = wl.unread_alerts || [];
+  } catch (e) { toast("Couldn't load wishlist", "error"); }
+
+  const alerts = state.wishlistAlerts;
+  $("#root").innerHTML = `
+    <div class="page">
+      <div class="topbar">
+        <div class="topbar-heading">
+          <div class="topbar-eyebrow">${state.wishlist.length} sets · ${alerts.length} alert${alerts.length !== 1 ? "s" : ""}</div>
+          <div class="topbar-title">Wishlist</div>
+        </div>
+        <a href="#/" class="icon-btn" aria-label="Back">${I.chevL()}</a>
+      </div>
+
+      ${alerts.length > 0 ? `
+        <div style="margin-bottom:14px;">
+          ${alerts.map(a => `
+            <div class="alert-card">
+              <div class="ah">${I.bell()}Price drop · ${daysAgo(a.triggered_at)}d ago</div>
+              <div style="font-weight:600;">${escapeHtml(a.set_name)}</div>
+              <div style="font-size:13px;margin-top:4px;">Now <strong>${fmtMoney(a.current_value)}</strong> — your target was ${fmtMoney(a.target_price)}.</div>
+            </div>`).join("")}
+        </div>` : ""}
+
+      ${state.wishlist.length === 0 ? `
+        <div class="empty card">
+          <div class="empty-icon">${I.heart()}</div>
+          <h3>Nothing wishlisted yet</h3>
+          <p>Tap the heart on any set to watch it. We'll alert you when the price hits your target.</p>
+        </div>` : `
+        <div>${state.wishlist.map(wishlistCardHTML).join("")}</div>`}
+    </div>`;
+
+  $$(".wishlist-card").forEach(c => c.addEventListener("click", () => {
+    location.hash = "#/set/" + encodeURIComponent(c.dataset.set);
+  }));
+}
+
+function wishlistCardHTML(w) {
+  const gap = w.target_price ? ((w.current_value - w.target_price) / w.target_price) : null;
+  const hit = gap != null && gap <= 0;
+  const progress = gap == null ? 100 : Math.min(100, Math.max(0, 100 - gap * 100));
+  const h = setHue(w);
+  const hasImg = w.image_url && !w.image_url.startsWith("data:");
+  return `
+    <button class="wishlist-card" data-set="${escapeHtml(w.set_num)}">
+      <div class="sl-img${hasImg ? "" : " has-tile"}" style="width:72px;height:76px;">
+        ${hasImg ? `<img class="set-photo" src="${escapeHtml(w.image_url)}" alt="" loading="lazy">` : `<div class="brick-tile" style="--h:${h};width:100%;height:76%;margin-top:auto;"></div>`}
+      </div>
+      <div class="sl-body" style="flex:1;text-align:left;">
+        <div class="sl-name">${escapeHtml(w.name || w.set_num)}</div>
+        <div class="sl-meta">
+          <span>${escapeHtml(w.theme || "")}</span>
+          <span class="dot"></span>
+          <span>${escapeHtml(w.set_num)}</span>
+        </div>
+        <div class="gap-row">
+          <span style="color:var(--ink-mute);">Now ${fmtMoney(w.current_value, { cents: 0 })}</span>
+          <span style="color:${hit ? "var(--up)" : "var(--ink)"};font-weight:700;">${hit ? "AT TARGET" : "Target " + fmtMoney(w.target_price || 0, { cents: 0 })}</span>
+        </div>
+        <div class="progress${hit ? " over" : ""}"><div style="width:${progress}%;"></div></div>
+      </div>
+    </button>`;
+}
+
+/* ============================================================
+   Me (profile)
+   ============================================================ */
 async function renderMe() {
-  $('#root').innerHTML = `
-    <div class="topbar"><div class="topbar-title">Profile</div></div>
-    <div class="page" style="padding-top:8px"><div class="skel card mb-16" style="height:180px"></div></div>`;
-  try { if (!state.me) state.me = await api('/me'); paintMe(); }
-  catch (e) { toast(e.message, 'error'); }
-}
+  let me = state.me;
+  if (!me) {
+    try { me = await api("/api/me"); state.me = me; }
+    catch (e) { toast("Couldn't load profile", "error"); me = { display_name: "Collector", handle: "you", notify_price_drops: true, portfolio_stats: {} }; }
+  }
+  const c = me.portfolio_stats || {};
+  const gain = (c.total_value || 0) - (c.total_paid || 0);
+  const gainPct = c.total_paid ? gain / c.total_paid : 0;
 
-function paintMe() {
-  const me = state.me;
-  if (!me) return;
-  const { set_count=0, total_value=0, total_paid=0 } = me.portfolio_stats || {};
-  const gain = total_value - total_paid;
-  const gainPct = pct(total_value, total_paid);
-  const initials = (me.display_name||'MB').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-
-  $('#root').innerHTML = `
-    <div class="topbar"><div class="topbar-title">Profile</div></div>
-    <div class="page" style="padding-top:8px">
-      <div class="profile-block">
-        <div class="profile-avatar">${initials}</div>
-        <div class="profile-name">${me.display_name}</div>
-        ${me.handle ? `<div class="profile-handle">@${me.handle}</div>` : ''}
-        <button class="btn-secondary" id="editNameBtn" style="width:auto;padding:8px 16px;margin-top:10px;font-size:13px">${I.pencil} Edit name</button>
-      </div>
-
-      <div class="settings-section">
-        <div class="settings-card">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px">
-            <div class="stat-cell"><div class="lbl">Sets</div><div class="val mono">${set_count}</div></div>
-            <div class="stat-cell"><div class="lbl">Value</div><div class="val s">${fmtMoneyShort(total_value)}</div></div>
-            <div class="stat-cell"><div class="lbl">Invested</div><div class="val s">${fmtMoneyShort(total_paid)}</div></div>
-            <div class="stat-cell ${gain>=0?'high':''}"><div class="lbl">Gain</div><div class="val s ${gain<0?'down':''}">${gainPct>=0?'+':''}${gainPct.toFixed(1)}%</div></div>
-          </div>
+  $("#root").innerHTML = `
+    <div class="page">
+      <div class="topbar">
+        <div class="topbar-heading">
+          <div class="topbar-eyebrow">@${escapeHtml(me.handle || "you")}</div>
+          <div class="topbar-title">Profile</div>
         </div>
       </div>
 
-      <div class="settings-section">
-        <div class="settings-card">
-          <div class="settings-row">
-            <div><div class="settings-lbl">Currency</div><div class="settings-sub">Display currency</div></div>
-            <select class="form-input" id="currencySel" style="width:auto;padding:6px 10px">
-              ${['USD','EUR','GBP','CAD','AUD'].map(c=>`<option${me.currency===c?' selected':''}>${c}</option>`).join('')}
-            </select>
-          </div>
-          <div class="settings-row">
-            <div><div class="settings-lbl">Price drop alerts</div><div class="settings-sub">Notify when wishlist items drop</div></div>
-            <div class="toggle${me.notify_price_drops?' on':''}" id="notifyToggle"></div>
-          </div>
+      <div class="profile-head">
+        <div class="avatar">${(me.display_name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="profile-name">${escapeHtml(me.display_name || "Collector")}</div>
+          <div class="profile-handle">Member · Brickvault</div>
+        </div>
+        <button class="profile-pencil" aria-label="Edit name" id="editName">${I.pencil()}</button>
+      </div>
+
+      <div class="summary-grid">
+        <div class="summary-cell"><div class="lbl">Sets owned</div><div class="val">${c.set_count || 0}</div></div>
+        <div class="summary-cell"><div class="lbl">Total value</div><div class="val">${fmtMoneyShort(c.total_value || 0)}</div></div>
+        <div class="summary-cell"><div class="lbl">Invested</div><div class="val">${fmtMoneyShort(c.total_paid || 0)}</div></div>
+        <div class="summary-cell">
+          <div class="lbl">Gain</div>
+          <div class="val" style="color:${gain >= 0 ? "var(--up)" : "var(--down)"};">${fmtMoneyShort(gain)}</div>
+          <div class="delta ${gain >= 0 ? "up" : "down"}" style="margin-top:6px;"><span class="arrow">${gain >= 0 ? "▲" : "▼"}</span>${fmtPct(Math.abs(gainPct))}</div>
         </div>
       </div>
 
-      <div class="settings-section">
-        <div class="settings-card" style="padding:16px">
-          <p style="font-size:13px;color:var(--ink-mute);margin-bottom:12px">Signed in via Hatchable. Data stored securely in the cloud.</p>
-          <a href="/auth/logout" class="btn-danger" style="text-align:center;display:flex;justify-content:center">Sign out</a>
+      <div class="section-title">Preferences</div>
+      <div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Price-drop alerts</div><div class="desc">Alert when wishlisted sets hit your target.</div></div>
+          <button class="toggle ${me.notify_price_drops ? "on" : ""}" id="notifyToggle" aria-pressed="${me.notify_price_drops}"></button>
         </div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Currency</div><div class="desc">Display values in your local currency.</div></div>
+          <div style="font-family:var(--mono);font-weight:600;font-size:14px;display:flex;align-items:center;">USD ${I.chev()}</div>
+        </div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Daily snapshot</div><div class="desc">Portfolio history captured at 02:00 daily.</div></div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--up);">ACTIVE</div>
+        </div>
+      </div>
+
+      <div class="section-title">Data</div>
+      <div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Export collection</div><div class="desc">CSV with current values &amp; ROI.</div></div>
+          ${I.download()}
+        </div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Sign out</div><div class="desc">Sync resumes when you return.</div></div>
+          ${I.chev()}
+        </div>
+      </div>
+
+      <div style="text-align:center;font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-top:24px;letter-spacing:0.1em;">
+        BRICKVAULT · v2.0 · STACK SOMETHING BEAUTIFUL
       </div>
     </div>`;
 
-  $('#editNameBtn').addEventListener('click', () => {
-    const name = prompt('Display name (max 40 chars):', me.display_name);
-    if (!name?.trim()) return;
-    api('/me',{method:'PATCH',body:{display_name:name.trim().slice(0,40)}})
-      .then(()=>{ state.me.display_name=name.trim().slice(0,40); paintMe(); toast('Saved','success'); })
-      .catch(e=>toast(e.message,'error'));
+  let notifyOn = me.notify_price_drops;
+  $("#notifyToggle")?.addEventListener("click", async (e) => {
+    notifyOn = !notifyOn;
+    e.currentTarget.classList.toggle("on", notifyOn);
+    haptic("medium");
+    try { await api("/api/me", { method: "PATCH", body: { notify_price_drops: notifyOn } }); state.me = null; }
+    catch {}
+    toast(notifyOn ? "Alerts on" : "Alerts paused", "info");
   });
-  $('#currencySel').addEventListener('change', e => {
-    api('/me',{method:'PATCH',body:{currency:e.target.value}})
-      .then(()=>{ state.me.currency=e.target.value; toast('Saved'); })
-      .catch(e=>toast(e.message,'error'));
-  });
-  const toggle = $('#notifyToggle');
-  toggle?.addEventListener('click', () => {
-    const newVal = !me.notify_price_drops;
-    api('/me',{method:'PATCH',body:{notify_price_drops:newVal}})
-      .then(()=>{ state.me.notify_price_drops=newVal; toggle.classList.toggle('on',newVal); })
-      .catch(e=>toast(e.message,'error'));
+  $("#editName")?.addEventListener("click", () => {
+    const name = prompt("Display name:", me.display_name || "");
+    if (name && name.trim()) {
+      api("/api/me", { method: "PATCH", body: { display_name: name.trim().slice(0, 40) } })
+        .then(() => { state.me = null; renderMe(); }).catch(e => toast("Error: " + e.message, "error"));
+    }
   });
 }
 
-// ===== Pile =================================================
+/* ============================================================
+   Pile (AI photo scanner)
+   ============================================================ */
 function renderPile() {
-  $('#root').innerHTML = `
-    <div class="topbar"><div class="topbar-title">Pile Scanner</div></div>
-    <div class="page" style="padding-top:8px">
-      <div class="pile-intro">
-        <h2>Identify a Set</h2>
-        <p>Scan a barcode or photograph a built set for instant AI identification.</p>
-        <button class="btn-primary" id="openScanBtn" style="width:auto;padding:14px 28px;font-size:16px">${I.camera} Open Camera</button>
+  $("#root").innerHTML = `
+    <div class="page">
+      <div class="topbar">
+        <div class="topbar-heading">
+          <div class="topbar-eyebrow">Snap &amp; identify</div>
+          <div class="topbar-title">Pile scanner</div>
+        </div>
       </div>
-      <div id="pileResult"></div>
+
+      <div class="card" style="padding:18px;margin-bottom:14px;">
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          ${I.sparkles()}
+          <div>
+            <div style="font-family:var(--serif);font-weight:500;font-size:17px;line-height:1.2;">Point. Snap. Identify.</div>
+            <p style="margin:6px 0 0;font-size:13px;color:var(--ink-soft);line-height:1.45;">
+              Take a photo of any set — built, in pieces, or in the box. GPT-4o reads the bricks and tells you what you're holding.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <button class="scan-cta" id="pileScan" style="margin-bottom:18px;">
+        <div class="scan-cta-icon">${I.camera()}</div>
+        <div class="scan-cta-text">
+          <div class="t1">Open camera</div>
+          <div class="t2">20 scans/hour · powered by GPT-4o</div>
+        </div>
+        <div class="scan-cta-arrow">${I.arrowR()}</div>
+      </button>
+
+      <div class="section-title">How it works</div>
+      <div class="card" style="background:var(--surface-2);padding:14px;">
+        <ol style="margin:0;padding-left:18px;font-size:13px;color:var(--ink-soft);line-height:1.7;">
+          <li>Tap "Open camera" above</li>
+          <li>Switch to Photo mode</li>
+          <li>Frame the set clearly and tap the shutter</li>
+          <li>GPT-4o identifies the set and shows price info</li>
+          <li>Tap "Add to vault" to log it instantly</li>
+        </ol>
+      </div>
     </div>`;
-  $('#openScanBtn').addEventListener('click', openScan);
+
+  $("#pileScan")?.addEventListener("click", () => openScan("image"));
 }
 
-// ===== Blind Bag ============================================
+/* ============================================================
+   Blind bag (minifigs)
+   ============================================================ */
 async function renderBlind() {
-  $('#root').innerHTML = `
-    <div class="topbar"><div class="topbar-title">Blind Bag</div></div>
-    <div class="page" style="padding-top:8px">
-      <div class="skel card mb-12" style="height:80px"></div>
-      <div class="blind-grid">${Array(4).fill('<div class="skel card" style="height:160px"></div>').join('')}</div>
-    </div>`;
-  try { const data = await api('/minifigs'); paintBlind(data.minifigs||[]); }
-  catch(e){toast(e.message,'error');}
-}
+  let figs = [];
+  try {
+    const res = await api("/api/minifigs");
+    figs = res.minifigs || [];
+  } catch (e) { toast("Couldn't load minifigs", "error"); }
 
-function paintBlind(figs) {
-  const order = { legendary:0,rare:1,uncommon:2,common:3 };
-  const sorted = [...figs].sort((a,b)=>(order[a.rarity]||3)-(order[b.rarity]||3));
-  const ownedCount = figs.filter(f=>f.owned_qty>0).length;
-  $('#root').innerHTML = `
-    <div class="topbar"><div class="topbar-title">Blind Bag</div></div>
-    <div class="page" style="padding-top:8px">
-      <div class="card mb-16" style="background:var(--bv-yellow)">
-        <div style="font-weight:700;font-size:17px;margin-bottom:4px">&#x1F4E6; Minifig Tracker</div>
-        <div style="font-size:13px">${figs.length} in catalog &middot; ${ownedCount} owned</div>
+  const ownedCount = figs.filter(f => state.ownedFigs.has(f.fig_num)).length;
+
+  $("#root").innerHTML = `
+    <div class="page">
+      <div class="topbar">
+        <div class="topbar-heading">
+          <div class="topbar-eyebrow">${ownedCount}/${figs.length} collected</div>
+          <div class="topbar-title">Blind bag</div>
+        </div>
       </div>
-      <div class="blind-grid">
-        ${sorted.map(fig=>`
-          <div class="fig-card ${fig.rarity}" data-fig="${fig.fig_num}">
-            <div class="fig-card-img">${fig.image_url?`<img src="${fig.image_url}" alt="${fig.name}" loading="lazy">`:'<span style="font-size:32px">&#x1F9F1;</span>'}</div>
-            <div class="fig-card-body">
-              <div class="fig-name">${fig.name}</div>
-              <div class="fig-series">${fig.series||'Unknown'}</div>
-              <div class="fig-value">${fmtMoney(fig.current_value)}</div>
-              <span class="fig-rarity">${fig.rarity}</span>
-              ${fig.owned_qty>0?`<div style="font-size:10px;color:var(--up);margin-top:2px">&#x2713; &times;${fig.owned_qty}</div>`:''}
-            </div>
-          </div>`).join('')}
+
+      <div class="card" style="padding:14px;margin-bottom:14px;background:var(--bv-yellow);color:var(--line);">
+        <div style="display:flex;gap:10px;align-items:center;">
+          ${I.flash()}
+          <div>
+            <div style="font-weight:600;font-size:15px;">Tap to log what you've pulled</div>
+            <div style="font-size:12px;color:var(--ink-soft);margin-top:2px;">Duplicates show their resale value.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mini-grid">
+        ${figs.map(f => miniCardHTML(f)).join("")}
       </div>
     </div>`;
+
+  $$(".mini-card").forEach(c => c.addEventListener("click", () => {
+    const num = c.dataset.fig;
+    if (state.ownedFigs.has(num)) state.ownedFigs.delete(num);
+    else state.ownedFigs.add(num);
+    localStorage.setItem("bv_figs", JSON.stringify([...state.ownedFigs]));
+    haptic("medium");
+    renderBlind();
+  }));
 }
 
-// ===== Camera Scanner =======================================
-function openScan() {
-  $('#scanOverlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
-  haptic('medium');
+function miniCardHTML(f) {
+  const owned = state.ownedFigs.has(f.fig_num);
+  const hue = f.hue ?? themeHue(f.series || f.fig_num);
+  const hasImg = f.image_url;
+  const val = f.value ?? f.current_value ?? 0;
+  return `
+    <button class="mini-card rarity-${f.rarity || "common"}" data-fig="${escapeHtml(f.fig_num)}">
+      <div class="mini-img">
+        ${hasImg
+          ? `<img class="fig-photo" src="${escapeHtml(f.image_url)}" alt="${escapeHtml(f.name)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">`
+          : ""}
+        <div class="mini-figure ${owned ? "owned" : ""}" style="${hasImg ? "display:none;" : ""}--fig-color:oklch(0.6 0.18 ${hue});--fig-color2:oklch(0.4 0.08 ${(hue+180)%360});">
+          <div class="head"></div>
+          <div class="body"></div>
+          <div class="legs"></div>
+        </div>
+      </div>
+      <div class="mini-body">
+        <div class="mini-rarity">${f.rarity || "common"}</div>
+        <div class="mini-name">${escapeHtml(f.name)}</div>
+        <div class="mini-meta">
+          <span>${escapeHtml(f.series || "")}</span>
+          <span class="price">${fmtMoney(val, { cents: 0 })}</span>
+        </div>
+      </div>
+    </button>`;
+}
+
+/* ============================================================
+   Camera scan overlay
+   ============================================================ */
+function openScan(mode = "barcode") {
+  state.camera.mode = mode;
+  const ov = $("#scanOverlay");
+  ov.innerHTML = scanOverlayHTML(mode);
+  ov.classList.add("open");
+  $("#scanCloseBtn").addEventListener("click", closeScan);
+  $$(".scan-mode-toggle button").forEach(b => b.addEventListener("click", () => {
+    stopCamera();
+    openScan(b.dataset.mode);
+  }));
+  $("#scanCapture")?.addEventListener("click", capturePhoto);
   startCamera();
 }
+
 function closeScan() {
-  $('#scanOverlay').classList.remove('open');
-  document.body.style.overflow = '';
   stopCamera();
+  $("#scanOverlay").classList.remove("open");
+  $("#scanOverlay").innerHTML = "";
 }
+
+function stopCamera() {
+  clearInterval(state.camera.timer);
+  state.camera.timer = null;
+  if (state.camera.stream) {
+    state.camera.stream.getTracks().forEach(t => t.stop());
+    state.camera.stream = null;
+  }
+  state.camera.scanning = false;
+}
+
 async function startCamera() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      video: { facingMode: "environment", width: { ideal: 1280 } }
     });
     state.camera.stream = stream;
-    const video = $('#scanVideo');
-    video.srcObject = stream;
-    await video.play();
-    state.camera.scanning = true;
-    setScanMode(state.camera.mode);
-    if (state.camera.mode === 'barcode' && typeof BarcodeDetector !== 'undefined') {
-      state.camera.detector = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code'] });
+    const vid = $("#scanVideo");
+    if (vid) { vid.srcObject = stream; await vid.play().catch(() => {}); }
+
+    if (state.camera.mode === "barcode" && "BarcodeDetector" in window) {
+      state.camera.detector = new BarcodeDetector({ formats: ["ean_13","ean_8","upc_a","upc_e","code_128","code_39"] });
+      state.camera.scanning = true;
       state.camera.timer = setInterval(scanBarcode, 400);
     }
-  } catch(e) { closeScan(); toast('Camera unavailable: ' + e.message, 'error'); }
+  } catch (e) {
+    const hint = $("#scanHint");
+    if (hint) hint.textContent = "Camera not available — check permissions";
+  }
 }
+
 async function scanBarcode() {
-  if (!state.camera.scanning || !state.camera.detector) return;
-  const video = $('#scanVideo');
-  if (!video?.videoWidth) return;
+  if (!state.camera.scanning) return;
+  const vid = $("#scanVideo");
+  if (!vid || vid.readyState < 2) return;
   try {
-    const barcodes = await state.camera.detector.detect(video);
-    if (barcodes.length) {
-      clearInterval(state.camera.timer); state.camera.scanning = false;
-      haptic('heavy'); flashScan();
-      await sendScanToAPI({ mode: 'barcode', barcode: barcodes[0].rawValue });
+    const codes = await state.camera.detector.detect(vid);
+    if (codes.length > 0) {
+      state.camera.scanning = false;
+      clearInterval(state.camera.timer);
+      haptic("medium");
+      const barcode = codes[0].rawValue;
+      const hint = $("#scanHint");
+      if (hint) hint.textContent = "Looking up barcode…";
+      sendScanToAPI({ mode: "barcode", barcode });
     }
   } catch {}
 }
-function flashScan() {
-  const f = $('#scanFlash'); f.classList.add('flash');
-  setTimeout(() => f.classList.remove('flash'), 200);
-}
-async function capturePhoto() {
-  const video = $('#scanVideo');
-  if (!video) return;
-  const canvas = document.createElement('canvas');
-  const MAX = 1024;
-  let w = video.videoWidth, h = video.videoHeight;
-  if (w > MAX) { h = Math.round(h*MAX/w); w = MAX; }
-  canvas.width = w; canvas.height = h;
-  canvas.getContext('2d').drawImage(video, 0, 0, w, h);
-  haptic('medium'); flashScan();
-  const hint = $('#scanHint'); if (hint) hint.textContent = 'Identifying with AI…';
-  await sendScanToAPI({ mode: 'image', image: canvas.toDataURL('image/jpeg', 0.85) });
-}
-async function sendScanToAPI(body) {
-  try { const data = await api('/scan/identify',{method:'POST',body}); closeScan(); showScanResult(data); }
-  catch(e) { closeScan(); toast('Scan failed: '+e.message,'error'); }
-}
-function showScanResult(data) {
-  let el = $('#pileResult');
-  if (!el) { el = document.createElement('div'); el.id='pileResult'; $('.page')?.appendChild(el); }
 
-  if (!data.identified || !data.set) {
+async function capturePhoto() {
+  haptic("heavy");
+  const btn = $("#scanCapture");
+  if (btn) { btn.style.transform = "scale(0.85)"; setTimeout(() => btn.style.transform = "", 200); }
+  const hint = $("#scanHint");
+  if (hint) hint.textContent = "Identifying…";
+
+  const vid = $("#scanVideo");
+  if (!vid) return;
+  const canvas = document.createElement("canvas");
+  const maxSide = 1024;
+  const w = vid.videoWidth || 640; const h = vid.videoHeight || 480;
+  const scale = Math.min(1, maxSide / Math.max(w, h));
+  canvas.width = w * scale; canvas.height = h * scale;
+  canvas.getContext("2d").drawImage(vid, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+  sendScanToAPI({ mode: "image", image: dataUrl });
+}
+
+async function sendScanToAPI(payload) {
+  try {
+    const res = await api("/api/scan/identify", { method: "POST", body: payload });
+    showScanResult(res);
+  } catch (e) {
+    const hint = $("#scanHint");
+    if (hint) hint.textContent = "Error: " + e.message;
+    showScanResult({ identified: false, reasoning: e.message });
+  }
+}
+
+function showScanResult(res) {
+  const el = $("#scanResult");
+  if (!el) return;
+  el.classList.add("show");
+  if (!res.identified) {
     el.innerHTML = `
-      <div class="card">
-        <div style="font-weight:700;margin-bottom:6px">&#x2753; Not identified</div>
-        <p style="font-size:13px;color:var(--ink-mute);margin-bottom:12px">${data.reasoning||'Could not identify the set.'}</p>
-        <button class="btn-secondary" id="tryScanAgain">${I.camera} Try Again</button>
-      </div>`;
-    $('#tryScanAgain')?.addEventListener('click', () => { el.innerHTML=''; openScan(); });
+      <div class="scan-result-head">
+        <span class="badge miss">${I.close()}NO MATCH</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">Not found</span>
+      </div>
+      <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">${escapeHtml(res.reasoning || "Couldn't identify the set. Try a clearer photo.")}</p>
+      <button class="btn-secondary" id="scanRetry">Try again</button>`;
+    $("#scanRetry")?.addEventListener("click", () => {
+      el.classList.remove("show");
+      state.camera.scanning = true;
+      state.camera.timer = setInterval(scanBarcode, 400);
+      const hint = $("#scanHint");
+      if (hint) hint.textContent = state.camera.mode === "barcode" ? "Align barcode within the frame" : "Frame the set and tap to identify";
+    });
     return;
   }
-
-  const set = data.set;
-  const cc = { high:'var(--up)',medium:'var(--bv-yellow)',low:'var(--down)',none:'var(--ink-mute)' }[data.confidence]||'var(--ink-mute)';
+  const set = res.set;
+  const h = setHue(set);
+  const hasImg = set.image_url && !set.image_url.startsWith("data:");
   el.innerHTML = `
-    <div class="scan-result-card">
-      <div class="scan-result-hdr">
-        ${I.sparkles}
-        <span>AI matched: <strong style="color:${cc}">${data.confidence} confidence</strong></span>
+    <div class="scan-result-head">
+      <span class="badge">${I.check()}MATCH</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${escapeHtml(res.confidence || "high")} confidence</span>
+    </div>
+    <div class="scan-result-row">
+      <div class="si">
+        ${hasImg ? `<img src="${escapeHtml(set.image_url)}" alt="">` : `<div class="brick-tile" style="--h:${h};width:90%;height:90%;border-radius:8px;"></div>`}
       </div>
-      <div class="scan-result-body">
-        <div class="scan-result-img">${set.image_url?`<img src="${set.image_url}" alt="${set.name}">`:'&#x1F9E9;'}</div>
-        <div class="scan-result-info">
-          <div class="scan-result-name">${set.name}</div>
-          <div class="scan-result-meta">${set.set_num} &middot; ${set.theme||''} &middot; ${set.year||''}</div>
-          <div style="font-family:var(--serif);font-size:20px;font-weight:500">${fmtMoney(set.current_value)}</div>
-        </div>
+      <div class="sx">
+        <div class="sx-name">${escapeHtml(set.name)}</div>
+        <div class="sx-meta">${escapeHtml(set.theme||"")} · ${set.year||""} · ${set.pieces||0}pc</div>
+        <div class="sx-val">${fmtMoney(set.current_value)}</div>
       </div>
-      <div class="scan-result-btns">
-        <button class="btn-primary" id="addScanned">${I.plus} Add</button>
-        <button class="btn-secondary" id="viewScanned">${I.eye} View</button>
-      </div>
+    </div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn-secondary" id="scanDetails">Details</button>
+      <button class="btn-primary" id="scanAdd">${I.plus()}<span>Add to vault</span></button>
     </div>`;
-  $('#addScanned').addEventListener('click', async () => {
-    haptic('heavy');
-    try { await api('/collection',{method:'POST',body:{set_num:set.set_num}}); state.portfolio=null; toast('Added!','success'); el.innerHTML=''; }
-    catch(e){toast(e.message,'error');}
+  $("#scanDetails")?.addEventListener("click", () => { closeScan(); location.hash = "#/set/" + encodeURIComponent(set.set_num); });
+  $("#scanAdd")?.addEventListener("click", async () => {
+    haptic("heavy");
+    try {
+      await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
+      state.portfolio = null; state.catalogAll = null;
+      closeScan();
+      toast("Added " + set.name, "success");
+      location.hash = "#/";
+    } catch (e) { toast("Error: " + e.message, "error"); }
   });
-  $('#viewScanned').addEventListener('click', () => navigate('#/set/'+encodeURIComponent(set.set_num)));
 }
-function stopCamera() {
-  clearInterval(state.camera.timer);
-  state.camera.scanning = false; state.camera.detector = null;
-  state.camera.stream?.getTracks().forEach(t=>t.stop());
-  state.camera.stream = null;
-  const v = $('#scanVideo'); if (v) v.srcObject = null;
+
+function scanOverlayHTML(mode) {
+  return `
+    <div class="scan-video-wrap">
+      <video class="scan-video" id="scanVideo" autoplay playsinline muted></video>
+      <div class="scan-top">
+        <button id="scanCloseBtn" aria-label="Close">${I.close()}</button>
+        <div class="scan-mode-toggle">
+          <button data-mode="barcode" class="${mode === "barcode" ? "active" : ""}">Barcode</button>
+          <button data-mode="image" class="${mode === "image" ? "active" : ""}">Photo</button>
+        </div>
+        <div style="width:42px;"></div>
+      </div>
+      <div class="scan-frame ${mode === "barcode" ? "barcode" : ""}">
+        <span class="corner tl"></span><span class="corner tr"></span>
+        <span class="corner bl"></span><span class="corner br"></span>
+        ${mode === "barcode" ? `<span class="laser"></span>` : ""}
+      </div>
+      <div class="scan-hint" id="scanHint">${mode === "barcode" ? "Align barcode within the frame" : "Frame the set and tap to identify"}</div>
+      ${mode === "image" ? `
+        <div class="scan-bottom">
+          <button class="scan-capture-btn" id="scanCapture" aria-label="Capture"></button>
+        </div>` : ""}
+      <div class="scan-result" id="scanResult"></div>
+    </div>`;
 }
-function setScanMode(mode) {
-  state.camera.mode = mode;
-  const cap = $('#scanCapture'), hint = $('#scanHint'), sub = $('#scanSub'), title = $('#scanTitle');
-  $$('#scanModeToggle button').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
-  if (mode === 'photo') {
-    if (cap) cap.style.display = 'block';
-    if (hint) hint.textContent = 'Frame the set in view';
-    if (sub) sub.textContent = 'Tap capture to identify';
-    if (title) title.textContent = 'Photo ID';
-    clearInterval(state.camera.timer);
-  } else {
-    if (cap) cap.style.display = 'none';
-    if (hint) hint.textContent = 'Point at a barcode';
-    if (sub) sub.textContent = 'Or switch to Photo for AI identification';
-    if (title) title.textContent = 'Find a LEGO set';
-    clearInterval(state.camera.timer);
-    if (state.camera.stream && typeof BarcodeDetector !== 'undefined') {
-      state.camera.detector = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code'] });
-      state.camera.timer = setInterval(scanBarcode, 400);
+
+/* ============================================================
+   Sheets
+   ============================================================ */
+function showSheet(html) {
+  const back = $("#sheetBackdrop");
+  const sheet = $("#sheet");
+  sheet.innerHTML = `<div class="sheet-handle"></div>` + html;
+  back.classList.add("show");
+  sheet.classList.add("show");
+  back.addEventListener("click", hideSheet, { once: true });
+}
+function hideSheet() {
+  $("#sheetBackdrop").classList.remove("show");
+  $("#sheet").classList.remove("show");
+}
+function showAlertsSheet(alerts) {
+  const html = alerts.length === 0
+    ? `<div style="padding:20px 0;text-align:center;color:var(--ink-mute);">No new alerts.</div>`
+    : alerts.map(a => `
+        <div class="alert-card">
+          <div class="ah">${I.bell()}Price drop · ${daysAgo(a.triggered_at)}d ago</div>
+          <div style="font-weight:600;">${escapeHtml(a.set_name)}</div>
+          <div style="font-size:13px;margin-top:4px;">Now <strong>${fmtMoney(a.current_value)}</strong> — your target was ${fmtMoney(a.target_price)}.</div>
+        </div>`).join("");
+  showSheet(`
+    <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 14px;">Alerts</div>
+    ${html}`);
+}
+function showQuickActions(setNum) {
+  haptic("medium");
+  showSheet(`
+    <button class="sheet-action" id="qaView">${I.eye()}<span>View details</span></button>
+    <button class="sheet-action" id="qaEdit">${I.pencil()}<span>Edit purchase price</span></button>
+    <button class="sheet-action" id="qaShare">${I.share()}<span>Share set</span></button>
+    <button class="sheet-action danger" id="qaRemove">${I.trash()}<span>Remove from vault</span></button>`);
+  $("#qaView").addEventListener("click", () => { hideSheet(); location.hash = "#/set/" + encodeURIComponent(setNum); });
+  $("#qaEdit").addEventListener("click", () => { hideSheet(); location.hash = "#/set/" + encodeURIComponent(setNum) + "/manage"; });
+  $("#qaShare").addEventListener("click", () => {
+    hideSheet();
+    const set = (state.portfolio?.items || []).find(s => s.set_num === setNum) || { set_num: setNum, name: setNum };
+    shareSet(set);
+  });
+  $("#qaRemove").addEventListener("click", async () => {
+    if (!confirm("Remove from vault?")) { hideSheet(); return; }
+    const item = (state.portfolio?.items || []).find(s => s.set_num === setNum);
+    if (item) {
+      try { await api("/api/collection/" + item.id, { method: "DELETE" }); state.portfolio = null; state.catalogAll = null; toast("Removed", "info"); }
+      catch (e) { toast("Error: " + e.message, "error"); }
     }
-  }
+    hideSheet(); paintPortfolio();
+  });
 }
 
-// ===== Pull-to-refresh =====================================
-let ptrY = 0, ptrTriggered = false;
-document.addEventListener('touchstart', e => { if (window.scrollY <= 0) ptrY = e.touches[0].clientY; }, { passive: true });
-document.addEventListener('touchmove', e => {
-  if (!ptrY) return;
-  if (e.touches[0].clientY - ptrY > 80 && !ptrTriggered) { ptrTriggered = true; haptic('medium'); $('#ptrIndicator').classList.add('show'); }
-}, { passive: true });
-document.addEventListener('touchend', async () => {
-  if (!ptrTriggered) { ptrY = 0; return; }
-  ptrTriggered = false; ptrY = 0;
-  state.portfolio = null; state.me = null;
-  await router();
-  setTimeout(() => $('#ptrIndicator').classList.remove('show'), 600);
-}, { passive: true });
+/* ============================================================
+   Utilities
+   ============================================================ */
+function shareSet(set) {
+  if (!set) return;
+  const url = location.origin + location.pathname + "#/set/" + encodeURIComponent(set.set_num);
+  if (navigator.share) navigator.share({ title: set.name, url }).catch(() => {});
+  else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => toast("Link copied!", "success"));
+  else toast("Share unavailable", "error");
+}
 
-// ===== Swipe back ==========================================
-let swipeStartX = 0;
-document.addEventListener('touchstart', e => { swipeStartX = e.touches[0].clientX; }, { passive: true });
-document.addEventListener('touchend', e => {
-  if (swipeStartX < 44 && e.changedTouches[0].clientX - swipeStartX > 60) history.back();
-}, { passive: true });
+function wireLongPress(el, fn) {
+  let t = null;
+  el.addEventListener("touchstart", () => { t = setTimeout(fn, 500); }, { passive: true });
+  el.addEventListener("touchend", () => clearTimeout(t));
+  el.addEventListener("touchmove", () => clearTimeout(t));
+  el.addEventListener("contextmenu", e => { e.preventDefault(); fn(); });
+}
 
-window.addEventListener('offline', () => $('#offlineBanner').classList.add('show'));
-window.addEventListener('online', () => $('#offlineBanner').classList.remove('show'));
-window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); });
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-
-// ===== Init ================================================
-document.addEventListener('DOMContentLoaded', () => {
-  $('#scanCloseBtn').addEventListener('click', closeScan);
-  $('#scanCapture').addEventListener('click', capturePhoto);
-  $('#scanModeToggle').addEventListener('click', e => {
-    const btn = e.target.closest('button[data-mode]');
-    if (!btn) return;
-    haptic('light'); clearInterval(state.camera.timer); setScanMode(btn.dataset.mode);
+/* ============================================================
+   Pull-to-refresh + swipe-back
+   ============================================================ */
+function setupGestures() {
+  let sy = 0, pulling = false;
+  document.addEventListener("touchstart", e => {
+    if (window.scrollY <= 0) { sy = e.touches[0].clientY; pulling = true; }
+  }, { passive: true });
+  document.addEventListener("touchmove", e => {
+    if (!pulling) return;
+    if (e.touches[0].clientY - sy > 30) $("#ptrIndicator").classList.add("show");
+  }, { passive: true });
+  document.addEventListener("touchend", e => {
+    if (!pulling) return;
+    const dy = (e.changedTouches[0]?.clientY ?? sy) - sy;
+    if (dy > 80) {
+      haptic("medium");
+      state.portfolio = null; state.catalogAll = null; state.portfolioHistory = null; state.me = null;
+      toast("Refreshed", "success");
+      route();
+    }
+    pulling = false;
+    setTimeout(() => $("#ptrIndicator").classList.remove("show"), 300);
   });
-  $('#sheetBackdrop').addEventListener('click', hideSheet);
-  window.addEventListener('hashchange', router);
-  router();
+
+  // swipe-back from left edge
+  let edgeSx = 0;
+  document.addEventListener("touchstart", e => {
+    if (e.touches[0].clientX < 44) edgeSx = e.touches[0].clientX;
+    else edgeSx = 0;
+  }, { passive: true });
+  document.addEventListener("touchend", e => {
+    if (edgeSx > 0 && e.changedTouches[0].clientX - edgeSx > 60) {
+      if (history.length > 1) history.back();
+    }
+  });
+}
+
+/* ============================================================
+   Init
+   ============================================================ */
+document.addEventListener("DOMContentLoaded", () => {
+  // Wire nav icons using icon library
+  const icons = { "/": I.home, "/add": I.search, "/blind": I.figure, "/me": I.user };
+  $$("#nav .nav-tab").forEach(t => {
+    const r = t.dataset.route;
+    const iconFn = icons[r];
+    const iconEl = t.querySelector(".nav-icon");
+    if (iconFn && iconEl) iconEl.innerHTML = iconFn();
+    const orb = t.querySelector(".scan-orb");
+    if (orb) orb.innerHTML = I.scan();
+    t.addEventListener("click", () => {
+      haptic("light");
+      if (t.classList.contains("active")) window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
+
+  // PWA install prompt
+  window.addEventListener("beforeinstallprompt", e => { state.pwa.deferredPrompt = e; });
+
+  // Offline indicator
+  const offlineHandler = () => document.body.classList.toggle("offline", !navigator.onLine);
+  window.addEventListener("online", offlineHandler);
+  window.addEventListener("offline", offlineHandler);
+  offlineHandler();
+
+  setupGestures();
+
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 });
+
+window.addEventListener("hashchange", route);
+window.addEventListener("load", route);
+window.bv = { openScan, closeScan, capturePhoto };

@@ -10,7 +10,8 @@ export default async function (req, res) {
     FROM minifigs m
     LEFT JOIN user_minifigs um ON um.fig_num = m.fig_num AND um.user_id = $1
     WHERE 1=1`;
-  params.push(req.member.id);
+  const userId = req.member?.id || req.headers['x-hatchable-user-id'];
+  params.push(userId);
   if (series) { sql += ` AND m.series = $2`; params.push(series); }
   sql += ` ORDER BY m.rarity DESC, m.name`;
   const r = await db.query(sql, params);

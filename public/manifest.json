@@ -1,11 +1,11 @@
 {
-  "name": "MyBricks — LEGO Portfolio",
-  "short_name": "MyBricks",
-  "description": "Track, value, and forecast your LEGO collection.",
+  "name": "Brickvault",
+  "short_name": "Brickvault",
+  "description": "Track, value, and forecast your brick collection.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F5F1E8",
-  "theme_color": "#FFD700",
+  "theme_color": "#F5F1E8",
   "orientation": "portrait",
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" },

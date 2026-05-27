@@ -7,19 +7,19 @@
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#16161C">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="MyBricks">
-<meta name="description" content="MyBricks — your LEGO portfolio tracker. AI-powered pricing, ROI tracking, camera scanning.">
+<meta name="apple-mobile-web-app-title" content="Brickvault">
+<meta name="description" content="Brickvault — a premium brick portfolio tracker. AI-powered pricing, ROI tracking, camera scanning.">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://cdn.rebrickable.com; frame-ancestors 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://cdn.rebrickable.com; frame-ancestors 'none';">
 <meta property="og:type" content="website">
-<meta property="og:title" content="MyBricks — LEGO Portfolio Tracker">
-<meta property="og:description" content="Track, value, and forecast your LEGO collection.">
+<meta property="og:title" content="Brickvault — Portfolio Tracker">
+<meta property="og:description" content="Track, value, and forecast your brick collection.">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="MyBricks — LEGO Portfolio Tracker">
+<meta name="twitter:title" content="Brickvault — Portfolio Tracker">
 
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon.svg">
-<title>MyBricks — LEGO Portfolio</title>
+<title>Brickvault</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -32,7 +32,7 @@
 <body>
 
 <a href="#main-content" class="skip-link">Skip to content</a>
-<div id="offlineBanner" class="offline-banner" role="status" aria-live="polite">You’re offline — showing cached data</div>
+<div id="offlineBanner" class="offline-banner" role="status" aria-live="polite">You're offline — showing cached data</div>
 
 <div id="app">
   <main id="main-content">
@@ -50,69 +50,40 @@
 </div>
 
 <!-- Bottom nav -->
-<nav class="bottom-nav" id="nav" aria-label="Main navigation">
-  <a href="#/" class="nav-tab" data-route="/" aria-label="Portfolio">
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13l9-9 9 9M5 11v9a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1v-9"/></svg>
-    Portfolio
+<nav id="nav" aria-label="Main navigation">
+  <a href="#/" class="nav-tab" data-route="/" aria-label="Vault">
+    <span class="nav-icon"></span>
+    <span class="nav-label">Vault</span>
   </a>
   <a href="#/add" class="nav-tab" data-route="/add" aria-label="Catalog">
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
-    Catalog
+    <span class="nav-icon"></span>
+    <span class="nav-label">Catalog</span>
   </a>
   <a href="#/pile" class="nav-tab scan-tab" data-route="/pile" aria-label="Scan">
-    <div class="scan-orb">
-      <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7" width="22" height="22"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path stroke-linecap="round" d="M14 14h2m2 0h1M14 16v2m0 2v1"/></svg>
-    </div>
+    <div class="scan-orb"></div>
     <span class="nav-label">Scan</span>
   </a>
-  <a href="#/blind" class="nav-tab" data-route="/blind" aria-label="Blind Bag">
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><path stroke-linecap="round" stroke-linejoin="round" d="M6 7h12l-1 13a2 2 0 01-2 2H9a2 2 0 01-2-2L6 7zM9 7V5a3 3 0 016 0v2"/></svg>
-    Blind Bag
+  <a href="#/blind" class="nav-tab" data-route="/blind" aria-label="Figs">
+    <span class="nav-icon"></span>
+    <span class="nav-label">Figs</span>
   </a>
   <a href="#/me" class="nav-tab" data-route="/me" aria-label="Profile">
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-    Me
+    <span class="nav-icon"></span>
+    <span class="nav-label">Me</span>
   </a>
 </nav>
 
-<div id="ptrIndicator" class="ptr-indicator"><div class="ptr-spinner"></div><span>Refreshing…</span></div>
-<div id="toast" class="toast" role="alert" aria-live="assertive"></div>
+<div id="ptrIndicator" class="ptr-indicator">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 12a9 9 0 0115-6.7L21 8M21 4v4h-4M21 12a9 9 0 01-15 6.7L3 16M3 20v-4h4"/>
+  </svg>
+</div>
+<div id="toast" role="alert" aria-live="assertive"></div>
 <div id="sheetBackdrop" class="sheet-backdrop"></div>
 <div id="sheet" class="sheet"></div>
 
-<!-- Camera scan overlay -->
-<div id="scanOverlay" class="scan-overlay" aria-modal="true" role="dialog" aria-label="Camera scanner">
-  <video id="scanVideo" autoplay playsinline muted></video>
-  <div class="vignette"></div>
-  <div class="scan-flash" id="scanFlash"></div>
-  <div class="scan-head">
-    <div>
-      <div class="scan-eyebrow">Scanning</div>
-      <div class="scan-title" id="scanTitle">Find a LEGO set</div>
-    </div>
-    <button class="icon-btn" id="scanCloseBtn" aria-label="Close scanner">
-      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M6 18L18 6"/></svg>
-    </button>
-  </div>
-  <div class="scan-mode-toggle" id="scanModeToggle">
-    <button data-mode="barcode">Barcode</button>
-    <button data-mode="photo">Photo</button>
-  </div>
-  <div class="scan-frame">
-    <div class="scan-target">
-      <svg class="corner-svg corner-tl" viewBox="0 0 32 32"><path d="M4 20 L4 4 L20 4" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"/></svg>
-      <svg class="corner-svg corner-tr" viewBox="0 0 32 32"><path d="M12 4 L28 4 L28 20" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"/></svg>
-      <svg class="corner-svg corner-bl" viewBox="0 0 32 32"><path d="M4 12 L4 28 L20 28" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"/></svg>
-      <svg class="corner-svg corner-br" viewBox="0 0 32 32"><path d="M12 28 L28 28 L28 12" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"/></svg>
-      <div class="scanline"></div>
-    </div>
-  </div>
-  <div class="scan-hint" id="scanHint">Point at a barcode</div>
-  <div class="scan-sub" id="scanSub">Or switch to Photo to identify a built set</div>
-  <div class="scan-actions">
-    <button class="scan-capture" id="scanCapture" style="display:none" aria-label="Capture photo"></button>
-  </div>
-</div>
+<!-- Camera scan overlay (populated by app.js when opened) -->
+<div id="scanOverlay" aria-modal="true" role="dialog" aria-label="Camera scanner"></div>
 
 <script type="module" src="/app.js"></script>
 </body>
