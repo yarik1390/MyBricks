@@ -1110,6 +1110,16 @@ body.offline .offline-banner { display: block; }
 }
 .toggle.on { background: var(--bv-yellow); }
 .toggle.on::after { transform: translateX(18px); }
+.import-btn {
+  width: 36px; height: 36px; flex-shrink: 0;
+  background: var(--bv-yellow); border: 2px solid var(--line);
+  border-radius: var(--r-2); box-shadow: var(--shadow-2);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: transform var(--dur-fast) var(--ease);
+}
+.import-btn:active { transform: translate(2px, 2px); box-shadow: none; }
+.import-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: var(--shadow-1); }
+.import-btn svg { width: 16px; height: 16px; }
 
 /* ============================================================
    Pull-to-refresh

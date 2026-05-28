@@ -4,11 +4,13 @@ import { formulaValuation } from 'lib/valuation.js';
 export const access = 'admin';
 export const methods = ['POST'];
 
+const CDN = 'https://cdn.rebrickable.com/media/downloads';
+const BATCH = 200;
+
 async function fetchGzip(url) {
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching ${url}`);
+  const resp = await fetch(url, { headers: { 'User-Agent': 'Brickvault-Import/1.0' } });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status} from ${url}`);
   const buf = await resp.arrayBuffer();
-  // Decompress using DecompressionStream (available in modern runtimes)
   const ds = new DecompressionStream('gzip');
   const writer = ds.writable.getWriter();
   writer.write(new Uint8Array(buf));
@@ -27,26 +29,142 @@ async function fetchGzip(url) {
   return new TextDecoder().decode(out);
 }
 
+function parseLine(line) {
+  const cols = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (c === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+    else cur += c;
+  }
+  cols.push(cur.trim());
+  return cols;
+}
+
 function parseCSV(text) {
   const lines = text.split('\n');
-  const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+  const headers = parseLine(lines[0]).map(h => h.trim());
   return lines.slice(1).filter(Boolean).map(line => {
-    const vals = [];
-    let cur = '';
-    let inQ = false;
-    for (const ch of line) {
-      if (ch === '"') { inQ = !inQ; }
-      else if (ch === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
-      else cur += ch;
-    }
-    vals.push(cur.trim());
-    const obj = {};
-    headers.forEach((h, i) => obj[h] = vals[i] || null);
-    return obj;
+    const vals = parseLine(line);
+    return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? null]));
   });
 }
 
-export default async function (req, res) {
+async function importSets() {
+  const [themesText, setsText] = await Promise.all([
+    fetchGzip(`${CDN}/themes.csv.gz`),
+    fetchGzip(`${CDN}/sets.csv.gz`),
+  ]);
+
+  const themes = parseCSV(themesText);
+  const themeById = Object.fromEntries(themes.map(t => [t.id, t]));
+
+  // Resolve to top-level theme name (walk up parent chain max 4 levels)
+  const themeMap = {};
+  for (const t of themes) {
+    let cur = t;
+    for (let i = 0; i < 4 && cur.parent_id; i++) cur = themeById[cur.parent_id] || cur;
+    themeMap[t.id] = cur.name;
+  }
+
+  // Batch-upsert themes into lego_themes
+  const themeRows = themes.filter(t => t.id && t.name);
+  for (let i = 0; i < themeRows.length; i += BATCH) {
+    const batch = themeRows.slice(i, i + BATCH);
+    const ph = [], params = [];
+    let p = 1;
+    for (const t of batch) {
+      ph.push(`($${p},$${p + 1},$${p + 2})`);
+      params.push(parseInt(t.id), t.name, t.parent_id ? parseInt(t.parent_id) : null);
+      p += 3;
+    }
+    await db.query(
+      `INSERT INTO lego_themes (id,name,parent_id) VALUES ${ph.join(',')}
+       ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,parent_id=EXCLUDED.parent_id`,
+      params
+    );
+  }
+
+  const sets = parseCSV(setsText).filter(s => s.set_num && s.name);
+  let loaded = 0, skipped = 0;
+
+  for (let i = 0; i < sets.length; i += BATCH) {
+    const batch = sets.slice(i, i + BATCH);
+    const ph = [], params = [];
+    let p = 1;
+
+    for (const s of batch) {
+      const pieces = parseInt(s.num_parts) || 0;
+      const year = parseInt(s.year) || null;
+      const theme = themeMap[s.theme_id] || null;
+      const minifigs = parseInt(s.num_minifigs) || 0;
+      const img = s.img_url && s.img_url !== 'None' ? s.img_url : null;
+      let vals;
+      try { vals = formulaValuation({ pieces, year, theme, retired: false }); }
+      catch { skipped++; continue; }
+
+      ph.push(`($${p},$${p+1},$${p+2},$${p+3},$${p+4},$${p+5},$${p+6},$${p+7},$${p+8},$${p+9},$${p+10})`);
+      params.push(s.set_num, s.name, year, theme, pieces, minifigs, img,
+        vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y);
+      p += 11;
+      loaded++;
+    }
+
+    if (!ph.length) continue;
+    await db.query(`
+      INSERT INTO lego_sets
+        (set_num,name,year,theme,pieces,minifigs,image_url,retail_price,current_value,forecast_2y,forecast_5y,valuation_method,source,cached_at)
+      VALUES ${ph.join(',')}
+      ON CONFLICT (set_num) DO UPDATE SET
+        name=EXCLUDED.name, year=EXCLUDED.year, theme=EXCLUDED.theme,
+        pieces=EXCLUDED.pieces, minifigs=EXCLUDED.minifigs,
+        image_url=COALESCE(EXCLUDED.image_url, lego_sets.image_url),
+        retail_price=CASE WHEN lego_sets.valuation_method='ai' THEN lego_sets.retail_price ELSE EXCLUDED.retail_price END,
+        current_value=CASE WHEN lego_sets.valuation_method='ai' THEN lego_sets.current_value ELSE EXCLUDED.current_value END,
+        forecast_2y=CASE WHEN lego_sets.valuation_method='ai' THEN lego_sets.forecast_2y ELSE EXCLUDED.forecast_2y END,
+        forecast_5y=CASE WHEN lego_sets.valuation_method='ai' THEN lego_sets.forecast_5y ELSE EXCLUDED.forecast_5y END,
+        valuation_method=CASE WHEN lego_sets.valuation_method='ai' THEN 'ai' ELSE 'formula_bulk' END,
+        source='rebrickable', cached_at=now()
+    `, params);
+  }
+
+  return { loaded, skipped, themes: themeRows.length };
+}
+
+async function importFigs() {
+  const text = await fetchGzip(`${CDN}/minifigs.csv.gz`);
+  const figs = parseCSV(text).filter(f => f.fig_num && f.name);
+  let loaded = 0;
+
+  for (let i = 0; i < figs.length; i += BATCH) {
+    const batch = figs.slice(i, i + BATCH);
+    const ph = [], params = [];
+    let p = 1;
+    for (const f of batch) {
+      const img = f.img_url && f.img_url !== 'None' ? f.img_url : null;
+      ph.push(`($${p},$${p+1},$${p+2})`);
+      params.push(f.fig_num, f.name, img);
+      p += 3;
+      loaded++;
+    }
+    await db.query(`
+      INSERT INTO minifigs (fig_num,name,image_url)
+      VALUES ${ph.join(',')}
+      ON CONFLICT (fig_num) DO UPDATE SET
+        name=EXCLUDED.name,
+        image_url=COALESCE(EXCLUDED.image_url, minifigs.image_url)
+    `, params);
+  }
+
+  return { loaded };
+}
+
+export default async function(req, res) {
+  const { dataset = 'sets' } = req.body || {};
+
   const run = await db.query(
     'INSERT INTO import_runs (status) VALUES ($1) RETURNING id',
     ['running']
@@ -54,55 +172,30 @@ export default async function (req, res) {
   const runId = run.rows[0].id;
 
   try {
-    // Import themes
-    const themesCSV = await fetchGzip('https://cdn.rebrickable.com/media/downloads/themes.csv.gz');
-    const themes = parseCSV(themesCSV);
-    let themesLoaded = 0;
-    for (const t of themes) {
-      if (!t.id || !t.name) continue;
-      await db.query(
-        'INSERT INTO lego_themes (id,name,parent_id) VALUES ($1,$2,$3) ON CONFLICT (id) DO UPDATE SET name=$2,parent_id=$3',
-        [parseInt(t.id), t.name, t.parent_id ? parseInt(t.parent_id) : null]
-      );
-      themesLoaded++;
+    const result = {};
+
+    if (dataset === 'sets' || dataset === 'all') {
+      const r = await importSets();
+      result.sets_loaded = r.loaded;
+      result.sets_skipped = r.skipped;
+      result.themes_loaded = r.themes;
     }
-
-    // Build theme ID->name map
-    const themeMap = {};
-    for (const t of themes) { if (t.id) themeMap[t.id] = t.name; }
-
-    // Import sets
-    const setsCSV = await fetchGzip('https://cdn.rebrickable.com/media/downloads/sets.csv.gz');
-    const sets = parseCSV(setsCSV);
-    let setsLoaded = 0, setsSkipped = 0;
-
-    for (const s of sets) {
-      if (!s.set_num || !s.name) { setsSkipped++; continue; }
-      try {
-        const pieces = parseInt(s.num_parts) || 0;
-        const year = parseInt(s.year) || null;
-        const theme = themeMap[s.theme_id] || null;
-        const vals = formulaValuation({ pieces, year, theme, retired: false });
-        await db.query(`
-          INSERT INTO lego_sets (set_num, name, year, theme, pieces, image_url, retail_price, current_value, forecast_2y, forecast_5y, valuation_method, source)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'formula_bulk','rebrickable')
-          ON CONFLICT (set_num) DO UPDATE SET
-            name=EXCLUDED.name, year=EXCLUDED.year, theme=EXCLUDED.theme,
-            pieces=EXCLUDED.pieces, image_url=EXCLUDED.image_url,
-            valuation_method=CASE WHEN lego_sets.valuation_method='ai' THEN 'ai' ELSE 'formula_bulk' END
-        `, [s.set_num, s.name, year, theme, pieces, s.img_url || null,
-            vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y]);
-        setsLoaded++;
-      } catch (_) { setsSkipped++; }
+    if (dataset === 'figs' || dataset === 'all') {
+      const r = await importFigs();
+      result.figs_loaded = r.loaded;
     }
 
     await db.query(
-      'UPDATE import_runs SET status=$1,completed_at=now(),themes_loaded=$2,sets_loaded=$3,sets_skipped=$4 WHERE id=$5',
-      ['completed', themesLoaded, setsLoaded, setsSkipped, runId]
+      'UPDATE import_runs SET status=$1,completed_at=now(),themes_loaded=$2,sets_loaded=$3,sets_skipped=$4,figs_loaded=$5 WHERE id=$6',
+      ['completed', result.themes_loaded ?? null, result.sets_loaded ?? null,
+       result.sets_skipped ?? null, result.figs_loaded ?? null, runId]
     );
-    return res.json({ ok: true, themes_loaded: themesLoaded, sets_loaded: setsLoaded, sets_skipped: setsSkipped });
+    return res.json({ ok: true, ...result });
   } catch (e) {
-    await db.query('UPDATE import_runs SET status=$1,error=$2,completed_at=now() WHERE id=$3', ['error', e.message, runId]);
+    await db.query(
+      'UPDATE import_runs SET status=$1,error=$2,completed_at=now() WHERE id=$3',
+      ['error', e.message, runId]
+    );
     return res.status(500).json({ error: e.message });
   }
 }

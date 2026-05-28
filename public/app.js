@@ -915,6 +915,18 @@ async function renderMe() {
         </div>
       </div>
 
+      <div class="section-title">Catalog</div>
+      <div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Import sets</div><div class="desc" id="importSetsDesc">~22k sets from Rebrickable with themes &amp; images</div></div>
+          <button class="import-btn" id="importSetsBtn" aria-label="Import sets">${I.download()}</button>
+        </div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Import minifigs</div><div class="desc" id="importFigsDesc">~10k minifigures from Rebrickable</div></div>
+          <button class="import-btn" id="importFigsBtn" aria-label="Import minifigs">${I.download()}</button>
+        </div>
+      </div>
+
       <div class="section-title">Data</div>
       <div>
         <div class="setting-row">
@@ -928,7 +940,7 @@ async function renderMe() {
       </div>
 
       <div style="text-align:center;font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-top:24px;letter-spacing:0.1em;">
-        BRICKVAULT · v2.0 · STACK SOMETHING BEAUTIFUL
+        BRICKVAULT · v3.0 · STACK SOMETHING BEAUTIFUL
       </div>
     </div>`;
 
@@ -948,6 +960,27 @@ async function renderMe() {
         .then(() => { state.me = null; renderMe(); }).catch(e => toast("Error: " + e.message, "error"));
     }
   });
+
+  async function runImport(dataset, descId, btnId) {
+    const descEl = $(descId), btnEl = $(btnId);
+    if (!btnEl || btnEl.disabled) return;
+    btnEl.disabled = true;
+    haptic("medium");
+    descEl.textContent = "Fetching from Rebrickable…";
+    try {
+      const r = await api("/api/admin/import-rebrickable", { method: "POST", body: { dataset } });
+      const n = dataset === "sets" ? r.sets_loaded : r.figs_loaded;
+      descEl.textContent = `✓ ${(n || 0).toLocaleString()} imported`;
+      toast(`${(n || 0).toLocaleString()} records imported`, "info");
+    } catch (e) {
+      descEl.textContent = e.message || "Import failed";
+      btnEl.disabled = false;
+      toast("Import failed: " + e.message, "error");
+    }
+  }
+
+  $("#importSetsBtn")?.addEventListener("click", () => runImport("sets", "#importSetsDesc", "#importSetsBtn"));
+  $("#importFigsBtn")?.addEventListener("click", () => runImport("figs", "#importFigsDesc", "#importFigsBtn"));
 }
 
 /* ============================================================
