@@ -164,6 +164,29 @@ async function importFigs() {
 
 export default async function(req, res) {
   const { dataset = 'sets' } = req.body || {};
+  if (!['sets', 'figs', 'all'].includes(dataset)) {
+    return res.status(400).json({ error: "dataset must be 'sets', 'figs', or 'all'" });
+  }
+
+  // Guard: don't let a second import overlap a running one. A run older than
+  // 15 minutes is treated as stale (the isolate likely died) and superseded.
+  const active = await db.query(
+    `SELECT id, started_at FROM import_runs
+     WHERE status='running' AND started_at > now() - interval '15 minutes'
+     ORDER BY started_at DESC LIMIT 1`
+  );
+  if (active.rows.length) {
+    return res.status(409).json({
+      error: 'An import is already running. Please wait for it to finish.',
+      run_id: active.rows[0].id,
+      started_at: active.rows[0].started_at,
+    });
+  }
+  // Mark any older stuck 'running' rows as errored so status stays truthful.
+  await db.query(
+    `UPDATE import_runs SET status='error', error='Superseded (stale run)', completed_at=now()
+     WHERE status='running'`
+  );
 
   const run = await db.query(
     'INSERT INTO import_runs (status) VALUES ($1) RETURNING id',

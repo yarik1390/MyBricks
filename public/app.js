@@ -190,24 +190,44 @@ function slImgHTML(set, { newBadge = false, qtyBadge = 0 } = {}) {
 /* ============================================================
    Router
    ============================================================ */
-function route() {
+function errorStateHTML(retryHash) {
+  return `
+    <div class="page">
+      <div class="empty card">
+        <div class="empty-icon">${I.info()}</div>
+        <h3>Something went wrong</h3>
+        <p>We couldn't load this page. Check your connection and try again.</p>
+        <button class="btn-primary" onclick="location.hash='${retryHash}';location.reload()">${I.refresh()}<span>Retry</span></button>
+      </div>
+    </div>`;
+}
+
+async function route() {
   const hash = location.hash.replace("#", "") || "/";
   $$("#nav .nav-tab").forEach(t => {
     const r = t.dataset.route;
     const active = r === hash || (hash.startsWith("/set/") && r === "/") || (hash === "/wishlist" && r === "/");
     t.classList.toggle("active", active);
   });
-  if (hash === "/" || hash === "") renderPortfolio();
-  else if (hash === "/add") renderAdd();
-  else if (hash === "/pile") renderPile();
-  else if (hash === "/blind") renderBlind();
-  else if (hash === "/me") renderMe();
-  else if (hash === "/wishlist") renderWishlist();
-  else if (hash.startsWith("/set/")) {
-    const parts = hash.split("/");
-    const setNum = decodeURIComponent(parts[2]);
-    state.detail.tab = parts[3] || "info";
-    renderSetDetail(setNum);
+  try {
+    if (hash === "/" || hash === "") await renderPortfolio();
+    else if (hash === "/add") await renderAdd();
+    else if (hash === "/pile") renderPile();
+    else if (hash === "/blind") await renderBlind();
+    else if (hash === "/me") await renderMe();
+    else if (hash === "/wishlist") await renderWishlist();
+    else if (hash.startsWith("/set/")) {
+      const parts = hash.split("/");
+      const setNum = decodeURIComponent(parts[2]);
+      state.detail.tab = parts[3] || "info";
+      await renderSetDetail(setNum);
+    } else {
+      location.hash = "#/";
+      return;
+    }
+  } catch (e) {
+    const root = $("#root");
+    if (root) root.innerHTML = errorStateHTML(hash);
   }
   window.scrollTo({ top: 0, behavior: "instant" });
 }
@@ -500,12 +520,18 @@ function paintAdd() {
 
       <div id="catalogCount" style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin:14px 4px 10px;">${c.total.toLocaleString()} result${c.total === 1 ? "" : "s"}</div>
 
-      <div class="grid" id="catalogGrid">
-        ${c.items.map(s => catalogCardHTML(s)).join("")}
-      </div>
-      <div id="catalogSentinel" class="load-sentinel" style="${c.hasMore ? "" : "display:none;"}">
-        <div class="spinner"></div>
-      </div>
+      ${c.items.length === 0 ? `
+        <div class="empty card">
+          <div class="empty-icon">${I.search()}</div>
+          <h3>No sets found</h3>
+          <p>${f.q ? `Nothing matches "${escapeHtml(f.q)}".` : "No sets match these filters."} Try a different search or clear filters.</p>
+        </div>` : `
+        <div class="grid" id="catalogGrid">
+          ${c.items.map(s => catalogCardHTML(s)).join("")}
+        </div>
+        <div id="catalogSentinel" class="load-sentinel" style="${c.hasMore ? "" : "display:none;"}">
+          <div class="spinner"></div>
+        </div>`}
     </div>`;
 
   $("#scanCta")?.addEventListener("click", () => openScan());
@@ -1103,6 +1129,10 @@ async function loadBlind({ reset = false } = {}) {
     const p = new URLSearchParams({ limit: b.pageSize, offset: b.offset });
     const res = await api("/api/minifigs?" + p.toString());
     const fresh = res.minifigs || [];
+    // Server is the source of truth for ownership — seed the local set from
+    // owned_qty so it survives device switches / cache clears.
+    fresh.forEach(f => { if (f.owned_qty > 0) state.ownedFigs.add(f.fig_num); });
+    localStorage.setItem("bv_figs", JSON.stringify([...state.ownedFigs]));
     b.items = reset ? fresh : b.items.concat(fresh);
     b.total = res.total ?? b.items.length;
     b.offset = b.items.length;
@@ -1120,17 +1150,29 @@ function wireMiniCards() {
   $$(".mini-card").forEach(c => {
     if (c._wired) return;
     c._wired = true;
-    c.addEventListener("click", () => {
+    c.addEventListener("click", async () => {
       const num = c.dataset.fig;
-      if (state.ownedFigs.has(num)) state.ownedFigs.delete(num);
-      else state.ownedFigs.add(num);
+      const nowOwned = !state.ownedFigs.has(num);
+      // Optimistic update
+      if (nowOwned) state.ownedFigs.add(num); else state.ownedFigs.delete(num);
       localStorage.setItem("bv_figs", JSON.stringify([...state.ownedFigs]));
       haptic("medium");
-      // Toggle in place — no full re-render, preserves scroll position.
       const f = state.blind.items.find(x => x.fig_num === num);
-      if (f) c.outerHTML = miniCardHTML(f);
+      if (f) { f.owned_qty = nowOwned ? 1 : 0; c.outerHTML = miniCardHTML(f); }
       wireMiniCards();
       updateBlindCount();
+      // Persist to server; revert on failure.
+      try {
+        await api("/api/minifigs/" + encodeURIComponent(num), { method: nowOwned ? "PUT" : "DELETE" });
+      } catch (e) {
+        if (nowOwned) state.ownedFigs.delete(num); else state.ownedFigs.add(num);
+        localStorage.setItem("bv_figs", JSON.stringify([...state.ownedFigs]));
+        if (f) { f.owned_qty = nowOwned ? 0 : 1; }
+        const card = $(`.mini-card[data-fig="${CSS.escape(num)}"]`);
+        if (card && f) { card.outerHTML = miniCardHTML(f); wireMiniCards(); }
+        updateBlindCount();
+        toast("Couldn't save — try again", "error");
+      }
     });
   });
 }
