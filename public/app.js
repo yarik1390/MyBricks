@@ -466,7 +466,16 @@ async function loadCatalog({ reset = false } = {}) {
     c.hasMore = !!res.hasMore;
     return fresh;
   } catch (e) {
-    toast("Couldn't load catalog: " + e.message, "error");
+    // Show retry inline inside the catalog page if it's open; otherwise silent.
+    const results = $("#catalogResults");
+    if (results) {
+      results.innerHTML = `<div class="empty card" style="margin-top:16px;">
+        <h3>Couldn't load catalog</h3>
+        <p>${e.message}. Check your connection and try again.</p>
+        <button class="btn-secondary" id="catalogRetry" style="margin-top:12px;">Retry</button>
+      </div>`;
+      $("#catalogRetry")?.addEventListener("click", async () => { await loadCatalog({ reset: true }); refreshCatalogGrid(); });
+    }
     return [];
   } finally {
     c.loading = false;
@@ -1667,7 +1676,9 @@ document.addEventListener("DOMContentLoaded", () => {
   setupGestures();
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    navigator.serviceWorker.register("/sw.js")
+      .then(reg => reg.update())  // immediately check for a newer SW on every load
+      .catch(() => {});
     navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
   }
 });
