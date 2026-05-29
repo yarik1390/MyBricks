@@ -154,7 +154,8 @@ function drawSparkline(container, data, opts = {}) {
   if (!container || !data || data.length < 2) return;
   const W = container.clientWidth || 300;
   const H = container.clientHeight || 88;
-  const vals = data.map(d => d.total_value ?? d);
+  const vals = data.map(d => d.total_value ?? d.current_value ?? d);
+  const dates = data.map(d => (d && d.snapshot_date) || null);
   const mn = Math.min(...vals), mx = Math.max(...vals);
   const pad = 4;
   const xs = (i) => pad + (i / (data.length - 1)) * (W - pad * 2);
@@ -163,18 +164,86 @@ function drawSparkline(container, data, opts = {}) {
   for (let i = 1; i < data.length; i++) path += ` L${xs(i).toFixed(1)} ${ys(vals[i]).toFixed(1)}`;
   const area = path + ` L${xs(data.length - 1).toFixed(1)} ${H} L${xs(0).toFixed(1)} ${H} Z`;
   const stroke = opts.up !== false ? "var(--up)" : "var(--down)";
+  const gid = "sg" + Math.random().toString(36).slice(2, 8);
+  if (getComputedStyle(container).position === "static") container.style.position = "relative";
   container.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
       <defs>
-        <linearGradient id="sg${Date.now()%9999}" id="sgr" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="${stroke}" stop-opacity="0.32"/>
+        <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${stroke}" stop-opacity="0.30"/>
           <stop offset="100%" stop-color="${stroke}" stop-opacity="0"/>
         </linearGradient>
       </defs>
-      <path d="${area}" fill="${stroke}" fill-opacity="0.16" />
+      <path d="${area}" fill="url(#${gid})" />
       <path d="${path}" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <line class="spark-guide" x1="0" y1="0" x2="0" y2="${H}" stroke="${stroke}" stroke-width="1" stroke-dasharray="3 3" opacity="0"/>
+      <circle class="spark-cursor" r="4.5" fill="${stroke}" stroke="var(--bg)" stroke-width="2" opacity="0"/>
       ${opts.dot !== false ? `<circle cx="${xs(data.length-1).toFixed(1)}" cy="${ys(vals[vals.length-1]).toFixed(1)}" r="4" fill="${stroke}" stroke="var(--bg)" stroke-width="2"/>` : ""}
-    </svg>`;
+    </svg>
+    <div class="spark-scrub"></div>`;
+
+  if (opts.scrub === false) return;
+  const guide = container.querySelector(".spark-guide");
+  const cursor = container.querySelector(".spark-cursor");
+  const scrub = container.querySelector(".spark-scrub");
+  const onMove = (e) => {
+    const rect = container.getBoundingClientRect();
+    if (!rect.width) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const i = Math.round(ratio * (data.length - 1));
+    const cx = xs(i), cy = ys(vals[i]);
+    guide.setAttribute("x1", cx); guide.setAttribute("x2", cx); guide.setAttribute("opacity", "0.45");
+    cursor.setAttribute("cx", cx); cursor.setAttribute("cy", cy); cursor.setAttribute("opacity", "1");
+    scrub.style.left = (cx / W * rect.width) + "px";
+    scrub.style.top = (cy / H * rect.height) + "px";
+    scrub.innerHTML = `<strong>${fmtMoney(vals[i], { cents: 0 })}</strong>${dates[i] ? " · " + fmtShortDate(dates[i]) : ""}`;
+    scrub.classList.add("show");
+  };
+  const onLeave = () => {
+    guide.setAttribute("opacity", "0");
+    cursor.setAttribute("opacity", "0");
+    scrub.classList.remove("show");
+  };
+  container.addEventListener("pointermove", onMove);
+  container.addEventListener("pointerleave", onLeave);
+  container.addEventListener("touchmove", onMove, { passive: true });
+  container.addEventListener("touchend", onLeave);
+}
+
+function fmtShortDate(d) {
+  try {
+    return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } catch { return ""; }
+}
+
+// Toggle an inline loading state on a button (spinner + disabled). The CSS
+// `.is-loading` class hides the label and shows a spinner.
+function setBtnLoading(el, on) {
+  if (!el) return;
+  el.classList.toggle("is-loading", !!on);
+  el.disabled = !!on;
+}
+
+// Fetch and draw a set's REAL price history. Honest empty state when there
+// aren't yet two points to connect (never fabricates a trend).
+async function loadSetHistory(setNum) {
+  const el = $("#setSpark");
+  if (!el) return;
+  try {
+    const res = await api("/api/sets/" + encodeURIComponent(setNum) + "/history?days=90");
+    const hist = res.history || [];
+    if (hist.length >= 2) {
+      const up = Number(hist[hist.length - 1].current_value) >= Number(hist[0].current_value);
+      drawSparkline(el, hist, { up });
+    } else {
+      el.style.height = "auto";
+      el.innerHTML = `<div class="spark-empty">${I.info()}<span>Price tracking just started — check back soon for a trend.</span></div>`;
+    }
+  } catch {
+    el.style.height = "auto";
+    el.innerHTML = `<div class="spark-empty"><span>Couldn't load price history.</span></div>`;
+  }
 }
 
 /* ============================================================
@@ -211,6 +280,68 @@ function errorStateHTML() {
     </div>`;
 }
 
+const prefersReducedMotion = () =>
+  window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Run a synchronous DOM update inside a View Transition for a native-feeling
+// crossfade between routes. Falls back to a plain call when unsupported or when
+// the user prefers reduced motion.
+function withViewTransition(fn) {
+  if (document.startViewTransition && !prefersReducedMotion()) {
+    try { return document.startViewTransition(fn).finished.catch(() => {}); }
+    catch { fn(); }
+  } else {
+    fn();
+  }
+  return Promise.resolve();
+}
+
+// --- Skeleton screens (shown synchronously before the first await) ---
+const skelLine = (w, m = "") => `<div class="skel line" style="width:${w};${m}"></div>`;
+function portfolioSkeletonHTML() {
+  return `<div class="page">
+    <div class="skel card mb-12" style="height:196px;border-radius:var(--r-3);"></div>
+    ${skelLine("130px", "margin:18px 0 14px;height:18px;")}
+    ${Array.from({ length: 3 }).map(() => `<div class="skel card mb-12" style="height:96px;"></div>`).join("")}
+  </div>`;
+}
+function gridSkeletonHTML(n = 6) {
+  return `<div class="page">
+    <div class="skel card mb-12" style="height:60px;"></div>
+    ${skelLine("160px", "margin:8px 0 14px;")}
+    <div class="grid">${Array.from({ length: n }).map(() => `<div class="skel card" style="height:188px;"></div>`).join("")}</div>
+  </div>`;
+}
+function miniSkeletonHTML(n = 6) {
+  return `<div class="page">
+    ${skelLine("140px", "margin:6px 0 14px;height:18px;")}
+    <div class="skel card mb-12" style="height:64px;"></div>
+    <div class="mini-grid">${Array.from({ length: n }).map(() => `<div class="skel card" style="height:150px;"></div>`).join("")}</div>
+  </div>`;
+}
+function detailSkeletonHTML() {
+  return `<div class="page no-pad">
+    <div class="skel" style="height:300px;border-radius:0;"></div>
+    <div style="padding:18px 22px;">
+      ${skelLine("60%", "height:24px;margin-bottom:14px;")}
+      <div class="grid">${Array.from({ length: 4 }).map(() => `<div class="skel card" style="height:84px;"></div>`).join("")}</div>
+    </div>
+  </div>`;
+}
+function genericSkeletonHTML() {
+  return `<div class="page">
+    ${skelLine("150px", "margin:6px 0 16px;height:20px;")}
+    ${Array.from({ length: 3 }).map(() => `<div class="skel card mb-12" style="height:88px;"></div>`).join("")}
+  </div>`;
+}
+function skeletonFor(hash) {
+  if (hash.startsWith("/set/")) return detailSkeletonHTML();
+  if (hash === "/add") return gridSkeletonHTML();
+  if (hash === "/minifigs") return miniSkeletonHTML();
+  if (hash === "/" || hash === "") return portfolioSkeletonHTML();
+  return genericSkeletonHTML();
+}
+
 async function route() {
   let hash = location.hash.replace("#", "") || "/";
   // Legacy redirect: the minifigs page used to live at /blind.
@@ -220,7 +351,8 @@ async function route() {
     const active = r === hash || (hash.startsWith("/set/") && r === "/") || (hash === "/wishlist" && r === "/");
     t.classList.toggle("active", active);
   });
-  try {
+
+  const render = async () => {
     if (hash === "/" || hash === "") await renderPortfolio();
     else if (hash === "/add") await renderAdd();
     else if (hash === "/pile") renderPile();
@@ -234,9 +366,16 @@ async function route() {
       await renderSetDetail(setNum);
     } else {
       location.hash = "#/";
-      return;
+      throw { __redirect: true };
     }
+  };
+
+  try {
+    // Crossfade to a skeleton synchronously, then fill with real content.
+    await withViewTransition(() => { $("#root").innerHTML = skeletonFor(hash); });
+    await render();
   } catch (e) {
+    if (e && e.__redirect) return;
     const root = $("#root");
     if (root) {
       root.innerHTML = errorStateHTML();
@@ -764,13 +903,10 @@ function infoTabHTML(set, entry, isWish) {
 }
 
 function wireInfoTab(set, entry) {
-  const synthData = (() => {
-    const base = set.current_value || 100;
-    return Array.from({ length: 91 }, (_, i) => ({
-      total_value: base * (0.93 + Math.sin((90-i)/5 + setHue(set)/30)*0.04 + (Math.random()-0.45)*0.015 + (90-i)/90*0.08)
-    }));
-  })();
-  setTimeout(() => drawSparkline($("#setSpark"), synthData, { up: true }), 30);
+  // Real price history from set_value_history (accrues daily). Until there are
+  // at least two data points we show an honest "tracking started" note rather
+  // than fabricating a trend line.
+  loadSetHistory(set.set_num);
 
   let qty = entry?.quantity || 1;
   $("#qtyDown")?.addEventListener("click", async () => {
@@ -788,15 +924,16 @@ function wireInfoTab(set, entry) {
     try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); state.portfolio = null; }
     catch (e) { toast("Save failed", "error"); }
   });
-  $("#addBtn")?.addEventListener("click", async () => {
+  $("#addBtn")?.addEventListener("click", async (e) => {
     haptic("heavy");
+    setBtnLoading(e.currentTarget, true);
     try {
       await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
-      state.portfolio = null;
+      state.portfolio = null; state.catalogAll = null;
       toast("Added to vault", "success");
       const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
       paintSetDetail(r.set || r, r.entry || null);
-    } catch (e) { toast("Error: " + e.message, "error"); }
+    } catch (e) { setBtnLoading($("#addBtn"), false); toast("Error: " + e.message, "error"); }
   });
   $("#wishToggle")?.addEventListener("click", async () => {
     haptic("medium");
@@ -908,7 +1045,7 @@ function wireManageTab(set, entry) {
   $("#mCondition")?.addEventListener("change", persist);
   $("#mNotes")?.addEventListener("blur", persist);
   $("#mRemove")?.addEventListener("click", async () => {
-    if (!confirm("Remove this set from your vault?")) return;
+    if (!(await confirmSheet({ title: "Remove from vault?", message: "This set will be removed from your collection.", confirmLabel: "Remove", danger: true }))) return;
     haptic("heavy");
     try {
       await api("/api/collection/" + entry.id, { method: "DELETE" });
@@ -1107,8 +1244,8 @@ async function renderMe() {
     catch {}
     toast(notifyOn ? "Alerts on" : "Alerts paused", "info");
   });
-  $("#editName")?.addEventListener("click", () => {
-    const name = prompt("Display name:", me.display_name || "");
+  $("#editName")?.addEventListener("click", async () => {
+    const name = await promptSheet({ title: "Display name", label: "How should we call you?", value: me.display_name || "", placeholder: "Your name" });
     if (name && name.trim()) {
       api("/api/me", { method: "PATCH", body: { display_name: name.trim().slice(0, 40) } })
         .then(() => { state.me = null; renderMe(); }).catch(e => toast("Error: " + e.message, "error"));
@@ -1427,6 +1564,11 @@ async function capturePhoto() {
 }
 
 async function sendScanToAPI(payload) {
+  const el = $("#scanResult");
+  if (el) {
+    el.classList.add("show");
+    el.innerHTML = `<div class="scan-loading"><div class="spinner"></div><span>Identifying…</span></div>`;
+  }
   try {
     const res = await api("/api/scan/identify", { method: "POST", body: payload });
     showScanResult(res);
@@ -1529,12 +1671,87 @@ function showSheet(html) {
   sheet.innerHTML = `<div class="sheet-handle"></div>` + html;
   back.classList.add("show");
   sheet.classList.add("show");
+  haptic("light");
   back.addEventListener("click", hideSheet, { once: true });
+  document.addEventListener("keydown", sheetKeyHandler);
+  wireSheetDrag(sheet);
 }
+function sheetKeyHandler(e) { if (e.key === "Escape") hideSheet(); }
 function hideSheet() {
+  const sheet = $("#sheet");
   $("#sheetBackdrop").classList.remove("show");
-  $("#sheet").classList.remove("show");
+  sheet.classList.remove("show");
+  sheet.style.transform = "";
+  sheet.style.transition = "";
+  document.removeEventListener("keydown", sheetKeyHandler);
+  haptic("light");
 }
+// Drag the sheet down to dismiss; release past ~30% (or a fast flick) closes it,
+// otherwise it springs back. Native iOS/Android bottom-sheet behaviour.
+function wireSheetDrag(sheet) {
+  let startY = 0, dy = 0, dragging = false, t0 = 0;
+  const onStart = (e) => {
+    // Only initiate a drag from the top of the sheet (handle area) or when
+    // the content is scrolled to the top, so inner scrolling still works.
+    if (sheet.scrollTop > 0) return;
+    startY = e.touches[0].clientY; dy = 0; dragging = true; t0 = Date.now();
+    sheet.style.transition = "none";
+  };
+  const onMove = (e) => {
+    if (!dragging) return;
+    dy = e.touches[0].clientY - startY;
+    if (dy < 0) dy = 0;
+    sheet.style.transform = `translateY(${dy}px)`;
+  };
+  const onEnd = () => {
+    if (!dragging) return;
+    dragging = false;
+    sheet.style.transition = "";
+    const velocity = dy / Math.max(1, Date.now() - t0);
+    if (dy > sheet.offsetHeight * 0.3 || velocity > 0.6) hideSheet();
+    else sheet.style.transform = "";
+  };
+  sheet.addEventListener("touchstart", onStart, { passive: true });
+  sheet.addEventListener("touchmove", onMove, { passive: true });
+  sheet.addEventListener("touchend", onEnd);
+}
+
+// In-app confirm sheet (replaces window.confirm). Resolves true/false.
+function confirmSheet({ title, message = "", confirmLabel = "Confirm", danger = false }) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (done) return; done = true; hideSheet(); resolve(v); };
+    showSheet(`
+      <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 6px;">${escapeHtml(title)}</div>
+      ${message ? `<div style="color:var(--ink-mute);font-size:14px;margin:0 4px 18px;">${escapeHtml(message)}</div>` : `<div style="height:12px;"></div>`}
+      <button class="btn-primary ${danger ? "btn-danger" : ""}" id="cfYes">${escapeHtml(confirmLabel)}</button>
+      <button class="btn-secondary" id="cfNo" style="margin-top:8px;">Cancel</button>`);
+    $("#cfYes").addEventListener("click", () => finish(true));
+    $("#cfNo").addEventListener("click", () => finish(false));
+    $("#sheetBackdrop").addEventListener("click", () => finish(false), { once: true });
+  });
+}
+
+// In-app single-field prompt sheet (replaces window.prompt). Resolves string or null.
+function promptSheet({ title, label = "", value = "", placeholder = "", confirmLabel = "Save" }) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (done) return; done = true; hideSheet(); resolve(v); };
+    showSheet(`
+      <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 14px;">${escapeHtml(title)}</div>
+      ${label ? `<label class="field-lbl" for="psInput">${escapeHtml(label)}</label>` : ""}
+      <input class="field-input" id="psInput" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" autocomplete="off">
+      <button class="btn-primary" id="psSave" style="margin-top:14px;">${escapeHtml(confirmLabel)}</button>
+      <button class="btn-secondary" id="psCancel" style="margin-top:8px;">Cancel</button>`);
+    const input = $("#psInput");
+    setTimeout(() => input?.focus(), 80);
+    input?.addEventListener("keydown", (e) => { if (e.key === "Enter") finish(input.value.trim()); });
+    $("#psSave").addEventListener("click", () => finish(input.value.trim()));
+    $("#psCancel").addEventListener("click", () => finish(null));
+    $("#sheetBackdrop").addEventListener("click", () => finish(null), { once: true });
+  });
+}
+
 function showAlertsSheet(alerts) {
   const html = alerts.length === 0
     ? `<div style="padding:20px 0;text-align:center;color:var(--ink-mute);">No new alerts.</div>`
@@ -1563,7 +1780,8 @@ function showQuickActions(setNum) {
     shareSet(set);
   });
   $("#qaRemove").addEventListener("click", async () => {
-    if (!confirm("Remove from vault?")) { hideSheet(); return; }
+    hideSheet();
+    if (!(await confirmSheet({ title: "Remove from vault?", message: "This set will be removed from your collection.", confirmLabel: "Remove", danger: true }))) return;
     const item = (state.portfolio?.items || []).find(s => s.set_num === setNum);
     if (item) {
       try { await api("/api/collection/" + item.id, { method: "DELETE" }); state.portfolio = null; toast("Removed", "info"); }

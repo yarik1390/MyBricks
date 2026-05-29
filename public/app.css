@@ -170,7 +170,7 @@ body.offline .offline-banner { display: block; }
   font-size: 22px; letter-spacing: -0.02em;
 }
 .icon-btn {
-  width: 40px; height: 40px; border-radius: var(--r-full);
+  width: 44px; height: 44px; border-radius: var(--r-full);
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--surface);
   border: 2px solid var(--line);
@@ -1426,3 +1426,128 @@ body.offline .offline-banner { display: block; }
 
 .set-card-img.has-tile { padding: 18% 18% 12%; }
 .set-card-img.has-tile .brick-tile { width: 100%; height: 100%; }
+
+/* ============================================================
+   v4.0 — native-feel polish
+   ============================================================ */
+
+/* A1 — View Transitions: a quick crossfade between routes. The browser
+   snapshots old/new #root and fades. Reduced-motion users skip it (the JS
+   guard also bypasses startViewTransition). */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.26s;
+    animation-timing-function: var(--ease);
+  }
+}
+
+/* A4 — chart scrub helpers (the bubble itself uses .spark-scrub above) */
+.spark-empty {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 2px; color: var(--ink-mute);
+  font-size: 12.5px; line-height: 1.35;
+}
+.spark-empty svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+/* A2 — bigger grab target on the sheet handle */
+.sheet-handle {
+  cursor: grab;
+  position: relative;
+}
+.sheet-handle::after {
+  content: ""; position: absolute;
+  left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 80px; height: 26px;
+}
+
+/* prompt-sheet input (matches .field aesthetics) */
+.field-input {
+  width: 100%;
+  padding: 13px 14px;
+  background: var(--surface); color: var(--ink);
+  border: 2px solid var(--line);
+  border-radius: var(--r-2);
+  font-size: 16px; font-weight: 500; font-family: inherit;
+  outline: none;
+}
+.field-input:focus { border-color: var(--bv-red); }
+
+/* A5 — unified button loading state (spinner replaces the label) */
+.btn-primary.is-loading,
+.btn-secondary.is-loading,
+.btn-danger.is-loading { color: transparent; position: relative; pointer-events: none; }
+.btn-primary.is-loading::after,
+.btn-secondary.is-loading::after,
+.btn-danger.is-loading::after {
+  content: ""; position: absolute;
+  width: 18px; height: 18px;
+  border: 2.5px solid currentColor; border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  color: #fff;
+}
+.btn-secondary.is-loading::after { color: var(--ink); }
+
+/* A5 — staggered entrance for list/grid items on first paint */
+@media (prefers-reduced-motion: no-preference) {
+  .set-list .set-list-card,
+  .grid .set-card,
+  .mini-grid .mini-card {
+    animation: itemIn 0.34s var(--ease) both;
+  }
+  .set-list .set-list-card:nth-child(1),
+  .grid .set-card:nth-child(1),
+  .mini-grid .mini-card:nth-child(1) { animation-delay: 0.02s; }
+  .set-list .set-list-card:nth-child(2),
+  .grid .set-card:nth-child(2),
+  .mini-grid .mini-card:nth-child(2) { animation-delay: 0.05s; }
+  .set-list .set-list-card:nth-child(3),
+  .grid .set-card:nth-child(3),
+  .mini-grid .mini-card:nth-child(3) { animation-delay: 0.08s; }
+  .set-list .set-list-card:nth-child(4),
+  .grid .set-card:nth-child(4),
+  .mini-grid .mini-card:nth-child(4) { animation-delay: 0.11s; }
+  .set-list .set-list-card:nth-child(5),
+  .grid .set-card:nth-child(5),
+  .mini-grid .mini-card:nth-child(5) { animation-delay: 0.14s; }
+  .set-list .set-list-card:nth-child(6),
+  .grid .set-card:nth-child(6),
+  .mini-grid .mini-card:nth-child(6) { animation-delay: 0.17s; }
+  .set-list .set-list-card:nth-child(n+7),
+  .grid .set-card:nth-child(n+7),
+  .mini-grid .mini-card:nth-child(n+7) { animation-delay: 0.19s; }
+}
+@keyframes itemIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* A6 — scan result loading state */
+.scan-loading {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 28px 0; color: #fff;
+  font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.scan-loading .spinner {
+  width: 30px; height: 30px;
+  border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* A8 — tablet / desktop responsiveness */
+@media (min-width: 640px) {
+  .grid { grid-template-columns: 1fr 1fr 1fr; }
+  .mini-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 900px) {
+  #app, #nav { max-width: 760px; margin-left: auto; margin-right: auto; }
+  #nav { left: 50%; right: auto; transform: translateX(-50%); }
+  .grid { grid-template-columns: repeat(4, 1fr); }
+  .mini-grid { grid-template-columns: repeat(4, 1fr); }
+}
+/* Landscape phones: keep the set-detail hero from eating the viewport */
+@media (orientation: landscape) and (max-height: 520px) {
+  .detail-hero { min-height: 0 !important; }
+}

@@ -22,5 +22,9 @@ path     = "/api/jobs/snapshot-portfolios"
 schedule = "0 2 * * *"
 
 [[cron]]
+path     = "/api/jobs/snapshot-set-values"
+schedule = "0 3 * * *"
+
+[[cron]]
 path     = "/api/jobs/wishlist-alerts"
 schedule = "0 8 * * *"
