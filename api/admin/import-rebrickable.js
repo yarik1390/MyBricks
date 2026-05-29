@@ -106,7 +106,7 @@ async function importSets() {
       try { vals = formulaValuation({ pieces, year, theme, retired: false }); }
       catch { skipped++; continue; }
 
-      ph.push(`($${p},$${p+1},$${p+2},$${p+3},$${p+4},$${p+5},$${p+6},$${p+7},$${p+8},$${p+9},$${p+10})`);
+      ph.push(`($${p},$${p+1},$${p+2},$${p+3},$${p+4},$${p+5},$${p+6},$${p+7},$${p+8},$${p+9},$${p+10},'formula_bulk','rebrickable',now())`);
       params.push(s.set_num, s.name, year, theme, pieces, minifigs, img,
         vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y);
       p += 11;
