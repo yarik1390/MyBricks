@@ -54,7 +54,8 @@ const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 /* ---------- state ---------- */
 const state = {
   portfolio: null,
-  catalogAll: null, catalogPage: 1, catalogPageSize: 20,
+  catalog: { items: [], total: 0, offset: 0, hasMore: false, loading: false, pageSize: 24 },
+  blind: { items: [], total: 0, offset: 0, hasMore: false, loading: false, ownedCount: 0, pageSize: 30 },
   themes: [], themesLoadedAt: 0,
   me: null,
   filter: {
@@ -178,9 +179,9 @@ function brickTile(set) {
 function slImgHTML(set, { newBadge = false, qtyBadge = 0 } = {}) {
   const h = setHue(set);
   const hasImg = set.image_url && !set.image_url.startsWith("data:");
-  return `<div class="sl-img has-tile">
+  return `<div class="sl-img has-tile${hasImg ? " has-photo" : ""}">
     ${brickTile(set)}
-    ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="" loading="lazy" onload="this.previousElementSibling.style.opacity='0'" onerror="this.remove()">` : ""}
+    ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="" loading="lazy" onerror="this.closest('.sl-img').classList.remove('has-photo');this.remove()">` : ""}
     ${newBadge ? `<span class="new-badge">NEW</span>` : ""}
     ${qtyBadge > 1 ? `<span class="qty-badge">×${qtyBadge}</span>` : ""}
   </div>`;
@@ -373,43 +374,95 @@ function emptyVaultHTML() {
 /* ============================================================
    Catalog (Add page)
    ============================================================ */
-async function renderAdd() {
-  if (!state.catalogAll) {
-    try {
-      const [res, themes] = await Promise.all([
-        api("/api/sets/search?limit=60"),
-        api("/api/themes"),
-      ]);
-      state.catalogAll = res.sets || [];
-      state.themes = themes.themes || [];
-      state.themesLoadedAt = Date.now();
-    } catch (e) {
-      toast("Couldn't load catalog: " + e.message, "error");
-      state.catalogAll = []; state.themes = [];
-    }
+function catalogQuery() {
+  const f = state.filter;
+  const p = new URLSearchParams();
+  p.set("limit", state.catalog.pageSize);
+  p.set("offset", state.catalog.offset);
+  p.set("sort", f.catalogSort);
+  if (f.q) p.set("q", f.q);
+  if (f.catalogTheme !== "all") p.set("theme", f.catalogTheme);
+  if (f.catalogRetired) p.set("retired", "1");
+  return p.toString();
+}
+
+// Fetch a page of the catalog. reset=true starts over; otherwise appends.
+// Returns the newly fetched rows so callers can append to the DOM.
+async function loadCatalog({ reset = false } = {}) {
+  const c = state.catalog;
+  if (c.loading) return [];
+  if (reset) { c.offset = 0; c.items = []; c.hasMore = false; c.total = 0; }
+  else if (!c.hasMore) return [];
+  c.loading = true;
+  try {
+    const res = await api("/api/sets/search?" + catalogQuery());
+    const fresh = res.sets || [];
+    c.items = reset ? fresh : c.items.concat(fresh);
+    c.total = res.total ?? c.items.length;
+    c.offset = c.items.length;
+    c.hasMore = !!res.hasMore;
+    return fresh;
+  } catch (e) {
+    toast("Couldn't load catalog: " + e.message, "error");
+    return [];
+  } finally {
+    c.loading = false;
   }
+}
+
+async function renderAdd() {
+  if (!state.themes.length) {
+    try { const t = await api("/api/themes"); state.themes = t.themes || []; state.themesLoadedAt = Date.now(); } catch {}
+  }
+  await loadCatalog({ reset: true });
   paintAdd();
 }
 
-const debouncedCatalogSearch = debounce(async (q) => {
-  try {
-    const res = await api("/api/sets/search?limit=60&q=" + encodeURIComponent(q));
-    state.catalogAll = res.sets || [];
-  } catch {}
-  paintAdd();
+const debouncedCatalogSearch = debounce(async () => {
+  await loadCatalog({ reset: true });
+  refreshCatalogGrid();
 }, 350);
 
+// Re-render just the grid + count (preserves the search input's focus).
+function refreshCatalogGrid() {
+  const grid = $("#catalogGrid");
+  const count = $("#catalogCount");
+  if (!grid) return;
+  const c = state.catalog;
+  grid.innerHTML = c.items.map(s => catalogCardHTML(s)).join("");
+  if (count) count.textContent = `${c.total.toLocaleString()} result${c.total === 1 ? "" : "s"}`;
+  wireCatalogCards();
+  mountCatalogSentinel();
+}
+
+function wireCatalogCards() {
+  $$(".set-card").forEach(c => c.addEventListener("click", () => { haptic("light"); location.hash = "#/set/" + encodeURIComponent(c.dataset.set); }));
+}
+
+// IntersectionObserver-driven infinite scroll.
+function mountCatalogSentinel() {
+  const grid = $("#catalogGrid");
+  const sentinel = $("#catalogSentinel");
+  if (!grid || !sentinel) return;
+  if (state._catalogObserver) state._catalogObserver.disconnect();
+  sentinel.style.display = state.catalog.hasMore ? "" : "none";
+  if (!state.catalog.hasMore) return;
+  state._catalogObserver = new IntersectionObserver(async (entries) => {
+    if (!entries[0].isIntersecting || state.catalog.loading) return;
+    const fresh = await loadCatalog();
+    if (fresh.length) {
+      grid.insertAdjacentHTML("beforeend", fresh.map(s => catalogCardHTML(s)).join(""));
+      wireCatalogCards();
+    }
+    sentinel.style.display = state.catalog.hasMore ? "" : "none";
+    if (!state.catalog.hasMore) state._catalogObserver.disconnect();
+  }, { rootMargin: "400px" });
+  state._catalogObserver.observe(sentinel);
+}
+
 function paintAdd() {
-  let items = (state.catalogAll || []).slice();
   const f = state.filter;
-  if (f.catalogTheme !== "all") items = items.filter(i => i.theme === f.catalogTheme);
-  if (f.catalogRetired) items = items.filter(i => i.retired);
-  switch (f.catalogSort) {
-    case "value_desc": items.sort((a, b) => b.current_value - a.current_value); break;
-    case "year_desc":  items.sort((a, b) => b.year - a.year); break;
-    case "az":         items.sort((a, b) => a.name?.localeCompare(b.name)); break;
-    case "roi_desc":   items.sort((a, b) => (b.current_value / (b.retail_price||1)) - (a.current_value / (a.retail_price||1))); break;
-  }
+  const c = state.catalog;
 
   $("#root").innerHTML = `
     <div class="page">
@@ -445,10 +498,13 @@ function paintAdd() {
         <button class="chip ${f.catalogRetired ? "active" : ""}" data-retired="1">${I.tag()}<span>Retired</span></button>
       </div>
 
-      <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin:14px 4px 10px;">${items.length} results</div>
+      <div id="catalogCount" style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin:14px 4px 10px;">${c.total.toLocaleString()} result${c.total === 1 ? "" : "s"}</div>
 
       <div class="grid" id="catalogGrid">
-        ${items.map(s => catalogCardHTML(s)).join("")}
+        ${c.items.map(s => catalogCardHTML(s)).join("")}
+      </div>
+      <div id="catalogSentinel" class="load-sentinel" style="${c.hasMore ? "" : "display:none;"}">
+        <div class="spinner"></div>
       </div>
     </div>`;
 
@@ -456,12 +512,14 @@ function paintAdd() {
   const catInput = $("#catalogSearch");
   catInput?.addEventListener("input", (e) => {
     state.filter.q = e.target.value;
-    debouncedCatalogSearch(e.target.value);
+    debouncedCatalogSearch();
   });
-  $$("[data-theme]").forEach(b => b.addEventListener("click", () => { state.filter.catalogTheme = b.dataset.theme; haptic("light"); paintAdd(); }));
-  $$("[data-csort]").forEach(b => b.addEventListener("click", () => { state.filter.catalogSort = b.dataset.csort; haptic("light"); paintAdd(); }));
-  $$("[data-retired]").forEach(b => b.addEventListener("click", () => { state.filter.catalogRetired = !state.filter.catalogRetired; haptic("light"); paintAdd(); }));
-  $$(".set-card").forEach(c => c.addEventListener("click", () => { haptic("light"); location.hash = "#/set/" + encodeURIComponent(c.dataset.set); }));
+  const reload = async () => { await loadCatalog({ reset: true }); paintAdd(); };
+  $$("[data-theme]").forEach(b => b.addEventListener("click", () => { state.filter.catalogTheme = b.dataset.theme; haptic("light"); reload(); }));
+  $$("[data-csort]").forEach(b => b.addEventListener("click", () => { state.filter.catalogSort = b.dataset.csort; haptic("light"); reload(); }));
+  $$("[data-retired]").forEach(b => b.addEventListener("click", () => { state.filter.catalogRetired = !state.filter.catalogRetired; haptic("light"); reload(); }));
+  wireCatalogCards();
+  mountCatalogSentinel();
 }
 
 function catalogCardHTML(s) {
@@ -469,9 +527,9 @@ function catalogCardHTML(s) {
   const h = setHue(s);
   return `
     <button class="set-card" data-set="${escapeHtml(s.set_num)}">
-      <div class="set-card-img">
+      <div class="set-card-img${hasImg ? " has-photo" : ""}">
         <div class="brick-tile" style="--h:${h};width:64%;height:64%;"></div>
-        ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="" loading="lazy" onload="this.previousElementSibling.style.opacity='0'" onerror="this.remove()">` : ""}
+        ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="" loading="lazy" onerror="this.closest('.set-card-img').classList.remove('has-photo');this.remove()">` : ""}
         ${s.retired ? `<span class="retired-tag">RETIRED</span>` : ""}
         ${s.owned ? `<span class="owned-tag">${I.check()}OWNED</span>` : ""}
       </div>
@@ -515,9 +573,9 @@ function paintSetDetail(set, entry) {
           : `<div class="detail-hero-bg placeholder" style="--brick-hue:linear-gradient(135deg, oklch(0.72 0.13 ${h}), oklch(0.55 0.13 ${h}));"></div>`}
         <div class="detail-hero-overlay"></div>
         <button class="detail-back" id="detailBack" aria-label="Back">${I.chevL()}</button>
-        <div class="detail-img">
+        <div class="detail-img${hasImg ? " has-photo" : ""}">
           <div class="brick-art" style="--brick-color:oklch(0.72 0.13 ${h});">${escapeHtml(set.set_num)}</div>
-          ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="" onload="this.previousElementSibling.style.opacity='0'" onerror="this.remove()">` : ""}
+          ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="" onerror="this.closest('.detail-img').classList.remove('has-photo');this.remove()">` : ""}
         </div>
       </div>
       <div class="detail-title-row">
@@ -638,7 +696,7 @@ function wireInfoTab(set, entry) {
     haptic("heavy");
     try {
       await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
-      state.portfolio = null; state.catalogAll = null;
+      state.portfolio = null;
       toast("Added to vault", "success");
       const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
       paintSetDetail(r.set || r, r.entry || null);
@@ -758,7 +816,7 @@ function wireManageTab(set, entry) {
     haptic("heavy");
     try {
       await api("/api/collection/" + entry.id, { method: "DELETE" });
-      state.portfolio = null; state.catalogAll = null;
+      state.portfolio = null;
       toast("Removed from vault", "info");
       if (history.length > 1) history.back();
       else location.hash = "#/";
@@ -837,9 +895,9 @@ function wishlistCardHTML(w) {
   const hasImg = w.image_url && !w.image_url.startsWith("data:");
   return `
     <button class="wishlist-card" data-set="${escapeHtml(w.set_num)}">
-      <div class="sl-img has-tile" style="width:72px;height:76px;">
+      <div class="sl-img has-tile${hasImg ? " has-photo" : ""}" style="width:72px;height:76px;">
         <div class="brick-tile" style="--h:${h};width:100%;height:76%;margin-top:auto;"></div>
-        ${hasImg ? `<img class="set-photo" src="${escapeHtml(w.image_url)}" alt="" loading="lazy" onload="this.previousElementSibling.style.opacity='0'" onerror="this.remove()">` : ""}
+        ${hasImg ? `<img class="set-photo" src="${escapeHtml(w.image_url)}" alt="" loading="lazy" onerror="this.closest('.sl-img').classList.remove('has-photo');this.remove()">` : ""}
       </div>
       <div class="sl-body" style="flex:1;text-align:left;">
         <div class="sl-name">${escapeHtml(w.name || w.set_num)}</div>
@@ -1035,20 +1093,85 @@ function renderPile() {
 /* ============================================================
    Blind bag (minifigs)
    ============================================================ */
-async function renderBlind() {
-  let figs = [];
+async function loadBlind({ reset = false } = {}) {
+  const b = state.blind;
+  if (b.loading) return [];
+  if (reset) { b.offset = 0; b.items = []; b.hasMore = false; b.total = 0; }
+  else if (!b.hasMore) return [];
+  b.loading = true;
   try {
-    const res = await api("/api/minifigs");
-    figs = res.minifigs || [];
-  } catch (e) { toast("Couldn't load minifigs", "error"); }
+    const p = new URLSearchParams({ limit: b.pageSize, offset: b.offset });
+    const res = await api("/api/minifigs?" + p.toString());
+    const fresh = res.minifigs || [];
+    b.items = reset ? fresh : b.items.concat(fresh);
+    b.total = res.total ?? b.items.length;
+    b.offset = b.items.length;
+    b.hasMore = !!res.hasMore;
+    return fresh;
+  } catch (e) {
+    toast("Couldn't load minifigs", "error");
+    return [];
+  } finally {
+    b.loading = false;
+  }
+}
 
-  const ownedCount = figs.filter(f => state.ownedFigs.has(f.fig_num)).length;
+function wireMiniCards() {
+  $$(".mini-card").forEach(c => {
+    if (c._wired) return;
+    c._wired = true;
+    c.addEventListener("click", () => {
+      const num = c.dataset.fig;
+      if (state.ownedFigs.has(num)) state.ownedFigs.delete(num);
+      else state.ownedFigs.add(num);
+      localStorage.setItem("bv_figs", JSON.stringify([...state.ownedFigs]));
+      haptic("medium");
+      // Toggle in place — no full re-render, preserves scroll position.
+      const f = state.blind.items.find(x => x.fig_num === num);
+      if (f) c.outerHTML = miniCardHTML(f);
+      wireMiniCards();
+      updateBlindCount();
+    });
+  });
+}
+
+function updateBlindCount() {
+  const el = $("#blindCount");
+  if (!el) return;
+  const owned = state.blind.items.filter(f => state.ownedFigs.has(f.fig_num)).length;
+  el.textContent = `${owned}/${state.blind.total.toLocaleString()} collected`;
+}
+
+function mountBlindSentinel() {
+  const grid = $("#miniGrid");
+  const sentinel = $("#blindSentinel");
+  if (!grid || !sentinel) return;
+  if (state._blindObserver) state._blindObserver.disconnect();
+  sentinel.style.display = state.blind.hasMore ? "" : "none";
+  if (!state.blind.hasMore) return;
+  state._blindObserver = new IntersectionObserver(async (entries) => {
+    if (!entries[0].isIntersecting || state.blind.loading) return;
+    const fresh = await loadBlind();
+    if (fresh.length) {
+      grid.insertAdjacentHTML("beforeend", fresh.map(f => miniCardHTML(f)).join(""));
+      wireMiniCards();
+    }
+    sentinel.style.display = state.blind.hasMore ? "" : "none";
+    if (!state.blind.hasMore) state._blindObserver.disconnect();
+  }, { rootMargin: "400px" });
+  state._blindObserver.observe(sentinel);
+}
+
+async function renderBlind() {
+  await loadBlind({ reset: true });
+  const b = state.blind;
+  const ownedCount = b.items.filter(f => state.ownedFigs.has(f.fig_num)).length;
 
   $("#root").innerHTML = `
     <div class="page">
       <div class="topbar">
         <div class="topbar-heading">
-          <div class="topbar-eyebrow">${ownedCount}/${figs.length} collected</div>
+          <div class="topbar-eyebrow" id="blindCount">${ownedCount}/${b.total.toLocaleString()} collected</div>
           <div class="topbar-title">Blind bag</div>
         </div>
       </div>
@@ -1063,19 +1186,16 @@ async function renderBlind() {
         </div>
       </div>
 
-      <div class="mini-grid">
-        ${figs.map(f => miniCardHTML(f)).join("")}
+      <div class="mini-grid" id="miniGrid">
+        ${b.items.map(f => miniCardHTML(f)).join("")}
+      </div>
+      <div id="blindSentinel" class="load-sentinel" style="${b.hasMore ? "" : "display:none;"}">
+        <div class="spinner"></div>
       </div>
     </div>`;
 
-  $$(".mini-card").forEach(c => c.addEventListener("click", () => {
-    const num = c.dataset.fig;
-    if (state.ownedFigs.has(num)) state.ownedFigs.delete(num);
-    else state.ownedFigs.add(num);
-    localStorage.setItem("bv_figs", JSON.stringify([...state.ownedFigs]));
-    haptic("medium");
-    renderBlind();
-  }));
+  wireMiniCards();
+  mountBlindSentinel();
 }
 
 function miniCardHTML(f) {
@@ -1085,13 +1205,13 @@ function miniCardHTML(f) {
   const val = f.value ?? f.current_value ?? 0;
   return `
     <button class="mini-card rarity-${f.rarity || "common"}" data-fig="${escapeHtml(f.fig_num)}">
-      <div class="mini-img">
+      <div class="mini-img${hasImg ? " has-photo" : ""}">
         <div class="mini-figure ${owned ? "owned" : ""}" style="--fig-color:oklch(0.6 0.18 ${hue});--fig-color2:oklch(0.4 0.08 ${(hue+180)%360});">
           <div class="head"></div>
           <div class="body"></div>
           <div class="legs"></div>
         </div>
-        ${hasImg ? `<img class="fig-photo" src="${escapeHtml(f.image_url)}" alt="" loading="lazy" onload="this.previousElementSibling.style.opacity='0'" onerror="this.remove()">` : ""}
+        ${hasImg ? `<img class="fig-photo" src="${escapeHtml(f.image_url)}" alt="" loading="lazy" onerror="this.closest('.mini-img').classList.remove('has-photo');this.remove()">` : ""}
       </div>
       <div class="mini-body">
         <div class="mini-rarity">${f.rarity || "common"}</div>
@@ -1235,9 +1355,9 @@ function showScanResult(res) {
       <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${escapeHtml(res.confidence || "high")} confidence</span>
     </div>
     <div class="scan-result-row">
-      <div class="si">
+      <div class="si${hasImg ? " has-photo" : ""}">
         <div class="brick-tile" style="--h:${h};width:90%;height:90%;border-radius:8px;"></div>
-        ${hasImg ? `<img src="${escapeHtml(set.image_url)}" alt="" onload="this.previousElementSibling.style.opacity='0'" onerror="this.remove()">` : ""}
+        ${hasImg ? `<img src="${escapeHtml(set.image_url)}" alt="" onerror="this.closest('.si').classList.remove('has-photo');this.remove()">` : ""}
       </div>
       <div class="sx">
         <div class="sx-name">${escapeHtml(set.name)}</div>
@@ -1254,7 +1374,7 @@ function showScanResult(res) {
     haptic("heavy");
     try {
       await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
-      state.portfolio = null; state.catalogAll = null;
+      state.portfolio = null;
       closeScan();
       toast("Added " + set.name, "success");
       location.hash = "#/";
@@ -1334,7 +1454,7 @@ function showQuickActions(setNum) {
     if (!confirm("Remove from vault?")) { hideSheet(); return; }
     const item = (state.portfolio?.items || []).find(s => s.set_num === setNum);
     if (item) {
-      try { await api("/api/collection/" + item.id, { method: "DELETE" }); state.portfolio = null; state.catalogAll = null; toast("Removed", "info"); }
+      try { await api("/api/collection/" + item.id, { method: "DELETE" }); state.portfolio = null; toast("Removed", "info"); }
       catch (e) { toast("Error: " + e.message, "error"); }
     }
     hideSheet(); paintPortfolio();
@@ -1377,7 +1497,7 @@ function setupGestures() {
     const dy = (e.changedTouches[0]?.clientY ?? sy) - sy;
     if (dy > 80) {
       haptic("medium");
-      state.portfolio = null; state.catalogAll = null; state.portfolioHistory = null; state.me = null;
+      state.portfolio = null; state.portfolioHistory = null; state.me = null;
       toast("Refreshed", "success");
       route();
     }

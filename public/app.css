@@ -535,6 +535,12 @@ body.offline .offline-banner { display: block; }
   mix-blend-mode: multiply;
   z-index: 1;
 }
+/* When a real photo is present, hide the placeholder underneath it. */
+.set-card-img.has-photo .brick-tile,
+.sl-img.has-photo .brick-tile,
+.mini-img.has-photo .mini-figure,
+.detail-img.has-photo .brick-art,
+.scan-result-row .si.has-photo .brick-tile { display: none; }
 @media (prefers-color-scheme: dark) {
   .set-card-img img.set-photo { mix-blend-mode: normal; filter: brightness(0.95); }
 }
@@ -1136,6 +1142,18 @@ body.offline .offline-banner { display: block; }
 .ptr-indicator.show { opacity: 1; }
 .ptr-indicator svg { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+.load-sentinel {
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px 0 8px; min-height: 48px;
+}
+.load-sentinel .spinner {
+  width: 22px; height: 22px;
+  border: 2.5px solid var(--line-soft);
+  border-top-color: var(--bv-red);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
 
 /* ============================================================
    Toast
