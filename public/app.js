@@ -181,7 +181,7 @@ function slImgHTML(set, { newBadge = false, qtyBadge = 0 } = {}) {
   const hasImg = set.image_url && !set.image_url.startsWith("data:");
   return `<div class="sl-img has-tile${hasImg ? " has-photo" : ""}">
     ${brickTile(set)}
-    ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="" loading="lazy" onerror="this.closest('.sl-img').classList.remove('has-photo');this.remove()">` : ""}
+    ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="" loading="lazy">` : ""}
     ${newBadge ? `<span class="new-badge">NEW</span>` : ""}
     ${qtyBadge > 1 ? `<span class="qty-badge">×${qtyBadge}</span>` : ""}
   </div>`;
@@ -190,14 +190,14 @@ function slImgHTML(set, { newBadge = false, qtyBadge = 0 } = {}) {
 /* ============================================================
    Router
    ============================================================ */
-function errorStateHTML(retryHash) {
+function errorStateHTML() {
   return `
     <div class="page">
       <div class="empty card">
         <div class="empty-icon">${I.info()}</div>
         <h3>Something went wrong</h3>
         <p>We couldn't load this page. Check your connection and try again.</p>
-        <button class="btn-primary" onclick="location.hash='${retryHash}';location.reload()">${I.refresh()}<span>Retry</span></button>
+        <button class="btn-primary" id="errorRetry">${I.refresh()}<span>Retry</span></button>
       </div>
     </div>`;
 }
@@ -227,7 +227,10 @@ async function route() {
     }
   } catch (e) {
     const root = $("#root");
-    if (root) root.innerHTML = errorStateHTML(hash);
+    if (root) {
+      root.innerHTML = errorStateHTML();
+      $("#errorRetry")?.addEventListener("click", () => route());
+    }
   }
   window.scrollTo({ top: 0, behavior: "instant" });
 }
@@ -555,7 +558,7 @@ function catalogCardHTML(s) {
     <button class="set-card" data-set="${escapeHtml(s.set_num)}">
       <div class="set-card-img${hasImg ? " has-photo" : ""}">
         <div class="brick-tile" style="--h:${h};width:64%;height:64%;"></div>
-        ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="" loading="lazy" onerror="this.closest('.set-card-img').classList.remove('has-photo');this.remove()">` : ""}
+        ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="" loading="lazy">` : ""}
         ${s.retired ? `<span class="retired-tag">RETIRED</span>` : ""}
         ${s.owned ? `<span class="owned-tag">${I.check()}OWNED</span>` : ""}
       </div>
@@ -601,7 +604,7 @@ function paintSetDetail(set, entry) {
         <button class="detail-back" id="detailBack" aria-label="Back">${I.chevL()}</button>
         <div class="detail-img${hasImg ? " has-photo" : ""}">
           <div class="brick-art" style="--brick-color:oklch(0.72 0.13 ${h});">${escapeHtml(set.set_num)}</div>
-          ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="" onerror="this.closest('.detail-img').classList.remove('has-photo');this.remove()">` : ""}
+          ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="">` : ""}
         </div>
       </div>
       <div class="detail-title-row">
@@ -923,7 +926,7 @@ function wishlistCardHTML(w) {
     <button class="wishlist-card" data-set="${escapeHtml(w.set_num)}">
       <div class="sl-img has-tile${hasImg ? " has-photo" : ""}" style="width:72px;height:76px;">
         <div class="brick-tile" style="--h:${h};width:100%;height:76%;margin-top:auto;"></div>
-        ${hasImg ? `<img class="set-photo" src="${escapeHtml(w.image_url)}" alt="" loading="lazy" onerror="this.closest('.sl-img').classList.remove('has-photo');this.remove()">` : ""}
+        ${hasImg ? `<img class="set-photo" src="${escapeHtml(w.image_url)}" alt="" loading="lazy">` : ""}
       </div>
       <div class="sl-body" style="flex:1;text-align:left;">
         <div class="sl-name">${escapeHtml(w.name || w.set_num)}</div>
@@ -1253,7 +1256,7 @@ function miniCardHTML(f) {
           <div class="body"></div>
           <div class="legs"></div>
         </div>
-        ${hasImg ? `<img class="fig-photo" src="${escapeHtml(f.image_url)}" alt="" loading="lazy" onerror="this.closest('.mini-img').classList.remove('has-photo');this.remove()">` : ""}
+        ${hasImg ? `<img class="fig-photo" src="${escapeHtml(f.image_url)}" alt="" loading="lazy">` : ""}
       </div>
       <div class="mini-body">
         <div class="mini-rarity">${f.rarity || "common"}</div>
@@ -1399,7 +1402,7 @@ function showScanResult(res) {
     <div class="scan-result-row">
       <div class="si${hasImg ? " has-photo" : ""}">
         <div class="brick-tile" style="--h:${h};width:90%;height:90%;border-radius:8px;"></div>
-        ${hasImg ? `<img src="${escapeHtml(set.image_url)}" alt="" onerror="this.closest('.si').classList.remove('has-photo');this.remove()">` : ""}
+        ${hasImg ? `<img src="${escapeHtml(set.image_url)}" alt="">` : ""}
       </div>
       <div class="sx">
         <div class="sx-name">${escapeHtml(set.name)}</div>
@@ -1563,6 +1566,21 @@ function setupGestures() {
 /* ============================================================
    Init
    ============================================================ */
+// Global image-fallback handler. CSP (`script-src 'self'`) blocks inline
+// onerror/onload attributes, so we delegate via a single capture-phase
+// listener instead. When a photo fails, drop the `.has-photo` class on its
+// container (revealing the brick-tile / silhouette placeholder) and remove
+// the broken <img> so no broken-image icon shows.
+const PHOTO_SEL = "img.set-photo, img.fig-photo, .scan-result-row .si img";
+document.addEventListener("error", (e) => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement)) return;
+  if (!img.matches(PHOTO_SEL)) return;
+  const holder = img.closest(".sl-img, .set-card-img, .detail-img, .mini-img, .si");
+  if (holder) holder.classList.remove("has-photo");
+  img.remove();
+}, true); // capture — image error events don't bubble
+
 document.addEventListener("DOMContentLoaded", () => {
   // Wire nav icons using icon library
   const icons = { "/": I.home, "/add": I.search, "/blind": I.figure, "/me": I.user };

@@ -409,32 +409,35 @@ body.offline .offline-banner { display: block; }
 .nav-tab {
   flex: 1;
   display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 3px;
+  justify-content: flex-start;
+  padding-top: 11px;
   color: var(--ink-mute);
   font-size: 10px; font-family: var(--mono);
   letter-spacing: 0.08em; text-transform: uppercase;
   font-weight: 600;
   position: relative;
 }
-.nav-tab .nav-icon { display: inline-flex; }
+.nav-tab .nav-icon { display: inline-flex; align-items: center; justify-content: center; height: 24px; }
 .nav-tab svg { width: 22px; height: 22px; }
+/* All labels pinned to a shared baseline so they align regardless of the
+   icon/orb height above them. */
+.nav-tab .nav-label { position: absolute; bottom: 7px; left: 0; right: 0; text-align: center; }
 .nav-tab.active { color: var(--ink); }
 .nav-tab.active::before {
   content: ""; position: absolute; top: 0; left: 28%; right: 28%;
   height: 3px; background: var(--bv-yellow); border-radius: 0 0 4px 4px;
 }
 .nav-tab.scan-tab .scan-orb {
-  width: 38px; height: 38px; border-radius: 50%;
+  width: 44px; height: 44px; border-radius: 50%;
   background: var(--bv-red); color: #fff;
   border: 2px solid var(--line);
   display: flex; align-items: center; justify-content: center;
   box-shadow: 2px 2px 0 var(--line);
-  transform: translateY(-6px);
+  margin-top: -10px;
   transition: transform var(--dur-fast) var(--ease);
 }
 .nav-tab.scan-tab .scan-orb svg { width: 22px; height: 22px; }
-.nav-tab.scan-tab:active .scan-orb { transform: translateY(-4px) scale(0.94); }
-.nav-tab.scan-tab .nav-label { transform: translateY(-4px); }
+.nav-tab.scan-tab:active .scan-orb { transform: scale(0.94); }
 .nav-tab.scan-tab.active::before { display: none; }
 
 /* ============================================================
