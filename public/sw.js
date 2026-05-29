@@ -1,5 +1,7 @@
-const STATIC_CACHE = 'brickvault-static-v5';
-const API_CACHE = 'brickvault-api-v5';
+// Bump VERSION on every deploy that changes cached assets.
+const VERSION = 'v6';
+const STATIC_CACHE = `brickvault-static-${VERSION}`;
+const API_CACHE = `brickvault-api-${VERSION}`;
 const STATIC_ASSETS = ['/', '/app.css', '/app.js', '/manifest.json', '/icon.svg'];
 
 self.addEventListener('install', e => {
@@ -15,43 +17,60 @@ self.addEventListener('activate', e => {
         keys.filter(k => k !== STATIC_CACHE && k !== API_CACHE).map(k => caches.delete(k))
       ))
       .then(() => self.clients.claim())
-      .then(() => self.clients.matchAll({ type: 'window' }))
-      .then(clients => clients.forEach(c => c.navigate(c.url)))
   );
 });
 
-self.addEventListener('fetch', e => {
-  const url = new URL(e.request.url);
+// Network-first: try the network, fall back to cache (for offline). Always
+// refreshes the cache with the latest response so updates land immediately.
+function networkFirst(request, cacheName) {
+  return fetch(request)
+    .then(r => {
+      if (r && r.ok) {
+        const clone = r.clone();
+        caches.open(cacheName).then(c => c.put(request, clone));
+      }
+      return r;
+    })
+    .catch(() => caches.match(request));
+}
 
-  // API — network first, fall back to cache
-  if (url.pathname.startsWith('/api/')) {
-    e.respondWith(
-      fetch(e.request)
-        .then(r => {
-          if (r.ok) {
-            const clone = r.clone();
-            caches.open(API_CACHE).then(c => c.put(e.request, clone));
-          }
-          return r;
-        })
-        .catch(() => caches.match(e.request))
-    );
+// Cache-first: serve from cache, fetch in the background to refresh. Good for
+// large immutable assets like product images.
+function cacheFirst(request, cacheName) {
+  return caches.match(request).then(cached => {
+    const fetched = fetch(request).then(r => {
+      if (r && r.ok) {
+        const clone = r.clone();
+        caches.open(cacheName).then(c => c.put(request, clone));
+      }
+      return r;
+    }).catch(() => cached);
+    return cached || fetched;
+  });
+}
+
+self.addEventListener('fetch', e => {
+  const { request } = e;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+
+  // Cross-origin (e.g. Rebrickable CDN images, fonts) — cache-first, opaque OK.
+  if (url.origin !== self.location.origin) {
+    e.respondWith(cacheFirst(request, STATIC_CACHE));
     return;
   }
 
-  // Static — cache first
-  e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request).then(r => {
-      if (r.ok) {
-        const clone = r.clone();
-        caches.open(STATIC_CACHE).then(c => c.put(e.request, clone));
-      }
-      return r;
-    }))
-  );
+  // API — network-first so values stay fresh, cache as offline fallback.
+  if (url.pathname.startsWith('/api/')) {
+    e.respondWith(networkFirst(request, API_CACHE));
+    return;
+  }
+
+  // App shell (HTML / JS / CSS) — network-first so code updates always reach
+  // users on their next visit instead of being pinned to a stale cache.
+  e.respondWith(networkFirst(request, STATIC_CACHE));
 });
 
-// PWA install prompt support
 self.addEventListener('message', e => {
   if (e.data === 'SKIP_WAITING') self.skipWaiting();
 });
