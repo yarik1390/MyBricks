@@ -27,15 +27,20 @@ export default async function (req, res) {
   }
 
   if (req.method === 'PATCH') {
-    const { quantity, condition, purchase_price, purchased_at, notes } = req.body;
+    const { quantity, condition, purchase_price, purchased_at, notes,
+            storage_location, acquisition_source, is_complete, missing_pieces } = req.body;
     const fields = [];
     const vals = [];
     let i = 1;
-    if (quantity !== undefined)       { fields.push(`quantity=$${i++}`);        vals.push(quantity); }
-    if (condition !== undefined)      { fields.push(`condition=$${i++}`);       vals.push(condition); }
-    if (purchase_price !== undefined) { fields.push(`purchase_price=$${i++}`); vals.push(purchase_price); }
-    if (purchased_at !== undefined)   { fields.push(`purchased_at=$${i++}`);   vals.push(purchased_at); }
-    if (notes !== undefined)          { fields.push(`notes=$${i++}`);           vals.push(notes); }
+    if (quantity !== undefined)           { fields.push(`quantity=$${i++}`);           vals.push(quantity); }
+    if (condition !== undefined)          { fields.push(`condition=$${i++}`);          vals.push(condition); }
+    if (purchase_price !== undefined)     { fields.push(`purchase_price=$${i++}`);     vals.push(purchase_price); }
+    if (purchased_at !== undefined)       { fields.push(`purchased_at=$${i++}`);       vals.push(purchased_at); }
+    if (notes !== undefined)              { fields.push(`notes=$${i++}`);              vals.push(notes); }
+    if (storage_location !== undefined)   { fields.push(`storage_location=$${i++}`);   vals.push(storage_location); }
+    if (acquisition_source !== undefined) { fields.push(`acquisition_source=$${i++}`); vals.push(acquisition_source); }
+    if (is_complete !== undefined)        { fields.push(`is_complete=$${i++}`);        vals.push(is_complete); }
+    if (missing_pieces !== undefined)     { fields.push(`missing_pieces=$${i++}`);     vals.push(missing_pieces); }
     if (!fields.length) return res.status(400).json({ error: 'No fields to update' });
     fields.push(`last_modified=now()`);
     vals.push(id, userId);

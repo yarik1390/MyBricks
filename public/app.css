@@ -1551,3 +1551,196 @@ body.offline .offline-banner { display: block; }
 @media (orientation: landscape) and (max-height: 520px) {
   .detail-hero { min-height: 0 !important; }
 }
+
+/* ============================================================
+   v5.0 — Collector Power + Visual Wow
+   ============================================================ */
+
+/* A1 — Brick-texture on set photo placeholder.
+   Two rows of offset LEGO stud "bumps" drawn with repeating gradients. */
+.brick-tile {
+  background-color: oklch(0.72 0.13 var(--h, 30));
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 10px,
+      rgba(0,0,0,0.06) 10px,
+      rgba(0,0,0,0.06) 11px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 10px,
+      rgba(0,0,0,0.06) 10px,
+      rgba(0,0,0,0.06) 11px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255,255,255,0.07),
+      rgba(255,255,255,0.07) 5px,
+      transparent 5px,
+      transparent 10px
+    );
+}
+
+/* A2 — Bouncy toast entrance */
+@keyframes slideUpBounce {
+  0%   { transform: translateY(24px); opacity: 0; }
+  60%  { transform: translateY(-6px); opacity: 1; }
+  80%  { transform: translateY(3px); }
+  100% { transform: translateY(0); opacity: 1; }
+}
+#toast.show { animation: slideUpBounce 0.42s cubic-bezier(0.22, 1, 0.36, 1) both; }
+#toast.milestone { background: #7C3AED; color: #fff; }
+
+/* A2 — added-card flash (yellow glow then fades) */
+@keyframes addedFlash {
+  0%   { box-shadow: 0 0 0 4px rgba(255,215,0,0.7), var(--shadow-2); }
+  100% { box-shadow: var(--shadow-2); }
+}
+.set-list-card.just-added { animation: addedFlash 1.2s var(--ease) forwards; }
+
+/* A3 — Theme color left border on vault cards */
+.set-list-card { border-left-width: 4px; }
+
+/* A4 — Hero aura: subtle radial tint behind the vault hero based on portfolio trend */
+.hero[data-trend="up"] {
+  background-image: radial-gradient(ellipse at 75% 15%, rgba(26,127,75,0.09) 0%, transparent 65%);
+}
+.hero[data-trend="down"] {
+  background-image: radial-gradient(ellipse at 75% 15%, rgba(192,57,43,0.08) 0%, transparent 65%);
+}
+
+/* A5 — Card hover lift on pointer devices */
+@media (hover: hover) {
+  .set-list-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-4);
+    transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  }
+  .set-card:hover {
+    transform: translateY(-2px) scale(1.012);
+    box-shadow: var(--shadow-3);
+    transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease);
+  }
+}
+
+/* A6 — Active chip yellow glow ring */
+.chip.active {
+  box-shadow: 0 0 0 3px rgba(255,215,0,0.4), var(--shadow-1);
+}
+
+/* Theme dot in catalog cards */
+.theme-dot {
+  display: inline-block; width: 8px; height: 8px;
+  border-radius: 50%; flex-shrink: 0;
+  border: 1.5px solid rgba(0,0,0,0.15);
+}
+
+/* ============================================================
+   Collector fields — Manage tab additions
+   ============================================================ */
+.completeness-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.completeness-row label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 14px; font-weight: 500; cursor: pointer;
+}
+.completeness-row input[type="checkbox"] {
+  width: 18px; height: 18px; accent-color: var(--up);
+}
+.missing-pieces-wrap { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.missing-pieces-wrap input {
+  width: 80px;
+  padding: 8px 10px;
+  border: 2px solid var(--line); border-radius: var(--r-2);
+  background: var(--surface); color: var(--ink);
+  font-size: 14px; font-family: var(--mono);
+}
+.field select {
+  width: 100%;
+  padding: 11px 14px;
+  border: 2px solid var(--line); border-radius: var(--r-2);
+  background: var(--surface); color: var(--ink);
+  font-size: 15px; font-family: inherit; font-weight: 500;
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235E6878' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+}
+
+/* ============================================================
+   Profile — CSV import/export section
+   ============================================================ */
+.csv-import-wrap {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 8px;
+}
+.csv-file-label {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 16px;
+  border: 2px solid var(--line); border-radius: var(--r-full);
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  background: var(--surface); box-shadow: var(--shadow-1);
+  transition: all var(--dur-fast) var(--ease);
+}
+.csv-file-label:active { transform: translate(1px, 1px); box-shadow: none; }
+.csv-file-label svg { width: 14px; height: 14px; }
+.csv-file-label input { display: none; }
+#csvFileName { font-size: 12px; color: var(--ink-mute); font-family: var(--mono); }
+
+/* ============================================================
+   Insights section
+   ============================================================ */
+.insights-toggle {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.09em;
+  text-transform: uppercase; font-weight: 600;
+  color: var(--ink-mute); margin: 14px 0 2px;
+  cursor: pointer; user-select: none;
+}
+.insights-toggle svg { width: 14px; height: 14px; transition: transform 0.2s; }
+.insights-toggle.open svg { transform: rotate(90deg); }
+.insights-section { margin-bottom: 28px; }
+.insights-block { margin-bottom: 16px; }
+.insights-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--ink-mute);
+  margin-bottom: 8px;
+}
+.theme-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.theme-bar-name {
+  font-size: 12px; font-weight: 500; width: 82px; flex-shrink: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.theme-bar-track {
+  flex: 1; height: 10px;
+  background: var(--surface-2); border-radius: var(--r-full); overflow: hidden;
+  border: 1.5px solid var(--line-soft);
+}
+.theme-bar-fill { height: 100%; border-radius: var(--r-full); min-width: 4px; }
+.theme-bar-pct {
+  font-family: var(--mono); font-size: 11px; color: var(--ink-mute);
+  width: 36px; text-align: right; flex-shrink: 0;
+}
+.insights-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 12px; background: var(--surface-2);
+  border-radius: var(--r-2); margin-bottom: 4px;
+  border: 1.5px solid var(--line-soft);
+  transition: background var(--dur-fast) var(--ease);
+}
+.insights-row:active { background: var(--surface-3); }
+.ir-name {
+  font-size: 13px; font-weight: 500; flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px;
+}
+.ir-roi { font-family: var(--mono); font-size: 12px; font-weight: 600; flex-shrink: 0; }
+.retiring-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.retiring-pill {
+  font-size: 12px; padding: 5px 11px;
+  background: var(--down-pale); color: var(--down);
+  border-radius: var(--r-full); border: 1.5px solid var(--down-soft);
+  font-family: var(--mono); font-weight: 500;
+}

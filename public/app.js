@@ -122,6 +122,30 @@ function setHue(set) {
   return set.hue ?? themeHue(set.theme || "");
 }
 
+/* ---------- theme → accent color map ---------- */
+const THEME_COLORS = {
+  "Star Wars":        "#1a1a2e",
+  "City":             "#0057b7",
+  "Technic":          "#e8a500",
+  "Creator":          "#2e7d32",
+  "Friends":          "#e91e8c",
+  "Harry Potter":     "#5c3317",
+  "Ninjago":          "#d32f2f",
+  "Ideas":            "#7c3aed",
+  "Architecture":     "#546e7a",
+  "Disney":           "#1976d2",
+  "Marvel":           "#b71c1c",
+  "DC":               "#0d47a1",
+  "Speed Champions":  "#f57c00",
+  "Minecraft":        "#4caf50",
+  "Icons":            "#37474f",
+  "Classic":          "#f9a825",
+  "Duplo":            "#e53935",
+  "Creator Expert":   "#558b2f",
+  "Art":              "#6a1b9a",
+  "Botanical":        "#388e3c",
+};
+
 /* ---------- API ---------- */
 async function api(path, opts = {}) {
   const init = {
@@ -474,7 +498,7 @@ function paintPortfolio() {
         <input class="search-input" id="portfolioSearch" placeholder="Search your vault…" autocomplete="off" value="${escapeHtml(state.filter.q)}">
       </div>
 
-      <div class="card hero">
+      <div class="card hero" data-trend="${gain > 0 ? "up" : gain < 0 ? "down" : "flat"}">
         <div class="hero-eyebrow"><span class="pulse"></span>Vault · LIVE</div>
         <div class="hero-value">${heroValueHTML(p.total_value)}</div>
         <div class="hero-meta">
@@ -497,6 +521,9 @@ function paintPortfolio() {
       </div>
 
       ${p.items.length > 0 ? `
+        <button class="insights-toggle" id="insightsToggle">${I.trend()}<span>Insights</span>${I.chev()}</button>
+        <div id="insightsPanel" style="display:none;"></div>
+
         <div style="margin-top:18px;">
           <a href="#/wishlist" class="btn-secondary" style="display:flex;">
             ${I.heart()}<span>Wishlist · ${state.wishlist.length} set${state.wishlist.length !== 1 ? "s" : ""}${alertsCount ? " · " + alertsCount + " alert" + (alertsCount > 1 ? "s" : "") : ""}</span>${I.chev()}
@@ -529,6 +556,16 @@ function paintPortfolio() {
     card.addEventListener("click", () => { haptic("light"); location.hash = "#/set/" + encodeURIComponent(card.dataset.set); });
     wireLongPress(card, () => showQuickActions(card.dataset.set));
   });
+  $("#insightsToggle")?.addEventListener("click", () => {
+    const panel = $("#insightsPanel");
+    const btn = $("#insightsToggle");
+    if (!panel) return;
+    haptic("light");
+    const open = panel.style.display !== "none";
+    panel.style.display = open ? "none" : "block";
+    btn.classList.toggle("open", !open);
+    if (!open) panel.innerHTML = insightsHTML(p.items || []);
+  });
 }
 
 function heroValueHTML(n) {
@@ -545,8 +582,10 @@ function setListCardHTML(item) {
   const arrow = delta == null ? "" : delta >= 0 ? "▲" : "▼";
   const dStr = delta == null ? "—" : (delta * 100).toFixed(1) + "%";
   const newBadge = item.added_at && daysAgo(item.added_at) < 7;
+  const tc = THEME_COLORS[item.theme] || null;
+  const borderStyle = tc ? ` style="border-left-color:${tc};"` : "";
   return `
-    <button class="set-list-card" data-set="${escapeHtml(item.set_num)}">
+    <button class="set-list-card" data-set="${escapeHtml(item.set_num)}"${borderStyle}>
       ${slImgHTML(item, { newBadge, qtyBadge: item.quantity || 1 })}
       <div class="sl-body">
         <div class="sl-name">${escapeHtml(item.name)}</div>
@@ -571,6 +610,79 @@ function emptyVaultHTML() {
       <p>Scan a set, search the catalog, or browse below to start tracking your collection's value.</p>
       <a href="#/add" class="btn-primary">${I.plus()}<span>Add first set</span></a>
     </div>`;
+}
+
+function insightsHTML(items) {
+  if (!items || !items.length) return `<p style="color:var(--ink-mute);font-size:14px;padding:8px 0;">Add sets to see insights.</p>`;
+  const currentYear = new Date().getFullYear();
+
+  // Theme breakdown by total value
+  const themeMap = {};
+  for (const item of items) {
+    const t = item.theme || "Other";
+    themeMap[t] = (themeMap[t] || 0) + (Number(item.current_value) || 0) * (item.quantity || 1);
+  }
+  const themeTotal = Object.values(themeMap).reduce((a, b) => a + b, 0);
+  const topThemes = Object.entries(themeMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  // ROI leaders / losers
+  const withRoi = items.filter(i => i.annualized_roi != null);
+  const roiSorted = [...withRoi].sort((a, b) => b.annualized_roi - a.annualized_roi);
+  const leaders = roiSorted.slice(0, 3);
+  const losers = roiSorted.filter(i => i.annualized_roi < 0).slice(-3).reverse();
+
+  // Sets likely retiring (not yet retired, but released ≥2 years ago)
+  const retiringSoon = items.filter(i => !i.retired && i.year && i.year <= currentYear - 1).slice(0, 8);
+
+  let html = `<div class="insights-section">`;
+
+  if (topThemes.length > 1) {
+    html += `<div class="insights-block"><div class="insights-label">Value by theme</div>`;
+    for (const [theme, val] of topThemes) {
+      const pct = themeTotal > 0 ? (val / themeTotal * 100).toFixed(1) : 0;
+      const tc = THEME_COLORS[theme] || `oklch(0.55 0.18 ${themeHue(theme)})`;
+      html += `<div class="theme-bar-row">
+        <div class="theme-bar-name">${escapeHtml(theme)}</div>
+        <div class="theme-bar-track"><div class="theme-bar-fill" style="width:${pct}%;background:${tc};"></div></div>
+        <div class="theme-bar-pct">${pct}%</div>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  if (leaders.length > 0) {
+    html += `<div class="insights-block"><div class="insights-label">Top performers (annualized ROI)</div>`;
+    for (const item of leaders) {
+      html += `<a href="#/set/${encodeURIComponent(item.set_num)}" class="insights-row">
+        <span class="ir-name">${escapeHtml(item.name)}</span>
+        <span class="ir-roi" style="color:var(--up);">+${(item.annualized_roi * 100).toFixed(1)}% / yr</span>
+      </a>`;
+    }
+    html += `</div>`;
+  }
+
+  if (losers.length > 0) {
+    html += `<div class="insights-block"><div class="insights-label">Underperformers</div>`;
+    for (const item of losers) {
+      html += `<a href="#/set/${encodeURIComponent(item.set_num)}" class="insights-row">
+        <span class="ir-name">${escapeHtml(item.name)}</span>
+        <span class="ir-roi" style="color:var(--down);">${(item.annualized_roi * 100).toFixed(1)}% / yr</span>
+      </a>`;
+    }
+    html += `</div>`;
+  }
+
+  if (retiringSoon.length > 0) {
+    html += `<div class="insights-block"><div class="insights-label">In your vault — likely retiring soon</div>
+      <div class="retiring-pills">`;
+    for (const item of retiringSoon) {
+      html += `<a href="#/set/${encodeURIComponent(item.set_num)}" class="retiring-pill">${escapeHtml(item.name)}</a>`;
+    }
+    html += `</div></div>`;
+  }
+
+  html += `</div>`;
+  return html;
 }
 
 /* ============================================================
@@ -771,6 +883,7 @@ function catalogCardHTML(s) {
       <div class="set-card-body">
         <div class="set-card-name">${escapeHtml(s.name)}</div>
         <div class="set-card-meta">
+          ${THEME_COLORS[s.theme] ? `<span class="theme-dot" style="background:${THEME_COLORS[s.theme]};"></span>` : ""}
           <span>${s.year || ""}</span>
           <span>${s.pieces || 0}pc</span>
           ${s.minifigs > 0 ? `<span>${s.minifigs} fig</span>` : ""}
@@ -928,9 +1041,22 @@ function wireInfoTab(set, entry) {
     haptic("heavy");
     setBtnLoading(e.currentTarget, true);
     try {
+      const prevCount = state.portfolio?.items?.length ?? 0;
+      const prevValue = state.portfolio?.total_value ?? 0;
       await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
       state.portfolio = null; state.catalogAll = null;
       toast("Added to vault", "success");
+      // Milestone detection
+      const newCount = prevCount + 1;
+      const newValue = prevValue + (Number(set.current_value) || 0);
+      const countMilestones = [[1,"Your first set! Welcome to Brickvault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! You're dedicated 🏅"],[100,"100 sets! Elite collector 🏆"]];
+      const valueMilestones = [[1000,"$1,000 portfolio milestone!"],[5000,"$5,000 portfolio!"],[10000,"$10,000 portfolio 💰"],[50000,"$50,000 — serious money 🤑"]];
+      for (const [n, msg] of countMilestones) {
+        if (prevCount < n && newCount >= n) { haptic("heavy"); setTimeout(() => toast(msg, "milestone"), 700); break; }
+      }
+      for (const [v, msg] of valueMilestones) {
+        if (prevValue < v && newValue >= v) { haptic("heavy"); setTimeout(() => toast(msg, "milestone"), 1100); break; }
+      }
       const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
       paintSetDetail(r.set || r, r.entry || null);
     } catch (e) { setBtnLoading($("#addBtn"), false); toast("Error: " + e.message, "error"); }
@@ -1019,15 +1145,48 @@ function manageTabHTML(set, entry) {
     </div>
     <div class="field">
       <div class="field-lbl">Notes</div>
-      <textarea id="mNotes" placeholder="Storage, completeness, story…">${escapeHtml(entry.notes || "")}</textarea>
+      <textarea id="mNotes" placeholder="Story, details, anything…">${escapeHtml(entry.notes || "")}</textarea>
+    </div>
+    <div class="field">
+      <div class="field-lbl">Storage location</div>
+      <input id="mStorage" type="text" value="${escapeHtml(entry.storage_location || "")}" placeholder="e.g. Display shelf A3, Attic box 2" list="storageLocations">
+      <datalist id="storageLocations"></datalist>
+    </div>
+    <div class="field">
+      <div class="field-lbl">Acquisition source</div>
+      <select id="mAcquisition">
+        <option value="" ${!entry.acquisition_source ? "selected" : ""}>— select —</option>
+        ${["Store","BrickLink","eBay","Facebook Marketplace","Trade","Gift","Other"].map(s =>
+          `<option value="${s}" ${entry.acquisition_source === s ? "selected" : ""}>${s}</option>`
+        ).join("")}
+      </select>
+    </div>
+    <div class="field">
+      <div class="field-lbl">Completeness</div>
+      <div class="completeness-row">
+        <label><input type="checkbox" id="mComplete" ${entry.is_complete !== false ? "checked" : ""}>Complete / all pieces present</label>
+      </div>
+      <div class="missing-pieces-wrap" id="missingWrap" style="${entry.is_complete === false ? "" : "display:none;"}">
+        <input type="number" id="mMissing" min="0" value="${entry.missing_pieces || 0}" placeholder="0">
+        <span style="font-size:13px;color:var(--ink-mute);">pieces missing</span>
+      </div>
     </div>
     <button class="btn-danger" id="mRemove" style="margin-top:14px;">${I.trash()}<span>Remove from vault</span></button>`;
 }
 
 function wireManageTab(set, entry) {
   if (!entry) return;
-  const persist = async () => {
+
+  // Populate storage-location datalist from existing collection locations
+  const dl = $("#storageLocations");
+  if (dl && state.portfolio?.items) {
+    const locs = [...new Set((state.portfolio.items).map(i => i.storage_location).filter(Boolean))];
+    dl.innerHTML = locs.map(l => `<option value="${escapeHtml(l)}">`).join("");
+  }
+
+  async function persist() {
     try {
+      const isComplete = $("#mComplete")?.checked ?? true;
       await api("/api/collection/" + entry.id, {
         method: "PATCH",
         body: {
@@ -1035,14 +1194,26 @@ function wireManageTab(set, entry) {
           purchased_at: $("#mDate")?.value ? new Date($("#mDate").value).toISOString() : entry.purchased_at,
           condition: $("#mCondition")?.value,
           notes: $("#mNotes")?.value || "",
+          storage_location: $("#mStorage")?.value || null,
+          acquisition_source: $("#mAcquisition")?.value || null,
+          is_complete: isComplete,
+          missing_pieces: isComplete ? 0 : (parseInt($("#mMissing")?.value) || 0),
         }
       });
       state.portfolio = null;
       toast("Saved", "success");
     } catch (e) { toast("Save failed: " + e.message, "error"); }
-  };
-  ["#mPrice","#mDate"].forEach(s => $(s)?.addEventListener("blur", persist));
-  $("#mCondition")?.addEventListener("change", persist);
+  }
+
+  // Toggle missing-pieces input when completeness changes
+  $("#mComplete")?.addEventListener("change", e => {
+    const w = $("#missingWrap");
+    if (w) w.style.display = e.target.checked ? "none" : "";
+    persist();
+  });
+
+  ["#mPrice","#mDate","#mStorage","#mMissing"].forEach(s => $(s)?.addEventListener("blur", persist));
+  ["#mCondition","#mAcquisition"].forEach(s => $(s)?.addEventListener("change", persist));
   $("#mNotes")?.addEventListener("blur", persist);
   $("#mRemove")?.addEventListener("click", async () => {
     if (!(await confirmSheet({ title: "Remove from vault?", message: "This set will be removed from your collection.", confirmLabel: "Remove", danger: true }))) return;
@@ -1221,8 +1392,20 @@ async function renderMe() {
       <div class="section-title">Data</div>
       <div>
         <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Export collection</div><div class="desc">CSV with current values &amp; ROI.</div></div>
-          ${I.download()}
+          <div class="lbl-wrap"><div class="lbl">Export collection</div><div class="desc">CSV with all collector fields &amp; ROI.</div></div>
+          <a href="/api/collection/export" download="brickvault-export.csv" class="import-btn" aria-label="Export CSV">${I.download()}</a>
+        </div>
+        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+          <div class="lbl-wrap">
+            <div class="lbl">Import collection</div>
+            <div class="desc">Upload a CSV to add sets in bulk. Existing sets are skipped.</div>
+          </div>
+          <div class="csv-import-wrap">
+            <label class="csv-file-label">${I.download()}<span>Choose CSV file</span><input type="file" id="csvFile" accept=".csv"></label>
+            <span id="csvFileName"></span>
+            <button class="btn-primary" id="csvImportBtn" style="display:none;">${I.plus()}<span>Import</span></button>
+          </div>
+          <div id="csvImportResult" style="font-size:13px;color:var(--ink-mute);font-family:var(--mono);"></div>
         </div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Sign out</div><div class="desc">Sync resumes when you return.</div></div>
@@ -1231,7 +1414,7 @@ async function renderMe() {
       </div>
 
       <div style="text-align:center;font-family:var(--mono);font-size:10px;color:var(--ink-faint);margin-top:24px;letter-spacing:0.1em;">
-        BRICKVAULT · v3.0 · STACK SOMETHING BEAUTIFUL
+        BRICKVAULT · v5.0 · STACK SOMETHING BEAUTIFUL
       </div>
     </div>`;
 
@@ -1272,6 +1455,43 @@ async function renderMe() {
 
   $("#importSetsBtn")?.addEventListener("click", () => runImport("sets", "#importSetsDesc", "#importSetsBtn"));
   $("#importFigsBtn")?.addEventListener("click", () => runImport("figs", "#importFigsDesc", "#importFigsBtn"));
+
+  // CSV import flow
+  $("#csvFile")?.addEventListener("change", e => {
+    const file = e.target.files[0];
+    const nameEl = $("#csvFileName"), btnEl = $("#csvImportBtn");
+    if (!file) { if (nameEl) nameEl.textContent = ""; if (btnEl) btnEl.style.display = "none"; return; }
+    if (nameEl) nameEl.textContent = file.name;
+    if (btnEl) btnEl.style.display = "";
+  });
+  $("#csvImportBtn")?.addEventListener("click", async () => {
+    const file = $("#csvFile")?.files[0];
+    const resultEl = $("#csvImportResult"), btnEl = $("#csvImportBtn");
+    if (!file) return;
+    setBtnLoading(btnEl, true);
+    try {
+      const text = await file.text();
+      const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+      if (lines.length < 2) throw new Error("CSV is empty or has no data rows");
+      const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, "").toLowerCase());
+      const rows = lines.slice(1).map(line => {
+        const cells = line.match(/(".*?"|[^,]+)(?=,|$)/g) || line.split(",");
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = (cells[i] || "").replace(/^"|"$/g, "").trim(); });
+        return obj;
+      }).filter(r => r.set_num);
+      if (!rows.length) throw new Error("No valid rows found — check set_num column exists");
+      const r = await api("/api/collection/import", { method: "POST", body: { rows } });
+      if (resultEl) resultEl.textContent = `✓ ${r.imported} imported, ${r.skipped} skipped${r.errors?.length ? `, ${r.errors.length} errors` : ""}`;
+      state.portfolio = null;
+      toast(`${r.imported} sets imported`, "success");
+    } catch (e) {
+      if (resultEl) resultEl.textContent = "Error: " + e.message;
+      toast("Import failed: " + e.message, "error");
+    } finally {
+      setBtnLoading(btnEl, false);
+    }
+  });
 }
 
 /* ============================================================

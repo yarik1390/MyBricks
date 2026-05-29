@@ -12,6 +12,7 @@ export default async function (req, res) {
       SELECT
         uc.id, uc.set_num, uc.quantity, uc.condition, uc.purchase_price,
         uc.notes, uc.added_at, uc.purchased_at, uc.last_modified,
+        uc.storage_location, uc.acquisition_source, uc.is_complete, uc.missing_pieces,
         s.name, s.theme, s.year, s.pieces, s.minifigs,
         s.retail_price, s.current_value, s.forecast_2y, s.forecast_5y,
         s.image_url, s.retired
