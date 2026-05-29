@@ -259,13 +259,9 @@ async function renderPortfolio() {
   paintPortfolio();
 }
 
-function paintPortfolio() {
+// Filter + sort the vault items according to current state.filter. Pure — no DOM.
+function sortedPortfolioItems() {
   const p = state.portfolio;
-  const hist = state.portfolioHistory || [];
-  const alertsCount = state.wishlistAlerts.length;
-  const gain = p.total_value - p.total_paid;
-  const gainPct = p.total_paid ? gain / p.total_paid : 0;
-
   let items = (p.items || []).slice();
   const q = state.filter.q.toLowerCase().trim();
   if (q) items = items.filter(i => i.name?.toLowerCase().includes(q) || i.set_num?.toLowerCase().includes(q) || i.theme?.toLowerCase().includes(q));
@@ -275,6 +271,30 @@ function paintPortfolio() {
     case "roi_desc":   items.sort((a, b) => (b.annualized_roi ?? -1) - (a.annualized_roi ?? -1)); break;
     case "az":         items.sort((a, b) => a.name?.localeCompare(b.name)); break;
   }
+  return items;
+}
+
+// Re-render ONLY the set list + wire its cards. Used by sort/search so the
+// hero, chart and topbar don't flash from a full-page re-render.
+function repaintSetList() {
+  const list = $("#setList");
+  if (!list) return;
+  const items = sortedPortfolioItems();
+  list.innerHTML = items.length === 0 ? emptyVaultHTML() : items.map(setListCardHTML).join("");
+  $$(".set-list-card").forEach(card => {
+    card.addEventListener("click", () => { haptic("light"); location.hash = "#/set/" + encodeURIComponent(card.dataset.set); });
+    wireLongPress(card, () => showQuickActions(card.dataset.set));
+  });
+}
+
+function paintPortfolio() {
+  const p = state.portfolio;
+  const hist = state.portfolioHistory || [];
+  const alertsCount = state.wishlistAlerts.length;
+  const gain = p.total_value - p.total_paid;
+  const gainPct = p.total_paid ? gain / p.total_paid : 0;
+
+  let items = sortedPortfolioItems();
 
   const ranges = { "1W": 7, "1M": 30, "3M": 90, "1Y": 365, "ALL": 999 };
   const days = ranges[state.filter.range] || 30;
@@ -289,6 +309,10 @@ function paintPortfolio() {
         </div>
         <div class="topbar-actions">
           <button class="icon-btn" id="searchToggle" aria-label="Search">${I.search()}</button>
+          <a href="#/wishlist" class="icon-btn" id="wishlistBtn" aria-label="Wishlist">
+            ${I.heart()}
+            ${state.wishlist.length > 0 ? `<span class="dot">${state.wishlist.length}</span>` : ""}
+          </a>
           <button class="icon-btn" id="alertsBtn" aria-label="Alerts">
             ${I.bell()}
             ${alertsCount > 0 ? `<span class="dot">${alertsCount}</span>` : ""}
@@ -333,18 +357,23 @@ function paintPortfolio() {
   setTimeout(() => drawSparkline($("#heroChart"), clipped, { up: gain >= 0 }), 30);
 
   $$("#rangePills button").forEach(b => b.addEventListener("click", () => {
-    state.filter.range = b.dataset.r; haptic("light"); paintPortfolio();
+    state.filter.range = b.dataset.r; haptic("light");
+    $$("#rangePills button").forEach(x => x.classList.toggle("active", x.dataset.r === state.filter.range));
+    const d = ranges[state.filter.range] || 30;
+    drawSparkline($("#heroChart"), hist.slice(-Math.min(d + 1, hist.length)), { up: gain >= 0 });
   }));
   $$(".filter-row .chip").forEach(c => c.addEventListener("click", () => {
-    state.filter.sort = c.dataset.sort; localStorage.setItem("bv_sort", c.dataset.sort); haptic("light"); paintPortfolio();
+    state.filter.sort = c.dataset.sort; localStorage.setItem("bv_sort", c.dataset.sort); haptic("light");
+    $$(".filter-row .chip").forEach(x => x.classList.toggle("active", x.dataset.sort === state.filter.sort));
+    repaintSetList();
   }));
   $("#searchToggle")?.addEventListener("click", () => {
     const w = $("#searchWrap");
     w.classList.toggle("open");
     if (w.classList.contains("open")) $("#portfolioSearch")?.focus();
-    else { state.filter.q = ""; paintPortfolio(); }
+    else { state.filter.q = ""; repaintSetList(); }
   });
-  $("#portfolioSearch")?.addEventListener("input", debounce(e => { state.filter.q = e.target.value; paintPortfolio(); }, 150));
+  $("#portfolioSearch")?.addEventListener("input", debounce(e => { state.filter.q = e.target.value; repaintSetList(); }, 150));
   $("#alertsBtn")?.addEventListener("click", () => showAlertsSheet(state.wishlistAlerts));
   $$(".set-list-card").forEach(card => {
     card.addEventListener("click", () => { haptic("light"); location.hash = "#/set/" + encodeURIComponent(card.dataset.set); });

@@ -1275,7 +1275,7 @@ body.offline .offline-banner { display: block; }
 .scan-bottom {
   position: absolute; bottom: 0; left: 0; right: 0;
   display: flex; align-items: center; justify-content: center;
-  padding: 0 24px 80px;
+  padding: 0 24px calc(110px + env(safe-area-inset-bottom));
   z-index: 3;
 }
 .scan-capture-btn {
@@ -1285,9 +1285,13 @@ body.offline .offline-banner { display: block; }
   border: 5px solid rgba(255,255,255,0.4);
   outline: 2px solid var(--bv-yellow);
   outline-offset: -10px;
-  transition: transform var(--dur-fast) var(--ease);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.45), 0 2px 0 rgba(0,0,0,0.25);
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
-.scan-capture-btn:active { transform: scale(0.85); }
+.scan-capture-btn:active {
+  transform: scale(0.9) translateY(2px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
 
 /* scan-result card */
 .scan-result {
