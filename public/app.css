@@ -433,7 +433,7 @@ body.offline .offline-banner { display: block; }
   border: 2px solid var(--line);
   display: flex; align-items: center; justify-content: center;
   box-shadow: 2px 2px 0 var(--line);
-  margin-top: -10px;
+  margin-top: -18px;
   transition: transform var(--dur-fast) var(--ease);
 }
 .nav-tab.scan-tab .scan-orb svg { width: 22px; height: 22px; }
