@@ -63,6 +63,7 @@ const state = {
     sort: localStorage.getItem("bv_sort") || "added_desc",
     catalogSort: "value_desc", catalogYear: "all",
     catalogRetired: false, catalogTheme: "all",
+    catalogRanges: { min_year: "", max_year: "", min_pieces: "", max_pieces: "", min_value: "", max_value: "" },
     wishlistSort: "recent",
   },
   detail: { tab: "info" },
@@ -110,6 +111,31 @@ function toast(msg, type) {
 }
 function debounce(fn, ms) {
   let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+
+// Celebratory confetti burst — pure DOM, no library. Spawns ~40 colored
+// shards that fall and fade. Auto-cleans after the animation. Respects
+// reduced-motion (no-op).
+function confettiBurst() {
+  if (prefersReducedMotion()) return;
+  const colors = ["#FFD700", "#DA291C", "#1A7F4B", "#0057b7", "#7c3aed", "#f57c00"];
+  const layer = document.createElement("div");
+  layer.className = "confetti-layer";
+  const N = 42;
+  for (let k = 0; k < N; k++) {
+    const s = document.createElement("i");
+    const left = Math.random() * 100;
+    const delay = Math.random() * 0.25;
+    const dur = 1.1 + Math.random() * 0.8;
+    const rot = (Math.random() * 720 - 360) | 0;
+    const drift = (Math.random() * 120 - 60) | 0;
+    s.style.cssText = `left:${left}vw;background:${colors[k % colors.length]};` +
+      `animation-delay:${delay}s;animation-duration:${dur}s;` +
+      `--rot:${rot}deg;--drift:${drift}px;`;
+    layer.appendChild(s);
+  }
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 2400);
 }
 
 /* ---------- hue from theme (deterministic) ---------- */
@@ -500,7 +526,7 @@ function paintPortfolio() {
 
       <div class="card hero" data-trend="${gain > 0 ? "up" : gain < 0 ? "down" : "flat"}">
         <div class="hero-eyebrow"><span class="pulse"></span>Vault · LIVE</div>
-        <div class="hero-value">${heroValueHTML(p.total_value)}</div>
+        <div class="hero-value" id="heroValue">${heroValueHTML(p.total_value)}</div>
         <div class="hero-meta">
           <span>Invested ${fmtMoney(p.total_paid)}</span>
           <span class="delta ${gain >= 0 ? "up" : "down"}"><span class="arrow">${gain >= 0 ? "▲" : "▼"}</span>${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(Math.abs(gainPct))})</span>
@@ -532,6 +558,7 @@ function paintPortfolio() {
     </div>`;
 
   setTimeout(() => drawSparkline($("#heroChart"), clipped, { up: gain >= 0 }), 30);
+  animateHeroValue(p.total_value);
 
   $$("#rangePills button").forEach(b => b.addEventListener("click", () => {
     state.filter.range = b.dataset.r; haptic("light");
@@ -574,6 +601,24 @@ function heroValueHTML(n) {
   const cents = Math.abs(n % 1 * 100 | 0).toString().padStart(2, "0");
   const sign = n < 0 ? "-" : "";
   return `${sign}$${whole}<span class="cents">.${cents}</span>`;
+}
+
+// Animate the hero value counting up from ~0 to its real total. A short
+// ease-out tick that feels alive without being slow. Skips under reduced motion.
+function animateHeroValue(target) {
+  const el = $("#heroValue");
+  if (!el || target == null || isNaN(target) || target <= 0) return;
+  if (prefersReducedMotion()) { el.innerHTML = heroValueHTML(target); return; }
+  const dur = 750;
+  const start = performance.now();
+  const from = target * 0.82; // start near the value so it ticks up the last stretch
+  const tick = (now) => {
+    const t = Math.min(1, (now - start) / dur);
+    const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+    el.innerHTML = heroValueHTML(from + (target - from) * eased);
+    if (t < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
 
 function setListCardHTML(item) {
@@ -697,6 +742,9 @@ function catalogQuery() {
   if (f.q) p.set("q", f.q);
   if (f.catalogTheme !== "all") p.set("theme", f.catalogTheme);
   if (f.catalogRetired) p.set("retired", "1");
+  for (const [k, v] of Object.entries(f.catalogRanges)) {
+    if (v !== "" && v != null) p.set(k, v);
+  }
   return p.toString();
 }
 
@@ -837,6 +885,7 @@ function paintAdd() {
         ${[["value_desc","Top value"],["roi_desc","Best growth"],["year_desc","Newest"],["az","A–Z"]]
           .map(([k,l]) => `<button class="chip ${f.catalogSort === k ? "active" : ""}" data-csort="${k}">${l}</button>`).join("")}
         <button class="chip ${f.catalogRetired ? "active" : ""}" data-retired="1">${I.tag()}<span>Retired</span></button>
+        <button class="chip ${catalogRangesActive() ? "active" : ""}" id="filterChip">${I.filter()}<span>Filters${catalogRangesActive() ? " · " + catalogRangesActive() : ""}</span></button>
       </div>
 
       <div id="catalogResults">${catalogResultsHTML()}</div>
@@ -865,8 +914,60 @@ function paintAdd() {
     b.classList.toggle("active", state.filter.catalogRetired);
     reloadGrid();
   }));
+  $("#filterChip")?.addEventListener("click", () => showFilterSheet(reloadGrid));
   wireCatalogCards();
   mountCatalogSentinel();
+}
+
+// Count how many advanced range filters are active (0 → falsy).
+function catalogRangesActive() {
+  return Object.values(state.filter.catalogRanges).filter(v => v !== "" && v != null).length;
+}
+
+// Bottom sheet with year / pieces / value range inputs for the catalog.
+function showFilterSheet(onApply) {
+  const r = state.filter.catalogRanges;
+  const rangeField = (label, minKey, maxKey, ph1, ph2) => `
+    <div class="field" style="margin-bottom:14px;">
+      <div class="field-lbl">${label}</div>
+      <div class="range-inputs">
+        <input type="number" inputmode="numeric" id="f_${minKey}" value="${r[minKey]}" placeholder="${ph1}">
+        <span class="range-dash">–</span>
+        <input type="number" inputmode="numeric" id="f_${maxKey}" value="${r[maxKey]}" placeholder="${ph2}">
+      </div>
+    </div>`;
+  showSheet(`
+    <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 16px;">Filters</div>
+    ${rangeField("Year", "min_year", "max_year", "1970", String(new Date().getFullYear()))}
+    ${rangeField("Pieces", "min_pieces", "max_pieces", "0", "10000+")}
+    ${rangeField("Value ($)", "min_value", "max_value", "0", "9999+")}
+    <button class="btn-primary" id="fApply" style="margin-top:6px;">${I.check()}<span>Apply filters</span></button>
+    <button class="btn-secondary" id="fClear" style="margin-top:8px;">Clear all</button>`);
+  const refreshChip = () => {
+    const chip = $("#filterChip");
+    if (!chip) return;
+    const n = catalogRangesActive();
+    chip.classList.toggle("active", !!n);
+    const lbl = chip.querySelector("span");
+    if (lbl) lbl.textContent = "Filters" + (n ? " · " + n : "");
+  };
+  $("#fApply").addEventListener("click", () => {
+    for (const k of Object.keys(state.filter.catalogRanges)) {
+      const v = $("#f_" + k)?.value.trim();
+      state.filter.catalogRanges[k] = v === "" ? "" : (parseInt(v, 10) || "");
+    }
+    haptic("medium");
+    hideSheet();
+    refreshChip();
+    onApply();
+  });
+  $("#fClear").addEventListener("click", () => {
+    for (const k of Object.keys(state.filter.catalogRanges)) state.filter.catalogRanges[k] = "";
+    haptic("light");
+    hideSheet();
+    refreshChip();
+    onApply();
+  });
 }
 
 function catalogCardHTML(s) {
@@ -1049,13 +1150,13 @@ function wireInfoTab(set, entry) {
       // Milestone detection
       const newCount = prevCount + 1;
       const newValue = prevValue + (Number(set.current_value) || 0);
-      const countMilestones = [[1,"Your first set! Welcome to Brickvault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! You're dedicated 🏅"],[100,"100 sets! Elite collector 🏆"]];
-      const valueMilestones = [[1000,"$1,000 portfolio milestone!"],[5000,"$5,000 portfolio!"],[10000,"$10,000 portfolio 💰"],[50000,"$50,000 — serious money 🤑"]];
-      for (const [n, msg] of countMilestones) {
-        if (prevCount < n && newCount >= n) { haptic("heavy"); setTimeout(() => toast(msg, "milestone"), 700); break; }
+      const countMs = [[1,"Your first set! Welcome to Brickvault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! Dedicated collector 🏅"],[100,"100 sets! Elite collector 🏆"]];
+      const valueMs = [[1000,"$1,000 portfolio milestone!"],[5000,"$5,000 portfolio!"],[10000,"$10,000 portfolio 💰"],[50000,"$50,000 — serious money 🤑"]];
+      for (const [n, msg] of countMs) {
+        if (prevCount < n && newCount >= n) { haptic("heavy"); setTimeout(() => { toast(msg, "milestone"); confettiBurst(); }, 700); break; }
       }
-      for (const [v, msg] of valueMilestones) {
-        if (prevValue < v && newValue >= v) { haptic("heavy"); setTimeout(() => toast(msg, "milestone"), 1100); break; }
+      for (const [v, msg] of valueMs) {
+        if (prevValue < v && newValue >= v) { haptic("heavy"); setTimeout(() => { toast(msg, "milestone"); confettiBurst(); }, 1100); break; }
       }
       const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
       paintSetDetail(r.set || r, r.entry || null);
@@ -1361,6 +1462,16 @@ async function renderMe() {
         </div>
       </div>
 
+      ${state.pwa.deferredPrompt ? `
+        <button class="install-card" id="installBtn">
+          <div class="install-icon">${I.download()}</div>
+          <div class="install-text">
+            <div class="install-t1">Install Brickvault</div>
+            <div class="install-t2">Add to your home screen for a full-screen, app-like experience.</div>
+          </div>
+          ${I.arrowR()}
+        </button>` : ""}
+
       <div class="section-title">Preferences</div>
       <div>
         <div class="setting-row">
@@ -1417,6 +1528,19 @@ async function renderMe() {
         BRICKVAULT · v5.0 · STACK SOMETHING BEAUTIFUL
       </div>
     </div>`;
+
+  $("#installBtn")?.addEventListener("click", async () => {
+    const dp = state.pwa.deferredPrompt;
+    if (!dp) return;
+    haptic("medium");
+    dp.prompt();
+    try {
+      const { outcome } = await dp.userChoice;
+      if (outcome === "accepted") toast("Installing Brickvault…", "success");
+    } catch {}
+    state.pwa.deferredPrompt = null;
+    $("#installBtn")?.remove();
+  });
 
   let notifyOn = me.notify_price_drops;
   $("#notifyToggle")?.addEventListener("click", async (e) => {

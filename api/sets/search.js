@@ -27,6 +27,23 @@ export default async function (req, res) {
   }
   if (theme) { where.push(`theme = $${i++}`); params.push(theme); }
   if (retired === '1' || retired === 'true') where.push(`retired = true`);
+
+  // Numeric range filters (advanced filter sheet). Each is optional.
+  const rangeFilter = (key, col) => {
+    const v = parseInt(req.query[key], 10);
+    if (!isNaN(v)) {
+      const op = key.startsWith('min_') ? '>=' : '<=';
+      where.push(`${col} ${op} $${i++}`);
+      params.push(v);
+    }
+  };
+  rangeFilter('min_year', 'year');
+  rangeFilter('max_year', 'year');
+  rangeFilter('min_pieces', 'pieces');
+  rangeFilter('max_pieces', 'pieces');
+  rangeFilter('min_value', 'current_value');
+  rangeFilter('max_value', 'current_value');
+
   const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   const [pageRes, countRes] = await Promise.all([

@@ -399,7 +399,10 @@ body.offline .offline-banner { display: block; }
    ============================================================ */
 #nav {
   position: fixed; bottom: 0; left: 0; right: 0;
-  height: var(--nav-h);
+  /* box-sizing is border-box globally, so the safe-area padding must be ADDED
+     to the height — otherwise it eats into the 64px content area and squishes
+     the icons/labels on notched phones (no safe area = no issue on desktop). */
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
   background: var(--surface);
   border-top: 2px solid var(--line);
   display: flex;
@@ -1744,3 +1747,63 @@ body.offline .offline-banner { display: block; }
   border-radius: var(--r-full); border: 1.5px solid var(--down-soft);
   font-family: var(--mono); font-weight: 500;
 }
+
+/* ============================================================
+   v6.0 — Confetti, advanced filters, PWA install
+   ============================================================ */
+
+/* Confetti burst (milestone celebration) */
+.confetti-layer {
+  position: fixed; inset: 0; pointer-events: none; z-index: 120;
+  overflow: hidden;
+}
+.confetti-layer i {
+  position: absolute; top: -16px;
+  width: 9px; height: 14px; border-radius: 2px;
+  opacity: 0;
+  animation-name: confettiFall;
+  animation-timing-function: cubic-bezier(0.3, 0.6, 0.5, 1);
+  animation-fill-mode: forwards;
+}
+@keyframes confettiFall {
+  0%   { opacity: 1; transform: translateY(0) translateX(0) rotate(0deg); }
+  100% { opacity: 0; transform: translateY(102vh) translateX(var(--drift, 0)) rotate(var(--rot, 360deg)); }
+}
+
+/* Advanced filter range inputs (filter sheet) */
+.range-inputs { display: flex; align-items: center; gap: 10px; }
+.range-inputs input {
+  flex: 1; min-width: 0;
+  padding: 11px 14px;
+  background: var(--surface); color: var(--ink);
+  border: 2px solid var(--line); border-radius: var(--r-2);
+  font-size: 16px; font-family: var(--mono);
+  outline: none;
+}
+.range-inputs input:focus { border-color: var(--bv-red); }
+.range-dash { color: var(--ink-mute); font-weight: 600; flex-shrink: 0; }
+
+/* PWA install card */
+.install-card {
+  display: flex; align-items: center; gap: 14px;
+  width: 100%; text-align: left;
+  background: var(--bv-yellow);
+  border: 2px solid var(--line);
+  border-radius: var(--r-3);
+  box-shadow: var(--shadow-3);
+  padding: 16px;
+  margin: 4px 0 8px;
+  color: var(--line);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.install-card:active { transform: translate(2px, 2px); box-shadow: var(--shadow-1); }
+.install-icon {
+  width: 42px; height: 42px; border-radius: var(--r-2); flex-shrink: 0;
+  background: var(--surface); border: 2px solid var(--line);
+  display: flex; align-items: center; justify-content: center;
+}
+.install-icon svg { width: 22px; height: 22px; }
+.install-text { flex: 1; min-width: 0; }
+.install-t1 { font-weight: 700; font-size: 15px; }
+.install-t2 { font-size: 12.5px; opacity: 0.8; line-height: 1.3; margin-top: 2px; }
+.install-card > svg { width: 20px; height: 20px; flex-shrink: 0; }
