@@ -2,6 +2,7 @@
    Brickvault — design tokens
    ============================================================ */
 :root {
+  color-scheme: light;
   --bg: #F5F1E8;
   --bg-deep: #EFEAE0;
   --surface: #FFFFFF;
@@ -38,9 +39,8 @@
   --mono: 'IBM Plex Mono', monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #16161C;
+:root[data-theme="dark"] {
+  --bg: #16161C;
     --bg-deep: #0F0F14;
     --surface: #1F1F26;
     --surface-2: #24242C;
@@ -59,7 +59,6 @@
     --down-pale: #3A1817;
     --up-soft: #1A4A30;
     --down-soft: #4A1F1B;
-  }
 }
 
 /* ============================================================
@@ -333,14 +332,21 @@ body.offline .offline-banner { display: block; }
   text-align: center; padding: 0 4px;
 }
 .sl-img img.set-photo {
-  position: absolute; inset: 6px;
-  width: calc(100% - 12px); height: calc(100% - 12px);
+  position: absolute; inset: 3px;
+  width: calc(100% - 6px); height: calc(100% - 6px);
   object-fit: contain;
   mix-blend-mode: multiply;
   z-index: 1;
 }
-@media (prefers-color-scheme: dark) {
-  .sl-img img.set-photo { mix-blend-mode: normal; filter: brightness(0.95); }
+/* With a real photo, drop the framed tile so the product art sits directly on
+   the card — multiply makes the white studio background disappear. */
+.sl-img.has-photo { background: transparent; border-color: transparent; }
+:root[data-theme="dark"] .sl-img img.set-photo {
+  mix-blend-mode: normal; filter: brightness(0.95);
+}
+/* Dark mode can't multiply away white, so float the photo on a soft glow. */
+:root[data-theme="dark"] .sl-img.has-photo {
+  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.10), transparent 72%);
 }
 .sl-img .qty-badge {
   position: absolute; top: 4px; right: 4px;
@@ -408,6 +414,10 @@ body.offline .offline-banner { display: block; }
   display: flex;
   z-index: 30;
   padding-bottom: env(safe-area-inset-bottom);
+  /* Lift the fixed nav out of the page's view-transition snapshot so it stays
+     pinned during route crossfades instead of being captured + re-animated
+     (which made it visibly drop and snap back between tabs). */
+  view-transition-name: bv-nav;
 }
 .nav-tab {
   flex: 1;
@@ -536,20 +546,25 @@ body.offline .offline-banner { display: block; }
   overflow: hidden;
 }
 .set-card-img img.set-photo {
-  position: absolute; inset: 12%;
-  width: 76%; height: 76%;
+  position: absolute; inset: 7%;
+  width: 86%; height: 86%;
   object-fit: contain;
   mix-blend-mode: multiply;
   z-index: 1;
 }
+/* Photo present → strip the framed tile so the set reads as embedded art. */
+.set-card-img.has-photo { background: transparent; }
 /* When a real photo is present, hide the placeholder underneath it. */
 .set-card-img.has-photo .brick-tile,
 .sl-img.has-photo .brick-tile,
 .mini-img.has-photo .mini-figure,
 .detail-img.has-photo .brick-art,
 .scan-result-row .si.has-photo .brick-tile { display: none; }
-@media (prefers-color-scheme: dark) {
-  .set-card-img img.set-photo { mix-blend-mode: normal; filter: brightness(0.95); }
+:root[data-theme="dark"] .set-card-img img.set-photo {
+  mix-blend-mode: normal; filter: brightness(0.95);
+}
+:root[data-theme="dark"] .set-card-img.has-photo {
+  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.08), transparent 72%);
 }
 .set-card-img .ph-mark {
   font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em;
@@ -603,6 +618,11 @@ body.offline .offline-banner { display: block; }
   position: relative; height: 320px;
   overflow: hidden;
 }
+/* With a real photo, ditch the blurred ambient backdrop + scrim entirely so the
+   product floats directly on the page and the bigger image fades into it. */
+.detail-hero.has-photo { height: 380px; }
+.detail-hero.has-photo .detail-hero-bg,
+.detail-hero.has-photo .detail-hero-overlay { display: none; }
 .detail-hero-bg {
   position: absolute; inset: 0;
   background-size: cover; background-position: center;
@@ -622,8 +642,8 @@ body.offline .offline-banner { display: block; }
   position: absolute; inset: 0;
   background: linear-gradient(to bottom, rgba(245,241,232,0.2), rgba(245,241,232,0));
 }
-@media (prefers-color-scheme: dark) {
-  .detail-hero-overlay { background: linear-gradient(to bottom, rgba(22,22,28,0.2), rgba(22,22,28,0)); }
+:root[data-theme="dark"] .detail-hero-overlay {
+  background: linear-gradient(to bottom, rgba(22,22,28,0.2), rgba(22,22,28,0));
 }
 .detail-back {
   position: absolute; top: 16px; left: 16px;
@@ -637,22 +657,25 @@ body.offline .offline-banner { display: block; }
 .detail-img {
   position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  width: 220px; height: 220px;
+  width: 300px; height: 300px;
   display: flex; align-items: center; justify-content: center;
-  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.85) 0%, transparent 70%);
+  /* Soft light halo that fades to nothing, so the photo melts into the page
+     rather than sitting in a box. */
+  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.55) 38%, transparent 66%);
   border-radius: 50%;
   z-index: 2;
 }
-@media (prefers-color-scheme: dark) {
-  .detail-img { background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.12) 0%, transparent 70%); }
+.detail-hero.has-photo .detail-img { width: 320px; height: 320px; }
+:root[data-theme="dark"] .detail-img {
+  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.14) 0%, transparent 66%);
 }
 .detail-img img.set-photo {
-  width: 200px; height: 200px;
+  width: 100%; height: 100%;
   object-fit: contain;
   mix-blend-mode: multiply;
 }
-@media (prefers-color-scheme: dark) {
-  .detail-img img.set-photo { mix-blend-mode: normal; filter: brightness(0.95); }
+:root[data-theme="dark"] .detail-img img.set-photo {
+  mix-blend-mode: normal; filter: brightness(0.95);
 }
 .detail-img .brick-art {
   width: 180px; height: 180px;
@@ -892,10 +915,8 @@ body.offline .offline-banner { display: block; }
   background-position: right 0 center;
   padding-right: 22px;
 }
-@media (prefers-color-scheme: dark) {
-  .field select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%23F2EDE3' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  }
+:root[data-theme="dark"] .field select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%23F2EDE3' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
 }
 
 /* ============================================================
@@ -948,9 +969,11 @@ body.offline .offline-banner { display: block; }
 .mini-card.rarity-uncommon { background: var(--up-pale); }
 .mini-card.rarity-rare { background: #FFF4E0; }
 .mini-card.rarity-legendary { background: #FFF8C2; }
-@media (prefers-color-scheme: dark) {
-  .mini-card.rarity-rare { background: #3A2C1A; }
-  .mini-card.rarity-legendary { background: #3D341A; }
+:root[data-theme="dark"] .mini-card.rarity-rare {
+  background: #3A2C1A;
+}
+:root[data-theme="dark"] .mini-card.rarity-legendary {
+  background: #3D341A;
 }
 .mini-card::before {
   content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
@@ -970,8 +993,8 @@ body.offline .offline-banner { display: block; }
   width: 70%; height: 86%; object-fit: contain;
   mix-blend-mode: multiply;
 }
-@media (prefers-color-scheme: dark) {
-  .mini-img img.fig-photo { mix-blend-mode: normal; filter: brightness(0.95); }
+:root[data-theme="dark"] .mini-img img.fig-photo {
+  mix-blend-mode: normal; filter: brightness(0.95);
 }
 .mini-figure { width: 64px; height: 92px; position: relative; }
 .mini-figure .head {
@@ -1026,8 +1049,8 @@ body.offline .offline-banner { display: block; }
   display: inline-block; width: max-content;
   color: var(--ink-soft);
 }
-@media (prefers-color-scheme: dark) {
-  .mini-rarity { background: rgba(255,255,255,0.08); }
+:root[data-theme="dark"] .mini-rarity {
+  background: rgba(255,255,255,0.08);
 }
 
 /* ============================================================
@@ -1123,6 +1146,22 @@ body.offline .offline-banner { display: block; }
 }
 .toggle.on { background: var(--bv-yellow); }
 .toggle.on::after { transform: translateX(18px); }
+
+/* Light / Auto / Dark segmented control */
+.theme-seg {
+  display: inline-flex; flex-shrink: 0;
+  border: 2px solid var(--line); border-radius: var(--r-full);
+  overflow: hidden; background: var(--surface-2);
+}
+.theme-seg button {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 7px 12px; color: var(--ink-mute);
+  border-right: 2px solid var(--line);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.theme-seg button:last-child { border-right: 0; }
+.theme-seg button.active { background: var(--bv-yellow); color: var(--line); }
 .import-btn {
   width: 36px; height: 36px; flex-shrink: 0;
   background: var(--bv-yellow); border: 2px solid var(--line);
@@ -1335,8 +1374,8 @@ body.offline .offline-banner { display: block; }
   overflow: hidden;
 }
 .scan-result-row .si img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; mix-blend-mode: multiply; z-index: 1; }
-@media (prefers-color-scheme: dark) {
-  .scan-result-row .si img { mix-blend-mode: normal; }
+:root[data-theme="dark"] .scan-result-row .si img {
+  mix-blend-mode: normal;
 }
 .scan-result-row .sx { flex: 1; min-width: 0; }
 .scan-result-row .sx-name { font-weight: 600; font-size: 15px; line-height: 1.2; }
@@ -1807,3 +1846,6 @@ body.offline .offline-banner { display: block; }
 .install-t1 { font-weight: 700; font-size: 15px; }
 .install-t2 { font-size: 12.5px; opacity: 0.8; line-height: 1.3; margin-top: 2px; }
 .install-card > svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+
+:root[data-theme="dark"] { color-scheme: dark; }

@@ -333,17 +333,43 @@ function errorStateHTML() {
 const prefersReducedMotion = () =>
   window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+// --- Theme (light / dark / auto) ---------------------------------------
+// CSS is attribute-driven via :root[data-theme="dark"]; "auto" is resolved to a
+// concrete value here so the manual switch works regardless of the OS setting.
+const getThemePref = () => {
+  try { return localStorage.getItem("bv_theme") || "auto"; } catch { return "auto"; }
+};
+const resolveTheme = pref => {
+  if (pref === "light" || pref === "dark") return pref;
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+};
+function applyTheme(pref) {
+  const resolved = resolveTheme(pref);
+  document.documentElement.dataset.theme = resolved;
+  // Keep the browser chrome (status/address bar) in step with the theme.
+  const color = resolved === "dark" ? "#16161C" : "#F5F1E8";
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute("content", color));
+}
+function setThemePref(pref) {
+  try { localStorage.setItem("bv_theme", pref); } catch {}
+  applyTheme(pref);
+}
+// Follow the OS while in auto mode.
+if (window.matchMedia) {
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (getThemePref() === "auto") applyTheme("auto");
+  });
+}
+
 // Run a synchronous DOM update inside a View Transition for a native-feeling
 // crossfade between routes. Falls back to a plain call when unsupported or when
 // the user prefers reduced motion.
 function withViewTransition(fn) {
   if (document.startViewTransition && !prefersReducedMotion()) {
     try { return document.startViewTransition(fn).finished.catch(() => {}); }
-    catch { fn(); }
-  } else {
-    fn();
+    catch { return Promise.resolve(fn()); }
   }
-  return Promise.resolve();
+  return Promise.resolve(fn());
 }
 
 // --- Skeleton screens (shown synchronously before the first await) ---
@@ -392,6 +418,15 @@ function skeletonFor(hash) {
   return genericSkeletonHTML();
 }
 
+// True when the route can paint immediately from already-loaded state, so we
+// can skip the skeleton entirely and avoid a placeholder→content flash.
+function hasCachedView(hash) {
+  if (hash === "/" || hash === "") return !!state.portfolio;
+  if (hash === "/add") return state.catalog.items.length > 0;
+  if (hash === "/minifigs") return state.blind.items.length > 0;
+  return false;
+}
+
 async function route() {
   let hash = location.hash.replace("#", "") || "/";
   // Legacy redirect: the minifigs page used to live at /blind.
@@ -421,9 +456,16 @@ async function route() {
   };
 
   try {
-    // Crossfade to a skeleton synchronously, then fill with real content.
-    await withViewTransition(() => { $("#root").innerHTML = skeletonFor(hash); });
-    await render();
+    // If we already hold the data for this view, render straight from the
+    // in-memory cache inside one crossfade — no skeleton flash, which made
+    // re-visiting Catalog/Minifigs feel sluggish. Only cold loads (no cache)
+    // show the skeleton while the first fetch is in flight.
+    if (hasCachedView(hash)) {
+      await withViewTransition(() => render());
+    } else {
+      await withViewTransition(() => { $("#root").innerHTML = skeletonFor(hash); });
+      await render();
+    }
   } catch (e) {
     if (e && e.__redirect) return;
     const root = $("#root");
@@ -548,13 +590,7 @@ function paintPortfolio() {
 
       ${p.items.length > 0 ? `
         <button class="insights-toggle" id="insightsToggle">${I.trend()}<span>Insights</span>${I.chev()}</button>
-        <div id="insightsPanel" style="display:none;"></div>
-
-        <div style="margin-top:18px;">
-          <a href="#/wishlist" class="btn-secondary" style="display:flex;">
-            ${I.heart()}<span>Wishlist · ${state.wishlist.length} set${state.wishlist.length !== 1 ? "s" : ""}${alertsCount ? " · " + alertsCount + " alert" + (alertsCount > 1 ? "s" : "") : ""}</span>${I.chev()}
-          </a>
-        </div>` : ""}
+        <div id="insightsPanel" style="display:none;"></div>` : ""}
     </div>`;
 
   setTimeout(() => drawSparkline($("#heroChart"), clipped, { up: gain >= 0 }), 30);
@@ -785,7 +821,9 @@ async function renderAdd() {
   if (!state.themes.length) {
     try { const t = await api("/api/themes"); state.themes = t.themes || []; state.themesLoadedAt = Date.now(); } catch {}
   }
-  await loadCatalog({ reset: true });
+  // Reuse the last result set on re-visit (instant, no skeleton). Only fetch
+  // when we have nothing cached yet.
+  if (!state.catalog.items.length) await loadCatalog({ reset: true });
   paintAdd();
 }
 
@@ -1016,7 +1054,7 @@ function paintSetDetail(set, entry) {
 
   $("#root").innerHTML = `
     <div class="page no-pad">
-      <div class="detail-hero">
+      <div class="detail-hero${hasImg ? " has-photo" : ""}">
         ${hasImg
           ? `<div class="detail-hero-bg" style="background-image:url('${escapeHtml(set.image_url)}')"></div>`
           : `<div class="detail-hero-bg placeholder" style="--brick-hue:linear-gradient(135deg, oklch(0.72 0.13 ${h}), oklch(0.55 0.13 ${h}));"></div>`}
@@ -1475,6 +1513,13 @@ async function renderMe() {
       <div class="section-title">Preferences</div>
       <div>
         <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Appearance</div><div class="desc">Match your device or pick a side.</div></div>
+          <div class="theme-seg" id="themeSeg" role="group" aria-label="Theme">
+            ${[["light","Light"],["auto","Auto"],["dark","Dark"]].map(([v,l]) =>
+              `<button data-theme-val="${v}" class="${getThemePref() === v ? "active" : ""}" aria-pressed="${getThemePref() === v}">${l}</button>`).join("")}
+          </div>
+        </div>
+        <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Price-drop alerts</div><div class="desc">Alert when wishlisted sets hit your target.</div></div>
           <button class="toggle ${me.notify_price_drops ? "on" : ""}" id="notifyToggle" aria-pressed="${me.notify_price_drops}"></button>
         </div>
@@ -1541,6 +1586,17 @@ async function renderMe() {
     state.pwa.deferredPrompt = null;
     $("#installBtn")?.remove();
   });
+
+  $$("#themeSeg button").forEach(b => b.addEventListener("click", () => {
+    const val = b.dataset.themeVal;
+    haptic("light");
+    setThemePref(val);
+    $$("#themeSeg button").forEach(x => {
+      const on = x === b;
+      x.classList.toggle("active", on);
+      x.setAttribute("aria-pressed", on);
+    });
+  }));
 
   let notifyOn = me.notify_price_drops;
   $("#notifyToggle")?.addEventListener("click", async (e) => {
@@ -1756,7 +1812,8 @@ function mountBlindSentinel() {
 }
 
 async function renderBlind() {
-  await loadBlind({ reset: true });
+  // Reuse cached minifigs on re-visit so the grid paints instantly.
+  if (!state.blind.items.length) await loadBlind({ reset: true });
   const b = state.blind;
   const ownedCount = b.items.filter(f => state.ownedFigs.has(f.fig_num)).length;
 
@@ -2226,8 +2283,12 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // PWA install prompt
-  window.addEventListener("beforeinstallprompt", e => { state.pwa.deferredPrompt = e; });
+  // Re-assert the stored theme (the inline bootstrap set it pre-paint; this
+  // wires up meta theme-color + keeps state consistent after hydration).
+  applyTheme(getThemePref());
+
+  // PWA install prompt — preventDefault so we can surface our own install card.
+  window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); state.pwa.deferredPrompt = e; });
 
   // Offline indicator
   const offlineHandler = () => document.body.classList.toggle("offline", !navigator.onLine);
