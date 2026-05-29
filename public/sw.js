@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = 'v9';
+const VERSION = 'v10';
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 const STATIC_ASSETS = ['/', '/app.css', '/app.js', '/manifest.json', '/icon.svg'];
@@ -60,11 +60,11 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // API — network-first so values stay fresh, cache as offline fallback.
-  if (url.pathname.startsWith('/api/')) {
-    e.respondWith(networkFirst(request, API_CACHE));
-    return;
-  }
+  // API — bypass the SW entirely. Let the browser fetch natively so no
+  // cache/SW state can ever break a data request (network-first via the SW
+  // could resolve to undefined when both network and cache miss, surfacing
+  // as a confusing "Failed to fetch"). The app handles its own errors.
+  if (url.pathname.startsWith('/api/')) return;
 
   // App shell (HTML / JS / CSS) — network-first so code updates always reach
   // users on their next visit instead of being pinned to a stale cache.

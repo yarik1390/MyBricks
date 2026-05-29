@@ -124,11 +124,20 @@ function setHue(set) {
 
 /* ---------- API ---------- */
 async function api(path, opts = {}) {
-  const r = await fetch(path, {
+  const init = {
     ...opts,
     headers: { "content-type": "application/json", ...(opts.headers || {}) },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
-  });
+  };
+  let r;
+  try {
+    r = await fetch(path, init);
+  } catch (e) {
+    // Network-level failure ("Failed to fetch") — often a transient blip
+    // (isolate restart during deploy, flaky connection). Retry once.
+    await new Promise(res => setTimeout(res, 600));
+    r = await fetch(path, init);
+  }
   if (!r.ok) {
     let msg = r.statusText;
     try { msg = (await r.json()).error || msg; } catch {}
