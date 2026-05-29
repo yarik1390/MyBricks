@@ -203,7 +203,9 @@ function errorStateHTML() {
 }
 
 async function route() {
-  const hash = location.hash.replace("#", "") || "/";
+  let hash = location.hash.replace("#", "") || "/";
+  // Legacy redirect: the minifigs page used to live at /blind.
+  if (hash === "/blind") { location.hash = "#/minifigs"; return; }
   $$("#nav .nav-tab").forEach(t => {
     const r = t.dataset.route;
     const active = r === hash || (hash.startsWith("/set/") && r === "/") || (hash === "/wishlist" && r === "/");
@@ -213,7 +215,7 @@ async function route() {
     if (hash === "/" || hash === "") await renderPortfolio();
     else if (hash === "/add") await renderAdd();
     else if (hash === "/pile") renderPile();
-    else if (hash === "/blind") await renderBlind();
+    else if (hash === "/minifigs") await renderBlind();
     else if (hash === "/me") await renderMe();
     else if (hash === "/wishlist") await renderWishlist();
     else if (hash.startsWith("/set/")) {
@@ -475,14 +477,32 @@ const debouncedCatalogSearch = debounce(async () => {
   refreshCatalogGrid();
 }, 350);
 
-// Re-render just the grid + count (preserves the search input's focus).
-function refreshCatalogGrid() {
-  const grid = $("#catalogGrid");
-  const count = $("#catalogCount");
-  if (!grid) return;
+// Inner HTML for the catalog results region (count + grid/empty + sentinel).
+function catalogResultsHTML() {
   const c = state.catalog;
-  grid.innerHTML = c.items.map(s => catalogCardHTML(s)).join("");
-  if (count) count.textContent = `${c.total.toLocaleString()} result${c.total === 1 ? "" : "s"}`;
+  const f = state.filter;
+  return `
+    <div id="catalogCount" style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin:14px 4px 10px;">${c.total.toLocaleString()} result${c.total === 1 ? "" : "s"}</div>
+    ${c.items.length === 0 ? `
+      <div class="empty card">
+        <div class="empty-icon">${I.search()}</div>
+        <h3>No sets found</h3>
+        <p>${f.q ? `Nothing matches "${escapeHtml(f.q)}".` : "No sets match these filters."} Try a different search or clear filters.</p>
+      </div>` : `
+      <div class="grid" id="catalogGrid">
+        ${c.items.map(s => catalogCardHTML(s)).join("")}
+      </div>
+      <div id="catalogSentinel" class="load-sentinel" style="${c.hasMore ? "" : "display:none;"}">
+        <div class="spinner"></div>
+      </div>`}`;
+}
+
+// Re-render only the results region (preserves search focus + filter chips,
+// so changing sort/theme/search doesn't flash the whole page).
+function refreshCatalogGrid() {
+  const results = $("#catalogResults");
+  if (!results) return;
+  results.innerHTML = catalogResultsHTML();
   wireCatalogCards();
   mountCatalogSentinel();
 }
@@ -550,20 +570,7 @@ function paintAdd() {
         <button class="chip ${f.catalogRetired ? "active" : ""}" data-retired="1">${I.tag()}<span>Retired</span></button>
       </div>
 
-      <div id="catalogCount" style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin:14px 4px 10px;">${c.total.toLocaleString()} result${c.total === 1 ? "" : "s"}</div>
-
-      ${c.items.length === 0 ? `
-        <div class="empty card">
-          <div class="empty-icon">${I.search()}</div>
-          <h3>No sets found</h3>
-          <p>${f.q ? `Nothing matches "${escapeHtml(f.q)}".` : "No sets match these filters."} Try a different search or clear filters.</p>
-        </div>` : `
-        <div class="grid" id="catalogGrid">
-          ${c.items.map(s => catalogCardHTML(s)).join("")}
-        </div>
-        <div id="catalogSentinel" class="load-sentinel" style="${c.hasMore ? "" : "display:none;"}">
-          <div class="spinner"></div>
-        </div>`}
+      <div id="catalogResults">${catalogResultsHTML()}</div>
     </div>`;
 
   $("#scanCta")?.addEventListener("click", () => openScan());
@@ -572,10 +579,23 @@ function paintAdd() {
     state.filter.q = e.target.value;
     debouncedCatalogSearch();
   });
-  const reload = async () => { await loadCatalog({ reset: true }); paintAdd(); };
-  $$("[data-theme]").forEach(b => b.addEventListener("click", () => { state.filter.catalogTheme = b.dataset.theme; haptic("light"); reload(); }));
-  $$("[data-csort]").forEach(b => b.addEventListener("click", () => { state.filter.catalogSort = b.dataset.csort; haptic("light"); reload(); }));
-  $$("[data-retired]").forEach(b => b.addEventListener("click", () => { state.filter.catalogRetired = !state.filter.catalogRetired; haptic("light"); reload(); }));
+  // Update chips' active state + repaint only the results region — no full reload.
+  const reloadGrid = async () => { await loadCatalog({ reset: true }); refreshCatalogGrid(); };
+  $$("[data-theme]").forEach(b => b.addEventListener("click", () => {
+    state.filter.catalogTheme = b.dataset.theme; haptic("light");
+    $$("[data-theme]").forEach(x => x.classList.toggle("active", x.dataset.theme === state.filter.catalogTheme));
+    reloadGrid();
+  }));
+  $$("[data-csort]").forEach(b => b.addEventListener("click", () => {
+    state.filter.catalogSort = b.dataset.csort; haptic("light");
+    $$("[data-csort]").forEach(x => x.classList.toggle("active", x.dataset.csort === state.filter.catalogSort));
+    reloadGrid();
+  }));
+  $$("[data-retired]").forEach(b => b.addEventListener("click", () => {
+    state.filter.catalogRetired = !state.filter.catalogRetired; haptic("light");
+    b.classList.toggle("active", state.filter.catalogRetired);
+    reloadGrid();
+  }));
   wireCatalogCards();
   mountCatalogSentinel();
 }
@@ -1149,7 +1169,7 @@ function renderPile() {
 }
 
 /* ============================================================
-   Blind bag (minifigs)
+   Minifigs
    ============================================================ */
 async function loadBlind({ reset = false } = {}) {
   const b = state.blind;
@@ -1246,7 +1266,7 @@ async function renderBlind() {
       <div class="topbar">
         <div class="topbar-heading">
           <div class="topbar-eyebrow" id="blindCount">${ownedCount}/${b.total.toLocaleString()} collected</div>
-          <div class="topbar-title">Blind bag</div>
+          <div class="topbar-title">Minifigs</div>
         </div>
       </div>
 
@@ -1612,7 +1632,7 @@ document.addEventListener("error", (e) => {
 
 document.addEventListener("DOMContentLoaded", () => {
   // Wire nav icons using icon library
-  const icons = { "/": I.home, "/add": I.search, "/blind": I.figure, "/me": I.user };
+  const icons = { "/": I.home, "/add": I.search, "/minifigs": I.figure, "/me": I.user };
   $$("#nav .nav-tab").forEach(t => {
     const r = t.dataset.route;
     const iconFn = icons[r];
