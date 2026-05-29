@@ -52,7 +52,7 @@ export default async function (req, res) {
   if (!validConditions.includes(condition)) return res.status(400).json({ error: 'Invalid condition' });
 
   const existing = await db.query(
-    'SELECT id FROM lego_sets WHERE set_num = $1', [set_num]
+    'SELECT 1 FROM lego_sets WHERE set_num = $1', [set_num]
   );
   if (!existing.rows.length) return res.status(404).json({ error: 'Set not found in catalog' });
 
