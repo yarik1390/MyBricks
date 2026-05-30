@@ -955,14 +955,18 @@ function catalogQuery() {
 
 // Fetch a page of the catalog. reset=true starts over; otherwise appends.
 // Returns the newly fetched rows so callers can append to the DOM.
+let _catalogGen = 0;
 async function loadCatalog({ reset = false } = {}) {
   const c = state.catalog;
-  if (c.loading) return [];
-  if (reset) { c.offset = 0; c.items = []; c.hasMore = false; c.total = 0; }
-  else if (!c.hasMore) return [];
+  // reset=true always wins; non-reset (scroll) loads back off if one is already running.
+  if (!reset && c.loading) return [];
+  if (!reset && !c.hasMore) return [];
+  if (reset) { _catalogGen++; c.offset = 0; c.items = []; c.hasMore = false; c.total = 0; }
+  const myGen = _catalogGen;
   c.loading = true;
   try {
     const res = await api("/api/sets/search?" + catalogQuery());
+    if (myGen !== _catalogGen) return []; // superseded by a newer reset
     const fresh = res.sets || [];
     c.items = reset ? fresh : c.items.concat(fresh);
     c.total = res.total ?? c.items.length;
@@ -970,6 +974,7 @@ async function loadCatalog({ reset = false } = {}) {
     c.hasMore = !!res.hasMore;
     return fresh;
   } catch (e) {
+    if (myGen !== _catalogGen) return [];
     // Show retry inline inside the catalog page if it's open; otherwise silent.
     const results = $("#catalogResults");
     if (results) {
@@ -982,7 +987,7 @@ async function loadCatalog({ reset = false } = {}) {
     }
     return [];
   } finally {
-    c.loading = false;
+    if (myGen === _catalogGen) c.loading = false;
   }
 }
 
