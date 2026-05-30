@@ -268,7 +268,7 @@ async function api(path, opts = {}) {
   }
   if (!r.ok) {
     let msg = r.statusText;
-    try { msg = (await r.json()).error || msg; } catch {}
+    try { const b = await r.json(); msg = b.error || msg; if (b.reason) msg += ': ' + b.reason; } catch {}
     throw new Error(msg);
   }
   if (r.status === 204) return null;
