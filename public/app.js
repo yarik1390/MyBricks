@@ -79,6 +79,7 @@ const state = {
 let _authSession = null;
 let _sbUrl = "";
 let _sbAnonKey = "";
+let _swipeAc = null;
 
 function loadSession() {
   try { return JSON.parse(localStorage.getItem("bv_session") || "null"); } catch { return null; }
@@ -175,7 +176,7 @@ function confettiBurst() {
   const colors = ["#FFD700", "#DA291C", "#1A7F4B", "#0057b7", "#7c3aed", "#f57c00"];
   const layer = document.createElement("div");
   layer.className = "confetti-layer";
-  const N = 42;
+  const N = 20;
   for (let k = 0; k < N; k++) {
     const s = document.createElement("i");
     const left = Math.random() * 100;
@@ -420,6 +421,20 @@ function renderLogin() {
               <span>${mode === "signin" ? "Sign in" : "Create account"}</span>
             </button>
             <div id="authErr" style="color:var(--down);font-size:13px;text-align:center;min-height:18px;font-family:var(--mono);"></div>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
+              <div style="flex:1;height:1px;background:var(--line);"></div>
+              <div style="font-size:12px;color:var(--ink-mute);white-space:nowrap;">or</div>
+              <div style="flex:1;height:1px;background:var(--line);"></div>
+            </div>
+            <button id="googleSignIn" class="btn-secondary" style="width:100%;gap:10px;justify-content:center;">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+                <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/>
+                <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+              </svg>
+              <span>Continue with Google</span>
+            </button>
           </div>
         </div>
         <div style="text-align:center;margin-top:16px;font-size:13px;color:var(--ink-mute);">
@@ -433,6 +448,12 @@ function renderLogin() {
     document.getElementById("authSwitch").addEventListener("click", () => {
       mode = mode === "signin" ? "signup" : "signin";
       paint();
+    });
+
+    document.getElementById("googleSignIn")?.addEventListener("click", () => {
+      if (!_sbUrl) { toast("Auth not configured", "error"); return; }
+      const redirectTo = encodeURIComponent(location.origin + location.pathname);
+      location.href = `${_sbUrl}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`;
     });
 
     const submit = async () => {
@@ -579,7 +600,7 @@ function skeletonFor(hash) {
 // can skip the skeleton entirely and avoid a placeholder→content flash.
 function hasCachedView(hash) {
   if (hash === "/" || hash === "") return !!state.portfolio;
-  if (hash === "/add") return false; // always re-fetch; skeleton handles loading
+  if (hash === "/add") return state.catalog.items.length > 0;
   if (hash === "/minifigs") return state.blind.items.length > 0;
   return false;
 }
@@ -1269,12 +1290,16 @@ function paintSetDetail(set, entry) {
 function infoTabHTML(set, entry, isWish) {
   const owned = !!entry;
   const delta = entry && entry.purchase_price ? (set.current_value - entry.purchase_price) / entry.purchase_price : null;
+  const valueSource = set.valuation_method === "market" ? "BrickEconomy"
+    : set.valuation_method === "ai" ? "AI estimate"
+    : "Estimated";
   return `
     <div class="stat-grid">
       <div class="stat-cell ${owned ? "high" : ""}">
         <div class="lbl">${I.dollar()}Current value</div>
         <div class="val">${fmtMoney(set.current_value)}</div>
         ${delta != null ? `<div class="delta ${delta >= 0 ? "up" : "down"}" style="margin-top:6px;"><span class="arrow">${delta >= 0 ? "▲" : "▼"}</span>${fmtPct(Math.abs(delta))}</div>` : ""}
+        <div style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);margin-top:4px;letter-spacing:0.08em;">${valueSource}</div>
       </div>
       <div class="stat-cell">
         <div class="lbl">${I.tag()}Retail</div>
@@ -1395,14 +1420,16 @@ function forecastTabHTML(set) {
   const g2 = set.forecast_2y && set.current_value ? (set.forecast_2y - set.current_value) / set.current_value : 0.18;
   const g5 = set.forecast_5y && set.current_value ? (set.forecast_5y - set.current_value) / set.current_value : 0.45;
   const pct = (g) => Math.min(100, Math.max(8, g * 100 + 12)).toFixed(1);
+  const forecastLabel = set.valuation_method === "market" ? "Market value · BrickEconomy"
+    : "AI forecast · GPT-4o-mini";
   return `
     <div class="card" style="padding:14px 16px;margin-bottom:14px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
         ${I.sparkles()}
-        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);">AI forecast · GPT-4o-mini</div>
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);">${forecastLabel}</div>
       </div>
       <p style="margin:6px 0 0;font-size:13px;color:var(--ink-soft);line-height:1.45;">
-        Based on theme rarity, piece count, retirement status, and market trends for similar ${escapeHtml(set.theme || "")} sets.
+        ${set.valuation_method === "market" ? "Real-time market data from BrickEconomy based on recent sales." : `Based on theme rarity, piece count, retirement status, and market trends for similar ${escapeHtml(set.theme || "")} sets.`}
       </p>
     </div>
 
@@ -1541,8 +1568,11 @@ function wireManageTab(set, entry) {
 
 function setupTabSwipe(set, entry) {
   const el = $("#tabPanels"); if (!el) return;
+  if (_swipeAc) _swipeAc.abort();
+  _swipeAc = new AbortController();
+  const { signal } = _swipeAc;
   let sx = 0, sy = 0, active = false;
-  el.addEventListener("touchstart", e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; active = true; }, { passive: true });
+  el.addEventListener("touchstart", e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; active = true; }, { passive: true, signal });
   el.addEventListener("touchend", e => {
     if (!active) return; active = false;
     const dx = e.changedTouches[0].clientX - sx;
@@ -1554,7 +1584,7 @@ function setupTabSwipe(set, entry) {
       const next = clamp(idx + (dx < 0 ? 1 : -1), 0, tabs.length - 1);
       if (next !== idx) { state.detail.tab = tabs[next]; haptic("light"); paintSetDetail(set, entry); }
     }
-  });
+  }, { signal });
 }
 
 /* ============================================================
@@ -1972,7 +2002,7 @@ async function loadBlind({ reset = false } = {}) {
     // Server is the source of truth for ownership — seed the local set from
     // owned_qty so it survives device switches / cache clears.
     fresh.forEach(f => { if (f.owned_qty > 0) state.ownedFigs.add(f.fig_num); });
-    localStorage.setItem("bv_figs", JSON.stringify([...state.ownedFigs]));
+    saveFigs();
     b.items = reset ? fresh : b.items.concat(fresh);
     b.total = res.total ?? b.items.length;
     b.offset = b.items.length;
@@ -1986,34 +2016,37 @@ async function loadBlind({ reset = false } = {}) {
   }
 }
 
+function saveFigs() {
+  try { localStorage.setItem("bv_figs", JSON.stringify([...state.ownedFigs])); } catch {}
+}
+
 function wireMiniCards() {
-  $$(".mini-card").forEach(c => {
-    if (c._wired) return;
-    c._wired = true;
-    c.addEventListener("click", async () => {
-      const num = c.dataset.fig;
-      const nowOwned = !state.ownedFigs.has(num);
-      // Optimistic update
-      if (nowOwned) state.ownedFigs.add(num); else state.ownedFigs.delete(num);
-      localStorage.setItem("bv_figs", JSON.stringify([...state.ownedFigs]));
-      haptic("medium");
-      const f = state.blind.items.find(x => x.fig_num === num);
-      if (f) { f.owned_qty = nowOwned ? 1 : 0; c.outerHTML = miniCardHTML(f); }
-      wireMiniCards();
+  const grid = $("#miniGrid");
+  if (!grid || grid._delegated) return;
+  grid._delegated = true;
+  grid.addEventListener("click", async (evt) => {
+    const card = evt.target.closest(".mini-card");
+    if (!card) return;
+    const num = card.dataset.fig;
+    if (!num) return;
+    const nowOwned = !state.ownedFigs.has(num);
+    if (nowOwned) state.ownedFigs.add(num); else state.ownedFigs.delete(num);
+    saveFigs();
+    haptic("medium");
+    const f = state.blind.items.find(x => x.fig_num === num);
+    if (f) { f.owned_qty = nowOwned ? 1 : 0; card.outerHTML = miniCardHTML(f); }
+    updateBlindCount();
+    try {
+      await api("/api/minifigs/" + encodeURIComponent(num), { method: nowOwned ? "PUT" : "DELETE" });
+    } catch {
+      if (nowOwned) state.ownedFigs.delete(num); else state.ownedFigs.add(num);
+      saveFigs();
+      if (f) { f.owned_qty = nowOwned ? 0 : 1; }
+      const recard = $(`.mini-card[data-fig="${CSS.escape(num)}"]`);
+      if (recard && f) recard.outerHTML = miniCardHTML(f);
       updateBlindCount();
-      // Persist to server; revert on failure.
-      try {
-        await api("/api/minifigs/" + encodeURIComponent(num), { method: nowOwned ? "PUT" : "DELETE" });
-      } catch (e) {
-        if (nowOwned) state.ownedFigs.delete(num); else state.ownedFigs.add(num);
-        localStorage.setItem("bv_figs", JSON.stringify([...state.ownedFigs]));
-        if (f) { f.owned_qty = nowOwned ? 0 : 1; }
-        const card = $(`.mini-card[data-fig="${CSS.escape(num)}"]`);
-        if (card && f) { card.outerHTML = miniCardHTML(f); wireMiniCards(); }
-        updateBlindCount();
-        toast("Couldn't save — try again", "error");
-      }
-    });
+      toast("Couldn't save — try again", "error");
+    }
   });
 }
 
@@ -2203,13 +2236,21 @@ async function sendScanToAPI(payload) {
     el.classList.add("show");
     el.innerHTML = `<div class="scan-loading"><div class="spinner"></div><span>Identifying…</span></div>`;
   }
+  const frame = document.querySelector(".scan-frame");
+  if (frame) frame.classList.add("scan-pending");
+  const ac = new AbortController();
+  const tid = setTimeout(() => ac.abort(), 30_000);
   try {
-    const res = await api("/api/scan/identify", { method: "POST", body: payload });
+    const res = await api("/api/scan/identify", { method: "POST", body: payload, signal: ac.signal });
     showScanResult(res);
   } catch (e) {
+    const msg = ac.signal.aborted ? "Took too long — try again." : e.message;
     const hint = $("#scanHint");
-    if (hint) hint.textContent = "Error: " + e.message;
-    showScanResult({ identified: false, reasoning: e.message });
+    if (hint) hint.textContent = ac.signal.aborted ? "Timed out" : "Error: " + e.message;
+    showScanResult({ identified: false, reasoning: msg });
+  } finally {
+    clearTimeout(tid);
+    if (frame) frame.classList.remove("scan-pending");
   }
 }
 
@@ -2508,6 +2549,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     _sbUrl = cfg.supabase_url || "";
     _sbAnonKey = cfg.supabase_anon_key || "";
   } catch {}
+
+  // Detect Supabase OAuth return (hash fragment: #access_token=...&refresh_token=...&expires_in=...)
+  if (location.hash.includes('access_token=')) {
+    try {
+      const hp = new URLSearchParams(location.hash.slice(1));
+      if (hp.has('access_token')) {
+        const oauthSess = {
+          access_token: hp.get('access_token'),
+          refresh_token: hp.get('refresh_token'),
+          expires_at: Date.now() / 1000 + parseInt(hp.get('expires_in') || '3600'),
+        };
+        saveSession(oauthSess);
+        _authSession = oauthSess;
+        history.replaceState(null, '', location.pathname + location.search);
+      }
+    } catch {}
+  }
 
   // Wire nav icons using icon library
   const icons = { "/": I.home, "/add": I.search, "/minifigs": I.figure, "/me": I.user };

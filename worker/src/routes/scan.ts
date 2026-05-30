@@ -45,7 +45,7 @@ app.post('/identify', async (c) => {
   let identified: { set_num?: string; name?: string; confidence?: string; reasoning?: string };
   try {
     const result = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',
       max_tokens: 256,
       messages: [
         { role: 'system', content: 'You are a LEGO product-identification expert. Return JSON only: { "set_num": "...", "name": "...", "confidence": "high|medium|low|none", "reasoning": "..." }' },
@@ -56,7 +56,8 @@ app.post('/identify', async (c) => {
       ],
     });
     identified = JSON.parse(result.choices[0].message.content!.replace(/```json?\n?|```/g, '').trim());
-  } catch {
+  } catch (e) {
+    console.warn('[scan] AI parse failed:', (e as Error).message);
     return c.json({ identified: false, reasoning: 'Could not parse AI response.' });
   }
 

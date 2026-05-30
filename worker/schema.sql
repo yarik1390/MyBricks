@@ -135,3 +135,12 @@ CREATE TABLE IF NOT EXISTS set_value_history (
 );
 
 CREATE INDEX IF NOT EXISTS idx_svh_set ON set_value_history(set_num, snapshot_date);
+
+-- Performance indexes for per-user queries
+CREATE INDEX IF NOT EXISTS idx_uc_user ON user_collection(user_id, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_wl_user ON user_wishlist(user_id);
+CREATE INDEX IF NOT EXISTS idx_ps_user ON portfolio_snapshots(user_id);
+CREATE INDEX IF NOT EXISTS idx_rl_user ON rate_limits(user_id, endpoint);
+CREATE INDEX IF NOT EXISTS idx_sets_theme ON lego_sets(theme);
+CREATE INDEX IF NOT EXISTS idx_sets_retired ON lego_sets(retired);
+CREATE INDEX IF NOT EXISTS idx_sets_upc ON lego_sets(upc);

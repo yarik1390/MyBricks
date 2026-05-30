@@ -11,9 +11,11 @@ export async function runWishlistAlerts(env: Env) {
       AND (w.alerted_at IS NULL OR w.alerted_at < datetime('now', '-7 days'))
   `).all<{ id: number; user_id: string; set_num: string; target_price: number; set_name: string; current_value: number }>();
 
-  let fired = 0;
+  if (!results.length) return { fired: 0 };
+
+  const stmts: D1PreparedStatement[] = [];
   for (const row of results) {
-    await env.DB.batch([
+    stmts.push(
       env.DB.prepare(`
         INSERT INTO wishlist_alerts (user_id, set_num, set_name, target_price, current_value)
         VALUES (?, ?, ?, ?, ?)
@@ -21,9 +23,9 @@ export async function runWishlistAlerts(env: Env) {
       env.DB.prepare(
         `UPDATE user_wishlist SET alerted_at=datetime('now') WHERE id=?`
       ).bind(row.id),
-    ]);
-    fired++;
+    );
   }
 
-  return { fired };
+  await env.DB.batch(stmts);
+  return { fired: results.length };
 }

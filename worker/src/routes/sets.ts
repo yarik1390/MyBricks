@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { requireMember } from '../auth';
 import { formulaValuation } from '../lib/valuation';
+import { fetchSetPricing } from '../lib/brickeconomy';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -100,6 +101,27 @@ app.get('/:setnum', async (c) => {
     const entry = userId
       ? await c.env.DB.prepare('SELECT * FROM user_collection WHERE user_id=? AND set_num=? AND deleted_at IS NULL').bind(userId, set.set_num).first()
       : null;
+
+    // Non-blocking market price refresh: if price is missing or non-market, update in background.
+    const needsRefresh = set.valuation_method !== 'market'
+      || !set.valuation_expires_at
+      || new Date(set.valuation_expires_at as string) < new Date();
+    if (needsRefresh && c.env.BRICKECONOMY_API_KEY) {
+      c.executionCtx.waitUntil(
+        fetchSetPricing(set.set_num as string, c.env).then(p => {
+          if (!p) return;
+          return c.env.DB.prepare(`
+            UPDATE lego_sets SET
+              retail_price=?, current_value=?, forecast_2y=?, forecast_5y=?,
+              retired=?, valuation_method='market',
+              valuation_expires_at=datetime('now', '+7 days')
+            WHERE set_num=?
+          `).bind(p.retail_price, p.current_value, p.forecast_2y, p.forecast_5y,
+                  p.retired ? 1 : 0, set.set_num).run();
+        }).catch(() => {})
+      );
+    }
+
     return c.json({ set: { ...set, retired: !!set.retired }, entry: entry || null });
   }
 

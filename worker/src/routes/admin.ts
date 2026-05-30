@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { requireAdmin } from '../auth';
 import { formulaValuation } from '../lib/valuation';
+import { fetchBarcodes } from '../lib/brickset';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -198,6 +199,63 @@ app.get('/import-status/:id', requireAdmin, async (c) => {
   ).bind(id).first<Record<string, unknown>>();
   if (!row) return c.json({ error: 'run not found' }, 404);
   return c.json(row);
+});
+
+// POST /api/admin/backfill-upc
+// Populates lego_sets.upc from Brickset API for sets that lack a UPC.
+// Prioritises sets that users own or wishlist; caps at 80 per run.
+app.post('/backfill-upc', async (c) => {
+  await c.env.DB.prepare(
+    `UPDATE import_runs SET status='error',error='Timed out',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-5 minutes')`
+  ).run();
+
+  const active = await c.env.DB.prepare(
+    `SELECT id FROM import_runs WHERE status='running' AND started_at > datetime('now','-5 minutes') LIMIT 1`
+  ).first<{ id: number }>();
+  if (active) return c.json({ error: 'An import is already running.', run_id: active.id }, 409);
+
+  const run = await c.env.DB.prepare("INSERT INTO import_runs (status) VALUES ('running')").run();
+  const runId = run.meta.last_row_id;
+
+  c.executionCtx.waitUntil(
+    (async () => {
+      try {
+        const { results } = await c.env.DB.prepare(`
+          SELECT DISTINCT ls.set_num FROM lego_sets ls
+          WHERE ls.upc IS NULL
+            AND (
+              ls.set_num IN (SELECT DISTINCT set_num FROM user_collection WHERE deleted_at IS NULL)
+              OR ls.set_num IN (SELECT DISTINCT set_num FROM user_wishlist)
+            )
+          LIMIT 80
+        `).all<{ set_num: string }>();
+
+        let filled = 0;
+        const stmts: D1PreparedStatement[] = [];
+        for (const { set_num } of results) {
+          const bc = await fetchBarcodes(set_num, c.env);
+          if (bc?.upc) {
+            stmts.push(c.env.DB.prepare('UPDATE lego_sets SET upc=? WHERE set_num=?').bind(bc.upc, set_num));
+            filled++;
+          }
+        }
+
+        for (let i = 0; i < stmts.length; i += BATCH) {
+          await c.env.DB.batch(stmts.slice(i, i + BATCH));
+        }
+
+        await c.env.DB.prepare(
+          `UPDATE import_runs SET status='completed',completed_at=datetime('now'),sets_loaded=? WHERE id=?`
+        ).bind(filled, runId).run();
+      } catch (e) {
+        await c.env.DB.prepare(
+          "UPDATE import_runs SET status='error',error=?,completed_at=datetime('now') WHERE id=?"
+        ).bind((e as Error).message, runId).run();
+      }
+    })()
+  );
+
+  return c.json({ ok: true, status: 'running', run_id: runId });
 });
 
 export { app as adminRoute };

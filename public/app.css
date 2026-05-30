@@ -1278,6 +1278,9 @@ body.offline .offline-banner { display: block; }
   0%, 100% { top: 12%; }
   50% { top: 88%; }
 }
+.scan-frame.scan-pending .laser {
+  animation-play-state: paused;
+}
 .scan-hint {
   position: absolute; bottom: 24px; left: 16px; right: 16px;
   text-align: center; color: #fff;

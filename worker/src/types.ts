@@ -6,6 +6,8 @@ export interface Env {
   SUPABASE_ANON_KEY: string;
   SUPABASE_JWT_SECRET: string;
   ADMIN_USER_ID: string;
+  BRICKECONOMY_API_KEY: string;
+  BRICKSET_API_KEY: string;
 }
 
 export type Variables = {

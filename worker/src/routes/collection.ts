@@ -158,8 +158,19 @@ app.post('/import', async (c) => {
   if (!Array.isArray(rows) || rows.length === 0) return c.json({ error: 'rows array required' }, 400);
   if (rows.length > 500) return c.json({ error: 'max 500 rows per import' }, 400);
 
-  let imported = 0, skipped = 0;
+  // Pre-load owned sets to avoid per-row duplicate queries when overwrite=false.
+  let ownedSets = new Set<string>();
+  if (!overwrite) {
+    const { results: owned } = await c.env.DB.prepare(
+      'SELECT set_num FROM user_collection WHERE user_id=? AND deleted_at IS NULL'
+    ).bind(userId).all<{ set_num: string }>();
+    ownedSets = new Set(owned.map(r => r.set_num));
+  }
+
+  let skipped = 0;
   const errors: unknown[] = [];
+  const stmts: D1PreparedStatement[] = [];
+  const validConds = ['new', 'used_good', 'used_acceptable', 'sealed'];
 
   for (const row of rows as Record<string, unknown>[]) {
     const set_num = String(row.set_num || '').trim();
@@ -168,14 +179,8 @@ app.post('/import', async (c) => {
     const catalog = await c.env.DB.prepare('SELECT 1 FROM lego_sets WHERE set_num=?').bind(set_num).first();
     if (!catalog) { errors.push({ set_num, reason: 'set not in catalog' }); skipped++; continue; }
 
-    if (!overwrite) {
-      const owned = await c.env.DB.prepare(
-        'SELECT id FROM user_collection WHERE user_id=? AND set_num=? AND deleted_at IS NULL'
-      ).bind(userId, set_num).first();
-      if (owned) { skipped++; continue; }
-    }
+    if (!overwrite && ownedSets.has(set_num)) { skipped++; continue; }
 
-    const validConds = ['new', 'used_good', 'used_acceptable', 'sealed'];
     const condition = validConds.includes(String(row.condition)) ? String(row.condition) : 'new';
     const quantity = Math.max(1, parseInt(String(row.quantity)) || 1);
     const purchase_price = parseFloat(String(row.purchase_price)) || null;
@@ -186,7 +191,7 @@ app.post('/import', async (c) => {
     const is_complete = row.is_complete === 'false' || row.is_complete === false ? 0 : 1;
     const missing_pieces = parseInt(String(row.missing_pieces)) || 0;
 
-    await c.env.DB.prepare(`
+    stmts.push(c.env.DB.prepare(`
       INSERT INTO user_collection
         (user_id, set_num, quantity, condition, purchase_price, purchased_at,
          notes, storage_location, acquisition_source, is_complete, missing_pieces, last_modified)
@@ -204,12 +209,17 @@ app.post('/import', async (c) => {
         last_modified = datetime('now'),
         deleted_at = NULL
     `).bind(userId, set_num, quantity, condition, purchase_price, purchased_at,
-        notes, storage_location, acquisition_source, is_complete, missing_pieces).run();
-
-    imported++;
+        notes, storage_location, acquisition_source, is_complete, missing_pieces));
   }
 
-  return c.json({ imported, skipped, errors: errors.slice(0, 20) });
+  // Batch write — D1 batch limit is 100 statements per call.
+  for (let i = 0; i < stmts.length; i += 100) {
+    await c.env.DB.batch(stmts.slice(i, i + 100));
+  }
+
+  const imported = stmts.length;
+  const allDuplicates = imported === 0 && skipped === rows.length;
+  return c.json({ imported, skipped, errors: errors.slice(0, 20), allDuplicates });
 });
 
 // GET /api/collection/:id
