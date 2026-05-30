@@ -1,5 +1,3 @@
-PRAGMA foreign_keys = ON;
-
 CREATE TABLE IF NOT EXISTS lego_themes (
   id INTEGER PRIMARY KEY,
   name TEXT NOT NULL,
