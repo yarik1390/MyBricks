@@ -11,11 +11,6 @@ on:
       - '.github/workflows/deploy-worker.yml'
   workflow_dispatch:
 
-# Everything runs on GitHub's runner, which has open internet access to
-# the Cloudflare and Supabase APIs (the dev sandbox does not). The runner
-# creates the D1 database if needed, applies the schema, deploys the
-# Worker + Pages, and uploads all Worker secrets.
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -34,26 +29,33 @@ jobs:
         working-directory: worker
         run: npm ci
 
-      - name: Create or find D1 database
-        working-directory: worker
+      - name: Create or find D1 database via REST API
         run: |
           set -euo pipefail
-          DB_ID="$(npx wrangler d1 list --json 2>/dev/null \
-            | jq -r '.[] | select(.name=="brickvault") | .uuid' || true)"
-          if [ -z "${DB_ID}" ] || [ "${DB_ID}" = "null" ]; then
+
+          # Look up existing database by name
+          DB_ID=$(curl -sf \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database?name=brickvault" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            | jq -r '.result[0].uuid // ""')
+
+          if [ -z "$DB_ID" ] || [ "$DB_ID" = "null" ]; then
             echo "Creating D1 database 'brickvault'..."
-            CREATE_OUT="$(npx wrangler d1 create brickvault)"
-            echo "${CREATE_OUT}"
-            DB_ID="$(echo "${CREATE_OUT}" \
-              | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' \
-              | head -n1)"
+            DB_ID=$(curl -sf \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data '{"name":"brickvault"}' \
+              | jq -r '.result.uuid')
           fi
-          if [ -z "${DB_ID}" ]; then
-            echo "ERROR: could not determine D1 database id" >&2
+
+          if [ -z "$DB_ID" ] || [ "$DB_ID" = "null" ]; then
+            echo "ERROR: failed to get or create D1 database" >&2
             exit 1
           fi
-          echo "Using D1 database id: ${DB_ID}"
-          echo "DB_ID=${DB_ID}" >> "${GITHUB_ENV}"
+
+          echo "D1 database id: ${DB_ID}"
+          echo "DB_ID=${DB_ID}" >> "$GITHUB_ENV"
 
       - name: Inject D1 database id into wrangler.toml
         working-directory: worker
