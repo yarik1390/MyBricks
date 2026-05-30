@@ -1,6 +1,5 @@
 import OpenAI from 'openai';
 import type { Env } from '../types';
-import { fetchSetPricing } from '../lib/brickeconomy';
 
 export async function runValuateSets(env: Env) {
   // Prioritize sets that users own or wishlist, oldest valuation first
@@ -18,25 +17,9 @@ export async function runValuateSets(env: Env) {
   `).all<{ set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number }>();
 
   const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
-  let updated = 0, market = 0, ai = 0;
+  let updated = 0;
 
   for (const set of results) {
-    // Try BrickEconomy first (real market data, 4/min budget guard inside)
-    const pricing = await fetchSetPricing(set.set_num, env);
-    if (pricing) {
-      await env.DB.prepare(`
-        UPDATE lego_sets SET
-          retail_price=?, current_value=?, forecast_2y=?, forecast_5y=?,
-          retired=?, valuation_method='market',
-          valuation_expires_at=datetime('now', '+7 days')
-        WHERE set_num=?
-      `).bind(pricing.retail_price, pricing.current_value, pricing.forecast_2y, pricing.forecast_5y,
-              pricing.retired ? 1 : 0, set.set_num).run();
-      updated++; market++;
-      continue;
-    }
-
-    // Fall back to GPT-4o-mini
     try {
       const result = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -59,11 +42,11 @@ export async function runValuateSets(env: Env) {
         WHERE set_num=?
       `).bind(vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y,
               vals.retired ? 1 : 0, set.set_num).run();
-      updated++; ai++;
+      updated++;
     } catch (e) {
       console.warn(`[valuate] failed for ${set.set_num}:`, (e as Error).message);
     }
   }
 
-  return { processed: results.length, updated, market, ai };
+  return { processed: results.length, updated };
 }

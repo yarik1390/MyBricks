@@ -70,8 +70,7 @@ jobs:
           put SUPABASE_ANON_KEY         "${{ secrets.SUPABASE_ANON_KEY }}"
           put SUPABASE_JWT_SECRET       "${{ secrets.SUPABASE_JWT_SECRET }}"
           put ADMIN_USER_ID             "${{ secrets.ADMIN_USER_ID }}"
-          [ -n "${{ secrets.BRICKECONOMY_API_KEY }}" ] && put BRICKECONOMY_API_KEY "${{ secrets.BRICKECONOMY_API_KEY }}" || true
-          [ -n "${{ secrets.BRICKSET_API_KEY }}" ]     && put BRICKSET_API_KEY     "${{ secrets.BRICKSET_API_KEY }}"     || true
+          [ -n "${{ secrets.BRICKSET_API_KEY }}" ] && put BRICKSET_API_KEY "${{ secrets.BRICKSET_API_KEY }}" || true
 
       - name: Deploy Worker and capture URL
         working-directory: worker
