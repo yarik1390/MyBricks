@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { requireMember } from '../auth';
 import { formulaValuation } from '../lib/valuation';
+import { fetchSetPricing } from '../lib/bricklink';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -100,6 +101,30 @@ app.get('/:setnum', async (c) => {
     const entry = userId
       ? await c.env.DB.prepare('SELECT * FROM user_collection WHERE user_id=? AND set_num=? AND deleted_at IS NULL').bind(userId, set.set_num).first()
       : null;
+
+    // Non-blocking BrickLink refresh when price is missing or stale
+    const needsRefresh = set.valuation_method !== 'market'
+      || !set.valuation_expires_at
+      || new Date(set.valuation_expires_at as string) < new Date();
+    if (needsRefresh && c.env.BRICKLINK_CONSUMER_KEY) {
+      c.executionCtx.waitUntil(
+        fetchSetPricing(set.set_num as string, c.env).then(p => {
+          if (!p) return;
+          const retired = !!set.retired;
+          const yr = retired ? 0.15 : 0.10;
+          const forecast_2y = Math.round(p.current_value * Math.pow(1 + yr, 2) * 100) / 100;
+          const forecast_5y = Math.round(p.current_value * Math.pow(1 + yr, 5) * 100) / 100;
+          return c.env.DB.prepare(`
+            UPDATE lego_sets SET
+              current_value=?, forecast_2y=?, forecast_5y=?,
+              valuation_method='market',
+              valuation_expires_at=datetime('now', '+7 days')
+            WHERE set_num=?
+          `).bind(p.current_value, forecast_2y, forecast_5y, set.set_num).run();
+        }).catch(() => {})
+      );
+    }
+
     return c.json({ set: { ...set, retired: !!set.retired }, entry: entry || null });
   }
 

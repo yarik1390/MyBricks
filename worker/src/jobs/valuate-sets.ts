@@ -1,10 +1,11 @@
 import OpenAI from 'openai';
 import type { Env } from '../types';
+import { fetchSetPricing } from '../lib/bricklink';
 
 export async function runValuateSets(env: Env) {
   // Prioritize sets that users own or wishlist, oldest valuation first
   const { results } = await env.DB.prepare(`
-    SELECT DISTINCT ls.set_num, ls.name, ls.theme, ls.year, ls.pieces, ls.minifigs
+    SELECT DISTINCT ls.set_num, ls.name, ls.theme, ls.year, ls.pieces, ls.minifigs, ls.retired
     FROM lego_sets ls
     WHERE (ls.valuation_method = 'formula_bulk'
        OR (ls.valuation_expires_at IS NOT NULL AND ls.valuation_expires_at < datetime('now')))
@@ -14,12 +15,30 @@ export async function runValuateSets(env: Env) {
       )
     ORDER BY COALESCE(ls.valuation_expires_at, '2000-01-01') ASC
     LIMIT 50
-  `).all<{ set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number }>();
+  `).all<{ set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number; retired: number }>();
 
   const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
-  let updated = 0;
+  let updated = 0, market = 0, ai = 0;
 
   for (const set of results) {
+    // Try BrickLink first (real completed-sale data)
+    const pricing = await fetchSetPricing(set.set_num, env);
+    if (pricing) {
+      const yr = set.retired ? 0.15 : 0.10;
+      const forecast_2y = Math.round(pricing.current_value * Math.pow(1 + yr, 2) * 100) / 100;
+      const forecast_5y = Math.round(pricing.current_value * Math.pow(1 + yr, 5) * 100) / 100;
+      await env.DB.prepare(`
+        UPDATE lego_sets SET
+          current_value=?, forecast_2y=?, forecast_5y=?,
+          valuation_method='market',
+          valuation_expires_at=datetime('now', '+7 days')
+        WHERE set_num=?
+      `).bind(pricing.current_value, forecast_2y, forecast_5y, set.set_num).run();
+      updated++; market++;
+      continue;
+    }
+
+    // Fall back to GPT-4o-mini
     try {
       const result = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -42,11 +61,11 @@ export async function runValuateSets(env: Env) {
         WHERE set_num=?
       `).bind(vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y,
               vals.retired ? 1 : 0, set.set_num).run();
-      updated++;
+      updated++; ai++;
     } catch (e) {
       console.warn(`[valuate] failed for ${set.set_num}:`, (e as Error).message);
     }
   }
 
-  return { processed: results.length, updated };
+  return { processed: results.length, updated, market, ai };
 }

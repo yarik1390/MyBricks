@@ -7,6 +7,10 @@ export interface Env {
   SUPABASE_JWT_SECRET: string;
   ADMIN_USER_ID: string;
   BRICKSET_API_KEY: string;
+  BRICKLINK_CONSUMER_KEY: string;
+  BRICKLINK_CONSUMER_SECRET: string;
+  BRICKLINK_TOKEN: string;
+  BRICKLINK_TOKEN_SECRET: string;
 }
 
 export type Variables = {

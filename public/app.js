@@ -1290,7 +1290,8 @@ function paintSetDetail(set, entry) {
 function infoTabHTML(set, entry, isWish) {
   const owned = !!entry;
   const delta = entry && entry.purchase_price ? (set.current_value - entry.purchase_price) / entry.purchase_price : null;
-  const valueSource = set.valuation_method === "ai" ? "AI estimate" : "Estimated";
+  const valueSource = set.valuation_method === "market" ? "BrickLink"
+    : set.valuation_method === "ai" ? "AI estimate" : "Estimated";
   return `
     <div class="stat-grid">
       <div class="stat-cell ${owned ? "high" : ""}">
@@ -1418,7 +1419,8 @@ function forecastTabHTML(set) {
   const g2 = set.forecast_2y && set.current_value ? (set.forecast_2y - set.current_value) / set.current_value : 0.18;
   const g5 = set.forecast_5y && set.current_value ? (set.forecast_5y - set.current_value) / set.current_value : 0.45;
   const pct = (g) => Math.min(100, Math.max(8, g * 100 + 12)).toFixed(1);
-  const forecastLabel = set.valuation_method === "ai" ? "AI forecast · GPT-4o-mini" : "Estimated";
+  const forecastLabel = set.valuation_method === "market" ? "Market value · BrickLink"
+    : set.valuation_method === "ai" ? "AI forecast · GPT-4o-mini" : "Estimated";
   return `
     <div class="card" style="padding:14px 16px;margin-bottom:14px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
@@ -1426,7 +1428,9 @@ function forecastTabHTML(set) {
         <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);">${forecastLabel}</div>
       </div>
       <p style="margin:6px 0 0;font-size:13px;color:var(--ink-soft);line-height:1.45;">
-        Based on theme rarity, piece count, retirement status, and market trends for similar ${escapeHtml(set.theme || "")} sets.
+        ${set.valuation_method === "market"
+          ? "Based on recent completed sales on BrickLink."
+          : `Based on theme rarity, piece count, retirement status, and market trends for similar ${escapeHtml(set.theme || "")} sets.`}
       </p>
     </div>
 
