@@ -579,7 +579,7 @@ function skeletonFor(hash) {
 // can skip the skeleton entirely and avoid a placeholder→content flash.
 function hasCachedView(hash) {
   if (hash === "/" || hash === "") return !!state.portfolio;
-  if (hash === "/add") return state.catalog.items.length > 0;
+  if (hash === "/add") return false; // always re-fetch; skeleton handles loading
   if (hash === "/minifigs") return state.blind.items.length > 0;
   return false;
 }
@@ -990,9 +990,7 @@ async function renderAdd() {
   if (!state.themes.length) {
     try { const t = await api("/api/themes"); state.themes = t.themes || []; state.themesLoadedAt = Date.now(); } catch {}
   }
-  // Reuse the last result set on re-visit (instant, no skeleton). Only fetch
-  // when we have nothing cached yet.
-  if (!state.catalog.items.length) await loadCatalog({ reset: true });
+  await loadCatalog({ reset: true });
   paintAdd();
 }
 
