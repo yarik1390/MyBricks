@@ -1,0 +1,49 @@
+name: Deploy Brickvault Worker
+
+on:
+  push:
+    branches:
+      - main
+      - claude/mybricks-lego-app-EdTPX
+    paths:
+      - 'worker/**'
+      - '.github/workflows/deploy-worker.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Inject D1 database ID
+        run: sed -i "s/REPLACE_WITH_YOUR_D1_DATABASE_ID/${{ secrets.D1_DATABASE_ID }}/" wrangler.toml
+
+      - name: Deploy Worker
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Set Worker secrets
+        run: |
+          echo "${{ secrets.OPENAI_API_KEY }}"            | npx wrangler secret put OPENAI_API_KEY
+          echo "${{ secrets.REBRICKABLE_API_KEY }}"       | npx wrangler secret put REBRICKABLE_API_KEY
+          echo "${{ secrets.SUPABASE_URL }}"              | npx wrangler secret put SUPABASE_URL
+          echo "${{ secrets.SUPABASE_ANON_KEY }}"         | npx wrangler secret put SUPABASE_ANON_KEY
+          echo "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+          echo "${{ secrets.ADMIN_USER_ID }}"             | npx wrangler secret put ADMIN_USER_ID
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
