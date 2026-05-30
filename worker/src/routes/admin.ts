@@ -148,16 +148,17 @@ app.post('/import-rebrickable', async (c) => {
     return c.json({ error: "dataset must be 'sets', 'figs', or 'all'" }, 400);
   }
 
+  // Clear any runs stuck for more than 5 minutes before checking for active ones.
+  await c.env.DB.prepare(
+    `UPDATE import_runs SET status='error',error='Timed out',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-5 minutes')`
+  ).run();
+
   const active = await c.env.DB.prepare(
-    `SELECT id, started_at FROM import_runs WHERE status='running' AND started_at > datetime('now','-15 minutes') ORDER BY started_at DESC LIMIT 1`
+    `SELECT id, started_at FROM import_runs WHERE status='running' AND started_at > datetime('now','-5 minutes') ORDER BY started_at DESC LIMIT 1`
   ).first<{ id: number; started_at: string }>();
   if (active) {
     return c.json({ error: 'An import is already running.', run_id: active.id, started_at: active.started_at }, 409);
   }
-
-  await c.env.DB.prepare(
-    `UPDATE import_runs SET status='error',error='Superseded (stale run)',completed_at=datetime('now') WHERE status='running'`
-  ).run();
 
   const run = await c.env.DB.prepare(
     "INSERT INTO import_runs (status) VALUES ('running')"
