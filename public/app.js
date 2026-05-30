@@ -238,13 +238,14 @@ async function api(path, opts = {}) {
     },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   };
+  const _url = (window.WORKER_BASE || '') + path;
   let r;
   try {
-    r = await fetch(path, init);
+    r = await fetch(_url, init);
   } catch (e) {
     // Network-level failure — retry once after a short delay.
     await new Promise(res => setTimeout(res, 600));
-    r = await fetch(path, init);
+    r = await fetch(_url, init);
   }
   // Token expired — try a silent refresh, then retry the original request.
   if (r.status === 401) {
@@ -253,7 +254,7 @@ async function api(path, opts = {}) {
         const fresh = await sbRefresh(_authSession.refresh_token);
         saveSession(fresh);
         init.headers["Authorization"] = `Bearer ${fresh.access_token}`;
-        r = await fetch(path, init);
+        r = await fetch(_url, init);
       } catch {
         saveSession(null);
         location.hash = "#/login";
@@ -1808,7 +1809,7 @@ async function renderMe() {
   $("#exportCsvBtn")?.addEventListener("click", async () => {
     try {
       const token = _authSession?.access_token;
-      const r = await fetch("/api/collection/export", {
+      const r = await fetch((window.WORKER_BASE || '') + "/api/collection/export", {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!r.ok) throw new Error("Export failed");
@@ -2466,7 +2467,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Load session and Supabase config before any routing.
   _authSession = loadSession();
   try {
-    const cfg = await fetch("/api/config").then(r => r.json());
+    const cfg = await fetch((window.WORKER_BASE || '') + "/api/config").then(r => r.json());
     _sbUrl = cfg.supabase_url || "";
     _sbAnonKey = cfg.supabase_anon_key || "";
   } catch {}

@@ -81,6 +81,16 @@ jobs:
         working-directory: worker
         run: npx wrangler deploy
 
+      - name: Inject Worker URL into Pages env
+        run: |
+          SUBDOMAIN=$(curl -sf \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            | jq -r '.result.subdomain')
+          WORKER_URL="https://brickvault-api.${SUBDOMAIN}.workers.dev"
+          echo "Worker URL: ${WORKER_URL}"
+          printf "window.WORKER_BASE = '%s';\n" "${WORKER_URL}" > public/env.js
+
       - name: Deploy Pages
         working-directory: worker
         run: |
@@ -89,3 +99,22 @@ jobs:
             --project-name brickvault \
             --branch main \
             --commit-dirty=true
+
+      - name: Seed LEGO catalog (Rebrickable import)
+        run: |
+          SUBDOMAIN=$(curl -sf \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            | jq -r '.result.subdomain')
+          WORKER_URL="https://brickvault-api.${SUBDOMAIN}.workers.dev"
+          echo "Triggering catalog import at ${WORKER_URL}/api/admin/import-rebrickable ..."
+          STATUS=$(curl -s -o /tmp/seed.json -w "%{http_code}" \
+            -X POST "${WORKER_URL}/api/admin/import-rebrickable" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_JWT }}" \
+            -H "Content-Type: application/json" \
+            -d '{"dataset":"all"}')
+          echo "HTTP ${STATUS}"
+          cat /tmp/seed.json
+          if [ "$STATUS" != "200" ] && [ "$STATUS" != "409" ]; then
+            echo "Seed returned unexpected status ${STATUS} — check ADMIN_JWT secret" >&2
+          fi

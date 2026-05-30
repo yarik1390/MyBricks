@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="Brickvault">
 <meta name="description" content="Brickvault — a premium brick portfolio tracker. AI-powered pricing, ROI tracking, camera scanning.">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://cdn.rebrickable.com https://*.supabase.co; frame-ancestors 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.workers.dev https://cdn.rebrickable.com https://*.supabase.co; frame-ancestors 'none';">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Brickvault">
 <meta property="og:title" content="Brickvault — Portfolio Tracker">
@@ -91,6 +91,7 @@
 <!-- Camera scan overlay (populated by app.js when opened) -->
 <div id="scanOverlay" aria-modal="true" role="dialog" aria-label="Camera scanner"></div>
 
+<script src="/env.js"></script>
 <script type="module" src="/app.js"></script>
 </body>
 </html>
