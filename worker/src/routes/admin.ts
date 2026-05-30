@@ -164,29 +164,43 @@ app.post('/import-rebrickable', async (c) => {
   ).run();
   const runId = run.meta.last_row_id;
 
-  try {
-    const result: Record<string, unknown> = {};
-    if (dataset === 'sets' || dataset === 'all') {
-      const r = await importSets(c.env.DB);
-      result.sets_loaded = r.loaded;
-      result.sets_skipped = r.skipped;
-      result.themes_loaded = r.themes;
-    }
-    if (dataset === 'figs' || dataset === 'all') {
-      const r = await importFigs(c.env.DB);
-      result.figs_loaded = r.loaded;
-    }
-    await c.env.DB.prepare(
-      'UPDATE import_runs SET status=?,completed_at=datetime(\'now\'),themes_loaded=?,sets_loaded=?,sets_skipped=?,figs_loaded=? WHERE id=?'
-    ).bind('completed', result.themes_loaded ?? null, result.sets_loaded ?? null,
-           result.sets_skipped ?? null, result.figs_loaded ?? null, runId).run();
-    return c.json({ ok: true, ...result });
-  } catch (e) {
-    await c.env.DB.prepare(
-      "UPDATE import_runs SET status='error',error=?,completed_at=datetime('now') WHERE id=?"
-    ).bind((e as Error).message, runId).run();
-    return c.json({ error: (e as Error).message }, 500);
-  }
+  // Run the actual import in the background so the response returns immediately.
+  c.executionCtx.waitUntil(
+    (async () => {
+      try {
+        const result: Record<string, unknown> = {};
+        if (dataset === 'sets' || dataset === 'all') {
+          const r = await importSets(c.env.DB);
+          result.sets_loaded = r.loaded;
+          result.sets_skipped = r.skipped;
+          result.themes_loaded = r.themes;
+        }
+        if (dataset === 'figs' || dataset === 'all') {
+          const r = await importFigs(c.env.DB);
+          result.figs_loaded = r.loaded;
+        }
+        await c.env.DB.prepare(
+          'UPDATE import_runs SET status=?,completed_at=datetime(\'now\'),themes_loaded=?,sets_loaded=?,sets_skipped=?,figs_loaded=? WHERE id=?'
+        ).bind('completed', result.themes_loaded ?? null, result.sets_loaded ?? null,
+               result.sets_skipped ?? null, result.figs_loaded ?? null, runId).run();
+      } catch (e) {
+        await c.env.DB.prepare(
+          "UPDATE import_runs SET status='error',error=?,completed_at=datetime('now') WHERE id=?"
+        ).bind((e as Error).message, runId).run();
+      }
+    })()
+  );
+
+  return c.json({ ok: true, status: 'running', run_id: runId });
+});
+
+app.get('/import-status/:id', requireAdmin, async (c) => {
+  const id = Number(c.req.param('id'));
+  const row = await c.env.DB.prepare(
+    'SELECT id, status, started_at, completed_at, themes_loaded, sets_loaded, sets_skipped, figs_loaded, error FROM import_runs WHERE id=?'
+  ).bind(id).first<Record<string, unknown>>();
+  if (!row) return c.json({ error: 'run not found' }, 404);
+  return c.json(row);
 });
 
 export { app as adminRoute };

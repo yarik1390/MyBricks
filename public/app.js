@@ -1789,12 +1789,41 @@ async function renderMe() {
     if (!btnEl || btnEl.disabled) return;
     btnEl.disabled = true;
     haptic("medium");
-    descEl.textContent = "Fetching from Rebrickable…";
+    descEl.textContent = "Starting import…";
     try {
       const r = await api("/api/admin/import-rebrickable", { method: "POST", body: { dataset } });
-      const n = dataset === "sets" ? r.sets_loaded : r.figs_loaded;
-      descEl.textContent = `✓ ${(n || 0).toLocaleString()} imported`;
-      toast(`${(n || 0).toLocaleString()} records imported`, "info");
+      if (r.status === "running" && r.run_id) {
+        descEl.textContent = "Importing… (this takes 1–2 min)";
+        let dots = 0;
+        const poll = setInterval(async () => {
+          dots = (dots + 1) % 4;
+          descEl.textContent = "Importing" + ".".repeat(dots + 1) + " (this takes 1–2 min)";
+          try {
+            const s = await api(`/api/admin/import-status/${r.run_id}`);
+            if (s.status === "completed") {
+              clearInterval(poll);
+              const sets = s.sets_loaded ?? 0;
+              const figs = s.figs_loaded ?? 0;
+              const parts = [];
+              if (dataset !== "figs") parts.push(`${sets.toLocaleString()} sets`);
+              if (dataset !== "sets") parts.push(`${figs.toLocaleString()} figs`);
+              descEl.textContent = `✓ ${parts.join(", ")} imported`;
+              toast(`Import complete: ${parts.join(", ")}`, "info");
+              btnEl.disabled = false;
+            } else if (s.status === "error") {
+              clearInterval(poll);
+              descEl.textContent = s.error || "Import failed";
+              toast("Import failed: " + (s.error || "unknown error"), "error");
+              btnEl.disabled = false;
+            }
+          } catch { /* keep polling on transient errors */ }
+        }, 3000);
+      } else {
+        const n = dataset === "sets" ? r.sets_loaded : r.figs_loaded;
+        descEl.textContent = `✓ ${(n || 0).toLocaleString()} imported`;
+        toast(`${(n || 0).toLocaleString()} records imported`, "info");
+        btnEl.disabled = false;
+      }
     } catch (e) {
       descEl.textContent = e.message || "Import failed";
       btnEl.disabled = false;
