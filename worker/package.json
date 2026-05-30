@@ -1,0 +1,21 @@
+{
+  "name": "brickvault-worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init": "wrangler d1 execute brickvault --file=schema.sql",
+    "db:init:remote": "wrangler d1 execute brickvault --remote --file=schema.sql"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
+    "hono": "^4.7.10",
+    "openai": "^4.96.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250525.0",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.14.4"
+  }
+}

@@ -1,0 +1,20 @@
+name = "brickvault-api"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "brickvault"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+[triggers]
+crons = [
+  "0 * * * *",
+  "0 2 * * *",
+  "0 3 * * *",
+  "0 8 * * *",
+]
+
+[vars]
+# Non-secret vars go here

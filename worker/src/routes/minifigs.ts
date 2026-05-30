@@ -1,0 +1,79 @@
+import { Hono } from 'hono';
+import { requireMember } from '../auth';
+import type { Env, Variables } from '../types';
+
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+app.use('*', requireMember);
+
+// GET /api/minifigs
+app.get('/', async (c) => {
+  const userId = c.get('userId');
+  const series = c.req.query('series') || '';
+  const q = c.req.query('q') || '';
+  const lim = Math.min(parseInt(c.req.query('limit') || '30', 10), 100);
+  const offset = Math.max(parseInt(c.req.query('offset') || '0', 10), 0);
+
+  const pageWhere: string[] = [];
+  const pageParams: unknown[] = [userId];
+  if (series) { pageWhere.push(`m.series = ?`); pageParams.push(series); }
+  if (q) { pageWhere.push(`LOWER(m.name) LIKE LOWER(?)`); pageParams.push(`%${q}%`); }
+  const pageWhereSQL = pageWhere.length ? `WHERE ${pageWhere.join(' AND ')}` : '';
+  pageParams.push(lim, offset);
+
+  const countWhere: string[] = [];
+  const countParams: unknown[] = [];
+  if (series) { countWhere.push(`m.series = ?`); countParams.push(series); }
+  if (q) { countWhere.push(`LOWER(m.name) LIKE LOWER(?)`); countParams.push(`%${q}%`); }
+  const countWhereSQL = countWhere.length ? `WHERE ${countWhere.join(' AND ')}` : '';
+
+  const [pageRes, countRes] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT m.*, COALESCE(um.quantity, 0) as owned_qty
+       FROM minifigs m
+       LEFT JOIN user_minifigs um ON um.fig_num = m.fig_num AND um.user_id = ?
+       ${pageWhereSQL}
+       ORDER BY m.rarity DESC, m.name
+       LIMIT ? OFFSET ?`
+    ).bind(...pageParams).all<Record<string, unknown>>(),
+    c.env.DB.prepare(
+      `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM minifigs m ${countWhereSQL}`
+    ).bind(...countParams).first<{ total: number }>(),
+  ]);
+
+  const total = countRes?.total ?? 0;
+  return c.json({
+    minifigs: pageRes.results,
+    total,
+    hasMore: offset + pageRes.results.length < total,
+  });
+});
+
+// PUT /api/minifigs/:fignum — mark owned
+app.put('/:fignum', async (c) => {
+  const userId = c.get('userId');
+  const figNum = c.req.param('fignum');
+  const exists = await c.env.DB.prepare('SELECT 1 FROM minifigs WHERE fig_num=?').bind(figNum).first();
+  if (!exists) return c.json({ error: 'Minifig not found' }, 404);
+
+  const body = await c.req.json<{ quantity?: number }>().catch(() => ({ quantity: undefined }));
+  const qty = Math.max(1, parseInt(String(body.quantity ?? 1), 10) || 1);
+  await c.env.DB.prepare(`
+    INSERT INTO user_minifigs (user_id, fig_num, quantity)
+    VALUES (?, ?, ?)
+    ON CONFLICT (user_id, fig_num) DO UPDATE SET quantity = EXCLUDED.quantity
+  `).bind(userId, figNum, qty).run();
+  return c.json({ ok: true, fig_num: figNum, quantity: qty });
+});
+
+// DELETE /api/minifigs/:fignum
+app.delete('/:fignum', async (c) => {
+  const userId = c.get('userId');
+  const figNum = c.req.param('fignum');
+  const exists = await c.env.DB.prepare('SELECT 1 FROM minifigs WHERE fig_num=?').bind(figNum).first();
+  if (!exists) return c.json({ error: 'Minifig not found' }, 404);
+  await c.env.DB.prepare('DELETE FROM user_minifigs WHERE user_id=? AND fig_num=?').bind(userId, figNum).run();
+  return new Response('', { status: 204 });
+});
+
+export { app as minifigsRoute };

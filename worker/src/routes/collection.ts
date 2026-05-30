@@ -1,0 +1,289 @@
+import { Hono } from 'hono';
+import { requireMember } from '../auth';
+import type { Env, Variables } from '../types';
+
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+app.use('*', requireMember);
+
+// GET /api/collection — list user's collection
+app.get('/', async (c) => {
+  const userId = c.get('userId');
+  const { results } = await c.env.DB.prepare(`
+    SELECT
+      uc.id, uc.set_num, uc.quantity, uc.condition, uc.purchase_price,
+      uc.notes, uc.added_at, uc.purchased_at, uc.last_modified,
+      uc.storage_location, uc.acquisition_source, uc.is_complete, uc.missing_pieces,
+      s.name, s.theme, s.year, s.pieces, s.minifigs,
+      s.retail_price, s.current_value, s.forecast_2y, s.forecast_5y,
+      s.image_url, s.retired
+    FROM user_collection uc
+    JOIN lego_sets s ON s.set_num = uc.set_num
+    WHERE uc.user_id = ? AND uc.deleted_at IS NULL
+    ORDER BY uc.added_at DESC
+  `).bind(userId).all<Record<string, unknown>>();
+
+  const items = results.map(row => {
+    let annualizedRoi = null;
+    if (row.purchased_at && Number(row.purchase_price) > 0 && Number(row.current_value) > 0) {
+      const years = (Date.now() - new Date(row.purchased_at as string).getTime()) / (365.25 * 24 * 3600 * 1000);
+      if (years >= 0.08) {
+        annualizedRoi = Math.pow(Number(row.current_value) / Number(row.purchase_price), 1 / years) - 1;
+      }
+    }
+    return { ...row, retired: !!row.retired, is_complete: !!row.is_complete, annualized_roi: annualizedRoi } as Record<string, unknown>;
+  });
+
+  const totalValue = items.reduce((s, r) => s + (Number(r.current_value) || 0) * Number(r.quantity), 0);
+  const totalPaid  = items.reduce((s, r) => s + (Number(r.purchase_price) || 0) * Number(r.quantity), 0);
+  const minifigCount = items.reduce((s, r) => s + (Number(r.minifigs) || 0) * Number(r.quantity), 0);
+  const count = items.length;
+  const lastModified = (items[0]?.last_modified || items[0]?.added_at || null) as string | null;
+  const etag = `${count}-${lastModified ? new Date(lastModified).getTime() : 0}`;
+
+  if (c.req.header('if-none-match') === etag) return new Response('', { status: 304 });
+  return new Response(JSON.stringify({ items, total_value: totalValue, total_paid: totalPaid, count, minifig_count: minifigCount }), {
+    headers: { 'Content-Type': 'application/json', 'ETag': etag },
+  });
+});
+
+// POST /api/collection — add/upsert a set
+app.post('/', async (c) => {
+  const userId = c.get('userId');
+  const body = await c.req.json<{
+    set_num?: string; quantity?: number; condition?: string;
+    purchase_price?: number; notes?: string; purchased_at?: string;
+  }>();
+  const { set_num, quantity = 1, condition = 'new', purchase_price, notes, purchased_at } = body;
+  if (!set_num) return c.json({ error: 'set_num required' }, 400);
+  const validConditions = ['new', 'used_good', 'used_acceptable', 'sealed'];
+  if (!validConditions.includes(condition)) return c.json({ error: 'Invalid condition' }, 400);
+
+  const existing = await c.env.DB.prepare('SELECT 1 FROM lego_sets WHERE set_num=?').bind(set_num).first();
+  if (!existing) return c.json({ error: 'Set not found in catalog' }, 404);
+
+  await c.env.DB.prepare(`
+    INSERT INTO user_collection (user_id, set_num, quantity, condition, purchase_price, notes, purchased_at, last_modified)
+    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT (user_id, set_num) DO UPDATE SET
+      quantity = EXCLUDED.quantity,
+      condition = EXCLUDED.condition,
+      purchase_price = COALESCE(EXCLUDED.purchase_price, user_collection.purchase_price),
+      notes = COALESCE(EXCLUDED.notes, user_collection.notes),
+      purchased_at = COALESCE(EXCLUDED.purchased_at, user_collection.purchased_at),
+      last_modified = datetime('now'),
+      deleted_at = NULL
+  `).bind(userId, set_num, quantity, condition, purchase_price ?? null, notes ?? null, purchased_at ?? null).run();
+
+  const item = await c.env.DB.prepare(
+    'SELECT * FROM user_collection WHERE user_id=? AND set_num=? AND deleted_at IS NULL'
+  ).bind(userId, set_num).first();
+  return c.json({ item }, 201);
+});
+
+// GET /api/collection/export
+app.get('/export', async (c) => {
+  const userId = c.get('userId');
+  const { results } = await c.env.DB.prepare(`
+    SELECT
+      uc.id, uc.set_num, uc.quantity, uc.condition, uc.purchase_price,
+      uc.purchased_at, uc.storage_location, uc.acquisition_source,
+      uc.is_complete, uc.missing_pieces, uc.notes, uc.added_at,
+      s.name, s.theme, s.year, s.pieces, s.minifigs,
+      s.retail_price, s.current_value
+    FROM user_collection uc
+    JOIN lego_sets s ON s.set_num = uc.set_num
+    WHERE uc.user_id = ? AND uc.deleted_at IS NULL
+    ORDER BY uc.added_at DESC
+  `).bind(userId).all<Record<string, unknown>>();
+
+  const csvCell = (v: unknown) => {
+    if (v == null) return '';
+    const s = String(v);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  };
+
+  const headers = [
+    'set_num','name','theme','year','pieces','minifigs',
+    'condition','quantity','purchase_price','purchased_at',
+    'current_value','retail_price','roi_pct',
+    'storage_location','acquisition_source',
+    'is_complete','missing_pieces','notes','added_at',
+  ];
+
+  const rows = results.map(r => {
+    const pp = Number(r.purchase_price);
+    const cv = Number(r.current_value);
+    const roi = pp > 0 && cv > 0 ? ((cv - pp) / pp * 100).toFixed(2) : '';
+    const pa = r.purchased_at ? String(r.purchased_at).slice(0, 10) : '';
+    const aa = r.added_at ? String(r.added_at).slice(0, 10) : '';
+    return [
+      r.set_num, r.name, r.theme, r.year, r.pieces, r.minifigs,
+      r.condition, r.quantity, r.purchase_price ?? '', pa,
+      r.current_value ?? '', r.retail_price ?? '', roi,
+      r.storage_location ?? '', r.acquisition_source ?? '',
+      r.is_complete == null ? 'true' : String(!!r.is_complete), r.missing_pieces ?? 0,
+      r.notes ?? '', aa,
+    ].map(csvCell).join(',');
+  });
+
+  const csv = [headers.join(','), ...rows].join('\n');
+  return new Response(csv, {
+    headers: {
+      'Content-Type': 'text/csv',
+      'Content-Disposition': 'attachment; filename="brickvault-export.csv"',
+    },
+  });
+});
+
+// GET /api/collection/history
+app.get('/history', async (c) => {
+  const userId = c.get('userId');
+  const days = Math.min(parseInt(c.req.query('days') || '90', 10), 365);
+  const { results } = await c.env.DB.prepare(`
+    SELECT snapshot_date, total_value, total_paid, set_count
+    FROM portfolio_snapshots
+    WHERE user_id = ? AND snapshot_date >= DATE('now', ? )
+    ORDER BY snapshot_date ASC
+  `).bind(userId, `-${days} days`).all();
+  return c.json({ snapshots: results });
+});
+
+// POST /api/collection/import
+app.post('/import', async (c) => {
+  const userId = c.get('userId');
+  const body = await c.req.json<{ rows?: unknown[]; overwrite?: boolean }>();
+  const { rows, overwrite = false } = body;
+  if (!Array.isArray(rows) || rows.length === 0) return c.json({ error: 'rows array required' }, 400);
+  if (rows.length > 500) return c.json({ error: 'max 500 rows per import' }, 400);
+
+  let imported = 0, skipped = 0;
+  const errors: unknown[] = [];
+
+  for (const row of rows as Record<string, unknown>[]) {
+    const set_num = String(row.set_num || '').trim();
+    if (!set_num) { errors.push({ row, reason: 'missing set_num' }); continue; }
+
+    const catalog = await c.env.DB.prepare('SELECT 1 FROM lego_sets WHERE set_num=?').bind(set_num).first();
+    if (!catalog) { errors.push({ set_num, reason: 'set not in catalog' }); skipped++; continue; }
+
+    if (!overwrite) {
+      const owned = await c.env.DB.prepare(
+        'SELECT id FROM user_collection WHERE user_id=? AND set_num=? AND deleted_at IS NULL'
+      ).bind(userId, set_num).first();
+      if (owned) { skipped++; continue; }
+    }
+
+    const validConds = ['new', 'used_good', 'used_acceptable', 'sealed'];
+    const condition = validConds.includes(String(row.condition)) ? String(row.condition) : 'new';
+    const quantity = Math.max(1, parseInt(String(row.quantity)) || 1);
+    const purchase_price = parseFloat(String(row.purchase_price)) || null;
+    const purchased_at = row.purchased_at ? String(row.purchased_at) : null;
+    const notes = row.notes ? String(row.notes) : null;
+    const storage_location = row.storage_location ? String(row.storage_location) : null;
+    const acquisition_source = row.acquisition_source ? String(row.acquisition_source) : null;
+    const is_complete = row.is_complete === 'false' || row.is_complete === false ? 0 : 1;
+    const missing_pieces = parseInt(String(row.missing_pieces)) || 0;
+
+    await c.env.DB.prepare(`
+      INSERT INTO user_collection
+        (user_id, set_num, quantity, condition, purchase_price, purchased_at,
+         notes, storage_location, acquisition_source, is_complete, missing_pieces, last_modified)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+      ON CONFLICT (user_id, set_num) DO UPDATE SET
+        quantity = EXCLUDED.quantity,
+        condition = EXCLUDED.condition,
+        purchase_price = COALESCE(EXCLUDED.purchase_price, user_collection.purchase_price),
+        purchased_at = COALESCE(EXCLUDED.purchased_at, user_collection.purchased_at),
+        notes = COALESCE(EXCLUDED.notes, user_collection.notes),
+        storage_location = COALESCE(EXCLUDED.storage_location, user_collection.storage_location),
+        acquisition_source = COALESCE(EXCLUDED.acquisition_source, user_collection.acquisition_source),
+        is_complete = EXCLUDED.is_complete,
+        missing_pieces = EXCLUDED.missing_pieces,
+        last_modified = datetime('now'),
+        deleted_at = NULL
+    `).bind(userId, set_num, quantity, condition, purchase_price, purchased_at,
+        notes, storage_location, acquisition_source, is_complete, missing_pieces).run();
+
+    imported++;
+  }
+
+  return c.json({ imported, skipped, errors: errors.slice(0, 20) });
+});
+
+// GET /api/collection/:id
+app.get('/:id', async (c) => {
+  const userId = c.get('userId');
+  const id = parseInt(c.req.param('id'), 10);
+  if (!id) return c.json({ error: 'Invalid id' }, 400);
+
+  const check = await c.env.DB.prepare(
+    'SELECT id FROM user_collection WHERE id=? AND user_id=? AND deleted_at IS NULL'
+  ).bind(id, userId).first();
+  if (!check) return c.json({ error: 'Not found' }, 404);
+
+  const item = await c.env.DB.prepare(`
+    SELECT uc.*, s.name, s.theme, s.year, s.pieces, s.minifigs,
+      s.retail_price, s.current_value, s.forecast_2y, s.forecast_5y, s.image_url
+    FROM user_collection uc
+    JOIN lego_sets s ON s.set_num = uc.set_num
+    WHERE uc.id=? AND uc.user_id=? AND uc.deleted_at IS NULL
+  `).bind(id, userId).first<Record<string, unknown>>();
+  return c.json({ item: item ? { ...item, retired: !!item.retired, is_complete: !!item.is_complete } : null });
+});
+
+// PATCH /api/collection/:id
+app.patch('/:id', async (c) => {
+  const userId = c.get('userId');
+  const id = parseInt(c.req.param('id'), 10);
+  if (!id) return c.json({ error: 'Invalid id' }, 400);
+
+  const check = await c.env.DB.prepare(
+    'SELECT id FROM user_collection WHERE id=? AND user_id=? AND deleted_at IS NULL'
+  ).bind(id, userId).first();
+  if (!check) return c.json({ error: 'Not found' }, 404);
+
+  const body = await c.req.json<Record<string, unknown>>();
+  const ALLOWED = ['quantity','condition','purchase_price','purchased_at','notes',
+                   'storage_location','acquisition_source','is_complete','missing_pieces'];
+  const fields: string[] = [];
+  const vals: unknown[] = [];
+  for (const key of ALLOWED) {
+    if (key in body) {
+      fields.push(`${key}=?`);
+      vals.push(key === 'is_complete' ? (body[key] ? 1 : 0) : body[key]);
+    }
+  }
+  if (!fields.length) return c.json({ error: 'No fields to update' }, 400);
+  fields.push(`last_modified=datetime('now')`);
+  vals.push(id, userId);
+
+  await c.env.DB.prepare(
+    `UPDATE user_collection SET ${fields.join(',')} WHERE id=? AND user_id=?`
+  ).bind(...vals).run();
+
+  const item = await c.env.DB.prepare(
+    'SELECT * FROM user_collection WHERE id=?'
+  ).bind(id).first<Record<string, unknown>>();
+  return c.json({ item: item ? { ...item, is_complete: !!item.is_complete } : null });
+});
+
+// DELETE /api/collection/:id
+app.delete('/:id', async (c) => {
+  const userId = c.get('userId');
+  const id = parseInt(c.req.param('id'), 10);
+  if (!id) return c.json({ error: 'Invalid id' }, 400);
+
+  const check = await c.env.DB.prepare(
+    'SELECT id FROM user_collection WHERE id=? AND user_id=? AND deleted_at IS NULL'
+  ).bind(id, userId).first();
+  if (!check) return c.json({ error: 'Not found' }, 404);
+
+  await c.env.DB.prepare(
+    `UPDATE user_collection SET deleted_at=datetime('now') WHERE id=? AND user_id=?`
+  ).bind(id, userId).run();
+  return new Response('', { status: 204 });
+});
+
+export { app as collectionRoute };

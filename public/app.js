@@ -75,6 +75,60 @@ const state = {
   camera: { stream: null, mode: "barcode", detector: null, scanning: false, timer: null },
 };
 
+/* ---------- Supabase auth (no SDK — plain fetch to REST API) ---------- */
+let _authSession = null;
+let _sbUrl = "";
+let _sbAnonKey = "";
+
+function loadSession() {
+  try { return JSON.parse(localStorage.getItem("bv_session") || "null"); } catch { return null; }
+}
+function saveSession(s) {
+  try {
+    if (s) localStorage.setItem("bv_session", JSON.stringify(s));
+    else localStorage.removeItem("bv_session");
+  } catch {}
+  _authSession = s;
+}
+async function sbSignIn(email, password) {
+  const r = await fetch(`${_sbUrl}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: _sbAnonKey },
+    body: JSON.stringify({ email, password }),
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error_description || d.message || "Sign in failed");
+  return d;
+}
+async function sbSignUp(email, password) {
+  const r = await fetch(`${_sbUrl}/auth/v1/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: _sbAnonKey },
+    body: JSON.stringify({ email, password }),
+  });
+  const d = await r.json();
+  if (!r.ok || d.error) throw new Error(d.error_description || d.error || d.message || "Sign up failed");
+  return d;
+}
+async function sbRefresh(refreshToken) {
+  const r = await fetch(`${_sbUrl}/auth/v1/token?grant_type=refresh_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: _sbAnonKey },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error("Session expired");
+  return d;
+}
+async function sbSignOut() {
+  if (!_authSession?.access_token) return;
+  await fetch(`${_sbUrl}/auth/v1/logout`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${_authSession.access_token}`, apikey: _sbAnonKey },
+  }).catch(() => {});
+  saveSession(null);
+}
+
 /* ---------- helpers ---------- */
 function fmtMoney(n, opts = {}) {
   if (n == null || isNaN(n)) return "—";
@@ -174,19 +228,42 @@ const THEME_COLORS = {
 
 /* ---------- API ---------- */
 async function api(path, opts = {}) {
+  const token = _authSession?.access_token;
   const init = {
     ...opts,
-    headers: { "content-type": "application/json", ...(opts.headers || {}) },
+    headers: {
+      "content-type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(opts.headers || {}),
+    },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   };
   let r;
   try {
     r = await fetch(path, init);
   } catch (e) {
-    // Network-level failure ("Failed to fetch") — often a transient blip
-    // (isolate restart during deploy, flaky connection). Retry once.
+    // Network-level failure — retry once after a short delay.
     await new Promise(res => setTimeout(res, 600));
     r = await fetch(path, init);
+  }
+  // Token expired — try a silent refresh, then retry the original request.
+  if (r.status === 401) {
+    if (_authSession?.refresh_token) {
+      try {
+        const fresh = await sbRefresh(_authSession.refresh_token);
+        saveSession(fresh);
+        init.headers["Authorization"] = `Bearer ${fresh.access_token}`;
+        r = await fetch(path, init);
+      } catch {
+        saveSession(null);
+        location.hash = "#/login";
+        throw new Error("Session expired — please sign in again");
+      }
+    } else {
+      saveSession(null);
+      location.hash = "#/login";
+      throw new Error("Please sign in");
+    }
   }
   if (!r.ok) {
     let msg = r.statusText;
@@ -316,6 +393,85 @@ function slImgHTML(set, { newBadge = false, qtyBadge = 0 } = {}) {
 }
 
 /* ============================================================
+   Login screen
+   ============================================================ */
+function renderLogin() {
+  let mode = "signin";
+  const nav = document.getElementById("nav");
+  if (nav) nav.style.display = "none";
+
+  const paint = () => {
+    document.getElementById("root").innerHTML = `
+      <div class="page" style="max-width:420px;margin:0 auto;padding-top:48px;">
+        <div style="text-align:center;margin-bottom:32px;">
+          <div style="font-family:var(--serif);font-size:30px;font-weight:600;margin-bottom:6px;">Brickvault</div>
+          <div style="color:var(--ink-mute);font-size:14px;">Your brick portfolio, always in hand.</div>
+        </div>
+        <div class="card" style="padding:24px;">
+          <div class="section-title" style="margin-bottom:16px;">${mode === "signin" ? "Sign in" : "Create account"}</div>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <input type="email" id="authEmail" placeholder="Email address" autocomplete="email"
+              style="padding:12px;border:1.5px solid var(--line);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-size:15px;outline:none;font-family:var(--sans);">
+            <input type="password" id="authPass" placeholder="Password"
+              autocomplete="${mode === "signin" ? "current-password" : "new-password"}"
+              style="padding:12px;border:1.5px solid var(--line);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-size:15px;outline:none;font-family:var(--sans);">
+            <button class="btn-primary" id="authSubmit" style="margin-top:4px;">
+              <span>${mode === "signin" ? "Sign in" : "Create account"}</span>
+            </button>
+            <div id="authErr" style="color:var(--down);font-size:13px;text-align:center;min-height:18px;font-family:var(--mono);"></div>
+          </div>
+        </div>
+        <div style="text-align:center;margin-top:16px;font-size:13px;color:var(--ink-mute);">
+          ${mode === "signin" ? "Don't have an account?" : "Already have an account?"}
+          <button id="authSwitch" style="color:var(--accent);background:none;border:none;font-size:13px;font-weight:600;cursor:pointer;padding:0 4px;">
+            ${mode === "signin" ? "Sign up" : "Sign in"}
+          </button>
+        </div>
+      </div>`;
+
+    document.getElementById("authSwitch").addEventListener("click", () => {
+      mode = mode === "signin" ? "signup" : "signin";
+      paint();
+    });
+
+    const submit = async () => {
+      const email = document.getElementById("authEmail")?.value.trim() || "";
+      const pass = document.getElementById("authPass")?.value || "";
+      const btn = document.getElementById("authSubmit");
+      const errEl = document.getElementById("authErr");
+      if (!email || !pass) { if (errEl) errEl.textContent = "Email and password required."; return; }
+      setBtnLoading(btn, true);
+      if (errEl) errEl.textContent = "";
+      try {
+        let session;
+        if (mode === "signin") {
+          session = await sbSignIn(email, pass);
+        } else {
+          session = await sbSignUp(email, pass);
+          if (!session.access_token) {
+            if (errEl) errEl.textContent = "Account created! Check your email to confirm, then sign in.";
+            setBtnLoading(btn, false);
+            setTimeout(() => { mode = "signin"; paint(); }, 2000);
+            return;
+          }
+        }
+        saveSession(session);
+        if (nav) nav.style.display = "";
+        location.hash = "#/";
+      } catch (e) {
+        if (errEl) errEl.textContent = e.message;
+        setBtnLoading(btn, false);
+      }
+    };
+
+    document.getElementById("authSubmit")?.addEventListener("click", submit);
+    document.getElementById("authPass")?.addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
+  };
+
+  paint();
+}
+
+/* ============================================================
    Router
    ============================================================ */
 function errorStateHTML() {
@@ -429,8 +585,20 @@ function hasCachedView(hash) {
 
 async function route() {
   let hash = location.hash.replace("#", "") || "/";
-  // Legacy redirect: the minifigs page used to live at /blind.
   if (hash === "/blind") { location.hash = "#/minifigs"; return; }
+
+  // Auth gate — bounce to login if no session.
+  if (!_authSession) {
+    if (hash !== "/login") { location.hash = "#/login"; return; }
+    await withViewTransition(() => renderLogin());
+    return;
+  }
+  if (hash === "/login") { location.hash = "#/"; return; }
+
+  // Restore nav if it was hidden by the login screen.
+  const nav = document.getElementById("nav");
+  if (nav) nav.style.display = "";
+
   $$("#nav .nav-tab").forEach(t => {
     const r = t.dataset.route;
     const active = r === hash || (hash.startsWith("/set/") && r === "/") || (hash === "/wishlist" && r === "/");
@@ -1549,7 +1717,7 @@ async function renderMe() {
       <div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Export collection</div><div class="desc">CSV with all collector fields &amp; ROI.</div></div>
-          <a href="/api/collection/export" download="brickvault-export.csv" class="import-btn" aria-label="Export CSV">${I.download()}</a>
+          <button class="import-btn" id="exportCsvBtn" aria-label="Export CSV">${I.download()}</button>
         </div>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">
@@ -1563,7 +1731,7 @@ async function renderMe() {
           </div>
           <div id="csvImportResult" style="font-size:13px;color:var(--ink-mute);font-family:var(--mono);"></div>
         </div>
-        <div class="setting-row">
+        <div class="setting-row" id="signOutRow" style="cursor:pointer;">
           <div class="lbl-wrap"><div class="lbl">Sign out</div><div class="desc">Sync resumes when you return.</div></div>
           ${I.chev()}
         </div>
@@ -1635,6 +1803,33 @@ async function renderMe() {
 
   $("#importSetsBtn")?.addEventListener("click", () => runImport("sets", "#importSetsDesc", "#importSetsBtn"));
   $("#importFigsBtn")?.addEventListener("click", () => runImport("figs", "#importFigsDesc", "#importFigsBtn"));
+
+  // Export CSV (needs auth header — fetch and blob-download)
+  $("#exportCsvBtn")?.addEventListener("click", async () => {
+    try {
+      const token = _authSession?.access_token;
+      const r = await fetch("/api/collection/export", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!r.ok) throw new Error("Export failed");
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "brickvault-export.csv";
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) { toast(e.message, "error"); }
+  });
+
+  // Sign out
+  $("#signOutRow")?.addEventListener("click", async () => {
+    haptic("medium");
+    await sbSignOut();
+    state.portfolio = null; state.me = null; state.catalog.items = [];
+    state.blind.items = []; state.wishlist = []; state.portfolioHistory = null;
+    location.hash = "#/login";
+  });
 
   // CSV import flow
   $("#csvFile")?.addEventListener("change", e => {
@@ -2267,7 +2462,15 @@ document.addEventListener("error", (e) => {
   img.remove();
 }, true); // capture — image error events don't bubble
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+  // Load session and Supabase config before any routing.
+  _authSession = loadSession();
+  try {
+    const cfg = await fetch("/api/config").then(r => r.json());
+    _sbUrl = cfg.supabase_url || "";
+    _sbAnonKey = cfg.supabase_anon_key || "";
+  } catch {}
+
   // Wire nav icons using icon library
   const icons = { "/": I.home, "/add": I.search, "/minifigs": I.figure, "/me": I.user };
   $$("#nav .nav-tab").forEach(t => {
@@ -2300,12 +2503,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js")
-      .then(reg => reg.update())  // immediately check for a newer SW on every load
+      .then(reg => reg.update())
       .catch(() => {});
     navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
   }
+
+  // Initial route — after config and session are loaded.
+  await route();
 });
 
 window.addEventListener("hashchange", route);
-window.addEventListener("load", route);
 window.bv = { openScan, closeScan, capturePhoto };
