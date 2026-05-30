@@ -63,7 +63,15 @@ jobs:
 
       - name: Apply database schema
         working-directory: worker
-        run: npx wrangler d1 execute brickvault --remote --file=schema.sql --yes
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          echo "=== wrangler version ==="
+          npx wrangler --version
+          echo "=== wrangler.toml after injection ==="
+          cat wrangler.toml
+          echo "=== executing schema ==="
+          npx wrangler d1 execute brickvault --remote --file=schema.sql 2>&1
 
       - name: Upload Worker secrets
         working-directory: worker
