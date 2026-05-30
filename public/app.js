@@ -1793,11 +1793,12 @@ async function renderMe() {
     try {
       const r = await api("/api/admin/import-rebrickable", { method: "POST", body: { dataset } });
       if (r.status === "running" && r.run_id) {
-        descEl.textContent = "Importing… (this takes 1–2 min)";
-        let dots = 0;
+        descEl.textContent = "Importing… (this takes ~30 sec)";
+        let dots = 0, elapsed = 0;
         const poll = setInterval(async () => {
           dots = (dots + 1) % 4;
-          descEl.textContent = "Importing" + ".".repeat(dots + 1) + " (this takes 1–2 min)";
+          elapsed += 3;
+          descEl.textContent = "Importing" + ".".repeat(dots + 1) + ` (${elapsed}s)`;
           try {
             const s = await api(`/api/admin/import-status/${r.run_id}`);
             if (s.status === "completed") {
@@ -1814,6 +1815,10 @@ async function renderMe() {
               clearInterval(poll);
               descEl.textContent = s.error || "Import failed";
               toast("Import failed: " + (s.error || "unknown error"), "error");
+              btnEl.disabled = false;
+            } else if (elapsed >= 300) {
+              clearInterval(poll);
+              descEl.textContent = "Timed out — try again";
               btnEl.disabled = false;
             }
           } catch { /* keep polling on transient errors */ }
