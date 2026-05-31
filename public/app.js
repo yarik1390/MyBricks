@@ -1894,8 +1894,9 @@ async function renderMe() {
             if (s.status === "completed") {
               clearInterval(poll);
               const n = s.sets_loaded ?? 0;
-              descEl.textContent = `✓ ${n} barcode${n !== 1 ? "s" : ""} filled`;
-              toast(`${n} barcodes filled`, "info");
+              const note = n === 0 && s.error ? ` (${s.error})` : "";
+              descEl.textContent = `✓ ${n} barcode${n !== 1 ? "s" : ""} filled${note}`;
+              toast(n > 0 ? `${n} barcodes filled` : `0 filled${note}`, n > 0 ? "info" : "error");
               btnEl.disabled = false;
             } else if (s.status === "error") {
               clearInterval(poll);

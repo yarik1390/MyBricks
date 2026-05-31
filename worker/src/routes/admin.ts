@@ -90,10 +90,16 @@ app.post('/backfill-upc', async (c) => {
   c.executionCtx.waitUntil(
     (async () => {
       try {
-        const { processed, filled } = await runBackfillUpc(c.env);
-        await c.env.DB.prepare(
-          `UPDATE import_runs SET status='completed',completed_at=datetime('now'),sets_loaded=?,sets_skipped=? WHERE id=?`
-        ).bind(filled, processed - filled, runId).run();
+        const r = await runBackfillUpc(c.env);
+        if (r.error) {
+          await c.env.DB.prepare(
+            "UPDATE import_runs SET status='error',error=?,completed_at=datetime('now') WHERE id=?"
+          ).bind(r.error, runId).run();
+        } else {
+          await c.env.DB.prepare(
+            `UPDATE import_runs SET status='completed',completed_at=datetime('now'),sets_loaded=?,sets_skipped=?,error=? WHERE id=?`
+          ).bind(r.filled, r.processed - r.filled, `method:${r.method} catalog:${r.catalogSize}`, runId).run();
+        }
       } catch (e) {
         await c.env.DB.prepare(
           "UPDATE import_runs SET status='error',error=?,completed_at=datetime('now') WHERE id=?"
