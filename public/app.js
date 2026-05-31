@@ -106,6 +106,7 @@ const state = {
   filter: {
     kind: "all", theme: null, range: "1M", q: "",
     sort: localStorage.getItem("bv_sort") || "added_desc",
+    catalogQ: "",
     catalogSort: "value_desc", catalogYear: "all",
     catalogRetired: false, catalogTheme: "all",
     catalogRanges: { min_year: "", max_year: "", min_pieces: "", max_pieces: "", min_value: "", max_value: "" },
@@ -1000,7 +1001,7 @@ function catalogQuery() {
   p.set("limit", state.catalog.pageSize);
   p.set("offset", state.catalog.offset);
   p.set("sort", f.catalogSort);
-  if (f.q) p.set("q", f.q);
+  if (f.catalogQ) p.set("q", f.catalogQ);
   if (f.catalogTheme !== "all") p.set("theme", f.catalogTheme);
   if (f.catalogRetired) p.set("retired", "1");
   for (const [k, v] of Object.entries(f.catalogRanges)) {
@@ -1049,7 +1050,7 @@ async function loadCatalog({ reset = false } = {}) {
 
 function isCatalogDefault() {
   const f = state.filter;
-  return !f.q && f.catalogTheme === 'all' && f.catalogYear === 'all' && !f.catalogRetired &&
+  return !f.catalogQ && f.catalogTheme === 'all' && f.catalogYear === 'all' && !f.catalogRetired &&
     Object.values(f.catalogRanges || {}).every(v => v === '');
 }
 
@@ -1088,7 +1089,7 @@ function catalogResultsHTML() {
       <div class="empty card">
         <div class="empty-icon">${I.search()}</div>
         <h3>No sets found</h3>
-        <p>${f.q ? `Nothing matches "${escapeHtml(f.q)}".` : "No sets match these filters."} Try a different search or clear filters.</p>
+        <p>${f.catalogQ ? `Nothing matches "${escapeHtml(f.catalogQ)}".` : "No sets match these filters."} Try a different search or clear filters.</p>
       </div>` : `
       <div class="grid" id="catalogGrid">
         ${c.items.map(s => catalogCardHTML(s)).join("")}
@@ -1157,7 +1158,7 @@ function paintAdd() {
 
       <div class="search-wrap open" style="margin-bottom:14px;">
         <span class="s-icon">${I.search()}</span>
-        <input class="search-input" id="catalogSearch" placeholder="Search sets…" autocomplete="off" value="${escapeHtml(f.q)}">
+        <input class="search-input" id="catalogSearch" placeholder="Search sets…" autocomplete="off" value="${escapeHtml(f.catalogQ)}">
       </div>
 
       <div class="filter-row">
@@ -1178,7 +1179,7 @@ function paintAdd() {
   $("#scanCta")?.addEventListener("click", () => openScan());
   const catInput = $("#catalogSearch");
   catInput?.addEventListener("input", (e) => {
-    state.filter.q = e.target.value;
+    state.filter.catalogQ = e.target.value;
     debouncedCatalogSearch();
   });
   // Update chips' active state + repaint only the results region — no full reload.
