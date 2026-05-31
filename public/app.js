@@ -42,8 +42,9 @@ const I = (() => {
     user:     () => s('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/>'),
     box:      () => s('<path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/>'),
     flash:    () => s('<path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/>'),
-    info:     () => s('<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/>'),
-    trend:    () => s('<path d="M3 17l6-6 4 4 8-9"/><path d="M14 6h7v7"/>'),
+    info:       () => s('<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/>'),
+    trend:      () => s('<path d="M3 17l6-6 4 4 8-9"/><path d="M14 6h7v7"/>'),
+    extLink:    () => s('<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/>'),
   };
 })();
 
@@ -111,6 +112,7 @@ const state = {
     catalogRetired: false, catalogTheme: "all",
     catalogRanges: { min_year: "", max_year: "", min_pieces: "", max_pieces: "", min_value: "", max_value: "" },
     wishlistSort: "recent",
+    figQ: "", figRarity: "all", figOwned: "all",
   },
   detail: { tab: "info" },
   pwa: { deferredPrompt: null },
@@ -2163,15 +2165,29 @@ function renderPile() {
 /* ============================================================
    Minifigs
    ============================================================ */
+let _blindGen = 0;
+
+function blindQuery() {
+  const f = state.filter;
+  const b = state.blind;
+  const p = new URLSearchParams({ limit: b.pageSize, offset: b.offset });
+  if (f.figQ)                  p.set('q', f.figQ);
+  if (f.figRarity !== 'all')   p.set('rarity', f.figRarity);
+  if (f.figOwned === 'owned')   p.set('owned', 'yes');
+  if (f.figOwned === 'unowned') p.set('owned', 'no');
+  return p.toString();
+}
+
 async function loadBlind({ reset = false } = {}) {
   const b = state.blind;
-  if (b.loading) return [];
-  if (reset) { b.offset = 0; b.hasMore = false; b.total = 0; }
-  else if (!b.hasMore) return [];
+  if (!reset && b.loading) return [];
+  if (!reset && !b.hasMore) return [];
+  if (reset) { _blindGen++; b.offset = 0; b.hasMore = false; b.total = 0; }
+  const myGen = _blindGen;
   b.loading = true;
   try {
-    const p = new URLSearchParams({ limit: b.pageSize, offset: b.offset });
-    const res = await api("/api/minifigs?" + p.toString());
+    const res = await api("/api/minifigs?" + blindQuery());
+    if (myGen !== _blindGen) return [];
     const fresh = res.minifigs || [];
     // Server is the source of truth for ownership — seed the local set from
     // owned_qty so it survives device switches / cache clears.
@@ -2183,10 +2199,10 @@ async function loadBlind({ reset = false } = {}) {
     b.hasMore = !!res.hasMore;
     return fresh;
   } catch (e) {
-    toast("Couldn't load minifigs", "error");
+    if (myGen === _blindGen) toast("Couldn't load minifigs", "error");
     return [];
   } finally {
-    b.loading = false;
+    if (myGen === _blindGen) b.loading = false;
   }
 }
 
@@ -2194,33 +2210,31 @@ function saveFigs() {
   try { localStorage.setItem("bv_figs", JSON.stringify([...state.ownedFigs])); } catch {}
 }
 
+function refreshMiniGrid() {
+  const grid = $('#miniGrid');
+  if (!grid) return;
+  grid.innerHTML = state.blind.items.map(f => miniCardHTML(f)).join('');
+  wireMiniCards();
+  mountBlindSentinel();
+}
+
+const debouncedFigSearch = debounce(async () => {
+  await loadBlind({ reset: true });
+  refreshMiniGrid();
+}, 350);
+
 function wireMiniCards() {
   const grid = $("#miniGrid");
   if (!grid || grid._delegated) return;
   grid._delegated = true;
-  grid.addEventListener("click", async (evt) => {
+  grid.addEventListener("click", (evt) => {
     const card = evt.target.closest(".mini-card");
     if (!card) return;
     const num = card.dataset.fig;
     if (!num) return;
-    const nowOwned = !state.ownedFigs.has(num);
-    if (nowOwned) state.ownedFigs.add(num); else state.ownedFigs.delete(num);
-    saveFigs();
-    haptic("medium");
+    haptic("light");
     const f = state.blind.items.find(x => x.fig_num === num);
-    if (f) { f.owned_qty = nowOwned ? 1 : 0; card.outerHTML = miniCardHTML(f); }
-    updateBlindCount();
-    try {
-      await api("/api/minifigs/" + encodeURIComponent(num), { method: nowOwned ? "PUT" : "DELETE" });
-    } catch {
-      if (nowOwned) state.ownedFigs.delete(num); else state.ownedFigs.add(num);
-      saveFigs();
-      if (f) { f.owned_qty = nowOwned ? 0 : 1; }
-      const recard = $(`.mini-card[data-fig="${CSS.escape(num)}"]`);
-      if (recard && f) recard.outerHTML = miniCardHTML(f);
-      updateBlindCount();
-      toast("Couldn't save — try again", "error");
-    }
+    if (f) showFigDetail(f);
   });
 }
 
@@ -2229,6 +2243,85 @@ function updateBlindCount() {
   if (!el) return;
   const owned = state.blind.items.filter(f => state.ownedFigs.has(f.fig_num)).length;
   el.textContent = `${owned}/${state.blind.total.toLocaleString()} collected`;
+}
+
+function updateFigStats() {
+  const ownedItems = state.blind.items.filter(f => state.ownedFigs.has(f.fig_num));
+  const countEl = $("#figStatCount");
+  const valueEl = $("#figStatValue");
+  if (countEl) countEl.textContent = `${ownedItems.length} owned`;
+  if (valueEl) {
+    const total = ownedItems.reduce((s, f) => s + (f.value ?? f.current_value ?? 0), 0);
+    valueEl.textContent = fmtMoney(total, { cents: 0 });
+  }
+}
+
+function showFigDetail(f) {
+  const owned = state.ownedFigs.has(f.fig_num);
+  const val = f.value ?? f.current_value ?? 0;
+  const hue = f.hue ?? themeHue(f.series || f.fig_num);
+  const hasImg = f.image_url;
+  const rarity = f.rarity || 'common';
+  const rbUrl = `https://rebrickable.com/minifigs/${encodeURIComponent(f.fig_num)}/`;
+
+  const renderBtn = (isOwned) => isOwned
+    ? `${I.check()}<span>Owned</span>`
+    : `<span>Mark as owned</span>`;
+
+  showSheet(`
+    <div class="fig-detail">
+      <div class="fig-detail-hero${hasImg ? ' has-photo' : ''}">
+        <div class="mini-figure" style="--fig-color:oklch(0.6 0.18 ${hue});--fig-color2:oklch(0.4 0.08 ${(hue + 180) % 360});">
+          <div class="head"></div><div class="body"></div><div class="legs"></div>
+        </div>
+        ${hasImg ? `<img class="fig-photo" src="${escapeHtml(f.image_url)}" alt="${escapeHtml(f.name)}" loading="lazy">` : ''}
+        <span class="mini-rarity-tag rarity-${rarity}">${rarity}</span>
+      </div>
+      <div class="fig-detail-body">
+        <div class="fig-detail-series">${escapeHtml(f.series || 'Minifig')}</div>
+        <div class="fig-detail-name">${escapeHtml(f.name)}</div>
+        ${val > 0 ? `
+        <div class="fig-detail-value">
+          <span class="fig-detail-value-lbl">Est. resale value</span>
+          <span class="fig-detail-value-num">${fmtMoney(val, { cents: 0 })}</span>
+        </div>` : ''}
+        <button class="btn-primary fig-own-btn${owned ? ' is-owned' : ''}" id="figOwnBtn">
+          ${renderBtn(owned)}
+        </button>
+        <a class="fig-detail-link" href="${rbUrl}" target="_blank" rel="noopener noreferrer">
+          ${I.extLink()}<span>View on Rebrickable</span>
+        </a>
+      </div>
+    </div>`);
+
+  $('#figOwnBtn')?.addEventListener('click', async () => {
+    const nowOwned = !state.ownedFigs.has(f.fig_num);
+    if (nowOwned) state.ownedFigs.add(f.fig_num); else state.ownedFigs.delete(f.fig_num);
+    f.owned_qty = nowOwned ? 1 : 0;
+    saveFigs();
+    haptic('medium');
+    const btn = $('#figOwnBtn');
+    if (btn) {
+      btn.innerHTML = renderBtn(nowOwned);
+      btn.classList.toggle('is-owned', nowOwned);
+    }
+    const card = $(`.mini-card[data-fig="${CSS.escape(f.fig_num)}"]`);
+    if (card) card.outerHTML = miniCardHTML(f);
+    updateBlindCount();
+    updateFigStats();
+    try {
+      await api('/api/minifigs/' + encodeURIComponent(f.fig_num), { method: nowOwned ? 'PUT' : 'DELETE' });
+    } catch {
+      if (nowOwned) state.ownedFigs.delete(f.fig_num); else state.ownedFigs.add(f.fig_num);
+      f.owned_qty = nowOwned ? 0 : 1;
+      saveFigs();
+      const recard = $(`.mini-card[data-fig="${CSS.escape(f.fig_num)}"]`);
+      if (recard) recard.outerHTML = miniCardHTML(f);
+      updateBlindCount();
+      updateFigStats();
+      toast("Couldn't save — try again", 'error');
+    }
+  });
 }
 
 function mountBlindSentinel() {
@@ -2254,19 +2347,22 @@ function mountBlindSentinel() {
 async function renderBlind() {
   if (!state.blind.items.length) {
     await loadBlind({ reset: true });
-    bvIDB.set('blind', { data: { items: state.blind.items, total: state.blind.total, hasMore: state.blind.hasMore, offset: state.blind.offset }, ts: Date.now() }).catch(() => {});
+    if (isFigFilterDefault()) bvIDB.set('blind', { data: { items: state.blind.items, total: state.blind.total, hasMore: state.blind.hasMore, offset: state.blind.offset }, ts: Date.now() }).catch(() => {});
   } else if (state.blind._stale) {
     state.blind._stale = false;
     loadBlind({ reset: true }).then(() => {
-      if (location.hash === '#/minifigs') {
-        const grid = document.getElementById('miniGrid');
-        if (grid) { grid.innerHTML = state.blind.items.map(f => miniCardHTML(f)).join(''); wireMiniCards(); }
-        bvIDB.set('blind', { data: { items: state.blind.items, total: state.blind.total, hasMore: state.blind.hasMore, offset: state.blind.offset }, ts: Date.now() }).catch(() => {});
+      if (location.hash === '#/minifigs' && $('#miniGrid')) {
+        refreshMiniGrid();
+        if (isFigFilterDefault()) bvIDB.set('blind', { data: { items: state.blind.items, total: state.blind.total, hasMore: state.blind.hasMore, offset: state.blind.offset }, ts: Date.now() }).catch(() => {});
       }
     }).catch(() => {});
   }
   const b = state.blind;
-  const ownedCount = b.items.filter(f => state.ownedFigs.has(f.fig_num)).length;
+  const f = state.filter;
+  const ownedCount = b.items.filter(fig => state.ownedFigs.has(fig.fig_num)).length;
+  const ownedValue = b.items.filter(fig => state.ownedFigs.has(fig.fig_num)).reduce((s, fig) => s + (fig.value ?? fig.current_value ?? 0), 0);
+  const rarities = ['common','uncommon','rare','legendary'];
+  const ownedChipLabel = f.figOwned === 'owned' ? 'Owned' : f.figOwned === 'unowned' ? 'Unowned' : 'All';
 
   $("#root").innerHTML = `
     <div class="page">
@@ -2277,26 +2373,64 @@ async function renderBlind() {
         </div>
       </div>
 
-      <div class="card" style="padding:14px;margin-bottom:14px;background:var(--bv-yellow);color:var(--line);">
-        <div style="display:flex;gap:10px;align-items:center;">
-          ${I.flash()}
-          <div>
-            <div style="font-weight:600;font-size:15px;">Tap to log what you've pulled</div>
-            <div style="font-size:12px;color:var(--ink-soft);margin-top:2px;">Duplicates show their resale value.</div>
-          </div>
+      <div class="fig-stats-row">
+        <div class="fig-stat-pill">
+          <div class="fig-stat-num" id="figStatCount">${ownedCount} owned</div>
+          <div class="fig-stat-lbl">of ${b.total.toLocaleString()} figs</div>
+        </div>
+        <div class="fig-stat-pill">
+          <div class="fig-stat-num" id="figStatValue">${fmtMoney(ownedValue, { cents: 0 })}</div>
+          <div class="fig-stat-lbl">collection value</div>
+        </div>
+      </div>
+
+      <div class="fig-filter-bar">
+        <div class="search-wrap open" style="margin-bottom:10px;">
+          <span class="s-icon">${I.search()}</span>
+          <input class="search-input" id="figSearch" placeholder="Search minifigs…" autocomplete="off" value="${escapeHtml(f.figQ)}">
+        </div>
+        <div class="filter-row">
+          <button class="chip ${f.figRarity === 'all' ? 'active' : ''}" data-fig-rarity="all">All</button>
+          ${rarities.map(r => `<button class="chip ${f.figRarity === r ? 'active' : ''} rarity-chip-${r}" data-fig-rarity="${r}">${r.charAt(0).toUpperCase() + r.slice(1)}</button>`).join('')}
+        </div>
+        <div class="filter-row" style="margin-top:-4px;">
+          <button class="chip fig-owned-chip ${f.figOwned !== 'all' ? 'active' : ''}" id="figOwnedChip">${ownedChipLabel}</button>
         </div>
       </div>
 
       <div class="mini-grid" id="miniGrid">
-        ${b.items.map(f => miniCardHTML(f)).join("")}
+        ${b.items.map(fig => miniCardHTML(fig)).join("")}
       </div>
       <div id="blindSentinel" class="load-sentinel" style="${b.hasMore ? "" : "display:none;"}">
         <div class="spinner"></div>
       </div>
     </div>`;
 
+  const figSearchInput = $("#figSearch");
+  figSearchInput?.addEventListener("input", (e) => { state.filter.figQ = e.target.value; debouncedFigSearch(); });
+
+  $$("[data-fig-rarity]").forEach(btn => btn.addEventListener("click", () => {
+    state.filter.figRarity = btn.dataset.figRarity; haptic("light");
+    $$("[data-fig-rarity]").forEach(x => x.classList.toggle("active", x.dataset.figRarity === state.filter.figRarity));
+    loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) refreshMiniGrid(); }).catch(() => {});
+  }));
+
+  const ownedCycle = { all: 'owned', owned: 'unowned', unowned: 'all' };
+  $("#figOwnedChip")?.addEventListener("click", () => {
+    state.filter.figOwned = ownedCycle[state.filter.figOwned] || 'all'; haptic("light");
+    const labels = { all: 'All', owned: 'Owned', unowned: 'Unowned' };
+    const chip = $("#figOwnedChip");
+    if (chip) { chip.textContent = labels[state.filter.figOwned]; chip.classList.toggle("active", state.filter.figOwned !== 'all'); }
+    loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) refreshMiniGrid(); }).catch(() => {});
+  });
+
   wireMiniCards();
   mountBlindSentinel();
+}
+
+function isFigFilterDefault() {
+  const f = state.filter;
+  return !f.figQ && f.figRarity === 'all' && f.figOwned === 'all';
 }
 
 function miniCardHTML(f) {
@@ -2306,7 +2440,7 @@ function miniCardHTML(f) {
   const val = f.value ?? f.current_value ?? 0;
   const rarity = f.rarity || "common";
   return `
-    <button class="mini-card rarity-${rarity}" data-fig="${escapeHtml(f.fig_num)}">
+    <button class="mini-card rarity-${rarity}" data-fig="${escapeHtml(f.fig_num)}" aria-label="${escapeHtml(f.name)}">
       <div class="mini-img${hasImg ? " has-photo" : ""}">
         <div class="mini-figure" style="--fig-color:oklch(0.6 0.18 ${hue});--fig-color2:oklch(0.4 0.08 ${(hue+180)%360});">
           <div class="head"></div>
@@ -2315,14 +2449,16 @@ function miniCardHTML(f) {
         </div>
         ${hasImg ? `<img class="fig-photo" src="${escapeHtml(f.image_url)}" alt="" loading="lazy">` : ""}
         <span class="mini-rarity-tag rarity-${rarity}">${rarity}</span>
-        ${owned ? `<span class="owned-tag">${I.check()}OWNED</span>` : ""}
       </div>
       <div class="mini-body">
         <div class="mini-name">${escapeHtml(f.name)}</div>
         <div class="mini-meta">
           <span>${escapeHtml(f.series || "Minifig")}</span>
         </div>
-        <div class="mini-value">${fmtMoney(val, { cents: 0 })}</div>
+        <div class="mini-card-footer">
+          <div class="mini-value">${val > 0 ? fmtMoney(val, { cents: 0 }) : '—'}</div>
+          ${owned ? `<span class="mini-owned-badge">${I.check()}</span>` : ''}
+        </div>
       </div>
     </button>`;
 }

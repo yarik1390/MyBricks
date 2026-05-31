@@ -10,22 +10,28 @@ app.use('*', requireMember);
 app.get('/', async (c) => {
   const userId = c.get('userId');
   const series = c.req.query('series') || '';
-  const q = c.req.query('q') || '';
-  const lim = Math.min(parseInt(c.req.query('limit') || '30', 10), 100);
-  const offset = Math.max(parseInt(c.req.query('offset') || '0', 10), 0);
+  const q      = c.req.query('q')      || '';
+  const rarity = c.req.query('rarity') || '';
+  const owned  = c.req.query('owned')  || ''; // 'yes' | 'no'
+  const lim    = Math.min(parseInt(c.req.query('limit')  || '30', 10), 100);
+  const offset = Math.max(parseInt(c.req.query('offset') || '0',  10), 0);
 
-  const pageWhere: string[] = [];
+  const buildWhere = (extraParams: unknown[]) => {
+    const where: string[] = [];
+    if (series) { where.push(`m.series = ?`);               extraParams.push(series); }
+    if (q)      { where.push(`LOWER(m.name) LIKE LOWER(?)`); extraParams.push(`%${q}%`); }
+    if (rarity) { where.push(`m.rarity = ?`);               extraParams.push(rarity); }
+    if (owned === 'yes') where.push(`COALESCE(um.quantity, 0) > 0`);
+    if (owned === 'no')  where.push(`COALESCE(um.quantity, 0) = 0`);
+    return where.length ? `WHERE ${where.join(' AND ')}` : '';
+  };
+
   const pageParams: unknown[] = [userId];
-  if (series) { pageWhere.push(`m.series = ?`); pageParams.push(series); }
-  if (q) { pageWhere.push(`LOWER(m.name) LIKE LOWER(?)`); pageParams.push(`%${q}%`); }
-  const pageWhereSQL = pageWhere.length ? `WHERE ${pageWhere.join(' AND ')}` : '';
+  const pageWhereSQL = buildWhere(pageParams);
   pageParams.push(lim, offset);
 
-  const countWhere: string[] = [];
-  const countParams: unknown[] = [];
-  if (series) { countWhere.push(`m.series = ?`); countParams.push(series); }
-  if (q) { countWhere.push(`LOWER(m.name) LIKE LOWER(?)`); countParams.push(`%${q}%`); }
-  const countWhereSQL = countWhere.length ? `WHERE ${countWhere.join(' AND ')}` : '';
+  const countParams: unknown[] = [userId];
+  const countWhereSQL = buildWhere(countParams);
 
   const [pageRes, countRes] = await Promise.all([
     c.env.DB.prepare(
@@ -37,7 +43,10 @@ app.get('/', async (c) => {
        LIMIT ? OFFSET ?`
     ).bind(...pageParams).all<Record<string, unknown>>(),
     c.env.DB.prepare(
-      `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM minifigs m ${countWhereSQL}`
+      `SELECT CAST(COUNT(*) AS INTEGER) AS total
+       FROM minifigs m
+       LEFT JOIN user_minifigs um ON um.fig_num = m.fig_num AND um.user_id = ?
+       ${countWhereSQL}`
     ).bind(...countParams).first<{ total: number }>(),
   ]);
 

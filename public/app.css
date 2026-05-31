@@ -972,6 +972,30 @@ body.offline .offline-banner { display: block; }
 /* Minifig cards mirror the LEGO set cards for a consistent grid. Rarity is
    surfaced as a corner tag + thin accent stripe instead of tinting the whole
    card, so figs and sets read as one visual family. */
+
+/* --- Stats row --- */
+.fig-stats-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  margin-bottom: 16px;
+}
+.fig-stat-pill {
+  background: var(--surface); border: 2px solid var(--line);
+  border-radius: var(--r-3); padding: 12px 14px;
+}
+.fig-stat-num {
+  font-family: var(--serif); font-size: 18px; font-weight: 500;
+  letter-spacing: -0.01em; line-height: 1.1;
+}
+.fig-stat-lbl {
+  font-family: var(--mono); font-size: 9.5px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-mute); margin-top: 3px;
+}
+
+/* --- Filter bar --- */
+.fig-filter-bar { margin-bottom: 14px; }
+
+/* --- Grid --- */
 .mini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .mini-card {
   position: relative;
@@ -988,9 +1012,9 @@ body.offline .offline-banner { display: block; }
 .mini-card::before {
   content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; z-index: 3;
 }
-.mini-card.rarity-common::before { background: var(--ink-faint); }
+.mini-card.rarity-common::before   { background: var(--ink-faint); }
 .mini-card.rarity-uncommon::before { background: var(--up); }
-.mini-card.rarity-rare::before { background: #E89A2B; }
+.mini-card.rarity-rare::before     { background: #E89A2B; }
 .mini-card.rarity-legendary::before { background: var(--bv-yellow-dark); }
 .mini-img {
   aspect-ratio: 1.1 / 1;
@@ -1016,20 +1040,10 @@ body.offline .offline-banner { display: block; }
   padding: 3px 6px; border-radius: var(--r-1);
   border: 1.5px solid var(--line); color: var(--line);
 }
-.mini-rarity-tag.rarity-common { background: var(--surface-2); color: var(--ink-mute); }
+.mini-rarity-tag.rarity-common   { background: var(--surface-2); color: var(--ink-mute); }
 .mini-rarity-tag.rarity-uncommon { background: var(--up-pale); }
-.mini-rarity-tag.rarity-rare { background: #FFE9C7; }
+.mini-rarity-tag.rarity-rare     { background: #FFE9C7; }
 .mini-rarity-tag.rarity-legendary { background: var(--bv-yellow); }
-.mini-img .owned-tag {
-  position: absolute; top: 8px; right: 8px; z-index: 2;
-  background: var(--bv-yellow); color: var(--line);
-  font-family: var(--mono); font-size: 9px; font-weight: 700;
-  padding: 3px 6px; border-radius: var(--r-1);
-  letter-spacing: 0.1em;
-  border: 1.5px solid var(--line);
-  display: flex; align-items: center; gap: 3px;
-}
-.mini-img .owned-tag svg { width: 10px; height: 10px; }
 .mini-figure { width: 64px; height: 92px; position: relative; }
 .mini-figure .head {
   width: 22px; height: 22px; border-radius: 50%;
@@ -1064,15 +1078,93 @@ body.offline .offline-banner { display: block; }
   display: flex; flex-wrap: wrap; gap: 4px;
 }
 .mini-meta span { background: var(--surface-2); padding: 2px 6px; border-radius: var(--r-1); }
+.mini-card-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: auto; gap: 6px;
+}
 .mini-value {
   font-family: var(--serif); font-size: 17px; font-weight: 500;
   letter-spacing: -0.01em; font-variant-numeric: tabular-nums;
-  margin-top: auto;
+}
+.mini-owned-badge {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--bv-yellow); border: 1.5px solid var(--line);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.mini-owned-badge svg { width: 12px; height: 12px; stroke-width: 2.5; }
+
+/* --- Fig detail sheet --- */
+.fig-detail {
+  display: flex; gap: 18px; align-items: flex-start;
+  padding: 4px 0 8px;
+}
+.fig-detail-hero {
+  width: 110px; min-width: 110px; height: 120px;
+  background: linear-gradient(135deg, var(--surface-2), var(--surface-3));
+  border: 2px solid var(--line); border-radius: var(--r-3);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden; flex-shrink: 0;
+}
+.fig-detail-hero.has-photo { background: transparent; }
+.fig-detail-hero img.fig-photo {
+  position: absolute; inset: 6%;
+  width: 88%; height: 88%; object-fit: contain;
+  mix-blend-mode: multiply; z-index: 1;
+}
+:root[data-theme="dark"] .fig-detail-hero img.fig-photo {
+  mix-blend-mode: normal; filter: brightness(0.95);
+}
+.fig-detail-hero .mini-rarity-tag {
+  top: 6px; left: 6px; font-size: 8px; padding: 2px 5px;
+}
+.fig-detail-body {
+  flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+}
+.fig-detail-series {
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.fig-detail-name {
+  font-family: var(--serif); font-size: 20px; font-weight: 500;
+  line-height: 1.15; letter-spacing: -0.01em;
+}
+.fig-detail-value {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.fig-detail-value-lbl {
+  font-family: var(--mono); font-size: 9.5px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-mute);
+}
+.fig-detail-value-num {
+  font-family: var(--serif); font-size: 22px; font-weight: 500;
+  letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+}
+.fig-own-btn { width: 100%; justify-content: center; }
+.fig-own-btn.is-owned {
+  background: var(--bv-yellow); color: var(--line);
+  border-color: var(--line);
+}
+.fig-detail-link {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; padding: 11px 16px;
+  background: var(--surface-2); color: var(--ink-mute);
+  border: 2px solid var(--line); border-radius: var(--r-2);
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  text-decoration: none;
+}
+.fig-detail-link:active { opacity: 0.75; }
+.fig-detail-link svg { width: 14px; height: 14px; }
+
+/* On narrow screens (<360px) stack hero above body */
+@media (max-width: 359px) {
+  .fig-detail { flex-direction: column; }
+  .fig-detail-hero { width: 100%; height: 140px; min-width: unset; }
 }
 
-/* ============================================================
-   Me page
-   ============================================================ */
+
 .profile-head {
   display: flex; align-items: center; gap: 14px;
   margin-bottom: 18px;
