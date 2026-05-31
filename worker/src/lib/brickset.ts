@@ -26,10 +26,16 @@ export async function checkBricksetKey(env: Env): Promise<string | null> {
 export async function fetchBarcodes(setNum: string, env: Env): Promise<BricksetBarcodes | null> {
   if (!env.BRICKSET_API_KEY) return null;
   try {
+    // Rebrickable format is "75192-1"; Brickset setNumber is just "75192".
+    // Extract the variant so we can match the right set when multiple variants exist.
+    const variantMatch = setNum.match(/^(.+)-(\d+)$/);
+    const bricksetNum = variantMatch ? variantMatch[1] : setNum;
+    const variant = variantMatch ? parseInt(variantMatch[2]) : 1;
+
     const params = new URLSearchParams({
       apiKey: env.BRICKSET_API_KEY,
       userHash: '',
-      params: JSON.stringify({ setNumber: setNum }),
+      params: JSON.stringify({ setNumber: bricksetNum }),
     });
     const resp = await fetch(`https://brickset.com/api/v3.asmx/getSets?${params}`, {
       headers: { Accept: 'application/json' },
@@ -38,7 +44,9 @@ export async function fetchBarcodes(setNum: string, env: Env): Promise<BricksetB
     const data = await resp.json() as Record<string, unknown>;
     const sets = (data.sets as Array<Record<string, unknown>>) ?? [];
     if (!sets.length) return null;
-    const barcodes = sets[0].barcodes as { EAN?: string; UPC?: string } | undefined;
+    // Prefer the matching variant; fall back to the first result.
+    const s = sets.find(x => (x.numberVariant as number) === variant) ?? sets[0];
+    const barcodes = s.barcodes as { EAN?: string; UPC?: string } | undefined;
     if (!barcodes) return null;
     return { upc: barcodes.UPC || null, ean: barcodes.EAN || null };
   } catch {
