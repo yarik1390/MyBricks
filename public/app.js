@@ -589,12 +589,22 @@ if (window.matchMedia) {
 // Run a synchronous DOM update inside a View Transition for a native-feeling
 // crossfade between routes. Falls back to a plain call when unsupported or when
 // the user prefers reduced motion.
-function withViewTransition(fn) {
-  if (document.startViewTransition && !prefersReducedMotion()) {
-    try { return document.startViewTransition(fn).finished.catch(() => {}); }
-    catch { return Promise.resolve(fn()); }
-  }
-  return Promise.resolve(fn());
+// Route transition. We deliberately do NOT use document.startViewTransition:
+// its ::view-transition pseudo-element overlay can get stuck showing the old
+// snapshot on top of the live DOM when a transition is interrupted (overlapping
+// tab taps, a mid-transition DOM mutation, or a rejected update callback),
+// which presents as a blank page that only a manual reload clears. Instead we
+// run the (possibly async) render, then play a short opacity fade on the live
+// #root element. A fade on the real element can never freeze the page — it
+// always ends at opacity:1 — so the page can never get stuck blank.
+async function withViewTransition(fn) {
+  await fn();
+  if (prefersReducedMotion()) return;
+  const root = document.getElementById('root');
+  if (!root) return;
+  root.classList.remove('route-fade');
+  void root.offsetWidth; // force reflow so the animation restarts
+  root.classList.add('route-fade');
 }
 
 function showNavProgress() {
@@ -614,12 +624,8 @@ function hideNavProgress() {
 }
 
 // True when the route can paint immediately from already-loaded state, so we
-// can skip the skeleton entirely and avoid a placeholder→content flash.
-// "Cached" means render() can paint synchronously with NO network — so it's
-// safe to run inside a View Transition. If any data is missing (e.g. themes
-// aren't persisted across reloads), report false so the route fetches OUTSIDE
-// the transition instead. Doing async work inside startViewTransition freezes
-// the page on the old snapshot and can blank it in some browsers.
+// show no top progress bar (the render is instant). When false, render() needs
+// a network fetch, so we show the progress bar while it runs.
 function hasCachedView(hash) {
   if (hash === "/" || hash === "") return !!state.portfolio;
   if (hash === "/add") return state.catalog.items.length > 0;

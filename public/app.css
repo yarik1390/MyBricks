@@ -433,10 +433,6 @@ body.offline .offline-banner { display: block; }
   display: flex;
   z-index: 30;
   padding-bottom: env(safe-area-inset-bottom);
-  /* Lift the fixed nav out of the page's view-transition snapshot so it stays
-     pinned during route crossfades instead of being captured + re-animated
-     (which made it visibly drop and snap back between tabs). */
-  view-transition-name: bv-nav;
 }
 .nav-tab {
   flex: 1;
@@ -1497,15 +1493,18 @@ body.offline .offline-banner { display: block; }
    v4.0 — native-feel polish
    ============================================================ */
 
-/* A1 — View Transitions: a quick crossfade between routes. The browser
-   snapshots old/new #root and fades. Reduced-motion users skip it (the JS
-   guard also bypasses startViewTransition). */
+/* A1 — Route fade: a quick fade-in on the freshly painted page. Applied to the
+   live #root element (not the View Transitions pseudo-overlay, which could get
+   stuck and blank the page), so it can never leave content hidden. Reduced-
+   motion users skip it (the JS guard bypasses the class too). */
 @media (prefers-reduced-motion: no-preference) {
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
-    animation-duration: 0.18s;
-    animation-timing-function: var(--ease);
+  #root.route-fade > .page {
+    animation: routeFade 0.18s var(--ease);
   }
+}
+@keyframes routeFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* A4 — chart scrub helpers (the bubble itself uses .spark-scrub above) */
