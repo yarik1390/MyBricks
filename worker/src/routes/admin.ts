@@ -1,142 +1,12 @@
 import { Hono } from 'hono';
 import { requireAdmin } from '../auth';
-import { formulaValuation } from '../lib/valuation';
-import { fetchBarcodes } from '../lib/brickset';
+import { importSets, importFigs, runBatches, BATCH } from '../jobs/import-catalog';
+import { runBackfillUpc } from '../jobs/backfill-upc';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 app.use('*', requireAdmin);
-
-const CDN = 'https://cdn.rebrickable.com/media/downloads';
-const BATCH = 100;
-const CONCURRENT = 10; // parallel D1 batch calls
-
-async function fetchGzip(url: string): Promise<string> {
-  const resp = await fetch(url, { headers: { 'User-Agent': 'Brickvault-Import/1.0' } });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status} from ${url}`);
-  const buf = await resp.arrayBuffer();
-  const ds = new DecompressionStream('gzip');
-  const writer = ds.writable.getWriter();
-  writer.write(new Uint8Array(buf));
-  writer.close();
-  const reader = ds.readable.getReader();
-  const chunks: Uint8Array[] = [];
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-  const total = chunks.reduce((s, c) => s + c.length, 0);
-  const out = new Uint8Array(total);
-  let off = 0;
-  for (const ch of chunks) { out.set(ch, off); off += ch.length; }
-  return new TextDecoder().decode(out);
-}
-
-function parseLine(line: string): string[] {
-  const cols: string[] = [];
-  let cur = '', inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
-      else inQ = !inQ;
-    } else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
-    else cur += ch;
-  }
-  cols.push(cur.trim());
-  return cols;
-}
-
-function parseCSV(text: string): Record<string, string | null>[] {
-  const lines = text.split('\n');
-  const headers = parseLine(lines[0]).map(h => h.trim());
-  return lines.slice(1).filter(Boolean).map(line => {
-    const vals = parseLine(line);
-    return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? null]));
-  });
-}
-
-async function runBatches(db: D1Database, allStmts: D1PreparedStatement[]) {
-  const chunks: D1PreparedStatement[][] = [];
-  for (let i = 0; i < allStmts.length; i += BATCH) chunks.push(allStmts.slice(i, i + BATCH));
-  for (let i = 0; i < chunks.length; i += CONCURRENT) {
-    await Promise.all(chunks.slice(i, i + CONCURRENT).map(c => db.batch(c)));
-  }
-}
-
-async function importSets(db: D1Database) {
-  const [themesText, setsText] = await Promise.all([
-    fetchGzip(`${CDN}/themes.csv.gz`),
-    fetchGzip(`${CDN}/sets.csv.gz`),
-  ]);
-
-  const themes = parseCSV(themesText);
-  const themeById = Object.fromEntries(themes.map(t => [t.id, t]));
-  const themeMap: Record<string, string> = {};
-  for (const t of themes) {
-    let cur = t;
-    for (let i = 0; i < 4 && cur.parent_id; i++) cur = themeById[cur.parent_id] || cur;
-    if (t.id) themeMap[t.id] = cur.name || '';
-  }
-
-  const themeRows = themes.filter(t => t.id && t.name);
-  await runBatches(db, themeRows.map(t =>
-    db.prepare('INSERT INTO lego_themes (id,name,parent_id) VALUES (?,?,?) ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,parent_id=EXCLUDED.parent_id')
-      .bind(parseInt(t.id!), t.name, t.parent_id ? parseInt(t.parent_id) : null)
-  ));
-
-  const sets = parseCSV(setsText).filter(s => s.set_num && s.name);
-  let skipped = 0;
-  const setStmts: D1PreparedStatement[] = [];
-
-  for (const s of sets) {
-    const pieces = parseInt(s.num_parts || '0') || 0;
-    const year = parseInt(s.year || '0') || null;
-    const theme = s.theme_id ? (themeMap[s.theme_id] || null) : null;
-    const minifigs = parseInt(s.num_minifigs || '0') || 0;
-    const img = s.img_url && s.img_url !== 'None' ? s.img_url : null;
-    let vals;
-    try { vals = formulaValuation({ pieces, year: year ?? undefined, theme, retired: false }); }
-    catch { skipped++; continue; }
-    setStmts.push(db.prepare(`
-      INSERT INTO lego_sets (set_num,name,year,theme,pieces,minifigs,image_url,retail_price,current_value,forecast_2y,forecast_5y,valuation_method,source,cached_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,'formula_bulk','rebrickable',datetime('now'))
-      ON CONFLICT (set_num) DO UPDATE SET
-        name=EXCLUDED.name, year=EXCLUDED.year, theme=EXCLUDED.theme,
-        pieces=EXCLUDED.pieces, minifigs=EXCLUDED.minifigs,
-        image_url=COALESCE(EXCLUDED.image_url, lego_sets.image_url),
-        retail_price=CASE WHEN lego_sets.valuation_method='ai' THEN lego_sets.retail_price ELSE EXCLUDED.retail_price END,
-        current_value=CASE WHEN lego_sets.valuation_method='ai' THEN lego_sets.current_value ELSE EXCLUDED.current_value END,
-        forecast_2y=CASE WHEN lego_sets.valuation_method='ai' THEN lego_sets.forecast_2y ELSE EXCLUDED.forecast_2y END,
-        forecast_5y=CASE WHEN lego_sets.valuation_method='ai' THEN lego_sets.forecast_5y ELSE EXCLUDED.forecast_5y END,
-        valuation_method=CASE WHEN lego_sets.valuation_method='ai' THEN 'ai' ELSE 'formula_bulk' END,
-        source='rebrickable', cached_at=datetime('now')
-    `).bind(s.set_num, s.name, year, theme, pieces, minifigs, img,
-            vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y));
-  }
-
-  await runBatches(db, setStmts);
-  return { loaded: setStmts.length, skipped, themes: themeRows.length };
-}
-
-async function importFigs(db: D1Database) {
-  const text = await fetchGzip(`${CDN}/minifigs.csv.gz`);
-  const figs = parseCSV(text).filter(f => f.fig_num && f.name);
-  const stmts = figs.map(f => {
-    const img = f.img_url && f.img_url !== 'None' ? f.img_url : null;
-    return db.prepare(`
-      INSERT INTO minifigs (fig_num,name,image_url)
-      VALUES (?,?,?)
-      ON CONFLICT (fig_num) DO UPDATE SET
-        name=EXCLUDED.name,
-        image_url=COALESCE(EXCLUDED.image_url, minifigs.image_url)
-    `).bind(f.fig_num, f.name, img);
-  });
-  await runBatches(db, stmts);
-  return { loaded: stmts.length };
-}
 
 app.post('/import-rebrickable', async (c) => {
   const body = await c.req.json<{ dataset?: string }>().catch(() => ({ dataset: undefined }));
@@ -145,7 +15,6 @@ app.post('/import-rebrickable', async (c) => {
     return c.json({ error: "dataset must be 'sets', 'figs', or 'all'" }, 400);
   }
 
-  // Clear any runs stuck for more than 5 minutes before checking for active ones.
   await c.env.DB.prepare(
     `UPDATE import_runs SET status='error',error='Timed out',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-5 minutes')`
   ).run();
@@ -157,12 +26,9 @@ app.post('/import-rebrickable', async (c) => {
     return c.json({ error: 'An import is already running.', run_id: active.id, started_at: active.started_at }, 409);
   }
 
-  const run = await c.env.DB.prepare(
-    "INSERT INTO import_runs (status) VALUES ('running')"
-  ).run();
+  const run = await c.env.DB.prepare("INSERT INTO import_runs (status) VALUES ('running')").run();
   const runId = run.meta.last_row_id;
 
-  // Run the actual import in the background so the response returns immediately.
   c.executionCtx.waitUntil(
     (async () => {
       try {
@@ -202,9 +68,13 @@ app.get('/import-status/:id', requireAdmin, async (c) => {
 });
 
 // POST /api/admin/backfill-upc
-// Populates lego_sets.upc from Brickset API for sets that lack a UPC.
-// Prioritises sets that users own or wishlist; caps at 80 per run.
+// Paginates through the full Brickset catalog and fills lego_sets.upc for
+// every set that is missing a barcode. Safe to re-run — skips already-filled rows.
 app.post('/backfill-upc', async (c) => {
+  if (!c.env.BRICKSET_API_KEY) {
+    return c.json({ error: 'BRICKSET_API_KEY secret not configured on the worker.' }, 500);
+  }
+
   await c.env.DB.prepare(
     `UPDATE import_runs SET status='error',error='Timed out',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-5 minutes')`
   ).run();
@@ -214,52 +84,16 @@ app.post('/backfill-upc', async (c) => {
   ).first<{ id: number }>();
   if (active) return c.json({ error: 'An import is already running.', run_id: active.id }, 409);
 
-  if (!c.env.BRICKSET_API_KEY) {
-    await c.env.DB.prepare("INSERT INTO import_runs (status,error,completed_at) VALUES ('error','BRICKSET_API_KEY secret not configured',datetime('now'))").run();
-    return c.json({ error: 'BRICKSET_API_KEY secret not configured on the worker.' }, 500);
-  }
-
   const run = await c.env.DB.prepare("INSERT INTO import_runs (status) VALUES ('running')").run();
   const runId = run.meta.last_row_id;
 
   c.executionCtx.waitUntil(
     (async () => {
       try {
-        // Prioritise owned/wishlisted sets; fall back to any sets without a UPC.
-        let { results } = await c.env.DB.prepare(`
-          SELECT DISTINCT ls.set_num FROM lego_sets ls
-          WHERE ls.upc IS NULL
-            AND (
-              ls.set_num IN (SELECT DISTINCT set_num FROM user_collection WHERE deleted_at IS NULL)
-              OR ls.set_num IN (SELECT DISTINCT set_num FROM user_wishlist)
-            )
-          LIMIT 80
-        `).all<{ set_num: string }>();
-
-        if (!results.length) {
-          // No owned/wishlisted sets without UPC — process any sets
-          ({ results } = await c.env.DB.prepare(
-            `SELECT set_num FROM lego_sets WHERE upc IS NULL LIMIT 80`
-          ).all<{ set_num: string }>());
-        }
-
-        let filled = 0;
-        const stmts: D1PreparedStatement[] = [];
-        for (const { set_num } of results) {
-          const bc = await fetchBarcodes(set_num, c.env);
-          if (bc?.upc) {
-            stmts.push(c.env.DB.prepare('UPDATE lego_sets SET upc=? WHERE set_num=?').bind(bc.upc, set_num));
-            filled++;
-          }
-        }
-
-        for (let i = 0; i < stmts.length; i += BATCH) {
-          await c.env.DB.batch(stmts.slice(i, i + BATCH));
-        }
-
+        const { processed, filled } = await runBackfillUpc(c.env);
         await c.env.DB.prepare(
-          `UPDATE import_runs SET status='completed',completed_at=datetime('now'),sets_loaded=? WHERE id=?`
-        ).bind(filled, runId).run();
+          `UPDATE import_runs SET status='completed',completed_at=datetime('now'),sets_loaded=?,sets_skipped=? WHERE id=?`
+        ).bind(filled, processed - filled, runId).run();
       } catch (e) {
         await c.env.DB.prepare(
           "UPDATE import_runs SET status='error',error=?,completed_at=datetime('now') WHERE id=?"
