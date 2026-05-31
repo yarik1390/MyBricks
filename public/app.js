@@ -1746,6 +1746,10 @@ async function renderMe() {
           <div class="lbl-wrap"><div class="lbl">Import minifigs</div><div class="desc" id="importFigsDesc">~10k minifigures from Rebrickable</div></div>
           <button class="import-btn" id="importFigsBtn" aria-label="Import minifigs">${I.download()}</button>
         </div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Backfill barcodes</div><div class="desc" id="backfillUpcDesc">Fill UPC codes from Brickset — enables free barcode scanning</div></div>
+          <button class="import-btn" id="backfillUpcBtn" aria-label="Backfill barcodes">${I.download()}</button>
+        </div>
       </div>
 
       <div class="section-title">Data</div>
@@ -1872,6 +1876,46 @@ async function renderMe() {
 
   $("#importSetsBtn")?.addEventListener("click", () => runImport("sets", "#importSetsDesc", "#importSetsBtn"));
   $("#importFigsBtn")?.addEventListener("click", () => runImport("figs", "#importFigsDesc", "#importFigsBtn"));
+
+  $("#backfillUpcBtn")?.addEventListener("click", async () => {
+    const descEl = $("#backfillUpcDesc"), btnEl = $("#backfillUpcBtn");
+    if (!btnEl || btnEl.disabled) return;
+    btnEl.disabled = true;
+    haptic("medium");
+    descEl.textContent = "Fetching barcodes…";
+    try {
+      const r = await api("/api/admin/backfill-upc", { method: "POST" });
+      if (r.status === "running" && r.run_id) {
+        let elapsed = 0;
+        const poll = setInterval(async () => {
+          elapsed += 3;
+          try {
+            const s = await api(`/api/admin/import-status/${r.run_id}`);
+            if (s.status === "completed") {
+              clearInterval(poll);
+              const n = s.sets_loaded ?? 0;
+              descEl.textContent = `✓ ${n} barcode${n !== 1 ? "s" : ""} filled`;
+              toast(`${n} barcodes filled`, "info");
+              btnEl.disabled = false;
+            } else if (s.status === "error") {
+              clearInterval(poll);
+              descEl.textContent = s.error || "Failed";
+              toast("Backfill failed: " + (s.error || "unknown"), "error");
+              btnEl.disabled = false;
+            } else if (elapsed >= 120) {
+              clearInterval(poll);
+              descEl.textContent = "Timed out — try again";
+              btnEl.disabled = false;
+            }
+          } catch { /* keep polling on transient errors */ }
+        }, 3000);
+      }
+    } catch (e) {
+      descEl.textContent = e.message || "Failed";
+      btnEl.disabled = false;
+      toast("Backfill failed: " + e.message, "error");
+    }
+  });
 
   // Export CSV (needs auth header — fetch and blob-download)
   $("#exportCsvBtn")?.addEventListener("click", async () => {
