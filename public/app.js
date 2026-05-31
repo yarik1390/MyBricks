@@ -551,50 +551,20 @@ function withViewTransition(fn) {
   return Promise.resolve(fn());
 }
 
-// --- Skeleton screens (shown synchronously before the first await) ---
-const skelLine = (w, m = "") => `<div class="skel line" style="width:${w};${m}"></div>`;
-function portfolioSkeletonHTML() {
-  return `<div class="page">
-    <div class="skel card mb-12" style="height:196px;border-radius:var(--r-3);"></div>
-    ${skelLine("130px", "margin:18px 0 14px;height:18px;")}
-    ${Array.from({ length: 3 }).map(() => `<div class="skel card mb-12" style="height:96px;"></div>`).join("")}
-  </div>`;
+function showNavProgress() {
+  const el = document.getElementById('navProgress');
+  if (!el) return;
+  el.classList.remove('done');
+  el.style.width = '0';
+  el.offsetWidth; // force reflow to restart transition
+  el.classList.add('loading');
 }
-function gridSkeletonHTML(n = 6) {
-  return `<div class="page">
-    <div class="skel card mb-12" style="height:60px;"></div>
-    ${skelLine("160px", "margin:8px 0 14px;")}
-    <div class="grid">${Array.from({ length: n }).map(() => `<div class="skel card" style="height:188px;"></div>`).join("")}</div>
-  </div>`;
-}
-function miniSkeletonHTML(n = 6) {
-  return `<div class="page">
-    ${skelLine("140px", "margin:6px 0 14px;height:18px;")}
-    <div class="skel card mb-12" style="height:64px;"></div>
-    <div class="mini-grid">${Array.from({ length: n }).map(() => `<div class="skel card" style="height:150px;"></div>`).join("")}</div>
-  </div>`;
-}
-function detailSkeletonHTML() {
-  return `<div class="page no-pad">
-    <div class="skel" style="height:300px;border-radius:0;"></div>
-    <div style="padding:18px 22px;">
-      ${skelLine("60%", "height:24px;margin-bottom:14px;")}
-      <div class="grid">${Array.from({ length: 4 }).map(() => `<div class="skel card" style="height:84px;"></div>`).join("")}</div>
-    </div>
-  </div>`;
-}
-function genericSkeletonHTML() {
-  return `<div class="page">
-    ${skelLine("150px", "margin:6px 0 16px;height:20px;")}
-    ${Array.from({ length: 3 }).map(() => `<div class="skel card mb-12" style="height:88px;"></div>`).join("")}
-  </div>`;
-}
-function skeletonFor(hash) {
-  if (hash.startsWith("/set/")) return detailSkeletonHTML();
-  if (hash === "/add") return gridSkeletonHTML();
-  if (hash === "/minifigs") return miniSkeletonHTML();
-  if (hash === "/" || hash === "") return portfolioSkeletonHTML();
-  return genericSkeletonHTML();
+function hideNavProgress() {
+  const el = document.getElementById('navProgress');
+  if (!el) return;
+  el.classList.remove('loading');
+  el.classList.add('done');
+  setTimeout(() => { el.classList.remove('done'); }, 500);
 }
 
 // True when the route can paint immediately from already-loaded state, so we
@@ -665,15 +635,14 @@ async function _routeImpl() {
   };
 
   try {
-    // If we already hold the data for this view, render straight from the
-    // in-memory cache inside one crossfade — no skeleton flash, which made
-    // re-visiting Catalog/Minifigs feel sluggish. Only cold loads (no cache)
-    // show the skeleton while the first fetch is in flight.
-    if (hasCachedView(hash)) {
-      await withViewTransition(() => render());
-    } else {
-      await withViewTransition(() => { $("#root").innerHTML = skeletonFor(hash); });
-      await render();
+    // If data is already in memory, crossfade instantly. Otherwise keep the
+    // current page visible and show a thin top progress bar while the fetch runs,
+    // then crossfade to the new page when it's ready — no skeleton flash.
+    const cached = hasCachedView(hash);
+    if (!cached) showNavProgress();
+    await withViewTransition(() => render());
+    if (!cached) {
+      hideNavProgress();
       document.querySelector('#root .page')?.setAttribute('data-fresh', '1');
     }
   } catch (e) {
