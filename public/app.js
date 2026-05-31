@@ -454,8 +454,7 @@ function renderLogin() {
     document.getElementById("googleSignIn")?.addEventListener("click", () => {
       if (!_sbUrl) { toast("Auth not configured", "error"); return; }
       const redirectTo = encodeURIComponent(location.origin + location.pathname);
-      const scopes = encodeURIComponent('openid email profile https://www.googleapis.com/auth/generative-language');
-      location.href = `${_sbUrl}/auth/v1/authorize?provider=google&scopes=${scopes}&redirect_to=${redirectTo}`;
+      location.href = `${_sbUrl}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`;
     });
 
     const submit = async () => {
@@ -1683,7 +1682,7 @@ async function renderMe() {
   const c = me.portfolio_stats || {};
   const gain = (c.total_value || 0) - (c.total_paid || 0);
   const gainPct = c.total_paid ? gain / c.total_paid : 0;
-  const geminiConnected = !!_authSession?.provider_token;
+  const savedGeminiKey = localStorage.getItem('bv_gemini_key') || '';
   const savedOpenAIKey = localStorage.getItem('bv_openai_key') || '';
 
   $("#root").innerHTML = `
@@ -1766,19 +1765,21 @@ async function renderMe() {
 
       <div class="section-title">AI Scanning</div>
       <div>
-        <div class="setting-row">
+        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">
-            <div class="lbl">Gemini (Google)</div>
-            <div class="desc">${geminiConnected ? "Connected — unlimited scans via your Google quota" : "Sign in with Google to unlock unlimited AI scanning"}</div>
+            <div class="lbl">Gemini API key (free)</div>
+            <div class="desc">${savedGeminiKey ? "Active — unlimited scans on your free Google quota" : "Get a free key at aistudio.google.com/apikey — bypasses the 20/hr limit"}</div>
           </div>
-          ${geminiConnected
-            ? `<div style="font-family:var(--mono);font-size:12px;color:var(--up);">CONNECTED</div>`
-            : `<button class="btn-secondary" id="connectGeminiBtn" style="font-size:12px;padding:6px 12px;white-space:nowrap;">Connect</button>`}
+          <div style="display:flex;gap:8px;width:100%;">
+            <input type="password" id="geminiKeyInput" value="${escapeHtml(savedGeminiKey)}" placeholder="AIza..."
+              style="flex:1;padding:10px;border:1.5px solid var(--line);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-size:13px;font-family:var(--mono);outline:none;">
+            <button class="btn-secondary" id="saveGeminiKey" style="white-space:nowrap;">Save</button>
+          </div>
         </div>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">
-            <div class="lbl">Your OpenAI key</div>
-            <div class="desc">${savedOpenAIKey ? "Custom key active — bypasses the 20/hr shared limit" : "Optional: use your own key to bypass the shared limit"}</div>
+            <div class="lbl">OpenAI key (optional)</div>
+            <div class="desc">${savedOpenAIKey ? "Active — bypasses the 20/hr shared limit" : "Optional: use your own OpenAI key to bypass the shared limit"}</div>
           </div>
           <div style="display:flex;gap:8px;width:100%;">
             <input type="password" id="openaiKeyInput" value="${escapeHtml(savedOpenAIKey)}" placeholder="sk-..."
@@ -1858,11 +1859,11 @@ async function renderMe() {
     }
   });
 
-  $("#connectGeminiBtn")?.addEventListener("click", () => {
-    if (!_sbUrl) { toast("Auth not configured", "error"); return; }
-    const redirectTo = encodeURIComponent(location.origin + location.pathname + "#/me");
-    const scopes = encodeURIComponent('openid email profile https://www.googleapis.com/auth/generative-language');
-    location.href = `${_sbUrl}/auth/v1/authorize?provider=google&scopes=${scopes}&redirect_to=${redirectTo}`;
+  $("#saveGeminiKey")?.addEventListener("click", () => {
+    const key = ($("#geminiKeyInput")?.value || "").trim();
+    if (key) { localStorage.setItem('bv_gemini_key', key); toast("Gemini key saved", "success"); }
+    else { localStorage.removeItem('bv_gemini_key'); toast("Gemini key removed", "info"); }
+    state.me = null; renderMe();
   });
   $("#saveOpenAIKey")?.addEventListener("click", () => {
     const key = ($("#openaiKeyInput")?.value || "").trim();
@@ -2339,10 +2340,10 @@ async function sendScanToAPI(payload) {
   const ac = new AbortController();
   const tid = setTimeout(() => ac.abort(), 30_000);
   try {
-    const googleToken = _authSession?.provider_token;
+    const geminiKey = localStorage.getItem('bv_gemini_key');
     const openaiKey = localStorage.getItem('bv_openai_key');
     const extraHeaders = {};
-    if (googleToken) extraHeaders['X-Google-Token'] = googleToken;
+    if (geminiKey) extraHeaders['X-Gemini-Key'] = geminiKey;
     if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
     const res = await api("/api/scan/identify", { method: "POST", body: payload, signal: ac.signal, headers: extraHeaders });
     showScanResult(res);
@@ -2662,7 +2663,6 @@ document.addEventListener("DOMContentLoaded", async () => {
           access_token: hp.get('access_token'),
           refresh_token: hp.get('refresh_token'),
           expires_at: Date.now() / 1000 + parseInt(hp.get('expires_in') || '3600'),
-          provider_token: hp.get('provider_token') || null,
         };
         saveSession(oauthSess);
         _authSession = oauthSess;

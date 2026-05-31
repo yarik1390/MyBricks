@@ -1,9 +1,10 @@
-// Calls Gemini 1.5 Flash with the user's Google OAuth token (from provider_token
-// in the Supabase session). Uses the caller's own free-tier quota — not the
-// server's OpenAI key — so it doesn't count against the 20/hr rate limit.
+// Calls Gemini 1.5 Flash with a user-supplied Gemini API key (free from Google
+// AI Studio: https://aistudio.google.com/apikey). The free tier gives ~1500
+// requests/day, so scans run on the user's own quota — not the server's OpenAI
+// key — and don't count against the shared rate limit.
 export async function callGeminiScan(
   imageDataUrl: string,
-  googleToken: string,
+  apiKey: string,
 ): Promise<{ set_num?: string; name?: string; confidence: string; reasoning: string } | null> {
   const match = imageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (!match) return null;
@@ -27,7 +28,7 @@ export async function callGeminiScan(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${googleToken}`,
+          'x-goog-api-key': apiKey,
         },
         body: JSON.stringify(body),
       },

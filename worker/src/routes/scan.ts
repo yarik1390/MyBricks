@@ -31,10 +31,10 @@ app.post('/identify', async (c) => {
   if (mode !== 'image') return c.json({ error: 'mode must be image or barcode' }, 400);
   if (!image) return c.json({ error: 'image required' }, 400);
 
-  // Gemini path: user's Google OAuth token — uses their own quota, no rate limit here.
-  const googleToken = c.req.header('X-Google-Token');
-  if (googleToken) {
-    const identified = await callGeminiScan(image, googleToken);
+  // Gemini path: user's own Gemini API key — uses their own quota, no rate limit here.
+  const geminiKey = c.req.header('X-Gemini-Key');
+  if (geminiKey) {
+    const identified = await callGeminiScan(image, geminiKey);
     if (!identified) return c.json({ identified: false, reasoning: 'Gemini could not process the image.' });
     if (identified.confidence === 'none' || !identified.set_num) {
       return c.json({ identified: false, confidence: 'none', reasoning: identified.reasoning });
