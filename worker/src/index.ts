@@ -53,10 +53,12 @@ export default {
       case '0 2 * * *': await runSnapshotPortfolios(env); break;
       case '0 3 * * *': await runSnapshotSetValues(env); break;
       case '0 8 * * *': await runWishlistAlerts(env); break;
-      // Weekly Sunday: sync Brickset barcodes for the full catalog
-      case '0 4 * * 0': await runBackfillUpc(env); break;
-      // Weekly Sunday: re-import Rebrickable catalog to pick up new sets
-      case '0 5 * * 0': await importSets(env.DB); await importFigs(env.DB); break;
+      // Weekly Sunday 4am: sync Brickset barcodes then re-import Rebrickable catalog
+      case '0 4 * * 0':
+        await runBackfillUpc(env);
+        await importSets(env.DB);
+        await importFigs(env.DB);
+        break;
     }
   },
 };

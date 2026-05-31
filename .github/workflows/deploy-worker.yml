@@ -79,8 +79,14 @@ jobs:
       - name: Deploy Worker and capture URL
         working-directory: worker
         run: |
+          set +e
           DEPLOY_OUT=$(npx wrangler deploy 2>&1)
+          DEPLOY_EXIT=$?
           echo "$DEPLOY_OUT"
+          if [ $DEPLOY_EXIT -ne 0 ]; then
+            echo "::error::wrangler deploy failed (exit $DEPLOY_EXIT)" >&2
+            exit $DEPLOY_EXIT
+          fi
           WORKER_URL=$(echo "$DEPLOY_OUT" | grep -oE 'https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev' | head -1)
           if [ -z "$WORKER_URL" ]; then
             # fallback: query the subdomain API
