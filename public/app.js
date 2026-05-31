@@ -52,6 +52,51 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
 /* ---------- state ---------- */
+/* ---------- IndexedDB cache (state persistence across reloads) ---------- */
+const bvIDB = (() => {
+  function open() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('brickvault', 1);
+      r.onupgradeneeded = e => { if (!e.target.result.objectStoreNames.contains('kv')) e.target.result.createObjectStore('kv'); };
+      r.onsuccess = e => res(e.target.result);
+      r.onerror = e => rej(e.target.error);
+    });
+  }
+  async function get(k) { const db = await open(); return new Promise((res, rej) => { const r = db.transaction('kv','readonly').objectStore('kv').get(k); r.onsuccess=()=>res(r.result); r.onerror=e=>rej(e.target.error); }); }
+  async function set(k, v) { const db = await open(); return new Promise((res, rej) => { const r = db.transaction('kv','readwrite').objectStore('kv').put(v,k); r.onsuccess=()=>res(); r.onerror=e=>rej(e.target.error); }); }
+  return { get, set };
+})();
+
+/* ---------- Offline outbox (queue mutations for replay when back online) ---------- */
+const OUTBOX_KEY = 'bv_outbox';
+function outboxEnqueue(item) {
+  try {
+    const q = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]');
+    q.push({ id: Date.now(), ...item });
+    localStorage.setItem(OUTBOX_KEY, JSON.stringify(q));
+  } catch {}
+}
+function outboxDequeue(id) {
+  try {
+    const q = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]');
+    localStorage.setItem(OUTBOX_KEY, JSON.stringify(q.filter(x => x.id !== id)));
+  } catch {}
+}
+async function drainOutbox() {
+  try {
+    const q = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]');
+    if (!q.length) return;
+    let synced = 0;
+    for (const item of q) {
+      await api(item.path, { method: item.method, ...(item.body ? { body: item.body } : {}) });
+      outboxDequeue(item.id);
+      synced++;
+    }
+    state.portfolio = null;
+    if (synced) toast(`${synced} offline action${synced > 1 ? 's' : ''} synced`, 'success');
+  } catch {}
+}
+
 const state = {
   portfolio: null,
   catalog: { items: [], total: 0, offset: 0, hasMore: false, loading: false, pageSize: 24 },
@@ -671,6 +716,7 @@ async function renderPortfolio() {
       state.portfolioHistory = hist.snapshots || [];
       state.wishlist = wl.wishlist || [];
       state.wishlistAlerts = wl.unread_alerts || [];
+      bvIDB.set('portfolio', { data: state.portfolio, ts: Date.now() }).catch(() => {});
     } catch (e) {
       toast("Couldn't load collection: " + e.message, "error");
       state.portfolio = { items: [], total_value: 0, total_paid: 0, count: 0 };
@@ -971,7 +1017,7 @@ async function loadCatalog({ reset = false } = {}) {
   // reset=true always wins; non-reset (scroll) loads back off if one is already running.
   if (!reset && c.loading) return [];
   if (!reset && !c.hasMore) return [];
-  if (reset) { _catalogGen++; c.offset = 0; c.items = []; c.hasMore = false; c.total = 0; }
+  if (reset) { _catalogGen++; c.offset = 0; c.hasMore = false; c.total = 0; }
   const myGen = _catalogGen;
   c.loading = true;
   try {
@@ -1001,14 +1047,29 @@ async function loadCatalog({ reset = false } = {}) {
   }
 }
 
+function isCatalogDefault() {
+  const f = state.filter;
+  return !f.q && f.catalogTheme === 'all' && f.catalogYear === 'all' && !f.catalogRetired &&
+    Object.values(f.catalogRanges || {}).every(v => v === '');
+}
+
 async function renderAdd() {
   if (!state.themes.length) {
     try { const t = await api("/api/themes"); state.themes = t.themes || []; state.themesLoadedAt = Date.now(); } catch {}
   }
-  // Reuse cached results on re-visit so the grid paints instantly. Re-fetching
-  // with reset:true here cleared state.catalog.items mid-navigation, which made
-  // the catalog blank out when switching tabs quickly.
-  if (!state.catalog.items.length) await loadCatalog({ reset: true });
+  if (!state.catalog.items.length) {
+    await loadCatalog({ reset: true });
+    if (isCatalogDefault()) bvIDB.set('catalog', { data: { items: state.catalog.items, total: state.catalog.total, hasMore: state.catalog.hasMore, offset: state.catalog.offset }, ts: Date.now() }).catch(() => {});
+  } else if (state.catalog._stale) {
+    // IDB-hydrated data: paint instantly, then refresh grid in background.
+    state.catalog._stale = false;
+    loadCatalog({ reset: true }).then(() => {
+      if (location.hash === '#/add') {
+        paintAdd();
+        if (isCatalogDefault()) bvIDB.set('catalog', { data: { items: state.catalog.items, total: state.catalog.total, hasMore: state.catalog.hasMore, offset: state.catalog.offset }, ts: Date.now() }).catch(() => {});
+      }
+    }).catch(() => {});
+  }
   paintAdd();
 }
 
@@ -1388,8 +1449,13 @@ function wireInfoTab(set, entry) {
       }
       const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
       paintSetDetail(r.set || r, r.entry || null);
-    } catch (e) { setBtnLoading($("#addBtn"), false); toast("Error: " + e.message, "error"); }
-    finally { state.pendingRequests.delete(set.set_num); }
+    } catch (e) {
+      setBtnLoading($("#addBtn"), false);
+      if (!navigator.onLine) {
+        outboxEnqueue({ path: '/api/collection', method: 'POST', body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
+        toast('Saved offline — will sync when connected', 'info');
+      } else { toast("Error: " + e.message, "error"); }
+    } finally { state.pendingRequests.delete(set.set_num); }
   });
   $("#wishToggle")?.addEventListener("click", async () => {
     const wishKey = 'wish_' + set.set_num;
@@ -1562,7 +1628,14 @@ function wireManageTab(set, entry) {
       toast("Removed from vault", "info");
       if (history.length > 1) history.back();
       else location.hash = "#/";
-    } catch (e) { toast("Error: " + e.message, "error"); }
+    } catch (e) {
+      if (!navigator.onLine && entry?.id) {
+        outboxEnqueue({ path: '/api/collection/' + entry.id, method: 'DELETE' });
+        state.portfolio = null;
+        toast('Removed offline — will sync when connected', 'info');
+        if (history.length > 1) history.back(); else location.hash = '#/';
+      } else { toast("Error: " + e.message, "error"); }
+    }
   });
 }
 
@@ -2078,7 +2151,7 @@ function renderPile() {
 async function loadBlind({ reset = false } = {}) {
   const b = state.blind;
   if (b.loading) return [];
-  if (reset) { b.offset = 0; b.items = []; b.hasMore = false; b.total = 0; }
+  if (reset) { b.offset = 0; b.hasMore = false; b.total = 0; }
   else if (!b.hasMore) return [];
   b.loading = true;
   try {
@@ -2164,8 +2237,19 @@ function mountBlindSentinel() {
 }
 
 async function renderBlind() {
-  // Reuse cached minifigs on re-visit so the grid paints instantly.
-  if (!state.blind.items.length) await loadBlind({ reset: true });
+  if (!state.blind.items.length) {
+    await loadBlind({ reset: true });
+    bvIDB.set('blind', { data: { items: state.blind.items, total: state.blind.total, hasMore: state.blind.hasMore, offset: state.blind.offset }, ts: Date.now() }).catch(() => {});
+  } else if (state.blind._stale) {
+    state.blind._stale = false;
+    loadBlind({ reset: true }).then(() => {
+      if (location.hash === '#/minifigs') {
+        const grid = document.getElementById('miniGrid');
+        if (grid) { grid.innerHTML = state.blind.items.map(f => miniCardHTML(f)).join(''); wireMiniCards(); }
+        bvIDB.set('blind', { data: { items: state.blind.items, total: state.blind.total, hasMore: state.blind.hasMore, offset: state.blind.offset }, ts: Date.now() }).catch(() => {});
+      }
+    }).catch(() => {});
+  }
   const b = state.blind;
   const ownedCount = b.items.filter(f => state.ownedFigs.has(f.fig_num)).length;
 
@@ -2403,7 +2487,12 @@ function showScanResult(res) {
       closeScan();
       toast("Added " + set.name, "success");
       location.hash = "#/";
-    } catch (e) { toast("Error: " + e.message, "error"); }
+    } catch (e) {
+      if (!navigator.onLine) {
+        outboxEnqueue({ path: '/api/collection', method: 'POST', body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
+        closeScan(); toast('Saved offline — will sync when connected', 'info'); location.hash = '#/';
+      } else { toast("Error: " + e.message, "error"); }
+    }
   });
 }
 
@@ -2556,7 +2645,12 @@ function showQuickActions(setNum) {
     const item = (state.portfolio?.items || []).find(s => s.set_num === setNum);
     if (item) {
       try { await api("/api/collection/" + item.id, { method: "DELETE" }); state.portfolio = null; toast("Removed", "info"); }
-      catch (e) { toast("Error: " + e.message, "error"); }
+      catch (e) {
+        if (!navigator.onLine && item) {
+          outboxEnqueue({ path: '/api/collection/' + item.id, method: 'DELETE' });
+          state.portfolio = null; toast('Removed offline — will sync when connected', 'info');
+        } else { toast("Error: " + e.message, "error"); }
+      }
     }
     hideSheet(); paintPortfolio();
   });
@@ -2637,6 +2731,25 @@ document.addEventListener("error", (e) => {
   img.remove();
 }, true); // capture — image error events don't bubble
 
+async function hydrateFromIDB() {
+  const MAX_AGE = 3_600_000; // 1 hour
+  const now = Date.now();
+  try {
+    const [p, c, b] = await Promise.all([
+      bvIDB.get('portfolio'), bvIDB.get('catalog'), bvIDB.get('blind'),
+    ]);
+    if (p?.ts && now - p.ts < MAX_AGE) state.portfolio = p.data;
+    if (c?.ts && now - c.ts < MAX_AGE && c.data?.items?.length) {
+      Object.assign(state.catalog, c.data);
+      state.catalog._stale = true;
+    }
+    if (b?.ts && now - b.ts < MAX_AGE && b.data?.items?.length) {
+      Object.assign(state.blind, b.data);
+      state.blind._stale = true;
+    }
+  } catch {}
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   // Load session and Supabase config before any routing.
   _authSession = loadSession();
@@ -2687,7 +2800,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Offline indicator
   const offlineHandler = () => document.body.classList.toggle("offline", !navigator.onLine);
-  window.addEventListener("online", offlineHandler);
+  window.addEventListener("online", () => { offlineHandler(); drainOutbox(); });
   window.addEventListener("offline", offlineHandler);
   offlineHandler();
 
@@ -2699,6 +2812,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       .catch(() => {});
     navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
   }
+
+  // Hydrate in-memory state from IDB so first tab visit is instant.
+  if (_authSession) await hydrateFromIDB();
 
   // Initial route — after config and session are loaded.
   await route();
