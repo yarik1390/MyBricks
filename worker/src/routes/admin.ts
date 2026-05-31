@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { requireAdmin } from '../auth';
 import { importSets, importFigs, runBatches, BATCH } from '../jobs/import-catalog';
 import { runBackfillUpc } from '../jobs/backfill-upc';
+import { checkBricksetKey } from '../lib/brickset';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -109,6 +110,25 @@ app.post('/backfill-upc', async (c) => {
   );
 
   return c.json({ ok: true, status: 'running', run_id: runId });
+});
+
+// GET /api/admin/test-brickset?set=75192
+// Returns the raw Brickset API response for a single set, for debugging.
+app.get('/test-brickset', async (c) => {
+  const setNum = c.req.query('set') ?? '75192';
+  if (!c.env.BRICKSET_API_KEY) return c.json({ error: 'BRICKSET_API_KEY not set' }, 500);
+  const keyErr = await checkBricksetKey(c.env);
+  if (keyErr) return c.json({ error: keyErr }, 500);
+  const params = new URLSearchParams({
+    apiKey: c.env.BRICKSET_API_KEY,
+    userHash: '',
+    params: JSON.stringify({ setNumber: setNum }),
+  });
+  const resp = await fetch(`https://brickset.com/api/v3.asmx/getSets?${params}`, {
+    headers: { Accept: 'application/json' },
+  });
+  const raw = await resp.json();
+  return c.json({ http_status: resp.status, brickset: raw });
 });
 
 export { app as adminRoute };
