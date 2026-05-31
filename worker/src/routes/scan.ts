@@ -14,7 +14,15 @@ app.post('/identify', async (c) => {
 
   if (mode === 'barcode') {
     if (!barcode) return c.json({ error: 'barcode required' }, 400);
-    const r = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE upc=?').bind(barcode).first();
+    // Try the scanned value; also try EAN↔UPC conversion (EAN-13 starting with 0 == UPC-A without the leading 0).
+    const candidates = [barcode];
+    if (barcode.length === 13 && barcode.startsWith('0')) candidates.push(barcode.slice(1));
+    else if (barcode.length === 12) candidates.push('0' + barcode);
+    let r = null;
+    for (const bc of candidates) {
+      r = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE upc=?').bind(bc).first();
+      if (r) break;
+    }
     if (!r) return c.json({ identified: false, reasoning: 'Barcode not in catalog. Try a photo scan instead.' });
     return c.json({ identified: true, set: r, confidence: 'high', reasoning: 'Barcode matched in catalog.' });
   }
