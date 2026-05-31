@@ -606,7 +606,25 @@ function hasCachedView(hash) {
   return false;
 }
 
+// Serialize navigation. Rapid tab taps fire overlapping route() calls that each
+// paint #root and each start their own View Transition; a slow or stale render
+// could then clobber the page you just landed on, leaving a stuck skeleton until
+// a manual refresh. Coalesce to a single in-flight route — if taps arrive while
+// one is running, run exactly once more afterwards against the latest hash.
+let _routeBusy = false;
+let _routeQueued = false;
 async function route() {
+  if (_routeBusy) { _routeQueued = true; return; }
+  _routeBusy = true;
+  try {
+    await _routeImpl();
+  } finally {
+    _routeBusy = false;
+    if (_routeQueued) { _routeQueued = false; route(); }
+  }
+}
+
+async function _routeImpl() {
   let hash = location.hash.replace("#", "") || "/";
   if (hash === "/blind") { location.hash = "#/minifigs"; return; }
 
