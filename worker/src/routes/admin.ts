@@ -214,13 +214,19 @@ app.post('/backfill-upc', async (c) => {
   ).first<{ id: number }>();
   if (active) return c.json({ error: 'An import is already running.', run_id: active.id }, 409);
 
+  if (!c.env.BRICKSET_API_KEY) {
+    await c.env.DB.prepare("INSERT INTO import_runs (status,error,completed_at) VALUES ('error','BRICKSET_API_KEY secret not configured',datetime('now'))").run();
+    return c.json({ error: 'BRICKSET_API_KEY secret not configured on the worker.' }, 500);
+  }
+
   const run = await c.env.DB.prepare("INSERT INTO import_runs (status) VALUES ('running')").run();
   const runId = run.meta.last_row_id;
 
   c.executionCtx.waitUntil(
     (async () => {
       try {
-        const { results } = await c.env.DB.prepare(`
+        // Prioritise owned/wishlisted sets; fall back to any sets without a UPC.
+        let { results } = await c.env.DB.prepare(`
           SELECT DISTINCT ls.set_num FROM lego_sets ls
           WHERE ls.upc IS NULL
             AND (
@@ -229,6 +235,13 @@ app.post('/backfill-upc', async (c) => {
             )
           LIMIT 80
         `).all<{ set_num: string }>();
+
+        if (!results.length) {
+          // No owned/wishlisted sets without UPC — process any sets
+          ({ results } = await c.env.DB.prepare(
+            `SELECT set_num FROM lego_sets WHERE upc IS NULL LIMIT 80`
+          ).all<{ set_num: string }>());
+        }
 
         let filled = 0;
         const stmts: D1PreparedStatement[] = [];
