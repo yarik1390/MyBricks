@@ -69,7 +69,7 @@ export async function fetchSetPricing(setNum: string, env: Env): Promise<BrickLi
 
     const d = body.data;
     const lotCount = Number(d.unit_quantity ?? 0);
-    if (lotCount < 2) return null; // too few data points — skip
+    if (lotCount < 5) return null; // require ≥5 sold lots for reliable pricing
 
     const current = parseFloat(String(d.qty_avg_price || d.avg_price || '')) || null;
     if (!current) return null;

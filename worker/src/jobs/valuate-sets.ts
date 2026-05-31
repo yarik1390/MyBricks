@@ -51,16 +51,23 @@ export async function runValuateSets(env: Env) {
       const text = result.choices[0].message.content;
       if (!text || result.choices[0].finish_reason === 'length') continue;
       const vals = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as {
-        retail_price: number; current_value: number; forecast_2y: number; forecast_5y: number; retired: boolean;
+        retail_price: number; current_value: number; forecast_2y: number; forecast_5y: number;
       };
+      // Sanity-check the AI value against retail price to reject hallucinations.
+      if (vals.retail_price && vals.current_value) {
+        if (vals.current_value < 0.3 * vals.retail_price || vals.current_value > 30 * vals.retail_price) {
+          console.warn(`[valuate] ${set.set_num}: AI value $${vals.current_value} out of sanity range vs retail $${vals.retail_price} — skipped`);
+          continue;
+        }
+      }
       await env.DB.prepare(`
         UPDATE lego_sets SET
           retail_price=?, current_value=?, forecast_2y=?, forecast_5y=?,
-          retired=?, valuation_method='ai',
+          valuation_method='ai',
           valuation_expires_at=datetime('now', '+30 days')
         WHERE set_num=?
       `).bind(vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y,
-              vals.retired ? 1 : 0, set.set_num).run();
+              set.set_num).run();
       updated++; ai++;
     } catch (e) {
       console.warn(`[valuate] failed for ${set.set_num}:`, (e as Error).message);

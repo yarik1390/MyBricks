@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import OpenAI from 'openai';
 import { requireMember } from '../auth';
+import { callGeminiScan } from '../lib/gemini';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -30,7 +31,23 @@ app.post('/identify', async (c) => {
   if (mode !== 'image') return c.json({ error: 'mode must be image or barcode' }, 400);
   if (!image) return c.json({ error: 'image required' }, 400);
 
-  // Rate limit: 20 scans/hour per user
+  // Gemini path: user's Google OAuth token — uses their own quota, no rate limit here.
+  const googleToken = c.req.header('X-Google-Token');
+  if (googleToken) {
+    const identified = await callGeminiScan(image, googleToken);
+    if (!identified) return c.json({ identified: false, reasoning: 'Gemini could not process the image.' });
+    if (identified.confidence === 'none' || !identified.set_num) {
+      return c.json({ identified: false, confidence: 'none', reasoning: identified.reasoning });
+    }
+    let set = null;
+    for (const sn of [identified.set_num, identified.set_num + '-1']) {
+      const r = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(sn).first<Record<string, unknown>>();
+      if (r) { set = { ...r, retired: !!r.retired }; break; }
+    }
+    return c.json({ identified: !!set, set, confidence: identified.confidence, reasoning: identified.reasoning, model: 'gemini-1.5-flash' });
+  }
+
+  // OpenAI path — rate-limited per user: 20 scans/hour.
   const windowStart = new Date();
   windowStart.setMinutes(0, 0, 0);
   const ws = windowStart.toISOString();
@@ -45,16 +62,20 @@ app.post('/identify', async (c) => {
     'SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint=? AND window_start=?'
   ).bind(userId, 'scan_image', ws).first<{ hit_count: number }>();
 
-  if ((rl?.hit_count || 0) > 20) {
-    return c.json({ error: 'Rate limit: 20 photo scans per hour.' }, 429);
+  if ((rl?.hit_count || 0) >= 20) {
+    return c.json({ error: 'Rate limit: 20 photo scans per hour. Sign in with Google to unlock unlimited scanning.' }, 429);
   }
 
-  const openai = new OpenAI({ apiKey: c.env.OPENAI_API_KEY });
+  // Allow caller to supply their own OpenAI key (BYOK) to bypass the shared limit.
+  const openaiKey = c.req.header('X-OpenAI-Key') || c.env.OPENAI_API_KEY;
+  const openai = new OpenAI({ apiKey: openaiKey });
+
   let identified: { set_num?: string; name?: string; confidence?: string; reasoning?: string };
   try {
     const result = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       max_tokens: 256,
+      response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: 'You are a LEGO product-identification expert. Return JSON only: { "set_num": "...", "name": "...", "confidence": "high|medium|low|none", "reasoning": "..." }' },
         { role: 'user', content: [
@@ -63,7 +84,7 @@ app.post('/identify', async (c) => {
         ]},
       ],
     });
-    identified = JSON.parse(result.choices[0].message.content!.replace(/```json?\n?|```/g, '').trim());
+    identified = JSON.parse(result.choices[0].message.content!.trim());
   } catch (e) {
     console.warn('[scan] AI parse failed:', (e as Error).message);
     return c.json({ identified: false, reasoning: 'Could not parse AI response.' });
@@ -79,7 +100,7 @@ app.post('/identify', async (c) => {
     if (r) { set = { ...r, retired: !!r.retired }; break; }
   }
 
-  return c.json({ identified: !!set, set, confidence: identified.confidence, reasoning: identified.reasoning });
+  return c.json({ identified: !!set, set, confidence: identified.confidence, reasoning: identified.reasoning, model: 'gpt-4o-mini' });
 });
 
 export { app as scanRoute };

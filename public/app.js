@@ -73,6 +73,7 @@ const state = {
   ownedFigs: new Set(JSON.parse(localStorage.getItem("bv_figs") || "[]")),
   toastTimer: null,
   camera: { stream: null, mode: "barcode", detector: null, scanning: false, timer: null },
+  pendingRequests: new Set(),
 };
 
 /* ---------- Supabase auth (no SDK — plain fetch to REST API) ---------- */
@@ -453,7 +454,8 @@ function renderLogin() {
     document.getElementById("googleSignIn")?.addEventListener("click", () => {
       if (!_sbUrl) { toast("Auth not configured", "error"); return; }
       const redirectTo = encodeURIComponent(location.origin + location.pathname);
-      location.href = `${_sbUrl}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`;
+      const scopes = encodeURIComponent('openid email profile https://www.googleapis.com/auth/generative-language');
+      location.href = `${_sbUrl}/auth/v1/authorize?provider=google&scopes=${scopes}&redirect_to=${redirectTo}`;
     });
 
     const submit = async () => {
@@ -655,6 +657,7 @@ async function route() {
     } else {
       await withViewTransition(() => { $("#root").innerHTML = skeletonFor(hash); });
       await render();
+      document.querySelector('#root .page')?.setAttribute('data-fresh', '1');
     }
   } catch (e) {
     if (e && e.__redirect) return;
@@ -1373,6 +1376,8 @@ function wireInfoTab(set, entry) {
     catch (e) { toast("Save failed", "error"); }
   });
   $("#addBtn")?.addEventListener("click", async (e) => {
+    if (state.pendingRequests.has(set.set_num)) return;
+    state.pendingRequests.add(set.set_num);
     haptic("heavy");
     setBtnLoading(e.currentTarget, true);
     try {
@@ -1395,8 +1400,12 @@ function wireInfoTab(set, entry) {
       const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
       paintSetDetail(r.set || r, r.entry || null);
     } catch (e) { setBtnLoading($("#addBtn"), false); toast("Error: " + e.message, "error"); }
+    finally { state.pendingRequests.delete(set.set_num); }
   });
   $("#wishToggle")?.addEventListener("click", async () => {
+    const wishKey = 'wish_' + set.set_num;
+    if (state.pendingRequests.has(wishKey)) return;
+    state.pendingRequests.add(wishKey);
     haptic("medium");
     const alreadyWished = state.wishlist.some(w => w.set_num === set.set_num);
     try {
@@ -1412,6 +1421,7 @@ function wireInfoTab(set, entry) {
       }
       paintSetDetail(set, entry);
     } catch (e) { toast("Error: " + e.message, "error"); }
+    finally { state.pendingRequests.delete(wishKey); }
   });
 }
 
@@ -1673,6 +1683,8 @@ async function renderMe() {
   const c = me.portfolio_stats || {};
   const gain = (c.total_value || 0) - (c.total_paid || 0);
   const gainPct = c.total_paid ? gain / c.total_paid : 0;
+  const geminiConnected = !!_authSession?.provider_token;
+  const savedOpenAIKey = localStorage.getItem('bv_openai_key') || '';
 
   $("#root").innerHTML = `
     <div class="page">
@@ -1752,6 +1764,30 @@ async function renderMe() {
         </div>
       </div>
 
+      <div class="section-title">AI Scanning</div>
+      <div>
+        <div class="setting-row">
+          <div class="lbl-wrap">
+            <div class="lbl">Gemini (Google)</div>
+            <div class="desc">${geminiConnected ? "Connected — unlimited scans via your Google quota" : "Sign in with Google to unlock unlimited AI scanning"}</div>
+          </div>
+          ${geminiConnected
+            ? `<div style="font-family:var(--mono);font-size:12px;color:var(--up);">CONNECTED</div>`
+            : `<button class="btn-secondary" id="connectGeminiBtn" style="font-size:12px;padding:6px 12px;white-space:nowrap;">Connect</button>`}
+        </div>
+        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+          <div class="lbl-wrap">
+            <div class="lbl">Your OpenAI key</div>
+            <div class="desc">${savedOpenAIKey ? "Custom key active — bypasses the 20/hr shared limit" : "Optional: use your own key to bypass the shared limit"}</div>
+          </div>
+          <div style="display:flex;gap:8px;width:100%;">
+            <input type="password" id="openaiKeyInput" value="${escapeHtml(savedOpenAIKey)}" placeholder="sk-..."
+              style="flex:1;padding:10px;border:1.5px solid var(--line);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-size:13px;font-family:var(--mono);outline:none;">
+            <button class="btn-secondary" id="saveOpenAIKey" style="white-space:nowrap;">Save</button>
+          </div>
+        </div>
+      </div>
+
       <div class="section-title">Data</div>
       <div>
         <div class="setting-row">
@@ -1820,6 +1856,19 @@ async function renderMe() {
       api("/api/me", { method: "PATCH", body: { display_name: name.trim().slice(0, 40) } })
         .then(() => { state.me = null; renderMe(); }).catch(e => toast("Error: " + e.message, "error"));
     }
+  });
+
+  $("#connectGeminiBtn")?.addEventListener("click", () => {
+    if (!_sbUrl) { toast("Auth not configured", "error"); return; }
+    const redirectTo = encodeURIComponent(location.origin + location.pathname + "#/me");
+    const scopes = encodeURIComponent('openid email profile https://www.googleapis.com/auth/generative-language');
+    location.href = `${_sbUrl}/auth/v1/authorize?provider=google&scopes=${scopes}&redirect_to=${redirectTo}`;
+  });
+  $("#saveOpenAIKey")?.addEventListener("click", () => {
+    const key = ($("#openaiKeyInput")?.value || "").trim();
+    if (key) { localStorage.setItem('bv_openai_key', key); toast("OpenAI key saved", "success"); }
+    else { localStorage.removeItem('bv_openai_key'); toast("OpenAI key removed", "info"); }
+    state.me = null; renderMe();
   });
 
   async function runImport(dataset, descId, btnId) {
@@ -2232,6 +2281,9 @@ async function startCamera() {
       state.camera.detector = new BarcodeDetector({ formats: ["ean_13","ean_8","upc_a","upc_e","code_128","code_39"] });
       state.camera.scanning = true;
       state.camera.timer = setInterval(scanBarcode, 400);
+    } else if (state.camera.mode === "barcode") {
+      const hint = $("#scanHint");
+      if (hint) hint.textContent = "Barcode scanning isn't supported on this browser — switch to photo mode";
     }
   } catch (e) {
     const hint = $("#scanHint");
@@ -2287,7 +2339,12 @@ async function sendScanToAPI(payload) {
   const ac = new AbortController();
   const tid = setTimeout(() => ac.abort(), 30_000);
   try {
-    const res = await api("/api/scan/identify", { method: "POST", body: payload, signal: ac.signal });
+    const googleToken = _authSession?.provider_token;
+    const openaiKey = localStorage.getItem('bv_openai_key');
+    const extraHeaders = {};
+    if (googleToken) extraHeaders['X-Google-Token'] = googleToken;
+    if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
+    const res = await api("/api/scan/identify", { method: "POST", body: payload, signal: ac.signal, headers: extraHeaders });
     showScanResult(res);
   } catch (e) {
     const msg = ac.signal.aborted ? "Took too long — try again." : e.message;
@@ -2605,6 +2662,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           access_token: hp.get('access_token'),
           refresh_token: hp.get('refresh_token'),
           expires_at: Date.now() / 1000 + parseInt(hp.get('expires_in') || '3600'),
+          provider_token: hp.get('provider_token') || null,
         };
         saveSession(oauthSess);
         _authSession = oauthSess;

@@ -120,14 +120,9 @@ body.offline .offline-banner { display: block; }
    ============================================================ */
 .page {
   padding: 18px 22px 28px;
-  animation: pageIn 0.42s var(--ease);
 }
 .page.no-pad { padding: 0 0 28px; }
 .page.no-pad-top { padding-top: 0; }
-@keyframes pageIn {
-  from { transform: translateX(24px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
 
 /* ============================================================
    Top bar
@@ -1482,7 +1477,7 @@ body.offline .offline-banner { display: block; }
 @media (prefers-reduced-motion: no-preference) {
   ::view-transition-old(root),
   ::view-transition-new(root) {
-    animation-duration: 0.26s;
+    animation-duration: 0.18s;
     animation-timing-function: var(--ease);
   }
 }
@@ -1534,34 +1529,35 @@ body.offline .offline-banner { display: block; }
 }
 .btn-secondary.is-loading::after { color: var(--ink); }
 
-/* A5 — staggered entrance for list/grid items on first paint */
+/* A5 — staggered entrance for list/grid items — only on pages freshly loaded
+   from the network ([data-fresh]), not on cached re-visits. */
 @media (prefers-reduced-motion: no-preference) {
-  .set-list .set-list-card,
-  .grid .set-card,
-  .mini-grid .mini-card {
+  .page[data-fresh] .set-list .set-list-card,
+  .page[data-fresh] .grid .set-card,
+  .page[data-fresh] .mini-grid .mini-card {
     animation: itemIn 0.34s var(--ease) both;
   }
-  .set-list .set-list-card:nth-child(1),
-  .grid .set-card:nth-child(1),
-  .mini-grid .mini-card:nth-child(1) { animation-delay: 0.02s; }
-  .set-list .set-list-card:nth-child(2),
-  .grid .set-card:nth-child(2),
-  .mini-grid .mini-card:nth-child(2) { animation-delay: 0.05s; }
-  .set-list .set-list-card:nth-child(3),
-  .grid .set-card:nth-child(3),
-  .mini-grid .mini-card:nth-child(3) { animation-delay: 0.08s; }
-  .set-list .set-list-card:nth-child(4),
-  .grid .set-card:nth-child(4),
-  .mini-grid .mini-card:nth-child(4) { animation-delay: 0.11s; }
-  .set-list .set-list-card:nth-child(5),
-  .grid .set-card:nth-child(5),
-  .mini-grid .mini-card:nth-child(5) { animation-delay: 0.14s; }
-  .set-list .set-list-card:nth-child(6),
-  .grid .set-card:nth-child(6),
-  .mini-grid .mini-card:nth-child(6) { animation-delay: 0.17s; }
-  .set-list .set-list-card:nth-child(n+7),
-  .grid .set-card:nth-child(n+7),
-  .mini-grid .mini-card:nth-child(n+7) { animation-delay: 0.19s; }
+  .page[data-fresh] .set-list .set-list-card:nth-child(1),
+  .page[data-fresh] .grid .set-card:nth-child(1),
+  .page[data-fresh] .mini-grid .mini-card:nth-child(1) { animation-delay: 0.02s; }
+  .page[data-fresh] .set-list .set-list-card:nth-child(2),
+  .page[data-fresh] .grid .set-card:nth-child(2),
+  .page[data-fresh] .mini-grid .mini-card:nth-child(2) { animation-delay: 0.05s; }
+  .page[data-fresh] .set-list .set-list-card:nth-child(3),
+  .page[data-fresh] .grid .set-card:nth-child(3),
+  .page[data-fresh] .mini-grid .mini-card:nth-child(3) { animation-delay: 0.08s; }
+  .page[data-fresh] .set-list .set-list-card:nth-child(4),
+  .page[data-fresh] .grid .set-card:nth-child(4),
+  .page[data-fresh] .mini-grid .mini-card:nth-child(4) { animation-delay: 0.11s; }
+  .page[data-fresh] .set-list .set-list-card:nth-child(5),
+  .page[data-fresh] .grid .set-card:nth-child(5),
+  .page[data-fresh] .mini-grid .mini-card:nth-child(5) { animation-delay: 0.14s; }
+  .page[data-fresh] .set-list .set-list-card:nth-child(6),
+  .page[data-fresh] .grid .set-card:nth-child(6),
+  .page[data-fresh] .mini-grid .mini-card:nth-child(6) { animation-delay: 0.17s; }
+  .page[data-fresh] .set-list .set-list-card:nth-child(n+7),
+  .page[data-fresh] .grid .set-card:nth-child(n+7),
+  .page[data-fresh] .mini-grid .mini-card:nth-child(n+7) { animation-delay: 0.19s; }
 }
 @keyframes itemIn {
   from { opacity: 0; transform: translateY(8px); }
