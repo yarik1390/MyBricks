@@ -949,48 +949,67 @@ body.offline .offline-banner { display: block; }
 /* ============================================================
    Blind bag (minifigs)
    ============================================================ */
-.mini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* Minifig cards mirror the LEGO set cards for a consistent grid. Rarity is
+   surfaced as a corner tag + thin accent stripe instead of tinting the whole
+   card, so figs and sets read as one visual family. */
+.mini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .mini-card {
   position: relative;
+  background: var(--surface);
   border: 2px solid var(--line);
   border-radius: var(--r-3);
-  overflow: hidden;
-  background: var(--surface);
   box-shadow: var(--shadow-2);
+  overflow: hidden;
   display: flex; flex-direction: column;
   width: 100%; text-align: left;
+  transition: transform var(--dur-fast) var(--ease);
 }
-.mini-card.rarity-common { background: var(--surface-2); }
-.mini-card.rarity-uncommon { background: var(--up-pale); }
-.mini-card.rarity-rare { background: #FFF4E0; }
-.mini-card.rarity-legendary { background: #FFF8C2; }
-:root[data-theme="dark"] .mini-card.rarity-rare {
-  background: #3A2C1A;
-}
-:root[data-theme="dark"] .mini-card.rarity-legendary {
-  background: #3D341A;
-}
+.mini-card:active { transform: translate(1.5px, 1.5px); box-shadow: 1px 1px 0 var(--line); }
 .mini-card::before {
-  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; z-index: 3;
 }
 .mini-card.rarity-common::before { background: var(--ink-faint); }
 .mini-card.rarity-uncommon::before { background: var(--up); }
 .mini-card.rarity-rare::before { background: #E89A2B; }
 .mini-card.rarity-legendary::before { background: var(--bv-yellow-dark); }
 .mini-img {
-  aspect-ratio: 1/1;
+  aspect-ratio: 1.1 / 1;
+  background: linear-gradient(135deg, var(--surface-2), var(--surface-3));
+  border-bottom: 2px solid var(--line);
   display: flex; align-items: center; justify-content: center;
   position: relative;
-  border-bottom: 1.5px solid var(--line);
   overflow: hidden;
 }
+.mini-img.has-photo { background: transparent; }
 .mini-img img.fig-photo {
-  width: 70%; height: 86%; object-fit: contain;
-  mix-blend-mode: multiply;
+  position: absolute; inset: 7%;
+  width: 86%; height: 86%; object-fit: contain;
+  mix-blend-mode: multiply; z-index: 1;
 }
 :root[data-theme="dark"] .mini-img img.fig-photo {
   mix-blend-mode: normal; filter: brightness(0.95);
 }
+.mini-rarity-tag {
+  position: absolute; top: 8px; left: 8px; z-index: 2;
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 3px 6px; border-radius: var(--r-1);
+  border: 1.5px solid var(--line); color: var(--line);
+}
+.mini-rarity-tag.rarity-common { background: var(--surface-2); color: var(--ink-mute); }
+.mini-rarity-tag.rarity-uncommon { background: var(--up-pale); }
+.mini-rarity-tag.rarity-rare { background: #FFE9C7; }
+.mini-rarity-tag.rarity-legendary { background: var(--bv-yellow); }
+.mini-img .owned-tag {
+  position: absolute; top: 8px; right: 8px; z-index: 2;
+  background: var(--bv-yellow); color: var(--line);
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  padding: 3px 6px; border-radius: var(--r-1);
+  letter-spacing: 0.1em;
+  border: 1.5px solid var(--line);
+  display: flex; align-items: center; gap: 3px;
+}
+.mini-img .owned-tag svg { width: 10px; height: 10px; }
 .mini-figure { width: 64px; height: 92px; position: relative; }
 .mini-figure .head {
   width: 22px; height: 22px; border-radius: 50%;
@@ -1011,41 +1030,24 @@ body.offline .offline-banner { display: block; }
   border-radius: 2px 2px 6px 6px;
   position: absolute; top: 54px; left: 50%; transform: translateX(-50%);
 }
-.mini-figure.owned::after {
-  content: ""; position: absolute; top: -4px; right: -8px;
-  width: 22px; height: 22px; border-radius: 50%;
-  background: var(--up); border: 2px solid var(--line);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='white' stroke-width='3' viewBox='0 0 24 24'%3E%3Cpath d='M5 12l5 5L20 7'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: center;
-}
-.mini-body {
-  padding: 8px 10px 10px;
-  flex: 1;
-  display: flex; flex-direction: column;
-}
+.mini-body { padding: 10px 12px 12px; flex: 1; display: flex; flex-direction: column; }
 .mini-name {
-  font-size: 12.5px; font-weight: 600; line-height: 1.2;
-  margin-bottom: 4px;
+  font-weight: 600; font-size: 13.5px; line-height: 1.2;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; margin-bottom: 6px; min-height: 32px;
 }
 .mini-meta {
-  display: flex; justify-content: space-between; align-items: center;
-  font-family: var(--mono); font-size: 11px;
+  font-family: var(--mono); font-size: 10px;
   color: var(--ink-mute);
+  letter-spacing: 0.05em; text-transform: uppercase;
+  margin-bottom: 8px;
+  display: flex; flex-wrap: wrap; gap: 4px;
+}
+.mini-meta span { background: var(--surface-2); padding: 2px 6px; border-radius: var(--r-1); }
+.mini-value {
+  font-family: var(--serif); font-size: 17px; font-weight: 500;
+  letter-spacing: -0.01em; font-variant-numeric: tabular-nums;
   margin-top: auto;
-}
-.mini-meta .price { color: var(--ink); font-weight: 600; }
-.mini-rarity {
-  font-family: var(--mono); font-size: 9px;
-  letter-spacing: 0.12em; text-transform: uppercase;
-  padding: 2px 6px;
-  background: rgba(0,0,0,0.06);
-  border-radius: var(--r-1);
-  margin-bottom: 4px;
-  display: inline-block; width: max-content;
-  color: var(--ink-soft);
-}
-:root[data-theme="dark"] .mini-rarity {
-  background: rgba(255,255,255,0.08);
 }
 
 /* ============================================================

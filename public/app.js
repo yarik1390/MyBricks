@@ -1018,7 +1018,10 @@ async function renderAdd() {
   if (!state.themes.length) {
     try { const t = await api("/api/themes"); state.themes = t.themes || []; state.themesLoadedAt = Date.now(); } catch {}
   }
-  await loadCatalog({ reset: true });
+  // Reuse cached results on re-visit so the grid paints instantly. Re-fetching
+  // with reset:true here cleared state.catalog.items mid-navigation, which made
+  // the catalog blank out when switching tabs quickly.
+  if (!state.catalog.items.length) await loadCatalog({ reset: true });
   paintAdd();
 }
 
@@ -2215,23 +2218,25 @@ function miniCardHTML(f) {
   const hue = f.hue ?? themeHue(f.series || f.fig_num);
   const hasImg = f.image_url;
   const val = f.value ?? f.current_value ?? 0;
+  const rarity = f.rarity || "common";
   return `
-    <button class="mini-card rarity-${f.rarity || "common"}" data-fig="${escapeHtml(f.fig_num)}">
+    <button class="mini-card rarity-${rarity}" data-fig="${escapeHtml(f.fig_num)}">
       <div class="mini-img${hasImg ? " has-photo" : ""}">
-        <div class="mini-figure ${owned ? "owned" : ""}" style="--fig-color:oklch(0.6 0.18 ${hue});--fig-color2:oklch(0.4 0.08 ${(hue+180)%360});">
+        <div class="mini-figure" style="--fig-color:oklch(0.6 0.18 ${hue});--fig-color2:oklch(0.4 0.08 ${(hue+180)%360});">
           <div class="head"></div>
           <div class="body"></div>
           <div class="legs"></div>
         </div>
         ${hasImg ? `<img class="fig-photo" src="${escapeHtml(f.image_url)}" alt="" loading="lazy">` : ""}
+        <span class="mini-rarity-tag rarity-${rarity}">${rarity}</span>
+        ${owned ? `<span class="owned-tag">${I.check()}OWNED</span>` : ""}
       </div>
       <div class="mini-body">
-        <div class="mini-rarity">${f.rarity || "common"}</div>
         <div class="mini-name">${escapeHtml(f.name)}</div>
         <div class="mini-meta">
-          <span>${escapeHtml(f.series || "")}</span>
-          <span class="price">${fmtMoney(val, { cents: 0 })}</span>
+          <span>${escapeHtml(f.series || "Minifig")}</span>
         </div>
+        <div class="mini-value">${fmtMoney(val, { cents: 0 })}</div>
       </div>
     </button>`;
 }
