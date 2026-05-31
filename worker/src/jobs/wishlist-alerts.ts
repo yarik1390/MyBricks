@@ -27,5 +27,40 @@ export async function runWishlistAlerts(env: Env) {
   }
 
   await env.DB.batch(stmts);
+
+  const spike = await runSpikeAlerts(env);
+  return { fired: results.length, spikes: spike.fired };
+}
+
+async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
+  const { results } = await env.DB.prepare(`
+    SELECT uc.id as collection_id, uc.user_id, uc.set_num, uc.purchase_price,
+           ls.name as set_name, ls.current_value
+    FROM user_collection uc
+    JOIN lego_sets ls ON ls.set_num = uc.set_num
+    WHERE uc.purchase_price > 0
+      AND ls.current_value > 1.30 * uc.purchase_price
+      AND uc.deleted_at IS NULL
+      AND (uc.spike_alerted_at IS NULL OR uc.spike_alerted_at < datetime('now', '-30 days'))
+  `).all<{
+    collection_id: number; user_id: string; set_num: string;
+    purchase_price: number; set_name: string; current_value: number;
+  }>();
+
+  if (!results.length) return { fired: 0 };
+
+  const stmts: D1PreparedStatement[] = [];
+  for (const row of results) {
+    stmts.push(
+      env.DB.prepare(`
+        INSERT INTO wishlist_alerts (user_id, set_num, set_name, target_price, current_value, alert_type)
+        VALUES (?, ?, ?, ?, ?, 'spike')
+      `).bind(row.user_id, row.set_num, row.set_name, row.purchase_price, row.current_value),
+      env.DB.prepare(
+        `UPDATE user_collection SET spike_alerted_at=datetime('now') WHERE id=?`
+      ).bind(row.collection_id),
+    );
+  }
+  await env.DB.batch(stmts);
   return { fired: results.length };
 }

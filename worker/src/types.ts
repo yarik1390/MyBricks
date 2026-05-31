@@ -8,6 +8,7 @@ export interface Env {
   ADMIN_USER_ID: string;
   BRICKSET_API_KEY: string;
   BRICKOWL_API_KEY?: string;
+  EBAY_APP_ID?: string;
   BRICKLINK_CONSUMER_KEY: string;
   BRICKLINK_CONSUMER_SECRET: string;
   BRICKLINK_TOKEN: string;

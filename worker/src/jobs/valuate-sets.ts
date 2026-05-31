@@ -1,6 +1,8 @@
 import OpenAI from 'openai';
 import type { Env } from '../types';
-import { fetchSetPricing } from '../lib/bricklink';
+import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
+import { fetchEbayPrice } from '../lib/ebay';
+import { computeRetirementRisk } from '../lib/retirement-risk';
 
 export async function runValuateSets(env: Env) {
   // Prioritize sets that users own or wishlist, oldest valuation first
@@ -21,8 +23,29 @@ export async function runValuateSets(env: Env) {
   let updated = 0, market = 0, ai = 0;
 
   for (const set of results) {
-    // Try BrickLink first (real completed-sale data)
-    const pricing = await fetchSetPricing(set.set_num, env);
+    // Try BrickLink first (real completed-sale data), then eBay + used in parallel
+    const [pricing, usedPricing, ebayPrice] = await Promise.all([
+      fetchSetPricing(set.set_num, env),
+      fetchUsedPricing(set.set_num, env),
+      fetchEbayPrice(set.set_num, set.name, env),
+    ]);
+
+    // Write used + eBay prices when available (independent of main valuation path)
+    const supplementStmts: D1PreparedStatement[] = [];
+    if (usedPricing) {
+      supplementStmts.push(
+        env.DB.prepare('UPDATE lego_sets SET used_value=? WHERE set_num=?')
+          .bind(usedPricing.used_value, set.set_num)
+      );
+    }
+    if (ebayPrice) {
+      supplementStmts.push(
+        env.DB.prepare("UPDATE lego_sets SET ebay_value=?, ebay_cached_at=datetime('now') WHERE set_num=?")
+          .bind(ebayPrice, set.set_num)
+      );
+    }
+    if (supplementStmts.length) await env.DB.batch(supplementStmts);
+
     if (pricing) {
       const yr = set.retired ? 0.15 : 0.10;
       const forecast_2y = Math.round(pricing.current_value * Math.pow(1 + yr, 2) * 100) / 100;
@@ -74,5 +97,32 @@ export async function runValuateSets(env: Env) {
     }
   }
 
+  await updateRetirementRiskBatch(env);
+
   return { processed: results.length, updated, market, ai };
+}
+
+// Batch-update retirement risk scores for sets due for refresh (null or >7 days old).
+async function updateRetirementRiskBatch(env: Env): Promise<void> {
+  const { results } = await env.DB.prepare(`
+    SELECT set_num, year, theme, pieces, retired FROM lego_sets
+    WHERE retired = 0
+      AND (retirement_risk_updated_at IS NULL
+           OR retirement_risk_updated_at < datetime('now', '-7 days'))
+    LIMIT 200
+  `).all<{ set_num: string; year: number; theme: string | null; pieces: number; retired: number }>();
+
+  if (!results.length) return;
+
+  const stmts = results.map(s =>
+    env.DB.prepare(`
+      UPDATE lego_sets SET retirement_risk_score=?, retirement_risk_updated_at=datetime('now')
+      WHERE set_num=?
+    `).bind(computeRetirementRisk(s), s.set_num)
+  );
+
+  // Process in batches of 100 (D1 batch limit)
+  for (let i = 0; i < stmts.length; i += 100) {
+    await env.DB.batch(stmts.slice(i, i + 100));
+  }
 }

@@ -43,6 +43,39 @@ async function oauthHeader(
     .join(', ');
 }
 
+export interface BrickLinkUsedPricing {
+  used_value: number;
+  lot_count: number;
+}
+
+export async function fetchUsedPricing(setNum: string, env: Env): Promise<BrickLinkUsedPricing | null> {
+  if (!env.BRICKLINK_CONSUMER_KEY) return null;
+  const blNum = setNum.includes('-') ? setNum : `${setNum}-1`;
+  try {
+    const baseUrl = `https://api.bricklink.com/api/store/v1/price_guide/SET/${encodeURIComponent(blNum)}`;
+    const queryParams = { guide_type: 'sold', new_or_used: 'U', country_code: 'US', currency_code: 'USD' };
+    const authHeader = await oauthHeader(
+      'GET', baseUrl, queryParams,
+      env.BRICKLINK_CONSUMER_KEY, env.BRICKLINK_CONSUMER_SECRET,
+      env.BRICKLINK_TOKEN, env.BRICKLINK_TOKEN_SECRET,
+    );
+    const resp = await fetch(`${baseUrl}?${new URLSearchParams(queryParams)}`, {
+      headers: { Authorization: authHeader, Accept: 'application/json' },
+    });
+    if (!resp.ok) return null;
+    const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
+    if (body.meta?.code !== 200 || !body.data) return null;
+    const d = body.data;
+    const lotCount = Number(d.unit_quantity ?? 0);
+    if (lotCount < 3) return null;
+    const used = parseFloat(String(d.qty_avg_price || d.avg_price || '')) || null;
+    if (!used) return null;
+    return { used_value: used, lot_count: lotCount };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchSetPricing(setNum: string, env: Env): Promise<BrickLinkPricing | null> {
   if (!env.BRICKLINK_CONSUMER_KEY) return null;
 

@@ -144,3 +144,27 @@ CREATE INDEX IF NOT EXISTS idx_rl_user ON rate_limits(user_id, endpoint);
 CREATE INDEX IF NOT EXISTS idx_sets_theme ON lego_sets(theme);
 CREATE INDEX IF NOT EXISTS idx_sets_retired ON lego_sets(retired);
 CREATE INDEX IF NOT EXISTS idx_sets_upc ON lego_sets(upc);
+
+-- v2 additions
+ALTER TABLE lego_sets ADD COLUMN IF NOT EXISTS ebay_value REAL;
+ALTER TABLE lego_sets ADD COLUMN IF NOT EXISTS ebay_cached_at TEXT;
+ALTER TABLE lego_sets ADD COLUMN IF NOT EXISTS used_value REAL;
+ALTER TABLE lego_sets ADD COLUMN IF NOT EXISTS retirement_risk_score INTEGER;
+ALTER TABLE lego_sets ADD COLUMN IF NOT EXISTS retirement_risk_updated_at TEXT;
+
+ALTER TABLE wishlist_alerts ADD COLUMN IF NOT EXISTS alert_type TEXT NOT NULL DEFAULT 'drop';
+ALTER TABLE user_collection ADD COLUMN IF NOT EXISTS spike_alerted_at TEXT;
+ALTER TABLE user_prefs ADD COLUMN IF NOT EXISTS is_public INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE user_prefs ADD COLUMN IF NOT EXISTS handle TEXT;
+
+CREATE TABLE IF NOT EXISTS user_showcase (
+  user_id TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  display_order INTEGER NOT NULL DEFAULT 0,
+  added_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, set_num),
+  FOREIGN KEY (set_num) REFERENCES lego_sets(set_num)
+);
+
+CREATE INDEX IF NOT EXISTS idx_showcase_user ON user_showcase(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_prefs_handle ON user_prefs(handle) WHERE handle IS NOT NULL;

@@ -40,6 +40,8 @@ app.get('/', async (c) => {
   const p = prefs || {};
   return c.json({
     display_name: (p.display_name as string) || seedName(userId),
+    handle: (p.handle as string | null) ?? null,
+    is_public: p.is_public ? true : false,
     currency: (p.currency as string) || 'USD',
     notify_price_drops: p.notify_price_drops !== 0,
     portfolio_stats: {
@@ -52,21 +54,43 @@ app.get('/', async (c) => {
 
 app.patch('/', async (c) => {
   const userId = c.get('userId');
-  const body = await c.req.json<{ display_name?: string; currency?: string; notify_price_drops?: boolean }>();
-  const { display_name, currency, notify_price_drops } = body;
+  const body = await c.req.json<{
+    display_name?: string; currency?: string; notify_price_drops?: boolean;
+    handle?: string; is_public?: boolean;
+  }>();
+  const { display_name, currency, notify_price_drops, handle, is_public } = body;
   if (display_name && display_name.length > 40) return c.json({ error: 'display_name max 40 chars' }, 400);
+
+  if (handle !== undefined) {
+    if (!/^[a-zA-Z0-9-]{3,30}$/.test(handle)) {
+      return c.json({ error: 'handle must be 3-30 alphanumeric characters or hyphens' }, 400);
+    }
+    const existing = await c.env.DB.prepare(
+      'SELECT user_id FROM user_prefs WHERE handle=? AND user_id != ?'
+    ).bind(handle, userId).first();
+    if (existing) return c.json({ error: 'handle already taken' }, 409);
+  }
+
   await c.env.DB.prepare(`
-    INSERT INTO user_prefs (user_id, display_name, currency, notify_price_drops, updated_at)
-    VALUES (?, ?, ?, ?, datetime('now'))
+    INSERT INTO user_prefs (user_id, display_name, currency, notify_price_drops, handle, is_public, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT (user_id) DO UPDATE SET
       display_name = COALESCE(?, user_prefs.display_name),
       currency = COALESCE(?, user_prefs.currency),
       notify_price_drops = COALESCE(?, user_prefs.notify_price_drops),
+      handle = COALESCE(?, user_prefs.handle),
+      is_public = COALESCE(?, user_prefs.is_public),
       updated_at = datetime('now')
   `).bind(
     userId,
-    display_name ?? null, currency ?? null, notify_price_drops != null ? (notify_price_drops ? 1 : 0) : null,
-    display_name ?? null, currency ?? null, notify_price_drops != null ? (notify_price_drops ? 1 : 0) : null,
+    display_name ?? null, currency ?? null,
+    notify_price_drops != null ? (notify_price_drops ? 1 : 0) : null,
+    handle ?? null,
+    is_public != null ? (is_public ? 1 : 0) : null,
+    display_name ?? null, currency ?? null,
+    notify_price_drops != null ? (notify_price_drops ? 1 : 0) : null,
+    handle ?? null,
+    is_public != null ? (is_public ? 1 : 0) : null,
   ).run();
   return c.json({ ok: true });
 });

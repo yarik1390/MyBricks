@@ -1,8 +1,16 @@
 import { Hono } from 'hono';
+import OpenAI from 'openai';
 import { requireMember } from '../auth';
 import { formulaValuation } from '../lib/valuation';
 import { fetchSetPricing } from '../lib/bricklink';
 import type { Env, Variables } from '../types';
+
+interface ListingDraft {
+  title: string;
+  description: string;
+  suggested_price: number;
+  price_reasoning: string;
+}
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -164,6 +172,86 @@ app.get('/:setnum/history', async (c) => {
     ORDER BY snapshot_date ASC
   `).bind(setNum, `-${days} days`).all();
   return c.json({ history: results, days });
+});
+
+// POST /api/sets/:setnum/listing-draft — generate eBay listing copy via AI
+app.post('/:setnum/listing-draft', async (c) => {
+  const userId = c.get('userId');
+  const setNum = c.req.param('setnum');
+
+  const [set, entry] = await Promise.all([
+    c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(setNum).first<Record<string, unknown>>(),
+    c.env.DB.prepare(
+      'SELECT condition, purchase_price, notes, is_complete, missing_pieces FROM user_collection WHERE user_id=? AND set_num=? AND deleted_at IS NULL'
+    ).bind(userId, setNum).first<Record<string, unknown>>(),
+  ]);
+  if (!set) return c.json({ error: 'Set not found' }, 404);
+
+  const condition = (entry?.condition as string) || 'used_good';
+  const conditionLabel: Record<string, string> = {
+    sealed: 'Factory Sealed', new: 'New / Open Box',
+    used_good: 'Used - Good', used_acceptable: 'Used - Acceptable',
+  };
+  const blPrice = set.current_value ? `$${Number(set.current_value).toFixed(0)}` : 'unknown';
+  const ebayPrice = set.ebay_value ? `$${Number(set.ebay_value).toFixed(0)}` : null;
+
+  const prompt = `Generate an eBay listing for this LEGO set. Return JSON only with keys: title, description, suggested_price (number), price_reasoning (string).
+
+Set: ${set.name}
+Set number: ${set.set_num}
+Theme: ${set.theme || 'LEGO'}
+Year: ${set.year}
+Pieces: ${set.pieces}
+Minifigs: ${set.minifigs || 0}
+Condition: ${conditionLabel[condition] || condition}
+Is complete: ${entry?.is_complete !== 0 ? 'Yes' : `No (${entry?.missing_pieces || '?'} pieces missing)`}
+BrickLink market price (new): ${blPrice}${ebayPrice ? `\neBay recent sales: ${ebayPrice}` : ''}
+Notes from owner: ${entry?.notes || 'none'}
+
+Title: max 80 characters, include set number and name.
+Description: 3-5 sentences covering set highlights, condition, and what's included.
+suggested_price: a specific dollar amount number (no $ sign).
+price_reasoning: one sentence explaining the price.`;
+
+  const geminiKey = c.req.header('X-Gemini-Key');
+  let draft: ListingDraft;
+
+  try {
+    if (geminiKey) {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: { maxOutputTokens: 400, responseMimeType: 'application/json' },
+          }),
+        }
+      );
+      if (!resp.ok) throw new Error('Gemini request failed');
+      const body = await resp.json() as Record<string, unknown>;
+      const text = (body['candidates'] as { content: { parts: { text: string }[] } }[])?.[0]?.content?.parts?.[0]?.text ?? '{}';
+      draft = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as ListingDraft;
+    } else {
+      const openai = new OpenAI({ apiKey: c.env.OPENAI_API_KEY });
+      const result = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        max_tokens: 400,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: 'You are an expert eBay seller specializing in LEGO. Return JSON only.' },
+          { role: 'user', content: prompt },
+        ],
+      });
+      draft = JSON.parse(result.choices[0].message.content!.trim()) as ListingDraft;
+    }
+  } catch (e) {
+    console.warn('[listing-draft] AI failed:', (e as Error).message);
+    return c.json({ error: 'Could not generate listing' }, 500);
+  }
+
+  return c.json(draft);
 });
 
 export { app as setsRoute };

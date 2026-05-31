@@ -9,6 +9,8 @@ import { themesRoute } from './routes/themes';
 import { minifigsRoute } from './routes/minifigs';
 import { scanRoute } from './routes/scan';
 import { adminRoute } from './routes/admin';
+import { advisorRoute } from './routes/advisor';
+import { profileRoute } from './routes/profile';
 
 import { runValuateSets } from './jobs/valuate-sets';
 import { runSnapshotPortfolios } from './jobs/snapshot-portfolios';
@@ -41,6 +43,8 @@ app.route('/api/themes', themesRoute);
 app.route('/api/minifigs', minifigsRoute);
 app.route('/api/scan', scanRoute);
 app.route('/api/admin', adminRoute);
+app.route('/api/advisor', advisorRoute);
+app.route('/api/users', profileRoute);
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
 

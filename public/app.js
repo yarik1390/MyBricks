@@ -45,6 +45,8 @@ const I = (() => {
     info:       () => s('<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/>'),
     trend:      () => s('<path d="M3 17l6-6 4 4 8-9"/><path d="M14 6h7v7"/>'),
     extLink:    () => s('<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/>'),
+    advisor:    () => s('<circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 015.1 2.1c0 1.6-1.5 2.5-2.1 3.4V16"/><circle cx="12" cy="19" r=".5" fill="currentColor"/>'),
+    fire:       () => s('<path d="M8.5 2C8.5 2 9 5 7 8c-1.5 2.5-.5 5 1.5 6.5C8 12 10 10.5 10 10.5s.5 4 3 6a7 7 0 10-4.5-14.5z"/>'),
   };
 })();
 
@@ -279,6 +281,7 @@ const THEME_COLORS = {
 /* ---------- API ---------- */
 async function api(path, opts = {}) {
   const token = _authSession?.access_token;
+  const streamMode = opts.stream === true;
   const init = {
     ...opts,
     headers: {
@@ -288,6 +291,7 @@ async function api(path, opts = {}) {
     },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   };
+  delete init.stream;
   const _url = (window.WORKER_BASE || '') + path;
   let r;
   try {
@@ -322,6 +326,7 @@ async function api(path, opts = {}) {
     throw new Error(msg);
   }
   if (r.status === 204) return null;
+  if (streamMode) return r;  // caller reads the SSE body directly
   return r.json();
 }
 
@@ -632,6 +637,7 @@ function hasCachedView(hash) {
   if (hash === "/" || hash === "") return !!state.portfolio;
   if (hash === "/add") return state.catalog.items.length > 0;
   if (hash === "/minifigs") return state.blind.items.length > 0;
+  if (hash === "/advisor") return !!localStorage.getItem('bv_chat');
   return false;
 }
 
@@ -681,12 +687,16 @@ async function _routeImpl() {
     else if (hash === "/pile") renderPile();
     else if (hash === "/minifigs") await renderBlind();
     else if (hash === "/me") await renderMe();
+    else if (hash === "/advisor") await renderAdvisor();
     else if (hash === "/wishlist") await renderWishlist();
     else if (hash.startsWith("/set/")) {
       const parts = hash.split("/");
       const setNum = decodeURIComponent(parts[2]);
       state.detail.tab = parts[3] || "info";
       await renderSetDetail(setNum);
+    } else if (hash.startsWith("/u/")) {
+      const handle = hash.slice(3);
+      await renderPublicProfile(handle);
     } else {
       location.hash = "#/";
       throw { __redirect: true };
@@ -948,8 +958,11 @@ function insightsHTML(items) {
   const leaders = roiSorted.slice(0, 3);
   const losers = roiSorted.filter(i => i.annualized_roi < 0).slice(-3).reverse();
 
-  // Sets likely retiring (not yet retired, but released ≥2 years ago)
-  const retiringSoon = items.filter(i => !i.retired && i.year && i.year <= currentYear - 1).slice(0, 8);
+  // Sets with high retirement risk
+  const riskSorted = items
+    .filter(i => !i.retired && (i.retirement_risk_score || 0) > 0)
+    .sort((a, b) => (b.retirement_risk_score || 0) - (a.retirement_risk_score || 0))
+    .slice(0, 5);
 
   let html = `<div class="insights-section">`;
 
@@ -989,13 +1002,23 @@ function insightsHTML(items) {
     html += `</div>`;
   }
 
-  if (retiringSoon.length > 0) {
-    html += `<div class="insights-block"><div class="insights-label">In your vault — likely retiring soon</div>
-      <div class="retiring-pills">`;
-    for (const item of retiringSoon) {
-      html += `<a href="#/set/${encodeURIComponent(item.set_num)}" class="retiring-pill">${escapeHtml(item.name)}</a>`;
+  if (riskSorted.length > 0) {
+    html += `<div class="insights-block"><div class="insights-label">Retirement risk — act now</div>`;
+    for (const item of riskSorted) {
+      const score = item.retirement_risk_score || 0;
+      const barWidth = Math.min(100, score);
+      const color = score >= 70 ? "var(--down)" : score >= 40 ? "var(--bv-yellow)" : "var(--up)";
+      html += `<a href="#/set/${encodeURIComponent(item.set_num)}" class="insights-row">
+        <span class="ir-name">${score >= 70 ? "🔥 " : ""}${escapeHtml(item.name)}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="width:60px;height:4px;border-radius:2px;background:var(--line);overflow:hidden;">
+            <div style="width:${barWidth}%;height:100%;background:${color};border-radius:2px;"></div>
+          </div>
+          <span class="ir-roi" style="color:${color};">${score}</span>
+        </div>
+      </a>`;
     }
-    html += `</div></div>`;
+    html += `</div>`;
   }
 
   html += `</div>`;
@@ -1280,6 +1303,7 @@ function catalogCardHTML(s) {
         <div class="brick-tile" style="--h:${h};width:64%;height:64%;"></div>
         ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="" loading="lazy">` : ""}
         ${s.retired ? `<span class="retired-tag">RETIRED</span>` : ""}
+        ${(s.retirement_risk_score || 0) >= 70 && !s.retired ? `<span class="retire-risk-badge">🔥</span>` : ""}
         ${s.owned ? `<span class="owned-tag">${I.check()}OWNED</span>` : ""}
       </div>
       <div class="set-card-body">
@@ -1377,10 +1401,11 @@ function infoTabHTML(set, entry, isWish) {
   const valueSource = set.valuation_method === "market" ? "BrickLink"
     : set.valuation_method === "ai" ? "AI estimate" : "Estimated";
   return `
+    ${priceStripHTML(set, entry)}
     <div class="stat-grid">
-      <div class="stat-cell ${owned ? "high" : ""}">
-        <div class="lbl">${I.dollar()}Current value</div>
-        <div class="val">${fmtMoney(set.current_value)}</div>
+      <div class="stat-cell">
+        <div class="lbl">${I.dollar()}Market (new)</div>
+        <div class="val">${set.current_value ? fmtMoney(set.current_value) : "—"}</div>
         ${delta != null ? `<div class="delta ${delta >= 0 ? "up" : "down"}" style="margin-top:6px;"><span class="arrow">${delta >= 0 ? "▲" : "▼"}</span>${fmtPct(Math.abs(delta))}</div>` : ""}
         <div style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);margin-top:4px;letter-spacing:0.08em;">${valueSource}</div>
       </div>
@@ -1607,7 +1632,8 @@ function manageTabHTML(set, entry) {
         <span style="font-size:13px;color:var(--ink-mute);">pieces missing</span>
       </div>
     </div>
-    <button class="btn-danger" id="mRemove" style="margin-top:14px;">${I.trash()}<span>Remove from vault</span></button>`;
+    <button class="btn-danger" id="mRemove" style="margin-top:14px;">${I.trash()}<span>Remove from vault</span></button>
+    <button class="btn-secondary" id="mListSale" style="margin-top:8px;">${I.tag()}<span>List for Sale</span></button>`;
 }
 
 function wireManageTab(set, entry) {
@@ -1671,6 +1697,7 @@ function wireManageTab(set, entry) {
       } else { toast("Error: " + e.message, "error"); }
     }
   });
+  $("#mListSale")?.addEventListener("click", () => showListingSheet(set, entry));
 }
 
 function setupTabSwipe(set, entry) {
@@ -1705,19 +1732,30 @@ async function renderWishlist() {
   } catch (e) { toast("Couldn't load wishlist", "error"); }
 
   const alerts = state.wishlistAlerts;
+  const spikeAlerts = alerts.filter(a => a.alert_type === "spike");
+  const dropAlerts = alerts.filter(a => a.alert_type !== "spike");
+  const totalAlerts = alerts.length;
+
   $("#root").innerHTML = `
     <div class="page">
       <div class="topbar">
         <div class="topbar-heading">
-          <div class="topbar-eyebrow">${state.wishlist.length} sets · ${alerts.length} alert${alerts.length !== 1 ? "s" : ""}</div>
+          <div class="topbar-eyebrow">${state.wishlist.length} sets · ${totalAlerts} alert${totalAlerts !== 1 ? "s" : ""}</div>
           <div class="topbar-title">Wishlist</div>
         </div>
         <a href="#/" class="icon-btn" aria-label="Back">${I.chevL()}</a>
       </div>
 
-      ${alerts.length > 0 ? `
+      ${spikeAlerts.length > 0 ? `
+        <div class="section-title">Sell Opportunities 💰</div>
         <div style="margin-bottom:14px;">
-          ${alerts.map(a => `
+          ${spikeAlerts.map(a => spikeAlertCardHTML(a)).join("")}
+        </div>` : ""}
+
+      ${dropAlerts.length > 0 ? `
+        <div class="section-title">Price Drops 📉</div>
+        <div style="margin-bottom:14px;">
+          ${dropAlerts.map(a => `
             <div class="alert-card">
               <div class="ah">${I.bell()}Price drop · ${daysAgo(a.triggered_at)}d ago</div>
               <div style="font-weight:600;">${escapeHtml(a.set_name)}</div>
@@ -1735,6 +1773,10 @@ async function renderWishlist() {
     </div>`;
 
   $$(".wishlist-card").forEach(c => c.addEventListener("click", () => {
+    location.hash = "#/set/" + encodeURIComponent(c.dataset.set);
+  }));
+  $$(".spike-alert[data-set]").forEach(c => c.addEventListener("click", (e) => {
+    if (e.target.tagName === "A") return;
     location.hash = "#/set/" + encodeURIComponent(c.dataset.set);
   }));
 }
@@ -1763,6 +1805,7 @@ function wishlistCardHTML(w) {
           <span style="color:${hit ? "var(--up)" : "var(--ink)"};font-weight:700;">${hit ? "AT TARGET" : "Target " + fmtMoney(w.target_price || 0, { cents: 0 })}</span>
         </div>
         <div class="progress${hit ? " over" : ""}"><div style="width:${progress}%;"></div></div>
+        ${(w.retirement_risk_score || 0) >= 70 && !w.retired ? `<div style="font-size:11px;color:var(--down);margin-top:4px;font-family:var(--mono);">⚠️ Retirement risk: High</div>` : ""}
       </div>
     </button>`;
 }
@@ -1820,6 +1863,8 @@ async function renderMe() {
           </div>
           ${I.arrowR()}
         </button>` : ""}
+
+      ${publicProfileSectionHTML(me)}
 
       <div class="section-title">Preferences</div>
       <div>
@@ -2128,6 +2173,35 @@ async function renderMe() {
       setBtnLoading(btnEl, false);
     }
   });
+
+  // Public profile wiring
+  let isPublicState = !!me.is_public;
+  $("#publicToggle")?.addEventListener("click", async (e) => {
+    isPublicState = !isPublicState;
+    e.currentTarget.classList.toggle("on", isPublicState);
+    haptic("medium");
+    try { await api("/api/me", { method: "PATCH", body: { is_public: isPublicState } }); state.me = null; }
+    catch (err) { toast("Error: " + err.message, "error"); }
+    toast(isPublicState ? "Profile public" : "Profile private", "info");
+  });
+  $("#saveHandle")?.addEventListener("click", async () => {
+    const h = ($("#handleInput")?.value || "").trim().toLowerCase();
+    if (!h) { toast("Enter a handle", "info"); return; }
+    if (!/^[a-zA-Z0-9-]{3,30}$/.test(h)) { toast("Handle: 3-30 chars, letters, numbers, hyphens only", "error"); return; }
+    try {
+      await api("/api/me", { method: "PATCH", body: { handle: h } });
+      state.me = null;
+      toast("Handle saved", "success");
+      renderMe();
+    } catch (err) { toast("Error: " + err.message, "error"); }
+  });
+  $("#copyShareLink")?.addEventListener("click", () => {
+    const h = me.handle;
+    if (!h) return;
+    const url = `${location.origin}/#/u/${encodeURIComponent(h)}`;
+    copyListingField(url, "Share link");
+  });
+  $("#editShowcaseBtn")?.addEventListener("click", () => showShowcaseSheet());
 }
 
 /* ============================================================
@@ -2645,8 +2719,17 @@ function showScanResult(res) {
     <div class="btn-row" style="margin-top:12px;">
       <button class="btn-secondary" id="scanDetails">Details</button>
       <button class="btn-primary" id="scanAdd">${I.plus()}<span>Add to vault</span></button>
-    </div>`;
+    </div>
+    ${dealScoreHTML(set)}`;
   $("#scanDetails")?.addEventListener("click", () => { closeScan(); location.hash = "#/set/" + encodeURIComponent(set.set_num); });
+  const dealInput = document.getElementById("dealPriceInput");
+  if (dealInput) {
+    let dealTimer;
+    dealInput.addEventListener("input", () => {
+      clearTimeout(dealTimer);
+      dealTimer = setTimeout(() => updateDealBadge(set, dealInput.value), 300);
+    });
+  }
   $("#scanAdd")?.addEventListener("click", async () => {
     haptic("heavy");
     try {
@@ -2899,6 +2982,507 @@ document.addEventListener("error", (e) => {
   img.remove();
 }, true); // capture — image error events don't bubble
 
+/* ============================================================
+   Price strip (BrickLink new | Used | eBay avg)
+   ============================================================ */
+function priceStripHTML(set, entry) {
+  const delta = entry?.purchase_price ? (set.current_value - entry.purchase_price) / entry.purchase_price : null;
+  return `
+    <div class="price-strip">
+      <div class="ps-cell${entry ? " high" : ""}">
+        <div class="ps-lbl">${I.dollar()}BrickLink new</div>
+        <div class="ps-val">${set.current_value ? fmtMoney(set.current_value) : "—"}</div>
+        ${delta != null ? `<div class="delta ${delta >= 0 ? "up" : "down"}"><span class="arrow">${delta >= 0 ? "▲" : "▼"}</span>${fmtPct(Math.abs(delta))}</div>` : ""}
+      </div>
+      <div class="ps-cell">
+        <div class="ps-lbl">Used</div>
+        <div class="ps-val${!set.used_value ? " muted" : ""}">${set.used_value ? fmtMoney(set.used_value) : "—"}</div>
+      </div>
+      <div class="ps-cell">
+        <div class="ps-lbl">eBay avg</div>
+        <div class="ps-val${!set.ebay_value ? " muted" : ""}">${set.ebay_value ? fmtMoney(set.ebay_value) : "—"}</div>
+      </div>
+    </div>
+    <div class="ps-footnote">BrickLink · BrickLink used · eBay last 20 sales</div>`;
+}
+
+/* ============================================================
+   In-store Deal Score
+   ============================================================ */
+function computeDealScore(set, storePrice) {
+  const market = set.ebay_value || set.current_value;
+  if (!market || !storePrice || storePrice <= 0) return null;
+  const pct = (market - storePrice) / market;
+  const greatThreshold = set.retired ? 0.05 : 0.15;
+  let verdict, label;
+  if (pct >= greatThreshold) {
+    verdict = "great";
+    label = `${fmtPct(pct)} below market — great deal!`;
+  } else if (pct <= -0.05) {
+    verdict = "over";
+    label = `${fmtPct(Math.abs(pct))} above market — overpriced`;
+  } else {
+    verdict = "fair";
+    label = `Within ${fmtPct(Math.abs(pct))} of market price`;
+  }
+  return { verdict, pct, label };
+}
+
+function dealScoreHTML(set) {
+  return `
+    <div class="deal-score-wrap" id="dealScoreWrap">
+      <div class="deal-score-lbl">In-store price check</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="number" class="deal-price-input" id="dealPriceInput" placeholder="Enter store price…" min="0" step="0.01">
+        <div class="deal-badge" id="dealBadge"></div>
+      </div>
+    </div>`;
+}
+
+function updateDealBadge(set, priceStr) {
+  const badge = document.getElementById("dealBadge");
+  if (!badge) return;
+  const price = parseFloat(priceStr);
+  if (!price || price <= 0) { badge.textContent = ""; badge.className = "deal-badge"; return; }
+  const score = computeDealScore(set, price);
+  if (!score) return;
+  badge.className = `deal-badge ${score.verdict}`;
+  const labels = { great: "GREAT DEAL", fair: "FAIR PRICE", over: "OVERPRICED" };
+  badge.textContent = labels[score.verdict];
+  badge.title = score.label;
+}
+
+/* ============================================================
+   Spike alert card
+   ============================================================ */
+function spikeAlertCardHTML(a) {
+  const gain = a.purchase_price && a.current_value
+    ? (a.current_value - (a.purchase_price || 0)) / (a.purchase_price || 1) : 0;
+  return `
+    <div class="alert-card spike-alert" data-set="${escapeHtml(a.set_num || "")}">
+      <div class="ah">${I.dollar()}Sell opportunity · ${daysAgo(a.triggered_at)}d ago</div>
+      <div style="font-weight:600;">${escapeHtml(a.set_name || a.name || "")}</div>
+      <div style="font-size:13px;margin-top:4px;">
+        Now <strong>${fmtMoney(a.current_value)}</strong> — you paid ${fmtMoney(a.purchase_price || 0)}.
+        <span style="color:var(--up);font-weight:700;"> +${fmtPct(Math.abs(gain))} gain</span>
+      </div>
+      <a href="#/set/${encodeURIComponent(a.set_num || "")}" class="btn-secondary" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:13px;padding:6px 14px;text-decoration:none;">Consider selling ${I.arrowR()}</a>
+    </div>`;
+}
+
+/* ============================================================
+   Advisor chat
+   ============================================================ */
+const ADVISOR_PROMPTS = [
+  "Which sets should I sell this month?",
+  "Best buy with $200 budget?",
+  "Which of my sets might retire soon?",
+  "How is my Star Wars collection doing?",
+];
+
+async function renderAdvisor() {
+  let chatHistory = [];
+  try { chatHistory = JSON.parse(localStorage.getItem('bv_chat') || '[]'); } catch {}
+
+  $("#root").innerHTML = `
+    <div class="page" id="chatWrap" style="display:flex;flex-direction:column;min-height:calc(100vh - var(--nav-h,68px));padding:0;">
+      <div class="topbar" style="flex-shrink:0;">
+        <div class="topbar-heading">
+          <div class="topbar-eyebrow">AI-powered · knows your vault</div>
+          <div class="topbar-title">Advisor</div>
+        </div>
+        ${chatHistory.length > 0 ? `<button class="icon-btn" id="clearChat" aria-label="Clear history">${I.trash()}</button>` : ""}
+      </div>
+      <div class="chat-history" id="chatHistory">
+        ${chatHistory.length === 0 ? `
+          <div class="chat-suggestions" id="chatSuggestions">
+            <div style="font-size:14px;color:var(--ink-mute);text-align:center;margin-bottom:16px;padding-top:24px;">Ask about your collection…</div>
+            ${ADVISOR_PROMPTS.map(p => `<button class="chat-suggestion-chip">${escapeHtml(p)}</button>`).join("")}
+          </div>` :
+          chatHistory.map(m => `<div class="chat-msg ${m.role === "user" ? "user" : "ai"}">${escapeHtml(m.content)}</div>`).join("")
+        }
+      </div>
+      <div class="chat-input-row">
+        <textarea class="chat-input" id="chatInput" placeholder="Ask anything about your collection…" rows="1"></textarea>
+        <button class="chat-send-btn" id="chatSend" aria-label="Send">${I.arrowU()}</button>
+      </div>
+    </div>`;
+
+  $$(".chat-suggestion-chip").forEach(chip => {
+    chip.addEventListener("click", () => sendAdvisorMessage(chip.textContent.trim()));
+  });
+  $("#clearChat")?.addEventListener("click", () => clearAdvisorHistory());
+
+  const input = document.getElementById("chatInput");
+  const sendBtn = document.getElementById("chatSend");
+
+  input?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      const q = input.value.trim();
+      if (q) { input.value = ""; input.style.height = "auto"; sendAdvisorMessage(q); }
+    }
+  });
+  input?.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 120) + "px";
+  });
+  sendBtn?.addEventListener("click", () => {
+    const q = input?.value.trim();
+    if (q) { input.value = ""; input.style.height = "auto"; sendAdvisorMessage(q); }
+  });
+
+  const hist = document.getElementById("chatHistory");
+  if (hist) hist.scrollTop = hist.scrollHeight;
+}
+
+async function sendAdvisorMessage(q) {
+  document.getElementById("chatSuggestions")?.remove();
+
+  const hist = document.getElementById("chatHistory");
+  if (!hist) return;
+
+  appendChatBubble("user", q);
+  saveChatMessage("user", q);
+
+  const aiBubble = appendChatBubble("ai", "", true);
+
+  try {
+    const geminiKey = localStorage.getItem('bv_gemini_key');
+    const extraHeaders = geminiKey ? { 'X-Gemini-Key': geminiKey } : {};
+    const resp = await api("/api/advisor", {
+      method: "POST",
+      body: { q },
+      headers: extraHeaders,
+      stream: true,
+    });
+
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    let fullText = "";
+
+    aiBubble.querySelector(".chat-typing")?.remove();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const parsed = JSON.parse(line.slice(6));
+          if (parsed.text) {
+            fullText += parsed.text;
+            aiBubble.textContent = fullText;
+            hist.scrollTop = hist.scrollHeight;
+          }
+          if (parsed.done) break;
+        } catch {}
+      }
+    }
+    if (fullText) saveChatMessage("ai", fullText);
+  } catch (err) {
+    aiBubble.querySelector(".chat-typing")?.remove();
+    aiBubble.textContent = "Sorry, couldn't reach the advisor. " + (err.message || "");
+    aiBubble.classList.add("error");
+  }
+
+  hist.scrollTop = hist.scrollHeight;
+
+  if (!document.getElementById("clearChat")) {
+    const topbar = document.querySelector("#chatWrap .topbar");
+    if (topbar) {
+      const btn = document.createElement("button");
+      btn.className = "icon-btn"; btn.id = "clearChat";
+      btn.setAttribute("aria-label", "Clear history");
+      btn.innerHTML = I.trash();
+      btn.addEventListener("click", () => clearAdvisorHistory());
+      topbar.appendChild(btn);
+    }
+  }
+}
+
+function appendChatBubble(role, content, streaming = false) {
+  const hist = document.getElementById("chatHistory");
+  if (!hist) return null;
+  const el = document.createElement("div");
+  el.className = `chat-msg ${role === "user" ? "user" : "ai"}`;
+  if (streaming) {
+    el.innerHTML = `<span class="chat-typing"><span></span><span></span><span></span></span>`;
+  } else {
+    el.textContent = content;
+  }
+  hist.appendChild(el);
+  hist.scrollTop = hist.scrollHeight;
+  return el;
+}
+
+function saveChatMessage(role, content) {
+  try {
+    const msgs = JSON.parse(localStorage.getItem('bv_chat') || '[]');
+    msgs.push({ role, content });
+    localStorage.setItem('bv_chat', JSON.stringify(msgs.slice(-20)));
+  } catch {}
+}
+
+function clearAdvisorHistory() {
+  localStorage.removeItem('bv_chat');
+  renderAdvisor();
+}
+
+/* ============================================================
+   Public collection profile
+   ============================================================ */
+async function renderPublicProfile(handle) {
+  let profile;
+  try {
+    const r = await fetch((window.WORKER_BASE || '') + "/api/users/" + encodeURIComponent(handle) + "/profile");
+    if (!r.ok) throw new Error(r.status === 404 ? "Profile not found or private" : "Couldn't load profile");
+    profile = await r.json();
+  } catch (err) {
+    const nav = document.getElementById("nav");
+    if (nav) nav.style.display = "";
+    $("#root").innerHTML = `<div class="page">
+      <div class="topbar">
+        <div class="topbar-heading"><div class="topbar-title">Profile</div></div>
+        <button class="icon-btn" id="pubBack">${I.chevL()}</button>
+      </div>
+      <div class="empty card">
+        <div class="empty-icon">${I.user()}</div>
+        <h3>Profile not found</h3>
+        <p>${escapeHtml(err.message)}</p>
+      </div>
+    </div>`;
+    document.getElementById("pubBack")?.addEventListener("click", () => { if (history.length > 1) history.back(); else location.hash = "#/"; });
+    return;
+  }
+  const nav = document.getElementById("nav");
+  if (nav) nav.style.display = "";
+  $("#root").innerHTML = `
+    <div class="page">
+      <div class="topbar">
+        <div class="topbar-heading">
+          <div class="topbar-eyebrow">@${escapeHtml(profile.handle || handle)}</div>
+          <div class="topbar-title">${escapeHtml(profile.display_name || handle)}</div>
+        </div>
+        <button class="icon-btn" id="pubBack" aria-label="Back">${I.chevL()}</button>
+      </div>
+      ${publicStatsHTML(profile)}
+      ${(profile.showcase || []).length > 0 ? `
+        <div class="section-title">Trophy Shelf</div>
+        ${trophyShelfHTML(profile.showcase)}` : ""}
+    </div>`;
+  document.getElementById("pubBack")?.addEventListener("click", () => { if (history.length > 1) history.back(); else location.hash = "#/"; });
+}
+
+function publicStatsHTML(profile) {
+  const themeTotal = (profile.top_themes || []).reduce((s, t) => s + (t.value || 0), 0);
+  return `
+    <div class="summary-grid" style="margin-bottom:14px;">
+      <div class="summary-cell"><div class="lbl">Sets</div><div class="val">${profile.set_count || 0}</div></div>
+      <div class="summary-cell"><div class="lbl">Collection value</div><div class="val">${fmtMoneyShort(profile.total_value || 0)}</div></div>
+    </div>
+    ${(profile.top_themes || []).length > 1 ? `
+      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:10px;">Top themes</div>
+        ${profile.top_themes.map(t => {
+          const pct = themeTotal > 0 ? (t.value / themeTotal * 100).toFixed(1) : 0;
+          const tc = THEME_COLORS[t.theme] || `oklch(0.55 0.18 ${themeHue(t.theme || "")})`;
+          return `<div class="theme-bar-row">
+            <div class="theme-bar-name">${escapeHtml(t.theme || "Other")}</div>
+            <div class="theme-bar-track"><div class="theme-bar-fill" style="width:${pct}%;background:${tc};"></div></div>
+            <div class="theme-bar-pct">${pct}%</div>
+          </div>`;
+        }).join("")}
+      </div>` : ""}`;
+}
+
+function trophyShelfHTML(sets) {
+  return `<div class="trophy-shelf">${(sets || []).map(s => {
+    const hasImg = s.image_url && !s.image_url.startsWith("data:");
+    const h = setHue(s);
+    return `<a href="#/set/${encodeURIComponent(s.set_num)}" class="trophy-card">
+      <div class="set-card-img${hasImg ? " has-photo" : ""}">
+        <div class="brick-tile" style="--h:${h};width:64%;height:64%;"></div>
+        ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="" loading="lazy">` : ""}
+        ${s.retired ? `<span class="retired-tag">RETIRED</span>` : ""}
+      </div>
+      <div class="trophy-card-name">${escapeHtml(s.name)}</div>
+      <div class="trophy-card-val">${fmtMoney(s.current_value)}</div>
+    </a>`;
+  }).join("")}</div>`;
+}
+
+function publicProfileSectionHTML(me) {
+  const handle = me.handle || "";
+  const isPublic = !!me.is_public;
+  const shareUrl = handle ? `${location.origin}/#/u/${encodeURIComponent(handle)}` : "";
+  return `
+    <div class="section-title">Public Profile</div>
+    <div>
+      <div class="setting-row">
+        <div class="lbl-wrap">
+          <div class="lbl">Public profile</div>
+          <div class="desc">${isPublic ? "Your profile is visible to anyone with the link." : "Enable to share your collection publicly."}</div>
+        </div>
+        <button class="toggle ${isPublic ? "on" : ""}" id="publicToggle" aria-pressed="${isPublic}"></button>
+      </div>
+      <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+        <div class="lbl-wrap">
+          <div class="lbl">Handle</div>
+          <div class="desc">Your public URL: <code>/#/u/${escapeHtml(handle || "your-handle")}</code></div>
+        </div>
+        <div style="display:flex;gap:8px;width:100%;">
+          <input type="text" id="handleInput" value="${escapeHtml(handle)}" placeholder="your-handle"
+            style="flex:1;padding:10px;border:1.5px solid var(--line);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-size:13px;font-family:var(--mono);outline:none;">
+          <button class="btn-secondary" id="saveHandle" style="white-space:nowrap;">Save</button>
+        </div>
+      </div>
+      ${isPublic && shareUrl ? `
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Share link</div><div class="desc" style="word-break:break-all;">${escapeHtml(shareUrl)}</div></div>
+          <button class="import-btn" id="copyShareLink" aria-label="Copy link">${I.share()}</button>
+        </div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Trophy shelf</div><div class="desc">Choose up to 6 sets for your public profile.</div></div>
+          <button class="import-btn" id="editShowcaseBtn" aria-label="Edit showcase">${I.pencil()}</button>
+        </div>` : ""}
+    </div>`;
+}
+
+async function showShowcaseSheet() {
+  const me = state.me;
+  if (!me?.handle) { toast("Set a handle first to create a showcase", "info"); return; }
+  const items = state.portfolio?.items || [];
+
+  let current = [];
+  try {
+    const r = await fetch((window.WORKER_BASE || '') + "/api/users/" + encodeURIComponent(me.handle) + "/profile");
+    if (r.ok) { const p = await r.json(); current = (p.showcase || []).map(s => s.set_num); }
+  } catch {}
+
+  let selected = [...current];
+
+  function buildSheetHTML() {
+    return `
+      <div style="font-family:var(--serif);font-size:20px;font-weight:500;margin:0 4px 12px;">Trophy Shelf <span style="font-size:14px;color:var(--ink-mute);">(${selected.length}/6)</span></div>
+      <div id="showcaseGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:55vh;overflow-y:auto;padding-bottom:8px;">
+        ${items.map(item => {
+          const sel = selected.includes(item.set_num);
+          const rank = selected.indexOf(item.set_num) + 1;
+          const hasImg = item.image_url && !item.image_url.startsWith("data:");
+          const h = setHue(item);
+          return `<button class="showcase-pick${sel ? " sel" : ""}" data-set="${escapeHtml(item.set_num)}" style="position:relative;border-radius:var(--r-2);padding:6px;border:2px solid ${sel ? "var(--bv-red)" : "var(--line)"};background:var(--surface-2);text-align:left;">
+            <div class="set-card-img${hasImg ? " has-photo" : ""}" style="height:70px;border-radius:var(--r-1);">
+              <div class="brick-tile" style="--h:${h};width:64%;height:64%;"></div>
+              ${hasImg ? `<img class="set-photo" src="${escapeHtml(item.image_url)}" alt="" loading="lazy">` : ""}
+            </div>
+            <div style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:4px;">${escapeHtml(item.name)}</div>
+            ${sel ? `<span style="position:absolute;top:4px;right:4px;background:var(--bv-red);color:#fff;font-size:10px;font-weight:700;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;line-height:1;">${rank}</span>` : ""}
+          </button>`;
+        }).join("")}
+      </div>
+      <button class="btn-primary" id="saveShowcase" style="width:100%;margin-top:14px;">${I.check()}<span>Save showcase</span></button>`;
+  }
+
+  showSheet(buildSheetHTML());
+
+  function wireShowcase() {
+    $$(".showcase-pick").forEach(btn => btn.addEventListener("click", () => {
+      const setNum = btn.dataset.set;
+      const idx = selected.indexOf(setNum);
+      if (idx >= 0) { selected.splice(idx, 1); }
+      else if (selected.length < 6) { selected.push(setNum); }
+      else { toast("Max 6 sets for the showcase", "info"); return; }
+      const sheet = document.getElementById("sheet");
+      if (sheet) { sheet.innerHTML = `<div class="sheet-handle"></div>` + buildSheetHTML(); wireShowcase(); }
+    }));
+    document.getElementById("saveShowcase")?.addEventListener("click", async () => {
+      try {
+        await api("/api/users/" + encodeURIComponent(me.handle) + "/showcase", {
+          method: "POST", body: { set_nums: selected },
+        });
+        hideSheet();
+        toast("Showcase updated", "success");
+      } catch (err) { toast("Error: " + err.message, "error"); }
+    });
+  }
+  wireShowcase();
+}
+
+/* ============================================================
+   eBay Listing Generator
+   ============================================================ */
+async function showListingSheet(set, entry) {
+  showSheet(`
+    <div style="font-family:var(--serif);font-size:20px;font-weight:500;margin:0 4px 12px;">Generate eBay Listing</div>
+    <div class="listing-sheet" id="listingContent">
+      <div style="text-align:center;padding:40px 0;color:var(--ink-mute);">
+        ${I.sparkles()}
+        <div style="margin-top:8px;font-size:13px;">Generating listing…</div>
+      </div>
+    </div>`);
+
+  try {
+    const geminiKey = localStorage.getItem('bv_gemini_key');
+    const extraHeaders = geminiKey ? { 'X-Gemini-Key': geminiKey } : {};
+    const draft = await api("/api/sets/" + encodeURIComponent(set.set_num) + "/listing-draft", {
+      method: "POST", headers: extraHeaders,
+    });
+
+    const content = document.getElementById("listingContent");
+    if (!content) return;
+
+    content.innerHTML = `
+      <div class="listing-field-label">Title</div>
+      <input class="listing-title-input" id="listTitle" type="text" value="${escapeHtml(draft.title || "")}">
+
+      <div class="listing-field-label" style="margin-top:14px;">Description</div>
+      <textarea class="listing-desc-textarea" id="listDesc" rows="6">${escapeHtml(draft.description || "")}</textarea>
+
+      <div class="listing-price-row">
+        <div>
+          <div class="listing-field-label">Suggested price</div>
+          <div style="font-family:var(--mono);font-size:22px;font-weight:600;">${fmtMoney(draft.suggested_price)}</div>
+        </div>
+      </div>
+      ${draft.price_reasoning ? `<div class="listing-reasoning">${escapeHtml(draft.price_reasoning)}</div>` : ""}
+
+      <div class="listing-actions">
+        <button class="btn-secondary" id="copyListTitle">${I.check()}<span>Copy title</span></button>
+        <button class="btn-secondary" id="copyListDesc">${I.check()}<span>Copy description</span></button>
+        <a class="btn-primary listing-ebay-btn" href="${escapeHtml(`https://www.ebay.com/sl/list?title=${encodeURIComponent((draft.title || "").slice(0, 80))}`)}" target="_blank" rel="noopener">${I.arrowR()}<span>Open eBay</span></a>
+      </div>`;
+
+    document.getElementById("copyListTitle")?.addEventListener("click", () => copyListingField(draft.title || "", "Title"));
+    document.getElementById("copyListDesc")?.addEventListener("click", () => copyListingField(draft.description || "", "Description"));
+  } catch (err) {
+    const content = document.getElementById("listingContent");
+    if (content) content.innerHTML = `<p style="color:var(--down);font-size:13px;padding:16px 0;">Error: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function copyListingField(text, label) {
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => toast(`${label} copied`, "success"))
+      .catch(() => _fallbackCopy(text, label));
+  } else {
+    _fallbackCopy(text, label);
+  }
+}
+
+function _fallbackCopy(text, label) {
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand("copy"); toast(`${label} copied`, "success"); } catch {}
+  document.body.removeChild(ta);
+}
+
 async function hydrateFromIDB() {
   const MAX_AGE = 3_600_000; // 1 hour
   const now = Date.now();
@@ -2945,7 +3529,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // Wire nav icons using icon library
-  const icons = { "/": I.home, "/add": I.search, "/minifigs": I.figure, "/me": I.user };
+  const icons = { "/": I.home, "/add": I.search, "/minifigs": I.figure, "/advisor": I.advisor, "/me": I.user };
   $$("#nav .nav-tab").forEach(t => {
     const r = t.dataset.route;
     const iconFn = icons[r];
