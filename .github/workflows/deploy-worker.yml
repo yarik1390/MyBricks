@@ -59,6 +59,10 @@ jobs:
         working-directory: worker
         run: npx wrangler d1 execute brickvault --remote --file=schema.sql 2>&1
 
+      - name: Apply column migrations (idempotent — duplicate column errors are expected on re-deploys)
+        working-directory: worker
+        run: npx wrangler d1 execute brickvault --remote --file=schema_migrate.sql 2>&1 || true
+
       - name: Upload Worker secrets
         working-directory: worker
         run: |
