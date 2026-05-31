@@ -75,6 +75,7 @@ jobs:
           [ -n "${{ secrets.BRICKLINK_CONSUMER_SECRET }}" ] && put BRICKLINK_CONSUMER_SECRET "${{ secrets.BRICKLINK_CONSUMER_SECRET }}" || true
           [ -n "${{ secrets.BRICKLINK_TOKEN }}" ]          && put BRICKLINK_TOKEN          "${{ secrets.BRICKLINK_TOKEN }}"          || true
           [ -n "${{ secrets.BRICKLINK_TOKEN_SECRET }}" ]   && put BRICKLINK_TOKEN_SECRET   "${{ secrets.BRICKLINK_TOKEN_SECRET }}"   || true
+          [ -n "${{ secrets.BRICKOWL_API_KEY }}" ]          && put BRICKOWL_API_KEY          "${{ secrets.BRICKOWL_API_KEY }}"          || true
 
       - name: Deploy Worker and capture URL
         working-directory: worker

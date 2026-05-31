@@ -1,18 +1,18 @@
 import type { Env } from '../types';
-import { checkBricksetKey, fetchBarcodesPage, fetchBarcodes } from '../lib/brickset';
+import { fetchBarcodesPage } from '../lib/brickset';
+import { fetchBrickOwlBarcode } from '../lib/brickowl-barcode';
 
 export interface BackfillResult {
   processed: number;
   filled: number;
   catalogSize: number;
-  method: 'bulk' | 'per-set' | 'none';
+  method: 'bulk' | 'brickowl' | 'none';
   error?: string;
 }
 
 export async function runBackfillUpc(env: Env): Promise<BackfillResult> {
-  const keyError = await checkBricksetKey(env);
-  if (keyError) {
-    return { processed: 0, filled: 0, catalogSize: 0, method: 'none', error: `Brickset API key check failed: ${keyError}` };
+  if (!env.BRICKSET_API_KEY && !env.BRICKOWL_API_KEY) {
+    return { processed: 0, filled: 0, catalogSize: 0, method: 'none', error: 'No barcode API key configured (BRICKSET_API_KEY or BRICKOWL_API_KEY)' };
   }
 
   const catalogRow = await env.DB.prepare('SELECT COUNT(*) as n FROM lego_sets').first<{ n: number }>();
@@ -21,17 +21,18 @@ export async function runBackfillUpc(env: Env): Promise<BackfillResult> {
     return { processed: 0, filled: 0, catalogSize: 0, method: 'none', error: 'Catalog is empty — run Import sets first' };
   }
 
-  // Try bulk pagination first (efficient: ~44 calls for 22k sets)
-  const bulkResult = await tryBulkBackfill(env);
-  if (bulkResult !== null) {
-    return { ...bulkResult, catalogSize, method: 'bulk' };
+  // Try Brickset bulk pagination first (efficient: ~44 calls for 22k sets)
+  if (env.BRICKSET_API_KEY) {
+    const bulkResult = await tryBulkBackfill(env);
+    if (bulkResult !== null) {
+      return { ...bulkResult, catalogSize, method: 'bulk' };
+    }
+    console.warn('[backfill-upc] Brickset bulk failed, falling back to BrickOwl per-set');
   }
 
-  // Brickset bulk pagination didn't return barcodes — fall back to per-set lookup.
-  // Order by year DESC so we hit modern sets first (most likely to have barcode data).
-  console.warn('[backfill-upc] bulk method failed, falling back to per-set (newest sets first)');
-  const perSetResult = await tryPerSetBackfill(env);
-  return { ...perSetResult, catalogSize, method: 'per-set' };
+  // Fall back to BrickOwl per-set lookup (200 newest sets per run).
+  const perSetResult = await tryBrickOwlBackfill(env);
+  return { ...perSetResult, catalogSize, method: 'brickowl' };
 }
 
 async function tryBulkBackfill(env: Env): Promise<{ processed: number; filled: number } | null> {
@@ -64,8 +65,8 @@ async function tryBulkBackfill(env: Env): Promise<{ processed: number; filled: n
   return { processed, filled };
 }
 
-async function tryPerSetBackfill(env: Env): Promise<{ processed: number; filled: number }> {
-  // Newest sets first — modern sets are far more likely to have barcode data in Brickset.
+async function tryBrickOwlBackfill(env: Env): Promise<{ processed: number; filled: number }> {
+  // Newest sets first — modern sets are more likely to have barcode data.
   const { results } = await env.DB.prepare(
     'SELECT set_num FROM lego_sets WHERE upc IS NULL ORDER BY year DESC LIMIT 200'
   ).all<{ set_num: string }>();
@@ -73,11 +74,9 @@ async function tryPerSetBackfill(env: Env): Promise<{ processed: number; filled:
   let filled = 0;
   const stmts: D1PreparedStatement[] = [];
   for (const { set_num } of results) {
-    const bc = await fetchBarcodes(set_num, env);
-    // Accept UPC (US) or EAN (EU) — both work as barcodes; store whichever is available.
-    const val = bc?.upc || bc?.ean;
-    if (val) {
-      stmts.push(env.DB.prepare('UPDATE lego_sets SET upc=? WHERE set_num=?').bind(val, set_num));
+    const ean = await fetchBrickOwlBarcode(set_num, env);
+    if (ean) {
+      stmts.push(env.DB.prepare('UPDATE lego_sets SET upc=? WHERE set_num=?').bind(ean, set_num));
       filled++;
     }
   }
