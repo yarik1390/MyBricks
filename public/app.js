@@ -1172,8 +1172,8 @@ function paintAdd() {
       </div>
 
       <div class="filter-row">
-        <button class="chip ${f.catalogTheme === "all" ? "active" : ""}" data-theme="all">All themes</button>
-        ${state.themes.slice(0, 8).map(t => `<button class="chip ${f.catalogTheme === t ? "active" : ""}" data-theme="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join("")}
+        <button class="chip ${f.catalogTheme === "all" ? "active" : ""}" data-cat-theme="all">All themes</button>
+        ${state.themes.slice(0, 8).map(t => `<button class="chip ${f.catalogTheme === t ? "active" : ""}" data-cat-theme="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join("")}
       </div>
 
       <div class="filter-row" style="margin-top:-4px;">
@@ -1194,9 +1194,13 @@ function paintAdd() {
   });
   // Update chips' active state + repaint only the results region — no full reload.
   const reloadGrid = async () => { await loadCatalog({ reset: true }); refreshCatalogGrid(); };
-  $$("[data-theme]").forEach(b => b.addEventListener("click", () => {
-    state.filter.catalogTheme = b.dataset.theme; haptic("light");
-    $$("[data-theme]").forEach(x => x.classList.toggle("active", x.dataset.theme === state.filter.catalogTheme));
+  // NB: scope to the catalog page. A bare [data-theme] selector would also match
+  // the <html data-theme="light|dark"> color-theme attribute, attaching this
+  // handler to the document root — then any click anywhere bubbled up and reset
+  // the catalog filter to the (nonexistent) theme "light", blanking the grid.
+  $$("[data-cat-theme]").forEach(b => b.addEventListener("click", () => {
+    state.filter.catalogTheme = b.dataset.catTheme; haptic("light");
+    $$("[data-cat-theme]").forEach(x => x.classList.toggle("active", x.dataset.catTheme === state.filter.catalogTheme));
     reloadGrid();
   }));
   $$("[data-csort]").forEach(b => b.addEventListener("click", () => {
