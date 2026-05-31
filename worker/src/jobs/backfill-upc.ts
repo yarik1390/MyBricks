@@ -1,5 +1,5 @@
 import type { Env } from '../types';
-import { fetchBarcodesPage, fetchBarcodes } from '../lib/brickset';
+import { checkBricksetKey, fetchBarcodesPage, fetchBarcodes } from '../lib/brickset';
 
 export interface BackfillResult {
   processed: number;
@@ -10,8 +10,9 @@ export interface BackfillResult {
 }
 
 export async function runBackfillUpc(env: Env): Promise<BackfillResult> {
-  if (!env.BRICKSET_API_KEY) {
-    return { processed: 0, filled: 0, catalogSize: 0, method: 'none', error: 'BRICKSET_API_KEY not set' };
+  const keyError = await checkBricksetKey(env);
+  if (keyError) {
+    return { processed: 0, filled: 0, catalogSize: 0, method: 'none', error: `Brickset API key check failed: ${keyError}` };
   }
 
   const catalogRow = await env.DB.prepare('SELECT COUNT(*) as n FROM lego_sets').first<{ n: number }>();

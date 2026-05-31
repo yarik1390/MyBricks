@@ -5,6 +5,23 @@ export interface BricksetBarcodes {
   ean: string | null;
 }
 
+// Validate the API key. Returns null on success, or an error string.
+export async function checkBricksetKey(env: Env): Promise<string | null> {
+  if (!env.BRICKSET_API_KEY) return 'BRICKSET_API_KEY not set';
+  try {
+    const resp = await fetch(
+      `https://brickset.com/api/v3.asmx/checkKey?apiKey=${encodeURIComponent(env.BRICKSET_API_KEY)}`,
+      { headers: { Accept: 'application/json' } }
+    );
+    if (!resp.ok) return `HTTP ${resp.status}`;
+    const data = await resp.json() as { status?: string };
+    if (data.status === 'OK') return null;
+    return `Brickset says: ${data.status}`;
+  } catch (e) {
+    return (e as Error).message;
+  }
+}
+
 // Single-set lookup — used for targeted per-set fetches.
 export async function fetchBarcodes(setNum: string, env: Env): Promise<BricksetBarcodes | null> {
   if (!env.BRICKSET_API_KEY) return null;
