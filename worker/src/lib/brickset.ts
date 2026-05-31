@@ -15,7 +15,7 @@ export async function checkBricksetKey(env: Env): Promise<string | null> {
     );
     if (!resp.ok) return `HTTP ${resp.status}`;
     const data = await resp.json() as { status?: string };
-    if (data.status === 'OK') return null;
+    if (data.status === 'OK' || data.status === 'success') return null;
     return `Brickset says: ${data.status}`;
   } catch (e) {
     return (e as Error).message;
