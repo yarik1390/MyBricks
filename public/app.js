@@ -114,7 +114,7 @@ const state = {
     wishlistSort: "recent",
     figQ: "", figRarity: "all", figOwned: "all",
   },
-  detail: { tab: "info" },
+  detail: { tab: "info", cache: {} },
   pwa: { deferredPrompt: null },
   wishlist: [], wishlistAlerts: [],
   portfolioHistory: null,
@@ -1299,10 +1299,24 @@ function catalogCardHTML(s) {
    Set detail
    ============================================================ */
 async function renderSetDetail(setNum) {
+  const hit = state.detail.cache[setNum];
+  const now = Date.now();
+  if (hit && now - hit.ts < 300_000) {
+    paintSetDetail(hit.set, hit.entry);
+    api("/api/sets/" + encodeURIComponent(setNum))
+      .then(data => {
+        const set = data.set || data;
+        const entry = data.entry || null;
+        state.detail.cache[setNum] = { set, entry, ts: Date.now() };
+        if (location.hash.includes(setNum)) paintSetDetail(set, entry);
+      }).catch(() => {});
+    return;
+  }
   try {
     const data = await api("/api/sets/" + encodeURIComponent(setNum));
     const set = data.set || data;
     const entry = data.entry || null;
+    state.detail.cache[setNum] = { set, entry, ts: Date.now() };
     paintSetDetail(set, entry);
   } catch (e) {
     $("#root").innerHTML = `<div class="page"><p>Set not found.</p></div>`;
@@ -1465,6 +1479,7 @@ function wireInfoTab(set, entry) {
         if (prevValue < v && newValue >= v) { haptic("heavy"); setTimeout(() => { toast(msg, "milestone"); confettiBurst(); }, 1100); break; }
       }
       const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
+      state.detail.cache[set.set_num] = { set: r.set || r, entry: r.entry || null, ts: Date.now() };
       paintSetDetail(r.set || r, r.entry || null);
     } catch (e) {
       setBtnLoading($("#addBtn"), false);
@@ -1622,6 +1637,7 @@ function wireManageTab(set, entry) {
         }
       });
       state.portfolio = null;
+      delete state.detail.cache[set.set_num];
       toast("Saved", "success");
     } catch (e) { toast("Save failed: " + e.message, "error"); }
   }
@@ -1642,6 +1658,7 @@ function wireManageTab(set, entry) {
     try {
       await api("/api/collection/" + entry.id, { method: "DELETE" });
       state.portfolio = null;
+      delete state.detail.cache[set.set_num];
       toast("Removed from vault", "info");
       if (history.length > 1) history.back();
       else location.hash = "#/";

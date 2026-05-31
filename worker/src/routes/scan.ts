@@ -70,19 +70,31 @@ app.post('/identify', async (c) => {
   const openaiKey = c.req.header('X-OpenAI-Key') || c.env.OPENAI_API_KEY;
   const openai = new OpenAI({ apiKey: openaiKey });
 
-  let identified: { set_num?: string; name?: string; confidence?: string; reasoning?: string };
-  try {
-    const result = await openai.chat.completions.create({
+  const openaiMessages: Parameters<typeof openai.chat.completions.create>[0]['messages'] = [
+    { role: 'system', content: 'You are a LEGO product-identification expert. Return JSON only: { "set_num": "...", "name": "...", "confidence": "high|medium|low|none", "reasoning": "..." }' },
+    { role: 'user', content: [
+      { type: 'image_url', image_url: { url: image } },
+      { type: 'text', text: 'Identify this LEGO set.' },
+    ]},
+  ];
+
+  async function callOpenAI() {
+    return openai.chat.completions.create({
       model: 'gpt-4o-mini',
       max_tokens: 256,
       response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: 'You are a LEGO product-identification expert. Return JSON only: { "set_num": "...", "name": "...", "confidence": "high|medium|low|none", "reasoning": "..." }' },
-        { role: 'user', content: [
-          { type: 'image_url', image_url: { url: image } },
-          { type: 'text', text: 'Identify this LEGO set.' },
-        ]},
-      ],
+      messages: openaiMessages,
+    });
+  }
+
+  let identified: { set_num?: string; name?: string; confidence?: string; reasoning?: string };
+  try {
+    let result = await callOpenAI().catch(async (e: Error & { status?: number }) => {
+      if (e.status && e.status >= 500) {
+        await new Promise(r => setTimeout(r, 500));
+        return callOpenAI();
+      }
+      throw e;
     });
     identified = JSON.parse(result.choices[0].message.content!.trim());
   } catch (e) {
