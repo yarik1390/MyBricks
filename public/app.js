@@ -622,7 +622,7 @@ function hideNavProgress() {
 // the page on the old snapshot and can blank it in some browsers.
 function hasCachedView(hash) {
   if (hash === "/" || hash === "") return !!state.portfolio;
-  if (hash === "/add") return state.catalog.items.length > 0 && state.themes.length > 0;
+  if (hash === "/add") return state.catalog.items.length > 0;
   if (hash === "/minifigs") return state.blind.items.length > 0;
   return false;
 }
@@ -687,18 +687,10 @@ async function _routeImpl() {
 
   try {
     const cached = hasCachedView(hash);
-    if (cached) {
-      // Data is in memory — render() paints synchronously, so it's safe to run
-      // inside a View Transition for a clean crossfade.
-      await withViewTransition(() => render());
-    } else {
-      // Need to fetch. Keep the current page visible and interactive, show the
-      // thin top progress bar, and let render() fetch then swap #root in place.
-      // Crucially the fetch happens OUTSIDE startViewTransition — async work
-      // inside it freezes the old snapshot and can blank the page.
-      showNavProgress();
-      try { await render(); }
-      finally { hideNavProgress(); }
+    if (!cached) showNavProgress();
+    await withViewTransition(() => render());
+    if (!cached) {
+      hideNavProgress();
       document.querySelector('#root .page')?.setAttribute('data-fresh', '1');
     }
   } catch (e) {
@@ -1072,11 +1064,13 @@ async function renderAdd() {
     await loadCatalog({ reset: true });
     if (isCatalogDefault()) bvIDB.set('catalog', { data: { items: state.catalog.items, total: state.catalog.total, hasMore: state.catalog.hasMore, offset: state.catalog.offset }, ts: Date.now() }).catch(() => {});
   } else if (state.catalog._stale) {
-    // IDB-hydrated data: paint instantly, then refresh grid in background.
+    // IDB-hydrated data: paint instantly from cache, refresh only the grid in
+    // the background. Using refreshCatalogGrid (not paintAdd) means the background
+    // fetch can never overwrite whatever page the user may have navigated to.
     state.catalog._stale = false;
     loadCatalog({ reset: true }).then(() => {
-      if (location.hash === '#/add') {
-        paintAdd();
+      if (location.hash === '#/add' && $('#catalogResults')) {
+        refreshCatalogGrid();
         if (isCatalogDefault()) bvIDB.set('catalog', { data: { items: state.catalog.items, total: state.catalog.total, hasMore: state.catalog.hasMore, offset: state.catalog.offset }, ts: Date.now() }).catch(() => {});
       }
     }).catch(() => {});
