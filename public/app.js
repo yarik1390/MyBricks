@@ -3501,8 +3501,8 @@ async function renderAdvisor() {
   try { chatHistory = JSON.parse(localStorage.getItem('bv_chat') || '[]'); } catch {}
 
   $("#root").innerHTML = `
-    <div class="page" id="chatWrap" style="display:flex;flex-direction:column;min-height:calc(100vh - var(--nav-h,68px));padding:0;">
-      <div class="topbar" style="flex-shrink:0;">
+    <div class="page" id="chatWrap">
+      <div class="topbar">
         <div class="topbar-heading">
           <div class="topbar-eyebrow">AI-powered · knows your vault</div>
           <div class="topbar-title">Advisor</div>
@@ -3513,7 +3513,7 @@ async function renderAdvisor() {
         ${chatHistory.length === 0 ? `
           <div class="chat-suggestions" id="chatSuggestions">
             ${!savedGeminiKey ? `
-              <div class="card" style="padding:14px;margin:12px 16px;background:var(--surface-2);border-radius:var(--r-2);border-style:dashed;border-color:var(--line-soft);max-width:340px;box-shadow:none;">
+              <div class="chat-gemini-card">
                 <div style="font-weight:600;font-size:13px;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
                   ${I.flash({w:16})}<span>Get Free Gemini Key</span>
                 </div>
@@ -3521,7 +3521,7 @@ async function renderAdvisor() {
                   Unlock unlimited, fast AI advice and scans! Get a key in 30 seconds at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--bv-red);font-weight:600;text-decoration:underline;">Google AI Studio</a> and save it in the <strong>Me</strong> tab.
                 </div>
               </div>` : ""}
-            <div style="font-size:14px;color:var(--ink-mute);text-align:center;margin-bottom:16px;padding-top:24px;">Ask about your collection…</div>
+            <div style="font-size:14px;color:var(--ink-mute);text-align:center;margin-bottom:8px;">Ask about your collection…</div>
             ${ADVISOR_PROMPTS.map(p => `<button class="chat-suggestion-chip">${escapeHtml(p)}</button>`).join("")}
           </div>` :
           chatHistory.map(m => `<div class="chat-msg ${m.role === "user" ? "user" : "ai"}">${m.role === "ai" ? parseMarkdown(m.content) : escapeHtml(m.content)}</div>`).join("")
