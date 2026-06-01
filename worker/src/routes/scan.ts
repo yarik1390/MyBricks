@@ -34,17 +34,32 @@ app.post('/identify', async (c) => {
   // Gemini path: user's own Gemini API key — uses their own quota, no rate limit here.
   const geminiKey = c.req.header('X-Gemini-Key');
   if (geminiKey) {
-    const identified = await callGeminiScan(image, geminiKey);
-    if (!identified) return c.json({ identified: false, reasoning: 'Gemini could not process the image.' });
-    if (identified.confidence === 'none' || !identified.set_num) {
-      return c.json({ identified: false, confidence: 'none', reasoning: identified.reasoning });
+    const res = await callGeminiScan(image, geminiKey);
+    if (!res || !res.sets || !res.sets.length) {
+      return c.json({ identified: false, reasoning: 'Gemini could not identify any sets in the image.' });
     }
-    let set = null;
-    for (const sn of [identified.set_num, identified.set_num + '-1']) {
-      const r = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(sn).first<Record<string, unknown>>();
-      if (r) { set = { ...r, retired: !!r.retired }; break; }
+    const matchedSets: Record<string, unknown>[] = [];
+    let topConfidence = 'none';
+    let reasoning = '';
+    for (const candidate of res.sets) {
+      if (candidate.confidence === 'none') continue;
+      let dbSet = null;
+      for (const sn of [candidate.set_num, candidate.set_num + '-1']) {
+        const r = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(sn).first<Record<string, unknown>>();
+        if (r) { dbSet = { ...r, retired: !!r.retired, confidence: candidate.confidence, reasoning: candidate.reasoning }; break; }
+      }
+      if (dbSet) {
+        matchedSets.push(dbSet);
+        if (topConfidence === 'none' || candidate.confidence === 'high') {
+          topConfidence = candidate.confidence;
+          reasoning = candidate.reasoning;
+        }
+      }
     }
-    return c.json({ identified: !!set, set, confidence: identified.confidence, reasoning: identified.reasoning, model: 'gemini-1.5-flash' });
+    if (!matchedSets.length) {
+      return c.json({ identified: false, reasoning: 'Sets identified by Gemini were not found in local catalog.' });
+    }
+    return c.json({ identified: true, sets: matchedSets, confidence: topConfidence, reasoning, model: 'gemini-2.0-flash' });
   }
 
   // OpenAI path — rate-limited per user: 20 scans/hour.
@@ -71,10 +86,10 @@ app.post('/identify', async (c) => {
   const openai = new OpenAI({ apiKey: openaiKey });
 
   const openaiMessages: Parameters<typeof openai.chat.completions.create>[0]['messages'] = [
-    { role: 'system', content: 'You are a LEGO product-identification expert. Return JSON only: { "set_num": "...", "name": "...", "confidence": "high|medium|low|none", "reasoning": "..." }' },
+    { role: 'system', content: 'You are a LEGO product-identification expert. Identify all the LEGO sets visible in this image. Return ONLY raw JSON in this format: { "sets": [ { "set_num": "...", "name": "...", "confidence": "high|medium|low|none", "reasoning": "..." } ] }' },
     { role: 'user', content: [
       { type: 'image_url', image_url: { url: image } },
-      { type: 'text', text: 'Identify this LEGO set.' },
+      { type: 'text', text: 'Identify all the LEGO sets.' },
     ]},
   ];
 
@@ -87,7 +102,7 @@ app.post('/identify', async (c) => {
     });
   }
 
-  let identified: { set_num?: string; name?: string; confidence?: string; reasoning?: string };
+  let res: { sets?: Array<{ set_num: string; name: string; confidence: string; reasoning: string }> };
   try {
     let result = await callOpenAI().catch(async (e: Error & { status?: number }) => {
       if (e.status && e.status >= 500) {
@@ -96,23 +111,40 @@ app.post('/identify', async (c) => {
       }
       throw e;
     });
-    identified = JSON.parse(result.choices[0].message.content!.trim());
+    res = JSON.parse(result.choices[0].message.content!.trim());
   } catch (e) {
     console.warn('[scan] AI parse failed:', (e as Error).message);
     return c.json({ identified: false, reasoning: 'Could not parse AI response.' });
   }
 
-  if (identified.confidence === 'none' || !identified.set_num) {
-    return c.json({ identified: false, confidence: 'none', reasoning: identified.reasoning });
+  if (!res || !res.sets || !res.sets.length) {
+    return c.json({ identified: false, reasoning: 'OpenAI could not identify any sets in the image.' });
   }
 
-  let set = null;
-  for (const sn of [identified.set_num, identified.set_num + '-1']) {
-    const r = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(sn).first<Record<string, unknown>>();
-    if (r) { set = { ...r, retired: !!r.retired }; break; }
+  const matchedSets: Record<string, unknown>[] = [];
+  let topConfidence = 'none';
+  let reasoning = '';
+  for (const candidate of res.sets) {
+    if (candidate.confidence === 'none') continue;
+    let dbSet = null;
+    for (const sn of [candidate.set_num, candidate.set_num + '-1']) {
+      const r = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(sn).first<Record<string, unknown>>();
+      if (r) { dbSet = { ...r, retired: !!r.retired, confidence: candidate.confidence, reasoning: candidate.reasoning }; break; }
+    }
+    if (dbSet) {
+      matchedSets.push(dbSet);
+      if (topConfidence === 'none' || candidate.confidence === 'high') {
+        topConfidence = candidate.confidence;
+        reasoning = candidate.reasoning;
+      }
+    }
   }
 
-  return c.json({ identified: !!set, set, confidence: identified.confidence, reasoning: identified.reasoning, model: 'gpt-4o-mini' });
+  if (!matchedSets.length) {
+    return c.json({ identified: false, reasoning: 'Sets identified by OpenAI were not found in local catalog.' });
+  }
+
+  return c.json({ identified: true, sets: matchedSets, confidence: topConfidence, reasoning, model: 'gpt-4o-mini' });
 });
 
 export { app as scanRoute };

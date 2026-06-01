@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { requireMember } from '../auth';
+import { formulaValuation } from '../lib/valuation';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -176,7 +177,27 @@ app.post('/import', async (c) => {
     const set_num = String(row.set_num || '').trim();
     if (!set_num) { errors.push({ row, reason: 'missing set_num' }); continue; }
 
-    const catalog = await c.env.DB.prepare('SELECT 1 FROM lego_sets WHERE set_num=?').bind(set_num).first();
+    let catalog = await c.env.DB.prepare('SELECT 1 FROM lego_sets WHERE set_num=?').bind(set_num).first();
+    if (!catalog && c.env.REBRICKABLE_API_KEY) {
+      try {
+        const url = `https://rebrickable.com/api/v3/lego/sets/${encodeURIComponent(set_num)}/`;
+        const rb = await fetch(url, { headers: { 'Authorization': `key ${c.env.REBRICKABLE_API_KEY}` } });
+        if (rb.ok) {
+          const s = await rb.json() as { set_num: string; name: string; year: number; num_parts: number; num_minifigs: number; set_img_url: string };
+          const vals = formulaValuation({ pieces: s.num_parts, year: s.year, retired: false });
+          await c.env.DB.prepare(`
+            INSERT INTO lego_sets (set_num,name,year,pieces,minifigs,image_url,retail_price,current_value,forecast_2y,forecast_5y,valuation_method,cached_at,source)
+            VALUES (?,?,?,?,?,?,?,?,?,?,'formula_bulk',datetime('now'),'rebrickable')
+            ON CONFLICT (set_num) DO UPDATE SET cached_at=datetime('now')
+          `).bind(s.set_num, s.name, s.year, s.num_parts, s.num_minifigs || 0, s.set_img_url,
+                  vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y).run();
+          catalog = { set_num: s.set_num };
+        }
+      } catch (e) {
+        console.warn(`[import] Rebrickable fallback failed for ${set_num}:`, (e as Error).message);
+      }
+    }
+
     if (!catalog) { errors.push({ set_num, reason: 'set not in catalog' }); skipped++; continue; }
 
     if (!overwrite && ownedSets.has(set_num)) { skipped++; continue; }

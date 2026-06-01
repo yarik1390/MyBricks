@@ -203,6 +203,42 @@ function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
+function parseMarkdown(text) {
+  if (!text) return "";
+  let html = escapeHtml(text);
+  html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/\*(.*?)\*/g, "<em>$1</em>");
+  html = html.replace(/^### (.*?)$/gm, "<h3>$1</h3>");
+  html = html.replace(/^## (.*?)$/gm, "<h2>$1</h2>");
+  html = html.replace(/^# (.*?)$/gm, "<h1>$1</h1>");
+  const lines = html.split("\n");
+  let inList = false;
+  const processed = lines.map(line => {
+    const cleanLine = line.trim();
+    if (cleanLine.startsWith("- ") || cleanLine.startsWith("* ")) {
+      let listContent = cleanLine.slice(2);
+      let out = "";
+      if (!inList) {
+        inList = true;
+        out += '<ul style="margin: 4px 0; padding-left: 20px;">';
+      }
+      out += `<li>\${listContent}</li>`;
+      return out;
+    } else {
+      let out = "";
+      if (inList) {
+        inList = false;
+        out += "</ul>";
+      }
+      out += line;
+      return out;
+    }
+  });
+  if (inList) {
+    processed.push("</ul>");
+  }
+  return processed.join("<br>").replace(/<\/ul><br>/g, "</ul>").replace(/<br><ul/g, "<ul");
+}
 function haptic(t) {
   const ms = t === "heavy" ? 30 : t === "medium" ? 15 : 8;
   try { navigator.vibrate && navigator.vibrate(ms); } catch {}
@@ -297,9 +333,23 @@ async function api(path, opts = {}) {
   try {
     r = await fetch(_url, init);
   } catch (e) {
+    if (!navigator.onLine && (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE")) {
+      outboxEnqueue({ path, method: init.method, body: opts.body });
+      toast("Saved offline — will sync when connected", "info");
+      return init.method === "DELETE" ? null : { item: opts.body || {} };
+    }
     // Network-level failure — retry once after a short delay.
     await new Promise(res => setTimeout(res, 600));
-    r = await fetch(_url, init);
+    try {
+      r = await fetch(_url, init);
+    } catch (e2) {
+      if (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE") {
+        outboxEnqueue({ path, method: init.method, body: opts.body });
+        toast("Saved offline — will sync when connected", "info");
+        return init.method === "DELETE" ? null : { item: opts.body || {} };
+      }
+      throw e2;
+    }
   }
   // Token expired — try a silent refresh, then retry the original request.
   if (r.status === 401) {
@@ -1354,34 +1404,38 @@ function paintSetDetail(set, entry) {
   const hasImg = set.image_url && !set.image_url.startsWith("data:");
 
   $("#root").innerHTML = `
-    <div class="page no-pad">
-      <div class="detail-hero${hasImg ? " has-photo" : ""}">
-        ${hasImg
-          ? `<div class="detail-hero-bg" style="background-image:url('${escapeHtml(set.image_url)}')"></div>`
-          : `<div class="detail-hero-bg placeholder" style="--brick-hue:linear-gradient(135deg, oklch(0.72 0.13 ${h}), oklch(0.55 0.13 ${h}));"></div>`}
-        <div class="detail-hero-overlay"></div>
-        <button class="detail-back" id="detailBack" aria-label="Back">${I.chevL()}</button>
-        <div class="detail-img${hasImg ? " has-photo" : ""}">
-          <div class="brick-art" style="--brick-color:oklch(0.72 0.13 ${h});">${escapeHtml(set.set_num)}</div>
-          ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="">` : ""}
+    <div class="page no-pad detail-page-container">
+      <div class="detail-hero-col">
+        <div class="detail-hero${hasImg ? " has-photo" : ""}">
+          ${hasImg
+            ? `<div class="detail-hero-bg" style="background-image:url('${escapeHtml(set.image_url)}')"></div>`
+            : `<div class="detail-hero-bg placeholder" style="--brick-hue:linear-gradient(135deg, oklch(0.72 0.13 ${h}), oklch(0.55 0.13 ${h}));"></div>`}
+          <div class="detail-hero-overlay"></div>
+          <button class="detail-back" id="detailBack" aria-label="Back">${I.chevL()}</button>
+          <div class="detail-img${hasImg ? " has-photo" : ""}">
+            <div class="brick-art" style="--brick-color:oklch(0.72 0.13 ${h});">${escapeHtml(set.set_num)}</div>
+            ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="">` : ""}
+          </div>
         </div>
       </div>
-      <div class="detail-title-row">
-        <div>
-          <div class="detail-eyebrow">${escapeHtml(set.theme || "")} · #${escapeHtml(set.set_num)}${set.retired ? " · RETIRED" : ""}</div>
-          <div class="detail-title">${escapeHtml(set.name)}</div>
+      <div class="detail-content-col">
+        <div class="detail-title-row">
+          <div>
+            <div class="detail-eyebrow">${escapeHtml(set.theme || "")} · #${escapeHtml(set.set_num)}${set.retired ? " · RETIRED" : ""}</div>
+            <div class="detail-title">${escapeHtml(set.name)}</div>
+          </div>
+          <button class="detail-share-btn icon-btn" id="shareBtn" aria-label="Share">${I.share()}</button>
         </div>
-        <button class="detail-share-btn icon-btn" id="shareBtn" aria-label="Share">${I.share()}</button>
-      </div>
-      <div class="detail-tabs" id="detailTabs">
-        ${["info","forecast","manage"].filter(t => t !== "manage" || owned).map(t =>
-          `<button data-tab="${t}" class="${state.detail.tab === t ? "active" : ""}">${t[0].toUpperCase()+t.slice(1)}</button>`
-        ).join("")}
-      </div>
-      <div class="detail-tab-panel" id="tabPanels">
-        ${state.detail.tab === "info" ? infoTabHTML(set, entry, isWish) :
-          state.detail.tab === "forecast" ? forecastTabHTML(set) :
-          manageTabHTML(set, entry)}
+        <div class="detail-tabs" id="detailTabs">
+          ${["info","forecast","manage"].filter(t => t !== "manage" || owned).map(t =>
+            `<button data-tab="${t}" class="${state.detail.tab === t ? "active" : ""}">${t[0].toUpperCase()+t.slice(1)}</button>`
+          ).join("")}
+        </div>
+        <div class="detail-tab-panel" id="tabPanels">
+          ${state.detail.tab === "info" ? infoTabHTML(set, entry, isWish) :
+            state.detail.tab === "forecast" ? forecastTabHTML(set) :
+            manageTabHTML(set, entry)}
+        </div>
       </div>
     </div>`;
 
@@ -1910,7 +1964,7 @@ async function renderMe() {
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">
             <div class="lbl">Gemini API key (free)</div>
-            <div class="desc">${savedGeminiKey ? "Active — unlimited scans on your free Google quota" : "Get a free key at aistudio.google.com/apikey — bypasses the 20/hr limit"}</div>
+            <div class="desc">${savedGeminiKey ? "Active — unlimited scans on your free Google quota" : 'Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--bv-red);font-weight:600;text-decoration:underline;">aistudio.google.com/apikey</a> — bypasses the 20/hr limit'}</div>
           </div>
           <div style="display:flex;gap:8px;width:100%;">
             <input type="password" id="geminiKeyInput" value="${escapeHtml(savedGeminiKey)}" placeholder="AIza..."
@@ -2697,54 +2751,80 @@ function showScanResult(res) {
     });
     return;
   }
-  const set = res.set;
-  const h = setHue(set);
-  const hasImg = set.image_url && !set.image_url.startsWith("data:");
-  el.innerHTML = `
+  const sets = res.sets || (res.set ? [res.set] : []);
+  if (!sets.length) {
+    el.innerHTML = `
+      <div class="scan-result-head">
+        <span class="badge miss">${I.close()}NO MATCH</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">No sets found</span>
+      </div>
+      <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">Matched sets were not found in local catalog.</p>
+      <button class="btn-secondary" id="scanRetry">Try again</button>`;
+    return;
+  }
+  let headHTML = `
     <div class="scan-result-head">
       <span class="badge">${I.check()}MATCH</span>
       <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${escapeHtml(res.confidence || "high")} confidence</span>
-    </div>
-    <div class="scan-result-row">
-      <div class="si${hasImg ? " has-photo" : ""}">
-        <div class="brick-tile" style="--h:${h};width:90%;height:90%;border-radius:8px;"></div>
-        ${hasImg ? `<img src="${escapeHtml(set.image_url)}" alt="">` : ""}
-      </div>
-      <div class="sx">
-        <div class="sx-name">${escapeHtml(set.name)}</div>
-        <div class="sx-meta">${escapeHtml(set.theme||"")} · ${set.year||""} · ${set.pieces||0}pc</div>
-        <div class="sx-val">${fmtMoney(set.current_value)}</div>
-      </div>
-    </div>
+    </div>`;
+  let listHTML = `<div style="display:flex;flex-direction:column;gap:10px;margin:8px 0 16px;max-height:40vh;overflow-y:auto;padding-right:4px;">`;
+  sets.forEach((set, idx) => {
+    const h = setHue(set);
+    const hasImg = set.image_url && !set.image_url.startsWith("data:");
+    listHTML += `
+      <div class="scan-result-row" style="align-items:center;background:var(--surface-2);padding:8px;border-radius:var(--r-2);border:1.5px solid var(--line-soft);margin-bottom:6px;">
+        <input type="checkbox" class="scan-select-check" data-setnum="${escapeHtml(set.set_num)}" data-idx="${idx}" checked style="width:18px;height:18px;margin-right:10px;cursor:pointer;">
+        <div class="si${hasImg ? " has-photo" : ""}" style="width:48px;height:48px;border-radius:var(--r-1);background:linear-gradient(135deg, var(--surface-2), var(--surface-3));flex-shrink:0;position:relative;">
+          <div class="brick-tile" style="--h:${h};width:100%;height:100%;border-radius:var(--r-1);"></div>
+          ${hasImg ? `<img src="${escapeHtml(set.image_url)}" alt="" style="position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);object-fit:contain;mix-blend-mode:multiply;">` : ""}
+        </div>
+        <div class="sx" style="margin-left:10px;flex:1;min-width:0;text-align:left;">
+          <div class="sx-name" style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(set.name)}</div>
+          <div class="sx-meta" style="font-size:10px;color:var(--ink-mute);">${escapeHtml(set.theme||"")} · #${escapeHtml(set.set_num)}</div>
+          <div class="sx-val" style="font-weight:600;font-size:12px;color:var(--up);">${fmtMoney(set.current_value)}</div>
+        </div>
+      </div>`;
+  });
+  listHTML += `</div>`;
+  let actionsHTML = `
     <div class="btn-row" style="margin-top:12px;">
-      <button class="btn-secondary" id="scanDetails">Details</button>
-      <button class="btn-primary" id="scanAdd">${I.plus()}<span>Add to vault</span></button>
-    </div>
-    ${dealScoreHTML(set)}`;
-  $("#scanDetails")?.addEventListener("click", () => { closeScan(); location.hash = "#/set/" + encodeURIComponent(set.set_num); });
-  const dealInput = document.getElementById("dealPriceInput");
-  if (dealInput) {
-    let dealTimer;
-    dealInput.addEventListener("input", () => {
-      clearTimeout(dealTimer);
-      dealTimer = setTimeout(() => updateDealBadge(set, dealInput.value), 300);
-    });
-  }
-  $("#scanAdd")?.addEventListener("click", async () => {
-    haptic("heavy");
-    try {
-      await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
-      state.portfolio = null;
+      <button class="btn-secondary" id="scanDetails" ${sets.length > 1 ? 'disabled style="opacity:0.5;"' : ""}>Details</button>
+      <button class="btn-primary" id="scanAdd">${I.plus()}<span>Add selected</span></button>
+    </div>`;
+  el.innerHTML = headHTML + listHTML + actionsHTML;
+  $("#scanDetails")?.addEventListener("click", () => {
+    if (sets.length === 1) {
       closeScan();
-      toast("Added " + set.name, "success");
-      location.hash = "#/";
-    } catch (e) {
-      if (!navigator.onLine) {
-        outboxEnqueue({ path: '/api/collection', method: 'POST', body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
-        closeScan(); toast('Saved offline — will sync when connected', 'info'); location.hash = '#/';
-      } else { toast("Error: " + e.message, "error"); }
+      location.hash = "#/set/" + encodeURIComponent(sets[0].set_num);
     }
   });
+  $("#scanAdd")?.addEventListener("click", async () => {
+    haptic("heavy");
+    const checkedBoxes = $$(".scan-select-check:checked");
+    if (!checkedBoxes.length) { toast("No sets selected", "info"); return; }
+    setBtnLoading($("#scanAdd"), true);
+    let addedCount = 0;
+    for (const box of checkedBoxes) {
+      const setnum = box.dataset.setnum;
+      const targetSet = sets[parseInt(box.dataset.idx, 10)];
+      try {
+        await api("/api/collection", { method: "POST", body: { set_num: setnum, quantity: 1, purchase_price: targetSet.current_value } });
+        addedCount++;
+      } catch (e) {
+        if (!navigator.onLine) {
+          outboxEnqueue({ path: '/api/collection', method: 'POST', body: { set_num: setnum, quantity: 1, purchase_price: targetSet.current_value } });
+          addedCount++;
+        } else {
+          toast(`Failed to add ${targetSet.name}: ${e.message}`, "error");
+        }
+      }
+    }
+    state.portfolio = null;
+    closeScan();
+    if (addedCount > 0) {
+      toast(navigator.onLine ? `Added ${addedCount} sets to vault` : `Saved ${addedCount} offline — will sync`, "success");
+    }
+    location.hash = "#/";
 }
 
 function scanOverlayHTML(mode) {
@@ -3081,6 +3161,7 @@ const ADVISOR_PROMPTS = [
 ];
 
 async function renderAdvisor() {
+  const savedGeminiKey = localStorage.getItem('bv_gemini_key') || '';
   let chatHistory = [];
   try { chatHistory = JSON.parse(localStorage.getItem('bv_chat') || '[]'); } catch {}
 
@@ -3096,10 +3177,19 @@ async function renderAdvisor() {
       <div class="chat-history" id="chatHistory">
         ${chatHistory.length === 0 ? `
           <div class="chat-suggestions" id="chatSuggestions">
+            ${!savedGeminiKey ? `
+              <div class="card" style="padding:14px;margin:12px 16px;background:var(--surface-2);border-radius:var(--r-2);border-style:dashed;border-color:var(--line-soft);max-width:340px;box-shadow:none;">
+                <div style="font-weight:600;font-size:13px;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+                  ${I.flash({w:16})}<span>Get Free Gemini Key</span>
+                </div>
+                <div style="font-size:12px;color:var(--ink-mute);line-height:1.45;">
+                  Unlock unlimited, fast AI advice and scans! Get a key in 30 seconds at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--bv-red);font-weight:600;text-decoration:underline;">Google AI Studio</a> and save it in the <strong>Me</strong> tab.
+                </div>
+              </div>` : ""}
             <div style="font-size:14px;color:var(--ink-mute);text-align:center;margin-bottom:16px;padding-top:24px;">Ask about your collection…</div>
             ${ADVISOR_PROMPTS.map(p => `<button class="chat-suggestion-chip">${escapeHtml(p)}</button>`).join("")}
           </div>` :
-          chatHistory.map(m => `<div class="chat-msg ${m.role === "user" ? "user" : "ai"}">${escapeHtml(m.content)}</div>`).join("")
+          chatHistory.map(m => `<div class="chat-msg ${m.role === "user" ? "user" : "ai"}">${m.role === "ai" ? parseMarkdown(m.content) : escapeHtml(m.content)}</div>`).join("")
         }
       </div>
       <div class="chat-input-row">
@@ -3176,7 +3266,7 @@ async function sendAdvisorMessage(q) {
           const parsed = JSON.parse(line.slice(6));
           if (parsed.text) {
             fullText += parsed.text;
-            aiBubble.textContent = fullText;
+            aiBubble.innerHTML = parseMarkdown(fullText);
             hist.scrollTop = hist.scrollHeight;
           }
           if (parsed.done) break;
@@ -3213,7 +3303,7 @@ function appendChatBubble(role, content, streaming = false) {
   if (streaming) {
     el.innerHTML = `<span class="chat-typing"><span></span><span></span><span></span></span>`;
   } else {
-    el.textContent = content;
+    el.innerHTML = role === "ai" ? parseMarkdown(content) : escapeHtml(content);
   }
   hist.appendChild(el);
   hist.scrollTop = hist.scrollHeight;

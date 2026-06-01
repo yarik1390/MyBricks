@@ -5,7 +5,7 @@
 export async function callGeminiScan(
   imageDataUrl: string,
   apiKey: string,
-): Promise<{ set_num?: string; name?: string; confidence: string; reasoning: string } | null> {
+): Promise<{ sets?: Array<{ set_num: string; name: string; confidence: string; reasoning: string }> } | null> {
   const match = imageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (!match) return null;
   const [, mimeType, b64data] = match;
@@ -14,7 +14,7 @@ export async function callGeminiScan(
     contents: [{
       parts: [
         {
-          text: 'You are a LEGO product-identification expert. Identify the LEGO set in this image. Return ONLY raw JSON (no markdown fences): { "set_num": "...", "name": "...", "confidence": "high|medium|low|none", "reasoning": "..." }',
+          text: 'You are a LEGO product-identification expert. Identify all the LEGO sets visible in this image. Return ONLY raw JSON (no markdown fences) in this format: { "sets": [ { "set_num": "...", "name": "...", "confidence": "high|medium|low|none", "reasoning": "..." } ] }',
         },
         { inline_data: { mime_type: mimeType, data: b64data } },
       ],
@@ -23,7 +23,7 @@ export async function callGeminiScan(
 
   try {
     const resp = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
       {
         method: 'POST',
         headers: {
