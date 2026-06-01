@@ -58,7 +58,7 @@ export default {
       case '0 3 * * *': await runSnapshotSetValues(env); break;
       case '0 8 * * *': await runWishlistAlerts(env); break;
       // Weekly Sunday 4am: sync Brickset barcodes then re-import Rebrickable catalog
-      case '0 4 * * 0':
+      case '0 4 * * SUN':
         await runBackfillUpc(env);
         await importSets(env.DB);
         await importFigs(env.DB);

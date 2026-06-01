@@ -1,0 +1,20 @@
+# OpenAI API Key (Required for GPT-4o barcode identification & GPT-4o-mini valuations)
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Rebrickable API Key (Optional, unlocks catalog lookup fallback if not in local cache)
+REBRICKABLE_API_KEY=your_rebrickable_api_key_here
+
+# Supabase Auth Configuration (Required for login & collections sync)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key_here
+SUPABASE_JWT_SECRET=your_supabase_jwt_secret_here
+ADMIN_USER_ID=your_supabase_admin_user_uuid_here
+
+# Brickset API Key (Optional)
+BRICKSET_API_KEY=your_brickset_api_key_here
+
+# BrickLink OAuth Credentials (Optional)
+BRICKLINK_CONSUMER_KEY=your_key
+BRICKLINK_CONSUMER_SECRET=your_secret
+BRICKLINK_TOKEN=your_token
+BRICKLINK_TOKEN_SECRET=your_token_secret

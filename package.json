@@ -1,0 +1,10 @@
+{
+  "name": "mybricks-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "setup": "cmd /c \"npm --prefix worker install\"",
+    "typecheck": "cmd /c \"npm --prefix worker run typecheck\"",
+    "status": "git status"
+  }
+}
