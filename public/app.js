@@ -710,6 +710,7 @@ async function route() {
 }
 
 async function _routeImpl() {
+  hideSheet();
   let hash = location.hash.replace("#", "") || "/";
   if (hash === "/blind") { location.hash = "#/minifigs"; return; }
 
@@ -1402,7 +1403,7 @@ function infoTabHTML(set, entry, isWish) {
     <div class="stat-grid">
       <div class="stat-cell">
         <div class="lbl">${I.dollar()}Market (new)</div>
-        <div class="val">${set.current_value ? fmtMoney(set.current_value) : "—"}</div>
+        <div class="val s">${set.current_value ? fmtMoney(set.current_value) : "—"}</div>
         ${delta != null ? `<div class="delta ${delta >= 0 ? "up" : "down"}" style="margin-top:6px;"><span class="arrow">${delta >= 0 ? "▲" : "▼"}</span>${fmtPct(Math.abs(delta))}</div>` : ""}
         <div style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);margin-top:4px;letter-spacing:0.08em;">${valueSource}</div>
       </div>
@@ -1760,11 +1761,11 @@ async function renderWishlist() {
   $("#root").innerHTML = `
     <div class="page">
       <div class="topbar">
+        <a href="#/" class="icon-btn" aria-label="Back" style="margin-top:2px;margin-right:8px;">${I.chevL()}</a>
         <div class="topbar-heading">
           <div class="topbar-eyebrow">${state.wishlist.length} sets · ${totalAlerts} alert${totalAlerts !== 1 ? "s" : ""}</div>
           <div class="topbar-title">Wishlist</div>
         </div>
-        <a href="#/" class="icon-btn" aria-label="Back">${I.chevL()}</a>
       </div>
 
       ${spikeAlerts.length > 0 ? `
@@ -2865,10 +2866,14 @@ function showSheet(html) {
 function sheetKeyHandler(e) { if (e.key === "Escape") hideSheet(); }
 function hideSheet() {
   const sheet = $("#sheet");
-  $("#sheetBackdrop").classList.remove("show");
-  sheet.classList.remove("show");
-  sheet.style.transform = "";
-  sheet.style.transition = "";
+  const backdrop = $("#sheetBackdrop");
+  if (!backdrop || !backdrop.classList.contains("show")) return;
+  backdrop.classList.remove("show");
+  if (sheet) {
+    sheet.classList.remove("show");
+    sheet.style.transform = "";
+    sheet.style.transition = "";
+  }
   document.removeEventListener("keydown", sheetKeyHandler);
   haptic("light");
 }
@@ -3355,15 +3360,37 @@ function wireInsightsTabs(items) {
 // listener instead. When a photo fails, drop the `.has-photo` class on its
 // container (revealing the brick-tile / silhouette placeholder) and remove
 // the broken <img> so no broken-image icon shows.
-const PHOTO_SEL = "img.set-photo, img.fig-photo, .scan-result-row .si img";
+const PHOTO_SEL = "img.set-photo, img.fig-photo, .scan-result-row .si img, .fig-detail-hero img.fig-photo";
 document.addEventListener("error", (e) => {
   const img = e.target;
   if (!(img instanceof HTMLImageElement)) return;
   if (!img.matches(PHOTO_SEL)) return;
-  const holder = img.closest(".sl-img, .set-card-img, .detail-img, .mini-img, .si");
-  if (holder) holder.classList.remove("has-photo");
+  const holder = img.closest(".sl-img, .set-card-img, .detail-img, .mini-img, .si, .fig-detail-hero");
+  if (holder) {
+    holder.classList.remove("has-photo");
+    holder.classList.remove("photo-loaded");
+  }
   img.remove();
 }, true); // capture — image error events don't bubble
+
+document.addEventListener("load", (e) => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement)) return;
+  if (!img.matches(PHOTO_SEL)) return;
+  const holder = img.closest(".sl-img, .set-card-img, .detail-img, .mini-img, .si, .fig-detail-hero");
+  if (holder) holder.classList.add("photo-loaded");
+}, true); // capture — image load events don't bubble
+
+// Handle already-cached/completed images on injection via MutationObserver
+const photoObserver = new MutationObserver(() => {
+  document.querySelectorAll(PHOTO_SEL).forEach(img => {
+    if (img.complete && img.naturalWidth > 0) {
+      const holder = img.closest(".sl-img, .set-card-img, .detail-img, .mini-img, .si, .fig-detail-hero");
+      if (holder) holder.classList.add("photo-loaded");
+    }
+  });
+});
+photoObserver.observe(document.documentElement, { childList: true, subtree: true });
 
 /* ============================================================
    Price strip (BrickLink new | Used | eBay avg)
@@ -3373,7 +3400,7 @@ function priceStripHTML(set, entry) {
   return `
     <div class="price-strip">
       <div class="ps-cell${entry ? " high" : ""}">
-        <div class="ps-lbl">${I.dollar()}BrickLink new</div>
+        <div class="ps-lbl">BrickLink new</div>
         <div class="ps-val">${set.current_value ? fmtMoney(set.current_value) : "—"}${set.trend ? trendBadgeHTML(set.trend) : ""}</div>
         ${delta != null ? `<div class="delta ${delta >= 0 ? "up" : "down"}"><span class="arrow">${delta >= 0 ? "▲" : "▼"}</span>${fmtPct(Math.abs(delta))}</div>` : ""}
       </div>
@@ -3715,7 +3742,10 @@ function trophyShelfHTML(sets) {
 }
 
 function publicProfileSectionHTML(me) {
-  const handle = me.handle || "";
+  let handle = me.handle || "";
+  if (handle && !/^[a-zA-Z0-9-]{3,30}$/.test(handle)) {
+    handle = "";
+  }
   const isPublic = !!me.is_public;
   const shareUrl = handle ? `${location.origin}/#/u/${encodeURIComponent(handle)}` : "";
   return `

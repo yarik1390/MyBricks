@@ -359,12 +359,12 @@ body.offline .offline-banner { display: block; }
 }
 /* With a real photo, drop the framed tile so the product art sits directly on
    the card — multiply makes the white studio background disappear. */
-.sl-img.has-photo { background: transparent; border-color: transparent; }
+.sl-img.photo-loaded { background: transparent; border-color: transparent; }
 :root[data-theme="dark"] .sl-img img.set-photo {
   mix-blend-mode: normal; filter: brightness(0.95);
 }
 /* Dark mode can't multiply away white, so float the photo on a soft glow. */
-:root[data-theme="dark"] .sl-img.has-photo {
+:root[data-theme="dark"] .sl-img.photo-loaded {
   background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.10), transparent 72%);
 }
 .sl-img .qty-badge {
@@ -568,17 +568,17 @@ body.offline .offline-banner { display: block; }
   z-index: 1;
 }
 /* Photo present → strip the framed tile so the set reads as embedded art. */
-.set-card-img.has-photo { background: transparent; }
-/* When a real photo is present, hide the placeholder underneath it. */
-.set-card-img.has-photo .brick-tile,
-.sl-img.has-photo .brick-tile,
-.mini-img.has-photo .mini-figure,
-.detail-img.has-photo .brick-art,
-.scan-result-row .si.has-photo .brick-tile { display: none; }
+.set-card-img.photo-loaded { background: transparent; }
+/* When a real photo is loaded, hide the placeholder underneath it. */
+.set-card-img.photo-loaded .brick-tile,
+.sl-img.photo-loaded .brick-tile,
+.mini-img.photo-loaded .mini-figure,
+.detail-img.photo-loaded .brick-art,
+.scan-result-row .si.photo-loaded .brick-tile { display: none; }
 :root[data-theme="dark"] .set-card-img img.set-photo {
   mix-blend-mode: normal; filter: brightness(0.95);
 }
-:root[data-theme="dark"] .set-card-img.has-photo {
+:root[data-theme="dark"] .set-card-img.photo-loaded {
   background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.08), transparent 72%);
 }
 .set-card-img .ph-mark {
@@ -1024,7 +1024,7 @@ body.offline .offline-banner { display: block; }
   position: relative;
   overflow: hidden;
 }
-.mini-img.has-photo { background: transparent; }
+.mini-img.photo-loaded { background: transparent; }
 .mini-img img.fig-photo {
   position: absolute; inset: 7%;
   width: 86%; height: 86%; object-fit: contain;
@@ -1106,7 +1106,7 @@ body.offline .offline-banner { display: block; }
   display: flex; align-items: center; justify-content: center;
   position: relative; overflow: hidden; flex-shrink: 0;
 }
-.fig-detail-hero.has-photo { background: transparent; }
+.fig-detail-hero.photo-loaded { background: transparent; }
 .fig-detail-hero img.fig-photo {
   position: absolute; inset: 6%;
   width: 88%; height: 88%; object-fit: contain;
@@ -2188,6 +2188,13 @@ body.offline .offline-banner { display: block; }
     border: 2px solid var(--line);
     border-radius: var(--r-3);
     box-shadow: var(--shadow-3);
+  }
+  .detail-page-container .detail-hero::after {
+    display: none;
+  }
+  .detail-page-container .detail-back {
+    top: 20px;
+    left: 20px;
   }
   .detail-page-container .detail-hero.has-photo {
     height: 320px;
