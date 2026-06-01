@@ -2,7 +2,9 @@ import { Hono } from 'hono';
 import OpenAI from 'openai';
 import { requireMember } from '../auth';
 import { formulaValuation } from '../lib/valuation';
-import { fetchSetPricing } from '../lib/bricklink';
+import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
+import { fetchEbayPrice } from '../lib/ebay';
+import { getCachedPriceTrend } from '../lib/price-trend';
 import type { Env, Variables } from '../types';
 
 interface ListingDraft {
@@ -110,6 +112,8 @@ app.get('/:setnum', async (c) => {
       ? await c.env.DB.prepare('SELECT * FROM user_collection WHERE user_id=? AND set_num=? AND deleted_at IS NULL').bind(userId, set.set_num).first()
       : null;
 
+    const trend = await getCachedPriceTrend(set.set_num as string, c.env);
+
     // Non-blocking BrickLink refresh when price is missing or stale
     const needsRefresh = set.valuation_method !== 'market'
       || !set.valuation_expires_at
@@ -133,7 +137,7 @@ app.get('/:setnum', async (c) => {
       );
     }
 
-    return c.json({ set: { ...set, retired: !!set.retired }, entry: entry || null });
+    return c.json({ set: { ...set, retired: !!set.retired, trend }, entry: entry || null });
   }
 
   if (!c.env.REBRICKABLE_API_KEY) return c.json({ error: 'Set not found' }, 404);
@@ -252,6 +256,81 @@ price_reasoning: one sentence explaining the price.`;
   }
 
   return c.json(draft);
+});
+
+// POST /api/sets/:setnum/revalue
+app.post('/:setnum/revalue', async (c) => {
+  const userId = c.get('userId');
+  const setnum = c.req.param('setnum');
+
+  // Rate limiting (5 per hour)
+  const windowStart = new Date();
+  windowStart.setMinutes(0, 0, 0);
+  const ws = windowStart.toISOString();
+
+  await c.env.DB.prepare(`
+    INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+    VALUES (?, 'revalue', ?, 1)
+    ON CONFLICT (user_id, endpoint, window_start) DO UPDATE SET hit_count = rate_limits.hit_count + 1
+  `).bind(userId, ws).run();
+
+  const rl = await c.env.DB.prepare(
+    'SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint=? AND window_start=?'
+  ).bind(userId, 'revalue', ws).first<{ hit_count: number }>();
+
+  if (rl && rl.hit_count > 5) {
+    return c.json({ error: 'Rate limit: 5 revaluations per hour.' }, 429);
+  }
+
+  let set = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(setnum).first<Record<string, unknown>>();
+  if (!set) {
+    set = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(setnum + '-1').first<Record<string, unknown>>();
+  }
+  if (!set) {
+    return c.json({ error: 'Set not found' }, 404);
+  }
+
+  const [pricing, usedPricing, ebayPrice] = await Promise.all([
+    fetchSetPricing(set.set_num as string, c.env).catch(() => null),
+    fetchUsedPricing(set.set_num as string, c.env).catch(() => null),
+    fetchEbayPrice(set.set_num as string, set.name as string, c.env).catch(() => null),
+  ]);
+
+  const supplementStmts: D1PreparedStatement[] = [];
+  if (usedPricing) {
+    supplementStmts.push(
+      c.env.DB.prepare('UPDATE lego_sets SET used_value=? WHERE set_num=?')
+        .bind(usedPricing.used_value, set.set_num)
+    );
+  }
+  if (ebayPrice !== null && ebayPrice !== undefined) {
+    supplementStmts.push(
+      c.env.DB.prepare("UPDATE lego_sets SET ebay_value=?, ebay_cached_at=datetime('now') WHERE set_num=?")
+        .bind(ebayPrice, set.set_num)
+    );
+  }
+  if (pricing) {
+    const yr = set.retired ? 0.15 : 0.10;
+    const forecast_2y = Math.round(pricing.current_value * Math.pow(1 + yr, 2) * 100) / 100;
+    const forecast_5y = Math.round(pricing.current_value * Math.pow(1 + yr, 5) * 100) / 100;
+    supplementStmts.push(
+      c.env.DB.prepare(`
+        UPDATE lego_sets SET
+          current_value=?, forecast_2y=?, forecast_5y=?,
+          valuation_method='market',
+          valuation_expires_at=datetime('now', '+7 days')
+        WHERE set_num=?
+      `).bind(pricing.current_value, forecast_2y, forecast_5y, set.set_num)
+    );
+  }
+
+  if (supplementStmts.length) {
+    await c.env.DB.batch(supplementStmts);
+  }
+
+  const updatedSet = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(set.set_num).first<Record<string, unknown>>();
+  const trend = updatedSet ? await getCachedPriceTrend(updatedSet.set_num as string, c.env) : null;
+  return c.json({ set: updatedSet ? { ...updatedSet, retired: !!updatedSet.retired, trend } : null });
 });
 
 export { app as setsRoute };

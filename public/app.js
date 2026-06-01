@@ -831,6 +831,7 @@ function paintPortfolio() {
   const alertsCount = state.wishlistAlerts.length;
   const gain = p.total_value - p.total_paid;
   const gainPct = p.total_paid ? gain / p.total_paid : 0;
+  const totalVal = p.total_value_with_figs ?? p.total_value ?? 0;
 
   let items = sortedPortfolioItems();
 
@@ -864,10 +865,11 @@ function paintPortfolio() {
 
       <div class="card hero" data-trend="${gain > 0 ? "up" : gain < 0 ? "down" : "flat"}">
         <div class="hero-eyebrow"><span class="pulse"></span>Vault · LIVE</div>
-        <div class="hero-value" id="heroValue">${heroValueHTML(p.total_value)}</div>
+        <div class="hero-value" id="heroValue">${heroValueHTML(totalVal)}</div>
         <div class="hero-meta">
           <span>Invested ${fmtMoney(p.total_paid)}</span>
           <span class="delta ${gain >= 0 ? "up" : "down"}"><span class="arrow">${gain >= 0 ? "▲" : "▼"}</span>${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(Math.abs(gainPct))})</span>
+          ${p.fig_count > 0 ? `<span style="cursor:help;" title="Minifig collection value tracked separately">Figs: ${p.fig_count} (${fmtMoney(p.fig_value || 0)})</span>` : ""}
         </div>
         <div class="spark-wrap" id="heroChart"></div>
         <div class="range-pills" id="rangePills">
@@ -890,7 +892,7 @@ function paintPortfolio() {
     </div>`;
 
   setTimeout(() => drawSparkline($("#heroChart"), clipped, { up: gain >= 0 }), 30);
-  animateHeroValue(p.total_value);
+  animateHeroValue(totalVal);
 
   $$("#rangePills button").forEach(b => b.addEventListener("click", () => {
     state.filter.range = b.dataset.r; haptic("light");
@@ -923,8 +925,12 @@ function paintPortfolio() {
     const open = panel.style.display !== "none";
     panel.style.display = open ? "none" : "block";
     btn.classList.toggle("open", !open);
-    if (!open) panel.innerHTML = insightsHTML(p.items || []);
+    if (!open) {
+      panel.innerHTML = insightsHTML(p.items || []);
+      wireInsightsTabs(p.items || []);
+    }
   });
+  refreshNavBadge();
 }
 
 function heroValueHTML(n) {
@@ -973,7 +979,7 @@ function setListCardHTML(item) {
         </div>
       </div>
       <div class="sl-right">
-        <div class="sl-value">${fmtMoney(item.current_value)}</div>
+        <div class="sl-value" style="display:flex;align-items:center;justify-content:flex-end;">${fmtMoney(item.current_value)}${item.trend ? trendBadgeHTML(item.trend) : ""}</div>
         <div class="sl-delta ${cls}"><span class="arrow">${arrow}</span>${dStr}</div>
       </div>
     </button>`;
@@ -991,88 +997,22 @@ function emptyVaultHTML() {
 
 function insightsHTML(items) {
   if (!items || !items.length) return `<p style="color:var(--ink-mute);font-size:14px;padding:8px 0;">Add sets to see insights.</p>`;
-  const currentYear = new Date().getFullYear();
 
-  // Theme breakdown by total value
-  const themeMap = {};
-  for (const item of items) {
-    const t = item.theme || "Other";
-    themeMap[t] = (themeMap[t] || 0) + (Number(item.current_value) || 0) * (item.quantity || 1);
-  }
-  const themeTotal = Object.values(themeMap).reduce((a, b) => a + b, 0);
-  const topThemes = Object.entries(themeMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
-
-  // ROI leaders / losers
-  const withRoi = items.filter(i => i.annualized_roi != null);
-  const roiSorted = [...withRoi].sort((a, b) => b.annualized_roi - a.annualized_roi);
-  const leaders = roiSorted.slice(0, 3);
-  const losers = roiSorted.filter(i => i.annualized_roi < 0).slice(-3).reverse();
-
-  // Sets with high retirement risk
-  const riskSorted = items
-    .filter(i => !i.retired && (i.retirement_risk_score || 0) > 0)
-    .sort((a, b) => (b.retirement_risk_score || 0) - (a.retirement_risk_score || 0))
-    .slice(0, 5);
-
-  let html = `<div class="insights-section">`;
-
-  if (topThemes.length > 1) {
-    html += `<div class="insights-block"><div class="insights-label">Value by theme</div>`;
-    for (const [theme, val] of topThemes) {
-      const pct = themeTotal > 0 ? (val / themeTotal * 100).toFixed(1) : 0;
-      const tc = THEME_COLORS[theme] || `oklch(0.55 0.18 ${themeHue(theme)})`;
-      html += `<div class="theme-bar-row">
-        <div class="theme-bar-name">${escapeHtml(theme)}</div>
-        <div class="theme-bar-track"><div class="theme-bar-fill" style="width:${pct}%;background:${tc};"></div></div>
-        <div class="theme-bar-pct">${pct}%</div>
-      </div>`;
-    }
-    html += `</div>`;
-  }
-
-  if (leaders.length > 0) {
-    html += `<div class="insights-block"><div class="insights-label">Top performers (annualized ROI)</div>`;
-    for (const item of leaders) {
-      html += `<a href="#/set/${encodeURIComponent(item.set_num)}" class="insights-row">
-        <span class="ir-name">${escapeHtml(item.name)}</span>
-        <span class="ir-roi" style="color:var(--up);">+${(item.annualized_roi * 100).toFixed(1)}% / yr</span>
-      </a>`;
-    }
-    html += `</div>`;
-  }
-
-  if (losers.length > 0) {
-    html += `<div class="insights-block"><div class="insights-label">Underperformers</div>`;
-    for (const item of losers) {
-      html += `<a href="#/set/${encodeURIComponent(item.set_num)}" class="insights-row">
-        <span class="ir-name">${escapeHtml(item.name)}</span>
-        <span class="ir-roi" style="color:var(--down);">${(item.annualized_roi * 100).toFixed(1)}% / yr</span>
-      </a>`;
-    }
-    html += `</div>`;
-  }
-
-  if (riskSorted.length > 0) {
-    html += `<div class="insights-block"><div class="insights-label">Retirement risk — act now</div>`;
-    for (const item of riskSorted) {
-      const score = item.retirement_risk_score || 0;
-      const barWidth = Math.min(100, score);
-      const color = score >= 70 ? "var(--down)" : score >= 40 ? "var(--bv-yellow)" : "var(--up)";
-      html += `<a href="#/set/${encodeURIComponent(item.set_num)}" class="insights-row">
-        <span class="ir-name">${score >= 70 ? "🔥 " : ""}${escapeHtml(item.name)}</span>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <div style="width:60px;height:4px;border-radius:2px;background:var(--line);overflow:hidden;">
-            <div style="width:${barWidth}%;height:100%;background:${color};border-radius:2px;"></div>
-          </div>
-          <span class="ir-roi" style="color:${color};">${score}</span>
-        </div>
-      </a>`;
-    }
-    html += `</div>`;
-  }
-
-  html += `</div>`;
-  return html;
+  return `
+    <div class="insights-tabs" style="display:flex;gap:12px;border-bottom:1.5px solid var(--line-soft);margin-bottom:12px;padding-bottom:4px;">
+      <button class="insights-tab active" data-tab="general" style="font-family:var(--mono);font-size:10px;text-transform:uppercase;padding:4px 8px;border:none;background:transparent;cursor:pointer;color:var(--ink-mute);font-weight:700;border-bottom:2px solid var(--ink);position:relative;bottom:-5px;">Overview</button>
+      <button class="insights-tab" data-tab="cohort" style="font-family:var(--mono);font-size:10px;text-transform:uppercase;padding:4px 8px;border:none;background:transparent;cursor:pointer;color:var(--ink-mute);font-weight:500;">By Year</button>
+    </div>
+    <style>
+      .insights-tab.active {
+        color: var(--ink) !important;
+        font-weight: 700 !important;
+        border-bottom: 2px solid var(--ink) !important;
+      }
+    </style>
+    <div class="insights-section" id="insightsTabContent">
+      ${insightsGeneralHTML(items)}
+    </div>`;
 }
 
 /* ============================================================
@@ -1364,7 +1304,10 @@ function catalogCardHTML(s) {
           <span>${s.pieces || 0}pc</span>
           ${s.minifigs > 0 ? `<span>${s.minifigs} fig</span>` : ""}
         </div>
-        <div class="set-card-value">${fmtMoney(s.current_value)}</div>
+        <div class="set-card-value" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;">
+          <span>${fmtMoney(s.current_value)}</span>
+          ${s.trend ? trendBadgeHTML(s.trend) : ""}
+        </div>
       </div>
     </button>`;
 }
@@ -1510,14 +1453,15 @@ function infoTabHTML(set, entry, isWish) {
         ${isWish ? I.heartF() : I.heart()}
         <span>${isWish ? "Remove from wishlist" : "Add to wishlist"}</span>
       </button>
-    `}`;
+    `}
+    <a class="bl-buy-link" href="${bricklinkBuyURL(set.set_num)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--ink-mute);text-decoration:underline;margin-top:14px;">
+      View on BrickLink ${I.extLink()}
+    </a>`;
 }
 
 function wireInfoTab(set, entry) {
-  // Real price history from set_value_history (accrues daily). Until there are
-  // at least two data points we show an honest "tracking started" note rather
-  // than fabricating a trend line.
   loadSetHistory(set.set_num);
+  $("#btnRevalue")?.addEventListener("click", () => triggerRevalue(set.set_num));
 
   let qty = entry?.quantity || 1;
   $("#qtyDown")?.addEventListener("click", async () => {
@@ -1686,6 +1630,7 @@ function manageTabHTML(set, entry) {
         <span style="font-size:13px;color:var(--ink-mute);">pieces missing</span>
       </div>
     </div>
+    <div id="mFlipCalcContainer">${flipCalcHTML(set, entry)}</div>
     <button class="btn-danger" id="mRemove" style="margin-top:14px;">${I.trash()}<span>Remove from vault</span></button>
     <button class="btn-secondary" id="mListSale" style="margin-top:8px;">${I.tag()}<span>List for Sale</span></button>`;
 }
@@ -1698,6 +1643,16 @@ function wireManageTab(set, entry) {
   if (dl && state.portfolio?.items) {
     const locs = [...new Set((state.portfolio.items).map(i => i.storage_location).filter(Boolean))];
     dl.innerHTML = locs.map(l => `<option value="${escapeHtml(l)}">`).join("");
+  }
+
+  function updateLocalFlip() {
+    const priceVal = $("#mPrice")?.value || "";
+    const condVal = $("#mCondition")?.value || "new";
+    const tempEntry = { ...entry, purchase_price: parseFloat(priceVal) || 0, condition: condVal };
+    const container = $("#mFlipCalcContainer");
+    if (container) {
+      container.innerHTML = flipCalcHTML(set, tempEntry);
+    }
   }
 
   async function persist() {
@@ -1732,6 +1687,10 @@ function wireManageTab(set, entry) {
   ["#mPrice","#mDate","#mStorage","#mMissing"].forEach(s => $(s)?.addEventListener("blur", persist));
   ["#mCondition","#mAcquisition"].forEach(s => $(s)?.addEventListener("change", persist));
   $("#mNotes")?.addEventListener("blur", persist);
+
+  $("#mPrice")?.addEventListener("input", updateLocalFlip);
+  $("#mCondition")?.addEventListener("change", updateLocalFlip);
+
   $("#mRemove")?.addEventListener("click", async () => {
     if (!(await confirmSheet({ title: "Remove from vault?", message: "This set will be removed from your collection.", confirmLabel: "Remove", danger: true }))) return;
     haptic("heavy");
@@ -1785,10 +1744,18 @@ async function renderWishlist() {
     state.wishlistAlerts = wl.unread_alerts || [];
   } catch (e) { toast("Couldn't load wishlist", "error"); }
 
-  const alerts = state.wishlistAlerts;
+  const alerts = [...(state.wishlistAlerts || [])];
   const spikeAlerts = alerts.filter(a => a.alert_type === "spike");
   const dropAlerts = alerts.filter(a => a.alert_type !== "spike");
   const totalAlerts = alerts.length;
+
+  if (state.wishlistAlerts && state.wishlistAlerts.length > 0) {
+    state.wishlistAlerts = [];
+    refreshNavBadge();
+    alerts.forEach(a => {
+      api(`/api/wishlist/${a.id}`, { method: "POST" }).catch(err => console.error("Failed to mark alert as read:", err));
+    });
+  }
 
   $("#root").innerHTML = `
     <div class="page">
@@ -1842,12 +1809,12 @@ function wishlistCardHTML(w) {
   const h = setHue(w);
   const hasImg = w.image_url && !w.image_url.startsWith("data:");
   return `
-    <button class="wishlist-card" data-set="${escapeHtml(w.set_num)}">
+    <div class="wishlist-card" data-set="${escapeHtml(w.set_num)}" style="cursor:pointer;position:relative;">
       <div class="sl-img has-tile${hasImg ? " has-photo" : ""}" style="width:72px;height:76px;">
         <div class="brick-tile" style="--h:${h};width:100%;height:76%;margin-top:auto;"></div>
         ${hasImg ? `<img class="set-photo" src="${escapeHtml(w.image_url)}" alt="" loading="lazy">` : ""}
       </div>
-      <div class="sl-body" style="flex:1;text-align:left;">
+      <div class="sl-body" style="flex:1;text-align:left;padding-right:32px;">
         <div class="sl-name">${escapeHtml(w.name || w.set_num)}</div>
         <div class="sl-meta">
           <span>${escapeHtml(w.theme || "")}</span>
@@ -1861,7 +1828,8 @@ function wishlistCardHTML(w) {
         <div class="progress${hit ? " over" : ""}"><div style="width:${progress}%;"></div></div>
         ${(w.retirement_risk_score || 0) >= 70 && !w.retired ? `<div style="font-size:11px;color:var(--down);margin-top:4px;font-family:var(--mono);">⚠️ Retirement risk: High</div>` : ""}
       </div>
-    </button>`;
+      <a href="${bricklinkBuyURL(w.set_num)}" target="_blank" rel="noopener" class="bl-badge" style="position:absolute;bottom:10px;right:10px;z-index:5;font-size:10px;font-family:var(--mono);font-weight:700;padding:2px 5px;background:var(--bv-yellow);color:#000;border:1.5px solid var(--line);border-radius:var(--r-1);text-decoration:none;" onclick="event.stopPropagation();">BL ↗</a>
+    </div>`;
 }
 
 /* ============================================================
@@ -2786,12 +2754,38 @@ function showScanResult(res) {
       </div>`;
   });
   listHTML += `</div>`;
+
+  let dealHTML = "";
+  if (sets.length === 1) {
+    dealHTML = `
+      <div style="margin: 0 0 12px 0;">
+        ${dealScoreHTML(sets[0])}
+        <div id="scanFlipCalcContainer">${flipCalcHTML(sets[0], null)}</div>
+      </div>`;
+  }
+
   let actionsHTML = `
     <div class="btn-row" style="margin-top:12px;">
       <button class="btn-secondary" id="scanDetails" ${sets.length > 1 ? 'disabled style="opacity:0.5;"' : ""}>Details</button>
       <button class="btn-primary" id="scanAdd">${I.plus()}<span>Add selected</span></button>
     </div>`;
-  el.innerHTML = headHTML + listHTML + actionsHTML;
+  el.innerHTML = headHTML + listHTML + dealHTML + actionsHTML;
+
+  if (sets.length === 1) {
+    const dpi = $("#dealPriceInput");
+    if (dpi) {
+      let debounceTid;
+      dpi.addEventListener("input", (e) => {
+        const val = e.target.value;
+        clearTimeout(debounceTid);
+        debounceTid = setTimeout(() => {
+          updateDealBadge(sets[0], val);
+          updateFlipCalc(sets[0], null, val);
+        }, 150);
+      });
+    }
+  }
+
   $("#scanDetails")?.addEventListener("click", () => {
     if (sets.length === 1) {
       closeScan();
@@ -3046,6 +3040,314 @@ function setupGestures() {
 }
 
 /* ============================================================
+   New Improvements — Parts 8 to 14
+   ============================================================ */
+function flipCalcHTML(set, entry) {
+  const condition = entry?.condition || 'new';
+  const market = parseFloat(set.ebay_value || set.current_value || 0);
+  if (market <= 0) return '';
+  
+  let estPrice = market;
+  if (condition.startsWith('used')) {
+    const ratio = (set.used_value && set.current_value) ? (set.used_value / set.current_value) : 0.75;
+    estPrice = market * ratio;
+  }
+  
+  const ebayFee = estPrice * 0.1325;
+  const paypalFee = estPrice * 0.029 + 0.30;
+  const shipping = 5.00;
+  const gross = estPrice;
+  const totalFees = ebayFee + paypalFee + shipping;
+  const net = Math.max(0, gross - totalFees);
+  
+  const purchasePrice = parseFloat(entry?.purchase_price || 0);
+  let roiHTML = '';
+  if (purchasePrice > 0) {
+    const netRoi = ((net - purchasePrice) / purchasePrice) * 100;
+    const roiColor = netRoi >= 0 ? 'var(--up)' : 'var(--bv-red)';
+    roiHTML = `<div style="font-size:11px;margin-top:4px;">Net ROI: <strong style="color:${roiColor};">${netRoi >= 0 ? '+' : ''}${netRoi.toFixed(1)}%</strong></div>`;
+  }
+  
+  return `
+    <div class="flip-calc-wrap" style="margin-top:12px;padding:12px;background:var(--surface-3);border:1.5px solid var(--line-soft);border-radius:var(--r-2);">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">Flip Calculator 💸</div>
+      <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;text-align:center;font-size:12px;">
+        <div>
+          <div style="color:var(--ink-mute);font-size:10px;">Gross</div>
+          <strong style="font-size:13px;">$${gross.toFixed(2)}</strong>
+        </div>
+        <div>
+          <div style="color:var(--ink-mute);font-size:10px;">Fees & Ship</div>
+          <span style="color:var(--bv-red);font-weight:600;">-$${totalFees.toFixed(2)}</span>
+        </div>
+        <div>
+          <div style="color:var(--ink-mute);font-size:10px;">Est. Net</div>
+          <strong style="color:var(--up);font-size:13px;">$${net.toFixed(2)}</strong>
+        </div>
+      </div>
+      <div class="flip-result" style="text-align:left;">${roiHTML}</div>
+    </div>`;
+}
+
+function updateFlipCalc(set, entry, storePrice) {
+  const container = document.querySelector(".flip-calc-wrap");
+  if (!container) return;
+  const price = parseFloat(storePrice) || 0;
+  const condition = entry?.condition || 'new';
+  const market = parseFloat(set.ebay_value || set.current_value || 0);
+  if (market <= 0) return;
+
+  let estPrice = market;
+  if (condition.startsWith('used')) {
+    const ratio = (set.used_value && set.current_value) ? (set.used_value / set.current_value) : 0.75;
+    estPrice = market * ratio;
+  }
+  const ebayFee = estPrice * 0.1325;
+  const paypalFee = estPrice * 0.029 + 0.30;
+  const shipping = 5.00;
+  const gross = estPrice;
+  const totalFees = ebayFee + paypalFee + shipping;
+  const net = Math.max(0, gross - totalFees);
+
+  const resultEl = container.querySelector(".flip-result");
+  if (resultEl) {
+    if (price > 0) {
+      const netRoi = ((net - price) / price) * 100;
+      const roiColor = netRoi >= 0 ? 'var(--up)' : 'var(--bv-red)';
+      resultEl.innerHTML = `<div style="font-size:11px;margin-top:4px;">Net ROI: <strong style="color:${roiColor};">${netRoi >= 0 ? '+' : ''}${netRoi.toFixed(1)}%</strong></div>`;
+    } else {
+      resultEl.innerHTML = '';
+    }
+  }
+}
+
+async function triggerRevalue(setNum) {
+  haptic("medium");
+  const stripCells = document.querySelectorAll(".price-strip .ps-cell");
+  const btn = document.getElementById("btnRevalue");
+  if (btn) {
+    btn.disabled = true;
+    btn.style.opacity = "0.5";
+    btn.innerHTML = `<span class="spin" style="display:inline-flex;animation:spin 0.8s linear infinite;">${I.refresh({w: 12, h: 12})}</span>`;
+  }
+  stripCells.forEach(cell => cell.classList.add("loading-shimmer"));
+  try {
+    const res = await api(`/api/sets/${encodeURIComponent(setNum)}/revalue`, { method: 'POST' });
+    if (res && res.set) {
+      const oldEntry = state.detail.cache[setNum]?.entry || null;
+      state.detail.cache[setNum] = { set: res.set, entry: oldEntry, ts: Date.now() };
+      
+      if (state.portfolio?.items) {
+        const itemIdx = state.portfolio.items.findIndex(i => i.set_num === setNum);
+        if (itemIdx !== -1) {
+          state.portfolio.items[itemIdx].current_value = res.set.current_value;
+          state.portfolio.items[itemIdx].used_value = res.set.used_value;
+          state.portfolio.items[itemIdx].ebay_value = res.set.ebay_value;
+          state.portfolio.items[itemIdx].retired = res.set.retired;
+        }
+      }
+      
+      paintSetDetail(res.set, oldEntry);
+      toast("Set value updated!", "success");
+    }
+  } catch (e) {
+    toast(e.message || "Revalue failed", "error");
+  } finally {
+    stripCells.forEach(cell => cell.classList.remove("loading-shimmer"));
+    if (btn) {
+      btn.disabled = false;
+      btn.style.opacity = "1";
+      btn.innerHTML = I.refresh({w: 12, h: 12});
+    }
+  }
+}
+
+function trendBadgeHTML(trend) {
+  if (trend === "rising") {
+    return `<span class="trend-badge rising" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--up);font-weight:700;margin-left:6px;" title="Price trend: Rising">${I.trend({w:10, h:10})} ↑ Rising</span>`;
+  }
+  if (trend === "falling") {
+    return `<span class="trend-badge falling" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--bv-red);font-weight:700;margin-left:6px;" title="Price trend: Falling">${I.trend({w:10, h:10})} ↓ Falling</span>`;
+  }
+  return "";
+}
+
+function bricklinkBuyURL(setNum) {
+  const clean = setNum.replace(/-1$/, "");
+  return `https://www.bricklink.com/v2/catalog/catalogitem.page?S=${clean}-1`;
+}
+
+function refreshNavBadge() {
+  const alerts = state.wishlistAlerts || [];
+  const spikes = alerts.filter(a => a.alert_type === 'spike').length;
+  const drops = alerts.filter(a => a.alert_type !== 'spike').length;
+  const total = spikes + drops;
+  
+  const el = document.getElementById("wishlistBtn");
+  if (!el) return;
+  
+  let badge = el.querySelector(".nav-badge");
+  if (total > 0) {
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "nav-badge";
+      el.appendChild(badge);
+    }
+    badge.style.display = "inline-flex";
+    badge.textContent = total;
+    el.title = `Wishlist Alerts (${spikes} spikes, ${drops} price drops)`;
+  } else {
+    if (badge) badge.style.display = "none";
+    el.removeAttribute("title");
+  }
+}
+
+function cohortROIHTML(items) {
+  const withPurchaseDate = items.filter(i => i.purchased_at && (Number(i.purchase_price) > 0 || Number(i.current_value) > 0));
+  if (!withPurchaseDate.length) {
+    return `<p style="color:var(--ink-mute);font-size:12px;text-align:center;padding:16px 0;">No sets with purchase dates in vault.</p>`;
+  }
+  
+  const cohorts = {};
+  for (const item of withPurchaseDate) {
+    const year = new Date(item.purchased_at).getFullYear();
+    if (!cohorts[year]) {
+      cohorts[year] = { count: 0, totalPaid: 0, totalCurrent: 0 };
+    }
+    const qty = Number(item.quantity) || 1;
+    cohorts[year].count += qty;
+    cohorts[year].totalPaid += (Number(item.purchase_price) || 0) * qty;
+    cohorts[year].totalCurrent += (Number(item.current_value) || 0) * qty;
+  }
+  
+  const sortedYears = Object.keys(cohorts).sort((a, b) => b - a);
+  let html = `<div class="insights-block" style="padding-top:8px;"><div class="insights-label">Cohort Performance by Purchase Year</div>`;
+  
+  sortedYears.forEach(year => {
+    const c = cohorts[year];
+    const gain = c.totalCurrent - c.totalPaid;
+    const roi = c.totalPaid > 0 ? (gain / c.totalPaid) * 100 : 0;
+    const roiColor = roi >= 0 ? 'var(--up)' : 'var(--bv-red)';
+    
+    const maxVal = Math.max(...Object.values(cohorts).map(x => x.totalCurrent));
+    const pct = maxVal > 0 ? (c.totalCurrent / maxVal * 100).toFixed(1) : 0;
+    
+    html += `
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:between;align-items:center;font-size:12px;margin-bottom:4px;">
+          <strong>Year ${year}</strong>
+          <span style="color:var(--ink-mute);font-size:11px;margin-left:auto;">${c.count} set${c.count > 1 ? 's' : ''} · Paid ${fmtMoney(c.totalPaid, { cents: 0 })}</span>
+        </div>
+        <div class="theme-bar-row" style="margin-bottom:2px;">
+          <div class="theme-bar-name" style="width:70px;">${fmtMoney(c.totalCurrent, { cents: 0 })}</div>
+          <div class="theme-bar-track" style="flex:1;"><div class="theme-bar-fill" style="width:${pct}%;background:var(--bv-yellow);"></div></div>
+          <div class="theme-bar-pct" style="color:${roiColor};font-weight:700;">${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%</div>
+        </div>
+      </div>`;
+  });
+  
+  html += `</div>`;
+  return html;
+}
+
+function insightsGeneralHTML(items) {
+  const themeMap = {};
+  for (const item of items) {
+    const t = item.theme || "Other";
+    themeMap[t] = (themeMap[t] || 0) + (Number(item.current_value) || 0) * (item.quantity || 1);
+  }
+  const themeTotal = Object.values(themeMap).reduce((a, b) => a + b, 0);
+  const topThemes = Object.entries(themeMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  const withRoi = items.filter(i => i.annualized_roi != null);
+  const roiSorted = [...withRoi].sort((a, b) => b.annualized_roi - a.annualized_roi);
+  const leaders = roiSorted.slice(0, 3);
+  const losers = roiSorted.filter(i => i.annualized_roi < 0).slice(-3).reverse();
+
+  const riskSorted = items
+    .filter(i => !i.retired && (i.retirement_risk_score || 0) > 0)
+    .sort((a, b) => (b.retirement_risk_score || 0) - (a.retirement_risk_score || 0))
+    .slice(0, 5);
+
+  let html = "";
+  if (topThemes.length > 1) {
+    html += `<div class="insights-block"><div class="insights-label">Value by theme</div>`;
+    for (const [theme, val] of topThemes) {
+      const pct = themeTotal > 0 ? (val / themeTotal * 100).toFixed(1) : 0;
+      const tc = THEME_COLORS[theme] || `oklch(0.55 0.18 ${themeHue(theme)})`;
+      html += `<div class="theme-bar-row">
+        <div class="theme-bar-name">${escapeHtml(theme)}</div>
+        <div class="theme-bar-track"><div class="theme-bar-fill" style="width:${pct}%;background:${tc};"></div></div>
+        <div class="theme-bar-pct">${pct}%</div>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  if (leaders.length > 0) {
+    html += `<div class="insights-block"><div class="insights-label">Top performers (annualized ROI)</div>`;
+    for (const item of leaders) {
+      html += `<a href="#/set/${encodeURIComponent(item.set_num)}" class="insights-row">
+        <span class="ir-name">${escapeHtml(item.name)}</span>
+        <span class="ir-roi" style="color:var(--up);">+${(item.annualized_roi * 100).toFixed(1)}% / yr</span>
+      </a>`;
+    }
+    html += `</div>`;
+  }
+
+  if (losers.length > 0) {
+    html += `<div class="insights-block"><div class="insights-label">Underperformers</div>`;
+    for (const item of losers) {
+      html += `<a href="#/set/${encodeURIComponent(item.set_num)}" class="insights-row">
+        <span class="ir-name">${escapeHtml(item.name)}</span>
+        <span class="ir-roi" style="color:var(--down);">${(item.annualized_roi * 100).toFixed(1)}% / yr</span>
+      </a>`;
+    }
+    html += `</div>`;
+  }
+
+  if (riskSorted.length > 0) {
+    html += `<div class="insights-block"><div class="insights-label">Retirement risk — act now</div>`;
+    for (const item of riskSorted) {
+      const score = item.retirement_risk_score || 0;
+      const barWidth = Math.min(100, score);
+      const color = score >= 70 ? "var(--down)" : score >= 40 ? "var(--bv-yellow)" : "var(--up)";
+      html += `<a href="#/set/${encodeURIComponent(item.set_num)}" class="insights-row">
+        <span class="ir-name">${score >= 70 ? "🔥 " : ""}${escapeHtml(item.name)}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="width:60px;height:4px;border-radius:2px;background:var(--line);overflow:hidden;">
+            <div style="width:${barWidth}%;height:100%;background:${color};border-radius:2px;"></div>
+          </div>
+          <span class="ir-roi" style="color:${color};">${score}</span>
+        </div>
+      </a>`;
+    }
+    html += `</div>`;
+  }
+  return html;
+}
+
+function wireInsightsTabs(items) {
+  const panel = $("#insightsPanel");
+  if (!panel) return;
+  panel.querySelectorAll(".insights-tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      haptic("light");
+      panel.querySelectorAll(".insights-tab").forEach(t => t.classList.toggle("active", t === tab));
+      const activeTab = tab.dataset.tab;
+      const contentEl = panel.querySelector("#insightsTabContent");
+      if (contentEl) {
+        if (activeTab === "general") {
+          contentEl.innerHTML = insightsGeneralHTML(items);
+        } else if (activeTab === "cohort") {
+          contentEl.innerHTML = cohortROIHTML(items);
+        }
+      }
+    });
+  });
+}
+
+/* ============================================================
    Init
    ============================================================ */
 // Global image-fallback handler. CSP (`script-src 'self'`) blocks inline
@@ -3072,7 +3374,7 @@ function priceStripHTML(set, entry) {
     <div class="price-strip">
       <div class="ps-cell${entry ? " high" : ""}">
         <div class="ps-lbl">${I.dollar()}BrickLink new</div>
-        <div class="ps-val">${set.current_value ? fmtMoney(set.current_value) : "—"}</div>
+        <div class="ps-val">${set.current_value ? fmtMoney(set.current_value) : "—"}${set.trend ? trendBadgeHTML(set.trend) : ""}</div>
         ${delta != null ? `<div class="delta ${delta >= 0 ? "up" : "down"}"><span class="arrow">${delta >= 0 ? "▲" : "▼"}</span>${fmtPct(Math.abs(delta))}</div>` : ""}
       </div>
       <div class="ps-cell">
@@ -3084,7 +3386,12 @@ function priceStripHTML(set, entry) {
         <div class="ps-val${!set.ebay_value ? " muted" : ""}">${set.ebay_value ? fmtMoney(set.ebay_value) : "—"}</div>
       </div>
     </div>
-    <div class="ps-footnote">BrickLink · BrickLink used · eBay last 20 sales</div>`;
+    <div class="ps-footnote" style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+      <span>BrickLink · BrickLink used · eBay last 20 sales</span>
+      <button class="icon-btn" id="btnRevalue" title="Refresh prices" style="padding:4px;border:none;background:transparent;cursor:pointer;color:var(--ink-mute);display:inline-flex;align-items:center;margin-left:8px;">
+        ${I.refresh({w: 12, h: 12})}
+      </button>
+    </div>`;
 }
 
 /* ============================================================

@@ -39,11 +39,32 @@ app.get('/', async (c) => {
   const totalPaid  = items.reduce((s, r) => s + (Number(r.purchase_price) || 0) * Number(r.quantity), 0);
   const minifigCount = items.reduce((s, r) => s + (Number(r.minifigs) || 0) * Number(r.quantity), 0);
   const count = items.length;
+  const minifigsStats = await c.env.DB.prepare(`
+    SELECT
+      COALESCE(SUM(m.current_value * um.quantity), 0) as fig_value,
+      CAST(COUNT(um.fig_num) AS INTEGER) as fig_count
+    FROM user_minifigs um
+    JOIN minifigs m ON m.fig_num = um.fig_num
+    WHERE um.user_id = ?
+  `).bind(userId).first<{ fig_value: number; fig_count: number }>();
+
+  const figValue = minifigsStats?.fig_value || 0;
+  const figCount = minifigsStats?.fig_count || 0;
+
   const lastModified = (items[0]?.last_modified || items[0]?.added_at || null) as string | null;
   const etag = `${count}-${lastModified ? new Date(lastModified).getTime() : 0}`;
 
   if (c.req.header('if-none-match') === etag) return new Response('', { status: 304 });
-  return new Response(JSON.stringify({ items, total_value: totalValue, total_paid: totalPaid, count, minifig_count: minifigCount }), {
+  return new Response(JSON.stringify({
+    items,
+    total_value: totalValue,
+    total_paid: totalPaid,
+    count,
+    minifig_count: minifigCount,
+    fig_value: figValue,
+    fig_count: figCount,
+    total_value_with_figs: totalValue + figValue
+  }), {
     headers: { 'Content-Type': 'application/json', 'ETag': etag },
   });
 });
