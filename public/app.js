@@ -222,7 +222,7 @@ function parseMarkdown(text) {
         inList = true;
         out += '<ul style="margin: 4px 0; padding-left: 20px;">';
       }
-      out += `<li>\${listContent}</li>`;
+      out += `<li>${listContent}</li>`;
       return out;
     } else {
       let out = "";
@@ -2825,6 +2825,7 @@ function showScanResult(res) {
       toast(navigator.onLine ? `Added ${addedCount} sets to vault` : `Saved ${addedCount} offline — will sync`, "success");
     }
     location.hash = "#/";
+  });
 }
 
 function scanOverlayHTML(mode) {
