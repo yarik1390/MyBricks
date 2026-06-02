@@ -110,22 +110,38 @@ body.offline .offline-banner { display: block; }
   top: 0;
   left: 0;
   right: 0;
-  height: 3px;
+  height: 4px;
   z-index: 9999;
   pointer-events: none;
   opacity: 0;
   width: 0;
-  background: linear-gradient(90deg, var(--brand, #e3000b), #ff8c00);
+  background: linear-gradient(90deg, var(--bv-red), var(--bv-yellow), var(--bv-red));
+  background-size: 200% 100%;
 }
 #navProgress.loading {
   opacity: 1;
-  width: 80%;
-  transition: width 0.5s ease-out, opacity 0.1s;
+  width: 85%;
+  transition: width 1.2s cubic-bezier(0.1, 0.8, 0.1, 1), opacity 0.15s;
+  animation: navProgressShimmer 1.5s linear infinite;
+  box-shadow: 0 1px 8px rgba(218, 41, 28, 0.5), 0 0 3px rgba(255, 215, 0, 0.3);
 }
 #navProgress.done {
   width: 100%;
   opacity: 0;
-  transition: width 0.15s ease-out, opacity 0.3s ease 0.15s;
+  transition: width 0.2s ease-out, opacity 0.3s ease 0.15s;
+  box-shadow: 0 1px 12px rgba(218, 41, 28, 0.7);
+}
+@keyframes navProgressShimmer {
+  0% { background-position: 0% 0%; }
+  100% { background-position: -200% 0%; }
+}
+
+/* Dim and blur content slightly while transitioning / loading */
+#root.route-loading {
+  opacity: 0.5;
+  filter: grayscale(15%) blur(0.5px);
+  pointer-events: none;
+  transition: opacity 0.2s var(--ease), filter 0.2s var(--ease);
 }
 
 /* skeleton */

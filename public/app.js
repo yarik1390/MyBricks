@@ -668,18 +668,28 @@ async function withViewTransition(fn) {
 
 function showNavProgress() {
   const el = document.getElementById('navProgress');
-  if (!el) return;
-  el.classList.remove('done');
-  el.style.width = '0';
-  el.offsetWidth; // force reflow to restart transition
-  el.classList.add('loading');
+  if (el) {
+    el.classList.remove('done');
+    el.style.width = '0';
+    el.offsetWidth; // force reflow to restart transition
+    el.classList.add('loading');
+  }
+  const root = document.getElementById('root');
+  if (root) {
+    root.classList.add('route-loading');
+  }
 }
 function hideNavProgress() {
   const el = document.getElementById('navProgress');
-  if (!el) return;
-  el.classList.remove('loading');
-  el.classList.add('done');
-  setTimeout(() => { el.classList.remove('done'); }, 500);
+  if (el) {
+    el.classList.remove('loading');
+    el.classList.add('done');
+    setTimeout(() => { el.classList.remove('done'); }, 500);
+  }
+  const root = document.getElementById('root');
+  if (root) {
+    root.classList.remove('route-loading');
+  }
 }
 
 // True when the route can paint immediately from already-loaded state, so we
@@ -760,11 +770,12 @@ async function _routeImpl() {
     const cached = hasCachedView(hash);
     if (!cached) showNavProgress();
     await withViewTransition(() => render());
+    hideNavProgress();
     if (!cached) {
-      hideNavProgress();
       document.querySelector('#root .page')?.setAttribute('data-fresh', '1');
     }
   } catch (e) {
+    hideNavProgress();
     if (e && e.__redirect) return;
     const root = $("#root");
     if (root) {
