@@ -38,12 +38,14 @@ app.get('/', async (c) => {
   ]);
 
   const p = prefs || {};
+  const ebayConfigured = !!(c.env.EBAY_APP_ID && !c.env.EBAY_APP_ID.includes('dummy'));
   return c.json({
     display_name: (p.display_name as string) || seedName(userId),
     handle: (p.handle as string | null) ?? null,
     is_public: p.is_public ? true : false,
     currency: (p.currency as string) || 'USD',
     notify_price_drops: p.notify_price_drops !== 0,
+    ebay_configured: ebayConfigured,
     portfolio_stats: {
       set_count: Number(stats?.set_count ?? 0),
       total_value: Number(stats?.total_value ?? 0),

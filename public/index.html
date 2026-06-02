@@ -74,10 +74,6 @@
     <span class="nav-icon"></span>
     <span class="nav-label">Figs</span>
   </a>
-  <a href="#/advisor" class="nav-tab" data-route="/advisor" aria-label="AI Advisor">
-    <span class="nav-icon"></span>
-    <span class="nav-label">Advisor</span>
-  </a>
   <a href="#/me" class="nav-tab" data-route="/me" aria-label="Profile">
     <span class="nav-icon"></span>
     <span class="nav-label">Me</span>
@@ -95,6 +91,16 @@
 
 <!-- Camera scan overlay (populated by app.js when opened) -->
 <div id="scanOverlay" aria-modal="true" role="dialog" aria-label="Camera scanner"></div>
+
+<!-- Floating Advisor FAB and Drawer -->
+<button id="advisorFab" class="advisor-fab" aria-label="Ask AI Advisor" style="display:none;">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="9"/>
+    <path d="M9 9a3 3 0 015.1 2.1c0 1.6-1.5 2.5-2.1 3.4V16"/>
+    <circle cx="12" cy="19" r=".5" fill="currentColor"/>
+  </svg>
+</button>
+<div id="advisorDrawer" class="advisor-drawer"></div>
 
 <script src="/env.js"></script>
 <script type="module" src="/app.js"></script>

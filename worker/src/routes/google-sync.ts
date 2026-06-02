@@ -85,9 +85,12 @@ app.get('/status', requireMember, async (c) => {
   const userId = c.get('userId');
   const prefs = await c.env.DB.prepare('SELECT google_refresh_token, google_spreadsheet_id FROM user_prefs WHERE user_id=?')
     .bind(userId).first() as { google_refresh_token?: string; google_spreadsheet_id?: string } | null;
+  const configured = !!(c.env.GOOGLE_CLIENT_ID && !c.env.GOOGLE_CLIENT_ID.includes('dummy') &&
+                        c.env.GOOGLE_CLIENT_SECRET && !c.env.GOOGLE_CLIENT_SECRET.includes('dummy'));
   return c.json({
     connected: !!prefs?.google_refresh_token,
-    spreadsheet_id: prefs?.google_spreadsheet_id || null
+    spreadsheet_id: prefs?.google_spreadsheet_id || null,
+    configured
   });
 });
 

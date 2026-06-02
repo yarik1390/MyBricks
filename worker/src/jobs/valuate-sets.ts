@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import type { Env } from '../types';
-import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
+import { fetchSetPricing, fetchUsedPricing, fetchMinifigPricing } from '../lib/bricklink';
 import { fetchEbayPrice } from '../lib/ebay';
 import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
 import { computeRetirementRisk } from '../lib/retirement-risk';
@@ -88,7 +88,8 @@ export async function runValuateSets(env: Env) {
           current_value=?, forecast_2y=?, forecast_5y=?,
           retail_price=COALESCE(?, retail_price),
           valuation_method=?,
-          valuation_expires_at=datetime('now', '+1 day')
+          valuation_expires_at=datetime('now', '+1 day'),
+          cached_at=datetime('now')
         WHERE set_num=?
       `).bind(pricing.current_value, forecast_2y, forecast_5y, retailPrice, valMethod, set.set_num).run();
       updated++;
@@ -106,7 +107,8 @@ export async function runValuateSets(env: Env) {
         UPDATE lego_sets SET
           current_value=?, forecast_2y=?, forecast_5y=?,
           valuation_method='ebay_rss',
-          valuation_expires_at=datetime('now', '+1 day')
+          valuation_expires_at=datetime('now', '+1 day'),
+          cached_at=datetime('now')
         WHERE set_num=?
       `).bind(ebayPrice, forecast_2y, forecast_5y, set.set_num).run();
       updated++;
@@ -139,7 +141,8 @@ export async function runValuateSets(env: Env) {
         UPDATE lego_sets SET
           retail_price=?, current_value=?, forecast_2y=?, forecast_5y=?,
           valuation_method='ai',
-          valuation_expires_at=datetime('now', '+1 day')
+          valuation_expires_at=datetime('now', '+1 day'),
+          cached_at=datetime('now')
         WHERE set_num=?
       `).bind(vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y,
               set.set_num).run();
@@ -150,8 +153,31 @@ export async function runValuateSets(env: Env) {
   }
 
   await updateRetirementRiskBatch(env);
+  await runValuateMinifigs(env).catch(err => console.error('[bg-valuate-minifigs] failed:', err));
 
   return { processed: results.length, updated, market, ai };
+}
+
+export async function runValuateMinifigs(env: Env): Promise<number> {
+  const { results } = await env.DB.prepare(`
+    SELECT DISTINCT m.fig_num
+    FROM minifigs m
+    JOIN user_minifigs um ON um.fig_num = m.fig_num
+    ORDER BY COALESCE(m.added_at, '2000-01-01') ASC
+    LIMIT 20
+  `).all<{ fig_num: string }>();
+
+  let updated = 0;
+  for (const fig of results) {
+    const price = await fetchMinifigPricing(fig.fig_num, env).catch(() => null);
+    if (price !== null && price > 0) {
+      await env.DB.prepare(`
+        UPDATE minifigs SET current_value = ?, added_at = datetime('now') WHERE fig_num = ?
+      `).bind(price, fig.fig_num).run();
+      updated++;
+    }
+  }
+  return updated;
 }
 
 // Batch-update retirement risk scores for sets due for refresh (null or >7 days old).

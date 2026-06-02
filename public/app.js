@@ -114,7 +114,7 @@ const state = {
     catalogRetired: false, catalogTheme: "all",
     catalogRanges: { min_year: "", max_year: "", min_pieces: "", max_pieces: "", min_value: "", max_value: "" },
     wishlistSort: "recent",
-    figQ: "", figRarity: "all", figOwned: "all",
+    figQ: "", figRarity: "all", figOwned: "all", figSort: "rarity_desc",
   },
   detail: { tab: "info", cache: {} },
   pwa: { deferredPrompt: null },
@@ -725,7 +725,6 @@ function hasCachedView(hash) {
   if (hash === "/" || hash === "") return !!state.portfolio;
   if (hash === "/add") return state.catalog.items.length > 0;
   if (hash === "/minifigs") return state.blind.items.length > 0;
-  if (hash === "/advisor") return !!localStorage.getItem('bv_chat');
   return false;
 }
 
@@ -764,6 +763,12 @@ async function _routeImpl() {
   const nav = document.getElementById("nav");
   if (nav) nav.style.display = "";
 
+  const fab = document.getElementById("advisorFab");
+  if (fab) {
+    fab.style.display = _authSession && hash !== "/login" ? "flex" : "none";
+  }
+  $("#advisorDrawer")?.classList.remove("open");
+
   $$("#nav .nav-tab").forEach(t => {
     const r = t.dataset.route;
     const active = r === hash || (hash.startsWith("/set/") && r === "/") || (hash === "/wishlist" && r === "/");
@@ -776,7 +781,6 @@ async function _routeImpl() {
     else if (hash === "/pile") renderPile();
     else if (hash === "/minifigs") await renderBlind();
     else if (hash === "/me") await renderMe();
-    else if (hash === "/advisor") await renderAdvisor();
     else if (hash === "/wishlist") await renderWishlist();
     else if (hash.startsWith("/set/")) {
       const parts = hash.split("/");
@@ -1561,6 +1565,9 @@ function infoTabHTML(set, entry, isWish) {
     `}
     <a class="bl-buy-link" href="${bricklinkBuyURL(set.set_num)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--ink-mute);text-decoration:underline;margin-top:14px;">
       View on BrickLink ${I.extLink()}
+    </a>
+    <a class="bl-buy-link" href="https://www.google.com/search?q=LEGO+${encodeURIComponent(set.set_num)}+building+instructions+PDF" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--ink-mute);text-decoration:underline;margin-top:8px;">
+      Search Building Instructions PDF ${I.extLink()}
     </a>`;
 }
 
@@ -2039,6 +2046,29 @@ async function renderMe() {
         </div>
       </div>
 
+      <div class="section-title">API Status</div>
+      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span>eBay Pricing API</span>
+            ${me.ebay_configured 
+              ? `<span style="color:var(--up);font-weight:600;display:inline-flex;align-items:center;gap:4px;">● Connected</span>` 
+              : `<span style="color:var(--bv-red);font-weight:600;display:inline-flex;align-items:center;gap:4px;">⚠️ Unconfigured (scraped fallback)</span>`}
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span>Google Sheets API</span>
+            ${googleStatus.configured 
+              ? `<span style="color:var(--up);font-weight:600;display:inline-flex;align-items:center;gap:4px;">● Configured</span>` 
+              : `<span style="color:var(--bv-red);font-weight:600;display:inline-flex;align-items:center;gap:4px;">⚠️ Unconfigured</span>`}
+          </div>
+          ${(!me.ebay_configured || !googleStatus.configured) ? `
+            <div style="font-size:10px;color:var(--ink-mute);border-top:1px solid var(--line-soft);padding-top:8px;line-height:1.4;">
+              To configure, set <code>EBAY_APP_ID</code>, <code>GOOGLE_CLIENT_ID</code>, and <code>GOOGLE_CLIENT_SECRET</code> environment variables in your Cloudflare Pages dashboard project settings.
+            </div>
+          ` : ''}
+        </div>
+      </div>
+
       <div class="section-title">Google Sheets Sync</div>
       <div>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
@@ -2511,6 +2541,7 @@ function blindQuery() {
   if (f.figRarity !== 'all')   p.set('rarity', f.figRarity);
   if (f.figOwned === 'owned')   p.set('owned', 'yes');
   if (f.figOwned === 'unowned') p.set('owned', 'no');
+  if (f.figSort)               p.set('sort', f.figSort);
   return p.toString();
 }
 
@@ -2729,8 +2760,17 @@ async function renderBlind() {
           <button class="chip ${f.figRarity === 'all' ? 'active' : ''}" data-fig-rarity="all">All</button>
           ${rarities.map(r => `<button class="chip ${f.figRarity === r ? 'active' : ''} rarity-chip-${r}" data-fig-rarity="${r}">${r.charAt(0).toUpperCase() + r.slice(1)}</button>`).join('')}
         </div>
-        <div class="filter-row" style="margin-top:-4px;">
+        <div class="filter-row" style="margin-top:-4px;margin-bottom:4px;">
           <button class="chip fig-owned-chip ${f.figOwned !== 'all' ? 'active' : ''}" id="figOwnedChip">${ownedChipLabel}</button>
+        </div>
+        <div class="filter-row" style="margin-top:2px;gap:6px;">
+          <span style="font-size:11px;color:var(--ink-mute);display:inline-flex;align-items:center;margin-right:2px;font-family:var(--mono);font-weight:600;">SORT:</span>
+          ${[
+            ['rarity_desc', 'Rarity'],
+            ['value_desc', 'Value (High)'],
+            ['value_asc', 'Value (Low)'],
+            ['name_asc', 'A-Z']
+          ].map(([k, l]) => `<button class="chip ${f.figSort === k ? 'active' : ''}" data-fig-sort="${k}">${l}</button>`).join('')}
         </div>
       </div>
 
@@ -2759,6 +2799,12 @@ async function renderBlind() {
     if (chip) { chip.textContent = labels[state.filter.figOwned]; chip.classList.toggle("active", state.filter.figOwned !== 'all'); }
     loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) refreshMiniGrid(); }).catch(() => {});
   });
+
+  $$("[data-fig-sort]").forEach(btn => btn.addEventListener("click", () => {
+    state.filter.figSort = btn.dataset.figSort; haptic("light");
+    $$("[data-fig-sort]").forEach(x => x.classList.toggle("active", x.dataset.figSort === state.filter.figSort));
+    loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) refreshMiniGrid(); }).catch(() => {});
+  }));
 
   wireMiniCards();
   mountBlindSentinel();
@@ -3739,7 +3785,21 @@ const ADVISOR_PROMPTS = [
   "How is my Star Wars collection doing?",
 ];
 
-async function renderAdvisor() {
+async function toggleAdvisor() {
+  const drawer = document.getElementById("advisorDrawer");
+  if (!drawer) return;
+  const isOpen = drawer.classList.contains("open");
+  if (isOpen) {
+    haptic("light");
+    drawer.classList.remove("open");
+  } else {
+    haptic("medium");
+    drawer.classList.add("open");
+    await renderAdvisorDrawer();
+  }
+}
+
+async function renderAdvisorDrawer() {
   const savedGeminiKey = localStorage.getItem('bv_gemini_key') || '';
   
   if (!state.portfolio) {
@@ -3761,53 +3821,66 @@ async function renderAdvisor() {
   let chatHistory = [];
   try { chatHistory = JSON.parse(localStorage.getItem('bv_chat') || '[]'); } catch {}
 
-  $("#root").innerHTML = `
-    <div class="page" id="chatWrap">
-      <div class="topbar">
+  const drawer = document.getElementById("advisorDrawer");
+  if (!drawer) return;
+
+  drawer.innerHTML = `
+    <div style="height:100%; display:flex; flex-direction:column; background:var(--surface);">
+      <div class="topbar" style="padding:12px 16px; border-bottom:1.5px solid var(--line-soft); flex-shrink:0;">
         <div class="topbar-heading">
           <div class="topbar-eyebrow">AI & Local Insights</div>
-          <div class="topbar-title">Advisor</div>
+          <div class="topbar-title" style="font-size:18px;">Advisor</div>
         </div>
-        ${chatHistory.length > 0 ? `<button class="icon-btn" id="clearChat" aria-label="Clear history">${I.trash()}</button>` : ""}
+        <div style="display:flex; gap:8px; align-items:center;">
+          ${chatHistory.length > 0 ? `<button class="icon-btn" id="clearChat" aria-label="Clear history">${I.trash()}</button>` : ""}
+          <button class="icon-btn" id="closeAdvisor" aria-label="Close Advisor">${I.close()}</button>
+        </div>
       </div>
 
       <!-- Tab bar -->
-      <div class="chat-tabs" style="display:flex;border-bottom:1.5px solid var(--line-soft);background:var(--surface);flex-shrink:0;">
-        <button class="chat-tab-btn active" data-tab="chat" style="flex:1;padding:12px;background:transparent;border:none;border-bottom:2.5px solid var(--ink);font-weight:700;color:var(--ink);cursor:pointer;font-family:var(--sans);font-size:13px;outline:none;">AI Advisor</button>
-        <button class="chat-tab-btn" data-tab="analyst" style="flex:1;padding:12px;background:transparent;border:none;border-bottom:2.5px solid transparent;font-weight:500;color:var(--ink-mute);cursor:pointer;font-family:var(--sans);font-size:13px;outline:none;">Local Analyst</button>
+      <div class="chat-tabs" style="display:flex; border-bottom:1.5px solid var(--line-soft); background:var(--surface); flex-shrink:0;">
+        <button class="chat-tab-btn active" data-tab="chat" style="flex:1; padding:12px; background:transparent; border:none; border-bottom:2.5px solid var(--ink); font-weight:700; color:var(--ink); cursor:pointer; font-family:var(--sans); font-size:13px; outline:none;">AI Advisor</button>
+        <button class="chat-tab-btn" data-tab="analyst" style="flex:1; padding:12px; background:transparent; border:none; border-bottom:2.5px solid transparent; font-weight:500; color:var(--ink-mute); cursor:pointer; font-family:var(--sans); font-size:13px; outline:none;">Local Analyst</button>
       </div>
 
       <!-- AI Chat Tab Area -->
-      <div class="chat-history" id="chatHistory" style="display:flex;flex-direction:column;flex:1;overflow-y:auto;">
+      <div class="chat-history" id="chatHistory" style="display:flex; flex-direction:column; flex:1; overflow-y:auto; padding:12px 16px; gap:12px;">
         ${chatHistory.length === 0 ? `
-          <div class="chat-suggestions" id="chatSuggestions">
+          <div class="chat-suggestions" id="chatSuggestions" style="padding:0;">
             ${!savedGeminiKey ? `
-              <div class="chat-gemini-card">
-                <div style="font-weight:600;font-size:13px;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+              <div class="chat-gemini-card" style="margin-bottom:12px;">
+                <div style="font-weight:600; font-size:13px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
                   ${I.flash({w:16})}<span>Get Free Gemini Key</span>
                 </div>
-                <div style="font-size:12px;color:var(--ink-mute);line-height:1.45;">
-                  Unlock unlimited, fast AI advice and scans! Get a key in 30 seconds at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--bv-red);font-weight:600;text-decoration:underline;">Google AI Studio</a> and save it in the <strong>Me</strong> tab.
+                <div style="font-size:11px; color:var(--ink-mute); line-height:1.45;">
+                  Unlock AI advice! Get a key in 30 seconds at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--bv-red); font-weight:600; text-decoration:underline;">Google AI Studio</a> and save it in the <strong>Me</strong> tab.
                 </div>
               </div>` : ""}
-            <div style="font-size:14px;color:var(--ink-mute);text-align:center;margin-bottom:8px;">Ask about your collection…</div>
-            ${ADVISOR_PROMPTS.map(p => `<button class="chat-suggestion-chip">${escapeHtml(p)}</button>`).join("")}
+            <div style="font-size:12px; color:var(--ink-mute); text-align:center; margin-bottom:8px;">Ask about your collection…</div>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              ${ADVISOR_PROMPTS.map(p => `<button class="chat-suggestion-chip" style="font-size:12px; text-align:left; padding:8px 12px; width:100%;">${escapeHtml(p)}</button>`).join("")}
+            </div>
           </div>` :
           chatHistory.map(m => `<div class="chat-msg ${m.role === "user" ? "user" : "ai"}">${m.role === "ai" ? parseMarkdown(m.content) : escapeHtml(m.content)}</div>`).join("")
         }
       </div>
 
       <!-- Local Analyst Tab Area -->
-      <div id="analystArea" style="display:none;flex:1;overflow-y:auto;padding:16px 20px;">
+      <div id="analystArea" style="display:none; flex:1; overflow-y:auto; padding:12px 16px;">
         ${localAnalystHTML()}
       </div>
 
       <!-- Chat input row -->
-      <div class="chat-input-row" id="chatInputRow">
-        <textarea class="chat-input" id="chatInput" placeholder="Ask anything about your collection…" rows="1"></textarea>
+      <div class="chat-input-row" id="chatInputRow" style="padding:10px 16px; border-top:1.5px solid var(--line-soft); background:var(--surface); flex-shrink:0;">
+        <textarea class="chat-input" id="chatInput" placeholder="Ask anything about your collection…" rows="1" style="max-height:80px;"></textarea>
         <button class="chat-send-btn" id="chatSend" aria-label="Send">${I.arrowU()}</button>
       </div>
     </div>`;
+
+  $("#closeAdvisor")?.addEventListener("click", () => {
+    haptic("light");
+    drawer.classList.remove("open");
+  });
 
   $$(".chat-suggestion-chip").forEach(chip => {
     chip.addEventListener("click", () => sendAdvisorMessage(chip.textContent.trim()));
@@ -3853,7 +3926,7 @@ async function renderAdvisor() {
   });
   input?.addEventListener("input", () => {
     input.style.height = "auto";
-    input.style.height = Math.min(input.scrollHeight, 120) + "px";
+    input.style.height = Math.min(input.scrollHeight, 80) + "px";
   });
   sendBtn?.addEventListener("click", () => {
     const q = input?.value.trim();
@@ -4168,7 +4241,7 @@ function saveChatMessage(role, content) {
 
 function clearAdvisorHistory() {
   localStorage.removeItem('bv_chat');
-  renderAdvisor();
+  renderAdvisorDrawer();
 }
 
 /* ============================================================
@@ -4470,7 +4543,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // Wire nav icons using icon library
-  const icons = { "/": I.home, "/add": I.search, "/minifigs": I.figure, "/advisor": I.advisor, "/me": I.user };
+  const icons = { "/": I.home, "/add": I.search, "/minifigs": I.figure, "/me": I.user };
   $$("#nav .nav-tab").forEach(t => {
     const r = t.dataset.route;
     const iconFn = icons[r];
@@ -4483,6 +4556,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (t.classList.contains("active")) window.scrollTo({ top: 0, behavior: "smooth" });
     });
   });
+
+  $("#advisorFab")?.addEventListener("click", toggleAdvisor);
 
   // Re-assert the stored theme (the inline bootstrap set it pre-paint; this
   // wires up meta theme-color + keeps state consistent after hydration).

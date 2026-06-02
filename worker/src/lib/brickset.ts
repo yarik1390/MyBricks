@@ -113,6 +113,7 @@ export interface BricksetDetails {
   retired: boolean | null;
   retiredYear: number | null;
   usRetailPrice: number | null;
+  minifigs: number | null;
 }
 
 export async function fetchBricksetDetails(setNum: string, env: Env): Promise<BricksetDetails | null> {
@@ -149,6 +150,7 @@ export async function fetchBricksetDetails(setNum: string, env: Env): Promise<Br
       retired: typeof s.released === 'boolean' && typeof s.retired === 'boolean' ? s.retired : null,
       retiredYear: typeof s.retiredYear === 'number' ? s.retiredYear : null,
       usRetailPrice: typeof s.US_retailPrice === 'number' ? s.US_retailPrice : null,
+      minifigs: typeof s.minifigs === 'number' ? s.minifigs : null,
     };
   } catch (err) {
     console.error('[brickset-details] Error fetching Brickset details:', err);

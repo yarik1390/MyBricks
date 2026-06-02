@@ -56,7 +56,13 @@ app.get('/', async (c) => {
   const count = items.length;
   const minifigsStats = await c.env.DB.prepare(`
     SELECT
-      COALESCE(SUM(m.current_value * um.quantity), 0) as fig_value,
+      COALESCE(SUM(COALESCE(m.current_value, CASE m.rarity
+        WHEN 'common' THEN 3.50
+        WHEN 'uncommon' THEN 7.50
+        WHEN 'rare' THEN 18.00
+        WHEN 'legendary' THEN 50.00
+        ELSE 3.50
+      END) * um.quantity), 0) as fig_value,
       CAST(COUNT(um.fig_num) AS INTEGER) as fig_count
     FROM user_minifigs um
     JOIN minifigs m ON m.fig_num = um.fig_num

@@ -112,3 +112,27 @@ export async function fetchSetPricing(setNum: string, env: Env): Promise<BrickLi
     return null;
   }
 }
+
+export async function fetchMinifigPricing(figNum: string, env: Env): Promise<number | null> {
+  if (!env.BRICKLINK_CONSUMER_KEY) return null;
+  try {
+    const baseUrl = `https://api.bricklink.com/api/store/v1/price_guide/MINIFIG/${encodeURIComponent(figNum)}`;
+    const queryParams = { guide_type: 'sold', new_or_used: 'N', country_code: 'US', currency_code: 'USD' };
+    const authHeader = await oauthHeader(
+      'GET', baseUrl, queryParams,
+      env.BRICKLINK_CONSUMER_KEY, env.BRICKLINK_CONSUMER_SECRET,
+      env.BRICKLINK_TOKEN, env.BRICKLINK_TOKEN_SECRET,
+    );
+    const resp = await fetch(`${baseUrl}?${new URLSearchParams(queryParams)}`, {
+      headers: { Authorization: authHeader, Accept: 'application/json' },
+    });
+    if (!resp.ok) return null;
+    const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
+    if (body.meta?.code !== 200 || !body.data) return null;
+    const d = body.data;
+    const current = parseFloat(String(d.qty_avg_price || d.avg_price || '')) || null;
+    return current;
+  } catch {
+    return null;
+  }
+}

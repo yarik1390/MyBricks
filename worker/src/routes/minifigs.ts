@@ -13,6 +13,7 @@ app.get('/', async (c) => {
   const q      = c.req.query('q')      || '';
   const rarity = c.req.query('rarity') || '';
   const owned  = c.req.query('owned')  || ''; // 'yes' | 'no'
+  const sort   = c.req.query('sort')   || 'rarity_desc';
   const lim    = Math.min(parseInt(c.req.query('limit')  || '30', 10), 100);
   const offset = Math.max(parseInt(c.req.query('offset') || '0',  10), 0);
 
@@ -33,13 +34,32 @@ app.get('/', async (c) => {
   const countParams: unknown[] = [userId];
   const countWhereSQL = buildWhere(countParams);
 
+  const valExpr = `COALESCE(m.current_value, CASE m.rarity
+    WHEN 'common' THEN 3.50
+    WHEN 'uncommon' THEN 7.50
+    WHEN 'rare' THEN 18.00
+    WHEN 'legendary' THEN 50.00
+    ELSE 3.50
+  END)`;
+
+  let orderBy = `ORDER BY CASE m.rarity WHEN 'legendary' THEN 4 WHEN 'rare' THEN 3 WHEN 'uncommon' THEN 2 ELSE 1 END DESC, m.name ASC`;
+  if (sort === 'value_desc') {
+    orderBy = `ORDER BY ${valExpr} DESC, m.name ASC`;
+  } else if (sort === 'value_asc') {
+    orderBy = `ORDER BY ${valExpr} ASC, m.name ASC`;
+  } else if (sort === 'name_asc') {
+    orderBy = `ORDER BY m.name ASC`;
+  }
+
   const [pageRes, countRes] = await Promise.all([
     c.env.DB.prepare(
-      `SELECT m.*, COALESCE(um.quantity, 0) as owned_qty
+      `SELECT m.fig_num, m.name, m.series, m.rarity, m.image_url, m.added_at, m.source,
+              ${valExpr} as current_value,
+              COALESCE(um.quantity, 0) as owned_qty
        FROM minifigs m
        LEFT JOIN user_minifigs um ON um.fig_num = m.fig_num AND um.user_id = ?
        ${pageWhereSQL}
-       ORDER BY m.rarity DESC, m.name
+       ${orderBy}
        LIMIT ? OFFSET ?`
     ).bind(...pageParams).all<Record<string, unknown>>(),
     c.env.DB.prepare(

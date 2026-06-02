@@ -149,20 +149,15 @@ app.get('/:setnum', async (c) => {
                 current_value=?, used_value=?, ebay_value=COALESCE(?, ebay_value), retail_price=COALESCE(?, retail_price),
                 forecast_2y=?, forecast_5y=?,
                 valuation_method='brickeconomy',
-                valuation_expires_at=datetime('now', '+1 day')
+                valuation_expires_at=datetime('now', '+1 day'),
+                cached_at=datetime('now')
               WHERE set_num=?
             `).bind(be.current_value_new, be.current_value_used, ebayVal, be.retail_price_us, forecast_2y, forecast_5y, activeSet.set_num)
           ];
           await c.env.DB.batch(supplementStmts);
         }).catch(err => console.error('[bg-brickeconomy-reval] failed:', err));
 
-        if (isBulk) {
-          await refreshPromise;
-          const freshSet = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(setnum).first<Record<string, unknown>>();
-          if (freshSet) resultSet = freshSet;
-        } else {
-          c.executionCtx.waitUntil(refreshPromise);
-        }
+        c.executionCtx.waitUntil(refreshPromise);
       } else if (c.env.BRICKLINK_CONSUMER_KEY) {
         const refreshPromise = Promise.all([
           fetchSetPricing(activeSet.set_num as string, c.env),
@@ -184,7 +179,8 @@ app.get('/:setnum', async (c) => {
               UPDATE lego_sets SET
                 current_value=?, forecast_2y=?, forecast_5y=?,
                 valuation_method='market',
-                valuation_expires_at=datetime('now', '+1 day')
+                valuation_expires_at=datetime('now', '+1 day'),
+                cached_at=datetime('now')
               WHERE set_num=?
             `).bind(p.current_value, forecast_2y, forecast_5y, activeSet.set_num));
           }
@@ -193,13 +189,7 @@ app.get('/:setnum', async (c) => {
           }
         }).catch(err => console.error('[bg-reval] failed:', err));
 
-        if (isBulk) {
-          await refreshPromise;
-          const freshSet = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(setnum).first<Record<string, unknown>>();
-          if (freshSet) resultSet = freshSet;
-        } else {
-          c.executionCtx.waitUntil(refreshPromise);
-        }
+        c.executionCtx.waitUntil(refreshPromise);
       } else if (geminiKey) {
         const refreshPromise = Promise.all([
           callGeminiValuation(activeSet.set_num as string, activeSet.name as string, geminiKey).catch(() => null),
@@ -214,7 +204,8 @@ app.get('/:setnum', async (c) => {
               UPDATE lego_sets SET
                 current_value=?, used_value=?, ebay_value=COALESCE(?, ebay_value), forecast_2y=?, forecast_5y=?,
                 valuation_method='ai',
-                valuation_expires_at=datetime('now', '+1 day')
+                valuation_expires_at=datetime('now', '+1 day'),
+                cached_at=datetime('now')
               WHERE set_num=?
             `).bind(gemVal.current_value, gemVal.used_value, gemVal.ebay_value || null, forecast_2y, forecast_5y, activeSet.set_num));
           } else if (ebayVal !== null) {
@@ -225,7 +216,8 @@ app.get('/:setnum', async (c) => {
               UPDATE lego_sets SET
                 current_value=?, forecast_2y=?, forecast_5y=?,
                 valuation_method='ebay_rss',
-                valuation_expires_at=datetime('now', '+1 day')
+                valuation_expires_at=datetime('now', '+1 day'),
+                cached_at=datetime('now')
               WHERE set_num=?
             `).bind(ebayVal, forecast_2y, forecast_5y, activeSet.set_num));
           }
@@ -237,13 +229,7 @@ app.get('/:setnum', async (c) => {
           }
         }).catch(err => console.error('[bg-gemini-reval] failed:', err));
 
-        if (isBulk) {
-          await refreshPromise;
-          const freshSet = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(setnum).first<Record<string, unknown>>();
-          if (freshSet) resultSet = freshSet;
-        } else {
-          c.executionCtx.waitUntil(refreshPromise);
-        }
+        c.executionCtx.waitUntil(refreshPromise);
       } else {
         const refreshPromise = fetchEbayPrice(activeSet.set_num as string, activeSet.name as string, c.env).then(async (ebayVal) => {
           if (ebayVal === null || ebayVal === undefined) return;
@@ -256,24 +242,25 @@ app.get('/:setnum', async (c) => {
                 current_value=?, ebay_value=?, forecast_2y=?, forecast_5y=?,
                 valuation_method='ebay_rss',
                 ebay_cached_at=datetime('now'),
-                valuation_expires_at=datetime('now', '+1 day')
+                valuation_expires_at=datetime('now', '+1 day'),
+                cached_at=datetime('now')
               WHERE set_num=?
             `).bind(ebayVal, ebayVal, forecast_2y, forecast_5y, activeSet.set_num)
           ];
           await c.env.DB.batch(supplementStmts);
         }).catch(err => console.error('[bg-ebay-rss-reval] failed:', err));
 
-        if (isBulk) {
-          await refreshPromise;
-          const freshSet = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(setnum).first<Record<string, unknown>>();
-          if (freshSet) resultSet = freshSet;
-        } else {
-          c.executionCtx.waitUntil(refreshPromise);
-        }
+        c.executionCtx.waitUntil(refreshPromise);
       }
     }
 
     const brickset = await fetchBricksetDetails(resultSet.set_num as string, c.env).catch(() => null);
+    if (brickset && brickset.minifigs !== null && brickset.minifigs > 0 && !resultSet.minifigs) {
+      await c.env.DB.prepare('UPDATE lego_sets SET minifigs=? WHERE set_num=?')
+        .bind(brickset.minifigs, resultSet.set_num)
+        .run();
+      resultSet.minifigs = brickset.minifigs;
+    }
     return c.json({ set: { ...resultSet, retired: !!resultSet.retired, trend, brickset }, entry: entry || null });
   }
 
@@ -297,6 +284,12 @@ app.get('/:setnum', async (c) => {
     `).bind(row.set_num, row.name, row.year, row.pieces, row.minifigs, row.image_url,
             row.retail_price, row.current_value, row.forecast_2y, row.forecast_5y).run();
     const brickset = await fetchBricksetDetails(row.set_num, c.env).catch(() => null);
+    if (brickset && brickset.minifigs !== null && brickset.minifigs > 0) {
+      await c.env.DB.prepare('UPDATE lego_sets SET minifigs=? WHERE set_num=?')
+        .bind(brickset.minifigs, row.set_num)
+        .run();
+      row.minifigs = brickset.minifigs;
+    }
     return c.json({ set: { ...row, brickset }, entry: null });
   } catch (e) {
     return c.json({ error: (e as Error).message }, 500);
@@ -522,7 +515,8 @@ app.post('/:setnum/revalue', async (c) => {
           current_value=?, forecast_2y=?, forecast_5y=?,
           retail_price=COALESCE(?, retail_price),
           valuation_method=?,
-          valuation_expires_at=datetime('now', '+7 days')
+          valuation_expires_at=datetime('now', '+7 days'),
+          cached_at=datetime('now')
         WHERE set_num=?
       `).bind(pricing.current_value, forecast_2y, forecast_5y, retailPrice, valMethod, set.set_num)
     );
