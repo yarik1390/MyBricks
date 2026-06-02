@@ -61,6 +61,21 @@ export async function runValuateSets(env: Env) {
       continue;
     }
 
+    if (ebayPrice !== null && ebayPrice !== undefined) {
+      const yr = set.retired ? 0.15 : 0.10;
+      const forecast_2y = Math.round(ebayPrice * Math.pow(1 + yr, 2) * 100) / 100;
+      const forecast_5y = Math.round(ebayPrice * Math.pow(1 + yr, 5) * 100) / 100;
+      await env.DB.prepare(`
+        UPDATE lego_sets SET
+          current_value=?, forecast_2y=?, forecast_5y=?,
+          valuation_method='ebay_rss',
+          valuation_expires_at=datetime('now', '+7 days')
+        WHERE set_num=?
+      `).bind(ebayPrice, forecast_2y, forecast_5y, set.set_num).run();
+      updated++;
+      continue;
+    }
+
     // Fall back to GPT-4o-mini
     try {
       const result = await openai.chat.completions.create({

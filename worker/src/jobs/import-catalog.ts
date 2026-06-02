@@ -99,11 +99,11 @@ export async function importSets(db: D1Database) {
         name=EXCLUDED.name, year=EXCLUDED.year, theme=EXCLUDED.theme,
         pieces=EXCLUDED.pieces, minifigs=EXCLUDED.minifigs,
         image_url=COALESCE(EXCLUDED.image_url, lego_sets.image_url),
-        retail_price=CASE WHEN lego_sets.valuation_method IN ('ai','market') THEN lego_sets.retail_price ELSE EXCLUDED.retail_price END,
-        current_value=CASE WHEN lego_sets.valuation_method IN ('ai','market') THEN lego_sets.current_value ELSE EXCLUDED.current_value END,
-        forecast_2y=CASE WHEN lego_sets.valuation_method IN ('ai','market') THEN lego_sets.forecast_2y ELSE EXCLUDED.forecast_2y END,
-        forecast_5y=CASE WHEN lego_sets.valuation_method IN ('ai','market') THEN lego_sets.forecast_5y ELSE EXCLUDED.forecast_5y END,
-        valuation_method=CASE WHEN lego_sets.valuation_method IN ('ai','market') THEN lego_sets.valuation_method ELSE 'formula_bulk' END,
+        retail_price=CASE WHEN lego_sets.valuation_method IN ('ai','market','ebay_rss') THEN lego_sets.retail_price ELSE EXCLUDED.retail_price END,
+        current_value=CASE WHEN lego_sets.valuation_method IN ('ai','market','ebay_rss') THEN lego_sets.current_value ELSE EXCLUDED.current_value END,
+        forecast_2y=CASE WHEN lego_sets.valuation_method IN ('ai','market','ebay_rss') THEN lego_sets.forecast_2y ELSE EXCLUDED.forecast_2y END,
+        forecast_5y=CASE WHEN lego_sets.valuation_method IN ('ai','market','ebay_rss') THEN lego_sets.forecast_5y ELSE EXCLUDED.forecast_5y END,
+        valuation_method=CASE WHEN lego_sets.valuation_method IN ('ai','market','ebay_rss') THEN lego_sets.valuation_method ELSE 'formula_bulk' END,
         source='rebrickable', cached_at=datetime('now')
     `).bind(s.set_num, s.name, year, theme, pieces, minifigs, img,
             vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y));
