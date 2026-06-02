@@ -2262,7 +2262,7 @@ select:focus-visible,
    ============================================================ */
 
 @media (min-width: 768px) {
-  .detail-page-container {
+  .page.no-pad.detail-page-container {
     display: flex;
     gap: 24px;
     padding: 26px 24px 24px;
