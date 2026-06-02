@@ -2010,6 +2010,10 @@ async function renderMe() {
           <div class="lbl-wrap"><div class="lbl">Backfill barcodes</div><div class="desc" id="backfillUpcDesc">Fill UPC codes from Brickset — enables free barcode scanning</div></div>
           <button class="import-btn" id="backfillUpcBtn" aria-label="Backfill barcodes">${I.download()}</button>
         </div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Revalue all prices</div><div class="desc" id="revalueAllDesc">Update all set prices from BrickEconomy in one batch</div></div>
+          <button class="import-btn" id="revalueAllBtn" aria-label="Revalue all prices">${I.refresh({w: 16, h: 16})}</button>
+        </div>
       </div>
 
       <div class="section-title">AI Scanning</div>
@@ -2214,6 +2218,29 @@ async function renderMe() {
       descEl.textContent = e.message || "Failed";
       btnEl.disabled = false;
       toast("Backfill failed: " + e.message, "error");
+    }
+  });
+
+  $("#revalueAllBtn")?.addEventListener("click", async () => {
+    const descEl = $("#revalueAllDesc"), btnEl = $("#revalueAllBtn");
+    if (!btnEl || btnEl.disabled) return;
+    btnEl.disabled = true;
+    haptic("medium");
+    descEl.textContent = "Starting bulk revaluation…";
+    try {
+      const r = await api("/api/admin/revalue-brickeconomy", { method: "POST", body: { scope: "all" } });
+      if (r.ok) {
+        descEl.textContent = `✓ Revaluing ${(r.total || 0).toLocaleString()} sets in background — prices will update over the next few minutes`;
+        toast(`Revaluing ${(r.total || 0).toLocaleString()} sets via BrickEconomy`, "success");
+      } else {
+        descEl.textContent = r.error || "Failed";
+        toast(r.error || "Revalue failed", "error");
+      }
+      btnEl.disabled = false;
+    } catch (e) {
+      descEl.textContent = e.message || "Failed";
+      btnEl.disabled = false;
+      toast("Revalue failed: " + e.message, "error");
     }
   });
 
