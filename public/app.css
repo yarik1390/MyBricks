@@ -635,6 +635,7 @@ body.offline .offline-banner { display: block; }
 .detail-hero {
   position: relative; height: 320px;
   overflow: hidden;
+  background: var(--surface);
 }
 /* With a real photo, ditch the blurred ambient backdrop + scrim entirely so the
    product floats directly on the page and the bigger image fades into it. */
@@ -2264,7 +2265,7 @@ select:focus-visible,
   .detail-page-container {
     display: flex;
     gap: 24px;
-    padding: 24px;
+    padding: 26px 24px 24px;
   }
   .detail-hero-col {
     flex: 0 0 320px;
@@ -2276,7 +2277,7 @@ select:focus-visible,
   }
   .detail-page-container .detail-hero {
     position: sticky;
-    top: 24px;
+    top: 26px;
     height: 320px;
     border: 2px solid var(--line);
     border-radius: var(--r-3);
@@ -2318,6 +2319,7 @@ select:focus-visible,
   #chatWrap {
     height: 100vh;
     height: 100dvh;
+    padding-top: 26px !important;
   }
   .nav-tab .nav-badge {
     top: 50%;
