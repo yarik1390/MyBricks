@@ -45,7 +45,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
       SELECT set_num, name, current_value, retail_price, valuation_method
       FROM lego_sets
       WHERE valuation_expires_at > datetime('now', '-14 days')
-        AND valuation_method = 'market'
+        AND valuation_method IN ('market', 'brickeconomy', 'ai', 'ebay_rss')
         AND set_num IN (
           SELECT set_num FROM user_collection WHERE user_id = ? AND deleted_at IS NULL
           UNION

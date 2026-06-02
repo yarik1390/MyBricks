@@ -308,6 +308,11 @@ app.post('/:setnum/listing-draft', async (c) => {
   const blPrice = set.current_value ? `$${Number(set.current_value).toFixed(0)}` : 'unknown';
   const ebayPrice = set.ebay_value ? `$${Number(set.ebay_value).toFixed(0)}` : null;
 
+  const sourceName = set.valuation_method === 'market' ? 'BrickLink'
+    : set.valuation_method === 'brickeconomy' ? 'BrickEconomy'
+    : set.valuation_method === 'ai' ? 'AI estimate'
+    : set.valuation_method === 'ebay_rss' ? 'eBay Sold' : 'Estimated';
+
   const prompt = `Generate an eBay listing for this LEGO set. Return JSON only with keys: title, description, suggested_price (number), price_reasoning (string).
 
 Set: ${set.name}
@@ -318,7 +323,7 @@ Pieces: ${set.pieces}
 Minifigs: ${set.minifigs || 0}
 Condition: ${conditionLabel[condition] || condition}
 Is complete: ${entry?.is_complete !== 0 ? 'Yes' : `No (${entry?.missing_pieces || '?'} pieces missing)`}
-BrickLink market price (new): ${blPrice}${ebayPrice ? `\neBay recent sales: ${ebayPrice}` : ''}
+${sourceName} market price (new): ${blPrice}${ebayPrice ? `\neBay recent sales: ${ebayPrice}` : ''}
 Notes from owner: ${entry?.notes || 'none'}
 
 Title: max 80 characters, include set number and name.
