@@ -147,6 +147,11 @@ body.offline .offline-banner { display: block; }
 }
 .page.no-pad { padding: 0 0 28px; }
 .page.no-pad-top { padding-top: 0; }
+.page-narrow {
+  max-width: 760px;
+  margin: 0 auto;
+  width: 100%;
+}
 
 /* ============================================================
    Top bar
@@ -981,6 +986,7 @@ body.offline .offline-banner { display: block; }
 .fig-stat-pill {
   background: var(--surface); border: 2px solid var(--line);
   border-radius: var(--r-3); padding: 12px 14px;
+  box-shadow: var(--shadow-2);
 }
 .fig-stat-num {
   font-family: var(--serif); font-size: 18px; font-weight: 500;
@@ -1225,7 +1231,7 @@ body.offline .offline-banner { display: block; }
   font-family: var(--mono); font-size: 10px;
   letter-spacing: 0.12em; text-transform: uppercase;
   color: var(--ink-mute);
-  margin: 18px 4px 8px;
+  margin: 18px 0 8px;
 }
 
 .setting-row {
@@ -1771,17 +1777,57 @@ body.offline .offline-banner { display: block; }
 }
 
 /* A5 — Card hover lift on pointer devices */
+/* Card transitions for hover states */
+.set-list-card,
+.set-card,
+.wishlist-card,
+.mini-card,
+.trophy-card {
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+
+.wishlist-card:active {
+  transform: translate(1.5px, 1.5px);
+  box-shadow: 1px 1px 0 var(--line);
+}
+
 @media (hover: hover) {
-  .set-list-card:hover {
+  .set-list-card:hover,
+  .wishlist-card:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-4);
-    transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease);
   }
-  .set-card:hover {
+  .set-card:hover,
+  .mini-card:hover,
+  .trophy-card:hover {
     transform: translateY(-2px) scale(1.012);
     box-shadow: var(--shadow-3);
-    transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease);
   }
+  .insights-row:hover {
+    background: var(--surface-3);
+    border-color: var(--line);
+  }
+  .install-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-4);
+  }
+}
+
+/* Accessibility Focus States */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+.chip:focus-visible,
+.set-list-card:focus-visible,
+.set-card:focus-visible,
+.wishlist-card:focus-visible,
+.mini-card:focus-visible,
+.trophy-card:focus-visible,
+.insights-row:focus-visible {
+  outline: 3px solid var(--bv-red);
+  outline-offset: 2px;
 }
 
 /* A6 — Active chip yellow glow ring */
@@ -2014,7 +2060,7 @@ body.offline .offline-banner { display: block; }
 .deal-price-input {
   flex: 1; padding: 10px 12px;
   background: var(--surface); color: var(--ink);
-  border: 1.5px solid var(--line); border-radius: var(--r-2);
+  border: 2px solid var(--line); border-radius: var(--r-2);
   font-size: 16px; font-family: var(--mono); outline: none;
 }
 .deal-price-input:focus { border-color: var(--bv-red); }
@@ -2149,11 +2195,11 @@ body.offline .offline-banner { display: block; }
 .trophy-card {
   display: flex; flex-direction: column; gap: 4px;
   text-decoration: none; color: var(--ink);
-  background: var(--surface-2); border-radius: var(--r-2);
-  border: 1.5px solid var(--line-soft); padding: 8px;
-  transition: transform var(--dur-fast) var(--ease);
+  background: var(--surface); border-radius: var(--r-3);
+  border: 2px solid var(--line); padding: 8px;
+  box-shadow: var(--shadow-2);
 }
-.trophy-card:active { transform: scale(0.97); }
+.trophy-card:active { transform: translate(1.5px, 1.5px); box-shadow: 1px 1px 0 var(--line); }
 .trophy-card-name {
   font-size: 11px; font-weight: 500;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -2171,7 +2217,7 @@ body.offline .offline-banner { display: block; }
 .listing-title-input {
   width: 100%; padding: 10px 12px;
   background: var(--surface-2); color: var(--ink);
-  border: 1.5px solid var(--line); border-radius: var(--r-2);
+  border: 2px solid var(--line); border-radius: var(--r-2);
   font-size: 14px; font-family: var(--sans); outline: none;
   box-sizing: border-box;
 }
@@ -2179,7 +2225,7 @@ body.offline .offline-banner { display: block; }
 .listing-desc-textarea {
   width: 100%; padding: 10px 12px; resize: vertical;
   background: var(--surface-2); color: var(--ink);
-  border: 1.5px solid var(--line); border-radius: var(--r-2);
+  border: 2px solid var(--line); border-radius: var(--r-2);
   font-size: 13px; font-family: var(--sans); line-height: 1.5; outline: none;
   box-sizing: border-box;
 }
@@ -2262,6 +2308,15 @@ body.offline .offline-banner { display: block; }
   #app {
     max-width: 1200px;
     margin: 0 auto;
+  }
+  #chatWrap {
+    height: 100vh;
+    height: 100dvh;
+  }
+  .nav-tab .nav-badge {
+    top: 50%;
+    right: 16px;
+    transform: translateY(-50%);
   }
   #nav {
     position: fixed;

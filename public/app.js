@@ -841,7 +841,7 @@ function paintPortfolio() {
   const clipped = hist.slice(-Math.min(days + 1, hist.length));
 
   $("#root").innerHTML = `
-    <div class="page">
+    <div class="page page-narrow">
       <div class="topbar">
         <div class="brand">
           <div class="brand-mark"></div>
@@ -1759,7 +1759,7 @@ async function renderWishlist() {
   }
 
   $("#root").innerHTML = `
-    <div class="page">
+    <div class="page page-narrow">
       <div class="topbar">
         <a href="#/" class="icon-btn" aria-label="Back" style="margin-top:2px;margin-right:8px;">${I.chevL()}</a>
         <div class="topbar-heading">
@@ -1849,7 +1849,7 @@ async function renderMe() {
   const savedOpenAIKey = localStorage.getItem('bv_openai_key') || '';
 
   $("#root").innerHTML = `
-    <div class="page">
+    <div class="page page-narrow">
       <div class="topbar">
         <div class="topbar-heading">
           <div class="topbar-eyebrow">@${escapeHtml(me.handle || "you")}</div>
@@ -3670,7 +3670,7 @@ async function renderPublicProfile(handle) {
   } catch (err) {
     const nav = document.getElementById("nav");
     if (nav) nav.style.display = "";
-    $("#root").innerHTML = `<div class="page">
+    $("#root").innerHTML = `<div class="page page-narrow">
       <div class="topbar">
         <div class="topbar-heading"><div class="topbar-title">Profile</div></div>
         <button class="icon-btn" id="pubBack">${I.chevL()}</button>
@@ -3687,7 +3687,7 @@ async function renderPublicProfile(handle) {
   const nav = document.getElementById("nav");
   if (nav) nav.style.display = "";
   $("#root").innerHTML = `
-    <div class="page">
+    <div class="page page-narrow">
       <div class="topbar">
         <div class="topbar-heading">
           <div class="topbar-eyebrow">@${escapeHtml(profile.handle || handle)}</div>
