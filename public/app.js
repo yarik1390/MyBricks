@@ -318,11 +318,13 @@ const THEME_COLORS = {
 async function api(path, opts = {}) {
   const token = _authSession?.access_token;
   const streamMode = opts.stream === true;
+  const geminiKey = localStorage.getItem('bv_gemini_key');
   const init = {
     ...opts,
     headers: {
       "content-type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(geminiKey ? { "X-Gemini-Key": geminiKey } : {}),
       ...(opts.headers || {}),
     },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
