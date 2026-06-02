@@ -88,7 +88,7 @@ export async function runValuateSets(env: Env) {
           current_value=?, forecast_2y=?, forecast_5y=?,
           retail_price=COALESCE(?, retail_price),
           valuation_method=?,
-          valuation_expires_at=datetime('now', '+7 days')
+          valuation_expires_at=datetime('now', '+1 day')
         WHERE set_num=?
       `).bind(pricing.current_value, forecast_2y, forecast_5y, retailPrice, valMethod, set.set_num).run();
       updated++;
@@ -106,7 +106,7 @@ export async function runValuateSets(env: Env) {
         UPDATE lego_sets SET
           current_value=?, forecast_2y=?, forecast_5y=?,
           valuation_method='ebay_rss',
-          valuation_expires_at=datetime('now', '+7 days')
+          valuation_expires_at=datetime('now', '+1 day')
         WHERE set_num=?
       `).bind(ebayPrice, forecast_2y, forecast_5y, set.set_num).run();
       updated++;
@@ -139,7 +139,7 @@ export async function runValuateSets(env: Env) {
         UPDATE lego_sets SET
           retail_price=?, current_value=?, forecast_2y=?, forecast_5y=?,
           valuation_method='ai',
-          valuation_expires_at=datetime('now', '+30 days')
+          valuation_expires_at=datetime('now', '+1 day')
         WHERE set_num=?
       `).bind(vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y,
               set.set_num).run();

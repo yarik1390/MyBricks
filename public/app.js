@@ -452,6 +452,32 @@ function fmtShortDate(d) {
   } catch { return ""; }
 }
 
+function parseUTCDate(str) {
+  if (!str) return null;
+  let iso = str;
+  if (!str.includes('T') && !str.includes('Z')) {
+    iso = str.replace(' ', 'T') + 'Z';
+  }
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function fmtDateUpdated(str) {
+  const d = parseUTCDate(str);
+  if (!d) return "unknown";
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays === 0 && now.getDate() === d.getDate()) {
+    return "Today";
+  } else if (diffDays === 1 || (diffDays === 0 && now.getDate() !== d.getDate())) {
+    return "Yesterday";
+  } else if (diffDays < 7) {
+    return `${diffDays} days ago`;
+  }
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 // Toggle an inline loading state on a button (spinner + disabled). The CSS
 // `.is-loading` class hides the label and shows a spinner.
 function setBtnLoading(el, on) {
@@ -1436,8 +1462,46 @@ function infoTabHTML(set, entry, isWish) {
     }
   }
 
+  const ebayPrice = set.ebay_value || 0;
+  const retailPrice = set.retail_price || 0;
+  let pricingSummaryHtml = '';
+  if (ebayPrice > 0) {
+    const pricingTreatment = (retailPrice > 0 && ebayPrice < retailPrice) ? 'STP' : (ebayPrice > retailPrice ? 'APPRECIATED' : 'NONE');
+    pricingSummaryHtml = `
+      <div class="card pricing-summary-card" style="margin-bottom:14px; padding:14px 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <div style="font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-mute);">eBay Pricing Summary</div>
+          <span class="badge" style="font-size:9px; padding:2px 6px; border-radius:4px; font-family:var(--mono); background:var(--surface-3); color:var(--ink-soft);">${pricingTreatment === 'STP' ? 'STP (Strikethrough)' : pricingTreatment === 'APPRECIATED' ? 'Appreciated' : 'None'}</span>
+        </div>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+          <div>
+            <div style="font-size:10px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">price</div>
+            <div style="font-size:18px; font-weight:600; color:var(--ink);">${fmtMoney(ebayPrice)}</div>
+          </div>
+          
+          <div>
+            <div style="font-size:10px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">originalRetailPrice</div>
+            <div style="font-size:16px; font-weight:500; color:var(--ink-soft); text-decoration: ${pricingTreatment === 'STP' ? 'line-through' : 'none'};">${retailPrice > 0 ? fmtMoney(retailPrice) : "—"}</div>
+          </div>
+        </div>
+
+        ${pricingTreatment === 'STP' ? `
+          <div style="font-size:11px; color:var(--down); margin-top:10px; display:flex; align-items:center; gap:6px;">
+            <span style="font-size:8px;">●</span> Pricing Treatment: Save ${fmtMoney(retailPrice - ebayPrice)} (${fmtPct((retailPrice - ebayPrice) / retailPrice)}) below MSRP.
+          </div>
+        ` : pricingTreatment === 'APPRECIATED' ? `
+          <div style="font-size:11px; color:var(--up); margin-top:10px; display:flex; align-items:center; gap:6px;">
+            <span style="font-size:8px;">●</span> Pricing Treatment: Appreciated by ${fmtMoney(ebayPrice - retailPrice)} (${fmtPct((ebayPrice - retailPrice) / retailPrice)}) above MSRP.
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
   return `
     ${priceStripHTML(set, entry)}
+    ${pricingSummaryHtml}
     <div class="stat-grid">
       <div class="stat-cell">
         <div class="lbl">${I.dollar()}Market (new)</div>
@@ -1502,7 +1566,6 @@ function infoTabHTML(set, entry, isWish) {
 
 function wireInfoTab(set, entry) {
   loadSetHistory(set.set_num);
-  $("#btnRevalue")?.addEventListener("click", () => triggerRevalue(set.set_num));
 
   let qty = entry?.quantity || 1;
   $("#qtyDown")?.addEventListener("click", async () => {
@@ -3577,6 +3640,9 @@ function priceStripHTML(set, entry) {
     : set.valuation_method === "ebay_rss" ? "eBay completed transactions"
     : "Bulk formula estimate (unconfigured keys)";
 
+  const updateDateStr = set.cached_at ? fmtDateUpdated(set.cached_at) : null;
+  const lastUpdatedText = updateDateStr ? `Updated: ${updateDateStr}` : "Update: pending";
+
   return `
     <div class="price-strip">
       <div class="ps-cell${entry ? " high" : ""}">
@@ -3595,9 +3661,7 @@ function priceStripHTML(set, entry) {
     </div>
     <div class="ps-footnote" style="display:flex;align-items:center;justify-content:space-between;width:100%;">
       <span>Source: ${methodLabel}</span>
-      <button class="icon-btn" id="btnRevalue" title="Refresh prices" style="padding:4px;border:none;background:transparent;cursor:pointer;color:var(--ink-mute);display:inline-flex;align-items:center;margin-left:8px;">
-        ${I.refresh({w: 12, h: 12})}
-      </button>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);">${lastUpdatedText}</span>
     </div>`;
 }
 

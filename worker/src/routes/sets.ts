@@ -145,7 +145,7 @@ app.get('/:setnum', async (c) => {
                   current_value=?, used_value=?, ebay_value=COALESCE(?, ebay_value), retail_price=COALESCE(?, retail_price),
                   forecast_2y=?, forecast_5y=?,
                   valuation_method='brickeconomy',
-                  valuation_expires_at=datetime('now', '+7 days')
+                  valuation_expires_at=datetime('now', '+1 day')
                 WHERE set_num=?
               `).bind(be.current_value_new, be.current_value_used, ebayVal, be.retail_price_us, forecast_2y, forecast_5y, set.set_num)
             ];
@@ -174,7 +174,7 @@ app.get('/:setnum', async (c) => {
                 UPDATE lego_sets SET
                   current_value=?, forecast_2y=?, forecast_5y=?,
                   valuation_method='market',
-                  valuation_expires_at=datetime('now', '+7 days')
+                  valuation_expires_at=datetime('now', '+1 day')
                 WHERE set_num=?
               `).bind(p.current_value, forecast_2y, forecast_5y, set.set_num));
             }
@@ -198,7 +198,7 @@ app.get('/:setnum', async (c) => {
                 UPDATE lego_sets SET
                   current_value=?, used_value=?, ebay_value=COALESCE(?, ebay_value), forecast_2y=?, forecast_5y=?,
                   valuation_method='ai',
-                  valuation_expires_at=datetime('now', '+7 days')
+                  valuation_expires_at=datetime('now', '+1 day')
                 WHERE set_num=?
               `).bind(gemVal.current_value, gemVal.used_value, gemVal.ebay_value || null, forecast_2y, forecast_5y, set.set_num));
             } else if (ebayVal !== null) {
@@ -209,7 +209,7 @@ app.get('/:setnum', async (c) => {
                 UPDATE lego_sets SET
                   current_value=?, forecast_2y=?, forecast_5y=?,
                   valuation_method='ebay_rss',
-                  valuation_expires_at=datetime('now', '+7 days')
+                  valuation_expires_at=datetime('now', '+1 day')
                 WHERE set_num=?
               `).bind(ebayVal, forecast_2y, forecast_5y, set.set_num));
             }
@@ -234,7 +234,7 @@ app.get('/:setnum', async (c) => {
                   current_value=?, ebay_value=?, forecast_2y=?, forecast_5y=?,
                   valuation_method='ebay_rss',
                   ebay_cached_at=datetime('now'),
-                  valuation_expires_at=datetime('now', '+7 days')
+                  valuation_expires_at=datetime('now', '+1 day')
                 WHERE set_num=?
               `).bind(ebayVal, ebayVal, forecast_2y, forecast_5y, set.set_num)
             ];
