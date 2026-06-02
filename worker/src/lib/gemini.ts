@@ -48,3 +48,54 @@ export async function callGeminiScan(
     return null;
   }
 }
+
+export async function callGeminiValuation(
+  setNum: string,
+  setName: string,
+  apiKey: string,
+): Promise<{ current_value: number; used_value: number } | null> {
+  const body = {
+    contents: [{
+      parts: [
+        {
+          text: `Estimate the current market valuation in USD for Lego set ${setNum} ${setName}. Provide average sold prices for: 1. Sealed/New box 2. Used/Good box. Return JSON only: { "current_value": number, "used_value": number }`,
+        },
+      ],
+    }],
+    generationConfig: {
+      responseMimeType: "application/json",
+    }
+  };
+
+  try {
+    const resp = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!resp.ok) {
+      console.warn('[gemini-val] API error:', resp.status, await resp.text().catch(() => ''));
+      return null;
+    }
+    const data = await resp.json() as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    if (!text) return null;
+    const parsed = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as { current_value: number; used_value: number };
+    if (typeof parsed.current_value === 'number' && typeof parsed.used_value === 'number') {
+      return parsed;
+    }
+    return null;
+  } catch (e) {
+    console.warn('[gemini-val] parse error:', (e as Error).message);
+    return null;
+  }
+}
+

@@ -90,7 +90,7 @@ export async function importSets(db: D1Database) {
     const minifigs = parseInt(s.num_minifigs || '0') || 0;
     const img = s.img_url && s.img_url !== 'None' ? s.img_url : null;
     let vals;
-    try { vals = formulaValuation({ pieces, year: year ?? undefined, theme, retired: false }); }
+    try { vals = formulaValuation({ pieces, year: year ?? undefined, theme, retired: false, minifigs }); }
     catch { skipped++; continue; }
     setStmts.push(db.prepare(`
       INSERT INTO lego_sets (set_num,name,year,theme,pieces,minifigs,image_url,retail_price,current_value,forecast_2y,forecast_5y,valuation_method,source,cached_at)

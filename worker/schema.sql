@@ -97,6 +97,8 @@ CREATE TABLE IF NOT EXISTS user_prefs (
   currency TEXT DEFAULT 'USD',
   notify_price_drops INTEGER DEFAULT 1,
   is_public INTEGER NOT NULL DEFAULT 0,
+  google_refresh_token TEXT,
+  google_spreadsheet_id TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

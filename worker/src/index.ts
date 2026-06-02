@@ -11,6 +11,7 @@ import { scanRoute } from './routes/scan';
 import { adminRoute } from './routes/admin';
 import { advisorRoute } from './routes/advisor';
 import { profileRoute } from './routes/profile';
+import { googleSyncRoute } from './routes/google-sync';
 
 import { runValuateSets } from './jobs/valuate-sets';
 import { runSnapshotPortfolios } from './jobs/snapshot-portfolios';
@@ -26,7 +27,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 app.use('*', cors({
   origin: '*',
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Gemini-Key'],
 }));
 
 // Public config for the frontend (Supabase URL + anon key are client-safe)
@@ -45,6 +46,7 @@ app.route('/api/scan', scanRoute);
 app.route('/api/admin', adminRoute);
 app.route('/api/advisor', advisorRoute);
 app.route('/api/users', profileRoute);
+app.route('/api/google', googleSyncRoute);
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
 

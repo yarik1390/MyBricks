@@ -18,3 +18,8 @@ CREATE TABLE IF NOT EXISTS user_showcase (
 );
 CREATE INDEX IF NOT EXISTS idx_showcase_user ON user_showcase(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_prefs_handle ON user_prefs(handle) WHERE handle IS NOT NULL;
+
+-- Google Sheets sync fields
+ALTER TABLE user_prefs ADD COLUMN google_refresh_token TEXT;
+ALTER TABLE user_prefs ADD COLUMN google_spreadsheet_id TEXT;
+

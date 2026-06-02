@@ -1398,6 +1398,29 @@ function infoTabHTML(set, entry, isWish) {
   const delta = entry && entry.purchase_price ? (set.current_value - entry.purchase_price) / entry.purchase_price : null;
   const valueSource = set.valuation_method === "market" ? "BrickLink"
     : set.valuation_method === "ai" ? "AI estimate" : "Estimated";
+
+  let bricksetHtml = '';
+  if (set.brickset) {
+    const b = set.brickset;
+    const ratingStr = b.rating ? `${b.rating} ★` : '';
+    const reviewsStr = b.reviewCount ? `(${b.reviewCount} review${b.reviewCount > 1 ? 's' : ''})` : '';
+    const ageStr = b.ageMin ? (b.ageMax ? `${b.ageMin}–${b.ageMax}` : `${b.ageMin}+`) : '';
+    const subthemeStr = b.subtheme ? b.subtheme : '';
+    
+    if (ratingStr || ageStr || subthemeStr) {
+      bricksetHtml = `
+        <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Catalog Insights</div>
+          <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;font-size:12px;">
+            ${subthemeStr ? `<div><span style="color:var(--ink-mute);">Subtheme:</span> <strong style="color:var(--ink);">${escapeHtml(subthemeStr)}</strong></div>` : ''}
+            ${ageStr ? `<div><span style="color:var(--ink-mute);">Age:</span> <strong style="color:var(--ink);">${ageStr}</strong></div>` : ''}
+            ${ratingStr ? `<div style="grid-column: span 2;"><span style="color:var(--ink-mute);">Rating:</span> <strong style="color:var(--ink);">${ratingStr} ${reviewsStr}</strong></div>` : ''}
+          </div>
+        </div>
+      `;
+    }
+  }
+
   return `
     ${priceStripHTML(set, entry)}
     <div class="stat-grid">
@@ -1426,6 +1449,8 @@ function infoTabHTML(set, entry, isWish) {
       <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Price history · 90d</div>
       <div class="spark-wrap" id="setSpark" style="height:60px;"></div>
     </div>
+
+    ${bricksetHtml}
 
     ${owned ? `
       <div class="qty-row">
@@ -1838,9 +1863,27 @@ function wishlistCardHTML(w) {
    ============================================================ */
 async function renderMe() {
   let me = state.me;
-  if (!me) {
-    try { me = await api("/api/me"); state.me = me; }
-    catch (e) { toast("Couldn't load profile", "error"); me = { display_name: "Collector", handle: "you", notify_price_drops: true, portfolio_stats: {} }; }
+  let googleStatus = { connected: false, spreadsheet_id: null };
+
+  if (location.hash.includes("google_sync=success")) {
+    toast("Google Sheets connected successfully!", "success");
+    history.replaceState(null, "", "#/me");
+  } else if (location.hash.includes("google_sync=error")) {
+    toast("Failed to connect Google Sheets", "error");
+    history.replaceState(null, "", "#/me");
+  }
+
+  try {
+    const [meData, gStatus] = await Promise.all([
+      me ? Promise.resolve(me) : api("/api/me"),
+      api("/api/google/status").catch(() => ({ connected: false, spreadsheet_id: null }))
+    ]);
+    me = meData;
+    state.me = me;
+    googleStatus = gStatus;
+  } catch (e) {
+    toast("Couldn't load profile", "error");
+    me = me || { display_name: "Collector", handle: "you", notify_price_drops: true, portfolio_stats: {} };
   }
   const c = me.portfolio_stats || {};
   const gain = (c.total_value || 0) - (c.total_paid || 0);
@@ -1909,6 +1952,37 @@ async function renderMe() {
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Daily snapshot</div><div class="desc">Portfolio history captured at 02:00 daily.</div></div>
           <div style="font-family:var(--mono);font-size:12px;color:var(--up);">ACTIVE</div>
+        </div>
+      </div>
+
+      <div class="section-title">Google Sheets Sync</div>
+      <div>
+        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+          <div class="lbl-wrap">
+            <div class="lbl">Google Sheets Auto-Sync</div>
+            <div class="desc">Keep your spreadsheet "MyBricks Vault" in sync in the background.</div>
+          </div>
+          ${googleStatus.connected ? `
+            <div style="display:flex;flex-direction:column;gap:8px;width:100%;">
+              <div style="font-size:12px;color:var(--up);font-weight:600;display:flex;align-items:center;gap:6px;">
+                <span style="display:inline-block;width:8px;height:8px;background:var(--up);border-radius:50%;"></span>
+                Connected to Google Sheets
+              </div>
+              ${googleStatus.spreadsheet_id ? `
+                <div style="font-size:11px;color:var(--ink-mute);">
+                  Spreadsheet ID: <a href="https://docs.google.com/spreadsheets/d/${googleStatus.spreadsheet_id}" target="_blank" rel="noopener" style="text-decoration:underline;color:var(--ink);">${googleStatus.spreadsheet_id.slice(0, 16)}...</a>
+                </div>
+              ` : ''}
+              <div style="display:flex;gap:8px;margin-top:4px;width:100%;">
+                <button class="btn-secondary" id="syncGoogleNowBtn" style="flex:1;font-size:12px;padding:8px 12px;border:1.5px solid var(--line);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);cursor:pointer;outline:none;">Sync Now</button>
+                <button class="btn-secondary" id="disconnectGoogleBtn" style="color:var(--bv-red);font-size:12px;padding:8px 12px;border:1.5px solid var(--line);border-radius:var(--r-2);background:var(--surface-2);cursor:pointer;outline:none;">Disconnect</button>
+              </div>
+            </div>
+          ` : `
+            <button class="btn-primary" id="connectGoogleBtn" style="width:100%;font-size:13px;padding:10px 14px;background:#4285F4;border-color:#4285F4;color:#fff;border-radius:var(--r-2);cursor:pointer;outline:none;display:flex;align-items:center;justify-content:center;gap:6px;">
+              ${I.extLink()} <span>Connect Google Sheets</span>
+            </button>
+          `}
         </div>
       </div>
 
@@ -2158,6 +2232,43 @@ async function renderMe() {
     state.portfolio = null; state.me = null; state.catalog.items = [];
     state.blind.items = []; state.wishlist = []; state.portfolioHistory = null;
     location.hash = "#/login";
+  });
+
+  // Google Sheets sync wiring
+  $("#connectGoogleBtn")?.addEventListener("click", () => {
+    haptic("light");
+    const token = _authSession?.access_token || "";
+    location.href = (window.WORKER_BASE || "") + "/api/google/auth?token=" + encodeURIComponent(token);
+  });
+
+  $("#syncGoogleNowBtn")?.addEventListener("click", async () => {
+    haptic("medium");
+    const btn = $("#syncGoogleNowBtn");
+    btn.disabled = true;
+    btn.textContent = "Syncing...";
+    try {
+      await api("/api/google/sync", { method: "POST" });
+      toast("Sync started in the background", "success");
+      btn.textContent = "Sync Started";
+    } catch (e) {
+      toast("Sync failed: " + e.message, "error");
+      btn.disabled = false;
+      btn.textContent = "Sync Now";
+    }
+  });
+
+  $("#disconnectGoogleBtn")?.addEventListener("click", async () => {
+    haptic("medium");
+    const btn = $("#disconnectGoogleBtn");
+    btn.disabled = true;
+    try {
+      await api("/api/google/disconnect", { method: "POST" });
+      toast("Google Sheets disconnected", "info");
+      renderMe();
+    } catch (e) {
+      toast("Disconnect failed: " + e.message, "error");
+      btn.disabled = false;
+    }
   });
 
   // CSV import flow
@@ -3497,6 +3608,23 @@ const ADVISOR_PROMPTS = [
 
 async function renderAdvisor() {
   const savedGeminiKey = localStorage.getItem('bv_gemini_key') || '';
+  
+  if (!state.portfolio) {
+    try {
+      const [port, hist, wl] = await Promise.all([
+        api("/api/collection"),
+        api("/api/collection/history?days=365"),
+        api("/api/wishlist"),
+      ]);
+      state.portfolio = port;
+      state.portfolioHistory = hist.snapshots || [];
+      state.wishlist = wl.wishlist || [];
+      state.wishlistAlerts = wl.unread_alerts || [];
+    } catch (e) {
+      state.portfolio = { items: [], total_value: 0, total_paid: 0, count: 0 };
+    }
+  }
+
   let chatHistory = [];
   try { chatHistory = JSON.parse(localStorage.getItem('bv_chat') || '[]'); } catch {}
 
@@ -3504,12 +3632,20 @@ async function renderAdvisor() {
     <div class="page" id="chatWrap">
       <div class="topbar">
         <div class="topbar-heading">
-          <div class="topbar-eyebrow">AI-powered · knows your vault</div>
+          <div class="topbar-eyebrow">AI & Local Insights</div>
           <div class="topbar-title">Advisor</div>
         </div>
         ${chatHistory.length > 0 ? `<button class="icon-btn" id="clearChat" aria-label="Clear history">${I.trash()}</button>` : ""}
       </div>
-      <div class="chat-history" id="chatHistory">
+
+      <!-- Tab bar -->
+      <div class="chat-tabs" style="display:flex;border-bottom:1.5px solid var(--line-soft);background:var(--surface);flex-shrink:0;">
+        <button class="chat-tab-btn active" data-tab="chat" style="flex:1;padding:12px;background:transparent;border:none;border-bottom:2.5px solid var(--ink);font-weight:700;color:var(--ink);cursor:pointer;font-family:var(--sans);font-size:13px;outline:none;">AI Advisor</button>
+        <button class="chat-tab-btn" data-tab="analyst" style="flex:1;padding:12px;background:transparent;border:none;border-bottom:2.5px solid transparent;font-weight:500;color:var(--ink-mute);cursor:pointer;font-family:var(--sans);font-size:13px;outline:none;">Local Analyst</button>
+      </div>
+
+      <!-- AI Chat Tab Area -->
+      <div class="chat-history" id="chatHistory" style="display:flex;flex-direction:column;flex:1;overflow-y:auto;">
         ${chatHistory.length === 0 ? `
           <div class="chat-suggestions" id="chatSuggestions">
             ${!savedGeminiKey ? `
@@ -3527,7 +3663,14 @@ async function renderAdvisor() {
           chatHistory.map(m => `<div class="chat-msg ${m.role === "user" ? "user" : "ai"}">${m.role === "ai" ? parseMarkdown(m.content) : escapeHtml(m.content)}</div>`).join("")
         }
       </div>
-      <div class="chat-input-row">
+
+      <!-- Local Analyst Tab Area -->
+      <div id="analystArea" style="display:none;flex:1;overflow-y:auto;padding:16px 20px;">
+        ${localAnalystHTML()}
+      </div>
+
+      <!-- Chat input row -->
+      <div class="chat-input-row" id="chatInputRow">
         <textarea class="chat-input" id="chatInput" placeholder="Ask anything about your collection…" rows="1"></textarea>
         <button class="chat-send-btn" id="chatSend" aria-label="Send">${I.arrowU()}</button>
       </div>
@@ -3537,6 +3680,33 @@ async function renderAdvisor() {
     chip.addEventListener("click", () => sendAdvisorMessage(chip.textContent.trim()));
   });
   $("#clearChat")?.addEventListener("click", () => clearAdvisorHistory());
+
+  // Wire Tab Transitions
+  $$(".chat-tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      haptic("light");
+      $$(".chat-tab-btn").forEach(b => {
+        b.classList.toggle("active", b === btn);
+        b.style.borderBottomColor = b === btn ? "var(--ink)" : "transparent";
+        b.style.color = b === btn ? "var(--ink)" : "var(--ink-mute)";
+        b.style.fontWeight = b === btn ? "700" : "500";
+      });
+
+      const tab = btn.dataset.tab;
+      if (tab === "chat") {
+        $("#chatHistory").style.display = "flex";
+        $("#chatInputRow").style.display = "flex";
+        $("#analystArea").style.display = "none";
+        const hist = document.getElementById("chatHistory");
+        if (hist) hist.scrollTop = hist.scrollHeight;
+      } else if (tab === "analyst") {
+        $("#chatHistory").style.display = "none";
+        $("#chatInputRow").style.display = "none";
+        $("#analystArea").style.display = "block";
+        $("#analystArea").innerHTML = localAnalystHTML();
+      }
+    });
+  });
 
   const input = document.getElementById("chatInput");
   const sendBtn = document.getElementById("chatSend");
@@ -3559,6 +3729,216 @@ async function renderAdvisor() {
 
   const hist = document.getElementById("chatHistory");
   if (hist) hist.scrollTop = hist.scrollHeight;
+}
+
+function localAnalystHTML() {
+  const p = state.portfolio;
+  const items = p?.items || [];
+  if (!items.length) {
+    return `<div style="text-align:center;color:var(--ink-mute);padding:40px 20px;font-size:14px;">
+      <div style="font-size:24px;margin-bottom:8px;">📊</div>
+      Add items to your vault to generate a local portfolio analysis report.
+    </div>`;
+  }
+
+  let score = 70; 
+  
+  const themeCounts = {};
+  const themeValues = {};
+  let maxThemeCount = 0;
+  let totalValue = 0;
+  let totalSets = 0;
+  let completeCount = 0;
+  let totalPaid = 0;
+  let retiredValue = 0;
+  let retiredCount = 0;
+
+  items.forEach(i => {
+    const t = i.theme || 'Other';
+    const qty = i.quantity || 1;
+    themeCounts[t] = (themeCounts[t] || 0) + qty;
+    themeValues[t] = (themeValues[t] || 0) + (Number(i.current_value) || 0) * qty;
+    totalValue += (Number(i.current_value) || 0) * qty;
+    totalSets += qty;
+    totalPaid += (Number(i.purchase_price) || 0) * qty;
+    if (i.is_complete !== 0) completeCount += qty;
+    if (i.retired === 1 || i.retired === true) {
+      retiredValue += (Number(i.current_value) || 0) * qty;
+      retiredCount += qty;
+    }
+    if (themeCounts[t] > maxThemeCount) maxThemeCount = themeCounts[t];
+  });
+
+  const uniqueThemes = Object.keys(themeCounts).length;
+  if (uniqueThemes >= 5) score += 10;
+  else if (uniqueThemes === 1) score -= 15;
+  
+  const primaryThemeRatio = maxThemeCount / totalSets;
+  if (primaryThemeRatio > 0.6) score -= 15;
+  else if (primaryThemeRatio < 0.3) score += 5;
+
+  const completeRatio = completeCount / totalSets;
+  score += Math.round((completeRatio - 0.8) * 50);
+
+  let overallRoi = 0;
+  if (totalPaid > 0) {
+    overallRoi = (totalValue - totalPaid) / totalPaid;
+    if (overallRoi > 0.5) score += 15;
+    else if (overallRoi > 0.2) score += 8;
+    else if (overallRoi < 0) score -= 20;
+  }
+
+  const healthScore = Math.max(10, Math.min(100, Math.round(score)));
+  const healthColor = healthScore >= 80 ? 'var(--up)' : healthScore >= 50 ? 'var(--bv-yellow)' : 'var(--bv-red)';
+  let healthStatusText = "Your collection is well-diversified and in excellent condition.";
+  if (healthScore < 50) healthStatusText = "High theme concentration or missing parts detected. Consider diversifying.";
+  else if (healthScore < 70) healthStatusText = "Decent health, but room to improve on theme diversification or set completeness.";
+
+  const themeSummaries = Object.keys(themeCounts).map(theme => {
+    const val = themeValues[theme];
+    const pctVal = totalValue > 0 ? (val / totalValue) * 100 : 0;
+    const count = themeCounts[theme];
+    const pctCount = totalSets > 0 ? (count / totalSets) * 100 : 0;
+    return { theme, val, pctVal, count, pctCount };
+  }).sort((a, b) => b.val - a.val);
+
+  let diversificationWarning = '';
+  const primaryTheme = themeSummaries[0];
+  if (primaryTheme && primaryTheme.pctVal > 50) {
+    diversificationWarning = `
+      <div style="background:rgba(229, 57, 53, 0.08);border-left:4px solid var(--bv-red);padding:10px 14px;font-size:12px;color:var(--ink);border-radius:0 var(--r-2) var(--r-2) 0;margin-bottom:14px;line-height:1.45;">
+        <strong>⚠️ Theme Concentration Warning</strong><br>
+        Your largest theme (<em>${escapeHtml(primaryTheme.theme)}</em>) accounts for <strong>${primaryTheme.pctVal.toFixed(1)}%</strong> of your total portfolio value. Consider spreading acquisitions across other high-performing themes to reduce risk.
+      </div>
+    `;
+  }
+
+  const retirementAlerts = [];
+  items.forEach(i => {
+    const score = Number(i.retirement_risk_score) || 0;
+    const isRetired = i.retired === 1 || i.retired === true;
+    if (score > 70 && !isRetired) {
+      retirementAlerts.push({ set_num: i.set_num, name: i.name, score });
+    }
+  });
+  retirementAlerts.sort((a, b) => b.score - a.score);
+
+  const retiredPct = totalValue > 0 ? (retiredValue / totalValue) * 100 : 0;
+
+  const performanceItems = items.map(i => {
+    const current = Number(i.current_value) || 0;
+    const paid = Number(i.purchase_price) || 0;
+    const gain = current - paid;
+    const roi = paid > 0 ? (gain / paid) * 100 : 0;
+    return { set_num: i.set_num, name: i.name, current, paid, gain, roi };
+  }).filter(x => x.paid > 0);
+
+  const topRoi = performanceItems.slice().sort((a, b) => b.roi - a.roi).slice(0, 3);
+  const topGain = performanceItems.slice().sort((a, b) => b.gain - a.gain).slice(0, 3);
+
+  return `
+    <div style="margin-bottom:14px;display:flex;align-items:center;gap:20px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:16px;">
+      <div style="position:relative;width:80px;height:80px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="80" height="80" viewBox="0 0 36 36" style="transform: rotate(-90deg);">
+          <circle cx="18" cy="18" r="16" fill="none" stroke="var(--line-soft)" stroke-width="3"></circle>
+          <circle cx="18" cy="18" r="16" fill="none" stroke="${healthColor}" stroke-width="3" stroke-dasharray="${healthScore}, 100" stroke-linecap="round"></circle>
+        </svg>
+        <div style="position:absolute;font-family:var(--mono);font-size:22px;font-weight:700;color:var(--ink);">${healthScore}</div>
+      </div>
+      <div>
+        <div style="font-weight:700;font-size:15px;color:var(--ink);">Portfolio Health Score</div>
+        <div style="font-size:12px;color:var(--ink-mute);margin-top:4px;line-height:1.4;">${healthStatusText}</div>
+      </div>
+    </div>
+
+    ${diversificationWarning}
+
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Theme Diversification</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        ${themeSummaries.slice(0, 4).map(t => {
+          const maxVal = themeSummaries[0]?.val || 1;
+          const barPct = (t.val / maxVal * 100).toFixed(1);
+          return `
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+                <span style="font-weight:600;color:var(--ink);">${escapeHtml(t.theme)}</span>
+                <span style="color:var(--ink-mute);">${fmtMoney(t.val, { cents: 0 })} (${t.pctVal.toFixed(1)}%)</span>
+              </div>
+              <div class="theme-bar-track" style="height:6px;background:var(--surface-3);border-radius:3px;overflow:hidden;">
+                <div class="theme-bar-fill" style="width:${barPct}%;height:100%;background:var(--bv-yellow);border-radius:3px;"></div>
+              </div>
+            </div>`;
+        }).join('')}
+        ${themeSummaries.length > 4 ? `
+          <div style="font-size:11px;color:var(--ink-mute);text-align:right;">
+            + ${themeSummaries.length - 4} other themes in your collection
+          </div>` : ''}
+      </div>
+    </div>
+
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Retirement Risk & Analytics</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;margin-bottom:10px;border-bottom:1px solid var(--line-soft);padding-bottom:10px;">
+        <div>
+          <span style="color:var(--ink-mute);">Retired Value:</span><br>
+          <strong style="color:var(--ink);">${fmtMoney(retiredValue, { cents: 0 })} (${retiredPct.toFixed(1)}%)</strong>
+        </div>
+        <div>
+          <span style="color:var(--ink-mute);">Retired Sets:</span><br>
+          <strong style="color:var(--ink);">${retiredCount} of ${totalSets} sets</strong>
+        </div>
+      </div>
+      
+      ${retirementAlerts.length > 0 ? `
+        <div style="font-size:12px;color:var(--ink);margin-top:6px;">
+          <div style="font-weight:600;color:var(--bv-red);margin-bottom:4px;">⚠️ Active sets approaching retirement:</div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            ${retirementAlerts.slice(0, 3).map(a => `
+              <div style="display:flex;justify-content:space-between;color:var(--ink);background:var(--surface-3);padding:4px 8px;border-radius:4px;">
+                <span style="text-overflow:ellipsis;overflow:hidden;white-space:nowrap;max-width:200px;">${a.set_num} ${escapeHtml(a.name)}</span>
+                <span style="font-weight:700;color:var(--bv-red);flex-shrink:0;">${a.score}% risk</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : `
+        <div style="font-size:11px;color:var(--ink-mute);text-align:center;">
+          No active sets are currently approaching high retirement risk.
+        </div>
+      `}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:14px;">
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Top ROI Leaders</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${topRoi.length > 0 ? topRoi.map((item, idx) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;">
+              <span style="color:var(--ink);text-overflow:ellipsis;overflow:hidden;white-space:nowrap;max-width:200px;">
+                ${idx + 1}. <strong style="font-family:var(--mono);">${item.set_num}</strong> ${escapeHtml(item.name)}
+              </span>
+              <strong style="color:var(--up);flex-shrink:0;margin-left:8px;">+${item.roi.toFixed(1)}%</strong>
+            </div>
+          `).join('') : '<div style="font-size:11px;color:var(--ink-mute);text-align:center;">No data available</div>'}
+        </div>
+      </div>
+
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Top Dollar Gainers</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${topGain.length > 0 ? topGain.map((item, idx) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;">
+              <span style="color:var(--ink);text-overflow:ellipsis;overflow:hidden;white-space:nowrap;max-width:200px;">
+                ${idx + 1}. <strong style="font-family:var(--mono);">${item.set_num}</strong> ${escapeHtml(item.name)}
+              </span>
+              <strong style="color:var(--up);flex-shrink:0;margin-left:8px;">+${fmtMoney(item.gain, { cents: 0 })}</strong>
+            </div>
+          `).join('') : '<div style="font-size:11px;color:var(--ink-mute);text-align:center;">No data available</div>'}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 async function sendAdvisorMessage(q) {

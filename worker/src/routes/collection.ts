@@ -2,8 +2,23 @@ import { Hono } from 'hono';
 import { requireMember } from '../auth';
 import { formulaValuation } from '../lib/valuation';
 import type { Env, Variables } from '../types';
+import { runSyncProcess } from './google-sync';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+async function triggerGoogleSync(userId: string, c: any) {
+  try {
+    const prefs = await c.env.DB.prepare('SELECT google_refresh_token, google_spreadsheet_id FROM user_prefs WHERE user_id=?')
+      .bind(userId).first() as { google_refresh_token?: string; google_spreadsheet_id?: string } | null;
+    if (prefs?.google_refresh_token) {
+      c.executionCtx.waitUntil(
+        runSyncProcess(userId, prefs.google_refresh_token, prefs.google_spreadsheet_id || null, c.env)
+      );
+    }
+  } catch (err) {
+    console.error('[sync-trigger] Failed to trigger Google Sheets sync:', err);
+  }
+}
 
 app.use('*', requireMember);
 
@@ -100,6 +115,7 @@ app.post('/', async (c) => {
   const item = await c.env.DB.prepare(
     'SELECT * FROM user_collection WHERE user_id=? AND set_num=? AND deleted_at IS NULL'
   ).bind(userId, set_num).first();
+  c.executionCtx.waitUntil(triggerGoogleSync(userId, c));
   return c.json({ item }, 201);
 });
 
@@ -205,7 +221,7 @@ app.post('/import', async (c) => {
         const rb = await fetch(url, { headers: { 'Authorization': `key ${c.env.REBRICKABLE_API_KEY}` } });
         if (rb.ok) {
           const s = await rb.json() as { set_num: string; name: string; year: number; num_parts: number; num_minifigs: number; set_img_url: string };
-          const vals = formulaValuation({ pieces: s.num_parts, year: s.year, retired: false });
+          const vals = formulaValuation({ pieces: s.num_parts, year: s.year, retired: false, minifigs: s.num_minifigs || 0 });
           await c.env.DB.prepare(`
             INSERT INTO lego_sets (set_num,name,year,pieces,minifigs,image_url,retail_price,current_value,forecast_2y,forecast_5y,valuation_method,cached_at,source)
             VALUES (?,?,?,?,?,?,?,?,?,?,'formula_bulk',datetime('now'),'rebrickable')
@@ -261,6 +277,9 @@ app.post('/import', async (c) => {
 
   const imported = stmts.length;
   const allDuplicates = imported === 0 && skipped === rows.length;
+  if (imported > 0) {
+    c.executionCtx.waitUntil(triggerGoogleSync(userId, c));
+  }
   return c.json({ imported, skipped, errors: errors.slice(0, 20), allDuplicates });
 });
 
@@ -318,6 +337,7 @@ app.patch('/:id', async (c) => {
   const item = await c.env.DB.prepare(
     'SELECT * FROM user_collection WHERE id=?'
   ).bind(id).first<Record<string, unknown>>();
+  c.executionCtx.waitUntil(triggerGoogleSync(userId, c));
   return c.json({ item: item ? { ...item, is_complete: !!item.is_complete } : null });
 });
 
@@ -335,6 +355,7 @@ app.delete('/:id', async (c) => {
   await c.env.DB.prepare(
     `UPDATE user_collection SET deleted_at=datetime('now') WHERE id=? AND user_id=?`
   ).bind(id, userId).run();
+  c.executionCtx.waitUntil(triggerGoogleSync(userId, c));
   return new Response('', { status: 204 });
 });
 

@@ -103,3 +103,56 @@ export async function fetchBarcodesPage(page: number, env: Env): Promise<Brickse
     return null;
   }
 }
+
+export interface BricksetDetails {
+  rating: number | null;
+  reviewCount: number | null;
+  subtheme: string | null;
+  ageMin: number | null;
+  ageMax: number | null;
+  retired: boolean | null;
+  retiredYear: number | null;
+  usRetailPrice: number | null;
+}
+
+export async function fetchBricksetDetails(setNum: string, env: Env): Promise<BricksetDetails | null> {
+  const apiKey = env.BRICKSET_API_KEY || '3-R8Fj-5jn5-Ox8oN';
+  if (!apiKey) return null;
+  try {
+    const variantMatch = setNum.match(/^(.+)-(\d+)$/);
+    const bricksetNum = variantMatch ? variantMatch[1] : setNum;
+    const variant = variantMatch ? parseInt(variantMatch[2]) : 1;
+
+    const params = new URLSearchParams({
+      apiKey: apiKey,
+      userHash: '',
+      params: JSON.stringify({ setNumber: bricksetNum }),
+    });
+    const resp = await fetch(`https://brickset.com/api/v3.asmx/getSets?${params}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json() as Record<string, unknown>;
+    const sets = (data.sets as Array<Record<string, unknown>>) ?? [];
+    if (!sets.length) return null;
+    const s = sets.find(x => (x.numberVariant as number) === variant) ?? sets[0];
+
+    const ageMin = s.ageMin !== undefined ? Number(s.ageMin) : null;
+    const ageMax = s.ageMax !== undefined ? Number(s.ageMax) : null;
+
+    return {
+      rating: typeof s.rating === 'number' ? s.rating : null,
+      reviewCount: typeof s.reviewCount === 'number' ? s.reviewCount : null,
+      subtheme: typeof s.subtheme === 'string' ? s.subtheme : null,
+      ageMin: isNaN(ageMin as number) ? null : ageMin,
+      ageMax: isNaN(ageMax as number) ? null : ageMax,
+      retired: typeof s.released === 'boolean' && typeof s.retired === 'boolean' ? s.retired : null,
+      retiredYear: typeof s.retiredYear === 'number' ? s.retiredYear : null,
+      usRetailPrice: typeof s.US_retailPrice === 'number' ? s.US_retailPrice : null,
+    };
+  } catch (err) {
+    console.error('[brickset-details] Error fetching Brickset details:', err);
+    return null;
+  }
+}
+

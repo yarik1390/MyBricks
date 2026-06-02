@@ -9,6 +9,8 @@ export interface Env {
   BRICKSET_API_KEY: string;
   BRICKOWL_API_KEY?: string;
   EBAY_APP_ID?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
   BRICKLINK_CONSUMER_KEY: string;
   BRICKLINK_CONSUMER_SECRET: string;
   BRICKLINK_TOKEN: string;
