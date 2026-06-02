@@ -131,15 +131,23 @@ app.get('/:setnum', async (c) => {
             const forecast_2y = be.forecast_value_new_2_years ?? Math.round(be.current_value_new * Math.pow(1 + yr, 2) * 100) / 100;
             const forecast_5y = Math.round(be.current_value_new * Math.pow(1 + yr, 5) * 100) / 100;
 
+            let ebayVal = await fetchEbayPrice(set.set_num as string, set.name as string, c.env).catch(() => null);
+            if (ebayVal === null && geminiKey) {
+              const gemVal = await callGeminiValuation(set.set_num as string, set.name as string, geminiKey).catch(() => null);
+              if (gemVal && gemVal.ebay_value) {
+                ebayVal = gemVal.ebay_value;
+              }
+            }
+
             const supplementStmts = [
               c.env.DB.prepare(`
                 UPDATE lego_sets SET
-                  current_value=?, used_value=?, retail_price=COALESCE(?, retail_price),
+                  current_value=?, used_value=?, ebay_value=COALESCE(?, ebay_value), retail_price=COALESCE(?, retail_price),
                   forecast_2y=?, forecast_5y=?,
                   valuation_method='brickeconomy',
                   valuation_expires_at=datetime('now', '+7 days')
                 WHERE set_num=?
-              `).bind(be.current_value_new, be.current_value_used, be.retail_price_us, forecast_2y, forecast_5y, set.set_num)
+              `).bind(be.current_value_new, be.current_value_used, ebayVal, be.retail_price_us, forecast_2y, forecast_5y, set.set_num)
             ];
             await c.env.DB.batch(supplementStmts);
           }).catch(err => console.error('[bg-brickeconomy-reval] failed:', err))
@@ -407,6 +415,12 @@ app.post('/:setnum/revalue', async (c) => {
       usedPricing = { used_value: beDetails.current_value_used };
       valMethod = 'brickeconomy';
       ebayPrice = await fetchEbayPrice(set.set_num as string, set.name as string, c.env).catch(() => null);
+      if (ebayPrice === null && geminiKey) {
+        const gemVal = await callGeminiValuation(set.set_num as string, set.name as string, geminiKey).catch(() => null);
+        if (gemVal && gemVal.ebay_value) {
+          ebayPrice = gemVal.ebay_value;
+        }
+      }
     }
   }
 
