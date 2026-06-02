@@ -188,11 +188,11 @@ app.get('/:setnum', async (c) => {
               const forecast_5y = Math.round(gemVal.current_value * Math.pow(1 + yr, 5) * 100) / 100;
               supplementStmts.push(c.env.DB.prepare(`
                 UPDATE lego_sets SET
-                  current_value=?, used_value=?, forecast_2y=?, forecast_5y=?,
+                  current_value=?, used_value=?, ebay_value=COALESCE(?, ebay_value), forecast_2y=?, forecast_5y=?,
                   valuation_method='ai',
                   valuation_expires_at=datetime('now', '+7 days')
                 WHERE set_num=?
-              `).bind(gemVal.current_value, gemVal.used_value, forecast_2y, forecast_5y, set.set_num));
+              `).bind(gemVal.current_value, gemVal.used_value, gemVal.ebay_value || null, forecast_2y, forecast_5y, set.set_num));
             } else if (ebayVal !== null) {
               const yr = set.retired ? 0.15 : 0.10;
               const forecast_2y = Math.round(ebayVal * Math.pow(1 + yr, 2) * 100) / 100;
@@ -425,9 +425,13 @@ app.post('/:setnum/revalue', async (c) => {
           pricing = { current_value: gemVal.current_value };
           usedPricing = { used_value: gemVal.used_value };
           valMethod = 'ai';
+          ebayPrice = gemVal.ebay_value || null;
         }
       }
-      ebayPrice = await fetchEbayPrice(set.set_num as string, set.name as string, c.env).catch(() => null);
+      const realEbay = await fetchEbayPrice(set.set_num as string, set.name as string, c.env).catch(() => null);
+      if (realEbay !== null) {
+        ebayPrice = realEbay;
+      }
     }
   }
 

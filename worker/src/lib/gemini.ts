@@ -53,12 +53,12 @@ export async function callGeminiValuation(
   setNum: string,
   setName: string,
   apiKey: string,
-): Promise<{ current_value: number; used_value: number } | null> {
+): Promise<{ current_value: number; used_value: number; ebay_value: number } | null> {
   const body = {
     contents: [{
       parts: [
         {
-          text: `Estimate the current market valuation in USD for Lego set ${setNum} ${setName}. Provide average sold prices for: 1. Sealed/New box 2. Used/Good box. Return JSON only: { "current_value": number, "used_value": number }`,
+          text: `Estimate the current market valuation in USD for Lego set ${setNum} ${setName}. Provide average sold prices for: 1. Sealed/New box 2. Used/Good box 3. Recent average sales price on eBay. Return JSON only: { "current_value": number, "used_value": number, "ebay_value": number }`,
         },
       ],
     }],
@@ -88,8 +88,8 @@ export async function callGeminiValuation(
     };
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
     if (!text) return null;
-    const parsed = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as { current_value: number; used_value: number };
-    if (typeof parsed.current_value === 'number' && typeof parsed.used_value === 'number') {
+    const parsed = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as { current_value: number; used_value: number; ebay_value: number };
+    if (typeof parsed.current_value === 'number' && typeof parsed.used_value === 'number' && typeof parsed.ebay_value === 'number') {
       return parsed;
     }
     return null;

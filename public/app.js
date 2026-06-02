@@ -3518,24 +3518,45 @@ photoObserver.observe(document.documentElement, { childList: true, subtree: true
    ============================================================ */
 function priceStripHTML(set, entry) {
   const delta = entry?.purchase_price ? (set.current_value - entry.purchase_price) / entry.purchase_price : null;
+  
+  const label1 = set.valuation_method === "market" ? "BrickLink new"
+    : set.valuation_method === "brickeconomy" ? "BrickEconomy new"
+    : set.valuation_method === "ai" ? "AI estimate"
+    : set.valuation_method === "ebay_rss" ? "eBay Sold"
+    : "Estimated";
+
+  const val1 = set.current_value;
+
+  const label2 = "Used";
+  const val2 = set.used_value;
+
+  const label3 = set.valuation_method === "ebay_rss" ? "BrickLink new" : "eBay avg";
+  const val3 = set.valuation_method === "ebay_rss" ? null : set.ebay_value;
+
+  const methodLabel = set.valuation_method === "market" ? "BrickLink pricing"
+    : set.valuation_method === "brickeconomy" ? "BrickEconomy pricing"
+    : set.valuation_method === "ai" ? "AI pricing"
+    : set.valuation_method === "ebay_rss" ? "eBay completed transactions"
+    : "Bulk formula estimate (unconfigured keys)";
+
   return `
     <div class="price-strip">
       <div class="ps-cell${entry ? " high" : ""}">
-        <div class="ps-lbl">BrickLink new</div>
-        <div class="ps-val">${set.current_value ? fmtMoney(set.current_value) : "—"}${set.trend ? trendBadgeHTML(set.trend) : ""}</div>
+        <div class="ps-lbl">${label1}</div>
+        <div class="ps-val">${val1 ? fmtMoney(val1) : "—"}${set.trend ? trendBadgeHTML(set.trend) : ""}</div>
         ${delta != null ? `<div class="delta ${delta >= 0 ? "up" : "down"}"><span class="arrow">${delta >= 0 ? "▲" : "▼"}</span>${fmtPct(Math.abs(delta))}</div>` : ""}
       </div>
       <div class="ps-cell">
-        <div class="ps-lbl">Used</div>
-        <div class="ps-val${!set.used_value ? " muted" : ""}">${set.used_value ? fmtMoney(set.used_value) : "—"}</div>
+        <div class="ps-lbl">${label2}</div>
+        <div class="ps-val${!val2 ? " muted" : ""}">${val2 ? fmtMoney(val2) : "—"}</div>
       </div>
       <div class="ps-cell">
-        <div class="ps-lbl">eBay avg</div>
-        <div class="ps-val${!set.ebay_value ? " muted" : ""}">${set.ebay_value ? fmtMoney(set.ebay_value) : "—"}</div>
+        <div class="ps-lbl">${label3}</div>
+        <div class="ps-val${!val3 ? " muted" : ""}">${val3 ? fmtMoney(val3) : "—"}</div>
       </div>
     </div>
     <div class="ps-footnote" style="display:flex;align-items:center;justify-content:space-between;width:100%;">
-      <span>BrickLink · BrickLink used · eBay last 20 sales</span>
+      <span>Source: ${methodLabel}</span>
       <button class="icon-btn" id="btnRevalue" title="Refresh prices" style="padding:4px;border:none;background:transparent;cursor:pointer;color:var(--ink-mute);display:inline-flex;align-items:center;margin-left:8px;">
         ${I.refresh({w: 12, h: 12})}
       </button>
