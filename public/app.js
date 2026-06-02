@@ -1397,6 +1397,7 @@ function infoTabHTML(set, entry, isWish) {
   const owned = !!entry;
   const delta = entry && entry.purchase_price ? (set.current_value - entry.purchase_price) / entry.purchase_price : null;
   const valueSource = set.valuation_method === "market" ? "BrickLink"
+    : set.valuation_method === "brickeconomy" ? "BrickEconomy"
     : set.valuation_method === "ai" ? "AI estimate"
     : set.valuation_method === "ebay_rss" ? "eBay Sold" : "Estimated";
 
@@ -1567,6 +1568,7 @@ function forecastTabHTML(set) {
   const g5 = set.forecast_5y && set.current_value ? (set.forecast_5y - set.current_value) / set.current_value : 0.45;
   const pct = (g) => Math.min(100, Math.max(8, g * 100 + 12)).toFixed(1);
   const forecastLabel = set.valuation_method === "market" ? "Market value · BrickLink"
+    : set.valuation_method === "brickeconomy" ? "Market value · BrickEconomy"
     : set.valuation_method === "ai" ? "AI forecast · GPT-4o-mini"
     : set.valuation_method === "ebay_rss" ? "Market value · eBay Sold" : "Estimated";
   return `
@@ -1578,6 +1580,8 @@ function forecastTabHTML(set) {
       <p style="margin:6px 0 0;font-size:13px;color:var(--ink-soft);line-height:1.45;">
         ${set.valuation_method === "market"
           ? "Based on recent completed sales on BrickLink."
+          : set.valuation_method === "brickeconomy"
+          ? "Based on professional market analysis from BrickEconomy."
           : set.valuation_method === "ebay_rss"
           ? "Based on recent completed sales on eBay."
           : `Based on theme rarity, piece count, retirement status, and market trends for similar ${escapeHtml(set.theme || "")} sets.`}

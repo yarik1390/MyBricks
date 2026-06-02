@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import type { Env } from '../types';
 import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
 import { fetchEbayPrice } from '../lib/ebay';
+import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
 import { computeRetirementRisk } from '../lib/retirement-risk';
 
 export async function runValuateSets(env: Env) {
@@ -23,12 +24,33 @@ export async function runValuateSets(env: Env) {
   let updated = 0, market = 0, ai = 0;
 
   for (const set of results) {
-    // Try BrickLink first (real completed-sale data), then eBay + used in parallel
-    const [pricing, usedPricing, ebayPrice] = await Promise.all([
-      fetchSetPricing(set.set_num, env),
-      fetchUsedPricing(set.set_num, env),
-      fetchEbayPrice(set.set_num, set.name, env),
-    ]);
+    let pricing: { current_value: number } | null = null;
+    let usedPricing: { used_value: number } | null = null;
+    let ebayPrice: number | null = null;
+    let valMethod = 'market';
+    let beDetails: any = null;
+
+    if (env.BRICKECONOMY_API_KEY) {
+      beDetails = await fetchBrickEconomyDetails(set.set_num, env).catch(() => null);
+      if (beDetails && beDetails.current_value_new !== null) {
+        pricing = { current_value: beDetails.current_value_new };
+        usedPricing = { used_value: beDetails.current_value_used };
+        valMethod = 'brickeconomy';
+        ebayPrice = await fetchEbayPrice(set.set_num, set.name, env).catch(() => null);
+      }
+    }
+
+    if (!pricing) {
+      const [p, u, e] = await Promise.all([
+        fetchSetPricing(set.set_num, env).catch(() => null),
+        fetchUsedPricing(set.set_num, env).catch(() => null),
+        fetchEbayPrice(set.set_num, set.name, env).catch(() => null),
+      ]);
+      pricing = p;
+      usedPricing = u;
+      ebayPrice = e;
+      valMethod = 'market';
+    }
 
     // Write used + eBay prices when available (independent of main valuation path)
     const supplementStmts: D1PreparedStatement[] = [];
@@ -48,16 +70,31 @@ export async function runValuateSets(env: Env) {
 
     if (pricing) {
       const yr = set.retired ? 0.15 : 0.10;
-      const forecast_2y = Math.round(pricing.current_value * Math.pow(1 + yr, 2) * 100) / 100;
-      const forecast_5y = Math.round(pricing.current_value * Math.pow(1 + yr, 5) * 100) / 100;
+      let forecast_2y = Math.round(pricing.current_value * Math.pow(1 + yr, 2) * 100) / 100;
+      let forecast_5y = Math.round(pricing.current_value * Math.pow(1 + yr, 5) * 100) / 100;
+      let retailPrice: number | null = null;
+
+      if (valMethod === 'brickeconomy' && beDetails) {
+        if (beDetails.forecast_value_new_2_years !== null) {
+          forecast_2y = beDetails.forecast_value_new_2_years;
+        }
+        if (beDetails.retail_price_us !== null) {
+          retailPrice = beDetails.retail_price_us;
+        }
+      }
+
       await env.DB.prepare(`
         UPDATE lego_sets SET
           current_value=?, forecast_2y=?, forecast_5y=?,
-          valuation_method='market',
+          retail_price=COALESCE(?, retail_price),
+          valuation_method=?,
           valuation_expires_at=datetime('now', '+7 days')
         WHERE set_num=?
-      `).bind(pricing.current_value, forecast_2y, forecast_5y, set.set_num).run();
-      updated++; market++;
+      `).bind(pricing.current_value, forecast_2y, forecast_5y, retailPrice, valMethod, set.set_num).run();
+      updated++;
+      if (valMethod === 'market') {
+        market++;
+      }
       continue;
     }
 

@@ -15,6 +15,7 @@ export interface Env {
   BRICKLINK_CONSUMER_SECRET: string;
   BRICKLINK_TOKEN: string;
   BRICKLINK_TOKEN_SECRET: string;
+  BRICKECONOMY_API_KEY?: string;
 }
 
 export type Variables = {

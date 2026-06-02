@@ -5,8 +5,9 @@ import { formulaValuation } from '../lib/valuation';
 import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
 import { fetchBricksetDetails } from '../lib/brickset';
 import { fetchEbayPrice } from '../lib/ebay';
-import { getCachedPriceTrend } from '../lib/price-trend';
 import { callGeminiValuation } from '../lib/gemini';
+import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
+import { getCachedPriceTrend } from '../lib/price-trend';
 import type { Env, Variables } from '../types';
 
 interface ListingDraft {
@@ -118,11 +119,32 @@ app.get('/:setnum', async (c) => {
 
     // Non-blocking BrickLink or Gemini refresh when price is missing or stale
     const geminiKey = c.req.header('X-Gemini-Key');
-    const needsRefresh = (set.valuation_method !== 'market' && set.valuation_method !== 'ai' && set.valuation_method !== 'ebay_rss')
+    const needsRefresh = (set.valuation_method !== 'market' && set.valuation_method !== 'ai' && set.valuation_method !== 'ebay_rss' && set.valuation_method !== 'brickeconomy')
       || !set.valuation_expires_at
       || new Date(set.valuation_expires_at as string) < new Date();
     if (needsRefresh) {
-      if (c.env.BRICKLINK_CONSUMER_KEY) {
+      if (c.env.BRICKECONOMY_API_KEY) {
+        c.executionCtx.waitUntil(
+          fetchBrickEconomyDetails(set.set_num as string, c.env).then(async (be) => {
+            if (!be || be.current_value_new === null) return;
+            const yr = set.retired ? 0.15 : 0.10;
+            const forecast_2y = be.forecast_value_new_2_years ?? Math.round(be.current_value_new * Math.pow(1 + yr, 2) * 100) / 100;
+            const forecast_5y = Math.round(be.current_value_new * Math.pow(1 + yr, 5) * 100) / 100;
+
+            const supplementStmts = [
+              c.env.DB.prepare(`
+                UPDATE lego_sets SET
+                  current_value=?, used_value=?, retail_price=COALESCE(?, retail_price),
+                  forecast_2y=?, forecast_5y=?,
+                  valuation_method='brickeconomy',
+                  valuation_expires_at=datetime('now', '+7 days')
+                WHERE set_num=?
+              `).bind(be.current_value_new, be.current_value_used, be.retail_price_us, forecast_2y, forecast_5y, set.set_num)
+            ];
+            await c.env.DB.batch(supplementStmts);
+          }).catch(err => console.error('[bg-brickeconomy-reval] failed:', err))
+        );
+      } else if (c.env.BRICKLINK_CONSUMER_KEY) {
         c.executionCtx.waitUntil(
           Promise.all([
             fetchSetPricing(set.set_num as string, c.env),
@@ -376,22 +398,37 @@ app.post('/:setnum/revalue', async (c) => {
 
   const geminiKey = c.req.header('X-Gemini-Key');
 
-  if (c.env.BRICKLINK_CONSUMER_KEY) {
-    [pricing, usedPricing, ebayPrice] = await Promise.all([
-      fetchSetPricing(set.set_num as string, c.env).catch(() => null),
-      fetchUsedPricing(set.set_num as string, c.env).catch(() => null),
-      fetchEbayPrice(set.set_num as string, set.name as string, c.env).catch(() => null),
-    ]);
-  } else {
-    if (geminiKey) {
-      const gemVal = await callGeminiValuation(set.set_num as string, set.name as string, geminiKey);
-      if (gemVal) {
-        pricing = { current_value: gemVal.current_value };
-        usedPricing = { used_value: gemVal.used_value };
-        valMethod = 'ai';
-      }
+  let beDetails: any = null;
+
+  if (c.env.BRICKECONOMY_API_KEY) {
+    beDetails = await fetchBrickEconomyDetails(set.set_num as string, c.env).catch(() => null);
+    if (beDetails && beDetails.current_value_new !== null) {
+      pricing = { current_value: beDetails.current_value_new };
+      usedPricing = { used_value: beDetails.current_value_used };
+      valMethod = 'brickeconomy';
+      ebayPrice = await fetchEbayPrice(set.set_num as string, set.name as string, c.env).catch(() => null);
     }
-    ebayPrice = await fetchEbayPrice(set.set_num as string, set.name as string, c.env).catch(() => null);
+  }
+
+  if (!pricing) {
+    if (c.env.BRICKLINK_CONSUMER_KEY) {
+      [pricing, usedPricing, ebayPrice] = await Promise.all([
+        fetchSetPricing(set.set_num as string, c.env).catch(() => null),
+        fetchUsedPricing(set.set_num as string, c.env).catch(() => null),
+        fetchEbayPrice(set.set_num as string, set.name as string, c.env).catch(() => null),
+      ]);
+      valMethod = 'market';
+    } else {
+      if (geminiKey) {
+        const gemVal = await callGeminiValuation(set.set_num as string, set.name as string, geminiKey);
+        if (gemVal) {
+          pricing = { current_value: gemVal.current_value };
+          usedPricing = { used_value: gemVal.used_value };
+          valMethod = 'ai';
+        }
+      }
+      ebayPrice = await fetchEbayPrice(set.set_num as string, set.name as string, c.env).catch(() => null);
+    }
   }
 
   if (!pricing && ebayPrice !== null) {
@@ -414,16 +451,28 @@ app.post('/:setnum/revalue', async (c) => {
   }
   if (pricing) {
     const yr = set.retired ? 0.15 : 0.10;
-    const forecast_2y = Math.round(pricing.current_value * Math.pow(1 + yr, 2) * 100) / 100;
-    const forecast_5y = Math.round(pricing.current_value * Math.pow(1 + yr, 5) * 100) / 100;
+    let forecast_2y = Math.round(pricing.current_value * Math.pow(1 + yr, 2) * 100) / 100;
+    let forecast_5y = Math.round(pricing.current_value * Math.pow(1 + yr, 5) * 100) / 100;
+    let retailPrice: number | null = null;
+
+    if (valMethod === 'brickeconomy' && beDetails) {
+      if (beDetails.forecast_value_new_2_years !== null) {
+        forecast_2y = beDetails.forecast_value_new_2_years;
+      }
+      if (beDetails.retail_price_us !== null) {
+        retailPrice = beDetails.retail_price_us;
+      }
+    }
+
     supplementStmts.push(
       c.env.DB.prepare(`
         UPDATE lego_sets SET
           current_value=?, forecast_2y=?, forecast_5y=?,
+          retail_price=COALESCE(?, retail_price),
           valuation_method=?,
           valuation_expires_at=datetime('now', '+7 days')
         WHERE set_num=?
-      `).bind(pricing.current_value, forecast_2y, forecast_5y, valMethod, set.set_num)
+      `).bind(pricing.current_value, forecast_2y, forecast_5y, retailPrice, valMethod, set.set_num)
     );
   }
 
