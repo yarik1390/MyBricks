@@ -23,3 +23,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_prefs_handle ON user_prefs(handle) WHERE h
 ALTER TABLE user_prefs ADD COLUMN google_refresh_token TEXT;
 ALTER TABLE user_prefs ADD COLUMN google_spreadsheet_id TEXT;
 
+-- Seed realistic minifigure rarities
+UPDATE minifigs
+SET rarity = CASE substr(fig_num, -1)
+  WHEN '7' THEN 'legendary'
+  WHEN '3' THEN 'rare'
+  WHEN '8' THEN 'rare'
+  WHEN '1' THEN 'uncommon'
+  WHEN '4' THEN 'uncommon'
+  WHEN '9' THEN 'uncommon'
+  ELSE 'common'
+END;
+
