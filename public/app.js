@@ -748,6 +748,7 @@ async function route() {
 
 async function _routeImpl() {
   hideSheet();
+  closeScan();
   let hash = location.hash.replace("#", "") || "/";
   if (hash === "/blind") { location.hash = "#/minifigs"; return; }
 
@@ -2854,6 +2855,25 @@ function openScan(mode = "barcode") {
   ov.innerHTML = scanOverlayHTML(mode);
   ov.classList.add("open");
   $("#scanCloseBtn").addEventListener("click", closeScan);
+  
+  // Swipe horizontally to close camera overlay
+  let touchstartX = 0;
+  let touchstartY = 0;
+  ov.addEventListener('touchstart', e => {
+    touchstartX = e.changedTouches[0].screenX;
+    touchstartY = e.changedTouches[0].screenY;
+  }, { passive: true });
+  ov.addEventListener('touchend', e => {
+    const touchendX = e.changedTouches[0].screenX;
+    const touchendY = e.changedTouches[0].screenY;
+    const dx = touchendX - touchstartX;
+    const dy = touchendY - touchstartY;
+    if (Math.abs(dx) > 80 && Math.abs(dy) < 50) {
+      closeScan();
+      haptic("medium");
+    }
+  }, { passive: true });
+
   $$(".scan-mode-toggle button").forEach(b => b.addEventListener("click", () => {
     stopCamera();
     openScan(b.dataset.mode);
