@@ -149,7 +149,10 @@ async function sbSignIn(email, password) {
     body: JSON.stringify({ email, password }),
   });
   const d = await r.json();
-  if (!r.ok) throw new Error(d.error_description || d.message || "Sign in failed");
+  if (!r.ok) {
+    const msg = d.msg || d.error_description || (typeof d.error === 'string' ? d.error : (d.error && d.error.message)) || d.message || "Sign in failed";
+    throw new Error(msg);
+  }
   return d;
 }
 async function sbSignUp(email, password) {
@@ -159,7 +162,10 @@ async function sbSignUp(email, password) {
     body: JSON.stringify({ email, password }),
   });
   const d = await r.json();
-  if (!r.ok || d.error) throw new Error(d.error_description || d.error || d.message || "Sign up failed");
+  if (!r.ok || d.error) {
+    const msg = d.msg || d.error_description || (typeof d.error === 'string' ? d.error : (d.error && d.error.message)) || d.message || "Sign up failed";
+    throw new Error(msg);
+  }
   return d;
 }
 async function sbRefresh(refreshToken) {
@@ -169,7 +175,10 @@ async function sbRefresh(refreshToken) {
     body: JSON.stringify({ refresh_token: refreshToken }),
   });
   const d = await r.json();
-  if (!r.ok) throw new Error("Session expired");
+  if (!r.ok) {
+    const msg = d.msg || d.error_description || (typeof d.error === 'string' ? d.error : (d.error && d.error.message)) || d.message || "Session expired";
+    throw new Error(msg);
+  }
   return d;
 }
 async function sbSignOut() {
@@ -585,7 +594,7 @@ function renderLogin() {
     document.getElementById("googleSignIn")?.addEventListener("click", () => {
       if (!_sbUrl) { toast("Auth not configured", "error"); return; }
       const redirectTo = encodeURIComponent(location.origin + location.pathname);
-      location.href = `${_sbUrl}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`;
+      location.href = `${_sbUrl}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}&prompt=select_account`;
     });
 
     const submit = async () => {
@@ -4559,6 +4568,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         _authSession = oauthSess;
         history.replaceState(null, '', location.pathname + location.search);
       }
+    } catch {}
+  } else if (location.hash.includes('error=')) {
+    try {
+      const hp = new URLSearchParams(location.hash.slice(1));
+      const errorMsg = hp.get('error_description')?.replace(/\+/g, ' ') || hp.get('error') || "Authentication failed";
+      toast(errorMsg, "error");
+      history.replaceState(null, '', location.pathname + location.search);
     } catch {}
   }
 
