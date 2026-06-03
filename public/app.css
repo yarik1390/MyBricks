@@ -1347,7 +1347,7 @@ body.offline .offline-banner { display: block; }
   border-radius: var(--r-3);
   padding: 12px 14px;
   font-size: 14px; font-weight: 500;
-  z-index: 60;
+  z-index: 120;
   transform: translateY(20px); opacity: 0; pointer-events: none;
   transition: all var(--dur) var(--ease);
   box-shadow: 4px 4px 0 var(--line-soft);
@@ -2486,12 +2486,14 @@ select:focus-visible,
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
+  visibility: hidden;
   transform: scale(0.95) translateY(20px);
-  transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.2s ease;
 }
 .advisor-drawer.open {
   opacity: 1;
   pointer-events: auto;
+  visibility: visible;
   transform: scale(1) translateY(0);
 }
 
