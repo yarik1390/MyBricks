@@ -38,7 +38,11 @@ app.get('/', async (c) => {
   ]);
 
   const p = prefs || {};
-  const ebayConfigured = !!(c.env.EBAY_APP_ID && !c.env.EBAY_APP_ID.includes('dummy'));
+  const ebayConfigured = !!(
+    c.env.EBAY_APP_ID &&
+    c.env.EBAY_CLIENT_SECRET &&
+    !c.env.EBAY_APP_ID.includes('dummy')
+  );
   return c.json({
     display_name: (p.display_name as string) || seedName(userId),
     handle: (p.handle as string | null) ?? null,

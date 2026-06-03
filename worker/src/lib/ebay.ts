@@ -27,42 +27,55 @@ export async function fetchEbayPrice(
     }
   }
 
-  if (env.EBAY_APP_ID) {
-    // Official API Path
-    const params = new URLSearchParams({
-      'OPERATION-NAME': 'findCompletedItems',
-      'SERVICE-NAME': 'FindingService',
-      'SERVICE-VERSION': '1.0.0',
-      'SECURITY-APPNAME': env.EBAY_APP_ID,
-      'RESPONSE-DATA-FORMAT': 'JSON',
-      'keywords': keywords,
-      'itemFilter(0).name': 'SoldItemsOnly',
-      'itemFilter(0).value': 'true',
-      'sortOrder': 'StartTimeNewest',
-      'paginationInput.entriesPerPage': '20',
-    });
-
+  if (env.EBAY_APP_ID && env.EBAY_CLIENT_SECRET) {
     try {
-      const resp = await fetch(
-        `https://svcs.ebay.com/services/search/FindingService/v1?${params}`,
-        { headers: { 'Content-Type': 'application/json' } },
-      );
-      if (!resp.ok) return await fetchRssFallback(keywords);
+      const credentials = btoa(`${env.EBAY_APP_ID}:${env.EBAY_CLIENT_SECRET}`);
+      const tokenResp = await fetch('https://api.ebay.com/identity/v1/oauth2/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${credentials}`,
+        },
+        body: 'grant_type=client_credentials&scope=https://api.ebay.com/oauth/api_scope/buy.browse',
+      });
 
-      const body = await resp.json() as Record<string, unknown>;
-      const root = (body['findCompletedItemsResponse'] as Record<string, unknown>[])?.[0];
-      const searchResult = (root?.['searchResult'] as Record<string, unknown>[])?.[0];
-      const items = searchResult?.['item'] as Record<string, unknown>[] | undefined;
+      if (!tokenResp.ok) {
+        const errText = await tokenResp.text();
+        console.error('[ebay-oauth] token request failed:', errText);
+        return await fetchRssFallback(keywords);
+      }
+
+      const tokenData = await tokenResp.json() as { access_token?: string };
+      const accessToken = tokenData.access_token;
+      if (!accessToken) {
+        console.error('[ebay-oauth] access_token missing in response');
+        return await fetchRssFallback(keywords);
+      }
+
+      const searchResp = await fetch(
+        `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${encodeURIComponent(keywords)}&limit=15`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+          },
+        }
+      );
+
+      if (!searchResp.ok) {
+        const errText = await searchResp.text();
+        console.error('[ebay-browse] search request failed:', errText);
+        return await fetchRssFallback(keywords);
+      }
+
+      const searchData = await searchResp.json() as { itemSummaries?: Array<{ price?: { value?: string } }> };
+      const items = searchData.itemSummaries;
       if (!items || items.length < 3) {
         return await fetchRssFallback(keywords);
       }
 
       const prices = items
-        .map(item => {
-          const ss = (item['sellingStatus'] as Record<string, unknown>[])?.[0];
-          const price = (ss?.['convertedCurrentPrice'] as Record<string, unknown>[])?.[0];
-          return parseFloat(String(price?.['__value__'] ?? ''));
-        })
+        .map(item => parseFloat(item.price?.value ?? ''))
         .filter(p => !isNaN(p) && p > 0)
         .sort((a, b) => a - b);
 
@@ -71,7 +84,8 @@ export async function fetchEbayPrice(
       const median = prices[Math.floor(prices.length / 2)];
       const filtered = prices.filter(p => p <= median * 3);
       return filtered[Math.floor(filtered.length / 2)] ?? null;
-    } catch {
+    } catch (e) {
+      console.error('[ebay-api] REST flow failed:', e);
       return await fetchRssFallback(keywords);
     }
   } else {

@@ -2108,7 +2108,7 @@ async function renderMe() {
           </div>
           ${(!me.ebay_configured || !googleStatus.configured) ? `
             <div style="font-size:10px;color:var(--ink-mute);border-top:1px solid var(--line-soft);padding-top:8px;line-height:1.4;">
-              To configure, set <code>EBAY_APP_ID</code>, <code>GOOGLE_CLIENT_ID</code>, and <code>GOOGLE_CLIENT_SECRET</code> environment variables in your Cloudflare Pages dashboard project settings.
+              To configure, set <code>EBAY_APP_ID</code>, <code>EBAY_CLIENT_SECRET</code>, <code>GOOGLE_CLIENT_ID</code>, and <code>GOOGLE_CLIENT_SECRET</code> environment variables in your Cloudflare Pages dashboard project settings.
             </div>
           ` : ''}
         </div>

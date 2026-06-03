@@ -81,6 +81,7 @@ jobs:
           [ -n "${{ secrets.BRICKLINK_TOKEN_SECRET }}" ]   && put BRICKLINK_TOKEN_SECRET   "${{ secrets.BRICKLINK_TOKEN_SECRET }}"   || true
           [ -n "${{ secrets.BRICKOWL_API_KEY }}" ]          && put BRICKOWL_API_KEY          "${{ secrets.BRICKOWL_API_KEY }}"          || true
           [ -n "${{ secrets.EBAY_APP_ID }}" ]              && put EBAY_APP_ID              "${{ secrets.EBAY_APP_ID }}"              || true
+          [ -n "${{ secrets.EBAY_CLIENT_SECRET }}" ]       && put EBAY_CLIENT_SECRET       "${{ secrets.EBAY_CLIENT_SECRET }}"       || true
           [ -n "${{ secrets.BRICKECONOMY_API_KEY }}" ]     && put BRICKECONOMY_API_KEY     "${{ secrets.BRICKECONOMY_API_KEY }}"     || true
 
       - name: Deploy Worker and capture URL
