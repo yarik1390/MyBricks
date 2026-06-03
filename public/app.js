@@ -149,11 +149,33 @@ function loadSession() {
   try { return JSON.parse(localStorage.getItem("bv_session") || "null"); } catch { return null; }
 }
 function saveSession(s) {
+  const oldUid = getSessionUserId();
   try {
     if (s) localStorage.setItem("bv_session", JSON.stringify(s));
     else localStorage.removeItem("bv_session");
   } catch {}
   _authSession = s;
+  const newUid = getSessionUserId();
+
+  if (newUid !== oldUid) {
+    state.portfolio = null;
+    state.me = null;
+    state.catalog.items = [];
+    state.blind.items = [];
+    state.wishlist = [];
+    state.portfolioHistory = null;
+    state.ownedFigs = new Set();
+    
+    // Clear user specific local DB
+    bvIDB.del('portfolio').catch(() => {});
+    bvIDB.del('catalog').catch(() => {});
+    bvIDB.del('blind').catch(() => {});
+    
+    // Clear user specific localStorage
+    localStorage.removeItem("bv_figs");
+    localStorage.removeItem("bv_chat");
+    localStorage.removeItem(OUTBOX_KEY);
+  }
 }
 async function sbSignIn(email, password) {
   const r = await fetch(`${_sbUrl}/auth/v1/token?grant_type=password`, {
@@ -2123,6 +2145,7 @@ async function renderMe() {
         </div>
       </div>
 
+      ${me.is_admin ? `
       <div class="section-title">Catalog</div>
       <div>
         <div class="setting-row">
@@ -2142,6 +2165,7 @@ async function renderMe() {
           <button class="import-btn" id="revalueAllBtn" aria-label="Revalue all prices">${I.refresh({w: 16, h: 16})}</button>
         </div>
       </div>
+      ` : ""}
 
       <div class="section-title">AI Scanning</div>
       <div>

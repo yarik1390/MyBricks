@@ -46,6 +46,7 @@ app.get('/', async (c) => {
     currency: (p.currency as string) || 'USD',
     notify_price_drops: p.notify_price_drops !== 0,
     ebay_configured: ebayConfigured,
+    is_admin: userId === c.env.ADMIN_USER_ID,
     portfolio_stats: {
       set_count: Number(stats?.set_count ?? 0),
       total_value: Number(stats?.total_value ?? 0),
