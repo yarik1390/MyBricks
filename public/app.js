@@ -67,8 +67,21 @@ const bvIDB = (() => {
   }
   async function get(k) { const db = await open(); return new Promise((res, rej) => { const r = db.transaction('kv','readonly').objectStore('kv').get(k); r.onsuccess=()=>res(r.result); r.onerror=e=>rej(e.target.error); }); }
   async function set(k, v) { const db = await open(); return new Promise((res, rej) => { const r = db.transaction('kv','readwrite').objectStore('kv').put(v,k); r.onsuccess=()=>res(); r.onerror=e=>rej(e.target.error); }); }
-  return { get, set };
+  async function del(k) { const db = await open(); return new Promise((res, rej) => { const r = db.transaction('kv','readwrite').objectStore('kv').delete(k); r.onsuccess=()=>res(); r.onerror=e=>rej(e.target.error); }); }
+  return { get, set, del };
 })();
+
+function getSessionUserId() {
+  if (!_authSession?.access_token) return null;
+  try {
+    const parts = _authSession.access_token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return payload.sub || null;
+  } catch {
+    return null;
+  }
+}
 
 /* ---------- Offline outbox (queue mutations for replay when back online) ---------- */
 const OUTBOX_KEY = 'bv_outbox';
@@ -841,7 +854,7 @@ async function renderPortfolio() {
       state.portfolioHistory = hist.snapshots || [];
       state.wishlist = wl.wishlist || [];
       state.wishlistAlerts = wl.unread_alerts || [];
-      bvIDB.set('portfolio', { data: state.portfolio, ts: Date.now() }).catch(() => {});
+      bvIDB.set('portfolio', { data: state.portfolio, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
     } catch (e) {
       toast("Couldn't load collection: " + e.message, "error");
       state.portfolio = { items: [], total_value: 0, total_paid: 0, count: 0 };
@@ -1137,7 +1150,7 @@ async function renderAdd() {
   }
   if (!state.catalog.items.length) {
     await loadCatalog({ reset: true });
-    if (isCatalogDefault()) bvIDB.set('catalog', { data: { items: state.catalog.items, total: state.catalog.total, hasMore: state.catalog.hasMore, offset: state.catalog.offset }, ts: Date.now() }).catch(() => {});
+    if (isCatalogDefault()) bvIDB.set('catalog', { data: { items: state.catalog.items, total: state.catalog.total, hasMore: state.catalog.hasMore, offset: state.catalog.offset }, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
   } else if (state.catalog._stale) {
     // IDB-hydrated data: paint instantly from cache, refresh only the grid in
     // the background. Using refreshCatalogGrid (not paintAdd) means the background
@@ -1146,7 +1159,7 @@ async function renderAdd() {
     loadCatalog({ reset: true }).then(() => {
       if (location.hash === '#/add' && $('#catalogResults')) {
         refreshCatalogGrid();
-        if (isCatalogDefault()) bvIDB.set('catalog', { data: { items: state.catalog.items, total: state.catalog.total, hasMore: state.catalog.hasMore, offset: state.catalog.offset }, ts: Date.now() }).catch(() => {});
+        if (isCatalogDefault()) bvIDB.set('catalog', { data: { items: state.catalog.items, total: state.catalog.total, hasMore: state.catalog.hasMore, offset: state.catalog.offset }, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
       }
     }).catch(() => {});
   }
@@ -2382,6 +2395,13 @@ async function renderMe() {
     await sbSignOut();
     state.portfolio = null; state.me = null; state.catalog.items = [];
     state.blind.items = []; state.wishlist = []; state.portfolioHistory = null;
+    try {
+      await Promise.all([
+        bvIDB.del('portfolio'),
+        bvIDB.del('catalog'),
+        bvIDB.del('blind')
+      ]);
+    } catch {}
     location.hash = "#/login";
   });
 
@@ -2724,13 +2744,13 @@ function mountBlindSentinel() {
 async function renderBlind() {
   if (!state.blind.items.length) {
     await loadBlind({ reset: true });
-    if (isFigFilterDefault()) bvIDB.set('blind', { data: { items: state.blind.items, total: state.blind.total, hasMore: state.blind.hasMore, offset: state.blind.offset }, ts: Date.now() }).catch(() => {});
+    if (isFigFilterDefault()) bvIDB.set('blind', { data: { items: state.blind.items, total: state.blind.total, hasMore: state.blind.hasMore, offset: state.blind.offset }, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
   } else if (state.blind._stale) {
     state.blind._stale = false;
     loadBlind({ reset: true }).then(() => {
       if (location.hash === '#/minifigs' && $('#miniGrid')) {
         refreshMiniGrid();
-        if (isFigFilterDefault()) bvIDB.set('blind', { data: { items: state.blind.items, total: state.blind.total, hasMore: state.blind.hasMore, offset: state.blind.offset }, ts: Date.now() }).catch(() => {});
+        if (isFigFilterDefault()) bvIDB.set('blind', { data: { items: state.blind.items, total: state.blind.total, hasMore: state.blind.hasMore, offset: state.blind.offset }, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
       }
     }).catch(() => {});
   }
@@ -4529,16 +4549,18 @@ function _fallbackCopy(text, label) {
 async function hydrateFromIDB() {
   const MAX_AGE = 3_600_000; // 1 hour
   const now = Date.now();
+  const currentUid = getSessionUserId();
+  if (!currentUid) return;
   try {
     const [p, c, b] = await Promise.all([
       bvIDB.get('portfolio'), bvIDB.get('catalog'), bvIDB.get('blind'),
     ]);
-    if (p?.ts && now - p.ts < MAX_AGE) state.portfolio = p.data;
-    if (c?.ts && now - c.ts < MAX_AGE && c.data?.items?.length) {
+    if (p?.ts && now - p.ts < MAX_AGE && p.userId === currentUid) state.portfolio = p.data;
+    if (c?.ts && now - c.ts < MAX_AGE && c.data?.items?.length && c.userId === currentUid) {
       Object.assign(state.catalog, c.data);
       state.catalog._stale = true;
     }
-    if (b?.ts && now - b.ts < MAX_AGE && b.data?.items?.length) {
+    if (b?.ts && now - b.ts < MAX_AGE && b.data?.items?.length && b.userId === currentUid) {
       Object.assign(state.blind, b.data);
       state.blind._stale = true;
     }

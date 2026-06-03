@@ -125,7 +125,8 @@ app.get('/:setnum', async (c) => {
     const isBulk = (activeSet.valuation_method === 'formula_bulk');
     const needsRefresh = isBulk
       || !activeSet.valuation_expires_at
-      || new Date(activeSet.valuation_expires_at as string) < new Date();
+      || new Date(activeSet.valuation_expires_at as string) < new Date()
+      || (!activeSet.ebay_value && !activeSet.ebay_cached_at);
 
     if (needsRefresh) {
       if (c.env.BRICKECONOMY_API_KEY) {
@@ -232,22 +233,22 @@ app.get('/:setnum', async (c) => {
         c.executionCtx.waitUntil(refreshPromise);
       } else {
         const refreshPromise = fetchEbayPrice(activeSet.set_num as string, activeSet.name as string, c.env).then(async (ebayVal) => {
-          if (ebayVal === null || ebayVal === undefined) return;
           const yr = activeSet.retired ? 0.15 : 0.10;
-          const forecast_2y = Math.round(ebayVal * Math.pow(1 + yr, 2) * 100) / 100;
-          const forecast_5y = Math.round(ebayVal * Math.pow(1 + yr, 5) * 100) / 100;
-          const supplementStmts: D1PreparedStatement[] = [
-            c.env.DB.prepare(`
-              UPDATE lego_sets SET
-                current_value=?, ebay_value=?, forecast_2y=?, forecast_5y=?,
-                valuation_method='ebay_rss',
-                ebay_cached_at=datetime('now'),
-                valuation_expires_at=datetime('now', '+1 day'),
-                cached_at=datetime('now')
-              WHERE set_num=?
-            `).bind(ebayVal, ebayVal, forecast_2y, forecast_5y, activeSet.set_num)
-          ];
-          await c.env.DB.batch(supplementStmts);
+          const hasVal = (ebayVal !== null && ebayVal !== undefined);
+          const forecast_2y = hasVal ? Math.round(ebayVal * Math.pow(1 + yr, 2) * 100) / 100 : null;
+          const forecast_5y = hasVal ? Math.round(ebayVal * Math.pow(1 + yr, 5) * 100) / 100 : null;
+          await c.env.DB.prepare(`
+            UPDATE lego_sets SET
+              current_value = COALESCE(?, current_value),
+              ebay_value = ?,
+              forecast_2y = COALESCE(?, forecast_2y),
+              forecast_5y = COALESCE(?, forecast_5y),
+              valuation_method = 'ebay_rss',
+              ebay_cached_at = datetime('now'),
+              valuation_expires_at = datetime('now', '+1 day'),
+              cached_at = datetime('now')
+            WHERE set_num=?
+          `).bind(ebayVal, ebayVal, forecast_2y, forecast_5y, activeSet.set_num).run();
         }).catch(err => console.error('[bg-ebay-rss-reval] failed:', err));
 
         c.executionCtx.waitUntil(refreshPromise);

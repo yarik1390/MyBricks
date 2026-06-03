@@ -82,41 +82,26 @@ export async function fetchEbayPrice(
 
 async function fetchRssFallback(keywords: string): Promise<number | null> {
   try {
-    const rssUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(keywords)}&LH_Sold=1&LH_Complete=1&_rss=1`;
-    const resp = await fetch(rssUrl, {
+    const url = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(keywords)}&LH_Sold=1&LH_Complete=1`;
+    const resp = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/xml, text/xml, */*'
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'
       }
     });
     if (!resp.ok) return null;
-    const xml = await resp.text();
-
-    // Parse items regex-based
-    const items: string[] = [];
-    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
-    let match;
-    while ((match = itemRegex.exec(xml)) !== null) {
-      items.push(match[1]);
-    }
-
-    if (items.length < 3) return null;
+    const html = await resp.text();
 
     const prices: number[] = [];
-    const priceRegex = /(?:\$|£|€|USD|EUR|GBP)\s*([0-9,]+(?:\.[0-9]{2})?)/gi;
-
-    for (const item of items) {
-      const titleMatch = item.match(/<title>([\s\S]*?)<\/title>/i);
-      const descMatch = item.match(/<description>([\s\S]*?)<\/description>/i);
-      const textToSearch = `${titleMatch ? titleMatch[1] : ''} ${descMatch ? descMatch[1] : ''}`;
-
-      let pMatch;
-      priceRegex.lastIndex = 0; // Reset state
-      while ((pMatch = priceRegex.exec(textToSearch)) !== null) {
-        const val = parseFloat(pMatch[1].replace(/,/g, ''));
+    const itemRegex = /class="s-item__price"[^>]*>([\s\S]*?)<\/span>/g;
+    let match;
+    while ((match = itemRegex.exec(html)) !== null) {
+      const priceText = match[1].replace(/<[^>]*>/g, ''); // strip HTML tags
+      const numMatch = priceText.match(/(?:\$|£|€|USD|EUR|GBP)\s*([0-9,]+(?:\.[0-9]{2})?)/i);
+      if (numMatch) {
+        const val = parseFloat(numMatch[1].replace(/,/g, ''));
         if (!isNaN(val) && val > 0) {
           prices.push(val);
-          break; // Grab the first price in each item and move on
         }
       }
     }
@@ -128,7 +113,7 @@ async function fetchRssFallback(keywords: string): Promise<number | null> {
     const filtered = prices.filter(p => p <= median * 3);
     return filtered[Math.floor(filtered.length / 2)] ?? null;
   } catch (err) {
-    console.error('[ebay-rss] Error parsing keyless eBay RSS:', err);
+    console.error('[ebay-scrape] Error parsing eBay HTML completed listings:', err);
     return null;
   }
 }
