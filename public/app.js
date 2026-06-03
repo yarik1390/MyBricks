@@ -1644,7 +1644,7 @@ function wireInfoTab(set, entry) {
       const prevCount = state.portfolio?.items?.length ?? 0;
       const prevValue = state.portfolio?.total_value ?? 0;
       await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
-      state.portfolio = null; state.catalogAll = null;
+      state.portfolio = null; state.catalog.items = [];
       toast("Added to vault", "success");
       // Milestone detection
       const newCount = prevCount + 1;
@@ -3155,7 +3155,7 @@ function showScanResult(res) {
         }
       }
     }
-    state.portfolio = null;
+    state.portfolio = null; state.catalog.items = [];
     closeScan();
     if (addedCount > 0) {
       toast(navigator.onLine ? `Added ${addedCount} sets to vault` : `Saved ${addedCount} offline — will sync`, "success");
@@ -3316,15 +3316,15 @@ function showQuickActions(setNum) {
     if (!(await confirmSheet({ title: "Remove from vault?", message: "This set will be removed from your collection.", confirmLabel: "Remove", danger: true }))) return;
     const item = (state.portfolio?.items || []).find(s => s.set_num === setNum);
     if (item) {
-      try { await api("/api/collection/" + item.id, { method: "DELETE" }); state.portfolio = null; toast("Removed", "info"); }
+      try { await api("/api/collection/" + item.id, { method: "DELETE" }); state.portfolio = null; state.catalog.items = []; toast("Removed", "info"); }
       catch (e) {
         if (!navigator.onLine && item) {
           outboxEnqueue({ path: '/api/collection/' + item.id, method: 'DELETE' });
-          state.portfolio = null; toast('Removed offline — will sync when connected', 'info');
+          state.portfolio = null; state.catalog.items = []; toast('Removed offline — will sync when connected', 'info');
         } else { toast("Error: " + e.message, "error"); }
       }
     }
-    hideSheet(); paintPortfolio();
+    hideSheet(); renderPortfolio();
   });
 }
 

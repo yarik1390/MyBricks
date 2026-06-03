@@ -30,6 +30,13 @@ app.use('*', cors({
   allowHeaders: ['Content-Type', 'Authorization', 'X-Gemini-Key'],
 }));
 
+app.use('*', async (c, next) => {
+  await next();
+  c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  c.header('Pragma', 'no-cache');
+  c.header('Expires', '0');
+});
+
 // Public config for the frontend (Supabase URL + anon key are client-safe)
 app.get('/api/config', (c) => c.json({
   supabase_url: c.env.SUPABASE_URL,
