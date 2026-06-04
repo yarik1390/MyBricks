@@ -40,19 +40,26 @@ app.get('/search', async (c) => {
 
   const where: string[] = [];
   const params: unknown[] = [];
+  let fromSQL = 'lego_sets s';
+  let orderBySQL = orderBy;
 
   if (q) {
-    where.push(`(LOWER(name) LIKE LOWER(?) OR LOWER(set_num) LIKE LOWER(?))`);
-    params.push(`%${q}%`, `%${q}%`);
+    const cleanedQ = q.trim().replace(/[*"']/g, '').split(/\s+/).filter(Boolean).map(tok => `${tok}*`).join(' ');
+    if (cleanedQ) {
+      fromSQL = 'lego_sets s JOIN lego_sets_fts f ON s.rowid = f.rowid';
+      where.push(`f.lego_sets_fts MATCH ?`);
+      params.push(cleanedQ);
+      orderBySQL = `f.rank, ${orderBy}`;
+    }
   }
-  if (theme) { where.push(`theme = ?`); params.push(theme); }
-  if (retired === '1' || retired === 'true') where.push(`retired = 1`);
+  if (theme) { where.push(`s.theme = ?`); params.push(theme); }
+  if (retired === '1' || retired === 'true') where.push(`s.retired = 1`);
 
   const rangeFilter = (key: string, col: string) => {
     const v = parseInt(c.req.query(key) || '', 10);
     if (!isNaN(v)) {
       const op = key.startsWith('min_') ? '>=' : '<=';
-      where.push(`${col} ${op} ?`);
+      where.push(`s.${col} ${op} ?`);
       params.push(v);
     }
   };
@@ -67,10 +74,10 @@ app.get('/search', async (c) => {
 
   const [pageRes, countRes] = await Promise.all([
     c.env.DB.prepare(
-      `SELECT * FROM lego_sets ${whereSQL} ORDER BY ${orderBy}, set_num LIMIT ? OFFSET ?`
+      `SELECT s.* FROM ${fromSQL} ${whereSQL} ORDER BY ${orderBySQL}, s.set_num LIMIT ? OFFSET ?`
     ).bind(...params, lim, offset).all<Record<string, unknown>>(),
     c.env.DB.prepare(
-      `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM lego_sets ${whereSQL}`
+      `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM ${fromSQL} ${whereSQL}`
     ).bind(...params).first<{ total: number }>(),
   ]);
 
@@ -468,6 +475,14 @@ app.post('/:setnum/revalue', async (c) => {
           usedPricing = { used_value: gemVal.used_value };
           valMethod = 'ai';
           ebayPrice = gemVal.ebay_value || null;
+
+          if (pricing && set.retail_price) {
+            const pieceCount = Number(set.pieces ?? 0);
+            const maxCapMultiplier = pieceCount > 500 ? 8 : 15;
+            if (pricing.current_value < 0.3 * Number(set.retail_price) || pricing.current_value > maxCapMultiplier * Number(set.retail_price)) {
+              pricing.current_value = Number(set.retail_price);
+            }
+          }
         }
       }
       const realEbay = await fetchEbayPrice(set.set_num as string, set.name as string, c.env).catch(() => null);

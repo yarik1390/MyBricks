@@ -132,8 +132,10 @@ export async function runValuateSets(env: Env) {
       };
       // Sanity-check the AI value against retail price to reject hallucinations.
       if (vals.retail_price && vals.current_value) {
-        if (vals.current_value < 0.3 * vals.retail_price || vals.current_value > 30 * vals.retail_price) {
-          console.warn(`[valuate] ${set.set_num}: AI value $${vals.current_value} out of sanity range vs retail $${vals.retail_price} — skipped`);
+        const pieceCount = Number(set.pieces ?? 0);
+        const maxCapMultiplier = pieceCount > 500 ? 8 : 15;
+        if (vals.current_value < 0.3 * vals.retail_price || vals.current_value > maxCapMultiplier * vals.retail_price) {
+          console.warn(`[valuate] ${set.set_num}: AI value $${vals.current_value} out of sanity range vs retail $${vals.retail_price} (limit ${maxCapMultiplier}x, pieces: ${pieceCount}) — skipped`);
           continue;
         }
       }

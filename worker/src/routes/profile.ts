@@ -79,4 +79,21 @@ app.post('/:handle/showcase', requireMember, async (c) => {
   return c.json({ ok: true });
 });
 
+// GET /api/users/check-handle/:handle — check if handle is available
+app.get('/check-handle/:handle', requireMember, async (c) => {
+  const handle = c.req.param('handle') || '';
+  const userId = c.get('userId');
+  
+  if (!/^[a-zA-Z0-9-]{3,30}$/.test(handle)) {
+    return c.json({ available: false, error: 'Must be 3-30 alphanumeric characters or hyphens' });
+  }
+  
+  const existing = await c.env.DB.prepare(
+    'SELECT user_id FROM user_prefs WHERE handle=? AND user_id != ?'
+  ).bind(handle, userId).first();
+  
+  return c.json({ available: !existing });
+});
+
 export { app as profileRoute };
+

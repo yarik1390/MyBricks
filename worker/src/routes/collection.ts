@@ -32,12 +32,67 @@ app.get('/', async (c) => {
       uc.storage_location, uc.acquisition_source, uc.is_complete, uc.missing_pieces,
       s.name, s.theme, s.year, s.pieces, s.minifigs,
       s.retail_price, s.current_value, s.forecast_2y, s.forecast_5y,
-      s.image_url, s.retired
+      s.image_url, s.retired, s.retirement_risk_score, s.used_value, s.ebay_value, s.cached_at
     FROM user_collection uc
     JOIN lego_sets s ON s.set_num = uc.set_num
     WHERE uc.user_id = ? AND uc.deleted_at IS NULL
     ORDER BY uc.added_at DESC
   `).bind(userId).all<Record<string, unknown>>();
+
+  // Fetch past 90 days history for sets in collection to calculate slopes on-the-fly
+  const historyRows = await c.env.DB.prepare(`
+    SELECT set_num, snapshot_date, current_value
+    FROM set_value_history
+    WHERE set_num IN (SELECT set_num FROM user_collection WHERE user_id = ? AND deleted_at IS NULL)
+      AND snapshot_date >= DATE('now', '-90 days')
+    ORDER BY set_num, snapshot_date ASC
+  `).bind(userId).all<{ set_num: string; snapshot_date: string; current_value: number }>();
+
+  const historyBySet: Record<string, Array<{ x: number; y: number }>> = {};
+  if (historyRows.results) {
+    const tempGroup: Record<string, Array<{ date: string; val: number }>> = {};
+    for (const r of historyRows.results) {
+      if (!tempGroup[r.set_num]) tempGroup[r.set_num] = [];
+      tempGroup[r.set_num].push({ date: r.snapshot_date, val: r.current_value });
+    }
+    for (const [setNum, list] of Object.entries(tempGroup)) {
+      if (list.length >= 14) {
+        const firstTime = new Date(list[0].date).getTime();
+        historyBySet[setNum] = list.map(item => ({
+          x: (new Date(item.date).getTime() - firstTime) / (24 * 3600 * 1000),
+          y: item.val
+        }));
+      }
+    }
+  }
+
+  const trends: Record<string, { trend: 'rising' | 'stable' | 'falling'; slope: number }> = {};
+  for (const [setNum, data] of Object.entries(historyBySet)) {
+    const n = data.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+    for (const p of data) {
+      sumX += p.x;
+      sumY += p.y;
+      sumXY += p.x * p.y;
+      sumXX += p.x * p.x;
+    }
+    const denominator = n * sumXX - sumX * sumX;
+    if (denominator === 0) {
+      trends[setNum] = { trend: 'stable', slope: 0 };
+      continue;
+    }
+    const slopeDaily = (n * sumXY - sumX * sumY) / denominator;
+    const avgY = sumY / n;
+    if (avgY === 0) {
+      trends[setNum] = { trend: 'stable', slope: 0 };
+      continue;
+    }
+    const slopePctPerWeek = (slopeDaily * 7 / avgY) * 100;
+    let trend: 'rising' | 'stable' | 'falling' = 'stable';
+    if (slopePctPerWeek > 0.5) trend = 'rising';
+    else if (slopePctPerWeek < -0.5) trend = 'falling';
+    trends[setNum] = { trend, slope: slopePctPerWeek };
+  }
 
   const items = results.map(row => {
     let annualizedRoi = null;
@@ -47,7 +102,15 @@ app.get('/', async (c) => {
         annualizedRoi = Math.pow(Number(row.current_value) / Number(row.purchase_price), 1 / years) - 1;
       }
     }
-    return { ...row, retired: !!row.retired, is_complete: !!row.is_complete, annualized_roi: annualizedRoi } as Record<string, unknown>;
+    const t = trends[row.set_num as string] || { trend: 'stable', slope: 0 };
+    return {
+      ...row,
+      retired: !!row.retired,
+      is_complete: !!row.is_complete,
+      annualized_roi: annualizedRoi,
+      trend: t.trend,
+      slope_90d: t.slope
+    } as Record<string, unknown>;
   });
 
   const totalValue = items.reduce((s, r) => s + (Number(r.current_value) || 0) * Number(r.quantity), 0);

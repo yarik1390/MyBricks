@@ -47,6 +47,8 @@ const I = (() => {
     extLink:    () => s('<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/>'),
     advisor:    () => s('<circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 015.1 2.1c0 1.6-1.5 2.5-2.1 3.4V16"/><circle cx="12" cy="19" r=".5" fill="currentColor"/>'),
     fire:       () => s('<path d="M8.5 2C8.5 2 9 5 7 8c-1.5 2.5-.5 5 1.5 6.5C8 12 10 10.5 10 10.5s.5 4 3 6a7 7 0 10-4.5-14.5z"/>'),
+    grid:       () => s('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>'),
+    list:       () => s('<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'),
   };
 })();
 
@@ -119,6 +121,10 @@ const state = {
   blind: { items: [], total: 0, offset: 0, hasMore: false, loading: false, ownedCount: 0, pageSize: 30 },
   themes: [], themesLoadedAt: 0,
   me: null,
+  compactView: localStorage.getItem("bv_compact_view") === "true",
+  portfolioTab: "items",
+  selectionMode: false,
+  selectedSets: new Set(),
   filter: {
     kind: "all", theme: null, range: "1M", q: "",
     sort: localStorage.getItem("bv_sort") || "added_desc",
@@ -226,19 +232,67 @@ async function sbSignOut() {
 }
 
 /* ---------- helpers ---------- */
+const CURRENCY_SYMBOLS = {
+  USD: "$",
+  GBP: "£",
+  EUR: "€",
+  CAD: "CA$",
+  AUD: "A$"
+};
+
+let exchangeRates = { USD: 1 };
+async function fetchExchangeRates() {
+  const cached = localStorage.getItem("bv_exchange_rates");
+  if (cached) {
+    try {
+      const data = JSON.parse(cached);
+      if (data && data.timestamp && (Date.now() - data.timestamp < 6 * 60 * 60 * 1000)) {
+        exchangeRates = data.rates;
+        return;
+      }
+    } catch {}
+  }
+  try {
+    const res = await fetch("https://open.er-api.com/v6/latest/USD");
+    const json = await res.json();
+    if (json && json.rates) {
+      exchangeRates = json.rates;
+      localStorage.setItem("bv_exchange_rates", JSON.stringify({
+        timestamp: Date.now(),
+        rates: json.rates
+      }));
+    }
+  } catch (e) {
+    console.error("Failed to fetch exchange rates, falling back to USD = 1", e);
+  }
+}
+
+function getExchangeRate(targetCurrency) {
+  return exchangeRates[targetCurrency] || 1;
+}
+
 function fmtMoney(n, opts = {}) {
   if (n == null || isNaN(n)) return "—";
-  const sign = n < 0 ? "-" : "";
-  const abs = Math.abs(n);
+  const userCurrency = state.me?.currency || "USD";
+  const rate = getExchangeRate(userCurrency);
+  const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
+  const converted = n * rate;
+  const sign = converted < 0 ? "-" : "";
+  const abs = Math.abs(converted);
   const v = abs.toLocaleString("en-US", { minimumFractionDigits: opts.cents ?? 2, maximumFractionDigits: 2 });
-  return sign + "$" + v;
+  return sign + symbol + v;
 }
+
 function fmtMoneyShort(n) {
   if (n == null || isNaN(n)) return "—";
-  const a = Math.abs(n); const s = n < 0 ? "-" : "";
-  if (a >= 1e6) return s + "$" + (a / 1e6).toFixed(1) + "M";
-  if (a >= 1e3) return s + "$" + (a / 1e3).toFixed(1) + "K";
-  return s + "$" + a.toFixed(0);
+  const userCurrency = state.me?.currency || "USD";
+  const rate = getExchangeRate(userCurrency);
+  const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
+  const converted = n * rate;
+  const a = Math.abs(converted); const s = converted < 0 ? "-" : "";
+  if (a >= 1e6) return s + symbol + (a / 1e6).toFixed(1) + "M";
+  if (a >= 1e3) return s + symbol + (a / 1e3).toFixed(1) + "K";
+  return s + symbol + a.toFixed(0);
 }
 function fmtPct(n) { return (n >= 0 ? "+" : "") + (n * 100).toFixed(1) + "%"; }
 function daysAgo(iso) { return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000); }
@@ -804,6 +858,23 @@ async function _routeImpl() {
   }
   if (hash === "/login") { location.hash = "#/"; return; }
 
+  if (_authSession && !state.me) {
+    try {
+      state.me = await api("/api/me");
+    } catch (e) {
+      console.error("Failed to load user profile", e);
+      state.me = { display_name: "Collector", handle: "you", notify_price_drops: true, currency: "USD", portfolio_stats: {} };
+    }
+  }
+
+  if (hash !== "/" && hash !== "") {
+    if (state.selectionMode) {
+      state.selectionMode = false;
+      state.selectedSets.clear();
+      $("#selectionBar")?.remove();
+    }
+  }
+
   // Restore nav if it was hidden by the login screen.
   const nav = document.getElementById("nav");
   if (nav) nav.style.display = "";
@@ -903,15 +974,101 @@ function sortedPortfolioItems() {
 
 // Re-render ONLY the set list + wire its cards. Used by sort/search so the
 // hero, chart and topbar don't flash from a full-page re-render.
+let portfolioOffset = 20;
 function repaintSetList() {
   const list = $("#setList");
   if (!list) return;
   const items = sortedPortfolioItems();
-  list.innerHTML = items.length === 0 ? emptyVaultHTML() : items.map(setListCardHTML).join("");
+  
+  if (items.length === 0) {
+    list.innerHTML = emptyVaultHTML();
+    if (state._portfolioObserver) {
+      state._portfolioObserver.disconnect();
+      state._portfolioObserver = null;
+    }
+    return;
+  }
+  
+  list.className = `set-list ${state.compactView ? 'compact-list' : ''}`;
+  
+  portfolioOffset = 20;
+  const firstPage = items.slice(0, portfolioOffset);
+  list.innerHTML = firstPage.map(setListCardHTML).join("") + `
+    <div id="portfolioSentinel" style="height: 20px; display: flex; align-items: center; justify-content: center; margin-top: 10px;">
+      ${items.length > portfolioOffset ? `<div class="spinner"></div>` : ''}
+    </div>
+  `;
+  
+  wirePortfolioCards();
+  setupPortfolioSentinel(items);
+}
+
+function wirePortfolioCards() {
   $$(".set-list-card").forEach(card => {
-    card.addEventListener("click", () => { haptic("light"); location.hash = "#/set/" + encodeURIComponent(card.dataset.set); });
-    wireLongPress(card, () => showQuickActions(card.dataset.set));
+    if (card.dataset.wired) return;
+    card.dataset.wired = "true";
+    
+    card.addEventListener("click", (e) => {
+      if (state.selectionMode) {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = card.dataset.id;
+        if (state.selectedSets.has(id)) {
+          state.selectedSets.delete(id);
+        } else {
+          state.selectedSets.add(id);
+        }
+        haptic("light");
+        repaintSetList();
+        updateSelectionBar();
+      } else {
+        haptic("light");
+        location.hash = "#/set/" + encodeURIComponent(card.dataset.set);
+      }
+    });
+    
+    wireLongPress(card, () => {
+      if (!state.selectionMode) {
+        enterSelectionMode(card.dataset.id);
+      }
+    });
   });
+}
+
+function setupPortfolioSentinel(items) {
+  const sentinel = $("#portfolioSentinel");
+  const list = $("#setList");
+  if (!sentinel || !list) return;
+  if (state._portfolioObserver) state._portfolioObserver.disconnect();
+  if (items.length <= portfolioOffset) {
+    sentinel.style.display = "none";
+    return;
+  }
+  
+  state._portfolioObserver = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting && items.length > portfolioOffset) {
+      const nextPage = items.slice(portfolioOffset, portfolioOffset + 20);
+      portfolioOffset += 20;
+      
+      sentinel.remove();
+      
+      const tempDiv = document.createElement("div");
+      tempDiv.innerHTML = nextPage.map(setListCardHTML).join("");
+      
+      while (tempDiv.firstChild) {
+        list.appendChild(tempDiv.firstChild);
+      }
+      
+      list.appendChild(sentinel);
+      wirePortfolioCards();
+      
+      if (portfolioOffset >= items.length) {
+        sentinel.style.display = "none";
+        state._portfolioObserver.disconnect();
+      }
+    }
+  }, { rootMargin: "200px" });
+  state._portfolioObserver.observe(sentinel);
 }
 
 function paintPortfolio() {
@@ -936,6 +1093,8 @@ function paintPortfolio() {
           <div class="brand-name">Brickvault</div>
         </div>
         <div class="topbar-actions">
+          ${(state.me?.handle && state.me?.is_public) ? `<button class="icon-btn" id="portfolioShareBtn" aria-label="Share Portfolio">${I.share()}</button>` : ""}
+          <button class="icon-btn" id="layoutToggle" aria-label="Toggle Layout">${state.compactView ? I.grid() : I.list()}</button>
           <button class="icon-btn" id="searchToggle" aria-label="Search">${I.search()}</button>
           <a href="#/wishlist" class="icon-btn" id="wishlistBtn" aria-label="Wishlist">
             ${I.heart()}
@@ -966,68 +1125,138 @@ function paintPortfolio() {
         </div>
       </div>
 
-      <div class="filter-row">
-        ${[["added_desc","Recent"],["value_desc","By value"],["roi_desc","By ROI"],["az","A–Z"]]
-          .map(([k,l]) => `<button class="chip ${state.filter.sort === k ? "active" : ""}" data-sort="${k}">${l}</button>`).join("")}
-      </div>
-
-      <div class="set-list" id="setList">
-        ${items.length === 0 ? emptyVaultHTML() : items.map(setListCardHTML).join("")}
-      </div>
-
       ${p.items.length > 0 ? `
-        <button class="insights-toggle" id="insightsToggle">${I.trend()}<span>Insights</span>${I.chev()}</button>
-        <div id="insightsPanel" style="display:none;"></div>` : ""}
+        <div class="portfolio-tabs" style="display:flex;gap:24px;border-bottom:1.5px solid var(--line-soft);margin: 16px 16px 8px;padding-bottom:8px;">
+          <button class="portfolio-tab ${state.portfolioTab === 'items' ? 'active' : ''}" data-tab="items" style="font-family:var(--font-heading);font-size:15px;font-weight:700;border:none;background:transparent;cursor:pointer;color:var(--ink-mute);padding-bottom:4px;outline:none;">Your Sets</button>
+          <button class="portfolio-tab ${state.portfolioTab === 'insights' ? 'active' : ''}" data-tab="insights" style="font-family:var(--font-heading);font-size:15px;font-weight:700;border:none;background:transparent;cursor:pointer;color:var(--ink-mute);padding-bottom:4px;outline:none;">Insights</button>
+        </div>
+      ` : ''}
+
+      <div id="portfolioTabContent">
+        ${state.portfolioTab === "items" ? `
+          <div class="filter-row" style="margin-top: 8px;">
+            ${[["added_desc","Recent"],["value_desc","By value"],["roi_desc","By ROI"],["az","A–Z"]]
+              .map(([k,l]) => `<button class="chip ${state.filter.sort === k ? "active" : ""}" data-sort="${k}">${l}</button>`).join("")}
+          </div>
+          <div class="set-list ${state.compactView ? 'compact-list' : ''}" id="setList">
+            ${items.length === 0 ? emptyVaultHTML() : items.map(setListCardHTML).join("")}
+          </div>
+        ` : `
+          <div id="insightsPanelContent">
+            ${renderInsightsTab(p.items || [])}
+          </div>
+        `}
+      </div>
     </div>`;
 
-  setTimeout(() => drawSparkline($("#heroChart"), clipped, { up: gain >= 0 }), 30);
+  setTimeout(() => {
+    if (state.portfolioTab === "items") {
+      drawSparkline($("#heroChart"), clipped, { up: gain >= 0 });
+    } else {
+      drawSparkline($("#heroChart"), clipped, { up: gain >= 0 });
+      const container = $("#insightsDoubleChart");
+      if (container) drawDoubleSparkline(container, clipped);
+    }
+  }, 40);
+  
   animateHeroValue(totalVal);
+
+  $$(".portfolio-tab").forEach(tabBtn => {
+    tabBtn.addEventListener("click", () => {
+      state.portfolioTab = tabBtn.dataset.tab;
+      haptic("light");
+      paintPortfolio();
+    });
+  });
 
   $$("#rangePills button").forEach(b => b.addEventListener("click", () => {
     state.filter.range = b.dataset.r; haptic("light");
     $$("#rangePills button").forEach(x => x.classList.toggle("active", x.dataset.r === state.filter.range));
     const d = ranges[state.filter.range] || 30;
-    drawSparkline($("#heroChart"), hist.slice(-Math.min(d + 1, hist.length)), { up: gain >= 0 });
+    const freshClipped = hist.slice(-Math.min(d + 1, hist.length));
+    drawSparkline($("#heroChart"), freshClipped, { up: gain >= 0 });
+    const container = $("#insightsDoubleChart");
+    if (container) drawDoubleSparkline(container, freshClipped);
   }));
+
   $$(".filter-row .chip").forEach(c => c.addEventListener("click", () => {
     state.filter.sort = c.dataset.sort; localStorage.setItem("bv_sort", c.dataset.sort); haptic("light");
     $$(".filter-row .chip").forEach(x => x.classList.toggle("active", x.dataset.sort === state.filter.sort));
     repaintSetList();
   }));
+
+  $("#layoutToggle")?.addEventListener("click", () => {
+    state.compactView = !state.compactView;
+    localStorage.setItem("bv_compact_view", state.compactView);
+    haptic("light");
+    const toggleBtn = $("#layoutToggle");
+    if (toggleBtn) toggleBtn.innerHTML = state.compactView ? I.grid() : I.list();
+    repaintSetList();
+  });
+
+  $("#portfolioShareBtn")?.addEventListener("click", async () => {
+    const handle = state.me?.handle;
+    if (!handle) return;
+    haptic("light");
+    const shareUrl = `${location.origin}/#/u/${encodeURIComponent(handle)}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "My LEGO Brickvault",
+          text: `Check out my LEGO collection on Brickvault!`,
+          url: shareUrl
+        });
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          navigator.clipboard.writeText(shareUrl);
+          toast("Link copied to clipboard!", "success");
+        }
+      }
+    } else {
+      navigator.clipboard.writeText(shareUrl);
+      toast("Link copied to clipboard!", "success");
+    }
+  });
+
   $("#searchToggle")?.addEventListener("click", () => {
     const w = $("#searchWrap");
     w.classList.toggle("open");
     if (w.classList.contains("open")) $("#portfolioSearch")?.focus();
     else { state.filter.q = ""; repaintSetList(); }
   });
-  $("#portfolioSearch")?.addEventListener("input", debounce(e => { state.filter.q = e.target.value; repaintSetList(); }, 150));
+
+  let portfolioSearchTimer = null;
+  $("#portfolioSearch")?.addEventListener("input", (e) => {
+    const q = e.target.value;
+    showSearchSpinner("#searchWrap", true);
+    clearTimeout(portfolioSearchTimer);
+    portfolioSearchTimer = setTimeout(() => {
+      state.filter.q = q;
+      repaintSetList();
+      showSearchSpinner("#searchWrap", false);
+    }, 300);
+  });
+
   $("#alertsBtn")?.addEventListener("click", () => showAlertsSheet(state.wishlistAlerts));
-  $$(".set-list-card").forEach(card => {
-    card.addEventListener("click", () => { haptic("light"); location.hash = "#/set/" + encodeURIComponent(card.dataset.set); });
-    wireLongPress(card, () => showQuickActions(card.dataset.set));
-  });
-  $("#insightsToggle")?.addEventListener("click", () => {
-    const panel = $("#insightsPanel");
-    const btn = $("#insightsToggle");
-    if (!panel) return;
-    haptic("light");
-    const open = panel.style.display !== "none";
-    panel.style.display = open ? "none" : "block";
-    btn.classList.toggle("open", !open);
-    if (!open) {
-      panel.innerHTML = insightsHTML(p.items || []);
-      wireInsightsTabs(p.items || []);
-    }
-  });
+  
+  if (state.portfolioTab === "items") {
+    wirePortfolioCards();
+    setupPortfolioSentinel(items);
+  }
+  
   refreshNavBadge();
 }
 
 function heroValueHTML(n) {
   if (n == null || isNaN(n)) return `<span>—</span>`;
-  const whole = Math.floor(Math.abs(n)).toLocaleString("en-US");
-  const cents = Math.abs(n % 1 * 100 | 0).toString().padStart(2, "0");
-  const sign = n < 0 ? "-" : "";
-  return `${sign}$${whole}<span class="cents">.${cents}</span>`;
+  const userCurrency = state.me?.currency || "USD";
+  const rate = getExchangeRate(userCurrency);
+  const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
+  const converted = n * rate;
+  const whole = Math.floor(Math.abs(converted)).toLocaleString("en-US");
+  const cents = Math.abs(converted % 1 * 100 | 0).toString().padStart(2, "0");
+  const sign = converted < 0 ? "-" : "";
+  return `${sign}${symbol}${whole}<span class="cents">.${cents}</span>`;
 }
 
 // Animate the hero value counting up from ~0 to its real total. A short
@@ -1056,19 +1285,62 @@ function setListCardHTML(item) {
   const newBadge = item.added_at && daysAgo(item.added_at) < 7;
   const tc = THEME_COLORS[item.theme] || null;
   const borderStyle = tc ? ` style="border-left-color:${tc};"` : "";
+  
+  const isSelected = state.selectedSets.has(String(item.id || item.set_num));
+  const checkboxHTML = state.selectionMode ? `
+    <div class="card-checkbox ${isSelected ? 'checked' : ''}" style="margin-right: 8px; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 2px solid var(--line); border-radius: 4px; flex-shrink: 0; background: ${isSelected ? 'var(--up)' : 'transparent'}; color: white;">
+      ${isSelected ? I.check({w:12, h:12}) : ''}
+    </div>
+  ` : '';
+
+  const staleTime = 60 * 24 * 3600 * 1000;
+  const isStale = item.cached_at && (Date.now() - new Date(item.cached_at).getTime() > staleTime);
+  const staleDotHTML = isStale ? `<span class="stale-dot" style="display:inline-block;width:6px;height:6px;background:var(--bv-yellow);border-radius:50%;margin-left:4px;" title="Stale price valuation"></span>` : '';
+
+  if (state.compactView) {
+    return `
+      <button class="set-list-card compact" data-set="${escapeHtml(item.set_num)}" data-id="${item.id || item.set_num}"${borderStyle}>
+        ${checkboxHTML}
+        ${slImgHTML(item, { newBadge, qtyBadge: item.quantity || 1 })}
+        <div class="sl-body" style="flex: 1; min-width: 0;">
+          <div class="sl-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left;">
+            ${(item.retirement_risk_score || 0) >= 70 ? '🔥 ' : ''}${escapeHtml(item.name)}
+          </div>
+          <div class="sl-meta" style="text-align: left;">
+            <span>${escapeHtml(item.set_num)}</span>
+            <span class="dot"></span>
+            <span>${escapeHtml(item.theme || "")}</span>
+            ${staleDotHTML}
+          </div>
+        </div>
+        <div class="sl-right-compact">
+          <div class="sl-value" style="display:flex;align-items:center;">
+            ${fmtMoney(item.current_value)}
+            ${item.trend ? trendBadgeHTML(item.trend) : ""}
+          </div>
+          <div class="sl-delta ${cls}">${arrow}${dStr}</div>
+        </div>
+      </button>`;
+  }
+
   return `
-    <button class="set-list-card" data-set="${escapeHtml(item.set_num)}"${borderStyle}>
+    <button class="set-list-card" data-set="${escapeHtml(item.set_num)}" data-id="${item.id || item.set_num}"${borderStyle}>
+      ${checkboxHTML}
       ${slImgHTML(item, { newBadge, qtyBadge: item.quantity || 1 })}
       <div class="sl-body">
-        <div class="sl-name">${escapeHtml(item.name)}</div>
-        <div class="sl-meta">
+        <div class="sl-name" style="text-align: left;">${(item.retirement_risk_score || 0) >= 70 ? '🔥 ' : ''}${escapeHtml(item.name)}</div>
+        <div class="sl-meta" style="text-align: left;">
           <span>${escapeHtml(item.theme || "")}</span>
           <span class="dot"></span>
           <span>${escapeHtml(item.set_num)}</span>
+          ${staleDotHTML}
         </div>
       </div>
       <div class="sl-right">
-        <div class="sl-value" style="display:flex;align-items:center;justify-content:flex-end;">${fmtMoney(item.current_value)}${item.trend ? trendBadgeHTML(item.trend) : ""}</div>
+        <div class="sl-value" style="display:flex;align-items:center;justify-content:flex-end;">
+          ${fmtMoney(item.current_value)}
+          ${item.trend ? trendBadgeHTML(item.trend) : ""}
+        </div>
         <div class="sl-delta ${cls}"><span class="arrow">${arrow}</span>${dStr}</div>
       </div>
     </button>`;
@@ -1076,11 +1348,55 @@ function setListCardHTML(item) {
 
 function emptyVaultHTML() {
   return `
-    <div class="empty card">
-      <div class="empty-icon">${I.box()}</div>
-      <h3>Build your vault</h3>
-      <p>Scan a set, search the catalog, or browse below to start tracking your collection's value.</p>
-      <a href="#/add" class="btn-primary">${I.plus()}<span>Add first set</span></a>
+    <div class="onboarding-empty" style="display:flex;flex-direction:column;gap:16px;margin: 16px 0;">
+      <div class="empty-cta-card" style="background:linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);border:2.5px dashed var(--line);border-radius:var(--r-3);padding:24px 20px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;box-shadow:var(--shadow-1);">
+        <div style="font-size:36px;">📦</div>
+        <h3 style="font-family:var(--font-heading);font-weight:600;font-size:18px;margin:0;">Start Your Brick Vault</h3>
+        <p style="font-size:13px;color:var(--ink-mute);margin:0;line-height:1.4;max-width:280px;">Scan barcode boxes, search the catalog, and track your retirement values and ROI in real time.</p>
+        <a href="#/add" class="btn-primary" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--r-2);font-weight:600;margin-top:8px;text-decoration:none;">
+          <span>Add your first set</span> ${I.arrowR({w:14, h:14})}
+        </a>
+      </div>
+      
+      <div style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:0.1em;margin-top:8px;padding-left:4px;">Demo Portfolio Preview</div>
+      
+      <div class="set-list compact-list" style="opacity:0.7;pointer-events:none;user-select:none;">
+        <div class="set-list-card compact ghost-card" style="border-left: 4px solid var(--up);">
+          <div class="sl-img"><div class="brick-tile" style="--h:210;width:100%;height:100%;border-radius:var(--r-1);"></div></div>
+          <div class="sl-body" style="flex:1;min-width:0;">
+            <div class="sl-name" style="text-align:left;">10497 Galaxy Explorer</div>
+            <div class="sl-meta" style="text-align:left;"><span>90d Trend</span><span class="stale-dot" style="display:inline-block;width:6px;height:6px;background:var(--bv-yellow);border-radius:50%;margin-left:4px;"></span></div>
+          </div>
+          <div class="sl-right-compact">
+            <div class="sl-value ghost-blur">$99.99</div>
+            <div class="sl-delta up">+25.4%</div>
+          </div>
+        </div>
+        
+        <div class="set-list-card compact ghost-card" style="border-left: 4px solid var(--bv-yellow);">
+          <div class="sl-img"><div class="brick-tile" style="--h:340;width:100%;height:100%;border-radius:var(--r-1);"></div></div>
+          <div class="sl-body" style="flex:1;min-width:0;">
+            <div class="sl-name" style="text-align:left;">75192 Millennium Falcon</div>
+            <div class="sl-meta" style="text-align:left;"><span>90d Trend</span></div>
+          </div>
+          <div class="sl-right-compact">
+            <div class="sl-value ghost-blur">$849.99</div>
+            <div class="sl-delta up">+12.1%</div>
+          </div>
+        </div>
+        
+        <div class="set-list-card compact ghost-card" style="border-left: 4px solid var(--ink-mute);">
+          <div class="sl-img"><div class="brick-tile" style="--h:45;width:100%;height:100%;border-radius:var(--r-1);"></div></div>
+          <div class="sl-body" style="flex:1;min-width:0;">
+            <div class="sl-name" style="text-align:left;">10305 Lion Knights' Castle</div>
+            <div class="sl-meta" style="text-align:left;"><span>90d Trend</span></div>
+          </div>
+          <div class="sl-right-compact">
+            <div class="sl-value ghost-blur">$399.99</div>
+            <div class="sl-delta up">+8.7%</div>
+          </div>
+        </div>
+      </div>
     </div>`;
 }
 
@@ -1188,15 +1504,23 @@ async function renderAdd() {
   paintAdd();
 }
 
-const debouncedCatalogSearch = debounce(async () => {
-  await loadCatalog({ reset: true });
-  refreshCatalogGrid();
-}, 350);
+const showSearchSpinner = (containerSel, active) => {
+  const wrap = document.querySelector(containerSel);
+  if (!wrap) return;
+  const icon = wrap.querySelector(".s-icon");
+  if (!icon) return;
+  if (active) {
+    icon.innerHTML = `<span class="spin" style="display:inline-flex;animation:spin 0.8s linear infinite;">${I.refresh({w: 14, h: 14})}</span>`;
+  } else {
+    icon.innerHTML = I.search();
+  }
+};
 
 // Inner HTML for the catalog results region (count + grid/empty + sentinel).
 function catalogResultsHTML() {
   const c = state.catalog;
   const f = state.filter;
+  const listClass = state.compactView ? "compact-list" : "grid";
   return `
     <div id="catalogCount" style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin:14px 4px 10px;">${c.total.toLocaleString()} result${c.total === 1 ? "" : "s"}</div>
     ${c.items.length === 0 ? `
@@ -1205,7 +1529,7 @@ function catalogResultsHTML() {
         <h3>No sets found</h3>
         <p>${f.catalogQ ? `Nothing matches "${escapeHtml(f.catalogQ)}".` : "No sets match these filters."} Try a different search or clear filters.</p>
       </div>` : `
-      <div class="grid" id="catalogGrid">
+      <div class="${listClass}" id="catalogGrid">
         ${c.items.map(s => catalogCardHTML(s)).join("")}
       </div>
       <div id="catalogSentinel" class="load-sentinel" style="${c.hasMore ? "" : "display:none;"}">
@@ -1224,7 +1548,7 @@ function refreshCatalogGrid() {
 }
 
 function wireCatalogCards() {
-  $$(".set-card").forEach(c => c.addEventListener("click", () => { haptic("light"); location.hash = "#/set/" + encodeURIComponent(c.dataset.set); }));
+  $$(".set-card, .set-list-card.compact").forEach(c => c.addEventListener("click", () => { haptic("light"); location.hash = "#/set/" + encodeURIComponent(c.dataset.set); }));
 }
 
 // IntersectionObserver-driven infinite scroll.
@@ -1259,6 +1583,9 @@ function paintAdd() {
           <div class="topbar-eyebrow">Catalog</div>
           <div class="topbar-title">Find a set</div>
         </div>
+        <div class="topbar-actions" style="margin-left:auto;">
+          <button class="icon-btn" id="catalogLayoutToggle" aria-label="Toggle Layout">${state.compactView ? I.grid() : I.list()}</button>
+        </div>
       </div>
 
       <button class="scan-cta" id="scanCta">
@@ -1291,17 +1618,38 @@ function paintAdd() {
     </div>`;
 
   $("#scanCta")?.addEventListener("click", () => openScan());
+  
+  // Debounced search with spinner
   const catInput = $("#catalogSearch");
+  let catalogSearchTimer = null;
   catInput?.addEventListener("input", (e) => {
-    state.filter.catalogQ = e.target.value;
-    debouncedCatalogSearch();
+    const q = e.target.value;
+    showSearchSpinner(".search-wrap", true);
+    clearTimeout(catalogSearchTimer);
+    catalogSearchTimer = setTimeout(async () => {
+      state.filter.catalogQ = q;
+      try {
+        await loadCatalog({ reset: true });
+        refreshCatalogGrid();
+      } catch (err) {
+        console.error(err);
+      } finally {
+        showSearchSpinner(".search-wrap", false);
+      }
+    }, 300);
   });
-  // Update chips' active state + repaint only the results region — no full reload.
+
   const reloadGrid = async () => { await loadCatalog({ reset: true }); refreshCatalogGrid(); };
-  // NB: scope to the catalog page. A bare [data-theme] selector would also match
-  // the <html data-theme="light|dark"> color-theme attribute, attaching this
-  // handler to the document root — then any click anywhere bubbled up and reset
-  // the catalog filter to the (nonexistent) theme "light", blanking the grid.
+
+  $("#catalogLayoutToggle")?.addEventListener("click", () => {
+    state.compactView = !state.compactView;
+    localStorage.setItem("bv_compact_view", state.compactView);
+    haptic("light");
+    const toggleBtn = $("#catalogLayoutToggle");
+    if (toggleBtn) toggleBtn.innerHTML = state.compactView ? I.grid() : I.list();
+    refreshCatalogGrid();
+  });
+
   $$("[data-cat-theme]").forEach(b => b.addEventListener("click", () => {
     state.filter.catalogTheme = b.dataset.catTheme; haptic("light");
     $$("[data-cat-theme]").forEach(x => x.classList.toggle("active", x.dataset.catTheme === state.filter.catalogTheme));
@@ -1376,6 +1724,35 @@ function showFilterSheet(onApply) {
 function catalogCardHTML(s) {
   const hasImg = s.image_url && !s.image_url.startsWith("data:");
   const h = setHue(s);
+  
+  if (state.compactView) {
+    return `
+      <button class="set-list-card compact" data-set="${escapeHtml(s.set_num)}">
+        <div class="sl-img${hasImg ? " has-photo" : ""}" style="width:42px;height:42px;">
+          <div class="brick-tile" style="--h:${h};width:100%;height:100%;border-radius:var(--r-1);"></div>
+          ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="" loading="lazy">` : ""}
+        </div>
+        <div class="sl-body" style="flex: 1; min-width: 0;">
+          <div class="sl-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left;">
+            ${(s.retirement_risk_score || 0) >= 70 && !s.retired ? '🔥 ' : ''}${escapeHtml(s.name)}
+          </div>
+          <div class="sl-meta" style="text-align: left;">
+            <span>${escapeHtml(s.set_num)}</span>
+            <span class="dot"></span>
+            <span>${escapeHtml(s.theme || "")}</span>
+            ${s.owned ? `<span style="color:var(--up);font-weight:700;margin-left:4px;">OWNED</span>` : ""}
+          </div>
+        </div>
+        <div class="sl-right-compact">
+          <div class="sl-value" style="display:flex;align-items:center;">
+            ${fmtMoney(s.current_value)}
+            ${s.trend ? trendBadgeHTML(s.trend) : ""}
+          </div>
+          <div class="sl-delta" style="color:var(--ink-mute);">${s.pieces || 0}pc</div>
+        </div>
+      </button>`;
+  }
+
   return `
     <button class="set-card" data-set="${escapeHtml(s.set_num)}">
       <div class="set-card-img${hasImg ? " has-photo" : ""}">
@@ -1548,9 +1925,41 @@ function infoTabHTML(set, entry, isWish) {
     `;
   }
 
+  const newVal = set.current_value || 0;
+  const usedVal = set.used_value || 0;
+  const spreadPct = newVal > 0 && usedVal > 0 ? ((newVal - usedVal) / newVal * 100).toFixed(1) : null;
+
+  const aiDisclaimerHTML = set.valuation_method === "ai" ? `
+    <div style="background:rgba(245,158,11,0.1); border:1.5px solid rgba(245,158,11,0.3); color:rgba(245,158,11,1.0); border-radius:var(--r-2); padding:10px 12px; font-size:12px; margin-bottom:14px; display:flex; align-items:center; gap:8px; font-weight: 500;">
+      <span>⚠️</span>
+      <span>AI-estimated price — may vary from market.</span>
+    </div>
+  ` : '';
+
   return `
     ${priceStripHTML(set, entry)}
+    ${aiDisclaimerHTML}
     ${pricingSummaryHtml}
+    
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">New vs Used Value</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <div style="font-size:10px;color:var(--ink-mute);font-family:var(--mono);text-transform:uppercase;">New (In Box)</div>
+          <div style="font-size:20px;font-weight:700;color:var(--ink);">${fmtMoney(newVal)}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--ink-mute);font-family:var(--mono);text-transform:uppercase;">Used (Loose)</div>
+          <div style="font-size:20px;font-weight:700;color:var(--ink);">${usedVal > 0 ? fmtMoney(usedVal) : "—"}</div>
+        </div>
+      </div>
+      ${spreadPct !== null ? `
+        <div style="font-size:11px;color:var(--ink-soft);margin-top:8px;border-top:1px solid var(--line-soft);padding-top:8px;">
+          Used is <strong>${spreadPct}%</strong> cheaper than New (Spread: ${fmtMoney(newVal - usedVal)}).
+        </div>
+      ` : ''}
+    </div>
+
     <div class="stat-grid">
       <div class="stat-cell">
         <div class="lbl">${I.dollar()}Market (new)</div>
@@ -1592,7 +2001,7 @@ function infoTabHTML(set, entry, isWish) {
           <button class="qty-btn" id="qtyUp">${I.plus()}</button>
         </div>
       </div>
-      <div class="btn-row">
+      <div class="btn-row" style="margin-bottom: 8px;">
         <button class="btn-secondary" id="wishToggle">
           ${isWish ? I.heartF() : I.heart()}
           <span>${isWish ? "Wishlisted" : "Wishlist"}</span>
@@ -1601,6 +2010,9 @@ function infoTabHTML(set, entry, isWish) {
           ${I.gear()}<span>Manage</span>
         </a>
       </div>
+      <button class="btn-secondary" id="genListingBtn" style="width:100%; display:flex; align-items:center; justify-content:center; gap:6px;">
+        ⚡ <span>Generate eBay Listing</span>
+      </button>
     ` : `
       <button class="btn-primary" id="addBtn">${I.plus()}<span>Add to vault · ${fmtMoney(set.current_value, { cents: 0 })}</span></button>
       <button class="btn-secondary" id="wishToggle" style="margin-top:8px;">
@@ -1635,6 +2047,10 @@ function wireInfoTab(set, entry) {
     try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); state.portfolio = null; }
     catch (e) { toast("Save failed", "error"); }
   });
+  $("#genListingBtn")?.addEventListener("click", () => {
+    haptic("medium");
+    openListingDraftSheet(set.set_num);
+  });
   $("#addBtn")?.addEventListener("click", async (e) => {
     if (state.pendingRequests.has(set.set_num)) return;
     state.pendingRequests.add(set.set_num);
@@ -1646,7 +2062,6 @@ function wireInfoTab(set, entry) {
       await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
       state.portfolio = null; state.catalog.items = [];
       toast("Added to vault", "success");
-      // Milestone detection
       const newCount = prevCount + 1;
       const newValue = prevValue + (Number(set.current_value) || 0);
       const countMs = [[1,"Your first set! Welcome to Brickvault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! Dedicated collector 🏅"],[100,"100 sets! Elite collector 🏆"]];
@@ -1680,12 +2095,24 @@ function wireInfoTab(set, entry) {
         if (w) await api("/api/wishlist/" + w.id, { method: "DELETE" });
         state.wishlist = state.wishlist.filter(x => x.set_num !== set.set_num);
         toast("Removed from wishlist", "info");
+        paintSetDetail(set, entry);
       } else {
-        const res = await api("/api/wishlist", { method: "POST", body: { set_num: set.set_num } });
-        state.wishlist = [...state.wishlist, res];
-        toast("Added to wishlist", "success");
+        openAddWishlistSheet(set, async (targetPriceUSD, notes) => {
+          try {
+            const res = await api("/api/wishlist", {
+              method: "POST",
+              body: { set_num: set.set_num, target_price: targetPriceUSD, notes: notes || null }
+            });
+            state.wishlist = null;
+            const wl = await api("/api/wishlist");
+            state.wishlist = wl.wishlist || [];
+            toast("Added to wishlist", "success");
+            paintSetDetail(set, entry);
+          } catch (err) {
+            toast("Error: " + err.message, "error");
+          }
+        });
       }
-      paintSetDetail(set, entry);
     } catch (e) { toast("Error: " + e.message, "error"); }
     finally { state.pendingRequests.delete(wishKey); }
   });
@@ -1800,6 +2227,11 @@ function manageTabHTML(set, entry) {
 function wireManageTab(set, entry) {
   if (!entry) return;
 
+  const container = $("#mFlipCalcContainer");
+  if (container) {
+    wireFlipCalc(set, entry, container);
+  }
+
   // Populate storage-location datalist from existing collection locations
   const dl = $("#storageLocations");
   if (dl && state.portfolio?.items) {
@@ -1814,6 +2246,7 @@ function wireManageTab(set, entry) {
     const container = $("#mFlipCalcContainer");
     if (container) {
       container.innerHTML = flipCalcHTML(set, tempEntry);
+      wireFlipCalc(set, tempEntry, container);
     }
   }
 
@@ -1994,12 +2427,10 @@ function wishlistCardHTML(w) {
     </div>`;
 }
 
-/* ============================================================
-   Me (profile)
-   ============================================================ */
 async function renderMe() {
   let me = state.me;
   let googleStatus = { connected: false, spreadsheet_id: null };
+  let publicProfile = null;
 
   if (location.hash.includes("google_sync=success")) {
     toast("Google Sheets connected successfully!", "success");
@@ -2017,6 +2448,12 @@ async function renderMe() {
     me = meData;
     state.me = me;
     googleStatus = gStatus;
+    
+    if (me.handle) {
+      publicProfile = await fetch((window.WORKER_BASE || '') + "/api/users/" + encodeURIComponent(me.handle) + "/profile")
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null);
+    }
   } catch (e) {
     toast("Couldn't load profile", "error");
     me = me || { display_name: "Collector", handle: "you", notify_price_drops: true, portfolio_stats: {} };
@@ -2026,6 +2463,38 @@ async function renderMe() {
   const gainPct = c.total_paid ? gain / c.total_paid : 0;
   const savedGeminiKey = localStorage.getItem('bv_gemini_key') || '';
   const savedOpenAIKey = localStorage.getItem('bv_openai_key') || '';
+
+  const showcase = publicProfile?.showcase || [];
+  let trophyShelfHTML = '';
+  if (me.handle && me.is_public) {
+    trophyShelfHTML = `
+      <div class="section-title">Trophy Shelf (${showcase.length}/6)</div>
+      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+        <div class="trophy-shelf scrollable" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px;">
+          ${showcase.map(s => {
+            const hasImg = s.image_url && !s.image_url.startsWith("data:");
+            const h = setHue(s);
+            return `
+              <div class="trophy-card" style="width:104px;flex-shrink:0;position:relative;">
+                <button class="remove-trophy-btn" data-set="${escapeHtml(s.set_num)}" style="position:absolute;top:-4px;right:-4px;background:var(--bv-red);color:#fff;border:none;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10;font-size:12px;line-height:1;font-weight:bold;">×</button>
+                <div class="set-card-img${hasImg ? " has-photo" : ""}" style="height:70px;border-radius:var(--r-2);position:relative;">
+                  <div class="brick-tile" style="--h:${h};width:64%;height:64%;"></div>
+                  ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="" loading="lazy">` : ""}
+                </div>
+                <div style="font-size:11px;font-weight:500;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(s.name)}</div>
+              </div>
+            `;
+          }).join("")}
+          ${showcase.length < 6 ? `
+            <button id="addTrophyBtn" style="width:104px;height:95px;flex-shrink:0;border:2.5px dashed var(--line);border-radius:var(--r-2);background:var(--surface-2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;color:var(--ink-soft);outline:none;">
+              <span style="font-size:20px;">+</span>
+              <span style="font-size:11px;font-weight:600;">Add to shelf</span>
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }
 
   $("#root").innerHTML = `
     <div class="page">
@@ -2067,6 +2536,7 @@ async function renderMe() {
         </button>` : ""}
 
       ${publicProfileSectionHTML(me)}
+      ${trophyShelfHTML}
 
       <div class="section-title">Preferences</div>
       <div>
@@ -2083,7 +2553,9 @@ async function renderMe() {
         </div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Currency</div><div class="desc">Display values in your local currency.</div></div>
-          <div style="font-family:var(--mono);font-weight:600;font-size:14px;display:flex;align-items:center;">USD ${I.chev()}</div>
+          <select id="currencySelect" style="font-family:var(--mono);font-weight:600;font-size:14px;border:none;background:transparent;color:var(--ink);cursor:pointer;outline:none;text-align-last:right;">
+            ${["USD","GBP","EUR","CAD","AUD"].map(cur => `<option value="${cur}" ${me.currency === cur ? "selected" : ""}>${cur}</option>`).join("")}
+          </select>
         </div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Daily snapshot</div><div class="desc">Portfolio history captured at 02:00 daily.</div></div>
@@ -2255,6 +2727,23 @@ async function renderMe() {
     catch {}
     toast(notifyOn ? "Alerts on" : "Alerts paused", "info");
   });
+  
+  $("#currencySelect")?.addEventListener("change", async (e) => {
+    const val = e.target.value;
+    haptic("medium");
+    try {
+      await api("/api/me", { method: "PATCH", body: { currency: val } });
+      if (state.me) state.me.currency = val;
+      bvIDB.del('portfolio').catch(() => {});
+      state.portfolio = null;
+      state.portfolioHistory = null;
+      toast("Currency updated to " + val, "success");
+      await renderMe();
+    } catch (err) {
+      toast("Failed to update currency: " + err.message, "error");
+    }
+  });
+
   $("#editName")?.addEventListener("click", async () => {
     const name = await promptSheet({ title: "Display name", label: "How should we call you?", value: me.display_name || "", placeholder: "Your name" });
     if (name && name.trim()) {
@@ -2513,6 +3002,53 @@ async function renderMe() {
     catch (err) { toast("Error: " + err.message, "error"); }
     toast(isPublicState ? "Profile public" : "Profile private", "info");
   });
+  const handleInp = $("#handleInput");
+  const handleFeedback = $("#handleFeedback");
+  let handleCheckTimer = null;
+
+  handleInp?.addEventListener("input", (e) => {
+    const val = e.target.value.trim().toLowerCase();
+    clearTimeout(handleCheckTimer);
+    if (!val) {
+      if (handleFeedback) { handleFeedback.style.display = "none"; }
+      handleInp.style.borderColor = "";
+      return;
+    }
+    if (!/^[a-zA-Z0-9-]{3,30}$/.test(val)) {
+      if (handleFeedback) {
+        handleFeedback.style.display = "block";
+        handleFeedback.style.color = "var(--down)";
+        handleFeedback.textContent = "3-30 chars, letters, numbers, hyphens only";
+      }
+      handleInp.style.borderColor = "var(--down)";
+      return;
+    }
+
+    handleFeedback.style.display = "block";
+    handleFeedback.style.color = "var(--ink-mute)";
+    handleFeedback.textContent = "Checking availability...";
+
+    handleCheckTimer = setTimeout(async () => {
+      try {
+        const res = await api("/api/users/check-handle/" + encodeURIComponent(val));
+        if (handleFeedback) {
+          handleFeedback.style.display = "block";
+          if (res.available) {
+            handleFeedback.style.color = "var(--up)";
+            handleFeedback.textContent = "✓ Handle is available";
+            handleInp.style.borderColor = "var(--up)";
+          } else {
+            handleFeedback.style.color = "var(--down)";
+            handleFeedback.textContent = "✗ Handle is already taken";
+            handleInp.style.borderColor = "var(--down)";
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }, 300);
+  });
+
   $("#saveHandle")?.addEventListener("click", async () => {
     const h = ($("#handleInput")?.value || "").trim().toLowerCase();
     if (!h) { toast("Enter a handle", "info"); return; }
@@ -2524,6 +3060,31 @@ async function renderMe() {
       renderMe();
     } catch (err) { toast("Error: " + err.message, "error"); }
   });
+
+  // Wire Trophy shelf actions
+  $$(".remove-trophy-btn").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const setNum = btn.dataset.set;
+      const newShowcase = showcase.filter(s => s.set_num !== setNum).map(s => s.set_num);
+      haptic("medium");
+      try {
+        await api("/api/users/" + encodeURIComponent(me.handle) + "/showcase", {
+          method: "POST",
+          body: { set_nums: newShowcase }
+        });
+        toast("Removed from trophy shelf", "success");
+        renderMe();
+      } catch (err) {
+        toast("Failed to update: " + err.message, "error");
+      }
+    });
+  });
+
+  $("#addTrophyBtn")?.addEventListener("click", () => {
+    showSearchableTrophyPicker(showcase.map(s => s.set_num));
+  });
+
   $("#copyShareLink")?.addEventListener("click", () => {
     const h = me.handle;
     if (!h) return;
@@ -2932,6 +3493,21 @@ function openScan(mode = "barcode") {
     openScan(b.dataset.mode);
   }));
   $("#scanCapture")?.addEventListener("click", capturePhoto);
+
+  if (mode === "image") {
+    const galleryBtn = $("#scanGalleryBtn");
+    const galleryInp = $("#scanGalleryInput");
+    if (galleryBtn && galleryInp) {
+      galleryBtn.addEventListener("click", () => galleryInp.click());
+      galleryInp.addEventListener("change", (e) => {
+        const files = Array.from(e.target.files || []).slice(0, 10);
+        if (files.length) {
+          processBulkScanQueue(files);
+        }
+      });
+    }
+  }
+
   startCamera();
 }
 
@@ -3183,8 +3759,13 @@ function scanOverlayHTML(mode) {
       </div>
       <div class="scan-hint" id="scanHint">${mode === "barcode" ? "Align barcode within the frame" : "Frame the set and tap to identify"}</div>
       ${mode === "image" ? `
-        <div class="scan-bottom">
+        <div class="scan-bottom" style="display:flex;align-items:center;justify-content:space-between;padding:0 24px;width:100%;">
+          <button class="btn-secondary" id="scanGalleryBtn" style="font-size:12px;padding:8px 12px;width:auto;margin:0;display:flex;align-items:center;gap:6px;">
+            ${I.layers({w:16, h:16})} <span>Gallery</span>
+          </button>
           <button class="scan-capture-btn" id="scanCapture" aria-label="Capture"></button>
+          <input type="file" id="scanGalleryInput" accept="image/*" multiple style="display:none;">
+          <div style="width:78px;"></div> <!-- visual spacer to balance the gallery button width -->
         </div>` : ""}
       <div class="scan-result" id="scanResult"></div>
     </div>`;
@@ -3828,6 +4409,13 @@ function updateDealBadge(set, priceStr) {
   const labels = { great: "GREAT DEAL", fair: "FAIR PRICE", over: "OVERPRICED" };
   badge.textContent = labels[score.verdict];
   badge.title = score.label;
+
+  // Click handler to open Deal Score breakdown
+  badge.style.cursor = "pointer";
+  badge.onclick = () => {
+    haptic("light");
+    openDealBreakdownSheet(set, price);
+  };
 }
 
 /* ============================================================
@@ -4427,6 +5015,7 @@ function publicProfileSectionHTML(me) {
             style="flex:1;padding:10px;border:1.5px solid var(--line);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-size:13px;font-family:var(--mono);outline:none;">
           <button class="btn-secondary" id="saveHandle" style="white-space:nowrap;">Save</button>
         </div>
+        <div id="handleFeedback" style="font-size:11px;margin-top:4px;display:none;font-weight:500;"></div>
       </div>
       ${isPublic && shareUrl ? `
         <div class="setting-row">
@@ -4666,9 +5255,774 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Hydrate in-memory state from IDB so first tab visit is instant.
   if (_authSession) await hydrateFromIDB();
 
+  await fetchExchangeRates();
+
   // Initial route — after config and session are loaded.
   await route();
 });
 
 window.addEventListener("hashchange", route);
 window.bv = { openScan, closeScan, capturePhoto };
+
+/* ============================================================
+   Selection & Bulk Actions Helpers
+   ============================================================ */
+function enterSelectionMode(firstId) {
+  state.selectionMode = true;
+  state.selectedSets = new Set();
+  if (firstId) state.selectedSets.add(String(firstId));
+  haptic("medium");
+  repaintSetList();
+  showSelectionBar();
+}
+
+function showSelectionBar() {
+  let bar = document.getElementById("selectionBar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "selectionBar";
+    bar.className = "selection-bar";
+    document.body.appendChild(bar);
+  }
+  updateSelectionBar();
+  setTimeout(() => bar.classList.add("show"), 10);
+}
+
+function updateSelectionBar() {
+  const bar = document.getElementById("selectionBar");
+  if (!bar) return;
+  const count = state.selectedSets.size;
+  bar.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <strong style="font-size:14px;color:var(--ink);">${count} set${count !== 1 ? 's' : ''} selected</strong>
+      <button class="icon-btn" id="selCancel" style="font-size:12px;color:var(--ink-mute);border:none;background:transparent;cursor:pointer;">Cancel</button>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-primary compact-btn" id="selBulkLocation" style="flex:1;font-size:12px;" ${count === 0 ? 'disabled style="opacity:0.5;"' : ''}>Location</button>
+      <button class="btn-secondary compact-btn" id="selBulkExport" style="flex:1;font-size:12px;" ${count === 0 ? 'disabled style="opacity:0.5;"' : ''}>CSV</button>
+      <button class="btn-primary compact-btn btn-danger" id="selBulkDelete" style="flex:1;font-size:12px;" ${count === 0 ? 'disabled style="opacity:0.5;"' : ''}>Delete</button>
+    </div>
+  `;
+
+  document.getElementById("selCancel").addEventListener("click", exitSelectionMode);
+  document.getElementById("selBulkLocation")?.addEventListener("click", handleBulkLocation);
+  document.getElementById("selBulkExport")?.addEventListener("click", handleBulkExport);
+  document.getElementById("selBulkDelete")?.addEventListener("click", handleBulkDelete);
+}
+
+function exitSelectionMode() {
+  state.selectionMode = false;
+  state.selectedSets = new Set();
+  const bar = document.getElementById("selectionBar");
+  if (bar) {
+    bar.classList.remove("show");
+    setTimeout(() => bar.remove(), 250);
+  }
+  repaintSetList();
+}
+
+async function handleBulkLocation() {
+  const ids = Array.from(state.selectedSets);
+  if (!ids.length) return;
+  const loc = await promptSheet({ title: "Bulk Location", label: "Set storage location for selected sets", value: "", placeholder: "e.g. Closet A, Shelf 2" });
+  if (loc === null) return;
+  toast("Updating locations...", "info");
+  try {
+    const selectedItems = state.portfolio.items.filter(item => state.selectedSets.has(String(item.id)));
+    await Promise.all(selectedItems.map(item => 
+      api("/api/collection/" + item.id, { method: "PATCH", body: { storage_location: loc || null } })
+    ));
+    state.portfolio = null;
+    toast("Storage locations updated", "success");
+    exitSelectionMode();
+    await renderPortfolio();
+  } catch (err) {
+    toast("Failed to update: " + err.message, "error");
+  }
+}
+
+async function handleBulkDelete() {
+  const ids = Array.from(state.selectedSets);
+  if (!ids.length) return;
+  const confirmed = await confirmSheet({
+    title: "Bulk Delete",
+    message: `Are you sure you want to remove ${ids.length} set${ids.length !== 1 ? 's' : ''} from your vault?`,
+    confirmLabel: "Delete All",
+    danger: true
+  });
+  if (!confirmed) return;
+  toast("Deleting sets...", "info");
+  try {
+    const selectedItems = state.portfolio.items.filter(item => state.selectedSets.has(String(item.id)));
+    await Promise.all(selectedItems.map(item =>
+      api("/api/collection/" + item.id, { method: "DELETE" })
+    ));
+    state.portfolio = null;
+    toast("Sets removed", "success");
+    exitSelectionMode();
+    await renderPortfolio();
+  } catch (err) {
+    toast("Failed to delete: " + err.message, "error");
+  }
+}
+
+function handleBulkExport() {
+  const selectedItems = state.portfolio.items.filter(item => state.selectedSets.has(String(item.id)));
+  if (!selectedItems.length) return;
+  
+  let csvContent = "data:text/csv;charset=utf-8,";
+  csvContent += "Set Number,Name,Theme,Year,Pieces,Quantity,Purchase Price,Current Value,Storage Location\n";
+  
+  selectedItems.forEach(item => {
+    const row = [
+      item.set_num,
+      `"${(item.name || '').replace(/"/g, '""')}"`,
+      `"${(item.theme || '').replace(/"/g, '""')}"`,
+      item.year,
+      item.pieces,
+      item.quantity,
+      item.purchase_price || '',
+      item.current_value || '',
+      `"${(item.storage_location || '').replace(/"/g, '""')}"`
+    ].join(",");
+    csvContent += row + "\n";
+  });
+  
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `brickvault_bulk_export_${Date.now()}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  toast("CSV exported", "success");
+  exitSelectionMode();
+}
+
+/* ============================================================
+   Portfolio Insights Helpers
+   ============================================================ */
+function renderInsightsTab(items) {
+  if (!items || !items.length) return `<p style="color:var(--ink-mute);font-size:14px;padding:16px;">Add sets to see insights.</p>`;
+
+  const withSlope = items.filter(item => item.slope_90d != null && !isNaN(item.slope_90d));
+  const rising = [...withSlope].sort((a, b) => b.slope_90d - a.slope_90d).slice(0, 3).filter(x => x.slope_90d > 0.05);
+  const falling = [...withSlope].sort((a, b) => a.slope_90d - b.slope_90d).slice(0, 3).filter(x => x.slope_90d < -0.05);
+  const radar = items.filter(item => !item.retired && (item.retirement_risk_score || 0) >= 70)
+                     .sort((a, b) => b.retirement_risk_score - a.retirement_risk_score);
+
+  return `
+    <div style="padding:12px 16px;">
+      <div class="section-title" style="margin-top:0;">S&P 500 Performance Comparison</div>
+      <div class="card" style="padding:14px 16px;margin-bottom:18px;">
+        <div style="font-size:12px;color:var(--ink-mute);line-height:1.4;margin-bottom:12px;">
+          Compare your LEGO portfolio growth (solid <span style="color:var(--up);font-weight:700;">green</span>) against S&P 500 compounding at 8%/year (dashed <span style="color:var(--ink-soft);font-weight:600;">gray</span>) using dollar-cost averaging.
+        </div>
+        <div class="spark-wrap" id="insightsDoubleChart" style="height:120px;margin-top:14px;"></div>
+      </div>
+
+      <div class="section-title">Top Movers (90-day Slope)</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;">
+        <div class="card" style="padding:12px;">
+          <div style="font-size:12px;font-family:var(--mono);color:var(--up);margin-bottom:8px;font-weight:700;">📈 TOP RISING</div>
+          ${rising.length === 0 ? `<div style="font-size:12px;color:var(--ink-mute);">No significant gainers</div>` : rising.map(item => `
+            <div style="margin-bottom:6px;font-size:12px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px;text-decoration:underline;cursor:pointer;" onclick="location.hash='#/set/${encodeURIComponent(item.set_num)}'">${escapeHtml(item.name)}</span>
+              <strong style="color:var(--up);font-family:var(--mono);">+${item.slope_90d.toFixed(1)}%/wk</strong>
+            </div>
+          `).join("")}
+        </div>
+        <div class="card" style="padding:12px;">
+          <div style="font-size:12px;font-family:var(--mono);color:var(--bv-red);margin-bottom:8px;font-weight:700;">📉 TOP FALLING</div>
+          ${falling.length === 0 ? `<div style="font-size:12px;color:var(--ink-mute);">No significant decliners</div>` : falling.map(item => `
+            <div style="margin-bottom:6px;font-size:12px;display:flex;justify-content:space-between;align-items:center;">
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px;text-decoration:underline;cursor:pointer;" onclick="location.hash='#/set/${encodeURIComponent(item.set_num)}'">${escapeHtml(item.name)}</span>
+              <strong style="color:var(--bv-red);font-family:var(--mono);">${item.slope_90d.toFixed(1)}%/wk</strong>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+
+      <div class="section-title">Retirement Radar</div>
+      <div class="card" style="padding:12px 16px;">
+        ${radar.length === 0 ? `<div style="font-size:12px;color:var(--ink-mute);text-align:center;padding:12px 0;">No active high-risk sets (score ≥ 70)</div>` : radar.map(item => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft);" onclick="location.hash='#/set/${encodeURIComponent(item.set_num)}'" style="cursor:pointer;">
+            <div style="display:flex;flex-direction:column;gap:2px;">
+              <div style="font-size:13px;font-weight:600;color:var(--ink);">${escapeHtml(item.name)}</div>
+              <div style="font-size:11px;color:var(--ink-mute);">${escapeHtml(item.set_num)} · ${escapeHtml(item.theme)}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:11px;font-family:var(--mono);color:var(--bv-red);font-weight:700;">🔥 RISK ${item.retirement_risk_score}%</div>
+              <div style="font-size:11px;color:var(--ink-mute);">${item.year} Release</div>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </div>`;
+}
+
+function drawDoubleSparkline(container, data) {
+  if (!container || !data || data.length < 2) return;
+  const W = container.clientWidth || 300;
+  const H = container.clientHeight || 120;
+  const vals = data.map(d => d.total_value ?? d.current_value ?? d);
+  const dates = data.map(d => (d && d.snapshot_date) || null);
+
+  // Calculate S&P 500 overlay values
+  const spVals = [];
+  let currentSP = data[0].total_paid ?? 0;
+  spVals.push(currentSP);
+  for (let i = 1; i < data.length; i++) {
+    const d1 = data[i-1].snapshot_date ? new Date(data[i-1].snapshot_date) : null;
+    const d2 = data[i].snapshot_date ? new Date(data[i].snapshot_date) : null;
+    const dt = d1 && d2 ? (d2.getTime() - d1.getTime()) / (365.25 * 24 * 3600 * 1000) : 1 / 365.25;
+    const paidDiff = (data[i].total_paid ?? 0) - (data[i-1].total_paid ?? 0);
+    currentSP = currentSP * Math.pow(1.08, dt) + paidDiff;
+    spVals.push(currentSP);
+  }
+
+  const mn = Math.min(...vals, ...spVals), mx = Math.max(...vals, ...spVals);
+  const pad = 6;
+  const xs = (i) => pad + (i / (data.length - 1)) * (W - pad * 2);
+  const ys = (v) => H - pad - ((v - mn) / ((mx - mn) || 1)) * (H - pad * 2);
+
+  let path1 = `M${xs(0).toFixed(1)} ${ys(vals[0]).toFixed(1)}`;
+  let path2 = `M${xs(0).toFixed(1)} ${ys(spVals[0]).toFixed(1)}`;
+  for (let i = 1; i < data.length; i++) {
+    path1 += ` L${xs(i).toFixed(1)} ${ys(vals[i]).toFixed(1)}`;
+    path2 += ` L${xs(i).toFixed(1)} ${ys(spVals[i]).toFixed(1)}`;
+  }
+
+  const area1 = path1 + ` L${xs(data.length - 1).toFixed(1)} ${H} L${xs(0).toFixed(1)} ${H} Z`;
+  const stroke1 = "var(--up)";
+  const stroke2 = "var(--ink-mute)";
+  const gid = "sgi" + Math.random().toString(36).slice(2, 8);
+
+  if (getComputedStyle(container).position === "static") container.style.position = "relative";
+  container.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="display:block;overflow:visible;">
+      <defs>
+        <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${stroke1}" stop-opacity="0.15"/>
+          <stop offset="100%" stop-color="${stroke1}" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d="${area1}" fill="url(#${gid})" />
+      <path d="${path1}" fill="none" stroke="${stroke1}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="${path2}" fill="none" stroke="${stroke2}" stroke-width="1.5" stroke-dasharray="3 3" stroke-linecap="round" stroke-linejoin="round"/>
+      <line class="spark-guide" x1="0" y1="0" x2="0" y2="${H}" stroke="var(--line)" stroke-width="1" stroke-dasharray="3 3" opacity="0"/>
+      <circle class="spark-cursor-1" r="5" fill="${stroke1}" stroke="var(--bg)" stroke-width="2.5" opacity="0"/>
+      <circle class="spark-cursor-2" r="4" fill="${stroke2}" stroke="var(--bg)" stroke-width="2" opacity="0"/>
+    </svg>
+    <div class="spark-scrub" style="font-size:11px;pointer-events:none;"></div>`;
+
+  const guide = container.querySelector(".spark-guide");
+  const cursor1 = container.querySelector(".spark-cursor-1");
+  const cursor2 = container.querySelector(".spark-cursor-2");
+  const scrub = container.querySelector(".spark-scrub");
+
+  const onMove = (e) => {
+    const rect = container.getBoundingClientRect();
+    if (!rect.width) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const i = Math.round(ratio * (data.length - 1));
+    const cx = xs(i), cy1 = ys(vals[i]), cy2 = ys(spVals[i]);
+
+    guide.setAttribute("x1", cx); guide.setAttribute("x2", cx); guide.setAttribute("opacity", "0.6");
+    cursor1.setAttribute("cx", cx); cursor1.setAttribute("cy", cy1); cursor1.setAttribute("opacity", "1");
+    cursor2.setAttribute("cx", cx); cursor2.setAttribute("cy", cy2); cursor2.setAttribute("opacity", "1");
+
+    scrub.style.left = (cx / W * rect.width) + "px";
+    scrub.style.top = (Math.min(cy1, cy2) / H * rect.height - 30) + "px";
+    scrub.innerHTML = `<span style="color:var(--up);font-weight:700;">Vault: ${fmtMoney(vals[i], { cents: 0 })}</span> <span style="color:var(--ink-soft);">S&P: ${fmtMoney(spVals[i], { cents: 0 })}</span>${dates[i] ? " · " + fmtShortDate(dates[i]) : ""}`;
+    scrub.classList.add("show");
+  };
+
+  const onLeave = () => {
+    guide.setAttribute("opacity", "0");
+    cursor1.setAttribute("opacity", "0");
+    cursor2.setAttribute("opacity", "0");
+    scrub.classList.remove("show");
+  };
+
+  container.addEventListener("pointermove", onMove);
+  container.addEventListener("pointerleave", onLeave);
+  container.addEventListener("touchmove", onMove, { passive: true });
+  container.addEventListener("touchend", onLeave);
+}
+
+/* ============================================================
+   Bottom Sheets & Picker Wiring
+   ============================================================ */
+async function openListingDraftSheet(setNum) {
+  try {
+    let cached = state.detail.cache[setNum];
+    if (!cached) {
+      const res = await api("/api/sets/" + encodeURIComponent(setNum));
+      cached = { set: res.set || res, entry: res.entry || null };
+    }
+    await showListingSheet(cached.set, cached.entry);
+  } catch (err) {
+    toast("Error loading set details: " + err.message, "error");
+  }
+}
+
+function openAddWishlistSheet(set, onConfirm) {
+  const userCurrency = state.me?.currency || "USD";
+  const rate = getExchangeRate(userCurrency);
+  const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
+  const marketLocal = (set.current_value || 0) * rate;
+  const suggestedLocal = marketLocal * 0.85;
+
+  showSheet(`
+    <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 14px;">Add to Wishlist</div>
+    <div style="font-size:14px;color:var(--ink-mute);margin:0 4px 14px;">${escapeHtml(set.set_num)} — ${escapeHtml(set.name)}</div>
+    
+    <div class="field">
+      <label class="field-lbl">Target Price (${symbol})</label>
+      <input type="number" step="0.01" id="wlTargetPrice" class="field-input" placeholder="0.00" autocomplete="off">
+      <div id="wlSuggestedChip" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:4px 8px;background:var(--surface-3);border:1px solid var(--line);border-radius:12px;font-size:12px;cursor:pointer;color:var(--ink);">
+        💡 Suggested: ${symbol}${suggestedLocal.toFixed(2)}
+      </div>
+    </div>
+    <div class="field" style="margin-top:14px;">
+      <label class="field-lbl">Notes</label>
+      <textarea id="wlNotes" class="field-input" placeholder="e.g. Look for sealed, boxed only" style="height:60px;resize:none;"></textarea>
+    </div>
+    
+    <button class="btn-primary" id="wlSave" style="margin-top:20px;">Save to Wishlist</button>
+    <button class="btn-secondary" id="wlCancel" style="margin-top:8px;">Cancel</button>
+  `);
+
+  const priceInp = document.getElementById("wlTargetPrice");
+  const notesInp = document.getElementById("wlNotes");
+  const suggestedChip = document.getElementById("wlSuggestedChip");
+
+  suggestedChip.addEventListener("click", () => {
+    priceInp.value = suggestedLocal.toFixed(2);
+    haptic("light");
+  });
+
+  document.getElementById("wlSave").addEventListener("click", () => {
+    const val = parseFloat(priceInp.value) || 0;
+    const usdVal = val / rate;
+    const notesVal = notesInp.value.trim();
+    hideSheet();
+    onConfirm(usdVal, notesVal);
+  });
+
+  document.getElementById("wlCancel").addEventListener("click", hideSheet);
+}
+
+function openDealBreakdownSheet(set, storePrice) {
+  const market = parseFloat(set.ebay_value || set.current_value || 0);
+  const userCurrency = state.me?.currency || "USD";
+  const rate = getExchangeRate(userCurrency);
+  const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
+  
+  const feePct = parseFloat(localStorage.getItem("bv_flip_fee_pct") ?? "13.25");
+  const paymentPct = parseFloat(localStorage.getItem("bv_flip_payment_pct") ?? "2.9");
+  const shipping = parseFloat(localStorage.getItem("bv_flip_shipping") ?? "5.00");
+  const tax = parseFloat(localStorage.getItem("bv_flip_tax") ?? "0.00");
+
+  const estPrice = market * rate;
+  const ebayFee = estPrice * (feePct / 100);
+  const paypalFee = estPrice * (paymentPct / 100) + (0.30 * rate);
+  const totalFees = ebayFee + paypalFee + shipping + tax;
+  const net = Math.max(0, estPrice - totalFees);
+  const profit = net - storePrice;
+  const roi = storePrice > 0 ? (profit / storePrice) * 100 : 0;
+
+  showSheet(`
+    <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 14px;">Deal Score Breakdown</div>
+    <div class="deal-breakdown-details" style="display:flex;flex-direction:column;gap:10px;font-size:14px;padding:4px;">
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line-soft);padding-bottom:6px;">
+        <span style="color:var(--ink-mute);">Market Value</span>
+        <strong>${fmtMoney(market)}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line-soft);padding-bottom:6px;">
+        <span style="color:var(--ink-mute);">Your Store Price</span>
+        <strong>${symbol}${storePrice.toFixed(2)}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line-soft);padding-bottom:6px;">
+        <span style="color:var(--ink-mute);">Marketplace Fee (${feePct}%)</span>
+        <span style="color:var(--bv-red); font-family: var(--mono); font-weight: 500;">-${symbol}${ebayFee.toFixed(2)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line-soft);padding-bottom:6px;">
+        <span style="color:var(--ink-mute);">Payment Fee (${paymentPct}% + fixed)</span>
+        <span style="color:var(--bv-red); font-family: var(--mono); font-weight: 500;">-${symbol}${paypalFee.toFixed(2)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line-soft);padding-bottom:6px;">
+        <span style="color:var(--ink-mute);">Shipping Cost</span>
+        <span style="color:var(--bv-red); font-family: var(--mono); font-weight: 500;">-${symbol}${shipping.toFixed(2)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line-soft);padding-bottom:6px;">
+        <span style="color:var(--ink-mute);">Tax / VAT</span>
+        <span style="color:var(--bv-red); font-family: var(--mono); font-weight: 500;">-${symbol}${tax.toFixed(2)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-bottom:1.5px solid var(--line);padding-bottom:8px;font-size:16px;">
+        <span>Estimated Net Profit</span>
+        <strong style="color:${profit >= 0 ? "var(--up)" : "var(--bv-red)"};">${profit >= 0 ? "+" : ""}${symbol}${profit.toFixed(2)}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:16px;">
+        <span>Estimated ROI</span>
+        <strong style="color:${profit >= 0 ? "var(--up)" : "var(--bv-red)"};">${profit >= 0 ? "+" : ""}${roi.toFixed(1)}%</strong>
+      </div>
+    </div>
+    <button class="btn-primary" id="dbClose" style="margin-top:20px;">Done</button>
+  `);
+
+  document.getElementById("dbClose").addEventListener("click", hideSheet);
+}
+
+function showSearchableTrophyPicker(currentSetNums) {
+  const me = state.me;
+  if (!me?.handle) return;
+  const ownedItems = state.portfolio?.items || [];
+  
+  showSheet(`
+    <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 12px;">Add to Trophy Shelf</div>
+    <div class="search-wrap" style="margin: 0 4px 14px;">
+      <span class="s-icon">${I.search()}</span>
+      <input class="search-input" id="trophySearchInput" placeholder="Search your collection…" autocomplete="off">
+    </div>
+    <div id="trophyPickerResults" class="scrollable" style="max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin: 4px;"></div>
+    <button class="btn-secondary" id="trophyPickerClose" style="margin-top: 14px;">Close</button>
+  `);
+
+  const resultsDiv = document.getElementById("trophyPickerResults");
+  const searchInp = document.getElementById("trophySearchInput");
+
+  function renderResults(q = "") {
+    const query = q.toLowerCase().trim();
+    const filtered = ownedItems.filter(item => 
+      !currentSetNums.includes(item.set_num) && 
+      (item.name?.toLowerCase().includes(query) || item.set_num?.toLowerCase().includes(query) || item.theme?.toLowerCase().includes(query))
+    );
+
+    if (filtered.length === 0) {
+      resultsDiv.innerHTML = `<div style="text-align:center;padding:24px;color:var(--ink-mute);font-size:13px;">No sets found</div>`;
+      return;
+    }
+
+    resultsDiv.innerHTML = filtered.map(item => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface-2);border-radius:var(--r-2);">
+        <div style="min-width:0;flex:1;margin-right:12px;">
+          <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(item.name)}</div>
+          <div style="font-size:11px;color:var(--ink-mute);">${escapeHtml(item.set_num)} · ${escapeHtml(item.theme || '')}</div>
+        </div>
+        <button class="btn-primary add-trophy-item-btn" data-set="${escapeHtml(item.set_num)}" style="padding:6px 12px;font-size:12px;width:auto;">Add</button>
+      </div>
+    `).join("");
+
+    resultsDiv.querySelectorAll(".add-trophy-item-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        haptic("light");
+        const setNum = btn.dataset.set;
+        const newShowcase = [...currentSetNums, setNum];
+        try {
+          btn.disabled = true;
+          btn.textContent = "...";
+          await api("/api/users/" + encodeURIComponent(me.handle) + "/showcase", {
+            method: "POST",
+            body: { set_nums: newShowcase }
+          });
+          toast("Added to trophy shelf", "success");
+          hideSheet();
+          renderMe();
+        } catch (err) {
+          toast("Error adding: " + err.message, "error");
+          btn.disabled = false;
+          btn.textContent = "Add";
+        }
+      });
+    });
+  }
+
+  renderResults();
+
+  searchInp.addEventListener("input", (e) => {
+    renderResults(e.target.value);
+  });
+
+  document.getElementById("trophyPickerClose").addEventListener("click", hideSheet);
+}
+
+/* ============================================================
+   Bulk Photo Scanner Queue Helpers
+   ============================================================ */
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function resizeImage(dataUrl, maxSide = 1024) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const w = img.width, h = img.height;
+      const scale = Math.min(1, maxSide / Math.max(w, h));
+      canvas.width = w * scale; canvas.height = h * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.src = dataUrl;
+  });
+}
+
+async function processBulkScanQueue(files) {
+  stopCamera();
+
+  const el = $("#scanResult");
+  if (el) {
+    el.classList.add("show");
+    el.innerHTML = `
+      <div class="scan-loading" style="padding:24px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
+        <div class="spinner"></div>
+        <div id="bulkScanProgressText" style="font-weight:600;font-size:15px;color:var(--ink);">Processing queue...</div>
+        <div style="background:var(--line-soft);border-radius:4px;height:6px;width:100%;max-width:260px;overflow:hidden;margin-top:6px;">
+          <div id="bulkScanProgressBar" style="background:var(--up);height:100%;width:0%;transition:width 0.25s ease;"></div>
+        </div>
+      </div>`;
+  }
+
+  const results = [];
+  const progressText = document.getElementById("bulkScanProgressText");
+  const progressBar = document.getElementById("bulkScanProgressBar");
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (progressText) progressText.textContent = `Identifying ${i + 1} of ${files.length}...`;
+    if (progressBar) progressBar.style.width = `${((i) / files.length) * 100}%`;
+
+    let dataUrl = "";
+    try {
+      dataUrl = await readFileAsDataURL(file);
+      const resized = await resizeImage(dataUrl, 1024);
+
+      const geminiKey = localStorage.getItem('bv_gemini_key');
+      const openaiKey = localStorage.getItem('bv_openai_key') || localStorage.getItem('openai_key');
+      const extraHeaders = {};
+      if (geminiKey) extraHeaders['X-Gemini-Key'] = geminiKey;
+      if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
+
+      const apiRes = await api("/api/scan/identify", {
+        method: "POST",
+        body: { mode: "image", image: resized },
+        headers: extraHeaders
+      });
+
+      results.push({
+        success: apiRes.identified,
+        sets: apiRes.sets || (apiRes.set ? [apiRes.set] : []),
+        error: apiRes.reasoning,
+        thumbnail: resized
+      });
+    } catch (err) {
+      results.push({
+        success: false,
+        error: err.message,
+        thumbnail: dataUrl || ""
+      });
+    }
+  }
+
+  if (progressBar) progressBar.style.width = "100%";
+  if (progressText) progressText.textContent = "Done!";
+
+  setTimeout(() => {
+    showBulkScanResults(results);
+  }, 300);
+}
+
+function showBulkScanResults(results) {
+  const el = $("#scanResult");
+  if (!el) return;
+  el.classList.add("show");
+
+  let rowsHTML = `<div style="display:flex;flex-direction:column;gap:12px;margin:8px 0 16px;max-height:55vh;overflow-y:auto;padding-right:4px;">`;
+
+  results.forEach((res, idx) => {
+    const thumb = res.thumbnail;
+    if (!res.success || !res.sets || !res.sets.length) {
+      rowsHTML += `
+        <div class="scan-result-row" style="display:flex;align-items:center;background:var(--surface-2);padding:10px;border-radius:var(--r-2);border:1.5px solid var(--line-soft);margin-bottom:8px;">
+          <img src="${thumb}" style="width:48px;height:48px;border-radius:var(--r-1);object-fit:cover;flex-shrink:0;">
+          <div style="margin-left:12px;flex:1;text-align:left;">
+            <div style="font-size:11px;font-family:var(--mono);color:var(--down);font-weight:700;">Could not identify</div>
+            <div style="font-size:12px;color:var(--ink-mute);margin-top:2px;">${escapeHtml(res.error || "No match found")}</div>
+          </div>
+          <button class="btn-secondary" style="padding:6px 10px;font-size:11px;width:auto;" onclick="closeScan(); location.hash='#/add';">Search</button>
+        </div>`;
+      return;
+    }
+
+    const set = res.sets[0];
+    const isOwned = state.portfolio?.items?.some(i => i.set_num === set.set_num);
+    const ownedEntry = state.portfolio?.items?.find(i => i.set_num === set.set_num);
+
+    const h = setHue(set);
+    const hasImg = set.image_url && !set.image_url.startsWith("data:");
+
+    let controlHTML = "";
+    if (isOwned) {
+      controlHTML = `
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          <span style="font-size:10px;font-family:var(--mono);color:var(--ink-soft);font-weight:700;">ALREADY OWNED</span>
+          <label style="font-size:11px;color:var(--ink);display:flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="checkbox" class="bulk-qty-check" data-owned-id="${ownedEntry.id}" data-owned-qty="${ownedEntry.quantity || 1}" checked style="width:16px;height:16px;">
+            +1 Qty
+          </label>
+        </div>`;
+    } else {
+      controlHTML = `
+        <input type="checkbox" class="bulk-add-check" data-setnum="${escapeHtml(set.set_num)}" data-price="${set.current_value || 0}" checked style="width:18px;height:18px;cursor:pointer;">`;
+    }
+
+    rowsHTML += `
+      <div class="scan-result-row" style="display:flex;align-items:center;background:var(--surface-2);padding:10px;border-radius:var(--r-2);border:1.5px solid var(--line-soft);margin-bottom:8px;">
+        <img src="${thumb}" style="width:48px;height:48px;border-radius:var(--r-1);object-fit:cover;flex-shrink:0;margin-right:12px;">
+        <div class="si${hasImg ? " has-photo" : ""}" style="width:36px;height:36px;border-radius:var(--r-1);background:linear-gradient(135deg, var(--surface-2), var(--surface-3));flex-shrink:0;position:relative;margin-right:8px;">
+          <div class="brick-tile" style="--h:${h};width:100%;height:100%;border-radius:var(--r-1);"></div>
+          ${hasImg ? `<img src="${escapeHtml(set.image_url)}" alt="" style="position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);object-fit:contain;mix-blend-mode:multiply;">` : ""}
+        </div>
+        <div style="flex:1;min-width:0;text-align:left;margin-right:8px;">
+          <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(set.name)}</div>
+          <div style="font-size:10px;color:var(--ink-mute);">${escapeHtml(set.theme || "")} · #${escapeHtml(set.set_num)}</div>
+        </div>
+        ${controlHTML}
+      </div>`;
+  });
+
+  rowsHTML += `</div>`;
+
+  const actionsHTML = `
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn-secondary" id="bulkCancel">Cancel</button>
+      <button class="btn-primary" id="bulkAddBtn">${I.plus()}<span>Add selected</span></button>
+    </div>`;
+
+  el.innerHTML = `
+    <div class="scan-result-head">
+      <span class="badge">${I.check()}BATCH RESULTS</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${results.filter(r => r.success).length} of ${results.length} matched</span>
+    </div>
+    ${rowsHTML}
+    ${actionsHTML}
+  `;
+
+  document.getElementById("bulkCancel").addEventListener("click", () => {
+    el.classList.remove("show");
+    state.camera.scanning = true;
+    startCamera();
+  });
+
+  document.getElementById("bulkAddBtn").addEventListener("click", async () => {
+    haptic("heavy");
+    setBtnLoading($("#bulkAddBtn"), true);
+
+    const adds = Array.from(el.querySelectorAll(".bulk-add-check:checked"));
+    const qtys = Array.from(el.querySelectorAll(".bulk-qty-check:checked"));
+
+    if (!adds.length && !qtys.length) {
+      toast("No sets selected to add", "info");
+      setBtnLoading($("#bulkAddBtn"), false);
+      return;
+    }
+
+    try {
+      const addPromises = adds.map(chk => {
+        const setNum = chk.dataset.setnum;
+        const price = parseFloat(chk.dataset.price) || 0;
+        return api("/api/collection", {
+          method: "POST",
+          body: { set_num: setNum, quantity: 1, purchase_price: price }
+        });
+      });
+
+      const qtyPromises = qtys.map(chk => {
+        const id = chk.dataset.ownedId;
+        const currentQty = parseInt(chk.dataset.ownedQty, 10);
+        return api("/api/collection/" + id, {
+          method: "PATCH",
+          body: { quantity: currentQty + 1 }
+        });
+      });
+
+      await Promise.all([...addPromises, ...qtyPromises]);
+      state.portfolio = null;
+      toast("Collection updated successfully", "success");
+      closeScan();
+      await renderPortfolio();
+    } catch (err) {
+      toast("Failed to add sets: " + err.message, "error");
+      setBtnLoading($("#bulkAddBtn"), false);
+    }
+  });
+}
+
+function wireFlipCalc(set, entry, containerEl = document) {
+  const inputs = containerEl.querySelectorAll(".flip-input");
+  inputs.forEach(inp => {
+    inp.addEventListener("input", () => {
+      const key = inp.dataset.key;
+      const val = parseFloat(inp.value) || 0;
+      if (key === "fee_pct") localStorage.setItem("bv_flip_fee_pct", val);
+      if (key === "payment_pct") localStorage.setItem("bv_flip_payment_pct", val);
+      if (key === "shipping") localStorage.setItem("bv_flip_shipping", val);
+      if (key === "tax") localStorage.setItem("bv_flip_tax", val);
+
+      const condition = entry?.condition || 'new';
+      const market = parseFloat(set.ebay_value || set.current_value || 0);
+      if (market <= 0) return;
+
+      const userCurrency = state.me?.currency || "USD";
+      const rate = getExchangeRate(userCurrency);
+      const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
+      const convertedMarket = market * rate;
+
+      let estPrice = convertedMarket;
+      if (condition.startsWith('used')) {
+        const ratio = (set.used_value && set.current_value) ? (set.used_value / set.current_value) : 0.75;
+        estPrice = convertedMarket * ratio;
+      }
+
+      const feePct = parseFloat(localStorage.getItem("bv_flip_fee_pct") ?? "13.25");
+      const paymentPct = parseFloat(localStorage.getItem("bv_flip_payment_pct") ?? "2.9");
+      const shipping = parseFloat(localStorage.getItem("bv_flip_shipping") ?? "5.00");
+      const tax = parseFloat(localStorage.getItem("bv_flip_tax") ?? "0.00");
+
+      const ebayFee = estPrice * (feePct / 100);
+      const paypalFee = estPrice * (paymentPct / 100) + (0.30 * rate);
+      const gross = estPrice;
+      const totalFees = ebayFee + paypalFee + shipping + tax;
+      const net = Math.max(0, gross - totalFees);
+
+      const grossEl = containerEl.querySelector(".flip-gross-val");
+      const feesEl = containerEl.querySelector(".flip-fees-val");
+      const netEl = containerEl.querySelector(".flip-net-val");
+      if (grossEl) grossEl.textContent = `${symbol}${gross.toFixed(2)}`;
+      if (feesEl) feesEl.textContent = `-${symbol}${totalFees.toFixed(2)}`;
+      if (netEl) netEl.textContent = `${symbol}${net.toFixed(2)}`;
+
+      const purchasePrice = entry ? parseFloat(entry.purchase_price || 0) * rate : 0;
+      const resultEl = containerEl.querySelector(".flip-result");
+      if (resultEl) {
+        if (purchasePrice > 0) {
+          const netRoi = ((net - purchasePrice) / purchasePrice) * 100;
+          const roiColor = netRoi >= 0 ? 'var(--up)' : 'var(--bv-red)';
+          resultEl.innerHTML = `<div style="font-size:11px;margin-top:4px;">Net ROI: <strong class="flip-roi-val" style="color:${roiColor};">${netRoi >= 0 ? '+' : ''}${netRoi.toFixed(1)}%</strong></div>`;
+        } else {
+          resultEl.innerHTML = '';
+        }
+      }
+    });
+  });
+}
