@@ -90,11 +90,13 @@ app.patch('/', async (c) => {
       updated_at = datetime('now')
   `).bind(
     userId,
-    display_name ?? null, currency ?? null,
-    notify_price_drops != null ? (notify_price_drops ? 1 : 0) : null,
+    display_name ?? null,
+    currency ?? 'USD',
+    notify_price_drops != null ? (notify_price_drops ? 1 : 0) : 1,
     handle ?? null,
-    is_public != null ? (is_public ? 1 : 0) : null,
-    display_name ?? null, currency ?? null,
+    is_public != null ? (is_public ? 1 : 0) : 0,
+    display_name ?? null,
+    currency ?? null,
     notify_price_drops != null ? (notify_price_drops ? 1 : 0) : null,
     handle ?? null,
     is_public != null ? (is_public ? 1 : 0) : null,

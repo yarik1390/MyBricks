@@ -138,7 +138,14 @@ app.get('/', async (c) => {
   const lastModified = (items[0]?.last_modified || items[0]?.added_at || null) as string | null;
   const etag = `${count}-${lastModified ? new Date(lastModified).getTime() : 0}`;
 
-  if (c.req.header('if-none-match') === etag) return new Response('', { status: 304 });
+  if (c.req.header('if-none-match') === etag) {
+    return new Response('', {
+      status: 304,
+      headers: {
+        'Cache-Control': 'no-cache',
+      },
+    });
+  }
   return new Response(JSON.stringify({
     items,
     total_value: totalValue,
@@ -149,7 +156,11 @@ app.get('/', async (c) => {
     fig_count: figCount,
     total_value_with_figs: totalValue + figValue
   }), {
-    headers: { 'Content-Type': 'application/json', 'ETag': etag },
+    headers: {
+      'Content-Type': 'application/json',
+      'ETag': etag,
+      'Cache-Control': 'no-cache',
+    },
   });
 });
 
@@ -240,6 +251,7 @@ app.get('/export', async (c) => {
     headers: {
       'Content-Type': 'text/csv',
       'Content-Disposition': 'attachment; filename="brickvault-export.csv"',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
     },
   });
 });

@@ -1993,7 +1993,7 @@ function infoTabHTML(set, entry, isWish) {
       <div class="qty-row">
         <div>
           <div class="qty-row-lbl">In your vault</div>
-          <div class="qty-row-val">×${entry.quantity}</div>
+          <div class="qty-row-val" id="qtyBadgeVal">×${entry.quantity}</div>
         </div>
         <div class="qty-stepper">
           <button class="qty-btn" id="qtyDown">${I.minus()}</button>
@@ -2037,6 +2037,8 @@ function wireInfoTab(set, entry) {
     haptic("medium");
     qty--;
     $("#qtyNum").textContent = qty;
+    const badge = $("#qtyBadgeVal");
+    if (badge) badge.textContent = `×${qty}`;
     try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); state.portfolio = null; }
     catch (e) { toast("Save failed", "error"); }
   });
@@ -2044,6 +2046,8 @@ function wireInfoTab(set, entry) {
     haptic("medium");
     qty++;
     $("#qtyNum").textContent = qty;
+    const badge = $("#qtyBadgeVal");
+    if (badge) badge.textContent = `×${qty}`;
     try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); state.portfolio = null; }
     catch (e) { toast("Save failed", "error"); }
   });
@@ -3780,6 +3784,8 @@ function showSheet(html) {
   sheet.innerHTML = `<div class="sheet-handle"></div>` + html;
   back.classList.add("show");
   sheet.classList.add("show");
+  back.setAttribute("aria-hidden", "false");
+  sheet.setAttribute("aria-hidden", "false");
   haptic("light");
   back.addEventListener("click", hideSheet, { once: true });
   document.addEventListener("keydown", sheetKeyHandler);
@@ -3791,10 +3797,12 @@ function hideSheet() {
   const backdrop = $("#sheetBackdrop");
   if (!backdrop || !backdrop.classList.contains("show")) return;
   backdrop.classList.remove("show");
+  backdrop.setAttribute("aria-hidden", "true");
   if (sheet) {
     sheet.classList.remove("show");
     sheet.style.transform = "";
     sheet.style.transition = "";
+    sheet.setAttribute("aria-hidden", "true");
   }
   document.removeEventListener("keydown", sheetKeyHandler);
   haptic("light");
