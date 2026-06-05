@@ -83,6 +83,29 @@ async function hydrateFromIDB() {
   } catch {}
 }
 
+// Set photos are layered over a brick-tile placeholder. The CSS only reveals the
+// photo (hiding the tile and making the frame transparent) once `.photo-loaded`
+// is on the container — and the CSP (`script-src 'self'`) forbids inline
+// onload/onerror attributes. So wire load/error here via capture-phase
+// delegation (these events don't bubble). Registered before the first route()
+// so it catches every set photo, including cache-fast loads.
+function setupImageHydration() {
+  document.addEventListener("load", (e) => {
+    const img = e.target;
+    if (img instanceof HTMLImageElement && img.classList.contains("set-photo")) {
+      img.parentElement?.classList.add("photo-loaded");
+    }
+  }, true);
+  document.addEventListener("error", (e) => {
+    const img = e.target;
+    if (img instanceof HTMLImageElement && img.classList.contains("set-photo")) {
+      // Drop the broken photo so the brick-tile placeholder shows through
+      // instead of a broken-image glyph.
+      img.remove();
+    }
+  }, true);
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   // Load session and Supabase config before any routing.
   let session = loadSession();
@@ -153,6 +176,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   offlineHandler();
 
   setupGestures();
+  setupImageHydration();
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js")

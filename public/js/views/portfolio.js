@@ -512,7 +512,8 @@ function showAlertsSheet(alerts) {
     return;
   }
   const spikeAlerts = alerts.filter(a => a.alert_type === "spike");
-  const dropAlerts = alerts.filter(a => a.alert_type !== "spike");
+  // Treat legacy null/undefined as drops; exclude spike and any future types.
+  const dropAlerts = alerts.filter(a => a.alert_type === "drop" || !a.alert_type);
 
   showSheet(`
     <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 14px;">Notifications</div>
@@ -1031,7 +1032,8 @@ function wireInfoTab(set, entry) {
               method: "POST",
               body: { set_num: set.set_num, target_price: targetPriceUSD, notes: notes || null }
             });
-            state.wishlist = null;
+            // Keep the previous array readable until the refetch resolves —
+            // nulling it here would crash any concurrent `state.wishlist.some(...)`.
             const wl = await api("/api/wishlist");
             state.wishlist = wl.wishlist || [];
             toast("Added to wishlist", "success");
@@ -1268,7 +1270,8 @@ export async function renderWishlist() {
 
   const alerts = [...(state.wishlistAlerts || [])];
   const spikeAlerts = alerts.filter(a => a.alert_type === "spike");
-  const dropAlerts = alerts.filter(a => a.alert_type !== "spike");
+  // Treat legacy null/undefined as drops; exclude spike and any future types.
+  const dropAlerts = alerts.filter(a => a.alert_type === "drop" || !a.alert_type);
   const totalAlerts = alerts.length;
 
   if (state.wishlistAlerts && state.wishlistAlerts.length > 0) {
