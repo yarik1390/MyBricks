@@ -2057,6 +2057,7 @@ select:focus-visible,
 .ps-lbl svg { width: 10px; height: 10px; }
 .ps-val { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--ink); }
 .ps-val.muted { color: var(--ink-faint); }
+.ps-sub { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); }
 .ps-footnote {
   font-family: var(--mono); font-size: 9px; color: var(--ink-faint);
   letter-spacing: 0.06em; text-align: center; margin-bottom: 14px;

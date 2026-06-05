@@ -42,33 +42,51 @@ export async function runValuateSets(env: Env) {
     let valMethod = 'market';
     let beDetails: any = null;
 
-    if (env.BRICKECONOMY_API_KEY) {
-      beDetails = await fetchBrickEconomyDetails(set.set_num, env).catch((e) => { tallyFail('brickeconomy', e); return null; });
-      if (beDetails) tallyOk('brickeconomy');
-      if (beDetails && beDetails.current_value_new !== null) {
-        pricing = { current_value: beDetails.current_value_new };
-        usedPricing = { used_value: beDetails.current_value_used };
-        valMethod = 'brickeconomy';
-        ebayPrice = await fetchEbayPrice(set.set_num, set.name, env).catch((e) => { tallyFail('ebay', e); return null; });
-        if (ebayPrice != null) tallyOk('ebay');
-      }
-    }
+    // Always fetch BrickLink + eBay in parallel as cross-validation sources.
+    // When BrickEconomy is also configured, BL is fetched alongside it so the
+    // UI can show all three prices independently (be_new / bl_new / ebay).
+    let blPricing: { current_value: number; lot_count: number } | null = null;
 
-    if (!pricing) {
-      const [p, u, e] = await Promise.all([
+    if (env.BRICKECONOMY_API_KEY) {
+      const [be, blp, u, e] = await Promise.all([
+        fetchBrickEconomyDetails(set.set_num, env).catch((err) => { tallyFail('brickeconomy', err); return null; }),
         fetchSetPricing(set.set_num, env).catch((err) => { tallyFail('bricklink', err); return null; }),
         fetchUsedPricing(set.set_num, env).catch((err) => { tallyFail('bricklink', err); return null; }),
         fetchEbayPrice(set.set_num, set.name, env).catch((err) => { tallyFail('ebay', err); return null; }),
       ]);
-      if (p != null || u != null) tallyOk('bricklink');
+      if (be) tallyOk('brickeconomy');
+      if (blp != null || u != null) tallyOk('bricklink');
       if (e != null) tallyOk('ebay');
-      pricing = p;
-      usedPricing = u;
+      beDetails = be;
+      blPricing = blp;
+      usedPricing = u || (be?.current_value_used ? { used_value: be.current_value_used } : null);
       ebayPrice = e;
+
+      if (beDetails && beDetails.current_value_new !== null) {
+        pricing = { current_value: beDetails.current_value_new };
+        valMethod = 'brickeconomy';
+      }
+    }
+
+    if (!pricing) {
+      // BrickEconomy not configured or returned no data — use BrickLink as primary
+      if (!blPricing || !usedPricing) {
+        const [p, u, e] = await Promise.all([
+          blPricing ? Promise.resolve(blPricing) : fetchSetPricing(set.set_num, env).catch((err) => { tallyFail('bricklink', err); return null; }),
+          usedPricing ? Promise.resolve(usedPricing) : fetchUsedPricing(set.set_num, env).catch((err) => { tallyFail('bricklink', err); return null; }),
+          ebayPrice !== null ? Promise.resolve(ebayPrice) : fetchEbayPrice(set.set_num, set.name, env).catch((err) => { tallyFail('ebay', err); return null; }),
+        ]);
+        if (p != null || u != null) tallyOk('bricklink');
+        if (e != null) tallyOk('ebay');
+        blPricing = p as typeof blPricing;
+        usedPricing = u as typeof usedPricing;
+        ebayPrice = e as typeof ebayPrice;
+      }
+      pricing = blPricing;
       valMethod = 'market';
     }
 
-    // Write used + eBay prices when available (independent of main valuation path)
+    // Write used + eBay + BrickLink new prices (independent of main valuation path)
     const supplementStmts: D1PreparedStatement[] = [];
     if (usedPricing) {
       supplementStmts.push(
@@ -82,10 +100,22 @@ export async function runValuateSets(env: Env) {
           .bind(ebayPrice, set.set_num)
       );
     }
+    if (blPricing) {
+      supplementStmts.push(
+        env.DB.prepare('UPDATE lego_sets SET bl_new_value=? WHERE set_num=?')
+          .bind(blPricing.current_value, set.set_num)
+      );
+    }
     if (supplementStmts.length) await env.DB.batch(supplementStmts);
 
     if (pricing) {
-      const yr = set.retired ? 0.15 : 0.10;
+      // Use BrickEconomy rolling 12-month growth for forward rate when available.
+      // Clamp to 2%–25% to guard against data outliers.
+      const defaultYr = set.retired ? 0.15 : 0.10;
+      const yr = (beDetails?.rolling_growth_12months != null)
+        ? Math.min(0.25, Math.max(0.02, beDetails.rolling_growth_12months / 100))
+        : defaultYr;
+
       let forecast_2y = Math.round(pricing.current_value * Math.pow(1 + yr, 2) * 100) / 100;
       let forecast_5y = Math.round(pricing.current_value * Math.pow(1 + yr, 5) * 100) / 100;
       let retailPrice: number | null = null;

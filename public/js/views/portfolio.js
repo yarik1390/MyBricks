@@ -1759,26 +1759,36 @@ async function loadSetHistory(setNum) {
 
 function priceStripHTML(set, entry) {
   const delta = entry?.purchase_price ? (set.current_value - entry.purchase_price) / entry.purchase_price : null;
-  
-  const label1 = set.valuation_method === "market" ? "BrickLink new"
-    : set.valuation_method === "brickeconomy" ? "BrickEconomy new"
+
+  // Column 1: primary new-condition valuation source
+  const isBE = set.valuation_method === "brickeconomy";
+  const isBL = set.valuation_method === "market";
+  const label1 = isBE ? "BrickEconomy"
+    : isBL ? "BrickLink"
     : set.valuation_method === "ai" ? "AI estimate"
     : set.valuation_method === "ebay_rss" ? "eBay Sold"
     : "Estimated";
-
   const val1 = set.current_value;
 
-  const label2 = "Used";
-  const val2 = set.used_value;
+  // Column 2: cross-source BrickLink new (when BE is primary, show BL independently)
+  //           or BrickLink used when BL is primary (most useful comparison)
+  const showBlCross = isBE && set.bl_new_value;
+  const label2 = showBlCross ? "BrickLink" : "Used";
+  const val2 = showBlCross ? set.bl_new_value : set.used_value;
 
-  const label3 = set.valuation_method === "ebay_rss" ? "BrickLink new" : "eBay avg";
-  const val3 = set.valuation_method === "ebay_rss" ? null : set.ebay_value;
+  // Column 3: eBay avg + used value when BE+BL both shown in cols 1-2
+  const label3 = showBlCross ? "eBay / Used" : "eBay avg";
+  const val3 = set.ebay_value;
+  // When BrickEconomy is primary and BL cross-price is shown, append used in col 3
+  const val3sub = showBlCross ? set.used_value : null;
 
-  const methodLabel = set.valuation_method === "market" ? "BrickLink pricing"
-    : set.valuation_method === "brickeconomy" ? "BrickEconomy pricing"
-    : set.valuation_method === "ai" ? "AI pricing"
-    : set.valuation_method === "ebay_rss" ? "eBay completed transactions"
-    : "Bulk formula estimate (unconfigured keys)";
+  const sourceSuffix = isBE && set.bl_new_value
+    ? "BrickEconomy · BrickLink · eBay"
+    : isBE ? "BrickEconomy · eBay"
+    : isBL ? "BrickLink · eBay"
+    : set.valuation_method === "ai" ? "AI estimate"
+    : set.valuation_method === "ebay_rss" ? "eBay completed"
+    : "formula estimate";
 
   const updateDateStr = set.cached_at ? fmtDateUpdated(set.cached_at) : null;
   const lastUpdatedText = updateDateStr ? `Updated: ${updateDateStr}` : "Update: pending";
@@ -1786,21 +1796,22 @@ function priceStripHTML(set, entry) {
   return `
     <div class="price-strip">
       <div class="ps-cell${entry ? " high" : ""}">
-        <div class="ps-lbl">${label1}</div>
+        <div class="ps-lbl">${label1} (new)</div>
         <div class="ps-val">${val1 ? fmtMoney(val1) : "—"}${set.trend ? trendBadgeHTML(set.trend) : ""}</div>
         ${delta != null ? `<div class="delta ${delta >= 0 ? "up" : "down"}"><span class="arrow">${delta >= 0 ? "▲" : "▼"}</span>${fmtPct(Math.abs(delta))}</div>` : ""}
       </div>
       <div class="ps-cell">
-        <div class="ps-lbl">${label2}</div>
+        <div class="ps-lbl">${label2}${showBlCross ? " (new)" : ""}</div>
         <div class="ps-val${!val2 ? " muted" : ""}">${val2 ? fmtMoney(val2) : "—"}</div>
       </div>
       <div class="ps-cell">
         <div class="ps-lbl">${label3}</div>
         <div class="ps-val${!val3 ? " muted" : ""}">${val3 ? fmtMoney(val3) : "—"}</div>
+        ${val3sub ? `<div class="ps-sub muted">Used: ${fmtMoney(val3sub)}</div>` : ""}
       </div>
     </div>
     <div class="ps-footnote" style="display:flex;align-items:center;justify-content:space-between;width:100%;">
-      <span>Source: ${methodLabel}</span>
+      <span>Sources: ${sourceSuffix}</span>
       <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);">${lastUpdatedText}</span>
     </div>`;
 }
@@ -2074,9 +2085,9 @@ function updateSelectionBar() {
       <button class="icon-btn" id="selCancel" style="font-size:12px;color:var(--ink-mute);border:none;background:transparent;cursor:pointer;">Cancel</button>
     </div>
     <div style="display:flex;gap:8px;">
-      <button class="btn-primary compact-btn" id="selBulkLocation" style="flex:1;font-size:12px;" ${count === 0 ? 'disabled style="opacity:0.5;"' : ''}>Location</button>
-      <button class="btn-secondary compact-btn" id="selBulkExport" style="flex:1;font-size:12px;" ${count === 0 ? 'disabled style="opacity:0.5;"' : ''}>CSV</button>
-      <button class="btn-primary compact-btn btn-danger" id="selBulkDelete" style="flex:1;font-size:12px;" ${count === 0 ? 'disabled style="opacity:0.5;"' : ''}>Delete</button>
+      <button class="btn-primary compact-btn" id="selBulkLocation" style="flex:1;font-size:12px;" ${count === 0 ? 'disabled' : ''}>Location</button>
+      <button class="btn-secondary compact-btn" id="selBulkExport" style="flex:1;font-size:12px;" ${count === 0 ? 'disabled' : ''}>CSV</button>
+      <button class="btn-primary compact-btn btn-danger" id="selBulkDelete" style="flex:1;font-size:12px;" ${count === 0 ? 'disabled' : ''}>Delete</button>
     </div>
   `;
 

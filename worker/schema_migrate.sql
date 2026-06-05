@@ -80,6 +80,9 @@ CREATE TABLE IF NOT EXISTS oauth_states (
 -- Expose public value privacy preference
 ALTER TABLE user_prefs ADD COLUMN expose_public_value INTEGER DEFAULT 1;
 
+-- BrickLink new sold price stored independently for cross-source UI
+ALTER TABLE lego_sets ADD COLUMN bl_new_value REAL;
+
 -- Integration health tracking (external API success/failure)
 CREATE TABLE IF NOT EXISTS integration_health (
   service TEXT PRIMARY KEY,
