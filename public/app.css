@@ -2491,10 +2491,11 @@ select:focus-visible,
     display: none;
   }
   .detail-page-container .detail-back {
-    position: relative;
-    top: 0;
-    left: 0;
-    margin-bottom: 12px;
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 10;
+    margin-bottom: 0;
   }
   .detail-page-container .detail-hero.has-photo {
     height: 320px;

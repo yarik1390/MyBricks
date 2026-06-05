@@ -811,8 +811,8 @@ function paintSetDetail(set, entry) {
   $("#root").innerHTML = `
     <div class="page no-pad detail-page-container">
       <div class="detail-hero-col">
-        <button class="detail-back" id="detailBack" aria-label="Back">${I.chevL()}</button>
         <div class="detail-hero${hasImg ? " has-photo" : ""}">
+          <button class="detail-back" id="detailBack" aria-label="Back">${I.chevL()}</button>
           ${hasImg
             ? `<div class="detail-hero-bg" style="background-image:url('${escapeHtml(displayImg)}')"></div>`
             : `<div class="detail-hero-bg placeholder" style="--brick-hue:linear-gradient(135deg, oklch(0.72 0.13 ${h}), oklch(0.55 0.13 ${h}));"></div>`}

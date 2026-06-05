@@ -347,8 +347,9 @@ function catalogCardHTML(s) {
   const h = setHue(s);
   
   if (state.compactView) {
+    const borderStyle = ` style="border-left-color: ${THEME_COLORS[s.theme] || 'var(--line)'};"`;
     return `
-      <button class="set-list-card compact" data-set="${escapeHtml(s.set_num)}">
+      <button class="set-list-card compact" data-set="${escapeHtml(s.set_num)}"${borderStyle}>
         <div class="sl-img${hasImg ? " has-photo" : ""}" style="width:42px;height:42px;">
           <div class="brick-tile" style="--h:${h};width:100%;height:100%;border-radius:var(--r-1);"></div>
           ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="" loading="lazy">` : ""}
