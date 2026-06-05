@@ -1,5 +1,5 @@
-import { $, $$, haptic, toast, fetchExchangeRates, invalidatePortfolio, prefersReducedMotion, bvIDB } from './utils.js';
-import { state } from './state.js';
+import { $, $$, haptic, toast, fetchExchangeRates, prefersReducedMotion, bvIDB } from './utils.js';
+import { state, invalidatePortfolio } from './state.js';
 import { loadSession, saveSession, setSupabaseConfig, drainOutbox, api, _authSession } from './api.js';
 import { I } from './icons.js';
 import { route } from './router.js';
