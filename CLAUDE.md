@@ -83,14 +83,30 @@ From `worker/`:
 ```bash
 npm ci
 npm run typecheck   # tsc --noEmit — must pass
-npm test            # vitest run — must pass
+npm test            # vitest run (cloudflare pool) — must pass
 ```
-- Tests run on `@cloudflare/vitest-pool-workers`. Each suite builds its own D1
-  schema in `beforeEach` (see `src/index.test.ts`, `src/routes.test.ts`) — the
-  test schema is hand-maintained, so update it when a route needs a new column.
-- Mock `openai` and supply a mock `ExecutionContext` (so `waitUntil` background
-  tasks don't throw) — both test files show the pattern.
-- There is currently **no frontend test harness**.
+
+From the repo root (frontend pure helpers):
+```bash
+node --test public/js/__tests__/pure.test.js   # node:test — must pass
+```
+
+**Backend tests** (`worker/src/*.test.ts`): 3 files, 48 tests.
+- `index.test.ts` — CORS, OAuth, rate limits, validation, ETag, collection CRUD
+- `routes.test.ts` — me, wishlist, profile, collection export/history, admin health
+- `lib.test.ts` — `computeRetirementRisk`, `formulaValuation` pure logic
+
+Each suite builds its own D1 schema in `beforeEach` — the test schema is
+hand-maintained, so update it when a route needs a new column. Mock `openai`
+and supply a mock `ExecutionContext` (so `waitUntil` background tasks don't
+throw) — all three test files show the pattern.
+
+**Frontend tests** (`public/js/__tests__/pure.test.js`): 36 tests.
+- Covers: `escapeHtml`, `fmtPct`, `clamp`, `themeHue`, `bricklinkBuyURL`,
+  `computeDealScore`, `annualizedROI`, `parseMarkdown` from `public/js/lib/pure.js`.
+- Uses Node's built-in `node:test` runner — no extra dependencies.
+- To add more: put new pure (no-DOM, no-state) helpers in `public/js/lib/pure.js`
+  and test them in `pure.test.js`.
 
 ## Working in parallel (important)
 

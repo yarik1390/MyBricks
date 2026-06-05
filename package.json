@@ -2,9 +2,11 @@
   "name": "mybricks-workspace",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "setup": "cmd /c \"npm --prefix worker install\"",
     "typecheck": "cmd /c \"npm --prefix worker run typecheck\"",
+    "test": "node --test public/js/__tests__/pure.test.js",
     "status": "git status"
   }
 }
