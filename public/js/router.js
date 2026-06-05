@@ -112,6 +112,17 @@ async function _routeImpl() {
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 
+// Navigate + render deterministically. Unlike assigning `location.hash`
+// (which only re-renders if the browser fires `hashchange`), this always
+// drives a single route() — critical for auth transitions (login/logout)
+// where the view must refresh immediately regardless of hashchange timing.
+export function go(hash) {
+  if (location.hash !== hash) {
+    history.pushState(null, '', hash);
+  }
+  route();
+}
+
 export function showNavProgress() {
   const el = document.getElementById('navProgress');
   if (el) {

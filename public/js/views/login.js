@@ -1,5 +1,6 @@
 import { $, toast, setBtnLoading } from '../utils.js';
 import { _sbUrl, sbSignIn, sbSignUp, saveSession } from '../api.js';
+import { go } from '../router.js';
 
 export function renderLogin() {
   let mode = "signin";
@@ -83,7 +84,7 @@ export function renderLogin() {
         }
         saveSession(session);
         if (nav) nav.style.display = "";
-        location.hash = "#/";
+        go("#/");
       } catch (e) {
         if (errEl) errEl.textContent = e.message;
         setBtnLoading(btn, false);

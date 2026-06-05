@@ -1,7 +1,8 @@
-import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, fmtMoney, fmtPct, setHue, CURRENCY_SYMBOLS } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, fmtMoney, fmtPct, setHue, CURRENCY_SYMBOLS, bvIDB } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, sbSignOut, _authSession } from '../api.js';
 import { I } from '../icons.js';
+import { go } from '../router.js';
 import { confirmSheet, promptSheet, showSheet, hideSheet } from '../components/sheet.js';
 
 export async function renderMe() {
@@ -602,7 +603,7 @@ export async function renderMe() {
         bvIDB.del('blind')
       ]);
     } catch {}
-    location.hash = "#/login";
+    go("#/login");
   });
 }
 
