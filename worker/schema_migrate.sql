@@ -82,6 +82,9 @@ ALTER TABLE user_prefs ADD COLUMN expose_public_value INTEGER DEFAULT 1;
 
 -- BrickLink new sold price stored independently for cross-source UI
 ALTER TABLE lego_sets ADD COLUMN bl_new_value REAL;
+-- BrickLink lot counts for pricing confidence display
+ALTER TABLE lego_sets ADD COLUMN bl_new_qty INTEGER;
+ALTER TABLE lego_sets ADD COLUMN bl_used_qty INTEGER;
 
 -- Integration health tracking (external API success/failure)
 CREATE TABLE IF NOT EXISTS integration_health (

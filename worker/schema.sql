@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS lego_sets (
   ebay_cached_at TEXT,
   used_value REAL,
   bl_new_value REAL,
+  bl_new_qty INTEGER,
+  bl_used_qty INTEGER,
   retirement_risk_score INTEGER,
   retirement_risk_updated_at TEXT
 );

@@ -794,19 +794,24 @@ function infoTabHTML(set, entry, isWish) {
   let bricksetHtml = '';
   if (set.brickset) {
     const b = set.brickset;
-    const ratingStr = b.rating ? `${b.rating} ★` : '';
-    const reviewsStr = b.reviewCount ? `(${b.reviewCount} review${b.reviewCount > 1 ? 's' : ''})` : '';
+    const ratingNum = b.rating || 0;
+    const reviewsStr = b.reviewCount ? `${b.reviewCount} review${b.reviewCount > 1 ? 's' : ''}` : '';
     const ageStr = b.ageMin ? (b.ageMax ? `${b.ageMin}–${b.ageMax}` : `${b.ageMin}+`) : '';
     const subthemeStr = b.subtheme ? b.subtheme : '';
-    
-    if (ratingStr || ageStr || subthemeStr) {
+
+    // High ratings (>4.0 with >20 reviews) signal strong community demand → holds/grows value
+    const ratingSignal = ratingNum >= 4.0 && b.reviewCount >= 20
+      ? `<span class="signal-hint" style="color:var(--green);font-size:10px;">High demand set</span>`
+      : '';
+
+    if (ratingNum || ageStr || subthemeStr) {
       bricksetHtml = `
         <div class="card" style="padding:14px 16px;margin-bottom:14px;">
           <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Catalog Insights</div>
           <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;font-size:12px;">
             ${subthemeStr ? `<div><span style="color:var(--ink-mute);">Subtheme:</span> <strong style="color:var(--ink);">${escapeHtml(subthemeStr)}</strong></div>` : ''}
             ${ageStr ? `<div><span style="color:var(--ink-mute);">Age:</span> <strong style="color:var(--ink);">${ageStr}</strong></div>` : ''}
-            ${ratingStr ? `<div style="grid-column: span 2;"><span style="color:var(--ink-mute);">Rating:</span> <strong style="color:var(--ink);">${ratingStr} ${reviewsStr}</strong></div>` : ''}
+            ${ratingNum ? `<div style="grid-column: span 2; display:flex; align-items:center; gap:8px;"><span style="color:var(--ink-mute);">Community:</span> <strong style="color:var(--ink);">⭐ ${ratingNum.toFixed(1)}</strong> <span style="color:var(--ink-mute);font-size:10px;">${reviewsStr}</span> ${ratingSignal}</div>` : ''}
           </div>
         </div>
       `;
@@ -863,6 +868,7 @@ function infoTabHTML(set, entry, isWish) {
 
   return `
     ${priceStripHTML(set, entry)}
+    ${marketSpreadHTML(set)}
     ${aiDisclaimerHTML}
     ${pricingSummaryHtml}
     
@@ -1793,6 +1799,11 @@ function priceStripHTML(set, entry) {
   const updateDateStr = set.cached_at ? fmtDateUpdated(set.cached_at) : null;
   const lastUpdatedText = updateDateStr ? `Updated: ${updateDateStr}` : "Update: pending";
 
+  // Lot counts for BrickLink cells — show as confidence indicator
+  const blNewQty = set.bl_new_qty;
+  const blUsedQty = set.bl_used_qty;
+  const lotLabel = (qty, label) => qty ? `${label} <span style="font-size:9px;opacity:.6;">(${qty} lots)</span>` : label;
+
   return `
     <div class="price-strip">
       <div class="ps-cell${entry ? " high" : ""}">
@@ -1801,7 +1812,7 @@ function priceStripHTML(set, entry) {
         ${delta != null ? `<div class="delta ${delta >= 0 ? "up" : "down"}"><span class="arrow">${delta >= 0 ? "▲" : "▼"}</span>${fmtPct(Math.abs(delta))}</div>` : ""}
       </div>
       <div class="ps-cell">
-        <div class="ps-lbl">${label2}${showBlCross ? " (new)" : ""}</div>
+        <div class="ps-lbl">${showBlCross ? lotLabel(blNewQty, "BrickLink (new)") : lotLabel(blUsedQty, "Used")}</div>
         <div class="ps-val${!val2 ? " muted" : ""}">${val2 ? fmtMoney(val2) : "—"}</div>
       </div>
       <div class="ps-cell">
@@ -1814,6 +1825,18 @@ function priceStripHTML(set, entry) {
       <span>Sources: ${sourceSuffix}</span>
       <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);">${lastUpdatedText}</span>
     </div>`;
+}
+
+// Shows a sell/buy signal when eBay and BrickLink prices diverge >10%.
+function marketSpreadHTML(set) {
+  if (!set.ebay_value || !set.current_value) return '';
+  const spread = (set.ebay_value - set.current_value) / set.current_value;
+  if (Math.abs(spread) < 0.10) return '';
+  const hot = spread > 0;
+  return `<div class="market-signal ${hot ? "signal-hot" : "signal-cold"}">
+    <span>${hot ? "🔥" : "❄️"} eBay ${hot ? "running hot" : "below BrickLink"} · ${fmtPct(Math.abs(spread))} spread</span>
+    <span class="signal-hint">${hot ? "Good time to sell" : "Better to buy on BrickLink"}</span>
+  </div>`;
 }
 
 function computeDealScore(set, storePrice) {

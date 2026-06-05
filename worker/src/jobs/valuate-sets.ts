@@ -37,7 +37,7 @@ export async function runValuateSets(env: Env) {
 
   for (const set of results) {
     let pricing: { current_value: number } | null = null;
-    let usedPricing: { used_value: number } | null = null;
+    let usedPricing: { used_value: number; lot_count?: number } | null = null;
     let ebayPrice: number | null = null;
     let valMethod = 'market';
     let beDetails: any = null;
@@ -102,8 +102,14 @@ export async function runValuateSets(env: Env) {
     }
     if (blPricing) {
       supplementStmts.push(
-        env.DB.prepare('UPDATE lego_sets SET bl_new_value=? WHERE set_num=?')
-          .bind(blPricing.current_value, set.set_num)
+        env.DB.prepare('UPDATE lego_sets SET bl_new_value=?, bl_new_qty=? WHERE set_num=?')
+          .bind(blPricing.current_value, blPricing.lot_count, set.set_num)
+      );
+    }
+    if (usedPricing?.lot_count) {
+      supplementStmts.push(
+        env.DB.prepare('UPDATE lego_sets SET bl_used_qty=? WHERE set_num=?')
+          .bind(usedPricing.lot_count, set.set_num)
       );
     }
     if (supplementStmts.length) await env.DB.batch(supplementStmts);

@@ -162,7 +162,10 @@ app.get('/:setnum', async (c) => {
             c.env.DB.prepare(`
               UPDATE lego_sets SET
                 current_value=?, used_value=COALESCE(?, ?, used_value),
-                ebay_value=COALESCE(?, ebay_value), bl_new_value=COALESCE(?, bl_new_value),
+                ebay_value=COALESCE(?, ebay_value),
+                bl_new_value=COALESCE(?, bl_new_value),
+                bl_new_qty=COALESCE(?, bl_new_qty),
+                bl_used_qty=COALESCE(?, bl_used_qty),
                 retail_price=COALESCE(?, retail_price),
                 forecast_2y=?, forecast_5y=?,
                 valuation_method='brickeconomy',
@@ -172,7 +175,10 @@ app.get('/:setnum', async (c) => {
             `).bind(
               be.current_value_new,
               u?.used_value ?? null, be.current_value_used,
-              ebayVal, blp?.current_value ?? null,
+              ebayVal,
+              blp?.current_value ?? null,
+              blp?.lot_count ?? null,
+              u?.lot_count ?? null,
               be.retail_price_us,
               forecast_2y, forecast_5y,
               activeSet.set_num
@@ -190,7 +196,7 @@ app.get('/:setnum', async (c) => {
         ]).then(async ([p, u, e]) => {
           const supplementStmts: D1PreparedStatement[] = [];
           if (u) {
-            supplementStmts.push(c.env.DB.prepare('UPDATE lego_sets SET used_value=? WHERE set_num=?').bind(u.used_value, activeSet.set_num));
+            supplementStmts.push(c.env.DB.prepare('UPDATE lego_sets SET used_value=?, bl_used_qty=? WHERE set_num=?').bind(u.used_value, u.lot_count, activeSet.set_num));
           }
           if (e !== null && e !== undefined) {
             supplementStmts.push(c.env.DB.prepare("UPDATE lego_sets SET ebay_value=?, ebay_cached_at=datetime('now') WHERE set_num=?").bind(e, activeSet.set_num));
@@ -201,12 +207,13 @@ app.get('/:setnum', async (c) => {
             const forecast_5y = Math.round(p.current_value * Math.pow(1 + yr, 5) * 100) / 100;
             supplementStmts.push(c.env.DB.prepare(`
               UPDATE lego_sets SET
-                current_value=?, bl_new_value=?, forecast_2y=?, forecast_5y=?,
+                current_value=?, bl_new_value=?, bl_new_qty=?,
+                forecast_2y=?, forecast_5y=?,
                 valuation_method='market',
                 valuation_expires_at=datetime('now', '+1 day'),
                 cached_at=datetime('now')
               WHERE set_num=?
-            `).bind(p.current_value, p.current_value, forecast_2y, forecast_5y, activeSet.set_num));
+            `).bind(p.current_value, p.current_value, p.lot_count, forecast_2y, forecast_5y, activeSet.set_num));
           }
           if (supplementStmts.length) {
             await c.env.DB.batch(supplementStmts);
@@ -279,11 +286,21 @@ app.get('/:setnum', async (c) => {
     }
 
     const brickset = await fetchBricksetDetails(resultSet.set_num as string, c.env).catch(() => null);
-    if (brickset && brickset.minifigs !== null && brickset.minifigs > 0 && !resultSet.minifigs) {
-      await c.env.DB.prepare('UPDATE lego_sets SET minifigs=? WHERE set_num=?')
-        .bind(brickset.minifigs, resultSet.set_num)
-        .run();
-      resultSet.minifigs = brickset.minifigs;
+    if (brickset) {
+      const bsUpdates: D1PreparedStatement[] = [];
+      if (brickset.minifigs !== null && brickset.minifigs > 0 && !resultSet.minifigs) {
+        bsUpdates.push(c.env.DB.prepare('UPDATE lego_sets SET minifigs=? WHERE set_num=?').bind(brickset.minifigs, resultSet.set_num));
+        resultSet.minifigs = brickset.minifigs;
+      }
+      if (brickset.retired === true && !resultSet.retired) {
+        bsUpdates.push(c.env.DB.prepare('UPDATE lego_sets SET retired=1 WHERE set_num=?').bind(resultSet.set_num));
+        resultSet.retired = 1;
+      }
+      if (brickset.usRetailPrice && !resultSet.retail_price) {
+        bsUpdates.push(c.env.DB.prepare('UPDATE lego_sets SET retail_price=? WHERE set_num=?').bind(brickset.usRetailPrice, resultSet.set_num));
+        resultSet.retail_price = brickset.usRetailPrice;
+      }
+      if (bsUpdates.length) await c.env.DB.batch(bsUpdates);
     }
     return c.json({ set: { ...resultSet, retired: !!resultSet.retired, trend, brickset }, entry: entry || null });
   }
@@ -451,8 +468,8 @@ app.post('/:setnum/revalue', async (c) => {
   }
 
   let pricing: { current_value: number } | null = null;
-  let blPricing: { current_value: number } | null = null;
-  let usedPricing: { used_value: number } | null = null;
+  let blPricing: { current_value: number; lot_count?: number } | null = null;
+  let usedPricing: { used_value: number; lot_count?: number } | null = null;
   let ebayPrice: number | null = null;
   let valMethod = 'market';
 
@@ -541,8 +558,14 @@ app.post('/:setnum/revalue', async (c) => {
   }
   if (blPricing) {
     supplementStmts.push(
-      c.env.DB.prepare('UPDATE lego_sets SET bl_new_value=? WHERE set_num=?')
-        .bind(blPricing.current_value, set.set_num)
+      c.env.DB.prepare('UPDATE lego_sets SET bl_new_value=?, bl_new_qty=? WHERE set_num=?')
+        .bind(blPricing.current_value, blPricing.lot_count, set.set_num)
+    );
+  }
+  if (usedPricing?.lot_count) {
+    supplementStmts.push(
+      c.env.DB.prepare('UPDATE lego_sets SET bl_used_qty=? WHERE set_num=?')
+        .bind(usedPricing.lot_count, set.set_num)
     );
   }
   if (pricing) {

@@ -2062,6 +2062,14 @@ select:focus-visible,
   font-family: var(--mono); font-size: 9px; color: var(--ink-faint);
   letter-spacing: 0.06em; text-align: center; margin-bottom: 14px;
 }
+.market-signal {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 500;
+  margin-bottom: 12px;
+}
+.signal-hot { background: rgba(34,197,94,0.12); color: var(--green, #22c55e); }
+.signal-cold { background: rgba(239,68,68,0.10); color: var(--red, #ef4444); }
+.signal-hint { font-size: 10px; font-family: var(--mono); opacity: 0.8; }
 
 /* Retirement risk badge on catalog cards */
 .retire-risk-badge {

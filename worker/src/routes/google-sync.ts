@@ -4,7 +4,6 @@ import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// Helper to generate secure random token
 function generateSecureToken(): string {
   const arr = new Uint8Array(16);
   crypto.getRandomValues(arr);
@@ -17,7 +16,7 @@ app.post('/auth-init', requireMember, async (c) => {
   if (!userId) return c.json({ error: 'Unauthorized' }, 401);
 
   const code = generateSecureToken();
-  const expiresAt = Math.floor(Date.now() / 1000) + 300; // 5 minutes
+  const expiresAt = Math.floor(Date.now() / 1000) + 300;
 
   await c.env.DB.prepare(`
     INSERT INTO oauth_sessions (code, user_id, expires_at)
@@ -49,7 +48,6 @@ app.get('/auth', async (c) => {
     return c.json({ error: 'Invalid or expired auth session' }, 400);
   }
 
-  // Single-use delete
   await c.env.DB.prepare('DELETE FROM oauth_sessions WHERE code=?').bind(code).run();
 
   if (session.expires_at < Math.floor(Date.now() / 1000)) {
@@ -60,9 +58,8 @@ app.get('/auth', async (c) => {
   const clientId = c.env.GOOGLE_CLIENT_ID || '1047116805178-dummy.apps.googleusercontent.com';
   const redirectUri = `${new URL(c.req.url).origin}/api/google/oauth`;
 
-  // Generate a secure state nonce
   const state = generateSecureToken();
-  const stateExpiresAt = Math.floor(Date.now() / 1000) + 600; // 10 minutes
+  const stateExpiresAt = Math.floor(Date.now() / 1000) + 600;
 
   await c.env.DB.prepare(`
     INSERT INTO oauth_states (state, user_id, expires_at)
@@ -100,7 +97,6 @@ app.get('/oauth', async (c) => {
     return c.redirect(`${new URL(c.req.url).origin}/#/me?google_sync=error`);
   }
 
-  // Single-use delete
   await c.env.DB.prepare('DELETE FROM oauth_states WHERE state=?').bind(state).run();
 
   if (stateRecord.expires_at < Math.floor(Date.now() / 1000)) {
@@ -133,7 +129,7 @@ app.get('/oauth', async (c) => {
     }
 
     const tokens = await tokenResp.json() as { refresh_token?: string; access_token?: string };
-    
+
     if (tokens.refresh_token) {
       await c.env.DB.prepare(`
         INSERT INTO user_prefs (user_id, google_refresh_token)
@@ -151,7 +147,6 @@ app.get('/oauth', async (c) => {
   }
 });
 
-// POST /api/google/sync — Perform synchronization
 app.get('/status', requireMember, async (c) => {
   const userId = c.get('userId');
   const prefs = await c.env.DB.prepare('SELECT google_refresh_token, google_spreadsheet_id FROM user_prefs WHERE user_id=?')
@@ -172,7 +167,6 @@ app.post('/sync', requireMember, async (c) => {
     return c.json({ error: 'Google Account not connected' }, 400);
   }
 
-  // Execute sync in execution context so it runs in background
   c.executionCtx.waitUntil(
     runSyncProcess(userId, prefs.google_refresh_token, prefs.google_spreadsheet_id || null, c.env)
   );
@@ -186,6 +180,23 @@ app.post('/disconnect', requireMember, async (c) => {
     .bind(userId).run();
   return c.json({ ok: true });
 });
+
+async function ensureSheetExists(spreadsheetId: string, title: string, accessToken: string): Promise<void> {
+  // Get current sheet titles
+  const metaResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`, {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  });
+  if (!metaResp.ok) return;
+  const meta = await metaResp.json() as { sheets?: Array<{ properties: { title: string } }> };
+  const exists = meta.sheets?.some(s => s.properties.title === title);
+  if (exists) return;
+
+  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requests: [{ addSheet: { properties: { title } } }] }),
+  });
+}
 
 export async function runSyncProcess(userId: string, refreshToken: string, existingSpreadsheetId: string | null, env: Env) {
   try {
@@ -214,16 +225,10 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
     // 2. Resolve Spreadsheet
     let spreadsheetId = existingSpreadsheetId;
     if (!spreadsheetId) {
-      // Create new sheet
       const createResp = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          properties: { title: 'MyBricks Vault' },
-        }),
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ properties: { title: 'MyBricks Vault' } }),
       });
 
       if (!createResp.ok) {
@@ -233,64 +238,105 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
       const sheetData = await createResp.json() as { spreadsheetId: string };
       spreadsheetId = sheetData.spreadsheetId;
 
-      // Save spreadsheet ID to database
       await env.DB.prepare('UPDATE user_prefs SET google_spreadsheet_id=? WHERE user_id=?')
         .bind(spreadsheetId, userId).run();
     }
 
-    // 3. Fetch Collection Items
-    type SyncResult = {
+    // 3. Fetch collection + wishlist in parallel
+    type CollectionRow = {
       set_num: string; name: string; year: number; theme: string; pieces: number;
       minifigs: number; condition: string; purchase_price: number; current_value: number;
       quantity: number; added_at: string;
     };
-    const { results } = await env.DB.prepare(`
-      SELECT 
-        uc.set_num, ls.name, ls.year, ls.theme, ls.pieces, ls.minifigs,
-        uc.condition, uc.purchase_price, ls.current_value, uc.quantity, uc.added_at
-      FROM user_collection uc
-      JOIN lego_sets ls ON ls.set_num = uc.set_num
-      WHERE uc.user_id = ? AND uc.deleted_at IS NULL
-      ORDER BY uc.added_at DESC
-    `).bind(userId).all() as unknown as { results: SyncResult[] };
+    type WishlistRow = {
+      set_num: string; name: string; theme: string; current_value: number;
+      target_price: number | null; added_at: string;
+    };
 
-    // 4. Assemble Spreadsheet payload
-    const header = [
-      'Set Number', 'Name', 'Year', 'Theme', 'Pieces', 'Minifigs',
-      'Condition', 'Purchase Price', 'Current Value', 'Quantity', 'Date Added'
-    ];
+    const [collRes, wishRes] = await Promise.all([
+      env.DB.prepare(`
+        SELECT uc.set_num, ls.name, ls.year, ls.theme, ls.pieces, ls.minifigs,
+               uc.condition, uc.purchase_price, ls.current_value, uc.quantity, uc.added_at
+        FROM user_collection uc
+        JOIN lego_sets ls ON ls.set_num = uc.set_num
+        WHERE uc.user_id = ? AND uc.deleted_at IS NULL
+        ORDER BY uc.added_at DESC
+      `).bind(userId).all() as unknown as { results: CollectionRow[] },
 
-    const rows = (results || []).map(item => [
-      item.set_num,
-      item.name || '',
-      item.year || '',
-      item.theme || '',
-      item.pieces || 0,
-      item.minifigs || 0,
-      item.condition || 'new',
-      item.purchase_price || 0,
-      item.current_value || 0,
-      item.quantity || 1,
-      item.added_at || ''
+      env.DB.prepare(`
+        SELECT uw.set_num, ls.name, ls.theme, ls.current_value, uw.target_price, uw.added_at
+        FROM user_wishlist uw
+        JOIN lego_sets ls ON ls.set_num = uw.set_num
+        WHERE uw.user_id = ?
+        ORDER BY ls.current_value DESC
+      `).bind(userId).all() as unknown as { results: WishlistRow[] },
     ]);
 
-    const values = [header, ...rows];
+    // 4. Ensure Wishlist sheet exists
+    await ensureSheetExists(spreadsheetId, 'Wishlist', accessToken);
 
-    // 5. Write to Sheet (Overwrite Sheet1!A1:K)
-    const updateResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A1?valueInputOption=USER_ENTERED`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ values }),
+    // 5. Build Portfolio sheet (Sheet1) — add ROI% formula column
+    const collHeader = [
+      'Set Number', 'Name', 'Year', 'Theme', 'Pieces', 'Minifigs',
+      'Condition', 'Purchase Price', 'Current Value', 'Quantity', 'Date Added', 'ROI %'
+    ];
+
+    const collRows = (collRes.results || []).map((item, i) => {
+      const rowNum = i + 2; // header is row 1, data starts row 2
+      return [
+        item.set_num,
+        item.name || '',
+        item.year || '',
+        item.theme || '',
+        item.pieces || 0,
+        item.minifigs || 0,
+        item.condition || 'new',
+        item.purchase_price || 0,
+        item.current_value || 0,
+        item.quantity || 1,
+        item.added_at || '',
+        // ROI formula: (CurrentValue - PurchasePrice) / PurchasePrice
+        `=IF(H${rowNum}>0,(I${rowNum}-H${rowNum})/H${rowNum},"")`,
+      ];
     });
 
-    if (!updateResp.ok) {
-      throw new Error(`Failed to update sheet values: ${await updateResp.text()}`);
+    // 6. Build Wishlist sheet
+    const wishHeader = [
+      'Set Number', 'Name', 'Theme', 'Current Value', 'Target Price', '% To Target', 'Added'
+    ];
+
+    const wishRows = (wishRes.results || []).map((item, i) => {
+      const rowNum = i + 2;
+      return [
+        item.set_num,
+        item.name || '',
+        item.theme || '',
+        item.current_value || 0,
+        item.target_price || '',
+        // % to target: (target - current) / current
+        item.target_price ? `=IF(E${rowNum}>0,(E${rowNum}-D${rowNum})/D${rowNum},"")` : '',
+        item.added_at || '',
+      ];
+    });
+
+    // 7. Write both sheets
+    const writeResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        valueInputOption: 'USER_ENTERED',
+        data: [
+          { range: 'Sheet1!A1', values: [collHeader, ...collRows] },
+          { range: 'Wishlist!A1', values: [wishHeader, ...wishRows] },
+        ],
+      }),
+    });
+
+    if (!writeResp.ok) {
+      throw new Error(`Failed to update sheet values: ${await writeResp.text()}`);
     }
 
-    console.log(`[google-sync] Collection synced successfully for user ${userId}`);
+    console.log(`[google-sync] Synced ${collRes.results?.length ?? 0} collection + ${wishRes.results?.length ?? 0} wishlist items for user ${userId}`);
   } catch (err) {
     console.error('[google-sync] Error running spreadsheet sync:', err);
   }
