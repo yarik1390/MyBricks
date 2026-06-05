@@ -81,7 +81,7 @@ async function verifyJWT(token: string, env: Env): Promise<{ sub?: string; error
 }
 
 export async function requireMember(c: C, next: Next) {
-  const token = c.req.header('Authorization')?.replace('Bearer ', '') || c.req.query('token');
+  const token = c.req.header('Authorization')?.replace('Bearer ', '');
   if (!token) return c.json({ error: 'Unauthorized', reason: 'no token' }, 401);
   const { sub, error } = await verifyJWT(token, c.env);
   if (!sub) return c.json({ error: 'Unauthorized', reason: error }, 401);

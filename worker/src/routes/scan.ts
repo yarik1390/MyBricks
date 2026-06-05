@@ -62,28 +62,34 @@ app.post('/identify', async (c) => {
     return c.json({ identified: true, sets: matchedSets, confidence: topConfidence, reasoning, model: 'gemini-2.0-flash' });
   }
 
-  // OpenAI path — rate-limited per user: 20 scans/hour.
-  const windowStart = new Date();
-  windowStart.setMinutes(0, 0, 0);
-  const ws = windowStart.toISOString();
+  const openaiKey = c.req.header('X-OpenAI-Key');
 
-  await c.env.DB.prepare(`
-    INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
-    VALUES (?, 'scan_image', ?, 1)
-    ON CONFLICT (user_id, endpoint, window_start) DO UPDATE SET hit_count = rate_limits.hit_count + 1
-  `).bind(userId, ws).run();
+  if (!openaiKey) {
+    // OpenAI path — rate-limited per user: 20 scans/hour.
+    const windowStart = new Date();
+    windowStart.setMinutes(0, 0, 0);
+    const ws = windowStart.toISOString();
 
-  const rl = await c.env.DB.prepare(
-    'SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint=? AND window_start=?'
-  ).bind(userId, 'scan_image', ws).first<{ hit_count: number }>();
+    await c.env.DB.prepare(`
+      INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+      VALUES (?, 'scan_image', ?, 1)
+      ON CONFLICT (user_id, endpoint, window_start) DO UPDATE SET hit_count = rate_limits.hit_count + 1
+    `).bind(userId, ws).run();
 
-  if ((rl?.hit_count || 0) >= 20) {
-    return c.json({ error: 'Rate limit: 20 photo scans per hour. Sign in with Google to unlock unlimited scanning.' }, 429);
+    const rl = await c.env.DB.prepare(
+      'SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint=? AND window_start=?'
+    ).bind(userId, 'scan_image', ws).first<{ hit_count: number }>();
+
+    if ((rl?.hit_count || 0) >= 20) {
+      return c.json({ error: 'Rate limit: 20 photo scans per hour. Set up your own API key to unlock unlimited scanning.' }, 429);
+    }
   }
 
-  // Allow caller to supply their own OpenAI key (BYOK) to bypass the shared limit.
-  const openaiKey = c.req.header('X-OpenAI-Key') || c.env.OPENAI_API_KEY;
-  const openai = new OpenAI({ apiKey: openaiKey });
+  const finalOpenAIKey = openaiKey || c.env.OPENAI_API_KEY;
+  if (!finalOpenAIKey) {
+    return c.json({ error: 'No OpenAI API key configured.' }, 500);
+  }
+  const openai = new OpenAI({ apiKey: finalOpenAIKey });
 
   const openaiMessages: Parameters<typeof openai.chat.completions.create>[0]['messages'] = [
     { role: 'system', content: 'You are a LEGO product-identification expert. Identify all the LEGO sets visible in this image. Return ONLY raw JSON in this format: { "sets": [ { "set_num": "...", "name": "...", "confidence": "high|medium|low|none", "reasoning": "..." } ] }' },

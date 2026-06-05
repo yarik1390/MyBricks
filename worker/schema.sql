@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS user_prefs (
   currency TEXT DEFAULT 'USD',
   notify_price_drops INTEGER DEFAULT 1,
   is_public INTEGER NOT NULL DEFAULT 0,
+  expose_public_value INTEGER DEFAULT 1,
   google_refresh_token TEXT,
   google_spreadsheet_id TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -151,6 +152,18 @@ CREATE TABLE IF NOT EXISTS user_showcase (
   added_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, set_num),
   FOREIGN KEY (set_num) REFERENCES lego_sets(set_num)
+);
+
+CREATE TABLE IF NOT EXISTS oauth_sessions (
+  code TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS oauth_states (
+  state TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  expires_at INTEGER NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_svh_set ON set_value_history(set_num, snapshot_date);

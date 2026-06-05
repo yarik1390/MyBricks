@@ -47,6 +47,7 @@ app.get('/', async (c) => {
     display_name: (p.display_name as string) || seedName(userId),
     handle: (p.handle as string | null) ?? null,
     is_public: p.is_public ? true : false,
+    expose_public_value: p.expose_public_value !== 0,
     currency: (p.currency as string) || 'USD',
     notify_price_drops: p.notify_price_drops !== 0,
     ebay_configured: ebayConfigured,
@@ -63,9 +64,9 @@ app.patch('/', async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json<{
     display_name?: string; currency?: string; notify_price_drops?: boolean;
-    handle?: string; is_public?: boolean;
+    handle?: string; is_public?: boolean; expose_public_value?: boolean;
   }>();
-  const { display_name, currency, notify_price_drops, handle, is_public } = body;
+  const { display_name, currency, notify_price_drops, handle, is_public, expose_public_value } = body;
   if (display_name && display_name.length > 40) return c.json({ error: 'display_name max 40 chars' }, 400);
 
   if (handle !== undefined) {
@@ -78,15 +79,17 @@ app.patch('/', async (c) => {
     if (existing) return c.json({ error: 'handle already taken' }, 409);
   }
 
+  const epv = expose_public_value != null ? (expose_public_value ? 1 : 0) : 1;
   await c.env.DB.prepare(`
-    INSERT INTO user_prefs (user_id, display_name, currency, notify_price_drops, handle, is_public, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+    INSERT INTO user_prefs (user_id, display_name, currency, notify_price_drops, handle, is_public, expose_public_value, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT (user_id) DO UPDATE SET
       display_name = COALESCE(?, user_prefs.display_name),
       currency = COALESCE(?, user_prefs.currency),
       notify_price_drops = COALESCE(?, user_prefs.notify_price_drops),
       handle = COALESCE(?, user_prefs.handle),
       is_public = COALESCE(?, user_prefs.is_public),
+      expose_public_value = COALESCE(?, user_prefs.expose_public_value),
       updated_at = datetime('now')
   `).bind(
     userId,
@@ -95,11 +98,13 @@ app.patch('/', async (c) => {
     notify_price_drops != null ? (notify_price_drops ? 1 : 0) : 1,
     handle ?? null,
     is_public != null ? (is_public ? 1 : 0) : 0,
+    epv,
     display_name ?? null,
     currency ?? null,
     notify_price_drops != null ? (notify_price_drops ? 1 : 0) : null,
     handle ?? null,
     is_public != null ? (is_public ? 1 : 0) : null,
+    expose_public_value != null ? (expose_public_value ? 1 : 0) : null,
   ).run();
   return c.json({ ok: true });
 });

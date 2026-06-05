@@ -224,4 +224,15 @@ app.post('/expire-valuations', async (c) => {
   return c.json({ ok: true, expired: result.meta.changes });
 });
 
+// GET /api/admin/import-status
+app.get('/import-status', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT id, status, started_at, completed_at, themes_loaded, sets_loaded, sets_skipped, figs_loaded, error 
+     FROM import_runs 
+     ORDER BY started_at DESC 
+     LIMIT 5`
+  ).all();
+  return c.json({ runs: results });
+});
+
 export { app as adminRoute };

@@ -4,16 +4,62 @@ import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// GET /api/google/auth — Start OAuth flow
-app.get('/auth', requireMember, async (c) => {
+// Helper to generate secure random token
+function generateSecureToken(): string {
+  const arr = new Uint8Array(16);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// POST /api/google/auth-init — Start OAuth flow by generating a short-lived code (auth required)
+app.post('/auth-init', requireMember, async (c) => {
   const userId = c.get('userId');
   if (!userId) return c.json({ error: 'Unauthorized' }, 401);
 
+  const code = generateSecureToken();
+  const expiresAt = Math.floor(Date.now() / 1000) + 300; // 5 minutes
+
+  await c.env.DB.prepare(`
+    INSERT INTO oauth_sessions (code, user_id, expires_at)
+    VALUES (?, ?, ?)
+  `).bind(code, userId, expiresAt).run();
+
+  return c.json({ code });
+});
+
+// GET /api/google/auth — Start OAuth flow using a verified short-lived code
+app.get('/auth', async (c) => {
+  const code = c.req.query('code');
+  if (!code) return c.json({ error: 'Code is required' }, 400);
+
+  const session = await c.env.DB.prepare(`
+    SELECT user_id, expires_at FROM oauth_sessions WHERE code=?
+  `).bind(code).first<{ user_id: string; expires_at: number }>();
+
+  if (!session) {
+    return c.json({ error: 'Invalid or expired auth session' }, 400);
+  }
+
+  // Single-use delete
+  await c.env.DB.prepare('DELETE FROM oauth_sessions WHERE code=?').bind(code).run();
+
+  if (session.expires_at < Math.floor(Date.now() / 1000)) {
+    return c.json({ error: 'Auth session expired' }, 400);
+  }
+
+  const userId = session.user_id;
   const clientId = c.env.GOOGLE_CLIENT_ID || '1047116805178-dummy.apps.googleusercontent.com';
-  
-  // Ensure redirect URL matches origin
   const redirectUri = `${new URL(c.req.url).origin}/api/google/oauth`;
-  
+
+  // Generate a secure state nonce
+  const state = generateSecureToken();
+  const stateExpiresAt = Math.floor(Date.now() / 1000) + 600; // 10 minutes
+
+  await c.env.DB.prepare(`
+    INSERT INTO oauth_states (state, user_id, expires_at)
+    VALUES (?, ?, ?)
+  `).bind(state, userId, stateExpiresAt).run();
+
   const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
@@ -21,21 +67,39 @@ app.get('/auth', requireMember, async (c) => {
     scope: 'https://www.googleapis.com/auth/spreadsheets',
     access_type: 'offline',
     prompt: 'consent',
-    state: userId, // State parameter stores userId for callback
+    state: state,
   });
 
   return c.redirect(oauthUrl);
 });
 
-// GET /api/google/oauth — OAuth callback handler (Public, called by Google)
+// GET /api/google/oauth — OAuth callback handler (Public, verified using state nonce)
 app.get('/oauth', async (c) => {
   const code = c.req.query('code');
-  const userId = c.req.query('state'); // State contains userId passed from /auth
+  const state = c.req.query('state');
 
-  if (!code || !userId) {
+  if (!code || !state) {
     return c.redirect(`${new URL(c.req.url).origin}/#/me?google_sync=error`);
   }
 
+  const stateRecord = await c.env.DB.prepare(`
+    SELECT user_id, expires_at FROM oauth_states WHERE state=?
+  `).bind(state).first<{ user_id: string; expires_at: number }>();
+
+  if (!stateRecord) {
+    console.error('[google-oauth] State nonce not found or reused:', state);
+    return c.redirect(`${new URL(c.req.url).origin}/#/me?google_sync=error`);
+  }
+
+  // Single-use delete
+  await c.env.DB.prepare('DELETE FROM oauth_states WHERE state=?').bind(state).run();
+
+  if (stateRecord.expires_at < Math.floor(Date.now() / 1000)) {
+    console.error('[google-oauth] State nonce expired');
+    return c.redirect(`${new URL(c.req.url).origin}/#/me?google_sync=error`);
+  }
+
+  const userId = stateRecord.user_id;
   const clientId = c.env.GOOGLE_CLIENT_ID || '1047116805178-dummy.apps.googleusercontent.com';
   const clientSecret = c.env.GOOGLE_CLIENT_SECRET || 'dummy-client-secret';
   const redirectUri = `${new URL(c.req.url).origin}/api/google/oauth`;
@@ -62,14 +126,12 @@ app.get('/oauth', async (c) => {
     const tokens = await tokenResp.json() as { refresh_token?: string; access_token?: string };
     
     if (tokens.refresh_token) {
-      // Store the refresh token in database
       await c.env.DB.prepare(`
         INSERT INTO user_prefs (user_id, google_refresh_token)
         VALUES (?, ?)
         ON CONFLICT (user_id) DO UPDATE SET google_refresh_token = EXCLUDED.google_refresh_token
       `).bind(userId, tokens.refresh_token).run();
     } else {
-      // User might have already authorized, update just in case or inform them
       console.warn('[google-oauth] No refresh token returned. User may need to revoke consent first.');
     }
 

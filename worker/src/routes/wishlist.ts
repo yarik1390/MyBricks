@@ -34,6 +34,13 @@ app.post('/', async (c) => {
   const { set_num, target_price, notes } = body;
   if (!set_num) return c.json({ error: 'set_num required' }, 400);
 
+  if (target_price !== undefined && target_price !== null && (typeof target_price !== 'number' || target_price < 0)) {
+    return c.json({ error: 'Target price must be a number >= 0' }, 400);
+  }
+
+  const existing = await c.env.DB.prepare('SELECT 1 FROM lego_sets WHERE set_num=?').bind(set_num).first();
+  if (!existing) return c.json({ error: 'Set not found in catalog' }, 404);
+
   await c.env.DB.prepare(`
     INSERT INTO user_wishlist (user_id, set_num, target_price, notes)
     VALUES (?, ?, ?, ?)

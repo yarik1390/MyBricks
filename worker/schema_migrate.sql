@@ -65,4 +65,20 @@ INSERT INTO lego_sets_fts(rowid, set_num, name, theme)
 SELECT rowid, set_num, name, theme FROM lego_sets
 WHERE NOT EXISTS (SELECT 1 FROM lego_sets_fts LIMIT 1);
 
+CREATE TABLE IF NOT EXISTS oauth_sessions (
+  code TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS oauth_states (
+  state TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+
+-- Expose public value privacy preference
+ALTER TABLE user_prefs ADD COLUMN expose_public_value INTEGER DEFAULT 1;
+
+
 

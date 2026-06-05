@@ -8,12 +8,13 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 app.get('/:handle/profile', async (c) => {
   const handle = c.req.param('handle');
   const prefs = await c.env.DB.prepare(
-    `SELECT user_id, display_name, is_public FROM user_prefs WHERE handle=?`
-  ).bind(handle).first<{ user_id: string; display_name: string; is_public: number }>();
+    `SELECT user_id, display_name, is_public, expose_public_value FROM user_prefs WHERE handle=?`
+  ).bind(handle).first<{ user_id: string; display_name: string; is_public: number; expose_public_value: number }>();
 
   if (!prefs || !prefs.is_public) return c.json({ error: 'Profile not found' }, 404);
 
   const userId = prefs.user_id;
+  const exposeValue = prefs.expose_public_value !== 0;
 
   const [stats, topThemes, showcase] = await Promise.all([
     c.env.DB.prepare(`
@@ -39,17 +40,29 @@ app.get('/:handle/profile', async (c) => {
       FROM user_showcase us
       JOIN lego_sets ls ON ls.set_num = us.set_num
       WHERE us.user_id=?
+        AND EXISTS (
+          SELECT 1 FROM user_collection uc
+          WHERE uc.user_id = us.user_id
+            AND uc.set_num = us.set_num
+            AND uc.deleted_at IS NULL
+        )
       ORDER BY us.display_order ASC
       LIMIT 6
     `).bind(userId).all<Record<string, unknown>>(),
   ]);
 
+  const themes = (topThemes.results || []).map(t => ({
+    theme: t.theme,
+    value: exposeValue ? t.value : null
+  }));
+
   return c.json({
     handle,
     display_name: prefs.display_name || handle,
+    expose_public_value: exposeValue,
     set_count: stats?.set_count ?? 0,
-    total_value: stats?.total_value ?? 0,
-    top_themes: topThemes.results,
+    total_value: exposeValue ? (stats?.total_value ?? 0) : null,
+    top_themes: themes,
     showcase: showcase.results.map(s => ({ ...s, retired: !!s.retired })),
   });
 });

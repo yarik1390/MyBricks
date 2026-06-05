@@ -25,6 +25,36 @@ app.use('*', requireMember);
 // GET /api/collection — list user's collection
 app.get('/', async (c) => {
   const userId = c.get('userId');
+
+  const [collStats, figStats] = await Promise.all([
+    c.env.DB.prepare(`
+      SELECT COUNT(*) as count,
+             MAX(COALESCE(deleted_at, last_modified)) as max_time
+      FROM user_collection
+      WHERE user_id = ?
+    `).bind(userId).first<{ count: number; max_time: string | null }>(),
+    c.env.DB.prepare(`
+      SELECT COUNT(*) as count,
+             MAX(added_at) as max_time
+      FROM user_minifigs
+      WHERE user_id = ?
+    `).bind(userId).first<{ count: number; max_time: string | null }>()
+  ]);
+
+  const collCountEtag = collStats?.count ?? 0;
+  const collMaxTimeEtag = collStats?.max_time || '';
+  const figCountEtag = figStats?.count ?? 0;
+  const figMaxTimeEtag = figStats?.max_time || '';
+
+  const etag = `W/"${collCountEtag}-${collMaxTimeEtag}-${figCountEtag}-${figMaxTimeEtag}"`;
+
+  c.header('ETag', etag);
+  c.header('Cache-Control', 'no-cache');
+
+  if (c.req.header('if-none-match') === etag) {
+    return c.body(null, 304);
+  }
+
   const { results } = await c.env.DB.prepare(`
     SELECT
       uc.id, uc.set_num, uc.quantity, uc.condition, uc.purchase_price,
@@ -158,6 +188,18 @@ app.post('/', async (c) => {
   if (!set_num) return c.json({ error: 'set_num required' }, 400);
   const validConditions = ['new', 'used_good', 'used_acceptable', 'sealed'];
   if (!validConditions.includes(condition)) return c.json({ error: 'Invalid condition' }, 400);
+
+  if (typeof quantity !== 'number' || !Number.isInteger(quantity) || quantity < 1) {
+    return c.json({ error: 'Quantity must be an integer >= 1' }, 400);
+  }
+  if (purchase_price !== undefined && purchase_price !== null && (typeof purchase_price !== 'number' || purchase_price < 0)) {
+    return c.json({ error: 'Purchase price must be a number >= 0' }, 400);
+  }
+  if (purchased_at) {
+    if (typeof purchased_at !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(purchased_at) || isNaN(Date.parse(purchased_at))) {
+      return c.json({ error: 'Purchased at must be a valid YYYY-MM-DD date string' }, 400);
+    }
+  }
 
   const existing = await c.env.DB.prepare('SELECT 1 FROM lego_sets WHERE set_num=?').bind(set_num).first();
   if (!existing) return c.json({ error: 'Set not found in catalog' }, 404);
@@ -380,6 +422,39 @@ app.patch('/:id', async (c) => {
   if (!check) return c.json({ error: 'Not found' }, 404);
 
   const body = await c.req.json<Record<string, unknown>>();
+
+  if ('quantity' in body) {
+    const q = body.quantity;
+    if (typeof q !== 'number' || !Number.isInteger(q) || q < 1) {
+      return c.json({ error: 'Quantity must be an integer >= 1' }, 400);
+    }
+  }
+  if ('condition' in body) {
+    const cond = body.condition;
+    const validConditions = ['new', 'used_good', 'used_acceptable', 'sealed'];
+    if (typeof cond !== 'string' || !validConditions.includes(cond)) {
+      return c.json({ error: 'Invalid condition' }, 400);
+    }
+  }
+  if ('purchase_price' in body) {
+    const p = body.purchase_price;
+    if (p !== null && (typeof p !== 'number' || p < 0)) {
+      return c.json({ error: 'Purchase price must be a number >= 0' }, 400);
+    }
+  }
+  if ('purchased_at' in body && body.purchased_at) {
+    const pa = body.purchased_at;
+    if (typeof pa !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(pa) || isNaN(Date.parse(pa))) {
+      return c.json({ error: 'Purchased at must be a valid YYYY-MM-DD date string' }, 400);
+    }
+  }
+  if ('missing_pieces' in body) {
+    const mp = body.missing_pieces;
+    if (typeof mp !== 'number' || !Number.isInteger(mp) || mp < 0) {
+      return c.json({ error: 'Missing pieces must be an integer >= 0' }, 400);
+    }
+  }
+
   const ALLOWED = ['quantity','condition','purchase_price','purchased_at','notes',
                    'storage_location','acquisition_source','is_complete','missing_pieces'];
   const fields: string[] = [];

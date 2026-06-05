@@ -2,6 +2,7 @@
   "name": "brickvault-worker",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
@@ -15,8 +16,10 @@
     "openai": "^4.96.2"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.16.13",
     "@cloudflare/workers-types": "^4.20250525.0",
     "typescript": "^5.8.3",
+    "vitest": "^4.1.8",
     "wrangler": "^4.14.4"
   }
 }

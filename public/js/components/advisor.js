@@ -1,0 +1,471 @@
+import { $, $$, haptic, escapeHtml, fmtMoney, parseMarkdown, daysAgo, fmtPct, fmtShortDate } from '../utils.js';
+import { state } from '../state.js';
+import { api } from '../api.js';
+import { I } from '../icons.js';
+
+const ADVISOR_PROMPTS = [
+  "Which sets should I sell this month?",
+  "Best buy with $200 budget?",
+  "Which of my sets might retire soon?",
+  "How is my Star Wars collection doing?",
+];
+
+export async function toggleAdvisor() {
+  const drawer = document.getElementById("advisorDrawer");
+  if (!drawer) return;
+  const isOpen = drawer.classList.contains("open");
+  if (isOpen) {
+    haptic("light");
+    drawer.classList.remove("open");
+  } else {
+    haptic("medium");
+    drawer.classList.add("open");
+    await renderAdvisorDrawer();
+  }
+}
+
+export async function renderAdvisorDrawer() {
+  const savedGeminiKey = localStorage.getItem('bv_gemini_key') || '';
+  
+  if (!state.portfolio) {
+    try {
+      const [port, hist, wl] = await Promise.all([
+        api("/api/collection"),
+        api("/api/collection/history?days=365"),
+        api("/api/wishlist"),
+      ]);
+      state.portfolio = port;
+      state.portfolioHistory = hist.snapshots || [];
+      state.wishlist = wl.wishlist || [];
+      state.wishlistAlerts = wl.unread_alerts || [];
+    } catch (e) {
+      state.portfolio = { items: [], total_value: 0, total_paid: 0, count: 0 };
+    }
+  }
+
+  let chatHistory = [];
+  try { chatHistory = JSON.parse(localStorage.getItem('bv_chat') || '[]'); } catch {}
+
+  const drawer = document.getElementById("advisorDrawer");
+  if (!drawer) return;
+
+  drawer.innerHTML = `
+    <div style="height:100%; display:flex; flex-direction:column; background:var(--surface);">
+      <div class="topbar" style="padding:12px 16px; border-bottom:1.5px solid var(--line-soft); flex-shrink:0;" id="chatWrap">
+        <div class="topbar-heading">
+          <div class="topbar-eyebrow">AI & Local Insights</div>
+          <div class="topbar-title" style="font-size:18px;">Advisor</div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          ${chatHistory.length > 0 ? `<button class="icon-btn" id="clearChat" aria-label="Clear history">${I.trash()}</button>` : ""}
+          <button class="icon-btn" id="closeAdvisor" aria-label="Close Advisor">${I.close()}</button>
+        </div>
+      </div>
+
+      <!-- Tab bar -->
+      <div class="chat-tabs" style="display:flex; border-bottom:1.5px solid var(--line-soft); background:var(--surface); flex-shrink:0;">
+        <button class="chat-tab-btn active" data-tab="chat" style="flex:1; padding:12px; background:transparent; border:none; border-bottom:2.5px solid var(--ink); font-weight:700; color:var(--ink); cursor:pointer; font-family:var(--sans); font-size:13px; outline:none;">AI Advisor</button>
+        <button class="chat-tab-btn" data-tab="analyst" style="flex:1; padding:12px; background:transparent; border:none; border-bottom:2.5px solid transparent; font-weight:500; color:var(--ink-mute); cursor:pointer; font-family:var(--sans); font-size:13px; outline:none;">Local Analyst</button>
+      </div>
+
+      <!-- AI Chat Tab Area -->
+      <div class="chat-history" id="chatHistory" style="display:flex; flex-direction:column; flex:1; overflow-y:auto; padding:12px 16px; gap:12px;">
+        ${chatHistory.length === 0 ? `
+          <div class="chat-suggestions" id="chatSuggestions" style="padding:0;">
+            ${!savedGeminiKey ? `
+              <div class="chat-gemini-card" style="margin-bottom:12px;">
+                <div style="font-weight:600; font-size:13px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+                  ${I.flash({w:16})}<span>Get Free Gemini Key</span>
+                </div>
+                <div style="font-size:11px; color:var(--ink-mute); line-height:1.45;">
+                  Unlock AI advice! Get a key in 30 seconds at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--bv-red); font-weight:600; text-decoration:underline;">Google AI Studio</a> and save it in the <strong>Me</strong> tab.
+                </div>
+              </div>` : ""}
+            <div style="font-size:12px; color:var(--ink-mute); text-align:center; margin-bottom:8px;">Ask about your collection…</div>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              ${ADVISOR_PROMPTS.map(p => `<button class="chat-suggestion-chip" style="font-size:12px; text-align:left; padding:8px 12px; width:100%;">${escapeHtml(p)}</button>`).join("")}
+            </div>
+          </div>` :
+          chatHistory.map(m => `<div class="chat-msg ${m.role === "user" ? "user" : "ai"}">${m.role === "ai" ? parseMarkdown(m.content) : escapeHtml(m.content)}</div>`).join("")
+        }
+      </div>
+
+      <!-- Local Analyst Tab Area -->
+      <div id="analystArea" style="display:none; flex:1; overflow-y:auto; padding:12px 16px;">
+        ${localAnalystHTML()}
+      </div>
+
+      <!-- Chat input row -->
+      <div class="chat-input-row" id="chatInputRow" style="padding:10px 16px; border-top:1.5px solid var(--line-soft); background:var(--surface); flex-shrink:0;">
+        <textarea class="chat-input" id="chatInput" placeholder="Ask anything about your collection…" rows="1" style="max-height:80px;"></textarea>
+        <button class="chat-send-btn" id="chatSend" aria-label="Send">${I.arrowU()}</button>
+      </div>
+    </div>`;
+
+  $("#closeAdvisor")?.addEventListener("click", () => {
+    haptic("light");
+    drawer.classList.remove("open");
+  });
+
+  $$(".chat-suggestion-chip").forEach(chip => {
+    chip.addEventListener("click", () => sendAdvisorMessage(chip.textContent.trim()));
+  });
+  $("#clearChat")?.addEventListener("click", () => clearAdvisorHistory());
+
+  // Wire Tab Transitions
+  $$(".chat-tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      haptic("light");
+      $$(".chat-tab-btn").forEach(b => {
+        b.classList.toggle("active", b === btn);
+        b.style.borderBottomColor = b === btn ? "var(--ink)" : "transparent";
+        b.style.color = b === btn ? "var(--ink)" : "var(--ink-mute)";
+        b.style.fontWeight = b === btn ? "700" : "500";
+      });
+
+      const tab = btn.dataset.tab;
+      if (tab === "chat") {
+        $("#chatHistory").style.display = "flex";
+        $("#chatInputRow").style.display = "flex";
+        $("#analystArea").style.display = "none";
+        const hist = document.getElementById("chatHistory");
+        if (hist) hist.scrollTop = hist.scrollHeight;
+      } else if (tab === "analyst") {
+        $("#chatHistory").style.display = "none";
+        $("#chatInputRow").style.display = "none";
+        $("#analystArea").style.display = "block";
+        $("#analystArea").innerHTML = localAnalystHTML();
+      }
+    });
+  });
+
+  const input = document.getElementById("chatInput");
+  const sendBtn = document.getElementById("chatSend");
+
+  input?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      const q = input.value.trim();
+      if (q) { input.value = ""; input.style.height = "auto"; sendAdvisorMessage(q); }
+    }
+  });
+  input?.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 80) + "px";
+  });
+  sendBtn?.addEventListener("click", () => {
+    const q = input?.value.trim();
+    if (q) { input.value = ""; input.style.height = "auto"; sendAdvisorMessage(q); }
+  });
+
+  const hist = document.getElementById("chatHistory");
+  if (hist) hist.scrollTop = hist.scrollHeight;
+}
+
+function localAnalystHTML() {
+  const p = state.portfolio;
+  const items = p?.items || [];
+  if (!items.length) {
+    return `<div style="text-align:center;color:var(--ink-mute);padding:40px 20px;font-size:14px;">
+      <div style="font-size:24px;margin-bottom:8px;">📊</div>
+      Add items to your vault to generate a local portfolio analysis report.
+    </div>`;
+  }
+
+  let score = 70; 
+  
+  const themeCounts = {};
+  const themeValues = {};
+  let maxThemeCount = 0;
+  let totalValue = 0;
+  let totalSets = 0;
+  let completeCount = 0;
+  let totalPaid = 0;
+  let retiredValue = 0;
+  let retiredCount = 0;
+
+  items.forEach(i => {
+    const t = i.theme || 'Other';
+    const qty = i.quantity || 1;
+    themeCounts[t] = (themeCounts[t] || 0) + qty;
+    themeValues[t] = (themeValues[t] || 0) + (Number(i.current_value) || 0) * qty;
+    totalValue += (Number(i.current_value) || 0) * qty;
+    totalSets += qty;
+    totalPaid += (Number(i.purchase_price) || 0) * qty;
+    if (i.is_complete !== 0) completeCount += qty;
+    if (i.retired === 1 || i.retired === true) {
+      retiredValue += (Number(i.current_value) || 0) * qty;
+      retiredCount += qty;
+    }
+    if (themeCounts[t] > maxThemeCount) maxThemeCount = themeCounts[t];
+  });
+
+  const uniqueThemes = Object.keys(themeCounts).length;
+  if (uniqueThemes >= 5) score += 10;
+  else if (uniqueThemes === 1) score -= 15;
+  
+  const primaryThemeRatio = maxThemeCount / totalSets;
+  if (primaryThemeRatio > 0.6) score -= 15;
+  else if (primaryThemeRatio < 0.3) score += 5;
+
+  const completeRatio = completeCount / totalSets;
+  score += Math.round((completeRatio - 0.8) * 50);
+
+  let overallRoi = 0;
+  if (totalPaid > 0) {
+    overallRoi = (totalValue - totalPaid) / totalPaid;
+    if (overallRoi > 0.5) score += 15;
+    else if (overallRoi > 0.2) score += 8;
+    else if (overallRoi < 0) score -= 20;
+  }
+
+  const healthScore = Math.max(10, Math.min(100, Math.round(score)));
+  const healthColor = healthScore >= 80 ? 'var(--up)' : healthScore >= 50 ? 'var(--bv-yellow)' : 'var(--bv-red)';
+  let healthStatusText = "Your collection is well-diversified and in excellent condition.";
+  if (healthScore < 50) healthStatusText = "High theme concentration or missing parts detected. Consider diversifying.";
+  else if (healthScore < 70) healthStatusText = "Decent health, but room to improve on theme diversification or set completeness.";
+
+  const themeSummaries = Object.keys(themeCounts).map(theme => {
+    const val = themeValues[theme];
+    const pctVal = totalValue > 0 ? (val / totalValue) * 100 : 0;
+    const count = themeCounts[theme];
+    const pctCount = totalSets > 0 ? (count / totalSets) * 100 : 0;
+    return { theme, val, pctVal, count, pctCount };
+  }).sort((a, b) => b.val - a.val);
+
+  let diversificationWarning = '';
+  const primaryTheme = themeSummaries[0];
+  if (primaryTheme && primaryTheme.pctVal > 50) {
+    diversificationWarning = `
+      <div style="background:rgba(229, 57, 53, 0.08);border-left:4px solid var(--bv-red);padding:10px 14px;font-size:12px;color:var(--ink);border-radius:0 var(--r-2) var(--r-2) 0;margin-bottom:14px;line-height:1.45;">
+        <strong>⚠️ Theme Concentration Warning</strong><br>
+        Your largest theme (<em>${escapeHtml(primaryTheme.theme)}</em>) accounts for <strong>${primaryTheme.pctVal.toFixed(1)}%</strong> of your total portfolio value. Consider spreading acquisitions across other high-performing themes to reduce risk.
+      </div>
+    `;
+  }
+
+  const retirementAlerts = [];
+  items.forEach(i => {
+    const score = Number(i.retirement_risk_score) || 0;
+    const isRetired = i.retired === 1 || i.retired === true;
+    if (score > 70 && !isRetired) {
+      retirementAlerts.push({ set_num: i.set_num, name: i.name, score });
+    }
+  });
+  retirementAlerts.sort((a, b) => b.score - a.score);
+
+  const retiredPct = totalValue > 0 ? (retiredValue / totalValue) * 100 : 0;
+
+  const performanceItems = items.map(i => {
+    const current = Number(i.current_value) || 0;
+    const paid = Number(i.purchase_price) || 0;
+    const gain = current - paid;
+    const roi = paid > 0 ? (gain / paid) * 100 : 0;
+    return { set_num: i.set_num, name: i.name, current, paid, gain, roi };
+  }).filter(x => x.paid > 0);
+
+  const topRoi = performanceItems.slice().sort((a, b) => b.roi - a.roi).slice(0, 3);
+  const topGain = performanceItems.slice().sort((a, b) => b.gain - a.gain).slice(0, 3);
+
+  return `
+    <div style="margin-bottom:14px;display:flex;align-items:center;gap:20px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:16px;">
+      <div style="position:relative;width:80px;height:80px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="80" height="80" viewBox="0 0 36 36" style="transform: rotate(-90deg);">
+          <circle cx="18" cy="18" r="16" fill="none" stroke="var(--line-soft)" stroke-width="3"></circle>
+          <circle cx="18" cy="18" r="16" fill="none" stroke="${healthColor}" stroke-width="3" stroke-dasharray="${healthScore}, 100" stroke-linecap="round"></circle>
+        </svg>
+        <div style="position:absolute;font-family:var(--mono);font-size:22px;font-weight:700;color:var(--ink);">${healthScore}</div>
+      </div>
+      <div>
+        <div style="font-weight:700;font-size:15px;color:var(--ink);">Portfolio Health Score</div>
+        <div style="font-size:12px;color:var(--ink-mute);margin-top:4px;line-height:1.4;">${healthStatusText}</div>
+      </div>
+    </div>
+
+    ${diversificationWarning}
+
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Theme Diversification</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        ${themeSummaries.slice(0, 4).map(t => {
+          const maxVal = themeSummaries[0]?.val || 1;
+          const barPct = (t.val / maxVal * 100).toFixed(1);
+          return `
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+                <span style="font-weight:600;color:var(--ink);">${escapeHtml(t.theme)}</span>
+                <span style="color:var(--ink-mute);">${fmtMoney(t.val, { cents: 0 })} (${t.pctVal.toFixed(1)}%)</span>
+              </div>
+              <div class="theme-bar-track" style="height:6px;background:var(--surface-3);border-radius:3px;overflow:hidden;">
+                <div class="theme-bar-fill" style="width:${barPct}%;height:100%;background:var(--bv-yellow);border-radius:3px;"></div>
+              </div>
+            </div>`;
+        }).join('')}
+        ${themeSummaries.length > 4 ? `
+          <div style="font-size:11px;color:var(--ink-mute);text-align:right;">
+            + ${themeSummaries.length - 4} other themes in your collection
+          </div>` : ''}
+      </div>
+    </div>
+
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Retirement Risk & Analytics</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;margin-bottom:10px;border-bottom:1px solid var(--line-soft);padding-bottom:10px;">
+        <div>
+          <span style="color:var(--ink-mute);">Retired Value:</span><br>
+          <strong style="color:var(--ink);">${fmtMoney(retiredValue, { cents: 0 })} (${retiredPct.toFixed(1)}%)</strong>
+        </div>
+        <div>
+          <span style="color:var(--ink-mute);">Retired Sets:</span><br>
+          <strong style="color:var(--ink);">${retiredCount} of ${totalSets} sets</strong>
+        </div>
+      </div>
+      
+      ${retirementAlerts.length > 0 ? `
+        <div style="font-size:12px;color:var(--ink);margin-top:6px;">
+          <div style="font-weight:600;color:var(--bv-red);margin-bottom:4px;">⚠️ Active sets approaching retirement:</div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            ${retirementAlerts.slice(0, 3).map(a => `
+              <div style="display:flex;justify-content:space-between;color:var(--ink);background:var(--surface-3);padding:4px 8px;border-radius:4px;">
+                <span style="text-overflow:ellipsis;overflow:hidden;white-space:nowrap;max-width:200px;">${a.set_num} ${escapeHtml(a.name)}</span>
+                <span style="font-weight:700;color:var(--bv-red);flex-shrink:0;">${a.score}% risk</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : `
+        <div style="font-size:11px;color:var(--ink-mute);text-align:center;">
+          No active sets are currently approaching high retirement risk.
+        </div>
+      `}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr;gap:14px;margin-bottom:14px;">
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Top ROI Leaders</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${topRoi.length > 0 ? topRoi.map((item, idx) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;">
+              <span style="color:var(--ink);text-overflow:ellipsis;overflow:hidden;white-space:nowrap;max-width:200px;">
+                ${idx + 1}. <strong style="font-family:var(--mono);">${item.set_num}</strong> ${escapeHtml(item.name)}
+              </span>
+              <strong style="color:var(--up);flex-shrink:0;margin-left:8px;">+${item.roi.toFixed(1)}%</strong>
+            </div>
+          `).join('') : '<div style="font-size:11px;color:var(--ink-mute);text-align:center;">No data available</div>'}
+        </div>
+      </div>
+
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Top Dollar Gainers</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${topGain.length > 0 ? topGain.map((item, idx) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;">
+              <span style="color:var(--ink);text-overflow:ellipsis;overflow:hidden;white-space:nowrap;max-width:200px;">
+                ${idx + 1}. <strong style="font-family:var(--mono);">${item.set_num}</strong> ${escapeHtml(item.name)}
+              </span>
+              <strong style="color:var(--up);flex-shrink:0;margin-left:8px;">+${fmtMoney(item.gain, { cents: 0 })}</strong>
+            </div>
+          `).join('') : '<div style="font-size:11px;color:var(--ink-mute);text-align:center;">No data available</div>'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function sendAdvisorMessage(q) {
+  document.getElementById("chatSuggestions")?.remove();
+
+  const hist = document.getElementById("chatHistory");
+  if (!hist) return;
+
+  appendChatBubble("user", q);
+  saveChatMessage("user", q);
+
+  const aiBubble = appendChatBubble("ai", "", true);
+
+  try {
+    const geminiKey = localStorage.getItem('bv_gemini_key');
+    const extraHeaders = geminiKey ? { 'X-Gemini-Key': geminiKey } : {};
+    const resp = await api("/api/advisor", {
+      method: "POST",
+      body: { q },
+      headers: extraHeaders,
+      stream: true,
+    });
+
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    let fullText = "";
+
+    aiBubble.querySelector(".chat-typing")?.remove();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const parsed = JSON.parse(line.slice(6));
+          if (parsed.text) {
+            fullText += parsed.text;
+            aiBubble.innerHTML = parseMarkdown(fullText);
+            hist.scrollTop = hist.scrollHeight;
+          }
+          if (parsed.done) break;
+        } catch {}
+      }
+    }
+    if (fullText) saveChatMessage("ai", fullText);
+  } catch (err) {
+    aiBubble.querySelector(".chat-typing")?.remove();
+    aiBubble.textContent = "Sorry, couldn't reach the advisor. " + (err.message || "");
+    aiBubble.classList.add("error");
+  }
+
+  hist.scrollTop = hist.scrollHeight;
+
+  if (!document.getElementById("clearChat")) {
+    const topbar = document.querySelector("#chatWrap");
+    if (topbar) {
+      const btn = document.createElement("button");
+      btn.className = "icon-btn"; btn.id = "clearChat";
+      btn.setAttribute("aria-label", "Clear history");
+      btn.innerHTML = I.trash();
+      btn.addEventListener("click", () => clearAdvisorHistory());
+      // Insert clear button before close button
+      topbar.querySelector(".topbar-heading")?.nextElementSibling?.prepend(btn);
+    }
+  }
+}
+
+function appendChatBubble(role, content, streaming = false) {
+  const hist = document.getElementById("chatHistory");
+  if (!hist) return null;
+  const el = document.createElement("div");
+  el.className = `chat-msg ${role === "user" ? "user" : "ai"}`;
+  if (streaming) {
+    el.innerHTML = `<span class="chat-typing"><span></span><span></span><span></span></span>`;
+  } else {
+    el.innerHTML = role === "ai" ? parseMarkdown(content) : escapeHtml(content);
+  }
+  hist.appendChild(el);
+  hist.scrollTop = hist.scrollHeight;
+  return el;
+}
+
+function saveChatMessage(role, content) {
+  try {
+    const msgs = JSON.parse(localStorage.getItem('bv_chat') || '[]');
+    msgs.push({ role, content });
+    localStorage.setItem('bv_chat', JSON.stringify(msgs.slice(-20)));
+  } catch {}
+}
+
+function clearAdvisorHistory() {
+  localStorage.removeItem('bv_chat');
+  renderAdvisorDrawer();
+}

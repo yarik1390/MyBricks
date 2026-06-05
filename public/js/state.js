@@ -1,0 +1,40 @@
+import { bvIDB } from './utils.js';
+
+export const state = {
+  config: null,
+  portfolio: null,
+  catalog: { items: [], total: 0, offset: 0, hasMore: false, loading: false, pageSize: 24 },
+  blind: { items: [], total: 0, offset: 0, hasMore: false, loading: false, ownedCount: 0, pageSize: 30 },
+  themes: [], themesLoadedAt: 0,
+  me: null,
+  compactView: localStorage.getItem("bv_compact_view") === "true",
+  portfolioTab: "items",
+  selectionMode: false,
+  selectedSets: new Set(),
+  filter: {
+    kind: "all", theme: null, range: "1M", q: "",
+    sort: localStorage.getItem("bv_sort") || "added_desc",
+    catalogQ: "",
+    catalogSort: "value_desc", catalogYear: "all",
+    catalogRetired: false, catalogTheme: "all",
+    catalogRanges: { min_year: "", max_year: "", min_pieces: "", max_pieces: "", min_value: "", max_value: "" },
+    wishlistSort: "recent",
+    figQ: "", figRarity: "all", figOwned: "all", figSort: "rarity_desc",
+  },
+  detail: { tab: "info", cache: {} },
+  pwa: { deferredPrompt: null },
+  wishlist: [], wishlistAlerts: [],
+  portfolioHistory: null,
+  ownedFigs: new Set(JSON.parse(localStorage.getItem("bv_figs") || "[]")),
+  toastTimer: null,
+  camera: { stream: null, mode: "barcode", detector: null, scanning: false, timer: null },
+  pendingRequests: new Set(),
+};
+
+/** Clear the in-memory portfolio AND the IDB cache so the next
+ *  renderPortfolio() always fetches fresh from the API. */
+export function invalidatePortfolio() {
+  state.portfolio = null;
+  state.me = null;
+  bvIDB.del('portfolio').catch(() => {});
+}

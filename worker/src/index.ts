@@ -25,9 +25,20 @@ import type { Env, Variables } from './types';
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 app.use('*', cors({
-  origin: '*',
+  origin: (origin) => {
+    if (!origin) return 'https://brickvault-5ub.pages.dev';
+    if (
+      origin.startsWith('http://localhost:') ||
+      origin.startsWith('http://127.0.0.1:') ||
+      origin.endsWith('.pages.dev') ||
+      origin === 'https://brickvault-5ub.pages.dev'
+    ) {
+      return origin;
+    }
+    return 'https://brickvault-5ub.pages.dev';
+  },
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Gemini-Key'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Gemini-Key', 'X-OpenAI-Key'],
 }));
 
 app.use('*', async (c, next) => {
@@ -38,10 +49,21 @@ app.use('*', async (c, next) => {
 });
 
 // Public config for the frontend (Supabase URL + anon key are client-safe)
-app.get('/api/config', (c) => c.json({
-  supabase_url: c.env.SUPABASE_URL,
-  supabase_anon_key: c.env.SUPABASE_ANON_KEY,
-}));
+app.get('/api/config', (c) => {
+  const status = {
+    supabase: !!(c.env.SUPABASE_URL && c.env.SUPABASE_ANON_KEY && c.env.SUPABASE_JWT_SECRET),
+    d1: !!c.env.DB,
+    openai: !!c.env.OPENAI_API_KEY,
+    google: !!(c.env.GOOGLE_CLIENT_ID && c.env.GOOGLE_CLIENT_SECRET),
+    ebay: !!(c.env.EBAY_APP_ID && c.env.EBAY_CLIENT_SECRET),
+    brickeconomy: !!c.env.BRICKECONOMY_API_KEY,
+  };
+  return c.json({
+    supabase_url: c.env.SUPABASE_URL,
+    supabase_anon_key: c.env.SUPABASE_ANON_KEY,
+    status,
+  });
+});
 
 app.route('/api/me', meRoute);
 app.route('/api/collection', collectionRoute);
