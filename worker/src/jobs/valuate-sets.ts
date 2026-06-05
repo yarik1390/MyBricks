@@ -4,8 +4,20 @@ import { fetchSetPricing, fetchUsedPricing, fetchMinifigPricing } from '../lib/b
 import { fetchEbayPrice } from '../lib/ebay';
 import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
 import { computeRetirementRisk } from '../lib/retirement-risk';
+import { recordIntegrationHealth, type IntegrationName } from '../lib/integration-health';
 
 export async function runValuateSets(env: Env) {
+  // Aggregate external-API health across the whole run, then persist once per service.
+  const health: Record<string, { ok: number; fail: number; lastError?: string }> = {
+    ebay: { ok: 0, fail: 0 },
+    bricklink: { ok: 0, fail: 0 },
+    brickeconomy: { ok: 0, fail: 0 },
+  };
+  const tallyOk = (s: IntegrationName) => { health[s].ok++; };
+  const tallyFail = (s: IntegrationName, e: unknown) => {
+    health[s].fail++;
+    health[s].lastError = (e as Error)?.message || String(e);
+  };
   // Prioritize sets that users own or wishlist, oldest valuation first
   const { results } = await env.DB.prepare(`
     SELECT DISTINCT ls.set_num, ls.name, ls.theme, ls.year, ls.pieces, ls.minifigs, ls.retired
@@ -31,21 +43,25 @@ export async function runValuateSets(env: Env) {
     let beDetails: any = null;
 
     if (env.BRICKECONOMY_API_KEY) {
-      beDetails = await fetchBrickEconomyDetails(set.set_num, env).catch(() => null);
+      beDetails = await fetchBrickEconomyDetails(set.set_num, env).catch((e) => { tallyFail('brickeconomy', e); return null; });
+      if (beDetails) tallyOk('brickeconomy');
       if (beDetails && beDetails.current_value_new !== null) {
         pricing = { current_value: beDetails.current_value_new };
         usedPricing = { used_value: beDetails.current_value_used };
         valMethod = 'brickeconomy';
-        ebayPrice = await fetchEbayPrice(set.set_num, set.name, env).catch(() => null);
+        ebayPrice = await fetchEbayPrice(set.set_num, set.name, env).catch((e) => { tallyFail('ebay', e); return null; });
+        if (ebayPrice != null) tallyOk('ebay');
       }
     }
 
     if (!pricing) {
       const [p, u, e] = await Promise.all([
-        fetchSetPricing(set.set_num, env).catch(() => null),
-        fetchUsedPricing(set.set_num, env).catch(() => null),
-        fetchEbayPrice(set.set_num, set.name, env).catch(() => null),
+        fetchSetPricing(set.set_num, env).catch((err) => { tallyFail('bricklink', err); return null; }),
+        fetchUsedPricing(set.set_num, env).catch((err) => { tallyFail('bricklink', err); return null; }),
+        fetchEbayPrice(set.set_num, set.name, env).catch((err) => { tallyFail('ebay', err); return null; }),
       ]);
+      if (p != null || u != null) tallyOk('bricklink');
+      if (e != null) tallyOk('ebay');
       pricing = p;
       usedPricing = u;
       ebayPrice = e;
@@ -156,6 +172,11 @@ export async function runValuateSets(env: Env) {
 
   await updateRetirementRiskBatch(env);
   await runValuateMinifigs(env).catch(err => console.error('[bg-valuate-minifigs] failed:', err));
+
+  // Persist aggregated external-API health (one row per service per run).
+  for (const [service, t] of Object.entries(health)) {
+    await recordIntegrationHealth(env, service as IntegrationName, t);
+  }
 
   return { processed: results.length, updated, market, ai };
 }

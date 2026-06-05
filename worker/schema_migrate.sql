@@ -80,5 +80,16 @@ CREATE TABLE IF NOT EXISTS oauth_states (
 -- Expose public value privacy preference
 ALTER TABLE user_prefs ADD COLUMN expose_public_value INTEGER DEFAULT 1;
 
+-- Integration health tracking (external API success/failure)
+CREATE TABLE IF NOT EXISTS integration_health (
+  service TEXT PRIMARY KEY,
+  last_ok_at TEXT,
+  last_fail_at TEXT,
+  last_error TEXT,
+  ok_count INTEGER NOT NULL DEFAULT 0,
+  fail_count INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT
+);
+
 
 

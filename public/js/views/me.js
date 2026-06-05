@@ -253,6 +253,12 @@ export async function renderMe() {
           Loading jobs status...
         </div>
       </div>
+      <div class="section-title">Integrations Health</div>
+      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+        <div id="integrationsHealthContainer" style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:var(--ink-soft);">
+          Loading integrations status...
+        </div>
+      </div>
       ` : ""}
 
       <div class="section-title">AI Scanning</div>
@@ -579,6 +585,7 @@ export async function renderMe() {
 
   if (me.is_admin) {
     updateJobsStatus();
+    updateIntegrationsHealth();
   }
 
   $("#signOutRow")?.addEventListener("click", async () => {
@@ -825,6 +832,57 @@ async function updateJobsStatus() {
     }
   } catch (err) {
     container.innerHTML = `<div style="color:var(--bv-red);">Failed to load jobs: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function updateIntegrationsHealth() {
+  const container = document.getElementById("integrationsHealthContainer");
+  if (!container) return;
+  const LABELS = {
+    ebay: "eBay", bricklink: "BrickLink", brickeconomy: "BrickEconomy",
+    brickset: "Brickset", brickowl: "BrickOwl", gemini: "Gemini",
+    openai: "OpenAI", rebrickable: "Rebrickable",
+  };
+  const ago = (ts) => {
+    if (!ts) return "never";
+    const then = new Date(ts.replace(" ", "T") + "Z").getTime();
+    const mins = Math.round((Date.now() - then) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.round(hrs / 24)}d ago`;
+  };
+  try {
+    const data = await api("/api/admin/integrations");
+    const rows = data.integrations || [];
+    if (rows.length === 0) {
+      container.innerHTML = `<div style="color:var(--ink-mute);">No integration calls recorded yet. Health populates after the hourly valuation job runs.</div>`;
+      return;
+    }
+    container.innerHTML = rows.map(r => {
+      // Healthy if the last outcome was a success (or never failed).
+      const okTime = r.last_ok_at ? new Date(r.last_ok_at.replace(" ", "T") + "Z").getTime() : 0;
+      const failTime = r.last_fail_at ? new Date(r.last_fail_at.replace(" ", "T") + "Z").getTime() : 0;
+      const healthy = okTime >= failTime;
+      const dot = healthy ? "var(--up)" : "var(--bv-red)";
+      const label = LABELS[r.service] || r.service;
+      return `
+        <div style="border-bottom:1px solid var(--line-soft);padding-bottom:8px;margin-bottom:4px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-weight:600;margin-bottom:2px;">
+            <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dot};margin-right:6px;"></span>${escapeHtml(label)}</span>
+            <span style="color:var(--ink-mute);font-size:11px;">✓ ${r.ok_count} · ✗ ${r.fail_count}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;color:var(--ink-mute);font-size:11px;">
+            <span>OK: ${ago(r.last_ok_at)}</span>
+            <span>Fail: ${ago(r.last_fail_at)}</span>
+          </div>
+          ${!healthy && r.last_error ? `<div style="color:var(--bv-red);font-size:11px;margin-top:2px;">${escapeHtml(r.last_error)}</div>` : ""}
+        </div>
+      `;
+    }).join("");
+  } catch (err) {
+    container.innerHTML = `<div style="color:var(--bv-red);">Failed to load integrations: ${escapeHtml(err.message)}</div>`;
   }
 }
 

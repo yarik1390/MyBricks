@@ -39,8 +39,10 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
   const JWT_SECRET = 'test-secret-at-least-32-chars-long-and-super-secure';
   const userId = 'route-user-1';
   const otherUserId = 'route-user-2';
+  const adminUserId = 'admin-user';
   let token: string;
   let otherToken: string;
+  let adminToken: string;
   let db: D1Database;
 
   const auth = (t = token) => ({ Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' });
@@ -53,6 +55,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
 
     token = await createMockJWT(userId, JWT_SECRET);
     otherToken = await createMockJWT(otherUserId, JWT_SECRET);
+    adminToken = await createMockJWT(adminUserId, JWT_SECRET);
     db = (env as any).DB;
 
     const sqls = [
@@ -63,6 +66,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       'DROP TABLE IF EXISTS user_prefs',
       'DROP TABLE IF EXISTS user_showcase',
       'DROP TABLE IF EXISTS portfolio_snapshots',
+      'DROP TABLE IF EXISTS integration_health',
 
       `CREATE TABLE lego_sets (
         set_num TEXT PRIMARY KEY, name TEXT NOT NULL, theme TEXT, year INTEGER,
@@ -104,6 +108,10 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, snapshot_date TEXT NOT NULL,
         snapshot_at TEXT DEFAULT CURRENT_TIMESTAMP, total_value REAL DEFAULT 0,
         total_paid REAL DEFAULT 0, set_count INTEGER DEFAULT 0, UNIQUE(user_id, snapshot_date)
+      )`,
+      `CREATE TABLE integration_health (
+        service TEXT PRIMARY KEY, last_ok_at TEXT, last_fail_at TEXT, last_error TEXT,
+        ok_count INTEGER NOT NULL DEFAULT 0, fail_count INTEGER NOT NULL DEFAULT 0, updated_at TEXT
       )`,
 
       `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
@@ -334,6 +342,28 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const data = await res.json<any>();
       expect(data.snapshots).toHaveLength(1);
       expect(data.snapshots[0].total_value).toBe(1000);
+    });
+  });
+
+  describe('Admin integrations health', () => {
+    it('rejects non-admin members', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/admin/integrations', { headers: auth() }), env);
+      expect(res.status).toBe(403);
+    });
+
+    it('returns recorded integration health for the admin', async () => {
+      await db.prepare(
+        `INSERT INTO integration_health (service, last_ok_at, ok_count, fail_count, updated_at)
+         VALUES ('ebay', datetime('now'), 5, 1, datetime('now'))`
+      ).run();
+      const res = await app.fetch(new Request('http://localhost/api/admin/integrations', {
+        headers: auth(adminToken),
+      }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.integrations).toHaveLength(1);
+      expect(data.integrations[0].service).toBe('ebay');
+      expect(data.integrations[0].ok_count).toBe(5);
     });
   });
 });

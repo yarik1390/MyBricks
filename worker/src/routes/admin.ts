@@ -3,6 +3,7 @@ import { requireAdmin } from '../auth';
 import { importSets, importFigs, runBatches, BATCH } from '../jobs/import-catalog';
 import { runBackfillUpc } from '../jobs/backfill-upc';
 import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
+import { getIntegrationHealth } from '../lib/integration-health';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -233,6 +234,12 @@ app.get('/import-status', async (c) => {
      LIMIT 5`
   ).all();
   return c.json({ runs: results });
+});
+
+// GET /api/admin/integrations — external API health (last success/failure per service)
+app.get('/integrations', async (c) => {
+  const rows = await getIntegrationHealth(c.env);
+  return c.json({ integrations: rows });
 });
 
 export { app as adminRoute };

@@ -166,6 +166,16 @@ CREATE TABLE IF NOT EXISTS oauth_states (
   expires_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS integration_health (
+  service TEXT PRIMARY KEY,
+  last_ok_at TEXT,
+  last_fail_at TEXT,
+  last_error TEXT,
+  ok_count INTEGER NOT NULL DEFAULT 0,
+  fail_count INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_svh_set ON set_value_history(set_num, snapshot_date);
 CREATE INDEX IF NOT EXISTS idx_uc_user ON user_collection(user_id, deleted_at);
 CREATE INDEX IF NOT EXISTS idx_wl_user ON user_wishlist(user_id);
