@@ -6,6 +6,9 @@ import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
+// Free-tier server-key limit; bypassed when the user supplies their own Gemini/OpenAI key.
+const SCAN_HOURLY_LIMIT = 20;
+
 app.use('*', requireMember);
 
 app.post('/identify', async (c) => {
@@ -65,7 +68,7 @@ app.post('/identify', async (c) => {
   const openaiKey = c.req.header('X-OpenAI-Key');
 
   if (!openaiKey) {
-    // OpenAI path — rate-limited per user: 20 scans/hour.
+    // OpenAI path — rate-limited per user.
     const windowStart = new Date();
     windowStart.setMinutes(0, 0, 0);
     const ws = windowStart.toISOString();
@@ -80,8 +83,8 @@ app.post('/identify', async (c) => {
       'SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint=? AND window_start=?'
     ).bind(userId, 'scan_image', ws).first<{ hit_count: number }>();
 
-    if ((rl?.hit_count || 0) >= 20) {
-      return c.json({ error: 'Rate limit: 20 photo scans per hour. Set up your own API key to unlock unlimited scanning.' }, 429);
+    if ((rl?.hit_count || 0) >= SCAN_HOURLY_LIMIT) {
+      return c.json({ error: `Rate limit: ${SCAN_HOURLY_LIMIT} photo scans per hour. Set up your own API key to unlock unlimited scanning.` }, 429);
     }
   }
 

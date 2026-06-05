@@ -7,6 +7,9 @@ import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
+// Free-tier server-key limit; bypassed entirely when the user supplies their own Gemini key.
+const ADVISOR_DAILY_LIMIT = 10;
+
 app.use('*', requireMember);
 
 app.post('/', async (c) => {
@@ -17,7 +20,7 @@ app.post('/', async (c) => {
 
   const geminiKey = c.req.header('X-Gemini-Key');
 
-  // Rate limit for server-key path: 10 advisor queries/day
+  // Rate limit for server-key path.
   if (!geminiKey) {
     const windowStart = new Date();
     windowStart.setHours(0, 0, 0, 0);
@@ -30,8 +33,8 @@ app.post('/', async (c) => {
     const rl = await c.env.DB.prepare(
       'SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint=? AND window_start=?'
     ).bind(userId, 'advisor', ws).first<{ hit_count: number }>();
-    if ((rl?.hit_count ?? 0) > 10) {
-      return c.json({ error: 'Rate limit: 10 advisor queries per day. Add your Gemini key in Settings for unlimited access.' }, 429);
+    if ((rl?.hit_count ?? 0) > ADVISOR_DAILY_LIMIT) {
+      return c.json({ error: `Rate limit: ${ADVISOR_DAILY_LIMIT} advisor queries per day. Add your Gemini key in Settings for unlimited access.` }, 429);
     }
   }
 

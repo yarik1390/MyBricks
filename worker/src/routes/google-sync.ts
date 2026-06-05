@@ -27,10 +27,19 @@ app.post('/auth-init', requireMember, async (c) => {
   return c.json({ code });
 });
 
+// True only when real Google OAuth credentials are configured (not the dummy placeholders).
+function googleConfigured(env: Env): boolean {
+  return !!(env.GOOGLE_CLIENT_ID && !env.GOOGLE_CLIENT_ID.includes('dummy') &&
+            env.GOOGLE_CLIENT_SECRET && !env.GOOGLE_CLIENT_SECRET.includes('dummy'));
+}
+
 // GET /api/google/auth — Start OAuth flow using a verified short-lived code
 app.get('/auth', async (c) => {
   const code = c.req.query('code');
   if (!code) return c.json({ error: 'Code is required' }, 400);
+  if (!googleConfigured(c.env)) {
+    return c.json({ error: 'Google Sheets sync is not configured on this deployment' }, 503);
+  }
 
   const session = await c.env.DB.prepare(`
     SELECT user_id, expires_at FROM oauth_sessions WHERE code=?
@@ -147,12 +156,10 @@ app.get('/status', requireMember, async (c) => {
   const userId = c.get('userId');
   const prefs = await c.env.DB.prepare('SELECT google_refresh_token, google_spreadsheet_id FROM user_prefs WHERE user_id=?')
     .bind(userId).first() as { google_refresh_token?: string; google_spreadsheet_id?: string } | null;
-  const configured = !!(c.env.GOOGLE_CLIENT_ID && !c.env.GOOGLE_CLIENT_ID.includes('dummy') &&
-                        c.env.GOOGLE_CLIENT_SECRET && !c.env.GOOGLE_CLIENT_SECRET.includes('dummy'));
   return c.json({
     connected: !!prefs?.google_refresh_token,
     spreadsheet_id: prefs?.google_spreadsheet_id || null,
-    configured
+    configured: googleConfigured(c.env)
   });
 });
 
