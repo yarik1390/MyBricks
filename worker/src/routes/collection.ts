@@ -135,18 +135,7 @@ app.get('/', async (c) => {
   const figValue = minifigsStats?.fig_value || 0;
   const figCount = minifigsStats?.fig_count || 0;
 
-  const lastModified = (items[0]?.last_modified || items[0]?.added_at || null) as string | null;
-  const etag = `${count}-${lastModified ? new Date(lastModified).getTime() : 0}`;
-
-  if (c.req.header('if-none-match') === etag) {
-    return new Response('', {
-      status: 304,
-      headers: {
-        'Cache-Control': 'no-cache',
-      },
-    });
-  }
-  return new Response(JSON.stringify({
+  return c.json({
     items,
     total_value: totalValue,
     total_paid: totalPaid,
@@ -155,12 +144,6 @@ app.get('/', async (c) => {
     fig_value: figValue,
     fig_count: figCount,
     total_value_with_figs: totalValue + figValue
-  }), {
-    headers: {
-      'Content-Type': 'application/json',
-      'ETag': etag,
-      'Cache-Control': 'no-cache',
-    },
   });
 });
 
@@ -437,7 +420,7 @@ app.delete('/:id', async (c) => {
     `UPDATE user_collection SET deleted_at=datetime('now') WHERE id=? AND user_id=?`
   ).bind(id, userId).run();
   c.executionCtx.waitUntil(triggerGoogleSync(userId, c));
-  return new Response('', { status: 204 });
+  return c.body(null, 204);
 });
 
 export { app as collectionRoute };

@@ -30,9 +30,9 @@ npx wrangler secret put ADMIN_USER_ID        # your Supabase user UUID
 npm run deploy
 ```
 
-## 5. Data migration (from Hatchable)
+## 5. Seeding catalog data
 
-Export catalog data from Hatchable using `execute_sql` MCP, then:
+To seed the initial catalog data, you can run the import scripts:
 
 ```bash
 mkdir data

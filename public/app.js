@@ -110,7 +110,7 @@ async function drainOutbox() {
       outboxDequeue(item.id);
       synced++;
     }
-    state.portfolio = null;
+    invalidatePortfolio();
     if (synced) toast(`${synced} offline action${synced > 1 ? 's' : ''} synced`, 'success');
   } catch {}
 }
@@ -145,6 +145,13 @@ const state = {
   pendingRequests: new Set(),
 };
 
+/** Clear the in-memory portfolio AND the IDB cache so the next
+ *  renderPortfolio() always fetches fresh from the API. */
+function invalidatePortfolio() {
+  state.portfolio = null;
+  bvIDB.del('portfolio').catch(() => {});
+}
+
 /* ---------- Supabase auth (no SDK — plain fetch to REST API) ---------- */
 let _authSession = null;
 let _sbUrl = "";
@@ -171,6 +178,7 @@ function saveSession(s) {
     state.wishlist = [];
     state.portfolioHistory = null;
     state.ownedFigs = new Set();
+    state.detail.cache = {};
     
     // Clear user specific local DB
     bvIDB.del('portfolio').catch(() => {});
@@ -2039,7 +2047,7 @@ function wireInfoTab(set, entry) {
     $("#qtyNum").textContent = qty;
     const badge = $("#qtyBadgeVal");
     if (badge) badge.textContent = `×${qty}`;
-    try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); state.portfolio = null; }
+    try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); invalidatePortfolio(); }
     catch (e) { toast("Save failed", "error"); }
   });
   $("#qtyUp")?.addEventListener("click", async () => {
@@ -2048,7 +2056,7 @@ function wireInfoTab(set, entry) {
     $("#qtyNum").textContent = qty;
     const badge = $("#qtyBadgeVal");
     if (badge) badge.textContent = `×${qty}`;
-    try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); state.portfolio = null; }
+    try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); invalidatePortfolio(); }
     catch (e) { toast("Save failed", "error"); }
   });
   $("#genListingBtn")?.addEventListener("click", () => {
@@ -2064,7 +2072,7 @@ function wireInfoTab(set, entry) {
       const prevCount = state.portfolio?.items?.length ?? 0;
       const prevValue = state.portfolio?.total_value ?? 0;
       await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
-      state.portfolio = null; state.catalog.items = [];
+      invalidatePortfolio(); state.catalog.items = [];
       toast("Added to vault", "success");
       const newCount = prevCount + 1;
       const newValue = prevValue + (Number(set.current_value) || 0);
@@ -2270,7 +2278,7 @@ function wireManageTab(set, entry) {
           missing_pieces: isComplete ? 0 : (parseInt($("#mMissing")?.value) || 0),
         }
       });
-      state.portfolio = null;
+      invalidatePortfolio();
       delete state.detail.cache[set.set_num];
       toast("Saved", "success");
     } catch (e) { toast("Save failed: " + e.message, "error"); }
@@ -2295,7 +2303,7 @@ function wireManageTab(set, entry) {
     haptic("heavy");
     try {
       await api("/api/collection/" + entry.id, { method: "DELETE" });
-      state.portfolio = null;
+      invalidatePortfolio();
       delete state.detail.cache[set.set_num];
       toast("Removed from vault", "info");
       if (history.length > 1) history.back();
@@ -2303,7 +2311,7 @@ function wireManageTab(set, entry) {
     } catch (e) {
       if (!navigator.onLine && entry?.id) {
         outboxEnqueue({ path: '/api/collection/' + entry.id, method: 'DELETE' });
-        state.portfolio = null;
+        invalidatePortfolio();
         toast('Removed offline — will sync when connected', 'info');
         if (history.length > 1) history.back(); else location.hash = '#/';
       } else { toast("Error: " + e.message, "error"); }
@@ -2739,7 +2747,7 @@ async function renderMe() {
       await api("/api/me", { method: "PATCH", body: { currency: val } });
       if (state.me) state.me.currency = val;
       bvIDB.del('portfolio').catch(() => {});
-      state.portfolio = null;
+      invalidatePortfolio();
       state.portfolioHistory = null;
       toast("Currency updated to " + val, "success");
       await renderMe();
@@ -2910,7 +2918,7 @@ async function renderMe() {
   $("#signOutRow")?.addEventListener("click", async () => {
     haptic("medium");
     await sbSignOut();
-    state.portfolio = null; state.me = null; state.catalog.items = [];
+    invalidatePortfolio(); state.me = null; state.catalog.items = [];
     state.blind.items = []; state.wishlist = []; state.portfolioHistory = null;
     try {
       await Promise.all([
@@ -2986,7 +2994,7 @@ async function renderMe() {
       if (!rows.length) throw new Error("No valid rows found — check set_num column exists");
       const r = await api("/api/collection/import", { method: "POST", body: { rows } });
       if (resultEl) resultEl.textContent = `✓ ${r.imported} imported, ${r.skipped} skipped${r.errors?.length ? `, ${r.errors.length} errors` : ""}`;
-      state.portfolio = null;
+      invalidatePortfolio();
       toast(`${r.imported} sets imported`, "success");
     } catch (e) {
       if (resultEl) resultEl.textContent = "Error: " + e.message;
@@ -3735,7 +3743,7 @@ function showScanResult(res) {
         }
       }
     }
-    state.portfolio = null; state.catalog.items = [];
+    invalidatePortfolio(); state.catalog.items = [];
     closeScan();
     if (addedCount > 0) {
       toast(navigator.onLine ? `Added ${addedCount} sets to vault` : `Saved ${addedCount} offline — will sync`, "success");
@@ -3905,11 +3913,11 @@ function showQuickActions(setNum) {
     if (!(await confirmSheet({ title: "Remove from vault?", message: "This set will be removed from your collection.", confirmLabel: "Remove", danger: true }))) return;
     const item = (state.portfolio?.items || []).find(s => s.set_num === setNum);
     if (item) {
-      try { await api("/api/collection/" + item.id, { method: "DELETE" }); state.portfolio = null; state.catalog.items = []; toast("Removed", "info"); }
+      try { await api("/api/collection/" + item.id, { method: "DELETE" }); invalidatePortfolio(); state.catalog.items = []; toast("Removed", "info"); }
       catch (e) {
         if (!navigator.onLine && item) {
           outboxEnqueue({ path: '/api/collection/' + item.id, method: 'DELETE' });
-          state.portfolio = null; state.catalog.items = []; toast('Removed offline — will sync when connected', 'info');
+          invalidatePortfolio(); state.catalog.items = []; toast('Removed offline — will sync when connected', 'info');
         } else { toast("Error: " + e.message, "error"); }
       }
     }
@@ -3953,7 +3961,7 @@ function setupGestures() {
     const dy = (e.changedTouches[0]?.clientY ?? sy) - sy;
     if (dy > 80) {
       haptic("medium");
-      state.portfolio = null; state.portfolioHistory = null; state.me = null;
+      invalidatePortfolio(); state.portfolioHistory = null; state.me = null;
       toast("Refreshed", "success");
       route();
     }
@@ -5340,7 +5348,7 @@ async function handleBulkLocation() {
     await Promise.all(selectedItems.map(item => 
       api("/api/collection/" + item.id, { method: "PATCH", body: { storage_location: loc || null } })
     ));
-    state.portfolio = null;
+    invalidatePortfolio();
     toast("Storage locations updated", "success");
     exitSelectionMode();
     await renderPortfolio();
@@ -5365,7 +5373,7 @@ async function handleBulkDelete() {
     await Promise.all(selectedItems.map(item =>
       api("/api/collection/" + item.id, { method: "DELETE" })
     ));
-    state.portfolio = null;
+    invalidatePortfolio();
     toast("Sets removed", "success");
     exitSelectionMode();
     await renderPortfolio();
@@ -5965,7 +5973,7 @@ function showBulkScanResults(results) {
       });
 
       await Promise.all([...addPromises, ...qtyPromises]);
-      state.portfolio = null;
+      invalidatePortfolio();
       toast("Collection updated successfully", "success");
       closeScan();
       await renderPortfolio();

@@ -1,8 +1,8 @@
 /**
- * One-off data migration: reads JSON exported from Hatchable and seeds D1.
+ * Seeding script: reads JSON catalog data and generates a seed.sql file for D1.
  *
  * Usage:
- *   1. Export from Hatchable using execute_sql MCP:
+ *   1. Export catalog tables as JSON arrays:
  *        SELECT json_agg(row_to_json(t)) FROM (SELECT * FROM lego_themes) t
  *        SELECT json_agg(row_to_json(t)) FROM (SELECT * FROM lego_sets) t
  *        SELECT json_agg(row_to_json(t)) FROM (SELECT * FROM minifigs) t
