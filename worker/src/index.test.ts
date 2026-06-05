@@ -143,6 +143,10 @@ describe('BrickVault API Worker Tests', () => {
         used_value REAL,
         ebay_value REAL,
         upc TEXT,
+        valuation_method TEXT,
+        bl_new_value REAL,
+        bl_new_qty INTEGER,
+        bl_used_qty INTEGER,
         cached_at TEXT,
         source TEXT
       )`,

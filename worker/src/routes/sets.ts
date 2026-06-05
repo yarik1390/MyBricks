@@ -270,7 +270,7 @@ app.get('/:setnum', async (c) => {
           await c.env.DB.prepare(`
             UPDATE lego_sets SET
               current_value = COALESCE(?, current_value),
-              ebay_value = ?,
+              ebay_value = COALESCE(?, ebay_value),
               forecast_2y = COALESCE(?, forecast_2y),
               forecast_5y = COALESCE(?, forecast_5y),
               valuation_method = 'ebay_rss',
