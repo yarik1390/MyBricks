@@ -2,8 +2,43 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   escapeHtml, fmtPct, clamp, themeHue, bricklinkBuyURL,
-  computeDealScore, annualizedROI, parseMarkdown,
+  computeDealScore, annualizedROI, parseMarkdown, jwtSub,
 } from '../lib/pure.js';
+
+// Build a fake JWT (header.payload.signature) with base64url, no padding —
+// matching how Supabase access tokens are encoded.
+function fakeJwt(payloadObj) {
+  const b64url = (obj) =>
+    Buffer.from(JSON.stringify(obj)).toString('base64')
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url(payloadObj)}.sig`;
+}
+
+describe('jwtSub', () => {
+  it('extracts the sub claim from a base64url token (no padding)', () => {
+    // 'a'.repeat(...) shifts payload length so the base64 needs padding —
+    // verifies the decode tolerates missing '=' padding.
+    const sub = 'abc-123-user';
+    assert.equal(jwtSub(fakeJwt({ sub, role: 'authenticated' })), sub);
+  });
+
+  it('distinguishes two different accounts (the account-switch case)', () => {
+    const a = jwtSub(fakeJwt({ sub: 'user-A', name: 'aaaa' }));
+    const b = jwtSub(fakeJwt({ sub: 'user-B', name: 'bb' }));
+    assert.equal(a, 'user-A');
+    assert.equal(b, 'user-B');
+    assert.notEqual(a, b);
+  });
+
+  it('returns null for missing or malformed tokens', () => {
+    assert.equal(jwtSub(null), null);
+    assert.equal(jwtSub(undefined), null);
+    assert.equal(jwtSub(''), null);
+    assert.equal(jwtSub('not-a-jwt'), null);
+    assert.equal(jwtSub('only.two'), null);
+    assert.equal(jwtSub(fakeJwt({ role: 'authenticated' })), null);
+  });
+});
 
 describe('escapeHtml', () => {
   it('escapes < > & " characters', () => {

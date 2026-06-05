@@ -106,16 +106,12 @@ function setupImageHydration() {
   }, true);
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-  // Load session and Supabase config before any routing.
-  let session = loadSession();
-  try {
-    const cfg = await fetch((window.WORKER_BASE || '') + "/api/config").then(r => r.json());
-    state.config = cfg;
-    setSupabaseConfig(cfg.supabase_url || "", cfg.supabase_anon_key || "");
-  } catch {}
-
-  // Detect Supabase OAuth return (hash fragment: #access_token=... &refresh_token=... &expires_in=...)
+// Detect a Supabase OAuth return in the URL hash (#access_token=...&refresh_token=...
+// or #error=...). Returns true if an auth token was consumed. Safe to call on both
+// the initial load (DOMContentLoaded) and on later hashchanges — an installed PWA
+// can deliver the redirect to a live window without a full reload, which only fires
+// hashchange. Idempotent: strips the hash after handling.
+function consumeOAuthHash() {
   if (location.hash.includes('access_token=')) {
     try {
       const hp = new URLSearchParams(location.hash.slice(1));
@@ -126,7 +122,14 @@ document.addEventListener("DOMContentLoaded", async () => {
           expires_at: Date.now() / 1000 + parseInt(hp.get('expires_in') || '3600'),
         };
         saveSession(oauthSess);
+        // Force a clean slate for the freshly-authenticated account so a prior
+        // account's profile/portfolio can never linger in memory (saveSession
+        // also clears on user change, but this guards non-reload returns too).
+        state.me = null;
+        invalidatePortfolio();
+        state.portfolioHistory = null;
         history.replaceState(null, '', location.pathname + location.search);
+        return true;
       }
     } catch {}
   } else if (location.hash.includes('error=')) {
@@ -137,6 +140,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       history.replaceState(null, '', location.pathname + location.search);
     } catch {}
   }
+  return false;
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  // Load session and Supabase config before any routing.
+  let session = loadSession();
+  try {
+    const cfg = await fetch((window.WORKER_BASE || '') + "/api/config").then(r => r.json());
+    state.config = cfg;
+    setSupabaseConfig(cfg.supabase_url || "", cfg.supabase_anon_key || "");
+  } catch {}
+
+  consumeOAuthHash();
 
   // Wire nav icons using icon library
   const icons = { "/": I.home, "/add": I.search, "/minifigs": I.figure, "/me": I.user };
@@ -194,5 +210,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   await route();
 });
 
-window.addEventListener("hashchange", route);
+window.addEventListener("hashchange", () => {
+  // An OAuth redirect can land on an already-open window (no reload), arriving
+  // as a hashchange. Consume the token first so we render the new session, not
+  // a "route not found" bounce on the raw #access_token=... fragment.
+  consumeOAuthHash();
+  route();
+});
 window.bv = { openScan, closeScan, capturePhoto };

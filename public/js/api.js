@@ -1,5 +1,6 @@
 import { state, invalidatePortfolio } from './state.js';
 import { bvIDB, toast } from './utils.js';
+import { jwtSub } from './lib/pure.js';
 
 export let _authSession = null;
 export let _sbUrl = "";
@@ -12,15 +13,7 @@ export function setSupabaseConfig(url, anonKey) {
 }
 
 export function getSessionUserId() {
-  if (!_authSession?.access_token) return null;
-  try {
-    const parts = _authSession.access_token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return payload.sub || null;
-  } catch {
-    return null;
-  }
+  return jwtSub(_authSession?.access_token);
 }
 
 /* ---------- Offline outbox (queue mutations for replay when back online) ---------- */

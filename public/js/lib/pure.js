@@ -93,3 +93,25 @@ export function parseMarkdown(text) {
   if (inList) processed.push("</ul>");
   return processed.join("<br>").replace(/<\/ul><br>/g, "</ul>").replace(/<br><ul/g, "<ul");
 }
+
+/**
+ * Extract the `sub` (user id) claim from a JWT access token. Returns null when
+ * the token is missing/malformed. JWT segments are base64url with no padding,
+ * so normalize before decoding — plain atob() can choke on missing padding,
+ * which previously made account-switch detection silently fail (two valid
+ * tokens both resolving to null and comparing "equal").
+ */
+export function jwtSub(token) {
+  if (!token || typeof token !== "string") return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    let s = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const pad = s.length % 4;
+    if (pad) s += "=".repeat(4 - pad);
+    const payload = JSON.parse(atob(s));
+    return payload.sub || null;
+  } catch {
+    return null;
+  }
+}
