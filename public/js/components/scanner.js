@@ -109,7 +109,7 @@ async function scanBarcode() {
   } catch {}
 }
 
-async function capturePhoto() {
+export async function capturePhoto() {
   haptic("heavy");
   const btn = $("#scanCapture");
   if (btn) { btn.style.transform = "scale(0.85)"; setTimeout(() => btn.style.transform = "", 200); }
