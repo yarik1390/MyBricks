@@ -1228,7 +1228,7 @@ function wireManageTab(set, entry) {
         method: "PATCH",
         body: {
           purchase_price: parseFloat($("#mPrice")?.value) || null,
-          purchased_at: $("#mDate")?.value ? new Date($("#mDate").value).toISOString() : entry.purchased_at,
+          purchased_at: $("#mDate")?.value || null,
           condition: $("#mCondition")?.value,
           notes: $("#mNotes")?.value || "",
           storage_location: $("#mStorage")?.value || null,

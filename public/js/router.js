@@ -29,7 +29,9 @@ async function _routeImpl() {
   hideSheet();
   closeScan();
   cancelActiveStream();
-  let hash = location.hash.replace("#", "") || "/";
+  // Strip query params from the fragment (e.g. #/me?google_sync=success → /me).
+  // Views that need the query string read location.hash directly.
+  let hash = (location.hash.replace("#", "") || "/").split("?")[0];
   if (hash === "/blind") { location.hash = "#/minifigs"; return; }
 
   // Auth gate — bounce to login if no session.
