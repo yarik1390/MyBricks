@@ -102,7 +102,7 @@ app.delete('/:fignum', async (c) => {
   const exists = await c.env.DB.prepare('SELECT 1 FROM minifigs WHERE fig_num=?').bind(figNum).first();
   if (!exists) return c.json({ error: 'Minifig not found' }, 404);
   await c.env.DB.prepare('DELETE FROM user_minifigs WHERE user_id=? AND fig_num=?').bind(userId, figNum).run();
-  return new Response('', { status: 204 });
+  return new Response(null, { status: 204 });
 });
 
 export { app as minifigsRoute };

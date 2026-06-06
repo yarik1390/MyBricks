@@ -62,7 +62,7 @@ app.delete('/:id', async (c) => {
   const id = parseInt(c.req.param('id'), 10);
   if (!id) return c.json({ error: 'Invalid id' }, 400);
   await c.env.DB.prepare('DELETE FROM user_wishlist WHERE id=? AND user_id=?').bind(id, userId).run();
-  return new Response('', { status: 204 });
+  return new Response(null, { status: 204 });
 });
 
 // POST /api/wishlist/:id — mark alert as read

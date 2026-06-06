@@ -46,6 +46,10 @@ app.use('*', async (c, next) => {
   c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   c.header('Pragma', 'no-cache');
   c.header('Expires', '0');
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('X-Frame-Options', 'DENY');
+  c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  c.header('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
 });
 
 // Public config for the frontend (Supabase URL + anon key are client-safe)
