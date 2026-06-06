@@ -97,6 +97,13 @@ export default {
         await run('backfill-upc', () => runBackfillUpc(env));
         await run('import-sets', () => importSets(env.DB));
         await run('import-figs', () => importFigs(env.DB));
+        await run('cleanup-stale-rows', async () => {
+          await env.DB.batch([
+            env.DB.prepare(`DELETE FROM rate_limits WHERE window_start < datetime('now', '-7 days')`),
+            env.DB.prepare(`DELETE FROM oauth_sessions WHERE expires_at < unixepoch() - 86400`),
+            env.DB.prepare(`DELETE FROM oauth_states WHERE expires_at < unixepoch() - 86400`),
+          ]);
+        });
         break;
     }
   },

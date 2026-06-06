@@ -158,6 +158,8 @@ app.get('/status', requireMember, async (c) => {
   });
 });
 
+const _syncInProgress = new Set<string>();
+
 app.post('/sync', requireMember, async (c) => {
   const userId = c.get('userId');
   const prefs = await c.env.DB.prepare('SELECT google_refresh_token, google_spreadsheet_id FROM user_prefs WHERE user_id=?')
@@ -166,9 +168,14 @@ app.post('/sync', requireMember, async (c) => {
   if (!prefs || !prefs.google_refresh_token) {
     return c.json({ error: 'Google Account not connected' }, 400);
   }
+  if (_syncInProgress.has(userId)) {
+    return c.json({ message: 'Sync already in progress' });
+  }
 
+  _syncInProgress.add(userId);
   c.executionCtx.waitUntil(
     runSyncProcess(userId, prefs.google_refresh_token, prefs.google_spreadsheet_id || null, c.env)
+      .finally(() => _syncInProgress.delete(userId))
   );
 
   return c.json({ message: 'Sync started' });

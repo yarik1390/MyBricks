@@ -391,6 +391,8 @@ async function sendAdvisorMessage(q) {
       stream: true,
     });
 
+    const ac = new AbortController();
+    const streamTimeout = setTimeout(() => ac.abort(), 60000);
     const reader = resp.body.getReader();
     const dec = new TextDecoder();
     let buf = "";
@@ -399,7 +401,11 @@ async function sendAdvisorMessage(q) {
     aiBubble.querySelector(".chat-typing")?.remove();
 
     while (true) {
-      const { done, value } = await reader.read();
+      const readPromise = reader.read();
+      const { done, value } = await Promise.race([
+        readPromise,
+        new Promise((_, reject) => ac.signal.addEventListener('abort', () => reject(new Error('Response timed out')), { once: true })),
+      ]);
       if (done) break;
       buf += dec.decode(value, { stream: true });
       const lines = buf.split("\n");
@@ -417,8 +423,10 @@ async function sendAdvisorMessage(q) {
         } catch {}
       }
     }
+    clearTimeout(streamTimeout);
     if (fullText) saveChatMessage("ai", fullText);
   } catch (err) {
+    clearTimeout(streamTimeout);
     aiBubble.querySelector(".chat-typing")?.remove();
     aiBubble.textContent = "Sorry, couldn't reach the advisor. " + (err.message || "");
     aiBubble.classList.add("error");

@@ -33,6 +33,7 @@ app.post('/identify', async (c) => {
 
   if (mode !== 'image') return c.json({ error: 'mode must be image or barcode' }, 400);
   if (!image) return c.json({ error: 'image required' }, 400);
+  if (image.length > 2_000_000) return c.json({ error: 'Image too large (max ~1.5 MB)' }, 413);
 
   // Gemini path: user's own Gemini API key — uses their own quota, no rate limit here.
   const geminiKey = c.req.header('X-Gemini-Key');
