@@ -630,13 +630,15 @@ export function flipCalcHTML(set, entry) {
     estPrice = market * ratio;
   }
   
-  const ebayFee = estPrice * 0.1325;
-  const paypalFee = estPrice * 0.029 + 0.30;
-  const shipping = 5.00;
+  const feePct = parseFloat(localStorage.getItem("bv_flip_fee_pct") ?? "13.25");
+  const paymentPct = parseFloat(localStorage.getItem("bv_flip_payment_pct") ?? "2.9");
+  const shipping = parseFloat(localStorage.getItem("bv_flip_shipping") ?? "5.00");
+  const ebayFee = estPrice * (feePct / 100);
+  const paypalFee = estPrice * (paymentPct / 100) + 0.30;
   const gross = estPrice;
   const totalFees = ebayFee + paypalFee + shipping;
   const net = Math.max(0, gross - totalFees);
-  
+
   const purchasePrice = parseFloat(entry?.purchase_price || 0);
   let roiHTML = '';
   if (purchasePrice > 0) {
@@ -679,11 +681,13 @@ export function updateFlipCalc(set, entry, storePrice) {
     const ratio = (set.used_value && set.current_value) ? (set.used_value / set.current_value) : 0.75;
     estPrice = market * ratio;
   }
-  const ebayFee = estPrice * 0.1325;
-  const paypalFee = estPrice * 0.029 + 0.30;
-  const shipping = 5.00;
+  const feePct2 = parseFloat(localStorage.getItem("bv_flip_fee_pct") ?? "13.25");
+  const paymentPct2 = parseFloat(localStorage.getItem("bv_flip_payment_pct") ?? "2.9");
+  const shipping2 = parseFloat(localStorage.getItem("bv_flip_shipping") ?? "5.00");
+  const ebayFee = estPrice * (feePct2 / 100);
+  const paypalFee = estPrice * (paymentPct2 / 100) + 0.30;
   const gross = estPrice;
-  const totalFees = ebayFee + paypalFee + shipping;
+  const totalFees = ebayFee + paypalFee + shipping2;
   const net = Math.max(0, gross - totalFees);
 
   const resultEl = container.querySelector(".flip-result");

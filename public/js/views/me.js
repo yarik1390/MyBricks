@@ -457,7 +457,7 @@ export async function renderMe() {
   });
 
   $("#copyProfileUrl")?.addEventListener("click", () => {
-    const url = `${location.origin}/#/user/${encodeURIComponent(me.handle)}`;
+    const url = `${location.origin}/#/u/${encodeURIComponent(me.handle)}`;
     navigator.clipboard.writeText(url).then(() => {
       toast("Link copied to clipboard", "success");
     }).catch(() => {
@@ -670,7 +670,7 @@ function publicProfileSectionHTML(me) {
       </div>
     `;
   }
-  const url = `${location.origin}/#/user/${encodeURIComponent(me.handle)}`;
+  const url = `${location.origin}/#/u/${encodeURIComponent(me.handle)}`;
   return `
     <div class="section-title">Public Profile</div>
     <div class="card" style="padding:14px 16px;margin-bottom:14px;">

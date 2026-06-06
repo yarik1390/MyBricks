@@ -19,9 +19,10 @@ app.post('/', async (c) => {
   if (!q) return c.json({ error: 'q is required' }, 400);
 
   const geminiKey = c.req.header('X-Gemini-Key');
+  const openaiKey = c.req.header('X-OpenAI-Key');
 
-  // Rate limit for server-key path.
-  if (!geminiKey) {
+  // Rate limit for server-key path only (BYOK bypasses it).
+  if (!geminiKey && !openaiKey) {
     const windowStart = new Date();
     windowStart.setHours(0, 0, 0, 0);
     const ws = windowStart.toISOString();
@@ -95,7 +96,7 @@ ${context}`;
           }
         }
       } else {
-        const openai = new OpenAI({ apiKey: c.env.OPENAI_API_KEY });
+        const openai = new OpenAI({ apiKey: openaiKey || c.env.OPENAI_API_KEY });
         const stream = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
           max_tokens: 512,

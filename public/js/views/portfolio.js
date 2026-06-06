@@ -857,7 +857,7 @@ function infoTabHTML(set, entry, isWish) {
   const retailPrice = set.retail_price || 0;
   let pricingSummaryHtml = '';
   if (ebayPrice > 0) {
-    const pricingTreatment = (retailPrice > 0 && ebayPrice < retailPrice) ? 'STP' : (ebayPrice > retailPrice ? 'APPRECIATED' : 'NONE');
+    const pricingTreatment = (retailPrice > 0 && ebayPrice < retailPrice) ? 'STP' : (retailPrice > 0 && ebayPrice > retailPrice ? 'APPRECIATED' : 'NONE');
     pricingSummaryHtml = `
       <div class="card pricing-summary-card" style="margin-bottom:14px; padding:14px 16px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -872,7 +872,7 @@ function infoTabHTML(set, entry, isWish) {
           </div>
           
           <div>
-            <div style="font-size:10px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">originalRetailPrice</div>
+            <div style="font-size:10px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">Retail (MSRP)</div>
             <div style="font-size:16px; font-weight:500; color:var(--ink-soft); text-decoration: ${pricingTreatment === 'STP' ? 'line-through' : 'none'};">${retailPrice > 0 ? fmtMoney(retailPrice) : "—"}</div>
           </div>
         </div>
@@ -1178,8 +1178,9 @@ function manageTabHTML(set, entry) {
         ${["Store","BrickLink","eBay","Facebook Marketplace","Trade","Gift","Other"].map(s =>
           `<option value="${s}" ${entry.acquisition_source === s ? "selected" : ""}>${s}</option>`
         ).join("")}
-      </div>
-      <div class="field">
+      </select>
+    </div>
+    <div class="field">
         <div class="field-lbl">Completeness</div>
         <div class="completeness-row">
           <label><input type="checkbox" id="mComplete" ${entry.is_complete !== false ? "checked" : ""}>Complete / all pieces present</label>
@@ -1741,10 +1742,12 @@ function flipCalcHTML(set, entry) {
     const ratio = (set.used_value && set.current_value) ? (set.used_value / set.current_value) : 0.75;
     estPrice = market * ratio;
   }
-  
-  const ebayFee = estPrice * 0.1325;
-  const paypalFee = estPrice * 0.029 + 0.30;
-  const shipping = 5.00;
+
+  const feePct = parseFloat(localStorage.getItem("bv_flip_fee_pct") ?? "13.25");
+  const paymentPct = parseFloat(localStorage.getItem("bv_flip_payment_pct") ?? "2.9");
+  const shipping = parseFloat(localStorage.getItem("bv_flip_shipping") ?? "5.00");
+  const ebayFee = estPrice * (feePct / 100);
+  const paypalFee = estPrice * (paymentPct / 100) + 0.30;
   const gross = estPrice;
   const totalFees = ebayFee + paypalFee + shipping;
   const net = Math.max(0, gross - totalFees);

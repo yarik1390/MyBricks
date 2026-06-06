@@ -392,7 +392,10 @@ async function sendAdvisorMessage(q) {
   let reader = null;
   try {
     const geminiKey = localStorage.getItem('bv_gemini_key');
-    const extraHeaders = geminiKey ? { 'X-Gemini-Key': geminiKey } : {};
+    const openaiKey = localStorage.getItem('bv_openai_key');
+    const extraHeaders = {};
+    if (geminiKey) extraHeaders['X-Gemini-Key'] = geminiKey;
+    else if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
     const resp = await api("/api/advisor", {
       method: "POST",
       body: { q },
