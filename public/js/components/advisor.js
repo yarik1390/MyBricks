@@ -429,6 +429,10 @@ async function sendAdvisorMessage(q) {
             aiBubble.innerHTML = parseMarkdown(fullText);
             hist.scrollTop = hist.scrollHeight;
           }
+          if (parsed.error && !fullText) {
+            aiBubble.textContent = parsed.error;
+            aiBubble.classList.add("error");
+          }
           if (parsed.done) break;
         } catch {}
       }
