@@ -73,8 +73,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         pieces INTEGER, minifigs INTEGER DEFAULT 0, retail_price REAL, current_value REAL,
         forecast_2y REAL, forecast_5y REAL, image_url TEXT, retired INTEGER DEFAULT 0,
         retirement_risk_score INTEGER, used_value REAL, ebay_value REAL, upc TEXT,
-        valuation_method TEXT, bl_new_value REAL, bl_new_qty INTEGER, bl_used_qty INTEGER,
-        cached_at TEXT, source TEXT
+        valuation_method TEXT DEFAULT 'formula_bulk', bl_new_value REAL, bl_new_qty INTEGER, bl_used_qty INTEGER,
+        valuation_expires_at TEXT, cached_at TEXT, source TEXT
       )`,
       `CREATE TABLE user_collection (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL,

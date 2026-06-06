@@ -29,18 +29,16 @@ export async function renderAdvisorDrawer() {
   
   if (!state.portfolio) {
     try {
-      const [port, hist, wl] = await Promise.all([
-        api("/api/collection"),
-        api("/api/collection/history?days=365"),
-        api("/api/wishlist"),
-      ]);
-      state.portfolio = port;
-      state.portfolioHistory = hist.snapshots || [];
-      state.wishlist = wl.wishlist || [];
-      state.wishlistAlerts = wl.unread_alerts || [];
-    } catch (e) {
+      state.portfolio = await api("/api/collection");
+    } catch {
       state.portfolio = { items: [], total_value: 0, total_paid: 0, count: 0 };
     }
+    const [hist, wl] = await Promise.all([
+      api("/api/collection/history?days=365").catch(() => null),
+      api("/api/wishlist").catch(() => null),
+    ]);
+    if (hist) state.portfolioHistory = hist.snapshots || [];
+    if (wl) { state.wishlist = wl.wishlist || []; state.wishlistAlerts = wl.unread_alerts || []; }
   }
 
   let chatHistory = [];

@@ -13,11 +13,9 @@ let _swipeAc = null;
 export async function renderPortfolio() {
   const servedFromCache = !!state.portfolio;
   if (!state.portfolio) {
-    // The collection is the critical payload — fetch it on its own. Previously
-    // collection + history + wishlist shared one Promise.all, so a single
-    // rejection (a flaky /api/wishlist or /api/collection/history) dropped into
-    // the catch and set an EMPTY portfolio. That made freshly-added sets vanish
-    // from the vault even though /api/me (a separate call) still counted them.
+    // Fetch collection independently — if history or wishlist fail the vault
+    // still renders correctly (they were in one Promise.all before, causing any
+    // single failure to blank the whole vault while /api/me still showed the count).
     try {
       state.portfolio = await api("/api/collection");
       bvIDB.set('portfolio', { data: state.portfolio, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
@@ -25,8 +23,7 @@ export async function renderPortfolio() {
       toast("Couldn't load collection: " + e.message, "error");
       state.portfolio = { items: [], total_value: 0, total_paid: 0, count: 0 };
     }
-    // History + wishlist are supplementary — fetch best-effort so a failure in
-    // either never blanks the vault. Each falls back to its existing value.
+    // History + wishlist are supplementary — fetch best-effort.
     const [hist, wl] = await Promise.all([
       api("/api/collection/history?days=365").catch(() => null),
       api("/api/wishlist").catch(() => null),
@@ -38,8 +35,8 @@ export async function renderPortfolio() {
     }
   }
   paintPortfolio();
-  // Stale-while-revalidate: when painted from the in-memory cache, refetch in
-  // the background so cron/valuation updates surface without a manual reload.
+  // Stale-while-revalidate: when painted from in-memory cache, refresh in the
+  // background so cron/valuation price updates surface without a manual reload.
   if (servedFromCache) _revalidatePortfolio();
 }
 
@@ -50,7 +47,7 @@ async function _revalidatePortfolio() {
   const token = state._revalToken || 0;
   try {
     const fresh = await api("/api/collection");
-    if ((state._revalToken || 0) !== token) return; // portfolio was invalidated mid-flight
+    if ((state._revalToken || 0) !== token) return; // mutation happened mid-flight
     const prev = state.portfolio;
     const changed = !prev
       || prev.count !== fresh.count

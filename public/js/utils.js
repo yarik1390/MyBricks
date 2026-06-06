@@ -350,7 +350,7 @@ export function readFileAsDataURL(file) {
 }
 
 export function resizeImage(dataUrl, maxSide = 1024) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement("canvas");
@@ -361,6 +361,7 @@ export function resizeImage(dataUrl, maxSide = 1024) {
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       resolve(canvas.toDataURL("image/jpeg", 0.85));
     };
+    img.onerror = () => reject(new Error("Failed to load image for resize"));
     img.src = dataUrl;
   });
 }

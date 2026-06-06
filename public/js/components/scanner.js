@@ -1,6 +1,6 @@
-import { $, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDataURL, resizeImage, setHue, fmtPct } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDataURL, resizeImage, setHue, fmtPct, getExchangeRate, CURRENCY_SYMBOLS } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
-import { api } from '../api.js';
+import { api, outboxEnqueue } from '../api.js';
 import { I } from '../icons.js';
 import { confirmSheet, showSheet, hideSheet } from './sheet.js';
 
@@ -698,22 +698,3 @@ export function updateFlipCalc(set, entry, storePrice) {
   }
 }
 
-export function getExchangeRate(targetCurrency) {
-  // Simple check in localStorage or defaults
-  try {
-    const cached = localStorage.getItem("bv_exchange_rates");
-    if (cached) {
-      const rates = JSON.parse(cached).rates;
-      return rates[targetCurrency] || 1;
-    }
-  } catch {}
-  return 1;
-}
-
-export const CURRENCY_SYMBOLS = {
-  USD: "$",
-  GBP: "£",
-  EUR: "€",
-  CAD: "CA$",
-  AUD: "A$"
-};

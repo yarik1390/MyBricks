@@ -32,7 +32,9 @@ export const state = {
 };
 
 /** Clear the in-memory portfolio AND the IDB cache so the next
- *  renderPortfolio() always fetches fresh from the API. */
+ *  renderPortfolio() always fetches fresh from the API.
+ *  Incrementing _revalToken cancels any in-flight background revalidation
+ *  so it can't overwrite the fresh data fetched after a mutation. */
 export function invalidatePortfolio() {
   state.portfolio = null;
   state.me = null;

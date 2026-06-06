@@ -84,16 +84,19 @@ export default {
   fetch: app.fetch,
 
   async scheduled(event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
+    const run = async (name: string, fn: () => Promise<unknown>) => {
+      try { await fn(); }
+      catch (e) { console.error(`[cron] ${name} failed:`, (e as Error).message); }
+    };
     switch (event.cron) {
-      case '0 * * * *': await runValuateSets(env); break;
-      case '0 2 * * *': await runSnapshotPortfolios(env); break;
-      case '0 3 * * *': await runSnapshotSetValues(env); break;
-      case '0 8 * * *': await runWishlistAlerts(env); break;
-      // Weekly Sunday 4am: sync Brickset barcodes then re-import Rebrickable catalog
+      case '0 * * * *': await run('valuate-sets', () => runValuateSets(env)); break;
+      case '0 2 * * *': await run('snapshot-portfolios', () => runSnapshotPortfolios(env)); break;
+      case '0 3 * * *': await run('snapshot-set-values', () => runSnapshotSetValues(env)); break;
+      case '0 8 * * *': await run('wishlist-alerts', () => runWishlistAlerts(env)); break;
       case '0 4 * * SUN':
-        await runBackfillUpc(env);
-        await importSets(env.DB);
-        await importFigs(env.DB);
+        await run('backfill-upc', () => runBackfillUpc(env));
+        await run('import-sets', () => importSets(env.DB));
+        await run('import-figs', () => importFigs(env.DB));
         break;
     }
   },

@@ -39,10 +39,8 @@ app.get('/', async (c) => {
       FROM user_minifigs
       WHERE user_id = ?
     `).bind(userId).first<{ count: number; max_time: string | null }>(),
-    // Value fingerprint over owned sets so price/valuation updates (cron or
-    // background revaluation) bust the cache. Without this, the ETag only
-    // reflects user_collection changes and the browser serves stale prices via
-    // 304 until a hard reload.
+    // Value fingerprint: any cron price update busts the ETag so the browser
+    // doesn't serve a 304 with stale prices after a valuation run.
     c.env.DB.prepare(`
       SELECT ROUND(SUM(
                COALESCE(s.current_value,0) + COALESCE(s.used_value,0) +
