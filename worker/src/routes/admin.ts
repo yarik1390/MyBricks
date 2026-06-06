@@ -126,8 +126,14 @@ app.post('/revalue-brickeconomy', async (c) => {
   }
 
   const body = await c.req.json<{ scope?: string; limit?: number }>().catch(() => ({} as { scope?: string; limit?: number }));
-  const scope = body.scope || 'all';
-  const limit = Math.min(body.limit || 5000, 10000);
+  // Default to 'stale' (not 'all') so an accidental call doesn't sweep the whole
+  // catalog and burn the BrickEconomy quota (free tier ~1000 calls/month).
+  const scope = body.scope || 'stale';
+  // Coerce defensively so a non-numeric body.limit can't produce `LIMIT NaN`.
+  const requested = Number(body.limit);
+  const limit = Number.isFinite(requested) && requested > 0
+    ? Math.min(Math.floor(requested), 1000)
+    : 500;
 
   if (!['all', 'owned', 'stale'].includes(scope)) {
     return c.json({ error: "scope must be 'all', 'owned', or 'stale'" }, 400);
@@ -173,8 +179,11 @@ app.post('/revalue-brickeconomy', async (c) => {
   c.executionCtx.waitUntil(
     (async () => {
       let updated = 0, failed = 0, skipped = 0;
+      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
       for (const set of results) {
         try {
+          // Pace requests to stay within BrickEconomy rate limits.
+          await sleep(250);
           const be = await fetchBrickEconomyDetails(set.set_num, c.env);
           if (!be || be.current_value_new === null) {
             skipped++;

@@ -1,4 +1,5 @@
 import type { Env } from '../types';
+import { fetchWithRetry } from './http';
 
 export interface BricksetBarcodes {
   upc: string | null;
@@ -9,7 +10,7 @@ export interface BricksetBarcodes {
 export async function checkBricksetKey(env: Env): Promise<string | null> {
   if (!env.BRICKSET_API_KEY) return 'BRICKSET_API_KEY not set';
   try {
-    const resp = await fetch(
+    const resp = await fetchWithRetry(
       `https://brickset.com/api/v3.asmx/checkKey?apiKey=${encodeURIComponent(env.BRICKSET_API_KEY)}`,
       { headers: { Accept: 'application/json' } }
     );
@@ -37,7 +38,7 @@ export async function fetchBarcodes(setNum: string, env: Env): Promise<BricksetB
       userHash: '',
       params: JSON.stringify({ setNumber: bricksetNum }),
     });
-    const resp = await fetch(`https://brickset.com/api/v3.asmx/getSets?${params}`, {
+    const resp = await fetchWithRetry(`https://brickset.com/api/v3.asmx/getSets?${params}`, {
       headers: { Accept: 'application/json' },
     });
     if (!resp.ok) return null;
@@ -68,7 +69,7 @@ export async function fetchBarcodesPage(page: number, env: Env): Promise<Brickse
       userHash: '',
       params: JSON.stringify({ pageSize: 500, pageNumber: page }),
     });
-    const resp = await fetch(`https://brickset.com/api/v3.asmx/getSets?${params}`, {
+    const resp = await fetchWithRetry(`https://brickset.com/api/v3.asmx/getSets?${params}`, {
       headers: { Accept: 'application/json' },
     });
     if (!resp.ok) {
@@ -117,7 +118,7 @@ export interface BricksetDetails {
 }
 
 export async function fetchBricksetDetails(setNum: string, env: Env): Promise<BricksetDetails | null> {
-  const apiKey = env.BRICKSET_API_KEY || '3-R8Fj-5jn5-Ox8oN';
+  const apiKey = env.BRICKSET_API_KEY;
   if (!apiKey) return null;
   try {
     const variantMatch = setNum.match(/^(.+)-(\d+)$/);
@@ -129,7 +130,7 @@ export async function fetchBricksetDetails(setNum: string, env: Env): Promise<Br
       userHash: '',
       params: JSON.stringify({ setNumber: bricksetNum }),
     });
-    const resp = await fetch(`https://brickset.com/api/v3.asmx/getSets?${params}`, {
+    const resp = await fetchWithRetry(`https://brickset.com/api/v3.asmx/getSets?${params}`, {
       headers: { Accept: 'application/json' },
     });
     if (!resp.ok) return null;

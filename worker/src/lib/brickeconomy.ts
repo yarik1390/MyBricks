@@ -1,4 +1,5 @@
 import type { Env } from '../types';
+import { fetchWithRetry } from './http';
 
 export interface BrickEconomyDetails {
   retail_price_us: number | null;
@@ -19,7 +20,7 @@ export async function fetchBrickEconomyDetails(
     // Ensure variation variation suffix exists (e.g. "10236-1")
     const formattedSetNum = setNum.includes('-') ? setNum : `${setNum}-1`;
 
-    const resp = await fetch(
+    const resp = await fetchWithRetry(
       `https://www.brickeconomy.com/api/v1/set/${encodeURIComponent(formattedSetNum)}`,
       {
         headers: {

@@ -1,3 +1,5 @@
+import { fetchWithRetry } from './http';
+
 // Calls Gemini 1.5 Flash with a user-supplied Gemini API key (free from Google
 // AI Studio: https://aistudio.google.com/apikey). The free tier gives ~1500
 // requests/day, so scans run on the user's own quota — not the server's OpenAI
@@ -22,7 +24,7 @@ export async function callGeminiScan(
   };
 
   try {
-    const resp = await fetch(
+    const resp = await fetchWithRetry(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
       {
         method: 'POST',
@@ -32,6 +34,8 @@ export async function callGeminiScan(
         },
         body: JSON.stringify(body),
       },
+      // Vision calls with a base64 image take longer; give them headroom.
+      { timeoutMs: 30000, retries: 1 },
     );
     if (!resp.ok) {
       console.warn('[gemini] API error:', resp.status, await resp.text().catch(() => ''));
@@ -68,7 +72,7 @@ export async function callGeminiValuation(
   };
 
   try {
-    const resp = await fetch(
+    const resp = await fetchWithRetry(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
       {
         method: 'POST',
@@ -78,6 +82,7 @@ export async function callGeminiValuation(
         },
         body: JSON.stringify(body),
       },
+      { timeoutMs: 20000, retries: 1 },
     );
     if (!resp.ok) {
       console.warn('[gemini-val] API error:', resp.status, await resp.text().catch(() => ''));

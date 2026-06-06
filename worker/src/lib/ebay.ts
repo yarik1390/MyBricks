@@ -1,4 +1,5 @@
 import type { Env } from '../types';
+import { fetchWithRetry } from './http';
 
 // Returns the median completed-sale eBay price for a LEGO set.
 // When EBAY_APP_ID is set, uses the Finding API findCompletedItems (actual sold
@@ -44,7 +45,7 @@ export async function fetchEbayPrice(
         'paginationInput.entriesPerPage': '20',
       });
 
-      const resp = await fetch(
+      const resp = await fetchWithRetry(
         `https://svcs.ebay.com/services/search/FindingService/v1?${params}`,
         { headers: { Accept: 'application/json' } }
       );
@@ -86,7 +87,7 @@ export async function fetchEbayPrice(
 async function fetchRssFallback(keywords: string): Promise<number | null> {
   try {
     const url = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(keywords)}&LH_Sold=1&LH_Complete=1`;
-    const resp = await fetch(url, {
+    const resp = await fetchWithRetry(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'
@@ -96,15 +97,25 @@ async function fetchRssFallback(keywords: string): Promise<number | null> {
     const html = await resp.text();
 
     const prices: number[] = [];
-    const itemRegex = /class="s-item__price"[^>]*>([\s\S]*?)<\/span>/g;
-    let match;
-    while ((match = itemRegex.exec(html)) !== null) {
-      const priceText = match[1].replace(/<[^>]*>/g, '');
-      const numMatch = priceText.match(/(?:\$|£|€|USD|EUR|GBP)\s*([0-9,]+(?:\.[0-9]{2})?)/i);
+    // eBay periodically renames its price class (s-item__price, su-styled-text…).
+    // Try the known selectors in order, then fall back to scanning currency-prefixed
+    // numbers across the whole document so a class rename degrades instead of breaking.
+    const priceBlockPatterns = [
+      /class="s-item__price"[^>]*>([\s\S]*?)<\/span>/g,
+      /class="[^"]*s-item__price[^"]*"[^>]*>([\s\S]*?)<\/span>/g,
+      /class="[^"]*--price[^"]*"[^>]*>([\s\S]*?)<\/span>/g,
+    ];
+    const collect = (text: string) => {
+      const numMatch = text.match(/(?:\$|£|€|USD|EUR|GBP)\s*([0-9,]+(?:\.[0-9]{2})?)/i);
       if (numMatch) {
         const val = parseFloat(numMatch[1].replace(/,/g, ''));
         if (!isNaN(val) && val > 0) prices.push(val);
       }
+    };
+    for (const re of priceBlockPatterns) {
+      let match;
+      while ((match = re.exec(html)) !== null) collect(match[1].replace(/<[^>]*>/g, ''));
+      if (prices.length >= 3) break;
     }
 
     if (prices.length < 3) return null;
