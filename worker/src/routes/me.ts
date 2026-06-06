@@ -42,6 +42,10 @@ app.get('/', async (c) => {
     c.env.EBAY_APP_ID &&
     !c.env.EBAY_APP_ID.includes('dummy')
   );
+  const bricklinkConfigured = !!(
+    c.env.BRICKLINK_CONSUMER_KEY &&
+    !c.env.BRICKLINK_CONSUMER_KEY.includes('dummy')
+  );
   return c.json({
     display_name: (p.display_name as string) || seedName(userId),
     handle: (p.handle as string | null) ?? null,
@@ -50,6 +54,7 @@ app.get('/', async (c) => {
     currency: (p.currency as string) || 'USD',
     notify_price_drops: p.notify_price_drops !== 0,
     ebay_configured: ebayConfigured,
+    bricklink_configured: bricklinkConfigured,
     is_admin: userId === c.env.ADMIN_USER_ID,
     portfolio_stats: {
       set_count: Number(stats?.set_count ?? 0),

@@ -51,7 +51,7 @@ export async function renderAdvisorDrawer() {
 
   drawer.innerHTML = `
     <div style="height:100%; display:flex; flex-direction:column; background:var(--surface);">
-      <div class="topbar" style="padding:12px 16px; border-bottom:1.5px solid var(--line-soft); flex-shrink:0;" id="chatWrap">
+      <div class="topbar" style="padding:12px 16px; border-bottom:1.5px solid var(--line-soft); flex-shrink:0;" id="advisorTopbar">
         <div class="topbar-heading">
           <div class="topbar-eyebrow">AI & Local Insights</div>
           <div class="topbar-title" style="font-size:18px;">Advisor</div>
@@ -429,7 +429,7 @@ async function sendAdvisorMessage(q) {
   hist.scrollTop = hist.scrollHeight;
 
   if (!document.getElementById("clearChat")) {
-    const topbar = document.querySelector("#chatWrap");
+    const topbar = document.querySelector("#advisorTopbar");
     if (topbar) {
       const btn = document.createElement("button");
       btn.className = "icon-btn"; btn.id = "clearChat";

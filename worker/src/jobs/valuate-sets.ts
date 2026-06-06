@@ -29,7 +29,7 @@ export async function runValuateSets(env: Env) {
         OR ls.set_num IN (SELECT DISTINCT set_num FROM user_wishlist)
       )
     ORDER BY COALESCE(ls.valuation_expires_at, '2000-01-01') ASC
-    LIMIT 50
+    LIMIT 25
   `).all<{ set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number; retired: number }>();
 
   const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });

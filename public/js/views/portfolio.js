@@ -3,6 +3,7 @@ import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet, confirmSheet, promptSheet } from '../components/sheet.js';
+import { go } from '../router.js';
 
 let _swipeAc = null;
 
@@ -1232,14 +1233,13 @@ function wireManageTab(set, entry) {
       invalidatePortfolio();
       delete state.detail.cache[set.set_num];
       toast("Removed from vault", "info");
-      if (history.length > 1) history.back();
-      else location.hash = "#/";
+      go("#/");
     } catch (e) {
       if (!navigator.onLine && entry?.id) {
         outboxEnqueue({ path: '/api/collection/' + entry.id, method: 'DELETE' });
         invalidatePortfolio();
         toast('Removed offline — will sync when connected', 'info');
-        if (history.length > 1) history.back(); else location.hash = '#/';
+        go("#/");
       } else { toast("Error: " + e.message, "error"); }
     }
   });

@@ -47,6 +47,7 @@ export async function renderMe() {
     openai: !!savedOpenAIKey,
     google: googleStatus.connected,
     ebay: me?.ebay_configured,
+    bricklink: me?.bricklink_configured,
     brickeconomy: false
   };
 
@@ -175,6 +176,12 @@ export async function renderMe() {
             <span>Google Sheets Integration</span>
             ${status.google
               ? `<span style="color:var(--up);font-weight:600;display:inline-flex;align-items:center;gap:4px;">● Configured</span>`
+              : `<span style="color:var(--bv-red);font-weight:600;display:inline-flex;align-items:center;gap:4px;">⚠️ Unconfigured</span>`}
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span>BrickLink Pricing API</span>
+            ${status.bricklink
+              ? `<span style="color:var(--up);font-weight:600;display:inline-flex;align-items:center;gap:4px;">● Connected</span>`
               : `<span style="color:var(--bv-red);font-weight:600;display:inline-flex;align-items:center;gap:4px;">⚠️ Unconfigured</span>`}
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;">
