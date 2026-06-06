@@ -138,13 +138,29 @@ export function haptic(t) {
 }
 
 let toastTimer = null;
-export function toast(msg, type) {
+const _toastQueue = [];
+let _toastShowing = false;
+function _renderNextToast() {
   const el = $("#toast");
-  if (!el) return;
+  if (!el) { _toastQueue.length = 0; _toastShowing = false; return; }
+  const next = _toastQueue.shift();
+  if (!next) { _toastShowing = false; return; }
+  _toastShowing = true;
+  const { msg, type } = next;
   el.className = "show " + (type || "info");
   el.innerHTML = `<span class="t-icon">${type === "success" ? I.check() : type === "error" ? I.close() : I.info()}</span><span>${escapeHtml(msg)}</span>`;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove("show"), 3200);
+  toastTimer = setTimeout(() => {
+    el.classList.remove("show");
+    setTimeout(_renderNextToast, 180);
+  }, 3200);
+}
+export function toast(msg, type) {
+  if (!$("#toast")) return;
+  const last = _toastQueue[_toastQueue.length - 1];
+  if (last && last.msg === msg && last.type === type) return;
+  _toastQueue.push({ msg, type });
+  if (!_toastShowing) _renderNextToast();
 }
 
 export function debounce(fn, ms) {

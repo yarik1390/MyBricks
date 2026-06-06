@@ -3,6 +3,11 @@ import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
 
+let _activeReader = null;
+function cancelActiveStream() {
+  if (_activeReader) { _activeReader.cancel().catch(() => {}); _activeReader = null; }
+}
+
 const ADVISOR_PROMPTS = [
   "Which sets should I sell this month?",
   "Best buy with $200 budget?",
@@ -16,6 +21,7 @@ export async function toggleAdvisor() {
   const isOpen = drawer.classList.contains("open");
   if (isOpen) {
     haptic("light");
+    cancelActiveStream();
     drawer.classList.remove("open");
   } else {
     haptic("medium");
@@ -102,6 +108,7 @@ export async function renderAdvisorDrawer() {
 
   $("#closeAdvisor")?.addEventListener("click", () => {
     haptic("light");
+    cancelActiveStream();
     drawer.classList.remove("open");
   });
 
@@ -381,6 +388,8 @@ async function sendAdvisorMessage(q) {
 
   const aiBubble = appendChatBubble("ai", "", true);
 
+  let streamTimeout = null;
+  let reader = null;
   try {
     const geminiKey = localStorage.getItem('bv_gemini_key');
     const extraHeaders = geminiKey ? { 'X-Gemini-Key': geminiKey } : {};
@@ -392,8 +401,9 @@ async function sendAdvisorMessage(q) {
     });
 
     const ac = new AbortController();
-    const streamTimeout = setTimeout(() => ac.abort(), 60000);
-    const reader = resp.body.getReader();
+    streamTimeout = setTimeout(() => ac.abort(), 60000);
+    reader = resp.body.getReader();
+    _activeReader = reader;
     const dec = new TextDecoder();
     let buf = "";
     let fullText = "";
@@ -423,13 +433,14 @@ async function sendAdvisorMessage(q) {
         } catch {}
       }
     }
-    clearTimeout(streamTimeout);
     if (fullText) saveChatMessage("ai", fullText);
   } catch (err) {
-    clearTimeout(streamTimeout);
     aiBubble.querySelector(".chat-typing")?.remove();
     aiBubble.textContent = "Sorry, couldn't reach the advisor. " + (err.message || "");
     aiBubble.classList.add("error");
+  } finally {
+    clearTimeout(streamTimeout);
+    if (_activeReader === reader) _activeReader = null;
   }
 
   hist.scrollTop = hist.scrollHeight;
