@@ -25,6 +25,22 @@ export interface IntegrationHealthRow {
   ok_count: number;
   fail_count: number;
   updated_at: string | null;
+  // Computed (not stored): 'ok' | 'degraded' | 'down'. Lets the UI surface a
+  // silent integration outage instead of hiding it behind graceful fallbacks.
+  status?: 'ok' | 'degraded' | 'down';
+}
+
+/**
+ * Classify a health row. 'down' = the most recent attempt failed; 'degraded' =
+ * recent attempts include a meaningful share of failures; 'ok' otherwise.
+ */
+export function classifyHealth(row: IntegrationHealthRow): 'ok' | 'degraded' | 'down' {
+  const okAt = row.last_ok_at ? Date.parse(row.last_ok_at) : 0;
+  const failAt = row.last_fail_at ? Date.parse(row.last_fail_at) : 0;
+  if (failAt && failAt >= okAt) return 'down';
+  const total = (row.ok_count || 0) + (row.fail_count || 0);
+  if (total > 0 && row.fail_count / total >= 0.25) return 'degraded';
+  return 'ok';
 }
 
 /**
@@ -69,7 +85,7 @@ export async function getIntegrationHealth(env: Env): Promise<IntegrationHealthR
     const { results } = await env.DB
       .prepare('SELECT * FROM integration_health ORDER BY service')
       .all<IntegrationHealthRow>();
-    return results ?? [];
+    return (results ?? []).map(r => ({ ...r, status: classifyHealth(r) }));
   } catch (e) {
     console.warn('[integration-health] read failed:', (e as Error).message);
     return [];

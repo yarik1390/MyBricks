@@ -131,18 +131,27 @@ app.post('/identify', async (c) => {
     return c.json({ identified: false, reasoning: 'OpenAI could not identify any sets in the image.' });
   }
 
+  // Resolve every candidate (and its "-1" variant) in a single query to avoid an
+  // N+1 round-trip per identified set.
+  const candidates = res.sets.filter(s => s.confidence !== 'none');
+  const allNums = [...new Set(candidates.flatMap(s => [s.set_num, s.set_num + '-1']))];
+  let byNum = new Map<string, Record<string, unknown>>();
+  if (allNums.length) {
+    const placeholders = allNums.map(() => '?').join(',');
+    const { results } = await c.env.DB.prepare(
+      `SELECT * FROM lego_sets WHERE set_num IN (${placeholders})`
+    ).bind(...allNums).all<Record<string, unknown>>();
+    byNum = new Map(results.map(r => [r.set_num as string, r]));
+  }
+
   const matchedSets: Record<string, unknown>[] = [];
   let topConfidence = 'none';
   let reasoning = '';
-  for (const candidate of res.sets) {
-    if (candidate.confidence === 'none') continue;
-    let dbSet = null;
-    for (const sn of [candidate.set_num, candidate.set_num + '-1']) {
-      const r = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(sn).first<Record<string, unknown>>();
-      if (r) { dbSet = { ...r, retired: !!r.retired, confidence: candidate.confidence, reasoning: candidate.reasoning }; break; }
-    }
-    if (dbSet) {
-      matchedSets.push(dbSet);
+  for (const candidate of candidates) {
+    // Prefer the exact set_num, then the "-1" variant.
+    const r = byNum.get(candidate.set_num) ?? byNum.get(candidate.set_num + '-1');
+    if (r) {
+      matchedSets.push({ ...r, retired: !!r.retired, confidence: candidate.confidence, reasoning: candidate.reasoning });
       if (topConfidence === 'none' || candidate.confidence === 'high') {
         topConfidence = candidate.confidence;
         reasoning = candidate.reasoning;
