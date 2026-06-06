@@ -13,21 +13,28 @@ let _swipeAc = null;
 export async function renderPortfolio() {
   const servedFromCache = !!state.portfolio;
   if (!state.portfolio) {
+    // The collection is the critical payload — fetch it on its own. Previously
+    // collection + history + wishlist shared one Promise.all, so a single
+    // rejection (a flaky /api/wishlist or /api/collection/history) dropped into
+    // the catch and set an EMPTY portfolio. That made freshly-added sets vanish
+    // from the vault even though /api/me (a separate call) still counted them.
     try {
-      const [port, hist, wl] = await Promise.all([
-        api("/api/collection"),
-        api("/api/collection/history?days=365"),
-        api("/api/wishlist"),
-      ]);
-      state.portfolio = port;
-      state.portfolioHistory = hist.snapshots || [];
-      state.wishlist = wl.wishlist || [];
-      state.wishlistAlerts = wl.unread_alerts || [];
+      state.portfolio = await api("/api/collection");
       bvIDB.set('portfolio', { data: state.portfolio, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
     } catch (e) {
       toast("Couldn't load collection: " + e.message, "error");
       state.portfolio = { items: [], total_value: 0, total_paid: 0, count: 0 };
-      state.portfolioHistory = [];
+    }
+    // History + wishlist are supplementary — fetch best-effort so a failure in
+    // either never blanks the vault. Each falls back to its existing value.
+    const [hist, wl] = await Promise.all([
+      api("/api/collection/history?days=365").catch(() => null),
+      api("/api/wishlist").catch(() => null),
+    ]);
+    state.portfolioHistory = hist ? (hist.snapshots || []) : (state.portfolioHistory || []);
+    if (wl) {
+      state.wishlist = wl.wishlist || [];
+      state.wishlistAlerts = wl.unread_alerts || [];
     }
   }
   paintPortfolio();

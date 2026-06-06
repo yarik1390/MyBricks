@@ -28,7 +28,7 @@ app.get('/', async (c) => {
 
   const [collStats, figStats, valFingerprint] = await Promise.all([
     c.env.DB.prepare(`
-      SELECT COUNT(*) as count,
+      SELECT SUM(CASE WHEN deleted_at IS NULL THEN 1 ELSE 0 END) as count,
              MAX(COALESCE(deleted_at, last_modified)) as max_time
       FROM user_collection
       WHERE user_id = ?
