@@ -9,6 +9,7 @@ import { renderAdd, renderPile } from './views/catalog.js';
 import { renderBlind } from './views/minifigs.js';
 import { hideSheet } from './components/sheet.js';
 import { closeScan } from './components/scanner.js';
+import { cancelActiveStream } from './components/advisor.js';
 
 let _routeBusy = false;
 let _routeQueued = false;
@@ -27,6 +28,7 @@ export async function route() {
 async function _routeImpl() {
   hideSheet();
   closeScan();
+  cancelActiveStream();
   let hash = location.hash.replace("#", "") || "/";
   if (hash === "/blind") { location.hash = "#/minifigs"; return; }
 

@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { I } from '../icons.js';
 
 let _activeReader = null;
-function cancelActiveStream() {
+export function cancelActiveStream() {
   if (_activeReader) { _activeReader.cancel().catch(() => {}); _activeReader = null; }
 }
 
