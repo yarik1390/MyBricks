@@ -56,6 +56,7 @@ app.get('/api/config', (c) => {
     openai: !!c.env.OPENAI_API_KEY,
     google: !!(c.env.GOOGLE_CLIENT_ID && c.env.GOOGLE_CLIENT_SECRET),
     ebay: !!c.env.EBAY_APP_ID,
+    bricklink: !!(c.env.BRICKLINK_CONSUMER_KEY && c.env.BRICKLINK_TOKEN),
     brickeconomy: !!c.env.BRICKECONOMY_API_KEY,
   };
   return c.json({

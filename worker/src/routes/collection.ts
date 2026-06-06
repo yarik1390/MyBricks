@@ -26,7 +26,7 @@ app.use('*', requireMember);
 app.get('/', async (c) => {
   const userId = c.get('userId');
 
-  const [collStats, figStats] = await Promise.all([
+  const [collStats, figStats, valFingerprint] = await Promise.all([
     c.env.DB.prepare(`
       SELECT COUNT(*) as count,
              MAX(COALESCE(deleted_at, last_modified)) as max_time
@@ -38,15 +38,32 @@ app.get('/', async (c) => {
              MAX(added_at) as max_time
       FROM user_minifigs
       WHERE user_id = ?
-    `).bind(userId).first<{ count: number; max_time: string | null }>()
+    `).bind(userId).first<{ count: number; max_time: string | null }>(),
+    // Value fingerprint over owned sets so price/valuation updates (cron or
+    // background revaluation) bust the cache. Without this, the ETag only
+    // reflects user_collection changes and the browser serves stale prices via
+    // 304 until a hard reload. Sum every value column the UI renders — some
+    // supplement updates (used/ebay/bl) don't touch cached_at, so a timestamp
+    // alone is insufficient.
+    c.env.DB.prepare(`
+      SELECT ROUND(SUM(
+               COALESCE(s.current_value,0) + COALESCE(s.used_value,0) +
+               COALESCE(s.ebay_value,0) + COALESCE(s.forecast_2y,0) +
+               COALESCE(s.retirement_risk_score,0) + COALESCE(s.retired,0)
+             ), 2) as fp
+      FROM user_collection uc
+      JOIN lego_sets s ON s.set_num = uc.set_num
+      WHERE uc.user_id = ? AND uc.deleted_at IS NULL
+    `).bind(userId).first<{ fp: number | null }>()
   ]);
 
   const collCountEtag = collStats?.count ?? 0;
   const collMaxTimeEtag = collStats?.max_time || '';
   const figCountEtag = figStats?.count ?? 0;
   const figMaxTimeEtag = figStats?.max_time || '';
+  const valEtag = valFingerprint?.fp ?? 0;
 
-  const etag = `W/"${collCountEtag}-${collMaxTimeEtag}-${figCountEtag}-${figMaxTimeEtag}"`;
+  const etag = `W/"${collCountEtag}-${collMaxTimeEtag}-${figCountEtag}-${figMaxTimeEtag}-${valEtag}"`;
 
   c.header('ETag', etag);
   c.header('Cache-Control', 'no-cache');
