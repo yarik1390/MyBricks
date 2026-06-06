@@ -148,10 +148,6 @@ describe('BrickVault API Worker Tests', () => {
         valuation_method TEXT,
         valuation_expires_at TEXT,
         upc TEXT,
-        valuation_method TEXT,
-        bl_new_value REAL,
-        bl_new_qty INTEGER,
-        bl_used_qty INTEGER,
         cached_at TEXT,
         source TEXT
       )`,
