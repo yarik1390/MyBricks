@@ -1,6 +1,6 @@
 import { $, $$, haptic, toast, fetchExchangeRates, prefersReducedMotion, bvIDB } from './utils.js';
 import { state, invalidatePortfolio } from './state.js';
-import { loadSession, saveSession, setSupabaseConfig, drainOutbox, api, _authSession } from './api.js';
+import { loadSession, saveSession, setSupabaseConfig, drainOutbox, api, _authSession, getSessionUserId } from './api.js';
 import { I } from './icons.js';
 import { route } from './router.js';
 import { toggleAdvisor } from './components/advisor.js';
@@ -65,7 +65,7 @@ function applyTheme(pref) {
 async function hydrateFromIDB() {
   const MAX_AGE = 3_600_000; // 1 hour
   const now = Date.now();
-  const currentUid = state.me?.id || null;
+  const currentUid = getSessionUserId();
   if (!currentUid) return;
   try {
     const [p, c, b] = await Promise.all([

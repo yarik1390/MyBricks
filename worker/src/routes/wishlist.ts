@@ -12,7 +12,8 @@ app.get('/', async (c) => {
   const [wl, alerts] = await Promise.all([
     c.env.DB.prepare(`
       SELECT w.id, w.set_num, w.target_price, w.notes, w.added_at, w.alerted_at,
-        s.name, s.theme, s.year, s.image_url, s.current_value, s.forecast_2y, s.retail_price
+        s.name, s.theme, s.year, s.image_url, s.current_value, s.forecast_2y,
+        s.retail_price, s.retired, s.retirement_risk_score, s.ebay_value
       FROM user_wishlist w
       JOIN lego_sets s ON s.set_num = w.set_num
       WHERE w.user_id = ?

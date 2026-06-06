@@ -171,10 +171,13 @@ function showScanResult(res) {
       <button class="btn-secondary" id="scanRetry">Try again</button>`;
     $("#scanRetry")?.addEventListener("click", () => {
       el.classList.remove("show");
-      state.camera.scanning = true;
-      state.camera.timer = setInterval(scanBarcode, 400);
       const hint = $("#scanHint");
       if (hint) hint.textContent = state.camera.mode === "barcode" ? "Align barcode within the frame" : "Frame the set and tap to identify";
+      if (state.camera.mode === "barcode" && state.camera.detector) {
+        state.camera.scanning = true;
+        clearInterval(state.camera.timer);
+        state.camera.timer = setInterval(scanBarcode, 400);
+      }
     });
     return;
   }
@@ -187,6 +190,16 @@ function showScanResult(res) {
       </div>
       <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">Matched sets were not found in local catalog.</p>
       <button class="btn-secondary" id="scanRetry">Try again</button>`;
+    $("#scanRetry")?.addEventListener("click", () => {
+      el.classList.remove("show");
+      const hint = $("#scanHint");
+      if (hint) hint.textContent = state.camera.mode === "barcode" ? "Align barcode within the frame" : "Frame the set and tap to identify";
+      if (state.camera.mode === "barcode" && state.camera.detector) {
+        state.camera.scanning = true;
+        clearInterval(state.camera.timer);
+        state.camera.timer = setInterval(scanBarcode, 400);
+      }
+    });
     return;
   }
   let headHTML = `
