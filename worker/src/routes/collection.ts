@@ -42,9 +42,7 @@ app.get('/', async (c) => {
     // Value fingerprint over owned sets so price/valuation updates (cron or
     // background revaluation) bust the cache. Without this, the ETag only
     // reflects user_collection changes and the browser serves stale prices via
-    // 304 until a hard reload. Sum every value column the UI renders — some
-    // supplement updates (used/ebay/bl) don't touch cached_at, so a timestamp
-    // alone is insufficient.
+    // 304 until a hard reload.
     c.env.DB.prepare(`
       SELECT ROUND(SUM(
                COALESCE(s.current_value,0) + COALESCE(s.used_value,0) +
@@ -79,7 +77,8 @@ app.get('/', async (c) => {
       uc.storage_location, uc.acquisition_source, uc.is_complete, uc.missing_pieces,
       s.name, s.theme, s.year, s.pieces, s.minifigs,
       s.retail_price, s.current_value, s.forecast_2y, s.forecast_5y,
-      s.image_url, s.retired, s.retirement_risk_score, s.used_value, s.ebay_value, s.cached_at
+      s.image_url, s.retired, s.retirement_risk_score, s.used_value, s.ebay_value, s.cached_at,
+      s.valuation_method, s.bl_new_value, s.bl_new_qty, s.bl_used_qty
     FROM user_collection uc
     JOIN lego_sets s ON s.set_num = uc.set_num
     WHERE uc.user_id = ? AND uc.deleted_at IS NULL

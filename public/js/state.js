@@ -36,5 +36,6 @@ export const state = {
 export function invalidatePortfolio() {
   state.portfolio = null;
   state.me = null;
+  state._revalToken = (state._revalToken || 0) + 1;
   bvIDB.del('portfolio').catch(() => {});
 }

@@ -31,32 +31,29 @@ export async function renderPortfolio() {
     }
   }
   paintPortfolio();
-  // Stale-while-revalidate: when we painted from the in-memory cache, refetch in
-  // the background so cron/background price updates land without a manual reload.
-  if (servedFromCache) revalidatePortfolioInBackground();
+  // Stale-while-revalidate: when painted from the in-memory cache, refetch in
+  // the background so cron/valuation updates surface without a manual reload.
+  if (servedFromCache) _revalidatePortfolio();
 }
 
-// Background refetch of the collection. Repaints only when the data actually
-// changed (count or any value), so a quiet navigation doesn't disrupt scroll.
 let _revalidating = false;
-async function revalidatePortfolioInBackground() {
+async function _revalidatePortfolio() {
   if (_revalidating) return;
   _revalidating = true;
+  const token = state._revalToken || 0;
   try {
     const fresh = await api("/api/collection");
+    if ((state._revalToken || 0) !== token) return; // portfolio was invalidated mid-flight
     const prev = state.portfolio;
     const changed = !prev
       || prev.count !== fresh.count
-      || prev.total_value !== fresh.total_value
-      || prev.total_paid !== fresh.total_paid
-      || (prev.fig_value ?? 0) !== (fresh.fig_value ?? 0);
+      || Math.abs((prev.total_value ?? 0) - (fresh.total_value ?? 0)) > 0.005;
     state.portfolio = fresh;
     bvIDB.set('portfolio', { data: fresh, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
-    // Only repaint if still on the portfolio screen and something moved.
     const hash = location.hash.replace("#", "") || "/";
     if (changed && (hash === "/" || hash === "")) paintPortfolio();
   } catch {
-    // Network/offline — keep showing cached data.
+    // network / offline — keep stale data
   } finally {
     _revalidating = false;
   }
