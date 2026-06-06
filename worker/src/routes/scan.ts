@@ -42,18 +42,23 @@ app.post('/identify', async (c) => {
     if (!res || !res.sets || !res.sets.length) {
       return c.json({ identified: false, reasoning: 'Gemini could not identify any sets in the image.' });
     }
+    const geminiCandidates = res.sets.filter(s => s.confidence !== 'none');
+    const geminiNums = [...new Set(geminiCandidates.flatMap(s => [s.set_num, s.set_num + '-1']))];
+    let geminiByNum = new Map<string, Record<string, unknown>>();
+    if (geminiNums.length) {
+      const placeholders = geminiNums.map(() => '?').join(',');
+      const { results } = await c.env.DB.prepare(
+        `SELECT * FROM lego_sets WHERE set_num IN (${placeholders})`
+      ).bind(...geminiNums).all<Record<string, unknown>>();
+      geminiByNum = new Map(results.map(r => [r.set_num as string, r]));
+    }
     const matchedSets: Record<string, unknown>[] = [];
     let topConfidence = 'none';
     let reasoning = '';
-    for (const candidate of res.sets) {
-      if (candidate.confidence === 'none') continue;
-      let dbSet = null;
-      for (const sn of [candidate.set_num, candidate.set_num + '-1']) {
-        const r = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(sn).first<Record<string, unknown>>();
-        if (r) { dbSet = { ...r, retired: !!r.retired, confidence: candidate.confidence, reasoning: candidate.reasoning }; break; }
-      }
-      if (dbSet) {
-        matchedSets.push(dbSet);
+    for (const candidate of geminiCandidates) {
+      const r = geminiByNum.get(candidate.set_num) ?? geminiByNum.get(candidate.set_num + '-1');
+      if (r) {
+        matchedSets.push({ ...r, retired: !!r.retired, confidence: candidate.confidence, reasoning: candidate.reasoning });
         if (topConfidence === 'none' || candidate.confidence === 'high') {
           topConfidence = candidate.confidence;
           reasoning = candidate.reasoning;

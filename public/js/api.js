@@ -40,12 +40,15 @@ export async function drainOutbox() {
     if (!q.length) return;
     let synced = 0;
     for (const item of q) {
-      await api(item.path, { method: item.method, ...(item.body ? { body: item.body } : {}) });
-      outboxDequeue(item.id);
-      synced++;
+      try {
+        await api(item.path, { method: item.method, ...(item.body ? { body: item.body } : {}) });
+        outboxDequeue(item.id);
+        synced++;
+      } catch {
+        // keep failed items for next online event; continue processing the rest
+      }
     }
-    invalidatePortfolio();
-    if (synced) toast(`${synced} offline action${synced > 1 ? 's' : ''} synced`, 'success');
+    if (synced) { invalidatePortfolio(); toast(`${synced} offline action${synced > 1 ? 's' : ''} synced`, 'success'); }
   } catch {}
 }
 

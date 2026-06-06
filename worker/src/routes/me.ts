@@ -46,6 +46,10 @@ app.get('/', async (c) => {
     c.env.BRICKLINK_CONSUMER_KEY &&
     !c.env.BRICKLINK_CONSUMER_KEY.includes('dummy')
   );
+  const brickeconomyConfigured = !!(
+    c.env.BRICKECONOMY_API_KEY &&
+    !c.env.BRICKECONOMY_API_KEY.includes('dummy')
+  );
   return c.json({
     display_name: (p.display_name as string) || seedName(userId),
     handle: (p.handle as string | null) ?? null,
@@ -55,6 +59,7 @@ app.get('/', async (c) => {
     notify_price_drops: p.notify_price_drops !== 0,
     ebay_configured: ebayConfigured,
     bricklink_configured: bricklinkConfigured,
+    brickeconomy_configured: brickeconomyConfigured,
     is_admin: userId === c.env.ADMIN_USER_ID,
     portfolio_stats: {
       set_count: Number(stats?.set_count ?? 0),

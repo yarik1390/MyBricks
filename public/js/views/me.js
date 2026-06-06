@@ -48,7 +48,7 @@ export async function renderMe() {
     google: googleStatus.connected,
     ebay: me?.ebay_configured,
     bricklink: me?.bricklink_configured,
-    brickeconomy: false
+    brickeconomy: me?.brickeconomy_configured
   };
 
   const showcase = publicProfile?.showcase || [];

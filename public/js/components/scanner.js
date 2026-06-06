@@ -651,15 +651,15 @@ export function flipCalcHTML(set, entry) {
       <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;text-align:center;font-size:12px;">
         <div>
           <div style="color:var(--ink-mute);font-size:10px;">Gross</div>
-          <strong style="font-size:13px;">$${gross.toFixed(2)}</strong>
+          <strong style="font-size:13px;">${fmtMoney(gross)}</strong>
         </div>
         <div>
           <div style="color:var(--ink-mute);font-size:10px;">Fees & Ship</div>
-          <span style="color:var(--bv-red);font-weight:600;">-$${totalFees.toFixed(2)}</span>
+          <span style="color:var(--bv-red);font-weight:600;">-${fmtMoney(totalFees)}</span>
         </div>
         <div>
           <div style="color:var(--ink-mute);font-size:10px;">Est. Net</div>
-          <strong style="color:var(--up);font-size:13px;">$${net.toFixed(2)}</strong>
+          <strong style="color:var(--up);font-size:13px;">${fmtMoney(net)}</strong>
         </div>
       </div>
       <div class="flip-result" style="text-align:left;">${roiHTML}</div>
