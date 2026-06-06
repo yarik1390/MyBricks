@@ -696,15 +696,18 @@ export async function renderSetDetail(setNum) {
   const hit = state.detail.cache[setNum];
   const now = Date.now();
   if (hit && now - hit.ts < 300_000) {
-    paintSetDetail(hit.set, hit.entry);
-    api("/api/sets/" + encodeURIComponent(setNum))
-      .then(data => {
-        const set = data.set || data;
-        const entry = data.entry || null;
-        state.detail.cache[setNum] = { set, entry, ts: Date.now() };
-        if (location.hash.includes(setNum)) paintSetDetail(set, entry);
-      }).catch(() => {});
-    return;
+    let painted = false;
+    try { paintSetDetail(hit.set, hit.entry); painted = true; } catch { delete state.detail.cache[setNum]; }
+    if (painted) {
+      api("/api/sets/" + encodeURIComponent(setNum))
+        .then(data => {
+          const set = data.set || data;
+          const entry = data.entry || null;
+          state.detail.cache[setNum] = { set, entry, ts: Date.now() };
+          if (location.hash.includes(setNum)) paintSetDetail(set, entry);
+        }).catch(() => {});
+      return;
+    }
   }
   try {
     const data = await api("/api/sets/" + encodeURIComponent(setNum));
@@ -1698,7 +1701,7 @@ function wireFlipCalc(set, entry, containerEl = document) {
 }
 
 function flipCalcHTML(set, entry) {
- condition = entry?.condition || 'new';
+  const condition = entry?.condition || 'new';
   const market = parseFloat(set.ebay_value || set.current_value || 0);
   if (market <= 0) return '';
   

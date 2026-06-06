@@ -2,8 +2,8 @@ import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, fmtMoney, fmtPct, setH
 import { state, invalidatePortfolio } from '../state.js';
 import { api, sbSignOut, _authSession } from '../api.js';
 import { I } from '../icons.js';
-import { go } from '../router.js';
 import { confirmSheet, promptSheet, showSheet, hideSheet } from '../components/sheet.js';
+import { go } from '../router.js';
 
 export async function renderMe() {
   let me = state.me;
