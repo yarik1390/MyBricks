@@ -789,9 +789,9 @@ function publicProfileSectionHTML(me) {
         <div style="font-size:13px;color:var(--ink-mute);margin-bottom:12px;line-height:1.45;">
           Choose a unique username/handle to create a public profile page showing off your stats and Trophy Shelf.
         </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input type="text" id="chooseHandleInp" placeholder="your-name" style="flex:1;padding:10px;border:1.5px solid var(--line);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-size:14px;outline:none;font-family:var(--sans);">
-          <button class="btn-primary" id="saveHandleBtn" style="width:auto;white-space:nowrap;padding:10px 16px;">Set Handle</button>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="chooseHandleInp" placeholder="your-name" style="flex:1 1 180px;min-width:0;padding:10px;border:1.5px solid var(--line);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-size:14px;outline:none;font-family:var(--sans);">
+          <button class="btn-primary" id="saveHandleBtn" style="width:auto;max-width:100%;white-space:nowrap;padding:10px 16px;">Set Handle</button>
         </div>
       </div>
     `;
