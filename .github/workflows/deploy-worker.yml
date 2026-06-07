@@ -62,7 +62,47 @@ jobs:
 
       - name: Apply column migrations (idempotent — duplicate column errors are expected on re-deploys)
         working-directory: worker
-        run: npx wrangler d1 execute brickvault --remote --file=schema_migrate.sql 2>&1 || true
+        shell: bash
+        run: |
+          # D1/SQLite stops a SQL file on the first duplicate-column error.
+          # Apply column additions one-by-one so older databases still receive
+          # later fields while existing databases can safely ignore duplicates.
+          statements=(
+            "ALTER TABLE lego_sets ADD COLUMN upc TEXT"
+            "ALTER TABLE lego_sets ADD COLUMN cached_at DATETIME"
+            "ALTER TABLE lego_sets ADD COLUMN source TEXT"
+            "ALTER TABLE lego_sets ADD COLUMN valuation_expires_at DATETIME"
+            "ALTER TABLE lego_sets ADD COLUMN ebay_value REAL"
+            "ALTER TABLE lego_sets ADD COLUMN ebay_cached_at TEXT"
+            "ALTER TABLE lego_sets ADD COLUMN used_value REAL"
+            "ALTER TABLE lego_sets ADD COLUMN bl_new_value REAL"
+            "ALTER TABLE lego_sets ADD COLUMN bl_new_qty INTEGER"
+            "ALTER TABLE lego_sets ADD COLUMN bl_used_qty INTEGER"
+            "ALTER TABLE lego_sets ADD COLUMN retirement_risk_score INTEGER"
+            "ALTER TABLE lego_sets ADD COLUMN retirement_risk_updated_at TEXT"
+            "ALTER TABLE user_collection ADD COLUMN purchased_at DATE"
+            "ALTER TABLE user_collection ADD COLUMN deleted_at DATETIME"
+            "ALTER TABLE user_collection ADD COLUMN last_modified DATETIME"
+            "ALTER TABLE user_collection ADD COLUMN storage_location TEXT"
+            "ALTER TABLE user_collection ADD COLUMN acquisition_source TEXT"
+            "ALTER TABLE user_collection ADD COLUMN is_complete INTEGER DEFAULT 1"
+            "ALTER TABLE user_collection ADD COLUMN missing_pieces INTEGER DEFAULT 0"
+            "ALTER TABLE user_collection ADD COLUMN spike_alerted_at TEXT"
+            "ALTER TABLE user_prefs ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0"
+            "ALTER TABLE user_prefs ADD COLUMN expose_public_value INTEGER DEFAULT 1"
+            "ALTER TABLE user_prefs ADD COLUMN google_refresh_token TEXT"
+            "ALTER TABLE user_prefs ADD COLUMN google_spreadsheet_id TEXT"
+            "ALTER TABLE wishlist_alerts ADD COLUMN alert_type TEXT NOT NULL DEFAULT 'drop'"
+            "ALTER TABLE import_runs ADD COLUMN figs_loaded INTEGER"
+            "ALTER TABLE minifigs ADD COLUMN series TEXT"
+            "ALTER TABLE minifigs ADD COLUMN current_value REAL"
+            "ALTER TABLE minifigs ADD COLUMN added_at DATETIME"
+            "ALTER TABLE minifigs ADD COLUMN source TEXT"
+          )
+          for sql in "${statements[@]}"; do
+            npx wrangler d1 execute brickvault --remote --command "$sql" 2>&1 || true
+          done
+          npx wrangler d1 execute brickvault --remote --file=schema_migrate.sql 2>&1 || true
 
       - name: Upload Worker secrets
         working-directory: worker
