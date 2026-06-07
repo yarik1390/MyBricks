@@ -28,6 +28,16 @@ const SORTS: Record<string, string> = {
   az:         'name ASC',
 };
 
+function toFtsPrefixQuery(value: string): string {
+  return value
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(tok => `${tok}*`)
+    .join(' ');
+}
+
 // GET /api/sets/search
 app.get('/search', async (c) => {
   const q = c.req.query('q') || '';
@@ -44,7 +54,7 @@ app.get('/search', async (c) => {
   let orderBySQL = orderBy;
 
   if (q) {
-    const cleanedQ = q.trim().replace(/[*"']/g, '').split(/\s+/).filter(Boolean).map(tok => `${tok}*`).join(' ');
+    const cleanedQ = toFtsPrefixQuery(q);
     if (cleanedQ) {
       fromSQL = 'lego_sets s JOIN lego_sets_fts f ON s.rowid = f.rowid';
       where.push(`f.lego_sets_fts MATCH ?`);

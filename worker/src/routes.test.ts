@@ -67,6 +67,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       'DROP TABLE IF EXISTS user_showcase',
       'DROP TABLE IF EXISTS portfolio_snapshots',
       'DROP TABLE IF EXISTS integration_health',
+      'DROP TABLE IF EXISTS lego_sets_fts',
 
       `CREATE TABLE lego_sets (
         set_num TEXT PRIMARY KEY, name TEXT NOT NULL, theme TEXT, year INTEGER,
@@ -76,6 +77,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         valuation_method TEXT DEFAULT 'formula_bulk', bl_new_value REAL, bl_new_qty INTEGER, bl_used_qty INTEGER,
         valuation_expires_at TEXT, cached_at TEXT, source TEXT
       )`,
+      `CREATE VIRTUAL TABLE lego_sets_fts USING fts5(set_num, name, theme)`,
       `CREATE TABLE user_collection (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL,
         quantity INTEGER NOT NULL DEFAULT 1, condition TEXT NOT NULL DEFAULT 'new',
@@ -119,8 +121,30 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
        VALUES ('75192', 'Millennium Falcon', 'Star Wars', 2017, 7541, 849.99, 799.99, 1)`,
       `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
        VALUES ('10300', 'Back to the Future', 'Icons', 2022, 1872, 210.00, 199.99, 0)`,
+      `INSERT INTO lego_sets_fts(rowid, set_num, name, theme)
+       SELECT rowid, set_num, name, theme FROM lego_sets`,
     ];
     for (const sql of sqls) await db.prepare(sql).run();
+  });
+
+  describe('Set search', () => {
+    it('handles exact set numbers with dashes as plain search text', async () => {
+      await db.prepare(
+        `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
+         VALUES ('10039-1', 'Black Falcon''s Fortress', 'Castle', 2002, 430, 67.64, 39.99, 1)`
+      ).run();
+      await db.prepare(
+        `INSERT INTO lego_sets_fts(rowid, set_num, name, theme)
+         SELECT rowid, set_num, name, theme FROM lego_sets WHERE set_num='10039-1'`
+      ).run();
+
+      const res = await app.fetch(new Request('http://localhost/api/sets/search?q=10039-1&limit=5'), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      const match = data.sets.find((set: any) => set.set_num === '10039-1');
+      expect(match).toBeTruthy();
+      expect(match.current_value).toBe(67.64);
+    });
   });
 
   describe('GET /api/me', () => {
