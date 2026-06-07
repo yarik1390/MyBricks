@@ -806,6 +806,7 @@ export async function api(path, opts = {}) {
   const geminiKey = localStorage.getItem('bv_gemini_key');
   const init = {
     ...opts,
+    cache: "no-store",
     headers: {
       "content-type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

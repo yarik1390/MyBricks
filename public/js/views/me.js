@@ -563,6 +563,7 @@ export async function renderMe() {
       }
       const token = _authSession?.access_token;
       const res = await fetch((window.WORKER_BASE || "") + "/api/collection/export", {
+        cache: "no-store",
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (!res.ok) throw new Error("Export failed");
