@@ -15,6 +15,7 @@ export async function renderBlind() {
     loadBlind({ reset: true }).then(() => {
       if (location.hash === '#/minifigs' && $('#miniGrid')) {
         refreshMiniGrid();
+        refreshMiniStats();
         if (isFigFilterDefault()) bvIDB.set('blind', { data: { items: state.blind.items, total: state.blind.total, hasMore: state.blind.hasMore, offset: state.blind.offset }, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
       }
     }).catch(() => {});
@@ -83,7 +84,7 @@ export async function renderBlind() {
   $$("[data-fig-rarity]").forEach(btn => btn.addEventListener("click", () => {
     state.filter.figRarity = btn.dataset.figRarity; haptic("light");
     $$("[data-fig-rarity]").forEach(x => x.classList.toggle("active", x.dataset.figRarity === state.filter.figRarity));
-    loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) refreshMiniGrid(); }).catch(() => {});
+    loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) { refreshMiniGrid(); refreshMiniStats(); } }).catch(() => {});
   }));
 
   const ownedCycle = { all: 'owned', owned: 'unowned', unowned: 'all' };
@@ -92,13 +93,13 @@ export async function renderBlind() {
     const labels = { all: 'All', owned: 'Owned', unowned: 'Unowned' };
     const chip = $("#figOwnedChip");
     if (chip) { chip.textContent = labels[state.filter.figOwned]; chip.classList.toggle("active", state.filter.figOwned !== 'all'); }
-    loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) refreshMiniGrid(); }).catch(() => {});
+    loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) { refreshMiniGrid(); refreshMiniStats(); } }).catch(() => {});
   });
 
   $$("[data-fig-sort]").forEach(btn => btn.addEventListener("click", () => {
     state.filter.figSort = btn.dataset.figSort; haptic("light");
     $$("[data-fig-sort]").forEach(x => x.classList.toggle("active", x.dataset.figSort === state.filter.figSort));
-    loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) refreshMiniGrid(); }).catch(() => {});
+    loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) { refreshMiniGrid(); refreshMiniStats(); } }).catch(() => {});
   }));
 
   wireMiniCards();
@@ -158,6 +159,7 @@ function refreshMiniGrid() {
 const debouncedFigSearch = debounce(async () => {
   await loadBlind({ reset: true });
   refreshMiniGrid();
+  refreshMiniStats();
 }, 350);
 
 function wireMiniCards() {
@@ -187,10 +189,17 @@ function updateFigStats() {
   const countEl = $("#figStatCount");
   const valueEl = $("#figStatValue");
   if (countEl) countEl.textContent = `${ownedItems.length} owned`;
+  const totalEl = countEl?.nextElementSibling;
+  if (totalEl) totalEl.textContent = `of ${state.blind.total.toLocaleString()} figs`;
   if (valueEl) {
     const total = ownedItems.reduce((s, f) => s + (f.value ?? f.current_value ?? 0), 0);
     valueEl.textContent = fmtMoney(total, { cents: 0 });
   }
+}
+
+function refreshMiniStats() {
+  updateBlindCount();
+  updateFigStats();
 }
 
 function showFigDetail(f) {
