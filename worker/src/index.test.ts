@@ -590,4 +590,163 @@ describe('BrickVault API Worker Tests', () => {
       expect(etag3).not.toBe(etag2);
     });
   });
+
+  describe('Scanner — barcode mode', () => {
+    it('returns match for known EAN-13 barcode', async () => {
+      // Set upc on the existing seed row
+      await db.prepare(`UPDATE lego_sets SET upc='0673419280310' WHERE set_num='75192'`).run();
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'barcode', barcode: '0673419280310' })
+        }),
+        env
+      );
+      expect(res.status).toBe(200);
+      const data = await res.json<{ identified: boolean; confidence: string }>();
+      expect(data.identified).toBe(true);
+      expect(data.confidence).toBe('high');
+    });
+
+    it('converts UPC-A to EAN-13 for lookup', async () => {
+      await db.prepare(`UPDATE lego_sets SET upc='0673419280310' WHERE set_num='75192'`).run();
+      // 12-digit UPC-A — scanner should prepend '0' and find the match
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'barcode', barcode: '673419280310' })
+        }),
+        env
+      );
+      expect(res.status).toBe(200);
+      const data = await res.json<{ identified: boolean }>();
+      expect(data.identified).toBe(true);
+    });
+
+    it('returns identified:false for unknown barcode', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'barcode', barcode: '0000000000000' })
+        }),
+        env
+      );
+      expect(res.status).toBe(200);
+      const data = await res.json<{ identified: boolean; reasoning: string }>();
+      expect(data.identified).toBe(false);
+      expect(data.reasoning).toContain('Try a photo scan');
+    });
+
+    it('returns 400 when barcode field is missing', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'barcode' })
+        }),
+        env
+      );
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('Scanner — image mode', () => {
+    it('returns 413 when image exceeds size limit', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'image', image: 'x'.repeat(2_100_000) })
+        }),
+        env
+      );
+      expect(res.status).toBe(413);
+    });
+
+    it('returns 400 when mode is invalid', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'unknown', image: 'data:image/png;base64,abc' })
+        }),
+        env
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('uses BYOK OpenAI key and returns matched set', async () => {
+      // 75192 already seeded by beforeEach; OpenAI module is fully mocked to return it
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-OpenAI-Key': 'user-provided-key',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ mode: 'image', image: 'data:image/png;base64,mock' })
+        }),
+        env
+      );
+      expect(res.status).toBe(200);
+      const data = await res.json<{ identified: boolean; model: string }>();
+      expect(data.identified).toBe(true);
+      expect(data.model).toContain('gpt-4o');
+    });
+
+    it('returns identified:false via Gemini when set not in catalog', async () => {
+      // Mock Gemini to return a set number that doesn't exist in the DB
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url.toString().includes('generativelanguage.googleapis.com')) {
+          return Promise.resolve(new Response(JSON.stringify({
+            candidates: [{ content: { parts: [{ text: JSON.stringify({
+              sets: [{ set_num: '99999', name: 'Ghost Set', confidence: 'high', reasoning: 'Test' }]
+            }) }] } }]
+          }), { status: 200 }));
+        }
+        return originalFetch(url);
+      });
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-Gemini-Key': 'user-gemini-key',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ mode: 'image', image: 'data:image/png;base64,dGVzdA==' })
+        }),
+        env
+      );
+      globalThis.fetch = originalFetch;
+      expect(res.status).toBe(200);
+      const data = await res.json<{ identified: boolean }>();
+      expect(data.identified).toBe(false);
+    });
+
+    it('falls back to server OpenAI key under rate limit threshold', async () => {
+      // 75192 already seeded by beforeEach; rate limit at 5 (under 20 cap)
+      const windowStart = new Date();
+      windowStart.setMinutes(0, 0, 0);
+      await db.prepare(
+        `INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count) VALUES (?, 'scan_image', ?, 5)`
+      ).bind(testUserId, windowStart.toISOString()).run();
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'image', image: 'data:image/png;base64,mock' })
+        }),
+        env
+      );
+      expect(res.status).toBe(200);
+      const data = await res.json<{ identified: boolean }>();
+      expect(data.identified).toBe(true);
+    });
+  });
 });
