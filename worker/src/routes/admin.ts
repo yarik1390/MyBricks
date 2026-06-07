@@ -236,10 +236,14 @@ app.post('/expire-valuations', async (c) => {
 
 // GET /api/admin/import-status
 app.get('/import-status', async (c) => {
+  // Auto-expire jobs stuck in 'running' for more than 30 minutes.
+  await c.env.DB.prepare(
+    `UPDATE import_runs SET status='error',error='Timed out',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
+  ).run();
   const { results } = await c.env.DB.prepare(
-    `SELECT id, status, started_at, completed_at, themes_loaded, sets_loaded, sets_skipped, figs_loaded, error 
-     FROM import_runs 
-     ORDER BY started_at DESC 
+    `SELECT id, status, started_at, completed_at, themes_loaded, sets_loaded, sets_skipped, figs_loaded, error
+     FROM import_runs
+     ORDER BY started_at DESC
      LIMIT 5`
   ).all();
   return c.json({ runs: results });

@@ -86,6 +86,10 @@ ALTER TABLE lego_sets ADD COLUMN bl_new_value REAL;
 ALTER TABLE lego_sets ADD COLUMN bl_new_qty INTEGER;
 ALTER TABLE lego_sets ADD COLUMN bl_used_qty INTEGER;
 
+-- Valuation method tag and cache expiry (required by collection route SELECT)
+ALTER TABLE lego_sets ADD COLUMN valuation_method TEXT DEFAULT 'formula_bulk';
+ALTER TABLE lego_sets ADD COLUMN valuation_expires_at DATETIME;
+
 -- Integration health tracking (external API success/failure)
 CREATE TABLE IF NOT EXISTS integration_health (
   service TEXT PRIMARY KEY,
