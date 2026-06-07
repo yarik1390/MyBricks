@@ -14,6 +14,10 @@ export interface FetchRetryOptions {
   timeoutMs?: number;   // per-attempt timeout
 }
 
+export interface FetchTrackedOptions extends FetchRetryOptions {
+  okStatuses?: number[];
+}
+
 const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -58,11 +62,12 @@ export async function fetchTracked(
   service: IntegrationName,
   url: string,
   init: RequestInit = {},
-  opts: FetchRetryOptions = {},
+  opts: FetchTrackedOptions = {},
 ): Promise<Response> {
   try {
     const resp = await fetchWithRetry(url, init, opts);
-    if (resp.ok) {
+    const okStatuses = new Set(opts.okStatuses ?? []);
+    if (resp.ok || okStatuses.has(resp.status)) {
       await recordIntegrationAttempt(env, service, true);
     } else {
       await recordIntegrationAttempt(env, service, false, `HTTP ${resp.status}`);

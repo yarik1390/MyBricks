@@ -417,5 +417,21 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.coverage).toBeDefined();
       expect(data.api_routing.worker_base_url).toBe('http://localhost');
     });
+
+    it('classifies provider access failures as degraded, not down', async () => {
+      (env as any).EBAY_APP_ID = 'test-ebay-app-id';
+      await db.prepare(
+        `INSERT INTO integration_health (service, last_fail_at, last_error, ok_count, fail_count, updated_at)
+         VALUES ('ebay', datetime('now'), 'HTTP 403', 0, 4, datetime('now'))`
+      ).run();
+      const res = await app.fetch(new Request('http://localhost/api/admin/integrations', {
+        headers: auth(adminToken),
+      }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      const ebay = data.integrations.find((row: any) => row.service === 'ebay');
+      expect(ebay.status).toBe('degraded');
+      expect(ebay.reachable).toBe(true);
+    });
   });
 });

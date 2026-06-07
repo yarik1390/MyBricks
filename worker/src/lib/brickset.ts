@@ -17,9 +17,10 @@ export async function checkBricksetKey(env: Env): Promise<string | null> {
       { headers: { Accept: 'application/json' } }
     );
     if (!resp.ok) return `HTTP ${resp.status}`;
-    const data = await resp.json() as { status?: string };
-    if (data.status === 'OK' || data.status === 'success') return null;
-    return `Brickset says: ${data.status}`;
+    const data = await resp.json() as { status?: string; message?: string };
+    const status = String(data.status ?? '').trim().toLowerCase();
+    if (status === 'ok' || status === 'success') return null;
+    return `Brickset says: ${data.message || data.status || 'unknown status'}`;
   } catch (e) {
     return (e as Error).message;
   }
@@ -88,7 +89,7 @@ export async function fetchBarcodesPage(page: number, env: Env): Promise<Brickse
         barcodes?: { EAN?: string; UPC?: string };
       }>;
     };
-    if (data.status !== 'success') {
+    if (String(data.status ?? '').trim().toLowerCase() !== 'success') {
       console.warn(`[brickset] page ${page} status=${data.status} message=${data.message}`);
       return null;
     }

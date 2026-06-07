@@ -88,7 +88,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     label: 'eBay',
     configured: (env) => !!env.EBAY_APP_ID,
     used_by: ['sold-price checks', 'deal score', 'listing draft'],
-    notes: 'Uses the Finding API when configured and HTML fallback when not configured.',
+    notes: 'Uses Marketplace Insights sold data when OAuth access is available, then legacy Finding API as fallback.',
   },
   bricklink: {
     label: 'BrickLink',
@@ -139,10 +139,14 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
   },
 };
 
+function isCredentialOrAccessIssue(error?: string | null): boolean {
+  return !!error && /(HTTP 401|HTTP 403|access denied|insufficient permissions|invalid[_ -]?scope|not authorized)/i.test(error);
+}
+
 export function classifyHealth(row: IntegrationHealthRow): 'ok' | 'degraded' | 'down' {
   const okAt = row.last_ok_at ? Date.parse(row.last_ok_at) : 0;
   const failAt = row.last_fail_at ? Date.parse(row.last_fail_at) : 0;
-  if (failAt && failAt >= okAt) return 'down';
+  if (failAt && failAt >= okAt) return isCredentialOrAccessIssue(row.last_error) ? 'degraded' : 'down';
   const total = (row.ok_count || 0) + (row.fail_count || 0);
   if (total > 0 && row.fail_count / total >= 0.25) return 'degraded';
   return 'ok';

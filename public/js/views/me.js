@@ -934,8 +934,15 @@ async function updateJobsStatus() {
       if (run.status === "completed") {
         statusColor = "var(--up)";
       } else if (run.status === "error") {
+        const errText = String(run.error || "Unknown error");
         statusColor = "var(--bv-red)";
-        statusText = `ERROR: ${escapeHtml(run.error || "Unknown error")}`;
+        statusText = `ERROR: ${escapeHtml(errText)}`;
+        if (/Brickset says:\s*success/i.test(errText)) {
+          statusColor = "var(--bv-yellow)";
+          statusText = "RETRY NEEDED";
+        } else if (/Timed out/i.test(errText)) {
+          statusText = "INTERRUPTED";
+        }
       } else if (run.status === "running") {
         statusColor = "var(--accent)";
         statusText = "RUNNING...";
@@ -945,7 +952,11 @@ async function updateJobsStatus() {
       const dateStr = run.started_at ? new Date(run.started_at.replace(" ", "T") + "Z").toLocaleString() : "Unknown date";
       const details = [];
       if (run.themes_loaded) details.push(`${run.themes_loaded} themes`);
-      if (run.error && String(run.error).includes('method:')) {
+      if (run.error && /Brickset says:\s*success/i.test(String(run.error))) {
+        details.push("key valid; rerun backfill");
+      } else if (run.error && /Timed out/i.test(String(run.error))) {
+        details.push("safe to retry");
+      } else if (run.error && String(run.error).includes('method:')) {
         if (run.sets_skipped) details.push(`${run.sets_skipped} processed`);
         if (run.sets_loaded) details.push(`${run.sets_loaded} filled`);
         const nextMatch = String(run.error).match(/next_page:(\d+)/);
@@ -958,7 +969,7 @@ async function updateJobsStatus() {
         <div style="border-bottom:1px solid var(--line-soft);padding-bottom:8px;margin-bottom:4px;">
           <div style="display:flex;justify-content:space-between;align-items:center;font-weight:600;margin-bottom:2px;">
             <span>Job #${run.id}</span>
-            <span style="color:${statusColor};font-size:11px;">${statusText}</span>
+            <span style="color:${statusColor};font-size:11px;text-align:right;max-width:58%;overflow-wrap:anywhere;">${statusText}</span>
           </div>
           <div style="display:flex;justify-content:space-between;color:var(--ink-mute);font-size:11px;">
             <span>Started: ${dateStr}</span>
@@ -994,9 +1005,10 @@ async function updateIntegrationsHealth() {
     : status === "degraded" ? "var(--bv-yellow)"
     : status === "down" ? "var(--bv-red)"
     : status === "unconfigured" ? "var(--ink-mute)"
-    : "var(--accent)";
+    : "var(--ink-mute)";
   const statusLabel = (r) => {
-    if (r.status === "unknown") return r.configured ? "Configured / no calls" : "Unconfigured";
+    if (/HTTP 401|HTTP 403|access denied|insufficient permissions|invalid[_ -]?scope|not authorized/i.test(r.last_error || "")) return "Needs access";
+    if (r.status === "unknown") return r.configured ? "Ready / no calls" : "Unconfigured";
     return String(r.status || "unknown").replace("_", " ");
   };
   try {
@@ -1046,7 +1058,7 @@ async function updateIntegrationsHealth() {
             <span>${r.ok_count || 0} ok / ${r.fail_count || 0} fail</span>
           </div>
           <div style="font-size:11px;color:var(--ink-mute);margin-top:2px;">${escapeHtml((r.used_by || []).join(", ") || r.notes || "")}</div>
-          ${r.last_error && r.status === "down" ? `<div style="color:var(--bv-red);font-size:11px;margin-top:2px;">${escapeHtml(r.last_error)}</div>` : ""}
+          ${r.last_error && (r.status === "down" || r.status === "degraded") ? `<div style="color:${color};font-size:11px;margin-top:2px;">${escapeHtml(r.last_error)}</div>` : ""}
         </div>
       `;
     }).join("");

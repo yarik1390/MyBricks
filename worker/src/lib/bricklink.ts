@@ -6,6 +6,9 @@ export interface BrickLinkPricing {
   lot_count: number;
 }
 
+const brickLinkPriceUrl = (type: 'SET' | 'MINIFIG', no: string) =>
+  `https://api.bricklink.com/api/store/v1/items/${type}/${encodeURIComponent(no)}/price`;
+
 async function oauthHeader(
   method: string,
   url: string,
@@ -53,8 +56,8 @@ export async function fetchUsedPricing(setNum: string, env: Env): Promise<BrickL
   if (!env.BRICKLINK_CONSUMER_KEY) return null;
   const blNum = setNum.includes('-') ? setNum : `${setNum}-1`;
   try {
-    const baseUrl = `https://api.bricklink.com/api/store/v1/price_guide/SET/${encodeURIComponent(blNum)}`;
-    const queryParams = { guide_type: 'sold', new_or_used: 'U', country_code: 'US', currency_code: 'USD' };
+    const baseUrl = brickLinkPriceUrl('SET', blNum);
+    const queryParams = { guide_type: 'sold', new_or_used: 'U', currency_code: 'USD' };
     const authHeader = await oauthHeader(
       'GET', baseUrl, queryParams,
       env.BRICKLINK_CONSUMER_KEY, env.BRICKLINK_CONSUMER_SECRET,
@@ -62,7 +65,7 @@ export async function fetchUsedPricing(setNum: string, env: Env): Promise<BrickL
     );
     const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
-    });
+    }, { okStatuses: [404] });
     if (!resp.ok) return null;
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
     if (body.meta?.code !== 200 || !body.data) return null;
@@ -84,8 +87,8 @@ export async function fetchSetPricing(setNum: string, env: Env): Promise<BrickLi
   const blNum = setNum.includes('-') ? setNum : `${setNum}-1`;
 
   try {
-    const baseUrl = `https://api.bricklink.com/api/store/v1/price_guide/SET/${encodeURIComponent(blNum)}`;
-    const queryParams = { guide_type: 'sold', new_or_used: 'N', country_code: 'US', currency_code: 'USD' };
+    const baseUrl = brickLinkPriceUrl('SET', blNum);
+    const queryParams = { guide_type: 'sold', new_or_used: 'N', currency_code: 'USD' };
 
     const authHeader = await oauthHeader(
       'GET', baseUrl, queryParams,
@@ -95,7 +98,7 @@ export async function fetchSetPricing(setNum: string, env: Env): Promise<BrickLi
 
     const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
-    });
+    }, { okStatuses: [404] });
     if (!resp.ok) return null;
 
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
@@ -117,8 +120,8 @@ export async function fetchSetPricing(setNum: string, env: Env): Promise<BrickLi
 export async function fetchMinifigPricing(figNum: string, env: Env): Promise<number | null> {
   if (!env.BRICKLINK_CONSUMER_KEY) return null;
   try {
-    const baseUrl = `https://api.bricklink.com/api/store/v1/price_guide/MINIFIG/${encodeURIComponent(figNum)}`;
-    const queryParams = { guide_type: 'sold', new_or_used: 'N', country_code: 'US', currency_code: 'USD' };
+    const baseUrl = brickLinkPriceUrl('MINIFIG', figNum);
+    const queryParams = { guide_type: 'sold', new_or_used: 'N', currency_code: 'USD' };
     const authHeader = await oauthHeader(
       'GET', baseUrl, queryParams,
       env.BRICKLINK_CONSUMER_KEY, env.BRICKLINK_CONSUMER_SECRET,
@@ -126,7 +129,7 @@ export async function fetchMinifigPricing(figNum: string, env: Env): Promise<num
     );
     const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
-    });
+    }, { okStatuses: [404] });
     if (!resp.ok) return null;
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
     if (body.meta?.code !== 200 || !body.data) return null;
