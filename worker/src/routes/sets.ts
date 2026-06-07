@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import OpenAI from 'openai';
-import { requireMember } from '../auth';
+import { optionalMember, requireMember } from '../auth';
 import { formulaValuation } from '../lib/valuation';
 import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
 import { fetchBricksetDetails } from '../lib/brickset';
@@ -19,7 +19,7 @@ interface ListingDraft {
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-app.use('*', requireMember);
+app.use('*', optionalMember);
 
 const SORTS: Record<string, string> = {
   value_desc: 'current_value DESC',
@@ -370,7 +370,7 @@ app.get('/:setnum/history', async (c) => {
 });
 
 // POST /api/sets/:setnum/listing-draft — generate eBay listing copy via AI
-app.post('/:setnum/listing-draft', async (c) => {
+app.post('/:setnum/listing-draft', requireMember, async (c) => {
   const userId = c.get('userId');
   const setNum = c.req.param('setnum');
 
@@ -455,7 +455,7 @@ price_reasoning: one sentence explaining the price.`;
 });
 
 // POST /api/sets/:setnum/revalue
-app.post('/:setnum/revalue', async (c) => {
+app.post('/:setnum/revalue', requireMember, async (c) => {
   const userId = c.get('userId');
   const setnum = c.req.param('setnum');
 

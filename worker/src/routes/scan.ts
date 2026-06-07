@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import OpenAI from 'openai';
-import { requireMember } from '../auth';
+import { optionalMember } from '../auth';
 import { callGeminiScan } from '../lib/gemini';
 import type { Env, Variables } from '../types';
 
@@ -9,10 +9,10 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 // Free-tier server-key limit; bypassed when the user supplies their own Gemini/OpenAI key.
 const SCAN_HOURLY_LIMIT = 20;
 
-app.use('*', requireMember);
+app.use('*', optionalMember);
 
 app.post('/identify', async (c) => {
-  const userId = c.get('userId');
+  const userId = c.get('userId') || '';
   const body = await c.req.json<{ mode?: string; image?: string; barcode?: string }>();
   const { mode, image, barcode } = body;
 
@@ -72,6 +72,9 @@ app.post('/identify', async (c) => {
   }
 
   const openaiKey = c.req.header('X-OpenAI-Key');
+  if (!openaiKey && !userId) {
+    return c.json({ error: 'Sign in or add your own Gemini/OpenAI key for photo scanning.' }, 401);
+  }
 
   if (!openaiKey) {
     // OpenAI path — rate-limited per user.

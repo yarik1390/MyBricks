@@ -1,14 +1,14 @@
 import { Hono } from 'hono';
-import { requireMember } from '../auth';
+import { optionalMember, requireMember } from '../auth';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-app.use('*', requireMember);
+app.use('*', optionalMember);
 
 // GET /api/minifigs
 app.get('/', async (c) => {
-  const userId = c.get('userId');
+  const userId = c.get('userId') || '';
   const series = c.req.query('series') || '';
   const q      = c.req.query('q')      || '';
   const rarity = c.req.query('rarity') || '';
@@ -79,7 +79,7 @@ app.get('/', async (c) => {
 });
 
 // PUT /api/minifigs/:fignum — mark owned
-app.put('/:fignum', async (c) => {
+app.put('/:fignum', requireMember, async (c) => {
   const userId = c.get('userId');
   const figNum = c.req.param('fignum');
   const exists = await c.env.DB.prepare('SELECT 1 FROM minifigs WHERE fig_num=?').bind(figNum).first();
@@ -96,7 +96,7 @@ app.put('/:fignum', async (c) => {
 });
 
 // DELETE /api/minifigs/:fignum
-app.delete('/:fignum', async (c) => {
+app.delete('/:fignum', requireMember, async (c) => {
   const userId = c.get('userId');
   const figNum = c.req.param('fignum');
   const exists = await c.env.DB.prepare('SELECT 1 FROM minifigs WHERE fig_num=?').bind(figNum).first();

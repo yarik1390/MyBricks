@@ -1,10 +1,7 @@
 import { Hono } from 'hono';
-import { requireMember } from '../auth';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
-
-app.use('*', requireMember);
 
 app.get('/', async (c) => {
   const { results } = await c.env.DB.prepare(`

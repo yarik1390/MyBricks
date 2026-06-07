@@ -89,6 +89,18 @@ export async function requireMember(c: C, next: Next) {
   await next();
 }
 
+export async function optionalMember(c: C, next: Next) {
+  const token = c.req.header('Authorization')?.replace('Bearer ', '');
+  if (!token) {
+    await next();
+    return;
+  }
+  const { sub, error } = await verifyJWT(token, c.env);
+  if (!sub) return c.json({ error: 'Unauthorized', reason: error }, 401);
+  c.set('userId', sub);
+  await next();
+}
+
 export async function requireAdmin(c: C, next: Next) {
   const token = c.req.header('Authorization')?.replace('Bearer ', '');
   if (!token) return c.json({ error: 'Unauthorized', reason: 'no token' }, 401);

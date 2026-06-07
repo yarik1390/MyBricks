@@ -1,6 +1,6 @@
 import { $, $$, prefersReducedMotion } from './utils.js';
 import { state } from './state.js';
-import { _authSession, api } from './api.js';
+import { api } from './api.js';
 import { I } from './icons.js';
 import { renderLogin } from './views/login.js';
 import { renderMe } from './views/me.js';
@@ -34,20 +34,18 @@ async function _routeImpl() {
   let hash = (location.hash.replace("#", "") || "/").split("?")[0];
   if (hash === "/blind") { location.hash = "#/minifigs"; return; }
 
-  // Auth gate — bounce to login if no session.
-  if (!_authSession) {
-    if (hash !== "/login") { location.hash = "#/login"; return; }
+  // Login is optional; guests can use the app with local-only data.
+  if (hash === "/login") {
     await withViewTransition(() => renderLogin());
     return;
   }
-  if (hash === "/login") { location.hash = "#/"; return; }
 
-  if (_authSession && !state.me) {
+  if (!state.me) {
     try {
       state.me = await api("/api/me");
     } catch (e) {
       console.error("Failed to load user profile", e);
-      state.me = { display_name: "Collector", handle: "you", notify_price_drops: true, currency: "USD", portfolio_stats: {} };
+      state.me = { display_name: "Guest Collector", handle: null, notify_price_drops: true, currency: "USD", is_guest: true, portfolio_stats: {} };
     }
   }
 
@@ -65,7 +63,7 @@ async function _routeImpl() {
 
   const fab = document.getElementById("advisorFab");
   if (fab) {
-    fab.style.display = _authSession && hash !== "/login" ? "flex" : "none";
+    fab.style.display = hash !== "/login" ? "flex" : "none";
   }
   $("#advisorDrawer")?.classList.remove("open");
 

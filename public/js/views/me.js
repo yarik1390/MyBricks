@@ -1,6 +1,6 @@
 import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, fmtMoney, fmtPct, setHue, CURRENCY_SYMBOLS, bvIDB } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
-import { api, sbSignOut, _authSession } from '../api.js';
+import { api, sbSignOut, _authSession, isGuestMode, guestCollectionCSVBlob } from '../api.js';
 import { I } from '../icons.js';
 import { confirmSheet, promptSheet, showSheet, hideSheet } from '../components/sheet.js';
 import { go } from '../router.js';
@@ -39,6 +39,7 @@ export async function renderMe() {
   const c = me.portfolio_stats || {};
   const gain = (c.total_value || 0) - (c.total_paid || 0);
   const gainPct = c.total_paid ? gain / c.total_paid : 0;
+  const guest = isGuestMode();
   const savedGeminiKey = localStorage.getItem('bv_gemini_key') || '';
   const savedOpenAIKey = localStorage.getItem('bv_openai_key') || '';
   const status = state.config?.status || {
@@ -53,7 +54,7 @@ export async function renderMe() {
 
   const showcase = publicProfile?.showcase || [];
   let trophyShelfHTML = '';
-  if (me.handle && me.is_public) {
+  if (!guest && me.handle && me.is_public) {
     trophyShelfHTML = `
       <div class="section-title">Trophy Shelf (${showcase.length}/6)</div>
       <div class="card" style="padding:14px 16px;margin-bottom:14px;">
@@ -87,7 +88,7 @@ export async function renderMe() {
     <div class="page">
       <div class="topbar">
         <div class="topbar-heading">
-          <div class="topbar-eyebrow">@${escapeHtml(me.handle || "you")}</div>
+          <div class="topbar-eyebrow">${guest ? "Local guest" : "@" + escapeHtml(me.handle || "you")}</div>
           <div class="topbar-title">Profile</div>
         </div>
       </div>
@@ -96,7 +97,7 @@ export async function renderMe() {
         <div class="avatar">${(me.display_name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}</div>
         <div style="flex:1;min-width:0;">
           <div class="profile-name">${escapeHtml(me.display_name || "Collector")}</div>
-          <div class="profile-handle">Member · Brickvault</div>
+          <div class="profile-handle">${guest ? "Guest mode - saved on this device" : "Member - Brickvault"}</div>
         </div>
         <button class="profile-pencil" aria-label="Edit name" id="editName">${I.pencil()}</button>
       </div>
@@ -122,6 +123,7 @@ export async function renderMe() {
           ${I.arrowR()}
         </button>` : ""}
 
+      ${guest ? guestModeCardHTML() : ""}
       ${publicProfileSectionHTML(me)}
       ${trophyShelfHTML}
 
@@ -315,8 +317,8 @@ export async function renderMe() {
           </div>
           <div id="csvImportResult" style="font-size:13px;color:var(--ink-mute);font-family:var(--mono);"></div>
         </div>
-        <div class="setting-row" id="signOutRow" style="cursor:pointer;">
-          <div class="lbl-wrap"><div class="lbl">Sign out</div><div class="desc">Sync resumes when you return.</div></div>
+        <div class="setting-row" id="${guest ? "signInRow" : "signOutRow"}" style="cursor:pointer;">
+          <div class="lbl-wrap"><div class="lbl">${guest ? "Sign in" : "Sign out"}</div><div class="desc">${guest ? "Sync your local vault across devices." : "Sync resumes when you return."}</div></div>
           ${I.chev()}
         </div>
       </div>
@@ -337,6 +339,13 @@ export async function renderMe() {
     } catch {}
     state.pwa.deferredPrompt = null;
     $("#installBtn")?.remove();
+  });
+
+  ["#guestSignInBtn", "#profileSignInBtn", "#signInRow"].forEach(sel => {
+    $(sel)?.addEventListener("click", () => {
+      haptic("medium");
+      go("#/login");
+    });
   });
 
   $$("#themeSeg button").forEach(b => b.addEventListener("click", () => {
@@ -468,6 +477,10 @@ export async function renderMe() {
   // Google Sheets hooks (Secure Code flow redirect)
   $("#connectGoogleBtn")?.addEventListener("click", async () => {
     haptic("light");
+    if (guest) {
+      go("#/login");
+      return;
+    }
     try {
       const r = await api("/api/google/auth-init", { method: "POST" });
       if (r && r.code) {
@@ -538,6 +551,16 @@ export async function renderMe() {
   $("#exportCsvBtn")?.addEventListener("click", async () => {
     haptic("medium");
     try {
+      if (guest) {
+        const blob = guestCollectionCSVBlob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "brickvault-collection.csv";
+        a.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
       const token = _authSession?.access_token;
       const res = await fetch((window.WORKER_BASE || "") + "/api/collection/export", {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -610,7 +633,7 @@ export async function renderMe() {
         bvIDB.del('blind')
       ]);
     } catch {}
-    go("#/login");
+    go("#/");
   });
 }
 
@@ -655,7 +678,30 @@ function parseCSV(text) {
   return rows;
 }
 
+function guestModeCardHTML() {
+  return `
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+      <div style="font-weight:600;font-size:14px;margin-bottom:6px;">Local guest vault</div>
+      <div style="font-size:13px;color:var(--ink-mute);line-height:1.45;margin-bottom:12px;">
+        Your sets are saved on this device. Sign in to sync across devices, publish a profile, and connect Google Sheets.
+      </div>
+      <button class="btn-primary" id="guestSignInBtn" style="width:100%;">${I.user()}<span>Sign in to sync</span></button>
+    </div>
+  `;
+}
+
 function publicProfileSectionHTML(me) {
+  if (me.is_guest) {
+    return `
+      <div class="section-title">Public Profile</div>
+      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+        <div style="font-size:13px;color:var(--ink-mute);line-height:1.45;margin-bottom:12px;">
+          Public profiles and Trophy Shelf sync require an account.
+        </div>
+        <button class="btn-secondary" id="profileSignInBtn" style="width:100%;">${I.user()}<span>Sign in</span></button>
+      </div>
+    `;
+  }
   if (!me.handle) {
     return `
       <div class="section-title">Public Profile</div>
