@@ -1076,19 +1076,29 @@ function wireInfoTab(set, entry) {
         const w = state.wishlist.find(x => x.set_num === set.set_num);
         if (w) await api("/api/wishlist/" + w.id, { method: "DELETE" });
         state.wishlist = state.wishlist.filter(x => x.set_num !== set.set_num);
+        refreshNavBadge();
         toast("Removed from wishlist", "info");
         paintSetDetail(set, entry);
       } else {
         openAddWishlistSheet(set, async (targetPriceUSD, notes) => {
           try {
-            await api("/api/wishlist", {
+            const created = await api("/api/wishlist", {
               method: "POST",
               body: { set_num: set.set_num, target_price: targetPriceUSD, notes: notes || null }
             });
+            state.wishlist = [
+              { ...set, ...(created.item || {}), set_num: set.set_num, target_price: targetPriceUSD, notes: notes || null },
+              ...state.wishlist.filter(w => w.set_num !== set.set_num)
+            ];
+            refreshNavBadge();
             // Keep the previous array readable until the refetch resolves —
             // nulling it here would crash any concurrent `state.wishlist.some(...)`.
-            const wl = await api("/api/wishlist");
-            state.wishlist = wl.wishlist || [];
+            try {
+              const wl = await api("/api/wishlist");
+              state.wishlist = wl.wishlist || [];
+              state.wishlistAlerts = wl.unread_alerts || state.wishlistAlerts;
+              refreshNavBadge();
+            } catch {}
             toast("Added to wishlist", "success");
             paintSetDetail(set, entry);
           } catch (err) {
@@ -1410,7 +1420,7 @@ function wishlistCardHTML(w) {
         </div>
         <div class="gap-row">
           <span style="color:var(--ink-mute);">Now ${fmtMoney(w.current_value, { cents: 0 })}</span>
-          <span style="color:${hit ? "var(--up)" : "var(--ink)"};font-weight:700;">${hit ? "AT TARGET" : "Target " + fmtMoney(w.target_price || 0, { cents: 0 })}</span>
+          <span style="color:${hit ? "var(--up)" : "var(--ink)"};font-weight:700;">${gap == null ? "No target" : hit ? "AT TARGET" : "Target " + fmtMoney(w.target_price, { cents: 0 })}</span>
         </div>
         <div class="progress${hit ? " over" : ""}"><div style="width:${progress}%;"></div></div>
         ${(w.retirement_risk_score || 0) >= 70 && !w.retired ? `<div style="font-size:11px;color:var(--down);margin-top:4px;font-family:var(--mono);">⚠️ Retirement risk: High</div>` : ""}
@@ -1623,8 +1633,9 @@ function openAddWishlistSheet(set, onConfirm) {
   });
 
   document.getElementById("wlSave").addEventListener("click", () => {
-    const val = parseFloat(priceInp.value) || 0;
-    const usdVal = val / rate;
+    const rawPrice = priceInp.value.trim();
+    const val = rawPrice ? parseFloat(rawPrice) : null;
+    const usdVal = Number.isFinite(val) ? val / rate : null;
     const notesVal = notesInp.value.trim();
     hideSheet();
     onConfirm(usdVal, notesVal);
