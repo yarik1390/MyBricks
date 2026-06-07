@@ -255,9 +255,9 @@ function paintPortfolio() {
       </div>
 
       ${p.items.length > 0 ? `
-        <div class="portfolio-tabs" style="display:flex;gap:24px;border-bottom:1.5px solid var(--line-soft);margin: 16px 16px 8px;padding-bottom:8px;">
-          <button class="portfolio-tab ${state.portfolioTab === 'items' ? 'active' : ''}" data-tab="items" style="font-family:var(--font-heading);font-size:15px;font-weight:700;border:none;background:transparent;cursor:pointer;color:var(--ink-mute);padding-bottom:4px;outline:none;">Your Sets</button>
-          <button class="portfolio-tab ${state.portfolioTab === 'insights' ? 'active' : ''}" data-tab="insights" style="font-family:var(--font-heading);font-size:15px;font-weight:700;border:none;background:transparent;cursor:pointer;color:var(--ink-mute);padding-bottom:4px;outline:none;">Insights</button>
+        <div class="portfolio-tabs">
+          <button class="portfolio-tab ${state.portfolioTab === 'items' ? 'active' : ''}" data-tab="items">Your Sets</button>
+          <button class="portfolio-tab ${state.portfolioTab === 'insights' ? 'active' : ''}" data-tab="insights">Insights</button>
         </div>
       ` : ''}
 

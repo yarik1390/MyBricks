@@ -85,7 +85,7 @@ function catalogResultsHTML() {
   const f = state.filter;
   const listClass = state.compactView ? "compact-list" : "grid";
   return `
-    <div id="catalogCount" style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin:14px 4px 10px;">${c.total.toLocaleString()} result${c.total === 1 ? "" : "s"}</div>
+    <div id="catalogCount" class="result-count">${c.total.toLocaleString()} result${c.total === 1 ? "" : "s"}</div>
     ${c.items.length === 0 ? `
       <div class="empty card">
         <div class="empty-icon">${I.search()}</div>

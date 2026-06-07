@@ -2655,4 +2655,360 @@ select:focus-visible,
   opacity: 0.6;
 }
 
+/* ============================================================
+   UI/UX polish pass
+   ============================================================ */
+:root {
+  --surface-warm: #FFF8E8;
+  --surface-cool: #EEF4FB;
+  --accent-blue: #2563EB;
+  --shadow-soft: 0 12px 26px rgba(28, 28, 30, 0.08);
+}
+
+:root[data-theme="dark"] {
+  --surface-warm: #27231A;
+  --surface-cool: #1B2533;
+  --shadow-soft: 0 14px 30px rgba(0, 0, 0, 0.28);
+}
+
+.topbar,
+.brand,
+.topbar-actions {
+  min-width: 0;
+}
+
+.brand-name,
+.topbar-title,
+.profile-name,
+.detail-title {
+  overflow-wrap: anywhere;
+}
+
+.brand-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icon-btn {
+  box-shadow: var(--shadow-1);
+  transition:
+    transform var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+@media (hover: hover) {
+  .icon-btn:hover,
+  .profile-pencil:hover,
+  .qty-btn:hover,
+  .import-btn:hover {
+    background: var(--surface-2);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-2);
+  }
+
+  .btn-primary:hover,
+  .btn-secondary:hover,
+  .btn-danger:hover,
+  .scan-cta:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-4);
+  }
+}
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 248, 232, 0.72), rgba(255,255,255,0) 44%),
+    var(--surface);
+}
+
+:root[data-theme="dark"] .hero {
+  background:
+    linear-gradient(180deg, rgba(39, 35, 26, 0.7), rgba(31,31,38,0) 46%),
+    var(--surface);
+}
+
+.hero-value {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+
+.hero-meta {
+  align-items: center;
+  line-height: 1.45;
+}
+
+.portfolio-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 16px 0 12px;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1.5px solid var(--line-soft);
+  border-radius: var(--r-full);
+}
+
+.portfolio-tab {
+  flex: 1;
+  padding: 9px 10px;
+  border-radius: var(--r-full);
+  color: var(--ink-mute);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.portfolio-tab.active {
+  color: var(--bg) !important;
+  background: var(--ink);
+  border-bottom: 0 !important;
+  margin-bottom: 0 !important;
+  padding-bottom: 9px !important;
+}
+
+.portfolio-tab:active {
+  transform: scale(0.97);
+}
+
+.filter-row {
+  align-items: center;
+  scroll-padding-inline: 22px;
+}
+
+.chip {
+  min-height: 38px;
+}
+
+.chip.active {
+  transform: translateY(-1px);
+}
+
+.result-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  margin: 14px 4px 10px;
+}
+
+.set-list-card:not(.compact) {
+  min-height: 108px;
+  border-left-width: 6px;
+}
+
+.set-list-card:not(.compact) .sl-img {
+  align-self: center;
+}
+
+.sl-right {
+  min-width: 96px;
+}
+
+.sl-value,
+.set-card-value,
+.mini-value,
+.summary-cell .val,
+.fig-stat-num {
+  white-space: nowrap;
+}
+
+.set-card,
+.mini-card,
+.summary-cell,
+.fig-stat-pill,
+.profile-head,
+.setting-row,
+.field {
+  box-shadow: var(--shadow-2), var(--shadow-soft);
+}
+
+.set-card-name,
+.mini-name,
+.sl-name {
+  text-wrap: pretty;
+}
+
+.field:focus-within {
+  border-color: var(--bv-red);
+  box-shadow: var(--shadow-2), 0 0 0 3px rgba(218, 41, 28, 0.12);
+}
+
+.setting-row {
+  transition:
+    background var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+@media (hover: hover) {
+  .setting-row:hover {
+    background: var(--surface-2);
+  }
+}
+
+.summary-cell:first-child {
+  background: linear-gradient(135deg, var(--surface), var(--surface-cool));
+}
+
+.summary-cell:nth-child(2),
+.fig-stat-pill:first-child {
+  background: linear-gradient(135deg, var(--surface), var(--surface-warm));
+}
+
+.fig-filter-bar {
+  margin: 0 -4px 14px;
+  padding: 4px;
+  border-radius: var(--r-2);
+}
+
+.mini-owned-badge,
+.set-card-img .owned-tag {
+  box-shadow: 1px 1px 0 var(--line);
+}
+
+.nav-tab {
+  min-width: 0;
+  transition:
+    color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.nav-tab .nav-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#nav {
+  box-shadow: 0 -8px 22px rgba(28, 28, 30, 0.08);
+}
+
+@media (min-width: 760px) {
+  .summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1050px) {
+  .set-list:not(.compact-list) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .set-list:not(.compact-list) > .onboarding-empty {
+    grid-column: 1 / -1;
+  }
+
+  .set-list:not(.compact-list) .set-list-card {
+    height: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .topbar {
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand {
+    gap: 8px;
+  }
+
+  .brand-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+  }
+
+  .brand-name {
+    font-size: 20px;
+    max-width: 132px;
+  }
+
+  .topbar-actions {
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  #portfolioShareBtn {
+    display: none;
+  }
+
+  .icon-btn {
+    width: 39px;
+    height: 39px;
+  }
+
+  .icon-btn svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .hero {
+    padding: 18px;
+  }
+
+  .hero-value {
+    font-size: 42px;
+  }
+
+  .hero-value .cents {
+    font-size: 22px;
+  }
+
+  .sl-right {
+    min-width: 82px;
+  }
+}
+
+@media (max-width: 370px) {
+  .page {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .brand-name {
+    font-size: 18px;
+    max-width: 96px;
+  }
+
+  .topbar-actions {
+    gap: 5px;
+  }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .nav-tab {
+    font-size: 9px;
+    letter-spacing: 0.04em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
