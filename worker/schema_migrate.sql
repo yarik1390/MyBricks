@@ -101,6 +101,21 @@ CREATE TABLE IF NOT EXISTS integration_health (
   updated_at TEXT
 );
 
+-- Minifig enhancements: series categorization, market value, ownership tracking
+ALTER TABLE minifigs ADD COLUMN series TEXT;
+ALTER TABLE minifigs ADD COLUMN current_value REAL;
+ALTER TABLE minifigs ADD COLUMN added_at DATETIME DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE minifigs ADD COLUMN source TEXT;
+
+CREATE TABLE IF NOT EXISTS user_minifigs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  fig_num TEXT NOT NULL REFERENCES minifigs(fig_num),
+  quantity INTEGER DEFAULT 1,
+  added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, fig_num)
+);
+
 -- Rate limiting for AI and scan endpoints
 CREATE TABLE IF NOT EXISTS rate_limits (
   user_id TEXT NOT NULL,
