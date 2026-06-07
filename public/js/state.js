@@ -24,6 +24,7 @@ export const state = {
   detail: { tab: "info", cache: {} },
   pwa: { deferredPrompt: null },
   wishlist: [], wishlistAlerts: [],
+  recentWishlistDeletes: {},
   portfolioHistory: null,
   ownedFigs: new Set(JSON.parse(localStorage.getItem("bv_figs") || "[]")),
   toastTimer: null,

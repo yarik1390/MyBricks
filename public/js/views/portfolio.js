@@ -1076,6 +1076,7 @@ function wireInfoTab(set, entry) {
         const w = state.wishlist.find(x => x.set_num === set.set_num);
         if (w) await api("/api/wishlist/" + w.id, { method: "DELETE" });
         state.wishlist = state.wishlist.filter(x => x.set_num !== set.set_num);
+        state.recentWishlistDeletes[set.set_num] = Date.now();
         refreshNavBadge();
         toast("Removed from wishlist", "info");
         paintSetDetail(set, entry);
@@ -1090,6 +1091,7 @@ function wireInfoTab(set, entry) {
               { ...set, ...(created.item || {}), set_num: set.set_num, target_price: targetPriceUSD, notes: notes || null },
               ...state.wishlist.filter(w => w.set_num !== set.set_num)
             ];
+            delete state.recentWishlistDeletes[set.set_num];
             refreshNavBadge();
             // Keep the previous array readable until the refetch resolves —
             // nulling it here would crash any concurrent `state.wishlist.some(...)`.
@@ -1333,7 +1335,11 @@ function setupTabSwipe(set, entry) {
 export async function renderWishlist() {
   try {
     const wl = await api("/api/wishlist");
-    state.wishlist = wl.wishlist || [];
+    const cutoff = Date.now() - 15000;
+    for (const [setNum, ts] of Object.entries(state.recentWishlistDeletes || {})) {
+      if (ts < cutoff) delete state.recentWishlistDeletes[setNum];
+    }
+    state.wishlist = (wl.wishlist || []).filter(w => !state.recentWishlistDeletes?.[w.set_num]);
     state.wishlistAlerts = wl.unread_alerts || [];
   } catch (e) { toast("Couldn't load wishlist", "error"); }
 
