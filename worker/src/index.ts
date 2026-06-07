@@ -17,7 +17,7 @@ import { runValuateSets } from './jobs/valuate-sets';
 import { runSnapshotPortfolios } from './jobs/snapshot-portfolios';
 import { runSnapshotSetValues } from './jobs/snapshot-set-values';
 import { runWishlistAlerts } from './jobs/wishlist-alerts';
-import { runBackfillUpc } from './jobs/backfill-upc';
+import { runDailyCatalogMaintenance } from './jobs/catalog-maintenance';
 import { importSets, importFigs } from './jobs/import-catalog';
 
 import type { Env, Variables } from './types';
@@ -106,11 +106,13 @@ export default {
       case '0 2 * * *': await run('snapshot-portfolios', () => runSnapshotPortfolios(env)); break;
       case '0 3 * * *': await run('snapshot-set-values', () => runSnapshotSetValues(env)); break;
       case '0 8 * * *': await run('wishlist-alerts', () => runWishlistAlerts(env)); break;
-      case '0 4 * * SUN':
-        await run('backfill-upc', () => runBackfillUpc(env));
-        await run('import-sets', () => importSets(env.DB, env));
-        await run('import-figs', () => importFigs(env.DB, env));
-        await run('cleanup-stale-rows', async () => {
+      case '0 4 * * *': {
+        await run('daily-catalog-maintenance', () => runDailyCatalogMaintenance(env));
+        const isSunday = new Date(event.scheduledTime).getUTCDay() === 0;
+        if (!isSunday) break;
+        await run('weekly-import-sets', () => importSets(env.DB, env));
+        await run('weekly-import-figs', () => importFigs(env.DB, env));
+        await run('weekly-cleanup-stale-rows', async () => {
           await env.DB.batch([
             env.DB.prepare(`DELETE FROM rate_limits WHERE window_start < datetime('now', '-7 days')`),
             env.DB.prepare(`DELETE FROM oauth_sessions WHERE expires_at < unixepoch() - 86400`),
@@ -118,6 +120,7 @@ export default {
           ]);
         });
         break;
+      }
     }
   },
 };

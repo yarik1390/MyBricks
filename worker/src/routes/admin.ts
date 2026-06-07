@@ -1,31 +1,14 @@
 import { Hono } from 'hono';
 import { requireAdmin } from '../auth';
 import { importSets, importFigs, runBatches, BATCH } from '../jobs/import-catalog';
-import { runBackfillUpc } from '../jobs/backfill-upc';
-import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
+import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
+import { runValuateSets } from '../jobs/valuate-sets';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 app.use('*', requireAdmin);
-
-function parseNextBackfillPage(error?: string | null): number {
-  if (!error || /complete:true/.test(error)) return 1;
-  const match = error.match(/next_page:(\d+)/);
-  const n = match ? Number(match[1]) : 1;
-  return Number.isFinite(n) && n > 0 ? n : 1;
-}
-
-async function nextBackfillPage(env: Env): Promise<number> {
-  const row = await env.DB.prepare(
-    `SELECT error FROM import_runs
-     WHERE error LIKE 'method:bulk%'
-     ORDER BY started_at DESC
-     LIMIT 1`
-  ).first<{ error: string | null }>();
-  return parseNextBackfillPage(row?.error);
-}
 
 async function getDataCoverage(env: Env) {
   const [sets, valuationMethods] = await Promise.all([
@@ -182,109 +165,66 @@ app.post('/backfill-upc', async (c) => {
 });
 
 // POST /api/admin/revalue-brickeconomy
-// Bulk-revalue sets using BrickEconomy API. Processes sets sequentially with
-// a small delay between each to avoid rate limiting. Runs in the background.
+// Starts a bounded full-catalog valuation slice. The daily cron runs the same
+// path automatically; manual presses simply advance the queue immediately.
 // Body: { scope?: 'all' | 'owned' | 'stale', limit?: number }
-//   - 'all': every set in the DB (default)
-//   - 'owned': only sets in user collections or wishlists
-//   - 'stale': only sets with formula_bulk or expired valuations
 app.post('/revalue-brickeconomy', async (c) => {
-  if (!c.env.BRICKECONOMY_API_KEY) {
-    return c.json({ error: 'BRICKECONOMY_API_KEY secret not configured.' }, 500);
-  }
-
   const body = await c.req.json<{ scope?: string; limit?: number }>().catch(() => ({} as { scope?: string; limit?: number }));
-  // Default to 'stale' (not 'all') so an accidental call doesn't sweep the whole
-  // catalog and burn the BrickEconomy quota (free tier ~1000 calls/month).
-  const scope = body.scope || 'stale';
-  // Coerce defensively so a non-numeric body.limit can't produce `LIMIT NaN`.
+  const scope = body.scope || 'all';
   const requested = Number(body.limit);
   const limit = Number.isFinite(requested) && requested > 0
-    ? Math.min(Math.floor(requested), 1000)
-    : 500;
+    ? Math.min(Math.floor(requested), 250)
+    : 150;
 
   if (!['all', 'owned', 'stale'].includes(scope)) {
     return c.json({ error: "scope must be 'all', 'owned', or 'stale'" }, 400);
   }
 
-  let query: string;
-  switch (scope) {
-    case 'owned':
-      query = `
-        SELECT set_num, name, retired FROM lego_sets
-        WHERE set_num IN (
-          SELECT DISTINCT set_num FROM user_collection WHERE deleted_at IS NULL
-          UNION
-          SELECT DISTINCT set_num FROM user_wishlist
-        )
-        ORDER BY COALESCE(valuation_expires_at, '2000-01-01') ASC
-        LIMIT ${limit}
-      `;
-      break;
-    case 'stale':
-      query = `
-        SELECT set_num, name, retired FROM lego_sets
-        WHERE valuation_method = 'formula_bulk'
-           OR valuation_expires_at IS NULL
-           OR valuation_expires_at < datetime('now')
-        ORDER BY COALESCE(valuation_expires_at, '2000-01-01') ASC
-        LIMIT ${limit}
-      `;
-      break;
-    default: // 'all'
-      query = `
-        SELECT set_num, name, retired FROM lego_sets
-        ORDER BY COALESCE(valuation_expires_at, '2000-01-01') ASC
-        LIMIT ${limit}
-      `;
-  }
+  await c.env.DB.prepare(
+    `UPDATE import_runs SET status='error',error='Timed out',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
+  ).run();
 
-  const { results } = await c.env.DB.prepare(query)
-    .all<{ set_num: string; name: string; retired: number }>();
+  const active = await c.env.DB.prepare(
+    `SELECT id FROM import_runs WHERE status='running' AND started_at > datetime('now','-30 minutes') LIMIT 1`
+  ).first<{ id: number }>();
+  if (active) return c.json({ error: 'An import or valuation job is already running.', run_id: active.id }, 409);
 
-  const total = results.length;
+  const run = await c.env.DB.prepare(
+    "INSERT INTO import_runs (status, error) VALUES ('running', ?)"
+  ).bind(`method:valuation scope:${scope} limit:${limit}`).run();
+  const runId = run.meta.last_row_id;
 
   c.executionCtx.waitUntil(
     (async () => {
-      let updated = 0, failed = 0, skipped = 0;
-      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-      for (const set of results) {
-        try {
-          // Pace requests to stay within BrickEconomy rate limits.
-          await sleep(250);
-          const be = await fetchBrickEconomyDetails(set.set_num, c.env);
-          if (!be || be.current_value_new === null) {
-            skipped++;
-            continue;
-          }
-
-          const yr = set.retired ? 0.15 : 0.10;
-          const forecast_2y = be.forecast_value_new_2_years ?? Math.round(be.current_value_new * Math.pow(1 + yr, 2) * 100) / 100;
-          const forecast_5y = Math.round(be.current_value_new * Math.pow(1 + yr, 5) * 100) / 100;
-
-          await c.env.DB.prepare(`
-            UPDATE lego_sets SET
-              current_value=?, used_value=?, retail_price=COALESCE(?, retail_price),
-              forecast_2y=?, forecast_5y=?,
-              valuation_method='brickeconomy',
-              valuation_expires_at=datetime('now', '+7 days')
-            WHERE set_num=?
-          `).bind(
-            be.current_value_new, be.current_value_used, be.retail_price_us,
-            forecast_2y, forecast_5y, set.set_num
-          ).run();
-
-          updated++;
-        } catch (err) {
-          console.warn(`[bulk-brickeconomy] ${set.set_num} failed:`, (err as Error).message);
-          failed++;
-        }
+      try {
+        const result = await runValuateSets(c.env, {
+          scope: scope === 'owned' ? 'owned' : 'all',
+          includeFresh: scope === 'all',
+          limit,
+        });
+        await c.env.DB.prepare(`
+          UPDATE import_runs
+          SET status='completed',
+              completed_at=datetime('now'),
+              sets_loaded=?,
+              sets_skipped=?,
+              error=?
+          WHERE id=?
+        `).bind(
+          result.updated,
+          result.processed,
+          `method:valuation scope:${scope} limit:${limit} processed:${result.processed} updated:${result.updated}`,
+          runId,
+        ).run();
+      } catch (err) {
+        await c.env.DB.prepare(
+          "UPDATE import_runs SET status='error',error=?,completed_at=datetime('now') WHERE id=?"
+        ).bind((err as Error).message, runId).run();
       }
-      console.log(`[bulk-brickeconomy] Done: ${updated} updated, ${skipped} skipped, ${failed} failed out of ${total}`);
     })()
   );
 
-  return c.json({ ok: true, status: 'running', total, scope });
+  return c.json({ ok: true, status: 'running', run_id: runId, scope, limit });
 });
 
 // POST /api/admin/expire-valuations

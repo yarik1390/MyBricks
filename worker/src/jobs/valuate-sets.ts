@@ -6,7 +6,13 @@ import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
 import { computeRetirementRisk } from '../lib/retirement-risk';
 import { recordIntegrationHealth, type IntegrationName } from '../lib/integration-health';
 
-export async function runValuateSets(env: Env) {
+export interface ValuateSetsOptions {
+  scope?: 'owned' | 'all';
+  limit?: number;
+  includeFresh?: boolean;
+}
+
+export async function runValuateSets(env: Env, options: ValuateSetsOptions = {}) {
   // Aggregate external-API health across the whole run, then persist once per service.
   const health: Record<string, { ok: number; fail: number; lastError?: string }> = {
     ebay: { ok: 0, fail: 0 },
@@ -18,21 +24,41 @@ export async function runValuateSets(env: Env) {
     health[s].fail++;
     health[s].lastError = (e as Error)?.message || String(e);
   };
-  // Prioritize sets that users own or wishlist, oldest valuation first
+  const scope = options.scope ?? 'owned';
+  const requestedLimit = Number(options.limit);
+  const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+    ? Math.min(Math.floor(requestedLimit), 250)
+    : 25;
+  const duePredicate = `(
+    ls.valuation_method = 'formula_bulk'
+    OR ls.valuation_expires_at IS NULL
+    OR ls.valuation_expires_at < datetime('now')
+    OR ls.cached_at IS NULL
+  )`;
+  const scopePredicate = scope === 'owned'
+    ? `AND (
+        ls.set_num IN (SELECT DISTINCT set_num FROM user_collection WHERE deleted_at IS NULL)
+        OR ls.set_num IN (SELECT DISTINCT set_num FROM user_wishlist)
+      )`
+    : '';
+  const freshnessPredicate = options.includeFresh ? '' : `AND ${duePredicate}`;
+
+  // Prioritize overdue/formula rows first, then rotate through the oldest
+  // cached valuations. With scope='all' this steadily covers the whole catalog.
   const { results } = await env.DB.prepare(`
     SELECT DISTINCT ls.set_num, ls.name, ls.theme, ls.year, ls.pieces, ls.minifigs, ls.retired
     FROM lego_sets ls
-    WHERE (ls.valuation_method = 'formula_bulk'
-       OR (ls.valuation_expires_at IS NOT NULL AND ls.valuation_expires_at < datetime('now')))
-      AND (
-        ls.set_num IN (SELECT DISTINCT set_num FROM user_collection WHERE deleted_at IS NULL)
-        OR ls.set_num IN (SELECT DISTINCT set_num FROM user_wishlist)
-      )
-    ORDER BY COALESCE(ls.valuation_expires_at, '2000-01-01') ASC
-    LIMIT 25
-  `).all<{ set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number; retired: number }>();
+    WHERE 1=1
+      ${freshnessPredicate}
+      ${scopePredicate}
+    ORDER BY
+      CASE WHEN ${duePredicate} THEN 0 ELSE 1 END,
+      COALESCE(ls.valuation_expires_at, ls.cached_at, '2000-01-01') ASC,
+      ls.set_num ASC
+    LIMIT ?
+  `).bind(limit).all<{ set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number; retired: number }>();
 
-  const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+  const openai = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
   let updated = 0, market = 0, ai = 0;
 
   for (const set of results) {
@@ -168,6 +194,7 @@ export async function runValuateSets(env: Env) {
     }
 
     // Fall back to GPT-4o-mini
+    if (!openai) continue;
     try {
       const result = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -214,7 +241,7 @@ export async function runValuateSets(env: Env) {
     await recordIntegrationHealth(env, service as IntegrationName, t);
   }
 
-  return { processed: results.length, updated, market, ai };
+  return { processed: results.length, updated, market, ai, scope, limit };
 }
 
 export async function runValuateMinifigs(env: Env): Promise<number> {

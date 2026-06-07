@@ -1,5 +1,6 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { describe, it, expect } from 'vitest';
+import { parseNextBackfillPage } from './jobs/backfill-upc';
 import { computeRetirementRisk } from './lib/retirement-risk';
 import { formulaValuation } from './lib/valuation';
 
@@ -135,5 +136,23 @@ describe('formulaValuation', () => {
     const r = formulaValuation({});
     expect(r.retail_price).toBeGreaterThan(0);
     expect(r.current_value).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// barcode backfill resume state
+// ---------------------------------------------------------------------------
+describe('parseNextBackfillPage', () => {
+  it('resumes from the stored next page', () => {
+    expect(parseNextBackfillPage('method:bulk start_page:5 next_page:9 complete:false')).toBe(9);
+  });
+
+  it('starts over after a complete backfill pass', () => {
+    expect(parseNextBackfillPage('method:bulk catalog:26898 next_page: complete:true')).toBe(1);
+  });
+
+  it('falls back to page 1 for missing or malformed progress', () => {
+    expect(parseNextBackfillPage(null)).toBe(1);
+    expect(parseNextBackfillPage('method:bulk next_page:nope complete:false')).toBe(1);
   });
 });

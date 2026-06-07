@@ -18,6 +18,23 @@ export interface BackfillOptions {
   onProgress?: (progress: { processed: number; filled: number; nextPage?: number; complete: boolean }) => Promise<void>;
 }
 
+export function parseNextBackfillPage(error?: string | null): number {
+  if (!error || /complete:true/.test(error)) return 1;
+  const match = error.match(/next_page:(\d+)/);
+  const n = match ? Number(match[1]) : 1;
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+export async function nextBackfillPage(env: Env): Promise<number> {
+  const row = await env.DB.prepare(
+    `SELECT error FROM import_runs
+     WHERE error LIKE 'method:bulk%'
+     ORDER BY started_at DESC
+     LIMIT 1`
+  ).first<{ error: string | null }>();
+  return parseNextBackfillPage(row?.error);
+}
+
 export async function runBackfillUpc(env: Env, options: BackfillOptions = {}): Promise<BackfillResult> {
   if (!env.BRICKSET_API_KEY && !env.BRICKOWL_API_KEY) {
     return {
@@ -80,7 +97,7 @@ async function tryBulkBackfill(
     for (const { setNum, upc } of result.sets) {
       if (!upc || !setNum) continue;
       stmts.push(
-        env.DB.prepare('UPDATE lego_sets SET upc=? WHERE set_num=? AND upc IS NULL').bind(upc, setNum),
+        env.DB.prepare("UPDATE lego_sets SET upc=? WHERE set_num=? AND NULLIF(TRIM(COALESCE(upc, '')), '') IS NULL").bind(upc, setNum),
       );
     }
     for (let i = 0; i < stmts.length; i += 100) {

@@ -271,11 +271,11 @@ export async function renderMe() {
           <button class="import-btn" id="importFigsBtn" aria-label="Import minifigs">${I.download()}</button>
         </div>
         <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Backfill barcodes</div><div class="desc" id="backfillUpcDesc">Fill UPC codes from Brickset — enables free barcode scanning</div></div>
+          <div class="lbl-wrap"><div class="lbl">Backfill barcodes</div><div class="desc" id="backfillUpcDesc">Daily automatic slices from Brickset; press to advance now</div></div>
           <button class="import-btn" id="backfillUpcBtn" aria-label="Backfill barcodes">${I.download()}</button>
         </div>
         <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Revalue all prices</div><div class="desc" id="revalueAllDesc">Update all set prices from BrickEconomy in one batch</div></div>
+          <div class="lbl-wrap"><div class="lbl">Revalue all prices</div><div class="desc" id="revalueAllDesc">Daily full-catalog valuation slices; press to advance now</div></div>
           <button class="import-btn" id="revalueAllBtn" aria-label="Revalue all prices">${I.refresh({w: 16, h: 16})}</button>
         </div>
       </div>
@@ -897,7 +897,7 @@ async function triggerImport(type) {
     sets: { url: "/api/admin/import-rebrickable", method: "POST", body: { dataset: "sets" }, desc: "importSetsDesc", text: "Importing sets..." },
     figs: { url: "/api/admin/import-rebrickable", method: "POST", body: { dataset: "figs" }, desc: "importFigsDesc", text: "Importing figs..." },
     upc: { url: "/api/admin/backfill-upc", method: "POST", body: {}, desc: "backfillUpcDesc", text: "Backfilling UPC..." },
-    revalue: { url: "/api/admin/revalue-brickeconomy", method: "POST", body: { scope: "owned" }, desc: "revalueAllDesc", text: "Revaluing prices..." }
+    revalue: { url: "/api/admin/revalue-brickeconomy", method: "POST", body: { scope: "all", limit: 150 }, desc: "revalueAllDesc", text: "Revaluing prices..." }
   };
   const cnf = map[type];
   if (!cnf) return;
@@ -956,6 +956,9 @@ async function updateJobsStatus() {
         details.push("key valid; rerun backfill");
       } else if (run.error && /Timed out/i.test(String(run.error))) {
         details.push("safe to retry");
+      } else if (run.error && String(run.error).includes('method:valuation')) {
+        if (run.sets_skipped) details.push(`${run.sets_skipped} processed`);
+        if (run.sets_loaded) details.push(`${run.sets_loaded} updated`);
       } else if (run.error && String(run.error).includes('method:')) {
         if (run.sets_skipped) details.push(`${run.sets_skipped} processed`);
         if (run.sets_loaded) details.push(`${run.sets_loaded} filled`);

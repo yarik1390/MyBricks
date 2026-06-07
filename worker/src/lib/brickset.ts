@@ -6,6 +6,20 @@ export interface BricksetBarcodes {
   ean: string | null;
 }
 
+function cleanBarcode(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const digits = String(value).replace(/\D/g, '');
+  return digits.length >= 8 ? digits : null;
+}
+
+function readBarcodes(s: Record<string, unknown>): BricksetBarcodes {
+  const barcodes = s.barcodes as Record<string, unknown> | undefined;
+  return {
+    upc: cleanBarcode(barcodes?.UPC ?? barcodes?.upc ?? s.UPC ?? s.upc),
+    ean: cleanBarcode(barcodes?.EAN ?? barcodes?.ean ?? s.EAN ?? s.ean ?? s.barcode),
+  };
+}
+
 // Validate the API key. Returns null on success, or an error string.
 export async function checkBricksetKey(env: Env): Promise<string | null> {
   if (!env.BRICKSET_API_KEY) return 'BRICKSET_API_KEY not set';
@@ -39,7 +53,7 @@ export async function fetchBarcodes(setNum: string, env: Env): Promise<BricksetB
     const params = new URLSearchParams({
       apiKey: env.BRICKSET_API_KEY,
       userHash: '',
-      params: JSON.stringify({ setNumber: bricksetNum }),
+      params: JSON.stringify({ setNumber: `${bricksetNum}-${variant}`, extendedData: 1 }),
     });
     const resp = await fetchTracked(env, 'brickset', `https://brickset.com/api/v3.asmx/getSets?${params}`, {
       headers: { Accept: 'application/json' },
@@ -50,9 +64,9 @@ export async function fetchBarcodes(setNum: string, env: Env): Promise<BricksetB
     if (!sets.length) return null;
     // Prefer the matching variant; fall back to the first result.
     const s = sets.find(x => (x.numberVariant as number) === variant) ?? sets[0];
-    const barcodes = s.barcodes as { EAN?: string; UPC?: string } | undefined;
-    if (!barcodes) return null;
-    return { upc: barcodes.UPC || null, ean: barcodes.EAN || null };
+    const barcodes = readBarcodes(s);
+    if (!barcodes.upc && !barcodes.ean) return null;
+    return barcodes;
   } catch {
     return null;
   }
@@ -70,7 +84,7 @@ export async function fetchBarcodesPage(page: number, env: Env): Promise<Brickse
     const params = new URLSearchParams({
       apiKey: env.BRICKSET_API_KEY,
       userHash: '',
-      params: JSON.stringify({ pageSize: 500, pageNumber: page }),
+      params: JSON.stringify({ pageSize: 500, pageNumber: page, extendedData: 1 }),
     });
     const resp = await fetchTracked(env, 'brickset', `https://brickset.com/api/v3.asmx/getSets?${params}`, {
       headers: { Accept: 'application/json' },
@@ -97,10 +111,13 @@ export async function fetchBarcodesPage(page: number, env: Env): Promise<Brickse
 
     const sets = data.sets
       .filter(s => s.number)
-      .map(s => ({
-        setNum: `${s.number}-${s.numberVariant ?? 1}`,
-        upc: s.barcodes?.UPC || s.barcodes?.EAN || null,
-      }));
+      .map(s => {
+        const barcode = readBarcodes(s as Record<string, unknown>);
+        return {
+          setNum: `${s.number}-${s.numberVariant ?? 1}`,
+          upc: barcode.upc || barcode.ean,
+        };
+      });
     return { sets, total: data.matches ?? 0 };
   } catch (e) {
     console.warn(`[brickset] page ${page} error:`, (e as Error).message);
