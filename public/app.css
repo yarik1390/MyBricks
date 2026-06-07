@@ -2915,8 +2915,8 @@ select:focus-visible,
 
 @media (max-width: 480px) {
   .page {
-    padding-left: 18px;
-    padding-right: 18px;
+    padding-left: 22px;
+    padding-right: 22px;
   }
 
   .topbar {
@@ -2976,11 +2976,6 @@ select:focus-visible,
 }
 
 @media (max-width: 370px) {
-  .page {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-
   .brand-name {
     font-size: 18px;
     max-width: 96px;
@@ -2998,6 +2993,12 @@ select:focus-visible,
   .nav-tab {
     font-size: 9px;
     letter-spacing: 0.04em;
+  }
+}
+
+@media (max-width: 345px) {
+  .brand-name {
+    display: none;
   }
 }
 
