@@ -101,5 +101,37 @@ CREATE TABLE IF NOT EXISTS integration_health (
   updated_at TEXT
 );
 
+-- Rate limiting for AI and scan endpoints
+CREATE TABLE IF NOT EXISTS rate_limits (
+  user_id TEXT NOT NULL,
+  endpoint TEXT NOT NULL,
+  window_start DATETIME NOT NULL,
+  hit_count INTEGER DEFAULT 0,
+  PRIMARY KEY (user_id, endpoint, window_start)
+);
+CREATE INDEX IF NOT EXISTS idx_rl_user ON rate_limits(user_id, endpoint);
+
+-- Portfolio value snapshots for historical charting
+CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  snapshot_date DATE NOT NULL,
+  snapshot_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  total_value REAL DEFAULT 0,
+  total_paid REAL DEFAULT 0,
+  set_count INTEGER DEFAULT 0,
+  UNIQUE(user_id, snapshot_date)
+);
+CREATE INDEX IF NOT EXISTS idx_ps_user ON portfolio_snapshots(user_id);
+
+-- Per-set value snapshots for trend data in AI advisor
+CREATE TABLE IF NOT EXISTS set_value_history (
+  set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
+  snapshot_date DATE NOT NULL,
+  current_value REAL,
+  PRIMARY KEY (set_num, snapshot_date)
+);
+CREATE INDEX IF NOT EXISTS idx_svh_set ON set_value_history(set_num, snapshot_date);
+
 
 
