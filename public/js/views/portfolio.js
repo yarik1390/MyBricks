@@ -1,4 +1,5 @@
 import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, clamp, prefersReducedMotion, confettiBurst, themeHue, setHue, THEME_COLORS, fmtShortDate, fmtDateUpdated, setBtnLoading, drawSparkline, brickTile, slImgHTML, bricklinkBuyURL, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB } from '../utils.js';
+import { computeDealScore } from '../lib/pure.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue } from '../api.js';
 import { I } from '../icons.js';
@@ -1876,24 +1877,6 @@ function marketSpreadHTML(set) {
   </div>`;
 }
 
-function computeDealScore(set, storePrice) {
-  const market = set.ebay_value || set.current_value;
-  if (!market || !storePrice || storePrice <= 0) return null;
-  const pct = (market - storePrice) / market;
-  const greatThreshold = set.retired ? 0.05 : 0.15;
-  let verdict, label;
-  if (pct >= greatThreshold) {
-    verdict = "great";
-    label = `${fmtPct(pct)} below market — great deal!`;
-  } else if (pct <= -0.05) {
-    verdict = "over";
-    label = `${fmtPct(Math.abs(pct))} above market — overpriced`;
-  } else {
-    verdict = "fair";
-    label = `Within ${fmtPct(Math.abs(pct))} of market price`;
-  }
-  return { verdict, pct, label };
-}
 
 function dealScoreHTML(set) {
   return `
@@ -2089,7 +2072,7 @@ function wireInsightsTabs(items) {
 function refreshNavBadge() {
   const alerts = state.wishlistAlerts || [];
   const spikes = alerts.filter(a => a.alert_type === 'spike').length;
-  const drops = alerts.filter(a => a.alert_type !== 'spike').length;
+  const drops = alerts.filter(a => a.alert_type === 'drop' || !a.alert_type).length;
   const total = spikes + drops;
   
   const el = document.getElementById("wishlistBtn");

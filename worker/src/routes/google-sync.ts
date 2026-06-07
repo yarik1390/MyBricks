@@ -189,20 +189,20 @@ app.post('/disconnect', requireMember, async (c) => {
 });
 
 async function ensureSheetExists(spreadsheetId: string, title: string, accessToken: string): Promise<void> {
-  // Get current sheet titles
   const metaResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
   });
-  if (!metaResp.ok) return;
+  if (!metaResp.ok) throw new Error(`Failed to read spreadsheet metadata: ${await metaResp.text()}`);
   const meta = await metaResp.json() as { sheets?: Array<{ properties: { title: string } }> };
   const exists = meta.sheets?.some(s => s.properties.title === title);
   if (exists) return;
 
-  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+  const addResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ requests: [{ addSheet: { properties: { title } } }] }),
   });
+  if (!addResp.ok) throw new Error(`Failed to add sheet "${title}": ${await addResp.text()}`);
 }
 
 export async function runSyncProcess(userId: string, refreshToken: string, existingSpreadsheetId: string | null, env: Env) {
@@ -279,10 +279,7 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
       `).bind(userId).all() as unknown as { results: WishlistRow[] },
     ]);
 
-    // 4. Ensure Wishlist sheet exists
-    await ensureSheetExists(spreadsheetId, 'Wishlist', accessToken);
-
-    // 5. Build Portfolio sheet (Sheet1) — add ROI% formula column
+    // 4. Build Portfolio sheet (Sheet1) — add ROI% formula column
     const collHeader = [
       'Set Number', 'Name', 'Year', 'Theme', 'Pieces', 'Minifigs',
       'Condition', 'Purchase Price', 'Current Value', 'Quantity', 'Date Added', 'ROI %'
@@ -302,45 +299,57 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
         item.current_value || 0,
         item.quantity || 1,
         item.added_at || '',
-        // ROI formula: (CurrentValue - PurchasePrice) / PurchasePrice
         `=IF(H${rowNum}>0,(I${rowNum}-H${rowNum})/H${rowNum},"")`,
       ];
     });
 
-    // 6. Build Wishlist sheet
-    const wishHeader = [
-      'Set Number', 'Name', 'Theme', 'Current Value', 'Target Price', '% To Target', 'Added'
-    ];
-
-    const wishRows = (wishRes.results || []).map((item, i) => {
-      const rowNum = i + 2;
-      return [
-        item.set_num,
-        item.name || '',
-        item.theme || '',
-        item.current_value || 0,
-        item.target_price || '',
-        // % to target: (target - current) / current
-        item.target_price ? `=IF(E${rowNum}>0,(E${rowNum}-D${rowNum})/D${rowNum},"")` : '',
-        item.added_at || '',
-      ];
-    });
-
-    // 7. Write both sheets
-    const writeResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+    // 5. Write Portfolio sheet first — this always succeeds independently of Wishlist.
+    const portfolioResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         valueInputOption: 'USER_ENTERED',
-        data: [
-          { range: 'Sheet1!A1', values: [collHeader, ...collRows] },
-          { range: 'Wishlist!A1', values: [wishHeader, ...wishRows] },
-        ],
+        data: [{ range: 'Sheet1!A1', values: [collHeader, ...collRows] }],
       }),
     });
+    if (!portfolioResp.ok) {
+      throw new Error(`Failed to write Portfolio sheet: ${await portfolioResp.text()}`);
+    }
 
-    if (!writeResp.ok) {
-      throw new Error(`Failed to update sheet values: ${await writeResp.text()}`);
+    // 6. Write Wishlist sheet — create it first if needed; failure here doesn't
+    //    roll back the already-written Portfolio data.
+    try {
+      await ensureSheetExists(spreadsheetId, 'Wishlist', accessToken);
+
+      const wishHeader = [
+        'Set Number', 'Name', 'Theme', 'Current Value', 'Target Price', '% To Target', 'Added'
+      ];
+      const wishRows = (wishRes.results || []).map((item, i) => {
+        const rowNum = i + 2;
+        return [
+          item.set_num,
+          item.name || '',
+          item.theme || '',
+          item.current_value || 0,
+          item.target_price || '',
+          item.target_price ? `=IF(E${rowNum}>0,(E${rowNum}-D${rowNum})/D${rowNum},"")` : '',
+          item.added_at || '',
+        ];
+      });
+
+      const wishResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          valueInputOption: 'USER_ENTERED',
+          data: [{ range: 'Wishlist!A1', values: [wishHeader, ...wishRows] }],
+        }),
+      });
+      if (!wishResp.ok) {
+        console.error('[google-sync] Failed to write Wishlist sheet:', await wishResp.text());
+      }
+    } catch (wishErr) {
+      console.error('[google-sync] Wishlist sheet error (Portfolio was written successfully):', wishErr);
     }
 
     console.log(`[google-sync] Synced ${collRes.results?.length ?? 0} collection + ${wishRes.results?.length ?? 0} wishlist items for user ${userId}`);

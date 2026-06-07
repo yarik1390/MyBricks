@@ -18,14 +18,15 @@ export async function fetchEbayPrice(
   const negativeKeywords = ' -only -instructions -manual -box -empty -custom -replacement -stickers';
   let keywords = `LEGO ${setNum} ${cleanName}`;
 
-  if (keywords.length + negativeKeywords.length <= 100) {
+  // Finding API supports up to 350 chars; RSS fallback uses the same string.
+  if (keywords.length + negativeKeywords.length <= 350) {
     keywords += negativeKeywords;
   } else {
-    const maxCleanNameLen = 100 - `LEGO ${setNum} `.length - negativeKeywords.length;
+    const maxCleanNameLen = 350 - `LEGO ${setNum} `.length - negativeKeywords.length;
     if (maxCleanNameLen > 0) {
       keywords = `LEGO ${setNum} ${cleanName.slice(0, maxCleanNameLen)}${negativeKeywords}`;
     } else {
-      keywords = `LEGO ${setNum} ${cleanName}`.slice(0, 100);
+      keywords = `LEGO ${setNum} ${cleanName}`.slice(0, 350);
     }
   }
 

@@ -149,7 +149,8 @@ describe('BrickVault API Worker Tests', () => {
         valuation_expires_at TEXT,
         upc TEXT,
         cached_at TEXT,
-        source TEXT
+        source TEXT,
+        ebay_cached_at TEXT
       )`,
 
       `CREATE TABLE user_collection (
