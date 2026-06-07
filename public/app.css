@@ -1374,6 +1374,9 @@ body.offline .offline-banner { display: block; }
 .scan-video-wrap {
   position: relative; flex: 1; overflow: hidden;
   background: #111;
+  --scan-control-size: 72px;
+  --scan-bottom-offset: calc(92px + env(safe-area-inset-bottom));
+  --scan-hint-offset: calc(var(--scan-bottom-offset) + var(--scan-control-size) + 22px);
 }
 .scan-video-wrap::before {
   content: ""; position: absolute; inset: 0;
@@ -1418,10 +1421,11 @@ body.offline .offline-banner { display: block; }
   animation-play-state: paused;
 }
 .scan-hint {
-  position: absolute; bottom: 24px; left: 16px; right: 16px;
+  position: absolute; bottom: var(--scan-hint-offset); left: 16px; right: 16px;
   text-align: center; color: #fff;
   font-family: var(--mono); font-size: 11px;
   letter-spacing: 0.1em; text-transform: uppercase;
+  line-height: 1.45;
   z-index: 3;
 }
 .scan-top {
@@ -1455,12 +1459,36 @@ body.offline .offline-banner { display: block; }
 .scan-mode-toggle button.active { background: var(--bv-yellow); color: var(--ink); }
 .scan-bottom {
   position: absolute; bottom: 0; left: 0; right: 0;
-  display: flex; align-items: center; justify-content: center;
-  padding: 0 24px calc(110px + env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: minmax(68px, 1fr) auto minmax(68px, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 0 18px var(--scan-bottom-offset);
   z-index: 3;
 }
+.scan-gallery-btn {
+  justify-self: start;
+  width: auto;
+  max-width: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.scan-gallery-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scan-bottom-spacer {
+  justify-self: end;
+  width: var(--scan-control-size);
+  height: 1px;
+}
 .scan-capture-btn {
-  width: 72px; height: 72px;
+  width: var(--scan-control-size); height: var(--scan-control-size);
   border-radius: 50%;
   background: #fff;
   border: 5px solid rgba(255,255,255,0.4);
@@ -1472,6 +1500,35 @@ body.offline .offline-banner { display: block; }
 .scan-capture-btn:active {
   transform: scale(0.9) translateY(2px);
   box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+@media (max-width: 380px), (max-height: 700px) {
+  .scan-video-wrap {
+    --scan-control-size: 64px;
+    --scan-bottom-offset: calc(76px + env(safe-area-inset-bottom));
+    --scan-hint-offset: calc(var(--scan-bottom-offset) + var(--scan-control-size) + 16px);
+  }
+  .scan-bottom {
+    grid-template-columns: minmax(60px, 1fr) auto minmax(60px, 1fr);
+    gap: 10px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .scan-gallery-btn {
+    padding: 7px 10px;
+    font-size: 11px;
+  }
+}
+
+@media (max-height: 560px) {
+  .scan-video-wrap {
+    --scan-control-size: 58px;
+    --scan-bottom-offset: calc(58px + env(safe-area-inset-bottom));
+    --scan-hint-offset: calc(var(--scan-bottom-offset) + var(--scan-control-size) + 12px);
+  }
+  .scan-hint {
+    font-size: 10px;
+  }
 }
 
 /* scan-result card */

@@ -313,13 +313,13 @@ function scanOverlayHTML(mode) {
       </div>
       <div class="scan-hint" id="scanHint">${mode === "barcode" ? "Align barcode within the frame" : "Frame the set and tap to identify"}</div>
       ${mode === "image" ? `
-        <div class="scan-bottom" style="display:flex;align-items:center;justify-content:space-between;padding:0 24px;width:100%;">
-          <button class="btn-secondary" id="scanGalleryBtn" style="font-size:12px;padding:8px 12px;width:auto;margin:0;display:flex;align-items:center;gap:6px;">
+        <div class="scan-bottom">
+          <button class="btn-secondary scan-gallery-btn" id="scanGalleryBtn">
             ${I.layers({w:16, h:16})} <span>Gallery</span>
           </button>
           <button class="scan-capture-btn" id="scanCapture" aria-label="Capture"></button>
           <input type="file" id="scanGalleryInput" accept="image/*" multiple style="display:none;">
-          <div style="width:78px;"></div>
+          <span class="scan-bottom-spacer" aria-hidden="true"></span>
         </div>` : ""}
       <div class="scan-result" id="scanResult"></div>
     </div>`;
