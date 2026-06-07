@@ -58,14 +58,23 @@ app.get('/api/config', (c) => {
     supabase: !!(c.env.SUPABASE_URL && c.env.SUPABASE_ANON_KEY && c.env.SUPABASE_JWT_SECRET),
     d1: !!c.env.DB,
     openai: !!c.env.OPENAI_API_KEY,
-    google: !!(c.env.GOOGLE_CLIENT_ID && c.env.GOOGLE_CLIENT_SECRET),
+    google: !!(
+      c.env.GOOGLE_CLIENT_ID &&
+      c.env.GOOGLE_CLIENT_SECRET &&
+      !c.env.GOOGLE_CLIENT_ID.includes('dummy') &&
+      !c.env.GOOGLE_CLIENT_SECRET.includes('dummy')
+    ),
     ebay: !!c.env.EBAY_APP_ID,
     bricklink: !!(c.env.BRICKLINK_CONSUMER_KEY && c.env.BRICKLINK_TOKEN),
     brickeconomy: !!c.env.BRICKECONOMY_API_KEY,
+    brickset: !!c.env.BRICKSET_API_KEY,
+    brickowl: !!c.env.BRICKOWL_API_KEY,
+    rebrickable: !!c.env.REBRICKABLE_API_KEY,
   };
   return c.json({
     supabase_url: c.env.SUPABASE_URL,
     supabase_anon_key: c.env.SUPABASE_ANON_KEY,
+    api_base: new URL(c.req.url).origin,
     status,
   });
 });
@@ -99,8 +108,8 @@ export default {
       case '0 8 * * *': await run('wishlist-alerts', () => runWishlistAlerts(env)); break;
       case '0 4 * * SUN':
         await run('backfill-upc', () => runBackfillUpc(env));
-        await run('import-sets', () => importSets(env.DB));
-        await run('import-figs', () => importFigs(env.DB));
+        await run('import-sets', () => importSets(env.DB, env));
+        await run('import-figs', () => importFigs(env.DB, env));
         await run('cleanup-stale-rows', async () => {
           await env.DB.batch([
             env.DB.prepare(`DELETE FROM rate_limits WHERE window_start < datetime('now', '-7 days')`),

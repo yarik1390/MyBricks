@@ -8,6 +8,9 @@ import { fetchEbayPrice } from '../lib/ebay';
 import { callGeminiValuation } from '../lib/gemini';
 import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
 import { getCachedPriceTrend } from '../lib/price-trend';
+import { fetchTracked } from '../lib/http';
+import { enrichSetRecord } from '../lib/market-sources';
+import { recordIntegrationAttempt } from '../lib/integration-health';
 import type { Env, Variables } from '../types';
 
 interface ListingDraft {
@@ -91,13 +94,13 @@ app.get('/search', async (c) => {
     ).bind(...params).first<{ total: number }>(),
   ]);
 
-  let rows = pageRes.results.map(r => ({ ...r, retired: !!r.retired })) as Record<string, unknown>[];
+  let rows = pageRes.results.map(r => enrichSetRecord({ ...r, retired: !!r.retired })) as Record<string, unknown>[];
   let total = countRes?.total ?? 0;
 
   if (q && offset === 0 && rows.length < lim && c.env.REBRICKABLE_API_KEY) {
     try {
       const url = `https://rebrickable.com/api/v3/lego/sets/?search=${encodeURIComponent(q)}&key=${c.env.REBRICKABLE_API_KEY}&page_size=20`;
-      const rb = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      const rb = await fetchTracked(c.env, 'rebrickable', url, { headers: { 'Accept': 'application/json' } });
       if (rb.ok) {
         const data = await rb.json() as { results?: Array<{ set_num: string; name: string; year: number; theme_id: number; num_parts: number; num_minifigs: number; set_img_url: string }> };
         const setKey = (v: string) => String(v || '').replace(/-1$/, '');
@@ -110,16 +113,16 @@ app.get('/search', async (c) => {
             'SELECT * FROM lego_sets WHERE set_num IN (?, ?) ORDER BY CASE WHEN set_num=? THEN 0 ELSE 1 END LIMIT 1'
           ).bind(s.set_num, alt, s.set_num).first<Record<string, unknown>>();
           if (local) {
-            rows.push({ ...local, retired: !!local.retired });
+            rows.push(enrichSetRecord({ ...local, retired: !!local.retired }));
             seen.add(key);
             continue;
           }
           const vals = formulaValuation({ pieces: s.num_parts, year: s.year, theme: null, retired: false, minifigs: s.num_minifigs || 0 });
-          rows.push({
+          rows.push(enrichSetRecord({
             set_num: s.set_num, name: s.name, year: s.year, theme: null,
             pieces: s.num_parts, minifigs: s.num_minifigs || 0,
             image_url: s.set_img_url, retired: false, ...vals,
-          });
+          }));
           seen.add(key);
         }
         rows = rows.slice(0, lim);
@@ -168,7 +171,7 @@ app.get('/:setnum', async (c) => {
         ]).then(async ([be, blp, u, e]) => {
           let ebayVal = e;
           if (ebayVal === null && geminiKey) {
-            const gemVal = await callGeminiValuation(activeSet.set_num as string, activeSet.name as string, geminiKey).catch(() => null);
+            const gemVal = await callGeminiValuation(activeSet.set_num as string, activeSet.name as string, geminiKey, c.env).catch(() => null);
             if (gemVal?.ebay_value) ebayVal = gemVal.ebay_value;
           }
 
@@ -264,7 +267,7 @@ app.get('/:setnum', async (c) => {
         c.executionCtx.waitUntil(refreshPromise);
       } else if (geminiKey) {
         const refreshPromise = Promise.all([
-          callGeminiValuation(activeSet.set_num as string, activeSet.name as string, geminiKey).catch(() => null),
+          callGeminiValuation(activeSet.set_num as string, activeSet.name as string, geminiKey, c.env).catch(() => null),
           fetchEbayPrice(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null)
         ]).then(async ([gemVal, ebayVal]) => {
           const supplementStmts: D1PreparedStatement[] = [];
@@ -343,14 +346,14 @@ app.get('/:setnum', async (c) => {
       }
       if (bsUpdates.length) await c.env.DB.batch(bsUpdates);
     }
-    return c.json({ set: { ...resultSet, retired: !!resultSet.retired, trend, brickset }, entry: entry || null });
+    return c.json({ set: enrichSetRecord({ ...resultSet, retired: !!resultSet.retired, trend, brickset }), entry: entry || null });
   }
 
   if (!c.env.REBRICKABLE_API_KEY) return c.json({ error: 'Set not found' }, 404);
 
   try {
     const url = `https://rebrickable.com/api/v3/lego/sets/${encodeURIComponent(setnum)}/`;
-    const rb = await fetch(url, { headers: { 'Authorization': `key ${c.env.REBRICKABLE_API_KEY}` } });
+    const rb = await fetchTracked(c.env, 'rebrickable', url, { headers: { 'Authorization': `key ${c.env.REBRICKABLE_API_KEY}` } });
     if (!rb.ok) return c.json({ error: 'Set not found' }, 404);
     const s = await rb.json() as { set_num: string; name: string; year: number; num_parts: number; num_minifigs: number; set_img_url: string };
     const vals = formulaValuation({ pieces: s.num_parts, year: s.year, retired: false, minifigs: s.num_minifigs || 0 });
@@ -372,7 +375,7 @@ app.get('/:setnum', async (c) => {
         .run();
       row.minifigs = brickset.minifigs;
     }
-    return c.json({ set: { ...row, brickset }, entry: null });
+    return c.json({ set: enrichSetRecord({ ...row, brickset }), entry: null });
   } catch (e) {
     return c.json({ error: (e as Error).message }, 500);
   }
@@ -416,6 +419,7 @@ app.post('/:setnum/listing-draft', requireMember, async (c) => {
     : set.valuation_method === 'brickeconomy' ? 'BrickEconomy'
     : set.valuation_method === 'ai' ? 'AI estimate'
     : set.valuation_method === 'ebay_rss' ? 'eBay Sold' : 'Estimated';
+  const marketMeta = enrichSetRecord({ ...set });
 
   const prompt = `Generate an eBay listing for this LEGO set. Return JSON only with keys: title, description, suggested_price (number), price_reasoning (string).
 
@@ -428,6 +432,7 @@ Minifigs: ${set.minifigs || 0}
 Condition: ${conditionLabel[condition] || condition}
 Is complete: ${entry?.is_complete !== 0 ? 'Yes' : `No (${entry?.missing_pieces || '?'} pieces missing)`}
 ${sourceName} market price (new): ${blPrice}${ebayPrice ? `\neBay recent sales: ${ebayPrice}` : ''}
+Market confidence: ${marketMeta.confidence}; freshness: ${marketMeta.freshness}
 Notes from owner: ${entry?.notes || 'none'}
 
 Title: max 80 characters, include set number and name.
@@ -440,7 +445,9 @@ price_reasoning: one sentence explaining the price.`;
 
   try {
     if (geminiKey) {
-      const resp = await fetch(
+      const resp = await fetchTracked(
+        c.env,
+        'gemini',
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
         {
           method: 'POST',
@@ -466,9 +473,11 @@ price_reasoning: one sentence explaining the price.`;
           { role: 'user', content: prompt },
         ],
       });
+      await recordIntegrationAttempt(c.env, 'openai', true);
       draft = JSON.parse(result.choices[0].message.content!.trim()) as ListingDraft;
     }
   } catch (e) {
+    await recordIntegrationAttempt(c.env, geminiKey ? 'gemini' : 'openai', false, e);
     console.warn('[listing-draft] AI failed:', (e as Error).message);
     return c.json({ error: 'Could not generate listing' }, 500);
   }
@@ -533,7 +542,7 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
     ebayPrice = e;
 
     if (ebayPrice === null && geminiKey) {
-      const gemVal = await callGeminiValuation(set.set_num as string, set.name as string, geminiKey).catch(() => null);
+      const gemVal = await callGeminiValuation(set.set_num as string, set.name as string, geminiKey, c.env).catch(() => null);
       if (gemVal?.ebay_value) ebayPrice = gemVal.ebay_value;
     }
 
@@ -557,7 +566,7 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
       valMethod = 'market';
     } else {
       if (geminiKey) {
-        const gemVal = await callGeminiValuation(set.set_num as string, set.name as string, geminiKey);
+        const gemVal = await callGeminiValuation(set.set_num as string, set.name as string, geminiKey, c.env);
         if (gemVal) {
           pricing = { current_value: gemVal.current_value };
           usedPricing = { used_value: gemVal.used_value };
@@ -648,7 +657,7 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
 
   const updatedSet = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(set.set_num).first<Record<string, unknown>>();
   const trend = updatedSet ? await getCachedPriceTrend(updatedSet.set_num as string, c.env) : null;
-  return c.json({ set: updatedSet ? { ...updatedSet, retired: !!updatedSet.retired, trend } : null });
+  return c.json({ set: updatedSet ? enrichSetRecord({ ...updatedSet, retired: !!updatedSet.retired, trend }) : null });
 });
 
 export { app as setsRoute };

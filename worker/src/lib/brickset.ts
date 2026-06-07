@@ -1,5 +1,5 @@
 import type { Env } from '../types';
-import { fetchWithRetry } from './http';
+import { fetchTracked } from './http';
 
 export interface BricksetBarcodes {
   upc: string | null;
@@ -10,7 +10,9 @@ export interface BricksetBarcodes {
 export async function checkBricksetKey(env: Env): Promise<string | null> {
   if (!env.BRICKSET_API_KEY) return 'BRICKSET_API_KEY not set';
   try {
-    const resp = await fetchWithRetry(
+    const resp = await fetchTracked(
+      env,
+      'brickset',
       `https://brickset.com/api/v3.asmx/checkKey?apiKey=${encodeURIComponent(env.BRICKSET_API_KEY)}`,
       { headers: { Accept: 'application/json' } }
     );
@@ -38,7 +40,7 @@ export async function fetchBarcodes(setNum: string, env: Env): Promise<BricksetB
       userHash: '',
       params: JSON.stringify({ setNumber: bricksetNum }),
     });
-    const resp = await fetchWithRetry(`https://brickset.com/api/v3.asmx/getSets?${params}`, {
+    const resp = await fetchTracked(env, 'brickset', `https://brickset.com/api/v3.asmx/getSets?${params}`, {
       headers: { Accept: 'application/json' },
     });
     if (!resp.ok) return null;
@@ -69,7 +71,7 @@ export async function fetchBarcodesPage(page: number, env: Env): Promise<Brickse
       userHash: '',
       params: JSON.stringify({ pageSize: 500, pageNumber: page }),
     });
-    const resp = await fetchWithRetry(`https://brickset.com/api/v3.asmx/getSets?${params}`, {
+    const resp = await fetchTracked(env, 'brickset', `https://brickset.com/api/v3.asmx/getSets?${params}`, {
       headers: { Accept: 'application/json' },
     });
     if (!resp.ok) {
@@ -130,7 +132,7 @@ export async function fetchBricksetDetails(setNum: string, env: Env): Promise<Br
       userHash: '',
       params: JSON.stringify({ setNumber: bricksetNum }),
     });
-    const resp = await fetchWithRetry(`https://brickset.com/api/v3.asmx/getSets?${params}`, {
+    const resp = await fetchTracked(env, 'brickset', `https://brickset.com/api/v3.asmx/getSets?${params}`, {
       headers: { Accept: 'application/json' },
     });
     if (!resp.ok) return null;

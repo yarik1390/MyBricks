@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import { requireMember } from '../auth';
+import { fetchTracked } from '../lib/http';
+import { recordIntegrationAttempt } from '../lib/integration-health';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -110,7 +112,7 @@ app.get('/oauth', async (c) => {
   const redirectUri = `${new URL(c.req.url).origin}/api/google/oauth`;
 
   try {
-    const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+    const tokenResp = await fetchTracked(c.env, 'google', 'https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -188,8 +190,8 @@ app.post('/disconnect', requireMember, async (c) => {
   return c.json({ ok: true });
 });
 
-async function ensureSheetExists(spreadsheetId: string, title: string, accessToken: string): Promise<void> {
-  const metaResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`, {
+async function ensureSheetExists(spreadsheetId: string, title: string, accessToken: string, env: Env): Promise<void> {
+  const metaResp = await fetchTracked(env, 'google', `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`, {
     headers: { 'Authorization': `Bearer ${accessToken}` },
   });
   if (!metaResp.ok) throw new Error(`Failed to read spreadsheet metadata: ${await metaResp.text()}`);
@@ -197,7 +199,7 @@ async function ensureSheetExists(spreadsheetId: string, title: string, accessTok
   const exists = meta.sheets?.some(s => s.properties.title === title);
   if (exists) return;
 
-  const addResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+  const addResp = await fetchTracked(env, 'google', `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ requests: [{ addSheet: { properties: { title } } }] }),
@@ -211,7 +213,7 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
     const clientId = env.GOOGLE_CLIENT_ID || '1047116805178-dummy.apps.googleusercontent.com';
     const clientSecret = env.GOOGLE_CLIENT_SECRET || 'dummy-client-secret';
 
-    const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+    const tokenResp = await fetchTracked(env, 'google', 'https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -232,7 +234,7 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
     // 2. Resolve Spreadsheet
     let spreadsheetId = existingSpreadsheetId;
     if (!spreadsheetId) {
-      const createResp = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+      const createResp = await fetchTracked(env, 'google', 'https://sheets.googleapis.com/v4/spreadsheets', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ properties: { title: 'MyBricks Vault' } }),
@@ -304,7 +306,7 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
     });
 
     // 5. Write Portfolio sheet first — this always succeeds independently of Wishlist.
-    const portfolioResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+    const portfolioResp = await fetchTracked(env, 'google', `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -319,7 +321,7 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
     // 6. Write Wishlist sheet — create it first if needed; failure here doesn't
     //    roll back the already-written Portfolio data.
     try {
-      await ensureSheetExists(spreadsheetId, 'Wishlist', accessToken);
+      await ensureSheetExists(spreadsheetId, 'Wishlist', accessToken, env);
 
       const wishHeader = [
         'Set Number', 'Name', 'Theme', 'Current Value', 'Target Price', '% To Target', 'Added'
@@ -337,7 +339,7 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
         ];
       });
 
-      const wishResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+      const wishResp = await fetchTracked(env, 'google', `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -354,6 +356,7 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
 
     console.log(`[google-sync] Synced ${collRes.results?.length ?? 0} collection + ${wishRes.results?.length ?? 0} wishlist items for user ${userId}`);
   } catch (err) {
+    await recordIntegrationAttempt(env, 'google', false, err);
     console.error('[google-sync] Error running spreadsheet sync:', err);
   }
 }

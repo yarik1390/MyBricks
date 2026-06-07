@@ -1,11 +1,14 @@
 import { formulaValuation } from '../lib/valuation';
+import type { Env } from '../types';
+import { fetchTracked, fetchWithRetry } from '../lib/http';
 
 const CDN = 'https://cdn.rebrickable.com/media/downloads';
 export const BATCH = 100;
 export const CONCURRENT = 10;
 
-export async function fetchGzip(url: string): Promise<string> {
-  const resp = await fetch(url, { headers: { 'User-Agent': 'Brickvault-Import/1.0' } });
+export async function fetchGzip(url: string, env?: Env): Promise<string> {
+  const fetcher = env ? fetchTracked.bind(null, env, 'rebrickable') : fetchWithRetry;
+  const resp = await fetcher(url, { headers: { 'User-Agent': 'Brickvault-Import/1.0' } });
   if (!resp.ok) throw new Error(`HTTP ${resp.status} from ${url}`);
   const buf = await resp.arrayBuffer();
   const ds = new DecompressionStream('gzip');
@@ -58,10 +61,10 @@ export async function runBatches(db: D1Database, allStmts: D1PreparedStatement[]
   }
 }
 
-export async function importSets(db: D1Database) {
+export async function importSets(db: D1Database, env?: Env) {
   const [themesText, setsText] = await Promise.all([
-    fetchGzip(`${CDN}/themes.csv.gz`),
-    fetchGzip(`${CDN}/sets.csv.gz`),
+    fetchGzip(`${CDN}/themes.csv.gz`, env),
+    fetchGzip(`${CDN}/sets.csv.gz`, env),
   ]);
 
   const themes = parseCSV(themesText);
@@ -113,8 +116,8 @@ export async function importSets(db: D1Database) {
   return { loaded: setStmts.length, skipped, themes: themeRows.length };
 }
 
-export async function importFigs(db: D1Database) {
-  const text = await fetchGzip(`${CDN}/minifigs.csv.gz`);
+export async function importFigs(db: D1Database, env?: Env) {
+  const text = await fetchGzip(`${CDN}/minifigs.csv.gz`, env);
   const figs = parseCSV(text).filter(f => f.fig_num && f.name);
   const stmts = figs.map(f => {
     const img = f.img_url && f.img_url !== 'None' ? f.img_url : null;

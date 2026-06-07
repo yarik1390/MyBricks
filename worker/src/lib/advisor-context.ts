@@ -1,4 +1,5 @@
 import type { Env } from '../types';
+import { enrichSetRecord } from './market-sources';
 
 // Builds a ~2,500-token structured context string for the AI advisor.
 // Covers collection, wishlist, portfolio stats, market movers, 90-day price trends,
@@ -8,6 +9,8 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
     env.DB.prepare(`
       SELECT ls.set_num, ls.name, ls.theme, ls.current_value, ls.retail_price,
              ls.ebay_value, ls.retired, ls.retirement_risk_score,
+             ls.valuation_method, ls.valuation_expires_at, ls.cached_at,
+             ls.bl_new_value, ls.bl_new_qty, ls.bl_used_qty, ls.used_value,
              uc.purchase_price, uc.quantity, uc.condition, uc.purchased_at
       FROM user_collection uc
       JOIN lego_sets ls ON ls.set_num = uc.set_num
@@ -17,13 +20,17 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
     `).bind(userId).all<{
       set_num: string; name: string; theme: string | null;
       current_value: number; retail_price: number | null; ebay_value: number | null;
+      valuation_method: string | null; valuation_expires_at: string | null; cached_at: string | null;
+      bl_new_value: number | null; bl_new_qty: number | null; bl_used_qty: number | null; used_value: number | null;
       retired: number; retirement_risk_score: number | null;
       purchase_price: number | null; quantity: number;
       condition: string | null; purchased_at: string | null;
     }>(),
 
     env.DB.prepare(`
-      SELECT ls.set_num, ls.name, ls.current_value, ls.ebay_value, uw.target_price
+      SELECT ls.set_num, ls.name, ls.current_value, ls.ebay_value, ls.valuation_method,
+             ls.valuation_expires_at, ls.cached_at, ls.bl_new_value, ls.bl_new_qty,
+             ls.bl_used_qty, ls.used_value, uw.target_price
       FROM user_wishlist uw
       JOIN lego_sets ls ON ls.set_num = uw.set_num
       WHERE uw.user_id = ?
@@ -31,6 +38,8 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
       LIMIT 15
     `).bind(userId).all<{
       set_num: string; name: string; current_value: number;
+      valuation_method: string | null; valuation_expires_at: string | null; cached_at: string | null;
+      bl_new_value: number | null; bl_new_qty: number | null; bl_used_qty: number | null; used_value: number | null;
       ebay_value: number | null; target_price: number | null;
     }>(),
 
@@ -122,10 +131,12 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
 
   lines.push('TOP OWNED SETS:');
   for (const s of topSets.results) {
+    const market = enrichSetRecord(s as unknown as Record<string, unknown>);
     const risk = s.retirement_risk_score != null && s.retirement_risk_score >= 70 ? ' [HIGH RETIRE RISK]' : '';
     const ret = s.retired ? ' [RETIRED]' : '';
     const trend90 = trendMap.get(s.set_num);
     const trendStr = trend90 != null ? ` | ${trend90 >= 0 ? '+' : ''}${trend90}%/90d` : '';
+    const sourceStr = ` | Source: ${market.primary_value_source}/${market.confidence}/${market.freshness}`;
 
     // eBay vs BrickLink spread signal
     let spreadStr = '';
@@ -136,7 +147,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
     }
 
     lines.push(
-      `- ${s.name} (${s.set_num}) | ${s.theme || 'Unknown'} | Value: ${fmt(s.current_value)}${pct(s.current_value, s.purchase_price)} | Paid: ${fmt(s.purchase_price)} | Qty: ${s.quantity}${trendStr}${spreadStr}${risk}${ret}`
+      `- ${s.name} (${s.set_num}) | ${s.theme || 'Unknown'} | Value: ${fmt(s.current_value)}${pct(s.current_value, s.purchase_price)}${sourceStr} | Paid: ${fmt(s.purchase_price)} | Qty: ${s.quantity}${trendStr}${spreadStr}${risk}${ret}`
     );
   }
   lines.push('');
@@ -144,6 +155,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
   if (wishlist.results.length > 0) {
     lines.push('WISHLIST:');
     for (const w of wishlist.results) {
+      const market = enrichSetRecord(w as unknown as Record<string, unknown>);
       const gap = w.target_price ? ` | Target: ${fmt(w.target_price)}` : '';
       // eBay spread on wishlist too
       let spreadStr = '';
@@ -151,7 +163,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
         const spread = (w.ebay_value - w.current_value) / w.current_value;
         if (spread > 0.15) spreadStr = ` [eBay HOT +${(spread * 100).toFixed(0)}%]`;
       }
-      lines.push(`- ${w.name} (${w.set_num}) | Value: ${fmt(w.current_value)}${gap}${spreadStr}`);
+      lines.push(`- ${w.name} (${w.set_num}) | Value: ${fmt(w.current_value)} | Source: ${market.primary_value_source}/${market.confidence}/${market.freshness}${gap}${spreadStr}`);
     }
     lines.push('');
   }

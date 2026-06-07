@@ -283,6 +283,18 @@ function showFilterSheet(onApply) {
   });
 }
 
+function sourceCueHTML(s) {
+  const freshness = s.freshness || (s.cached_at && (Date.now() - new Date(s.cached_at).getTime() > 60 * 24 * 3600 * 1000) ? 'stale' : 'fresh');
+  const confidence = s.confidence || (s.valuation_method === 'formula_bulk' ? 'estimated' : 'medium');
+  if (freshness === 'fresh' && (confidence === 'high' || confidence === 'medium')) return '';
+  const label = freshness === 'expired' ? 'Refresh due'
+    : freshness === 'stale' ? 'Stale'
+    : confidence === 'estimated' ? 'Estimate'
+    : 'Low confidence';
+  const color = freshness === 'expired' ? 'var(--bv-red)' : 'var(--bv-yellow)';
+  return `<span class="source-cue" title="${escapeHtml(s.valuation_explanation || label)}" style="display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:9px;color:${color};font-weight:700;text-transform:uppercase;">${escapeHtml(label)}</span>`;
+}
+
 function catalogCardHTML(s) {
   const hasImg = s.image_url && !s.image_url.startsWith("data:");
   const h = setHue(s);
@@ -303,6 +315,7 @@ function catalogCardHTML(s) {
             <span class="dot"></span>
             <span>${escapeHtml(s.theme || "")}</span>
             ${s.owned ? `<span style="color:var(--up);font-weight:700;margin-left:4px;">OWNED</span>` : ""}
+            ${sourceCueHTML(s)}
           </div>
         </div>
         <div class="sl-right-compact">
@@ -334,7 +347,7 @@ function catalogCardHTML(s) {
         </div>
         <div class="set-card-value" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;">
           <span>${fmtMoney(s.current_value)}</span>
-          ${s.trend ? trendBadgeHTML(s.trend) : ""}
+          <span style="display:inline-flex;align-items:center;gap:6px;">${sourceCueHTML(s)}${s.trend ? trendBadgeHTML(s.trend) : ""}</span>
         </div>
       </div>
     </button>`;

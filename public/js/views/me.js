@@ -49,8 +49,12 @@ export async function renderMe() {
     google: googleStatus.connected,
     ebay: me?.ebay_configured,
     bricklink: me?.bricklink_configured,
-    brickeconomy: me?.brickeconomy_configured
+    brickeconomy: me?.brickeconomy_configured,
+    brickset: false,
+    brickowl: false,
+    rebrickable: false
   };
+  const googleConfigured = googleStatus.configured ?? status.google;
 
   const showcase = publicProfile?.showcase || [];
   let trophyShelfHTML = '';
@@ -198,10 +202,22 @@ export async function renderMe() {
               ? `<span style="color:var(--up);font-weight:600;display:inline-flex;align-items:center;gap:4px;">● Configured</span>`
               : `<span style="color:var(--bv-red);font-weight:600;display:inline-flex;align-items:center;gap:4px;">⚠️ Unconfigured</span>`}
           </div>
-          ${(!status.supabase || !status.google || !status.ebay || !status.brickeconomy || !status.openai) ? `
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span>Rebrickable Catalog API</span>
+            ${status.rebrickable
+              ? `<span style="color:var(--up);font-weight:600;display:inline-flex;align-items:center;gap:4px;">OK Configured</span>`
+              : `<span style="color:var(--bv-red);font-weight:600;display:inline-flex;align-items:center;gap:4px;">Missing</span>`}
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span>Brickset Metadata API</span>
+            ${status.brickset
+              ? `<span style="color:var(--up);font-weight:600;display:inline-flex;align-items:center;gap:4px;">OK Configured</span>`
+              : `<span style="color:var(--ink-mute);font-weight:600;display:inline-flex;align-items:center;gap:4px;">Optional</span>`}
+          </div>
+          ${(!status.supabase || !status.google || !status.ebay || !status.brickeconomy || !status.openai || !status.rebrickable) ? `
             <div style="font-size:10px;color:var(--ink-mute);border-top:1px solid var(--line-soft);padding-top:8px;line-height:1.4;display:flex;flex-direction:column;gap:4px;">
               <span>To configure integrations, set the following environment variables in your Cloudflare dashboard:</span>
-              <code style="word-break: break-all;">DB (D1 Binding), SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_JWT_SECRET, OPENAI_API_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, EBAY_APP_ID, BRICKECONOMY_API_KEY</code>
+              <code style="word-break: break-all;">DB (D1 Binding), SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_JWT_SECRET, OPENAI_API_KEY, REBRICKABLE_API_KEY, BRICKSET_API_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, EBAY_APP_ID, BRICKECONOMY_API_KEY</code>
             </div>
           ` : ''}
         </div>
@@ -230,6 +246,10 @@ export async function renderMe() {
                 <button class="btn-secondary" id="syncGoogleNowBtn" style="flex:1;font-size:12px;padding:8px 12px;border:1.5px solid var(--line);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);cursor:pointer;outline:none;">Sync Now</button>
                 <button class="btn-secondary" id="disconnectGoogleBtn" style="color:var(--bv-red);font-size:12px;padding:8px 12px;border:1.5px solid var(--line);border-radius:var(--r-2);background:var(--surface-2);cursor:pointer;outline:none;">Disconnect</button>
               </div>
+            </div>
+          ` : !googleConfigured ? `
+            <div style="width:100%;border:1.5px solid var(--line-soft);border-radius:var(--r-2);background:var(--surface-2);padding:10px 12px;font-size:12px;color:var(--ink-mute);line-height:1.45;">
+              Google Sheets is not configured on this deployment. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to enable account linking.
             </div>
           ` : `
             <button class="btn-primary" id="connectGoogleBtn" style="width:100%;font-size:13px;padding:10px 14px;background:#4285F4;border-color:#4285F4;color:#fff;border-radius:var(--r-2);cursor:pointer;outline:none;display:flex;align-items:center;justify-content:center;gap:6px;">
@@ -925,9 +945,14 @@ async function updateJobsStatus() {
       const dateStr = run.started_at ? new Date(run.started_at.replace(" ", "T") + "Z").toLocaleString() : "Unknown date";
       const details = [];
       if (run.themes_loaded) details.push(`${run.themes_loaded} themes`);
-      if (run.sets_loaded) details.push(`${run.sets_loaded} sets`);
+      if (run.error && String(run.error).includes('method:')) {
+        if (run.sets_skipped) details.push(`${run.sets_skipped} processed`);
+        if (run.sets_loaded) details.push(`${run.sets_loaded} filled`);
+        const nextMatch = String(run.error).match(/next_page:(\d+)/);
+        if (nextMatch) details.push(`next page ${nextMatch[1]}`);
+      } else if (run.sets_loaded) details.push(`${run.sets_loaded} sets`);
       if (run.figs_loaded) details.push(`${run.figs_loaded} figs`);
-      if (run.sets_skipped) details.push(`${run.sets_skipped} skipped/processed`);
+      if (!(run.error && String(run.error).includes('method:')) && run.sets_skipped) details.push(`${run.sets_skipped} skipped/processed`);
 
       return `
         <div style="border-bottom:1px solid var(--line-soft);padding-bottom:8px;margin-bottom:4px;">
@@ -954,49 +979,78 @@ async function updateJobsStatus() {
 async function updateIntegrationsHealth() {
   const container = document.getElementById("integrationsHealthContainer");
   if (!container) return;
-  const LABELS = {
-    ebay: "eBay", bricklink: "BrickLink", brickeconomy: "BrickEconomy",
-    brickset: "Brickset", brickowl: "BrickOwl", gemini: "Gemini",
-    openai: "OpenAI", rebrickable: "Rebrickable",
-  };
   const ago = (ts) => {
     if (!ts) return "never";
-    const then = new Date(ts.replace(" ", "T") + "Z").getTime();
+    const then = new Date(String(ts).replace(" ", "T") + "Z").getTime();
     const mins = Math.round((Date.now() - then) / 60000);
+    if (!Number.isFinite(mins)) return "unknown";
     if (mins < 1) return "just now";
     if (mins < 60) return `${mins}m ago`;
     const hrs = Math.round(mins / 60);
     if (hrs < 24) return `${hrs}h ago`;
     return `${Math.round(hrs / 24)}d ago`;
   };
+  const statusColor = (status) => status === "ok" ? "var(--up)"
+    : status === "degraded" ? "var(--bv-yellow)"
+    : status === "down" ? "var(--bv-red)"
+    : status === "unconfigured" ? "var(--ink-mute)"
+    : "var(--accent)";
+  const statusLabel = (r) => {
+    if (r.status === "unknown") return r.configured ? "Configured / no calls" : "Unconfigured";
+    return String(r.status || "unknown").replace("_", " ");
+  };
   try {
     const data = await api("/api/admin/integrations");
     const rows = data.integrations || [];
-    if (rows.length === 0) {
-      container.innerHTML = `<div style="color:var(--ink-mute);">No integration calls recorded yet. Health populates after the hourly valuation job runs.</div>`;
-      return;
-    }
-    container.innerHTML = rows.map(r => {
-      // Healthy if the last outcome was a success (or never failed).
-      const okTime = r.last_ok_at ? new Date(r.last_ok_at.replace(" ", "T") + "Z").getTime() : 0;
-      const failTime = r.last_fail_at ? new Date(r.last_fail_at.replace(" ", "T") + "Z").getTime() : 0;
-      const healthy = okTime >= failTime;
-      const dot = healthy ? "var(--up)" : "var(--bv-red)";
-      const label = LABELS[r.service] || r.service;
+    const coverage = data.coverage || {};
+    const routing = data.api_routing || {};
+    const coverageRows = [
+      ["Catalog sets", Number(coverage.total_sets || 0).toLocaleString()],
+      ["Stale values", Number(coverage.stale_values || 0).toLocaleString()],
+      ["Expired values", Number(coverage.expired_values || 0).toLocaleString()],
+      ["Missing values", Number(coverage.missing_values || 0).toLocaleString()],
+      ["Barcode coverage", `${coverage.barcode_coverage_pct || 0}%`],
+      ["BrickLink coverage", `${coverage.bricklink_coverage_pct || 0}%`],
+      ["eBay coverage", `${coverage.ebay_coverage_pct || 0}%`],
+    ];
+    const routingHTML = `
+      <div style="border:1.5px solid var(--line-soft);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
+        <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--ink-mute);margin-bottom:6px;">API routing</div>
+        <div style="font-size:11px;color:var(--ink-soft);line-height:1.45;word-break:break-all;">
+          Worker: ${escapeHtml(routing.worker_base_url || window.WORKER_BASE || "unknown")}<br>
+          Config: ${escapeHtml(routing.config_endpoint || "")}
+        </div>
+      </div>`;
+    const coverageHTML = `
+      <div style="border:1.5px solid var(--line-soft);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
+        <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--ink-mute);margin-bottom:6px;">Data coverage</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;">
+          ${coverageRows.map(([label, value]) => `
+            <div style="display:flex;justify-content:space-between;gap:8px;">
+              <span style="color:var(--ink-mute);">${escapeHtml(label)}</span>
+              <strong style="color:var(--ink);">${escapeHtml(value)}</strong>
+            </div>
+          `).join("")}
+        </div>
+      </div>`;
+    const integrationsHTML = rows.map(r => {
+      const color = statusColor(r.status);
       return `
         <div style="border-bottom:1px solid var(--line-soft);padding-bottom:8px;margin-bottom:4px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;font-weight:600;margin-bottom:2px;">
-            <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dot};margin-right:6px;"></span>${escapeHtml(label)}</span>
-            <span style="color:var(--ink-mute);font-size:11px;">✓ ${r.ok_count} · ✗ ${r.fail_count}</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-weight:600;margin-bottom:2px;gap:10px;">
+            <span style="min-width:0;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:6px;"></span>${escapeHtml(r.label || r.service)}</span>
+            <span style="color:${color};font-size:11px;text-transform:uppercase;text-align:right;">${escapeHtml(statusLabel(r))}</span>
           </div>
-          <div style="display:flex;justify-content:space-between;color:var(--ink-mute);font-size:11px;">
-            <span>OK: ${ago(r.last_ok_at)}</span>
-            <span>Fail: ${ago(r.last_fail_at)}</span>
+          <div style="display:flex;justify-content:space-between;color:var(--ink-mute);font-size:11px;gap:10px;">
+            <span>OK ${ago(r.last_ok_at)} / Fail ${ago(r.last_fail_at)}</span>
+            <span>${r.ok_count || 0} ok / ${r.fail_count || 0} fail</span>
           </div>
-          ${!healthy && r.last_error ? `<div style="color:var(--bv-red);font-size:11px;margin-top:2px;">${escapeHtml(r.last_error)}</div>` : ""}
+          <div style="font-size:11px;color:var(--ink-mute);margin-top:2px;">${escapeHtml((r.used_by || []).join(", ") || r.notes || "")}</div>
+          ${r.last_error && r.status === "down" ? `<div style="color:var(--bv-red);font-size:11px;margin-top:2px;">${escapeHtml(r.last_error)}</div>` : ""}
         </div>
       `;
     }).join("");
+    container.innerHTML = routingHTML + coverageHTML + (integrationsHTML || `<div style="color:var(--ink-mute);">No integration diagnostics available.</div>`);
   } catch (err) {
     container.innerHTML = `<div style="color:var(--bv-red);">Failed to load integrations: ${escapeHtml(err.message)}</div>`;
   }

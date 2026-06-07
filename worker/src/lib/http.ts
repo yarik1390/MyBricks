@@ -1,3 +1,6 @@
+import type { Env } from '../types';
+import { integrationErrorMessage, recordIntegrationAttempt, type IntegrationName } from './integration-health';
+
 // Shared fetch helper for external API integrations.
 //
 // Adds a hard timeout (AbortController) plus retry-with-exponential-backoff on
@@ -48,4 +51,25 @@ export async function fetchWithRetry(
     }
   }
   throw lastError instanceof Error ? lastError : new Error('fetchWithRetry failed');
+}
+
+export async function fetchTracked(
+  env: Env,
+  service: IntegrationName,
+  url: string,
+  init: RequestInit = {},
+  opts: FetchRetryOptions = {},
+): Promise<Response> {
+  try {
+    const resp = await fetchWithRetry(url, init, opts);
+    if (resp.ok) {
+      await recordIntegrationAttempt(env, service, true);
+    } else {
+      await recordIntegrationAttempt(env, service, false, `HTTP ${resp.status}`);
+    }
+    return resp;
+  } catch (error) {
+    await recordIntegrationAttempt(env, service, false, integrationErrorMessage(error));
+    throw error;
+  }
 }

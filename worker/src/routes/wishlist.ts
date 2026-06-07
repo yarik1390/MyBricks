@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { requireMember } from '../auth';
+import { enrichSetRecord } from '../lib/market-sources';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -13,7 +14,9 @@ app.get('/', async (c) => {
     c.env.DB.prepare(`
       SELECT w.id, w.set_num, w.target_price, w.notes, w.added_at, w.alerted_at,
         s.name, s.theme, s.year, s.image_url, s.current_value, s.forecast_2y,
-        s.retail_price, s.retired, s.retirement_risk_score, s.ebay_value
+        s.retail_price, s.retired, s.retirement_risk_score, s.ebay_value,
+        s.ebay_cached_at, s.used_value, s.bl_new_value, s.bl_new_qty,
+        s.bl_used_qty, s.valuation_method, s.valuation_expires_at, s.cached_at
       FROM user_wishlist w
       JOIN lego_sets s ON s.set_num = w.set_num
       WHERE w.user_id = ?
@@ -25,7 +28,7 @@ app.get('/', async (c) => {
       ORDER BY triggered_at DESC
     `).bind(userId).all(),
   ]);
-  return c.json({ wishlist: wl.results, unread_alerts: alerts.results });
+  return c.json({ wishlist: (wl.results || []).map(r => enrichSetRecord({ ...r, retired: !!(r as Record<string, unknown>).retired } as Record<string, unknown>)), unread_alerts: alerts.results });
 });
 
 // POST /api/wishlist

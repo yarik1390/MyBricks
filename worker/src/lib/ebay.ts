@@ -1,5 +1,5 @@
 import type { Env } from '../types';
-import { fetchWithRetry } from './http';
+import { fetchTracked } from './http';
 
 // Returns the median completed-sale eBay price for a LEGO set.
 // When EBAY_APP_ID is set, uses the Finding API findCompletedItems (actual sold
@@ -46,21 +46,23 @@ export async function fetchEbayPrice(
         'paginationInput.entriesPerPage': '20',
       });
 
-      const resp = await fetchWithRetry(
+      const resp = await fetchTracked(
+        env,
+        'ebay',
         `https://svcs.ebay.com/services/search/FindingService/v1?${params}`,
         { headers: { Accept: 'application/json' } }
       );
 
       if (!resp.ok) {
         console.error('[ebay-finding] HTTP error:', resp.status);
-        return await fetchRssFallback(keywords);
+          return await fetchRssFallback(keywords, env);
       }
 
       const data = await resp.json() as Record<string, unknown>;
       const searchRes = (data['findCompletedItemsResponse'] as Record<string, unknown>[])?.[0];
       const items = ((searchRes?.['searchResult'] as Record<string, unknown>[])?.[0]?.['item']) as Record<string, unknown>[] | undefined;
 
-      if (!items || items.length < 3) return await fetchRssFallback(keywords);
+      if (!items || items.length < 3) return await fetchRssFallback(keywords, env);
 
       const prices = items
         .map(item => {
@@ -71,24 +73,24 @@ export async function fetchEbayPrice(
         .filter(p => !isNaN(p) && p > 0)
         .sort((a, b) => a - b);
 
-      if (prices.length < 3) return await fetchRssFallback(keywords);
+      if (prices.length < 3) return await fetchRssFallback(keywords, env);
 
       const median = prices[Math.floor(prices.length / 2)];
       const filtered = prices.filter(p => p <= median * 3);
       return filtered[Math.floor(filtered.length / 2)] ?? null;
     } catch (e) {
       console.error('[ebay-finding] failed:', e);
-      return await fetchRssFallback(keywords);
+      return await fetchRssFallback(keywords, env);
     }
   }
 
-  return await fetchRssFallback(keywords);
+  return await fetchRssFallback(keywords, env);
 }
 
-async function fetchRssFallback(keywords: string): Promise<number | null> {
+async function fetchRssFallback(keywords: string, env: Env): Promise<number | null> {
   try {
     const url = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(keywords)}&LH_Sold=1&LH_Complete=1`;
-    const resp = await fetchWithRetry(url, {
+    const resp = await fetchTracked(env, 'ebay', url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'

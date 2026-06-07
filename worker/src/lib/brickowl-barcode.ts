@@ -1,5 +1,5 @@
 import type { Env } from '../types';
-import { fetchWithRetry } from './http';
+import { fetchTracked } from './http';
 
 // Returns the EAN-13 barcode for a LEGO set via BrickOwl catalog/lookup.
 // EAN-13 is compatible with the UPC column — the scan route already handles
@@ -15,7 +15,7 @@ export async function fetchBrickOwlBarcode(setNum: string, env: Env): Promise<st
       type: 'set',
       id_type: 'brickset',
     });
-    const resp = await fetchWithRetry(`https://api.brickowl.com/v1/catalog/lookup?${params}`, {
+    const resp = await fetchTracked(env, 'brickowl', `https://api.brickowl.com/v1/catalog/lookup?${params}`, {
       headers: { Accept: 'application/json' },
     });
     if (!resp.ok) return null;

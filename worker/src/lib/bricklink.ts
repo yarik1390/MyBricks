@@ -1,5 +1,5 @@
 import type { Env } from '../types';
-import { fetchWithRetry } from './http';
+import { fetchTracked } from './http';
 
 export interface BrickLinkPricing {
   current_value: number;
@@ -60,7 +60,7 @@ export async function fetchUsedPricing(setNum: string, env: Env): Promise<BrickL
       env.BRICKLINK_CONSUMER_KEY, env.BRICKLINK_CONSUMER_SECRET,
       env.BRICKLINK_TOKEN, env.BRICKLINK_TOKEN_SECRET,
     );
-    const resp = await fetchWithRetry(`${baseUrl}?${new URLSearchParams(queryParams)}`, {
+    const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
     });
     if (!resp.ok) return null;
@@ -93,7 +93,7 @@ export async function fetchSetPricing(setNum: string, env: Env): Promise<BrickLi
       env.BRICKLINK_TOKEN, env.BRICKLINK_TOKEN_SECRET,
     );
 
-    const resp = await fetchWithRetry(`${baseUrl}?${new URLSearchParams(queryParams)}`, {
+    const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
     });
     if (!resp.ok) return null;
@@ -124,7 +124,7 @@ export async function fetchMinifigPricing(figNum: string, env: Env): Promise<num
       env.BRICKLINK_CONSUMER_KEY, env.BRICKLINK_CONSUMER_SECRET,
       env.BRICKLINK_TOKEN, env.BRICKLINK_TOKEN_SECRET,
     );
-    const resp = await fetchWithRetry(`${baseUrl}?${new URLSearchParams(queryParams)}`, {
+    const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
     });
     if (!resp.ok) return null;

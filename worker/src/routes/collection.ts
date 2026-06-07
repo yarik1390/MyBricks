@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { requireMember } from '../auth';
 import { formulaValuation } from '../lib/valuation';
+import { fetchTracked } from '../lib/http';
+import { enrichSetRecord } from '../lib/market-sources';
 import type { Env, Variables } from '../types';
 import { runSyncProcess } from './google-sync';
 
@@ -147,14 +149,14 @@ app.get('/', async (c) => {
       }
     }
     const t = trends[row.set_num as string] || { trend: 'stable', slope: 0 };
-    return {
+    return enrichSetRecord({
       ...row,
       retired: !!row.retired,
       is_complete: !!row.is_complete,
       annualized_roi: annualizedRoi,
       trend: t.trend,
       slope_90d: t.slope
-    } as Record<string, unknown>;
+    } as Record<string, unknown>);
   });
 
   const totalValue = items.reduce((s, r) => s + (Number(r.current_value) || 0) * Number(r.quantity), 0);
@@ -339,7 +341,7 @@ app.post('/import', async (c) => {
     if (!catalog && c.env.REBRICKABLE_API_KEY) {
       try {
         const url = `https://rebrickable.com/api/v3/lego/sets/${encodeURIComponent(set_num)}/`;
-        const rb = await fetch(url, { headers: { 'Authorization': `key ${c.env.REBRICKABLE_API_KEY}` } });
+        const rb = await fetchTracked(c.env, 'rebrickable', url, { headers: { 'Authorization': `key ${c.env.REBRICKABLE_API_KEY}` } });
         if (rb.ok) {
           const s = await rb.json() as { set_num: string; name: string; year: number; num_parts: number; num_minifigs: number; set_img_url: string };
           const vals = formulaValuation({ pieces: s.num_parts, year: s.year, retired: false, minifigs: s.num_minifigs || 0 });

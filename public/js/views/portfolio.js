@@ -417,6 +417,19 @@ function animateHeroValue(target) {
   requestAnimationFrame(tick);
 }
 
+function sourceCueHTML(item) {
+  const staleByAge = item.cached_at && (Date.now() - new Date(item.cached_at).getTime() > 60 * 24 * 3600 * 1000);
+  const freshness = item.freshness || (staleByAge ? 'stale' : 'fresh');
+  const confidence = item.confidence || (item.valuation_method === 'formula_bulk' ? 'estimated' : 'medium');
+  if (freshness === 'fresh' && (confidence === 'high' || confidence === 'medium')) return '';
+  const label = freshness === 'expired' ? 'Refresh due'
+    : freshness === 'stale' ? 'Stale'
+    : confidence === 'estimated' ? 'Estimate'
+    : 'Low confidence';
+  const color = freshness === 'expired' ? 'var(--bv-red)' : 'var(--bv-yellow)';
+  return `<span title="${escapeHtml(item.valuation_explanation || label)}" style="display:inline-flex;align-items:center;font-family:var(--mono);font-size:9px;color:${color};font-weight:700;text-transform:uppercase;">${escapeHtml(label)}</span>`;
+}
+
 function setListCardHTML(item) {
   const delta = item.purchase_price ? (item.current_value - item.purchase_price) / item.purchase_price : null;
   const cls = delta == null ? "flat" : delta >= 0 ? "up" : "down";
@@ -433,9 +446,7 @@ function setListCardHTML(item) {
     </div>
   ` : '';
 
-  const staleTime = 60 * 24 * 3600 * 1000;
-  const isStale = item.cached_at && (Date.now() - new Date(item.cached_at).getTime() > staleTime);
-  const staleDotHTML = isStale ? `<span class="stale-dot" style="display:inline-block;width:6px;height:6px;background:var(--bv-yellow);border-radius:50%;margin-left:4px;" title="Stale price valuation"></span>` : '';
+  const sourceCue = sourceCueHTML(item);
 
   if (state.compactView) {
     return `
@@ -450,7 +461,7 @@ function setListCardHTML(item) {
             <span>${escapeHtml(item.set_num)}</span>
             <span class="dot"></span>
             <span>${escapeHtml(item.theme || "")}</span>
-            ${staleDotHTML}
+            ${sourceCue}
           </div>
         </div>
         <div class="sl-right-compact">
@@ -473,7 +484,7 @@ function setListCardHTML(item) {
           <span>${escapeHtml(item.theme || "")}</span>
           <span class="dot"></span>
           <span>${escapeHtml(item.set_num)}</span>
-          ${staleDotHTML}
+          ${sourceCue}
         </div>
       </div>
       <div class="sl-right">
@@ -916,6 +927,7 @@ function infoTabHTML(set, entry, isWish) {
   return `
     ${priceStripHTML(set, entry)}
     ${marketSpreadHTML(set)}
+    ${marketConfidenceHTML(set)}
     ${aiDisclaimerHTML}
     ${pricingSummaryHtml}
     
@@ -1900,6 +1912,58 @@ function priceStripHTML(set, entry) {
       <span>Sources: ${sourceSuffix}</span>
       <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);">${lastUpdatedText}</span>
     </div>`;
+}
+
+function marketConfidenceHTML(set) {
+  const fallbackSources = () => {
+    const primaryName = set.valuation_method === 'brickeconomy' ? 'BrickEconomy'
+      : set.valuation_method === 'market' ? 'BrickLink'
+      : set.valuation_method === 'ebay_rss' ? 'eBay sold'
+      : set.valuation_method === 'ai' ? 'AI estimate'
+      : 'Formula estimate';
+    const out = [];
+    if (set.current_value) out.push({ id: set.primary_value_source || set.valuation_method || 'primary', name: primaryName, value: set.current_value, condition: 'new' });
+    if (set.bl_new_value) out.push({ id: 'bricklink_new', name: 'BrickLink', value: set.bl_new_value, condition: 'new', sample_count: set.bl_new_qty });
+    if (set.used_value) out.push({ id: 'used', name: 'Used market', value: set.used_value, condition: 'used', sample_count: set.bl_used_qty });
+    if (set.ebay_value) out.push({ id: 'ebay_sold', name: 'eBay sold', value: set.ebay_value, condition: 'sold' });
+    return out;
+  };
+  const sources = Array.isArray(set.market_sources) && set.market_sources.length
+    ? set.market_sources.filter(s => s.id !== 'retail')
+    : fallbackSources();
+  const confidence = set.confidence || (set.valuation_method === 'formula_bulk' ? 'estimated' : 'medium');
+  const freshness = set.freshness || 'fresh';
+  const primary = sources.find(s => s.id === set.primary_value_source) || sources[0] || null;
+  const color = confidence === 'high' ? 'var(--up)' : confidence === 'medium' ? 'var(--accent)' : confidence === 'low' ? 'var(--bv-yellow)' : 'var(--bv-red)';
+  const explanation = set.valuation_explanation || (
+    set.valuation_method === 'brickeconomy' ? 'BrickEconomy is primary, with BrickLink/eBay shown when available.'
+      : set.valuation_method === 'market' ? 'BrickLink sold data is primary, with eBay shown when available.'
+      : set.valuation_method === 'ebay_rss' ? 'eBay completed listings are the current fallback source.'
+      : set.valuation_method === 'ai' ? 'AI estimated this value because market sources were unavailable.'
+      : 'Formula valuation is used until a market refresh completes.'
+  );
+  const sourceRows = sources.slice(0, 4).map(s => `
+    <div style="display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--line-soft);padding-top:7px;margin-top:7px;">
+      <span style="min-width:0;color:var(--ink-soft);">${escapeHtml(s.name)} ${s.condition ? `(${escapeHtml(s.condition)})` : ''}</span>
+      <span style="font-family:var(--mono);font-weight:700;color:var(--ink);white-space:nowrap;">${s.value ? fmtMoney(s.value) : 'pending'}${s.sample_count ? ` / ${s.sample_count} lots` : ''}</span>
+    </div>
+  `).join('');
+  return `
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;">
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:4px;">Market confidence</div>
+          <div style="font-size:13px;color:var(--ink-soft);line-height:1.45;">${escapeHtml(explanation)}</div>
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:${color};font-weight:800;white-space:nowrap;">${escapeHtml(confidence)} / ${escapeHtml(freshness)}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;">
+        <span style="color:var(--ink-mute);">Primary source</span>
+        <strong style="color:var(--ink);text-align:right;">${escapeHtml(primary?.name || 'Pending refresh')}</strong>
+      </div>
+      ${sourceRows}
+    </div>
+  `;
 }
 
 // Shows a sell/buy signal when eBay and BrickLink prices diverge >10%.

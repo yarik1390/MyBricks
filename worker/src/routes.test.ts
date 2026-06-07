@@ -75,7 +75,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         forecast_2y REAL, forecast_5y REAL, image_url TEXT, retired INTEGER DEFAULT 0,
         retirement_risk_score INTEGER, used_value REAL, ebay_value REAL, upc TEXT,
         valuation_method TEXT DEFAULT 'formula_bulk', bl_new_value REAL, bl_new_qty INTEGER, bl_used_qty INTEGER,
-        valuation_expires_at TEXT, cached_at TEXT, source TEXT
+        valuation_expires_at TEXT, cached_at TEXT, source TEXT, ebay_cached_at TEXT
       )`,
       `CREATE VIRTUAL TABLE lego_sets_fts USING fts5(set_num, name, theme)`,
       `CREATE TABLE user_collection (
@@ -410,9 +410,12 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       }), env);
       expect(res.status).toBe(200);
       const data = await res.json<any>();
-      expect(data.integrations).toHaveLength(1);
-      expect(data.integrations[0].service).toBe('ebay');
-      expect(data.integrations[0].ok_count).toBe(5);
+      expect(data.integrations.length).toBeGreaterThan(1);
+      const ebay = data.integrations.find((row: any) => row.service === 'ebay');
+      expect(ebay).toBeTruthy();
+      expect(ebay.ok_count).toBe(5);
+      expect(data.coverage).toBeDefined();
+      expect(data.api_routing.worker_base_url).toBe('http://localhost');
     });
   });
 });

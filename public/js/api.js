@@ -154,7 +154,8 @@ const SET_FIELDS = [
   'set_num','name','theme','year','pieces','minifigs','retail_price','current_value',
   'forecast_2y','forecast_5y','image_url','retired','retirement_risk_score','used_value',
   'ebay_value','cached_at','valuation_method','bl_new_value','bl_new_qty','bl_used_qty',
-  'source','brickset','trend'
+  'source','brickset','trend','market_sources','primary_value_source','confidence',
+  'freshness','valuation_explanation','valuation_expires_at','ebay_cached_at'
 ];
 
 export function isGuestMode() {

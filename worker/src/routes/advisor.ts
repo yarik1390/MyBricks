@@ -2,7 +2,8 @@ import { Hono } from 'hono';
 import OpenAI from 'openai';
 import { requireMember } from '../auth';
 import { buildAdvisorContext } from '../lib/advisor-context';
-import { callGeminiScan } from '../lib/gemini';
+import { fetchTracked } from '../lib/http';
+import { recordIntegrationAttempt } from '../lib/integration-health';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -58,7 +59,9 @@ ${context}`;
     try {
       if (geminiKey) {
         // Gemini path: use the scan helper but adapted for text-only chat
-        const resp = await fetch(
+        const resp = await fetchTracked(
+          c.env,
+          'gemini',
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=${geminiKey}`,
           {
             method: 'POST',
@@ -110,9 +113,11 @@ ${context}`;
           const text = chunk.choices[0]?.delta?.content ?? '';
           if (text) await send({ text });
         }
+        await recordIntegrationAttempt(c.env, 'openai', true);
       }
       await send({ done: true });
     } catch (e) {
+      await recordIntegrationAttempt(c.env, geminiKey ? 'gemini' : 'openai', false, e);
       await send({ error: (e as Error).message });
       await send({ done: true });
     } finally {

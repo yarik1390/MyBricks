@@ -3,12 +3,61 @@ import { requireAdmin } from '../auth';
 import { importSets, importFigs, runBatches, BATCH } from '../jobs/import-catalog';
 import { runBackfillUpc } from '../jobs/backfill-upc';
 import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
-import { getIntegrationHealth } from '../lib/integration-health';
+import { getIntegrationDiagnostics } from '../lib/integration-health';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 app.use('*', requireAdmin);
+
+function parseNextBackfillPage(error?: string | null): number {
+  if (!error || /complete:true/.test(error)) return 1;
+  const match = error.match(/next_page:(\d+)/);
+  const n = match ? Number(match[1]) : 1;
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+async function nextBackfillPage(env: Env): Promise<number> {
+  const row = await env.DB.prepare(
+    `SELECT error FROM import_runs
+     WHERE error LIKE 'method:bulk%'
+     ORDER BY started_at DESC
+     LIMIT 1`
+  ).first<{ error: string | null }>();
+  return parseNextBackfillPage(row?.error);
+}
+
+async function getDataCoverage(env: Env) {
+  const [sets, valuationMethods] = await Promise.all([
+    env.DB.prepare(`
+      SELECT
+        CAST(COUNT(*) AS INTEGER) AS total_sets,
+        CAST(SUM(CASE WHEN current_value IS NULL OR current_value <= 0 THEN 1 ELSE 0 END) AS INTEGER) AS missing_values,
+        CAST(SUM(CASE WHEN valuation_expires_at IS NOT NULL AND valuation_expires_at < datetime('now') THEN 1 ELSE 0 END) AS INTEGER) AS expired_values,
+        CAST(SUM(CASE WHEN cached_at IS NULL OR cached_at < datetime('now','-60 days') THEN 1 ELSE 0 END) AS INTEGER) AS stale_values,
+        CAST(SUM(CASE WHEN upc IS NOT NULL AND upc != '' THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_upc,
+        CAST(SUM(CASE WHEN ebay_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_ebay,
+        CAST(SUM(CASE WHEN bl_new_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_bricklink,
+        CAST(SUM(CASE WHEN used_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_used_value
+      FROM lego_sets
+    `).first<Record<string, number>>(),
+    env.DB.prepare(`
+      SELECT valuation_method, CAST(COUNT(*) AS INTEGER) AS count
+      FROM lego_sets
+      GROUP BY valuation_method
+      ORDER BY count DESC
+    `).all<{ valuation_method: string; count: number }>(),
+  ]);
+
+  const total = Number(sets?.total_sets || 0);
+  return {
+    ...sets,
+    barcode_coverage_pct: total ? Math.round((Number(sets?.sets_with_upc || 0) / total) * 1000) / 10 : 0,
+    ebay_coverage_pct: total ? Math.round((Number(sets?.sets_with_ebay || 0) / total) * 1000) / 10 : 0,
+    bricklink_coverage_pct: total ? Math.round((Number(sets?.sets_with_bricklink || 0) / total) * 1000) / 10 : 0,
+    valuation_methods: valuationMethods.results || [],
+  };
+}
 
 app.post('/import-rebrickable', async (c) => {
   const body = await c.req.json<{ dataset?: string }>().catch(() => ({ dataset: undefined }));
@@ -18,11 +67,11 @@ app.post('/import-rebrickable', async (c) => {
   }
 
   await c.env.DB.prepare(
-    `UPDATE import_runs SET status='error',error='Timed out',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-5 minutes')`
+    `UPDATE import_runs SET status='error',error='Timed out',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
   ).run();
 
   const active = await c.env.DB.prepare(
-    `SELECT id, started_at FROM import_runs WHERE status='running' AND started_at > datetime('now','-5 minutes') ORDER BY started_at DESC LIMIT 1`
+    `SELECT id, started_at FROM import_runs WHERE status='running' AND started_at > datetime('now','-30 minutes') ORDER BY started_at DESC LIMIT 1`
   ).first<{ id: number; started_at: string }>();
   if (active) {
     return c.json({ error: 'An import is already running.', run_id: active.id, started_at: active.started_at }, 409);
@@ -36,13 +85,13 @@ app.post('/import-rebrickable', async (c) => {
       try {
         const result: Record<string, unknown> = {};
         if (dataset === 'sets' || dataset === 'all') {
-          const r = await importSets(c.env.DB);
+          const r = await importSets(c.env.DB, c.env);
           result.sets_loaded = r.loaded;
           result.sets_skipped = r.skipped;
           result.themes_loaded = r.themes;
         }
         if (dataset === 'figs' || dataset === 'all') {
-          const r = await importFigs(c.env.DB);
+          const r = await importFigs(c.env.DB, c.env);
           result.figs_loaded = r.loaded;
         }
         await c.env.DB.prepare(
@@ -78,11 +127,11 @@ app.post('/backfill-upc', async (c) => {
   }
 
   await c.env.DB.prepare(
-    `UPDATE import_runs SET status='error',error='Timed out',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-5 minutes')`
+    `UPDATE import_runs SET status='error',error='Timed out',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
   ).run();
 
   const active = await c.env.DB.prepare(
-    `SELECT id FROM import_runs WHERE status='running' AND started_at > datetime('now','-5 minutes') LIMIT 1`
+    `SELECT id FROM import_runs WHERE status='running' AND started_at > datetime('now','-30 minutes') LIMIT 1`
   ).first<{ id: number }>();
   if (active) return c.json({ error: 'An import is already running.', run_id: active.id }, 409);
 
@@ -92,7 +141,21 @@ app.post('/backfill-upc', async (c) => {
   c.executionCtx.waitUntil(
     (async () => {
       try {
-        const r = await runBackfillUpc(c.env);
+        const startPage = await nextBackfillPage(c.env);
+        const r = await runBackfillUpc(c.env, {
+          startPage,
+          maxPages: 4,
+          onProgress: async (p) => {
+            await c.env.DB.prepare(
+              `UPDATE import_runs SET sets_loaded=?,sets_skipped=?,error=? WHERE id=?`
+            ).bind(
+              p.filled,
+              p.processed,
+              `method:bulk start_page:${startPage} next_page:${p.nextPage ?? ''} complete:${p.complete}`,
+              runId,
+            ).run();
+          },
+        });
         if (r.error) {
           await c.env.DB.prepare(
             "UPDATE import_runs SET status='error',error=?,completed_at=datetime('now') WHERE id=?"
@@ -100,7 +163,12 @@ app.post('/backfill-upc', async (c) => {
         } else {
           await c.env.DB.prepare(
             `UPDATE import_runs SET status='completed',completed_at=datetime('now'),sets_loaded=?,sets_skipped=?,error=? WHERE id=?`
-          ).bind(r.filled, r.processed - r.filled, `method:${r.method} catalog:${r.catalogSize}`, runId).run();
+          ).bind(
+            r.filled,
+            r.processed,
+            `method:${r.method} catalog:${r.catalogSize} next_page:${r.nextPage ?? ''} complete:${r.complete}`,
+            runId,
+          ).run();
         }
       } catch (e) {
         await c.env.DB.prepare(
@@ -244,15 +312,26 @@ app.get('/import-status', async (c) => {
     `SELECT id, status, started_at, completed_at, themes_loaded, sets_loaded, sets_skipped, figs_loaded, error
      FROM import_runs
      ORDER BY started_at DESC
-     LIMIT 5`
+     LIMIT 8`
   ).all();
   return c.json({ runs: results });
 });
 
-// GET /api/admin/integrations — external API health (last success/failure per service)
 app.get('/integrations', async (c) => {
-  const rows = await getIntegrationHealth(c.env);
-  return c.json({ integrations: rows });
+  const [integrations, coverage] = await Promise.all([
+    getIntegrationDiagnostics(c.env),
+    getDataCoverage(c.env),
+  ]);
+  const url = new URL(c.req.url);
+  return c.json({
+    integrations,
+    coverage,
+    api_routing: {
+      worker_base_url: url.origin,
+      config_endpoint: `${url.origin}/api/config`,
+      pages_api_note: 'The Pages app uses window.WORKER_BASE for API calls.',
+    },
+  });
 });
 
 export { app as adminRoute };

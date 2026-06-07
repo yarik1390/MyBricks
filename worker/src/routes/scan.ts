@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import OpenAI from 'openai';
 import { optionalMember } from '../auth';
 import { callGeminiScan } from '../lib/gemini';
+import { enrichSetRecord } from '../lib/market-sources';
+import { recordIntegrationAttempt } from '../lib/integration-health';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -28,7 +30,7 @@ app.post('/identify', async (c) => {
       if (r) break;
     }
     if (!r) return c.json({ identified: false, reasoning: 'Barcode not in catalog. Try a photo scan instead.' });
-    return c.json({ identified: true, set: r, confidence: 'high', reasoning: 'Barcode matched in catalog.' });
+    return c.json({ identified: true, set: enrichSetRecord({ ...(r as Record<string, unknown>), retired: !!(r as Record<string, unknown>).retired }), confidence: 'high', reasoning: 'Barcode matched in catalog.' });
   }
 
   if (mode !== 'image') return c.json({ error: 'mode must be image or barcode' }, 400);
@@ -38,7 +40,7 @@ app.post('/identify', async (c) => {
   // Gemini path: user's own Gemini API key — uses their own quota, no rate limit here.
   const geminiKey = c.req.header('X-Gemini-Key');
   if (geminiKey) {
-    const res = await callGeminiScan(image, geminiKey);
+    const res = await callGeminiScan(image, geminiKey, c.env);
     if (!res || !res.sets || !res.sets.length) {
       return c.json({ identified: false, reasoning: 'Gemini could not identify any sets in the image.' });
     }
@@ -58,7 +60,7 @@ app.post('/identify', async (c) => {
     for (const candidate of geminiCandidates) {
       const r = geminiByNum.get(candidate.set_num) ?? geminiByNum.get(candidate.set_num + '-1');
       if (r) {
-        matchedSets.push({ ...r, retired: !!r.retired, confidence: candidate.confidence, reasoning: candidate.reasoning });
+        matchedSets.push(enrichSetRecord({ ...r, retired: !!r.retired, confidence: candidate.confidence, reasoning: candidate.reasoning }));
         if (topConfidence === 'none' || candidate.confidence === 'high') {
           topConfidence = candidate.confidence;
           reasoning = candidate.reasoning;
@@ -130,7 +132,9 @@ app.post('/identify', async (c) => {
       throw e;
     });
     res = JSON.parse(result.choices[0].message.content!.trim());
+    await recordIntegrationAttempt(c.env, 'openai', true);
   } catch (e) {
+    await recordIntegrationAttempt(c.env, 'openai', false, e);
     console.warn('[scan] AI parse failed:', (e as Error).message);
     return c.json({ identified: false, reasoning: 'Could not parse AI response.' });
   }
@@ -159,7 +163,7 @@ app.post('/identify', async (c) => {
     // Prefer the exact set_num, then the "-1" variant.
     const r = byNum.get(candidate.set_num) ?? byNum.get(candidate.set_num + '-1');
     if (r) {
-      matchedSets.push({ ...r, retired: !!r.retired, confidence: candidate.confidence, reasoning: candidate.reasoning });
+      matchedSets.push(enrichSetRecord({ ...r, retired: !!r.retired, confidence: candidate.confidence, reasoning: candidate.reasoning }));
       if (topConfidence === 'none' || candidate.confidence === 'high') {
         topConfidence = candidate.confidence;
         reasoning = candidate.reasoning;

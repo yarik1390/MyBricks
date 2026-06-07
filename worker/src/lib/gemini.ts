@@ -1,4 +1,5 @@
-import { fetchWithRetry } from './http';
+import type { Env } from '../types';
+import { fetchTracked, fetchWithRetry } from './http';
 
 // Calls Gemini 1.5 Flash with a user-supplied Gemini API key (free from Google
 // AI Studio: https://aistudio.google.com/apikey). The free tier gives ~1500
@@ -7,6 +8,7 @@ import { fetchWithRetry } from './http';
 export async function callGeminiScan(
   imageDataUrl: string,
   apiKey: string,
+  env?: Env,
 ): Promise<{ sets?: Array<{ set_num: string; name: string; confidence: string; reasoning: string }> } | null> {
   const match = imageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (!match) return null;
@@ -24,7 +26,8 @@ export async function callGeminiScan(
   };
 
   try {
-    const resp = await fetchWithRetry(
+    const fetcher = env ? fetchTracked.bind(null, env, 'gemini') : fetchWithRetry;
+    const resp = await fetcher(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
       {
         method: 'POST',
@@ -57,6 +60,7 @@ export async function callGeminiValuation(
   setNum: string,
   setName: string,
   apiKey: string,
+  env?: Env,
 ): Promise<{ current_value: number; used_value: number; ebay_value: number } | null> {
   const body = {
     contents: [{
@@ -72,7 +76,8 @@ export async function callGeminiValuation(
   };
 
   try {
-    const resp = await fetchWithRetry(
+    const fetcher = env ? fetchTracked.bind(null, env, 'gemini') : fetchWithRetry;
+    const resp = await fetcher(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
       {
         method: 'POST',
