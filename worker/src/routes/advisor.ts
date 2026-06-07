@@ -11,6 +11,26 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 // Free-tier server-key limit; bypassed entirely when the user supplies their own Gemini key.
 const ADVISOR_DAILY_LIMIT = 10;
 
+function providerUserMessage(provider: 'gemini' | 'openai', error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error || '');
+  const statusFromMessage = Number(message.match(/HTTP\s+(\d{3})/i)?.[1] || 0);
+  const status = typeof (error as { status?: unknown })?.status === 'number'
+    ? (error as { status: number }).status
+    : statusFromMessage;
+  const label = provider === 'gemini' ? 'Gemini' : 'OpenAI';
+
+  if (status === 401 || status === 403 || /api key|unauthorized|forbidden|permission/i.test(message)) {
+    return `${label} key could not be used. Check the key in Settings.`;
+  }
+  if (status === 429 || /quota|rate limit/i.test(message)) {
+    return `${label} quota or rate limit was reached. Try again later or switch AI keys.`;
+  }
+  if (status >= 500 || /timeout|network|fetch/i.test(message)) {
+    return `${label} is temporarily unavailable. Try again in a moment.`;
+  }
+  return `The advisor could not get an AI response from ${label}.`;
+}
+
 app.use('*', requireMember);
 
 app.post('/', async (c) => {
@@ -21,6 +41,9 @@ app.post('/', async (c) => {
 
   const geminiKey = c.req.header('X-Gemini-Key');
   const openaiKey = c.req.header('X-OpenAI-Key');
+  if (!geminiKey && !openaiKey && !c.env.OPENAI_API_KEY) {
+    return c.json({ error: 'OpenAI is not configured. Add your own Gemini or OpenAI key in Settings.' }, 500);
+  }
 
   // Rate limit for server-key path only (BYOK bypasses it).
   if (!geminiKey && !openaiKey) {
@@ -62,10 +85,10 @@ ${context}`;
         const resp = await fetchTracked(
           c.env,
           'gemini',
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=${geminiKey}`,
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse',
           {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
             body: JSON.stringify({
               system_instruction: { parts: [{ text: systemPrompt }] },
               contents: [{ role: 'user', parts: [{ text: q }] }],
@@ -74,7 +97,7 @@ ${context}`;
           }
         );
         if (!resp.ok || !resp.body) {
-          await send({ error: 'Gemini request failed' });
+          await send({ error: providerUserMessage('gemini', `HTTP ${resp.status}`) });
           await send({ done: true });
           await writer.close();
           return;
@@ -117,8 +140,9 @@ ${context}`;
       }
       await send({ done: true });
     } catch (e) {
-      await recordIntegrationAttempt(c.env, geminiKey ? 'gemini' : 'openai', false, e);
-      await send({ error: (e as Error).message });
+      const provider = geminiKey ? 'gemini' : 'openai';
+      await recordIntegrationAttempt(c.env, provider, false, e);
+      await send({ error: providerUserMessage(provider, e) });
       await send({ done: true });
     } finally {
       await writer.close().catch(() => {});

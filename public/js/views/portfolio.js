@@ -1546,7 +1546,10 @@ async function showListingSheet(set, entry) {
 
   try {
     const geminiKey = localStorage.getItem('bv_gemini_key');
-    const extraHeaders = geminiKey ? { 'X-Gemini-Key': geminiKey } : {};
+    const openaiKey = localStorage.getItem('bv_openai_key');
+    const extraHeaders = {};
+    if (geminiKey) extraHeaders['X-Gemini-Key'] = geminiKey;
+    else if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
     const draft = await api("/api/sets/" + encodeURIComponent(set.set_num) + "/listing-draft", {
       method: "POST", headers: extraHeaders,
     });

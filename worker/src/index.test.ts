@@ -14,14 +14,20 @@ vi.mock('openai', () => {
   class MockOpenAI {
     chat = {
       completions: {
-        create: vi.fn().mockResolvedValue({
-          choices: [{
-            message: {
-              content: JSON.stringify({
-                sets: [{ set_num: '75192', name: 'Millennium Falcon', confidence: 'high', reasoning: 'Visual match' }]
+        create: vi.fn().mockImplementation((args: any) => {
+          const userMessage = args?.messages?.find((m: any) => m.role === 'user')?.content;
+          const promptText = typeof userMessage === 'string' ? userMessage : JSON.stringify(userMessage || '');
+          const content = promptText.includes('Generate an eBay listing')
+            ? JSON.stringify({
+                title: 'LEGO 75192 Millennium Falcon - Star Wars UCS',
+                description: 'Complete LEGO Star Wars UCS Millennium Falcon set with collector appeal.',
+                suggested_price: 849,
+                price_reasoning: 'Suggested near current market value with room for offers.',
               })
-            }
-          }]
+            : JSON.stringify({
+                sets: [{ set_num: '75192', name: 'Millennium Falcon', confidence: 'high', reasoning: 'Visual match' }]
+              });
+          return Promise.resolve({ choices: [{ message: { content } }] });
         })
       }
     };
@@ -417,6 +423,44 @@ describe('BrickVault API Worker Tests', () => {
       const data = await res.json<{ error: string }>();
       expect(data.error).toContain('Rate limit: 20 photo scans per hour');
     });
+
+    it('allows the 20th shared photo scan and blocks the 21st', async () => {
+      const windowStart = new Date();
+      windowStart.setMinutes(0, 0, 0);
+      const ws = windowStart.toISOString();
+
+      await db.prepare(`
+        INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+        VALUES (?, 'scan_image', ?, 19)
+      `).bind(testUserId, ws).run();
+
+      const first = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ mode: 'image', image: 'data:image/png;base64,mock' })
+        }),
+        env
+      );
+      expect(first.status).toBe(200);
+      expect((await first.json<{ identified: boolean }>()).identified).toBe(true);
+
+      const second = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ mode: 'image', image: 'data:image/png;base64,mock' })
+        }),
+        env
+      );
+      expect(second.status).toBe(429);
+    });
   });
 
   describe('Input Validation & Safe Operations', () => {
@@ -748,6 +792,71 @@ describe('BrickVault API Worker Tests', () => {
       expect(res.status).toBe(200);
       const data = await res.json<{ identified: boolean }>();
       expect(data.identified).toBe(true);
+    });
+  });
+
+  describe('AI listing drafts', () => {
+    it('uses a user OpenAI key when the server key is absent', async () => {
+      (env as any).OPENAI_API_KEY = '';
+
+      const res = await app.fetch(
+        new Request('http://localhost/api/sets/75192/listing-draft', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-OpenAI-Key': 'user-openai-key',
+            'Content-Type': 'application/json',
+          },
+        }),
+        env
+      );
+
+      expect(res.status).toBe(200);
+      const data = await res.json<{ title: string; suggested_price: number }>();
+      expect(data.title).toContain('75192');
+      expect(data.suggested_price).toBeGreaterThan(0);
+    });
+
+    it('sends Gemini listing keys in headers, not URLs', async () => {
+      const originalFetch = globalThis.fetch;
+      let seenUrl = '';
+      let seenHeader = '';
+      globalThis.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+        if (url.toString().includes('generativelanguage.googleapis.com')) {
+          seenUrl = url.toString();
+          seenHeader = String((init?.headers as Record<string, string>)?.['x-goog-api-key'] || '');
+          return Promise.resolve(new Response(JSON.stringify({
+            candidates: [{ content: { parts: [{ text: JSON.stringify({
+              title: 'LEGO 75192 Millennium Falcon',
+              description: 'A strong collector listing.',
+              suggested_price: 849,
+              price_reasoning: 'Priced near current market value.',
+            }) }] } }]
+          }), { status: 200 }));
+        }
+        return originalFetch(url, init);
+      });
+
+      try {
+        const res = await app.fetch(
+          new Request('http://localhost/api/sets/75192/listing-draft', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'X-Gemini-Key': 'user-gemini-key',
+              'Content-Type': 'application/json',
+            },
+          }),
+          env
+        );
+
+        expect(res.status).toBe(200);
+        expect(seenHeader).toBe('user-gemini-key');
+        expect(seenUrl).not.toContain('user-gemini-key');
+        expect(seenUrl).not.toContain('key=');
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
     });
   });
 });

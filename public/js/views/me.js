@@ -173,10 +173,10 @@ export async function renderMe() {
               : `<span style="color:var(--bv-red);font-weight:600;display:inline-flex;align-items:center;gap:4px;">⚠️ Missing</span>`}
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span>AI Scanner (OpenAI)</span>
+            <span>Server AI (OpenAI)</span>
             ${status.openai
               ? `<span style="color:var(--up);font-weight:600;display:inline-flex;align-items:center;gap:4px;">● Configured</span>`
-              : `<span style="color:var(--ink-mute);font-weight:600;display:inline-flex;align-items:center;gap:4px;">⚠️ Unconfigured (fallback to public key)</span>`}
+              : `<span style="color:var(--ink-mute);font-weight:600;display:inline-flex;align-items:center;gap:4px;">⚠️ Unconfigured (use your own key)</span>`}
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <span>Google Sheets Integration</span>
@@ -298,7 +298,7 @@ export async function renderMe() {
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">
             <div class="lbl">Gemini API key (free)</div>
-            <div class="desc">${savedGeminiKey ? "Active — unlimited scans on your free Google quota" : 'Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--bv-red);font-weight:600;text-decoration:underline;">aistudio.google.com/apikey</a> — bypasses the 20/hr limit'}</div>
+            <div class="desc">${savedGeminiKey ? "Active - powers scans, advisor, listings, and valuation fallback on your Google quota" : 'Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--bv-red);font-weight:600;text-decoration:underline;">aistudio.google.com/apikey</a> - bypasses shared AI limits'}</div>
           </div>
           <div style="display:flex;gap:8px;width:100%;">
             <input type="password" id="geminiKeyInput" value="${escapeHtml(savedGeminiKey)}" placeholder="AIza..."
@@ -309,7 +309,7 @@ export async function renderMe() {
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">
             <div class="lbl">OpenAI key (optional)</div>
-            <div class="desc">${savedOpenAIKey ? "Active — bypasses the 20/hr shared limit" : "Optional: use your own OpenAI key to bypass the shared limit"}</div>
+            <div class="desc">${savedOpenAIKey ? "Active - powers scans, advisor, and listing drafts with your key" : "Optional: use your own OpenAI key for scans, advisor, and listing drafts"}</div>
           </div>
           <div style="display:flex;gap:8px;width:100%;">
             <input type="password" id="openaiKeyInput" value="${escapeHtml(savedOpenAIKey)}" placeholder="sk-..."

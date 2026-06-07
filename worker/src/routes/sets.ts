@@ -441,6 +441,7 @@ suggested_price: a specific dollar amount number (no $ sign).
 price_reasoning: one sentence explaining the price.`;
 
   const geminiKey = c.req.header('X-Gemini-Key');
+  const openaiKey = c.req.header('X-OpenAI-Key');
   let draft: ListingDraft;
 
   try {
@@ -448,10 +449,10 @@ price_reasoning: one sentence explaining the price.`;
       const resp = await fetchTracked(
         c.env,
         'gemini',
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
           body: JSON.stringify({
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             generationConfig: { maxOutputTokens: 400, responseMimeType: 'application/json' },
@@ -463,7 +464,9 @@ price_reasoning: one sentence explaining the price.`;
       const text = (body['candidates'] as { content: { parts: { text: string }[] } }[])?.[0]?.content?.parts?.[0]?.text ?? '{}';
       draft = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as ListingDraft;
     } else {
-      const openai = new OpenAI({ apiKey: c.env.OPENAI_API_KEY });
+      const finalOpenAIKey = openaiKey || c.env.OPENAI_API_KEY;
+      if (!finalOpenAIKey) throw new Error('OpenAI is not configured');
+      const openai = new OpenAI({ apiKey: finalOpenAIKey });
       const result = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         max_tokens: 400,
@@ -479,7 +482,7 @@ price_reasoning: one sentence explaining the price.`;
   } catch (e) {
     await recordIntegrationAttempt(c.env, geminiKey ? 'gemini' : 'openai', false, e);
     console.warn('[listing-draft] AI failed:', (e as Error).message);
-    return c.json({ error: 'Could not generate listing' }, 500);
+    return c.json({ error: 'Could not generate listing. Check your AI key or try again later.' }, 500);
   }
 
   return c.json(draft);

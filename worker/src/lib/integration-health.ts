@@ -129,7 +129,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     label: 'OpenAI',
     configured: (env) => !!env.OPENAI_API_KEY,
     used_by: ['photo scan', 'advisor', 'listing draft', 'valuation fallback'],
-    notes: 'Server key is rate-limited; users can bring their own key for scans/advisor.',
+    notes: 'Server key is rate-limited; users can bring their own key for scans, advisor, and listing drafts.',
   },
   rebrickable: {
     label: 'Rebrickable',

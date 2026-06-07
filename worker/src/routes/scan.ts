@@ -11,6 +11,27 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 // Free-tier server-key limit; bypassed when the user supplies their own Gemini/OpenAI key.
 const SCAN_HOURLY_LIMIT = 20;
 
+function openAIIdentificationMessage(error: unknown): string {
+  const status = typeof (error as { status?: unknown })?.status === 'number'
+    ? (error as { status: number }).status
+    : 0;
+  const message = error instanceof Error ? error.message : String(error || '');
+
+  if (status === 401 || status === 403 || /api key|unauthorized|forbidden|permission/i.test(message)) {
+    return 'OpenAI key could not be used. Check the key in Settings or try a Gemini key.';
+  }
+  if (status === 429 || /quota|rate limit/i.test(message)) {
+    return 'OpenAI quota or rate limit was reached. Try again later or use your own Gemini/OpenAI key.';
+  }
+  if (status >= 500 || /timeout|network|fetch/i.test(message)) {
+    return 'AI identification service is temporarily unavailable. Try again in a moment.';
+  }
+  if (/json|parse|unexpected token/i.test(message)) {
+    return 'Could not read the AI response. Try another photo with the set number or box art clearly visible.';
+  }
+  return 'AI identification failed. Try another photo, barcode scan, or catalog search.';
+}
+
 app.use('*', optionalMember);
 
 app.post('/identify', async (c) => {
@@ -94,7 +115,7 @@ app.post('/identify', async (c) => {
       'SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint=? AND window_start=?'
     ).bind(userId, 'scan_image', ws).first<{ hit_count: number }>();
 
-    if ((rl?.hit_count || 0) >= SCAN_HOURLY_LIMIT) {
+    if ((rl?.hit_count || 0) > SCAN_HOURLY_LIMIT) {
       return c.json({ error: `Rate limit: ${SCAN_HOURLY_LIMIT} photo scans per hour. Set up your own API key to unlock unlimited scanning.` }, 429);
     }
   }
@@ -135,8 +156,8 @@ app.post('/identify', async (c) => {
     await recordIntegrationAttempt(c.env, 'openai', true);
   } catch (e) {
     await recordIntegrationAttempt(c.env, 'openai', false, e);
-    console.warn('[scan] AI parse failed:', (e as Error).message);
-    return c.json({ identified: false, reasoning: 'Could not parse AI response.' });
+    console.warn('[scan] OpenAI identification failed:', (e as Error).message);
+    return c.json({ identified: false, reasoning: openAIIdentificationMessage(e) });
   }
 
   if (!res || !res.sets || !res.sets.length) {

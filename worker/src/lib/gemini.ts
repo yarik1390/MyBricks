@@ -1,7 +1,7 @@
 import type { Env } from '../types';
 import { fetchTracked, fetchWithRetry } from './http';
 
-// Calls Gemini 1.5 Flash with a user-supplied Gemini API key (free from Google
+// Calls Gemini 2.0 Flash with a user-supplied Gemini API key (free from Google
 // AI Studio: https://aistudio.google.com/apikey). The free tier gives ~1500
 // requests/day, so scans run on the user's own quota — not the server's OpenAI
 // key — and don't count against the shared rate limit.

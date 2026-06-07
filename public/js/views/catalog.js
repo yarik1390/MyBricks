@@ -369,7 +369,7 @@ export function renderPile() {
           <div>
             <div style="font-family:var(--serif);font-weight:500;font-size:17px;line-height:1.2;">Point. Snap. Identify.</div>
             <p style="margin:6px 0 0;font-size:13px;color:var(--ink-soft);line-height:1.45;">
-              Take a photo of any set — built, in pieces, or in the box. GPT-4o reads the bricks and tells you what you're holding.
+              Take a photo of any set — built, in pieces, or in the box. AI reads the bricks and tells you what you're holding.
             </p>
           </div>
         </div>
@@ -379,7 +379,7 @@ export function renderPile() {
         <div class="scan-cta-icon">${I.camera()}</div>
         <div class="scan-cta-text">
           <div class="t1">Open camera</div>
-          <div class="t2">20 scans/hour · powered by GPT-4o</div>
+          <div class="t2">20 shared scans/hour · bring your own key for more</div>
         </div>
         <div class="scan-cta-arrow">${I.arrowR()}</div>
       </button>
@@ -390,7 +390,7 @@ export function renderPile() {
           <li>Tap "Open camera" above</li>
           <li>Switch to Photo mode</li>
           <li>Frame the set clearly and tap the shutter</li>
-          <li>GPT-4o identifies the set and shows price info</li>
+          <li>AI identifies the set and shows price info</li>
           <li>Tap "Add to vault" to log it instantly</li>
         </ol>
       </div>
