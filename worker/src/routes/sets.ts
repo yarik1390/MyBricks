@@ -90,15 +90,27 @@ app.get('/search', async (c) => {
       const rb = await fetch(url, { headers: { 'Accept': 'application/json' } });
       if (rb.ok) {
         const data = await rb.json() as { results?: Array<{ set_num: string; name: string; year: number; theme_id: number; num_parts: number; num_minifigs: number; set_img_url: string }> };
-        const seen = new Set(rows.map(r => r.set_num as string));
+        const setKey = (v: string) => String(v || '').replace(/-1$/, '');
+        const seen = new Set(rows.map(r => setKey(r.set_num as string)));
         for (const s of (data.results || [])) {
-          if (seen.has(s.set_num)) continue;
+          const key = setKey(s.set_num);
+          if (seen.has(key)) continue;
+          const alt = s.set_num.endsWith('-1') ? s.set_num.replace(/-1$/, '') : `${s.set_num}-1`;
+          const local = await c.env.DB.prepare(
+            'SELECT * FROM lego_sets WHERE set_num IN (?, ?) ORDER BY CASE WHEN set_num=? THEN 0 ELSE 1 END LIMIT 1'
+          ).bind(s.set_num, alt, s.set_num).first<Record<string, unknown>>();
+          if (local) {
+            rows.push({ ...local, retired: !!local.retired });
+            seen.add(key);
+            continue;
+          }
           const vals = formulaValuation({ pieces: s.num_parts, year: s.year, theme: null, retired: false, minifigs: s.num_minifigs || 0 });
           rows.push({
             set_num: s.set_num, name: s.name, year: s.year, theme: null,
             pieces: s.num_parts, minifigs: s.num_minifigs || 0,
             image_url: s.set_img_url, retired: false, ...vals,
           });
+          seen.add(key);
         }
         rows = rows.slice(0, lim);
         total = Math.max(total, offset + rows.length);

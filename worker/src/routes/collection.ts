@@ -318,11 +318,12 @@ app.post('/import', async (c) => {
 
   // Pre-load owned sets to avoid per-row duplicate queries when overwrite=false.
   let ownedSets = new Set<string>();
+  const setKey = (v: string) => String(v || '').replace(/-1$/, '');
   if (!overwrite) {
     const { results: owned } = await c.env.DB.prepare(
       'SELECT set_num FROM user_collection WHERE user_id=? AND deleted_at IS NULL'
     ).bind(userId).all<{ set_num: string }>();
-    ownedSets = new Set(owned.map(r => r.set_num));
+    ownedSets = new Set(owned.map(r => setKey(r.set_num)));
   }
 
   let skipped = 0;
@@ -357,11 +358,16 @@ app.post('/import', async (c) => {
 
     if (!catalog) { errors.push({ set_num, reason: 'set not in catalog' }); skipped++; continue; }
 
-    if (!overwrite && ownedSets.has(set_num)) { skipped++; continue; }
+    const key = setKey(set_num);
+    if (!overwrite && ownedSets.has(key)) { skipped++; continue; }
 
     const condition = validConds.includes(String(row.condition)) ? String(row.condition) : 'new';
     const quantity = Math.max(1, parseInt(String(row.quantity)) || 1);
-    const purchase_price = parseFloat(String(row.purchase_price)) || null;
+    const rawPrice = row.purchase_price;
+    const parsedPrice = rawPrice === undefined || rawPrice === null || String(rawPrice).trim() === ''
+      ? null
+      : Number(rawPrice);
+    const purchase_price = parsedPrice !== null && Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : null;
     const purchased_at = row.purchased_at ? String(row.purchased_at) : null;
     const notes = row.notes ? String(row.notes) : null;
     const storage_location = row.storage_location ? String(row.storage_location) : null;
@@ -388,6 +394,7 @@ app.post('/import', async (c) => {
         deleted_at = NULL
     `).bind(userId, set_num, quantity, condition, purchase_price, purchased_at,
         notes, storage_location, acquisition_source, is_complete, missing_pieces));
+    if (!overwrite) ownedSets.add(key);
   }
 
   // Batch write — D1 batch limit is 100 statements per call.

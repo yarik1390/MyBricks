@@ -62,7 +62,7 @@ export function loadSession() {
   }
 }
 
-export function saveSession(s) {
+export function saveSession(s, opts = {}) {
   const oldUid = getSessionUserId();
   try {
     if (s) localStorage.setItem("bv_session", JSON.stringify(s));
@@ -87,7 +87,7 @@ export function saveSession(s) {
     bvIDB.del('blind').catch(() => {});
     
     // Clear user specific localStorage
-    localStorage.removeItem("bv_figs");
+    if (!opts.preserveGuestFigs) localStorage.removeItem("bv_figs");
     localStorage.removeItem("bv_chat");
     localStorage.removeItem(OUTBOX_KEY);
   }
@@ -236,6 +236,101 @@ function rememberGuestFigDetails(figs = []) {
 
 function persistOwnedFigs() {
   try { localStorage.setItem("bv_figs", JSON.stringify([...state.ownedFigs])); } catch {}
+}
+
+export function snapshotGuestVault() {
+  return {
+    collection: readGuestCollection(),
+    wishlist: readGuestWishlist(),
+    ownedFigs: readLocalJSON("bv_figs", []),
+    prefs: readLocalJSON(GUEST_PREFS_KEY, {}),
+  };
+}
+
+function guestSnapshotHasData(snapshot = {}) {
+  return !!(
+    snapshot.collection?.length ||
+    snapshot.wishlist?.length ||
+    snapshot.ownedFigs?.length ||
+    Object.keys(snapshot.prefs || {}).length
+  );
+}
+
+function clearGuestVault() {
+  try {
+    localStorage.removeItem(GUEST_COLLECTION_KEY);
+    localStorage.removeItem(GUEST_WISHLIST_KEY);
+    localStorage.removeItem(GUEST_FIG_DETAILS_KEY);
+    localStorage.removeItem(GUEST_PREFS_KEY);
+    localStorage.removeItem("bv_figs");
+  } catch {}
+}
+
+export async function migrateGuestVault(snapshot = snapshotGuestVault()) {
+  if (!_authSession?.access_token || !guestSnapshotHasData(snapshot)) return { migrated: 0, errors: [] };
+  const result = { migrated: 0, errors: [], collection: null, wishlist: 0, minifigs: 0 };
+
+  if (snapshot.collection?.length) {
+    try {
+      result.collection = await api("/api/collection/import", {
+        method: "POST",
+        body: { rows: snapshot.collection, overwrite: false },
+      });
+      result.migrated += Number(result.collection?.imported || 0);
+    } catch (e) {
+      result.errors.push(`Collection: ${e.message}`);
+    }
+  }
+
+  for (const item of snapshot.wishlist || []) {
+    const setNum = String(item?.set_num || "").trim();
+    if (!setNum) continue;
+    try {
+      await api("/api/wishlist", {
+        method: "POST",
+        body: {
+          set_num: setNum,
+          target_price: numberOrNull(item.target_price),
+          notes: item.notes || null,
+        },
+      });
+      result.wishlist++;
+      result.migrated++;
+    } catch (e) {
+      result.errors.push(`Wishlist ${setNum}: ${e.message}`);
+    }
+  }
+
+  const figNums = [...new Set((snapshot.ownedFigs || []).map(v => String(v || "").trim()).filter(Boolean))];
+  for (const figNum of figNums) {
+    try {
+      await api(`/api/minifigs/${encodeURIComponent(figNum)}`, {
+        method: "PUT",
+        body: { quantity: 1 },
+      });
+      result.minifigs++;
+      result.migrated++;
+    } catch (e) {
+      result.errors.push(`Minifig ${figNum}: ${e.message}`);
+    }
+  }
+
+  const prefs = snapshot.prefs || {};
+  const prefPatch = {};
+  if (prefs.display_name && prefs.display_name !== "Guest Collector") prefPatch.display_name = prefs.display_name;
+  if (prefs.currency) prefPatch.currency = prefs.currency;
+  if (prefs.notify_price_drops !== undefined) prefPatch.notify_price_drops = !!prefs.notify_price_drops;
+  if (Object.keys(prefPatch).length) {
+    try {
+      await api("/api/me", { method: "PATCH", body: prefPatch });
+    } catch (e) {
+      result.errors.push(`Preferences: ${e.message}`);
+    }
+  }
+
+  if (!result.errors.length) clearGuestVault();
+  if (result.migrated) invalidatePortfolio();
+  return result;
 }
 
 function sameSetNum(a, b) {
@@ -454,15 +549,18 @@ async function guestImportCollection(rows = [], overwrite = false) {
   if (!Array.isArray(rows) || rows.length === 0) throw new Error('rows array required');
   if (rows.length > 500) throw new Error('max 500 rows per import');
   const before = readGuestCollection();
+  const seen = new Set(before.map(item => String(item.set_num || '').replace(/-1$/, '')));
   let imported = 0;
   let skipped = 0;
   const errors = [];
   for (const row of rows) {
     const setNum = String(row?.set_num || '').trim();
     if (!setNum) { errors.push({ row, reason: 'missing set_num' }); continue; }
-    if (!overwrite && before.some(item => sameSetNum(item.set_num, setNum))) { skipped++; continue; }
+    const key = setNum.replace(/-1$/, '');
+    if (!overwrite && seen.has(key)) { skipped++; continue; }
     try {
       await guestAddCollection(row);
+      seen.add(key);
       imported++;
     } catch (e) {
       skipped++;
@@ -754,7 +852,13 @@ export async function api(path, opts = {}) {
       }
     } else {
       saveSession(null);
-      throw new Error("Please sign in to sync this feature");
+      let msg = "Please sign in to sync this feature";
+      try {
+        const b = await r.json();
+        msg = b.error || b.message || msg;
+        if (b.reason) msg += ': ' + b.reason;
+      } catch {}
+      throw new Error(msg);
     }
   }
   if (!r.ok) {

@@ -1,6 +1,6 @@
 import { $, $$, haptic, toast, fetchExchangeRates, prefersReducedMotion, bvIDB } from './utils.js';
 import { state, invalidatePortfolio } from './state.js';
-import { loadSession, saveSession, setSupabaseConfig, drainOutbox, api, _authSession, getSessionUserId } from './api.js';
+import { loadSession, saveSession, setSupabaseConfig, drainOutbox, api, _authSession, getSessionUserId, snapshotGuestVault, migrateGuestVault } from './api.js';
 import { I } from './icons.js';
 import { route } from './router.js';
 import { toggleAdvisor } from './components/advisor.js';
@@ -111,17 +111,26 @@ function setupImageHydration() {
 // the initial load (DOMContentLoaded) and on later hashchanges — an installed PWA
 // can deliver the redirect to a live window without a full reload, which only fires
 // hashchange. Idempotent: strips the hash after handling.
-function consumeOAuthHash() {
+async function consumeOAuthHash() {
   if (location.hash.includes('access_token=')) {
     try {
       const hp = new URLSearchParams(location.hash.slice(1));
       if (hp.has('access_token')) {
+        let guestSnapshot = snapshotGuestVault();
+        try {
+          const pending = JSON.parse(sessionStorage.getItem("bv_pending_guest_migration") || "null");
+          if (pending) guestSnapshot = pending;
+        } catch {}
         const oauthSess = {
           access_token: hp.get('access_token'),
           refresh_token: hp.get('refresh_token'),
           expires_at: Date.now() / 1000 + parseInt(hp.get('expires_in') || '3600'),
         };
-        saveSession(oauthSess);
+        saveSession(oauthSess, { preserveGuestFigs: true });
+        const migrated = await migrateGuestVault(guestSnapshot);
+        try { sessionStorage.removeItem("bv_pending_guest_migration"); } catch {}
+        if (migrated.migrated) toast(`Synced ${migrated.migrated} local item${migrated.migrated === 1 ? "" : "s"}`, "success");
+        if (migrated.errors?.length) toast("Some local items couldn't sync", "error");
         // Force a clean slate for the freshly-authenticated account so a prior
         // account's profile/portfolio can never linger in memory (saveSession
         // also clears on user change, but this guards non-reload returns too).
@@ -152,7 +161,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setSupabaseConfig(cfg.supabase_url || "", cfg.supabase_anon_key || "");
   } catch {}
 
-  consumeOAuthHash();
+  await consumeOAuthHash();
 
   // Wire nav icons using icon library
   const icons = { "/": I.home, "/add": I.search, "/minifigs": I.figure, "/me": I.user };
@@ -210,11 +219,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   await route();
 });
 
-window.addEventListener("hashchange", () => {
+window.addEventListener("hashchange", async () => {
   // An OAuth redirect can land on an already-open window (no reload), arriving
   // as a hashchange. Consume the token first so we render the new session, not
   // a "route not found" bounce on the raw #access_token=... fragment.
-  consumeOAuthHash();
+  await consumeOAuthHash();
   route();
 });
 window.bv = { openScan, closeScan, capturePhoto };

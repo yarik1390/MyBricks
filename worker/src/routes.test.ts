@@ -317,6 +317,30 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
   });
 
   describe('Collection export & history', () => {
+    it('imports duplicate rows once and preserves a zero purchase price', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/collection/import', {
+        method: 'POST',
+        headers: auth(),
+        body: JSON.stringify({
+          rows: [
+            { set_num: '75192', quantity: 1, condition: 'new', purchase_price: 0 },
+            { set_num: '75192', quantity: 5, condition: 'sealed', purchase_price: 500 },
+          ],
+        }),
+      }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.imported).toBe(1);
+      expect(data.skipped).toBe(1);
+
+      const row = await db.prepare(
+        `SELECT quantity, condition, purchase_price FROM user_collection WHERE user_id=? AND set_num='75192'`
+      ).bind(userId).first<any>();
+      expect(row.quantity).toBe(1);
+      expect(row.condition).toBe('new');
+      expect(row.purchase_price).toBe(0);
+    });
+
     it('exports CSV with a header row and the owned set', async () => {
       await db.prepare(
         `INSERT INTO user_collection (user_id, set_num, quantity, condition, purchase_price)

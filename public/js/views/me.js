@@ -638,26 +638,35 @@ export async function renderMe() {
 }
 
 function parseCSV(text) {
-  const lines = text.split(/\r?\n/);
-  if (!lines.length) return [];
-  const header = lines[0].split(",").map(h => h.trim().replace(/^["']|["']$/g, ""));
-  const setNumIdx = header.indexOf("set_num") !== -1 ? header.indexOf("set_num") : header.indexOf("Set Number");
+  const table = parseCSVTable(text);
+  if (!table.length) return [];
+  const header = table[0].map(h => h.trim().replace(/^["']|["']$/g, ""));
+  const normHeader = header.map(h => h.toLowerCase().replace(/\s+/g, "_"));
+  const findIdx = (...names) => {
+    const wanted = names.map(n => n.toLowerCase().replace(/\s+/g, "_"));
+    return normHeader.findIndex(h => wanted.includes(h));
+  };
+  const setNumIdx = findIdx("set_num", "set_number");
   if (setNumIdx === -1) return [];
 
-  const quantityIdx = header.indexOf("quantity") !== -1 ? header.indexOf("quantity") : header.indexOf("Quantity");
-  const priceIdx = header.indexOf("purchase_price") !== -1 ? header.indexOf("purchase_price") : header.indexOf("Purchase Price");
-  const condIdx = header.indexOf("condition") !== -1 ? header.indexOf("condition") : header.indexOf("Condition");
-  const dateIdx = header.indexOf("purchased_at") !== -1 ? header.indexOf("purchased_at") : header.indexOf("Date Added");
+  const quantityIdx = findIdx("quantity");
+  const priceIdx = findIdx("purchase_price");
+  const condIdx = findIdx("condition");
+  const dateIdx = findIdx("purchased_at", "date_added");
+  const notesIdx = findIdx("notes");
+  const storageIdx = findIdx("storage_location");
+  const sourceIdx = findIdx("acquisition_source");
+  const completeIdx = findIdx("is_complete");
+  const missingIdx = findIdx("missing_pieces");
 
   const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    const parts = line.split(",").map(p => p.trim().replace(/^["']|["']$/g, ""));
+  for (let i = 1; i < table.length; i++) {
+    const parts = table[i].map(p => String(p || "").trim());
+    if (!parts.some(Boolean)) continue;
     const set_num = parts[setNumIdx];
     if (!set_num) continue;
     const quantity = quantityIdx !== -1 ? (parseInt(parts[quantityIdx], 10) || 1) : 1;
-    const purchase_price = priceIdx !== -1 ? (parseFloat(parts[priceIdx]) || null) : null;
+    const purchase_price = priceIdx !== -1 ? optionalNumber(parts[priceIdx]) : null;
     let condition = condIdx !== -1 ? parts[condIdx].toLowerCase() : "new";
     if (condition.includes("accept")) condition = "used_acceptable";
     else if (condition.includes("good") || condition.includes("used")) condition = "used_good";
@@ -673,9 +682,59 @@ function parseCSV(text) {
         purchased_at = null;
       }
     }
-    rows.push({ set_num, quantity, purchase_price, condition, purchased_at });
+    const row = { set_num, quantity, purchase_price, condition, purchased_at };
+    if (notesIdx !== -1) row.notes = parts[notesIdx] || null;
+    if (storageIdx !== -1) row.storage_location = parts[storageIdx] || null;
+    if (sourceIdx !== -1) row.acquisition_source = parts[sourceIdx] || null;
+    if (completeIdx !== -1) row.is_complete = parts[completeIdx] === "" ? true : !/^(false|0|no)$/i.test(parts[completeIdx]);
+    if (missingIdx !== -1) row.missing_pieces = parseInt(parts[missingIdx], 10) || 0;
+    rows.push(row);
   }
   return rows;
+}
+
+function parseCSVTable(text) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (quoted) {
+      if (ch === '"' && next === '"') {
+        cell += '"';
+        i++;
+      } else if (ch === '"') {
+        quoted = false;
+      } else {
+        cell += ch;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      quoted = true;
+    } else if (ch === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (ch === "\n") {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else if (ch !== "\r") {
+      cell += ch;
+    }
+  }
+  row.push(cell);
+  if (row.some(v => String(v).trim() !== "")) rows.push(row);
+  return rows;
+}
+
+function optionalNumber(value) {
+  if (value == null || String(value).trim() === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 function guestModeCardHTML() {

@@ -1,5 +1,5 @@
 import { $, toast, setBtnLoading } from '../utils.js';
-import { _sbUrl, sbSignIn, sbSignUp, saveSession } from '../api.js';
+import { _sbUrl, sbSignIn, sbSignUp, saveSession, snapshotGuestVault, migrateGuestVault } from '../api.js';
 import { go } from '../router.js';
 
 export function renderLogin() {
@@ -57,6 +57,10 @@ export function renderLogin() {
 
     document.getElementById("googleSignIn")?.addEventListener("click", () => {
       if (!_sbUrl) { toast("Auth not configured", "error"); return; }
+      const guestSnapshot = snapshotGuestVault();
+      if (guestSnapshot.collection?.length || guestSnapshot.wishlist?.length || guestSnapshot.ownedFigs?.length) {
+        try { sessionStorage.setItem("bv_pending_guest_migration", JSON.stringify(guestSnapshot)); } catch {}
+      }
       const redirectTo = encodeURIComponent(location.origin + location.pathname);
       location.href = `${_sbUrl}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}&prompt=select_account`;
     });
@@ -70,6 +74,7 @@ export function renderLogin() {
       setBtnLoading(btn, true);
       if (errEl) errEl.textContent = "";
       try {
+        const guestSnapshot = snapshotGuestVault();
         let session;
         if (mode === "signin") {
           session = await sbSignIn(email, pass);
@@ -82,7 +87,10 @@ export function renderLogin() {
             return;
           }
         }
-        saveSession(session);
+        saveSession(session, { preserveGuestFigs: true });
+        const migrated = await migrateGuestVault(guestSnapshot);
+        if (migrated.migrated) toast(`Synced ${migrated.migrated} local item${migrated.migrated === 1 ? "" : "s"}`, "success");
+        if (migrated.errors?.length) toast("Some local items couldn't sync", "error");
         if (nav) nav.style.display = "";
         go("#/");
       } catch (e) {

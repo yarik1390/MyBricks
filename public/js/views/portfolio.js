@@ -289,6 +289,7 @@ function paintPortfolio() {
   }, 40);
   
   animateHeroValue(totalVal);
+  if (state.portfolioTab === "insights") wireInsightsTab();
 
   $$(".portfolio-tab").forEach(tabBtn => {
     tabBtn.addEventListener("click", () => {
@@ -597,7 +598,7 @@ function renderInsightsTab(items) {
           <div style="font-size:12px;font-family:var(--mono);color:var(--up);margin-bottom:8px;font-weight:700;">📈 TOP RISING</div>
           ${rising.length === 0 ? `<div style="font-size:12px;color:var(--ink-mute);">No significant gainers</div>` : rising.map(item => `
             <div style="margin-bottom:6px;font-size:12px;display:flex;justify-content:space-between;align-items:center;">
-              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px;text-decoration:underline;cursor:pointer;" onclick="location.hash='#/set/${encodeURIComponent(item.set_num)}'">${escapeHtml(item.name)}</span>
+              <span class="insight-set-link" data-set="${escapeHtml(item.set_num)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px;text-decoration:underline;cursor:pointer;">${escapeHtml(item.name)}</span>
               <strong style="color:var(--up);font-family:var(--mono);">+${item.slope_90d.toFixed(1)}%/wk</strong>
             </div>
           `).join("")}
@@ -606,7 +607,7 @@ function renderInsightsTab(items) {
           <div style="font-size:12px;font-family:var(--mono);color:var(--bv-red);margin-bottom:8px;font-weight:700;">📉 TOP FALLING</div>
           ${falling.length === 0 ? `<div style="font-size:12px;color:var(--ink-mute);">No significant decliners</div>` : falling.map(item => `
             <div style="margin-bottom:6px;font-size:12px;display:flex;justify-content:space-between;align-items:center;">
-              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px;text-decoration:underline;cursor:pointer;" onclick="location.hash='#/set/${encodeURIComponent(item.set_num)}'">${escapeHtml(item.name)}</span>
+              <span class="insight-set-link" data-set="${escapeHtml(item.set_num)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px;text-decoration:underline;cursor:pointer;">${escapeHtml(item.name)}</span>
               <strong style="color:var(--bv-red);font-family:var(--mono);">${item.slope_90d.toFixed(1)}%/wk</strong>
             </div>
           `).join("")}
@@ -616,7 +617,7 @@ function renderInsightsTab(items) {
       <div class="section-title">Retirement Radar</div>
       <div class="card" style="padding:12px 16px;">
         ${radar.length === 0 ? `<div style="font-size:12px;color:var(--ink-mute);text-align:center;padding:12px 0;">No active high-risk sets (score ≥ 70)</div>` : radar.map(item => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft);" onclick="location.hash='#/set/${encodeURIComponent(item.set_num)}'" style="cursor:pointer;">
+          <div class="insight-set-row" data-set="${escapeHtml(item.set_num)}" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft);cursor:pointer;">
             <div style="display:flex;flex-direction:column;gap:2px;">
               <div style="font-size:13px;font-weight:600;color:var(--ink);">${escapeHtml(item.name)}</div>
               <div style="font-size:11px;color:var(--ink-mute);">${escapeHtml(item.set_num)} · ${escapeHtml(item.theme)}</div>
@@ -629,6 +630,16 @@ function renderInsightsTab(items) {
         `).join("")}
       </div>
     </div>`;
+}
+
+function wireInsightsTab() {
+  $$(".insight-set-link, .insight-set-row").forEach(el => {
+    el.addEventListener("click", () => {
+      if (!el.dataset.set) return;
+      haptic("light");
+      location.hash = "#/set/" + encodeURIComponent(el.dataset.set);
+    });
+  });
 }
 
 function drawDoubleSparkline(container, data) {
@@ -1214,7 +1225,7 @@ function wireManageTab(set, entry) {
   function updateLocalFlip() {
     const priceVal = $("#mPrice")?.value || "";
     const condVal = $("#mCondition")?.value || "new";
-    const tempEntry = { ...entry, purchase_price: parseFloat(priceVal) || 0, condition: condVal };
+    const tempEntry = { ...entry, purchase_price: optionalMoneyInput(priceVal) ?? 0, condition: condVal };
     const container = $("#mFlipCalcContainer");
     if (container) {
       container.innerHTML = flipCalcHTML(set, tempEntry);
@@ -1228,7 +1239,7 @@ function wireManageTab(set, entry) {
       await api("/api/collection/" + entry.id, {
         method: "PATCH",
         body: {
-          purchase_price: parseFloat($("#mPrice")?.value) || null,
+          purchase_price: optionalMoneyInput($("#mPrice")?.value),
           purchased_at: $("#mDate")?.value || null,
           condition: $("#mCondition")?.value,
           notes: $("#mNotes")?.value || "",
@@ -1277,6 +1288,12 @@ function wireManageTab(set, entry) {
     }
   });
   $("#mListSale")?.addEventListener("click", () => showListingSheet(set, entry));
+}
+
+function optionalMoneyInput(value) {
+  if (value == null || String(value).trim() === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 function setupTabSwipe(set, entry) {
@@ -1363,6 +1380,9 @@ export async function renderWishlist() {
   $$(".wishlist-card").forEach(c => c.addEventListener("click", () => {
     location.hash = "#/set/" + encodeURIComponent(c.dataset.set);
   }));
+  $$(".wishlist-card .bl-badge").forEach(a => a.addEventListener("click", e => {
+    e.stopPropagation();
+  }));
   $$(".spike-alert[data-set]").forEach(c => c.addEventListener("click", (e) => {
     if (e.target.tagName === "A") return;
     location.hash = "#/set/" + encodeURIComponent(c.dataset.set);
@@ -1395,7 +1415,7 @@ function wishlistCardHTML(w) {
         <div class="progress${hit ? " over" : ""}"><div style="width:${progress}%;"></div></div>
         ${(w.retirement_risk_score || 0) >= 70 && !w.retired ? `<div style="font-size:11px;color:var(--down);margin-top:4px;font-family:var(--mono);">⚠️ Retirement risk: High</div>` : ""}
       </div>
-      <a href="${bricklinkBuyURL(w.set_num)}" target="_blank" rel="noopener" class="bl-badge" style="position:absolute;bottom:10px;right:10px;z-index:5;font-size:10px;font-family:var(--mono);font-weight:700;padding:2px 5px;background:var(--bv-yellow);color:#000;border:1.5px solid var(--line);border-radius:var(--r-1);text-decoration:none;" onclick="event.stopPropagation();">BL ↗</a>
+      <a href="${bricklinkBuyURL(w.set_num)}" target="_blank" rel="noopener" class="bl-badge" style="position:absolute;bottom:10px;right:10px;z-index:5;font-size:10px;font-family:var(--mono);font-weight:700;padding:2px 5px;background:var(--bv-yellow);color:#000;border:1.5px solid var(--line);border-radius:var(--r-1);text-decoration:none;">BL ↗</a>
     </div>`;
 }
 
