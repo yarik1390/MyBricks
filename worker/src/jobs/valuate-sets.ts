@@ -10,6 +10,9 @@ export interface ValuateSetsOptions {
   scope?: 'owned' | 'all';
   limit?: number;
   includeFresh?: boolean;
+  includeSupplemental?: boolean;
+  includeEbay?: boolean;
+  includeMinifigs?: boolean;
 }
 
 export async function runValuateSets(env: Env, options: ValuateSetsOptions = {}) {
@@ -25,6 +28,9 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     health[s].lastError = (e as Error)?.message || String(e);
   };
   const scope = options.scope ?? 'owned';
+  const sourceOptions = { recordHealth: false };
+  const includeSupplemental = options.includeSupplemental === true;
+  const includeEbay = options.includeEbay === true;
   const requestedLimit = Number(options.limit);
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
     ? Math.min(Math.floor(requestedLimit), 250)
@@ -68,25 +74,16 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     let valMethod = 'market';
     let beDetails: any = null;
 
-    // Always fetch BrickLink + eBay in parallel as cross-validation sources.
-    // When BrickEconomy is also configured, BL is fetched alongside it so the
-    // UI can show all three prices independently (be_new / bl_new / ebay).
+    // Batch runs stay source-light to avoid Cloudflare subrequest limits.
+    // Detail-page refreshes still fan out across providers.
     let blPricing: { current_value: number; lot_count: number } | null = null;
 
     if (env.BRICKECONOMY_API_KEY) {
-      const [be, blp, u, e] = await Promise.all([
-        fetchBrickEconomyDetails(set.set_num, env).catch((err) => { tallyFail('brickeconomy', err); return null; }),
-        fetchSetPricing(set.set_num, env).catch((err) => { tallyFail('bricklink', err); return null; }),
-        fetchUsedPricing(set.set_num, env).catch((err) => { tallyFail('bricklink', err); return null; }),
-        fetchEbayPrice(set.set_num, set.name, env).catch((err) => { tallyFail('ebay', err); return null; }),
-      ]);
+      const be = await fetchBrickEconomyDetails(set.set_num, env, sourceOptions)
+        .catch((err) => { tallyFail('brickeconomy', err); return null; });
       if (be) tallyOk('brickeconomy');
-      if (blp != null || u != null) tallyOk('bricklink');
-      if (e != null) tallyOk('ebay');
       beDetails = be;
-      blPricing = blp;
-      usedPricing = u || (be?.current_value_used ? { used_value: be.current_value_used } : null);
-      ebayPrice = e;
+      usedPricing = be?.current_value_used ? { used_value: be.current_value_used } : null;
 
       if (beDetails && beDetails.current_value_new !== null) {
         pricing = { current_value: beDetails.current_value_new };
@@ -94,19 +91,41 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       }
     }
 
+    if (includeSupplemental) {
+      blPricing = await fetchSetPricing(set.set_num, env, sourceOptions)
+        .catch((err) => { tallyFail('bricklink', err); return null; });
+      if (blPricing) tallyOk('bricklink');
+      if (!usedPricing) {
+        usedPricing = await fetchUsedPricing(set.set_num, env, sourceOptions)
+          .catch((err) => { tallyFail('bricklink', err); return null; });
+        if (usedPricing) tallyOk('bricklink');
+      }
+    }
+
+    if (includeEbay) {
+      ebayPrice = await fetchEbayPrice(set.set_num, set.name, env, sourceOptions)
+        .catch((err) => { tallyFail('ebay', err); return null; });
+      if (ebayPrice !== null) tallyOk('ebay');
+    }
+
     if (!pricing) {
       // BrickEconomy not configured or returned no data — use BrickLink as primary
       if (!blPricing || !usedPricing) {
-        const [p, u, e] = await Promise.all([
-          blPricing ? Promise.resolve(blPricing) : fetchSetPricing(set.set_num, env).catch((err) => { tallyFail('bricklink', err); return null; }),
-          usedPricing ? Promise.resolve(usedPricing) : fetchUsedPricing(set.set_num, env).catch((err) => { tallyFail('bricklink', err); return null; }),
-          ebayPrice !== null ? Promise.resolve(ebayPrice) : fetchEbayPrice(set.set_num, set.name, env).catch((err) => { tallyFail('ebay', err); return null; }),
-        ]);
-        if (p != null || u != null) tallyOk('bricklink');
-        if (e != null) tallyOk('ebay');
-        blPricing = p as typeof blPricing;
-        usedPricing = u as typeof usedPricing;
-        ebayPrice = e as typeof ebayPrice;
+        if (!blPricing) {
+          blPricing = await fetchSetPricing(set.set_num, env, sourceOptions)
+            .catch((err) => { tallyFail('bricklink', err); return null; });
+          if (blPricing) tallyOk('bricklink');
+        }
+        if (!usedPricing) {
+          usedPricing = await fetchUsedPricing(set.set_num, env, sourceOptions)
+            .catch((err) => { tallyFail('bricklink', err); return null; });
+          if (usedPricing) tallyOk('bricklink');
+        }
+        if (includeEbay && ebayPrice === null) {
+          ebayPrice = await fetchEbayPrice(set.set_num, set.name, env, sourceOptions)
+            .catch((err) => { tallyFail('ebay', err); return null; });
+          if (ebayPrice !== null) tallyOk('ebay');
+        }
       }
       pricing = blPricing;
       valMethod = 'market';
@@ -234,7 +253,9 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   }
 
   await updateRetirementRiskBatch(env);
-  await runValuateMinifigs(env).catch(err => console.error('[bg-valuate-minifigs] failed:', err));
+  if (options.includeMinifigs === true) {
+    await runValuateMinifigs(env).catch(err => console.error('[bg-valuate-minifigs] failed:', err));
+  }
 
   // Persist aggregated external-API health (one row per service per run).
   for (const [service, t] of Object.entries(health)) {
@@ -242,6 +263,51 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   }
 
   return { processed: results.length, updated, market, ai, scope, limit };
+}
+
+export async function runEbayBackfill(env: Env, options: { limit?: number } = {}) {
+  const requestedLimit = Number(options.limit);
+  const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+    ? Math.min(Math.floor(requestedLimit), 2)
+    : 1;
+  const { results } = await env.DB.prepare(`
+    SELECT ls.set_num, ls.name
+    FROM lego_sets ls
+    WHERE ls.ebay_value IS NULL
+      AND (ls.ebay_cached_at IS NULL OR ls.ebay_cached_at < datetime('now', '-7 days'))
+    ORDER BY
+      CASE WHEN EXISTS (
+        SELECT 1 FROM user_collection uc
+        WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
+      ) OR EXISTS (
+        SELECT 1 FROM user_wishlist uw
+        WHERE uw.set_num = ls.set_num
+      ) THEN 0 ELSE 1 END,
+      COALESCE(ls.ebay_cached_at, '2000-01-01') ASC,
+      ls.set_num ASC
+    LIMIT ?
+  `).bind(limit).all<{ set_num: string; name: string }>();
+
+  let updated = 0;
+  for (const set of results) {
+    const price = await fetchEbayPrice(set.set_num, set.name, env).catch(() => null);
+    if (price !== null && price > 0) {
+      await env.DB.prepare(`
+        UPDATE lego_sets
+        SET ebay_value=?, ebay_cached_at=datetime('now')
+        WHERE set_num=?
+      `).bind(price, set.set_num).run();
+      updated++;
+    } else {
+      await env.DB.prepare(`
+        UPDATE lego_sets
+        SET ebay_cached_at=datetime('now')
+        WHERE set_num=?
+      `).bind(set.set_num).run();
+    }
+  }
+
+  return { processed: results.length, updated, limit };
 }
 
 export async function runValuateMinifigs(env: Env): Promise<number> {
@@ -255,7 +321,7 @@ export async function runValuateMinifigs(env: Env): Promise<number> {
 
   let updated = 0;
   for (const fig of results) {
-    const price = await fetchMinifigPricing(fig.fig_num, env).catch(() => null);
+    const price = await fetchMinifigPricing(fig.fig_num, env, { recordHealth: false }).catch(() => null);
     if (price !== null && price > 0) {
       await env.DB.prepare(`
         UPDATE minifigs SET current_value = ?, added_at = datetime('now') WHERE fig_num = ?

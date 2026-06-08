@@ -52,7 +52,11 @@ export interface BrickLinkUsedPricing {
   lot_count: number;
 }
 
-export async function fetchUsedPricing(setNum: string, env: Env): Promise<BrickLinkUsedPricing | null> {
+export async function fetchUsedPricing(
+  setNum: string,
+  env: Env,
+  options: { recordHealth?: boolean } = {},
+): Promise<BrickLinkUsedPricing | null> {
   if (!env.BRICKLINK_CONSUMER_KEY) return null;
   const blNum = setNum.includes('-') ? setNum : `${setNum}-1`;
   try {
@@ -65,7 +69,7 @@ export async function fetchUsedPricing(setNum: string, env: Env): Promise<BrickL
     );
     const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
-    }, { okStatuses: [404] });
+    }, { okStatuses: [404], record: options.recordHealth !== false });
     if (!resp.ok) return null;
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
     if (body.meta?.code !== 200 || !body.data) return null;
@@ -80,7 +84,11 @@ export async function fetchUsedPricing(setNum: string, env: Env): Promise<BrickL
   }
 }
 
-export async function fetchSetPricing(setNum: string, env: Env): Promise<BrickLinkPricing | null> {
+export async function fetchSetPricing(
+  setNum: string,
+  env: Env,
+  options: { recordHealth?: boolean } = {},
+): Promise<BrickLinkPricing | null> {
   if (!env.BRICKLINK_CONSUMER_KEY) return null;
 
   // BrickLink item numbers always include the variant suffix (e.g. "75192-1")
@@ -98,7 +106,7 @@ export async function fetchSetPricing(setNum: string, env: Env): Promise<BrickLi
 
     const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
-    }, { okStatuses: [404] });
+    }, { okStatuses: [404], record: options.recordHealth !== false });
     if (!resp.ok) return null;
 
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
@@ -117,7 +125,11 @@ export async function fetchSetPricing(setNum: string, env: Env): Promise<BrickLi
   }
 }
 
-export async function fetchMinifigPricing(figNum: string, env: Env): Promise<number | null> {
+export async function fetchMinifigPricing(
+  figNum: string,
+  env: Env,
+  options: { recordHealth?: boolean } = {},
+): Promise<number | null> {
   if (!env.BRICKLINK_CONSUMER_KEY) return null;
   try {
     const baseUrl = brickLinkPriceUrl('MINIFIG', figNum);
@@ -129,7 +141,7 @@ export async function fetchMinifigPricing(figNum: string, env: Env): Promise<num
     );
     const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
-    }, { okStatuses: [404] });
+    }, { okStatuses: [404], record: options.recordHealth !== false });
     if (!resp.ok) return null;
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
     if (body.meta?.code !== 200 || !body.data) return null;

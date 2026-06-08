@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { requireAdmin } from '../auth';
 import { importSets, importFigs, runBatches, BATCH } from '../jobs/import-catalog';
 import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
-import { runValuateSets } from '../jobs/valuate-sets';
+import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
 import type { Env, Variables } from '../types';
 
@@ -164,6 +164,68 @@ app.post('/backfill-upc', async (c) => {
             runId,
           ).run();
         }
+      } catch (e) {
+        await c.env.DB.prepare(
+          "UPDATE import_runs SET status='error',error=?,completed_at=datetime('now') WHERE id=?"
+        ).bind((e as Error).message, runId).run();
+      }
+    })()
+  );
+
+  return c.json({ ok: true, status: 'running', run_id: runId });
+});
+
+// POST /api/admin/populate-coverage
+// Starts one safe coverage campaign slice: Brickset barcode pages plus a tiny
+// eBay sold-price pass. Repeat or let the daily cron continue from there.
+app.post('/populate-coverage', async (c) => {
+  await c.env.DB.prepare(
+    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
+  ).run();
+
+  const active = await c.env.DB.prepare(
+    `SELECT id FROM import_runs WHERE status='running' AND started_at > datetime('now','-30 minutes') LIMIT 1`
+  ).first<{ id: number }>();
+  if (active) return c.json({ error: 'An import or coverage job is already running.', run_id: active.id }, 409);
+
+  const run = await c.env.DB.prepare(
+    "INSERT INTO import_runs (status, error) VALUES ('running', ?)"
+  ).bind('method:populate-coverage barcode_pages:4 ebay_limit:2').run();
+  const runId = run.meta.last_row_id;
+
+  c.executionCtx.waitUntil(
+    (async () => {
+      try {
+        const startPage = await nextBackfillPage(c.env);
+        const barcode = await runBackfillUpc(c.env, {
+          startPage,
+          maxPages: 4,
+          onProgress: async (p) => {
+            await c.env.DB.prepare(
+              `UPDATE import_runs SET sets_loaded=?,sets_skipped=?,error=? WHERE id=?`
+            ).bind(
+              p.filled,
+              p.processed,
+              `method:populate-coverage barcode_start:${startPage} next_page:${p.nextPage ?? ''} barcode_complete:${p.complete}`,
+              runId,
+            ).run();
+          },
+        });
+        const ebay = await runEbayBackfill(c.env, { limit: 2 });
+        await c.env.DB.prepare(`
+          UPDATE import_runs
+          SET status='completed',
+              completed_at=datetime('now'),
+              sets_loaded=?,
+              sets_skipped=?,
+              error=?
+          WHERE id=?
+        `).bind(
+          barcode.filled + ebay.updated,
+          barcode.processed + ebay.processed,
+          `method:populate-coverage barcode:${barcode.filled}/${barcode.processed} ebay:${ebay.updated}/${ebay.processed} next_page:${barcode.nextPage ?? ''}`,
+          runId,
+        ).run();
       } catch (e) {
         await c.env.DB.prepare(
           "UPDATE import_runs SET status='error',error=?,completed_at=datetime('now') WHERE id=?"

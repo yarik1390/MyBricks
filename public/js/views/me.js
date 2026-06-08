@@ -275,6 +275,10 @@ export async function renderMe() {
           <button class="import-btn" id="backfillUpcBtn" aria-label="Backfill barcodes">${I.download()}</button>
         </div>
         <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Populate coverage</div><div class="desc" id="populateCoverageDesc">One safe slice: barcode pages plus eBay sold prices</div></div>
+          <button class="import-btn" id="populateCoverageBtn" aria-label="Populate coverage">${I.refresh({w: 16, h: 16})}</button>
+        </div>
+        <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Revalue prices</div><div class="desc" id="revalueAllDesc">Daily safe valuation batches; press to advance now</div></div>
           <button class="import-btn" id="revalueAllBtn" aria-label="Revalue all prices">${I.refresh({w: 16, h: 16})}</button>
         </div>
@@ -544,6 +548,7 @@ export async function renderMe() {
   $("#importSetsBtn")?.addEventListener("click", () => triggerImport("sets"));
   $("#importFigsBtn")?.addEventListener("click", () => triggerImport("figs"));
   $("#backfillUpcBtn")?.addEventListener("click", () => triggerImport("upc"));
+  $("#populateCoverageBtn")?.addEventListener("click", () => triggerImport("populate"));
   $("#revalueAllBtn")?.addEventListener("click", () => triggerImport("revalue"));
 
   // API Key hooks
@@ -897,6 +902,7 @@ async function triggerImport(type) {
     sets: { url: "/api/admin/import-rebrickable", method: "POST", body: { dataset: "sets" }, desc: "importSetsDesc", text: "Importing sets..." },
     figs: { url: "/api/admin/import-rebrickable", method: "POST", body: { dataset: "figs" }, desc: "importFigsDesc", text: "Importing figs..." },
     upc: { url: "/api/admin/backfill-upc", method: "POST", body: {}, desc: "backfillUpcDesc", text: "Backfilling UPC..." },
+    populate: { url: "/api/admin/populate-coverage", method: "POST", body: {}, desc: "populateCoverageDesc", text: "Populating coverage..." },
     revalue: { url: "/api/admin/revalue-brickeconomy", method: "POST", body: { scope: "all", limit: 4 }, desc: "revalueAllDesc", text: "Revaluing prices..." }
   };
   const cnf = map[type];
@@ -1022,9 +1028,15 @@ async function updateIntegrationsHealth() {
     : status === "down" ? "var(--bv-red)"
     : status === "unconfigured" ? "var(--ink-mute)"
     : "var(--ink-mute)";
+  const isLatestFailure = (r) => {
+    const okAt = r.last_ok_at ? new Date(String(r.last_ok_at).replace(" ", "T") + "Z").getTime() : 0;
+    const failAt = r.last_fail_at ? new Date(String(r.last_fail_at).replace(" ", "T") + "Z").getTime() : 0;
+    return failAt && failAt >= okAt;
+  };
   const statusLabel = (r) => {
-    if (/HTTP 401|HTTP 403|access denied|insufficient permissions|invalid[_ -]?scope|not authorized/i.test(r.last_error || "")) return "Needs access";
-    if (/Too many subrequests|operation was aborted|AbortError|timed out|timeout/i.test(r.last_error || "")) return "Batch limited";
+    const latestFail = isLatestFailure(r);
+    if (latestFail && /HTTP 401|HTTP 403|access denied|insufficient permissions|invalid[_ -]?scope|not authorized/i.test(r.last_error || "")) return "Needs access";
+    if (latestFail && /Too many subrequests|operation was aborted|AbortError|timed out|timeout/i.test(r.last_error || "")) return "Batch limited";
     if (r.status === "unknown") return r.configured ? "Ready / no calls" : "Unconfigured";
     return String(r.status || "unknown").replace("_", " ");
   };
@@ -1077,8 +1089,13 @@ async function updateIntegrationsHealth() {
     const integrationsHTML = rows.map(r => {
       const color = statusColor(r.status);
       const hasAttempts = Number(r.ok_count || 0) + Number(r.fail_count || 0) > 0;
-      const timingText = hasAttempts ? `OK ${ago(r.last_ok_at)} / Fail ${ago(r.last_fail_at)}` : "No recent calls logged";
-      const countText = hasAttempts ? `${r.ok_count || 0} ok / ${r.fail_count || 0} fail` : "Ready when used";
+      const latestFail = isLatestFailure(r);
+      const timingText = hasAttempts
+        ? latestFail ? `OK ${ago(r.last_ok_at)} / Fail ${ago(r.last_fail_at)}` : `Last OK ${ago(r.last_ok_at)}`
+        : "No recent calls logged";
+      const countText = hasAttempts
+        ? latestFail ? `${r.ok_count || 0} ok / ${r.fail_count || 0} fail` : `${r.ok_count || 0} ok / ${r.fail_count || 0} past fail`
+        : "Ready when used";
       return `
         <div style="border-bottom:1px solid var(--line-soft);padding-bottom:8px;margin-bottom:4px;">
           <div style="display:flex;justify-content:space-between;align-items:center;font-weight:600;margin-bottom:2px;gap:10px;">
@@ -1090,7 +1107,7 @@ async function updateIntegrationsHealth() {
             <span>${escapeHtml(countText)}</span>
           </div>
           <div style="font-size:11px;color:var(--ink-mute);margin-top:2px;">${escapeHtml((r.used_by || []).join(", ") || r.notes || "")}</div>
-          ${r.last_error && (r.status === "down" || r.status === "degraded") ? `<div style="color:${color};font-size:11px;margin-top:2px;">${escapeHtml(r.last_error)}</div>` : ""}
+          ${latestFail && r.last_error && (r.status === "down" || r.status === "degraded") ? `<div style="color:${color};font-size:11px;margin-top:2px;">${escapeHtml(r.last_error)}</div>` : ""}
         </div>
       `;
     }).join("");

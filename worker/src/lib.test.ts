@@ -1,8 +1,38 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { describe, it, expect } from 'vitest';
 import { parseNextBackfillPage } from './jobs/backfill-upc';
+import { classifyHealth } from './lib/integration-health';
 import { computeRetirementRisk } from './lib/retirement-risk';
 import { formulaValuation } from './lib/valuation';
+
+// ---------------------------------------------------------------------------
+// integration health
+// ---------------------------------------------------------------------------
+describe('classifyHealth', () => {
+  it('treats a newer successful check as recovered even with old failures', () => {
+    expect(classifyHealth({
+      service: 'bricklink',
+      last_ok_at: '2026-06-08 12:10:00',
+      last_fail_at: '2026-06-08 11:55:00',
+      last_error: 'Too many subrequests by single Worker invocation.',
+      ok_count: 154,
+      fail_count: 334,
+      updated_at: '2026-06-08 12:10:00',
+    })).toBe('ok');
+  });
+
+  it('keeps the latest Worker-capacity failure degraded instead of down', () => {
+    expect(classifyHealth({
+      service: 'ebay',
+      last_ok_at: null,
+      last_fail_at: '2026-06-08 12:10:00',
+      last_error: 'The operation was aborted',
+      ok_count: 0,
+      fail_count: 4,
+      updated_at: '2026-06-08 12:10:00',
+    })).toBe('degraded');
+  });
+});
 
 // ---------------------------------------------------------------------------
 // computeRetirementRisk

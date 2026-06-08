@@ -13,7 +13,11 @@ function medianFiltered(prices: number[]): number | null {
   return filtered[Math.floor(filtered.length / 2)] ?? null;
 }
 
-async function getEbayApplicationToken(env: Env, scope: string): Promise<string | null> {
+async function getEbayApplicationToken(
+  env: Env,
+  scope: string,
+  options: { recordHealth?: boolean } = {},
+): Promise<string | null> {
   if (!env.EBAY_APP_ID || !env.EBAY_CLIENT_SECRET) return null;
   if (tokenCache && tokenCache.scope === scope && tokenCache.expiresAt > Date.now() + 60_000) {
     return tokenCache.token;
@@ -29,7 +33,7 @@ async function getEbayApplicationToken(env: Env, scope: string): Promise<string 
       'Accept': 'application/json',
     },
     body,
-  }, { retries: 1, timeoutMs: 8000 });
+  }, { retries: 1, timeoutMs: 8000, record: options.recordHealth !== false });
 
   if (!resp.ok) return null;
   const data = await resp.json() as { access_token?: string; expires_in?: number };
@@ -43,8 +47,12 @@ async function getEbayApplicationToken(env: Env, scope: string): Promise<string 
   return tokenCache.token;
 }
 
-async function fetchMarketplaceInsightsPrice(keywords: string, env: Env): Promise<number | null> {
-  const token = await getEbayApplicationToken(env, EBAY_SCOPE_MARKETPLACE_INSIGHTS);
+async function fetchMarketplaceInsightsPrice(
+  keywords: string,
+  env: Env,
+  options: { recordHealth?: boolean } = {},
+): Promise<number | null> {
+  const token = await getEbayApplicationToken(env, EBAY_SCOPE_MARKETPLACE_INSIGHTS, options);
   if (!token) return null;
 
   const params = new URLSearchParams({
@@ -62,7 +70,7 @@ async function fetchMarketplaceInsightsPrice(keywords: string, env: Env): Promis
         'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
       },
     },
-    { retries: 1, timeoutMs: 10000 },
+    { retries: 1, timeoutMs: 10000, record: options.recordHealth !== false },
   );
 
   if (!resp.ok) return null;
@@ -83,6 +91,7 @@ export async function fetchEbayPrice(
   setNum: string,
   setName: string,
   env: Env,
+  options: { recordHealth?: boolean } = {},
 ): Promise<number | null> {
   const cleanName = setName
     .replace(/[^a-zA-Z0-9\s]/g, ' ')
@@ -104,7 +113,7 @@ export async function fetchEbayPrice(
     }
   }
 
-  const marketplaceInsightsPrice = await fetchMarketplaceInsightsPrice(keywords, env).catch((e) => {
+  const marketplaceInsightsPrice = await fetchMarketplaceInsightsPrice(keywords, env, options).catch((e) => {
     console.warn('[ebay-marketplace-insights] failed:', (e as Error).message);
     return null;
   });
@@ -130,7 +139,8 @@ export async function fetchEbayPrice(
         env,
         'ebay',
         `https://svcs.ebay.com/services/search/FindingService/v1?${params}`,
-        { headers: { Accept: 'application/json' } }
+        { headers: { Accept: 'application/json' } },
+        { record: options.recordHealth !== false }
       );
 
       if (!resp.ok) {

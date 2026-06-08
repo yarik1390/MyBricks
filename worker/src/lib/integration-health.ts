@@ -155,6 +155,7 @@ export function classifyHealth(row: IntegrationHealthRow): 'ok' | 'degraded' | '
       ? 'degraded'
       : 'down';
   }
+  if (okAt && okAt > failAt) return 'ok';
   const total = (row.ok_count || 0) + (row.fail_count || 0);
   if (total > 0 && row.fail_count / total >= 0.25) return 'degraded';
   return 'ok';

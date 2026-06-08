@@ -1,6 +1,6 @@
 import type { Env } from '../types';
 import { nextBackfillPage, runBackfillUpc } from './backfill-upc';
-import { runValuateSets } from './valuate-sets';
+import { runEbayBackfill, runValuateSets } from './valuate-sets';
 
 async function startRun(env: Env, label: string): Promise<number> {
   const run = await env.DB.prepare(
@@ -98,10 +98,31 @@ export async function runDailyValuationMaintenance(env: Env, limit = 4) {
   }
 }
 
+export async function runDailyEbayMaintenance(env: Env, limit = 2) {
+  const safeLimit = Math.max(1, Math.min(Math.floor(limit), 2));
+  const runId = await startRun(env, `method:ebay-daily limit:${safeLimit}`);
+  try {
+    const result = await runEbayBackfill(env, { limit: safeLimit });
+
+    await completeRun(
+      env,
+      runId,
+      result.updated,
+      result.processed,
+      `method:ebay-daily limit:${safeLimit} processed:${result.processed} updated:${result.updated}`,
+    );
+    return result;
+  } catch (error) {
+    await failRun(env, runId, error);
+    throw error;
+  }
+}
+
 export async function runDailyCatalogMaintenance(env: Env) {
   const active = await activeRun(env);
   if (active) return { skipped: true, reason: `run ${active.id} already active` };
   const barcode = await runDailyBarcodeMaintenance(env);
   const valuation = await runDailyValuationMaintenance(env);
-  return { barcode, valuation };
+  const ebay = await runDailyEbayMaintenance(env);
+  return { barcode, valuation, ebay };
 }

@@ -12,6 +12,7 @@ export interface BrickEconomyDetails {
 export async function fetchBrickEconomyDetails(
   setNum: string,
   env: Env,
+  options: { recordHealth?: boolean } = {},
 ): Promise<BrickEconomyDetails | null> {
   const apiKey = env.BRICKECONOMY_API_KEY;
   if (!apiKey) return null;
@@ -30,7 +31,8 @@ export async function fetchBrickEconomyDetails(
           'User-Agent': 'MyBricksApp/1.0',
           'x-apikey': apiKey,
         },
-      }
+      },
+      { okStatuses: [400, 404], record: options.recordHealth !== false }
     );
 
     if (!resp.ok) {

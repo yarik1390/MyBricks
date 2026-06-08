@@ -16,6 +16,7 @@ export interface FetchRetryOptions {
 
 export interface FetchTrackedOptions extends FetchRetryOptions {
   okStatuses?: number[];
+  record?: boolean;
 }
 
 const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
@@ -64,17 +65,22 @@ export async function fetchTracked(
   init: RequestInit = {},
   opts: FetchTrackedOptions = {},
 ): Promise<Response> {
+  const shouldRecord = opts.record !== false;
   try {
     const resp = await fetchWithRetry(url, init, opts);
     const okStatuses = new Set(opts.okStatuses ?? []);
-    if (resp.ok || okStatuses.has(resp.status)) {
-      await recordIntegrationAttempt(env, service, true);
-    } else {
-      await recordIntegrationAttempt(env, service, false, `HTTP ${resp.status}`);
+    if (shouldRecord) {
+      if (resp.ok || okStatuses.has(resp.status)) {
+        await recordIntegrationAttempt(env, service, true);
+      } else {
+        await recordIntegrationAttempt(env, service, false, `HTTP ${resp.status}`);
+      }
     }
     return resp;
   } catch (error) {
-    await recordIntegrationAttempt(env, service, false, integrationErrorMessage(error));
+    if (shouldRecord) {
+      await recordIntegrationAttempt(env, service, false, integrationErrorMessage(error));
+    }
     throw error;
   }
 }

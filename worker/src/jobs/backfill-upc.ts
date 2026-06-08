@@ -122,7 +122,7 @@ async function tryBulkBackfill(
 
 async function tryBrickOwlBackfill(env: Env): Promise<{ processed: number; filled: number; complete: boolean }> {
   const { results } = await env.DB.prepare(
-    'SELECT set_num FROM lego_sets WHERE upc IS NULL ORDER BY year DESC LIMIT 10'
+    'SELECT set_num FROM lego_sets WHERE upc IS NULL ORDER BY year DESC LIMIT 2'
   ).all<{ set_num: string }>();
 
   let filled = 0;
@@ -137,5 +137,5 @@ async function tryBrickOwlBackfill(env: Env): Promise<{ processed: number; fille
   for (let i = 0; i < stmts.length; i += 100) {
     await env.DB.batch(stmts.slice(i, i + 100));
   }
-  return { processed: results.length, filled, complete: results.length < 10 };
+  return { processed: results.length, filled, complete: results.length < 2 };
 }
