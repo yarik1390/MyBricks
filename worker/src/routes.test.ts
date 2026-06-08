@@ -402,6 +402,12 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
 
     it('returns recorded integration health for the admin', async () => {
       await db.prepare(
+        `UPDATE lego_sets SET upc='0673419280310', used_value=725 WHERE set_num='75192'`
+      ).run();
+      await db.prepare(
+        `UPDATE lego_sets SET ebay_value=180, bl_new_value=220 WHERE set_num='10300'`
+      ).run();
+      await db.prepare(
         `INSERT INTO integration_health (service, last_ok_at, ok_count, fail_count, updated_at)
          VALUES ('ebay', datetime('now'), 5, 1, datetime('now'))`
       ).run();
@@ -414,7 +420,15 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const ebay = data.integrations.find((row: any) => row.service === 'ebay');
       expect(ebay).toBeTruthy();
       expect(ebay.ok_count).toBe(5);
-      expect(data.coverage).toBeDefined();
+      expect(data.coverage.total_sets).toBe(2);
+      expect(data.coverage.sets_with_upc).toBe(1);
+      expect(data.coverage.sets_with_ebay).toBe(1);
+      expect(data.coverage.sets_with_bricklink_new).toBe(1);
+      expect(data.coverage.sets_with_bricklink_used).toBe(1);
+      expect(data.coverage.sets_with_bricklink).toBe(2);
+      expect(data.coverage.barcode_coverage_pct).toBe(50);
+      expect(data.coverage.ebay_coverage_pct).toBe(50);
+      expect(data.coverage.bricklink_coverage_pct).toBe(100);
       expect(data.api_routing.worker_base_url).toBe('http://localhost');
     });
 

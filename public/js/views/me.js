@@ -1033,16 +1033,26 @@ async function updateIntegrationsHealth() {
     const rows = data.integrations || [];
     const coverage = data.coverage || {};
     const routing = data.api_routing || {};
+    const totalSets = Number(coverage.total_sets || 0);
+    const formatCoverage = (count, pct) => {
+      const n = Number(count || 0);
+      if (!totalSets) return "No catalog";
+      if (!n) return `No rows yet (0/${totalSets.toLocaleString()})`;
+      const displayPct = Number(pct || 0);
+      const pctLabel = displayPct > 0 ? `${displayPct}%` : "<0.1%";
+      return `${pctLabel} (${n.toLocaleString()}/${totalSets.toLocaleString()})`;
+    };
+    const bricklinkCount = coverage.sets_with_bricklink ?? coverage.sets_with_bricklink_new ?? 0;
     const coverageRows = [
       ["Catalog sets", Number(coverage.total_sets || 0).toLocaleString()],
       ["Stale values", Number(coverage.stale_values || 0).toLocaleString()],
       ["Expired values", Number(coverage.expired_values || 0).toLocaleString()],
       ["Missing values", Number(coverage.missing_values || 0).toLocaleString()],
-      ["Barcode coverage", `${coverage.barcode_coverage_pct || 0}%`],
-      ["BrickLink coverage", `${coverage.bricklink_coverage_pct || 0}%`],
-      ["eBay coverage", `${coverage.ebay_coverage_pct || 0}%`],
+      ["Barcode coverage", formatCoverage(coverage.sets_with_upc, coverage.barcode_coverage_pct)],
+      ["BrickLink coverage", formatCoverage(bricklinkCount, coverage.bricklink_coverage_pct)],
+      ["eBay coverage", formatCoverage(coverage.sets_with_ebay, coverage.ebay_coverage_pct)],
     ];
-    const coverageNote = "Coverage tracks catalog fields that have been populated. Low or zero coverage means the safe background batches have not filled that data yet.";
+    const coverageNote = "Coverage tracks populated catalog fields. BrickLink includes new and used market data; daily safe batches advance barcode and price coverage automatically.";
     const routingHTML = `
       <div style="border:1.5px solid var(--line-soft);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
         <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--ink-mute);margin-bottom:6px;">API routing</div>
@@ -1054,11 +1064,11 @@ async function updateIntegrationsHealth() {
     const coverageHTML = `
       <div style="border:1.5px solid var(--line-soft);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
         <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--ink-mute);margin-bottom:6px;">Data coverage</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;">
+        <div style="display:grid;grid-template-columns:1fr;gap:7px;">
           ${coverageRows.map(([label, value]) => `
             <div style="display:flex;justify-content:space-between;gap:8px;">
               <span style="color:var(--ink-mute);">${escapeHtml(label)}</span>
-              <strong style="color:var(--ink);">${escapeHtml(value)}</strong>
+              <strong style="color:var(--ink);text-align:right;">${escapeHtml(value)}</strong>
             </div>
           `).join("")}
         </div>
