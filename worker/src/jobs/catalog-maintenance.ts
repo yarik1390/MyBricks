@@ -29,7 +29,7 @@ async function failRun(env: Env, runId: number, error: unknown): Promise<void> {
 
 async function activeRun(env: Env): Promise<{ id: number } | null> {
   await env.DB.prepare(
-    `UPDATE import_runs SET status='error',error='Timed out',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
+    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
   ).run();
   return await env.DB.prepare(
     `SELECT id FROM import_runs WHERE status='running' AND started_at > datetime('now','-30 minutes') LIMIT 1`
@@ -74,7 +74,7 @@ export async function runDailyBarcodeMaintenance(env: Env, maxPages = 12) {
   }
 }
 
-export async function runDailyValuationMaintenance(env: Env, limit = 150) {
+export async function runDailyValuationMaintenance(env: Env, limit = 4) {
   const safeLimit = Math.max(1, Math.min(Math.floor(limit), 250));
   const runId = await startRun(env, `method:valuation-daily scope:all limit:${safeLimit}`);
   try {

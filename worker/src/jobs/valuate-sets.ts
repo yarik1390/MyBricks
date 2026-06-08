@@ -28,7 +28,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   const requestedLimit = Number(options.limit);
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
     ? Math.min(Math.floor(requestedLimit), 250)
-    : 25;
+    : 4;
   const duePredicate = `(
     ls.valuation_method = 'formula_bulk'
     OR ls.valuation_expires_at IS NULL
@@ -250,7 +250,7 @@ export async function runValuateMinifigs(env: Env): Promise<number> {
     FROM minifigs m
     JOIN user_minifigs um ON um.fig_num = m.fig_num
     ORDER BY COALESCE(m.added_at, '2000-01-01') ASC
-    LIMIT 20
+    LIMIT 3
   `).all<{ fig_num: string }>();
 
   let updated = 0;

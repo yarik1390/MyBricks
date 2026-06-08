@@ -50,7 +50,7 @@ app.post('/import-rebrickable', async (c) => {
   }
 
   await c.env.DB.prepare(
-    `UPDATE import_runs SET status='error',error='Timed out',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
+    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
   ).run();
 
   const active = await c.env.DB.prepare(
@@ -110,7 +110,7 @@ app.post('/backfill-upc', async (c) => {
   }
 
   await c.env.DB.prepare(
-    `UPDATE import_runs SET status='error',error='Timed out',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
+    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
   ).run();
 
   const active = await c.env.DB.prepare(
@@ -173,15 +173,15 @@ app.post('/revalue-brickeconomy', async (c) => {
   const scope = body.scope || 'all';
   const requested = Number(body.limit);
   const limit = Number.isFinite(requested) && requested > 0
-    ? Math.min(Math.floor(requested), 250)
-    : 150;
+    ? Math.min(Math.floor(requested), 4)
+    : 4;
 
   if (!['all', 'owned', 'stale'].includes(scope)) {
     return c.json({ error: "scope must be 'all', 'owned', or 'stale'" }, 400);
   }
 
   await c.env.DB.prepare(
-    `UPDATE import_runs SET status='error',error='Timed out',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
+    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
   ).run();
 
   const active = await c.env.DB.prepare(
@@ -246,7 +246,7 @@ app.post('/expire-valuations', async (c) => {
 app.get('/import-status', async (c) => {
   // Auto-expire jobs stuck in 'running' for more than 30 minutes.
   await c.env.DB.prepare(
-    `UPDATE import_runs SET status='error',error='Timed out',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
+    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
   ).run();
   const { results } = await c.env.DB.prepare(
     `SELECT id, status, started_at, completed_at, themes_loaded, sets_loaded, sets_skipped, figs_loaded, error

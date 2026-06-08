@@ -271,11 +271,11 @@ export async function renderMe() {
           <button class="import-btn" id="importFigsBtn" aria-label="Import minifigs">${I.download()}</button>
         </div>
         <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Backfill barcodes</div><div class="desc" id="backfillUpcDesc">Daily automatic slices from Brickset; press to advance now</div></div>
+          <div class="lbl-wrap"><div class="lbl">Backfill barcodes</div><div class="desc" id="backfillUpcDesc">Daily safe slices from Brickset; press to advance now</div></div>
           <button class="import-btn" id="backfillUpcBtn" aria-label="Backfill barcodes">${I.download()}</button>
         </div>
         <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Revalue all prices</div><div class="desc" id="revalueAllDesc">Daily full-catalog valuation slices; press to advance now</div></div>
+          <div class="lbl-wrap"><div class="lbl">Revalue prices</div><div class="desc" id="revalueAllDesc">Daily safe valuation batches; press to advance now</div></div>
           <button class="import-btn" id="revalueAllBtn" aria-label="Revalue all prices">${I.refresh({w: 16, h: 16})}</button>
         </div>
       </div>
@@ -897,7 +897,7 @@ async function triggerImport(type) {
     sets: { url: "/api/admin/import-rebrickable", method: "POST", body: { dataset: "sets" }, desc: "importSetsDesc", text: "Importing sets..." },
     figs: { url: "/api/admin/import-rebrickable", method: "POST", body: { dataset: "figs" }, desc: "importFigsDesc", text: "Importing figs..." },
     upc: { url: "/api/admin/backfill-upc", method: "POST", body: {}, desc: "backfillUpcDesc", text: "Backfilling UPC..." },
-    revalue: { url: "/api/admin/revalue-brickeconomy", method: "POST", body: { scope: "all", limit: 150 }, desc: "revalueAllDesc", text: "Revaluing prices..." }
+    revalue: { url: "/api/admin/revalue-brickeconomy", method: "POST", body: { scope: "all", limit: 4 }, desc: "revalueAllDesc", text: "Revaluing prices..." }
   };
   const cnf = map[type];
   if (!cnf) return;
@@ -927,12 +927,31 @@ async function updateJobsStatus() {
       return;
     }
 
-    let hasRunning = false;
-    container.innerHTML = runs.map(run => {
+    const isStoppedRun = (run) => run.status === "expired" || /Timed out|Worker run stopped/i.test(String(run.error || ""));
+    const hasCompleted = runs.some(run => run.status === "completed");
+    const hasRunning = runs.some(run => run.status === "running");
+    const hardErrors = runs.filter(run => run.status === "error" && !isStoppedRun(run));
+    const summaryHTML = `
+      <div style="border:1.5px solid var(--line-soft);border-radius:var(--r-2);background:var(--surface-2);padding:10px 12px;margin-bottom:10px;">
+        <div style="font-weight:700;font-size:12px;color:${hardErrors.length ? "var(--bv-red)" : hasRunning ? "var(--bv-yellow)" : "var(--up)"};">
+          ${hardErrors.length ? `${hardErrors.length} job needs attention` : hasRunning ? "Job running" : hasCompleted ? "Latest batches are retry-safe" : "No completed batches yet"}
+        </div>
+        <div style="font-size:11px;color:var(--ink-mute);line-height:1.45;margin-top:3px;">
+          Stopped jobs usually mean Cloudflare ended a long background slice. The buttons now run smaller safe batches, so press again to continue.
+        </div>
+      </div>`;
+
+    container.innerHTML = summaryHTML + runs.map(run => {
       let statusColor = "var(--ink-mute)";
       let statusText = (run.status || 'unknown').toUpperCase();
       if (run.status === "completed") {
         statusColor = "var(--up)";
+      } else if (run.status === "running") {
+        statusColor = "var(--accent)";
+        statusText = "RUNNING...";
+      } else if (isStoppedRun(run)) {
+        statusColor = "var(--ink-mute)";
+        statusText = "STOPPED";
       } else if (run.status === "error") {
         const errText = String(run.error || "Unknown error");
         statusColor = "var(--bv-red)";
@@ -940,13 +959,7 @@ async function updateJobsStatus() {
         if (/Brickset says:\s*success/i.test(errText)) {
           statusColor = "var(--bv-yellow)";
           statusText = "RETRY NEEDED";
-        } else if (/Timed out/i.test(errText)) {
-          statusText = "INTERRUPTED";
         }
-      } else if (run.status === "running") {
-        statusColor = "var(--accent)";
-        statusText = "RUNNING...";
-        hasRunning = true;
       }
 
       const dateStr = run.started_at ? new Date(run.started_at.replace(" ", "T") + "Z").toLocaleString() : "Unknown date";
@@ -954,8 +967,8 @@ async function updateJobsStatus() {
       if (run.themes_loaded) details.push(`${run.themes_loaded} themes`);
       if (run.error && /Brickset says:\s*success/i.test(String(run.error))) {
         details.push("key valid; rerun backfill");
-      } else if (run.error && /Timed out/i.test(String(run.error))) {
-        details.push("safe to retry");
+      } else if (isStoppedRun(run)) {
+        details.push("continue with safe batch");
       } else if (run.error && String(run.error).includes('method:valuation')) {
         if (run.sets_skipped) details.push(`${run.sets_skipped} processed`);
         if (run.sets_loaded) details.push(`${run.sets_loaded} updated`);
@@ -1011,6 +1024,7 @@ async function updateIntegrationsHealth() {
     : "var(--ink-mute)";
   const statusLabel = (r) => {
     if (/HTTP 401|HTTP 403|access denied|insufficient permissions|invalid[_ -]?scope|not authorized/i.test(r.last_error || "")) return "Needs access";
+    if (/Too many subrequests|operation was aborted|AbortError|timed out|timeout/i.test(r.last_error || "")) return "Batch limited";
     if (r.status === "unknown") return r.configured ? "Ready / no calls" : "Unconfigured";
     return String(r.status || "unknown").replace("_", " ");
   };
@@ -1028,6 +1042,7 @@ async function updateIntegrationsHealth() {
       ["BrickLink coverage", `${coverage.bricklink_coverage_pct || 0}%`],
       ["eBay coverage", `${coverage.ebay_coverage_pct || 0}%`],
     ];
+    const coverageNote = "Coverage tracks catalog fields that have been populated. Low or zero coverage means the safe background batches have not filled that data yet.";
     const routingHTML = `
       <div style="border:1.5px solid var(--line-soft);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
         <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--ink-mute);margin-bottom:6px;">API routing</div>
@@ -1047,9 +1062,13 @@ async function updateIntegrationsHealth() {
             </div>
           `).join("")}
         </div>
+        <div style="font-size:10px;color:var(--ink-mute);line-height:1.4;margin-top:8px;">${escapeHtml(coverageNote)}</div>
       </div>`;
     const integrationsHTML = rows.map(r => {
       const color = statusColor(r.status);
+      const hasAttempts = Number(r.ok_count || 0) + Number(r.fail_count || 0) > 0;
+      const timingText = hasAttempts ? `OK ${ago(r.last_ok_at)} / Fail ${ago(r.last_fail_at)}` : "No recent calls logged";
+      const countText = hasAttempts ? `${r.ok_count || 0} ok / ${r.fail_count || 0} fail` : "Ready when used";
       return `
         <div style="border-bottom:1px solid var(--line-soft);padding-bottom:8px;margin-bottom:4px;">
           <div style="display:flex;justify-content:space-between;align-items:center;font-weight:600;margin-bottom:2px;gap:10px;">
@@ -1057,8 +1076,8 @@ async function updateIntegrationsHealth() {
             <span style="color:${color};font-size:11px;text-transform:uppercase;text-align:right;">${escapeHtml(statusLabel(r))}</span>
           </div>
           <div style="display:flex;justify-content:space-between;color:var(--ink-mute);font-size:11px;gap:10px;">
-            <span>OK ${ago(r.last_ok_at)} / Fail ${ago(r.last_fail_at)}</span>
-            <span>${r.ok_count || 0} ok / ${r.fail_count || 0} fail</span>
+            <span>${escapeHtml(timingText)}</span>
+            <span>${escapeHtml(countText)}</span>
           </div>
           <div style="font-size:11px;color:var(--ink-mute);margin-top:2px;">${escapeHtml((r.used_by || []).join(", ") || r.notes || "")}</div>
           ${r.last_error && (r.status === "down" || r.status === "degraded") ? `<div style="color:${color};font-size:11px;margin-top:2px;">${escapeHtml(r.last_error)}</div>` : ""}
