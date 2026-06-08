@@ -117,7 +117,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     label: 'BrickOwl',
     configured: (env) => !!env.BRICKOWL_API_KEY,
     used_by: ['barcode fallback'],
-    notes: 'Used as a slower per-set barcode fallback.',
+    notes: 'Optional slower per-set barcode fallback. Brickset is preferred when available.',
   },
   gemini: {
     label: 'Gemini',

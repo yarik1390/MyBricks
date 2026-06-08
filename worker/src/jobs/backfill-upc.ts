@@ -65,7 +65,15 @@ export async function runBackfillUpc(env: Env, options: BackfillOptions = {}): P
     if (bulkResult !== null) {
       return { ...bulkResult, catalogSize, method: 'bulk' };
     }
-    console.warn('[backfill-upc] Brickset bulk failed, falling back to BrickOwl per-set');
+    console.warn('[backfill-upc] Brickset bulk failed; skipping BrickOwl fallback because Brickset is configured');
+    return {
+      processed: 0,
+      filled: 0,
+      catalogSize,
+      method: 'bulk',
+      complete: false,
+      error: 'Brickset barcode backfill returned no data; retry later',
+    };
   }
 
   const perSetResult = await tryBrickOwlBackfill(env);

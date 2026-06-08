@@ -1033,7 +1033,8 @@ async function updateIntegrationsHealth() {
     const failAt = r.last_fail_at ? new Date(String(r.last_fail_at).replace(" ", "T") + "Z").getTime() : 0;
     return failAt && failAt >= okAt;
   };
-  const statusLabel = (r) => {
+  const statusLabel = (r, standbyFallback = false) => {
+    if (standbyFallback) return "Standby fallback";
     const latestFail = isLatestFailure(r);
     if (latestFail && /HTTP 401|HTTP 403|access denied|insufficient permissions|invalid[_ -]?scope|not authorized/i.test(r.last_error || "")) return "Needs access";
     if (latestFail && /Too many subrequests|operation was aborted|AbortError|timed out|timeout/i.test(r.last_error || "")) return "Batch limited";
@@ -1043,6 +1044,11 @@ async function updateIntegrationsHealth() {
   try {
     const data = await api("/api/admin/integrations");
     const rows = data.integrations || [];
+    const bricksetRow = rows.find(r => r.service === "brickset");
+    const bricksetCoversBarcodes = !!bricksetRow?.configured && bricksetRow.status !== "down";
+    const isBrickOwlStandby = (r) => r.service === "brickowl"
+      && bricksetCoversBarcodes
+      && /HTTP 401|HTTP 403|access denied|not authorized/i.test(r.last_error || "");
     const coverage = data.coverage || {};
     const routing = data.api_routing || {};
     const totalSets = Number(coverage.total_sets || 0);
@@ -1087,27 +1093,31 @@ async function updateIntegrationsHealth() {
         <div style="font-size:10px;color:var(--ink-mute);line-height:1.4;margin-top:8px;">${escapeHtml(coverageNote)}</div>
       </div>`;
     const integrationsHTML = rows.map(r => {
-      const color = statusColor(r.status);
+      const standbyFallback = isBrickOwlStandby(r);
+      const color = standbyFallback ? statusColor("unknown") : statusColor(r.status);
       const hasAttempts = Number(r.ok_count || 0) + Number(r.fail_count || 0) > 0;
       const latestFail = isLatestFailure(r);
-      const timingText = hasAttempts
+      const timingText = standbyFallback ? "Brickset barcode backfill active" : hasAttempts
         ? latestFail ? `OK ${ago(r.last_ok_at)} / Fail ${ago(r.last_fail_at)}` : `Last OK ${ago(r.last_ok_at)}`
         : "No recent calls logged";
-      const countText = hasAttempts
+      const countText = standbyFallback ? "Not used" : hasAttempts
         ? latestFail ? `${r.ok_count || 0} ok / ${r.fail_count || 0} fail` : `${r.ok_count || 0} ok / ${r.fail_count || 0} past fail`
         : "Ready when used";
+      const usedByText = standbyFallback
+        ? "optional barcode fallback; not used while Brickset is available"
+        : ((r.used_by || []).join(", ") || r.notes || "");
       return `
         <div style="border-bottom:1px solid var(--line-soft);padding-bottom:8px;margin-bottom:4px;">
           <div style="display:flex;justify-content:space-between;align-items:center;font-weight:600;margin-bottom:2px;gap:10px;">
             <span style="min-width:0;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:6px;"></span>${escapeHtml(r.label || r.service)}</span>
-            <span style="color:${color};font-size:11px;text-transform:uppercase;text-align:right;">${escapeHtml(statusLabel(r))}</span>
+            <span style="color:${color};font-size:11px;text-transform:uppercase;text-align:right;">${escapeHtml(statusLabel(r, standbyFallback))}</span>
           </div>
           <div style="display:flex;justify-content:space-between;color:var(--ink-mute);font-size:11px;gap:10px;">
             <span>${escapeHtml(timingText)}</span>
             <span>${escapeHtml(countText)}</span>
           </div>
-          <div style="font-size:11px;color:var(--ink-mute);margin-top:2px;">${escapeHtml((r.used_by || []).join(", ") || r.notes || "")}</div>
-          ${latestFail && r.last_error && (r.status === "down" || r.status === "degraded") ? `<div style="color:${color};font-size:11px;margin-top:2px;">${escapeHtml(r.last_error)}</div>` : ""}
+          <div style="font-size:11px;color:var(--ink-mute);margin-top:2px;">${escapeHtml(usedByText)}</div>
+          ${!standbyFallback && latestFail && r.last_error && (r.status === "down" || r.status === "degraded") ? `<div style="color:${color};font-size:11px;margin-top:2px;">${escapeHtml(r.last_error)}</div>` : ""}
         </div>
       `;
     }).join("");
