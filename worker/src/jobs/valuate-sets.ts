@@ -11,7 +11,13 @@ import {
 } from '../lib/ebay';
 import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
 import { computeRetirementRisk } from '../lib/retirement-risk';
-import { recordIntegrationHealth, type IntegrationName } from '../lib/integration-health';
+import {
+  clearIntegrationBlock,
+  isIntegrationBlocked,
+  recordIntegrationHealth,
+  setIntegrationBlock,
+  type IntegrationName,
+} from '../lib/integration-health';
 
 export interface ValuateSetsOptions {
   scope?: 'owned' | 'all';
@@ -74,18 +80,34 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
 
   const openai = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
   let updated = 0, market = 0, ai = 0;
-  let ebayBlocked = false;
+  // Circuit breaker: honor a persisted block from a previous run so each batch
+  // doesn't re-probe an access-denied eBay keyset. Expires automatically.
+  let ebayBlocked = includeEbay ? await isIntegrationBlocked(env, 'ebay') : false;
+  let ebayBlockPersisted = ebayBlocked;
+  let ebayBlockCleared = false;
 
-  const tallyEbayResult = (prices: EbaySoldPrices | null) => {
+  const markEbayBlocked = async () => {
+    ebayBlocked = true;
+    if (!ebayBlockPersisted) {
+      ebayBlockPersisted = true;
+      await setIntegrationBlock(env, 'ebay', 6);
+    }
+  };
+
+  const tallyEbayResult = async (prices: EbaySoldPrices | null) => {
     if (!prices || prices.status === 'unconfigured') return;
     if (prices.status === 'error' || prices.status === 'unauthorized') {
       tallyFail('ebay', prices.error || prices.status);
       if (prices.status === 'unauthorized' || isEbayAccessError(prices.error)) {
-        ebayBlocked = true;
+        await markEbayBlocked();
       }
       return;
     }
     tallyOk('ebay');
+    if (!ebayBlockCleared) {
+      ebayBlockCleared = true;
+      await clearIntegrationBlock(env, 'ebay');
+    }
   };
 
   let processed = 0;
@@ -126,12 +148,12 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
 
     if (includeEbay && !ebayBlocked) {
       ebayPrices = await fetchEbaySoldPrices(set.set_num, set.name, env, sourceOptions)
-        .catch((err) => {
+        .catch(async (err) => {
           tallyFail('ebay', err);
-          if (isEbayAccessError((err as Error)?.message || String(err))) ebayBlocked = true;
+          if (isEbayAccessError((err as Error)?.message || String(err))) await markEbayBlocked();
           return null;
         });
-      tallyEbayResult(ebayPrices);
+      await tallyEbayResult(ebayPrices);
     }
 
     if (!pricing) {
@@ -149,12 +171,12 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         }
         if (includeEbay && !ebayBlocked && ebayPrices === null) {
           ebayPrices = await fetchEbaySoldPrices(set.set_num, set.name, env, sourceOptions)
-            .catch((err) => {
+            .catch(async (err) => {
               tallyFail('ebay', err);
-              if (isEbayAccessError((err as Error)?.message || String(err))) ebayBlocked = true;
+              if (isEbayAccessError((err as Error)?.message || String(err))) await markEbayBlocked();
               return null;
             });
-          tallyEbayResult(ebayPrices);
+          await tallyEbayResult(ebayPrices);
         }
       }
       pricing = blPricing;
@@ -313,6 +335,11 @@ export async function runEbayBackfill(env: Env, options: { limit?: number } = {}
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
     ? Math.min(Math.floor(requestedLimit), 2)
     : 1;
+  // Circuit breaker: skip the whole backfill while a previous access-denied
+  // block is still active.
+  if (await isIntegrationBlocked(env, 'ebay')) {
+    return { processed: 0, updated: 0, limit, skipped: 'ebay access blocked' };
+  }
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num, ls.name
     FROM lego_sets ls
@@ -356,7 +383,10 @@ export async function runEbayBackfill(env: Env, options: { limit?: number } = {}
       await stmt.run();
       if (ebaySoldHasValue(prices)) updated++;
     }
-    if (prices?.status === 'unauthorized' || isEbayAccessError(prices?.error)) break;
+    if (prices?.status === 'unauthorized' || isEbayAccessError(prices?.error)) {
+      await setIntegrationBlock(env, 'ebay', 6);
+      break;
+    }
   }
 
   await recordIntegrationHealth(env, 'ebay', health);

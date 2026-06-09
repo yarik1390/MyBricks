@@ -181,10 +181,11 @@ async function getPopulationSnapshot(env: Env) {
       LIMIT 1
     `).first<{ error: string | null }>(),
     env.DB.prepare(`
-      SELECT last_ok_at, last_fail_at, last_error
+      SELECT last_ok_at, last_fail_at, last_error,
+             (blocked_until IS NOT NULL AND blocked_until > datetime('now')) AS block_active
       FROM integration_health
       WHERE service='ebay'
-    `).first<{ last_ok_at: string | null; last_fail_at: string | null; last_error: string | null }>(),
+    `).first<{ last_ok_at: string | null; last_fail_at: string | null; last_error: string | null; block_active: number }>(),
   ]);
   const c = coverage as Record<string, any>;
   const totalSets = Number(c.total_sets || 0);
@@ -199,7 +200,10 @@ async function getPopulationSnapshot(env: Env) {
   );
   const ebayFailAt = ebayHealth?.last_fail_at ? Date.parse(ebayHealth.last_fail_at) : 0;
   const ebayOkAt = ebayHealth?.last_ok_at ? Date.parse(ebayHealth.last_ok_at) : 0;
-  const ebayAccessBlocked = ebayConfigured && ebayFailAt >= ebayOkAt && isEbayAccessError(ebayHealth?.last_error);
+  const ebayAccessBlocked = ebayConfigured && (
+    !!ebayHealth?.block_active ||
+    (ebayFailAt >= ebayOkAt && isEbayAccessError(ebayHealth?.last_error))
+  );
   const formulaBulkCount = Number((c.valuation_methods || []).find((m: { valuation_method?: string; count?: number }) => m.valuation_method === 'formula_bulk')?.count || 0);
   const barcodePassComplete = /complete:true|barcode_complete:true/i.test(String(latestBarcode?.error || ''));
   const ebaySourceAvailable = ebayConfigured && !ebayAccessBlocked;

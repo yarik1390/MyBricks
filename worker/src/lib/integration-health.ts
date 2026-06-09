@@ -253,6 +253,52 @@ export function integrationErrorMessage(error: unknown): string {
   return String(error || 'unknown error');
 }
 
+// --- Circuit breaker -------------------------------------------------------
+// Access-denied failures (e.g. eBay Marketplace Insights approval revoked)
+// will fail every call until a human intervenes. Persisting a blocked-until
+// timestamp lets every batch skip the service instead of re-probing it on
+// each invocation, with an automatic re-probe once the window expires.
+
+export async function setIntegrationBlock(
+  env: Env,
+  service: IntegrationName,
+  hours = 6,
+): Promise<void> {
+  try {
+    await env.DB.prepare(`
+      INSERT INTO integration_health (service, blocked_until, updated_at)
+      VALUES (?1, datetime('now', '+' || ?2 || ' hours'), datetime('now'))
+      ON CONFLICT(service) DO UPDATE SET
+        blocked_until = datetime('now', '+' || ?2 || ' hours'),
+        updated_at = datetime('now')
+    `).bind(service, Math.max(1, hours | 0)).run();
+  } catch (e) {
+    console.warn('[integration-health] set block failed:', (e as Error).message);
+  }
+}
+
+export async function clearIntegrationBlock(env: Env, service: IntegrationName): Promise<void> {
+  try {
+    await env.DB.prepare(
+      `UPDATE integration_health SET blocked_until=NULL, updated_at=datetime('now')
+       WHERE service=? AND blocked_until IS NOT NULL`
+    ).bind(service).run();
+  } catch (e) {
+    console.warn('[integration-health] clear block failed:', (e as Error).message);
+  }
+}
+
+export async function isIntegrationBlocked(env: Env, service: IntegrationName): Promise<boolean> {
+  try {
+    const row = await env.DB.prepare(
+      `SELECT 1 AS blocked FROM integration_health WHERE service=? AND blocked_until > datetime('now')`
+    ).bind(service).first<{ blocked: number }>();
+    return !!row;
+  } catch {
+    return false;
+  }
+}
+
 export async function getIntegrationHealth(env: Env): Promise<IntegrationHealthRow[]> {
   try {
     const { results } = await env.DB

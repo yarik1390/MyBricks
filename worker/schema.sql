@@ -187,7 +187,8 @@ CREATE TABLE IF NOT EXISTS integration_health (
   last_error TEXT,
   ok_count INTEGER NOT NULL DEFAULT 0,
   fail_count INTEGER NOT NULL DEFAULT 0,
-  updated_at TEXT
+  updated_at TEXT,
+  blocked_until TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_svh_set ON set_value_history(set_num, snapshot_date);

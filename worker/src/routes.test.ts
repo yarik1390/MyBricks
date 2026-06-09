@@ -125,7 +125,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       )`,
       `CREATE TABLE integration_health (
         service TEXT PRIMARY KEY, last_ok_at TEXT, last_fail_at TEXT, last_error TEXT,
-        ok_count INTEGER NOT NULL DEFAULT 0, fail_count INTEGER NOT NULL DEFAULT 0, updated_at TEXT
+        ok_count INTEGER NOT NULL DEFAULT 0, fail_count INTEGER NOT NULL DEFAULT 0, updated_at TEXT,
+        blocked_until TEXT
       )`,
       `CREATE TABLE import_runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

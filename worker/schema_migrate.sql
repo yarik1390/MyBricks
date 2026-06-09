@@ -164,5 +164,6 @@ CREATE TABLE IF NOT EXISTS set_value_history (
 );
 CREATE INDEX IF NOT EXISTS idx_svh_set ON set_value_history(set_num, snapshot_date);
 
-
-
+-- Circuit breaker: skip an external service until this timestamp after
+-- access-denied failures (currently used for eBay Marketplace Insights).
+ALTER TABLE integration_health ADD COLUMN blocked_until TEXT;

@@ -338,3 +338,42 @@ describe('parseNextBackfillPage', () => {
     expect(parseNextBackfillPage('method:bulk next_page:nope complete:false')).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// integration circuit breaker
+// ---------------------------------------------------------------------------
+describe('integration circuit breaker', () => {
+  it('opens, reports blocked, and clears', async () => {
+    const db = (env as any).DB as D1Database;
+    await db.prepare('DROP TABLE IF EXISTS integration_health').run();
+    await db.prepare(`CREATE TABLE integration_health (
+      service TEXT PRIMARY KEY, last_ok_at TEXT, last_fail_at TEXT, last_error TEXT,
+      ok_count INTEGER NOT NULL DEFAULT 0, fail_count INTEGER NOT NULL DEFAULT 0, updated_at TEXT,
+      blocked_until TEXT
+    )`).run();
+    const { setIntegrationBlock, clearIntegrationBlock, isIntegrationBlocked } = await import('./lib/integration-health');
+
+    expect(await isIntegrationBlocked(env as any, 'ebay')).toBe(false);
+
+    await setIntegrationBlock(env as any, 'ebay', 6);
+    expect(await isIntegrationBlocked(env as any, 'ebay')).toBe(true);
+
+    await clearIntegrationBlock(env as any, 'ebay');
+    expect(await isIntegrationBlocked(env as any, 'ebay')).toBe(false);
+  });
+
+  it('treats an expired block as not blocked', async () => {
+    const db = (env as any).DB as D1Database;
+    await db.prepare('DROP TABLE IF EXISTS integration_health').run();
+    await db.prepare(`CREATE TABLE integration_health (
+      service TEXT PRIMARY KEY, last_ok_at TEXT, last_fail_at TEXT, last_error TEXT,
+      ok_count INTEGER NOT NULL DEFAULT 0, fail_count INTEGER NOT NULL DEFAULT 0, updated_at TEXT,
+      blocked_until TEXT
+    )`).run();
+    await db.prepare(
+      `INSERT INTO integration_health (service, blocked_until) VALUES ('ebay', datetime('now', '-1 hour'))`
+    ).run();
+    const { isIntegrationBlocked } = await import('./lib/integration-health');
+    expect(await isIntegrationBlocked(env as any, 'ebay')).toBe(false);
+  });
+});
