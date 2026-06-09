@@ -83,11 +83,14 @@ export async function runDailyBarcodeMaintenance(env: Env, maxPages = 12) {
 
 export async function runDailyValuationMaintenance(env: Env, limit = 4) {
   const safeLimit = Math.max(1, Math.min(Math.floor(limit), 250));
-  const runId = await startRun(env, `method:valuation-daily scope:all limit:${safeLimit}`);
+  const runId = await startRun(env, `method:valuation-daily scope:all sources:all limit:${safeLimit}`);
   try {
     const result = await runValuateSets(env, {
       scope: 'all',
       includeFresh: true,
+      includeSupplemental: true,
+      includeEbay: true,
+      includeMinifigs: true,
       limit: safeLimit,
       onProgress: async (p) => {
         await env.DB.prepare(
@@ -98,7 +101,7 @@ export async function runDailyValuationMaintenance(env: Env, limit = 4) {
           p.processed,
           p.total,
           p.currentSet ? `Revaluing ${p.currentSet}` : 'Revaluing prices',
-          `method:valuation-daily scope:all limit:${safeLimit} processed:${p.processed} updated:${p.updated}`,
+          `method:valuation-daily scope:all sources:all limit:${safeLimit} processed:${p.processed} updated:${p.updated}`,
           runId,
         ).run();
       },
@@ -109,7 +112,7 @@ export async function runDailyValuationMaintenance(env: Env, limit = 4) {
       runId,
       result.updated,
       result.processed,
-      `method:valuation-daily scope:all limit:${safeLimit} processed:${result.processed} updated:${result.updated}`,
+      `method:valuation-daily scope:all sources:all limit:${safeLimit} processed:${result.processed} updated:${result.updated}`,
     );
     return result;
   } catch (error) {

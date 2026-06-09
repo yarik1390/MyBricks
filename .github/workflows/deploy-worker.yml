@@ -242,3 +242,22 @@ jobs:
             -d '{"dataset":"all"}')
           echo "HTTP ${STATUS}"
           cat /tmp/seed.json
+
+      - name: Start full data population slice
+        run: |
+          set -euo pipefail
+          if [ -z "${ADMIN_JWT:-}" ]; then
+            echo "Admin smoke token unavailable; skipping population. Run Populate everything manually from the Me tab."
+            exit 0
+          fi
+          echo "Starting one bounded full-source population slice at ${WORKER_URL} ..."
+          STATUS=$(curl -s -o /tmp/populate_everything.json -w "%{http_code}" \
+            -X POST "${WORKER_URL}/api/admin/populate-everything" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" \
+            -H "Content-Type: application/json" \
+            -d '{"valuation_limit":2,"barcode_pages":4,"ebay_limit":2}')
+          echo "HTTP ${STATUS}"
+          cat /tmp/populate_everything.json
+          if [ "$STATUS" -ge 400 ] && [ "$STATUS" != "409" ]; then
+            exit 1
+          fi
