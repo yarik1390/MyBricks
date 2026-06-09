@@ -72,6 +72,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       'DROP TABLE IF EXISTS portfolio_snapshots',
       'DROP TABLE IF EXISTS integration_health',
       'DROP TABLE IF EXISTS import_runs',
+      'DROP TABLE IF EXISTS minifigs',
       'DROP TABLE IF EXISTS lego_sets_fts',
 
       `CREATE TABLE lego_sets (
@@ -138,6 +139,16 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         sets_skipped INTEGER,
         figs_loaded INTEGER,
         error TEXT
+      )`,
+      `CREATE TABLE minifigs (
+        fig_num TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        series TEXT,
+        rarity TEXT DEFAULT 'common',
+        current_value REAL,
+        image_url TEXT,
+        added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        source TEXT
       )`,
 
       `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
@@ -437,6 +448,38 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.runs[0].progress_current).toBe(2);
       expect(data.runs[0].progress_total).toBe(4);
       expect(data.runs[0].progress_label).toBe('Revaluing 10300');
+    });
+
+    it('starts populate-everything and reports done when all source passes are complete', async () => {
+      await db.prepare(`INSERT INTO minifigs (fig_num, name) VALUES ('fig-1', 'Test Fig')`).run();
+      await db.prepare(`
+        UPDATE lego_sets
+        SET cached_at=datetime('now'),
+            valuation_expires_at=datetime('now', '+1 day'),
+            valuation_method='brickeconomy',
+            ebay_new_cached_at=datetime('now'),
+            ebay_used_cached_at=datetime('now')
+      `).run();
+      await db.prepare(`
+        INSERT INTO import_runs (job_type, status, error)
+        VALUES ('barcode_backfill', 'completed', 'method:bulk complete:true')
+      `).run();
+
+      const res = await app.fetch(new Request('http://localhost/api/admin/populate-everything', {
+        method: 'POST',
+        headers: auth(adminToken),
+        body: JSON.stringify({ valuation_limit: 1 }),
+      }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.done).toBe(true);
+      expect(data.run_id).toBeTruthy();
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const row = await db.prepare(`SELECT job_type, progress_label, error FROM import_runs WHERE id=?`)
+        .bind(data.run_id)
+        .first<any>();
+      expect(row.job_type).toBe('populate_everything');
+      expect(row.error).toContain('complete:true');
     });
 
     it('returns recorded integration health for the admin', async () => {

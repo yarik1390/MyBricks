@@ -9,6 +9,8 @@ import { go } from '../router.js';
 let activeAdminRunId = null;
 let activeAdminTool = null;
 let adminJobPollTimer = null;
+let populateEverythingAuto = false;
+let populateEverythingContinueTimer = null;
 
 export async function renderMe() {
   let me = state.me;
@@ -291,6 +293,10 @@ export async function renderMe() {
           <div class="lbl-wrap"><div class="lbl">Revalue prices</div><div class="desc" id="revalueAllDesc">Daily safe valuation batches; press to advance now</div></div>
           <button class="import-btn" id="revalueAllBtn" aria-label="Revalue all prices">${I.refresh({w: 16, h: 16})}</button>
         </div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Populate everything</div><div class="desc" id="populateEverythingDesc">Auto-runs safe slices from every configured data source</div></div>
+          <button class="import-btn" id="populateEverythingBtn" aria-label="Populate all configured data sources">${I.refresh({w: 16, h: 16})}</button>
+        </div>
       </div>
       <div class="section-title">Import & Revalue Jobs</div>
       <div class="card" style="padding:14px 16px;margin-bottom:14px;">
@@ -559,6 +565,7 @@ export async function renderMe() {
   $("#backfillUpcBtn")?.addEventListener("click", () => triggerImport("upc"));
   $("#populateCoverageBtn")?.addEventListener("click", () => triggerImport("populate"));
   $("#revalueAllBtn")?.addEventListener("click", () => triggerImport("revalue"));
+  $("#populateEverythingBtn")?.addEventListener("click", () => triggerImport("everything"));
 
   // API Key hooks
   $("#saveGeminiKey")?.addEventListener("click", () => {
@@ -911,7 +918,8 @@ const ADMIN_JOB_TOOLS = {
   figs: { url: "/api/admin/import-rebrickable", method: "POST", body: { dataset: "figs" }, desc: "importFigsDesc", btn: "importFigsBtn", text: "Importing figs...", idle: "~10k minifigures from Rebrickable" },
   upc: { url: "/api/admin/backfill-upc", method: "POST", body: {}, desc: "backfillUpcDesc", btn: "backfillUpcBtn", text: "Backfilling UPC...", idle: "Daily safe slices from Brickset; press to advance now" },
   populate: { url: "/api/admin/populate-coverage", method: "POST", body: {}, desc: "populateCoverageDesc", btn: "populateCoverageBtn", text: "Populating coverage...", idle: "One safe slice: barcode pages plus eBay sold prices" },
-  revalue: { url: "/api/admin/revalue-brickeconomy", method: "POST", body: { scope: "all", limit: 4 }, desc: "revalueAllDesc", btn: "revalueAllBtn", text: "Revaluing prices...", idle: "Daily safe valuation batches; press to advance now" }
+  revalue: { url: "/api/admin/revalue-brickeconomy", method: "POST", body: { scope: "all", limit: 4 }, desc: "revalueAllDesc", btn: "revalueAllBtn", text: "Revaluing prices...", idle: "Daily safe valuation batches; press to advance now" },
+  everything: { url: "/api/admin/populate-everything", method: "POST", body: { valuation_limit: 2, barcode_pages: 4, ebay_limit: 2 }, desc: "populateEverythingDesc", btn: "populateEverythingBtn", text: "Populating everything...", idle: "Auto-runs safe slices from every configured data source" }
 };
 
 function adminToolFromJobType(jobType = "") {
@@ -921,6 +929,7 @@ function adminToolFromJobType(jobType = "") {
   if (jobType === "barcode_backfill") return "upc";
   if (jobType === "populate_coverage") return "populate";
   if (jobType === "valuation") return "revalue";
+  if (jobType === "populate_everything") return "everything";
   return null;
 }
 
@@ -951,6 +960,19 @@ function scheduleAdminJobPoll(delay = 2500) {
   }, delay);
 }
 
+function isPopulateEverythingComplete(run = {}) {
+  return run.job_type === "populate_everything" && /method:populate-everything\b[^]*complete:true/i.test(String(run.error || ""));
+}
+
+function schedulePopulateEverythingContinue(delay = 1400) {
+  if (populateEverythingContinueTimer) clearTimeout(populateEverythingContinueTimer);
+  if (!populateEverythingAuto || location.hash !== "#/me") return;
+  populateEverythingContinueTimer = setTimeout(() => {
+    populateEverythingContinueTimer = null;
+    if (populateEverythingAuto && !activeAdminRunId) triggerImport("everything");
+  }, delay);
+}
+
 async function triggerImport(type) {
   const cnf = ADMIN_JOB_TOOLS[type];
   if (!cnf) return;
@@ -959,6 +981,8 @@ async function triggerImport(type) {
     scheduleAdminJobPoll(500);
     return;
   }
+  if (type === "everything") populateEverythingAuto = true;
+  else populateEverythingAuto = false;
   haptic("medium");
   const descEl = document.getElementById(cnf.desc);
   const origText = descEl ? descEl.textContent : "";
@@ -968,6 +992,7 @@ async function triggerImport(type) {
     const r = await api(cnf.url, { method: cnf.method, body: cnf.body });
     activeAdminRunId = r.run_id || null;
     activeAdminTool = type;
+    if (type === "everything" && r.done) populateEverythingAuto = false;
     toast(r.message || `Job #${activeAdminRunId || ""} started`, "success");
     await updateJobsStatus();
     scheduleAdminJobPoll(1200);
@@ -976,6 +1001,11 @@ async function triggerImport(type) {
     if (descEl) descEl.textContent = origText;
     activeAdminRunId = null;
     activeAdminTool = null;
+    populateEverythingAuto = false;
+    if (populateEverythingContinueTimer) {
+      clearTimeout(populateEverythingContinueTimer);
+      populateEverythingContinueTimer = null;
+    }
     setAdminJobButtons(null);
     setAdminJobDescriptions(null);
   }
@@ -1005,6 +1035,10 @@ async function updateJobsStatus() {
       if (adminJobPollTimer) {
         clearTimeout(adminJobPollTimer);
         adminJobPollTimer = null;
+      }
+      if (populateEverythingContinueTimer) {
+        clearTimeout(populateEverythingContinueTimer);
+        populateEverythingContinueTimer = null;
       }
       container.innerHTML = `<div style="color:var(--ink-mute);">No jobs have run yet.</div>`;
       return;
@@ -1112,11 +1146,24 @@ async function updateJobsStatus() {
       `;
     }).join("");
 
+    const latestRun = runs[0] || null;
+    const latestState = latestRun ? classifyJobRun(latestRun) : null;
     if (hasRunning && location.hash === "#/me") {
       scheduleAdminJobPoll(2500);
     } else if (adminJobPollTimer) {
       clearTimeout(adminJobPollTimer);
       adminJobPollTimer = null;
+    }
+    if (!hasRunning && populateEverythingAuto && latestRun?.job_type === "populate_everything") {
+      if (isPopulateEverythingComplete(latestRun)) {
+        populateEverythingAuto = false;
+        toast("All configured data sources are populated", "success");
+      } else if (latestState?.needsAttention) {
+        populateEverythingAuto = false;
+        toast("Populate everything stopped for a hard provider error", "error");
+      } else {
+        schedulePopulateEverythingContinue();
+      }
     }
   } catch (err) {
     setAdminJobButtons(null);

@@ -163,6 +163,72 @@ async function getDataCoverage(env: Env) {
   };
 }
 
+async function getPopulationSnapshot(env: Env) {
+  const [coverage, minifigs, ebayAttempts, latestBarcode] = await Promise.all([
+    getDataCoverage(env),
+    env.DB.prepare(`SELECT CAST(COUNT(*) AS INTEGER) AS total_minifigs FROM minifigs`).first<{ total_minifigs: number }>(),
+    env.DB.prepare(`
+      SELECT
+        CAST(SUM(CASE WHEN ebay_new_value IS NOT NULL OR ebay_new_cached_at IS NOT NULL OR ebay_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS ebay_new_attempted,
+        CAST(SUM(CASE WHEN ebay_used_value IS NOT NULL OR ebay_used_cached_at IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS ebay_used_attempted
+      FROM lego_sets
+    `).first<{ ebay_new_attempted: number; ebay_used_attempted: number }>(),
+    env.DB.prepare(`
+      SELECT error FROM import_runs
+      WHERE error LIKE '%method:bulk%' OR error LIKE '%barcode_complete:%' OR error LIKE '%method:populate-everything%'
+      ORDER BY started_at DESC
+      LIMIT 1
+    `).first<{ error: string | null }>(),
+  ]);
+  const c = coverage as Record<string, any>;
+  const totalSets = Number(c.total_sets || 0);
+  const totalMinifigs = Number(minifigs?.total_minifigs || 0);
+  const ebayNewAttempted = Number(ebayAttempts?.ebay_new_attempted || 0);
+  const ebayUsedAttempted = Number(ebayAttempts?.ebay_used_attempted || 0);
+  const formulaBulkCount = Number((c.valuation_methods || []).find((m: { valuation_method?: string; count?: number }) => m.valuation_method === 'formula_bulk')?.count || 0);
+  const barcodePassComplete = /complete:true|barcode_complete:true/i.test(String(latestBarcode?.error || ''));
+  return {
+    ...c,
+    total_sets: totalSets,
+    total_minifigs: totalMinifigs,
+    ebay_new_attempted: ebayNewAttempted,
+    ebay_used_attempted: ebayUsedAttempted,
+    formula_bulk_count: formulaBulkCount,
+    ebay_new_attempted_pct: totalSets ? Math.round((ebayNewAttempted / totalSets) * 1000) / 10 : 0,
+    ebay_used_attempted_pct: totalSets ? Math.round((ebayUsedAttempted / totalSets) * 1000) / 10 : 0,
+    barcode_pass_complete: barcodePassComplete,
+    ebay_attempts_complete: totalSets > 0 && ebayNewAttempted >= totalSets && ebayUsedAttempted >= totalSets,
+    catalog_ready: totalSets > 0,
+    minifigs_ready: totalMinifigs > 0,
+  };
+}
+
+function populationDone(snapshot: Awaited<ReturnType<typeof getPopulationSnapshot>>): boolean {
+  if (!snapshot.catalog_ready || !snapshot.minifigs_ready) return false;
+  if (Number((snapshot as Record<string, any>).formula_bulk_count || 0) > 0) return false;
+  if (Number((snapshot as Record<string, any>).needs_market_refresh || 0) > 0) return false;
+  if (!snapshot.ebay_attempts_complete) return false;
+  // Some LEGO sets simply do not have published UPCs, so a completed barcode
+  // pass is stronger evidence than requiring 100% UPC coverage.
+  if (!snapshot.barcode_pass_complete && Number((snapshot as Record<string, any>).missing_upc || 0) > 0) return false;
+  return true;
+}
+
+function populationRemainingNote(snapshot: Awaited<ReturnType<typeof getPopulationSnapshot>>): string {
+  const quality = (snapshot as Record<string, any>).quality || {};
+  const parts = [
+    `sets:${snapshot.total_sets}`,
+    `minifigs:${snapshot.total_minifigs}`,
+    `missing_upc:${quality.missing_upc ?? 0}`,
+    `needs_market_refresh:${quality.needs_market_refresh ?? 0}`,
+    `formula_bulk:${(snapshot as Record<string, any>).formula_bulk_count ?? 0}`,
+    `ebay_new_attempted:${snapshot.ebay_new_attempted}/${snapshot.total_sets}`,
+    `ebay_used_attempted:${snapshot.ebay_used_attempted}/${snapshot.total_sets}`,
+    `barcode_complete:${snapshot.barcode_pass_complete}`,
+  ];
+  return parts.join(' ');
+}
+
 app.post('/import-rebrickable', async (c) => {
   const body = await c.req.json<{ dataset?: string }>().catch(() => ({ dataset: undefined }));
   const dataset = body.dataset ?? 'sets';
@@ -433,6 +499,180 @@ app.post('/revalue-brickeconomy', async (c) => {
   );
 
   return c.json({ ok: true, status: 'running', run_id: runId, scope, limit });
+});
+
+// POST /api/admin/populate-everything
+// Runs one safe full-data campaign slice across every configured provider.
+// The frontend can auto-repeat this endpoint until the completion note says
+// complete:true. Each slice stays bounded for Worker limits and provider quotas.
+app.post('/populate-everything', async (c) => {
+  const body = await c.req.json<{ valuation_limit?: number; barcode_pages?: number; ebay_limit?: number }>()
+    .catch(() => ({} as { valuation_limit?: number; barcode_pages?: number; ebay_limit?: number }));
+  const valuationLimit = Number.isFinite(Number(body.valuation_limit)) && Number(body.valuation_limit) > 0
+    ? Math.min(Math.floor(Number(body.valuation_limit)), 3)
+    : 2;
+  const barcodePages = Number.isFinite(Number(body.barcode_pages)) && Number(body.barcode_pages) > 0
+    ? Math.min(Math.floor(Number(body.barcode_pages)), 6)
+    : 4;
+  const ebayLimit = Number.isFinite(Number(body.ebay_limit)) && Number(body.ebay_limit) > 0
+    ? Math.min(Math.floor(Number(body.ebay_limit)), 2)
+    : 2;
+
+  await c.env.DB.prepare(
+    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',progress_label='Stopped',completed_at=datetime('now'),updated_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
+  ).run();
+
+  const active = await c.env.DB.prepare(
+    `SELECT id FROM import_runs WHERE status='running' AND started_at > datetime('now','-30 minutes') LIMIT 1`
+  ).first<{ id: number }>();
+  if (active) return c.json({ error: 'A data population job is already running.', run_id: active.id }, 409);
+
+  const before = await getPopulationSnapshot(c.env);
+  const alreadyDone = populationDone(before);
+  const runId = await createImportRun(
+    c.env,
+    'populate_everything',
+    alreadyDone ? 'All configured sources already populated' : 'Starting full data population',
+    600,
+    `method:populate-everything complete:${alreadyDone} ${populationRemainingNote(before)}`,
+  );
+
+  c.executionCtx.waitUntil(
+    (async () => {
+      const phaseSize = 100;
+      const total = 600;
+      let updated = 0;
+      let processed = 0;
+      const phaseProgress = async (phase: number, label: string, current = 0, phaseTotal = 1, note?: string) => {
+        const withinPhase = phaseTotal > 0 ? Math.round(Math.min(1, Math.max(0, current / phaseTotal)) * phaseSize) : 0;
+        await updateImportRunProgress(c.env, runId, {
+          current: Math.min(total, phase * phaseSize + withinPhase),
+          total,
+          label,
+          setsLoaded: updated,
+          setsSkipped: processed,
+          note,
+        });
+      };
+
+      try {
+        let snapshot = before;
+        if (alreadyDone) {
+          await completeImportRun(c.env, runId, {
+            current: total,
+            total,
+            label: 'All configured sources populated',
+            note: `method:populate-everything complete:true ${populationRemainingNote(before)}`,
+          });
+          return;
+        }
+
+        if (!snapshot.catalog_ready) {
+          await phaseProgress(0, 'Importing Rebrickable sets', 0, 1);
+          const sets = await importSets(c.env.DB, c.env, {
+            onProgress: async (p) => phaseProgress(
+              0,
+              p.label,
+              p.current,
+              p.total || Math.max(p.current, 1),
+            ),
+          });
+          updated += sets.loaded;
+          processed += sets.loaded + sets.skipped;
+        } else {
+          await phaseProgress(0, 'Set catalog already imported', 1, 1);
+        }
+
+        snapshot = await getPopulationSnapshot(c.env);
+        if (!snapshot.minifigs_ready) {
+          await phaseProgress(1, 'Importing Rebrickable minifigs', 0, 1);
+          const figs = await importFigs(c.env.DB, c.env, {
+            onProgress: async (p) => phaseProgress(
+              1,
+              p.label,
+              p.current,
+              p.total || Math.max(p.current, 1),
+            ),
+          });
+          updated += figs.loaded;
+          processed += figs.loaded;
+        } else {
+          await phaseProgress(1, 'Minifig catalog already imported', 1, 1);
+        }
+
+        await phaseProgress(2, 'Rebuilding search index', 0, 1);
+        await rebuildSearchIndex(c.env.DB);
+        await phaseProgress(2, 'Search index rebuilt', 1, 1);
+
+        snapshot = await getPopulationSnapshot(c.env);
+        if (snapshot.catalog_ready && (!snapshot.barcode_pass_complete || Number(((snapshot as Record<string, any>).quality || {}).missing_upc || 0) > 0)) {
+          const startPage = await nextBackfillPage(c.env);
+          await phaseProgress(3, `Backfilling barcodes from page ${startPage}`, 0, barcodePages * 500);
+          const barcode = await runBackfillUpc(c.env, {
+            startPage,
+            maxPages: barcodePages,
+            onProgress: async (p) => phaseProgress(
+              3,
+              p.complete ? 'Barcode pass complete' : `Barcode page ${p.nextPage ? p.nextPage - 1 : startPage}`,
+              p.processed,
+              p.complete ? Math.max(p.processed, 1) : barcodePages * 500,
+              `method:populate-everything step:barcode next_page:${p.nextPage ?? ''} barcode_complete:${p.complete}`,
+            ),
+          });
+          updated += barcode.filled;
+          processed += barcode.processed;
+        } else {
+          await phaseProgress(3, 'Barcode pass already complete', 1, 1);
+        }
+
+        await phaseProgress(4, 'Refreshing market data', 0, valuationLimit);
+        const valuation = await runValuateSets(c.env, {
+          scope: 'all',
+          includeFresh: true,
+          includeSupplemental: true,
+          includeEbay: true,
+          includeMinifigs: true,
+          limit: valuationLimit,
+          onProgress: async (p) => phaseProgress(
+            4,
+            p.currentSet ? `Refreshing ${p.currentSet}` : 'Refreshing market data',
+            p.processed,
+            Math.max(p.total, 1),
+            `method:populate-everything step:valuation processed:${p.processed} updated:${p.updated}`,
+          ),
+        });
+        updated += valuation.updated;
+        processed += valuation.processed;
+
+        await phaseProgress(5, 'Checking eBay sold comps', 0, ebayLimit);
+        const ebay = await runEbayBackfill(c.env, { limit: ebayLimit });
+        updated += ebay.updated;
+        processed += ebay.processed;
+        await phaseProgress(5, 'eBay sold-comps slice complete', ebay.processed, Math.max(ebayLimit, ebay.processed, 1));
+
+        const after = await getPopulationSnapshot(c.env);
+        const done = populationDone(after);
+        await completeImportRun(c.env, runId, {
+          current: total,
+          total,
+          label: done ? 'All configured sources populated' : 'Safe full-data slice completed',
+          setsLoaded: updated,
+          setsSkipped: processed,
+          note: `method:populate-everything complete:${done} ${populationRemainingNote(after)}`,
+        });
+      } catch (error) {
+        await failImportRun(c.env, runId, error);
+      }
+    })()
+  );
+
+  return c.json({
+    ok: true,
+    status: alreadyDone ? 'completed' : 'running',
+    run_id: runId,
+    done: alreadyDone,
+    coverage: before,
+  });
 });
 
 // POST /api/admin/expire-valuations
