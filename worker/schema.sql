@@ -81,9 +81,14 @@ CREATE TABLE IF NOT EXISTS user_minifigs (
 
 CREATE TABLE IF NOT EXISTS import_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  job_type TEXT,
   status TEXT DEFAULT 'running',
   started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   completed_at DATETIME,
+  progress_current INTEGER DEFAULT 0,
+  progress_total INTEGER,
+  progress_label TEXT,
   themes_loaded INTEGER,
   sets_loaded INTEGER,
   sets_skipped INTEGER,

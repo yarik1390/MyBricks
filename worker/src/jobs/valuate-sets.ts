@@ -20,6 +20,7 @@ export interface ValuateSetsOptions {
   includeSupplemental?: boolean;
   includeEbay?: boolean;
   includeMinifigs?: boolean;
+  onProgress?: (progress: { processed: number; updated: number; total: number; currentSet?: string }) => Promise<void>;
 }
 
 export async function runValuateSets(env: Env, options: ValuateSetsOptions = {}) {
@@ -87,6 +88,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     tallyOk('ebay');
   };
 
+  let processed = 0;
   for (const set of results) {
     let pricing: { current_value: number } | null = null;
     let usedPricing: { used_value: number; lot_count?: number } | null = null;
@@ -217,6 +219,8 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       if (valMethod === 'market') {
         market++;
       }
+      processed++;
+      if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
       continue;
     }
 
@@ -234,11 +238,17 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         WHERE set_num=?
       `).bind(ebayPrice, forecast_2y, forecast_5y, set.set_num).run();
       updated++;
+      processed++;
+      if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
       continue;
     }
 
     // Fall back to GPT-4o-mini
-    if (!openai) continue;
+    if (!openai) {
+      processed++;
+      if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
+      continue;
+    }
     try {
       const result = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -249,7 +259,11 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         ],
       });
       const text = result.choices[0].message.content;
-      if (!text || result.choices[0].finish_reason === 'length') continue;
+      if (!text || result.choices[0].finish_reason === 'length') {
+        processed++;
+        if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
+        continue;
+      }
       const vals = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as {
         retail_price: number; current_value: number; forecast_2y: number; forecast_5y: number;
       };
@@ -259,6 +273,8 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         const maxCapMultiplier = pieceCount > 500 ? 8 : 15;
         if (vals.current_value < 0.3 * vals.retail_price || vals.current_value > maxCapMultiplier * vals.retail_price) {
           console.warn(`[valuate] ${set.set_num}: AI value $${vals.current_value} out of sanity range vs retail $${vals.retail_price} (limit ${maxCapMultiplier}x, pieces: ${pieceCount}) — skipped`);
+          processed++;
+          if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
           continue;
         }
       }
@@ -275,6 +291,8 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     } catch (e) {
       console.warn(`[valuate] failed for ${set.set_num}:`, (e as Error).message);
     }
+    processed++;
+    if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
   }
 
   await updateRetirementRiskBatch(env);

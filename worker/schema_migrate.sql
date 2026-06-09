@@ -14,6 +14,11 @@ ALTER TABLE lego_sets ADD COLUMN retirement_risk_updated_at TEXT;
 ALTER TABLE wishlist_alerts ADD COLUMN alert_type TEXT NOT NULL DEFAULT 'drop';
 ALTER TABLE user_collection ADD COLUMN spike_alerted_at TEXT;
 ALTER TABLE user_prefs ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE import_runs ADD COLUMN job_type TEXT;
+ALTER TABLE import_runs ADD COLUMN updated_at DATETIME;
+ALTER TABLE import_runs ADD COLUMN progress_current INTEGER DEFAULT 0;
+ALTER TABLE import_runs ADD COLUMN progress_total INTEGER;
+ALTER TABLE import_runs ADD COLUMN progress_label TEXT;
 CREATE TABLE IF NOT EXISTS user_showcase (
   user_id TEXT NOT NULL,
   set_num TEXT NOT NULL,

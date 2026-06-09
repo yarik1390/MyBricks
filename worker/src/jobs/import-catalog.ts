@@ -6,6 +6,16 @@ const CDN = 'https://cdn.rebrickable.com/media/downloads';
 export const BATCH = 100;
 export const CONCURRENT = 10;
 
+export interface CatalogProgress {
+  current: number;
+  total: number | null;
+  label: string;
+}
+
+export interface CatalogImportOptions {
+  onProgress?: (progress: CatalogProgress) => Promise<void>;
+}
+
 export async function fetchGzip(url: string, env?: Env): Promise<string> {
   const fetcher = env ? fetchTracked.bind(null, env, 'rebrickable') : fetchWithRetry;
   const resp = await fetcher(url, { headers: { 'User-Agent': 'Brickvault-Import/1.0' } });
@@ -53,15 +63,24 @@ function parseCSV(text: string): Record<string, string | null>[] {
   });
 }
 
-export async function runBatches(db: D1Database, allStmts: D1PreparedStatement[]) {
+export async function runBatches(
+  db: D1Database,
+  allStmts: D1PreparedStatement[],
+  options: { onProgress?: (processed: number) => Promise<void> } = {},
+) {
   const chunks: D1PreparedStatement[][] = [];
   for (let i = 0; i < allStmts.length; i += BATCH) chunks.push(allStmts.slice(i, i + BATCH));
+  let processed = 0;
   for (let i = 0; i < chunks.length; i += CONCURRENT) {
-    await Promise.all(chunks.slice(i, i + CONCURRENT).map(c => db.batch(c)));
+    const group = chunks.slice(i, i + CONCURRENT);
+    await Promise.all(group.map(c => db.batch(c)));
+    processed += group.reduce((sum, c) => sum + c.length, 0);
+    if (options.onProgress) await options.onProgress(Math.min(processed, allStmts.length));
   }
 }
 
-export async function importSets(db: D1Database, env?: Env) {
+export async function importSets(db: D1Database, env?: Env, options: CatalogImportOptions = {}) {
+  await options.onProgress?.({ current: 0, total: null, label: 'Downloading Rebrickable sets' });
   const [themesText, setsText] = await Promise.all([
     fetchGzip(`${CDN}/themes.csv.gz`, env),
     fetchGzip(`${CDN}/sets.csv.gz`, env),
@@ -77,12 +96,20 @@ export async function importSets(db: D1Database, env?: Env) {
   }
 
   const themeRows = themes.filter(t => t.id && t.name);
+  await options.onProgress?.({ current: 0, total: themeRows.length, label: 'Importing themes' });
   await runBatches(db, themeRows.map(t =>
     db.prepare('INSERT INTO lego_themes (id,name,parent_id) VALUES (?,?,?) ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,parent_id=EXCLUDED.parent_id')
       .bind(parseInt(t.id!), t.name, t.parent_id ? parseInt(t.parent_id) : null)
-  ));
+  ), {
+    onProgress: async (processed) => options.onProgress?.({
+      current: processed,
+      total: themeRows.length,
+      label: 'Importing themes',
+    }),
+  });
 
   const sets = parseCSV(setsText).filter(s => s.set_num && s.name);
+  await options.onProgress?.({ current: 0, total: sets.length, label: 'Preparing set records' });
   let skipped = 0;
   const setStmts: D1PreparedStatement[] = [];
 
@@ -112,13 +139,22 @@ export async function importSets(db: D1Database, env?: Env) {
             vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y));
   }
 
-  await runBatches(db, setStmts);
+  await options.onProgress?.({ current: 0, total: setStmts.length, label: 'Importing sets' });
+  await runBatches(db, setStmts, {
+    onProgress: async (processed) => options.onProgress?.({
+      current: processed,
+      total: setStmts.length,
+      label: 'Importing sets',
+    }),
+  });
   return { loaded: setStmts.length, skipped, themes: themeRows.length };
 }
 
-export async function importFigs(db: D1Database, env?: Env) {
+export async function importFigs(db: D1Database, env?: Env, options: CatalogImportOptions = {}) {
+  await options.onProgress?.({ current: 0, total: null, label: 'Downloading Rebrickable minifigs' });
   const text = await fetchGzip(`${CDN}/minifigs.csv.gz`, env);
   const figs = parseCSV(text).filter(f => f.fig_num && f.name);
+  await options.onProgress?.({ current: 0, total: figs.length, label: 'Importing minifigs' });
   const stmts = figs.map(f => {
     const img = f.img_url && f.img_url !== 'None' ? f.img_url : null;
     return db.prepare(`
@@ -129,6 +165,12 @@ export async function importFigs(db: D1Database, env?: Env) {
         image_url=COALESCE(EXCLUDED.image_url, minifigs.image_url)
     `).bind(f.fig_num, f.name, img);
   });
-  await runBatches(db, stmts);
+  await runBatches(db, stmts, {
+    onProgress: async (processed) => options.onProgress?.({
+      current: processed,
+      total: stmts.length,
+      label: 'Importing minifigs',
+    }),
+  });
   return { loaded: stmts.length };
 }

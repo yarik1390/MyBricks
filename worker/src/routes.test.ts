@@ -71,6 +71,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       'DROP TABLE IF EXISTS user_showcase',
       'DROP TABLE IF EXISTS portfolio_snapshots',
       'DROP TABLE IF EXISTS integration_health',
+      'DROP TABLE IF EXISTS import_runs',
       'DROP TABLE IF EXISTS lego_sets_fts',
 
       `CREATE TABLE lego_sets (
@@ -121,6 +122,22 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       `CREATE TABLE integration_health (
         service TEXT PRIMARY KEY, last_ok_at TEXT, last_fail_at TEXT, last_error TEXT,
         ok_count INTEGER NOT NULL DEFAULT 0, fail_count INTEGER NOT NULL DEFAULT 0, updated_at TEXT
+      )`,
+      `CREATE TABLE import_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_type TEXT,
+        status TEXT DEFAULT 'running',
+        started_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        completed_at TEXT,
+        progress_current INTEGER DEFAULT 0,
+        progress_total INTEGER,
+        progress_label TEXT,
+        themes_loaded INTEGER,
+        sets_loaded INTEGER,
+        sets_skipped INTEGER,
+        figs_loaded INTEGER,
+        error TEXT
       )`,
 
       `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
@@ -404,6 +421,22 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
     it('rejects non-admin members', async () => {
       const res = await app.fetch(new Request('http://localhost/api/admin/integrations', { headers: auth() }), env);
       expect(res.status).toBe(403);
+    });
+
+    it('returns job progress fields for the admin job panel', async () => {
+      await db.prepare(`
+        INSERT INTO import_runs (job_type, status, progress_current, progress_total, progress_label, sets_loaded, sets_skipped, error)
+        VALUES ('valuation', 'running', 2, 4, 'Revaluing 10300', 1, 2, 'method:valuation scope:all limit:4 processed:2 updated:1')
+      `).run();
+      const res = await app.fetch(new Request('http://localhost/api/admin/import-status', {
+        headers: auth(adminToken),
+      }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.runs[0].job_type).toBe('valuation');
+      expect(data.runs[0].progress_current).toBe(2);
+      expect(data.runs[0].progress_total).toBe(4);
+      expect(data.runs[0].progress_label).toBe('Revaluing 10300');
     });
 
     it('returns recorded integration health for the admin', async () => {

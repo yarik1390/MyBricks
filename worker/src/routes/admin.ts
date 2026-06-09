@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { requireAdmin } from '../auth';
-import { importSets, importFigs, runBatches, BATCH } from '../jobs/import-catalog';
+import { importSets, importFigs } from '../jobs/import-catalog';
 import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
 import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
@@ -10,6 +10,91 @@ import type { Env, Variables } from '../types';
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 app.use('*', requireAdmin);
+
+type JobProgress = {
+  current?: number | null;
+  total?: number | null;
+  label?: string | null;
+  setsLoaded?: number | null;
+  setsSkipped?: number | null;
+  themesLoaded?: number | null;
+  figsLoaded?: number | null;
+  note?: string | null;
+};
+
+async function createImportRun(env: Env, jobType: string, label: string, total: number | null = null, note: string | null = null): Promise<number> {
+  const run = await env.DB.prepare(`
+    INSERT INTO import_runs (job_type, status, progress_current, progress_total, progress_label, error, updated_at)
+    VALUES (?, 'running', 0, ?, ?, ?, datetime('now'))
+  `).bind(jobType, total, label, note).run();
+  return run.meta.last_row_id as number;
+}
+
+async function updateImportRunProgress(env: Env, runId: number, progress: JobProgress): Promise<void> {
+  await env.DB.prepare(`
+    UPDATE import_runs SET
+      progress_current=COALESCE(?, progress_current),
+      progress_total=COALESCE(?, progress_total),
+      progress_label=COALESCE(?, progress_label),
+      sets_loaded=COALESCE(?, sets_loaded),
+      sets_skipped=COALESCE(?, sets_skipped),
+      themes_loaded=COALESCE(?, themes_loaded),
+      figs_loaded=COALESCE(?, figs_loaded),
+      error=COALESCE(?, error),
+      updated_at=datetime('now')
+    WHERE id=?
+  `).bind(
+    progress.current ?? null,
+    progress.total ?? null,
+    progress.label ?? null,
+    progress.setsLoaded ?? null,
+    progress.setsSkipped ?? null,
+    progress.themesLoaded ?? null,
+    progress.figsLoaded ?? null,
+    progress.note ?? null,
+    runId,
+  ).run();
+}
+
+async function completeImportRun(env: Env, runId: number, progress: JobProgress): Promise<void> {
+  await env.DB.prepare(`
+    UPDATE import_runs SET
+      status='completed',
+      completed_at=datetime('now'),
+      updated_at=datetime('now'),
+      progress_current=COALESCE(?, progress_current),
+      progress_total=COALESCE(?, progress_total, progress_current),
+      progress_label=COALESCE(?, 'Completed'),
+      themes_loaded=COALESCE(?, themes_loaded),
+      sets_loaded=COALESCE(?, sets_loaded),
+      sets_skipped=COALESCE(?, sets_skipped),
+      figs_loaded=COALESCE(?, figs_loaded),
+      error=COALESCE(?, error)
+    WHERE id=?
+  `).bind(
+    progress.current ?? null,
+    progress.total ?? null,
+    progress.label ?? 'Completed',
+    progress.themesLoaded ?? null,
+    progress.setsLoaded ?? null,
+    progress.setsSkipped ?? null,
+    progress.figsLoaded ?? null,
+    progress.note ?? null,
+    runId,
+  ).run();
+}
+
+async function failImportRun(env: Env, runId: number, error: unknown): Promise<void> {
+  await env.DB.prepare(
+    "UPDATE import_runs SET status='error',error=?,progress_label='Failed',completed_at=datetime('now'),updated_at=datetime('now') WHERE id=?"
+  ).bind((error as Error).message || String(error), runId).run();
+}
+
+const IMPORT_RUN_FIELDS = `
+  id, job_type, status, started_at, updated_at, completed_at,
+  progress_current, progress_total, progress_label,
+  themes_loaded, sets_loaded, sets_skipped, figs_loaded, error
+`;
 
 async function getDataCoverage(env: Env) {
   const [sets, valuationMethods] = await Promise.all([
@@ -86,7 +171,7 @@ app.post('/import-rebrickable', async (c) => {
   }
 
   await c.env.DB.prepare(
-    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
+    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',progress_label='Stopped',completed_at=datetime('now'),updated_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
   ).run();
 
   const active = await c.env.DB.prepare(
@@ -96,31 +181,52 @@ app.post('/import-rebrickable', async (c) => {
     return c.json({ error: 'An import is already running.', run_id: active.id, started_at: active.started_at }, 409);
   }
 
-  const run = await c.env.DB.prepare("INSERT INTO import_runs (status) VALUES ('running')").run();
-  const runId = run.meta.last_row_id;
+  const runId = await createImportRun(
+    c.env,
+    dataset === 'all' ? 'catalog_all' : `catalog_${dataset}`,
+    dataset === 'figs' ? 'Starting minifig import' : dataset === 'all' ? 'Starting full catalog import' : 'Starting set import',
+  );
 
   c.executionCtx.waitUntil(
     (async () => {
       try {
         const result: Record<string, unknown> = {};
         if (dataset === 'sets' || dataset === 'all') {
-          const r = await importSets(c.env.DB, c.env);
+          const r = await importSets(c.env.DB, c.env, {
+            onProgress: async (p) => updateImportRunProgress(c.env, runId, {
+              current: p.current,
+              total: p.total,
+              label: p.label,
+              setsLoaded: p.label.includes('sets') ? p.current : undefined,
+            }),
+          });
           result.sets_loaded = r.loaded;
           result.sets_skipped = r.skipped;
           result.themes_loaded = r.themes;
         }
         if (dataset === 'figs' || dataset === 'all') {
-          const r = await importFigs(c.env.DB, c.env);
+          const r = await importFigs(c.env.DB, c.env, {
+            onProgress: async (p) => updateImportRunProgress(c.env, runId, {
+              current: p.current,
+              total: p.total,
+              label: p.label,
+              figsLoaded: p.current,
+            }),
+          });
           result.figs_loaded = r.loaded;
         }
-        await c.env.DB.prepare(
-          'UPDATE import_runs SET status=?,completed_at=datetime(\'now\'),themes_loaded=?,sets_loaded=?,sets_skipped=?,figs_loaded=? WHERE id=?'
-        ).bind('completed', result.themes_loaded ?? null, result.sets_loaded ?? null,
-               result.sets_skipped ?? null, result.figs_loaded ?? null, runId).run();
+        const finalTotal = Number(result.sets_loaded || 0) + Number(result.figs_loaded || 0);
+        await completeImportRun(c.env, runId, {
+          current: finalTotal || null,
+          total: finalTotal || null,
+          label: 'Import completed',
+          themesLoaded: result.themes_loaded as number | null,
+          setsLoaded: result.sets_loaded as number | null,
+          setsSkipped: result.sets_skipped as number | null,
+          figsLoaded: result.figs_loaded as number | null,
+        });
       } catch (e) {
-        await c.env.DB.prepare(
-          "UPDATE import_runs SET status='error',error=?,completed_at=datetime('now') WHERE id=?"
-        ).bind((e as Error).message, runId).run();
+        await failImportRun(c.env, runId, e);
       }
     })()
   );
@@ -131,7 +237,7 @@ app.post('/import-rebrickable', async (c) => {
 app.get('/import-status/:id', requireAdmin, async (c) => {
   const id = Number(c.req.param('id'));
   const row = await c.env.DB.prepare(
-    'SELECT id, status, started_at, completed_at, themes_loaded, sets_loaded, sets_skipped, figs_loaded, error FROM import_runs WHERE id=?'
+    `SELECT ${IMPORT_RUN_FIELDS} FROM import_runs WHERE id=?`
   ).bind(id).first<Record<string, unknown>>();
   if (!row) return c.json({ error: 'run not found' }, 404);
   return c.json(row);
@@ -146,7 +252,7 @@ app.post('/backfill-upc', async (c) => {
   }
 
   await c.env.DB.prepare(
-    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
+    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',progress_label='Stopped',completed_at=datetime('now'),updated_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
   ).run();
 
   const active = await c.env.DB.prepare(
@@ -154,45 +260,46 @@ app.post('/backfill-upc', async (c) => {
   ).first<{ id: number }>();
   if (active) return c.json({ error: 'An import is already running.', run_id: active.id }, 409);
 
-  const run = await c.env.DB.prepare("INSERT INTO import_runs (status) VALUES ('running')").run();
-  const runId = run.meta.last_row_id;
+  const runId = await createImportRun(c.env, 'barcode_backfill', 'Starting barcode backfill', 2000);
 
   c.executionCtx.waitUntil(
     (async () => {
       try {
         const startPage = await nextBackfillPage(c.env);
+        await updateImportRunProgress(c.env, runId, {
+          current: 0,
+          total: 2000,
+          label: `Reading Brickset pages from ${startPage}`,
+          note: `method:bulk start_page:${startPage}`,
+        });
         const r = await runBackfillUpc(c.env, {
           startPage,
           maxPages: 4,
           onProgress: async (p) => {
-            await c.env.DB.prepare(
-              `UPDATE import_runs SET sets_loaded=?,sets_skipped=?,error=? WHERE id=?`
-            ).bind(
-              p.filled,
-              p.processed,
-              `method:bulk start_page:${startPage} next_page:${p.nextPage ?? ''} complete:${p.complete}`,
-              runId,
-            ).run();
+            await updateImportRunProgress(c.env, runId, {
+              current: p.processed,
+              total: p.complete ? p.processed : Math.max(2000, p.processed),
+              label: p.complete ? 'Barcode backfill complete' : `Barcode page ${p.nextPage ? p.nextPage - 1 : startPage}`,
+              setsLoaded: p.filled,
+              setsSkipped: p.processed,
+              note: `method:bulk start_page:${startPage} next_page:${p.nextPage ?? ''} complete:${p.complete}`,
+            });
           },
         });
         if (r.error) {
-          await c.env.DB.prepare(
-            "UPDATE import_runs SET status='error',error=?,completed_at=datetime('now') WHERE id=?"
-          ).bind(r.error, runId).run();
+          await failImportRun(c.env, runId, r.error);
         } else {
-          await c.env.DB.prepare(
-            `UPDATE import_runs SET status='completed',completed_at=datetime('now'),sets_loaded=?,sets_skipped=?,error=? WHERE id=?`
-          ).bind(
-            r.filled,
-            r.processed,
-            r.note ?? `method:${r.method} catalog:${r.catalogSize} next_page:${r.nextPage ?? ''} complete:${r.complete}`,
-            runId,
-          ).run();
+          await completeImportRun(c.env, runId, {
+            current: r.processed,
+            total: r.processed,
+            label: 'Barcode backfill completed',
+            setsLoaded: r.filled,
+            setsSkipped: r.processed,
+            note: r.note ?? `method:${r.method} catalog:${r.catalogSize} next_page:${r.nextPage ?? ''} complete:${r.complete}`,
+          });
         }
       } catch (e) {
-        await c.env.DB.prepare(
-          "UPDATE import_runs SET status='error',error=?,completed_at=datetime('now') WHERE id=?"
-        ).bind((e as Error).message, runId).run();
+        await failImportRun(c.env, runId, e);
       }
     })()
   );
@@ -205,7 +312,7 @@ app.post('/backfill-upc', async (c) => {
 // eBay sold-price pass. Repeat or let the daily cron continue from there.
 app.post('/populate-coverage', async (c) => {
   await c.env.DB.prepare(
-    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
+    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',progress_label='Stopped',completed_at=datetime('now'),updated_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
   ).run();
 
   const active = await c.env.DB.prepare(
@@ -213,10 +320,13 @@ app.post('/populate-coverage', async (c) => {
   ).first<{ id: number }>();
   if (active) return c.json({ error: 'An import or coverage job is already running.', run_id: active.id }, 409);
 
-  const run = await c.env.DB.prepare(
-    "INSERT INTO import_runs (status, error) VALUES ('running', ?)"
-  ).bind('method:populate-coverage barcode_pages:4 ebay_limit:2').run();
-  const runId = run.meta.last_row_id;
+  const runId = await createImportRun(
+    c.env,
+    'populate_coverage',
+    'Starting coverage slice',
+    2002,
+    'method:populate-coverage barcode_pages:4 ebay_limit:2',
+  );
 
   c.executionCtx.waitUntil(
     (async () => {
@@ -226,35 +336,32 @@ app.post('/populate-coverage', async (c) => {
           startPage,
           maxPages: 4,
           onProgress: async (p) => {
-            await c.env.DB.prepare(
-              `UPDATE import_runs SET sets_loaded=?,sets_skipped=?,error=? WHERE id=?`
-            ).bind(
-              p.filled,
-              p.processed,
-              `method:populate-coverage barcode_start:${startPage} next_page:${p.nextPage ?? ''} barcode_complete:${p.complete}`,
-              runId,
-            ).run();
+            await updateImportRunProgress(c.env, runId, {
+              current: p.processed,
+              total: p.complete ? p.processed + 2 : Math.max(2002, p.processed + 2),
+              label: p.complete ? 'Checking eBay sold comps' : `Barcode page ${p.nextPage ? p.nextPage - 1 : startPage}`,
+              setsLoaded: p.filled,
+              setsSkipped: p.processed,
+              note: `method:populate-coverage barcode_start:${startPage} next_page:${p.nextPage ?? ''} barcode_complete:${p.complete}`,
+            });
           },
         });
+        await updateImportRunProgress(c.env, runId, {
+          current: barcode.processed,
+          total: barcode.processed + 2,
+          label: 'Checking eBay sold comps',
+        });
         const ebay = await runEbayBackfill(c.env, { limit: 2 });
-        await c.env.DB.prepare(`
-          UPDATE import_runs
-          SET status='completed',
-              completed_at=datetime('now'),
-              sets_loaded=?,
-              sets_skipped=?,
-              error=?
-          WHERE id=?
-        `).bind(
-          barcode.filled + ebay.updated,
-          barcode.processed + ebay.processed,
-          barcode.note ?? `method:populate-coverage barcode:${barcode.filled}/${barcode.processed} ebay:${ebay.updated}/${ebay.processed} next_page:${barcode.nextPage ?? ''}`,
-          runId,
-        ).run();
+        await completeImportRun(c.env, runId, {
+          current: barcode.processed + ebay.processed,
+          total: barcode.processed + ebay.processed,
+          label: 'Coverage slice completed',
+          setsLoaded: barcode.filled + ebay.updated,
+          setsSkipped: barcode.processed + ebay.processed,
+          note: barcode.note ?? `method:populate-coverage barcode:${barcode.filled}/${barcode.processed} ebay:${ebay.updated}/${ebay.processed} next_page:${barcode.nextPage ?? ''}`,
+        });
       } catch (e) {
-        await c.env.DB.prepare(
-          "UPDATE import_runs SET status='error',error=?,completed_at=datetime('now') WHERE id=?"
-        ).bind((e as Error).message, runId).run();
+        await failImportRun(c.env, runId, e);
       }
     })()
   );
@@ -279,7 +386,7 @@ app.post('/revalue-brickeconomy', async (c) => {
   }
 
   await c.env.DB.prepare(
-    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
+    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',progress_label='Stopped',completed_at=datetime('now'),updated_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
   ).run();
 
   const active = await c.env.DB.prepare(
@@ -287,10 +394,13 @@ app.post('/revalue-brickeconomy', async (c) => {
   ).first<{ id: number }>();
   if (active) return c.json({ error: 'An import or valuation job is already running.', run_id: active.id }, 409);
 
-  const run = await c.env.DB.prepare(
-    "INSERT INTO import_runs (status, error) VALUES ('running', ?)"
-  ).bind(`method:valuation scope:${scope} limit:${limit}`).run();
-  const runId = run.meta.last_row_id;
+  const runId = await createImportRun(
+    c.env,
+    'valuation',
+    `Starting ${scope} valuation`,
+    limit,
+    `method:valuation scope:${scope} limit:${limit}`,
+  );
 
   c.executionCtx.waitUntil(
     (async () => {
@@ -299,25 +409,25 @@ app.post('/revalue-brickeconomy', async (c) => {
           scope: scope === 'owned' ? 'owned' : 'all',
           includeFresh: scope === 'all',
           limit,
+          onProgress: async (p) => updateImportRunProgress(c.env, runId, {
+            current: p.processed,
+            total: p.total,
+            label: p.currentSet ? `Revaluing ${p.currentSet}` : 'Revaluing prices',
+            setsLoaded: p.updated,
+            setsSkipped: p.processed,
+            note: `method:valuation scope:${scope} limit:${limit} processed:${p.processed} updated:${p.updated}`,
+          }),
         });
-        await c.env.DB.prepare(`
-          UPDATE import_runs
-          SET status='completed',
-              completed_at=datetime('now'),
-              sets_loaded=?,
-              sets_skipped=?,
-              error=?
-          WHERE id=?
-        `).bind(
-          result.updated,
-          result.processed,
-          `method:valuation scope:${scope} limit:${limit} processed:${result.processed} updated:${result.updated}`,
-          runId,
-        ).run();
+        await completeImportRun(c.env, runId, {
+          current: result.processed,
+          total: result.processed,
+          label: 'Valuation batch completed',
+          setsLoaded: result.updated,
+          setsSkipped: result.processed,
+          note: `method:valuation scope:${scope} limit:${limit} processed:${result.processed} updated:${result.updated}`,
+        });
       } catch (err) {
-        await c.env.DB.prepare(
-          "UPDATE import_runs SET status='error',error=?,completed_at=datetime('now') WHERE id=?"
-        ).bind((err as Error).message, runId).run();
+        await failImportRun(c.env, runId, err);
       }
     })()
   );
@@ -344,10 +454,10 @@ app.post('/expire-valuations', async (c) => {
 app.get('/import-status', async (c) => {
   // Auto-expire jobs stuck in 'running' for more than 30 minutes.
   await c.env.DB.prepare(
-    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
+    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',progress_label='Stopped',completed_at=datetime('now'),updated_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
   ).run();
   const { results } = await c.env.DB.prepare(
-    `SELECT id, status, started_at, completed_at, themes_loaded, sets_loaded, sets_skipped, figs_loaded, error
+    `SELECT ${IMPORT_RUN_FIELDS}
      FROM import_runs
      ORDER BY started_at DESC
      LIMIT 8`

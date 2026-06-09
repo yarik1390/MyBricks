@@ -4,6 +4,7 @@ import {
   escapeHtml, fmtPct, clamp, themeHue, bricklinkBuyURL,
   computeDealScore, valuationTrust, catalogFilterSummary, classifyJobRun,
   annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition,
+  jobProgressSummary,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -253,6 +254,31 @@ describe('classifyJobRun', () => {
     const job = classifyJobRun({ status: 'expired', error: 'Worker run stopped before completion' });
     assert.equal(job.label, 'Stopped');
     assert.equal(job.retryable, true);
+  });
+});
+
+describe('jobProgressSummary', () => {
+  it('formats determinate running progress', () => {
+    const progress = jobProgressSummary({
+      status: 'running',
+      progress_current: 25,
+      progress_total: 100,
+      progress_label: 'Importing sets',
+    });
+    assert.equal(progress.pct, 25);
+    assert.equal(progress.countText, '25 / 100');
+    assert.equal(progress.active, true);
+    assert.equal(progress.label, 'Importing sets');
+  });
+
+  it('shows completed jobs as full progress', () => {
+    const progress = jobProgressSummary({
+      status: 'completed',
+      progress_current: 3,
+      progress_total: 4,
+    });
+    assert.equal(progress.pct, 100);
+    assert.equal(progress.active, false);
   });
 });
 

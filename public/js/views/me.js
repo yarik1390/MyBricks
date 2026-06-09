@@ -3,8 +3,12 @@ import { state, invalidatePortfolio } from '../state.js';
 import { api, sbSignOut, _authSession, isGuestMode, guestCollectionCSVBlob } from '../api.js';
 import { I } from '../icons.js';
 import { confirmSheet, promptSheet, showSheet, hideSheet } from '../components/sheet.js';
-import { classifyJobRun } from '../lib/pure.js';
+import { classifyJobRun, jobProgressSummary } from '../lib/pure.js';
 import { go } from '../router.js';
+
+let activeAdminRunId = null;
+let activeAdminTool = null;
+let adminJobPollTimer = null;
 
 export async function renderMe() {
   let me = state.me;
@@ -902,48 +906,138 @@ function showSearchableTrophyPicker(currentSetNums) {
   $("#trophyPickerClose").addEventListener("click", hideSheet);
 }
 
+const ADMIN_JOB_TOOLS = {
+  sets: { url: "/api/admin/import-rebrickable", method: "POST", body: { dataset: "sets" }, desc: "importSetsDesc", btn: "importSetsBtn", text: "Importing sets...", idle: "~22k sets from Rebrickable with themes & images" },
+  figs: { url: "/api/admin/import-rebrickable", method: "POST", body: { dataset: "figs" }, desc: "importFigsDesc", btn: "importFigsBtn", text: "Importing figs...", idle: "~10k minifigures from Rebrickable" },
+  upc: { url: "/api/admin/backfill-upc", method: "POST", body: {}, desc: "backfillUpcDesc", btn: "backfillUpcBtn", text: "Backfilling UPC...", idle: "Daily safe slices from Brickset; press to advance now" },
+  populate: { url: "/api/admin/populate-coverage", method: "POST", body: {}, desc: "populateCoverageDesc", btn: "populateCoverageBtn", text: "Populating coverage...", idle: "One safe slice: barcode pages plus eBay sold prices" },
+  revalue: { url: "/api/admin/revalue-brickeconomy", method: "POST", body: { scope: "all", limit: 4 }, desc: "revalueAllDesc", btn: "revalueAllBtn", text: "Revaluing prices...", idle: "Daily safe valuation batches; press to advance now" }
+};
+
+function adminToolFromJobType(jobType = "") {
+  if (jobType === "catalog_sets") return "sets";
+  if (jobType === "catalog_figs") return "figs";
+  if (jobType === "catalog_all") return "sets";
+  if (jobType === "barcode_backfill") return "upc";
+  if (jobType === "populate_coverage") return "populate";
+  if (jobType === "valuation") return "revalue";
+  return null;
+}
+
+function setAdminJobButtons(runningType = null) {
+  Object.entries(ADMIN_JOB_TOOLS).forEach(([key, cfg]) => {
+    const btn = document.getElementById(cfg.btn);
+    if (!btn) return;
+    const busy = !!runningType;
+    btn.disabled = busy;
+    btn.setAttribute("aria-busy", busy && key === runningType ? "true" : "false");
+  });
+}
+
+function setAdminJobDescriptions(runningType = null, text = "") {
+  Object.entries(ADMIN_JOB_TOOLS).forEach(([key, cfg]) => {
+    const desc = document.getElementById(cfg.desc);
+    if (!desc) return;
+    desc.textContent = runningType && key === runningType ? (text || cfg.text) : cfg.idle;
+  });
+}
+
+function scheduleAdminJobPoll(delay = 2500) {
+  if (adminJobPollTimer) clearTimeout(adminJobPollTimer);
+  if (location.hash !== "#/me") return;
+  adminJobPollTimer = setTimeout(() => {
+    adminJobPollTimer = null;
+    updateJobsStatus();
+  }, delay);
+}
+
 async function triggerImport(type) {
-  const map = {
-    sets: { url: "/api/admin/import-rebrickable", method: "POST", body: { dataset: "sets" }, desc: "importSetsDesc", text: "Importing sets..." },
-    figs: { url: "/api/admin/import-rebrickable", method: "POST", body: { dataset: "figs" }, desc: "importFigsDesc", text: "Importing figs..." },
-    upc: { url: "/api/admin/backfill-upc", method: "POST", body: {}, desc: "backfillUpcDesc", text: "Backfilling UPC..." },
-    populate: { url: "/api/admin/populate-coverage", method: "POST", body: {}, desc: "populateCoverageDesc", text: "Populating coverage..." },
-    revalue: { url: "/api/admin/revalue-brickeconomy", method: "POST", body: { scope: "all", limit: 4 }, desc: "revalueAllDesc", text: "Revaluing prices..." }
-  };
-  const cnf = map[type];
+  const cnf = ADMIN_JOB_TOOLS[type];
   if (!cnf) return;
+  if (activeAdminRunId) {
+    toast("A catalog job is already running", "info");
+    scheduleAdminJobPoll(500);
+    return;
+  }
   haptic("medium");
   const descEl = document.getElementById(cnf.desc);
   const origText = descEl ? descEl.textContent : "";
   if (descEl) descEl.textContent = cnf.text;
+  setAdminJobButtons(type);
   try {
     const r = await api(cnf.url, { method: cnf.method, body: cnf.body });
-    toast(r.message || r.status || "Job started successfully", "success");
-    setTimeout(updateJobsStatus, 500);
+    activeAdminRunId = r.run_id || null;
+    activeAdminTool = type;
+    toast(r.message || `Job #${activeAdminRunId || ""} started`, "success");
+    await updateJobsStatus();
+    scheduleAdminJobPoll(1200);
   } catch (e) {
     toast("Job failed: " + e.message, "error");
-  } finally {
     if (descEl) descEl.textContent = origText;
+    activeAdminRunId = null;
+    activeAdminTool = null;
+    setAdminJobButtons(null);
+    setAdminJobDescriptions(null);
   }
 }
 
 async function updateJobsStatus() {
   const container = document.getElementById("jobsStatusContainer");
   if (!container) return;
+  const ago = (ts) => {
+    if (!ts) return "";
+    const then = new Date(String(ts).replace(" ", "T") + "Z").getTime();
+    const mins = Math.round((Date.now() - then) / 60000);
+    if (!Number.isFinite(mins)) return "";
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.round(mins / 60);
+    return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
+  };
   try {
     const data = await api("/api/admin/import-status");
     const runs = data.runs || [];
     if (runs.length === 0) {
+      activeAdminRunId = null;
+      activeAdminTool = null;
+      setAdminJobButtons(null);
+      setAdminJobDescriptions(null);
+      if (adminJobPollTimer) {
+        clearTimeout(adminJobPollTimer);
+        adminJobPollTimer = null;
+      }
       container.innerHTML = `<div style="color:var(--ink-mute);">No jobs have run yet.</div>`;
       return;
     }
 
     const classified = runs.map(run => ({ run, state: classifyJobRun(run) }));
+    const runningRun = runs.find(run => String(run.status || "").toLowerCase() === "running");
+    if (runningRun) {
+      activeAdminRunId = runningRun.id;
+      activeAdminTool = adminToolFromJobType(runningRun.job_type) || activeAdminTool;
+    } else {
+      activeAdminRunId = null;
+      activeAdminTool = null;
+    }
+    const runningProgress = runningRun ? jobProgressSummary(runningRun) : null;
+    setAdminJobButtons(activeAdminTool || (runningRun ? "active" : null));
+    setAdminJobDescriptions(activeAdminTool, runningProgress?.label);
     const isStoppedRun = (run) => classifyJobRun(run).label === "Stopped" || /Timed out|Worker run stopped/i.test(String(run.error || ""));
     const hasCompleted = classified.some(x => x.state.label === "Completed");
     const hasRunning = classified.some(x => x.state.label === "Running");
     const retryableCount = classified.filter(x => x.state.retryable).length;
     const hardErrors = classified.filter(x => x.state.needsAttention);
+    const activeProgressHTML = runningRun && runningProgress ? `
+      <div style="margin-top:9px;">
+        <div style="display:flex;justify-content:space-between;gap:10px;font-size:11px;color:var(--ink-soft);margin-bottom:5px;">
+          <span>${escapeHtml(runningProgress.label)}</span>
+          <span>${escapeHtml(runningProgress.countText || "working")}${runningProgress.pct != null ? ` / ${runningProgress.pct}%` : ""}</span>
+        </div>
+        <div style="height:8px;border:1px solid var(--line);border-radius:var(--r-full);background:var(--surface);overflow:hidden;">
+          <div style="height:100%;width:${runningProgress.pct ?? 32}%;background:var(--bv-yellow);transition:width .25s ease;"></div>
+        </div>
+      </div>
+    ` : "";
     const summaryHTML = `
       <div style="border:1.5px solid var(--line-soft);border-radius:var(--r-2);background:var(--surface-2);padding:10px 12px;margin-bottom:10px;">
         <div style="font-weight:700;font-size:12px;color:${hardErrors.length ? "var(--bv-red)" : hasRunning ? "var(--bv-yellow)" : "var(--up)"};">
@@ -952,6 +1046,7 @@ async function updateJobsStatus() {
         <div style="font-size:11px;color:var(--ink-mute);line-height:1.45;margin-top:3px;">
           Provider no-data and stopped slices are safe to retry. D1/SQLite corruption and access errors are highlighted as hard failures.
         </div>
+        ${activeProgressHTML}
       </div>`;
 
     container.innerHTML = summaryHTML + runs.map(run => {
@@ -961,6 +1056,7 @@ async function updateJobsStatus() {
         : jobState.tone === "danger" ? "var(--bv-red)"
         : "var(--ink-mute)";
       const statusText = jobState.label.toUpperCase();
+      const progress = jobProgressSummary(run);
 
       const dateStr = run.started_at ? new Date(run.started_at.replace(" ", "T") + "Z").toLocaleString() : "Unknown date";
       const details = [];
@@ -982,6 +1078,21 @@ async function updateJobsStatus() {
       if (!(run.error && String(run.error).includes('method:')) && run.sets_skipped) details.push(`${run.sets_skipped} skipped/processed`);
       if (jobState.retryable && !details.length) details.push("safe to retry");
       if (jobState.needsAttention) details.push("check diagnostics");
+      if (progress.countText && !details.includes(progress.countText)) details.unshift(progress.countText);
+      const updatedText = run.updated_at ? `Updated ${ago(run.updated_at)}` : "";
+      const progressHTML = progress.pct != null ? `
+        <div style="margin-top:6px;">
+          <div style="display:flex;justify-content:space-between;gap:8px;font-size:10px;color:var(--ink-mute);margin-bottom:4px;">
+            <span>${escapeHtml(progress.label)}</span>
+            <span>${progress.pct}%</span>
+          </div>
+          <div style="height:6px;border:1px solid var(--line-soft);border-radius:var(--r-full);background:var(--surface-2);overflow:hidden;">
+            <div style="height:100%;width:${progress.pct}%;background:${statusColor};transition:width .25s ease;"></div>
+          </div>
+        </div>
+      ` : progress.active ? `
+        <div style="margin-top:6px;font-size:10px;color:var(--ink-mute);">${escapeHtml(progress.label)}...</div>
+      ` : "";
       const errorHTML = run.error ? `<div style="color:${statusColor};font-size:11px;margin-top:3px;overflow-wrap:anywhere;">${escapeHtml(String(run.error))}</div>` : "";
 
       return `
@@ -994,15 +1105,21 @@ async function updateJobsStatus() {
             <span>Started: ${dateStr}</span>
             <span>${details.join(", ") || "No items processed"}</span>
           </div>
+          ${updatedText ? `<div style="font-size:10px;color:var(--ink-faint);margin-top:2px;">${escapeHtml(updatedText)}</div>` : ""}
+          ${progressHTML}
           ${errorHTML}
         </div>
       `;
     }).join("");
 
     if (hasRunning && location.hash === "#/me") {
-      setTimeout(updateJobsStatus, 5000);
+      scheduleAdminJobPoll(2500);
+    } else if (adminJobPollTimer) {
+      clearTimeout(adminJobPollTimer);
+      adminJobPollTimer = null;
     }
   } catch (err) {
+    setAdminJobButtons(null);
     container.innerHTML = `<div style="color:var(--bv-red);">Failed to load jobs: ${escapeHtml(err.message)}</div>`;
   }
 }

@@ -4,8 +4,8 @@ import { runEbayBackfill, runValuateSets } from './valuate-sets';
 
 async function startRun(env: Env, label: string): Promise<number> {
   const run = await env.DB.prepare(
-    "INSERT INTO import_runs (status, error) VALUES ('running', ?)"
-  ).bind(label).run();
+    "INSERT INTO import_runs (job_type,status,error,progress_label,progress_current,updated_at) VALUES ('daily','running',?,?,0,datetime('now'))"
+  ).bind(label, label).run();
   return Number(run.meta.last_row_id);
 }
 
@@ -14,22 +14,26 @@ async function completeRun(env: Env, runId: number, loaded: number, processed: n
     UPDATE import_runs
     SET status='completed',
         completed_at=datetime('now'),
+        updated_at=datetime('now'),
+        progress_current=?,
+        progress_total=?,
+        progress_label='Completed',
         sets_loaded=?,
         sets_skipped=?,
         error=?
     WHERE id=?
-  `).bind(loaded, processed, note, runId).run();
+  `).bind(processed, processed, loaded, processed, note, runId).run();
 }
 
 async function failRun(env: Env, runId: number, error: unknown): Promise<void> {
   await env.DB.prepare(
-    "UPDATE import_runs SET status='error',error=?,completed_at=datetime('now') WHERE id=?"
+    "UPDATE import_runs SET status='error',error=?,progress_label='Failed',completed_at=datetime('now'),updated_at=datetime('now') WHERE id=?"
   ).bind((error as Error)?.message || String(error), runId).run();
 }
 
 async function activeRun(env: Env): Promise<{ id: number } | null> {
   await env.DB.prepare(
-    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',completed_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
+    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',progress_label='Stopped',completed_at=datetime('now'),updated_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
   ).run();
   return await env.DB.prepare(
     `SELECT id FROM import_runs WHERE status='running' AND started_at > datetime('now','-30 minutes') LIMIT 1`
@@ -45,10 +49,13 @@ export async function runDailyBarcodeMaintenance(env: Env, maxPages = 12) {
       maxPages,
       onProgress: async (p) => {
         await env.DB.prepare(
-          `UPDATE import_runs SET sets_loaded=?,sets_skipped=?,error=? WHERE id=?`
+          `UPDATE import_runs SET sets_loaded=?,sets_skipped=?,progress_current=?,progress_total=?,progress_label=?,error=?,updated_at=datetime('now') WHERE id=?`
         ).bind(
           p.filled,
           p.processed,
+          p.processed,
+          p.complete ? p.processed : Math.max(maxPages * 500, p.processed),
+          p.complete ? 'Barcode backfill complete' : `Barcode page ${p.nextPage ? p.nextPage - 1 : startPage}`,
           `method:bulk-daily start_page:${startPage} next_page:${p.nextPage ?? ''} complete:${p.complete}`,
           runId,
         ).run();
@@ -82,6 +89,19 @@ export async function runDailyValuationMaintenance(env: Env, limit = 4) {
       scope: 'all',
       includeFresh: true,
       limit: safeLimit,
+      onProgress: async (p) => {
+        await env.DB.prepare(
+          `UPDATE import_runs SET sets_loaded=?,sets_skipped=?,progress_current=?,progress_total=?,progress_label=?,error=?,updated_at=datetime('now') WHERE id=?`
+        ).bind(
+          p.updated,
+          p.processed,
+          p.processed,
+          p.total,
+          p.currentSet ? `Revaluing ${p.currentSet}` : 'Revaluing prices',
+          `method:valuation-daily scope:all limit:${safeLimit} processed:${p.processed} updated:${p.updated}`,
+          runId,
+        ).run();
+      },
     });
 
     await completeRun(

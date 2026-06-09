@@ -144,6 +144,33 @@ export function classifyJobRun(run = {}) {
   return { tone: "neutral", label: status || "Unknown", needsAttention: false, retryable: false };
 }
 
+export function jobProgressSummary(run = {}) {
+  const status = String(run.status || "").toLowerCase();
+  const current = Math.max(0, Number(run.progress_current ?? 0) || 0);
+  const rawTotal = Number(run.progress_total ?? 0) || 0;
+  const total = rawTotal > 0 ? rawTotal : 0;
+  const completed = status === "completed";
+  const pct = total > 0
+    ? Math.round(clamp((current / total) * 100, completed ? 100 : 2, 100))
+    : completed ? 100 : null;
+  const label = String(run.progress_label || "")
+    || (status === "running" ? "Working" : status === "completed" ? "Completed" : status || "Waiting");
+  const countText = total > 0
+    ? `${Math.min(current, total).toLocaleString()} / ${total.toLocaleString()}`
+    : current > 0
+      ? current.toLocaleString()
+      : "";
+  return {
+    current,
+    total,
+    pct,
+    label,
+    countText,
+    determinate: total > 0,
+    active: status === "running",
+  };
+}
+
 /**
  * Converts an annualized ROI rate and years owned into an annualized percentage.
  * Pure arithmetic wrapper used by portfolio ROI badge rendering.
