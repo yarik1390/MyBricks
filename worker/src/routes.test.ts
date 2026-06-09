@@ -74,6 +74,9 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       'DROP TABLE IF EXISTS import_runs',
       'DROP TABLE IF EXISTS minifigs',
       'DROP TABLE IF EXISTS lego_sets_fts',
+      'DROP TABLE IF EXISTS rate_limits',
+      'DROP TABLE IF EXISTS oauth_sessions',
+      'DROP TABLE IF EXISTS oauth_states',
 
       `CREATE TABLE lego_sets (
         set_num TEXT PRIMARY KEY, name TEXT NOT NULL, theme TEXT, year INTEGER,
@@ -150,6 +153,12 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         added_at TEXT DEFAULT CURRENT_TIMESTAMP,
         source TEXT
       )`,
+      `CREATE TABLE rate_limits (
+        user_id TEXT NOT NULL, endpoint TEXT NOT NULL, window_start TEXT NOT NULL,
+        hit_count INTEGER DEFAULT 0, PRIMARY KEY (user_id, endpoint, window_start)
+      )`,
+      `CREATE TABLE oauth_sessions (code TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL)`,
+      `CREATE TABLE oauth_states (state TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL)`,
 
       `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
        VALUES ('75192', 'Millennium Falcon', 'Star Wars', 2017, 7541, 849.99, 799.99, 1)`,
@@ -603,5 +612,80 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const searchData = await search.json<any>();
       expect(searchData.sets.some((set: any) => set.set_num === '75192')).toBe(true);
     });
+  });
+});
+
+describe('DB hygiene job', () => {
+  // Own schema setup — this suite is outside the route-coverage describe, so
+  // it can't rely on that suite's beforeEach having run.
+  beforeEach(async () => {
+    const db = (env as any).DB as D1Database;
+    const sqls = [
+      'DROP TABLE IF EXISTS rate_limits',
+      'DROP TABLE IF EXISTS oauth_sessions',
+      'DROP TABLE IF EXISTS oauth_states',
+      'DROP TABLE IF EXISTS import_runs',
+      `CREATE TABLE rate_limits (
+        user_id TEXT NOT NULL, endpoint TEXT NOT NULL, window_start TEXT NOT NULL,
+        hit_count INTEGER DEFAULT 0, PRIMARY KEY (user_id, endpoint, window_start)
+      )`,
+      `CREATE TABLE oauth_sessions (code TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL)`,
+      `CREATE TABLE oauth_states (state TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL)`,
+      `CREATE TABLE import_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, job_type TEXT, status TEXT DEFAULT 'running',
+        started_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        completed_at TEXT, progress_current INTEGER DEFAULT 0, progress_total INTEGER,
+        progress_label TEXT, themes_loaded INTEGER, sets_loaded INTEGER, sets_skipped INTEGER,
+        figs_loaded INTEGER, error TEXT
+      )`,
+    ];
+    for (const sql of sqls) await db.prepare(sql).run();
+  });
+
+  it('purges stale rate limits, expired oauth nonces, and old import runs', async () => {
+    const db = (env as any).DB as D1Database;
+    const { runDbHygiene } = await import('./jobs/db-hygiene');
+
+    await db.batch([
+      // rate_limits: one stale (3 days old), one live (current hour)
+      db.prepare(`INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+                  VALUES ('u1', 'scan_image', datetime('now', '-3 days'), 5)`),
+      db.prepare(`INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+                  VALUES ('u1', 'scan_image', datetime('now'), 2)`),
+      // oauth nonces: one expired 2 days ago, one still valid
+      db.prepare(`INSERT INTO oauth_sessions (code, user_id, expires_at) VALUES ('old', 'u1', unixepoch() - 172800)`),
+      db.prepare(`INSERT INTO oauth_sessions (code, user_id, expires_at) VALUES ('live', 'u1', unixepoch() + 300)`),
+      db.prepare(`INSERT INTO oauth_states (state, user_id, expires_at) VALUES ('old', 'u1', unixepoch() - 172800)`),
+      // import_runs: one ancient (60 days), one recent
+      db.prepare(`INSERT INTO import_runs (job_type, status, started_at) VALUES ('daily', 'completed', datetime('now', '-60 days'))`),
+      db.prepare(`INSERT INTO import_runs (job_type, status, started_at) VALUES ('daily', 'completed', datetime('now'))`),
+    ]);
+
+    const result = await runDbHygiene(env as any);
+    expect(result.deleted.rate_limits).toBe(1);
+    expect(result.deleted.oauth_sessions).toBe(1);
+    expect(result.deleted.oauth_states).toBe(1);
+
+    const rl = await db.prepare('SELECT COUNT(*) AS n FROM rate_limits').first<{ n: number }>();
+    expect(rl?.n).toBe(1);
+    const sessions = await db.prepare('SELECT code FROM oauth_sessions').all<{ code: string }>();
+    expect(sessions.results.map(r => r.code)).toEqual(['live']);
+  });
+
+  it('keeps the 20 most recent import runs even when older than 30 days', async () => {
+    const db = (env as any).DB as D1Database;
+    const { runDbHygiene } = await import('./jobs/db-hygiene');
+
+    // 25 ancient runs: with only these in the table, the 20 newest survive.
+    for (let i = 0; i < 25; i++) {
+      await db.prepare(
+        `INSERT INTO import_runs (job_type, status, started_at) VALUES ('daily', 'completed', datetime('now', ?))`
+      ).bind(`-${40 + i} days`).run();
+    }
+
+    const result = await runDbHygiene(env as any);
+    expect(result.deleted.import_runs).toBe(5);
+    const remaining = await db.prepare('SELECT COUNT(*) AS n FROM import_runs').first<{ n: number }>();
+    expect(remaining?.n).toBe(20);
   });
 });

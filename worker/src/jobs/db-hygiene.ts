@@ -1,0 +1,27 @@
+import type { Env } from '../types';
+
+// Daily cleanup of unbounded tables. Each table accumulates rows that are only
+// useful for a short window: rate-limit counters, short-lived OAuth nonces, and
+// import job history. Without this, they grow forever on a busy deployment.
+export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, number> }> {
+  const stmts = [
+    // Hourly/daily windows — anything older than 48h can never match a live window.
+    env.DB.prepare(`DELETE FROM rate_limits WHERE window_start < datetime('now', '-48 hours')`),
+    // OAuth nonces expire in minutes; keep a day of slack for clock skew, then purge.
+    env.DB.prepare(`DELETE FROM oauth_sessions WHERE expires_at < unixepoch() - 86400`),
+    env.DB.prepare(`DELETE FROM oauth_states WHERE expires_at < unixepoch() - 86400`),
+    // Job history: keep the 20 most recent runs regardless of age, drop the rest
+    // once they're older than 30 days.
+    env.DB.prepare(`
+      DELETE FROM import_runs
+      WHERE started_at < datetime('now', '-30 days')
+        AND id NOT IN (SELECT id FROM import_runs ORDER BY started_at DESC LIMIT 20)
+    `),
+  ];
+
+  const results = await env.DB.batch(stmts);
+  const tables = ['rate_limits', 'oauth_sessions', 'oauth_states', 'import_runs'];
+  const deleted: Record<string, number> = {};
+  results.forEach((r, i) => { deleted[tables[i]] = r.meta?.changes ?? 0; });
+  return { deleted };
+}
