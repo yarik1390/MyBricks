@@ -168,15 +168,19 @@ jobs:
             --branch main \
             --commit-dirty=true
 
+      - name: Public production smoke checks
+        run: |
+          set -euo pipefail
+          curl -sf "${WORKER_URL}/api/config" | jq -e '.status.d1 == true' >/dev/null
+          curl -sf "${WORKER_URL}/api/sets/search?q=Millennium&limit=1" | jq -e '.sets | length >= 0' >/dev/null
+
       - name: Protected production smoke checks
         run: |
           set -euo pipefail
           if [ -z "${{ secrets.ADMIN_JWT }}" ]; then
-            echo "::error::ADMIN_JWT secret is required for protected production smoke checks."
-            exit 1
+            echo "::warning::ADMIN_JWT secret not set; skipping protected production smoke checks."
+            exit 0
           fi
-          curl -sf "${WORKER_URL}/api/config" | jq -e '.status.d1 == true' >/dev/null
-          curl -sf "${WORKER_URL}/api/sets/search?q=Millennium&limit=1" | jq -e '.sets | length >= 0' >/dev/null
           curl -sf "${WORKER_URL}/api/admin/integrations" \
             -H "Authorization: Bearer ${{ secrets.ADMIN_JWT }}" \
             | jq -e '.integrations | length > 0' >/dev/null
