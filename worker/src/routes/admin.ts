@@ -530,8 +530,8 @@ app.post('/populate-everything', async (c) => {
   const body = await c.req.json<{ valuation_limit?: number; barcode_pages?: number; ebay_limit?: number }>()
     .catch(() => ({} as { valuation_limit?: number; barcode_pages?: number; ebay_limit?: number }));
   const valuationLimit = Number.isFinite(Number(body.valuation_limit)) && Number(body.valuation_limit) > 0
-    ? Math.min(Math.floor(Number(body.valuation_limit)), 3)
-    : 2;
+    ? Math.min(Math.floor(Number(body.valuation_limit)), 8)
+    : 6;
   const barcodePages = Number.isFinite(Number(body.barcode_pages)) && Number(body.barcode_pages) > 0
     ? Math.min(Math.floor(Number(body.barcode_pages)), 6)
     : 4;

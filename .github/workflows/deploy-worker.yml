@@ -228,36 +228,57 @@ jobs:
             -H "Authorization: Bearer ${ADMIN_JWT}" \
             | jq -e '.runs | type == "array"' >/dev/null
 
-      - name: Seed LEGO catalog via Worker API
-        run: |
-          if [ -z "${ADMIN_JWT:-}" ]; then
-            echo "Admin smoke token unavailable; skipping seed. Run import manually from the Me tab."
-            exit 0
-          fi
-          echo "Triggering catalog import at ${WORKER_URL} ..."
-          STATUS=$(curl -s -o /tmp/seed.json -w "%{http_code}" \
-            -X POST "${WORKER_URL}/api/admin/import-rebrickable" \
-            -H "Authorization: Bearer ${ADMIN_JWT}" \
-            -H "Content-Type: application/json" \
-            -d '{"dataset":"all"}')
-          echo "HTTP ${STATUS}"
-          cat /tmp/seed.json
-
-      - name: Start full data population slice
+      - name: Start full data population campaign
         run: |
           set -euo pipefail
           if [ -z "${ADMIN_JWT:-}" ]; then
             echo "Admin smoke token unavailable; skipping population. Run Populate everything manually from the Me tab."
             exit 0
           fi
-          echo "Starting one bounded full-source population slice at ${WORKER_URL} ..."
-          STATUS=$(curl -s -o /tmp/populate_everything.json -w "%{http_code}" \
-            -X POST "${WORKER_URL}/api/admin/populate-everything" \
-            -H "Authorization: Bearer ${ADMIN_JWT}" \
-            -H "Content-Type: application/json" \
-            -d '{"valuation_limit":2,"barcode_pages":4,"ebay_limit":2}')
-          echo "HTTP ${STATUS}"
-          cat /tmp/populate_everything.json
-          if [ "$STATUS" -ge 400 ] && [ "$STATUS" != "409" ]; then
-            exit 1
-          fi
+          for slice in 1 2 3 4; do
+            echo "Starting full-source population slice ${slice}/4 at ${WORKER_URL} ..."
+            STATUS=$(curl -s -o /tmp/populate_everything.json -w "%{http_code}" \
+              -X POST "${WORKER_URL}/api/admin/populate-everything" \
+              -H "Authorization: Bearer ${ADMIN_JWT}" \
+              -H "Content-Type: application/json" \
+              -d '{"valuation_limit":6,"barcode_pages":4,"ebay_limit":2}')
+            echo "HTTP ${STATUS}"
+            cat /tmp/populate_everything.json
+            if [ "$STATUS" = "409" ]; then
+              echo "A data job is already running; waiting before the next slice."
+              sleep 30
+              continue
+            fi
+            if [ "$STATUS" -ge 400 ]; then
+              exit 1
+            fi
+            if jq -e '.done == true' /tmp/populate_everything.json >/dev/null; then
+              echo "All configured and reachable sources are already populated."
+              break
+            fi
+            RUN_ID=$(jq -r '.run_id // empty' /tmp/populate_everything.json)
+            if [ -z "${RUN_ID}" ]; then
+              echo "No run id returned; stopping campaign."
+              break
+            fi
+            for poll in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do
+              sleep 10
+              curl -sf "${WORKER_URL}/api/admin/import-status/${RUN_ID}" \
+                -H "Authorization: Bearer ${ADMIN_JWT}" \
+                -o /tmp/populate_status.json
+              JOB_STATUS=$(jq -r '.status // empty' /tmp/populate_status.json)
+              JOB_LABEL=$(jq -r '.progress_label // empty' /tmp/populate_status.json)
+              echo "run ${RUN_ID}: ${JOB_STATUS} ${JOB_LABEL}"
+              if [ "${JOB_STATUS}" = "completed" ]; then
+                if jq -e '.error // "" | test("complete:true")' /tmp/populate_status.json >/dev/null; then
+                  echo "Population campaign completed."
+                  exit 0
+                fi
+                break
+              fi
+              if [ "${JOB_STATUS}" = "error" ] || [ "${JOB_STATUS}" = "expired" ]; then
+                cat /tmp/populate_status.json
+                exit 1
+              fi
+            done
+          done
