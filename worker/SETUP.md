@@ -24,8 +24,8 @@ npx wrangler secret put SUPABASE_JWT_SECRET  # JWT secret from Supabase project 
 npx wrangler secret put ADMIN_USER_ID        # your Supabase user UUID
 npx wrangler secret put GOOGLE_CLIENT_ID     # optional; Google Sheets sync
 npx wrangler secret put GOOGLE_CLIENT_SECRET # optional; Google Sheets sync
-npx wrangler secret put EBAY_APP_ID          # optional; eBay sold comps
-npx wrangler secret put EBAY_CLIENT_SECRET   # optional; eBay sold comps
+npx wrangler secret put EBAY_APP_ID          # optional; eBay production App ID / Client ID
+npx wrangler secret put EBAY_CLIENT_SECRET   # optional; matching production Cert ID / Client Secret
 ```
 
 ## 4. Deploy Worker
@@ -100,8 +100,8 @@ http://127.0.0.1:8787/api/google/oauth
 | `BRICKLINK_CONSUMER_SECRET` | Worker secret / GitHub secret | Optional BrickLink valuation OAuth |
 | `BRICKLINK_TOKEN` | Worker secret / GitHub secret | Optional BrickLink valuation OAuth |
 | `BRICKLINK_TOKEN_SECRET` | Worker secret / GitHub secret | Optional BrickLink valuation OAuth |
-| `EBAY_APP_ID` | Worker secret / GitHub secret | Required with `EBAY_CLIENT_SECRET` for eBay US/USD sold comps |
-| `EBAY_CLIENT_SECRET` | Worker secret / GitHub secret | Required with `EBAY_APP_ID` for eBay Marketplace Insights OAuth |
+| `EBAY_APP_ID` | Worker secret / GitHub secret | Production eBay App ID / Client ID. Required with `EBAY_CLIENT_SECRET` for eBay US/USD sold comps |
+| `EBAY_CLIENT_SECRET` | Worker secret / GitHub secret | Matching production Cert ID / Client Secret. The keyset must also be approved for limited-release Marketplace Insights sold-comps access |
 | `BRICKECONOMY_API_KEY` | Worker secret / GitHub secret | Optional primary valuation source |
 | `BRICKOWL_API_KEY` | Worker secret / GitHub secret | Optional UPC fallback |
 | `ADMIN_JWT` | GitHub secret | Optional fallback only; CI now mints a one-hour admin smoke token from `SUPABASE_JWT_SECRET` and `ADMIN_USER_ID` |

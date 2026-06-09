@@ -24,7 +24,7 @@ GOOGLE_CLIENT_ID=your_google_oauth_client_id
 GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
 
 # Pricing and barcode providers (Optional)
-EBAY_APP_ID=your_ebay_app_id
-EBAY_CLIENT_SECRET=your_ebay_client_secret
+EBAY_APP_ID=your_ebay_production_app_id_or_client_id
+EBAY_CLIENT_SECRET=your_matching_ebay_production_cert_id_or_client_secret
 BRICKECONOMY_API_KEY=your_brickeconomy_api_key
 BRICKOWL_API_KEY=your_brickowl_api_key

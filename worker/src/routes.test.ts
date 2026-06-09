@@ -467,6 +467,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const ebay = data.integrations.find((row: any) => row.service === 'ebay');
       expect(ebay.status).toBe('degraded');
       expect(ebay.reachable).toBe(true);
+      expect(ebay.recommended_action).toContain('Marketplace Insights');
     });
 
     it('repairs the derived catalog search index with a narrow update trigger', async () => {

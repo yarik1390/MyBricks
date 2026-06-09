@@ -1034,6 +1034,8 @@ async function updateIntegrationsHealth() {
   const statusLabel = (r, standbyFallback = false) => {
     if (standbyFallback) return "Standby fallback";
     const latestFail = isLatestFailure(r);
+    if (latestFail && r.service === "ebay" && /OAuth|invalid[_ -]?client/i.test(r.last_error || "")) return "Check keys";
+    if (latestFail && r.service === "ebay" && /Marketplace Insights|HTTP 401|HTTP 403|access denied|insufficient permissions|invalid[_ -]?scope|not authorized/i.test(r.last_error || "")) return "Sold comps blocked";
     if (latestFail && /HTTP 401|HTTP 403|access denied|insufficient permissions|invalid[_ -]?scope|not authorized/i.test(r.last_error || "")) return "Needs access";
     if (latestFail && /Too many subrequests|operation was aborted|AbortError|timed out|timeout/i.test(r.last_error || "")) return "Batch limited";
     if (r.status === "unknown") return r.configured ? "Ready / no calls" : "Unconfigured";
@@ -1101,11 +1103,15 @@ async function updateIntegrationsHealth() {
       const color = standbyFallback ? statusColor("unknown") : statusColor(r.status);
       const hasAttempts = Number(r.ok_count || 0) + Number(r.fail_count || 0) > 0;
       const latestFail = isLatestFailure(r);
+      const isEbayAccessBlocked = latestFail && r.service === "ebay"
+        && /Marketplace Insights|HTTP 401|HTTP 403|access denied|insufficient permissions|invalid[_ -]?scope|not authorized|OAuth|invalid[_ -]?client/i.test(r.last_error || "");
       const timingText = standbyFallback ? "Brickset barcode backfill active" : hasAttempts
         ? latestFail ? `OK ${ago(r.last_ok_at)} / Fail ${ago(r.last_fail_at)}` : `Last OK ${ago(r.last_ok_at)}`
         : "No recent calls logged";
       const countText = standbyFallback ? "Not used" : hasAttempts
-        ? latestFail ? `${r.ok_count || 0} ok / ${r.fail_count || 0} fail` : `${r.ok_count || 0} ok / ${r.fail_count || 0} past fail`
+        ? isEbayAccessBlocked
+          ? `${r.fail_count || 0} blocked call${Number(r.fail_count || 0) === 1 ? "" : "s"}`
+          : latestFail ? `${r.ok_count || 0} ok / ${r.fail_count || 0} fail` : `${r.ok_count || 0} ok / ${r.fail_count || 0} past fail`
         : "Ready when used";
       const usedByText = standbyFallback
         ? "optional barcode fallback; not used while Brickset is available"

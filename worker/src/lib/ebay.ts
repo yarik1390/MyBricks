@@ -84,6 +84,36 @@ function hasConfiguredEbaySecrets(env: Env): boolean {
   );
 }
 
+export function isEbayAccessError(error?: string | null): boolean {
+  return !!error && /HTTP 401|HTTP 403|invalid[_ -]?client|invalid[_ -]?scope|access denied|insufficient permissions|not authorized|unauthorized|marketplace insights access/i.test(error);
+}
+
+async function ebayErrorMessage(resp: Response, context: string): Promise<string> {
+  const body = await resp.text().catch(() => '');
+  let detail = body.trim();
+  if (detail) {
+    try {
+      const parsed = JSON.parse(detail) as {
+        error?: string;
+        error_description?: string;
+        errors?: Array<{ message?: string; longMessage?: string; errorId?: number; domain?: string }>;
+      };
+      const first = parsed.errors?.[0];
+      detail = parsed.error_description
+        || parsed.error
+        || first?.longMessage
+        || first?.message
+        || detail;
+      if (first?.errorId || first?.domain) {
+        detail = `${detail} (${[first.domain, first.errorId].filter(Boolean).join(' ')})`;
+      }
+    } catch {
+      detail = detail.slice(0, 240);
+    }
+  }
+  return `${context} HTTP ${resp.status}${detail ? `: ${detail}` : ''}`;
+}
+
 async function getEbayApplicationToken(
   env: Env,
   scope: string,
@@ -106,7 +136,9 @@ async function getEbayApplicationToken(
     body,
   }, { retries: 1, timeoutMs: 8000, record: options.recordHealth !== false });
 
-  if (!resp.ok) return null;
+  if (!resp.ok) {
+    throw new Error(await ebayErrorMessage(resp, 'eBay OAuth'));
+  }
   const data = await resp.json() as { access_token?: string; expires_in?: number };
   if (!data.access_token) return null;
 
@@ -192,7 +224,7 @@ async function fetchMarketplaceInsightsCondition(
   );
 
   if (!resp.ok) {
-    throw new Error(`HTTP ${resp.status}`);
+    throw new Error(await ebayErrorMessage(resp, 'eBay Marketplace Insights'));
   }
 
   const data = await resp.json() as { itemSales?: MarketplaceSaleItem[] };
@@ -248,27 +280,38 @@ export async function fetchEbaySoldPrices(
     };
   }
 
-  const [newResult, usedResult] = await Promise.all([
-    fetchMarketplaceInsightsCondition(token, setNum, 'new', env, options).catch((error) => ({
-      value: null,
-      sample_count: 0,
-      valid_count: 0,
-      filtered_count: 0,
-      error: (error as Error).message || String(error),
-    })),
-    fetchMarketplaceInsightsCondition(token, setNum, 'used', env, options).catch((error) => ({
-      value: null,
-      sample_count: 0,
-      valid_count: 0,
-      filtered_count: 0,
-      error: (error as Error).message || String(error),
-    })),
-  ]);
+  const newResult = await fetchMarketplaceInsightsCondition(token, setNum, 'new', env, options).catch((error) => ({
+    value: null,
+    sample_count: 0,
+    valid_count: 0,
+    filtered_count: 0,
+    error: (error as Error).message || String(error),
+  }));
+
+  if (isEbayAccessError(newResult.error)) {
+    return {
+      source: 'marketplace_insights',
+      status: 'unauthorized',
+      new_value: null,
+      used_value: null,
+      new_sample_count: 0,
+      used_sample_count: 0,
+      error: newResult.error,
+    };
+  }
+
+  const usedResult = await fetchMarketplaceInsightsCondition(token, setNum, 'used', env, options).catch((error) => ({
+    value: null,
+    sample_count: 0,
+    valid_count: 0,
+    filtered_count: 0,
+    error: (error as Error).message || String(error),
+  }));
 
   const hasValue = newResult.value != null || usedResult.value != null;
   const hadSamples = newResult.valid_count > 0 || usedResult.valid_count > 0;
   const errors = [newResult.error, usedResult.error].filter(Boolean).join('; ') || null;
-  const unauthorized = /401|403|authorized|scope|permission/i.test(errors || '');
+  const unauthorized = isEbayAccessError(errors);
   const status: EbaySoldStatus = hasValue
     ? (newResult.value != null && usedResult.value != null ? 'ok' : 'partial')
     : errors

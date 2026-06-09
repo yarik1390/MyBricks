@@ -5,6 +5,7 @@ import { parseNextBackfillPage } from './jobs/backfill-upc';
 import {
   __resetEbayTokenCacheForTests,
   fetchEbaySoldPrices,
+  isEbayAccessError,
   isValidLegoSetSaleTitle,
   summarizeSoldPrices,
 } from './lib/ebay';
@@ -37,6 +38,18 @@ describe('classifyHealth', () => {
       last_error: 'The operation was aborted',
       ok_count: 0,
       fail_count: 4,
+      updated_at: '2026-06-08 12:10:00',
+    })).toBe('degraded');
+  });
+
+  it('recognizes eBay OAuth and Marketplace Insights access failures', () => {
+    expect(classifyHealth({
+      service: 'ebay',
+      last_ok_at: null,
+      last_fail_at: '2026-06-08 12:10:00',
+      last_error: 'eBay OAuth HTTP 401: invalid_client',
+      ok_count: 0,
+      fail_count: 1,
       updated_at: '2026-06-08 12:10:00',
     })).toBe('degraded');
   });
@@ -116,6 +129,44 @@ describe('eBay sold comps', () => {
       expect(result.status).toBe('unauthorized');
       expect(result.new_value).toBeNull();
       expect(result.used_value).toBeNull();
+      expect(result.error).toContain('invalid_client');
+      expect(isEbayAccessError(result.error)).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+      __resetEbayTokenCacheForTests();
+    }
+  });
+
+  it('stops after the first Marketplace Insights access denial', async () => {
+    __resetEbayTokenCacheForTests();
+    (env as any).EBAY_APP_ID = 'ebay-app-id';
+    (env as any).EBAY_CLIENT_SECRET = 'ebay-client-secret';
+    const seenUrls: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      const href = String(url);
+      seenUrls.push(href);
+      if (href.includes('/identity/v1/oauth2/token')) {
+        return Promise.resolve(new Response(JSON.stringify({ access_token: 'token', expires_in: 3600 }), { status: 200 }));
+      }
+      if (href.includes('item_sales/search')) {
+        return Promise.resolve(new Response(JSON.stringify({
+          errors: [{
+            errorId: 1100,
+            domain: 'ACCESS',
+            message: 'Access denied',
+            longMessage: 'Insufficient permissions to fulfill the request.',
+          }],
+        }), { status: 401 }));
+      }
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
+
+    try {
+      const result = await fetchEbaySoldPrices('75192', 'Millennium Falcon', env as any, { recordHealth: false });
+      expect(result.status).toBe('unauthorized');
+      expect(result.error).toContain('Insufficient permissions');
+      expect(seenUrls.filter(url => url.includes('item_sales/search'))).toHaveLength(1);
     } finally {
       globalThis.fetch = originalFetch;
       __resetEbayTokenCacheForTests();

@@ -106,7 +106,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     ),
     required_secrets: ['EBAY_APP_ID', 'EBAY_CLIENT_SECRET'],
     used_by: ['sold-price checks', 'deal score', 'listing draft'],
-    notes: 'Uses eBay Marketplace Insights sold comps only, split into new/sealed and used US/USD values.',
+    notes: 'Uses eBay Marketplace Insights sold comps only, split into new/sealed and used US/USD values. Marketplace Insights is limited-release and must be enabled for the keyset.',
     recommended_action: 'Add EBAY_APP_ID and EBAY_CLIENT_SECRET to enable eBay sold-comps enrichment.',
   },
   bricklink: {
@@ -182,7 +182,7 @@ function missingSecrets(env: Env, names: string[]): string[] {
 }
 
 function isCredentialOrAccessIssue(error?: string | null): boolean {
-  return !!error && /(HTTP 401|HTTP 403|access denied|insufficient permissions|invalid[_ -]?scope|not authorized)/i.test(error);
+  return !!error && /(HTTP 401|HTTP 403|invalid[_ -]?client|invalid[_ -]?scope|access denied|insufficient permissions|not authorized|unauthorized|marketplace insights access)/i.test(error);
 }
 
 function isWorkerCapacityIssue(error?: string | null): boolean {
@@ -282,7 +282,14 @@ export async function getIntegrationDiagnostics(env: Env): Promise<IntegrationDi
     }
     const degraded = status === 'degraded';
     const reachable = !configured ? false : (service === 'd1' || service === 'supabase') ? true : row ? status !== 'down' : null;
-    const recommendedAction = !configured
+    const latestAccessIssue = !!(configured && row && isCredentialOrAccessIssue(row.last_error));
+    const ebayKeyIssue = service === 'ebay' && latestAccessIssue && /OAuth|invalid[_ -]?client/i.test(row?.last_error || '');
+    const ebayInsightsIssue = service === 'ebay' && latestAccessIssue && !ebayKeyIssue;
+    const recommendedAction = ebayKeyIssue
+      ? 'Verify EBAY_APP_ID is the production App ID / Client ID and EBAY_CLIENT_SECRET is the matching production Cert ID / Client Secret, then redeploy.'
+      : ebayInsightsIssue
+        ? 'The eBay keyset is configured but sold-comps access is denied. Marketplace Insights is limited-release; request Buy Marketplace Insights approval for this production keyset or leave eBay pricing disabled while BrickLink/BrickEconomy continue.'
+        : !configured
       ? (def.recommended_action || (missing.length ? `Set ${missing.join(', ')}.` : 'Complete setup for this integration.'))
       : status === 'down'
         ? 'Check the latest provider error, refresh credentials, then rerun a small batch.'

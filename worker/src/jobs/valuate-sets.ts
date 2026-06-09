@@ -6,6 +6,7 @@ import {
   ebaySoldHasValue,
   ebaySoldNewValue,
   fetchEbaySoldPrices,
+  isEbayAccessError,
   type EbaySoldPrices,
 } from '../lib/ebay';
 import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
@@ -72,6 +73,19 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
 
   const openai = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
   let updated = 0, market = 0, ai = 0;
+  let ebayBlocked = false;
+
+  const tallyEbayResult = (prices: EbaySoldPrices | null) => {
+    if (!prices || prices.status === 'unconfigured') return;
+    if (prices.status === 'error' || prices.status === 'unauthorized') {
+      tallyFail('ebay', prices.error || prices.status);
+      if (prices.status === 'unauthorized' || isEbayAccessError(prices.error)) {
+        ebayBlocked = true;
+      }
+      return;
+    }
+    tallyOk('ebay');
+  };
 
   for (const set of results) {
     let pricing: { current_value: number } | null = null;
@@ -108,14 +122,14 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       }
     }
 
-    if (includeEbay) {
+    if (includeEbay && !ebayBlocked) {
       ebayPrices = await fetchEbaySoldPrices(set.set_num, set.name, env, sourceOptions)
-        .catch((err) => { tallyFail('ebay', err); return null; });
-      if (ebayPrices?.status === 'error' || ebayPrices?.status === 'unauthorized') {
-        tallyFail('ebay', ebayPrices.error || ebayPrices.status);
-      } else if (ebayPrices?.status && ebayPrices.status !== 'unconfigured') {
-        tallyOk('ebay');
-      }
+        .catch((err) => {
+          tallyFail('ebay', err);
+          if (isEbayAccessError((err as Error)?.message || String(err))) ebayBlocked = true;
+          return null;
+        });
+      tallyEbayResult(ebayPrices);
     }
 
     if (!pricing) {
@@ -131,14 +145,14 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
             .catch((err) => { tallyFail('bricklink', err); return null; });
           if (usedPricing) tallyOk('bricklink');
         }
-        if (includeEbay && ebayPrices === null) {
+        if (includeEbay && !ebayBlocked && ebayPrices === null) {
           ebayPrices = await fetchEbaySoldPrices(set.set_num, set.name, env, sourceOptions)
-            .catch((err) => { tallyFail('ebay', err); return null; });
-          if (ebayPrices?.status === 'error' || ebayPrices?.status === 'unauthorized') {
-            tallyFail('ebay', ebayPrices.error || ebayPrices.status);
-          } else if (ebayPrices?.status && ebayPrices.status !== 'unconfigured') {
-            tallyOk('ebay');
-          }
+            .catch((err) => {
+              tallyFail('ebay', err);
+              if (isEbayAccessError((err as Error)?.message || String(err))) ebayBlocked = true;
+              return null;
+            });
+          tallyEbayResult(ebayPrices);
         }
       }
       pricing = blPricing;
@@ -303,16 +317,33 @@ export async function runEbayBackfill(env: Env, options: { limit?: number } = {}
   `).bind(limit).all<{ set_num: string; name: string }>();
 
   let updated = 0;
+  let processed = 0;
+  const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
   for (const set of results) {
-    const prices = await fetchEbaySoldPrices(set.set_num, set.name, env).catch(() => null);
+    processed++;
+    const prices = await fetchEbaySoldPrices(set.set_num, set.name, env, { recordHealth: false })
+      .catch((err) => {
+        health.fail++;
+        health.lastError = (err as Error)?.message || String(err);
+        return null;
+      });
+    if (prices?.status === 'error' || prices?.status === 'unauthorized') {
+      health.fail++;
+      health.lastError = prices.error || prices.status;
+    } else if (prices?.status && prices.status !== 'unconfigured') {
+      health.ok++;
+    }
     const stmt = buildEbaySoldUpdate(env.DB, set.set_num, prices);
     if (stmt) {
       await stmt.run();
       if (ebaySoldHasValue(prices)) updated++;
     }
+    if (prices?.status === 'unauthorized' || isEbayAccessError(prices?.error)) break;
   }
 
-  return { processed: results.length, updated, limit };
+  await recordIntegrationHealth(env, 'ebay', health);
+
+  return { processed, updated, limit };
 }
 
 export async function runValuateMinifigs(env: Env): Promise<number> {
