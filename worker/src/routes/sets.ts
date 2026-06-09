@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import OpenAI from 'openai';
 import { optionalMember, requireMember } from '../auth';
-import { formulaValuation } from '../lib/valuation';
+import { formulaValuation, valuationExpiryModifier } from '../lib/valuation';
 import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
 import { fetchBricksetDetails } from '../lib/brickset';
 import {
@@ -339,7 +339,7 @@ app.get('/:setnum', async (c) => {
               UPDATE lego_sets SET
                 current_value=?, used_value=?, forecast_2y=?, forecast_5y=?,
                 valuation_method='ai',
-                valuation_expires_at=datetime('now', '+1 day'),
+                valuation_expires_at=datetime('now', '+12 hours'),
                 cached_at=datetime('now')
               WHERE set_num=?
             `).bind(gemVal.current_value, gemVal.used_value, forecast_2y, forecast_5y, activeSet.set_num));
@@ -351,7 +351,7 @@ app.get('/:setnum', async (c) => {
               UPDATE lego_sets SET
                 current_value=?, forecast_2y=?, forecast_5y=?,
                 valuation_method='ebay_sold',
-                valuation_expires_at=datetime('now', '+1 day'),
+                valuation_expires_at=datetime('now', '+7 days'),
                 cached_at=datetime('now')
               WHERE set_num=?
             `).bind(ebayVal, forecast_2y, forecast_5y, activeSet.set_num));
@@ -378,7 +378,7 @@ app.get('/:setnum', async (c) => {
                 forecast_2y = COALESCE(?, forecast_2y),
                 forecast_5y = COALESCE(?, forecast_5y),
                 valuation_method = 'ebay_sold',
-                valuation_expires_at = datetime('now', '+1 day'),
+                valuation_expires_at = datetime('now', '+7 days'),
                 cached_at = datetime('now')
               WHERE set_num=?
             `).bind(ebayVal, forecast_2y, forecast_5y, activeSet.set_num));
@@ -704,10 +704,10 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
           current_value=?, forecast_2y=?, forecast_5y=?,
           retail_price=COALESCE(?, retail_price),
           valuation_method=?,
-          valuation_expires_at=datetime('now', '+7 days'),
+          valuation_expires_at=datetime('now', ?),
           cached_at=datetime('now')
         WHERE set_num=?
-      `).bind(pricing.current_value, forecast_2y, forecast_5y, retailPrice, valMethod, set.set_num)
+      `).bind(pricing.current_value, forecast_2y, forecast_5y, retailPrice, valMethod, valuationExpiryModifier(valMethod), set.set_num)
     );
   }
 

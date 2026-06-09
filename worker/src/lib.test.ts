@@ -377,3 +377,31 @@ describe('integration circuit breaker', () => {
     expect(await isIntegrationBlocked(env as any, 'ebay')).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// tiered valuation expiry
+// ---------------------------------------------------------------------------
+describe('valuationExpiryModifier', () => {
+  it('holds market-backed valuations for a day', async () => {
+    const { valuationExpiryModifier } = await import('./lib/valuation');
+    expect(valuationExpiryModifier('brickeconomy')).toBe('+1 day');
+    expect(valuationExpiryModifier('market')).toBe('+1 day');
+  });
+
+  it('keeps slow-moving eBay sold comps for a week', async () => {
+    const { valuationExpiryModifier } = await import('./lib/valuation');
+    expect(valuationExpiryModifier('ebay_sold')).toBe('+7 days');
+    expect(valuationExpiryModifier('ebay_rss')).toBe('+7 days');
+  });
+
+  it('retries low-confidence estimates within hours', async () => {
+    const { valuationExpiryModifier } = await import('./lib/valuation');
+    expect(valuationExpiryModifier('ai')).toBe('+12 hours');
+    expect(valuationExpiryModifier('formula_bulk')).toBe('+12 hours');
+  });
+
+  it('defaults unknown methods to a day', async () => {
+    const { valuationExpiryModifier } = await import('./lib/valuation');
+    expect(valuationExpiryModifier('something_new')).toBe('+1 day');
+  });
+});

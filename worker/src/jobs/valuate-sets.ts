@@ -10,6 +10,7 @@ import {
   type EbaySoldPrices,
 } from '../lib/ebay';
 import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
+import { valuationExpiryModifier } from '../lib/valuation';
 import { computeRetirementRisk } from '../lib/retirement-risk';
 import {
   clearIntegrationBlock,
@@ -233,10 +234,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
           current_value=?, forecast_2y=?, forecast_5y=?,
           retail_price=COALESCE(?, retail_price),
           valuation_method=?,
-          valuation_expires_at=datetime('now', '+1 day'),
+          valuation_expires_at=datetime('now', ?),
           cached_at=datetime('now')
         WHERE set_num=?
-      `).bind(pricing.current_value, forecast_2y, forecast_5y, retailPrice, valMethod, set.set_num).run();
+      `).bind(pricing.current_value, forecast_2y, forecast_5y, retailPrice, valMethod, valuationExpiryModifier(valMethod), set.set_num).run();
       updated++;
       if (valMethod === 'market') {
         market++;
@@ -255,10 +256,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         UPDATE lego_sets SET
           current_value=?, forecast_2y=?, forecast_5y=?,
           valuation_method='ebay_sold',
-          valuation_expires_at=datetime('now', '+1 day'),
+          valuation_expires_at=datetime('now', ?),
           cached_at=datetime('now')
         WHERE set_num=?
-      `).bind(ebayPrice, forecast_2y, forecast_5y, set.set_num).run();
+      `).bind(ebayPrice, forecast_2y, forecast_5y, valuationExpiryModifier('ebay_sold'), set.set_num).run();
       updated++;
       processed++;
       if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
@@ -304,11 +305,11 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         UPDATE lego_sets SET
           retail_price=?, current_value=?, forecast_2y=?, forecast_5y=?,
           valuation_method='ai',
-          valuation_expires_at=datetime('now', '+1 day'),
+          valuation_expires_at=datetime('now', ?),
           cached_at=datetime('now')
         WHERE set_num=?
       `).bind(vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y,
-              set.set_num).run();
+              valuationExpiryModifier('ai'), set.set_num).run();
       updated++; ai++;
     } catch (e) {
       console.warn(`[valuate] failed for ${set.set_num}:`, (e as Error).message);
@@ -400,7 +401,7 @@ export async function runValuateMinifigs(env: Env): Promise<number> {
     FROM minifigs m
     JOIN user_minifigs um ON um.fig_num = m.fig_num
     ORDER BY COALESCE(m.added_at, '2000-01-01') ASC
-    LIMIT 3
+    LIMIT 5
   `).all<{ fig_num: string }>();
 
   let updated = 0;

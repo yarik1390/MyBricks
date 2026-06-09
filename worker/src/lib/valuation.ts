@@ -78,3 +78,20 @@ export function formulaValuation(set: {
     forecast_5y: forecast5y,
   };
 }
+
+// Refresh cadence by valuation source quality. Market-backed prices hold for a
+// day; eBay sold comps move slowly (a week); formula/AI estimates are
+// low-confidence, so retry them sooner in the hope a market source answers.
+const VALUATION_TTL: Record<string, string> = {
+  brickeconomy: '+1 day',
+  market: '+1 day',
+  ebay_sold: '+7 days',
+  ebay_rss: '+7 days',
+  ai: '+12 hours',
+  formula: '+12 hours',
+  formula_bulk: '+12 hours',
+};
+
+export function valuationExpiryModifier(method: string): string {
+  return VALUATION_TTL[method] ?? '+1 day';
+}
