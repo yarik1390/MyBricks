@@ -4,6 +4,7 @@ import { importSets, importFigs } from '../jobs/import-catalog';
 import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
 import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
+import { isEbayAccessError } from '../lib/ebay';
 import { rebuildSearchIndex } from '../lib/search-index';
 import type { Env, Variables } from '../types';
 
@@ -164,7 +165,7 @@ async function getDataCoverage(env: Env) {
 }
 
 async function getPopulationSnapshot(env: Env) {
-  const [coverage, minifigs, ebayAttempts, latestBarcode] = await Promise.all([
+  const [coverage, minifigs, ebayAttempts, latestBarcode, ebayHealth] = await Promise.all([
     getDataCoverage(env),
     env.DB.prepare(`SELECT CAST(COUNT(*) AS INTEGER) AS total_minifigs FROM minifigs`).first<{ total_minifigs: number }>(),
     env.DB.prepare(`
@@ -179,25 +180,43 @@ async function getPopulationSnapshot(env: Env) {
       ORDER BY started_at DESC
       LIMIT 1
     `).first<{ error: string | null }>(),
+    env.DB.prepare(`
+      SELECT last_ok_at, last_fail_at, last_error
+      FROM integration_health
+      WHERE service='ebay'
+    `).first<{ last_ok_at: string | null; last_fail_at: string | null; last_error: string | null }>(),
   ]);
   const c = coverage as Record<string, any>;
   const totalSets = Number(c.total_sets || 0);
   const totalMinifigs = Number(minifigs?.total_minifigs || 0);
   const ebayNewAttempted = Number(ebayAttempts?.ebay_new_attempted || 0);
   const ebayUsedAttempted = Number(ebayAttempts?.ebay_used_attempted || 0);
+  const ebayConfigured = !!(
+    env.EBAY_APP_ID &&
+    env.EBAY_CLIENT_SECRET &&
+    !env.EBAY_APP_ID.includes('dummy') &&
+    !env.EBAY_CLIENT_SECRET.includes('dummy')
+  );
+  const ebayFailAt = ebayHealth?.last_fail_at ? Date.parse(ebayHealth.last_fail_at) : 0;
+  const ebayOkAt = ebayHealth?.last_ok_at ? Date.parse(ebayHealth.last_ok_at) : 0;
+  const ebayAccessBlocked = ebayConfigured && ebayFailAt >= ebayOkAt && isEbayAccessError(ebayHealth?.last_error);
   const formulaBulkCount = Number((c.valuation_methods || []).find((m: { valuation_method?: string; count?: number }) => m.valuation_method === 'formula_bulk')?.count || 0);
   const barcodePassComplete = /complete:true|barcode_complete:true/i.test(String(latestBarcode?.error || ''));
+  const ebaySourceAvailable = ebayConfigured && !ebayAccessBlocked;
   return {
     ...c,
     total_sets: totalSets,
     total_minifigs: totalMinifigs,
     ebay_new_attempted: ebayNewAttempted,
     ebay_used_attempted: ebayUsedAttempted,
+    ebay_configured: ebayConfigured,
+    ebay_access_blocked: ebayAccessBlocked,
+    ebay_source_available: ebaySourceAvailable,
     formula_bulk_count: formulaBulkCount,
     ebay_new_attempted_pct: totalSets ? Math.round((ebayNewAttempted / totalSets) * 1000) / 10 : 0,
     ebay_used_attempted_pct: totalSets ? Math.round((ebayUsedAttempted / totalSets) * 1000) / 10 : 0,
     barcode_pass_complete: barcodePassComplete,
-    ebay_attempts_complete: totalSets > 0 && ebayNewAttempted >= totalSets && ebayUsedAttempted >= totalSets,
+    ebay_attempts_complete: !ebaySourceAvailable || (totalSets > 0 && ebayNewAttempted >= totalSets && ebayUsedAttempted >= totalSets),
     catalog_ready: totalSets > 0,
     minifigs_ready: totalMinifigs > 0,
   };
@@ -224,6 +243,8 @@ function populationRemainingNote(snapshot: Awaited<ReturnType<typeof getPopulati
     `formula_bulk:${(snapshot as Record<string, any>).formula_bulk_count ?? 0}`,
     `ebay_new_attempted:${snapshot.ebay_new_attempted}/${snapshot.total_sets}`,
     `ebay_used_attempted:${snapshot.ebay_used_attempted}/${snapshot.total_sets}`,
+    `ebay_available:${(snapshot as Record<string, any>).ebay_source_available ?? false}`,
+    `ebay_blocked:${(snapshot as Record<string, any>).ebay_access_blocked ?? false}`,
     `barcode_complete:${snapshot.barcode_pass_complete}`,
   ];
   return parts.join(' ');
@@ -625,12 +646,14 @@ app.post('/populate-everything', async (c) => {
           await phaseProgress(3, 'Barcode pass already complete', 1, 1);
         }
 
+        snapshot = await getPopulationSnapshot(c.env);
+        const includeEbay = !!snapshot.ebay_source_available;
         await phaseProgress(4, 'Refreshing market data', 0, valuationLimit);
         const valuation = await runValuateSets(c.env, {
           scope: 'all',
           includeFresh: true,
           includeSupplemental: true,
-          includeEbay: true,
+          includeEbay,
           includeMinifigs: true,
           limit: valuationLimit,
           onProgress: async (p) => phaseProgress(
@@ -644,11 +667,15 @@ app.post('/populate-everything', async (c) => {
         updated += valuation.updated;
         processed += valuation.processed;
 
-        await phaseProgress(5, 'Checking eBay sold comps', 0, ebayLimit);
-        const ebay = await runEbayBackfill(c.env, { limit: ebayLimit });
-        updated += ebay.updated;
-        processed += ebay.processed;
-        await phaseProgress(5, 'eBay sold-comps slice complete', ebay.processed, Math.max(ebayLimit, ebay.processed, 1));
+        if (includeEbay) {
+          await phaseProgress(5, 'Checking eBay sold comps', 0, ebayLimit);
+          const ebay = await runEbayBackfill(c.env, { limit: ebayLimit });
+          updated += ebay.updated;
+          processed += ebay.processed;
+          await phaseProgress(5, 'eBay sold-comps slice complete', ebay.processed, Math.max(ebayLimit, ebay.processed, 1));
+        } else {
+          await phaseProgress(5, 'eBay sold comps unavailable', 1, 1, 'method:populate-everything step:ebay skipped:unavailable');
+        }
 
         const after = await getPopulationSnapshot(c.env);
         const done = populationDone(after);

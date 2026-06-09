@@ -482,6 +482,43 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(row.error).toContain('complete:true');
     });
 
+    it('does not block populate-everything completion when eBay sold-comps access is denied', async () => {
+      (env as any).EBAY_APP_ID = 'real-ebay-app-id';
+      (env as any).EBAY_CLIENT_SECRET = 'real-ebay-client-secret';
+      await db.prepare(`INSERT INTO minifigs (fig_num, name) VALUES ('fig-1', 'Test Fig')`).run();
+      await db.prepare(`
+        UPDATE lego_sets
+        SET cached_at=datetime('now'),
+            valuation_expires_at=datetime('now', '+1 day'),
+            valuation_method='brickeconomy'
+      `).run();
+      await db.prepare(`
+        INSERT INTO import_runs (job_type, status, error)
+        VALUES ('barcode_backfill', 'completed', 'method:bulk complete:true')
+      `).run();
+      await db.prepare(`
+        INSERT INTO integration_health (service, last_fail_at, last_error, ok_count, fail_count, updated_at)
+        VALUES ('ebay', datetime('now'), 'eBay Marketplace Insights HTTP 401: unauthorized', 0, 1, datetime('now'))
+      `).run();
+
+      const res = await app.fetch(new Request('http://localhost/api/admin/populate-everything', {
+        method: 'POST',
+        headers: auth(adminToken),
+        body: JSON.stringify({ valuation_limit: 1 }),
+      }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.done).toBe(true);
+      expect(data.coverage.ebay_access_blocked).toBe(true);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const row = await db.prepare(`SELECT error FROM import_runs WHERE id=?`)
+        .bind(data.run_id)
+        .first<any>();
+      expect(row.error).toContain('complete:true');
+      expect(row.error).toContain('ebay_available:false');
+      expect(row.error).toContain('ebay_blocked:true');
+    });
+
     it('returns recorded integration health for the admin', async () => {
       await db.prepare(
         `UPDATE lego_sets SET upc='0673419280310', used_value=725 WHERE set_num='75192'`
