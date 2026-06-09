@@ -109,6 +109,7 @@ jobs:
             "ALTER TABLE minifigs ADD COLUMN current_value REAL"
             "ALTER TABLE minifigs ADD COLUMN added_at DATETIME"
             "ALTER TABLE minifigs ADD COLUMN source TEXT"
+            "ALTER TABLE integration_health ADD COLUMN blocked_until TEXT"
           )
           for sql in "${statements[@]}"; do
             npx wrangler d1 execute brickvault --remote --command "$sql" 2>&1 || true
@@ -118,6 +119,38 @@ jobs:
       - name: Rebuild derived search index
         working-directory: worker
         run: npx wrangler d1 execute brickvault --remote --file=schema_search_index.sql 2>&1
+
+      # Migrations above run with error suppression, so a silently failed
+      # migration can ship a broken DB (this caused a production outage where
+      # every collection read 500'd on a missing column). Probe the columns
+      # the Worker actually queries and fail the deploy before it ships.
+      - name: Validate schema before deploy
+        working-directory: worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          probes=(
+            "SELECT valuation_method, valuation_expires_at, bl_new_value, bl_new_qty, bl_used_qty, ebay_new_value, ebay_used_value, retirement_risk_score, upc FROM lego_sets LIMIT 0"
+            "SELECT deleted_at, last_modified, storage_location, acquisition_source, is_complete, missing_pieces, spike_alerted_at FROM user_collection LIMIT 0"
+            "SELECT is_public, expose_public_value, google_refresh_token, google_spreadsheet_id FROM user_prefs LIMIT 0"
+            "SELECT blocked_until, ok_count, fail_count FROM integration_health LIMIT 0"
+            "SELECT hit_count FROM rate_limits LIMIT 0"
+            "SELECT total_value, total_paid, set_count FROM portfolio_snapshots LIMIT 0"
+            "SELECT current_value FROM set_value_history LIMIT 0"
+            "SELECT quantity FROM user_minifigs LIMIT 0"
+            "SELECT series, current_value FROM minifigs LIMIT 0"
+            "SELECT job_type, progress_label, progress_current, figs_loaded FROM import_runs LIMIT 0"
+            "SELECT expires_at FROM oauth_sessions LIMIT 0"
+            "SELECT expires_at FROM oauth_states LIMIT 0"
+            "SELECT alert_type FROM wishlist_alerts LIMIT 0"
+          )
+          for sql in "${probes[@]}"; do
+            if ! npx wrangler d1 execute brickvault --remote --command "$sql" >/dev/null 2>&1; then
+              echo "::error::Schema validation failed — missing column or table for: $sql"
+              exit 1
+            fi
+          done
+          echo "Schema validation passed (${#probes[@]} probes)"
 
       - name: Upload Worker secrets
         working-directory: worker

@@ -34,9 +34,10 @@ npx wrangler secret put EBAY_CLIENT_SECRET   # optional; matching production Cer
 npm run deploy
 ```
 
-## 5. Seeding catalog data
+## 5. Seeding catalog data (required)
 
-To seed the initial catalog data, you can run the import scripts:
+The app is unusable without catalog data — search, scanning, and valuations
+all depend on `lego_sets` being populated. Either run the import scripts:
 
 ```bash
 mkdir data
@@ -45,7 +46,17 @@ npx tsx scripts/seed-d1.ts
 npx wrangler d1 execute brickvault --remote --file=seed.sql
 ```
 
-Or re-run the Rebrickable import via the admin endpoint after deploy.
+Or, after deploy, trigger the full population campaign (imports catalog +
+minifigs, rebuilds search, backfills barcodes, runs valuations):
+
+```bash
+curl -X POST https://<worker-url>/api/admin/populate-everything \
+  -H "Authorization: Bearer <admin JWT>"
+# Poll progress: GET /api/admin/import-status
+# Re-invoke until the response reports complete:true — each call advances one slice.
+```
+
+The CI deploy workflow also runs this campaign automatically after each deploy.
 
 ## 6. Deploy Pages
 
@@ -62,7 +73,10 @@ Configure a custom domain in the Cloudflare dashboard and add a Worker Route for
 2. Enable Email auth (Auth > Providers > Email)
 3. Set `SITE_URL` in Auth settings to your Pages domain
 4. Create your admin account via the Supabase Auth dashboard
-5. Copy your user UUID to `ADMIN_USER_ID`
+5. Copy your user UUID to `ADMIN_USER_ID`. Find it in the Supabase dashboard
+   under **Authentication → Users** — the `UID` column for your account (a
+   UUID like `1c2f...-...`). Alternatively, sign in to the app and decode the
+   `sub` claim of your JWT at jwt.io.
 
 ## 8. Google Sheets OAuth setup
 
@@ -82,6 +96,37 @@ http://127.0.0.1:8787/api/google/oauth
 ```
 
 4. Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` as GitHub Actions secrets. The deploy workflow uploads them to Worker secrets.
+
+## Local development
+
+```bash
+cd worker
+npm ci
+cp .dev.vars.example .dev.vars      # fill in at least the Supabase values
+npx wrangler d1 execute brickvault --local --file=schema.sql
+npx wrangler dev                    # API at http://127.0.0.1:8787
+```
+
+Serve the frontend from the repo root (any static server, e.g.
+`npx serve public`) and point it at the local Worker via `public/env.js`.
+
+Run the checks before pushing:
+
+```bash
+npm run typecheck && npm test               # worker/
+node --test public/js/__tests__/pure.test.js  # repo root
+```
+
+## Search index recovery
+
+If catalog search starts failing or returns a `search_degraded: true` flag,
+the FTS5 index is corrupted. The Worker auto-repairs it in the background on
+the first degraded query; to force it manually:
+
+```bash
+curl -X POST https://<worker-url>/api/admin/repair-search-index \
+  -H "Authorization: Bearer <admin JWT>"
+```
 
 ## Environment variables reference
 
