@@ -152,29 +152,11 @@ jobs:
           done
           echo "Schema validation passed (${#probes[@]} probes)"
 
-      - name: Upload Worker secrets
-        working-directory: worker
-        run: |
-          set -euo pipefail
-          put() { printf '%s' "$2" | npx wrangler secret put "$1"; }
-          put OPENAI_API_KEY            "${{ secrets.OPENAI_API_KEY }}"
-          put REBRICKABLE_API_KEY       "${{ secrets.REBRICKABLE_API_KEY }}"
-          put SUPABASE_URL              "${{ secrets.SUPABASE_URL }}"
-          put SUPABASE_ANON_KEY         "${{ secrets.SUPABASE_ANON_KEY }}"
-          put SUPABASE_JWT_SECRET       "${{ secrets.SUPABASE_JWT_SECRET }}"
-          put ADMIN_USER_ID             "${{ secrets.ADMIN_USER_ID }}"
-          [ -n "${{ secrets.BRICKSET_API_KEY }}" ]          && put BRICKSET_API_KEY          "${{ secrets.BRICKSET_API_KEY }}"          || true
-          [ -n "${{ secrets.BRICKLINK_CONSUMER_KEY }}" ]   && put BRICKLINK_CONSUMER_KEY   "${{ secrets.BRICKLINK_CONSUMER_KEY }}"   || true
-          [ -n "${{ secrets.BRICKLINK_CONSUMER_SECRET }}" ] && put BRICKLINK_CONSUMER_SECRET "${{ secrets.BRICKLINK_CONSUMER_SECRET }}" || true
-          [ -n "${{ secrets.BRICKLINK_TOKEN }}" ]          && put BRICKLINK_TOKEN          "${{ secrets.BRICKLINK_TOKEN }}"          || true
-          [ -n "${{ secrets.BRICKLINK_TOKEN_SECRET }}" ]   && put BRICKLINK_TOKEN_SECRET   "${{ secrets.BRICKLINK_TOKEN_SECRET }}"   || true
-          [ -n "${{ secrets.BRICKOWL_API_KEY }}" ]          && put BRICKOWL_API_KEY          "${{ secrets.BRICKOWL_API_KEY }}"          || true
-          [ -n "${{ secrets.EBAY_APP_ID }}" ]              && put EBAY_APP_ID              "${{ secrets.EBAY_APP_ID }}"              || true
-          [ -n "${{ secrets.EBAY_CLIENT_SECRET }}" ]       && put EBAY_CLIENT_SECRET       "${{ secrets.EBAY_CLIENT_SECRET }}"       || true
-          [ -n "${{ secrets.BRICKECONOMY_API_KEY }}" ]     && put BRICKECONOMY_API_KEY     "${{ secrets.BRICKECONOMY_API_KEY }}"     || true
-          [ -n "${{ secrets.GOOGLE_CLIENT_ID }}" ]         && put GOOGLE_CLIENT_ID         "${{ secrets.GOOGLE_CLIENT_ID }}"         || true
-          [ -n "${{ secrets.GOOGLE_CLIENT_SECRET }}" ]     && put GOOGLE_CLIENT_SECRET     "${{ secrets.GOOGLE_CLIENT_SECRET }}"     || true
-
+      # Deploy BEFORE uploading secrets: `wrangler secret put` refuses to run
+      # while the Worker's latest version isn't deployed (e.g. after a
+      # dashboard edit or partial CI run), and wrangler's documented remedy is
+      # to deploy first. Existing secrets persist across deploys, and each
+      # secret put below re-deploys with the new value.
       - name: Deploy Worker and capture URL
         working-directory: worker
         run: |
@@ -197,6 +179,29 @@ jobs:
           fi
           echo "Worker URL: ${WORKER_URL}"
           echo "WORKER_URL=${WORKER_URL}" >> "$GITHUB_ENV"
+
+      - name: Upload Worker secrets
+        working-directory: worker
+        run: |
+          set -euo pipefail
+          put() { printf '%s' "$2" | npx wrangler secret put "$1"; }
+          put OPENAI_API_KEY            "${{ secrets.OPENAI_API_KEY }}"
+          put REBRICKABLE_API_KEY       "${{ secrets.REBRICKABLE_API_KEY }}"
+          put SUPABASE_URL              "${{ secrets.SUPABASE_URL }}"
+          put SUPABASE_ANON_KEY         "${{ secrets.SUPABASE_ANON_KEY }}"
+          put SUPABASE_JWT_SECRET       "${{ secrets.SUPABASE_JWT_SECRET }}"
+          put ADMIN_USER_ID             "${{ secrets.ADMIN_USER_ID }}"
+          [ -n "${{ secrets.BRICKSET_API_KEY }}" ]          && put BRICKSET_API_KEY          "${{ secrets.BRICKSET_API_KEY }}"          || true
+          [ -n "${{ secrets.BRICKLINK_CONSUMER_KEY }}" ]   && put BRICKLINK_CONSUMER_KEY   "${{ secrets.BRICKLINK_CONSUMER_KEY }}"   || true
+          [ -n "${{ secrets.BRICKLINK_CONSUMER_SECRET }}" ] && put BRICKLINK_CONSUMER_SECRET "${{ secrets.BRICKLINK_CONSUMER_SECRET }}" || true
+          [ -n "${{ secrets.BRICKLINK_TOKEN }}" ]          && put BRICKLINK_TOKEN          "${{ secrets.BRICKLINK_TOKEN }}"          || true
+          [ -n "${{ secrets.BRICKLINK_TOKEN_SECRET }}" ]   && put BRICKLINK_TOKEN_SECRET   "${{ secrets.BRICKLINK_TOKEN_SECRET }}"   || true
+          [ -n "${{ secrets.BRICKOWL_API_KEY }}" ]          && put BRICKOWL_API_KEY          "${{ secrets.BRICKOWL_API_KEY }}"          || true
+          [ -n "${{ secrets.EBAY_APP_ID }}" ]              && put EBAY_APP_ID              "${{ secrets.EBAY_APP_ID }}"              || true
+          [ -n "${{ secrets.EBAY_CLIENT_SECRET }}" ]       && put EBAY_CLIENT_SECRET       "${{ secrets.EBAY_CLIENT_SECRET }}"       || true
+          [ -n "${{ secrets.BRICKECONOMY_API_KEY }}" ]     && put BRICKECONOMY_API_KEY     "${{ secrets.BRICKECONOMY_API_KEY }}"     || true
+          [ -n "${{ secrets.GOOGLE_CLIENT_ID }}" ]         && put GOOGLE_CLIENT_ID         "${{ secrets.GOOGLE_CLIENT_ID }}"         || true
+          [ -n "${{ secrets.GOOGLE_CLIENT_SECRET }}" ]     && put GOOGLE_CLIENT_SECRET     "${{ secrets.GOOGLE_CLIENT_SECRET }}"     || true
 
       - name: Inject Worker URL into Pages env.js
         run: |
