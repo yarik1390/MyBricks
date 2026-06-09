@@ -16,7 +16,7 @@ import { getCachedPriceTrend } from '../lib/price-trend';
 import { fetchTracked } from '../lib/http';
 import { enrichSetRecord } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
-import { isSearchIndexCorruption } from '../lib/search-index';
+import { isSearchIndexCorruption, rebuildSearchIndex } from '../lib/search-index';
 import type { Env, Variables } from '../types';
 
 interface ListingDraft {
@@ -45,6 +45,26 @@ function pushEbaySoldUpdate(
 ) {
   const stmt = buildEbaySoldUpdate(db, setNum, prices);
   if (stmt) stmts.push(stmt);
+}
+
+// Auto-repair throttle: at most one FTS rebuild per isolate per hour, and
+// never two in flight. Corrupted searches still answer via the LIKE fallback
+// while the rebuild runs in the background.
+const SEARCH_REPAIR_COOLDOWN_MS = 60 * 60 * 1000;
+let searchRepairLastAt = 0;
+let searchRepairInFlight = false;
+
+function scheduleSearchIndexRepair(c: { env: { DB: D1Database }; executionCtx: ExecutionContext }) {
+  const now = Date.now();
+  if (searchRepairInFlight || now - searchRepairLastAt < SEARCH_REPAIR_COOLDOWN_MS) return;
+  searchRepairInFlight = true;
+  searchRepairLastAt = now;
+  c.executionCtx.waitUntil(
+    rebuildSearchIndex(c.env.DB)
+      .then(r => console.log(`[search-index] auto-repaired, ${r.indexed_sets} sets indexed`))
+      .catch(err => console.error('[search-index] auto-repair failed:', (err as Error).message))
+      .finally(() => { searchRepairInFlight = false; })
+  );
 }
 
 function toFtsPrefixQuery(value: string): string {
@@ -125,6 +145,7 @@ app.get('/search', async (c) => {
     if (!q || !isSearchIndexCorruption(error)) throw error;
 
     searchDegraded = true;
+    scheduleSearchIndexRepair(c);
     const fallbackWhere = [...filterWhere];
     const fallbackParams = [...filterParams];
     for (const token of q.trim().split(/\s+/).filter(Boolean)) {
