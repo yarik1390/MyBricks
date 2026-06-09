@@ -447,5 +447,26 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(ebay.status).toBe('degraded');
       expect(ebay.reachable).toBe(true);
     });
+
+    it('repairs the derived catalog search index with a narrow update trigger', async () => {
+      const repair = await app.fetch(new Request('http://localhost/api/admin/repair-search-index', {
+        method: 'POST',
+        headers: auth(adminToken),
+      }), env);
+      expect(repair.status).toBe(200);
+      const repairData = await repair.json<any>();
+      expect(repairData.indexed_sets).toBe(2);
+
+      const trigger = await db.prepare(
+        `SELECT sql FROM sqlite_master WHERE type='trigger' AND name='lego_sets_au'`
+      ).first<{ sql: string }>();
+      expect(trigger?.sql).toContain('AFTER UPDATE OF set_num, name, theme ON lego_sets');
+
+      await db.prepare(`UPDATE lego_sets SET upc='0673419280310' WHERE set_num='75192'`).run();
+      const search = await app.fetch(new Request('http://localhost/api/sets/search?q=Millennium&limit=5'), env);
+      expect(search.status).toBe(200);
+      const searchData = await search.json<any>();
+      expect(searchData.sets.some((set: any) => set.set_num === '75192')).toBe(true);
+    });
   });
 });

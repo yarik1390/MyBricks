@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { parseNextBackfillPage } from './jobs/backfill-upc';
 import { classifyHealth } from './lib/integration-health';
 import { computeRetirementRisk } from './lib/retirement-risk';
+import { isSearchIndexCorruption } from './lib/search-index';
 import { formulaValuation } from './lib/valuation';
 
 // ---------------------------------------------------------------------------
@@ -31,6 +32,18 @@ describe('classifyHealth', () => {
       fail_count: 4,
       updated_at: '2026-06-08 12:10:00',
     })).toBe('degraded');
+  });
+});
+
+describe('isSearchIndexCorruption', () => {
+  it('detects D1 virtual-table corruption errors', () => {
+    expect(isSearchIndexCorruption(
+      new Error('D1_ERROR: database disk image is malformed: SQLITE_CORRUPT (extended: SQLITE_CORRUPT_VTAB)')
+    )).toBe(true);
+  });
+
+  it('does not classify ordinary upstream failures as search-index corruption', () => {
+    expect(isSearchIndexCorruption(new Error('Brickset barcode backfill returned no data'))).toBe(false);
   });
 });
 

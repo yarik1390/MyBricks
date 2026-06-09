@@ -104,6 +104,10 @@ jobs:
           done
           npx wrangler d1 execute brickvault --remote --file=schema_migrate.sql 2>&1 || true
 
+      - name: Rebuild derived search index
+        working-directory: worker
+        run: npx wrangler d1 execute brickvault --remote --file=schema_search_index.sql 2>&1
+
       - name: Upload Worker secrets
         working-directory: worker
         run: |

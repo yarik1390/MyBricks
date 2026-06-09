@@ -10,6 +10,7 @@ export interface BackfillResult {
   complete: boolean;
   nextPage?: number;
   error?: string;
+  note?: string;
 }
 
 export interface BackfillOptions {
@@ -72,7 +73,8 @@ export async function runBackfillUpc(env: Env, options: BackfillOptions = {}): P
       catalogSize,
       method: 'bulk',
       complete: false,
-      error: 'Brickset barcode backfill returned no data; retry later',
+      nextPage: Math.max(1, options.startPage || 1),
+      note: 'Brickset barcode backfill returned no data; retrying on the next run',
     };
   }
 

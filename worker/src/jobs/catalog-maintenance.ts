@@ -65,7 +65,7 @@ export async function runDailyBarcodeMaintenance(env: Env, maxPages = 12) {
       runId,
       result.filled,
       result.processed,
-      `method:${result.method}-daily catalog:${result.catalogSize} next_page:${result.nextPage ?? ''} complete:${result.complete}`,
+      result.note ?? `method:${result.method}-daily catalog:${result.catalogSize} next_page:${result.nextPage ?? ''} complete:${result.complete}`,
     );
     return result;
   } catch (error) {

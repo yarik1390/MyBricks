@@ -4,6 +4,7 @@ import { importSets, importFigs, runBatches, BATCH } from '../jobs/import-catalo
 import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
 import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
+import { rebuildSearchIndex } from '../lib/search-index';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -160,7 +161,7 @@ app.post('/backfill-upc', async (c) => {
           ).bind(
             r.filled,
             r.processed,
-            `method:${r.method} catalog:${r.catalogSize} next_page:${r.nextPage ?? ''} complete:${r.complete}`,
+            r.note ?? `method:${r.method} catalog:${r.catalogSize} next_page:${r.nextPage ?? ''} complete:${r.complete}`,
             runId,
           ).run();
         }
@@ -223,7 +224,7 @@ app.post('/populate-coverage', async (c) => {
         `).bind(
           barcode.filled + ebay.updated,
           barcode.processed + ebay.processed,
-          `method:populate-coverage barcode:${barcode.filled}/${barcode.processed} ebay:${ebay.updated}/${ebay.processed} next_page:${barcode.nextPage ?? ''}`,
+          barcode.note ?? `method:populate-coverage barcode:${barcode.filled}/${barcode.processed} ebay:${ebay.updated}/${ebay.processed} next_page:${barcode.nextPage ?? ''}`,
           runId,
         ).run();
       } catch (e) {
@@ -344,6 +345,15 @@ app.get('/integrations', async (c) => {
       config_endpoint: `${url.origin}/api/config`,
       pages_api_note: 'The Pages app uses window.WORKER_BASE for API calls.',
     },
+  });
+});
+
+app.post('/repair-search-index', async (c) => {
+  const result = await rebuildSearchIndex(c.env.DB);
+  return c.json({
+    ok: true,
+    message: 'Catalog search index rebuilt',
+    ...result,
   });
 });
 

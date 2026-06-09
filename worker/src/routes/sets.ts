@@ -11,6 +11,7 @@ import { getCachedPriceTrend } from '../lib/price-trend';
 import { fetchTracked } from '../lib/http';
 import { enrichSetRecord } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
+import { isSearchIndexCorruption } from '../lib/search-index';
 import type { Env, Variables } from '../types';
 
 interface ListingDraft {
@@ -53,8 +54,17 @@ app.get('/search', async (c) => {
 
   const where: string[] = [];
   const params: unknown[] = [];
+  const filterWhere: string[] = [];
+  const filterParams: unknown[] = [];
   let fromSQL = 'lego_sets s';
   let orderBySQL = orderBy;
+
+  const addFilter = (sql: string, ...values: unknown[]) => {
+    where.push(sql);
+    filterWhere.push(sql);
+    params.push(...values);
+    filterParams.push(...values);
+  };
 
   if (q) {
     const cleanedQ = toFtsPrefixQuery(q);
@@ -65,15 +75,14 @@ app.get('/search', async (c) => {
       orderBySQL = `f.rank, ${orderBy}`;
     }
   }
-  if (theme) { where.push(`s.theme = ?`); params.push(theme); }
-  if (retired === '1' || retired === 'true') where.push(`s.retired = 1`);
+  if (theme) addFilter(`s.theme = ?`, theme);
+  if (retired === '1' || retired === 'true') addFilter(`s.retired = 1`);
 
   const rangeFilter = (key: string, col: string) => {
     const v = parseInt(c.req.query(key) || '', 10);
     if (!isNaN(v)) {
       const op = key.startsWith('min_') ? '>=' : '<=';
-      where.push(`s.${col} ${op} ?`);
-      params.push(v);
+      addFilter(`s.${col} ${op} ?`, v);
     }
   };
   rangeFilter('min_year', 'year');
@@ -85,14 +94,38 @@ app.get('/search', async (c) => {
 
   const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-  const [pageRes, countRes] = await Promise.all([
-    c.env.DB.prepare(
-      `SELECT s.* FROM ${fromSQL} ${whereSQL} ORDER BY ${orderBySQL}, s.set_num LIMIT ? OFFSET ?`
-    ).bind(...params, lim, offset).all<Record<string, unknown>>(),
-    c.env.DB.prepare(
-      `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM ${fromSQL} ${whereSQL}`
-    ).bind(...params).first<{ total: number }>(),
-  ]);
+  let searchDegraded = false;
+  let pageRes: D1Result<Record<string, unknown>>;
+  let countRes: { total: number } | null;
+  try {
+    [pageRes, countRes] = await Promise.all([
+      c.env.DB.prepare(
+        `SELECT s.* FROM ${fromSQL} ${whereSQL} ORDER BY ${orderBySQL}, s.set_num LIMIT ? OFFSET ?`
+      ).bind(...params, lim, offset).all<Record<string, unknown>>(),
+      c.env.DB.prepare(
+        `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM ${fromSQL} ${whereSQL}`
+      ).bind(...params).first<{ total: number }>(),
+    ]);
+  } catch (error) {
+    if (!q || !isSearchIndexCorruption(error)) throw error;
+
+    searchDegraded = true;
+    const fallbackWhere = [...filterWhere];
+    const fallbackParams = [...filterParams];
+    for (const token of q.trim().split(/\s+/).filter(Boolean)) {
+      fallbackWhere.push(`(s.set_num LIKE ? OR s.name LIKE ? OR COALESCE(s.theme, '') LIKE ?)`);
+      fallbackParams.push(`%${token}%`, `%${token}%`, `%${token}%`);
+    }
+    const fallbackWhereSQL = fallbackWhere.length ? `WHERE ${fallbackWhere.join(' AND ')}` : '';
+    [pageRes, countRes] = await Promise.all([
+      c.env.DB.prepare(
+        `SELECT s.* FROM lego_sets s ${fallbackWhereSQL} ORDER BY ${orderBy}, s.set_num LIMIT ? OFFSET ?`
+      ).bind(...fallbackParams, lim, offset).all<Record<string, unknown>>(),
+      c.env.DB.prepare(
+        `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM lego_sets s ${fallbackWhereSQL}`
+      ).bind(...fallbackParams).first<{ total: number }>(),
+    ]);
+  }
 
   let rows = pageRes.results.map(r => enrichSetRecord({ ...r, retired: !!r.retired })) as Record<string, unknown>[];
   let total = countRes?.total ?? 0;
@@ -131,7 +164,7 @@ app.get('/search', async (c) => {
     } catch (_) { /* non-critical */ }
   }
 
-  return c.json({ sets: rows, total, hasMore: offset + rows.length < total });
+  return c.json({ sets: rows, total, hasMore: offset + rows.length < total, search_degraded: searchDegraded });
 });
 
 // GET /api/sets/:setnum
