@@ -174,30 +174,59 @@ jobs:
           curl -sf "${WORKER_URL}/api/config" | jq -e '.status.d1 == true' >/dev/null
           curl -sf "${WORKER_URL}/api/sets/search?q=Millennium&limit=1" | jq -e '.sets | length >= 0' >/dev/null
 
+      - name: Prepare admin smoke token
+        env:
+          SUPABASE_JWT_SECRET_FOR_CI: ${{ secrets.SUPABASE_JWT_SECRET }}
+          ADMIN_USER_ID_FOR_CI: ${{ secrets.ADMIN_USER_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_JWT_SECRET_FOR_CI}" ] || [ -z "${ADMIN_USER_ID_FOR_CI}" ]; then
+            echo "::warning::SUPABASE_JWT_SECRET or ADMIN_USER_ID missing; protected admin checks will be skipped."
+            exit 0
+          fi
+          ADMIN_JWT="$(node - <<'NODE'
+          const crypto = require('crypto');
+          const secret = process.env.SUPABASE_JWT_SECRET_FOR_CI;
+          const sub = process.env.ADMIN_USER_ID_FOR_CI;
+          const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+          const header = { alg: 'HS256', typ: 'JWT' };
+          const payload = {
+            sub,
+            role: 'authenticated',
+            exp: Math.floor(Date.now() / 1000) + 60 * 60,
+          };
+          const unsigned = `${b64(header)}.${b64(payload)}`;
+          const sig = crypto.createHmac('sha256', secret).update(unsigned).digest('base64url');
+          process.stdout.write(`${unsigned}.${sig}`);
+          NODE
+          )"
+          echo "::add-mask::${ADMIN_JWT}"
+          echo "ADMIN_JWT=${ADMIN_JWT}" >> "$GITHUB_ENV"
+
       - name: Protected production smoke checks
         run: |
           set -euo pipefail
-          if [ -z "${{ secrets.ADMIN_JWT }}" ]; then
-            echo "::warning::ADMIN_JWT secret not set; skipping protected production smoke checks."
+          if [ -z "${ADMIN_JWT:-}" ]; then
+            echo "::warning::Admin smoke token unavailable; skipping protected production smoke checks."
             exit 0
           fi
           curl -sf "${WORKER_URL}/api/admin/integrations" \
-            -H "Authorization: Bearer ${{ secrets.ADMIN_JWT }}" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" \
             | jq -e '.integrations | length > 0' >/dev/null
           curl -sf "${WORKER_URL}/api/admin/import-status" \
-            -H "Authorization: Bearer ${{ secrets.ADMIN_JWT }}" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" \
             | jq -e '.runs | type == "array"' >/dev/null
 
       - name: Seed LEGO catalog via Worker API
         run: |
-          if [ -z "${{ secrets.ADMIN_JWT }}" ]; then
-            echo "ADMIN_JWT secret not set — skipping seed. Run import manually from the Me tab."
+          if [ -z "${ADMIN_JWT:-}" ]; then
+            echo "Admin smoke token unavailable; skipping seed. Run import manually from the Me tab."
             exit 0
           fi
           echo "Triggering catalog import at ${WORKER_URL} ..."
           STATUS=$(curl -s -o /tmp/seed.json -w "%{http_code}" \
             -X POST "${WORKER_URL}/api/admin/import-rebrickable" \
-            -H "Authorization: Bearer ${{ secrets.ADMIN_JWT }}" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" \
             -H "Content-Type: application/json" \
             -d '{"dataset":"all"}')
           echo "HTTP ${STATUS}"

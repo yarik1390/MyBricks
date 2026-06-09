@@ -102,4 +102,4 @@ http://127.0.0.1:8787/api/google/oauth
 | `EBAY_CLIENT_SECRET` | Worker secret / GitHub secret | Optional eBay OAuth flows |
 | `BRICKECONOMY_API_KEY` | Worker secret / GitHub secret | Optional primary valuation source |
 | `BRICKOWL_API_KEY` | Worker secret / GitHub secret | Optional UPC fallback |
-| `ADMIN_JWT` | GitHub secret | Required to run protected production smoke checks; workflow skips protected admin checks if absent |
+| `ADMIN_JWT` | GitHub secret | Optional fallback only; CI now mints a one-hour admin smoke token from `SUPABASE_JWT_SECRET` and `ADMIN_USER_ID` |
