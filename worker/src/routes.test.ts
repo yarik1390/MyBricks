@@ -77,6 +77,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       'DROP TABLE IF EXISTS rate_limits',
       'DROP TABLE IF EXISTS oauth_sessions',
       'DROP TABLE IF EXISTS oauth_states',
+      'DROP TABLE IF EXISTS user_minifigs',
 
       `CREATE TABLE lego_sets (
         set_num TEXT PRIMARY KEY, name TEXT NOT NULL, theme TEXT, year INTEGER,
@@ -160,6 +161,11 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       )`,
       `CREATE TABLE oauth_sessions (code TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL)`,
       `CREATE TABLE oauth_states (state TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL)`,
+      `CREATE TABLE user_minifigs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, fig_num TEXT NOT NULL,
+        quantity INTEGER DEFAULT 1, added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, fig_num)
+      )`,
 
       `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
        VALUES ('75192', 'Millennium Falcon', 'Star Wars', 2017, 7541, 849.99, 799.99, 1)`,
@@ -612,6 +618,125 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(search.status).toBe(200);
       const searchData = await search.json<any>();
       expect(searchData.sets.some((set: any) => set.set_num === '75192')).toBe(true);
+    });
+  });
+
+  describe('Minifigs route', () => {
+    const seedFigs = async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO minifigs (fig_num, name, series, rarity, current_value) VALUES ('sw0001', 'Luke Skywalker', 'Star Wars', 'legendary', 120)`),
+        db.prepare(`INSERT INTO minifigs (fig_num, name, series, rarity, current_value) VALUES ('sw0002', 'Stormtrooper', 'Star Wars', 'common', NULL)`),
+        db.prepare(`INSERT INTO minifigs (fig_num, name, series, rarity, current_value) VALUES ('cty001', 'Firefighter', 'City', 'uncommon', NULL)`),
+      ]);
+    };
+
+    it('lists minifigs with rarity filter and rarity-based fallback values', async () => {
+      await seedFigs();
+      const res = await app.fetch(new Request('http://localhost/api/minifigs?rarity=common', { headers: auth() }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.minifigs).toHaveLength(1);
+      expect(data.minifigs[0].fig_num).toBe('sw0002');
+      // No stored value — falls back to the rarity tier price.
+      expect(data.minifigs[0].current_value).toBe(3.5);
+      expect(data.total).toBe(1);
+    });
+
+    it('marks a fig owned, filters by ownership, then removes it', async () => {
+      await seedFigs();
+      const put = await app.fetch(new Request('http://localhost/api/minifigs/sw0001', {
+        method: 'PUT', headers: auth(), body: JSON.stringify({ quantity: 2 }),
+      }), env);
+      expect(put.status).toBe(200);
+      expect((await put.json<any>()).quantity).toBe(2);
+
+      const owned = await app.fetch(new Request('http://localhost/api/minifigs?owned=yes', { headers: auth() }), env);
+      const ownedData = await owned.json<any>();
+      expect(ownedData.minifigs.map((f: any) => f.fig_num)).toEqual(['sw0001']);
+      expect(ownedData.minifigs[0].owned_qty).toBe(2);
+
+      const unowned = await app.fetch(new Request('http://localhost/api/minifigs?owned=no', { headers: auth() }), env);
+      expect((await unowned.json<any>()).total).toBe(2);
+
+      // Ownership is per-user: another user sees nothing owned.
+      const other = await app.fetch(new Request('http://localhost/api/minifigs?owned=yes', { headers: auth(otherToken) }), env);
+      expect((await other.json<any>()).total).toBe(0);
+
+      const del = await app.fetch(new Request('http://localhost/api/minifigs/sw0001', { method: 'DELETE', headers: auth() }), env);
+      expect(del.status).toBe(204);
+      const after = await app.fetch(new Request('http://localhost/api/minifigs?owned=yes', { headers: auth() }), env);
+      expect((await after.json<any>()).total).toBe(0);
+    });
+
+    it('404s when marking an unknown fig owned', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/minifigs/nope999', {
+        method: 'PUT', headers: auth(), body: JSON.stringify({}),
+      }), env);
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('Collection item CRUD', () => {
+    const addSet = async () => {
+      const res = await app.fetch(new Request('http://localhost/api/collection', {
+        method: 'POST', headers: auth(),
+        body: JSON.stringify({ set_num: '75192', quantity: 1, condition: 'new', purchase_price: 700 }),
+      }), env);
+      expect(res.status).toBe(201);
+      return (await res.json<any>()).item;
+    };
+
+    it('returns a single item with joined set fields', async () => {
+      const item = await addSet();
+      const res = await app.fetch(new Request(`http://localhost/api/collection/${item.id}`, { headers: auth() }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.item.set_num).toBe('75192');
+      expect(data.item.name).toBe('Millennium Falcon');
+      expect(data.item.purchase_price).toBe(700);
+    });
+
+    it('updates condition and storage, rejects invalid values', async () => {
+      const item = await addSet();
+      const patch = await app.fetch(new Request(`http://localhost/api/collection/${item.id}`, {
+        method: 'PATCH', headers: auth(),
+        body: JSON.stringify({ condition: 'sealed', storage_location: 'Shelf A', missing_pieces: 0 }),
+      }), env);
+      expect(patch.status).toBe(200);
+      const updated = (await patch.json<any>()).item;
+      expect(updated.condition).toBe('sealed');
+      expect(updated.storage_location).toBe('Shelf A');
+
+      const bad = await app.fetch(new Request(`http://localhost/api/collection/${item.id}`, {
+        method: 'PATCH', headers: auth(),
+        body: JSON.stringify({ condition: 'mint' }),
+      }), env);
+      expect(bad.status).toBe(400);
+    });
+
+    it('soft-deletes: item vanishes from reads but row survives', async () => {
+      const item = await addSet();
+      const del = await app.fetch(new Request(`http://localhost/api/collection/${item.id}`, {
+        method: 'DELETE', headers: auth(),
+      }), env);
+      expect(del.status).toBe(204);
+
+      const get = await app.fetch(new Request(`http://localhost/api/collection/${item.id}`, { headers: auth() }), env);
+      expect(get.status).toBe(404);
+
+      const row = await db.prepare('SELECT deleted_at FROM user_collection WHERE id=?')
+        .bind(item.id).first<{ deleted_at: string | null }>();
+      expect(row?.deleted_at).toBeTruthy();
+    });
+
+    it("blocks access to another user's item", async () => {
+      const item = await addSet();
+      const res = await app.fetch(new Request(`http://localhost/api/collection/${item.id}`, { headers: auth(otherToken) }), env);
+      expect(res.status).toBe(404);
+      const patch = await app.fetch(new Request(`http://localhost/api/collection/${item.id}`, {
+        method: 'PATCH', headers: auth(otherToken), body: JSON.stringify({ quantity: 5 }),
+      }), env);
+      expect(patch.status).toBe(404);
     });
   });
 });

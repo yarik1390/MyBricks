@@ -883,4 +883,72 @@ describe('BrickVault API Worker Tests', () => {
       }
     });
   });
+
+  describe('Advisor rate limiting', () => {
+    const advisorWindowStart = () => {
+      const ws = new Date();
+      ws.setHours(0, 0, 0, 0);
+      return ws.toISOString();
+    };
+
+    it('blocks the 11th daily query on the server key with a 429', async () => {
+      await db.prepare(
+        `INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count) VALUES (?, 'advisor', ?, 10)`
+      ).bind(testUserId, advisorWindowStart()).run();
+
+      const res = await app.fetch(new Request('http://localhost/api/advisor', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q: 'Which sets should I sell?' }),
+      }), env);
+      expect(res.status).toBe(429);
+      const data = await res.json<{ error: string }>();
+      expect(data.error).toContain('10 advisor queries per day');
+    });
+
+    it('bypasses the daily limit with a user Gemini key', async () => {
+      await db.prepare(
+        `INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count) VALUES (?, 'advisor', ?, 10)`
+      ).bind(testUserId, advisorWindowStart()).run();
+
+      // Stub the streaming Gemini call so no real network request happens.
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockImplementation((url: any, init?: RequestInit) => {
+        if (url.toString().includes('generativelanguage.googleapis.com')) {
+          return Promise.resolve(new Response('data: {"candidates":[]}\n\n', {
+            status: 200, headers: { 'Content-Type': 'text/event-stream' },
+          }));
+        }
+        return originalFetch(url, init);
+      });
+      try {
+        const res = await app.fetch(new Request('http://localhost/api/advisor', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'X-Gemini-Key': 'user-gemini-key',
+          },
+          body: JSON.stringify({ q: 'Which sets should I sell?' }),
+        }), env);
+        expect(res.status).toBe(200);
+        expect(res.headers.get('Content-Type') || '').toContain('text/event-stream');
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it('rejects an empty question before consuming the rate limit', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/advisor', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q: '   ' }),
+      }), env);
+      expect(res.status).toBe(400);
+      const hits = await db.prepare(
+        `SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint='advisor'`
+      ).bind(testUserId).first<{ hit_count: number }>();
+      expect(hits).toBeNull();
+    });
+  });
 });
