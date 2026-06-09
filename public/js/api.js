@@ -264,6 +264,7 @@ function clearGuestVault() {
     localStorage.removeItem(GUEST_WISHLIST_KEY);
     localStorage.removeItem(GUEST_FIG_DETAILS_KEY);
     localStorage.removeItem(GUEST_PREFS_KEY);
+    localStorage.removeItem('bv_guest_history');
     localStorage.removeItem("bv_figs");
   } catch {}
 }
@@ -384,6 +385,7 @@ function guestCollectionPayload() {
     const fig = figDetails[num];
     return s + (Number(fig?.current_value ?? fig?.value) || 0);
   }, 0);
+  recordGuestSnapshot(totalValue, totalPaid, items.length);
   return {
     items,
     total_value: totalValue,
@@ -394,6 +396,34 @@ function guestCollectionPayload() {
     fig_count: ownedFigNums.length,
     total_value_with_figs: totalValue + figValue,
   };
+}
+
+// Local daily portfolio snapshots so guests get the same history sparkline as
+// members. Today's entry is overwritten on each load (values move during the
+// day); older entries are immutable. Capped at a year.
+const GUEST_HISTORY_KEY = 'bv_guest_history';
+
+function recordGuestSnapshot(totalValue, totalPaid, setCount) {
+  try {
+    if (!setCount) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const snapshots = readLocalJSON(GUEST_HISTORY_KEY, []).filter(s => s && s.snapshot_date);
+    const idx = snapshots.findIndex(s => s.snapshot_date === today);
+    const entry = { snapshot_date: today, total_value: totalValue, total_paid: totalPaid, set_count: setCount };
+    if (idx >= 0) snapshots[idx] = entry;
+    else snapshots.push(entry);
+    snapshots.sort((a, b) => a.snapshot_date.localeCompare(b.snapshot_date));
+    writeLocalJSON(GUEST_HISTORY_KEY, snapshots.slice(-365));
+  } catch {}
+}
+
+function guestHistoryPayload(path) {
+  const url = new URL(path, location.origin);
+  const days = Math.min(parseInt(url.searchParams.get('days') || '90', 10) || 90, 365);
+  const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  const snapshots = readLocalJSON(GUEST_HISTORY_KEY, [])
+    .filter(s => s && s.snapshot_date >= cutoff);
+  return { snapshots };
 }
 
 function readGuestPrefs() {
@@ -742,7 +772,7 @@ async function guestApi(path, opts = {}, streamMode = false) {
     if (method === 'POST') return { handled: true, value: await guestAddCollection(body) };
   }
   if (pathname === '/api/collection/history' && method === 'GET') {
-    return { handled: true, value: { snapshots: [] } };
+    return { handled: true, value: guestHistoryPayload(path) };
   }
   if (pathname === '/api/collection/import' && method === 'POST') {
     return { handled: true, value: await guestImportCollection(body.rows, !!body.overwrite) };

@@ -84,12 +84,41 @@ export async function startCamera() {
       state.camera.timer = setInterval(scanBarcode, 400);
     } else if (state.camera.mode === "barcode") {
       const hint = $("#scanHint");
-      if (hint) hint.textContent = "Barcode scanning isn't supported on this browser — switch to photo mode";
+      if (hint) hint.textContent = "Live barcode scanning isn't supported on this browser — type the digits instead";
+      showManualBarcodeEntry();
     }
   } catch (e) {
     const hint = $("#scanHint");
     if (hint) hint.textContent = "Camera not available — check permissions";
   }
+}
+
+// Fallback for browsers without the BarcodeDetector API (e.g. desktop
+// Firefox): a manual digit-entry field wired to the same barcode lookup.
+function showManualBarcodeEntry() {
+  const hint = $("#scanHint");
+  if (!hint || $("#manualBarcodeRow")) return;
+  const row = document.createElement("div");
+  row.id = "manualBarcodeRow";
+  row.style.cssText = "display:flex;gap:8px;margin:10px 16px 0;";
+  row.innerHTML = `
+    <input type="text" id="manualBarcodeInput" inputmode="numeric" pattern="[0-9]*"
+      placeholder="Type barcode digits…" autocomplete="off"
+      style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-family:var(--mono);font-size:15px;">
+    <button class="btn-primary" id="manualBarcodeGo" style="padding:10px 16px;">Look up</button>`;
+  hint.insertAdjacentElement("afterend", row);
+  const submit = () => {
+    const digits = ($("#manualBarcodeInput")?.value || "").replace(/\D/g, "");
+    if (digits.length < 8) {
+      hint.textContent = "Barcodes are at least 8 digits — check the number under the bars";
+      return;
+    }
+    haptic("medium");
+    hint.textContent = "Looking up barcode…";
+    sendScanToAPI({ mode: "barcode", barcode: digits });
+  };
+  $("#manualBarcodeGo")?.addEventListener("click", submit);
+  $("#manualBarcodeInput")?.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
 }
 
 async function scanBarcode() {

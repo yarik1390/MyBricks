@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, fmtMoney, fmtPct, setHue, CURRENCY_SYMBOLS, bvIDB } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, fmtMoney, fmtPct, setHue, setBtnLoading, CURRENCY_SYMBOLS, bvIDB } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, sbSignOut, _authSession, isGuestMode, guestCollectionCSVBlob } from '../api.js';
 import { I } from '../icons.js';
@@ -567,26 +567,49 @@ export async function renderMe() {
   $("#revalueAllBtn")?.addEventListener("click", () => triggerImport("revalue"));
   $("#populateEverythingBtn")?.addEventListener("click", () => triggerImport("everything"));
 
-  // API Key hooks
-  $("#saveGeminiKey")?.addEventListener("click", () => {
-    haptic("medium");
-    const val = $("#geminiKeyInput").value.trim();
-    if (val) localStorage.setItem('bv_gemini_key', val);
-    else localStorage.removeItem('bv_gemini_key');
-    state.me = null;
-    toast("Gemini API key saved", "success");
-    renderMe();
-  });
+  // API Key hooks — validate with a minimal live call before saving so a bad
+  // or quota-exhausted key fails loudly here instead of silently in the scanner.
+  const validateApiKey = async (provider, key) => {
+    const url = provider === 'gemini'
+      ? `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}&pageSize=1`
+      : 'https://api.openai.com/v1/models';
+    const init = provider === 'gemini' ? {} : { headers: { Authorization: `Bearer ${key}` } };
+    const r = await fetch(url, init);
+    if (!r.ok) {
+      throw new Error(r.status === 401 || r.status === 403 ? 'Key rejected — check it and try again'
+        : r.status === 429 ? 'Key works but its quota is exhausted'
+        : `Validation failed (HTTP ${r.status})`);
+    }
+  };
 
-  $("#saveOpenAIKey")?.addEventListener("click", () => {
-    haptic("medium");
-    const val = $("#openaiKeyInput").value.trim();
-    if (val) localStorage.setItem('bv_openai_key', val);
-    else localStorage.removeItem('bv_openai_key');
-    state.me = null;
-    toast("OpenAI API key saved", "success");
-    renderMe();
-  });
+  const wireKeySave = (btnSel, inputSel, storageKey, provider, label) => {
+    $(btnSel)?.addEventListener("click", async () => {
+      haptic("medium");
+      const btn = $(btnSel);
+      const val = $(inputSel).value.trim();
+      if (!val) {
+        localStorage.removeItem(storageKey);
+        state.me = null;
+        toast(`${label} key removed`, "success");
+        renderMe();
+        return;
+      }
+      setBtnLoading(btn, true);
+      try {
+        await validateApiKey(provider, val);
+        localStorage.setItem(storageKey, val);
+        state.me = null;
+        toast(`${label} key verified and saved`, "success");
+        renderMe();
+      } catch (e) {
+        toast(`${label}: ${e.message}`, "error");
+      } finally {
+        setBtnLoading(btn, false);
+      }
+    });
+  };
+  wireKeySave("#saveGeminiKey", "#geminiKeyInput", "bv_gemini_key", "gemini", "Gemini");
+  wireKeySave("#saveOpenAIKey", "#openaiKeyInput", "bv_openai_key", "openai", "OpenAI");
 
   // CSV Import/Export hooks
   $("#exportCsvBtn")?.addEventListener("click", async () => {
@@ -646,6 +669,22 @@ export async function renderMe() {
       const text = await file.text();
       const rows = parseCSV(text);
       if (!rows.length) throw new Error("No valid rows found — check set_num column exists");
+
+      // Preview before applying — imports are hard to undo.
+      const sample = rows.slice(0, 3)
+        .map(r => `${r.set_num}${r.quantity > 1 ? ` ×${r.quantity}` : ''}`)
+        .join(', ');
+      setBtnLoading(importBtn, false);
+      if (resultEl) resultEl.textContent = "";
+      const ok = await confirmSheet({
+        title: `Import ${rows.length} set${rows.length === 1 ? '' : 's'}?`,
+        message: `Starting with: ${sample}${rows.length > 3 ? ` and ${rows.length - 3} more` : ''}. Existing sets are kept.`,
+        confirmLabel: "Import",
+      });
+      if (!ok) return;
+      setBtnLoading(importBtn, true);
+      if (resultEl) resultEl.textContent = "Importing...";
+
       const r = await api("/api/collection/import", { method: "POST", body: { rows } });
       if (resultEl) resultEl.textContent = `✓ ${r.imported} imported, ${r.skipped} skipped${r.errors?.length ? `, ${r.errors.length} errors` : ""}`;
       invalidatePortfolio();
