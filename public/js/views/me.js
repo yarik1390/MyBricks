@@ -199,7 +199,7 @@ export async function renderMe() {
             <span>eBay Pricing API</span>
             ${status.ebay
               ? `<span style="color:var(--up);font-weight:600;display:inline-flex;align-items:center;gap:4px;">● Connected</span>`
-              : `<span style="color:var(--ink-mute);font-weight:600;display:inline-flex;align-items:center;gap:4px;">⚠️ Unconfigured (scraped fallback)</span>`}
+              : `<span style="color:var(--ink-mute);font-weight:600;display:inline-flex;align-items:center;gap:4px;">⚠️ Unconfigured (sold comps disabled)</span>`}
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <span>BrickEconomy API</span>
@@ -222,7 +222,7 @@ export async function renderMe() {
           ${(!status.supabase || !status.google || !status.ebay || !status.brickeconomy || !status.openai || !status.rebrickable) ? `
             <div style="font-size:10px;color:var(--ink-mute);border-top:1px solid var(--line-soft);padding-top:8px;line-height:1.4;display:flex;flex-direction:column;gap:4px;">
               <span>To configure integrations, set the following environment variables in your Cloudflare dashboard:</span>
-              <code style="word-break: break-all;">DB (D1 Binding), SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_JWT_SECRET, OPENAI_API_KEY, REBRICKABLE_API_KEY, BRICKSET_API_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, EBAY_APP_ID, BRICKECONOMY_API_KEY</code>
+              <code style="word-break: break-all;">DB (D1 Binding), SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_JWT_SECRET, OPENAI_API_KEY, REBRICKABLE_API_KEY, BRICKSET_API_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, EBAY_APP_ID, EBAY_CLIENT_SECRET, BRICKECONOMY_API_KEY</code>
             </div>
           ` : ''}
         </div>
@@ -1071,9 +1071,10 @@ async function updateIntegrationsHealth() {
       ["Low-confidence values", Number(quality.low_confidence_values || 0).toLocaleString()],
       ["Barcode coverage", formatCoverage(coverage.sets_with_upc, coverage.barcode_coverage_pct)],
       ["BrickLink coverage", formatCoverage(bricklinkCount, coverage.bricklink_coverage_pct)],
-      ["eBay coverage", formatCoverage(coverage.sets_with_ebay, coverage.ebay_coverage_pct)],
+      ["eBay new sold", formatCoverage(coverage.sets_with_ebay_new, coverage.ebay_new_coverage_pct)],
+      ["eBay used sold", formatCoverage(coverage.sets_with_ebay_used, coverage.ebay_used_coverage_pct)],
     ];
-    const coverageNote = "Coverage tracks populated catalog fields. BrickLink includes new and used market data; daily safe batches advance barcode and price coverage automatically.";
+    const coverageNote = "Coverage tracks populated catalog fields. BrickLink and eBay are split into new and used market data; daily safe batches advance barcode and price coverage automatically.";
     const routingHTML = `
       <div style="border:1.5px solid var(--line-soft);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
         <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--ink-mute);margin-bottom:6px;">API routing</div>

@@ -98,11 +98,16 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
   },
   ebay: {
     label: 'eBay',
-    configured: (env) => !!env.EBAY_APP_ID,
-    required_secrets: ['EBAY_APP_ID'],
+    configured: (env) => !!(
+      env.EBAY_APP_ID &&
+      env.EBAY_CLIENT_SECRET &&
+      !env.EBAY_APP_ID.includes('dummy') &&
+      !env.EBAY_CLIENT_SECRET.includes('dummy')
+    ),
+    required_secrets: ['EBAY_APP_ID', 'EBAY_CLIENT_SECRET'],
     used_by: ['sold-price checks', 'deal score', 'listing draft'],
-    notes: 'Uses Marketplace Insights sold data when OAuth access is available, then legacy Finding API as fallback.',
-    recommended_action: 'Add EBAY_APP_ID to enable sold-price enrichment.',
+    notes: 'Uses eBay Marketplace Insights sold comps only, split into new/sealed and used US/USD values.',
+    recommended_action: 'Add EBAY_APP_ID and EBAY_CLIENT_SECRET to enable eBay sold-comps enrichment.',
   },
   bricklink: {
     label: 'BrickLink',

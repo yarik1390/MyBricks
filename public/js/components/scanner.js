@@ -3,7 +3,7 @@ import { state, invalidatePortfolio } from '../state.js';
 import { api, outboxEnqueue } from '../api.js';
 import { I } from '../icons.js';
 import { confirmSheet, showSheet, hideSheet } from './sheet.js';
-import { computeDealScore as computeDealScorePure } from '../lib/pure.js';
+import { computeDealScore as computeDealScorePure, marketValueForCondition } from '../lib/pure.js';
 
 export function openScan(mode = "barcode") {
   state.camera.mode = mode;
@@ -524,25 +524,6 @@ function showBulkScanResults(results) {
   });
 }
 
-function computeDealScore(set, storePrice) {
-  const market = set.ebay_value || set.current_value;
-  if (!market || !storePrice || storePrice <= 0) return null;
-  const pct = (market - storePrice) / market;
-  const greatThreshold = set.retired ? 0.05 : 0.15;
-  let verdict, label;
-  if (pct >= greatThreshold) {
-    verdict = "great";
-    label = `${fmtPct(pct)} below market — great deal!`;
-  } else if (pct <= -0.05) {
-    verdict = "over";
-    label = `${fmtPct(Math.abs(pct))} above market — overpriced`;
-  } else {
-    verdict = "fair";
-    label = `Within ${fmtPct(Math.abs(pct))} of market price`;
-  }
-  return { verdict, pct, label };
-}
-
 function dealScoreHTML(set) {
   return `
     <div class="deal-score-wrap" id="dealScoreWrap">
@@ -574,7 +555,7 @@ function updateDealBadge(set, priceStr) {
 }
 
 function openDealBreakdownSheet(set, storePrice) {
-  const market = parseFloat(set.ebay_value || set.current_value || 0);
+  const market = parseFloat(marketValueForCondition(set, set?.condition || 'new') || 0);
   const userCurrency = state.me?.currency || "USD";
   const rate = getExchangeRate(userCurrency);
   const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
@@ -635,11 +616,11 @@ function openDealBreakdownSheet(set, storePrice) {
 
 export function flipCalcHTML(set, entry) {
   const condition = entry?.condition || 'new';
-  const market = parseFloat(set.ebay_value || set.current_value || 0);
+  const market = parseFloat(marketValueForCondition(set, condition) || 0);
   if (market <= 0) return '';
   
   let estPrice = market;
-  if (condition.startsWith('used')) {
+  if (condition.startsWith('used') && !set.ebay_used_value) {
     const ratio = (set.used_value && set.current_value) ? (set.used_value / set.current_value) : 0.75;
     estPrice = market * ratio;
   }
@@ -687,11 +668,11 @@ export function updateFlipCalc(set, entry, storePrice) {
   if (!container) return;
   const price = parseFloat(storePrice) || 0;
   const condition = entry?.condition || 'new';
-  const market = parseFloat(set.ebay_value || set.current_value || 0);
+  const market = parseFloat(marketValueForCondition(set, condition) || 0);
   if (market <= 0) return;
 
   let estPrice = market;
-  if (condition.startsWith('used')) {
+  if (condition.startsWith('used') && !set.ebay_used_value) {
     const ratio = (set.used_value && set.current_value) ? (set.used_value / set.current_value) : 0.75;
     estPrice = market * ratio;
   }

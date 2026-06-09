@@ -4,7 +4,12 @@ import { optionalMember, requireMember } from '../auth';
 import { formulaValuation } from '../lib/valuation';
 import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
 import { fetchBricksetDetails } from '../lib/brickset';
-import { fetchEbayPrice } from '../lib/ebay';
+import {
+  buildEbaySoldUpdate,
+  ebaySoldNewValue,
+  fetchEbaySoldPrices,
+  type EbaySoldPrices,
+} from '../lib/ebay';
 import { callGeminiValuation } from '../lib/gemini';
 import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
 import { getCachedPriceTrend } from '../lib/price-trend';
@@ -31,6 +36,16 @@ const SORTS: Record<string, string> = {
   year_desc:  'year DESC',
   az:         'name ASC',
 };
+
+function pushEbaySoldUpdate(
+  stmts: D1PreparedStatement[],
+  db: D1Database,
+  setNum: string,
+  prices: EbaySoldPrices | null | undefined,
+) {
+  const stmt = buildEbaySoldUpdate(db, setNum, prices);
+  if (stmt) stmts.push(stmt);
+}
 
 function toFtsPrefixQuery(value: string): string {
   return value
@@ -188,10 +203,13 @@ app.get('/:setnum', async (c) => {
     // Non-blocking/blocking BrickLink or Gemini refresh when price is missing or stale
     const geminiKey = c.req.header('X-Gemini-Key');
     const isBulk = (activeSet.valuation_method === 'formula_bulk');
+    const missingEbaySoldComps =
+      (!activeSet.ebay_new_value && !activeSet.ebay_new_cached_at)
+      || (!activeSet.ebay_used_value && !activeSet.ebay_used_cached_at);
     const needsRefresh = isBulk
       || !activeSet.valuation_expires_at
       || new Date(activeSet.valuation_expires_at as string) < new Date()
-      || (!activeSet.ebay_value && !activeSet.ebay_cached_at);
+      || missingEbaySoldComps;
 
     if (needsRefresh) {
       if (c.env.BRICKECONOMY_API_KEY) {
@@ -200,15 +218,10 @@ app.get('/:setnum', async (c) => {
           fetchBrickEconomyDetails(activeSet.set_num as string, c.env).catch(() => null),
           fetchSetPricing(activeSet.set_num as string, c.env).catch(() => null),
           fetchUsedPricing(activeSet.set_num as string, c.env).catch(() => null),
-          fetchEbayPrice(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null),
-        ]).then(async ([be, blp, u, e]) => {
-          let ebayVal = e;
-          if (ebayVal === null && geminiKey) {
-            const gemVal = await callGeminiValuation(activeSet.set_num as string, activeSet.name as string, geminiKey, c.env).catch(() => null);
-            if (gemVal?.ebay_value) ebayVal = gemVal.ebay_value;
-          }
-
+          fetchEbaySoldPrices(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null),
+        ]).then(async ([be, blp, u, ebayPrices]) => {
           const supplementStmts: D1PreparedStatement[] = [];
+          pushEbaySoldUpdate(supplementStmts, c.env.DB, activeSet.set_num as string, ebayPrices);
 
           if (be && be.current_value_new !== null) {
             const defaultYr = activeSet.retired ? 0.15 : 0.10;
@@ -221,7 +234,6 @@ app.get('/:setnum', async (c) => {
             supplementStmts.push(c.env.DB.prepare(`
               UPDATE lego_sets SET
                 current_value=?, used_value=COALESCE(?, ?, used_value),
-                ebay_value=COALESCE(?, ebay_value),
                 bl_new_value=COALESCE(?, bl_new_value),
                 bl_new_qty=COALESCE(?, bl_new_qty),
                 bl_used_qty=COALESCE(?, bl_used_qty),
@@ -234,7 +246,6 @@ app.get('/:setnum', async (c) => {
             `).bind(
               be.current_value_new,
               u?.used_value ?? null, be.current_value_used,
-              ebayVal,
               blp?.current_value ?? null,
               blp?.lot_count ?? null,
               u?.lot_count ?? null,
@@ -254,11 +265,6 @@ app.get('/:setnum', async (c) => {
                 'UPDATE lego_sets SET used_value=?, bl_used_qty=COALESCE(?, bl_used_qty) WHERE set_num=?'
               ).bind(u.used_value, u.lot_count ?? null, activeSet.set_num));
             }
-            if (ebayVal !== null) {
-              supplementStmts.push(c.env.DB.prepare(
-                "UPDATE lego_sets SET ebay_value=?, ebay_cached_at=datetime('now') WHERE set_num=?"
-              ).bind(ebayVal, activeSet.set_num));
-            }
           }
 
           if (supplementStmts.length) await c.env.DB.batch(supplementStmts);
@@ -269,14 +275,12 @@ app.get('/:setnum', async (c) => {
         const refreshPromise = Promise.all([
           fetchSetPricing(activeSet.set_num as string, c.env),
           fetchUsedPricing(activeSet.set_num as string, c.env),
-          fetchEbayPrice(activeSet.set_num as string, activeSet.name as string, c.env)
-        ]).then(async ([p, u, e]) => {
+          fetchEbaySoldPrices(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null)
+        ]).then(async ([p, u, ebayPrices]) => {
           const supplementStmts: D1PreparedStatement[] = [];
+          pushEbaySoldUpdate(supplementStmts, c.env.DB, activeSet.set_num as string, ebayPrices);
           if (u) {
             supplementStmts.push(c.env.DB.prepare('UPDATE lego_sets SET used_value=?, bl_used_qty=? WHERE set_num=?').bind(u.used_value, u.lot_count, activeSet.set_num));
-          }
-          if (e !== null && e !== undefined) {
-            supplementStmts.push(c.env.DB.prepare("UPDATE lego_sets SET ebay_value=?, ebay_cached_at=datetime('now') WHERE set_num=?").bind(e, activeSet.set_num));
           }
           if (p) {
             const yr = activeSet.retired ? 0.15 : 0.10;
@@ -301,21 +305,23 @@ app.get('/:setnum', async (c) => {
       } else if (geminiKey) {
         const refreshPromise = Promise.all([
           callGeminiValuation(activeSet.set_num as string, activeSet.name as string, geminiKey, c.env).catch(() => null),
-          fetchEbayPrice(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null)
-        ]).then(async ([gemVal, ebayVal]) => {
+          fetchEbaySoldPrices(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null)
+        ]).then(async ([gemVal, ebayPrices]) => {
           const supplementStmts: D1PreparedStatement[] = [];
+          pushEbaySoldUpdate(supplementStmts, c.env.DB, activeSet.set_num as string, ebayPrices);
+          const ebayVal = ebaySoldNewValue(ebayPrices);
           if (gemVal) {
             const yr = activeSet.retired ? 0.15 : 0.10;
             const forecast_2y = Math.round(gemVal.current_value * Math.pow(1 + yr, 2) * 100) / 100;
             const forecast_5y = Math.round(gemVal.current_value * Math.pow(1 + yr, 5) * 100) / 100;
             supplementStmts.push(c.env.DB.prepare(`
               UPDATE lego_sets SET
-                current_value=?, used_value=?, ebay_value=COALESCE(?, ebay_value), forecast_2y=?, forecast_5y=?,
+                current_value=?, used_value=?, forecast_2y=?, forecast_5y=?,
                 valuation_method='ai',
                 valuation_expires_at=datetime('now', '+1 day'),
                 cached_at=datetime('now')
               WHERE set_num=?
-            `).bind(gemVal.current_value, gemVal.used_value, gemVal.ebay_value || null, forecast_2y, forecast_5y, activeSet.set_num));
+            `).bind(gemVal.current_value, gemVal.used_value, forecast_2y, forecast_5y, activeSet.set_num));
           } else if (ebayVal !== null) {
             const yr = activeSet.retired ? 0.15 : 0.10;
             const forecast_2y = Math.round(ebayVal * Math.pow(1 + yr, 2) * 100) / 100;
@@ -323,14 +329,11 @@ app.get('/:setnum', async (c) => {
             supplementStmts.push(c.env.DB.prepare(`
               UPDATE lego_sets SET
                 current_value=?, forecast_2y=?, forecast_5y=?,
-                valuation_method='ebay_rss',
+                valuation_method='ebay_sold',
                 valuation_expires_at=datetime('now', '+1 day'),
                 cached_at=datetime('now')
               WHERE set_num=?
             `).bind(ebayVal, forecast_2y, forecast_5y, activeSet.set_num));
-          }
-          if (ebayVal !== null) {
-            supplementStmts.push(c.env.DB.prepare("UPDATE lego_sets SET ebay_value=?, ebay_cached_at=datetime('now') WHERE set_num=?").bind(ebayVal, activeSet.set_num));
           }
           if (supplementStmts.length) {
             await c.env.DB.batch(supplementStmts);
@@ -339,24 +342,28 @@ app.get('/:setnum', async (c) => {
 
         c.executionCtx.waitUntil(refreshPromise);
       } else {
-        const refreshPromise = fetchEbayPrice(activeSet.set_num as string, activeSet.name as string, c.env).then(async (ebayVal) => {
+        const refreshPromise = fetchEbaySoldPrices(activeSet.set_num as string, activeSet.name as string, c.env).then(async (ebayPrices) => {
+          const ebayVal = ebaySoldNewValue(ebayPrices);
           const yr = activeSet.retired ? 0.15 : 0.10;
           const hasVal = (ebayVal !== null && ebayVal !== undefined);
           const forecast_2y = hasVal ? Math.round(ebayVal * Math.pow(1 + yr, 2) * 100) / 100 : null;
           const forecast_5y = hasVal ? Math.round(ebayVal * Math.pow(1 + yr, 5) * 100) / 100 : null;
-          await c.env.DB.prepare(`
-            UPDATE lego_sets SET
-              current_value = COALESCE(?, current_value),
-              ebay_value = COALESCE(?, ebay_value),
-              forecast_2y = COALESCE(?, forecast_2y),
-              forecast_5y = COALESCE(?, forecast_5y),
-              valuation_method = 'ebay_rss',
-              ebay_cached_at = datetime('now'),
-              valuation_expires_at = datetime('now', '+1 day'),
-              cached_at = datetime('now')
-            WHERE set_num=?
-          `).bind(ebayVal, ebayVal, forecast_2y, forecast_5y, activeSet.set_num).run();
-        }).catch(err => console.error('[bg-ebay-rss-reval] failed:', err));
+          const supplementStmts: D1PreparedStatement[] = [];
+          pushEbaySoldUpdate(supplementStmts, c.env.DB, activeSet.set_num as string, ebayPrices);
+          if (hasVal) {
+            supplementStmts.push(c.env.DB.prepare(`
+              UPDATE lego_sets SET
+                current_value = COALESCE(?, current_value),
+                forecast_2y = COALESCE(?, forecast_2y),
+                forecast_5y = COALESCE(?, forecast_5y),
+                valuation_method = 'ebay_sold',
+                valuation_expires_at = datetime('now', '+1 day'),
+                cached_at = datetime('now')
+              WHERE set_num=?
+            `).bind(ebayVal, forecast_2y, forecast_5y, activeSet.set_num));
+          }
+          if (supplementStmts.length) await c.env.DB.batch(supplementStmts);
+        }).catch(err => console.error('[bg-ebay-sold-reval] failed:', err));
 
         c.executionCtx.waitUntil(refreshPromise);
       }
@@ -446,12 +453,18 @@ app.post('/:setnum/listing-draft', requireMember, async (c) => {
     used_good: 'Used - Good', used_acceptable: 'Used - Acceptable',
   };
   const blPrice = set.current_value ? `$${Number(set.current_value).toFixed(0)}` : 'unknown';
-  const ebayPrice = set.ebay_value ? `$${Number(set.ebay_value).toFixed(0)}` : null;
+  const ebayNew = Number(set.ebay_new_value ?? set.ebay_value ?? 0);
+  const ebayUsed = Number(set.ebay_used_value ?? 0);
+  const ebayPrice = condition.startsWith('used') && ebayUsed > 0
+    ? `$${ebayUsed.toFixed(0)} used sold`
+    : ebayNew > 0
+      ? `$${ebayNew.toFixed(0)} new sold`
+      : null;
 
   const sourceName = set.valuation_method === 'market' ? 'BrickLink'
     : set.valuation_method === 'brickeconomy' ? 'BrickEconomy'
     : set.valuation_method === 'ai' ? 'AI estimate'
-    : set.valuation_method === 'ebay_rss' ? 'eBay Sold' : 'Estimated';
+    : (set.valuation_method === 'ebay_rss' || set.valuation_method === 'ebay_sold') ? 'eBay Sold' : 'Estimated';
   const marketMeta = enrichSetRecord({ ...set });
 
   const prompt = `Generate an eBay listing for this LEGO set. Return JSON only with keys: title, description, suggested_price (number), price_reasoning (string).
@@ -556,7 +569,7 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
   let pricing: { current_value: number } | null = null;
   let blPricing: { current_value: number; lot_count?: number } | null = null;
   let usedPricing: { used_value: number; lot_count?: number } | null = null;
-  let ebayPrice: number | null = null;
+  let ebayPrices: EbaySoldPrices | null = null;
   let valMethod = 'market';
 
   const geminiKey = c.req.header('X-Gemini-Key');
@@ -570,17 +583,12 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
       fetchBrickEconomyDetails(set.set_num as string, c.env).catch(() => null),
       fetchSetPricing(set.set_num as string, c.env).catch(() => null),
       fetchUsedPricing(set.set_num as string, c.env).catch(() => null),
-      fetchEbayPrice(set.set_num as string, set.name as string, c.env).catch(() => null),
+      fetchEbaySoldPrices(set.set_num as string, set.name as string, c.env).catch(() => null),
     ]);
     beDetails = be;
     blPricing = blp;
     usedPricing = u || (be?.current_value_used ? { used_value: be.current_value_used } : null);
-    ebayPrice = e;
-
-    if (ebayPrice === null && geminiKey) {
-      const gemVal = await callGeminiValuation(set.set_num as string, set.name as string, geminiKey, c.env).catch(() => null);
-      if (gemVal?.ebay_value) ebayPrice = gemVal.ebay_value;
-    }
+    ebayPrices = e;
 
     if (beDetails?.current_value_new != null) {
       pricing = { current_value: beDetails.current_value_new };
@@ -593,11 +601,11 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
       const [p, u, e] = await Promise.all([
         blPricing ? Promise.resolve(blPricing) : fetchSetPricing(set.set_num as string, c.env).catch(() => null),
         usedPricing ? Promise.resolve(usedPricing) : fetchUsedPricing(set.set_num as string, c.env).catch(() => null),
-        ebayPrice !== null ? Promise.resolve(ebayPrice) : fetchEbayPrice(set.set_num as string, set.name as string, c.env).catch(() => null),
+        ebayPrices !== null ? Promise.resolve(ebayPrices) : fetchEbaySoldPrices(set.set_num as string, set.name as string, c.env).catch(() => null),
       ]);
       blPricing = p as typeof blPricing;
       usedPricing = u as typeof usedPricing;
-      ebayPrice = e as typeof ebayPrice;
+      ebayPrices = e as typeof ebayPrices;
       pricing = blPricing;
       valMethod = 'market';
     } else {
@@ -607,7 +615,6 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
           pricing = { current_value: gemVal.current_value };
           usedPricing = { used_value: gemVal.used_value };
           valMethod = 'ai';
-          ebayPrice = gemVal.ebay_value || null;
 
           if (pricing && set.retail_price) {
             const pieceCount = Number(set.pieces ?? 0);
@@ -618,28 +625,24 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
           }
         }
       }
-      if (ebayPrice === null) {
-        ebayPrice = await fetchEbayPrice(set.set_num as string, set.name as string, c.env).catch(() => null);
+      if (ebayPrices === null) {
+        ebayPrices = await fetchEbaySoldPrices(set.set_num as string, set.name as string, c.env).catch(() => null);
       }
     }
   }
 
+  const ebayPrice = ebaySoldNewValue(ebayPrices);
   if (!pricing && ebayPrice !== null) {
     pricing = { current_value: ebayPrice };
-    valMethod = 'ebay_rss';
+    valMethod = 'ebay_sold';
   }
 
   const supplementStmts: D1PreparedStatement[] = [];
+  pushEbaySoldUpdate(supplementStmts, c.env.DB, set.set_num as string, ebayPrices);
   if (usedPricing) {
     supplementStmts.push(
       c.env.DB.prepare('UPDATE lego_sets SET used_value=? WHERE set_num=?')
         .bind(usedPricing.used_value, set.set_num)
-    );
-  }
-  if (ebayPrice !== null && ebayPrice !== undefined) {
-    supplementStmts.push(
-      c.env.DB.prepare("UPDATE lego_sets SET ebay_value=?, ebay_cached_at=datetime('now') WHERE set_num=?")
-        .bind(ebayPrice, set.set_num)
     );
   }
   if (blPricing) {

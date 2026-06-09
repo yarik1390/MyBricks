@@ -40,7 +40,9 @@ app.get('/', async (c) => {
   const p = prefs || {};
   const ebayConfigured = !!(
     c.env.EBAY_APP_ID &&
-    !c.env.EBAY_APP_ID.includes('dummy')
+    c.env.EBAY_CLIENT_SECRET &&
+    !c.env.EBAY_APP_ID.includes('dummy') &&
+    !c.env.EBAY_CLIENT_SECRET.includes('dummy')
   );
   const bricklinkConfigured = !!(
     c.env.BRICKLINK_CONSUMER_KEY &&

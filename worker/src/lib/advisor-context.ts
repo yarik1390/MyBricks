@@ -8,7 +8,8 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
   const [topSets, wishlist, stats, movers, trends, themes] = await Promise.all([
     env.DB.prepare(`
       SELECT ls.set_num, ls.name, ls.theme, ls.current_value, ls.retail_price,
-             ls.ebay_value, ls.retired, ls.retirement_risk_score,
+             COALESCE(ls.ebay_new_value, ls.ebay_value) AS ebay_value,
+             ls.ebay_used_value, ls.retired, ls.retirement_risk_score,
              ls.valuation_method, ls.valuation_expires_at, ls.cached_at,
              ls.bl_new_value, ls.bl_new_qty, ls.bl_used_qty, ls.used_value,
              uc.purchase_price, uc.quantity, uc.condition, uc.purchased_at
@@ -19,7 +20,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
       LIMIT 25
     `).bind(userId).all<{
       set_num: string; name: string; theme: string | null;
-      current_value: number; retail_price: number | null; ebay_value: number | null;
+      current_value: number; retail_price: number | null; ebay_value: number | null; ebay_used_value: number | null;
       valuation_method: string | null; valuation_expires_at: string | null; cached_at: string | null;
       bl_new_value: number | null; bl_new_qty: number | null; bl_used_qty: number | null; used_value: number | null;
       retired: number; retirement_risk_score: number | null;
@@ -28,7 +29,9 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
     }>(),
 
     env.DB.prepare(`
-      SELECT ls.set_num, ls.name, ls.current_value, ls.ebay_value, ls.valuation_method,
+      SELECT ls.set_num, ls.name, ls.current_value,
+             COALESCE(ls.ebay_new_value, ls.ebay_value) AS ebay_value,
+             ls.ebay_used_value, ls.valuation_method,
              ls.valuation_expires_at, ls.cached_at, ls.bl_new_value, ls.bl_new_qty,
              ls.bl_used_qty, ls.used_value, uw.target_price
       FROM user_wishlist uw
@@ -40,7 +43,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
       set_num: string; name: string; current_value: number;
       valuation_method: string | null; valuation_expires_at: string | null; cached_at: string | null;
       bl_new_value: number | null; bl_new_qty: number | null; bl_used_qty: number | null; used_value: number | null;
-      ebay_value: number | null; target_price: number | null;
+      ebay_value: number | null; ebay_used_value: number | null; target_price: number | null;
     }>(),
 
     env.DB.prepare(`
@@ -56,7 +59,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
       SELECT set_num, name, current_value, retail_price, valuation_method
       FROM lego_sets
       WHERE valuation_expires_at > datetime('now', '-14 days')
-        AND valuation_method IN ('market', 'brickeconomy', 'ai', 'ebay_rss')
+        AND valuation_method IN ('market', 'brickeconomy', 'ai', 'ebay_rss', 'ebay_sold')
         AND set_num IN (
           SELECT set_num FROM user_collection WHERE user_id = ? AND deleted_at IS NULL
           UNION

@@ -20,7 +20,9 @@ async function getDataCoverage(env: Env) {
         CAST(SUM(CASE WHEN valuation_expires_at IS NOT NULL AND valuation_expires_at < datetime('now') THEN 1 ELSE 0 END) AS INTEGER) AS expired_values,
         CAST(SUM(CASE WHEN cached_at IS NULL OR cached_at < datetime('now','-60 days') THEN 1 ELSE 0 END) AS INTEGER) AS stale_values,
         CAST(SUM(CASE WHEN upc IS NOT NULL AND upc != '' THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_upc,
-        CAST(SUM(CASE WHEN ebay_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_ebay,
+        CAST(SUM(CASE WHEN ebay_new_value IS NOT NULL OR ebay_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_ebay,
+        CAST(SUM(CASE WHEN ebay_new_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_ebay_new,
+        CAST(SUM(CASE WHEN ebay_used_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_ebay_used,
         CAST(SUM(CASE WHEN bl_new_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_bricklink_new,
         CAST(SUM(CASE WHEN used_value IS NOT NULL OR bl_used_qty IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_bricklink_used,
         CAST(SUM(CASE WHEN bl_new_value IS NOT NULL OR used_value IS NOT NULL OR bl_used_qty IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_bricklink,
@@ -44,6 +46,8 @@ async function getDataCoverage(env: Env) {
   const pct = (n: number) => total ? Math.round((n / total) * 1000) / 10 : 0;
   const barcodeCount = Number(sets?.sets_with_upc || 0);
   const ebayCount = Number(sets?.sets_with_ebay || 0);
+  const ebayNewCount = Number(sets?.sets_with_ebay_new || 0);
+  const ebayUsedCount = Number(sets?.sets_with_ebay_used || 0);
   const bricklinkCount = Number(sets?.sets_with_bricklink || 0);
   const bricklinkNewCount = Number(sets?.sets_with_bricklink_new || 0);
   const bricklinkUsedCount = Number(sets?.sets_with_bricklink_used || 0);
@@ -65,6 +69,8 @@ async function getDataCoverage(env: Env) {
     sets_with_bricklink: bricklinkCount,
     barcode_coverage_pct: pct(barcodeCount),
     ebay_coverage_pct: pct(ebayCount),
+    ebay_new_coverage_pct: pct(ebayNewCount),
+    ebay_used_coverage_pct: pct(ebayUsedCount),
     bricklink_coverage_pct: pct(bricklinkCount),
     bricklink_new_coverage_pct: pct(bricklinkNewCount),
     bricklink_used_coverage_pct: pct(bricklinkUsedCount),

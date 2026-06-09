@@ -54,6 +54,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
     (env as any).ADMIN_USER_ID = 'admin-user';
     delete (env as any).GOOGLE_CLIENT_ID;
     delete (env as any).GOOGLE_CLIENT_SECRET;
+    delete (env as any).EBAY_APP_ID;
+    delete (env as any).EBAY_CLIENT_SECRET;
 
     token = await createMockJWT(userId, JWT_SECRET);
     otherToken = await createMockJWT(otherUserId, JWT_SECRET);
@@ -76,6 +78,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         pieces INTEGER, minifigs INTEGER DEFAULT 0, retail_price REAL, current_value REAL,
         forecast_2y REAL, forecast_5y REAL, image_url TEXT, retired INTEGER DEFAULT 0,
         retirement_risk_score INTEGER, used_value REAL, ebay_value REAL, upc TEXT,
+        ebay_new_value REAL, ebay_used_value REAL, ebay_new_qty INTEGER, ebay_used_qty INTEGER,
+        ebay_new_cached_at TEXT, ebay_used_cached_at TEXT,
         valuation_method TEXT DEFAULT 'formula_bulk', bl_new_value REAL, bl_new_qty INTEGER, bl_used_qty INTEGER,
         valuation_expires_at TEXT, cached_at TEXT, source TEXT, ebay_cached_at TEXT
       )`,
@@ -407,7 +411,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         `UPDATE lego_sets SET upc='0673419280310', used_value=725 WHERE set_num='75192'`
       ).run();
       await db.prepare(
-        `UPDATE lego_sets SET ebay_value=180, bl_new_value=220 WHERE set_num='10300'`
+        `UPDATE lego_sets SET ebay_new_value=180, ebay_used_value=140, ebay_new_qty=5, ebay_used_qty=4, bl_new_value=220 WHERE set_num='10300'`
       ).run();
       await db.prepare(
         `INSERT INTO integration_health (service, last_ok_at, ok_count, fail_count, updated_at)
@@ -431,11 +435,15 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.coverage.total_sets).toBe(2);
       expect(data.coverage.sets_with_upc).toBe(1);
       expect(data.coverage.sets_with_ebay).toBe(1);
+      expect(data.coverage.sets_with_ebay_new).toBe(1);
+      expect(data.coverage.sets_with_ebay_used).toBe(1);
       expect(data.coverage.sets_with_bricklink_new).toBe(1);
       expect(data.coverage.sets_with_bricklink_used).toBe(1);
       expect(data.coverage.sets_with_bricklink).toBe(2);
       expect(data.coverage.barcode_coverage_pct).toBe(50);
       expect(data.coverage.ebay_coverage_pct).toBe(50);
+      expect(data.coverage.ebay_new_coverage_pct).toBe(50);
+      expect(data.coverage.ebay_used_coverage_pct).toBe(50);
       expect(data.coverage.bricklink_coverage_pct).toBe(100);
       expect(data.coverage.quality.missing_msrp).toBe(0);
       expect(data.coverage.quality.missing_upc).toBe(1);
@@ -446,6 +454,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
 
     it('classifies provider access failures as degraded, not down', async () => {
       (env as any).EBAY_APP_ID = 'test-ebay-app-id';
+      (env as any).EBAY_CLIENT_SECRET = 'test-ebay-client-secret';
       await db.prepare(
         `INSERT INTO integration_health (service, last_fail_at, last_error, ok_count, fail_count, updated_at)
          VALUES ('ebay', datetime('now'), 'HTTP 403', 0, 4, datetime('now'))`

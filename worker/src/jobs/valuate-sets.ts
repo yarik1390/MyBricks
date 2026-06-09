@@ -1,7 +1,13 @@
 import OpenAI from 'openai';
 import type { Env } from '../types';
 import { fetchSetPricing, fetchUsedPricing, fetchMinifigPricing } from '../lib/bricklink';
-import { fetchEbayPrice } from '../lib/ebay';
+import {
+  buildEbaySoldUpdate,
+  ebaySoldHasValue,
+  ebaySoldNewValue,
+  fetchEbaySoldPrices,
+  type EbaySoldPrices,
+} from '../lib/ebay';
 import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
 import { computeRetirementRisk } from '../lib/retirement-risk';
 import { recordIntegrationHealth, type IntegrationName } from '../lib/integration-health';
@@ -70,7 +76,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   for (const set of results) {
     let pricing: { current_value: number } | null = null;
     let usedPricing: { used_value: number; lot_count?: number } | null = null;
-    let ebayPrice: number | null = null;
+    let ebayPrices: EbaySoldPrices | null = null;
     let valMethod = 'market';
     let beDetails: any = null;
 
@@ -103,9 +109,13 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     }
 
     if (includeEbay) {
-      ebayPrice = await fetchEbayPrice(set.set_num, set.name, env, sourceOptions)
+      ebayPrices = await fetchEbaySoldPrices(set.set_num, set.name, env, sourceOptions)
         .catch((err) => { tallyFail('ebay', err); return null; });
-      if (ebayPrice !== null) tallyOk('ebay');
+      if (ebayPrices?.status === 'error' || ebayPrices?.status === 'unauthorized') {
+        tallyFail('ebay', ebayPrices.error || ebayPrices.status);
+      } else if (ebayPrices?.status && ebayPrices.status !== 'unconfigured') {
+        tallyOk('ebay');
+      }
     }
 
     if (!pricing) {
@@ -121,10 +131,14 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
             .catch((err) => { tallyFail('bricklink', err); return null; });
           if (usedPricing) tallyOk('bricklink');
         }
-        if (includeEbay && ebayPrice === null) {
-          ebayPrice = await fetchEbayPrice(set.set_num, set.name, env, sourceOptions)
+        if (includeEbay && ebayPrices === null) {
+          ebayPrices = await fetchEbaySoldPrices(set.set_num, set.name, env, sourceOptions)
             .catch((err) => { tallyFail('ebay', err); return null; });
-          if (ebayPrice !== null) tallyOk('ebay');
+          if (ebayPrices?.status === 'error' || ebayPrices?.status === 'unauthorized') {
+            tallyFail('ebay', ebayPrices.error || ebayPrices.status);
+          } else if (ebayPrices?.status && ebayPrices.status !== 'unconfigured') {
+            tallyOk('ebay');
+          }
         }
       }
       pricing = blPricing;
@@ -139,12 +153,8 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
           .bind(usedPricing.used_value, set.set_num)
       );
     }
-    if (ebayPrice) {
-      supplementStmts.push(
-        env.DB.prepare("UPDATE lego_sets SET ebay_value=?, ebay_cached_at=datetime('now') WHERE set_num=?")
-          .bind(ebayPrice, set.set_num)
-      );
-    }
+    const ebayStmt = buildEbaySoldUpdate(env.DB, set.set_num, ebayPrices);
+    if (ebayStmt) supplementStmts.push(ebayStmt);
     if (blPricing) {
       supplementStmts.push(
         env.DB.prepare('UPDATE lego_sets SET bl_new_value=?, bl_new_qty=? WHERE set_num=?')
@@ -196,6 +206,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       continue;
     }
 
+    const ebayPrice = ebaySoldNewValue(ebayPrices);
     if (ebayPrice !== null && ebayPrice !== undefined) {
       const yr = set.retired ? 0.15 : 0.10;
       const forecast_2y = Math.round(ebayPrice * Math.pow(1 + yr, 2) * 100) / 100;
@@ -203,7 +214,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       await env.DB.prepare(`
         UPDATE lego_sets SET
           current_value=?, forecast_2y=?, forecast_5y=?,
-          valuation_method='ebay_rss',
+          valuation_method='ebay_sold',
           valuation_expires_at=datetime('now', '+1 day'),
           cached_at=datetime('now')
         WHERE set_num=?
@@ -273,8 +284,10 @@ export async function runEbayBackfill(env: Env, options: { limit?: number } = {}
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num, ls.name
     FROM lego_sets ls
-    WHERE ls.ebay_value IS NULL
-      AND (ls.ebay_cached_at IS NULL OR ls.ebay_cached_at < datetime('now', '-7 days'))
+    WHERE (
+      (ls.ebay_new_value IS NULL AND (ls.ebay_new_cached_at IS NULL OR ls.ebay_new_cached_at < datetime('now', '-7 days')))
+      OR (ls.ebay_used_value IS NULL AND (ls.ebay_used_cached_at IS NULL OR ls.ebay_used_cached_at < datetime('now', '-7 days')))
+    )
     ORDER BY
       CASE WHEN EXISTS (
         SELECT 1 FROM user_collection uc
@@ -283,27 +296,19 @@ export async function runEbayBackfill(env: Env, options: { limit?: number } = {}
         SELECT 1 FROM user_wishlist uw
         WHERE uw.set_num = ls.set_num
       ) THEN 0 ELSE 1 END,
-      COALESCE(ls.ebay_cached_at, '2000-01-01') ASC,
+      COALESCE(ls.ebay_new_cached_at, '2000-01-01') ASC,
+      COALESCE(ls.ebay_used_cached_at, '2000-01-01') ASC,
       ls.set_num ASC
     LIMIT ?
   `).bind(limit).all<{ set_num: string; name: string }>();
 
   let updated = 0;
   for (const set of results) {
-    const price = await fetchEbayPrice(set.set_num, set.name, env).catch(() => null);
-    if (price !== null && price > 0) {
-      await env.DB.prepare(`
-        UPDATE lego_sets
-        SET ebay_value=?, ebay_cached_at=datetime('now')
-        WHERE set_num=?
-      `).bind(price, set.set_num).run();
-      updated++;
-    } else {
-      await env.DB.prepare(`
-        UPDATE lego_sets
-        SET ebay_cached_at=datetime('now')
-        WHERE set_num=?
-      `).bind(set.set_num).run();
+    const prices = await fetchEbaySoldPrices(set.set_num, set.name, env).catch(() => null);
+    const stmt = buildEbaySoldUpdate(env.DB, set.set_num, prices);
+    if (stmt) {
+      await stmt.run();
+      if (ebaySoldHasValue(prices)) updated++;
     }
   }
 

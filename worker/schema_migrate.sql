@@ -2,6 +2,12 @@
 -- Run with error suppression (|| true) — duplicate column errors are expected on re-deploys.
 ALTER TABLE lego_sets ADD COLUMN ebay_value REAL;
 ALTER TABLE lego_sets ADD COLUMN ebay_cached_at TEXT;
+ALTER TABLE lego_sets ADD COLUMN ebay_new_value REAL;
+ALTER TABLE lego_sets ADD COLUMN ebay_used_value REAL;
+ALTER TABLE lego_sets ADD COLUMN ebay_new_qty INTEGER;
+ALTER TABLE lego_sets ADD COLUMN ebay_used_qty INTEGER;
+ALTER TABLE lego_sets ADD COLUMN ebay_new_cached_at TEXT;
+ALTER TABLE lego_sets ADD COLUMN ebay_used_cached_at TEXT;
 ALTER TABLE lego_sets ADD COLUMN used_value REAL;
 ALTER TABLE lego_sets ADD COLUMN retirement_risk_score INTEGER;
 ALTER TABLE lego_sets ADD COLUMN retirement_risk_updated_at TEXT;

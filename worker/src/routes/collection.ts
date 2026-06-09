@@ -46,6 +46,7 @@ app.get('/', async (c) => {
     c.env.DB.prepare(`
       SELECT ROUND(SUM(
                COALESCE(s.current_value,0) + COALESCE(s.used_value,0) +
+               COALESCE(s.ebay_new_value,0) + COALESCE(s.ebay_used_value,0) +
                COALESCE(s.ebay_value,0) + COALESCE(s.forecast_2y,0) +
                COALESCE(s.retirement_risk_score,0) + COALESCE(s.retired,0)
              ), 2) as fp
@@ -77,7 +78,9 @@ app.get('/', async (c) => {
       uc.storage_location, uc.acquisition_source, uc.is_complete, uc.missing_pieces,
       s.name, s.theme, s.year, s.pieces, s.minifigs,
       s.retail_price, s.current_value, s.forecast_2y, s.forecast_5y,
-      s.image_url, s.retired, s.retirement_risk_score, s.used_value, s.ebay_value, s.cached_at,
+      s.image_url, s.retired, s.retirement_risk_score, s.used_value, s.ebay_value,
+      s.ebay_new_value, s.ebay_used_value, s.ebay_new_qty, s.ebay_used_qty,
+      s.ebay_new_cached_at, s.ebay_used_cached_at, s.ebay_cached_at, s.cached_at,
       s.valuation_method, s.bl_new_value, s.bl_new_qty, s.bl_used_qty
     FROM user_collection uc
     JOIN lego_sets s ON s.set_num = uc.set_num

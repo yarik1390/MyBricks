@@ -45,8 +45,12 @@ export function marketFreshness(row: Record<string, unknown>): MarketFreshness {
   return 'fresh';
 }
 
-function sourceFreshness(row: Record<string, unknown>, timestampField: string = 'cached_at'): MarketFreshness {
-  if (timestampField === 'ebay_cached_at' && !num(row.ebay_value)) return 'missing';
+function sourceFreshness(
+  row: Record<string, unknown>,
+  timestampField: string = 'cached_at',
+  valueField: string = 'current_value',
+): MarketFreshness {
+  if (!num(row[valueField])) return 'missing';
   if (olderThanDays(row[timestampField], 60)) return 'stale';
   return row[timestampField] ? 'fresh' : marketFreshness(row);
 }
@@ -112,17 +116,40 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
     });
   }
 
-  if (num(row.ebay_value)) {
+  const ebayNew = num(row.ebay_new_value);
+  const legacyEbay = !ebayNew ? num(row.ebay_value) : null;
+  if (ebayNew || legacyEbay) {
+    const legacy = !ebayNew && !!legacyEbay;
     sources.push({
-      id: 'ebay_sold',
-      name: 'eBay sold',
-      value: num(row.ebay_value),
-      condition: 'sold',
-      sample_count: null,
-      last_updated: text(row.ebay_cached_at) || cachedAt,
-      freshness: sourceFreshness(row, 'ebay_cached_at'),
-      reliability: method === 'ebay_rss' ? 'primary' : 'corroborating',
-      note: 'Recent completed/sold listing median where available.',
+      id: legacy ? 'ebay_legacy' : 'ebay_sold_new',
+      name: legacy ? 'Legacy eBay' : 'eBay sold new',
+      value: ebayNew || legacyEbay,
+      condition: 'new',
+      sample_count: legacy ? null : num(row.ebay_new_qty),
+      last_updated: legacy
+        ? text(row.ebay_cached_at) || cachedAt
+        : text(row.ebay_new_cached_at) || cachedAt,
+      freshness: legacy
+        ? sourceFreshness(row, 'ebay_cached_at', 'ebay_value')
+        : sourceFreshness(row, 'ebay_new_cached_at', 'ebay_new_value'),
+      reliability: (method === 'ebay_rss' || method === 'ebay_sold') ? 'primary' : 'corroborating',
+      note: legacy
+        ? 'Older single eBay value kept until sold comps refresh.'
+        : 'US/USD sold-listing median for new or sealed condition.',
+    });
+  }
+
+  if (num(row.ebay_used_value)) {
+    sources.push({
+      id: 'ebay_sold_used',
+      name: 'eBay sold used',
+      value: num(row.ebay_used_value),
+      condition: 'used',
+      sample_count: num(row.ebay_used_qty),
+      last_updated: text(row.ebay_used_cached_at) || cachedAt,
+      freshness: sourceFreshness(row, 'ebay_used_cached_at', 'ebay_used_value'),
+      reliability: 'corroborating',
+      note: 'US/USD sold-listing median for used condition.',
     });
   }
 
@@ -178,14 +205,14 @@ export function marketConfidence(row: Record<string, unknown>, sources = buildMa
   if (method === 'formula_bulk' || method === 'local') return 'estimated';
   if (method === 'ai') return fresh === 'fresh' ? 'low' : 'estimated';
 
-  const hasEbay = sources.some(s => s.id === 'ebay_sold' && s.value);
+  const hasEbay = sources.some(s => (s.id === 'ebay_sold_new' || s.id === 'ebay_sold_used' || s.id === 'ebay_legacy') && s.value);
   const hasBrickLink = sources.some(s => s.id === 'bricklink_new' && s.value);
   const hasLots = Number(row.bl_new_qty || 0) >= 5 || Number(row.bl_used_qty || 0) >= 3;
   const isFresh = fresh === 'fresh';
 
   if (method === 'brickeconomy' && isFresh && (hasBrickLink || hasEbay)) return 'high';
   if (method === 'market' && isFresh && hasLots && hasEbay) return 'high';
-  if ((method === 'brickeconomy' || method === 'market' || method === 'ebay_rss') && fresh !== 'expired') return 'medium';
+  if ((method === 'brickeconomy' || method === 'market' || method === 'ebay_rss' || method === 'ebay_sold') && fresh !== 'expired') return 'medium';
   return 'low';
 }
 
@@ -193,7 +220,8 @@ export function primaryValueSource(row: Record<string, unknown>): string {
   switch (String(row.valuation_method || '')) {
     case 'brickeconomy': return 'brickeconomy';
     case 'market': return 'bricklink_new';
-    case 'ebay_rss': return 'ebay_sold';
+    case 'ebay_rss': return 'ebay_legacy';
+    case 'ebay_sold': return 'ebay_sold_new';
     case 'ai': return 'ai_estimate';
     case 'formula_bulk': return 'formula';
     default: return 'unknown';
@@ -212,7 +240,8 @@ export function valuationExplanation(row: Record<string, unknown>, confidence: M
   const stale = freshness === 'expired' ? ' The value is due for refresh.' : freshness === 'stale' ? ' The value is older than 60 days.' : '';
   if (method === 'brickeconomy') return `${prefix}: BrickEconomy is primary, with BrickLink/eBay used when available.${stale}`;
   if (method === 'market') return `${prefix}: BrickLink sold data is primary, with eBay used as a cross-check.${stale}`;
-  if (method === 'ebay_rss') return `${prefix}: eBay completed listings are the current fallback source.${stale}`;
+  if (method === 'ebay_rss') return `${prefix}: legacy eBay completed-listing data is the current fallback source until sold comps refresh.${stale}`;
+  if (method === 'ebay_sold') return `${prefix}: eBay US/USD sold comps are the current fallback source.${stale}`;
   if (method === 'ai') return `${prefix}: AI estimated this value because market sources were unavailable.${stale}`;
   return `${prefix}: formula valuation is used until a market refresh completes.${stale}`;
 }

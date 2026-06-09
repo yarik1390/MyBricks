@@ -15,7 +15,9 @@ app.get('/', async (c) => {
       SELECT w.id, w.set_num, w.target_price, w.notes, w.added_at, w.alerted_at,
         s.name, s.theme, s.year, s.image_url, s.current_value, s.forecast_2y,
         s.retail_price, s.retired, s.retirement_risk_score, s.ebay_value,
-        s.ebay_cached_at, s.used_value, s.bl_new_value, s.bl_new_qty,
+        s.ebay_new_value, s.ebay_used_value, s.ebay_new_qty, s.ebay_used_qty,
+        s.ebay_new_cached_at, s.ebay_used_cached_at, s.ebay_cached_at,
+        s.used_value, s.bl_new_value, s.bl_new_qty,
         s.bl_used_qty, s.valuation_method, s.valuation_expires_at, s.cached_at
       FROM user_wishlist w
       JOIN lego_sets s ON s.set_num = w.set_num

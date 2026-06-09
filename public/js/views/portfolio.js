@@ -1,5 +1,5 @@
 import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, clamp, prefersReducedMotion, confettiBurst, themeHue, setHue, THEME_COLORS, fmtShortDate, fmtDateUpdated, setBtnLoading, drawSparkline, brickTile, slImgHTML, bricklinkBuyURL, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB } from '../utils.js';
-import { computeDealScore } from '../lib/pure.js';
+import { computeDealScore, ebaySoldSummary, marketValueForCondition } from '../lib/pure.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue } from '../api.js';
 import { I } from '../icons.js';
@@ -837,7 +837,7 @@ function infoTabHTML(set, entry, isWish) {
   const valueSource = set.valuation_method === "market" ? "BrickLink"
     : set.valuation_method === "brickeconomy" ? "BrickEconomy"
     : set.valuation_method === "ai" ? "AI estimate"
-    : set.valuation_method === "ebay_rss" ? "eBay Sold" : "Estimated";
+    : (set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "eBay Sold" : "Estimated";
 
   let bricksetHtml = '';
   if (set.brickset) {
@@ -866,15 +866,59 @@ function infoTabHTML(set, entry, isWish) {
     }
   }
 
-  const ebayPrice = set.ebay_value || 0;
+  const ebaySold = ebaySoldSummary(set);
+  const ebayPrice = ebaySold.newValue || 0;
+  const ebayUsedPrice = ebaySold.usedValue || 0;
   const retailPrice = set.retail_price || 0;
   let pricingSummaryHtml = '';
-  if (ebayPrice > 0) {
+  if (ebayPrice > 0 || ebayUsedPrice > 0) {
+    const pricingTreatment = (retailPrice > 0 && ebayPrice > 0 && ebayPrice < retailPrice) ? 'STP' : (retailPrice > 0 && ebayPrice > retailPrice ? 'APPRECIATED' : 'NONE');
+    const newQty = ebaySold.newSampleCount ? ` / ${ebaySold.newSampleCount} sales` : '';
+    const usedQty = ebaySold.usedSampleCount ? ` / ${ebaySold.usedSampleCount} sales` : '';
+    pricingSummaryHtml = `
+      <div class="card pricing-summary-card" style="margin-bottom:14px; padding:14px 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <div style="font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-mute);">eBay Sold Comps</div>
+          <span class="badge" style="font-size:9px; padding:2px 6px; border-radius:4px; font-family:var(--mono); background:var(--surface-3); color:var(--ink-soft);">${ebaySold.legacy ? 'Legacy' : pricingTreatment === 'STP' ? 'Below MSRP' : pricingTreatment === 'APPRECIATED' ? 'Appreciated' : 'Sold data'}</span>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+          <div>
+            <div style="font-size:10px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">New sold${newQty}</div>
+            <div style="font-size:18px; font-weight:600; color:var(--ink);">${ebayPrice > 0 ? fmtMoney(ebayPrice) : "Pending"}</div>
+          </div>
+          <div>
+            <div style="font-size:10px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">Used sold${usedQty}</div>
+            <div style="font-size:16px; font-weight:500; color:var(--ink-soft);">${ebayUsedPrice > 0 ? fmtMoney(ebayUsedPrice) : "Pending"}</div>
+          </div>
+        </div>
+        ${retailPrice > 0 && ebayPrice > 0 ? `
+          <div style="display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--line-soft);margin-top:10px;padding-top:10px;font-size:11px;">
+            <span style="color:var(--ink-mute);">Retail MSRP</span>
+            <strong style="color:var(--ink-soft);">${fmtMoney(retailPrice)}</strong>
+          </div>
+        ` : ''}
+        ${!ebaySold.legacy && pricingTreatment === 'STP' ? `
+          <div style="font-size:11px; color:var(--down); margin-top:10px; display:flex; align-items:center; gap:6px;">
+            <span style="font-size:8px;">*</span> New sold comps are ${fmtMoney(retailPrice - ebayPrice)} (${fmtPct((retailPrice - ebayPrice) / retailPrice)}) below MSRP.
+          </div>
+        ` : !ebaySold.legacy && pricingTreatment === 'APPRECIATED' ? `
+          <div style="font-size:11px; color:var(--up); margin-top:10px; display:flex; align-items:center; gap:6px;">
+            <span style="font-size:8px;">*</span> New sold comps are ${fmtMoney(ebayPrice - retailPrice)} (${fmtPct((ebayPrice - retailPrice) / retailPrice)}) above MSRP.
+          </div>
+        ` : ebaySold.legacy ? `
+          <div style="font-size:11px; color:var(--ink-mute); margin-top:10px; line-height:1.4;">
+            Legacy single-value eBay data is shown until the sold-comps backfill refreshes this set.
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+  if (false && ebayPrice > 0) {
     const pricingTreatment = (retailPrice > 0 && ebayPrice < retailPrice) ? 'STP' : (retailPrice > 0 && ebayPrice > retailPrice ? 'APPRECIATED' : 'NONE');
     pricingSummaryHtml = `
       <div class="card pricing-summary-card" style="margin-bottom:14px; padding:14px 16px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <div style="font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-mute);">eBay Pricing Summary</div>
+          <div style="font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-mute);">Unused legacy eBay card</div>
           <span class="badge" style="font-size:9px; padding:2px 6px; border-radius:4px; font-family:var(--mono); background:var(--surface-3); color:var(--ink-soft);">${pricingTreatment === 'STP' ? 'STP (Strikethrough)' : pricingTreatment === 'APPRECIATED' ? 'Appreciated' : 'None'}</span>
         </div>
         
@@ -1122,7 +1166,7 @@ function forecastTabHTML(set) {
   const forecastLabel = set.valuation_method === "market" ? "Market value · BrickLink"
     : set.valuation_method === "brickeconomy" ? "Market value · BrickEconomy"
     : set.valuation_method === "ai" ? "AI forecast · GPT-4o-mini"
-    : set.valuation_method === "ebay_rss" ? "Market value · eBay Sold" : "Estimated";
+    : (set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "Market value · eBay Sold" : "Estimated";
   return `
     <div class="card" style="padding:14px 16px;margin-bottom:14px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
@@ -1134,8 +1178,8 @@ function forecastTabHTML(set) {
           ? "Based on recent completed sales on BrickLink."
           : set.valuation_method === "brickeconomy"
           ? "Based on professional market analysis from BrickEconomy."
-          : set.valuation_method === "ebay_rss"
-          ? "Based on recent completed sales on eBay."
+          : (set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold")
+          ? "Based on recent eBay sold comps."
           : `Based on theme rarity, piece count, retirement status, and market trends for similar ${escapeHtml(set.theme || "")} sets.`}
       </p>
     </div>
@@ -1656,7 +1700,7 @@ function openAddWishlistSheet(set, onConfirm) {
 }
 
 function openDealBreakdownSheet(set, storePrice) {
-  const market = parseFloat(set.ebay_value || set.current_value || 0);
+  const market = parseFloat(marketValueForCondition(set, set?.condition || 'new') || 0);
   const userCurrency = state.me?.currency || "USD";
   const rate = getExchangeRate(userCurrency);
   const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
@@ -1728,7 +1772,7 @@ function wireFlipCalc(set, entry, containerEl = document) {
       if (key === "tax") localStorage.setItem("bv_flip_tax", val);
 
       const condition = entry?.condition || 'new';
-      const market = parseFloat(set.ebay_value || set.current_value || 0);
+      const market = parseFloat(marketValueForCondition(set, condition) || 0);
       if (market <= 0) return;
 
       const userCurrency = state.me?.currency || "USD";
@@ -1737,7 +1781,7 @@ function wireFlipCalc(set, entry, containerEl = document) {
       const convertedMarket = market * rate;
 
       let estPrice = convertedMarket;
-      if (condition.startsWith('used')) {
+      if (condition.startsWith('used') && !set.ebay_used_value) {
         const ratio = (set.used_value && set.current_value) ? (set.used_value / set.current_value) : 0.75;
         estPrice = convertedMarket * ratio;
       }
@@ -1777,11 +1821,11 @@ function wireFlipCalc(set, entry, containerEl = document) {
 
 function flipCalcHTML(set, entry) {
   const condition = entry?.condition || 'new';
-  const market = parseFloat(set.ebay_value || set.current_value || 0);
+  const market = parseFloat(marketValueForCondition(set, condition) || 0);
   if (market <= 0) return '';
   
   let estPrice = market;
-  if (condition.startsWith('used')) {
+  if (condition.startsWith('used') && !set.ebay_used_value) {
     const ratio = (set.used_value && set.current_value) ? (set.used_value / set.current_value) : 0.75;
     estPrice = market * ratio;
   }
@@ -1852,7 +1896,7 @@ function priceStripHTML(set, entry) {
   const label1 = isBE ? "BrickEconomy"
     : isBL ? "BrickLink"
     : set.valuation_method === "ai" ? "AI estimate"
-    : set.valuation_method === "ebay_rss" ? "eBay Sold"
+    : (set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "eBay Sold"
     : "Estimated";
   const val1 = set.current_value;
 
@@ -1862,18 +1906,20 @@ function priceStripHTML(set, entry) {
   const label2 = showBlCross ? "BrickLink" : "Used";
   const val2 = showBlCross ? set.bl_new_value : set.used_value;
 
-  // Column 3: eBay avg + used value when BE+BL both shown in cols 1-2
-  const label3 = showBlCross ? "eBay / Used" : "eBay avg";
-  const val3 = set.ebay_value;
-  // When BrickEconomy is primary and BL cross-price is shown, append used in col 3
-  const val3sub = showBlCross ? set.used_value : null;
+  const ebaySold = ebaySoldSummary(set);
+  // Column 3: eBay sold new + used sold/used market comparison.
+  const label3 = showBlCross ? "eBay sold" : "eBay sold new";
+  const val3 = ebaySold.newValue;
+  const val3sub = ebaySold.usedValue || (showBlCross ? set.used_value : null);
 
+  const hasEbaySold = ebaySold.newValue || ebaySold.usedValue;
   const sourceSuffix = isBE && set.bl_new_value
-    ? "BrickEconomy · BrickLink · eBay"
-    : isBE ? "BrickEconomy · eBay"
-    : isBL ? "BrickLink · eBay"
+    ? `BrickEconomy · BrickLink${hasEbaySold ? ' · eBay sold' : ''}`
+    : isBE ? `BrickEconomy${hasEbaySold ? ' · eBay sold' : ''}`
+    : isBL ? `BrickLink${hasEbaySold ? ' · eBay sold' : ''}`
     : set.valuation_method === "ai" ? "AI estimate"
-    : set.valuation_method === "ebay_rss" ? "eBay completed"
+    : set.valuation_method === "ebay_sold" ? "eBay sold comps"
+    : set.valuation_method === "ebay_rss" ? "legacy eBay"
     : "formula estimate";
 
   const updateDateStr = set.cached_at ? fmtDateUpdated(set.cached_at) : null;
@@ -1911,14 +1957,16 @@ function marketConfidenceHTML(set) {
   const fallbackSources = () => {
     const primaryName = set.valuation_method === 'brickeconomy' ? 'BrickEconomy'
       : set.valuation_method === 'market' ? 'BrickLink'
-      : set.valuation_method === 'ebay_rss' ? 'eBay sold'
+      : (set.valuation_method === 'ebay_rss' || set.valuation_method === 'ebay_sold') ? 'eBay sold'
       : set.valuation_method === 'ai' ? 'AI estimate'
       : 'Formula estimate';
     const out = [];
     if (set.current_value) out.push({ id: set.primary_value_source || set.valuation_method || 'primary', name: primaryName, value: set.current_value, condition: 'new' });
     if (set.bl_new_value) out.push({ id: 'bricklink_new', name: 'BrickLink', value: set.bl_new_value, condition: 'new', sample_count: set.bl_new_qty });
     if (set.used_value) out.push({ id: 'used', name: 'Used market', value: set.used_value, condition: 'used', sample_count: set.bl_used_qty });
-    if (set.ebay_value) out.push({ id: 'ebay_sold', name: 'eBay sold', value: set.ebay_value, condition: 'sold' });
+    const ebay = ebaySoldSummary(set);
+    if (ebay.newValue) out.push({ id: ebay.legacy ? 'ebay_legacy' : 'ebay_sold_new', name: ebay.legacy ? 'Legacy eBay' : 'eBay sold new', value: ebay.newValue, condition: 'new', sample_count: ebay.newSampleCount });
+    if (ebay.usedValue) out.push({ id: 'ebay_sold_used', name: 'eBay sold used', value: ebay.usedValue, condition: 'used', sample_count: ebay.usedSampleCount });
     return out;
   };
   const sources = Array.isArray(set.market_sources) && set.market_sources.length
@@ -1931,7 +1979,8 @@ function marketConfidenceHTML(set) {
   const explanation = set.valuation_explanation || (
     set.valuation_method === 'brickeconomy' ? 'BrickEconomy is primary, with BrickLink/eBay shown when available.'
       : set.valuation_method === 'market' ? 'BrickLink sold data is primary, with eBay shown when available.'
-      : set.valuation_method === 'ebay_rss' ? 'eBay completed listings are the current fallback source.'
+      : set.valuation_method === 'ebay_sold' ? 'eBay US sold comps are the current fallback source.'
+      : set.valuation_method === 'ebay_rss' ? 'Legacy eBay completed-listing data is the current fallback source.'
       : set.valuation_method === 'ai' ? 'AI estimated this value because market sources were unavailable.'
       : 'Formula valuation is used until a market refresh completes.'
   );
@@ -1962,12 +2011,14 @@ function marketConfidenceHTML(set) {
 
 // Shows a sell/buy signal when eBay and BrickLink prices diverge >10%.
 function marketSpreadHTML(set) {
-  if (!set.ebay_value || !set.current_value) return '';
-  const spread = (set.ebay_value - set.current_value) / set.current_value;
+  const ebay = ebaySoldSummary(set);
+  const ebayValue = ebay.newValue;
+  if (!ebayValue || !set.current_value) return '';
+  const spread = (ebayValue - set.current_value) / set.current_value;
   if (Math.abs(spread) < 0.10) return '';
   const hot = spread > 0;
   return `<div class="market-signal ${hot ? "signal-hot" : "signal-cold"}">
-    <span>${hot ? "🔥" : "❄️"} eBay ${hot ? "running hot" : "below BrickLink"} · ${fmtPct(Math.abs(spread))} spread</span>
+    <span>${hot ? "HOT" : "SOFT"} eBay sold-new ${hot ? "running hot" : "below primary value"} · ${fmtPct(Math.abs(spread))} spread</span>
     <span class="signal-hint">${hot ? "Good time to sell" : "Better to buy on BrickLink"}</span>
   </div>`;
 }

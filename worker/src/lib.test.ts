@@ -1,6 +1,13 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
-import { describe, it, expect } from 'vitest';
+import { env } from 'cloudflare:test';
+import { describe, it, expect, vi } from 'vitest';
 import { parseNextBackfillPage } from './jobs/backfill-upc';
+import {
+  __resetEbayTokenCacheForTests,
+  fetchEbaySoldPrices,
+  isValidLegoSetSaleTitle,
+  summarizeSoldPrices,
+} from './lib/ebay';
 import { classifyHealth } from './lib/integration-health';
 import { computeRetirementRisk } from './lib/retirement-risk';
 import { isSearchIndexCorruption } from './lib/search-index';
@@ -32,6 +39,87 @@ describe('classifyHealth', () => {
       fail_count: 4,
       updated_at: '2026-06-08 12:10:00',
     })).toBe('degraded');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// eBay sold comps
+// ---------------------------------------------------------------------------
+describe('eBay sold comps', () => {
+  function soldItem(title: string, value: number, currency = 'USD') {
+    return { title, price: { value: String(value), currency } };
+  }
+
+  it('requests separate new and used Marketplace Insights filters', async () => {
+    __resetEbayTokenCacheForTests();
+    (env as any).EBAY_APP_ID = 'ebay-app-id';
+    (env as any).EBAY_CLIENT_SECRET = 'ebay-client-secret';
+    const seenUrls: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      const href = String(url);
+      seenUrls.push(href);
+      if (href.includes('/identity/v1/oauth2/token')) {
+        return Promise.resolve(new Response(JSON.stringify({ access_token: 'token', expires_in: 3600 }), { status: 200 }));
+      }
+      if (href.includes('item_sales/search')) {
+        return Promise.resolve(new Response(JSON.stringify({
+          itemSales: [
+            soldItem('LEGO 75192 Millennium Falcon complete set', 800),
+            soldItem('LEGO Star Wars 75192 UCS Millennium Falcon', 820),
+            soldItem('LEGO 75192-1 Millennium Falcon sealed', 840),
+          ],
+        }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
+
+    try {
+      const result = await fetchEbaySoldPrices('75192', 'Millennium Falcon', env as any, { recordHealth: false });
+      expect(result.status).toBe('ok');
+      expect(result.new_value).toBe(820);
+      expect(result.used_value).toBe(820);
+      const searchUrls = seenUrls.filter(url => url.includes('item_sales/search'));
+      expect(searchUrls).toHaveLength(2);
+      expect(searchUrls.some(url => decodeURIComponent(url).includes('conditions:{NEW}'))).toBe(true);
+      expect(searchUrls.some(url => decodeURIComponent(url).includes('USED_GOOD'))).toBe(true);
+      expect(seenUrls.some(url => url.includes('FindingService') || url.includes('/sch/i.html'))).toBe(false);
+    } finally {
+      globalThis.fetch = originalFetch;
+      __resetEbayTokenCacheForTests();
+    }
+  });
+
+  it('filters suspicious listing titles and requires at least three sold comps', () => {
+    expect(isValidLegoSetSaleTitle('LEGO 75192 Millennium Falcon complete set', '75192')).toBe(true);
+    expect(isValidLegoSetSaleTitle('LEGO 75192 instructions manual only', '75192')).toBe(false);
+    expect(isValidLegoSetSaleTitle('LEGO 75192 replacement stickers', '75192')).toBe(false);
+    expect(isValidLegoSetSaleTitle('LEGO 75257 Millennium Falcon', '75192')).toBe(false);
+    expect(summarizeSoldPrices([100, 105]).value).toBeNull();
+  });
+
+  it('trims extreme outliers before calculating the sold-comp median', () => {
+    const summary = summarizeSoldPrices([100, 110, 120, 130, 999]);
+    expect(summary.value).toBe(115);
+    expect(summary.sample_count).toBe(4);
+  });
+
+  it('returns unauthorized when the OAuth token request fails', async () => {
+    __resetEbayTokenCacheForTests();
+    (env as any).EBAY_APP_ID = 'ebay-app-id';
+    (env as any).EBAY_CLIENT_SECRET = 'ebay-client-secret';
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'invalid_client' }), { status: 403 }));
+
+    try {
+      const result = await fetchEbaySoldPrices('75192', 'Millennium Falcon', env as any, { recordHealth: false });
+      expect(result.status).toBe('unauthorized');
+      expect(result.new_value).toBeNull();
+      expect(result.used_value).toBeNull();
+    } finally {
+      globalThis.fetch = originalFetch;
+      __resetEbayTokenCacheForTests();
+    }
   });
 });
 

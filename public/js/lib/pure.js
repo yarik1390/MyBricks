@@ -33,7 +33,7 @@ export function bricklinkBuyURL(setNum) {
  * verdict: 'great' | 'fair' | 'over'
  */
 export function computeDealScore(set, storePrice) {
-  const market = set.ebay_value || set.current_value;
+  const market = marketValueForCondition(set, set?.condition || "new");
   if (!market || !storePrice || storePrice <= 0) return null;
   const pct = (market - storePrice) / market;
   const greatThreshold = set.retired ? 0.05 : 0.15;
@@ -49,6 +49,37 @@ export function computeDealScore(set, storePrice) {
     label = `Within ${fmtPct(Math.abs(pct))} of market price`;
   }
   return { verdict, pct, label };
+}
+
+function positiveNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export function ebaySoldSummary(set = {}) {
+  const explicitNew = positiveNumber(set.ebay_new_value);
+  const legacy = !explicitNew ? positiveNumber(set.ebay_value) : null;
+  return {
+    newValue: explicitNew || legacy,
+    usedValue: positiveNumber(set.ebay_used_value),
+    newSampleCount: positiveNumber(set.ebay_new_qty),
+    usedSampleCount: positiveNumber(set.ebay_used_qty),
+    newUpdatedAt: set.ebay_new_cached_at || (legacy ? set.ebay_cached_at : null) || null,
+    usedUpdatedAt: set.ebay_used_cached_at || null,
+    legacy: !!legacy,
+  };
+}
+
+export function marketValueForCondition(set = {}, condition = "new") {
+  const summary = ebaySoldSummary(set);
+  const isUsed = String(condition || "").startsWith("used");
+  if (isUsed) {
+    return summary.usedValue
+      || positiveNumber(set.used_value)
+      || summary.newValue
+      || positiveNumber(set.current_value);
+  }
+  return summary.newValue || positiveNumber(set.current_value);
 }
 
 export function valuationTrust(set = {}) {

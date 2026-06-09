@@ -153,7 +153,8 @@ const GUEST_FIG_DETAILS_KEY = 'bv_guest_fig_details';
 const SET_FIELDS = [
   'set_num','name','theme','year','pieces','minifigs','retail_price','current_value',
   'forecast_2y','forecast_5y','image_url','retired','retirement_risk_score','used_value',
-  'ebay_value','cached_at','valuation_method','bl_new_value','bl_new_qty','bl_used_qty',
+  'ebay_value','ebay_new_value','ebay_used_value','ebay_new_qty','ebay_used_qty',
+  'ebay_new_cached_at','ebay_used_cached_at','cached_at','valuation_method','bl_new_value','bl_new_qty','bl_used_qty',
   'source','brickset','trend','market_sources','primary_value_source','confidence',
   'freshness','valuation_explanation','valuation_expires_at','ebay_cached_at'
 ];
@@ -483,6 +484,10 @@ async function guestHydrateSet(setNum) {
     retirement_risk_score: Number(set?.retirement_risk_score) || 0,
     used_value: numberOrNull(set?.used_value),
     ebay_value: numberOrNull(set?.ebay_value),
+    ebay_new_value: numberOrNull(set?.ebay_new_value),
+    ebay_used_value: numberOrNull(set?.ebay_used_value),
+    ebay_new_qty: numberOrNull(set?.ebay_new_qty),
+    ebay_used_qty: numberOrNull(set?.ebay_used_qty),
     valuation_method: set?.valuation_method || 'local',
     ...pickSetFields(set || {}),
   };

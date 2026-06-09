@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   escapeHtml, fmtPct, clamp, themeHue, bricklinkBuyURL,
   computeDealScore, valuationTrust, catalogFilterSummary, classifyJobRun,
-  annualizedROI, parseMarkdown, jwtSub,
+  annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -159,9 +159,43 @@ describe('computeDealScore', () => {
     assert.equal(r.verdict, 'great');
   });
 
+  it('prefers condition-aware eBay sold comps over legacy values', () => {
+    const set = { current_value: 50, ebay_value: 70, ebay_new_value: 100, ebay_used_value: 60, retired: false };
+    assert.equal(marketValueForCondition(set, 'new'), 100);
+    assert.equal(marketValueForCondition(set, 'sealed'), 100);
+    assert.equal(marketValueForCondition(set, 'used_good'), 60);
+    const r = computeDealScore(set, 80);
+    assert.equal(r.verdict, 'great');
+  });
+
   it('pct is (market - store) / market', () => {
     const r = computeDealScore(activeSet, 70);  // 30% below
     assert.ok(Math.abs(r.pct - 0.3) < 0.0001, `expected 0.3, got ${r.pct}`);
+  });
+});
+
+describe('eBay sold helpers', () => {
+  it('summarizes new, used, counts, and timestamps', () => {
+    const summary = ebaySoldSummary({
+      ebay_new_value: 120,
+      ebay_used_value: 75,
+      ebay_new_qty: 8,
+      ebay_used_qty: 4,
+      ebay_new_cached_at: '2026-06-09 10:00:00',
+      ebay_used_cached_at: '2026-06-09 11:00:00',
+    });
+    assert.equal(summary.newValue, 120);
+    assert.equal(summary.usedValue, 75);
+    assert.equal(summary.newSampleCount, 8);
+    assert.equal(summary.usedSampleCount, 4);
+    assert.equal(summary.legacy, false);
+  });
+
+  it('keeps legacy ebay_value readable until sold comps arrive', () => {
+    const summary = ebaySoldSummary({ ebay_value: 99, ebay_cached_at: '2026-06-01 00:00:00' });
+    assert.equal(summary.newValue, 99);
+    assert.equal(summary.newUpdatedAt, '2026-06-01 00:00:00');
+    assert.equal(summary.legacy, true);
   });
 });
 
