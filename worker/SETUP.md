@@ -20,8 +20,10 @@ npx wrangler secret put OPENAI_API_KEY
 npx wrangler secret put REBRICKABLE_API_KEY
 npx wrangler secret put SUPABASE_URL         # e.g. https://xxx.supabase.co
 npx wrangler secret put SUPABASE_ANON_KEY    # public anon key from Supabase dashboard
-npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY  # service role key (server-only)
+npx wrangler secret put SUPABASE_JWT_SECRET  # JWT secret from Supabase project settings
 npx wrangler secret put ADMIN_USER_ID        # your Supabase user UUID
+npx wrangler secret put GOOGLE_CLIENT_ID     # optional; Google Sheets sync
+npx wrangler secret put GOOGLE_CLIENT_SECRET # optional; Google Sheets sync
 ```
 
 ## 4. Deploy Worker
@@ -60,6 +62,25 @@ Configure a custom domain in the Cloudflare dashboard and add a Worker Route for
 4. Create your admin account via the Supabase Auth dashboard
 5. Copy your user UUID to `ADMIN_USER_ID`
 
+## 8. Google Sheets OAuth setup
+
+Google Sheets actions stay disabled until both OAuth secrets are present.
+
+1. Create an OAuth client in Google Cloud Console.
+2. Add the production redirect URI:
+
+```text
+https://brickvault-api.<your-worker-subdomain>.workers.dev/api/google/oauth
+```
+
+3. For local Worker development, add:
+
+```text
+http://127.0.0.1:8787/api/google/oauth
+```
+
+4. Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` as GitHub Actions secrets. The deploy workflow uploads them to Worker secrets.
+
 ## Environment variables reference
 
 | Variable | Where | Notes |
@@ -68,5 +89,17 @@ Configure a custom domain in the Cloudflare dashboard and add a Worker Route for
 | `REBRICKABLE_API_KEY` | Worker secret | Optional; enables live search + fallback lookup |
 | `SUPABASE_URL` | Worker secret | `https://<project>.supabase.co` |
 | `SUPABASE_ANON_KEY` | Worker secret | Public-safe; served to frontend via `/api/config` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Worker secret | Server-only JWT verification |
+| `SUPABASE_JWT_SECRET` | Worker secret | Server-only JWT verification |
 | `ADMIN_USER_ID` | Worker secret | Supabase user UUID for admin endpoints |
+| `GOOGLE_CLIENT_ID` | Worker secret / GitHub secret | Required with `GOOGLE_CLIENT_SECRET` for Google Sheets sync |
+| `GOOGLE_CLIENT_SECRET` | Worker secret / GitHub secret | Required with `GOOGLE_CLIENT_ID` for Google Sheets sync |
+| `BRICKSET_API_KEY` | Worker secret / GitHub secret | Optional catalog details and UPC barcode backfill |
+| `BRICKLINK_CONSUMER_KEY` | Worker secret / GitHub secret | Optional BrickLink valuation OAuth |
+| `BRICKLINK_CONSUMER_SECRET` | Worker secret / GitHub secret | Optional BrickLink valuation OAuth |
+| `BRICKLINK_TOKEN` | Worker secret / GitHub secret | Optional BrickLink valuation OAuth |
+| `BRICKLINK_TOKEN_SECRET` | Worker secret / GitHub secret | Optional BrickLink valuation OAuth |
+| `EBAY_APP_ID` | Worker secret / GitHub secret | Optional sold-price enrichment |
+| `EBAY_CLIENT_SECRET` | Worker secret / GitHub secret | Optional eBay OAuth flows |
+| `BRICKECONOMY_API_KEY` | Worker secret / GitHub secret | Optional primary valuation source |
+| `BRICKOWL_API_KEY` | Worker secret / GitHub secret | Optional UPC fallback |
+| `ADMIN_JWT` | GitHub secret | Required for protected production smoke checks |

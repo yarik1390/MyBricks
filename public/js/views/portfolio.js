@@ -4,6 +4,7 @@ import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet, confirmSheet, promptSheet } from '../components/sheet.js';
+import { trustBadgeHTML, trustPanelHTML } from '../components/trust.js';
 import { go } from '../router.js';
 
 let _swipeAc = null;
@@ -417,18 +418,7 @@ function animateHeroValue(target) {
   requestAnimationFrame(tick);
 }
 
-function sourceCueHTML(item) {
-  const staleByAge = item.cached_at && (Date.now() - new Date(item.cached_at).getTime() > 60 * 24 * 3600 * 1000);
-  const freshness = item.freshness || (staleByAge ? 'stale' : 'fresh');
-  const confidence = item.confidence || (item.valuation_method === 'formula_bulk' ? 'estimated' : 'medium');
-  if (freshness === 'fresh' && (confidence === 'high' || confidence === 'medium')) return '';
-  const label = freshness === 'expired' ? 'Refresh due'
-    : freshness === 'stale' ? 'Stale'
-    : confidence === 'estimated' ? 'Estimate'
-    : 'Low confidence';
-  const color = freshness === 'expired' ? 'var(--bv-red)' : 'var(--bv-yellow)';
-  return `<span title="${escapeHtml(item.valuation_explanation || label)}" style="display:inline-flex;align-items:center;font-family:var(--mono);font-size:9px;color:${color};font-weight:700;text-transform:uppercase;">${escapeHtml(label)}</span>`;
-}
+function sourceCueHTML(item) { return trustBadgeHTML(item, { compact: true }); }
 
 function setListCardHTML(item) {
   const delta = item.purchase_price ? (item.current_value - item.purchase_price) / item.purchase_price : null;
@@ -1952,6 +1942,7 @@ function marketConfidenceHTML(set) {
     </div>
   `).join('');
   return `
+    ${trustPanelHTML(set)}
     <div class="card" style="padding:14px 16px;margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;">
         <div>

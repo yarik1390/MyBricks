@@ -54,16 +54,15 @@ app.use('*', async (c, next) => {
 
 // Public config for the frontend (Supabase URL + anon key are client-safe)
 app.get('/api/config', (c) => {
+  const googleMissing = [
+    !c.env.GOOGLE_CLIENT_ID || c.env.GOOGLE_CLIENT_ID.includes('dummy') ? 'GOOGLE_CLIENT_ID' : null,
+    !c.env.GOOGLE_CLIENT_SECRET || c.env.GOOGLE_CLIENT_SECRET.includes('dummy') ? 'GOOGLE_CLIENT_SECRET' : null,
+  ].filter((name): name is string => !!name);
   const status = {
     supabase: !!(c.env.SUPABASE_URL && c.env.SUPABASE_ANON_KEY && c.env.SUPABASE_JWT_SECRET),
     d1: !!c.env.DB,
     openai: !!c.env.OPENAI_API_KEY,
-    google: !!(
-      c.env.GOOGLE_CLIENT_ID &&
-      c.env.GOOGLE_CLIENT_SECRET &&
-      !c.env.GOOGLE_CLIENT_ID.includes('dummy') &&
-      !c.env.GOOGLE_CLIENT_SECRET.includes('dummy')
-    ),
+    google: googleMissing.length === 0,
     ebay: !!c.env.EBAY_APP_ID,
     bricklink: !!(c.env.BRICKLINK_CONSUMER_KEY && c.env.BRICKLINK_TOKEN),
     brickeconomy: !!c.env.BRICKECONOMY_API_KEY,
@@ -76,6 +75,15 @@ app.get('/api/config', (c) => {
     supabase_anon_key: c.env.SUPABASE_ANON_KEY,
     api_base: new URL(c.req.url).origin,
     status,
+    setup: {
+      google: {
+        configured: googleMissing.length === 0,
+        missing_secrets: googleMissing,
+        recommended_action: googleMissing.length
+          ? `Add ${googleMissing.join(' and ')} as GitHub Actions secrets; the deploy workflow uploads them to Worker secrets.`
+          : 'Google Sheets OAuth is ready.',
+      },
+    },
   });
 });
 

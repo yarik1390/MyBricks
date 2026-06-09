@@ -52,6 +52,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
     (env as any).SUPABASE_URL = 'https://supabase.mock.io';
     (env as any).SUPABASE_ANON_KEY = 'supabase-anon-key-mock';
     (env as any).ADMIN_USER_ID = 'admin-user';
+    delete (env as any).GOOGLE_CLIENT_ID;
+    delete (env as any).GOOGLE_CLIENT_SECRET;
 
     token = await createMockJWT(userId, JWT_SECRET);
     otherToken = await createMockJWT(otherUserId, JWT_SECRET);
@@ -420,6 +422,12 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const ebay = data.integrations.find((row: any) => row.service === 'ebay');
       expect(ebay).toBeTruthy();
       expect(ebay.ok_count).toBe(5);
+      expect(ebay.recommended_action).toBeTruthy();
+      expect(Array.isArray(ebay.required_secrets)).toBe(true);
+      const google = data.integrations.find((row: any) => row.service === 'google');
+      expect(google.configured).toBe(false);
+      expect(google.missing_secrets).toEqual(['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET']);
+      expect(google.recommended_action).toContain('GOOGLE_CLIENT_ID');
       expect(data.coverage.total_sets).toBe(2);
       expect(data.coverage.sets_with_upc).toBe(1);
       expect(data.coverage.sets_with_ebay).toBe(1);
@@ -429,6 +437,10 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.coverage.barcode_coverage_pct).toBe(50);
       expect(data.coverage.ebay_coverage_pct).toBe(50);
       expect(data.coverage.bricklink_coverage_pct).toBe(100);
+      expect(data.coverage.quality.missing_msrp).toBe(0);
+      expect(data.coverage.quality.missing_upc).toBe(1);
+      expect(data.coverage.quality.low_confidence_values).toBe(2);
+      expect(data.coverage.quality.needs_market_refresh).toBe(2);
       expect(data.api_routing.worker_base_url).toBe('http://localhost');
     });
 

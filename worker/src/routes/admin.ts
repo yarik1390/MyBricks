@@ -24,7 +24,12 @@ async function getDataCoverage(env: Env) {
         CAST(SUM(CASE WHEN bl_new_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_bricklink_new,
         CAST(SUM(CASE WHEN used_value IS NOT NULL OR bl_used_qty IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_bricklink_used,
         CAST(SUM(CASE WHEN bl_new_value IS NOT NULL OR used_value IS NOT NULL OR bl_used_qty IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_bricklink,
-        CAST(SUM(CASE WHEN used_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_used_value
+        CAST(SUM(CASE WHEN used_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_used_value,
+        CAST(SUM(CASE WHEN retail_price IS NULL OR retail_price <= 0 THEN 1 ELSE 0 END) AS INTEGER) AS missing_msrp,
+        CAST(SUM(CASE WHEN upc IS NULL OR TRIM(upc) = '' THEN 1 ELSE 0 END) AS INTEGER) AS missing_upc,
+        CAST(SUM(CASE WHEN retired = 0 AND year IS NOT NULL AND year <= CAST(strftime('%Y','now') AS INTEGER) - 5 THEN 1 ELSE 0 END) AS INTEGER) AS old_active_sets,
+        CAST(SUM(CASE WHEN valuation_method IN ('formula_bulk','ai') OR current_value IS NULL OR current_value <= 0 THEN 1 ELSE 0 END) AS INTEGER) AS low_confidence_values,
+        CAST(SUM(CASE WHEN current_value IS NULL OR current_value <= 0 OR valuation_expires_at < datetime('now') OR cached_at IS NULL OR cached_at < datetime('now','-60 days') THEN 1 ELSE 0 END) AS INTEGER) AS needs_market_refresh
       FROM lego_sets
     `).first<Record<string, number>>(),
     env.DB.prepare(`
@@ -42,8 +47,21 @@ async function getDataCoverage(env: Env) {
   const bricklinkCount = Number(sets?.sets_with_bricklink || 0);
   const bricklinkNewCount = Number(sets?.sets_with_bricklink_new || 0);
   const bricklinkUsedCount = Number(sets?.sets_with_bricklink_used || 0);
+  const quality = {
+    missing_msrp: Number(sets?.missing_msrp || 0),
+    missing_upc: Number(sets?.missing_upc || 0),
+    old_active_sets: Number(sets?.old_active_sets || 0),
+    low_confidence_values: Number(sets?.low_confidence_values || 0),
+    needs_market_refresh: Number(sets?.needs_market_refresh || 0),
+    missing_msrp_pct: pct(Number(sets?.missing_msrp || 0)),
+    missing_upc_pct: pct(Number(sets?.missing_upc || 0)),
+    old_active_sets_pct: pct(Number(sets?.old_active_sets || 0)),
+    low_confidence_values_pct: pct(Number(sets?.low_confidence_values || 0)),
+    needs_market_refresh_pct: pct(Number(sets?.needs_market_refresh || 0)),
+  };
   return {
     ...sets,
+    quality,
     sets_with_bricklink: bricklinkCount,
     barcode_coverage_pct: pct(barcodeCount),
     ebay_coverage_pct: pct(ebayCount),

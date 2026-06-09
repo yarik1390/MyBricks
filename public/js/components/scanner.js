@@ -1,8 +1,9 @@
-import { $, $$, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDataURL, resizeImage, setHue, fmtPct, getExchangeRate, CURRENCY_SYMBOLS } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDataURL, resizeImage, setHue, getExchangeRate, CURRENCY_SYMBOLS } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, outboxEnqueue } from '../api.js';
 import { I } from '../icons.js';
 import { confirmSheet, showSheet, hideSheet } from './sheet.js';
+import { computeDealScore as computeDealScorePure } from '../lib/pure.js';
 
 export function openScan(mode = "barcode") {
   state.camera.mode = mode;
@@ -558,7 +559,7 @@ function updateDealBadge(set, priceStr) {
   if (!badge) return;
   const price = parseFloat(priceStr);
   if (!price || price <= 0) { badge.textContent = ""; badge.className = "deal-badge"; return; }
-  const score = computeDealScore(set, price);
+  const score = computeDealScorePure(set, price);
   if (!score) return;
   badge.className = `deal-badge ${score.verdict}`;
   const labels = { great: "GREAT DEAL", fair: "FAIR PRICE", over: "OVERPRICED" };

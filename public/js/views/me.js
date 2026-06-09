@@ -3,6 +3,7 @@ import { state, invalidatePortfolio } from '../state.js';
 import { api, sbSignOut, _authSession, isGuestMode, guestCollectionCSVBlob } from '../api.js';
 import { I } from '../icons.js';
 import { confirmSheet, promptSheet, showSheet, hideSheet } from '../components/sheet.js';
+import { classifyJobRun } from '../lib/pure.js';
 import { go } from '../router.js';
 
 export async function renderMe() {
@@ -55,6 +56,10 @@ export async function renderMe() {
     rebrickable: false
   };
   const googleConfigured = googleStatus.configured ?? status.google;
+  const googleSetup = state.config?.setup?.google || {};
+  const googleMissing = Array.isArray(googleSetup.missing_secrets) ? googleSetup.missing_secrets : ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"];
+  const googleSetupMessage = googleSetup.recommended_action
+    || `Missing Worker secrets: ${googleMissing.join(", ")}. Add them as GitHub Actions secrets and redeploy to enable account linking.`;
 
   const showcase = publicProfile?.showcase || [];
   let trophyShelfHTML = '';
@@ -142,7 +147,7 @@ export async function renderMe() {
         </div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Price-drop alerts</div><div class="desc">Alert when wishlisted sets hit your target.</div></div>
-          <button class="toggle ${me.notify_price_drops ? "on" : ""}" id="notifyToggle" aria-pressed="${me.notify_price_drops}"></button>
+          <button class="toggle ${me.notify_price_drops ? "on" : ""}" id="notifyToggle" aria-label="Toggle price-drop alerts" aria-pressed="${me.notify_price_drops}"></button>
         </div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Currency</div><div class="desc">Display values in your local currency.</div></div>
@@ -249,7 +254,7 @@ export async function renderMe() {
             </div>
           ` : !googleConfigured ? `
             <div style="width:100%;border:1.5px solid var(--line-soft);border-radius:var(--r-2);background:var(--surface-2);padding:10px 12px;font-size:12px;color:var(--ink-mute);line-height:1.45;">
-              Google Sheets is not configured on this deployment. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to enable account linking.
+              Google Sheets is disabled until OAuth is configured. ${escapeHtml(googleSetupMessage)}
             </div>
           ` : `
             <button class="btn-primary" id="connectGoogleBtn" style="width:100%;font-size:13px;padding:10px 14px;background:#4285F4;border-color:#4285F4;color:#fff;border-radius:var(--r-2);cursor:pointer;outline:none;display:flex;align-items:center;justify-content:center;gap:6px;">
@@ -768,7 +773,7 @@ function guestModeCardHTML() {
     <div class="card" style="padding:14px 16px;margin-bottom:14px;">
       <div style="font-weight:600;font-size:14px;margin-bottom:6px;">Local guest vault</div>
       <div style="font-size:13px;color:var(--ink-mute);line-height:1.45;margin-bottom:12px;">
-        Your sets are saved on this device. Sign in to sync across devices, publish a profile, and connect Google Sheets.
+        Your sets are saved on this device. Sign in before switching devices to sync your vault, publish a profile, unlock Trophy Shelf, and connect Google Sheets.
       </div>
       <button class="btn-primary" id="guestSignInBtn" style="width:100%;">${I.user()}<span>Sign in to sync</span></button>
     </div>
@@ -807,14 +812,14 @@ function publicProfileSectionHTML(me) {
     <div class="card" style="padding:14px 16px;margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <span style="font-weight:600;font-size:13px;">Public Portfolio</span>
-        <button class="toggle ${me.is_public ? "on" : ""}" id="publicToggle" aria-pressed="${me.is_public}"></button>
+        <button class="toggle ${me.is_public ? "on" : ""}" id="publicToggle" aria-label="Toggle public profile" aria-pressed="${me.is_public}"></button>
       </div>
       <div style="font-size:12px;color:var(--ink-mute);margin-bottom:12px;line-height:1.45;">
         When turned on, anyone with the link can view your collection and showcase shelf.
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;margin-top:14px;border-top:1px solid var(--line-soft);padding-top:10px;">
         <span style="font-weight:600;font-size:13px;">Show total valuation</span>
-        <button class="toggle ${me.expose_public_value ? "on" : ""}" id="publicValToggle" aria-pressed="${me.expose_public_value}"></button>
+        <button class="toggle ${me.expose_public_value ? "on" : ""}" id="publicValToggle" aria-label="Toggle public valuation" aria-pressed="${me.expose_public_value}"></button>
       </div>
       <div style="font-size:12px;color:var(--ink-mute);margin-bottom:12px;line-height:1.45;">
         Expose the total value and thematic breakdown of your collection on your public profile.
@@ -933,40 +938,29 @@ async function updateJobsStatus() {
       return;
     }
 
-    const isStoppedRun = (run) => run.status === "expired" || /Timed out|Worker run stopped/i.test(String(run.error || ""));
-    const hasCompleted = runs.some(run => run.status === "completed");
-    const hasRunning = runs.some(run => run.status === "running");
-    const hardErrors = runs.filter(run => run.status === "error" && !isStoppedRun(run));
+    const classified = runs.map(run => ({ run, state: classifyJobRun(run) }));
+    const isStoppedRun = (run) => classifyJobRun(run).label === "Stopped" || /Timed out|Worker run stopped/i.test(String(run.error || ""));
+    const hasCompleted = classified.some(x => x.state.label === "Completed");
+    const hasRunning = classified.some(x => x.state.label === "Running");
+    const retryableCount = classified.filter(x => x.state.retryable).length;
+    const hardErrors = classified.filter(x => x.state.needsAttention);
     const summaryHTML = `
       <div style="border:1.5px solid var(--line-soft);border-radius:var(--r-2);background:var(--surface-2);padding:10px 12px;margin-bottom:10px;">
         <div style="font-weight:700;font-size:12px;color:${hardErrors.length ? "var(--bv-red)" : hasRunning ? "var(--bv-yellow)" : "var(--up)"};">
-          ${hardErrors.length ? `${hardErrors.length} job needs attention` : hasRunning ? "Job running" : hasCompleted ? "Latest batches are retry-safe" : "No completed batches yet"}
+          ${hardErrors.length ? `${hardErrors.length} hard job error${hardErrors.length === 1 ? "" : "s"} need attention` : hasRunning ? "Job running" : retryableCount ? `${retryableCount} retryable provider note${retryableCount === 1 ? "" : "s"}` : hasCompleted ? "Latest batches completed" : "No completed batches yet"}
         </div>
         <div style="font-size:11px;color:var(--ink-mute);line-height:1.45;margin-top:3px;">
-          Stopped jobs usually mean Cloudflare ended a long background slice. The buttons now run smaller safe batches, so press again to continue.
+          Provider no-data and stopped slices are safe to retry. D1/SQLite corruption and access errors are highlighted as hard failures.
         </div>
       </div>`;
 
     container.innerHTML = summaryHTML + runs.map(run => {
-      let statusColor = "var(--ink-mute)";
-      let statusText = (run.status || 'unknown').toUpperCase();
-      if (run.status === "completed") {
-        statusColor = "var(--up)";
-      } else if (run.status === "running") {
-        statusColor = "var(--accent)";
-        statusText = "RUNNING...";
-      } else if (isStoppedRun(run)) {
-        statusColor = "var(--ink-mute)";
-        statusText = "STOPPED";
-      } else if (run.status === "error") {
-        const errText = String(run.error || "Unknown error");
-        statusColor = "var(--bv-red)";
-        statusText = `ERROR: ${escapeHtml(errText)}`;
-        if (/Brickset says:\s*success/i.test(errText)) {
-          statusColor = "var(--bv-yellow)";
-          statusText = "RETRY NEEDED";
-        }
-      }
+      const jobState = classifyJobRun(run);
+      const statusColor = jobState.tone === "ok" ? "var(--up)"
+        : jobState.tone === "warn" ? "var(--bv-yellow)"
+        : jobState.tone === "danger" ? "var(--bv-red)"
+        : "var(--ink-mute)";
+      const statusText = jobState.label.toUpperCase();
 
       const dateStr = run.started_at ? new Date(run.started_at.replace(" ", "T") + "Z").toLocaleString() : "Unknown date";
       const details = [];
@@ -986,17 +980,21 @@ async function updateJobsStatus() {
       } else if (run.sets_loaded) details.push(`${run.sets_loaded} sets`);
       if (run.figs_loaded) details.push(`${run.figs_loaded} figs`);
       if (!(run.error && String(run.error).includes('method:')) && run.sets_skipped) details.push(`${run.sets_skipped} skipped/processed`);
+      if (jobState.retryable && !details.length) details.push("safe to retry");
+      if (jobState.needsAttention) details.push("check diagnostics");
+      const errorHTML = run.error ? `<div style="color:${statusColor};font-size:11px;margin-top:3px;overflow-wrap:anywhere;">${escapeHtml(String(run.error))}</div>` : "";
 
       return `
         <div style="border-bottom:1px solid var(--line-soft);padding-bottom:8px;margin-bottom:4px;">
           <div style="display:flex;justify-content:space-between;align-items:center;font-weight:600;margin-bottom:2px;">
             <span>Job #${run.id}</span>
-            <span style="color:${statusColor};font-size:11px;text-align:right;max-width:58%;overflow-wrap:anywhere;">${statusText}</span>
+            <span style="color:${statusColor};font-size:11px;text-align:right;max-width:58%;overflow-wrap:anywhere;">${escapeHtml(statusText)}</span>
           </div>
           <div style="display:flex;justify-content:space-between;color:var(--ink-mute);font-size:11px;">
             <span>Started: ${dateStr}</span>
             <span>${details.join(", ") || "No items processed"}</span>
           </div>
+          ${errorHTML}
         </div>
       `;
     }).join("");
@@ -1050,6 +1048,7 @@ async function updateIntegrationsHealth() {
       && bricksetCoversBarcodes
       && /HTTP 401|HTTP 403|access denied|not authorized/i.test(r.last_error || "");
     const coverage = data.coverage || {};
+    const quality = coverage.quality || {};
     const routing = data.api_routing || {};
     const totalSets = Number(coverage.total_sets || 0);
     const formatCoverage = (count, pct) => {
@@ -1066,6 +1065,10 @@ async function updateIntegrationsHealth() {
       ["Stale values", Number(coverage.stale_values || 0).toLocaleString()],
       ["Expired values", Number(coverage.expired_values || 0).toLocaleString()],
       ["Missing values", Number(coverage.missing_values || 0).toLocaleString()],
+      ["Missing MSRP", Number(quality.missing_msrp || 0).toLocaleString()],
+      ["Missing UPC", Number(quality.missing_upc || 0).toLocaleString()],
+      ["Old active sets", Number(quality.old_active_sets || 0).toLocaleString()],
+      ["Low-confidence values", Number(quality.low_confidence_values || 0).toLocaleString()],
       ["Barcode coverage", formatCoverage(coverage.sets_with_upc, coverage.barcode_coverage_pct)],
       ["BrickLink coverage", formatCoverage(bricklinkCount, coverage.bricklink_coverage_pct)],
       ["eBay coverage", formatCoverage(coverage.sets_with_ebay, coverage.ebay_coverage_pct)],
@@ -1106,6 +1109,10 @@ async function updateIntegrationsHealth() {
       const usedByText = standbyFallback
         ? "optional barcode fallback; not used while Brickset is available"
         : ((r.used_by || []).join(", ") || r.notes || "");
+      const actionText = standbyFallback ? "" : (r.recommended_action || "");
+      const missingSecrets = Array.isArray(r.missing_secrets) && r.missing_secrets.length
+        ? `Missing secrets: ${r.missing_secrets.join(", ")}`
+        : "";
       return `
         <div style="border-bottom:1px solid var(--line-soft);padding-bottom:8px;margin-bottom:4px;">
           <div style="display:flex;justify-content:space-between;align-items:center;font-weight:600;margin-bottom:2px;gap:10px;">
@@ -1117,6 +1124,8 @@ async function updateIntegrationsHealth() {
             <span>${escapeHtml(countText)}</span>
           </div>
           <div style="font-size:11px;color:var(--ink-mute);margin-top:2px;">${escapeHtml(usedByText)}</div>
+          ${missingSecrets ? `<div style="font-size:11px;color:var(--bv-red);margin-top:2px;">${escapeHtml(missingSecrets)}</div>` : ""}
+          ${actionText ? `<div style="font-size:11px;color:var(--ink-soft);margin-top:2px;">Action: ${escapeHtml(actionText)}</div>` : ""}
           ${!standbyFallback && latestFail && r.last_error && (r.status === "down" || r.status === "degraded") ? `<div style="color:${color};font-size:11px;margin-top:2px;">${escapeHtml(r.last_error)}</div>` : ""}
         </div>
       `;

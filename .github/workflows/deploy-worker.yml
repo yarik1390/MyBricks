@@ -128,6 +128,8 @@ jobs:
           [ -n "${{ secrets.EBAY_APP_ID }}" ]              && put EBAY_APP_ID              "${{ secrets.EBAY_APP_ID }}"              || true
           [ -n "${{ secrets.EBAY_CLIENT_SECRET }}" ]       && put EBAY_CLIENT_SECRET       "${{ secrets.EBAY_CLIENT_SECRET }}"       || true
           [ -n "${{ secrets.BRICKECONOMY_API_KEY }}" ]     && put BRICKECONOMY_API_KEY     "${{ secrets.BRICKECONOMY_API_KEY }}"     || true
+          [ -n "${{ secrets.GOOGLE_CLIENT_ID }}" ]         && put GOOGLE_CLIENT_ID         "${{ secrets.GOOGLE_CLIENT_ID }}"         || true
+          [ -n "${{ secrets.GOOGLE_CLIENT_SECRET }}" ]     && put GOOGLE_CLIENT_SECRET     "${{ secrets.GOOGLE_CLIENT_SECRET }}"     || true
 
       - name: Deploy Worker and capture URL
         working-directory: worker
@@ -165,6 +167,22 @@ jobs:
             --project-name brickvault \
             --branch main \
             --commit-dirty=true
+
+      - name: Protected production smoke checks
+        run: |
+          set -euo pipefail
+          if [ -z "${{ secrets.ADMIN_JWT }}" ]; then
+            echo "::error::ADMIN_JWT secret is required for protected production smoke checks."
+            exit 1
+          fi
+          curl -sf "${WORKER_URL}/api/config" | jq -e '.status.d1 == true' >/dev/null
+          curl -sf "${WORKER_URL}/api/sets/search?q=Millennium&limit=1" | jq -e '.sets | length >= 0' >/dev/null
+          curl -sf "${WORKER_URL}/api/admin/integrations" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_JWT }}" \
+            | jq -e '.integrations | length > 0' >/dev/null
+          curl -sf "${WORKER_URL}/api/admin/import-status" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_JWT }}" \
+            | jq -e '.runs | type == "array"' >/dev/null
 
       - name: Seed LEGO catalog via Worker API
         run: |

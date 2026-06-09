@@ -262,6 +262,24 @@ describe('BrickVault API Worker Tests', () => {
       expect(data.status.d1).toBe(true);
       expect(data.status.openai).toBe(true);
       expect(data.status.google).toBe(true);
+      expect(data.setup.google.configured).toBe(true);
+      expect(data.setup.google.missing_secrets).toEqual([]);
+      expect(data.setup.google.recommended_action).toContain('ready');
+    });
+
+    it('explains which Google secrets are missing when Sheets sync is disabled', async () => {
+      delete (env as any).GOOGLE_CLIENT_ID;
+      delete (env as any).GOOGLE_CLIENT_SECRET;
+      const res = await app.fetch(
+        new Request('http://localhost/api/config'),
+        env
+      );
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.status.google).toBe(false);
+      expect(data.setup.google.configured).toBe(false);
+      expect(data.setup.google.missing_secrets).toEqual(['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET']);
+      expect(data.setup.google.recommended_action).toContain('GitHub Actions secrets');
     });
   });
 

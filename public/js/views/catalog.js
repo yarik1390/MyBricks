@@ -4,6 +4,8 @@ import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { openScan } from '../components/scanner.js';
+import { trustBadgeHTML } from '../components/trust.js';
+import { catalogFilterSummary } from '../lib/pure.js';
 
 let _catalogGen = 0;
 
@@ -104,8 +106,14 @@ function refreshCatalogGrid() {
   const results = $("#catalogResults");
   if (!results) return;
   results.innerHTML = catalogResultsHTML();
+  refreshCatalogSummary();
   wireCatalogCards();
   mountCatalogSentinel();
+}
+
+function refreshCatalogSummary() {
+  const el = $("#catalogFilterSummary");
+  if (el) el.textContent = catalogFilterSummary(state.filter);
 }
 
 function wireCatalogCards() {
@@ -173,6 +181,8 @@ function paintAdd() {
         <button class="chip ${catalogRangesActive() ? "active" : ""}" id="filterChip">${I.filter()}<span>Filters${catalogRangesActive() ? " · " + catalogRangesActive() : ""}</span></button>
       </div>
 
+      <div class="filter-summary" id="catalogFilterSummary">${escapeHtml(catalogFilterSummary(f))}</div>
+
       <div id="catalogResults">${catalogResultsHTML()}</div>
     </div>`;
 
@@ -211,6 +221,7 @@ function paintAdd() {
   $$("[data-cat-theme]").forEach(b => b.addEventListener("click", () => {
     state.filter.catalogTheme = b.dataset.catTheme; haptic("light");
     $$("[data-cat-theme]").forEach(x => x.classList.toggle("active", x.dataset.catTheme === state.filter.catalogTheme));
+    refreshCatalogSummary();
     reloadGrid();
   }));
   $$("[data-csort]").forEach(b => b.addEventListener("click", () => {
@@ -221,6 +232,7 @@ function paintAdd() {
   $$("[data-retired]").forEach(b => b.addEventListener("click", () => {
     state.filter.catalogRetired = !state.filter.catalogRetired; haptic("light");
     b.classList.toggle("active", state.filter.catalogRetired);
+    refreshCatalogSummary();
     reloadGrid();
   }));
   $("#filterChip")?.addEventListener("click", () => showFilterSheet(reloadGrid));
@@ -283,17 +295,7 @@ function showFilterSheet(onApply) {
   });
 }
 
-function sourceCueHTML(s) {
-  const freshness = s.freshness || (s.cached_at && (Date.now() - new Date(s.cached_at).getTime() > 60 * 24 * 3600 * 1000) ? 'stale' : 'fresh');
-  const confidence = s.confidence || (s.valuation_method === 'formula_bulk' ? 'estimated' : 'medium');
-  if (freshness === 'fresh' && (confidence === 'high' || confidence === 'medium')) return '';
-  const label = freshness === 'expired' ? 'Refresh due'
-    : freshness === 'stale' ? 'Stale'
-    : confidence === 'estimated' ? 'Estimate'
-    : 'Low confidence';
-  const color = freshness === 'expired' ? 'var(--bv-red)' : 'var(--bv-yellow)';
-  return `<span class="source-cue" title="${escapeHtml(s.valuation_explanation || label)}" style="display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:9px;color:${color};font-weight:700;text-transform:uppercase;">${escapeHtml(label)}</span>`;
-}
+function sourceCueHTML(s) { return trustBadgeHTML(s, { compact: true }); }
 
 function catalogCardHTML(s) {
   const hasImg = s.image_url && !s.image_url.startsWith("data:");

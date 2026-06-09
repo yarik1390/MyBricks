@@ -2,7 +2,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   escapeHtml, fmtPct, clamp, themeHue, bricklinkBuyURL,
-  computeDealScore, annualizedROI, parseMarkdown, jwtSub,
+  computeDealScore, valuationTrust, catalogFilterSummary, classifyJobRun,
+  annualizedROI, parseMarkdown, jwtSub,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -161,6 +162,63 @@ describe('computeDealScore', () => {
   it('pct is (market - store) / market', () => {
     const r = computeDealScore(activeSet, 70);  // 30% below
     assert.ok(Math.abs(r.pct - 0.3) < 0.0001, `expected 0.3, got ${r.pct}`);
+  });
+});
+
+describe('valuationTrust', () => {
+  it('marks expired market values as refresh due', () => {
+    const trust = valuationTrust({ freshness: 'expired', confidence: 'medium', valuation_method: 'market' });
+    assert.equal(trust.tone, 'danger');
+    assert.equal(trust.label, 'Refresh due');
+  });
+
+  it('marks formula bulk values as estimates', () => {
+    const trust = valuationTrust({ valuation_method: 'formula_bulk', cached_at: new Date().toISOString() });
+    assert.equal(trust.tone, 'warn');
+    assert.equal(trust.label, 'Estimate');
+  });
+
+  it('marks fresh high-confidence values as high confidence', () => {
+    const trust = valuationTrust({ freshness: 'fresh', confidence: 'high', primary_value_source: 'brickeconomy' });
+    assert.equal(trust.tone, 'ok');
+    assert.equal(trust.label, 'High confidence');
+  });
+});
+
+describe('catalogFilterSummary', () => {
+  it('returns a quiet empty state when no filters are active', () => {
+    assert.equal(catalogFilterSummary({}), 'No filters active');
+  });
+
+  it('summarizes search, theme, retired state, and ranges', () => {
+    const summary = catalogFilterSummary({
+      catalogQ: 'falcon',
+      catalogTheme: 'Star Wars',
+      catalogRetired: true,
+      catalogRanges: { min_year: 2010, max_year: 2020, min_value: 100, max_value: 250 }
+    });
+    assert.equal(summary, '5 active: Search "falcon" · Star Wars · Retired only · Year 2010-2020 · Value $100-$250');
+  });
+});
+
+describe('classifyJobRun', () => {
+  it('classifies completed provider no-data notes as retryable no-ops', () => {
+    const job = classifyJobRun({ status: 'completed', error: 'Brickset barcode backfill returned no data; retry later' });
+    assert.equal(job.label, 'Retryable no-op');
+    assert.equal(job.retryable, true);
+    assert.equal(job.needsAttention, false);
+  });
+
+  it('classifies D1 corruption as a hard error', () => {
+    const job = classifyJobRun({ status: 'error', error: 'D1_ERROR: database disk image is malformed: SQLITE_CORRUPT' });
+    assert.equal(job.label, 'Hard error');
+    assert.equal(job.needsAttention, true);
+  });
+
+  it('keeps expired worker slices retryable', () => {
+    const job = classifyJobRun({ status: 'expired', error: 'Worker run stopped before completion' });
+    assert.equal(job.label, 'Stopped');
+    assert.equal(job.retryable, true);
   });
 });
 

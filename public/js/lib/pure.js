@@ -51,6 +51,68 @@ export function computeDealScore(set, storePrice) {
   return { verdict, pct, label };
 }
 
+export function valuationTrust(set = {}) {
+  const freshness = set.freshness || (set.cached_at && Date.now() - new Date(set.cached_at).getTime() > 60 * 86400000 ? "stale" : "fresh");
+  const confidence = set.confidence || (set.valuation_method === "formula_bulk" || set.valuation_method === "local" ? "estimated" : "medium");
+  const source = set.primary_value_source || set.valuation_method || "unknown";
+  if (freshness === "expired") {
+    return { tone: "danger", label: "Refresh due", detail: "Market value is expired and should be refreshed.", confidence, freshness, source };
+  }
+  if (freshness === "stale") {
+    return { tone: "warn", label: "Stale value", detail: "Market value is older than 60 days.", confidence, freshness, source };
+  }
+  if (confidence === "estimated") {
+    return { tone: "warn", label: "Estimate", detail: "Formula or local estimate until market data is available.", confidence, freshness, source };
+  }
+  if (confidence === "low") {
+    return { tone: "warn", label: "Low confidence", detail: "Only one weak market signal is available.", confidence, freshness, source };
+  }
+  if (confidence === "high") {
+    return { tone: "ok", label: "High confidence", detail: "Fresh value with corroborating market signals.", confidence, freshness, source };
+  }
+  return { tone: "ok", label: "Market checked", detail: "Fresh value from a configured market source.", confidence, freshness, source };
+}
+
+export function catalogFilterSummary(filter = {}) {
+  const parts = [];
+  if (filter.catalogQ) parts.push(`Search "${filter.catalogQ}"`);
+  if (filter.catalogTheme && filter.catalogTheme !== "all") parts.push(filter.catalogTheme);
+  if (filter.catalogRetired) parts.push("Retired only");
+  const ranges = filter.catalogRanges || {};
+  const valueLabel = (value, unit = "") => unit === "$" ? `$${value}` : `${value}${unit}`;
+  const rangeLabel = (label, minKey, maxKey, unit = "") => {
+    const min = ranges[minKey];
+    const max = ranges[maxKey];
+    if (min !== "" && min != null && max !== "" && max != null) parts.push(`${label} ${valueLabel(min, unit)}-${valueLabel(max, unit)}`);
+    else if (min !== "" && min != null) parts.push(`${label} >= ${valueLabel(min, unit)}`);
+    else if (max !== "" && max != null) parts.push(`${label} <= ${valueLabel(max, unit)}`);
+  };
+  rangeLabel("Year", "min_year", "max_year");
+  rangeLabel("Pieces", "min_pieces", "max_pieces", "pc");
+  rangeLabel("Value", "min_value", "max_value", "$");
+  return parts.length ? `${parts.length} active: ${parts.join(" · ")}` : "No filters active";
+}
+
+export function classifyJobRun(run = {}) {
+  const error = String(run.error || "");
+  const status = String(run.status || "unknown").toLowerCase();
+  const retryable = /retry|no data|worker run stopped|timed out|timeout|operation was aborted|too many subrequests|brickset/i.test(error)
+    && !/database disk image|sqlite_corrupt|malformed/i.test(error);
+  if (status === "running") return { tone: "warn", label: "Running", needsAttention: false, retryable: false };
+  if (status === "completed") {
+    return retryable
+      ? { tone: "warn", label: "Retryable no-op", needsAttention: false, retryable: true }
+      : { tone: "ok", label: "Completed", needsAttention: false, retryable: false };
+  }
+  if (status === "expired") return { tone: "neutral", label: "Stopped", needsAttention: false, retryable: true };
+  if (status === "error") {
+    return retryable
+      ? { tone: "warn", label: "Retry needed", needsAttention: false, retryable: true }
+      : { tone: "danger", label: "Hard error", needsAttention: true, retryable: false };
+  }
+  return { tone: "neutral", label: status || "Unknown", needsAttention: false, retryable: false };
+}
+
 /**
  * Converts an annualized ROI rate and years owned into an annualized percentage.
  * Pure arithmetic wrapper used by portfolio ROI badge rendering.

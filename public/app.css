@@ -336,6 +336,98 @@ body.offline .offline-banner { display: block; }
 .chip svg { width: 14px; height: 14px; }
 .chip.active { background: var(--bv-yellow); color: var(--line); }
 .chip:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--line); }
+.filter-row {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 28px), transparent 100%);
+}
+.filter-summary {
+  min-height: 18px;
+  margin: -6px 4px 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.trust-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 7px;
+  border: 1.5px solid var(--line-soft);
+  border-radius: var(--r-full);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.trust-badge.compact {
+  min-height: 18px;
+  padding: 2px 6px;
+  font-size: 9px;
+}
+.trust-badge.ok {
+  color: var(--up);
+  background: var(--up-pale);
+}
+.trust-badge.warn {
+  color: #8A6500;
+  background: rgba(255, 215, 0, 0.18);
+}
+.trust-badge.danger {
+  color: var(--bv-red);
+  background: var(--down-pale);
+}
+.trust-panel {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border: 2px solid var(--line);
+  border-radius: var(--r-2);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+}
+.trust-panel.ok { border-left: 6px solid var(--up); }
+.trust-panel.warn { border-left: 6px solid var(--bv-yellow); }
+.trust-panel.danger { border-left: 6px solid var(--bv-red); }
+.trust-kicker {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.trust-title {
+  margin-top: 3px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.trust-copy {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+.trust-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.trust-meta span {
+  padding: 4px 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-full);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-mute);
+  text-transform: uppercase;
+}
 
 /* ============================================================
    Set list cards
@@ -1221,7 +1313,7 @@ body.offline .offline-banner { display: block; }
   text-transform: uppercase;
 }
 .profile-pencil {
-  width: 36px; height: 36px; border-radius: 50%;
+  width: 44px; height: 44px; border-radius: 50%;
   background: var(--surface-2); border: 1.5px solid var(--line-soft);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; color: var(--ink);
@@ -1269,19 +1361,19 @@ body.offline .offline-banner { display: block; }
 .setting-row .lbl-wrap .desc { font-size: 12px; color: var(--ink-mute); margin-top: 2px; }
 
 .toggle {
-  width: 44px; height: 26px; border-radius: var(--r-full);
+  width: 48px; height: 30px; border-radius: var(--r-full);
   background: var(--surface-2); border: 2px solid var(--line);
   position: relative; flex-shrink: 0;
   transition: background var(--dur) var(--ease);
 }
 .toggle::after {
-  content: ""; position: absolute; top: 2px; left: 2px;
+  content: ""; position: absolute; top: 4px; left: 4px;
   width: 18px; height: 18px; border-radius: 50%;
   background: var(--surface); border: 1.5px solid var(--line);
   transition: transform var(--dur) var(--ease);
 }
 .toggle.on { background: var(--bv-yellow); }
-.toggle.on::after { transform: translateX(18px); }
+.toggle.on::after { transform: translateX(22px); }
 
 /* Light / Auto / Dark segmented control */
 .theme-seg {
@@ -1299,7 +1391,7 @@ body.offline .offline-banner { display: block; }
 .theme-seg button:last-child { border-right: 0; }
 .theme-seg button.active { background: var(--bv-yellow); color: var(--line); }
 .import-btn {
-  width: 36px; height: 36px; flex-shrink: 0;
+  width: 44px; height: 44px; flex-shrink: 0;
   background: var(--bv-yellow); border: 2px solid var(--line);
   border-radius: var(--r-2); box-shadow: var(--shadow-2);
   display: flex; align-items: center; justify-content: center;

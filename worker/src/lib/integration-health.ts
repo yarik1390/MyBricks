@@ -39,9 +39,13 @@ export interface IntegrationDiagnostic {
   label: string;
   configured: boolean;
   reachable: boolean | null;
+  degraded: boolean;
   status: IntegrationStatus;
   used_by: string[];
+  required_secrets: string[];
+  missing_secrets: string[];
   notes: string;
+  recommended_action: string;
   last_checked_at: string | null;
   last_ok_at: string | null;
   last_fail_at: string | null;
@@ -54,8 +58,10 @@ export interface IntegrationDiagnostic {
 type IntegrationDefinition = {
   label: string;
   configured: (env: Env) => boolean;
+  required_secrets: string[];
   used_by: string[];
   notes: string;
+  recommended_action?: string;
 };
 
 const hasRealGoogleConfig = (env: Env) => !!(
@@ -69,26 +75,34 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
   d1: {
     label: 'Cloudflare D1',
     configured: (env) => !!env.DB,
+    required_secrets: ['DB'],
     used_by: ['catalog', 'portfolio', 'wishlist', 'admin'],
     notes: 'Primary database binding.',
+    recommended_action: 'Bind the Cloudflare D1 database as DB before deploying.',
   },
   supabase: {
     label: 'Supabase Auth',
     configured: (env) => !!(env.SUPABASE_URL && env.SUPABASE_ANON_KEY && env.SUPABASE_JWT_SECRET),
+    required_secrets: ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_JWT_SECRET'],
     used_by: ['sign in', 'member sync', 'admin access'],
     notes: 'Authentication and member identity.',
+    recommended_action: 'Add Supabase URL, anon key, and JWT secret as Worker secrets.',
   },
   google: {
     label: 'Google Sheets',
     configured: hasRealGoogleConfig,
+    required_secrets: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
     used_by: ['collection sync', 'wishlist sync'],
     notes: 'Optional spreadsheet sync. Requires OAuth credentials.',
+    recommended_action: 'Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET as GitHub Actions secrets; the deploy workflow uploads them to Worker secrets.',
   },
   ebay: {
     label: 'eBay',
     configured: (env) => !!env.EBAY_APP_ID,
+    required_secrets: ['EBAY_APP_ID'],
     used_by: ['sold-price checks', 'deal score', 'listing draft'],
     notes: 'Uses Marketplace Insights sold data when OAuth access is available, then legacy Finding API as fallback.',
+    recommended_action: 'Add EBAY_APP_ID to enable sold-price enrichment.',
   },
   bricklink: {
     label: 'BrickLink',
@@ -98,46 +112,69 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
       env.BRICKLINK_TOKEN &&
       env.BRICKLINK_TOKEN_SECRET
     ),
+    required_secrets: ['BRICKLINK_CONSUMER_KEY', 'BRICKLINK_CONSUMER_SECRET', 'BRICKLINK_TOKEN', 'BRICKLINK_TOKEN_SECRET'],
     used_by: ['new/used market prices', 'minifig values'],
     notes: 'Requires OAuth credentials and enough sold lots for confident values.',
+    recommended_action: 'Add the full BrickLink OAuth credential set and rerun valuation batches.',
   },
   brickeconomy: {
     label: 'BrickEconomy',
     configured: (env) => !!env.BRICKECONOMY_API_KEY,
+    required_secrets: ['BRICKECONOMY_API_KEY'],
     used_by: ['primary set valuation', 'forecasts', 'retail price enrichment'],
     notes: 'Primary valuation source when available.',
+    recommended_action: 'Add BRICKECONOMY_API_KEY and rerun valuation batches.',
   },
   brickset: {
     label: 'Brickset',
     configured: (env) => !!env.BRICKSET_API_KEY,
+    required_secrets: ['BRICKSET_API_KEY'],
     used_by: ['catalog details', 'UPC/barcode backfill'],
     notes: 'Adds metadata, community data, and barcode coverage.',
+    recommended_action: 'Add BRICKSET_API_KEY and rerun barcode backfill.',
   },
   brickowl: {
     label: 'BrickOwl',
     configured: (env) => !!env.BRICKOWL_API_KEY,
+    required_secrets: ['BRICKOWL_API_KEY'],
     used_by: ['barcode fallback'],
     notes: 'Optional slower per-set barcode fallback. Brickset is preferred when available.',
+    recommended_action: 'Add BRICKOWL_API_KEY only if Brickset barcode coverage is unavailable.',
   },
   gemini: {
     label: 'Gemini',
     configured: () => true,
+    required_secrets: [],
     used_by: ['BYOK photo scan', 'BYOK advisor', 'BYOK valuation fallback'],
     notes: 'User-supplied keys are stored locally in the browser, not on the server.',
   },
   openai: {
     label: 'OpenAI',
     configured: (env) => !!env.OPENAI_API_KEY,
+    required_secrets: ['OPENAI_API_KEY'],
     used_by: ['photo scan', 'advisor', 'listing draft', 'valuation fallback'],
     notes: 'Server key is rate-limited; users can bring their own key for scans, advisor, and listing drafts.',
+    recommended_action: 'Add OPENAI_API_KEY for shared scan, advisor, listing, and fallback valuation features.',
   },
   rebrickable: {
     label: 'Rebrickable',
     configured: (env) => !!env.REBRICKABLE_API_KEY,
+    required_secrets: ['REBRICKABLE_API_KEY'],
     used_by: ['catalog import', 'search fallback', 'CSV import fallback'],
     notes: 'Catalog source for sets, themes, minifigs, and images.',
+    recommended_action: 'Add REBRICKABLE_API_KEY and rerun the catalog import.',
   },
 };
+
+function hasConfiguredSecret(env: Env, name: string): boolean {
+  const value = env[name as keyof Env];
+  if (typeof value === 'string') return value.trim() !== '' && !value.includes('dummy');
+  return !!value;
+}
+
+function missingSecrets(env: Env, names: string[]): string[] {
+  return names.filter(name => !hasConfiguredSecret(env, name));
+}
 
 function isCredentialOrAccessIssue(error?: string | null): boolean {
   return !!error && /(HTTP 401|HTTP 403|access denied|insufficient permissions|invalid[_ -]?scope|not authorized)/i.test(error);
@@ -231,21 +268,37 @@ export async function getIntegrationDiagnostics(env: Env): Promise<IntegrationDi
   for (const [service, def] of Object.entries(INTEGRATION_DEFINITIONS) as Array<[IntegrationName, IntegrationDefinition]>) {
     const configured = def.configured(env);
     const row = byService.get(service);
+    const missing = missingSecrets(env, def.required_secrets);
     let status: IntegrationStatus = 'unconfigured';
     if (configured && (service === 'd1' || service === 'supabase')) {
       status = 'ok';
     } else if (configured) {
       status = row ? classifyHealth(row) : 'unknown';
     }
+    const degraded = status === 'degraded';
+    const reachable = !configured ? false : (service === 'd1' || service === 'supabase') ? true : row ? status !== 'down' : null;
+    const recommendedAction = !configured
+      ? (def.recommended_action || (missing.length ? `Set ${missing.join(', ')}.` : 'Complete setup for this integration.'))
+      : status === 'down'
+        ? 'Check the latest provider error, refresh credentials, then rerun a small batch.'
+        : degraded
+          ? 'Retry with a smaller batch; if failures continue, check provider access and quotas.'
+          : status === 'unknown'
+            ? 'Ready; no provider calls have been recorded yet.'
+            : 'No action required.';
 
     diagnostics.push({
       service,
       label: def.label,
       configured,
-      reachable: !configured ? false : (service === 'd1' || service === 'supabase') ? true : row ? status !== 'down' : null,
+      reachable,
+      degraded,
       status,
       used_by: def.used_by,
+      required_secrets: def.required_secrets,
+      missing_secrets: missing,
       notes: def.notes,
+      recommended_action: recommendedAction,
       last_checked_at: row?.updated_at ?? null,
       last_ok_at: row?.last_ok_at ?? null,
       last_fail_at: row?.last_fail_at ?? null,
