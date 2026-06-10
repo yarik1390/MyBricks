@@ -1,5 +1,5 @@
 import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, clamp, prefersReducedMotion, confettiBurst, themeHue, setHue, THEME_COLORS, fmtShortDate, fmtDateUpdated, setBtnLoading, drawSparkline, brickTile, slImgHTML, bricklinkBuyURL, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB } from '../utils.js';
-import { computeDealScore, ebaySoldSummary, marketValueForCondition, computeSpreadSignals, buyWindow } from '../lib/pure.js';
+import { computeDealScore, ebaySoldSummary, marketValueForCondition, computeSpreadSignals, buyWindow, pricePerPiece } from '../lib/pure.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue } from '../api.js';
 import { I } from '../icons.js';
@@ -1018,6 +1018,7 @@ function infoTabHTML(set, entry, isWish) {
       <div class="stat-cell">
         <div class="lbl">${I.box()}Pieces</div>
         <div class="val s">${(set.pieces || 0).toLocaleString()}</div>
+        ${(() => { const r = pricePerPiece(set); return r ? `<div style="font-family:var(--mono);font-size:10px;color:${r.delta <= -0.25 ? "var(--up)" : r.delta >= 0.25 ? "var(--down)" : "var(--ink-mute)"};margin-top:4px;letter-spacing:0.08em;">$${r.ppp.toFixed(2)}/pc</div>` : ""; })()}
       </div>
       <div class="stat-cell">
         <div class="lbl">${I.figure()}Minifigs</div>

@@ -5,7 +5,7 @@ import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { openScan } from '../components/scanner.js';
 import { trustBadgeHTML } from '../components/trust.js';
-import { catalogFilterSummary } from '../lib/pure.js';
+import { catalogFilterSummary, pricePerPiece } from '../lib/pure.js';
 
 let _catalogGen = 0;
 
@@ -297,6 +297,14 @@ function showFilterSheet(onApply) {
 
 function sourceCueHTML(s) { return trustBadgeHTML(s, { compact: true }); }
 
+// $/piece value cue: tinted when >=25% off the formula baseline either way.
+function pppBadgeHTML(s) {
+  const r = pricePerPiece(s);
+  if (!r) return "";
+  const color = r.delta <= -0.25 ? "var(--up)" : r.delta >= 0.25 ? "var(--down)" : "var(--ink-mute)";
+  return `<span class="ppp-badge" style="color:${color};">$${r.ppp.toFixed(2)}/pc</span>`;
+}
+
 function catalogCardHTML(s) {
   const hasImg = s.image_url && !s.image_url.startsWith("data:");
   const h = setHue(s);
@@ -325,7 +333,7 @@ function catalogCardHTML(s) {
             ${fmtMoney(s.current_value)}
             ${s.trend ? trendBadgeHTML(s.trend) : ""}
           </div>
-          <div class="sl-delta" style="color:var(--ink-mute);">${s.pieces || 0}pc</div>
+          <div class="sl-delta" style="color:var(--ink-mute);">${s.pieces || 0}pc ${pppBadgeHTML(s)}</div>
         </div>
       </button>`;
   }
@@ -348,7 +356,7 @@ function catalogCardHTML(s) {
           ${s.minifigs > 0 ? `<span>${s.minifigs} fig</span>` : ""}
         </div>
         <div class="set-card-value" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;">
-          <span>${fmtMoney(s.current_value)}</span>
+          <span>${fmtMoney(s.current_value)} ${pppBadgeHTML(s)}</span>
           <span style="display:inline-flex;align-items:center;gap:6px;">${sourceCueHTML(s)}${s.trend ? trendBadgeHTML(s.trend) : ""}</span>
         </div>
       </div>

@@ -83,6 +83,20 @@ export function marketValueForCondition(set = {}, condition = "new") {
 }
 
 /**
+ * Price-per-piece with a delta against the formula baseline ($0.11/pc retail,
+ * mirrors formulaValuation in worker/src/lib/valuation.ts; retired sets carry
+ * a 1.4x premium). Returns null for tiny sets or missing data.
+ */
+export function pricePerPiece(set = {}) {
+  const pieces = Number(set.pieces);
+  const value = positiveNumber(set.current_value);
+  if (!Number.isFinite(pieces) || pieces < 20 || !value) return null;
+  const ppp = value / pieces;
+  const baseline = 0.11 * (set.retired ? 1.4 : 1.0);
+  return { ppp, delta: (ppp - baseline) / baseline };
+}
+
+/**
  * Turns a wishlist item's 30-day trend into a "buy window" hint.
  * item needs: target_price, current_value, trend_weekly (USD/week, may be null).
  * Returns null when there's nothing actionable to say, otherwise

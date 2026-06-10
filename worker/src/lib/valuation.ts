@@ -33,7 +33,8 @@ export function formulaValuation(set: {
   const themeMultiplier = THEME_MULTIPLIERS[theme] || 1.0;
   const currentYear = new Date().getFullYear();
 
-  // Base MSRP calculation based on parts count, theme multiplier, and base rate per piece
+  // Base MSRP calculation based on parts count, theme multiplier, and base rate per piece.
+  // The $0.11/pc base is mirrored by pricePerPiece() in public/js/lib/pure.js — keep in sync.
   const msrp = Math.round(pieces * 0.11 * themeMultiplier * 100) / 100;
 
   // Theme-Specific compound appreciation rates

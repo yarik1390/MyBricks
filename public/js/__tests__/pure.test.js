@@ -4,7 +4,7 @@ import {
   escapeHtml, fmtPct, clamp, themeHue, bricklinkBuyURL,
   computeDealScore, valuationTrust, catalogFilterSummary, classifyJobRun,
   annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition,
-  jobProgressSummary, computeSpreadSignals, buyWindow,
+  jobProgressSummary, computeSpreadSignals, buyWindow, pricePerPiece,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -451,5 +451,31 @@ describe('buyWindow', () => {
   it('returns null without trend data above the near band', () => {
     assert.equal(buyWindow({ target_price: 100, current_value: 120, trend_weekly: null }), null);
     assert.equal(buyWindow({ target_price: 100, current_value: 120 }), null);
+  });
+});
+
+describe('pricePerPiece', () => {
+  it('returns null for missing data or tiny sets', () => {
+    assert.equal(pricePerPiece({}), null);
+    assert.equal(pricePerPiece({ pieces: 500 }), null);
+    assert.equal(pricePerPiece({ pieces: 10, current_value: 50 }), null);
+  });
+
+  it('computes $/pc and delta against the $0.11 baseline', () => {
+    const r = pricePerPiece({ pieces: 1000, current_value: 110, retired: false });
+    assert.ok(Math.abs(r.ppp - 0.11) < 1e-9);
+    assert.ok(Math.abs(r.delta) < 1e-9);
+  });
+
+  it('flags a value buy when well under baseline', () => {
+    const r = pricePerPiece({ pieces: 1000, current_value: 70, retired: false });
+    assert.ok(r.delta < -0.25);
+  });
+
+  it('uses a 1.4x baseline for retired sets', () => {
+    const active = pricePerPiece({ pieces: 1000, current_value: 154, retired: false });
+    const retired = pricePerPiece({ pieces: 1000, current_value: 154, retired: true });
+    assert.ok(active.delta > 0.35);
+    assert.ok(Math.abs(retired.delta) < 1e-9);
   });
 });
