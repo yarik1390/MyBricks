@@ -26,6 +26,11 @@ npx wrangler secret put GOOGLE_CLIENT_ID     # optional; Google Sheets sync
 npx wrangler secret put GOOGLE_CLIENT_SECRET # optional; Google Sheets sync
 npx wrangler secret put EBAY_APP_ID          # optional; eBay production App ID / Client ID
 npx wrangler secret put EBAY_CLIENT_SECRET   # optional; matching production Cert ID / Client Secret
+npx wrangler secret put GEMINI_API_KEY       # optional; server-side Gemini valuation fallback
+npx wrangler secret put RESEND_API_KEY       # optional; email wishlist alerts
+npx wrangler secret put VAPID_PUBLIC_KEY     # optional; browser push alerts
+npx wrangler secret put VAPID_PRIVATE_KEY    # optional; browser push alerts
+npx wrangler secret put VAPID_SUBJECT        # optional; e.g. mailto:you@example.com
 ```
 
 ## 4. Deploy Worker
@@ -56,7 +61,10 @@ curl -X POST https://<worker-url>/api/admin/populate-everything \
 # Re-invoke until the response reports complete:true — each call advances one slice.
 ```
 
-The CI deploy workflow also runs this campaign automatically after each deploy.
+The CI deploy workflow also attempts a small warning-only campaign after each
+deploy. A provider/data failure is logged as a GitHub Actions warning so the
+Worker and Pages deploy can stay green; rerun **Populate everything** from the
+Me tab after fixing the reported provider issue.
 
 ## 6. Deploy Pages
 
@@ -96,6 +104,17 @@ http://127.0.0.1:8787/api/google/oauth
 ```
 
 4. Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` as GitHub Actions secrets. The deploy workflow uploads them to Worker secrets.
+
+## 9. Optional alerts and AI fallback
+
+These features stay disabled with precise setup messages until their secrets
+are present:
+
+- `GEMINI_API_KEY` enables server-side Gemini fallback valuations. User BYOK
+  Gemini keys still work without this secret.
+- `RESEND_API_KEY` enables email wishlist alerts.
+- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` enable browser
+  push alerts. `VAPID_SUBJECT` should usually be a `mailto:` contact.
 
 ## Local development
 
@@ -140,6 +159,11 @@ curl -X POST https://<worker-url>/api/admin/repair-search-index \
 | `ADMIN_USER_ID` | Worker secret | Supabase user UUID for admin endpoints |
 | `GOOGLE_CLIENT_ID` | Worker secret / GitHub secret | Required with `GOOGLE_CLIENT_SECRET` for Google Sheets sync |
 | `GOOGLE_CLIENT_SECRET` | Worker secret / GitHub secret | Required with `GOOGLE_CLIENT_ID` for Google Sheets sync |
+| `GEMINI_API_KEY` | Worker secret / GitHub secret | Optional server-side Gemini fallback; BYOK browser keys still work without it |
+| `RESEND_API_KEY` | Worker secret / GitHub secret | Optional email wishlist alerts |
+| `VAPID_PUBLIC_KEY` | Worker secret / GitHub secret | Optional browser push alerts |
+| `VAPID_PRIVATE_KEY` | Worker secret / GitHub secret | Optional browser push alerts |
+| `VAPID_SUBJECT` | Worker secret / GitHub secret | Optional Web Push subject, usually `mailto:you@example.com` |
 | `BRICKSET_API_KEY` | Worker secret / GitHub secret | Optional catalog details and UPC barcode backfill |
 | `BRICKLINK_CONSUMER_KEY` | Worker secret / GitHub secret | Optional BrickLink valuation OAuth |
 | `BRICKLINK_CONSUMER_SECRET` | Worker secret / GitHub secret | Optional BrickLink valuation OAuth |

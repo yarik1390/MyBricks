@@ -12,6 +12,8 @@ export type IntegrationName =
   | 'brickset'
   | 'brickowl'
   | 'gemini'
+  | 'email'
+  | 'push'
   | 'openai'
   | 'rebrickable';
 
@@ -148,10 +150,28 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
   },
   gemini: {
     label: 'Gemini',
-    configured: () => true,
-    required_secrets: [],
-    used_by: ['BYOK photo scan', 'BYOK advisor', 'BYOK valuation fallback'],
-    notes: 'User-supplied keys are stored locally in the browser, not on the server.',
+    configured: (env) => hasConfiguredSecret(env, 'GEMINI_API_KEY'),
+    required_secrets: ['GEMINI_API_KEY'],
+    used_by: ['server valuation fallback', 'BYOK photo scan', 'BYOK advisor'],
+    notes: 'Server key is optional; user-supplied BYOK Gemini keys still work from the browser.',
+    recommended_action: 'Add GEMINI_API_KEY as a GitHub Actions secret to enable server-side Gemini fallback.',
+  },
+  email: {
+    label: 'Email Alerts',
+    configured: (env) => hasConfiguredSecret(env, 'RESEND_API_KEY'),
+    required_secrets: ['RESEND_API_KEY'],
+    used_by: ['wishlist alerts', 'price drop notifications'],
+    notes: 'Optional transactional email for alerts.',
+    recommended_action: 'Add RESEND_API_KEY as a GitHub Actions secret to enable email wishlist alerts.',
+  },
+  push: {
+    label: 'Browser Push',
+    configured: (env) => ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT']
+      .every(name => hasConfiguredSecret(env, name)),
+    required_secrets: ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'],
+    used_by: ['wishlist alerts', 'browser notifications'],
+    notes: 'Optional Web Push notifications. Requires a VAPID keypair and subject.',
+    recommended_action: 'Add VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, and VAPID_SUBJECT as GitHub Actions secrets to enable browser push alerts.',
   },
   openai: {
     label: 'OpenAI',

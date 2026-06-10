@@ -221,13 +221,16 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     if (blPricing) {
       supplementStmts.push(
         env.DB.prepare(`UPDATE lego_sets SET bl_new_value=?, bl_new_qty=?, bl_new_min=?, bl_new_max=?, bl_cached_at=datetime('now') WHERE set_num=?`)
-          .bind(blPricing.current_value, blPricing.lot_count, blPricing.min_price, blPricing.max_price, set.set_num)
+          .bind(blPricing.current_value, blPricing.lot_count, blPricing.min_price ?? null, blPricing.max_price ?? null, set.set_num)
       );
     }
-    if (usedPricing) {
+    const hasBrickLinkUsedMeta = usedPricing?.lot_count != null
+      || usedPricing?.min_price != null
+      || usedPricing?.max_price != null;
+    if (hasBrickLinkUsedMeta) {
       supplementStmts.push(
         env.DB.prepare(`UPDATE lego_sets SET bl_used_qty=?, bl_used_min=?, bl_used_max=?, bl_cached_at=datetime('now') WHERE set_num=?`)
-          .bind(usedPricing.lot_count, usedPricing.min_price, usedPricing.max_price, set.set_num)
+          .bind(usedPricing?.lot_count ?? null, usedPricing?.min_price ?? null, usedPricing?.max_price ?? null, set.set_num)
       );
     }
     if (beDetails) {

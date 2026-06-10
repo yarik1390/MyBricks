@@ -299,6 +299,26 @@ describe('BrickVault API Worker Tests', () => {
       expect(data.setup.google.missing_secrets).toEqual(['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET']);
       expect(data.setup.google.recommended_action).toContain('GitHub Actions secrets');
     });
+
+    it('reports optional Gemini, email, and push setup readiness', async () => {
+      delete (env as any).GEMINI_API_KEY;
+      delete (env as any).RESEND_API_KEY;
+      delete (env as any).VAPID_PUBLIC_KEY;
+      delete (env as any).VAPID_PRIVATE_KEY;
+      delete (env as any).VAPID_SUBJECT;
+      const res = await app.fetch(
+        new Request('http://localhost/api/config'),
+        env
+      );
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.status.gemini).toBe(false);
+      expect(data.status.email).toBe(false);
+      expect(data.status.push).toBe(false);
+      expect(data.setup.gemini.recommended_action).toContain('GEMINI_API_KEY');
+      expect(data.setup.email.recommended_action).toContain('RESEND_API_KEY');
+      expect(data.setup.push.missing_secrets).toEqual(['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT']);
+    });
   });
 
   describe('Google OAuth Flow Security', () => {

@@ -28,3 +28,12 @@ EBAY_APP_ID=your_ebay_production_app_id_or_client_id
 EBAY_CLIENT_SECRET=your_matching_ebay_production_cert_id_or_client_secret
 BRICKECONOMY_API_KEY=your_brickeconomy_api_key
 BRICKOWL_API_KEY=your_brickowl_api_key
+
+# Optional server-side AI fallback. BYOK browser keys work without this.
+GEMINI_API_KEY=your_gemini_api_key
+
+# Optional wishlist notifications
+RESEND_API_KEY=your_resend_api_key
+VAPID_PUBLIC_KEY=your_vapid_public_key
+VAPID_PRIVATE_KEY=your_vapid_private_key
+VAPID_SUBJECT=mailto:you@example.com

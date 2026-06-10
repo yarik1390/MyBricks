@@ -321,7 +321,7 @@ app.get('/:setnum', async (c) => {
           const askStmt = buildEbayAskUpdate(c.env.DB, activeSet.set_num as string, askListings);
           if (askStmt) supplementStmts.push(askStmt);
           if (u) {
-            supplementStmts.push(c.env.DB.prepare(`UPDATE lego_sets SET used_value=?, bl_used_qty=?, bl_cached_at=datetime('now') WHERE set_num=?`).bind(u.used_value, u.lot_count, activeSet.set_num));
+            supplementStmts.push(c.env.DB.prepare(`UPDATE lego_sets SET used_value=?, bl_used_qty=COALESCE(?, bl_used_qty), bl_cached_at=datetime('now') WHERE set_num=?`).bind(u.used_value, u.lot_count ?? null, activeSet.set_num));
           }
           if (p) {
             const yr = activeSet.retired ? 0.15 : 0.10;

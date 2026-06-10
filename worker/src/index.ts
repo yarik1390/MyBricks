@@ -60,18 +60,31 @@ app.use('*', async (c, next) => {
 
 // Public config for the frontend (Supabase URL + anon key are client-safe)
 app.get('/api/config', (c) => {
-  const googleMissing = [
-    !c.env.GOOGLE_CLIENT_ID || c.env.GOOGLE_CLIENT_ID.includes('dummy') ? 'GOOGLE_CLIENT_ID' : null,
-    !c.env.GOOGLE_CLIENT_SECRET || c.env.GOOGLE_CLIENT_SECRET.includes('dummy') ? 'GOOGLE_CLIENT_SECRET' : null,
-  ].filter((name): name is string => !!name);
-  const ebayMissing = [
-    !c.env.EBAY_APP_ID || c.env.EBAY_APP_ID.includes('dummy') ? 'EBAY_APP_ID' : null,
-    !c.env.EBAY_CLIENT_SECRET || c.env.EBAY_CLIENT_SECRET.includes('dummy') ? 'EBAY_CLIENT_SECRET' : null,
-  ].filter((name): name is string => !!name);
+  const missing = (entries: Array<[string, string | undefined]>) => entries
+    .filter(([, value]) => !value || value.includes('dummy'))
+    .map(([name]) => name);
+  const googleMissing = missing([
+    ['GOOGLE_CLIENT_ID', c.env.GOOGLE_CLIENT_ID],
+    ['GOOGLE_CLIENT_SECRET', c.env.GOOGLE_CLIENT_SECRET],
+  ]);
+  const ebayMissing = missing([
+    ['EBAY_APP_ID', c.env.EBAY_APP_ID],
+    ['EBAY_CLIENT_SECRET', c.env.EBAY_CLIENT_SECRET],
+  ]);
+  const pushMissing = missing([
+    ['VAPID_PUBLIC_KEY', c.env.VAPID_PUBLIC_KEY],
+    ['VAPID_PRIVATE_KEY', c.env.VAPID_PRIVATE_KEY],
+    ['VAPID_SUBJECT', c.env.VAPID_SUBJECT],
+  ]);
+  const geminiMissing = missing([['GEMINI_API_KEY', c.env.GEMINI_API_KEY]]);
+  const emailMissing = missing([['RESEND_API_KEY', c.env.RESEND_API_KEY]]);
   const status = {
     supabase: !!(c.env.SUPABASE_URL && c.env.SUPABASE_ANON_KEY && c.env.SUPABASE_JWT_SECRET),
     d1: !!c.env.DB,
     openai: !!c.env.OPENAI_API_KEY,
+    gemini: geminiMissing.length === 0,
+    email: emailMissing.length === 0,
+    push: pushMissing.length === 0,
     google: googleMissing.length === 0,
     ebay: ebayMissing.length === 0,
     bricklink: !!(c.env.BRICKLINK_CONSUMER_KEY && c.env.BRICKLINK_TOKEN),
@@ -99,6 +112,27 @@ app.get('/api/config', (c) => {
         recommended_action: ebayMissing.length
           ? `Add ${ebayMissing.join(' and ')} as GitHub Actions secrets; eBay sold comps stay disabled until both are present.`
           : 'eBay US/USD sold comps are ready.',
+      },
+      gemini: {
+        configured: geminiMissing.length === 0,
+        missing_secrets: geminiMissing,
+        recommended_action: geminiMissing.length
+          ? 'Add GEMINI_API_KEY as a GitHub Actions secret to enable server-side Gemini fallback; user BYOK Gemini keys still work without it.'
+          : 'Server-side Gemini fallback is ready.',
+      },
+      email: {
+        configured: emailMissing.length === 0,
+        missing_secrets: emailMissing,
+        recommended_action: emailMissing.length
+          ? 'Add RESEND_API_KEY as a GitHub Actions secret to enable email wishlist alerts.'
+          : 'Email wishlist alerts are ready.',
+      },
+      push: {
+        configured: pushMissing.length === 0,
+        missing_secrets: pushMissing,
+        recommended_action: pushMissing.length
+          ? `Add ${pushMissing.join(', ')} as GitHub Actions secrets to enable browser push alerts.`
+          : 'Browser push alerts are ready.',
       },
     },
   });

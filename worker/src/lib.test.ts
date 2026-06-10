@@ -117,12 +117,35 @@ describe('eBay sold comps', () => {
     expect(summary.sample_count).toBe(4);
   });
 
+  it('requires both eBay secrets and does not fall back to legacy APIs', async () => {
+    __resetEbayTokenCacheForTests();
+    (env as any).EBAY_APP_ID = 'ebay-app-id';
+    (env as any).EBAY_CLIENT_SECRET = '';
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn();
+
+    try {
+      const result = await fetchEbaySoldPrices('75192', 'Millennium Falcon', env as any, { recordHealth: false });
+      expect(result.source).toBe('marketplace_insights');
+      expect(result.status).toBe('unconfigured');
+      expect(result.error).toContain('EBAY_APP_ID and EBAY_CLIENT_SECRET');
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    } finally {
+      globalThis.fetch = originalFetch;
+      __resetEbayTokenCacheForTests();
+    }
+  });
+
   it('returns unauthorized when the OAuth token request fails', async () => {
     __resetEbayTokenCacheForTests();
     (env as any).EBAY_APP_ID = 'ebay-app-id';
     (env as any).EBAY_CLIENT_SECRET = 'ebay-client-secret';
+    const seenUrls: string[] = [];
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'invalid_client' }), { status: 403 }));
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      seenUrls.push(String(url));
+      return Promise.resolve(new Response(JSON.stringify({ error: 'invalid_client' }), { status: 403 }));
+    });
 
     try {
       const result = await fetchEbaySoldPrices('75192', 'Millennium Falcon', env as any, { recordHealth: false });
@@ -131,6 +154,7 @@ describe('eBay sold comps', () => {
       expect(result.used_value).toBeNull();
       expect(result.error).toContain('invalid_client');
       expect(isEbayAccessError(result.error)).toBe(true);
+      expect(seenUrls.some(url => url.includes('FindingService') || url.includes('/sch/i.html'))).toBe(false);
     } finally {
       globalThis.fetch = originalFetch;
       __resetEbayTokenCacheForTests();
@@ -167,6 +191,7 @@ describe('eBay sold comps', () => {
       expect(result.status).toBe('unauthorized');
       expect(result.error).toContain('Insufficient permissions');
       expect(seenUrls.filter(url => url.includes('item_sales/search'))).toHaveLength(1);
+      expect(seenUrls.some(url => url.includes('FindingService') || url.includes('/sch/i.html'))).toBe(false);
     } finally {
       globalThis.fetch = originalFetch;
       __resetEbayTokenCacheForTests();

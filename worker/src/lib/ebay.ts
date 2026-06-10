@@ -19,7 +19,7 @@ export interface EbayConditionPricing {
 }
 
 export interface EbaySoldPrices {
-  source: 'marketplace_insights' | 'finding_api';
+  source: 'marketplace_insights';
   status: EbaySoldStatus;
   new_value: number | null;
   used_value: number | null;
@@ -82,10 +82,6 @@ function hasConfiguredEbaySecrets(env: Env): boolean {
     !env.EBAY_APP_ID.includes('dummy') &&
     !env.EBAY_CLIENT_SECRET.includes('dummy')
   );
-}
-
-function hasEbayAppId(env: Env): boolean {
-  return !!(env.EBAY_APP_ID && !env.EBAY_APP_ID.includes('dummy'));
 }
 
 export function isEbayAccessError(error?: string | null): boolean {
@@ -238,135 +234,23 @@ async function fetchMarketplaceInsightsCondition(
   return summarizeSoldPrices(prices);
 }
 
-async function fetchFindingApiPrices(
-  setNum: string,
-  setName: string,
-  env: Env,
-  options: { recordHealth?: boolean } = {},
-): Promise<EbayConditionPricing> {
-  const keywords = `LEGO ${setNum.replace(/-1$/i, '')} ${setName}`.replace(/\s+/g, ' ').trim().slice(0, 350);
-  const params = new URLSearchParams({
-    'OPERATION-NAME': 'findCompletedItems',
-    'SECURITY-APPNAME': env.EBAY_APP_ID!,
-    'RESPONSE-DATA-FORMAT': 'JSON',
-    'keywords': keywords,
-    'itemFilter(0).name': 'SoldItemsOnly',
-    'itemFilter(0).value': 'true',
-    'sortOrder': 'StartTimeNewest',
-    'paginationInput.entriesPerPage': '20',
-  });
-
-  const resp = await fetchTracked(
-    env,
-    'ebay',
-    `https://svcs.ebay.com/services/search/FindingService/v1?${params}`,
-    { headers: { 'Accept': 'application/json' } },
-    { retries: 1, timeoutMs: 10000, record: options.recordHealth !== false },
-  );
-
-  if (!resp.ok) {
-    throw new Error(await ebayErrorMessage(resp, 'eBay Finding API'));
-  }
-
-  interface FindingItem {
-    title?: string[];
-    sellingStatus?: Array<{
-      sellingState?: string[];
-      convertedCurrentPrice?: Array<{ '__value__'?: string; '@currencyId'?: string }>;
-    }>;
-  }
-  const data = await resp.json() as {
-    findCompletedItemsResponse?: Array<{
-      searchResult?: Array<{ item?: FindingItem[] }>;
-    }>;
-  };
-
-  const items: FindingItem[] = data?.findCompletedItemsResponse?.[0]?.searchResult?.[0]?.item ?? [];
-  const prices = items
-    .filter(item => item?.sellingStatus?.[0]?.sellingState?.[0] === 'EndedWithSales')
-    .map(item => {
-      const title = item?.title?.[0] ?? '';
-      if (!isValidLegoSetSaleTitle(title, setNum)) return null;
-      const raw = item?.sellingStatus?.[0]?.convertedCurrentPrice?.[0];
-      const currency = raw?.['@currencyId'] ?? 'USD';
-      if (String(currency).toUpperCase() !== 'USD') return null;
-      const value = Number(raw?.['__value__'] ?? NaN);
-      return Number.isFinite(value) && value > 0 ? value : null;
-    })
-    .filter((p): p is number => p != null);
-
-  return summarizeSoldPrices(prices);
-}
-
-// Tries findCompletedItems with just the App ID. Returns sold comps when the
-// endpoint still serves this keyset, otherwise null so the caller can report
-// the original (more diagnostic) error.
-async function soldViaFindingApi(
-  setNum: string,
-  setName: string,
-  env: Env,
-  options: { recordHealth?: boolean },
-): Promise<EbaySoldPrices | null> {
-  if (!hasEbayAppId(env)) return null;
-  try {
-    const result = await fetchFindingApiPrices(setNum, setName, env, options);
-    if (result.value == null) return null;
-    return {
-      source: 'finding_api',
-      status: 'ok',
-      new_value: result.value,
-      used_value: null,
-      new_sample_count: result.sample_count,
-      used_sample_count: 0,
-      error: null,
-    };
-  } catch {
-    return null;
-  }
-}
-
 export async function fetchEbaySoldPrices(
   setNum: string,
   setName: string,
   env: Env,
   options: { recordHealth?: boolean } = {},
 ): Promise<EbaySoldPrices> {
+  void setName;
   if (!hasConfiguredEbaySecrets(env)) {
-    if (!hasEbayAppId(env)) {
-      return {
-        source: 'marketplace_insights',
-        status: 'unconfigured',
-        new_value: null,
-        used_value: null,
-        new_sample_count: 0,
-        used_sample_count: 0,
-        error: 'EBAY_APP_ID and EBAY_CLIENT_SECRET are required for eBay sold comps.',
-      };
-    }
-    // Only EBAY_APP_ID configured — use Finding API (no OAuth needed)
-    try {
-      const result = await fetchFindingApiPrices(setNum, setName, env, options);
-      return {
-        source: 'finding_api',
-        status: result.value != null ? 'ok' : 'no_data',
-        new_value: result.value,
-        used_value: null,
-        new_sample_count: result.sample_count,
-        used_sample_count: 0,
-        error: result.error ?? null,
-      };
-    } catch (error) {
-      const message = (error as Error).message || String(error);
-      return {
-        source: 'finding_api',
-        status: 'error',
-        new_value: null,
-        used_value: null,
-        new_sample_count: 0,
-        used_sample_count: 0,
-        error: message,
-      };
-    }
+    return {
+      source: 'marketplace_insights',
+      status: 'unconfigured',
+      new_value: null,
+      used_value: null,
+      new_sample_count: 0,
+      used_sample_count: 0,
+      error: 'EBAY_APP_ID and EBAY_CLIENT_SECRET are required for eBay Marketplace Insights sold comps.',
+    };
   }
 
   let token: string | null = null;
@@ -375,12 +259,6 @@ export async function fetchEbaySoldPrices(
   } catch (error) {
     const message = (error as Error).message || String(error);
     const unauthorized = /401|403|authorized|scope|permission/i.test(message);
-    if (unauthorized) {
-      // Marketplace Insights is gated behind eBay approval most keysets don't
-      // have — fall back to the App-ID-only Finding API before giving up.
-      const fallback = await soldViaFindingApi(setNum, setName, env, options);
-      if (fallback) return fallback;
-    }
     return {
       source: 'marketplace_insights',
       status: unauthorized ? 'unauthorized' : 'error',
@@ -392,8 +270,6 @@ export async function fetchEbaySoldPrices(
     };
   }
   if (!token) {
-    const fallback = await soldViaFindingApi(setNum, setName, env, options);
-    if (fallback) return fallback;
     return {
       source: 'marketplace_insights',
       status: 'unauthorized',
@@ -414,8 +290,6 @@ export async function fetchEbaySoldPrices(
   }));
 
   if (isEbayAccessError(newResult.error)) {
-    const fallback = await soldViaFindingApi(setNum, setName, env, options);
-    if (fallback) return fallback;
     return {
       source: 'marketplace_insights',
       status: 'unauthorized',

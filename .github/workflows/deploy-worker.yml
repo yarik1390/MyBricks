@@ -30,6 +30,16 @@ jobs:
         working-directory: worker
         run: npm ci
 
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Typecheck Worker
+        run: npm --prefix worker run typecheck
+
+      - name: Run Worker tests
+        working-directory: worker
+        run: npm test
+
       - name: Create or find D1 database via REST API
         run: |
           set -euo pipefail
@@ -114,6 +124,10 @@ jobs:
           else
             echo "Analytics Engine binding retained (ENABLE_ANALYTICS_ENGINE=true)"
           fi
+
+      - name: Wrangler deploy dry run
+        working-directory: worker
+        run: npx wrangler deploy --dry-run
 
       - name: Apply database schema
         working-directory: worker
@@ -308,6 +322,11 @@ jobs:
           [ -n "${{ secrets.BRICKECONOMY_API_KEY }}" ]     && put BRICKECONOMY_API_KEY     "${{ secrets.BRICKECONOMY_API_KEY }}"     || true
           [ -n "${{ secrets.GOOGLE_CLIENT_ID }}" ]         && put GOOGLE_CLIENT_ID         "${{ secrets.GOOGLE_CLIENT_ID }}"         || true
           [ -n "${{ secrets.GOOGLE_CLIENT_SECRET }}" ]     && put GOOGLE_CLIENT_SECRET     "${{ secrets.GOOGLE_CLIENT_SECRET }}"     || true
+          [ -n "${{ secrets.GEMINI_API_KEY }}" ]           && put GEMINI_API_KEY           "${{ secrets.GEMINI_API_KEY }}"           || true
+          [ -n "${{ secrets.RESEND_API_KEY }}" ]           && put RESEND_API_KEY           "${{ secrets.RESEND_API_KEY }}"           || true
+          [ -n "${{ secrets.VAPID_PUBLIC_KEY }}" ]         && put VAPID_PUBLIC_KEY         "${{ secrets.VAPID_PUBLIC_KEY }}"         || true
+          [ -n "${{ secrets.VAPID_PRIVATE_KEY }}" ]        && put VAPID_PRIVATE_KEY        "${{ secrets.VAPID_PRIVATE_KEY }}"        || true
+          [ -n "${{ secrets.VAPID_SUBJECT }}" ]            && put VAPID_SUBJECT            "${{ secrets.VAPID_SUBJECT }}"            || true
 
       - name: Inject Worker URL into Pages env.js
         run: |
@@ -394,7 +413,8 @@ jobs:
               continue
             fi
             if [ "$STATUS" -ge 400 ]; then
-              exit 1
+              echo "::warning::Population slice ${slice}/4 returned HTTP ${STATUS}; deploy remains successful."
+              break
             fi
             if jq -e '.done == true' /tmp/populate_everything.json >/dev/null; then
               echo "All configured and reachable sources are already populated."
@@ -407,9 +427,15 @@ jobs:
             fi
             for poll in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do
               sleep 10
-              curl -sf "${WORKER_URL}/api/admin/import-status/${RUN_ID}" \
+              POLL_STATUS=$(curl -s -o /tmp/populate_status.json -w "%{http_code}" \
+                "${WORKER_URL}/api/admin/import-status/${RUN_ID}" \
                 -H "Authorization: Bearer ${ADMIN_JWT}" \
-                -o /tmp/populate_status.json
+              )
+              if [ "${POLL_STATUS}" -ge 400 ]; then
+                echo "::warning::Population run ${RUN_ID} status poll returned HTTP ${POLL_STATUS}; deploy remains successful."
+                cat /tmp/populate_status.json || true
+                break 2
+              fi
               JOB_STATUS=$(jq -r '.status // empty' /tmp/populate_status.json)
               JOB_LABEL=$(jq -r '.progress_label // empty' /tmp/populate_status.json)
               echo "run ${RUN_ID}: ${JOB_STATUS} ${JOB_LABEL}"
@@ -422,7 +448,8 @@ jobs:
               fi
               if [ "${JOB_STATUS}" = "error" ] || [ "${JOB_STATUS}" = "expired" ]; then
                 cat /tmp/populate_status.json
-                exit 1
+                echo "::warning::Population run ${RUN_ID} ended as ${JOB_STATUS}; deploy remains successful. Rerun Populate everything from the Me tab after fixing the reported provider/data issue."
+                break 2
               fi
             done
           done
