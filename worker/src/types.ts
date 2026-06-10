@@ -1,5 +1,12 @@
+export interface AnalyticsEngineDataset {
+  writeDataPoint(opts: { blobs?: string[]; doubles?: number[]; indexes?: string[] }): void;
+}
+
 export interface Env {
   DB: D1Database;
+  CACHE_KV?: KVNamespace;
+  ANALYTICS?: AnalyticsEngineDataset;
+  PHOTO_BUCKET?: R2Bucket;
   OPENAI_API_KEY: string;
   REBRICKABLE_API_KEY: string;
   SUPABASE_URL: string;

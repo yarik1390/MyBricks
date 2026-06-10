@@ -64,6 +64,12 @@ export async function fetchUsedPricing(
   if (!env.BRICKLINK_CONSUMER_KEY) return null;
   const blNum = setNum.includes('-') ? setNum : `${setNum}-1`;
   try {
+    const cacheKey = `bl:used:${blNum}`;
+    if (env.CACHE_KV) {
+      const cached = await env.CACHE_KV.get(cacheKey, 'json') as BrickLinkUsedPricing | null;
+      if (cached) return cached;
+    }
+
     const baseUrl = brickLinkPriceUrl('SET', blNum);
     const queryParams = { guide_type: 'sold', new_or_used: 'U', currency_code: 'USD' };
     const authHeader = await oauthHeader(
@@ -84,7 +90,9 @@ export async function fetchUsedPricing(
     if (!used) return null;
     const minPrice = parseFloat(String(d.min_price || '')) || null;
     const maxPrice = parseFloat(String(d.max_price || '')) || null;
-    return { used_value: used, lot_count: lotCount, min_price: minPrice, max_price: maxPrice };
+    const result = { used_value: used, lot_count: lotCount, min_price: minPrice, max_price: maxPrice };
+    if (env.CACHE_KV) env.CACHE_KV.put(cacheKey, JSON.stringify(result), { expirationTtl: 21600 }).catch(() => {});
+    return result;
   } catch {
     return null;
   }
@@ -101,6 +109,12 @@ export async function fetchSetPricing(
   const blNum = setNum.includes('-') ? setNum : `${setNum}-1`;
 
   try {
+    const cacheKey = `bl:new:${blNum}`;
+    if (env.CACHE_KV) {
+      const cached = await env.CACHE_KV.get(cacheKey, 'json') as BrickLinkPricing | null;
+      if (cached) return cached;
+    }
+
     const baseUrl = brickLinkPriceUrl('SET', blNum);
     const queryParams = { guide_type: 'sold', new_or_used: 'N', currency_code: 'USD' };
 
@@ -128,7 +142,9 @@ export async function fetchSetPricing(
     const minPrice = parseFloat(String(d.min_price || '')) || null;
     const maxPrice = parseFloat(String(d.max_price || '')) || null;
 
-    return { current_value: current, lot_count: lotCount, min_price: minPrice, max_price: maxPrice };
+    const result = { current_value: current, lot_count: lotCount, min_price: minPrice, max_price: maxPrice };
+    if (env.CACHE_KV) env.CACHE_KV.put(cacheKey, JSON.stringify(result), { expirationTtl: 21600 }).catch(() => {});
+    return result;
   } catch {
     return null;
   }

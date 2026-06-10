@@ -8,6 +8,18 @@ binding = "DB"
 database_name = "brickvault"
 database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
 
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "brickvault_events"
+
+[[r2_buckets]]
+binding = "PHOTO_BUCKET"
+bucket_name = "brickvault-photos"
+
 [triggers]
 crons = [
   "0 * * * *",

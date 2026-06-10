@@ -3,6 +3,7 @@ import { requireMember } from '../auth';
 import { formulaValuation } from '../lib/valuation';
 import { fetchTracked } from '../lib/http';
 import { enrichSetRecord } from '../lib/market-sources';
+import { logEvent } from '../lib/analytics';
 import type { Env, Variables } from '../types';
 import { runSyncProcess } from './google-sync';
 
@@ -75,7 +76,7 @@ app.get('/', async (c) => {
     SELECT
       uc.id, uc.set_num, uc.quantity, uc.condition, uc.purchase_price,
       uc.notes, uc.added_at, uc.purchased_at, uc.last_modified,
-      uc.storage_location, uc.acquisition_source, uc.is_complete, uc.missing_pieces,
+      uc.storage_location, uc.acquisition_source, uc.is_complete, uc.missing_pieces, uc.custom_image_url,
       s.name, s.theme, s.year, s.pieces, s.minifigs,
       s.retail_price, s.current_value, s.forecast_2y, s.forecast_5y,
       s.image_url, s.retired, s.retirement_risk_score, s.used_value, s.ebay_value,
@@ -240,6 +241,7 @@ app.post('/', async (c) => {
   const item = await c.env.DB.prepare(
     'SELECT * FROM user_collection WHERE user_id=? AND set_num=? AND deleted_at IS NULL'
   ).bind(userId, set_num).first();
+  logEvent(c.env, 'set_added', userId, { setNum: set_num });
   c.executionCtx.waitUntil(triggerGoogleSync(userId, c));
   return c.json({ item }, 201);
 });
@@ -521,6 +523,7 @@ app.delete('/:id', async (c) => {
   await c.env.DB.prepare(
     `UPDATE user_collection SET deleted_at=datetime('now') WHERE id=? AND user_id=?`
   ).bind(id, userId).run();
+  logEvent(c.env, 'set_removed', userId);
   c.executionCtx.waitUntil(triggerGoogleSync(userId, c));
   return c.body(null, 204);
 });

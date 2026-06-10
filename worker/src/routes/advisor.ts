@@ -4,6 +4,7 @@ import { requireMember } from '../auth';
 import { buildAdvisorContext } from '../lib/advisor-context';
 import { fetchTracked } from '../lib/http';
 import { recordIntegrationAttempt } from '../lib/integration-health';
+import { logEvent } from '../lib/analytics';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -63,6 +64,7 @@ app.post('/', async (c) => {
     }
   }
 
+  logEvent(c.env, 'advisor_used', userId);
   const context = await buildAdvisorContext(userId, c.env);
 
   const systemPrompt = `You are a knowledgeable LEGO investment and collection advisor. You have access to the user's real collection data below. Answer questions concisely and specifically — always reference actual set names and numbers from their data. Recommend actionable decisions. Keep responses under 300 words unless the user asks for more detail.

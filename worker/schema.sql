@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS user_collection (
   is_complete INTEGER DEFAULT 1,
   missing_pieces INTEGER DEFAULT 0,
   spike_alerted_at TEXT,
+  custom_image_url TEXT,
   UNIQUE(user_id, set_num)
 );
 

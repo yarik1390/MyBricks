@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { optionalMember, requireMember } from '../auth';
 import { fetchMinifigDetail } from '../lib/rebrickable';
+import { logEvent } from '../lib/analytics';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -117,6 +118,7 @@ app.put('/:fignum', requireMember, async (c) => {
     VALUES (?, ?, ?)
     ON CONFLICT (user_id, fig_num) DO UPDATE SET quantity = EXCLUDED.quantity
   `).bind(userId, figNum, qty).run();
+  logEvent(c.env, 'minifig_owned', userId, { figNum });
   return c.json({ ok: true, fig_num: figNum, quantity: qty });
 });
 

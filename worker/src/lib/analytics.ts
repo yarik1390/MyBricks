@@ -1,0 +1,34 @@
+import type { Env } from '../types';
+
+export type AnalyticsEvent =
+  | 'set_viewed'
+  | 'set_added'
+  | 'set_removed'
+  | 'valuation_triggered'
+  | 'advisor_used'
+  | 'scan_used'
+  | 'minifig_owned'
+  | 'wishlist_added';
+
+function fnv32(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h * 0x01000193) >>> 0; }
+  return h;
+}
+
+export function logEvent(
+  env: Env,
+  event: AnalyticsEvent,
+  userId: string,
+  meta: { setNum?: string; figNum?: string } = {},
+): void {
+  if (!env.ANALYTICS) return;
+  try {
+    const userHash = fnv32(userId).toString(16);
+    env.ANALYTICS.writeDataPoint({
+      blobs: [event, meta.setNum || '', meta.figNum || ''],
+      doubles: [Date.now()],
+      indexes: [userHash],
+    });
+  } catch { /* non-fatal */ }
+}

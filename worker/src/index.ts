@@ -14,6 +14,7 @@ import { profileRoute } from './routes/profile';
 import { googleSyncRoute } from './routes/google-sync';
 import { ratesRoute } from './routes/rates';
 import { bricksetSyncRoute } from './routes/brickset-sync';
+import { photosRoute } from './routes/photos';
 
 import { runValuateSets, runValuateMinifigs } from './jobs/valuate-sets';
 import { runSnapshotPortfolios } from './jobs/snapshot-portfolios';
@@ -114,6 +115,7 @@ app.route('/api/users', profileRoute);
 app.route('/api/google', googleSyncRoute);
 app.route('/api/rates', ratesRoute);
 app.route('/api/brickset', bricksetSyncRoute);
+app.route('/api/collection', photosRoute);
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
 

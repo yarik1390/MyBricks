@@ -20,6 +20,12 @@ export async function fetchBrickEconomyDetails(
   try {
     // Ensure variation variation suffix exists (e.g. "10236-1")
     const formattedSetNum = setNum.includes('-') ? setNum : `${setNum}-1`;
+    const cacheKey = `be:${formattedSetNum}`;
+
+    if (env.CACHE_KV) {
+      const cached = await env.CACHE_KV.get(cacheKey, 'json') as BrickEconomyDetails | null;
+      if (cached) return cached;
+    }
 
     const resp = await fetchTracked(
       env,
@@ -53,13 +59,19 @@ export async function fetchBrickEconomyDetails(
     if (!json || !json.data) return null;
 
     const d = json.data;
-    return {
+    const result: BrickEconomyDetails = {
       retail_price_us: typeof d.retail_price_us === 'number' ? d.retail_price_us : null,
       current_value_new: typeof d.current_value_new === 'number' ? d.current_value_new : null,
       current_value_used: typeof d.current_value_used === 'number' ? d.current_value_used : null,
       forecast_value_new_2_years: typeof d.forecast_value_new_2_years === 'number' ? d.forecast_value_new_2_years : null,
       rolling_growth_12months: typeof d.rolling_growth_12months === 'number' ? d.rolling_growth_12months : null,
     };
+
+    if (env.CACHE_KV) {
+      env.CACHE_KV.put(cacheKey, JSON.stringify(result), { expirationTtl: 21600 }).catch(() => {});
+    }
+
+    return result;
   } catch (err) {
     console.error('[brickeconomy] Error fetching details:', err);
     return null;

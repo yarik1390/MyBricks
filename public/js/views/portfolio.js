@@ -789,7 +789,8 @@ function paintSetDetail(set, entry) {
   const isWish = state.wishlist.some(w => w.set_num === set.set_num);
   const owned = !!entry;
   const h = setHue(set);
-  const hasImg = set.image_url && !set.image_url.startsWith("data:");
+  const displayImg = entry?.custom_image_url || set.image_url;
+  const hasImg = displayImg && !displayImg.startsWith("data:");
 
   $("#root").innerHTML = `
     <div class="page no-pad detail-page-container">
@@ -797,12 +798,12 @@ function paintSetDetail(set, entry) {
         <button class="detail-back" id="detailBack" aria-label="Back">${I.chevL()}</button>
         <div class="detail-hero${hasImg ? " has-photo" : ""}">
           ${hasImg
-            ? `<div class="detail-hero-bg" style="background-image:url('${escapeHtml(set.image_url)}')"></div>`
+            ? `<div class="detail-hero-bg" style="background-image:url('${escapeHtml(displayImg)}')"></div>`
             : `<div class="detail-hero-bg placeholder" style="--brick-hue:linear-gradient(135deg, oklch(0.72 0.13 ${h}), oklch(0.55 0.13 ${h}));"></div>`}
           <div class="detail-hero-overlay"></div>
           <div class="detail-img${hasImg ? " has-photo" : ""}">
             <div class="brick-art" style="--brick-color:oklch(0.72 0.13 ${h});">${escapeHtml(set.set_num)}</div>
-            ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="">` : ""}
+            ${hasImg ? `<img class="set-photo" src="${escapeHtml(displayImg)}" alt="">` : ""}
           </div>
         </div>
       </div>
@@ -1330,6 +1331,21 @@ function manageTabHTML(set, entry) {
       <div id="partsContent" style="font-size:13px;color:var(--ink-mute);">Tap "Load parts" to check set completeness.</div>
     </div>
 
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:10px;">Custom Photo</div>
+      ${entry.custom_image_url ? `
+        <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">
+          <img src="${escapeHtml(entry.custom_image_url)}" alt="Custom photo" style="width:80px;height:80px;object-fit:cover;border-radius:var(--r-1);border:1px solid var(--line);" loading="lazy">
+          <button id="removePhotoBtn" class="btn-secondary" style="font-size:12px;padding:6px 12px;color:var(--down);">Remove photo</button>
+        </div>
+      ` : `<p style="font-size:12px;color:var(--ink-mute);margin-bottom:10px;">Upload your own photo for this set.</p>`}
+      <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+        <input type="file" id="photoUpload" accept="image/jpeg,image/png,image/webp" style="display:none;">
+        <button class="btn-secondary" id="photoUploadBtn" style="font-size:12px;padding:6px 12px;">${I.camera ? I.camera() : "📷"} Upload photo</button>
+      </label>
+      <div id="photoUploadStatus" style="font-size:11px;color:var(--ink-mute);margin-top:6px;display:none;"></div>
+    </div>
+
       <button class="btn-danger" id="mRemove" style="margin-top:14px;">${I.trash()}<span>Remove from vault</span></button>
       <button class="btn-secondary" id="mListSale" style="margin-top:8px;">${I.tag()}<span>List for Sale</span></button>`;
 }
@@ -1415,6 +1431,47 @@ function wireManageTab(set, entry) {
     }
   });
   $("#mListSale")?.addEventListener("click", () => showListingSheet(set, entry));
+
+  // Photo upload
+  $("#photoUploadBtn")?.addEventListener("click", () => $("#photoUpload")?.click());
+  $("#photoUpload")?.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const statusEl = $("#photoUploadStatus");
+    if (statusEl) { statusEl.textContent = "Uploading…"; statusEl.style.display = "block"; }
+    try {
+      const form = new FormData();
+      form.append("photo", file);
+      const accessToken = _authSession?.access_token;
+      const res = await fetch((window.WORKER_BASE || "") + "/api/collection/" + entry.id + "/photo", {
+        method: "POST",
+        headers: accessToken ? { Authorization: "Bearer " + accessToken } : {},
+        body: form,
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || res.statusText); }
+      invalidatePortfolio();
+      delete state.detail.cache[set.set_num];
+      toast("Photo uploaded", "success");
+      await paintSetDetail(set, { ...entry, custom_image_url: "/api/collection/" + entry.id + "/photo" });
+    } catch (err) {
+      if (statusEl) { statusEl.textContent = "Upload failed: " + err.message; statusEl.style.display = "block"; }
+      toast("Upload failed: " + err.message, "error");
+    }
+  });
+  $("#removePhotoBtn")?.addEventListener("click", async () => {
+    try {
+      const accessToken = _authSession?.access_token;
+      const res = await fetch((window.WORKER_BASE || "") + "/api/collection/" + entry.id + "/photo", {
+        method: "DELETE",
+        headers: accessToken ? { Authorization: "Bearer " + accessToken } : {},
+      });
+      if (!res.ok && res.status !== 204) { const d = await res.json(); throw new Error(d.error || res.statusText); }
+      invalidatePortfolio();
+      delete state.detail.cache[set.set_num];
+      toast("Photo removed", "info");
+      await paintSetDetail(set, { ...entry, custom_image_url: null });
+    } catch (err) { toast("Remove failed: " + err.message, "error"); }
+  });
 
   // Parts completeness
   $("#loadPartsBtn")?.addEventListener("click", async () => {

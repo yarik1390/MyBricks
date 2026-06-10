@@ -249,3 +249,6 @@ ALTER TABLE minifigs ADD COLUMN year INTEGER;
 ALTER TABLE minifigs ADD COLUMN num_parts INTEGER;
 ALTER TABLE minifigs ADD COLUMN appears_in_sets INTEGER;
 ALTER TABLE user_prefs ADD COLUMN brickset_user_hash TEXT;
+
+-- Sprint 5: R2 photo upload
+ALTER TABLE user_collection ADD COLUMN custom_image_url TEXT;
