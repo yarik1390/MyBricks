@@ -93,6 +93,7 @@ app.post('/identify', async (c) => {
     if (!matchedSets.length) {
       return c.json({ identified: false, reasoning: 'Sets identified by Gemini were not found in local catalog.' });
     }
+    logEvent(c.env, 'scan_used', userId, { setNum: String((matchedSets[0] as Record<string, unknown>)?.set_num || '') });
     return c.json({ identified: true, sets: matchedSets, confidence: topConfidence, reasoning, model: 'gemini-2.0-flash' });
   }
 

@@ -789,7 +789,7 @@ function paintSetDetail(set, entry) {
   const isWish = state.wishlist.some(w => w.set_num === set.set_num);
   const owned = !!entry;
   const h = setHue(set);
-  const displayImg = entry?.custom_image_url || set.image_url;
+  const displayImg = set.image_url;
   const hasImg = displayImg && !displayImg.startsWith("data:");
 
   $("#root").innerHTML = `
@@ -836,6 +836,37 @@ function paintSetDetail(set, entry) {
   if (state.detail.tab === "info") wireInfoTab(set, entry);
   else if (state.detail.tab === "manage") wireManageTab(set, entry);
   setupTabSwipe(set, entry);
+
+  // Custom photos live behind the authed worker API, so an <img src> can't
+  // load them directly — fetch with the bearer token and swap in a blob URL.
+  if (entry?.custom_image_url) {
+    customPhotoObjectURL(entry.custom_image_url).then(url => {
+      if (!url) return;
+      const bg = document.querySelector(".detail-hero-bg");
+      if (bg) { bg.style.backgroundImage = `url('${url}')`; bg.classList.remove("placeholder"); }
+      let img = document.querySelector(".detail-img .set-photo");
+      if (!img) {
+        img = document.createElement("img");
+        img.className = "set-photo";
+        img.alt = "";
+        document.querySelector(".detail-img")?.appendChild(img);
+        document.querySelector(".detail-img")?.classList.add("has-photo");
+        document.querySelector(".detail-hero")?.classList.add("has-photo");
+      }
+      img.src = url;
+    });
+  }
+}
+
+async function customPhotoObjectURL(path) {
+  try {
+    const accessToken = _authSession?.access_token;
+    const res = await fetch((window.WORKER_BASE || "") + path, {
+      headers: accessToken ? { Authorization: "Bearer " + accessToken } : {},
+    });
+    if (!res.ok) return null;
+    return URL.createObjectURL(await res.blob());
+  } catch { return null; }
 }
 
 function shareSet(set) {
@@ -1335,7 +1366,7 @@ function manageTabHTML(set, entry) {
       <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:10px;">Custom Photo</div>
       ${entry.custom_image_url ? `
         <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">
-          <img src="${escapeHtml(entry.custom_image_url)}" alt="Custom photo" style="width:80px;height:80px;object-fit:cover;border-radius:var(--r-1);border:1px solid var(--line);" loading="lazy">
+          <img id="customPhotoImg" alt="Custom photo" style="width:80px;height:80px;object-fit:cover;border-radius:var(--r-1);border:1px solid var(--line);background:var(--surface-2);">
           <button id="removePhotoBtn" class="btn-secondary" style="font-size:12px;padding:6px 12px;color:var(--down);">Remove photo</button>
         </div>
       ` : `<p style="font-size:12px;color:var(--ink-mute);margin-bottom:10px;">Upload your own photo for this set.</p>`}
@@ -1433,6 +1464,12 @@ function wireManageTab(set, entry) {
   $("#mListSale")?.addEventListener("click", () => showListingSheet(set, entry));
 
   // Photo upload
+  if (entry.custom_image_url) {
+    customPhotoObjectURL(entry.custom_image_url).then(url => {
+      const img = $("#customPhotoImg");
+      if (img && url) img.src = url;
+    });
+  }
   $("#photoUploadBtn")?.addEventListener("click", () => $("#photoUpload")?.click());
   $("#photoUpload")?.addEventListener("change", async (e) => {
     const file = e.target.files?.[0];

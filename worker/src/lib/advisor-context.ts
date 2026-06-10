@@ -12,6 +12,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
              ls.ebay_used_value, ls.retired, ls.retirement_risk_score,
              ls.valuation_method, ls.valuation_expires_at, ls.cached_at,
              ls.bl_new_value, ls.bl_new_qty, ls.bl_used_qty, ls.used_value,
+             ls.be_growth_12m,
              uc.purchase_price, uc.quantity, uc.condition, uc.purchased_at
       FROM user_collection uc
       JOIN lego_sets ls ON ls.set_num = uc.set_num
@@ -24,6 +25,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
       valuation_method: string | null; valuation_expires_at: string | null; cached_at: string | null;
       bl_new_value: number | null; bl_new_qty: number | null; bl_used_qty: number | null; used_value: number | null;
       retired: number; retirement_risk_score: number | null;
+      be_growth_12m: number | null;
       purchase_price: number | null; quantity: number;
       condition: string | null; purchased_at: string | null;
     }>(),
@@ -139,6 +141,8 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
     const ret = s.retired ? ' [RETIRED]' : '';
     const trend90 = trendMap.get(s.set_num);
     const trendStr = trend90 != null ? ` | ${trend90 >= 0 ? '+' : ''}${trend90}%/90d` : '';
+    // be_growth_12m is stored as a raw percentage (18.5 = 18.5%/yr)
+    const growthStr = s.be_growth_12m != null ? ` | ${s.be_growth_12m >= 0 ? '+' : ''}${Number(s.be_growth_12m).toFixed(1)}%/yr` : '';
     const sourceStr = ` | Source: ${market.primary_value_source}/${market.confidence}/${market.freshness}`;
 
     // eBay vs BrickLink spread signal
@@ -150,7 +154,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
     }
 
     lines.push(
-      `- ${s.name} (${s.set_num}) | ${s.theme || 'Unknown'} | Value: ${fmt(s.current_value)}${pct(s.current_value, s.purchase_price)}${sourceStr} | Paid: ${fmt(s.purchase_price)} | Qty: ${s.quantity}${trendStr}${spreadStr}${risk}${ret}`
+      `- ${s.name} (${s.set_num}) | ${s.theme || 'Unknown'} | Value: ${fmt(s.current_value)}${pct(s.current_value, s.purchase_price)}${sourceStr} | Paid: ${fmt(s.purchase_price)} | Qty: ${s.quantity}${trendStr}${growthStr}${spreadStr}${risk}${ret}`
     );
   }
   lines.push('');

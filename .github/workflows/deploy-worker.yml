@@ -56,6 +56,51 @@ jobs:
         working-directory: worker
         run: sed -i "s/REPLACE_WITH_YOUR_D1_DATABASE_ID/${DB_ID}/" wrangler.toml
 
+      - name: Create or find KV namespace and R2 bucket
+        working-directory: worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          # KV namespace for response caching — create if missing, then inject its id.
+          KV_ID=$(curl -sf \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces?per_page=100" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            | jq -r '.result[] | select(.title=="brickvault-cache") | .id' | head -n1 || true)
+          if [ -z "${KV_ID}" ]; then
+            KV_ID=$(curl -sf -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data '{"title":"brickvault-cache"}' \
+              | jq -r '.result.id // ""' || true)
+          fi
+          if [ -n "${KV_ID}" ]; then
+            sed -i "s/REPLACE_WITH_YOUR_KV_NAMESPACE_ID/${KV_ID}/" wrangler.toml
+            echo "KV namespace id: ${KV_ID}"
+          else
+            # Token lacks KV permission — strip the binding so deploy still succeeds.
+            # Worker code guards env.CACHE_KV with optional chaining.
+            echo "::warning::Could not create/find KV namespace — deploying without CACHE_KV"
+            sed -i '/^\[\[kv_namespaces\]\]/,+2d' wrangler.toml
+          fi
+
+          # R2 bucket for user photos — create if missing (409 on exists is fine).
+          curl -s -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"name":"brickvault-photos"}' >/dev/null || true
+          BUCKET_OK=$(curl -sf \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets/brickvault-photos" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            | jq -r '.success // false' || echo false)
+          if [ "${BUCKET_OK}" != "true" ]; then
+            # R2 not enabled or token lacks permission — strip the binding.
+            # Worker code guards env.PHOTO_BUCKET with optional chaining.
+            echo "::warning::R2 bucket unavailable — deploying without PHOTO_BUCKET"
+            sed -i '/^\[\[r2_buckets\]\]/,+2d' wrangler.toml
+          fi
+
       - name: Apply database schema
         working-directory: worker
         run: npx wrangler d1 execute brickvault --remote --file=schema.sql 2>&1

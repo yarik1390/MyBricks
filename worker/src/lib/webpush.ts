@@ -51,6 +51,24 @@ export interface PushSubscription {
   auth: string;
 }
 
+// Accepts either a PKCS8 private key (from generateVapidKeys below) or a raw
+// 32-byte EC scalar (the format `npx web-push generate-vapid-keys` produces).
+// For raw keys the x/y coordinates come from the uncompressed public key point.
+async function importVapidPrivateKey(privB64: string, pubB64: string): Promise<CryptoKey> {
+  const priv = b64urlDecode(privB64);
+  if (priv.length === 32) {
+    const pub = b64urlDecode(pubB64); // 65 bytes: 0x04 || x(32) || y(32)
+    const jwk = {
+      kty: 'EC', crv: 'P-256',
+      d: privB64.replace(/=+$/, ''),
+      x: b64url(pub.slice(1, 33)),
+      y: b64url(pub.slice(33, 65)),
+    };
+    return crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  }
+  return crypto.subtle.importKey('pkcs8', priv, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+}
+
 export async function sendWebPush(
   sub: PushSubscription,
   payload: string,
@@ -67,13 +85,7 @@ export async function sendWebPush(
   const claims = b64url(enc.encode(JSON.stringify({ aud: endpointOrigin, exp: now + 43200, sub })));
   const sigInput = `${header}.${claims}`;
 
-  const vapidKey = await crypto.subtle.importKey(
-    'pkcs8',
-    b64urlDecode(vapidPrivateKeyB64),
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    false,
-    ['sign'],
-  );
+  const vapidKey = await importVapidPrivateKey(vapidPrivateKeyB64, vapidPublicKeyB64);
   const sigBuf = await crypto.subtle.sign(
     { name: 'ECDSA', hash: 'SHA-256' },
     vapidKey,
@@ -99,8 +111,10 @@ export async function sendWebPush(
     false, [],
   );
   const sharedSecret = new Uint8Array(await crypto.subtle.deriveBits(
+    // Runtime reads `public` (standard WebCrypto); workers-types declares it
+    // as `$public` (reserved-word escaping). Set both so either resolves.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    { name: 'ECDH', $public: recipientKey } as any,
+    { name: 'ECDH', public: recipientKey, $public: recipientKey } as any,
     senderKeyPair.privateKey,
     256,
   ));

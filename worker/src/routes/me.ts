@@ -40,9 +40,11 @@ app.get('/', async (c) => {
 
   // Persist email from JWT claim on first encounter (no-op if already stored)
   if (userEmail && !prefs?.email) {
-    db.prepare(`INSERT INTO user_prefs (user_id, email, updated_at) VALUES (?, ?, datetime('now'))
-      ON CONFLICT (user_id) DO UPDATE SET email = COALESCE(user_prefs.email, excluded.email), updated_at = datetime('now')`)
-      .bind(userId, userEmail).run().catch(() => {});
+    c.executionCtx.waitUntil(
+      db.prepare(`INSERT INTO user_prefs (user_id, email, updated_at) VALUES (?, ?, datetime('now'))
+        ON CONFLICT (user_id) DO UPDATE SET email = COALESCE(user_prefs.email, excluded.email), updated_at = datetime('now')`)
+        .bind(userId, userEmail).run().catch(() => {})
+    );
   }
 
   const p = prefs || {};

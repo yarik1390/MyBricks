@@ -171,6 +171,7 @@ describe('BrickVault API Worker Tests', () => {
         valuation_method TEXT DEFAULT 'formula_bulk',
         valuation_expires_at TEXT,
         source TEXT,
+        be_growth_12m REAL,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )`,
 

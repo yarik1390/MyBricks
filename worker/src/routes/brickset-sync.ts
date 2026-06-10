@@ -88,12 +88,14 @@ app.post('/sync', async (c) => {
       // Only import sets that exist in our catalog
       const known = await c.env.DB.prepare('SELECT set_num FROM lego_sets WHERE set_num=?').bind(setNum).first();
       if (!known) { skipped++; continue; }
-      await c.env.DB.prepare(
+      const res = await c.env.DB.prepare(
         `INSERT INTO user_collection (user_id, set_num, acquisition_source, last_modified, added_at)
          VALUES (?, ?, 'brickset', datetime('now'), datetime('now'))
-         ON CONFLICT (user_id, set_num) DO NOTHING`
+         ON CONFLICT (user_id, set_num) DO UPDATE SET
+           deleted_at = NULL, last_modified = datetime('now')
+         WHERE user_collection.deleted_at IS NOT NULL`
       ).bind(userId, setNum).run();
-      added++;
+      if (res.meta.changes > 0) added++; else skipped++;
     }
     return c.json({ ok: true, added, skipped, total: sets.length });
   } catch (e) {
