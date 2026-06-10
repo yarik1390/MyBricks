@@ -134,6 +134,9 @@ jobs:
             "ALTER TABLE lego_sets ADD COLUMN lego_in_stock INTEGER"
             "ALTER TABLE lego_sets ADD COLUMN lego_retiring_soon INTEGER DEFAULT 0"
             "ALTER TABLE lego_sets ADD COLUMN lego_checked_at TEXT"
+            "ALTER TABLE lego_sets ADD COLUMN bo_new_value REAL"
+            "ALTER TABLE lego_sets ADD COLUMN bo_used_value REAL"
+            "ALTER TABLE lego_sets ADD COLUMN bo_cached_at TEXT"
           )
           for sql in "${statements[@]}"; do
             npx wrangler d1 execute brickvault --remote --command "$sql" 2>&1 || true
@@ -154,7 +157,10 @@ jobs:
         run: |
           set -euo pipefail
           probes=(
-            "SELECT valuation_method, valuation_expires_at, bl_new_value, bl_new_qty, bl_used_qty, ebay_new_value, ebay_used_value, retirement_risk_score, upc, bl_cached_at, be_cached_at, ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at, subtheme, age_min, age_max, brickset_rating, brickset_review_count, retired_year, be_growth_12m, bl_new_min, bl_new_max, bl_used_min, bl_used_max, lego_in_stock, lego_retiring_soon, lego_checked_at FROM lego_sets LIMIT 0"
+            "SELECT valuation_method, valuation_expires_at, bl_new_value, bl_new_qty, bl_used_qty, ebay_new_value, ebay_used_value, retirement_risk_score, upc, bl_cached_at, be_cached_at, ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at, subtheme, age_min, age_max, brickset_rating, brickset_review_count, retired_year, be_growth_12m, bl_new_min, bl_new_max, bl_used_min, bl_used_max, lego_in_stock, lego_retiring_soon, lego_checked_at, bo_new_value, bo_used_value, bo_cached_at FROM lego_sets LIMIT 0"
+            "SELECT set_num, fig_num, quantity FROM set_minifigs LIMIT 0"
+            "SELECT set_num, part_num, color_id, quantity FROM set_parts LIMIT 0"
+            "SELECT user_id, set_num, part_num, missing_qty FROM user_missing_parts LIMIT 0"
             "SELECT deleted_at, last_modified, storage_location, acquisition_source, is_complete, missing_pieces, spike_alerted_at FROM user_collection LIMIT 0"
             "SELECT is_public, expose_public_value, google_refresh_token, google_spreadsheet_id, email, discord_webhook_url FROM user_prefs LIMIT 0"
             "SELECT blocked_until, ok_count, fail_count FROM integration_health LIMIT 0"

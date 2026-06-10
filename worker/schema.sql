@@ -55,7 +55,10 @@ CREATE TABLE IF NOT EXISTS lego_sets (
   bl_used_max REAL,
   lego_in_stock INTEGER,
   lego_retiring_soon INTEGER DEFAULT 0,
-  lego_checked_at TEXT
+  lego_checked_at TEXT,
+  bo_new_value REAL,
+  bo_used_value REAL,
+  bo_cached_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS user_collection (
@@ -182,6 +185,41 @@ CREATE TABLE IF NOT EXISTS set_value_history (
   bl_value REAL,
   PRIMARY KEY (set_num, snapshot_date)
 );
+
+CREATE TABLE IF NOT EXISTS set_minifigs (
+  set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
+  fig_num TEXT NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  fig_name TEXT,
+  fig_img_url TEXT,
+  PRIMARY KEY (set_num, fig_num)
+);
+
+CREATE TABLE IF NOT EXISTS set_parts (
+  set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
+  part_num TEXT NOT NULL,
+  color_id INTEGER NOT NULL DEFAULT 0,
+  color_name TEXT,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  is_spare INTEGER NOT NULL DEFAULT 0,
+  part_name TEXT,
+  part_img_url TEXT,
+  PRIMARY KEY (set_num, part_num, color_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_missing_parts (
+  user_id TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  part_num TEXT NOT NULL,
+  color_id INTEGER NOT NULL DEFAULT 0,
+  missing_qty INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY (user_id, set_num, part_num, color_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_set_minifigs_set ON set_minifigs(set_num);
+CREATE INDEX IF NOT EXISTS idx_set_minifigs_fig ON set_minifigs(fig_num);
+CREATE INDEX IF NOT EXISTS idx_set_parts_set ON set_parts(set_num);
+CREATE INDEX IF NOT EXISTS idx_user_missing_user ON user_missing_parts(user_id, set_num);
 
 CREATE TABLE IF NOT EXISTS user_showcase (
   user_id TEXT NOT NULL,

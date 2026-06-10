@@ -765,6 +765,7 @@ export async function renderSetDetail(setNum) {
       api("/api/sets/" + encodeURIComponent(setNum))
         .then(data => {
           const set = data.set || data;
+          if (data.set_minifigs) set.set_minifigs = data.set_minifigs;
           const entry = data.entry || null;
           state.detail.cache[setNum] = { set, entry, ts: Date.now() };
           if (location.hash.includes(setNum)) paintSetDetail(set, entry);
@@ -775,6 +776,7 @@ export async function renderSetDetail(setNum) {
   try {
     const data = await api("/api/sets/" + encodeURIComponent(setNum));
     const set = data.set || data;
+    if (data.set_minifigs) set.set_minifigs = data.set_minifigs;
     const entry = data.entry || null;
     state.detail.cache[setNum] = { set, entry, ts: Date.now() };
     paintSetDetail(set, entry);
@@ -1046,6 +1048,23 @@ function infoTabHTML(set, entry, isWish) {
       </div>
     </div>
 
+    ${set.set_minifigs?.length ? `
+      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:10px;">Minifigs in this set</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          ${set.set_minifigs.map(f => `
+            <div style="display:flex;align-items:center;gap:6px;font-size:12px;" title="${escapeHtml(f.fig_name)}">
+              ${f.fig_img_url ? `<img src="${escapeHtml(f.fig_img_url)}" alt="" style="width:32px;height:32px;object-fit:contain;border-radius:4px;background:var(--surface-2);">` : `<div style="width:32px;height:32px;background:var(--surface-2);border-radius:4px;"></div>`}
+              <div>
+                <div style="color:var(--ink-soft);font-size:11px;font-family:var(--mono);">${escapeHtml(f.fig_num)}</div>
+                ${f.quantity > 1 ? `<div style="color:var(--ink-mute);font-size:10px;">×${f.quantity}</div>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+
     <div class="card" style="padding:14px 16px;margin-bottom:14px;">
       <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Price history · 90d</div>
       <div class="spark-wrap" id="setSpark" style="height:60px;"></div>
@@ -1302,6 +1321,15 @@ function manageTabHTML(set, entry) {
         </div>
       </div>
       <div id="mFlipCalcContainer">${flipCalcHTML(set, entry)}</div>
+
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;" id="partsCard">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);">Parts completeness</div>
+        <button class="btn-secondary" id="loadPartsBtn" style="font-size:11px;padding:4px 10px;">Load parts</button>
+      </div>
+      <div id="partsContent" style="font-size:13px;color:var(--ink-mute);">Tap "Load parts" to check set completeness.</div>
+    </div>
+
       <button class="btn-danger" id="mRemove" style="margin-top:14px;">${I.trash()}<span>Remove from vault</span></button>
       <button class="btn-secondary" id="mListSale" style="margin-top:8px;">${I.tag()}<span>List for Sale</span></button>`;
 }
@@ -1387,6 +1415,54 @@ function wireManageTab(set, entry) {
     }
   });
   $("#mListSale")?.addEventListener("click", () => showListingSheet(set, entry));
+
+  // Parts completeness
+  $("#loadPartsBtn")?.addEventListener("click", async () => {
+    const btn = $("#loadPartsBtn");
+    const content = $("#partsContent");
+    if (!btn || !content) return;
+    btn.disabled = true;
+    btn.textContent = "Loading…";
+    try {
+      const data = await api("/api/sets/" + encodeURIComponent(set.set_num) + "/parts");
+      if (data.pending) {
+        content.innerHTML = `<span style="color:var(--ink-mute);">Parts list is being fetched — check back in a moment.</span>`;
+        btn.textContent = "Refresh";
+        btn.disabled = false;
+        return;
+      }
+      const { parts, completeness, total_owned, total_missing } = data;
+      const pct = completeness ?? (total_owned > 0 ? Math.round((total_owned - total_missing) / total_owned * 100) : null);
+      const pctStr = pct !== null ? `${pct}%` : "—";
+      const color = pct === null ? "var(--ink-mute)" : pct >= 95 ? "var(--up)" : pct >= 80 ? "var(--bv-yellow)" : "var(--down)";
+      const missingParts = parts.filter(p => p.missing_qty > 0 && !p.is_spare);
+      content.innerHTML = `
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+          <span style="font-size:22px;font-weight:700;color:${color};">${pctStr}</span>
+          <span style="color:var(--ink-mute);font-size:12px;">complete${total_missing > 0 ? ` · ${total_missing} parts missing` : " · all parts present"}</span>
+        </div>
+        ${missingParts.length ? `
+          <div style="font-size:12px;color:var(--ink-mute);margin-bottom:4px;">Missing:</div>
+          <div style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;">
+            ${missingParts.slice(0, 20).map(p => `
+              <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
+                ${p.part_img_url ? `<img src="${escapeHtml(p.part_img_url)}" alt="" style="width:24px;height:24px;object-fit:contain;">` : `<div style="width:24px;height:24px;background:var(--surface-2);border-radius:3px;"></div>`}
+                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.part_name || p.part_num)}</span>
+                <span style="font-family:var(--mono);color:var(--down);">×${p.missing_qty}</span>
+              </div>
+            `).join('')}
+            ${missingParts.length > 20 ? `<div style="color:var(--ink-mute);font-size:11px;">+${missingParts.length - 20} more</div>` : ''}
+          </div>
+        ` : ''}
+      `;
+      btn.textContent = "Refresh";
+      btn.disabled = false;
+    } catch (e) {
+      content.textContent = "Failed to load parts.";
+      btn.textContent = "Retry";
+      btn.disabled = false;
+    }
+  });
 }
 
 function optionalMoneyInput(value) {
@@ -2052,6 +2128,8 @@ function marketConfidenceHTML(set) {
     const ebay = ebaySoldSummary(set);
     if (ebay.newValue) out.push({ id: ebay.legacy ? 'ebay_legacy' : 'ebay_sold_new', name: ebay.legacy ? 'Legacy eBay' : 'eBay sold new', value: ebay.newValue, condition: 'new', sample_count: ebay.newSampleCount });
     if (ebay.usedValue) out.push({ id: 'ebay_sold_used', name: 'eBay sold used', value: ebay.usedValue, condition: 'used', sample_count: ebay.usedSampleCount });
+    if (set.bo_new_value) out.push({ id: 'brickowl_new', name: 'BrickOwl', value: set.bo_new_value, condition: 'new' });
+    if (set.bo_used_value) out.push({ id: 'brickowl_used', name: 'BrickOwl used', value: set.bo_used_value, condition: 'used' });
     return out;
   };
   const sources = Array.isArray(set.market_sources) && set.market_sources.length

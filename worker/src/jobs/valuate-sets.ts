@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import type { Env } from '../types';
 import { fetchSetPricing, fetchUsedPricing, fetchMinifigPricing } from '../lib/bricklink';
+import { fetchBrickOwlPricing } from '../lib/brickowl-pricing';
 import { callGeminiValuation } from '../lib/gemini';
 import {
   buildEbayAskUpdate,
@@ -39,6 +40,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     ebay: { ok: 0, fail: 0 },
     bricklink: { ok: 0, fail: 0 },
     brickeconomy: { ok: 0, fail: 0 },
+    brickowl: { ok: 0, fail: 0 },
   };
   const tallyOk = (s: IntegrationName) => { health[s].ok++; };
   const tallyFail = (s: IntegrationName, e: unknown) => {
@@ -233,6 +235,18 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         env.DB.prepare(`UPDATE lego_sets SET be_cached_at=datetime('now'), be_growth_12m=COALESCE(?, be_growth_12m) WHERE set_num=?`)
           .bind(beDetails.rolling_growth_12months, set.set_num)
       );
+    }
+    // BrickOwl as 4th supplemental pricing source
+    if (includeSupplemental) {
+      const boPricing = await fetchBrickOwlPricing(set.set_num, env, sourceOptions)
+        .catch((err) => { tallyFail('brickowl', err); return null; });
+      if (boPricing) {
+        tallyOk('brickowl');
+        supplementStmts.push(
+          env.DB.prepare(`UPDATE lego_sets SET bo_new_value=?, bo_used_value=?, bo_cached_at=datetime('now') WHERE set_num=?`)
+            .bind(boPricing.new_value, boPricing.used_value, set.set_num)
+        );
+      }
     }
     if (supplementStmts.length) await env.DB.batch(supplementStmts);
 

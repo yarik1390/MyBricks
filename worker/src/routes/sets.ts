@@ -20,6 +20,7 @@ import { enrichSetRecord } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { isSearchIndexCorruption, rebuildSearchIndex } from '../lib/search-index';
 import { checkLegoStock } from '../lib/lego-stock';
+import { fetchSetMinifigs } from '../lib/rebrickable';
 import type { Env, Variables } from '../types';
 
 interface ListingDraft {
@@ -441,7 +442,7 @@ app.get('/:setnum', async (c) => {
       if (bsUpdates.length) await c.env.DB.batch(bsUpdates);
     }
 
-    // Background LEGO.com stock check — runs for active sets that haven't been checked in 24h
+    // Background LEGO.com stock check — runs for active sets not checked in 24h
     if (!resultSet.retired && (
       !resultSet.lego_checked_at ||
       new Date(resultSet.lego_checked_at as string) < new Date(Date.now() - 86_400_000)
@@ -456,7 +457,35 @@ app.get('/:setnum', async (c) => {
       })());
     }
 
-    return c.json({ set: enrichSetRecord({ ...resultSet, retired: !!resultSet.retired, trend, brickset }), entry: entry || null });
+    // Background minifig-set relationship population — runs once per set if Rebrickable key is set
+    const minifigCount = Number(resultSet.minifigs ?? 0);
+    if (minifigCount > 0 && c.env.REBRICKABLE_API_KEY) {
+      const existing = await c.env.DB.prepare(
+        'SELECT COUNT(*) as n FROM set_minifigs WHERE set_num=?'
+      ).bind(resultSet.set_num).first<{ n: number }>();
+      if (!existing?.n) {
+        c.executionCtx.waitUntil((async () => {
+          const figs = await fetchSetMinifigs(resultSet.set_num as string, c.env).catch(() => null);
+          if (!figs?.length) return;
+          const stmts = figs.map(f =>
+            c.env.DB.prepare(
+              `INSERT OR IGNORE INTO set_minifigs (set_num, fig_num, quantity, fig_name, fig_img_url) VALUES (?,?,?,?,?)`
+            ).bind(resultSet.set_num, f.fig_num, f.quantity, f.fig_name, f.fig_img_url)
+          );
+          // Process in batches of 100
+          for (let i = 0; i < stmts.length; i += 100) {
+            await c.env.DB.batch(stmts.slice(i, i + 100));
+          }
+        })());
+      }
+    }
+
+    // Fetch stored set_minifigs to include in response
+    const { results: setMinifigs } = await c.env.DB.prepare(
+      'SELECT fig_num, quantity, fig_name, fig_img_url FROM set_minifigs WHERE set_num=? ORDER BY quantity DESC'
+    ).bind(resultSet.set_num).all<{ fig_num: string; quantity: number; fig_name: string; fig_img_url: string | null }>();
+
+    return c.json({ set: enrichSetRecord({ ...resultSet, retired: !!resultSet.retired, trend, brickset }), entry: entry || null, set_minifigs: setMinifigs });
   }
 
   if (!c.env.REBRICKABLE_API_KEY) return c.json({ error: 'Set not found' }, 404);
@@ -492,6 +521,81 @@ app.get('/:setnum', async (c) => {
 });
 
 // GET /api/sets/:setnum/history
+// GET /api/sets/:setnum/parts — returns stored parts list, triggers Rebrickable fetch if empty
+app.get('/:setnum/parts', async (c) => {
+  const setNum = c.req.param('setnum');
+  const userId = c.get('userId'); // optional — needed for user_missing_parts
+
+  const { results: parts } = await c.env.DB.prepare(
+    `SELECT part_num, color_id, color_name, quantity, is_spare, part_name, part_img_url
+     FROM set_parts WHERE set_num=? ORDER BY is_spare ASC, quantity DESC LIMIT 2000`
+  ).bind(setNum).all<{
+    part_num: string; color_id: number; color_name: string; quantity: number;
+    is_spare: number; part_name: string; part_img_url: string | null;
+  }>();
+
+  let missing: Record<string, number> = {};
+  if (userId) {
+    const { results: missingRows } = await c.env.DB.prepare(
+      'SELECT part_num, color_id, missing_qty FROM user_missing_parts WHERE user_id=? AND set_num=?'
+    ).bind(userId, setNum).all<{ part_num: string; color_id: number; missing_qty: number }>();
+    for (const r of missingRows) missing[`${r.part_num}:${r.color_id}`] = r.missing_qty;
+  }
+
+  // Trigger background fetch if parts list is empty and Rebrickable key is set
+  if (!parts.length && c.env.REBRICKABLE_API_KEY) {
+    c.executionCtx.waitUntil((async () => {
+      const { fetchSetParts } = await import('../lib/rebrickable');
+      const fetched = await fetchSetParts(setNum, c.env).catch(() => null);
+      if (!fetched?.length) return;
+      const stmts = fetched.map(p =>
+        c.env.DB.prepare(
+          `INSERT OR IGNORE INTO set_parts (set_num, part_num, color_id, color_name, quantity, is_spare, part_name, part_img_url) VALUES (?,?,?,?,?,?,?,?)`
+        ).bind(setNum, p.part_num, p.color_id, p.color_name, p.quantity, p.is_spare ? 1 : 0, p.part_name, p.part_img_url)
+      );
+      for (let i = 0; i < stmts.length; i += 100) {
+        await c.env.DB.batch(stmts.slice(i, i + 100));
+      }
+    })());
+  }
+
+  const owned = parts.filter(p => !p.is_spare).reduce((s, p) => s + p.quantity, 0);
+  const totalMissing = Object.values(missing).reduce((s, v) => s + v, 0);
+  const completeness = owned > 0 ? Math.round((owned - totalMissing) / owned * 100) : null;
+
+  return c.json({
+    parts: parts.map(p => ({
+      ...p,
+      missing_qty: missing[`${p.part_num}:${p.color_id}`] ?? 0,
+    })),
+    completeness,
+    total_owned: owned,
+    total_missing: totalMissing,
+    pending: parts.length === 0,
+  });
+});
+
+// PATCH /api/sets/:setnum/parts/:partNum — update missing qty for a part
+app.patch('/:setnum/parts/:partNumColor', requireMember, async (c) => {
+  const userId = c.get('userId');
+  const setNum = c.req.param('setnum');
+  const rawParam = c.req.param('partNumColor') ?? '';
+  const [partNum = '', colorId = '0'] = rawParam.split(':');
+  const { missing_qty } = await c.req.json<{ missing_qty: number }>();
+  const qty = Math.max(0, Math.floor(Number(missing_qty) || 0));
+  if (qty === 0) {
+    await c.env.DB.prepare(
+      'DELETE FROM user_missing_parts WHERE user_id=? AND set_num=? AND part_num=? AND color_id=?'
+    ).bind(userId, setNum, partNum, Number(colorId) || 0).run();
+  } else {
+    await c.env.DB.prepare(
+      `INSERT INTO user_missing_parts (user_id, set_num, part_num, color_id, missing_qty) VALUES (?,?,?,?,?)
+       ON CONFLICT(user_id, set_num, part_num, color_id) DO UPDATE SET missing_qty=excluded.missing_qty`
+    ).bind(userId, setNum, partNum, Number(colorId) || 0, qty).run();
+  }
+  return c.json({ ok: true });
+});
+
 app.get('/:setnum/history', async (c) => {
   const setNum = c.req.param('setnum');
   const days = Math.min(parseInt(c.req.query('days') || '90', 10), 365);
