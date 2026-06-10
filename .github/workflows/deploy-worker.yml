@@ -56,8 +56,10 @@ jobs:
         working-directory: worker
         run: sed -i "s/REPLACE_WITH_YOUR_D1_DATABASE_ID/${DB_ID}/" wrangler.toml
 
-      - name: Create or find KV namespace and R2 bucket
+      - name: Create or find KV namespace, R2 bucket, and optionally Analytics Engine
         working-directory: worker
+        env:
+          ENABLE_ANALYTICS_ENGINE: ${{ secrets.ENABLE_ANALYTICS_ENGINE }}
         shell: bash
         run: |
           set -euo pipefail
@@ -99,6 +101,18 @@ jobs:
             # Worker code guards env.PHOTO_BUCKET with optional chaining.
             echo "::warning::R2 bucket unavailable — deploying without PHOTO_BUCKET"
             sed -i '/^\[\[r2_buckets\]\]/,+2d' wrangler.toml
+          fi
+
+          # Analytics Engine — there is no REST API endpoint to provision or verify
+          # this; it must be manually enabled in the Cloudflare dashboard.  The
+          # binding is opt-in: set the secret ENABLE_ANALYTICS_ENGINE=true to keep
+          # it.  Without it the binding is stripped so the deploy doesn't fail with
+          # code 10089.  Worker code guards env.ANALYTICS with optional chaining.
+          if [ "${ENABLE_ANALYTICS_ENGINE:-false}" != "true" ]; then
+            echo "::notice::Stripping [[analytics_engine_datasets]] binding (set ENABLE_ANALYTICS_ENGINE=true secret to enable)"
+            sed -i '/^\[\[analytics_engine_datasets\]\]/,+2d' wrangler.toml
+          else
+            echo "Analytics Engine binding retained (ENABLE_ANALYTICS_ENGINE=true)"
           fi
 
       - name: Apply database schema
