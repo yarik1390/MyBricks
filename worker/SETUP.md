@@ -116,6 +116,10 @@ are present:
 - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` enable browser
   push alerts. `VAPID_SUBJECT` should usually be a `mailto:` contact.
 
+After adding or changing any optional GitHub secret, rerun the deploy workflow
+or push a deploy-triggering change so GitHub Actions uploads the new value to
+Cloudflare Worker secrets.
+
 ## Local development
 
 ```bash
