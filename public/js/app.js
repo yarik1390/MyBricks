@@ -92,7 +92,7 @@ async function hydrateFromIDB() {
 function setupImageHydration() {
   document.addEventListener("load", (e) => {
     const img = e.target;
-    if (img instanceof HTMLImageElement && img.classList.contains("set-photo")) {
+    if (img instanceof HTMLImageElement && (img.classList.contains("set-photo") || img.classList.contains("fig-photo"))) {
       img.parentElement?.classList.add("photo-loaded");
     }
   }, true);
@@ -101,6 +101,9 @@ function setupImageHydration() {
     if (img instanceof HTMLImageElement && img.classList.contains("set-photo")) {
       // Drop the broken photo so the brick-tile placeholder shows through
       // instead of a broken-image glyph.
+      img.remove();
+    }
+    if (img instanceof HTMLImageElement && img.classList.contains("fig-photo")) {
       img.remove();
     }
   }, true);

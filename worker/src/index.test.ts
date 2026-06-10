@@ -137,9 +137,9 @@ describe('BrickVault API Worker Tests', () => {
       `CREATE TABLE lego_sets (
         set_num TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        theme TEXT NOT NULL,
-        year INTEGER NOT NULL,
-        pieces INTEGER NOT NULL,
+        theme TEXT,
+        year INTEGER,
+        pieces INTEGER,
         minifigs INTEGER DEFAULT 0,
         retail_price REAL,
         current_value REAL,
@@ -148,6 +148,7 @@ describe('BrickVault API Worker Tests', () => {
         image_url TEXT,
         retired INTEGER DEFAULT 0,
         retirement_risk_score INTEGER,
+        retirement_risk_updated_at TEXT,
         used_value REAL,
         ebay_value REAL,
         ebay_new_value REAL,
@@ -156,6 +157,7 @@ describe('BrickVault API Worker Tests', () => {
         ebay_used_qty INTEGER,
         ebay_new_cached_at TEXT,
         ebay_used_cached_at TEXT,
+        ebay_cached_at TEXT,
         bl_new_value REAL,
         bl_new_qty INTEGER,
         bl_used_qty INTEGER,
@@ -164,12 +166,12 @@ describe('BrickVault API Worker Tests', () => {
         ebay_ask_value REAL,
         ebay_ask_qty INTEGER,
         ebay_ask_cached_at TEXT,
-        valuation_method TEXT DEFAULT 'formula_bulk',
-        valuation_expires_at TEXT,
         upc TEXT,
         cached_at TEXT,
+        valuation_method TEXT DEFAULT 'formula_bulk',
+        valuation_expires_at TEXT,
         source TEXT,
-        ebay_cached_at TEXT
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )`,
 
       `CREATE TABLE user_collection (

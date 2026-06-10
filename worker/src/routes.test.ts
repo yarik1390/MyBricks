@@ -638,15 +638,15 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       ]);
     };
 
-    it('lists minifigs with rarity filter and rarity-based fallback values', async () => {
+    it('lists minifigs with rarity filter, returning raw current_value (null when unset)', async () => {
       await seedFigs();
       const res = await app.fetch(new Request('http://localhost/api/minifigs?rarity=common', { headers: auth() }), env);
       expect(res.status).toBe(200);
       const data = await res.json<any>();
       expect(data.minifigs).toHaveLength(1);
       expect(data.minifigs[0].fig_num).toBe('sw0002');
-      // No stored value — falls back to the rarity tier price.
-      expect(data.minifigs[0].current_value).toBe(3.5);
+      // No stored value — returns null so the frontend can distinguish real prices from fallback.
+      expect(data.minifigs[0].current_value).toBeNull();
       expect(data.total).toBe(1);
     });
 

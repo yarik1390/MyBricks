@@ -34,13 +34,14 @@ app.get('/', async (c) => {
   const countParams: unknown[] = [userId];
   const countWhereSQL = buildWhere(countParams);
 
-  const valExpr = `COALESCE(m.current_value, CASE m.rarity
+  const rarityFallbackExpr = `CASE m.rarity
     WHEN 'common' THEN 3.50
     WHEN 'uncommon' THEN 7.50
     WHEN 'rare' THEN 18.00
     WHEN 'legendary' THEN 50.00
     ELSE 3.50
-  END)`;
+  END`;
+  const valExpr = `COALESCE(m.current_value, ${rarityFallbackExpr})`;
 
   let orderBy = `ORDER BY CASE m.rarity WHEN 'legendary' THEN 4 WHEN 'rare' THEN 3 WHEN 'uncommon' THEN 2 ELSE 1 END DESC, m.name ASC`;
   if (sort === 'value_desc') {
@@ -54,7 +55,7 @@ app.get('/', async (c) => {
   const [pageRes, countRes] = await Promise.all([
     c.env.DB.prepare(
       `SELECT m.fig_num, m.name, m.series, m.rarity, m.image_url, m.added_at, m.source,
-              ${valExpr} as current_value,
+              m.current_value,
               COALESCE(um.quantity, 0) as owned_qty
        FROM minifigs m
        LEFT JOIN user_minifigs um ON um.fig_num = m.fig_num AND um.user_id = ?

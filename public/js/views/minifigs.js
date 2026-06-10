@@ -204,10 +204,14 @@ function refreshMiniStats() {
 
 function showFigDetail(f) {
   const owned = state.ownedFigs.has(f.fig_num);
-  const val = f.value ?? f.current_value ?? 0;
+  const realVal = f.current_value ?? null;
+  const rarity = f.rarity || 'common';
+  const val = realVal != null ? realVal : 0;
+  const valLabel = realVal != null && realVal > 0
+    ? fmtMoney(realVal, { cents: 0 })
+    : (RARITY_FALLBACK[rarity] ? `~${fmtMoney(RARITY_FALLBACK[rarity], { cents: 0 })} est.` : null);
   const hue = f.hue ?? themeHue(f.series || f.fig_num);
   const hasImg = f.image_url;
-  const rarity = f.rarity || 'common';
   const rbUrl = `https://rebrickable.com/minifigs/${encodeURIComponent(f.fig_num)}/`;
 
   const renderBtn = (isOwned) => isOwned
@@ -226,10 +230,10 @@ function showFigDetail(f) {
       <div class="fig-detail-body">
         <div class="fig-detail-series">${escapeHtml(f.series || 'Minifig')}</div>
         <div class="fig-detail-name">${escapeHtml(f.name)}</div>
-        ${val > 0 ? `
+        ${valLabel ? `
         <div class="fig-detail-value">
-          <span class="fig-detail-value-lbl">Est. resale value</span>
-          <span class="fig-detail-value-num">${fmtMoney(val, { cents: 0 })}</span>
+          <span class="fig-detail-value-lbl">${realVal != null && realVal > 0 ? 'Est. resale value' : 'Typical resale'}</span>
+          <span class="fig-detail-value-num">${valLabel}</span>
         </div>` : ''}
         <button class="btn-primary fig-own-btn${owned ? ' is-owned' : ''}" id="figOwnBtn">
           ${renderBtn(owned)}
@@ -295,12 +299,18 @@ function isFigFilterDefault() {
   return !f.figQ && f.figRarity === 'all' && f.figOwned === 'all';
 }
 
+const RARITY_FALLBACK = { common: 3.50, uncommon: 7.50, rare: 18.00, legendary: 50.00 };
+
 function miniCardHTML(f) {
   const owned = state.ownedFigs.has(f.fig_num);
   const hue = f.hue ?? themeHue(f.series || f.fig_num);
   const hasImg = f.image_url;
-  const val = f.value ?? f.current_value ?? 0;
+  const realVal = f.current_value ?? null;
   const rarity = f.rarity || "common";
+  const fallback = RARITY_FALLBACK[rarity] ?? 3.50;
+  const valHTML = realVal != null && realVal > 0
+    ? `<div class="mini-value">${fmtMoney(realVal, { cents: 0 })}</div>`
+    : `<div class="mini-value mini-value-est">~${fmtMoney(fallback, { cents: 0 })}</div>`;
   return `
     <button class="mini-card rarity-${rarity}" data-fig="${escapeHtml(f.fig_num)}" aria-label="${escapeHtml(f.name)}">
       <div class="mini-img${hasImg ? " has-photo" : ""}">
@@ -318,7 +328,7 @@ function miniCardHTML(f) {
           <span>${escapeHtml(f.series || "Minifig")}</span>
         </div>
         <div class="mini-card-footer">
-          <div class="mini-value">${val > 0 ? fmtMoney(val, { cents: 0 }) : '—'}</div>
+          ${valHTML}
           ${owned ? `<span class="mini-owned-badge">${I.check()}</span>` : ''}
         </div>
       </div>
