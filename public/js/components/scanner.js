@@ -10,7 +10,7 @@ export function openScan(mode = "barcode") {
   const ov = $("#scanOverlay");
   ov.innerHTML = scanOverlayHTML(mode);
   ov.classList.add("open");
-  $("#scanCloseBtn").addEventListener("click", closeScan);
+  $("#scanCloseBtn")?.addEventListener("click", closeScan);
   
   // Swipe horizontally to close camera overlay
   let touchstartX = 0;

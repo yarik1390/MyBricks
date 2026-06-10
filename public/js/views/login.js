@@ -50,7 +50,7 @@ export function renderLogin() {
         </div>
       </div>`;
 
-    document.getElementById("authSwitch").addEventListener("click", () => {
+    document.getElementById("authSwitch")?.addEventListener("click", () => {
       mode = mode === "signin" ? "signup" : "signin";
       paint();
     });

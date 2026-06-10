@@ -267,6 +267,11 @@ function showFigDetail(f) {
       saveFigs();
       const recard = $(`.mini-card[data-fig="${CSS.escape(f.fig_num)}"]`);
       if (recard) recard.outerHTML = miniCardHTML(f);
+      const sheetBtn = $('#figOwnBtn');
+      if (sheetBtn) {
+        sheetBtn.innerHTML = renderBtn(!nowOwned);
+        sheetBtn.classList.toggle('is-owned', !nowOwned);
+      }
       updateBlindCount();
       updateFigStats();
       toast("Couldn't save — try again", 'error');

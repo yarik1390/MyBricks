@@ -858,6 +858,10 @@ function paintSetDetail(set, entry) {
   }
 }
 
+// Track the live blob URL so re-renders and navigation don't leak memory —
+// each new photo fetch revokes the previous object URL first.
+let _customPhotoURL = null;
+
 async function customPhotoObjectURL(path) {
   try {
     const accessToken = _authSession?.access_token;
@@ -865,7 +869,9 @@ async function customPhotoObjectURL(path) {
       headers: accessToken ? { Authorization: "Bearer " + accessToken } : {},
     });
     if (!res.ok) return null;
-    return URL.createObjectURL(await res.blob());
+    if (_customPhotoURL) URL.revokeObjectURL(_customPhotoURL);
+    _customPhotoURL = URL.createObjectURL(await res.blob());
+    return _customPhotoURL;
   } catch { return null; }
 }
 
