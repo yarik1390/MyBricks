@@ -97,6 +97,37 @@ const IMPORT_RUN_FIELDS = `
   themes_loaded, sets_loaded, sets_skipped, figs_loaded, error
 `;
 
+const RUN_MAX_AGE_MINUTES = 30;
+const RUN_HEARTBEAT_STALE_MINUTES = 10;
+const RUN_STOPPED_ERROR = `Worker run stopped before completion (no progress heartbeat for ${RUN_HEARTBEAT_STALE_MINUTES} minutes)`;
+
+async function expireStaleImportRuns(env: Env) {
+  return env.DB.prepare(`
+    UPDATE import_runs SET
+      status='expired',
+      error=?,
+      progress_label='Stopped',
+      completed_at=datetime('now'),
+      updated_at=datetime('now')
+    WHERE status='running'
+      AND (
+        started_at <= datetime('now','-${RUN_MAX_AGE_MINUTES} minutes')
+        OR COALESCE(updated_at, started_at) <= datetime('now','-${RUN_HEARTBEAT_STALE_MINUTES} minutes')
+      )
+  `).bind(RUN_STOPPED_ERROR).run();
+}
+
+async function getActiveImportRun(env: Env) {
+  await expireStaleImportRuns(env);
+  return env.DB.prepare(`
+    SELECT id, started_at, updated_at, progress_label
+    FROM import_runs
+    WHERE status='running'
+    ORDER BY started_at DESC
+    LIMIT 1
+  `).first<{ id: number; started_at: string; updated_at: string | null; progress_label: string | null }>();
+}
+
 async function getDataCoverage(env: Env) {
   const [sets, valuationMethods] = await Promise.all([
     env.DB.prepare(`
@@ -261,13 +292,7 @@ app.post('/import-rebrickable', async (c) => {
     return c.json({ error: "dataset must be 'sets', 'figs', or 'all'" }, 400);
   }
 
-  await c.env.DB.prepare(
-    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',progress_label='Stopped',completed_at=datetime('now'),updated_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
-  ).run();
-
-  const active = await c.env.DB.prepare(
-    `SELECT id, started_at FROM import_runs WHERE status='running' AND started_at > datetime('now','-30 minutes') ORDER BY started_at DESC LIMIT 1`
-  ).first<{ id: number; started_at: string }>();
+  const active = await getActiveImportRun(c.env);
   if (active) {
     return c.json({ error: 'An import is already running.', run_id: active.id, started_at: active.started_at }, 409);
   }
@@ -327,6 +352,7 @@ app.post('/import-rebrickable', async (c) => {
 
 app.get('/import-status/:id', requireAdmin, async (c) => {
   const id = Number(c.req.param('id'));
+  await expireStaleImportRuns(c.env);
   const row = await c.env.DB.prepare(
     `SELECT ${IMPORT_RUN_FIELDS} FROM import_runs WHERE id=?`
   ).bind(id).first<Record<string, unknown>>();
@@ -342,13 +368,7 @@ app.post('/backfill-upc', async (c) => {
     return c.json({ error: 'BRICKSET_API_KEY secret not configured on the worker.' }, 500);
   }
 
-  await c.env.DB.prepare(
-    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',progress_label='Stopped',completed_at=datetime('now'),updated_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
-  ).run();
-
-  const active = await c.env.DB.prepare(
-    `SELECT id FROM import_runs WHERE status='running' AND started_at > datetime('now','-30 minutes') LIMIT 1`
-  ).first<{ id: number }>();
+  const active = await getActiveImportRun(c.env);
   if (active) return c.json({ error: 'An import is already running.', run_id: active.id }, 409);
 
   const runId = await createImportRun(c.env, 'barcode_backfill', 'Starting barcode backfill', 2000);
@@ -402,13 +422,7 @@ app.post('/backfill-upc', async (c) => {
 // Starts one safe coverage campaign slice: Brickset barcode pages plus a tiny
 // eBay sold-price pass. Repeat or let the daily cron continue from there.
 app.post('/populate-coverage', async (c) => {
-  await c.env.DB.prepare(
-    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',progress_label='Stopped',completed_at=datetime('now'),updated_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
-  ).run();
-
-  const active = await c.env.DB.prepare(
-    `SELECT id FROM import_runs WHERE status='running' AND started_at > datetime('now','-30 minutes') LIMIT 1`
-  ).first<{ id: number }>();
+  const active = await getActiveImportRun(c.env);
   if (active) return c.json({ error: 'An import or coverage job is already running.', run_id: active.id }, 409);
 
   const runId = await createImportRun(
@@ -476,13 +490,7 @@ app.post('/revalue-brickeconomy', async (c) => {
     return c.json({ error: "scope must be 'all', 'owned', or 'stale'" }, 400);
   }
 
-  await c.env.DB.prepare(
-    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',progress_label='Stopped',completed_at=datetime('now'),updated_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
-  ).run();
-
-  const active = await c.env.DB.prepare(
-    `SELECT id FROM import_runs WHERE status='running' AND started_at > datetime('now','-30 minutes') LIMIT 1`
-  ).first<{ id: number }>();
+  const active = await getActiveImportRun(c.env);
   if (active) return c.json({ error: 'An import or valuation job is already running.', run_id: active.id }, 409);
 
   const runId = await createImportRun(
@@ -543,13 +551,7 @@ app.post('/populate-everything', async (c) => {
     ? Math.min(Math.floor(Number(body.ebay_limit)), 2)
     : 2;
 
-  await c.env.DB.prepare(
-    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',progress_label='Stopped',completed_at=datetime('now'),updated_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
-  ).run();
-
-  const active = await c.env.DB.prepare(
-    `SELECT id FROM import_runs WHERE status='running' AND started_at > datetime('now','-30 minutes') LIMIT 1`
-  ).first<{ id: number }>();
+  const active = await getActiveImportRun(c.env);
   if (active) return c.json({ error: 'A data population job is already running.', run_id: active.id }, 409);
 
   const before = await getPopulationSnapshot(c.env);
@@ -723,10 +725,7 @@ app.post('/expire-valuations', async (c) => {
 
 // GET /api/admin/import-status
 app.get('/import-status', async (c) => {
-  // Auto-expire jobs stuck in 'running' for more than 30 minutes.
-  await c.env.DB.prepare(
-    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',progress_label='Stopped',completed_at=datetime('now'),updated_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
-  ).run();
+  await expireStaleImportRuns(c.env);
   const { results } = await c.env.DB.prepare(
     `SELECT ${IMPORT_RUN_FIELDS}
      FROM import_runs

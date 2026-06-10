@@ -1306,7 +1306,7 @@ async function updateJobsStatus() {
     }
 
     const classified = runs.map(run => ({ run, state: classifyJobRun(run) }));
-    const runningRun = runs.find(run => String(run.status || "").toLowerCase() === "running");
+    const runningRun = classified.find(x => x.state.label === "Running")?.run || null;
     if (runningRun) {
       activeAdminRunId = runningRun.id;
       activeAdminTool = adminToolFromJobType(runningRun.job_type) || activeAdminTool;
@@ -1317,11 +1317,23 @@ async function updateJobsStatus() {
     const runningProgress = runningRun ? jobProgressSummary(runningRun) : null;
     setAdminJobButtons(activeAdminTool || (runningRun ? "active" : null));
     setAdminJobDescriptions(activeAdminTool, runningProgress?.label);
-    const isStoppedRun = (run) => classifyJobRun(run).label === "Stopped" || /Timed out|Worker run stopped/i.test(String(run.error || ""));
+    const isStoppedRun = (run) => ["Stopped", "Stalled"].includes(classifyJobRun(run).label) || /Timed out|Worker run stopped/i.test(String(run.error || ""));
     const hasCompleted = classified.some(x => x.state.label === "Completed");
     const hasRunning = classified.some(x => x.state.label === "Running");
     const retryableCount = classified.filter(x => x.state.retryable).length;
     const hardErrors = classified.filter(x => x.state.needsAttention);
+    const latestState = classified[0]?.state || null;
+    const summaryText = hasRunning
+      ? "Job running"
+      : latestState?.needsAttention
+        ? "Latest job needs attention"
+        : retryableCount
+          ? `${retryableCount} retryable stopped/provider note${retryableCount === 1 ? "" : "s"}`
+          : hasCompleted
+            ? "Latest batches completed"
+            : hardErrors.length
+              ? `${hardErrors.length} historical hard job error${hardErrors.length === 1 ? "" : "s"}`
+              : "No completed batches yet";
     const activeProgressHTML = runningRun && runningProgress ? `
       <div style="margin-top:9px;">
         <div style="display:flex;justify-content:space-between;gap:10px;font-size:11px;color:var(--ink-soft);margin-bottom:5px;">
@@ -1335,8 +1347,8 @@ async function updateJobsStatus() {
     ` : "";
     const summaryHTML = `
       <div style="border:1.5px solid var(--line-soft);border-radius:var(--r-2);background:var(--surface-2);padding:10px 12px;margin-bottom:10px;">
-        <div style="font-weight:700;font-size:12px;color:${hardErrors.length ? "var(--bv-red)" : hasRunning ? "var(--bv-yellow)" : "var(--up)"};">
-          ${hardErrors.length ? `${hardErrors.length} hard job error${hardErrors.length === 1 ? "" : "s"} need attention` : hasRunning ? "Job running" : retryableCount ? `${retryableCount} retryable provider note${retryableCount === 1 ? "" : "s"}` : hasCompleted ? "Latest batches completed" : "No completed batches yet"}
+        <div style="font-weight:700;font-size:12px;color:${latestState?.needsAttention ? "var(--bv-red)" : (hasRunning || retryableCount) ? "var(--bv-yellow)" : "var(--up)"};">
+          ${summaryText}
         </div>
         <div style="font-size:11px;color:var(--ink-mute);line-height:1.45;margin-top:3px;">
           Provider no-data and stopped slices are safe to retry. D1/SQLite corruption and access errors are highlighted as hard failures.
@@ -1408,7 +1420,6 @@ async function updateJobsStatus() {
     }).join("");
 
     const latestRun = runs[0] || null;
-    const latestState = latestRun ? classifyJobRun(latestRun) : null;
     if (hasRunning && location.hash === "#/me") {
       scheduleAdminJobPoll(2500);
     } else if (adminJobPollTimer) {

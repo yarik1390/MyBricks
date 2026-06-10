@@ -2,6 +2,8 @@ import type { Env } from '../types';
 import { nextBackfillPage, runBackfillUpc } from './backfill-upc';
 import { runEbayBackfill, runValuateSets } from './valuate-sets';
 
+const STALE_RUN_ERROR = 'Worker run stopped before completion (no progress heartbeat for 10 minutes)';
+
 async function startRun(env: Env, label: string): Promise<number> {
   const run = await env.DB.prepare(
     "INSERT INTO import_runs (job_type,status,error,progress_label,progress_current,updated_at) VALUES ('daily','running',?,?,0,datetime('now'))"
@@ -33,10 +35,12 @@ async function failRun(env: Env, runId: number, error: unknown): Promise<void> {
 
 async function activeRun(env: Env): Promise<{ id: number } | null> {
   await env.DB.prepare(
-    `UPDATE import_runs SET status='expired',error='Worker run stopped before completion',progress_label='Stopped',completed_at=datetime('now'),updated_at=datetime('now') WHERE status='running' AND started_at <= datetime('now','-30 minutes')`
-  ).run();
+    `UPDATE import_runs SET status='expired',error=?,progress_label='Stopped',completed_at=datetime('now'),updated_at=datetime('now')
+     WHERE status='running'
+       AND (started_at <= datetime('now','-30 minutes') OR COALESCE(updated_at, started_at) <= datetime('now','-10 minutes'))`
+  ).bind(STALE_RUN_ERROR).run();
   return await env.DB.prepare(
-    `SELECT id FROM import_runs WHERE status='running' AND started_at > datetime('now','-30 minutes') LIMIT 1`
+    `SELECT id FROM import_runs WHERE status='running' LIMIT 1`
   ).first<{ id: number }>();
 }
 

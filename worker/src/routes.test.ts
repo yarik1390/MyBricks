@@ -594,6 +594,23 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.api_routing.worker_base_url).toBe('http://localhost');
     });
 
+    it('expires running jobs when their progress heartbeat is stale', async () => {
+      await db.prepare(`
+        INSERT INTO import_runs (job_type, status, started_at, updated_at, progress_current, progress_total, progress_label)
+        VALUES ('populate_everything', 'running', datetime('now', '-14 minutes'), datetime('now', '-12 minutes'), 433, 600, 'Refreshing 10057-1')
+      `).run();
+
+      const res = await app.fetch(new Request('http://localhost/api/admin/import-status', {
+        headers: auth(adminToken),
+      }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      const run = data.runs.find((row: any) => row.job_type === 'populate_everything');
+      expect(run.status).toBe('expired');
+      expect(run.progress_label).toBe('Stopped');
+      expect(run.error).toContain('no progress heartbeat');
+    });
+
     it('classifies provider access failures as degraded, not down', async () => {
       (env as any).EBAY_APP_ID = 'test-ebay-app-id';
       (env as any).EBAY_CLIENT_SECRET = 'test-ebay-client-secret';

@@ -4,7 +4,7 @@ import {
   escapeHtml, fmtPct, clamp, themeHue, bricklinkBuyURL,
   computeDealScore, valuationTrust, catalogFilterSummary, classifyJobRun,
   annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition,
-  jobProgressSummary, computeSpreadSignals, buyWindow, pricePerPiece,
+  jobProgressSummary, computeSpreadSignals, buyWindow, pricePerPiece, isStalledJobRun,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -255,6 +255,19 @@ describe('classifyJobRun', () => {
     assert.equal(job.label, 'Stopped');
     assert.equal(job.retryable, true);
   });
+
+  it('marks running jobs without a fresh heartbeat as stalled and retryable', () => {
+    const now = Date.parse('2026-06-10T15:00:00Z');
+    const staleRun = {
+      status: 'running',
+      started_at: '2000-01-01 00:00:00',
+      updated_at: '2000-01-01 00:00:00',
+    };
+    assert.equal(isStalledJobRun(staleRun, { now, staleMinutes: 10 }), true);
+    const job = classifyJobRun(staleRun);
+    assert.equal(job.label, 'Stalled');
+    assert.equal(job.retryable, true);
+  });
 });
 
 describe('jobProgressSummary', () => {
@@ -278,6 +291,17 @@ describe('jobProgressSummary', () => {
       progress_total: 4,
     });
     assert.equal(progress.pct, 100);
+    assert.equal(progress.active, false);
+  });
+
+  it('does not treat stalled running jobs as active progress', () => {
+    const progress = jobProgressSummary({
+      status: 'running',
+      progress_current: 433,
+      progress_total: 600,
+      updated_at: '2000-01-01 00:00:00',
+    });
+    assert.equal(progress.pct, 72);
     assert.equal(progress.active, false);
   });
 });

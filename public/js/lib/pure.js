@@ -187,6 +187,9 @@ export function classifyJobRun(run = {}) {
   const status = String(run.status || "unknown").toLowerCase();
   const retryable = /retry|no data|worker run stopped|timed out|timeout|operation was aborted|too many subrequests|brickset/i.test(error)
     && !/database disk image|sqlite_corrupt|malformed/i.test(error);
+  if (status === "running" && isStalledJobRun(run)) {
+    return { tone: "warn", label: "Stalled", needsAttention: false, retryable: true };
+  }
   if (status === "running") return { tone: "warn", label: "Running", needsAttention: false, retryable: false };
   if (status === "completed") {
     return retryable
@@ -200,6 +203,19 @@ export function classifyJobRun(run = {}) {
       : { tone: "danger", label: "Hard error", needsAttention: true, retryable: false };
   }
   return { tone: "neutral", label: status || "Unknown", needsAttention: false, retryable: false };
+}
+
+function dbTimestampMs(value) {
+  if (!value) return null;
+  const text = String(value);
+  const ms = Date.parse(text.includes("T") ? text : `${text.replace(" ", "T")}Z`);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+export function isStalledJobRun(run = {}, { now = Date.now(), staleMinutes = 10 } = {}) {
+  if (String(run.status || "").toLowerCase() !== "running") return false;
+  const heartbeat = dbTimestampMs(run.updated_at) || dbTimestampMs(run.started_at);
+  return !!heartbeat && now - heartbeat >= staleMinutes * 60000;
 }
 
 export function jobProgressSummary(run = {}) {
@@ -225,7 +241,7 @@ export function jobProgressSummary(run = {}) {
     label,
     countText,
     determinate: total > 0,
-    active: status === "running",
+    active: status === "running" && !isStalledJobRun(run),
   };
 }
 
