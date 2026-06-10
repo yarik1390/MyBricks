@@ -773,10 +773,7 @@ body.offline .offline-banner { display: block; }
 }
 .detail-hero-overlay {
   position: absolute; inset: 0;
-  background: linear-gradient(to bottom, rgba(245,241,232,0.2), rgba(245,241,232,0));
-}
-:root[data-theme="dark"] .detail-hero-overlay {
-  background: linear-gradient(to bottom, rgba(22,22,28,0.2), rgba(22,22,28,0));
+  background: linear-gradient(to bottom, var(--photo-grad-top), var(--photo-grad-bot));
 }
 .detail-back {
   position: absolute;
@@ -1167,7 +1164,7 @@ body.offline .offline-banner { display: block; }
 }
 .mini-rarity-tag.rarity-common   { background: var(--surface-2); color: var(--ink-mute); }
 .mini-rarity-tag.rarity-uncommon { background: var(--up-pale); }
-.mini-rarity-tag.rarity-rare     { background: #FFE9C7; }
+.mini-rarity-tag.rarity-rare     { background: var(--warn-pale); color: var(--warn); }
 .mini-rarity-tag.rarity-legendary { background: var(--bv-yellow); }
 .mini-figure { width: 64px; height: 92px; position: relative; }
 .mini-figure .head {
@@ -1537,14 +1534,14 @@ body.offline .offline-banner { display: block; }
 }
 .scan-top button {
   width: 42px; height: 42px; border-radius: 50%;
-  background: rgba(0,0,0,0.5); color: #fff;
+  background: var(--scrim); color: #fff;
   border: 1.5px solid rgba(255,255,255,0.3);
   display: flex; align-items: center; justify-content: center;
   backdrop-filter: blur(8px);
 }
 .scan-mode-toggle {
   display: flex; gap: 0;
-  background: rgba(0,0,0,0.5);
+  background: var(--scrim);
   border-radius: var(--r-full);
   padding: 4px; border: 1.5px solid rgba(255,255,255,0.2);
   backdrop-filter: blur(8px);
@@ -1936,7 +1933,7 @@ body.offline .offline-banner { display: block; }
   100% { transform: translateY(0); opacity: 1; }
 }
 #toast.show { animation: slideUpBounce 0.42s cubic-bezier(0.22, 1, 0.36, 1) both; }
-#toast.milestone { background: #7C3AED; color: #fff; }
+#toast.milestone { background: var(--violet); color: #fff; }
 
 /* A2 — added-card flash (yellow glow then fades) */
 @keyframes addedFlash {
@@ -2225,7 +2222,7 @@ select:focus-visible,
   padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 500;
   margin-bottom: 12px;
 }
-.signal-hot { background: rgba(34,197,94,0.12); color: var(--green, #22c55e); }
+.signal-hot { background: rgba(34,197,94,0.12); color: var(--green); }
 .signal-cold { background: rgba(239,68,68,0.10); color: var(--red, #ef4444); }
 .signal-hint { font-size: 10px; font-family: var(--mono); opacity: 0.8; }
 
@@ -3204,3 +3201,69 @@ select:focus-visible,
   }
 }
 
+
+/* ============================================================
+   TOKENS v2 (Phase 1 — appended block; do not reorder).
+   Later :root blocks extend/override the header tokens via cascade.
+   ============================================================ */
+:root {
+  /* type scale — maps the ~20 ad-hoc sizes onto 8 steps */
+  --fs-2xs: 10px; --fs-xs: 11px; --fs-sm: 12px; --fs-base: 13px;
+  --fs-md: 15px; --fs-lg: 18px; --fs-xl: 22px; --fs-2xl: 30px;
+  /* spacing scale */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+  /* border tokens — the premium skin overrides these (skin-premium.css) */
+  --bw: 2px; --bw-thin: 1.5px;
+  --border-c: var(--line); --border-soft-c: var(--line-soft);
+  /* semantic colors */
+  --green: var(--up);
+  --warn: #8C5A06; --warn-pale: #FFE9C7;
+  --violet: #7C3AED;
+  --scrim: rgba(0, 0, 0, 0.5);
+  --photo-grad-top: rgba(245, 241, 232, 0.2);
+  --photo-grad-bot: rgba(245, 241, 232, 0);
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--bv-yellow) 70%, transparent);
+  /* contrast fix: previous --ink-faint #97A0B0 on cream ≈ 2.5:1 (fails AA) */
+  --ink-faint: #6B7484;
+}
+:root[data-theme="dark"] {
+  --ink-faint: #8A93A5; /* was #5E6878 ≈ 2.1:1 */
+  --warn: #F0B429; --warn-pale: #3A2E10;
+  --violet: #A78BFA;
+  --scrim: rgba(0, 0, 0, 0.65);
+  --photo-grad-top: rgba(22, 22, 28, 0.2);
+  --photo-grad-bot: rgba(22, 22, 28, 0);
+  /* depth fix: gray pixel shadows flattened dark mode — use black */
+  --shadow-1: 2px 2px 0 rgba(0, 0, 0, 0.55);
+  --shadow-2: 3px 3px 0 rgba(0, 0, 0, 0.55);
+  --shadow-3: 4px 4px 0 rgba(0, 0, 0, 0.55);
+  --shadow-4: 5px 5px 0 rgba(0, 0, 0, 0.55);
+}
+
+/* ---- utilities — migration vehicle for inline styles ---- */
+.u-row { display: flex; align-items: center; gap: var(--sp-2); }
+.u-col { display: flex; flex-direction: column; gap: var(--sp-2); }
+.u-between { display: flex; align-items: center; justify-content: space-between; }
+.u-center { display: flex; align-items: center; justify-content: center; }
+.u-gap-1 { gap: var(--sp-1); } .u-gap-2 { gap: var(--sp-2); }
+.u-gap-3 { gap: var(--sp-3); } .u-gap-4 { gap: var(--sp-4); }
+.u-mt-1 { margin-top: var(--sp-1); } .u-mt-2 { margin-top: var(--sp-2); }
+.u-mt-3 { margin-top: var(--sp-3); } .u-mt-4 { margin-top: var(--sp-4); }
+.u-mb-1 { margin-bottom: var(--sp-1); } .u-mb-2 { margin-bottom: var(--sp-2); }
+.u-mb-3 { margin-bottom: var(--sp-3); } .u-mb-4 { margin-bottom: var(--sp-4); }
+.u-flex1 { flex: 1; min-width: 0; }
+.u-wfull { width: 100%; }
+.u-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.u-fs-2xs { font-size: var(--fs-2xs); } .u-fs-xs { font-size: var(--fs-xs); }
+.u-fs-sm { font-size: var(--fs-sm); } .u-fs-base { font-size: var(--fs-base); }
+.u-mute { color: var(--ink-mute); }
+.u-faint { color: var(--ink-faint); }
+.u-up { color: var(--up); }
+.u-down { color: var(--down); }
+/* the mono "eyebrow" label pattern repeated ~30× across views */
+.u-mono-label {
+  font-family: var(--mono); font-size: var(--fs-xs); font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-mute);
+}
+/* the serif sheet/section title pattern */
+.u-serif-h { font-family: var(--serif); font-size: var(--fs-xl); font-weight: 500; }

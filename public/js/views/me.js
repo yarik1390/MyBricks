@@ -5,6 +5,7 @@ import { I } from '../icons.js';
 import { confirmSheet, promptSheet, showSheet, hideSheet } from '../components/sheet.js';
 import { classifyJobRun, jobProgressSummary } from '../lib/pure.js';
 import { go } from '../router.js';
+import { getThemePref, setThemePref } from '../theme.js';
 
 let activeAdminRunId = null;
 let activeAdminTool = null;
@@ -1579,21 +1580,3 @@ async function updateIntegrationsHealth() {
   }
 }
 
-// Helpers for Theme Configuration
-function getThemePref() {
-  try { return localStorage.getItem("bv_theme") || "auto"; } catch { return "auto"; }
-}
-const resolveTheme = pref => {
-  if (pref === "light" || pref === "dark") return pref;
-  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-};
-function applyTheme(pref) {
-  const resolved = resolveTheme(pref);
-  document.documentElement.dataset.theme = resolved;
-  const color = resolved === "dark" ? "#16161C" : "#F5F1E8";
-  document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute("content", color));
-}
-function setThemePref(pref) {
-  try { localStorage.setItem("bv_theme", pref); } catch {}
-  applyTheme(pref);
-}

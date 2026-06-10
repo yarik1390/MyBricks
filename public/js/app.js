@@ -3,6 +3,7 @@ import { state, invalidatePortfolio } from './state.js';
 import { loadSession, saveSession, setSupabaseConfig, drainOutbox, api, _authSession, getSessionUserId, snapshotGuestVault, migrateGuestVault } from './api.js';
 import { I } from './icons.js';
 import { route } from './router.js';
+import { getThemePref, applyTheme } from './theme.js';
 import { toggleAdvisor } from './components/advisor.js';
 import { openScan, closeScan, capturePhoto } from './components/scanner.js';
 
@@ -42,23 +43,6 @@ function setupGestures() {
       if (history.length > 1) history.back();
     }
   });
-}
-
-// Helpers for theme (light / dark / auto)
-function getThemePref() {
-  try { return localStorage.getItem("bv_theme") || "auto"; } catch { return "auto"; }
-}
-
-function resolveTheme(pref) {
-  if (pref === "light" || pref === "dark") return pref;
-  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-function applyTheme(pref) {
-  const resolved = resolveTheme(pref);
-  document.documentElement.dataset.theme = resolved;
-  const color = resolved === "dark" ? "#16161C" : "#F5F1E8";
-  document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute("content", color));
 }
 
 // Hydrate from IndexedDB
