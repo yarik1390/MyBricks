@@ -4,7 +4,7 @@ import {
   escapeHtml, fmtPct, clamp, themeHue, bricklinkBuyURL,
   computeDealScore, valuationTrust, catalogFilterSummary, classifyJobRun,
   annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition,
-  jobProgressSummary,
+  jobProgressSummary, computeSpreadSignals,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -345,5 +345,70 @@ describe('parseMarkdown', () => {
     const out = parseMarkdown('<b>not bold</b>');
     assert.ok(!out.includes('<b>'));
     assert.ok(out.includes('&lt;b&gt;'));
+  });
+});
+
+describe('computeSpreadSignals', () => {
+  const item = (over = {}) => ({
+    set_num: '75192-1', name: 'Falcon', quantity: 1,
+    bl_new_value: 100, ebay_new_value: null, current_value: 100, ...over,
+  });
+
+  it('returns empty signals for no items', () => {
+    const out = computeSpreadSignals([]);
+    assert.equal(out.hot.length, 0);
+    assert.equal(out.cold.length, 0);
+    assert.equal(out.totalUpside, 0);
+  });
+
+  it('classifies eBay >= 15% above BrickLink as hot', () => {
+    const out = computeSpreadSignals([item({ ebay_new_value: 120 })]);
+    assert.equal(out.hot.length, 1);
+    assert.equal(out.cold.length, 0);
+    assert.ok(Math.abs(out.hot[0].spread - 0.2) < 1e-9);
+    assert.equal(out.totalUpside, 20);
+  });
+
+  it('classifies eBay >= 15% below BrickLink as cold', () => {
+    const out = computeSpreadSignals([item({ ebay_new_value: 80 })]);
+    assert.equal(out.cold.length, 1);
+    assert.equal(out.hot.length, 0);
+    assert.equal(out.totalUpside, 0);
+  });
+
+  it('ignores spreads inside the threshold', () => {
+    const out = computeSpreadSignals([item({ ebay_new_value: 110 })]);
+    assert.equal(out.hot.length, 0);
+    assert.equal(out.cold.length, 0);
+  });
+
+  it('skips items missing eBay or reference value', () => {
+    const out = computeSpreadSignals([
+      item({ ebay_new_value: null }),
+      item({ ebay_new_value: 150, bl_new_value: null, current_value: null }),
+    ]);
+    assert.equal(out.hot.length + out.cold.length, 0);
+  });
+
+  it('multiplies the gap by quantity and sorts by gap', () => {
+    const out = computeSpreadSignals([
+      item({ set_num: 'a', ebay_new_value: 120, quantity: 1 }),
+      item({ set_num: 'b', ebay_new_value: 120, quantity: 3 }),
+    ]);
+    assert.equal(out.hot[0].item.set_num, 'b');
+    assert.equal(out.hot[0].gap, 60);
+    assert.equal(out.totalUpside, 80);
+  });
+
+  it('falls back to legacy ebay_value and current_value reference', () => {
+    const out = computeSpreadSignals([
+      item({ ebay_new_value: null, ebay_value: 130, bl_new_value: null, current_value: 100 }),
+    ]);
+    assert.equal(out.hot.length, 1);
+  });
+
+  it('honors a custom threshold', () => {
+    const out = computeSpreadSignals([item({ ebay_new_value: 110 })], { threshold: 0.05 });
+    assert.equal(out.hot.length, 1);
   });
 });

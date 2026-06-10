@@ -1,5 +1,5 @@
 import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, clamp, prefersReducedMotion, confettiBurst, themeHue, setHue, THEME_COLORS, fmtShortDate, fmtDateUpdated, setBtnLoading, drawSparkline, brickTile, slImgHTML, bricklinkBuyURL, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB } from '../utils.js';
-import { computeDealScore, ebaySoldSummary, marketValueForCondition } from '../lib/pure.js';
+import { computeDealScore, ebaySoldSummary, marketValueForCondition, computeSpreadSignals } from '../lib/pure.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue } from '../api.js';
 import { I } from '../icons.js';
@@ -582,10 +582,28 @@ function renderInsightsTab(items) {
   const falling = [...withSlope].sort((a, b) => a.slope_90d - b.slope_90d).slice(0, 3).filter(x => x.slope_90d < -0.05);
   const radar = items.filter(item => !item.retired && (item.retirement_risk_score || 0) >= 70)
                      .sort((a, b) => b.retirement_risk_score - a.retirement_risk_score);
+  const signals = computeSpreadSignals(items);
+  const signalRow = (s, hot) => `
+    <div class="signal-row insight-set-row" data-set="${escapeHtml(s.item.set_num)}">
+      ${slImgHTML(s.item)}
+      <div class="signal-row-main">
+        <div class="signal-row-name">${escapeHtml(s.item.name)}</div>
+        <div class="signal-row-sub">eBay ${hot ? "+" : "−"}${Math.abs(s.spread * 100).toFixed(0)}% vs ${s.item.bl_new_value ? "BrickLink" : "value"}${s.item.quantity > 1 ? ` · ×${s.item.quantity}` : ""}</div>
+      </div>
+      <strong class="signal-row-gap" style="color:${hot ? "var(--up)" : "var(--bv-red)"};">${hot ? "+" : ""}${fmtMoney(s.gap)}</strong>
+    </div>`;
+  const signalsCard = (signals.hot.length || signals.cold.length) ? `
+      <div class="section-title" style="margin-top:0;">Market Signals</div>
+      <div class="card signals-card" style="padding:12px 16px;margin-bottom:18px;">
+        ${signals.totalUpside > 0 ? `<div class="signals-headline">≈ ${fmtMoney(signals.totalUpside)} upside across ${signals.hot.length} set${signals.hot.length > 1 ? "s" : ""} if sold on eBay</div>` : ""}
+        ${signals.hot.length ? `<div class="signals-group-label" style="color:var(--up);">🔥 Sell signals — eBay running hot</div>${signals.hot.slice(0, 3).map(s => signalRow(s, true)).join("")}` : ""}
+        ${signals.cold.length ? `<div class="signals-group-label" style="color:var(--bv-red);">❄️ Buy windows — eBay below market</div>${signals.cold.slice(0, 3).map(s => signalRow(s, false)).join("")}` : ""}
+      </div>` : "";
 
   return `
     <div style="padding:12px 16px;">
-      <div class="section-title" style="margin-top:0;">S&P 500 Performance Comparison</div>
+      ${signalsCard}
+      <div class="section-title" ${signalsCard ? "" : 'style="margin-top:0;"'}>S&P 500 Performance Comparison</div>
       <div class="card" style="padding:14px 16px;margin-bottom:18px;">
         <div style="font-size:12px;color:var(--ink-mute);line-height:1.4;margin-bottom:12px;">
           Compare your LEGO portfolio growth (solid <span style="color:var(--up);font-weight:700;">green</span>) against S&P 500 compounding at 8%/year (dashed <span style="color:var(--ink-soft);font-weight:600;">gray</span>) using dollar-cost averaging.

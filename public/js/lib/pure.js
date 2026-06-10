@@ -82,6 +82,28 @@ export function marketValueForCondition(set = {}, condition = "new") {
   return summary.newValue || positiveNumber(set.current_value);
 }
 
+/**
+ * Aggregates eBay-vs-BrickLink spread signals across a collection.
+ * Returns { hot, cold, totalUpside }: hot = sets where eBay sold prices run
+ * >= threshold above the BrickLink/primary value (sell opportunities), cold =
+ * the inverse (buying windows), both sorted by absolute dollar gap x quantity.
+ */
+export function computeSpreadSignals(items = [], { threshold = 0.15 } = {}) {
+  const hot = [], cold = [];
+  for (const it of items) {
+    const ebay = ebaySoldSummary(it).newValue;
+    const ref = positiveNumber(it.bl_new_value) || positiveNumber(it.current_value);
+    if (!ebay || !ref) continue;
+    const spread = (ebay - ref) / ref;
+    if (Math.abs(spread) < threshold) continue;
+    const qty = Math.max(1, Number(it.quantity) || 1);
+    (spread > 0 ? hot : cold).push({ item: it, spread, gap: Math.abs(ebay - ref) * qty });
+  }
+  hot.sort((a, b) => b.gap - a.gap);
+  cold.sort((a, b) => b.gap - a.gap);
+  return { hot, cold, totalUpside: hot.reduce((s, x) => s + x.gap, 0) };
+}
+
 export function valuationTrust(set = {}) {
   const freshness = set.freshness || (set.cached_at && Date.now() - new Date(set.cached_at).getTime() > 60 * 86400000 ? "stale" : "fresh");
   const confidence = set.confidence || (set.valuation_method === "formula_bulk" || set.valuation_method === "local" ? "estimated" : "medium");
