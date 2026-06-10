@@ -82,7 +82,7 @@ export async function sendWebPush(
   // --- VAPID JWT ---
   const header = b64url(enc.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
   const now = Math.floor(Date.now() / 1000);
-  const claims = b64url(enc.encode(JSON.stringify({ aud: endpointOrigin, exp: now + 43200, sub })));
+  const claims = b64url(enc.encode(JSON.stringify({ aud: endpointOrigin, exp: now + 43200, sub: subject })));
   const sigInput = `${header}.${claims}`;
 
   const vapidKey = await importVapidPrivateKey(vapidPrivateKeyB64, vapidPublicKeyB64);

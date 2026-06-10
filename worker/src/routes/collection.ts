@@ -503,8 +503,8 @@ app.patch('/:id', async (c) => {
   ).bind(...vals).run();
 
   const item = await c.env.DB.prepare(
-    'SELECT * FROM user_collection WHERE id=?'
-  ).bind(id).first<Record<string, unknown>>();
+    'SELECT * FROM user_collection WHERE id=? AND user_id=? AND deleted_at IS NULL'
+  ).bind(id, userId).first<Record<string, unknown>>();
   c.executionCtx.waitUntil(triggerGoogleSync(userId, c));
   return c.json({ item: item ? { ...item, is_complete: !!item.is_complete } : null });
 });

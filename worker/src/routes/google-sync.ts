@@ -228,8 +228,11 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
       throw new Error(`Token refresh failed: ${await tokenResp.text()}`);
     }
 
-    const tokenData = await tokenResp.json() as { access_token: string };
+    const tokenData = await tokenResp.json() as { access_token?: string };
     const accessToken = tokenData.access_token;
+    if (!accessToken) {
+      throw new Error('Token refresh returned no access_token');
+    }
 
     // 2. Resolve Spreadsheet
     let spreadsheetId = existingSpreadsheetId;
@@ -244,8 +247,11 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
         throw new Error(`Failed to create spreadsheet: ${await createResp.text()}`);
       }
 
-      const sheetData = await createResp.json() as { spreadsheetId: string };
-      spreadsheetId = sheetData.spreadsheetId;
+      const sheetData = await createResp.json() as { spreadsheetId?: string };
+      spreadsheetId = sheetData.spreadsheetId ?? null;
+      if (!spreadsheetId) {
+        throw new Error('Spreadsheet create returned no spreadsheetId');
+      }
 
       await env.DB.prepare('UPDATE user_prefs SET google_spreadsheet_id=? WHERE user_id=?')
         .bind(spreadsheetId, userId).run();

@@ -122,6 +122,8 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
 
   let processed = 0;
   for (const set of results) {
+    const processedBefore = processed;
+    try {
     let pricing: { current_value: number } | null = null;
     let usedPricing: { used_value: number; lot_count?: number; min_price?: number | null; max_price?: number | null } | null = null;
     let ebayPrices: EbaySoldPrices | null = null;
@@ -383,6 +385,15 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     }
     processed++;
     if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
+    } catch (e) {
+      // One bad set (D1 write error, malformed provider payload) must not kill
+      // the whole batch — log it, count it processed, and move on.
+      console.error(`[valuate] ${set.set_num} failed:`, (e as Error)?.message || e);
+      if (processed === processedBefore) processed++;
+      if (options.onProgress) {
+        await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num }).catch(() => {});
+      }
+    }
   }
 
   await updateRetirementRiskBatch(env);
