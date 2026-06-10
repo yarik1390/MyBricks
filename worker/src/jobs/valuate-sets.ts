@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import type { Env } from '../types';
 import { fetchSetPricing, fetchUsedPricing, fetchMinifigPricing } from '../lib/bricklink';
+import { callGeminiValuation } from '../lib/gemini';
 import {
   buildEbayAskUpdate,
   buildEbaySoldUpdate,
@@ -120,14 +121,14 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   let processed = 0;
   for (const set of results) {
     let pricing: { current_value: number } | null = null;
-    let usedPricing: { used_value: number; lot_count?: number } | null = null;
+    let usedPricing: { used_value: number; lot_count?: number; min_price?: number | null; max_price?: number | null } | null = null;
     let ebayPrices: EbaySoldPrices | null = null;
     let valMethod = 'market';
     let beDetails: any = null;
 
     // Batch runs stay source-light to avoid Cloudflare subrequest limits.
     // Detail-page refreshes still fan out across providers.
-    let blPricing: { current_value: number; lot_count: number } | null = null;
+    let blPricing: { current_value: number; lot_count: number; min_price: number | null; max_price: number | null } | null = null;
 
     if (env.BRICKECONOMY_API_KEY) {
       const be = await fetchBrickEconomyDetails(set.set_num, env, sourceOptions)
@@ -217,21 +218,20 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     }
     if (blPricing) {
       supplementStmts.push(
-        env.DB.prepare(`UPDATE lego_sets SET bl_new_value=?, bl_new_qty=?, bl_cached_at=datetime('now') WHERE set_num=?`)
-          .bind(blPricing.current_value, blPricing.lot_count, set.set_num)
+        env.DB.prepare(`UPDATE lego_sets SET bl_new_value=?, bl_new_qty=?, bl_new_min=?, bl_new_max=?, bl_cached_at=datetime('now') WHERE set_num=?`)
+          .bind(blPricing.current_value, blPricing.lot_count, blPricing.min_price, blPricing.max_price, set.set_num)
       );
     }
-    if (usedPricing?.lot_count) {
-      // lot_count is only present when the used price came from BrickLink
+    if (usedPricing) {
       supplementStmts.push(
-        env.DB.prepare(`UPDATE lego_sets SET bl_used_qty=?, bl_cached_at=datetime('now') WHERE set_num=?`)
-          .bind(usedPricing.lot_count, set.set_num)
+        env.DB.prepare(`UPDATE lego_sets SET bl_used_qty=?, bl_used_min=?, bl_used_max=?, bl_cached_at=datetime('now') WHERE set_num=?`)
+          .bind(usedPricing.lot_count, usedPricing.min_price, usedPricing.max_price, set.set_num)
       );
     }
     if (beDetails) {
       supplementStmts.push(
-        env.DB.prepare(`UPDATE lego_sets SET be_cached_at=datetime('now') WHERE set_num=?`)
-          .bind(set.set_num)
+        env.DB.prepare(`UPDATE lego_sets SET be_cached_at=datetime('now'), be_growth_12m=COALESCE(?, be_growth_12m) WHERE set_num=?`)
+          .bind(beDetails.rolling_growth_12months, set.set_num)
       );
     }
     if (supplementStmts.length) await env.DB.batch(supplementStmts);
@@ -294,7 +294,29 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       continue;
     }
 
-    // Fall back to GPT-4o-mini
+    // Fall back to Gemini (cheaper) then GPT-4o-mini
+    if (env.GEMINI_API_KEY) {
+      try {
+        const gemVals = await callGeminiValuation(set.set_num as string, set.name, env.GEMINI_API_KEY, env);
+        if (gemVals?.current_value) {
+          await env.DB.prepare(`
+            UPDATE lego_sets SET
+              current_value=?, used_value=COALESCE(?, used_value),
+              valuation_method='ai',
+              valuation_expires_at=datetime('now', ?),
+              cached_at=datetime('now')
+            WHERE set_num=?
+          `).bind(gemVals.current_value, gemVals.used_value ?? null,
+                  valuationExpiryModifier('ai'), set.set_num).run();
+          updated++; ai++;
+          processed++;
+          if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
+          continue;
+        }
+      } catch (e) {
+        console.warn(`[valuate] Gemini failed for ${set.set_num}:`, (e as Error).message);
+      }
+    }
     if (!openai) {
       processed++;
       if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
@@ -428,8 +450,9 @@ export async function runValuateMinifigs(env: Env): Promise<number> {
     SELECT DISTINCT m.fig_num
     FROM minifigs m
     JOIN user_minifigs um ON um.fig_num = m.fig_num
-    ORDER BY COALESCE(m.added_at, '2000-01-01') ASC
-    LIMIT 5
+    WHERE m.cached_at IS NULL OR m.cached_at < datetime('now', '-7 days')
+    ORDER BY COALESCE(m.cached_at, '2000-01-01') ASC
+    LIMIT 10
   `).all<{ fig_num: string }>();
 
   let updated = 0;
@@ -437,7 +460,7 @@ export async function runValuateMinifigs(env: Env): Promise<number> {
     const price = await fetchMinifigPricing(fig.fig_num, env, { recordHealth: false }).catch(() => null);
     if (price !== null && price > 0) {
       await env.DB.prepare(`
-        UPDATE minifigs SET current_value = ?, added_at = datetime('now') WHERE fig_num = ?
+        UPDATE minifigs SET current_value = ?, cached_at = datetime('now') WHERE fig_num = ?
       `).bind(price, fig.fig_num).run();
       updated++;
     }

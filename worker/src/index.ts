@@ -13,7 +13,7 @@ import { advisorRoute } from './routes/advisor';
 import { profileRoute } from './routes/profile';
 import { googleSyncRoute } from './routes/google-sync';
 
-import { runValuateSets } from './jobs/valuate-sets';
+import { runValuateSets, runValuateMinifigs } from './jobs/valuate-sets';
 import { runSnapshotPortfolios } from './jobs/snapshot-portfolios';
 import { runSnapshotSetValues } from './jobs/snapshot-set-values';
 import { runWishlistAlerts } from './jobs/wishlist-alerts';
@@ -126,6 +126,7 @@ export default {
       case '0 2 * * *': await run('snapshot-portfolios', () => runSnapshotPortfolios(env)); break;
       case '0 3 * * *': await run('snapshot-set-values', () => runSnapshotSetValues(env)); break;
       case '0 8 * * *': await run('wishlist-alerts', () => runWishlistAlerts(env)); break;
+      case '0 5 * * *': await run('valuate-minifigs', () => runValuateMinifigs(env)); break;
       case '0 4 * * *': {
         await run('db-hygiene', () => runDbHygiene(env));
         await run('daily-catalog-maintenance', () => runDailyCatalogMaintenance(env));

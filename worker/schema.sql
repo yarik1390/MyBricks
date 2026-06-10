@@ -41,7 +41,18 @@ CREATE TABLE IF NOT EXISTS lego_sets (
   ebay_ask_qty INTEGER,
   ebay_ask_cached_at TEXT,
   retirement_risk_score INTEGER,
-  retirement_risk_updated_at TEXT
+  retirement_risk_updated_at TEXT,
+  subtheme TEXT,
+  age_min INTEGER,
+  age_max INTEGER,
+  brickset_rating REAL,
+  brickset_review_count INTEGER,
+  retired_year INTEGER,
+  be_growth_12m REAL,
+  bl_new_min REAL,
+  bl_new_max REAL,
+  bl_used_min REAL,
+  bl_used_max REAL
 );
 
 CREATE TABLE IF NOT EXISTS user_collection (
@@ -72,7 +83,8 @@ CREATE TABLE IF NOT EXISTS minifigs (
   current_value REAL,
   image_url TEXT,
   added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  source TEXT
+  source TEXT,
+  cached_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS user_minifigs (

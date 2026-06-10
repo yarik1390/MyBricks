@@ -858,26 +858,39 @@ function infoTabHTML(set, entry, isWish) {
     : (set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "eBay Sold" : "Estimated";
 
   let bricksetHtml = '';
-  if (set.brickset) {
-    const b = set.brickset;
-    const ratingNum = b.rating || 0;
-    const reviewsStr = b.reviewCount ? `${b.reviewCount} review${b.reviewCount > 1 ? 's' : ''}` : '';
-    const ageStr = b.ageMin ? (b.ageMax ? `${b.ageMin}–${b.ageMax}` : `${b.ageMin}+`) : '';
-    const subthemeStr = b.subtheme ? b.subtheme : '';
+  {
+    // Merge live brickset API data with stored DB columns (DB columns are fallback)
+    const b = set.brickset || {};
+    const ratingNum = b.rating ?? set.brickset_rating ?? 0;
+    const reviewCount = b.reviewCount ?? set.brickset_review_count ?? 0;
+    const reviewsStr = reviewCount ? `${reviewCount} review${reviewCount > 1 ? 's' : ''}` : '';
+    const ageMin = b.ageMin ?? set.age_min;
+    const ageMax = b.ageMax ?? set.age_max;
+    const ageStr = ageMin ? (ageMax ? `${ageMin}–${ageMax}` : `${ageMin}+`) : '';
+    const subthemeStr = b.subtheme || set.subtheme || '';
+    const growthRate = set.be_growth_12m;
+    const retiredYear = b.retiredYear ?? set.retired_year;
 
-    // High ratings (>4.0 with >20 reviews) signal strong community demand → holds/grows value
-    const ratingSignal = ratingNum >= 4.0 && b.reviewCount >= 20
+    const ratingSignal = ratingNum >= 4.0 && reviewCount >= 20
       ? `<span class="signal-hint" style="color:var(--green);font-size:10px;">High demand set</span>`
       : '';
+    const growthBadge = growthRate != null
+      ? `<div style="grid-column:span 2;display:flex;align-items:center;gap:8px;"><span style="color:var(--ink-mute);">12m growth:</span> <strong style="color:${growthRate >= 0 ? 'var(--up)' : 'var(--down)'};">${growthRate >= 0 ? '+' : ''}${(growthRate * 100).toFixed(1)}%/yr</strong></div>`
+      : '';
+    const retiredYearBadge = retiredYear && set.retired
+      ? `<div><span style="color:var(--ink-mute);">Retired:</span> <strong style="color:var(--ink);">${retiredYear}</strong></div>`
+      : '';
 
-    if (ratingNum || ageStr || subthemeStr) {
+    if (ratingNum || ageStr || subthemeStr || growthRate != null || retiredYear) {
       bricksetHtml = `
         <div class="card" style="padding:14px 16px;margin-bottom:14px;">
           <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Catalog Insights</div>
           <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;font-size:12px;">
             ${subthemeStr ? `<div><span style="color:var(--ink-mute);">Subtheme:</span> <strong style="color:var(--ink);">${escapeHtml(subthemeStr)}</strong></div>` : ''}
-            ${ageStr ? `<div><span style="color:var(--ink-mute);">Age:</span> <strong style="color:var(--ink);">${ageStr}</strong></div>` : ''}
+            ${ageStr ? `<div><span style="color:var(--ink-mute);">Ages:</span> <strong style="color:var(--ink);">${ageStr}</strong></div>` : ''}
+            ${retiredYearBadge}
             ${ratingNum ? `<div style="grid-column: span 2; display:flex; align-items:center; gap:8px;"><span style="color:var(--ink-mute);">Community:</span> <strong style="color:var(--ink);">⭐ ${ratingNum.toFixed(1)}</strong> <span style="color:var(--ink-mute);font-size:10px;">${reviewsStr}</span> ${ratingSignal}</div>` : ''}
+            ${growthBadge}
           </div>
         </div>
       `;
@@ -1985,6 +1998,15 @@ function priceStripHTML(set, entry) {
   const blUsedQty = set.bl_used_qty;
   const lotLabel = (qty, label) => qty ? `${label} <span style="font-size:9px;opacity:.6;">(${qty} lots)</span>` : label;
 
+  // Price ranges — show spread as volatility signal
+  const blNewRange = (set.bl_new_min && set.bl_new_max)
+    ? `${fmtMoney(set.bl_new_min)}–${fmtMoney(set.bl_new_max)}`
+    : null;
+  const blUsedRange = (set.bl_used_min && set.bl_used_max)
+    ? `${fmtMoney(set.bl_used_min)}–${fmtMoney(set.bl_used_max)}`
+    : null;
+  const col2Range = showBlCross ? blNewRange : blUsedRange;
+
   return `
     <div class="price-strip">
       <div class="ps-cell${entry ? " high" : ""}">
@@ -1995,6 +2017,7 @@ function priceStripHTML(set, entry) {
       <div class="ps-cell">
         <div class="ps-lbl">${showBlCross ? lotLabel(blNewQty, "BrickLink (new)") : lotLabel(blUsedQty, "Used")}</div>
         <div class="ps-val${!val2 ? " muted" : ""}">${val2 ? fmtMoney(val2) : "—"}</div>
+        ${col2Range ? `<div class="ps-sub muted" style="font-size:9px;">${col2Range}</div>` : ""}
       </div>
       <div class="ps-cell">
         <div class="ps-lbl">${label3}</div>

@@ -4,6 +4,8 @@ import { fetchTracked } from './http';
 export interface BrickLinkPricing {
   current_value: number;
   lot_count: number;
+  min_price: number | null;
+  max_price: number | null;
 }
 
 const brickLinkPriceUrl = (type: 'SET' | 'MINIFIG', no: string) =>
@@ -50,6 +52,8 @@ async function oauthHeader(
 export interface BrickLinkUsedPricing {
   used_value: number;
   lot_count: number;
+  min_price: number | null;
+  max_price: number | null;
 }
 
 export async function fetchUsedPricing(
@@ -78,7 +82,9 @@ export async function fetchUsedPricing(
     if (lotCount < 3) return null;
     const used = parseFloat(String(d.qty_avg_price || d.avg_price || '')) || null;
     if (!used) return null;
-    return { used_value: used, lot_count: lotCount };
+    const minPrice = parseFloat(String(d.min_price || '')) || null;
+    const maxPrice = parseFloat(String(d.max_price || '')) || null;
+    return { used_value: used, lot_count: lotCount, min_price: minPrice, max_price: maxPrice };
   } catch {
     return null;
   }
@@ -119,7 +125,10 @@ export async function fetchSetPricing(
     const current = parseFloat(String(d.qty_avg_price || d.avg_price || '')) || null;
     if (!current) return null;
 
-    return { current_value: current, lot_count: lotCount };
+    const minPrice = parseFloat(String(d.min_price || '')) || null;
+    const maxPrice = parseFloat(String(d.max_price || '')) || null;
+
+    return { current_value: current, lot_count: lotCount, min_price: minPrice, max_price: maxPrice };
   } catch {
     return null;
   }

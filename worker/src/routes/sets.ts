@@ -423,6 +423,20 @@ app.get('/:setnum', async (c) => {
         bsUpdates.push(c.env.DB.prepare('UPDATE lego_sets SET retail_price=? WHERE set_num=?').bind(brickset.usRetailPrice, resultSet.set_num));
         resultSet.retail_price = brickset.usRetailPrice;
       }
+      // Persist rich Brickset metadata fields that were previously discarded
+      const bsMeta: Record<string, unknown> = {};
+      if (brickset.subtheme && !resultSet.subtheme) bsMeta.subtheme = brickset.subtheme;
+      if (brickset.ageMin !== null && resultSet.age_min == null) bsMeta.age_min = brickset.ageMin;
+      if (brickset.ageMax !== null && resultSet.age_max == null) bsMeta.age_max = brickset.ageMax;
+      if (brickset.rating !== null) bsMeta.brickset_rating = brickset.rating;
+      if (brickset.reviewCount !== null) bsMeta.brickset_review_count = brickset.reviewCount;
+      if (brickset.retiredYear !== null && resultSet.retired_year == null) bsMeta.retired_year = brickset.retiredYear;
+      if (Object.keys(bsMeta).length) {
+        const setClauses = Object.keys(bsMeta).map(k => `${k}=?`).join(', ');
+        bsUpdates.push(c.env.DB.prepare(`UPDATE lego_sets SET ${setClauses} WHERE set_num=?`)
+          .bind(...Object.values(bsMeta), resultSet.set_num));
+        Object.assign(resultSet, bsMeta);
+      }
       if (bsUpdates.length) await c.env.DB.batch(bsUpdates);
     }
     return c.json({ set: enrichSetRecord({ ...resultSet, retired: !!resultSet.retired, trend, brickset }), entry: entry || null });

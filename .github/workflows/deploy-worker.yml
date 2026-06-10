@@ -117,6 +117,18 @@ jobs:
             "ALTER TABLE lego_sets ADD COLUMN ebay_ask_cached_at TEXT"
             "ALTER TABLE set_value_history ADD COLUMN ebay_value REAL"
             "ALTER TABLE set_value_history ADD COLUMN bl_value REAL"
+            "ALTER TABLE lego_sets ADD COLUMN subtheme TEXT"
+            "ALTER TABLE lego_sets ADD COLUMN age_min INTEGER"
+            "ALTER TABLE lego_sets ADD COLUMN age_max INTEGER"
+            "ALTER TABLE lego_sets ADD COLUMN brickset_rating REAL"
+            "ALTER TABLE lego_sets ADD COLUMN brickset_review_count INTEGER"
+            "ALTER TABLE lego_sets ADD COLUMN retired_year INTEGER"
+            "ALTER TABLE lego_sets ADD COLUMN be_growth_12m REAL"
+            "ALTER TABLE lego_sets ADD COLUMN bl_new_min REAL"
+            "ALTER TABLE lego_sets ADD COLUMN bl_new_max REAL"
+            "ALTER TABLE lego_sets ADD COLUMN bl_used_min REAL"
+            "ALTER TABLE lego_sets ADD COLUMN bl_used_max REAL"
+            "ALTER TABLE minifigs ADD COLUMN cached_at TEXT"
           )
           for sql in "${statements[@]}"; do
             npx wrangler d1 execute brickvault --remote --command "$sql" 2>&1 || true
@@ -137,7 +149,7 @@ jobs:
         run: |
           set -euo pipefail
           probes=(
-            "SELECT valuation_method, valuation_expires_at, bl_new_value, bl_new_qty, bl_used_qty, ebay_new_value, ebay_used_value, retirement_risk_score, upc, bl_cached_at, be_cached_at, ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at FROM lego_sets LIMIT 0"
+            "SELECT valuation_method, valuation_expires_at, bl_new_value, bl_new_qty, bl_used_qty, ebay_new_value, ebay_used_value, retirement_risk_score, upc, bl_cached_at, be_cached_at, ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at, subtheme, age_min, age_max, brickset_rating, brickset_review_count, retired_year, be_growth_12m, bl_new_min, bl_new_max, bl_used_min, bl_used_max FROM lego_sets LIMIT 0"
             "SELECT deleted_at, last_modified, storage_location, acquisition_source, is_complete, missing_pieces, spike_alerted_at FROM user_collection LIMIT 0"
             "SELECT is_public, expose_public_value, google_refresh_token, google_spreadsheet_id FROM user_prefs LIMIT 0"
             "SELECT blocked_until, ok_count, fail_count FROM integration_health LIMIT 0"
