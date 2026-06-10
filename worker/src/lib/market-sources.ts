@@ -58,6 +58,11 @@ function sourceFreshness(
 export function buildMarketSources(row: Record<string, unknown>): MarketSource[] {
   const method = String(row.valuation_method || '');
   const cachedAt = text(row.cached_at);
+  // Per-source timestamps when available; legacy rows fall back to cached_at.
+  const blCachedAt = text(row.bl_cached_at) || cachedAt;
+  const beCachedAt = text(row.be_cached_at) || cachedAt;
+  const blFreshness = (valueField: string): MarketFreshness =>
+    row.bl_cached_at ? sourceFreshness(row, 'bl_cached_at', valueField) : marketFreshness(row);
   const sources: MarketSource[] = [];
 
   if (method === 'brickeconomy' && num(row.current_value)) {
@@ -67,8 +72,8 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
       value: num(row.current_value),
       condition: 'new',
       sample_count: null,
-      last_updated: cachedAt,
-      freshness: marketFreshness(row),
+      last_updated: beCachedAt,
+      freshness: row.be_cached_at ? sourceFreshness(row, 'be_cached_at', 'current_value') : marketFreshness(row),
       reliability: 'primary',
       note: 'Primary new-condition market value and forecast source.',
     });
@@ -81,8 +86,8 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
       value: num(row.current_value),
       condition: 'new',
       sample_count: num(row.bl_new_qty),
-      last_updated: cachedAt,
-      freshness: marketFreshness(row),
+      last_updated: blCachedAt,
+      freshness: blFreshness('current_value'),
       reliability: 'primary',
       note: 'Sold new-condition BrickLink guide value.',
     });
@@ -95,8 +100,8 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
       value: num(row.bl_new_value),
       condition: 'new',
       sample_count: num(row.bl_new_qty),
-      last_updated: cachedAt,
-      freshness: marketFreshness(row),
+      last_updated: blCachedAt,
+      freshness: blFreshness('bl_new_value'),
       reliability: method === 'market' ? 'primary' : 'corroborating',
       note: 'Sold new-condition BrickLink guide value.',
     });
@@ -109,8 +114,8 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
       value: num(row.used_value),
       condition: 'used',
       sample_count: num(row.bl_used_qty),
-      last_updated: cachedAt,
-      freshness: marketFreshness(row),
+      last_updated: blCachedAt,
+      freshness: blFreshness('used_value'),
       reliability: 'corroborating',
       note: 'Used-condition market comparison.',
     });

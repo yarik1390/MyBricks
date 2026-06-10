@@ -81,7 +81,8 @@ app.get('/', async (c) => {
       s.image_url, s.retired, s.retirement_risk_score, s.used_value, s.ebay_value,
       s.ebay_new_value, s.ebay_used_value, s.ebay_new_qty, s.ebay_used_qty,
       s.ebay_new_cached_at, s.ebay_used_cached_at, s.ebay_cached_at, s.cached_at,
-      s.valuation_method, s.bl_new_value, s.bl_new_qty, s.bl_used_qty
+      s.valuation_method, s.bl_new_value, s.bl_new_qty, s.bl_used_qty,
+      s.bl_cached_at, s.be_cached_at
     FROM user_collection uc
     JOIN lego_sets s ON s.set_num = uc.set_num
     WHERE uc.user_id = ? AND uc.deleted_at IS NULL

@@ -258,6 +258,8 @@ app.get('/:setnum', async (c) => {
                 bl_new_value=COALESCE(?, bl_new_value),
                 bl_new_qty=COALESCE(?, bl_new_qty),
                 bl_used_qty=COALESCE(?, bl_used_qty),
+                bl_cached_at=CASE WHEN ? IS NOT NULL THEN datetime('now') ELSE bl_cached_at END,
+                be_cached_at=datetime('now'),
                 retail_price=COALESCE(?, retail_price),
                 forecast_2y=?, forecast_5y=?,
                 valuation_method='brickeconomy',
@@ -270,6 +272,7 @@ app.get('/:setnum', async (c) => {
               blp?.current_value ?? null,
               blp?.lot_count ?? null,
               u?.lot_count ?? null,
+              blp?.current_value ?? u?.used_value ?? null,
               be.retail_price_us,
               forecast_2y, forecast_5y,
               activeSet.set_num
@@ -278,13 +281,18 @@ app.get('/:setnum', async (c) => {
             // BE unavailable — persist BL/eBay cross-source data regardless
             if (blp?.current_value) {
               supplementStmts.push(c.env.DB.prepare(
-                'UPDATE lego_sets SET bl_new_value=?, bl_new_qty=COALESCE(?, bl_new_qty) WHERE set_num=?'
+                `UPDATE lego_sets SET bl_new_value=?, bl_new_qty=COALESCE(?, bl_new_qty), bl_cached_at=datetime('now') WHERE set_num=?`
               ).bind(blp.current_value, blp.lot_count ?? null, activeSet.set_num));
             }
             if (u?.used_value) {
               supplementStmts.push(c.env.DB.prepare(
-                'UPDATE lego_sets SET used_value=?, bl_used_qty=COALESCE(?, bl_used_qty) WHERE set_num=?'
+                `UPDATE lego_sets SET used_value=?, bl_used_qty=COALESCE(?, bl_used_qty), bl_cached_at=datetime('now') WHERE set_num=?`
               ).bind(u.used_value, u.lot_count ?? null, activeSet.set_num));
+            }
+            if (be) {
+              supplementStmts.push(c.env.DB.prepare(
+                `UPDATE lego_sets SET be_cached_at=datetime('now') WHERE set_num=?`
+              ).bind(activeSet.set_num));
             }
           }
 
@@ -301,7 +309,7 @@ app.get('/:setnum', async (c) => {
           const supplementStmts: D1PreparedStatement[] = [];
           pushEbaySoldUpdate(supplementStmts, c.env.DB, activeSet.set_num as string, ebayPrices);
           if (u) {
-            supplementStmts.push(c.env.DB.prepare('UPDATE lego_sets SET used_value=?, bl_used_qty=? WHERE set_num=?').bind(u.used_value, u.lot_count, activeSet.set_num));
+            supplementStmts.push(c.env.DB.prepare(`UPDATE lego_sets SET used_value=?, bl_used_qty=?, bl_cached_at=datetime('now') WHERE set_num=?`).bind(u.used_value, u.lot_count, activeSet.set_num));
           }
           if (p) {
             const yr = activeSet.retired ? 0.15 : 0.10;
@@ -309,7 +317,7 @@ app.get('/:setnum', async (c) => {
             const forecast_5y = Math.round(p.current_value * Math.pow(1 + yr, 5) * 100) / 100;
             supplementStmts.push(c.env.DB.prepare(`
               UPDATE lego_sets SET
-                current_value=?, bl_new_value=?, bl_new_qty=?,
+                current_value=?, bl_new_value=?, bl_new_qty=?, bl_cached_at=datetime('now'),
                 forecast_2y=?, forecast_5y=?,
                 valuation_method='market',
                 valuation_expires_at=datetime('now', '+1 day'),
@@ -668,14 +676,20 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
   }
   if (blPricing) {
     supplementStmts.push(
-      c.env.DB.prepare('UPDATE lego_sets SET bl_new_value=?, bl_new_qty=? WHERE set_num=?')
+      c.env.DB.prepare(`UPDATE lego_sets SET bl_new_value=?, bl_new_qty=?, bl_cached_at=datetime('now') WHERE set_num=?`)
         .bind(blPricing.current_value, blPricing.lot_count, set.set_num)
     );
   }
   if (usedPricing?.lot_count) {
     supplementStmts.push(
-      c.env.DB.prepare('UPDATE lego_sets SET bl_used_qty=? WHERE set_num=?')
+      c.env.DB.prepare(`UPDATE lego_sets SET bl_used_qty=?, bl_cached_at=datetime('now') WHERE set_num=?`)
         .bind(usedPricing.lot_count, set.set_num)
+    );
+  }
+  if (beDetails) {
+    supplementStmts.push(
+      c.env.DB.prepare(`UPDATE lego_sets SET be_cached_at=datetime('now') WHERE set_num=?`)
+        .bind(set.set_num)
     );
   }
   if (pricing) {

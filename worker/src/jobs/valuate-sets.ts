@@ -196,14 +196,21 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     if (ebayStmt) supplementStmts.push(ebayStmt);
     if (blPricing) {
       supplementStmts.push(
-        env.DB.prepare('UPDATE lego_sets SET bl_new_value=?, bl_new_qty=? WHERE set_num=?')
+        env.DB.prepare(`UPDATE lego_sets SET bl_new_value=?, bl_new_qty=?, bl_cached_at=datetime('now') WHERE set_num=?`)
           .bind(blPricing.current_value, blPricing.lot_count, set.set_num)
       );
     }
     if (usedPricing?.lot_count) {
+      // lot_count is only present when the used price came from BrickLink
       supplementStmts.push(
-        env.DB.prepare('UPDATE lego_sets SET bl_used_qty=? WHERE set_num=?')
+        env.DB.prepare(`UPDATE lego_sets SET bl_used_qty=?, bl_cached_at=datetime('now') WHERE set_num=?`)
           .bind(usedPricing.lot_count, set.set_num)
+      );
+    }
+    if (beDetails) {
+      supplementStmts.push(
+        env.DB.prepare(`UPDATE lego_sets SET be_cached_at=datetime('now') WHERE set_num=?`)
+          .bind(set.set_num)
       );
     }
     if (supplementStmts.length) await env.DB.batch(supplementStmts);
