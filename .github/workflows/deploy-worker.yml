@@ -262,8 +262,17 @@ jobs:
           DEPLOY_EXIT=$?
           echo "$DEPLOY_OUT"
           if [ $DEPLOY_EXIT -ne 0 ]; then
-            echo "::error::wrangler deploy failed (exit $DEPLOY_EXIT)" >&2
-            exit $DEPLOY_EXIT
+            # wrangler exits 1 when cron schedule registration fails even though
+            # the Worker itself deployed successfully.  The schedules API requires
+            # a separate permission that may not be present on the token.  Treat
+            # a schedules-only failure as a non-fatal warning: the Worker runs
+            # fine and crons can be configured manually in the CF dashboard.
+            if echo "$DEPLOY_OUT" | grep -qE "triggers failed to deploy|schedules.*failed|failed.*schedules"; then
+              echo "::warning::Cron triggers failed to register — Worker deployed OK. Grant 'Workers Scripts → Schedules: Edit' permission on the API token, or set crons manually in the Cloudflare dashboard."
+            else
+              echo "::error::wrangler deploy failed (exit $DEPLOY_EXIT)" >&2
+              exit $DEPLOY_EXIT
+            fi
           fi
           WORKER_URL=$(echo "$DEPLOY_OUT" | grep -oE 'https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev' | head -1)
           if [ -z "$WORKER_URL" ]; then
