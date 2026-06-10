@@ -35,6 +35,11 @@ CREATE TABLE IF NOT EXISTS lego_sets (
   bl_new_value REAL,
   bl_new_qty INTEGER,
   bl_used_qty INTEGER,
+  bl_cached_at TEXT,
+  be_cached_at TEXT,
+  ebay_ask_value REAL,
+  ebay_ask_qty INTEGER,
+  ebay_ask_cached_at TEXT,
   retirement_risk_score INTEGER,
   retirement_risk_updated_at TEXT
 );
@@ -156,6 +161,8 @@ CREATE TABLE IF NOT EXISTS set_value_history (
   set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
   snapshot_date DATE NOT NULL,
   current_value REAL,
+  ebay_value REAL,
+  bl_value REAL,
   PRIMARY KEY (set_num, snapshot_date)
 );
 

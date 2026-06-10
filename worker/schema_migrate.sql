@@ -167,3 +167,18 @@ CREATE INDEX IF NOT EXISTS idx_svh_set ON set_value_history(set_num, snapshot_da
 -- Circuit breaker: skip an external service until this timestamp after
 -- access-denied failures (currently used for eBay Marketplace Insights).
 ALTER TABLE integration_health ADD COLUMN blocked_until TEXT;
+
+-- Multi-source price history: track eBay and BrickLink series alongside the
+-- primary value so divergence over time can be charted.
+ALTER TABLE set_value_history ADD COLUMN ebay_value REAL;
+ALTER TABLE set_value_history ADD COLUMN bl_value REAL;
+
+-- Per-source freshness: BrickLink and BrickEconomy get their own timestamps
+-- instead of borrowing the shared cached_at.
+ALTER TABLE lego_sets ADD COLUMN bl_cached_at TEXT;
+ALTER TABLE lego_sets ADD COLUMN be_cached_at TEXT;
+
+-- eBay supply signal: median asking price + active listing count (Browse API).
+ALTER TABLE lego_sets ADD COLUMN ebay_ask_value REAL;
+ALTER TABLE lego_sets ADD COLUMN ebay_ask_qty INTEGER;
+ALTER TABLE lego_sets ADD COLUMN ebay_ask_cached_at TEXT;

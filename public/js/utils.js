@@ -270,7 +270,16 @@ export function drawSparkline(container, data, opts = {}) {
   const H = container.clientHeight || 88;
   const vals = data.map(d => d.total_value ?? d.current_value ?? d);
   const dates = data.map(d => (d && d.snapshot_date) || null);
-  const mn = Math.min(...vals), mx = Math.max(...vals);
+  // Optional overlay series: opts.series = [{ key, color, dash }] — drawn on
+  // the same scale so divergence between sources is visually honest.
+  const series = (opts.series || [])
+    .map(s => ({
+      ...s,
+      pts: data.map((d, i) => ({ i, v: Number(d?.[s.key]) })).filter(p => Number.isFinite(p.v) && p.v > 0),
+    }))
+    .filter(s => s.pts.length >= 2);
+  const allVals = vals.filter(v => Number.isFinite(v)).concat(...series.map(s => s.pts.map(p => p.v)));
+  const mn = Math.min(...allVals), mx = Math.max(...allVals);
   const pad = 4;
   const xs = (i) => pad + (i / (data.length - 1)) * (W - pad * 2);
   const ys = (v) => H - pad - ((v - mn) / ((mx - mn) || 1)) * (H - pad * 2);
@@ -279,6 +288,11 @@ export function drawSparkline(container, data, opts = {}) {
   const area = path + ` L${xs(data.length - 1).toFixed(1)} ${H} L${xs(0).toFixed(1)} ${H} Z`;
   const stroke = opts.up !== false ? "var(--up)" : "var(--down)";
   const gid = "sg" + Math.random().toString(36).slice(2, 8);
+  const overlays = series.map(s => {
+    let p = `M${xs(s.pts[0].i).toFixed(1)} ${ys(s.pts[0].v).toFixed(1)}`;
+    for (let j = 1; j < s.pts.length; j++) p += ` L${xs(s.pts[j].i).toFixed(1)} ${ys(s.pts[j].v).toFixed(1)}`;
+    return `<path d="${p}" fill="none" stroke="${s.color}" stroke-width="1.5" stroke-dasharray="${s.dash || "4 3"}" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>`;
+  }).join("");
   if (getComputedStyle(container).position === "static") container.style.position = "relative";
   container.innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
@@ -289,6 +303,7 @@ export function drawSparkline(container, data, opts = {}) {
         </linearGradient>
       </defs>
       <path d="${area}" fill="url(#${gid})" />
+      ${overlays}
       <path d="${path}" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       <line class="spark-guide" x1="0" y1="0" x2="0" y2="${H}" stroke="${stroke}" stroke-width="1" stroke-dasharray="3 3" opacity="0"/>
       <circle class="spark-cursor" r="4.5" fill="${stroke}" stroke="var(--bg)" stroke-width="2" opacity="0"/>

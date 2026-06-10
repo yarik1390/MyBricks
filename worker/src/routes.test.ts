@@ -78,6 +78,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       'DROP TABLE IF EXISTS oauth_sessions',
       'DROP TABLE IF EXISTS oauth_states',
       'DROP TABLE IF EXISTS user_minifigs',
+      'DROP TABLE IF EXISTS set_value_history',
 
       `CREATE TABLE lego_sets (
         set_num TEXT PRIMARY KEY, name TEXT NOT NULL, theme TEXT, year INTEGER,
@@ -86,8 +87,15 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         retirement_risk_score INTEGER, used_value REAL, ebay_value REAL, upc TEXT,
         ebay_new_value REAL, ebay_used_value REAL, ebay_new_qty INTEGER, ebay_used_qty INTEGER,
         ebay_new_cached_at TEXT, ebay_used_cached_at TEXT,
+        bl_cached_at TEXT, be_cached_at TEXT,
+        ebay_ask_value REAL, ebay_ask_qty INTEGER, ebay_ask_cached_at TEXT,
         valuation_method TEXT DEFAULT 'formula_bulk', bl_new_value REAL, bl_new_qty INTEGER, bl_used_qty INTEGER,
         valuation_expires_at TEXT, cached_at TEXT, source TEXT, ebay_cached_at TEXT
+      )`,
+      `CREATE TABLE set_value_history (
+        set_num TEXT NOT NULL, snapshot_date TEXT NOT NULL,
+        current_value REAL, ebay_value REAL, bl_value REAL,
+        PRIMARY KEY (set_num, snapshot_date)
       )`,
       `CREATE VIRTUAL TABLE lego_sets_fts USING fts5(set_num, name, theme)`,
       `CREATE TABLE user_collection (

@@ -1009,6 +1009,7 @@ function infoTabHTML(set, entry, isWish) {
     <div class="card" style="padding:14px 16px;margin-bottom:14px;">
       <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Price history · 90d</div>
       <div class="spark-wrap" id="setSpark" style="height:60px;"></div>
+      <div class="spark-legend" id="setSparkLegend"></div>
     </div>
 
     ${bricksetHtml}
@@ -1876,7 +1877,20 @@ async function loadSetHistory(setNum) {
     const hist = res.history || [];
     if (hist.length >= 2) {
       const up = Number(hist[hist.length - 1].current_value) >= Number(hist[0].current_value);
-      drawSparkline(el, hist, { up });
+      const hasPts = (key) => hist.filter(h => Number(h?.[key]) > 0).length >= 2;
+      const series = [
+        { key: "bl_value", color: "var(--ink-mute)", dash: "2 3", label: "BrickLink" },
+        { key: "ebay_value", color: "var(--bv-yellow-dark)", dash: "5 4", label: "eBay" },
+      ].filter(s => hasPts(s.key));
+      drawSparkline(el, hist, { up, series });
+      const legendEl = $("#setSparkLegend");
+      if (legendEl) {
+        legendEl.innerHTML = series.length
+          ? [{ color: up ? "var(--up)" : "var(--down)", dash: "", label: "Value" }, ...series]
+              .map(s => `<span class="spark-key"><svg width="14" height="4" viewBox="0 0 14 4"><line x1="0" y1="2" x2="14" y2="2" stroke="${s.color}" stroke-width="2"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/></svg>${s.label}</span>`)
+              .join("")
+          : "";
+      }
     } else {
       el.style.height = "auto";
       el.innerHTML = `<div class="spark-empty">${I.info()}<span>Price tracking just started — check back soon for a trend.</span></div>`;

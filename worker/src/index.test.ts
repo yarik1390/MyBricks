@@ -106,6 +106,8 @@ describe('BrickVault API Worker Tests', () => {
         set_num TEXT NOT NULL,
         snapshot_date TEXT NOT NULL,
         current_value REAL,
+        ebay_value REAL,
+        bl_value REAL,
         PRIMARY KEY (set_num, snapshot_date)
       )`,
 
@@ -157,6 +159,11 @@ describe('BrickVault API Worker Tests', () => {
         bl_new_value REAL,
         bl_new_qty INTEGER,
         bl_used_qty INTEGER,
+        bl_cached_at TEXT,
+        be_cached_at TEXT,
+        ebay_ask_value REAL,
+        ebay_ask_qty INTEGER,
+        ebay_ask_cached_at TEXT,
         valuation_method TEXT DEFAULT 'formula_bulk',
         valuation_expires_at TEXT,
         upc TEXT,
