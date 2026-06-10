@@ -83,6 +83,28 @@ export function marketValueForCondition(set = {}, condition = "new") {
 }
 
 /**
+ * Turns a wishlist item's 30-day trend into a "buy window" hint.
+ * item needs: target_price, current_value, trend_weekly (USD/week, may be null).
+ * Returns null when there's nothing actionable to say, otherwise
+ * { state: 'near' | 'approaching' | 'away', label, weeks? }.
+ */
+export function buyWindow(item = {}) {
+  const target = positiveNumber(item.target_price);
+  const current = positiveNumber(item.current_value);
+  if (!target || !current) return null;
+  if (current <= target) return { state: "near", label: "at your target price" };
+  if (current <= target * 1.05) return { state: "near", label: "almost at your target" };
+  const slope = Number(item.trend_weekly);
+  if (!Number.isFinite(slope) || slope === 0) return null;
+  if (slope < 0) {
+    const weeks = Math.ceil((current - target) / -slope);
+    if (weeks > 52) return null;
+    return { state: "approaching", label: `trending to your target · ~${weeks} wk${weeks > 1 ? "s" : ""}`, weeks };
+  }
+  return { state: "away", label: "moving away from your target" };
+}
+
+/**
  * Aggregates eBay-vs-BrickLink spread signals across a collection.
  * Returns { hot, cold, totalUpside }: hot = sets where eBay sold prices run
  * >= threshold above the BrickLink/primary value (sell opportunities), cold =

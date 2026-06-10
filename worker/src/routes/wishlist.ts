@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { requireMember } from '../auth';
 import { enrichSetRecord } from '../lib/market-sources';
+import { weeklySlopeUSD } from '../lib/price-trend';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -10,7 +11,7 @@ app.use('*', requireMember);
 // GET /api/wishlist
 app.get('/', async (c) => {
   const userId = c.get('userId');
-  const [wl, alerts] = await Promise.all([
+  const [wl, alerts, hist] = await Promise.all([
     c.env.DB.prepare(`
       SELECT w.id, w.set_num, w.target_price, w.notes, w.added_at, w.alerted_at,
         s.name, s.theme, s.year, s.image_url, s.current_value, s.forecast_2y,
@@ -29,8 +30,37 @@ app.get('/', async (c) => {
       WHERE user_id = ? AND read_at IS NULL
       ORDER BY triggered_at DESC
     `).bind(userId).all(),
+    c.env.DB.prepare(`
+      SELECT set_num, snapshot_date, current_value
+      FROM set_value_history
+      WHERE set_num IN (SELECT set_num FROM user_wishlist WHERE user_id = ?)
+        AND snapshot_date >= DATE('now', '-30 days')
+      ORDER BY set_num, snapshot_date ASC
+    `).bind(userId).all<{ set_num: string; snapshot_date: string; current_value: number }>(),
   ]);
-  return c.json({ wishlist: (wl.results || []).map(r => enrichSetRecord({ ...r, retired: !!(r as Record<string, unknown>).retired } as Record<string, unknown>)), unread_alerts: alerts.results });
+
+  // Per-set 30-day slope (USD/week) so the client can show "buy window" hints
+  // on wishlist targets. Requires >= 7 snapshots to avoid noise.
+  const trendWeekly: Record<string, number> = {};
+  const grouped: Record<string, Array<{ x: number; y: number }>> = {};
+  for (const r of hist.results || []) {
+    if (!Number.isFinite(r.current_value) || r.current_value <= 0) continue;
+    (grouped[r.set_num] ||= []).push({ x: new Date(r.snapshot_date).getTime() / 86400000, y: r.current_value });
+  }
+  for (const [setNum, pts] of Object.entries(grouped)) {
+    if (pts.length < 7) continue;
+    const slope = weeklySlopeUSD(pts);
+    if (slope != null) trendWeekly[setNum] = Math.round(slope * 100) / 100;
+  }
+
+  return c.json({
+    wishlist: (wl.results || []).map(r => enrichSetRecord({
+      ...r,
+      retired: !!(r as Record<string, unknown>).retired,
+      trend_weekly: trendWeekly[(r as Record<string, unknown>).set_num as string] ?? null,
+    } as Record<string, unknown>)),
+    unread_alerts: alerts.results,
+  });
 });
 
 // POST /api/wishlist

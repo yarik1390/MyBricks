@@ -4,7 +4,7 @@ import {
   escapeHtml, fmtPct, clamp, themeHue, bricklinkBuyURL,
   computeDealScore, valuationTrust, catalogFilterSummary, classifyJobRun,
   annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition,
-  jobProgressSummary, computeSpreadSignals,
+  jobProgressSummary, computeSpreadSignals, buyWindow,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -410,5 +410,46 @@ describe('computeSpreadSignals', () => {
   it('honors a custom threshold', () => {
     const out = computeSpreadSignals([item({ ebay_new_value: 110 })], { threshold: 0.05 });
     assert.equal(out.hot.length, 1);
+  });
+});
+
+describe('buyWindow', () => {
+  it('returns null without target or current value', () => {
+    assert.equal(buyWindow({}), null);
+    assert.equal(buyWindow({ target_price: 100 }), null);
+    assert.equal(buyWindow({ current_value: 100 }), null);
+  });
+
+  it('reports at-target when current <= target', () => {
+    const bw = buyWindow({ target_price: 100, current_value: 95 });
+    assert.equal(bw.state, 'near');
+    assert.ok(bw.label.includes('at your target'));
+  });
+
+  it('reports almost-at-target within 5%', () => {
+    const bw = buyWindow({ target_price: 100, current_value: 104 });
+    assert.equal(bw.state, 'near');
+    assert.ok(bw.label.includes('almost'));
+  });
+
+  it('estimates weeks when trending down toward target', () => {
+    const bw = buyWindow({ target_price: 100, current_value: 120, trend_weekly: -5 });
+    assert.equal(bw.state, 'approaching');
+    assert.equal(bw.weeks, 4);
+    assert.ok(bw.label.includes('~4 wks'));
+  });
+
+  it('returns null when the ETA exceeds a year', () => {
+    assert.equal(buyWindow({ target_price: 100, current_value: 200, trend_weekly: -0.5 }), null);
+  });
+
+  it('reports moving away when trending up', () => {
+    const bw = buyWindow({ target_price: 100, current_value: 120, trend_weekly: 3 });
+    assert.equal(bw.state, 'away');
+  });
+
+  it('returns null without trend data above the near band', () => {
+    assert.equal(buyWindow({ target_price: 100, current_value: 120, trend_weekly: null }), null);
+    assert.equal(buyWindow({ target_price: 100, current_value: 120 }), null);
   });
 });

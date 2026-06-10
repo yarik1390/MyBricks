@@ -1,5 +1,5 @@
 import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, clamp, prefersReducedMotion, confettiBurst, themeHue, setHue, THEME_COLORS, fmtShortDate, fmtDateUpdated, setBtnLoading, drawSparkline, brickTile, slImgHTML, bricklinkBuyURL, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB } from '../utils.js';
-import { computeDealScore, ebaySoldSummary, marketValueForCondition, computeSpreadSignals } from '../lib/pure.js';
+import { computeDealScore, ebaySoldSummary, marketValueForCondition, computeSpreadSignals, buyWindow } from '../lib/pure.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue } from '../api.js';
 import { I } from '../icons.js';
@@ -1494,10 +1494,24 @@ function wishlistCardHTML(w) {
           <span style="color:${hit ? "var(--up)" : "var(--ink)"};font-weight:700;">${gap == null ? "No target" : hit ? "AT TARGET" : "Target " + fmtMoney(w.target_price, { cents: 0 })}</span>
         </div>
         <div class="progress${hit ? " over" : ""}"><div style="width:${progress}%;"></div></div>
+        ${buyWindowHTML(w)}
         ${(w.retirement_risk_score || 0) >= 70 && !w.retired ? `<div style="font-size:11px;color:var(--down);margin-top:4px;font-family:var(--mono);">⚠️ Retirement risk: High</div>` : ""}
       </div>
       <a href="${bricklinkBuyURL(w.set_num)}" target="_blank" rel="noopener" class="bl-badge" style="position:absolute;bottom:10px;right:10px;z-index:5;font-size:10px;font-family:var(--mono);font-weight:700;padding:2px 5px;background:var(--bv-yellow);color:#000;border:1.5px solid var(--line);border-radius:var(--r-1);text-decoration:none;">BL ↗</a>
     </div>`;
+}
+
+// 30-day trend → actionable hint under the wishlist target progress bar.
+function buyWindowHTML(w) {
+  const bw = buyWindow(w);
+  if (!bw) return "";
+  const style = bw.state === "near"
+    ? "color:var(--up);font-weight:700;"
+    : bw.state === "approaching"
+      ? "color:var(--up);"
+      : "color:var(--ink-mute);";
+  const icon = bw.state === "near" ? "🎯" : bw.state === "approaching" ? "↘" : "↗";
+  return `<div style="font-size:11px;margin-top:4px;font-family:var(--mono);${style}">${icon} ${escapeHtml(bw.label)}</div>`;
 }
 
 /* ============================================================

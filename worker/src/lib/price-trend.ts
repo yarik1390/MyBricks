@@ -4,6 +4,23 @@ export type Trend = 'rising' | 'stable' | 'falling';
 
 const trendCache = new Map<string, { trend: Trend | null; ts: number }>();
 
+// Least-squares slope in USD per week over {x: days, y: value} points.
+// Returns null when the series is degenerate (all same day, or empty).
+export function weeklySlopeUSD(data: Array<{ x: number; y: number }>): number | null {
+  const n = data.length;
+  if (n < 2) return null;
+  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+  for (const p of data) {
+    sumX += p.x;
+    sumY += p.y;
+    sumXY += p.x * p.y;
+    sumXX += p.x * p.x;
+  }
+  const denominator = n * sumXX - sumX * sumX;
+  if (denominator === 0) return null;
+  return ((n * sumXY - sumX * sumY) / denominator) * 7;
+}
+
 export async function computePriceTrend(setNum: string, env: Env): Promise<{ trend: Trend; slope_pct_per_week: number } | null> {
   const { results } = await env.DB.prepare(`
     SELECT snapshot_date, current_value
