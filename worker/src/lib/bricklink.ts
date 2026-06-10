@@ -8,6 +8,22 @@ export interface BrickLinkPricing {
   max_price: number | null;
 }
 
+// KV-cached entries may predate fields added later (min/max price) — missing
+// fields parse as undefined, which D1's bind() rejects. Normalize on read.
+const finiteOrNull = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+function normalizeNewPricing(raw: Partial<BrickLinkPricing> | null): BrickLinkPricing | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const current_value = finiteOrNull(raw.current_value);
+  if (current_value === null) return null;
+  return {
+    current_value,
+    lot_count: finiteOrNull(raw.lot_count) ?? 0,
+    min_price: finiteOrNull(raw.min_price),
+    max_price: finiteOrNull(raw.max_price),
+  };
+}
+
 const brickLinkPriceUrl = (type: 'SET' | 'MINIFIG', no: string) =>
   `https://api.bricklink.com/api/store/v1/items/${type}/${encodeURIComponent(no)}/price`;
 
@@ -56,6 +72,18 @@ export interface BrickLinkUsedPricing {
   max_price: number | null;
 }
 
+function normalizeUsedPricing(raw: Partial<BrickLinkUsedPricing> | null): BrickLinkUsedPricing | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const used_value = finiteOrNull(raw.used_value);
+  if (used_value === null) return null;
+  return {
+    used_value,
+    lot_count: finiteOrNull(raw.lot_count) ?? 0,
+    min_price: finiteOrNull(raw.min_price),
+    max_price: finiteOrNull(raw.max_price),
+  };
+}
+
 export async function fetchUsedPricing(
   setNum: string,
   env: Env,
@@ -66,7 +94,7 @@ export async function fetchUsedPricing(
   try {
     const cacheKey = `bl:used:${blNum}`;
     if (env.CACHE_KV) {
-      const cached = await env.CACHE_KV.get(cacheKey, 'json') as BrickLinkUsedPricing | null;
+      const cached = normalizeUsedPricing(await env.CACHE_KV.get(cacheKey, 'json'));
       if (cached) return cached;
     }
 
@@ -111,7 +139,7 @@ export async function fetchSetPricing(
   try {
     const cacheKey = `bl:new:${blNum}`;
     if (env.CACHE_KV) {
-      const cached = await env.CACHE_KV.get(cacheKey, 'json') as BrickLinkPricing | null;
+      const cached = normalizeNewPricing(await env.CACHE_KV.get(cacheKey, 'json'));
       if (cached) return cached;
     }
 

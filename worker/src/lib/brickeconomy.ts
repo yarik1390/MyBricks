@@ -9,6 +9,21 @@ export interface BrickEconomyDetails {
   rolling_growth_12months: number | null;
 }
 
+// Cached entries may have been written by an older Worker version with a
+// narrower shape — missing fields come back as undefined, which D1's bind()
+// rejects with D1_TYPE_ERROR. Normalize every field to number-or-null.
+function normalizeDetails(raw: Partial<BrickEconomyDetails> | null): BrickEconomyDetails | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  return {
+    retail_price_us: num(raw.retail_price_us),
+    current_value_new: num(raw.current_value_new),
+    current_value_used: num(raw.current_value_used),
+    forecast_value_new_2_years: num(raw.forecast_value_new_2_years),
+    rolling_growth_12months: num(raw.rolling_growth_12months),
+  };
+}
+
 export async function fetchBrickEconomyDetails(
   setNum: string,
   env: Env,
@@ -23,7 +38,7 @@ export async function fetchBrickEconomyDetails(
     const cacheKey = `be:${formattedSetNum}`;
 
     if (env.CACHE_KV) {
-      const cached = await env.CACHE_KV.get(cacheKey, 'json') as BrickEconomyDetails | null;
+      const cached = normalizeDetails(await env.CACHE_KV.get(cacheKey, 'json'));
       if (cached) return cached;
     }
 

@@ -236,7 +236,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     if (beDetails) {
       supplementStmts.push(
         env.DB.prepare(`UPDATE lego_sets SET be_cached_at=datetime('now'), be_growth_12m=COALESCE(?, be_growth_12m) WHERE set_num=?`)
-          .bind(beDetails.rolling_growth_12months, set.set_num)
+          .bind(beDetails.rolling_growth_12months ?? null, set.set_num)
       );
     }
     // BrickOwl as 4th supplemental pricing source
@@ -375,7 +375,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
           valuation_expires_at=datetime('now', ?),
           cached_at=datetime('now')
         WHERE set_num=?
-      `).bind(vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y,
+      `).bind(vals.retail_price ?? null, vals.current_value ?? null, vals.forecast_2y ?? null, vals.forecast_5y ?? null,
               valuationExpiryModifier('ai'), set.set_num).run();
       updated++; ai++;
     } catch (e) {
