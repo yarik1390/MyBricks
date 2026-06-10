@@ -155,6 +155,14 @@ export async function renderMe() {
           <div class="lbl-wrap"><div class="lbl">Price-drop alerts</div><div class="desc">Alert when wishlisted sets hit your target.</div></div>
           <button class="toggle ${me.notify_price_drops ? "on" : ""}" id="notifyToggle" aria-label="Toggle price-drop alerts" aria-pressed="${me.notify_price_drops}"></button>
         </div>
+        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+          <div class="lbl-wrap"><div class="lbl">Discord alerts</div><div class="desc">Post price-drop and spike alerts to a Discord channel.</div></div>
+          <div style="display:flex;gap:8px;width:100%;">
+            <input id="discordWebhook" type="url" placeholder="https://discord.com/api/webhooks/…" value="${me.discord_webhook_url ? escapeHtml(me.discord_webhook_url) : ""}" style="flex:1;min-width:0;font-size:12px;font-family:var(--mono);border:1px solid var(--line);border-radius:var(--r-1);padding:6px 10px;background:var(--surface-2);color:var(--ink);outline:none;" autocomplete="off" spellcheck="false" />
+            <button id="discordWebhookSave" class="btn-secondary" style="font-size:12px;padding:6px 12px;white-space:nowrap;">Save</button>
+            ${me.discord_webhook_url ? `<button id="discordWebhookClear" class="btn-secondary" style="font-size:12px;padding:6px 12px;color:var(--down);">Clear</button>` : ""}
+          </div>
+        </div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Currency</div><div class="desc">Display values in your local currency.</div></div>
           <select id="currencySelect" style="font-family:var(--mono);font-weight:600;font-size:14px;border:none;background:transparent;color:var(--ink);cursor:pointer;outline:none;text-align-last:right;">
@@ -408,6 +416,30 @@ export async function renderMe() {
     toast(notifyOn ? "Alerts on" : "Alerts paused", "info");
   });
   
+  $("#discordWebhookSave")?.addEventListener("click", async () => {
+    const val = ($("#discordWebhook")?.value || "").trim();
+    if (val && !/^https:\/\/discord(app)?\.com\/api\/webhooks\//.test(val)) {
+      toast("Enter a valid Discord webhook URL", "error"); return;
+    }
+    haptic("medium");
+    try {
+      await api("/api/me", { method: "PATCH", body: { discord_webhook_url: val || null } });
+      state.me = null;
+      toast(val ? "Discord alerts enabled" : "Discord alerts cleared", "success");
+      await renderMe();
+    } catch (e) { toast("Error: " + e.message, "error"); }
+  });
+
+  $("#discordWebhookClear")?.addEventListener("click", async () => {
+    haptic("medium");
+    try {
+      await api("/api/me", { method: "PATCH", body: { discord_webhook_url: null } });
+      state.me = null;
+      toast("Discord alerts cleared", "info");
+      await renderMe();
+    } catch (e) { toast("Error: " + e.message, "error"); }
+  });
+
   $("#currencySelect")?.addEventListener("change", async (e) => {
     const val = e.target.value;
     haptic("medium");

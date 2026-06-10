@@ -196,3 +196,10 @@ ALTER TABLE lego_sets ADD COLUMN bl_new_max REAL;
 ALTER TABLE lego_sets ADD COLUMN bl_used_min REAL;
 ALTER TABLE lego_sets ADD COLUMN bl_used_max REAL;
 ALTER TABLE minifigs ADD COLUMN cached_at TEXT;
+
+-- Sprint 2: email/Discord alerts, LEGO.com stock checks
+ALTER TABLE user_prefs ADD COLUMN email TEXT;
+ALTER TABLE user_prefs ADD COLUMN discord_webhook_url TEXT;
+ALTER TABLE lego_sets ADD COLUMN lego_in_stock INTEGER;
+ALTER TABLE lego_sets ADD COLUMN lego_retiring_soon INTEGER DEFAULT 0;
+ALTER TABLE lego_sets ADD COLUMN lego_checked_at TEXT;

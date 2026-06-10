@@ -807,7 +807,7 @@ function paintSetDetail(set, entry) {
       <div class="detail-content-col">
         <div class="detail-title-row">
           <div>
-            <div class="detail-eyebrow">${escapeHtml(set.theme || "")} · #${escapeHtml(set.set_num)}${set.retired ? " · RETIRED" : ""}</div>
+            <div class="detail-eyebrow">${escapeHtml(set.theme || "")} · #${escapeHtml(set.set_num)}${set.retired ? " · RETIRED" : ""}${set.lego_retiring_soon ? " · <span style='color:var(--down);font-weight:700;'>RETIRING SOON</span>" : ""}</div>
             <div class="detail-title">${escapeHtml(set.name)}</div>
           </div>
           <button class="detail-share-btn icon-btn" id="shareBtn" aria-label="Share">${I.share()}</button>
@@ -875,13 +875,19 @@ function infoTabHTML(set, entry, isWish) {
       ? `<span class="signal-hint" style="color:var(--green);font-size:10px;">High demand set</span>`
       : '';
     const growthBadge = growthRate != null
-      ? `<div style="grid-column:span 2;display:flex;align-items:center;gap:8px;"><span style="color:var(--ink-mute);">12m growth:</span> <strong style="color:${growthRate >= 0 ? 'var(--up)' : 'var(--down)'};">${growthRate >= 0 ? '+' : ''}${(growthRate * 100).toFixed(1)}%/yr</strong></div>`
+      ? `<div style="grid-column:span 2;display:flex;align-items:center;gap:8px;"><span style="color:var(--ink-mute);">12m growth:</span> <strong style="color:${growthRate >= 0 ? 'var(--up)' : 'var(--down)'};">${growthRate >= 0 ? '+' : ''}${Number(growthRate).toFixed(1)}%/yr</strong></div>`
       : '';
     const retiredYearBadge = retiredYear && set.retired
       ? `<div><span style="color:var(--ink-mute);">Retired:</span> <strong style="color:var(--ink);">${retiredYear}</strong></div>`
       : '';
 
-    if (ratingNum || ageStr || subthemeStr || growthRate != null || retiredYear) {
+    const legoStockBadge = set.lego_retiring_soon
+      ? `<div style="grid-column:span 2;"><span style="background:rgba(239,68,68,.12);color:var(--down);font-weight:700;border-radius:4px;padding:2px 8px;font-size:11px;">Retiring Soon</span></div>`
+      : set.lego_in_stock === 1
+      ? `<div style="grid-column:span 2;"><span style="background:rgba(34,197,94,.12);color:var(--up);font-weight:700;border-radius:4px;padding:2px 8px;font-size:11px;">In Stock at LEGO.com</span></div>`
+      : '';
+
+    if (ratingNum || ageStr || subthemeStr || growthRate != null || retiredYear || legoStockBadge) {
       bricksetHtml = `
         <div class="card" style="padding:14px 16px;margin-bottom:14px;">
           <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Catalog Insights</div>
@@ -891,6 +897,7 @@ function infoTabHTML(set, entry, isWish) {
             ${retiredYearBadge}
             ${ratingNum ? `<div style="grid-column: span 2; display:flex; align-items:center; gap:8px;"><span style="color:var(--ink-mute);">Community:</span> <strong style="color:var(--ink);">⭐ ${ratingNum.toFixed(1)}</strong> <span style="color:var(--ink-mute);font-size:10px;">${reviewsStr}</span> ${ratingSignal}</div>` : ''}
             ${growthBadge}
+            ${legoStockBadge}
           </div>
         </div>
       `;

@@ -23,6 +23,7 @@ app.use('*', requireMember);
 
 app.get('/', async (c) => {
   const userId = c.get('userId');
+  const userEmail = c.get('userEmail');
   const db = c.env.DB;
 
   const [prefs, stats] = await Promise.all([
@@ -36,6 +37,13 @@ app.get('/', async (c) => {
       WHERE uc.user_id=? AND uc.deleted_at IS NULL
     `).bind(userId).first<{ set_count: number; total_value: number; total_paid: number }>(),
   ]);
+
+  // Persist email from JWT claim on first encounter (no-op if already stored)
+  if (userEmail && !prefs?.email) {
+    db.prepare(`INSERT INTO user_prefs (user_id, email, updated_at) VALUES (?, ?, datetime('now'))
+      ON CONFLICT (user_id) DO UPDATE SET email = COALESCE(user_prefs.email, excluded.email), updated_at = datetime('now')`)
+      .bind(userId, userEmail).run().catch(() => {});
+  }
 
   const p = prefs || {};
   const ebayConfigured = !!(
@@ -63,6 +71,7 @@ app.get('/', async (c) => {
     bricklink_configured: bricklinkConfigured,
     brickeconomy_configured: brickeconomyConfigured,
     is_admin: userId === c.env.ADMIN_USER_ID,
+    discord_webhook_url: (p.discord_webhook_url as string | null) ?? null,
     portfolio_stats: {
       set_count: Number(stats?.set_count ?? 0),
       total_value: Number(stats?.total_value ?? 0),
@@ -76,8 +85,9 @@ app.patch('/', async (c) => {
   const body = await c.req.json<{
     display_name?: string; currency?: string; notify_price_drops?: boolean;
     handle?: string; is_public?: boolean; expose_public_value?: boolean;
+    discord_webhook_url?: string | null;
   }>();
-  const { display_name, currency, notify_price_drops, handle, is_public, expose_public_value } = body;
+  const { display_name, currency, notify_price_drops, handle, is_public, expose_public_value, discord_webhook_url } = body;
   if (display_name && display_name.length > 40) return c.json({ error: 'display_name max 40 chars' }, 400);
 
   if (handle !== undefined) {
@@ -90,10 +100,15 @@ app.patch('/', async (c) => {
     if (existing) return c.json({ error: 'handle already taken' }, 409);
   }
 
+  // Validate Discord webhook URL if provided
+  if (discord_webhook_url && !/^https:\/\/discord(app)?\.com\/api\/webhooks\//.test(discord_webhook_url)) {
+    return c.json({ error: 'discord_webhook_url must be a valid Discord webhook URL' }, 400);
+  }
+
   const epv = expose_public_value != null ? (expose_public_value ? 1 : 0) : 1;
   await c.env.DB.prepare(`
-    INSERT INTO user_prefs (user_id, display_name, currency, notify_price_drops, handle, is_public, expose_public_value, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    INSERT INTO user_prefs (user_id, display_name, currency, notify_price_drops, handle, is_public, expose_public_value, discord_webhook_url, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT (user_id) DO UPDATE SET
       display_name = COALESCE(?, user_prefs.display_name),
       currency = COALESCE(?, user_prefs.currency),
@@ -101,6 +116,7 @@ app.patch('/', async (c) => {
       handle = COALESCE(?, user_prefs.handle),
       is_public = COALESCE(?, user_prefs.is_public),
       expose_public_value = COALESCE(?, user_prefs.expose_public_value),
+      discord_webhook_url = CASE WHEN ? IS NOT NULL THEN ? ELSE user_prefs.discord_webhook_url END,
       updated_at = datetime('now')
   `).bind(
     userId,
@@ -110,12 +126,15 @@ app.patch('/', async (c) => {
     handle ?? null,
     is_public != null ? (is_public ? 1 : 0) : 0,
     epv,
+    discord_webhook_url !== undefined ? (discord_webhook_url || null) : null,
     display_name ?? null,
     currency ?? null,
     notify_price_drops != null ? (notify_price_drops ? 1 : 0) : null,
     handle ?? null,
     is_public != null ? (is_public ? 1 : 0) : null,
     expose_public_value != null ? (expose_public_value ? 1 : 0) : null,
+    discord_webhook_url !== undefined ? 1 : null,
+    discord_webhook_url !== undefined ? (discord_webhook_url || null) : null,
   ).run();
   return c.json({ ok: true });
 });

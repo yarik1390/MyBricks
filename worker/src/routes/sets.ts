@@ -19,6 +19,7 @@ import { fetchTracked } from '../lib/http';
 import { enrichSetRecord } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { isSearchIndexCorruption, rebuildSearchIndex } from '../lib/search-index';
+import { checkLegoStock } from '../lib/lego-stock';
 import type { Env, Variables } from '../types';
 
 interface ListingDraft {
@@ -439,6 +440,22 @@ app.get('/:setnum', async (c) => {
       }
       if (bsUpdates.length) await c.env.DB.batch(bsUpdates);
     }
+
+    // Background LEGO.com stock check — runs for active sets that haven't been checked in 24h
+    if (!resultSet.retired && (
+      !resultSet.lego_checked_at ||
+      new Date(resultSet.lego_checked_at as string) < new Date(Date.now() - 86_400_000)
+    )) {
+      c.executionCtx.waitUntil((async () => {
+        const stock = await checkLegoStock(resultSet.set_num as string).catch(() => null);
+        if (stock !== null) {
+          await c.env.DB.prepare(
+            `UPDATE lego_sets SET lego_in_stock=?, lego_retiring_soon=?, lego_checked_at=datetime('now') WHERE set_num=?`
+          ).bind(stock.in_stock === null ? null : (stock.in_stock ? 1 : 0), stock.retiring_soon ? 1 : 0, resultSet.set_num).run();
+        }
+      })());
+    }
+
     return c.json({ set: enrichSetRecord({ ...resultSet, retired: !!resultSet.retired, trend, brickset }), entry: entry || null });
   }
 

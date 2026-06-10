@@ -18,8 +18,10 @@ export interface Env {
   BRICKLINK_TOKEN_SECRET: string;
   BRICKECONOMY_API_KEY?: string;
   GEMINI_API_KEY?: string;
+  RESEND_API_KEY?: string;
 }
 
 export type Variables = {
   userId: string;
+  userEmail?: string;
 };

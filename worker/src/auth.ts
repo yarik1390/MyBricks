@@ -26,8 +26,8 @@ async function getJWKS(supabaseUrl: string): Promise<any[]> {
   return _jwksCache;
 }
 
-// Returns the user id (sub) if the token is valid, else { error }.
-async function verifyJWT(token: string, env: Env): Promise<{ sub?: string; error?: string }> {
+// Returns the user id (sub) and email if the token is valid, else { error }.
+async function verifyJWT(token: string, env: Env): Promise<{ sub?: string; email?: string; error?: string }> {
   const parts = token.split('.');
   if (parts.length !== 3) return { error: 'malformed token' };
 
@@ -53,7 +53,7 @@ async function verifyJWT(token: string, env: Env): Promise<{ sub?: string; error
         { name: 'HMAC', hash: 'SHA-256' }, false, ['verify'],
       );
       const ok = await crypto.subtle.verify('HMAC', key, sig, signed);
-      return ok ? { sub: payload.sub } : { error: 'HS256 signature mismatch' };
+      return ok ? { sub: payload.sub, email: payload.email } : { error: 'HS256 signature mismatch' };
     }
 
     // Asymmetric (ES256 / RS256) — verify against the project's public JWKS.
@@ -74,7 +74,7 @@ async function verifyJWT(token: string, env: Env): Promise<{ sub?: string; error
 
     const cryptoKey = await crypto.subtle.importKey('jwk', jwk, importAlgo, false, ['verify']);
     const ok = await crypto.subtle.verify(verifyAlgo, cryptoKey, sig, signed);
-    return ok ? { sub: payload.sub } : { error: `${header.alg} signature mismatch` };
+    return ok ? { sub: payload.sub, email: payload.email } : { error: `${header.alg} signature mismatch` };
   } catch (e) {
     return { error: `verify error: ${(e as Error).message}` };
   }
@@ -83,9 +83,10 @@ async function verifyJWT(token: string, env: Env): Promise<{ sub?: string; error
 export async function requireMember(c: C, next: Next) {
   const token = c.req.header('Authorization')?.replace('Bearer ', '');
   if (!token) return c.json({ error: 'Unauthorized', reason: 'no token' }, 401);
-  const { sub, error } = await verifyJWT(token, c.env);
+  const { sub, email, error } = await verifyJWT(token, c.env);
   if (!sub) return c.json({ error: 'Unauthorized', reason: error }, 401);
   c.set('userId', sub);
+  if (email) c.set('userEmail', email);
   await next();
 }
 
@@ -95,9 +96,10 @@ export async function optionalMember(c: C, next: Next) {
     await next();
     return;
   }
-  const { sub, error } = await verifyJWT(token, c.env);
+  const { sub, email, error } = await verifyJWT(token, c.env);
   if (!sub) return c.json({ error: 'Unauthorized', reason: error }, 401);
   c.set('userId', sub);
+  if (email) c.set('userEmail', email);
   await next();
 }
 

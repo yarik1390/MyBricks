@@ -52,7 +52,10 @@ CREATE TABLE IF NOT EXISTS lego_sets (
   bl_new_min REAL,
   bl_new_max REAL,
   bl_used_min REAL,
-  bl_used_max REAL
+  bl_used_max REAL,
+  lego_in_stock INTEGER,
+  lego_retiring_soon INTEGER DEFAULT 0,
+  lego_checked_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS user_collection (
@@ -131,6 +134,8 @@ CREATE TABLE IF NOT EXISTS user_prefs (
   expose_public_value INTEGER DEFAULT 1,
   google_refresh_token TEXT,
   google_spreadsheet_id TEXT,
+  email TEXT,
+  discord_webhook_url TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

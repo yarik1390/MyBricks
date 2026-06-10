@@ -1,17 +1,22 @@
 import type { Env } from '../types';
+import { sendAlertEmail, wishlistAlertEmailHTML } from '../lib/resend';
+import { sendDiscordAlert } from '../lib/discord';
 
 export async function runWishlistAlerts(env: Env) {
   const { results } = await env.DB.prepare(`
     SELECT w.id, w.user_id, w.set_num, w.target_price, w.alerted_at,
-           s.name as set_name, s.current_value
+           s.name as set_name, s.current_value, s.image_url
     FROM user_wishlist w
     JOIN lego_sets s ON s.set_num = w.set_num
     WHERE w.target_price IS NOT NULL
       AND s.current_value <= w.target_price
       AND (w.alerted_at IS NULL OR w.alerted_at < datetime('now', '-7 days'))
-  `).all<{ id: number; user_id: string; set_num: string; target_price: number; set_name: string; current_value: number }>();
+  `).all<{ id: number; user_id: string; set_num: string; target_price: number; set_name: string; current_value: number; image_url: string | null }>();
 
-  if (!results.length) return { fired: 0 };
+  if (!results.length) {
+    const spike = await runSpikeAlerts(env);
+    return { fired: 0, spikes: spike.fired };
+  }
 
   const stmts: D1PreparedStatement[] = [];
   for (const row of results) {
@@ -28,6 +33,38 @@ export async function runWishlistAlerts(env: Env) {
 
   await env.DB.batch(stmts);
 
+  // Group by user_id and send notifications
+  const byUser = new Map<string, typeof results>();
+  for (const row of results) {
+    const arr = byUser.get(row.user_id) ?? [];
+    arr.push(row);
+    byUser.set(row.user_id, arr);
+  }
+
+  for (const [userId, rows] of byUser) {
+    const prefs = await env.DB.prepare(
+      'SELECT email, discord_webhook_url, notify_price_drops FROM user_prefs WHERE user_id=?'
+    ).bind(userId).first<{ email: string | null; discord_webhook_url: string | null; notify_price_drops: number }>();
+    if (!prefs || !prefs.notify_price_drops) continue;
+
+    for (const row of rows) {
+      if (prefs.email && env.RESEND_API_KEY) {
+        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, row.target_price, row.current_value, 'drop');
+        sendAlertEmail(prefs.email, `${row.set_name} hit your target price`, html, env).catch(() => {});
+      }
+      if (prefs.discord_webhook_url) {
+        const fmt = (n: number) => `$${n.toFixed(2)}`;
+        sendDiscordAlert(prefs.discord_webhook_url, {
+          title: `Price target reached: ${row.set_name}`,
+          description: `**${row.set_num}** is now at **${fmt(row.current_value)}**, at or below your target of ${fmt(row.target_price)}.`,
+          color: 0x22c55e,
+          imageUrl: row.image_url ?? undefined,
+          url: `https://brickvault-5ub.pages.dev#/catalog/${encodeURIComponent(row.set_num)}`,
+        }).catch(() => {});
+      }
+    }
+  }
+
   const spike = await runSpikeAlerts(env);
   return { fired: results.length, spikes: spike.fired };
 }
@@ -35,7 +72,7 @@ export async function runWishlistAlerts(env: Env) {
 async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
   const { results } = await env.DB.prepare(`
     SELECT uc.id as collection_id, uc.user_id, uc.set_num, uc.purchase_price,
-           ls.name as set_name, ls.current_value
+           ls.name as set_name, ls.current_value, ls.image_url
     FROM user_collection uc
     JOIN lego_sets ls ON ls.set_num = uc.set_num
     WHERE uc.purchase_price > 0
@@ -44,7 +81,7 @@ async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
       AND (uc.spike_alerted_at IS NULL OR uc.spike_alerted_at < datetime('now', '-30 days'))
   `).all<{
     collection_id: number; user_id: string; set_num: string;
-    purchase_price: number; set_name: string; current_value: number;
+    purchase_price: number; set_name: string; current_value: number; image_url: string | null;
   }>();
 
   if (!results.length) return { fired: 0 };
@@ -62,5 +99,37 @@ async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
     );
   }
   await env.DB.batch(stmts);
+
+  // Notifications for spike alerts
+  const byUser = new Map<string, typeof results>();
+  for (const row of results) {
+    const arr = byUser.get(row.user_id) ?? [];
+    arr.push(row);
+    byUser.set(row.user_id, arr);
+  }
+  for (const [userId, rows] of byUser) {
+    const prefs = await env.DB.prepare(
+      'SELECT email, discord_webhook_url, notify_price_drops FROM user_prefs WHERE user_id=?'
+    ).bind(userId).first<{ email: string | null; discord_webhook_url: string | null; notify_price_drops: number }>();
+    if (!prefs || !prefs.notify_price_drops) continue;
+    for (const row of rows) {
+      if (prefs.email && env.RESEND_API_KEY) {
+        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, row.purchase_price, row.current_value, 'spike');
+        sendAlertEmail(prefs.email, `${row.set_name} is up +30% — spike alert`, html, env).catch(() => {});
+      }
+      if (prefs.discord_webhook_url) {
+        const fmt = (n: number) => `$${n.toFixed(2)}`;
+        const pct = ((row.current_value - row.purchase_price) / row.purchase_price * 100).toFixed(0);
+        sendDiscordAlert(prefs.discord_webhook_url, {
+          title: `Value spike: ${row.set_name}`,
+          description: `**${row.set_num}** spiked to **${fmt(row.current_value)}** (+${pct}% above your purchase price of ${fmt(row.purchase_price)}).`,
+          color: 0xf97316,
+          imageUrl: row.image_url ?? undefined,
+          url: `https://brickvault-5ub.pages.dev#/catalog/${encodeURIComponent(row.set_num)}`,
+        }).catch(() => {});
+      }
+    }
+  }
+
   return { fired: results.length };
 }
