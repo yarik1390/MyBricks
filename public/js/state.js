@@ -1,5 +1,13 @@
 import { bvIDB } from './utils.js';
 
+// Corrupted localStorage must not crash module init — fall back to empty.
+function safeParseArray(key) {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
+}
+
 export const state = {
   config: null,
   portfolio: null,
@@ -26,7 +34,7 @@ export const state = {
   wishlist: [], wishlistAlerts: [],
   recentWishlistDeletes: {},
   portfolioHistory: null,
-  ownedFigs: new Set(JSON.parse(localStorage.getItem("bv_figs") || "[]")),
+  ownedFigs: new Set(safeParseArray("bv_figs")),
   toastTimer: null,
   camera: { stream: null, mode: "barcode", detector: null, scanning: false, timer: null },
   pendingRequests: new Set(),

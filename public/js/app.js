@@ -211,6 +211,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       .then(reg => reg.update())
       .catch(() => {});
     navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
+    // Push notification clicks focus an open window and ask it to navigate.
+    navigator.serviceWorker.addEventListener("message", (e) => {
+      if (e.data?.type === "navigate" && typeof e.data.url === "string") {
+        location.hash = e.data.url.startsWith("#") ? e.data.url : "#/";
+      }
+    });
   }
 
   // Hydrate in-memory state from IDB so first tab visit is instant.

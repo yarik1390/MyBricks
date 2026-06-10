@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = 'v73';
+const VERSION = 'v74';
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 const STATIC_ASSETS = [
@@ -114,6 +114,8 @@ self.addEventListener('push', e => {
 self.addEventListener('notificationclick', e => {
   e.notification.close();
   const url = e.notification.data?.url || '/';
+  // Payload urls are hash routes ("#/catalog/123-1") or app paths ("/").
+  const target = self.location.origin + (url.startsWith('#') ? '/' + url : url.startsWith('/') ? url : '/' + url);
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
       for (const client of clients) {
@@ -122,7 +124,7 @@ self.addEventListener('notificationclick', e => {
           return client.focus();
         }
       }
-      return self.clients.openWindow(self.location.origin + '/' + url);
+      return self.clients.openWindow(target);
     })
   );
 });
