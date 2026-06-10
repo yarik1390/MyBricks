@@ -269,6 +269,17 @@ CREATE INDEX IF NOT EXISTS idx_sets_upc ON lego_sets(upc);
 CREATE INDEX IF NOT EXISTS idx_showcase_user ON user_showcase(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_prefs_handle ON user_prefs(handle) WHERE handle IS NOT NULL;
 
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  endpoint TEXT NOT NULL,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, endpoint)
+);
+CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
+
 -- FTS5 search. This index is derived from lego_sets and can be rebuilt safely.
 DROP TRIGGER IF EXISTS lego_sets_ai;
 DROP TRIGGER IF EXISTS lego_sets_ad;

@@ -252,3 +252,14 @@ ALTER TABLE user_prefs ADD COLUMN brickset_user_hash TEXT;
 
 -- Sprint 5: R2 photo upload
 ALTER TABLE user_collection ADD COLUMN custom_image_url TEXT;
+
+-- Sprint 6: Web Push subscriptions
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  endpoint TEXT NOT NULL,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, endpoint)
+);

@@ -1,6 +1,23 @@
 import type { Env } from '../types';
 import { sendAlertEmail, wishlistAlertEmailHTML } from '../lib/resend';
 import { sendDiscordAlert } from '../lib/discord';
+import { sendWebPush } from '../lib/webpush';
+
+async function sendPushToUser(env: Env, userId: string, payload: string) {
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return;
+  const { results } = await env.DB.prepare(
+    'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id=?'
+  ).bind(userId).all<{ endpoint: string; p256dh: string; auth: string }>();
+  const subject = env.VAPID_SUBJECT || 'mailto:alerts@brickvault.app';
+  for (const sub of results) {
+    try {
+      const ok = await sendWebPush(sub, payload, env.VAPID_PRIVATE_KEY, env.VAPID_PUBLIC_KEY, subject);
+      if (!ok) {
+        await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').bind(sub.endpoint).run().catch(() => {});
+      }
+    } catch { /* non-fatal */ }
+  }
+}
 
 export async function runWishlistAlerts(env: Env) {
   const { results } = await env.DB.prepare(`
@@ -62,6 +79,11 @@ export async function runWishlistAlerts(env: Env) {
           url: `https://brickvault-5ub.pages.dev#/catalog/${encodeURIComponent(row.set_num)}`,
         }).catch(() => {});
       }
+      sendPushToUser(env, row.user_id, JSON.stringify({
+        title: 'Price target reached',
+        body: `${row.set_name} is now $${row.current_value.toFixed(2)} — at or below your target.`,
+        url: `#/catalog/${encodeURIComponent(row.set_num)}`,
+      })).catch(() => {});
     }
   }
 
@@ -128,6 +150,12 @@ async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
           url: `https://brickvault-5ub.pages.dev#/catalog/${encodeURIComponent(row.set_num)}`,
         }).catch(() => {});
       }
+      const pct2 = ((row.current_value - row.purchase_price) / row.purchase_price * 100).toFixed(0);
+      sendPushToUser(env, row.user_id, JSON.stringify({
+        title: 'Value spike!',
+        body: `${row.set_name} is up +${pct2}% — now worth $${row.current_value.toFixed(2)}.`,
+        url: `#/catalog/${encodeURIComponent(row.set_num)}`,
+      })).catch(() => {});
     }
   }
 

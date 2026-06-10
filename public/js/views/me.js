@@ -164,6 +164,10 @@ export async function renderMe() {
           </div>
         </div>
         <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Push notifications</div><div class="desc">Receive price alerts on your device even when the app is closed.</div></div>
+          <button class="btn-secondary" id="pushNotifBtn" style="font-size:12px;padding:6px 12px;" data-push-state="unknown">Enable</button>
+        </div>
+        <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Currency</div><div class="desc">Display values in your local currency.</div></div>
           <select id="currencySelect" style="font-family:var(--mono);font-weight:600;font-size:14px;border:none;background:transparent;color:var(--ink);cursor:pointer;outline:none;text-align-last:right;">
             ${["USD","GBP","EUR","CAD","AUD"].map(cur => `<option value="${cur}" ${me.currency === cur ? "selected" : ""}>${cur}</option>`).join("")}
@@ -520,6 +524,62 @@ export async function renderMe() {
       if (btn) { btn.disabled = false; btn.textContent = "Sync Now"; }
     }
   });
+
+  // Push notifications
+  const pushBtn = $("#pushNotifBtn");
+  if (pushBtn && 'serviceWorker' in navigator && 'PushManager' in window) {
+    (async () => {
+      const perm = Notification.permission;
+      const reg = await navigator.serviceWorker.ready.catch(() => null);
+      const sub = reg ? await reg.pushManager.getSubscription().catch(() => null) : null;
+      if (perm === 'denied') {
+        pushBtn.textContent = "Blocked";
+        pushBtn.disabled = true;
+      } else if (sub) {
+        pushBtn.textContent = "Disable";
+        pushBtn.dataset.pushState = "enabled";
+      } else {
+        pushBtn.textContent = "Enable";
+        pushBtn.dataset.pushState = "disabled";
+      }
+    })();
+
+    pushBtn.addEventListener("click", async () => {
+      const reg = await navigator.serviceWorker.ready.catch(() => null);
+      if (!reg) { toast("Service worker not available", "error"); return; }
+      const current = await reg.pushManager.getSubscription().catch(() => null);
+      if (current || pushBtn.dataset.pushState === "enabled") {
+        await current?.unsubscribe().catch(() => {});
+        await api("/api/push/subscribe", { method: "DELETE", body: {} }).catch(() => {});
+        pushBtn.textContent = "Enable";
+        pushBtn.dataset.pushState = "disabled";
+        toast("Push notifications disabled", "info");
+        return;
+      }
+      // Subscribe
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") { toast("Notification permission denied", "error"); return; }
+      try {
+        const { publicKey } = await api("/api/push/vapid-key");
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: publicKey,
+        });
+        const j = sub.toJSON();
+        await api("/api/push/subscribe", {
+          method: "POST",
+          body: { endpoint: sub.endpoint, p256dh: j.keys?.p256dh, auth: j.keys?.auth },
+        });
+        pushBtn.textContent = "Disable";
+        pushBtn.dataset.pushState = "enabled";
+        haptic("medium");
+        toast("Push notifications enabled", "success");
+      } catch (e) { toast("Failed to enable push: " + e.message, "error"); }
+    });
+  } else if (pushBtn) {
+    pushBtn.textContent = "Not supported";
+    pushBtn.disabled = true;
+  }
 
   $("#currencySelect")?.addEventListener("change", async (e) => {
     const val = e.target.value;

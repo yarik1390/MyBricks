@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = 'v69';
+const VERSION = 'v70';
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 const STATIC_ASSETS = [
@@ -96,4 +96,33 @@ self.addEventListener('fetch', e => {
 
 self.addEventListener('message', e => {
   if (e.data === 'SKIP_WAITING') self.skipWaiting();
+});
+
+self.addEventListener('push', e => {
+  let data = { title: 'Brickvault', body: 'New alert', url: '/' };
+  try { if (e.data) data = { ...data, ...e.data.json() }; } catch {}
+  e.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/icon.svg',
+      badge: '/icon.svg',
+      data: { url: data.url },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = e.notification.data?.url || '/';
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      for (const client of clients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.postMessage({ type: 'navigate', url });
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(self.location.origin + '/' + url);
+    })
+  );
 });

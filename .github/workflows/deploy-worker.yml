@@ -142,6 +142,8 @@ jobs:
             "ALTER TABLE minifigs ADD COLUMN num_parts INTEGER"
             "ALTER TABLE minifigs ADD COLUMN appears_in_sets INTEGER"
             "ALTER TABLE user_prefs ADD COLUMN brickset_user_hash TEXT"
+            "CREATE TABLE IF NOT EXISTS push_subscriptions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, endpoint TEXT NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, endpoint))"
+            "CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id)"
           )
           for sql in "${statements[@]}"; do
             npx wrangler d1 execute brickvault --remote --command "$sql" 2>&1 || true
@@ -178,6 +180,7 @@ jobs:
             "SELECT expires_at FROM oauth_sessions LIMIT 0"
             "SELECT expires_at FROM oauth_states LIMIT 0"
             "SELECT alert_type FROM wishlist_alerts LIMIT 0"
+            "SELECT user_id, endpoint, p256dh, auth FROM push_subscriptions LIMIT 0"
           )
           for sql in "${probes[@]}"; do
             if ! npx wrangler d1 execute brickvault --remote --command "$sql" >/dev/null 2>&1; then
