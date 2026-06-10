@@ -298,6 +298,33 @@ async function fetchFindingApiPrices(
   return summarizeSoldPrices(prices);
 }
 
+// Tries findCompletedItems with just the App ID. Returns sold comps when the
+// endpoint still serves this keyset, otherwise null so the caller can report
+// the original (more diagnostic) error.
+async function soldViaFindingApi(
+  setNum: string,
+  setName: string,
+  env: Env,
+  options: { recordHealth?: boolean },
+): Promise<EbaySoldPrices | null> {
+  if (!hasEbayAppId(env)) return null;
+  try {
+    const result = await fetchFindingApiPrices(setNum, setName, env, options);
+    if (result.value == null) return null;
+    return {
+      source: 'finding_api',
+      status: 'ok',
+      new_value: result.value,
+      used_value: null,
+      new_sample_count: result.sample_count,
+      used_sample_count: 0,
+      error: null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchEbaySoldPrices(
   setNum: string,
   setName: string,
@@ -347,9 +374,16 @@ export async function fetchEbaySoldPrices(
     token = await getEbayApplicationToken(env, EBAY_SCOPE_MARKETPLACE_INSIGHTS, options);
   } catch (error) {
     const message = (error as Error).message || String(error);
+    const unauthorized = /401|403|authorized|scope|permission/i.test(message);
+    if (unauthorized) {
+      // Marketplace Insights is gated behind eBay approval most keysets don't
+      // have — fall back to the App-ID-only Finding API before giving up.
+      const fallback = await soldViaFindingApi(setNum, setName, env, options);
+      if (fallback) return fallback;
+    }
     return {
       source: 'marketplace_insights',
-      status: /401|403|authorized|scope|permission/i.test(message) ? 'unauthorized' : 'error',
+      status: unauthorized ? 'unauthorized' : 'error',
       new_value: null,
       used_value: null,
       new_sample_count: 0,
@@ -358,6 +392,8 @@ export async function fetchEbaySoldPrices(
     };
   }
   if (!token) {
+    const fallback = await soldViaFindingApi(setNum, setName, env, options);
+    if (fallback) return fallback;
     return {
       source: 'marketplace_insights',
       status: 'unauthorized',
@@ -378,6 +414,8 @@ export async function fetchEbaySoldPrices(
   }));
 
   if (isEbayAccessError(newResult.error)) {
+    const fallback = await soldViaFindingApi(setNum, setName, env, options);
+    if (fallback) return fallback;
     return {
       source: 'marketplace_insights',
       status: 'unauthorized',

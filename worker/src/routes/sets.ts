@@ -5,8 +5,10 @@ import { formulaValuation, valuationExpiryModifier } from '../lib/valuation';
 import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
 import { fetchBricksetDetails } from '../lib/brickset';
 import {
+  buildEbayAskUpdate,
   buildEbaySoldUpdate,
   ebaySoldNewValue,
+  fetchEbayActiveListings,
   fetchEbaySoldPrices,
   type EbaySoldPrices,
 } from '../lib/ebay';
@@ -227,6 +229,8 @@ app.get('/:setnum', async (c) => {
     const missingEbaySoldComps =
       (!activeSet.ebay_new_value && !activeSet.ebay_new_cached_at)
       || (!activeSet.ebay_used_value && !activeSet.ebay_used_cached_at);
+    const askStale = !activeSet.ebay_ask_cached_at
+      || Date.now() - new Date(activeSet.ebay_ask_cached_at as string).getTime() > 7 * 24 * 3600 * 1000;
     const needsRefresh = isBulk
       || !activeSet.valuation_expires_at
       || new Date(activeSet.valuation_expires_at as string) < new Date()
@@ -240,9 +244,12 @@ app.get('/:setnum', async (c) => {
           fetchSetPricing(activeSet.set_num as string, c.env).catch(() => null),
           fetchUsedPricing(activeSet.set_num as string, c.env).catch(() => null),
           fetchEbaySoldPrices(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null),
-        ]).then(async ([be, blp, u, ebayPrices]) => {
+          askStale ? fetchEbayActiveListings(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null) : Promise.resolve(null),
+        ]).then(async ([be, blp, u, ebayPrices, askListings]) => {
           const supplementStmts: D1PreparedStatement[] = [];
           pushEbaySoldUpdate(supplementStmts, c.env.DB, activeSet.set_num as string, ebayPrices);
+          const askStmt = buildEbayAskUpdate(c.env.DB, activeSet.set_num as string, askListings);
+          if (askStmt) supplementStmts.push(askStmt);
 
           if (be && be.current_value_new !== null) {
             const defaultYr = activeSet.retired ? 0.15 : 0.10;
@@ -304,10 +311,13 @@ app.get('/:setnum', async (c) => {
         const refreshPromise = Promise.all([
           fetchSetPricing(activeSet.set_num as string, c.env),
           fetchUsedPricing(activeSet.set_num as string, c.env),
-          fetchEbaySoldPrices(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null)
-        ]).then(async ([p, u, ebayPrices]) => {
+          fetchEbaySoldPrices(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null),
+          askStale ? fetchEbayActiveListings(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null) : Promise.resolve(null),
+        ]).then(async ([p, u, ebayPrices, askListings]) => {
           const supplementStmts: D1PreparedStatement[] = [];
           pushEbaySoldUpdate(supplementStmts, c.env.DB, activeSet.set_num as string, ebayPrices);
+          const askStmt = buildEbayAskUpdate(c.env.DB, activeSet.set_num as string, askListings);
+          if (askStmt) supplementStmts.push(askStmt);
           if (u) {
             supplementStmts.push(c.env.DB.prepare(`UPDATE lego_sets SET used_value=?, bl_used_qty=?, bl_cached_at=datetime('now') WHERE set_num=?`).bind(u.used_value, u.lot_count, activeSet.set_num));
           }

@@ -89,6 +89,9 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   let ebayBlocked = includeEbay ? await isIntegrationBlocked(env, 'ebay') : false;
   let ebayBlockPersisted = ebayBlocked;
   let ebayBlockCleared = false;
+  // Browse API (basic scope) access tracked separately from the Marketplace
+  // Insights block — run-local only, since most keysets have basic scope.
+  let browseDenied = false;
 
   const markEbayBlocked = async () => {
     ebayBlocked = true;
@@ -198,14 +201,16 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     const ebayStmt = buildEbaySoldUpdate(env.DB, set.set_num, ebayPrices);
     if (ebayStmt) supplementStmts.push(ebayStmt);
     // Supply signal: weekly refresh of active-listing ask price + count for
-    // prioritized (owned/wishlisted) sets only — same circuit breaker as sold comps.
-    if (includeEbay && !ebayBlocked && set.ask_stale) {
+    // prioritized (owned/wishlisted) sets only. The Browse API needs only the
+    // basic OAuth scope, so a Marketplace Insights block must not starve it —
+    // it runs regardless of ebayBlocked, with its own run-local access flag.
+    if (includeEbay && !browseDenied && set.ask_stale) {
       const listings = await fetchEbayActiveListings(set.set_num, set.name, env, sourceOptions)
         .catch((err) => { tallyFail('ebay', err); return null; });
       if (listings && !listings.error) tallyOk('ebay');
       else if (listings?.error) {
         tallyFail('ebay', listings.error);
-        if (isEbayAccessError(listings.error)) await markEbayBlocked();
+        if (isEbayAccessError(listings.error)) browseDenied = true;
       }
       const askStmt = buildEbayAskUpdate(env.DB, set.set_num, listings);
       if (askStmt) supplementStmts.push(askStmt);

@@ -1955,16 +1955,23 @@ function priceStripHTML(set, entry) {
   const val2 = showBlCross ? set.bl_new_value : set.used_value;
 
   const ebaySold = ebaySoldSummary(set);
-  // Column 3: eBay sold new + used sold/used market comparison.
-  const label3 = showBlCross ? "eBay sold" : "eBay sold new";
-  const val3 = ebaySold.newValue;
-  const val3sub = ebaySold.usedValue || (showBlCross ? set.used_value : null);
+  // Column 3: eBay sold new + used sold/used market comparison. When sold
+  // comps are unavailable (gated Marketplace Insights), fall back to the
+  // Browse API asking price so the column isn't dead.
+  const askValue = Number(set.ebay_ask_value) > 0 ? Number(set.ebay_ask_value) : null;
+  const showAsk = !ebaySold.newValue && askValue;
+  const label3 = showAsk ? "eBay asking" : showBlCross ? "eBay sold" : "eBay sold new";
+  const val3 = ebaySold.newValue || askValue;
+  const val3sub = showAsk
+    ? (Number(set.ebay_ask_qty) > 0 ? `${set.ebay_ask_qty} listings` : null)
+    : (ebaySold.usedValue || (showBlCross ? set.used_value : null));
 
   const hasEbaySold = ebaySold.newValue || ebaySold.usedValue;
+  const ebayTag = hasEbaySold ? ' · eBay sold' : showAsk ? ' · eBay asking' : '';
   const sourceSuffix = isBE && set.bl_new_value
-    ? `BrickEconomy · BrickLink${hasEbaySold ? ' · eBay sold' : ''}`
-    : isBE ? `BrickEconomy${hasEbaySold ? ' · eBay sold' : ''}`
-    : isBL ? `BrickLink${hasEbaySold ? ' · eBay sold' : ''}`
+    ? `BrickEconomy · BrickLink${ebayTag}`
+    : isBE ? `BrickEconomy${ebayTag}`
+    : isBL ? `BrickLink${ebayTag}`
     : set.valuation_method === "ai" ? "AI estimate"
     : set.valuation_method === "ebay_sold" ? "eBay sold comps"
     : set.valuation_method === "ebay_rss" ? "legacy eBay"
@@ -1992,7 +1999,7 @@ function priceStripHTML(set, entry) {
       <div class="ps-cell">
         <div class="ps-lbl">${label3}</div>
         <div class="ps-val${!val3 ? " muted" : ""}">${val3 ? fmtMoney(val3) : "—"}</div>
-        ${val3sub ? `<div class="ps-sub muted">Used: ${fmtMoney(val3sub)}</div>` : ""}
+        ${val3sub ? `<div class="ps-sub muted">${showAsk ? val3sub : `Used: ${fmtMoney(val3sub)}`}</div>` : ""}
       </div>
     </div>
     <div class="ps-footnote" style="display:flex;align-items:center;justify-content:space-between;width:100%;">
