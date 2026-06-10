@@ -398,6 +398,18 @@ export async function renderMe() {
           </div>
           <div id="csvImportResult" style="font-size:13px;color:var(--ink-mute);font-family:var(--mono);"></div>
         </div>
+        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+          <div class="lbl-wrap">
+            <div class="lbl">Import from BrickLink orders</div>
+            <div class="desc">Export your BrickLink order history as CSV and upload it here to auto-add sets you've bought.</div>
+          </div>
+          <div class="csv-import-wrap">
+            <label class="csv-file-label">${I.download()}<span>Choose BrickLink CSV</span><input type="file" id="blOrderFile" accept=".csv"></label>
+            <span id="blOrderFileName"></span>
+            <button class="btn-primary" id="blOrderImportBtn" style="display:none;">${I.plus()}<span>Import BrickLink Orders</span></button>
+          </div>
+          <div id="blOrderImportResult" style="font-size:13px;color:var(--ink-mute);font-family:var(--mono);"></div>
+        </div>
         <div class="setting-row" id="${guest ? "signInRow" : "signOutRow"}" style="cursor:pointer;">
           <div class="lbl-wrap"><div class="lbl">${guest ? "Sign in" : "Sign out"}</div><div class="desc">${guest ? "Sync your local vault across devices." : "Sync resumes when you return."}</div></div>
           ${I.chev()}
@@ -867,6 +879,43 @@ export async function renderMe() {
       toast("Import failed: " + e.message, "error");
     } finally {
       setBtnLoading(importBtn, false);
+    }
+  });
+
+  // BrickLink order CSV import
+  const blFileInput = $("#blOrderFile");
+  const blImportBtn = $("#blOrderImportBtn");
+  const blFileNameSpan = $("#blOrderFileName");
+
+  blFileInput?.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (blFileNameSpan) blFileNameSpan.textContent = file.name;
+      if (blImportBtn) blImportBtn.style.display = "inline-flex";
+    } else {
+      if (blFileNameSpan) blFileNameSpan.textContent = "";
+      if (blImportBtn) blImportBtn.style.display = "none";
+    }
+  });
+
+  blImportBtn?.addEventListener("click", async () => {
+    const file = blFileInput?.files?.[0];
+    if (!file) return;
+    haptic("medium");
+    setBtnLoading(blImportBtn, true);
+    const resultEl = $("#blOrderImportResult");
+    if (resultEl) resultEl.textContent = "Parsing BrickLink orders...";
+    try {
+      const text = await file.text();
+      const res = await api("/api/bricklink/import-csv", { method: "POST", body: { csv: text } });
+      if (resultEl) resultEl.textContent = `✓ ${res.added} sets added, ${res.skipped} skipped${res.errors?.length ? ` (first errors: ${res.errors.slice(0,3).join("; ")})` : ""}`;
+      invalidatePortfolio();
+      toast(`${res.added} sets imported from BrickLink orders`, "success");
+    } catch (e) {
+      if (resultEl) resultEl.textContent = "Error: " + e.message;
+      toast("BrickLink import failed: " + e.message, "error");
+    } finally {
+      setBtnLoading(blImportBtn, false);
     }
   });
 
