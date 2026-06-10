@@ -158,6 +158,20 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
     });
   }
 
+  if (num(row.ebay_ask_value)) {
+    sources.push({
+      id: 'ebay_ask',
+      name: 'eBay asking',
+      value: num(row.ebay_ask_value),
+      condition: 'new',
+      sample_count: num(row.ebay_ask_qty),
+      last_updated: text(row.ebay_ask_cached_at) || cachedAt,
+      freshness: sourceFreshness(row, 'ebay_ask_cached_at', 'ebay_ask_value'),
+      reliability: 'corroborating',
+      note: 'Median asking price of current eBay listings — not sold prices.',
+    });
+  }
+
   if (method === 'ai' && num(row.current_value)) {
     sources.push({
       id: 'ai_estimate',

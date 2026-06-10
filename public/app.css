@@ -2226,6 +2226,13 @@ select:focus-visible,
 .signal-cold { background: rgba(239,68,68,0.10); color: var(--red, #ef4444); }
 .signal-hint { font-size: 10px; font-family: var(--mono); opacity: 0.8; }
 
+/* Supply-side market depth line (set detail) */
+.market-depth {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 500;
+  margin-bottom: 12px; background: var(--surface-2); color: var(--ink-soft);
+}
+
 /* Portfolio-level market signals (Insights tab) */
 .signals-headline {
   font-family: var(--mono); font-size: 12px; font-weight: 700;

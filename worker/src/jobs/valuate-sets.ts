@@ -2,9 +2,11 @@ import OpenAI from 'openai';
 import type { Env } from '../types';
 import { fetchSetPricing, fetchUsedPricing, fetchMinifigPricing } from '../lib/bricklink';
 import {
+  buildEbayAskUpdate,
   buildEbaySoldUpdate,
   ebaySoldHasValue,
   ebaySoldNewValue,
+  fetchEbayActiveListings,
   fetchEbaySoldPrices,
   isEbayAccessError,
   type EbaySoldPrices,
@@ -67,7 +69,8 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   // Prioritize overdue/formula rows first, then rotate through the oldest
   // cached valuations. With scope='all' this steadily covers the whole catalog.
   const { results } = await env.DB.prepare(`
-    SELECT DISTINCT ls.set_num, ls.name, ls.theme, ls.year, ls.pieces, ls.minifigs, ls.retired
+    SELECT DISTINCT ls.set_num, ls.name, ls.theme, ls.year, ls.pieces, ls.minifigs, ls.retired,
+      (ls.ebay_ask_cached_at IS NULL OR ls.ebay_ask_cached_at < datetime('now', '-7 days')) AS ask_stale
     FROM lego_sets ls
     WHERE 1=1
       ${freshnessPredicate}
@@ -77,7 +80,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       COALESCE(ls.valuation_expires_at, ls.cached_at, '2000-01-01') ASC,
       ls.set_num ASC
     LIMIT ?
-  `).bind(limit).all<{ set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number; retired: number }>();
+  `).bind(limit).all<{ set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number; retired: number; ask_stale: number }>();
 
   const openai = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
   let updated = 0, market = 0, ai = 0;
@@ -194,6 +197,19 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     }
     const ebayStmt = buildEbaySoldUpdate(env.DB, set.set_num, ebayPrices);
     if (ebayStmt) supplementStmts.push(ebayStmt);
+    // Supply signal: weekly refresh of active-listing ask price + count for
+    // prioritized (owned/wishlisted) sets only — same circuit breaker as sold comps.
+    if (includeEbay && !ebayBlocked && set.ask_stale) {
+      const listings = await fetchEbayActiveListings(set.set_num, set.name, env, sourceOptions)
+        .catch((err) => { tallyFail('ebay', err); return null; });
+      if (listings && !listings.error) tallyOk('ebay');
+      else if (listings?.error) {
+        tallyFail('ebay', listings.error);
+        if (isEbayAccessError(listings.error)) await markEbayBlocked();
+      }
+      const askStmt = buildEbayAskUpdate(env.DB, set.set_num, listings);
+      if (askStmt) supplementStmts.push(askStmt);
+    }
     if (blPricing) {
       supplementStmts.push(
         env.DB.prepare(`UPDATE lego_sets SET bl_new_value=?, bl_new_qty=?, bl_cached_at=datetime('now') WHERE set_num=?`)

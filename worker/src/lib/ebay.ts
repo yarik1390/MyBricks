@@ -420,6 +420,88 @@ export async function fetchEbaySoldPrices(
   };
 }
 
+const EBAY_SCOPE_BASIC = 'https://api.ebay.com/oauth/api_scope';
+
+export interface EbayActiveListings {
+  ask_value: number | null;
+  ask_qty: number;
+  error?: string | null;
+}
+
+/**
+ * Supply-side signal: median asking price and count of current eBay listings
+ * via the Browse API. Unlike Marketplace Insights, the basic api_scope is
+ * available to every eBay keyset, so this works wherever OAuth works at all.
+ */
+export async function fetchEbayActiveListings(
+  setNum: string,
+  setName: string,
+  env: Env,
+  options: { recordHealth?: boolean } = {},
+): Promise<EbayActiveListings | null> {
+  void setName;
+  if (!hasConfiguredEbaySecrets(env)) return null;
+
+  let token: string | null = null;
+  try {
+    token = await getEbayApplicationToken(env, EBAY_SCOPE_BASIC, options);
+  } catch (error) {
+    return { ask_value: null, ask_qty: 0, error: (error as Error).message || String(error) };
+  }
+  if (!token) return { ask_value: null, ask_qty: 0, error: 'eBay OAuth token request failed.' };
+
+  const params = new URLSearchParams({
+    q: cleanKeywords(setNum),
+    limit: '50',
+    filter: 'buyingOptions:{FIXED_PRICE},conditions:{NEW}',
+  });
+
+  try {
+    const resp = await fetchTracked(
+      env,
+      'ebay',
+      `https://api.ebay.com/buy/browse/v1/item_summary/search?${params}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+          'X-EBAY-C-MARKETPLACE-ID': EBAY_MARKETPLACE_ID,
+        },
+      },
+      { retries: 1, timeoutMs: 10000, record: options.recordHealth !== false },
+    );
+    if (!resp.ok) {
+      return { ask_value: null, ask_qty: 0, error: await ebayErrorMessage(resp, 'eBay Browse') };
+    }
+
+    const data = await resp.json() as {
+      itemSummaries?: Array<{ title?: string; price?: { value?: string | number; currency?: string } }>;
+    };
+    const prices = (data.itemSummaries || [])
+      .map(item => priceFromSale(item, setNum))
+      .filter((price): price is number => price != null);
+    const summary = summarizeSoldPrices(prices);
+    return { ask_value: summary.value, ask_qty: summary.sample_count, error: null };
+  } catch (error) {
+    return { ask_value: null, ask_qty: 0, error: (error as Error).message || String(error) };
+  }
+}
+
+export function buildEbayAskUpdate(
+  db: D1Database,
+  setNum: string,
+  listings: EbayActiveListings | null | undefined,
+): D1PreparedStatement | null {
+  if (!listings || listings.error) return null;
+  return db.prepare(`
+    UPDATE lego_sets SET
+      ebay_ask_value=?,
+      ebay_ask_qty=?,
+      ebay_ask_cached_at=datetime('now')
+    WHERE set_num=?
+  `).bind(listings.ask_value, listings.ask_qty, setNum);
+}
+
 export function ebaySoldNewValue(prices: EbaySoldPrices | null | undefined): number | null {
   return prices?.new_value ?? null;
 }

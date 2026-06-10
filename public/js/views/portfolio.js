@@ -979,6 +979,7 @@ function infoTabHTML(set, entry, isWish) {
   return `
     ${priceStripHTML(set, entry)}
     ${marketSpreadHTML(set)}
+    ${marketDepthHTML(set)}
     ${marketConfidenceHTML(set)}
     ${aiDisclaimerHTML}
     ${pricingSummaryHtml}
@@ -2066,6 +2067,26 @@ function marketSpreadHTML(set) {
   return `<div class="market-signal ${hot ? "signal-hot" : "signal-cold"}">
     <span>${hot ? "HOT" : "SOFT"} eBay sold-new ${hot ? "running hot" : "below primary value"} · ${fmtPct(Math.abs(spread))} spread</span>
     <span class="signal-hint">${hot ? "Good time to sell" : "Better to buy on BrickLink"}</span>
+  </div>`;
+}
+
+// Supply side: how many active eBay listings compete and what they ask,
+// compared against sold comps. Scarcity + a healthy sold price = sell signal.
+function marketDepthHTML(set) {
+  const askValue = Number(set.ebay_ask_value);
+  const askQty = Number(set.ebay_ask_qty);
+  if (!Number.isFinite(askValue) || askValue <= 0 || !Number.isFinite(askQty) || askQty <= 0) return '';
+  const sold = ebaySoldSummary(set).newValue;
+  let hint = '';
+  if (sold) {
+    const askVsSold = (askValue - sold) / sold;
+    if (askQty <= 5) hint = `Scarce — only ${askQty} listings`;
+    else if (askVsSold > 0.20) hint = 'Sellers are ambitious — price near sold comps to move fast';
+    else if (askVsSold < 0) hint = 'Listings under sold comps — buying window';
+  }
+  return `<div class="market-depth">
+    <span>📦 ${askQty} active listing${askQty > 1 ? 's' : ''} · asking ${fmtMoney(askValue)}${sold ? ` vs ${fmtMoney(sold)} sold` : ''}</span>
+    ${hint ? `<span class="signal-hint">${escapeHtml(hint)}</span>` : ''}
   </div>`;
 }
 
