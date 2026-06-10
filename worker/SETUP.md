@@ -115,6 +115,7 @@ are present:
 - `RESEND_API_KEY` enables email wishlist alerts.
 - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` enable browser
   push alerts. `VAPID_SUBJECT` should usually be a `mailto:` contact.
+  Keep the public/private VAPID keys as a matched pair when rotating them.
 
 After adding or changing any optional GitHub secret, rerun the deploy workflow
 or push a deploy-triggering change so GitHub Actions uploads the new value to
