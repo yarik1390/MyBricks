@@ -46,9 +46,15 @@ alerts, and share a public profile. Live: https://brickvault-5ub.pages.dev
    - `worker/schema.sql` — full `CREATE TABLE IF NOT EXISTS` for fresh DBs; embed
      **new columns directly in the CREATE TABLE** here.
    - `worker/schema_migrate.sql` — plain `ALTER TABLE ADD COLUMN` (no `IF NOT
-     EXISTS`) for existing DBs. CI runs it with `|| true`, so duplicate-column
-     errors on re-deploy are expected and ignored.
-   When you add a column: add it to **both** files.
+     EXISTS`) for existing DBs. CI runs it with `|| true`, **but as a single
+     file execution** — the first duplicate-column error aborts the rest of the
+     file, so ALTERs appended at the end never run on an existing DB.
+   When you add a column, add it to **three** places: both schema files **and**
+   the per-statement `statements` array in
+   `.github/workflows/deploy-worker.yml` (each entry runs individually with
+   `|| true`, which is what actually applies new columns in production). Also
+   extend the "Validate schema before deploy" probes there so a missed
+   migration fails the deploy instead of breaking the Worker at runtime.
 
 2. **Cron strings use day-name form, not `0` for Sunday.** Cloudflare rejects
    `0 4 * * 0` (`invalid cron string [code: 10100]`). Use `0 4 * * SUN`. Crons
