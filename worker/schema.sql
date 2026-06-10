@@ -90,7 +90,10 @@ CREATE TABLE IF NOT EXISTS minifigs (
   image_url TEXT,
   added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   source TEXT,
-  cached_at TEXT
+  cached_at TEXT,
+  year INTEGER,
+  num_parts INTEGER,
+  appears_in_sets INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS user_minifigs (
@@ -139,6 +142,7 @@ CREATE TABLE IF NOT EXISTS user_prefs (
   google_spreadsheet_id TEXT,
   email TEXT,
   discord_webhook_url TEXT,
+  brickset_user_hash TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

@@ -47,6 +47,48 @@ export async function fetchSetMinifigs(
   }
 }
 
+export interface RebrickableMinifigDetail {
+  fig_num: string;
+  name: string;
+  num_parts: number | null;
+  year: number | null;
+  set_count: number | null;
+  img_url: string | null;
+}
+
+// Fetch detailed metadata for a single minifig from Rebrickable.
+export async function fetchMinifigDetail(
+  figNum: string,
+  env: Env,
+): Promise<RebrickableMinifigDetail | null> {
+  if (!env.REBRICKABLE_API_KEY) return null;
+  try {
+    const url = `https://rebrickable.com/api/v3/lego/minifigs/${encodeURIComponent(figNum)}/`;
+    const resp = await fetchTracked(env, 'rebrickable', url, {
+      headers: { Authorization: `key ${env.REBRICKABLE_API_KEY}` },
+    }, { okStatuses: [404] });
+    if (!resp.ok) return null;
+    const data = await resp.json() as {
+      fig_num: string;
+      name: string;
+      num_parts?: number;
+      year_from?: number;
+      set_count?: number;
+      set_img_url?: string;
+    };
+    return {
+      fig_num: data.fig_num,
+      name: data.name,
+      num_parts: data.num_parts ?? null,
+      year: data.year_from ?? null,
+      set_count: data.set_count ?? null,
+      img_url: data.set_img_url || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // Fetch all parts in a set from Rebrickable, handling pagination.
 export async function fetchSetParts(
   setNum: string,

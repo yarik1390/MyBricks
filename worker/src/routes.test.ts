@@ -162,7 +162,11 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         current_value REAL,
         image_url TEXT,
         added_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        source TEXT
+        source TEXT,
+        year INTEGER,
+        num_parts INTEGER,
+        appears_in_sets INTEGER,
+        cached_at TEXT
       )`,
       `CREATE TABLE rate_limits (
         user_id TEXT NOT NULL, endpoint TEXT NOT NULL, window_start TEXT NOT NULL,

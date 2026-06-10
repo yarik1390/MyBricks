@@ -12,6 +12,8 @@ import { adminRoute } from './routes/admin';
 import { advisorRoute } from './routes/advisor';
 import { profileRoute } from './routes/profile';
 import { googleSyncRoute } from './routes/google-sync';
+import { ratesRoute } from './routes/rates';
+import { bricksetSyncRoute } from './routes/brickset-sync';
 
 import { runValuateSets, runValuateMinifigs } from './jobs/valuate-sets';
 import { runSnapshotPortfolios } from './jobs/snapshot-portfolios';
@@ -110,6 +112,8 @@ app.route('/api/admin', adminRoute);
 app.route('/api/advisor', advisorRoute);
 app.route('/api/users', profileRoute);
 app.route('/api/google', googleSyncRoute);
+app.route('/api/rates', ratesRoute);
+app.route('/api/brickset', bricksetSyncRoute);
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
 

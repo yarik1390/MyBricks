@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { optionalMember, requireMember } from '../auth';
+import { fetchMinifigDetail } from '../lib/rebrickable';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -55,7 +56,7 @@ app.get('/', async (c) => {
   const [pageRes, countRes] = await Promise.all([
     c.env.DB.prepare(
       `SELECT m.fig_num, m.name, m.series, m.rarity, m.image_url, m.added_at, m.source,
-              m.current_value,
+              m.current_value, m.year, m.num_parts, m.appears_in_sets,
               COALESCE(um.quantity, 0) as owned_qty
        FROM minifigs m
        LEFT JOIN user_minifigs um ON um.fig_num = m.fig_num AND um.user_id = ?
@@ -72,10 +73,33 @@ app.get('/', async (c) => {
   ]);
 
   const total = countRes?.total ?? 0;
+  const results = pageRes.results;
+
+  // Background: enrich up to 5 minifigs missing metadata (year, num_parts, appears_in_sets)
+  if (c.env.REBRICKABLE_API_KEY) {
+    const stale = results
+      .filter(r => r.year == null)
+      .slice(0, 5)
+      .map(r => r.fig_num as string);
+    if (stale.length > 0) {
+      c.executionCtx.waitUntil((async () => {
+        for (const figNum of stale) {
+          try {
+            const detail = await fetchMinifigDetail(figNum, c.env);
+            if (!detail) continue;
+            await c.env.DB.prepare(
+              `UPDATE minifigs SET year=?, num_parts=?, appears_in_sets=? WHERE fig_num=? AND year IS NULL`
+            ).bind(detail.year, detail.num_parts, detail.set_count, figNum).run();
+          } catch { /* non-fatal */ }
+        }
+      })());
+    }
+  }
+
   return c.json({
-    minifigs: pageRes.results,
+    minifigs: results,
     total,
-    hasMore: offset + pageRes.results.length < total,
+    hasMore: offset + results.length < total,
   });
 });
 

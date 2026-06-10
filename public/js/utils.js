@@ -44,7 +44,7 @@ export async function fetchExchangeRates() {
     } catch {}
   }
   try {
-    const res = await fetch("https://open.er-api.com/v6/latest/USD");
+    const res = await fetch((window.WORKER_BASE || '') + "/api/rates");
     const json = await res.json();
     if (json && json.rates) {
       exchangeRates = json.rates;

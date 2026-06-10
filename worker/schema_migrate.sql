@@ -243,3 +243,9 @@ CREATE INDEX IF NOT EXISTS idx_set_minifigs_set ON set_minifigs(set_num);
 CREATE INDEX IF NOT EXISTS idx_set_minifigs_fig ON set_minifigs(fig_num);
 CREATE INDEX IF NOT EXISTS idx_set_parts_set ON set_parts(set_num);
 CREATE INDEX IF NOT EXISTS idx_user_missing_user ON user_missing_parts(user_id, set_num);
+
+-- Sprint 4: minifig metadata, Brickset sync
+ALTER TABLE minifigs ADD COLUMN year INTEGER;
+ALTER TABLE minifigs ADD COLUMN num_parts INTEGER;
+ALTER TABLE minifigs ADD COLUMN appears_in_sets INTEGER;
+ALTER TABLE user_prefs ADD COLUMN brickset_user_hash TEXT;

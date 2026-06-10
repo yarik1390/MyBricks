@@ -278,6 +278,36 @@ export async function renderMe() {
         </div>
       </div>
 
+      <div class="section-title">Brickset Collection Sync</div>
+      <div>
+        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+          <div class="lbl-wrap">
+            <div class="lbl">Import from Brickset</div>
+            <div class="desc">Sync sets you've marked as owned on Brickset.com into your vault.</div>
+          </div>
+          ${me.brickset_connected ? `
+            <div style="display:flex;flex-direction:column;gap:8px;width:100%;">
+              <div style="font-size:12px;color:var(--up);font-weight:600;display:flex;align-items:center;gap:6px;">
+                <span style="display:inline-block;width:8px;height:8px;background:var(--up);border-radius:50%;"></span>
+                Brickset account connected
+              </div>
+              <div style="display:flex;gap:8px;width:100%;">
+                <button id="bricksetSyncBtn" class="btn-secondary" style="flex:1;font-size:12px;padding:8px 12px;border:1.5px solid var(--line);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);cursor:pointer;outline:none;">Sync Now</button>
+                <button id="bricksetDisconnectBtn" class="btn-secondary" style="font-size:12px;padding:8px 12px;border:1.5px solid var(--line);border-radius:var(--r-2);background:var(--surface-2);color:var(--down);cursor:pointer;outline:none;">Disconnect</button>
+              </div>
+              <div id="bricksetSyncResult" style="font-size:11px;color:var(--ink-mute);"></div>
+            </div>
+          ` : `
+            <div style="display:flex;flex-direction:column;gap:8px;width:100%;">
+              <input id="bricksetUsername" type="text" placeholder="Brickset username" autocomplete="username" style="font-size:13px;border:1px solid var(--line);border-radius:var(--r-1);padding:8px 10px;background:var(--surface-2);color:var(--ink);outline:none;width:100%;box-sizing:border-box;" />
+              <input id="bricksetPassword" type="password" placeholder="Brickset password" autocomplete="current-password" style="font-size:13px;border:1px solid var(--line);border-radius:var(--r-1);padding:8px 10px;background:var(--surface-2);color:var(--ink);outline:none;width:100%;box-sizing:border-box;" />
+              <button id="bricksetConnectBtn" class="btn-primary" style="width:100%;font-size:13px;padding:10px 14px;border-radius:var(--r-2);cursor:pointer;outline:none;">Connect Brickset Account</button>
+              <div id="bricksetConnectError" style="font-size:11px;color:var(--down);display:none;"></div>
+            </div>
+          `}
+        </div>
+      </div>
+
       ${me.is_admin ? `
       <div class="section-title">Catalog</div>
       <div>
@@ -438,6 +468,57 @@ export async function renderMe() {
       toast("Discord alerts cleared", "info");
       await renderMe();
     } catch (e) { toast("Error: " + e.message, "error"); }
+  });
+
+  // Brickset connect — server exchanges username+password for userHash and stores it
+  $("#bricksetConnectBtn")?.addEventListener("click", async () => {
+    const user = ($("#bricksetUsername")?.value || "").trim();
+    const pass = ($("#bricksetPassword")?.value || "").trim();
+    if (!user || !pass) { toast("Enter Brickset username and password", "error"); return; }
+    const errEl = $("#bricksetConnectError");
+    if (errEl) errEl.style.display = "none";
+    haptic("medium");
+    const btn = $("#bricksetConnectBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Connecting…"; }
+    try {
+      await api("/api/brickset/login", { method: "POST", body: { username: user, password: pass } });
+      state.me = null;
+      toast("Brickset account connected", "success");
+      await renderMe();
+    } catch (e) {
+      if (errEl) { errEl.textContent = e.message; errEl.style.display = "block"; }
+      toast("Brickset connect failed: " + e.message, "error");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Connect Brickset Account"; }
+    }
+  });
+
+  $("#bricksetDisconnectBtn")?.addEventListener("click", async () => {
+    haptic("medium");
+    try {
+      await api("/api/brickset/connect", { method: "DELETE" });
+      state.me = null;
+      toast("Brickset disconnected", "info");
+      await renderMe();
+    } catch (e) { toast("Error: " + e.message, "error"); }
+  });
+
+  $("#bricksetSyncBtn")?.addEventListener("click", async () => {
+    const btn = $("#bricksetSyncBtn");
+    const resultEl = $("#bricksetSyncResult");
+    if (btn) { btn.disabled = true; btn.textContent = "Syncing…"; }
+    haptic("medium");
+    try {
+      const res = await api("/api/brickset/sync", { method: "POST" });
+      if (resultEl) resultEl.textContent = `Imported ${res.added} sets (${res.skipped} not in catalog, ${res.total} total on Brickset).`;
+      toast(`Brickset sync: ${res.added} sets added`, "success");
+      state.portfolio = null; invalidatePortfolio();
+    } catch (e) {
+      if (resultEl) resultEl.textContent = "Sync failed: " + e.message;
+      toast("Brickset sync failed: " + e.message, "error");
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Sync Now"; }
+    }
   });
 
   $("#currencySelect")?.addEventListener("change", async (e) => {

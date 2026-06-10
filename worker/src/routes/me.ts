@@ -72,6 +72,7 @@ app.get('/', async (c) => {
     brickeconomy_configured: brickeconomyConfigured,
     is_admin: userId === c.env.ADMIN_USER_ID,
     discord_webhook_url: (p.discord_webhook_url as string | null) ?? null,
+    brickset_connected: !!(p.brickset_user_hash),
     portfolio_stats: {
       set_count: Number(stats?.set_count ?? 0),
       total_value: Number(stats?.total_value ?? 0),
