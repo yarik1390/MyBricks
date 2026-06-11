@@ -40,17 +40,19 @@ export async function createLocalAiSession(systemPrompt) {
   return await self.ai.languageModel.create(opts);
 }
 
-/** Check if the local vision model is already cached in IndexedDB */
+/** Check if the local vision model is already cached in OPFS */
 export async function checkGemma3Downloaded() {
   try {
-    const blob = await bvIDB.get(CACHE_KEY);
-    return !!(blob && blob.size > 10_000_000); // must be at least 10MB to be valid
+    const root = await navigator.storage.getDirectory();
+    const fileHandle = await root.getFileHandle("gemma2b.bin");
+    const file = await fileHandle.getFile();
+    return file.size > 10_000_000; // must be at least 10MB to be valid
   } catch {
     return false;
   }
 }
 
-/** Download the model file with progress reporting and save to IndexedDB */
+/** Download the model file with progress reporting and save directly to OPFS */
 export async function downloadGemma3Model(modelUrl, onProgress) {
   const url = modelUrl || DEFAULT_MODEL_URL;
   const response = await fetch(url);
@@ -61,22 +63,26 @@ export async function downloadGemma3Model(modelUrl, onProgress) {
   const contentLength = response.headers.get('content-length');
   const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
   
+  const root = await navigator.storage.getDirectory();
+  const fileHandle = await root.getFileHandle("gemma2b.bin", { create: true });
+  const writable = await fileHandle.createWritable();
+
   const reader = response.body.getReader();
   let loadedBytes = 0;
-  const chunks = [];
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    loadedBytes += value.length;
-    if (totalBytes && onProgress) {
-      onProgress(loadedBytes / totalBytes);
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      await writable.write(value);
+      loadedBytes += value.length;
+      if (totalBytes && onProgress) {
+        onProgress(loadedBytes / totalBytes);
+      }
     }
+  } finally {
+    await writable.close();
   }
-
-  const blob = new Blob(chunks, { type: 'application/octet-stream' });
-  await bvIDB.set(CACHE_KEY, blob);
   
   // Clear any existing inference instance to force reload with the new model
   if (activeInferenceInstance) {
@@ -86,24 +92,32 @@ export async function downloadGemma3Model(modelUrl, onProgress) {
   return true;
 }
 
-/** Delete the downloaded model file from IndexedDB */
+/** Delete the downloaded model file from OPFS */
 export async function deleteGemma3Model() {
-  await bvIDB.del(CACHE_KEY);
+  try {
+    const root = await navigator.storage.getDirectory();
+    await root.removeEntry("gemma2b.bin");
+  } catch {}
   if (activeInferenceInstance) {
     activeInferenceInstance.close();
     activeInferenceInstance = null;
   }
 }
 
-/** Load the cached model and initialize the MediaPipe LlmInference task */
+/** Load the cached model from OPFS and initialize the MediaPipe LlmInference task */
 async function getInferenceInstance() {
   if (activeInferenceInstance) return activeInferenceInstance;
 
   await loadMediaPipe();
-  const blob = await bvIDB.get(CACHE_KEY);
-  if (!blob) throw new Error('Gemma model is not downloaded. Please download it in Settings.');
+  
+  const root = await navigator.storage.getDirectory();
+  const fileHandle = await root.getFileHandle("gemma2b.bin");
+  const file = await fileHandle.getFile();
+  if (!file || file.size < 10_000_000) {
+    throw new Error('Gemma model is not downloaded. Please download it in Settings.');
+  }
 
-  const modelUrl = URL.createObjectURL(blob);
+  const modelUrl = URL.createObjectURL(file);
   
   try {
     const genai = await FilesetResolver.forGenAiTasks(

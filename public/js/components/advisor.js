@@ -394,44 +394,49 @@ async function sendAdvisorMessage(q) {
 
   const engine = localStorage.getItem('bv_ai_engine') || 'cloud';
   if (engine === 'local') {
-    aiBubble.querySelector(".chat-typing")?.remove();
-    let session = null;
-    try {
-      const context = buildLocalAdvisorContext();
-      const systemPrompt = `You are a knowledgeable LEGO investment and collection advisor running locally on-device. You have access to the user's real collection data below. Answer questions concisely and specifically — always reference actual set names and numbers from their data. Recommend actionable decisions. Keep responses under 300 words.\n\n${context}`;
-      
-      session = await createLocalAiSession(systemPrompt);
-      
-      let fullText = "";
+    const nanoSupported = isLocalAiSupported() && (await getLocalAiAvailability()) !== 'no';
+    if (nanoSupported) {
+      aiBubble.querySelector(".chat-typing")?.remove();
+      let session = null;
       try {
-        const stream = session.promptStreaming(q);
-        for await (const chunk of stream) {
-          fullText = chunk;
+        const context = buildLocalAdvisorContext();
+        const systemPrompt = `You are a knowledgeable LEGO investment and collection advisor running locally on-device. You have access to the user's real collection data below. Answer questions concisely and specifically — always reference actual set names and numbers from their data. Recommend actionable decisions. Keep responses under 300 words.\n\n${context}`;
+        
+        session = await createLocalAiSession(systemPrompt);
+        
+        let fullText = "";
+        try {
+          const stream = session.promptStreaming(q);
+          for await (const chunk of stream) {
+            fullText = chunk;
+            aiBubble.innerHTML = parseMarkdown(fullText);
+            hist.scrollTop = hist.scrollHeight;
+          }
+        } catch (streamErr) {
+          fullText = await session.prompt(q);
           aiBubble.innerHTML = parseMarkdown(fullText);
-          hist.scrollTop = hist.scrollHeight;
         }
-      } catch (streamErr) {
-        fullText = await session.prompt(q);
-        aiBubble.innerHTML = parseMarkdown(fullText);
+        
+        if (fullText) saveChatMessage("ai", fullText);
+      } catch (err) {
+        aiBubble.classList.add("error");
+        aiBubble.innerHTML = `<span>Local AI session failed. ${escapeHtml(err.message || "Ensure Gemini Nano is enabled in Chrome settings.")}</span>
+          <button class="btn-secondary chat-retry-btn" style="display:block;margin-top:8px;padding:6px 12px;font-size:12px;width:auto;">Retry</button>`;
+        aiBubble.querySelector(".chat-retry-btn")?.addEventListener("click", () => {
+          aiBubble.previousElementSibling?.remove();
+          aiBubble.remove();
+          sendAdvisorMessage(q);
+        });
+      } finally {
+        if (session) {
+          try { session.destroy(); } catch {}
+        }
       }
-      
-      if (fullText) saveChatMessage("ai", fullText);
-    } catch (err) {
-      aiBubble.classList.add("error");
-      aiBubble.innerHTML = `<span>Local AI session failed. ${escapeHtml(err.message || "Ensure Gemini Nano is enabled in Chrome settings.")}</span>
-        <button class="btn-secondary chat-retry-btn" style="display:block;margin-top:8px;padding:6px 12px;font-size:12px;width:auto;">Retry</button>`;
-      aiBubble.querySelector(".chat-retry-btn")?.addEventListener("click", () => {
-        aiBubble.previousElementSibling?.remove();
-        aiBubble.remove();
-        sendAdvisorMessage(q);
-      });
-    } finally {
-      if (session) {
-        try { session.destroy(); } catch {}
-      }
+      hist.scrollTop = hist.scrollHeight;
+      return;
+    } else {
+      toast("Gemini Nano is not supported on this browser. Falling back to Cloud AI for the advisor.", "info");
     }
-    hist.scrollTop = hist.scrollHeight;
-    return;
   }
 
   let streamTimeout = null;

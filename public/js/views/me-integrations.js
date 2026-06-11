@@ -491,14 +491,21 @@ export async function renderMeIntegrations() {
     const val = e.target.value;
     haptic("light");
     if (val === "local") {
-      const availability = await getLocalAiAvailability();
-      if (availability === "no") {
-        toast("Local AI is not supported or enabled on this browser.", "error");
+      const nanoAvailable = await getLocalAiAvailability() !== 'no';
+      const webGpuAvailable = typeof navigator !== 'undefined' && 'gpu' in navigator;
+      
+      if (!nanoAvailable && !webGpuAvailable) {
+        toast("Local AI (both Gemini Nano and WebGPU) is not supported on this browser.", "error");
         globalEngineSelect.value = "cloud";
         localStorage.setItem("bv_ai_engine", "cloud");
         showLocalAiSetupSheet();
         return;
       }
+      
+      if (!nanoAvailable) {
+        toast("Note: Gemini Nano is unsupported. Advisor will fall back to Cloud, but local scanning is enabled.", "info");
+      }
+      
       const isDownloaded = await checkGemma3Downloaded();
       if (!isDownloaded) {
         toast("Note: Download the Gemma model below to use local photo scanning.", "info");
