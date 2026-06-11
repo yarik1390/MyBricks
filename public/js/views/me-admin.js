@@ -34,11 +34,11 @@ export async function renderMeAdmin() {
   };
 
   const checkRow = (label, ok, okText, missText, optional = false) => `
-    <div class="u-between">
+    <div class="u-between" style="min-height:28px;">
       <span>${label}</span>
       ${ok
-        ? `<span class="u-row u-gap-1 u-up" style="font-weight:600;">● ${okText}</span>`
-        : `<span class="u-row u-gap-1" style="font-weight:600;color:${optional ? "var(--ink-mute)" : "var(--bv-red)"};">${I.info({ w: 13, h: 13 })} ${missText}</span>`}
+        ? `<span class="badge badge--up">● ${okText}</span>`
+        : `<span class="badge ${optional ? "badge--neutral" : "badge--down"}">${missText}</span>`}
     </div>`;
 
   $("#root").innerHTML = `
@@ -305,9 +305,13 @@ async function updateJobsStatus() {
     container.innerHTML = summaryHTML + runs.map(run => {
       const jobState = classifyJobRun(run);
       const statusColor = jobState.tone === "ok" ? "var(--up)"
-        : jobState.tone === "warn" ? "var(--bv-yellow)"
+        : jobState.tone === "warn" ? "var(--warn)"
         : jobState.tone === "danger" ? "var(--bv-red)"
         : "var(--ink-mute)";
+      const statusBadge = jobState.tone === "ok" ? "badge--up"
+        : jobState.tone === "warn" ? "badge--warn"
+        : jobState.tone === "danger" ? "badge--down"
+        : "badge--neutral";
       const statusText = jobState.label.toUpperCase();
       const progress = jobProgressSummary(run);
 
@@ -352,7 +356,7 @@ async function updateJobsStatus() {
         <div style="border-bottom:1px solid var(--border-soft-c);padding-bottom:8px;margin-bottom:4px;">
           <div class="u-between" style="font-weight:600;margin-bottom:2px;">
             <span>Job #${run.id}</span>
-            <span class="u-fs-xs" style="color:${statusColor};text-align:right;max-width:58%;overflow-wrap:anywhere;">${escapeHtml(statusText)}</span>
+            <span class="badge ${statusBadge}" style="max-width:58%;">${escapeHtml(statusText)}</span>
           </div>
           <div class="u-between u-fs-xs u-mute">
             <span>Started: ${dateStr}</span>
@@ -404,10 +408,13 @@ async function updateIntegrationsHealth() {
     return `${Math.round(hrs / 24)}d ago`;
   };
   const statusColor = (status) => status === "ok" ? "var(--up)"
-    : status === "degraded" ? "var(--bv-yellow)"
+    : status === "degraded" ? "var(--warn)"
     : status === "down" ? "var(--bv-red)"
-    : status === "unconfigured" ? "var(--ink-mute)"
     : "var(--ink-mute)";
+  const statusBadgeClass = (status) => status === "ok" ? "badge--up"
+    : status === "degraded" ? "badge--warn"
+    : status === "down" ? "badge--down"
+    : "badge--neutral";
   const isLatestFailure = (r) => {
     const okAt = r.last_ok_at ? new Date(String(r.last_ok_at).replace(" ", "T") + "Z").getTime() : 0;
     const failAt = r.last_fail_at ? new Date(String(r.last_fail_at).replace(" ", "T") + "Z").getTime() : 0;
@@ -469,12 +476,12 @@ async function updateIntegrationsHealth() {
       </div>`;
     const coverageHTML = `
       <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
-        <div class="u-mono-label u-fs-2xs" style="margin-bottom:6px;">Data coverage</div>
-        <div style="display:grid;grid-template-columns:1fr;gap:7px;">
+        <div class="u-mono-label u-fs-2xs" style="margin-bottom:8px;">Data coverage</div>
+        <div class="adm-cov-grid">
           ${coverageRows.map(([label, value]) => `
-            <div class="u-between u-gap-2">
-              <span class="u-mute">${escapeHtml(label)}</span>
-              <strong style="color:var(--ink);text-align:right;">${escapeHtml(value)}</strong>
+            <div class="adm-cov-cell">
+              <div class="adm-cov-lbl">${escapeHtml(label)}</div>
+              <div class="adm-cov-val">${escapeHtml(value)}</div>
             </div>
           `).join("")}
         </div>
@@ -506,7 +513,7 @@ async function updateIntegrationsHealth() {
         <div style="border-bottom:1px solid var(--border-soft-c);padding-bottom:8px;margin-bottom:4px;">
           <div class="u-between u-gap-3" style="font-weight:600;margin-bottom:2px;">
             <span style="min-width:0;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:6px;"></span>${escapeHtml(r.label || r.service)}</span>
-            <span class="u-fs-xs" style="color:${color};text-transform:uppercase;text-align:right;">${escapeHtml(statusLabel(r, standbyFallback))}</span>
+            <span class="badge ${standbyFallback ? "badge--neutral" : statusBadgeClass(r.status)}" style="text-transform:uppercase;">${escapeHtml(statusLabel(r, standbyFallback))}</span>
           </div>
           <div class="u-between u-gap-3 u-fs-xs u-mute">
             <span>${escapeHtml(timingText)}</span>
