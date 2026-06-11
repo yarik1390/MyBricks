@@ -448,3 +448,18 @@ export function sanitizeMoneyInput(str) {
   const n = Number(s);
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
+
+/**
+ * Given saved download metadata and the server's response to a Range request,
+ * returns the byte offset to resume from (> 0) or 0 to restart from scratch.
+ *   meta          — { url, etag?, loadedBytes, complete } saved in localStorage
+ *   responseStatus — HTTP status code (206 = partial, 200 = full)
+ *   responseEtag   — ETag / Last-Modified from the response headers (or null)
+ */
+export function resolveDownloadResume(meta, responseStatus, responseEtag) {
+  if (!meta || !(meta.loadedBytes > 0) || meta.complete) return 0;
+  if (responseStatus !== 206) return 0;
+  // Mismatched etag means the content changed — must restart.
+  if (meta.etag && responseEtag && meta.etag !== responseEtag) return 0;
+  return meta.loadedBytes;
+}

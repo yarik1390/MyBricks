@@ -1,4 +1,5 @@
 import { bvIDB } from '../utils.js';
+import { resolveDownloadResume } from './pure.js';
 
 // Official web-optimized Gemma 4 E2B vision model (LiteRT). Hugging Face gates
 // Gemma behind a license click-through, so anonymous downloads return 401 —
@@ -7,19 +8,55 @@ export const DEFAULT_MODEL_URL = 'https://huggingface.co/litert-community/gemma-
 export const MODEL_LICENSE_PAGE = 'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm';
 const CACHE_KEY = 'gemma3_model_blob';
 const OPFS_MODEL_FILE = 'gemma2b.bin';
+const DOWNLOAD_META_KEY = 'bv_gemma_dl';
 // Vision (image) prompts need tasks-genai >= 0.10.24 — 0.10.14 was text-only.
 const MEDIAPIPE_VERSION = '0.10.27';
+// Close + reopen the OPFS writable every 256MB so progress survives a crash.
+const CHECKPOINT_INTERVAL = 256 * 1024 * 1024;
 
 let FilesetResolver = null;
 let LlmInference = null;
 let activeInferenceInstance = null;
 
-// Load MediaPipe dynamically to keep initial page speed fast
+// --- Download metadata helpers (localStorage, sync) ---
+function getDlMeta() {
+  try { return JSON.parse(localStorage.getItem(DOWNLOAD_META_KEY) || 'null'); } catch { return null; }
+}
+function setDlMeta(m) {
+  try { localStorage.setItem(DOWNLOAD_META_KEY, JSON.stringify(m)); } catch {}
+}
+function clearDlMeta() {
+  try { localStorage.removeItem(DOWNLOAD_META_KEY); } catch {}
+}
+
+/** Return the current partial-download metadata (url, loadedBytes, totalBytes, complete). */
+export function getDownloadMetadata() {
+  return getDlMeta();
+}
+
+/** Return whether the browser has granted persistent storage (true/false/null if unsupported). */
+export async function checkStoragePersisted() {
+  try { return await navigator.storage.persisted(); } catch { return null; }
+}
+
+// Load MediaPipe dynamically to keep initial page speed fast.
 async function loadMediaPipe() {
   if (FilesetResolver && LlmInference) return;
   const module = await import(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai@${MEDIAPIPE_VERSION}`);
   FilesetResolver = module.FilesetResolver;
   LlmInference = module.LlmInference;
+}
+
+/** Load MediaPipe JS + wasm into the SW cache while online, so scanning
+ *  works even after the device goes offline. Safe to call speculatively. */
+export function prewarmMediaPipeCache() {
+  loadMediaPipe().then(() => {
+    if (FilesetResolver) {
+      return FilesetResolver.forGenAiTasks(
+        `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai@${MEDIAPIPE_VERSION}/wasm`
+      );
+    }
+  }).catch(() => {});
 }
 
 // Chrome has shipped the Prompt API under three namespaces over time:
@@ -51,7 +88,7 @@ export async function getLocalAiAvailability() {
     if (v === 'available' || v === 'readily') return 'readily';
     if (v === 'downloadable' || v === 'downloading' || v === 'after-download') return 'after-download';
     return 'no';
-  } catch (e) {
+  } catch {
     return 'no';
   }
 }
@@ -67,120 +104,174 @@ export async function createLocalAiSession(systemPrompt) {
   return await api.create({ systemPrompt });
 }
 
-/** Check if the local vision model is already cached in OPFS */
+/** Check if the local vision model is already cached and complete in OPFS. */
 export async function checkGemma3Downloaded() {
   try {
     const root = await navigator.storage.getDirectory();
     const fileHandle = await root.getFileHandle(OPFS_MODEL_FILE);
     const file = await fileHandle.getFile();
-    return file.size > 10_000_000; // must be at least 10MB to be valid
+    if (file.size < 10_000_000) return false;
+    const meta = getDlMeta();
+    // If we have metadata, require the complete flag and a reasonable size match.
+    // Fall back to size-only for models imported before metadata was introduced.
+    if (meta && meta.url) {
+      if (!meta.complete) return false;
+      if (meta.totalBytes && Math.abs(file.size - meta.totalBytes) > 1_000_000) return false;
+    }
+    return true;
   } catch {
     return false;
   }
 }
 
-// Stream a ReadableStream into the OPFS model file, with progress + cleanup.
-// On any failure the partial write is aborted and the file removed — otherwise
-// a half-written file would pass the >10MB "is downloaded" check and break
-// inference.
-async function streamToOpfs(stream, totalBytes, onProgress) {
+// Stream `stream` into the OPFS model file starting at `startOffset`.
+// Checkpoints every CHECKPOINT_INTERVAL bytes by closing + reopening the
+// writable so bytes are committed to disk — if the browser crashes or the
+// fetch is aborted, progress up to the last checkpoint survives.
+// Calls `onCheckpoint(committedBytes)` after each checkpoint (use to persist metadata).
+// On error throws with `err.committedBytes` = how much is safely on disk.
+async function streamToOpfs(stream, totalBytes, startOffset, onProgress, onCheckpoint) {
   const root = await navigator.storage.getDirectory();
-  // Fail early with a clear message instead of a cryptic mid-stream QuotaExceededError.
-  if (totalBytes && navigator.storage.estimate) {
+  const remaining = totalBytes ? totalBytes - startOffset : 0;
+  if (remaining > 0 && navigator.storage.estimate) {
     const est = await navigator.storage.estimate().catch(() => null);
-    if (est && est.quota && (est.quota - (est.usage || 0)) < totalBytes) {
-      throw new Error(`Not enough storage: the model needs ~${(totalBytes / 1e9).toFixed(1)}GB but only ${(((est.quota - (est.usage || 0))) / 1e9).toFixed(1)}GB is available to this site.`);
+    if (est?.quota) {
+      const free = est.quota - (est.usage || 0);
+      if (free < remaining) {
+        throw new Error(
+          `Not enough storage: need ~${(remaining / 1e9).toFixed(1)}GB but only ${(free / 1e9).toFixed(1)}GB is free on this site.`
+        );
+      }
     }
   }
-  const fileHandle = await root.getFileHandle(OPFS_MODEL_FILE, { create: true });
-  const writable = await fileHandle.createWritable();
+
+  let committedOffset = startOffset;
+  let fileHandle = await root.getFileHandle(OPFS_MODEL_FILE, { create: true });
+  let writable = await fileHandle.createWritable({ keepExistingData: startOffset > 0 });
+  if (startOffset > 0) await writable.seek(startOffset);
+
   const reader = stream.getReader();
-  let loadedBytes = 0;
+  let sessionBytes = 0;
+
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       await writable.write(value);
-      loadedBytes += value.length;
-      if (totalBytes && onProgress) onProgress(loadedBytes / totalBytes);
+      sessionBytes += value.length;
+      if (totalBytes && onProgress) onProgress((committedOffset + sessionBytes) / totalBytes);
+
+      // Checkpoint: close (commits to disk) then reopen to continue.
+      if (sessionBytes >= CHECKPOINT_INTERVAL) {
+        await writable.close();
+        committedOffset += sessionBytes;
+        sessionBytes = 0;
+        if (onCheckpoint) onCheckpoint(committedOffset);
+        fileHandle = await root.getFileHandle(OPFS_MODEL_FILE);
+        writable = await fileHandle.createWritable({ keepExistingData: true });
+        await writable.seek(committedOffset);
+      }
     }
-    // Closing commits the file to OPFS — only do it on a complete write.
     await writable.close();
+    if (onCheckpoint) onCheckpoint(committedOffset + sessionBytes);
   } catch (err) {
+    // Abort discards bytes since last checkpoint; file has committedOffset bytes.
     await writable.abort().catch(() => {});
-    try {
-      const r = await navigator.storage.getDirectory();
-      await r.removeEntry(OPFS_MODEL_FILE);
-    } catch {}
-    throw err;
+    const e = new Error(err?.message || String(err));
+    e.committedBytes = committedOffset;
+    throw e;
   }
 }
 
 function onModelReplaced() {
-  // Clear any existing inference instance to force reload with the new model
   if (activeInferenceInstance) {
     activeInferenceInstance.close();
     activeInferenceInstance = null;
   }
-  // Pre-OPFS versions stored the model blob in IndexedDB — free those gigabytes
-  // for users upgrading from that build.
+  // Pre-OPFS versions stored the model blob in IndexedDB — free those gigabytes.
   bvIDB.del(CACHE_KEY).catch(() => {});
-  // Load MediaPipe now (while still online) so its CDN bundle and wasm files
-  // land in the SW cache before the user goes offline.
+  // Request persistent storage so the OS won't evict the multi-GB model file.
+  navigator.storage?.persist?.().catch(() => {});
+  // Prewarm MediaPipe CDN assets into the SW cache while still online.
   prewarmMediaPipeCache();
 }
 
-// Load MediaPipe + fetch the wasm fileset so the SW caches everything offline.
-function prewarmMediaPipeCache() {
-  loadMediaPipe().then(() => {
-    if (FilesetResolver) {
-      return FilesetResolver.forGenAiTasks(
-        `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai@${MEDIAPIPE_VERSION}/wasm`
-      );
-    }
-  }).catch(() => {});
-}
-
-/** Download the model file with progress reporting and save directly to OPFS.
- *  `hfToken` (optional) authenticates against Hugging Face for license-gated
- *  models like the official Gemma weights. */
+/** Download the model with progress reporting and resumable checkpointing.
+ *  `hfToken` (optional) authenticates HuggingFace for license-gated models.
+ *  Saves partial progress to localStorage so a tap on Download resumes. */
 export async function downloadGemma3Model(modelUrl, onProgress, hfToken) {
   const url = modelUrl || DEFAULT_MODEL_URL;
   let hostname;
-  try {
-    hostname = new URL(url, location.href).hostname;
-  } catch {
+  try { hostname = new URL(url, location.href).hostname; } catch {
     throw new Error('Invalid model URL.');
   }
   const isHuggingFace = /(^|\.)(huggingface\.co|hf\.co)$/.test(hostname);
+
+  // Check for a partial download to resume.
+  const existingMeta = getDlMeta();
+  const canResume = !!(existingMeta && existingMeta.url === url &&
+                       existingMeta.loadedBytes > 0 && !existingMeta.complete);
+
   const headers = {};
   if (hfToken && isHuggingFace) headers.Authorization = `Bearer ${hfToken}`;
+  if (canResume) {
+    headers['Range'] = `bytes=${existingMeta.loadedBytes}-`;
+    if (existingMeta.etag) headers['If-Range'] = existingMeta.etag;
+  }
 
   let response;
   try {
     response = await fetch(url, { headers });
-  } catch (err) {
-    // fetch() rejects with an opaque TypeError on CORS/CSP/network failures —
-    // translate it into something the user can act on.
-    throw new Error('Network or CORS error — the host may not allow browser downloads. Download the file manually and use "Import file" instead.');
+  } catch {
+    throw new Error(
+      'Network or CORS error — the host may not allow browser downloads. Download the file manually and use "Import file" instead.'
+    );
   }
+
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
       throw new Error(isHuggingFace
-        ? 'This model is license-gated (HTTP ' + response.status + '). Accept the Gemma license on huggingface.co, then paste a Hugging Face access token — or download the file manually and use "Import file".'
+        ? `This model is license-gated (HTTP ${response.status}). Accept the Gemma license on huggingface.co, paste a Hugging Face access token — or download the file manually and use "Import file".`
         : `Download rejected (HTTP ${response.status}).`);
     }
-    if (response.status === 404) {
-      throw new Error('Model URL not found (HTTP 404) — check the URL.');
-    }
+    if (response.status === 404) throw new Error('Model URL not found (HTTP 404) — check the URL.');
     throw new Error(`Failed to download model: HTTP ${response.status} ${response.statusText}`);
   }
 
+  const etag = response.headers.get('etag') || response.headers.get('last-modified') || '';
+  const contentRange = response.headers.get('content-range'); // "bytes START-END/TOTAL"
   const contentLength = response.headers.get('content-length');
-  const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
-  await streamToOpfs(response.body, totalBytes, onProgress);
-  onModelReplaced();
-  return true;
+
+  // Determine start offset and total size.
+  let startOffset = 0;
+  let totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+
+  if (response.status === 206 && canResume) {
+    startOffset = resolveDownloadResume(existingMeta, 206, etag);
+    const rangeTotal = contentRange ? parseInt(contentRange.split('/')[1], 10) : 0;
+    totalBytes = rangeTotal || (startOffset + (parseInt(contentLength, 10) || 0));
+  }
+
+  // Persist metadata immediately so a crash mid-download preserves the URL/etag.
+  setDlMeta({ url, etag, totalBytes, loadedBytes: startOffset, complete: false });
+
+  try {
+    await streamToOpfs(response.body, totalBytes, startOffset, onProgress, (committed) => {
+      setDlMeta({ url, etag, totalBytes, loadedBytes: committed, complete: false });
+    });
+    setDlMeta({ url, etag, totalBytes, loadedBytes: totalBytes || 0, complete: true });
+    onModelReplaced();
+    return true;
+  } catch (err) {
+    const committed = err.committedBytes ?? startOffset;
+    if (committed > 0) {
+      setDlMeta({ url, etag, totalBytes, loadedBytes: committed, complete: false });
+      const pct = totalBytes ? Math.round(committed / totalBytes * 100) : '?';
+      throw new Error(`Download interrupted at ${pct}% — tap Download to resume from where it left off.`);
+    }
+    clearDlMeta();
+    throw err;
+  }
 }
 
 /** Import a model the user downloaded manually (file picker) into OPFS.
@@ -190,17 +281,30 @@ export async function importGemma3ModelFile(file, onProgress) {
   if (file.size < 10_000_000) {
     throw new Error('That file is too small to be a model — expected the multi-GB .task/.litertlm weights.');
   }
-  await streamToOpfs(file.stream(), file.size, onProgress);
-  onModelReplaced();
-  return true;
+  const baseMeta = { url: 'imported', etag: '', totalBytes: file.size, loadedBytes: 0, complete: false };
+  setDlMeta(baseMeta);
+  try {
+    await streamToOpfs(file.stream(), file.size, 0, onProgress, (committed) => {
+      setDlMeta({ ...baseMeta, loadedBytes: committed });
+    });
+    setDlMeta({ ...baseMeta, loadedBytes: file.size, complete: true });
+    onModelReplaced();
+    return true;
+  } catch (err) {
+    const committed = err.committedBytes ?? 0;
+    if (committed > 0) setDlMeta({ ...baseMeta, loadedBytes: committed });
+    else clearDlMeta();
+    throw err;
+  }
 }
 
-/** Delete the downloaded model file from OPFS (and any legacy IDB blob) */
+/** Delete the downloaded model file from OPFS (and any legacy IDB blob). */
 export async function deleteGemma3Model() {
   try {
     const root = await navigator.storage.getDirectory();
     await root.removeEntry(OPFS_MODEL_FILE);
   } catch {}
+  clearDlMeta();
   bvIDB.del(CACHE_KEY).catch(() => {});
   if (activeInferenceInstance) {
     activeInferenceInstance.close();
@@ -208,7 +312,7 @@ export async function deleteGemma3Model() {
   }
 }
 
-/** Load the cached model from OPFS and initialize the MediaPipe LlmInference task */
+/** Load the cached model from OPFS and initialize the MediaPipe LlmInference task. */
 async function getInferenceInstance() {
   if (activeInferenceInstance) return activeInferenceInstance;
 
@@ -222,24 +326,24 @@ async function getInferenceInstance() {
   }
 
   const modelUrl = URL.createObjectURL(file);
-
   try {
     const genai = await FilesetResolver.forGenAiTasks(
       `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai@${MEDIAPIPE_VERSION}/wasm`
     );
-    
     activeInferenceInstance = await LlmInference.createFromOptions(genai, {
-      baseOptions: {
-        modelAssetPath: modelUrl
-      },
-      maxNumImages: 1, // Enable multimodal image input
+      baseOptions: { modelAssetPath: modelUrl },
+      maxNumImages: 1,
       maxTokens: 512
     });
+  } catch (err) {
+    // MediaPipe throws generic errors on OOM — translate them for the user.
+    if (/memory|allocat|oom|out of/i.test(err?.message || '')) {
+      throw new Error('Not enough memory to load the model. Try closing other apps or tabs.');
+    }
+    throw err;
   } finally {
-    // Revoke the Blob URL immediately after creation to free memory
     URL.revokeObjectURL(modelUrl);
   }
-  
   return activeInferenceInstance;
 }
 
@@ -257,29 +361,28 @@ export async function runLocalTextInference(textPrompt, onPartial) {
 }
 
 /**
- * Identify LEGO set from image bitmap/canvas using Gemma 3
+ * Identify LEGO set from image bitmap/canvas using Gemma.
  * @param {HTMLCanvasElement|HTMLImageElement|ImageBitmap} imageElement
  * @param {function} onStatus - callback for status updates
  */
 export async function runLocalVisionScan(imageElement, onStatus) {
   if (onStatus) onStatus('Initializing local engine...');
   const llm = await getInferenceInstance();
-  
+
   if (onStatus) onStatus('Analyzing image locally...');
-  // tasks-genai multimodal prompt format: an array of string / {imageSource} parts.
+  // tasks-genai multimodal prompt: array of string / {imageSource} parts.
   const prompt = [
     'You are a LEGO product-identification expert. Identify the LEGO set in this image. Look for any visible set numbers (usually 5 digits, e.g., 75192 or 10300) or distinctive box art/mini-figure details. Return ONLY raw JSON in this format: { "set_num": "...", "name": "...", "confidence": "high|medium|low|none", "reasoning": "..." }',
     { imageSource: imageElement }
   ];
 
   const response = await llm.generateResponse(prompt);
-  
-  // Clean up any extra markdown code block wrapping (e.g. ```json ... ```)
+
   let cleanText = response.trim();
   if (cleanText.startsWith('```')) {
     cleanText = cleanText.replace(/^```(json)?/, '').replace(/```$/, '').trim();
   }
-  
+
   try {
     const parsed = JSON.parse(cleanText);
     return {
@@ -289,17 +392,10 @@ export async function runLocalVisionScan(imageElement, onStatus) {
       confidence: parsed.confidence,
       reasoning: parsed.reasoning
     };
-  } catch (err) {
-    // Attempt regex extract if JSON parse fails
+  } catch {
     const numMatch = cleanText.match(/\b\d{4,6}-?\d?\b/);
     if (numMatch) {
-      return {
-        identified: true,
-        set_num: numMatch[0],
-        name: 'Identified Set',
-        confidence: 'medium',
-        reasoning: 'Extracted set number locally.'
-      };
+      return { identified: true, set_num: numMatch[0], name: 'Identified Set', confidence: 'medium', reasoning: 'Extracted set number locally.' };
     }
     throw new Error(`Failed to parse local AI response: ${response}`);
   }

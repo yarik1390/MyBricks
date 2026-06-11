@@ -1,7 +1,7 @@
 import { $, haptic, escapeHtml, toast, setBtnLoading } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, isGuestMode } from '../api.js';
-import { checkGemma3Downloaded, downloadGemma3Model, importGemma3ModelFile, deleteGemma3Model, getLocalAiAvailability, DEFAULT_MODEL_URL, MODEL_LICENSE_PAGE } from '../lib/local-ai.js';
+import { checkGemma3Downloaded, downloadGemma3Model, importGemma3ModelFile, deleteGemma3Model, getLocalAiAvailability, getDownloadMetadata, checkStoragePersisted, DEFAULT_MODEL_URL, MODEL_LICENSE_PAGE } from '../lib/local-ai.js';
 import { I } from '../icons.js';
 import { confirmSheet, showSheet, hideSheet } from '../components/sheet.js';
 import { go } from '../router.js';
@@ -437,16 +437,29 @@ export async function renderMeIntegrations() {
     const downloadBtn = document.getElementById("downloadGemmaBtn");
     const deleteBtn = document.getElementById("deleteGemmaBtn");
     const descEl = document.getElementById("gemmaModelDesc");
+    const importBtn = document.getElementById("importGemmaBtn");
     if (!downloadBtn || !deleteBtn || !descEl) return;
 
-    const importBtn = document.getElementById("importGemmaBtn");
     if (isDownloaded) {
-      descEl.innerHTML = `<span style="color:var(--up); font-weight:600;">Downloaded</span> — Gemma is ready for local offline photo scanning!`;
+      const persisted = await checkStoragePersisted();
+      const persistNote = persisted === true
+        ? ` <span class="u-fs-xs" style="color:var(--up);">&#x25CF; Protected from eviction</span>`
+        : persisted === false
+          ? ` <span class="u-fs-xs" style="color:var(--bv-yellow);">&#x26A0; May be evicted under storage pressure</span>`
+          : '';
+      descEl.innerHTML = `<span style="color:var(--up); font-weight:600;">Downloaded</span> — Gemma is ready for local offline photo scanning!${persistNote}`;
       downloadBtn.style.display = "none";
       if (importBtn) importBtn.style.display = "none";
       deleteBtn.style.display = "block";
     } else {
-      descEl.innerHTML = gemmaDescDefault;
+      const meta = getDownloadMetadata();
+      const currentUrl = document.getElementById("gemmaModelUrlInput")?.value?.trim() || DEFAULT_MODEL_URL;
+      const hasPartial = !!(meta && !meta.complete && meta.loadedBytes > 0 && meta.url === currentUrl);
+      const resumePct = hasPartial && meta.totalBytes ? Math.round(meta.loadedBytes / meta.totalBytes * 100) : null;
+      descEl.innerHTML = gemmaDescDefault + (hasPartial && resumePct !== null
+        ? ` <span class="u-fs-xs" style="color:var(--bv-yellow);">Download interrupted at ${resumePct}% &#x2014; tap &#x201C;Resume&#x201D; to continue.</span>`
+        : '');
+      downloadBtn.textContent = hasPartial ? `Resume (${resumePct !== null ? resumePct + '%' : '…'})` : "Download";
       downloadBtn.style.display = "block";
       if (importBtn) importBtn.style.display = "block";
       deleteBtn.style.display = "none";
@@ -477,6 +490,22 @@ export async function renderMeIntegrations() {
     const urlInput = $("#gemmaModelUrlInput");
     if (!btn || !urlInput) return;
 
+    // Device pre-checks: WebGPU required, warn on low RAM.
+    if (!('gpu' in navigator)) {
+      toast("WebGPU is required for local scanning but isn't supported by this browser. Try Chrome on Android or desktop.", "error");
+      return;
+    }
+    const ram = navigator.deviceMemory;
+    if (ram !== undefined && ram < 4) {
+      const proceed = await confirmSheet({
+        title: "Low RAM detected",
+        message: `Your device reports ${ram}GB RAM. The Gemma model (~3GB) may crash on devices with less than 4GB of memory. Proceed anyway?`,
+        confirmLabel: "Download anyway",
+        danger: false,
+      });
+      if (!proceed) return;
+    }
+
     const url = urlInput.value.trim();
     if (!url) { toast("Please provide a valid model URL.", "error"); return; }
     localStorage.setItem('bv_gemma_model_url', url);
@@ -486,19 +515,26 @@ export async function renderMeIntegrations() {
 
     haptic("medium");
     btn.disabled = true;
-    btn.textContent = "Downloading...";
-    const progress = gemmaProgressUi("Downloading:");
+    const meta = getDownloadMetadata();
+    const isResume = !!(meta && meta.url === url && meta.loadedBytes > 0 && !meta.complete);
+    btn.textContent = isResume ? "Resuming..." : "Downloading...";
+    const progress = gemmaProgressUi(isResume ? "Resuming:" : "Downloading:");
+
+    // Keep the screen on so Android doesn't kill the radio mid-download.
+    let wakeLock = null;
+    try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
 
     try {
       await downloadGemma3Model(url, progress.onProgress, hfToken);
       toast("Gemma Vision Model downloaded successfully!", "success");
       await updateGemmaUi();
     } catch (e) {
-      toast(`Download failed: ${e.message}`, "error");
+      toast(e.message, "error");
       btn.disabled = false;
-      btn.textContent = "Download";
+      await updateGemmaUi(); // shows "Resume (NN%)" if partial was saved
     } finally {
       progress.done();
+      try { await wakeLock?.release(); } catch {}
     }
   });
 
@@ -513,6 +549,8 @@ export async function renderMeIntegrations() {
     const btn = $("#importGemmaBtn");
     if (btn) { btn.disabled = true; btn.textContent = "Importing..."; }
     const progress = gemmaProgressUi("Importing:");
+    let wakeLock = null;
+    try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
     try {
       await importGemma3ModelFile(file, progress.onProgress);
       toast("Gemma Vision Model imported successfully!", "success");
@@ -521,6 +559,7 @@ export async function renderMeIntegrations() {
       toast(`Import failed: ${err.message}`, "error");
     } finally {
       progress.done();
+      try { await wakeLock?.release(); } catch {}
       if (btn) { btn.disabled = false; btn.textContent = "Import file"; }
       e.target.value = "";
     }

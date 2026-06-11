@@ -210,6 +210,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Initial route — after config and session are loaded.
   await route();
+
+  // If the user has the Gemma model and is online, load MediaPipe + wasm into
+  // the SW cache while idle so offline scanning works after next visit.
+  (window.requestIdleCallback || (fn => setTimeout(fn, 3000)))(() => {
+    if (localStorage.getItem('bv_ai_engine') === 'local' && navigator.onLine) {
+      import('./lib/local-ai.js').then(({ checkGemma3Downloaded, prewarmMediaPipeCache }) => {
+        checkGemma3Downloaded().then(ready => { if (ready) prewarmMediaPipeCache(); }).catch(() => {});
+      }).catch(() => {});
+    }
+  });
 });
 
 window.addEventListener("hashchange", async () => {

@@ -573,3 +573,32 @@ describe('sanitizeMoneyInput', () => {
     assert.equal(sanitizeMoneyInput('-5'), null);
   });
 });
+
+import { resolveDownloadResume } from '../lib/pure.js';
+
+describe('resolveDownloadResume', () => {
+  it('returns 0 when meta is null', () => {
+    assert.equal(resolveDownloadResume(null, 206, ''), 0);
+  });
+  it('returns 0 when loadedBytes is 0', () => {
+    assert.equal(resolveDownloadResume({ loadedBytes: 0, complete: false }, 206, ''), 0);
+  });
+  it('returns 0 when download is already complete', () => {
+    assert.equal(resolveDownloadResume({ loadedBytes: 500, complete: true }, 206, ''), 0);
+  });
+  it('returns 0 when server returns 200 (Range ignored)', () => {
+    assert.equal(resolveDownloadResume({ loadedBytes: 500, complete: false }, 200, ''), 0);
+  });
+  it('returns loadedBytes on 206 with no etag in meta', () => {
+    assert.equal(resolveDownloadResume({ loadedBytes: 500, complete: false }, 206, ''), 500);
+  });
+  it('returns loadedBytes on 206 with matching etag', () => {
+    assert.equal(resolveDownloadResume({ loadedBytes: 500, etag: '"abc"', complete: false }, 206, '"abc"'), 500);
+  });
+  it('returns 0 on 206 with mismatched etag (content changed)', () => {
+    assert.equal(resolveDownloadResume({ loadedBytes: 500, etag: '"abc"', complete: false }, 206, '"xyz"'), 0);
+  });
+  it('trusts partial when server 206 response has no etag but meta does', () => {
+    assert.equal(resolveDownloadResume({ loadedBytes: 500, etag: '"abc"', complete: false }, 206, null), 500);
+  });
+});
