@@ -2,7 +2,7 @@ import { $, $$, haptic, escapeHtml, fmtMoney, parseMarkdown, daysAgo, fmtPct, fm
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
-import { isLocalAiSupported, createLocalAiSession, getLocalAiAvailability } from '../lib/local-ai.js';
+import { isLocalAiSupported, createLocalAiSession, getLocalAiAvailability, checkGemma3Downloaded, runLocalTextInference } from '../lib/local-ai.js';
 import { showSheet, hideSheet } from './sheet.js';
 
 let _activeReader = null;
@@ -394,23 +394,23 @@ async function sendAdvisorMessage(q) {
 
   const engine = localStorage.getItem('bv_ai_engine') || 'cloud';
   if (engine === 'local') {
-    const nanoSupported = isLocalAiSupported() && (await getLocalAiAvailability()) !== 'no';
-    if (nanoSupported) {
+    const nanoAvail = await getLocalAiAvailability();
+    const nanoReady = isLocalAiSupported() && nanoAvail !== 'no';
+
+    if (nanoReady) {
+      // --- Gemini Nano path ---
       aiBubble.querySelector(".chat-typing")?.remove();
       let session = null;
       try {
         const context = buildLocalAdvisorContext();
         const systemPrompt = `You are a knowledgeable LEGO investment and collection advisor running locally on-device. You have access to the user's real collection data below. Answer questions concisely and specifically — always reference actual set names and numbers from their data. Recommend actionable decisions. Keep responses under 300 words.\n\n${context}`;
-        
         session = await createLocalAiSession(systemPrompt);
-        
         let fullText = "";
         try {
           const stream = session.promptStreaming(q);
           for await (const chunk of stream) {
-            // Legacy Prompt API streams cumulative snapshots; the current API
-            // streams deltas. A cumulative chunk always extends the previous
-            // text, so use that to tell them apart.
+            // Legacy Prompt API streams cumulative snapshots; current API streams
+            // deltas. A cumulative chunk always extends the previous text.
             fullText = chunk.startsWith(fullText) ? chunk : fullText + chunk;
             aiBubble.innerHTML = parseMarkdown(fullText);
             hist.scrollTop = hist.scrollHeight;
@@ -419,7 +419,6 @@ async function sendAdvisorMessage(q) {
           fullText = await session.prompt(q);
           aiBubble.innerHTML = parseMarkdown(fullText);
         }
-        
         if (fullText) saveChatMessage("ai", fullText);
       } catch (err) {
         aiBubble.classList.add("error");
@@ -431,15 +430,62 @@ async function sendAdvisorMessage(q) {
           sendAdvisorMessage(q);
         });
       } finally {
-        if (session) {
-          try { session.destroy(); } catch {}
-        }
+        if (session) { try { session.destroy(); } catch {} }
       }
       hist.scrollTop = hist.scrollHeight;
       return;
-    } else {
-      toast("Gemini Nano is not supported on this browser. Falling back to Cloud AI for the advisor.", "info");
     }
+
+    // --- Gemma LlmInference path (Nano unavailable but model downloaded) ---
+    const gemmaReady = await checkGemma3Downloaded();
+    if (gemmaReady) {
+      aiBubble.querySelector(".chat-typing")?.remove();
+      try {
+        const context = buildLocalAdvisorContext();
+        // Keep the prompt compact — Gemma 2B has a limited context window.
+        const truncCtx = context.length > 3000 ? context.slice(0, 3000) + "\n[…truncated]" : context;
+        const fullPrompt = `You are a LEGO investment advisor. Collection:\n${truncCtx}\n\nQuestion: ${q}\nAnswer (be brief and specific):`;
+        let fullText = "";
+        const finalText = await runLocalTextInference(fullPrompt, (partial) => {
+          fullText = partial;
+          aiBubble.innerHTML = parseMarkdown(fullText);
+          hist.scrollTop = hist.scrollHeight;
+        });
+        fullText = finalText || fullText;
+        aiBubble.innerHTML = parseMarkdown(fullText);
+        if (fullText) saveChatMessage("ai", fullText);
+      } catch (err) {
+        aiBubble.classList.add("error");
+        aiBubble.innerHTML = `<span>Local Gemma error: ${escapeHtml(err.message)}</span>
+          <button class="btn-secondary chat-retry-btn" style="display:block;margin-top:8px;padding:6px 12px;font-size:12px;width:auto;">Retry</button>`;
+        aiBubble.querySelector(".chat-retry-btn")?.addEventListener("click", () => {
+          aiBubble.previousElementSibling?.remove();
+          aiBubble.remove();
+          sendAdvisorMessage(q);
+        });
+      }
+      hist.scrollTop = hist.scrollHeight;
+      return;
+    }
+
+    // Neither Nano nor Gemma available
+    if (!navigator.onLine) {
+      aiBubble.querySelector(".chat-typing")?.remove();
+      aiBubble.classList.add("error");
+      aiBubble.innerHTML = `<span>You're offline and no local AI is available. Download the Gemma model in <strong>Settings → On-Device Offline AI</strong> to use the advisor offline.</span>`;
+      hist.scrollTop = hist.scrollHeight;
+      return;
+    }
+    toast("Gemini Nano is not supported and Gemma isn't downloaded. Falling back to Cloud AI.", "info");
+  }
+
+  // --- Cloud path ---
+  if (!navigator.onLine) {
+    aiBubble.querySelector(".chat-typing")?.remove();
+    aiBubble.classList.add("error");
+    aiBubble.innerHTML = `<span>You're offline. Switch to Local AI in <strong>Settings → On-Device Offline AI</strong> and download the Gemma model for offline use.</span>`;
+    hist.scrollTop = hist.scrollHeight;
+    return;
   }
 
   let streamTimeout = null;

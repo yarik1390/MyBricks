@@ -125,6 +125,20 @@ function onModelReplaced() {
   // Pre-OPFS versions stored the model blob in IndexedDB — free those gigabytes
   // for users upgrading from that build.
   bvIDB.del(CACHE_KEY).catch(() => {});
+  // Load MediaPipe now (while still online) so its CDN bundle and wasm files
+  // land in the SW cache before the user goes offline.
+  prewarmMediaPipeCache();
+}
+
+// Load MediaPipe + fetch the wasm fileset so the SW caches everything offline.
+function prewarmMediaPipeCache() {
+  loadMediaPipe().then(() => {
+    if (FilesetResolver) {
+      return FilesetResolver.forGenAiTasks(
+        `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai@${MEDIAPIPE_VERSION}/wasm`
+      );
+    }
+  }).catch(() => {});
 }
 
 /** Download the model file with progress reporting and save directly to OPFS.
@@ -227,6 +241,19 @@ async function getInferenceInstance() {
   }
   
   return activeInferenceInstance;
+}
+
+/**
+ * Run a text query through the Gemma model (no image).
+ * `onPartial(text)` is called with the cumulative text so far during streaming.
+ * Returns the final response string.
+ */
+export async function runLocalTextInference(textPrompt, onPartial) {
+  const llm = await getInferenceInstance();
+  if (onPartial) {
+    return llm.generateResponse(textPrompt, (partial) => { onPartial(partial); });
+  }
+  return llm.generateResponse(textPrompt);
 }
 
 /**
