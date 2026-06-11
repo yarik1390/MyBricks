@@ -172,7 +172,7 @@ function localAnalystHTML() {
   const items = p?.items || [];
   if (!items.length) {
     return `<div style="text-align:center;color:var(--ink-mute);padding:40px 20px;font-size:14px;">
-      <div style="font-size:24px;margin-bottom:8px;">📊</div>
+      <div class="u-center" style="margin-bottom:8px;color:var(--ink-mute);">${I.trend({w:24,h:24})}</div>
       Add items to your vault to generate a local portfolio analysis report.
     </div>`;
   }
@@ -243,7 +243,7 @@ function localAnalystHTML() {
   if (primaryTheme && primaryTheme.pctVal > 50) {
     diversificationWarning = `
       <div style="background:rgba(229, 57, 53, 0.08);border-left:4px solid var(--bv-red);padding:10px 14px;font-size:12px;color:var(--ink);border-radius:0 var(--r-2) var(--r-2) 0;margin-bottom:14px;line-height:1.45;">
-        <strong>⚠️ Theme Concentration Warning</strong><br>
+        <strong class="u-row u-gap-1">${I.alert({w:13,h:13})} Theme Concentration Warning</strong><br>
         Your largest theme (<em>${escapeHtml(primaryTheme.theme)}</em>) accounts for <strong>${primaryTheme.pctVal.toFixed(1)}%</strong> of your total portfolio value. Consider spreading acquisitions across other high-performing themes to reduce risk.
       </div>
     `;
@@ -328,7 +328,7 @@ function localAnalystHTML() {
       
       ${retirementAlerts.length > 0 ? `
         <div style="font-size:12px;color:var(--ink);margin-top:6px;">
-          <div style="font-weight:600;color:var(--bv-red);margin-bottom:4px;">⚠️ Active sets approaching retirement:</div>
+          <div class="u-row u-gap-1" style="font-weight:600;color:var(--bv-red);margin-bottom:4px;">${I.alert({w:13,h:13})} Active sets approaching retirement:</div>
           <div style="display:flex;flex-direction:column;gap:4px;">
             ${retirementAlerts.slice(0, 3).map(a => `
               <div style="display:flex;justify-content:space-between;color:var(--ink);background:var(--surface-3);padding:4px 8px;border-radius:4px;">

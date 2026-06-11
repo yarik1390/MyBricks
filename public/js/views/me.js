@@ -135,7 +135,7 @@ export async function renderMe() {
         </div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Price-drop alerts</div><div class="desc">Alert when wishlisted sets hit your target.</div></div>
-          <button class="toggle ${me.notify_price_drops ? "on" : ""}" id="notifyToggle" aria-label="Toggle price-drop alerts" aria-pressed="${me.notify_price_drops}"></button>
+          <button class="toggle ${me.notify_price_drops ? "on" : ""}" id="notifyToggle" role="switch" aria-label="Price-drop alerts" aria-checked="${!!me.notify_price_drops}"></button>
         </div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Currency</div><div class="desc">Display values in your local currency.</div></div>
@@ -207,6 +207,7 @@ export async function renderMe() {
   $("#notifyToggle")?.addEventListener("click", async (e) => {
     notifyOn = !notifyOn;
     e.currentTarget.classList.toggle("on", notifyOn);
+    e.currentTarget.setAttribute("aria-checked", notifyOn);
     haptic("medium");
     try { await api("/api/me", { method: "PATCH", body: { notify_price_drops: notifyOn } }); state.me = null; }
     catch {}
@@ -283,6 +284,7 @@ export async function renderMe() {
   $("#publicToggle")?.addEventListener("click", async (e) => {
     isPublicState = !isPublicState;
     e.currentTarget.classList.toggle("on", isPublicState);
+    e.currentTarget.setAttribute("aria-checked", isPublicState);
     haptic("medium");
     try {
       await api("/api/me", { method: "PATCH", body: { is_public: isPublicState } });
@@ -298,6 +300,7 @@ export async function renderMe() {
   $("#publicValToggle")?.addEventListener("click", async (e) => {
     epvState = !epvState;
     e.currentTarget.classList.toggle("on", epvState);
+    e.currentTarget.setAttribute("aria-checked", epvState);
     haptic("medium");
     try {
       await api("/api/me", { method: "PATCH", body: { expose_public_value: epvState } });
@@ -378,14 +381,14 @@ function publicProfileSectionHTML(me) {
     <div class="card" style="padding:14px 16px;margin-bottom:14px;">
       <div class="u-between" style="margin-bottom:10px;">
         <span class="u-fs-base" style="font-weight:600;">Public Portfolio</span>
-        <button class="toggle ${me.is_public ? "on" : ""}" id="publicToggle" aria-label="Toggle public profile" aria-pressed="${me.is_public}"></button>
+        <button class="toggle ${me.is_public ? "on" : ""}" id="publicToggle" role="switch" aria-label="Public profile" aria-checked="${!!me.is_public}"></button>
       </div>
       <div class="u-fs-sm u-mute" style="margin-bottom:12px;line-height:1.45;">
         When turned on, anyone with the link can view your collection and showcase shelf.
       </div>
       <div class="u-between" style="margin-bottom:10px;margin-top:14px;border-top:1px solid var(--border-soft-c);padding-top:10px;">
         <span class="u-fs-base" style="font-weight:600;">Show total valuation</span>
-        <button class="toggle ${me.expose_public_value ? "on" : ""}" id="publicValToggle" aria-label="Toggle public valuation" aria-pressed="${me.expose_public_value}"></button>
+        <button class="toggle ${me.expose_public_value ? "on" : ""}" id="publicValToggle" role="switch" aria-label="Public valuation" aria-checked="${!!me.expose_public_value}"></button>
       </div>
       <div class="u-fs-sm u-mute" style="margin-bottom:12px;line-height:1.45;">
         Expose the total value and thematic breakdown of your collection on your public profile.

@@ -331,6 +331,7 @@ body.offline .offline-banner { display: block; }
   flex-shrink: 0;
   display: inline-flex; align-items: center; gap: 6px;
   padding: 8px 14px;
+  min-height: 40px;
   background: var(--surface); color: var(--ink);
   border: var(--bw) solid var(--border-c);
   border-radius: var(--r-full);
@@ -922,7 +923,7 @@ body.offline .offline-banner { display: block; }
 .qty-row-val { font-family: var(--serif); font-size: 20px; font-weight: 500; }
 .qty-stepper { display: flex; align-items: center; gap: 6px; }
 .qty-btn {
-  width: 36px; height: 36px;
+  width: 44px; height: 44px;
   border: var(--bw) solid var(--border-c); border-radius: 50%;
   background: var(--surface); color: var(--ink);
   display: flex; align-items: center; justify-content: center;
@@ -2017,8 +2018,10 @@ select:focus-visible,
   font-size: 14px; font-weight: 500; cursor: pointer;
 }
 .completeness-row input[type="checkbox"] {
-  width: 18px; height: 18px; accent-color: var(--up);
+  width: 24px; height: 24px; accent-color: var(--up);
 }
+/* pad the label so the whole row is a ≥44px hit target */
+.completeness-row label { padding: 10px 0; }
 .missing-pieces-wrap { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
 .missing-pieces-wrap input {
   width: 80px;

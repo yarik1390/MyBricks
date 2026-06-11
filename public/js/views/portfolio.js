@@ -226,6 +226,7 @@ function paintPortfolio() {
         </div>
         <div class="topbar-actions">
           ${(state.me?.handle && state.me?.is_public) ? `<button class="icon-btn" id="portfolioShareBtn" aria-label="Share Portfolio">${I.share()}</button>` : ""}
+          ${(state.portfolio?.items?.length) ? `<button class="icon-btn" id="selectToggle" aria-label="Select sets">${I.check()}</button>` : ""}
           <button class="icon-btn" id="layoutToggle" aria-label="Toggle Layout">${state.compactView ? I.grid() : I.list()}</button>
           <button class="icon-btn" id="searchToggle" aria-label="Search">${I.search()}</button>
           <a href="#/wishlist" class="icon-btn" id="wishlistBtn" aria-label="Wishlist">
@@ -325,6 +326,16 @@ function paintPortfolio() {
     const toggleBtn = $("#layoutToggle");
     if (toggleBtn) toggleBtn.innerHTML = state.compactView ? I.grid() : I.list();
     repaintSetList();
+  });
+
+  // Visible entry point for multi-select (long-press remains a shortcut).
+  $("#selectToggle")?.addEventListener("click", () => {
+    if (state.selectionMode) { exitSelectionMode(); return; }
+    enterSelectionMode();
+    if (!localStorage.getItem("bv_sel_hint")) {
+      localStorage.setItem("bv_sel_hint", "1");
+      toast("Tap sets to select them for bulk actions", "info");
+    }
   });
 
   $("#portfolioShareBtn")?.addEventListener("click", async () => {
@@ -493,7 +504,7 @@ function emptyVaultHTML() {
   return `
     <div class="onboarding-empty" style="display:flex;flex-direction:column;gap:16px;margin: 16px 0;">
       <div class="empty-cta-card" style="background:linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);border:2.5px dashed var(--line);border-radius:var(--r-3);padding:24px 20px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;box-shadow:var(--shadow-1);">
-        <div style="font-size:36px;">📦</div>
+        <div class="u-center" style="color:var(--ink-mute);">${I.box({w:36,h:36})}</div>
         <h3 style="font-family:var(--font-heading);font-weight:600;font-size:18px;margin:0;">Start Your Brick Vault</h3>
         <p style="font-size:13px;color:var(--ink-mute);margin:0;line-height:1.4;max-width:280px;">Scan barcode boxes, search the catalog, and track your retirement values and ROI in real time.</p>
         <a href="#/add" class="btn-primary" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--r-2);font-weight:600;margin-top:8px;text-decoration:none;">
@@ -616,7 +627,7 @@ function renderInsightsTab(items) {
       <div class="section-title">Top Movers (90-day Slope)</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;">
         <div class="card" style="padding:12px;">
-          <div style="font-size:12px;font-family:var(--mono);color:var(--up);margin-bottom:8px;font-weight:700;">📈 TOP RISING</div>
+          <div class="u-row u-gap-1" style="font-size:12px;font-family:var(--mono);color:var(--up);margin-bottom:8px;font-weight:700;">${I.trend({w:13,h:13})} TOP RISING</div>
           ${rising.length === 0 ? `<div style="font-size:12px;color:var(--ink-mute);">No significant gainers</div>` : rising.map(item => `
             <div style="margin-bottom:6px;font-size:12px;display:flex;justify-content:space-between;align-items:center;">
               <span class="insight-set-link" data-set="${escapeHtml(item.set_num)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px;text-decoration:underline;cursor:pointer;">${escapeHtml(item.name)}</span>
@@ -625,7 +636,7 @@ function renderInsightsTab(items) {
           `).join("")}
         </div>
         <div class="card" style="padding:12px;">
-          <div style="font-size:12px;font-family:var(--mono);color:var(--bv-red);margin-bottom:8px;font-weight:700;">📉 TOP FALLING</div>
+          <div class="u-row u-gap-1" style="font-size:12px;font-family:var(--mono);color:var(--bv-red);margin-bottom:8px;font-weight:700;">${I.trendDown({w:13,h:13})} TOP FALLING</div>
           ${falling.length === 0 ? `<div style="font-size:12px;color:var(--ink-mute);">No significant decliners</div>` : falling.map(item => `
             <div style="margin-bottom:6px;font-size:12px;display:flex;justify-content:space-between;align-items:center;">
               <span class="insight-set-link" data-set="${escapeHtml(item.set_num)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px;text-decoration:underline;cursor:pointer;">${escapeHtml(item.name)}</span>
@@ -1034,7 +1045,7 @@ function infoTabHTML(set, entry, isWish) {
 
   const aiDisclaimerHTML = set.valuation_method === "ai" ? `
     <div style="background:rgba(245,158,11,0.1); border:1.5px solid rgba(245,158,11,0.3); color:rgba(245,158,11,1.0); border-radius:var(--r-2); padding:10px 12px; font-size:12px; margin-bottom:14px; display:flex; align-items:center; gap:8px; font-weight: 500;">
-      <span>⚠️</span>
+      <span class="u-center">${I.alert({w:15,h:15})}</span>
       <span>AI-estimated price — may vary from market.</span>
     </div>
   ` : '';
@@ -1641,7 +1652,7 @@ export async function renderWishlist() {
         </div>` : ""}
 
       ${dropAlerts.length > 0 ? `
-        <div class="section-title">Price Drops 📉</div>
+        <div class="section-title u-row u-gap-1">Price Drops ${I.trendDown({w:12,h:12})}</div>
         <div style="margin-bottom:14px;">
           ${dropAlerts.map(a => `
             <div class="alert-card">
@@ -1697,7 +1708,7 @@ function wishlistCardHTML(w) {
         </div>
         <div class="progress${hit ? " over" : ""}"><div style="width:${progress}%;"></div></div>
         ${buyWindowHTML(w)}
-        ${(w.retirement_risk_score || 0) >= 70 && !w.retired ? `<div style="font-size:11px;color:var(--down);margin-top:4px;font-family:var(--mono);">⚠️ Retirement risk: High</div>` : ""}
+        ${(w.retirement_risk_score || 0) >= 70 && !w.retired ? `<div class="u-row u-gap-1" style="font-size:11px;color:var(--down);margin-top:4px;font-family:var(--mono);">${I.alert({w:12,h:12})} Retirement risk: High</div>` : ""}
       </div>
       <a href="${bricklinkBuyURL(w.set_num)}" target="_blank" rel="noopener" class="bl-badge" style="position:absolute;bottom:10px;right:10px;z-index:5;font-size:10px;font-family:var(--mono);font-weight:700;padding:2px 5px;background:var(--bv-yellow);color:#000;border:1.5px solid var(--line);border-radius:var(--r-1);text-decoration:none;">BL ↗</a>
     </div>`;
@@ -2084,7 +2095,7 @@ function flipCalcHTML(set, entry) {
   
   return `
     <div class="flip-calc-wrap" style="margin-top:12px;padding:12px;background:var(--surface-3);border:1.5px solid var(--line-soft);border-radius:var(--r-2);">
-      <div style="font-family:var(--mono);font-size:9px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">Flip Calculator 💸</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:4px;">Flip Calculator ${I.money({w:12,h:12})}</div>
       <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;text-align:center;font-size:12px;">
         <div>
           <div style="color:var(--ink-mute);font-size:10px;">Gross</div>
@@ -2305,7 +2316,7 @@ function marketDepthHTML(set) {
     else if (askVsSold < 0) hint = 'Listings under sold comps — buying window';
   }
   return `<div class="market-depth">
-    <span>📦 ${askQty} active listing${askQty > 1 ? 's' : ''} · asking ${fmtMoney(askValue)}${sold ? ` vs ${fmtMoney(sold)} sold` : ''}</span>
+    <span class="u-row u-gap-1">${I.box({w:13,h:13})} ${askQty} active listing${askQty > 1 ? 's' : ''} · asking ${fmtMoney(askValue)}${sold ? ` vs ${fmtMoney(sold)} sold` : ''}</span>
     ${hint ? `<span class="signal-hint">${escapeHtml(hint)}</span>` : ''}
   </div>`;
 }
