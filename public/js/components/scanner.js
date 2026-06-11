@@ -13,21 +13,7 @@ export function openScan(mode = "barcode") {
   ov.classList.add("open");
   $("#scanCloseBtn")?.addEventListener("click", closeScan);
 
-  const scanEngine = $("#scanEngineSelect");
-  scanEngine?.addEventListener("change", async (e) => {
-    const val = e.target.value;
-    haptic("light");
-    if (val === "local") {
-      const isDownloaded = await checkGemma3Downloaded();
-      if (!isDownloaded) {
-        toast("Local Gemma model is not downloaded. Please download it in Settings -> Integrations first.", "error");
-        scanEngine.value = "cloud";
-        localStorage.setItem("bv_scan_engine", "cloud");
-        return;
-      }
-    }
-    localStorage.setItem("bv_scan_engine", val);
-  });
+
   
   // Swipe horizontally to close camera overlay
   let touchstartX = 0;
@@ -184,8 +170,9 @@ async function sendScanToAPI(payload) {
   const frame = document.querySelector(".scan-frame");
   if (frame) frame.classList.add("scan-pending");
 
-  const scanEngine = localStorage.getItem('bv_scan_engine') || 'cloud';
-  if (payload.mode === 'image' && scanEngine === 'local') {
+  const scanEngine = localStorage.getItem('bv_ai_engine') || 'cloud';
+  const isDownloaded = scanEngine === 'local' ? await checkGemma3Downloaded() : false;
+  if (payload.mode === 'image' && scanEngine === 'local' && isDownloaded) {
     try {
       const img = new Image();
       img.src = payload.image;
@@ -227,6 +214,8 @@ async function sendScanToAPI(payload) {
       if (frame) frame.classList.remove("scan-pending");
     }
     return;
+  } else if (payload.mode === 'image' && scanEngine === 'local' && !isDownloaded) {
+    toast("Local Gemma weights not downloaded. Running Cloud scan fallback.", "warning");
   }
 
   const ac = new AbortController();
@@ -388,7 +377,6 @@ function showScanResult(res) {
 }
 
 function scanOverlayHTML(mode) {
-  const selectedScanEngine = localStorage.getItem('bv_scan_engine') || 'cloud';
   return `
     <div class="scan-video-wrap">
       <video class="scan-video" id="scanVideo" autoplay playsinline muted></video>
@@ -397,12 +385,6 @@ function scanOverlayHTML(mode) {
         <div class="scan-mode-toggle" style="display: flex; align-items: center;">
           <button data-mode="barcode" class="${mode === "barcode" ? "active" : ""}">Barcode</button>
           <button data-mode="image" class="${mode === "image" ? "active" : ""}">Photo</button>
-          ${mode === "image" ? `
-            <select id="scanEngineSelect" style="background:rgba(0,0,0,0.65); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:6px; font-size:11px; padding:3px 6px; margin-left:8px; outline:none; cursor:pointer; font-family:var(--sans);">
-              <option value="cloud" ${selectedScanEngine === 'cloud' ? 'selected' : ''}>Cloud AI</option>
-              <option value="local" ${selectedScanEngine === 'local' ? 'selected' : ''}>Local AI</option>
-            </select>
-          ` : ""}
         </div>
         <div style="width:42px;"></div>
       </div>
@@ -462,8 +444,9 @@ async function processBulkScanQueue(files) {
       if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
 
       let apiRes;
-      const scanEngine = localStorage.getItem('bv_scan_engine') || 'cloud';
-      if (scanEngine === 'local') {
+      const scanEngine = localStorage.getItem('bv_ai_engine') || 'cloud';
+      const isDownloaded = scanEngine === 'local' ? await checkGemma3Downloaded() : false;
+      if (scanEngine === 'local' && isDownloaded) {
         const img = new Image();
         img.src = resized;
         await new Promise(r => img.onload = r);
@@ -482,6 +465,9 @@ async function processBulkScanQueue(files) {
           apiRes = { identified: false, reasoning: localResult.reasoning };
         }
       } else {
+        if (scanEngine === 'local') {
+          toast("Local Gemma weights not downloaded. Running Cloud scan fallback.", "warning");
+        }
         apiRes = await api("/api/scan/identify", {
           method: "POST",
           body: { mode: "image", image: resized },

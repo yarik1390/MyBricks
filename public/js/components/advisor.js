@@ -55,7 +55,6 @@ export async function renderAdvisorDrawer() {
   const drawer = document.getElementById("advisorDrawer");
   if (!drawer) return;
 
-  const selectedEngine = localStorage.getItem('bv_advisor_engine') || 'cloud';
   drawer.innerHTML = `
     <div style="height:100%; display:flex; flex-direction:column; background:var(--surface);">
       <div class="topbar" style="padding:12px 16px; border-bottom:1.5px solid var(--line-soft); flex-shrink:0;" id="advisorTopbar">
@@ -73,17 +72,6 @@ export async function renderAdvisorDrawer() {
       <div class="chat-tabs" style="display:flex; border-bottom:1.5px solid var(--line-soft); background:var(--surface); flex-shrink:0;">
         <button class="chat-tab-btn active" data-tab="chat" style="flex:1; padding:12px; background:transparent; border:none; border-bottom:2.5px solid var(--ink); font-weight:700; color:var(--ink); cursor:pointer; font-family:var(--sans); font-size:13px; outline:none;">AI Advisor</button>
         <button class="chat-tab-btn" data-tab="analyst" style="flex:1; padding:12px; background:transparent; border:none; border-bottom:2.5px solid transparent; font-weight:500; color:var(--ink-mute); cursor:pointer; font-family:var(--sans); font-size:13px; outline:none;">Local Analyst</button>
-      </div>
-
-      <!-- AI Engine Selector -->
-      <div id="aiEngineRow" style="padding:8px 16px; border-bottom:1.5px solid var(--line-soft); background:var(--surface-2); display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--ink-mute); flex-shrink:0;">
-        <span style="display:flex; align-items:center; gap:4px;">
-          ${I.flash({w:12, h:12})} <span id="currentEngineLabel" style="font-weight:600;">AI Engine: Cloud</span>
-        </span>
-        <select id="advisorEngineSelect" style="background:var(--surface); border:1.5px solid var(--line-soft); border-radius:6px; font-size:11px; padding:3px 8px; color:var(--ink); cursor:pointer; font-family:var(--sans); outline:none;">
-          <option value="cloud" ${selectedEngine === 'cloud' ? 'selected' : ''}>Cloud (Gemini/GPT)</option>
-          <option value="local" ${selectedEngine === 'local' ? 'selected' : ''}>Local (On-Device Nano)</option>
-        </select>
       </div>
 
       <!-- AI Chat Tab Area -->
@@ -129,34 +117,8 @@ export async function renderAdvisorDrawer() {
   $$(".chat-suggestion-chip").forEach(chip => {
     chip.addEventListener("click", () => sendAdvisorMessage(chip.textContent.trim()));
   });
-  $("#clearChat")?.addEventListener("click", () => clearAdvisorHistory());
-
-  // Wire Engine Selector
-  const engineSelect = document.getElementById("advisorEngineSelect");
-  const updateEngineLabel = (engine) => {
-    const label = document.getElementById("currentEngineLabel");
-    if (label) {
-      label.textContent = `AI Engine: ${engine === 'local' ? 'On-Device AI' : 'Cloud AI'}`;
-    }
-  };
-  updateEngineLabel(selectedEngine);
-
-  engineSelect?.addEventListener("change", async (e) => {
-    const val = e.target.value;
-    haptic("light");
-    if (val === "local") {
-      const availability = await getLocalAiAvailability();
-      if (availability === "no") {
-        toast("Local AI is not supported or enabled on this browser.", "error");
-        engineSelect.value = "cloud";
-        localStorage.setItem("bv_advisor_engine", "cloud");
-        updateEngineLabel("cloud");
-        showLocalAiSetupSheet();
-        return;
-      }
-    }
-    localStorage.setItem("bv_advisor_engine", val);
-    updateEngineLabel(val);
+  $("#clearChat")?.addEventListener("click", () => {
+    clearAdvisorHistory();
   });
 
   // Wire Tab Transitions
@@ -174,14 +136,12 @@ export async function renderAdvisorDrawer() {
       if (tab === "chat") {
         $("#chatHistory").style.display = "flex";
         $("#chatInputRow").style.display = "flex";
-        if ($("#aiEngineRow")) $("#aiEngineRow").style.display = "flex";
         $("#analystArea").style.display = "none";
         const hist = document.getElementById("chatHistory");
         if (hist) hist.scrollTop = hist.scrollHeight;
       } else if (tab === "analyst") {
         $("#chatHistory").style.display = "none";
         $("#chatInputRow").style.display = "none";
-        if ($("#aiEngineRow")) $("#aiEngineRow").style.display = "none";
         $("#analystArea").style.display = "block";
         $("#analystArea").innerHTML = localAnalystHTML();
       }
@@ -432,7 +392,7 @@ async function sendAdvisorMessage(q) {
 
   const aiBubble = appendChatBubble("ai", "", true);
 
-  const engine = localStorage.getItem('bv_advisor_engine') || 'cloud';
+  const engine = localStorage.getItem('bv_ai_engine') || 'cloud';
   if (engine === 'local') {
     aiBubble.querySelector(".chat-typing")?.remove();
     let session = null;
@@ -587,27 +547,7 @@ function clearAdvisorHistory() {
   renderAdvisorDrawer();
 }
 
-function showLocalAiSetupSheet() {
-  showSheet(`
-    <div style="font-family:var(--serif); font-size:20px; font-weight:600; margin:0 4px 12px; display:flex; align-items:center; gap:8px;">
-      ${I.info({w:18,h:18})} Enable On-Device AI
-    </div>
-    <div style="font-size:13px; color:var(--ink-mute); line-height:1.5; padding:4px;">
-      <p style="margin-bottom:12px;">This feature uses <strong>Gemini Nano</strong> built directly into your browser. Run offline, private AI with no API keys for free!</p>
-      <p style="margin-bottom:8px; font-weight:600; color:var(--ink);">To enable in Google Chrome (Desktop or Android):</p>
-      <ol style="padding-left:20px; margin-bottom:16px; display:flex; flex-direction:column; gap:8px; text-align:left;">
-        <li>Open a new tab and go to <code style="background:var(--surface-3); padding:2px 4px; border-radius:4px; font-family:var(--mono); font-size:11px;">chrome://flags/#prompt-api-for-gemini-nano</code>. Set it to <strong>Enabled</strong>.</li>
-        <li>Go to <code style="background:var(--surface-3); padding:2px 4px; border-radius:4px; font-family:var(--mono); font-size:11px;">chrome://flags/#optimization-guide-on-device-model</code>. Set it to <strong>Enabled BypassPerfRequirement</strong> (or similar Enabled option).</li>
-        <li>Relaunch Chrome and open your browser's settings to let Chrome finish downloading the model.</li>
-      </ol>
-      <button class="btn-primary" id="setupSheetDone" style="margin-top:8px;">Got it</button>
-    </div>
-  `);
-  document.getElementById("setupSheetDone")?.addEventListener("click", () => {
-    haptic("light");
-    hideSheet();
-  });
-}
+
 
 function buildLocalAdvisorContext() {
   const p = state.portfolio;

@@ -3,7 +3,7 @@ import { state, invalidatePortfolio } from '../state.js';
 import { api, isGuestMode } from '../api.js';
 import { checkGemma3Downloaded, downloadGemma3Model, deleteGemma3Model, getLocalAiAvailability, DEFAULT_MODEL_URL } from '../lib/local-ai.js';
 import { I } from '../icons.js';
-import { confirmSheet } from '../components/sheet.js';
+import { confirmSheet, showSheet, hideSheet } from '../components/sheet.js';
 import { go } from '../router.js';
 import { subpageTopbarHTML, loadMe } from './me-shared.js';
 import { skelPage, skelSettingRows } from '../components/skeleton.js';
@@ -147,6 +147,18 @@ export async function renderMeIntegrations() {
 
       <div class="section-title">On-Device Offline AI</div>
       <div>
+        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+          <div class="lbl-wrap">
+            <div class="lbl">Global AI Engine</div>
+            <div class="desc">Choose whether the app uses Cloud AI (Gemini/OpenAI) or Local On-Device AI (free & offline-ready).</div>
+          </div>
+          <div class="u-row u-wfull">
+            <select id="globalAiEngineSelect" class="u-wfull u-fs-base" style="border:1px solid var(--border-c);border-radius:var(--r-1);padding:8px 10px;background:var(--surface-2);color:var(--ink);outline:none;box-sizing:border-box;">
+              <option value="cloud" ${localStorage.getItem('bv_ai_engine') !== 'local' ? 'selected' : ''}>Cloud AI (Default)</option>
+              <option value="local" ${localStorage.getItem('bv_ai_engine') === 'local' ? 'selected' : ''}>Local On-Device AI (Free & Offline)</option>
+            </select>
+          </div>
+        </div>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">
             <div class="lbl">Gemini Nano (Chrome Built-in AI)</div>
@@ -471,5 +483,50 @@ export async function renderMeIntegrations() {
     await deleteGemma3Model();
     toast("Local model weights deleted", "info");
     await updateGemmaUi();
+  });
+
+  // --- Global AI Engine preference ---
+  const globalEngineSelect = document.getElementById("globalAiEngineSelect");
+  globalEngineSelect?.addEventListener("change", async (e) => {
+    const val = e.target.value;
+    haptic("light");
+    if (val === "local") {
+      const availability = await getLocalAiAvailability();
+      if (availability === "no") {
+        toast("Local AI is not supported or enabled on this browser.", "error");
+        globalEngineSelect.value = "cloud";
+        localStorage.setItem("bv_ai_engine", "cloud");
+        showLocalAiSetupSheet();
+        return;
+      }
+      const isDownloaded = await checkGemma3Downloaded();
+      if (!isDownloaded) {
+        toast("Note: Download the Gemma model below to use local photo scanning.", "info");
+      }
+    }
+    localStorage.setItem("bv_ai_engine", val);
+    toast(`Global AI Engine set to: ${val === 'local' ? 'Local On-Device' : 'Cloud'}`, "success");
+  });
+}
+
+function showLocalAiSetupSheet() {
+  showSheet(`
+    <div style="font-family:var(--serif); font-size:20px; font-weight:600; margin:0 4px 12px; display:flex; align-items:center; gap:8px;">
+      ${I.info({w:18,h:18})} Enable On-Device AI
+    </div>
+    <div style="font-size:13px; color:var(--ink-mute); line-height:1.5; padding:4px;">
+      <p style="margin-bottom:12px;">This feature uses <strong>Gemini Nano</strong> built directly into your browser. Run offline, private AI with no API keys for free!</p>
+      <p style="margin-bottom:8px; font-weight:600; color:var(--ink);">To enable in Google Chrome (Desktop or Android):</p>
+      <ol style="padding-left:20px; margin-bottom:16px; display:flex; flex-direction:column; gap:8px; text-align:left;">
+        <li>Open a new tab and go to <code style="background:var(--surface-3); padding:2px 4px; border-radius:4px; font-family:var(--mono); font-size:11px;">chrome://flags/#prompt-api-for-gemini-nano</code>. Set it to <strong>Enabled</strong>.</li>
+        <li>Go to <code style="background:var(--surface-3); padding:2px 4px; border-radius:4px; font-family:var(--mono); font-size:11px;">chrome://flags/#optimization-guide-on-device-model</code>. Set it to <strong>Enabled BypassPerfRequirement</strong> (or similar Enabled option).</li>
+        <li>Relaunch Chrome and open your browser's settings to let Chrome finish downloading the model.</li>
+      </ol>
+      <button class="btn-primary" id="setupSheetDone" style="margin-top:8px;">Got it</button>
+    </div>
+  `);
+  document.getElementById("setupSheetDone")?.addEventListener("click", () => {
+    haptic("light");
+    hideSheet();
   });
 }
