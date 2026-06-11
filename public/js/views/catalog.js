@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, toast, setBtnLoading, setHue, fmtMoney, trendBadgeHTML, THEME_COLORS, bvIDB } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast, setBtnLoading, setHue, fmtMoney, trendBadgeHTML, THEME_COLORS, bvIDB, SEARCH_DEBOUNCE_MS } from '../utils.js';
 import { state } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
@@ -65,7 +65,7 @@ export async function loadCatalog({ reset = false } = {}) {
 
 function isCatalogDefault() {
   const f = state.filter;
-  return !f.catalogQ && f.catalogTheme === 'all' && f.catalogYear === 'all' && !f.catalogRetired &&
+  return !f.catalogQ && f.catalogTheme === 'all' && f.catalogYear === 'all' && (f.catalogRetired === 'all' || !f.catalogRetired) &&
     Object.values(f.catalogRanges || {}).every(v => v === '');
 }
 
@@ -77,7 +77,8 @@ function catalogQuery() {
   p.set("sort", f.catalogSort);
   if (f.catalogQ) p.set("q", f.catalogQ);
   if (f.catalogTheme !== "all") p.set("theme", f.catalogTheme);
-  if (f.catalogRetired) p.set("retired", "1");
+  if (f.catalogRetired === "retired" || f.catalogRetired === true) p.set("retired", "1");
+  else if (f.catalogRetired === "active") p.set("retired", "0");
   for (const [k, v] of Object.entries(f.catalogRanges)) {
     if (v !== "" && v != null) p.set(k, v);
   }
@@ -173,13 +174,16 @@ function paintAdd() {
 
       <div class="filter-row">
         <button class="chip ${f.catalogTheme === "all" ? "active" : ""}" data-cat-theme="all">All themes</button>
+        ${state.themes.length > 8 && f.catalogTheme !== "all" && !state.themes.slice(0, 8).includes(f.catalogTheme) ? `<button class="chip active" data-cat-theme="${escapeHtml(f.catalogTheme)}">${escapeHtml(f.catalogTheme)}</button>` : ""}
         ${state.themes.slice(0, 8).map(t => `<button class="chip ${f.catalogTheme === t ? "active" : ""}" data-cat-theme="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join("")}
+        ${state.themes.length > 8 ? `<button class="chip" id="moreThemesChip">${I.filter()}<span>More…</span></button>` : ""}
       </div>
 
       <div class="filter-row" style="margin-top:-4px;">
         ${[["value_desc","Top value"],["roi_desc","Best growth"],["year_desc","Newest"],["az","A–Z"]]
           .map(([k,l]) => `<button class="chip ${f.catalogSort === k ? "active" : ""}" data-csort="${k}">${l}</button>`).join("")}
-        <button class="chip ${f.catalogRetired ? "active" : ""}" data-retired="1">${I.tag()}<span>Retired</span></button>
+        ${[["all","All"],["active","Active"],["retired","Retired"]].map(([k,l]) =>
+          `<button class="chip ${(f.catalogRetired || "all") === k ? "active" : ""}" data-retired="${k}">${l}</button>`).join("")}
         <button class="chip ${catalogRangesActive() ? "active" : ""}" id="filterChip">${I.filter()}<span>Filters${catalogRangesActive() ? " · " + catalogRangesActive() : ""}</span></button>
       </div>
 
@@ -206,7 +210,7 @@ function paintAdd() {
       } finally {
         showSearchSpinner(".search-wrap", false);
       }
-    }, 300);
+    }, SEARCH_DEBOUNCE_MS);
   });
 
   const reloadGrid = async () => { await loadCatalog({ reset: true }); refreshCatalogGrid(); };
@@ -232,12 +236,43 @@ function paintAdd() {
     reloadGrid();
   }));
   $$("[data-retired]").forEach(b => b.addEventListener("click", () => {
-    state.filter.catalogRetired = !state.filter.catalogRetired; haptic("light");
-    b.classList.toggle("active", state.filter.catalogRetired);
+    state.filter.catalogRetired = b.dataset.retired; haptic("light");
+    $$("[data-retired]").forEach(x => x.classList.toggle("active", x.dataset.retired === state.filter.catalogRetired));
     refreshCatalogSummary();
     reloadGrid();
   }));
   $("#filterChip")?.addEventListener("click", () => showFilterSheet(reloadGrid));
+
+  // Searchable picker for the full theme list (the row shows only 8 quick chips).
+  $("#moreThemesChip")?.addEventListener("click", () => {
+    showSheet(`
+      <div class="u-serif-h" style="margin:0 4px 12px;">Pick a theme</div>
+      <div class="search-wrap" style="margin:0 4px 14px;">
+        <span class="s-icon">${I.search()}</span>
+        <input class="search-input" id="themePickerInput" placeholder="Search themes…" autocomplete="off">
+      </div>
+      <div id="themePickerResults" class="scrollable u-col u-gap-1" style="max-height:320px;overflow-y:auto;margin:4px;"></div>
+    `);
+    const results = $("#themePickerResults");
+    const inp = $("#themePickerInput");
+    const paintThemes = (q = "") => {
+      const query = q.toLowerCase().trim();
+      const matches = state.themes.filter(t => !query || t.toLowerCase().includes(query));
+      results.innerHTML = matches.length
+        ? matches.map(t => `<button class="chip u-wfull ${state.filter.catalogTheme === t ? "active" : ""}" data-pick-theme="${escapeHtml(t)}" style="justify-content:flex-start;">${escapeHtml(t)}</button>`).join("")
+        : `<div class="u-mute u-fs-base" style="text-align:center;padding:20px;">No themes match</div>`;
+      results.querySelectorAll("[data-pick-theme]").forEach(b => b.addEventListener("click", () => {
+        state.filter.catalogTheme = b.dataset.pickTheme;
+        haptic("light");
+        hideSheet();
+        refreshCatalogSummary();
+        reloadGrid().then(() => renderAdd());
+      }));
+    };
+    paintThemes();
+    inp?.addEventListener("input", e => paintThemes(e.target.value));
+  });
+
   wireCatalogCards();
   mountCatalogSentinel();
 }
@@ -326,7 +361,7 @@ function catalogCardHTML(s) {
             <span>${escapeHtml(s.set_num)}</span>
             <span class="dot"></span>
             <span>${escapeHtml(s.theme || "")}</span>
-            ${s.owned ? `<span style="color:var(--up);font-weight:700;margin-left:4px;">OWNED</span>` : ""}
+            ${s.owned ? `<span class="badge badge--up" style="margin-left:4px;">OWNED</span>` : ""}
             ${sourceCueHTML(s)}
           </div>
         </div>

@@ -166,7 +166,8 @@ export function catalogFilterSummary(filter = {}) {
   const parts = [];
   if (filter.catalogQ) parts.push(`Search "${filter.catalogQ}"`);
   if (filter.catalogTheme && filter.catalogTheme !== "all") parts.push(filter.catalogTheme);
-  if (filter.catalogRetired) parts.push("Retired only");
+  if (filter.catalogRetired === "retired" || filter.catalogRetired === true) parts.push("Retired only");
+  else if (filter.catalogRetired === "active") parts.push("Active only");
   const ranges = filter.catalogRanges || {};
   const valueLabel = (value, unit = "") => unit === "$" ? `$${value}` : `${value}${unit}`;
   const rangeLabel = (label, minKey, maxKey, unit = "") => {

@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, fmtMoney, toast, themeHue, debounce, bvIDB } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoney, toast, themeHue, debounce, bvIDB, SEARCH_DEBOUNCE_MS } from '../utils.js';
 import { state } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
@@ -162,7 +162,7 @@ const debouncedFigSearch = debounce(async () => {
   await loadBlind({ reset: true });
   refreshMiniGrid();
   refreshMiniStats();
-}, 350);
+}, SEARCH_DEBOUNCE_MS);
 
 function wireMiniCards() {
   const grid = $("#miniGrid");

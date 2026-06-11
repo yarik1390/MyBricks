@@ -443,8 +443,15 @@ async function sendAdvisorMessage(q) {
     if (fullText) saveChatMessage("ai", fullText);
   } catch (err) {
     aiBubble.querySelector(".chat-typing")?.remove();
-    aiBubble.textContent = "Sorry, couldn't reach the advisor. " + (err.message || "");
     aiBubble.classList.add("error");
+    aiBubble.innerHTML = `<span>Sorry, couldn't reach the advisor. ${escapeHtml(err.message || "")}</span>
+      <button class="btn-secondary chat-retry-btn" style="display:block;margin-top:8px;padding:6px 12px;font-size:12px;width:auto;">Retry</button>`;
+    // Retry re-sends the same question in a fresh bubble pair.
+    aiBubble.querySelector(".chat-retry-btn")?.addEventListener("click", () => {
+      aiBubble.previousElementSibling?.remove(); // the user bubble (re-added by retry)
+      aiBubble.remove();
+      sendAdvisorMessage(q);
+    });
   } finally {
     clearTimeout(streamTimeout);
     if (_activeReader === reader) _activeReader = null;

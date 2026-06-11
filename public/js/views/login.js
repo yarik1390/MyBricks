@@ -1,6 +1,7 @@
 import { $, toast, setBtnLoading } from '../utils.js';
-import { _sbUrl, sbSignIn, sbSignUp, saveSession, snapshotGuestVault, migrateGuestVault } from '../api.js';
+import { _sbUrl, sbSignIn, sbSignUp, sbRecover, saveSession, snapshotGuestVault, migrateGuestVault } from '../api.js';
 import { go } from '../router.js';
+import { promptSheet } from '../components/sheet.js';
 
 export function renderLogin() {
   let mode = "signin";
@@ -26,6 +27,8 @@ export function renderLogin() {
               <span>${mode === "signin" ? "Sign in" : "Create account"}</span>
             </button>
             <div id="authErr" style="color:var(--down);font-size:13px;text-align:center;min-height:18px;font-family:var(--mono);"></div>
+            ${mode === "signin" ? `
+            <button id="authForgot" style="color:var(--ink-mute);background:none;border:none;font-size:12px;cursor:pointer;text-decoration:underline;align-self:center;padding:4px 8px;">Forgot password?</button>` : ""}
             <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
               <div style="flex:1;height:1px;background:var(--line);"></div>
               <div style="font-size:12px;color:var(--ink-mute);white-space:nowrap;">or</div>
@@ -55,6 +58,19 @@ export function renderLogin() {
       paint();
     });
 
+    document.getElementById("authForgot")?.addEventListener("click", async () => {
+      if (!_sbUrl) { toast("Auth not configured", "error"); return; }
+      const prefill = document.getElementById("authEmail")?.value.trim() || "";
+      const email = await promptSheet({ title: "Reset password", label: "Email address", value: prefill, placeholder: "you@example.com", confirmLabel: "Send reset link" });
+      if (!email) return;
+      try {
+        await sbRecover(email);
+        toast("Reset link sent — check your email", "success");
+      } catch (e) {
+        toast(e.message, "error");
+      }
+    });
+
     document.getElementById("googleSignIn")?.addEventListener("click", () => {
       if (!_sbUrl) { toast("Auth not configured", "error"); return; }
       const guestSnapshot = snapshotGuestVault();
@@ -81,9 +97,21 @@ export function renderLogin() {
         } else {
           session = await sbSignUp(email, pass);
           if (!session.access_token) {
-            if (errEl) errEl.textContent = "Account created! Check your email to confirm, then sign in.";
+            // Persistent success panel — no disorienting auto-switch.
             setBtnLoading(btn, false);
-            setTimeout(() => { mode = "signin"; paint(); }, 2000);
+            const card = btn?.closest(".card");
+            if (card) {
+              card.innerHTML = `
+                <div style="text-align:center;padding:8px 4px;">
+                  <div style="font-size:15px;font-weight:600;color:var(--up);margin-bottom:8px;">Account created ✓</div>
+                  <div style="font-size:13px;color:var(--ink-mute);line-height:1.5;margin-bottom:16px;">
+                    We sent a confirmation link to <strong>${email.replace(/</g, "&lt;")}</strong>.
+                    Confirm your email, then sign in.
+                  </div>
+                  <button class="btn-primary" id="gotoSignin" style="width:100%;">Go to sign in</button>
+                </div>`;
+              document.getElementById("gotoSignin")?.addEventListener("click", () => { mode = "signin"; paint(); });
+            }
             return;
           }
         }

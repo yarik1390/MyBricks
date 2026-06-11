@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, clamp, prefersReducedMotion, confettiBurst, themeHue, setHue, THEME_COLORS, fmtShortDate, fmtDateUpdated, setBtnLoading, drawSparkline, brickTile, slImgHTML, bricklinkBuyURL, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, clamp, prefersReducedMotion, confettiBurst, themeHue, setHue, THEME_COLORS, fmtShortDate, fmtDateUpdated, setBtnLoading, drawSparkline, brickTile, slImgHTML, bricklinkBuyURL, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS } from '../utils.js';
 import { computeDealScore, ebaySoldSummary, marketValueForCondition, computeSpreadSignals, buyWindow, pricePerPiece } from '../lib/pure.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue } from '../api.js';
@@ -246,11 +246,13 @@ function paintPortfolio() {
 
       <div class="card hero" data-trend="${gain > 0 ? "up" : gain < 0 ? "down" : "flat"}">
         <div class="hero-eyebrow"><span class="pulse"></span>Vault · LIVE</div>
-        <div class="hero-value" id="heroValue">${heroValueHTML(totalVal)}</div>
-        <div class="hero-meta">
-          <span>Invested ${fmtMoney(p.total_paid)}</span>
+        <div class="u-row" style="flex-wrap:wrap;column-gap:12px;">
+          <div class="hero-value" id="heroValue">${heroValueHTML(totalVal)}</div>
           <span class="delta ${gain >= 0 ? "up" : "down"}"><span class="arrow">${gain >= 0 ? "▲" : "▼"}</span>${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(Math.abs(gainPct))})</span>
-          ${p.fig_count > 0 ? `<span style="cursor:help;" title="Minifig collection value tracked separately">Figs: ${p.fig_count} (${fmtMoney(p.fig_value || 0)})</span>` : ""}
+        </div>
+        <div class="hero-meta u-mono-label" style="letter-spacing:0.06em;">
+          <span>Invested ${fmtMoney(p.total_paid)}</span>
+          ${p.fig_count > 0 ? `<span style="cursor:help;" title="Minifig collection value tracked separately">· Figs ${p.fig_count} (${fmtMoney(p.fig_value || 0)})</span>` : ""}
         </div>
         <div class="spark-wrap" id="heroChart"></div>
         <div class="range-pills" id="rangePills">
@@ -378,7 +380,7 @@ function paintPortfolio() {
       state.filter.q = q;
       repaintSetList();
       showSearchSpinner("#searchWrap", false);
-    }, 300);
+    }, SEARCH_DEBOUNCE_MS);
   });
 
   $("#alertsBtn")?.addEventListener("click", () => showAlertsSheet(state.wishlistAlerts));
@@ -1327,42 +1329,43 @@ function forecastTabHTML(set) {
 function manageTabHTML(set, entry) {
   if (!entry) return `<p style="color:var(--ink-mute);">Not in your vault.</p>`;
   return `
-    <div class="field">
-      <div class="field-lbl">Purchase price</div>
-      <input id="mPrice" type="number" step="0.01" value="${entry.purchase_price ?? ""}" placeholder="0.00">
+    <div class="u-between u-mb-2">
+      <span class="u-mono-label">Set details</span>
+      <span id="manageSaveState" class="badge badge--neutral" aria-live="polite" style="visibility:hidden;">Saved ✓</span>
     </div>
-    <div class="field">
-      <div class="field-lbl">Purchase date</div>
-      <input id="mDate" type="date" value="${entry.purchased_at ? entry.purchased_at.slice(0,10) : ""}">
-    </div>
-    <div class="field">
-      <div class="field-lbl">Condition</div>
-      <select id="mCondition">
-        <option value="sealed" ${entry.condition === "sealed" ? "selected" : ""}>Sealed (MISB)</option>
-        <option value="new" ${entry.condition === "new" ? "selected" : ""}>New, opened</option>
-        <option value="used_good" ${entry.condition === "used_good" ? "selected" : ""}>Used — good</option>
-        <option value="used_acceptable" ${entry.condition === "used_acceptable" ? "selected" : ""}>Used — acceptable</option>
-      </select>
-    </div>
-    <div class="field">
-      <div class="field-lbl">Notes</div>
-      <textarea id="mNotes" placeholder="Story, details, anything…">${escapeHtml(entry.notes || "")}</textarea>
-    </div>
-    <div class="field">
-      <div class="field-lbl">Storage location</div>
-      <input id="mStorage" type="text" value="${escapeHtml(entry.storage_location || "")}" placeholder="e.g. Display shelf A3, Attic box 2" list="storageLocations">
-      <datalist id="storageLocations"></datalist>
-    </div>
-    <div class="field">
-      <div class="field-lbl">Acquisition source</div>
-      <select id="mAcquisition">
-        <option value="" ${!entry.acquisition_source ? "selected" : ""}>— select —</option>
-        ${["Store","BrickLink","eBay","Facebook Marketplace","Trade","Gift","Other"].map(s =>
-          `<option value="${s}" ${entry.acquisition_source === s ? "selected" : ""}>${s}</option>`
-        ).join("")}
-      </select>
-    </div>
-    <div class="field">
+    <fieldset class="form-group" style="border:none;padding:0;margin:0 0 6px;">
+      <legend class="u-mono-label u-mb-1">Purchase</legend>
+      <div class="field">
+        <div class="field-lbl">Purchase price</div>
+        <input id="mPrice" type="number" step="0.01" value="${entry.purchase_price ?? ""}" placeholder="0.00">
+        <div class="field-err" id="mPriceErr"></div>
+      </div>
+      <div class="field">
+        <div class="field-lbl">Purchase date</div>
+        <input id="mDate" type="date" value="${entry.purchased_at ? entry.purchased_at.slice(0,10) : ""}">
+      </div>
+      <div class="field">
+        <div class="field-lbl">Acquisition source</div>
+        <select id="mAcquisition">
+          <option value="" ${!entry.acquisition_source ? "selected" : ""}>— select —</option>
+          ${["Store","BrickLink","eBay","Facebook Marketplace","Trade","Gift","Other"].map(s =>
+            `<option value="${s}" ${entry.acquisition_source === s ? "selected" : ""}>${s}</option>`
+          ).join("")}
+        </select>
+      </div>
+    </fieldset>
+    <fieldset class="form-group" style="border:none;padding:0;margin:0 0 6px;">
+      <legend class="u-mono-label u-mb-1">Condition</legend>
+      <div class="field">
+        <div class="field-lbl">Condition</div>
+        <select id="mCondition">
+          <option value="sealed" ${entry.condition === "sealed" ? "selected" : ""}>Sealed (MISB)</option>
+          <option value="new" ${entry.condition === "new" ? "selected" : ""}>New, opened</option>
+          <option value="used_good" ${entry.condition === "used_good" ? "selected" : ""}>Used — good</option>
+          <option value="used_acceptable" ${entry.condition === "used_acceptable" ? "selected" : ""}>Used — acceptable</option>
+        </select>
+      </div>
+      <div class="field">
         <div class="field-lbl">Completeness</div>
         <div class="completeness-row">
           <label><input type="checkbox" id="mComplete" ${entry.is_complete !== false ? "checked" : ""}>Complete / all pieces present</label>
@@ -1372,7 +1375,23 @@ function manageTabHTML(set, entry) {
           <span style="font-size:13px;color:var(--ink-mute);">pieces missing</span>
         </div>
       </div>
+    </fieldset>
+    <fieldset class="form-group" style="border:none;padding:0;margin:0 0 6px;">
+      <legend class="u-mono-label u-mb-1">Storage &amp; notes</legend>
+      <div class="field">
+        <div class="field-lbl">Storage location</div>
+        <input id="mStorage" type="text" value="${escapeHtml(entry.storage_location || "")}" placeholder="e.g. Display shelf A3, Attic box 2" list="storageLocations">
+        <datalist id="storageLocations"></datalist>
+      </div>
+      <div class="field">
+        <div class="field-lbl">Notes</div>
+        <textarea id="mNotes" placeholder="Story, details, anything…">${escapeHtml(entry.notes || "")}</textarea>
+      </div>
+    </fieldset>
+    <details class="card" style="padding:12px 16px;margin-bottom:14px;" ${entry.purchase_price ? "open" : ""}>
+      <summary class="u-mono-label" style="cursor:pointer;list-style-position:inside;">Flip calculator</summary>
       <div id="mFlipCalcContainer">${flipCalcHTML(set, entry)}</div>
+    </details>
 
     <div class="card" style="padding:14px 16px;margin-bottom:14px;" id="partsCard">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -1427,7 +1446,18 @@ function wireManageTab(set, entry) {
     }
   }
 
+  // Persistent status chip beats a transient toast for silent blur-saves —
+  // the user can always see whether their last edit landed.
+  function setSaveState(label, tone) {
+    const el = $("#manageSaveState");
+    if (!el) return;
+    el.style.visibility = "visible";
+    el.textContent = label;
+    el.className = `badge badge--${tone}`;
+  }
+
   async function persist() {
+    setSaveState("Saving…", "neutral");
     try {
       const isComplete = $("#mComplete")?.checked ?? true;
       await api("/api/collection/" + entry.id, {
@@ -1445,8 +1475,11 @@ function wireManageTab(set, entry) {
       });
       invalidatePortfolio();
       delete state.detail.cache[set.set_num];
-      toast("Saved", "success");
-    } catch (e) { toast("Save failed: " + e.message, "error"); }
+      setSaveState("Saved ✓", "up");
+    } catch (e) {
+      setSaveState("Save failed — retry", "down");
+      toast("Save failed: " + e.message, "error");
+    }
   }
 
   // Toggle missing-pieces input when completeness changes
@@ -1627,13 +1660,15 @@ export async function renderWishlist() {
   const dropAlerts = alerts.filter(a => a.alert_type === "drop" || !a.alert_type);
   const totalAlerts = alerts.length;
 
-  if (state.wishlistAlerts && state.wishlistAlerts.length > 0) {
-    state.wishlistAlerts = [];
-    refreshNavBadge();
-    alerts.forEach(a => {
-      api(`/api/wishlist/${a.id}`, { method: "POST" }).catch(err => console.error("Failed to mark alert as read:", err));
-    });
-  }
+  // Sort the list: closest-to-target first, by value, or most recent.
+  const wlSort = localStorage.getItem("bv_wl_sort") || "recent";
+  const sorted = [...state.wishlist];
+  if (wlSort === "gap") {
+    const gapOf = w => w.target_price ? (w.current_value - w.target_price) / w.target_price : Infinity;
+    sorted.sort((a, b) => gapOf(a) - gapOf(b));
+  } else if (wlSort === "value") {
+    sorted.sort((a, b) => (b.current_value || 0) - (a.current_value || 0));
+  } // "recent" keeps API order (added_at desc)
 
   $("#root").innerHTML = `
     <div class="page">
@@ -1644,6 +1679,12 @@ export async function renderWishlist() {
           <div class="topbar-title">Wishlist</div>
         </div>
       </div>
+
+      ${totalAlerts > 0 ? `
+        <div class="u-between u-mb-2">
+          <span class="u-mono-label">${totalAlerts} unread alert${totalAlerts !== 1 ? "s" : ""}</span>
+          <button class="btn-secondary" id="wlMarkAllRead" style="padding:6px 12px;font-size:12px;width:auto;">Mark all read</button>
+        </div>` : ""}
 
       ${spikeAlerts.length > 0 ? `
         <div class="section-title">Sell Opportunities 💰</div>
@@ -1662,14 +1703,36 @@ export async function renderWishlist() {
             </div>`).join("")}
         </div>` : ""}
 
+      ${state.wishlist.length > 1 ? `
+        <div class="filter-row" style="margin-bottom:10px;">
+          ${[["recent","Recent"],["gap","Closest to target"],["value","By value"]]
+            .map(([k,l]) => `<button class="chip ${wlSort === k ? "active" : ""}" data-wl-sort="${k}">${l}</button>`).join("")}
+        </div>` : ""}
+
       ${state.wishlist.length === 0 ? `
         <div class="empty card">
           <div class="empty-icon">${I.heart()}</div>
           <h3>Nothing wishlisted yet</h3>
           <p>Tap the heart on any set to watch it. We'll alert you when the price hits your target.</p>
         </div>` : `
-        <div>${state.wishlist.map(wishlistCardHTML).join("")}</div>`}
+        <div>${sorted.map(wishlistCardHTML).join("")}</div>`}
     </div>`;
+
+  $("#wlMarkAllRead")?.addEventListener("click", async () => {
+    haptic("medium");
+    state.wishlistAlerts = [];
+    refreshNavBadge();
+    await Promise.all(alerts.map(a =>
+      api(`/api/wishlist/${a.id}`, { method: "POST" }).catch(err => console.error("Failed to mark alert as read:", err))
+    ));
+    renderWishlist();
+  });
+
+  $$("[data-wl-sort]").forEach(b => b.addEventListener("click", () => {
+    localStorage.setItem("bv_wl_sort", b.dataset.wlSort);
+    haptic("light");
+    renderWishlist();
+  }));
 
   $$(".wishlist-card").forEach(c => c.addEventListener("click", () => {
     location.hash = "#/set/" + encodeURIComponent(c.dataset.set);

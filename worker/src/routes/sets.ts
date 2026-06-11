@@ -116,6 +116,7 @@ app.get('/search', async (c) => {
   }
   if (theme) addFilter(`s.theme = ?`, theme);
   if (retired === '1' || retired === 'true') addFilter(`s.retired = 1`);
+  else if (retired === '0' || retired === 'false') addFilter(`s.retired = 0`);
 
   const rangeFilter = (key: string, col: string) => {
     const v = parseInt(c.req.query(key) || '', 10);

@@ -121,6 +121,19 @@ export async function sbSignUp(email, password) {
   return d;
 }
 
+export async function sbRecover(email) {
+  const r = await fetch(`${_sbUrl}/auth/v1/recover`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: _sbAnonKey },
+    body: JSON.stringify({ email }),
+  });
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    const msg = d.msg || d.error_description || d.message || "Couldn't send the reset email";
+    throw new Error(msg);
+  }
+}
+
 export async function sbRefresh(refreshToken) {
   const r = await fetch(`${_sbUrl}/auth/v1/token?grant_type=refresh_token`, {
     method: "POST",

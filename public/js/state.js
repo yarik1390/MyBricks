@@ -24,7 +24,7 @@ export const state = {
     sort: localStorage.getItem("bv_sort") || "added_desc",
     catalogQ: "",
     catalogSort: "value_desc", catalogYear: "all",
-    catalogRetired: false, catalogTheme: "all",
+    catalogRetired: "all", catalogTheme: "all",
     catalogRanges: { min_year: "", max_year: "", min_pieces: "", max_pieces: "", min_value: "", max_value: "" },
     wishlistSort: "recent",
     figQ: "", figRarity: "all", figOwned: "all", figSort: "rarity_desc",

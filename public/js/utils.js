@@ -163,6 +163,9 @@ export function toast(msg, type) {
   if (!_toastShowing) _renderNextToast();
 }
 
+// One debounce interval for every search box — consistent feel across screens.
+export const SEARCH_DEBOUNCE_MS = 250;
+
 export function debounce(fn, ms) {
   let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
