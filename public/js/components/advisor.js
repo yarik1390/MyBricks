@@ -2,6 +2,8 @@ import { $, $$, haptic, escapeHtml, fmtMoney, parseMarkdown, daysAgo, fmtPct, fm
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
+import { isLocalAiSupported, createLocalAiSession, getLocalAiAvailability } from '../lib/local-ai.js';
+import { showSheet, hideSheet } from './sheet.js';
 
 let _activeReader = null;
 export function cancelActiveStream() {
@@ -53,6 +55,7 @@ export async function renderAdvisorDrawer() {
   const drawer = document.getElementById("advisorDrawer");
   if (!drawer) return;
 
+  const selectedEngine = localStorage.getItem('bv_advisor_engine') || 'cloud';
   drawer.innerHTML = `
     <div style="height:100%; display:flex; flex-direction:column; background:var(--surface);">
       <div class="topbar" style="padding:12px 16px; border-bottom:1.5px solid var(--line-soft); flex-shrink:0;" id="advisorTopbar">
@@ -70,6 +73,17 @@ export async function renderAdvisorDrawer() {
       <div class="chat-tabs" style="display:flex; border-bottom:1.5px solid var(--line-soft); background:var(--surface); flex-shrink:0;">
         <button class="chat-tab-btn active" data-tab="chat" style="flex:1; padding:12px; background:transparent; border:none; border-bottom:2.5px solid var(--ink); font-weight:700; color:var(--ink); cursor:pointer; font-family:var(--sans); font-size:13px; outline:none;">AI Advisor</button>
         <button class="chat-tab-btn" data-tab="analyst" style="flex:1; padding:12px; background:transparent; border:none; border-bottom:2.5px solid transparent; font-weight:500; color:var(--ink-mute); cursor:pointer; font-family:var(--sans); font-size:13px; outline:none;">Local Analyst</button>
+      </div>
+
+      <!-- AI Engine Selector -->
+      <div id="aiEngineRow" style="padding:8px 16px; border-bottom:1.5px solid var(--line-soft); background:var(--surface-2); display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--ink-mute); flex-shrink:0;">
+        <span style="display:flex; align-items:center; gap:4px;">
+          ${I.flash({w:12, h:12})} <span id="currentEngineLabel" style="font-weight:600;">AI Engine: Cloud</span>
+        </span>
+        <select id="advisorEngineSelect" style="background:var(--surface); border:1.5px solid var(--line-soft); border-radius:6px; font-size:11px; padding:3px 8px; color:var(--ink); cursor:pointer; font-family:var(--sans); outline:none;">
+          <option value="cloud" ${selectedEngine === 'cloud' ? 'selected' : ''}>Cloud (Gemini/GPT)</option>
+          <option value="local" ${selectedEngine === 'local' ? 'selected' : ''}>Local (On-Device Nano)</option>
+        </select>
       </div>
 
       <!-- AI Chat Tab Area -->
@@ -117,6 +131,34 @@ export async function renderAdvisorDrawer() {
   });
   $("#clearChat")?.addEventListener("click", () => clearAdvisorHistory());
 
+  // Wire Engine Selector
+  const engineSelect = document.getElementById("advisorEngineSelect");
+  const updateEngineLabel = (engine) => {
+    const label = document.getElementById("currentEngineLabel");
+    if (label) {
+      label.textContent = `AI Engine: ${engine === 'local' ? 'On-Device AI' : 'Cloud AI'}`;
+    }
+  };
+  updateEngineLabel(selectedEngine);
+
+  engineSelect?.addEventListener("change", async (e) => {
+    const val = e.target.value;
+    haptic("light");
+    if (val === "local") {
+      const availability = await getLocalAiAvailability();
+      if (availability === "no") {
+        toast("Local AI is not supported or enabled on this browser.", "error");
+        engineSelect.value = "cloud";
+        localStorage.setItem("bv_advisor_engine", "cloud");
+        updateEngineLabel("cloud");
+        showLocalAiSetupSheet();
+        return;
+      }
+    }
+    localStorage.setItem("bv_advisor_engine", val);
+    updateEngineLabel(val);
+  });
+
   // Wire Tab Transitions
   $$(".chat-tab-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -132,12 +174,14 @@ export async function renderAdvisorDrawer() {
       if (tab === "chat") {
         $("#chatHistory").style.display = "flex";
         $("#chatInputRow").style.display = "flex";
+        if ($("#aiEngineRow")) $("#aiEngineRow").style.display = "flex";
         $("#analystArea").style.display = "none";
         const hist = document.getElementById("chatHistory");
         if (hist) hist.scrollTop = hist.scrollHeight;
       } else if (tab === "analyst") {
         $("#chatHistory").style.display = "none";
         $("#chatInputRow").style.display = "none";
+        if ($("#aiEngineRow")) $("#aiEngineRow").style.display = "none";
         $("#analystArea").style.display = "block";
         $("#analystArea").innerHTML = localAnalystHTML();
       }
@@ -388,6 +432,48 @@ async function sendAdvisorMessage(q) {
 
   const aiBubble = appendChatBubble("ai", "", true);
 
+  const engine = localStorage.getItem('bv_advisor_engine') || 'cloud';
+  if (engine === 'local') {
+    aiBubble.querySelector(".chat-typing")?.remove();
+    let session = null;
+    try {
+      const context = buildLocalAdvisorContext();
+      const systemPrompt = `You are a knowledgeable LEGO investment and collection advisor running locally on-device. You have access to the user's real collection data below. Answer questions concisely and specifically — always reference actual set names and numbers from their data. Recommend actionable decisions. Keep responses under 300 words.\n\n${context}`;
+      
+      session = await createLocalAiSession(systemPrompt);
+      
+      let fullText = "";
+      try {
+        const stream = session.promptStreaming(q);
+        for await (const chunk of stream) {
+          fullText = chunk;
+          aiBubble.innerHTML = parseMarkdown(fullText);
+          hist.scrollTop = hist.scrollHeight;
+        }
+      } catch (streamErr) {
+        fullText = await session.prompt(q);
+        aiBubble.innerHTML = parseMarkdown(fullText);
+      }
+      
+      if (fullText) saveChatMessage("ai", fullText);
+    } catch (err) {
+      aiBubble.classList.add("error");
+      aiBubble.innerHTML = `<span>Local AI session failed. ${escapeHtml(err.message || "Ensure Gemini Nano is enabled in Chrome settings.")}</span>
+        <button class="btn-secondary chat-retry-btn" style="display:block;margin-top:8px;padding:6px 12px;font-size:12px;width:auto;">Retry</button>`;
+      aiBubble.querySelector(".chat-retry-btn")?.addEventListener("click", () => {
+        aiBubble.previousElementSibling?.remove();
+        aiBubble.remove();
+        sendAdvisorMessage(q);
+      });
+    } finally {
+      if (session) {
+        try { session.destroy(); } catch {}
+      }
+    }
+    hist.scrollTop = hist.scrollHeight;
+    return;
+  }
+
   let streamTimeout = null;
   let reader = null;
   try {
@@ -499,4 +585,98 @@ function saveChatMessage(role, content) {
 function clearAdvisorHistory() {
   localStorage.removeItem('bv_chat');
   renderAdvisorDrawer();
+}
+
+function showLocalAiSetupSheet() {
+  showSheet(`
+    <div style="font-family:var(--serif); font-size:20px; font-weight:600; margin:0 4px 12px; display:flex; align-items:center; gap:8px;">
+      ${I.info({w:18,h:18})} Enable On-Device AI
+    </div>
+    <div style="font-size:13px; color:var(--ink-mute); line-height:1.5; padding:4px;">
+      <p style="margin-bottom:12px;">This feature uses <strong>Gemini Nano</strong> built directly into your browser. Run offline, private AI with no API keys for free!</p>
+      <p style="margin-bottom:8px; font-weight:600; color:var(--ink);">To enable in Google Chrome (Desktop or Android):</p>
+      <ol style="padding-left:20px; margin-bottom:16px; display:flex; flex-direction:column; gap:8px; text-align:left;">
+        <li>Open a new tab and go to <code style="background:var(--surface-3); padding:2px 4px; border-radius:4px; font-family:var(--mono); font-size:11px;">chrome://flags/#prompt-api-for-gemini-nano</code>. Set it to <strong>Enabled</strong>.</li>
+        <li>Go to <code style="background:var(--surface-3); padding:2px 4px; border-radius:4px; font-family:var(--mono); font-size:11px;">chrome://flags/#optimization-guide-on-device-model</code>. Set it to <strong>Enabled BypassPerfRequirement</strong> (or similar Enabled option).</li>
+        <li>Relaunch Chrome and open your browser's settings to let Chrome finish downloading the model.</li>
+      </ol>
+      <button class="btn-primary" id="setupSheetDone" style="margin-top:8px;">Got it</button>
+    </div>
+  `);
+  document.getElementById("setupSheetDone")?.addEventListener("click", () => {
+    haptic("light");
+    hideSheet();
+  });
+}
+
+function buildLocalAdvisorContext() {
+  const p = state.portfolio;
+  const items = p?.items || [];
+  const wl = state.wishlist || [];
+  
+  const lines = [];
+  lines.push(`USER COLLECTION (${p?.count || items.length} sets)`);
+  lines.push(`Total value: $${(p?.total_value || 0).toFixed(0)} | Total paid: $${(p?.total_paid || 0).toFixed(0)}`);
+  
+  if (p?.total_value > 0 && p?.total_paid > 0) {
+    const gain = ((p.total_value - p.total_paid) / p.total_paid * 100).toFixed(1);
+    lines.push(`Overall ROI: ${Number(gain) >= 0 ? '+' : ''}${gain}%`);
+  }
+  lines.push('');
+  
+  // Theme breakdown
+  const themes = {};
+  for (const i of items) {
+    const t = i.theme || 'Other';
+    if (!themes[t]) themes[t] = { sets: 0, value: 0, paid: 0 };
+    themes[t].sets += (i.quantity || 1);
+    themes[t].value += (Number(i.current_value) || 0) * (i.quantity || 1);
+    themes[t].paid += (Number(i.purchase_price) || 0) * (i.quantity || 1);
+  }
+  
+  const sortedThemes = Object.entries(themes)
+    .map(([theme, data]) => ({ theme, ...data }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5);
+    
+  if (sortedThemes.length > 0) {
+    lines.push('THEME BREAKDOWN:');
+    for (const t of sortedThemes) {
+      const roi = t.paid > 0 ? ` ${((t.value - t.paid) / t.paid * 100).toFixed(0)}% ROI` : '';
+      lines.push(`- ${t.theme}: ${t.sets} sets, $${t.value.toFixed(0)} value,${roi}`);
+    }
+    lines.push('');
+  }
+  
+  lines.push('TOP OWNED SETS:');
+  const topSets = items.slice()
+    .sort((a, b) => (Number(b.current_value) || 0) - (Number(a.current_value) || 0))
+    .slice(0, 25);
+    
+  for (const s of topSets) {
+    const risk = s.retirement_risk_score != null && s.retirement_risk_score >= 70 ? ' [HIGH RETIRE RISK]' : '';
+    const ret = s.retired ? ' [RETIRED]' : '';
+    const cond = s.condition ? ` | Condition: ${s.condition}` : '';
+    const roi = (s.purchase_price && s.current_value) 
+      ? ` (${(((s.current_value - s.purchase_price) / s.purchase_price) * 100).toFixed(0)}% ROI)` 
+      : '';
+    lines.push(
+      `- ${s.name} (${s.set_num}) | ${s.theme || 'Unknown'} | Value: $${(Number(s.current_value) || 0).toFixed(0)}${roi} | Paid: $${s.purchase_price ? s.purchase_price.toFixed(0) : 'unknown'} | Qty: ${s.quantity}${cond}${risk}${ret}`
+    );
+  }
+  lines.push('');
+  
+  if (wl.length > 0) {
+    lines.push('WISHLIST:');
+    const sortedWl = wl.slice()
+      .sort((a, b) => (Number(b.current_value) || 0) - (Number(a.current_value) || 0))
+      .slice(0, 15);
+    for (const w of sortedWl) {
+      const gap = w.target_price ? ` | Target: $${Number(w.target_price).toFixed(0)}` : '';
+      lines.push(`- ${w.name} (${w.set_num}) | Value: $${(Number(w.current_value) || 0).toFixed(0)}${gap}`);
+    }
+    lines.push('');
+  }
+  
+  return lines.join('\n');
 }

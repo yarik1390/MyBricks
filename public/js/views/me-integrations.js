@@ -1,6 +1,7 @@
 import { $, haptic, escapeHtml, toast, setBtnLoading } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, isGuestMode } from '../api.js';
+import { checkGemma3Downloaded, downloadGemma3Model, deleteGemma3Model, getLocalAiAvailability, DEFAULT_MODEL_URL } from '../lib/local-ai.js';
 import { I } from '../icons.js';
 import { confirmSheet } from '../components/sheet.js';
 import { go } from '../router.js';
@@ -140,6 +141,37 @@ export async function renderMeIntegrations() {
             <input type="password" id="openaiKeyInput" value="${escapeHtml(savedOpenAIKey)}" placeholder="sk-..."
               class="u-flex1 u-fs-base" style="padding:10px;border:var(--bw-thin) solid var(--border-c);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-family:var(--mono);outline:none;">
             <button class="btn-secondary" id="saveOpenAIKey" style="white-space:nowrap;">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-title">On-Device Offline AI</div>
+      <div>
+        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+          <div class="lbl-wrap">
+            <div class="lbl">Gemini Nano (Chrome Built-in AI)</div>
+            <div class="desc" id="chromeAiStatus">Checking compatibility...</div>
+          </div>
+        </div>
+        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+          <div class="lbl-wrap">
+            <div class="lbl">Gemma Vision Model (Offline Scanning)</div>
+            <div class="desc" id="gemmaModelDesc">Requires downloading the model weights (~1.4GB) to run set photo scanning 100% on-device for free.</div>
+          </div>
+          <div class="u-row u-wfull" style="flex-direction: column; gap: 8px;">
+            <div id="gemmaDownloadStatus" class="u-fs-sm u-mute" style="display:none; width: 100%;">
+              Downloading: <span id="gemmaDownloadPct">0%</span>
+              <div style="background:var(--line-soft); border-radius:4px; height:6px; width:100%; overflow:hidden; margin-top:4px;">
+                <div id="gemmaDownloadBar" style="background:var(--up); height:100%; width:0%; transition:width 0.2s ease;"></div>
+              </div>
+            </div>
+            
+            <div class="u-row u-wfull" style="gap: 8px;">
+              <input type="text" id="gemmaModelUrlInput" value="${escapeHtml(localStorage.getItem('bv_gemma_model_url') || DEFAULT_MODEL_URL)}" placeholder="Paste custom model URL..."
+                class="u-flex1 u-fs-sm" style="padding:8px 10px;border:var(--bw-thin) solid var(--border-c);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-family:var(--mono);outline:none;">
+              <button class="btn-primary" id="downloadGemmaBtn" style="white-space:nowrap; padding: 8px 12px; font-size:12px;">Download</button>
+              <button class="btn-secondary" id="deleteGemmaBtn" style="white-space:nowrap; padding: 8px 12px; font-size:12px; color:var(--down); display:none;">Delete</button>
+            </div>
           </div>
         </div>
       </div>
@@ -362,4 +394,82 @@ export async function renderMeIntegrations() {
   };
   wireKeySave("#saveGeminiKey", "#geminiKeyInput", "bv_gemini_key", "gemini", "Gemini");
   wireKeySave("#saveOpenAIKey", "#openaiKeyInput", "bv_openai_key", "openai", "OpenAI");
+
+  // --- Check On-Device Prompt API availability ---
+  const checkChromeAi = async () => {
+    const statusEl = document.getElementById("chromeAiStatus");
+    if (!statusEl) return;
+    const availability = await getLocalAiAvailability();
+    if (availability === 'readily') {
+      statusEl.innerHTML = `<span style="color:var(--up); font-weight:600;">Compatible</span> — Ready for offline text advice.`;
+    } else if (availability === 'after-download') {
+      statusEl.innerHTML = `<span style="color:var(--bv-yellow); font-weight:600;">Supported</span> — Model needs download. Run a query in the Advisor tab to trigger it.`;
+    } else {
+      statusEl.innerHTML = `<span style="color:var(--down);">Unsupported</span> — Requires Chrome on desktop/Android with Gemini Nano flags enabled.`;
+    }
+  };
+  setTimeout(checkChromeAi, 100);
+
+  // --- Check Gemma 3 Vision Model Cache ---
+  const updateGemmaUi = async () => {
+    const isDownloaded = await checkGemma3Downloaded();
+    const downloadBtn = document.getElementById("downloadGemmaBtn");
+    const deleteBtn = document.getElementById("deleteGemmaBtn");
+    const descEl = document.getElementById("gemmaModelDesc");
+    if (!downloadBtn || !deleteBtn || !descEl) return;
+
+    if (isDownloaded) {
+      descEl.innerHTML = `<span style="color:var(--up); font-weight:600;">Downloaded</span> — Gemma is ready for local offline photo scanning!`;
+      downloadBtn.style.display = "none";
+      deleteBtn.style.display = "block";
+    } else {
+      descEl.innerHTML = `Requires downloading the model weights (~1.4GB) to run set photo scanning 100% on-device for free.`;
+      downloadBtn.style.display = "block";
+      deleteBtn.style.display = "none";
+    }
+  };
+  setTimeout(updateGemmaUi, 100);
+
+  // --- Gemma Download Actions ---
+  $("#downloadGemmaBtn")?.addEventListener("click", async () => {
+    const btn = $("#downloadGemmaBtn");
+    const urlInput = $("#gemmaModelUrlInput");
+    const statusDiv = $("#gemmaDownloadStatus");
+    const pctSpan = $("#gemmaDownloadPct");
+    const barDiv = $("#gemmaDownloadBar");
+    if (!btn || !urlInput) return;
+
+    const url = urlInput.value.trim();
+    if (!url) { toast("Please provide a valid model URL.", "error"); return; }
+    localStorage.setItem('bv_gemma_model_url', url);
+
+    haptic("medium");
+    btn.disabled = true;
+    btn.textContent = "Downloading...";
+    if (statusDiv) statusDiv.style.display = "block";
+
+    try {
+      await downloadGemma3Model(url, (pct) => {
+        const percentText = `${Math.round(pct * 100)}%`;
+        if (pctSpan) pctSpan.textContent = percentText;
+        if (barDiv) barDiv.style.width = percentText;
+      });
+      toast("Gemma Vision Model downloaded successfully!", "success");
+      await updateGemmaUi();
+    } catch (e) {
+      toast(`Download failed: ${e.message}`, "error");
+      btn.disabled = false;
+      btn.textContent = "Download";
+    } finally {
+      if (statusDiv) statusDiv.style.display = "none";
+    }
+  });
+
+  $("#deleteGemmaBtn")?.addEventListener("click", async () => {
+    if (!(await confirmSheet({ title: "Delete Gemma Model?", message: "This will remove the 1.4GB model weights from your local browser cache.", confirmLabel: "Delete", danger: true }))) return;
+    haptic("heavy");
+    await deleteGemma3Model();
+    toast("Local model weights deleted", "info");
+    await updateGemmaUi();
+  });
 }

@@ -4,6 +4,7 @@ import { api, outboxEnqueue } from '../api.js';
 import { I } from '../icons.js';
 import { confirmSheet, showSheet, hideSheet } from './sheet.js';
 import { computeDealScore as computeDealScorePure, marketValueForCondition } from '../lib/pure.js';
+import { checkGemma3Downloaded, runLocalVisionScan } from '../lib/local-ai.js';
 
 export function openScan(mode = "barcode") {
   state.camera.mode = mode;
@@ -11,6 +12,22 @@ export function openScan(mode = "barcode") {
   ov.innerHTML = scanOverlayHTML(mode);
   ov.classList.add("open");
   $("#scanCloseBtn")?.addEventListener("click", closeScan);
+
+  const scanEngine = $("#scanEngineSelect");
+  scanEngine?.addEventListener("change", async (e) => {
+    const val = e.target.value;
+    haptic("light");
+    if (val === "local") {
+      const isDownloaded = await checkGemma3Downloaded();
+      if (!isDownloaded) {
+        toast("Local Gemma model is not downloaded. Please download it in Settings -> Integrations first.", "error");
+        scanEngine.value = "cloud";
+        localStorage.setItem("bv_scan_engine", "cloud");
+        return;
+      }
+    }
+    localStorage.setItem("bv_scan_engine", val);
+  });
   
   // Swipe horizontally to close camera overlay
   let touchstartX = 0;
@@ -166,6 +183,52 @@ async function sendScanToAPI(payload) {
   }
   const frame = document.querySelector(".scan-frame");
   if (frame) frame.classList.add("scan-pending");
+
+  const scanEngine = localStorage.getItem('bv_scan_engine') || 'cloud';
+  if (payload.mode === 'image' && scanEngine === 'local') {
+    try {
+      const img = new Image();
+      img.src = payload.image;
+      await new Promise(r => img.onload = r);
+      
+      const localResult = await runLocalVisionScan(img, (statusText) => {
+        const hint = $("#scanHint");
+        if (hint) hint.textContent = statusText;
+      });
+      
+      if (localResult.identified) {
+        const setNum = localResult.set_num;
+        const setResponse = await api(`/api/sets/${encodeURIComponent(setNum)}`).catch(() => null);
+        const set = setResponse?.set || setResponse || {
+          set_num: setNum,
+          name: localResult.name || "Unknown Set",
+          current_value: 0,
+          theme: "Local AI"
+        };
+        
+        showScanResult({
+          identified: true,
+          confidence: localResult.confidence,
+          reasoning: localResult.reasoning,
+          sets: [set]
+        });
+      } else {
+        showScanResult({
+          identified: false,
+          reasoning: localResult.reasoning || "Could not identify the set locally. Try a clearer photo."
+        });
+      }
+    } catch (err) {
+      showScanResult({
+        identified: false,
+        reasoning: `Local scanner error: ${err.message}`
+      });
+    } finally {
+      if (frame) frame.classList.remove("scan-pending");
+    }
+    return;
+  }
+
   const ac = new AbortController();
   const tid = setTimeout(() => ac.abort(), 30_000);
   try {
@@ -325,14 +388,21 @@ function showScanResult(res) {
 }
 
 function scanOverlayHTML(mode) {
+  const selectedScanEngine = localStorage.getItem('bv_scan_engine') || 'cloud';
   return `
     <div class="scan-video-wrap">
       <video class="scan-video" id="scanVideo" autoplay playsinline muted></video>
-      <div class="scan-top">
+      <div class="scan-top" style="justify-content: space-between;">
         <button id="scanCloseBtn" aria-label="Close">${I.close()}</button>
-        <div class="scan-mode-toggle">
+        <div class="scan-mode-toggle" style="display: flex; align-items: center;">
           <button data-mode="barcode" class="${mode === "barcode" ? "active" : ""}">Barcode</button>
           <button data-mode="image" class="${mode === "image" ? "active" : ""}">Photo</button>
+          ${mode === "image" ? `
+            <select id="scanEngineSelect" style="background:rgba(0,0,0,0.65); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:6px; font-size:11px; padding:3px 6px; margin-left:8px; outline:none; cursor:pointer; font-family:var(--sans);">
+              <option value="cloud" ${selectedScanEngine === 'cloud' ? 'selected' : ''}>Cloud AI</option>
+              <option value="local" ${selectedScanEngine === 'local' ? 'selected' : ''}>Local AI</option>
+            </select>
+          ` : ""}
         </div>
         <div style="width:42px;"></div>
       </div>
@@ -391,11 +461,33 @@ async function processBulkScanQueue(files) {
       if (geminiKey) extraHeaders['X-Gemini-Key'] = geminiKey;
       if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
 
-      const apiRes = await api("/api/scan/identify", {
-        method: "POST",
-        body: { mode: "image", image: resized },
-        headers: extraHeaders
-      });
+      let apiRes;
+      const scanEngine = localStorage.getItem('bv_scan_engine') || 'cloud';
+      if (scanEngine === 'local') {
+        const img = new Image();
+        img.src = resized;
+        await new Promise(r => img.onload = r);
+        const localResult = await runLocalVisionScan(img);
+        if (localResult.identified) {
+          const setNum = localResult.set_num;
+          const setResponse = await api(`/api/sets/${encodeURIComponent(setNum)}`).catch(() => null);
+          const set = setResponse?.set || setResponse || {
+            set_num: setNum,
+            name: localResult.name || "Unknown Set",
+            current_value: 0,
+            theme: "Local AI"
+          };
+          apiRes = { identified: true, sets: [set], confidence: localResult.confidence, reasoning: localResult.reasoning };
+        } else {
+          apiRes = { identified: false, reasoning: localResult.reasoning };
+        }
+      } else {
+        apiRes = await api("/api/scan/identify", {
+          method: "POST",
+          body: { mode: "image", image: resized },
+          headers: extraHeaders
+        });
+      }
 
       results.push({
         success: apiRes.identified,
