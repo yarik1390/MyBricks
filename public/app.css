@@ -3316,3 +3316,19 @@ select:focus-visible,
 /* running admin job: spin the tool button icon */
 .import-btn[aria-busy="true"] svg { animation: spin 1s linear infinite; }
 .import-btn:disabled { opacity: 0.5; }
+
+/* ===== Inline-row buttons (appended) =====
+   .btn-primary/.btn-secondary/.btn-danger are width:100% for stacked mobile
+   layouts. As a direct child of a flex row (.u-row / .setting-row) that 100%
+   basis crushes the flexible sibling (input or .lbl-wrap) to near-zero width —
+   shrink to content instead. Buttons that opt into stretching keep it via
+   .u-flex1 / .u-wfull. */
+.u-row > .btn-primary:not(.u-flex1):not(.u-wfull),
+.u-row > .btn-secondary:not(.u-flex1):not(.u-wfull),
+.u-row > .btn-danger:not(.u-flex1):not(.u-wfull),
+.setting-row > .btn-primary:not(.u-flex1):not(.u-wfull),
+.setting-row > .btn-secondary:not(.u-flex1):not(.u-wfull),
+.setting-row > .btn-danger:not(.u-flex1):not(.u-wfull) {
+  width: auto;
+  flex: 0 0 auto;
+}

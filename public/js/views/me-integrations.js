@@ -1,7 +1,7 @@
 import { $, haptic, escapeHtml, toast, setBtnLoading } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, isGuestMode } from '../api.js';
-import { checkGemma3Downloaded, downloadGemma3Model, deleteGemma3Model, getLocalAiAvailability, DEFAULT_MODEL_URL } from '../lib/local-ai.js';
+import { checkGemma3Downloaded, downloadGemma3Model, importGemma3ModelFile, deleteGemma3Model, getLocalAiAvailability, DEFAULT_MODEL_URL, MODEL_LICENSE_PAGE } from '../lib/local-ai.js';
 import { I } from '../icons.js';
 import { confirmSheet, showSheet, hideSheet } from '../components/sheet.js';
 import { go } from '../router.js';
@@ -29,6 +29,12 @@ export async function renderMeIntegrations() {
     || `Missing Worker secrets: ${googleMissing.join(", ")}. Add them as GitHub Actions secrets and redeploy to enable account linking.`;
   const savedGeminiKey = localStorage.getItem('bv_gemini_key') || '';
   const savedOpenAIKey = localStorage.getItem('bv_openai_key') || '';
+  // Earlier builds shipped (and persisted) a dead model URL — drop it so the
+  // input falls back to the working default.
+  if ((localStorage.getItem('bv_gemma_model_url') || '').includes('jardpound')) {
+    localStorage.removeItem('bv_gemma_model_url');
+  }
+  const gemmaDescDefault = `Requires the model weights (~3GB) to run set photo scanning 100% on-device for free. Official Gemma weights are license-gated: <a href="${MODEL_LICENSE_PAGE}" target="_blank" rel="noopener" style="color:var(--bv-red);font-weight:600;text-decoration:underline;">accept the license</a>, then download with a Hugging Face token — or download the file in your browser and import it below.`;
 
   $("#root").innerHTML = `
     <div class="page">
@@ -168,21 +174,24 @@ export async function renderMeIntegrations() {
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">
             <div class="lbl">Gemma Vision Model (Offline Scanning)</div>
-            <div class="desc" id="gemmaModelDesc">Requires downloading the model weights (~1.4GB) to run set photo scanning 100% on-device for free.</div>
+            <div class="desc" id="gemmaModelDesc">${gemmaDescDefault}</div>
           </div>
-          <div class="u-row u-wfull" style="flex-direction: column; gap: 8px;">
+          <div class="u-col u-wfull" style="gap: 8px;">
             <div id="gemmaDownloadStatus" class="u-fs-sm u-mute" style="display:none; width: 100%;">
-              Downloading: <span id="gemmaDownloadPct">0%</span>
+              <span id="gemmaDownloadLabel">Downloading:</span> <span id="gemmaDownloadPct">0%</span>
               <div style="background:var(--line-soft); border-radius:4px; height:6px; width:100%; overflow:hidden; margin-top:4px;">
                 <div id="gemmaDownloadBar" style="background:var(--up); height:100%; width:0%; transition:width 0.2s ease;"></div>
               </div>
             </div>
-            
+            <input type="text" id="gemmaModelUrlInput" value="${escapeHtml(localStorage.getItem('bv_gemma_model_url') || DEFAULT_MODEL_URL)}" placeholder="Model URL (.task / .litertlm)"
+              class="u-wfull u-fs-sm" style="padding:8px 10px;border:var(--bw-thin) solid var(--border-c);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-family:var(--mono);outline:none;box-sizing:border-box;">
+            <input type="password" id="hfTokenInput" value="${escapeHtml(localStorage.getItem('bv_hf_token') || '')}" placeholder="Hugging Face token (hf_…) — needed for gated models" autocomplete="off"
+              class="u-wfull u-fs-sm" style="padding:8px 10px;border:var(--bw-thin) solid var(--border-c);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-family:var(--mono);outline:none;box-sizing:border-box;">
             <div class="u-row u-wfull" style="gap: 8px;">
-              <input type="text" id="gemmaModelUrlInput" value="${escapeHtml(localStorage.getItem('bv_gemma_model_url') || DEFAULT_MODEL_URL)}" placeholder="Paste custom model URL..."
-                class="u-flex1 u-fs-sm" style="padding:8px 10px;border:var(--bw-thin) solid var(--border-c);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-family:var(--mono);outline:none;">
-              <button class="btn-primary" id="downloadGemmaBtn" style="white-space:nowrap; padding: 8px 12px; font-size:12px;">Download</button>
+              <button class="btn-primary u-flex1" id="downloadGemmaBtn" style="padding: 8px 12px; font-size:12px;">Download</button>
+              <button class="btn-secondary u-flex1" id="importGemmaBtn" style="padding: 8px 12px; font-size:12px;">Import file</button>
               <button class="btn-secondary" id="deleteGemmaBtn" style="white-space:nowrap; padding: 8px 12px; font-size:12px; color:var(--down); display:none;">Delete</button>
+              <input type="file" id="gemmaFileInput" accept=".task,.litertlm,.bin" style="display:none;">
             </div>
           </div>
         </div>
@@ -430,42 +439,58 @@ export async function renderMeIntegrations() {
     const descEl = document.getElementById("gemmaModelDesc");
     if (!downloadBtn || !deleteBtn || !descEl) return;
 
+    const importBtn = document.getElementById("importGemmaBtn");
     if (isDownloaded) {
       descEl.innerHTML = `<span style="color:var(--up); font-weight:600;">Downloaded</span> — Gemma is ready for local offline photo scanning!`;
       downloadBtn.style.display = "none";
+      if (importBtn) importBtn.style.display = "none";
       deleteBtn.style.display = "block";
     } else {
-      descEl.innerHTML = `Requires downloading the model weights (~1.4GB) to run set photo scanning 100% on-device for free.`;
+      descEl.innerHTML = gemmaDescDefault;
       downloadBtn.style.display = "block";
+      if (importBtn) importBtn.style.display = "block";
       deleteBtn.style.display = "none";
     }
   };
   setTimeout(updateGemmaUi, 100);
 
-  // --- Gemma Download Actions ---
+  // --- Gemma Download / Import Actions ---
+  const gemmaProgressUi = (label) => {
+    const statusDiv = $("#gemmaDownloadStatus");
+    const labelSpan = $("#gemmaDownloadLabel");
+    const pctSpan = $("#gemmaDownloadPct");
+    const barDiv = $("#gemmaDownloadBar");
+    if (labelSpan) labelSpan.textContent = label;
+    if (statusDiv) statusDiv.style.display = "block";
+    return {
+      onProgress: (pct) => {
+        const percentText = `${Math.round(pct * 100)}%`;
+        if (pctSpan) pctSpan.textContent = percentText;
+        if (barDiv) barDiv.style.width = percentText;
+      },
+      done: () => { if (statusDiv) statusDiv.style.display = "none"; },
+    };
+  };
+
   $("#downloadGemmaBtn")?.addEventListener("click", async () => {
     const btn = $("#downloadGemmaBtn");
     const urlInput = $("#gemmaModelUrlInput");
-    const statusDiv = $("#gemmaDownloadStatus");
-    const pctSpan = $("#gemmaDownloadPct");
-    const barDiv = $("#gemmaDownloadBar");
     if (!btn || !urlInput) return;
 
     const url = urlInput.value.trim();
     if (!url) { toast("Please provide a valid model URL.", "error"); return; }
     localStorage.setItem('bv_gemma_model_url', url);
+    const hfToken = ($("#hfTokenInput")?.value || "").trim();
+    if (hfToken) localStorage.setItem('bv_hf_token', hfToken);
+    else localStorage.removeItem('bv_hf_token');
 
     haptic("medium");
     btn.disabled = true;
     btn.textContent = "Downloading...";
-    if (statusDiv) statusDiv.style.display = "block";
+    const progress = gemmaProgressUi("Downloading:");
 
     try {
-      await downloadGemma3Model(url, (pct) => {
-        const percentText = `${Math.round(pct * 100)}%`;
-        if (pctSpan) pctSpan.textContent = percentText;
-        if (barDiv) barDiv.style.width = percentText;
-      });
+      await downloadGemma3Model(url, progress.onProgress, hfToken);
       toast("Gemma Vision Model downloaded successfully!", "success");
       await updateGemmaUi();
     } catch (e) {
@@ -473,12 +498,36 @@ export async function renderMeIntegrations() {
       btn.disabled = false;
       btn.textContent = "Download";
     } finally {
-      if (statusDiv) statusDiv.style.display = "none";
+      progress.done();
+    }
+  });
+
+  $("#importGemmaBtn")?.addEventListener("click", () => {
+    haptic("light");
+    $("#gemmaFileInput")?.click();
+  });
+
+  $("#gemmaFileInput")?.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const btn = $("#importGemmaBtn");
+    if (btn) { btn.disabled = true; btn.textContent = "Importing..."; }
+    const progress = gemmaProgressUi("Importing:");
+    try {
+      await importGemma3ModelFile(file, progress.onProgress);
+      toast("Gemma Vision Model imported successfully!", "success");
+      await updateGemmaUi();
+    } catch (err) {
+      toast(`Import failed: ${err.message}`, "error");
+    } finally {
+      progress.done();
+      if (btn) { btn.disabled = false; btn.textContent = "Import file"; }
+      e.target.value = "";
     }
   });
 
   $("#deleteGemmaBtn")?.addEventListener("click", async () => {
-    if (!(await confirmSheet({ title: "Delete Gemma Model?", message: "This will remove the 1.4GB model weights from your local browser cache.", confirmLabel: "Delete", danger: true }))) return;
+    if (!(await confirmSheet({ title: "Delete Gemma Model?", message: "This will remove the multi-GB model weights from your local browser storage.", confirmLabel: "Delete", danger: true }))) return;
     haptic("heavy");
     await deleteGemma3Model();
     toast("Local model weights deleted", "info");
