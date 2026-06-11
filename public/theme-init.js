@@ -8,5 +8,8 @@
       (pref !== 'light' && window.matchMedia &&
        window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    if (localStorage.getItem('bv_skin') === 'premium') {
+      document.documentElement.dataset.skin = 'premium';
+    }
   } catch (e) {}
 })();

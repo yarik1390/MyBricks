@@ -5,7 +5,7 @@ import { I } from '../icons.js';
 import { confirmSheet, promptSheet, showSheet, hideSheet } from '../components/sheet.js';
 import { classifyJobRun, jobProgressSummary } from '../lib/pure.js';
 import { go } from '../router.js';
-import { getThemePref, setThemePref } from '../theme.js';
+import { getThemePref, setThemePref, getSkinPref, setSkinPref } from '../theme.js';
 
 let activeAdminRunId = null;
 let activeAdminTool = null;
@@ -150,6 +150,13 @@ export async function renderMe() {
           <div class="theme-seg" id="themeSeg" role="group" aria-label="Theme">
             ${[["light","Light"],["auto","Auto"],["dark","Dark"]].map(([v,l]) =>
               `<button data-theme-val="${v}" class="${getThemePref() === v ? "active" : ""}" aria-pressed="${getThemePref() === v}">${l}</button>`).join("")}
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Style</div><div class="desc">Retro brick look or modern premium.</div></div>
+          <div class="theme-seg" id="skinSeg" role="group" aria-label="Visual style">
+            ${[["retro","Retro"],["premium","Premium"]].map(([v,l]) =>
+              `<button data-skin-val="${v}" class="${getSkinPref() === v ? "active" : ""}" aria-pressed="${getSkinPref() === v}">${l}</button>`).join("")}
           </div>
         </div>
         <div class="setting-row">
@@ -447,6 +454,17 @@ export async function renderMe() {
     haptic("light");
     setThemePref(val);
     $$("#themeSeg button").forEach(x => {
+      const on = x === b;
+      x.classList.toggle("active", on);
+      x.setAttribute("aria-pressed", on);
+    });
+  }));
+
+  $$("#skinSeg button").forEach(b => b.addEventListener("click", () => {
+    const val = b.dataset.skinVal;
+    haptic("light");
+    setSkinPref(val);
+    $$("#skinSeg button").forEach(x => {
       const on = x === b;
       x.classList.toggle("active", on);
       x.setAttribute("aria-pressed", on);
