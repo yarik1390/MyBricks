@@ -62,13 +62,16 @@ https://brickvault-5ub.pages.dev
 | `GET/POST /api/google/*` | Google Sheets OAuth & sync |
 
 ### Background Jobs (Cron Triggers)
-| Schedule | Job |
-|----------|-----|
+| Schedule (UTC) | Job |
+|----------------|-----|
 | Every hour | `valuate-sets` — refresh market valuations |
 | Daily 2 AM | `snapshot-portfolios` — daily portfolio snapshots |
 | Daily 3 AM | `snapshot-set-values` — daily per-set price snapshots |
+| Daily 4 AM | `db-hygiene` + `daily-catalog-maintenance` — DB cleanup & catalog upkeep; on Sundays this slot also runs the full Rebrickable catalog import (sets + minifigs) |
+| Daily 5 AM | `valuate-minifigs` — refresh minifig valuations |
 | Daily 8 AM | `wishlist-alerts` — check for price-drop alerts |
-| Weekly Sun 4 AM | `import-catalog` — sync Rebrickable catalog + UPC backfill |
+
+Cron strings live in `worker/wrangler.toml` and must exactly match the `scheduled()` switch in `worker/src/index.ts`.
 
 ### Frontend Pages
 1. **Portfolio** (`/`) — hero sparkline, set list, ROI badges, search, filter, long-press actions, bulk selection
@@ -96,7 +99,7 @@ npx wrangler dev
 ```
 
 ### Deployment
-Push to the `main` or `claude/mybricks-lego-app-EdTPX` branch. GitHub Actions will:
+Push to the `claude/mybricks-lego-app-EdTPX` branch (the repo's default branch). GitHub Actions will:
 1. Install dependencies
 2. Create/find the D1 database
 3. Apply schema + migrations
