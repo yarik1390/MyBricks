@@ -16,9 +16,14 @@ async function loadMediaPipe() {
   LlmInference = module.LlmInference;
 }
 
+// Chrome has shipped the Prompt API under three namespaces over time:
+// the current global `LanguageModel`, and the legacy `self.ai.languageModel`
+// / `self.ai.assistant`. Support all three.
 function getPromptApi() {
-  if (typeof self === 'undefined' || !('ai' in self)) return null;
-  return self.ai.languageModel || self.ai.assistant;
+  if (typeof self === 'undefined') return null;
+  if ('LanguageModel' in self) return self.LanguageModel;
+  if ('ai' in self && self.ai) return self.ai.languageModel || self.ai.assistant || null;
+  return null;
 }
 
 /** Check if Chrome's Built-in AI Prompt API is supported in the browser */
@@ -26,12 +31,20 @@ export function isLocalAiSupported() {
   return getPromptApi() !== null;
 }
 
-/** Get availability status of Chrome's Built-in AI */
+/** Availability of Chrome's Built-in AI, normalized to the legacy values
+ *  'readily' | 'after-download' | 'no' that the UI checks against.
+ *  (Current Chrome returns 'available'/'downloadable'/'downloading'/'unavailable';
+ *  older builds expose capabilities().available instead of availability().) */
 export async function getLocalAiAvailability() {
   const api = getPromptApi();
   if (!api) return 'no';
   try {
-    return await api.availability();
+    let v;
+    if (typeof api.availability === 'function') v = await api.availability();
+    else if (typeof api.capabilities === 'function') v = (await api.capabilities())?.available;
+    if (v === 'available' || v === 'readily') return 'readily';
+    if (v === 'downloadable' || v === 'downloading' || v === 'after-download') return 'after-download';
+    return 'no';
   } catch (e) {
     return 'no';
   }
@@ -41,10 +54,11 @@ export async function getLocalAiAvailability() {
 export async function createLocalAiSession(systemPrompt) {
   const api = getPromptApi();
   if (!api) throw new Error('Built-in AI is not supported on this browser.');
-  const opts = {
-    systemPrompt: systemPrompt
-  };
-  return await api.create(opts);
+  // The current API takes initialPrompts; legacy namespaces take systemPrompt.
+  if (typeof self !== 'undefined' && 'LanguageModel' in self) {
+    return await api.create({ initialPrompts: [{ role: 'system', content: systemPrompt }] });
+  }
+  return await api.create({ systemPrompt });
 }
 
 /** Check if the local vision model is already cached in OPFS */
@@ -87,8 +101,17 @@ export async function downloadGemma3Model(modelUrl, onProgress) {
         onProgress(loadedBytes / totalBytes);
       }
     }
-  } finally {
+    // Closing commits the file to OPFS — only do it on a complete download.
     await writable.close();
+  } catch (err) {
+    // Abort discards the partial write; otherwise a half-downloaded file
+    // would pass the >10MB "is downloaded" check and break inference.
+    await writable.abort().catch(() => {});
+    try {
+      const r = await navigator.storage.getDirectory();
+      await r.removeEntry("gemma2b.bin");
+    } catch {}
+    throw err;
   }
   
   // Clear any existing inference instance to force reload with the new model
@@ -96,15 +119,19 @@ export async function downloadGemma3Model(modelUrl, onProgress) {
     activeInferenceInstance.close();
     activeInferenceInstance = null;
   }
+  // Pre-OPFS versions stored the model blob in IndexedDB — free those ~1.4GB
+  // for users upgrading from that build.
+  bvIDB.del(CACHE_KEY).catch(() => {});
   return true;
 }
 
-/** Delete the downloaded model file from OPFS */
+/** Delete the downloaded model file from OPFS (and any legacy IDB blob) */
 export async function deleteGemma3Model() {
   try {
     const root = await navigator.storage.getDirectory();
     await root.removeEntry("gemma2b.bin");
   } catch {}
+  bvIDB.del(CACHE_KEY).catch(() => {});
   if (activeInferenceInstance) {
     activeInferenceInstance.close();
     activeInferenceInstance = null;

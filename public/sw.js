@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = 'v81';
+const VERSION = 'v82';
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 const STATIC_ASSETS = [
@@ -87,6 +87,13 @@ self.addEventListener('fetch', e => {
 
   // Cross-origin (e.g. Rebrickable CDN images, fonts) — cache-first, opaque OK.
   if (url.origin !== self.location.origin) {
+    // AI model downloads are ~1.4GB — cloning them into Cache Storage OOMs
+    // mobile devices (they stream straight to OPFS instead). Let the browser
+    // fetch natively, bypassing the SW cache entirely.
+    if (/(^|\.)huggingface\.co$|(^|\.)hf\.co$/.test(url.hostname) ||
+        url.pathname.endsWith('.bin') || url.pathname.endsWith('.task')) {
+      return;
+    }
     e.respondWith(cacheFirst(request, STATIC_CACHE));
     return;
   }

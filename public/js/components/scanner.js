@@ -176,7 +176,7 @@ async function sendScanToAPI(payload) {
     try {
       const img = new Image();
       img.src = payload.image;
-      await new Promise(r => img.onload = r);
+      await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('Image failed to load')); });
       
       const localResult = await runLocalVisionScan(img, (statusText) => {
         const hint = $("#scanHint");
@@ -215,7 +215,7 @@ async function sendScanToAPI(payload) {
     }
     return;
   } else if (payload.mode === 'image' && scanEngine === 'local' && !isDownloaded) {
-    toast("Local Gemma weights not downloaded. Running Cloud scan fallback.", "warning");
+    toast("Local Gemma weights not downloaded. Running Cloud scan fallback.", "info");
   }
 
   const ac = new AbortController();
@@ -449,7 +449,7 @@ async function processBulkScanQueue(files) {
       if (scanEngine === 'local' && isDownloaded) {
         const img = new Image();
         img.src = resized;
-        await new Promise(r => img.onload = r);
+        await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('Image failed to load')); });
         const localResult = await runLocalVisionScan(img);
         if (localResult.identified) {
           const setNum = localResult.set_num;
@@ -466,7 +466,7 @@ async function processBulkScanQueue(files) {
         }
       } else {
         if (scanEngine === 'local') {
-          toast("Local Gemma weights not downloaded. Running Cloud scan fallback.", "warning");
+          toast("Local Gemma weights not downloaded. Running Cloud scan fallback.", "info");
         }
         apiRes = await api("/api/scan/identify", {
           method: "POST",

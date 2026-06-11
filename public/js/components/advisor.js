@@ -408,7 +408,10 @@ async function sendAdvisorMessage(q) {
         try {
           const stream = session.promptStreaming(q);
           for await (const chunk of stream) {
-            fullText = chunk;
+            // Legacy Prompt API streams cumulative snapshots; the current API
+            // streams deltas. A cumulative chunk always extends the previous
+            // text, so use that to tell them apart.
+            fullText = chunk.startsWith(fullText) ? chunk : fullText + chunk;
             aiBubble.innerHTML = parseMarkdown(fullText);
             hist.scrollTop = hist.scrollHeight;
           }
