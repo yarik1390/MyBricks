@@ -95,6 +95,9 @@ export async function runDailyValuationMaintenance(env: Env, limit = 4) {
       includeSupplemental: true,
       includeEbay: true,
       includeMinifigs: true,
+      includeAiFallback: false,
+      sourceRetries: 0,
+      sourceTimeoutMs: 5000,
       limit: safeLimit,
       onProgress: async (p) => {
         await env.DB.prepare(

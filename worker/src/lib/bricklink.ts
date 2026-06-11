@@ -87,7 +87,7 @@ function normalizeUsedPricing(raw: Partial<BrickLinkUsedPricing> | null): BrickL
 export async function fetchUsedPricing(
   setNum: string,
   env: Env,
-  options: { recordHealth?: boolean } = {},
+  options: { recordHealth?: boolean; retries?: number; timeoutMs?: number } = {},
 ): Promise<BrickLinkUsedPricing | null> {
   if (!env.BRICKLINK_CONSUMER_KEY) return null;
   const blNum = setNum.includes('-') ? setNum : `${setNum}-1`;
@@ -107,7 +107,12 @@ export async function fetchUsedPricing(
     );
     const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
-    }, { okStatuses: [404], record: options.recordHealth !== false });
+    }, {
+      okStatuses: [404],
+      record: options.recordHealth !== false,
+      retries: options.retries,
+      timeoutMs: options.timeoutMs,
+    });
     if (!resp.ok) return null;
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
     if (body.meta?.code !== 200 || !body.data) return null;
@@ -129,7 +134,7 @@ export async function fetchUsedPricing(
 export async function fetchSetPricing(
   setNum: string,
   env: Env,
-  options: { recordHealth?: boolean } = {},
+  options: { recordHealth?: boolean; retries?: number; timeoutMs?: number } = {},
 ): Promise<BrickLinkPricing | null> {
   if (!env.BRICKLINK_CONSUMER_KEY) return null;
 
@@ -154,7 +159,12 @@ export async function fetchSetPricing(
 
     const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
-    }, { okStatuses: [404], record: options.recordHealth !== false });
+    }, {
+      okStatuses: [404],
+      record: options.recordHealth !== false,
+      retries: options.retries,
+      timeoutMs: options.timeoutMs,
+    });
     if (!resp.ok) return null;
 
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };

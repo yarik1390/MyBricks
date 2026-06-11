@@ -9,7 +9,7 @@ export interface BrickOwlPricing {
 export async function fetchBrickOwlPricing(
   setNum: string,
   env: Env,
-  options: { recordHealth?: boolean } = {},
+  options: { recordHealth?: boolean; retries?: number; timeoutMs?: number } = {},
 ): Promise<BrickOwlPricing | null> {
   if (!env.BRICKOWL_API_KEY) return null;
   const id = setNum.replace(/-\d+$/, '');
@@ -20,7 +20,12 @@ export async function fetchBrickOwlPricing(
       env, 'brickowl',
       `https://api.brickowl.com/v1/catalog/lookup?${lookupParams}`,
       { headers: { Accept: 'application/json' } },
-      { okStatuses: [404], record: options.recordHealth !== false },
+      {
+        okStatuses: [404],
+        record: options.recordHealth !== false,
+        retries: options.retries,
+        timeoutMs: options.timeoutMs,
+      },
     );
     if (!lookupResp.ok) return null;
     const lookupData = await lookupResp.json() as Array<{ boid?: string }> | { boid?: string };
@@ -34,7 +39,12 @@ export async function fetchBrickOwlPricing(
       env, 'brickowl',
       `https://api.brickowl.com/v1/catalog/price_data?${priceParams}`,
       { headers: { Accept: 'application/json' } },
-      { okStatuses: [404], record: options.recordHealth !== false },
+      {
+        okStatuses: [404],
+        record: options.recordHealth !== false,
+        retries: options.retries,
+        timeoutMs: options.timeoutMs,
+      },
     );
     if (!priceResp.ok) return null;
     const price = await priceResp.json() as {

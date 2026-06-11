@@ -27,7 +27,7 @@ function normalizeDetails(raw: Partial<BrickEconomyDetails> | null): BrickEconom
 export async function fetchBrickEconomyDetails(
   setNum: string,
   env: Env,
-  options: { recordHealth?: boolean } = {},
+  options: { recordHealth?: boolean; retries?: number; timeoutMs?: number } = {},
 ): Promise<BrickEconomyDetails | null> {
   const apiKey = env.BRICKECONOMY_API_KEY;
   if (!apiKey) return null;
@@ -53,7 +53,12 @@ export async function fetchBrickEconomyDetails(
           'x-apikey': apiKey,
         },
       },
-      { okStatuses: [400, 404], record: options.recordHealth !== false }
+      {
+        okStatuses: [400, 404],
+        record: options.recordHealth !== false,
+        retries: options.retries,
+        timeoutMs: options.timeoutMs,
+      }
     );
 
     if (!resp.ok) {

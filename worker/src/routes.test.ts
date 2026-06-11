@@ -84,7 +84,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         set_num TEXT PRIMARY KEY, name TEXT NOT NULL, theme TEXT, year INTEGER,
         pieces INTEGER, minifigs INTEGER DEFAULT 0, retail_price REAL, current_value REAL,
         forecast_2y REAL, forecast_5y REAL, image_url TEXT, retired INTEGER DEFAULT 0,
-        retirement_risk_score INTEGER, used_value REAL, ebay_value REAL, upc TEXT,
+        retirement_risk_score INTEGER, retirement_risk_updated_at TEXT, used_value REAL, ebay_value REAL, upc TEXT,
         ebay_new_value REAL, ebay_used_value REAL, ebay_new_qty INTEGER, ebay_used_qty INTEGER,
         ebay_new_cached_at TEXT, ebay_used_cached_at TEXT,
         bl_cached_at TEXT, be_cached_at TEXT,
@@ -546,6 +546,59 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(row.error).toContain('complete:true');
       expect(row.error).toContain('ebay_available:false');
       expect(row.error).toContain('ebay_blocked:true');
+    });
+
+    it('rotates formula rows when no trusted source valuation is available during populate-everything', async () => {
+      await db.prepare(`INSERT INTO minifigs (fig_num, name) VALUES ('fig-1', 'Test Fig')`).run();
+      await db.prepare(`
+        UPDATE lego_sets
+        SET cached_at=datetime('now'),
+            valuation_expires_at=datetime('now', '+1 day'),
+            valuation_method='brickeconomy',
+            upc='test-upc-10300'
+        WHERE set_num='10300'
+      `).run();
+      await db.prepare(`
+        UPDATE lego_sets
+        SET cached_at='2000-01-01',
+            valuation_expires_at=datetime('now', '-1 day'),
+            valuation_method='formula_bulk',
+            upc='test-upc-75192'
+        WHERE set_num='75192'
+      `).run();
+      await db.prepare(`
+        INSERT INTO import_runs (job_type, status, error)
+        VALUES ('barcode_backfill', 'completed', 'method:bulk complete:true')
+      `).run();
+
+      const res = await app.fetch(new Request('http://localhost/api/admin/populate-everything', {
+        method: 'POST',
+        headers: auth(adminToken),
+        body: JSON.stringify({ valuation_limit: 1 }),
+      }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.done).toBe(false);
+      let run: any = null;
+      for (let attempt = 0; attempt < 10; attempt++) {
+        run = await db.prepare(`SELECT status, sets_skipped, error FROM import_runs WHERE id=?`)
+          .bind(data.run_id)
+          .first<any>();
+        if (run?.status !== 'running') break;
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      expect(run.status, run.error).toBe('completed');
+      expect(run.sets_skipped).toBe(1);
+      expect(run.error).toContain('formula_bulk:1');
+
+      const set = await db.prepare(`
+        SELECT cached_at, valuation_expires_at
+        FROM lego_sets
+        WHERE set_num='75192'
+      `).first<any>();
+      expect(set.cached_at).toBeTruthy();
+      expect(new Date(set.cached_at).getTime()).toBeGreaterThan(new Date('2020-01-01').getTime());
+      expect(new Date(set.valuation_expires_at).getTime()).toBeGreaterThan(Date.now());
     });
 
     it('returns recorded integration health for the admin', async () => {

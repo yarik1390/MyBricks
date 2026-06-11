@@ -507,6 +507,9 @@ app.post('/revalue-brickeconomy', async (c) => {
         const result = await runValuateSets(c.env, {
           scope: scope === 'owned' ? 'owned' : 'all',
           includeFresh: scope === 'all',
+          includeAiFallback: scope !== 'all',
+          sourceRetries: 0,
+          sourceTimeoutMs: 5000,
           limit,
           onProgress: async (p) => updateImportRunProgress(c.env, runId, {
             current: p.processed,
@@ -661,6 +664,9 @@ app.post('/populate-everything', async (c) => {
           includeSupplemental: true,
           includeEbay,
           includeMinifigs: true,
+          includeAiFallback: false,
+          sourceRetries: 0,
+          sourceTimeoutMs: 5000,
           limit: valuationLimit,
           onProgress: async (p) => phaseProgress(
             4,

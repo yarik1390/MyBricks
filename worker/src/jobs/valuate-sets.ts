@@ -31,6 +31,9 @@ export interface ValuateSetsOptions {
   includeSupplemental?: boolean;
   includeEbay?: boolean;
   includeMinifigs?: boolean;
+  includeAiFallback?: boolean;
+  sourceRetries?: number;
+  sourceTimeoutMs?: number;
   onProgress?: (progress: { processed: number; updated: number; total: number; currentSet?: string }) => Promise<void>;
 }
 
@@ -48,9 +51,14 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     health[s].lastError = (e as Error)?.message || String(e);
   };
   const scope = options.scope ?? 'owned';
-  const sourceOptions = { recordHealth: false };
+  const sourceOptions = {
+    recordHealth: false,
+    retries: options.sourceRetries ?? 0,
+    timeoutMs: options.sourceTimeoutMs ?? 5000,
+  };
   const includeSupplemental = options.includeSupplemental === true;
   const includeEbay = options.includeEbay === true;
+  const includeAiFallback = options.includeAiFallback !== false;
   const requestedLimit = Number(options.limit);
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
     ? Math.min(Math.floor(requestedLimit), 250)
@@ -308,6 +316,18 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         WHERE set_num=?
       `).bind(ebayPrice, forecast_2y, forecast_5y, valuationExpiryModifier('ebay_sold'), set.set_num).run();
       updated++;
+      processed++;
+      if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
+      continue;
+    }
+
+    if (!includeAiFallback) {
+      await env.DB.prepare(`
+        UPDATE lego_sets SET
+          valuation_expires_at=datetime('now', '+1 day'),
+          cached_at=datetime('now')
+        WHERE set_num=?
+      `).bind(set.set_num).run();
       processed++;
       if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
       continue;
