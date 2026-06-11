@@ -404,7 +404,7 @@ jobs:
               -X POST "${WORKER_URL}/api/admin/populate-everything" \
               -H "Authorization: Bearer ${ADMIN_JWT}" \
               -H "Content-Type: application/json" \
-              -d '{"valuation_limit":6,"barcode_pages":4,"ebay_limit":2}')
+              -d '{"valuation_limit":5,"barcode_pages":4,"ebay_limit":2}')
             echo "HTTP ${STATUS}"
             cat /tmp/populate_everything.json
             if [ "$STATUS" = "409" ]; then

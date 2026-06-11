@@ -1,0 +1,218 @@
+name: Populate Brickvault Data
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_slices:
+        description: "Maximum safe slices to run"
+        required: false
+        default: "20"
+      valuation_limit:
+        description: "Valuation records per slice"
+        required: false
+        default: "5"
+      barcode_pages:
+        description: "Brickset barcode pages per slice"
+        required: false
+        default: "4"
+      ebay_limit:
+        description: "eBay sold-comp records per slice"
+        required: false
+        default: "2"
+      worker_url:
+        description: "Production Worker URL"
+        required: false
+        default: "https://brickvault-api.zhydenko.workers.dev"
+
+concurrency:
+  group: brickvault-production-population
+  cancel-in-progress: false
+
+jobs:
+  populate:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      WORKER_URL: ${{ inputs.worker_url || 'https://brickvault-api.zhydenko.workers.dev' }}
+      MAX_SLICES: ${{ inputs.max_slices || '20' }}
+      VALUATION_LIMIT: ${{ inputs.valuation_limit || '5' }}
+      BARCODE_PAGES: ${{ inputs.barcode_pages || '4' }}
+      EBAY_LIMIT: ${{ inputs.ebay_limit || '2' }}
+
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prepare admin token
+        env:
+          SUPABASE_JWT_SECRET_FOR_CI: ${{ secrets.SUPABASE_JWT_SECRET }}
+          ADMIN_USER_ID_FOR_CI: ${{ secrets.ADMIN_USER_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_JWT_SECRET_FOR_CI}" ] || [ -z "${ADMIN_USER_ID_FOR_CI}" ]; then
+            echo "::error::SUPABASE_JWT_SECRET and ADMIN_USER_ID are required for production population."
+            exit 1
+          fi
+          ADMIN_JWT="$(node - <<'NODE'
+          const crypto = require('crypto');
+          const secret = process.env.SUPABASE_JWT_SECRET_FOR_CI;
+          const sub = process.env.ADMIN_USER_ID_FOR_CI;
+          const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+          const header = { alg: 'HS256', typ: 'JWT' };
+          const payload = {
+            sub,
+            role: 'authenticated',
+            exp: Math.floor(Date.now() / 1000) + 60 * 60,
+          };
+          const unsigned = `${b64(header)}.${b64(payload)}`;
+          const sig = crypto.createHmac('sha256', secret).update(unsigned).digest('base64url');
+          process.stdout.write(`${unsigned}.${sig}`);
+          NODE
+          )"
+          echo "::add-mask::${ADMIN_JWT}"
+          echo "ADMIN_JWT=${ADMIN_JWT}" >> "$GITHUB_ENV"
+
+      - name: Preflight production endpoints
+        run: |
+          set -euo pipefail
+          curl -sf "${WORKER_URL}/api/config" | jq -e '.status.d1 == true' >/dev/null
+          curl -sf "${WORKER_URL}/api/admin/integrations" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" \
+            | jq -e '.integrations | type == "array"' >/dev/null
+          curl -sf "${WORKER_URL}/api/admin/import-status" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" \
+            | jq -e '.runs | type == "array"' >/dev/null
+
+      - name: Run safe production population slices
+        run: |
+          set -euo pipefail
+
+          number_or_default() {
+            local value="$1"
+            local fallback="$2"
+            if [[ "${value}" =~ ^[0-9]+$ ]] && [ "${value}" -gt 0 ]; then
+              echo "${value}"
+            else
+              echo "${fallback}"
+            fi
+          }
+
+          MAX_SLICES="$(number_or_default "${MAX_SLICES}" 20)"
+          VALUATION_LIMIT="$(number_or_default "${VALUATION_LIMIT}" 5)"
+          BARCODE_PAGES="$(number_or_default "${BARCODE_PAGES}" 4)"
+          EBAY_LIMIT="$(number_or_default "${EBAY_LIMIT}" 2)"
+
+          if [ "${MAX_SLICES}" -gt 200 ]; then MAX_SLICES=200; fi
+          if [ "${VALUATION_LIMIT}" -gt 5 ]; then VALUATION_LIMIT=5; fi
+          if [ "${BARCODE_PAGES}" -gt 6 ]; then BARCODE_PAGES=6; fi
+          if [ "${EBAY_LIMIT}" -gt 2 ]; then EBAY_LIMIT=2; fi
+
+          BODY="$(jq -nc \
+            --argjson valuation_limit "${VALUATION_LIMIT}" \
+            --argjson barcode_pages "${BARCODE_PAGES}" \
+            --argjson ebay_limit "${EBAY_LIMIT}" \
+            '{valuation_limit:$valuation_limit, barcode_pages:$barcode_pages, ebay_limit:$ebay_limit}')"
+
+          is_hard_error() {
+            local message="$1"
+            [[ "${message}" =~ D1_ ]] || \
+            [[ "${message}" =~ SQLITE ]] || \
+            [[ "${message}" =~ Unauthorized ]] || \
+            [[ "${message}" =~ Forbidden ]] || \
+            [[ "${message}" =~ "database disk image is malformed" ]]
+          }
+
+          poll_run() {
+            local run_id="$1"
+            for poll in $(seq 1 72); do
+              sleep 10
+              local poll_status
+              poll_status="$(curl -s -o /tmp/populate_status.json -w "%{http_code}" \
+                "${WORKER_URL}/api/admin/import-status/${run_id}" \
+                -H "Authorization: Bearer ${ADMIN_JWT}")"
+              if [ "${poll_status}" -ge 400 ]; then
+                echo "::warning::Run ${run_id} poll returned HTTP ${poll_status}."
+                cat /tmp/populate_status.json || true
+                return 1
+              fi
+
+              local job_status job_label job_note
+              job_status="$(jq -r '.status // empty' /tmp/populate_status.json)"
+              job_label="$(jq -r '.progress_label // empty' /tmp/populate_status.json)"
+              job_note="$(jq -r '.error // empty' /tmp/populate_status.json)"
+              echo "run ${run_id}: ${job_status} ${job_label}"
+
+              if [ "${job_status}" = "completed" ]; then
+                cat /tmp/populate_status.json
+                if jq -e '.error // "" | test("complete:true")' /tmp/populate_status.json >/dev/null; then
+                  echo "Population campaign completed."
+                  exit 0
+                fi
+                return 0
+              fi
+
+              if [ "${job_status}" = "error" ] || [ "${job_status}" = "expired" ]; then
+                cat /tmp/populate_status.json
+                if is_hard_error "${job_note}"; then
+                  echo "::error::Run ${run_id} stopped on a hard failure."
+                  exit 1
+                fi
+                echo "::warning::Run ${run_id} ended as ${job_status}; retrying with the next safe slice."
+                return 0
+              fi
+            done
+
+            echo "::warning::Run ${run_id} did not finish before the polling window; it will be retried by a later slice after stale-run expiry."
+            return 0
+          }
+
+          for slice in $(seq 1 "${MAX_SLICES}"); do
+            echo "Starting population slice ${slice}/${MAX_SLICES} at ${WORKER_URL} ..."
+            status="$(curl -s -o /tmp/populate_everything.json -w "%{http_code}" \
+              -X POST "${WORKER_URL}/api/admin/populate-everything" \
+              -H "Authorization: Bearer ${ADMIN_JWT}" \
+              -H "Content-Type: application/json" \
+              -d "${BODY}")"
+            echo "HTTP ${status}"
+            cat /tmp/populate_everything.json
+
+            if [ "${status}" = "409" ]; then
+              run_id="$(jq -r '.run_id // empty' /tmp/populate_everything.json)"
+              if [ -n "${run_id}" ]; then
+                echo "Existing data job ${run_id} is active; monitoring it."
+                poll_run "${run_id}"
+              else
+                echo "::warning::A data job is already running, but no run id was returned."
+                sleep 30
+              fi
+              continue
+            fi
+
+            if [ "${status}" -ge 400 ]; then
+              error="$(jq -r '.error // .message // empty' /tmp/populate_everything.json)"
+              if is_hard_error "${error}"; then
+                echo "::error::Population slice returned hard HTTP ${status}: ${error}"
+                exit 1
+              fi
+              echo "::warning::Population slice returned HTTP ${status}: ${error}"
+              continue
+            fi
+
+            if jq -e '.done == true' /tmp/populate_everything.json >/dev/null; then
+              echo "All configured and reachable sources are already populated."
+              exit 0
+            fi
+
+            run_id="$(jq -r '.run_id // empty' /tmp/populate_everything.json)"
+            if [ -z "${run_id}" ]; then
+              echo "::warning::No run id returned; stopping campaign."
+              break
+            fi
+            poll_run "${run_id}"
+          done
+
+          echo "::warning::Population campaign reached MAX_SLICES=${MAX_SLICES}. Rerun this workflow to continue safe slices."
+          curl -sf "${WORKER_URL}/api/admin/import-status" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" \
+            | jq '.runs[0:5]'

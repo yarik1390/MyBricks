@@ -543,7 +543,7 @@ app.post('/populate-everything', async (c) => {
     .catch(() => ({} as { valuation_limit?: number; barcode_pages?: number; ebay_limit?: number }));
   const valuationLimit = Number.isFinite(Number(body.valuation_limit)) && Number(body.valuation_limit) > 0
     ? Math.min(Math.floor(Number(body.valuation_limit)), 8)
-    : 6;
+    : 5;
   const barcodePages = Number.isFinite(Number(body.barcode_pages)) && Number(body.barcode_pages) > 0
     ? Math.min(Math.floor(Number(body.barcode_pages)), 6)
     : 4;
