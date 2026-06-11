@@ -150,16 +150,29 @@ async function streamToOpfs(stream, totalBytes, startOffset, onProgress, onCheck
   let writable = await fileHandle.createWritable({ keepExistingData: startOffset > 0 });
   if (startOffset > 0) await writable.seek(startOffset);
 
+  const STALL_MS = 60_000;
   const reader = stream.getReader();
   let sessionBytes = 0;
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      // Race each chunk read against a stall timer so a dead TCP connection on
+      // mobile fails cleanly (with committedBytes) rather than hanging forever.
+      let stallTimer;
+      const { done, value } = await Promise.race([
+        reader.read(),
+        new Promise((_, rej) => {
+          stallTimer = setTimeout(
+            () => rej(new Error('Download stalled — connection may be idle. Tap Resume to continue.')),
+            STALL_MS
+          );
+        }),
+      ]);
+      clearTimeout(stallTimer);
       if (done) break;
       await writable.write(value);
       sessionBytes += value.length;
-      if (totalBytes && onProgress) onProgress((committedOffset + sessionBytes) / totalBytes);
+      if (totalBytes && onProgress) onProgress(Math.min(1, (committedOffset + sessionBytes) / totalBytes));
 
       // Checkpoint: close (commits to disk) then reopen to continue.
       if (sessionBytes >= CHECKPOINT_INTERVAL) {
@@ -176,6 +189,7 @@ async function streamToOpfs(stream, totalBytes, startOffset, onProgress, onCheck
     if (onCheckpoint) onCheckpoint(committedOffset + sessionBytes);
   } catch (err) {
     // Abort discards bytes since last checkpoint; file has committedOffset bytes.
+    await reader.cancel().catch(() => {});
     await writable.abort().catch(() => {});
     const e = new Error(err?.message || String(err));
     e.committedBytes = committedOffset;
@@ -249,7 +263,12 @@ export async function downloadGemma3Model(modelUrl, onProgress, hfToken) {
   if (response.status === 206 && canResume) {
     startOffset = resolveDownloadResume(existingMeta, 206, etag);
     const rangeTotal = contentRange ? parseInt(contentRange.split('/')[1], 10) : 0;
-    totalBytes = rangeTotal || (startOffset + (parseInt(contentLength, 10) || 0));
+    // Fall back to existingMeta.totalBytes when the server omits both
+    // content-range and content-length (common with HuggingFace CDN redirects).
+    totalBytes = rangeTotal
+      || (startOffset + (parseInt(contentLength, 10) || 0))
+      || existingMeta.totalBytes
+      || 0;
   }
 
   // Persist metadata immediately so a crash mid-download preserves the URL/etag.
