@@ -87,7 +87,7 @@ app.get('/oauth', async (c) => {
   const state = c.req.query('state');
 
   if (!code || !state) {
-    return c.redirect(`${new URL(c.req.url).origin}/#/me?google_sync=error`);
+    return c.redirect(`${new URL(c.req.url).origin}/#/me/integrations?google_sync=error`);
   }
 
   const stateRecord = await c.env.DB.prepare(`
@@ -96,14 +96,14 @@ app.get('/oauth', async (c) => {
 
   if (!stateRecord) {
     console.error('[google-oauth] State nonce not found or reused:', state);
-    return c.redirect(`${new URL(c.req.url).origin}/#/me?google_sync=error`);
+    return c.redirect(`${new URL(c.req.url).origin}/#/me/integrations?google_sync=error`);
   }
 
   await c.env.DB.prepare('DELETE FROM oauth_states WHERE state=?').bind(state).run();
 
   if (stateRecord.expires_at < Math.floor(Date.now() / 1000)) {
     console.error('[google-oauth] State nonce expired');
-    return c.redirect(`${new URL(c.req.url).origin}/#/me?google_sync=error`);
+    return c.redirect(`${new URL(c.req.url).origin}/#/me/integrations?google_sync=error`);
   }
 
   const userId = stateRecord.user_id;
@@ -127,7 +127,7 @@ app.get('/oauth', async (c) => {
     if (!tokenResp.ok) {
       const errTxt = await tokenResp.text();
       console.error('[google-oauth] Exchange code failed:', errTxt);
-      return c.redirect(`${new URL(c.req.url).origin}/#/me?google_sync=error`);
+      return c.redirect(`${new URL(c.req.url).origin}/#/me/integrations?google_sync=error`);
     }
 
     const tokens = await tokenResp.json() as { refresh_token?: string; access_token?: string };
@@ -142,10 +142,10 @@ app.get('/oauth', async (c) => {
       console.warn('[google-oauth] No refresh token returned. User may need to revoke consent first.');
     }
 
-    return c.redirect(`${new URL(c.req.url).origin}/#/me?google_sync=success`);
+    return c.redirect(`${new URL(c.req.url).origin}/#/me/integrations?google_sync=success`);
   } catch (err) {
     console.error('[google-oauth] Exception in OAuth exchange:', err);
-    return c.redirect(`${new URL(c.req.url).origin}/#/me?google_sync=error`);
+    return c.redirect(`${new URL(c.req.url).origin}/#/me/integrations?google_sync=error`);
   }
 });
 

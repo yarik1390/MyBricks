@@ -5,6 +5,7 @@ import {
   computeDealScore, valuationTrust, catalogFilterSummary, classifyJobRun,
   annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition,
   jobProgressSummary, computeSpreadSignals, buyWindow, pricePerPiece, isStalledJobRun,
+  parseCSVTable, parseCollectionCSV,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -501,5 +502,50 @@ describe('pricePerPiece', () => {
     const retired = pricePerPiece({ pieces: 1000, current_value: 154, retired: true });
     assert.ok(active.delta > 0.35);
     assert.ok(Math.abs(retired.delta) < 1e-9);
+  });
+});
+
+describe('parseCSVTable', () => {
+  it('handles quoted cells with embedded commas and doubled quotes', () => {
+    const rows = parseCSVTable('a,"b, c","say ""hi"""\n1,2,3\n');
+    assert.deepEqual(rows, [['a', 'b, c', 'say "hi"'], ['1', '2', '3']]);
+  });
+
+  it('strips CR and drops the trailing blank line (interior empties stay for the row parser to skip)', () => {
+    const rows = parseCSVTable('x,y\r\n1,2\r\n\r\n');
+    assert.deepEqual(rows, [['x', 'y'], ['1', '2'], ['']]);
+  });
+});
+
+describe('parseCollectionCSV', () => {
+  it('returns [] when the set_num column is missing', () => {
+    assert.deepEqual(parseCollectionCSV('name,qty\nFalcon,1\n'), []);
+  });
+
+  it('matches loose header names ("Set Number", "date_added")', () => {
+    const rows = parseCollectionCSV('Set Number,Quantity,date_added\n75192-1,2,2024-03-05\n');
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].set_num, '75192-1');
+    assert.equal(rows[0].quantity, 2);
+    assert.equal(rows[0].purchased_at, '2024-03-05');
+  });
+
+  it('maps condition strings onto the schema enum', () => {
+    const csv = 'set_num,condition\nA,Sealed\nB,Used - Good\nC,acceptable\nD,brand new\n';
+    const conds = parseCollectionCSV(csv).map(r => r.condition);
+    assert.deepEqual(conds, ['sealed', 'used_good', 'used_acceptable', 'new']);
+  });
+
+  it('nulls unparseable dates and prices, defaults quantity to 1', () => {
+    const rows = parseCollectionCSV('set_num,purchase_price,purchased_at\n10240-1,not-a-price,not-a-date\n');
+    assert.equal(rows[0].quantity, 1);
+    assert.equal(rows[0].purchase_price, null);
+    assert.equal(rows[0].purchased_at, null);
+  });
+
+  it('skips blank lines and rows without a set number', () => {
+    const rows = parseCollectionCSV('set_num,quantity\n\n,3\n21309-1,1\n');
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].set_num, '21309-1');
   });
 });

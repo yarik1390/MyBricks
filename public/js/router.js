@@ -4,6 +4,9 @@ import { api } from './api.js';
 import { I } from './icons.js';
 import { renderLogin } from './views/login.js';
 import { renderMe } from './views/me.js';
+import { renderMeIntegrations } from './views/me-integrations.js';
+import { renderMeData } from './views/me-data.js';
+import { renderMeAdmin } from './views/me-admin.js';
 import { renderPortfolio, renderSetDetail, renderWishlist, renderPublicProfile } from './views/portfolio.js';
 import { renderAdd, renderPile } from './views/catalog.js';
 import { renderBlind } from './views/minifigs.js';
@@ -69,7 +72,7 @@ async function _routeImpl() {
 
   $$("#nav .nav-tab").forEach(t => {
     const r = t.dataset.route;
-    const active = r === hash || (hash.startsWith("/set/") && r === "/") || (hash === "/wishlist" && r === "/");
+    const active = r === hash || (hash.startsWith("/set/") && r === "/") || (hash === "/wishlist" && r === "/") || (hash.startsWith("/me/") && r === "/me");
     t.classList.toggle("active", active);
   });
 
@@ -79,6 +82,9 @@ async function _routeImpl() {
     else if (hash === "/pile") renderPile();
     else if (hash === "/minifigs") await renderBlind();
     else if (hash === "/me") await renderMe();
+    else if (hash === "/me/integrations") await renderMeIntegrations();
+    else if (hash === "/me/data") await renderMeData();
+    else if (hash === "/me/admin") await renderMeAdmin();
     else if (hash === "/wishlist") await renderWishlist();
     else if (hash.startsWith("/set/")) {
       const parts = hash.split("/");

@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = 'v76';
+const VERSION = 'v77';
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 const STATIC_ASSETS = [
@@ -24,6 +24,10 @@ const STATIC_ASSETS = [
   '/js/components/advisor.js',
   '/js/views/login.js',
   '/js/views/me.js',
+  '/js/views/me-shared.js',
+  '/js/views/me-integrations.js',
+  '/js/views/me-data.js',
+  '/js/views/me-admin.js',
   '/js/views/portfolio.js',
   '/js/views/catalog.js',
   '/js/views/minifigs.js'
