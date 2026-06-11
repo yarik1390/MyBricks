@@ -519,6 +519,9 @@ export async function renderMeIntegrations() {
     const isResume = !!(meta && meta.url === url && meta.loadedBytes > 0 && !meta.complete);
     btn.textContent = isResume ? "Resuming..." : "Downloading...";
     const progress = gemmaProgressUi(isResume ? "Resuming:" : "Downloading:");
+    // Seed the bar at the known resume offset so the user sees their existing
+    // progress immediately rather than "0%" until the first chunk arrives.
+    if (isResume && meta.totalBytes) progress.onProgress(meta.loadedBytes / meta.totalBytes);
 
     // Keep the screen on so Android doesn't kill the radio mid-download.
     let wakeLock = null;
