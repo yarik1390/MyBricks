@@ -16,16 +16,22 @@ async function loadMediaPipe() {
   LlmInference = module.LlmInference;
 }
 
+function getPromptApi() {
+  if (typeof self === 'undefined' || !('ai' in self)) return null;
+  return self.ai.languageModel || self.ai.assistant;
+}
+
 /** Check if Chrome's Built-in AI Prompt API is supported in the browser */
 export function isLocalAiSupported() {
-  return typeof self !== 'undefined' && 'ai' in self && 'languageModel' in self.ai;
+  return getPromptApi() !== null;
 }
 
 /** Get availability status of Chrome's Built-in AI */
 export async function getLocalAiAvailability() {
-  if (!isLocalAiSupported()) return 'no';
+  const api = getPromptApi();
+  if (!api) return 'no';
   try {
-    return await self.ai.languageModel.availability();
+    return await api.availability();
   } catch (e) {
     return 'no';
   }
@@ -33,11 +39,12 @@ export async function getLocalAiAvailability() {
 
 /** Create an on-device text chat session using Chrome's Prompt API */
 export async function createLocalAiSession(systemPrompt) {
-  if (!isLocalAiSupported()) throw new Error('Built-in AI is not supported on this browser.');
+  const api = getPromptApi();
+  if (!api) throw new Error('Built-in AI is not supported on this browser.');
   const opts = {
     systemPrompt: systemPrompt
   };
-  return await self.ai.languageModel.create(opts);
+  return await api.create(opts);
 }
 
 /** Check if the local vision model is already cached in OPFS */
