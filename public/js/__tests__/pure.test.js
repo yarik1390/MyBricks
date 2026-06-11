@@ -5,7 +5,7 @@ import {
   computeDealScore, valuationTrust, catalogFilterSummary, classifyJobRun,
   annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition,
   jobProgressSummary, computeSpreadSignals, buyWindow, pricePerPiece, isStalledJobRun,
-  parseCSVTable, parseCollectionCSV,
+  parseCSVTable, parseCollectionCSV, sanitizeMoneyInput,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -547,5 +547,29 @@ describe('parseCollectionCSV', () => {
     const rows = parseCollectionCSV('set_num,quantity\n\n,3\n21309-1,1\n');
     assert.equal(rows.length, 1);
     assert.equal(rows[0].set_num, '21309-1');
+  });
+});
+
+describe('sanitizeMoneyInput', () => {
+  it('parses plain and symbol-prefixed amounts', () => {
+    assert.equal(sanitizeMoneyInput('1299'), 1299);
+    assert.equal(sanitizeMoneyInput('$ 1,234.56'), 1234.56);
+    assert.equal(sanitizeMoneyInput('€89,99'), 89.99);
+  });
+
+  it('handles EU style with both separators', () => {
+    assert.equal(sanitizeMoneyInput('1.299,50'), 1299.5);
+    assert.equal(sanitizeMoneyInput('1,299.50'), 1299.5);
+  });
+
+  it('treats comma groups of three as thousands', () => {
+    assert.equal(sanitizeMoneyInput('1,299'), 1299);
+  });
+
+  it('rejects garbage and negatives', () => {
+    assert.equal(sanitizeMoneyInput('abc'), null);
+    assert.equal(sanitizeMoneyInput(''), null);
+    assert.equal(sanitizeMoneyInput(null), null);
+    assert.equal(sanitizeMoneyInput('-5'), null);
   });
 });

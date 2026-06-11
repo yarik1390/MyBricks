@@ -5,6 +5,7 @@ import { I } from '../icons.js';
 import { classifyJobRun, jobProgressSummary } from '../lib/pure.js';
 import { go } from '../router.js';
 import { subpageTopbarHTML, loadMe } from './me-shared.js';
+import { skelPage, skelSettingRows } from '../components/skeleton.js';
 
 let activeAdminRunId = null;
 let activeAdminTool = null;
@@ -13,6 +14,7 @@ let populateEverythingAuto = false;
 let populateEverythingContinueTimer = null;
 
 export async function renderMeAdmin() {
+  if (!state.me) $("#root").innerHTML = skelPage(skelSettingRows(6));
   const me = await loadMe();
   if (!me?.is_admin) { go("#/me"); return; }
 

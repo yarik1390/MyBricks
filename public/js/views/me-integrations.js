@@ -5,6 +5,7 @@ import { I } from '../icons.js';
 import { confirmSheet } from '../components/sheet.js';
 import { go } from '../router.js';
 import { subpageTopbarHTML, loadMe } from './me-shared.js';
+import { skelPage, skelSettingRows } from '../components/skeleton.js';
 
 export async function renderMeIntegrations() {
   // OAuth return from Google lands here with a query param.
@@ -16,6 +17,7 @@ export async function renderMeIntegrations() {
     history.replaceState(null, "", "#/me/integrations");
   }
 
+  if (!state.me) $("#root").innerHTML = skelPage(skelSettingRows(5));
   const me = await loadMe();
   const guest = isGuestMode();
   const googleStatus = await api("/api/google/status").catch(() => ({ connected: false, spreadsheet_id: null }));

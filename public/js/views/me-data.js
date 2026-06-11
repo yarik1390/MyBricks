@@ -5,8 +5,11 @@ import { I } from '../icons.js';
 import { confirmSheet } from '../components/sheet.js';
 import { parseCollectionCSV } from '../lib/pure.js';
 import { subpageTopbarHTML, loadMe } from './me-shared.js';
+import { state } from '../state.js';
+import { skelPage, skelSettingRows } from '../components/skeleton.js';
 
 export async function renderMeData() {
+  if (!state.me) $("#root").innerHTML = skelPage(skelSettingRows(3));
   await loadMe();
   const guest = isGuestMode();
 

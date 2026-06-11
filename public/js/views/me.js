@@ -5,6 +5,7 @@ import { I } from '../icons.js';
 import { promptSheet, showSheet, hideSheet } from '../components/sheet.js';
 import { go } from '../router.js';
 import { getThemePref, setThemePref, getSkinPref, setSkinPref } from '../theme.js';
+import { skelPage, skelStatGrid, skelSettingRows } from '../components/skeleton.js';
 
 export async function renderMe() {
   let me = state.me;
@@ -17,6 +18,7 @@ export async function renderMe() {
     return;
   }
 
+  if (!me) $("#root").innerHTML = skelPage(skelStatGrid(4) + skelSettingRows(4));
   try {
     me = me || await api("/api/me");
     state.me = me;

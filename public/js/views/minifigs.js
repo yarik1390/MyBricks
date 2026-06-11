@@ -3,11 +3,13 @@ import { state } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet } from '../components/sheet.js';
+import { skelPage, skelCardList } from '../components/skeleton.js';
 
 let _blindGen = 0;
 
 export async function renderBlind() {
   if (!state.blind.items.length) {
+    $("#root").innerHTML = skelPage(skelCardList(6));
     await loadBlind({ reset: true });
     if (isFigFilterDefault()) bvIDB.set('blind', { data: { items: state.blind.items, total: state.blind.total, hasMore: state.blind.hasMore, offset: state.blind.offset }, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
   } else if (state.blind._stale) {

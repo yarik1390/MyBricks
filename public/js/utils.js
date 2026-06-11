@@ -363,12 +363,33 @@ export function bricklinkBuyURL(setNum) {
 
 export function trendBadgeHTML(trend) {
   if (trend === "rising") {
-    return `<span class="trend-badge rising" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--up);font-weight:700;margin-left:6px;" title="Price trend: Rising">${I.trend({w:10, h:10})} ↑ Rising</span>`;
+    return `<span class="trend-badge rising" title="Price trend: Rising">${I.trend({w:10, h:10})} ↑ Rising</span>`;
   }
   if (trend === "falling") {
-    return `<span class="trend-badge falling" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--bv-red);font-weight:700;margin-left:6px;" title="Price trend: Falling">${I.trend({w:10, h:10})} ↓ Falling</span>`;
+    return `<span class="trend-badge falling" title="Price trend: Falling">${I.trend({w:10, h:10})} ↓ Falling</span>`;
   }
   return "";
+}
+
+/** Mark a .field wrapper (or input) as invalid and show msg in its .field-err
+ *  sibling (created if missing). Pass clearFieldError to reset. */
+export function setFieldError(fieldEl, msg) {
+  if (!fieldEl) return;
+  fieldEl.classList.add("error");
+  let err = fieldEl.querySelector(".field-err") || fieldEl.nextElementSibling;
+  if (!err || !err.classList?.contains("field-err")) {
+    err = document.createElement("div");
+    err.className = "field-err";
+    fieldEl.appendChild(err);
+  }
+  err.textContent = msg || "";
+}
+
+export function clearFieldError(fieldEl) {
+  if (!fieldEl) return;
+  fieldEl.classList.remove("error");
+  const err = fieldEl.querySelector(".field-err");
+  if (err) err.textContent = "";
 }
 
 export function readFileAsDataURL(file) {

@@ -889,14 +889,14 @@ body.offline .offline-banner { display: block; }
   padding: 12px;
   box-shadow: var(--shadow-1);
 }
-.stat-cell .lbl {
+.stat-cell .lbl, .summary-cell .lbl, .fig-stat-lbl {
   font-family: var(--mono); font-size: 10px;
   color: var(--ink-mute); text-transform: uppercase;
   letter-spacing: 0.08em;
   display: flex; align-items: center; gap: 4px;
 }
 .stat-cell .lbl svg { width: 11px; height: 11px; }
-.stat-cell .val {
+.stat-cell .val, .summary-cell .val, .fig-stat-num {
   font-family: var(--serif); font-size: 22px; font-weight: 500;
   letter-spacing: -0.01em; margin-top: 4px;
   font-variant-numeric: tabular-nums;
@@ -1099,20 +1099,15 @@ body.offline .offline-banner { display: block; }
   display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
   margin-bottom: 16px;
 }
+/* shares .stat-cell typography (selector groups above); container + size
+   tweaks only */
 .fig-stat-pill {
   background: var(--surface); border: var(--bw) solid var(--border-c);
   border-radius: var(--r-3); padding: 12px 14px;
   box-shadow: var(--shadow-2);
 }
-.fig-stat-num {
-  font-family: var(--serif); font-size: 18px; font-weight: 500;
-  letter-spacing: -0.01em; line-height: 1.1;
-}
-.fig-stat-lbl {
-  font-family: var(--mono); font-size: 9.5px; font-weight: 600;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--ink-mute); margin-top: 3px;
-}
+.fig-stat-num { font-size: 18px; line-height: 1.1; margin-top: 0; }
+.fig-stat-lbl { margin-top: 3px; }
 
 /* --- Filter bar --- */
 .fig-filter-bar { margin-bottom: 14px; }
@@ -1329,20 +1324,12 @@ body.offline .offline-banner { display: block; }
   display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
   margin-bottom: 18px;
 }
+/* shares .stat-cell typography (see selector groups above); only the
+   container differences live here */
 .summary-cell {
   background: var(--surface); border: var(--bw) solid var(--border-c);
   border-radius: var(--r-3); padding: 14px;
   box-shadow: var(--shadow-2);
-}
-.summary-cell .lbl {
-  font-family: var(--mono); font-size: 10px;
-  color: var(--ink-mute); text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-.summary-cell .val {
-  font-family: var(--serif); font-size: 22px; font-weight: 500;
-  margin-top: 4px; letter-spacing: -0.01em;
-  font-variant-numeric: tabular-nums;
 }
 .summary-cell .delta { margin-top: 6px; }
 
@@ -3267,3 +3254,35 @@ select:focus-visible,
 }
 /* the serif sheet/section title pattern */
 .u-serif-h { font-family: var(--serif); font-size: var(--fs-xl); font-weight: 500; }
+
+/* ===== Phase 4 — unified badge + form validation (appended) ===== */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; min-height: 20px;
+  border-radius: var(--r-full);
+  font-family: var(--mono); font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: 0.04em; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.badge--up      { background: var(--up-pale); color: var(--up); }
+.badge--down    { background: var(--down-pale); color: var(--down); }
+.badge--warn    { background: var(--warn-pale); color: var(--warn); }
+.badge--accent  { background: var(--bv-yellow); color: var(--line); }
+.badge--neutral { background: var(--surface-2); color: var(--ink-mute); }
+.badge--outline { border: var(--bw-thin) solid currentColor; }
+
+/* trend badge — replaces the inline-styled spans from trendBadgeHTML */
+.trend-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: var(--fs-2xs); font-weight: 700; margin-left: 6px;
+}
+.trend-badge.rising  { color: var(--up); }
+.trend-badge.falling { color: var(--bv-red); }
+
+/* form validation — reserve error-text height so toggling causes no shift */
+.field.error input, .field.error select, .field.error textarea,
+.field-input.error { border-color: var(--down) !important; }
+.field-err {
+  color: var(--down); font-size: var(--fs-sm);
+  margin-top: 4px; min-height: 16px; line-height: 1.3;
+}

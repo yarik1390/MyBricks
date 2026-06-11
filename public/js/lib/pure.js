@@ -420,3 +420,30 @@ export function parseCollectionCSV(text) {
   }
   return rows;
 }
+
+/**
+ * Parse a user-typed money amount: strips currency symbols, spaces, and
+ * thousands separators; accepts "1,234.56", "$ 1299", "1.299,50" (EU style
+ * when both separators present and comma is last). Returns a finite
+ * non-negative number or null.
+ */
+export function sanitizeMoneyInput(str) {
+  if (str == null) return null;
+  let s = String(str).trim().replace(/[^0-9.,-]/g, "");
+  if (!s) return null;
+  const lastComma = s.lastIndexOf(",");
+  const lastDot = s.lastIndexOf(".");
+  if (lastComma !== -1 && lastDot !== -1) {
+    // Both present: the later one is the decimal separator.
+    if (lastComma > lastDot) s = s.replace(/\./g, "").replace(",", ".");
+    else s = s.replace(/,/g, "");
+  } else if (lastComma !== -1) {
+    // Comma only: decimal if exactly 1–2 trailing digits, else thousands.
+    const after = s.length - lastComma - 1;
+    s = (after >= 1 && after <= 2 && s.indexOf(",") === lastComma)
+      ? s.replace(",", ".")
+      : s.replace(/,/g, "");
+  }
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}

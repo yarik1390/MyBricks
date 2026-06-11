@@ -6,6 +6,7 @@ import { I } from '../icons.js';
 import { showSheet, hideSheet, confirmSheet, promptSheet } from '../components/sheet.js';
 import { trustBadgeHTML, trustPanelHTML } from '../components/trust.js';
 import { go } from '../router.js';
+import { skelPage, skelHero, skelCardList, skelDetail } from '../components/skeleton.js';
 
 let _swipeAc = null;
 
@@ -15,6 +16,7 @@ let _swipeAc = null;
 export async function renderPortfolio() {
   const servedFromCache = !!state.portfolio;
   if (!state.portfolio) {
+    $("#root").innerHTML = skelPage(skelHero() + skelCardList(5));
     // Fetch collection independently — if history or wishlist fail the vault
     // still renders correctly (they were in one Promise.all before, causing any
     // single failure to blank the whole vault while /api/me still showed the count).
@@ -773,6 +775,7 @@ export async function renderSetDetail(setNum) {
       return;
     }
   }
+  $("#root").innerHTML = skelDetail();
   try {
     const data = await api("/api/sets/" + encodeURIComponent(setNum));
     const set = data.set || data;
@@ -1596,6 +1599,7 @@ function setupTabSwipe(set, entry) {
    Wishlist screen
    ============================================================ */
 export async function renderWishlist() {
+  if (!state.wishlist?.length) $("#root").innerHTML = skelPage(skelCardList(4));
   try {
     const wl = await api("/api/wishlist");
     const cutoff = Date.now() - 15000;

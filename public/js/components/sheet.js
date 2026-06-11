@@ -1,13 +1,34 @@
 import { $, haptic, escapeHtml, fmtMoney, daysAgo } from '../utils.js';
 import { I } from '../icons.js';
 
-function sheetKeyHandler(e) { 
-  if (e.key === "Escape") hideSheet(); 
+let _sheetInvoker = null;
+
+const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+function sheetKeyHandler(e) {
+  if (e.key === "Escape") { hideSheet(); return; }
+  // Focus trap: keep Tab cycling within the open sheet.
+  if (e.key === "Tab") {
+    const sheet = $("#sheet");
+    if (!sheet || !sheet.classList.contains("show")) return;
+    const focusables = [...sheet.querySelectorAll(FOCUSABLE)].filter(el => !el.disabled && el.offsetParent !== null);
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    } else if (!sheet.contains(document.activeElement)) {
+      e.preventDefault(); first.focus();
+    }
+  }
 }
 
 export function showSheet(html) {
   const back = $("#sheetBackdrop");
   const sheet = $("#sheet");
+  _sheetInvoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   sheet.innerHTML = `<div class="sheet-handle"></div>` + html;
   back.classList.add("show");
   sheet.classList.add("show");
@@ -17,6 +38,17 @@ export function showSheet(html) {
   back.addEventListener("click", hideSheet, { once: true });
   document.addEventListener("keydown", sheetKeyHandler);
   wireSheetDrag(sheet);
+}
+
+/** Swap the open sheet's content for a shimmer while async work runs. */
+export function sheetLoading(label = "Working…") {
+  const sheet = $("#sheet");
+  if (!sheet || !sheet.classList.contains("show")) return;
+  sheet.innerHTML = `<div class="sheet-handle"></div>
+    <div class="u-serif-h" style="margin:0 4px 14px;">${escapeHtml(label)}</div>
+    <div class="skel line" style="width:80%;margin:0 4px 10px;"></div>
+    <div class="skel line" style="width:60%;margin:0 4px 10px;"></div>
+    <div class="skel" style="height:44px;margin:8px 4px 0;"></div>`;
 }
 
 export function hideSheet() {
@@ -32,6 +64,11 @@ export function hideSheet() {
     sheet.setAttribute("aria-hidden", "true");
   }
   document.removeEventListener("keydown", sheetKeyHandler);
+  // Restore focus to whatever opened the sheet (a11y: focus must not be lost).
+  if (_sheetInvoker && document.contains(_sheetInvoker)) {
+    try { _sheetInvoker.focus(); } catch {}
+  }
+  _sheetInvoker = null;
   haptic("light");
 }
 
@@ -66,7 +103,7 @@ export function confirmSheet({ title, message = "", confirmLabel = "Confirm", da
     let done = false;
     const finish = (v) => { if (done) return; done = true; hideSheet(); resolve(v); };
     showSheet(`
-      <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 6px;">${escapeHtml(title)}</div>
+      <div class="u-serif-h" style="margin:0 4px 6px;">${escapeHtml(title)}</div>
       ${message ? `<div style="color:var(--ink-mute);font-size:14px;margin:0 4px 18px;">${escapeHtml(message)}</div>` : `<div style="height:12px;"></div>`}
       <button class="btn-primary ${danger ? "btn-danger" : ""}" id="cfYes">${escapeHtml(confirmLabel)}</button>
       <button class="btn-secondary" id="cfNo" style="margin-top:8px;">Cancel</button>`);
@@ -81,7 +118,7 @@ export function promptSheet({ title, label = "", value = "", placeholder = "", c
     let done = false;
     const finish = (v) => { if (done) return; done = true; hideSheet(); resolve(v); };
     showSheet(`
-      <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 14px;">${escapeHtml(title)}</div>
+      <div class="u-serif-h" style="margin:0 4px 14px;">${escapeHtml(title)}</div>
       ${label ? `<label class="field-lbl" for="psInput">${escapeHtml(label)}</label>` : ""}
       <input class="field-input" id="psInput" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" autocomplete="off">
       <button class="btn-primary" id="psSave" style="margin-top:14px;">${escapeHtml(confirmLabel)}</button>
@@ -105,6 +142,6 @@ export function showAlertsSheet(alerts) {
           <div style="font-size:13px;margin-top:4px;">Now <strong>${fmtMoney(a.current_value)}</strong> — your target was ${fmtMoney(a.target_price)}.</div>
         </div>`).join("");
   showSheet(`
-    <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 14px;">Alerts</div>
+    <div class="u-serif-h" style="margin:0 4px 14px;">Alerts</div>
     ${html}`);
 }

@@ -6,10 +6,12 @@ import { showSheet, hideSheet } from '../components/sheet.js';
 import { openScan } from '../components/scanner.js';
 import { trustBadgeHTML } from '../components/trust.js';
 import { catalogFilterSummary, pricePerPiece } from '../lib/pure.js';
+import { skelPage, skelCardList } from '../components/skeleton.js';
 
 let _catalogGen = 0;
 
 export async function renderAdd() {
+  if (!state.catalog.items.length) $("#root").innerHTML = skelPage(skelCardList(6));
   if (!state.themes.length) {
     try { const t = await api("/api/themes"); state.themes = t.themes || []; state.themesLoadedAt = Date.now(); } catch {}
   }
