@@ -178,7 +178,10 @@ export async function renderMeIntegrations() {
           </div>
           <div class="u-col u-wfull" style="gap: 8px;">
             <div id="gemmaDownloadStatus" class="u-fs-sm u-mute" style="display:none; width: 100%;">
-              <span id="gemmaDownloadLabel">Downloading:</span> <span id="gemmaDownloadPct">0%</span>
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                <span><span id="gemmaDownloadLabel">Downloading:</span> <span id="gemmaDownloadPct">0%</span></span>
+                <button id="cancelGemmaBtn" class="btn-secondary" style="padding:2px 10px; font-size:11px; flex-shrink:0;">Cancel</button>
+              </div>
               <div style="background:var(--line-soft); border-radius:4px; height:6px; width:100%; overflow:hidden; margin-top:4px;">
                 <div id="gemmaDownloadBar" style="background:var(--up); height:100%; width:0%; transition:width 0.2s ease;"></div>
               </div>
@@ -462,7 +465,8 @@ export async function renderMeIntegrations() {
       downloadBtn.textContent = hasPartial ? `Resume (${resumePct !== null ? resumePct + '%' : '…'})` : "Download";
       downloadBtn.style.display = "block";
       if (importBtn) importBtn.style.display = "block";
-      deleteBtn.style.display = "none";
+      // Show Delete when a partial file exists so user can wipe and start fresh.
+      deleteBtn.style.display = hasPartial ? "block" : "none";
     }
   };
   setTimeout(updateGemmaUi, 100);
@@ -523,19 +527,30 @@ export async function renderMeIntegrations() {
     // progress immediately rather than "0%" until the first chunk arrives.
     if (isResume && meta.totalBytes) progress.onProgress(meta.loadedBytes / meta.totalBytes);
 
+    // AbortController so the Cancel button can stop the download mid-stream.
+    const controller = new AbortController();
+    const cancelBtn = $("#cancelGemmaBtn");
+    const onCancel = () => controller.abort();
+    cancelBtn?.addEventListener("click", onCancel);
+
     // Keep the screen on so Android doesn't kill the radio mid-download.
     let wakeLock = null;
     try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
 
     try {
-      await downloadGemma3Model(url, progress.onProgress, hfToken);
+      await downloadGemma3Model(url, progress.onProgress, hfToken, controller.signal);
       toast("Gemma Vision Model downloaded successfully!", "success");
       await updateGemmaUi();
     } catch (e) {
-      toast(e.message, "error");
+      if (controller.signal.aborted) {
+        toast("Download cancelled — progress saved. Tap Resume to continue.", "info");
+      } else {
+        toast(e.message, "error");
+      }
       btn.disabled = false;
       await updateGemmaUi(); // shows "Resume (NN%)" if partial was saved
     } finally {
+      cancelBtn?.removeEventListener("click", onCancel);
       progress.done();
       try { await wakeLock?.release(); } catch {}
     }

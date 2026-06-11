@@ -130,7 +130,7 @@ export async function checkGemma3Downloaded() {
 // fetch is aborted, progress up to the last checkpoint survives.
 // Calls `onCheckpoint(committedBytes)` after each checkpoint (use to persist metadata).
 // On error throws with `err.committedBytes` = how much is safely on disk.
-async function streamToOpfs(stream, totalBytes, startOffset, onProgress, onCheckpoint) {
+async function streamToOpfs(stream, totalBytes, startOffset, onProgress, onCheckpoint, signal) {
   const root = await navigator.storage.getDirectory();
   const remaining = totalBytes ? totalBytes - startOffset : 0;
   if (remaining > 0 && navigator.storage.estimate) {
@@ -154,13 +154,19 @@ async function streamToOpfs(stream, totalBytes, startOffset, onProgress, onCheck
   const reader = stream.getReader();
   let sessionBytes = 0;
 
+  // One abort-promise shared across all chunk races; avoids per-chunk listener churn.
+  let abortReject;
+  const abortPromise = new Promise((_, rej) => { abortReject = rej; });
+  const abortHandler = () => abortReject(new Error('Download cancelled.'));
+  signal?.addEventListener('abort', abortHandler, { once: true });
+
   try {
     while (true) {
-      // Race each chunk read against a stall timer so a dead TCP connection on
-      // mobile fails cleanly (with committedBytes) rather than hanging forever.
+      // Race each chunk read against a stall timer (dead TCP) and abort signal.
       let stallTimer;
       const { done, value } = await Promise.race([
         reader.read(),
+        abortPromise,
         new Promise((_, rej) => {
           stallTimer = setTimeout(
             () => rej(new Error('Download stalled — connection may be idle. Tap Resume to continue.')),
@@ -188,6 +194,7 @@ async function streamToOpfs(stream, totalBytes, startOffset, onProgress, onCheck
     await writable.close();
     if (onCheckpoint) onCheckpoint(committedOffset + sessionBytes);
   } catch (err) {
+    signal?.removeEventListener('abort', abortHandler);
     // Abort discards bytes since last checkpoint; file has committedOffset bytes.
     await reader.cancel().catch(() => {});
     await writable.abort().catch(() => {});
@@ -195,6 +202,7 @@ async function streamToOpfs(stream, totalBytes, startOffset, onProgress, onCheck
     e.committedBytes = committedOffset;
     throw e;
   }
+  signal?.removeEventListener('abort', abortHandler);
 }
 
 function onModelReplaced() {
@@ -213,7 +221,7 @@ function onModelReplaced() {
 /** Download the model with progress reporting and resumable checkpointing.
  *  `hfToken` (optional) authenticates HuggingFace for license-gated models.
  *  Saves partial progress to localStorage so a tap on Download resumes. */
-export async function downloadGemma3Model(modelUrl, onProgress, hfToken) {
+export async function downloadGemma3Model(modelUrl, onProgress, hfToken, signal) {
   const url = modelUrl || DEFAULT_MODEL_URL;
   let hostname;
   try { hostname = new URL(url, location.href).hostname; } catch {
@@ -235,7 +243,7 @@ export async function downloadGemma3Model(modelUrl, onProgress, hfToken) {
 
   let response;
   try {
-    response = await fetch(url, { headers });
+    response = await fetch(url, { headers, ...(signal && { signal }) });
   } catch {
     throw new Error(
       'Network or CORS error — the host may not allow browser downloads. Download the file manually and use "Import file" instead.'
@@ -277,7 +285,7 @@ export async function downloadGemma3Model(modelUrl, onProgress, hfToken) {
   try {
     await streamToOpfs(response.body, totalBytes, startOffset, onProgress, (committed) => {
       setDlMeta({ url, etag, totalBytes, loadedBytes: committed, complete: false });
-    });
+    }, signal);
     setDlMeta({ url, etag, totalBytes, loadedBytes: totalBytes || 0, complete: true });
     onModelReplaced();
     return true;
