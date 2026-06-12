@@ -498,6 +498,7 @@ function setListCardHTML(item) {
           ${item.trend ? trendBadgeHTML(item.trend) : ""}
         </div>
         <div class="sl-delta ${cls}"><span class="arrow">${arrow}</span>${dStr}</div>
+        ${item.forecast_2y && item.current_value && item.forecast_2y > item.current_value ? `<div style="font-size:9px;color:var(--ink-mute);font-family:var(--mono);text-align:right;">→ ${fmtMoneyShort(item.forecast_2y)} 2yr</div>` : ''}
       </div>
     </button>`;
 }
@@ -943,7 +944,13 @@ function infoTabHTML(set, entry, isWish) {
       ? `<div style="grid-column:span 2;"><span style="background:rgba(34,197,94,.12);color:var(--up);font-weight:700;border-radius:4px;padding:2px 8px;font-size:11px;">In Stock at LEGO.com</span></div>`
       : '';
 
-    if (ratingNum || ageStr || subthemeStr || growthRate != null || retiredYear || legoStockBadge) {
+    // Retirement-risk likelihood (only meaningful while a set is still active).
+    const riskScore = set.retirement_risk_score;
+    const riskBadge = (riskScore != null && !set.retired)
+      ? `<div><span style="color:var(--ink-mute);">Retire risk:</span> <strong style="color:${riskScore >= 70 ? 'var(--down)' : riskScore >= 40 ? 'var(--bv-yellow)' : 'var(--ink)'};">${Math.round(riskScore)}%</strong></div>`
+      : '';
+
+    if (ratingNum || ageStr || subthemeStr || growthRate != null || retiredYear || legoStockBadge || riskBadge) {
       bricksetHtml = `
         <div class="card" style="padding:14px 16px;margin-bottom:14px;">
           <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Catalog Insights</div>
@@ -951,6 +958,7 @@ function infoTabHTML(set, entry, isWish) {
             ${subthemeStr ? `<div><span style="color:var(--ink-mute);">Subtheme:</span> <strong style="color:var(--ink);">${escapeHtml(subthemeStr)}</strong></div>` : ''}
             ${ageStr ? `<div><span style="color:var(--ink-mute);">Ages:</span> <strong style="color:var(--ink);">${ageStr}</strong></div>` : ''}
             ${retiredYearBadge}
+            ${riskBadge}
             ${ratingNum ? `<div style="grid-column: span 2; display:flex; align-items:center; gap:8px;"><span style="color:var(--ink-mute);">Community:</span> <strong style="color:var(--ink);">⭐ ${ratingNum.toFixed(1)}</strong> <span style="color:var(--ink-mute);font-size:10px;">${reviewsStr}</span> ${ratingSignal}</div>` : ''}
             ${growthBadge}
             ${legoStockBadge}
@@ -1276,6 +1284,9 @@ function wireInfoTab(set, entry) {
 function forecastTabHTML(set) {
   const g2 = set.forecast_2y && set.current_value ? (set.forecast_2y - set.current_value) / set.current_value : 0.18;
   const g5 = set.forecast_5y && set.current_value ? (set.forecast_5y - set.current_value) / set.current_value : 0.45;
+  // Annualized (CAGR) rates — clearer than the total projected % above.
+  const ann2 = set.forecast_2y && set.current_value ? Math.pow(set.forecast_2y / set.current_value, 1 / 2) - 1 : null;
+  const ann5 = set.forecast_5y && set.current_value ? Math.pow(set.forecast_5y / set.current_value, 1 / 5) - 1 : null;
   const pct = (g) => Math.min(100, Math.max(8, g * 100 + 12)).toFixed(1);
   const forecastLabel = set.valuation_method === "market" ? "Market value · BrickLink"
     : set.valuation_method === "brickeconomy" ? "Market value · BrickEconomy"
@@ -1296,6 +1307,7 @@ function forecastTabHTML(set) {
           ? "Based on recent eBay sold comps."
           : `Based on theme rarity, piece count, retirement status, and market trends for similar ${escapeHtml(set.theme || "")} sets.`}
       </p>
+      ${set.be_growth_12m != null ? `<p style="margin:8px 0 0;font-size:12px;color:var(--ink-soft);">Trailing 12-month market growth: <strong style="color:${set.be_growth_12m >= 0 ? 'var(--up)' : 'var(--down)'};">${set.be_growth_12m >= 0 ? '+' : ''}${Number(set.be_growth_12m).toFixed(1)}%</strong></p>` : ''}
     </div>
 
     <div class="forecast-card">
@@ -1304,7 +1316,7 @@ function forecastTabHTML(set) {
         <div class="fh-val">${fmtMoney(set.forecast_2y)}</div>
       </div>
       <div class="forecast-bar"><div style="--fill:${pct(g2)}%;"></div></div>
-      <div class="forecast-pct${g2 < 0 ? " down" : ""}">${g2 >= 0 ? I.arrowU() : I.arrowD()}${fmtPct(g2)} projected</div>
+      <div class="forecast-pct${g2 < 0 ? " down" : ""}">${g2 >= 0 ? I.arrowU() : I.arrowD()}${fmtPct(g2)} projected${ann2 != null ? ` · ${fmtPct(ann2)}/yr` : ''}</div>
     </div>
 
     <div class="forecast-card">
@@ -1313,7 +1325,7 @@ function forecastTabHTML(set) {
         <div class="fh-val">${fmtMoney(set.forecast_5y)}</div>
       </div>
       <div class="forecast-bar"><div style="--fill:${pct(g5)}%;"></div></div>
-      <div class="forecast-pct${g5 < 0 ? " down" : ""}">${g5 >= 0 ? I.arrowU() : I.arrowD()}${fmtPct(g5)} projected</div>
+      <div class="forecast-pct${g5 < 0 ? " down" : ""}">${g5 >= 0 ? I.arrowU() : I.arrowD()}${fmtPct(g5)} projected${ann5 != null ? ` · ${fmtPct(ann5)}/yr` : ''}</div>
     </div>
 
     <div class="card" style="background:var(--surface-2);margin-top:14px;">
@@ -2252,7 +2264,10 @@ function priceStripHTML(set, entry) {
     : "formula estimate";
 
   const updateDateStr = set.cached_at ? fmtDateUpdated(set.cached_at) : null;
-  const lastUpdatedText = updateDateStr ? `Updated: ${updateDateStr}` : "Update: pending";
+  // Surface data staleness from the enrichment freshness field.
+  const freshColor = set.freshness === 'expired' ? 'var(--down)' : set.freshness === 'stale' ? 'var(--bv-yellow)' : 'var(--ink-mute)';
+  const freshNote = set.freshness === 'expired' ? ' · due for refresh' : set.freshness === 'stale' ? ' · >60d old' : '';
+  const lastUpdatedText = (updateDateStr ? `Updated: ${updateDateStr}` : "Update: pending") + freshNote;
 
   // Lot counts for BrickLink cells — show as confidence indicator
   const blNewQty = set.bl_new_qty;
@@ -2288,7 +2303,7 @@ function priceStripHTML(set, entry) {
     </div>
     <div class="ps-footnote" style="display:flex;align-items:center;justify-content:space-between;width:100%;">
       <span>Sources: ${sourceSuffix}</span>
-      <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);">${lastUpdatedText}</span>
+      <span style="font-family:var(--mono);font-size:10px;color:${freshColor};">${lastUpdatedText}</span>
     </div>`;
 }
 
@@ -2325,12 +2340,24 @@ function marketConfidenceHTML(set) {
       : set.valuation_method === 'ai' ? 'AI estimated this value because market sources were unavailable.'
       : 'Formula valuation is used until a market refresh completes.'
   );
-  const sourceRows = sources.slice(0, 4).map(s => `
-    <div style="display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--line-soft);padding-top:7px;margin-top:7px;">
-      <span style="min-width:0;color:var(--ink-soft);">${escapeHtml(s.name)} ${s.condition ? `(${escapeHtml(s.condition)})` : ''}</span>
-      <span style="font-family:var(--mono);font-weight:700;color:var(--ink);white-space:nowrap;">${s.value ? fmtMoney(s.value) : 'pending'}${s.sample_count ? ` / ${s.sample_count} lots` : ''}</span>
-    </div>
-  `).join('');
+  const relColor = (r) => r === 'primary' ? 'var(--up)' : r === 'fallback' ? 'var(--bv-yellow)' : 'var(--ink-mute)';
+  const sourceRows = sources.slice(0, 4).map(s => {
+    const rel = s.reliability
+      ? `<span style="font-size:8px;letter-spacing:.04em;text-transform:uppercase;border:1px solid ${relColor(s.reliability)};color:${relColor(s.reliability)};border-radius:6px;padding:0 5px;margin-left:6px;white-space:nowrap;">${escapeHtml(s.reliability)}</span>`
+      : '';
+    const upd = s.last_updated ? fmtDateUpdated(s.last_updated) : '';
+    const sub = (s.note || upd)
+      ? `<div style="display:flex;justify-content:space-between;gap:8px;margin-top:2px;font-size:9px;color:var(--ink-mute);line-height:1.3;">${s.note ? `<span style="min-width:0;">${escapeHtml(s.note)}</span>` : '<span></span>'}${upd ? `<span style="white-space:nowrap;">updated ${escapeHtml(upd)}</span>` : ''}</div>`
+      : '';
+    return `
+    <div style="border-top:1px solid var(--line-soft);padding-top:7px;margin-top:7px;">
+      <div style="display:flex;justify-content:space-between;gap:10px;">
+        <span style="min-width:0;color:var(--ink-soft);">${escapeHtml(s.name)} ${s.condition ? `(${escapeHtml(s.condition)})` : ''}${rel}</span>
+        <span style="font-family:var(--mono);font-weight:700;color:var(--ink);white-space:nowrap;">${s.value ? fmtMoney(s.value) : 'pending'}${s.sample_count ? ` / ${s.sample_count} lots` : ''}</span>
+      </div>
+      ${sub}
+    </div>`;
+  }).join('');
   return `
     ${trustPanelHTML(set)}
     <div class="card" style="padding:14px 16px;margin-bottom:14px;">
