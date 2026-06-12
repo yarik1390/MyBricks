@@ -14,6 +14,7 @@ import {
 } from '../lib/ebay';
 import { callGeminiValuation } from '../lib/gemini';
 import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
+import { spendQuota } from '../lib/api-quota';
 import { getCachedPriceTrend } from '../lib/price-trend';
 import { fetchTracked } from '../lib/http';
 import { enrichSetRecord } from '../lib/market-sources';
@@ -242,8 +243,13 @@ app.get('/:setnum', async (c) => {
     if (needsRefresh) {
       if (c.env.BRICKECONOMY_API_KEY) {
         // Fetch BrickEconomy + BrickLink + eBay in parallel for cross-validation.
+        // BrickEconomy is ledger-gated (80/day budget of a 100/day hard cap) so
+        // browsing traffic can never exhaust the provider quota — on a denied
+        // grant the refresh proceeds with BrickLink/eBay only.
         const refreshPromise = Promise.all([
-          fetchBrickEconomyDetails(activeSet.set_num as string, c.env).catch(() => null),
+          spendQuota(c.env, 'brickeconomy')
+            .then((ok) => (ok ? fetchBrickEconomyDetails(activeSet.set_num as string, c.env) : null))
+            .catch(() => null),
           fetchSetPricing(activeSet.set_num as string, c.env).catch(() => null),
           fetchUsedPricing(activeSet.set_num as string, c.env).catch(() => null),
           fetchEbaySoldPrices(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null),
@@ -754,8 +760,11 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
   if (c.env.BRICKECONOMY_API_KEY) {
     // Run all market sources in parallel — BrickEconomy is primary but BL is
     // fetched alongside it to populate bl_new_value for the price strip.
+    // BrickEconomy is ledger-gated; a denied grant degrades to BL/eBay.
     const [be, blp, u, e] = await Promise.all([
-      fetchBrickEconomyDetails(set.set_num as string, c.env).catch(() => null),
+      spendQuota(c.env, 'brickeconomy')
+        .then((ok) => (ok ? fetchBrickEconomyDetails(set.set_num as string, c.env) : null))
+        .catch(() => null),
       fetchSetPricing(set.set_num as string, c.env).catch(() => null),
       fetchUsedPricing(set.set_num as string, c.env).catch(() => null),
       fetchEbaySoldPrices(set.set_num as string, set.name as string, c.env).catch(() => null),
