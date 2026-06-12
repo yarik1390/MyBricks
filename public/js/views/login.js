@@ -1,7 +1,15 @@
 import { $, toast, setBtnLoading } from '../utils.js';
 import { _sbUrl, sbSignIn, sbSignUp, sbRecover, saveSession, snapshotGuestVault, migrateGuestVault } from '../api.js';
+import { state } from '../state.js';
 import { go } from '../router.js';
 import { promptSheet } from '../components/sheet.js';
+
+// When auth can't run because _sbUrl is empty, distinguish "the API was
+// blocked/unreachable" (state.configError, set during boot) from a genuine
+// server misconfiguration, so the user gets an actionable message.
+const authUnavailableMsg = () => state.configError
+  ? "Can't reach the server — an ad-blocker or privacy extension may be blocking it. Disable it for this site, or try another browser."
+  : "Auth not configured";
 
 export function renderLogin() {
   let mode = "signin";
@@ -59,7 +67,7 @@ export function renderLogin() {
     });
 
     document.getElementById("authForgot")?.addEventListener("click", async () => {
-      if (!_sbUrl) { toast("Auth not configured", "error"); return; }
+      if (!_sbUrl) { toast(authUnavailableMsg(), "error"); return; }
       const prefill = document.getElementById("authEmail")?.value.trim() || "";
       const email = await promptSheet({ title: "Reset password", label: "Email address", value: prefill, placeholder: "you@example.com", confirmLabel: "Send reset link" });
       if (!email) return;
@@ -72,7 +80,7 @@ export function renderLogin() {
     });
 
     document.getElementById("googleSignIn")?.addEventListener("click", () => {
-      if (!_sbUrl) { toast("Auth not configured", "error"); return; }
+      if (!_sbUrl) { toast(authUnavailableMsg(), "error"); return; }
       const guestSnapshot = snapshotGuestVault();
       if (guestSnapshot.collection?.length || guestSnapshot.wishlist?.length || guestSnapshot.ownedFigs?.length) {
         try { sessionStorage.setItem("bv_pending_guest_migration", JSON.stringify(guestSnapshot)); } catch {}
@@ -87,6 +95,7 @@ export function renderLogin() {
       const btn = document.getElementById("authSubmit");
       const errEl = document.getElementById("authErr");
       if (!email || !pass) { if (errEl) errEl.textContent = "Email and password required."; return; }
+      if (!_sbUrl) { if (errEl) errEl.textContent = authUnavailableMsg(); return; }
       setBtnLoading(btn, true);
       if (errEl) errEl.textContent = "";
       try {
