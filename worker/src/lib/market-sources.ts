@@ -265,10 +265,108 @@ export function valuationExplanation(row: Record<string, unknown>, confidence: M
   return `${prefix}: formula valuation is used until a market refresh completes.${stale}`;
 }
 
+// ---------------------------------------------------------------------------
+// Valuation v2 — multi-source blended fair value (new condition)
+// ---------------------------------------------------------------------------
+export interface BlendedValue {
+  value: number | null;
+  low: number | null;
+  high: number | null;
+  confidence: MarketConfidence | null;
+  basis: { id: string; name: string; value: number; weight: number }[];
+}
+
+function ageDays(ts: unknown): number | null {
+  const s = text(ts);
+  if (!s) return null;
+  const t = Date.parse(s);
+  return Number.isNaN(t) ? null : (Date.now() - t) / 86_400_000;
+}
+
+// Recency weight: fresh data counts fully, older data is discounted.
+function freshnessFactor(ts: unknown): number {
+  const d = ageDays(ts);
+  if (d == null) return 0.1;
+  if (d < 7) return 1;
+  if (d < 30) return 0.7;
+  if (d < 90) return 0.4;
+  return 0.15;
+}
+
+// Sample-size weight: a guide value backed by many lots is more trustworthy.
+// Null (modeled / single-listing sources) gets a neutral mid weight.
+function sampleFactor(qty: number | null): number {
+  if (qty == null) return 0.7;
+  return 0.5 + 0.5 * Math.min(1, qty / 8);
+}
+
+/**
+ * Blend the available NEW-condition market signals into one fair value with a
+ * confidence band. Sold comps (BrickLink, eBay) weigh highest, then
+ * BrickEconomy's modeled value, then BrickOwl listings. eBay *asking* prices,
+ * used, retail, and AI/formula estimates are excluded. Pure + read-side: it
+ * never writes and never mutates current_value.
+ */
+export function blendMarketValue(row: Record<string, unknown>): BlendedValue {
+  const method = String(row.valuation_method || '');
+  type P = { id: string; name: string; value: number; weight: number; sold: boolean; fresh: boolean };
+  const pts: P[] = [];
+  const push = (id: string, name: string, value: number | null, qty: number | null, ts: unknown, typeF: number, sold: boolean) => {
+    if (!value || value <= 0) return;
+    const ff = freshnessFactor(ts);
+    const w = ff * sampleFactor(qty) * typeF;
+    if (w <= 0) return;
+    pts.push({ id, name, value, weight: w, sold, fresh: ff >= 0.7 });
+  };
+
+  push('bricklink_new', 'BrickLink', num(row.bl_new_value), num(row.bl_new_qty), row.bl_cached_at, 1.0, true);
+  push('ebay_sold_new', 'eBay sold', num(row.ebay_new_value), num(row.ebay_new_qty), row.ebay_new_cached_at, 1.0, true);
+  // BrickEconomy's value is only stored as current_value when it's the method.
+  if (method === 'brickeconomy') push('brickeconomy', 'BrickEconomy', num(row.current_value), null, row.be_cached_at || row.cached_at, 0.9, false);
+  push('brickowl_new', 'BrickOwl', num(row.bo_new_value), null, row.bo_cached_at, 0.7, false);
+
+  if (!pts.length) return { value: null, low: null, high: null, confidence: null, basis: [] };
+
+  // Drop gross outliers against the median ratio once we have >=3 points.
+  let survivors = pts;
+  if (pts.length >= 3) {
+    const sorted = pts.map(p => p.value).sort((a, b) => a - b);
+    const med = sorted[Math.floor(sorted.length / 2)];
+    const kept = pts.filter(p => p.value / med <= 2.5 && p.value / med >= 0.4);
+    if (kept.length) survivors = kept;
+  }
+
+  const wsum = survivors.reduce((s, p) => s + p.weight, 0);
+  const value = Math.round((survivors.reduce((s, p) => s + p.value * p.weight, 0) / wsum) * 100) / 100;
+  const vals = survivors.map(p => p.value);
+  let low = Math.min(...vals);
+  let high = Math.max(...vals);
+  if (survivors.length === 1) {
+    const blMin = num(row.bl_new_min);
+    const blMax = num(row.bl_new_max);
+    const isBl = survivors[0].id === 'bricklink_new';
+    low = isBl && blMin ? blMin : Math.round(value * 0.9 * 100) / 100;
+    high = isBl && blMax ? blMax : Math.round(value * 1.1 * 100) / 100;
+  }
+
+  const freshSold = survivors.filter(p => p.sold && p.fresh).length;
+  const beFresh = survivors.some(p => p.id === 'brickeconomy' && p.fresh);
+  const confidence: MarketConfidence = freshSold >= 2 ? 'high' : (freshSold >= 1 || beFresh) ? 'medium' : 'low';
+
+  return {
+    value,
+    low: Math.round(low * 100) / 100,
+    high: Math.round(high * 100) / 100,
+    confidence,
+    basis: survivors.map(p => ({ id: p.id, name: p.name, value: p.value, weight: Math.round(p.weight * 100) / 100 })),
+  };
+}
+
 export function enrichSetRecord<T extends Record<string, unknown>>(row: T): T {
   const sources = buildMarketSources(row);
   const freshness = marketFreshness(row);
   const confidence = marketConfidence(row, sources);
+  const blend = blendMarketValue(row);
   return {
     ...row,
     market_sources: sources,
@@ -276,5 +374,11 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T): T {
     confidence,
     freshness,
     valuation_explanation: valuationExplanation(row, confidence, freshness),
+    // Valuation v2 (additive; current_value is unchanged).
+    market_value: blend.value,
+    market_value_low: blend.low,
+    market_value_high: blend.high,
+    market_value_confidence: blend.confidence,
+    market_value_basis: blend.basis,
   };
 }
