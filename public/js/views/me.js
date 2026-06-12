@@ -6,6 +6,7 @@ import { promptSheet, showSheet, hideSheet } from '../components/sheet.js';
 import { go } from '../router.js';
 import { getThemePref, setThemePref, getSkinPref, setSkinPref } from '../theme.js';
 import { skelPage, skelStatGrid, skelSettingRows } from '../components/skeleton.js';
+import { startOnboarding } from '../components/onboarding.js';
 
 export async function renderMe() {
   let me = state.me;
@@ -150,6 +151,10 @@ export async function renderMe() {
         ${linkRow("#/me/integrations", "Integrations", "Google Sheets, Discord, Brickset, push alerts, AI keys")}
         ${linkRow("#/me/data", "Data", "Export &amp; import your collection as CSV")}
         ${me.is_admin ? linkRow("#/me/admin", "Admin console", "Catalog imports, jobs, integration health") : ""}
+        <div class="setting-row" id="replayTourRow" style="cursor:pointer;">
+          <div class="lbl-wrap"><div class="lbl">App tour</div><div class="desc">Replay the quick guided walkthrough.</div></div>
+          ${I.chev()}
+        </div>
         <div class="setting-row" id="${guest ? "signInRow" : "signOutRow"}" style="cursor:pointer;">
           <div class="lbl-wrap"><div class="lbl">${guest ? "Sign in" : "Sign out"}</div><div class="desc">${guest ? "Sync your local vault across devices." : "Sync resumes when you return."}</div></div>
           ${I.chev()}
@@ -160,6 +165,8 @@ export async function renderMe() {
         BRICKVAULT · v5.0 · STACK SOMETHING BEAUTIFUL
       </div>
     </div>`;
+
+  $("#replayTourRow")?.addEventListener("click", () => { haptic("light"); startOnboarding(); });
 
   $("#installBtn")?.addEventListener("click", async () => {
     const dp = state.pwa.deferredPrompt;
