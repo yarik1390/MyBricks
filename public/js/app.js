@@ -142,11 +142,33 @@ async function consumeOAuthHash() {
 document.addEventListener("DOMContentLoaded", async () => {
   // Load session and Supabase config before any routing.
   let session = loadSession();
-  try {
-    const cfg = await fetch((window.WORKER_BASE || '') + "/api/config").then(r => r.json());
-    state.config = cfg;
-    setSupabaseConfig(cfg.supabase_url || "", cfg.supabase_anon_key || "");
-  } catch {}
+  // Fetch /api/config with a few retries. If it never comes back, the most
+  // common cause (the app runs on *.workers.dev) is an ad-blocker / privacy
+  // extension or a network blocking the API — surface that honestly instead
+  // of letting login fail later with a misleading "Auth not configured" or an
+  // "Unexpected end of JSON input" from an empty response.
+  state.configError = false;
+  {
+    const configUrl = (window.WORKER_BASE || '') + "/api/config";
+    let cfg = null;
+    for (let attempt = 0; attempt < 3 && !cfg; attempt++) {
+      if (attempt) await new Promise(r => setTimeout(r, 400 * attempt));
+      try {
+        const res = await fetch(configUrl, { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        cfg = await res.json();
+      } catch (e) {
+        console.warn("[config] attempt " + (attempt + 1) + " failed:", (e && e.message) || e);
+      }
+    }
+    if (cfg) {
+      state.config = cfg;
+      setSupabaseConfig(cfg.supabase_url || "", cfg.supabase_anon_key || "");
+    } else {
+      state.configError = true;
+      toast("Can't reach the server — an ad-blocker or privacy extension may be blocking it. Disable it for this site, or try another browser.", "error");
+    }
+  }
 
   await consumeOAuthHash();
 
@@ -181,11 +203,34 @@ document.addEventListener("DOMContentLoaded", async () => {
   // PWA install prompt — preventDefault so we can surface our own install card.
   window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); state.pwa.deferredPrompt = e; });
 
-  // Offline indicator
-  const offlineHandler = () => document.body.classList.toggle("offline", !navigator.onLine);
-  window.addEventListener("online", () => { offlineHandler(); drainOutbox(); });
-  window.addEventListener("offline", offlineHandler);
-  offlineHandler();
+  // Offline indicator. navigator.onLine is unreliable — it reports false
+  // negatives (desktop Chrome can claim "offline" while connected) and false
+  // positives (claims "online" when the API is blocked). Confirm reachability
+  // with a lightweight probe before stranding the user in cached/demo mode.
+  let offlineProbeBusy = false;
+  async function refreshOfflineState() {
+    if (offlineProbeBusy) return;
+    offlineProbeBusy = true;
+    try {
+      let online = navigator.onLine;
+      if (online) {
+        try {
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 4000);
+          const res = await fetch((window.WORKER_BASE || '') + "/api/config", { cache: "no-store", signal: ctrl.signal });
+          clearTimeout(timer);
+          online = res.ok;
+        } catch { online = false; }
+      }
+      document.body.classList.toggle("offline", !online);
+    } finally {
+      offlineProbeBusy = false;
+    }
+  }
+  // Seed the initial banner from the config load we just did (no extra probe).
+  document.body.classList.toggle("offline", state.configError);
+  window.addEventListener("online", () => { refreshOfflineState(); drainOutbox(); });
+  window.addEventListener("offline", () => document.body.classList.toggle("offline", true));
 
   setupGestures();
   setupImageHydration();
