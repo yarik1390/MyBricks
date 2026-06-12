@@ -263,3 +263,13 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, endpoint)
 );
+
+-- Pricing Engine v2.1 Phase 1c: per-source daily external-API budget ledger.
+CREATE TABLE IF NOT EXISTS api_quota (
+  service TEXT NOT NULL,
+  day TEXT NOT NULL,
+  used INTEGER NOT NULL DEFAULT 0,
+  cap INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT,
+  PRIMARY KEY (service, day)
+);
