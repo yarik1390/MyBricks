@@ -13,6 +13,7 @@ import { classifyHealth } from './lib/integration-health';
 import { computeRetirementRisk } from './lib/retirement-risk';
 import { isSearchIndexCorruption } from './lib/search-index';
 import { formulaValuation } from './lib/valuation';
+import { blendMarketValue } from './lib/market-sources';
 
 // ---------------------------------------------------------------------------
 // integration health
@@ -352,6 +353,57 @@ describe('formulaValuation', () => {
 // ---------------------------------------------------------------------------
 // barcode backfill resume state
 // ---------------------------------------------------------------------------
+describe('blendMarketValue (valuation v2)', () => {
+  const now = new Date().toISOString();
+  const old = new Date(Date.now() - 200 * 86_400_000).toISOString();
+
+  it('returns null when there is no market data', () => {
+    const r = blendMarketValue({ valuation_method: 'formula_bulk', current_value: 20 });
+    expect(r.value).toBeNull();
+    expect(r.confidence).toBeNull();
+  });
+
+  it('uses a single fresh BrickLink sold value with its lot range as the band', () => {
+    const r = blendMarketValue({ valuation_method: 'market', bl_new_value: 100, bl_new_qty: 12, bl_cached_at: now, bl_new_min: 90, bl_new_max: 115 });
+    expect(r.value).toBe(100);
+    expect(r.low).toBe(90);
+    expect(r.high).toBe(115);
+    expect(r.confidence).toBe('medium');
+  });
+
+  it('blends two fresh sold sources and rates confidence high', () => {
+    const r = blendMarketValue({ valuation_method: 'market', bl_new_value: 100, bl_new_qty: 10, bl_cached_at: now, ebay_new_value: 120, ebay_new_qty: 10, ebay_new_cached_at: now });
+    expect(r.value).toBeGreaterThan(100);
+    expect(r.value).toBeLessThan(120);
+    expect(r.confidence).toBe('high');
+    expect(r.low).toBe(100);
+    expect(r.high).toBe(120);
+  });
+
+  it('drops a gross outlier source', () => {
+    const r = blendMarketValue({ valuation_method: 'market', bl_new_value: 100, bl_new_qty: 10, bl_cached_at: now, ebay_new_value: 105, ebay_new_qty: 10, ebay_new_cached_at: now, bo_new_value: 900, bo_cached_at: now });
+    expect(r.value).toBeLessThanOrEqual(106);
+    expect(r.high).toBeLessThanOrEqual(120);
+  });
+
+  it('excludes eBay asking prices from the fair value', () => {
+    const r = blendMarketValue({ valuation_method: 'formula_bulk', ebay_ask_value: 200, ebay_ask_qty: 5, ebay_ask_cached_at: now });
+    expect(r.value).toBeNull();
+  });
+
+  it('treats a stale-only source as low confidence', () => {
+    const r = blendMarketValue({ valuation_method: 'market', bl_new_value: 50, bl_new_qty: 3, bl_cached_at: old });
+    expect(r.value).toBe(50);
+    expect(r.confidence).toBe('low');
+  });
+
+  it('uses BrickEconomy current_value when it is the method', () => {
+    const r = blendMarketValue({ valuation_method: 'brickeconomy', current_value: 300, be_cached_at: now });
+    expect(r.value).toBe(300);
+    expect(r.confidence).toBe('medium');
+  });
+});
+
 describe('parseNextBackfillPage', () => {
   it('resumes from the stored next page', () => {
     expect(parseNextBackfillPage('method:bulk start_page:5 next_page:9 complete:false')).toBe(9);
