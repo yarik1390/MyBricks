@@ -302,10 +302,13 @@ describe('formulaValuation', () => {
     expect(lg.retail_price).toBeGreaterThan(sm.retail_price);
   });
 
-  it('Star Wars multiplier produces higher MSRP than City for same piece count', () => {
-    const sw = formulaValuation({ pieces: 500, theme: 'Star Wars', retired: false });
-    const ci = formulaValuation({ pieces: 500, theme: 'City', retired: false });
-    expect(sw.retail_price).toBeGreaterThan(ci.retail_price);
+  it('high-appreciation theme outgrows a budget theme over time (equal pieces+age)', () => {
+    // Post-calibration, the premium lives in appreciation, not retail MSRP:
+    // a retired Star Wars set ends up worth more than a retired Friends set
+    // of identical pieces and age. (Holds under both old and new constants.)
+    const sw = formulaValuation({ pieces: 500, theme: 'Star Wars', retired: true, year: 2012, minifigs: 0 });
+    const fr = formulaValuation({ pieces: 500, theme: 'Friends', retired: true, year: 2012, minifigs: 0 });
+    expect(sw.current_value).toBeGreaterThan(fr.current_value);
   });
 
   it('forecast_5y > forecast_2y > current_value for an active appreciating set', () => {
