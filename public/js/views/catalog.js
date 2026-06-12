@@ -345,7 +345,11 @@ function pppBadgeHTML(s) {
 function catalogCardHTML(s) {
   const hasImg = s.image_url && !s.image_url.startsWith("data:");
   const h = setHue(s);
-  
+  // Prefer the blended market value (valuation v2) over the formula estimate.
+  const dispVal = Number(s.market_value) > 0 ? Number(s.market_value) : s.current_value;
+  const mvConf = Number(s.market_value) > 0 ? (s.market_value_confidence || null) : null;
+  const confDot = mvConf ? `<span title="Market confidence: ${mvConf}" style="display:inline-block;width:6px;height:6px;border-radius:50%;vertical-align:middle;margin-right:4px;background:${mvConf === 'high' ? 'var(--up)' : mvConf === 'medium' ? 'var(--accent)' : 'var(--bv-yellow)'};"></span>` : '';
+
   if (state.compactView) {
     const borderStyle = ` style="border-left-color: ${THEME_COLORS[s.theme] || 'var(--line)'};"`;
     return `
@@ -368,7 +372,7 @@ function catalogCardHTML(s) {
         </div>
         <div class="sl-right-compact">
           <div class="sl-value" style="display:flex;align-items:center;">
-            ${fmtMoney(s.current_value)}
+            ${fmtMoney(dispVal)}
             ${s.trend ? trendBadgeHTML(s.trend) : ""}
           </div>
           <div class="sl-delta" style="color:var(--ink-mute);">${s.pieces || 0}pc ${pppBadgeHTML(s)}</div>
@@ -394,7 +398,7 @@ function catalogCardHTML(s) {
           ${s.minifigs > 0 ? `<span>${s.minifigs} fig</span>` : ""}
         </div>
         <div class="set-card-value" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;">
-          <span>${fmtMoney(s.current_value)} ${pppBadgeHTML(s)}${s.bl_new_qty ? ` <span style="font-size:9px;color:var(--ink-mute);">(${s.bl_new_qty} lots)</span>` : ""}</span>
+          <span>${confDot}${fmtMoney(dispVal)} ${pppBadgeHTML(s)}${s.bl_new_qty ? ` <span style="font-size:9px;color:var(--ink-mute);">(${s.bl_new_qty} lots)</span>` : ""}</span>
           <span style="display:inline-flex;align-items:center;gap:6px;">${sourceCueHTML(s)}${s.trend ? trendBadgeHTML(s.trend) : ""}</span>
         </div>
       </div>
