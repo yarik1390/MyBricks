@@ -14,6 +14,12 @@ import {
   type EbaySoldPrices,
 } from '../lib/ebay';
 import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
+import {
+  DEFAULT_CRON_BUDGET,
+  packBatch,
+  reserveQuota,
+  type PackProfile,
+} from '../lib/api-quota';
 import { valuationExpiryModifier } from '../lib/valuation';
 import { computeRetirementRisk } from '../lib/retirement-risk';
 import {
@@ -34,6 +40,13 @@ export interface ValuateSetsOptions {
   includeAiFallback?: boolean;
   sourceRetries?: number;
   sourceTimeoutMs?: number;
+  /**
+   * Subrequest budget for this invocation. Free-plan Workers allow 50 and
+   * every fetch/D1/KV call counts, so the batch size is packed to fit (see
+   * lib/api-quota.ts). Callers sharing an invocation with other phases (e.g.
+   * admin populate slices) should pass what remains of their budget.
+   */
+  subrequestBudget?: number;
   onProgress?: (progress: { processed: number; updated: number; total: number; currentSet?: string }) => Promise<void>;
 }
 
@@ -60,9 +73,23 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   const includeEbay = options.includeEbay === true;
   const includeAiFallback = options.includeAiFallback !== false;
   const requestedLimit = Number(options.limit);
-  const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+  // Default raised from the old hand-tuned 4: the invocation packer below is
+  // now the real safety limit, sizing each batch to the subrequest budget.
+  const requested = Number.isFinite(requestedLimit) && requestedLimit > 0
     ? Math.min(Math.floor(requestedLimit), 250)
-    : 4;
+    : 12;
+  const packProfile: PackProfile = {
+    brickEconomy: !!env.BRICKECONOMY_API_KEY,
+    supplemental: includeSupplemental,
+    ebay: includeEbay,
+    aiFallback: includeAiFallback && !!(env.GEMINI_API_KEY || env.OPENAI_API_KEY),
+    progressWrites: !!options.onProgress,
+  };
+  const requestedBudget = Number(options.subrequestBudget);
+  const subrequestBudget = Number.isFinite(requestedBudget) && requestedBudget > 0
+    ? requestedBudget
+    : DEFAULT_CRON_BUDGET;
+  const limit = packBatch(requested, subrequestBudget, packProfile);
   const duePredicate = `(
     ls.valuation_method = 'formula_bulk'
     OR ls.valuation_expires_at IS NULL
@@ -92,6 +119,19 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       ls.set_num ASC
     LIMIT ?
   `).bind(limit).all<{ set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number; retired: number; ask_stale: number }>();
+
+  // Reserve today's external-API budget for this batch up front (2-3 D1
+  // round-trips total). BrickEconomy is the scarce source (80/day budget of a
+  // 100/day hard cap): when its grant runs out mid-batch, sets transparently
+  // fall back to the BrickLink-primary path. Other grants are reservations
+  // for accounting/visibility; their budgets are far above any single run.
+  const grants = await reserveQuota(env, {
+    brickeconomy: packProfile.brickEconomy ? results.length : 0,
+    bricklink: results.length * 2,
+    brickowl: includeSupplemental ? results.length : 0,
+    ebay: includeEbay ? results.length * 2 : 0,
+  });
+  let beBudget = grants.brickeconomy ?? 0;
 
   const openai = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
   let updated = 0, market = 0, ai = 0;
@@ -142,7 +182,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     // Detail-page refreshes still fan out across providers.
     let blPricing: { current_value: number; lot_count: number; min_price: number | null; max_price: number | null } | null = null;
 
-    if (env.BRICKECONOMY_API_KEY) {
+    // Ledger-gated: skip BrickEconomy once today's grant is spent — the set
+    // then prices via the BrickLink-primary path below instead of failing.
+    if (env.BRICKECONOMY_API_KEY && beBudget > 0) {
+      beBudget--;
       const be = await fetchBrickEconomyDetails(set.set_num, env, sourceOptions)
         .catch((err) => { tallyFail('brickeconomy', err); return null; });
       if (be) tallyOk('brickeconomy');
@@ -460,6 +503,9 @@ export async function runEbayBackfill(env: Env, options: { limit?: number } = {}
     LIMIT ?
   `).bind(limit).all<{ set_num: string; name: string }>();
 
+  // Account the eBay spend in the daily ledger (advisory at backfill sizes).
+  await reserveQuota(env, { ebay: results.length });
+
   let updated = 0;
   let processed = 0;
   const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
@@ -502,6 +548,10 @@ export async function runValuateMinifigs(env: Env): Promise<number> {
     ORDER BY COALESCE(m.cached_at, '2000-01-01') ASC
     LIMIT 10
   `).all<{ fig_num: string }>();
+
+  // Account the BrickLink spend in the daily ledger (advisory — minifig
+  // batches are far below the 4,000/day budget, but visibility matters).
+  await reserveQuota(env, { bricklink: results.length });
 
   let updated = 0;
   for (const fig of results) {
