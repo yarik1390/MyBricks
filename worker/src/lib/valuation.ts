@@ -1,20 +1,26 @@
+// Retail MSRP-per-piece multipliers, calibrated against the alexracape Kaggle
+// dataset (3,428 sets with >=100 pieces, 2023). Real retail $/piece is far
+// flatter across building themes than once assumed — most cluster near 1.0;
+// the theme-specific value lives in appreciation (below), not retail price.
+// Duplo stays low-balled: its few large pieces inflate raw $/piece, so the
+// piece-count model over-prices it without this damping.
 const THEME_MULTIPLIERS: Record<string, number> = {
-  'Star Wars': 1.35,
-  'Technic': 1.20,
-  'Ideas': 1.25,
-  'Icons': 1.15,
-  'Creator Expert': 1.20,
-  'Creator 3-in-1': 1.05,
-  'Architecture': 1.15,
-  'Harry Potter': 1.30,
-  'Marvel': 1.25,
-  'DC': 1.20,
-  'Ninjago': 1.10,
-  'City': 0.95,
-  'Friends': 0.90,
+  'Star Wars': 1.10,
+  'Technic': 0.97,
+  'Ideas': 0.85,
+  'Icons': 0.80,
+  'Creator Expert': 0.83,
+  'Creator 3-in-1': 0.82,
+  'Architecture': 0.90,
+  'Harry Potter': 1.03,
+  'Marvel': 1.03,
+  'DC': 1.00,
+  'Ninjago': 0.94,
+  'City': 1.20,
+  'Friends': 0.98,
   'Duplo': 0.85,
-  'Minecraft': 1.05,
-  'Speed Champions': 1.10,
+  'Minecraft': 0.96,
+  'Speed Champions': 0.95,
 };
 
 export function formulaValuation(set: {
@@ -37,15 +43,25 @@ export function formulaValuation(set: {
   // The $0.11/pc base is mirrored by pricePerPiece() in public/js/lib/pure.js — keep in sync.
   const msrp = Math.round(pieces * 0.11 * themeMultiplier * 100) / 100;
 
-  // Theme-Specific compound appreciation rates
-  let appreciationRate = 0.04; // 4% default
+  // Theme-specific compound appreciation rates, calibrated against the Kaggle
+  // dataset (2,666 sets, year<=2020, annualized 2023 price / MSRP). The real
+  // overall median is ~7%/yr, so the baseline rose from 4%; premium themes
+  // sit ~9-11%, and City/Friends — previously floored at 1.5% — are really
+  // ~3-4%. Order matters: 'creator expert' must precede plain 'creator'.
+  let appreciationRate = 0.065; // ~7% real overall median
   const t = theme.toLowerCase();
-  if (t.includes('star wars') || t.includes('ideas') || t.includes('creator')) {
-    appreciationRate = 0.12; // 12%
-  } else if (t.includes('technic') || t.includes('icons')) {
-    appreciationRate = 0.07; // 7%
-  } else if (t.includes('city') || t.includes('friends') || t.includes('duplo')) {
-    appreciationRate = 0.015; // 1.5%
+  if (t.includes('star wars') || t.includes('ninjago') || t.includes('architecture') || t.includes('ideas')) {
+    appreciationRate = 0.09; // real 8-11%/yr
+  } else if (t.includes('icons') || t.includes('creator expert')) {
+    appreciationRate = 0.07; // real ~7%/yr
+  } else if (t.includes('technic')) {
+    appreciationRate = 0.05; // real ~4.8%/yr (was overstated at 7%)
+  } else if (t.includes('creator')) {
+    appreciationRate = 0.045; // plain Creator, real ~3.9%/yr
+  } else if (t.includes('city')) {
+    appreciationRate = 0.04; // real ~4.3%/yr (was floored at 1.5%)
+  } else if (t.includes('friends') || t.includes('duplo')) {
+    appreciationRate = 0.03; // real ~2.5%/yr
   }
 
   // Shelf life defaults to 2 years before a set is retired
