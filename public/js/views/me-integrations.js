@@ -156,12 +156,12 @@ export async function renderMeIntegrations() {
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">
             <div class="lbl">Global AI Engine</div>
-            <div class="desc">Choose whether the app uses Cloud AI (Gemini/OpenAI) or Local On-Device AI (free & offline-ready).</div>
+            <div class="desc">Scanning and the advisor use <strong>Cloud AI by default</strong> — most accurate and works on any device. Choose “Prefer on-device” to run free, private Gemma / Gemini Nano locally <strong>when your device supports it</strong> (WebGPU) or you're offline; it falls back to Cloud automatically, so scanning always works.</div>
           </div>
           <div class="u-row u-wfull">
             <select id="globalAiEngineSelect" class="u-wfull u-fs-base" style="border:1px solid var(--border-c);border-radius:var(--r-1);padding:8px 10px;background:var(--surface-2);color:var(--ink);outline:none;box-sizing:border-box;">
-              <option value="cloud" ${localStorage.getItem('bv_ai_engine') !== 'local' ? 'selected' : ''}>Cloud AI (Default)</option>
-              <option value="local" ${localStorage.getItem('bv_ai_engine') === 'local' ? 'selected' : ''}>Local On-Device AI (Free & Offline)</option>
+              <option value="cloud" ${localStorage.getItem('bv_ai_engine') !== 'local' ? 'selected' : ''}>Cloud AI (recommended)</option>
+              <option value="local" ${localStorage.getItem('bv_ai_engine') === 'local' ? 'selected' : ''}>Prefer on-device (falls back to cloud)</option>
             </select>
           </div>
         </div>
@@ -609,16 +609,18 @@ export async function renderMeIntegrations() {
       }
       
       if (!nanoAvailable) {
-        toast("Note: Gemini Nano is unsupported. Advisor will fall back to Cloud, but local scanning is enabled.", "info");
+        toast("Gemini Nano unavailable here — the advisor will use Cloud. On-device scanning runs when supported, else Cloud.", "info");
       }
-      
+
       const isDownloaded = await checkGemma3Downloaded();
       if (!isDownloaded) {
-        toast("Note: Download the Gemma model below to use local photo scanning.", "info");
+        toast("Download the Gemma model below for on-device/offline scanning — until then, scans use Cloud.", "info");
       }
     }
     localStorage.setItem("bv_ai_engine", val);
-    toast(`Global AI Engine set to: ${val === 'local' ? 'Local On-Device' : 'Cloud'}`, "success");
+    toast(val === 'local'
+      ? "On-device AI will be used when supported, with automatic Cloud fallback."
+      : "Using Cloud AI for scanning and the advisor.", "success");
   });
 }
 
@@ -628,7 +630,7 @@ function showLocalAiSetupSheet() {
       ${I.info({w:18,h:18})} Enable On-Device AI
     </div>
     <div style="font-size:13px; color:var(--ink-mute); line-height:1.5; padding:4px;">
-      <p style="margin-bottom:12px;">This feature uses <strong>Gemini Nano</strong> built directly into your browser. Run offline, private AI with no API keys for free!</p>
+      <p style="margin-bottom:12px;">On-device AI runs free and private in your browser — used for the advisor and photo scanning <strong>when your device supports it</strong> (Chrome's <strong>Gemini Nano</strong> for text; <strong>WebGPU</strong> + the Gemma model for vision) or when you're offline. Cloud AI stays the default and the automatic fallback, so scanning always works.</p>
       <p style="margin-bottom:8px; font-weight:600; color:var(--ink);">To enable in Google Chrome (Desktop or Android):</p>
       <ol style="padding-left:20px; margin-bottom:16px; display:flex; flex-direction:column; gap:8px; text-align:left;">
         <li>Open a new tab and go to <code style="background:var(--surface-3); padding:2px 4px; border-radius:4px; font-family:var(--mono); font-size:11px;">chrome://flags/#prompt-api-for-gemini-nano</code>. Set it to <strong>Enabled</strong>.</li>
