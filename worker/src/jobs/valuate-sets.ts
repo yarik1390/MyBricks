@@ -114,6 +114,8 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       ${freshnessPredicate}
       ${scopePredicate}
     ORDER BY
+      CASE WHEN ls.set_num IN (SELECT set_num FROM user_collection WHERE deleted_at IS NULL)
+             OR ls.set_num IN (SELECT set_num FROM user_wishlist) THEN 0 ELSE 1 END,
       CASE WHEN ${duePredicate} THEN 0 ELSE 1 END,
       COALESCE(ls.valuation_expires_at, ls.cached_at, '2000-01-01') ASC,
       ls.set_num ASC
