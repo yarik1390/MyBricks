@@ -394,7 +394,7 @@ function catalogCardHTML(s) {
           ${s.minifigs > 0 ? `<span>${s.minifigs} fig</span>` : ""}
         </div>
         <div class="set-card-value" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;">
-          <span>${fmtMoney(s.current_value)} ${pppBadgeHTML(s)}</span>
+          <span>${fmtMoney(s.current_value)} ${pppBadgeHTML(s)}${s.bl_new_qty ? ` <span style="font-size:9px;color:var(--ink-mute);">(${s.bl_new_qty} lots)</span>` : ""}</span>
           <span style="display:inline-flex;align-items:center;gap:6px;">${sourceCueHTML(s)}${s.trend ? trendBadgeHTML(s.trend) : ""}</span>
         </div>
       </div>
