@@ -273,3 +273,12 @@ CREATE TABLE IF NOT EXISTS api_quota (
   updated_at TEXT,
   PRIMARY KEY (service, day)
 );
+
+-- Valuation v2 / Approach A: persisted blended fair value. The portfolio total,
+-- profile stat and daily snapshots COALESCE(blended_value, current_value) so
+-- portfolio values reflect real multi-source market pricing instead of the
+-- formula estimate. Written by the valuation job + on-demand refresh/revalue.
+-- NOTE: this whole file aborts on the first duplicate-column error on existing
+-- prod DBs, so the load-bearing creation is the per-statement array in
+-- .github/workflows/deploy-worker.yml; this line covers fresh databases.
+ALTER TABLE lego_sets ADD COLUMN blended_value REAL;

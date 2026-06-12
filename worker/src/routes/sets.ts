@@ -17,7 +17,7 @@ import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
 import { spendQuota } from '../lib/api-quota';
 import { getCachedPriceTrend } from '../lib/price-trend';
 import { fetchTracked } from '../lib/http';
-import { enrichSetRecord } from '../lib/market-sources';
+import { enrichSetRecord, persistBlendedValue } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { isSearchIndexCorruption, rebuildSearchIndex } from '../lib/search-index';
 import { checkLegoStock } from '../lib/lego-stock';
@@ -313,6 +313,7 @@ app.get('/:setnum', async (c) => {
           }
 
           if (supplementStmts.length) await c.env.DB.batch(supplementStmts);
+          await persistBlendedValue(c.env.DB, activeSet.set_num as string);
         }).catch(err => console.error('[bg-brickeconomy-reval] failed:', err));
 
         c.executionCtx.waitUntil(refreshPromise);
@@ -347,6 +348,7 @@ app.get('/:setnum', async (c) => {
           if (supplementStmts.length) {
             await c.env.DB.batch(supplementStmts);
           }
+          await persistBlendedValue(c.env.DB, activeSet.set_num as string);
         }).catch(err => console.error('[bg-reval] failed:', err));
 
         c.executionCtx.waitUntil(refreshPromise);
@@ -386,6 +388,7 @@ app.get('/:setnum', async (c) => {
           if (supplementStmts.length) {
             await c.env.DB.batch(supplementStmts);
           }
+          await persistBlendedValue(c.env.DB, activeSet.set_num as string);
         }).catch(err => console.error('[bg-gemini-reval] failed:', err));
 
         c.executionCtx.waitUntil(refreshPromise);
@@ -411,6 +414,7 @@ app.get('/:setnum', async (c) => {
             `).bind(ebayVal, forecast_2y, forecast_5y, activeSet.set_num));
           }
           if (supplementStmts.length) await c.env.DB.batch(supplementStmts);
+          await persistBlendedValue(c.env.DB, activeSet.set_num as string);
         }).catch(err => console.error('[bg-ebay-sold-reval] failed:', err));
 
         c.executionCtx.waitUntil(refreshPromise);
@@ -883,6 +887,11 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
   if (supplementStmts.length) {
     await c.env.DB.batch(supplementStmts);
   }
+
+  // Persist the blended fair value alongside the refreshed current_value so the
+  // portfolio basis stays consistent (Approach A). Fails open; runs before the
+  // re-read so the returned set carries the fresh blended_value too.
+  await persistBlendedValue(c.env.DB, set.set_num as string);
 
   const updatedSet = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(set.set_num).first<Record<string, unknown>>();
   const trend = updatedSet ? await getCachedPriceTrend(updatedSet.set_num as string, c.env) : null;

@@ -143,7 +143,7 @@ export function perSetCost(p: PackProfile): number {
   return cost;
 }
 
-export const RUN_OVERHEAD_SUBREQUESTS = 10; // due query, quota reservation, retirement batch, health writes
+export const RUN_OVERHEAD_SUBREQUESTS = 12; // due query, quota reservation, retirement batch, health writes, blended-value recompute pass
 export const DEFAULT_CRON_BUDGET = 45;      // free-plan cap is 50; keep a safety margin
 
 // How many sets fit the invocation budget (always at least 1 so a run can

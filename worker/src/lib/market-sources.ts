@@ -382,3 +382,65 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T): T {
     market_value_basis: blend.basis,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Persisting the blend — Approach A (portfolio basis = blended market value).
+// blendMarketValue() is pure/read-side; these helpers also store the result on
+// lego_sets.blended_value so the SQL-side portfolio sums (profile stat, daily
+// snapshots) and the collection total can COALESCE(blended_value, current_value)
+// without re-running the JS blend. Both FAIL OPEN: a blend write must never
+// break a price refresh, and they no-op gracefully if the column has not been
+// migrated onto the database yet.
+// ---------------------------------------------------------------------------
+
+// Columns blendMarketValue() reads. Re-selected after a price write so the
+// blend reflects the freshly stored signals (no fragile in-memory merge).
+export const BLEND_INPUT_COLUMNS =
+  'valuation_method, current_value, bl_new_value, bl_new_qty, bl_new_min, bl_new_max, ' +
+  'bl_cached_at, ebay_new_value, ebay_new_qty, ebay_new_cached_at, be_cached_at, ' +
+  'cached_at, bo_new_value, bo_cached_at';
+
+// Recompute + persist blended_value for one set (on-demand detail refresh /
+// revalue). Reads the post-write row so it always reflects the latest signals.
+export async function persistBlendedValue(db: D1Database, setNum: string): Promise<number | null> {
+  try {
+    const row = await db.prepare(
+      `SELECT ${BLEND_INPUT_COLUMNS} FROM lego_sets WHERE set_num=?`,
+    ).bind(setNum).first<Record<string, unknown>>();
+    if (!row) return null;
+    const value = blendMarketValue(row).value;
+    await db.prepare('UPDATE lego_sets SET blended_value=? WHERE set_num=?').bind(value, setNum).run();
+    return value;
+  } catch (e) {
+    console.warn(`[blend] persist failed for ${setNum}:`, (e as Error).message);
+    return null;
+  }
+}
+
+// Recompute blended_value for many sets in one read + chunked batched writes
+// per chunk (subrequest-lean for the cron; D1 caps bound params and batch
+// size). Returns the number of rows written. Fails open.
+export async function recomputeBlendedValues(db: D1Database, setNums: string[]): Promise<number> {
+  const ids = [...new Set(setNums.filter(Boolean))];
+  if (!ids.length) return 0;
+  let written = 0;
+  try {
+    for (let i = 0; i < ids.length; i += 90) {
+      const chunk = ids.slice(i, i + 90);
+      const placeholders = chunk.map(() => '?').join(',');
+      const { results } = await db.prepare(
+        `SELECT set_num, ${BLEND_INPUT_COLUMNS} FROM lego_sets WHERE set_num IN (${placeholders})`,
+      ).bind(...chunk).all<Record<string, unknown>>();
+      const stmts = results.map(row =>
+        db.prepare('UPDATE lego_sets SET blended_value=? WHERE set_num=?')
+          .bind(blendMarketValue(row).value, row.set_num as string),
+      );
+      if (stmts.length) await db.batch(stmts);
+      written += stmts.length;
+    }
+    return written;
+  } catch (e) {
+    console.warn('[blend] batch recompute failed:', (e as Error).message);
+    return written;
+  }
+}

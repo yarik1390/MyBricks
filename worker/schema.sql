@@ -58,7 +58,8 @@ CREATE TABLE IF NOT EXISTS lego_sets (
   lego_checked_at TEXT,
   bo_new_value REAL,
   bo_used_value REAL,
-  bo_cached_at TEXT
+  bo_cached_at TEXT,
+  blended_value REAL
 );
 
 CREATE TABLE IF NOT EXISTS user_collection (

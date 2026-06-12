@@ -20,6 +20,7 @@ import {
   reserveQuota,
   type PackProfile,
 } from '../lib/api-quota';
+import { recomputeBlendedValues } from '../lib/market-sources';
 import { valuationExpiryModifier } from '../lib/valuation';
 import { computeRetirementRisk } from '../lib/retirement-risk';
 import {
@@ -460,6 +461,12 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       }
     }
   }
+
+  // Persist the blended fair value (valuation v2) for every set touched this
+  // run so the SQL-side portfolio sums (profile stat, daily snapshots) and the
+  // collection total can COALESCE(blended_value, current_value). One read + one
+  // batched write for the whole batch (see RUN_OVERHEAD_SUBREQUESTS). Fails open.
+  await recomputeBlendedValues(env.DB, results.map(r => r.set_num));
 
   await updateRetirementRiskBatch(env);
   if (options.includeMinifigs === true) {
