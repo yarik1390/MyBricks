@@ -5,7 +5,7 @@ export async function runSnapshotPortfolios(env: Env) {
   const { results } = await env.DB.prepare(`
     SELECT
       uc.user_id,
-      COALESCE(SUM(s.current_value * uc.quantity), 0) as total_value,
+      COALESCE(SUM(COALESCE(s.blended_value, s.current_value) * uc.quantity), 0) as total_value,
       COALESCE(SUM(COALESCE(uc.purchase_price, 0) * uc.quantity), 0) as total_paid,
       CAST(COUNT(uc.id) AS INTEGER) as set_count
     FROM user_collection uc

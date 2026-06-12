@@ -172,6 +172,7 @@ describe('BrickVault API Worker Tests', () => {
         valuation_expires_at TEXT,
         source TEXT,
         be_growth_12m REAL,
+        blended_value REAL,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )`,
 

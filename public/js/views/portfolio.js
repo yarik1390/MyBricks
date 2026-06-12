@@ -67,6 +67,12 @@ async function _revalidatePortfolio() {
   }
 }
 
+// Portfolio value basis (Approach A): prefer the persisted blended market value
+// (valuation v2), falling back to the formula current_value. Keeps the vault
+// cards, value sort, and analytics consistent with the blended portfolio total
+// the server now returns.
+function pval(x) { return Number(x?.blended_value) || Number(x?.current_value) || 0; }
+
 // Filter + sort the vault items according to current state.filter. Pure — no DOM.
 function sortedPortfolioItems() {
   const p = state.portfolio;
@@ -75,7 +81,7 @@ function sortedPortfolioItems() {
   if (q) items = items.filter(i => i.name?.toLowerCase().includes(q) || i.set_num?.toLowerCase().includes(q) || i.theme?.toLowerCase().includes(q));
   switch (state.filter.sort) {
     case "added_desc": items.sort((a, b) => new Date(b.added_at) - new Date(a.added_at)); break;
-    case "value_desc": items.sort((a, b) => b.current_value - a.current_value); break;
+    case "value_desc": items.sort((a, b) => pval(b) - pval(a)); break;
     case "roi_desc":   items.sort((a, b) => (b.annualized_roi ?? -1) - (a.annualized_roi ?? -1)); break;
     case "az":         items.sort((a, b) => a.name?.localeCompare(b.name)); break;
   }
@@ -436,7 +442,8 @@ function animateHeroValue(target) {
 function sourceCueHTML(item) { return trustBadgeHTML(item, { compact: true }); }
 
 function setListCardHTML(item) {
-  const delta = item.purchase_price ? (item.current_value - item.purchase_price) / item.purchase_price : null;
+  const dispVal = pval(item);
+  const delta = item.purchase_price ? (dispVal - item.purchase_price) / item.purchase_price : null;
   const cls = delta == null ? "flat" : delta >= 0 ? "up" : "down";
   const arrow = delta == null ? "" : delta >= 0 ? "▲" : "▼";
   const dStr = delta == null ? "—" : (delta * 100).toFixed(1) + "%";
@@ -471,7 +478,7 @@ function setListCardHTML(item) {
         </div>
         <div class="sl-right-compact">
           <div class="sl-value" style="display:flex;align-items:center;">
-            ${fmtMoney(item.current_value)}
+            ${fmtMoney(dispVal)}
             ${item.trend ? trendBadgeHTML(item.trend) : ""}
           </div>
           <div class="sl-delta ${cls}">${arrow}${dStr}</div>
@@ -495,11 +502,11 @@ function setListCardHTML(item) {
       <div class="sl-right">
         <div class="sl-value" style="display:flex;align-items:center;justify-content:flex-end;gap:4px;">
           ${item.market_value_confidence ? `<span title="Market confidence: ${item.market_value_confidence}" style="display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;background:${item.market_value_confidence === 'high' ? 'var(--up)' : item.market_value_confidence === 'medium' ? 'var(--accent)' : 'var(--bv-yellow)'};"></span>` : ''}
-          ${fmtMoney(item.current_value)}
+          ${fmtMoney(dispVal)}
           ${item.trend ? trendBadgeHTML(item.trend) : ""}
         </div>
         <div class="sl-delta ${cls}"><span class="arrow">${arrow}</span>${dStr}</div>
-        ${item.forecast_2y && item.current_value && item.forecast_2y > item.current_value ? `<div style="font-size:9px;color:var(--ink-mute);font-family:var(--mono);text-align:right;">→ ${fmtMoneyShort(item.forecast_2y)} 2yr</div>` : ''}
+        ${item.forecast_2y && dispVal && item.forecast_2y > dispVal ? `<div style="font-size:9px;color:var(--ink-mute);font-family:var(--mono);text-align:right;">→ ${fmtMoneyShort(item.forecast_2y)} 2yr</div>` : ''}
       </div>
     </button>`;
 }
@@ -2490,7 +2497,7 @@ function spikeAlertCardHTML(a) {
 }
 
 function cohortROIHTML(items) {
-  const withPurchaseDate = items.filter(i => i.purchased_at && (Number(i.purchase_price) > 0 || Number(i.current_value) > 0));
+  const withPurchaseDate = items.filter(i => i.purchased_at && (Number(i.purchase_price) > 0 || pval(i) > 0));
   if (!withPurchaseDate.length) {
     return `<p style="color:var(--ink-mute);font-size:12px;text-align:center;padding:16px 0;">No sets with purchase dates in vault.</p>`;
   }
@@ -2504,7 +2511,7 @@ function cohortROIHTML(items) {
     const qty = Number(item.quantity) || 1;
     cohorts[year].count += qty;
     cohorts[year].totalPaid += (Number(item.purchase_price) || 0) * qty;
-    cohorts[year].totalCurrent += (Number(item.current_value) || 0) * qty;
+    cohorts[year].totalCurrent += pval(item) * qty;
   }
   
   const sortedYears = Object.keys(cohorts).sort((a, b) => b - a);
@@ -2541,7 +2548,7 @@ function insightsGeneralHTML(items) {
   const themeMap = {};
   for (const item of items) {
     const t = item.theme || "Other";
-    themeMap[t] = (themeMap[t] || 0) + (Number(item.current_value) || 0) * (item.quantity || 1);
+    themeMap[t] = (themeMap[t] || 0) + pval(item) * (item.quantity || 1);
   }
   const themeTotal = Object.values(themeMap).reduce((a, b) => a + b, 0);
   const topThemes = Object.entries(themeMap).sort((a, b) => b[1] - a[1]).slice(0, 5);

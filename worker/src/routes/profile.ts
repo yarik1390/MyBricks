@@ -19,14 +19,14 @@ app.get('/:handle/profile', async (c) => {
   const [stats, topThemes, showcase] = await Promise.all([
     c.env.DB.prepare(`
       SELECT COUNT(*) as set_count,
-             COALESCE(SUM(ls.current_value * uc.quantity), 0) as total_value
+             COALESCE(SUM(COALESCE(ls.blended_value, ls.current_value) * uc.quantity), 0) as total_value
       FROM user_collection uc
       JOIN lego_sets ls ON ls.set_num = uc.set_num
       WHERE uc.user_id=? AND uc.deleted_at IS NULL
     `).bind(userId).first<{ set_count: number; total_value: number }>(),
 
     c.env.DB.prepare(`
-      SELECT ls.theme, SUM(ls.current_value * uc.quantity) as value
+      SELECT ls.theme, SUM(COALESCE(ls.blended_value, ls.current_value) * uc.quantity) as value
       FROM user_collection uc
       JOIN lego_sets ls ON ls.set_num = uc.set_num
       WHERE uc.user_id=? AND uc.deleted_at IS NULL AND ls.theme IS NOT NULL

@@ -30,7 +30,7 @@ app.get('/', async (c) => {
     db.prepare('SELECT * FROM user_prefs WHERE user_id=?').bind(userId).first<Record<string, unknown>>(),
     db.prepare(`
       SELECT COUNT(*) as set_count,
-        COALESCE(SUM(s.current_value * uc.quantity), 0) as total_value,
+        COALESCE(SUM(COALESCE(s.blended_value, s.current_value) * uc.quantity), 0) as total_value,
         COALESCE(SUM(COALESCE(uc.purchase_price,0) * uc.quantity), 0) as total_paid
       FROM user_collection uc
       JOIN lego_sets s ON s.set_num = uc.set_num

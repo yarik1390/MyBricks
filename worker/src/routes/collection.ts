@@ -46,7 +46,8 @@ app.get('/', async (c) => {
     // doesn't serve a 304 with stale prices after a valuation run.
     c.env.DB.prepare(`
       SELECT ROUND(SUM(
-               COALESCE(s.current_value,0) + COALESCE(s.used_value,0) +
+               COALESCE(s.current_value,0) + COALESCE(s.blended_value,0) +
+               COALESCE(s.used_value,0) +
                COALESCE(s.ebay_new_value,0) + COALESCE(s.ebay_used_value,0) +
                COALESCE(s.ebay_value,0) + COALESCE(s.forecast_2y,0) +
                COALESCE(s.retirement_risk_score,0) + COALESCE(s.retired,0)
@@ -83,7 +84,7 @@ app.get('/', async (c) => {
       s.ebay_new_value, s.ebay_used_value, s.ebay_new_qty, s.ebay_used_qty,
       s.ebay_new_cached_at, s.ebay_used_cached_at, s.ebay_cached_at, s.cached_at,
       s.valuation_method, s.bl_new_value, s.bl_new_qty, s.bl_used_qty,
-      s.bl_cached_at, s.be_cached_at
+      s.bl_cached_at, s.be_cached_at, s.blended_value
     FROM user_collection uc
     JOIN lego_sets s ON s.set_num = uc.set_num
     WHERE uc.user_id = ? AND uc.deleted_at IS NULL
@@ -146,11 +147,14 @@ app.get('/', async (c) => {
   }
 
   const items = results.map(row => {
+    // Portfolio basis (Approach A): blended fair value where available, else the
+    // formula current_value. Drives both per-item ROI and the page total below.
+    const marketVal = Number(row.blended_value) || Number(row.current_value) || 0;
     let annualizedRoi = null;
-    if (row.purchased_at && Number(row.purchase_price) > 0 && Number(row.current_value) > 0) {
+    if (row.purchased_at && Number(row.purchase_price) > 0 && marketVal > 0) {
       const years = (Date.now() - new Date(row.purchased_at as string).getTime()) / (365.25 * 24 * 3600 * 1000);
       if (years >= 0.08) {
-        annualizedRoi = Math.pow(Number(row.current_value) / Number(row.purchase_price), 1 / years) - 1;
+        annualizedRoi = Math.pow(marketVal / Number(row.purchase_price), 1 / years) - 1;
       }
     }
     const t = trends[row.set_num as string] || { trend: 'stable', slope: 0 };
@@ -164,7 +168,7 @@ app.get('/', async (c) => {
     } as Record<string, unknown>);
   });
 
-  const totalValue = items.reduce((s, r) => s + (Number(r.current_value) || 0) * Number(r.quantity), 0);
+  const totalValue = items.reduce((s, r) => s + (Number(r.blended_value) || Number(r.current_value) || 0) * Number(r.quantity), 0);
   const totalPaid  = items.reduce((s, r) => s + (Number(r.purchase_price) || 0) * Number(r.quantity), 0);
   const minifigCount = items.reduce((s, r) => s + (Number(r.minifigs) || 0) * Number(r.quantity), 0);
   const count = items.length;
