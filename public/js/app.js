@@ -6,6 +6,7 @@ import { route } from './router.js';
 import { getThemePref, applyTheme } from './theme.js';
 import { toggleAdvisor } from './components/advisor.js';
 import { openScan, closeScan, capturePhoto } from './components/scanner.js';
+import { maybeStartOnboarding } from './components/onboarding.js';
 
 // Setup gestures: Pull-to-refresh + swipe-back
 function setupGestures() {
@@ -255,6 +256,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Initial route — after config and session are loaded.
   await route();
+
+  // First-run guided tour (self-contained; no-op after the first time or on
+  // the login screen, and never throws into boot).
+  maybeStartOnboarding();
 
   // If the user has the Gemma model and is online, load MediaPipe + wasm into
   // the SW cache while idle so offline scanning works after next visit.
