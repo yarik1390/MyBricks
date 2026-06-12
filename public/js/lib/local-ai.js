@@ -74,6 +74,13 @@ export function isLocalAiSupported() {
   return getPromptApi() !== null;
 }
 
+/** On-device Gemma vision/LLM runs on MediaPipe, which requires WebGPU.
+ *  iOS Safari and many desktop browsers lack it, so the scan path gates on
+ *  this and falls back to the cloud when it's missing. */
+export function isWebGpuAvailable() {
+  return typeof navigator !== 'undefined' && !!navigator.gpu;
+}
+
 /** Availability of Chrome's Built-in AI, normalized to the legacy values
  *  'readily' | 'after-download' | 'no' that the UI checks against.
  *  (Current Chrome returns 'available'/'downloadable'/'downloading'/'unavailable';
@@ -342,6 +349,12 @@ export async function deleteGemma3Model() {
 /** Load the cached model from OPFS and initialize the MediaPipe LlmInference task. */
 async function getInferenceInstance() {
   if (activeInferenceInstance) return activeInferenceInstance;
+
+  // Fail fast + clearly when the device can't run on-device inference, so the
+  // scanner can fall back to the cloud instead of surfacing an opaque error.
+  if (!isWebGpuAvailable()) {
+    throw new Error('On-device AI requires WebGPU, which this browser/device does not support.');
+  }
 
   await loadMediaPipe();
 
