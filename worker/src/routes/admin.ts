@@ -4,6 +4,7 @@ import { importSets, importFigs } from '../jobs/import-catalog';
 import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
 import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
+import { getQuotaUsage } from '../lib/api-quota';
 import { isEbayAccessError } from '../lib/ebay';
 import { rebuildSearchIndex } from '../lib/search-index';
 import type { Env, Variables } from '../types';
@@ -573,6 +574,7 @@ app.post('/populate-everything', async (c) => {
       const total = 600;
       let updated = 0;
       let processed = 0;
+      let barcodePhaseRan = false;
       const phaseProgress = async (phase: number, label: string, current = 0, phaseTotal = 1, note?: string) => {
         const withinPhase = phaseTotal > 0 ? Math.round(Math.min(1, Math.max(0, current / phaseTotal)) * phaseSize) : 0;
         await updateImportRunProgress(c.env, runId, {
@@ -637,6 +639,7 @@ app.post('/populate-everything', async (c) => {
         snapshot = await getPopulationSnapshot(c.env);
         if (snapshot.catalog_ready && (!snapshot.barcode_pass_complete || Number(((snapshot as Record<string, any>).quality || {}).missing_upc || 0) > 0)) {
           const startPage = await nextBackfillPage(c.env);
+          barcodePhaseRan = true;
           await phaseProgress(3, `Backfilling barcodes from page ${startPage}`, 0, barcodePages * 500);
           const barcode = await runBackfillUpc(c.env, {
             startPage,
@@ -657,6 +660,11 @@ app.post('/populate-everything', async (c) => {
 
         snapshot = await getPopulationSnapshot(c.env);
         const includeEbay = !!snapshot.ebay_source_available;
+        // This slice already spent subrequests on earlier phases (each barcode
+        // page ≈ 1 fetch + D1 batch + progress write). Hand the valuation run
+        // what realistically remains of the invocation's 50 so its packer can
+        // size the batch instead of blowing the cap (see lib/api-quota.ts).
+        const valuationBudget = Math.max(12, 40 - (barcodePhaseRan ? barcodePages * 4 : 0) - 8);
         await phaseProgress(4, 'Refreshing market data', 0, valuationLimit);
         const valuation = await runValuateSets(c.env, {
           scope: 'all',
@@ -668,6 +676,7 @@ app.post('/populate-everything', async (c) => {
           sourceRetries: 0,
           sourceTimeoutMs: 5000,
           limit: valuationLimit,
+          subrequestBudget: valuationBudget,
           onProgress: async (p) => phaseProgress(
             4,
             p.currentSet ? `Refreshing ${p.currentSet}` : 'Refreshing market data',
@@ -742,14 +751,16 @@ app.get('/import-status', async (c) => {
 });
 
 app.get('/integrations', async (c) => {
-  const [integrations, coverage] = await Promise.all([
+  const [integrations, coverage, quota] = await Promise.all([
     getIntegrationDiagnostics(c.env),
     getDataCoverage(c.env),
+    getQuotaUsage(c.env),
   ]);
   const url = new URL(c.req.url);
   return c.json({
     integrations,
     coverage,
+    quota,
     api_routing: {
       worker_base_url: url.origin,
       config_endpoint: `${url.origin}/api/config`,
