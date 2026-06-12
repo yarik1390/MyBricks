@@ -313,3 +313,15 @@ END;
 
 INSERT INTO lego_sets_fts(rowid, set_num, name, theme)
 SELECT rowid, set_num, name, theme FROM lego_sets;
+
+-- Per-source daily external-API budget ledger (Pricing Engine v2.1 Phase 1c).
+-- One row per (service, UTC day); `used` is incremented by spend/reserve
+-- helpers in src/lib/api-quota.ts before external calls are made.
+CREATE TABLE IF NOT EXISTS api_quota (
+  service TEXT NOT NULL,
+  day TEXT NOT NULL,
+  used INTEGER NOT NULL DEFAULT 0,
+  cap INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT,
+  PRIMARY KEY (service, day)
+);
