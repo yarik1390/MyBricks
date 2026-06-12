@@ -493,7 +493,8 @@ function setListCardHTML(item) {
         </div>
       </div>
       <div class="sl-right">
-        <div class="sl-value" style="display:flex;align-items:center;justify-content:flex-end;">
+        <div class="sl-value" style="display:flex;align-items:center;justify-content:flex-end;gap:4px;">
+          ${item.market_value_confidence ? `<span title="Market confidence: ${item.market_value_confidence}" style="display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;background:${item.market_value_confidence === 'high' ? 'var(--up)' : item.market_value_confidence === 'medium' ? 'var(--accent)' : 'var(--bv-yellow)'};"></span>` : ''}
           ${fmtMoney(item.current_value)}
           ${item.trend ? trendBadgeHTML(item.trend) : ""}
         </div>
@@ -1061,6 +1062,7 @@ function infoTabHTML(set, entry, isWish) {
   ` : '';
 
   return `
+    ${marketValueHeroHTML(set)}
     ${priceStripHTML(set, entry)}
     ${marketSpreadHTML(set)}
     ${marketDepthHTML(set)}
@@ -2219,6 +2221,35 @@ async function loadSetHistory(setNum) {
     el.style.height = "auto";
     el.innerHTML = `<div class="spark-empty"><span>Couldn't load price history.</span></div>`;
   }
+}
+
+// Valuation v2 headline: the blended fair value with its confidence band and
+// the sources it was blended from. Renders only when a blend exists; otherwise
+// the price strip below (current_value) carries the display.
+function marketValueHeroHTML(set) {
+  const mv = Number(set.market_value);
+  if (!Number.isFinite(mv) || mv <= 0) return '';
+  const lo = Number(set.market_value_low);
+  const hi = Number(set.market_value_high);
+  const conf = set.market_value_confidence || 'low';
+  const confColor = conf === 'high' ? 'var(--up)' : conf === 'medium' ? 'var(--accent)' : 'var(--bv-yellow)';
+  const basis = Array.isArray(set.market_value_basis) ? set.market_value_basis : [];
+  const srcNames = [...new Set(basis.map(b => b && b.name).filter(Boolean))];
+  const band = (Number.isFinite(lo) && Number.isFinite(hi) && hi > lo)
+    ? `<span style="color:var(--ink-mute);font-size:12px;font-family:var(--mono);">${fmtMoney(lo)} – ${fmtMoney(hi)}</span>`
+    : '';
+  return `
+    <div class="card" style="padding:16px;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+        <div style="min-width:0;">
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:3px;">Market value</div>
+          <div style="font-size:28px;font-weight:800;line-height:1.05;">${fmtMoney(mv)}</div>
+          ${band ? `<div style="margin-top:4px;">${band}</div>` : ''}
+        </div>
+        <span style="flex-shrink:0;font-family:var(--mono);font-size:10px;font-weight:800;text-transform:uppercase;color:${confColor};border:1px solid ${confColor};border-radius:8px;padding:3px 8px;">${escapeHtml(conf)}</span>
+      </div>
+      ${srcNames.length ? `<div style="margin-top:10px;font-size:11px;color:var(--ink-mute);">Blended from ${srcNames.length} source${srcNames.length > 1 ? 's' : ''}: ${srcNames.map(escapeHtml).join(' · ')}</div>` : ''}
+    </div>`;
 }
 
 function priceStripHTML(set, entry) {
