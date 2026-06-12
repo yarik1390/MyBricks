@@ -4,7 +4,7 @@ import { api, outboxEnqueue } from '../api.js';
 import { I } from '../icons.js';
 import { confirmSheet, showSheet, hideSheet } from './sheet.js';
 import { computeDealScore as computeDealScorePure, marketValueForCondition } from '../lib/pure.js';
-import { checkGemma3Downloaded, runLocalVisionScan } from '../lib/local-ai.js';
+import { checkGemma3Downloaded, runLocalVisionScan, isWebGpuAvailable } from '../lib/local-ai.js';
 
 export function openScan(mode = "barcode") {
   state.camera.mode = mode;
@@ -161,6 +161,23 @@ export async function capturePhoto() {
   sendScanToAPI({ mode: "image", image: dataUrl });
 }
 
+// data: URL -> ImageBitmap, the canonical input MediaPipe accepts (avoids
+// handing it an undecoded HTMLImageElement). fetch on a data URL is local, so
+// it works offline.
+async function imageBitmapFromDataUrl(dataUrl) {
+  const blob = await (await fetch(dataUrl)).blob();
+  return createImageBitmap(blob);
+}
+
+async function cloudScanIdentify(payload, signal) {
+  const geminiKey = localStorage.getItem('bv_gemini_key');
+  const openaiKey = localStorage.getItem('bv_openai_key');
+  const extraHeaders = {};
+  if (geminiKey) extraHeaders['X-Gemini-Key'] = geminiKey;
+  if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
+  return api("/api/scan/identify", { method: "POST", body: payload, signal, headers: extraHeaders });
+}
+
 async function sendScanToAPI(payload) {
   const el = $("#scanResult");
   if (el) {
@@ -169,64 +186,75 @@ async function sendScanToAPI(payload) {
   }
   const frame = document.querySelector(".scan-frame");
   if (frame) frame.classList.add("scan-pending");
+  const done = () => { if (frame) frame.classList.remove("scan-pending"); };
 
   const scanEngine = localStorage.getItem('bv_ai_engine') || 'cloud';
-  const isDownloaded = scanEngine === 'local' ? await checkGemma3Downloaded() : false;
-  if (payload.mode === 'image' && scanEngine === 'local' && isDownloaded) {
-    try {
-      const img = new Image();
-      img.src = payload.image;
-      await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('Image failed to load')); });
-      
-      const localResult = await runLocalVisionScan(img, (statusText) => {
-        const hint = $("#scanHint");
-        if (hint) hint.textContent = statusText;
-      });
-      
-      if (localResult.identified) {
-        const setNum = localResult.set_num;
-        const setResponse = await api(`/api/sets/${encodeURIComponent(setNum)}`).catch(() => null);
-        const set = setResponse?.set || setResponse || {
-          set_num: setNum,
-          name: localResult.name || "Unknown Set",
-          current_value: 0,
-          theme: "Local AI"
-        };
-        
-        showScanResult({
-          identified: true,
-          confidence: localResult.confidence,
-          reasoning: localResult.reasoning,
-          sets: [set]
+  const online = navigator.onLine;
+
+  // On-device (Gemma) vision is best-effort: only attempt it when the user
+  // prefers local, it's an image scan, and the device can actually run it
+  // (WebGPU + model downloaded). The cloud path is the primary, more-accurate
+  // route and the fallback whenever local can't run or can't identify.
+  if (payload.mode === 'image' && scanEngine === 'local') {
+    const hasGpu = isWebGpuAvailable();
+    const ready = hasGpu && await checkGemma3Downloaded();
+    if (ready) {
+      try {
+        const bitmap = await imageBitmapFromDataUrl(payload.image);
+        const localResult = await runLocalVisionScan(bitmap, (statusText) => {
+          const hint = $("#scanHint");
+          if (hint) hint.textContent = statusText;
         });
-      } else {
-        showScanResult({
-          identified: false,
-          reasoning: localResult.reasoning || "Could not identify the set locally. Try a clearer photo."
-        });
+        if (localResult.identified) {
+          const setNum = localResult.set_num;
+          const setResponse = await api(`/api/sets/${encodeURIComponent(setNum)}`).catch(() => null);
+          const set = setResponse?.set || setResponse || {
+            set_num: setNum,
+            name: localResult.name || "Unknown Set",
+            current_value: 0,
+            theme: "Local AI"
+          };
+          showScanResult({ identified: true, confidence: localResult.confidence, reasoning: localResult.reasoning, sets: [set] });
+          done();
+          return;
+        }
+        // On-device ran but couldn't identify — try cloud when online.
+        if (!online) {
+          showScanResult({ identified: false, reasoning: localResult.reasoning || "Couldn't identify the set on-device. Try a clearer photo." });
+          done();
+          return;
+        }
+        toast("On-device AI couldn't identify it — trying cloud…", "info");
+      } catch (err) {
+        if (!online) {
+          showScanResult({ identified: false, reasoning: `On-device AI failed and you're offline: ${err.message}` });
+          done();
+          return;
+        }
+        toast("On-device AI unavailable — using cloud scan.", "info");
+        // fall through to cloud
       }
-    } catch (err) {
-      showScanResult({
-        identified: false,
-        reasoning: `Local scanner error: ${err.message}`
-      });
-    } finally {
-      if (frame) frame.classList.remove("scan-pending");
+    } else if (!online) {
+      showScanResult({ identified: false, reasoning: hasGpu
+        ? "You're offline and the on-device model isn't downloaded yet (Settings → On-Device AI)."
+        : "You're offline and this device can't run on-device AI (no WebGPU)." });
+      done();
+      return;
+    } else {
+      toast(hasGpu ? "On-device model not downloaded — using cloud scan." : "On-device AI needs WebGPU — using cloud scan.", "info");
     }
-    return;
-  } else if (payload.mode === 'image' && scanEngine === 'local' && !isDownloaded) {
-    toast("Local Gemma weights not downloaded. Running Cloud scan fallback.", "info");
   }
 
+  // Cloud path — primary when online, and the fallback for every case above.
+  if (payload.mode === 'image' && !online) {
+    showScanResult({ identified: false, reasoning: "You're offline. Reconnect to identify by photo, or set up on-device AI in Settings." });
+    done();
+    return;
+  }
   const ac = new AbortController();
   const tid = setTimeout(() => ac.abort(), 30_000);
   try {
-    const geminiKey = localStorage.getItem('bv_gemini_key');
-    const openaiKey = localStorage.getItem('bv_openai_key');
-    const extraHeaders = {};
-    if (geminiKey) extraHeaders['X-Gemini-Key'] = geminiKey;
-    if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
-    const res = await api("/api/scan/identify", { method: "POST", body: payload, signal: ac.signal, headers: extraHeaders });
+    const res = await cloudScanIdentify(payload, ac.signal);
     showScanResult(res);
   } catch (e) {
     const msg = ac.signal.aborted ? "Took too long — try again." : e.message;
@@ -235,7 +263,7 @@ async function sendScanToAPI(payload) {
     showScanResult({ identified: false, reasoning: msg });
   } finally {
     clearTimeout(tid);
-    if (frame) frame.classList.remove("scan-pending");
+    done();
   }
 }
 
@@ -445,34 +473,31 @@ async function processBulkScanQueue(files) {
 
       let apiRes;
       const scanEngine = localStorage.getItem('bv_ai_engine') || 'cloud';
-      const isDownloaded = scanEngine === 'local' ? await checkGemma3Downloaded() : false;
-      if (scanEngine === 'local' && isDownloaded) {
-        const img = new Image();
-        img.src = resized;
-        await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('Image failed to load')); });
-        const localResult = await runLocalVisionScan(img);
-        if (localResult.identified) {
-          const setNum = localResult.set_num;
-          const setResponse = await api(`/api/sets/${encodeURIComponent(setNum)}`).catch(() => null);
-          const set = setResponse?.set || setResponse || {
-            set_num: setNum,
-            name: localResult.name || "Unknown Set",
-            current_value: 0,
-            theme: "Local AI"
-          };
-          apiRes = { identified: true, sets: [set], confidence: localResult.confidence, reasoning: localResult.reasoning };
-        } else {
-          apiRes = { identified: false, reasoning: localResult.reasoning };
+      const localReady = scanEngine === 'local' && isWebGpuAvailable() && await checkGemma3Downloaded();
+      const cloudScan = () => api("/api/scan/identify", { method: "POST", body: { mode: "image", image: resized }, headers: extraHeaders });
+      if (localReady) {
+        try {
+          const bitmap = await imageBitmapFromDataUrl(resized);
+          const localResult = await runLocalVisionScan(bitmap);
+          if (localResult.identified) {
+            const setNum = localResult.set_num;
+            const setResponse = await api(`/api/sets/${encodeURIComponent(setNum)}`).catch(() => null);
+            const set = setResponse?.set || setResponse || {
+              set_num: setNum,
+              name: localResult.name || "Unknown Set",
+              current_value: 0,
+              theme: "Local AI"
+            };
+            apiRes = { identified: true, sets: [set], confidence: localResult.confidence, reasoning: localResult.reasoning };
+          } else {
+            // On-device couldn't identify — let the cloud try this image.
+            apiRes = await cloudScan();
+          }
+        } catch {
+          apiRes = await cloudScan();
         }
       } else {
-        if (scanEngine === 'local') {
-          toast("Local Gemma weights not downloaded. Running Cloud scan fallback.", "info");
-        }
-        apiRes = await api("/api/scan/identify", {
-          method: "POST",
-          body: { mode: "image", image: resized },
-          headers: extraHeaders
-        });
+        apiRes = await cloudScan();
       }
 
       results.push({
