@@ -11,6 +11,13 @@ on:
       - '.github/workflows/deploy-worker.yml'
   workflow_dispatch:
 
+# Serialize deploys per branch: a newer push cancels an in-progress deploy so
+# parallel-agent commits (and multi-file feature landings) can't race two
+# `wrangler deploy` runs to the same Worker, where the slower one would win.
+concurrency:
+  group: deploy-worker-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest

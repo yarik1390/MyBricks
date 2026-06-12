@@ -23,6 +23,11 @@ on:
         description: "Production Worker URL"
         required: false
         default: "https://brickvault-api.zhydenko.workers.dev"
+  # Nightly top-up (02:30 UTC, between the Worker's own 2/3/4/5 AM crons):
+  # each slice is a fresh Worker invocation with a fresh subrequest budget,
+  # so CI slicing is how the free plan turns daily API quota into coverage.
+  schedule:
+    - cron: "30 2 * * *"
 
 concurrency:
   group: brickvault-production-population
@@ -34,7 +39,9 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       WORKER_URL: ${{ inputs.worker_url || 'https://brickvault-api.zhydenko.workers.dev' }}
-      MAX_SLICES: ${{ inputs.max_slices || '20' }}
+      # Scheduled (nightly) runs have no inputs and fall back to 60 slices;
+      # manual dispatches keep their explicit choice.
+      MAX_SLICES: ${{ inputs.max_slices || '60' }}
       VALUATION_LIMIT: ${{ inputs.valuation_limit || '5' }}
       BARCODE_PAGES: ${{ inputs.barcode_pages || '4' }}
       EBAY_LIMIT: ${{ inputs.ebay_limit || '2' }}
