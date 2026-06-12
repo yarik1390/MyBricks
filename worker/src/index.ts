@@ -166,7 +166,19 @@ export default {
       catch (e) { console.error(`[cron] ${name} failed:`, (e as Error).message); }
     };
     switch (event.cron) {
-      case '0 * * * *': await run('valuate-sets', () => runValuateSets(env)); break;
+      // Hourly: BrickLink-primary catalog sweep. scope:'all' so idle capacity
+      // (once owned/wishlisted are fresh) steadily converts the formula_bulk
+      // catalog to real market prices. BrickEconomy is rationed by the daily
+      // ledger (80/day) and BrickLink (4000/day) carries the rest; the packer
+      // keeps each run under the 50-subrequest free-plan cap. Source-light
+      // (no supplemental/eBay/AI) to fit the most sets per invocation; eBay
+      // asks + AI fallback run in the daily maintenance and on-demand views.
+      case '0 * * * *': await run('valuate-sets', () => runValuateSets(env, {
+        scope: 'all',
+        includeSupplemental: false,
+        includeEbay: false,
+        includeAiFallback: false,
+      })); break;
       case '0 2 * * *': await run('snapshot-portfolios', () => runSnapshotPortfolios(env)); break;
       case '0 3 * * *': await run('snapshot-set-values', () => runSnapshotSetValues(env)); break;
       case '0 8 * * *': await run('wishlist-alerts', () => runWishlistAlerts(env)); break;
