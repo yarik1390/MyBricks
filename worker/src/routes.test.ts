@@ -90,6 +90,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         bl_cached_at TEXT, be_cached_at TEXT,
         ebay_ask_value REAL, ebay_ask_qty INTEGER, ebay_ask_cached_at TEXT,
         valuation_method TEXT DEFAULT 'formula_bulk', bl_new_value REAL, bl_new_qty INTEGER, bl_used_qty INTEGER,
+        bo_new_value REAL, bo_used_value REAL, bo_cached_at TEXT,
         valuation_expires_at TEXT, cached_at TEXT, source TEXT, ebay_cached_at TEXT, blended_value REAL
       )`,
       `CREATE TABLE set_value_history (
@@ -645,6 +646,14 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.coverage.quality.low_confidence_values).toBe(2);
       expect(data.coverage.quality.needs_market_refresh).toBe(2);
       expect(data.api_routing.worker_base_url).toBe('http://localhost');
+      // Blend-quality lens: 10300 has BrickLink + eBay (multi-source); 75192 has neither.
+      expect(data.coverage.blend_quality).toBeTruthy();
+      expect(data.coverage.blend_quality.multi_source).toBe(1);
+      expect(data.coverage.blend_quality.src2).toBe(1);
+      expect(data.coverage.blend_quality.src0).toBe(1);
+      expect(data.coverage.blend_quality.blended_count).toBe(0);
+      expect(data.coverage.blend_quality.confidence.estimated).toBe(1);
+      expect(data.coverage.blend_quality.confidence.low).toBe(1);
     });
 
     it('expires running jobs when their progress heartbeat is stale', async () => {

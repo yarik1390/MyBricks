@@ -130,7 +130,7 @@ async function getActiveImportRun(env: Env) {
 }
 
 async function getDataCoverage(env: Env) {
-  const [sets, valuationMethods] = await Promise.all([
+  const [sets, valuationMethods, blend] = await Promise.all([
     env.DB.prepare(`
       SELECT
         CAST(COUNT(*) AS INTEGER) AS total_sets,
@@ -158,6 +158,47 @@ async function getDataCoverage(env: Env) {
       GROUP BY valuation_method
       ORDER BY count DESC
     `).all<{ valuation_method: string; count: number }>(),
+    // Blend-quality lens (valuation v2): how many sets are genuinely multi-source,
+    // how blended_value is populated, per-source freshness, and a confidence
+    // distribution derived in SQL from the same signals blendMarketValue() uses
+    // (fresh sold-source count + BrickEconomy freshness). src_count is computed
+    // once in the CTE; CASE guards every NULL (col>0 is NULL when col IS NULL).
+    env.DB.prepare(`
+      WITH b AS (
+        SELECT
+          (CASE WHEN bl_new_value>0 THEN 1 ELSE 0 END)
+         +(CASE WHEN ebay_new_value>0 THEN 1 ELSE 0 END)
+         +(CASE WHEN bo_new_value>0 THEN 1 ELSE 0 END)
+         +(CASE WHEN valuation_method='brickeconomy' AND current_value>0 THEN 1 ELSE 0 END) AS src,
+          (CASE WHEN bl_new_value>0 AND bl_cached_at > datetime('now','-30 days') THEN 1 ELSE 0 END) AS bl_fresh,
+          (CASE WHEN ebay_new_value>0 AND ebay_new_cached_at > datetime('now','-30 days') THEN 1 ELSE 0 END) AS ebay_fresh,
+          (CASE WHEN valuation_method='brickeconomy' AND current_value>0 AND COALESCE(be_cached_at,cached_at) > datetime('now','-30 days') THEN 1 ELSE 0 END) AS be_fresh,
+          (CASE WHEN bo_new_value>0 AND bo_cached_at > datetime('now','-30 days') THEN 1 ELSE 0 END) AS bo_fresh,
+          (CASE WHEN bo_new_value>0 THEN 1 ELSE 0 END) AS has_bo,
+          (CASE WHEN ebay_ask_value>0 THEN 1 ELSE 0 END) AS has_ask,
+          blended_value, current_value
+        FROM lego_sets
+      )
+      SELECT
+        CAST(SUM(CASE WHEN src=0 THEN 1 ELSE 0 END) AS INTEGER) AS src0,
+        CAST(SUM(CASE WHEN src=1 THEN 1 ELSE 0 END) AS INTEGER) AS src1,
+        CAST(SUM(CASE WHEN src=2 THEN 1 ELSE 0 END) AS INTEGER) AS src2,
+        CAST(SUM(CASE WHEN src>=3 THEN 1 ELSE 0 END) AS INTEGER) AS src3plus,
+        CAST(SUM(CASE WHEN src>=2 THEN 1 ELSE 0 END) AS INTEGER) AS multi_source,
+        CAST(SUM(CASE WHEN blended_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS blended_count,
+        CAST(SUM(CASE WHEN blended_value IS NOT NULL AND current_value>0 AND ABS(blended_value-current_value)/current_value > 0.02 THEN 1 ELSE 0 END) AS INTEGER) AS blended_diverged,
+        CAST(SUM(bl_fresh) AS INTEGER) AS bl_fresh_30d,
+        CAST(SUM(ebay_fresh) AS INTEGER) AS ebay_sold_fresh_30d,
+        CAST(SUM(be_fresh) AS INTEGER) AS be_fresh_30d,
+        CAST(SUM(bo_fresh) AS INTEGER) AS bo_fresh_30d,
+        CAST(SUM(has_bo) AS INTEGER) AS sets_with_brickowl,
+        CAST(SUM(has_ask) AS INTEGER) AS sets_with_ebay_ask,
+        CAST(SUM(CASE WHEN (bl_fresh+ebay_fresh)>=2 THEN 1 ELSE 0 END) AS INTEGER) AS conf_high,
+        CAST(SUM(CASE WHEN (bl_fresh+ebay_fresh)<2 AND ((bl_fresh+ebay_fresh)>=1 OR be_fresh=1) THEN 1 ELSE 0 END) AS INTEGER) AS conf_medium,
+        CAST(SUM(CASE WHEN (bl_fresh+ebay_fresh)<1 AND be_fresh=0 AND src>0 THEN 1 ELSE 0 END) AS INTEGER) AS conf_low,
+        CAST(SUM(CASE WHEN src=0 THEN 1 ELSE 0 END) AS INTEGER) AS conf_estimated
+      FROM b
+    `).first<Record<string, number>>(),
   ]);
 
   const total = Number(sets?.total_sets || 0);
@@ -181,9 +222,37 @@ async function getDataCoverage(env: Env) {
     low_confidence_values_pct: pct(Number(sets?.low_confidence_values || 0)),
     needs_market_refresh_pct: pct(Number(sets?.needs_market_refresh || 0)),
   };
+  const blendQuality = {
+    multi_source: Number(blend?.multi_source || 0),
+    multi_source_pct: pct(Number(blend?.multi_source || 0)),
+    src0: Number(blend?.src0 || 0),
+    src1: Number(blend?.src1 || 0),
+    src2: Number(blend?.src2 || 0),
+    src3plus: Number(blend?.src3plus || 0),
+    blended_count: Number(blend?.blended_count || 0),
+    blended_coverage_pct: pct(Number(blend?.blended_count || 0)),
+    blended_diverged: Number(blend?.blended_diverged || 0),
+    sets_with_brickowl: Number(blend?.sets_with_brickowl || 0),
+    brickowl_coverage_pct: pct(Number(blend?.sets_with_brickowl || 0)),
+    sets_with_ebay_ask: Number(blend?.sets_with_ebay_ask || 0),
+    ebay_ask_coverage_pct: pct(Number(blend?.sets_with_ebay_ask || 0)),
+    freshness_30d: {
+      bricklink: Number(blend?.bl_fresh_30d || 0),
+      ebay_sold: Number(blend?.ebay_sold_fresh_30d || 0),
+      brickeconomy: Number(blend?.be_fresh_30d || 0),
+      brickowl: Number(blend?.bo_fresh_30d || 0),
+    },
+    confidence: {
+      high: Number(blend?.conf_high || 0),
+      medium: Number(blend?.conf_medium || 0),
+      low: Number(blend?.conf_low || 0),
+      estimated: Number(blend?.conf_estimated || 0),
+    },
+  };
   return {
     ...sets,
     quality,
+    blend_quality: blendQuality,
     sets_with_bricklink: bricklinkCount,
     barcode_coverage_pct: pct(barcodeCount),
     ebay_coverage_pct: pct(ebayCount),

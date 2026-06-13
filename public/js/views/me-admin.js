@@ -487,6 +487,34 @@ async function updateIntegrationsHealth() {
         </div>
         <div class="u-fs-2xs u-mute" style="line-height:1.4;margin-top:8px;">${escapeHtml(coverageNote)}</div>
       </div>`;
+    const bq = coverage.blend_quality || {};
+    const fresh = bq.freshness_30d || {};
+    const conf = bq.confidence || {};
+    const n = (v) => Number(v || 0).toLocaleString();
+    const blendRows = [
+      ["Multi-source (2+)", formatCoverage(bq.multi_source, bq.multi_source_pct)],
+      ["Source mix 0/1/2/3+", `${n(bq.src0)} / ${n(bq.src1)} / ${n(bq.src2)} / ${n(bq.src3plus)}`],
+      ["Blended populated", formatCoverage(bq.blended_count, bq.blended_coverage_pct)],
+      ["Diverged from formula", n(bq.blended_diverged)],
+      ["BrickOwl coverage", formatCoverage(bq.sets_with_brickowl, bq.brickowl_coverage_pct)],
+      ["eBay asking coverage", formatCoverage(bq.sets_with_ebay_ask, bq.ebay_ask_coverage_pct)],
+      ["Fresh <30d BL/eBay/BE/BO", `${n(fresh.bricklink)} / ${n(fresh.ebay_sold)} / ${n(fresh.brickeconomy)} / ${n(fresh.brickowl)}`],
+      ["Confidence H/M/L/est", `${n(conf.high)} / ${n(conf.medium)} / ${n(conf.low)} / ${n(conf.estimated)}`],
+    ];
+    const blendNote = "Valuation-v2 blend quality. The blend only diverges from the formula when a set has 2+ fresh sources; confidence is derived from fresh sold-source counts (high needs 2+, e.g. BrickLink + eBay sold). Grow multi-source via eBay Marketplace Insights + BrickOwl.";
+    const blendHTML = Object.keys(bq).length ? `
+      <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
+        <div class="u-mono-label u-fs-2xs" style="margin-bottom:8px;">Blend quality</div>
+        <div class="adm-cov-grid">
+          ${blendRows.map(([label, value]) => `
+            <div class="adm-cov-cell">
+              <div class="adm-cov-lbl">${escapeHtml(label)}</div>
+              <div class="adm-cov-val">${escapeHtml(value)}</div>
+            </div>
+          `).join("")}
+        </div>
+        <div class="u-fs-2xs u-mute" style="line-height:1.4;margin-top:8px;">${escapeHtml(blendNote)}</div>
+      </div>` : "";
     const integrationsHTML = rows.map(r => {
       const standbyFallback = isBrickOwlStandby(r);
       const color = standbyFallback ? statusColor("unknown") : statusColor(r.status);
@@ -526,7 +554,7 @@ async function updateIntegrationsHealth() {
         </div>
       `;
     }).join("");
-    container.innerHTML = routingHTML + coverageHTML + (integrationsHTML || `<div class="u-mute">No integration diagnostics available.</div>`);
+    container.innerHTML = routingHTML + coverageHTML + blendHTML + (integrationsHTML || `<div class="u-mute">No integration diagnostics available.</div>`);
   } catch (err) {
     container.innerHTML = `<div style="color:var(--bv-red);">Failed to load integrations: ${escapeHtml(err.message)}</div>`;
   }
