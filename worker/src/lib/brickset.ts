@@ -13,10 +13,14 @@ function cleanBarcode(value: unknown): string | null {
 }
 
 function readBarcodes(s: Record<string, unknown>): BricksetBarcodes {
-  const barcodes = s.barcodes as Record<string, unknown> | undefined;
+  // Brickset's Sets object exposes a SINGULAR `barcode` member of class
+  // `barcodes` ({ EAN, UPC }). We previously read `s.barcodes` (plural), which
+  // never matched, so every parsed set yielded no UPC. Prefer the correct
+  // singular field; tolerate plural/flat shapes as fallbacks.
+  const bc = (s.barcode ?? s.barcodes) as Record<string, unknown> | undefined;
   return {
-    upc: cleanBarcode(barcodes?.UPC ?? barcodes?.upc ?? s.UPC ?? s.upc),
-    ean: cleanBarcode(barcodes?.EAN ?? barcodes?.ean ?? s.EAN ?? s.ean ?? s.barcode),
+    upc: cleanBarcode(bc?.UPC ?? bc?.upc ?? s.UPC ?? s.upc),
+    ean: cleanBarcode(bc?.EAN ?? bc?.ean ?? s.EAN ?? s.ean),
   };
 }
 
@@ -83,6 +87,34 @@ export interface BricksetPageResult {
 // silently filled zero UPCs.
 export const BARCODE_PAGE_SIZE = 250;
 
+// TEMP DIAGNOSTIC: record the bulk barcode fetch outcome to a dedicated
+// integration_health row ('brickset_barcode') so it survives the frequent
+// successful per-set 'brickset' calls and is readable via D1 without worker
+// logs. Remove once barcode coverage is confirmed flowing. No-throw.
+async function recordBarcodeProbe(env: Env, message: string, ok = false): Promise<void> {
+  try {
+    const okFlag = ok ? 1 : 0;
+    await env.DB.prepare(
+      `INSERT INTO integration_health (service, last_ok_at, last_fail_at, last_error, ok_count, fail_count, updated_at)
+       VALUES ('brickset_barcode', ?1, ?2, ?3, ?4, ?5, datetime('now'))
+       ON CONFLICT(service) DO UPDATE SET
+         last_error = ?3,
+         last_ok_at = CASE WHEN ?6 = 1 THEN datetime('now') ELSE integration_health.last_ok_at END,
+         last_fail_at = CASE WHEN ?6 = 1 THEN integration_health.last_fail_at ELSE datetime('now') END,
+         ok_count = integration_health.ok_count + ?4,
+         fail_count = integration_health.fail_count + ?5,
+         updated_at = datetime('now')`,
+    ).bind(
+      ok ? new Date().toISOString() : null,
+      ok ? null : new Date().toISOString(),
+      message.slice(0, 400),
+      okFlag,
+      ok ? 0 : 1,
+      okFlag,
+    ).run();
+  } catch { /* diagnostic only */ }
+}
+
 // Paginated bulk fetch — barcode data, BARCODE_PAGE_SIZE sets per page.
 export async function fetchBarcodesPage(page: number, env: Env): Promise<BricksetPageResult | null> {
   if (!env.BRICKSET_API_KEY) return null;
@@ -90,7 +122,9 @@ export async function fetchBarcodesPage(page: number, env: Env): Promise<Brickse
     const params = new URLSearchParams({
       apiKey: env.BRICKSET_API_KEY,
       userHash: '',
-      params: JSON.stringify({ pageSize: BARCODE_PAGE_SIZE, pageNumber: page, extendedData: 1 }),
+      // Brickset's documented param examples use string values; numeric values
+      // can be rejected. Send everything as strings to match the contract.
+      params: JSON.stringify({ pageSize: String(BARCODE_PAGE_SIZE), pageNumber: String(page), extendedData: '1' }),
     });
     // Bulk pages carry a large payload; give them a longer timeout than the 8s
     // default so they don't abort and fall through to a silent zero-fill.
@@ -99,23 +133,27 @@ export async function fetchBarcodesPage(page: number, env: Env): Promise<Brickse
     }, { timeoutMs: 20000 });
     if (!resp.ok) {
       console.warn(`[brickset] page ${page} HTTP ${resp.status}`);
+      await recordBarcodeProbe(env, `page ${page} HTTP ${resp.status}`);
       return null;
     }
     const data = await resp.json() as {
       status?: string;
       message?: string;
       matches?: number;
-      sets?: Array<{
+      sets?: Array<Record<string, unknown> & {
         number?: string;
         numberVariant?: number;
-        barcodes?: { EAN?: string; UPC?: string };
       }>;
     };
     if (String(data.status ?? '').trim().toLowerCase() !== 'success') {
       console.warn(`[brickset] page ${page} status=${data.status} message=${data.message}`);
+      await recordBarcodeProbe(env, `page ${page} status=${data.status ?? 'none'} msg=${data.message ?? ''}`);
       return null;
     }
-    if (!data.sets?.length) return null;
+    if (!data.sets?.length) {
+      await recordBarcodeProbe(env, `page ${page} status=success matches=${data.matches ?? 0} sets=0`);
+      return null;
+    }
 
     const sets = data.sets
       .filter(s => s.number)
@@ -126,6 +164,15 @@ export async function fetchBarcodesPage(page: number, env: Env): Promise<Brickse
           upc: barcode.upc || barcode.ean,
         };
       });
+    // Diagnostic: how many parsed to a barcode, plus the first set's keys and
+    // raw barcode shape — confirms the field name end-to-end on real data.
+    const withCode = sets.filter(s => s.upc).length;
+    const sample = data.sets[0] as Record<string, unknown>;
+    await recordBarcodeProbe(
+      env,
+      `OK page ${page} matches=${data.matches ?? 0} sets=${data.sets.length} withCode=${withCode} keys=${Object.keys(sample).slice(0, 16).join(',')} bc=${JSON.stringify(sample.barcode ?? sample.barcodes ?? null)}`,
+      true,
+    );
     return { sets, total: data.matches ?? 0 };
   } catch (e) {
     console.warn(`[brickset] page ${page} error:`, (e as Error).message);
