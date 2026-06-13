@@ -122,9 +122,11 @@ export async function fetchBarcodesPage(page: number, env: Env): Promise<Brickse
     const params = new URLSearchParams({
       apiKey: env.BRICKSET_API_KEY,
       userHash: '',
-      // Brickset's documented param examples use string values; numeric values
-      // can be rejected. Send everything as strings to match the contract.
-      params: JSON.stringify({ pageSize: String(BARCODE_PAGE_SIZE), pageNumber: String(page), extendedData: '1' }),
+      // Brickset getSets rejects a query with no *selection* criterion with
+      // "No valid parameters" — pageSize/pageNumber/extendedData don't count.
+      // updatedSince far in the past selects the whole catalog so we can page
+      // every set for barcodes. String values match the documented contract.
+      params: JSON.stringify({ updatedSince: '1900-01-01', pageSize: String(BARCODE_PAGE_SIZE), pageNumber: String(page), extendedData: '1' }),
     });
     // Bulk pages carry a large payload; give them a longer timeout than the 8s
     // default so they don't abort and fall through to a silent zero-fill.
