@@ -300,12 +300,23 @@ function sampleFactor(qty: number | null): number {
   return 0.5 + 0.5 * Math.min(1, qty / 8);
 }
 
+// eBay *asking* prices overstate realized value, so they're a soft FALLBACK,
+// not a corroborator: used only when no sold/BrickEconomy/BrickOwl signal
+// exists, with the median ask haircut by this factor (and the lowest type
+// weight). Never a "sold" source, so an ask-only set stays "low" confidence.
+// This keeps asks from dragging a real-comp blend upward while still giving
+// otherwise-unpriced sets a market-grounded estimate. Revisit once real sold
+// comps (Marketplace Insights / scrape) are available.
+const EBAY_ASK_DISCOUNT = 0.85;
+const EBAY_ASK_TYPE_FACTOR = 0.4;
+
 /**
  * Blend the available NEW-condition market signals into one fair value with a
  * confidence band. Sold comps (BrickLink, eBay) weigh highest, then
- * BrickEconomy's modeled value, then BrickOwl listings. eBay *asking* prices,
- * used, retail, and AI/formula estimates are excluded. Pure + read-side: it
- * never writes and never mutates current_value.
+ * BrickEconomy's modeled value, then BrickOwl listings. A haircut eBay *asking*
+ * price is used only as a soft fallback when none of those exist. Used, retail,
+ * and AI/formula estimates are excluded. Pure + read-side: it never writes and
+ * never mutates current_value.
  */
 export function blendMarketValue(row: Record<string, unknown>): BlendedValue {
   const method = String(row.valuation_method || '');
@@ -324,6 +335,13 @@ export function blendMarketValue(row: Record<string, unknown>): BlendedValue {
   // BrickEconomy's value is only stored as current_value when it's the method.
   if (method === 'brickeconomy') push('brickeconomy', 'BrickEconomy', num(row.current_value), null, row.be_cached_at || row.cached_at, 0.9, false);
   push('brickowl_new', 'BrickOwl', num(row.bo_new_value), null, row.bo_cached_at, 0.7, false);
+  // eBay asking (median of active Browse listings) — soft FALLBACK only: used
+  // when no sold/BrickEconomy/BrickOwl point exists, haircut + lowest weight, so
+  // it fills the gap for unpriced sets without dragging real-comp blends upward.
+  if (!pts.length) {
+    const ask = num(row.ebay_ask_value);
+    push('ebay_ask', 'eBay asking', ask ? Math.round(ask * EBAY_ASK_DISCOUNT * 100) / 100 : null, num(row.ebay_ask_qty), row.ebay_ask_cached_at, EBAY_ASK_TYPE_FACTOR, false);
+  }
 
   if (!pts.length) return { value: null, low: null, high: null, confidence: null, basis: [] };
 

@@ -386,9 +386,23 @@ describe('blendMarketValue (valuation v2)', () => {
     expect(r.high).toBeLessThanOrEqual(120);
   });
 
-  it('excludes eBay asking prices from the fair value', () => {
+  it('includes eBay asking as a discounted, low-confidence soft signal', () => {
     const r = blendMarketValue({ valuation_method: 'formula_bulk', ebay_ask_value: 200, ebay_ask_qty: 5, ebay_ask_cached_at: now });
-    expect(r.value).toBeNull();
+    expect(r.value).toBe(170);          // 200 × 0.85 haircut
+    expect(r.confidence).toBe('low');   // asks never count as a sold source
+    expect(r.basis.some(b => b.id === 'ebay_ask')).toBe(true);
+  });
+
+  it('ignores asking prices entirely when real comps exist (fallback only)', () => {
+    const r = blendMarketValue({
+      valuation_method: 'market',
+      bl_new_value: 100, bl_new_qty: 10, bl_cached_at: now,
+      ebay_new_value: 104, ebay_new_qty: 10, ebay_new_cached_at: now,
+      ebay_ask_value: 200, ebay_ask_qty: 5, ebay_ask_cached_at: now,
+    });
+    expect(r.confidence).toBe('high');                              // two fresh sold sources
+    expect(r.basis.some(b => b.id === 'ebay_ask')).toBe(false);    // ask dropped — comps present
+    expect(r.value).toBeLessThanOrEqual(104);                      // no upward drag from the ask
   });
 
   it('treats a stale-only source as low confidence', () => {
