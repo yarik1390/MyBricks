@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { nextBackfillPage, runBackfillUpc } from './backfill-upc';
 import { runEbayBackfill, runValuateSets } from './valuate-sets';
+import { BARCODE_PAGE_SIZE } from '../lib/brickset';
 
 const STALE_RUN_ERROR = 'Worker run stopped before completion (no progress heartbeat for 10 minutes)';
 
@@ -58,7 +59,7 @@ export async function runDailyBarcodeMaintenance(env: Env, maxPages = 12) {
           p.filled,
           p.processed,
           p.processed,
-          p.complete ? p.processed : Math.max(maxPages * 500, p.processed),
+          p.complete ? p.processed : Math.max(maxPages * BARCODE_PAGE_SIZE, p.processed),
           p.complete ? 'Barcode backfill complete' : `Barcode page ${p.nextPage ? p.nextPage - 1 : startPage}`,
           `method:bulk-daily start_page:${startPage} next_page:${p.nextPage ?? ''} complete:${p.complete}`,
           runId,

@@ -77,18 +77,26 @@ export interface BricksetPageResult {
   total: number;
 }
 
-// Paginated bulk fetch — 500 sets per page with barcode data.
+// Brickset bulk barcode page size. Kept well under Brickset's 500 max so the
+// extendedData response returns within the request timeout — a 500-set page was
+// exceeding the 8s default and aborting ("The operation was aborted"), which
+// silently filled zero UPCs.
+export const BARCODE_PAGE_SIZE = 250;
+
+// Paginated bulk fetch — barcode data, BARCODE_PAGE_SIZE sets per page.
 export async function fetchBarcodesPage(page: number, env: Env): Promise<BricksetPageResult | null> {
   if (!env.BRICKSET_API_KEY) return null;
   try {
     const params = new URLSearchParams({
       apiKey: env.BRICKSET_API_KEY,
       userHash: '',
-      params: JSON.stringify({ pageSize: 500, pageNumber: page, extendedData: 1 }),
+      params: JSON.stringify({ pageSize: BARCODE_PAGE_SIZE, pageNumber: page, extendedData: 1 }),
     });
+    // Bulk pages carry a large payload; give them a longer timeout than the 8s
+    // default so they don't abort and fall through to a silent zero-fill.
     const resp = await fetchTracked(env, 'brickset', `https://brickset.com/api/v3.asmx/getSets?${params}`, {
       headers: { Accept: 'application/json' },
-    });
+    }, { timeoutMs: 20000 });
     if (!resp.ok) {
       console.warn(`[brickset] page ${page} HTTP ${resp.status}`);
       return null;

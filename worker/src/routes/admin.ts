@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { requireAdmin } from '../auth';
 import { importSets, importFigs } from '../jobs/import-catalog';
 import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
+import { BARCODE_PAGE_SIZE } from '../lib/brickset';
 import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
 import { getQuotaUsage } from '../lib/api-quota';
@@ -709,7 +710,7 @@ app.post('/populate-everything', async (c) => {
         if (snapshot.catalog_ready && (!snapshot.barcode_pass_complete || Number(((snapshot as Record<string, any>).quality || {}).missing_upc || 0) > 0)) {
           const startPage = await nextBackfillPage(c.env);
           barcodePhaseRan = true;
-          await phaseProgress(3, `Backfilling barcodes from page ${startPage}`, 0, barcodePages * 500);
+          await phaseProgress(3, `Backfilling barcodes from page ${startPage}`, 0, barcodePages * BARCODE_PAGE_SIZE);
           const barcode = await runBackfillUpc(c.env, {
             startPage,
             maxPages: barcodePages,
@@ -717,7 +718,7 @@ app.post('/populate-everything', async (c) => {
               3,
               p.complete ? 'Barcode pass complete' : `Barcode page ${p.nextPage ? p.nextPage - 1 : startPage}`,
               p.processed,
-              p.complete ? Math.max(p.processed, 1) : barcodePages * 500,
+              p.complete ? Math.max(p.processed, 1) : barcodePages * BARCODE_PAGE_SIZE,
               `method:populate-everything step:barcode next_page:${p.nextPage ?? ''} barcode_complete:${p.complete}`,
             ),
           });

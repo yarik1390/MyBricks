@@ -1,5 +1,5 @@
 import type { Env } from '../types';
-import { fetchBarcodesPage } from '../lib/brickset';
+import { fetchBarcodesPage, BARCODE_PAGE_SIZE } from '../lib/brickset';
 import { fetchBrickOwlBarcode } from '../lib/brickowl-barcode';
 
 export interface BackfillResult {
@@ -66,7 +66,20 @@ export async function runBackfillUpc(env: Env, options: BackfillOptions = {}): P
     if (bulkResult !== null) {
       return { ...bulkResult, catalogSize, method: 'bulk' };
     }
-    console.warn('[backfill-upc] Brickset bulk failed; skipping BrickOwl fallback because Brickset is configured');
+    // Brickset bulk returned no data (e.g. a timed-out page). Don't fail silently
+    // with zero fills — fall back to BrickOwl per-set lookups when available so
+    // barcode coverage still advances.
+    if (env.BRICKOWL_API_KEY) {
+      console.warn('[backfill-upc] Brickset bulk returned no data; falling back to BrickOwl');
+      const perSetResult = await tryBrickOwlBackfill(env);
+      return {
+        ...perSetResult,
+        catalogSize,
+        method: 'brickowl',
+        note: 'Brickset bulk unavailable; used BrickOwl per-set fallback',
+      };
+    }
+    console.warn('[backfill-upc] Brickset bulk failed and no BrickOwl key configured');
     return {
       processed: 0,
       filled: 0,
@@ -117,7 +130,7 @@ async function tryBulkBackfill(
 
     processed += result.sets.length;
     pagesRead++;
-    complete = page * 500 >= result.total;
+    complete = page * BARCODE_PAGE_SIZE >= result.total;
     const nextPage = complete ? undefined : page + 1;
     if (options.onProgress) {
       await options.onProgress({ processed, filled, nextPage, complete });
