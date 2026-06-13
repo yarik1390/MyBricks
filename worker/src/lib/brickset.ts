@@ -124,9 +124,11 @@ export async function fetchBarcodesPage(page: number, env: Env): Promise<Brickse
       userHash: '',
       // Brickset getSets rejects a query with no *selection* criterion with
       // "No valid parameters" — pageSize/pageNumber/extendedData don't count.
-      // updatedSince far in the past selects the whole catalog so we can page
-      // every set for barcodes. String values match the documented contract.
-      params: JSON.stringify({ updatedSince: '1900-01-01', pageSize: String(BARCODE_PAGE_SIZE), pageNumber: String(page), extendedData: '1' }),
+      // updatedSince far in the past selects the whole catalog. orderBy
+      // YearFromDESC pages the barcode-rich modern sets first (vintage sets
+      // mostly lack barcodes). String values match the documented contract;
+      // descending sort is the field name + DESC with no space (e.g. PiecesDESC).
+      params: JSON.stringify({ updatedSince: '1900-01-01', orderBy: 'YearFromDESC', pageSize: String(BARCODE_PAGE_SIZE), pageNumber: String(page), extendedData: '1' }),
     });
     // Bulk pages carry a large payload; give them a longer timeout than the 8s
     // default so they don't abort and fall through to a silent zero-fill.

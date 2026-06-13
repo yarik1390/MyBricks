@@ -26,7 +26,43 @@ export function parseNextBackfillPage(error?: string | null): number {
   return Number.isFinite(n) && n > 0 ? n : 1;
 }
 
+// Durable barcode page cursor. The previous resume logic parsed the latest
+// import_run error string, but populate-everything overwrites that with a final
+// summary (losing next_page) and uses a different prefix — so paging restarted
+// at page 1 every run. We persist the next page in a dedicated integration_health
+// row instead (ok_count = next page). It's not rendered in the admin panel (that
+// only enumerates known integrations) and needs no schema change.
+const BARCODE_CURSOR_SERVICE = 'barcode_cursor';
+
+export async function getBarcodeCursor(env: Env): Promise<number> {
+  try {
+    const row = await env.DB.prepare(
+      'SELECT ok_count FROM integration_health WHERE service=?'
+    ).bind(BARCODE_CURSOR_SERVICE).first<{ ok_count: number }>();
+    const n = Number(row?.ok_count);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function setBarcodeCursor(env: Env, page: number): Promise<void> {
+  const p = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  try {
+    await env.DB.prepare(
+      `INSERT INTO integration_health (service, ok_count, fail_count, last_error, updated_at)
+       VALUES (?1, ?2, 0, ?3, datetime('now'))
+       ON CONFLICT(service) DO UPDATE SET ok_count=?2, last_error=?3, updated_at=datetime('now')`
+    ).bind(BARCODE_CURSOR_SERVICE, p, `next barcode page: ${p}`).run();
+  } catch {
+    /* cursor is best-effort */
+  }
+}
+
 export async function nextBackfillPage(env: Env): Promise<number> {
+  const cursor = await getBarcodeCursor(env);
+  if (cursor > 0) return cursor;
+  // Legacy fallback until the durable cursor is initialized by the first pass.
   const row = await env.DB.prepare(
     `SELECT error FROM import_runs
      WHERE error LIKE 'method:bulk%'
@@ -64,6 +100,10 @@ export async function runBackfillUpc(env: Env, options: BackfillOptions = {}): P
   if (env.BRICKSET_API_KEY) {
     const bulkResult = await tryBulkBackfill(env, options);
     if (bulkResult !== null) {
+      // Advance the durable cursor so the next run pages forward (or wraps to 1
+      // once the catalog has been fully walked).
+      const startPage = Math.max(1, options.startPage || 1);
+      await setBarcodeCursor(env, bulkResult.complete ? 1 : (bulkResult.nextPage ?? startPage + 1));
       return { ...bulkResult, catalogSize, method: 'bulk' };
     }
     // Brickset bulk returned no data (e.g. a timed-out page). Don't fail silently
