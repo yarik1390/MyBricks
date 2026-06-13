@@ -1,5 +1,5 @@
 import type { Env } from '../types';
-import { fetchBarcodesPage, BARCODE_PAGE_SIZE } from '../lib/brickset';
+import { fetchBarcodesPage, BARCODE_PAGE_SIZE, getLastBarcodeFetchDiag } from '../lib/brickset';
 import { fetchBrickOwlBarcode } from '../lib/brickowl-barcode';
 
 export interface BackfillResult {
@@ -70,6 +70,34 @@ export async function nextBackfillPage(env: Env): Promise<number> {
      LIMIT 1`
   ).first<{ error: string | null }>();
   return parseNextBackfillPage(row?.error);
+}
+
+// Persist the barcode backfill outcome ONCE per run (not per page) to a
+// dedicated integration_health row the admin coverage panel reads. The row is
+// not rendered as an integration (getIntegrationDiagnostics only enumerates
+// known services). Best-effort.
+export async function recordBarcodeHealth(env: Env, ok: boolean, detail: string): Promise<void> {
+  const okFlag = ok ? 1 : 0;
+  try {
+    await env.DB.prepare(
+      `INSERT INTO integration_health (service, last_ok_at, last_fail_at, last_error, ok_count, fail_count, updated_at)
+       VALUES ('brickset_barcode', ?1, ?2, ?3, ?4, ?5, datetime('now'))
+       ON CONFLICT(service) DO UPDATE SET
+         last_error = ?3,
+         last_ok_at = CASE WHEN ?6 = 1 THEN datetime('now') ELSE integration_health.last_ok_at END,
+         last_fail_at = CASE WHEN ?6 = 1 THEN integration_health.last_fail_at ELSE datetime('now') END,
+         ok_count = integration_health.ok_count + ?4,
+         fail_count = integration_health.fail_count + ?5,
+         updated_at = datetime('now')`,
+    ).bind(
+      ok ? new Date().toISOString() : null,
+      ok ? null : new Date().toISOString(),
+      detail.slice(0, 300),
+      okFlag,
+      ok ? 0 : 1,
+      okFlag,
+    ).run();
+  } catch { /* best-effort */ }
 }
 
 export async function runBackfillUpc(env: Env, options: BackfillOptions = {}): Promise<BackfillResult> {
@@ -179,8 +207,19 @@ async function tryBulkBackfill(
     page++;
   }
 
-  if (!anyPageSucceeded) return null;
-  return { processed, filled, complete, nextPage: complete ? undefined : page + 1 };
+  const diag = getLastBarcodeFetchDiag();
+  if (!anyPageSucceeded) {
+    // Nothing fetched this run — record why (e.g. an API error) for the panel.
+    await recordBarcodeHealth(env, false, `no data at page ${page}: ${diag.detail}`);
+    return null;
+  }
+  const next = complete ? undefined : page + 1;
+  await recordBarcodeHealth(
+    env,
+    true,
+    `pages ${Math.max(1, options.startPage || 1)}-${page} · filled ${filled}/${processed} · withCode ${diag.withCode}/page · complete:${complete} · next:${complete ? 1 : (next ?? page + 1)}`,
+  );
+  return { processed, filled, complete, nextPage: next };
 }
 
 async function tryBrickOwlBackfill(env: Env): Promise<{ processed: number; filled: number; complete: boolean }> {

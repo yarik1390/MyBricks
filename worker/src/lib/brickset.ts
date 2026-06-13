@@ -87,32 +87,20 @@ export interface BricksetPageResult {
 // silently filled zero UPCs.
 export const BARCODE_PAGE_SIZE = 250;
 
-// TEMP DIAGNOSTIC: record the bulk barcode fetch outcome to a dedicated
-// integration_health row ('brickset_barcode') so it survives the frequent
-// successful per-set 'brickset' calls and is readable via D1 without worker
-// logs. Remove once barcode coverage is confirmed flowing. No-throw.
-async function recordBarcodeProbe(env: Env, message: string, ok = false): Promise<void> {
-  try {
-    const okFlag = ok ? 1 : 0;
-    await env.DB.prepare(
-      `INSERT INTO integration_health (service, last_ok_at, last_fail_at, last_error, ok_count, fail_count, updated_at)
-       VALUES ('brickset_barcode', ?1, ?2, ?3, ?4, ?5, datetime('now'))
-       ON CONFLICT(service) DO UPDATE SET
-         last_error = ?3,
-         last_ok_at = CASE WHEN ?6 = 1 THEN datetime('now') ELSE integration_health.last_ok_at END,
-         last_fail_at = CASE WHEN ?6 = 1 THEN integration_health.last_fail_at ELSE datetime('now') END,
-         ok_count = integration_health.ok_count + ?4,
-         fail_count = integration_health.fail_count + ?5,
-         updated_at = datetime('now')`,
-    ).bind(
-      ok ? new Date().toISOString() : null,
-      ok ? null : new Date().toISOString(),
-      message.slice(0, 400),
-      okFlag,
-      ok ? 0 : 1,
-      okFlag,
-    ).run();
-  } catch { /* diagnostic only */ }
+// Barcode-fetch health signal. fetchBarcodesPage records its last outcome here
+// (module-scoped, no per-page DB write); the backfill job persists it ONCE per
+// run (recordBarcodeHealth in jobs/backfill-upc.ts) and the admin coverage panel
+// surfaces it. Backfills are gated to one at a time, so this never interleaves.
+export interface BarcodeFetchDiag {
+  ok: boolean;
+  page: number;
+  sets: number;
+  withCode: number;
+  detail: string;
+}
+let lastBarcodeFetchDiag: BarcodeFetchDiag = { ok: false, page: 0, sets: 0, withCode: 0, detail: 'no run yet' };
+export function getLastBarcodeFetchDiag(): BarcodeFetchDiag {
+  return lastBarcodeFetchDiag;
 }
 
 // Paginated bulk fetch — barcode data, BARCODE_PAGE_SIZE sets per page.
@@ -137,7 +125,7 @@ export async function fetchBarcodesPage(page: number, env: Env): Promise<Brickse
     }, { timeoutMs: 20000 });
     if (!resp.ok) {
       console.warn(`[brickset] page ${page} HTTP ${resp.status}`);
-      await recordBarcodeProbe(env, `page ${page} HTTP ${resp.status}`);
+      lastBarcodeFetchDiag = { ok: false, page, sets: 0, withCode: 0, detail: `HTTP ${resp.status}` };
       return null;
     }
     const data = await resp.json() as {
@@ -151,11 +139,12 @@ export async function fetchBarcodesPage(page: number, env: Env): Promise<Brickse
     };
     if (String(data.status ?? '').trim().toLowerCase() !== 'success') {
       console.warn(`[brickset] page ${page} status=${data.status} message=${data.message}`);
-      await recordBarcodeProbe(env, `page ${page} status=${data.status ?? 'none'} msg=${data.message ?? ''}`);
+      lastBarcodeFetchDiag = { ok: false, page, sets: 0, withCode: 0, detail: `status=${data.status ?? 'none'} msg=${data.message ?? ''}`.slice(0, 120) };
       return null;
     }
     if (!data.sets?.length) {
-      await recordBarcodeProbe(env, `page ${page} status=success matches=${data.matches ?? 0} sets=0`);
+      // Page beyond the last result — a normal end-of-catalog signal, not a failure.
+      lastBarcodeFetchDiag = { ok: true, page, sets: 0, withCode: 0, detail: `end of catalog (matches=${data.matches ?? 0})` };
       return null;
     }
 
@@ -171,15 +160,12 @@ export async function fetchBarcodesPage(page: number, env: Env): Promise<Brickse
     // Diagnostic: how many parsed to a barcode, plus the first set's keys and
     // raw barcode shape — confirms the field name end-to-end on real data.
     const withCode = sets.filter(s => s.upc).length;
-    const sample = data.sets[0] as Record<string, unknown>;
-    await recordBarcodeProbe(
-      env,
-      `OK page ${page} matches=${data.matches ?? 0} sets=${data.sets.length} withCode=${withCode} keys=${Object.keys(sample).slice(0, 16).join(',')} bc=${JSON.stringify(sample.barcode ?? sample.barcodes ?? null)}`,
-      true,
-    );
+    lastBarcodeFetchDiag = { ok: true, page, sets: data.sets.length, withCode, detail: `matches=${data.matches ?? 0}` };
     return { sets, total: data.matches ?? 0 };
   } catch (e) {
-    console.warn(`[brickset] page ${page} error:`, (e as Error).message);
+    const detail = (e as Error).message || String(e);
+    console.warn(`[brickset] page ${page} error:`, detail);
+    lastBarcodeFetchDiag = { ok: false, page, sets: 0, withCode: 0, detail: detail.slice(0, 120) };
     return null;
   }
 }

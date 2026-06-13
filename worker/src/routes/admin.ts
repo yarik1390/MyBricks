@@ -131,7 +131,7 @@ async function getActiveImportRun(env: Env) {
 }
 
 async function getDataCoverage(env: Env) {
-  const [sets, valuationMethods, blend] = await Promise.all([
+  const [sets, valuationMethods, blend, barcodeHealth] = await Promise.all([
     env.DB.prepare(`
       SELECT
         CAST(COUNT(*) AS INTEGER) AS total_sets,
@@ -200,6 +200,11 @@ async function getDataCoverage(env: Env) {
         CAST(SUM(CASE WHEN src=0 THEN 1 ELSE 0 END) AS INTEGER) AS conf_estimated
       FROM b
     `).first<Record<string, number>>(),
+    // Barcode backfill health (written once per run by the backfill job).
+    env.DB.prepare(
+      `SELECT last_ok_at, last_fail_at, last_error, ok_count, fail_count, updated_at
+       FROM integration_health WHERE service='brickset_barcode'`
+    ).first<{ last_ok_at: string | null; last_fail_at: string | null; last_error: string | null; ok_count: number; fail_count: number; updated_at: string | null }>(),
   ]);
 
   const total = Number(sets?.total_sets || 0);
@@ -250,10 +255,19 @@ async function getDataCoverage(env: Env) {
       estimated: Number(blend?.conf_estimated || 0),
     },
   };
+  const barcodeHealthOut = barcodeHealth ? {
+    last_error: barcodeHealth.last_error ?? null,
+    last_ok_at: barcodeHealth.last_ok_at ?? null,
+    last_fail_at: barcodeHealth.last_fail_at ?? null,
+    ok_count: Number(barcodeHealth.ok_count ?? 0),
+    fail_count: Number(barcodeHealth.fail_count ?? 0),
+    updated_at: barcodeHealth.updated_at ?? null,
+  } : null;
   return {
     ...sets,
     quality,
     blend_quality: blendQuality,
+    barcode_health: barcodeHealthOut,
     sets_with_bricklink: bricklinkCount,
     barcode_coverage_pct: pct(barcodeCount),
     ebay_coverage_pct: pct(ebayCount),

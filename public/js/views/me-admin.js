@@ -474,6 +474,15 @@ async function updateIntegrationsHealth() {
           Config: ${escapeHtml(routing.config_endpoint || "")}
         </div>
       </div>`;
+    const bh = coverage.barcode_health || null;
+    const bhOk = bh && bh.last_ok_at && (!bh.last_fail_at || bh.last_ok_at >= bh.last_fail_at);
+    const bhColor = !bh ? "var(--ink-mute)" : bhOk ? "var(--up)" : "var(--bv-yellow)";
+    const bhWhen = bh && bh.updated_at ? ago(bh.updated_at) : null;
+    const barcodeHealthHTML = bh ? `
+        <div class="u-fs-2xs" style="line-height:1.4;margin-top:8px;display:flex;align-items:flex-start;gap:6px;color:var(--ink-soft);">
+          <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${bhColor};margin-top:3px;flex-shrink:0;"></span>
+          <span><strong>Barcode backfill:</strong> ${escapeHtml(bh.last_error || "no run recorded yet")}${bhWhen ? ` · ${escapeHtml(bhWhen)}` : ""}</span>
+        </div>` : "";
     const coverageHTML = `
       <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
         <div class="u-mono-label u-fs-2xs" style="margin-bottom:8px;">Data coverage</div>
@@ -485,6 +494,7 @@ async function updateIntegrationsHealth() {
             </div>
           `).join("")}
         </div>
+        ${barcodeHealthHTML}
         <div class="u-fs-2xs u-mute" style="line-height:1.4;margin-top:8px;">${escapeHtml(coverageNote)}</div>
       </div>`;
     const bq = coverage.blend_quality || {};
