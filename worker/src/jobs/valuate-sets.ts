@@ -199,8 +199,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
 
       if (beDetails && beDetails.current_value_new !== null) {
         // Guard against BrickEconomy mismatches (e.g. a $10k value on a $6 vintage
-        // set). A corroborating ask/BL overrides; otherwise a retail ceiling applies.
-        if (isPlausibleMarketValue(beDetails.current_value_new, { retailPrice: set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value, blPricing?.current_value] })) {
+        // set). A corroborating ask overrides; otherwise a retail ceiling applies.
+        // (BrickLink isn't fetched yet at this point, so the eBay ask is the only
+        // corroborator available here.)
+        if (isPlausibleMarketValue(beDetails.current_value_new, { retailPrice: set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value] })) {
           pricing = { current_value: beDetails.current_value_new };
           valMethod = 'brickeconomy';
         } else {
