@@ -58,6 +58,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     bricklink: { ok: 0, fail: 0 },
     brickeconomy: { ok: 0, fail: 0 },
     brickowl: { ok: 0, fail: 0 },
+    // Gemini is tracked separately via fetchTracked inside callGeminiValuation;
+    // the cron's OpenAI fallback was previously untracked — record it here so
+    // its server-key usage shows up in the admin integration-health panel.
+    openai: { ok: 0, fail: 0 },
   };
   const tallyOk = (s: IntegrationName) => { health[s].ok++; };
   const tallyFail = (s: IntegrationName, e: unknown) => {
@@ -430,6 +434,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
       continue;
     }
+    let openaiCalled = false;
     try {
       const result = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -439,6 +444,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
           { role: 'user', content: `Set: ${set.name}. Theme: ${set.theme || 'Unknown'}. Year: ${set.year}. Pieces: ${set.pieces}. Minifigs: ${set.minifigs}. Estimate market values in USD.` },
         ],
       });
+      // The API call succeeded (the value may still be rejected below). Tally it
+      // so the cron's OpenAI usage is visible in integration-health.
+      openaiCalled = true;
+      tallyOk('openai');
       const text = result.choices[0].message.content;
       if (!text || result.choices[0].finish_reason === 'length') {
         processed++;
@@ -478,6 +487,9 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
               valuationExpiryModifier('ai'), set.set_num).run();
       updated++; ai++;
     } catch (e) {
+      // Attribute the failure to OpenAI only if the API call itself failed — a
+      // later JSON.parse / D1 error would already have tallied a success above.
+      if (!openaiCalled) tallyFail('openai', e);
       console.warn(`[valuate] failed for ${set.set_num}:`, (e as Error).message);
     }
     processed++;
