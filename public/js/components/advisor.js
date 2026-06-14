@@ -547,8 +547,21 @@ async function sendAdvisorMessage(q) {
   } catch (err) {
     aiBubble.querySelector(".chat-typing")?.remove();
     aiBubble.classList.add("error");
-    aiBubble.innerHTML = `<span>Sorry, couldn't reach the advisor. ${escapeHtml(err.message || "")}</span>
-      <button class="btn-secondary chat-retry-btn" style="display:block;margin-top:8px;padding:6px 12px;font-size:12px;width:auto;">Retry</button>`;
+    const errMsg = err.message || "";
+    const noKey = !localStorage.getItem('bv_gemini_key') && !localStorage.getItem('bv_openai_key');
+    const rateLimited = /rate.?limit|api key|unlimited|quota|too many|429/i.test(errMsg);
+    // On a shared-quota rate-limit, a personal free Gemini key removes the cap.
+    const keyCta = (noKey && rateLimited) ? `
+      <div class="chat-gemini-card" style="margin-top:8px;">
+        <div style="font-weight:600; font-size:13px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+          ${I.flash({ w: 16 })}<span>Hit the free limit?</span>
+        </div>
+        <div style="font-size:11px; color:var(--ink-mute); line-height:1.45;">
+          Get a free key in 30 seconds at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--bv-red); font-weight:600; text-decoration:underline;">Google AI Studio</a> and save it in the <strong>Me</strong> tab for unlimited advice.
+        </div>
+      </div>` : "";
+    aiBubble.innerHTML = `<span>Sorry, couldn't reach the advisor. ${escapeHtml(errMsg)}</span>
+      <button class="btn-secondary chat-retry-btn" style="display:block;margin-top:8px;padding:6px 12px;font-size:12px;width:auto;">Retry</button>${keyCta}`;
     // Retry re-sends the same question in a fresh bubble pair.
     aiBubble.querySelector(".chat-retry-btn")?.addEventListener("click", () => {
       aiBubble.previousElementSibling?.remove(); // the user bubble (re-added by retry)

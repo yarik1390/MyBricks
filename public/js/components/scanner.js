@@ -272,12 +272,30 @@ function showScanResult(res) {
   if (!el) return;
   el.classList.add("show");
   if (!res.identified) {
+    const reason = res.reasoning || "Couldn't identify the set. Try a clearer photo.";
+    const noKey = !localStorage.getItem("bv_gemini_key") && !localStorage.getItem("bv_openai_key");
+    const rateLimited = /rate.?limit|unlimited|api key|quota|limit reached|too many|429/i.test(reason);
+    const headLabel = rateLimited ? "Limit reached" : "Not found";
+    // BYOK nudge: keyless users share the server's free scan quota. A personal
+    // Gemini key (free tier ~1500/day) makes photo scans effectively unlimited
+    // and offloads the cost from the shared server quota — emphasized when the
+    // miss looks quota-driven rather than a genuine no-match.
+    const nudge = noKey ? `
+      <div class="chat-gemini-card" style="margin:0 0 10px;">
+        <div style="font-weight:600; font-size:13px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+          ${I.flash({ w: 16 })}<span>${rateLimited ? "Hit the free scan limit?" : "Scan unlimited — free"}</span>
+        </div>
+        <div style="font-size:11px; color:var(--ink-mute); line-height:1.45;">
+          Get a free key in 30 seconds at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--bv-red); font-weight:600; text-decoration:underline;">Google AI Studio</a> and save it in the <strong>Me</strong> tab for unlimited scans.
+        </div>
+      </div>` : "";
     el.innerHTML = `
       <div class="scan-result-head">
         <span class="badge miss">${I.close()}NO MATCH</span>
-        <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">Not found</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${headLabel}</span>
       </div>
-      <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">${escapeHtml(res.reasoning || "Couldn't identify the set. Try a clearer photo.")}</p>
+      <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">${escapeHtml(reason)}</p>
+      ${nudge}
       <button class="btn-secondary" id="scanRetry">Try again</button>`;
     $("#scanRetry")?.addEventListener("click", () => {
       el.classList.remove("show");
