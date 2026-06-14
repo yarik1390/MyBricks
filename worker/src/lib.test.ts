@@ -12,7 +12,7 @@ import {
 import { classifyHealth } from './lib/integration-health';
 import { computeRetirementRisk } from './lib/retirement-risk';
 import { isSearchIndexCorruption } from './lib/search-index';
-import { formulaValuation } from './lib/valuation';
+import { formulaValuation, isPlausibleMarketValue } from './lib/valuation';
 import { blendMarketValue } from './lib/market-sources';
 
 // ---------------------------------------------------------------------------
@@ -415,6 +415,27 @@ describe('blendMarketValue (valuation v2)', () => {
     const r = blendMarketValue({ valuation_method: 'brickeconomy', current_value: 300, be_cached_at: now });
     expect(r.value).toBe(300);
     expect(r.confidence).toBe('medium');
+  });
+});
+
+describe('isPlausibleMarketValue (BrickEconomy mismatch guard)', () => {
+  it('rejects a value that grossly exceeds a corroborating ask (UNICEF Van case)', () => {
+    expect(isPlausibleMarketValue(10153, { retailPrice: 6.49, pieces: 59, corroborators: [13.62] })).toBe(false);
+  });
+  it('trusts a high value confirmed by a comp (UCS rare: ask agrees)', () => {
+    expect(isPlausibleMarketValue(3052, { retailPrice: 39.99, pieces: 188, corroborators: [3000] })).toBe(true);
+  });
+  it('rejects a value far above retail when nothing corroborates it', () => {
+    expect(isPlausibleMarketValue(4800, { retailPrice: 29.99, pieces: 169 })).toBe(false);
+  });
+  it('applies a tighter ceiling to large sets', () => {
+    expect(isPlausibleMarketValue(15878, { retailPrice: 99.99, pieces: 707 })).toBe(false);
+  });
+  it('accepts a normal market value', () => {
+    expect(isPlausibleMarketValue(140, { retailPrice: 100, pieces: 300 })).toBe(true);
+  });
+  it('does not block when neither retail nor a comp is known', () => {
+    expect(isPlausibleMarketValue(9999, {})).toBe(true);
   });
 });
 

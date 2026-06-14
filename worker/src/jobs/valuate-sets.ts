@@ -21,7 +21,7 @@ import {
   type PackProfile,
 } from '../lib/api-quota';
 import { recomputeBlendedValues } from '../lib/market-sources';
-import { valuationExpiryModifier } from '../lib/valuation';
+import { valuationExpiryModifier, isPlausibleMarketValue, formulaValuation } from '../lib/valuation';
 import { computeRetirementRisk } from '../lib/retirement-risk';
 import {
   clearIntegrationBlock,
@@ -109,6 +109,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   // cached valuations. With scope='all' this steadily covers the whole catalog.
   const { results } = await env.DB.prepare(`
     SELECT DISTINCT ls.set_num, ls.name, ls.theme, ls.year, ls.pieces, ls.minifigs, ls.retired,
+      ls.retail_price, ls.ebay_ask_value,
       (ls.ebay_ask_cached_at IS NULL OR ls.ebay_ask_cached_at < datetime('now', '-7 days')) AS ask_stale
     FROM lego_sets ls
     WHERE 1=1
@@ -121,7 +122,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       COALESCE(ls.valuation_expires_at, ls.cached_at, '2000-01-01') ASC,
       ls.set_num ASC
     LIMIT ?
-  `).bind(limit).all<{ set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number; retired: number; ask_stale: number }>();
+  `).bind(limit).all<{ set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number; retired: number; retail_price: number | null; ebay_ask_value: number | null; ask_stale: number }>();
 
   // Reserve today's external-API budget for this batch up front (2-3 D1
   // round-trips total). BrickEconomy is the scarce source (80/day budget of a
@@ -180,6 +181,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     let ebayPrices: EbaySoldPrices | null = null;
     let valMethod = 'market';
     let beDetails: any = null;
+    let beRejected = false;
 
     // Batch runs stay source-light to avoid Cloudflare subrequest limits.
     // Detail-page refreshes still fan out across providers.
@@ -196,8 +198,15 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       usedPricing = be?.current_value_used ? { used_value: be.current_value_used } : null;
 
       if (beDetails && beDetails.current_value_new !== null) {
-        pricing = { current_value: beDetails.current_value_new };
-        valMethod = 'brickeconomy';
+        // Guard against BrickEconomy mismatches (e.g. a $10k value on a $6 vintage
+        // set). A corroborating ask/BL overrides; otherwise a retail ceiling applies.
+        if (isPlausibleMarketValue(beDetails.current_value_new, { retailPrice: set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value, blPricing?.current_value] })) {
+          pricing = { current_value: beDetails.current_value_new };
+          valMethod = 'brickeconomy';
+        } else {
+          beRejected = true;
+          console.warn(`[valuate] ${set.set_num}: rejected implausible BrickEconomy value $${beDetails.current_value_new} (retail $${set.retail_price ?? '?'})`);
+        }
       }
     }
 
@@ -308,6 +317,14 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       }
     }
     if (supplementStmts.length) await env.DB.batch(supplementStmts);
+
+    if (!pricing && beRejected) {
+      // BrickEconomy returned an implausible value and no clean market source
+      // replaced it — write the formula estimate so the bad value never persists.
+      const f = formulaValuation({ pieces: set.pieces, year: set.year, theme: set.theme, retired: !!set.retired, minifigs: set.minifigs });
+      pricing = { current_value: f.current_value };
+      valMethod = 'formula_bulk';
+    }
 
     if (pricing) {
       // Use BrickEconomy rolling 12-month growth for forward rate when available.

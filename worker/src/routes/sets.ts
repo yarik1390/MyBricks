@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import OpenAI from 'openai';
 import { optionalMember, requireMember } from '../auth';
-import { formulaValuation, valuationExpiryModifier } from '../lib/valuation';
+import { formulaValuation, valuationExpiryModifier, isPlausibleMarketValue } from '../lib/valuation';
 import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
 import { fetchBricksetDetails } from '../lib/brickset';
 import {
@@ -260,7 +260,8 @@ app.get('/:setnum', async (c) => {
           const askStmt = buildEbayAskUpdate(c.env.DB, activeSet.set_num as string, askListings);
           if (askStmt) supplementStmts.push(askStmt);
 
-          if (be && be.current_value_new !== null) {
+          if (be && be.current_value_new !== null
+              && isPlausibleMarketValue(be.current_value_new, { retailPrice: activeSet.retail_price as number, pieces: activeSet.pieces as number, corroborators: [activeSet.ebay_ask_value as number, blp?.current_value, activeSet.bl_new_value as number] })) {
             const defaultYr = activeSet.retired ? 0.15 : 0.10;
             const yr = (be.rolling_growth_12months != null)
               ? Math.min(0.25, Math.max(0.02, be.rolling_growth_12months / 100))
@@ -778,7 +779,8 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
     usedPricing = u || (be?.current_value_used ? { used_value: be.current_value_used } : null);
     ebayPrices = e;
 
-    if (beDetails?.current_value_new != null) {
+    if (beDetails?.current_value_new != null
+        && isPlausibleMarketValue(beDetails.current_value_new, { retailPrice: set.retail_price as number, pieces: set.pieces as number, corroborators: [set.ebay_ask_value as number, blPricing?.current_value, set.bl_new_value as number] })) {
       pricing = { current_value: beDetails.current_value_new };
       valMethod = 'brickeconomy';
     }

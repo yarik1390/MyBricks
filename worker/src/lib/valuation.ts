@@ -96,6 +96,38 @@ export function formulaValuation(set: {
   };
 }
 
+/**
+ * Guard against implausible market values — chiefly BrickEconomy mismatches
+ * (e.g. a $10,153 "value" on a 1985 59-piece UNICEF Van whose eBay asks are
+ * ~$14). Returns true if the value should be TRUSTED, false if it's implausible
+ * and should be discarded in favour of the next source / the formula.
+ *
+ * A real corroborating comp (eBay asking, BrickLink sold) is the authority: when
+ * present, the value is trusted iff it's in a sane band around it (this spares
+ * legit rares like UCS sets whose high value is confirmed by listings). Only
+ * when there's NO corroboration do we fall back to a generous retail-multiple
+ * ceiling to flag gross errors. BrickLink sold data is clean and isn't gated.
+ */
+export function isPlausibleMarketValue(
+  value: number,
+  ctx: { retailPrice?: number | null; pieces?: number | null; corroborators?: Array<number | null | undefined> },
+): boolean {
+  if (!(value > 0)) return false;
+  const corr = (ctx.corroborators ?? [])
+    .map(Number)
+    .filter((n) => Number.isFinite(n) && n > 0);
+  if (corr.length) {
+    // Trust iff within a wide band of a real comp (catches gross mismatches only).
+    return value <= 6 * Math.max(...corr) && value >= 0.15 * Math.min(...corr);
+  }
+  const retail = Number(ctx.retailPrice);
+  if (Number.isFinite(retail) && retail > 0) {
+    const cap = Number(ctx.pieces) > 500 ? 25 : 40; // big sets rarely exceed 25x retail; small/vintage get more headroom
+    return value >= 0.2 * retail && value <= cap * retail;
+  }
+  return true; // no retail and no comp — can't judge, don't block
+}
+
 // Refresh cadence by valuation source quality. Market-backed prices hold for a
 // day; eBay sold comps move slowly (a week); formula/AI estimates are
 // low-confidence, so retry them sooner in the hope a market source answers.
