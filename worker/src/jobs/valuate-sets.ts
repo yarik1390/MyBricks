@@ -401,16 +401,20 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       try {
         const gemVals = await callGeminiValuation(set.set_num as string, set.name, env.GEMINI_API_KEY, env);
         if (gemVals?.current_value) {
-          await env.DB.prepare(`
-            UPDATE lego_sets SET
-              current_value=?, used_value=COALESCE(?, used_value),
-              valuation_method='ai',
-              valuation_expires_at=datetime('now', ?),
-              cached_at=datetime('now')
-            WHERE set_num=?
-          `).bind(gemVals.current_value, gemVals.used_value ?? null,
-                  valuationExpiryModifier('ai'), set.set_num).run();
-          updated++; ai++;
+          if (isPlausibleMarketValue(gemVals.current_value, { retailPrice: set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value, blPricing?.current_value] })) {
+            await env.DB.prepare(`
+              UPDATE lego_sets SET
+                current_value=?, used_value=COALESCE(?, used_value),
+                valuation_method='ai',
+                valuation_expires_at=datetime('now', ?),
+                cached_at=datetime('now')
+              WHERE set_num=?
+            `).bind(gemVals.current_value, gemVals.used_value ?? null,
+                    valuationExpiryModifier('ai'), set.set_num).run();
+            updated++; ai++;
+          } else {
+            console.warn(`[valuate] ${set.set_num}: rejected implausible AI (Gemini) value $${gemVals.current_value} (retail $${set.retail_price ?? '?'})`);
+          }
           processed++;
           if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
           continue;
@@ -452,6 +456,14 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
           if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
           continue;
         }
+      }
+      // Catalog-retail plausibility: catches AI hallucinations even when the AI's
+      // own retail estimate is also off (the check above only compares to that).
+      if (vals.current_value && !isPlausibleMarketValue(vals.current_value, { retailPrice: set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value, blPricing?.current_value] })) {
+        console.warn(`[valuate] ${set.set_num}: rejected implausible AI value $${vals.current_value} vs catalog retail $${set.retail_price ?? '?'} — skipped`);
+        processed++;
+        if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
+        continue;
       }
       await env.DB.prepare(`
         UPDATE lego_sets SET

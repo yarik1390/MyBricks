@@ -361,7 +361,7 @@ app.get('/:setnum', async (c) => {
           const supplementStmts: D1PreparedStatement[] = [];
           pushEbaySoldUpdate(supplementStmts, c.env.DB, activeSet.set_num as string, ebayPrices);
           const ebayVal = ebaySoldNewValue(ebayPrices);
-          if (gemVal) {
+          if (gemVal && isPlausibleMarketValue(gemVal.current_value, { retailPrice: activeSet.retail_price as number, pieces: activeSet.pieces as number, corroborators: [activeSet.ebay_ask_value as number, ebayVal, activeSet.bl_new_value as number] })) {
             const yr = activeSet.retired ? 0.15 : 0.10;
             const forecast_2y = Math.round(gemVal.current_value * Math.pow(1 + yr, 2) * 100) / 100;
             const forecast_5y = Math.round(gemVal.current_value * Math.pow(1 + yr, 5) * 100) / 100;
