@@ -3,7 +3,7 @@ import type { Env } from '../types';
 import { fetchSetPricing, fetchUsedPricing, fetchMinifigPricing } from '../lib/bricklink';
 import { fetchBrickOwlPricing } from '../lib/brickowl-pricing';
 import { callGeminiValuation } from '../lib/gemini';
-import { MODELS, openAIServerBaseURL, gatewayHeaders } from '../lib/llm';
+import { MODELS, openAIServerBaseURL, gatewayHeaders, gatewayCompatBaseURL } from '../lib/llm';
 import {
   buildEbayAskUpdate,
   buildEbaySoldUpdate,
@@ -63,6 +63,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     // the cron's OpenAI fallback was previously untracked — record it here so
     // its server-key usage shows up in the admin integration-health panel.
     openai: { ok: 0, fail: 0 },
+    deepseek: { ok: 0, fail: 0 },
   };
   const tallyOk = (s: IntegrationName) => { health[s].ok++; };
   const tallyFail = (s: IntegrationName, e: unknown) => {
@@ -150,6 +151,18 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         defaultHeaders: gatewayHeaders(env),
       })
     : null;
+  // DeepSeek (cheap) via the gateway's OpenAI-compatible endpoint — the paid
+  // valuation fallback ahead of gpt-4o-mini when its key + the gateway are set.
+  // Valuation only (public set metadata, no user data). Requires the gateway;
+  // falls back to OpenAI when DeepSeek or the gateway is unavailable.
+  const deepseekBase = gatewayCompatBaseURL(env);
+  const deepseek = env.DEEPSEEK_API_KEY && deepseekBase
+    ? new OpenAI({ apiKey: env.DEEPSEEK_API_KEY, baseURL: deepseekBase, defaultHeaders: gatewayHeaders(env) })
+    : null;
+  // Paid-fallback selection: prefer DeepSeek (cheaper) when available, else OpenAI.
+  const aiClient = deepseek ?? openai;
+  const aiModel = deepseek ? MODELS.deepseek : MODELS.openaiFallback;
+  const aiTag: IntegrationName = deepseek ? 'deepseek' : 'openai';
   let updated = 0, market = 0, ai = 0;
   // Circuit breaker: honor a persisted block from a previous run so each batch
   // doesn't re-probe an access-denied eBay keyset. Expires automatically.
@@ -437,15 +450,15 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         console.warn(`[valuate] Gemini failed for ${set.set_num}:`, (e as Error).message);
       }
     }
-    if (!openai) {
+    if (!aiClient) {
       processed++;
       if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
       continue;
     }
-    let openaiCalled = false;
+    let aiCalled = false;
     try {
-      const result = await openai.chat.completions.create({
-        model: MODELS.openaiFallback,
+      const result = await aiClient.chat.completions.create({
+        model: aiModel,
         max_tokens: 200,
         messages: [
           { role: 'system', content: 'You are a LEGO market analyst. Return JSON only: { "retail_price": number, "current_value": number, "forecast_2y": number, "forecast_5y": number, "retired": boolean }' },
@@ -453,9 +466,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         ],
       });
       // The API call succeeded (the value may still be rejected below). Tally it
-      // so the cron's OpenAI usage is visible in integration-health.
-      openaiCalled = true;
-      tallyOk('openai');
+      // under the actual provider (deepseek/openai) so the cron's paid-fallback
+      // usage is visible in integration-health.
+      aiCalled = true;
+      tallyOk(aiTag);
       const text = result.choices[0].message.content;
       if (!text || result.choices[0].finish_reason === 'length') {
         processed++;
@@ -495,10 +509,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
               valuationExpiryModifier('ai'), set.set_num).run();
       updated++; ai++;
     } catch (e) {
-      // Attribute the failure to OpenAI only if the API call itself failed — a
-      // later JSON.parse / D1 error would already have tallied a success above.
-      if (!openaiCalled) tallyFail('openai', e);
-      console.warn(`[valuate] failed for ${set.set_num}:`, (e as Error).message);
+      // Attribute the failure to the provider only if the API call itself failed
+      // — a later JSON.parse / D1 error would already have tallied a success.
+      if (!aiCalled) tallyFail(aiTag, e);
+      console.warn(`[valuate] ${aiTag} failed for ${set.set_num}:`, (e as Error).message);
     }
     processed++;
     if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });

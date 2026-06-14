@@ -27,6 +27,8 @@ export const MODELS = {
   valuation: 'gemini-2.5-flash-lite',
   listing: 'gemini-2.5-flash-lite',
   openaiFallback: 'gpt-4o-mini',
+  // DeepSeek via the gateway's OpenAI-compatible endpoint: model is "<provider>/<model>".
+  deepseek: 'deepseek/deepseek-chat',
 } as const;
 
 const GEMINI_DIRECT = 'https://generativelanguage.googleapis.com';
@@ -67,4 +69,15 @@ export function openAIServerBaseURL(env?: Env): string | undefined {
 // Optional header for an authenticated gateway (BYOK-with-auth). Empty otherwise.
 export function gatewayHeaders(env?: Env): Record<string, string> {
   return env?.AI_GATEWAY_TOKEN ? { 'cf-aig-authorization': `Bearer ${env.AI_GATEWAY_TOKEN}` } : {};
+}
+
+/**
+ * Base URL for the gateway's OpenAI-compatible endpoint (one schema, many
+ * providers via a "<provider>/<model>" model string, e.g. "deepseek/deepseek-chat").
+ * Returns undefined when the gateway isn't configured, so callers that depend on
+ * it (DeepSeek) cleanly skip. Used with the OpenAI SDK as baseURL.
+ */
+export function gatewayCompatBaseURL(env?: Env): string | undefined {
+  const base = gatewayBase(env);
+  return base ? `${base}/compat` : undefined;
 }
