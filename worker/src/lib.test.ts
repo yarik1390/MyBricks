@@ -425,6 +425,9 @@ describe('isPlausibleMarketValue (BrickEconomy mismatch guard)', () => {
   it('trusts a high value confirmed by a comp (UCS rare: ask agrees)', () => {
     expect(isPlausibleMarketValue(3052, { retailPrice: 39.99, pieces: 188, corroborators: [3000] })).toBe(true);
   });
+  it('rejects a value far above even its asking price (Cloud City case)', () => {
+    expect(isPlausibleMarketValue(15878, { retailPrice: 99.99, pieces: 707, corroborators: [3907] })).toBe(false);
+  });
   it('rejects a value far above retail when nothing corroborates it', () => {
     expect(isPlausibleMarketValue(4800, { retailPrice: 29.99, pieces: 169 })).toBe(false);
   });

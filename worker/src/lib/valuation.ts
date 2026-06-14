@@ -117,8 +117,10 @@ export function isPlausibleMarketValue(
     .map(Number)
     .filter((n) => Number.isFinite(n) && n > 0);
   if (corr.length) {
-    // Trust iff within a wide band of a real comp (catches gross mismatches only).
-    return value <= 6 * Math.max(...corr) && value >= 0.15 * Math.min(...corr);
+    // Trust iff within a sane band of a real comp. Asks overstate realized value,
+    // so a "value" more than ~3x the highest comp is implausible (catches e.g.
+    // Cloud City at $15,878 vs a $3,907 ask) while sparing thin-market variance.
+    return value <= 3 * Math.max(...corr) && value >= 0.15 * Math.min(...corr);
   }
   const retail = Number(ctx.retailPrice);
   if (Number.isFinite(retail) && retail > 0) {
