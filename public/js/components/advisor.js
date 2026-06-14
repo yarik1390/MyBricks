@@ -532,8 +532,11 @@ async function sendAdvisorMessage(q) {
             aiBubble.innerHTML = parseMarkdown(fullText);
             hist.scrollTop = hist.scrollHeight;
           }
-          if (parsed.error && !fullText) {
-            aiBubble.textContent = parsed.error;
+          if (parsed.error) {
+            // Surface the error even if partial text already streamed: keep the
+            // partial answer and append an escaped notice (never raw innerHTML).
+            const note = `<div class="chat-stream-error" style="margin-top:6px;font-size:12px;opacity:.85;">⚠ ${escapeHtml(parsed.error)}</div>`;
+            aiBubble.innerHTML = (fullText ? parseMarkdown(fullText) : "") + note;
             aiBubble.classList.add("error");
           }
           if (parsed.done) break;
@@ -554,6 +557,9 @@ async function sendAdvisorMessage(q) {
     });
   } finally {
     clearTimeout(streamTimeout);
+    // Release the response stream on timeout/error paths — a raced abort leaves
+    // the reader open otherwise, leaking the connection.
+    try { await reader?.cancel(); } catch {}
     if (_activeReader === reader) _activeReader = null;
   }
 

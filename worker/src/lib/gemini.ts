@@ -24,6 +24,8 @@ export async function callGeminiScan(
         { inline_data: { mime_type: mimeType, data: b64data } },
       ],
     }],
+    // Force JSON so weaker/edge responses don't return prose (parse still strips fences).
+    generationConfig: { responseMimeType: 'application/json' },
   };
 
   try {

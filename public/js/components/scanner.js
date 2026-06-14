@@ -462,6 +462,9 @@ async function processBulkScanQueue(files) {
 
     let dataUrl = "";
     try {
+      // Guard: a very large file is read fully into memory before resize and can
+      // crash the tab. Reject up front; the catch below records it as a skip.
+      if (file && file.size > 20 * 1024 * 1024) throw new Error("Image too large (max 20 MB) — skipped");
       dataUrl = await readFileAsDataURL(file);
       const resized = await resizeImage(dataUrl, 1024);
 

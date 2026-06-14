@@ -179,7 +179,9 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   // direct OpenAI (gpt-4o-mini). Tallies under the actual provider for the panel.
   const aiValuate = async (s: { set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number }) => {
     const ask = (client: OpenAI, model: string) => client.chat.completions.create({
-      model, max_tokens: 200, response_format: { type: 'json_object' }, messages: aiMessages(s),
+      // 600 (not 200) gives the pinned reasoning free model headroom so it
+      // emits complete JSON instead of truncating -> fewer paid escalations.
+      model, max_tokens: 600, response_format: { type: 'json_object' }, messages: aiMessages(s),
     });
     if (openrouter) {
       try {

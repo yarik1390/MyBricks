@@ -853,6 +853,7 @@ export async function api(path, opts = {}) {
     if (guest.handled) return guest.value;
   }
   const geminiKey = localStorage.getItem('bv_gemini_key');
+  const openaiKey = localStorage.getItem('bv_openai_key');
   const init = {
     ...opts,
     cache: "no-store",
@@ -860,6 +861,7 @@ export async function api(path, opts = {}) {
       "content-type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(geminiKey ? { "X-Gemini-Key": geminiKey } : {}),
+      ...(openaiKey ? { "X-OpenAI-Key": openaiKey } : {}),
       ...(opts.headers || {}),
     },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
