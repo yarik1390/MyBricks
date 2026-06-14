@@ -169,12 +169,15 @@ export default {
       // Hourly: BrickLink-primary catalog sweep. scope:'all' so idle capacity
       // (once owned/wishlisted are fresh) steadily converts the formula_bulk
       // catalog to real market prices. BrickEconomy is rationed by the daily
-      // ledger (80/day) and BrickLink (4000/day) carries the rest; the packer
-      // keeps each run under the 50-subrequest free-plan cap. Source-light
-      // (no supplemental/eBay/AI) to fit the most sets per invocation; eBay
-      // asks + AI fallback run in the daily maintenance and on-demand views.
+      // ledger (80/day) and BrickLink (4000/day) carries the rest. On Workers
+      // Paid the packer can fit a much larger batch under the 1,000-subrequest
+      // cap, so we lift the per-run limit to 80 (was the ~5 the free 50-cap
+      // allowed); reserveQuota gates it to the remaining daily BrickLink budget
+      // (~80/run × 24h ≈ within 4,000/day). Source-light (no supplemental/eBay/
+      // AI) to maximize sets/run; those run in daily maintenance + on-demand.
       case '0 * * * *': await run('valuate-sets', () => runValuateSets(env, {
         scope: 'all',
+        limit: 80,
         includeSupplemental: false,
         includeEbay: false,
         includeAiFallback: false,

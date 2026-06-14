@@ -45,7 +45,7 @@ async function activeRun(env: Env): Promise<{ id: number } | null> {
   ).first<{ id: number }>();
 }
 
-export async function runDailyBarcodeMaintenance(env: Env, maxPages = 12) {
+export async function runDailyBarcodeMaintenance(env: Env, maxPages = 20) {
   const startPage = await nextBackfillPage(env);
   const runId = await startRun(env, `method:bulk-daily start_page:${startPage}`);
   try {
@@ -86,7 +86,7 @@ export async function runDailyBarcodeMaintenance(env: Env, maxPages = 12) {
   }
 }
 
-export async function runDailyValuationMaintenance(env: Env, limit = 4) {
+export async function runDailyValuationMaintenance(env: Env, limit = 20) {
   const safeLimit = Math.max(1, Math.min(Math.floor(limit), 250));
   const runId = await startRun(env, `method:valuation-daily scope:all sources:all limit:${safeLimit}`);
   try {

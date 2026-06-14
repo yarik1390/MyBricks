@@ -143,8 +143,11 @@ export function perSetCost(p: PackProfile): number {
   return cost;
 }
 
-export const RUN_OVERHEAD_SUBREQUESTS = 12; // due query, quota reservation, retirement batch, health writes, blended-value recompute pass
-export const DEFAULT_CRON_BUDGET = 45;      // free-plan cap is 50; keep a safety margin
+export const RUN_OVERHEAD_SUBREQUESTS = 20; // due query, quota reservation, retirement batch, health writes, blended-value recompute pass
+// Workers PAID allows 1,000 subrequests/invocation (free was 50). Budget set well
+// under that so a packed batch never trips "Too many subrequests"; the real daily
+// ceiling is now the per-provider quota ledger (api_quota), not the subrequest cap.
+export const DEFAULT_CRON_BUDGET = 800;
 
 // How many sets fit the invocation budget (always at least 1 so a run can
 // never fully starve; callers gate the run itself when truly out of budget).
