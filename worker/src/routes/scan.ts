@@ -5,6 +5,7 @@ import { callGeminiScan } from '../lib/gemini';
 import { enrichSetRecord } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { logEvent } from '../lib/analytics';
+import { MODELS, openAIServerBaseURL, gatewayHeaders } from '../lib/llm';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -94,7 +95,7 @@ app.post('/identify', async (c) => {
       return c.json({ identified: false, reasoning: 'Sets identified by Gemini were not found in local catalog.' });
     }
     logEvent(c.env, 'scan_used', userId, { setNum: String((matchedSets[0] as Record<string, unknown>)?.set_num || '') });
-    return c.json({ identified: true, sets: matchedSets, confidence: topConfidence, reasoning, model: 'gemini-2.0-flash' });
+    return c.json({ identified: true, sets: matchedSets, confidence: topConfidence, reasoning, model: MODELS.scan });
   }
 
   const openaiKey = c.req.header('X-OpenAI-Key');
@@ -127,7 +128,12 @@ app.post('/identify', async (c) => {
   if (!finalOpenAIKey) {
     return c.json({ error: 'No OpenAI API key configured.' }, 500);
   }
-  const openai = new OpenAI({ apiKey: finalOpenAIKey });
+  const openai = new OpenAI({
+    apiKey: finalOpenAIKey,
+    // Server-key calls route through the gateway; BYOK OpenAI stays direct.
+    baseURL: openaiKey ? undefined : openAIServerBaseURL(c.env),
+    defaultHeaders: openaiKey ? undefined : gatewayHeaders(c.env),
+  });
 
   const openaiMessages: Parameters<typeof openai.chat.completions.create>[0]['messages'] = [
     { role: 'system', content: 'You are a LEGO product-identification expert. Identify all the LEGO sets visible in this image. Return ONLY raw JSON in this format: { "sets": [ { "set_num": "...", "name": "...", "confidence": "high|medium|low|none", "reasoning": "..." } ] }' },
@@ -139,7 +145,7 @@ app.post('/identify', async (c) => {
 
   async function callOpenAI() {
     return openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: MODELS.openaiFallback,
       max_tokens: 256,
       response_format: { type: 'json_object' },
       messages: openaiMessages,
@@ -199,7 +205,7 @@ app.post('/identify', async (c) => {
     return c.json({ identified: false, reasoning: 'Sets identified by OpenAI were not found in local catalog.' });
   }
 
-  return c.json({ identified: true, sets: matchedSets, confidence: topConfidence, reasoning, model: 'gpt-4o-mini' });
+  return c.json({ identified: true, sets: matchedSets, confidence: topConfidence, reasoning, model: MODELS.openaiFallback });
 });
 
 export { app as scanRoute };

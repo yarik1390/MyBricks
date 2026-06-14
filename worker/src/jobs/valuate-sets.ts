@@ -3,6 +3,7 @@ import type { Env } from '../types';
 import { fetchSetPricing, fetchUsedPricing, fetchMinifigPricing } from '../lib/bricklink';
 import { fetchBrickOwlPricing } from '../lib/brickowl-pricing';
 import { callGeminiValuation } from '../lib/gemini';
+import { MODELS, openAIServerBaseURL, gatewayHeaders } from '../lib/llm';
 import {
   buildEbayAskUpdate,
   buildEbaySoldUpdate,
@@ -141,7 +142,14 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   });
   let beBudget = grants.brickeconomy ?? 0;
 
-  const openai = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
+  const openai = env.OPENAI_API_KEY
+    ? new OpenAI({
+        apiKey: env.OPENAI_API_KEY,
+        // Server-key cron: route through Cloudflare AI Gateway when configured.
+        baseURL: openAIServerBaseURL(env),
+        defaultHeaders: gatewayHeaders(env),
+      })
+    : null;
   let updated = 0, market = 0, ai = 0;
   // Circuit breaker: honor a persisted block from a previous run so each batch
   // doesn't re-probe an access-denied eBay keyset. Expires automatically.
@@ -405,7 +413,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     // Fall back to Gemini (cheaper) then GPT-4o-mini
     if (env.GEMINI_API_KEY) {
       try {
-        const gemVals = await callGeminiValuation(set.set_num as string, set.name, env.GEMINI_API_KEY, env);
+        const gemVals = await callGeminiValuation(set.set_num as string, set.name, env.GEMINI_API_KEY, env, { routeThroughGateway: true });
         if (gemVals?.current_value) {
           if (isPlausibleMarketValue(gemVals.current_value, { retailPrice: set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value, blPricing?.current_value] })) {
             await env.DB.prepare(`
@@ -437,7 +445,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     let openaiCalled = false;
     try {
       const result = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: MODELS.openaiFallback,
         max_tokens: 200,
         messages: [
           { role: 'system', content: 'You are a LEGO market analyst. Return JSON only: { "retail_price": number, "current_value": number, "forecast_2y": number, "forecast_5y": number, "retired": boolean }' },

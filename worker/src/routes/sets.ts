@@ -13,6 +13,7 @@ import {
   type EbaySoldPrices,
 } from '../lib/ebay';
 import { callGeminiValuation } from '../lib/gemini';
+import { MODELS, geminiUrl, openAIServerBaseURL, gatewayHeaders } from '../lib/llm';
 import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
 import { spendQuota } from '../lib/api-quota';
 import { getCachedPriceTrend } from '../lib/price-trend';
@@ -681,7 +682,8 @@ price_reasoning: one sentence explaining the price.`;
       const resp = await fetchTracked(
         c.env,
         'gemini',
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+        // BYOK listing draft: call Google directly with the user's key.
+        geminiUrl(MODELS.listing),
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
@@ -698,9 +700,14 @@ price_reasoning: one sentence explaining the price.`;
     } else {
       const finalOpenAIKey = openaiKey || c.env.OPENAI_API_KEY;
       if (!finalOpenAIKey) throw new Error('OpenAI is not configured');
-      const openai = new OpenAI({ apiKey: finalOpenAIKey });
+      const openai = new OpenAI({
+        apiKey: finalOpenAIKey,
+        // Server-key calls route through the gateway; BYOK OpenAI stays direct.
+        baseURL: openaiKey ? undefined : openAIServerBaseURL(c.env),
+        defaultHeaders: openaiKey ? undefined : gatewayHeaders(c.env),
+      });
       const result = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: MODELS.openaiFallback,
         max_tokens: 400,
         response_format: { type: 'json_object' },
         messages: [

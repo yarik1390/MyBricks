@@ -1,7 +1,8 @@
 import type { Env } from '../types';
 import { fetchTracked, fetchWithRetry } from './http';
+import { MODELS, geminiUrl, gatewayHeaders } from './llm';
 
-// Calls Gemini 2.0 Flash with a user-supplied Gemini API key (free from Google
+// Calls Gemini (MODELS.scan) with a user-supplied Gemini API key (free from Google
 // AI Studio: https://aistudio.google.com/apikey). The free tier gives ~1500
 // requests/day, so scans run on the user's own quota — not the server's OpenAI
 // key — and don't count against the shared rate limit.
@@ -28,7 +29,9 @@ export async function callGeminiScan(
   try {
     const fetcher = env ? fetchTracked.bind(null, env, 'gemini') : fetchWithRetry;
     const resp = await fetcher(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+      // BYOK scan: call Google directly (don't proxy the user's key/image
+      // through our gateway; per-key responses wouldn't share a cache anyway).
+      geminiUrl(MODELS.scan),
       {
         method: 'POST',
         headers: {
@@ -61,6 +64,10 @@ export async function callGeminiValuation(
   setName: string,
   apiKey: string,
   env?: Env,
+  // routeThroughGateway: true only for SERVER-key callers (the valuation cron);
+  // BYOK callers (on-demand refresh/revalue in sets.ts) leave it false to hit
+  // Google directly with the user's key.
+  opts: { routeThroughGateway?: boolean } = {},
 ): Promise<{ current_value: number; used_value: number; ebay_value: number } | null> {
   const body = {
     contents: [{
@@ -78,12 +85,14 @@ export async function callGeminiValuation(
   try {
     const fetcher = env ? fetchTracked.bind(null, env, 'gemini') : fetchWithRetry;
     const resp = await fetcher(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+      // Route through the gateway only for server-key calls; BYOK stays direct.
+      geminiUrl(MODELS.valuation, { env, routeThroughGateway: opts.routeThroughGateway }),
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-goog-api-key': apiKey,
+          ...(opts.routeThroughGateway ? gatewayHeaders(env) : {}),
         },
         body: JSON.stringify(body),
       },

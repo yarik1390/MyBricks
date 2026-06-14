@@ -25,6 +25,12 @@ export interface Env {
   BRICKLINK_TOKEN_SECRET: string;
   BRICKECONOMY_API_KEY?: string;
   GEMINI_API_KEY?: string;
+  // Cloudflare AI Gateway (optional). When account + gateway id are set, SERVER-key
+  // AI calls route through the gateway for caching, analytics, rate/spend limits.
+  // Token is only needed if the gateway has authentication enabled.
+  AI_GATEWAY_ACCOUNT_ID?: string;
+  AI_GATEWAY_ID?: string;
+  AI_GATEWAY_TOKEN?: string;
   RESEND_API_KEY?: string;
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;

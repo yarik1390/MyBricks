@@ -5,6 +5,7 @@ import { buildAdvisorContext } from '../lib/advisor-context';
 import { fetchTracked } from '../lib/http';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { logEvent } from '../lib/analytics';
+import { MODELS, geminiUrl, openAIServerBaseURL, gatewayHeaders } from '../lib/llm';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -87,7 +88,8 @@ ${context}`;
         const resp = await fetchTracked(
           c.env,
           'gemini',
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse',
+          // BYOK advisor: call Google directly with the user's key.
+          geminiUrl(MODELS.advisor, { method: 'streamGenerateContent', query: '?alt=sse' }),
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
@@ -124,9 +126,14 @@ ${context}`;
           }
         }
       } else {
-        const openai = new OpenAI({ apiKey: openaiKey || c.env.OPENAI_API_KEY });
+        const openai = new OpenAI({
+          apiKey: openaiKey || c.env.OPENAI_API_KEY,
+          // Server-key calls route through the gateway; BYOK OpenAI stays direct.
+          baseURL: openaiKey ? undefined : openAIServerBaseURL(c.env),
+          defaultHeaders: openaiKey ? undefined : gatewayHeaders(c.env),
+        });
         const stream = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
+          model: MODELS.openaiFallback,
           max_tokens: 512,
           stream: true,
           messages: [
