@@ -333,6 +333,8 @@ jobs:
           [ -n "${{ secrets.GOOGLE_CLIENT_ID }}" ]         && put GOOGLE_CLIENT_ID         "${{ secrets.GOOGLE_CLIENT_ID }}"         || true
           [ -n "${{ secrets.GOOGLE_CLIENT_SECRET }}" ]     && put GOOGLE_CLIENT_SECRET     "${{ secrets.GOOGLE_CLIENT_SECRET }}"     || true
           [ -n "${{ secrets.GEMINI_API_KEY }}" ]           && put GEMINI_API_KEY           "${{ secrets.GEMINI_API_KEY }}"           || true
+put AI_GATEWAY_ACCOUNT_ID    "${CLOUDFLARE_ACCOUNT_ID}"
+          [ -n "${{ secrets.AI_GATEWAY_TOKEN }}" ]          && put AI_GATEWAY_TOKEN          "${{ secrets.AI_GATEWAY_TOKEN }}"          || true
           [ -n "${{ secrets.RESEND_API_KEY }}" ]           && put RESEND_API_KEY           "${{ secrets.RESEND_API_KEY }}"           || true
           [ -n "${{ secrets.VAPID_PUBLIC_KEY }}" ]         && put VAPID_PUBLIC_KEY         "${{ secrets.VAPID_PUBLIC_KEY }}"         || true
           [ -n "${{ secrets.VAPID_PRIVATE_KEY }}" ]        && put VAPID_PRIVATE_KEY        "${{ secrets.VAPID_PRIVATE_KEY }}"        || true
