@@ -3,7 +3,7 @@ import type { Env } from '../types';
 import { fetchSetPricing, fetchUsedPricing, fetchMinifigPricing } from '../lib/bricklink';
 import { fetchBrickOwlPricing } from '../lib/brickowl-pricing';
 import { callGeminiValuation } from '../lib/gemini';
-import { MODELS, openAIServerBaseURL, gatewayHeaders, gatewayCompatBaseURL } from '../lib/llm';
+import { MODELS, OPENROUTER_FALLBACK_CHAIN, openAIServerBaseURL, gatewayHeaders, openRouterBaseURL } from '../lib/llm';
 import {
   buildEbayAskUpdate,
   buildEbaySoldUpdate,
@@ -63,7 +63,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     // the cron's OpenAI fallback was previously untracked — record it here so
     // its server-key usage shows up in the admin integration-health panel.
     openai: { ok: 0, fail: 0 },
-    deepseek: { ok: 0, fail: 0 },
+    openrouter: { ok: 0, fail: 0 },
   };
   const tallyOk = (s: IntegrationName) => { health[s].ok++; };
   const tallyFail = (s: IntegrationName, e: unknown) => {
@@ -151,18 +151,17 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         defaultHeaders: gatewayHeaders(env),
       })
     : null;
-  // DeepSeek (cheap) via the gateway's OpenAI-compatible endpoint — the paid
-  // valuation fallback ahead of gpt-4o-mini when its key + the gateway are set.
-  // Valuation only (public set metadata, no user data). Requires the gateway;
-  // falls back to OpenAI when DeepSeek or the gateway is unavailable.
-  const deepseekBase = gatewayCompatBaseURL(env);
-  const deepseek = env.DEEPSEEK_API_KEY && deepseekBase
-    ? new OpenAI({ apiKey: env.DEEPSEEK_API_KEY, baseURL: deepseekBase, defaultHeaders: gatewayHeaders(env) })
+  // OpenRouter (cheap) via the gateway's OpenRouter provider path — the paid
+  // valuation fallback: a free model first, then cheap paid (the models[] chain
+  // below). Valuation only (public set metadata, no user data). Falls back to
+  // direct OpenAI (gpt-4o-mini) when no OpenRouter key is configured.
+  const openrouter = env.OPENROUTER_API_KEY
+    ? new OpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: openRouterBaseURL(env), defaultHeaders: gatewayHeaders(env) })
     : null;
-  // Paid-fallback selection: prefer DeepSeek (cheaper) when available, else OpenAI.
-  const aiClient = deepseek ?? openai;
-  const aiModel = deepseek ? MODELS.deepseek : MODELS.openaiFallback;
-  const aiTag: IntegrationName = deepseek ? 'deepseek' : 'openai';
+  // Paid-fallback selection: prefer OpenRouter (free-first) when available, else OpenAI.
+  const aiClient = openrouter ?? openai;
+  const aiModel = openrouter ? MODELS.openrouterFree : MODELS.openaiFallback;
+  const aiTag: IntegrationName = openrouter ? 'openrouter' : 'openai';
   let updated = 0, market = 0, ai = 0;
   // Circuit breaker: honor a persisted block from a previous run so each batch
   // doesn't re-probe an access-denied eBay keyset. Expires automatically.
@@ -464,9 +463,12 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
           { role: 'system', content: 'You are a LEGO market analyst. Return JSON only: { "retail_price": number, "current_value": number, "forecast_2y": number, "forecast_5y": number, "retired": boolean }' },
           { role: 'user', content: `Set: ${set.name}. Theme: ${set.theme || 'Unknown'}. Year: ${set.year}. Pieces: ${set.pieces}. Minifigs: ${set.minifigs}. Estimate market values in USD.` },
         ],
+        // OpenRouter only: free model first, then cheap paid, then gpt-4o-mini
+        // (OpenRouter's models fallback array; ignored by the direct-OpenAI path).
+        ...(openrouter ? { models: [...OPENROUTER_FALLBACK_CHAIN] } : {}),
       });
       // The API call succeeded (the value may still be rejected below). Tally it
-      // under the actual provider (deepseek/openai) so the cron's paid-fallback
+      // under the actual provider (openrouter/openai) so the cron's paid-fallback
       // usage is visible in integration-health.
       aiCalled = true;
       tallyOk(aiTag);

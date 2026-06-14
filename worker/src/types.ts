@@ -31,9 +31,9 @@ export interface Env {
   AI_GATEWAY_ACCOUNT_ID?: string;
   AI_GATEWAY_ID?: string;
   AI_GATEWAY_TOKEN?: string;
-  // DeepSeek API key (BYOK). When set, the valuation cron uses DeepSeek (cheap)
-  // as the paid fallback ahead of gpt-4o-mini, routed through the AI Gateway.
-  DEEPSEEK_API_KEY?: string;
+  // OpenRouter API key. When set, the valuation cron's paid fallback routes
+  // through OpenRouter (free model first, then cheap paid) via the AI Gateway.
+  OPENROUTER_API_KEY?: string;
   RESEND_API_KEY?: string;
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;

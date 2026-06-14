@@ -27,9 +27,14 @@ export const MODELS = {
   valuation: 'gemini-2.5-flash-lite',
   listing: 'gemini-2.5-flash-lite',
   openaiFallback: 'gpt-4o-mini',
-  // DeepSeek via the gateway's OpenAI-compatible endpoint: model is "<provider>/<model>".
-  deepseek: 'deepseek/deepseek-chat',
+  // OpenRouter free-models router (auto-picks an available free model that
+  // supports the request, incl. JSON). Primary of the paid-fallback chain.
+  openrouterFree: 'openrouter/free',
 } as const;
+
+// OpenRouter paid fallbacks tried (in order) after the free model, via the
+// `models` array. Cheapest first; gpt-4o-mini is the final safety net.
+export const OPENROUTER_FALLBACK_CHAIN = ['openrouter/free', 'deepseek/deepseek-chat', 'openai/gpt-4o-mini'];
 
 const GEMINI_DIRECT = 'https://generativelanguage.googleapis.com';
 
@@ -72,12 +77,13 @@ export function gatewayHeaders(env?: Env): Record<string, string> {
 }
 
 /**
- * Base URL for the gateway's OpenAI-compatible endpoint (one schema, many
- * providers via a "<provider>/<model>" model string, e.g. "deepseek/deepseek-chat").
- * Returns undefined when the gateway isn't configured, so callers that depend on
- * it (DeepSeek) cleanly skip. Used with the OpenAI SDK as baseURL.
+ * OpenRouter base URL. Routes through the Cloudflare AI Gateway's OpenRouter
+ * provider path when the gateway is configured (keeps caching, $/day spend cap,
+ * and analytics); otherwise calls OpenRouter directly. Used with the OpenAI SDK
+ * as baseURL — OpenRouter is OpenAI-compatible and preserves its `models`
+ * fallback-array extension through the provider-native gateway path.
  */
-export function gatewayCompatBaseURL(env?: Env): string | undefined {
+export function openRouterBaseURL(env?: Env): string {
   const base = gatewayBase(env);
-  return base ? `${base}/compat` : undefined;
+  return base ? `${base}/openrouter` : 'https://openrouter.ai/api/v1';
 }

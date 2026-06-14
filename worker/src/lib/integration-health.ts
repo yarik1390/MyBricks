@@ -15,7 +15,7 @@ export type IntegrationName =
   | 'email'
   | 'push'
   | 'openai'
-  | 'deepseek'
+  | 'openrouter'
   | 'rebrickable';
 
 export type IntegrationStatus = 'ok' | 'degraded' | 'down' | 'unknown' | 'unconfigured';
@@ -182,13 +182,13 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     notes: 'Server key is rate-limited; users can bring their own key for scans, advisor, and listing drafts.',
     recommended_action: 'Add OPENAI_API_KEY for shared scan, advisor, listing, and fallback valuation features.',
   },
-  deepseek: {
-    label: 'DeepSeek',
-    configured: (env) => !!env.DEEPSEEK_API_KEY,
-    required_secrets: ['DEEPSEEK_API_KEY'],
+  openrouter: {
+    label: 'OpenRouter',
+    configured: (env) => !!env.OPENROUTER_API_KEY,
+    required_secrets: ['OPENROUTER_API_KEY'],
     used_by: ['valuation fallback'],
-    notes: 'Cheap paid valuation fallback (ahead of gpt-4o-mini), routed through the AI Gateway. Valuation only — public set metadata, no user data.',
-    recommended_action: 'Add DEEPSEEK_API_KEY (and the AI Gateway) to enable the low-cost DeepSeek valuation fallback.',
+    notes: 'Cheap valuation fallback routed through the AI Gateway: a free model first, then cheap paid (DeepSeek), then gpt-4o-mini. Valuation only — public set metadata, no user data.',
+    recommended_action: 'Add OPENROUTER_API_KEY (and the AI Gateway) to enable the free-first, low-cost valuation fallback.',
   },
   rebrickable: {
     label: 'Rebrickable',
