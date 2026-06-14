@@ -27,14 +27,14 @@ export const MODELS = {
   valuation: 'gemini-2.5-flash-lite',
   listing: 'gemini-2.5-flash-lite',
   openaiFallback: 'gpt-4o-mini',
-  // OpenRouter free-models router (auto-picks an available free model that
-  // supports the request, incl. JSON). Primary of the paid-fallback chain.
-  openrouterFree: 'openrouter/free',
+  // OpenRouter cheap valuation fallback: a pinned capable FREE model first
+  // (good instruction-following + JSON via response_format), then escalate to a
+  // cheap PAID model app-side (a 200-with-empty doesn't trigger OpenRouter's own
+  // models[] fallback, so the cron escalates itself). Free model availability can
+  // churn; the paid escalation is the reliability backstop.
+  openrouterFree: 'nvidia/nemotron-3-super-120b-a12b:free',
+  openrouterPaid: 'deepseek/deepseek-chat',
 } as const;
-
-// OpenRouter paid fallbacks tried (in order) after the free model, via the
-// `models` array. Cheapest first; gpt-4o-mini is the final safety net.
-export const OPENROUTER_FALLBACK_CHAIN = ['openrouter/free', 'deepseek/deepseek-chat', 'openai/gpt-4o-mini'];
 
 const GEMINI_DIRECT = 'https://generativelanguage.googleapis.com';
 

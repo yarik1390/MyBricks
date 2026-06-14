@@ -3,7 +3,7 @@ import type { Env } from '../types';
 import { fetchSetPricing, fetchUsedPricing, fetchMinifigPricing } from '../lib/bricklink';
 import { fetchBrickOwlPricing } from '../lib/brickowl-pricing';
 import { callGeminiValuation } from '../lib/gemini';
-import { MODELS, OPENROUTER_FALLBACK_CHAIN, openAIServerBaseURL, gatewayHeaders, openRouterBaseURL } from '../lib/llm';
+import { MODELS, openAIServerBaseURL, gatewayHeaders, openRouterBaseURL } from '../lib/llm';
 import {
   buildEbayAskUpdate,
   buildEbaySoldUpdate,
@@ -158,10 +158,52 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   const openrouter = env.OPENROUTER_API_KEY
     ? new OpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: openRouterBaseURL(env), defaultHeaders: gatewayHeaders(env) })
     : null;
-  // Paid-fallback selection: prefer OpenRouter (free-first) when available, else OpenAI.
-  const aiClient = openrouter ?? openai;
-  const aiModel = openrouter ? MODELS.openrouterFree : MODELS.openaiFallback;
-  const aiTag: IntegrationName = openrouter ? 'openrouter' : 'openai';
+  // Parse a JSON valuation out of an AI completion (tolerates markdown fences);
+  // returns null on empty/unparseable/missing current_value.
+  const parseAiVals = (text: string | null | undefined) => {
+    if (!text) return null;
+    try {
+      const v = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as {
+        retail_price?: number; current_value?: number; forecast_2y?: number; forecast_5y?: number;
+      };
+      return typeof v.current_value === 'number' ? v : null;
+    } catch { return null; }
+  };
+  const aiMessages = (s: { name: string; theme: string | null; year: number; pieces: number; minifigs: number }) => [
+    { role: 'system' as const, content: 'You are a LEGO market analyst. Return JSON only: { "retail_price": number, "current_value": number, "forecast_2y": number, "forecast_5y": number, "retired": boolean }' },
+    { role: 'user' as const, content: `Set: ${s.name}. Theme: ${s.theme || 'Unknown'}. Year: ${s.year}. Pieces: ${s.pieces}. Minifigs: ${s.minifigs}. Estimate market values in USD.` },
+  ];
+  // Cheap AI valuation. OpenRouter path: a pinned free model first, then escalate
+  // to cheap paid (DeepSeek) on error/empty/unparseable — a 200-with-empty does
+  // NOT trigger OpenRouter's own fallback, so we escalate app-side. Otherwise:
+  // direct OpenAI (gpt-4o-mini). Tallies under the actual provider for the panel.
+  const aiValuate = async (s: { set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number }) => {
+    const ask = (client: OpenAI, model: string) => client.chat.completions.create({
+      model, max_tokens: 200, response_format: { type: 'json_object' }, messages: aiMessages(s),
+    });
+    if (openrouter) {
+      try {
+        const v = parseAiVals((await ask(openrouter, MODELS.openrouterFree)).choices[0]?.message?.content);
+        if (v) { tallyOk('openrouter'); return v; }
+        console.warn(`[valuate] ${s.set_num}: OpenRouter free model returned no usable JSON — escalating to paid`);
+      } catch (e) {
+        console.warn(`[valuate] ${s.set_num}: OpenRouter free model failed (${(e as Error).message}) — escalating to paid`);
+      }
+      try {
+        const v = parseAiVals((await ask(openrouter, MODELS.openrouterPaid)).choices[0]?.message?.content);
+        tallyOk('openrouter');
+        return v;
+      } catch (e) { tallyFail('openrouter', e); return null; }
+    }
+    if (openai) {
+      try {
+        const v = parseAiVals((await ask(openai, MODELS.openaiFallback)).choices[0]?.message?.content);
+        tallyOk('openai');
+        return v;
+      } catch (e) { tallyFail('openai', e); return null; }
+    }
+    return null;
+  };
   let updated = 0, market = 0, ai = 0;
   // Circuit breaker: honor a persisted block from a previous run so each batch
   // doesn't re-probe an access-denied eBay keyset. Expires automatically.
@@ -449,73 +491,43 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         console.warn(`[valuate] Gemini failed for ${set.set_num}:`, (e as Error).message);
       }
     }
-    if (!aiClient) {
+    // Cheap AI fallback: OpenRouter free model -> escalate to cheap paid, else
+    // direct OpenAI (handled inside aiValuate, which also records health).
+    const vals = await aiValuate(set);
+    if (!vals || typeof vals.current_value !== 'number') {
       processed++;
       if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
       continue;
     }
-    let aiCalled = false;
-    try {
-      const result = await aiClient.chat.completions.create({
-        model: aiModel,
-        max_tokens: 200,
-        messages: [
-          { role: 'system', content: 'You are a LEGO market analyst. Return JSON only: { "retail_price": number, "current_value": number, "forecast_2y": number, "forecast_5y": number, "retired": boolean }' },
-          { role: 'user', content: `Set: ${set.name}. Theme: ${set.theme || 'Unknown'}. Year: ${set.year}. Pieces: ${set.pieces}. Minifigs: ${set.minifigs}. Estimate market values in USD.` },
-        ],
-        // OpenRouter only: free model first, then cheap paid, then gpt-4o-mini
-        // (OpenRouter's models fallback array; ignored by the direct-OpenAI path).
-        ...(openrouter ? { models: [...OPENROUTER_FALLBACK_CHAIN] } : {}),
-      });
-      // The API call succeeded (the value may still be rejected below). Tally it
-      // under the actual provider (openrouter/openai) so the cron's paid-fallback
-      // usage is visible in integration-health.
-      aiCalled = true;
-      tallyOk(aiTag);
-      const text = result.choices[0].message.content;
-      if (!text || result.choices[0].finish_reason === 'length') {
+    // Sanity-check the AI value against its own retail estimate to reject hallucinations.
+    if (vals.retail_price && vals.current_value) {
+      const pieceCount = Number(set.pieces ?? 0);
+      const maxCapMultiplier = pieceCount > 500 ? 8 : 15;
+      if (vals.current_value < 0.3 * vals.retail_price || vals.current_value > maxCapMultiplier * vals.retail_price) {
+        console.warn(`[valuate] ${set.set_num}: AI value $${vals.current_value} out of sanity range vs retail $${vals.retail_price} (limit ${maxCapMultiplier}x, pieces: ${pieceCount}) — skipped`);
         processed++;
         if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
         continue;
       }
-      const vals = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as {
-        retail_price: number; current_value: number; forecast_2y: number; forecast_5y: number;
-      };
-      // Sanity-check the AI value against retail price to reject hallucinations.
-      if (vals.retail_price && vals.current_value) {
-        const pieceCount = Number(set.pieces ?? 0);
-        const maxCapMultiplier = pieceCount > 500 ? 8 : 15;
-        if (vals.current_value < 0.3 * vals.retail_price || vals.current_value > maxCapMultiplier * vals.retail_price) {
-          console.warn(`[valuate] ${set.set_num}: AI value $${vals.current_value} out of sanity range vs retail $${vals.retail_price} (limit ${maxCapMultiplier}x, pieces: ${pieceCount}) — skipped`);
-          processed++;
-          if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
-          continue;
-        }
-      }
-      // Catalog-retail plausibility: catches AI hallucinations even when the AI's
-      // own retail estimate is also off (the check above only compares to that).
-      if (vals.current_value && !isPlausibleMarketValue(vals.current_value, { retailPrice: set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value, blPricing?.current_value] })) {
-        console.warn(`[valuate] ${set.set_num}: rejected implausible AI value $${vals.current_value} vs catalog retail $${set.retail_price ?? '?'} — skipped`);
-        processed++;
-        if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
-        continue;
-      }
-      await env.DB.prepare(`
-        UPDATE lego_sets SET
-          retail_price=?, current_value=?, forecast_2y=?, forecast_5y=?,
-          valuation_method='ai',
-          valuation_expires_at=datetime('now', ?),
-          cached_at=datetime('now')
-        WHERE set_num=?
-      `).bind(vals.retail_price ?? null, vals.current_value ?? null, vals.forecast_2y ?? null, vals.forecast_5y ?? null,
-              valuationExpiryModifier('ai'), set.set_num).run();
-      updated++; ai++;
-    } catch (e) {
-      // Attribute the failure to the provider only if the API call itself failed
-      // — a later JSON.parse / D1 error would already have tallied a success.
-      if (!aiCalled) tallyFail(aiTag, e);
-      console.warn(`[valuate] ${aiTag} failed for ${set.set_num}:`, (e as Error).message);
     }
+    // Catalog-retail plausibility: catches AI hallucinations even when the AI's
+    // own retail estimate is also off (the check above only compares to that).
+    if (!isPlausibleMarketValue(vals.current_value, { retailPrice: set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value, blPricing?.current_value] })) {
+      console.warn(`[valuate] ${set.set_num}: rejected implausible AI value $${vals.current_value} vs catalog retail $${set.retail_price ?? '?'} — skipped`);
+      processed++;
+      if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
+      continue;
+    }
+    await env.DB.prepare(`
+      UPDATE lego_sets SET
+        retail_price=?, current_value=?, forecast_2y=?, forecast_5y=?,
+        valuation_method='ai',
+        valuation_expires_at=datetime('now', ?),
+        cached_at=datetime('now')
+      WHERE set_num=?
+    `).bind(vals.retail_price ?? null, vals.current_value ?? null, vals.forecast_2y ?? null, vals.forecast_5y ?? null,
+            valuationExpiryModifier('ai'), set.set_num).run();
+    updated++; ai++;
     processed++;
     if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
     } catch (e) {
