@@ -175,6 +175,7 @@ async function imageBitmapFromDataUrl(dataUrl) {
 // is rendered per token request into a RENDERABLE off-screen host (Turnstile will
 // NOT execute inside a display:none element), auto-runs on render, then cleans up.
 let _tsReady = null;
+let _tsReason = ""; // last getTurnstileToken outcome — surfaced in the miss card for diagnosis
 function loadTurnstileScript() {
   if (_tsReady) return _tsReady;
   _tsReady = new Promise((resolve, reject) => {
@@ -190,46 +191,48 @@ function loadTurnstileScript() {
 }
 async function getTurnstileToken() {
   const siteKey = state.config && state.config.turnstile_site_key;
-  if (!siteKey) return null; // not configured — scan proceeds without a token
+  if (!siteKey) { _tsReason = "no-config"; return null; } // not configured — scan proceeds without a token
   try {
     await loadTurnstileScript();
-    if (!window.turnstile) return null;
+    if (!window.turnstile) { _tsReason = "no-global"; return null; }
     return await new Promise((resolve) => {
       let done = false;
       let widgetId = null;
-      // Off-screen but RENDERABLE (not display:none) — a 0×0 fixed host. If an
-      // interactive challenge is ever needed, Turnstile shows its own managed
-      // overlay independent of this host.
+      // Off-screen but with REAL dimensions (not display:none or 0×0 — either can
+      // stop the invisible widget's iframe from initializing/executing). If an
+      // interactive challenge is needed, Turnstile shows its own centered overlay.
       const host = document.createElement("div");
-      host.style.cssText = "position:fixed;left:-9999px;bottom:0;width:0;height:0;overflow:hidden;";
+      host.style.cssText = "position:fixed;left:-10000px;top:0;width:300px;height:70px;overflow:hidden;";
       document.body.appendChild(host);
       const cleanup = () => {
         try { if (widgetId != null) window.turnstile.remove(widgetId); } catch {}
         try { host.remove(); } catch {}
       };
-      const finish = (tok) => {
+      const finish = (tok, reason) => {
         if (done) return;
         done = true;
+        _tsReason = reason;
         clearTimeout(timer);
         cleanup();
         resolve(tok || null);
       };
       // Safety timeout: a stuck/blocked challenge must never hang the scan.
-      const timer = setTimeout(() => finish(null), 9000);
+      const timer = setTimeout(() => finish(null, "timeout"), 9000);
       try {
         widgetId = window.turnstile.render(host, {
           sitekey: siteKey,
           size: "invisible", // auto-executes on render; token arrives via callback
-          callback: (tok) => finish(tok),
-          "error-callback": () => finish(null),
-          "timeout-callback": () => finish(null),
-          "expired-callback": () => finish(null),
+          callback: (tok) => finish(tok, tok ? "ok" : "empty"),
+          "error-callback": (e) => finish(null, "error" + (e ? ":" + e : "")),
+          "timeout-callback": () => finish(null, "challenge-timeout"),
+          "expired-callback": () => finish(null, "expired"),
         });
-      } catch {
-        finish(null);
+      } catch (e) {
+        finish(null, "render-threw");
       }
     });
   } catch {
+    _tsReason = "script-fail";
     return null;
   }
 }
@@ -347,6 +350,10 @@ function showScanResult(res) {
     const noKey = !localStorage.getItem("bv_gemini_key") && !localStorage.getItem("bv_openai_key");
     const rateLimited = /rate.?limit|unlimited|api key|quota|limit reached|too many|429/i.test(reason);
     const headLabel = rateLimited ? "Limit reached" : "Not found";
+    // TEMP diagnostic: on a Turnstile verification failure, surface the client-side
+    // token outcome so we can see WHY the browser produced no valid token.
+    const verifyIssue = /could not verify|verify the request/i.test(reason);
+    const tsDbg = verifyIssue && _tsReason ? ` · ts:${_tsReason}` : "";
     // BYOK nudge: keyless users share the server's free scan quota. A personal
     // Gemini key (free tier ~1500/day) makes photo scans effectively unlimited
     // and offloads the cost from the shared server quota — emphasized when the
@@ -365,7 +372,7 @@ function showScanResult(res) {
         <span class="badge miss">${I.close()}NO MATCH</span>
         <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${headLabel}</span>
       </div>
-      <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">${escapeHtml(reason)}</p>
+      <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">${escapeHtml(reason)}${escapeHtml(tsDbg)}</p>
       ${nudge}
       <button class="btn-secondary" id="scanRetry">Try again</button>`;
     $("#scanRetry")?.addEventListener("click", () => {
