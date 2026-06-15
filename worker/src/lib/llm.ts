@@ -82,6 +82,15 @@ export function gatewayHeaders(env?: Env): Record<string, string> {
   return env?.AI_GATEWAY_TOKEN ? { 'cf-aig-authorization': `Bearer ${env.AI_GATEWAY_TOKEN}` } : {};
 }
 
+// Tags a SERVER-key gateway call with custom metadata for AI Gateway analytics
+// segmentation (e.g. { workload: 'valuation-cron' } vs { workload: 'scan-shared' }).
+// This is the forward hook for per-workload / per-user spend budgets — the
+// gateway records the metadata regardless of whether a budget references it yet.
+// Harmless on direct (non-gateway) calls: providers ignore the unknown header.
+export function gatewayMetadataHeader(meta: Record<string, string | number | boolean>): Record<string, string> {
+  return { 'cf-aig-metadata': JSON.stringify(meta) };
+}
+
 /**
  * OpenRouter base URL. Routes through the Cloudflare AI Gateway's OpenRouter
  * provider path when the gateway is configured (keeps caching, $/day spend cap,

@@ -92,11 +92,15 @@ app.get('/api/config', (c) => {
     brickset: !!c.env.BRICKSET_API_KEY,
     brickowl: !!c.env.BRICKOWL_API_KEY,
     rebrickable: !!c.env.REBRICKABLE_API_KEY,
+    turnstile: !!c.env.TURNSTILE_SITE_KEY,
   };
   return c.json({
     supabase_url: c.env.SUPABASE_URL,
     supabase_anon_key: c.env.SUPABASE_ANON_KEY,
     api_base: new URL(c.req.url).origin,
+    // Public Turnstile site key (safe to expose). When present, the scanner adds
+    // a Turnstile token to shared server-key scans; null leaves scanning as-is.
+    turnstile_site_key: c.env.TURNSTILE_SITE_KEY || null,
     status,
     setup: {
       google: {

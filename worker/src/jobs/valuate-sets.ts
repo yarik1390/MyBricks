@@ -3,7 +3,7 @@ import type { Env } from '../types';
 import { fetchSetPricing, fetchUsedPricing, fetchMinifigPricing } from '../lib/bricklink';
 import { fetchBrickOwlPricing } from '../lib/brickowl-pricing';
 import { callGeminiValuation } from '../lib/gemini';
-import { MODELS, openAIServerBaseURL, gatewayHeaders, openRouterBaseURL } from '../lib/llm';
+import { MODELS, openAIServerBaseURL, gatewayHeaders, gatewayMetadataHeader, openRouterBaseURL } from '../lib/llm';
 import {
   buildEbayAskUpdate,
   buildEbaySoldUpdate,
@@ -152,7 +152,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         apiKey: env.OPENAI_API_KEY,
         // Server-key cron: route through Cloudflare AI Gateway when configured.
         baseURL: openAIServerBaseURL(env),
-        defaultHeaders: gatewayHeaders(env),
+        defaultHeaders: { ...gatewayHeaders(env), ...gatewayMetadataHeader({ workload: 'valuation-cron' }) },
       })
     : null;
   // OpenRouter (cheap) via the gateway's OpenRouter provider path — the paid
@@ -160,7 +160,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   // below). Valuation only (public set metadata, no user data). Falls back to
   // direct OpenAI (gpt-4o-mini) when no OpenRouter key is configured.
   const openrouter = env.OPENROUTER_API_KEY
-    ? new OpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: openRouterBaseURL(env), defaultHeaders: gatewayHeaders(env) })
+    ? new OpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: openRouterBaseURL(env), defaultHeaders: { ...gatewayHeaders(env), ...gatewayMetadataHeader({ workload: 'valuation-cron' }) } })
     : null;
   // Parse a JSON valuation out of an AI completion (tolerates markdown fences);
   // returns null on empty/unparseable/missing current_value.

@@ -169,12 +169,71 @@ async function imageBitmapFromDataUrl(dataUrl) {
   return createImageBitmap(blob);
 }
 
+// --- Turnstile (bot protection for shared server-key scans) ----------------
+// Lazy-loaded, invisible, execute-on-demand widget. Only used when the server
+// advertises a site key (state.config.turnstile_site_key) AND the user has no
+// BYOK key. A single hidden widget is reused; each call resolves the next token.
+let _tsReady = null;
+let _tsWidgetId = null;
+let _tsPending = null; // resolver (`finish`) for the in-flight execute, or null
+function _tsResolve(token) { if (_tsPending) { const r = _tsPending; _tsPending = null; r(token); } }
+function loadTurnstileScript() {
+  if (_tsReady) return _tsReady;
+  _tsReady = new Promise((resolve, reject) => {
+    if (window.turnstile) return resolve();
+    const s = document.createElement("script");
+    s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+    s.async = true; s.defer = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("Turnstile failed to load"));
+    document.head.appendChild(s);
+  });
+  return _tsReady;
+}
+async function getTurnstileToken() {
+  const siteKey = state.config && state.config.turnstile_site_key;
+  if (!siteKey) return null; // not configured — scan proceeds without a token
+  try {
+    await loadTurnstileScript();
+    if (!window.turnstile) return null;
+    return await new Promise((resolve) => {
+      let done = false;
+      const finish = (tok) => { if (done) return; done = true; clearTimeout(timer); resolve(tok || null); };
+      // Safety timeout: a stuck challenge must never hang the scan.
+      const timer = setTimeout(() => finish(null), 8000);
+      _tsPending = finish; // widget callbacks settle THIS request via _tsResolve
+      if (_tsWidgetId == null) {
+        const host = document.createElement("div");
+        host.style.display = "none";
+        document.body.appendChild(host);
+        _tsWidgetId = window.turnstile.render(host, {
+          sitekey: siteKey,
+          size: "invisible",
+          execution: "execute",
+          callback: (tok) => _tsResolve(tok),
+          "error-callback": () => _tsResolve(null),
+          "timeout-callback": () => _tsResolve(null),
+        });
+      }
+      try { window.turnstile.execute(_tsWidgetId); } catch { _tsResolve(null); }
+    });
+  } catch {
+    return null;
+  }
+}
+
 async function cloudScanIdentify(payload, signal) {
   const geminiKey = localStorage.getItem('bv_gemini_key');
   const openaiKey = localStorage.getItem('bv_openai_key');
   const extraHeaders = {};
   if (geminiKey) extraHeaders['X-Gemini-Key'] = geminiKey;
   if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
+  // Shared server-key image scans (no BYOK key) carry a Turnstile token for bot
+  // protection when configured; BYOK and barcode scans skip it.
+  if (!geminiKey && !openaiKey && payload.mode === 'image') {
+    const token = await getTurnstileToken();
+    if (token) extraHeaders['cf-turnstile-token'] = token;
+  }
   return api("/api/scan/identify", { method: "POST", body: payload, signal, headers: extraHeaders });
 }
 

@@ -34,6 +34,11 @@ export interface Env {
   // OpenRouter API key. When set, the valuation cron's paid fallback routes
   // through OpenRouter (free model first, then cheap paid) via the AI Gateway.
   OPENROUTER_API_KEY?: string;
+  // Cloudflare Turnstile (optional bot protection for the shared-key photo scan).
+  // SITE key is public (sent to the browser via /api/config); SECRET key is
+  // server-only. When SECRET is unset, scan verification is skipped (opt-in).
+  TURNSTILE_SITE_KEY?: string;
+  TURNSTILE_SECRET_KEY?: string;
   RESEND_API_KEY?: string;
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;

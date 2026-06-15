@@ -5,8 +5,9 @@ import { callGeminiScan } from '../lib/gemini';
 import { enrichSetRecord } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { logEvent } from '../lib/analytics';
-import { MODELS, openAIServerBaseURL, gatewayHeaders } from '../lib/llm';
+import { MODELS, openAIServerBaseURL, gatewayHeaders, gatewayMetadataHeader } from '../lib/llm';
 import { recordAiUsage } from '../lib/ai-usage';
+import { verifyTurnstileToken } from '../lib/turnstile';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -104,6 +105,19 @@ app.post('/identify', async (c) => {
     return c.json({ error: 'Sign in or add your own Gemini/OpenAI key for photo scanning.' }, 401);
   }
 
+  // Bot protection for the SHARED server-key scan (opt-in: only enforced when
+  // Turnstile is configured). BYOK scans skip it — they run on the user's own key.
+  if (!openaiKey && c.env.TURNSTILE_SECRET_KEY) {
+    const verified = await verifyTurnstileToken(
+      c.req.header('cf-turnstile-token'),
+      c.env.TURNSTILE_SECRET_KEY,
+      c.req.header('cf-connecting-ip'),
+    );
+    if (!verified) {
+      return c.json({ error: 'Could not verify the request. Refresh and try again, or add your own Gemini/OpenAI key for unlimited scanning.' }, 403);
+    }
+  }
+
   if (!openaiKey) {
     // OpenAI path — rate-limited per user.
     const windowStart = new Date();
@@ -133,7 +147,7 @@ app.post('/identify', async (c) => {
     apiKey: finalOpenAIKey,
     // Server-key calls route through the gateway; BYOK OpenAI stays direct.
     baseURL: openaiKey ? undefined : openAIServerBaseURL(c.env),
-    defaultHeaders: openaiKey ? undefined : gatewayHeaders(c.env),
+    defaultHeaders: openaiKey ? undefined : { ...gatewayHeaders(c.env), ...gatewayMetadataHeader({ workload: 'scan-shared' }) },
   });
 
   const openaiMessages: Parameters<typeof openai.chat.completions.create>[0]['messages'] = [
