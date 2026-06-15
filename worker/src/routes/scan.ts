@@ -133,16 +133,6 @@ app.post('/identify', async (c) => {
   const body = await c.req.json<{ mode?: string; image?: string; barcode?: string }>();
   const { mode, image, barcode } = body;
 
-  // TEMP entry debug (remove after diagnosing): record what actually arrives at
-  // the scan endpoint so we can see whether requests reach the worker and which
-  // gate/path they take. Fails open.
-  try {
-    await c.env.DB.prepare(`CREATE TABLE IF NOT EXISTS scan_debug (at_utc TEXT, mode TEXT, signed_in INTEGER, gemini_key INTEGER, openai_key INTEGER, ts_token INTEGER, img_bytes INTEGER)`).run();
-    await c.env.DB.prepare(`INSERT INTO scan_debug (at_utc, mode, signed_in, gemini_key, openai_key, ts_token, img_bytes) VALUES (datetime('now'), ?, ?, ?, ?, ?, ?)`)
-      .bind(String(mode || ''), userId ? 1 : 0, c.req.header('X-Gemini-Key') ? 1 : 0, c.req.header('X-OpenAI-Key') ? 1 : 0, c.req.header('cf-turnstile-token') ? 1 : 0, image ? image.length : 0)
-      .run();
-  } catch { /* ignore */ }
-
   if (mode === 'barcode') {
     if (!barcode) return c.json({ error: 'barcode required' }, 400);
     // Try the scanned value; also try EAN↔UPC conversion (EAN-13 starting with 0 == UPC-A without the leading 0).
@@ -239,29 +229,6 @@ app.post('/identify', async (c) => {
   if ('error' in desc) return c.json({ identified: false, reasoning: desc.error });
   if (!desc.sets.length && !desc.minifigs.length) return c.json({ identified: false, reasoning: NOT_FOUND });
   return respondMatched(desc.sets, desc.minifigs, desc.model);
-});
-
-// TEMP DIAGNOSTIC (remove after Turnstile debugging). Tests the configured
-// secret against siteverify with a dummy token — never exposes the secret value.
-// Reading the returned error code tells us the failure mode:
-//   invalid-input-response  -> the SECRET is VALID; only the token was bad
-//                              (so the real issue is client-side: no/stale token)
-//   invalid-input-secret    -> the configured secret does NOT match the widget
-app.get('/turnstile-check', async (c) => {
-  const secret = c.env.TURNSTILE_SECRET_KEY; // local binding so TS narrows to string
-  if (!secret) return c.json({ configured: false });
-  try {
-    const body = new URLSearchParams({ secret, response: 'dummy' });
-    const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-    });
-    const data = await resp.json() as { success?: boolean; 'error-codes'?: string[] };
-    return c.json({ configured: true, http: resp.status, success: data.success, error_codes: data['error-codes'] || [] });
-  } catch (e) {
-    return c.json({ configured: true, error: (e as Error).message });
-  }
 });
 
 export { app as scanRoute };
