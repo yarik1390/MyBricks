@@ -5,9 +5,10 @@ import { callGeminiScan } from '../lib/gemini';
 import { enrichSetRecord } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { logEvent } from '../lib/analytics';
-import { MODELS, openAIServerBaseURL, gatewayHeaders, gatewayMetadataHeader } from '../lib/llm';
+import { MODELS, openAIServerBaseURL, openRouterBaseURL, gatewayHeaders, gatewayMetadataHeader, SCAN_SYSTEM_PROMPT } from '../lib/llm';
 import { recordAiUsage } from '../lib/ai-usage';
 import { verifyTurnstileToken } from '../lib/turnstile';
+import { matchSetsToCatalog, type DescribedSet } from '../lib/scan-match';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -34,6 +35,91 @@ function openAIIdentificationMessage(error: unknown): string {
     return 'Could not read the AI response. Try another photo with the set number or box art clearly visible.';
   }
   return 'AI identification failed. Try another photo, barcode scan, or catalog search.';
+}
+
+// Describe LEGO set(s) in an image via any OpenAI-compatible client (OpenRouter
+// free vision models or OpenAI gpt-4o-mini). Returns AI-described sets + usage.
+async function openaiVisionDescribe(
+  client: OpenAI,
+  model: string,
+  image: string,
+): Promise<{ sets: DescribedSet[]; usage?: { prompt_tokens?: number; completion_tokens?: number } }> {
+  const messages: Parameters<typeof client.chat.completions.create>[0]['messages'] = [
+    { role: 'system', content: SCAN_SYSTEM_PROMPT },
+    { role: 'user', content: [
+      { type: 'image_url', image_url: { url: image } },
+      { type: 'text', text: 'Identify the LEGO set(s) in this image.' },
+    ] },
+  ];
+  const completion = await client.chat.completions.create({
+    model,
+    max_tokens: 700,
+    response_format: { type: 'json_object' },
+    messages,
+  });
+  const text = completion.choices[0]?.message?.content;
+  let sets: DescribedSet[] = [];
+  if (text) {
+    try {
+      const parsed = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as { sets?: DescribedSet[] };
+      sets = Array.isArray(parsed?.sets) ? parsed.sets : [];
+    } catch { /* model returned prose instead of JSON — treat as no result */ }
+  }
+  return { sets, usage: completion.usage };
+}
+
+// Cost-tiered vision cascade for the SHARED (keyless) scan: server Gemini on the
+// free tier first, then OpenRouter free vision models, then the paid gpt-4o-mini
+// backstop. Records each call in the ai_usage ledger + integration health.
+async function describeSharedScan(env: Env, image: string): Promise<{ sets: DescribedSet[]; model: string } | { error: string }> {
+  const meta = { ...gatewayHeaders(env), ...gatewayMetadataHeader({ workload: 'scan-shared' }) };
+
+  // 1. Server Gemini (free tier) — routed through the gateway when configured.
+  if (env.GEMINI_API_KEY) {
+    try {
+      const r = await callGeminiScan(image, env.GEMINI_API_KEY, env, { routeThroughGateway: true });
+      await recordAiUsage(env, 'gemini', MODELS.scan, null);
+      await recordIntegrationAttempt(env, 'gemini', true);
+      if (r?.sets?.length) return { sets: r.sets as DescribedSet[], model: MODELS.scan };
+    } catch (e) {
+      await recordIntegrationAttempt(env, 'gemini', false, e);
+      console.warn('[scan] server Gemini failed:', (e as Error).message);
+    }
+  }
+
+  // 2. OpenRouter free vision models (tried in order).
+  if (env.OPENROUTER_API_KEY) {
+    const orc = new OpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: openRouterBaseURL(env), defaultHeaders: meta });
+    for (const model of MODELS.scanOpenrouterVisionPool) {
+      try {
+        const { sets, usage } = await openaiVisionDescribe(orc, model, image);
+        await recordAiUsage(env, 'openrouter', model, usage);
+        if (sets.length) {
+          await recordIntegrationAttempt(env, 'openrouter', true);
+          return { sets, model };
+        }
+      } catch (e) {
+        console.warn(`[scan] OpenRouter ${model} failed:`, (e as Error).message);
+      }
+    }
+  }
+
+  // 3. Paid backstop: server OpenAI gpt-4o-mini.
+  if (env.OPENAI_API_KEY) {
+    const oac = new OpenAI({ apiKey: env.OPENAI_API_KEY, baseURL: openAIServerBaseURL(env), defaultHeaders: meta });
+    try {
+      const { sets, usage } = await openaiVisionDescribe(oac, MODELS.openaiFallback, image);
+      await recordAiUsage(env, 'openai', MODELS.openaiFallback, usage);
+      await recordIntegrationAttempt(env, 'openai', true);
+      return { sets, model: MODELS.openaiFallback };
+    } catch (e) {
+      await recordIntegrationAttempt(env, 'openai', false, e);
+      console.warn('[scan] OpenAI fallback failed:', (e as Error).message);
+      return { error: openAIIdentificationMessage(e) };
+    }
+  }
+
+  return { error: 'AI identification is temporarily unavailable. Try a barcode scan, or add your own Gemini/OpenAI key.' };
 }
 
 app.use('*', optionalMember);
@@ -63,51 +149,47 @@ app.post('/identify', async (c) => {
   if (!image) return c.json({ error: 'image required' }, 400);
   if (image.length > 2_000_000) return c.json({ error: 'Image too large (max ~1.5 MB)' }, 413);
 
-  // Gemini path: user's own Gemini API key — uses their own quota, no rate limit here.
   const geminiKey = c.req.header('X-Gemini-Key');
+  const openaiKey = c.req.header('X-OpenAI-Key');
+
+  const NOT_FOUND = "Couldn't confidently identify a set. Try a clearer photo, include the box number, or scan the barcode.";
+  // Match AI-described sets to the catalog (exact number, then FTS name search)
+  // and shape the response. Shared by every provider path below.
+  const respondMatched = async (described: DescribedSet[], model: string) => {
+    const { sets, topConfidence, reasoning } = await matchSetsToCatalog(c.env, described);
+    if (!sets.length) return c.json({ identified: false, reasoning: NOT_FOUND });
+    logEvent(c.env, 'scan_used', userId, { setNum: String((sets[0] as Record<string, unknown>)?.set_num || '') });
+    return c.json({ identified: true, sets, confidence: topConfidence, reasoning, model });
+  };
+
+  // 1. BYOK Gemini — the user's own key, called directly on their quota.
   if (geminiKey) {
-    const res = await callGeminiScan(image, geminiKey, c.env);
-    if (!res || !res.sets || !res.sets.length) {
-      return c.json({ identified: false, reasoning: 'Gemini could not identify any sets in the image.' });
-    }
-    const geminiCandidates = res.sets.filter(s => s.confidence !== 'none');
-    const geminiNums = [...new Set(geminiCandidates.flatMap(s => [s.set_num, s.set_num + '-1']))];
-    let geminiByNum = new Map<string, Record<string, unknown>>();
-    if (geminiNums.length) {
-      const placeholders = geminiNums.map(() => '?').join(',');
-      const { results } = await c.env.DB.prepare(
-        `SELECT * FROM lego_sets WHERE set_num IN (${placeholders})`
-      ).bind(...geminiNums).all<Record<string, unknown>>();
-      geminiByNum = new Map(results.map(r => [r.set_num as string, r]));
-    }
-    const matchedSets: Record<string, unknown>[] = [];
-    let topConfidence = 'none';
-    let reasoning = '';
-    for (const candidate of geminiCandidates) {
-      const r = geminiByNum.get(candidate.set_num) ?? geminiByNum.get(candidate.set_num + '-1');
-      if (r) {
-        matchedSets.push(enrichSetRecord({ ...r, retired: !!r.retired, confidence: candidate.confidence, reasoning: candidate.reasoning }));
-        if (topConfidence === 'none' || candidate.confidence === 'high') {
-          topConfidence = candidate.confidence;
-          reasoning = candidate.reasoning;
-        }
-      }
-    }
-    if (!matchedSets.length) {
-      return c.json({ identified: false, reasoning: 'Sets identified by Gemini were not found in local catalog.' });
-    }
-    logEvent(c.env, 'scan_used', userId, { setNum: String((matchedSets[0] as Record<string, unknown>)?.set_num || '') });
-    return c.json({ identified: true, sets: matchedSets, confidence: topConfidence, reasoning, model: MODELS.scan });
+    let res: Awaited<ReturnType<typeof callGeminiScan>> = null;
+    try { res = await callGeminiScan(image, geminiKey, c.env); }
+    catch (e) { console.warn('[scan] BYOK Gemini failed:', (e as Error).message); }
+    const sets = res?.sets ?? [];
+    if (!sets.length) return c.json({ identified: false, reasoning: NOT_FOUND });
+    return respondMatched(sets as DescribedSet[], MODELS.scan);
   }
 
-  const openaiKey = c.req.header('X-OpenAI-Key');
+  // Shared (server-key) scanning requires sign-in; BYOK OpenAI needs only the key.
   if (!openaiKey && !userId) {
     return c.json({ error: 'Sign in or add your own Gemini/OpenAI key for photo scanning.' }, 401);
   }
 
-  // Bot protection for the SHARED server-key scan (opt-in: only enforced when
-  // Turnstile is configured). BYOK scans skip it — they run on the user's own key.
-  if (!openaiKey && c.env.TURNSTILE_SECRET_KEY) {
+  // 2. BYOK OpenAI — the user's own key, called directly.
+  if (openaiKey) {
+    const client = new OpenAI({ apiKey: openaiKey });
+    let described: DescribedSet[] = [];
+    try { described = (await openaiVisionDescribe(client, MODELS.openaiFallback, image)).sets; }
+    catch (e) { return c.json({ identified: false, reasoning: openAIIdentificationMessage(e) }); }
+    if (!described.length) return c.json({ identified: false, reasoning: NOT_FOUND });
+    return respondMatched(described, MODELS.openaiFallback);
+  }
+
+  // 3. SHARED keyless path: Turnstile (opt-in) + per-user rate limit + the
+  //    cost-tiered vision cascade (Gemini free -> OpenRouter free -> gpt-4o-mini).
+  if (c.env.TURNSTILE_SECRET_KEY) {
     const verified = await verifyTurnstileToken(
       c.req.header('cf-turnstile-token'),
       c.env.TURNSTILE_SECRET_KEY,
@@ -118,112 +200,28 @@ app.post('/identify', async (c) => {
     }
   }
 
-  if (!openaiKey) {
-    // OpenAI path — rate-limited per user.
+  {
+    // Per-user hourly cap on the shared server quota.
     const windowStart = new Date();
     windowStart.setMinutes(0, 0, 0);
     const ws = windowStart.toISOString();
-
     await c.env.DB.prepare(`
       INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
       VALUES (?, 'scan_image', ?, 1)
       ON CONFLICT (user_id, endpoint, window_start) DO UPDATE SET hit_count = rate_limits.hit_count + 1
     `).bind(userId, ws).run();
-
     const rl = await c.env.DB.prepare(
       'SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint=? AND window_start=?'
     ).bind(userId, 'scan_image', ws).first<{ hit_count: number }>();
-
     if ((rl?.hit_count || 0) > SCAN_HOURLY_LIMIT) {
       return c.json({ error: `Rate limit: ${SCAN_HOURLY_LIMIT} photo scans per hour. Set up your own API key to unlock unlimited scanning.` }, 429);
     }
   }
 
-  const finalOpenAIKey = openaiKey || c.env.OPENAI_API_KEY;
-  if (!finalOpenAIKey) {
-    return c.json({ error: 'No OpenAI API key configured.' }, 500);
-  }
-  const openai = new OpenAI({
-    apiKey: finalOpenAIKey,
-    // Server-key calls route through the gateway; BYOK OpenAI stays direct.
-    baseURL: openaiKey ? undefined : openAIServerBaseURL(c.env),
-    defaultHeaders: openaiKey ? undefined : { ...gatewayHeaders(c.env), ...gatewayMetadataHeader({ workload: 'scan-shared' }) },
-  });
-
-  const openaiMessages: Parameters<typeof openai.chat.completions.create>[0]['messages'] = [
-    { role: 'system', content: 'You are a LEGO product-identification expert. Identify all the LEGO sets visible in this image. Return ONLY raw JSON in this format: { "sets": [ { "set_num": "...", "name": "...", "confidence": "high|medium|low|none", "reasoning": "..." } ] }' },
-    { role: 'user', content: [
-      { type: 'image_url', image_url: { url: image } },
-      { type: 'text', text: 'Identify all the LEGO sets.' },
-    ]},
-  ];
-
-  async function callOpenAI() {
-    return openai.chat.completions.create({
-      model: MODELS.openaiFallback,
-      max_tokens: 256,
-      response_format: { type: 'json_object' },
-      messages: openaiMessages,
-    });
-  }
-
-  let res: { sets?: Array<{ set_num: string; name: string; confidence: string; reasoning: string }> };
-  try {
-    let result = await callOpenAI().catch(async (e: Error & { status?: number }) => {
-      if (e.status && e.status >= 500) {
-        await new Promise(r => setTimeout(r, 500));
-        return callOpenAI();
-      }
-      throw e;
-    });
-    res = JSON.parse(result.choices[0].message.content!.trim());
-    await recordIntegrationAttempt(c.env, 'openai', true);
-    // Track only the SHARED server-key scan in the AI-usage ledger; BYOK scans
-    // bill to the user's own key and are intentionally excluded.
-    if (!openaiKey) await recordAiUsage(c.env, 'openai', MODELS.openaiFallback, result.usage);
-  } catch (e) {
-    await recordIntegrationAttempt(c.env, 'openai', false, e);
-    console.warn('[scan] OpenAI identification failed:', (e as Error).message);
-    return c.json({ identified: false, reasoning: openAIIdentificationMessage(e) });
-  }
-
-  if (!res || !res.sets || !res.sets.length) {
-    return c.json({ identified: false, reasoning: 'OpenAI could not identify any sets in the image.' });
-  }
-
-  // Resolve every candidate (and its "-1" variant) in a single query to avoid an
-  // N+1 round-trip per identified set.
-  const candidates = res.sets.filter(s => s.confidence !== 'none');
-  const allNums = [...new Set(candidates.flatMap(s => [s.set_num, s.set_num + '-1']))];
-  let byNum = new Map<string, Record<string, unknown>>();
-  if (allNums.length) {
-    const placeholders = allNums.map(() => '?').join(',');
-    const { results } = await c.env.DB.prepare(
-      `SELECT * FROM lego_sets WHERE set_num IN (${placeholders})`
-    ).bind(...allNums).all<Record<string, unknown>>();
-    byNum = new Map(results.map(r => [r.set_num as string, r]));
-  }
-
-  const matchedSets: Record<string, unknown>[] = [];
-  let topConfidence = 'none';
-  let reasoning = '';
-  for (const candidate of candidates) {
-    // Prefer the exact set_num, then the "-1" variant.
-    const r = byNum.get(candidate.set_num) ?? byNum.get(candidate.set_num + '-1');
-    if (r) {
-      matchedSets.push(enrichSetRecord({ ...r, retired: !!r.retired, confidence: candidate.confidence, reasoning: candidate.reasoning }));
-      if (topConfidence === 'none' || candidate.confidence === 'high') {
-        topConfidence = candidate.confidence;
-        reasoning = candidate.reasoning;
-      }
-    }
-  }
-
-  if (!matchedSets.length) {
-    return c.json({ identified: false, reasoning: 'Sets identified by OpenAI were not found in local catalog.' });
-  }
-
-  return c.json({ identified: true, sets: matchedSets, confidence: topConfidence, reasoning, model: MODELS.openaiFallback });
+  const desc = await describeSharedScan(c.env, image);
+  if ('error' in desc) return c.json({ identified: false, reasoning: desc.error });
+  if (!desc.sets.length) return c.json({ identified: false, reasoning: NOT_FOUND });
+  return respondMatched(desc.sets, desc.model);
 });
 
 // TEMP DIAGNOSTIC (remove after Turnstile debugging). Tests the configured

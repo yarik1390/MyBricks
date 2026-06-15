@@ -40,7 +40,28 @@ export const MODELS = {
     'openai/gpt-oss-120b:free',               // strong open reasoning model, good JSON adherence
   ],
   openrouterPaid: 'deepseek/deepseek-chat',
+  // VISION-capable free OpenRouter pool for the photo-scan cascade (the text pool
+  // above is NOT multimodal). Verified to currently accept image input on
+  // OpenRouter; tried in order before the paid gpt-4o-mini backstop.
+  scanOpenrouterVisionPool: [
+    'google/gemma-4-31b-it:free',          // large, strong general multimodal + world knowledge
+    'nvidia/nemotron-nano-12b-v2-vl:free', // dedicated vision-language model
+  ],
 } as const;
+
+// Shared photo-scan instruction. Used by BOTH the Gemini scan (gemini.ts) and the
+// OpenAI-compatible vision cascade (scan.ts) so every provider returns the same
+// shape. The key change vs the old prompt: when no set number is visible (built
+// sets), the model describes the set by name/theme/year so we can resolve it
+// against the catalog search index instead of needing an exact number.
+export const SCAN_SYSTEM_PROMPT =
+  'You are a LEGO product-identification expert. Identify the LEGO set(s) shown in the image. ' +
+  'If a box or printed set number is visible, return just the digits in set_num (e.g. "75192"). ' +
+  'If it is a built set with no visible number, identify it by its official set name, theme, and ' +
+  'approximate release year instead. Return ONLY raw JSON (no markdown fences) in this shape: ' +
+  '{ "sets": [ { "set_num": string|null, "name": string, "theme": string|null, "year": number|null, ' +
+  '"confidence": "high"|"medium"|"low"|"none", "reasoning": string } ] }. ' +
+  'Use confidence "none" only when you cannot identify any LEGO set.';
 
 const GEMINI_DIRECT = 'https://generativelanguage.googleapis.com';
 

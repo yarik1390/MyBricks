@@ -1,6 +1,6 @@
 import type { Env } from '../types';
 import { fetchTracked, fetchWithRetry } from './http';
-import { MODELS, geminiUrl, gatewayHeaders } from './llm';
+import { MODELS, geminiUrl, gatewayHeaders, SCAN_SYSTEM_PROMPT } from './llm';
 
 // Calls Gemini (MODELS.scan) with a user-supplied Gemini API key (free from Google
 // AI Studio: https://aistudio.google.com/apikey). The free tier gives ~1500
@@ -10,7 +10,10 @@ export async function callGeminiScan(
   imageDataUrl: string,
   apiKey: string,
   env?: Env,
-): Promise<{ sets?: Array<{ set_num: string; name: string; confidence: string; reasoning: string }> } | null> {
+  // routeThroughGateway: true only for SERVER-key callers (the keyless scan
+  // cascade). BYOK callers leave it false to hit Google directly.
+  opts: { routeThroughGateway?: boolean } = {},
+): Promise<{ sets?: Array<{ set_num: string | null; name: string; theme?: string | null; year?: number | null; confidence: string; reasoning: string }> } | null> {
   const match = imageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (!match) return null;
   const [, mimeType, b64data] = match;
@@ -18,9 +21,7 @@ export async function callGeminiScan(
   const body = {
     contents: [{
       parts: [
-        {
-          text: 'You are a LEGO product-identification expert. Identify all the LEGO sets visible in this image. Return ONLY raw JSON (no markdown fences) in this format: { "sets": [ { "set_num": "...", "name": "...", "confidence": "high|medium|low|none", "reasoning": "..." } ] }',
-        },
+        { text: SCAN_SYSTEM_PROMPT },
         { inline_data: { mime_type: mimeType, data: b64data } },
       ],
     }],
@@ -31,14 +32,15 @@ export async function callGeminiScan(
   try {
     const fetcher = env ? fetchTracked.bind(null, env, 'gemini') : fetchWithRetry;
     const resp = await fetcher(
-      // BYOK scan: call Google directly (don't proxy the user's key/image
-      // through our gateway; per-key responses wouldn't share a cache anyway).
-      geminiUrl(MODELS.scan),
+      // Server-key cascade routes through the gateway when configured; BYOK scans
+      // call Google directly (don't proxy the user's key/image through our gateway).
+      geminiUrl(MODELS.scan, { env, routeThroughGateway: opts.routeThroughGateway }),
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-goog-api-key': apiKey,
+          ...(opts.routeThroughGateway ? gatewayHeaders(env) : {}),
         },
         body: JSON.stringify(body),
       },
