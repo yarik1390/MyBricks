@@ -6,6 +6,7 @@ import { BARCODE_PAGE_SIZE } from '../lib/brickset';
 import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
 import { getQuotaUsage } from '../lib/api-quota';
+import { getAiUsageReport } from '../lib/ai-usage';
 import { isEbayAccessError } from '../lib/ebay';
 import { rebuildSearchIndex } from '../lib/search-index';
 import type { Env, Variables } from '../types';
@@ -835,16 +836,18 @@ app.get('/import-status', async (c) => {
 });
 
 app.get('/integrations', async (c) => {
-  const [integrations, coverage, quota] = await Promise.all([
+  const [integrations, coverage, quota, ai_usage] = await Promise.all([
     getIntegrationDiagnostics(c.env),
     getDataCoverage(c.env),
     getQuotaUsage(c.env),
+    getAiUsageReport(c.env),
   ]);
   const url = new URL(c.req.url);
   return c.json({
     integrations,
     coverage,
     quota,
+    ai_usage,
     api_routing: {
       worker_base_url: url.origin,
       config_endpoint: `${url.origin}/api/config`,

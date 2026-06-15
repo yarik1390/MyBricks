@@ -31,6 +31,7 @@ import {
   setIntegrationBlock,
   type IntegrationName,
 } from '../lib/integration-health';
+import { createAiUsageAccumulator, flushAiUsage, getAiSpendStatus } from '../lib/ai-usage';
 
 export interface ValuateSetsOptions {
   scope?: 'owned' | 'all';
@@ -70,6 +71,9 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     health[s].fail++;
     health[s].lastError = (e as Error)?.message || String(e);
   };
+  // Per-run AI usage/cost accumulator (server-key calls only); flushed once at the
+  // end into the daily ai_usage ledger that powers the admin panel + spend alerts.
+  const aiUsage = createAiUsageAccumulator();
   const scope = options.scope ?? 'owned';
   const sourceOptions = {
     recordHealth: false,
@@ -188,7 +192,9 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       // so a single churned/unavailable free model never forces a paid call.
       for (const model of MODELS.openrouterFreePool) {
         try {
-          const v = parseAiVals((await ask(openrouter, model)).choices[0]?.message?.content);
+          const completion = await ask(openrouter, model);
+          aiUsage.record('openrouter', model, completion.usage);
+          const v = parseAiVals(completion.choices[0]?.message?.content);
           if (v) { tallyOk('openrouter'); return v; }
           console.warn(`[valuate] ${s.set_num}: OpenRouter free model ${model} returned no usable JSON — trying next`);
         } catch (e) {
@@ -197,14 +203,18 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       }
       // Every free model missed — escalate to the cheap paid backstop.
       try {
-        const v = parseAiVals((await ask(openrouter, MODELS.openrouterPaid)).choices[0]?.message?.content);
+        const completion = await ask(openrouter, MODELS.openrouterPaid);
+        aiUsage.record('openrouter', MODELS.openrouterPaid, completion.usage);
+        const v = parseAiVals(completion.choices[0]?.message?.content);
         tallyOk('openrouter');
         return v;
       } catch (e) { tallyFail('openrouter', e); return null; }
     }
     if (openai) {
       try {
-        const v = parseAiVals((await ask(openai, MODELS.openaiFallback)).choices[0]?.message?.content);
+        const completion = await ask(openai, MODELS.openaiFallback);
+        aiUsage.record('openai', MODELS.openaiFallback, completion.usage);
+        const v = parseAiVals(completion.choices[0]?.message?.content);
         tallyOk('openai');
         return v;
       } catch (e) { tallyFail('openai', e); return null; }
@@ -475,6 +485,8 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     if (env.GEMINI_API_KEY) {
       try {
         const gemVals = await callGeminiValuation(set.set_num as string, set.name, env.GEMINI_API_KEY, env, { routeThroughGateway: true });
+        // Count the completed server Gemini call (free tier → $0 billable cost).
+        aiUsage.record('gemini', MODELS.valuation, null);
         if (gemVals?.current_value) {
           if (isPlausibleMarketValue(gemVals.current_value, { retailPrice: set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value, blPricing?.current_value] })) {
             await env.DB.prepare(`
@@ -562,6 +574,17 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   // Persist aggregated external-API health (one row per service per run).
   for (const [service, t] of Object.entries(health)) {
     await recordIntegrationHealth(env, service as IntegrationName, t);
+  }
+
+  // Persist this run's server-key AI usage into the daily ledger, then emit an
+  // anomaly log if today's spend crossed the warn/over threshold (the weekly
+  // Pricing Sentinel + admin AI-usage panel surface the same status).
+  await flushAiUsage(env, aiUsage.entries());
+  if (aiUsage.entries().length) {
+    const spend = await getAiSpendStatus(env);
+    if (spend.status !== 'ok') {
+      console.warn(`[ai-usage] DAILY AI SPEND ${spend.status.toUpperCase()}: $${spend.total_usd.toFixed(4)} of $${spend.budget_usd}/day (${spend.pct}%) — ${spend.paid_calls} paid call(s) today`);
+    }
   }
 
   return { processed: results.length, updated, market, ai, scope, limit };

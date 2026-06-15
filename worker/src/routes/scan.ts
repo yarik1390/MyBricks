@@ -6,6 +6,7 @@ import { enrichSetRecord } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { logEvent } from '../lib/analytics';
 import { MODELS, openAIServerBaseURL, gatewayHeaders } from '../lib/llm';
+import { recordAiUsage } from '../lib/ai-usage';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -163,6 +164,9 @@ app.post('/identify', async (c) => {
     });
     res = JSON.parse(result.choices[0].message.content!.trim());
     await recordIntegrationAttempt(c.env, 'openai', true);
+    // Track only the SHARED server-key scan in the AI-usage ledger; BYOK scans
+    // bill to the user's own key and are intentionally excluded.
+    if (!openaiKey) await recordAiUsage(c.env, 'openai', MODELS.openaiFallback, result.usage);
   } catch (e) {
     await recordIntegrationAttempt(c.env, 'openai', false, e);
     console.warn('[scan] OpenAI identification failed:', (e as Error).message);

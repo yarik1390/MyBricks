@@ -525,6 +525,46 @@ async function updateIntegrationsHealth() {
         </div>
         <div class="u-fs-2xs u-mute" style="line-height:1.4;margin-top:8px;">${escapeHtml(blendNote)}</div>
       </div>` : "";
+    // AI spend (server-key only) — Phase 3 #3/#4. The $1/day AI Gateway cap is the
+    // ceiling; BYOK calls don't count. Status warns at 50% of the daily budget.
+    const ai = data.ai_usage || {};
+    const spend = ai.spend || {};
+    const aiByModel = Array.isArray(ai.by_model) ? ai.by_model : [];
+    const usd = (v) => {
+      const num = Number(v || 0);
+      return `$${num.toFixed(num >= 1 ? 2 : 4)}`;
+    };
+    const spendDotColor = spend.status === "over" ? "var(--bv-red)"
+      : spend.status === "warn" ? "var(--warn)"
+      : "var(--up)";
+    const spendBadgeClass = spend.status === "over" ? "badge--down"
+      : spend.status === "warn" ? "badge--warn"
+      : "badge--up";
+    const aiModelRows = aiByModel.map(m => [
+      `${m.provider} · ${m.model}`,
+      `${Number(m.calls || 0).toLocaleString()} call${Number(m.calls || 0) === 1 ? "" : "s"} · ${m.free ? "free" : usd(m.cost_usd)}`,
+    ]);
+    const aiUsageNote = "Server-key AI spend only — the $1/day AI Gateway cap is the ceiling. BYOK scans/advisor run on the user's own key and never count here. Free models cost $0; the paid fallback (DeepSeek/gpt-4o-mini) is the backstop. Status warns at 50% of the daily budget.";
+    const aiUsageHTML = `
+      <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
+        <div class="u-between u-gap-3" style="margin-bottom:8px;">
+          <div class="u-mono-label u-fs-2xs">AI spend (today)</div>
+          <span class="badge ${spendBadgeClass}" style="text-transform:uppercase;">${escapeHtml(usd(spend.total_usd))} / ${escapeHtml(usd(spend.budget_usd || 1))}${spend.pct != null ? ` · ${escapeHtml(String(spend.pct))}%` : ""}</span>
+        </div>
+        <div class="u-fs-xs u-mute" style="margin-bottom:8px;">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${spendDotColor};margin-right:6px;"></span>
+          ${Number(spend.free_calls || 0).toLocaleString()} free call${Number(spend.free_calls || 0) === 1 ? "" : "s"} · ${Number(spend.paid_calls || 0).toLocaleString()} paid call${Number(spend.paid_calls || 0) === 1 ? "" : "s"} today
+        </div>
+        ${aiModelRows.length ? `<div class="adm-cov-grid">
+          ${aiModelRows.map(([label, value]) => `
+            <div class="adm-cov-cell">
+              <div class="adm-cov-lbl">${escapeHtml(label)}</div>
+              <div class="adm-cov-val">${escapeHtml(value)}</div>
+            </div>
+          `).join("")}
+        </div>` : `<div class="u-fs-xs u-mute">No server-key AI calls recorded today.</div>`}
+        <div class="u-fs-2xs u-mute" style="line-height:1.4;margin-top:8px;">${escapeHtml(aiUsageNote)}</div>
+      </div>`;
     const integrationsHTML = rows.map(r => {
       const standbyFallback = isBrickOwlStandby(r);
       const color = standbyFallback ? statusColor("unknown") : statusColor(r.status);
@@ -564,7 +604,7 @@ async function updateIntegrationsHealth() {
         </div>
       `;
     }).join("");
-    container.innerHTML = routingHTML + coverageHTML + blendHTML + (integrationsHTML || `<div class="u-mute">No integration diagnostics available.</div>`);
+    container.innerHTML = routingHTML + coverageHTML + blendHTML + aiUsageHTML + (integrationsHTML || `<div class="u-mute">No integration diagnostics available.</div>`);
   } catch (err) {
     container.innerHTML = `<div style="color:var(--bv-red);">Failed to load integrations: ${escapeHtml(err.message)}</div>`;
   }
