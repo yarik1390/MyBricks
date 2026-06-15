@@ -27,12 +27,18 @@ export const MODELS = {
   valuation: 'gemini-2.5-flash-lite',
   listing: 'gemini-2.5-flash-lite',
   openaiFallback: 'gpt-4o-mini',
-  // OpenRouter cheap valuation fallback: a pinned capable FREE model first
-  // (good instruction-following + JSON via response_format), then escalate to a
-  // cheap PAID model app-side (a 200-with-empty doesn't trigger OpenRouter's own
-  // models[] fallback, so the cron escalates itself). Free model availability can
-  // churn; the paid escalation is the reliability backstop.
-  openrouterFree: 'nvidia/nemotron-3-super-120b-a12b:free',
+  // OpenRouter cheap valuation fallback. Resilience model: try an ORDERED POOL of
+  // capable FREE models (each verified to currently exist on OpenRouter), falling
+  // through to the next on error/empty/unparseable, then escalate to a cheap PAID
+  // model app-side as the reliability backstop. A 200-with-empty does NOT trigger
+  // OpenRouter's own models[] fallback, so the cron iterates the pool itself. Free
+  // availability churns; any one working free model keeps us at $0, and the paid
+  // backstop guarantees a result — cheap without sacrificing reliability.
+  openrouterFreePool: [
+    'nvidia/nemotron-3-super-120b-a12b:free', // verified: clean JSON, strong instruction-following
+    'meta-llama/llama-3.3-70b-instruct:free', // very reliable general instruct, solid JSON adherence
+    'openai/gpt-oss-120b:free',               // strong open reasoning model, good JSON adherence
+  ],
   openrouterPaid: 'deepseek/deepseek-chat',
 } as const;
 

@@ -184,13 +184,18 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       model, max_tokens: 600, response_format: { type: 'json_object' }, messages: aiMessages(s),
     });
     if (openrouter) {
-      try {
-        const v = parseAiVals((await ask(openrouter, MODELS.openrouterFree)).choices[0]?.message?.content);
-        if (v) { tallyOk('openrouter'); return v; }
-        console.warn(`[valuate] ${s.set_num}: OpenRouter free model returned no usable JSON — escalating to paid`);
-      } catch (e) {
-        console.warn(`[valuate] ${s.set_num}: OpenRouter free model failed (${(e as Error).message}) — escalating to paid`);
+      // Try each pinned free model in order; fall through on error/empty/unparseable
+      // so a single churned/unavailable free model never forces a paid call.
+      for (const model of MODELS.openrouterFreePool) {
+        try {
+          const v = parseAiVals((await ask(openrouter, model)).choices[0]?.message?.content);
+          if (v) { tallyOk('openrouter'); return v; }
+          console.warn(`[valuate] ${s.set_num}: OpenRouter free model ${model} returned no usable JSON — trying next`);
+        } catch (e) {
+          console.warn(`[valuate] ${s.set_num}: OpenRouter free model ${model} failed (${(e as Error).message}) — trying next`);
+        }
       }
+      // Every free model missed — escalate to the cheap paid backstop.
       try {
         const v = parseAiVals((await ask(openrouter, MODELS.openrouterPaid)).choices[0]?.message?.content);
         tallyOk('openrouter');
