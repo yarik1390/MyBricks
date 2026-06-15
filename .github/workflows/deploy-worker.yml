@@ -339,6 +339,7 @@ jobs:
           [ -n "${{ secrets.VAPID_PUBLIC_KEY }}" ]         && put VAPID_PUBLIC_KEY         "${{ secrets.VAPID_PUBLIC_KEY }}"         || true
           [ -n "${{ secrets.VAPID_PRIVATE_KEY }}" ]        && put VAPID_PRIVATE_KEY        "${{ secrets.VAPID_PRIVATE_KEY }}"        || true
           [ -n "${{ secrets.VAPID_SUBJECT }}" ]            && put VAPID_SUBJECT            "${{ secrets.VAPID_SUBJECT }}"            || true
+          [ -n "${{ secrets.TURNSTILE_SECRET_KEY }}" ]     && put TURNSTILE_SECRET_KEY      "${{ secrets.TURNSTILE_SECRET_KEY }}"    || true
 
       - name: Inject Worker URL into Pages env.js
         run: |
