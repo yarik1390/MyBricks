@@ -170,13 +170,11 @@ async function imageBitmapFromDataUrl(dataUrl) {
 }
 
 // --- Turnstile (bot protection for shared server-key scans) ----------------
-// Lazy-loaded, invisible, execute-on-demand widget. Only used when the server
-// advertises a site key (state.config.turnstile_site_key) AND the user has no
-// BYOK key. A single hidden widget is reused; each call resolves the next token.
+// Lazy-loaded invisible widget. Only used when the server advertises a site key
+// (state.config.turnstile_site_key) AND the user has no BYOK key. A fresh widget
+// is rendered per token request into a RENDERABLE off-screen host (Turnstile will
+// NOT execute inside a display:none element), auto-runs on render, then cleans up.
 let _tsReady = null;
-let _tsWidgetId = null;
-let _tsPending = null; // resolver (`finish`) for the in-flight execute, or null
-function _tsResolve(token) { if (_tsPending) { const r = _tsPending; _tsPending = null; r(token); } }
 function loadTurnstileScript() {
   if (_tsReady) return _tsReady;
   _tsReady = new Promise((resolve, reject) => {
@@ -198,24 +196,38 @@ async function getTurnstileToken() {
     if (!window.turnstile) return null;
     return await new Promise((resolve) => {
       let done = false;
-      const finish = (tok) => { if (done) return; done = true; clearTimeout(timer); resolve(tok || null); };
-      // Safety timeout: a stuck challenge must never hang the scan.
-      const timer = setTimeout(() => finish(null), 8000);
-      _tsPending = finish; // widget callbacks settle THIS request via _tsResolve
-      if (_tsWidgetId == null) {
-        const host = document.createElement("div");
-        host.style.display = "none";
-        document.body.appendChild(host);
-        _tsWidgetId = window.turnstile.render(host, {
+      let widgetId = null;
+      // Off-screen but RENDERABLE (not display:none) — a 0×0 fixed host. If an
+      // interactive challenge is ever needed, Turnstile shows its own managed
+      // overlay independent of this host.
+      const host = document.createElement("div");
+      host.style.cssText = "position:fixed;left:-9999px;bottom:0;width:0;height:0;overflow:hidden;";
+      document.body.appendChild(host);
+      const cleanup = () => {
+        try { if (widgetId != null) window.turnstile.remove(widgetId); } catch {}
+        try { host.remove(); } catch {}
+      };
+      const finish = (tok) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        cleanup();
+        resolve(tok || null);
+      };
+      // Safety timeout: a stuck/blocked challenge must never hang the scan.
+      const timer = setTimeout(() => finish(null), 9000);
+      try {
+        widgetId = window.turnstile.render(host, {
           sitekey: siteKey,
-          size: "invisible",
-          execution: "execute",
-          callback: (tok) => _tsResolve(tok),
-          "error-callback": () => _tsResolve(null),
-          "timeout-callback": () => _tsResolve(null),
+          size: "invisible", // auto-executes on render; token arrives via callback
+          callback: (tok) => finish(tok),
+          "error-callback": () => finish(null),
+          "timeout-callback": () => finish(null),
+          "expired-callback": () => finish(null),
         });
+      } catch {
+        finish(null);
       }
-      try { window.turnstile.execute(_tsWidgetId); } catch { _tsResolve(null); }
     });
   } catch {
     return null;
