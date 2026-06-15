@@ -392,13 +392,14 @@ function showScanResult(res) {
     return;
   }
   const sets = res.sets || (res.set ? [res.set] : []);
-  if (!sets.length) {
+  const minifigs = res.minifigs || [];
+  if (!sets.length && !minifigs.length) {
     el.innerHTML = `
       <div class="scan-result-head">
         <span class="badge miss">${I.close()}NO MATCH</span>
-        <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">No sets found</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">Nothing found</span>
       </div>
-      <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">Matched sets were not found in local catalog.</p>
+      <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">Matches weren't found in the local catalog.</p>
       <button class="btn-secondary" id="scanRetry">Try again</button>`;
     $("#scanRetry")?.addEventListener("click", () => {
       el.classList.remove("show");
@@ -417,25 +418,48 @@ function showScanResult(res) {
       <span class="badge">${I.check()}MATCH</span>
       <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${escapeHtml(res.confidence || "high")} confidence</span>
     </div>`;
-  let listHTML = `<div style="display:flex;flex-direction:column;gap:10px;margin:8px 0 16px;max-height:40vh;overflow-y:auto;padding-right:4px;">`;
-  sets.forEach((set, idx) => {
-    const h = setHue(set);
-    const hasImg = set.image_url && !set.image_url.startsWith("data:");
-    listHTML += `
-      <div class="scan-result-row" style="align-items:center;background:var(--surface-2);padding:8px;border-radius:var(--r-2);border:1.5px solid var(--line-soft);margin-bottom:6px;">
-        <input type="checkbox" class="scan-select-check" data-setnum="${escapeHtml(set.set_num)}" data-idx="${idx}" checked style="width:18px;height:18px;margin-right:10px;cursor:pointer;">
-        <div class="si${hasImg ? " has-photo" : ""}" style="width:48px;height:48px;border-radius:var(--r-1);background:linear-gradient(135deg, var(--surface-2), var(--surface-3));flex-shrink:0;position:relative;">
-          <div class="brick-tile" style="--h:${h};width:100%;height:100%;border-radius:var(--r-1);"></div>
-          ${hasImg ? `<img src="${escapeHtml(set.image_url)}" alt="" style="position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);object-fit:contain;mix-blend-mode:multiply;">` : ""}
-        </div>
-        <div class="sx" style="margin-left:10px;flex:1;min-width:0;text-align:left;">
-          <div class="sx-name" style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(set.name)}</div>
-          <div class="sx-meta" style="font-size:10px;color:var(--ink-mute);">${escapeHtml(set.theme||"")} · #${escapeHtml(set.set_num)}</div>
-          <div class="sx-val" style="font-weight:600;font-size:12px;color:var(--up);">${fmtMoney(set.current_value)}</div>
-        </div>
-      </div>`;
-  });
-  listHTML += `</div>`;
+  let listHTML = "";
+  if (sets.length) {
+    listHTML += `<div style="display:flex;flex-direction:column;gap:10px;margin:8px 0 16px;max-height:40vh;overflow-y:auto;padding-right:4px;">`;
+    sets.forEach((set, idx) => {
+      const h = setHue(set);
+      const hasImg = set.image_url && !set.image_url.startsWith("data:");
+      listHTML += `
+        <div class="scan-result-row" style="align-items:center;background:var(--surface-2);padding:8px;border-radius:var(--r-2);border:1.5px solid var(--line-soft);margin-bottom:6px;">
+          <input type="checkbox" class="scan-select-check" data-setnum="${escapeHtml(set.set_num)}" data-idx="${idx}" checked style="width:18px;height:18px;margin-right:10px;cursor:pointer;">
+          <div class="si${hasImg ? " has-photo" : ""}" style="width:48px;height:48px;border-radius:var(--r-1);background:linear-gradient(135deg, var(--surface-2), var(--surface-3));flex-shrink:0;position:relative;">
+            <div class="brick-tile" style="--h:${h};width:100%;height:100%;border-radius:var(--r-1);"></div>
+            ${hasImg ? `<img src="${escapeHtml(set.image_url)}" alt="" style="position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);object-fit:contain;mix-blend-mode:multiply;">` : ""}
+          </div>
+          <div class="sx" style="margin-left:10px;flex:1;min-width:0;text-align:left;">
+            <div class="sx-name" style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(set.name)}</div>
+            <div class="sx-meta" style="font-size:10px;color:var(--ink-mute);">${escapeHtml(set.theme||"")} · #${escapeHtml(set.set_num)}</div>
+            <div class="sx-val" style="font-weight:600;font-size:12px;color:var(--up);">${fmtMoney(set.current_value)}</div>
+          </div>
+        </div>`;
+    });
+    listHTML += `</div>`;
+  }
+  if (minifigs.length) {
+    listHTML += `<div style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;margin:2px 0 6px;">Minifigures</div>`;
+    listHTML += `<div style="display:flex;flex-direction:column;gap:10px;margin:0 0 16px;max-height:40vh;overflow-y:auto;padding-right:4px;">`;
+    minifigs.forEach((fig, idx) => {
+      const hasImg = fig.image_url && !String(fig.image_url).startsWith("data:");
+      listHTML += `
+        <div class="scan-result-row" style="align-items:center;background:var(--surface-2);padding:8px;border-radius:var(--r-2);border:1.5px solid var(--line-soft);margin-bottom:6px;">
+          <input type="checkbox" class="scan-fig-check" data-fignum="${escapeHtml(fig.fig_num)}" data-idx="${idx}" checked style="width:18px;height:18px;margin-right:10px;cursor:pointer;">
+          <div class="si${hasImg ? " has-photo" : ""}" style="width:48px;height:48px;border-radius:var(--r-1);background:linear-gradient(135deg, var(--surface-2), var(--surface-3));flex-shrink:0;position:relative;">
+            ${hasImg ? `<img src="${escapeHtml(fig.image_url)}" alt="" style="position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);object-fit:contain;">` : ""}
+          </div>
+          <div class="sx" style="margin-left:10px;flex:1;min-width:0;text-align:left;">
+            <div class="sx-name" style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(fig.name)}</div>
+            <div class="sx-meta" style="font-size:10px;color:var(--ink-mute);">minifig${fig.series ? " · " + escapeHtml(fig.series) : fig.rarity ? " · " + escapeHtml(fig.rarity) : ""}</div>
+            ${fig.current_value != null ? `<div class="sx-val" style="font-weight:600;font-size:12px;color:var(--up);">${fmtMoney(fig.current_value)}</div>` : ""}
+          </div>
+        </div>`;
+    });
+    listHTML += `</div>`;
+  }
 
   let dealHTML = "";
   if (sets.length === 1) {
@@ -448,7 +472,7 @@ function showScanResult(res) {
 
   let actionsHTML = `
     <div class="btn-row" style="margin-top:12px;">
-      <button class="btn-secondary" id="scanDetails" ${sets.length > 1 ? 'disabled style="opacity:0.5;"' : ""}>Details</button>
+      <button class="btn-secondary" id="scanDetails" ${sets.length !== 1 ? 'disabled style="opacity:0.5;"' : ""}>Details</button>
       <button class="btn-primary" id="scanAdd">${I.plus()}<span>Add selected</span></button>
     </div>`;
   el.innerHTML = headHTML + listHTML + dealHTML + actionsHTML;
@@ -477,7 +501,8 @@ function showScanResult(res) {
   $("#scanAdd")?.addEventListener("click", async () => {
     haptic("heavy");
     const checkedBoxes = $$(".scan-select-check:checked");
-    if (!checkedBoxes.length) { toast("No sets selected", "info"); return; }
+    const checkedFigs = $$(".scan-fig-check:checked");
+    if (!checkedBoxes.length && !checkedFigs.length) { toast("Nothing selected", "info"); return; }
     setBtnLoading($("#scanAdd"), true);
     let addedCount = 0;
     for (const box of checkedBoxes) {
@@ -495,10 +520,26 @@ function showScanResult(res) {
         }
       }
     }
+    for (const box of checkedFigs) {
+      const fignum = box.dataset.fignum;
+      const targetFig = minifigs[parseInt(box.dataset.idx, 10)];
+      const path = `/api/minifigs/${encodeURIComponent(fignum)}`;
+      try {
+        await api(path, { method: "PUT", body: { quantity: 1 } });
+        addedCount++;
+      } catch (e) {
+        if (!navigator.onLine) {
+          outboxEnqueue({ path, method: 'PUT', body: { quantity: 1 } });
+          addedCount++;
+        } else {
+          toast(`Failed to add ${targetFig?.name || "minifig"}: ${e.message}`, "error");
+        }
+      }
+    }
     invalidatePortfolio(); state.catalog.items = [];
     closeScan();
     if (addedCount > 0) {
-      toast(navigator.onLine ? `Added ${addedCount} sets to vault` : `Saved ${addedCount} offline — will sync`, "success");
+      toast(navigator.onLine ? `Added ${addedCount} item${addedCount === 1 ? "" : "s"} to vault` : `Saved ${addedCount} offline — will sync`, "success");
     }
     location.hash = "#/";
   });
