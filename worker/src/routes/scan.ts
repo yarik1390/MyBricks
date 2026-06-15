@@ -226,4 +226,27 @@ app.post('/identify', async (c) => {
   return c.json({ identified: true, sets: matchedSets, confidence: topConfidence, reasoning, model: MODELS.openaiFallback });
 });
 
+// TEMP DIAGNOSTIC (remove after Turnstile debugging). Tests the configured
+// secret against siteverify with a dummy token — never exposes the secret value.
+// Reading the returned error code tells us the failure mode:
+//   invalid-input-response  -> the SECRET is VALID; only the token was bad
+//                              (so the real issue is client-side: no/stale token)
+//   invalid-input-secret    -> the configured secret does NOT match the widget
+app.get('/turnstile-check', async (c) => {
+  const configured = !!c.env.TURNSTILE_SECRET_KEY;
+  if (!configured) return c.json({ configured });
+  try {
+    const body = new URLSearchParams({ secret: c.env.TURNSTILE_SECRET_KEY, response: 'dummy' });
+    const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    const data = await resp.json() as { success?: boolean; 'error-codes'?: string[] };
+    return c.json({ configured, http: resp.status, success: data.success, error_codes: data['error-codes'] || [] });
+  } catch (e) {
+    return c.json({ configured, error: (e as Error).message });
+  }
+});
+
 export { app as scanRoute };
