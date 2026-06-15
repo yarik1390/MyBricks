@@ -11,10 +11,64 @@ const authUnavailableMsg = () => state.configError
   ? "Can't reach the server — an ad-blocker or privacy extension may be blocking it. Disable it for this site, or try another browser."
   : "Auth not configured";
 
+// Cloudflare Turnstile script loader (shared across repaints; loads once).
+let _tsScriptReady = null;
+function ensureTurnstileScript() {
+  if (_tsScriptReady) return _tsScriptReady;
+  _tsScriptReady = new Promise((resolve, reject) => {
+    if (window.turnstile) return resolve();
+    const s = document.createElement("script");
+    s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+    s.async = true; s.defer = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("Turnstile failed to load"));
+    document.head.appendChild(s);
+  });
+  return _tsScriptReady;
+}
+
 export function renderLogin() {
   let mode = "signin";
   const nav = document.getElementById("nav");
   if (nav) nav.style.display = "none";
+
+  // Turnstile bot protection on the login form. Opt-in: only when the server
+  // advertises a site key (/api/config). The token is passed to GoTrue and is
+  // ignored unless Supabase CAPTCHA protection is enabled, so logins keep
+  // working until that's switched on.
+  const siteKey = state.config && state.config.turnstile_site_key;
+  let captchaToken = null;
+  let tsWidgetId = null;
+  async function mountTurnstile() {
+    if (!siteKey) return;
+    const host = document.getElementById("authTurnstile");
+    if (!host) return;
+    try {
+      await ensureTurnstileScript();
+      if (!window.turnstile) return;
+      captchaToken = null;
+      tsWidgetId = window.turnstile.render(host, {
+        sitekey: siteKey,
+        callback: (tok) => { captchaToken = tok; },
+        "expired-callback": () => { captchaToken = null; },
+        "error-callback": () => { captchaToken = null; },
+      });
+    } catch {}
+  }
+  // Current token, briefly waiting for the managed widget to auto-solve.
+  async function awaitCaptcha(maxMs = 6000) {
+    if (!siteKey || captchaToken) return captchaToken;
+    const start = Date.now();
+    while (!captchaToken && Date.now() - start < maxMs) {
+      await new Promise(r => setTimeout(r, 200));
+    }
+    return captchaToken;
+  }
+  // Tokens are single-use — refresh after each auth attempt so a retry works.
+  const resetCaptcha = () => {
+    captchaToken = null;
+    try { if (tsWidgetId != null && window.turnstile) window.turnstile.reset(tsWidgetId); } catch {}
+  };
 
   const paint = () => {
     document.getElementById("root").innerHTML = `
@@ -31,6 +85,7 @@ export function renderLogin() {
             <input type="password" id="authPass" placeholder="Password"
               autocomplete="${mode === "signin" ? "current-password" : "new-password"}"
               style="padding:12px;border:1.5px solid var(--line);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-size:15px;outline:none;font-family:var(--sans);">
+            ${siteKey ? `<div id="authTurnstile" style="display:flex;justify-content:center;margin-top:4px;min-height:65px;"></div>` : ""}
             <button class="btn-primary" id="authSubmit" style="margin-top:4px;">
               <span>${mode === "signin" ? "Sign in" : "Create account"}</span>
             </button>
@@ -72,8 +127,9 @@ export function renderLogin() {
       const email = await promptSheet({ title: "Reset password", label: "Email address", value: prefill, placeholder: "you@example.com", confirmLabel: "Send reset link" });
       if (!email) return;
       try {
-        await sbRecover(email);
+        await sbRecover(email, await awaitCaptcha());
         toast("Reset link sent — check your email", "success");
+        resetCaptcha();
       } catch (e) {
         toast(e.message, "error");
       }
@@ -100,11 +156,12 @@ export function renderLogin() {
       if (errEl) errEl.textContent = "";
       try {
         const guestSnapshot = snapshotGuestVault();
+        const captcha = await awaitCaptcha();
         let session;
         if (mode === "signin") {
-          session = await sbSignIn(email, pass);
+          session = await sbSignIn(email, pass, captcha);
         } else {
-          session = await sbSignUp(email, pass);
+          session = await sbSignUp(email, pass, captcha);
           if (!session.access_token) {
             // Persistent success panel — no disorienting auto-switch.
             setBtnLoading(btn, false);
@@ -133,11 +190,13 @@ export function renderLogin() {
       } catch (e) {
         if (errEl) errEl.textContent = e.message;
         setBtnLoading(btn, false);
+        resetCaptcha(); // single-use token — refresh for the next attempt
       }
     };
 
     document.getElementById("authSubmit")?.addEventListener("click", submit);
     document.getElementById("authPass")?.addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
+    mountTurnstile();
   };
 
   paint();

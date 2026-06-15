@@ -93,11 +93,15 @@ export function saveSession(s, opts = {}) {
   }
 }
 
-export async function sbSignIn(email, password) {
+export async function sbSignIn(email, password, captchaToken) {
+  const body = { email, password };
+  // GoTrue CAPTCHA token — included only when supplied. Supabase ignores it
+  // unless CAPTCHA protection is enabled, so this is safe before activation.
+  if (captchaToken) body.gotrue_meta_security = { captcha_token: captchaToken };
   const r = await fetch(`${_sbUrl}/auth/v1/token?grant_type=password`, {
     method: "POST",
     headers: { "Content-Type": "application/json", apikey: _sbAnonKey },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify(body),
   });
   const d = await r.json();
   if (!r.ok) {
@@ -107,11 +111,13 @@ export async function sbSignIn(email, password) {
   return d;
 }
 
-export async function sbSignUp(email, password) {
+export async function sbSignUp(email, password, captchaToken) {
+  const body = { email, password };
+  if (captchaToken) body.gotrue_meta_security = { captcha_token: captchaToken };
   const r = await fetch(`${_sbUrl}/auth/v1/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json", apikey: _sbAnonKey },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify(body),
   });
   const d = await r.json();
   if (!r.ok || d.error) {
@@ -121,11 +127,13 @@ export async function sbSignUp(email, password) {
   return d;
 }
 
-export async function sbRecover(email) {
+export async function sbRecover(email, captchaToken) {
+  const body = { email };
+  if (captchaToken) body.gotrue_meta_security = { captcha_token: captchaToken };
   const r = await fetch(`${_sbUrl}/auth/v1/recover`, {
     method: "POST",
     headers: { "Content-Type": "application/json", apikey: _sbAnonKey },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify(body),
   });
   if (!r.ok) {
     const d = await r.json().catch(() => ({}));
