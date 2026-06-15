@@ -217,7 +217,7 @@ async function getTurnstileToken() {
         resolve(tok || null);
       };
       // Safety timeout: a stuck/blocked challenge must never hang the scan.
-      const timer = setTimeout(() => finish(null, "timeout"), 9000);
+      const timer = setTimeout(() => finish(null, "timeout"), 12000);
       try {
         widgetId = window.turnstile.render(host, {
           sitekey: siteKey,
@@ -246,7 +246,11 @@ async function cloudScanIdentify(payload, signal) {
   // Shared server-key image scans (no BYOK key) carry a Turnstile token for bot
   // protection when configured; BYOK and barcode scans skip it.
   if (!geminiKey && !openaiKey && payload.mode === 'image') {
-    const token = await getTurnstileToken();
+    let token = await getTurnstileToken();
+    // One retry on a transient miss (occasional invisible-challenge timeout on
+    // rapid successive scans); a genuine config/script failure won't recover, so
+    // only retry the transient outcomes.
+    if (!token && /timeout|empty|error/.test(_tsReason)) token = await getTurnstileToken();
     if (token) extraHeaders['cf-turnstile-token'] = token;
   }
   return api("/api/scan/identify", { method: "POST", body: payload, signal, headers: extraHeaders });
