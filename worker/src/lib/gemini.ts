@@ -13,7 +13,10 @@ export async function callGeminiScan(
   // routeThroughGateway: true only for SERVER-key callers (the keyless scan
   // cascade). BYOK callers leave it false to hit Google directly.
   opts: { routeThroughGateway?: boolean } = {},
-): Promise<{ sets?: Array<{ set_num: string | null; name: string; theme?: string | null; year?: number | null; confidence: string; reasoning: string }> } | null> {
+): Promise<{
+  sets?: Array<{ set_num: string | null; name: string; theme?: string | null; year?: number | null; confidence: string; reasoning: string }>;
+  minifigs?: Array<{ name: string; theme?: string | null; confidence: string; reasoning: string }>;
+} | null> {
   const match = imageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (!match) return null;
   const [, mimeType, b64data] = match;

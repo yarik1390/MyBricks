@@ -55,13 +55,14 @@ export const MODELS = {
 // sets), the model describes the set by name/theme/year so we can resolve it
 // against the catalog search index instead of needing an exact number.
 export const SCAN_SYSTEM_PROMPT =
-  'You are a LEGO product-identification expert. Identify the LEGO set(s) shown in the image. ' +
-  'If a box or printed set number is visible, return just the digits in set_num (e.g. "75192"). ' +
-  'If it is a built set with no visible number, identify it by its official set name, theme, and ' +
-  'approximate release year instead. Return ONLY raw JSON (no markdown fences) in this shape: ' +
-  '{ "sets": [ { "set_num": string|null, "name": string, "theme": string|null, "year": number|null, ' +
-  '"confidence": "high"|"medium"|"low"|"none", "reasoning": string } ] }. ' +
-  'Use confidence "none" only when you cannot identify any LEGO set.';
+  'You are a LEGO product-identification expert. Identify the LEGO set(s) AND any LEGO minifigure(s) shown in the image. ' +
+  'For sets: if a box or printed set number is visible, return just the digits in set_num (e.g. "75192"); ' +
+  'if it is a built set with no visible number, identify it by its official set name, theme, and approximate release year. ' +
+  'For minifigures: identify each by its character or official minifig name (e.g. "Darth Vader", "Hermione Granger") and its theme. ' +
+  'Return ONLY raw JSON (no markdown fences) in this shape: ' +
+  '{ "sets": [ { "set_num": string|null, "name": string, "theme": string|null, "year": number|null, "confidence": "high"|"medium"|"low"|"none", "reasoning": string } ], ' +
+  '"minifigs": [ { "name": string, "theme": string|null, "confidence": "high"|"medium"|"low"|"none", "reasoning": string } ] }. ' +
+  'Use empty arrays when none are present, and confidence "none" when unsure.';
 
 const GEMINI_DIRECT = 'https://generativelanguage.googleapis.com';
 

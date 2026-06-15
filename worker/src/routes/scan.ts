@@ -8,7 +8,7 @@ import { logEvent } from '../lib/analytics';
 import { MODELS, openAIServerBaseURL, openRouterBaseURL, gatewayHeaders, gatewayMetadataHeader, SCAN_SYSTEM_PROMPT } from '../lib/llm';
 import { recordAiUsage } from '../lib/ai-usage';
 import { verifyTurnstileToken } from '../lib/turnstile';
-import { matchSetsToCatalog, type DescribedSet } from '../lib/scan-match';
+import { matchSetsToCatalog, matchMinifigsToCatalog, type DescribedSet, type DescribedMinifig } from '../lib/scan-match';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -43,12 +43,12 @@ async function openaiVisionDescribe(
   client: OpenAI,
   model: string,
   image: string,
-): Promise<{ sets: DescribedSet[]; usage?: { prompt_tokens?: number; completion_tokens?: number } }> {
+): Promise<{ sets: DescribedSet[]; minifigs: DescribedMinifig[]; usage?: { prompt_tokens?: number; completion_tokens?: number } }> {
   const messages: Parameters<typeof client.chat.completions.create>[0]['messages'] = [
     { role: 'system', content: SCAN_SYSTEM_PROMPT },
     { role: 'user', content: [
       { type: 'image_url', image_url: { url: image } },
-      { type: 'text', text: 'Identify the LEGO set(s) in this image.' },
+      { type: 'text', text: 'Identify the LEGO set(s) and minifigure(s) in this image.' },
     ] },
   ];
   const completion = await client.chat.completions.create({
@@ -59,19 +59,21 @@ async function openaiVisionDescribe(
   });
   const text = completion.choices[0]?.message?.content;
   let sets: DescribedSet[] = [];
+  let minifigs: DescribedMinifig[] = [];
   if (text) {
     try {
-      const parsed = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as { sets?: DescribedSet[] };
+      const parsed = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as { sets?: DescribedSet[]; minifigs?: DescribedMinifig[] };
       sets = Array.isArray(parsed?.sets) ? parsed.sets : [];
+      minifigs = Array.isArray(parsed?.minifigs) ? parsed.minifigs : [];
     } catch { /* model returned prose instead of JSON — treat as no result */ }
   }
-  return { sets, usage: completion.usage };
+  return { sets, minifigs, usage: completion.usage };
 }
 
 // Cost-tiered vision cascade for the SHARED (keyless) scan: server Gemini on the
 // free tier first, then OpenRouter free vision models, then the paid gpt-4o-mini
 // backstop. Records each call in the ai_usage ledger + integration health.
-async function describeSharedScan(env: Env, image: string): Promise<{ sets: DescribedSet[]; model: string } | { error: string }> {
+async function describeSharedScan(env: Env, image: string): Promise<{ sets: DescribedSet[]; minifigs: DescribedMinifig[]; model: string } | { error: string }> {
   const meta = { ...gatewayHeaders(env), ...gatewayMetadataHeader({ workload: 'scan-shared' }) };
 
   // 1. Server Gemini (free tier) — routed through the gateway when configured.
@@ -80,7 +82,9 @@ async function describeSharedScan(env: Env, image: string): Promise<{ sets: Desc
       const r = await callGeminiScan(image, env.GEMINI_API_KEY, env, { routeThroughGateway: true });
       await recordAiUsage(env, 'gemini', MODELS.scan, null);
       await recordIntegrationAttempt(env, 'gemini', true);
-      if (r?.sets?.length) return { sets: r.sets as DescribedSet[], model: MODELS.scan };
+      if (r?.sets?.length || r?.minifigs?.length) {
+        return { sets: (r.sets ?? []) as DescribedSet[], minifigs: (r.minifigs ?? []) as DescribedMinifig[], model: MODELS.scan };
+      }
     } catch (e) {
       await recordIntegrationAttempt(env, 'gemini', false, e);
       console.warn('[scan] server Gemini failed:', (e as Error).message);
@@ -92,11 +96,11 @@ async function describeSharedScan(env: Env, image: string): Promise<{ sets: Desc
     const orc = new OpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: openRouterBaseURL(env), defaultHeaders: meta });
     for (const model of MODELS.scanOpenrouterVisionPool) {
       try {
-        const { sets, usage } = await openaiVisionDescribe(orc, model, image);
+        const { sets, minifigs, usage } = await openaiVisionDescribe(orc, model, image);
         await recordAiUsage(env, 'openrouter', model, usage);
-        if (sets.length) {
+        if (sets.length || minifigs.length) {
           await recordIntegrationAttempt(env, 'openrouter', true);
-          return { sets, model };
+          return { sets, minifigs, model };
         }
       } catch (e) {
         console.warn(`[scan] OpenRouter ${model} failed:`, (e as Error).message);
@@ -108,10 +112,10 @@ async function describeSharedScan(env: Env, image: string): Promise<{ sets: Desc
   if (env.OPENAI_API_KEY) {
     const oac = new OpenAI({ apiKey: env.OPENAI_API_KEY, baseURL: openAIServerBaseURL(env), defaultHeaders: meta });
     try {
-      const { sets, usage } = await openaiVisionDescribe(oac, MODELS.openaiFallback, image);
+      const { sets, minifigs, usage } = await openaiVisionDescribe(oac, MODELS.openaiFallback, image);
       await recordAiUsage(env, 'openai', MODELS.openaiFallback, usage);
       await recordIntegrationAttempt(env, 'openai', true);
-      return { sets, model: MODELS.openaiFallback };
+      return { sets, minifigs, model: MODELS.openaiFallback };
     } catch (e) {
       await recordIntegrationAttempt(env, 'openai', false, e);
       console.warn('[scan] OpenAI fallback failed:', (e as Error).message);
@@ -155,11 +159,13 @@ app.post('/identify', async (c) => {
   const NOT_FOUND = "Couldn't confidently identify a set. Try a clearer photo, include the box number, or scan the barcode.";
   // Match AI-described sets to the catalog (exact number, then FTS name search)
   // and shape the response. Shared by every provider path below.
-  const respondMatched = async (described: DescribedSet[], model: string) => {
-    const { sets, topConfidence, reasoning } = await matchSetsToCatalog(c.env, described);
-    if (!sets.length) return c.json({ identified: false, reasoning: NOT_FOUND });
-    logEvent(c.env, 'scan_used', userId, { setNum: String((sets[0] as Record<string, unknown>)?.set_num || '') });
-    return c.json({ identified: true, sets, confidence: topConfidence, reasoning, model });
+  const respondMatched = async (describedSets: DescribedSet[], describedMinifigs: DescribedMinifig[], model: string) => {
+    const setMatch = await matchSetsToCatalog(c.env, describedSets);
+    const figMatch = await matchMinifigsToCatalog(c.env, describedMinifigs);
+    if (!setMatch.sets.length && !figMatch.minifigs.length) return c.json({ identified: false, reasoning: NOT_FOUND });
+    const firstId = String((setMatch.sets[0] as Record<string, unknown>)?.set_num || (figMatch.minifigs[0] as Record<string, unknown>)?.fig_num || '');
+    logEvent(c.env, 'scan_used', userId, { setNum: firstId });
+    return c.json({ identified: true, sets: setMatch.sets, minifigs: figMatch.minifigs, confidence: setMatch.topConfidence, reasoning: setMatch.reasoning, model });
   };
 
   // 1. BYOK Gemini — the user's own key, called directly on their quota.
@@ -168,8 +174,9 @@ app.post('/identify', async (c) => {
     try { res = await callGeminiScan(image, geminiKey, c.env); }
     catch (e) { console.warn('[scan] BYOK Gemini failed:', (e as Error).message); }
     const sets = res?.sets ?? [];
-    if (!sets.length) return c.json({ identified: false, reasoning: NOT_FOUND });
-    return respondMatched(sets as DescribedSet[], MODELS.scan);
+    const minifigs = res?.minifigs ?? [];
+    if (!sets.length && !minifigs.length) return c.json({ identified: false, reasoning: NOT_FOUND });
+    return respondMatched(sets as DescribedSet[], minifigs as DescribedMinifig[], MODELS.scan);
   }
 
   // Shared (server-key) scanning requires sign-in; BYOK OpenAI needs only the key.
@@ -180,11 +187,11 @@ app.post('/identify', async (c) => {
   // 2. BYOK OpenAI — the user's own key, called directly.
   if (openaiKey) {
     const client = new OpenAI({ apiKey: openaiKey });
-    let described: DescribedSet[] = [];
-    try { described = (await openaiVisionDescribe(client, MODELS.openaiFallback, image)).sets; }
+    let described: { sets: DescribedSet[]; minifigs: DescribedMinifig[] } = { sets: [], minifigs: [] };
+    try { described = await openaiVisionDescribe(client, MODELS.openaiFallback, image); }
     catch (e) { return c.json({ identified: false, reasoning: openAIIdentificationMessage(e) }); }
-    if (!described.length) return c.json({ identified: false, reasoning: NOT_FOUND });
-    return respondMatched(described, MODELS.openaiFallback);
+    if (!described.sets.length && !described.minifigs.length) return c.json({ identified: false, reasoning: NOT_FOUND });
+    return respondMatched(described.sets, described.minifigs, MODELS.openaiFallback);
   }
 
   // 3. SHARED keyless path: Turnstile (opt-in) + per-user rate limit + the
@@ -220,8 +227,8 @@ app.post('/identify', async (c) => {
 
   const desc = await describeSharedScan(c.env, image);
   if ('error' in desc) return c.json({ identified: false, reasoning: desc.error });
-  if (!desc.sets.length) return c.json({ identified: false, reasoning: NOT_FOUND });
-  return respondMatched(desc.sets, desc.model);
+  if (!desc.sets.length && !desc.minifigs.length) return c.json({ identified: false, reasoning: NOT_FOUND });
+  return respondMatched(desc.sets, desc.minifigs, desc.model);
 });
 
 // TEMP DIAGNOSTIC (remove after Turnstile debugging). Tests the configured

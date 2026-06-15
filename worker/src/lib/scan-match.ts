@@ -93,3 +93,49 @@ export async function matchSetsToCatalog(env: Env, described: DescribedSet[]): P
 
   return { sets: matched, topConfidence, reasoning };
 }
+
+// AI-described minifigure from any vision provider.
+export interface DescribedMinifig {
+  name?: string | null;
+  theme?: string | null;
+  confidence?: string;
+  reasoning?: string;
+}
+
+// Resolve AI-described minifigures to catalog rows by ANDing the distinctive name
+// tokens against the minifigs table (which has no FTS index). Returns up to a few
+// candidates per description, deduped. Fails soft on query errors.
+export async function matchMinifigsToCatalog(env: Env, described: DescribedMinifig[]): Promise<{ minifigs: Record<string, unknown>[] }> {
+  const candidates = (described || []).filter(m => (m?.confidence ?? 'none') !== 'none');
+  const matched: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+
+  for (const cand of candidates) {
+    const raw = (cand.name ?? '').toString().trim();
+    if (!raw) continue;
+    // Distinctive tokens (drop very short words); cap to keep the LIKE query lean.
+    const tokens = raw.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(t => t.length >= 3).slice(0, 4);
+    if (!tokens.length) continue;
+    const whereLike = tokens.map(() => 'LOWER(m.name) LIKE ?').join(' AND ');
+    const binds = tokens.map(t => `%${t}%`);
+    try {
+      const { results } = await env.DB.prepare(
+        `SELECT m.fig_num, m.name, m.series, m.rarity, m.image_url, m.current_value, m.year
+         FROM minifigs m
+         WHERE ${whereLike}
+         ORDER BY (m.current_value IS NOT NULL) DESC, m.name ASC
+         LIMIT 3`,
+      ).bind(...binds).all<Record<string, unknown>>();
+      for (const r of results) {
+        const fn = String(r.fig_num);
+        if (seen.has(fn)) continue;
+        seen.add(fn);
+        matched.push({ ...r, confidence: cand.confidence, reasoning: cand.reasoning });
+      }
+    } catch (e) {
+      console.warn('[scan-match] minifig lookup failed:', (e as Error).message);
+    }
+  }
+
+  return { minifigs: matched };
+}
