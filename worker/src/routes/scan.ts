@@ -233,19 +233,19 @@ app.post('/identify', async (c) => {
 //                              (so the real issue is client-side: no/stale token)
 //   invalid-input-secret    -> the configured secret does NOT match the widget
 app.get('/turnstile-check', async (c) => {
-  const configured = !!c.env.TURNSTILE_SECRET_KEY;
-  if (!configured) return c.json({ configured });
+  const secret = c.env.TURNSTILE_SECRET_KEY; // local binding so TS narrows to string
+  if (!secret) return c.json({ configured: false });
   try {
-    const body = new URLSearchParams({ secret: c.env.TURNSTILE_SECRET_KEY, response: 'dummy' });
+    const body = new URLSearchParams({ secret, response: 'dummy' });
     const resp = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body,
     });
     const data = await resp.json() as { success?: boolean; 'error-codes'?: string[] };
-    return c.json({ configured, http: resp.status, success: data.success, error_codes: data['error-codes'] || [] });
+    return c.json({ configured: true, http: resp.status, success: data.success, error_codes: data['error-codes'] || [] });
   } catch (e) {
-    return c.json({ configured, error: (e as Error).message });
+    return c.json({ configured: true, error: (e as Error).message });
   }
 });
 
