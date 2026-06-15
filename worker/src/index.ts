@@ -44,7 +44,7 @@ app.use('*', cors({
     return 'https://brickvault-5ub.pages.dev';
   },
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Gemini-Key', 'X-OpenAI-Key'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Gemini-Key', 'X-OpenAI-Key', 'cf-turnstile-token'],
 }));
 
 app.use('*', async (c, next) => {
