@@ -13,6 +13,11 @@
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
     { "src": "/icon.svg", "sizes": "192x192 512x512", "type": "image/svg+xml", "purpose": "maskable" }
   ],
+  "shortcuts": [
+    { "name": "What Can I Build?", "short_name": "Build", "url": "/#/build" },
+    { "name": "Add a set", "short_name": "Add", "url": "/#/add" },
+    { "name": "My Vault", "short_name": "Vault", "url": "/#/" }
+  ],
   "categories": ["lifestyle", "finance"],
   "screenshots": []
 }
