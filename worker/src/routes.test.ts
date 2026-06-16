@@ -180,6 +180,10 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         quantity INTEGER DEFAULT 1, added_at TEXT DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, fig_num)
       )`,
+      `CREATE TABLE set_minifigs (
+        set_num TEXT NOT NULL, fig_num TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 1,
+        fig_name TEXT, fig_img_url TEXT, PRIMARY KEY (set_num, fig_num)
+      )`,
 
       `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
        VALUES ('75192', 'Millennium Falcon', 'Star Wars', 2017, 7541, 849.99, 799.99, 1)`,
@@ -806,6 +810,26 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const res = await app.fetch(new Request('http://localhost/api/minifigs?sort=scarcity', { headers: auth() }), env);
       const data = await res.json<any>();
       expect(data.minifigs.map((f: any) => f.fig_num)).toEqual(['a2', 'a1', 'a3']);
+    });
+
+    it('blindbox resolves a CMF series barcode to its candidate figs', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, upc) VALUES ('71051-0', 'Series 28 - Random Box', 'Collectible Minifigures', '673419419536')`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme) VALUES ('71051-1', 'Peacock Suit', 'Collectible Minifigures')`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme) VALUES ('71051-2', 'Cat Suit', 'Collectible Minifigures')`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme) VALUES ('71051-13', 'Series 28 - Complete - All Sets', 'Collectible Minifigures')`),
+        db.prepare(`INSERT INTO minifigs (fig_num, name, rarity) VALUES ('fig-peacock', 'Peacock Suit', 'rare')`),
+        db.prepare(`INSERT INTO minifigs (fig_num, name, rarity) VALUES ('fig-cat', 'Cat Suit', 'rare')`),
+        db.prepare(`INSERT INTO set_minifigs (set_num, fig_num, quantity) VALUES ('71051-1', 'fig-peacock', 1)`),
+        db.prepare(`INSERT INTO set_minifigs (set_num, fig_num, quantity) VALUES ('71051-2', 'fig-cat', 1)`),
+        // The "Complete" meta-entry also lists a fig — it must be excluded.
+        db.prepare(`INSERT INTO set_minifigs (set_num, fig_num, quantity) VALUES ('71051-13', 'fig-peacock', 1)`),
+      ]);
+      const res = await app.fetch(new Request('http://localhost/api/minifigs/blindbox?code=673419419536'), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.series).toBe('Series 28');
+      expect(data.figs.map((f: any) => f.fig_num).sort()).toEqual(['fig-cat', 'fig-peacock']);
     });
   });
 

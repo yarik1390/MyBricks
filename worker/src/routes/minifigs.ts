@@ -125,6 +125,48 @@ app.get('/series', async (c) => {
   return c.json({ series: res.results });
 });
 
+// GET /api/minifigs/blindbox?code=<upc-or-setnum> — identify a Collectible
+// Minifigures SERIES from a sealed bag/box barcode and list its candidate figs.
+// A blind bag's barcode identifies the series, not the specific sealed fig
+// (that needs the printed bump code), so we return the whole series roster for
+// the user to pick from.
+app.get('/blindbox', async (c) => {
+  const code = (c.req.query('code') || '').trim().replace(/\s+/g, '');
+  if (!code) return c.json({ error: 'Scan or enter a barcode.' }, 400);
+
+  // Resolve the scanned code to a catalog set: by UPC, the set number, or the
+  // first individual-fig set number (some bags carry a fig-level barcode).
+  const set = await c.env.DB.prepare(
+    `SELECT set_num, name, theme FROM lego_sets WHERE upc = ? OR set_num = ? OR set_num = ? LIMIT 1`
+  ).bind(code, code, code + '-1').first<{ set_num: string; name: string; theme: string }>();
+  if (!set) return c.json({ error: "That barcode isn't in the catalog. Try the series number (e.g. 71045)." }, 404);
+  if (String(set.theme) !== 'Collectible Minifigures') {
+    return c.json({ error: `That's "${set.name}" — not a Collectible Minifigures series.` }, 404);
+  }
+
+  const prefix = String(set.set_num).split('-')[0];
+  const figsRes = await c.env.DB.prepare(
+    `SELECT DISTINCT m.fig_num, m.name, m.series, m.rarity, m.image_url, m.current_value, m.year, m.appears_in_sets
+     FROM lego_sets ls
+     JOIN set_minifigs sm ON sm.set_num = ls.set_num
+     JOIN minifigs m ON m.fig_num = sm.fig_num
+     WHERE ls.set_num LIKE ? AND ls.theme = 'Collectible Minifigures'
+       AND ls.name NOT LIKE '%Complete%' AND ls.name NOT LIKE '%Random%'
+       AND ls.name NOT LIKE '%Sealed Box%' AND ls.name NOT LIKE '% Pack%'
+     ORDER BY m.name`
+  ).bind(prefix + '-%').all<Record<string, unknown>>();
+
+  // Clean series label from the box/random entry (which carries "Series N").
+  const seriesRow = await c.env.DB.prepare(
+    `SELECT name FROM lego_sets WHERE set_num LIKE ? AND (name LIKE '%Random%' OR name LIKE '%Complete%' OR name LIKE '%Sealed Box%') ORDER BY set_num LIMIT 1`
+  ).bind(prefix + '-%').first<{ name: string }>();
+  const series = String(seriesRow?.name || set.name)
+    .replace(/\s*-\s*(Random Box|Random Bag|Complete.*|Sealed Box).*$/i, '')
+    .trim();
+
+  return c.json({ series, set_num: set.set_num, figs: figsRes.results });
+});
+
 // PUT /api/minifigs/:fignum — mark owned
 app.put('/:fignum', requireMember, async (c) => {
   const userId = c.get('userId');

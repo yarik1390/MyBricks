@@ -81,11 +81,11 @@ export async function startCamera() {
     const vid = $("#scanVideo");
     if (vid) { vid.srcObject = stream; await vid.play().catch(() => {}); }
 
-    if (state.camera.mode === "barcode" && "BarcodeDetector" in window) {
+    if (state.camera.mode !== "image" && "BarcodeDetector" in window) {
       state.camera.detector = new BarcodeDetector({ formats: ["ean_13","ean_8","upc_a","upc_e","code_128","code_39"] });
       state.camera.scanning = true;
       state.camera.timer = setInterval(scanBarcode, 400);
-    } else if (state.camera.mode === "barcode") {
+    } else if (state.camera.mode !== "image") {
       const hint = $("#scanHint");
       if (hint) hint.textContent = "Live barcode scanning isn't supported on this browser — type the digits instead";
       showManualBarcodeEntry();
@@ -117,8 +117,8 @@ function showManualBarcodeEntry() {
       return;
     }
     haptic("medium");
-    hint.textContent = "Looking up barcode…";
-    sendScanToAPI({ mode: "barcode", barcode: digits });
+    hint.textContent = state.camera.mode === "blindbox" ? "Finding the series…" : "Looking up barcode…";
+    routeScannedCode(digits);
   };
   $("#manualBarcodeGo")?.addEventListener("click", submit);
   $("#manualBarcodeInput")?.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
@@ -136,8 +136,8 @@ async function scanBarcode() {
       haptic("medium");
       const barcode = codes[0].rawValue;
       const hint = $("#scanHint");
-      if (hint) hint.textContent = "Looking up barcode…";
-      sendScanToAPI({ mode: "barcode", barcode });
+      if (hint) hint.textContent = state.camera.mode === "blindbox" ? "Finding the series…" : "Looking up barcode…";
+      routeScannedCode(barcode);
     }
   } catch {}
 }
@@ -343,6 +343,85 @@ async function sendScanToAPI(payload) {
     clearTimeout(tid);
     done();
   }
+}
+
+// Route a scanned/typed barcode to the right handler for the active mode.
+function routeScannedCode(code) {
+  if (state.camera.mode === "blindbox") return sendBlindBoxLookup(code);
+  return sendScanToAPI({ mode: "barcode", barcode: code });
+}
+
+// Blind-box: resolve a Collectible Minifigures bag/box barcode to its series
+// roster, then let the user tap the fig they pulled (adds to their minifigs).
+async function sendBlindBoxLookup(code) {
+  const el = $("#scanResult");
+  if (el) {
+    el.classList.add("show");
+    el.innerHTML = `<div class="scan-loading"><div class="spinner"></div><span>Finding the series…</span></div>`;
+  }
+  try {
+    const res = await api(`/api/minifigs/blindbox?code=${encodeURIComponent(code)}`);
+    showBlindBoxResult(res);
+  } catch (e) {
+    showBlindBoxResult({ error: e.message || "Couldn't look that up." });
+  }
+}
+
+function showBlindBoxResult(res) {
+  const el = $("#scanResult");
+  if (!el) return;
+  el.classList.add("show");
+  if (res.error || !res.figs || !res.figs.length) {
+    el.innerHTML = `
+      <div class="scan-result-head"><span class="badge" style="background:var(--ink-mute);">${I.info()} NO MATCH</span></div>
+      <p style="font-size:13px;color:var(--ink-soft);margin:8px 0 12px;line-height:1.5;">${escapeHtml(res.error || "Couldn't match that barcode to a Collectible Minifigures series. Try the series number (e.g. 71045).")}</p>
+      <div class="btn-row"><button class="btn-secondary" id="bbRetry">Try again</button></div>`;
+    $("#bbRetry")?.addEventListener("click", () => openScan("blindbox"));
+    return;
+  }
+  const figsHTML = res.figs.map(f => {
+    const owned = state.ownedFigs.has(f.fig_num);
+    const hasImg = f.image_url && !String(f.image_url).startsWith("data:");
+    return `
+      <button class="bb-fig" data-fig="${escapeHtml(f.fig_num)}" aria-label="${escapeHtml(f.name)}"
+        style="display:flex;flex-direction:column;align-items:center;gap:5px;background:var(--surface-2);border:1.5px solid ${owned ? "var(--up)" : "var(--line-soft)"};border-radius:var(--r-2);padding:8px 6px;cursor:pointer;">
+        <div style="width:100%;aspect-ratio:1;border-radius:var(--r-1);overflow:hidden;position:relative;background:var(--surface-3);">
+          ${hasImg ? `<img src="${escapeHtml(f.image_url)}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:contain;">` : ""}
+          <span class="bb-check" style="position:absolute;top:3px;right:3px;color:var(--up);display:${owned ? "block" : "none"};">${I.check({ w: 16 })}</span>
+        </div>
+        <div style="font-size:11px;font-weight:600;line-height:1.2;text-align:center;max-height:28px;overflow:hidden;">${escapeHtml(f.name)}</div>
+      </button>`;
+  }).join("");
+  el.innerHTML = `
+    <div class="scan-result-head">
+      <span class="badge">${I.check()} ${escapeHtml(res.series || "Series")}</span>
+      <span style="font-size:11px;color:var(--ink-mute);">${res.figs.length} figs</span>
+    </div>
+    <p style="font-size:12px;color:var(--ink-mute);margin:6px 0 10px;">Tap the minifig you pulled to add it to your collection.</p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:44vh;overflow-y:auto;padding-right:2px;">${figsHTML}</div>
+    <div class="btn-row" style="margin-top:12px;"><button class="btn-secondary" id="bbAnother">Scan another</button></div>`;
+  $("#bbAnother")?.addEventListener("click", () => openScan("blindbox"));
+  el.querySelectorAll(".bb-fig").forEach(btn => btn.addEventListener("click", async () => {
+    const fignum = btn.dataset.fig;
+    const willOwn = !state.ownedFigs.has(fignum);
+    haptic("medium");
+    if (willOwn) state.ownedFigs.add(fignum); else state.ownedFigs.delete(fignum);
+    try { localStorage.setItem("bv_figs", JSON.stringify([...state.ownedFigs])); } catch {}
+    btn.style.borderColor = willOwn ? "var(--up)" : "var(--line-soft)";
+    const chk = btn.querySelector(".bb-check");
+    if (chk) chk.style.display = willOwn ? "block" : "none";
+    try {
+      await api("/api/minifigs/" + encodeURIComponent(fignum), { method: willOwn ? "PUT" : "DELETE" });
+      invalidatePortfolio();
+      toast(willOwn ? "Added to your minifigs" : "Removed", "success");
+    } catch (e) {
+      if (willOwn) state.ownedFigs.delete(fignum); else state.ownedFigs.add(fignum);
+      try { localStorage.setItem("bv_figs", JSON.stringify([...state.ownedFigs])); } catch {}
+      btn.style.borderColor = !willOwn ? "var(--up)" : "var(--line-soft)";
+      if (chk) chk.style.display = !willOwn ? "block" : "none";
+      toast("Couldn't save — try again", "error");
+    }
+  }));
 }
 
 function showScanResult(res) {
@@ -584,12 +663,12 @@ function scanOverlayHTML(mode) {
         </div>
         <div style="width:42px;"></div>
       </div>
-      <div class="scan-frame ${mode === "barcode" ? "barcode" : ""}">
+      <div class="scan-frame ${mode !== "image" ? "barcode" : ""}">
         <span class="corner tl"></span><span class="corner tr"></span>
         <span class="corner bl"></span><span class="corner br"></span>
-        ${mode === "barcode" ? `<span class="laser"></span>` : ""}
+        ${mode !== "image" ? `<span class="laser"></span>` : ""}
       </div>
-      <div class="scan-hint" id="scanHint">${mode === "barcode" ? "Align barcode within the frame" : "Frame the set and tap to identify"}</div>
+      <div class="scan-hint" id="scanHint">${mode === "blindbox" ? "Scan the blind bag or box barcode" : mode === "barcode" ? "Align barcode within the frame" : "Frame the set and tap to identify"}</div>
       ${mode === "image" ? `
         <div class="scan-bottom">
           <button class="btn-secondary scan-gallery-btn" id="scanGalleryBtn">
