@@ -71,7 +71,14 @@ async function _revalidatePortfolio() {
 // (valuation v2), falling back to the formula current_value. Keeps the vault
 // cards, value sort, and analytics consistent with the blended portfolio total
 // the server now returns.
-function pval(x) { return Number(x?.blended_value) || Number(x?.current_value) || 0; }
+function pval(x) {
+  // Used holdings are worth their used-market price; new/sealed keep the v2
+  // blended fair value (falling back to the formula current_value).
+  if (String(x?.condition || '').startsWith('used')) {
+    return Number(marketValueForCondition(x, x.condition)) || Number(x?.blended_value) || Number(x?.current_value) || 0;
+  }
+  return Number(x?.blended_value) || Number(x?.current_value) || 0;
+}
 
 // Filter + sort the vault items according to current state.filter. Pure — no DOM.
 function sortedPortfolioItems() {

@@ -84,7 +84,7 @@ app.get('/', async (c) => {
       s.ebay_new_value, s.ebay_used_value, s.ebay_new_qty, s.ebay_used_qty,
       s.ebay_new_cached_at, s.ebay_used_cached_at, s.ebay_cached_at, s.cached_at,
       s.valuation_method, s.bl_new_value, s.bl_new_qty, s.bl_used_qty,
-      s.bl_cached_at, s.be_cached_at, s.blended_value
+      s.bo_used_value, s.bl_cached_at, s.be_cached_at, s.blended_value
     FROM user_collection uc
     JOIN lego_sets s ON s.set_num = uc.set_num
     WHERE uc.user_id = ? AND uc.deleted_at IS NULL
@@ -146,10 +146,20 @@ app.get('/', async (c) => {
     trends[setNum] = { trend, slope: slopePctPerWeek };
   }
 
+  // Portfolio basis (Approach A): blended fair value where available, else the
+  // formula current_value. Used holdings are valued at their used-market price
+  // (real used comps when present), so condition affects the holding's worth —
+  // mirrors marketValueForCondition() on the front end.
+  const conditionValue = (r: Record<string, unknown>): number => {
+    const base = Number(r.blended_value) || Number(r.current_value) || 0;
+    if (!String(r.condition || '').startsWith('used')) return base;
+    const used = Number(r.ebay_used_value) || Number(r.used_value)
+      || Number(r.bo_used_value) || 0;
+    return used || base;
+  };
+
   const items = results.map(row => {
-    // Portfolio basis (Approach A): blended fair value where available, else the
-    // formula current_value. Drives both per-item ROI and the page total below.
-    const marketVal = Number(row.blended_value) || Number(row.current_value) || 0;
+    const marketVal = conditionValue(row as Record<string, unknown>);
     let annualizedRoi = null;
     if (row.purchased_at && Number(row.purchase_price) > 0 && marketVal > 0) {
       const years = (Date.now() - new Date(row.purchased_at as string).getTime()) / (365.25 * 24 * 3600 * 1000);
@@ -168,7 +178,7 @@ app.get('/', async (c) => {
     } as Record<string, unknown>);
   });
 
-  const totalValue = items.reduce((s, r) => s + (Number(r.blended_value) || Number(r.current_value) || 0) * Number(r.quantity), 0);
+  const totalValue = items.reduce((s, r) => s + conditionValue(r as Record<string, unknown>) * Number(r.quantity), 0);
   const totalPaid  = items.reduce((s, r) => s + (Number(r.purchase_price) || 0) * Number(r.quantity), 0);
   const minifigCount = items.reduce((s, r) => s + (Number(r.minifigs) || 0) * Number(r.quantity), 0);
   const count = items.length;

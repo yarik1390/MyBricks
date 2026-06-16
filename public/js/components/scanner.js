@@ -420,6 +420,13 @@ function showScanResult(res) {
     sets.forEach((set, idx) => {
       const h = setHue(set);
       const hasImg = set.image_url && !set.image_url.startsWith("data:");
+      // Show both new and used market value when they differ (real used data);
+      // otherwise just the single value (formula sets have no separate used price).
+      const newVal = Number(marketValueForCondition(set, 'new')) || 0;
+      const usedVal = Number(marketValueForCondition(set, 'used_good')) || 0;
+      const valLine = (usedVal > 0 && Math.abs(usedVal - newVal) > 0.5)
+        ? `${fmtMoney(newVal)} <span style="color:var(--ink-mute);font-weight:500;">new</span> &nbsp;·&nbsp; ${fmtMoney(usedVal)} <span style="color:var(--ink-mute);font-weight:500;">used</span>`
+        : fmtMoney(newVal);
       listHTML += `
         <div class="scan-result-row" style="align-items:center;background:var(--surface-2);padding:8px;border-radius:var(--r-2);border:1.5px solid var(--line-soft);margin-bottom:6px;">
           <input type="checkbox" class="scan-select-check" data-setnum="${escapeHtml(set.set_num)}" data-idx="${idx}" checked style="width:18px;height:18px;margin-right:10px;cursor:pointer;">
@@ -430,7 +437,7 @@ function showScanResult(res) {
           <div class="sx" style="margin-left:10px;flex:1;min-width:0;text-align:left;">
             <div class="sx-name" style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(set.name)}</div>
             <div class="sx-meta" style="font-size:10px;color:var(--ink-mute);">${escapeHtml(set.theme||"")} · #${escapeHtml(set.set_num)}</div>
-            <div class="sx-val" style="font-weight:600;font-size:12px;color:var(--up);">${fmtMoney(set.current_value)}</div>
+            <div class="sx-val" style="font-weight:600;font-size:12px;color:var(--up);">${valLine}</div>
           </div>
         </div>`;
     });
@@ -466,12 +473,34 @@ function showScanResult(res) {
       </div>`;
   }
 
-  let actionsHTML = `
-    <div class="btn-row" style="margin-top:12px;">
+  // Condition toggle (sets only): adds the selected sets as New or Used, which
+  // records the condition and values the holding at the matching market price.
+  const condToggleHTML = sets.length ? `
+    <div class="scan-cond-row" style="display:flex;align-items:center;gap:8px;margin-top:12px;">
+      <span style="font-size:11px;color:var(--ink-mute);font-family:var(--mono);font-weight:600;letter-spacing:.06em;">CONDITION</span>
+      <div class="scan-cond-seg" style="display:inline-flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;">
+        <button type="button" class="scan-cond-opt" data-cond="new" style="border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;padding:6px 16px;cursor:pointer;">New</button>
+        <button type="button" class="scan-cond-opt" data-cond="used_good" style="border:none;background:transparent;color:var(--ink);font-size:12px;font-weight:700;padding:6px 16px;cursor:pointer;">Used</button>
+      </div>
+    </div>` : "";
+  let actionsHTML = condToggleHTML + `
+    <div class="btn-row" style="margin-top:10px;">
       <button class="btn-secondary" id="scanDetails" ${sets.length !== 1 ? 'disabled style="opacity:0.5;"' : ""}>Details</button>
       <button class="btn-primary" id="scanAdd">${I.plus()}<span>Add selected</span></button>
     </div>`;
   el.innerHTML = headHTML + listHTML + dealHTML + actionsHTML;
+
+  // Condition selection drives the stored condition + the value the set is added at.
+  let scanCondition = 'new';
+  $$(".scan-cond-opt").forEach(btn => btn.addEventListener("click", () => {
+    scanCondition = btn.dataset.cond;
+    haptic("light");
+    $$(".scan-cond-opt").forEach(b => {
+      const on = b.dataset.cond === scanCondition;
+      b.style.background = on ? "var(--accent)" : "transparent";
+      b.style.color = on ? "#fff" : "var(--ink)";
+    });
+  }));
 
   if (sets.length === 1) {
     const dpi = $("#dealPriceInput");
@@ -504,12 +533,14 @@ function showScanResult(res) {
     for (const box of checkedBoxes) {
       const setnum = box.dataset.setnum;
       const targetSet = sets[parseInt(box.dataset.idx, 10)];
+      const condValue = Number(marketValueForCondition(targetSet, scanCondition)) || Number(targetSet.current_value) || null;
+      const body = { set_num: setnum, quantity: 1, condition: scanCondition, purchase_price: condValue };
       try {
-        await api("/api/collection", { method: "POST", body: { set_num: setnum, quantity: 1, purchase_price: targetSet.current_value } });
+        await api("/api/collection", { method: "POST", body });
         addedCount++;
       } catch (e) {
         if (!navigator.onLine) {
-          outboxEnqueue({ path: '/api/collection', method: 'POST', body: { set_num: setnum, quantity: 1, purchase_price: targetSet.current_value } });
+          outboxEnqueue({ path: '/api/collection', method: 'POST', body });
           addedCount++;
         } else {
           toast(`Failed to add ${targetSet.name}: ${e.message}`, "error");
