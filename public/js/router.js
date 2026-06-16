@@ -7,7 +7,7 @@ import { renderMe } from './views/me.js';
 import { renderMeIntegrations } from './views/me-integrations.js';
 import { renderMeData } from './views/me-data.js';
 import { renderMeAdmin } from './views/me-admin.js';
-import { renderPortfolio, renderSetDetail, renderWishlist, renderPublicProfile } from './views/portfolio.js';
+import { renderPortfolio, renderSetDetail, renderWishlist, renderPublicProfile, renderLeaderboard } from './views/portfolio.js';
 import { renderAdd, renderPile } from './views/catalog.js';
 import { renderBlind } from './views/minifigs.js';
 import { hideSheet } from './components/sheet.js';
@@ -86,6 +86,7 @@ async function _routeImpl() {
     else if (hash === "/me/data") await renderMeData();
     else if (hash === "/me/admin") await renderMeAdmin();
     else if (hash === "/wishlist") await renderWishlist();
+    else if (hash === "/leaderboard") await renderLeaderboard();
     else if (hash.startsWith("/set/")) {
       const parts = hash.split("/");
       const setNum = decodeURIComponent(parts[2]);

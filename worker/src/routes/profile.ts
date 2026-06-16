@@ -4,6 +4,42 @@ import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
+// Condition-aware per-holding value (SQL): used holdings are worth their
+// used-market price, everything else the blended fair value (else formula).
+// Mirrors marketValueForCondition() on the front end and conditionValue() in
+// the collection route so a user's vault, public profile, and leaderboard rank
+// all agree.
+const CONDITION_VALUE_SQL = `(CASE WHEN uc.condition LIKE 'used%'
+  THEN COALESCE(NULLIF(ls.ebay_used_value,0), NULLIF(ls.used_value,0), NULLIF(ls.bo_used_value,0), ls.blended_value, ls.current_value)
+  ELSE COALESCE(ls.blended_value, ls.current_value) END)`;
+
+// GET /api/users/leaderboard — public ranking of opted-in collections by value.
+// Opt-in = a public profile that also exposes its value and has a handle.
+app.get('/leaderboard', async (c) => {
+  const res = await c.env.DB.prepare(`
+    SELECT p.handle, p.display_name,
+           CAST(COUNT(uc.set_num) AS INTEGER) AS set_count,
+           COALESCE(SUM(${CONDITION_VALUE_SQL} * uc.quantity), 0) AS total_value
+    FROM user_prefs p
+    JOIN user_collection uc ON uc.user_id = p.user_id AND uc.deleted_at IS NULL
+    JOIN lego_sets ls ON ls.set_num = uc.set_num
+    WHERE p.is_public = 1 AND p.expose_public_value = 1 AND p.handle IS NOT NULL
+    GROUP BY p.user_id
+    HAVING total_value > 0
+    ORDER BY total_value DESC
+    LIMIT 50
+  `).all<{ handle: string; display_name: string | null; set_count: number; total_value: number }>();
+
+  const leaders = (res.results || []).map((r, i) => ({
+    rank: i + 1,
+    handle: r.handle,
+    display_name: r.display_name || r.handle,
+    set_count: r.set_count,
+    total_value: r.total_value,
+  }));
+  return c.json({ leaders });
+});
+
 // GET /api/users/:handle/profile — public, no auth required
 app.get('/:handle/profile', async (c) => {
   const handle = c.req.param('handle');
@@ -19,14 +55,14 @@ app.get('/:handle/profile', async (c) => {
   const [stats, topThemes, showcase] = await Promise.all([
     c.env.DB.prepare(`
       SELECT COUNT(*) as set_count,
-             COALESCE(SUM(COALESCE(ls.blended_value, ls.current_value) * uc.quantity), 0) as total_value
+             COALESCE(SUM(${CONDITION_VALUE_SQL} * uc.quantity), 0) as total_value
       FROM user_collection uc
       JOIN lego_sets ls ON ls.set_num = uc.set_num
       WHERE uc.user_id=? AND uc.deleted_at IS NULL
     `).bind(userId).first<{ set_count: number; total_value: number }>(),
 
     c.env.DB.prepare(`
-      SELECT ls.theme, SUM(COALESCE(ls.blended_value, ls.current_value) * uc.quantity) as value
+      SELECT ls.theme, SUM(${CONDITION_VALUE_SQL} * uc.quantity) as value
       FROM user_collection uc
       JOIN lego_sets ls ON ls.set_num = uc.set_num
       WHERE uc.user_id=? AND uc.deleted_at IS NULL AND ls.theme IS NOT NULL

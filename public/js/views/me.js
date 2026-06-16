@@ -151,6 +151,7 @@ export async function renderMe() {
         ${linkRow("#/me/integrations", "Integrations", "Google Sheets, Discord, Brickset, push alerts, AI keys")}
         ${linkRow("#/me/data", "Data", "Export &amp; import your collection as CSV")}
         ${me.is_admin ? linkRow("#/me/admin", "Admin console", "Catalog imports, jobs, integration health") : ""}
+        ${linkRow("#/leaderboard", "Leaderboard", "Top public collections by value")}
         <div class="setting-row" id="replayTourRow" style="cursor:pointer;">
           <div class="lbl-wrap"><div class="lbl">App tour</div><div class="desc">Replay the quick guided walkthrough.</div></div>
           ${I.chev()}

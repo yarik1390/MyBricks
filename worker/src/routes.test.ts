@@ -402,6 +402,24 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       }), env);
       expect(res.status).toBe(403);
     });
+
+    it('leaderboard ranks opted-in public collections by value, excluding private ones', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO user_prefs (user_id, handle, display_name, is_public, expose_public_value) VALUES (?, 'rich', 'Rich', 1, 1)`).bind(userId),
+        db.prepare(`INSERT INTO user_prefs (user_id, handle, display_name, is_public, expose_public_value) VALUES (?, 'modest', 'Modest', 1, 1)`).bind(otherUserId),
+        db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public, expose_public_value) VALUES ('lb-private', 'hidden', 0, 1)`),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '75192', 2, 'new')`).bind(userId),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '75192', 1, 'new')`).bind(otherUserId),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES ('lb-private', '75192', 9, 'new')`),
+      ]);
+      const res = await app.fetch(new Request('http://localhost/api/users/leaderboard'), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      // 'rich' (2×) outranks 'modest' (1×); the private profile is excluded
+      // despite the highest value.
+      expect(data.leaders.map((l: any) => l.handle)).toEqual(['rich', 'modest']);
+      expect(data.leaders[0].rank).toBe(1);
+    });
   });
 
   describe('Collection export & history', () => {
