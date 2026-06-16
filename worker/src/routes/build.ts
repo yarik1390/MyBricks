@@ -136,7 +136,7 @@ app.get('/', async (c) => {
 
 const MIN_REQ_PARTS = 50;                       // ignore book/gear/promo "sets"
 const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;     // refresh weekly (picks up value/catalog drift)
-const CACHE_VERSION = 'v1';                     // bump to invalidate all caches (e.g. after a set_parts reload)
+const CACHE_VERSION = 'v2';                     // bump to invalidate all caches (e.g. after a set_parts reload)
 
 async function buildFingerprint(parts: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(parts));
@@ -204,6 +204,8 @@ app.get('/sets', async (c) => {
      ),
      cand AS (
        SELECT sp.set_num,
+              COUNT(DISTINCT sp.part_num) AS distinct_parts,
+              MAX(sp.quantity) AS max_part_qty,
               SUM(sp.quantity) AS req_total,
               SUM(MIN(sp.quantity, COALESCE(p.have, 0))) AS have_total
        FROM set_parts sp
@@ -217,6 +219,17 @@ app.get('/sets', async (c) => {
      FROM cand c
      JOIN lego_sets s ON s.set_num = c.set_num
      WHERE c.req_total >= ? AND c.have_total > 0
+       -- Exclude spare-part / brick-pack / assortment 'sets': they are
+       -- trivially 'buildable' but are not real models. Real builds use
+       -- many distinct part molds and aren't dominated by one part.
+       AND c.distinct_parts >= 8
+       AND (c.max_part_qty * 1.0 / c.req_total) < 0.7
+       AND COALESCE(s.theme, '') NOT IN ('Bulk Bricks', 'Service Packs', 'Supplemental', 'Educational and Dacta')
+       AND s.name NOT LIKE 'Extra Bricks%'
+       AND s.name NOT LIKE 'Basic Bricks%'
+       AND s.name NOT LIKE '%Pack of%'
+       AND s.name NOT LIKE '%Assortment%'
+       AND s.name NOT LIKE '%Large Package%'
      ORDER BY (c.have_total >= c.req_total) DESC, pct DESC, c.req_total DESC
      LIMIT ?`;
   const rows = await c.env.DB.prepare(sql)
