@@ -1,147 +1,212 @@
 import { $, $$, escapeHtml, haptic, toast, debounce, SEARCH_DEBOUNCE_MS } from '../utils.js';
 import { api } from '../api.js';
-import { I } from '../icons.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
 
-// "What Can I Build?" — alternate builds (MOCs) you can make from the parts in
-// the sets you already own, sourced from Rebrickable. You own each set complete,
-// so every alternate is buildable; we link out to the free instructions.
+// "What Can I Build?" has two tabs:
+//  - Buildable sets: official sets you can build from the COMBINED parts of the
+//    sets you own, with completion % and "Need N" (powered by set_parts).
+//  - Alternate builds: Rebrickable MOC alternates of a single owned set, with
+//    free instructions.
 
-const PAGE = 50;
-let _state = {
-  builds: [], total: 0, can_build: 0, sets_with_alts: 0, owned_sets: 0,
-  indexing: 0, offset: 0, hasMore: false, q: '', loading: false,
-};
+let _mode = 'sets';   // 'sets' | 'alts'
+let _q = '';
+const _sets = { loaded: false, loading: false, builds: [], can_build: 0, near: 0, owned_sets: 0, parts_sets: 0 };
+const _alts = { loaded: false, loading: false, builds: [], can_build: 0, sets_with_alts: 0, owned_sets: 0, indexing: 0 };
 
 const STYLE = `<style>
 .build-view{padding:0 5% 96px;max-width:680px;margin:0 auto}
 .build-header{display:flex;align-items:center;gap:8px;padding:14px 0 2px}
 .build-header h1{font-size:1.4rem;margin:0}
-.build-intro{opacity:.68;font-size:.84rem;line-height:1.45;margin:.4rem 0 1rem}
-.build-tiles{display:flex;gap:12px;margin-bottom:14px}
-.build-tile{flex:1;background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.16);border-radius:14px;padding:14px}
-.build-tile-n{font-size:1.7rem;font-weight:700;line-height:1}
-.build-tile-l{font-size:.73rem;opacity:.65;margin-top:5px}
-.build-search{width:100%;box-sizing:border-box;padding:11px 14px;border-radius:12px;border:1px solid rgba(127,127,127,.22);background:rgba(127,127,127,.06);color:inherit;font-size:.95rem;margin-bottom:12px}
-.build-indexing{font-size:.77rem;opacity:.6;margin:-2px 0 10px}
-.build-list{display:flex;flex-direction:column;gap:10px}
-.build-row{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid rgba(127,127,127,.16);border-radius:14px;text-decoration:none;color:inherit;background:rgba(127,127,127,.04)}
-.build-row:active{background:rgba(127,127,127,.1)}
-.build-thumb{width:62px;height:62px;border-radius:10px;object-fit:cover;background:rgba(127,127,127,.1);flex:none}
-.build-thumb-empty{display:flex;align-items:center;justify-content:center;opacity:.4}
-.build-meta{flex:1;min-width:0}
-.build-name{font-weight:600;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.build-sub{font-size:.77rem;opacity:.66;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.build-from{opacity:.5}
-.build-side{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
-.build-badge{background:#138a36;color:#fff;font-size:.64rem;font-weight:600;padding:3px 8px;border-radius:999px;white-space:nowrap}
-.build-chevron{opacity:.4;font-size:1.2rem;line-height:1}
-.build-more{margin:16px auto 0;display:block}
-.build-empty{opacity:.66;text-align:center;padding:40px 18px;line-height:1.5}
 .icon-btn{background:none;border:none;color:inherit;cursor:pointer;padding:6px;font-size:1.3rem;line-height:1}
+.build-intro{opacity:.68;font-size:.83rem;line-height:1.45;margin:.5rem 0 1rem}
+.b-tabs{display:flex;gap:8px;margin:6px 0 4px}
+.b-tab{flex:1;padding:9px;border-radius:10px;border:1px solid rgba(127,127,127,.2);background:transparent;color:inherit;font-size:.85rem;font-weight:600;cursor:pointer}
+.b-tab-on{background:#138a36;color:#fff;border-color:#138a36}
+.b-tiles{display:flex;gap:12px;margin-bottom:12px}
+.b-tile{flex:1;background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.16);border-radius:14px;padding:14px}
+.b-n{font-size:1.7rem;font-weight:700;line-height:1}
+.b-l{font-size:.72rem;opacity:.65;margin-top:5px}
+.build-search{width:100%;box-sizing:border-box;padding:11px 14px;border-radius:12px;border:1px solid rgba(127,127,127,.22);background:rgba(127,127,127,.06);color:inherit;font-size:.95rem;margin-bottom:12px}
+.b-indexing{font-size:.77rem;opacity:.6;margin:-2px 0 10px}
+.b-list{display:flex;flex-direction:column;gap:10px}
+.b-row{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid rgba(127,127,127,.16);border-radius:14px;text-decoration:none;color:inherit;background:rgba(127,127,127,.04)}
+.b-row:active{background:rgba(127,127,127,.1)}
+.b-thumb{width:62px;height:62px;border-radius:10px;object-fit:cover;background:rgba(127,127,127,.1);flex:none}
+.b-thumb-e{display:flex;align-items:center;justify-content:center;opacity:.4}
+.b-meta{flex:1;min-width:0}
+.b-name{font-weight:600;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-sub{font-size:.77rem;opacity:.66;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-barwrap{height:6px;background:rgba(127,127,127,.18);border-radius:4px;margin-top:7px;overflow:hidden}
+.b-bar{height:100%;border-radius:4px}
+.b-bar-ok{background:#138a36}
+.b-bar-mid{background:#d9920a}
+.b-side{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:none;min-width:64px}
+.b-pct{font-weight:700;font-size:.92rem}
+.b-badge{font-size:.62rem;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.b-ok{background:#138a36;color:#fff}
+.b-need{font-size:.72rem;color:#d9920a;font-weight:700}
+.b-chevron{opacity:.4;font-size:1.2rem;line-height:1}
+.b-empty{opacity:.66;text-align:center;padding:40px 18px;line-height:1.5}
 </style>`;
 
-function buildQuery() {
-  const p = new URLSearchParams({ limit: String(PAGE), offset: String(_state.offset) });
-  if (_state.q) p.set('q', _state.q);
-  return p.toString();
-}
-
-async function load({ reset = false } = {}) {
-  if (_state.loading) return;
-  if (reset) { _state.offset = 0; _state.builds = []; _state.hasMore = false; }
-  _state.loading = true;
+async function loadSets() {
+  if (_sets.loading) return;
+  _sets.loading = true;
   try {
-    const res = await api('/api/build?' + buildQuery());
-    const fresh = (res && res.builds) || [];
-    _state.builds = reset ? fresh : _state.builds.concat(fresh);
-    _state.total = (res && res.total) ?? _state.builds.length;
-    _state.can_build = (res && res.can_build) ?? 0;
-    _state.sets_with_alts = (res && res.sets_with_alts) ?? 0;
-    _state.owned_sets = (res && res.owned_sets) ?? 0;
-    _state.indexing = (res && res.indexing) ?? 0;
-    _state.offset = _state.builds.length;
-    _state.hasMore = !!(res && res.hasMore);
-  } catch (e) {
-    toast("Couldn't load builds", 'error');
-  } finally {
-    _state.loading = false;
-  }
+    const r = await api('/api/build/sets?limit=120');
+    _sets.builds = (r && r.builds) || [];
+    _sets.can_build = (r && r.can_build) || 0;
+    _sets.near = (r && r.near) || 0;
+    _sets.owned_sets = (r && r.owned_sets) || 0;
+    _sets.parts_sets = (r && r.parts_sets) || 0;
+    _sets.loaded = true;
+  } catch (e) { toast("Couldn't load buildable sets", 'error'); }
+  finally { _sets.loading = false; }
 }
 
-function rowHtml(b) {
+async function loadAlts() {
+  if (_alts.loading) return;
+  _alts.loading = true;
+  try {
+    const r = await api('/api/build?limit=300');
+    _alts.builds = (r && r.builds) || [];
+    _alts.can_build = (r && r.can_build) || 0;
+    _alts.sets_with_alts = (r && r.sets_with_alts) || 0;
+    _alts.owned_sets = (r && r.owned_sets) || 0;
+    _alts.indexing = (r && r.indexing) || 0;
+    _alts.loaded = true;
+  } catch (e) { toast("Couldn't load alternate builds", 'error'); }
+  finally { _alts.loading = false; }
+}
+
+function setRow(b) {
+  const pct = Math.round(Number(b.pct) || 0);
+  const img = b.image_url
+    ? `<img class="b-thumb" src="${escapeHtml(String(b.image_url))}" alt="" loading="lazy">`
+    : `<div class="b-thumb b-thumb-e"></div>`;
+  const sub = [b.theme, b.year].filter(Boolean).map((x) => escapeHtml(String(x))).join(' · ');
+  const right = b.buildable
+    ? `<span class="b-badge b-ok">Buildable</span>`
+    : `<span class="b-need">Need ${b.need}</span>`;
+  return `<a class="b-row" href="#/set/${encodeURIComponent(String(b.set_num))}">
+    ${img}
+    <div class="b-meta">
+      <div class="b-name">${escapeHtml(String(b.name || b.set_num))}</div>
+      <div class="b-sub">${sub}${b.pieces ? ' · ' + b.pieces + ' pcs' : ''}</div>
+      <div class="b-barwrap"><div class="b-bar ${b.buildable ? 'b-bar-ok' : 'b-bar-mid'}" style="width:${pct}%"></div></div>
+    </div>
+    <div class="b-side"><span class="b-pct">${pct}%</span>${right}</div>
+  </a>`;
+}
+
+function altRow(b) {
   const img = b.moc_img_url
-    ? `<img class="build-thumb" src="${escapeHtml(String(b.moc_img_url))}" alt="" loading="lazy">`
-    : `<div class="build-thumb build-thumb-empty">${I.figure ? I.figure() : ''}</div>`;
+    ? `<img class="b-thumb" src="${escapeHtml(String(b.moc_img_url))}" alt="" loading="lazy">`
+    : `<div class="b-thumb b-thumb-e"></div>`;
   const parts = b.num_parts ? `${b.num_parts} pieces` : '';
   const designer = b.designer ? `by ${escapeHtml(String(b.designer))}` : '';
   const fromSet = b.from_set_name ? `from ${escapeHtml(String(b.from_set_name))}` : '';
   const url = b.moc_url ? escapeHtml(String(b.moc_url)) : '#';
-  return `<a class="build-row" href="${url}" target="_blank" rel="noopener noreferrer">
-      ${img}
-      <div class="build-meta">
-        <div class="build-name">${escapeHtml(String(b.name || 'Untitled build'))}</div>
-        <div class="build-sub">${[parts, designer].filter(Boolean).join(' · ')}</div>
-        <div class="build-sub build-from">${fromSet}</div>
-      </div>
-      <div class="build-side">
-        <span class="build-badge">Instructions</span>
-        <span class="build-chevron">›</span>
-      </div>
-    </a>`;
+  return `<a class="b-row" href="${url}" target="_blank" rel="noopener noreferrer">
+    ${img}
+    <div class="b-meta">
+      <div class="b-name">${escapeHtml(String(b.name || 'Untitled build'))}</div>
+      <div class="b-sub">${[parts, designer].filter(Boolean).join(' · ')}</div>
+      <div class="b-sub" style="opacity:.5">${fromSet}</div>
+    </div>
+    <div class="b-side"><span class="b-badge b-ok">Instructions</span><span class="b-chevron">›</span></div>
+  </a>`;
+}
+
+function tiles() {
+  if (_mode === 'sets') {
+    return `<div class="b-tiles">
+      <div class="b-tile"><div class="b-n">${_sets.can_build}</div><div class="b-l">sets you can build</div></div>
+      <div class="b-tile"><div class="b-n">${_sets.near}</div><div class="b-l">almost (≥80%)</div></div>
+    </div>`;
+  }
+  return `<div class="b-tiles">
+    <div class="b-tile"><div class="b-n">${_alts.can_build}</div><div class="b-l">alternate models</div></div>
+    <div class="b-tile"><div class="b-n">${_alts.sets_with_alts}</div><div class="b-l">of ${_alts.owned_sets} owned sets</div></div>
+  </div>`;
+}
+
+function listHtml() {
+  const st = _mode === 'sets' ? _sets : _alts;
+  if (st.loading && !st.loaded) return skelCardList(6);
+  if (st.loaded && !st.owned_sets) {
+    return `<div class="b-empty">Add sets to your vault, then come back to see what you can build from their parts.</div>`;
+  }
+  let items = st.builds;
+  if (_q) {
+    const q = _q.toLowerCase();
+    items = items.filter((b) => String(b.name || '').toLowerCase().includes(q));
+  }
+  if (!items.length) {
+    if (_mode === 'sets' && _sets.loaded && !_sets.parts_sets) {
+      return `<div class="b-empty">We're still indexing the part lists for your sets — check back shortly.</div>`;
+    }
+    return `<div class="b-empty">No matches${_q ? ' for "' + escapeHtml(_q) + '"' : ' yet'}.</div>`;
+  }
+  return `<div class="b-list">${items.map(_mode === 'sets' ? setRow : altRow).join('')}</div>`;
 }
 
 function pageHtml() {
-  const tiles = `<div class="build-tiles">
-      <div class="build-tile"><div class="build-tile-n">${_state.can_build}</div><div class="build-tile-l">models you can build</div></div>
-      <div class="build-tile"><div class="build-tile-n">${_state.sets_with_alts}</div><div class="build-tile-l">of ${_state.owned_sets} owned sets have alternates</div></div>
-    </div>`;
-  const search = `<input id="buildSearch" class="build-search" type="search" placeholder="Search builds…" value="${escapeHtml(_state.q)}">`;
-  let list;
-  if (!_state.owned_sets) {
-    list = `<div class="build-empty">Add sets to your vault, then come back to see what you can build from their parts.</div>`;
-  } else if (!_state.builds.length) {
-    list = `<div class="build-empty">No alternate builds found for your sets${_state.indexing ? ' yet — still indexing, tap refresh in a moment.' : '.'}</div>`;
-  } else {
-    list = `<div class="build-list">${_state.builds.map(rowHtml).join('')}</div>`
-      + (_state.hasMore ? `<button id="buildMore" class="btn-secondary build-more">Load more</button>` : '');
-  }
-  const indexingNote = _state.indexing
-    ? `<div class="build-indexing">Indexing ${_state.indexing} more set(s) in the background…</div>` : '';
+  const intro = _mode === 'sets'
+    ? `Official sets you could build right now from the combined parts of the sets you own — with completion % and how many pieces you're short. (You'd part out your sets to build them.)`
+    : `Alternate models you can build from a set you own, each with free building instructions on Rebrickable.`;
   return `${STYLE}<div class="build-view">
-      <header class="build-header">
-        <button class="icon-btn" id="buildBack" aria-label="Back">‹</button>
-        <h1>What Can I Build?</h1>
-      </header>
-      <p class="build-intro">Alternate models you can build from the parts in sets you already own — with free instructions on Rebrickable. (You'd take the set apart to build these.)</p>
-      ${tiles}
-      ${search}
-      ${indexingNote}
-      ${list}
-    </div>`;
+    <header class="build-header">
+      <button class="icon-btn" id="buildBack" aria-label="Back">‹</button>
+      <h1>What Can I Build?</h1>
+    </header>
+    <div class="b-tabs">
+      <button class="b-tab ${_mode === 'sets' ? 'b-tab-on' : ''}" data-mode="sets">Buildable sets</button>
+      <button class="b-tab ${_mode === 'alts' ? 'b-tab-on' : ''}" data-mode="alts">Alternate builds</button>
+    </div>
+    <p class="build-intro">${intro}</p>
+    ${tiles()}
+    <input id="buildSearch" class="build-search" type="search" placeholder="Search…" value="${escapeHtml(_q)}">
+    ${(_mode === 'alts' && _alts.indexing) ? `<div class="b-indexing">Indexing ${_alts.indexing} more set(s) in the background…</div>` : ''}
+    ${listHtml()}
+  </div>`;
+}
+
+function rerender() { $('#root').innerHTML = pageHtml(); wire(); }
+
+async function ensureLoaded() {
+  if (_mode === 'sets' && !_sets.loaded) await loadSets();
+  if (_mode === 'alts' && !_alts.loaded) await loadAlts();
 }
 
 function wire() {
   const back = $('#buildBack');
   if (back) back.onclick = () => { haptic('light'); if (history.length > 1) history.back(); else location.hash = '#/me'; };
-  const search = $('#buildSearch');
-  if (search) {
-    search.oninput = debounce(async (e) => {
-      _state.q = e.target.value.trim();
-      await load({ reset: true });
-      $('#root').innerHTML = pageHtml();
-      wire();
-      const s = $('#buildSearch');
-      if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
-    }, SEARCH_DEBOUNCE_MS || 300);
+  $$('.b-tab').forEach((t) => {
+    t.onclick = async () => {
+      const m = t.dataset.mode;
+      if (m === _mode) return;
+      _mode = m; _q = '';
+      haptic('light');
+      rerender();
+      await ensureLoaded();
+      rerender();
+    };
+  });
+  const s = $('#buildSearch');
+  if (s) {
+    s.oninput = debounce(() => {
+      const el = $('#buildSearch');
+      _q = el ? el.value.trim() : '';
+      rerender();
+      const s2 = $('#buildSearch');
+      if (s2) { s2.focus(); s2.setSelectionRange(s2.value.length, s2.value.length); }
+    }, SEARCH_DEBOUNCE_MS || 250);
   }
-  const more = $('#buildMore');
-  if (more) more.onclick = async () => { await load(); $('#root').innerHTML = pageHtml(); wire(); };
 }
 
 export async function renderBuild() {
   $('#root').innerHTML = skelPage(skelCardList(6));
-  await load({ reset: true });
-  $('#root').innerHTML = pageHtml();
-  wire();
+  await ensureLoaded();
+  rerender();
 }
