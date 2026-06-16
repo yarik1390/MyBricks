@@ -350,7 +350,7 @@ async function updateJobsStatus() {
       ` : progress.active ? `
         <div class="u-fs-2xs u-mute" style="margin-top:6px;">${escapeHtml(progress.label)}...</div>
       ` : "";
-      const errorHTML = run.error ? `<div class="u-fs-xs" style="color:${statusColor};margin-top:3px;overflow-wrap:anywhere;">${escapeHtml(String(run.error))}</div>` : "";
+      const _errTxt = String(run.error || ""); const errorHTML = run.error ? `<div class="u-fs-xs" style="color:${statusColor};margin-top:3px;overflow-wrap:anywhere;">${escapeHtml(_errTxt.length > 300 ? _errTxt.slice(0, 300) + "…" : _errTxt)}</div>` : "";
 
       return `
         <div style="border-bottom:1px solid var(--border-soft-c);padding-bottom:8px;margin-bottom:4px;">

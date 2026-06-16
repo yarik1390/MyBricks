@@ -323,6 +323,7 @@ export async function renderMeIntegrations() {
   // --- Push notification hooks ---
   const pushBtn = $("#pushNotifBtn");
   if (pushBtn && 'serviceWorker' in navigator && 'PushManager' in window) {
+    pushBtn.textContent = "…";
     (async () => {
       const perm = Notification.permission;
       const reg = await navigator.serviceWorker.ready.catch(() => null);

@@ -124,7 +124,11 @@ export function promptSheet({ title, label = "", value = "", placeholder = "", c
       <button class="btn-primary" id="psSave" style="margin-top:14px;">${escapeHtml(confirmLabel)}</button>
       <button class="btn-secondary" id="psCancel" style="margin-top:8px;">Cancel</button>`);
     const input = $("#psInput");
-    setTimeout(() => input?.focus(), 80);
+    const _sheetEl = $("#sheet");
+    let _psFocused = false;
+    const _focusInput = () => { if (_psFocused) return; _psFocused = true; input?.focus(); };
+    _sheetEl?.addEventListener("transitionend", _focusInput, { once: true });
+    setTimeout(_focusInput, 400);
     input?.addEventListener("keydown", (e) => { if (e.key === "Enter") finish(input.value.trim()); });
     $("#psSave").addEventListener("click", () => finish(input.value.trim()));
     $("#psCancel").addEventListener("click", () => finish(null));

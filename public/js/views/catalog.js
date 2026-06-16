@@ -325,7 +325,7 @@ function showFilterSheet(onApply) {
   $("#filterApply").addEventListener("click", () => {
     Object.keys(r).forEach(k => {
       const el = document.getElementById("f_" + k);
-      if (el) r[k] = el.value !== "" ? parseInt(el.value, 10) : "";
+      if (el) r[k] = el.value !== "" ? parseFloat(el.value) : "";
     });
     hideSheet();
     onApply();

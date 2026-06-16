@@ -49,7 +49,7 @@ export async function renderMe() {
             const h = setHue(s);
             return `
               <div class="trophy-card" style="width:104px;flex-shrink:0;position:relative;">
-                <button class="remove-trophy-btn" data-set="${escapeHtml(s.set_num)}" aria-label="Remove from shelf" style="position:absolute;top:-4px;right:-4px;background:var(--bv-red);color:#fff;border:none;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10;font-size:12px;line-height:1;font-weight:bold;">×</button>
+                <button class="remove-trophy-btn" data-set="${escapeHtml(s.set_num)}" aria-label="Remove from shelf" style="position:absolute;top:-4px;right:-4px;background:var(--bv-red);color:#fff;border:none;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10;font-size:15px;line-height:1;font-weight:bold;">×</button>
                 <div class="set-card-img${hasImg ? " has-photo" : ""}" style="height:70px;border-radius:var(--r-2);position:relative;">
                   <div class="brick-tile" style="--h:${h};width:64%;height:64%;"></div>
                   ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="" loading="lazy">` : ""}

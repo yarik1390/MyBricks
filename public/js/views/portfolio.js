@@ -430,13 +430,16 @@ function heroValueHTML(n) {
   return `${sign}${symbol}${whole}<span class="cents">.${cents}</span>`;
 }
 
+let _lastHeroValue = 0;
+
 function animateHeroValue(target) {
   const el = $("#heroValue");
   if (!el || target == null || isNaN(target) || target <= 0) return;
-  if (prefersReducedMotion()) { el.innerHTML = heroValueHTML(target); return; }
+  if (prefersReducedMotion()) { el.innerHTML = heroValueHTML(target); _lastHeroValue = target; return; }
   const dur = 750;
   const start = performance.now();
-  const from = 0;
+  const from = _lastHeroValue;
+  _lastHeroValue = target;
   const tick = (now) => {
     const t = Math.min(1, (now - start) / dur);
     const eased = 1 - Math.pow(1 - t, 3);
@@ -530,9 +533,9 @@ function emptyVaultHTML() {
         </a>
       </div>
       
-      <div style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:0.1em;margin-top:8px;padding-left:4px;">Demo Portfolio Preview</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:0.1em;margin-top:8px;padding-left:4px;" aria-hidden="true">Demo Portfolio Preview</div>
       
-      <div class="set-list compact-list" style="opacity:0.7;pointer-events:none;user-select:none;">
+      <div class="set-list compact-list" aria-hidden="true" style="opacity:0.7;pointer-events:none;user-select:none;">
         <div class="set-list-card compact ghost-card" style="border-left: 4px solid var(--up);">
           <div class="sl-img"><div class="brick-tile" style="--h:210;width:100%;height:100%;border-radius:var(--r-1);"></div></div>
           <div class="sl-body" style="flex:1;min-width:0;">
