@@ -3,6 +3,7 @@
 // from the You tab via startOnboarding(). Fully self-contained — if anything
 // throws it never breaks app boot (maybeStartOnboarding swallows errors).
 import { haptic } from '../utils.js';
+import { I } from '../icons.js';
 
 const FLAG = 'bv_onboarded_v1';
 
@@ -167,5 +168,143 @@ export function maybeStartOnboarding() {
     const nav = document.getElementById('nav');
     if (!nav || getComputedStyle(nav).display === 'none') return;
     startOnboarding();
+  } catch {}
+}
+
+// ---------------------------------------------------------------------------
+// First-run WELCOME CAROUSEL — a full-screen, swipeable brand intro shown once.
+// Distinct from the coach-mark tour above (which spotlights the live nav and
+// stays replayable from the You tab). Self-contained; never throws into boot.
+// ---------------------------------------------------------------------------
+const WELCOME_FLAG = 'bv_welcome_v1';
+
+const WELCOME_SLIDES = [
+  { icon: 'box',      hue: 4,   title: 'Welcome to MyBricks',  body: 'Your LEGO collection, valued like an investment portfolio — live prices, ROI, and forecasts.' },
+  { icon: 'trend',    hue: 152, title: 'Know what it’s worth', body: 'Every set valued from real market data, with ROI, growth trends, and 2- and 5-year forecasts.' },
+  { icon: 'scan',     hue: 212, title: 'Scan to add',          body: 'Point your camera at a box barcode or a built set — AI identifies the set or minifig and adds it in a tap.' },
+  { icon: 'advisor',  hue: 276, title: 'Ask the AI advisor',   body: 'What should you buy or sell? Why is a set worth that? Get instant, portfolio-aware answers.' },
+  { icon: 'sparkles', hue: 36,  title: 'You’re ready',         body: 'Add your first set from the Catalog or Scan tab. Replay the guided tour anytime from the You tab.' },
+];
+
+let wcRoot = null;
+let wcIdx = 0;
+
+function ensureWelcomeStyles() {
+  if (document.getElementById('bv-wc-style')) return;
+  const css = `
+    .bv-wc{position:fixed;inset:0;z-index:10000;background:var(--surface,#fff);color:var(--ink,#16181d);display:flex;flex-direction:column;animation:bvwcfade .3s ease;}
+    @keyframes bvwcfade{from{opacity:0}to{opacity:1}}
+    .bv-wc-top{display:flex;justify-content:flex-end;padding:14px 16px;}
+    .bv-wc-skip{background:none;border:none;color:var(--ink-mute,#8b91a0);font-size:14px;font-weight:600;cursor:pointer;padding:6px 8px;}
+    .bv-wc-view{flex:1;overflow:hidden;}
+    .bv-wc-track{display:flex;height:100%;transition:transform .35s cubic-bezier(.4,0,.2,1);}
+    .bv-wc-slide{min-width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 32px;box-sizing:border-box;}
+    .bv-wc-hero{width:148px;height:148px;border-radius:34px;display:flex;align-items:center;justify-content:center;margin-bottom:34px;color:#fff;box-shadow:0 18px 44px -12px rgba(0,0,0,.35);}
+    .bv-wc-hero svg{width:62px;height:62px;}
+    .bv-wc-slide h3{margin:0 0 12px;font-family:var(--font-heading,inherit);font-size:25px;font-weight:800;letter-spacing:-.01em;}
+    .bv-wc-slide p{margin:0;font-size:15px;line-height:1.55;color:var(--ink-soft,#3f4654);max-width:30ch;}
+    .bv-wc-foot{padding:18px 24px calc(24px + env(safe-area-inset-bottom,0));display:flex;flex-direction:column;gap:16px;}
+    .bv-wc-dots{display:flex;gap:7px;justify-content:center;}
+    .bv-wc-dots i{width:7px;height:7px;border-radius:50%;background:var(--line,#d6d9e0);transition:all .25s;}
+    .bv-wc-dots i.on{background:var(--accent,#e23b3b);width:22px;border-radius:4px;}
+    .bv-wc-btn{width:100%;border:none;border-radius:14px;padding:15px;font-size:15px;font-weight:700;cursor:pointer;background:var(--accent,#e23b3b);color:#fff;}
+    .bv-wc-tour{background:none;border:none;color:var(--ink-mute,#8b91a0);font-size:13.5px;font-weight:600;cursor:pointer;padding:2px;}
+  `;
+  const el = document.createElement('style');
+  el.id = 'bv-wc-style';
+  el.textContent = css;
+  document.head.appendChild(el);
+}
+
+function wcFinish(thenTour) {
+  try { localStorage.setItem(WELCOME_FLAG, '1'); } catch {}
+  document.removeEventListener('keydown', wcKey);
+  wcRoot?.remove();
+  wcRoot = null;
+  if (thenTour) { try { startOnboarding(); } catch {} }
+}
+
+function wcKey(e) {
+  if (e.key === 'Escape') wcFinish(false);
+  else if (e.key === 'ArrowRight') wcGo(1);
+  else if (e.key === 'ArrowLeft') wcGo(-1);
+}
+
+function wcRender() {
+  if (!wcRoot) return;
+  const track = wcRoot.querySelector('.bv-wc-track');
+  track.style.transform = `translateX(-${wcIdx * 100}%)`;
+  wcRoot.querySelectorAll('.bv-wc-dots i').forEach((d, i) => d.classList.toggle('on', i === wcIdx));
+  const last = wcIdx === WELCOME_SLIDES.length - 1;
+  wcRoot.querySelector('.bv-wc-btn').textContent = last ? 'Get started' : 'Next';
+  wcRoot.querySelector('.bv-wc-tour').style.display = last ? 'block' : 'none';
+  wcRoot.querySelector('.bv-wc-skip').style.visibility = last ? 'hidden' : 'visible';
+}
+
+function wcGo(delta) {
+  wcIdx = Math.max(0, Math.min(WELCOME_SLIDES.length - 1, wcIdx + delta));
+  wcRender();
+}
+
+export function showWelcome() {
+  try {
+    if (wcRoot) return;
+    ensureWelcomeStyles();
+    wcIdx = 0;
+    wcRoot = document.createElement('div');
+    wcRoot.className = 'bv-wc';
+    const slides = WELCOME_SLIDES.map(s => `
+      <div class="bv-wc-slide">
+        <div class="bv-wc-hero" style="background:linear-gradient(145deg,oklch(.62 .19 ${s.hue}),oklch(.5 .16 ${(s.hue + 32) % 360}));">${typeof I[s.icon] === 'function' ? I[s.icon]({ w: 62 }) : ''}</div>
+        <h3>${s.title}</h3>
+        <p>${s.body}</p>
+      </div>`).join('');
+    const dots = WELCOME_SLIDES.map((_, i) => `<i class="${i === 0 ? 'on' : ''}"></i>`).join('');
+    wcRoot.innerHTML = `
+      <div class="bv-wc-top"><button class="bv-wc-skip" data-act="skip">Skip</button></div>
+      <div class="bv-wc-view"><div class="bv-wc-track">${slides}</div></div>
+      <div class="bv-wc-foot">
+        <div class="bv-wc-dots">${dots}</div>
+        <button class="bv-wc-btn" data-act="next">Next</button>
+        <button class="bv-wc-tour" data-act="tour" style="display:none;">Take the guided tour</button>
+      </div>`;
+    wcRoot.addEventListener('click', (e) => {
+      const act = e.target?.closest('[data-act]')?.dataset?.act;
+      if (!act) return;
+      haptic('light');
+      if (act === 'skip') wcFinish(false);
+      else if (act === 'tour') wcFinish(true);
+      else if (act === 'next') {
+        if (wcIdx === WELCOME_SLIDES.length - 1) wcFinish(false);
+        else wcGo(1);
+      }
+    });
+    // Touch swipe between slides.
+    let x0 = null;
+    const view = wcRoot.querySelector('.bv-wc-view');
+    view.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; }, { passive: true });
+    view.addEventListener('touchend', (e) => {
+      if (x0 == null) return;
+      const dx = e.changedTouches[0].clientX - x0;
+      if (Math.abs(dx) > 45) wcGo(dx < 0 ? 1 : -1);
+      x0 = null;
+    }, { passive: true });
+    document.body.appendChild(wcRoot);
+    document.addEventListener('keydown', wcKey);
+    wcRender();
+  } catch {
+    wcRoot?.remove();
+    wcRoot = null;
+  }
+}
+
+// First-run trigger for the welcome carousel. Defensive: only when not yet seen,
+// the main nav is visible (i.e. not the login screen), and never throws.
+export function maybeShowWelcome() {
+  try {
+    if (localStorage.getItem(WELCOME_FLAG)) return;
+    const nav = document.getElementById('nav');
+    if (!nav || getComputedStyle(nav).display === 'none') return;
+    showWelcome();
   } catch {}
 }
