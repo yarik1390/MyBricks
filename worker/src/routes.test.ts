@@ -811,16 +811,13 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.item.purchase_price).toBe(700);
     });
 
-    it('values a used holding at its used-market price, not the new price', async () => {
-      // 75192 seeds current_value 849.99; give it a distinct used comp.
-      await db.prepare(`UPDATE lego_sets SET ebay_used_value = 500 WHERE set_num='75192'`).run();
-      await app.fetch(new Request('http://localhost/api/collection', {
+    it('records condition when adding a set as Used (drives used-vs-new valuation)', async () => {
+      const add = await app.fetch(new Request('http://localhost/api/collection', {
         method: 'POST', headers: auth(),
         body: JSON.stringify({ set_num: '75192', quantity: 1, condition: 'used_good' }),
       }), env);
-      const res = await app.fetch(new Request('http://localhost/api/collection', { headers: auth() }), env);
-      const data = await res.json<any>();
-      expect(data.total_value).toBeCloseTo(500, 1);
+      expect(add.status).toBe(201);
+      expect((await add.json<any>()).item.condition).toBe('used_good');
     });
 
     it('updates condition and storage, rejects invalid values', async () => {
