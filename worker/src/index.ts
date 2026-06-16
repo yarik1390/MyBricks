@@ -17,6 +17,7 @@ import { bricksetSyncRoute } from './routes/brickset-sync';
 import { photosRoute } from './routes/photos';
 import { pushRoute } from './routes/push';
 import { bricklinkImportRoute } from './routes/bricklink-import';
+import { buildRoute } from './routes/build';
 
 import { runValuateSets, runValuateMinifigs } from './jobs/valuate-sets';
 import { runSnapshotPortfolios } from './jobs/snapshot-portfolios';
@@ -158,6 +159,7 @@ app.route('/api/brickset', bricksetSyncRoute);
 app.route('/api/collection', photosRoute);
 app.route('/api/push', pushRoute);
 app.route('/api/bricklink', bricklinkImportRoute);
+app.route('/api/build', buildRoute);
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
 

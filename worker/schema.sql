@@ -227,6 +227,31 @@ CREATE INDEX IF NOT EXISTS idx_set_minifigs_fig ON set_minifigs(fig_num);
 CREATE INDEX IF NOT EXISTS idx_set_parts_set ON set_parts(set_num);
 CREATE INDEX IF NOT EXISTS idx_user_missing_user ON user_missing_parts(user_id, set_num);
 
+-- Alternate builds (MOCs buildable from a set's parts), cached from Rebrickable
+-- GET /api/v3/lego/sets/{set}/alternates/. Catalog-level (shared across users);
+-- powers the "What Can I Build?" feature. set_alts_fetched records which sets
+-- have been queried so "no alternates" is distinct from "not fetched yet".
+CREATE TABLE IF NOT EXISTS set_alt_builds (
+  set_num TEXT NOT NULL,
+  moc_num TEXT NOT NULL,
+  name TEXT,
+  num_parts INTEGER,
+  year INTEGER,
+  designer TEXT,
+  moc_img_url TEXT,
+  moc_url TEXT,
+  cached_at TEXT,
+  PRIMARY KEY (set_num, moc_num)
+);
+CREATE INDEX IF NOT EXISTS idx_set_alt_builds_set ON set_alt_builds(set_num);
+
+CREATE TABLE IF NOT EXISTS set_alts_fetched (
+  set_num TEXT PRIMARY KEY,
+  fetched_at TEXT,
+  alt_count INTEGER DEFAULT 0
+);
+
+
 CREATE TABLE IF NOT EXISTS user_showcase (
   user_id TEXT NOT NULL,
   set_num TEXT NOT NULL,

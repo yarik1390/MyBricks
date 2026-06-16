@@ -129,3 +129,56 @@ export async function fetchSetParts(
     return parts.length ? parts : null;
   }
 }
+
+export interface RebrickableAlternate {
+  moc_num: string;
+  name: string;
+  num_parts: number | null;
+  year: number | null;
+  designer: string | null;
+  moc_img_url: string | null;
+  moc_url: string | null;
+}
+
+// Fetch alternate builds (MOCs buildable from a set's parts) from Rebrickable,
+// handling pagination. NOTE: the endpoint is /alternates/ (not /alts/, which
+// 404s). Returns null only when the key is missing or the request hard-fails;
+// an empty array means the set genuinely has no listed alternates.
+export async function fetchSetAlternates(
+  setNum: string,
+  env: Env,
+): Promise<RebrickableAlternate[] | null> {
+  if (!env.REBRICKABLE_API_KEY) return null;
+  const rb = setNum.includes('-') ? setNum : `${setNum}-1`;
+  const alts: RebrickableAlternate[] = [];
+  let url: string | null =
+    `https://rebrickable.com/api/v3/lego/sets/${encodeURIComponent(rb)}/alternates/?page_size=100`;
+  try {
+    while (url) {
+      const resp = await fetchTracked(env, 'rebrickable', url, {
+        headers: { Authorization: `key ${env.REBRICKABLE_API_KEY}` },
+      }, { okStatuses: [404] });
+      if (resp.status === 404) return alts; // no alternates for this set
+      if (!resp.ok) return alts.length ? alts : null;
+      const data = await resp.json() as { next?: string | null; results?: Array<{
+        set_num: string; name: string; num_parts?: number; year?: number;
+        designer_name?: string; moc_img_url?: string | null; moc_url?: string | null;
+      }> };
+      for (const r of data.results || []) {
+        alts.push({
+          moc_num: r.set_num,
+          name: r.name,
+          num_parts: r.num_parts ?? null,
+          year: r.year ?? null,
+          designer: r.designer_name || null,
+          moc_img_url: r.moc_img_url || null,
+          moc_url: r.moc_url || null,
+        });
+      }
+      url = data.next || null;
+    }
+    return alts;
+  } catch {
+    return alts.length ? alts : null;
+  }
+}
