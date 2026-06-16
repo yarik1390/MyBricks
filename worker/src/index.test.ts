@@ -260,6 +260,31 @@ describe('BrickVault API Worker Tests', () => {
       expect(res.headers.get('Access-Control-Allow-Headers')).toContain('X-OpenAI-Key');
     });
 
+    // Regression guard: every request header the front-end sends to the worker MUST
+    // be in the CORS allowHeaders (worker/src/index.ts), or the browser preflight
+    // silently blocks the whole cross-origin request (this is exactly what broke
+    // photo scanning when cf-turnstile-token was added but not allow-listed).
+    // When the front-end starts sending a NEW header, add it to BOTH index.ts's
+    // allowHeaders AND this list.
+    it('allow-lists every header the front-end sends (CORS preflight)', async () => {
+      const REQUIRED_HEADERS = ['Content-Type', 'Authorization', 'X-Gemini-Key', 'X-OpenAI-Key', 'cf-turnstile-token'];
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'OPTIONS',
+          headers: {
+            'Origin': 'https://brickvault-5ub.pages.dev',
+            'Access-Control-Request-Method': 'POST',
+            'Access-Control-Request-Headers': REQUIRED_HEADERS.join(','),
+          },
+        }),
+        env,
+      );
+      const allowed = (res.headers.get('Access-Control-Allow-Headers') || '').toLowerCase();
+      for (const h of REQUIRED_HEADERS) {
+        expect(allowed).toContain(h.toLowerCase());
+      }
+    });
+
     it('falls back to safe default if origin not allowed', async () => {
       const res = await app.fetch(
         new Request('http://localhost/api/config', {
