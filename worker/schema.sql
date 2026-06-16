@@ -251,6 +251,13 @@ CREATE TABLE IF NOT EXISTS set_alts_fetched (
   alt_count INTEGER DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS user_build_cache (
+  user_id TEXT PRIMARY KEY,
+  fingerprint TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  computed_at INTEGER NOT NULL
+);
+
 
 CREATE TABLE IF NOT EXISTS user_showcase (
   user_id TEXT NOT NULL,

@@ -128,11 +128,20 @@ app.get('/', async (c) => {
 
 // ---------------------------------------------------------------------------
 // Parts-based matcher: official LEGO sets you can build from the COMBINED parts
-// of the sets you already own, with completion % and how many pieces you're
-// short ("Need N"). Powered by the bulk-loaded set_parts table.
+// of the sets you already own, with completion % and "Need N". Powered by the
+// bulk-loaded set_parts table. Results are CACHED per user, keyed by a
+// fingerprint of their owned sets, so repeat opens are instant and we avoid
+// re-scanning ~4M set_parts rows. The cache auto-invalidates when the
+// collection changes (fingerprint differs) or after CACHE_TTL_SECONDS.
 
-// Ignore books / gear / promo "sets" with trivially small part counts.
-const MIN_REQ_PARTS = 50;
+const MIN_REQ_PARTS = 50;                       // ignore book/gear/promo "sets"
+const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;     // refresh weekly (picks up value/catalog drift)
+const CACHE_VERSION = 'v1';                     // bump to invalidate all caches (e.g. after a set_parts reload)
+
+async function buildFingerprint(parts: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(parts));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 // GET /api/build/sets
 app.get('/sets', async (c) => {
@@ -142,14 +151,40 @@ app.get('/sets', async (c) => {
     5000,
   );
   const lim = Math.min(parseInt(c.req.query('limit') || '120', 10), 300);
+  const noCache = c.req.query('refresh') === '1';
 
+  // Owned, complete sets (with quantity) define both the parts pool and the cache key.
   const ownedRes = await c.env.DB.prepare(
-    `SELECT DISTINCT set_num FROM user_collection
-     WHERE user_id = ? AND deleted_at IS NULL AND is_complete = 1`,
-  ).bind(userId).all<{ set_num: string }>();
-  const ownedSets = (ownedRes.results || []).map((r) => r.set_num);
+    `SELECT set_num, quantity FROM user_collection
+     WHERE user_id = ? AND deleted_at IS NULL AND is_complete = 1
+     ORDER BY set_num`,
+  ).bind(userId).all<{ set_num: string; quantity: number }>();
+  const owned = ownedRes.results || [];
+  const ownedSets = owned.map((r) => r.set_num);
   if (!ownedSets.length) {
-    return c.json({ builds: [], can_build: 0, near: 0, owned_sets: 0, parts_sets: 0, min_parts: minParts });
+    return c.json({ builds: [], can_build: 0, near: 0, owned_sets: 0, parts_sets: 0, min_parts: minParts, cached: false });
+  }
+
+  const fingerprint = await buildFingerprint(
+    `${CACHE_VERSION}|min=${minParts}|lim=${lim}|`
+    + owned.map((r) => `${r.set_num}x${r.quantity || 1}`).join(','),
+  );
+
+  // Cache lookup (fingerprint match + within TTL). Best-effort; never fail on it.
+  if (!noCache) {
+    try {
+      const hit = await c.env.DB.prepare(
+        `SELECT payload, computed_at FROM user_build_cache WHERE user_id = ? AND fingerprint = ?`,
+      ).bind(userId, fingerprint).first<{ payload: string; computed_at: number }>();
+      if (hit) {
+        const ageSec = Math.floor(Date.now() / 1000) - Number(hit.computed_at);
+        if (ageSec < CACHE_TTL_SECONDS) {
+          return c.json({ ...JSON.parse(hit.payload), cached: true });
+        }
+      }
+    } catch (e) {
+      console.warn('[build/sets] cache read failed:', (e as Error).message);
+    }
   }
 
   const ph = ownedSets.map(() => '?').join(',');
@@ -157,9 +192,8 @@ app.get('/sets', async (c) => {
     `SELECT COUNT(DISTINCT set_num) AS n FROM set_parts WHERE set_num IN (${ph})`,
   ).bind(...ownedSets).first<{ n: number }>();
 
-  // Pool = every part/color you own (owned set parts x owned quantity). Then for
-  // each candidate catalog set, count how many of its required (non-spare) parts
-  // the pool covers: have_total = sum(min(required, owned)); req_total = sum(required).
+  // Pool = every part/color you own (owned set parts x owned quantity). For each
+  // candidate set, have_total = sum(min(required, owned)); req_total = sum(required).
   const sql =
     `WITH pool AS (
        SELECT sp.part_num, sp.color_id, SUM(sp.quantity * uc.quantity) AS have
@@ -202,14 +236,30 @@ app.get('/sets', async (c) => {
     };
   });
 
-  return c.json({
+  const payload = {
     builds,
     can_build: builds.filter((b) => b.buildable).length,
     near: builds.filter((b) => !b.buildable && b.pct >= 80).length,
     owned_sets: ownedSets.length,
     parts_sets: cov?.n ?? 0,
     min_parts: minParts,
-  });
+  };
+
+  // Cache write is best-effort and off the response path.
+  c.executionCtx.waitUntil((async () => {
+    try {
+      await c.env.DB.prepare(
+        `INSERT INTO user_build_cache (user_id, fingerprint, payload, computed_at)
+         VALUES (?, ?, ?, CAST(strftime('%s','now') AS INTEGER))
+         ON CONFLICT(user_id) DO UPDATE SET
+           fingerprint=excluded.fingerprint, payload=excluded.payload, computed_at=excluded.computed_at`,
+      ).bind(userId, fingerprint, JSON.stringify(payload)).run();
+    } catch (e) {
+      console.warn('[build/sets] cache write failed:', (e as Error).message);
+    }
+  })());
+
+  return c.json({ ...payload, cached: false });
 });
 
 export { app as buildRoute };

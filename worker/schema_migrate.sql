@@ -266,6 +266,13 @@ CREATE TABLE IF NOT EXISTS set_alts_fetched (
   alt_count INTEGER DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS user_build_cache (
+  user_id TEXT PRIMARY KEY,
+  fingerprint TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  computed_at INTEGER NOT NULL
+);
+
 
 -- Sprint 4: minifig metadata, Brickset sync
 ALTER TABLE minifigs ADD COLUMN year INTEGER;
