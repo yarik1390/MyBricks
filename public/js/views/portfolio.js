@@ -436,7 +436,7 @@ function animateHeroValue(target) {
   if (prefersReducedMotion()) { el.innerHTML = heroValueHTML(target); return; }
   const dur = 750;
   const start = performance.now();
-  const from = target * 0.82;
+  const from = 0;
   const tick = (now) => {
     const t = Math.min(1, (now - start) / dur);
     const eased = 1 - Math.pow(1 - t, 3);
@@ -835,7 +835,7 @@ function paintSetDetail(set, entry) {
           <div class="detail-hero-overlay"></div>
           <div class="detail-img${hasImg ? " has-photo" : ""}">
             <div class="brick-art" style="--brick-color:oklch(0.72 0.13 ${h});">${escapeHtml(set.set_num)}</div>
-            ${hasImg ? `<img class="set-photo" src="${escapeHtml(displayImg)}" alt="">` : ""}
+            ${hasImg ? `<img class="set-photo" src="${escapeHtml(displayImg)}" alt="${escapeHtml(set.name)}">` : ""}
           </div>
         </div>
       </div>
@@ -1030,39 +1030,6 @@ function infoTabHTML(set, entry, isWish) {
       </div>
     `;
   }
-  if (false && ebayPrice > 0) {
-    const pricingTreatment = (retailPrice > 0 && ebayPrice < retailPrice) ? 'STP' : (retailPrice > 0 && ebayPrice > retailPrice ? 'APPRECIATED' : 'NONE');
-    pricingSummaryHtml = `
-      <div class="card pricing-summary-card" style="margin-bottom:14px; padding:14px 16px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <div style="font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-mute);">Unused legacy eBay card</div>
-          <span class="badge" style="font-size:9px; padding:2px 6px; border-radius:4px; font-family:var(--mono); background:var(--surface-3); color:var(--ink-soft);">${pricingTreatment === 'STP' ? 'STP (Strikethrough)' : pricingTreatment === 'APPRECIATED' ? 'Appreciated' : 'None'}</span>
-        </div>
-        
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-          <div>
-            <div style="font-size:10px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">price</div>
-            <div style="font-size:18px; font-weight:600; color:var(--ink);">${fmtMoney(ebayPrice)}</div>
-          </div>
-          
-          <div>
-            <div style="font-size:10px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">Retail (MSRP)</div>
-            <div style="font-size:16px; font-weight:500; color:var(--ink-soft); text-decoration: ${pricingTreatment === 'STP' ? 'line-through' : 'none'};">${retailPrice > 0 ? fmtMoney(retailPrice) : "—"}</div>
-          </div>
-        </div>
-
-        ${pricingTreatment === 'STP' ? `
-          <div style="font-size:11px; color:var(--down); margin-top:10px; display:flex; align-items:center; gap:6px;">
-            <span style="font-size:8px;">●</span> Pricing Treatment: Save ${fmtMoney(retailPrice - ebayPrice)} (${fmtPct((retailPrice - ebayPrice) / retailPrice)}) below MSRP.
-          </div>
-        ` : pricingTreatment === 'APPRECIATED' ? `
-          <div style="font-size:11px; color:var(--up); margin-top:10px; display:flex; align-items:center; gap:6px;">
-            <span style="font-size:8px;">●</span> Pricing Treatment: Appreciated by ${fmtMoney(ebayPrice - retailPrice)} (${fmtPct((ebayPrice - retailPrice) / retailPrice)}) above MSRP.
-          </div>
-        ` : ''}
-      </div>
-    `;
-  }
 
   const newVal = set.current_value || 0;
   const usedVal = set.used_value || 0;
@@ -1132,7 +1099,7 @@ function infoTabHTML(set, entry, isWish) {
         <div style="display:flex;flex-wrap:wrap;gap:10px;">
           ${set.set_minifigs.map(f => `
             <div style="display:flex;align-items:center;gap:6px;font-size:12px;" title="${escapeHtml(f.fig_name)}">
-              ${f.fig_img_url ? `<img src="${escapeHtml(f.fig_img_url)}" alt="" style="width:32px;height:32px;object-fit:contain;border-radius:4px;background:var(--surface-2);">` : `<div style="width:32px;height:32px;background:var(--surface-2);border-radius:4px;"></div>`}
+              ${f.fig_img_url ? `<img src="${escapeHtml(f.fig_img_url)}" alt="${escapeHtml(f.fig_name || '')}" style="width:32px;height:32px;object-fit:contain;border-radius:4px;background:var(--surface-2);">` : `<div style="width:32px;height:32px;background:var(--surface-2);border-radius:4px;"></div>`}
               <div>
                 <div style="color:var(--ink-soft);font-size:11px;font-family:var(--mono);">${escapeHtml(f.fig_num)}</div>
                 ${f.quantity > 1 ? `<div style="color:var(--ink-mute);font-size:10px;">×${f.quantity}</div>` : ''}

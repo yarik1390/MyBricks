@@ -82,12 +82,12 @@ async function loadAlts() {
 function setRow(b) {
   const pct = Math.round(Number(b.pct) || 0);
   const img = b.image_url
-    ? `<img class="b-thumb" src="${escapeHtml(String(b.image_url))}" alt="" loading="lazy">`
+    ? `<img class="b-thumb" src="${escapeHtml(String(b.image_url))}" alt="${escapeHtml(String(b.name || ''))}" loading="lazy">`
     : `<div class="b-thumb b-thumb-e"></div>`;
   const sub = [b.theme, b.year].filter(Boolean).map((x) => escapeHtml(String(x))).join(' · ');
   const right = b.buildable
     ? `<span class="b-badge b-ok">Buildable</span>`
-    : `<span class="b-need">Need ${b.need}</span>`;
+    : `<span class="b-need">Need ${b.need} more parts</span>`;
   return `<a class="b-row" href="#/set/${encodeURIComponent(String(b.set_num))}">
     ${img}
     <div class="b-meta">
@@ -101,7 +101,7 @@ function setRow(b) {
 
 function altRow(b) {
   const img = b.moc_img_url
-    ? `<img class="b-thumb" src="${escapeHtml(String(b.moc_img_url))}" alt="" loading="lazy">`
+    ? `<img class="b-thumb" src="${escapeHtml(String(b.moc_img_url))}" alt="${escapeHtml(String(b.name || ''))}" loading="lazy">`
     : `<div class="b-thumb b-thumb-e"></div>`;
   const parts = b.num_parts ? `${b.num_parts} pieces` : '';
   const designer = b.designer ? `by ${escapeHtml(String(b.designer))}` : '';

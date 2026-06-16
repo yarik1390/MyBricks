@@ -56,6 +56,8 @@ export async function renderMeData() {
 
   $("#exportCsvBtn")?.addEventListener("click", async () => {
     haptic("medium");
+    const _expBtn = document.getElementById("exportCsvBtn");
+    if (_expBtn) { _expBtn.disabled = true; _expBtn.setAttribute("aria-busy", "true"); }
     try {
       if (guest) {
         const blob = guestCollectionCSVBlob();
@@ -82,6 +84,8 @@ export async function renderMeData() {
       URL.revokeObjectURL(url);
     } catch (e) {
       toast("Error exporting: " + e.message, "error");
+    } finally {
+      if (_expBtn) { _expBtn.disabled = false; _expBtn.removeAttribute("aria-busy"); }
     }
   });
 

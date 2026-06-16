@@ -89,7 +89,7 @@ export function renderLogin() {
             <button class="btn-primary" id="authSubmit" style="margin-top:4px;">
               <span>${mode === "signin" ? "Sign in" : "Create account"}</span>
             </button>
-            <div id="authErr" style="color:var(--down);font-size:13px;text-align:center;min-height:18px;font-family:var(--mono);"></div>
+            <div id="authErr" role="alert" aria-live="assertive" style="color:var(--down);font-size:13px;text-align:center;min-height:18px;font-family:var(--mono);"></div>
             ${mode === "signin" ? `
             <button id="authForgot" style="color:var(--ink-mute);background:none;border:none;font-size:12px;cursor:pointer;text-decoration:underline;align-self:center;padding:4px 8px;">Forgot password?</button>` : ""}
             <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">

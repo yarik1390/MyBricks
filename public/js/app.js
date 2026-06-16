@@ -218,7 +218,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         try {
           const ctrl = new AbortController();
           const timer = setTimeout(() => ctrl.abort(), 4000);
-          const res = await fetch((window.WORKER_BASE || '') + "/api/config", { cache: "no-store", signal: ctrl.signal });
+          const res = await fetch("/manifest.json?_=" + Date.now(), { cache: "no-store", signal: ctrl.signal });
           clearTimeout(timer);
           online = res.ok;
         } catch { online = false; }
@@ -228,8 +228,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       offlineProbeBusy = false;
     }
   }
-  // Seed the initial banner from the config load we just did (no extra probe).
-  document.body.classList.toggle("offline", state.configError);
+  // Seed the banner from a real connectivity probe (a single failed /api/config
+  // at boot must NOT strand an online user behind the offline banner).
+  refreshOfflineState();
   window.addEventListener("online", () => { refreshOfflineState(); drainOutbox(); });
   window.addEventListener("offline", () => document.body.classList.toggle("offline", true));
 

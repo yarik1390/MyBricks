@@ -90,7 +90,7 @@ a { color: inherit; text-decoration: none; }
   background: var(--ink); color: var(--bg);
   padding: 10px 14px; z-index: 200;
 }
-.skip-link:focus { top: 0; }
+.skip-link:focus-visible { top: 0; }
 
 /* offline banner */
 .offline-banner {
@@ -551,6 +551,7 @@ body.offline .offline-banner { display: block; }
 }
 .nav-tab {
   flex: 1;
+  min-height: 44px;
   display: flex; flex-direction: column; align-items: center;
   justify-content: center;
   gap: 3px;
