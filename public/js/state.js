@@ -27,7 +27,7 @@ export const state = {
     catalogRetired: "all", catalogTheme: "all",
     catalogRanges: { min_year: "", max_year: "", min_pieces: "", max_pieces: "", min_value: "", max_value: "" },
     wishlistSort: "recent",
-    figQ: "", figRarity: "all", figOwned: "all", figSort: "rarity_desc",
+    figQ: "", figRarity: "all", figOwned: "all", figSort: "rarity_desc", figSeries: "all",
   },
   detail: { tab: "info", cache: {} },
   pwa: { deferredPrompt: null },

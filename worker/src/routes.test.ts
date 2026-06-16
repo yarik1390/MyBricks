@@ -766,6 +766,29 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       }), env);
       expect(res.status).toBe(404);
     });
+
+    it('returns distinct series with counts for the filter dropdown', async () => {
+      await seedFigs();
+      const res = await app.fetch(new Request('http://localhost/api/minifigs/series', { headers: auth() }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      // Most-populated series first; empty/null series excluded.
+      expect(data.series).toEqual([
+        { series: 'Star Wars', n: 2 },
+        { series: 'City', n: 1 },
+      ]);
+    });
+
+    it('sorts by scarcity: fewest set appearances first, unknown (null) last', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO minifigs (fig_num, name, appears_in_sets) VALUES ('a1', 'A One', 5)`),
+        db.prepare(`INSERT INTO minifigs (fig_num, name, appears_in_sets) VALUES ('a2', 'A Two', 1)`),
+        db.prepare(`INSERT INTO minifigs (fig_num, name, appears_in_sets) VALUES ('a3', 'A Three', NULL)`),
+      ]);
+      const res = await app.fetch(new Request('http://localhost/api/minifigs?sort=scarcity', { headers: auth() }), env);
+      const data = await res.json<any>();
+      expect(data.minifigs.map((f: any) => f.fig_num)).toEqual(['a2', 'a1', 'a3']);
+    });
   });
 
   describe('Collection item CRUD', () => {

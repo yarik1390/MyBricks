@@ -34,17 +34,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_prefs_handle ON user_prefs(handle) WHERE h
 ALTER TABLE user_prefs ADD COLUMN google_refresh_token TEXT;
 ALTER TABLE user_prefs ADD COLUMN google_spreadsheet_id TEXT;
 
--- Seed realistic minifigure rarities
-UPDATE minifigs
-SET rarity = CASE substr(fig_num, -1)
-  WHEN '7' THEN 'legendary'
-  WHEN '3' THEN 'rare'
-  WHEN '8' THEN 'rare'
-  WHEN '1' THEN 'uncommon'
-  WHEN '4' THEN 'uncommon'
-  WHEN '9' THEN 'uncommon'
-  ELSE 'common'
-END;
+-- NOTE: a fake rarity seed used to live here (rarity derived from the last
+-- digit of fig_num). It was meaningless — bulk-imported figs the seed never
+-- re-touched stayed at the schema default 'common' (so every browse view was
+-- all "common"), and where it did run it was just a hash. Removed 2026-06 in
+-- favour of a real, data-driven backfill: rarity/series/year/appears_in_sets
+-- are computed offline from the Rebrickable bulk CSVs (inventory_minifigs ×
+-- inventories × sets × themes) and written directly to D1. The catalog importer
+-- only touches name/image_url, so that backfill survives deploys — re-adding a
+-- seed here would clobber it.
 
 -- FTS5 search migration
 DROP TRIGGER IF EXISTS lego_sets_ai;

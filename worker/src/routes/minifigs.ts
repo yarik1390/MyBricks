@@ -52,6 +52,13 @@ app.get('/', async (c) => {
     orderBy = `ORDER BY ${valExpr} ASC, m.name ASC`;
   } else if (sort === 'name_asc') {
     orderBy = `ORDER BY m.name ASC`;
+  } else if (sort === 'scarcity') {
+    // Rarest first = fewest set appearances; unknown (NULL/0) sorts to the end.
+    orderBy = `ORDER BY (m.appears_in_sets IS NULL OR m.appears_in_sets = 0) ASC, m.appears_in_sets ASC, m.name ASC`;
+  } else if (sort === 'year_desc') {
+    orderBy = `ORDER BY (m.year IS NULL) ASC, m.year DESC, m.name ASC`;
+  } else if (sort === 'year_asc') {
+    orderBy = `ORDER BY (m.year IS NULL) ASC, m.year ASC, m.name ASC`;
   }
 
   const [pageRes, countRes] = await Promise.all([
@@ -102,6 +109,20 @@ app.get('/', async (c) => {
     total,
     hasMore: offset + results.length < total,
   });
+});
+
+// GET /api/minifigs/series — distinct series with counts, for the filter UI.
+// Most-populated first; only real (non-empty) series. Cheap, cacheable.
+app.get('/series', async (c) => {
+  const res = await c.env.DB.prepare(
+    `SELECT series, CAST(COUNT(*) AS INTEGER) AS n
+     FROM minifigs
+     WHERE series IS NOT NULL AND series <> ''
+     GROUP BY series
+     ORDER BY n DESC, series ASC
+     LIMIT 40`
+  ).all<{ series: string; n: number }>();
+  return c.json({ series: res.results });
 });
 
 // PUT /api/minifigs/:fignum — mark owned

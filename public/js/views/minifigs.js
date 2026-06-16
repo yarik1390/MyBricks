@@ -6,6 +6,26 @@ import { showSheet } from '../components/sheet.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
 
 let _blindGen = 0;
+let _seriesList = [];
+
+// Distinct series with counts, for the series filter dropdown. Fetched once and
+// cached for the session (the catalog is static between deploys).
+async function loadSeriesList() {
+  if (_seriesList.length) return _seriesList;
+  try {
+    const res = await api('/api/minifigs/series');
+    _seriesList = res.series || [];
+  } catch { /* leave empty — the dropdown still offers "All series" */ }
+  return _seriesList;
+}
+
+function populateSeriesSelect() {
+  const sel = document.getElementById('figSeriesSelect');
+  if (!sel) return;
+  const f = state.filter;
+  sel.innerHTML = `<option value="all">All series</option>` +
+    _seriesList.map(s => `<option value="${escapeHtml(s.series)}"${f.figSeries === s.series ? ' selected' : ''}>${escapeHtml(s.series)} (${s.n})</option>`).join('');
+}
 
 export async function renderBlind() {
   if (!state.blind.items.length) {
@@ -58,15 +78,21 @@ export async function renderBlind() {
           <button class="chip ${f.figRarity === 'all' ? 'active' : ''}" data-fig-rarity="all">All</button>
           ${rarities.map(r => `<button class="chip ${f.figRarity === r ? 'active' : ''} rarity-chip-${r}" data-fig-rarity="${r}">${r.charAt(0).toUpperCase() + r.slice(1)}</button>`).join('')}
         </div>
-        <div class="filter-row" style="margin-top:-4px;margin-bottom:4px;">
+        <div class="filter-row" style="margin-top:-2px;margin-bottom:4px;gap:6px;align-items:center;">
+          <select class="fig-series-select" id="figSeriesSelect" aria-label="Filter by series"
+            style="flex:1;min-width:0;font:inherit;font-size:13px;padding:7px 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);">
+            <option value="all">All series</option>
+            ${_seriesList.map(s => `<option value="${escapeHtml(s.series)}"${f.figSeries === s.series ? ' selected' : ''}>${escapeHtml(s.series)} (${s.n})</option>`).join('')}
+          </select>
           <button class="chip fig-owned-chip ${f.figOwned !== 'all' ? 'active' : ''}" id="figOwnedChip">${ownedChipLabel}</button>
         </div>
         <div class="filter-row" style="margin-top:2px;gap:6px;">
           <span style="font-size:11px;color:var(--ink-mute);display:inline-flex;align-items:center;margin-right:2px;font-family:var(--mono);font-weight:600;">SORT:</span>
           ${[
             ['rarity_desc', 'Rarity'],
-            ['value_desc', 'Value (High)'],
-            ['value_asc', 'Value (Low)'],
+            ['scarcity', 'Rarest'],
+            ['year_desc', 'Newest'],
+            ['value_desc', 'Value'],
             ['name_asc', 'A-Z']
           ].map(([k, l]) => `<button class="chip ${f.figSort === k ? 'active' : ''}" data-fig-sort="${k}">${l}</button>`).join('')}
         </div>
@@ -104,6 +130,14 @@ export async function renderBlind() {
     loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) { refreshMiniGrid(); refreshMiniStats(); } }).catch(() => {});
   }));
 
+  // Series dropdown: populate from the cached facet list (fetch on first open),
+  // then reload the grid when the user picks a series.
+  loadSeriesList().then(() => { if (location.hash === '#/minifigs') populateSeriesSelect(); });
+  $("#figSeriesSelect")?.addEventListener("change", (e) => {
+    state.filter.figSeries = e.target.value; haptic("light");
+    loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) { refreshMiniGrid(); refreshMiniStats(); } }).catch(() => {});
+  });
+
   wireMiniCards();
   mountBlindSentinel();
 }
@@ -138,11 +172,12 @@ function blindQuery() {
   const f = state.filter;
   const b = state.blind;
   const p = new URLSearchParams({ limit: b.pageSize, offset: b.offset });
-  if (f.figQ)                  p.set('q', f.figQ);
-  if (f.figRarity !== 'all')   p.set('rarity', f.figRarity);
-  if (f.figOwned === 'owned')   p.set('owned', 'yes');
-  if (f.figOwned === 'unowned') p.set('owned', 'no');
-  if (f.figSort)               p.set('sort', f.figSort);
+  if (f.figQ)                       p.set('q', f.figQ);
+  if (f.figRarity !== 'all')        p.set('rarity', f.figRarity);
+  if (f.figSeries && f.figSeries !== 'all') p.set('series', f.figSeries);
+  if (f.figOwned === 'owned')       p.set('owned', 'yes');
+  if (f.figOwned === 'unowned')     p.set('owned', 'no');
+  if (f.figSort)                    p.set('sort', f.figSort);
   return p.toString();
 }
 
@@ -208,10 +243,10 @@ function showFigDetail(f) {
   const owned = state.ownedFigs.has(f.fig_num);
   const realVal = f.current_value ?? null;
   const rarity = f.rarity || 'common';
-  const val = realVal != null ? realVal : 0;
-  const valLabel = realVal != null && realVal > 0
-    ? fmtMoney(realVal, { cents: 0 })
-    : (RARITY_FALLBACK[rarity] ? `~${fmtMoney(RARITY_FALLBACK[rarity], { cents: 0 })} est.` : null);
+  const n = f.appears_in_sets ?? null;
+  const scarcityTxt = (n != null && n > 0)
+    ? (n === 1 ? 'Set-exclusive' : `Appears in ${n} sets`)
+    : null;
   const hue = f.hue ?? themeHue(f.series || f.fig_num);
   const hasImg = f.image_url;
   const rbUrl = `https://rebrickable.com/minifigs/${encodeURIComponent(f.fig_num)}/`;
@@ -232,10 +267,15 @@ function showFigDetail(f) {
       <div class="fig-detail-body">
         <div class="fig-detail-series">${escapeHtml(f.series || 'Minifig')}</div>
         <div class="fig-detail-name">${escapeHtml(f.name)}</div>
-        ${valLabel ? `
+        ${realVal != null && realVal > 0 ? `
         <div class="fig-detail-value">
-          <span class="fig-detail-value-lbl">${realVal != null && realVal > 0 ? 'Est. resale value' : 'Typical resale'}</span>
-          <span class="fig-detail-value-num">${valLabel}</span>
+          <span class="fig-detail-value-lbl">Est. resale value</span>
+          <span class="fig-detail-value-num">${fmtMoney(realVal, { cents: 0 })}</span>
+        </div>` : ''}
+        ${(scarcityTxt || f.year) ? `
+        <div class="fig-detail-facts" style="display:flex;gap:14px;flex-wrap:wrap;margin:4px 0 12px;font-size:12.5px;color:var(--ink-mute);">
+          ${scarcityTxt ? `<span>${scarcityTxt}</span>` : ''}
+          ${f.year ? `<span>First seen ${f.year}</span>` : ''}
         </div>` : ''}
         <button class="btn-primary fig-own-btn${owned ? ' is-owned' : ''}" id="figOwnBtn">
           ${renderBtn(owned)}
@@ -303,10 +343,8 @@ function mountBlindSentinel() {
 
 function isFigFilterDefault() {
   const f = state.filter;
-  return !f.figQ && f.figRarity === 'all' && f.figOwned === 'all';
+  return !f.figQ && f.figRarity === 'all' && f.figOwned === 'all' && (!f.figSeries || f.figSeries === 'all');
 }
-
-const RARITY_FALLBACK = { common: 3.50, uncommon: 7.50, rare: 18.00, legendary: 50.00 };
 
 function miniCardHTML(f) {
   const owned = state.ownedFigs.has(f.fig_num);
@@ -314,10 +352,15 @@ function miniCardHTML(f) {
   const hasImg = f.image_url;
   const realVal = f.current_value ?? null;
   const rarity = f.rarity || "common";
-  const fallback = RARITY_FALLBACK[rarity] ?? 3.50;
+  const n = f.appears_in_sets ?? null;
+  // Honest footer: a real market price when we have one, otherwise a true fact
+  // (set-exclusivity / debut year) — never a fabricated rarity-constant price.
+  const scarcityLabel = (n != null && n > 0)
+    ? (n === 1 ? 'Set-exclusive' : `In ${n} sets`)
+    : (f.year ? String(f.year) : '');
   const valHTML = realVal != null && realVal > 0
     ? `<div class="mini-value">${fmtMoney(realVal, { cents: 0 })}</div>`
-    : `<div class="mini-value mini-value-est">~${fmtMoney(fallback, { cents: 0 })}</div>`;
+    : (scarcityLabel ? `<div class="mini-value mini-value-est">${scarcityLabel}</div>` : '');
   return `
     <button class="mini-card rarity-${rarity}" data-fig="${escapeHtml(f.fig_num)}" aria-label="${escapeHtml(f.name)}">
       <div class="mini-img${hasImg ? " has-photo" : ""}">
