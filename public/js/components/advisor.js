@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, fmtMoney, parseMarkdown, daysAgo, fmtPct, fmtShortDate } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoney, parseMarkdown, daysAgo, fmtPct, fmtShortDate, activateFocusTrap, FOCUSABLE_SEL } from '../utils.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
@@ -17,6 +17,8 @@ const ADVISOR_PROMPTS = [
   "How is my Star Wars collection doing?",
 ];
 
+let _advTrapRelease = null;
+
 export async function toggleAdvisor() {
   const drawer = document.getElementById("advisorDrawer");
   if (!drawer) return;
@@ -25,10 +27,18 @@ export async function toggleAdvisor() {
     haptic("light");
     cancelActiveStream();
     drawer.classList.remove("open");
+    _advTrapRelease?.();
+    _advTrapRelease = null;
   } else {
     haptic("medium");
     drawer.classList.add("open");
     await renderAdvisorDrawer();
+    drawer.setAttribute("role", "dialog");
+    drawer.setAttribute("aria-modal", "true");
+    drawer.setAttribute("aria-label", "AI Advisor");
+    _advTrapRelease?.();
+    _advTrapRelease = activateFocusTrap(drawer, toggleAdvisor);
+    setTimeout(() => { try { (drawer.querySelector("#chatInput") || drawer.querySelector(FOCUSABLE_SEL))?.focus(); } catch {} }, 60);
   }
 }
 
@@ -112,6 +122,8 @@ export async function renderAdvisorDrawer() {
     haptic("light");
     cancelActiveStream();
     drawer.classList.remove("open");
+    _advTrapRelease?.();
+    _advTrapRelease = null;
   });
 
   $$(".chat-suggestion-chip").forEach(chip => {

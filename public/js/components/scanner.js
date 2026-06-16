@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDataURL, resizeImage, setHue, getExchangeRate, CURRENCY_SYMBOLS } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDataURL, resizeImage, setHue, getExchangeRate, CURRENCY_SYMBOLS, activateFocusTrap, FOCUSABLE_SEL } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, outboxEnqueue } from '../api.js';
 import { I } from '../icons.js';
@@ -6,12 +6,17 @@ import { confirmSheet, showSheet, hideSheet } from './sheet.js';
 import { computeDealScore as computeDealScorePure, marketValueForCondition } from '../lib/pure.js';
 import { checkGemma3Downloaded, runLocalVisionScan, isWebGpuAvailable } from '../lib/local-ai.js';
 
+let _scanTrapRelease = null;
+
 export function openScan(mode = "barcode") {
   state.camera.mode = mode;
   const ov = $("#scanOverlay");
   ov.innerHTML = scanOverlayHTML(mode);
   ov.classList.add("open");
   $("#scanCloseBtn")?.addEventListener("click", closeScan);
+  _scanTrapRelease?.();
+  _scanTrapRelease = activateFocusTrap(ov, closeScan);
+  ov.querySelector(FOCUSABLE_SEL)?.focus();
 
 
   
@@ -58,6 +63,8 @@ export function openScan(mode = "barcode") {
 
 export function closeScan() {
   stopCamera();
+  _scanTrapRelease?.();
+  _scanTrapRelease = null;
   $("#scanOverlay").classList.remove("open");
   $("#scanOverlay").innerHTML = "";
 }

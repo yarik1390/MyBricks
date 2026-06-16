@@ -2,7 +2,7 @@
 // nav targets with a tooltip card. Shows once (localStorage flag); replayable
 // from the You tab via startOnboarding(). Fully self-contained — if anything
 // throws it never breaks app boot (maybeStartOnboarding swallows errors).
-import { haptic } from '../utils.js';
+import { haptic, activateFocusTrap } from '../utils.js';
 import { I } from '../icons.js';
 
 const FLAG = 'bv_onboarded_v1';
@@ -187,6 +187,7 @@ const WELCOME_SLIDES = [
 ];
 
 let wcRoot = null;
+let _wcTrapRelease = null;
 let wcIdx = 0;
 
 function ensureWelcomeStyles() {
@@ -219,6 +220,8 @@ function ensureWelcomeStyles() {
 function wcFinish(thenTour) {
   try { localStorage.setItem(WELCOME_FLAG, '1'); } catch {}
   document.removeEventListener('keydown', wcKey);
+  _wcTrapRelease?.();
+  _wcTrapRelease = null;
   wcRoot?.remove();
   wcRoot = null;
   if (thenTour) { try { startOnboarding(); } catch {} }
@@ -253,6 +256,9 @@ export function showWelcome() {
     wcIdx = 0;
     wcRoot = document.createElement('div');
     wcRoot.className = 'bv-wc';
+    wcRoot.setAttribute('role', 'dialog');
+    wcRoot.setAttribute('aria-modal', 'true');
+    wcRoot.setAttribute('aria-label', 'Welcome to Brickvault');
     const slides = WELCOME_SLIDES.map(s => `
       <div class="bv-wc-slide">
         <div class="bv-wc-hero" style="background:linear-gradient(145deg,oklch(.62 .19 ${s.hue}),oklch(.5 .16 ${(s.hue + 32) % 360}));">${typeof I[s.icon] === 'function' ? I[s.icon]({ w: 62 }) : ''}</div>
@@ -291,6 +297,8 @@ export function showWelcome() {
     }, { passive: true });
     document.body.appendChild(wcRoot);
     document.addEventListener('keydown', wcKey);
+    _wcTrapRelease = activateFocusTrap(wcRoot);
+    wcRoot.querySelector('.bv-wc-btn')?.focus();
     wcRender();
   } catch {
     wcRoot?.remove();

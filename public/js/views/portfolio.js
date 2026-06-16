@@ -269,7 +269,7 @@ function paintPortfolio() {
         </div>
         <div class="spark-wrap" id="heroChart"></div>
         <div class="range-pills" id="rangePills">
-          ${["1W","1M","3M","1Y","ALL"].map(r => `<button data-r="${r}" class="${state.filter.range === r ? "active" : ""}">${r}</button>`).join("")}
+          ${["1W","1M","3M","1Y","ALL"].map(r => `<button data-r="${r}" aria-pressed="${state.filter.range === r ? "true" : "false"}" class="${state.filter.range === r ? "active" : ""}">${r}</button>`).join("")}
         </div>
       </div>
 
@@ -320,7 +320,7 @@ function paintPortfolio() {
 
   $$("#rangePills button").forEach(b => b.addEventListener("click", () => {
     state.filter.range = b.dataset.r; haptic("light");
-    $$("#rangePills button").forEach(x => x.classList.toggle("active", x.dataset.r === state.filter.range));
+    $$("#rangePills button").forEach(x => { x.classList.toggle("active", x.dataset.r === state.filter.range); x.setAttribute("aria-pressed", x.dataset.r === state.filter.range ? "true" : "false"); });
     const d = ranges[state.filter.range] || 30;
     const freshClipped = hist.slice(-Math.min(d + 1, hist.length));
     drawSparkline($("#heroChart"), freshClipped, { up: gain >= 0 });
@@ -1751,7 +1751,7 @@ function wishlistCardHTML(w) {
     <div class="wishlist-card" data-set="${escapeHtml(w.set_num)}" style="cursor:pointer;position:relative;">
       <div class="sl-img has-tile${hasImg ? " has-photo" : ""}" style="width:72px;height:76px;">
         <div class="brick-tile" style="--h:${h};width:100%;height:76%;margin-top:auto;"></div>
-        ${hasImg ? `<img class="set-photo" src="${escapeHtml(w.image_url)}" alt="" loading="lazy">` : ""}
+        ${hasImg ? `<img class="set-photo" src="${escapeHtml(w.image_url)}" alt="${escapeHtml(w.name || '')}" loading="lazy">` : ""}
       </div>
       <div class="sl-body" style="flex:1;text-align:left;padding-right:32px;">
         <div class="sl-name">${escapeHtml(w.name || w.set_num)}</div>
@@ -1916,7 +1916,7 @@ function trophyShelfHTML(sets, showVal = true) {
     return `<a href="#/set/${encodeURIComponent(s.set_num)}" class="trophy-card">
       <div class="set-card-img${hasImg ? " has-photo" : ""}">
         <div class="brick-tile" style="--h:${h};width:64%;height:64%;"></div>
-        ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="" loading="lazy">` : ""}
+        ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="${escapeHtml(s.name || '')}" loading="lazy">` : ""}
         ${s.retired ? `<span class="retired-tag">RETIRED</span>` : ""}
       </div>
       <div class="trophy-card-name">${escapeHtml(s.name)}</div>

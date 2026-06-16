@@ -160,9 +160,9 @@ function pageHtml() {
       <button class="icon-btn" id="buildBack" aria-label="Back">‹</button>
       <h1>What Can I Build?</h1>
     </header>
-    <div class="b-tabs">
-      <button class="b-tab ${_mode === 'sets' ? 'b-tab-on' : ''}" data-mode="sets">Buildable sets</button>
-      <button class="b-tab ${_mode === 'alts' ? 'b-tab-on' : ''}" data-mode="alts">Alternate builds</button>
+    <div class="b-tabs" role="tablist" aria-label="Build views">
+      <button class="b-tab ${_mode === 'sets' ? 'b-tab-on' : ''}" data-mode="sets" aria-pressed="${_mode === 'sets'}">Buildable sets</button>
+      <button class="b-tab ${_mode === 'alts' ? 'b-tab-on' : ''}" data-mode="alts" aria-pressed="${_mode === 'alts'}">Alternate builds</button>
     </div>
     <p class="build-intro">${intro}</p>
     ${tiles()}

@@ -166,6 +166,30 @@ export function toast(msg, type) {
 // One debounce interval for every search box — consistent feel across screens.
 export const SEARCH_DEBOUNCE_MS = 250;
 
+// Accessible focus trap for bespoke modals/overlays. Keeps Tab cycling inside
+// `container`; calls onEscape (if given) on Escape; returns a release() that
+// removes the listener and restores focus to the pre-open element. Mirrors the
+// proven pattern in components/sheet.js so all modals behave consistently.
+export const FOCUSABLE_SEL = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+export function activateFocusTrap(container, onEscape) {
+  const invoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  function handler(e) {
+    if (e.key === "Escape") { if (onEscape) { e.preventDefault(); onEscape(); } return; }
+    if (e.key !== "Tab" || !container) return;
+    const f = [...container.querySelectorAll(FOCUSABLE_SEL)].filter(el => !el.disabled && el.offsetParent !== null);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    else if (!container.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+  }
+  document.addEventListener("keydown", handler);
+  return function release() {
+    document.removeEventListener("keydown", handler);
+    if (invoker && document.contains(invoker)) { try { invoker.focus(); } catch {} }
+  };
+}
+
 export function debounce(fn, ms) {
   let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
