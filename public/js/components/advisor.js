@@ -490,6 +490,7 @@ async function sendAdvisorMessage(q) {
 
   let streamTimeout = null;
   let reader = null;
+  let rafId = null;
   try {
     const geminiKey = localStorage.getItem('bv_gemini_key');
     const openaiKey = localStorage.getItem('bv_openai_key');
@@ -509,10 +510,45 @@ async function sendAdvisorMessage(q) {
     _activeReader = reader;
     const dec = new TextDecoder();
     let buf = "";
-    let fullText = "";
 
     aiBubble.querySelector(".chat-typing")?.remove();
 
+    // Smooth "typewriter" reveal, decoupled from network chunk timing. The
+    // stream can deliver text in uneven bursts (the AI Gateway buffers, so the
+    // whole answer sometimes lands in one chunk at the end). Re-rendering on
+    // each chunk made the reply "pop in" all at once; instead we accumulate
+    // into `target` and let a rAF loop reveal it at a steady, readable cadence
+    // so the answer expands naturally regardless of how the bytes arrive.
+    let target = "";        // full text received from the stream so far
+    let revealed = 0;       // chars currently shown
+    let streamDone = false; // stream finished (success path)
+    let settle = null;      // resolves once the reveal has fully caught up
+
+    const renderRevealed = () => {
+      aiBubble.innerHTML = parseMarkdown(target.slice(0, revealed));
+      hist.scrollTop = hist.scrollHeight;
+    };
+    const tick = () => {
+      const remaining = target.length - revealed;
+      if (remaining > 0) {
+        // Ease-out within a 3–20 char/frame band: trickle reveals slowly, a
+        // big end-of-stream backlog drains faster but still animates (~1–2s)
+        // instead of snapping in.
+        const step = Math.max(3, Math.min(20, Math.ceil(remaining / 6)));
+        revealed += Math.min(remaining, step);
+        renderRevealed();
+      }
+      if (revealed >= target.length && streamDone) {
+        rafId = null;
+        renderRevealed(); // ensure the final, complete markdown is shown
+        if (settle) settle();
+        return;
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    const ensureRaf = () => { if (rafId == null) rafId = requestAnimationFrame(tick); };
+
+    let streamError = null;
     while (true) {
       const readPromise = reader.read();
       const { done, value } = await Promise.race([
@@ -523,28 +559,40 @@ async function sendAdvisorMessage(q) {
       buf += dec.decode(value, { stream: true });
       const lines = buf.split("\n");
       buf = lines.pop();
+      let gotDone = false;
       for (const line of lines) {
         if (!line.startsWith("data: ")) continue;
         try {
           const parsed = JSON.parse(line.slice(6));
           if (parsed.text) {
-            fullText += parsed.text;
-            aiBubble.innerHTML = parseMarkdown(fullText);
-            hist.scrollTop = hist.scrollHeight;
+            target += parsed.text;
+            ensureRaf();
           }
-          if (parsed.error) {
-            // Surface the error even if partial text already streamed: keep the
-            // partial answer and append an escaped notice (never raw innerHTML).
-            const note = `<div class="chat-stream-error" style="margin-top:6px;font-size:12px;opacity:.85;">⚠ ${escapeHtml(parsed.error)}</div>`;
-            aiBubble.innerHTML = (fullText ? parseMarkdown(fullText) : "") + note;
-            aiBubble.classList.add("error");
-          }
-          if (parsed.done) break;
+          if (parsed.error) streamError = parsed.error;
+          if (parsed.done) { gotDone = true; break; }
         } catch {}
       }
+      if (gotDone) break;
     }
-    if (fullText) saveChatMessage("ai", fullText);
+
+    // Stream finished — let the reveal run to completion before settling.
+    streamDone = true;
+    ensureRaf();
+    await new Promise((res) => {
+      settle = res;
+      if (revealed >= target.length) res();
+    });
+
+    if (streamError) {
+      // Surface the error even if partial text already streamed: keep the
+      // partial answer and append an escaped notice (never raw innerHTML).
+      const note = `<div class="chat-stream-error" style="margin-top:6px;font-size:12px;opacity:.85;">⚠ ${escapeHtml(streamError)}</div>`;
+      aiBubble.innerHTML = (target ? parseMarkdown(target) : "") + note;
+      aiBubble.classList.add("error");
+    }
+    if (target) saveChatMessage("ai", target);
   } catch (err) {
+    if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; }
     aiBubble.querySelector(".chat-typing")?.remove();
     aiBubble.classList.add("error");
     const errMsg = err.message || "";
@@ -570,6 +618,7 @@ async function sendAdvisorMessage(q) {
     });
   } finally {
     clearTimeout(streamTimeout);
+    if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; }
     // Release the response stream on timeout/error paths — a raced abort leaves
     // the reader open otherwise, leaking the connection.
     try { await reader?.cancel(); } catch {}
