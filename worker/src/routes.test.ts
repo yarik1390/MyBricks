@@ -180,7 +180,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         quantity INTEGER DEFAULT 1, added_at TEXT DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, fig_num)
       )`,
-      `CREATE TABLE set_minifigs (
+      `CREATE TABLE IF NOT EXISTS set_minifigs (
         set_num TEXT NOT NULL, fig_num TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 1,
         fig_name TEXT, fig_img_url TEXT, PRIMARY KEY (set_num, fig_num)
       )`,
