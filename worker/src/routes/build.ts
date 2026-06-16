@@ -126,4 +126,90 @@ app.get('/', async (c) => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Parts-based matcher: official LEGO sets you can build from the COMBINED parts
+// of the sets you already own, with completion % and how many pieces you're
+// short ("Need N"). Powered by the bulk-loaded set_parts table.
+
+// Ignore books / gear / promo "sets" with trivially small part counts.
+const MIN_REQ_PARTS = 50;
+
+// GET /api/build/sets
+app.get('/sets', async (c) => {
+  const userId = c.get('userId');
+  const minParts = Math.min(
+    Math.max(parseInt(c.req.query('min') || String(MIN_REQ_PARTS), 10) || MIN_REQ_PARTS, 1),
+    5000,
+  );
+  const lim = Math.min(parseInt(c.req.query('limit') || '120', 10), 300);
+
+  const ownedRes = await c.env.DB.prepare(
+    `SELECT DISTINCT set_num FROM user_collection
+     WHERE user_id = ? AND deleted_at IS NULL AND is_complete = 1`,
+  ).bind(userId).all<{ set_num: string }>();
+  const ownedSets = (ownedRes.results || []).map((r) => r.set_num);
+  if (!ownedSets.length) {
+    return c.json({ builds: [], can_build: 0, near: 0, owned_sets: 0, parts_sets: 0, min_parts: minParts });
+  }
+
+  const ph = ownedSets.map(() => '?').join(',');
+  const cov = await c.env.DB.prepare(
+    `SELECT COUNT(DISTINCT set_num) AS n FROM set_parts WHERE set_num IN (${ph})`,
+  ).bind(...ownedSets).first<{ n: number }>();
+
+  // Pool = every part/color you own (owned set parts x owned quantity). Then for
+  // each candidate catalog set, count how many of its required (non-spare) parts
+  // the pool covers: have_total = sum(min(required, owned)); req_total = sum(required).
+  const sql =
+    `WITH pool AS (
+       SELECT sp.part_num, sp.color_id, SUM(sp.quantity * uc.quantity) AS have
+       FROM user_collection uc
+       JOIN set_parts sp ON sp.set_num = uc.set_num
+       WHERE uc.user_id = ? AND uc.deleted_at IS NULL AND uc.is_complete = 1
+       GROUP BY sp.part_num, sp.color_id
+     ),
+     cand AS (
+       SELECT sp.set_num,
+              SUM(sp.quantity) AS req_total,
+              SUM(MIN(sp.quantity, COALESCE(p.have, 0))) AS have_total
+       FROM set_parts sp
+       LEFT JOIN pool p ON p.part_num = sp.part_num AND p.color_id = sp.color_id
+       WHERE sp.is_spare = 0 AND sp.set_num NOT IN (${ph})
+       GROUP BY sp.set_num
+     )
+     SELECT c.set_num, s.name, s.theme, s.year, s.pieces, s.image_url,
+            s.current_value, c.req_total, c.have_total,
+            ROUND(100.0 * c.have_total / c.req_total, 1) AS pct
+     FROM cand c
+     JOIN lego_sets s ON s.set_num = c.set_num
+     WHERE c.req_total >= ? AND c.have_total > 0
+     ORDER BY (c.have_total >= c.req_total) DESC, pct DESC, c.req_total DESC
+     LIMIT ?`;
+  const rows = await c.env.DB.prepare(sql)
+    .bind(userId, ...ownedSets, minParts, lim)
+    .all<Record<string, unknown>>();
+
+  const builds = (rows.results || []).map((r) => {
+    const req = Number(r.req_total) || 0;
+    const have = Number(r.have_total) || 0;
+    return {
+      set_num: r.set_num, name: r.name, theme: r.theme, year: r.year,
+      pieces: r.pieces, image_url: r.image_url, current_value: r.current_value,
+      req_total: req, have_total: have,
+      pct: Number(r.pct) || 0,
+      need: Math.max(0, req - have),
+      buildable: have >= req,
+    };
+  });
+
+  return c.json({
+    builds,
+    can_build: builds.filter((b) => b.buildable).length,
+    near: builds.filter((b) => !b.buildable && b.pct >= 80).length,
+    owned_sets: ownedSets.length,
+    parts_sets: cov?.n ?? 0,
+    min_parts: minParts,
+  });
+});
+
 export { app as buildRoute };
