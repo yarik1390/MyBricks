@@ -152,6 +152,7 @@ export async function renderMe() {
         ${linkRow("#/me/data", "Data", "Export &amp; import your collection as CSV")}
         ${me.is_admin ? linkRow("#/me/admin", "Admin console", "Catalog imports, jobs, integration health") : ""}
         ${linkRow("#/leaderboard", "Leaderboard", "Top public collections by value")}
+        ${linkRow("#/build", "What Can I Build?", "Models you can build from sets you own")}
         <div class="setting-row" id="replayTourRow" style="cursor:pointer;">
           <div class="lbl-wrap"><div class="lbl">App tour</div><div class="desc">Replay the quick guided walkthrough.</div></div>
           ${I.chev()}

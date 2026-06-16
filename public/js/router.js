@@ -10,6 +10,7 @@ import { renderMeAdmin } from './views/me-admin.js';
 import { renderPortfolio, renderSetDetail, renderWishlist, renderPublicProfile, renderLeaderboard } from './views/portfolio.js';
 import { renderAdd, renderPile } from './views/catalog.js';
 import { renderBlind } from './views/minifigs.js';
+import { renderBuild } from './views/build.js';
 import { hideSheet } from './components/sheet.js';
 import { closeScan } from './components/scanner.js';
 import { cancelActiveStream } from './components/advisor.js';
@@ -81,6 +82,7 @@ async function _routeImpl() {
     else if (hash === "/add") await renderAdd();
     else if (hash === "/pile") renderPile();
     else if (hash === "/minifigs") await renderBlind();
+    else if (hash === "/build") await renderBuild();
     else if (hash === "/me") await renderMe();
     else if (hash === "/me/integrations") await renderMeIntegrations();
     else if (hash === "/me/data") await renderMeData();
