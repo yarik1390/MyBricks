@@ -23,6 +23,19 @@ const THEME_MULTIPLIERS: Record<string, number> = {
   'Speed Champions': 0.95,
 };
 
+/**
+ * Whether a set should be treated as retired, inferred from age. The formula
+ * below models a ~2-year shelf life, so anything older than that is past retail
+ * and has begun appreciating. The bulk catalog import has no real retirement
+ * data — without this it pinned every catalog set to its MSRP (no appreciation
+ * applied), which is the dominant cause of "low" valuation quality. Kept here as
+ * the single source of truth so the import path and any offline recompute agree.
+ */
+export function isLikelyRetired(year?: number | null): boolean {
+  if (!year || year <= 0) return false;
+  return year <= new Date().getFullYear() - 3;
+}
+
 export function formulaValuation(set: {
   pieces?: number;
   year?: number;

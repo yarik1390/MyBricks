@@ -12,7 +12,7 @@ import {
 import { classifyHealth } from './lib/integration-health';
 import { computeRetirementRisk } from './lib/retirement-risk';
 import { isSearchIndexCorruption } from './lib/search-index';
-import { formulaValuation, isPlausibleMarketValue } from './lib/valuation';
+import { formulaValuation, isLikelyRetired, isPlausibleMarketValue } from './lib/valuation';
 import { blendMarketValue } from './lib/market-sources';
 
 // ---------------------------------------------------------------------------
@@ -347,6 +347,33 @@ describe('formulaValuation', () => {
     const r = formulaValuation({});
     expect(r.retail_price).toBeGreaterThan(0);
     expect(r.current_value).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isLikelyRetired — age-based retirement inference for the bulk catalog
+// ---------------------------------------------------------------------------
+describe('isLikelyRetired', () => {
+  const yr = new Date().getFullYear();
+  it('treats sets past the ~2-year shelf life as retired', () => {
+    expect(isLikelyRetired(yr - 3)).toBe(true);
+    expect(isLikelyRetired(yr - 10)).toBe(true);
+  });
+  it('treats current/recent sets as still on shelf', () => {
+    expect(isLikelyRetired(yr)).toBe(false);
+    expect(isLikelyRetired(yr - 1)).toBe(false);
+  });
+  it('returns false for missing/zero year', () => {
+    expect(isLikelyRetired(undefined)).toBe(false);
+    expect(isLikelyRetired(null)).toBe(false);
+    expect(isLikelyRetired(0)).toBe(false);
+  });
+  it('drives appreciation: an aged set out-values an identical brand-new one', () => {
+    // The bug fix: the bulk import used to pin every set to MSRP (retired:false).
+    // Inferring retirement from age lets the formula apply appreciation.
+    const aged = formulaValuation({ pieces: 800, theme: 'Star Wars', year: yr - 12, retired: isLikelyRetired(yr - 12) });
+    const fresh = formulaValuation({ pieces: 800, theme: 'Star Wars', year: yr, retired: isLikelyRetired(yr) });
+    expect(aged.current_value).toBeGreaterThan(fresh.current_value);
   });
 });
 
