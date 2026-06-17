@@ -188,7 +188,7 @@ function paintAdd() {
       </div>
 
       <div class="filter-row" style="margin-top:-4px;">
-        ${[["value_desc","Top value"],["roi_desc","Best growth"],["year_desc","Newest"],["az","A–Z"]]
+        ${[["value_desc","Value"],["roi_desc","Growth"],["year_desc","Newest"],["az","A–Z"]]
           .map(([k,l]) => `<button class="chip ${f.catalogSort === k ? "active" : ""}" data-csort="${k}">${l}</button>`).join("")}
         ${[["all","All"],["active","Active"],["retired","Retired"]].map(([k,l]) =>
           `<button class="chip ${(f.catalogRetired || "all") === k ? "active" : ""}" data-retired="${k}">${l}</button>`).join("")}

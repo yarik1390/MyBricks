@@ -291,7 +291,7 @@ function paintPortfolio() {
       <div id="portfolioTabContent" role="tabpanel">
         ${state.portfolioTab === "items" ? `
           <div class="filter-row" style="margin-top: 8px;">
-            ${[["added_desc","Recent"],["value_desc","By value"],["roi_desc","By ROI"],["az","A–Z"]]
+            ${[["added_desc","Recent"],["value_desc","Value"],["roi_desc","Growth"],["az","A–Z"]]
               .map(([k,l]) => `<button class="chip ${state.filter.sort === k ? "active" : ""}" data-sort="${k}">${l}</button>`).join("")}
           </div>
           <div class="set-list ${state.compactView ? 'compact-list' : ''}" id="setList">
@@ -330,7 +330,7 @@ function paintPortfolio() {
     if (tab === "items") {
       panel.innerHTML = `
           <div class="filter-row" style="margin-top: 8px;">
-            ${[["added_desc","Recent"],["value_desc","By value"],["roi_desc","By ROI"],["az","A\u2013Z"]]
+            ${[["added_desc","Recent"],["value_desc","Value"],["roi_desc","Growth"],["az","A\u2013Z"]]
               .map(([k,l]) => `<button class="chip ${state.filter.sort === k ? "active" : ""}" data-sort="${k}">${l}</button>`).join("")}
           </div>
           <div class="set-list ${state.compactView ? 'compact-list' : ''}" id="setList">
