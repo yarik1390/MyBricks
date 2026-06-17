@@ -13,41 +13,6 @@ let _q = '';
 const _sets = { loaded: false, loading: false, builds: [], can_build: 0, near: 0, owned_sets: 0, parts_sets: 0 };
 const _alts = { loaded: false, loading: false, builds: [], can_build: 0, sets_with_alts: 0, owned_sets: 0, indexing: 0 };
 
-const STYLE = `<style>
-.build-view{padding:0 5% 96px;max-width:680px;margin:0 auto}
-.build-header{display:flex;align-items:center;gap:8px;padding:14px 0 2px}
-.build-header h1{font-size:1.4rem;margin:0}
-.icon-btn{background:none;border:none;color:inherit;cursor:pointer;padding:6px;font-size:1.3rem;line-height:1}
-.build-intro{opacity:.68;font-size:.83rem;line-height:1.45;margin:.5rem 0 1rem}
-.b-tabs{display:flex;gap:8px;margin:6px 0 4px}
-.b-tab{flex:1;padding:9px;border-radius:10px;border:1px solid rgba(127,127,127,.2);background:transparent;color:inherit;font-size:.85rem;font-weight:600;cursor:pointer}
-.b-tab-on{background:#138a36;color:#fff;border-color:#138a36}
-.b-tiles{display:flex;gap:12px;margin-bottom:12px}
-.b-tile{flex:1;background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.16);border-radius:14px;padding:14px}
-.b-n{font-size:1.7rem;font-weight:700;line-height:1}
-.b-l{font-size:.72rem;opacity:.65;margin-top:5px}
-.build-search{width:100%;box-sizing:border-box;padding:11px 14px;border-radius:12px;border:1px solid rgba(127,127,127,.22);background:rgba(127,127,127,.06);color:inherit;font-size:.95rem;margin-bottom:12px}
-.b-indexing{font-size:.77rem;opacity:.6;margin:-2px 0 10px}
-.b-list{display:flex;flex-direction:column;gap:10px}
-.b-row{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid rgba(127,127,127,.16);border-radius:14px;text-decoration:none;color:inherit;background:rgba(127,127,127,.04)}
-.b-row:active{background:rgba(127,127,127,.1)}
-.b-thumb{width:62px;height:62px;border-radius:10px;object-fit:cover;background:rgba(127,127,127,.1);flex:none}
-.b-thumb-e{display:flex;align-items:center;justify-content:center;opacity:.4}
-.b-meta{flex:1;min-width:0}
-.b-name{font-weight:600;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.b-sub{font-size:.77rem;opacity:.66;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.b-barwrap{height:6px;background:rgba(127,127,127,.18);border-radius:4px;margin-top:7px;overflow:hidden}
-.b-bar{height:100%;border-radius:4px}
-.b-bar-ok{background:#138a36}
-.b-bar-mid{background:#d9920a}
-.b-side{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex:none;min-width:64px}
-.b-pct{font-weight:700;font-size:.92rem}
-.b-badge{font-size:.62rem;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap}
-.b-ok{background:#138a36;color:#fff}
-.b-need{font-size:.72rem;color:#d9920a;font-weight:700}
-.b-chevron{opacity:.4;font-size:1.2rem;line-height:1}
-.b-empty{opacity:.66;text-align:center;padding:40px 18px;line-height:1.5}
-</style>`;
 
 async function loadSets() {
   if (_sets.loading) return;
@@ -155,7 +120,7 @@ function pageHtml() {
   const intro = _mode === 'sets'
     ? `Official sets you could build right now from the combined parts of the sets you own — with completion % and how many pieces you're short. (You'd part out your sets to build them.)`
     : `Alternate models you can build from a set you own, each with free building instructions on Rebrickable.`;
-  return `${STYLE}<div class="build-view">
+  return `<div class="build-view">
     <header class="build-header">
       <button class="icon-btn" id="buildBack" aria-label="Back">‹</button>
       <h1>What Can I Build?</h1>

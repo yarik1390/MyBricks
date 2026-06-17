@@ -266,7 +266,7 @@ function paintAdd() {
         haptic("light");
         hideSheet();
         refreshCatalogSummary();
-        reloadGrid().then(() => renderAdd());
+        reloadGrid();
       }));
     };
     paintThemes();

@@ -780,6 +780,14 @@ function drawDoubleSparkline(container, data) {
     scrub.classList.remove("show");
   };
 
+  if (container._sparkHandlers) {
+    const _h = container._sparkHandlers;
+    container.removeEventListener("pointermove", _h.move);
+    container.removeEventListener("pointerleave", _h.leave);
+    container.removeEventListener("touchmove", _h.move);
+    container.removeEventListener("touchend", _h.leave);
+  }
+  container._sparkHandlers = { move: onMove, leave: onLeave };
   container.addEventListener("pointermove", onMove);
   container.addEventListener("pointerleave", onLeave);
   container.addEventListener("touchmove", onMove, { passive: true });
