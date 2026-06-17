@@ -1,5 +1,6 @@
 import { I } from './icons.js';
 import { state } from './state.js';
+import morphdom from './lib/morphdom.js';
 
 /* ---------- DOM helpers ---------- */
 export const $ = (s, r = document) => r.querySelector(s);
@@ -165,6 +166,26 @@ export function toast(msg, type) {
 
 // One debounce interval for every search box — consistent feel across screens.
 export const SEARCH_DEBOUNCE_MS = 250;
+
+// Patch container's children to match `html` via morphdom — preserves focus,
+// scroll, and unchanged DOM instead of an innerHTML teardown. Subtrees marked
+// data-static are left untouched so async-managed nodes (charts/photos) survive.
+export function mount(container, html) {
+  if (!container) return;
+  const tmp = container.cloneNode(false);
+  tmp.innerHTML = html;
+  morphdom(container, tmp, {
+    childrenOnly: true,
+    onBeforeElUpdated(fromEl, toEl) {
+      if (fromEl.isEqualNode(toEl)) return false;
+      if (fromEl.nodeType === 1 && fromEl.hasAttribute('data-static')) return false;
+      if (fromEl === document.activeElement && 'value' in fromEl && 'value' in toEl) {
+        toEl.value = fromEl.value;
+      }
+      return true;
+    },
+  });
+}
 
 // Accessible focus trap for bespoke modals/overlays. Keeps Tab cycling inside
 // `container`; calls onEscape (if given) on Escape; returns a release() that

@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, clamp, prefersReducedMotion, confettiBurst, themeHue, setHue, THEME_COLORS, fmtShortDate, fmtDateUpdated, setBtnLoading, drawSparkline, brickTile, slImgHTML, bricklinkBuyURL, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, clamp, prefersReducedMotion, confettiBurst, themeHue, setHue, THEME_COLORS, fmtShortDate, fmtDateUpdated, setBtnLoading, drawSparkline, brickTile, slImgHTML, bricklinkBuyURL, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, mount } from '../utils.js';
 import { computeDealScore, ebaySoldSummary, marketValueForCondition, computeSpreadSignals, buyWindow, pricePerPiece } from '../lib/pure.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue } from '../api.js';
@@ -897,9 +897,8 @@ function paintSetDetail(set, entry) {
       </div>
     </div>`;
 
-  $("#detailBack")?.addEventListener("click", () => { if (history.length > 1) history.back(); else location.hash = "#/"; });
-  $("#shareBtn")?.addEventListener("click", () => shareSet(set));
-  $$("#detailTabs button").forEach(b => b.addEventListener("click", () => { haptic("light"); switchDetailTab(b.dataset.tab, set, entry); }));
+  _detailCtx = { set, entry };
+  ensureDetailDelegation();
   if (state.detail.tab === "info") wireInfoTab(set, entry);
   else if (state.detail.tab === "manage") wireManageTab(set, entry);
   setupTabSwipe(set, entry);
@@ -1648,6 +1647,27 @@ function optionalMoneyInput(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+let _detailCtx = null;
+let _detailDelegated = false;
+// One delegated click handler on #root for the set-detail back/share/tab controls,
+// so morphdom-preserved nodes never accumulate or lose listeners. Reads the
+// current set/entry from module state; wrapped so a bug can't break other clicks.
+function ensureDetailDelegation() {
+  if (_detailDelegated) return;
+  const root = document.getElementById("root");
+  if (!root) return;
+  _detailDelegated = true;
+  root.addEventListener("click", (e) => {
+    try {
+      if (!_detailCtx) return;
+      if (e.target.closest("#detailBack")) { if (history.length > 1) history.back(); else location.hash = "#/"; return; }
+      if (e.target.closest("#shareBtn")) { shareSet(_detailCtx.set); return; }
+      const tb = e.target.closest("#detailTabs button");
+      if (tb) { haptic("light"); switchDetailTab(tb.dataset.tab, _detailCtx.set, _detailCtx.entry); }
+    } catch (err) { console.warn("[detail-delegation]", err); }
+  });
+}
+
 function switchDetailTab(tab, set, entry) {
   state.detail.tab = tab;
   const isWish = state.wishlist.some(w => w.set_num === set.set_num);
@@ -1658,9 +1678,9 @@ function switchDetailTab(tab, set, entry) {
   });
   const panel = $("#tabPanels");
   if (!panel) return;
-  panel.innerHTML = tab === "info" ? infoTabHTML(set, entry, isWish)
+  mount(panel, tab === "info" ? infoTabHTML(set, entry, isWish)
     : tab === "forecast" ? forecastTabHTML(set)
-    : manageTabHTML(set, entry);
+    : manageTabHTML(set, entry));
   if (tab === "info") wireInfoTab(set, entry);
   else if (tab === "manage") wireManageTab(set, entry);
 }
