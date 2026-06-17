@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import type { Env } from '../types';
 import { fetchSetPricing, fetchUsedPricing, fetchMinifigPricing } from '../lib/bricklink';
 import { fetchBrickOwlPricing } from '../lib/brickowl-pricing';
+import { EBAY_SOLD_COMPS_ENABLED, BRICKOWL_ENABLED } from '../lib/pricing-flags';
 import { callGeminiValuation } from '../lib/gemini';
 import { MODELS, openAIServerBaseURL, gatewayHeaders, gatewayMetadataHeader, openRouterBaseURL } from '../lib/llm';
 import {
@@ -92,7 +93,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   // Sold comps need the restricted Marketplace Insights scope; ask-only
   // callers (the recurring cron) skip them so a non-approved keyset never
   // burns calls or trips the breaker. Defaults to includeEbay (back-compat).
-  const includeEbaySold = options.includeEbaySold ?? includeEbay;
+  const includeEbaySold = (options.includeEbaySold ?? includeEbay) && EBAY_SOLD_COMPS_ENABLED;
   const includeAiFallback = options.includeAiFallback !== false;
   const requestedLimit = Number(options.limit);
   // Default raised from the old hand-tuned 4: the invocation packer below is
@@ -153,7 +154,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   const grants = await reserveQuota(env, {
     brickeconomy: packProfile.brickEconomy ? results.length : 0,
     bricklink: results.length * 2,
-    brickowl: includeSupplemental ? results.length : 0,
+    brickowl: (includeSupplemental && BRICKOWL_ENABLED) ? results.length : 0,
     ebay: includeEbay ? results.length * (includeEbaySold ? 2 : 1) : 0,
   });
   let beBudget = grants.brickeconomy ?? 0;
@@ -602,6 +603,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
 }
 
 export async function runEbayBackfill(env: Env, options: { limit?: number } = {}) {
+  // eBay sold comps are globally disabled (Marketplace Insights access pending).
+  if (!EBAY_SOLD_COMPS_ENABLED) {
+    return { processed: 0, updated: 0, limit: 0, skipped: 'ebay sold comps disabled' };
+  }
   const requestedLimit = Number(options.limit);
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
     ? Math.min(Math.floor(requestedLimit), 2)

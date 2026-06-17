@@ -4,6 +4,7 @@ import { importSets, importFigs } from '../jobs/import-catalog';
 import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
 import { BARCODE_PAGE_SIZE } from '../lib/brickset';
 import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
+import { EBAY_SOLD_COMPS_ENABLED } from '../lib/pricing-flags';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
 import { getQuotaUsage } from '../lib/api-quota';
 import { getAiUsageReport } from '../lib/ai-usage';
@@ -767,7 +768,9 @@ app.post('/populate-everything', async (c) => {
         }
 
         snapshot = await getPopulationSnapshot(c.env);
-        const includeEbay = !!snapshot.ebay_source_available;
+        // eBay ASK works on the basic scope whenever the keyset is configured;
+        // sold comps stay off via the global flag (includeEbaySold:false).
+        const includeEbay = !!snapshot.ebay_configured;
         // This slice already spent subrequests on earlier phases (each barcode
         // page ≈ 1 fetch + D1 batch + progress write). Hand the valuation run
         // what realistically remains of the invocation's 50 so its packer can
@@ -779,6 +782,7 @@ app.post('/populate-everything', async (c) => {
           includeFresh: true,
           includeSupplemental: true,
           includeEbay,
+          includeEbaySold: false,
           includeMinifigs: true,
           includeAiFallback: false,
           sourceRetries: 0,
@@ -796,7 +800,7 @@ app.post('/populate-everything', async (c) => {
         updated += valuation.updated;
         processed += valuation.processed;
 
-        if (includeEbay) {
+        if (includeEbay && EBAY_SOLD_COMPS_ENABLED) {
           await phaseProgress(5, 'Checking eBay sold comps', 0, ebayLimit);
           const ebay = await runEbayBackfill(c.env, { limit: ebayLimit });
           updated += ebay.updated;

@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { fetchTracked } from './http';
+import { EBAY_SOLD_COMPS_ENABLED } from './pricing-flags';
 
 const EBAY_SCOPE_MARKETPLACE_INSIGHTS = 'https://api.ebay.com/oauth/api_scope/buy.marketplace.insights';
 const EBAY_MARKETPLACE_ID = 'EBAY_US';
@@ -241,6 +242,17 @@ export async function fetchEbaySoldPrices(
   options: { recordHealth?: boolean } = {},
 ): Promise<EbaySoldPrices> {
   void setName;
+  if (!EBAY_SOLD_COMPS_ENABLED) {
+    return {
+      source: 'marketplace_insights',
+      status: 'unconfigured',
+      new_value: null,
+      used_value: null,
+      new_sample_count: 0,
+      used_sample_count: 0,
+      error: 'eBay sold comps disabled — Marketplace Insights access pending.',
+    };
+  }
   if (!hasConfiguredEbaySecrets(env)) {
     return {
       source: 'marketplace_insights',

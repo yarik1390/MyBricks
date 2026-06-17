@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { fetchTracked } from './http';
 import { isIntegrationBlocked, setIntegrationBlock } from './integration-health';
+import { BRICKOWL_ENABLED } from './pricing-flags';
 
 export interface BrickOwlPricing {
   new_value: number | null;
@@ -12,7 +13,7 @@ export async function fetchBrickOwlPricing(
   env: Env,
   options: { recordHealth?: boolean; retries?: number; timeoutMs?: number } = {},
 ): Promise<BrickOwlPricing | null> {
-  if (!env.BRICKOWL_API_KEY) return null;
+  if (!BRICKOWL_ENABLED || !env.BRICKOWL_API_KEY) return null;
   // A bad/forbidden key 403s every call; without a breaker that burns ~100+
   // calls/day. Honor the block and re-probe only once it expires.
   if (await isIntegrationBlocked(env, 'brickowl')) return null;

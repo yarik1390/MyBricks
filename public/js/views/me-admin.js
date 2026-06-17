@@ -81,7 +81,7 @@ export async function renderMeAdmin() {
           <button class="import-btn" id="backfillUpcBtn" aria-label="Backfill barcodes">${I.download()}</button>
         </div>
         <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Populate coverage</div><div class="desc" id="populateCoverageDesc">One safe slice: barcode pages plus eBay sold prices</div></div>
+          <div class="lbl-wrap"><div class="lbl">Populate coverage</div><div class="desc" id="populateCoverageDesc">One safe slice: barcode pages plus eBay ask refresh</div></div>
           <button class="import-btn" id="populateCoverageBtn" aria-label="Populate coverage">${I.refresh({w: 16, h: 16})}</button>
         </div>
         <div class="setting-row">
@@ -124,7 +124,7 @@ const ADMIN_JOB_TOOLS = {
   sets: { url: "/api/admin/import-rebrickable", method: "POST", body: { dataset: "sets" }, desc: "importSetsDesc", btn: "importSetsBtn", text: "Importing sets...", idle: "~22k sets from Rebrickable with themes & images" },
   figs: { url: "/api/admin/import-rebrickable", method: "POST", body: { dataset: "figs" }, desc: "importFigsDesc", btn: "importFigsBtn", text: "Importing figs...", idle: "~10k minifigures from Rebrickable" },
   upc: { url: "/api/admin/backfill-upc", method: "POST", body: {}, desc: "backfillUpcDesc", btn: "backfillUpcBtn", text: "Backfilling UPC...", idle: "Daily safe slices from Brickset; press to advance now" },
-  populate: { url: "/api/admin/populate-coverage", method: "POST", body: {}, desc: "populateCoverageDesc", btn: "populateCoverageBtn", text: "Populating coverage...", idle: "One safe slice: barcode pages plus eBay sold prices" },
+  populate: { url: "/api/admin/populate-coverage", method: "POST", body: {}, desc: "populateCoverageDesc", btn: "populateCoverageBtn", text: "Populating coverage...", idle: "One safe slice: barcode pages plus eBay ask refresh" },
   revalue: { url: "/api/admin/revalue-brickeconomy", method: "POST", body: { scope: "all", limit: 4 }, desc: "revalueAllDesc", btn: "revalueAllBtn", text: "Revaluing prices...", idle: "Daily safe valuation batches; press to advance now" },
   everything: { url: "/api/admin/populate-everything", method: "POST", body: { valuation_limit: 5, barcode_pages: 4, ebay_limit: 2 }, desc: "populateEverythingDesc", btn: "populateEverythingBtn", text: "Populating everything...", idle: "Auto-runs safe slices from every configured data source" }
 };
@@ -511,7 +511,7 @@ async function updateIntegrationsHealth() {
       ["Fresh <30d BL/eBay/BE/BO", `${n(fresh.bricklink)} / ${n(fresh.ebay_sold)} / ${n(fresh.brickeconomy)} / ${n(fresh.brickowl)}`],
       ["Confidence H/M/L/est", `${n(conf.high)} / ${n(conf.medium)} / ${n(conf.low)} / ${n(conf.estimated)}`],
     ];
-    const blendNote = "Valuation-v2 blend quality. The blend only diverges from the formula when a set has 2+ fresh sources; confidence is derived from fresh sold-source counts (high needs 2+, e.g. BrickLink + eBay sold). Grow multi-source via eBay Marketplace Insights + BrickOwl.";
+    const blendNote = "Valuation-v2 blend quality. The blend diverges from formula when a set has 2+ fresh sources. eBay sold comps and BrickOwl are disabled (no provider access); the active market sources are BrickLink, BrickEconomy, and eBay ASK.";
     const blendHTML = Object.keys(bq).length ? `
       <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
         <div class="u-mono-label u-fs-2xs" style="margin-bottom:8px;">Blend quality</div>

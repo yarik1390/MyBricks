@@ -109,8 +109,8 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     ),
     required_secrets: ['EBAY_APP_ID', 'EBAY_CLIENT_SECRET'],
     used_by: ['sold-price checks', 'deal score', 'listing draft'],
-    notes: 'Uses eBay Marketplace Insights sold comps only, split into new/sealed and used US/USD values. Marketplace Insights is limited-release and must be enabled for the keyset.',
-    recommended_action: 'Add EBAY_APP_ID and EBAY_CLIENT_SECRET to enable eBay sold-comps enrichment.',
+    notes: 'Uses eBay Browse active-listing ASK prices (basic OAuth scope, works on any keyset). Sold comps (Marketplace Insights) are disabled pending Buy-API approval.',
+    recommended_action: 'Add EBAY_APP_ID and EBAY_CLIENT_SECRET for ask-price enrichment. Sold comps stay off until Marketplace Insights (Buy) approval is granted and the flag is flipped.',
   },
   bricklink: {
     label: 'BrickLink',
@@ -146,8 +146,8 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     configured: (env) => !!env.BRICKOWL_API_KEY,
     required_secrets: ['BRICKOWL_API_KEY'],
     used_by: ['barcode fallback'],
-    notes: 'Optional slower per-set barcode fallback. Brickset is preferred when available.',
-    recommended_action: 'Add BRICKOWL_API_KEY only if Brickset barcode coverage is unavailable.',
+    notes: 'Disabled pending a valid API key (current key returns HTTP 403). Provides barcode + pricing fallback when enabled.',
+    recommended_action: 'BrickOwl is disabled. Add a valid BRICKOWL_API_KEY and flip BRICKOWL_ENABLED to re-enable.',
   },
   gemini: {
     label: 'Gemini',
