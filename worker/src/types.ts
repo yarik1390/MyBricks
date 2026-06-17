@@ -24,6 +24,10 @@ export interface Env {
   BRICKLINK_TOKEN: string;
   BRICKLINK_TOKEN_SECRET: string;
   BRICKECONOMY_API_KEY?: string;
+  // Pricing-source kill switches (see lib/pricing-flags.ts). Default OFF;
+  // set to "1" via wrangler [vars] to re-enable once provider access returns.
+  EBAY_SOLD_COMPS_ENABLED?: string;
+  BRICKOWL_ENABLED?: string;
   GEMINI_API_KEY?: string;
   // Cloudflare AI Gateway (optional). When account + gateway id are set, SERVER-key
   // AI calls route through the gateway for caching, analytics, rate/spend limits.

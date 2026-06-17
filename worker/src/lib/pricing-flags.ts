@@ -12,9 +12,9 @@ function flagOn(value: unknown): boolean {
 }
 
 export function ebaySoldCompsEnabled(env: Env): boolean {
-  return flagOn((env as Record<string, unknown>).EBAY_SOLD_COMPS_ENABLED);
+  return flagOn(env.EBAY_SOLD_COMPS_ENABLED);
 }
 
 export function brickOwlEnabled(env: Env): boolean {
-  return flagOn((env as Record<string, unknown>).BRICKOWL_ENABLED);
+  return flagOn(env.BRICKOWL_ENABLED);
 }
