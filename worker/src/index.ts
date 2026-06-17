@@ -19,7 +19,7 @@ import { pushRoute } from './routes/push';
 import { bricklinkImportRoute } from './routes/bricklink-import';
 import { buildRoute } from './routes/build';
 
-import { runValuateSets, runValuateMinifigs } from './jobs/valuate-sets';
+import { runValuateSets, runValuateMinifigs, runEbayAskBackfill } from './jobs/valuate-sets';
 import { runSnapshotPortfolios } from './jobs/snapshot-portfolios';
 import { runSnapshotSetValues } from './jobs/snapshot-set-values';
 import { runWishlistAlerts } from './jobs/wishlist-alerts';
@@ -209,6 +209,12 @@ export default {
           includeAiFallback: false,
           subrequestBudget: 520,
         }));
+        // Pass 3 — eBay ASK backfill (Browse basic scope; sold stays off).
+        // Refreshes the free active-listing ask signal for ask-stale sets
+        // (owned/wishlist + retired first), feeding the persisted blended
+        // value. Small + bounded so all three passes fit one invocation's
+        // subrequest cap; the eBay daily quota is wide open.
+        await run('valuate-ebay-ask', () => runEbayAskBackfill(env, { limit: 40 }));
         break;
       }
       case '0 2 * * *': await run('snapshot-portfolios', () => runSnapshotPortfolios(env)); break;

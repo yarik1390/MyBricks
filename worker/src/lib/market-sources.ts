@@ -416,7 +416,8 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T): T {
 export const BLEND_INPUT_COLUMNS =
   'valuation_method, current_value, bl_new_value, bl_new_qty, bl_new_min, bl_new_max, ' +
   'bl_cached_at, ebay_new_value, ebay_new_qty, ebay_new_cached_at, be_cached_at, ' +
-  'cached_at, bo_new_value, bo_cached_at';
+  'cached_at, bo_new_value, bo_cached_at, ' +
+  'ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at';
 
 // Recompute + persist blended_value for one set (on-demand detail refresh /
 // revalue). Reads the post-write row so it always reflects the latest signals.
