@@ -67,6 +67,7 @@ describe('eBay sold comps', () => {
   it('requests separate new and used Marketplace Insights filters', async () => {
     __resetEbayTokenCacheForTests();
     (env as any).EBAY_APP_ID = 'ebay-app-id';
+    (env as any).EBAY_SOLD_COMPS_ENABLED = '1';
     (env as any).EBAY_CLIENT_SECRET = 'ebay-client-secret';
     const seenUrls: string[] = [];
     const originalFetch = globalThis.fetch;
@@ -121,6 +122,7 @@ describe('eBay sold comps', () => {
   it('requires both eBay secrets and does not fall back to legacy APIs', async () => {
     __resetEbayTokenCacheForTests();
     (env as any).EBAY_APP_ID = 'ebay-app-id';
+    (env as any).EBAY_SOLD_COMPS_ENABLED = '1';
     (env as any).EBAY_CLIENT_SECRET = '';
     const originalFetch = globalThis.fetch;
     globalThis.fetch = vi.fn();
@@ -140,6 +142,7 @@ describe('eBay sold comps', () => {
   it('returns unauthorized when the OAuth token request fails', async () => {
     __resetEbayTokenCacheForTests();
     (env as any).EBAY_APP_ID = 'ebay-app-id';
+    (env as any).EBAY_SOLD_COMPS_ENABLED = '1';
     (env as any).EBAY_CLIENT_SECRET = 'ebay-client-secret';
     const seenUrls: string[] = [];
     const originalFetch = globalThis.fetch;
@@ -165,6 +168,7 @@ describe('eBay sold comps', () => {
   it('stops after the first Marketplace Insights access denial', async () => {
     __resetEbayTokenCacheForTests();
     (env as any).EBAY_APP_ID = 'ebay-app-id';
+    (env as any).EBAY_SOLD_COMPS_ENABLED = '1';
     (env as any).EBAY_CLIENT_SECRET = 'ebay-client-secret';
     const seenUrls: string[] = [];
     const originalFetch = globalThis.fetch;

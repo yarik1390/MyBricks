@@ -1,11 +1,20 @@
+import type { Env } from '../types';
+
 // Central kill-switches for pricing sources that currently lack provider
-// access. Flip a flag to true and redeploy once access is restored — every
-// call site reads these, so re-enabling needs no other code change.
-//
-//  - EBAY_SOLD_COMPS_ENABLED: eBay Marketplace Insights (sold comps) needs
-//    Buy-API approval for the keyset; until granted it 400s (invalid_scope).
-//    The basic-scope Browse *ask* path is independent and stays ON.
-//  - BRICKOWL_ENABLED: BrickOwl pricing + barcode lookups need a valid API
-//    key; the current key returns HTTP 403, so both are disabled.
-export const EBAY_SOLD_COMPS_ENABLED = false;
-export const BRICKOWL_ENABLED = false;
+// access. They are OFF unless the matching env var is truthy, so production
+// is disabled by default and re-enabling is a wrangler [vars] entry (or
+// secret) — no code change or redeploy of source needed:
+//   EBAY_SOLD_COMPS_ENABLED = "1"   (after eBay Marketplace Insights approval)
+//   BRICKOWL_ENABLED        = "1"   (after a valid BRICKOWL_API_KEY is set)
+// The basic-scope eBay Browse *ask* path is independent and always on.
+function flagOn(value: unknown): boolean {
+  return /^(1|true|yes|on)$/i.test(String(value ?? ''));
+}
+
+export function ebaySoldCompsEnabled(env: Env): boolean {
+  return flagOn((env as Record<string, unknown>).EBAY_SOLD_COMPS_ENABLED);
+}
+
+export function brickOwlEnabled(env: Env): boolean {
+  return flagOn((env as Record<string, unknown>).BRICKOWL_ENABLED);
+}

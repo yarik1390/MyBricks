@@ -1,12 +1,12 @@
 import type { Env } from '../types';
 import { fetchTracked } from './http';
-import { BRICKOWL_ENABLED } from './pricing-flags';
+import { brickOwlEnabled } from './pricing-flags';
 
 // Returns the EAN-13 barcode for a LEGO set via BrickOwl catalog/lookup.
 // EAN-13 is compatible with the UPC column — the scan route already handles
 // the EAN↔UPC conversion (strip/add leading 0).
 export async function fetchBrickOwlBarcode(setNum: string, env: Env): Promise<string | null> {
-  if (!BRICKOWL_ENABLED || !env.BRICKOWL_API_KEY) return null;
+  if (!brickOwlEnabled(env) || !env.BRICKOWL_API_KEY) return null;
   try {
     // Rebrickable format is "75192-1"; BrickOwl expects just "75192".
     const id = setNum.replace(/-\d+$/, '');
