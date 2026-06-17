@@ -29,6 +29,9 @@ export interface Env {
   EBAY_SOLD_COMPS_ENABLED?: string;
   BRICKOWL_ENABLED?: string;
   BRICKINSIGHTS_ENABLED?: string;
+  BRIGHTDATA_API_TOKEN?: string;
+  BRIGHTDATA_ZONE?: string;
+  BRIGHTDATA_SOLD_ENABLED?: string;
   GEMINI_API_KEY?: string;
   // Cloudflare AI Gateway (optional). When account + gateway id are set, SERVER-key
   // AI calls route through the gateway for caching, analytics, rate/spend limits.

@@ -17,6 +17,7 @@ export const QUOTA_CAPS: Record<string, number> = {
   brickeconomy: 80,
   brickset: 90,
   brickowl: 1500,
+  brightdata: 150,
 };
 
 export function quotaDay(now = new Date()): string {

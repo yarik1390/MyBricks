@@ -17,7 +17,8 @@ export type IntegrationName =
   | 'openai'
   | 'openrouter'
   | 'rebrickable'
-  | 'brickinsights';
+  | 'brickinsights'
+  | 'brightdata';
 
 export type IntegrationStatus = 'ok' | 'degraded' | 'down' | 'unknown' | 'unconfigured';
 
@@ -206,6 +207,14 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['set review ratings'],
     notes: 'Aggregated LEGO set review score (0-100) from the BrickInsights public API. No key required.',
     recommended_action: 'No action required; set BRICKINSIGHTS_ENABLED=0 to disable.',
+  },
+  brightdata: {
+    label: 'Bright Data (eBay sold)',
+    configured: (env) => !!env.BRIGHTDATA_API_TOKEN,
+    required_secrets: ['BRIGHTDATA_API_TOKEN'],
+    used_by: ['eBay sold comps (scraped, corroborating)'],
+    notes: 'Web Unlocker scrape of eBay US sold listings; a corroborating sold source for sets that already have BrickLink/BrickEconomy. Free tier ~5,000/month.',
+    recommended_action: 'Add BRIGHTDATA_API_TOKEN as a Worker secret to enable; set BRIGHTDATA_SOLD_ENABLED=0 to pause.',
   },
 };
 

@@ -27,6 +27,7 @@ import { runDailyCatalogMaintenance } from './jobs/catalog-maintenance';
 import { runDbHygiene } from './jobs/db-hygiene';
 import { importSets, importFigs } from './jobs/import-catalog';
 import { runBrickInsightsBackfill } from './jobs/brickinsights';
+import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
 
 import type { Env, Variables } from './types';
 
@@ -227,6 +228,10 @@ export default {
         await run('daily-catalog-maintenance', () => runDailyCatalogMaintenance(env));
         // Daily BrickInsights ratings backfill (owned/wishlist + retired first).
         await run('brickinsights-ratings', () => runBrickInsightsBackfill(env, { limit: 50 }));
+        // Corroborating eBay-sold scrape (Bright Data) for sets that already
+        // have BrickLink/BrickEconomy — adds a 2nd sold source toward high
+        // confidence. No-op unless BRIGHTDATA_API_TOKEN is set.
+        await run('ebay-sold-scrape', () => runEbaySoldScrape(env, { limit: 20 }));
         const isSunday = new Date(event.scheduledTime).getUTCDay() === 0;
         if (!isSunday) break;
         await run('weekly-import-sets', () => importSets(env.DB, env));

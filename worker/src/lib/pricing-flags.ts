@@ -25,3 +25,10 @@ export function brickOwlEnabled(env: Env): boolean {
 export function brickInsightsEnabled(env: Env): boolean {
   return !/^(0|false|no|off)$/i.test(String(env.BRICKINSIGHTS_ENABLED ?? ''));
 }
+
+// eBay SOLD comps via Bright Data Web Unlocker (scraping). Requires the
+// BRIGHTDATA_API_TOKEN Worker secret; on by default once that's set. Set
+// BRIGHTDATA_SOLD_ENABLED to a falsy value to pause without removing the token.
+export function brightDataSoldEnabled(env: Env): boolean {
+  return !!env.BRIGHTDATA_API_TOKEN && !/^(0|false|no|off)$/i.test(String(env.BRIGHTDATA_SOLD_ENABLED ?? ''));
+}
