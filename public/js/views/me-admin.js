@@ -508,10 +508,11 @@ async function updateIntegrationsHealth() {
       ["Diverged from formula", n(bq.blended_diverged)],
       ["BrickOwl coverage", formatCoverage(bq.sets_with_brickowl, bq.brickowl_coverage_pct)],
       ["eBay asking coverage", formatCoverage(bq.sets_with_ebay_ask, bq.ebay_ask_coverage_pct)],
+      ["BrickInsights ratings", formatCoverage(bq.sets_with_brickinsights, bq.brickinsights_rating_coverage_pct)],
       ["Fresh <30d BL/eBay/BE/BO", `${n(fresh.bricklink)} / ${n(fresh.ebay_sold)} / ${n(fresh.brickeconomy)} / ${n(fresh.brickowl)}`],
       ["Confidence H/M/L/est", `${n(conf.high)} / ${n(conf.medium)} / ${n(conf.low)} / ${n(conf.estimated)}`],
     ];
-    const blendNote = "Valuation-v2 blend quality. The blend diverges from formula when a set has 2+ fresh sources. eBay sold comps and BrickOwl are disabled (no provider access); the active market sources are BrickLink, BrickEconomy, and eBay ASK.";
+    const blendNote = "Valuation-v2 blend quality. The blend diverges from formula when a set has 2+ fresh sources; two fresh SOLD sources reach high confidence. Active sources: BrickLink, BrickEconomy, eBay ask, and eBay sold via Bright Data (corroborating, when enabled). BrickOwl is disabled (no provider access). BrickInsights ratings are a non-price quality signal.";
     const blendHTML = Object.keys(bq).length ? `
       <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
         <div class="u-mono-label u-fs-2xs" style="margin-bottom:8px;">Blend quality</div>

@@ -179,6 +179,7 @@ async function getDataCoverage(env: Env) {
           (CASE WHEN bo_new_value>0 AND bo_cached_at > datetime('now','-30 days') THEN 1 ELSE 0 END) AS bo_fresh,
           (CASE WHEN bo_new_value>0 THEN 1 ELSE 0 END) AS has_bo,
           (CASE WHEN ebay_ask_value>0 THEN 1 ELSE 0 END) AS has_ask,
+          (CASE WHEN brickinsights_rating>0 THEN 1 ELSE 0 END) AS has_bi,
           blended_value, current_value
         FROM lego_sets
       )
@@ -196,6 +197,7 @@ async function getDataCoverage(env: Env) {
         CAST(SUM(bo_fresh) AS INTEGER) AS bo_fresh_30d,
         CAST(SUM(has_bo) AS INTEGER) AS sets_with_brickowl,
         CAST(SUM(has_ask) AS INTEGER) AS sets_with_ebay_ask,
+        CAST(SUM(has_bi) AS INTEGER) AS sets_with_brickinsights,
         CAST(SUM(CASE WHEN (bl_fresh+ebay_fresh)>=2 THEN 1 ELSE 0 END) AS INTEGER) AS conf_high,
         CAST(SUM(CASE WHEN (bl_fresh+ebay_fresh)<2 AND ((bl_fresh+ebay_fresh)>=1 OR be_fresh=1) THEN 1 ELSE 0 END) AS INTEGER) AS conf_medium,
         CAST(SUM(CASE WHEN (bl_fresh+ebay_fresh)<1 AND be_fresh=0 AND src>0 THEN 1 ELSE 0 END) AS INTEGER) AS conf_low,
@@ -244,6 +246,8 @@ async function getDataCoverage(env: Env) {
     brickowl_coverage_pct: pct(Number(blend?.sets_with_brickowl || 0)),
     sets_with_ebay_ask: Number(blend?.sets_with_ebay_ask || 0),
     ebay_ask_coverage_pct: pct(Number(blend?.sets_with_ebay_ask || 0)),
+    sets_with_brickinsights: Number(blend?.sets_with_brickinsights || 0),
+    brickinsights_rating_coverage_pct: pct(Number(blend?.sets_with_brickinsights || 0)),
     freshness_30d: {
       bricklink: Number(blend?.bl_fresh_30d || 0),
       ebay_sold: Number(blend?.ebay_sold_fresh_30d || 0),

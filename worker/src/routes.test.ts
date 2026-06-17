@@ -91,6 +91,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         ebay_ask_value REAL, ebay_ask_qty INTEGER, ebay_ask_cached_at TEXT,
         valuation_method TEXT DEFAULT 'formula_bulk', bl_new_value REAL, bl_new_qty INTEGER, bl_used_qty INTEGER,
         bo_new_value REAL, bo_used_value REAL, bo_cached_at TEXT,
+        brickinsights_rating INTEGER, brickinsights_review_count INTEGER, brickinsights_url TEXT, brickinsights_cached_at TEXT,
         valuation_expires_at TEXT, cached_at TEXT, source TEXT, ebay_cached_at TEXT, blended_value REAL
       )`,
       `CREATE TABLE set_value_history (
