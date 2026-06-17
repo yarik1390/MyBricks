@@ -4,7 +4,6 @@ import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet } from '../components/sheet.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
-import { openScan } from '../components/scanner.js';
 
 let _blindGen = 0;
 let _seriesList = [];
@@ -57,7 +56,6 @@ export async function renderBlind() {
           <div class="topbar-eyebrow" id="blindCount">${ownedCount}/${b.total.toLocaleString()} collected</div>
           <div class="topbar-title">Minifigs</div>
         </div>
-        <button class="icon-btn" id="blindBagScan" aria-label="Scan a blind bag">${I.scan()}</button>
       </div>
 
       <div class="fig-stats-row">
@@ -140,7 +138,6 @@ export async function renderBlind() {
     loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) { refreshMiniGrid(); refreshMiniStats(); } }).catch(() => {});
   });
 
-  $("#blindBagScan")?.addEventListener("click", () => { haptic("light"); openScan("blindbox"); });
 
   wireMiniCards();
   mountBlindSentinel();

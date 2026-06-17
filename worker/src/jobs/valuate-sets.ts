@@ -732,15 +732,16 @@ export async function runEbayAskBackfill(env: Env, options: { limit?: number } =
   return { processed, updated, limit };
 }
 
-export async function runValuateMinifigs(env: Env): Promise<number> {
+export async function runValuateMinifigs(env: Env, options: { limit?: number } = {}): Promise<number> {
+  const limit = Math.min(Math.max(1, Math.floor(options.limit ?? 10)), 200);
   const { results } = await env.DB.prepare(`
     SELECT DISTINCT m.fig_num
     FROM minifigs m
     JOIN user_minifigs um ON um.fig_num = m.fig_num
     WHERE m.cached_at IS NULL OR m.cached_at < datetime('now', '-7 days')
     ORDER BY COALESCE(m.cached_at, '2000-01-01') ASC
-    LIMIT 10
-  `).all<{ fig_num: string }>();
+    LIMIT ?
+  `).bind(limit).all<{ fig_num: string }>();
 
   // Account the BrickLink spend in the daily ledger (advisory — minifig
   // batches are far below the 4,000/day budget, but visibility matters).

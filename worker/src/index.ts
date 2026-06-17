@@ -232,6 +232,9 @@ export default {
         // have BrickLink/BrickEconomy — adds a 2nd sold source toward high
         // confidence. No-op unless BRIGHTDATA_API_TOKEN is set.
         await run('ebay-sold-scrape', () => runEbaySoldScrape(env, { limit: 20 }));
+        // Minifig valuation lives here (not the unregistered '0 5' slot, 5-cron
+        // cap) so owned minifigs actually get valued daily.
+        await run('valuate-minifigs', () => runValuateMinifigs(env, { limit: 40 }));
         const isSunday = new Date(event.scheduledTime).getUTCDay() === 0;
         if (!isSunday) break;
         await run('weekly-import-sets', () => importSets(env.DB, env));
