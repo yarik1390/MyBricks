@@ -274,13 +274,13 @@ function paintPortfolio() {
       </div>
 
       ${p.items.length > 0 ? `
-        <div class="portfolio-tabs">
-          <button class="portfolio-tab ${state.portfolioTab === 'items' ? 'active' : ''}" data-tab="items">Your Sets</button>
-          <button class="portfolio-tab ${state.portfolioTab === 'insights' ? 'active' : ''}" data-tab="insights">Insights</button>
+        <div class="portfolio-tabs" role="tablist" aria-label="Portfolio views">
+          <button class="portfolio-tab ${state.portfolioTab === 'items' ? 'active' : ''}" data-tab="items" role="tab" aria-selected="${state.portfolioTab === 'items'}" aria-controls="portfolioTabContent">Your Sets</button>
+          <button class="portfolio-tab ${state.portfolioTab === 'insights' ? 'active' : ''}" data-tab="insights" role="tab" aria-selected="${state.portfolioTab === 'insights'}" aria-controls="portfolioTabContent">Insights</button>
         </div>
       ` : ''}
 
-      <div id="portfolioTabContent">
+      <div id="portfolioTabContent" role="tabpanel">
         ${state.portfolioTab === "items" ? `
           <div class="filter-row" style="margin-top: 8px;">
             ${[["added_desc","Recent"],["value_desc","By value"],["roi_desc","By ROI"],["az","A–Z"]]
@@ -858,12 +858,12 @@ function paintSetDetail(set, entry) {
           </div>
           <button class="detail-share-btn icon-btn" id="shareBtn" aria-label="Share">${I.share()}</button>
         </div>
-        <div class="detail-tabs" id="detailTabs">
+        <div class="detail-tabs" id="detailTabs" role="tablist" aria-label="Set detail sections">
           ${["info","forecast","manage"].filter(t => t !== "manage" || owned).map(t =>
-            `<button data-tab="${t}" class="${state.detail.tab === t ? "active" : ""}">${t[0].toUpperCase()+t.slice(1)}</button>`
+            `<button data-tab="${t}" role="tab" aria-selected="${state.detail.tab === t}" aria-controls="tabPanels" class="${state.detail.tab === t ? "active" : ""}">${t[0].toUpperCase()+t.slice(1)}</button>`
           ).join("")}
         </div>
-        <div class="detail-tab-panel" id="tabPanels">
+        <div class="detail-tab-panel" id="tabPanels" role="tabpanel">
           ${state.detail.tab === "info" ? infoTabHTML(set, entry, isWish) :
             state.detail.tab === "forecast" ? forecastTabHTML(set) :
             manageTabHTML(set, entry)}
