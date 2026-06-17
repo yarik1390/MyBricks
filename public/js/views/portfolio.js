@@ -98,6 +98,14 @@ function sortedPortfolioItems() {
 // Re-render ONLY the set list + wire its cards. Used by sort/search so the
 // hero, chart and topbar don't flash from a full-page re-render.
 let portfolioOffset = 20;
+function wireSortChips() {
+  $$(".filter-row .chip").forEach(c => c.addEventListener("click", () => {
+    state.filter.sort = c.dataset.sort; localStorage.setItem("bv_sort", c.dataset.sort); haptic("light");
+    $$(".filter-row .chip").forEach(x => x.classList.toggle("active", x.dataset.sort === state.filter.sort));
+    repaintSetList();
+  }));
+}
+
 function repaintSetList() {
   const list = $("#setList");
   if (!list) return;
@@ -310,12 +318,34 @@ function paintPortfolio() {
   animateHeroValue(totalVal);
   if (state.portfolioTab === "insights") wireInsightsTab();
 
-  $$(".portfolio-tab").forEach(tabBtn => {
-    tabBtn.addEventListener("click", () => {
-      state.portfolioTab = tabBtn.dataset.tab;
-      haptic("light");
-      paintPortfolio();
+  const switchPortfolioTab = (tab) => {
+    state.portfolioTab = tab;
+    $$(".portfolio-tab").forEach(x => {
+      const on = x.dataset.tab === tab;
+      x.classList.toggle("active", on);
+      x.setAttribute("aria-selected", on ? "true" : "false");
     });
+    const panel = $("#portfolioTabContent");
+    if (!panel) return;
+    if (tab === "items") {
+      panel.innerHTML = `
+          <div class="filter-row" style="margin-top: 8px;">
+            ${[["added_desc","Recent"],["value_desc","By value"],["roi_desc","By ROI"],["az","A\u2013Z"]]
+              .map(([k,l]) => `<button class="chip ${state.filter.sort === k ? "active" : ""}" data-sort="${k}">${l}</button>`).join("")}
+          </div>
+          <div class="set-list ${state.compactView ? 'compact-list' : ''}" id="setList">
+            ${items.length === 0 ? emptyVaultHTML() : items.map(setListCardHTML).join("")}
+          </div>`;
+      wireSortChips();
+      if (items.length) { wirePortfolioCards(); setupPortfolioSentinel(items); }
+    } else {
+      panel.innerHTML = `<div id="insightsPanelContent">${renderInsightsTab(p.items || [])}</div>`;
+      wireInsightsTab();
+      setTimeout(() => { const c = $("#insightsDoubleChart"); if (c) drawDoubleSparkline(c, clipped); }, 40);
+    }
+  };
+  $$(".portfolio-tab").forEach(tabBtn => {
+    tabBtn.addEventListener("click", () => { haptic("light"); switchPortfolioTab(tabBtn.dataset.tab); });
   });
 
   $$("#rangePills button").forEach(b => b.addEventListener("click", () => {
@@ -328,11 +358,7 @@ function paintPortfolio() {
     if (container) drawDoubleSparkline(container, freshClipped);
   }));
 
-  $$(".filter-row .chip").forEach(c => c.addEventListener("click", () => {
-    state.filter.sort = c.dataset.sort; localStorage.setItem("bv_sort", c.dataset.sort); haptic("light");
-    $$(".filter-row .chip").forEach(x => x.classList.toggle("active", x.dataset.sort === state.filter.sort));
-    repaintSetList();
-  }));
+  wireSortChips();
 
   $("#layoutToggle")?.addEventListener("click", () => {
     state.compactView = !state.compactView;
@@ -873,9 +899,7 @@ function paintSetDetail(set, entry) {
 
   $("#detailBack")?.addEventListener("click", () => { if (history.length > 1) history.back(); else location.hash = "#/"; });
   $("#shareBtn")?.addEventListener("click", () => shareSet(set));
-  $$("#detailTabs button").forEach(b => b.addEventListener("click", () => {
-    state.detail.tab = b.dataset.tab; haptic("light"); paintSetDetail(set, entry);
-  }));
+  $$("#detailTabs button").forEach(b => b.addEventListener("click", () => { haptic("light"); switchDetailTab(b.dataset.tab, set, entry); }));
   if (state.detail.tab === "info") wireInfoTab(set, entry);
   else if (state.detail.tab === "manage") wireManageTab(set, entry);
   setupTabSwipe(set, entry);
@@ -1624,6 +1648,23 @@ function optionalMoneyInput(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function switchDetailTab(tab, set, entry) {
+  state.detail.tab = tab;
+  const isWish = state.wishlist.some(w => w.set_num === set.set_num);
+  $$("#detailTabs button").forEach(x => {
+    const on = x.dataset.tab === tab;
+    x.classList.toggle("active", on);
+    x.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  const panel = $("#tabPanels");
+  if (!panel) return;
+  panel.innerHTML = tab === "info" ? infoTabHTML(set, entry, isWish)
+    : tab === "forecast" ? forecastTabHTML(set)
+    : manageTabHTML(set, entry);
+  if (tab === "info") wireInfoTab(set, entry);
+  else if (tab === "manage") wireManageTab(set, entry);
+}
+
 function setupTabSwipe(set, entry) {
   const el = $("#tabPanels"); if (!el) return;
   if (_swipeAc) _swipeAc.abort();
@@ -1640,7 +1681,7 @@ function setupTabSwipe(set, entry) {
       const tabs = owned ? ["info","forecast","manage"] : ["info","forecast"];
       const idx = tabs.indexOf(state.detail.tab);
       const next = clamp(idx + (dx < 0 ? 1 : -1), 0, tabs.length - 1);
-      if (next !== idx) { state.detail.tab = tabs[next]; haptic("light"); paintSetDetail(set, entry); }
+      if (next !== idx) { haptic("light"); switchDetailTab(tabs[next], set, entry); }
     }
   }, { signal });
 }
