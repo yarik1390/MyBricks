@@ -282,7 +282,7 @@ async function getDataCoverage(env: Env) {
 }
 
 async function getPopulationSnapshot(env: Env) {
-  const [coverage, minifigs, ebayAttempts, latestBarcode, ebayHealth] = await Promise.all([
+  const [coverage, minifigs, ebayAttempts, latestBarcode, ebayHealth, ownedCov] = await Promise.all([
     getDataCoverage(env),
     env.DB.prepare(`SELECT CAST(COUNT(*) AS INTEGER) AS total_minifigs FROM minifigs`).first<{ total_minifigs: number }>(),
     env.DB.prepare(`
@@ -303,6 +303,19 @@ async function getPopulationSnapshot(env: Env) {
       FROM integration_health
       WHERE service='ebay'
     `).first<{ last_ok_at: string | null; last_fail_at: string | null; last_error: string | null; block_active: number }>(),
+    // User-visible slice: how many owned/wishlisted sets carry a real
+    // (non-formula) market value vs a formula estimate — the coverage users
+    // actually see in their portfolio.
+    env.DB.prepare(`
+      SELECT
+        CAST(COUNT(*) AS INTEGER) AS total,
+        CAST(SUM(CASE WHEN valuation_method IS NOT NULL AND valuation_method <> 'formula_bulk' THEN 1 ELSE 0 END) AS INTEGER) AS non_formula,
+        CAST(SUM(CASE WHEN bl_new_value IS NOT NULL OR ebay_new_value IS NOT NULL OR ebay_used_value IS NOT NULL OR bo_new_value IS NOT NULL OR bo_used_value IS NOT NULL OR ebay_ask_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS has_real,
+        CAST(SUM(CASE WHEN blended_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS has_blended
+      FROM lego_sets
+      WHERE set_num IN (SELECT set_num FROM user_collection WHERE deleted_at IS NULL)
+         OR set_num IN (SELECT set_num FROM user_wishlist)
+    `).first<{ total: number; non_formula: number; has_real: number; has_blended: number }>(),
   ]);
   const c = coverage as Record<string, any>;
   const totalSets = Number(c.total_sets || 0);
@@ -324,6 +337,15 @@ async function getPopulationSnapshot(env: Env) {
   const formulaBulkCount = Number((c.valuation_methods || []).find((m: { valuation_method?: string; count?: number }) => m.valuation_method === 'formula_bulk')?.count || 0);
   const barcodePassComplete = /complete:true|barcode_complete:true/i.test(String(latestBarcode?.error || ''));
   const ebaySourceAvailable = ebayConfigured && !ebayAccessBlocked;
+  const ocTotal = Number(ownedCov?.total || 0);
+  const ownedCoverage = {
+    total: ocTotal,
+    non_formula: Number(ownedCov?.non_formula || 0),
+    has_real: Number(ownedCov?.has_real || 0),
+    has_blended: Number(ownedCov?.has_blended || 0),
+    non_formula_pct: ocTotal ? Math.round((Number(ownedCov?.non_formula || 0) / ocTotal) * 1000) / 10 : 0,
+    has_real_pct: ocTotal ? Math.round((Number(ownedCov?.has_real || 0) / ocTotal) * 1000) / 10 : 0,
+  };
   return {
     ...c,
     total_sets: totalSets,
@@ -333,6 +355,7 @@ async function getPopulationSnapshot(env: Env) {
     ebay_configured: ebayConfigured,
     ebay_access_blocked: ebayAccessBlocked,
     ebay_source_available: ebaySourceAvailable,
+    owned_coverage: ownedCoverage,
     formula_bulk_count: formulaBulkCount,
     ebay_new_attempted_pct: totalSets ? Math.round((ebayNewAttempted / totalSets) * 1000) / 10 : 0,
     ebay_used_attempted_pct: totalSets ? Math.round((ebayUsedAttempted / totalSets) * 1000) / 10 : 0,

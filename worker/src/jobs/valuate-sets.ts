@@ -39,6 +39,13 @@ export interface ValuateSetsOptions {
   includeFresh?: boolean;
   includeSupplemental?: boolean;
   includeEbay?: boolean;
+  /**
+   * Whether to attempt eBay Marketplace Insights sold comps (restricted
+   * scope). Defaults to includeEbay. Set false to harvest only the
+   * basic-scope Browse "ask" signal without burning calls on an
+   * unapproved sold-comps keyset or tripping the shared eBay breaker.
+   */
+  includeEbaySold?: boolean;
   includeMinifigs?: boolean;
   includeAiFallback?: boolean;
   sourceRetries?: number;
@@ -82,6 +89,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   };
   const includeSupplemental = options.includeSupplemental === true;
   const includeEbay = options.includeEbay === true;
+  // Sold comps need the restricted Marketplace Insights scope; ask-only
+  // callers (the recurring cron) skip them so a non-approved keyset never
+  // burns calls or trips the breaker. Defaults to includeEbay (back-compat).
+  const includeEbaySold = options.includeEbaySold ?? includeEbay;
   const includeAiFallback = options.includeAiFallback !== false;
   const requestedLimit = Number(options.limit);
   // Default raised from the old hand-tuned 4: the invocation packer below is
@@ -143,7 +154,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     brickeconomy: packProfile.brickEconomy ? results.length : 0,
     bricklink: results.length * 2,
     brickowl: includeSupplemental ? results.length : 0,
-    ebay: includeEbay ? results.length * 2 : 0,
+    ebay: includeEbay ? results.length * (includeEbaySold ? 2 : 1) : 0,
   });
   let beBudget = grants.brickeconomy ?? 0;
 
@@ -306,7 +317,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       }
     }
 
-    if (includeEbay && !ebayBlocked) {
+    if (includeEbay && includeEbaySold && !ebayBlocked) {
       ebayPrices = await fetchEbaySoldPrices(set.set_num, set.name, env, sourceOptions)
         .catch(async (err) => {
           tallyFail('ebay', err);
@@ -329,7 +340,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
             .catch((err) => { tallyFail('bricklink', err); return null; });
           if (usedPricing) tallyOk('bricklink');
         }
-        if (includeEbay && !ebayBlocked && ebayPrices === null) {
+        if (includeEbay && includeEbaySold && !ebayBlocked && ebayPrices === null) {
           ebayPrices = await fetchEbaySoldPrices(set.set_num, set.name, env, sourceOptions)
             .catch(async (err) => {
               tallyFail('ebay', err);

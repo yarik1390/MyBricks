@@ -181,13 +181,36 @@ export default {
       // allowed); reserveQuota gates it to the remaining daily BrickLink budget
       // (~80/run × 24h ≈ within 4,000/day). Source-light (no supplemental/eBay/
       // AI) to maximize sets/run; those run in daily maintenance + on-demand.
-      case '0 * * * *': await run('valuate-sets', () => runValuateSets(env, {
-        scope: 'all',
-        limit: 80,
-        includeSupplemental: false,
-        includeEbay: false,
-        includeAiFallback: false,
-      })); break;
+      case '0 * * * *': {
+        // Pass 1 — user-visible slice. Fan out every working source
+        // (BrickLink, BrickEconomy, BrickOwl, eBay *ask*, AI fallback) over
+        // owned/wishlisted sets still on a formula/stale value so the sets
+        // users actually see get real-market coverage within the hour.
+        // eBay sold-comps stays OFF (includeEbaySold:false — needs Marketplace
+        // Insights approval); the basic-scope Browse ask runs regardless. The
+        // slice is tiny and prioritized, so its own subrequest budget bounds it.
+        await run('valuate-owned-deep', () => runValuateSets(env, {
+          scope: 'owned',
+          limit: 14,
+          includeSupplemental: true,
+          includeEbay: true,
+          includeEbaySold: false,
+          includeAiFallback: true,
+          subrequestBudget: 240,
+        }));
+        // Pass 2 — catalog sweep. BrickLink-primary, source-light; idle
+        // capacity steadily converts the formula_bulk catalog to real prices.
+        // Capped budget so both passes share one invocation's subrequest cap.
+        await run('valuate-sets', () => runValuateSets(env, {
+          scope: 'all',
+          limit: 80,
+          includeSupplemental: false,
+          includeEbay: false,
+          includeAiFallback: false,
+          subrequestBudget: 520,
+        }));
+        break;
+      }
       case '0 2 * * *': await run('snapshot-portfolios', () => runSnapshotPortfolios(env)); break;
       case '0 3 * * *': await run('snapshot-set-values', () => runSnapshotSetValues(env)); break;
       case '0 8 * * *': await run('wishlist-alerts', () => runWishlistAlerts(env)); break;

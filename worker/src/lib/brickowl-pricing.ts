@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { fetchTracked } from './http';
+import { isIntegrationBlocked, setIntegrationBlock } from './integration-health';
 
 export interface BrickOwlPricing {
   new_value: number | null;
@@ -12,6 +13,9 @@ export async function fetchBrickOwlPricing(
   options: { recordHealth?: boolean; retries?: number; timeoutMs?: number } = {},
 ): Promise<BrickOwlPricing | null> {
   if (!env.BRICKOWL_API_KEY) return null;
+  // A bad/forbidden key 403s every call; without a breaker that burns ~100+
+  // calls/day. Honor the block and re-probe only once it expires.
+  if (await isIntegrationBlocked(env, 'brickowl')) return null;
   const id = setNum.replace(/-\d+$/, '');
   try {
     // Step 1: look up BrickOwl object ID for this set
@@ -27,6 +31,12 @@ export async function fetchBrickOwlPricing(
         timeoutMs: options.timeoutMs,
       },
     );
+    if (lookupResp.status === 401 || lookupResp.status === 403) {
+      // Invalid/forbidden key — stop hammering BrickOwl for 12h. A corrected
+      // key clears the block automatically on the next re-probe.
+      await setIntegrationBlock(env, 'brickowl', 12);
+      return null;
+    }
     if (!lookupResp.ok) return null;
     const lookupData = await lookupResp.json() as Array<{ boid?: string }> | { boid?: string };
     const lookupItem = Array.isArray(lookupData) ? lookupData[0] : lookupData;
