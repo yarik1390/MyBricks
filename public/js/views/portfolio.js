@@ -999,7 +999,16 @@ function infoTabHTML(set, entry, isWish) {
       ? `<div><span style="color:var(--ink-mute);">Retire risk:</span> <strong style="color:${riskScore >= 70 ? 'var(--down)' : riskScore >= 40 ? 'var(--bv-yellow)' : 'var(--ink)'};">${Math.round(riskScore)}%</strong></div>`
       : '';
 
-    if (ratingNum || ageStr || subthemeStr || growthRate != null || retiredYear || legoStockBadge || riskBadge) {
+    // BrickInsights aggregate review score (0-100) — distinct from the Brickset
+    // community stars above; links out to BrickInsights with attribution.
+    const biRating = set.brickinsights_rating != null ? Math.round(Number(set.brickinsights_rating)) : null;
+    const biReviewCount = Number(set.brickinsights_review_count) || 0;
+    const biReviewsStr = biReviewCount ? `${biReviewCount} review${biReviewCount > 1 ? 's' : ''}` : '';
+    const brickInsightsBadge = (biRating && biRating > 0)
+      ? `<div style="grid-column: span 2; display:flex; align-items:center; gap:8px;"><span style="color:var(--ink-mute);">BrickInsights:</span> <strong style="color:var(--ink);">${biRating}/100</strong> <span style="color:var(--ink-mute);font-size:10px;">${biReviewsStr}</span>${set.brickinsights_url ? ` <a href="${escapeHtml(set.brickinsights_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--ink-faint);font-size:10px;">\u2197</a>` : ''}</div>`
+      : '';
+
+    if (ratingNum || ageStr || subthemeStr || growthRate != null || retiredYear || legoStockBadge || riskBadge || brickInsightsBadge) {
       bricksetHtml = `
         <div class="card" style="padding:14px 16px;margin-bottom:14px;">
           <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Catalog Insights</div>
@@ -1009,6 +1018,7 @@ function infoTabHTML(set, entry, isWish) {
             ${retiredYearBadge}
             ${riskBadge}
             ${ratingNum ? `<div style="grid-column: span 2; display:flex; align-items:center; gap:8px;"><span style="color:var(--ink-mute);">Community:</span> <strong style="color:var(--ink);">⭐ ${ratingNum.toFixed(1)}</strong> <span style="color:var(--ink-mute);font-size:10px;">${reviewsStr}</span> ${ratingSignal}</div>` : ''}
+            ${brickInsightsBadge}
             ${growthBadge}
             ${legoStockBadge}
           </div>
