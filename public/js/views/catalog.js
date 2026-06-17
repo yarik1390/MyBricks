@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, toast, setBtnLoading, setHue, fmtMoney, trendBadgeHTML, THEME_COLORS, bvIDB, SEARCH_DEBOUNCE_MS } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast, setBtnLoading, setHue, fmtMoney, trendBadgeHTML, THEME_COLORS, bvIDB, SEARCH_DEBOUNCE_MS, mount } from '../utils.js';
 import { state } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
@@ -108,7 +108,7 @@ function catalogResultsHTML() {
 function refreshCatalogGrid() {
   const results = $("#catalogResults");
   if (!results) return;
-  results.innerHTML = catalogResultsHTML();
+  mount(results, catalogResultsHTML());
   refreshCatalogSummary();
   wireCatalogCards();
   mountCatalogSentinel();
@@ -120,7 +120,15 @@ function refreshCatalogSummary() {
 }
 
 function wireCatalogCards() {
-  $$(".set-card, .set-list-card.compact").forEach(c => c.addEventListener("click", () => { haptic("light"); location.hash = "#/set/" + encodeURIComponent(c.dataset.set); }));
+  const grid = $("#catalogResults");
+  if (!grid || grid._cardsDelegated) return;
+  grid._cardsDelegated = true;
+  grid.addEventListener("click", (e) => {
+    const card = e.target.closest(".set-card, .set-list-card.compact");
+    if (!card || !card.dataset.set) return;
+    haptic("light");
+    location.hash = "#/set/" + encodeURIComponent(card.dataset.set);
+  });
 }
 
 function mountCatalogSentinel() {

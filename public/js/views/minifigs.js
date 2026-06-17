@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, fmtMoney, toast, themeHue, debounce, bvIDB, SEARCH_DEBOUNCE_MS } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoney, toast, themeHue, debounce, bvIDB, SEARCH_DEBOUNCE_MS, mount } from '../utils.js';
 import { state } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
@@ -192,7 +192,7 @@ function saveFigs() {
 function refreshMiniGrid() {
   const grid = $('#miniGrid');
   if (!grid) return;
-  grid.innerHTML = state.blind.items.map(f => miniCardHTML(f)).join('');
+  mount(grid, state.blind.items.map(f => miniCardHTML(f)).join(''));
   wireMiniCards();
   mountBlindSentinel();
 }
