@@ -1,4 +1,4 @@
-import { $, $$, escapeHtml, haptic, toast, debounce, SEARCH_DEBOUNCE_MS } from '../utils.js';
+import { $, $$, escapeHtml, haptic, toast, debounce, SEARCH_DEBOUNCE_MS, mount } from '../utils.js';
 import { api } from '../api.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
 
@@ -137,7 +137,7 @@ function pageHtml() {
   </div>`;
 }
 
-function rerender() { $('#root').innerHTML = pageHtml(); wire(); }
+function rerender() { mount($('#root'), pageHtml()); wire(); }
 
 async function ensureLoaded() {
   if (_mode === 'sets' && !_sets.loaded) await loadSets();
