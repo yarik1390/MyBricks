@@ -182,6 +182,10 @@ export function mount(container, html) {
       if (fromEl === document.activeElement && 'value' in fromEl && 'value' in toEl) {
         toEl.value = fromEl.value;
       }
+      // Preserve runtime image-loaded state (image hydration adds .photo-loaded on
+      // load to reveal the photo over its placeholder); the template lacks it, so
+      // without this morphdom would re-hide already-loaded photos on re-render.
+      if (fromEl.nodeType === 1 && fromEl.classList.contains('photo-loaded')) toEl.classList.add('photo-loaded');
       return true;
     },
   });
