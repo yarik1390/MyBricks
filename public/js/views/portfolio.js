@@ -2352,6 +2352,7 @@ function marketValueHeroHTML(set) {
   const hi = Number(set.market_value_high);
   const conf = set.market_value_confidence || 'low';
   const confColor = conf === 'high' ? 'var(--up)' : conf === 'medium' ? 'var(--accent)' : 'var(--bv-yellow)';
+  const confLabel = { high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence' }[conf] || conf;
   const basis = Array.isArray(set.market_value_basis) ? set.market_value_basis : [];
   const srcNames = [...new Set(basis.map(b => b && b.name).filter(Boolean))];
   const band = (Number.isFinite(lo) && Number.isFinite(hi) && hi > lo)
@@ -2365,7 +2366,7 @@ function marketValueHeroHTML(set) {
           <div style="font-size:28px;font-weight:800;line-height:1.05;">${fmtMoney(mv)}</div>
           ${band ? `<div style="margin-top:4px;">${band}</div>` : ''}
         </div>
-        <span style="flex-shrink:0;font-family:var(--mono);font-size:10px;font-weight:800;text-transform:uppercase;color:${confColor};border:1px solid ${confColor};border-radius:8px;padding:3px 8px;">${escapeHtml(conf)}</span>
+        <span style="flex-shrink:0;font-family:var(--mono);font-size:10px;font-weight:800;text-transform:uppercase;color:${confColor};border:1px solid ${confColor};border-radius:8px;padding:3px 8px;">${escapeHtml(confLabel)}</span>
       </div>
       ${srcNames.length ? `<div style="margin-top:10px;font-size:11px;color:var(--ink-mute);">Blended from ${srcNames.length} source${srcNames.length > 1 ? 's' : ''}: ${srcNames.map(escapeHtml).join(' · ')}</div>` : ''}
     </div>`;
@@ -2516,7 +2517,7 @@ function marketConfidenceHTML(set) {
           <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:4px;">Market confidence</div>
           <div style="font-size:13px;color:var(--ink-soft);line-height:1.45;">${escapeHtml(explanation)}</div>
         </div>
-        <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:${color};font-weight:800;white-space:nowrap;">${escapeHtml(confidence)} / ${escapeHtml(freshness)}</div>
+        <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:${color};font-weight:800;white-space:nowrap;">${escapeHtml(confidence)} confidence · ${escapeHtml(freshness)}</div>
       </div>
       <div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;">
         <span style="color:var(--ink-mute);">Primary source</span>
