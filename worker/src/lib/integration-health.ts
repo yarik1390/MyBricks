@@ -16,7 +16,8 @@ export type IntegrationName =
   | 'push'
   | 'openai'
   | 'openrouter'
-  | 'rebrickable';
+  | 'rebrickable'
+  | 'brickinsights';
 
 export type IntegrationStatus = 'ok' | 'degraded' | 'down' | 'unknown' | 'unconfigured';
 
@@ -197,6 +198,14 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['catalog import', 'search fallback', 'CSV import fallback'],
     notes: 'Catalog source for sets, themes, minifigs, and images.',
     recommended_action: 'Add REBRICKABLE_API_KEY and rerun the catalog import.',
+  },
+  brickinsights: {
+    label: 'BrickInsights',
+    configured: () => true,
+    required_secrets: [],
+    used_by: ['set review ratings'],
+    notes: 'Aggregated LEGO set review score (0-100) from the BrickInsights public API. No key required.',
+    recommended_action: 'No action required; set BRICKINSIGHTS_ENABLED=0 to disable.',
   },
 };
 

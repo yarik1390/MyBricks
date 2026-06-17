@@ -18,3 +18,10 @@ export function ebaySoldCompsEnabled(env: Env): boolean {
 export function brickOwlEnabled(env: Env): boolean {
   return flagOn(env.BRICKOWL_ENABLED);
 }
+
+// BrickInsights review ratings use a sanctioned, documented public API, so
+// this source is ON by default; set BRICKINSIGHTS_ENABLED to a falsy value
+// (0/false/no/off) to disable it.
+export function brickInsightsEnabled(env: Env): boolean {
+  return !/^(0|false|no|off)$/i.test(String(env.BRICKINSIGHTS_ENABLED ?? ''));
+}

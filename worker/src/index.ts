@@ -26,6 +26,7 @@ import { runWishlistAlerts } from './jobs/wishlist-alerts';
 import { runDailyCatalogMaintenance } from './jobs/catalog-maintenance';
 import { runDbHygiene } from './jobs/db-hygiene';
 import { importSets, importFigs } from './jobs/import-catalog';
+import { runBrickInsightsBackfill } from './jobs/brickinsights';
 
 import type { Env, Variables } from './types';
 
@@ -224,6 +225,8 @@ export default {
       case '0 4 * * *': {
         await run('db-hygiene', () => runDbHygiene(env));
         await run('daily-catalog-maintenance', () => runDailyCatalogMaintenance(env));
+        // Daily BrickInsights ratings backfill (owned/wishlist + retired first).
+        await run('brickinsights-ratings', () => runBrickInsightsBackfill(env, { limit: 50 }));
         const isSunday = new Date(event.scheduledTime).getUTCDay() === 0;
         if (!isSunday) break;
         await run('weekly-import-sets', () => importSets(env.DB, env));

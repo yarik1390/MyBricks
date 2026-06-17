@@ -28,6 +28,7 @@ export interface Env {
   // set to "1" via wrangler [vars] to re-enable once provider access returns.
   EBAY_SOLD_COMPS_ENABLED?: string;
   BRICKOWL_ENABLED?: string;
+  BRICKINSIGHTS_ENABLED?: string;
   GEMINI_API_KEY?: string;
   // Cloudflare AI Gateway (optional). When account + gateway id are set, SERVER-key
   // AI calls route through the gateway for caching, analytics, rate/spend limits.
