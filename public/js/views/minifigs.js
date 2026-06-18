@@ -2,7 +2,7 @@ import { $, $$, haptic, escapeHtml, fmtMoney, toast, themeHue, debounce, bvIDB, 
 import { state } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
-import { showSheet } from '../components/sheet.js';
+import { showSheet, hideSheet } from '../components/sheet.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
 
 let _blindGen = 0;
@@ -19,12 +19,61 @@ async function loadSeriesList() {
   return _seriesList;
 }
 
-function populateSeriesSelect() {
-  const sel = document.getElementById('figSeriesSelect');
-  if (!sel) return;
-  const f = state.filter;
-  sel.innerHTML = `<option value="all">All series</option>` +
-    _seriesList.map(s => `<option value="${escapeHtml(s.series)}"${f.figSeries === s.series ? ' selected' : ''}>${escapeHtml(s.series)} (${s.n})</option>`).join('');
+// Top series shown as quick chips; the rest live behind a "More…" picker
+// (40+ series — too many for a flat row). Mirrors the catalog theme chips.
+function seriesChipsHTML(f) {
+  const top = _seriesList.slice(0, 6);
+  const sel = f.figSeries && f.figSeries !== 'all' ? f.figSeries : null;
+  const inTop = top.some(s => s.series === sel);
+  return `<button class="chip ${!sel ? 'active' : ''}" data-fig-series="all">All series</button>` +
+    (sel && !inTop ? `<button class="chip active" data-fig-series="${escapeHtml(sel)}">${escapeHtml(sel)}</button>` : '') +
+    top.map(s => `<button class="chip ${sel === s.series ? 'active' : ''}" data-fig-series="${escapeHtml(s.series)}">${escapeHtml(s.series)}</button>`).join('') +
+    (_seriesList.length > 6 ? `<button class="chip" id="moreSeriesChip">${I.filter()}<span>More…</span></button>` : '');
+}
+
+function applySeriesFilter(value) {
+  state.filter.figSeries = value; haptic('light');
+  loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) { refreshMiniGrid(); refreshMiniStats(); } }).catch(() => {});
+}
+
+function refreshSeriesChips() {
+  const row = document.getElementById('figSeriesChips');
+  if (!row) return;
+  row.innerHTML = seriesChipsHTML(state.filter);
+  wireSeriesChips();
+}
+
+function wireSeriesChips() {
+  $$('[data-fig-series]').forEach(btn => btn.addEventListener('click', () => {
+    applySeriesFilter(btn.dataset.figSeries);
+    refreshSeriesChips();
+  }));
+  $('#moreSeriesChip')?.addEventListener('click', () => {
+    showSheet(`
+      <div class="u-serif-h" style="margin:0 4px 12px;">Pick a series</div>
+      <div class="search-wrap" style="margin:0 4px 14px;">
+        <span class="s-icon">${I.search()}</span>
+        <input class="search-input" id="seriesPickerInput" placeholder="Search series…" autocomplete="off">
+      </div>
+      <div id="seriesPickerResults" class="scrollable u-col u-gap-1" style="max-height:320px;overflow-y:auto;margin:4px;"></div>
+    `);
+    const results = $('#seriesPickerResults');
+    const inp = $('#seriesPickerInput');
+    const paint = (q = '') => {
+      const query = q.toLowerCase().trim();
+      const matches = _seriesList.filter(s => !query || s.series.toLowerCase().includes(query));
+      results.innerHTML = matches.length
+        ? matches.map(s => `<button class="chip u-wfull ${state.filter.figSeries === s.series ? 'active' : ''}" data-pick-series="${escapeHtml(s.series)}" style="justify-content:flex-start;">${escapeHtml(s.series)} (${s.n})</button>`).join('')
+        : `<div class="u-mute u-fs-base" style="text-align:center;padding:20px;">No series match</div>`;
+      results.querySelectorAll('[data-pick-series]').forEach(b => b.addEventListener('click', () => {
+        applySeriesFilter(b.dataset.pickSeries);
+        hideSheet();
+        refreshSeriesChips();
+      }));
+    };
+    paint();
+    inp?.addEventListener('input', e => paint(e.target.value));
+  });
 }
 
 export async function renderBlind() {
@@ -77,14 +126,10 @@ export async function renderBlind() {
         <div class="filter-row">
           <button class="chip ${f.figRarity === 'all' ? 'active' : ''}" data-fig-rarity="all">All</button>
           ${rarities.map(r => `<button class="chip ${f.figRarity === r ? 'active' : ''} rarity-chip-${r}" data-fig-rarity="${r}">${r.charAt(0).toUpperCase() + r.slice(1)}</button>`).join('')}
-        </div>
-        <div class="filter-row" style="margin-top:-2px;margin-bottom:4px;gap:6px;align-items:center;">
-          <select class="fig-series-select" id="figSeriesSelect" aria-label="Filter by series"
-            style="flex:1;min-width:0;font:inherit;font-size:13px;padding:7px 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);">
-            <option value="all">All series</option>
-            ${_seriesList.map(s => `<option value="${escapeHtml(s.series)}"${f.figSeries === s.series ? ' selected' : ''}>${escapeHtml(s.series)} (${s.n})</option>`).join('')}
-          </select>
           <button class="chip fig-owned-chip ${f.figOwned !== 'all' ? 'active' : ''}" id="figOwnedChip">${ownedChipLabel}</button>
+        </div>
+        <div class="filter-row" id="figSeriesChips" style="margin-top:-2px;margin-bottom:4px;">
+          ${seriesChipsHTML(f)}
         </div>
         <div class="filter-row" style="margin-top:2px;gap:6px;">
           <span style="font-size:11px;color:var(--ink-mute);display:inline-flex;align-items:center;margin-right:2px;font-family:var(--mono);font-weight:600;">SORT:</span>
@@ -130,13 +175,10 @@ export async function renderBlind() {
     loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) { refreshMiniGrid(); refreshMiniStats(); } }).catch(() => {});
   }));
 
-  // Series dropdown: populate from the cached facet list (fetch on first open),
-  // then reload the grid when the user picks a series.
-  loadSeriesList().then(() => { if (location.hash === '#/minifigs') populateSeriesSelect(); });
-  $("#figSeriesSelect")?.addEventListener("change", (e) => {
-    state.filter.figSeries = e.target.value; haptic("light");
-    loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) { refreshMiniGrid(); refreshMiniStats(); } }).catch(() => {});
-  });
+  // Series filter: top series as quick chips, the rest behind a "More…" picker.
+  // The facet list loads async; re-render the chip row once it arrives.
+  wireSeriesChips();
+  loadSeriesList().then(() => { if (location.hash === '#/minifigs') refreshSeriesChips(); });
 
 
   wireMiniCards();
