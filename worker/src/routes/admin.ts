@@ -150,6 +150,8 @@ async function getDataCoverage(env: Env) {
         CAST(SUM(CASE WHEN used_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS sets_with_used_value,
         CAST(SUM(CASE WHEN retail_price IS NULL OR retail_price <= 0 THEN 1 ELSE 0 END) AS INTEGER) AS missing_msrp,
         CAST(SUM(CASE WHEN upc IS NULL OR TRIM(upc) = '' THEN 1 ELSE 0 END) AS INTEGER) AS missing_upc,
+        CAST(SUM(CASE WHEN (theme IS NULL OR theme NOT IN ('Gear','Books','Educational and Dacta','Service Packs','Universal Building Set','System','LEGO Brand Store')) THEN 1 ELSE 0 END) AS INTEGER) AS retail_sets,
+        CAST(SUM(CASE WHEN (theme IS NULL OR theme NOT IN ('Gear','Books','Educational and Dacta','Service Packs','Universal Building Set','System','LEGO Brand Store')) AND upc IS NOT NULL AND TRIM(upc) <> '' THEN 1 ELSE 0 END) AS INTEGER) AS retail_with_upc,
         CAST(SUM(CASE WHEN retired = 0 AND year IS NOT NULL AND year <= CAST(strftime('%Y','now') AS INTEGER) - 5 THEN 1 ELSE 0 END) AS INTEGER) AS old_active_sets,
         CAST(SUM(CASE WHEN valuation_method IN ('formula_bulk','ai') OR current_value IS NULL OR current_value <= 0 THEN 1 ELSE 0 END) AS INTEGER) AS low_confidence_values,
         CAST(SUM(CASE WHEN current_value IS NULL OR current_value <= 0 OR valuation_expires_at < datetime('now') OR cached_at IS NULL OR cached_at < datetime('now','-60 days') THEN 1 ELSE 0 END) AS INTEGER) AS needs_market_refresh
@@ -214,6 +216,12 @@ async function getDataCoverage(env: Env) {
   const total = Number(sets?.total_sets || 0);
   const pct = (n: number) => total ? Math.round((n / total) * 1000) / 10 : 0;
   const barcodeCount = Number(sets?.sets_with_upc || 0);
+  // Barcode coverage is only meaningful over scannable retail sets — the
+  // catalog also holds Gear/Books/parts/education/store items with no retail
+  // UPC that would drag the headline % down. Scope the % to retail sets.
+  const retailTotal = Number(sets?.retail_sets || 0);
+  const retailWithUpc = Number(sets?.retail_with_upc || 0);
+  const retailBarcodePct = retailTotal ? Math.round((retailWithUpc / retailTotal) * 1000) / 10 : 0;
   const ebayCount = Number(sets?.sets_with_ebay || 0);
   const ebayNewCount = Number(sets?.sets_with_ebay_new || 0);
   const ebayUsedCount = Number(sets?.sets_with_ebay_used || 0);
@@ -275,7 +283,10 @@ async function getDataCoverage(env: Env) {
     blend_quality: blendQuality,
     barcode_health: barcodeHealthOut,
     sets_with_bricklink: bricklinkCount,
-    barcode_coverage_pct: pct(barcodeCount),
+    barcode_coverage_pct: retailBarcodePct,
+    barcode_coverage_all_pct: pct(barcodeCount),
+    barcode_retail_total: retailTotal,
+    barcode_retail_with_upc: retailWithUpc,
     ebay_coverage_pct: pct(ebayCount),
     ebay_new_coverage_pct: pct(ebayNewCount),
     ebay_used_coverage_pct: pct(ebayUsedCount),

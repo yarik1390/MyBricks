@@ -442,13 +442,14 @@ async function updateIntegrationsHealth() {
     const quality = coverage.quality || {};
     const routing = data.api_routing || {};
     const totalSets = Number(coverage.total_sets || 0);
-    const formatCoverage = (count, pct) => {
+    const formatCoverage = (count, pct, denom = totalSets) => {
       const n = Number(count || 0);
-      if (!totalSets) return "No catalog";
-      if (!n) return `No rows yet (0/${totalSets.toLocaleString()})`;
+      const d = Number(denom || 0);
+      if (!d) return "No catalog";
+      if (!n) return `No rows yet (0/${d.toLocaleString()})`;
       const displayPct = Number(pct || 0);
       const pctLabel = displayPct > 0 ? `${displayPct}%` : "<0.1%";
-      return `${pctLabel} (${n.toLocaleString()}/${totalSets.toLocaleString()})`;
+      return `${pctLabel} (${n.toLocaleString()}/${d.toLocaleString()})`;
     };
     const bricklinkCount = coverage.sets_with_bricklink ?? coverage.sets_with_bricklink_new ?? 0;
     const coverageRows = [
@@ -457,15 +458,15 @@ async function updateIntegrationsHealth() {
       ["Expired values", Number(coverage.expired_values || 0).toLocaleString()],
       ["Missing values", Number(coverage.missing_values || 0).toLocaleString()],
       ["Missing MSRP", Number(quality.missing_msrp || 0).toLocaleString()],
-      ["Missing UPC", Number(quality.missing_upc || 0).toLocaleString()],
+      ["Missing UPC (retail)", Number(Math.max(0, (coverage.barcode_retail_total || 0) - (coverage.barcode_retail_with_upc || 0))).toLocaleString()],
       ["Old active sets", Number(quality.old_active_sets || 0).toLocaleString()],
       ["Low-confidence values", Number(quality.low_confidence_values || 0).toLocaleString()],
-      ["Barcode coverage", formatCoverage(coverage.sets_with_upc, coverage.barcode_coverage_pct)],
+      ["Barcode coverage (retail)", formatCoverage(coverage.barcode_retail_with_upc, coverage.barcode_coverage_pct, coverage.barcode_retail_total)],
       ["BrickLink coverage", formatCoverage(bricklinkCount, coverage.bricklink_coverage_pct)],
       ["eBay new sold", formatCoverage(coverage.sets_with_ebay_new, coverage.ebay_new_coverage_pct)],
       ["eBay used sold", formatCoverage(coverage.sets_with_ebay_used, coverage.ebay_used_coverage_pct)],
     ];
-    const coverageNote = "Coverage tracks populated catalog fields. BrickLink and eBay are split into new and used market data; daily safe batches advance barcode and price coverage automatically.";
+    const coverageNote = "Coverage tracks populated catalog fields. Barcode/UPC coverage is measured over scannable retail sets — it excludes Gear, books, parts packs, education and store/vintage items that have no retail barcode. BrickLink and eBay are split into new and used market data; daily safe batches advance barcode and price coverage automatically.";
     const routingHTML = `
       <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
         <div class="u-mono-label u-fs-2xs" style="margin-bottom:6px;">API routing</div>
