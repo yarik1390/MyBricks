@@ -10,7 +10,7 @@ app.get('/', async (c) => {
     WHERE theme IS NOT NULL AND theme != ''
     GROUP BY theme
     ORDER BY cnt DESC
-    LIMIT 50
+    LIMIT 200
   `).all<{ theme: string }>();
   return c.json({ themes: results.map(r => r.theme) });
 });
