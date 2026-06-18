@@ -209,7 +209,7 @@ export default {
           includeSupplemental: false,
           includeEbay: false,
           includeAiFallback: false,
-          subrequestBudget: 520,
+          subrequestBudget: 400,
         }));
         // Pass 3 — eBay ASK backfill (Browse basic scope; sold stays off).
         // Refreshes the free active-listing ask signal for ask-stale sets
@@ -217,6 +217,22 @@ export default {
         // value. Small + bounded so all three passes fit one invocation's
         // subrequest cap; the eBay daily quota is wide open.
         await run('valuate-ebay-ask', () => runEbayAskBackfill(env, { limit: 40 }));
+        // Pass 4 — high-value freshness. Real (non-formula) market values
+        // worth >= $150 that have gone stale/expired, refreshed most-valuable
+        // first so the visible top of the catalog (and the Value sort) reads
+        // "Market price", not "Older price". reserveQuota shares the daily
+        // BrickLink/BE budget; the pass self-tapers as the head gets fresh.
+        await run('valuate-topvalue', () => runValuateSets(env, {
+          scope: 'all',
+          prioritizeValue: true,
+          minValue: 150,
+          limit: 30,
+          includeSupplemental: true,
+          includeEbay: true,
+          includeEbaySold: false,
+          includeAiFallback: false,
+          subrequestBudget: 180,
+        }));
         break;
       }
       case '0 2 * * *': await run('snapshot-portfolios', () => runSnapshotPortfolios(env)); break;

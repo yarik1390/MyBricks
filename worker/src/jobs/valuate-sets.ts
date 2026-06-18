@@ -37,6 +37,13 @@ import { createAiUsageAccumulator, flushAiUsage, getAiSpendStatus } from '../lib
 export interface ValuateSetsOptions {
   scope?: 'owned' | 'all';
   limit?: number;
+  /**
+   * High-value refresh mode: restrict to real (non-formula) market values
+   * worth at least `minValue`, ordered by value DESC, so the visible top of
+   * the catalog stays fresh instead of expiring to "Older price".
+   */
+  prioritizeValue?: boolean;
+  minValue?: number;
   includeFresh?: boolean;
   includeSupplemental?: boolean;
   includeEbay?: boolean;
@@ -126,6 +133,20 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       )`
     : '';
   const freshnessPredicate = options.includeFresh ? '' : `AND ${duePredicate}`;
+  // High-value mode: restrict to real (non-formula) market values worth at
+  // least minValue, and order the most valuable first so the catalog head
+  // stays fresh rather than the oldest-expiry rotation used for coverage.
+  const prioritizeValue = options.prioritizeValue === true;
+  const minValueFloor = Number.isFinite(Number(options.minValue)) && Number(options.minValue) > 0
+    ? Math.floor(Number(options.minValue))
+    : 0;
+  const valuePredicate = prioritizeValue
+    ? `AND ls.valuation_method NOT IN ('formula_bulk', 'local')
+      AND COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) >= ${minValueFloor}`
+    : '';
+  const valueOrder = prioritizeValue
+    ? `COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) DESC,`
+    : '';
 
   // Prioritize overdue/formula rows first, then rotate through the oldest
   // cached valuations. With scope='all' this steadily covers the whole catalog.
@@ -136,11 +157,13 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     FROM lego_sets ls
     WHERE 1=1
       ${freshnessPredicate}
+      ${valuePredicate}
       ${scopePredicate}
     ORDER BY
       CASE WHEN ls.set_num IN (SELECT set_num FROM user_collection WHERE deleted_at IS NULL)
              OR ls.set_num IN (SELECT set_num FROM user_wishlist) THEN 0 ELSE 1 END,
       CASE WHEN ${duePredicate} THEN 0 ELSE 1 END,
+      ${valueOrder}
       COALESCE(ls.valuation_expires_at, ls.cached_at, '2000-01-01') ASC,
       ls.set_num ASC
     LIMIT ?
