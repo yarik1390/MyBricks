@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = 'v127';
+const VERSION = 'v128';
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 const STATIC_ASSETS = [
@@ -87,6 +87,12 @@ self.addEventListener('fetch', e => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
 
+  // API — bypass the SW entirely. The API runs on a separate origin
+  // (brickvault-api.*.workers.dev), so this must come BEFORE the cross-origin
+  // branch below or every data request gets served cache-first (stale). Fetch
+  // natively so no cache/SW state can serve stale data or break a request.
+  if (url.pathname.startsWith('/api/')) return;
+
   // Cross-origin (e.g. Rebrickable CDN images, fonts) — cache-first, opaque OK.
   if (url.origin !== self.location.origin) {
     // AI model downloads are multi-GB — cloning them into Cache Storage OOMs
@@ -100,12 +106,6 @@ self.addEventListener('fetch', e => {
     e.respondWith(cacheFirst(request, STATIC_CACHE));
     return;
   }
-
-  // API — bypass the SW entirely. Let the browser fetch natively so no
-  // cache/SW state can ever break a data request (network-first via the SW
-  // could resolve to undefined when both network and cache miss, surfacing
-  // as a confusing "Failed to fetch"). The app handles its own errors.
-  if (url.pathname.startsWith('/api/')) return;
 
   // App shell (HTML / JS / CSS) — network-first so code updates always reach
   // users on their next visit instead of being pinned to a stale cache.
