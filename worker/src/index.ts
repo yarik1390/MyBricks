@@ -239,10 +239,10 @@ export default {
       case '0 2 * * *': await run('snapshot-portfolios', () => runSnapshotPortfolios(env)); break;
       case '0 3 * * *': await run('snapshot-set-values', () => runSnapshotSetValues(env)); break;
       case '0 8 * * *': await run('wishlist-alerts', () => runWishlistAlerts(env)); break;
-      // Small UPCitemdb barcode trickle every 2h (a few spaced searches/run) — a
+      // Small UPCitemdb barcode trickle hourly (a few spaced searches/run) — a
       // 2nd barcode source for missing modern retail sets, gentle on the trial's
       // per-window rate limit. Auto-scales if UPCITEMDB_USER_KEY is set.
-      case '30 */2 * * *': await run('upcitemdb-backfill', () => runUpcItemDbBackfill(env, { limit: 4 })); break;
+      case '30 * * * *': await run('upcitemdb-backfill', () => runUpcItemDbBackfill(env, { limit: 4 })); break;
       // Daily maintenance is split across dedicated slots (Workers Paid: 250-cron
       // cap) so each heavy job runs in its own invocation — own subrequest budget
       // and failure isolation, and each can do more than the old packed 0 4 slot.
