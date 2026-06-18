@@ -145,10 +145,10 @@ export function valuationTrust(set = {}) {
   const confidence = set.confidence || (set.valuation_method === "formula_bulk" || set.valuation_method === "local" ? "estimated" : "medium");
   const source = set.primary_value_source || set.valuation_method || "unknown";
   if (freshness === "expired") {
-    return { tone: "danger", label: "Refresh due", detail: "Market value is expired and should be refreshed.", confidence, freshness, source };
+    return { tone: "warn", label: "Older price", detail: "This price hasn't refreshed in a while.", confidence, freshness, source };
   }
   if (freshness === "stale") {
-    return { tone: "warn", label: "Stale value", detail: "Market value is older than 60 days.", confidence, freshness, source };
+    return { tone: "warn", label: "Older price", detail: "This price is over 60 days old.", confidence, freshness, source };
   }
   if (confidence === "estimated") {
     return { tone: "warn", label: "Estimate", detail: "Formula or local estimate until market data is available.", confidence, freshness, source };
@@ -159,7 +159,7 @@ export function valuationTrust(set = {}) {
   if (confidence === "high") {
     return { tone: "ok", label: "High confidence", detail: "Fresh value with corroborating market signals.", confidence, freshness, source };
   }
-  return { tone: "ok", label: "Market checked", detail: "Fresh value from a configured market source.", confidence, freshness, source };
+  return { tone: "ok", label: "Market price", detail: "Fresh price from a market source.", confidence, freshness, source };
 }
 
 export function catalogFilterSummary(filter = {}) {

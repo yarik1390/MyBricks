@@ -202,10 +202,10 @@ describe('eBay sold helpers', () => {
 });
 
 describe('valuationTrust', () => {
-  it('marks expired market values as refresh due', () => {
+  it('marks expired market values as an older price', () => {
     const trust = valuationTrust({ freshness: 'expired', confidence: 'medium', valuation_method: 'market' });
-    assert.equal(trust.tone, 'danger');
-    assert.equal(trust.label, 'Refresh due');
+    assert.equal(trust.tone, 'warn');
+    assert.equal(trust.label, 'Older price');
   });
 
   it('marks formula bulk values as estimates', () => {

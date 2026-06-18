@@ -37,7 +37,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 app.use('*', optionalMember);
 
 const SORTS: Record<string, string> = {
-  value_desc: 'current_value DESC',
+  value_desc: "(CASE WHEN valuation_method IN ('formula_bulk', 'local') THEN 1 ELSE 0 END), COALESCE(NULLIF(blended_value, 0), current_value) DESC",
   roi_desc:   '(current_value / NULLIF(retail_price, 0)) DESC',
   year_desc:  'year DESC',
   az:         'name ASC',
