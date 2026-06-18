@@ -209,7 +209,7 @@ export default {
           includeSupplemental: false,
           includeEbay: false,
           includeAiFallback: false,
-          subrequestBudget: 400,
+          subrequestBudget: 360,
         }));
         // Pass 3 — eBay ASK backfill (Browse basic scope; sold stays off).
         // Refreshes the free active-listing ask signal for ask-stale sets
@@ -231,7 +231,7 @@ export default {
           includeEbay: true,
           includeEbaySold: false,
           includeAiFallback: false,
-          subrequestBudget: 180,
+          subrequestBudget: 320,
         }));
         break;
       }
