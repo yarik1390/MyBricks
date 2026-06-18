@@ -149,11 +149,26 @@ export async function runDailyEbayMaintenance(env: Env, limit = 2) {
   }
 }
 
+// Keep lego_sets.minifigs aligned with the set_minifigs table (populated on
+// detail views). One idempotent, set-based UPDATE that only rewrites drifted rows
+// so catalog cards and the set-detail stat show the real fig count.
+async function runMinifigCountSync(env: Env): Promise<{ synced: number }> {
+  const res = await env.DB.prepare(`
+    UPDATE lego_sets
+    SET minifigs = (SELECT COUNT(*) FROM set_minifigs sm WHERE sm.set_num = lego_sets.set_num)
+    WHERE set_num IN (SELECT DISTINCT set_num FROM set_minifigs)
+      AND COALESCE(minifigs, 0) <> (SELECT COUNT(*) FROM set_minifigs sm WHERE sm.set_num = lego_sets.set_num)
+  `).run();
+  return { synced: res.meta.changes ?? 0 };
+}
+
 export async function runDailyCatalogMaintenance(env: Env) {
+  // Sync minifig counts first — independent of the import_runs lock, so it always runs.
+  const minifigCounts = await runMinifigCountSync(env);
   const active = await activeRun(env);
-  if (active) return { skipped: true, reason: `run ${active.id} already active` };
+  if (active) return { skipped: true, reason: `run ${active.id} already active`, minifigCounts };
   const barcode = await runDailyBarcodeMaintenance(env);
   const valuation = await runDailyValuationMaintenance(env);
   const ebay = await runDailyEbayMaintenance(env);
-  return { barcode, valuation, ebay };
+  return { barcode, valuation, ebay, minifigCounts };
 }
