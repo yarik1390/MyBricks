@@ -20,19 +20,23 @@ dataset = "brickvault_events"
 binding = "PHOTO_BUCKET"
 bucket_name = "brickvault-photos"
 
-# Workers FREE plan allows a maximum of 5 cron triggers per account. Declaring a
-# 6th made every deploy's schedule sync fail with code 10072 ("exceeded the
-# limit of 5 cron triggers"), which froze all triggers at their last good state.
-# The standalone minifig cron ('0 5') was redundant anyway — the 04:00 daily
-# maintenance already values minifigs via runValuateSets({ includeMinifigs: true }).
-# If/when on Workers Paid, '0 5 * * *' can be re-added.
+# Workers PAID plan allows up to 250 cron triggers. The daily maintenance that was
+# packed into a single 04:00 invocation is split into dedicated slots so each heavy
+# job runs in its own invocation (own subrequest budget + failure isolation):
+#   0 4 db-hygiene + catalog-maintenance (+ Sunday catalog import)
+#   0 5 minifig valuation   0 6 BrickInsights ratings   0 7 eBay-sold scrape
+# The hourly sweep (0 *) runs owned-deep + catalog coverage + eBay ask + the
+# high-value freshness pass.
 [triggers]
 crons = [
   "0 * * * *",
   "0 2 * * *",
   "0 3 * * *",
-  "0 8 * * *",
   "0 4 * * *",
+  "0 5 * * *",
+  "0 6 * * *",
+  "0 7 * * *",
+  "0 8 * * *",
 ]
 
 [vars]

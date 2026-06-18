@@ -238,19 +238,15 @@ export default {
       case '0 2 * * *': await run('snapshot-portfolios', () => runSnapshotPortfolios(env)); break;
       case '0 3 * * *': await run('snapshot-set-values', () => runSnapshotSetValues(env)); break;
       case '0 8 * * *': await run('wishlist-alerts', () => runWishlistAlerts(env)); break;
-      case '0 5 * * *': await run('valuate-minifigs', () => runValuateMinifigs(env)); break;
+      // Daily maintenance is split across dedicated slots (Workers Paid: 250-cron
+      // cap) so each heavy job runs in its own invocation — own subrequest budget
+      // and failure isolation, and each can do more than the old packed 0 4 slot.
+      case '0 5 * * *': await run('valuate-minifigs', () => runValuateMinifigs(env, { limit: 80 })); break;
+      case '0 6 * * *': await run('brickinsights-ratings', () => runBrickInsightsBackfill(env, { limit: 80 })); break;
+      case '0 7 * * *': await run('ebay-sold-scrape', () => runEbaySoldScrape(env, { limit: 30 })); break;
       case '0 4 * * *': {
         await run('db-hygiene', () => runDbHygiene(env));
         await run('daily-catalog-maintenance', () => runDailyCatalogMaintenance(env));
-        // Daily BrickInsights ratings backfill (owned/wishlist + retired first).
-        await run('brickinsights-ratings', () => runBrickInsightsBackfill(env, { limit: 50 }));
-        // Corroborating eBay-sold scrape (Bright Data) for sets that already
-        // have BrickLink/BrickEconomy — adds a 2nd sold source toward high
-        // confidence. No-op unless BRIGHTDATA_API_TOKEN is set.
-        await run('ebay-sold-scrape', () => runEbaySoldScrape(env, { limit: 20 }));
-        // Minifig valuation lives here (not the unregistered '0 5' slot, 5-cron
-        // cap) so owned minifigs actually get valued daily.
-        await run('valuate-minifigs', () => runValuateMinifigs(env, { limit: 40 }));
         const isSunday = new Date(event.scheduledTime).getUTCDay() === 0;
         if (!isSunday) break;
         await run('weekly-import-sets', () => importSets(env.DB, env));
