@@ -269,7 +269,7 @@ function paintPortfolio() {
         <div class="hero-eyebrow"><span class="pulse"></span>Vault · LIVE</div>
         <div class="u-row" style="flex-wrap:wrap;column-gap:12px;">
           <div class="hero-value" id="heroValue">${heroValueHTML(totalVal)}</div>
-          <span class="delta ${gain >= 0 ? "up" : "down"}"><span class="arrow">${gain >= 0 ? "▲" : "▼"}</span>${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(Math.abs(gainPct))})</span>
+          <span class="delta ${gain >= 0 ? "up" : "down"}"><span class="arrow">${gain >= 0 ? "▲" : "▼"}</span>${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(gainPct)})</span>
         </div>
         <div class="hero-meta u-mono-label" style="letter-spacing:0.06em;">
           <span>Invested ${fmtMoney(p.total_paid)}</span>
@@ -1075,10 +1075,6 @@ function infoTabHTML(set, entry, isWish) {
     `;
   }
 
-  const newVal = set.current_value || 0;
-  const usedVal = set.used_value || 0;
-  const spreadPct = newVal > 0 && usedVal > 0 ? ((newVal - usedVal) / newVal * 100).toFixed(1) : null;
-
   const aiDisclaimerHTML = set.valuation_method === "ai" ? `
     <div style="background:rgba(245,158,11,0.1); border:1.5px solid rgba(245,158,11,0.3); color:rgba(245,158,11,1.0); border-radius:var(--r-2); padding:10px 12px; font-size:12px; margin-bottom:14px; display:flex; align-items:center; gap:8px; font-weight: 500;">
       <span class="u-center">${I.alert({w:15,h:15})}</span>
@@ -1094,25 +1090,6 @@ function infoTabHTML(set, entry, isWish) {
     ${marketConfidenceHTML(set)}
     ${aiDisclaimerHTML}
     ${pricingSummaryHtml}
-    
-    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-      <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">New vs Used Value</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-        <div>
-          <div style="font-size:10px;color:var(--ink-mute);font-family:var(--mono);text-transform:uppercase;">New (In Box)</div>
-          <div style="font-size:20px;font-weight:700;color:var(--ink);">${fmtMoney(newVal)}</div>
-        </div>
-        <div>
-          <div style="font-size:10px;color:var(--ink-mute);font-family:var(--mono);text-transform:uppercase;">Used (Loose)</div>
-          <div style="font-size:20px;font-weight:700;color:var(--ink);">${usedVal > 0 ? fmtMoney(usedVal) : "—"}</div>
-        </div>
-      </div>
-      ${spreadPct !== null ? `
-        <div style="font-size:11px;color:var(--ink-soft);margin-top:8px;border-top:1px solid var(--line-soft);padding-top:8px;">
-          Used is <strong>${spreadPct}%</strong> cheaper than New (Spread: ${fmtMoney(newVal - usedVal)}).
-        </div>
-      ` : ''}
-    </div>
 
     <div class="stat-grid">
       <div class="stat-cell">
