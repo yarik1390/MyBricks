@@ -219,6 +219,12 @@ describe('valuationTrust', () => {
     assert.equal(trust.tone, 'ok');
     assert.equal(trust.label, 'High confidence');
   });
+
+  it('flags AI-estimated values as an AI estimate, not a market price', () => {
+    const trust = valuationTrust({ valuation_method: 'ai', confidence: 'medium', freshness: 'fresh' });
+    assert.equal(trust.tone, 'warn');
+    assert.equal(trust.label, 'AI estimate');
+  });
 });
 
 describe('catalogFilterSummary', () => {

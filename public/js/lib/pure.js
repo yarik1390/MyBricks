@@ -144,6 +144,11 @@ export function valuationTrust(set = {}) {
   const freshness = set.freshness || (set.cached_at && Date.now() - new Date(set.cached_at).getTime() > 60 * 86400000 ? "stale" : "fresh");
   const confidence = set.confidence || (set.valuation_method === "formula_bulk" || set.valuation_method === "local" ? "estimated" : "medium");
   const source = set.primary_value_source || set.valuation_method || "unknown";
+  // AI-estimated values are a guess until a market source answers — always flag
+  // them as such so they never read as a real "Market price".
+  if (set.valuation_method === "ai") {
+    return { tone: "warn", label: "AI estimate", detail: "AI-estimated value, shown until a market source is available.", confidence, freshness, source };
+  }
   if (freshness === "expired") {
     return { tone: "warn", label: "Older price", detail: "This price hasn't refreshed in a while.", confidence, freshness, source };
   }
