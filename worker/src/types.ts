@@ -32,6 +32,10 @@ export interface Env {
   BRIGHTDATA_API_TOKEN?: string;
   BRIGHTDATA_ZONE?: string;
   BRIGHTDATA_SOLD_ENABLED?: string;
+  // UPCitemdb barcode source (2nd source after Brickset). Trial needs no key;
+  // UPCITEMDB_USER_KEY switches to the higher-limit v1 endpoint. Default enabled.
+  UPCITEMDB_USER_KEY?: string;
+  UPCITEMDB_ENABLED?: string;
   GEMINI_API_KEY?: string;
   // Cloudflare AI Gateway (optional). When account + gateway id are set, SERVER-key
   // AI calls route through the gateway for caching, analytics, rate/spend limits.

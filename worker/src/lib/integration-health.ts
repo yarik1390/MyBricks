@@ -18,7 +18,8 @@ export type IntegrationName =
   | 'openrouter'
   | 'rebrickable'
   | 'brickinsights'
-  | 'brightdata';
+  | 'brightdata'
+  | 'upcitemdb';
 
 export type IntegrationStatus = 'ok' | 'degraded' | 'down' | 'unknown' | 'unconfigured';
 
@@ -215,6 +216,14 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['eBay sold comps (scraped, corroborating)'],
     notes: 'Web Unlocker scrape of eBay US sold listings; a corroborating sold source for sets that already have BrickLink/BrickEconomy. Free tier ~5,000/month.',
     recommended_action: 'Add BRIGHTDATA_API_TOKEN as a Worker secret to enable; set BRIGHTDATA_SOLD_ENABLED=0 to pause.',
+  },
+  upcitemdb: {
+    label: 'UPCitemdb (barcodes)',
+    configured: (env) => !/^(0|false|no|off)$/i.test(String(env.UPCITEMDB_ENABLED ?? '1')),
+    required_secrets: [],
+    used_by: ['Barcode/UPC backfill (2nd source after Brickset)'],
+    notes: 'Keyword search -> validated LEGO barcode (GS1 prefix + set number in title). A small cron trickles missing modern retail sets. Trial is rate-limited (~100/day + per-window throttle).',
+    recommended_action: 'Trial active (no key needed). Add UPCITEMDB_USER_KEY for the higher-limit v1 endpoint.',
   },
 };
 
