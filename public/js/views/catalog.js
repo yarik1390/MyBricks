@@ -182,8 +182,8 @@ function paintAdd() {
 
       <div class="filter-row">
         <button class="chip ${f.catalogTheme === "all" ? "active" : ""}" data-cat-theme="all">All themes</button>
-        ${state.themes.length > 8 && f.catalogTheme !== "all" && !state.themes.slice(0, 8).includes(f.catalogTheme) ? `<button class="chip active" data-cat-theme="${escapeHtml(f.catalogTheme)}">${escapeHtml(f.catalogTheme)}</button>` : ""}
-        ${state.themes.slice(0, 8).map(t => `<button class="chip ${f.catalogTheme === t ? "active" : ""}" data-cat-theme="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join("")}
+        ${state.themes.length > 8 && f.catalogTheme !== "all" && !popularThemes(state.themes).includes(f.catalogTheme) ? `<button class="chip active" data-cat-theme="${escapeHtml(f.catalogTheme)}">${escapeHtml(f.catalogTheme)}</button>` : ""}
+        ${popularThemes(state.themes).map(t => `<button class="chip ${f.catalogTheme === t ? "active" : ""}" data-cat-theme="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join("")}
         ${state.themes.length > 8 ? `<button class="chip" id="moreThemesChip">${I.filter()}<span>More…</span></button>` : ""}
       </div>
 
@@ -338,6 +338,23 @@ function showFilterSheet(onApply) {
     hideSheet();
     onApply();
   });
+}
+
+// Quick-chip themes: lead with collector/investment-relevant themes. The
+// /api/themes list is ordered by raw SKU count, which surfaces Gear/Books/
+// Duplo/Educational (high volume, low interest). Curated names (exact DB
+// strings) are filtered to those actually present, then padded from the
+// count-ordered list so the row always fills 8.
+const POPULAR_THEMES = [
+  'Star Wars', 'Icons', 'Technic', 'Modular Buildings', 'City',
+  'Architecture', 'LEGO Ideas and CUUSOO', 'Creator', 'Ninjago',
+  'Harry Potter', 'Marvel Super Heroes', 'Minecraft', 'Friends',
+];
+function popularThemes(all, n = 8) {
+  const present = new Set(all);
+  const picked = POPULAR_THEMES.filter(t => present.has(t));
+  for (const t of all) { if (picked.length >= n) break; if (!picked.includes(t)) picked.push(t); }
+  return picked.slice(0, n);
 }
 
 function sourceCueHTML(s) { return trustBadgeHTML(s, { compact: true }); }
