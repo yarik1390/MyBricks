@@ -3370,3 +3370,10 @@ select:focus-visible,
 .b-need{font-size:.72rem;color:#d9920a;font-weight:700}
 .b-chevron{opacity:.4;font-size:1.2rem;line-height:1}
 .b-empty{opacity:.66;text-align:center;padding:40px 18px;line-height:1.5}
+
+/* "How we got this value" disclosure on set-detail — hide native markers, animate chevron */
+.howwegot > summary { -webkit-tap-highlight-color: transparent; }
+.howwegot > summary::-webkit-details-marker { display: none; }
+.howwegot > summary::marker { content: ""; }
+.howwegot-chev { display: inline-block; transition: transform .15s ease; }
+.howwegot[open] .howwegot-chev { transform: rotate(180deg); }

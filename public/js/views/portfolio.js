@@ -957,11 +957,6 @@ function shareSet(set) {
 
 function infoTabHTML(set, entry, isWish) {
   const owned = !!entry;
-  const delta = entry && entry.purchase_price ? (set.current_value - entry.purchase_price) / entry.purchase_price : null;
-  const valueSource = set.valuation_method === "market" ? "BrickLink"
-    : set.valuation_method === "brickeconomy" ? "BrickEconomy"
-    : set.valuation_method === "ai" ? "AI estimate"
-    : (set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "eBay Sold" : "Estimated";
 
   let bricksetHtml = '';
   {
@@ -1087,17 +1082,19 @@ function infoTabHTML(set, entry, isWish) {
     ${priceStripHTML(set, entry)}
     ${marketSpreadHTML(set)}
     ${marketDepthHTML(set)}
-    ${marketConfidenceHTML(set)}
     ${aiDisclaimerHTML}
-    ${pricingSummaryHtml}
-
-    <div class="stat-grid">
-      <div class="stat-cell">
-        <div class="lbl">${I.dollar()}Market (new)</div>
-        <div class="val s">${set.current_value ? fmtMoney(set.current_value) : "—"}</div>
-        ${delta != null ? `<div class="delta ${delta >= 0 ? "up" : "down"}" style="margin-top:6px;"><span class="arrow">${delta >= 0 ? "▲" : "▼"}</span>${fmtPct(Math.abs(delta))}</div>` : ""}
-        <div style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);margin-top:4px;letter-spacing:0.08em;">${valueSource}</div>
+    <details class="howwegot" style="margin-bottom:14px;">
+      <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:11px 14px;">
+        <span>How we got this value</span>
+        <span class="howwegot-chev" style="font-size:12px;color:var(--ink-mute);">▾</span>
+      </summary>
+      <div style="margin-top:12px;">
+        ${marketConfidenceHTML(set)}
+        ${pricingSummaryHtml}
       </div>
+    </details>
+
+    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr);">
       <div class="stat-cell">
         <div class="lbl">${I.tag()}Retail</div>
         <div class="val s">${fmtMoney(set.retail_price)}</div>
