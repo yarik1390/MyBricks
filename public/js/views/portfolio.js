@@ -1133,7 +1133,7 @@ function infoTabHTML(set, entry, isWish) {
       </div>
       <div class="stat-cell">
         <div class="lbl">${I.figure()}Minifigs</div>
-        <div class="val s">${set.minifigs || 0}</div>
+        <div class="val s">${set.set_minifigs?.length || set.minifigs || 0}</div>
       </div>
     </div>
 
@@ -2510,7 +2510,6 @@ function marketConfidenceHTML(set) {
     </div>`;
   }).join('');
   return `
-    ${trustPanelHTML(set)}
     <div class="card" style="padding:14px 16px;margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;">
         <div>
