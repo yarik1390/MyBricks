@@ -70,6 +70,10 @@ export async function searchUpcItemDb(env: Env, setNum: string, name: string): P
   } catch {
     return { barcode: null, code: 'FETCH_ERR' };
   }
+  // 429/503 are rate-limit / availability signals — map to a throttle code so the
+  // job parks (stops without advancing the cursor) instead of skipping un-queried
+  // sets, and records the run as throttled rather than a false success.
+  if (resp.status === 429 || resp.status === 503) return { barcode: null, code: 'EXCEED_LIMIT' };
   if (!resp.ok) return { barcode: null, code: `HTTP_${resp.status}` };
   let data: { code?: string; items?: Array<Record<string, unknown>> };
   try {
