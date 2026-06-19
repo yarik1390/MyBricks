@@ -192,10 +192,14 @@ export async function fetchBricksetDetails(setNum: string, env: Env): Promise<Br
     const bricksetNum = variantMatch ? variantMatch[1] : setNum;
     const variant = variantMatch ? parseInt(variantMatch[2]) : 1;
 
+    // Brickset getSets matches on the FULL set number incl. variant
+    // ("10276-1"), NOT the bare design number ("10276") — a bare number returns
+    // zero matches (HTTP 200, sets:[]), which is why this fetch silently yielded
+    // nothing. fetchBarcodes already uses the variant form; mirror it here.
     const params = new URLSearchParams({
       apiKey: apiKey,
       userHash: '',
-      params: JSON.stringify({ setNumber: bricksetNum, extendedData: 1 }),
+      params: JSON.stringify({ setNumber: `${bricksetNum}-${variant}`, extendedData: 1 }),
     });
     const resp = await fetchTracked(env, 'brickset', `https://brickset.com/api/v3.asmx/getSets?${params}`, {
       headers: { Accept: 'application/json' },
