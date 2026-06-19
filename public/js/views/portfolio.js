@@ -1081,12 +1081,24 @@ function infoTabHTML(set, entry, isWish) {
           </div>
         </div>`;
     }
-    const descr = b3.description || set.brickset_description || '';
+    const stripHtml = (html) => String(html)
+      .replace(/<\s*br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|li|h[1-6])\s*>/gi, '\n\n')
+      .replace(/<li[^>]*>/gi, '\u2022 ')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&reg;/gi, '\u00ae')
+      .replace(/&trade;/gi, '\u2122').replace(/&rsquo;|&#8217;/gi, '\u2019').replace(/&lsquo;|&#8216;/gi, '\u2018')
+      .replace(/&rdquo;|&#8221;/gi, '\u201d').replace(/&ldquo;|&#8220;/gi, '\u201c')
+      .replace(/&mdash;|&#8212;/gi, '\u2014').replace(/&ndash;|&#8211;/gi, '\u2013')
+      .replace(/&hellip;/gi, '\u2026').replace(/&quot;/gi, '"').replace(/&#39;/g, "'")
+      .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+      .replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim();
+    const descr = stripHtml(b3.description || set.brickset_description || '');
     if (descr) {
       aboutHtml = `
         <div class="card" style="padding:14px 16px;margin-bottom:14px;">
           <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">About This Set</div>
-          <p style="margin:0;font-size:13px;line-height:1.55;color:var(--ink-soft);">${escapeHtml(String(descr))}</p>
+          <p style="margin:0;font-size:13px;line-height:1.55;color:var(--ink-soft);white-space:pre-line;">${escapeHtml(descr)}</p>
         </div>`;
     }
   }
