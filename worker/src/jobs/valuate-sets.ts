@@ -43,6 +43,13 @@ export interface ValuateSetsOptions {
    * the catalog stays fresh instead of expiring to "Older price".
    */
   prioritizeValue?: boolean;
+  /**
+   * Formula-head conversion mode: restrict to formula/local ESTIMATE sets worth
+   * at least `minValue` and not attempted in the last 3 days, ordered value DESC,
+   * to convert the visible head to real market values. Complements
+   * prioritizeValue (which excludes formula). No overlap.
+   */
+  formulaHead?: boolean;
   minValue?: number;
   includeFresh?: boolean;
   includeSupplemental?: boolean;
@@ -137,14 +144,19 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   // least minValue, and order the most valuable first so the catalog head
   // stays fresh rather than the oldest-expiry rotation used for coverage.
   const prioritizeValue = options.prioritizeValue === true;
+  const formulaHead = options.formulaHead === true;
   const minValueFloor = Number.isFinite(Number(options.minValue)) && Number(options.minValue) > 0
     ? Math.floor(Number(options.minValue))
     : 0;
   const valuePredicate = prioritizeValue
     ? `AND ls.valuation_method NOT IN ('formula_bulk', 'local')
       AND COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) >= ${minValueFloor}`
+    : formulaHead
+    ? `AND ls.valuation_method IN ('formula_bulk', 'local')
+      AND COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) >= ${minValueFloor}
+      AND (ls.cached_at IS NULL OR ls.cached_at < datetime('now', '-3 days'))`
     : '';
-  const valueOrder = prioritizeValue
+  const valueOrder = (prioritizeValue || formulaHead)
     ? `COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) DESC,`
     : '';
 

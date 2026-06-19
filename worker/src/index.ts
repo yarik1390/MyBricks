@@ -243,6 +243,16 @@ export default {
       // 2nd barcode source for missing modern retail sets, gentle on the trial's
       // per-window rate limit. Auto-scales if UPCITEMDB_USER_KEY is set.
       case '30 * * * *': await run('upcitemdb-backfill', () => runUpcItemDbBackfill(env, { limit: 4 })); break;
+      // Formula-head value converter, hourly at :15 — converts the high-value
+      // formula ESTIMATE head (>= $50, value-first, not tried in 3d) to real
+      // BrickLink/BE market values using idle BrickLink budget. No AI fallback
+      // (keep the formula value if no market data; retry later). Complements
+      // Pass 4, which refreshes already-real values.
+      case '15 * * * *': await run('valuate-formula-head', () => runValuateSets(env, {
+        scope: 'all', formulaHead: true, minValue: 50, limit: 40,
+        includeSupplemental: false, includeEbay: false, includeAiFallback: false,
+        subrequestBudget: 300,
+      })); break;
       // Daily maintenance is split across dedicated slots (Workers Paid: 250-cron
       // cap) so each heavy job runs in its own invocation — own subrequest budget
       // and failure isolation, and each can do more than the old packed 0 4 slot.
