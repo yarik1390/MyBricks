@@ -1095,10 +1095,13 @@ function infoTabHTML(set, entry, isWish) {
       .replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim();
     const descr = stripHtml(b3.description || set.brickset_description || '');
     if (descr) {
+      const longDesc = descr.length > 220;
+      const clampStyle = longDesc ? 'display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;' : '';
       aboutHtml = `
         <div class="card" style="padding:14px 16px;margin-bottom:14px;">
           <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">About This Set</div>
-          <p style="margin:0;font-size:13px;line-height:1.55;color:var(--ink-soft);white-space:pre-line;">${escapeHtml(descr)}</p>
+          <p id="aboutText"${longDesc ? ' data-collapsed="1"' : ''} style="margin:0;font-size:13px;line-height:1.55;color:var(--ink-soft);white-space:pre-line;${clampStyle}">${escapeHtml(descr)}</p>
+          ${longDesc ? `<button id="aboutToggle" type="button" style="margin-top:8px;background:none;border:none;color:var(--ink);font-weight:600;font-size:12px;cursor:pointer;padding:0;text-decoration:underline;">Show more</button>` : ''}
         </div>`;
     }
   }
@@ -1275,6 +1278,25 @@ function infoTabHTML(set, entry, isWish) {
 function wireInfoTab(set, entry) {
   loadSetHistory(set.set_num);
   loadSetImages(set.set_num);
+
+  const aboutBtn = $("#aboutToggle");
+  aboutBtn?.addEventListener("click", () => {
+    const p = $("#aboutText");
+    if (!p) return;
+    const collapsed = p.dataset.collapsed === "1";
+    if (collapsed) {
+      p.style.display = "block";
+      p.style.webkitLineClamp = "unset";
+      p.dataset.collapsed = "0";
+      aboutBtn.textContent = "Show less";
+    } else {
+      p.style.display = "-webkit-box";
+      p.style.webkitLineClamp = "5";
+      p.dataset.collapsed = "1";
+      aboutBtn.textContent = "Show more";
+    }
+    haptic("light");
+  });
 
   let qty = entry?.quantity || 1;
   $("#qtyDown")?.addEventListener("click", async () => {
@@ -1772,10 +1794,16 @@ function setupTabSwipe(set, entry) {
   if (_swipeAc) _swipeAc.abort();
   _swipeAc = new AbortController();
   const { signal } = _swipeAc;
-  let sx = 0, sy = 0, active = false;
-  el.addEventListener("touchstart", e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; active = true; }, { passive: true, signal });
+  let sx = 0, sy = 0, active = false, fromScroller = false;
+  el.addEventListener("touchstart", e => {
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY; active = true;
+    // A horizontal drag inside the Photos gallery or the price sparkline is
+    // for scrolling/scrubbing — don't let it flip tabs.
+    fromScroller = !!(e.target.closest && e.target.closest('.bs-gallery, .spark-wrap, .no-tab-swipe'));
+  }, { passive: true, signal });
   el.addEventListener("touchend", e => {
     if (!active) return; active = false;
+    if (fromScroller) { fromScroller = false; return; }
     const dx = e.changedTouches[0].clientX - sx;
     const dy = e.changedTouches[0].clientY - sy;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
@@ -2425,6 +2453,12 @@ async function loadSetImages(setNum) {
     const imgs = (res && Array.isArray(res.images)) ? res.images.filter(u => typeof u === "string") : [];
     if (!imgs.length) { dropCard(); return; }
     el.innerHTML = imgs.map(u => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" style="flex:0 0 auto;display:block;"><img src="${escapeHtml(u)}" loading="lazy" alt="Set photo" style="height:120px;width:auto;border-radius:var(--r-1);border:1px solid var(--line-soft);object-fit:cover;display:block;"></a>`).join("");
+    // Drop any image Brickset 404s on, so we never show a broken-image icon;
+    // if all fail, remove the empty Photos card.
+    el.querySelectorAll("img").forEach(img => img.addEventListener("error", () => {
+      const a = img.closest("a"); if (a) a.remove();
+      if (!el.querySelector("a")) dropCard();
+    }));
   } catch {
     dropCard();
   }
