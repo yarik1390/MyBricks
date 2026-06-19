@@ -457,6 +457,11 @@ app.get('/:setnum', async (c) => {
       if (brickset.themeGroup && !resultSet.theme_group) bsMeta.theme_group = brickset.themeGroup;
       if (brickset.category && !resultSet.category) bsMeta.category = brickset.category;
       if (brickset.tags && !resultSet.brickset_tags) bsMeta.brickset_tags = brickset.tags;
+      if (brickset.dimensions && !resultSet.brickset_dimensions) bsMeta.brickset_dimensions = brickset.dimensions;
+      if (brickset.packagingType && !resultSet.packaging_type) bsMeta.packaging_type = brickset.packagingType;
+      if (brickset.instructionsCount !== null && resultSet.instructions_count == null) bsMeta.instructions_count = brickset.instructionsCount;
+      if (brickset.additionalImageCount !== null && resultSet.additional_image_count == null) bsMeta.additional_image_count = brickset.additionalImageCount;
+      if (brickset.description && !resultSet.brickset_description) bsMeta.brickset_description = brickset.description;
       if (Object.keys(bsMeta).length) {
         const setClauses = Object.keys(bsMeta).map(k => `${k}=?`).join(', ');
         bsUpdates.push(c.env.DB.prepare(`UPDATE lego_sets SET ${setClauses} WHERE set_num=?`)

@@ -70,7 +70,12 @@ CREATE TABLE IF NOT EXISTS lego_sets (
   brickset_enriched_at TEXT,
   theme_group TEXT,
   category TEXT,
-  brickset_tags TEXT
+  brickset_tags TEXT,
+  brickset_dimensions TEXT,
+  packaging_type TEXT,
+  instructions_count INTEGER,
+  additional_image_count INTEGER,
+  brickset_description TEXT
 );
 
 CREATE TABLE IF NOT EXISTS user_collection (

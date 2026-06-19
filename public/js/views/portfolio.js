@@ -1048,6 +1048,49 @@ function infoTabHTML(set, entry, isWish) {
     }
   }
 
+  // Phase 3: physical 'Set Facts' + 'About This Set' (Brickset extendedData).
+  let setFactsHtml = '';
+  let aboutHtml = '';
+  {
+    const b3 = set.brickset || {};
+    let dim = {};
+    try {
+      const raw = b3.dimensions ?? set.brickset_dimensions;
+      dim = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : {};
+    } catch { dim = {}; }
+    if (!dim || typeof dim !== 'object') dim = {};
+    const pnum = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; };
+    const dh = pnum(dim.height), dw = pnum(dim.width), dd = pnum(dim.depth), dwt = pnum(dim.weight);
+    const dimsStr = (dh && dw && dd) ? `${dh} \u00d7 ${dw} \u00d7 ${dd} cm` : '';
+    const weightStr = dwt ? `${dwt} kg` : '';
+    const packaging = b3.packagingType || set.packaging_type || '';
+    const instrRaw = (b3.instructionsCount != null ? b3.instructionsCount : set.instructions_count);
+    const instrStr = (instrRaw != null && Number(instrRaw) > 0) ? String(instrRaw) : '';
+    const piecesStr = set.pieces ? Number(set.pieces).toLocaleString() : '';
+    const fact = (label, val) => val ? `<div><span style="color:var(--ink-mute);">${label}:</span> <strong style="color:var(--ink);">${escapeHtml(String(val))}</strong></div>` : '';
+    if (dimsStr || weightStr || packaging || instrStr) {
+      setFactsHtml = `
+        <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Set Facts</div>
+          <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;font-size:12px;">
+            ${fact('Pieces', piecesStr)}
+            ${fact('Dimensions', dimsStr)}
+            ${fact('Weight', weightStr)}
+            ${fact('Packaging', packaging)}
+            ${fact('Instruction booklets', instrStr)}
+          </div>
+        </div>`;
+    }
+    const descr = b3.description || set.brickset_description || '';
+    if (descr) {
+      aboutHtml = `
+        <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">About This Set</div>
+          <p style="margin:0;font-size:13px;line-height:1.55;color:var(--ink-soft);">${escapeHtml(String(descr))}</p>
+        </div>`;
+    }
+  }
+
   const ebaySold = ebaySoldSummary(set);
   const ebayPrice = ebaySold.newValue || 0;
   const ebayUsedPrice = ebaySold.usedValue || 0;
@@ -1161,6 +1204,10 @@ function infoTabHTML(set, entry, isWish) {
     </div>
 
     ${bricksetHtml}
+
+    ${setFactsHtml}
+
+    ${aboutHtml}
 
     ${owned ? `
       <div class="qty-row">

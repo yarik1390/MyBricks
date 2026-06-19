@@ -46,6 +46,11 @@ export interface BricksetEnrichment {
   themeGroup: string | null;
   category: string | null;
   tags: string | null;
+  dimensions: string | null;
+  packagingType: string | null;
+  instructionsCount: number | null;
+  additionalImageCount: number | null;
+  description: string | null;
 }
 
 export function parseEnrichment(s: Record<string, unknown>): BricksetEnrichment {
@@ -59,6 +64,9 @@ export function parseEnrichment(s: Record<string, unknown>): BricksetEnrichment 
   const tagList = Array.isArray(ed.tags)
     ? (ed.tags as unknown[]).map(t => (typeof t === 'string' ? t.trim() : '')).filter(Boolean)
     : [];
+  const dim = (s.dimensions ?? {}) as Record<string, unknown>;
+  const dimObj = { height: numN(dim.height), width: numN(dim.width), depth: numN(dim.depth), weight: numN(dim.weight) };
+  const hasDim = Object.values(dimObj).some(v => v !== null);
   return {
     msrp: numN(us.retailPrice) ?? numN(s.US_retailPrice),
     launchDate,
@@ -72,6 +80,11 @@ export function parseEnrichment(s: Record<string, unknown>): BricksetEnrichment 
     themeGroup: strN(s.themeGroup),
     category: strN(s.category),
     tags: tagList.length ? JSON.stringify(tagList) : null,
+    dimensions: hasDim ? JSON.stringify(dimObj) : null,
+    packagingType: strN(s.packagingType),
+    instructionsCount: numN(s.instructionsCount),
+    additionalImageCount: numN(s.additionalImageCount),
+    description: strN(ed.description),
   };
 }
 
@@ -237,6 +250,11 @@ export interface BricksetDetails {
   themeGroup: string | null;
   category: string | null;
   tags: string | null;
+  dimensions: string | null;
+  packagingType: string | null;
+  instructionsCount: number | null;
+  additionalImageCount: number | null;
+  description: string | null;
   minifigs: number | null;
 }
 
@@ -286,6 +304,11 @@ export async function fetchBricksetDetails(setNum: string, env: Env): Promise<Br
       themeGroup: e.themeGroup,
       category: e.category,
       tags: e.tags,
+      dimensions: e.dimensions,
+      packagingType: e.packagingType,
+      instructionsCount: e.instructionsCount,
+      additionalImageCount: e.additionalImageCount,
+      description: e.description,
       minifigs: typeof s.minifigs === 'number' ? s.minifigs : null,
     };
   } catch (err) {
