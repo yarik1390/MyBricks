@@ -6,6 +6,7 @@ import { brickOwlEnabled } from '../lib/pricing-flags';
 export interface BackfillResult {
   processed: number;
   filled: number;
+  enriched?: number;
   catalogSize: number;
   method: 'bulk' | 'brickowl' | 'none';
   complete: boolean;
@@ -167,9 +168,10 @@ export async function runBackfillUpc(env: Env, options: BackfillOptions = {}): P
 async function tryBulkBackfill(
   env: Env,
   options: BackfillOptions,
-): Promise<{ processed: number; filled: number; complete: boolean; nextPage?: number } | null> {
+): Promise<{ processed: number; filled: number; enriched: number; complete: boolean; nextPage?: number } | null> {
   let processed = 0;
   let filled = 0;
+  let enriched = 0;
   let page = Math.max(1, options.startPage || 1);
   const maxPages = Math.max(1, Math.min(options.maxPages || 4, 10));
   let pagesRead = 0;
@@ -186,15 +188,46 @@ async function tryBulkBackfill(
 
     anyPageSucceeded = true;
     const stmts: D1PreparedStatement[] = [];
-    for (const { setNum, upc } of result.sets) {
-      if (!upc || !setNum) continue;
-      stmts.push(
-        env.DB.prepare("UPDATE lego_sets SET upc=? WHERE set_num=? AND NULLIF(TRIM(COALESCE(upc, '')), '') IS NULL").bind(upc, setNum),
+    const enrichStmts: D1PreparedStatement[] = [];
+    for (const { setNum, upc, enrichment } of result.sets) {
+      if (!setNum) continue;
+      if (upc) {
+        stmts.push(
+          env.DB.prepare("UPDATE lego_sets SET upc=? WHERE set_num=? AND NULLIF(TRIM(COALESCE(upc, '')), '') IS NULL").bind(upc, setNum),
+        );
+      }
+      // Backfill the rich Brickset fields for EVERY set in the page (not just
+      // barcode hits), riding the getSets call we already made. Gap-fill only
+      // (COALESCE) so existing data is never clobbered; retail_price is
+      // gap-filled from official MSRP but never overwritten (avoids shifting
+      // formula values catalog-wide). brickset_enriched_at marks the set done
+      // so it's enriched exactly once and later sweeps skip it.
+      const e = enrichment;
+      enrichStmts.push(
+        env.DB.prepare(
+          `UPDATE lego_sets SET
+             brickset_msrp = COALESCE(brickset_msrp, ?),
+             launch_date = COALESCE(launch_date, ?),
+             exit_date = COALESCE(exit_date, ?),
+             age_min = COALESCE(age_min, ?),
+             age_max = COALESCE(age_max, ?),
+             brickset_rating = COALESCE(brickset_rating, ?),
+             brickset_review_count = COALESCE(brickset_review_count, ?),
+             subtheme = COALESCE(subtheme, ?),
+             retired_year = COALESCE(retired_year, ?),
+             retail_price = COALESCE(retail_price, ?),
+             brickset_enriched_at = datetime('now')
+           WHERE set_num = ? AND brickset_enriched_at IS NULL`,
+        ).bind(e.msrp, e.launchDate, e.exitDate, e.ageMin, e.ageMax, e.rating, e.reviewCount, e.subtheme, e.retiredYear, e.msrp, setNum),
       );
     }
     for (let i = 0; i < stmts.length; i += 100) {
       const res = await env.DB.batch(stmts.slice(i, i + 100));
       filled += res.reduce((sum, r) => sum + (r.meta.changes ?? 0), 0);
+    }
+    for (let i = 0; i < enrichStmts.length; i += 100) {
+      const res = await env.DB.batch(enrichStmts.slice(i, i + 100));
+      enriched += res.reduce((sum, r) => sum + (r.meta.changes ?? 0), 0);
     }
 
     processed += result.sets.length;
@@ -218,9 +251,9 @@ async function tryBulkBackfill(
   await recordBarcodeHealth(
     env,
     true,
-    `pages ${Math.max(1, options.startPage || 1)}-${page} · filled ${filled}/${processed} · withCode ${diag.withCode}/page · complete:${complete} · next:${complete ? 1 : (next ?? page + 1)}`,
+    `pages ${Math.max(1, options.startPage || 1)}-${page} · filled ${filled}/${processed} · enriched ${enriched} · withCode ${diag.withCode}/page · complete:${complete} · next:${complete ? 1 : (next ?? page + 1)}`,
   );
-  return { processed, filled, complete, nextPage: next };
+  return { processed, filled, enriched, complete, nextPage: next };
 }
 
 async function tryBrickOwlBackfill(env: Env): Promise<{ processed: number; filled: number; complete: boolean }> {

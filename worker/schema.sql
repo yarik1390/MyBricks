@@ -66,7 +66,8 @@ CREATE TABLE IF NOT EXISTS lego_sets (
   blended_value REAL,
   brickset_msrp REAL,
   launch_date TEXT,
-  exit_date TEXT
+  exit_date TEXT,
+  brickset_enriched_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS user_collection (
