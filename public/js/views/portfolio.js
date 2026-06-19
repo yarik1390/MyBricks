@@ -1103,6 +1103,16 @@ function infoTabHTML(set, entry, isWish) {
     }
   }
 
+  const galleryHtml = (Number(set.additional_image_count) > 0)
+    ? `
+      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Photos</div>
+        <div id="bsGallery" class="bs-gallery" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;">
+          <div class="spinner" style="margin:8px auto;"></div>
+        </div>
+      </div>`
+    : '';
+
   const ebaySold = ebaySoldSummary(set);
   const ebayPrice = ebaySold.newValue || 0;
   const ebayUsedPrice = ebaySold.usedValue || 0;
@@ -1221,6 +1231,8 @@ function infoTabHTML(set, entry, isWish) {
 
     ${aboutHtml}
 
+    ${galleryHtml}
+
     ${owned ? `
       <div class="qty-row">
         <div>
@@ -1262,6 +1274,7 @@ function infoTabHTML(set, entry, isWish) {
 
 function wireInfoTab(set, entry) {
   loadSetHistory(set.set_num);
+  loadSetImages(set.set_num);
 
   let qty = entry?.quantity || 1;
   $("#qtyDown")?.addEventListener("click", async () => {
@@ -2398,6 +2411,22 @@ async function loadSetHistory(setNum) {
   } catch {
     el.style.height = "auto";
     el.innerHTML = `<div class="spark-empty"><span>Couldn't load price history.</span></div>`;
+  }
+}
+
+// Lazy Brickset photo gallery — fetched only for sets with extra images, cached
+// server-side + quota-gated. Removes the Photos card if there's nothing to show.
+async function loadSetImages(setNum) {
+  const el = $("#bsGallery");
+  if (!el) return;
+  const dropCard = () => { const card = el.closest(".card"); if (card) card.remove(); };
+  try {
+    const res = await api("/api/sets/" + encodeURIComponent(setNum) + "/images");
+    const imgs = (res && Array.isArray(res.images)) ? res.images.filter(u => typeof u === "string") : [];
+    if (!imgs.length) { dropCard(); return; }
+    el.innerHTML = imgs.map(u => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" style="flex:0 0 auto;display:block;"><img src="${escapeHtml(u)}" loading="lazy" alt="Set photo" style="height:120px;width:auto;border-radius:var(--r-1);border:1px solid var(--line-soft);object-fit:cover;display:block;"></a>`).join("");
+  } catch {
+    dropCard();
   }
 }
 

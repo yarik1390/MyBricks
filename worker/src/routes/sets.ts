@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import { optionalMember, requireMember } from '../auth';
 import { formulaValuation, valuationExpiryModifier, isPlausibleMarketValue } from '../lib/valuation';
 import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
-import { fetchBricksetDetails } from '../lib/brickset';
+import { fetchBricksetDetails, fetchAdditionalImages } from '../lib/brickset';
 import {
   buildEbayAskUpdate,
   buildEbaySoldUpdate,
@@ -462,6 +462,7 @@ app.get('/:setnum', async (c) => {
       if (brickset.instructionsCount !== null && resultSet.instructions_count == null) bsMeta.instructions_count = brickset.instructionsCount;
       if (brickset.additionalImageCount !== null && resultSet.additional_image_count == null) bsMeta.additional_image_count = brickset.additionalImageCount;
       if (brickset.description && !resultSet.brickset_description) bsMeta.brickset_description = brickset.description;
+      if (brickset.setId !== null && resultSet.brickset_set_id == null) bsMeta.brickset_set_id = brickset.setId;
       if (Object.keys(bsMeta).length) {
         const setClauses = Object.keys(bsMeta).map(k => `${k}=?`).join(', ');
         bsUpdates.push(c.env.DB.prepare(`UPDATE lego_sets SET ${setClauses} WHERE set_num=?`)
@@ -550,6 +551,45 @@ app.get('/:setnum', async (c) => {
 });
 
 // GET /api/sets/:setnum/history
+// GET /api/sets/:setnum/images — lazy, cached, quota-gated Brickset photo gallery.
+// getAdditionalImages costs Brickset quota (the getSets enrichment is free), so it
+// runs only when a set with extra images is opened, caches 30d, and is gated by the
+// daily Brickset budget. additional_image_count + brickset_set_id come from enrichment.
+app.get('/:setnum/images', async (c) => {
+  const setnum = c.req.param('setnum');
+  const cols = 'set_num, brickset_set_id, additional_image_count, brickset_image_urls, brickset_images_cached_at';
+  let row = await c.env.DB.prepare(`SELECT ${cols} FROM lego_sets WHERE set_num=?`).bind(setnum).first<Record<string, unknown>>();
+  if (!row) row = await c.env.DB.prepare(`SELECT ${cols} FROM lego_sets WHERE set_num=?`).bind(setnum + '-1').first<Record<string, unknown>>();
+  if (!row) return c.json({ images: [] });
+
+  const parseUrls = (s: unknown): string[] => {
+    if (typeof s !== 'string' || !s) return [];
+    try { const a = JSON.parse(s); return Array.isArray(a) ? a.filter((x): x is string => typeof x === 'string') : []; } catch { return []; }
+  };
+  const cachedAtRaw = row.brickset_images_cached_at as string | null;
+  const cachedMs = cachedAtRaw ? Date.parse(cachedAtRaw) : NaN;
+  const fresh = Number.isFinite(cachedMs) && (Date.now() - cachedMs) < 30 * 24 * 3600 * 1000;
+  if (cachedAtRaw && fresh) return c.json({ images: parseUrls(row.brickset_image_urls) });
+
+  const count = Number(row.additional_image_count);
+  if (!Number.isFinite(count) || count <= 0) {
+    await c.env.DB.prepare("UPDATE lego_sets SET brickset_image_urls='[]', brickset_images_cached_at=datetime('now') WHERE set_num=?").bind(row.set_num).run();
+    return c.json({ images: [] });
+  }
+  const setId = Number(row.brickset_set_id);
+  if (!Number.isFinite(setId) || setId <= 0) return c.json({ images: parseUrls(row.brickset_image_urls), pending: true });
+
+  // Paid call — gate against the Brickset daily budget; serve stale/empty if exhausted.
+  const ok = await spendQuota(c.env, 'brickset');
+  if (!ok) return c.json({ images: parseUrls(row.brickset_image_urls), quotaExhausted: true });
+
+  const urls = await fetchAdditionalImages(setId, c.env).catch(() => null);
+  if (urls === null) return c.json({ images: parseUrls(row.brickset_image_urls), error: true });
+  await c.env.DB.prepare("UPDATE lego_sets SET brickset_image_urls=?, brickset_images_cached_at=datetime('now') WHERE set_num=?")
+    .bind(JSON.stringify(urls), row.set_num).run();
+  return c.json({ images: urls });
+});
+
 // GET /api/sets/:setnum/parts — returns stored parts list, triggers Rebrickable fetch if empty
 app.get('/:setnum/parts', async (c) => {
   const setNum = c.req.param('setnum');

@@ -51,6 +51,7 @@ export interface BricksetEnrichment {
   instructionsCount: number | null;
   additionalImageCount: number | null;
   description: string | null;
+  setId: number | null;
 }
 
 export function parseEnrichment(s: Record<string, unknown>): BricksetEnrichment {
@@ -85,6 +86,7 @@ export function parseEnrichment(s: Record<string, unknown>): BricksetEnrichment 
     instructionsCount: numN(s.instructionsCount),
     additionalImageCount: numN(s.additionalImageCount),
     description: strN(ed.description),
+    setId: numN(s.setID),
   };
 }
 
@@ -255,6 +257,7 @@ export interface BricksetDetails {
   instructionsCount: number | null;
   additionalImageCount: number | null;
   description: string | null;
+  setId: number | null;
   minifigs: number | null;
 }
 
@@ -309,6 +312,7 @@ export async function fetchBricksetDetails(setNum: string, env: Env): Promise<Br
       instructionsCount: e.instructionsCount,
       additionalImageCount: e.additionalImageCount,
       description: e.description,
+      setId: e.setId,
       minifigs: typeof s.minifigs === 'number' ? s.minifigs : null,
     };
   } catch (err) {
@@ -317,3 +321,25 @@ export async function fetchBricksetDetails(setNum: string, env: Env): Promise<Br
   }
 }
 
+// On-demand Brickset photo gallery. getAdditionalImages COSTS quota (one call
+// per set), unlike the getSets enrichment which is free — callers must gate it
+// (spendQuota) and cache the result. Takes Brickset's internal setID (captured
+// as brickset_set_id during enrichment). Returns full-size image URLs.
+export async function fetchAdditionalImages(setId: number, env: Env): Promise<string[] | null> {
+  if (!env.BRICKSET_API_KEY || !setId) return null;
+  try {
+    const params = new URLSearchParams({ apiKey: env.BRICKSET_API_KEY, setID: String(setId) });
+    const resp = await fetchTracked(env, 'brickset', `https://brickset.com/api/v3.asmx/getAdditionalImages?${params}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json() as { status?: string; additionalImages?: Array<Record<string, unknown>> };
+    if (String(data.status ?? '').trim().toLowerCase() !== 'success') return null;
+    const imgs = Array.isArray(data.additionalImages) ? data.additionalImages : [];
+    return imgs
+      .map(i => (typeof i.imageURL === 'string' ? i.imageURL : (typeof i.thumbnailURL === 'string' ? i.thumbnailURL : null)))
+      .filter((u): u is string => !!u);
+  } catch {
+    return null;
+  }
+}

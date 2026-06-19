@@ -75,7 +75,10 @@ CREATE TABLE IF NOT EXISTS lego_sets (
   packaging_type TEXT,
   instructions_count INTEGER,
   additional_image_count INTEGER,
-  brickset_description TEXT
+  brickset_description TEXT,
+  brickset_set_id INTEGER,
+  brickset_image_urls TEXT,
+  brickset_images_cached_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS user_collection (
