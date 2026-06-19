@@ -178,7 +178,9 @@ export interface BricksetDetails {
   ageMax: number | null;
   retired: boolean | null;
   retiredYear: number | null;
-  usRetailPrice: number | null;
+  msrp: number | null;
+  launchDate: string | null;
+  exitDate: string | null;
   minifigs: number | null;
 }
 
@@ -193,7 +195,7 @@ export async function fetchBricksetDetails(setNum: string, env: Env): Promise<Br
     const params = new URLSearchParams({
       apiKey: apiKey,
       userHash: '',
-      params: JSON.stringify({ setNumber: bricksetNum }),
+      params: JSON.stringify({ setNumber: bricksetNum, extendedData: 1 }),
     });
     const resp = await fetchTracked(env, 'brickset', `https://brickset.com/api/v3.asmx/getSets?${params}`, {
       headers: { Accept: 'application/json' },
@@ -204,18 +206,33 @@ export async function fetchBricksetDetails(setNum: string, env: Env): Promise<Br
     if (!sets.length) return null;
     const s = sets.find(x => (x.numberVariant as number) === variant) ?? sets[0];
 
-    const ageMin = s.ageMin !== undefined ? Number(s.ageMin) : null;
-    const ageMax = s.ageMax !== undefined ? Number(s.ageMax) : null;
+    // Brickset v3 nests these; older code read flat names and got null. Read the
+    // real nested paths with a flat fallback (defensive, like readBarcodes).
+    const numN = (v: unknown): number | null => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+    const strN = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
+    const lc = (s.LEGOCom ?? {}) as Record<string, unknown>;
+    const us = (lc.US ?? {}) as Record<string, unknown>;
+    const ar = (s.ageRange ?? {}) as Record<string, unknown>;
+    const msrp = numN(us.retailPrice) ?? numN((s as Record<string, unknown>).US_retailPrice);
+    const ageMin = numN(ar.min) ?? numN((s as Record<string, unknown>).ageMin);
+    const ageMax = numN(ar.max) ?? numN((s as Record<string, unknown>).ageMax);
+    const launchDate = strN(s.launchDate) ?? strN(us.dateFirstAvailable);
+    const exitDate = strN(s.exitDate) ?? strN(us.dateLastAvailable);
+    const exitYear = exitDate ? new Date(exitDate).getUTCFullYear() : null;
+    const retired = exitDate ? Date.parse(exitDate) < Date.now()
+      : (typeof s.retired === 'boolean' ? s.retired : null);
 
     return {
       rating: typeof s.rating === 'number' ? s.rating : null,
       reviewCount: typeof s.reviewCount === 'number' ? s.reviewCount : null,
-      subtheme: typeof s.subtheme === 'string' ? s.subtheme : null,
-      ageMin: isNaN(ageMin as number) ? null : ageMin,
-      ageMax: isNaN(ageMax as number) ? null : ageMax,
-      retired: typeof s.released === 'boolean' && typeof s.retired === 'boolean' ? s.retired : null,
-      retiredYear: typeof s.retiredYear === 'number' ? s.retiredYear : null,
-      usRetailPrice: typeof s.US_retailPrice === 'number' ? s.US_retailPrice : null,
+      subtheme: strN(s.subtheme),
+      ageMin,
+      ageMax,
+      retired,
+      retiredYear: (exitYear && Number.isFinite(exitYear)) ? exitYear : numN((s as Record<string, unknown>).retiredYear),
+      msrp,
+      launchDate,
+      exitDate,
       minifigs: typeof s.minifigs === 'number' ? s.minifigs : null,
     };
   } catch (err) {

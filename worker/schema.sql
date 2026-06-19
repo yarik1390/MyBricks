@@ -63,7 +63,10 @@ CREATE TABLE IF NOT EXISTS lego_sets (
   brickinsights_review_count INTEGER,
   brickinsights_url TEXT,
   brickinsights_cached_at TEXT,
-  blended_value REAL
+  blended_value REAL,
+  brickset_msrp REAL,
+  launch_date TEXT,
+  exit_date TEXT
 );
 
 CREATE TABLE IF NOT EXISTS user_collection (

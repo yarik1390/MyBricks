@@ -978,9 +978,17 @@ function infoTabHTML(set, entry, isWish) {
     const growthBadge = growthRate != null
       ? `<div style="grid-column:span 2;display:flex;align-items:center;gap:8px;"><span style="color:var(--ink-mute);">12m growth:</span> <strong style="color:${growthRate >= 0 ? 'var(--up)' : 'var(--down)'};">${growthRate >= 0 ? '+' : ''}${Number(growthRate).toFixed(1)}%/yr</strong></div>`
       : '';
-    const retiredYearBadge = retiredYear && set.retired
-      ? `<div><span style="color:var(--ink-mute);">Retired:</span> <strong style="color:var(--ink);">${retiredYear}</strong></div>`
+    const fmtMonthYear = (d) => { const t = d ? Date.parse(d) : NaN; return Number.isNaN(t) ? '' : new Date(t).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }); };
+    const launchStr = fmtMonthYear(set.launch_date);
+    const exitStr = fmtMonthYear(set.exit_date);
+    const launchBadge = launchStr
+      ? `<div><span style="color:var(--ink-mute);">Released:</span> <strong style="color:var(--ink);">${launchStr}</strong></div>`
       : '';
+    const retiredYearBadge = exitStr
+      ? `<div><span style="color:var(--ink-mute);">Retired:</span> <strong style="color:var(--ink);">${exitStr}</strong></div>`
+      : (retiredYear && set.retired
+        ? `<div><span style="color:var(--ink-mute);">Retired:</span> <strong style="color:var(--ink);">${retiredYear}</strong></div>`
+        : '');
 
     const legoStockBadge = set.lego_retiring_soon
       ? `<div style="grid-column:span 2;"><span style="background:rgba(239,68,68,.12);color:var(--down);font-weight:700;border-radius:4px;padding:2px 8px;font-size:11px;">Retiring Soon</span></div>`
@@ -1003,13 +1011,14 @@ function infoTabHTML(set, entry, isWish) {
       ? `<div style="grid-column: span 2; display:flex; align-items:center; gap:8px;"><span style="color:var(--ink-mute);">BrickInsights:</span> <strong style="color:var(--ink);">${biRating}/100</strong> <span style="color:var(--ink-mute);font-size:10px;">${biReviewsStr}</span>${set.brickinsights_url ? ` <a href="${escapeHtml(set.brickinsights_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--ink-faint);font-size:10px;">\u2197</a>` : ''}</div>`
       : '';
 
-    if (ratingNum || ageStr || subthemeStr || growthRate != null || retiredYear || legoStockBadge || riskBadge || brickInsightsBadge) {
+    if (ratingNum || ageStr || subthemeStr || growthRate != null || retiredYear || set.launch_date || set.exit_date || legoStockBadge || riskBadge || brickInsightsBadge) {
       bricksetHtml = `
         <div class="card" style="padding:14px 16px;margin-bottom:14px;">
           <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Catalog Insights</div>
           <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;font-size:12px;">
             ${subthemeStr ? `<div><span style="color:var(--ink-mute);">Subtheme:</span> <strong style="color:var(--ink);">${escapeHtml(subthemeStr)}</strong></div>` : ''}
             ${ageStr ? `<div><span style="color:var(--ink-mute);">Ages:</span> <strong style="color:var(--ink);">${ageStr}</strong></div>` : ''}
+            ${launchBadge}
             ${retiredYearBadge}
             ${riskBadge}
             ${ratingNum ? `<div style="grid-column: span 2; display:flex; align-items:center; gap:8px;"><span style="color:var(--ink-mute);">Community:</span> <strong style="color:var(--ink);">⭐ ${ratingNum.toFixed(1)}</strong> <span style="color:var(--ink-mute);font-size:10px;">${reviewsStr}</span> ${ratingSignal}</div>` : ''}

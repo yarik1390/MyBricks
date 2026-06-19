@@ -434,9 +434,11 @@ app.get('/:setnum', async (c) => {
         bsUpdates.push(c.env.DB.prepare('UPDATE lego_sets SET retired=1 WHERE set_num=?').bind(resultSet.set_num));
         resultSet.retired = 1;
       }
-      if (brickset.usRetailPrice && !resultSet.retail_price) {
-        bsUpdates.push(c.env.DB.prepare('UPDATE lego_sets SET retail_price=? WHERE set_num=?').bind(brickset.usRetailPrice, resultSet.set_num));
-        resultSet.retail_price = brickset.usRetailPrice;
+      // Prefer official Brickset MSRP for retail_price (store it separately too).
+      if (brickset.msrp) {
+        bsUpdates.push(c.env.DB.prepare('UPDATE lego_sets SET retail_price=?, brickset_msrp=? WHERE set_num=?').bind(brickset.msrp, brickset.msrp, resultSet.set_num));
+        resultSet.retail_price = brickset.msrp;
+        resultSet.brickset_msrp = brickset.msrp;
       }
       // Persist rich Brickset metadata fields that were previously discarded
       const bsMeta: Record<string, unknown> = {};
@@ -446,6 +448,8 @@ app.get('/:setnum', async (c) => {
       if (brickset.rating !== null) bsMeta.brickset_rating = brickset.rating;
       if (brickset.reviewCount !== null) bsMeta.brickset_review_count = brickset.reviewCount;
       if (brickset.retiredYear !== null && resultSet.retired_year == null) bsMeta.retired_year = brickset.retiredYear;
+      if (brickset.launchDate && !resultSet.launch_date) bsMeta.launch_date = brickset.launchDate;
+      if (brickset.exitDate && !resultSet.exit_date) bsMeta.exit_date = brickset.exitDate;
       if (Object.keys(bsMeta).length) {
         const setClauses = Object.keys(bsMeta).map(k => `${k}=?`).join(', ');
         bsUpdates.push(c.env.DB.prepare(`UPDATE lego_sets SET ${setClauses} WHERE set_num=?`)
