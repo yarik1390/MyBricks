@@ -3377,3 +3377,32 @@ select:focus-visible,
 .howwegot > summary::marker { content: ""; }
 .howwegot-chev { display: inline-block; transition: transform .15s ease; }
 .howwegot[open] .howwegot-chev { transform: rotate(180deg); }
+
+/* ============================================================
+   Warm-kraft dark mode for the RETRO skin (default skin).
+   Keeps the parchment personality after dark instead of the generic
+   slate inversion: dark kraft-brown surfaces, warm cream text, brass
+   hairlines, and the signature pixel shadow rendered as a soft warm GLOW
+   rather than a black punch. Scoped with :not([data-skin="premium"]) so
+   the premium dark skin keeps its cool neutral palette untouched.
+   ============================================================ */
+:root[data-theme="dark"]:not([data-skin="premium"]) {
+  --bg: #1E1811;
+  --bg-deep: #15100A;
+  --surface: #271F16;
+  --surface-2: #2F261A;
+  --surface-3: #392F20;
+  --line: #E8DCC0;          /* warm cream — borders + pixel shadow */
+  --line-soft: #4A3E2A;     /* warm brown hairline */
+  --ink: #F4EAD3;           /* warm cream (~14:1 on --bg) */
+  --ink-soft: #E2D6BA;
+  --ink-mute: #BBAA88;      /* warm tan (~7:1 on --bg) */
+  --ink-faint: #9A8A6A;     /* warm faint (~5:1 on --bg, passes AA) */
+  /* signature pixel shadow as a warm cream glow, not a black punch */
+  --shadow-1: 2px 2px 0 rgba(232, 220, 192, 0.16);
+  --shadow-2: 3px 3px 0 rgba(232, 220, 192, 0.18);
+  --shadow-3: 4px 4px 0 rgba(232, 220, 192, 0.20);
+  --shadow-4: 5px 5px 0 rgba(232, 220, 192, 0.22);
+  --photo-grad-top: rgba(30, 24, 17, 0.2);
+  --photo-grad-bot: rgba(30, 24, 17, 0);
+}
