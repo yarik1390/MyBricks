@@ -117,6 +117,10 @@ app.get('/search', async (c) => {
     }
   }
   if (theme) addFilter(`s.theme = ?`, theme);
+  const themeGroup = c.req.query('theme_group') || '';
+  if (themeGroup) addFilter(`s.theme_group = ?`, themeGroup);
+  const category = c.req.query('category') || '';
+  if (category) addFilter(`s.category = ?`, category);
   if (retired === '1' || retired === 'true') addFilter(`s.retired = 1`);
   else if (retired === '0' || retired === 'false') addFilter(`s.retired = 0`);
 
@@ -156,8 +160,8 @@ app.get('/search', async (c) => {
     const fallbackWhere = [...filterWhere];
     const fallbackParams = [...filterParams];
     for (const token of q.trim().split(/\s+/).filter(Boolean)) {
-      fallbackWhere.push(`(s.set_num LIKE ? OR s.name LIKE ? OR COALESCE(s.theme, '') LIKE ?)`);
-      fallbackParams.push(`%${token}%`, `%${token}%`, `%${token}%`);
+      fallbackWhere.push(`(s.set_num LIKE ? OR s.name LIKE ? OR COALESCE(s.theme, '') LIKE ? OR COALESCE(s.subtheme, '') LIKE ? OR COALESCE(s.theme_group, '') LIKE ?)`);
+      fallbackParams.push(`%${token}%`, `%${token}%`, `%${token}%`, `%${token}%`, `%${token}%`);
     }
     const fallbackWhereSQL = fallbackWhere.length ? `WHERE ${fallbackWhere.join(' AND ')}` : '';
     [pageRes, countRes] = await Promise.all([
@@ -450,6 +454,9 @@ app.get('/:setnum', async (c) => {
       if (brickset.retiredYear !== null && resultSet.retired_year == null) bsMeta.retired_year = brickset.retiredYear;
       if (brickset.launchDate && !resultSet.launch_date) bsMeta.launch_date = brickset.launchDate;
       if (brickset.exitDate && !resultSet.exit_date) bsMeta.exit_date = brickset.exitDate;
+      if (brickset.themeGroup && !resultSet.theme_group) bsMeta.theme_group = brickset.themeGroup;
+      if (brickset.category && !resultSet.category) bsMeta.category = brickset.category;
+      if (brickset.tags && !resultSet.brickset_tags) bsMeta.brickset_tags = brickset.tags;
       if (Object.keys(bsMeta).length) {
         const setClauses = Object.keys(bsMeta).map(k => `${k}=?`).join(', ');
         bsUpdates.push(c.env.DB.prepare(`UPDATE lego_sets SET ${setClauses} WHERE set_num=?`)

@@ -969,6 +969,11 @@ function infoTabHTML(set, entry, isWish) {
     const ageMax = b.ageMax ?? set.age_max;
     const ageStr = ageMin ? (ageMax ? `${ageMin}–${ageMax}` : `${ageMin}+`) : '';
     const subthemeStr = b.subtheme || set.subtheme || '';
+    const themeGroupStr = b.themeGroup || set.theme_group || '';
+    const categoryStr = b.category || set.category || '';
+    let tagsArr = [];
+    try { tagsArr = set.brickset_tags ? JSON.parse(set.brickset_tags) : []; } catch { tagsArr = []; }
+    if (!Array.isArray(tagsArr)) tagsArr = [];
     const growthRate = set.be_growth_12m;
     const retiredYear = b.retiredYear ?? set.retired_year;
 
@@ -989,6 +994,15 @@ function infoTabHTML(set, entry, isWish) {
       : (retiredYear && set.retired
         ? `<div><span style="color:var(--ink-mute);">Retired:</span> <strong style="color:var(--ink);">${retiredYear}</strong></div>`
         : '');
+    const themeGroupBadge = themeGroupStr
+      ? `<div><span style="color:var(--ink-mute);">Theme group:</span> <strong style="color:var(--ink);">${escapeHtml(themeGroupStr)}</strong></div>`
+      : '';
+    const categoryBadge = (categoryStr && categoryStr.toLowerCase() !== 'normal')
+      ? `<div><span style="color:var(--ink-mute);">Category:</span> <strong style="color:var(--ink);">${escapeHtml(categoryStr)}</strong></div>`
+      : '';
+    const tagsBadge = tagsArr.length
+      ? `<div style="grid-column:span 2;display:flex;flex-wrap:wrap;gap:6px;align-items:center;"><span style="color:var(--ink-mute);">Tags:</span> ${tagsArr.slice(0, 10).map(t => `<span style="background:var(--surface-3);color:var(--ink-soft);border-radius:4px;padding:2px 8px;font-size:10px;">${escapeHtml(String(t))}</span>`).join('')}</div>`
+      : '';
 
     const legoStockBadge = set.lego_retiring_soon
       ? `<div style="grid-column:span 2;"><span style="background:rgba(239,68,68,.12);color:var(--down);font-weight:700;border-radius:4px;padding:2px 8px;font-size:11px;">Retiring Soon</span></div>`
@@ -1011,12 +1025,14 @@ function infoTabHTML(set, entry, isWish) {
       ? `<div style="grid-column: span 2; display:flex; align-items:center; gap:8px;"><span style="color:var(--ink-mute);">BrickInsights:</span> <strong style="color:var(--ink);">${biRating}/100</strong> <span style="color:var(--ink-mute);font-size:10px;">${biReviewsStr}</span>${set.brickinsights_url ? ` <a href="${escapeHtml(set.brickinsights_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--ink-faint);font-size:10px;">\u2197</a>` : ''}</div>`
       : '';
 
-    if (ratingNum || ageStr || subthemeStr || growthRate != null || retiredYear || set.launch_date || set.exit_date || legoStockBadge || riskBadge || brickInsightsBadge) {
+    if (ratingNum || ageStr || subthemeStr || themeGroupStr || categoryBadge || tagsArr.length || growthRate != null || retiredYear || set.launch_date || set.exit_date || legoStockBadge || riskBadge || brickInsightsBadge) {
       bricksetHtml = `
         <div class="card" style="padding:14px 16px;margin-bottom:14px;">
           <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Catalog Insights</div>
           <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;font-size:12px;">
             ${subthemeStr ? `<div><span style="color:var(--ink-mute);">Subtheme:</span> <strong style="color:var(--ink);">${escapeHtml(subthemeStr)}</strong></div>` : ''}
+            ${themeGroupBadge}
+            ${categoryBadge}
             ${ageStr ? `<div><span style="color:var(--ink-mute);">Ages:</span> <strong style="color:var(--ink);">${ageStr}</strong></div>` : ''}
             ${launchBadge}
             ${retiredYearBadge}
@@ -1025,6 +1041,7 @@ function infoTabHTML(set, entry, isWish) {
             ${brickInsightsBadge}
             ${growthBadge}
             ${legoStockBadge}
+            ${tagsBadge}
           </div>
         </div>
       `;

@@ -9,26 +9,29 @@ CREATE VIRTUAL TABLE lego_sets_fts USING fts5(
   set_num,
   name,
   theme,
+  subtheme,
+  theme_group,
+  brickset_tags,
   content='lego_sets',
   content_rowid='rowid'
 );
 
 CREATE TRIGGER lego_sets_ai AFTER INSERT ON lego_sets BEGIN
-  INSERT INTO lego_sets_fts(rowid, set_num, name, theme)
-  VALUES (new.rowid, new.set_num, new.name, new.theme);
+  INSERT INTO lego_sets_fts(rowid, set_num, name, theme, subtheme, theme_group, brickset_tags)
+  VALUES (new.rowid, new.set_num, new.name, new.theme, new.subtheme, new.theme_group, new.brickset_tags);
 END;
 
 CREATE TRIGGER lego_sets_ad AFTER DELETE ON lego_sets BEGIN
-  INSERT INTO lego_sets_fts(lego_sets_fts, rowid, set_num, name, theme)
-  VALUES('delete', old.rowid, old.set_num, old.name, old.theme);
+  INSERT INTO lego_sets_fts(lego_sets_fts, rowid, set_num, name, theme, subtheme, theme_group, brickset_tags)
+  VALUES('delete', old.rowid, old.set_num, old.name, old.theme, old.subtheme, old.theme_group, old.brickset_tags);
 END;
 
-CREATE TRIGGER lego_sets_au AFTER UPDATE OF set_num, name, theme ON lego_sets BEGIN
-  INSERT INTO lego_sets_fts(lego_sets_fts, rowid, set_num, name, theme)
-  VALUES('delete', old.rowid, old.set_num, old.name, old.theme);
-  INSERT INTO lego_sets_fts(rowid, set_num, name, theme)
-  VALUES(new.rowid, new.set_num, new.name, new.theme);
+CREATE TRIGGER lego_sets_au AFTER UPDATE OF set_num, name, theme, subtheme, theme_group, brickset_tags ON lego_sets BEGIN
+  INSERT INTO lego_sets_fts(lego_sets_fts, rowid, set_num, name, theme, subtheme, theme_group, brickset_tags)
+  VALUES('delete', old.rowid, old.set_num, old.name, old.theme, old.subtheme, old.theme_group, old.brickset_tags);
+  INSERT INTO lego_sets_fts(rowid, set_num, name, theme, subtheme, theme_group, brickset_tags)
+  VALUES(new.rowid, new.set_num, new.name, new.theme, new.subtheme, new.theme_group, new.brickset_tags);
 END;
 
-INSERT INTO lego_sets_fts(rowid, set_num, name, theme)
-SELECT rowid, set_num, name, theme FROM lego_sets;
+INSERT INTO lego_sets_fts(rowid, set_num, name, theme, subtheme, theme_group, brickset_tags)
+SELECT rowid, set_num, name, theme, subtheme, theme_group, brickset_tags FROM lego_sets;

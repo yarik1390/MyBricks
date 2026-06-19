@@ -215,10 +215,13 @@ async function tryBulkBackfill(
              brickset_review_count = COALESCE(brickset_review_count, ?),
              subtheme = COALESCE(subtheme, ?),
              retired_year = COALESCE(retired_year, ?),
+             theme_group = COALESCE(theme_group, ?),
+             category = COALESCE(category, ?),
+             brickset_tags = COALESCE(brickset_tags, ?),
              retail_price = COALESCE(retail_price, ?),
              brickset_enriched_at = datetime('now')
            WHERE set_num = ? AND brickset_enriched_at IS NULL`,
-        ).bind(e.msrp, e.launchDate, e.exitDate, e.ageMin, e.ageMax, e.rating, e.reviewCount, e.subtheme, e.retiredYear, e.msrp, setNum),
+        ).bind(e.msrp, e.launchDate, e.exitDate, e.ageMin, e.ageMax, e.rating, e.reviewCount, e.subtheme, e.retiredYear, e.themeGroup, e.category, e.tags, e.msrp, setNum),
       );
     }
     for (let i = 0; i < stmts.length; i += 100) {

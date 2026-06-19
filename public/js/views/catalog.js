@@ -13,7 +13,7 @@ let _catalogGen = 0;
 export async function renderAdd() {
   if (!state.catalog.items.length) $("#root").innerHTML = skelPage(skelCardList(6));
   if (!state.themes.length) {
-    try { const t = await api("/api/themes"); state.themes = t.themes || []; state.themesLoadedAt = Date.now(); } catch {}
+    try { const t = await api("/api/themes"); state.themes = t.themes || []; state.themeGroups = t.theme_groups || []; state.categories = t.categories || []; state.themesLoadedAt = Date.now(); } catch {}
   }
   if (!state.catalog.items.length) {
     await loadCatalog({ reset: true });
@@ -65,7 +65,7 @@ export async function loadCatalog({ reset = false } = {}) {
 
 function isCatalogDefault() {
   const f = state.filter;
-  return !f.catalogQ && f.catalogTheme === 'all' && f.catalogYear === 'all' && (f.catalogRetired === 'all' || !f.catalogRetired) &&
+  return !f.catalogQ && f.catalogTheme === 'all' && (f.catalogThemeGroup || 'all') === 'all' && (f.catalogCategory || 'all') === 'all' && f.catalogYear === 'all' && (f.catalogRetired === 'all' || !f.catalogRetired) &&
     Object.values(f.catalogRanges || {}).every(v => v === '');
 }
 
@@ -77,6 +77,8 @@ function catalogQuery() {
   p.set("sort", f.catalogSort);
   if (f.catalogQ) p.set("q", f.catalogQ);
   if (f.catalogTheme !== "all") p.set("theme", f.catalogTheme);
+  if (f.catalogThemeGroup && f.catalogThemeGroup !== "all") p.set("theme_group", f.catalogThemeGroup);
+  if (f.catalogCategory && f.catalogCategory !== "all") p.set("category", f.catalogCategory);
   if (f.catalogRetired === "retired" || f.catalogRetired === true) p.set("retired", "1");
   else if (f.catalogRetired === "active") p.set("retired", "0");
   for (const [k, v] of Object.entries(f.catalogRanges)) {
@@ -177,7 +179,7 @@ function paintAdd() {
 
       <div class="search-wrap open" style="margin-bottom:14px;">
         <span class="s-icon">${I.search()}</span>
-        <input class="search-input" id="catalogSearch" placeholder="Search sets…" autocomplete="off" value="${escapeHtml(f.catalogQ)}">
+        <input class="search-input" id="catalogSearch" placeholder="Search sets, themes, tags…" autocomplete="off" value="${escapeHtml(f.catalogQ)}">
       </div>
 
       <div class="filter-row">
@@ -298,7 +300,11 @@ const showSearchSpinner = (containerSel, active) => {
 };
 
 function catalogRangesActive() {
-  return Object.values(state.filter.catalogRanges).filter(v => v !== "" && v != null).length;
+  const f = state.filter;
+  let n = Object.values(f.catalogRanges).filter(v => v !== "" && v != null).length;
+  if (f.catalogThemeGroup && f.catalogThemeGroup !== "all") n++;
+  if (f.catalogCategory && f.catalogCategory !== "all") n++;
+  return n;
 }
 
 function showFilterSheet(onApply) {
@@ -312,9 +318,23 @@ function showFilterSheet(onApply) {
         <input type="number" inputmode="numeric" id="f_${maxKey}" value="${r[maxKey]}" placeholder="${ph2}">
       </div>
     </div>`;
+  const f = state.filter;
+  const facetGroup = (label, key, opts, cur) => {
+    if (!opts || !opts.length) return '';
+    return `
+      <div class="field" style="margin-bottom:14px;">
+        <div class="field-lbl">${label}</div>
+        <div class="filter-row sheet-facet" data-facet="${key}" style="flex-wrap:wrap;gap:6px;">
+          <button class="chip ${(cur || 'all') === 'all' ? 'active' : ''}" data-fval="all">All</button>
+          ${opts.map(o => `<button class="chip ${cur === o ? 'active' : ''}" data-fval="${escapeHtml(o)}">${escapeHtml(o)}</button>`).join('')}
+        </div>
+      </div>`;
+  };
   showSheet(`
     <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 16px;">Advanced Filters</div>
     <div class="scrollable" style="max-height: 55vh; overflow-y: auto; padding: 2px;">
+      ${facetGroup("Theme group", "theme_group", state.themeGroups, f.catalogThemeGroup)}
+      ${facetGroup("Category", "category", state.categories, f.catalogCategory)}
       ${rangeField("Release Year", "min_year", "max_year", "Min year", "Max year")}
       ${rangeField("Piece Count", "min_pieces", "max_pieces", "Min pieces", "Max pieces")}
       ${rangeField("Current Value ($)", "min_value", "max_value", "Min value", "Max value")}
@@ -324,8 +344,17 @@ function showFilterSheet(onApply) {
       <button class="btn-primary" id="filterApply">Apply filters</button>
     </div>`);
 
+  $$(".sheet-facet").forEach(group => group.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-fval]");
+    if (!btn) return;
+    group.querySelectorAll("[data-fval]").forEach(x => x.classList.toggle("active", x === btn));
+  }));
+  const readFacet = (key) => document.querySelector(`.sheet-facet[data-facet="${key}"] .chip.active`)?.dataset.fval || "all";
+
   $("#filterClear").addEventListener("click", () => {
     Object.keys(r).forEach(k => r[k] = "");
+    state.filter.catalogThemeGroup = "all";
+    state.filter.catalogCategory = "all";
     hideSheet();
     onApply();
   });
@@ -335,6 +364,8 @@ function showFilterSheet(onApply) {
       const el = document.getElementById("f_" + k);
       if (el) r[k] = el.value !== "" ? parseFloat(el.value) : "";
     });
+    state.filter.catalogThemeGroup = readFacet("theme_group");
+    state.filter.catalogCategory = readFacet("category");
     hideSheet();
     onApply();
   });
@@ -421,6 +452,7 @@ function catalogCardHTML(s) {
           <span>${s.year || ""}</span>
           <span>${s.pieces || 0}pc</span>
           ${s.minifigs > 0 ? `<span>${s.minifigs} fig</span>` : ""}
+          ${s.subtheme ? `<span>${escapeHtml(s.subtheme)}</span>` : ""}
         </div>
         <div class="set-card-value" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;">
           <span>${confDot}${fmtMoney(dispVal)} ${pppBadgeHTML(s)}${s.bl_new_qty ? ` <span style="font-size:9px;color:var(--ink-mute);">(${s.bl_new_qty} lots)</span>` : ""}</span>

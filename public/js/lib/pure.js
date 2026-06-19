@@ -171,6 +171,8 @@ export function catalogFilterSummary(filter = {}) {
   const parts = [];
   if (filter.catalogQ) parts.push(`Search "${filter.catalogQ}"`);
   if (filter.catalogTheme && filter.catalogTheme !== "all") parts.push(filter.catalogTheme);
+  if (filter.catalogThemeGroup && filter.catalogThemeGroup !== "all") parts.push(filter.catalogThemeGroup);
+  if (filter.catalogCategory && filter.catalogCategory !== "all") parts.push(filter.catalogCategory);
   if (filter.catalogRetired === "retired" || filter.catalogRetired === true) parts.push("Retired only");
   else if (filter.catalogRetired === "active") parts.push("Active only");
   const ranges = filter.catalogRanges || {};

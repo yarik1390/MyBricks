@@ -43,15 +43,22 @@ export interface BricksetEnrichment {
   reviewCount: number | null;
   subtheme: string | null;
   retiredYear: number | null;
+  themeGroup: string | null;
+  category: string | null;
+  tags: string | null;
 }
 
 export function parseEnrichment(s: Record<string, unknown>): BricksetEnrichment {
   const lc = (s.LEGOCom ?? {}) as Record<string, unknown>;
   const us = (lc.US ?? {}) as Record<string, unknown>;
   const ar = (s.ageRange ?? {}) as Record<string, unknown>;
+  const ed = (s.extendedData ?? {}) as Record<string, unknown>;
   const launchDate = strN(s.launchDate) ?? strN(us.dateFirstAvailable);
   const exitDate = strN(s.exitDate) ?? strN(us.dateLastAvailable);
   const exitYear = exitDate ? new Date(exitDate).getUTCFullYear() : null;
+  const tagList = Array.isArray(ed.tags)
+    ? (ed.tags as unknown[]).map(t => (typeof t === 'string' ? t.trim() : '')).filter(Boolean)
+    : [];
   return {
     msrp: numN(us.retailPrice) ?? numN(s.US_retailPrice),
     launchDate,
@@ -62,6 +69,9 @@ export function parseEnrichment(s: Record<string, unknown>): BricksetEnrichment 
     reviewCount: typeof s.reviewCount === 'number' ? s.reviewCount : null,
     subtheme: strN(s.subtheme),
     retiredYear: (exitYear && Number.isFinite(exitYear)) ? exitYear : numN(s.retiredYear),
+    themeGroup: strN(s.themeGroup),
+    category: strN(s.category),
+    tags: tagList.length ? JSON.stringify(tagList) : null,
   };
 }
 
@@ -224,6 +234,9 @@ export interface BricksetDetails {
   msrp: number | null;
   launchDate: string | null;
   exitDate: string | null;
+  themeGroup: string | null;
+  category: string | null;
+  tags: string | null;
   minifigs: number | null;
 }
 
@@ -270,6 +283,9 @@ export async function fetchBricksetDetails(setNum: string, env: Env): Promise<Br
       msrp: e.msrp,
       launchDate: e.launchDate,
       exitDate: e.exitDate,
+      themeGroup: e.themeGroup,
+      category: e.category,
+      tags: e.tags,
       minifigs: typeof s.minifigs === 'number' ? s.minifigs : null,
     };
   } catch (err) {
