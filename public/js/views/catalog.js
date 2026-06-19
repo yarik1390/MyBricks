@@ -52,7 +52,7 @@ export async function loadCatalog({ reset = false } = {}) {
     if (results) {
       results.innerHTML = `<div class="empty card" style="margin-top:16px;">
         <h3>Couldn't load catalog</h3>
-        <p>${e.message}. Check your connection and try again.</p>
+        <p>${escapeHtml(e.message)}. Check your connection and try again.</p>
         <button class="btn-secondary" id="catalogRetry" style="margin-top:12px;">Retry</button>
       </div>`;
       $("#catalogRetry")?.addEventListener("click", async () => { await loadCatalog({ reset: true }); refreshCatalogGrid(); });
@@ -98,6 +98,7 @@ function catalogResultsHTML() {
         <div class="empty-icon">${I.search()}</div>
         <h3>No sets found</h3>
         <p>${f.catalogQ ? `Nothing matches "${escapeHtml(f.catalogQ)}".` : "No sets match these filters."} Try a different search or clear filters.</p>
+        ${!isCatalogDefault() ? `<button class="btn-secondary" id="catalogClearFilters" style="margin-top:12px;">Clear filters</button>` : ""}
       </div>` : `
       <div class="${listClass}" id="catalogGrid">
         ${c.items.map(s => catalogCardHTML(s)).join("")}
@@ -119,6 +120,15 @@ function refreshCatalogGrid() {
 function refreshCatalogSummary() {
   const el = $("#catalogFilterSummary");
   if (el) el.textContent = catalogFilterSummary(state.filter);
+  // Keep the Filters chip badge/active state in sync (it lives outside the grid
+  // that refreshCatalogGrid re-renders, so it otherwise goes stale after Apply/Clear).
+  const chip = $("#filterChip");
+  if (chip) {
+    const n = catalogRangesActive();
+    chip.classList.toggle("active", n > 0);
+    const sp = chip.querySelector("span");
+    if (sp) sp.textContent = `Filters${n ? " · " + n : ""}`;
+  }
 }
 
 function wireCatalogCards() {
@@ -126,6 +136,7 @@ function wireCatalogCards() {
   if (!grid || grid._cardsDelegated) return;
   grid._cardsDelegated = true;
   grid.addEventListener("click", (e) => {
+    if (e.target.closest("#catalogClearFilters")) { clearCatalogFilters(); return; }
     const card = e.target.closest(".set-card, .set-list-card.compact");
     if (!card || !card.dataset.set) return;
     haptic("light");
@@ -275,8 +286,9 @@ function paintAdd() {
         state.filter.catalogTheme = b.dataset.pickTheme;
         haptic("light");
         hideSheet();
-        refreshCatalogSummary();
-        reloadGrid();
+        // Full repaint so the quick-chip row reflects the picked (often
+        // non-popular) theme — refreshing only the grid left 'All themes' active.
+        loadCatalog({ reset: true }).then(() => paintAdd());
       }));
     };
     paintThemes();
@@ -298,6 +310,19 @@ const showSearchSpinner = (containerSel, active) => {
     icon.innerHTML = I.search();
   }
 };
+
+function clearCatalogFilters() {
+  const f = state.filter;
+  f.catalogQ = "";
+  f.catalogTheme = "all";
+  f.catalogThemeGroup = "all";
+  f.catalogCategory = "all";
+  f.catalogRetired = "all";
+  f.catalogYear = "all";
+  Object.keys(f.catalogRanges || {}).forEach(k => f.catalogRanges[k] = "");
+  haptic("light");
+  loadCatalog({ reset: true }).then(() => paintAdd());
+}
 
 function catalogRangesActive() {
   const f = state.filter;

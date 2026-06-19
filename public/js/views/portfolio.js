@@ -1542,10 +1542,8 @@ function manageTabHTML(set, entry) {
           <button id="removePhotoBtn" class="btn-secondary" style="font-size:12px;padding:6px 12px;color:var(--down);">Remove photo</button>
         </div>
       ` : `<p style="font-size:12px;color:var(--ink-mute);margin-bottom:10px;">Upload your own photo for this set.</p>`}
-      <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
-        <input type="file" id="photoUpload" accept="image/jpeg,image/png,image/webp" style="display:none;">
-        <button class="btn-secondary" id="photoUploadBtn" style="font-size:12px;padding:6px 12px;">${I.camera ? I.camera() : "📷"} Upload photo</button>
-      </label>
+      <input type="file" id="photoUpload" accept="image/jpeg,image/png,image/webp" style="display:none;">
+      <button class="btn-secondary" id="photoUploadBtn" style="font-size:12px;padding:6px 12px;">${I.camera ? I.camera() : "📷"} Upload photo</button>
       <div id="photoUploadStatus" style="font-size:11px;color:var(--ink-mute);margin-top:6px;display:none;"></div>
     </div>
 
