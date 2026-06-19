@@ -8,14 +8,14 @@ import { I } from '../icons.js';
 const FLAG = 'bv_onboarded_v1';
 
 const STEPS = [
-  { target: null, title: 'Welcome to MyBricks', body: 'Track your LEGO collection’s value, ROI, and price forecasts in real time. Here’s a 30-second tour.' },
-  { target: '#nav .nav-tab[data-route="/"]', title: 'Your Vault', body: 'Everything you own — live values, ROI, and trend sparklines. Your portfolio at a glance.' },
-  { target: '#nav .nav-tab[data-route="/add"]', title: 'Catalog', body: 'Search ~20,000 sets, filter by theme, year, or value, and add them to your vault or wishlist.' },
-  { target: '#nav .scan-tab', title: 'Scan', body: 'Snap a box barcode or a photo and AI identifies the set — then add it in one tap.' },
-  { target: '#nav .nav-tab[data-route="/minifigs"]', title: 'Minifigs', body: 'Track your minifigure collection and blind-bag finds separately from sets.' },
-  { target: '#nav .nav-tab[data-route="/me"]', title: 'You', body: 'Profile, currency, your public Trophy Shelf, CSV / Google Sheets sync, and AI settings live here.' },
-  { target: '#advisorFab', title: 'AI Advisor', body: 'Ask what to buy or sell, why a set is worth what it is, or anything about your portfolio.' },
-  { target: null, title: 'You’re all set!', body: 'Add your first set from the Catalog or Scan tab. You can replay this tour anytime from the You tab.' },
+  { target: null, title: 'Welcome to MyBricks', body: 'Swipe through to see where everything lives.' },
+  { target: '#nav .nav-tab[data-route="/"]', title: 'Your Vault', body: 'Tap any set to see its full value history.' },
+  { target: '#nav .nav-tab[data-route="/add"]', title: 'Catalog', body: 'Search 27,000+ sets and add them to your vault.' },
+  { target: '#nav .scan-tab', title: 'Scan', body: 'Point it at a box barcode — instant match.' },
+  { target: '#nav .nav-tab[data-route="/minifigs"]', title: 'Minifigs', body: 'Track minifigs separately from your sets.' },
+  { target: '#nav .nav-tab[data-route="/me"]', title: 'You', body: 'Set your currency, sync, and AI options here.' },
+  { target: '#advisorFab', title: 'AI Advisor', body: 'Ask what to buy, sell, or hold — anytime.' },
+  { target: null, title: 'You’re all set!', body: 'Add your first set from Catalog or Scan.' },
 ];
 
 let idx = 0;
@@ -179,11 +179,11 @@ export function maybeStartOnboarding() {
 const WELCOME_FLAG = 'bv_welcome_v1';
 
 const WELCOME_SLIDES = [
-  { icon: 'box',      hue: 4,   title: 'Welcome to MyBricks',  body: 'Your LEGO collection, valued like an investment portfolio — live prices, ROI, and forecasts.' },
-  { icon: 'trend',    hue: 152, title: 'Know what it’s worth', body: 'Every set valued from real market data, with ROI, growth trends, and 2- and 5-year forecasts.' },
-  { icon: 'scan',     hue: 212, title: 'Scan to add',          body: 'Point your camera at a box barcode or a built set — AI identifies the set or minifig and adds it in a tap.' },
-  { icon: 'advisor',  hue: 276, title: 'Ask the AI advisor',   body: 'What should you buy or sell? Why is a set worth that? Get instant, portfolio-aware answers.' },
-  { icon: 'sparkles', hue: 36,  title: 'You’re ready',         body: 'Add your first set from the Catalog or Scan tab. Replay the guided tour anytime from the You tab.' },
+  { icon: 'box',      hue: 4,   title: 'Welcome to MyBricks',  body: 'Your collection, valued like an investment portfolio.' },
+  { icon: 'trend',    hue: 152, title: 'Know what it’s worth', body: 'Real market values, ROI, and 2- & 5-year forecasts.' },
+  { icon: 'scan',     hue: 212, title: 'Scan to add',          body: 'Point your camera — AI identifies it and adds it in a tap.' },
+  { icon: 'advisor',  hue: 276, title: 'Ask the AI advisor',   body: 'Buy, sell, or hold? Get instant, portfolio-aware answers.' },
+  { icon: 'sparkles', hue: 36,  title: 'You’re ready',         body: 'Add your first set from Catalog or Scan.' },
 ];
 
 let wcRoot = null;

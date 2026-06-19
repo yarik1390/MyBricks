@@ -67,7 +67,12 @@ async function _routeImpl() {
 
   const fab = document.getElementById("advisorFab");
   if (fab) {
-    fab.style.display = hash !== "/login" ? "flex" : "none";
+    // The advisor is portfolio-aware, so show it only where that context
+    // applies (Vault, set-detail, wishlist, You). Hide it on Catalog, Scan,
+    // Minifigs and Build so it doesn't fight the scan orb or cover those UIs.
+    const fabHidden = hash === "/login" || hash === "/add" || hash === "/pile"
+      || hash === "/minifigs" || hash === "/build";
+    fab.style.display = fabHidden ? "none" : "flex";
   }
   $("#advisorDrawer")?.classList.remove("open");
 

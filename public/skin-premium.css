@@ -43,10 +43,12 @@
 
 /* Skin-scoped component exceptions — keep this section tiny. Pixel-shadow
    press feedback (translate toward the shadow) reads wrong with soft
-   elevation; premium presses scale slightly instead. */
+   elevation; premium presses collapse the elevation instead — the surface
+   settles toward the page, coherent with the skin's depth language. */
 :root[data-skin="premium"] .chip:active,
 :root[data-skin="premium"] .card:active,
 :root[data-skin="premium"] .btn-primary:active,
 :root[data-skin="premium"] .btn-secondary:active {
-  transform: scale(0.98);
+  box-shadow: var(--shadow-1);
+  transform: translateY(1px);
 }
