@@ -689,6 +689,7 @@ body.offline .offline-banner { display: block; }
 .set-card-img.photo-loaded .brick-tile,
 .sl-img.photo-loaded .brick-tile,
 .mini-img.photo-loaded .mini-figure,
+.fig-detail-hero.photo-loaded .mini-figure,
 .detail-img.photo-loaded .brick-art,
 .scan-result-row .si.photo-loaded .brick-tile { display: none; }
 :root[data-theme="dark"] .set-card-img img.set-photo {
