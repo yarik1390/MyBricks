@@ -745,6 +745,13 @@ body.offline .offline-banner { display: block; }
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
+/* Secondary value metrics ($/pc, lots) under the price — own line so the
+   nowrap price never has to share a line and overflow/clip the card. */
+.set-card-submeta {
+  margin-top: 3px;
+  font-family: var(--mono); font-size: 10px; color: var(--ink-mute);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
 
 /* ============================================================
    Detail page
