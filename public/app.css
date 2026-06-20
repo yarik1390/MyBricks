@@ -736,6 +736,10 @@ body.offline .offline-banner { display: block; }
   display: flex; flex-wrap: wrap; gap: 4px;
 }
 .set-card-meta span { background: var(--surface-2); padding: 2px 6px; border-radius: var(--r-1); }
+/* Subtheme chip: keep it to one line (long subthemes like 'Ultimate Collector
+   Series' / 'Modular Buildings Collection' wrapped inside the pill and broke the
+   card layout). Short subthemes are unaffected; long ones ellipsize. */
+.set-card-meta .set-card-sub { min-width: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .set-card-value {
   font-family: var(--serif); font-size: 17px; font-weight: 500;
   letter-spacing: -0.01em;

@@ -477,7 +477,7 @@ function catalogCardHTML(s) {
           <span>${s.year || ""}</span>
           <span>${s.pieces || 0}pc</span>
           ${s.minifigs > 0 ? `<span>${s.minifigs} fig</span>` : ""}
-          ${s.subtheme ? `<span>${escapeHtml(s.subtheme)}</span>` : ""}
+          ${s.subtheme ? `<span class="set-card-sub">${escapeHtml(s.subtheme)}</span>` : ""}
         </div>
         <div class="set-card-value" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;">
           <span>${confDot}${fmtMoney(dispVal)} ${pppBadgeHTML(s)}${s.bl_new_qty ? ` <span style="font-size:9px;color:var(--ink-mute);">(${s.bl_new_qty} lots)</span>` : ""}</span>
