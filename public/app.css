@@ -616,7 +616,7 @@ body.offline .offline-banner { display: block; }
   border: var(--bw) solid var(--border-c);
   border-radius: var(--r-full);
   padding: 11px 16px 11px 42px;
-  font-size: 15px;
+  font-size: 16px;
   box-shadow: var(--shadow-1);
   outline: none;
 }
@@ -793,7 +793,7 @@ body.offline .offline-banner { display: block; }
   position: absolute;
   top: calc(16px + env(safe-area-inset-top, 0px));
   left: 16px;
-  width: 42px; height: 42px;
+  width: 44px; height: 44px;
   background: var(--surface); border: var(--bw) solid var(--border-c);
   border-radius: 50%;
   box-shadow: var(--shadow-2);
@@ -807,7 +807,7 @@ body.offline .offline-banner { display: block; }
 .detail-img {
   position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  width: 300px; height: 300px;
+  width: min(300px, 86vw); height: min(300px, 86vw);
   display: flex; align-items: center; justify-content: center;
   /* Soft light halo that fades to nothing, so the photo melts into the page
      rather than sitting in a box. */
@@ -815,7 +815,7 @@ body.offline .offline-banner { display: block; }
   border-radius: 50%;
   z-index: 2;
 }
-.detail-hero.has-photo .detail-img { width: 320px; height: 320px; }
+.detail-hero.has-photo .detail-img { width: min(320px, 92vw); height: min(320px, 92vw); }
 :root[data-theme="dark"] .detail-img {
   background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.14) 0%, transparent 66%);
 }
@@ -869,7 +869,7 @@ body.offline .offline-banner { display: block; }
 }
 .detail-share-btn {
   flex-shrink: 0;
-  width: 42px; height: 42px;
+  width: 44px; height: 44px;
   background: var(--surface); border: var(--bw) solid var(--border-c);
   border-radius: 50%;
   box-shadow: var(--shadow-2);
@@ -1440,7 +1440,7 @@ body.offline .offline-banner { display: block; }
    Toast
    ============================================================ */
 #toast {
-  position: fixed; bottom: 86px; left: 16px; right: 16px;
+  position: fixed; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 22px); left: 16px; right: 16px;
   background: var(--ink); color: var(--bg);
   border: var(--bw) solid var(--border-c);
   border-radius: var(--r-3);
@@ -2440,7 +2440,7 @@ select:focus-visible,
   width: 100%; padding: 10px 12px;
   background: var(--surface-2); color: var(--ink);
   border: var(--bw) solid var(--border-c); border-radius: var(--r-2);
-  font-size: 14px; font-family: var(--sans); outline: none;
+  font-size: 16px; font-family: var(--sans); outline: none;
   box-sizing: border-box;
 }
 .listing-title-input:focus { border-color: var(--bv-red); }
@@ -2448,7 +2448,7 @@ select:focus-visible,
   width: 100%; padding: 10px 12px; resize: vertical;
   background: var(--surface-2); color: var(--ink);
   border: var(--bw) solid var(--border-c); border-radius: var(--r-2);
-  font-size: 13px; font-family: var(--sans); line-height: 1.5; outline: none;
+  font-size: 16px; font-family: var(--sans); line-height: 1.5; outline: none;
   box-sizing: border-box;
 }
 .listing-desc-textarea:focus { border-color: var(--bv-red); }

@@ -318,6 +318,13 @@ CREATE INDEX IF NOT EXISTS idx_rl_user ON rate_limits(user_id, endpoint);
 CREATE INDEX IF NOT EXISTS idx_sets_theme ON lego_sets(theme);
 CREATE INDEX IF NOT EXISTS idx_sets_retired ON lego_sets(retired);
 CREATE INDEX IF NOT EXISTS idx_sets_upc ON lego_sets(upc);
+-- Catalog filter/sort indexes (Phase-2 filters + ranges were full-scanning ~27k rows).
+CREATE INDEX IF NOT EXISTS idx_sets_theme_group ON lego_sets(theme_group);
+CREATE INDEX IF NOT EXISTS idx_sets_category ON lego_sets(category);
+CREATE INDEX IF NOT EXISTS idx_sets_year ON lego_sets(year);
+CREATE INDEX IF NOT EXISTS idx_sets_pieces ON lego_sets(pieces);
+CREATE INDEX IF NOT EXISTS idx_sets_current_value ON lego_sets(current_value);
+CREATE INDEX IF NOT EXISTS idx_sets_blended_value ON lego_sets(blended_value);
 CREATE INDEX IF NOT EXISTS idx_showcase_user ON user_showcase(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_prefs_handle ON user_prefs(handle) WHERE handle IS NOT NULL;
 

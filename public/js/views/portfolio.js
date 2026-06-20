@@ -677,7 +677,7 @@ function renderInsightsTab(items) {
           <div class="u-row u-gap-1" style="font-size:12px;font-family:var(--mono);color:var(--up);margin-bottom:8px;font-weight:700;">${I.trend({w:13,h:13})} TOP RISING</div>
           ${rising.length === 0 ? `<div style="font-size:12px;color:var(--ink-mute);">No significant gainers</div>` : rising.map(item => `
             <div style="margin-bottom:6px;font-size:12px;display:flex;justify-content:space-between;align-items:center;">
-              <span class="insight-set-link" data-set="${escapeHtml(item.set_num)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px;text-decoration:underline;cursor:pointer;">${escapeHtml(item.name)}</span>
+              <span class="insight-set-link" data-set="${escapeHtml(item.set_num)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;margin-right:8px;text-decoration:underline;cursor:pointer;">${escapeHtml(item.name)}</span>
               <strong style="color:var(--up);font-family:var(--mono);">+${item.slope_90d.toFixed(1)}%/wk</strong>
             </div>
           `).join("")}
@@ -686,7 +686,7 @@ function renderInsightsTab(items) {
           <div class="u-row u-gap-1" style="font-size:12px;font-family:var(--mono);color:var(--bv-red);margin-bottom:8px;font-weight:700;">${I.trendDown({w:13,h:13})} TOP FALLING</div>
           ${falling.length === 0 ? `<div style="font-size:12px;color:var(--ink-mute);">No significant decliners</div>` : falling.map(item => `
             <div style="margin-bottom:6px;font-size:12px;display:flex;justify-content:space-between;align-items:center;">
-              <span class="insight-set-link" data-set="${escapeHtml(item.set_num)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px;text-decoration:underline;cursor:pointer;">${escapeHtml(item.name)}</span>
+              <span class="insight-set-link" data-set="${escapeHtml(item.set_num)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;margin-right:8px;text-decoration:underline;cursor:pointer;">${escapeHtml(item.name)}</span>
               <strong style="color:var(--bv-red);font-family:var(--mono);">${item.slope_90d.toFixed(1)}%/wk</strong>
             </div>
           `).join("")}
