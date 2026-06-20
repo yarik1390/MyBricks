@@ -67,11 +67,11 @@ async function _routeImpl() {
 
   const fab = document.getElementById("advisorFab");
   if (fab) {
-    // The advisor is portfolio-aware, so show it only where that context
-    // applies (Vault, set-detail, wishlist, You). Hide it on Catalog, Scan,
-    // Minifigs and Build so it doesn't fight the scan orb or cover those UIs.
-    const fabHidden = hash === "/login" || hash === "/add" || hash === "/pile"
-      || hash === "/minifigs" || hash === "/build";
+    // Show the AI assistant on every screen except the Scan camera (/pile),
+    // where a floating button would fight the full-screen capture UI, and the
+    // login screen. It's now available on Catalog (/add), Minifigs and Build
+    // too (users asked for it there), plus Vault, set-detail and You.
+    const fabHidden = hash === "/login" || hash === "/pile";
     fab.style.display = fabHidden ? "none" : "flex";
   }
   $("#advisorDrawer")?.classList.remove("open");

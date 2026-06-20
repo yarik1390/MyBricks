@@ -80,6 +80,11 @@ body {
   padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
   min-height: 100vh;
 }
+/* Hide the document scrollbar so its gutter never reserves layout width on
+   the right edge. Scrolling still works; only the visual track is removed
+   (consistent with the app's chip-row scrollbar hiding). */
+html, body { scrollbar-width: none; -ms-overflow-style: none; }
+html::-webkit-scrollbar, body::-webkit-scrollbar { width: 0; height: 0; display: none; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 input, textarea, select { font: inherit; color: inherit; }
 a { color: inherit; text-decoration: none; }
