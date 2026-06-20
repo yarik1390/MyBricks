@@ -479,11 +479,8 @@ function catalogCardHTML(s) {
           ${s.minifigs > 0 ? `<span>${s.minifigs} fig</span>` : ""}
           ${s.subtheme ? `<span>${escapeHtml(s.subtheme)}</span>` : ""}
         </div>
-        <div class="set-card-value" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;">${confDot}${fmtMoney(dispVal)}</span>
-          <span style="display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;">${sourceCueHTML(s)}${s.trend ? trendBadgeHTML(s.trend) : ""}</span>
-        </div>
-        ${(pppBadgeHTML(s) || s.bl_new_qty) ? `<div class="set-card-submeta">${pppBadgeHTML(s)}${s.bl_new_qty ? `<span>${s.bl_new_qty} lots</span>` : ""}</div>` : ""}
+        <div class="set-card-value">${confDot}${fmtMoney(dispVal)}</div>
+        ${(sourceCueHTML(s) || pppBadgeHTML(s) || s.bl_new_qty || s.trend) ? `<div class="set-card-submeta">${sourceCueHTML(s)}${pppBadgeHTML(s)}${s.bl_new_qty ? `<span>${s.bl_new_qty} lots</span>` : ""}${s.trend ? trendBadgeHTML(s.trend) : ""}</div>` : ""}
       </div>
     </button>`;
 }
