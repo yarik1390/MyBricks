@@ -728,7 +728,12 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const trigger = await db.prepare(
         `SELECT sql FROM sqlite_master WHERE type='trigger' AND name='lego_sets_au'`
       ).first<{ sql: string }>();
-      expect(trigger?.sql).toContain('AFTER UPDATE OF set_num, name, theme ON lego_sets');
+      // rebuildSearchIndex detects indexable columns via pragma_table_info, so the
+      // narrow trigger covers whichever of (set_num, name, theme, subtheme,
+      // theme_group, brickset_tags) the table actually has. This fixture's lego_sets
+      // has subtheme, so the trigger fires on those 4 columns (still narrow — not upc,
+      // current_value, etc.). Prod, which also has theme_group/brickset_tags, gets all 6.
+      expect(trigger?.sql).toContain('AFTER UPDATE OF set_num, name, theme, subtheme ON lego_sets');
 
       await db.prepare(`UPDATE lego_sets SET upc='0673419280310' WHERE set_num='75192'`).run();
       const search = await app.fetch(new Request('http://localhost/api/sets/search?q=Millennium&limit=5'), env);
