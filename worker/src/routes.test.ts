@@ -92,7 +92,9 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         valuation_method TEXT DEFAULT 'formula_bulk', bl_new_value REAL, bl_new_qty INTEGER, bl_used_qty INTEGER,
         bo_new_value REAL, bo_used_value REAL, bo_cached_at TEXT,
         brickinsights_rating INTEGER, brickinsights_review_count INTEGER, brickinsights_url TEXT, brickinsights_cached_at TEXT,
-        valuation_expires_at TEXT, cached_at TEXT, source TEXT, ebay_cached_at TEXT, blended_value REAL
+        valuation_expires_at TEXT, cached_at TEXT, source TEXT, ebay_cached_at TEXT, blended_value REAL,
+        subtheme TEXT, be_growth_12m REAL, bl_new_min REAL, bl_new_max REAL,
+        bl_used_min REAL, bl_used_max REAL, lego_in_stock INTEGER, lego_retiring_soon INTEGER
       )`,
       `CREATE TABLE set_value_history (
         set_num TEXT NOT NULL, snapshot_date TEXT NOT NULL,
