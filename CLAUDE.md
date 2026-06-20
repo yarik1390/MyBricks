@@ -1,5 +1,10 @@
 # CLAUDE.md — Brickvault (MyBricks)
 
+> **Full project handoff:** see [`AGENTS.md`](./AGENTS.md) for the complete
+> architecture, repo map, D1 data model, API surface, deploy pipeline + hard
+> constraints, env/secret names, conventions, gotchas and changelog. This file
+> is the short quick-start; `AGENTS.md` is the comprehensive reference.
+
 Guidance for AI agents working in this repo. Read this before making changes.
 Multiple agents work on the same branch (`claude/mybricks-lego-app-EdTPX`) in
 parallel — keep changes small, commit in logical chunks, and `git pull` before
