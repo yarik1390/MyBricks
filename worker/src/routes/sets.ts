@@ -427,7 +427,14 @@ app.get('/:setnum', async (c) => {
       }
     }
 
-    const brickset = await fetchBricksetDetails(resultSet.set_num as string, c.env).catch(() => null);
+    // Only call Brickset live when the set hasn't been enriched yet. Enriched sets
+    // already have their brickset_* columns persisted, and the fill-guards below
+    // (!resultSet.X) would set nothing on a re-fetch — so the ~200-500ms blocking
+    // call was pure latency on the set-detail response path. Stored columns are
+    // returned via resultSet either way; the frontend already falls back to them.
+    const brickset = resultSet.brickset_enriched_at
+      ? null
+      : await fetchBricksetDetails(resultSet.set_num as string, c.env).catch(() => null);
     if (brickset) {
       const bsUpdates: D1PreparedStatement[] = [];
       if (brickset.minifigs !== null && brickset.minifigs > 0 && !resultSet.minifigs) {
