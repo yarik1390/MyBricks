@@ -43,6 +43,24 @@ const SORTS: Record<string, string> = {
   az:         'name ASC',
 };
 
+// Catalog-card projection for GET /search. The grid + enrichSetRecord only need
+// identity, value and the per-source price/cache family — NOT the heavy
+// detail-only columns (brickset_description, brickset_image_urls and
+// brickset_tags are large text/JSON; ratings, dimensions, dates, age and
+// barcodes are detail-page only). Projecting them out trims the search payload
+// and D1 serialization on every catalog page; GET /:setnum still SELECT *s the
+// full row. (Verified: every column read by enrichSetRecord, the card and its
+// helpers is included.)
+const CATALOG_COLS =
+  's.set_num, s.name, s.year, s.theme, s.pieces, s.minifigs, ' +
+  's.image_url, s.retail_price, s.current_value, s.forecast_2y, s.forecast_5y, s.retired, ' +
+  's.valuation_method, s.cached_at, s.source, s.valuation_expires_at, s.ebay_value, s.ebay_cached_at, ' +
+  's.ebay_new_value, s.ebay_used_value, s.ebay_new_qty, s.ebay_used_qty, s.ebay_new_cached_at, s.ebay_used_cached_at, ' +
+  's.used_value, s.bl_new_value, s.bl_new_qty, s.bl_used_qty, s.bl_cached_at, s.be_cached_at, ' +
+  's.ebay_ask_value, s.ebay_ask_qty, s.ebay_ask_cached_at, s.retirement_risk_score, s.subtheme, s.be_growth_12m, ' +
+  's.bl_new_min, s.bl_new_max, s.bl_used_min, s.bl_used_max, s.lego_in_stock, s.lego_retiring_soon, ' +
+  's.bo_new_value, s.bo_used_value, s.bo_cached_at, s.blended_value';
+
 function pushEbaySoldUpdate(
   stmts: D1PreparedStatement[],
   db: D1Database,
@@ -146,7 +164,7 @@ app.get('/search', async (c) => {
   try {
     [pageRes, countRes] = await Promise.all([
       c.env.DB.prepare(
-        `SELECT s.* FROM ${fromSQL} ${whereSQL} ORDER BY ${orderBySQL}, s.set_num LIMIT ? OFFSET ?`
+        `SELECT ${CATALOG_COLS} FROM ${fromSQL} ${whereSQL} ORDER BY ${orderBySQL}, s.set_num LIMIT ? OFFSET ?`
       ).bind(...params, lim, offset).all<Record<string, unknown>>(),
       c.env.DB.prepare(
         `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM ${fromSQL} ${whereSQL}`
@@ -166,7 +184,7 @@ app.get('/search', async (c) => {
     const fallbackWhereSQL = fallbackWhere.length ? `WHERE ${fallbackWhere.join(' AND ')}` : '';
     [pageRes, countRes] = await Promise.all([
       c.env.DB.prepare(
-        `SELECT s.* FROM lego_sets s ${fallbackWhereSQL} ORDER BY ${orderBy}, s.set_num LIMIT ? OFFSET ?`
+        `SELECT ${CATALOG_COLS} FROM lego_sets s ${fallbackWhereSQL} ORDER BY ${orderBy}, s.set_num LIMIT ? OFFSET ?`
       ).bind(...fallbackParams, lim, offset).all<Record<string, unknown>>(),
       c.env.DB.prepare(
         `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM lego_sets s ${fallbackWhereSQL}`

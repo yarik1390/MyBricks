@@ -51,11 +51,31 @@ app.use('*', cors({
   allowHeaders: ['Content-Type', 'Authorization', 'X-Gemini-Key', 'X-OpenAI-Key', 'cf-turnstile-token'],
 }));
 
+// Public, anonymous catalog GETs (sets / themes / minifigs / rates / config) are
+// shared reference data that only changes on the hourly cron, so let browsers,
+// proxies and the edge cache them briefly instead of forcing a D1 round-trip on
+// every view. Any authenticated request (Authorization present), any mutation,
+// and every non-catalog path (/api/me, /api/collection, /api/admin, ...) keep
+// the hard no-store. Vary: Origin, Authorization so a shared cache can never
+// hand an anonymous-cached body to a signed-in request (and preserves the CORS
+// Vary: Origin set above).
+const PUBLIC_CACHEABLE_GET = /^\/api\/(sets|themes|minifigs|rates|config)(?:\/|$)/;
+
 app.use('*', async (c, next) => {
   await next();
-  c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  c.header('Pragma', 'no-cache');
-  c.header('Expires', '0');
+  const publicCacheableGet =
+    c.req.method === 'GET' &&
+    !c.req.header('authorization') &&
+    c.res.status === 200 &&
+    PUBLIC_CACHEABLE_GET.test(new URL(c.req.url).pathname);
+  if (publicCacheableGet) {
+    c.header('Cache-Control', 'public, max-age=120, s-maxage=300, stale-while-revalidate=600');
+    c.header('Vary', 'Origin, Authorization');
+  } else {
+    c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    c.header('Pragma', 'no-cache');
+    c.header('Expires', '0');
+  }
   c.header('X-Content-Type-Options', 'nosniff');
   c.header('X-Frame-Options', 'DENY');
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
