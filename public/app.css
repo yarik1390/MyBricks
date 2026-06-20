@@ -83,7 +83,7 @@ body {
 /* Hide the document scrollbar so its gutter never reserves layout width on
    the right edge. Scrolling still works; only the visual track is removed
    (consistent with the app's chip-row scrollbar hiding). */
-html, body { scrollbar-width: none; -ms-overflow-style: none; }
+html, body { scrollbar-width: none; -ms-overflow-style: none; overflow-x: hidden; }
 html::-webkit-scrollbar, body::-webkit-scrollbar { width: 0; height: 0; display: none; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 input, textarea, select { font: inherit; color: inherit; }
@@ -287,6 +287,10 @@ body.offline .offline-banner { display: block; }
 .spark-wrap {
   margin: 16px -6px 0; height: 88px;
   position: relative;
+  /* Horizontal swipes scrub the chart in JS; keep the browser from turning
+     them into a horizontal page pan (which left a persistent gap on the
+     right). pan-y still lets the page scroll vertically through the chart. */
+  touch-action: pan-y;
 }
 .spark-wrap svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .spark-legend {
