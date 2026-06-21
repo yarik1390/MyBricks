@@ -90,7 +90,7 @@ async function _routeImpl() {
     else if (hash === "/me/data") await (await import('./views/me-data.js')).renderMeData();
     else if (hash === "/me/admin") await (await import('./views/me-admin.js')).renderMeAdmin();
     else if (hash === "/wishlist") await (await import('./views/portfolio.js')).renderWishlist();
-    else if (hash === "/leaderboard") await (await import('./views/portfolio.js')).renderLeaderboard();
+    else if (hash === "/leaderboard") await (await import('./views/portfolio-social.js')).renderLeaderboard();
     else if (hash.startsWith("/set/")) {
       const parts = hash.split("/");
       const setNum = decodeURIComponent(parts[2]);
@@ -98,7 +98,7 @@ async function _routeImpl() {
       await (await import('./views/portfolio.js')).renderSetDetail(setNum);
     } else if (hash.startsWith("/u/")) {
       const handle = hash.slice(3);
-      await (await import('./views/portfolio.js')).renderPublicProfile(handle);
+      await (await import('./views/portfolio-social.js')).renderPublicProfile(handle);
     } else {
       location.hash = "#/";
       throw { __redirect: true };
