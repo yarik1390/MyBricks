@@ -256,7 +256,8 @@ Push to `main` or the dev branch → **`.github/workflows/deploy-worker.yml`**
 runs (in order): install deps → **frontend tests** → **Typecheck Worker** →
 **Worker tests (vitest in workerd)** → create/find D1 + KV + R2 + Analytics →
 wrangler dry-run → **apply `schema.sql`** → **apply column migrations**
-(hardcoded idempotent ALTER list) → **rebuild derived search index**
+(every `ALTER … ADD COLUMN` grepped out of `schema_migrate.sql`, applied
+per-statement) → **rebuild derived search index**
 (`schema_search_index.sql`) → validate schema → **deploy Worker** → **upload
 Worker secrets** → **inject Worker URL into `public/env.js`** → **deploy Pages**
 → public + protected **smoke checks** → kick off data population.
@@ -271,10 +272,19 @@ vitest failures when full logs require admin rights).
 ### ⚠️ Hard constraints (these have bitten us — respect them)
 1. **Cannot push `.github/workflows/`** via the GitHub app integration (403 — no
    `workflows` permission). Workflow edits must be done by a human/PR.
-2. **Adding a D1 column requires two places:** add it to `schema.sql` AND to the
-   workflow's hardcoded **"Apply column migrations"** ALTER list (the workflow is
-   how prod gets new columns). New columns/indexes can also be applied live via a
-   scoped Cloudflare D1 token, then reasserted idempotently in `schema.sql`.
+2. **Adding a D1 column — NO workflow edit needed (since 2026-06):** add it in two
+   version-controlled SQL files: (a) the `CREATE TABLE` in `schema.sql` (fresh
+   DBs) and (b) ONE single-line `ALTER TABLE … ADD COLUMN …;` in
+   `schema_migrate.sql` (existing DBs). The deploy step "Apply column migrations"
+   greps every `ALTER … ADD COLUMN` line out of `schema_migrate.sql` and runs each
+   independently (tolerating only duplicate-column errors), so `schema_migrate.sql`
+   is the **single source of truth** — the old inline ALTER array in the workflow
+   is gone. Both files are pushable by the GitHub app (no `.github/workflows/`
+   change). Keep each ALTER on its own line so the grep picks it up. ⚠️ If the
+   Worker *queries* the new column, also add it to the **"Validate schema before
+   deploy"** probe list so a silently-failed migration fails the deploy instead of
+   shipping a broken DB — that probe edit IS a `.github/workflows/` change
+   (human/PR), but it's optional hardening, not required for the column to work.
 3. **FTS sync:** if you add a searchable column, update BOTH
    `schema_search_index.sql` and `lib/search-index.ts` (`rebuildSearchIndex`) to
    the same column list, or search silently degrades after the next auto-repair.
@@ -292,7 +302,11 @@ vitest failures when full logs require admin rights).
 ### Safe-change checklist
 - Worker-only logic change → edit `worker/src/**`, keep tests green, push. No SW bump.
 - Static asset change → edit `public/**`, **bump `sw.js` VERSION**, push.
-- New D1 column → `schema.sql` + workflow ALTER list (+ FTS files if searchable).
+- New D1 column → `schema.sql` CREATE TABLE + one `ALTER … ADD COLUMN` line in
+  `schema_migrate.sql` (no workflow edit). If searchable, also update the FTS
+  column list in BOTH `schema_search_index.sql` and `lib/search-index.ts`. If the
+  Worker queries it, optionally add it to the workflow's "Validate schema" probe
+  (human/PR) for a hard guard.
 - Always: run/verify `worker` vitest locally if possible; the deploy gate runs
   Typecheck + frontend tests + Worker tests before it will deploy.
 
@@ -389,6 +403,18 @@ exposes client-safe values.**
 ## 11. Recent-changes changelog
 
 Newest first. (Service-worker `VERSION` in parentheses where relevant.)
+
+**Migration consolidation + P1 robustness (2026-06)** — the deploy "Apply column
+migrations" step now greps every `ALTER … ADD COLUMN` from `schema_migrate.sql`
+and applies it per-statement (the old inline workflow ALTER array is gone;
+`schema_migrate.sql` is the single source of truth), and the "Validate schema"
+probe was extended to the Brickset/BrickInsights columns that had drifted out of
+the migration (`theme_group`, `category`, `brickset_tags`, `brickset_*`,
+`brickinsights_*`). Also: external fetches (`lego-stock`, `brickinsights`) gained
+timeouts/retries via `fetchWithRetry`, advisor/scan rate limits became atomic
+(`… RETURNING hit_count`), the `reserveQuota` ledger write clamps at cap, and the
+Brickset/BrickLink import + wishlist-alert N+1 query loops were batched into
+chunked `IN (…)` lookups. Commits `c9f03008`, `ab613ee`, + a workflow PR.
 
 **Audit §12 follow-ups (v149)** — security + perf + code-split (commits
 `4c9f9cd`, `3d0a933`).
