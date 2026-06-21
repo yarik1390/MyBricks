@@ -588,7 +588,8 @@ app.get('/:setnum', async (c) => {
     }
     return c.json({ set: enrichSetRecord({ ...row, brickset }), entry: null });
   } catch (e) {
-    return c.json({ error: (e as Error).message }, 500);
+    console.warn('[sets/:setnum] Rebrickable lookup failed:', (e as Error).message);
+    return c.json({ error: 'Could not load that set. Try again in a moment.' }, 500);
   }
 });
 

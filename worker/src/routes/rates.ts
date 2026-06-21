@@ -21,7 +21,8 @@ app.get('/', async (c) => {
     return c.json({ rates: json.rates, cached: false });
   } catch (e) {
     if (ratesCache) return c.json({ rates: ratesCache.rates, cached: true, stale: true });
-    return c.json({ rates: { USD: 1 }, cached: false, error: (e as Error).message }, 503);
+    console.warn('[rates] FX fetch failed:', (e as Error).message);
+    return c.json({ rates: { USD: 1 }, cached: false, error: 'Exchange rate data temporarily unavailable' }, 503);
   }
 });
 

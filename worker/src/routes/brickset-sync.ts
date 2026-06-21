@@ -14,8 +14,14 @@ app.post('/login', async (c) => {
   const { username, password } = body;
   if (!username || !password) return c.json({ error: 'username and password required' }, 400);
   try {
-    const url = `https://brickset.com/api/v3.asmx/login?apiKey=${encodeURIComponent(c.env.BRICKSET_API_KEY)}&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
-    const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+    // Send credentials in a POST form body — Brickset v3.asmx supports
+    // application/x-www-form-urlencoded — so the password never appears in the
+    // request URL (and therefore not in Cloudflare/proxy/Brickset access logs).
+    const resp = await fetch('https://brickset.com/api/v3.asmx/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+      body: new URLSearchParams({ apiKey: c.env.BRICKSET_API_KEY, username, password }).toString(),
+    });
     if (!resp.ok) return c.json({ error: `Brickset API error: ${resp.status}` }, 502);
     const data = await resp.json() as { status?: string; message?: string; hash?: string };
     if (data.status !== 'success' || !data.hash) {
@@ -28,7 +34,8 @@ app.post('/login', async (c) => {
     ).bind(userId, data.hash).run();
     return c.json({ ok: true });
   } catch (e) {
-    return c.json({ error: (e as Error).message }, 500);
+    console.warn('[brickset/login] failed:', (e as Error).message);
+    return c.json({ error: 'Brickset login failed. Check your credentials and try again.' }, 500);
   }
 });
 
@@ -70,8 +77,13 @@ app.post('/sync', async (c) => {
   if (!userHash) return c.json({ error: 'Brickset account not connected' }, 400);
 
   try {
-    const url = `https://brickset.com/api/v3.asmx/getSets?apiKey=${encodeURIComponent(c.env.BRICKSET_API_KEY)}&userHash=${encodeURIComponent(userHash)}&params={"owned":1,"pageSize":500}`;
-    const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+    // POST form body keeps the userHash (a credential) and params out of the
+    // request URL/logs; Brickset v3.asmx accepts form-encoded POST.
+    const resp = await fetch('https://brickset.com/api/v3.asmx/getSets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+      body: new URLSearchParams({ apiKey: c.env.BRICKSET_API_KEY, userHash, params: '{"owned":1,"pageSize":500}' }).toString(),
+    });
     if (!resp.ok) return c.json({ error: `Brickset API error: ${resp.status}` }, 502);
     const data = await resp.json() as {
       status?: string;
@@ -115,7 +127,8 @@ app.post('/sync', async (c) => {
     }
     return c.json({ ok: true, added, skipped, total: sets.length });
   } catch (e) {
-    return c.json({ error: (e as Error).message }, 500);
+    console.warn('[brickset/sync] failed:', (e as Error).message);
+    return c.json({ error: 'Brickset sync failed. Try again in a moment.' }, 500);
   }
 });
 
