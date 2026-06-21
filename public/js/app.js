@@ -4,8 +4,8 @@ import { loadSession, saveSession, setSupabaseConfig, drainOutbox, api, _authSes
 import { I } from './icons.js';
 import { route } from './router.js';
 import { getThemePref, applyTheme } from './theme.js';
-import { toggleAdvisor } from './components/advisor.js';
-import { openScan, closeScan, capturePhoto } from './components/scanner.js';
+import { toggleAdvisor } from './components/advisor-lazy.js';
+import { openScan, closeScan, capturePhoto } from './components/scanner-lazy.js';
 // onboarding (welcome carousel) is lazy-loaded at the end of boot (see below).
 
 // Setup gestures: Pull-to-refresh + swipe-back

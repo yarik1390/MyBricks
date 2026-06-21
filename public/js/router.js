@@ -8,8 +8,8 @@ import { I } from './icons.js';
 // navigation resolves the import from cache. import() memoizes per module, so
 // revisiting a route doesn't re-fetch or re-evaluate it.
 import { hideSheet } from './components/sheet.js';
-import { closeScan } from './components/scanner.js';
-import { cancelActiveStream } from './components/advisor.js';
+import { closeScan } from './components/scanner-lazy.js';
+import { cancelActiveStream } from './components/advisor-lazy.js';
 
 let _routeBusy = false;
 let _routeQueued = false;

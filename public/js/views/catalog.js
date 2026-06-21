@@ -3,7 +3,7 @@ import { state } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
-import { openScan } from '../components/scanner.js';
+import { openScan } from '../components/scanner-lazy.js';
 import { trustBadgeHTML } from '../components/trust.js';
 import { catalogFilterSummary, pricePerPiece } from '../lib/pure.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
