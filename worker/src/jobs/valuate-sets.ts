@@ -310,7 +310,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     let usedPricing: { used_value: number; lot_count?: number; min_price?: number | null; max_price?: number | null } | null = null;
     let ebayPrices: EbaySoldPrices | null = null;
     let valMethod = 'market';
-    let beDetails: any = null;
+    let beDetails: Awaited<ReturnType<typeof fetchBrickEconomyDetails>> = null;
     let beRejected = false;
 
     // Batch runs stay source-light to avoid Cloudflare subrequest limits.

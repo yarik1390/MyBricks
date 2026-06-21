@@ -126,7 +126,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         notify_price_drops INTEGER DEFAULT 1, is_public INTEGER NOT NULL DEFAULT 0,
         expose_public_value INTEGER NOT NULL DEFAULT 1,
         google_refresh_token TEXT, google_spreadsheet_id TEXT,
-        email TEXT, discord_webhook_url TEXT,
+        email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE user_showcase (

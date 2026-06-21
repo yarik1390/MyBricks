@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { requireMember } from '../auth';
 import { formulaValuation } from '../lib/valuation';
 import { fetchTracked } from '../lib/http';
@@ -9,7 +9,7 @@ import { runSyncProcess } from './google-sync';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-async function triggerGoogleSync(userId: string, c: any) {
+async function triggerGoogleSync(userId: string, c: Context<{ Bindings: Env; Variables: Variables }>) {
   try {
     const prefs = await c.env.DB.prepare('SELECT google_refresh_token, google_spreadsheet_id FROM user_prefs WHERE user_id=?')
       .bind(userId).first() as { google_refresh_token?: string; google_spreadsheet_id?: string } | null;

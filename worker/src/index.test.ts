@@ -176,6 +176,13 @@ describe('BrickVault API Worker Tests', () => {
         bo_used_value REAL,
         bo_cached_at TEXT,
         blended_value REAL,
+        subtheme TEXT,
+        bl_new_min REAL,
+        bl_new_max REAL,
+        bl_used_min REAL,
+        bl_used_max REAL,
+        lego_in_stock INTEGER,
+        lego_retiring_soon INTEGER,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )`,
 
