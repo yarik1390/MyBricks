@@ -95,7 +95,13 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         valuation_expires_at TEXT, cached_at TEXT, source TEXT, ebay_cached_at TEXT, blended_value REAL,
         subtheme TEXT, be_growth_12m REAL, bl_new_min REAL, bl_new_max REAL,
         bl_used_min REAL, bl_used_max REAL, lego_in_stock INTEGER, lego_retiring_soon INTEGER,
-        theme_group TEXT, category TEXT, brickset_tags TEXT
+        theme_group TEXT, category TEXT, brickset_tags TEXT,
+        created_at TEXT, age_min INTEGER, age_max INTEGER, brickset_rating REAL,
+        brickset_review_count INTEGER, retired_year INTEGER, lego_checked_at TEXT,
+        brickset_msrp REAL, launch_date TEXT, exit_date TEXT, brickset_enriched_at TEXT,
+        brickset_dimensions TEXT, packaging_type TEXT, instructions_count INTEGER,
+        additional_image_count INTEGER, brickset_description TEXT, brickset_set_id INTEGER,
+        brickset_image_urls TEXT, brickset_images_cached_at TEXT
       )`,
       `CREATE TABLE set_value_history (
         set_num TEXT NOT NULL, snapshot_date TEXT NOT NULL,
@@ -109,7 +115,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         purchase_price REAL, notes TEXT, added_at TEXT DEFAULT CURRENT_TIMESTAMP,
         purchased_at TEXT, deleted_at TEXT, last_modified TEXT DEFAULT CURRENT_TIMESTAMP,
         storage_location TEXT, acquisition_source TEXT, is_complete INTEGER DEFAULT 1,
-        missing_pieces INTEGER DEFAULT 0, UNIQUE(user_id, set_num)
+        missing_pieces INTEGER DEFAULT 0, spike_alerted_at TEXT, custom_image_url TEXT, UNIQUE(user_id, set_num)
       )`,
       `CREATE TABLE user_wishlist (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL,

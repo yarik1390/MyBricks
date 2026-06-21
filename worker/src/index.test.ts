@@ -119,7 +119,11 @@ describe('BrickVault API Worker Tests', () => {
         current_value REAL,
         image_url TEXT,
         added_at TEXT,
-        source TEXT
+        source TEXT,
+        cached_at TEXT,
+        year INTEGER,
+        num_parts INTEGER,
+        appears_in_sets INTEGER
       )`,
 
       `CREATE TABLE oauth_sessions (
@@ -183,6 +187,13 @@ describe('BrickVault API Worker Tests', () => {
         bl_used_max REAL,
         lego_in_stock INTEGER,
         lego_retiring_soon INTEGER,
+        age_min INTEGER, age_max INTEGER, brickset_rating REAL, brickset_review_count INTEGER,
+        retired_year INTEGER, lego_checked_at TEXT,
+        brickinsights_rating INTEGER, brickinsights_review_count INTEGER, brickinsights_url TEXT, brickinsights_cached_at TEXT,
+        brickset_msrp REAL, launch_date TEXT, exit_date TEXT, brickset_enriched_at TEXT,
+        theme_group TEXT, category TEXT, brickset_tags TEXT,
+        brickset_dimensions TEXT, packaging_type TEXT, instructions_count INTEGER, additional_image_count INTEGER,
+        brickset_description TEXT, brickset_set_id INTEGER, brickset_image_urls TEXT, brickset_images_cached_at TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )`,
 
@@ -238,7 +249,12 @@ describe('BrickVault API Worker Tests', () => {
       `CREATE TABLE user_prefs (
         user_id TEXT PRIMARY KEY,
         google_refresh_token TEXT,
-        google_spreadsheet_id TEXT
+        google_spreadsheet_id TEXT,
+        handle TEXT, display_name TEXT, currency TEXT DEFAULT 'USD',
+        notify_price_drops INTEGER DEFAULT 1, is_public INTEGER NOT NULL DEFAULT 0,
+        expose_public_value INTEGER NOT NULL DEFAULT 1,
+        email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       )`,
 
       `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price)
