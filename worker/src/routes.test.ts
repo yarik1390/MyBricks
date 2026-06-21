@@ -94,7 +94,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         brickinsights_rating INTEGER, brickinsights_review_count INTEGER, brickinsights_url TEXT, brickinsights_cached_at TEXT,
         valuation_expires_at TEXT, cached_at TEXT, source TEXT, ebay_cached_at TEXT, blended_value REAL,
         subtheme TEXT, be_growth_12m REAL, bl_new_min REAL, bl_new_max REAL,
-        bl_used_min REAL, bl_used_max REAL, lego_in_stock INTEGER, lego_retiring_soon INTEGER
+        bl_used_min REAL, bl_used_max REAL, lego_in_stock INTEGER, lego_retiring_soon INTEGER,
+        theme_group TEXT, category TEXT, brickset_tags TEXT
       )`,
       `CREATE TABLE set_value_history (
         set_num TEXT NOT NULL, snapshot_date TEXT NOT NULL,
@@ -730,10 +731,10 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       ).first<{ sql: string }>();
       // rebuildSearchIndex detects indexable columns via pragma_table_info, so the
       // narrow trigger covers whichever of (set_num, name, theme, subtheme,
-      // theme_group, brickset_tags) the table actually has. This fixture's lego_sets
-      // has subtheme, so the trigger fires on those 4 columns (still narrow — not upc,
-      // current_value, etc.). Prod, which also has theme_group/brickset_tags, gets all 6.
-      expect(trigger?.sql).toContain('AFTER UPDATE OF set_num, name, theme, subtheme ON lego_sets');
+      // theme_group, brickset_tags) the table actually has. This fixture now mirrors
+      // production (subtheme + theme_group + brickset_tags all present), so the trigger
+      // fires on all 6 FTS columns — still narrow (not upc, current_value, etc.).
+      expect(trigger?.sql).toContain('AFTER UPDATE OF set_num, name, theme, subtheme, theme_group, brickset_tags ON lego_sets');
 
       await db.prepare(`UPDATE lego_sets SET upc='0673419280310' WHERE set_num='75192'`).run();
       const search = await app.fetch(new Request('http://localhost/api/sets/search?q=Millennium&limit=5'), env);
@@ -911,6 +912,58 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         method: 'PATCH', headers: auth(otherToken), body: JSON.stringify({ quantity: 5 }),
       }), env);
       expect(patch.status).toBe(404);
+    });
+  });
+
+  describe('Themes route', () => {
+    it('aggregates distinct themes, theme groups, and categories', async () => {
+      await db.batch([
+        db.prepare("UPDATE lego_sets SET theme_group='Star Wars Universe', category='Normal' WHERE set_num='75192'"),
+        db.prepare("UPDATE lego_sets SET theme_group='Icons Group', category='Normal' WHERE set_num='10300'"),
+      ]);
+      const res = await app.fetch(new Request('http://localhost/api/themes'), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.themes).toEqual(expect.arrayContaining(['Star Wars', 'Icons']));
+      expect(data.theme_groups).toEqual(expect.arrayContaining(['Star Wars Universe', 'Icons Group']));
+      expect(data.categories).toEqual(['Normal']);
+    });
+  });
+
+  describe('Snapshot jobs', () => {
+    it('snapshots each user portfolio at COALESCE(blended_value, current_value) x qty', async () => {
+      const { runSnapshotPortfolios } = await import('./jobs/snapshot-portfolios');
+      await db.prepare(
+        `INSERT INTO user_collection (user_id, set_num, quantity, condition, purchase_price)
+         VALUES (?, '75192', 2, 'new', 700)`
+      ).bind(userId).run();
+
+      const result = await runSnapshotPortfolios(env as any);
+      expect(result.snapped).toBe(1);
+
+      const snap = await db.prepare(
+        'SELECT total_value, total_paid, set_count FROM portfolio_snapshots WHERE user_id=?'
+      ).bind(userId).first<any>();
+      // 75192 current_value 849.99, blended_value NULL -> COALESCE picks current_value
+      expect(snap.total_value).toBeCloseTo(849.99 * 2, 1);
+      expect(snap.total_paid).toBeCloseTo(700 * 2, 1);
+      expect(snap.set_count).toBe(1);
+    });
+
+    it('records owned/wishlisted set values into set_value_history', async () => {
+      const { runSnapshotSetValues } = await import('./jobs/snapshot-set-values');
+      await db.prepare(
+        "INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '75192', 1, 'new')"
+      ).bind(userId).run();
+
+      const result = await runSnapshotSetValues(env as any);
+      expect(result.snapshotted).toBeGreaterThanOrEqual(1);
+
+      const hist = await db.prepare(
+        "SELECT current_value FROM set_value_history WHERE set_num='75192' AND snapshot_date = DATE('now')"
+      ).first<any>();
+      expect(hist).toBeTruthy();
+      expect(hist.current_value).toBeCloseTo(849.99, 1);
     });
   });
 });
