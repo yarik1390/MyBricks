@@ -81,7 +81,9 @@ export async function reserveQuota(
       grants[service] = grant;
       if (grant > 0) {
         updates.push(env.DB.prepare(
-          "UPDATE api_quota SET used = used + ?3, updated_at = datetime('now') WHERE service=?1 AND day=?2"
+          // Clamp at cap so a concurrent reserver can never push the ledger past
+          // the provider cap (grant was computed from a prior read — see note above).
+          "UPDATE api_quota SET used = MIN(cap, used + ?3), updated_at = datetime('now') WHERE service=?1 AND day=?2"
         ).bind(service, day, grant));
       }
     }

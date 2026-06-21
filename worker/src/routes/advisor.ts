@@ -52,14 +52,14 @@ app.post('/', async (c) => {
     const windowStart = new Date();
     windowStart.setHours(0, 0, 0, 0);
     const ws = windowStart.toISOString();
-    await c.env.DB.prepare(`
+    // Atomic increment+read: RETURNING the new count in one statement closes the
+    // read-after-write race where two concurrent requests both pass the limit.
+    const rl = await c.env.DB.prepare(`
       INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
       VALUES (?, 'advisor', ?, 1)
       ON CONFLICT (user_id, endpoint, window_start) DO UPDATE SET hit_count = rate_limits.hit_count + 1
-    `).bind(userId, ws).run();
-    const rl = await c.env.DB.prepare(
-      'SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint=? AND window_start=?'
-    ).bind(userId, 'advisor', ws).first<{ hit_count: number }>();
+      RETURNING hit_count
+    `).bind(userId, ws).first<{ hit_count: number }>();
     if ((rl?.hit_count ?? 0) > ADVISOR_DAILY_LIMIT) {
       return c.json({ error: `Rate limit: ${ADVISOR_DAILY_LIMIT} advisor queries per day. Add your Gemini key in Settings for unlimited access.` }, 429);
     }

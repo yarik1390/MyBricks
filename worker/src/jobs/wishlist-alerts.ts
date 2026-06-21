@@ -19,6 +19,24 @@ async function sendPushToUser(env: Env, userId: string, payload: string) {
   }
 }
 
+interface AlertPrefs { email: string | null; discord_webhook_url: string | null; notify_price_drops: number }
+
+// Batch-load notification prefs for many users in chunked IN(...) queries (one
+// query per 100 users) instead of one query per user inside the send loops.
+async function loadAlertPrefs(env: Env, userIds: string[]): Promise<Map<string, AlertPrefs>> {
+  const byId = new Map<string, AlertPrefs>();
+  for (let i = 0; i < userIds.length; i += 100) {
+    const chunk = userIds.slice(i, i + 100);
+    if (!chunk.length) continue;
+    const ph = chunk.map(() => '?').join(',');
+    const { results } = await env.DB.prepare(
+      `SELECT user_id, email, discord_webhook_url, notify_price_drops FROM user_prefs WHERE user_id IN (${ph})`
+    ).bind(...chunk).all<AlertPrefs & { user_id: string }>();
+    for (const r of results) byId.set(r.user_id, r);
+  }
+  return byId;
+}
+
 export async function runWishlistAlerts(env: Env) {
   const { results } = await env.DB.prepare(`
     SELECT w.id, w.user_id, w.set_num, w.target_price, w.alerted_at,
@@ -58,10 +76,9 @@ export async function runWishlistAlerts(env: Env) {
     byUser.set(row.user_id, arr);
   }
 
+  const prefsByUser = await loadAlertPrefs(env, [...byUser.keys()]);
   for (const [userId, rows] of byUser) {
-    const prefs = await env.DB.prepare(
-      'SELECT email, discord_webhook_url, notify_price_drops FROM user_prefs WHERE user_id=?'
-    ).bind(userId).first<{ email: string | null; discord_webhook_url: string | null; notify_price_drops: number }>();
+    const prefs = prefsByUser.get(userId);
     if (!prefs || !prefs.notify_price_drops) continue;
 
     for (const row of rows) {
@@ -129,10 +146,9 @@ async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
     arr.push(row);
     byUser.set(row.user_id, arr);
   }
+  const prefsByUser = await loadAlertPrefs(env, [...byUser.keys()]);
   for (const [userId, rows] of byUser) {
-    const prefs = await env.DB.prepare(
-      'SELECT email, discord_webhook_url, notify_price_drops FROM user_prefs WHERE user_id=?'
-    ).bind(userId).first<{ email: string | null; discord_webhook_url: string | null; notify_price_drops: number }>();
+    const prefs = prefsByUser.get(userId);
     if (!prefs || !prefs.notify_price_drops) continue;
     for (const row of rows) {
       if (prefs.email && env.RESEND_API_KEY) {

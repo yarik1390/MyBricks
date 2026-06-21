@@ -1,3 +1,5 @@
+import { fetchWithRetry } from './http';
+
 export interface LegoStockResult {
   in_stock: boolean | null;
   retiring_soon: boolean;
@@ -9,14 +11,16 @@ export async function checkLegoStock(setNum: string): Promise<LegoStockResult | 
   const num = setNum.replace(/-\d+$/, '');
   const url = `https://www.lego.com/en-us/product/${num}`;
   try {
-    const resp = await fetch(url, {
+    // fetchWithRetry adds the hard timeout this previously lacked. retries:0 keeps
+    // it a single polite attempt (LEGO.com bot-protection shouldn't be hammered).
+    const resp = await fetchWithRetry(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; Brickvault/1.0)',
         Accept: 'text/html',
       },
       // Cloudflare may redirect/block — treat non-200 as unknown
       redirect: 'follow',
-    });
+    }, { retries: 0, timeoutMs: 8000 });
     if (!resp.ok) return null;
 
     const html = await resp.text();

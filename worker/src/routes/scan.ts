@@ -212,14 +212,14 @@ app.post('/identify', async (c) => {
     const windowStart = new Date();
     windowStart.setMinutes(0, 0, 0);
     const ws = windowStart.toISOString();
-    await c.env.DB.prepare(`
+    // Atomic increment+read (RETURNING) — closes the read-after-write race where
+    // two concurrent scans could both slip past the hourly cap.
+    const rl = await c.env.DB.prepare(`
       INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
       VALUES (?, 'scan_image', ?, 1)
       ON CONFLICT (user_id, endpoint, window_start) DO UPDATE SET hit_count = rate_limits.hit_count + 1
-    `).bind(userId, ws).run();
-    const rl = await c.env.DB.prepare(
-      'SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint=? AND window_start=?'
-    ).bind(userId, 'scan_image', ws).first<{ hit_count: number }>();
+      RETURNING hit_count
+    `).bind(userId, ws).first<{ hit_count: number }>();
     if ((rl?.hit_count || 0) > SCAN_HOURLY_LIMIT) {
       return c.json({ error: `Rate limit: ${SCAN_HOURLY_LIMIT} photo scans per hour. Set up your own API key to unlock unlimited scanning.` }, 429);
     }

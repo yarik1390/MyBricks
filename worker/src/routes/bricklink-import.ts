@@ -53,6 +53,9 @@ app.post('/import-csv', async (c) => {
   let skipped = 0;
   const errors: string[] = [];
 
+  // First pass: parse every SET row into a record (no DB calls in the loop).
+  interface ParsedRow { setNum: string; qty: number; condition: string; purchasePrice: number | null; purchasedAt: string | null }
+  const parsed: ParsedRow[] = [];
   for (let i = 1; i < lines.length; i++) {
     const cells = parseCSVLine(lines[i]);
     if (!cells.length) continue;
@@ -76,9 +79,9 @@ app.post('/import-csv', async (c) => {
     if (dateIdx !== null) {
       const raw = (cells[dateIdx] || '').trim();
       // BrickLink dates: "Oct 15, 2023" or "2023-10-15" or "10/15/2023"
-      const parsed = new Date(raw);
-      if (!isNaN(parsed.getTime())) {
-        purchasedAt = parsed.toISOString().slice(0, 10);
+      const parsedDate = new Date(raw);
+      if (!isNaN(parsedDate.getTime())) {
+        purchasedAt = parsedDate.toISOString().slice(0, 10);
       }
     }
 
@@ -87,16 +90,36 @@ app.post('/import-csv', async (c) => {
     const condRaw = conditionIdx !== null ? (cells[conditionIdx] || '').toLowerCase().trim() : '';
     const condition = condRaw === 'u' || condRaw === 'used' ? 'used_good' : 'new';
 
-    const known = await c.env.DB.prepare('SELECT set_num FROM lego_sets WHERE set_num=?').bind(setNum).first();
-    if (!known) { skipped++; errors.push(`${setNum}: not in catalog`); continue; }
+    parsed.push({ setNum, qty, condition, purchasePrice, purchasedAt });
+  }
 
-    await c.env.DB.prepare(`
+  // Batch the catalog-existence check: one IN(...) query per 100 distinct sets
+  // instead of a SELECT per row (the old N+1).
+  const uniqueNums = [...new Set(parsed.map(p => p.setNum))];
+  const known = new Set<string>();
+  for (let i = 0; i < uniqueNums.length; i += 100) {
+    const chunk = uniqueNums.slice(i, i + 100);
+    const ph = chunk.map(() => '?').join(',');
+    const { results } = await c.env.DB.prepare(
+      `SELECT set_num FROM lego_sets WHERE set_num IN (${ph})`
+    ).bind(...chunk).all<{ set_num: string }>();
+    for (const r of results) known.add(r.set_num);
+  }
+
+  // Build inserts for known sets; batch the writes (D1 batch limit is 100/call).
+  const inserts: D1PreparedStatement[] = [];
+  for (const row of parsed) {
+    if (!known.has(row.setNum)) { skipped++; errors.push(`${row.setNum}: not in catalog`); continue; }
+    inserts.push(c.env.DB.prepare(`
       INSERT INTO user_collection (user_id, set_num, quantity, condition, purchase_price, purchased_at,
         acquisition_source, last_modified, added_at)
       VALUES (?, ?, ?, ?, ?, ?, 'bricklink', datetime('now'), datetime('now'))
       ON CONFLICT (user_id, set_num) DO NOTHING
-    `).bind(userId, setNum, qty, condition, purchasePrice, purchasedAt).run();
+    `).bind(userId, row.setNum, row.qty, row.condition, row.purchasePrice, row.purchasedAt));
     added++;
+  }
+  for (let i = 0; i < inserts.length; i += 100) {
+    await c.env.DB.batch(inserts.slice(i, i + 100));
   }
 
   return c.json({ ok: true, added, skipped, errors: errors.slice(0, 20) });
