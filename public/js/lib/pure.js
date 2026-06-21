@@ -470,3 +470,28 @@ export function resolveDownloadResume(meta, responseStatus, responseEtag) {
   if (meta.etag && responseEtag && meta.etag !== responseEtag) return 0;
   return meta.loadedBytes;
 }
+
+/**
+ * Pure state machine for the offline banner's show/cancel debounce. Kept here
+ * (and unit-tested) so the "never flash on load" logic has a single source of
+ * truth; app.js maps the returned state onto a real grace timer + the
+ * `body.offline` class.
+ *
+ * States: 'online' (hidden), 'pending' (hidden, grace timer running),
+ *         'offline' (banner shown).
+ * Events: 'offline' (a we-might-be-offline signal), 'online' (confirmed online),
+ *         'grace'   (the grace window elapsed).
+ *
+ * The flash is prevented by 'pending' + 'online' → 'online': a transient offline
+ * blip (e.g. a cold-load navigator.onLine=false quirk) is cancelled before the
+ * grace window elapses, so the banner never paints. 'pending' + 'grace' →
+ * 'offline' promotes a *persistent* offline state to shown. Any state + 'online'
+ * clears immediately. An unknown `current` is treated as 'online'.
+ */
+export function nextOfflineBannerState(current, event) {
+  const state = current === "pending" || current === "offline" ? current : "online";
+  if (event === "online") return "online";
+  if (event === "offline") return state === "offline" ? "offline" : "pending";
+  if (event === "grace") return state === "pending" ? "offline" : state;
+  return state;
+}

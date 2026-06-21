@@ -1,5 +1,6 @@
 import { $, $$, haptic, toast, fetchExchangeRates, prefersReducedMotion, bvIDB } from './utils.js';
 import { state, invalidatePortfolio } from './state.js';
+import { nextOfflineBannerState } from './lib/pure.js';
 import { loadSession, saveSession, setSupabaseConfig, drainOutbox, api, _authSession, getSessionUserId, snapshotGuestVault, migrateGuestVault } from './api.js';
 import { I } from './icons.js';
 import { route } from './router.js';
@@ -235,22 +236,24 @@ document.addEventListener("DOMContentLoaded", async () => {
   // the user — and (b) DEBOUNCE *showing* the banner: a sub-second offline blip
   // (the boot quirk, or a brief flap) must never paint. Clearing is immediate.
   let offlineProbeBusy = false;
+  let offlineUiState = "online";
   let offlineShowTimer = null;
   const OFFLINE_GRACE_MS = 1200;
-  function applyOfflineState(isOffline) {
-    if (isOffline) {
-      // Schedule the banner; only paints if still offline after the grace window.
-      if (document.body.classList.contains("offline") || offlineShowTimer) return;
-      offlineShowTimer = setTimeout(() => {
-        offlineShowTimer = null;
-        document.body.classList.add("offline");
-      }, OFFLINE_GRACE_MS);
-    } else {
-      // Confirmed/back online — cancel any pending show and clear immediately.
-      if (offlineShowTimer) { clearTimeout(offlineShowTimer); offlineShowTimer = null; }
-      document.body.classList.remove("offline");
+  // Decision logic is nextOfflineBannerState() (lib/pure.js, unit-tested); this
+  // layer maps the reducer's state onto the grace timer + the body.offline class.
+  function dispatchOffline(event) {
+    const prev = offlineUiState;
+    offlineUiState = nextOfflineBannerState(prev, event);
+    if (offlineUiState === "pending" && prev !== "pending") {
+      // Debounced show: paint only if still offline when the grace window elapses.
+      offlineShowTimer = setTimeout(() => dispatchOffline("grace"), OFFLINE_GRACE_MS);
+    } else if (offlineUiState !== "pending" && offlineShowTimer) {
+      clearTimeout(offlineShowTimer);
+      offlineShowTimer = null;
     }
+    document.body.classList.toggle("offline", offlineUiState === "offline");
   }
+  const applyOfflineState = (isOffline) => dispatchOffline(isOffline ? "offline" : "online");
   async function refreshOfflineState() {
     if (offlineProbeBusy) return;
     offlineProbeBusy = true;

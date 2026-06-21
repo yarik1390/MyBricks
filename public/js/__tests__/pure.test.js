@@ -608,3 +608,55 @@ describe('resolveDownloadResume', () => {
     assert.equal(resolveDownloadResume({ loadedBytes: 500, etag: '"abc"', complete: false }, 206, null), 500);
   });
 });
+
+import { nextOfflineBannerState } from '../lib/pure.js';
+
+describe('nextOfflineBannerState (offline banner debounce)', () => {
+  const run = (events, start = 'online') => events.reduce((s, e) => nextOfflineBannerState(s, e), start);
+
+  it('schedules (does not show) on the first offline signal', () => {
+    assert.equal(nextOfflineBannerState('online', 'offline'), 'pending');
+  });
+
+  it('shows only after the grace window elapses', () => {
+    assert.equal(nextOfflineBannerState('pending', 'grace'), 'offline');
+  });
+
+  it('cancels before the grace elapses — the boot/flap flash case', () => {
+    // online --offline(transient)--> pending --online(confirmed)--> online:
+    // the banner never reached 'offline', so it never painted.
+    assert.equal(nextOfflineBannerState('pending', 'online'), 'online');
+    assert.equal(run(['offline', 'online']), 'online');
+    assert.notEqual(run(['offline', 'online']), 'offline');
+  });
+
+  it('hides immediately when back online from a shown banner', () => {
+    assert.equal(nextOfflineBannerState('offline', 'online'), 'online');
+  });
+
+  it('is idempotent: repeated signals do not re-schedule or change state', () => {
+    assert.equal(nextOfflineBannerState('pending', 'offline'), 'pending');
+    assert.equal(nextOfflineBannerState('offline', 'offline'), 'offline');
+    assert.equal(nextOfflineBannerState('online', 'online'), 'online');
+  });
+
+  it('ignores a stray grace event when not pending', () => {
+    assert.equal(nextOfflineBannerState('online', 'grace'), 'online');
+    assert.equal(nextOfflineBannerState('offline', 'grace'), 'offline');
+  });
+
+  it('shows only when offline persists through the grace window', () => {
+    assert.equal(run(['offline', 'grace']), 'offline');         // persisted → shown
+    assert.equal(run(['offline', 'online', 'grace']), 'online'); // recovered first → stays hidden
+  });
+
+  it('treats an unknown/initial state as online', () => {
+    assert.equal(nextOfflineBannerState(undefined, 'offline'), 'pending');
+    assert.equal(nextOfflineBannerState('garbage', 'online'), 'online');
+    assert.equal(nextOfflineBannerState(undefined, 'grace'), 'online');
+  });
+
+  it('full reconnect cycle: offline persists, shows, then clears on reconnect', () => {
+    assert.equal(run(['offline', 'grace', 'online']), 'online');
+  });
+});
