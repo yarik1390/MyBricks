@@ -27,7 +27,14 @@ app.get('/', async (c) => {
   const db = c.env.DB;
 
   const [prefs, stats] = await Promise.all([
-    db.prepare('SELECT * FROM user_prefs WHERE user_id=?').bind(userId).first<Record<string, unknown>>(),
+    // Explicit projection (not SELECT *): only the columns this response reads.
+    // Deliberately excludes google_refresh_token / google_spreadsheet_id (OAuth
+    // credentials) and other columns the client never needs.
+    db.prepare(
+      `SELECT display_name, handle, is_public, expose_public_value, currency,
+              notify_price_drops, discord_webhook_url, brickset_user_hash, email
+       FROM user_prefs WHERE user_id=?`
+    ).bind(userId).first<Record<string, unknown>>(),
     db.prepare(`
       SELECT COUNT(*) as set_count,
         COALESCE(SUM(COALESCE(s.blended_value, s.current_value) * uc.quantity), 0) as total_value,

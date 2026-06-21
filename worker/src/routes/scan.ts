@@ -9,6 +9,7 @@ import { MODELS, openAIServerBaseURL, openRouterBaseURL, gatewayHeaders, gateway
 import { recordAiUsage } from '../lib/ai-usage';
 import { verifyTurnstileToken } from '../lib/turnstile';
 import { matchSetsToCatalog, matchMinifigsToCatalog, type DescribedSet, type DescribedMinifig } from '../lib/scan-match';
+import { CATALOG_COLS } from './sets';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -141,7 +142,9 @@ app.post('/identify', async (c) => {
     else if (barcode.length === 12) candidates.push('0' + barcode);
     let r = null;
     for (const bc of candidates) {
-      r = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE upc=?').bind(bc).first();
+      // Explicit catalog-card projection (shared with /api/sets/search) instead
+      // of SELECT * — covers everything enrichSetRecord + the scan-result card need.
+      r = await c.env.DB.prepare(`SELECT ${CATALOG_COLS} FROM lego_sets s WHERE s.upc=?`).bind(bc).first();
       if (r) break;
     }
     if (!r) return c.json({ identified: false, reasoning: 'Barcode not in catalog. Try a photo scan instead.' });

@@ -51,7 +51,7 @@ const SORTS: Record<string, string> = {
 // and D1 serialization on every catalog page; GET /:setnum still SELECT *s the
 // full row. (Verified: every column read by enrichSetRecord, the card and its
 // helpers is included.)
-const CATALOG_COLS =
+export const CATALOG_COLS =
   's.set_num, s.name, s.year, s.theme, s.pieces, s.minifigs, ' +
   's.image_url, s.retail_price, s.current_value, s.forecast_2y, s.forecast_5y, s.retired, ' +
   's.valuation_method, s.cached_at, s.source, s.valuation_expires_at, s.ebay_value, s.ebay_cached_at, ' +
