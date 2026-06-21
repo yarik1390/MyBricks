@@ -227,35 +227,55 @@ document.addEventListener("DOMContentLoaded", async () => {
   // PWA install prompt — preventDefault so we can surface our own install card.
   window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); state.pwa.deferredPrompt = e; });
 
-  // Offline indicator. navigator.onLine is unreliable — it reports false
-  // negatives (desktop Chrome can claim "offline" while connected) and false
-  // positives (claims "online" when the API is blocked). Confirm reachability
-  // with a lightweight probe before stranding the user in cached/demo mode.
+  // Offline indicator. navigator.onLine is unreliable — a cold page load / PWA
+  // launch can momentarily read "offline" while actually connected, and it
+  // claims "online" when the API is merely blocked. So we (a) treat a real
+  // reachability probe as the source of truth — assuming online until a probe
+  // proves otherwise, so a transient navigator.onLine=false at boot can't strand
+  // the user — and (b) DEBOUNCE *showing* the banner: a sub-second offline blip
+  // (the boot quirk, or a brief flap) must never paint. Clearing is immediate.
   let offlineProbeBusy = false;
+  let offlineShowTimer = null;
+  const OFFLINE_GRACE_MS = 1200;
+  function applyOfflineState(isOffline) {
+    if (isOffline) {
+      // Schedule the banner; only paints if still offline after the grace window.
+      if (document.body.classList.contains("offline") || offlineShowTimer) return;
+      offlineShowTimer = setTimeout(() => {
+        offlineShowTimer = null;
+        document.body.classList.add("offline");
+      }, OFFLINE_GRACE_MS);
+    } else {
+      // Confirmed/back online — cancel any pending show and clear immediately.
+      if (offlineShowTimer) { clearTimeout(offlineShowTimer); offlineShowTimer = null; }
+      document.body.classList.remove("offline");
+    }
+  }
   async function refreshOfflineState() {
     if (offlineProbeBusy) return;
     offlineProbeBusy = true;
     try {
-      let online = navigator.onLine;
-      if (online) {
-        try {
-          const ctrl = new AbortController();
-          const timer = setTimeout(() => ctrl.abort(), 4000);
-          const res = await fetch("/manifest.json?_=" + Date.now(), { cache: "no-store", signal: ctrl.signal });
-          clearTimeout(timer);
-          online = res.ok;
-        } catch { online = false; }
-      }
-      document.body.classList.toggle("offline", !online);
+      // Source of truth = the probe, not navigator.onLine. Same-origin
+      // /manifest.json is fast and (on first load) not intercepted by the SW.
+      let online = true;
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 4000);
+        const res = await fetch("/manifest.json?_=" + Date.now(), { cache: "no-store", signal: ctrl.signal });
+        clearTimeout(timer);
+        online = res.ok;
+      } catch { online = false; }
+      applyOfflineState(!online);
     } finally {
       offlineProbeBusy = false;
     }
   }
-  // Seed the banner from a real connectivity probe (a single failed /api/config
-  // at boot must NOT strand an online user behind the offline banner).
+  // Seed from a real connectivity probe — assume online until proven otherwise.
   refreshOfflineState();
   window.addEventListener("online", () => { refreshOfflineState(); drainOutbox(); });
-  window.addEventListener("offline", () => document.body.classList.toggle("offline", true));
+  // A browser-reported disconnect shows the banner (debounced, so a flap that
+  // immediately recovers never flashes).
+  window.addEventListener("offline", () => applyOfflineState(true));
 
   setupGestures();
   setupImageHydration();
