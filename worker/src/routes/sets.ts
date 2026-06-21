@@ -202,14 +202,31 @@ app.get('/search', async (c) => {
       if (rb.ok) {
         const data = await rb.json() as { results?: Array<{ set_num: string; name: string; year: number; theme_id: number; num_parts: number; num_minifigs: number; set_img_url: string }> };
         const setKey = (v: string) => String(v || '').replace(/-1$/, '');
+        const altOf = (sn: string) => (sn.endsWith('-1') ? sn.replace(/-1$/, '') : `${sn}-1`);
         const seen = new Set(rows.map(r => setKey(r.set_num as string)));
-        for (const s of (data.results || [])) {
+
+        // Rebrickable hits we don't already have on the page.
+        const freshHits = (data.results || []).filter(s => !seen.has(setKey(s.set_num)));
+
+        // Batch the local-catalog lookup: one IN (...) query covering every
+        // candidate set number AND its -1/non-variant alternate, instead of a
+        // per-result SELECT inside the loop (the old N+1). page_size is 20, so
+        // this binds at most 40 params — well under D1's 100-param limit.
+        const lookupNums = freshHits.flatMap(s => [s.set_num, altOf(s.set_num)]);
+        const localBySetNum = new Map<string, Record<string, unknown>>();
+        if (lookupNums.length) {
+          const placeholders = lookupNums.map(() => '?').join(',');
+          const { results: locals } = await c.env.DB.prepare(
+            `SELECT * FROM lego_sets WHERE set_num IN (${placeholders})`
+          ).bind(...lookupNums).all<Record<string, unknown>>();
+          for (const row of locals) localBySetNum.set(row.set_num as string, row);
+        }
+
+        for (const s of freshHits) {
           const key = setKey(s.set_num);
-          if (seen.has(key)) continue;
-          const alt = s.set_num.endsWith('-1') ? s.set_num.replace(/-1$/, '') : `${s.set_num}-1`;
-          const local = await c.env.DB.prepare(
-            'SELECT * FROM lego_sets WHERE set_num IN (?, ?) ORDER BY CASE WHEN set_num=? THEN 0 ELSE 1 END LIMIT 1'
-          ).bind(s.set_num, alt, s.set_num).first<Record<string, unknown>>();
+          if (seen.has(key)) continue; // an earlier hit already resolved this set
+          // Prefer the exact set number, fall back to its variant alternate.
+          const local = localBySetNum.get(s.set_num) || localBySetNum.get(altOf(s.set_num));
           if (local) {
             rows.push(enrichSetRecord({ ...local, retired: !!local.retired }));
             seen.add(key);

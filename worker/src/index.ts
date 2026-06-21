@@ -34,19 +34,21 @@ import type { Env, Variables } from './types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
+// Browser origins we reflect for CORS. Restricted to localhost (dev) and this
+// project's own Cloudflare Pages deployments: the production alias and its
+// preview deployments, which all live under the `brickvault-5ub.pages.dev`
+// subdomain. (The previous `*.pages.dev` check reflected EVERY Cloudflare Pages
+// tenant's origin — an over-broad CORS surface; tightened per the security
+// audit follow-up.)
+const PROD_ORIGIN = 'https://brickvault-5ub.pages.dev';
+const isAllowedOrigin = (origin: string): boolean =>
+  origin.startsWith('http://localhost:') ||
+  origin.startsWith('http://127.0.0.1:') ||
+  origin === PROD_ORIGIN ||
+  origin.endsWith('.brickvault-5ub.pages.dev');
+
 app.use('*', cors({
-  origin: (origin) => {
-    if (!origin) return 'https://brickvault-5ub.pages.dev';
-    if (
-      origin.startsWith('http://localhost:') ||
-      origin.startsWith('http://127.0.0.1:') ||
-      origin.endsWith('.pages.dev') ||
-      origin === 'https://brickvault-5ub.pages.dev'
-    ) {
-      return origin;
-    }
-    return 'https://brickvault-5ub.pages.dev';
-  },
+  origin: (origin) => (origin && isAllowedOrigin(origin) ? origin : PROD_ORIGIN),
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'X-Gemini-Key', 'X-OpenAI-Key', 'cf-turnstile-token'],
 }));
@@ -56,9 +58,10 @@ app.use('*', cors({
 // proxies and the edge cache them briefly instead of forcing a D1 round-trip on
 // every view. Any authenticated request (Authorization present), any mutation,
 // and every non-catalog path (/api/me, /api/collection, /api/admin, ...) keep
-// the hard no-store. Vary: Origin, Authorization so a shared cache can never
-// hand an anonymous-cached body to a signed-in request (and preserves the CORS
-// Vary: Origin set above).
+// the hard no-store. We set Vary: Authorization (so a shared cache can never
+// hand an anonymous-cached body to a signed-in request) and let the CORS
+// middleware append Origin itself — setting "Origin, Authorization" here
+// produced a duplicate "Origin" token once CORS appended its own.
 const PUBLIC_CACHEABLE_GET = /^\/api\/(sets|themes|minifigs|rates|config)(?:\/|$)/;
 
 app.use('*', async (c, next) => {
@@ -70,7 +73,7 @@ app.use('*', async (c, next) => {
     PUBLIC_CACHEABLE_GET.test(new URL(c.req.url).pathname);
   if (publicCacheableGet) {
     c.header('Cache-Control', 'public, max-age=120, s-maxage=300, stale-while-revalidate=600');
-    c.header('Vary', 'Origin, Authorization');
+    c.header('Vary', 'Authorization');
   } else {
     c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     c.header('Pragma', 'no-cache');

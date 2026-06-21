@@ -3,6 +3,7 @@
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(self), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://challenges.cloudflare.com 'wasm-unsafe-eval'; frame-src https://challenges.cloudflare.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' blob: https://*.workers.dev https://cdn.rebrickable.com https://*.supabase.co https://www.ebay.com https://open.er-api.com https://huggingface.co https://*.huggingface.co https://hf.co https://*.hf.co https://cdn.jsdelivr.net https://generativelanguage.googleapis.com https://api.openai.com https://challenges.cloudflare.com; frame-ancestors 'none'
 
 /sw.js
   Cache-Control: no-cache, no-store, must-revalidate

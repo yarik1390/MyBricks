@@ -27,7 +27,9 @@ app.get('/', async (c) => {
       ORDER BY w.added_at DESC
     `).bind(userId).all(),
     c.env.DB.prepare(`
-      SELECT * FROM wishlist_alerts
+      SELECT id, user_id, set_num, set_name, target_price, current_value,
+             triggered_at, read_at, alert_type
+      FROM wishlist_alerts
       WHERE user_id = ? AND read_at IS NULL
       ORDER BY triggered_at DESC
     `).bind(userId).all(),

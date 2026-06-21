@@ -80,11 +80,13 @@ body {
   padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
   min-height: 100vh;
 }
-/* Hide the document scrollbar so its gutter never reserves layout width on
-   the right edge. Scrolling still works; only the visual track is removed
-   (consistent with the app's chip-row scrollbar hiding). */
-html, body { scrollbar-width: none; -ms-overflow-style: none; overflow-x: hidden; }
-html::-webkit-scrollbar, body::-webkit-scrollbar { width: 0; height: 0; display: none; }
+/* Keep only the horizontal-pan guard: overflow-x: hidden (paired with
+   `touch-action: pan-y` on `.spark-wrap`) stops a chart swipe from dragging the
+   page sideways. The document scrollbar is intentionally NOT hidden — a visible
+   scrollbar preserves scroll-position feedback and is better for accessibility
+   on desktop. (Revisited per the audit follow-up: the global scrollbar-hide was
+   a diagnostic-era workaround for the chart bug, now fixed by touch-action.) */
+html, body { overflow-x: hidden; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 input, textarea, select { font: inherit; color: inherit; }
 a { color: inherit; text-decoration: none; }

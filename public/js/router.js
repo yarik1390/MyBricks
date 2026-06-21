@@ -2,15 +2,11 @@ import { $, $$, prefersReducedMotion } from './utils.js';
 import { state } from './state.js';
 import { api } from './api.js';
 import { I } from './icons.js';
-import { renderLogin } from './views/login.js';
-import { renderMe } from './views/me.js';
-import { renderMeIntegrations } from './views/me-integrations.js';
-import { renderMeData } from './views/me-data.js';
-import { renderMeAdmin } from './views/me-admin.js';
-import { renderPortfolio, renderSetDetail, renderWishlist, renderPublicProfile, renderLeaderboard } from './views/portfolio.js';
-import { renderAdd, renderPile } from './views/catalog.js';
-import { renderBlind } from './views/minifigs.js';
-import { renderBuild } from './views/build.js';
+// View modules load on demand via dynamic import() in the route dispatch below,
+// so the initial bundle no longer eagerly pulls every page's code up front.
+// Each view is still pre-cached by the service worker (STATIC_ASSETS) so offline
+// navigation resolves the import from cache. import() memoizes per module, so
+// revisiting a route doesn't re-fetch or re-evaluate it.
 import { hideSheet } from './components/sheet.js';
 import { closeScan } from './components/scanner.js';
 import { cancelActiveStream } from './components/advisor.js';
@@ -40,6 +36,7 @@ async function _routeImpl() {
 
   // Login is optional; guests can use the app with local-only data.
   if (hash === "/login") {
+    const { renderLogin } = await import('./views/login.js');
     await withViewTransition(() => renderLogin());
     return;
   }
@@ -83,25 +80,25 @@ async function _routeImpl() {
   });
 
   const render = async () => {
-    if (hash === "/" || hash === "") await renderPortfolio();
-    else if (hash === "/add") await renderAdd();
-    else if (hash === "/pile") renderPile();
-    else if (hash === "/minifigs") await renderBlind();
-    else if (hash === "/build") await renderBuild();
-    else if (hash === "/me") await renderMe();
-    else if (hash === "/me/integrations") await renderMeIntegrations();
-    else if (hash === "/me/data") await renderMeData();
-    else if (hash === "/me/admin") await renderMeAdmin();
-    else if (hash === "/wishlist") await renderWishlist();
-    else if (hash === "/leaderboard") await renderLeaderboard();
+    if (hash === "/" || hash === "") await (await import('./views/portfolio.js')).renderPortfolio();
+    else if (hash === "/add") await (await import('./views/catalog.js')).renderAdd();
+    else if (hash === "/pile") (await import('./views/catalog.js')).renderPile();
+    else if (hash === "/minifigs") await (await import('./views/minifigs.js')).renderBlind();
+    else if (hash === "/build") await (await import('./views/build.js')).renderBuild();
+    else if (hash === "/me") await (await import('./views/me.js')).renderMe();
+    else if (hash === "/me/integrations") await (await import('./views/me-integrations.js')).renderMeIntegrations();
+    else if (hash === "/me/data") await (await import('./views/me-data.js')).renderMeData();
+    else if (hash === "/me/admin") await (await import('./views/me-admin.js')).renderMeAdmin();
+    else if (hash === "/wishlist") await (await import('./views/portfolio.js')).renderWishlist();
+    else if (hash === "/leaderboard") await (await import('./views/portfolio.js')).renderLeaderboard();
     else if (hash.startsWith("/set/")) {
       const parts = hash.split("/");
       const setNum = decodeURIComponent(parts[2]);
       state.detail.tab = parts[3] || "info";
-      await renderSetDetail(setNum);
+      await (await import('./views/portfolio.js')).renderSetDetail(setNum);
     } else if (hash.startsWith("/u/")) {
       const handle = hash.slice(3);
-      await renderPublicProfile(handle);
+      await (await import('./views/portfolio.js')).renderPublicProfile(handle);
     } else {
       location.hash = "#/";
       throw { __redirect: true };

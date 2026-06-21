@@ -6,7 +6,7 @@ import { route } from './router.js';
 import { getThemePref, applyTheme } from './theme.js';
 import { toggleAdvisor } from './components/advisor.js';
 import { openScan, closeScan, capturePhoto } from './components/scanner.js';
-import { maybeShowWelcome } from './components/onboarding.js';
+// onboarding (welcome carousel) is lazy-loaded at the end of boot (see below).
 
 // Setup gestures: Pull-to-refresh + swipe-back
 function setupGestures() {
@@ -293,7 +293,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   // First-run welcome carousel (self-contained; no-op after the first time or
   // on the login screen, and never throws into boot). The coach-mark tour
   // remains replayable from the You tab and from the carousel's last slide.
-  maybeShowWelcome();
+  // Lazy-loaded so its code stays out of the initial bundle.
+  import('./components/onboarding.js').then(m => m.maybeShowWelcome()).catch(() => {});
 
   // If the user has the Gemma model and is online, load MediaPipe + wasm into
   // the SW cache while idle so offline scanning works after next visit.

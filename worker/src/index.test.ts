@@ -285,13 +285,26 @@ describe('BrickVault API Worker Tests', () => {
       }
     });
 
-    it('falls back to safe default if origin not allowed', async () => {
+    it('falls back to the safe default origin when the request origin is not allowed', async () => {
+      // A foreign site AND an arbitrary *.pages.dev project (a different Cloudflare
+      // tenant) must NOT be reflected — only this project's own origins are.
+      for (const origin of ['https://evil-hacker.com', 'https://someone-else.pages.dev']) {
+        const res = await app.fetch(
+          new Request('http://localhost/api/config', { headers: { Origin: origin } }),
+          env,
+        );
+        expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://brickvault-5ub.pages.dev');
+      }
+    });
+
+    it("reflects this project's own Pages preview deployments", async () => {
       const res = await app.fetch(
         new Request('http://localhost/api/config', {
-          headers: { 'Origin': 'https://evil-hacker.com' }
+          headers: { Origin: 'https://abc123.brickvault-5ub.pages.dev' },
         }),
-        env
+        env,
       );
+      expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://abc123.brickvault-5ub.pages.dev');
     });
   });
 
