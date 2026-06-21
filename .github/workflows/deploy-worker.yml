@@ -140,96 +140,20 @@ jobs:
         working-directory: worker
         run: npx wrangler d1 execute brickvault --remote --file=schema.sql 2>&1
 
-      - name: Apply column migrations (idempotent — duplicate column errors are expected on re-deploys)
+      - name: Apply column migrations (additive columns from schema_migrate.sql)
         working-directory: worker
         shell: bash
         run: |
-          # D1/SQLite stops a SQL file on the first duplicate-column error.
-          # Apply column additions one-by-one so older databases still receive
-          # later fields while existing databases can safely ignore duplicates.
-          statements=(
-            "ALTER TABLE lego_sets ADD COLUMN upc TEXT"
-            "ALTER TABLE lego_sets ADD COLUMN cached_at DATETIME"
-            "ALTER TABLE lego_sets ADD COLUMN source TEXT"
-            "ALTER TABLE lego_sets ADD COLUMN valuation_expires_at DATETIME"
-            "ALTER TABLE lego_sets ADD COLUMN ebay_value REAL"
-            "ALTER TABLE lego_sets ADD COLUMN ebay_cached_at TEXT"
-            "ALTER TABLE lego_sets ADD COLUMN ebay_new_value REAL"
-            "ALTER TABLE lego_sets ADD COLUMN ebay_used_value REAL"
-            "ALTER TABLE lego_sets ADD COLUMN ebay_new_qty INTEGER"
-            "ALTER TABLE lego_sets ADD COLUMN ebay_used_qty INTEGER"
-            "ALTER TABLE lego_sets ADD COLUMN ebay_new_cached_at TEXT"
-            "ALTER TABLE lego_sets ADD COLUMN ebay_used_cached_at TEXT"
-            "ALTER TABLE lego_sets ADD COLUMN used_value REAL"
-            "ALTER TABLE lego_sets ADD COLUMN bl_new_value REAL"
-            "ALTER TABLE lego_sets ADD COLUMN bl_new_qty INTEGER"
-            "ALTER TABLE lego_sets ADD COLUMN bl_used_qty INTEGER"
-            "ALTER TABLE lego_sets ADD COLUMN retirement_risk_score INTEGER"
-            "ALTER TABLE lego_sets ADD COLUMN retirement_risk_updated_at TEXT"
-            "ALTER TABLE user_collection ADD COLUMN purchased_at DATE"
-            "ALTER TABLE user_collection ADD COLUMN deleted_at DATETIME"
-            "ALTER TABLE user_collection ADD COLUMN last_modified DATETIME"
-            "ALTER TABLE user_collection ADD COLUMN storage_location TEXT"
-            "ALTER TABLE user_collection ADD COLUMN acquisition_source TEXT"
-            "ALTER TABLE user_collection ADD COLUMN is_complete INTEGER DEFAULT 1"
-            "ALTER TABLE user_collection ADD COLUMN missing_pieces INTEGER DEFAULT 0"
-            "ALTER TABLE user_collection ADD COLUMN spike_alerted_at TEXT"
-            "ALTER TABLE user_collection ADD COLUMN custom_image_url TEXT"
-            "ALTER TABLE user_prefs ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0"
-            "ALTER TABLE user_prefs ADD COLUMN expose_public_value INTEGER DEFAULT 1"
-            "ALTER TABLE user_prefs ADD COLUMN google_refresh_token TEXT"
-            "ALTER TABLE user_prefs ADD COLUMN google_spreadsheet_id TEXT"
-            "ALTER TABLE wishlist_alerts ADD COLUMN alert_type TEXT NOT NULL DEFAULT 'drop'"
-            "ALTER TABLE import_runs ADD COLUMN figs_loaded INTEGER"
-            "ALTER TABLE import_runs ADD COLUMN job_type TEXT"
-            "ALTER TABLE import_runs ADD COLUMN updated_at DATETIME"
-            "ALTER TABLE import_runs ADD COLUMN progress_current INTEGER DEFAULT 0"
-            "ALTER TABLE import_runs ADD COLUMN progress_total INTEGER"
-            "ALTER TABLE import_runs ADD COLUMN progress_label TEXT"
-            "ALTER TABLE minifigs ADD COLUMN series TEXT"
-            "ALTER TABLE minifigs ADD COLUMN current_value REAL"
-            "ALTER TABLE minifigs ADD COLUMN added_at DATETIME"
-            "ALTER TABLE minifigs ADD COLUMN source TEXT"
-            "ALTER TABLE integration_health ADD COLUMN blocked_until TEXT"
-            "ALTER TABLE lego_sets ADD COLUMN bl_cached_at TEXT"
-            "ALTER TABLE lego_sets ADD COLUMN be_cached_at TEXT"
-            "ALTER TABLE lego_sets ADD COLUMN ebay_ask_value REAL"
-            "ALTER TABLE lego_sets ADD COLUMN ebay_ask_qty INTEGER"
-            "ALTER TABLE lego_sets ADD COLUMN ebay_ask_cached_at TEXT"
-            "ALTER TABLE set_value_history ADD COLUMN ebay_value REAL"
-            "ALTER TABLE set_value_history ADD COLUMN bl_value REAL"
-            "ALTER TABLE lego_sets ADD COLUMN subtheme TEXT"
-            "ALTER TABLE lego_sets ADD COLUMN age_min INTEGER"
-            "ALTER TABLE lego_sets ADD COLUMN age_max INTEGER"
-            "ALTER TABLE lego_sets ADD COLUMN brickset_rating REAL"
-            "ALTER TABLE lego_sets ADD COLUMN brickset_review_count INTEGER"
-            "ALTER TABLE lego_sets ADD COLUMN retired_year INTEGER"
-            "ALTER TABLE lego_sets ADD COLUMN be_growth_12m REAL"
-            "ALTER TABLE lego_sets ADD COLUMN bl_new_min REAL"
-            "ALTER TABLE lego_sets ADD COLUMN bl_new_max REAL"
-            "ALTER TABLE lego_sets ADD COLUMN bl_used_min REAL"
-            "ALTER TABLE lego_sets ADD COLUMN bl_used_max REAL"
-            "ALTER TABLE minifigs ADD COLUMN cached_at TEXT"
-            "ALTER TABLE user_prefs ADD COLUMN email TEXT"
-            "ALTER TABLE user_prefs ADD COLUMN discord_webhook_url TEXT"
-            "ALTER TABLE lego_sets ADD COLUMN lego_in_stock INTEGER"
-            "ALTER TABLE lego_sets ADD COLUMN lego_retiring_soon INTEGER DEFAULT 0"
-            "ALTER TABLE lego_sets ADD COLUMN lego_checked_at TEXT"
-            "ALTER TABLE lego_sets ADD COLUMN bo_new_value REAL"
-            "ALTER TABLE lego_sets ADD COLUMN bo_used_value REAL"
-            "ALTER TABLE lego_sets ADD COLUMN bo_cached_at TEXT"
-            "ALTER TABLE lego_sets ADD COLUMN blended_value REAL"
-            "ALTER TABLE minifigs ADD COLUMN year INTEGER"
-            "ALTER TABLE minifigs ADD COLUMN num_parts INTEGER"
-            "ALTER TABLE minifigs ADD COLUMN appears_in_sets INTEGER"
-            "ALTER TABLE user_prefs ADD COLUMN brickset_user_hash TEXT"
-            "CREATE TABLE IF NOT EXISTS push_subscriptions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, endpoint TEXT NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, endpoint))"
-            "CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id)"
-            "CREATE TABLE IF NOT EXISTS api_quota (service TEXT NOT NULL, day TEXT NOT NULL, used INTEGER NOT NULL DEFAULT 0, cap INTEGER NOT NULL DEFAULT 0, updated_at TEXT, PRIMARY KEY (service, day))"
-          )
-          for sql in "${statements[@]}"; do
+          # Single source of truth: every single-line "ALTER TABLE ... ADD COLUMN"
+          # in schema_migrate.sql, applied INDEPENDENTLY so a duplicate-column error
+          # on an existing DB can't stop later columns (D1 aborts a multi-statement
+          # file on the first error). Adding a column is now a one-line edit to
+          # schema_migrate.sql — no workflow change needed.
+          grep -E '^[[:space:]]*ALTER TABLE .+ ADD COLUMN' schema_migrate.sql | while IFS= read -r sql; do
             npx wrangler d1 execute brickvault --remote --command "$sql" 2>&1 || true
           done
+          # CREATE TABLE/INDEX/FTS bootstrap for fresh DBs (schema.sql is
+          # authoritative and already ran above; best-effort backstop).
           npx wrangler d1 execute brickvault --remote --file=schema_migrate.sql 2>&1 || true
 
       - name: Rebuild derived search index
@@ -246,7 +170,7 @@ jobs:
         run: |
           set -euo pipefail
           probes=(
-            "SELECT valuation_method, valuation_expires_at, bl_new_value, bl_new_qty, bl_used_qty, ebay_new_value, ebay_used_value, retirement_risk_score, upc, bl_cached_at, be_cached_at, ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at, subtheme, age_min, age_max, brickset_rating, brickset_review_count, retired_year, be_growth_12m, bl_new_min, bl_new_max, bl_used_min, bl_used_max, lego_in_stock, lego_retiring_soon, lego_checked_at, bo_new_value, bo_used_value, bo_cached_at, blended_value FROM lego_sets LIMIT 0"
+            "SELECT valuation_method, valuation_expires_at, bl_new_value, bl_new_qty, bl_used_qty, ebay_new_value, ebay_used_value, retirement_risk_score, upc, bl_cached_at, be_cached_at, ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at, subtheme, age_min, age_max, brickset_rating, brickset_review_count, retired_year, be_growth_12m, bl_new_min, bl_new_max, bl_used_min, bl_used_max, lego_in_stock, lego_retiring_soon, lego_checked_at, bo_new_value, bo_used_value, bo_cached_at, blended_value, theme_group, category, brickset_tags, brickset_msrp, launch_date, exit_date, brickset_enriched_at, brickset_dimensions, packaging_type, instructions_count, additional_image_count, brickset_description, brickset_set_id, brickset_image_urls, brickset_images_cached_at, brickinsights_rating, brickinsights_review_count, brickinsights_url, brickinsights_cached_at FROM lego_sets LIMIT 0"
             "SELECT set_num, fig_num, quantity FROM set_minifigs LIMIT 0"
             "SELECT set_num, part_num, color_id, quantity FROM set_parts LIMIT 0"
             "SELECT user_id, set_num, part_num, missing_qty FROM user_missing_parts LIMIT 0"
