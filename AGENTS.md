@@ -241,7 +241,7 @@ Behavioral notes:
   on `VERSION`). Static assets are network-first; **`/api/` requests are
   deliberately bypassed** (`if (url.pathname.startsWith('/api/')) return;`) so the
   SW never serves stale data. An "Update ready" prompt appears on new SW.
-  **Current version: `v147`.**
+  **Current version: `v149`.**
 - **Themes/skins:** attribute-based — `:root[data-theme="dark"]` and
   `:root[data-skin="premium"]` (default skin "retro": parchment + pixel
   shadows). `theme-init.js` applies them pre-paint to avoid flashes.
@@ -390,6 +390,24 @@ exposes client-safe values.**
 
 Newest first. (Service-worker `VERSION` in parentheses where relevant.)
 
+**Audit §12 follow-ups (v149)** — security + perf + code-split (commits
+`4c9f9cd`, `3d0a933`).
+- **Security:** CORS reflection scoped to this project's own Pages origins
+  (`brickvault-5ub.pages.dev` + `*.brickvault-5ub.pages.dev` previews) instead of
+  any `*.pages.dev` tenant (+ `index.test.ts` regression tests); the CSP is now
+  delivered as an HTTP header in `public/_headers` (so `frame-ancestors` actually
+  enforces), not just the `index.html` `<meta>`; removed the duplicate
+  `Vary: Origin` token (`index.ts` sets `Vary: Authorization`, CORS appends `Origin`).
+- **Speed:** the Rebrickable search-fallback N+1 is collapsed into a single
+  `IN (...)` lookup; explicit columns on the last list-level `SELECT *`
+  (`wishlist_alerts`).
+- **Code-split:** `router.js` loads each view via dynamic `import()`; the
+  onboarding carousel, the AI advisor and the camera scanner are lazy-loaded via
+  `components/advisor-lazy.js` / `scanner-lazy.js` (router-called
+  `cancelActiveStream()` / `closeScan()` are safe no-ops until first open).
+- **UI:** dropped the global document-scrollbar hide, keeping only the
+  `overflow-x` pan guard, so the scrollbar returns on desktop.
+
 **UI fixes**
 - **Chart-swipe page drift (v147):** `touch-action: pan-y` on `.spark-wrap` +
   `html { overflow-x: hidden }` guard — a horizontal swipe on the price-history
@@ -429,21 +447,45 @@ readout, per-user build cache, parts-based "what can I build."
 
 ---
 
-## 12. Suggested next steps / open follow-ups
+## 12. Audit follow-ups — status
 
-Reported during the audit, not yet done (each independent and low-risk):
-1. **CSP** — add a Content-Security-Policy, **report-only first**, then enforce.
-2. **Tighten CORS** beyond the broad `*.pages.dev` reflection if preview origins
-   can be enumerated.
-3. **Project explicit columns** on other `SELECT *` list endpoints (portfolio,
-   build, minifigs) the same way `/search` was done.
-4. **Code-split** the frontend bundle (currently all modules load up front).
-5. **N+1 in the Rebrickable search fallback** — batch the per-result local lookups.
-6. **`Vary` header tidy** — `index.ts` sets `Vary: Origin, Authorization` but the
-   CORS layer also appends `Origin`, yielding a harmless duplicate; set only
-   `Authorization` and let CORS add `Origin`.
-7. Revisit whether the **global scrollbar-hide** (added while diagnosing the chart
-   bug) should stay.
+All seven items reported during the audit are **done**, in commits `4c9f9cd` and
+`3d0a933` on `claude/mybricks-lego-app-EdTPX` (kept here for traceability):
+
+1. **CSP — done.** A strict CSP already shipped as an `index.html` `<meta>`; it's
+   now also delivered as an HTTP response header in `public/_headers`, so
+   `frame-ancestors 'none'` actually enforces (it's inert in a meta tag) and the
+   policy applies before parse. Verified live (header present on the document).
+2. **Tighten CORS — done.** `index.ts` reflects only localhost and this project's
+   own Pages origins (`brickvault-5ub.pages.dev` + its
+   `*.brickvault-5ub.pages.dev` previews), not any `*.pages.dev` tenant.
+   Regression tests in `index.test.ts`.
+3. **Explicit column projections — done.** portfolio/build/minifigs already
+   projected explicit columns; the last list-level `SELECT *`
+   (`wishlist_alerts`, `routes/wishlist.ts`) now does too.
+4. **Code-split — done.** `router.js` loads each view via dynamic `import()` on
+   first navigation (was eager). The onboarding carousel and the two heavy
+   components — the AI advisor (`advisor.js`) and camera scanner (`scanner.js`) —
+   are lazy-loaded behind `components/advisor-lazy.js` and `scanner-lazy.js`.
+   **Contract:** the router calls `cancelActiveStream()` / `closeScan()` on every
+   navigation; the lazy wrappers make these **safe no-ops until the module has
+   first been opened** (a stream/overlay can't exist before then). Preserve that
+   if you touch the wrappers. SW `VERSION` → `v149`.
+5. **Rebrickable search N+1 — done.** The search fallback batches all candidate
+   set-number lookups into one `IN (...)` query (≤40 bound params) instead of a
+   per-result `SELECT`.
+6. **`Vary` header — done.** `index.ts` sets `Vary: Authorization` and lets CORS
+   append `Origin`, removing the duplicate `Origin` token.
+7. **Global scrollbar-hide — done (removed).** `app.css` no longer hides the
+   document scrollbar; only the `overflow-x` pan guard remains (the chart-swipe
+   bug is fixed via `touch-action: pan-y` on `.spark-wrap`), so desktop keeps its
+   scrollbar / scroll-position affordance.
+
+### Still open / smaller ideas
+- (Cosmetic) a transient "You're offline — showing cached data" banner can flash
+  on first load before the connectivity probe settles; harmless but smoothable.
+- Further code-splitting is largely covered now (per-route views, lazy advisor/
+  scanner/onboarding, and `lib/local-ai.js` already loads on demand).
 
 ---
 
