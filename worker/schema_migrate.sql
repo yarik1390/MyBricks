@@ -308,7 +308,52 @@ CREATE TABLE IF NOT EXISTS api_quota (
 -- profile stat and daily snapshots COALESCE(blended_value, current_value) so
 -- portfolio values reflect real multi-source market pricing instead of the
 -- formula estimate. Written by the valuation job + on-demand refresh/revalue.
--- NOTE: this whole file aborts on the first duplicate-column error on existing
--- prod DBs, so the load-bearing creation is the per-statement array in
--- .github/workflows/deploy-worker.yml; this line covers fresh databases.
+-- NOTE (migration model): a bare `wrangler d1 execute --file` aborts on the
+-- first duplicate-column error on existing DBs, so the deploy workflow extracts
+-- and runs every single-line "ALTER TABLE ... ADD COLUMN" in this file
+-- INDEPENDENTLY (tolerating only duplicate-column errors). That makes this file
+-- the single source of truth for additive columns. To add a column: add it to
+-- schema.sql's CREATE TABLE (fresh DBs) AND add one ALTER line in the
+-- consolidated section below (existing DBs). Keep each ALTER on one line.
 ALTER TABLE lego_sets ADD COLUMN blended_value REAL;
+
+-- ===========================================================================
+-- Consolidated additive columns — SINGLE SOURCE OF TRUTH (see NOTE above).
+-- ===========================================================================
+-- Columns the deploy workflow's old inline ALTER array carried, mirrored here so
+-- this file is the complete superset once that array is removed:
+ALTER TABLE lego_sets ADD COLUMN upc TEXT;
+ALTER TABLE lego_sets ADD COLUMN cached_at DATETIME;
+ALTER TABLE lego_sets ADD COLUMN source TEXT;
+ALTER TABLE user_collection ADD COLUMN purchased_at DATE;
+ALTER TABLE user_collection ADD COLUMN deleted_at DATETIME;
+ALTER TABLE user_collection ADD COLUMN last_modified DATETIME;
+ALTER TABLE user_collection ADD COLUMN storage_location TEXT;
+ALTER TABLE user_collection ADD COLUMN acquisition_source TEXT;
+ALTER TABLE user_collection ADD COLUMN is_complete INTEGER DEFAULT 1;
+ALTER TABLE user_collection ADD COLUMN missing_pieces INTEGER DEFAULT 0;
+ALTER TABLE import_runs ADD COLUMN figs_loaded INTEGER;
+
+-- DRIFT FIX: Brickset enrichment (Phases 1-3) + BrickInsights ratings. Present
+-- in schema.sql's CREATE TABLE (so fresh DBs had them) but never added to any
+-- migration — existing DBs received them only via a manual D1-token apply, so a
+-- from-migrations rebuild (or any other environment) would silently lack them.
+ALTER TABLE lego_sets ADD COLUMN brickinsights_rating INTEGER;
+ALTER TABLE lego_sets ADD COLUMN brickinsights_review_count INTEGER;
+ALTER TABLE lego_sets ADD COLUMN brickinsights_url TEXT;
+ALTER TABLE lego_sets ADD COLUMN brickinsights_cached_at TEXT;
+ALTER TABLE lego_sets ADD COLUMN brickset_msrp REAL;
+ALTER TABLE lego_sets ADD COLUMN launch_date TEXT;
+ALTER TABLE lego_sets ADD COLUMN exit_date TEXT;
+ALTER TABLE lego_sets ADD COLUMN brickset_enriched_at TEXT;
+ALTER TABLE lego_sets ADD COLUMN theme_group TEXT;
+ALTER TABLE lego_sets ADD COLUMN category TEXT;
+ALTER TABLE lego_sets ADD COLUMN brickset_tags TEXT;
+ALTER TABLE lego_sets ADD COLUMN brickset_dimensions TEXT;
+ALTER TABLE lego_sets ADD COLUMN packaging_type TEXT;
+ALTER TABLE lego_sets ADD COLUMN instructions_count INTEGER;
+ALTER TABLE lego_sets ADD COLUMN additional_image_count INTEGER;
+ALTER TABLE lego_sets ADD COLUMN brickset_description TEXT;
+ALTER TABLE lego_sets ADD COLUMN brickset_set_id INTEGER;
+ALTER TABLE lego_sets ADD COLUMN brickset_image_urls TEXT;
+ALTER TABLE lego_sets ADD COLUMN brickset_images_cached_at TEXT;
