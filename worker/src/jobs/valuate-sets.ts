@@ -15,7 +15,6 @@ import {
   isEbayAccessError,
   type EbaySoldPrices,
 } from '../lib/ebay';
-import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
 import {
   DEFAULT_CRON_BUDGET,
   packBatch,
@@ -116,7 +115,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     ? Math.min(Math.floor(requestedLimit), 250)
     : 12;
   const packProfile: PackProfile = {
-    brickEconomy: !!env.BRICKECONOMY_API_KEY,
+    // BrickEconomy is no longer a per-set subrequest — its values are read from
+    // the be_* columns (populated by the brickeconomy-enrich Firecrawl cron), so
+    // the packer treats every set as BrickLink-primary.
+    brickEconomy: false,
     supplemental: includeSupplemental,
     ebay: includeEbay,
     aiFallback: includeAiFallback && !!(env.GEMINI_API_KEY || env.OPENAI_API_KEY),
@@ -165,6 +167,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   const { results } = await env.DB.prepare(`
     SELECT DISTINCT ls.set_num, ls.name, ls.theme, ls.year, ls.pieces, ls.minifigs, ls.retired,
       ls.retail_price, ls.ebay_ask_value,
+      ls.be_value_new, ls.be_value_used, ls.be_forecast_2y, ls.be_forecast_5y, ls.be_retail, ls.be_growth_12m,
       (ls.ebay_ask_cached_at IS NULL OR ls.ebay_ask_cached_at < datetime('now', '-7 days')) AS ask_stale
     FROM lego_sets ls
     WHERE 1=1
@@ -179,20 +182,18 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       COALESCE(ls.valuation_expires_at, ls.cached_at, '2000-01-01') ASC,
       ls.set_num ASC
     LIMIT ?
-  `).bind(limit).all<{ set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number; retired: number; retail_price: number | null; ebay_ask_value: number | null; ask_stale: number }>();
+  `).bind(limit).all<{ set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number; retired: number; retail_price: number | null; ebay_ask_value: number | null; be_value_new: number | null; be_value_used: number | null; be_forecast_2y: number | null; be_forecast_5y: number | null; be_retail: number | null; be_growth_12m: number | null; ask_stale: number }>();
 
   // Reserve today's external-API budget for this batch up front (2-3 D1
-  // round-trips total). BrickEconomy is the scarce source (80/day budget of a
-  // 100/day hard cap): when its grant runs out mid-batch, sets transparently
-  // fall back to the BrickLink-primary path. Other grants are reservations
-  // for accounting/visibility; their budgets are far above any single run.
-  const grants = await reserveQuota(env, {
-    brickeconomy: packProfile.brickEconomy ? results.length : 0,
+  // round-trips total) for accounting/visibility; these budgets are far above
+  // any single run. BrickEconomy is no longer reserved here — its values come
+  // from the be_* columns (Firecrawl-populated by brickeconomy-enrich), not a
+  // per-set API call, so the ~$1,000/mo BrickEconomy API is off the hot path.
+  await reserveQuota(env, {
     bricklink: results.length * 2,
     brickowl: (includeSupplemental && brickOwlEnabled(env)) ? results.length : 0,
     ebay: includeEbay ? results.length * (includeEbaySold ? 2 : 1) : 0,
   });
-  let beBudget = grants.brickeconomy ?? 0;
 
   const openai = env.OPENAI_API_KEY
     ? new OpenAI({
@@ -310,28 +311,37 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     let usedPricing: { used_value: number; lot_count?: number; min_price?: number | null; max_price?: number | null } | null = null;
     let ebayPrices: EbaySoldPrices | null = null;
     let valMethod = 'market';
-    let beDetails: Awaited<ReturnType<typeof fetchBrickEconomyDetails>> = null;
     let beRejected = false;
 
     // Batch runs stay source-light to avoid Cloudflare subrequest limits.
     // Detail-page refreshes still fan out across providers.
     let blPricing: { current_value: number; lot_count: number; min_price: number | null; max_price: number | null } | null = null;
 
-    // Ledger-gated: skip BrickEconomy once today's grant is spent — the set
-    // then prices via the BrickLink-primary path below instead of failing.
-    if (env.BRICKECONOMY_API_KEY && beBudget > 0) {
-      beBudget--;
-      const be = await fetchBrickEconomyDetails(set.set_num, env, sourceOptions)
-        .catch((err) => { tallyFail('brickeconomy', err); return null; });
-      if (be) tallyOk('brickeconomy');
-      beDetails = be;
-      usedPricing = be?.current_value_used ? { used_value: be.current_value_used } : null;
+    // BrickEconomy values come from the be_* staging columns populated by the
+    // brickeconomy-enrich Firecrawl cron — no hot-path API call (the ~$1,000/mo
+    // API is gone). Shaped like the old API response so the plausibility gate +
+    // forecast logic below are unchanged.
+    const beDetails = (set.be_value_new != null || set.be_value_used != null
+        || set.be_forecast_2y != null || set.be_forecast_5y != null || set.be_retail != null)
+      ? {
+          current_value_new: set.be_value_new,
+          current_value_used: set.be_value_used,
+          forecast_value_new_2_years: set.be_forecast_2y,
+          forecast_value_new_5_years: set.be_forecast_5y,
+          retail_price_us: set.be_retail,
+          rolling_growth_12months: set.be_growth_12m,
+        }
+      : null;
+    if (beDetails) {
+      tallyOk('brickeconomy');
+      usedPricing = beDetails.current_value_used ? { used_value: beDetails.current_value_used } : null;
 
-      if (beDetails && beDetails.current_value_new !== null) {
+      if (beDetails.current_value_new !== null) {
         // Guard against BrickEconomy mismatches (e.g. a $10k value on a $6 vintage
         // set). A corroborating ask overrides; otherwise a retail ceiling applies.
         // (BrickLink isn't fetched yet at this point, so the eBay ask is the only
-        // corroborator available here.)
+        // corroborator available here.) A scraped figure can never set
+        // current_value without passing this gate.
         if (isPlausibleMarketValue(beDetails.current_value_new, { retailPrice: set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value] })) {
           pricing = { current_value: beDetails.current_value_new };
           valMethod = 'brickeconomy';
@@ -430,12 +440,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
           .bind(usedPricing?.lot_count ?? null, usedPricing?.min_price ?? null, usedPricing?.max_price ?? null, set.set_num)
       );
     }
-    if (beDetails) {
-      supplementStmts.push(
-        env.DB.prepare(`UPDATE lego_sets SET be_cached_at=datetime('now'), be_growth_12m=COALESCE(?, be_growth_12m) WHERE set_num=?`)
-          .bind(beDetails.rolling_growth_12months ?? null, set.set_num)
-      );
-    }
+    // NB: be_cached_at / be_growth_12m are owned by the brickeconomy-enrich
+    // Firecrawl cron — valuate-sets only READS the be_* columns, never stamps
+    // be_cached_at (doing so would make the enrich cron treat the set as freshly
+    // scraped and skip it).
     // BrickOwl as 4th supplemental pricing source
     if (includeSupplemental) {
       const boPricing = await fetchBrickOwlPricing(set.set_num, env, sourceOptions)
@@ -473,6 +481,11 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       if (valMethod === 'brickeconomy' && beDetails) {
         if (beDetails.forecast_value_new_2_years !== null) {
           forecast_2y = beDetails.forecast_value_new_2_years;
+        }
+        // Real 5-year forecast straight from the BrickEconomy scrape — the old
+        // API never exposed it, so this used to be a growth-formula estimate.
+        if (beDetails.forecast_value_new_5_years !== null) {
+          forecast_5y = beDetails.forecast_value_new_5_years;
         }
         if (beDetails.retail_price_us !== null) {
           retailPrice = beDetails.retail_price_us;
