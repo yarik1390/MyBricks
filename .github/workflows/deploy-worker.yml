@@ -40,6 +40,13 @@ jobs:
       - name: Run frontend tests
         run: npm test
 
+      - name: Lint (Biome)
+        uses: biomejs/setup-biome@v2
+        with:
+          version: 2.5.0
+      - name: Run Biome lint
+        run: biome lint
+
       - name: Typecheck Worker
         run: npm --prefix worker run typecheck
 
