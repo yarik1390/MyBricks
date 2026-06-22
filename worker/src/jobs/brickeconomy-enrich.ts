@@ -1,0 +1,104 @@
+import type { Env } from '../types';
+import { fetchBrickEconomyViaFirecrawl } from '../lib/brickeconomy-firecrawl';
+import { firecrawlEnabled } from '../lib/pricing-flags';
+import { reserveQuota } from '../lib/api-quota';
+import { recordIntegrationHealth } from '../lib/integration-health';
+
+/**
+ * Populate BrickEconomy valuation data via Firecrawl structured extraction — a
+ * cost-free replacement for the (~$1,000/mo) BrickEconomy API. Scrapes the
+ * public set page into the be_* staging columns (current new/used value, the
+ * real 2y + 5y forecasts, original retail, trailing-12m growth) for sets whose
+ * be_cached_at is NULL or stale (>90 days).
+ *
+ * These columns are a STAGING area only: the valuation job (valuate-sets) reads
+ * them and applies the existing isPlausibleMarketValue corroboration gate before
+ * any figure is allowed to set current_value, so a hallucinated scrape can never
+ * poison a valuation. Writing here is therefore unconditional (after the lib's
+ * own numeric validation) — promotion is gated downstream.
+ *
+ * Prioritises: un-scraped sets first, then owned/wishlisted, then by value DESC
+ * (the visible high-value head), so the sets that matter get covered first. The
+ * json LLM extract costs 5 Firecrawl credits/scrape; the per-scrape credit guard
+ * in firecrawlScrape is the hard ceiling (env-tunable for the one-time bootstrap).
+ */
+export async function runBrickEconomyEnrich(env: Env, options: { limit?: number } = {}) {
+  if (!firecrawlEnabled(env)) {
+    return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl disabled or no key' };
+  }
+
+  const requestedLimit = Number(options.limit);
+  const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+    ? Math.min(Math.floor(requestedLimit), 100)
+    : 40;
+
+  const grant = (await reserveQuota(env, { firecrawl: limit })).firecrawl ?? 0;
+  if (grant <= 0) return { processed: 0, updated: 0, limit, skipped: 'firecrawl quota spent' };
+
+  const { results } = await env.DB.prepare(`
+    SELECT ls.set_num
+    FROM lego_sets ls
+    WHERE (ls.be_cached_at IS NULL OR ls.be_cached_at < datetime('now', '-90 days'))
+      AND ls.year >= 2000
+    ORDER BY
+      CASE WHEN ls.be_cached_at IS NULL THEN 0 ELSE 1 END,
+      CASE WHEN EXISTS (
+        SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
+      ) OR EXISTS (
+        SELECT 1 FROM user_wishlist uw WHERE uw.set_num = ls.set_num
+      ) THEN 0 ELSE 1 END,
+      COALESCE(NULLIF(ls.blended_value, 0), ls.current_value, 0) DESC,
+      ls.set_num ASC
+    LIMIT ?
+  `).bind(grant).all<{ set_num: string }>();
+
+  if (!results.length) return { processed: 0, updated: 0, limit: grant };
+
+  let processed = 0;
+  let updated = 0;
+  const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
+  const stmts: D1PreparedStatement[] = [];
+
+  for (const { set_num } of results) {
+    processed++;
+    const scrape = await fetchBrickEconomyViaFirecrawl(set_num, env)
+      .catch(() => null);
+
+    if (!scrape) {
+      health.fail++;
+      // Stamp be_cached_at even on a miss so a 404/empty set isn't re-scraped
+      // (and re-charged) every run.
+      stmts.push(env.DB.prepare(
+        `UPDATE lego_sets SET be_cached_at=datetime('now') WHERE set_num=?`,
+      ).bind(set_num));
+      continue;
+    }
+
+    health.ok++;
+    // Sparse update: only write the figures the scrape actually returned, so a
+    // partial scrape never nulls out a previously-good column.
+    const fields: string[] = [`be_cached_at=datetime('now')`];
+    const binds: number[] = [];
+    const maybe = (col: string, val: number | null) => {
+      if (val != null) { fields.push(`${col}=?`); binds.push(val); }
+    };
+    maybe('be_value_new', scrape.current_value_new);
+    maybe('be_value_used', scrape.current_value_used);
+    maybe('be_forecast_2y', scrape.forecast_value_new_2_years);
+    maybe('be_forecast_5y', scrape.forecast_value_new_5_years);
+    maybe('be_retail', scrape.retail_price_us);
+    maybe('be_growth_12m', scrape.rolling_growth_12months);
+
+    stmts.push(env.DB.prepare(
+      `UPDATE lego_sets SET ${fields.join(', ')} WHERE set_num=?`,
+    ).bind(...binds, set_num));
+    updated++;
+  }
+
+  for (let i = 0; i < stmts.length; i += 90) {
+    await env.DB.batch(stmts.slice(i, i + 90));
+  }
+  await recordIntegrationHealth(env, 'firecrawl', health);
+
+  return { processed, updated, limit: grant };
+}

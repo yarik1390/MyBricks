@@ -362,3 +362,14 @@ ALTER TABLE lego_sets ADD COLUMN brickset_description TEXT;
 ALTER TABLE lego_sets ADD COLUMN brickset_set_id INTEGER;
 ALTER TABLE lego_sets ADD COLUMN brickset_image_urls TEXT;
 ALTER TABLE lego_sets ADD COLUMN brickset_images_cached_at TEXT;
+
+-- BrickEconomy via Firecrawl (replaces the ~$1,000/mo BrickEconomy API): the
+-- enrich cron scrapes the public set page into these staging columns; the
+-- valuation job reads them (current value + real 2y/5y forecasts) under the
+-- existing isPlausibleMarketValue gate, so a scraped figure is corroborated
+-- before it can set current_value. be_growth_12m + be_cached_at already exist.
+ALTER TABLE lego_sets ADD COLUMN be_value_new REAL;
+ALTER TABLE lego_sets ADD COLUMN be_value_used REAL;
+ALTER TABLE lego_sets ADD COLUMN be_forecast_2y REAL;
+ALTER TABLE lego_sets ADD COLUMN be_forecast_5y REAL;
+ALTER TABLE lego_sets ADD COLUMN be_retail REAL;

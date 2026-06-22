@@ -94,6 +94,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         brickinsights_rating INTEGER, brickinsights_review_count INTEGER, brickinsights_url TEXT, brickinsights_cached_at TEXT,
         valuation_expires_at TEXT, cached_at TEXT, source TEXT, ebay_cached_at TEXT, blended_value REAL,
         subtheme TEXT, be_growth_12m REAL, bl_new_min REAL, bl_new_max REAL,
+        be_value_new REAL, be_value_used REAL, be_forecast_2y REAL, be_forecast_5y REAL, be_retail REAL,
         bl_used_min REAL, bl_used_max REAL, lego_in_stock INTEGER, lego_retiring_soon INTEGER, lego_availability TEXT,
         theme_group TEXT, category TEXT, brickset_tags TEXT,
         created_at TEXT, age_min INTEGER, age_max INTEGER, brickset_rating REAL,

@@ -31,6 +31,7 @@ import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
 import { runUpcItemDbBackfill } from './jobs/upcitemdb-backfill';
 import { runLegoStockRefresh } from './jobs/lego-stock-refresh';
 import { runBricksetEnrich } from './jobs/brickset-enrich';
+import { runBrickEconomyEnrich } from './jobs/brickeconomy-enrich';
 
 import type { Env, Variables } from './types';
 
@@ -286,6 +287,7 @@ export default {
       case '0 7 * * *': await run('ebay-sold-scrape', () => runEbaySoldScrape(env, { limit: 30 })); break;
       case '0 9 * * *': await run('brickset-enrich', () => runBricksetEnrich(env, { limit: 50 })); break;
       case '0 10 * * *': await run('lego-stock-refresh', () => runLegoStockRefresh(env, { limit: 100 })); break;
+      case '0 11 * * *': await run('brickeconomy-enrich', () => runBrickEconomyEnrich(env, { limit: 40 })); break;
       case '0 4 * * *': {
         await run('db-hygiene', () => runDbHygiene(env));
         await run('daily-catalog-maintenance', () => runDailyCatalogMaintenance(env));
