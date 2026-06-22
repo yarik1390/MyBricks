@@ -54,8 +54,9 @@ async function hydrateFromIDB() {
   const currentUid = getSessionUserId();
   if (!currentUid) return;
   try {
-    const [p, c, b] = await Promise.all([
+    const [p, c, b, h, w] = await Promise.all([
       bvIDB.get('portfolio'), bvIDB.get('catalog'), bvIDB.get('blind'),
+      bvIDB.get('history'), bvIDB.get('wishlist'),
     ]);
     if (p?.ts && now - p.ts < MAX_AGE && p.userId === currentUid) state.portfolio = p.data;
     if (c?.ts && now - c.ts < MAX_AGE && c.data?.items?.length && c.userId === currentUid) {
@@ -65,6 +66,13 @@ async function hydrateFromIDB() {
     if (b?.ts && now - b.ts < MAX_AGE && b.data?.items?.length && b.userId === currentUid) {
       Object.assign(state.blind, b.data);
       state.blind._stale = true;
+    }
+    if (h?.ts && now - h.ts < MAX_AGE && h.userId === currentUid && Array.isArray(h.data)) {
+      state.portfolioHistory = h.data;
+    }
+    if (w?.ts && now - w.ts < MAX_AGE && w.userId === currentUid && w.data) {
+      state.wishlist = w.data.wishlist || [];
+      state.wishlistAlerts = w.data.alerts || [];
     }
   } catch {}
 }

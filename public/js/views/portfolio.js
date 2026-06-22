@@ -38,6 +38,12 @@ export async function renderPortfolio() {
       state.wishlist = wl.wishlist || [];
       state.wishlistAlerts = wl.unread_alerts || [];
     }
+    // Persist the supplementary data too, so a cold offline launch shows the
+    // full vault (chart + wishlist), not just the holdings list. Hydrated by
+    // hydrateFromIDB with the same userId + freshness guard as the portfolio.
+    const _uid = getSessionUserId();
+    if (hist) bvIDB.set('history', { data: state.portfolioHistory, ts: Date.now(), userId: _uid }).catch(() => {});
+    if (wl) bvIDB.set('wishlist', { data: { wishlist: state.wishlist, alerts: state.wishlistAlerts }, ts: Date.now(), userId: _uid }).catch(() => {});
   }
   paintPortfolio();
   // Stale-while-revalidate: when painted from in-memory cache, refresh in the
@@ -1840,7 +1846,12 @@ export async function renderWishlist() {
     }
     state.wishlist = (wl.wishlist || []).filter(w => !state.recentWishlistDeletes?.[w.set_num]);
     state.wishlistAlerts = wl.unread_alerts || [];
-  } catch (e) { toast("Couldn't load wishlist", "error"); }
+    bvIDB.set('wishlist', { data: { wishlist: state.wishlist, alerts: state.wishlistAlerts }, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
+  } catch (e) {
+    // Offline: render whatever hydrateFromIDB restored rather than erroring out.
+    if (!navigator.onLine) toast(state.wishlist?.length ? "You're offline — showing cached wishlist" : "You're offline — wishlist isn't cached yet", "info");
+    else toast("Couldn't load wishlist", "error");
+  }
 
   const alerts = [...(state.wishlistAlerts || [])];
   const spikeAlerts = alerts.filter(a => a.alert_type === "spike");
