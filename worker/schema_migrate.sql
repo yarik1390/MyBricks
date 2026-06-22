@@ -205,6 +205,8 @@ ALTER TABLE lego_sets ADD COLUMN lego_checked_at TEXT;
 -- Sprint 3: BrickOwl pricing, minifig-set relationships, set parts
 ALTER TABLE lego_sets ADD COLUMN bo_new_value REAL;
 ALTER TABLE lego_sets ADD COLUMN bo_used_value REAL;
+ALTER TABLE lego_sets ADD COLUMN bo_new_qty INTEGER;
+ALTER TABLE lego_sets ADD COLUMN bo_used_qty INTEGER;
 ALTER TABLE lego_sets ADD COLUMN bo_cached_at TEXT;
 
 CREATE TABLE IF NOT EXISTS set_minifigs (

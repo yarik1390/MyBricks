@@ -58,6 +58,8 @@ CREATE TABLE IF NOT EXISTS lego_sets (
   lego_checked_at TEXT,
   bo_new_value REAL,
   bo_used_value REAL,
+  bo_new_qty INTEGER,
+  bo_used_qty INTEGER,
   bo_cached_at TEXT,
   brickinsights_rating INTEGER,
   brickinsights_review_count INTEGER,

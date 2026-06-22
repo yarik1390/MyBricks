@@ -178,6 +178,8 @@ describe('BrickVault API Worker Tests', () => {
         be_growth_12m REAL,
         bo_new_value REAL,
         bo_used_value REAL,
+        bo_new_qty INTEGER,
+        bo_used_qty INTEGER,
         bo_cached_at TEXT,
         blended_value REAL,
         subtheme TEXT,

@@ -443,8 +443,8 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       if (boPricing) {
         tallyOk('brickowl');
         supplementStmts.push(
-          env.DB.prepare(`UPDATE lego_sets SET bo_new_value=?, bo_used_value=?, bo_cached_at=datetime('now') WHERE set_num=?`)
-            .bind(boPricing.new_value, boPricing.used_value, set.set_num)
+          env.DB.prepare(`UPDATE lego_sets SET bo_new_value=?, bo_used_value=?, bo_new_qty=?, bo_used_qty=?, bo_cached_at=datetime('now') WHERE set_num=?`)
+            .bind(boPricing.new_value, boPricing.used_value, boPricing.new_qty, boPricing.used_qty, set.set_num)
         );
       }
     }

@@ -172,6 +172,34 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
     });
   }
 
+  if (num(row.bo_new_value)) {
+    sources.push({
+      id: 'brickowl_new',
+      name: 'BrickOwl',
+      value: num(row.bo_new_value),
+      condition: 'new',
+      sample_count: num(row.bo_new_qty),
+      last_updated: text(row.bo_cached_at) || cachedAt,
+      freshness: sourceFreshness(row, 'bo_cached_at', 'bo_new_value'),
+      reliability: 'corroborating',
+      note: 'Median new-condition BrickOwl listing price.',
+    });
+  }
+
+  if (num(row.bo_used_value)) {
+    sources.push({
+      id: 'brickowl_used',
+      name: 'BrickOwl used',
+      value: num(row.bo_used_value),
+      condition: 'used',
+      sample_count: num(row.bo_used_qty),
+      last_updated: text(row.bo_cached_at) || cachedAt,
+      freshness: sourceFreshness(row, 'bo_cached_at', 'bo_used_value'),
+      reliability: 'corroborating',
+      note: 'Median used-condition BrickOwl listing price.',
+    });
+  }
+
   if (method === 'ai' && num(row.current_value)) {
     sources.push({
       id: 'ai_estimate',

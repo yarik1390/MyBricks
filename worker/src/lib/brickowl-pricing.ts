@@ -6,6 +6,8 @@ import { brickOwlEnabled } from './pricing-flags';
 export interface BrickOwlPricing {
   new_value: number | null;
   used_value: number | null;
+  new_qty: number | null;
+  used_qty: number | null;
 }
 
 export async function fetchBrickOwlPricing(
@@ -68,7 +70,11 @@ export async function fetchBrickOwlPricing(
     const newVal = parseFloat(String(price.med_new || '')) || null;
     const usedVal = parseFloat(String(price.med_used || '')) || null;
     if (!newVal && !usedVal) return null;
-    return { new_value: newVal, used_value: usedVal };
+    // total_new/total_used are the live listing counts — captured so the market
+    // card can show BrickOwl depth ("/ N lots"), matching BrickLink/eBay rows.
+    const newQty = Number(price.total_new) || null;
+    const usedQty = Number(price.total_used) || null;
+    return { new_value: newVal, used_value: usedVal, new_qty: newQty, used_qty: usedQty };
   } catch {
     return null;
   }

@@ -1458,8 +1458,8 @@ function marketConfidenceHTML(set) {
     const ebay = ebaySoldSummary(set);
     if (ebay.newValue) out.push({ id: ebay.legacy ? 'ebay_legacy' : 'ebay_sold_new', name: ebay.legacy ? 'Legacy eBay' : 'eBay sold new', value: ebay.newValue, condition: 'new', sample_count: ebay.newSampleCount });
     if (ebay.usedValue) out.push({ id: 'ebay_sold_used', name: 'eBay sold used', value: ebay.usedValue, condition: 'used', sample_count: ebay.usedSampleCount });
-    if (set.bo_new_value) out.push({ id: 'brickowl_new', name: 'BrickOwl', value: set.bo_new_value, condition: 'new' });
-    if (set.bo_used_value) out.push({ id: 'brickowl_used', name: 'BrickOwl used', value: set.bo_used_value, condition: 'used' });
+    if (set.bo_new_value) out.push({ id: 'brickowl_new', name: 'BrickOwl', value: set.bo_new_value, condition: 'new', sample_count: set.bo_new_qty });
+    if (set.bo_used_value) out.push({ id: 'brickowl_used', name: 'BrickOwl used', value: set.bo_used_value, condition: 'used', sample_count: set.bo_used_qty });
     return out;
   };
   const sources = Array.isArray(set.market_sources) && set.market_sources.length
@@ -1478,7 +1478,7 @@ function marketConfidenceHTML(set) {
       : 'Formula valuation is used until a market refresh completes.'
   );
   const relColor = (r) => r === 'primary' ? 'var(--up)' : r === 'fallback' ? 'var(--bv-yellow)' : 'var(--ink-mute)';
-  const sourceRows = sources.slice(0, 4).map(s => {
+  const sourceRows = sources.slice(0, 6).map(s => {
     const rel = s.reliability
       ? `<span style="font-size:8px;letter-spacing:.04em;text-transform:uppercase;border:1px solid ${relColor(s.reliability)};color:${relColor(s.reliability)};border-radius:6px;padding:0 5px;margin-left:6px;white-space:nowrap;">${escapeHtml(s.reliability)}</span>`
       : '';
