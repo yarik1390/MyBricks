@@ -133,7 +133,7 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
       sample_count: legacy ? null : num(row.ebay_new_qty),
       last_updated: legacy
         ? text(row.ebay_cached_at) || cachedAt
-        : text(row.ebay_new_cached_at) || cachedAt,
+        : text(row.ebay_new_last_sold) || text(row.ebay_new_cached_at) || cachedAt,
       freshness: legacy
         ? sourceFreshness(row, 'ebay_cached_at', 'ebay_value')
         : sourceFreshness(row, 'ebay_new_cached_at', 'ebay_new_value'),
@@ -151,7 +151,7 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
       value: num(row.ebay_used_value),
       condition: 'used',
       sample_count: num(row.ebay_used_qty),
-      last_updated: text(row.ebay_used_cached_at) || cachedAt,
+      last_updated: text(row.ebay_used_last_sold) || text(row.ebay_used_cached_at) || cachedAt,
       freshness: sourceFreshness(row, 'ebay_used_cached_at', 'ebay_used_value'),
       reliability: 'corroborating',
       note: 'US/USD sold-listing median for used condition.',

@@ -16,6 +16,7 @@ export interface EbayConditionPricing {
   sample_count: number;
   valid_count: number;
   filtered_count: number;
+  last_sold?: string | null;
   error?: string | null;
 }
 
@@ -26,6 +27,8 @@ export interface EbaySoldPrices {
   used_value: number | null;
   new_sample_count: number;
   used_sample_count: number;
+  new_last_sold?: string | null;
+  used_last_sold?: string | null;
   error?: string | null;
 }
 
@@ -36,6 +39,9 @@ interface MarketplaceSaleItem {
     currency?: string;
     currencyCode?: string;
   };
+  // Marketplace Insights returns the sale date per sold item; captured (when
+  // present) to show comp recency. Optional/defensive — null if eBay omits it.
+  lastSoldDate?: string;
 }
 
 const USED_CONDITIONS = 'USED_EXCELLENT|USED_VERY_GOOD|USED_GOOD|USED_ACCEPTABLE';
@@ -229,10 +235,16 @@ async function fetchMarketplaceInsightsCondition(
   }
 
   const data = await resp.json() as { itemSales?: MarketplaceSaleItem[] };
-  const prices = (data.itemSales || [])
-    .map(item => priceFromSale(item, setNum))
-    .filter((price): price is number => price != null);
-  return summarizeSoldPrices(prices);
+  // Track price + sale date together so we can report the most recent sale
+  // among the valid comps (defensive: lastSoldDate may be absent).
+  const valid = (data.itemSales || [])
+    .map(item => ({ price: priceFromSale(item, setNum), date: typeof item.lastSoldDate === 'string' ? item.lastSoldDate : null }))
+    .filter((x): x is { price: number; date: string | null } => x.price != null);
+  const prices = valid.map(x => x.price);
+  const dates = valid.map(x => x.date).filter((d): d is string => !!d);
+  // ISO-8601 timestamps sort lexicographically, so max() = most recent sale.
+  const last_sold = dates.length ? dates.reduce((a, b) => (a > b ? a : b)) : null;
+  return { ...summarizeSoldPrices(prices), last_sold };
 }
 
 export async function fetchEbaySoldPrices(
@@ -298,6 +310,7 @@ export async function fetchEbaySoldPrices(
     sample_count: 0,
     valid_count: 0,
     filtered_count: 0,
+    last_sold: null,
     error: (error as Error).message || String(error),
   }));
 
@@ -318,6 +331,7 @@ export async function fetchEbaySoldPrices(
     sample_count: 0,
     valid_count: 0,
     filtered_count: 0,
+    last_sold: null,
     error: (error as Error).message || String(error),
   }));
 
@@ -340,6 +354,8 @@ export async function fetchEbaySoldPrices(
     used_value: usedResult.value,
     new_sample_count: newResult.sample_count,
     used_sample_count: usedResult.sample_count,
+    new_last_sold: newResult.last_sold ?? null,
+    used_last_sold: usedResult.last_sold ?? null,
     error: errors,
   };
 }
@@ -455,9 +471,11 @@ export function buildEbaySoldUpdate(
       ebay_new_value=COALESCE(?, ebay_new_value),
       ebay_new_qty=CASE WHEN ? IS NULL THEN ebay_new_qty ELSE ? END,
       ebay_new_cached_at=CASE WHEN ? = 1 THEN datetime('now') ELSE ebay_new_cached_at END,
+      ebay_new_last_sold=COALESCE(?, ebay_new_last_sold),
       ebay_used_value=COALESCE(?, ebay_used_value),
       ebay_used_qty=CASE WHEN ? IS NULL THEN ebay_used_qty ELSE ? END,
       ebay_used_cached_at=CASE WHEN ? = 1 THEN datetime('now') ELSE ebay_used_cached_at END,
+      ebay_used_last_sold=COALESCE(?, ebay_used_last_sold),
       ebay_value=COALESCE(?, ebay_value),
       ebay_cached_at=CASE WHEN ? = 1 THEN datetime('now') ELSE ebay_cached_at END
     WHERE set_num=?
@@ -465,9 +483,11 @@ export function buildEbaySoldUpdate(
     prices.new_value,
     prices.new_sample_count, prices.new_sample_count,
     attempted,
+    prices.new_last_sold ?? null,
     prices.used_value,
     prices.used_sample_count, prices.used_sample_count,
     attempted,
+    prices.used_last_sold ?? null,
     prices.new_value,
     hasNewValue,
     setNum,

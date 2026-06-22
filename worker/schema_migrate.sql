@@ -180,6 +180,8 @@ ALTER TABLE lego_sets ADD COLUMN be_cached_at TEXT;
 ALTER TABLE lego_sets ADD COLUMN ebay_ask_value REAL;
 ALTER TABLE lego_sets ADD COLUMN ebay_ask_qty INTEGER;
 ALTER TABLE lego_sets ADD COLUMN ebay_ask_cached_at TEXT;
+ALTER TABLE lego_sets ADD COLUMN ebay_new_last_sold TEXT;
+ALTER TABLE lego_sets ADD COLUMN ebay_used_last_sold TEXT;
 
 -- Sprint 1: Brickset rich metadata, BrickEconomy growth rate, BrickLink price ranges, minifig valuation cache
 ALTER TABLE lego_sets ADD COLUMN subtheme TEXT;
