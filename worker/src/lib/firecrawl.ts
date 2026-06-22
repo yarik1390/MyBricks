@@ -3,20 +3,25 @@ import { recordIntegrationAttempt } from './integration-health';
 import { firecrawlEnabled } from './pricing-flags';
 import { spendQuota } from './api-quota';
 
-const FC_BASE = 'https://api.firecrawl.dev/v1';
+const FC_BASE = 'https://api.firecrawl.dev/v2';
 
 export interface FirecrawlScrapeOptions {
   url: string;
-  formats?: ('markdown' | 'html' | 'json')[];
-  /** JSON schema + optional extraction prompt for structured output. */
+  /** v2 formats: 'markdown' | 'html' | 'json' | 'product' | 'links' | 'summary'. */
+  formats?: string[];
+  /** JSON schema + optional prompt for structured (json) extraction. */
   jsonOptions?: { schema: Record<string, unknown>; prompt?: string };
   /** Milliseconds to wait after page load before extracting (for JS-heavy pages). */
   waitFor?: number;
   timeoutMs?: number;
+  /** Proxy mode: 'auto' (default — basic, escalate to stealth only on failure), 'basic', 'stealth'. */
+  proxy?: 'auto' | 'basic' | 'stealth';
+  /** Serve a cached copy if younger than this many ms (faster; same credit cost). */
+  maxAge?: number;
 }
 
 /**
- * Call Firecrawl /v1/scrape and return the parsed response data.
+ * Call Firecrawl /v2/scrape and return the parsed response data.
  * Returns null on any failure — never throws.
  * Health is recorded via integration_health regardless of outcome.
  */
@@ -39,12 +44,19 @@ export async function firecrawlScrape<T = unknown>(
     return null;
   }
 
+  // v2 request shape: the json format carries its schema/prompt inline as a
+  // format object; other formats (markdown, product, links…) pass through as
+  // plain strings. proxy defaults to 'auto' (cheap basic, escalate only if blocked).
+  const v2Formats = formats.map((f) =>
+    f === 'json' ? { type: 'json', ...(opts.jsonOptions ?? {}) } : f,
+  );
   const body: Record<string, unknown> = {
     url: opts.url,
-    formats,
+    formats: v2Formats,
+    proxy: opts.proxy ?? 'auto',
   };
-  if (opts.jsonOptions) body.jsonOptions = opts.jsonOptions;
   if (opts.waitFor) body.waitFor = opts.waitFor;
+  if (opts.maxAge != null) body.maxAge = opts.maxAge;
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 30_000);
