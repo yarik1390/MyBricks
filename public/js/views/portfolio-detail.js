@@ -44,7 +44,7 @@ export async function renderSetDetail(setNum) {
     state.detail.cache[setNum] = { set, entry, ts: Date.now() };
     cacheSetDetail(setNum, set, entry, getSessionUserId());
     paintSetDetail(set, entry);
-  } catch (e) {
+  } catch (_e) {
     // Offline (or transient) — fall back to the persisted set-detail cache so a
     // previously-viewed set still opens instead of a dead end.
     const cached = await getCachedSetDetail(setNum, getSessionUserId());
@@ -512,7 +512,7 @@ function wireInfoTab(set, entry) {
     const badge = $("#qtyBadgeVal");
     if (badge) badge.textContent = `×${qty}`;
     try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); invalidatePortfolio(); }
-    catch (e) { toast("Save failed", "error"); }
+    catch (_e) { toast("Save failed", "error"); }
   });
   $("#qtyUp")?.addEventListener("click", async () => {
     haptic("medium");
@@ -521,7 +521,7 @@ function wireInfoTab(set, entry) {
     const badge = $("#qtyBadgeVal");
     if (badge) badge.textContent = `×${qty}`;
     try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); invalidatePortfolio(); }
-    catch (e) { toast("Save failed", "error"); }
+    catch (_e) { toast("Save failed", "error"); }
   });
   $("#genListingBtn")?.addEventListener("click", () => {
     haptic("medium");
@@ -940,7 +940,7 @@ function wireManageTab(set, entry) {
       `;
       btn.textContent = "Refresh";
       btn.disabled = false;
-    } catch (e) {
+    } catch (_e) {
       content.textContent = "Failed to load parts.";
       btn.textContent = "Retry";
       btn.disabled = false;
@@ -1022,7 +1022,7 @@ function setupTabSwipe(set, entry) {
 /* ============================================================
    eBay Listing Generator
    ============================================================ */
-async function showListingSheet(set, entry) {
+async function showListingSheet(set, _entry) {
   showSheet(`
     <div style="font-family:var(--serif);font-size:20px;font-weight:500;margin:0 4px 12px;">Generate eBay Listing</div>
     <div class="listing-sheet" id="listingContent">
@@ -1374,7 +1374,7 @@ function priceStripHTML(set, entry) {
   // Column 2: cross-source BrickLink new (when BE is primary, show BL independently)
   //           or BrickLink used when BL is primary (most useful comparison)
   const showBlCross = isBE && set.bl_new_value;
-  const label2 = showBlCross ? "BrickLink" : "Used";
+  const _label2 = showBlCross ? "BrickLink" : "Used";
   const val2 = showBlCross ? set.bl_new_value : set.used_value;
 
   const ebaySold = ebaySoldSummary(set);
@@ -1548,7 +1548,7 @@ function marketDepthHTML(set) {
 }
 
 
-function dealScoreHTML(set) {
+function _dealScoreHTML(_set) {
   return `
     <div class="deal-score-wrap" id="dealScoreWrap">
       <div class="deal-score-lbl">In-store price check</div>
@@ -1559,7 +1559,7 @@ function dealScoreHTML(set) {
     </div>`;
 }
 
-function updateDealBadge(set, priceStr) {
+function _updateDealBadge(set, priceStr) {
   const badge = document.getElementById("dealBadge");
   if (!badge) return;
   const price = parseFloat(priceStr);

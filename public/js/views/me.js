@@ -28,7 +28,7 @@ export async function renderMe() {
         .then(r => r.ok ? r.json() : null)
         .catch(() => null);
     }
-  } catch (e) {
+  } catch (_e) {
     toast("Couldn't load profile", "error");
     me = me || { display_name: "Collector", handle: "you", notify_price_drops: true, portfolio_stats: {} };
   }

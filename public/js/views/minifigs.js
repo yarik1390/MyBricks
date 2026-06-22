@@ -203,7 +203,7 @@ export async function loadBlind({ reset = false } = {}) {
     b.offset = b.items.length;
     b.hasMore = !!res.hasMore;
     return fresh;
-  } catch (e) {
+  } catch (_e) {
     if (myGen === _blindGen) toast("Couldn't load minifigs", "error");
     return [];
   } finally {

@@ -1,9 +1,8 @@
-import { $, $$, haptic, escapeHtml, fmtMoney, parseMarkdown, daysAgo, fmtPct, fmtShortDate, activateFocusTrap, FOCUSABLE_SEL } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoney, parseMarkdown, toast, activateFocusTrap, FOCUSABLE_SEL } from '../utils.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
 import { isLocalAiSupported, createLocalAiSession, getLocalAiAvailability, checkGemma3Downloaded, runLocalTextInference } from '../lib/local-ai.js';
-import { showSheet, hideSheet } from './sheet.js';
 
 let _activeReader = null;
 export function cancelActiveStream() {
@@ -430,7 +429,7 @@ async function sendAdvisorMessage(q) {
             aiBubble.innerHTML = parseMarkdown(fullText);
             hist.scrollTop = hist.scrollHeight;
           }
-        } catch (streamErr) {
+        } catch (_streamErr) {
           fullText = await session.prompt(q);
           aiBubble.innerHTML = parseMarkdown(fullText);
         }

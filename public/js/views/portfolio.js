@@ -964,7 +964,7 @@ function insightsGeneralHTML(items) {
   return html;
 }
 
-function wireInsightsTabs(items) {
+function _wireInsightsTabs(items) {
   const panel = $("#insightsPanel");
   if (!panel) return;
   panel.querySelectorAll(".insights-tab").forEach(tab => {

@@ -28,7 +28,7 @@ async function hkdfExpand(
   info: Uint8Array,
   length: number,
 ): Promise<Uint8Array> {
-  const enc = new TextEncoder();
+  const _enc = new TextEncoder();
   const okm = await crypto.subtle.sign('HMAC', prk, concat(info, new Uint8Array([1])));
   return new Uint8Array(okm).slice(0, length);
 }

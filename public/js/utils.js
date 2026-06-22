@@ -423,7 +423,7 @@ export function brickTile(set) {
 }
 
 export function slImgHTML(set, { newBadge = false, qtyBadge = 0 } = {}) {
-  const h = setHue(set);
+  const _h = setHue(set);
   const hasImg = set.image_url && !set.image_url.startsWith("data:");
   return `<div class="sl-img has-tile${hasImg ? " has-photo" : ""}">
     ${brickTile(set)}

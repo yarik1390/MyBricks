@@ -2,7 +2,7 @@ import { $, $$, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDa
 import { state, invalidatePortfolio } from '../state.js';
 import { api, outboxEnqueue, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
-import { confirmSheet, showSheet, hideSheet } from './sheet.js';
+import { showSheet, hideSheet } from './sheet.js';
 import { computeDealScore as computeDealScorePure, marketValueForCondition } from '../lib/pure.js';
 import { checkGemma3Downloaded, runLocalVisionScan, isWebGpuAvailable } from '../lib/local-ai.js';
 import { flipCalcHTML } from './flip-calc.js';
@@ -98,7 +98,7 @@ export async function startCamera() {
       if (hint) hint.textContent = "Live barcode scanning isn't supported on this browser — type the digits instead";
       showManualBarcodeEntry();
     }
-  } catch (e) {
+  } catch (_e) {
     const hint = $("#scanHint");
     if (hint) hint.textContent = "Camera not available — check permissions";
   }
@@ -235,7 +235,7 @@ async function getTurnstileToken() {
           "timeout-callback": () => finish(null, "challenge-timeout"),
           "expired-callback": () => finish(null, "expired"),
         });
-      } catch (e) {
+      } catch (_e) {
         finish(null, "render-threw");
       }
     });
@@ -428,7 +428,7 @@ function showBlindBoxResult(res) {
       await api("/api/minifigs/" + encodeURIComponent(fignum), { method: willOwn ? "PUT" : "DELETE" });
       invalidatePortfolio();
       toast(willOwn ? "Added to your minifigs" : "Removed", "success");
-    } catch (e) {
+    } catch (_e) {
       if (willOwn) state.ownedFigs.delete(fignum); else state.ownedFigs.add(fignum);
       try { localStorage.setItem("bv_figs", JSON.stringify([...state.ownedFigs])); } catch {}
       btn.style.borderColor = !willOwn ? "var(--up)" : "var(--line-soft)";
@@ -924,7 +924,7 @@ function showBulkScanResults(results) {
   });
 }
 
-function dealScoreHTML(set) {
+function dealScoreHTML(_set) {
   return `
     <div class="deal-score-wrap" id="dealScoreWrap">
       <div class="deal-score-lbl">In-store price check</div>

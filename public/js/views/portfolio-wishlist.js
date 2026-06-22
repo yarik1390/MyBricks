@@ -23,7 +23,7 @@ export async function renderWishlist() {
     state.wishlist = (wl.wishlist || []).filter(w => !state.recentWishlistDeletes?.[w.set_num]);
     state.wishlistAlerts = wl.unread_alerts || [];
     bvIDB.set('wishlist', { data: { wishlist: state.wishlist, alerts: state.wishlistAlerts }, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
-  } catch (e) {
+  } catch (_e) {
     // Offline: render whatever hydrateFromIDB restored rather than erroring out.
     if (!navigator.onLine) toast(state.wishlist?.length ? "You're offline — showing cached wishlist" : "You're offline — wishlist isn't cached yet", "info");
     else toast("Couldn't load wishlist", "error");

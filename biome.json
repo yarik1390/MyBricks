@@ -1,0 +1,34 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.0/schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "includes": [
+      "public/js/**/*.js",
+      "worker/src/**/*.ts",
+      "!public/js/lib/morphdom.js",
+      "!**/*.test.ts",
+      "!public/js/__tests__/**",
+      "!public/js/__harness__/**"
+    ]
+  },
+  "formatter": { "enabled": false },
+  "assist": { "enabled": false },
+  "javascript": {
+    "globals": ["BarcodeDetector"]
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": false,
+      "correctness": {
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error",
+        "noUnusedFunctionParameters": "error",
+        "noUndeclaredVariables": "error",
+        "noUnreachable": "error",
+        "noEmptyCharacterClassInRegex": "error",
+        "noInvalidUseBeforeDeclaration": "error"
+      }
+    }
+  }
+}

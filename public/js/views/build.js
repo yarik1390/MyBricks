@@ -25,7 +25,7 @@ async function loadSets() {
     _sets.owned_sets = (r && r.owned_sets) || 0;
     _sets.parts_sets = (r && r.parts_sets) || 0;
     _sets.loaded = true;
-  } catch (e) { toast("Couldn't load buildable sets", 'error'); }
+  } catch (_e) { toast("Couldn't load buildable sets", 'error'); }
   finally { _sets.loading = false; }
 }
 
@@ -40,7 +40,7 @@ async function loadAlts() {
     _alts.owned_sets = (r && r.owned_sets) || 0;
     _alts.indexing = (r && r.indexing) || 0;
     _alts.loaded = true;
-  } catch (e) { toast("Couldn't load alternate builds", 'error'); }
+  } catch (_e) { toast("Couldn't load alternate builds", 'error'); }
   finally { _alts.loading = false; }
 }
 

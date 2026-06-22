@@ -1,7 +1,7 @@
-import { $, $$, haptic, toast, fetchExchangeRates, prefersReducedMotion, bvIDB } from './utils.js';
+import { $, $$, haptic, toast, fetchExchangeRates, bvIDB } from './utils.js';
 import { state, invalidatePortfolio } from './state.js';
 import { nextOfflineBannerState } from './lib/pure.js';
-import { loadSession, saveSession, setSupabaseConfig, drainOutbox, api, _authSession, getSessionUserId, snapshotGuestVault, migrateGuestVault } from './api.js';
+import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionUserId, snapshotGuestVault, migrateGuestVault } from './api.js';
 import { I } from './icons.js';
 import { route } from './router.js';
 import { getThemePref, applyTheme } from './theme.js';

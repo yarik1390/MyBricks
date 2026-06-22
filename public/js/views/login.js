@@ -1,4 +1,4 @@
-import { $, toast, setBtnLoading } from '../utils.js';
+import { toast, setBtnLoading } from '../utils.js';
 import { _sbUrl, sbSignIn, sbSignUp, sbRecover, saveSession, snapshotGuestVault, migrateGuestVault } from '../api.js';
 import { state } from '../state.js';
 import { go } from '../router.js';

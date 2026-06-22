@@ -36,9 +36,6 @@ export function wishlistAlertEmailHTML(
 ): string {
   const fmt = (n: number) => `$${n.toFixed(2)}`;
   const isSpike = alertType === 'spike';
-  const subject = isSpike
-    ? `${setName} is up +30% — spike alert`
-    : `${setName} hit your target price`;
   const headline = isSpike
     ? `Value spike: ${setName}`
     : `Price target reached: ${setName}`;
@@ -53,5 +50,4 @@ export function wishlistAlertEmailHTML(
   <a href="https://brickvault-5ub.pages.dev" style="display:inline-block;background:#f97316;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:600;font-size:14px;">Open Brickvault</a>
   <p style="color:#999;font-size:11px;margin-top:24px;">You're receiving this because price-drop alerts are enabled in your Brickvault settings. <a href="https://brickvault-5ub.pages.dev#/me" style="color:#999;">Manage alerts</a></p>
 </div></body></html>`;
-  void subject;
 }

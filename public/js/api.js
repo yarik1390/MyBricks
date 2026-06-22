@@ -879,7 +879,7 @@ export async function api(path, opts = {}) {
   let r;
   try {
     r = await fetch(_url, init);
-  } catch (e) {
+  } catch (_e) {
     if (!navigator.onLine && (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE")) {
       outboxEnqueue({ path, method: init.method, body: opts.body });
       toast("Saved offline — will sync when connected", "info");
