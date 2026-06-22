@@ -97,11 +97,21 @@ Runtime notes:
         ├── lib/pure.js       # pure helpers (valuationTrust, pricePerPiece, filters)
         ├── lib/morphdom.js   # DOM diffing for re-renders
         ├── lib/local-ai.js   # on-device guest advisor fallback
-        ├── views/            # one module per page (portfolio, catalog, minifigs,
-        │                     #   me*, build, login)
+        ├── views/            # one module per page: portfolio (vault + insights +
+        │                     #   bulk-select), portfolio-detail (set page),
+        │                     #   portfolio-wishlist, portfolio-social (leaderboard +
+        │                     #   public profiles), catalog, minifigs, me*, build, login
         └── components/       # advisor (chat drawer), scanner (camera), sheet
-                              #   (modal), onboarding, trust, skeleton
+                              #   (modal), onboarding, trust, skeleton, flip-calc
 ```
+
+> **Per-view split:** `portfolio.js` was decomposed into per-view modules
+> (`portfolio-detail`, `portfolio-wishlist`, `portfolio-social`) plus a shared
+> `components/flip-calc`. The router lazy-loads each via `import()`, so the
+> per-view modules may import shared helpers **back** from `portfolio.js`
+> (e.g. `refreshNavBadge`, `spikeAlertCardHTML`) — that's one-way, no cycle.
+> Each new module **must** be added to `STATIC_ASSETS` in `sw.js` (with a VERSION
+> bump) or offline route navigation to it will 404.
 
 Key `worker/src/lib` integrations: `bricklink`, `ebay`, `brickeconomy`,
 `brickset`, `brickowl-barcode`/`brickowl-pricing`, `brickinsights`, `brightdata`
@@ -403,6 +413,20 @@ exposes client-safe values.**
 ## 11. Recent-changes changelog
 
 Newest first. (Service-worker `VERSION` in parentheses where relevant.)
+
+**Offline hardening + per-view split (2026-06, v152–v159)** — two threads of work.
+- **Offline:** precached the lazily-imported `onboarding.js` so the You tab works
+  offline on a fresh install (v154); added a bounded-LRU **set-detail** IndexedDB
+  cache so previously-viewed sets open offline instead of "Set not found", with
+  on-device scans enriching value from that cache (v155); widened the
+  `hydrateFromIDB` freshness window 1h→7d and added **wishlist + portfolio-history**
+  hydration so a cold offline launch shows the full vault (v155–v156). Pure
+  `upsertDetailCache` LRU helper lives in `lib/pure.js` (unit-tested).
+- **Maintainability:** decomposed the 3034-line `views/portfolio.js` into per-view
+  modules — `components/flip-calc` (v152), `portfolio-social` (leaderboard +
+  public profiles, v153), `portfolio-wishlist` (v157), `portfolio-detail` (the set
+  page, v158) — then pruned the now-dead imports (v159). `portfolio.js` is now
+  ~1148 lines (vault + insights + bulk-select). See the per-view-split note in §3.
 
 **Migration consolidation + P1 robustness (2026-06)** — the deploy "Apply column
 migrations" step now greps every `ALTER … ADD COLUMN` from `schema_migrate.sql`

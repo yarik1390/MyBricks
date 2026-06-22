@@ -1,13 +1,11 @@
-import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, clamp, prefersReducedMotion, confettiBurst, themeHue, setHue, THEME_COLORS, fmtShortDate, fmtDateUpdated, setBtnLoading, drawSparkline, brickTile, slImgHTML, bricklinkBuyURL, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, mount, cacheSetDetail, getCachedSetDetail } from '../utils.js';
-import { computeDealScore, ebaySoldSummary, marketValueForCondition, computeSpreadSignals, buyWindow, pricePerPiece } from '../lib/pure.js';
+import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS } from '../utils.js';
+import { marketValueForCondition, computeSpreadSignals } from '../lib/pure.js';
 import { state, invalidatePortfolio } from '../state.js';
-import { api, getSessionUserId, _authSession, outboxEnqueue } from '../api.js';
+import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet, confirmSheet, promptSheet } from '../components/sheet.js';
-import { trustBadgeHTML, trustPanelHTML } from '../components/trust.js';
-import { go } from '../router.js';
-import { skelPage, skelHero, skelCardList, skelDetail } from '../components/skeleton.js';
-import { flipCalcHTML } from '../components/flip-calc.js';
+import { trustBadgeHTML } from '../components/trust.js';
+import { skelPage, skelHero, skelCardList } from '../components/skeleton.js';
 
 
 /* ============================================================
