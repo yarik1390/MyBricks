@@ -411,6 +411,14 @@ describe('blendMarketValue (valuation v2)', () => {
     expect(r.high).toBe(120);
   });
 
+  it('weights eBay sold comps by actual sale date, not fetch time', () => {
+    // Refreshed today, but the most recent real sale was 200 days ago — the
+    // comp is stale, so it must NOT count as a fresh sold source.
+    const r = blendMarketValue({ valuation_method: 'ebay_sold', ebay_new_value: 100, ebay_new_qty: 10, ebay_new_cached_at: now, ebay_new_last_sold: old });
+    expect(r.value).toBe(100);
+    expect(r.confidence).toBe('low');
+  });
+
   it('drops a gross outlier source', () => {
     const r = blendMarketValue({ valuation_method: 'market', bl_new_value: 100, bl_new_qty: 10, bl_cached_at: now, ebay_new_value: 105, ebay_new_qty: 10, ebay_new_cached_at: now, bo_new_value: 900, bo_cached_at: now });
     expect(r.value).toBeLessThanOrEqual(106);

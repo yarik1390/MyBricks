@@ -359,7 +359,10 @@ export function blendMarketValue(row: Record<string, unknown>): BlendedValue {
   };
 
   push('bricklink_new', 'BrickLink', num(row.bl_new_value), num(row.bl_new_qty), row.bl_cached_at, 1.0, true);
-  push('ebay_sold_new', 'eBay sold', num(row.ebay_new_value), num(row.ebay_new_qty), row.ebay_new_cached_at, 1.0, true);
+  // Weight eBay sold comps by when the items ACTUALLY sold (ebay_new_last_sold),
+  // not when we fetched them — a set last sold months ago is a stale comp even
+  // if refreshed today. Falls back to fetch time when no sale date was captured.
+  push('ebay_sold_new', 'eBay sold', num(row.ebay_new_value), num(row.ebay_new_qty), row.ebay_new_last_sold || row.ebay_new_cached_at, 1.0, true);
   // BrickEconomy's value is only stored as current_value when it's the method.
   if (method === 'brickeconomy') push('brickeconomy', 'BrickEconomy', num(row.current_value), null, row.be_cached_at || row.cached_at, 0.9, false);
   push('brickowl_new', 'BrickOwl', num(row.bo_new_value), null, row.bo_cached_at, 0.7, false);
@@ -443,7 +446,7 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T): T {
 // blend reflects the freshly stored signals (no fragile in-memory merge).
 export const BLEND_INPUT_COLUMNS =
   'valuation_method, current_value, bl_new_value, bl_new_qty, bl_new_min, bl_new_max, ' +
-  'bl_cached_at, ebay_new_value, ebay_new_qty, ebay_new_cached_at, be_cached_at, ' +
+  'bl_cached_at, ebay_new_value, ebay_new_qty, ebay_new_cached_at, ebay_new_last_sold, be_cached_at, ' +
   'cached_at, bo_new_value, bo_cached_at, ' +
   'ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at';
 
