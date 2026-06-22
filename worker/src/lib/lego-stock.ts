@@ -3,6 +3,9 @@ import { fetchWithRetry } from './http';
 export interface LegoStockResult {
   in_stock: boolean | null;
   retiring_soon: boolean;
+  // Normalized fine-grained status from the same page (already fetched, free):
+  // in_stock | out_of_stock | pre_order | back_order | coming_soon | sold_out | retiring | null.
+  availability: string | null;
 }
 
 // Fetch LEGO.com product page and extract stock/retirement status.
@@ -41,7 +44,22 @@ export async function checkLegoStock(setNum: string): Promise<LegoStockResult | 
     // Fallback: add-to-cart button presence is a strong in-stock signal
     if (inStock === null && /add-to-cart|AddToCart/i.test(html)) inStock = true;
 
-    return { in_stock: inStock, retiring_soon: retiringSoon };
+    // Fine-grained status (free — same HTML). LEGO exposes richer states than a
+    // bare in/out boolean; surface them so buyers can time pre-orders/back-orders.
+    const statusMatch = html.match(/"availabilityStatus"\s*:\s*"([^"]+)"/i);
+    const rawStatus = (statusMatch?.[1] || availMatch?.[1] || '').toUpperCase();
+    let availability: string | null = null;
+    if (/PRE.?ORDER/.test(rawStatus)) availability = 'pre_order';
+    else if (/BACK.?ORDER/.test(rawStatus)) availability = 'back_order';
+    else if (/COMING.?SOON/.test(rawStatus)) availability = 'coming_soon';
+    else if (retiringSoon) availability = 'retiring';
+    else if (/SOLD.?OUT/.test(rawStatus)) availability = 'sold_out';
+    else if (/OUT.?OF.?STOCK|DISCONTINUED/.test(rawStatus)) availability = 'out_of_stock';
+    else if (/IN.?STOCK/.test(rawStatus)) availability = 'in_stock';
+    else if (inStock === true) availability = 'in_stock';
+    else if (inStock === false) availability = 'out_of_stock';
+
+    return { in_stock: inStock, retiring_soon: retiringSoon, availability };
   } catch {
     return null;
   }

@@ -191,6 +191,7 @@ describe('BrickVault API Worker Tests', () => {
         bl_used_max REAL,
         lego_in_stock INTEGER,
         lego_retiring_soon INTEGER,
+        lego_availability TEXT,
         age_min INTEGER, age_max INTEGER, brickset_rating REAL, brickset_review_count INTEGER,
         retired_year INTEGER, lego_checked_at TEXT,
         brickinsights_rating INTEGER, brickinsights_review_count INTEGER, brickinsights_url TEXT, brickinsights_cached_at TEXT,

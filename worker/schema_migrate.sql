@@ -203,6 +203,7 @@ ALTER TABLE user_prefs ADD COLUMN discord_webhook_url TEXT;
 ALTER TABLE lego_sets ADD COLUMN lego_in_stock INTEGER;
 ALTER TABLE lego_sets ADD COLUMN lego_retiring_soon INTEGER DEFAULT 0;
 ALTER TABLE lego_sets ADD COLUMN lego_checked_at TEXT;
+ALTER TABLE lego_sets ADD COLUMN lego_availability TEXT;
 
 -- Sprint 3: BrickOwl pricing, minifig-set relationships, set parts
 ALTER TABLE lego_sets ADD COLUMN bo_new_value REAL;

@@ -209,10 +209,21 @@ function infoTabHTML(set, entry, isWish) {
       ? `<div style="grid-column:span 2;display:flex;flex-wrap:wrap;gap:6px;align-items:center;"><span style="color:var(--ink-mute);">Tags:</span> ${tagsArr.slice(0, 10).map(t => `<span style="background:var(--surface-3);color:var(--ink-soft);border-radius:4px;padding:2px 8px;font-size:10px;">${escapeHtml(String(t))}</span>`).join('')}</div>`
       : '';
 
-    const legoStockBadge = set.lego_retiring_soon
-      ? `<div style="grid-column:span 2;"><span style="background:rgba(239,68,68,.12);color:var(--down);font-weight:700;border-radius:4px;padding:2px 8px;font-size:11px;">Retiring Soon</span></div>`
-      : set.lego_in_stock === 1
-      ? `<div style="grid-column:span 2;"><span style="background:rgba(34,197,94,.12);color:var(--up);font-weight:700;border-radius:4px;padding:2px 8px;font-size:11px;">In Stock at LEGO.com</span></div>`
+    // Fine-grained LEGO.com status (pre-order/back-order/coming-soon/etc.) when
+    // captured, falling back to the legacy retiring/in-stock booleans.
+    const legoAvail = set.lego_availability || (set.lego_retiring_soon ? 'retiring' : set.lego_in_stock === 1 ? 'in_stock' : null);
+    const legoBadgeMap = {
+      retiring: ['Retiring Soon', 'rgba(239,68,68,.12)', 'var(--down)'],
+      pre_order: ['Pre-order at LEGO.com', 'rgba(59,130,246,.12)', 'var(--accent)'],
+      coming_soon: ['Coming Soon to LEGO.com', 'rgba(59,130,246,.12)', 'var(--accent)'],
+      back_order: ['Back-order at LEGO.com', 'rgba(234,179,8,.14)', 'var(--bv-yellow)'],
+      in_stock: ['In Stock at LEGO.com', 'rgba(34,197,94,.12)', 'var(--up)'],
+      sold_out: ['Sold Out at LEGO.com', 'rgba(148,163,184,.14)', 'var(--ink-mute)'],
+      out_of_stock: ['Out of Stock at LEGO.com', 'rgba(148,163,184,.14)', 'var(--ink-mute)'],
+    };
+    const lb = legoAvail ? legoBadgeMap[legoAvail] : null;
+    const legoStockBadge = lb
+      ? `<div style="grid-column:span 2;"><span style="background:${lb[1]};color:${lb[2]};font-weight:700;border-radius:4px;padding:2px 8px;font-size:11px;">${lb[0]}</span></div>`
       : '';
 
     // Retirement-risk likelihood (only meaningful while a set is still active).
