@@ -14,7 +14,7 @@ import {
 } from '../lib/ebay';
 import { callGeminiValuation } from '../lib/gemini';
 import { MODELS, geminiUrl, openAIServerBaseURL, gatewayHeaders } from '../lib/llm';
-import { fetchBrickEconomyDetails } from '../lib/brickeconomy';
+import { beDetailsFromRow } from '../lib/brickeconomy-firecrawl';
 import { spendQuota } from '../lib/api-quota';
 import { getCachedPriceTrend } from '../lib/price-trend';
 import { fetchTracked } from '../lib/http';
@@ -281,20 +281,19 @@ app.get('/:setnum', async (c) => {
       || missingEbaySoldComps;
 
     if (needsRefresh) {
-      if (c.env.BRICKECONOMY_API_KEY) {
-        // Fetch BrickEconomy + BrickLink + eBay in parallel for cross-validation.
-        // BrickEconomy is ledger-gated (80/day budget of a 100/day hard cap) so
-        // browsing traffic can never exhaust the provider quota — on a denied
-        // grant the refresh proceeds with BrickLink/eBay only.
+      // BrickEconomy values come from the stored be_* columns (Firecrawl-
+      // populated by the brickeconomy-enrich cron) — no on-demand API call.
+      const be = beDetailsFromRow(activeSet);
+      if (be?.current_value_new != null && c.env.BRICKLINK_CONSUMER_KEY) {
+        // A plausible stored BE value wins; BrickLink + eBay still refresh live
+        // for the price strip + cross-validation. When there's no stored BE
+        // value the BrickLink-primary branch below handles the set instead.
         const refreshPromise = Promise.all([
-          spendQuota(c.env, 'brickeconomy')
-            .then((ok) => (ok ? fetchBrickEconomyDetails(activeSet.set_num as string, c.env) : null))
-            .catch(() => null),
           fetchSetPricing(activeSet.set_num as string, c.env).catch(() => null),
           fetchUsedPricing(activeSet.set_num as string, c.env).catch(() => null),
           fetchEbaySoldPrices(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null),
           askStale ? fetchEbayActiveListings(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null) : Promise.resolve(null),
-        ]).then(async ([be, blp, u, ebayPrices, askListings]) => {
+        ]).then(async ([blp, u, ebayPrices, askListings]) => {
           const supplementStmts: D1PreparedStatement[] = [];
           pushEbaySoldUpdate(supplementStmts, c.env.DB, activeSet.set_num as string, ebayPrices);
           const askStmt = buildEbayAskUpdate(c.env.DB, activeSet.set_num as string, askListings);
@@ -307,7 +306,9 @@ app.get('/:setnum', async (c) => {
               ? Math.min(0.25, Math.max(0.02, be.rolling_growth_12months / 100))
               : defaultYr;
             const forecast_2y = be.forecast_value_new_2_years ?? Math.round(be.current_value_new * Math.pow(1 + yr, 2) * 100) / 100;
-            const forecast_5y = Math.round(be.current_value_new * Math.pow(1 + yr, 5) * 100) / 100;
+            // Real 5-year forecast from the BrickEconomy scrape when present (the
+            // old API never exposed it), else a growth-rate estimate.
+            const forecast_5y = be.forecast_value_new_5_years ?? Math.round(be.current_value_new * Math.pow(1 + yr, 5) * 100) / 100;
 
             supplementStmts.push(c.env.DB.prepare(`
               UPDATE lego_sets SET
@@ -316,7 +317,6 @@ app.get('/:setnum', async (c) => {
                 bl_new_qty=COALESCE(?, bl_new_qty),
                 bl_used_qty=COALESCE(?, bl_used_qty),
                 bl_cached_at=CASE WHEN ? IS NOT NULL THEN datetime('now') ELSE bl_cached_at END,
-                be_cached_at=datetime('now'),
                 retail_price=COALESCE(?, retail_price),
                 forecast_2y=?, forecast_5y=?,
                 valuation_method='brickeconomy',
@@ -335,7 +335,7 @@ app.get('/:setnum', async (c) => {
               activeSet.set_num
             ));
           } else {
-            // BE unavailable — persist BL/eBay cross-source data regardless
+            // Stored BE value implausible — persist BL/eBay cross-source data regardless.
             if (blp?.current_value) {
               supplementStmts.push(c.env.DB.prepare(
                 `UPDATE lego_sets SET bl_new_value=?, bl_new_qty=COALESCE(?, bl_new_qty), bl_cached_at=datetime('now') WHERE set_num=?`
@@ -345,11 +345,6 @@ app.get('/:setnum', async (c) => {
               supplementStmts.push(c.env.DB.prepare(
                 `UPDATE lego_sets SET used_value=?, bl_used_qty=COALESCE(?, bl_used_qty), bl_cached_at=datetime('now') WHERE set_num=?`
               ).bind(u.used_value, u.lot_count ?? null, activeSet.set_num));
-            }
-            if (be) {
-              supplementStmts.push(c.env.DB.prepare(
-                `UPDATE lego_sets SET be_cached_at=datetime('now') WHERE set_num=?`
-              ).bind(activeSet.set_num));
             }
           }
 
@@ -866,27 +861,23 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
 
   const geminiKey = c.req.header('X-Gemini-Key');
 
-  let beDetails: Awaited<ReturnType<typeof fetchBrickEconomyDetails>> = null;
+  // BrickEconomy values come from the stored be_* columns (Firecrawl-populated
+  // by the brickeconomy-enrich cron) — no on-demand API call.
+  const beDetails = beDetailsFromRow(set);
 
-  if (c.env.BRICKECONOMY_API_KEY) {
-    // Run all market sources in parallel — BrickEconomy is primary but BL is
-    // fetched alongside it to populate bl_new_value for the price strip.
-    // BrickEconomy is ledger-gated; a denied grant degrades to BL/eBay.
-    const [be, blp, u, e] = await Promise.all([
-      spendQuota(c.env, 'brickeconomy')
-        .then((ok) => (ok ? fetchBrickEconomyDetails(set.set_num as string, c.env) : null))
-        .catch(() => null),
+  if (beDetails?.current_value_new != null && c.env.BRICKLINK_CONSUMER_KEY) {
+    // Stored BE value present — fetch BrickLink + eBay live alongside it to
+    // populate bl_new_value for the price strip and cross-validate.
+    const [blp, u, e] = await Promise.all([
       fetchSetPricing(set.set_num as string, c.env).catch(() => null),
       fetchUsedPricing(set.set_num as string, c.env).catch(() => null),
       fetchEbaySoldPrices(set.set_num as string, set.name as string, c.env).catch(() => null),
     ]);
-    beDetails = be;
     blPricing = blp;
-    usedPricing = u || (be?.current_value_used ? { used_value: be.current_value_used } : null);
+    usedPricing = u || (beDetails.current_value_used ? { used_value: beDetails.current_value_used } : null);
     ebayPrices = e;
 
-    if (beDetails?.current_value_new != null
-        && isPlausibleMarketValue(beDetails.current_value_new, { retailPrice: set.retail_price as number, pieces: set.pieces as number, corroborators: [set.ebay_ask_value as number, blPricing?.current_value, set.bl_new_value as number] })) {
+    if (isPlausibleMarketValue(beDetails.current_value_new, { retailPrice: set.retail_price as number, pieces: set.pieces as number, corroborators: [set.ebay_ask_value as number, blPricing?.current_value, set.bl_new_value as number] })) {
       pricing = { current_value: beDetails.current_value_new };
       valMethod = 'brickeconomy';
     }
@@ -953,12 +944,8 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
         .bind(usedPricing.lot_count, set.set_num)
     );
   }
-  if (beDetails) {
-    supplementStmts.push(
-      c.env.DB.prepare(`UPDATE lego_sets SET be_cached_at=datetime('now') WHERE set_num=?`)
-        .bind(set.set_num)
-    );
-  }
+  // NB: be_cached_at / be_growth_12m are owned by the brickeconomy-enrich
+  // Firecrawl cron — the set-detail path only READS the be_* columns.
   if (pricing) {
     // Use rolling 12-month growth from BrickEconomy when available for dynamic forecasts.
     const defaultYr = set.retired ? 0.15 : 0.10;
@@ -973,6 +960,10 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
     if (valMethod === 'brickeconomy' && beDetails) {
       if (beDetails.forecast_value_new_2_years !== null) {
         forecast_2y = beDetails.forecast_value_new_2_years;
+      }
+      // Real 5-year forecast from the BrickEconomy scrape when present.
+      if (beDetails.forecast_value_new_5_years !== null) {
+        forecast_5y = beDetails.forecast_value_new_5_years;
       }
       if (beDetails.retail_price_us !== null) {
         retailPrice = beDetails.retail_price_us;
