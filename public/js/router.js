@@ -95,7 +95,7 @@ async function _routeImpl() {
       const parts = hash.split("/");
       const setNum = decodeURIComponent(parts[2]);
       state.detail.tab = parts[3] || "info";
-      await (await import('./views/portfolio.js')).renderSetDetail(setNum);
+      await (await import('./views/portfolio-detail.js')).renderSetDetail(setNum);
     } else if (hash.startsWith("/u/")) {
       const handle = hash.slice(3);
       await (await import('./views/portfolio-social.js')).renderPublicProfile(handle);
