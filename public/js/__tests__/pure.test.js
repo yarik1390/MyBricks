@@ -660,3 +660,54 @@ describe('nextOfflineBannerState (offline banner debounce)', () => {
     assert.equal(run(['offline', 'grace', 'online']), 'online');
   });
 });
+
+import { upsertDetailCache } from '../lib/pure.js';
+
+describe('upsertDetailCache (offline set-detail LRU)', () => {
+  const mk = (setNum, ts, over = {}) => ({ setNum, set: { set_num: setNum, name: setNum }, entry: null, ts, uid: 'u1', ...over });
+
+  it('inserts into an empty/null store', () => {
+    const s = upsertDetailCache(null, mk('1-1', 100));
+    assert.equal(s.uid, 'u1');
+    assert.deepEqual(Object.keys(s.items), ['1-1']);
+    assert.equal(s.items['1-1'].set.name, '1-1');
+  });
+
+  it('accumulates multiple sets for the same user', () => {
+    let s = upsertDetailCache(null, mk('1-1', 100));
+    s = upsertDetailCache(s, mk('2-1', 200));
+    assert.deepEqual(Object.keys(s.items).sort(), ['1-1', '2-1']);
+  });
+
+  it('refreshes an existing set in place (no duplicate, newer ts/entry win)', () => {
+    let s = upsertDetailCache(null, mk('1-1', 100));
+    s = upsertDetailCache(s, mk('1-1', 999, { entry: { id: 7, purchase_price: 50 } }));
+    assert.equal(Object.keys(s.items).length, 1);
+    assert.equal(s.items['1-1'].ts, 999);
+    assert.equal(s.items['1-1'].entry.purchase_price, 50);
+  });
+
+  it('discards the whole map when the user changes (no cross-user leak)', () => {
+    let s = upsertDetailCache(null, mk('1-1', 100, { entry: { purchase_price: 50 } }));
+    s = upsertDetailCache(s, mk('9-1', 200, { uid: 'u2' }));
+    assert.equal(s.uid, 'u2');
+    assert.deepEqual(Object.keys(s.items), ['9-1']);
+  });
+
+  it('evicts the oldest entries (by ts) once over cap', () => {
+    let s = null;
+    // cap 3: insert 4 sets with increasing ts; the oldest (ts=1) is evicted.
+    for (const t of [1, 2, 3, 4]) s = upsertDetailCache(s, { ...mk('s' + t, t), cap: 3 });
+    assert.equal(Object.keys(s.items).length, 3);
+    assert.ok(!s.items['s1'], 'oldest evicted');
+    assert.ok(s.items['s4'], 'newest kept');
+  });
+
+  it('does not mutate the input store (returns a new reference)', () => {
+    const orig = upsertDetailCache(null, mk('1-1', 100));
+    const snapshotKeys = Object.keys(orig.items).length;
+    const next = upsertDetailCache(orig, mk('2-1', 200));
+    assert.notEqual(next, orig);
+    assert.equal(Object.keys(orig.items).length, snapshotKeys, 'original untouched');
+  });
+});

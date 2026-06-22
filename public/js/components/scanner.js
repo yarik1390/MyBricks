@@ -1,6 +1,6 @@
-import { $, $$, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDataURL, resizeImage, setHue, getExchangeRate, CURRENCY_SYMBOLS, activateFocusTrap, FOCUSABLE_SEL } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDataURL, resizeImage, setHue, getExchangeRate, CURRENCY_SYMBOLS, activateFocusTrap, FOCUSABLE_SEL, getCachedSetDetail } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
-import { api, outboxEnqueue } from '../api.js';
+import { api, outboxEnqueue, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
 import { confirmSheet, showSheet, hideSheet } from './sheet.js';
 import { computeDealScore as computeDealScorePure, marketValueForCondition } from '../lib/pure.js';
@@ -293,7 +293,13 @@ async function sendScanToAPI(payload) {
         });
         if (localResult.identified) {
           const setNum = localResult.set_num;
-          const setResponse = await api(`/api/sets/${encodeURIComponent(setNum)}`).catch(() => null);
+          let setResponse = await api(`/api/sets/${encodeURIComponent(setNum)}`).catch(() => null);
+          // Offline: the enrichment fetch fails, so pull value/details from the
+          // set-detail cache when available instead of showing $0.
+          if (!setResponse) {
+            const cached = await getCachedSetDetail(setNum, getSessionUserId());
+            if (cached?.set) setResponse = { set: cached.set, entry: cached.entry };
+          }
           const set = setResponse?.set || setResponse || {
             set_num: setNum,
             name: localResult.name || "Unknown Set",
@@ -739,7 +745,11 @@ async function processBulkScanQueue(files) {
           const localResult = await runLocalVisionScan(bitmap);
           if (localResult.identified) {
             const setNum = localResult.set_num;
-            const setResponse = await api(`/api/sets/${encodeURIComponent(setNum)}`).catch(() => null);
+            let setResponse = await api(`/api/sets/${encodeURIComponent(setNum)}`).catch(() => null);
+            if (!setResponse) {
+              const cached = await getCachedSetDetail(setNum, getSessionUserId());
+              if (cached?.set) setResponse = { set: cached.set, entry: cached.entry };
+            }
             const set = setResponse?.set || setResponse || {
               set_num: setNum,
               name: localResult.name || "Unknown Set",

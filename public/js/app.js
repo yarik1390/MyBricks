@@ -49,7 +49,7 @@ function setupGestures() {
 
 // Hydrate from IndexedDB
 async function hydrateFromIDB() {
-  const MAX_AGE = 3_600_000; // 1 hour
+  const MAX_AGE = 604_800_000; // 7 days — show last-known data offline; online stale-while-revalidate keeps it fresh
   const now = Date.now();
   const currentUid = getSessionUserId();
   if (!currentUid) return;

@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, clamp, prefersReducedMotion, confettiBurst, themeHue, setHue, THEME_COLORS, fmtShortDate, fmtDateUpdated, setBtnLoading, drawSparkline, brickTile, slImgHTML, bricklinkBuyURL, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, mount } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, clamp, prefersReducedMotion, confettiBurst, themeHue, setHue, THEME_COLORS, fmtShortDate, fmtDateUpdated, setBtnLoading, drawSparkline, brickTile, slImgHTML, bricklinkBuyURL, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, mount, cacheSetDetail, getCachedSetDetail } from '../utils.js';
 import { computeDealScore, ebaySoldSummary, marketValueForCondition, computeSpreadSignals, buyWindow, pricePerPiece } from '../lib/pure.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue } from '../api.js';
@@ -837,6 +837,7 @@ export async function renderSetDetail(setNum) {
           if (data.set_minifigs) set.set_minifigs = data.set_minifigs;
           const entry = data.entry || null;
           state.detail.cache[setNum] = { set, entry, ts: Date.now() };
+          cacheSetDetail(setNum, set, entry, getSessionUserId());
           if (location.hash.includes(setNum)) paintSetDetail(set, entry);
         }).catch(() => {});
       return;
@@ -849,9 +850,20 @@ export async function renderSetDetail(setNum) {
     if (data.set_minifigs) set.set_minifigs = data.set_minifigs;
     const entry = data.entry || null;
     state.detail.cache[setNum] = { set, entry, ts: Date.now() };
+    cacheSetDetail(setNum, set, entry, getSessionUserId());
     paintSetDetail(set, entry);
   } catch (e) {
-    $("#root").innerHTML = `<div class="page"><p>Set not found.</p></div>`;
+    // Offline (or transient) — fall back to the persisted set-detail cache so a
+    // previously-viewed set still opens instead of a dead end.
+    const cached = await getCachedSetDetail(setNum, getSessionUserId());
+    if (cached?.set) {
+      try {
+        paintSetDetail(cached.set, cached.entry);
+        if (!navigator.onLine) toast("You're offline — showing cached data", "info");
+        return;
+      } catch {}
+    }
+    $("#root").innerHTML = `<div class="page"><p>${navigator.onLine ? "Set not found." : "You're offline and this set isn't cached yet."}</p></div>`;
   }
 }
 

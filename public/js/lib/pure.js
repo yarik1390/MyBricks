@@ -495,3 +495,29 @@ export function nextOfflineBannerState(current, event) {
   if (event === "grace") return state === "pending" ? "offline" : state;
   return state;
 }
+
+/**
+ * Bounded LRU upsert for the offline set-detail cache. Pure — no IndexedDB, no
+ * DOM — so it can be unit-tested; utils.js wraps it with the bvIDB read/write.
+ *
+ * The cache is one object: { uid, items: { [setNum]: { set, entry, ts } } }.
+ * It is scoped to a single user — `entry` holds that user's purchase data, so a
+ * uid change (sign-out / switch) discards the whole map rather than leaking it.
+ * When the map exceeds `cap`, the oldest entries (by ts) are evicted.
+ *
+ * @param {object|null} store  the previous cache object (or null/undefined)
+ * @param {{setNum:string, set:object, entry:object|null, ts:number, uid:(string|null), cap?:number}} e
+ * @returns {{uid:(string|null), items:object}} the next cache object (new ref)
+ */
+export function upsertDetailCache(store, { setNum, set, entry = null, ts, uid = null, cap = 40 }) {
+  const next = (store && store.uid === uid && store.items)
+    ? { uid, items: { ...store.items } }
+    : { uid, items: {} };
+  next.items[setNum] = { set, entry, ts };
+  const keys = Object.keys(next.items);
+  if (keys.length > cap) {
+    keys.sort((a, b) => (next.items[a].ts || 0) - (next.items[b].ts || 0));
+    for (const k of keys.slice(0, keys.length - cap)) delete next.items[k];
+  }
+  return next;
+}

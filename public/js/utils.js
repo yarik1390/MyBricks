@@ -1,6 +1,7 @@
 import { I } from './icons.js';
 import { state } from './state.js';
 import morphdom from './lib/morphdom.js';
+import { upsertDetailCache } from './lib/pure.js';
 
 /* ---------- DOM helpers ---------- */
 export const $ = (s, r = document) => r.querySelector(s);
@@ -21,6 +22,30 @@ export const bvIDB = (() => {
   async function del(k) { const db = await open(); return new Promise((res, rej) => { const r = db.transaction('kv','readwrite').objectStore('kv').delete(k); r.onsuccess=()=>res(); r.onerror=e=>rej(e.target.error); }); }
   return { get, set, del };
 })();
+
+/* ---------- Offline set-detail cache ----------
+ * Persists the last ~40 viewed set-detail payloads under a single bvIDB key so a
+ * previously-opened set still renders offline (instead of "Set not found"). The
+ * LRU/eviction/uid-isolation logic is the pure upsertDetailCache() (lib/pure.js);
+ * these wrappers only do the IDB read/write. uid is passed in (not imported from
+ * api.js) to avoid a utils<->api import cycle. All failures are swallowed —
+ * caching is best-effort and must never break a render. */
+const DETAIL_CACHE_KEY = 'detail';
+export async function cacheSetDetail(setNum, set, entry, uid) {
+  if (!setNum || !set) return;
+  try {
+    const prev = await bvIDB.get(DETAIL_CACHE_KEY);
+    const next = upsertDetailCache(prev, { setNum, set, entry: entry ?? null, ts: Date.now(), uid: uid ?? null });
+    await bvIDB.set(DETAIL_CACHE_KEY, next);
+  } catch {}
+}
+export async function getCachedSetDetail(setNum, uid) {
+  try {
+    const store = await bvIDB.get(DETAIL_CACHE_KEY);
+    if (!store || store.uid !== (uid ?? null)) return null;
+    return store.items?.[setNum] || null;
+  } catch { return null; }
+}
 
 /* ---------- Formatters ---------- */
 export const CURRENCY_SYMBOLS = {
