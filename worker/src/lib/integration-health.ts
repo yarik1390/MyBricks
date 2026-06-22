@@ -19,7 +19,8 @@ export type IntegrationName =
   | 'rebrickable'
   | 'brickinsights'
   | 'brightdata'
-  | 'upcitemdb';
+  | 'upcitemdb'
+  | 'firecrawl';
 
 export type IntegrationStatus = 'ok' | 'degraded' | 'down' | 'unknown' | 'unconfigured';
 
@@ -224,6 +225,14 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['Barcode/UPC backfill (2nd source after Brickset)'],
     notes: 'Keyword search -> validated LEGO barcode (GS1 prefix + set number in title). A small cron trickles missing modern retail sets. Trial is rate-limited (~100/day + per-window throttle).',
     recommended_action: 'Trial active (no key needed). Add UPCITEMDB_USER_KEY for the higher-limit v1 endpoint.',
+  },
+  firecrawl: {
+    label: 'Firecrawl',
+    configured: (env) => !!env.FIRECRAWL_API_KEY,
+    required_secrets: ['FIRECRAWL_API_KEY'],
+    used_by: ['lego.com stock/retirement checks', 'eBay sold comps (structured extraction)', 'Brickset page enrichment backfill'],
+    notes: 'Handles JS rendering and bot-protection. Replaces the fragile lego.com plain-fetch and Bright Data eBay scrape. Standard plan (~$83/mo) provides ~100k credits/month. Self-imposed daily cap: 150 credits.',
+    recommended_action: 'Add FIRECRAWL_API_KEY as a GitHub Actions secret. Standard plan recommended for production use.',
   },
 };
 

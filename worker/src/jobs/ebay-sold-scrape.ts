@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { fetchEbaySoldViaBrightData } from '../lib/brightdata';
-import { brightDataSoldEnabled } from '../lib/pricing-flags';
+import { fetchEbaySoldViaFirecrawl } from '../lib/ebay-firecrawl';
+import { brightDataSoldEnabled, firecrawlEnabled } from '../lib/pricing-flags';
 import { reserveQuota } from '../lib/api-quota';
 import { recordIntegrationHealth } from '../lib/integration-health';
 import { recomputeBlendedValues } from '../lib/market-sources';
@@ -15,22 +16,25 @@ import { recomputeBlendedValues } from '../lib/market-sources';
  * (e.g. Darth Maul) is structurally excluded (no BrickLink/BE -> not a candidate).
  *
  * Writes ebay_new_value so a corroborated set with BrickLink + eBay-sold reaches
- * high-confidence blend. Bounded by the brightdata daily quota (5,000/month free).
+ * high-confidence blend. Prefers Firecrawl (structured extraction) when available;
+ * falls back to Bright Data Web Unlocker.
  */
 export async function runEbaySoldScrape(
   env: Env,
   options: { limit?: number; concurrency?: number } = {},
 ) {
-  if (!brightDataSoldEnabled(env)) {
-    return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'brightdata sold disabled' };
+  const useFirecrawl = firecrawlEnabled(env);
+  const useBrightData = !useFirecrawl && brightDataSoldEnabled(env);
+  if (!useFirecrawl && !useBrightData) {
+    return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'neither firecrawl nor brightdata configured' };
   }
   const requestedLimit = Number(options.limit);
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
     ? Math.min(Math.floor(requestedLimit), 100)
     : 20;
-  // Bright Data free tier is ~5,000/month; the per-day ledger cap keeps us under it.
-  const grant = (await reserveQuota(env, { brightdata: limit })).brightdata ?? 0;
-  if (grant <= 0) return { processed: 0, updated: 0, rejected: 0, limit, skipped: 'brightdata quota spent' };
+  const quotaService = useFirecrawl ? 'firecrawl' : 'brightdata';
+  const grant = (await reserveQuota(env, { [quotaService]: limit }))[quotaService] ?? 0;
+  if (grant <= 0) return { processed: 0, updated: 0, rejected: 0, limit, skipped: `${quotaService} quota spent` };
 
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num, ls.name, ls.bl_new_value, ls.current_value
@@ -60,7 +64,10 @@ export async function runEbaySoldScrape(
   for (let i = 0; i < results.length; i += concurrency) {
     const batch = results.slice(i, i + concurrency);
     const outs = await Promise.all(batch.map(async (set) => {
-      const r = await fetchEbaySoldViaBrightData(set.set_num, set.name, env)
+      const fetcher = useFirecrawl
+        ? fetchEbaySoldViaFirecrawl(set.set_num, set.name, env)
+        : fetchEbaySoldViaBrightData(set.set_num, set.name, env);
+      const r = await fetcher
         .catch((e) => ({ status: 'error' as const, new_value: null, new_count: 0, error: (e as Error)?.message }));
       return { set, r };
     }));
@@ -97,6 +104,6 @@ export async function runEbaySoldScrape(
 
   for (let i = 0; i < stmts.length; i += 90) await env.DB.batch(stmts.slice(i, i + 90));
   if (touched.length) await recomputeBlendedValues(env.DB, touched);
-  await recordIntegrationHealth(env, 'brightdata', health);
+  await recordIntegrationHealth(env, useFirecrawl ? 'firecrawl' : 'brightdata', health);
   return { processed, updated, rejected, limit: grant };
 }

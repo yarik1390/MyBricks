@@ -32,3 +32,10 @@ export function brickInsightsEnabled(env: Env): boolean {
 export function brightDataSoldEnabled(env: Env): boolean {
   return !!env.BRIGHTDATA_API_TOKEN && !/^(0|false|no|off)$/i.test(String(env.BRIGHTDATA_SOLD_ENABLED ?? ''));
 }
+
+// Firecrawl web scraping (lego.com stock, eBay sold comps via structured extraction,
+// Brickset enrichment backfill). Requires FIRECRAWL_API_KEY; on by default once set.
+// Set FIRECRAWL_ENABLED=0 to pause without removing the key.
+export function firecrawlEnabled(env: Env): boolean {
+  return !!env.FIRECRAWL_API_KEY && !/^(0|false|no|off)$/i.test(String(env.FIRECRAWL_ENABLED ?? ''));
+}

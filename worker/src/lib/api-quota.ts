@@ -19,6 +19,9 @@ export const QUOTA_CAPS: Record<string, number> = {
   brickowl: 1500,
   brightdata: 150,
   upcitemdb: 96,
+  // Firecrawl Standard plan: ~100,000 credits/month → ~3,200/day budget; we
+  // self-impose 150/day so stock + eBay + Brickset enrichment fit comfortably.
+  firecrawl: 150,
 };
 
 export function quotaDay(now = new Date()): string {

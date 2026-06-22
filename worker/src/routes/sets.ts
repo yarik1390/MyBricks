@@ -520,7 +520,7 @@ app.get('/:setnum', async (c) => {
       new Date(resultSet.lego_checked_at as string) < new Date(Date.now() - 86_400_000)
     )) {
       c.executionCtx.waitUntil((async () => {
-        const stock = await checkLegoStock(resultSet.set_num as string).catch(() => null);
+        const stock = await checkLegoStock(resultSet.set_num as string, c.env).catch(() => null);
         if (stock !== null) {
           await c.env.DB.prepare(
             `UPDATE lego_sets SET lego_in_stock=?, lego_retiring_soon=?, lego_availability=?, lego_checked_at=datetime('now') WHERE set_num=?`
