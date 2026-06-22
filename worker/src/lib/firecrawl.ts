@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { recordIntegrationAttempt } from './integration-health';
 import { firecrawlEnabled } from './pricing-flags';
+import { spendQuota } from './api-quota';
 
 const FC_BASE = 'https://api.firecrawl.dev/v1';
 
@@ -25,9 +26,22 @@ export async function firecrawlScrape<T = unknown>(
 ): Promise<{ data: T } | null> {
   if (!firecrawlEnabled(env)) return null;
 
+  // Credit guard: Firecrawl is metered in CREDITS (json LLM extraction = 5,
+  // basic/markdown/product = 1). Charge the real cost against the daily ceiling
+  // BEFORE the call and bail when the budget is spent — this gates EVERY scrape
+  // (crons + on-demand), so we can never overrun the one-time allotment or the
+  // ~1,000/mo plan. (A failed scrape is free at Firecrawl, so this only ever
+  // over-counts slightly — the safe direction.)
+  const formats = opts.formats ?? ['json'];
+  const creditCost = (opts.jsonOptions || formats.includes('json')) ? 5 : 1;
+  if (!(await spendQuota(env, 'firecrawl', creditCost))) {
+    await recordIntegrationAttempt(env, 'firecrawl', false, 'daily Firecrawl credit ceiling reached');
+    return null;
+  }
+
   const body: Record<string, unknown> = {
     url: opts.url,
-    formats: opts.formats ?? ['json'],
+    formats,
   };
   if (opts.jsonOptions) body.jsonOptions = opts.jsonOptions;
   if (opts.waitFor) body.waitFor = opts.waitFor;

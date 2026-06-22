@@ -19,9 +19,11 @@ export const QUOTA_CAPS: Record<string, number> = {
   brickowl: 1500,
   brightdata: 150,
   upcitemdb: 96,
-  // Firecrawl Standard plan: ~100,000 credits/month → ~3,200/day budget; we
-  // self-impose 150/day so stock + eBay + Brickset enrichment fit comfortably.
-  firecrawl: 150,
+  // Firecrawl is metered in CREDITS, not scrape-count (1 = basic/markdown/product,
+  // 5 = json LLM extract). Plan is a one-time ~300k allotment then ~1,000/month,
+  // so this is a per-DAY credit ceiling that guards against a runaway day. Raise
+  // it for the one-time bootstrap via the FIRECRAWL_DAILY_CREDITS env var.
+  firecrawl: 2000,
 };
 
 export function quotaDay(now = new Date()): string {
@@ -37,7 +39,13 @@ const upsertRow = (env: Env, service: string, day: string, cap: number) =>
 // (insert-if-missing + guarded increment). Returns false when exhausted.
 // Services without a configured cap are never gated.
 export async function spendQuota(env: Env, service: string, n = 1): Promise<boolean> {
-  const cap = QUOTA_CAPS[service];
+  let cap = QUOTA_CAPS[service];
+  // Firecrawl's daily credit ceiling is env-tunable (lift it for the one-time
+  // bootstrap, keep it low for normal ops) without a code change.
+  if (service === 'firecrawl') {
+    const override = Number(env.FIRECRAWL_DAILY_CREDITS);
+    if (Number.isFinite(override) && override > 0) cap = override;
+  }
   if (!cap || n <= 0) return true;
   const day = quotaDay();
   try {

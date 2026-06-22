@@ -59,6 +59,9 @@ export interface Env {
   // On by default once the key is set. Set FIRECRAWL_ENABLED=0 to pause without removing the key.
   FIRECRAWL_API_KEY?: string;
   FIRECRAWL_ENABLED?: string;
+  // Per-day Firecrawl CREDIT ceiling override (credits, not scrapes). Raise for
+  // the one-time bootstrap; defaults to the api-quota cap otherwise.
+  FIRECRAWL_DAILY_CREDITS?: string;
 }
 
 export type Variables = {
