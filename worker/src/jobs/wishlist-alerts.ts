@@ -51,7 +51,8 @@ export async function runWishlistAlerts(env: Env) {
   if (!results.length) {
     const spike = await runSpikeAlerts(env);
     const retiring = await runRetirementAlerts(env);
-    return { fired: 0, spikes: spike.fired, retiring: retiring.fired };
+    const deals = await runDealAlerts(env);
+    return { fired: 0, spikes: spike.fired, retiring: retiring.fired, deals: deals.fired };
   }
 
   const stmts: D1PreparedStatement[] = [];
@@ -107,7 +108,8 @@ export async function runWishlistAlerts(env: Env) {
 
   const spike = await runSpikeAlerts(env);
   const retiring = await runRetirementAlerts(env);
-  return { fired: results.length, spikes: spike.fired, retiring: retiring.fired };
+  const deals = await runDealAlerts(env);
+  return { fired: results.length, spikes: spike.fired, retiring: retiring.fired, deals: deals.fired };
 }
 
 async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
@@ -239,6 +241,73 @@ async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
       sendPushToUser(env, row.user_id, JSON.stringify({
         title: 'Retiring soon',
         body: `${row.set_name} is retiring soon — production is ending.`,
+        url: `#/set/${encodeURIComponent(row.set_num)}`,
+      })).catch(() => {});
+    }
+  }
+
+  return { fired: results.length };
+}
+
+// Deal / buy-window alerts: a WISHLISTED set whose persisted deal signal is
+// 'buy' (cheapest buyable price materially below market) — the same signal
+// behind the on-card badge and the catalog deal filter, so all three agree.
+// Deduped against wishlist_alerts (alert_type='deal', 30-day cooldown).
+async function runDealAlerts(env: Env): Promise<{ fired: number }> {
+  const { results } = await env.DB.prepare(`
+    SELECT w.user_id, ls.set_num, ls.name AS set_name,
+           COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS market_value,
+           ls.image_url, ls.deal_discount_pct
+    FROM user_wishlist w
+    JOIN lego_sets ls ON ls.set_num = w.set_num
+    WHERE ls.deal_signal = 'buy'
+      AND NOT EXISTS (
+        SELECT 1 FROM wishlist_alerts wa
+        WHERE wa.user_id = w.user_id AND wa.set_num = ls.set_num
+          AND wa.alert_type = 'deal' AND wa.triggered_at > datetime('now', '-30 days')
+      )
+  `).all<{ user_id: string; set_num: string; set_name: string; market_value: number | null; image_url: string | null; deal_discount_pct: number | null }>();
+
+  if (!results.length) return { fired: 0 };
+
+  const stmts: D1PreparedStatement[] = results.map(row =>
+    env.DB.prepare(`
+      INSERT INTO wishlist_alerts (user_id, set_num, set_name, target_price, current_value, alert_type)
+      VALUES (?, ?, ?, ?, ?, 'deal')
+    `).bind(row.user_id, row.set_num, row.set_name, 0, row.market_value ?? 0),
+  );
+  await env.DB.batch(stmts);
+
+  const byUser = new Map<string, typeof results>();
+  for (const row of results) {
+    const arr = byUser.get(row.user_id) ?? [];
+    arr.push(row);
+    byUser.set(row.user_id, arr);
+  }
+  const prefsByUser = await loadAlertPrefs(env, [...byUser.keys()]);
+  for (const [userId, rows] of byUser) {
+    const prefs = prefsByUser.get(userId);
+    if (!prefs || !prefs.notify_price_drops) continue;
+    for (const row of rows) {
+      const mv = Number(row.market_value) || 0;
+      const pct = Number(row.deal_discount_pct);
+      const pctStr = Number.isFinite(pct) && pct >= 1 ? `~${Math.round(pct)}% below market` : 'below market';
+      if (prefs.email && env.RESEND_API_KEY) {
+        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, 0, mv, 'deal');
+        sendAlertEmail(prefs.email, `Buy window: ${row.set_name}`, html, env).catch(() => {});
+      }
+      if (prefs.discord_webhook_url) {
+        sendDiscordAlert(prefs.discord_webhook_url, {
+          title: `Buy window: ${row.set_name}`,
+          description: `**${row.set_num}** from your wishlist is available ${pctStr}${mv > 0 ? ` (market value $${mv.toFixed(2)})` : ''}.`,
+          color: 0x22c55e,
+          imageUrl: row.image_url ?? undefined,
+          url: `https://brickvault-5ub.pages.dev#/set/${encodeURIComponent(row.set_num)}`,
+        }).catch(() => {});
+      }
+      sendPushToUser(env, row.user_id, JSON.stringify({
+        title: 'Buy window',
+        body: `${row.set_name} is available ${pctStr}.`,
         url: `#/set/${encodeURIComponent(row.set_num)}`,
       })).catch(() => {});
     }

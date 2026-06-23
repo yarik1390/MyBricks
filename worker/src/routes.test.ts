@@ -102,7 +102,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         brickset_msrp REAL, launch_date TEXT, exit_date TEXT, brickset_enriched_at TEXT,
         brickset_dimensions TEXT, packaging_type TEXT, instructions_count INTEGER,
         additional_image_count INTEGER, brickset_description TEXT, brickset_set_id INTEGER,
-        brickset_image_urls TEXT, brickset_images_cached_at TEXT
+        brickset_image_urls TEXT, brickset_images_cached_at TEXT,
+        deal_signal TEXT, deal_discount_pct REAL, deal_strong INTEGER, deal_cached_at TEXT
       )`,
       `CREATE TABLE set_value_history (
         set_num TEXT NOT NULL, snapshot_date TEXT NOT NULL,

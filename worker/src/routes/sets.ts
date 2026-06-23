@@ -153,6 +153,10 @@ app.get('/search', async (c) => {
   if (retiring === '1' || retiring === 'true') {
     addFilter(`s.retired = 0 AND (s.lego_retiring_soon = 1 OR s.retirement_risk_score >= 70)`);
   }
+  // Deals: the persisted deal signal (same computeDealSignal as the badge), so
+  // the filter and the on-card DEAL badge always agree.
+  const deal = c.req.query('deal') || '';
+  if (deal === '1' || deal === 'true') addFilter(`s.deal_signal = 'buy'`);
 
   const rangeFilter = (key: string, col: string) => {
     const v = parseInt(c.req.query(key) || '', 10);

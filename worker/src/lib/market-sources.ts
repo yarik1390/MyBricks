@@ -596,7 +596,26 @@ export const BLEND_INPUT_COLUMNS =
   'valuation_method, current_value, bl_new_value, bl_new_qty, bl_new_min, bl_new_max, ' +
   'bl_cached_at, ebay_new_value, ebay_new_qty, ebay_new_cached_at, ebay_new_last_sold, be_cached_at, ' +
   'cached_at, bo_new_value, bo_cached_at, ' +
-  'ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at';
+  'ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at, ' +
+  // Extra inputs the deal signal needs (persisted alongside blended_value so the
+  // catalog deal filter + deal alerts share one source of truth with the badge).
+  'retail_price, lego_in_stock, retirement_risk_score, lego_retiring_soon';
+
+// Compute the blended value AND the deal signal together, so the persisted
+// deal_* columns are produced by the exact same computeDealSignal used for the
+// read-time badge — no SQL re-implementation, no divergence.
+function blendAndDealRow(row: Record<string, unknown>): {
+  blended: number | null; signal: string | null; pct: number | null; strong: number;
+} {
+  const blend = blendMarketValue(row);
+  const deal = computeDealSignal(row, { value: blend.value, confidence: blend.confidence });
+  return { blended: blend.value, signal: deal.signal, pct: deal.discount_pct, strong: deal.strong ? 1 : 0 };
+}
+
+// Single UPDATE shape for both persist paths (bind order: blended, signal, pct,
+// strong, set_num). deal_cached_at marks when the signal was last recomputed.
+const BLEND_DEAL_UPDATE_SQL =
+  `UPDATE lego_sets SET blended_value=?, deal_signal=?, deal_discount_pct=?, deal_strong=?, deal_cached_at=datetime('now') WHERE set_num=?`;
 
 // Recompute + persist blended_value for one set (on-demand detail refresh /
 // revalue). Reads the post-write row so it always reflects the latest signals.
@@ -606,9 +625,9 @@ export async function persistBlendedValue(db: D1Database, setNum: string): Promi
       `SELECT ${BLEND_INPUT_COLUMNS} FROM lego_sets WHERE set_num=?`,
     ).bind(setNum).first<Record<string, unknown>>();
     if (!row) return null;
-    const value = blendMarketValue(row).value;
-    await db.prepare('UPDATE lego_sets SET blended_value=? WHERE set_num=?').bind(value, setNum).run();
-    return value;
+    const r = blendAndDealRow(row);
+    await db.prepare(BLEND_DEAL_UPDATE_SQL).bind(r.blended, r.signal, r.pct, r.strong, setNum).run();
+    return r.blended;
   } catch (e) {
     console.warn(`[blend] persist failed for ${setNum}:`, (e as Error).message);
     return null;
@@ -629,10 +648,10 @@ export async function recomputeBlendedValues(db: D1Database, setNums: string[]):
       const { results } = await db.prepare(
         `SELECT set_num, ${BLEND_INPUT_COLUMNS} FROM lego_sets WHERE set_num IN (${placeholders})`,
       ).bind(...chunk).all<Record<string, unknown>>();
-      const stmts = results.map(row =>
-        db.prepare('UPDATE lego_sets SET blended_value=? WHERE set_num=?')
-          .bind(blendMarketValue(row).value, row.set_num as string),
-      );
+      const stmts = results.map(row => {
+        const r = blendAndDealRow(row);
+        return db.prepare(BLEND_DEAL_UPDATE_SQL).bind(r.blended, r.signal, r.pct, r.strong, row.set_num as string);
+      });
       if (stmts.length) await db.batch(stmts);
       written += stmts.length;
     }

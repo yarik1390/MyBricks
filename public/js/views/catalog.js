@@ -79,7 +79,7 @@ export async function loadCatalog({ reset = false } = {}) {
 
 function isCatalogDefault() {
   const f = state.filter;
-  return !f.catalogQ && f.catalogTheme === 'all' && (f.catalogThemeGroup || 'all') === 'all' && (f.catalogCategory || 'all') === 'all' && f.catalogYear === 'all' && (f.catalogRetired === 'all' || !f.catalogRetired) &&
+  return !f.catalogQ && f.catalogTheme === 'all' && (f.catalogThemeGroup || 'all') === 'all' && (f.catalogCategory || 'all') === 'all' && f.catalogYear === 'all' && (f.catalogRetired === 'all' || !f.catalogRetired) && !f.catalogDeal &&
     Object.values(f.catalogRanges || {}).every(v => v === '');
 }
 
@@ -96,6 +96,7 @@ function catalogQuery() {
   if (f.catalogRetired === "retired" || f.catalogRetired === true) p.set("retired", "1");
   else if (f.catalogRetired === "active") p.set("retired", "0");
   else if (f.catalogRetired === "retiring") p.set("retiring", "1");
+  if (f.catalogDeal) p.set("deal", "1");
   for (const [k, v] of Object.entries(f.catalogRanges)) {
     if (v !== "" && v != null) p.set(k, v);
   }
@@ -220,6 +221,7 @@ function paintAdd() {
           .map(o => `<button class="chip ${(f.catalogSort === o.asc || f.catalogSort === o.desc) ? "active" : ""}" data-csort-base="${o.base}">${catalogSortChipText(o, f.catalogSort)}</button>`).join("")}
         ${[["all","All"],["active","Active"],["retired","Retired"],["retiring","Retiring"]].map(([k,l]) =>
           `<button class="chip ${(f.catalogRetired || "all") === k ? "active" : ""}" data-retired="${k}">${l}</button>`).join("")}
+        <button class="chip ${f.catalogDeal ? "active" : ""}" id="dealChip" style="${f.catalogDeal ? "border-color:var(--up);color:var(--up);" : ""}"><span>Deals</span></button>
         <button class="chip ${catalogRangesActive() ? "active" : ""}" id="filterChip">${I.filter()}<span>Filters${catalogRangesActive() ? " · " + catalogRangesActive() : ""}</span></button>
       </div>
 
@@ -287,6 +289,17 @@ function paintAdd() {
     refreshCatalogSummary();
     reloadGrid();
   }));
+  $("#dealChip")?.addEventListener("click", () => {
+    state.filter.catalogDeal = !state.filter.catalogDeal;
+    haptic("light");
+    const chip = $("#dealChip");
+    if (chip) {
+      chip.classList.toggle("active", state.filter.catalogDeal);
+      chip.style.cssText = state.filter.catalogDeal ? "border-color:var(--up);color:var(--up);" : "";
+    }
+    refreshCatalogSummary();
+    reloadGrid();
+  });
   $("#filterChip")?.addEventListener("click", () => showFilterSheet(reloadGrid));
 
   // Searchable picker for the full theme list (the row shows only 8 quick chips).
@@ -344,6 +357,7 @@ function clearCatalogFilters() {
   f.catalogCategory = "all";
   f.catalogRetired = "all";
   f.catalogYear = "all";
+  f.catalogDeal = false;
   Object.keys(f.catalogRanges || {}).forEach(k => f.catalogRanges[k] = "");
   haptic("light");
   loadCatalog({ reset: true }).then(() => paintAdd());

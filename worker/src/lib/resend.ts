@@ -32,19 +32,23 @@ export function wishlistAlertEmailHTML(
   setNum: string,
   targetPrice: number,
   currentValue: number,
-  alertType: 'drop' | 'spike' | 'retiring' = 'drop',
+  alertType: 'drop' | 'spike' | 'retiring' | 'deal' = 'drop',
 ): string {
   const fmt = (n: number) => `$${n.toFixed(2)}`;
   const headline = alertType === 'spike'
     ? `Value spike: ${setName}`
     : alertType === 'retiring'
       ? `Retiring soon: ${setName}`
-      : `Price target reached: ${setName}`;
+      : alertType === 'deal'
+        ? `Buy window: ${setName}`
+        : `Price target reached: ${setName}`;
   const body = alertType === 'spike'
     ? `Your set <strong>${setName}</strong> (${setNum}) has spiked to <strong>${fmt(currentValue)}</strong> — that's over 30% above your purchase price of ${fmt(targetPrice)}.`
     : alertType === 'retiring'
       ? `<strong>${setName}</strong> (${setNum}) is now flagged as <strong>retiring soon</strong>${currentValue > 0 ? `, with a current market value of <strong>${fmt(currentValue)}</strong>` : ''}. Sets often appreciate once they leave production — a good moment to decide whether to buy or hold.`
-      : `<strong>${setName}</strong> (${setNum}) is now at <strong>${fmt(currentValue)}</strong>, which is at or below your target of ${fmt(targetPrice)}.`;
+      : alertType === 'deal'
+        ? `<strong>${setName}</strong> (${setNum}) from your wishlist is currently available <strong>below its market value</strong>${currentValue > 0 ? ` of <strong>${fmt(currentValue)}</strong>` : ''} — a potential buy window.`
+        : `<strong>${setName}</strong> (${setNum}) is now at <strong>${fmt(currentValue)}</strong>, which is at or below your target of ${fmt(targetPrice)}.`;
 
   return `<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;background:#f5f5f5;margin:0;padding:24px;">
 <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:28px 32px;box-shadow:0 2px 8px rgba(0,0,0,.08);">

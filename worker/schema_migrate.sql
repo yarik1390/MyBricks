@@ -396,3 +396,12 @@ CREATE TABLE IF NOT EXISTS part_prices (
   PRIMARY KEY (part_num, color_id)
 );
 CREATE INDEX IF NOT EXISTS idx_part_prices_cached ON part_prices(cached_at);
+
+-- Persisted deal signal (single source of truth for the catalog deal filter +
+-- deal alerts). Written by persistBlendedValue/recomputeBlendedValues using the
+-- same computeDealSignal as the read-time badge, so filter/alerts/badge agree.
+ALTER TABLE lego_sets ADD COLUMN deal_signal TEXT;
+ALTER TABLE lego_sets ADD COLUMN deal_discount_pct REAL;
+ALTER TABLE lego_sets ADD COLUMN deal_strong INTEGER;
+ALTER TABLE lego_sets ADD COLUMN deal_cached_at TEXT;
+CREATE INDEX IF NOT EXISTS idx_lego_deal_signal ON lego_sets(deal_signal);
