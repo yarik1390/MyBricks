@@ -131,11 +131,14 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
   },
   brickeconomy: {
     label: 'BrickEconomy',
-    configured: (env) => !!env.BRICKECONOMY_API_KEY,
-    required_secrets: ['BRICKECONOMY_API_KEY'],
-    used_by: ['primary set valuation', 'forecasts', 'retail price enrichment'],
-    notes: 'Primary valuation source when available.',
-    recommended_action: 'Add BRICKECONOMY_API_KEY and rerun valuation batches.',
+    // Now sourced by scraping the public BrickEconomy pages via Firecrawl (the
+    // be_* columns), not the paid API — so it's "configured" whenever Firecrawl
+    // (or the legacy API key) is present.
+    configured: (env) => !!env.FIRECRAWL_API_KEY || !!env.BRICKECONOMY_API_KEY,
+    required_secrets: ['FIRECRAWL_API_KEY'],
+    used_by: ['set valuation (sealed/used)', 'forecasts (2y/5y)', 'retail price enrichment'],
+    notes: 'Valuation + forecast source. Now scraped from public BrickEconomy pages via Firecrawl (be_* columns) under the isPlausibleMarketValue gate — the paid BRICKECONOMY_API_KEY is no longer required. Status reflects BrickEconomy data flowing into valuations.',
+    recommended_action: 'No key required — BrickEconomy data comes via the Firecrawl brickeconomy-enrich cron. The legacy BRICKECONOMY_API_KEY can be retired.',
   },
   brickset: {
     label: 'Brickset',
@@ -230,9 +233,9 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     label: 'Firecrawl',
     configured: (env) => !!env.FIRECRAWL_API_KEY,
     required_secrets: ['FIRECRAWL_API_KEY'],
-    used_by: ['lego.com stock/retirement checks', 'eBay sold comps (structured extraction)', 'Brickset page enrichment backfill'],
-    notes: 'Handles JS rendering and bot-protection. Replaces the fragile lego.com plain-fetch and Bright Data eBay scrape. Standard plan (~$83/mo) provides ~100k credits/month. Self-imposed daily cap: 150 credits.',
-    recommended_action: 'Add FIRECRAWL_API_KEY as a GitHub Actions secret. Standard plan recommended for production use.',
+    used_by: ['BrickEconomy valuation + forecasts', 'lego.com stock/retirement checks', 'eBay sold comps (structured extraction)', 'Brickset page enrichment'],
+    notes: 'Web-scraping engine (handles JS rendering + bot-protection). Now the BrickEconomy data source (replaces the paid API), plus lego.com stock, eBay sold comps, and Brickset enrichment. Metered in CREDITS: 1 per basic/product scrape, 5 per JSON LLM extract. Daily ceiling is env-tunable via FIRECRAWL_DAILY_CREDITS (default 2000/day).',
+    recommended_action: 'Add FIRECRAWL_API_KEY as a Worker/Actions secret. Raise FIRECRAWL_DAILY_CREDITS temporarily for the one-time catalog bootstrap, then reset.',
   },
 };
 

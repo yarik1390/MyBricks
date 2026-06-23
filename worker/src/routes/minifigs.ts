@@ -59,6 +59,14 @@ app.get('/', async (c) => {
     orderBy = `ORDER BY (m.year IS NULL) ASC, m.year DESC, m.name ASC`;
   } else if (sort === 'year_asc') {
     orderBy = `ORDER BY (m.year IS NULL) ASC, m.year ASC, m.name ASC`;
+  } else if (sort === 'rarity_asc') {
+    // Common first (inverse of the default legendary-first rarity tier sort).
+    orderBy = `ORDER BY CASE m.rarity WHEN 'legendary' THEN 4 WHEN 'rare' THEN 3 WHEN 'uncommon' THEN 2 ELSE 1 END ASC, m.name ASC`;
+  } else if (sort === 'name_desc') {
+    orderBy = `ORDER BY m.name DESC`;
+  } else if (sort === 'scarcity_asc') {
+    // Inverse of "rarest": most-common first (most set appearances); unknown last.
+    orderBy = `ORDER BY (m.appears_in_sets IS NULL OR m.appears_in_sets = 0) ASC, m.appears_in_sets DESC, m.name ASC`;
   }
 
   const [pageRes, countRes] = await Promise.all([

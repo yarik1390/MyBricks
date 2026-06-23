@@ -8,6 +8,20 @@ import { skelPage, skelCardList } from '../components/skeleton.js';
 let _blindGen = 0;
 let _seriesList = [];
 
+// Bi-directional minifig sort options. Each click toggles direction; switching
+// to a new sort uses its default. The backend accepts all keys below.
+const FIG_SORTS = [
+  { base: "rarity",   asc: "rarity_asc",   desc: "rarity_desc", def: "rarity_desc", label: "Rarity" },
+  { base: "scarcity", asc: "scarcity_asc", desc: "scarcity",    def: "scarcity",    label: "Rarest" },
+  { base: "year",     asc: "year_asc",     desc: "year_desc",   def: "year_desc",   label: "Newest" },
+  { base: "value",    asc: "value_asc",    desc: "value_desc",  def: "value_desc",  label: "Value" },
+  { base: "name",     asc: "name_asc",     desc: "name_desc",   def: "name_asc",    label: "A-Z" },
+];
+const figSortChipText = (o, cur) => {
+  const active = cur === o.asc || cur === o.desc;
+  return o.label + (active ? (cur === o.asc ? " ↑" : " ↓") : "");
+};
+
 // Distinct series with counts, for the series filter dropdown. Fetched once and
 // cached for the session (the catalog is static between deploys).
 async function loadSeriesList() {
@@ -133,13 +147,7 @@ export async function renderBlind() {
         </div>
         <div class="filter-row" style="margin-top:2px;gap:6px;">
           <span style="font-size:11px;color:var(--ink-mute);display:inline-flex;align-items:center;margin-right:2px;font-family:var(--mono);font-weight:600;">SORT:</span>
-          ${[
-            ['rarity_desc', 'Rarity'],
-            ['scarcity', 'Rarest'],
-            ['year_desc', 'Newest'],
-            ['value_desc', 'Value'],
-            ['name_asc', 'A-Z']
-          ].map(([k, l]) => `<button class="chip ${f.figSort === k ? 'active' : ''}" data-fig-sort="${k}">${l}</button>`).join('')}
+          ${FIG_SORTS.map(o => `<button class="chip ${(f.figSort === o.asc || f.figSort === o.desc) ? 'active' : ''}" data-fig-sort-base="${o.base}">${figSortChipText(o, f.figSort)}</button>`).join('')}
         </div>
       </div>
 
@@ -169,9 +177,19 @@ export async function renderBlind() {
     loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) { refreshMiniGrid(); refreshMiniStats(); } }).catch(() => {});
   });
 
-  $$("[data-fig-sort]").forEach(btn => btn.addEventListener("click", () => {
-    state.filter.figSort = btn.dataset.figSort; haptic("light");
-    $$("[data-fig-sort]").forEach(x => x.classList.toggle("active", x.dataset.figSort === state.filter.figSort));
+  $$("[data-fig-sort-base]").forEach(btn => btn.addEventListener("click", () => {
+    const o = FIG_SORTS.find(s => s.base === btn.dataset.figSortBase);
+    if (!o) return;
+    const cur = state.filter.figSort;
+    // Same sort active → flip direction; new sort → its default direction.
+    state.filter.figSort = cur === o.desc ? o.asc : cur === o.asc ? o.desc : o.def;
+    haptic("light");
+    $$("[data-fig-sort-base]").forEach(x => {
+      const xo = FIG_SORTS.find(s => s.base === x.dataset.figSortBase);
+      if (!xo) return;
+      x.classList.toggle("active", state.filter.figSort === xo.asc || state.filter.figSort === xo.desc);
+      x.textContent = figSortChipText(xo, state.filter.figSort);
+    });
     loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) { refreshMiniGrid(); refreshMiniStats(); } }).catch(() => {});
   }));
 

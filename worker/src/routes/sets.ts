@@ -38,9 +38,15 @@ app.use('*', optionalMember);
 
 const SORTS: Record<string, string> = {
   value_desc: "(CASE WHEN valuation_method IN ('formula_bulk', 'local') THEN 1 ELSE 0 END), COALESCE(NULLIF(blended_value, 0), current_value) DESC",
+  // Ascending mirrors: keep formula/local rows last and NULL ROI/years last in
+  // both directions so the reversed sort still surfaces real data first.
+  value_asc:  "(CASE WHEN valuation_method IN ('formula_bulk', 'local') THEN 1 ELSE 0 END), COALESCE(NULLIF(blended_value, 0), current_value) ASC",
   roi_desc:   '(current_value / NULLIF(retail_price, 0)) DESC',
-  year_desc:  'year DESC',
+  roi_asc:    '(CASE WHEN retail_price IS NULL OR retail_price = 0 THEN 1 ELSE 0 END), (current_value / NULLIF(retail_price, 0)) ASC',
+  year_desc:  '(year IS NULL) ASC, year DESC',
+  year_asc:   '(year IS NULL) ASC, year ASC',
   az:         'name ASC',
+  za:         'name DESC',
 };
 
 // Catalog-card projection for GET /search. The grid + enrichSetRecord only need

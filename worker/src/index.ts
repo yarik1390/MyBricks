@@ -122,6 +122,7 @@ app.get('/api/config', (c) => {
     brickset: !!c.env.BRICKSET_API_KEY,
     brickowl: !!c.env.BRICKOWL_API_KEY,
     rebrickable: !!c.env.REBRICKABLE_API_KEY,
+    firecrawl: !!c.env.FIRECRAWL_API_KEY,
     turnstile: !!c.env.TURNSTILE_SITE_KEY,
   };
   return c.json({

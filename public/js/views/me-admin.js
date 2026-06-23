@@ -30,7 +30,8 @@ export async function renderMeAdmin() {
     brickeconomy: me?.brickeconomy_configured,
     brickset: false,
     brickowl: false,
-    rebrickable: false
+    rebrickable: false,
+    firecrawl: false
   };
 
   const checkRow = (label, ok, okText, missText, optional = false) => `
@@ -54,13 +55,14 @@ export async function renderMeAdmin() {
           ${checkRow("Google Sheets Integration", status.google, "Configured", "Unconfigured")}
           ${checkRow("BrickLink Pricing API", status.bricklink, "Connected", "Unconfigured")}
           ${checkRow("eBay Pricing API", status.ebay, "Connected", "Unconfigured (sold comps disabled)", true)}
-          ${checkRow("BrickEconomy API", status.brickeconomy, "Configured", "Unconfigured")}
+          ${checkRow("Firecrawl (scraping engine)", status.firecrawl, "Configured", "Unconfigured")}
+          ${checkRow("BrickEconomy API (legacy)", status.brickeconomy, "Configured", "Now via Firecrawl", true)}
           ${checkRow("Rebrickable Catalog API", status.rebrickable, "Configured", "Missing")}
           ${checkRow("Brickset Metadata API", status.brickset, "Configured", "Optional", true)}
-          ${(!status.supabase || !status.google || !status.ebay || !status.brickeconomy || !status.openai || !status.rebrickable) ? `
+          ${(!status.supabase || !status.google || !status.ebay || !status.firecrawl || !status.openai || !status.rebrickable) ? `
             <div class="u-col u-gap-1 u-fs-2xs u-mute" style="border-top:1px solid var(--border-soft-c);padding-top:8px;line-height:1.4;">
               <span>To configure integrations, set the following environment variables in your Cloudflare dashboard:</span>
-              <code style="word-break: break-all;">DB (D1 Binding), SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_JWT_SECRET, OPENAI_API_KEY, REBRICKABLE_API_KEY, BRICKSET_API_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, EBAY_APP_ID, EBAY_CLIENT_SECRET, BRICKECONOMY_API_KEY</code>
+              <code style="word-break: break-all;">DB (D1 Binding), SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_JWT_SECRET, OPENAI_API_KEY, REBRICKABLE_API_KEY, BRICKSET_API_KEY, FIRECRAWL_API_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, EBAY_APP_ID, EBAY_CLIENT_SECRET</code>
             </div>
           ` : ''}
         </div>
@@ -513,7 +515,7 @@ async function updateIntegrationsHealth() {
       ["Fresh <30d BL/eBay/BE/BO", `${n(fresh.bricklink)} / ${n(fresh.ebay_sold)} / ${n(fresh.brickeconomy)} / ${n(fresh.brickowl)}`],
       ["Confidence H/M/L/est", `${n(conf.high)} / ${n(conf.medium)} / ${n(conf.low)} / ${n(conf.estimated)}`],
     ];
-    const blendNote = "Valuation-v2 blend quality. The blend diverges from formula when a set has 2+ fresh sources; two fresh SOLD sources reach high confidence. Active sources: BrickLink, BrickEconomy, eBay ask, and eBay sold via Bright Data (corroborating, when enabled). BrickOwl is disabled (no provider access). BrickInsights ratings are a non-price quality signal.";
+    const blendNote = "Valuation-v2 blend quality. The blend diverges from formula when a set has 2+ fresh sources; two fresh SOLD sources reach high confidence. Active sources: BrickLink, BrickEconomy (scraped via Firecrawl), eBay ask, and eBay sold comps (Firecrawl structured extraction, corroborating). BrickOwl is disabled (no provider access). BrickInsights ratings are a non-price quality signal.";
     const blendHTML = Object.keys(bq).length ? `
       <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
         <div class="u-mono-label u-fs-2xs" style="margin-bottom:8px;">Blend quality</div>

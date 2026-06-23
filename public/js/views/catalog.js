@@ -10,6 +10,20 @@ import { skelPage, skelCardList } from '../components/skeleton.js';
 
 let _catalogGen = 0;
 
+// Bi-directional catalog sort options. Each click toggles between the two
+// directions; switching to a new sort uses its default direction. The backend
+// SORTS map accepts all eight keys.
+const CATALOG_SORTS = [
+  { base: "value", asc: "value_asc", desc: "value_desc", def: "value_desc", label: "Value" },
+  { base: "roi",   asc: "roi_asc",   desc: "roi_desc",   def: "roi_desc",   label: "Growth" },
+  { base: "year",  asc: "year_asc",  desc: "year_desc",  def: "year_desc",  label: "Newest" },
+  { base: "name",  asc: "az",        desc: "za",          def: "az",          label: "A–Z" },
+];
+const catalogSortChipText = (o, cur) => {
+  const active = cur === o.asc || cur === o.desc;
+  return o.label + (active ? (cur === o.asc ? " ↑" : " ↓") : "");
+};
+
 export async function renderAdd() {
   if (!state.catalog.items.length) $("#root").innerHTML = skelPage(skelCardList(6));
   if (!state.themes.length) {
@@ -201,8 +215,8 @@ function paintAdd() {
       </div>
 
       <div class="filter-row" style="margin-top:-4px;">
-        ${[["value_desc","Value"],["roi_desc","Growth"],["year_desc","Newest"],["az","A–Z"]]
-          .map(([k,l]) => `<button class="chip ${f.catalogSort === k ? "active" : ""}" data-csort="${k}">${l}</button>`).join("")}
+        ${CATALOG_SORTS
+          .map(o => `<button class="chip ${(f.catalogSort === o.asc || f.catalogSort === o.desc) ? "active" : ""}" data-csort-base="${o.base}">${catalogSortChipText(o, f.catalogSort)}</button>`).join("")}
         ${[["all","All"],["active","Active"],["retired","Retired"]].map(([k,l]) =>
           `<button class="chip ${(f.catalogRetired || "all") === k ? "active" : ""}" data-retired="${k}">${l}</button>`).join("")}
         <button class="chip ${catalogRangesActive() ? "active" : ""}" id="filterChip">${I.filter()}<span>Filters${catalogRangesActive() ? " · " + catalogRangesActive() : ""}</span></button>
@@ -251,9 +265,19 @@ function paintAdd() {
     refreshCatalogSummary();
     reloadGrid();
   }));
-  $$("[data-csort]").forEach(b => b.addEventListener("click", () => {
-    state.filter.catalogSort = b.dataset.csort; haptic("light");
-    $$("[data-csort]").forEach(x => x.classList.toggle("active", x.dataset.csort === state.filter.catalogSort));
+  $$("[data-csort-base]").forEach(b => b.addEventListener("click", () => {
+    const o = CATALOG_SORTS.find(s => s.base === b.dataset.csortBase);
+    if (!o) return;
+    const cur = state.filter.catalogSort;
+    // Same sort active → flip direction; new sort → its default direction.
+    state.filter.catalogSort = cur === o.desc ? o.asc : cur === o.asc ? o.desc : o.def;
+    haptic("light");
+    $$("[data-csort-base]").forEach(x => {
+      const xo = CATALOG_SORTS.find(s => s.base === x.dataset.csortBase);
+      if (!xo) return;
+      x.classList.toggle("active", state.filter.catalogSort === xo.asc || state.filter.catalogSort === xo.desc);
+      x.textContent = catalogSortChipText(xo, state.filter.catalogSort);
+    });
     reloadGrid();
   }));
   $$("[data-retired]").forEach(b => b.addEventListener("click", () => {
