@@ -664,6 +664,57 @@ function renderInsightsTab(items) {
         ${signals.cold.length ? `<div class="signals-group-label" style="color:var(--bv-red);">❄️ Buy windows — resale below market</div>${signals.cold.slice(0, 3).map(s => signalRow(s, false)).join("")}` : ""}
       </div>` : "";
 
+  // Allocation by theme (diversification) — share of portfolio value per theme,
+  // valued the same way the rest of the Vault is (condition-aware × quantity).
+  const allocMap = new Map();
+  let allocTotal = 0;
+  for (const item of items) {
+    const v = marketValueForCondition(item) * (Number(item.quantity) || 1);
+    if (!(v > 0)) continue;
+    const theme = item.theme || 'Other';
+    allocMap.set(theme, (allocMap.get(theme) || 0) + v);
+    allocTotal += v;
+  }
+  const alloc = [...allocMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const allocCard = allocTotal > 0 ? `
+      <div class="section-title">Allocation by theme</div>
+      <div class="card" style="padding:14px 16px;margin-bottom:18px;">
+        ${alloc.map(([theme, v]) => {
+          const share = v / allocTotal;
+          return `<div style="margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;gap:8px;">
+              <span style="color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(theme)}</span>
+              <strong style="color:var(--ink);font-family:var(--mono);white-space:nowrap;">${fmtMoney(v)} · ${(share * 100).toFixed(0)}%</strong>
+            </div>
+            <div style="height:6px;background:var(--surface-3);border-radius:3px;overflow:hidden;"><div style="height:100%;width:${(share * 100).toFixed(1)}%;background:${THEME_COLORS[theme] || 'var(--accent)'};"></div></div>
+          </div>`;
+        }).join('')}
+        ${allocMap.size > alloc.length ? `<div style="font-size:11px;color:var(--ink-mute);margin-top:8px;">+${allocMap.size - alloc.length} more theme${allocMap.size - alloc.length > 1 ? 's' : ''}</div>` : ''}
+      </div>` : '';
+
+  // Part-out opportunities (E1): holdings worth materially more sold as parts
+  // than sealed. part_out_value is only present when coverage is high (gated
+  // server-side), so this stays empty until the part-price data fills.
+  const baseVal = (it) => Number(it.market_value) || Number(it.blended_value) || Number(it.current_value) || 0;
+  const partOut = items
+    .map(it => ({ it, po: Number(it.part_out_value), mv: baseVal(it) }))
+    .filter(x => x.po > 0 && x.mv > 0 && x.po / x.mv >= 1.15)
+    .sort((a, b) => (b.po / b.mv) - (a.po / a.mv))
+    .slice(0, 3);
+  const partOutCard = partOut.length ? `
+      <div class="section-title">Part-out opportunities</div>
+      <div class="card" style="padding:12px 16px;margin-bottom:18px;">
+        <div style="font-size:11px;color:var(--ink-mute);margin-bottom:8px;line-height:1.4;">Sets currently worth more sold as individual parts than sealed.</div>
+        ${partOut.map(({ it, po, mv }) => `
+          <div class="insight-set-row" data-set="${escapeHtml(it.set_num)}" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft);cursor:pointer;">
+            <div style="min-width:0;margin-right:8px;">
+              <div style="font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(it.name)}</div>
+              <div style="font-size:11px;color:var(--ink-mute);">Sealed ${fmtMoney(mv)} · Parts ${fmtMoney(po)}</div>
+            </div>
+            <strong style="color:var(--up);font-family:var(--mono);white-space:nowrap;">+${(((po / mv) - 1) * 100).toFixed(0)}%</strong>
+          </div>`).join('')}
+      </div>` : '';
+
   return `
     <div style="padding:12px 16px;">
       ${signalsCard}
@@ -674,6 +725,8 @@ function renderInsightsTab(items) {
         </div>
         <div class="spark-wrap" id="insightsDoubleChart" style="height:120px;margin-top:14px;"></div>
       </div>
+
+      ${allocCard}
 
       <div class="section-title">Top Movers (90-day Slope)</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;">
@@ -696,6 +749,8 @@ function renderInsightsTab(items) {
           `).join("")}
         </div>
       </div>
+
+      ${partOutCard}
 
       <div class="section-title">Retirement Radar</div>
       <div class="card" style="padding:12px 16px;">
