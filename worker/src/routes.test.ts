@@ -972,6 +972,24 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(hist).toBeTruthy();
       expect(hist.current_value).toBeCloseTo(849.99, 1);
     });
+
+    it('snapshots high-value catalog sets (not owned/wishlisted) and prefers the blended value', async () => {
+      const { runSnapshotSetValues } = await import('./jobs/snapshot-set-values');
+      // A set that is neither owned nor wishlisted but high-value should still
+      // accumulate history, and the snapshotted figure should be the blended
+      // market value (250), not the legacy current_value (200).
+      await db.prepare(
+        "INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, blended_value, retired) VALUES ('D2TEST-1', 'Catalog Whale', 'Icons', 2020, 1000, 200, 250, 0)"
+      ).run();
+
+      await runSnapshotSetValues(env as any);
+
+      const hist = await db.prepare(
+        "SELECT current_value FROM set_value_history WHERE set_num='D2TEST-1' AND snapshot_date = DATE('now')"
+      ).first<any>();
+      expect(hist).toBeTruthy();
+      expect(hist.current_value).toBeCloseTo(250, 1);
+    });
   });
 });
 
