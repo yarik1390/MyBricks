@@ -24,7 +24,7 @@ function normalizeNewPricing(raw: Partial<BrickLinkPricing> | null): BrickLinkPr
   };
 }
 
-const brickLinkPriceUrl = (type: 'SET' | 'MINIFIG', no: string) =>
+const brickLinkPriceUrl = (type: 'SET' | 'MINIFIG' | 'PART', no: string) =>
   `https://api.bricklink.com/api/store/v1/items/${type}/${encodeURIComponent(no)}/price`;
 
 async function oauthHeader(
@@ -182,6 +182,63 @@ export async function fetchSetPricing(
 
     const result = { current_value: current, lot_count: lotCount, min_price: minPrice, max_price: maxPrice };
     if (env.CACHE_KV) env.CACHE_KV.put(cacheKey, JSON.stringify(result), { expirationTtl: 21600 }).catch(() => {});
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+export interface PartPricing {
+  price_new: number | null; // per-unit NEW sold avg (qty-weighted), USD
+  qty_new: number;          // sold lot count backing the price
+}
+
+/**
+ * NEW-condition per-unit sold price for a single part in a single color, from
+ * the BrickLink price guide. Powers the part_prices cache behind the part-out
+ * (sum-of-parts) value. NEW only (1 call/part) to stay light on the shared
+ * BrickLink budget; the part-out headline is a sealed-set metric. KV-cached for
+ * a week — part prices drift slowly, and the cache is reused across every set
+ * containing the part.
+ */
+export async function fetchPartPricing(
+  partNum: string,
+  colorId: number,
+  env: Env,
+  options: { recordHealth?: boolean; retries?: number; timeoutMs?: number } = {},
+): Promise<PartPricing | null> {
+  if (!env.BRICKLINK_CONSUMER_KEY) return null;
+  try {
+    const cacheKey = `bl:part:${partNum}:${colorId}`;
+    if (env.CACHE_KV) {
+      const cached = await env.CACHE_KV.get(cacheKey, 'json') as PartPricing | null;
+      if (cached && typeof cached.price_new === 'number') return cached;
+    }
+
+    const baseUrl = brickLinkPriceUrl('PART', partNum);
+    const queryParams = { color_id: String(colorId), guide_type: 'sold', new_or_used: 'N', currency_code: 'USD' };
+    const authHeader = await oauthHeader(
+      'GET', baseUrl, queryParams,
+      env.BRICKLINK_CONSUMER_KEY, env.BRICKLINK_CONSUMER_SECRET,
+      env.BRICKLINK_TOKEN, env.BRICKLINK_TOKEN_SECRET,
+    );
+    const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
+      headers: { Authorization: authHeader, Accept: 'application/json' },
+    }, {
+      okStatuses: [404],
+      record: options.recordHealth !== false,
+      retries: options.retries,
+      timeoutMs: options.timeoutMs,
+    });
+    if (!resp.ok) return null;
+    const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
+    if (body.meta?.code !== 200 || !body.data) return null;
+    const d = body.data;
+    const qty = Number(d.unit_quantity ?? 0);
+    const price = parseFloat(String(d.qty_avg_price || d.avg_price || '')) || null;
+    if (!price || price <= 0) return null;
+    const result: PartPricing = { price_new: price, qty_new: qty };
+    if (env.CACHE_KV) env.CACHE_KV.put(cacheKey, JSON.stringify(result), { expirationTtl: 7 * 86400 }).catch(() => {});
     return result;
   } catch {
     return null;

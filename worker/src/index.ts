@@ -22,6 +22,7 @@ import { buildRoute } from './routes/build';
 import { runValuateSets, runValuateMinifigs, runEbayAskBackfill } from './jobs/valuate-sets';
 import { runSnapshotPortfolios } from './jobs/snapshot-portfolios';
 import { runSnapshotSetValues } from './jobs/snapshot-set-values';
+import { runPartPriceBackfill } from './jobs/part-price-backfill';
 import { runWishlistAlerts } from './jobs/wishlist-alerts';
 import { runDailyCatalogMaintenance } from './jobs/catalog-maintenance';
 import { runDbHygiene } from './jobs/db-hygiene';
@@ -294,6 +295,10 @@ export default {
       case '0 9 * * *': await run('brickset-enrich', () => runBricksetEnrich(env, { limit: 30 })); break;
       case '0 10 * * *': await run('lego-stock-refresh', () => runLegoStockRefresh(env, { limit: 40 })); break;
       case '0 11 * * *': await run('brickeconomy-enrich', () => runBrickEconomyEnrich(env, { limit: 40 })); break;
+      // Part-out (E1): trickle the shared part_prices cache from BrickLink's NEW
+      // price guide, most-shared parts first. Budget-gated (reserveQuota shares
+      // the BrickLink cap; never starves valuations). limit 150 → ~150 parts/day.
+      case '0 12 * * *': await run('part-price-backfill', () => runPartPriceBackfill(env, { limit: 150 })); break;
       // TEMPORARY one-time bootstrap: fill be_value_new across the year>=2000
       // catalog (~22.4k sets). Runs 4x/hour at limit 150 (concurrency 5); the
       // total spend self-limits at ~112k credits (one scrape per set) and the
