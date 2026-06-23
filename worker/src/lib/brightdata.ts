@@ -13,6 +13,8 @@ export interface EbaySoldScrapeResult {
   status: 'ok' | 'no_data' | 'disabled' | 'error';
   new_value: number | null;
   new_count: number;
+  /** Most-recent sale date among the matched comps (YYYY-MM-DD), when captured. */
+  new_last_sold?: string | null;
   error?: string | null;
 }
 

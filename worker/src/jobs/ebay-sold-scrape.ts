@@ -83,8 +83,9 @@ export async function runEbaySoldScrape(
         const corroborated = ref == null ? true : (r.new_value >= ref / 3 && r.new_value <= ref * 3);
         if (corroborated) {
           stmts.push(env.DB.prepare(
-            `UPDATE lego_sets SET ebay_new_value=?, ebay_new_qty=?, ebay_new_cached_at=datetime('now') WHERE set_num=?`,
-          ).bind(r.new_value, r.new_count, set.set_num));
+            `UPDATE lego_sets SET ebay_new_value=?, ebay_new_qty=?, ebay_new_cached_at=datetime('now'),
+             ebay_new_last_sold=COALESCE(?, ebay_new_last_sold) WHERE set_num=?`,
+          ).bind(r.new_value, r.new_count, r.new_last_sold ?? null, set.set_num));
           touched.push(set.set_num);
           updated++;
         } else {
