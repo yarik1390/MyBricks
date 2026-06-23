@@ -205,6 +205,7 @@ describe('BrickVault API Worker Tests', () => {
         brickset_dimensions TEXT, packaging_type TEXT, instructions_count INTEGER, additional_image_count INTEGER,
         brickset_description TEXT, brickset_set_id INTEGER, brickset_image_urls TEXT, brickset_images_cached_at TEXT,
         deal_signal TEXT, deal_discount_pct REAL, deal_strong INTEGER, deal_cached_at TEXT,
+        part_out_value REAL, part_out_coverage REAL, part_out_cached_at TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )`,
 
