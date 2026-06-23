@@ -113,11 +113,18 @@ async function checkLegoStockFallback(setNum: string): Promise<LegoStockResult |
 /**
  * Fetch LEGO.com product page and extract stock/retirement status + retail price.
  * Uses Firecrawl when available (handles Cloudflare bot-protection); falls back to
- * plain fetch+regex when no FIRECRAWL_API_KEY is set.
+ * plain fetch+regex when Firecrawl is unconfigured OR fails at runtime (a block,
+ * timeout, or the daily credit ceiling) — so a transient Firecrawl miss doesn't
+ * leave the set unchecked.
  */
 export async function checkLegoStock(setNum: string, env?: Env): Promise<LegoStockResult | null> {
   if (env && firecrawlEnabled(env)) {
-    return checkLegoStockViaFirecrawl(setNum, env);
+    const viaFirecrawl = await checkLegoStockViaFirecrawl(setNum, env);
+    if (viaFirecrawl) return viaFirecrawl;
+    // Firecrawl returned null (runtime failure / credit ceiling) — try the free
+    // plain-fetch path before giving up. LEGO.com is Cloudflare-protected so this
+    // may also miss, but it costs no credits and occasionally succeeds.
+    return checkLegoStockFallback(setNum);
   }
   return checkLegoStockFallback(setNum);
 }
