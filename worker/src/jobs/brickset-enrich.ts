@@ -26,6 +26,25 @@ const BRICKSET_SCHEMA = {
   },
 };
 
+// Plausibility gates for scraped Brickset values — the LLM extraction can
+// occasionally grab the wrong number (e.g. a piece count as the price, or a free
+// gift-with-purchase $0 MSRP), so each numeric/date field is range-checked before
+// it's written. Out-of-range values are dropped so they can't corrupt downstream
+// valuations (brickset_msrp can feed retail_price, a plausibility corroborator).
+const inRange = (v: unknown, min: number, max: number): number | null =>
+  (typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : null);
+const intInRange = (v: unknown, min: number, max: number): number | null => {
+  const n = inRange(v, min, max);
+  return n == null ? null : Math.round(n);
+};
+const plausibleDate = (v: unknown): string | null => {
+  if (typeof v !== 'string') return null;
+  const s = v.trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const y = Number(s.slice(0, 4));
+  return y >= 1949 && y <= 2035 ? s : null;
+};
+
 /**
  * Backfill Brickset enrichment data for sets whose brickset_enriched_at is
  * NULL or stale (>90 days). Scrapes brickset.com/sets/{setNum} pages via
@@ -125,21 +144,21 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
       if (val != null && val !== '') { fields.push(`${col}=?`); binds.push(val as string | number); }
     };
 
-    maybe('brickset_msrp', d.msrp_usd);
-    maybe('launch_date', d.launch_date);
-    maybe('exit_date', d.exit_date);
+    maybe('brickset_msrp', inRange(d.msrp_usd, 1, 2000));
+    maybe('launch_date', plausibleDate(d.launch_date));
+    maybe('exit_date', plausibleDate(d.exit_date));
     maybe('theme_group', d.theme_group);
     maybe('category', d.category);
     maybe('subtheme', d.subtheme);
-    maybe('age_min', d.age_min);
-    maybe('age_max', d.age_max);
+    maybe('age_min', intInRange(d.age_min, 0, 99));
+    maybe('age_max', intInRange(d.age_max, 0, 99));
     maybe('packaging_type', d.packaging_type);
-    maybe('instructions_count', d.instructions_count);
-    maybe('additional_image_count', d.additional_image_count);
+    maybe('instructions_count', intInRange(d.instructions_count, 0, 100));
+    maybe('additional_image_count', intInRange(d.additional_image_count, 0, 2000));
     maybe('brickset_description', d.description);
-    maybe('brickset_rating', d.rating);
-    maybe('brickset_review_count', d.review_count);
-    maybe('brickset_set_id', d.brickset_set_id);
+    maybe('brickset_rating', inRange(d.rating, 0, 5));
+    maybe('brickset_review_count', intInRange(d.review_count, 0, 1_000_000));
+    maybe('brickset_set_id', intInRange(d.brickset_set_id, 1, 100_000_000));
     maybe('brickset_dimensions', d.dimensions);
     if (Array.isArray(d.tags) && d.tags.length) {
       fields.push('brickset_tags=?');
