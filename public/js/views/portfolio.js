@@ -652,16 +652,16 @@ function renderInsightsTab(items) {
       ${slImgHTML(s.item)}
       <div class="signal-row-main">
         <div class="signal-row-name">${escapeHtml(s.item.name)}</div>
-        <div class="signal-row-sub">eBay ${hot ? "+" : "−"}${Math.abs(s.spread * 100).toFixed(0)}% vs ${s.item.bl_new_value ? "BrickLink" : "value"}${s.item.quantity > 1 ? ` · ×${s.item.quantity}` : ""}</div>
+        <div class="signal-row-sub">Resale ${hot ? "+" : "−"}${Math.abs(s.spread * 100).toFixed(0)}% vs ${s.item.bl_new_value ? "market" : "value"}${s.item.quantity > 1 ? ` · ×${s.item.quantity}` : ""}</div>
       </div>
       <strong class="signal-row-gap" style="color:${hot ? "var(--up)" : "var(--bv-red)"};">${hot ? "+" : ""}${fmtMoney(s.gap)}</strong>
     </div>`;
   const signalsCard = (signals.hot.length || signals.cold.length) ? `
       <div class="section-title" style="margin-top:0;">Market Signals</div>
       <div class="card signals-card" style="padding:12px 16px;margin-bottom:18px;">
-        ${signals.totalUpside > 0 ? `<div class="signals-headline">≈ ${fmtMoney(signals.totalUpside)} upside across ${signals.hot.length} set${signals.hot.length > 1 ? "s" : ""} if sold on eBay</div>` : ""}
-        ${signals.hot.length ? `<div class="signals-group-label" style="color:var(--up);">🔥 Sell signals — eBay running hot</div>${signals.hot.slice(0, 3).map(s => signalRow(s, true)).join("")}` : ""}
-        ${signals.cold.length ? `<div class="signals-group-label" style="color:var(--bv-red);">❄️ Buy windows — eBay below market</div>${signals.cold.slice(0, 3).map(s => signalRow(s, false)).join("")}` : ""}
+        ${signals.totalUpside > 0 ? `<div class="signals-headline">≈ ${fmtMoney(signals.totalUpside)} upside across ${signals.hot.length} set${signals.hot.length > 1 ? "s" : ""} if sold now</div>` : ""}
+        ${signals.hot.length ? `<div class="signals-group-label" style="color:var(--up);">🔥 Sell signals — resale running hot</div>${signals.hot.slice(0, 3).map(s => signalRow(s, true)).join("")}` : ""}
+        ${signals.cold.length ? `<div class="signals-group-label" style="color:var(--bv-red);">❄️ Buy windows — resale below market</div>${signals.cold.slice(0, 3).map(s => signalRow(s, false)).join("")}` : ""}
       </div>` : "";
 
   return `

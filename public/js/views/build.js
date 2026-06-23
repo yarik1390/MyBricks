@@ -119,7 +119,7 @@ function listHtml() {
 function pageHtml() {
   const intro = _mode === 'sets'
     ? `Official sets you could build right now from the combined parts of the sets you own — with completion % and how many pieces you're short. (You'd part out your sets to build them.)`
-    : `Alternate models you can build from a set you own, each with free building instructions on Rebrickable.`;
+    : `Alternate models you can build from a set you own, each with free building instructions.`;
   return `<div class="build-view">
     <header class="build-header">
       <button class="icon-btn" id="buildBack" aria-label="Back">‹</button>

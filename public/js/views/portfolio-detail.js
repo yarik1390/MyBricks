@@ -238,7 +238,7 @@ function infoTabHTML(set, entry, isWish) {
     const biReviewCount = Number(set.brickinsights_review_count) || 0;
     const biReviewsStr = biReviewCount ? `${biReviewCount} review${biReviewCount > 1 ? 's' : ''}` : '';
     const brickInsightsBadge = (biRating && biRating > 0)
-      ? `<div style="grid-column: span 2; display:flex; align-items:center; gap:8px;"><span style="color:var(--ink-mute);">BrickInsights:</span> <strong style="color:var(--ink);">${biRating}/100</strong> <span style="color:var(--ink-mute);font-size:10px;">${biReviewsStr}</span>${set.brickinsights_url ? ` <a href="${escapeHtml(set.brickinsights_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--ink-faint);font-size:10px;">\u2197</a>` : ''}</div>`
+      ? `<div style="grid-column: span 2; display:flex; align-items:center; gap:8px;"><span style="color:var(--ink-mute);">Critics' score:</span> <strong style="color:var(--ink);">${biRating}/100</strong> <span style="color:var(--ink-mute);font-size:10px;">${biReviewsStr}</span>${set.brickinsights_url ? ` <a href="${escapeHtml(set.brickinsights_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--ink-faint);font-size:10px;">\u2197</a>` : ''}</div>`
       : '';
 
     if (ratingNum || ageStr || subthemeStr || themeGroupStr || categoryBadge || tagsArr.length || growthRate != null || retiredYear || set.launch_date || set.exit_date || legoStockBadge || riskBadge || brickInsightsBadge) {
@@ -344,7 +344,7 @@ function infoTabHTML(set, entry, isWish) {
     pricingSummaryHtml = `
       <div class="card pricing-summary-card" style="margin-bottom:14px; padding:14px 16px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <div style="font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-mute);">eBay Sold Comps</div>
+          <div style="font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-mute);">Recent Sold Comps</div>
           <span class="badge" style="font-size:9px; padding:2px 6px; border-radius:4px; font-family:var(--mono); background:var(--surface-3); color:var(--ink-soft);">${ebaySold.legacy ? 'Legacy' : pricingTreatment === 'STP' ? 'Below MSRP' : pricingTreatment === 'APPRECIATED' ? 'Appreciated' : 'Sold data'}</span>
         </div>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
@@ -373,7 +373,7 @@ function infoTabHTML(set, entry, isWish) {
           </div>
         ` : ebaySold.legacy ? `
           <div style="font-size:11px; color:var(--ink-mute); margin-top:10px; line-height:1.4;">
-            Legacy single-value eBay data is shown until the sold-comps backfill refreshes this set.
+            Legacy single-value data is shown until the latest sold comps refresh this set.
           </div>
         ` : ''}
       </div>
@@ -625,10 +625,9 @@ function forecastTabHTML(set) {
   const ann2 = set.forecast_2y && set.current_value ? Math.pow(set.forecast_2y / set.current_value, 1 / 2) - 1 : null;
   const ann5 = set.forecast_5y && set.current_value ? Math.pow(set.forecast_5y / set.current_value, 1 / 5) - 1 : null;
   const pct = (g) => Math.min(100, Math.max(8, g * 100 + 12)).toFixed(1);
-  const forecastLabel = set.valuation_method === "market" ? "Market value · BrickLink"
-    : set.valuation_method === "brickeconomy" ? "Market value · BrickEconomy"
-    : set.valuation_method === "ai" ? "AI forecast · GPT-4o-mini"
-    : (set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "Market value · eBay Sold" : "Estimated";
+  const forecastLabel = set.valuation_method === "ai" ? "AI forecast"
+    : (set.valuation_method === "market" || set.valuation_method === "brickeconomy" || set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "Market forecast"
+    : "Estimated";
   return `
     <div class="card" style="padding:14px 16px;margin-bottom:14px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
@@ -636,12 +635,8 @@ function forecastTabHTML(set) {
         <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);">${forecastLabel}</div>
       </div>
       <p style="margin:6px 0 0;font-size:13px;color:var(--ink-soft);line-height:1.45;">
-        ${set.valuation_method === "market"
-          ? "Based on recent completed sales on BrickLink."
-          : set.valuation_method === "brickeconomy"
-          ? "Based on professional market analysis from BrickEconomy."
-          : (set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold")
-          ? "Based on recent eBay sold comps."
+        ${(set.valuation_method === "market" || set.valuation_method === "brickeconomy" || set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold")
+          ? "Based on recent sales and long-term market trends."
           : `Based on theme rarity, piece count, retirement status, and market trends for similar ${escapeHtml(set.theme || "")} sets.`}
       </p>
       ${set.be_growth_12m != null ? `<p style="margin:8px 0 0;font-size:12px;color:var(--ink-soft);">Trailing 12-month market growth: <strong style="color:${set.be_growth_12m >= 0 ? 'var(--up)' : 'var(--down)'};">${set.be_growth_12m >= 0 ? '+' : ''}${Number(set.be_growth_12m).toFixed(1)}%</strong></p>` : ''}
@@ -1295,8 +1290,8 @@ async function loadSetHistory(setNum) {
       const up = Number(hist[hist.length - 1].current_value) >= Number(hist[0].current_value);
       const hasPts = (key) => hist.filter(h => Number(h?.[key]) > 0).length >= 2;
       const series = [
-        { key: "bl_value", color: "var(--ink-mute)", dash: "2 3", label: "BrickLink" },
-        { key: "ebay_value", color: "var(--bv-yellow-dark)", dash: "5 4", label: "eBay" },
+        { key: "bl_value", color: "var(--ink-mute)", dash: "2 3", label: "Market" },
+        { key: "ebay_value", color: "var(--bv-yellow-dark)", dash: "5 4", label: "Resale" },
       ].filter(s => hasPts(s.key));
       drawSparkline(el, hist, { up, series });
       const legendEl = $("#setSparkLegend");
@@ -1339,9 +1334,21 @@ async function loadSetImages(setNum) {
   }
 }
 
-// Valuation v2 headline: the blended fair value with its confidence band and
-// the sources it was blended from. Renders only when a blend exists; otherwise
-// the price strip below (current_value) carries the display.
+// Map any internal pricing source to a generic, provider-anonymous label. The
+// app presents ONE authoritative value and never names where the data came from.
+function genericSourceLabel(s) {
+  const id = String((s && s.id) || '');
+  const cond = String((s && s.condition) || '');
+  if (id.includes('ask')) return 'Active listings';
+  if (id.includes('sold') || id.includes('ebay')) return cond === 'used' ? 'Recent sold (used)' : 'Recent sold';
+  if (id === 'retail') return 'Retail';
+  if (cond === 'used' || id.includes('used')) return 'Used market';
+  return 'Market value';
+}
+
+// Valuation v2 headline: the blended fair value with its confidence band and a
+// plain-language basis (never named sources). Renders only when a blend exists;
+// otherwise the price strip below (current_value) carries the display.
 function marketValueHeroHTML(set) {
   const mv = Number(set.market_value);
   if (!Number.isFinite(mv) || mv <= 0) return '';
@@ -1351,7 +1358,7 @@ function marketValueHeroHTML(set) {
   const confColor = conf === 'high' ? 'var(--up)' : conf === 'medium' ? 'var(--accent)' : 'var(--bv-yellow)';
   const confLabel = { high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence' }[conf] || conf;
   const basis = Array.isArray(set.market_value_basis) ? set.market_value_basis : [];
-  const srcNames = [...new Set(basis.map(b => b && b.name).filter(Boolean))];
+  const signalCount = basis.length;
   const band = (Number.isFinite(lo) && Number.isFinite(hi) && hi > lo)
     ? `<span style="color:var(--ink-mute);font-size:12px;font-family:var(--mono);">${fmtMoney(lo)} – ${fmtMoney(hi)}</span>`
     : '';
@@ -1365,7 +1372,7 @@ function marketValueHeroHTML(set) {
         </div>
         <span style="flex-shrink:0;font-family:var(--mono);font-size:10px;font-weight:800;text-transform:uppercase;color:${confColor};border:1px solid ${confColor};border-radius:8px;padding:3px 8px;">${escapeHtml(confLabel)}</span>
       </div>
-      ${srcNames.length ? `<div style="margin-top:10px;font-size:11px;color:var(--ink-mute);">Blended from ${srcNames.length} source${srcNames.length > 1 ? 's' : ''}: ${srcNames.map(escapeHtml).join(' · ')}</div>` : ''}
+      ${signalCount ? `<div style="margin-top:10px;font-size:11px;color:var(--ink-mute);">Based on ${signalCount} independent market signal${signalCount > 1 ? 's' : ''}</div>` : ''}
     </div>`;
 }
 
@@ -1375,17 +1382,16 @@ function priceStripHTML(set, entry) {
   // Column 1: primary new-condition valuation source
   const isBE = set.valuation_method === "brickeconomy";
   const isBL = set.valuation_method === "market";
-  const label1 = isBE ? "BrickEconomy"
-    : isBL ? "BrickLink"
+  const label1 = (isBE || isBL) ? "Market"
     : set.valuation_method === "ai" ? "AI estimate"
-    : (set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "eBay Sold"
+    : (set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "Recent sold"
     : "Estimated";
   const val1 = set.current_value;
 
   // Column 2: cross-source BrickLink new (when BE is primary, show BL independently)
   //           or BrickLink used when BL is primary (most useful comparison)
   const showBlCross = isBE && set.bl_new_value;
-  const _label2 = showBlCross ? "BrickLink" : "Used";
+  const _label2 = showBlCross ? "Market" : "Used";
   const val2 = showBlCross ? set.bl_new_value : set.used_value;
 
   const ebaySold = ebaySoldSummary(set);
@@ -1394,22 +1400,19 @@ function priceStripHTML(set, entry) {
   // Browse API asking price so the column isn't dead.
   const askValue = Number(set.ebay_ask_value) > 0 ? Number(set.ebay_ask_value) : null;
   const showAsk = !ebaySold.newValue && askValue;
-  const label3 = showAsk ? "eBay asking" : showBlCross ? "eBay sold" : "eBay sold new";
+  const label3 = showAsk ? "Active listings" : "Recent sold";
   const val3 = ebaySold.newValue || askValue;
   const val3sub = showAsk
     ? (Number(set.ebay_ask_qty) > 0 ? `${set.ebay_ask_qty} listings` : null)
     : (ebaySold.usedValue || (showBlCross ? set.used_value : null));
 
   const hasEbaySold = ebaySold.newValue || ebaySold.usedValue;
-  const ebayTag = hasEbaySold ? ' · eBay sold' : showAsk ? ' · eBay asking' : '';
-  const sourceSuffix = isBE && set.bl_new_value
-    ? `BrickEconomy · BrickLink${ebayTag}`
-    : isBE ? `BrickEconomy${ebayTag}`
-    : isBL ? `BrickLink${ebayTag}`
-    : set.valuation_method === "ai" ? "AI estimate"
-    : set.valuation_method === "ebay_sold" ? "eBay sold comps"
-    : set.valuation_method === "ebay_rss" ? "legacy eBay"
-    : "formula estimate";
+  // Plain-language basis — never names a provider.
+  const sourceSuffix = set.valuation_method === "ai" ? "AI estimate"
+    : set.valuation_method === "formula_bulk" ? "Formula estimate"
+    : hasEbaySold ? "Recent sold prices + market guide"
+    : showAsk ? "Market guide + active listings"
+    : "Market guide value";
 
   const updateDateStr = set.cached_at ? fmtDateUpdated(set.cached_at) : null;
   // Surface data staleness from the enrichment freshness field.
@@ -1439,7 +1442,7 @@ function priceStripHTML(set, entry) {
         ${delta != null ? `<div class="delta ${delta >= 0 ? "up" : "down"}"><span class="arrow">${delta >= 0 ? "▲" : "▼"}</span>${fmtPct(Math.abs(delta))}</div>` : ""}
       </div>
       <div class="ps-cell">
-        <div class="ps-lbl">${showBlCross ? lotLabel(blNewQty, "BrickLink (new)") : lotLabel(blUsedQty, "Used")}</div>
+        <div class="ps-lbl">${showBlCross ? lotLabel(blNewQty, "Market (new)") : lotLabel(blUsedQty, "Used")}</div>
         <div class="ps-val${!val2 ? " muted" : ""}">${val2 ? fmtMoney(val2) : "—"}</div>
         ${col2Range ? `<div class="ps-sub muted" style="font-size:9px;">${col2Range}</div>` : ""}
       </div>
@@ -1450,7 +1453,7 @@ function priceStripHTML(set, entry) {
       </div>
     </div>
     <div class="ps-footnote" style="display:flex;align-items:center;justify-content:space-between;width:100%;">
-      <span>Sources: ${sourceSuffix}</span>
+      <span>${sourceSuffix}</span>
       <span style="font-family:var(--mono);font-size:10px;color:${freshColor};">${lastUpdatedText}</span>
     </div>`;
 }
@@ -1480,14 +1483,16 @@ function marketConfidenceHTML(set) {
   const freshness = set.freshness || 'fresh';
   const primary = sources.find(s => s.id === set.primary_value_source) || sources[0] || null;
   const color = confidence === 'high' ? 'var(--up)' : confidence === 'medium' ? 'var(--accent)' : confidence === 'low' ? 'var(--bv-yellow)' : 'var(--bv-red)';
-  const explanation = set.valuation_explanation || (
-    set.valuation_method === 'brickeconomy' ? 'BrickEconomy is primary, with BrickLink/eBay shown when available.'
-      : set.valuation_method === 'market' ? 'BrickLink sold data is primary, with eBay shown when available.'
-      : set.valuation_method === 'ebay_sold' ? 'eBay US sold comps are the current fallback source.'
-      : set.valuation_method === 'ebay_rss' ? 'Legacy eBay completed-listing data is the current fallback source.'
-      : set.valuation_method === 'ai' ? 'AI estimated this value because market sources were unavailable.'
-      : 'Formula valuation is used until a market refresh completes.'
-  );
+  // Generic, provider-anonymous explanation derived from confidence (we never
+  // surface the backend's named valuation_explanation to users).
+  const explanation = set.valuation_method === 'ai'
+      ? 'Estimated by AI because fresh market data was unavailable.'
+    : set.valuation_method === 'formula_bulk'
+      ? 'Estimated from set attributes until a market refresh completes.'
+    : confidence === 'high' ? 'High confidence — multiple fresh market signals agree.'
+    : confidence === 'medium' ? 'Medium confidence — based on recent market data with limited corroboration.'
+    : confidence === 'low' ? 'Low confidence — limited recent market data; treat as an estimate.'
+    : 'Based on the latest available market data.';
   const relColor = (r) => r === 'primary' ? 'var(--up)' : r === 'fallback' ? 'var(--bv-yellow)' : 'var(--ink-mute)';
   const sourceRows = sources.slice(0, 6).map(s => {
     const rel = s.reliability
@@ -1500,7 +1505,7 @@ function marketConfidenceHTML(set) {
     return `
     <div style="border-top:1px solid var(--line-soft);padding-top:7px;margin-top:7px;">
       <div style="display:flex;justify-content:space-between;gap:10px;">
-        <span style="min-width:0;color:var(--ink-soft);">${escapeHtml(s.name)} ${s.condition ? `(${escapeHtml(s.condition)})` : ''}${rel}</span>
+        <span style="min-width:0;color:var(--ink-soft);">${escapeHtml(genericSourceLabel(s))}${rel}</span>
         <span style="font-family:var(--mono);font-weight:700;color:var(--ink);white-space:nowrap;">${s.value ? fmtMoney(s.value) : 'pending'}${s.sample_count ? ` / ${s.sample_count} lots` : ''}</span>
       </div>
       ${sub}
@@ -1516,15 +1521,15 @@ function marketConfidenceHTML(set) {
         <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:${color};font-weight:800;white-space:nowrap;">${escapeHtml(confidence)} confidence · ${escapeHtml(freshness)}</div>
       </div>
       <div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;">
-        <span style="color:var(--ink-mute);">Primary source</span>
-        <strong style="color:var(--ink);text-align:right;">${escapeHtml(primary?.name || 'Pending refresh')}</strong>
+        <span style="color:var(--ink-mute);">Primary signal</span>
+        <strong style="color:var(--ink);text-align:right;">${primary ? escapeHtml(genericSourceLabel(primary)) : 'Pending refresh'}</strong>
       </div>
       ${sourceRows}
     </div>
   `;
 }
 
-// Shows a sell/buy signal when eBay and BrickLink prices diverge >10%.
+// Shows a sell/buy signal when recent resale and the primary market value diverge >10%.
 function marketSpreadHTML(set) {
   const ebay = ebaySoldSummary(set);
   const ebayValue = ebay.newValue;
@@ -1533,8 +1538,8 @@ function marketSpreadHTML(set) {
   if (Math.abs(spread) < 0.10) return '';
   const hot = spread > 0;
   return `<div class="market-signal ${hot ? "signal-hot" : "signal-cold"}">
-    <span>${hot ? "HOT" : "SOFT"} eBay sold-new ${hot ? "running hot" : "below primary value"} · ${fmtPct(Math.abs(spread))} spread</span>
-    <span class="signal-hint">${hot ? "Good time to sell" : "Better to buy on BrickLink"}</span>
+    <span>${hot ? "HOT" : "SOFT"} resale ${hot ? "running hot" : "below your value"} · ${fmtPct(Math.abs(spread))} spread</span>
+    <span class="signal-hint">${hot ? "Good time to sell" : "Good time to buy"}</span>
   </div>`;
 }
 
