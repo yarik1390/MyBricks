@@ -52,7 +52,8 @@ export async function runWishlistAlerts(env: Env) {
     const spike = await runSpikeAlerts(env);
     const retiring = await runRetirementAlerts(env);
     const deals = await runDealAlerts(env);
-    return { fired: 0, spikes: spike.fired, retiring: retiring.fired, deals: deals.fired };
+    const preorders = await runPreorderAlerts(env);
+    return { fired: 0, spikes: spike.fired, retiring: retiring.fired, deals: deals.fired, preorders: preorders.fired };
   }
 
   const stmts: D1PreparedStatement[] = [];
@@ -109,7 +110,8 @@ export async function runWishlistAlerts(env: Env) {
   const spike = await runSpikeAlerts(env);
   const retiring = await runRetirementAlerts(env);
   const deals = await runDealAlerts(env);
-  return { fired: results.length, spikes: spike.fired, retiring: retiring.fired, deals: deals.fired };
+  const preorders = await runPreorderAlerts(env);
+  return { fired: results.length, spikes: spike.fired, retiring: retiring.fired, deals: deals.fired, preorders: preorders.fired };
 }
 
 async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
@@ -308,6 +310,69 @@ async function runDealAlerts(env: Env): Promise<{ fired: number }> {
       sendPushToUser(env, row.user_id, JSON.stringify({
         title: 'Buy window',
         body: `${row.set_name} is available ${pctStr}.`,
+        url: `#/set/${encodeURIComponent(row.set_num)}`,
+      })).catch(() => {});
+    }
+  }
+
+  return { fired: results.length };
+}
+
+// Pre-order / coming-soon alerts (G2): a WISHLISTED set becomes available to
+// pre-order or is flagged coming soon — lock in launch-day availability. Uses
+// the lego_availability signal already captured for owned/wishlisted sets (zero
+// new scraping). Deduped via wishlist_alerts (alert_type='preorder', 30 days).
+async function runPreorderAlerts(env: Env): Promise<{ fired: number }> {
+  const { results } = await env.DB.prepare(`
+    SELECT w.user_id, ls.set_num, ls.name AS set_name, ls.current_value, ls.image_url, ls.lego_availability
+    FROM user_wishlist w
+    JOIN lego_sets ls ON ls.set_num = w.set_num
+    WHERE ls.lego_availability IN ('pre_order', 'coming_soon')
+      AND NOT EXISTS (
+        SELECT 1 FROM wishlist_alerts wa
+        WHERE wa.user_id = w.user_id AND wa.set_num = ls.set_num
+          AND wa.alert_type = 'preorder' AND wa.triggered_at > datetime('now', '-30 days')
+      )
+  `).all<{ user_id: string; set_num: string; set_name: string; current_value: number | null; image_url: string | null; lego_availability: string }>();
+
+  if (!results.length) return { fired: 0 };
+
+  const stmts: D1PreparedStatement[] = results.map(row =>
+    env.DB.prepare(`
+      INSERT INTO wishlist_alerts (user_id, set_num, set_name, target_price, current_value, alert_type)
+      VALUES (?, ?, ?, ?, ?, 'preorder')
+    `).bind(row.user_id, row.set_num, row.set_name, 0, row.current_value ?? 0),
+  );
+  await env.DB.batch(stmts);
+
+  const byUser = new Map<string, typeof results>();
+  for (const row of results) {
+    const arr = byUser.get(row.user_id) ?? [];
+    arr.push(row);
+    byUser.set(row.user_id, arr);
+  }
+  const prefsByUser = await loadAlertPrefs(env, [...byUser.keys()]);
+  for (const [userId, rows] of byUser) {
+    const prefs = prefsByUser.get(userId);
+    if (!prefs || !prefs.notify_price_drops) continue;
+    for (const row of rows) {
+      const label = row.lego_availability === 'coming_soon' ? 'coming soon' : 'available to pre-order';
+      if (prefs.email && env.RESEND_API_KEY) {
+        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, 0, Number(row.current_value) || 0, 'preorder');
+        sendAlertEmail(prefs.email, `${row.set_name} is ${label}`, html, env).catch(() => {});
+      }
+      if (prefs.discord_webhook_url) {
+        sendDiscordAlert(prefs.discord_webhook_url, {
+          title: `Available soon: ${row.set_name}`,
+          description: `**${row.set_num}** from your wishlist is now ${label}. Lock in launch-day availability before it sells out.`,
+          color: 0x3b82f6,
+          imageUrl: row.image_url ?? undefined,
+          url: `https://brickvault-5ub.pages.dev#/set/${encodeURIComponent(row.set_num)}`,
+        }).catch(() => {});
+      }
+      sendPushToUser(env, row.user_id, JSON.stringify({
+        title: 'Available soon',
+        body: `${row.set_name} from your wishlist is now ${label}.`,
         url: `#/set/${encodeURIComponent(row.set_num)}`,
       })).catch(() => {});
     }

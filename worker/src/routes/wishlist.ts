@@ -20,7 +20,8 @@ app.get('/', async (c) => {
         s.ebay_new_cached_at, s.ebay_used_cached_at, s.ebay_cached_at,
         s.used_value, s.bl_new_value, s.bl_new_qty,
         s.bl_used_qty, s.bl_cached_at, s.be_cached_at,
-        s.valuation_method, s.valuation_expires_at, s.cached_at
+        s.valuation_method, s.valuation_expires_at, s.cached_at,
+        s.lego_availability, s.lego_retiring_soon
       FROM user_wishlist w
       JOIN lego_sets s ON s.set_num = w.set_num
       WHERE w.user_id = ?

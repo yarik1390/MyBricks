@@ -146,10 +146,24 @@ function wishlistCardHTML(w) {
         </div>
         <div class="progress${hit ? " over" : ""}"><div style="width:${progress}%;"></div></div>
         ${buyWindowHTML(w)}
+        ${preorderCueHTML(w)}
         ${(w.retirement_risk_score || 0) >= 70 && !w.retired ? `<div class="u-row u-gap-1" style="font-size:11px;color:var(--down);margin-top:4px;font-family:var(--mono);">${I.alert({w:12,h:12})} Retirement risk: High</div>` : ""}
       </div>
       <a href="${bricklinkBuyURL(w.set_num)}" target="_blank" rel="noopener" class="bl-badge" style="position:absolute;bottom:10px;right:10px;z-index:5;font-size:10px;font-family:var(--mono);font-weight:700;padding:2px 5px;background:var(--bv-yellow);color:#000;border:1.5px solid var(--line);border-radius:var(--r-1);text-decoration:none;">BL ↗</a>
     </div>`;
+}
+
+// Pre-order / coming-soon cue for a wishlisted set (G2). Source-anonymized —
+// surfaces the availability event without naming where it's sold.
+function preorderCueHTML(w) {
+  const map = {
+    pre_order: ['Available to pre-order', 'var(--accent)'],
+    coming_soon: ['Coming soon', 'var(--accent)'],
+    back_order: ['On back-order', 'var(--bv-yellow)'],
+  };
+  const m = w.lego_availability ? map[w.lego_availability] : null;
+  if (!m) return '';
+  return `<div style="font-size:11px;color:${m[1]};margin-top:4px;font-family:var(--mono);font-weight:700;">${m[0]}</div>`;
 }
 
 // 30-day trend → actionable hint under the wishlist target progress bar.
