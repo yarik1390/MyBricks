@@ -58,15 +58,22 @@ export async function runLegoStockRefresh(env: Env, options: { limit?: number } 
     const inStockVal = stock.in_stock === null ? null : (stock.in_stock ? 1 : 0);
     const retiringSoonVal = stock.retiring_soon ? 1 : 0;
 
+    // Persist the fine-grained availability status the scrape already returns
+    // (in_stock | out_of_stock | pre_order | back_order | coming_soon | sold_out
+    // | retiring) — previously fetched then dropped. COALESCE keeps the prior
+    // value when a scrape doesn't surface a status.
+    const availabilityVal = stock.availability ?? null;
     if (stock.retail_price_usd != null && stock.retail_price_usd > 0) {
       stmts.push(env.DB.prepare(
         `UPDATE lego_sets SET lego_in_stock=?, lego_retiring_soon=?, lego_checked_at=datetime('now'),
+         lego_availability=COALESCE(?, lego_availability),
          retail_price=COALESCE(?, retail_price) WHERE set_num=?`,
-      ).bind(inStockVal, retiringSoonVal, stock.retail_price_usd, set_num));
+      ).bind(inStockVal, retiringSoonVal, availabilityVal, stock.retail_price_usd, set_num));
     } else {
       stmts.push(env.DB.prepare(
-        `UPDATE lego_sets SET lego_in_stock=?, lego_retiring_soon=?, lego_checked_at=datetime('now') WHERE set_num=?`,
-      ).bind(inStockVal, retiringSoonVal, set_num));
+        `UPDATE lego_sets SET lego_in_stock=?, lego_retiring_soon=?, lego_checked_at=datetime('now'),
+         lego_availability=COALESCE(?, lego_availability) WHERE set_num=?`,
+      ).bind(inStockVal, retiringSoonVal, availabilityVal, set_num));
     }
     updated++;
   }
