@@ -68,7 +68,7 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
   if (grant <= 0) return { processed: 0, updated: 0, limit, skipped: 'firecrawl quota spent' };
 
   const { results } = await env.DB.prepare(`
-    SELECT ls.set_num, ls.year
+    SELECT ls.set_num, ls.year, ls.brickset_enriched_at
     FROM lego_sets ls
     WHERE (ls.brickset_enriched_at IS NULL OR ls.brickset_enriched_at < datetime('now', '-90 days'))
       AND ls.year >= 2000
@@ -81,17 +81,38 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
       ) THEN 0 ELSE 1 END,
       COALESCE(ls.year, 0) DESC
     LIMIT ?
-  `).bind(grant).all<{ set_num: string; year: number | null }>();
+  `).bind(grant).all<{ set_num: string; year: number | null; brickset_enriched_at: string | null }>();
 
   if (!results.length) return { processed: 0, updated: 0, limit: grant };
 
   let processed = 0;
   let updated = 0;
+  let unchanged = 0;
   const stmts: D1PreparedStatement[] = [];
 
-  for (const { set_num } of results) {
+  for (const { set_num, brickset_enriched_at } of results) {
     processed++;
     const url = `https://brickset.com/sets/${set_num}`;
+
+    // Refresh of an already-enriched set: a cheap (1-credit) change-tracking
+    // probe first. Brickset metadata is static, so most refreshes are unchanged
+    // → skip the 5-credit json re-extract and just refresh freshness. New sets
+    // extract directly; changed/new/removed/probe-failure all fall through to a
+    // full extract. (Only applied here — BrickEconomy values, LEGO stock and eBay
+    // listings change between scrapes, so a probe there would just add cost.)
+    if (brickset_enriched_at) {
+      const probe = await firecrawlScrape<{ changeTracking?: { changeStatus?: string } }>(
+        { url, formats: ['markdown', 'changeTracking'], timeoutMs: 20_000 },
+        env,
+      );
+      if (probe?.data?.changeTracking?.changeStatus === 'same') {
+        stmts.push(env.DB.prepare(
+          `UPDATE lego_sets SET brickset_enriched_at=datetime('now') WHERE set_num=?`,
+        ).bind(set_num));
+        unchanged++;
+        continue;
+      }
+    }
 
     const result = await firecrawlScrape<{
       msrp_usd?: number | null;
@@ -177,5 +198,5 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
   // No aggregate health write — firecrawlScrape records each scrape attempt
   // (real ok/fail + error message) inside the wrapper; a batch tally here would
   // double-count and clobber the real error with "unknown error".
-  return { processed, updated, limit: grant };
+  return { processed, updated, unchanged, limit: grant };
 }
