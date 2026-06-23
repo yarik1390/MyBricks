@@ -245,11 +245,19 @@ export async function fetchPartPricing(
   }
 }
 
+export interface MinifigPricing {
+  value: number | null; // NEW-condition qty-weighted sold avg, USD
+  lots: number;        // sold lot count (market liquidity / confidence signal)
+}
+
+// NEW-condition minifig sold price from the BrickLink guide. Now also returns
+// the sold lot count (free from the same call) so the rarity model can factor
+// market liquidity. Returns null only on a hard failure (no key / bad response).
 export async function fetchMinifigPricing(
   figNum: string,
   env: Env,
   options: { recordHealth?: boolean } = {},
-): Promise<number | null> {
+): Promise<MinifigPricing | null> {
   if (!env.BRICKLINK_CONSUMER_KEY) return null;
   try {
     const baseUrl = brickLinkPriceUrl('MINIFIG', figNum);
@@ -266,8 +274,9 @@ export async function fetchMinifigPricing(
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
     if (body.meta?.code !== 200 || !body.data) return null;
     const d = body.data;
-    const current = parseFloat(String(d.qty_avg_price || d.avg_price || '')) || null;
-    return current;
+    const value = parseFloat(String(d.qty_avg_price || d.avg_price || '')) || null;
+    const lots = Number(d.unit_quantity ?? 0) || 0;
+    return { value, lots };
   } catch {
     return null;
   }

@@ -24,6 +24,7 @@ import {
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { valuationExpiryModifier, isPlausibleMarketValue, formulaValuation } from '../lib/valuation';
 import { computeRetirementRisk } from '../lib/retirement-risk';
+import { computeMinifigRarity } from '../lib/minifig-rarity';
 import {
   clearIntegrationBlock,
   isIntegrationBlocked,
@@ -783,13 +784,13 @@ export async function runEbayAskBackfill(env: Env, options: { limit?: number } =
 export async function runValuateMinifigs(env: Env, options: { limit?: number } = {}): Promise<number> {
   const limit = Math.min(Math.max(1, Math.floor(options.limit ?? 10)), 200);
   const { results } = await env.DB.prepare(`
-    SELECT DISTINCT m.fig_num
+    SELECT DISTINCT m.fig_num, m.appears_in_sets
     FROM minifigs m
     JOIN user_minifigs um ON um.fig_num = m.fig_num
     WHERE m.cached_at IS NULL OR m.cached_at < datetime('now', '-7 days')
     ORDER BY COALESCE(m.cached_at, '2000-01-01') ASC
     LIMIT ?
-  `).bind(limit).all<{ fig_num: string }>();
+  `).bind(limit).all<{ fig_num: string; appears_in_sets: number | null }>();
 
   // Account the BrickLink spend in the daily ledger (advisory — minifig
   // batches are far below the 4,000/day budget, but visibility matters).
@@ -797,11 +798,15 @@ export async function runValuateMinifigs(env: Env, options: { limit?: number } =
 
   let updated = 0;
   for (const fig of results) {
-    const price = await fetchMinifigPricing(fig.fig_num, env, { recordHealth: false }).catch(() => null);
-    if (price !== null && price > 0) {
+    const px = await fetchMinifigPricing(fig.fig_num, env, { recordHealth: false }).catch(() => null);
+    if (px && px.value != null && px.value > 0) {
+      // Derive a REAL rarity tier from value + set-exclusivity + market
+      // liquidity (replaces the static 'common' default that left the minifig
+      // rarity UX inert). Stored alongside the value on the same refresh cycle.
+      const rarity = computeMinifigRarity(px.value, fig.appears_in_sets, px.lots);
       await env.DB.prepare(`
-        UPDATE minifigs SET current_value = ?, cached_at = datetime('now') WHERE fig_num = ?
-      `).bind(price, fig.fig_num).run();
+        UPDATE minifigs SET current_value = ?, rarity = ?, cached_at = datetime('now') WHERE fig_num = ?
+      `).bind(px.value, rarity, fig.fig_num).run();
       updated++;
     }
   }

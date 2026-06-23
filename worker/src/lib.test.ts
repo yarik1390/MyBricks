@@ -11,6 +11,7 @@ import {
 } from './lib/ebay';
 import { classifyHealth } from './lib/integration-health';
 import { computeRetirementRisk } from './lib/retirement-risk';
+import { computeMinifigRarity } from './lib/minifig-rarity';
 import { isSearchIndexCorruption } from './lib/search-index';
 import { formulaValuation, isLikelyRetired, isPlausibleMarketValue } from './lib/valuation';
 import { blendMarketValue, computeDealSignal } from './lib/market-sources';
@@ -658,6 +659,32 @@ describe('computePartOutValue (E1 part-out)', () => {
     const r = computePartOutValue(parts, price([['a', 0, 0]]));
     expect(r.value).toBeNull();
     expect(r.coverage).toBe(0);
+  });
+});
+
+describe('computeMinifigRarity (G1)', () => {
+  it('rates high value legendary regardless of scarcity', () => {
+    expect(computeMinifigRarity(150, 20, 100)).toBe('legendary');
+  });
+  it('lifts a mid-high value to legendary when exclusive or thin market', () => {
+    expect(computeMinifigRarity(60, 1, 50)).toBe('legendary');  // 1-2 sets only
+    expect(computeMinifigRarity(60, 20, 2)).toBe('legendary');  // few active lots
+    expect(computeMinifigRarity(60, 20, 50)).toBe('rare');      // neither → rare by value
+  });
+  it('rates rare by value, lifting borderline figs by scarcity', () => {
+    expect(computeMinifigRarity(40, 20, 50)).toBe('rare');
+    expect(computeMinifigRarity(20, 1, 50)).toBe('rare');       // exclusive lift
+    expect(computeMinifigRarity(20, 20, 2)).toBe('rare');       // thin-market lift
+    expect(computeMinifigRarity(20, 20, 50)).toBe('uncommon');  // no lift
+  });
+  it('rates uncommon by modest value or semi-exclusivity', () => {
+    expect(computeMinifigRarity(7, 20, 50)).toBe('uncommon');
+    expect(computeMinifigRarity(2, 4, 50)).toBe('uncommon');    // ≤4 sets
+  });
+  it('defaults to common for low value and wide distribution', () => {
+    expect(computeMinifigRarity(3, 20, 100)).toBe('common');
+    expect(computeMinifigRarity(null, null, null)).toBe('common');
+    expect(computeMinifigRarity(0, 20, 0)).toBe('common');
   });
 });
 
