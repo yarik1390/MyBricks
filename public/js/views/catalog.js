@@ -95,6 +95,7 @@ function catalogQuery() {
   if (f.catalogCategory && f.catalogCategory !== "all") p.set("category", f.catalogCategory);
   if (f.catalogRetired === "retired" || f.catalogRetired === true) p.set("retired", "1");
   else if (f.catalogRetired === "active") p.set("retired", "0");
+  else if (f.catalogRetired === "retiring") p.set("retiring", "1");
   for (const [k, v] of Object.entries(f.catalogRanges)) {
     if (v !== "" && v != null) p.set(k, v);
   }
@@ -217,7 +218,7 @@ function paintAdd() {
       <div class="filter-row" style="margin-top:-4px;">
         ${CATALOG_SORTS
           .map(o => `<button class="chip ${(f.catalogSort === o.asc || f.catalogSort === o.desc) ? "active" : ""}" data-csort-base="${o.base}">${catalogSortChipText(o, f.catalogSort)}</button>`).join("")}
-        ${[["all","All"],["active","Active"],["retired","Retired"]].map(([k,l]) =>
+        ${[["all","All"],["active","Active"],["retired","Retired"],["retiring","Retiring"]].map(([k,l]) =>
           `<button class="chip ${(f.catalogRetired || "all") === k ? "active" : ""}" data-retired="${k}">${l}</button>`).join("")}
         <button class="chip ${catalogRangesActive() ? "active" : ""}" id="filterChip">${I.filter()}<span>Filters${catalogRangesActive() ? " · " + catalogRangesActive() : ""}</span></button>
       </div>
@@ -439,6 +440,18 @@ function popularThemes(all, n = 8) {
 
 function sourceCueHTML(s) { return trustBadgeHTML(s, { compact: true }); }
 
+// DEAL / STRONG BUY cue from the authoritative deal signal (computed in
+// enrichSetRecord, already source-anonymized). Only 'buy' is surfaced in the
+// catalog — that's what deal-hunters scan for. overlay = absolute corner badge
+// for the grid image; otherwise an inline meta badge for the compact list.
+function dealTagHTML(s, { overlay = false } = {}) {
+  if (s.deal_signal !== 'buy') return '';
+  const txt = s.deal_strong ? 'STRONG BUY' : 'DEAL';
+  return overlay
+    ? `<span class="deal-tag-overlay" style="position:absolute;top:8px;left:8px;background:var(--up);color:#fff;font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.04em;border-radius:4px;padding:2px 6px;z-index:2;">${txt}</span>`
+    : `<span class="badge" style="background:var(--up);color:#fff;font-size:9px;font-weight:800;letter-spacing:.03em;border-radius:4px;padding:1px 5px;margin-left:4px;">${txt}</span>`;
+}
+
 // $/piece value cue: tinted when >=25% off the formula baseline either way.
 function pppBadgeHTML(s) {
   const r = pricePerPiece(s);
@@ -465,13 +478,14 @@ function catalogCardHTML(s) {
         </div>
         <div class="sl-body" style="flex: 1; min-width: 0;">
           <div class="sl-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left;">
-            ${(s.retirement_risk_score || 0) >= 70 && !s.retired ? '🔥 ' : ''}${escapeHtml(s.name)}
+            ${((s.retirement_risk_score || 0) >= 70 || s.lego_retiring_soon) && !s.retired ? '🔥 ' : ''}${escapeHtml(s.name)}
           </div>
           <div class="sl-meta" style="text-align: left;">
             <span>${escapeHtml(s.set_num)}</span>
             <span class="dot"></span>
             <span>${escapeHtml(s.theme || "")}</span>
             ${s.owned ? `<span class="badge badge--up" style="margin-left:4px;">OWNED</span>` : ""}
+            ${dealTagHTML(s)}
             ${sourceCueHTML(s)}
           </div>
         </div>
@@ -491,7 +505,8 @@ function catalogCardHTML(s) {
         <div class="brick-tile" style="--h:${h};width:64%;height:64%;"></div>
         ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="${escapeHtml(s.name || '')}" loading="lazy">` : ""}
         ${s.retired ? `<span class="retired-tag">RETIRED</span>` : ""}
-        ${(s.retirement_risk_score || 0) >= 70 && !s.retired ? `<span class="retire-risk-badge">🔥</span>` : ""}
+        ${((s.retirement_risk_score || 0) >= 70 || s.lego_retiring_soon) && !s.retired ? `<span class="retire-risk-badge">🔥</span>` : ""}
+        ${dealTagHTML(s, { overlay: true })}
         ${s.owned ? `<span class="owned-tag">${I.check()}OWNED</span>` : ""}
       </div>
       <div class="set-card-body">

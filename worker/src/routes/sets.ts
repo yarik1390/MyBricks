@@ -65,7 +65,7 @@ export const CATALOG_COLS =
   's.used_value, s.bl_new_value, s.bl_new_qty, s.bl_used_qty, s.bl_cached_at, s.be_cached_at, ' +
   's.ebay_ask_value, s.ebay_ask_qty, s.ebay_ask_cached_at, s.retirement_risk_score, s.subtheme, s.be_growth_12m, ' +
   's.bl_new_min, s.bl_new_max, s.bl_used_min, s.bl_used_max, s.lego_in_stock, s.lego_retiring_soon, ' +
-  's.bo_new_value, s.bo_used_value, s.bo_cached_at, s.blended_value';
+  's.bo_new_value, s.bo_used_value, s.bo_cached_at, s.blended_value, s.ebay_new_last_sold';
 
 function pushEbaySoldUpdate(
   stmts: D1PreparedStatement[],
@@ -147,6 +147,12 @@ app.get('/search', async (c) => {
   if (category) addFilter(`s.category = ?`, category);
   if (retired === '1' || retired === 'true') addFilter(`s.retired = 1`);
   else if (retired === '0' || retired === 'false') addFilter(`s.retired = 0`);
+  // Retiring-soon: still-active sets the official flag OR the risk model marks as
+  // near retirement. Both are real columns, so this filters/paginates correctly.
+  const retiring = c.req.query('retiring') || '';
+  if (retiring === '1' || retiring === 'true') {
+    addFilter(`s.retired = 0 AND (s.lego_retiring_soon = 1 OR s.retirement_risk_score >= 70)`);
+  }
 
   const rangeFilter = (key: string, col: string) => {
     const v = parseInt(c.req.query(key) || '', 10);
