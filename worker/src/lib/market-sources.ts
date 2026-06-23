@@ -538,12 +538,20 @@ export function computeDealSignal(
   return { signal, available_price: availablePrice, available_channel: channel, discount_pct: discountPct, strong, reason };
 }
 
+// Minimum quantity-weighted price coverage before a part-out value is shown.
+// A figure built from <90% of a set's pieces understates badly, so withhold it.
+const PART_OUT_MIN_COVERAGE = 0.9;
+
 export function enrichSetRecord<T extends Record<string, unknown>>(row: T): T {
   const sources = buildMarketSources(row);
   const freshness = marketFreshness(row);
   const confidence = marketConfidence(row, sources);
   const blend = blendMarketValue(row);
   const deal = computeDealSignal(row, { value: blend.value, confidence: blend.confidence });
+  // Part-out (E1): expose the stored sum-of-parts value only when coverage is
+  // high enough to be trustworthy; always expose coverage so the UI can explain.
+  const partOutCoverage = Number(row.part_out_coverage);
+  const partOutValue = num(row.part_out_value);
   return {
     ...row,
     market_sources: sources,
@@ -564,6 +572,11 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T): T {
     deal_discount_pct: deal.discount_pct,
     deal_strong: deal.strong,
     deal_reason: deal.reason,
+    // Part-out value (E1; additive, read-side). Value gated on high coverage.
+    part_out_value: partOutValue != null && Number.isFinite(partOutCoverage) && partOutCoverage >= PART_OUT_MIN_COVERAGE
+      ? partOutValue
+      : null,
+    part_out_coverage: Number.isFinite(partOutCoverage) ? partOutCoverage : null,
   };
 }
 
