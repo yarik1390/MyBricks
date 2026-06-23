@@ -569,6 +569,43 @@ async function updateIntegrationsHealth() {
         </div>` : `<div class="u-fs-xs u-mute">No server-key AI calls recorded today.</div>`}
         <div class="u-fs-2xs u-mute" style="line-height:1.4;margin-top:8px;">${escapeHtml(aiUsageNote)}</div>
       </div>`;
+    // Firecrawl credit ledger (today) + BrickEconomy bootstrap burn-down. The
+    // credit counter mirrors the api_quota row that gates every scrape cron.
+    const fcQuota = (Array.isArray(data.quota) ? data.quota : []).find(q => q.service === "firecrawl") || { used: 0, cap: 0, remaining: 0 };
+    const fcUsed = Number(fcQuota.used || 0);
+    const fcCap = Number(fcQuota.cap || 0);
+    const fcRemaining = Number(fcQuota.remaining ?? Math.max(0, fcCap - fcUsed));
+    const fcPct = fcCap ? Math.round((fcUsed / fcCap) * 100) : 0;
+    const fcDot = fcPct >= 90 ? "var(--bv-red)" : fcPct >= 50 ? "var(--warn)" : "var(--up)";
+    const fcBadge = fcPct >= 90 ? "badge--down" : fcPct >= 50 ? "badge--warn" : "badge--up";
+    const beBoot = coverage.be_bootstrap || {};
+    const beElig = Number(beBoot.eligible || 0);
+    const bePop = Number(beBoot.populated || 0);
+    const bePct = Number(beBoot.pct || 0);
+    const beRem = Number(beBoot.remaining ?? Math.max(0, beElig - bePop));
+    const firecrawlNote = "Firecrawl is metered in credits (1 per basic/product scrape, 5 per JSON extract). The daily ceiling is env-tunable via FIRECRAWL_DAILY_CREDITS and gates every scrape cron. The BrickEconomy bootstrap fills be_value_new across the year≥2000 catalog (one scrape per set) and self-limits when complete.";
+    const firecrawlHTML = `
+      <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
+        <div class="u-between u-gap-3" style="margin-bottom:8px;">
+          <div class="u-mono-label u-fs-2xs">Firecrawl credits (today)</div>
+          <span class="badge ${fcBadge}" style="text-transform:uppercase;">${fcUsed.toLocaleString()} / ${fcCap.toLocaleString()} · ${fcPct}%</span>
+        </div>
+        <div class="u-fs-xs u-mute" style="margin-bottom:8px;">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${fcDot};margin-right:6px;"></span>
+          ${fcRemaining.toLocaleString()} credit${fcRemaining === 1 ? "" : "s"} remaining today
+        </div>
+        <div class="adm-cov-grid">
+          <div class="adm-cov-cell">
+            <div class="adm-cov-lbl">BrickEconomy bootstrap</div>
+            <div class="adm-cov-val">${beElig ? `${bePct}% (${bePop.toLocaleString()}/${beElig.toLocaleString()})` : "No catalog"}</div>
+          </div>
+          <div class="adm-cov-cell">
+            <div class="adm-cov-lbl">Sets remaining</div>
+            <div class="adm-cov-val">${beRem.toLocaleString()}</div>
+          </div>
+        </div>
+        <div class="u-fs-2xs u-mute" style="line-height:1.4;margin-top:8px;">${escapeHtml(firecrawlNote)}</div>
+      </div>`;
     const integrationsHTML = rows.map(r => {
       const standbyFallback = isBrickOwlStandby(r);
       const color = standbyFallback ? statusColor("unknown") : statusColor(r.status);
@@ -608,7 +645,7 @@ async function updateIntegrationsHealth() {
         </div>
       `;
     }).join("");
-    container.innerHTML = routingHTML + coverageHTML + blendHTML + aiUsageHTML + (integrationsHTML || `<div class="u-mute">No integration diagnostics available.</div>`);
+    container.innerHTML = routingHTML + coverageHTML + blendHTML + firecrawlHTML + aiUsageHTML + (integrationsHTML || `<div class="u-mute">No integration diagnostics available.</div>`);
   } catch (err) {
     container.innerHTML = `<div style="color:var(--bv-red);">Failed to load integrations: ${escapeHtml(err.message)}</div>`;
   }

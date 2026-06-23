@@ -154,7 +154,9 @@ async function getDataCoverage(env: Env) {
         CAST(SUM(CASE WHEN (theme IS NULL OR theme NOT IN ('Gear','Books','Educational and Dacta','Service Packs','Universal Building Set','System','LEGO Brand Store')) AND upc IS NOT NULL AND TRIM(upc) <> '' THEN 1 ELSE 0 END) AS INTEGER) AS retail_with_upc,
         CAST(SUM(CASE WHEN retired = 0 AND year IS NOT NULL AND year <= CAST(strftime('%Y','now') AS INTEGER) - 5 THEN 1 ELSE 0 END) AS INTEGER) AS old_active_sets,
         CAST(SUM(CASE WHEN valuation_method IN ('formula_bulk','ai') OR current_value IS NULL OR current_value <= 0 THEN 1 ELSE 0 END) AS INTEGER) AS low_confidence_values,
-        CAST(SUM(CASE WHEN current_value IS NULL OR current_value <= 0 OR valuation_expires_at < datetime('now') OR cached_at IS NULL OR cached_at < datetime('now','-60 days') THEN 1 ELSE 0 END) AS INTEGER) AS needs_market_refresh
+        CAST(SUM(CASE WHEN current_value IS NULL OR current_value <= 0 OR valuation_expires_at < datetime('now') OR cached_at IS NULL OR cached_at < datetime('now','-60 days') THEN 1 ELSE 0 END) AS INTEGER) AS needs_market_refresh,
+        CAST(SUM(CASE WHEN year >= 2000 THEN 1 ELSE 0 END) AS INTEGER) AS be_eligible,
+        CAST(SUM(CASE WHEN year >= 2000 AND be_value_new IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS be_populated
       FROM lego_sets
     `).first<Record<string, number>>(),
     env.DB.prepare(`
@@ -277,10 +279,21 @@ async function getDataCoverage(env: Env) {
     fail_count: Number(barcodeHealth.fail_count ?? 0),
     updated_at: barcodeHealth.updated_at ?? null,
   } : null;
+  // BrickEconomy-via-Firecrawl bootstrap progress: how much of the year>=2000
+  // catalog has be_value_new populated (the one-time backfill burn-down).
+  const beEligible = Number(sets?.be_eligible || 0);
+  const bePopulated = Number(sets?.be_populated || 0);
+  const beBootstrap = {
+    eligible: beEligible,
+    populated: bePopulated,
+    remaining: Math.max(0, beEligible - bePopulated),
+    pct: beEligible ? Math.round((bePopulated / beEligible) * 1000) / 10 : 0,
+  };
   return {
     ...sets,
     quality,
     blend_quality: blendQuality,
+    be_bootstrap: beBootstrap,
     barcode_health: barcodeHealthOut,
     sets_with_bricklink: bricklinkCount,
     barcode_coverage_pct: retailBarcodePct,
