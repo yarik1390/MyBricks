@@ -40,6 +40,8 @@ crons = [
   "0 9 * * *",
   "0 10 * * *",
   "0 11 * * *",
+  # TEMPORARY: one-time BrickEconomy bootstrap (remove after be_value_new is filled).
+  "5,20,35,50 * * * *",
   "15 * * * *",
   "30 * * * *",
 ]
@@ -50,3 +52,7 @@ crons = [
 # when AI_GATEWAY_ACCOUNT_ID is also present (uploaded as a secret in CI), so this
 # stays dormant until the gateway is provisioned + the account id is wired.
 AI_GATEWAY_ID = "brickvault"
+# TEMPORARY: raised Firecrawl daily credit ceiling for the one-time BrickEconomy
+# bootstrap (~5k sets/day at this rate). Reset to the default (omit → 2000/day)
+# once be_value_new is filled across the catalog.
+FIRECRAWL_DAILY_CREDITS = "30000"
