@@ -129,6 +129,28 @@ export async function getQuotaUsage(env: Env): Promise<QuotaUsageRow[]> {
     .sort((a, b) => a.service.localeCompare(b.service));
 }
 
+// Read-only remaining daily budget (cap - used today). Unlike reserveQuota it
+// does NOT book anything — the Firecrawl crons use it only to skip a run when the
+// ceiling is reached, leaving the per-scrape guard (spendQuota, inside
+// firecrawlScrape) as the SOLE authoritative credit meter so the ledger reflects
+// real spend (no reservation double-count). Fails open — a bookkeeping hiccup
+// must never starve a run.
+export async function quotaRemaining(env: Env, service: string): Promise<number> {
+  let cap = QUOTA_CAPS[service];
+  if (service === 'firecrawl') {
+    const override = Number(env.FIRECRAWL_DAILY_CREDITS);
+    if (Number.isFinite(override) && override > 0) cap = override;
+  }
+  if (!cap) return Number.POSITIVE_INFINITY;
+  try {
+    const row = await env.DB.prepare('SELECT used FROM api_quota WHERE service=?1 AND day=?2')
+      .bind(service, quotaDay()).first<{ used: number }>();
+    return Math.max(0, cap - Number(row?.used ?? 0));
+  } catch {
+    return cap;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Invocation packing — free-plan Workers allow 50 subrequests per invocation
 // and EVERY binding call counts (fetch, D1 query/batch, KV get/put). The

@@ -1,7 +1,7 @@
 import type { Env } from '../types';
 import { fetchBrickEconomyViaFirecrawl } from '../lib/brickeconomy-firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
-import { reserveQuota } from '../lib/api-quota';
+import { quotaRemaining } from '../lib/api-quota';
 
 /**
  * Populate BrickEconomy valuation data via Firecrawl structured extraction — a
@@ -37,8 +37,12 @@ export async function runBrickEconomyEnrich(
     ? Math.min(Math.floor(requestedLimit), 200)
     : 40;
 
-  const grant = (await reserveQuota(env, { firecrawl: limit })).firecrawl ?? 0;
-  if (grant <= 0) return { processed: 0, updated: 0, limit, skipped: 'firecrawl quota spent' };
+  // Size the batch to the remaining daily credits WITHOUT reserving (the
+  // per-scrape guard in firecrawlScrape is the sole real-credit meter). Use the
+  // worst-case 5-credit json cost as the divisor so we never overshoot the cap.
+  const remaining = await quotaRemaining(env, 'firecrawl');
+  if (remaining < 5) return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
+  const effLimit = Math.min(limit, Math.floor(remaining / 5));
 
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num
@@ -55,9 +59,9 @@ export async function runBrickEconomyEnrich(
       COALESCE(NULLIF(ls.blended_value, 0), ls.current_value, 0) DESC,
       ls.set_num ASC
     LIMIT ?
-  `).bind(grant).all<{ set_num: string }>();
+  `).bind(effLimit).all<{ set_num: string }>();
 
-  if (!results.length) return { processed: 0, updated: 0, limit: grant };
+  if (!results.length) return { processed: 0, updated: 0, limit: effLimit };
 
   let processed = 0;
   let updated = 0;
@@ -121,5 +125,5 @@ export async function runBrickEconomyEnrich(
   // No aggregate health write — firecrawlScrape records each scrape attempt
   // (real ok/fail + error message) inside the wrapper. Writing a batch tally
   // here would double-count and clobber the real error with "unknown error".
-  return { processed, updated, limit: grant };
+  return { processed, updated, limit: effLimit };
 }

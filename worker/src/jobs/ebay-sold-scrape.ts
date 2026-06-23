@@ -2,7 +2,7 @@ import type { Env } from '../types';
 import { fetchEbaySoldViaBrightData } from '../lib/brightdata';
 import { fetchEbaySoldViaFirecrawl } from '../lib/ebay-firecrawl';
 import { brightDataSoldEnabled, firecrawlEnabled } from '../lib/pricing-flags';
-import { reserveQuota } from '../lib/api-quota';
+import { quotaRemaining, reserveQuota } from '../lib/api-quota';
 import { recordIntegrationHealth } from '../lib/integration-health';
 import { recomputeBlendedValues } from '../lib/market-sources';
 
@@ -32,9 +32,19 @@ export async function runEbaySoldScrape(
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
     ? Math.min(Math.floor(requestedLimit), 100)
     : 20;
-  const quotaService = useFirecrawl ? 'firecrawl' : 'brightdata';
-  const grant = (await reserveQuota(env, { [quotaService]: limit }))[quotaService] ?? 0;
-  if (grant <= 0) return { processed: 0, updated: 0, rejected: 0, limit, skipped: `${quotaService} quota spent` };
+  // Firecrawl is metered by its own per-scrape guard (5cr/json extract) inside
+  // firecrawlScrape, so size to remaining daily credits WITHOUT reserving — a
+  // double reservation here would make the admin Firecrawl credits panel
+  // over-report. Bright Data has no in-scrape meter, so it still books up front.
+  let effLimit: number;
+  if (useFirecrawl) {
+    const remaining = await quotaRemaining(env, 'firecrawl');
+    if (remaining < 5) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
+    effLimit = Math.min(limit, Math.floor(remaining / 5));
+  } else {
+    effLimit = (await reserveQuota(env, { brightdata: limit })).brightdata ?? 0;
+    if (effLimit <= 0) return { processed: 0, updated: 0, rejected: 0, limit, skipped: 'brightdata quota spent' };
+  }
 
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num, ls.name, ls.bl_new_value, ls.current_value
@@ -50,8 +60,8 @@ export async function runEbaySoldScrape(
       COALESCE(ls.ebay_new_cached_at, '2000-01-01') ASC,
       ls.set_num ASC
     LIMIT ?
-  `).bind(grant).all<{ set_num: string; name: string; bl_new_value: number | null; current_value: number | null }>();
-  if (!results.length) return { processed: 0, updated: 0, rejected: 0, limit: grant };
+  `).bind(effLimit).all<{ set_num: string; name: string; bl_new_value: number | null; current_value: number | null }>();
+  if (!results.length) return { processed: 0, updated: 0, rejected: 0, limit: effLimit };
 
   const concurrency = Math.max(1, Math.min(options.concurrency ?? 5, 8));
   let updated = 0;
@@ -109,5 +119,5 @@ export async function runEbaySoldScrape(
   // the Bright Data path (which doesn't self-record) needs the aggregate write —
   // writing it for Firecrawl too would double-count and clobber the real error.
   if (!useFirecrawl) await recordIntegrationHealth(env, 'brightdata', health);
-  return { processed, updated, rejected, limit: grant };
+  return { processed, updated, rejected, limit: effLimit };
 }

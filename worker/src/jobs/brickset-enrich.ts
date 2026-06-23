@@ -1,7 +1,7 @@
 import type { Env } from '../types';
 import { firecrawlScrape } from '../lib/firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
-import { reserveQuota } from '../lib/api-quota';
+import { quotaRemaining } from '../lib/api-quota';
 
 const BRICKSET_SCHEMA = {
   type: 'object',
@@ -64,8 +64,11 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
     ? Math.min(Math.floor(requestedLimit), 100)
     : 50;
 
-  const grant = (await reserveQuota(env, { firecrawl: limit })).firecrawl ?? 0;
-  if (grant <= 0) return { processed: 0, updated: 0, limit, skipped: 'firecrawl quota spent' };
+  // Size to remaining daily credits WITHOUT reserving — the per-scrape guard in
+  // firecrawlScrape is the sole real-credit meter (worst-case 5cr/json divisor).
+  const remaining = await quotaRemaining(env, 'firecrawl');
+  if (remaining < 5) return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
+  const effLimit = Math.min(limit, Math.floor(remaining / 5));
 
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num, ls.year, ls.brickset_enriched_at
@@ -81,9 +84,9 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
       ) THEN 0 ELSE 1 END,
       COALESCE(ls.year, 0) DESC
     LIMIT ?
-  `).bind(grant).all<{ set_num: string; year: number | null; brickset_enriched_at: string | null }>();
+  `).bind(effLimit).all<{ set_num: string; year: number | null; brickset_enriched_at: string | null }>();
 
-  if (!results.length) return { processed: 0, updated: 0, limit: grant };
+  if (!results.length) return { processed: 0, updated: 0, limit: effLimit };
 
   let processed = 0;
   let updated = 0;
@@ -198,5 +201,5 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
   // No aggregate health write — firecrawlScrape records each scrape attempt
   // (real ok/fail + error message) inside the wrapper; a batch tally here would
   // double-count and clobber the real error with "unknown error".
-  return { processed, updated, unchanged, limit: grant };
+  return { processed, updated, unchanged, limit: effLimit };
 }

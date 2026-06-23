@@ -1,6 +1,6 @@
 import type { Env } from '../types';
 import { checkLegoStock } from '../lib/lego-stock';
-import { reserveQuota } from '../lib/api-quota';
+import { quotaRemaining } from '../lib/api-quota';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 
 /**
@@ -24,8 +24,13 @@ export async function runLegoStockRefresh(env: Env, options: { limit?: number } 
     ? Math.min(Math.floor(requestedLimit), 200)
     : 100;
 
-  const grant = (await reserveQuota(env, { firecrawl: limit })).firecrawl ?? 0;
-  if (grant <= 0) return { processed: 0, updated: 0, limit, skipped: 'firecrawl quota spent' };
+  // Size to remaining daily credits WITHOUT reserving — the per-scrape guard in
+  // firecrawlScrape is the sole real-credit meter (5cr/json extract). Reserving up
+  // front here would double-count against that guard and make the admin Firecrawl
+  // credits panel over-report.
+  const remaining = await quotaRemaining(env, 'firecrawl');
+  if (remaining < 5) return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
+  const effLimit = Math.min(limit, Math.floor(remaining / 5));
 
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num
@@ -41,9 +46,9 @@ export async function runLegoStockRefresh(env: Env, options: { limit?: number } 
       COALESCE(ls.lego_retiring_soon, 0) DESC,
       COALESCE(ls.lego_checked_at, '2000-01-01') ASC
     LIMIT ?
-  `).bind(grant).all<{ set_num: string }>();
+  `).bind(effLimit).all<{ set_num: string }>();
 
-  if (!results.length) return { processed: 0, updated: 0, limit: grant };
+  if (!results.length) return { processed: 0, updated: 0, limit: effLimit };
 
   let processed = 0;
   let updated = 0;
@@ -83,5 +88,5 @@ export async function runLegoStockRefresh(env: Env, options: { limit?: number } 
     await env.DB.batch(stmts.slice(i, i + 90));
   }
 
-  return { processed, updated, limit: grant };
+  return { processed, updated, limit: effLimit };
 }
