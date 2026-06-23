@@ -14,6 +14,7 @@ import { computeRetirementRisk } from './lib/retirement-risk';
 import { isSearchIndexCorruption } from './lib/search-index';
 import { formulaValuation, isLikelyRetired, isPlausibleMarketValue } from './lib/valuation';
 import { blendMarketValue, computeDealSignal } from './lib/market-sources';
+import { computePartOutValue, partKey } from './lib/part-out';
 
 // ---------------------------------------------------------------------------
 // integration health
@@ -606,6 +607,57 @@ describe('computeDealSignal (E3a)', () => {
     const d = computeDealSignal({ ebay_ask_value: 102 }, { value: 100, confidence: 'medium' });
     expect(d.signal).toBe('fair');
     expect(d.strong).toBe(false);
+  });
+});
+
+describe('computePartOutValue (E1 part-out)', () => {
+  const price = (entries: Array<[string, number, number]>) =>
+    new Map(entries.map(([pn, cid, v]) => [partKey(pn, cid), v]));
+
+  it('returns null/zero coverage for a set with no parts', () => {
+    const r = computePartOutValue([], price([]));
+    expect(r.value).toBeNull();
+    expect(r.coverage).toBe(0);
+  });
+
+  it('sums quantity × unit price across fully-priced lots', () => {
+    const parts = [
+      { part_num: 'a', color_id: 0, quantity: 2 },
+      { part_num: 'b', color_id: 1, quantity: 3 },
+    ];
+    const r = computePartOutValue(parts, price([['a', 0, 5], ['b', 1, 10]]));
+    expect(r.value).toBe(40); // 2*5 + 3*10
+    expect(r.coverage).toBe(1);
+    expect(r.priced_lots).toBe(2);
+    expect(r.total_lots).toBe(2);
+  });
+
+  it('reports partial coverage (quantity-weighted) when some lots are unpriced', () => {
+    const parts = [
+      { part_num: 'a', color_id: 0, quantity: 2 }, // priced
+      { part_num: 'b', color_id: 1, quantity: 3 }, // unpriced
+    ];
+    const r = computePartOutValue(parts, price([['a', 0, 5]]));
+    expect(r.value).toBe(10);          // only the priced lot contributes
+    expect(r.coverage).toBe(0.4);      // 2 of 5 pieces priced
+    expect(r.priced_lots).toBe(1);
+  });
+
+  it('excludes spare parts by default but includes them on request', () => {
+    const parts = [
+      { part_num: 'a', color_id: 0, quantity: 1 },
+      { part_num: 's', color_id: 0, quantity: 4, is_spare: 1 },
+    ];
+    const prices = price([['a', 0, 10], ['s', 0, 2]]);
+    expect(computePartOutValue(parts, prices).value).toBe(10);                         // spare excluded
+    expect(computePartOutValue(parts, prices, { includeSpares: true }).value).toBe(18); // 10 + 4*2
+  });
+
+  it('ignores zero/negative prices as unpriced', () => {
+    const parts = [{ part_num: 'a', color_id: 0, quantity: 2 }];
+    const r = computePartOutValue(parts, price([['a', 0, 0]]));
+    expect(r.value).toBeNull();
+    expect(r.coverage).toBe(0);
   });
 });
 

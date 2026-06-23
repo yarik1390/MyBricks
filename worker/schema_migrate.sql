@@ -373,3 +373,26 @@ ALTER TABLE lego_sets ADD COLUMN be_value_used REAL;
 ALTER TABLE lego_sets ADD COLUMN be_forecast_2y REAL;
 ALTER TABLE lego_sets ADD COLUMN be_forecast_5y REAL;
 ALTER TABLE lego_sets ADD COLUMN be_retail REAL;
+
+-- Part-out (sum-of-parts) value (E1): the part-out compute job sums
+-- quantity x unit price over set_parts into these columns. part_out_coverage is
+-- the quantity-weighted fraction of the set we actually have a price for, so the
+-- value is surfaced only once coverage is high enough to be trustworthy.
+ALTER TABLE lego_sets ADD COLUMN part_out_value REAL;
+ALTER TABLE lego_sets ADD COLUMN part_out_coverage REAL;
+ALTER TABLE lego_sets ADD COLUMN part_out_cached_at TEXT;
+
+-- Shared per-part price cache keyed (part_num, color_id). Filled by a slow,
+-- budget-gated trickle and reused across every set that contains the part, so
+-- part-out coverage rises without per-set re-pricing.
+CREATE TABLE IF NOT EXISTS part_prices (
+  part_num TEXT NOT NULL,
+  color_id INTEGER NOT NULL DEFAULT 0,
+  price_new REAL,
+  qty_new INTEGER,
+  price_used REAL,
+  qty_used INTEGER,
+  cached_at TEXT,
+  PRIMARY KEY (part_num, color_id)
+);
+CREATE INDEX IF NOT EXISTS idx_part_prices_cached ON part_prices(cached_at);

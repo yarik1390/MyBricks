@@ -242,6 +242,19 @@ CREATE TABLE IF NOT EXISTS set_parts (
   PRIMARY KEY (set_num, part_num, color_id)
 );
 
+-- Shared per-part price cache (E1 part-out): keyed (part_num, color_id), filled
+-- by a budget-gated trickle and reused across every set containing the part.
+CREATE TABLE IF NOT EXISTS part_prices (
+  part_num TEXT NOT NULL,
+  color_id INTEGER NOT NULL DEFAULT 0,
+  price_new REAL,
+  qty_new INTEGER,
+  price_used REAL,
+  qty_used INTEGER,
+  cached_at TEXT,
+  PRIMARY KEY (part_num, color_id)
+);
+
 CREATE TABLE IF NOT EXISTS user_missing_parts (
   user_id TEXT NOT NULL,
   set_num TEXT NOT NULL,
@@ -254,6 +267,7 @@ CREATE TABLE IF NOT EXISTS user_missing_parts (
 CREATE INDEX IF NOT EXISTS idx_set_minifigs_set ON set_minifigs(set_num);
 CREATE INDEX IF NOT EXISTS idx_set_minifigs_fig ON set_minifigs(fig_num);
 CREATE INDEX IF NOT EXISTS idx_set_parts_set ON set_parts(set_num);
+CREATE INDEX IF NOT EXISTS idx_part_prices_cached ON part_prices(cached_at);
 CREATE INDEX IF NOT EXISTS idx_user_missing_user ON user_missing_parts(user_id, set_num);
 
 -- Alternate builds (MOCs buildable from a set's parts), cached from Rebrickable
