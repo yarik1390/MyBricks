@@ -889,6 +889,8 @@ export async function api(path, opts = {}) {
     try {
       r = await fetch(_url, init);
     } catch (e2) {
+      // Both attempts hit a network-level failure — signal a confirming probe.
+      try { window.dispatchEvent(new Event("bv:api-fail")); } catch { /* non-browser ctx */ }
       if (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE") {
         outboxEnqueue({ path, method: init.method, body: opts.body });
         toast("Saved offline — will sync when connected", "info");
@@ -897,6 +899,10 @@ export async function api(path, opts = {}) {
       throw e2;
     }
   }
+
+  // Any HTTP response means the server is reachable — clear a stale offline
+  // banner immediately (the one-shot manifest probe can race/stick at boot).
+  try { window.dispatchEvent(new Event("bv:api-ok")); } catch { /* non-browser ctx */ }
 
   if (r.status === 401) {
     if (_authSession?.refresh_token) {

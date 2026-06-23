@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = 'v164';
+const VERSION = 'v165';
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 const STATIC_ASSETS = [
@@ -71,7 +71,11 @@ function networkFirst(request, cacheName) {
       }
       return r;
     })
-    .catch(() => caches.match(request));
+    // On a network failure fall back to cache; if that misses too (e.g. a
+    // cache-busted probe URL like /manifest.json?_=ts), return a real error
+    // Response so respondWith() never receives `undefined` (which would break
+    // the request rather than surface a clean network error to the caller).
+    .catch(() => caches.match(request).then(c => c || Response.error()));
 }
 
 // Cache-first: serve from cache, fetch in the background to refresh. Good for

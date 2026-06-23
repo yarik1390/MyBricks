@@ -246,7 +246,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   let offlineProbeBusy = false;
   let offlineUiState = "online";
   let offlineShowTimer = null;
+  let offlineRetryTimer = null;
   const OFFLINE_GRACE_MS = 1200;
+  const OFFLINE_REPROBE_MS = 5000;
   // Decision logic is nextOfflineBannerState() (lib/pure.js, unit-tested); this
   // layer maps the reducer's state onto the grace timer + the body.offline class.
   function dispatchOffline(event) {
@@ -260,6 +262,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       offlineShowTimer = null;
     }
     document.body.classList.toggle("offline", offlineUiState === "offline");
+    // Self-heal: while we believe we're offline (or pending), keep re-probing so a
+    // transient boot/SW race that stranded the banner recovers on its own — the
+    // boot probe is one-shot and only re-checks on the browser "online" event,
+    // which never fires when navigator.onLine was already true at a failed probe.
+    if (offlineUiState === "online") {
+      if (offlineRetryTimer) { clearInterval(offlineRetryTimer); offlineRetryTimer = null; }
+    } else if (!offlineRetryTimer) {
+      offlineRetryTimer = setInterval(() => refreshOfflineState(), OFFLINE_REPROBE_MS);
+    }
   }
   const applyOfflineState = (isOffline) => dispatchOffline(isOffline ? "offline" : "online");
   async function refreshOfflineState() {
@@ -287,6 +298,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   // A browser-reported disconnect shows the banner (debounced, so a flap that
   // immediately recovers never flashes).
   window.addEventListener("offline", () => applyOfflineState(true));
+  // A successful API response is definitive proof of connectivity — clear any
+  // banner the one-shot boot probe stranded (e.g. a cold-load SW/network race).
+  // An API network-failure triggers a confirming probe rather than showing the
+  // banner directly, so a single failed request can't flash it on its own.
+  window.addEventListener("bv:api-ok", () => { if (offlineUiState !== "online") applyOfflineState(false); });
+  window.addEventListener("bv:api-fail", () => { refreshOfflineState(); });
 
   setupGestures();
   setupImageHydration();
