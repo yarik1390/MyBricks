@@ -389,9 +389,11 @@ function infoTabHTML(set, entry, isWish) {
 
   return `
     ${marketValueHeroHTML(set)}
+    ${dealSignalHTML(set)}
     ${priceStripHTML(set, entry)}
     ${marketSpreadHTML(set)}
     ${marketDepthHTML(set)}
+    ${partOutHTML(set)}
     ${aiDisclaimerHTML}
     <details class="howwegot" style="margin-bottom:14px;">
       <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:11px 14px;">
@@ -1561,6 +1563,56 @@ function marketDepthHTML(set) {
     <span class="u-row u-gap-1">${I.box({w:13,h:13})} ${askQty} active listing${askQty > 1 ? 's' : ''} · asking ${fmtMoney(askValue)}${sold ? ` vs ${fmtMoney(sold)} sold` : ''}</span>
     ${hint ? `<span class="signal-hint">${escapeHtml(hint)}</span>` : ''}
   </div>`;
+}
+
+// Buy / fair / above-value verdict (E3a) — compares the authoritative market
+// value against the cheapest price you could pay now. The reason text is
+// produced server-side and is already source-anonymized (retail vs resale, no
+// provider names); we only choose the badge styling here.
+function dealSignalHTML(set) {
+  const sig = set.deal_signal;
+  if (sig !== 'buy' && sig !== 'fair' && sig !== 'premium') return '';
+  const reason = set.deal_reason || '';
+  const strong = !!set.deal_strong;
+  const cfg = {
+    buy: { label: strong ? 'STRONG BUY' : 'BUY', color: 'var(--up)', bg: 'rgba(34,197,94,.10)' },
+    fair: { label: 'FAIR PRICE', color: 'var(--ink-soft)', bg: 'var(--surface-2)' },
+    premium: { label: 'ABOVE VALUE', color: 'var(--down)', bg: 'rgba(239,68,68,.10)' },
+  }[sig];
+  const pct = Number(set.deal_discount_pct);
+  const pctStr = (sig !== 'fair' && Number.isFinite(pct) && Math.abs(pct) >= 1) ? ` · ${Math.abs(Math.round(pct))}%` : '';
+  return `
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;border:1px solid ${cfg.color};background:${cfg.bg};">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+        <div style="min-width:0;">
+          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:3px;">Deal check</div>
+          <div style="font-size:13px;color:var(--ink-soft);line-height:1.45;">${escapeHtml(reason)}</div>
+        </div>
+        <span style="flex-shrink:0;font-family:var(--mono);font-size:11px;font-weight:800;text-transform:uppercase;color:${cfg.color};border:1px solid ${cfg.color};border-radius:8px;padding:4px 10px;white-space:nowrap;">${cfg.label}${pctStr}</span>
+      </div>
+    </div>`;
+}
+
+// Sum-of-parts (part-out) value (E1) — the floor value if the set were sold as
+// individual parts. Only present when piece-price coverage is high (gated
+// server-side in enrichSetRecord), so a shown figure is trustworthy.
+function partOutHTML(set) {
+  const po = Number(set.part_out_value);
+  if (!Number.isFinite(po) || po <= 0) return '';
+  const mv = Number(set.market_value) || Number(set.current_value) || 0;
+  let note = 'Estimated value if sold as individual parts.';
+  if (mv > 0) {
+    const ratio = po / mv;
+    if (ratio >= 1.15) note = `Parting out could yield roughly ${fmtPct(ratio - 1)} more than the sealed value.`;
+    else if (ratio <= 0.85) note = 'The sealed set is worth more than its individual parts.';
+    else note = 'Roughly in line with the sealed value.';
+  }
+  return `
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:3px;">Part-out value</div>
+      <div style="font-size:22px;font-weight:800;line-height:1.05;">${fmtMoney(po)}</div>
+      <div style="margin-top:6px;font-size:12px;color:var(--ink-mute);line-height:1.45;">${escapeHtml(note)}</div>
+    </div>`;
 }
 
 
