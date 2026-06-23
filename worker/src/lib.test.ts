@@ -268,9 +268,9 @@ describe('computeRetirementRisk', () => {
     expect(ninja - base).toBe(10);
   });
 
-  it('max observable score is 65 (45 age + 10 large-set + 10 theme)', () => {
-    // The Math.min(100,...) cap is defensive — the actual max with all three
-    // factors maxed out is 45 + 10 + 10 = 65.
+  it('max base (catalog-only) score is 65 (45 age + 10 large-set + 10 theme)', () => {
+    // The Math.min(100,...) cap is defensive — the actual max from catalog-only
+    // factors (no live signals) is 45 + 10 + 10 = 65.
     const score = computeRetirementRisk({ year: currentYear - 20, theme: 'City', pieces: 2000, retired: 0 });
     expect(score).toBe(65);
   });
@@ -286,6 +286,64 @@ describe('computeRetirementRisk', () => {
       expect(s).toBeGreaterThanOrEqual(0);
       expect(s).toBeLessThanOrEqual(100);
     }
+  });
+
+  // --- Live retirement signals (E2) ----------------------------------------
+  const daysFromNow = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString().slice(0, 10);
+
+  it('absent live signals leave the base heuristic score unchanged', () => {
+    const base = computeRetirementRisk({ year: currentYear - 4, theme: null, pieces: 100, retired: 0 });
+    const withNulls = computeRetirementRisk({
+      year: currentYear - 4, theme: null, pieces: 100, retired: 0,
+      lego_retiring_soon: 0, lego_availability: null, exit_date: null,
+    });
+    expect(withNulls).toBe(base);
+  });
+
+  it('an official "retiring soon" flag dominates the score', () => {
+    // Brand-new set (base 0) flagged retiring → strong signal, not 0.
+    const s = computeRetirementRisk({
+      year: currentYear, theme: null, pieces: 100, retired: 0, lego_retiring_soon: 1,
+    });
+    expect(s).toBe(40);
+  });
+
+  it('a vanished LEGO.com listing adds a moderate boost; an in-stock one adds none', () => {
+    const soldOut = computeRetirementRisk({
+      year: currentYear, theme: null, pieces: 100, retired: 0, lego_availability: 'sold_out',
+    });
+    const inStock = computeRetirementRisk({
+      year: currentYear, theme: null, pieces: 100, retired: 0, lego_availability: 'in_stock',
+    });
+    expect(soldOut).toBe(20);
+    expect(inStock).toBe(0);
+  });
+
+  it('a near or passed retirement (exit) date raises the score', () => {
+    const nearFuture = computeRetirementRisk({
+      year: currentYear, theme: null, pieces: 100, retired: 0, exit_date: daysFromNow(90),
+    });
+    const passed = computeRetirementRisk({
+      year: currentYear, theme: null, pieces: 100, retired: 0, exit_date: daysFromNow(-10),
+    });
+    expect(nearFuture).toBe(30);
+    expect(passed).toBe(35);
+  });
+
+  it('live signals can push the score to the 100 cap', () => {
+    const s = computeRetirementRisk({
+      year: currentYear - 20, theme: 'City', pieces: 2000, retired: 0,
+      lego_retiring_soon: 1, exit_date: daysFromNow(-5),
+    });
+    expect(s).toBe(100); // 65 base + 40 + 35, capped
+  });
+
+  it('already-retired sets ignore live signals and stay 0', () => {
+    const s = computeRetirementRisk({
+      year: 2015, theme: null, pieces: 100, retired: 1,
+      lego_retiring_soon: 1, lego_availability: 'sold_out', exit_date: daysFromNow(-30),
+    });
+    expect(s).toBe(0);
   });
 });
 

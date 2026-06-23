@@ -811,12 +811,17 @@ export async function runValuateMinifigs(env: Env, options: { limit?: number } =
 // Batch-update retirement risk scores for sets due for refresh (null or >7 days old).
 async function updateRetirementRiskBatch(env: Env): Promise<void> {
   const { results } = await env.DB.prepare(`
-    SELECT set_num, year, theme, pieces, retired FROM lego_sets
+    SELECT set_num, year, theme, pieces, retired,
+           lego_retiring_soon, lego_availability, exit_date
+    FROM lego_sets
     WHERE retired = 0
       AND (retirement_risk_updated_at IS NULL
            OR retirement_risk_updated_at < datetime('now', '-7 days'))
     LIMIT 200
-  `).all<{ set_num: string; year: number; theme: string | null; pieces: number; retired: number }>();
+  `).all<{
+    set_num: string; year: number; theme: string | null; pieces: number; retired: number;
+    lego_retiring_soon: number | null; lego_availability: string | null; exit_date: string | null;
+  }>();
 
   if (!results.length) return;
 
