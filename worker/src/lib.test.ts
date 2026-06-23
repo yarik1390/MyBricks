@@ -13,7 +13,7 @@ import { classifyHealth } from './lib/integration-health';
 import { computeRetirementRisk } from './lib/retirement-risk';
 import { isSearchIndexCorruption } from './lib/search-index';
 import { formulaValuation, isLikelyRetired, isPlausibleMarketValue } from './lib/valuation';
-import { blendMarketValue } from './lib/market-sources';
+import { blendMarketValue, computeDealSignal } from './lib/market-sources';
 
 // ---------------------------------------------------------------------------
 // integration health
@@ -549,6 +549,63 @@ describe('blendMarketValue (valuation v2)', () => {
       ebay_new_value: 200, ebay_new_qty: 10, ebay_new_cached_at: now,
     });
     expect(r.confidence).toBe('medium');
+  });
+});
+
+describe('computeDealSignal (E3a)', () => {
+  it('returns no signal without a usable market value', () => {
+    expect(computeDealSignal({ ebay_ask_value: 100 }, { value: null, confidence: 'medium' }).signal).toBeNull();
+  });
+
+  it('returns no signal for estimated or low-confidence values', () => {
+    expect(computeDealSignal({ ebay_ask_value: 50 }, { value: 100, confidence: 'estimated' }).signal).toBeNull();
+    expect(computeDealSignal({ ebay_ask_value: 50 }, { value: 100, confidence: 'low' }).signal).toBeNull();
+  });
+
+  it('returns no signal when no buyable price is known', () => {
+    expect(computeDealSignal({}, { value: 200, confidence: 'high' }).signal).toBeNull();
+  });
+
+  it('flags a buy when a buyable price is well below market', () => {
+    const d = computeDealSignal({ ebay_ask_value: 150 }, { value: 200, confidence: 'medium' });
+    expect(d.signal).toBe('buy');
+    expect(d.available_channel).toBe('resale');
+    expect(d.discount_pct).toBeCloseTo(25, 1);
+  });
+
+  it('prefers live retail over the resale ask when in stock and cheaper', () => {
+    const d = computeDealSignal(
+      { lego_in_stock: 1, retail_price: 120, ebay_ask_value: 180 },
+      { value: 200, confidence: 'high' },
+    );
+    expect(d.available_channel).toBe('retail');
+    expect(d.available_price).toBe(120);
+    expect(d.signal).toBe('buy');
+  });
+
+  it('ignores the retail price when the set is not in stock at retail', () => {
+    const d = computeDealSignal(
+      { lego_in_stock: 0, retail_price: 120, ebay_ask_value: 240 },
+      { value: 200, confidence: 'medium' },
+    );
+    expect(d.available_channel).toBe('resale');
+    expect(d.signal).toBe('premium'); // 240 vs 200 → above value
+  });
+
+  it('marks a retiring below-value set as a strong buy', () => {
+    const d = computeDealSignal(
+      { ebay_ask_value: 150, lego_retiring_soon: 1 },
+      { value: 200, confidence: 'high' },
+    );
+    expect(d.signal).toBe('buy');
+    expect(d.strong).toBe(true);
+    expect(d.reason).toMatch(/retiring/i);
+  });
+
+  it('reads fair when the price is in line with market', () => {
+    const d = computeDealSignal({ ebay_ask_value: 102 }, { value: 100, confidence: 'medium' });
+    expect(d.signal).toBe('fair');
+    expect(d.strong).toBe(false);
   });
 });
 

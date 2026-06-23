@@ -460,11 +460,90 @@ export function blendMarketValue(row: Record<string, unknown>): BlendedValue {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Deal signal (E3a) — buy / fair / premium from signals we already collect.
+// ---------------------------------------------------------------------------
+export type DealVerdict = 'buy' | 'fair' | 'premium';
+export interface DealSignal {
+  signal: DealVerdict | null;          // null when we can't responsibly assess
+  available_price: number | null;       // cheapest price you can actually pay now
+  available_channel: 'retail' | 'resale' | null; // INTERNAL — UI must stay source/channel-anonymized per B1
+  discount_pct: number | null;          // % the available price sits below market (positive = below = good)
+  strong: boolean;                       // extra conviction (below value AND about to retire)
+  reason: string;                        // plain-language, no source names
+}
+
+// A buyable price this far below (above) the market value flips the verdict to
+// buy (premium). Inside the band it reads "fair". 10% keeps noise from flipping
+// the call while still catching genuine deals.
+const DEAL_BUY_THRESHOLD = 0.10;
+const DEAL_PREMIUM_THRESHOLD = 0.10;
+
+/**
+ * Compare the authoritative market value against the cheapest price the user
+ * could actually pay right now — the live retail price when the set is in stock
+ * at retail, otherwise the current resale asking price — and call it buy / fair
+ * / premium. A set selling below value that is also about to retire is a
+ * "strong" buy (limited window).
+ *
+ * Only fires against a real market blend at medium+ confidence: a directional
+ * buy/premium call on an estimated or thinly-supported value would be noise, so
+ * those return a null signal. Pure + read-side; never names a source to users.
+ */
+export function computeDealSignal(
+  row: Record<string, unknown>,
+  market: { value: number | null; confidence: MarketConfidence | null },
+): DealSignal {
+  const none: DealSignal = { signal: null, available_price: null, available_channel: null, discount_pct: null, strong: false, reason: '' };
+  const mv = market.value;
+  if (!mv || mv <= 0) return none;
+  // Need a corroborated value to judge a deal against — skip estimated/low.
+  if (market.confidence !== 'high' && market.confidence !== 'medium') return none;
+
+  // Cheapest buyable price now: live retail (only when actually in stock at
+  // retail) vs current resale asking; take the lower.
+  const retail = Number(row.lego_in_stock) === 1 ? num(row.retail_price) : null;
+  const ask = num(row.ebay_ask_value);
+  let availablePrice: number | null = null;
+  let channel: 'retail' | 'resale' | null = null;
+  if (retail != null && (ask == null || retail <= ask)) { availablePrice = retail; channel = 'retail'; }
+  else if (ask != null) { availablePrice = ask; channel = 'resale'; }
+  if (availablePrice == null) return none;
+
+  const discount = (mv - availablePrice) / mv;          // >0 → below market
+  const discountPct = Math.round(discount * 1000) / 10; // one decimal
+  const retiring = Number(row.retirement_risk_score) >= 70 || !!row.lego_retiring_soon;
+
+  let signal: DealVerdict;
+  if (discount >= DEAL_BUY_THRESHOLD) signal = 'buy';
+  else if (discount <= -DEAL_PREMIUM_THRESHOLD) signal = 'premium';
+  else signal = 'fair';
+
+  const strong = signal === 'buy' && retiring;
+  const absPct = Math.abs(discountPct);
+  let reason: string;
+  if (signal === 'buy') {
+    reason = channel === 'retail'
+      ? `Available at retail about ${absPct}% below its market value.`
+      : `Selling about ${absPct}% below its market value.`;
+    if (strong) reason += ' Retiring soon — limited buying window.';
+  } else if (signal === 'premium') {
+    reason = channel === 'retail'
+      ? 'Currently priced above its market value.'
+      : 'Asking prices sit above its market value.';
+  } else {
+    reason = 'Priced in line with its market value.';
+  }
+
+  return { signal, available_price: availablePrice, available_channel: channel, discount_pct: discountPct, strong, reason };
+}
+
 export function enrichSetRecord<T extends Record<string, unknown>>(row: T): T {
   const sources = buildMarketSources(row);
   const freshness = marketFreshness(row);
   const confidence = marketConfidence(row, sources);
   const blend = blendMarketValue(row);
+  const deal = computeDealSignal(row, { value: blend.value, confidence: blend.confidence });
   return {
     ...row,
     market_sources: sources,
@@ -478,6 +557,13 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T): T {
     market_value_high: blend.high,
     market_value_confidence: blend.confidence,
     market_value_basis: blend.basis,
+    // Deal signal v1 (E3a; additive, read-side).
+    deal_signal: deal.signal,
+    deal_available_price: deal.available_price,
+    deal_available_channel: deal.available_channel,
+    deal_discount_pct: deal.discount_pct,
+    deal_strong: deal.strong,
+    deal_reason: deal.reason,
   };
 }
 
