@@ -2,7 +2,6 @@ import type { Env } from '../types';
 import { fetchBrickEconomyViaFirecrawl } from '../lib/brickeconomy-firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 import { reserveQuota } from '../lib/api-quota';
-import { recordIntegrationHealth } from '../lib/integration-health';
 
 /**
  * Populate BrickEconomy valuation data via Firecrawl structured extraction — a
@@ -62,7 +61,6 @@ export async function runBrickEconomyEnrich(
 
   let processed = 0;
   let updated = 0;
-  const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
   const stmts: D1PreparedStatement[] = [];
 
   // Scrape in small concurrent batches (default 5, matching ebay-sold-scrape) so
@@ -80,16 +78,17 @@ export async function runBrickEconomyEnrich(
     for (const { set_num, scrape } of outs) {
       processed++;
       if (!scrape) {
-        health.fail++;
-        // Stamp be_cached_at even on a miss so a 404/empty set isn't re-scraped
-        // (and re-charged) every run.
+        // No usable BrickEconomy data for this set (a real scrape error or a
+        // clean empty/404 page). firecrawlScrape already recorded the attempt's
+        // health (real ok/fail + error); a clean empty page counts as an OK
+        // scrape there, not a failure. Just stamp be_cached_at so the set isn't
+        // re-scraped (and re-charged) every run.
         stmts.push(env.DB.prepare(
           `UPDATE lego_sets SET be_cached_at=datetime('now') WHERE set_num=?`,
         ).bind(set_num));
         continue;
       }
 
-      health.ok++;
       // Sparse update: only write the figures the scrape actually returned, so a
       // partial scrape never nulls out a previously-good column.
       const fields: string[] = [`be_cached_at=datetime('now')`];
@@ -119,7 +118,8 @@ export async function runBrickEconomyEnrich(
   }
 
   if (stmts.length) await env.DB.batch(stmts);
-  await recordIntegrationHealth(env, 'firecrawl', health);
-
+  // No aggregate health write — firecrawlScrape records each scrape attempt
+  // (real ok/fail + error message) inside the wrapper. Writing a batch tally
+  // here would double-count and clobber the real error with "unknown error".
   return { processed, updated, limit: grant };
 }

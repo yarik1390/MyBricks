@@ -104,6 +104,9 @@ export async function runEbaySoldScrape(
 
   for (let i = 0; i < stmts.length; i += 90) await env.DB.batch(stmts.slice(i, i + 90));
   if (touched.length) await recomputeBlendedValues(env.DB, touched);
-  await recordIntegrationHealth(env, useFirecrawl ? 'firecrawl' : 'brightdata', health);
+  // Firecrawl self-records each scrape attempt inside firecrawlScrape, so only
+  // the Bright Data path (which doesn't self-record) needs the aggregate write —
+  // writing it for Firecrawl too would double-count and clobber the real error.
+  if (!useFirecrawl) await recordIntegrationHealth(env, 'brightdata', health);
   return { processed, updated, rejected, limit: grant };
 }

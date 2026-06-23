@@ -2,7 +2,6 @@ import type { Env } from '../types';
 import { firecrawlScrape } from '../lib/firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 import { reserveQuota } from '../lib/api-quota';
-import { recordIntegrationHealth } from '../lib/integration-health';
 
 const BRICKSET_SCHEMA = {
   type: 'object',
@@ -69,7 +68,6 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
 
   let processed = 0;
   let updated = 0;
-  const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
   const stmts: D1PreparedStatement[] = [];
 
   for (const { set_num } of results) {
@@ -108,15 +106,14 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
     );
 
     if (!result) {
-      health.fail++;
-      // Stamp enriched_at even on failure so we don't hammer a 404 every run.
+      // firecrawlScrape already recorded this attempt's health (real ok/fail +
+      // error). Stamp enriched_at even on a miss so we don't hammer a 404 every run.
       stmts.push(env.DB.prepare(
         `UPDATE lego_sets SET brickset_enriched_at=datetime('now') WHERE set_num=?`,
       ).bind(set_num));
       continue;
     }
 
-    health.ok++;
     const d = result.data;
 
     // Build a sparse SET clause — only write non-null values to preserve any
@@ -158,7 +155,8 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
   for (let i = 0; i < stmts.length; i += 90) {
     await env.DB.batch(stmts.slice(i, i + 90));
   }
-  await recordIntegrationHealth(env, 'firecrawl', health);
-
+  // No aggregate health write — firecrawlScrape records each scrape attempt
+  // (real ok/fail + error message) inside the wrapper; a batch tally here would
+  // double-count and clobber the real error with "unknown error".
   return { processed, updated, limit: grant };
 }
