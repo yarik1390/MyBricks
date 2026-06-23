@@ -286,8 +286,13 @@ export default {
       case '0 5 * * *': await run('valuate-minifigs', () => runValuateMinifigs(env, { limit: 80 })); break;
       case '0 6 * * *': await run('brickinsights-ratings', () => runBrickInsightsBackfill(env, { limit: 80 })); break;
       case '0 7 * * *': await run('ebay-sold-scrape', () => runEbaySoldScrape(env, { limit: 30 })); break;
-      case '0 9 * * *': await run('brickset-enrich', () => runBricksetEnrich(env, { limit: 50 })); break;
-      case '0 10 * * *': await run('lego-stock-refresh', () => runLegoStockRefresh(env, { limit: 100 })); break;
+      // Phase-2 lean cadence (ongoing Firecrawl ~25k/mo budget): brickset is
+      // mostly-static metadata (trimmed 50->30); LEGO stock is scoped to active
+      // owned/wishlisted on a 14-day cycle inside the job (trimmed 100->40, it
+      // self-tapers); brickeconomy refreshes/new-sets stay at 40. Ongoing value
+      // freshness rides on the free APIs (BrickLink/eBay/BrickOwl), not Firecrawl.
+      case '0 9 * * *': await run('brickset-enrich', () => runBricksetEnrich(env, { limit: 30 })); break;
+      case '0 10 * * *': await run('lego-stock-refresh', () => runLegoStockRefresh(env, { limit: 40 })); break;
       case '0 11 * * *': await run('brickeconomy-enrich', () => runBrickEconomyEnrich(env, { limit: 40 })); break;
       // TEMPORARY one-time bootstrap: fill be_value_new across the year>=2000
       // catalog (~22.4k sets). Runs 4x/hour at limit 150 (concurrency 5); the

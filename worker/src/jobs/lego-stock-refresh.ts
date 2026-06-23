@@ -4,13 +4,15 @@ import { reserveQuota } from '../lib/api-quota';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 
 /**
- * Proactively refresh LEGO.com stock + retirement status for active sets.
- * Prioritises: sets not yet checked, then sets flagged retiring_soon, then
- * stalest checks. Only runs against non-retired sets — discontinued sets
- * don't change and are excluded to preserve credit budget.
+ * Proactively refresh LEGO.com stock + retirement status. Phase-2 lean scope:
+ * only ACTIVE (non-retired) sets that are OWNED or WISHLISTED, on a 14-day cycle
+ * — the sets users actually track for availability/retirement. The broad catalog
+ * is left to the formula retirement-risk model so the ongoing Firecrawl credit
+ * footprint stays within budget (~25k/mo). Prioritises: never-checked first,
+ * then retiring_soon, then stalest.
  *
- * Writes: lego_in_stock, lego_retiring_soon, lego_checked_at, and (when
- * Firecrawl returns a price) retail_price if the fetched value differs.
+ * Writes: lego_in_stock, lego_retiring_soon, lego_availability, lego_checked_at,
+ * and (when Firecrawl returns a price) retail_price if the fetched value differs.
  */
 export async function runLegoStockRefresh(env: Env, options: { limit?: number } = {}) {
   if (!firecrawlEnabled(env)) {
@@ -29,15 +31,14 @@ export async function runLegoStockRefresh(env: Env, options: { limit?: number } 
     SELECT ls.set_num
     FROM lego_sets ls
     WHERE ls.retired = 0
-      AND (ls.lego_checked_at IS NULL OR ls.lego_checked_at < datetime('now', '-7 days'))
+      AND (ls.lego_checked_at IS NULL OR ls.lego_checked_at < datetime('now', '-14 days'))
+      AND (
+        EXISTS (SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL)
+        OR EXISTS (SELECT 1 FROM user_wishlist uw WHERE uw.set_num = ls.set_num)
+      )
     ORDER BY
       CASE WHEN ls.lego_checked_at IS NULL THEN 0 ELSE 1 END,
       COALESCE(ls.lego_retiring_soon, 0) DESC,
-      CASE WHEN EXISTS (
-        SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
-      ) OR EXISTS (
-        SELECT 1 FROM user_wishlist uw WHERE uw.set_num = ls.set_num
-      ) THEN 0 ELSE 1 END,
       COALESCE(ls.lego_checked_at, '2000-01-01') ASC
     LIMIT ?
   `).bind(grant).all<{ set_num: string }>();
