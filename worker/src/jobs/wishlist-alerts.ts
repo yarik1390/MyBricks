@@ -50,7 +50,8 @@ export async function runWishlistAlerts(env: Env) {
 
   if (!results.length) {
     const spike = await runSpikeAlerts(env);
-    return { fired: 0, spikes: spike.fired };
+    const retiring = await runRetirementAlerts(env);
+    return { fired: 0, spikes: spike.fired, retiring: retiring.fired };
   }
 
   const stmts: D1PreparedStatement[] = [];
@@ -93,19 +94,20 @@ export async function runWishlistAlerts(env: Env) {
           description: `**${row.set_num}** is now at **${fmt(row.current_value)}**, at or below your target of ${fmt(row.target_price)}.`,
           color: 0x22c55e,
           imageUrl: row.image_url ?? undefined,
-          url: `https://brickvault-5ub.pages.dev#/catalog/${encodeURIComponent(row.set_num)}`,
+          url: `https://brickvault-5ub.pages.dev#/set/${encodeURIComponent(row.set_num)}`,
         }).catch(() => {});
       }
       sendPushToUser(env, row.user_id, JSON.stringify({
         title: 'Price target reached',
         body: `${row.set_name} is now $${row.current_value.toFixed(2)} — at or below your target.`,
-        url: `#/catalog/${encodeURIComponent(row.set_num)}`,
+        url: `#/set/${encodeURIComponent(row.set_num)}`,
       })).catch(() => {});
     }
   }
 
   const spike = await runSpikeAlerts(env);
-  return { fired: results.length, spikes: spike.fired };
+  const retiring = await runRetirementAlerts(env);
+  return { fired: results.length, spikes: spike.fired, retiring: retiring.fired };
 }
 
 async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
@@ -163,14 +165,81 @@ async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
           description: `**${row.set_num}** spiked to **${fmt(row.current_value)}** (+${pct}% above your purchase price of ${fmt(row.purchase_price)}).`,
           color: 0xf97316,
           imageUrl: row.image_url ?? undefined,
-          url: `https://brickvault-5ub.pages.dev#/catalog/${encodeURIComponent(row.set_num)}`,
+          url: `https://brickvault-5ub.pages.dev#/set/${encodeURIComponent(row.set_num)}`,
         }).catch(() => {});
       }
       const pct2 = ((row.current_value - row.purchase_price) / row.purchase_price * 100).toFixed(0);
       sendPushToUser(env, row.user_id, JSON.stringify({
         title: 'Value spike!',
         body: `${row.set_name} is up +${pct2}% — now worth $${row.current_value.toFixed(2)}.`,
-        url: `#/catalog/${encodeURIComponent(row.set_num)}`,
+        url: `#/set/${encodeURIComponent(row.set_num)}`,
+      })).catch(() => {});
+    }
+  }
+
+  return { fired: results.length };
+}
+
+// Retirement alerts: an owned OR wishlisted set that's still active becomes
+// flagged "retiring soon" — a discrete, act-now event (production ending often
+// precedes price increases). Deduped against wishlist_alerts itself (the
+// inserted row is the 30-day cooldown), so no per-row cooldown column is needed.
+async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
+  const { results } = await env.DB.prepare(`
+    SELECT u.user_id, ls.set_num, ls.name AS set_name, ls.current_value, ls.image_url
+    FROM lego_sets ls
+    JOIN (
+      SELECT user_id, set_num FROM user_collection WHERE deleted_at IS NULL
+      UNION
+      SELECT user_id, set_num FROM user_wishlist
+    ) u ON u.set_num = ls.set_num
+    WHERE ls.retired = 0 AND ls.lego_retiring_soon = 1
+      AND NOT EXISTS (
+        SELECT 1 FROM wishlist_alerts wa
+        WHERE wa.user_id = u.user_id AND wa.set_num = ls.set_num
+          AND wa.alert_type = 'retiring' AND wa.triggered_at > datetime('now', '-30 days')
+      )
+  `).all<{ user_id: string; set_num: string; set_name: string; current_value: number | null; image_url: string | null }>();
+
+  if (!results.length) return { fired: 0 };
+
+  const stmts: D1PreparedStatement[] = results.map(row =>
+    env.DB.prepare(`
+      INSERT INTO wishlist_alerts (user_id, set_num, set_name, target_price, current_value, alert_type)
+      VALUES (?, ?, ?, ?, ?, 'retiring')
+    `).bind(row.user_id, row.set_num, row.set_name, 0, row.current_value ?? 0),
+  );
+  await env.DB.batch(stmts);
+
+  const byUser = new Map<string, typeof results>();
+  for (const row of results) {
+    const arr = byUser.get(row.user_id) ?? [];
+    arr.push(row);
+    byUser.set(row.user_id, arr);
+  }
+  const prefsByUser = await loadAlertPrefs(env, [...byUser.keys()]);
+  for (const [userId, rows] of byUser) {
+    const prefs = prefsByUser.get(userId);
+    if (!prefs || !prefs.notify_price_drops) continue;
+    for (const row of rows) {
+      const cv = Number(row.current_value) || 0;
+      if (prefs.email && env.RESEND_API_KEY) {
+        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, 0, cv, 'retiring');
+        sendAlertEmail(prefs.email, `${row.set_name} is retiring soon`, html, env).catch(() => {});
+      }
+      if (prefs.discord_webhook_url) {
+        sendDiscordAlert(prefs.discord_webhook_url, {
+          title: `Retiring soon: ${row.set_name}`,
+          description: `**${row.set_num}** is now flagged as retiring soon${cv > 0 ? ` · current value $${cv.toFixed(2)}` : ''}. Production is ending — a good time to decide buy vs. hold.`,
+          color: 0xef4444,
+          imageUrl: row.image_url ?? undefined,
+          url: `https://brickvault-5ub.pages.dev#/set/${encodeURIComponent(row.set_num)}`,
+        }).catch(() => {});
+      }
+      sendPushToUser(env, row.user_id, JSON.stringify({
+        title: 'Retiring soon',
+        body: `${row.set_name} is retiring soon — production is ending.`,
+        url: `#/set/${encodeURIComponent(row.set_num)}`,
       })).catch(() => {});
     }
   }
