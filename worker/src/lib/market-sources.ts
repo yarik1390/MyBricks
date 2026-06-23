@@ -338,51 +338,86 @@ function sampleFactor(qty: number | null): number {
 const EBAY_ASK_DISCOUNT = 0.85;
 const EBAY_ASK_TYPE_FACTOR = 0.4;
 
+// Reliability tiers used to arbitrate a two-signal standoff (higher = more
+// trusted): fresh sold comps are the gold standard, then a modeled valuation,
+// then live listings, then haircut asks. All source values arrive already
+// normalized to USD at the fetch layer (BrickLink/BrickOwl are queried with
+// currency=USD; eBay comps are US/USD; the modeled value is USD), so the blend
+// is a single-currency mix — no per-point conversion is applied or needed here.
+const RANK_SOLD = 4;
+const RANK_MODEL = 3;
+const RANK_LISTING = 2;
+const RANK_ASK = 1;
+// A two-point standoff this far apart is treated as a real disagreement, not
+// noise — matches the >=3-point median outlier band so the two paths agree.
+const DIVERGENCE_RATIO = 2.5;
+
 /**
  * Blend the available NEW-condition market signals into one fair value with a
- * confidence band. Sold comps (BrickLink, eBay) weigh highest, then
- * BrickEconomy's modeled value, then BrickOwl listings. A haircut eBay *asking*
- * price is used only as a soft fallback when none of those exist. Used, retail,
- * and AI/formula estimates are excluded. Pure + read-side: it never writes and
- * never mutates current_value.
+ * confidence band. Sold comps (BrickLink, eBay) weigh highest, then a modeled
+ * value, then live listings. A haircut eBay *asking* price is used only as a
+ * soft fallback when none of those exist. Used, retail, and AI/formula
+ * estimates are excluded.
+ *
+ * Accuracy guards (valuation v2.1):
+ *  - Outlier rejection: with >=3 points, drop anything beyond [0.4, 2.5]x the
+ *    median; with exactly 2 points (no median to anchor on) a gross >2.5x
+ *    divergence across DIFFERENT reliability tiers resolves to the more
+ *    trustworthy tier, so one bad listing/scrape can't drag the value halfway
+ *    to a wrong number.
+ *  - Confidence calibration: "high" is earned only when >=2 fresh sold comps
+ *    actually corroborate (within ~40%); fresh comps that disagree materially
+ *    are demoted to medium, and grossly (>2.2x) to low. Corroboration, not mere
+ *    presence, drives the grade.
+ *
+ * Pure + read-side: it never writes and never mutates current_value.
  */
 export function blendMarketValue(row: Record<string, unknown>): BlendedValue {
   const method = String(row.valuation_method || '');
-  type P = { id: string; name: string; value: number; weight: number; sold: boolean; fresh: boolean };
+  type P = { id: string; name: string; value: number; weight: number; sold: boolean; fresh: boolean; rank: number };
   const pts: P[] = [];
-  const push = (id: string, name: string, value: number | null, qty: number | null, ts: unknown, typeF: number, sold: boolean) => {
+  const push = (id: string, name: string, value: number | null, qty: number | null, ts: unknown, typeF: number, sold: boolean, rank: number) => {
     if (!value || value <= 0) return;
     const ff = freshnessFactor(ts);
     const w = ff * sampleFactor(qty) * typeF;
     if (w <= 0) return;
-    pts.push({ id, name, value, weight: w, sold, fresh: ff >= 0.7 });
+    pts.push({ id, name, value, weight: w, sold, fresh: ff >= 0.7, rank });
   };
 
-  push('bricklink_new', 'BrickLink', num(row.bl_new_value), num(row.bl_new_qty), row.bl_cached_at, 1.0, true);
+  push('bricklink_new', 'BrickLink', num(row.bl_new_value), num(row.bl_new_qty), row.bl_cached_at, 1.0, true, RANK_SOLD);
   // Weight eBay sold comps by when the items ACTUALLY sold (ebay_new_last_sold),
   // not when we fetched them — a set last sold months ago is a stale comp even
   // if refreshed today. Falls back to fetch time when no sale date was captured.
-  push('ebay_sold_new', 'eBay sold', num(row.ebay_new_value), num(row.ebay_new_qty), row.ebay_new_last_sold || row.ebay_new_cached_at, 1.0, true);
+  push('ebay_sold_new', 'eBay sold', num(row.ebay_new_value), num(row.ebay_new_qty), row.ebay_new_last_sold || row.ebay_new_cached_at, 1.0, true, RANK_SOLD);
   // BrickEconomy's value is only stored as current_value when it's the method.
-  if (method === 'brickeconomy') push('brickeconomy', 'BrickEconomy', num(row.current_value), null, row.be_cached_at || row.cached_at, 0.9, false);
-  push('brickowl_new', 'BrickOwl', num(row.bo_new_value), null, row.bo_cached_at, 0.7, false);
+  if (method === 'brickeconomy') push('brickeconomy', 'BrickEconomy', num(row.current_value), null, row.be_cached_at || row.cached_at, 0.9, false, RANK_MODEL);
+  push('brickowl_new', 'BrickOwl', num(row.bo_new_value), null, row.bo_cached_at, 0.7, false, RANK_LISTING);
   // eBay asking (median of active Browse listings) — soft FALLBACK only: used
   // when no sold/BrickEconomy/BrickOwl point exists, haircut + lowest weight, so
   // it fills the gap for unpriced sets without dragging real-comp blends upward.
   if (!pts.length) {
     const ask = num(row.ebay_ask_value);
-    push('ebay_ask', 'eBay asking', ask ? Math.round(ask * EBAY_ASK_DISCOUNT * 100) / 100 : null, num(row.ebay_ask_qty), row.ebay_ask_cached_at, EBAY_ASK_TYPE_FACTOR, false);
+    push('ebay_ask', 'eBay asking', ask ? Math.round(ask * EBAY_ASK_DISCOUNT * 100) / 100 : null, num(row.ebay_ask_qty), row.ebay_ask_cached_at, EBAY_ASK_TYPE_FACTOR, false, RANK_ASK);
   }
 
   if (!pts.length) return { value: null, low: null, high: null, confidence: null, basis: [] };
 
-  // Drop gross outliers against the median ratio once we have >=3 points.
+  // --- Outlier / anomaly rejection -----------------------------------------
   let survivors = pts;
   if (pts.length >= 3) {
+    // Drop gross outliers against the median ratio.
     const sorted = pts.map(p => p.value).sort((a, b) => a - b);
     const med = sorted[Math.floor(sorted.length / 2)];
     const kept = pts.filter(p => p.value / med <= 2.5 && p.value / med >= 0.4);
     if (kept.length) survivors = kept;
+  } else if (pts.length === 2) {
+    // Two points, no median to anchor on: if they grossly diverge AND sit in
+    // different reliability tiers, trust the higher tier rather than averaging a
+    // sold comp against a wild listing/scrape. Same-tier divergence (two sold
+    // comps) is kept — it reads as low confidence below, not a silent pick.
+    const [a, b] = pts;
+    const ratio = Math.max(a.value, b.value) / Math.min(a.value, b.value);
+    if (ratio > DIVERGENCE_RATIO && a.rank !== b.rank) survivors = [a.rank > b.rank ? a : b];
   }
 
   const wsum = survivors.reduce((s, p) => s + p.weight, 0);
@@ -398,9 +433,23 @@ export function blendMarketValue(row: Record<string, unknown>): BlendedValue {
     high = isBl && blMax ? blMax : Math.round(value * 1.1 * 100) / 100;
   }
 
-  const freshSold = survivors.filter(p => p.sold && p.fresh).length;
+  // --- Confidence calibration ----------------------------------------------
+  // High confidence is earned by CORROBORATION, not mere count: >=2 fresh sold
+  // comps that agree within ~40% → high; materially apart → medium; grossly
+  // apart (>2.2x) → low. A lone fresh sold comp or a fresh modeled value → medium.
+  const freshSoldVals = survivors.filter(p => p.sold && p.fresh).map(p => p.value);
   const beFresh = survivors.some(p => p.id === 'brickeconomy' && p.fresh);
-  const confidence: MarketConfidence = freshSold >= 2 ? 'high' : (freshSold >= 1 || beFresh) ? 'medium' : 'low';
+  let confidence: MarketConfidence;
+  if (freshSoldVals.length >= 2) {
+    const lo = Math.min(...freshSoldVals);
+    const hi = Math.max(...freshSoldVals);
+    const soldRatio = lo > 0 ? hi / lo : Number.POSITIVE_INFINITY;
+    confidence = soldRatio <= 1.4 ? 'high' : soldRatio <= 2.2 ? 'medium' : 'low';
+  } else if (freshSoldVals.length >= 1 || beFresh) {
+    confidence = 'medium';
+  } else {
+    confidence = 'low';
+  }
 
   return {
     value,

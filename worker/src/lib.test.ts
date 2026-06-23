@@ -455,6 +455,43 @@ describe('blendMarketValue (valuation v2)', () => {
     expect(r.value).toBe(300);
     expect(r.confidence).toBe('medium');
   });
+
+  it('anchors a two-signal standoff on the reliable tier instead of averaging', () => {
+    // A sold comp ($100) vs a lone live listing ($900): no median to anchor on,
+    // so the wild listing must not pull the value to a ~$500 midpoint. The
+    // higher-reliability sold comp wins outright.
+    const r = blendMarketValue({
+      valuation_method: 'market',
+      bl_new_value: 100, bl_new_qty: 10, bl_cached_at: now,
+      bo_new_value: 900, bo_cached_at: now,
+    });
+    expect(r.value).toBe(100);
+    expect(r.basis.map(b => b.id)).toEqual(['bricklink_new']);
+    expect(r.confidence).toBe('medium');
+  });
+
+  it('demotes two fresh sold comps to low confidence when they grossly disagree', () => {
+    // Both are fresh sold comps, but a 4x disagreement is not corroboration —
+    // it must not read as "high". The value still blends both (genuine uncertainty).
+    const r = blendMarketValue({
+      valuation_method: 'market',
+      bl_new_value: 100, bl_new_qty: 10, bl_cached_at: now,
+      ebay_new_value: 400, ebay_new_qty: 10, ebay_new_cached_at: now,
+    });
+    expect(r.confidence).toBe('low');
+    expect(r.value).toBeGreaterThan(100);
+    expect(r.value).toBeLessThan(400);
+  });
+
+  it('rates two fresh sold comps that are moderately apart as medium, not high', () => {
+    // 2x apart: corroborating enough to blend, not tight enough for "high".
+    const r = blendMarketValue({
+      valuation_method: 'market',
+      bl_new_value: 100, bl_new_qty: 10, bl_cached_at: now,
+      ebay_new_value: 200, ebay_new_qty: 10, ebay_new_cached_at: now,
+    });
+    expect(r.confidence).toBe('medium');
+  });
 });
 
 describe('isPlausibleMarketValue (BrickEconomy mismatch guard)', () => {
