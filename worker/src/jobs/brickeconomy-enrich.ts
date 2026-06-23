@@ -38,10 +38,10 @@ export async function runBrickEconomyEnrich(env: Env, options: { limit?: number 
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num
     FROM lego_sets ls
-    WHERE (ls.be_cached_at IS NULL OR ls.be_cached_at < datetime('now', '-90 days'))
+    WHERE (ls.be_value_new IS NULL OR ls.be_cached_at IS NULL OR ls.be_cached_at < datetime('now', '-90 days'))
       AND ls.year >= 2000
     ORDER BY
-      CASE WHEN ls.be_cached_at IS NULL THEN 0 ELSE 1 END,
+      CASE WHEN ls.be_value_new IS NULL THEN 0 ELSE 1 END,
       CASE WHEN EXISTS (
         SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
       ) OR EXISTS (
