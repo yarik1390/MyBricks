@@ -22,14 +22,20 @@ import { recordIntegrationHealth } from '../lib/integration-health';
  * json LLM extract costs 5 Firecrawl credits/scrape; the per-scrape credit guard
  * in firecrawlScrape is the hard ceiling (env-tunable for the one-time bootstrap).
  */
-export async function runBrickEconomyEnrich(env: Env, options: { limit?: number } = {}) {
+export async function runBrickEconomyEnrich(
+  env: Env,
+  options: { limit?: number; concurrency?: number } = {},
+) {
   if (!firecrawlEnabled(env)) {
     return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl disabled or no key' };
   }
 
   const requestedLimit = Number(options.limit);
+  // Cap at 200: with concurrency 5 and ~15s/scrape that's ~10 min wall — safe
+  // inside a scheduled invocation. The temporary bootstrap cron drives the high
+  // limit; the steady-state daily cron passes a small one.
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
-    ? Math.min(Math.floor(requestedLimit), 100)
+    ? Math.min(Math.floor(requestedLimit), 200)
     : 40;
 
   const grant = (await reserveQuota(env, { firecrawl: limit })).firecrawl ?? 0;
@@ -59,45 +65,60 @@ export async function runBrickEconomyEnrich(env: Env, options: { limit?: number 
   const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
   const stmts: D1PreparedStatement[] = [];
 
-  for (const { set_num } of results) {
-    processed++;
-    const scrape = await fetchBrickEconomyViaFirecrawl(set_num, env)
-      .catch(() => null);
+  // Scrape in small concurrent batches (default 5, matching ebay-sold-scrape) so
+  // the bootstrap drains thousands of sets across invocations without serializing
+  // ~15s scrapes one-by-one. The per-scrape credit guard in firecrawlScrape is
+  // the hard ceiling regardless of concurrency.
+  const concurrency = Math.max(1, Math.min(options.concurrency ?? 5, 8));
+  for (let i = 0; i < results.length; i += concurrency) {
+    const batch = results.slice(i, i + concurrency);
+    const outs = await Promise.all(batch.map(async ({ set_num }) => ({
+      set_num,
+      scrape: await fetchBrickEconomyViaFirecrawl(set_num, env).catch(() => null),
+    })));
 
-    if (!scrape) {
-      health.fail++;
-      // Stamp be_cached_at even on a miss so a 404/empty set isn't re-scraped
-      // (and re-charged) every run.
+    for (const { set_num, scrape } of outs) {
+      processed++;
+      if (!scrape) {
+        health.fail++;
+        // Stamp be_cached_at even on a miss so a 404/empty set isn't re-scraped
+        // (and re-charged) every run.
+        stmts.push(env.DB.prepare(
+          `UPDATE lego_sets SET be_cached_at=datetime('now') WHERE set_num=?`,
+        ).bind(set_num));
+        continue;
+      }
+
+      health.ok++;
+      // Sparse update: only write the figures the scrape actually returned, so a
+      // partial scrape never nulls out a previously-good column.
+      const fields: string[] = [`be_cached_at=datetime('now')`];
+      const binds: number[] = [];
+      const maybe = (col: string, val: number | null) => {
+        if (val != null) { fields.push(`${col}=?`); binds.push(val); }
+      };
+      maybe('be_value_new', scrape.current_value_new);
+      maybe('be_value_used', scrape.current_value_used);
+      maybe('be_forecast_2y', scrape.forecast_value_new_2_years);
+      maybe('be_forecast_5y', scrape.forecast_value_new_5_years);
+      maybe('be_retail', scrape.retail_price_us);
+      maybe('be_growth_12m', scrape.rolling_growth_12months);
+
       stmts.push(env.DB.prepare(
-        `UPDATE lego_sets SET be_cached_at=datetime('now') WHERE set_num=?`,
-      ).bind(set_num));
-      continue;
+        `UPDATE lego_sets SET ${fields.join(', ')} WHERE set_num=?`,
+      ).bind(...binds, set_num));
+      updated++;
     }
 
-    health.ok++;
-    // Sparse update: only write the figures the scrape actually returned, so a
-    // partial scrape never nulls out a previously-good column.
-    const fields: string[] = [`be_cached_at=datetime('now')`];
-    const binds: number[] = [];
-    const maybe = (col: string, val: number | null) => {
-      if (val != null) { fields.push(`${col}=?`); binds.push(val); }
-    };
-    maybe('be_value_new', scrape.current_value_new);
-    maybe('be_value_used', scrape.current_value_used);
-    maybe('be_forecast_2y', scrape.forecast_value_new_2_years);
-    maybe('be_forecast_5y', scrape.forecast_value_new_5_years);
-    maybe('be_retail', scrape.retail_price_us);
-    maybe('be_growth_12m', scrape.rolling_growth_12months);
-
-    stmts.push(env.DB.prepare(
-      `UPDATE lego_sets SET ${fields.join(', ')} WHERE set_num=?`,
-    ).bind(...binds, set_num));
-    updated++;
+    // Flush incrementally so a long bootstrap run persists progress even if the
+    // invocation is truncated at the wall-time limit (the credits are already
+    // spent; this makes sure the columns get written).
+    if (stmts.length >= 90) {
+      await env.DB.batch(stmts.splice(0, stmts.length));
+    }
   }
 
-  for (let i = 0; i < stmts.length; i += 90) {
-    await env.DB.batch(stmts.slice(i, i + 90));
-  }
+  if (stmts.length) await env.DB.batch(stmts);
   await recordIntegrationHealth(env, 'firecrawl', health);
 
   return { processed, updated, limit: grant };
