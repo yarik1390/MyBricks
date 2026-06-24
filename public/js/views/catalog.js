@@ -29,6 +29,15 @@ export async function renderAdd() {
   if (!state.themes.length) {
     try { const t = await api("/api/themes"); state.themes = t.themes || []; state.themeGroups = t.theme_groups || []; state.categories = t.categories || []; state.themesLoadedAt = Date.now(); } catch {}
   }
+  // Coming-soon feed (G2b) — load in the background and surface it on the default
+  // catalog view once ready (non-blocking; never delays the catalog paint).
+  if (!state.catalog.upcomingLoaded) {
+    api("/api/upcoming").then((r) => {
+      state.catalog.upcoming = r.upcoming || [];
+      state.catalog.upcomingLoaded = true;
+      if (location.hash === "#/add" && $("#catalogResults") && isCatalogDefault()) refreshCatalogGrid();
+    }).catch(() => { state.catalog.upcomingLoaded = true; });
+  }
   if (!state.catalog.items.length) {
     await loadCatalog({ reset: true });
     if (isCatalogDefault()) bvIDB.set('catalog', { data: { items: state.catalog.items, total: state.catalog.total, hasMore: state.catalog.hasMore, offset: state.catalog.offset }, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
@@ -103,11 +112,35 @@ function catalogQuery() {
   return p.toString();
 }
 
+// "Coming Soon" discovery row (G2b) — upcoming LEGO releases, shown only on the
+// default catalog view (hidden during search/filter). Display-only: these sets
+// aren't in the trackable catalog yet, so no navigation/wishlist.
+function comingSoonSectionHTML() {
+  const up = state.catalog.upcoming || [];
+  if (!isCatalogDefault() || !up.length) return "";
+  return `
+    <div class="coming-soon-wrap" style="margin-bottom:16px;">
+      <div class="section-title" style="margin-top:0;">Coming Soon</div>
+      <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;">
+        ${up.slice(0, 20).map((u) => `
+          <div class="cs-card" style="flex:0 0 auto;width:144px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:10px;">
+            <div style="font-size:12px;font-weight:600;color:var(--ink);line-height:1.3;height:32px;overflow:hidden;">${escapeHtml(String(u.name || ""))}</div>
+            <div style="font-size:10px;font-family:var(--mono);color:var(--ink-mute);margin-top:4px;">#${escapeHtml(String(u.set_num || "").replace(/-\d+$/, ""))}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:6px;">
+              <span style="font-size:13px;font-weight:700;color:var(--ink);">${u.price_usd ? fmtMoney(u.price_usd, { cents: 0 }) : ""}</span>
+              <span style="font-size:9px;font-family:var(--mono);font-weight:800;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:1px 5px;white-space:nowrap;">${escapeHtml(String(u.availability || "Soon"))}</span>
+            </div>
+          </div>`).join("")}
+      </div>
+    </div>`;
+}
+
 function catalogResultsHTML() {
   const c = state.catalog;
   const f = state.filter;
   const listClass = state.compactView ? "compact-list" : "grid";
   return `
+    ${comingSoonSectionHTML()}
     <div id="catalogCount" class="result-count">${c.total.toLocaleString()} result${c.total === 1 ? "" : "s"}</div>
     ${c.items.length === 0 ? `
       <div class="empty card">
