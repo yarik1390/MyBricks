@@ -44,10 +44,16 @@ export async function runBrickEconomyEnrich(
   if (remaining < 5) return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
   const effLimit = Math.min(limit, Math.floor(remaining / 5));
 
+  // Select by FRESHNESS (never-scraped or >90d stale), NOT by "be_value_new IS
+  // NULL". A scrape that yields no usable value still stamps be_cached_at (see
+  // the miss path below); gating on be_value_new IS NULL would re-select — and
+  // re-charge 5cr for — those un-populatable sets every single run, burning the
+  // daily credit ceiling while the bootstrap never advances past them. The
+  // ORDER BY still prioritizes never-valued sets, so real values fill first.
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num
     FROM lego_sets ls
-    WHERE (ls.be_value_new IS NULL OR ls.be_cached_at IS NULL OR ls.be_cached_at < datetime('now', '-90 days'))
+    WHERE (ls.be_cached_at IS NULL OR ls.be_cached_at < datetime('now', '-90 days'))
       AND ls.year >= 2000
     ORDER BY
       CASE WHEN ls.be_value_new IS NULL THEN 0 ELSE 1 END,
