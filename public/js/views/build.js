@@ -1,6 +1,7 @@
 import { $, $$, escapeHtml, haptic, toast, debounce, SEARCH_DEBOUNCE_MS, mount, emptyState } from '../utils.js';
 import { api } from '../api.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
+import { I } from '../icons.js';
 
 // "What Can I Build?" has two tabs:
 //  - Buildable sets: official sets you can build from the COMBINED parts of the
