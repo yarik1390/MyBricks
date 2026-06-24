@@ -175,6 +175,24 @@ app.get('/blindbox', async (c) => {
   return c.json({ series, set_num: set.set_num, figs: figsRes.results });
 });
 
+// GET /api/minifigs/rare-finds — the signed-in user's OWNED rare/legendary figs
+// (value desc) for the collection highlight. Empty for guests (owned figs are
+// local-only without an account).
+app.get('/rare-finds', async (c) => {
+  const userId = c.get('userId') || '';
+  if (!userId) return c.json({ figs: [] });
+  const { results } = await c.env.DB.prepare(`
+    SELECT m.fig_num, m.name, m.series, m.rarity, m.image_url, m.current_value,
+           m.year, m.num_parts, m.appears_in_sets, um.quantity
+    FROM user_minifigs um
+    JOIN minifigs m ON m.fig_num = um.fig_num
+    WHERE um.user_id = ? AND um.quantity > 0 AND m.rarity IN ('rare', 'legendary')
+    ORDER BY CASE m.rarity WHEN 'legendary' THEN 2 ELSE 1 END DESC, COALESCE(m.current_value, 0) DESC
+    LIMIT 24
+  `).bind(userId).all<Record<string, unknown>>();
+  return c.json({ figs: results || [] });
+});
+
 // GET /api/minifigs/:fignum/sets — the sets a minifig appears in (turns the
 // fig detail into a navigable hub). Public. image_url is proxied by the global
 // image-rewrite middleware. Newest first.

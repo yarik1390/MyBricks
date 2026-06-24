@@ -132,6 +132,8 @@ export async function renderBlind() {
         </div>
       </div>
 
+      <div id="rareFindsSection"></div>
+
       <div class="fig-filter-bar">
         <div class="search-wrap open" style="margin-bottom:10px;">
           <span class="s-icon">${I.search()}</span>
@@ -201,6 +203,38 @@ export async function renderBlind() {
 
   wireMiniCards();
   mountBlindSentinel();
+  loadRareFinds();
+}
+
+// "Rare finds in your collection" — surfaces the signed-in user's owned
+// rare/legendary figs as a tappable highlight row above the catalog. Empty for
+// guests / collections with none, so it self-hides. Loaded lazily (non-blocking).
+async function loadRareFinds() {
+  let figs = [];
+  try { const r = await api('/api/minifigs/rare-finds'); figs = (r && r.figs) || []; } catch { return; }
+  const el = $('#rareFindsSection');
+  if (!el || !figs.length) return;
+  el.innerHTML = `
+    <div class="section-title" style="margin-top:0;">Rare finds in your collection</div>
+    <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;margin-bottom:14px;-webkit-overflow-scrolling:touch;">
+      ${figs.map((f) => {
+        const r = f.rarity || 'rare';
+        return `<button class="rare-find-card" data-fig="${escapeHtml(String(f.fig_num))}" style="flex:0 0 auto;width:120px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:10px;text-align:center;cursor:pointer;">
+          <div style="height:72px;display:flex;align-items:center;justify-content:center;margin-bottom:6px;">
+            ${f.image_url ? `<img src="${escapeHtml(String(f.image_url))}" alt="" loading="lazy" style="max-width:100%;max-height:72px;object-fit:contain;">` : `<div style="width:48px;height:64px;background:var(--surface-3);border-radius:6px;"></div>`}
+          </div>
+          <div style="font-size:11px;font-weight:600;color:var(--ink);line-height:1.25;height:28px;overflow:hidden;">${escapeHtml(String(f.name || ''))}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:4px;">
+            <span class="mini-rarity-tag rarity-${r}" style="font-size:8px;padding:1px 5px;">${escapeHtml(r)}</span>
+            ${f.current_value ? `<span style="font-size:12px;font-weight:700;color:var(--ink);">${fmtMoney(f.current_value, { cents: 0 })}</span>` : ''}
+          </div>
+        </button>`;
+      }).join('')}
+    </div>`;
+  el.querySelectorAll('.rare-find-card').forEach((btn) => btn.addEventListener('click', () => {
+    const fig = figs.find((x) => String(x.fig_num) === btn.dataset.fig);
+    if (fig) { haptic('light'); showFigDetail(fig); }
+  }));
 }
 
 export async function loadBlind({ reset = false } = {}) {
