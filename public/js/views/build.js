@@ -65,9 +65,11 @@ function setRow(b) {
 }
 
 function altRow(b) {
-  const img = b.moc_img_url
-    ? `<img class="b-thumb" src="${escapeHtml(String(b.moc_img_url))}" alt="${escapeHtml(String(b.name || ''))}" loading="lazy">`
-    : `<div class="b-thumb b-thumb-e"></div>`;
+  // MOC images are Rebrickable user-generated content; Rebrickable's ToS
+  // prohibits reusing or displaying them (incl. hotlinking), so we render a
+  // neutral brick glyph instead of moc_img_url. The name / pieces / designer /
+  // "Instructions" link out to Rebrickable all remain, so the feature is intact.
+  const img = `<div class="b-thumb b-thumb-e"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="9" width="18" height="11" rx="1.5"/><path d="M7 9V7.5a2 2 0 0 1 4 0V9M13 9V7.5a2 2 0 0 1 4 0V9"/></svg></div>`;
   const parts = b.num_parts ? `${b.num_parts} pieces` : '';
   const designer = b.designer ? `by ${escapeHtml(String(b.designer))}` : '';
   const fromSet = b.from_set_name ? `from ${escapeHtml(String(b.from_set_name))}` : '';
