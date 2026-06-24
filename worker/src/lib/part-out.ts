@@ -20,6 +20,7 @@ export interface PartOutResult {
   coverage: number;        // quantity-weighted fraction priced, 0..1
   priced_lots: number;     // distinct lots we had a price for
   total_lots: number;      // distinct lots considered (after the spare filter)
+  interpolated?: boolean;  // true when value is extrapolated from partial coverage (20–40%)
 }
 
 // Stable key for the price map and the part_prices cache.
@@ -57,10 +58,22 @@ export function computePartOutValue(
     }
   }
 
+  const coverage = totalQty > 0 ? Math.round((pricedQty / totalQty) * 1000) / 1000 : 0;
+
+  // For 20–40% coverage, extrapolate by scaling the known-parts sum to the full
+  // set and applying a 15% discount for unknown-parts uncertainty.
+  let interpolated = false;
+  let finalValue: number | null = pricedLots > 0 ? Math.round(value * 100) / 100 : null;
+  if (finalValue !== null && coverage >= 0.2 && coverage < 0.4) {
+    finalValue = Math.round((value / coverage) * 0.85 * 100) / 100;
+    interpolated = true;
+  }
+
   return {
-    value: pricedLots > 0 ? Math.round(value * 100) / 100 : null,
-    coverage: totalQty > 0 ? Math.round((pricedQty / totalQty) * 1000) / 1000 : 0,
+    value: finalValue,
+    coverage,
     priced_lots: pricedLots,
     total_lots: lots.length,
+    interpolated,
   };
 }

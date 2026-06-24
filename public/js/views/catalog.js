@@ -10,14 +10,53 @@ import { skelPage, skelCardList } from '../components/skeleton.js';
 
 let _catalogGen = 0;
 
+// URL filter persistence: read/write filter state from/to the hash query string
+// so catalog filters survive a page refresh and can be deep-linked.
+function readCatalogURLParams() {
+  const raw = location.hash.split('?')[1] || '';
+  if (!raw) return;
+  const p = new URLSearchParams(raw);
+  const f = state.filter;
+  if (p.has('q')) f.catalogQ = p.get('q');
+  if (p.has('theme')) f.catalogTheme = p.get('theme');
+  if (p.has('sort')) f.catalogSort = p.get('sort');
+  if (p.has('retired')) f.catalogRetired = p.get('retired');
+  if (p.has('deal')) f.catalogDeal = p.get('deal') === '1';
+  if (p.has('theme_group')) f.catalogThemeGroup = p.get('theme_group');
+  if (p.has('category')) f.catalogCategory = p.get('category');
+  const ranges = f.catalogRanges;
+  for (const k of Object.keys(ranges)) {
+    if (p.has(k)) ranges[k] = p.get(k);
+  }
+}
+
+function syncCatalogURL() {
+  const f = state.filter;
+  const p = new URLSearchParams();
+  if (f.catalogQ) p.set('q', f.catalogQ);
+  if (f.catalogTheme && f.catalogTheme !== 'all') p.set('theme', f.catalogTheme);
+  if (f.catalogSort && f.catalogSort !== 'value_desc') p.set('sort', f.catalogSort);
+  if (f.catalogRetired && f.catalogRetired !== 'all') p.set('retired', f.catalogRetired);
+  if (f.catalogDeal) p.set('deal', '1');
+  if (f.catalogThemeGroup && f.catalogThemeGroup !== 'all') p.set('theme_group', f.catalogThemeGroup);
+  if (f.catalogCategory && f.catalogCategory !== 'all') p.set('category', f.catalogCategory);
+  for (const [k, v] of Object.entries(f.catalogRanges)) {
+    if (v !== '' && v != null) p.set(k, String(v));
+  }
+  const qs = p.toString();
+  const target = '#/add' + (qs ? '?' + qs : '');
+  if (location.hash !== target) history.replaceState(null, '', target);
+}
+
 // Bi-directional catalog sort options. Each click toggles between the two
 // directions; switching to a new sort uses its default direction. The backend
 // SORTS map accepts all eight keys.
 const CATALOG_SORTS = [
-  { base: "value", asc: "value_asc", desc: "value_desc", def: "value_desc", label: "Value" },
-  { base: "roi",   asc: "roi_asc",   desc: "roi_desc",   def: "roi_desc",   label: "Growth" },
-  { base: "year",  asc: "year_asc",  desc: "year_desc",  def: "year_desc",  label: "Newest" },
-  { base: "name",  asc: "az",        desc: "za",          def: "az",          label: "A–Z" },
+  { base: "value",    asc: "value_asc", desc: "value_desc", def: "value_desc", label: "Value" },
+  { base: "roi",      asc: "roi_asc",   desc: "roi_desc",   def: "roi_desc",   label: "Growth" },
+  { base: "year",     asc: "year_asc",  desc: "year_desc",  def: "year_desc",  label: "Newest" },
+  { base: "name",     asc: "az",        desc: "za",          def: "az",          label: "A–Z" },
+  { base: "trending", asc: "trending",  desc: "trending",    def: "trending",    label: "Trending" },
 ];
 const catalogSortChipText = (o, cur) => {
   const active = cur === o.asc || cur === o.desc;
@@ -25,6 +64,7 @@ const catalogSortChipText = (o, cur) => {
 };
 
 export async function renderAdd() {
+  readCatalogURLParams();
   if (!state.catalog.items.length) $("#root").innerHTML = skelPage(skelCardList(6));
   if (!state.themes.length) {
     try { const t = await api("/api/themes"); state.themes = t.themes || []; state.themeGroups = t.theme_groups || []; state.categories = t.categories || []; state.themesLoadedAt = Date.now(); } catch {}
@@ -113,16 +153,20 @@ function catalogQuery() {
 }
 
 // "Coming Soon" discovery row (G2b) — upcoming LEGO releases, shown only on the
-// default catalog view (hidden during search/filter). Display-only: these sets
-// aren't in the trackable catalog yet, so no navigation/wishlist.
+// default catalog view (hidden during search/filter). Cards have a wishlist button
+// for logged-in users; the upcoming sets aren't in the trackable catalog yet.
 function comingSoonSectionHTML() {
   const up = state.catalog.upcoming || [];
   if (!isCatalogDefault() || !up.length) return "";
+  const isLoggedIn = !!getSessionUserId();
+  const wishlist = new Set((state.wishlist || []).map(w => w.set_num));
   return `
     <div class="coming-soon-wrap" style="margin-bottom:16px;">
       <div class="section-title" style="margin-top:0;">Coming Soon</div>
       <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;">
-        ${up.slice(0, 20).map((u) => `
+        ${up.slice(0, 20).map((u) => {
+          const onWishlist = wishlist.has(u.set_num);
+          return `
           <div class="cs-card" style="flex:0 0 auto;width:144px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:10px;">
             <div style="font-size:12px;font-weight:600;color:var(--ink);line-height:1.3;height:32px;overflow:hidden;">${escapeHtml(String(u.name || ""))}</div>
             <div style="font-size:10px;font-family:var(--mono);color:var(--ink-mute);margin-top:4px;">#${escapeHtml(String(u.set_num || "").replace(/-\d+$/, ""))}</div>
@@ -130,7 +174,13 @@ function comingSoonSectionHTML() {
               <span style="font-size:13px;font-weight:700;color:var(--ink);">${u.price_usd ? fmtMoney(u.price_usd, { cents: 0 }) : ""}</span>
               <span style="font-size:9px;font-family:var(--mono);font-weight:800;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:1px 5px;white-space:nowrap;">${escapeHtml(String(u.availability || "Soon"))}</span>
             </div>
-          </div>`).join("")}
+            ${isLoggedIn ? `
+            <button class="cs-wish-btn ${onWishlist ? 'cs-wish-btn--on' : ''}" data-cs-wish="${escapeHtml(String(u.set_num))}" data-cs-name="${escapeHtml(String(u.name || ''))}"
+              style="width:100%;margin-top:8px;padding:5px 0;font-size:11px;font-weight:600;border-radius:8px;border:1px solid ${onWishlist ? 'var(--accent)' : 'var(--line)'};background:${onWishlist ? 'var(--accent)' : 'transparent'};color:${onWishlist ? '#fff' : 'var(--ink-mute)'};cursor:pointer;">
+              ${onWishlist ? '✓ Wishlisted' : '+ Wishlist'}
+            </button>` : ''}
+          </div>`;
+        }).join("")}
       </div>
     </div>`;
 }
@@ -164,6 +214,7 @@ function refreshCatalogGrid() {
   refreshCatalogSummary();
   wireCatalogCards();
   mountCatalogSentinel();
+  syncCatalogURL();
 }
 
 function refreshCatalogSummary() {
@@ -184,8 +235,35 @@ function wireCatalogCards() {
   const grid = $("#catalogResults");
   if (!grid || grid._cardsDelegated) return;
   grid._cardsDelegated = true;
-  grid.addEventListener("click", (e) => {
+  grid.addEventListener("click", async (e) => {
     if (e.target.closest("#catalogClearFilters")) { clearCatalogFilters(); return; }
+    // Coming-soon wishlist button
+    const wishBtn = e.target.closest("[data-cs-wish]");
+    if (wishBtn) {
+      e.stopPropagation();
+      const setNum = wishBtn.dataset.csWish;
+      const name = wishBtn.dataset.csName;
+      const isOn = wishBtn.classList.contains("cs-wish-btn--on");
+      haptic("light");
+      try {
+        if (isOn) {
+          await api(`/api/wishlist/${encodeURIComponent(setNum)}`, { method: "DELETE" });
+          wishBtn.classList.remove("cs-wish-btn--on");
+          wishBtn.style.cssText = "width:100%;margin-top:8px;padding:5px 0;font-size:11px;font-weight:600;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink-mute);cursor:pointer;";
+          wishBtn.textContent = "+ Wishlist";
+          if (state.wishlist) state.wishlist = state.wishlist.filter(w => w.set_num !== setNum);
+        } else {
+          await api("/api/wishlist", { method: "POST", body: { set_num: setNum, name } });
+          wishBtn.classList.add("cs-wish-btn--on");
+          wishBtn.style.cssText = "width:100%;margin-top:8px;padding:5px 0;font-size:11px;font-weight:600;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;";
+          wishBtn.textContent = "✓ Wishlisted";
+          if (state.wishlist) state.wishlist.push({ set_num: setNum, name });
+        }
+      } catch (err) {
+        import('../utils.js').then(u => u.toast(err.message || "Failed", "error"));
+      }
+      return;
+    }
     const card = e.target.closest(".set-card, .set-list-card.compact");
     if (!card || !card.dataset.set) return;
     haptic("light");
@@ -493,7 +571,8 @@ function sourceCueHTML(s) { return trustBadgeHTML(s, { compact: true }); }
 // for the grid image; otherwise an inline meta badge for the compact list.
 function dealTagHTML(s, { overlay = false } = {}) {
   if (s.deal_signal !== 'buy') return '';
-  const txt = s.deal_strong ? 'STRONG BUY' : 'DEAL';
+  const pct = s.deal_discount_pct ? ` -${Math.round(s.deal_discount_pct)}%` : '';
+  const txt = s.deal_strong ? `STRONG BUY${pct}` : `DEAL${pct}`;
   return overlay
     ? `<span class="deal-tag-overlay" style="position:absolute;top:8px;left:8px;background:var(--up);color:#fff;font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.04em;border-radius:4px;padding:2px 6px;z-index:2;">${txt}</span>`
     : `<span class="badge" style="background:var(--up);color:#fff;font-size:9px;font-weight:800;letter-spacing:.03em;border-radius:4px;padding:1px 5px;margin-left:4px;">${txt}</span>`;

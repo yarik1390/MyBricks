@@ -47,6 +47,9 @@ const SORTS: Record<string, string> = {
   year_asc:   '(year IS NULL) ASC, year ASC',
   az:         'name ASC',
   za:         'name DESC',
+  // Trending: 30-day price momentum — sets whose value rose most. Sets with no
+  // prior snapshot sort last (NULL treated as no change).
+  trending:   '(CASE WHEN s.current_value > 0 AND svh30.current_value > 0 THEN (s.current_value - svh30.current_value) / svh30.current_value ELSE -1 END) DESC',
 };
 
 // Catalog-card projection for GET /search. The grid + enrichSetRecord only need
@@ -65,7 +68,8 @@ export const CATALOG_COLS =
   's.used_value, s.bl_new_value, s.bl_new_qty, s.bl_used_qty, s.bl_cached_at, s.be_cached_at, ' +
   's.ebay_ask_value, s.ebay_ask_qty, s.ebay_ask_cached_at, s.retirement_risk_score, s.subtheme, s.be_growth_12m, ' +
   's.bl_new_min, s.bl_new_max, s.bl_used_min, s.bl_used_max, s.lego_in_stock, s.lego_retiring_soon, ' +
-  's.bo_new_value, s.bo_used_value, s.bo_cached_at, s.blended_value, s.ebay_new_last_sold';
+  's.bo_new_value, s.bo_used_value, s.bo_cached_at, s.blended_value, s.ebay_new_last_sold, ' +
+  's.deal_signal, s.deal_strong, s.deal_discount_pct';
 
 function pushEbaySoldUpdate(
   stmts: D1PreparedStatement[],
@@ -123,6 +127,11 @@ app.get('/search', async (c) => {
   const filterParams: unknown[] = [];
   let fromSQL = 'lego_sets s';
   let orderBySQL = orderBy;
+
+  // Trending sort needs a 30-day price history snapshot for momentum computation.
+  if (sort === 'trending') {
+    fromSQL += " LEFT JOIN set_value_history svh30 ON svh30.set_num = s.set_num AND svh30.snapshot_date = date('now','-30 days')";
+  }
 
   const addFilter = (sql: string, ...values: unknown[]) => {
     where.push(sql);

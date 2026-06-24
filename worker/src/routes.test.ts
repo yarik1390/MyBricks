@@ -939,6 +939,62 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
     });
   });
 
+  describe('GET /api/upcoming', () => {
+    it('returns empty array when table does not exist', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/upcoming'), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(Array.isArray(data.upcoming)).toBe(true);
+    });
+
+    it('returns upcoming sets ordered by price descending', async () => {
+      await db.prepare(
+        `CREATE TABLE IF NOT EXISTS upcoming_sets (
+          set_num TEXT PRIMARY KEY, name TEXT NOT NULL, price_usd REAL,
+          availability TEXT, first_seen_at TEXT, scraped_at TEXT
+        )`
+      ).run();
+      await db.batch([
+        db.prepare(`INSERT INTO upcoming_sets (set_num, name, price_usd, availability) VALUES ('99001-1', 'Cheap Set', 49.99, 'Pre-order')`),
+        db.prepare(`INSERT INTO upcoming_sets (set_num, name, price_usd, availability) VALUES ('99002-1', 'Expensive Set', 349.99, 'Coming Soon')`),
+      ]);
+
+      const res = await app.fetch(new Request('http://localhost/api/upcoming'), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.upcoming).toHaveLength(2);
+      expect(data.upcoming[0].set_num).toBe('99002-1');
+      expect(data.upcoming[0].price_usd).toBe(349.99);
+      expect(data.upcoming[0].availability).toBe('Coming Soon');
+      expect(data.upcoming[1].set_num).toBe('99001-1');
+    });
+  });
+
+  describe('Admin coverage fields', () => {
+    it('includes brickset_enrich_remaining in integration coverage', async () => {
+      // One set has brickset_enriched_at set, one does not — both are year>=2000.
+      await db.prepare(`UPDATE lego_sets SET brickset_enriched_at=datetime('now') WHERE set_num='75192'`).run();
+
+      const res = await app.fetch(new Request('http://localhost/api/admin/integrations', {
+        headers: auth(adminToken),
+      }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      // 75192 is year 2017 (enriched), 10300 is year 2022 (not enriched) → 1 remaining.
+      expect(typeof data.coverage.brickset_enrich_remaining).toBe('number');
+      expect(data.coverage.brickset_enrich_remaining).toBe(1);
+    });
+
+    it('rejects unknown job names from /api/admin/jobs/:job', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/admin/jobs/nonexistent-job', {
+        method: 'POST', headers: auth(adminToken),
+      }), env);
+      expect(res.status).toBe(400);
+      const data = await res.json<any>();
+      expect(data.error).toContain('nonexistent-job');
+    });
+  });
+
   describe('Snapshot jobs', () => {
     it('snapshots each user portfolio at COALESCE(blended_value, current_value) x qty', async () => {
       const { runSnapshotPortfolios } = await import('./jobs/snapshot-portfolios');

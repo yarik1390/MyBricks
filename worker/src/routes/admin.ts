@@ -10,6 +10,9 @@ import { getQuotaUsage } from '../lib/api-quota';
 import { getAiUsageReport } from '../lib/ai-usage';
 import { isEbayAccessError } from '../lib/ebay';
 import { rebuildSearchIndex } from '../lib/search-index';
+import { runLegoStockRefresh } from '../jobs/lego-stock-refresh';
+import { runBricksetEnrich } from '../jobs/brickset-enrich';
+import { runBrickEconomyEnrich } from '../jobs/brickeconomy-enrich';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -156,7 +159,8 @@ async function getDataCoverage(env: Env) {
         CAST(SUM(CASE WHEN valuation_method IN ('formula_bulk','ai') OR current_value IS NULL OR current_value <= 0 THEN 1 ELSE 0 END) AS INTEGER) AS low_confidence_values,
         CAST(SUM(CASE WHEN current_value IS NULL OR current_value <= 0 OR valuation_expires_at < datetime('now') OR cached_at IS NULL OR cached_at < datetime('now','-60 days') THEN 1 ELSE 0 END) AS INTEGER) AS needs_market_refresh,
         CAST(SUM(CASE WHEN year >= 2000 THEN 1 ELSE 0 END) AS INTEGER) AS be_eligible,
-        CAST(SUM(CASE WHEN year >= 2000 AND be_value_new IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS be_populated
+        CAST(SUM(CASE WHEN year >= 2000 AND be_value_new IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS be_populated,
+        CAST(SUM(CASE WHEN year >= 2000 AND brickset_enriched_at IS NULL THEN 1 ELSE 0 END) AS INTEGER) AS brickset_enrich_remaining
       FROM lego_sets
     `).first<Record<string, number>>(),
     env.DB.prepare(`
@@ -289,11 +293,13 @@ async function getDataCoverage(env: Env) {
     remaining: Math.max(0, beEligible - bePopulated),
     pct: beEligible ? Math.round((bePopulated / beEligible) * 1000) / 10 : 0,
   };
+  const bricksetEnrichRemaining = Number(sets?.brickset_enrich_remaining || 0);
   return {
     ...sets,
     quality,
     blend_quality: blendQuality,
     be_bootstrap: beBootstrap,
+    brickset_enrich_remaining: bricksetEnrichRemaining,
     barcode_health: barcodeHealthOut,
     sets_with_bricklink: bricklinkCount,
     barcode_coverage_pct: retailBarcodePct,
@@ -916,6 +922,40 @@ app.post('/repair-search-index', async (c) => {
     message: 'Catalog search index rebuilt',
     ...result,
   });
+});
+
+// POST /api/admin/jobs/:job
+// Ad-hoc trigger for cron-driven enrichment jobs. Useful for testing new
+// scrapers, advancing a backfill, or debugging without waiting for a cron tick.
+// Each job runs inline with a conservative limit so it stays within Worker CPU.
+const JOB_LIMITS: Record<string, number> = {
+  'lego-stock-refresh': 20,
+  'brickset-enrich': 5,
+  'brickeconomy-enrich': 5,
+};
+
+app.post('/jobs/:job', async (c) => {
+  const job = c.req.param('job');
+  if (!Object.prototype.hasOwnProperty.call(JOB_LIMITS, job)) {
+    return c.json({ error: `Unknown job '${job}'. Valid: ${Object.keys(JOB_LIMITS).join(', ')}` }, 400);
+  }
+  const limit = JOB_LIMITS[job];
+  const started_at = new Date().toISOString();
+  try {
+    let result: Record<string, unknown>;
+    if (job === 'lego-stock-refresh') {
+      result = await runLegoStockRefresh(c.env, { limit });
+    } else if (job === 'brickset-enrich') {
+      result = await runBricksetEnrich(c.env, { limit });
+    } else if (job === 'brickeconomy-enrich') {
+      result = await runBrickEconomyEnrich(c.env, { limit });
+    } else {
+      return c.json({ error: 'Not implemented' }, 501);
+    }
+    return c.json({ ok: true, job, started_at, limit, ...result });
+  } catch (err) {
+    return c.json({ ok: false, job, started_at, error: (err as Error).message }, 500);
+  }
 });
 
 export { app as adminRoute };

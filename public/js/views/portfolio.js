@@ -697,7 +697,7 @@ function renderInsightsTab(items) {
   // server-side), so this stays empty until the part-price data fills.
   const baseVal = (it) => Number(it.market_value) || Number(it.blended_value) || Number(it.current_value) || 0;
   const partOut = items
-    .map(it => ({ it, po: Number(it.part_out_value), mv: baseVal(it) }))
+    .map(it => ({ it, po: Number(it.part_out_value), mv: baseVal(it), cov: Number(it.part_out_coverage) }))
     .filter(x => x.po > 0 && x.mv > 0 && x.po / x.mv >= 1.15)
     .sort((a, b) => (b.po / b.mv) - (a.po / a.mv))
     .slice(0, 3);
@@ -705,14 +705,17 @@ function renderInsightsTab(items) {
       <div class="section-title">Part-out opportunities</div>
       <div class="card" style="padding:12px 16px;margin-bottom:18px;">
         <div style="font-size:11px;color:var(--ink-mute);margin-bottom:8px;line-height:1.4;">Sets currently worth more sold as individual parts than sealed.</div>
-        ${partOut.map(({ it, po, mv }) => `
+        ${partOut.map(({ it, po, mv, cov }) => {
+          const isApprox = cov >= 0.2 && cov < 0.4;
+          return `
           <div class="insight-set-row" data-set="${escapeHtml(it.set_num)}" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft);cursor:pointer;">
             <div style="min-width:0;margin-right:8px;">
               <div style="font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(it.name)}</div>
-              <div style="font-size:11px;color:var(--ink-mute);">Sealed ${fmtMoney(mv)} · Parts ${fmtMoney(po)}</div>
+              <div style="font-size:11px;color:var(--ink-mute);">Sealed ${fmtMoney(mv)} · ${isApprox ? '~' : ''}Parts ${fmtMoney(po)}${isApprox ? ' <span title="Estimate based on partial price coverage">ⓘ</span>' : ''}</div>
             </div>
             <strong style="color:var(--up);font-family:var(--mono);white-space:nowrap;">+${(((po / mv) - 1) * 100).toFixed(0)}%</strong>
-          </div>`).join('')}
+          </div>`;
+        }).join('')}
       </div>` : '';
 
   return `

@@ -98,9 +98,13 @@ export async function startCamera() {
       if (hint) hint.textContent = "Live barcode scanning isn't supported on this browser — type the digits instead";
       showManualBarcodeEntry();
     }
-  } catch (_e) {
+  } catch (err) {
     const hint = $("#scanHint");
-    if (hint) hint.textContent = "Camera not available — check permissions";
+    const isDenied = err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
+    if (hint) hint.textContent = isDenied
+      ? "Camera permission denied — grant access in browser/system settings, or type a set number below."
+      : "Camera not available — check permissions or try a different browser.";
+    showManualBarcodeEntry();
   }
 }
 
@@ -621,6 +625,23 @@ function showScanResult(res) {
     const checkedBoxes = $$(".scan-select-check:checked");
     const checkedFigs = $$(".scan-fig-check:checked");
     if (!checkedBoxes.length && !checkedFigs.length) { toast("Nothing selected", "info"); return; }
+
+    // Warn if any selected set is already in the collection.
+    const ownedNums = new Set((state.portfolio?.items || []).map(i => i.set_num));
+    const duplicates = Array.from(checkedBoxes)
+      .map(b => ({ setnum: b.dataset.setnum, s: sets[parseInt(b.dataset.idx, 10)] }))
+      .filter(({ setnum }) => ownedNums.has(setnum));
+    if (duplicates.length) {
+      const names = duplicates.map(d => d.s?.name || d.setnum).join(', ');
+      const { confirmSheet } = await import('./sheet.js');
+      const ok = await confirmSheet({
+        title: `Already owned`,
+        message: `You already have ${names} in your vault. Add another copy?`,
+        confirmLabel: 'Add anyway',
+      });
+      if (!ok) return;
+    }
+
     setBtnLoading($("#scanAdd"), true);
     let addedCount = 0;
     for (const box of checkedBoxes) {
