@@ -15,6 +15,7 @@ import { googleSyncRoute } from './routes/google-sync';
 import { ratesRoute } from './routes/rates';
 import { bricksetSyncRoute } from './routes/brickset-sync';
 import { photosRoute } from './routes/photos';
+import { imgRoute } from './routes/img';
 import { pushRoute } from './routes/push';
 import { bricklinkImportRoute } from './routes/bricklink-import';
 import { buildRoute } from './routes/build';
@@ -192,6 +193,8 @@ app.route('/api/collection', photosRoute);
 app.route('/api/push', pushRoute);
 app.route('/api/bricklink', bricklinkImportRoute);
 app.route('/api/build', buildRoute);
+// Public image proxy (no auth — images load via <img src>). R2-backed + edge-cached.
+app.route('/api/img', imgRoute);
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
 
