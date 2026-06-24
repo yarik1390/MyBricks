@@ -64,7 +64,7 @@ function wireSeriesChips() {
   }));
   $('#moreSeriesChip')?.addEventListener('click', () => {
     showSheet(`
-      <div class="u-serif-h" style="margin:0 4px 12px;">Pick a series</div>
+      <h2 class="u-serif-h" style="margin:0 4px 12px;">Pick a series</h2>
       <div class="search-wrap" style="margin:0 4px 14px;">
         <span class="s-icon">${I.search()}</span>
         <input class="search-input" id="seriesPickerInput" placeholder="Search series…" autocomplete="off">
@@ -117,7 +117,7 @@ export async function renderBlind() {
       <div class="topbar">
         <div class="topbar-heading">
           <div class="topbar-eyebrow" id="blindCount">${ownedCount}/${b.total.toLocaleString()} collected</div>
-          <div class="topbar-title">Minifigs</div>
+          <h1 class="topbar-title">Minifigs</h1>
         </div>
       </div>
 
@@ -215,7 +215,7 @@ async function loadRareFinds() {
   const el = $('#rareFindsSection');
   if (!el || !figs.length) return;
   el.innerHTML = `
-    <div class="section-title" style="margin-top:0;">Rare finds in your collection</div>
+    <h2 class="section-title" style="margin-top:0;">Rare finds in your collection</h2>
     <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;margin-bottom:14px;-webkit-overflow-scrolling:touch;">
       ${figs.map((f) => {
         const r = f.rarity || 'rare';

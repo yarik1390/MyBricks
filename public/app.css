@@ -37,6 +37,11 @@
   --serif: 'Fraunces', Georgia, serif;
   --sans: 'Geist', system-ui, sans-serif;
   --mono: 'IBM Plex Mono', monospace;
+  --card-pad-sm: 12px;
+  --card-pad-md: 16px;
+  --card-pad-lg: 20px;
+  --section-gap: 16px;
+  --item-gap: 10px;
 }
 
 :root[data-theme="dark"] {
@@ -90,6 +95,13 @@ html, body { overflow-x: hidden; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 input, textarea, select { font: inherit; color: inherit; }
 a { color: inherit; text-decoration: none; }
+
+/* screen-reader-only utility: visually hidden but announced by AT */
+.u-sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
 
 /* skip link for accessibility */
 .skip-link {
@@ -451,6 +463,8 @@ body.offline .offline-banner { display: block; }
    Set list cards
    ============================================================ */
 .set-list { display: flex; flex-direction: column; gap: 10px; }
+ul.set-list { list-style: none; padding: 0; margin: 0; }
+ul.set-list > li { display: contents; }
 .set-list-card {
   display: flex; gap: 12px;
   background: var(--surface);
@@ -611,6 +625,13 @@ body.offline .offline-banner { display: block; }
   margin: 0 auto 8px;
 }
 .empty .empty-icon svg { width: 38px; height: 38px; }
+
+/* Standardized empty state component */
+.empty-state { text-align: center; padding: 48px 24px; color: var(--ink-mute); }
+.empty-state-icon { margin-bottom: 12px; opacity: 0.4; display: flex; justify-content: center; }
+.empty-state-icon svg { width: 40px; height: 40px; }
+.empty-state-title { font-family: var(--serif); font-size: 20px; font-weight: 500; margin-bottom: 6px; color: var(--ink); }
+.empty-state-body { font-size: 14px; max-width: 260px; margin: 0 auto; line-height: 1.5; }
 
 /* ============================================================
    Search bar
@@ -1359,9 +1380,9 @@ body.offline .offline-banner { display: block; }
 .summary-cell .delta { margin-top: 6px; }
 
 .section-title {
-  font-family: var(--mono); font-size: 10px;
-  letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--ink-mute);
+  font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink); font-weight: 600;
   margin: 18px 0 8px;
 }
 

@@ -46,7 +46,7 @@ export function sheetLoading(label = "Working…") {
   const sheet = $("#sheet");
   if (!sheet || !sheet.classList.contains("show")) return;
   sheet.innerHTML = `<div class="sheet-handle"></div>
-    <div class="u-serif-h" style="margin:0 4px 14px;">${escapeHtml(label)}</div>
+    <h2 class="u-serif-h" style="margin:0 4px 14px;">${escapeHtml(label)}</h2>
     <div class="skel line" style="width:80%;margin:0 4px 10px;"></div>
     <div class="skel line" style="width:60%;margin:0 4px 10px;"></div>
     <div class="skel" style="height:44px;margin:8px 4px 0;"></div>`;
@@ -105,7 +105,7 @@ export function confirmSheet({ title, message = "", confirmLabel = "Confirm", da
     let done = false;
     const finish = (v) => { if (done) return; done = true; hideSheet(); resolve(v); };
     showSheet(`
-      <div class="u-serif-h" style="margin:0 4px 6px;">${escapeHtml(title)}</div>
+      <h2 class="u-serif-h" style="margin:0 4px 6px;">${escapeHtml(title)}</h2>
       ${message ? `<div style="color:var(--ink-mute);font-size:14px;margin:0 4px 18px;">${escapeHtml(message)}</div>` : `<div style="height:12px;"></div>`}
       <button class="btn-primary ${danger ? "btn-danger" : ""}" id="cfYes">${escapeHtml(confirmLabel)}</button>
       <button class="btn-secondary" id="cfNo" style="margin-top:8px;">Cancel</button>`);
@@ -120,7 +120,7 @@ export function promptSheet({ title, label = "", value = "", placeholder = "", c
     let done = false;
     const finish = (v) => { if (done) return; done = true; hideSheet(); resolve(v); };
     showSheet(`
-      <div class="u-serif-h" style="margin:0 4px 14px;">${escapeHtml(title)}</div>
+      <h2 class="u-serif-h" style="margin:0 4px 14px;">${escapeHtml(title)}</h2>
       ${label ? `<label class="field-lbl" for="psInput">${escapeHtml(label)}</label>` : ""}
       <input class="field-input" id="psInput" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" autocomplete="off">
       <button class="btn-primary" id="psSave" style="margin-top:14px;">${escapeHtml(confirmLabel)}</button>
@@ -148,6 +148,6 @@ export function showAlertsSheet(alerts) {
           <div style="font-size:13px;margin-top:4px;">Now <strong>${fmtMoney(a.current_value)}</strong> — your target was ${fmtMoney(a.target_price)}.</div>
         </div>`).join("");
   showSheet(`
-    <div class="u-serif-h" style="margin:0 4px 14px;">Alerts</div>
+    <h2 class="u-serif-h" style="margin:0 4px 14px;">Alerts</h2>
     ${html}`);
 }

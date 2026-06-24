@@ -1,4 +1,4 @@
-import { $, $$, escapeHtml, haptic, toast, debounce, SEARCH_DEBOUNCE_MS, mount } from '../utils.js';
+import { $, $$, escapeHtml, haptic, toast, debounce, SEARCH_DEBOUNCE_MS, mount, emptyState } from '../utils.js';
 import { api } from '../api.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
 
@@ -102,7 +102,7 @@ function listHtml() {
   const st = _mode === 'sets' ? _sets : _alts;
   if (st.loading && !st.loaded) return skelCardList(6);
   if (st.loaded && !st.owned_sets) {
-    return `<div class="b-empty">Add sets to your vault, then come back to see what you can build from their parts.</div>`;
+    return emptyState({ icon: I.box(), title: 'Nothing to build yet', body: 'Add sets to your vault, then come back to see what you can build from their parts.' });
   }
   let items = st.builds;
   if (_q) {
@@ -111,9 +111,9 @@ function listHtml() {
   }
   if (!items.length) {
     if (_mode === 'sets' && _sets.loaded && !_sets.parts_sets) {
-      return `<div class="b-empty">We're still indexing the part lists for your sets — check back shortly.</div>`;
+      return emptyState({ icon: I.layers(), title: 'Indexing parts', body: "We're still indexing the part lists for your sets — check back shortly." });
     }
-    return `<div class="b-empty">No matches${_q ? ' for "' + escapeHtml(_q) + '"' : ' yet'}.</div>`;
+    return emptyState({ icon: I.search(), title: _q ? `No matches for "${escapeHtml(_q)}"` : 'No matches yet', body: _q ? 'Try a different search term.' : '' });
   }
   return `<div class="b-list">${items.map(_mode === 'sets' ? setRow : altRow).join('')}</div>`;
 }

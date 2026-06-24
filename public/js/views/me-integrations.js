@@ -40,7 +40,7 @@ export async function renderMeIntegrations() {
     <div class="page">
       ${subpageTopbarHTML("Connected services", "Integrations")}
 
-      <div class="section-title">Google Sheets Sync</div>
+      <h2 class="section-title">Google Sheets Sync</h2>
       <div>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">
@@ -50,7 +50,7 @@ export async function renderMeIntegrations() {
           ${googleStatus.connected ? `
             <div class="u-col u-wfull">
               <div class="u-row u-fs-sm u-up" style="font-weight:600;">
-                <span style="display:inline-block;width:8px;height:8px;background:var(--up);border-radius:50%;"></span>
+                <span aria-hidden="true" style="display:inline-block;width:8px;height:8px;background:var(--up);border-radius:50%;"></span>
                 Connected to Google Sheets
               </div>
               ${googleStatus.spreadsheet_id ? `
@@ -75,7 +75,7 @@ export async function renderMeIntegrations() {
         </div>
       </div>
 
-      <div class="section-title">Discord Alerts</div>
+      <h2 class="section-title">Discord Alerts</h2>
       <div>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap"><div class="lbl">Discord webhook</div><div class="desc">Post price-drop and spike alerts to a Discord channel.</div></div>
@@ -87,7 +87,7 @@ export async function renderMeIntegrations() {
         </div>
       </div>
 
-      <div class="section-title">Push Notifications</div>
+      <h2 class="section-title">Push Notifications</h2>
       <div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Push notifications</div><div class="desc">Receive price alerts on your device even when the app is closed.</div></div>
@@ -95,7 +95,7 @@ export async function renderMeIntegrations() {
         </div>
       </div>
 
-      <div class="section-title">Brickset Collection Sync</div>
+      <h2 class="section-title">Brickset Collection Sync</h2>
       <div>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">
@@ -105,7 +105,7 @@ export async function renderMeIntegrations() {
           ${me.brickset_connected ? `
             <div class="u-col u-wfull">
               <div class="u-row u-fs-sm u-up" style="font-weight:600;">
-                <span style="display:inline-block;width:8px;height:8px;background:var(--up);border-radius:50%;"></span>
+                <span aria-hidden="true" style="display:inline-block;width:8px;height:8px;background:var(--up);border-radius:50%;"></span>
                 Brickset account connected
               </div>
               <div class="u-row u-wfull">
@@ -125,7 +125,7 @@ export async function renderMeIntegrations() {
         </div>
       </div>
 
-      <div class="section-title">AI Scanning</div>
+      <h2 class="section-title">AI Scanning</h2>
       <div>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">
@@ -151,7 +151,7 @@ export async function renderMeIntegrations() {
         </div>
       </div>
 
-      <div class="section-title">On-Device Offline AI</div>
+      <h2 class="section-title">On-Device Offline AI</h2>
       <div>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">

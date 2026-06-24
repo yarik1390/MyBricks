@@ -10,7 +10,7 @@ export function subpageTopbarHTML(eyebrow, title) {
       <a class="icon-btn" href="#/me" aria-label="Back to profile" style="margin-top:2px;margin-right:8px;">${I.chevL()}</a>
       <div class="topbar-heading">
         <div class="topbar-eyebrow">${escapeHtml(eyebrow)}</div>
-        <div class="topbar-title">${escapeHtml(title)}</div>
+        <h1 class="topbar-title">${escapeHtml(title)}</h1>
       </div>
     </div>`;
 }

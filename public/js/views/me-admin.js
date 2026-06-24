@@ -46,7 +46,7 @@ export async function renderMeAdmin() {
     <div class="page">
       ${subpageTopbarHTML("Admin console", "Admin")}
 
-      <div class="section-title">System Setup Checklist</div>
+      <h2 class="section-title">System Setup Checklist</h2>
       <div class="card" style="padding:14px 16px;margin-bottom:14px;">
         <div class="u-col u-fs-sm" style="gap:10px;">
           ${checkRow("Database (D1)", status.d1, "Connected", "Missing")}
@@ -68,7 +68,7 @@ export async function renderMeAdmin() {
         </div>
       </div>
 
-      <div class="section-title">Catalog</div>
+      <h2 class="section-title">Catalog</h2>
       <div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Import sets</div><div class="desc" id="importSetsDesc">~22k sets from Rebrickable with themes &amp; images</div></div>
@@ -96,14 +96,14 @@ export async function renderMeAdmin() {
         </div>
       </div>
 
-      <div class="section-title">Import &amp; Revalue Jobs</div>
+      <h2 class="section-title">Import &amp; Revalue Jobs</h2>
       <div class="card" style="padding:14px 16px;margin-bottom:14px;">
         <div id="jobsStatusContainer" class="u-col u-fs-sm" style="color:var(--ink-soft);">
           Loading jobs status...
         </div>
       </div>
 
-      <div class="section-title">Integrations Health</div>
+      <h2 class="section-title">Integrations Health</h2>
       <div class="card" style="padding:14px 16px;margin-bottom:14px;">
         <div id="integrationsHealthContainer" class="u-col u-fs-sm" style="color:var(--ink-soft);">
           Loading integrations status...

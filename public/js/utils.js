@@ -438,6 +438,15 @@ export function bricklinkBuyURL(setNum) {
   return `https://www.bricklink.com/v2/catalog/catalogitem.page?S=${clean}-1`;
 }
 
+export function emptyState({ icon = '', title, body = '', action = '' } = {}) {
+  return `<div class="empty-state">
+    ${icon ? `<div class="empty-state-icon" aria-hidden="true">${icon}</div>` : ''}
+    <div class="empty-state-title">${escapeHtml(title || '')}</div>
+    ${body ? `<p class="empty-state-body">${escapeHtml(body)}</p>` : ''}
+    ${action}
+  </div>`;
+}
+
 export function trendBadgeHTML(trend) {
   if (trend === "rising") {
     return `<span class="trend-badge rising" title="Price trend: Rising">${I.trend({w:10, h:10})} ↑ Rising</span>`;

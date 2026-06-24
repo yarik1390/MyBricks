@@ -273,7 +273,7 @@ function paintPortfolio() {
         <div class="hero-eyebrow"><span class="pulse"></span>Vault · LIVE</div>
         <div class="u-row" style="flex-wrap:wrap;column-gap:12px;">
           <div class="hero-value" id="heroValue">${heroValueHTML(totalVal)}</div>
-          <span class="delta ${gain >= 0 ? "up" : "down"}"><span class="arrow">${gain >= 0 ? "▲" : "▼"}</span>${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(gainPct)})</span>
+          <span class="delta ${gain >= 0 ? "up" : "down"}" role="img" aria-label="${gain >= 0 ? 'Up' : 'Down'} ${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(gainPct)})"><span class="arrow" aria-hidden="true">${gain >= 0 ? "▲" : "▼"}</span>${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(gainPct)})</span>
         </div>
         <div class="hero-meta u-mono-label" style="letter-spacing:0.06em;">
           <span>Invested ${fmtMoney(p.total_paid)}</span>
@@ -298,7 +298,7 @@ function paintPortfolio() {
             ${[["added_desc","Recent"],["value_desc","Value"],["roi_desc","Growth"],["az","A–Z"]]
               .map(([k,l]) => `<button class="chip ${state.filter.sort === k ? "active" : ""}" data-sort="${k}">${l}</button>`).join("")}
           </div>
-          <div class="set-list ${state.compactView ? 'compact-list' : ''}" id="setList">
+          <div class="set-list ${state.compactView ? 'compact-list' : ''}" id="setList" role="list">
             ${items.length === 0 ? emptyVaultHTML() : items.map(setListCardHTML).join("")}
           </div>
         ` : `
@@ -337,7 +337,7 @@ function paintPortfolio() {
             ${[["added_desc","Recent"],["value_desc","Value"],["roi_desc","Growth"],["az","A\u2013Z"]]
               .map(([k,l]) => `<button class="chip ${state.filter.sort === k ? "active" : ""}" data-sort="${k}">${l}</button>`).join("")}
           </div>
-          <div class="set-list ${state.compactView ? 'compact-list' : ''}" id="setList">
+          <div class="set-list ${state.compactView ? 'compact-list' : ''}" id="setList" role="list">
             ${items.length === 0 ? emptyVaultHTML() : items.map(setListCardHTML).join("")}
           </div>`;
       wireSortChips();
@@ -521,7 +521,7 @@ function setListCardHTML(item) {
             ${fmtMoney(dispVal)}
             ${item.trend ? trendBadgeHTML(item.trend) : ""}
           </div>
-          <div class="sl-delta ${cls}">${arrow}${dStr}</div>
+          <div class="sl-delta ${cls}" ${delta != null ? `role="img" aria-label="${cls === 'up' ? 'Up' : 'Down'} ${dStr}"` : ''}><span aria-hidden="true">${arrow}</span>${dStr}</div>
         </div>
       </button>`;
   }
@@ -545,7 +545,7 @@ function setListCardHTML(item) {
           ${fmtMoney(dispVal)}
           ${item.trend ? trendBadgeHTML(item.trend) : ""}
         </div>
-        <div class="sl-delta ${cls}"><span class="arrow">${arrow}</span>${dStr}</div>
+        <div class="sl-delta ${cls}" ${delta != null ? `role="img" aria-label="${cls === 'up' ? 'Up' : 'Down'} ${dStr}"` : ''}><span class="arrow" aria-hidden="true">${arrow}</span>${dStr}</div>
         ${item.forecast_2y && dispVal && item.forecast_2y > dispVal ? `<div style="font-size:9px;color:var(--ink-mute);font-family:var(--mono);text-align:right;">→ ${fmtMoneyShort(item.forecast_2y)} 2yr</div>` : ''}
       </div>
     </button>`;
@@ -657,11 +657,11 @@ function renderInsightsTab(items) {
       <strong class="signal-row-gap" style="color:${hot ? "var(--up)" : "var(--bv-red)"};">${hot ? "+" : ""}${fmtMoney(s.gap)}</strong>
     </div>`;
   const signalsCard = (signals.hot.length || signals.cold.length) ? `
-      <div class="section-title" style="margin-top:0;">Market Signals</div>
+      <h2 class="section-title" style="margin-top:0;">Market Signals</h2>
       <div class="card signals-card" style="padding:12px 16px;margin-bottom:18px;">
         ${signals.totalUpside > 0 ? `<div class="signals-headline">≈ ${fmtMoney(signals.totalUpside)} upside across ${signals.hot.length} set${signals.hot.length > 1 ? "s" : ""} if sold now</div>` : ""}
-        ${signals.hot.length ? `<div class="signals-group-label" style="color:var(--up);">🔥 Sell signals — resale running hot</div>${signals.hot.slice(0, 3).map(s => signalRow(s, true)).join("")}` : ""}
-        ${signals.cold.length ? `<div class="signals-group-label" style="color:var(--bv-red);">❄️ Buy windows — resale below market</div>${signals.cold.slice(0, 3).map(s => signalRow(s, false)).join("")}` : ""}
+        ${signals.hot.length ? `<div class="signals-group-label" style="color:var(--up);"><span aria-hidden="true">🔥</span> Sell signals — resale running hot</div>${signals.hot.slice(0, 3).map(s => signalRow(s, true)).join("")}` : ""}
+        ${signals.cold.length ? `<div class="signals-group-label" style="color:var(--bv-red);"><span aria-hidden="true">❄️</span> Buy windows — resale below market</div>${signals.cold.slice(0, 3).map(s => signalRow(s, false)).join("")}` : ""}
       </div>` : "";
 
   // Allocation by theme (diversification) — share of portfolio value per theme,
@@ -677,7 +677,7 @@ function renderInsightsTab(items) {
   }
   const alloc = [...allocMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
   const allocCard = allocTotal > 0 ? `
-      <div class="section-title">Allocation by theme</div>
+      <h2 class="section-title">Allocation by theme</h2>
       <div class="card" style="padding:14px 16px;margin-bottom:18px;">
         ${alloc.map(([theme, v]) => {
           const share = v / allocTotal;
@@ -702,7 +702,7 @@ function renderInsightsTab(items) {
     .sort((a, b) => (b.po / b.mv) - (a.po / a.mv))
     .slice(0, 3);
   const partOutCard = partOut.length ? `
-      <div class="section-title">Part-out opportunities</div>
+      <h2 class="section-title">Part-out opportunities</h2>
       <div class="card" style="padding:12px 16px;margin-bottom:18px;">
         <div style="font-size:11px;color:var(--ink-mute);margin-bottom:8px;line-height:1.4;">Sets currently worth more sold as individual parts than sealed.</div>
         ${partOut.map(({ it, po, mv, cov }) => {
@@ -721,7 +721,7 @@ function renderInsightsTab(items) {
   return `
     <div style="padding:12px 16px;">
       ${signalsCard}
-      <div class="section-title" ${signalsCard ? "" : 'style="margin-top:0;"'}>S&P 500 Performance Comparison</div>
+      <h2 class="section-title" ${signalsCard ? "" : 'style="margin-top:0;"'}>S&P 500 Performance Comparison</h2>
       <div class="card" style="padding:14px 16px;margin-bottom:18px;">
         <div style="font-size:12px;color:var(--ink-mute);line-height:1.4;margin-bottom:12px;">
           Compare your LEGO portfolio growth (solid <span style="color:var(--up);font-weight:700;">green</span>) against S&P 500 compounding at 8%/year (dashed <span style="color:var(--ink-soft);font-weight:600;">gray</span>) using dollar-cost averaging.
@@ -731,7 +731,7 @@ function renderInsightsTab(items) {
 
       ${allocCard}
 
-      <div class="section-title">Top Movers (90-day Slope)</div>
+      <h2 class="section-title">Top Movers (90-day Slope)</h2>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;">
         <div class="card" style="padding:12px;">
           <div class="u-row u-gap-1" style="font-size:12px;font-family:var(--mono);color:var(--up);margin-bottom:8px;font-weight:700;">${I.trend({w:13,h:13})} TOP RISING</div>
@@ -755,7 +755,7 @@ function renderInsightsTab(items) {
 
       ${partOutCard}
 
-      <div class="section-title">Retirement Radar</div>
+      <h2 class="section-title">Retirement Radar</h2>
       <div class="card" style="padding:12px 16px;">
         ${radar.length === 0 ? `<div style="font-size:12px;color:var(--ink-mute);text-align:center;padding:12px 0;">No active high-risk sets (score ≥ 70)</div>` : radar.map(item => `
           <div class="insight-set-row" data-set="${escapeHtml(item.set_num)}" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft);cursor:pointer;">

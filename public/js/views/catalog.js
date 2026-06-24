@@ -162,7 +162,7 @@ function comingSoonSectionHTML() {
   const wishlist = new Set((state.wishlist || []).map(w => w.set_num));
   return `
     <div class="coming-soon-wrap" style="margin-bottom:16px;">
-      <div class="section-title" style="margin-top:0;">Coming Soon</div>
+      <h2 class="section-title" style="margin-top:0;">Coming Soon</h2>
       <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;">
         ${up.slice(0, 20).map((u) => {
           const onWishlist = wishlist.has(u.set_num);
@@ -299,7 +299,7 @@ function paintAdd() {
       <div class="topbar">
         <div class="topbar-heading">
           <div class="topbar-eyebrow">Catalog</div>
-          <div class="topbar-title">Find a set</div>
+          <h1 class="topbar-title">Find a set</h1>
         </div>
         <div class="topbar-actions" style="margin-left:auto;">
           <button class="icon-btn" id="catalogLayoutToggle" aria-label="Toggle Layout">${state.compactView ? I.grid() : I.list()}</button>
@@ -416,7 +416,7 @@ function paintAdd() {
   // Searchable picker for the full theme list (the row shows only 8 quick chips).
   $("#moreThemesChip")?.addEventListener("click", () => {
     showSheet(`
-      <div class="u-serif-h" style="margin:0 4px 12px;">Pick a theme</div>
+      <h2 class="u-serif-h" style="margin:0 4px 12px;">Pick a theme</h2>
       <div class="search-wrap" style="margin:0 4px 14px;">
         <span class="s-icon">${I.search()}</span>
         <input class="search-input" id="themePickerInput" placeholder="Search themes…" autocomplete="off">
@@ -656,7 +656,7 @@ export function renderPile() {
       <div class="topbar">
         <div class="topbar-heading">
           <div class="topbar-eyebrow">Snap &amp; identify</div>
-          <div class="topbar-title">Pile scanner</div>
+          <h1 class="topbar-title">Pile scanner</h1>
         </div>
       </div>
 
@@ -681,7 +681,7 @@ export function renderPile() {
         <div class="scan-cta-arrow">${I.arrowR()}</div>
       </button>
 
-      <div class="section-title">How it works</div>
+      <h2 class="section-title">How it works</h2>
       <div class="card" style="background:var(--surface-2);padding:14px;">
         <ol style="margin:0;padding-left:18px;font-size:13px;color:var(--ink-soft);line-height:1.7;">
           <li>Tap "Open camera" above</li>

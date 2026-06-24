@@ -41,7 +41,7 @@ export async function renderMe() {
   let trophyShelfHTML = '';
   if (!guest && me.handle && me.is_public) {
     trophyShelfHTML = `
-      <div class="section-title">Trophy Shelf (${showcase.length}/6)</div>
+      <h2 class="section-title">Trophy Shelf (${showcase.length}/6)</h2>
       <div class="card" style="padding:14px 16px;margin-bottom:14px;">
         <div class="trophy-shelf scrollable" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px;">
           ${showcase.map(s => {
@@ -80,7 +80,7 @@ export async function renderMe() {
       <div class="topbar">
         <div class="topbar-heading">
           <div class="topbar-eyebrow">${guest ? "Local guest" : "@" + escapeHtml(me.handle || "you")}</div>
-          <div class="topbar-title">Profile</div>
+          <h1 class="topbar-title">Profile</h1>
         </div>
       </div>
 
@@ -118,7 +118,7 @@ export async function renderMe() {
       ${publicProfileSectionHTML(me)}
       ${trophyShelfHTML}
 
-      <div class="section-title">Preferences</div>
+      <h2 class="section-title">Preferences</h2>
       <div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Appearance</div><div class="desc">Match your device or pick a side.</div></div>
@@ -146,7 +146,7 @@ export async function renderMe() {
         </div>
       </div>
 
-      <div class="section-title">More</div>
+      <h2 class="section-title">More</h2>
       <div>
         ${linkRow("#/me/integrations", "Integrations", "Google Sheets, Discord, Brickset, push alerts, AI keys")}
         ${linkRow("#/me/data", "Data", "Export &amp; import your collection as CSV")}
@@ -361,7 +361,7 @@ function guestModeCardHTML() {
 function publicProfileSectionHTML(me) {
   if (me.is_guest) {
     return `
-      <div class="section-title">Public Profile</div>
+      <h2 class="section-title">Public Profile</h2>
       <div class="card" style="padding:14px 16px;margin-bottom:14px;">
         <div class="u-fs-base u-mute" style="line-height:1.45;margin-bottom:12px;">
           Public profiles and Trophy Shelf sync require an account.
@@ -372,7 +372,7 @@ function publicProfileSectionHTML(me) {
   }
   if (!me.handle) {
     return `
-      <div class="section-title">Public Profile</div>
+      <h2 class="section-title">Public Profile</h2>
       <div class="card" style="padding:14px 16px;margin-bottom:14px;">
         <div class="u-fs-base u-mute" style="margin-bottom:12px;line-height:1.45;">
           Choose a unique username/handle to create a public profile page showing off your stats and Trophy Shelf.
@@ -416,7 +416,7 @@ function showSearchableTrophyPicker(currentSetNums) {
   const ownedItems = state.portfolio?.items || [];
 
   showSheet(`
-    <div class="u-serif-h" style="margin:0 4px 12px;">Add to Trophy Shelf</div>
+    <h2 class="u-serif-h" style="margin:0 4px 12px;">Add to Trophy Shelf</h2>
     <div class="search-wrap" style="margin: 0 4px 14px;">
       <span class="s-icon">${I.search()}</span>
       <input class="search-input" id="trophySearchInput" placeholder="Search your collection…" autocomplete="off">

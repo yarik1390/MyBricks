@@ -17,7 +17,7 @@ export async function renderPublicProfile(handle) {
     if (nav) nav.style.display = "";
     $("#root").innerHTML = `<div class="page">
       <div class="topbar">
-        <div class="topbar-heading"><div class="topbar-title">Profile</div></div>
+        <div class="topbar-heading"><h1 class="topbar-title">Profile</h1></div>
         <button class="icon-btn" id="pubBack">${I.chevL()}</button>
       </div>
       <div class="empty card">
@@ -36,7 +36,7 @@ export async function renderPublicProfile(handle) {
       <div class="topbar">
         <div class="topbar-heading">
           <div class="topbar-eyebrow">@${escapeHtml(profile.handle || handle)}</div>
-          <div class="topbar-title">${escapeHtml(profile.display_name || handle)}</div>
+          <h1 class="topbar-title">${escapeHtml(profile.display_name || handle)}</h1>
         </div>
         <button class="icon-btn" id="pubBack" aria-label="Back">${I.chevL()}</button>
       </div>
@@ -56,7 +56,7 @@ export async function renderLeaderboard() {
       <div class="topbar">
         <div class="topbar-heading">
           <div class="topbar-eyebrow">Community</div>
-          <div class="topbar-title">Leaderboard</div>
+          <h1 class="topbar-title">Leaderboard</h1>
         </div>
         <button class="icon-btn" id="lbBack" aria-label="Back">${I.chevL()}</button>
       </div>

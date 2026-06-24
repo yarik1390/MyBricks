@@ -51,7 +51,7 @@ export async function renderWishlist() {
         <a href="#/" class="icon-btn" aria-label="Back" style="margin-top:2px;margin-right:8px;">${I.chevL()}</a>
         <div class="topbar-heading">
           <div class="topbar-eyebrow">${state.wishlist.length} sets · ${totalAlerts} alert${totalAlerts !== 1 ? "s" : ""}</div>
-          <div class="topbar-title">Wishlist</div>
+          <h1 class="topbar-title">Wishlist</h1>
         </div>
       </div>
 
@@ -62,13 +62,13 @@ export async function renderWishlist() {
         </div>` : ""}
 
       ${spikeAlerts.length > 0 ? `
-        <div class="section-title">Sell Opportunities 💰</div>
+        <h2 class="section-title"><span aria-hidden="true">💰</span> Sell Opportunities</h2>
         <div style="margin-bottom:14px;">
           ${spikeAlerts.map(a => spikeAlertCardHTML(a)).join("")}
         </div>` : ""}
 
       ${dropAlerts.length > 0 ? `
-        <div class="section-title u-row u-gap-1">Price Drops ${I.trendDown({w:12,h:12})}</div>
+        <h2 class="section-title u-row u-gap-1">Price Drops ${I.trendDown({w:12,h:12})}</h2>
         <div style="margin-bottom:14px;">
           ${dropAlerts.map(a => `
             <div class="alert-card">
