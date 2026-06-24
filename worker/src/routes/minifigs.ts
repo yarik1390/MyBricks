@@ -175,6 +175,24 @@ app.get('/blindbox', async (c) => {
   return c.json({ series, set_num: set.set_num, figs: figsRes.results });
 });
 
+// GET /api/minifigs/:fignum/sets — the sets a minifig appears in (turns the
+// fig detail into a navigable hub). Public. image_url is proxied by the global
+// image-rewrite middleware. Newest first.
+app.get('/:fignum/sets', async (c) => {
+  const figNum = c.req.param('fignum');
+  const { results } = await c.env.DB.prepare(`
+    SELECT ls.set_num, ls.name, ls.year, ls.image_url,
+           COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS value,
+           sm.quantity
+    FROM set_minifigs sm
+    JOIN lego_sets ls ON ls.set_num = sm.set_num
+    WHERE sm.fig_num = ?
+    ORDER BY COALESCE(ls.year, 0) DESC, ls.set_num ASC
+    LIMIT 50
+  `).bind(figNum).all<Record<string, unknown>>();
+  return c.json({ sets: results || [] });
+});
+
 // PUT /api/minifigs/:fignum — mark owned
 app.put('/:fignum', requireMember, async (c) => {
   const userId = c.get('userId');

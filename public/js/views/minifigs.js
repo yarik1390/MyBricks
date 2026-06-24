@@ -333,10 +333,12 @@ function showFigDetail(f) {
           <span class="fig-detail-value-lbl">Est. resale value</span>
           <span class="fig-detail-value-num">${fmtMoney(realVal, { cents: 0 })}</span>
         </div>` : ''}
-        ${(scarcityTxt || f.year) ? `
+        ${(scarcityTxt || f.year || f.num_parts) ? `
         <div class="fig-detail-facts" style="display:flex;gap:14px;flex-wrap:wrap;margin:4px 0 12px;font-size:12.5px;color:var(--ink-mute);">
           ${scarcityTxt ? `<span>${scarcityTxt}</span>` : ''}
           ${f.year ? `<span>First seen ${f.year}</span>` : ''}
+          ${f.num_parts ? `<span>${f.num_parts} part${f.num_parts > 1 ? 's' : ''}</span>` : ''}
+          <span style="text-transform:capitalize;">${escapeHtml(rarity)} rarity</span>
         </div>` : ''}
         <button class="btn-primary fig-own-btn${owned ? ' is-owned' : ''}" id="figOwnBtn">
           ${renderBtn(owned)}
@@ -344,8 +346,37 @@ function showFigDetail(f) {
         <a class="fig-detail-link" href="${rbUrl}" target="_blank" rel="noopener noreferrer">
           ${I.extLink()}<span>View on Rebrickable</span>
         </a>
+        <div id="figSetsSection" style="margin-top:16px;"></div>
       </div>
     </div>`);
+
+  // Lazily load the sets this minifig appears in — a navigable hub from the fig
+  // to each set's detail. (Hidden if the fig isn't mapped to any catalog sets.)
+  (async () => {
+    try {
+      const r = await api('/api/minifigs/' + encodeURIComponent(f.fig_num) + '/sets');
+      const sets = (r && r.sets) || [];
+      const el = $('#figSetsSection');
+      if (!el || !sets.length) return;
+      el.innerHTML = `
+        <div class="fig-detail-series" style="margin-bottom:8px;">Appears in ${sets.length} set${sets.length > 1 ? 's' : ''}</div>
+        <div class="u-col" style="gap:8px;">
+          ${sets.map((s) => `
+            <button class="fig-set-row" data-set="${escapeHtml(String(s.set_num))}" style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:8px 10px;cursor:pointer;">
+              ${s.image_url ? `<img src="${escapeHtml(String(s.image_url))}" alt="" loading="lazy" style="width:40px;height:40px;object-fit:contain;background:var(--surface-3);border-radius:6px;flex:0 0 auto;">` : `<div style="width:40px;height:40px;background:var(--surface-3);border-radius:6px;flex:0 0 auto;"></div>`}
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(String(s.name || s.set_num))}</div>
+                <div style="font-size:11px;color:var(--ink-mute);font-family:var(--mono);">#${escapeHtml(String(s.set_num).replace(/-\d+$/, ''))}${s.year ? ` · ${s.year}` : ''}</div>
+              </div>
+              ${s.value ? `<span style="font-size:13px;font-weight:700;color:var(--ink);flex:0 0 auto;">${fmtMoney(s.value, { cents: 0 })}</span>` : ''}
+            </button>`).join('')}
+        </div>`;
+      el.querySelectorAll('.fig-set-row').forEach((b) => b.addEventListener('click', () => {
+        haptic('light');
+        location.hash = '#/set/' + encodeURIComponent(b.dataset.set);
+      }));
+    } catch { /* non-fatal — the section just stays empty */ }
+  })();
 
   $('#figOwnBtn')?.addEventListener('click', async () => {
     const nowOwned = !state.ownedFigs.has(f.fig_num);
