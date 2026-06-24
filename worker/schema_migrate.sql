@@ -429,3 +429,7 @@ CREATE TABLE IF NOT EXISTS upcoming_sets (
   first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
   scraped_at TEXT
 );
+
+ALTER TABLE user_prefs ADD COLUMN is_supporter INTEGER DEFAULT 0;
+ALTER TABLE user_prefs ADD COLUMN supporter_since TEXT;
+ALTER TABLE user_prefs ADD COLUMN stripe_customer_id TEXT;

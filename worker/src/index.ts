@@ -24,6 +24,7 @@ import type { MiddlewareHandler } from 'hono';
 import { pushRoute } from './routes/push';
 import { bricklinkImportRoute } from './routes/bricklink-import';
 import { buildRoute } from './routes/build';
+import { stripeRoute } from './routes/stripe';
 
 import { runValuateSets, runValuateMinifigs, runEbayAskBackfill } from './jobs/valuate-sets';
 import { runSnapshotPortfolios } from './jobs/snapshot-portfolios';
@@ -222,6 +223,7 @@ app.route('/api/collection', photosRoute);
 app.route('/api/push', pushRoute);
 app.route('/api/bricklink', bricklinkImportRoute);
 app.route('/api/build', buildRoute);
+app.route('/api/stripe', stripeRoute);
 // Public image proxy (no auth — images load via <img src>). R2-backed + edge-cached.
 app.route('/api/img', imgRoute);
 // Public coming-soon release feed (G2b).

@@ -37,6 +37,7 @@ export async function renderPublicProfile(handle) {
         <div class="topbar-heading">
           <div class="topbar-eyebrow">@${escapeHtml(profile.handle || handle)}</div>
           <h1 class="topbar-title">${escapeHtml(profile.display_name || handle)}</h1>
+          ${profile.is_supporter ? '<div class="supporter-flair">⭐ Supporter</div>' : ''}
         </div>
         <button class="icon-btn" id="pubBack" aria-label="Back">${I.chevL()}</button>
       </div>
@@ -95,7 +96,7 @@ export async function renderLeaderboard() {
       return `<a href="#/u/${encodeURIComponent(l.handle)}" class="lb-row" style="display:flex;align-items:center;gap:12px;padding:11px 12px;text-decoration:none;color:inherit;border-radius:12px;${mine ? 'background:color-mix(in oklch, var(--accent) 12%, transparent);' : ''}">
         <div style="width:30px;text-align:center;font-weight:800;font-size:15px;font-family:var(--mono);color:${medal(l.rank)};">${l.rank}</div>
         <div style="flex:1;min-width:0;">
-          <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(l.display_name)}${mine ? ' <span style="font-size:11px;color:var(--accent);font-weight:700;">YOU</span>' : ''}</div>
+          <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(l.display_name)}${l.is_supporter ? ' <span class="lb-supporter-star" aria-hidden="true">⭐</span>' : ''}${mine ? ' <span style="font-size:11px;color:var(--accent);font-weight:700;">YOU</span>' : ''}</div>
           <div style="font-size:11px;color:var(--ink-mute);">@${escapeHtml(l.handle)} · ${l.set_count} set${l.set_count === 1 ? '' : 's'}</div>
         </div>
         <div style="font-weight:800;font-size:14px;color:var(--up);">${fmtMoneyShort(l.total_value)}</div>

@@ -266,6 +266,7 @@ describe('BrickVault API Worker Tests', () => {
         notify_price_drops INTEGER DEFAULT 1, is_public INTEGER NOT NULL DEFAULT 0,
         expose_public_value INTEGER NOT NULL DEFAULT 1,
         email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT,
+        is_supporter INTEGER DEFAULT 0, supporter_since TEXT, stripe_customer_id TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       )`,
 

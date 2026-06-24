@@ -3450,3 +3450,27 @@ select:focus-visible,
   --photo-grad-top: rgba(30, 24, 17, 0.2);
   --photo-grad-bot: rgba(30, 24, 17, 0);
 }
+
+/* ============================================================
+   Gold accent skin — exclusive to Supporters
+   ============================================================ */
+:root[data-skin="gold"] {
+  --accent: #D4960A;
+  --accent-fg: #1a1208;
+  --bv-yellow: #D4960A;
+}
+:root[data-skin="gold"][data-theme="dark"] {
+  --accent: #F5B820;
+  --accent-fg: #1a1208;
+}
+
+/* ============================================================
+   Support Brickvault card + Supporter badges
+   ============================================================ */
+.support-card { padding: var(--card-pad-md, 14px 16px); }
+.support-desc { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; line-height: 1.5; }
+.support-btns { display: flex; gap: 8px; }
+.support-card-active { text-align: center; padding: 20px 16px; }
+.supporter-badge-lg { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+.supporter-flair { font-size: 12px; color: var(--accent); font-weight: 700; letter-spacing: .05em; margin-top: 2px; }
+.lb-supporter-star { font-size: 11px; }

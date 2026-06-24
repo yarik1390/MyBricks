@@ -32,7 +32,7 @@ app.get('/', async (c) => {
     // credentials) and other columns the client never needs.
     db.prepare(
       `SELECT display_name, handle, is_public, expose_public_value, currency,
-              notify_price_drops, discord_webhook_url, brickset_user_hash, email
+              notify_price_drops, discord_webhook_url, brickset_user_hash, email, is_supporter
        FROM user_prefs WHERE user_id=?`
     ).bind(userId).first<Record<string, unknown>>(),
     db.prepare(`
@@ -82,6 +82,7 @@ app.get('/', async (c) => {
     is_admin: userId === c.env.ADMIN_USER_ID,
     discord_webhook_url: (p.discord_webhook_url as string | null) ?? null,
     brickset_connected: !!(p.brickset_user_hash),
+    is_supporter: p.is_supporter === 1,
     portfolio_stats: {
       set_count: Number(stats?.set_count ?? 0),
       total_value: Number(stats?.total_value ?? 0),

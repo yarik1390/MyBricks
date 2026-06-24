@@ -851,7 +851,12 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
   const userId = c.get('userId');
   const setnum = c.req.param('setnum');
 
-  // Rate limiting (5 per hour)
+  // Rate limiting: 5/hr for free users, 25/hr for supporters.
+  const pref = await c.env.DB.prepare(
+    'SELECT is_supporter FROM user_prefs WHERE user_id=?'
+  ).bind(userId).first<{ is_supporter: number }>();
+  const REVALUE_LIMIT = pref?.is_supporter ? 25 : 5;
+
   const windowStart = new Date();
   windowStart.setMinutes(0, 0, 0);
   const ws = windowStart.toISOString();
@@ -866,8 +871,8 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
     'SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint=? AND window_start=?'
   ).bind(userId, 'revalue', ws).first<{ hit_count: number }>();
 
-  if (rl && rl.hit_count > 5) {
-    return c.json({ error: 'Rate limit: 5 revaluations per hour.' }, 429);
+  if (rl && rl.hit_count > REVALUE_LIMIT) {
+    return c.json({ error: `Rate limit: ${REVALUE_LIMIT} revaluations per hour.` }, 429);
   }
 
   let set = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(setnum).first<Record<string, unknown>>();

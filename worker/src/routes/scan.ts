@@ -211,7 +211,11 @@ app.post('/identify', async (c) => {
   }
 
   {
-    // Per-user hourly cap on the shared server quota.
+    // Per-user hourly cap on the shared server quota. Supporters get 5× the limit.
+    const pref = await c.env.DB.prepare(
+      'SELECT is_supporter FROM user_prefs WHERE user_id=?'
+    ).bind(userId).first<{ is_supporter: number }>();
+    const limit = pref?.is_supporter ? SCAN_HOURLY_LIMIT * 5 : SCAN_HOURLY_LIMIT;
     const windowStart = new Date();
     windowStart.setMinutes(0, 0, 0);
     const ws = windowStart.toISOString();
@@ -223,8 +227,8 @@ app.post('/identify', async (c) => {
       ON CONFLICT (user_id, endpoint, window_start) DO UPDATE SET hit_count = rate_limits.hit_count + 1
       RETURNING hit_count
     `).bind(userId, ws).first<{ hit_count: number }>();
-    if ((rl?.hit_count || 0) > SCAN_HOURLY_LIMIT) {
-      return c.json({ error: `Rate limit: ${SCAN_HOURLY_LIMIT} photo scans per hour. Set up your own API key to unlock unlimited scanning.` }, 429);
+    if ((rl?.hit_count || 0) > limit) {
+      return c.json({ error: `Rate limit: ${limit} photo scans per hour. Set up your own API key to unlock unlimited scanning.` }, 429);
     }
   }
 

@@ -62,6 +62,8 @@ export interface Env {
   // Per-day Firecrawl CREDIT ceiling override (credits, not scrapes). Raise for
   // the one-time bootstrap; defaults to the api-quota cap otherwise.
   FIRECRAWL_DAILY_CREDITS?: string;
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
 }
 
 export type Variables = {

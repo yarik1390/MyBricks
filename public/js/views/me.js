@@ -9,6 +9,13 @@ import { skelPage, skelStatGrid, skelSettingRows } from '../components/skeleton.
 import { startOnboarding } from '../components/onboarding.js';
 
 export async function renderMe() {
+  // Detect Stripe Checkout success return before touching state.
+  const stripeSuccess = location.hash.includes('supported=1');
+  if (stripeSuccess) {
+    state.me = null; // force fresh fetch to pick up is_supporter flag
+    history.replaceState(null, '', '#/me');
+  }
+
   let me = state.me;
   let publicProfile = null;
 
@@ -117,6 +124,7 @@ export async function renderMe() {
       ${guest ? guestModeCardHTML() : ""}
       ${publicProfileSectionHTML(me)}
       ${trophyShelfHTML}
+      ${!guest ? supportCardHTML(me) : ''}
 
       <h2 class="section-title">Preferences</h2>
       <div>
@@ -130,7 +138,7 @@ export async function renderMe() {
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Style</div><div class="desc">Retro brick look or modern premium.</div></div>
           <div class="theme-seg" id="skinSeg" role="group" aria-label="Visual style">
-            ${[["retro","Retro"],["premium","Premium"]].map(([v,l]) =>
+            ${[["retro","Retro"],["premium","Premium"],...(me.is_supporter ? [["gold","Gold ★"]] : [])].map(([v,l]) =>
               `<button data-skin-val="${v}" class="${getSkinPref() === v ? "active" : ""}" aria-pressed="${getSkinPref() === v}">${l}</button>`).join("")}
           </div>
         </div>
@@ -211,6 +219,26 @@ export async function renderMe() {
       x.setAttribute("aria-pressed", on);
     });
   }));
+
+  // Support Brickvault — Stripe Checkout buttons
+  $$(".support-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const amount = Number(btn.dataset.amount);
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "…";
+      try {
+        const { url } = await api("/api/stripe/checkout", { method: "POST", body: { amount } });
+        window.location.href = url;
+      } catch (e) {
+        toast(e.message || "Could not start checkout", "error");
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    });
+  });
+
+  if (stripeSuccess) toast("Thank you for supporting Brickvault!", "success");
 
   let notifyOn = me.notify_price_drops;
   $("#notifyToggle")?.addEventListener("click", async (e) => {
@@ -344,6 +372,27 @@ export async function renderMe() {
     } catch {}
     go("#/");
   });
+}
+
+function supportCardHTML(me) {
+  if (me.is_supporter) {
+    return `
+      <h2 class="section-title">Supporter</h2>
+      <div class="card support-card support-card-active">
+        <div class="supporter-badge-lg">⭐ Supporter</div>
+        <p class="support-desc">Thank you for backing Brickvault. Your support keeps this project alive.</p>
+      </div>`;
+  }
+  return `
+    <h2 class="section-title">Support Brickvault</h2>
+    <div class="card support-card">
+      <p class="support-desc">Help keep the lights on — one-time contribution, no subscription required.</p>
+      <div class="support-btns">
+        <button class="btn-secondary support-btn" data-amount="500">$5</button>
+        <button class="btn-secondary support-btn" data-amount="1000">$10</button>
+        <button class="btn-secondary support-btn" data-amount="2500">$25</button>
+      </div>
+    </div>`;
 }
 
 function guestModeCardHTML() {

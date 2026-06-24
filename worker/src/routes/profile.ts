@@ -17,7 +17,7 @@ const CONDITION_VALUE_SQL = `(CASE WHEN uc.condition LIKE 'used%'
 // Opt-in = a public profile that also exposes its value and has a handle.
 app.get('/leaderboard', async (c) => {
   const res = await c.env.DB.prepare(`
-    SELECT p.handle, p.display_name,
+    SELECT p.handle, p.display_name, p.is_supporter,
            CAST(COUNT(uc.set_num) AS INTEGER) AS set_count,
            COALESCE(SUM(${CONDITION_VALUE_SQL} * uc.quantity), 0) AS total_value
     FROM user_prefs p
@@ -28,12 +28,13 @@ app.get('/leaderboard', async (c) => {
     HAVING total_value > 0
     ORDER BY total_value DESC
     LIMIT 50
-  `).all<{ handle: string; display_name: string | null; set_count: number; total_value: number }>();
+  `).all<{ handle: string; display_name: string | null; is_supporter: number; set_count: number; total_value: number }>();
 
   const leaders = (res.results || []).map((r, i) => ({
     rank: i + 1,
     handle: r.handle,
     display_name: r.display_name || r.handle,
+    is_supporter: r.is_supporter === 1,
     set_count: r.set_count,
     total_value: r.total_value,
   }));
@@ -44,8 +45,8 @@ app.get('/leaderboard', async (c) => {
 app.get('/:handle/profile', async (c) => {
   const handle = c.req.param('handle');
   const prefs = await c.env.DB.prepare(
-    `SELECT user_id, display_name, is_public, expose_public_value FROM user_prefs WHERE handle=?`
-  ).bind(handle).first<{ user_id: string; display_name: string; is_public: number; expose_public_value: number }>();
+    `SELECT user_id, display_name, is_public, expose_public_value, is_supporter FROM user_prefs WHERE handle=?`
+  ).bind(handle).first<{ user_id: string; display_name: string; is_public: number; expose_public_value: number; is_supporter: number }>();
 
   if (!prefs || !prefs.is_public) return c.json({ error: 'Profile not found' }, 404);
 
@@ -95,6 +96,7 @@ app.get('/:handle/profile', async (c) => {
   return c.json({
     handle,
     display_name: prefs.display_name || handle,
+    is_supporter: prefs.is_supporter === 1,
     expose_public_value: exposeValue,
     set_count: stats?.set_count ?? 0,
     total_value: exposeValue ? (stats?.total_value ?? 0) : null,

@@ -136,6 +136,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         expose_public_value INTEGER NOT NULL DEFAULT 1,
         google_refresh_token TEXT, google_spreadsheet_id TEXT,
         email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT,
+        is_supporter INTEGER DEFAULT 0, supporter_since TEXT, stripe_customer_id TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE user_showcase (
