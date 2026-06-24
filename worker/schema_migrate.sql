@@ -283,6 +283,13 @@ CREATE TABLE IF NOT EXISTS user_build_cache (
 ALTER TABLE minifigs ADD COLUMN year INTEGER;
 ALTER TABLE minifigs ADD COLUMN num_parts INTEGER;
 ALTER TABLE minifigs ADD COLUMN appears_in_sets INTEGER;
+
+-- Multi-source minifig valuation (G1b): corroborated eBay sold comps blended
+-- into current_value alongside the BrickLink guide price. Stored for
+-- transparency; current_value carries the blend.
+ALTER TABLE minifigs ADD COLUMN ebay_value REAL;
+ALTER TABLE minifigs ADD COLUMN ebay_qty INTEGER;
+ALTER TABLE minifigs ADD COLUMN ebay_cached_at TEXT;
 ALTER TABLE user_prefs ADD COLUMN brickset_user_hash TEXT;
 
 -- Sprint 5: R2 photo upload

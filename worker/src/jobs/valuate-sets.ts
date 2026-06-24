@@ -2,7 +2,8 @@ import OpenAI from 'openai';
 import type { Env } from '../types';
 import { fetchSetPricing, fetchUsedPricing, fetchMinifigPricing } from '../lib/bricklink';
 import { fetchBrickOwlPricing } from '../lib/brickowl-pricing';
-import { ebaySoldCompsEnabled, brickOwlEnabled } from '../lib/pricing-flags';
+import { ebaySoldCompsEnabled, brickOwlEnabled, firecrawlEnabled } from '../lib/pricing-flags';
+import { fetchMinifigEbaySoldViaFirecrawl } from '../lib/ebay-firecrawl';
 import { callGeminiValuation } from '../lib/gemini';
 import { MODELS, openAIServerBaseURL, gatewayHeaders, gatewayMetadataHeader, openRouterBaseURL } from '../lib/llm';
 import {
@@ -784,31 +785,53 @@ export async function runEbayAskBackfill(env: Env, options: { limit?: number } =
 export async function runValuateMinifigs(env: Env, options: { limit?: number } = {}): Promise<number> {
   const limit = Math.min(Math.max(1, Math.floor(options.limit ?? 10)), 200);
   const { results } = await env.DB.prepare(`
-    SELECT DISTINCT m.fig_num, m.appears_in_sets
+    SELECT DISTINCT m.fig_num, m.name, m.appears_in_sets
     FROM minifigs m
     JOIN user_minifigs um ON um.fig_num = m.fig_num
     WHERE m.cached_at IS NULL OR m.cached_at < datetime('now', '-7 days')
     ORDER BY COALESCE(m.cached_at, '2000-01-01') ASC
     LIMIT ?
-  `).bind(limit).all<{ fig_num: string; appears_in_sets: number | null }>();
+  `).bind(limit).all<{ fig_num: string; name: string; appears_in_sets: number | null }>();
 
   // Account the BrickLink spend in the daily ledger (advisory — minifig
   // batches are far below the 4,000/day budget, but visibility matters).
   await reserveQuota(env, { bricklink: results.length });
 
+  // Multi-source (G1b): only worth an eBay scrape (5 Firecrawl credits) for
+  // figs valuable enough that a second source matters — cheap commons don't.
+  const fcOn = firecrawlEnabled(env);
+  const EBAY_MIN_VALUE = 10;
+
   let updated = 0;
   for (const fig of results) {
     const px = await fetchMinifigPricing(fig.fig_num, env, { recordHealth: false }).catch(() => null);
-    if (px && px.value != null && px.value > 0) {
-      // Derive a REAL rarity tier from value + set-exclusivity + market
-      // liquidity (replaces the static 'common' default that left the minifig
-      // rarity UX inert). Stored alongside the value on the same refresh cycle.
-      const rarity = computeMinifigRarity(px.value, fig.appears_in_sets, px.lots);
-      await env.DB.prepare(`
-        UPDATE minifigs SET current_value = ?, rarity = ?, cached_at = datetime('now') WHERE fig_num = ?
-      `).bind(px.value, rarity, fig.fig_num).run();
-      updated++;
+    if (!px || px.value == null || px.value <= 0) continue;
+
+    let value = px.value;
+    let ebayValue: number | null = null;
+    let ebayQty = 0;
+    // Corroborated eBay sold comps blended in (qty-weighted) for valuable figs.
+    if (fcOn && px.value >= EBAY_MIN_VALUE) {
+      const eb = await fetchMinifigEbaySoldViaFirecrawl(fig.fig_num, fig.name, env).catch(() => null);
+      if (eb && eb.status === 'ok' && eb.value != null
+          && eb.value >= px.value / 3 && eb.value <= px.value * 3) {  // corroboration gate
+        ebayValue = eb.value;
+        ebayQty = eb.count;
+        const w1 = Math.max(1, px.lots);
+        const w2 = Math.max(1, eb.count);
+        value = Math.round(((px.value * w1 + eb.value * w2) / (w1 + w2)) * 100) / 100;
+      }
     }
+
+    // Rarity reflects the blended value + combined market liquidity.
+    const rarity = computeMinifigRarity(value, fig.appears_in_sets, px.lots + ebayQty);
+    await env.DB.prepare(`
+      UPDATE minifigs SET current_value = ?, rarity = ?,
+        ebay_value = ?, ebay_qty = ?, ebay_cached_at = CASE WHEN ? THEN datetime('now') ELSE ebay_cached_at END,
+        cached_at = datetime('now')
+      WHERE fig_num = ?
+    `).bind(value, rarity, ebayValue, ebayQty, fcOn && px.value >= EBAY_MIN_VALUE ? 1 : 0, fig.fig_num).run();
+    updated++;
   }
   return updated;
 }

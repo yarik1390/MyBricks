@@ -89,3 +89,70 @@ export async function fetchEbaySoldViaFirecrawl(
 
   return { status: 'ok', new_value: summary.value, new_count: summary.sample_count, new_last_sold: newLastSold };
 }
+
+// A sold-listing title is a plausible match for this minifig if it reads as a
+// minifigure listing AND mentions the fig number or a significant name token.
+// Deliberately loose — minifig titles vary wildly — because the real protection
+// is the caller's corroboration gate (accept only within 3x of the BrickLink
+// value), which rejects the noisy collisions a loose match lets through.
+function isLikelyMinifigSaleTitle(title: string | undefined, figName: string, figNum: string): boolean {
+  if (!title) return false;
+  const t = title.toLowerCase();
+  if (!/minifig|mini\s?fig|minifigure/.test(t)) return false;
+  if (figNum && t.includes(figNum.toLowerCase())) return true;
+  const tokens = String(figName || '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+  return tokens.length > 0 && tokens.some((w) => t.includes(w));
+}
+
+export interface MinifigEbaySold {
+  status: 'ok' | 'no_data' | 'error' | 'disabled';
+  value: number | null;
+  count: number;
+  last_sold?: string | null;
+}
+
+/**
+ * eBay US sold comps for a single minifigure via Firecrawl (G1b — multi-source
+ * minifig valuation). Mirrors the set sold-comp scraper; the caller corroborates
+ * the returned median against the BrickLink value before blending, so a noisy
+ * name collision can never set a minifig's value on its own.
+ */
+export async function fetchMinifigEbaySoldViaFirecrawl(
+  figNum: string,
+  figName: string,
+  env: Env,
+): Promise<MinifigEbaySold> {
+  if (!firecrawlEnabled(env)) return { status: 'disabled', value: null, count: 0 };
+
+  const q = encodeURIComponent(`LEGO ${figName || figNum} minifigure`.trim());
+  const url = `https://www.ebay.com/sch/i.html?_nkw=${q}&LH_Sold=1&LH_Complete=1&_ipg=60`;
+
+  const result = await firecrawlScrape<{ listings?: Array<{ title: string; price_usd: number; condition: string; sold_date?: string }> }>(
+    {
+      url,
+      formats: ['json'],
+      jsonOptions: {
+        schema: LISTING_SCHEMA,
+        prompt: `Extract sold LEGO MINIFIGURE listings matching "${figName}" (${figNum}). Only individual minifigures — exclude full sets and lots. For each, include title, price in USD, condition, and the sold date in YYYY-MM-DD format.`,
+      },
+      timeoutMs: 30_000,
+    },
+    env,
+  );
+
+  if (!result) return { status: 'error', value: null, count: 0 };
+
+  const matched = (result.data?.listings ?? []).filter((l) => isLikelyMinifigSaleTitle(l.title, figName, figNum));
+  const prices = matched.map((l) => l.price_usd).filter((p) => Number.isFinite(p) && p > 0);
+  if (!prices.length) return { status: 'no_data', value: null, count: 0 };
+
+  const summary = summarizeSoldPrices(prices);
+  if (summary.value == null) return { status: 'no_data', value: null, count: 0 };
+
+  let lastSold: string | null = null;
+  for (const l of matched) {
+    const d = normalizeSoldDate(l.sold_date);
+    if (d && (!lastSold || d > lastSold)) lastSold = d;
+  }
+  return { status: 'ok', value: summary.value, count: summary.sample_count, last_sold: lastSold };
+}
