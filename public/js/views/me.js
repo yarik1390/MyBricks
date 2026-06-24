@@ -124,7 +124,7 @@ export async function renderMe() {
       ${guest ? guestModeCardHTML() : ""}
       ${publicProfileSectionHTML(me)}
       ${trophyShelfHTML}
-      ${!guest ? supportCardHTML(me) : ''}
+      ${!guest && me.stripe_configured ? supportCardHTML(me) : ''}
 
       <h2 class="section-title">Preferences</h2>
       <div>
@@ -224,11 +224,12 @@ export async function renderMe() {
   $$(".support-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       const amount = Number(btn.dataset.amount);
+      const mode = btn.dataset.mode || "payment";
       const label = btn.textContent;
       btn.disabled = true;
       btn.textContent = "…";
       try {
-        const { url } = await api("/api/stripe/checkout", { method: "POST", body: { amount } });
+        const { url } = await api("/api/stripe/checkout", { method: "POST", body: { amount, mode } });
         window.location.href = url;
       } catch (e) {
         toast(e.message || "Could not start checkout", "error");
@@ -386,11 +387,14 @@ function supportCardHTML(me) {
   return `
     <h2 class="section-title">Support Brickvault</h2>
     <div class="card support-card">
-      <p class="support-desc">Help keep the lights on — one-time contribution, no subscription required.</p>
-      <div class="support-btns">
-        <button class="btn-secondary support-btn" data-amount="500">$5</button>
-        <button class="btn-secondary support-btn" data-amount="1000">$10</button>
-        <button class="btn-secondary support-btn" data-amount="2500">$25</button>
+      <p class="support-desc">Help keep the lights on and unlock supporter perks — leaderboard badge, profile flair, higher AI limits, and the Gold accent skin.</p>
+      <div class="support-btns" style="margin-bottom:10px;">
+        <button class="btn-secondary support-btn" data-amount="500" data-mode="payment">$5</button>
+        <button class="btn-secondary support-btn" data-amount="1000" data-mode="payment">$10</button>
+        <button class="btn-secondary support-btn" data-amount="2500" data-mode="payment">$25</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn-primary support-btn" data-amount="500" data-mode="subscription" style="flex:1;">$5 / month</button>
       </div>
     </div>`;
 }

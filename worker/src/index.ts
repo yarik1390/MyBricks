@@ -133,6 +133,7 @@ app.get('/api/config', (c) => {
     rebrickable: !!c.env.REBRICKABLE_API_KEY,
     firecrawl: !!c.env.FIRECRAWL_API_KEY,
     turnstile: !!c.env.TURNSTILE_SITE_KEY,
+    stripe: !!(c.env.STRIPE_SECRET_KEY && !c.env.STRIPE_SECRET_KEY.includes('dummy')),
   };
   return c.json({
     supabase_url: c.env.SUPABASE_URL,
