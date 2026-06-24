@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { Env, Variables } from '../types';
+import { ALLOWED_IMG_HOSTS } from '../lib/img-proxy';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -11,15 +12,8 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 // is unavailable it falls back to a redirect to the source, so an image never
 // hard-breaks.
 
-// Only these hosts may be proxied — an allowlist prevents this becoming an open
-// proxy / SSRF vector. They are the CDNs the catalog currently hotlinks.
-const ALLOWED_IMG_HOSTS = new Set<string>([
-  'cdn.rebrickable.com',
-  'm.rebrickable.com',
-  'images.brickset.com',
-  'img.bricklink.com',
-  'images.lego.com',
-]);
+// Host allowlist (ALLOWED_IMG_HOSTS) is shared with the response rewriter so the
+// SSRF guard here and the URL rewriting stay in lock-step.
 
 // Catalog images are effectively immutable per set/fig, so cache hard at the
 // browser + Cloudflare edge.

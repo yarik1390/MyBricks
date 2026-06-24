@@ -16,6 +16,8 @@ import { ratesRoute } from './routes/rates';
 import { bricksetSyncRoute } from './routes/brickset-sync';
 import { photosRoute } from './routes/photos';
 import { imgRoute } from './routes/img';
+import { rewriteImages } from './lib/img-proxy';
+import type { MiddlewareHandler } from 'hono';
 import { pushRoute } from './routes/push';
 import { bricklinkImportRoute } from './routes/bricklink-import';
 import { buildRoute } from './routes/build';
@@ -175,6 +177,30 @@ app.get('/api/config', (c) => {
     },
   });
 });
+
+// Rewrite external product-image URLs to our R2-backed proxy (/api/img) on read
+// responses, so images serve from Cloudflare (reliable + fast) instead of being
+// hotlinked from external CDNs. Gated on R2 being configured; a cheap text probe
+// skips responses with no image fields; fails open (leaves the response intact
+// on any error). Image URLs the client renders need no change — they arrive
+// pre-proxied. The /api/img route itself returns image bytes (not JSON) so it's
+// skipped by the content-type guard.
+const rewriteImageResponses: MiddlewareHandler<{ Bindings: Env; Variables: Variables }> = async (c, next) => {
+  await next();
+  if (c.req.method !== 'GET' || !c.env.PHOTO_BUCKET) return;
+  const res = c.res;
+  if (!res || res.status !== 200) return;
+  if (!(res.headers.get('content-type') || '').includes('application/json')) return;
+  try {
+    const text = await res.clone().text();
+    if (!/image_url|img_url|"images"/.test(text)) return; // no image fields → leave untouched
+    const rewritten = rewriteImages(JSON.parse(text), new URL(c.req.url).origin);
+    const headers = new Headers(res.headers);
+    headers.delete('content-length');
+    c.res = new Response(JSON.stringify(rewritten), { status: 200, headers });
+  } catch { /* fail open — leave the original response */ }
+};
+app.use('/api/*', rewriteImageResponses);
 
 app.route('/api/me', meRoute);
 app.route('/api/collection', collectionRoute);

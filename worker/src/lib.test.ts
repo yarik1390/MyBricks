@@ -12,6 +12,7 @@ import {
 import { classifyHealth } from './lib/integration-health';
 import { computeRetirementRisk } from './lib/retirement-risk';
 import { computeMinifigRarity } from './lib/minifig-rarity';
+import { proxyImageUrl, rewriteImages } from './lib/img-proxy';
 import { isSearchIndexCorruption } from './lib/search-index';
 import { formulaValuation, isLikelyRetired, isPlausibleMarketValue } from './lib/valuation';
 import { blendMarketValue, computeDealSignal } from './lib/market-sources';
@@ -685,6 +686,42 @@ describe('computeMinifigRarity (G1)', () => {
     expect(computeMinifigRarity(3, 20, 100)).toBe('common');
     expect(computeMinifigRarity(null, null, null)).toBe('common');
     expect(computeMinifigRarity(0, 20, 0)).toBe('common');
+  });
+});
+
+describe('image proxy rewrite (media reliability)', () => {
+  const O = 'https://api.example.com';
+  const REB = 'https://cdn.rebrickable.com/media/sets/75192-1.jpg';
+
+  it('rewrites an allowlisted external image URL to the proxy', () => {
+    expect(proxyImageUrl(REB, O)).toBe(`${O}/api/img?u=${encodeURIComponent(REB)}`);
+  });
+
+  it('passes through non-allowlisted host, relative, data, and empty', () => {
+    expect(proxyImageUrl('https://evil.com/x.jpg', O)).toBe('https://evil.com/x.jpg');
+    expect(proxyImageUrl('/api/collection/5/photo', O)).toBe('/api/collection/5/photo');
+    expect(proxyImageUrl('data:image/png;base64,xxx', O)).toBe('data:image/png;base64,xxx');
+    expect(proxyImageUrl('', O)).toBe('');
+  });
+
+  it('rewrites image fields in nested objects/arrays, leaving others intact', () => {
+    const body = {
+      sets: [{
+        set_num: '75192-1', name: 'MF', image_url: REB,
+        set_minifigs: [{ fig_num: 'sw', fig_img_url: 'https://cdn.rebrickable.com/media/minifigs/sw.jpg' }],
+      }],
+      custom_image_url: '/api/collection/5/photo',
+    };
+    const out = rewriteImages(body, O) as typeof body;
+    expect(out.sets[0].image_url.startsWith(`${O}/api/img?u=`)).toBe(true);
+    expect(out.sets[0].set_minifigs[0].fig_img_url.startsWith(`${O}/api/img?u=`)).toBe(true);
+    expect(out.sets[0].name).toBe('MF');                          // non-image field untouched
+    expect(out.custom_image_url).toBe('/api/collection/5/photo'); // our own photo untouched
+  });
+
+  it('rewrites the gallery images string array', () => {
+    const out = rewriteImages({ images: ['https://images.brickset.com/a.jpg', 'https://images.brickset.com/b.jpg'] }, O) as { images: string[] };
+    expect(out.images.every((u) => u.startsWith(`${O}/api/img?u=`))).toBe(true);
   });
 });
 
