@@ -11,5 +11,8 @@
     "status": "git status",
     "a11y": "playwright test --config=a11y/playwright.config.mjs",
     "lhci": "lhci autorun --config=a11y/lighthouserc.json"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.0"
   }
 }
