@@ -719,9 +719,20 @@ describe('image proxy rewrite (media reliability)', () => {
     expect(out.custom_image_url).toBe('/api/collection/5/photo'); // our own photo untouched
   });
 
-  it('rewrites the gallery images string array', () => {
-    const out = rewriteImages({ images: ['https://images.brickset.com/a.jpg', 'https://images.brickset.com/b.jpg'] }, O) as { images: string[] };
-    expect(out.images.every((u) => u.startsWith(`${O}/api/img?u=`))).toBe(true);
+  it('rewrites allowlisted gallery URLs, leaving non-allowlisted (Brickset) hotlinked', () => {
+    const out = rewriteImages({ images: ['https://cdn.rebrickable.com/media/sets/a.jpg', 'https://images.brickset.com/b.jpg'] }, O) as { images: string[] };
+    expect(out.images[0].startsWith(`${O}/api/img?u=`)).toBe(true);            // Rebrickable proxied
+    expect(out.images[1]).toBe('https://images.brickset.com/b.jpg');           // Brickset passes through (ToS)
+  });
+
+  it('never proxies MOC images (Rebrickable ToS prohibits using MOC images)', () => {
+    const out = rewriteImages({ moc_img_url: 'https://cdn.rebrickable.com/media/mocs/x.jpg' }, O) as { moc_img_url: string };
+    expect(out.moc_img_url).toBe('https://cdn.rebrickable.com/media/mocs/x.jpg'); // unchanged — not cached
+  });
+
+  it('does not proxy non-Rebrickable hosts (Brickset/BrickLink stay hotlinked)', () => {
+    expect(proxyImageUrl('https://images.brickset.com/x.jpg', O)).toBe('https://images.brickset.com/x.jpg');
+    expect(proxyImageUrl('https://img.bricklink.com/x.jpg', O)).toBe('https://img.bricklink.com/x.jpg');
   });
 });
 

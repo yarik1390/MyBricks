@@ -2,12 +2,15 @@
 // Single source of truth so the proxy's SSRF guard (routes/img.ts) and the
 // response rewriter (the API middleware) agree on exactly which hosts proxy.
 
+// ToS-scoped to Rebrickable's image CDN ONLY. Rebrickable explicitly permits
+// caching Set / Part / Minifig images (they even recommend it over hotlinking).
+// Brickset (box-scan attribution required) and BrickLink-sourced minifig images
+// (restrictive) are deliberately NOT cached — those stay hotlinked exactly as
+// before, so we take on no new republishing obligation. MOC images, though also
+// on this CDN, are excluded at the field level (see IMG_KEYS) — Rebrickable
+// prohibits using MOC images for any purpose.
 export const ALLOWED_IMG_HOSTS = new Set<string>([
   'cdn.rebrickable.com',
-  'm.rebrickable.com',
-  'images.brickset.com',
-  'img.bricklink.com',
-  'images.lego.com',
 ]);
 
 // Rewrite one external image URL to the proxy, or return it unchanged when it
@@ -22,8 +25,10 @@ export function proxyImageUrl(value: string, origin: string): string {
   return `${origin}/api/img?u=${encodeURIComponent(value)}`;
 }
 
-// Image-URL field names the API emits (set / minifig / MOC / part thumbnails).
-const IMG_KEYS = new Set(['image_url', 'fig_img_url', 'moc_img_url', 'part_img_url', 'set_img_url']);
+// Image-URL field names the API emits. moc_img_url is intentionally EXCLUDED —
+// Rebrickable prohibits using MOC images for any purpose, so they are never
+// proxied/cached (they remain hotlinked in the build view, a separate decision).
+const IMG_KEYS = new Set(['image_url', 'fig_img_url', 'part_img_url', 'set_img_url']);
 
 // Recursively rewrite known image-URL fields (and the gallery `images` string
 // array) in a parsed JSON response so clients load images via our Cloudflare
