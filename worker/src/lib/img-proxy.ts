@@ -13,6 +13,16 @@ export const ALLOWED_IMG_HOSTS = new Set<string>([
   'cdn.rebrickable.com',
 ]);
 
+// Stable R2 object key for a source image URL. Normalizes via URL.toString()
+// so the proxy (serve path) and the pre-warm cron (fill path) derive the SAME
+// key for the same image — otherwise warmed objects wouldn't be found on read.
+export async function imageR2Key(url: string): Promise<string> {
+  const norm = new URL(url).toString();
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(norm));
+  const hex = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `img/${hex}`;
+}
+
 // Rewrite one external image URL to the proxy, or return it unchanged when it
 // isn't a proxiable external image (relative / data: / our own /api path /
 // non-allowlisted host). origin is the API worker origin (absolute, since images

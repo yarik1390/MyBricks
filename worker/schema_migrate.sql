@@ -405,3 +405,8 @@ ALTER TABLE lego_sets ADD COLUMN deal_discount_pct REAL;
 ALTER TABLE lego_sets ADD COLUMN deal_strong INTEGER;
 ALTER TABLE lego_sets ADD COLUMN deal_cached_at TEXT;
 CREATE INDEX IF NOT EXISTS idx_lego_deal_signal ON lego_sets(deal_signal);
+
+-- Image pre-warm marker: stamped once the set's Rebrickable image has been
+-- pulled into the R2 image cache (or attempted), so the pre-warm cron advances
+-- through the catalog instead of re-checking the same sets.
+ALTER TABLE lego_sets ADD COLUMN img_prewarmed_at TEXT;

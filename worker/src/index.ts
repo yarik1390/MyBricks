@@ -17,6 +17,7 @@ import { bricksetSyncRoute } from './routes/brickset-sync';
 import { photosRoute } from './routes/photos';
 import { imgRoute } from './routes/img';
 import { rewriteImages } from './lib/img-proxy';
+import { runImagePrewarm } from './jobs/image-prewarm';
 import type { MiddlewareHandler } from 'hono';
 import { pushRoute } from './routes/push';
 import { bricklinkImportRoute } from './routes/bricklink-import';
@@ -332,6 +333,10 @@ export default {
       // Part-out (E1): recompute sum-of-parts value from the part_prices cache an
       // hour after the price trickle. Pure D1 (no quota); rolling 7-day refresh.
       case '0 13 * * *': await run('part-out-compute', () => runPartOutCompute(env, { limit: 120 })); break;
+      // Image pre-warm: pull Rebrickable set images into the R2 cache so first
+      // views are instant. Gentle (limit 100, concurrency 3) to respect
+      // Rebrickable's no-automation rule; Rebrickable-only per ToS.
+      case '0 14 * * *': await run('image-prewarm', () => runImagePrewarm(env, { limit: 100, concurrency: 3 })); break;
       // TEMPORARY one-time bootstrap: fill be_value_new across the year>=2000
       // catalog (~22.4k sets). Runs 4x/hour at limit 150 (concurrency 5); the
       // total spend self-limits at ~112k credits (one scrape per set) and the

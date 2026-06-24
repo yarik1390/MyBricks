@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env, Variables } from '../types';
-import { ALLOWED_IMG_HOSTS } from '../lib/img-proxy';
+import { ALLOWED_IMG_HOSTS, imageR2Key } from '../lib/img-proxy';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -18,13 +18,6 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 // Catalog images are effectively immutable per set/fig, so cache hard at the
 // browser + Cloudflare edge.
 const IMMUTABLE = 'public, max-age=31536000, immutable';
-
-// Stable R2 key from the full source URL (host-agnostic, collision-safe).
-async function r2Key(url: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(url));
-  const hex = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
-  return `img/${hex}`;
-}
 
 // GET /api/img?u=<external image url> — public (images load without auth).
 app.get('/', async (c) => {
@@ -45,7 +38,7 @@ app.get('/', async (c) => {
   const hit = await cache.match(c.req.raw).catch(() => undefined);
   if (hit) return hit;
 
-  const key = await r2Key(src);
+  const key = await imageR2Key(src);
 
   // 2) Our durable R2 copy — no external dependency once stored.
   if (c.env.PHOTO_BUCKET) {
