@@ -255,6 +255,16 @@ CREATE TABLE IF NOT EXISTS part_prices (
   PRIMARY KEY (part_num, color_id)
 );
 
+-- Upcoming / coming-soon LEGO sets (G2b release feed), scraped from LEGO.com.
+CREATE TABLE IF NOT EXISTS upcoming_sets (
+  set_num TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  price_usd REAL,
+  availability TEXT,
+  first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  scraped_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS user_missing_parts (
   user_id TEXT NOT NULL,
   set_num TEXT NOT NULL,

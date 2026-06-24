@@ -18,6 +18,8 @@ import { photosRoute } from './routes/photos';
 import { imgRoute } from './routes/img';
 import { rewriteImages } from './lib/img-proxy';
 import { runImagePrewarm } from './jobs/image-prewarm';
+import { runUpcomingRefresh } from './jobs/upcoming-refresh';
+import { upcomingRoute } from './routes/upcoming';
 import type { MiddlewareHandler } from 'hono';
 import { pushRoute } from './routes/push';
 import { bricklinkImportRoute } from './routes/bricklink-import';
@@ -222,6 +224,8 @@ app.route('/api/bricklink', bricklinkImportRoute);
 app.route('/api/build', buildRoute);
 // Public image proxy (no auth — images load via <img src>). R2-backed + edge-cached.
 app.route('/api/img', imgRoute);
+// Public coming-soon release feed (G2b).
+app.route('/api/upcoming', upcomingRoute);
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
 
@@ -337,6 +341,8 @@ export default {
       // views are instant. Gentle (limit 100, concurrency 3) to respect
       // Rebrickable's no-automation rule; Rebrickable-only per ToS.
       case '0 14 * * *': await run('image-prewarm', () => runImagePrewarm(env, { limit: 100, concurrency: 3 })); break;
+      // Upcoming/coming-soon release feed (G2b): one LEGO.com listing scrape/day.
+      case '0 15 * * *': await run('upcoming-refresh', () => runUpcomingRefresh(env)); break;
       // TEMPORARY one-time bootstrap: fill be_value_new across the year>=2000
       // catalog (~22.4k sets). Runs 4x/hour at limit 150 (concurrency 5); the
       // total spend self-limits at ~112k credits (one scrape per set) and the

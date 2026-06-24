@@ -417,3 +417,15 @@ CREATE INDEX IF NOT EXISTS idx_lego_deal_signal ON lego_sets(deal_signal);
 -- pulled into the R2 image cache (or attempted), so the pre-warm cron advances
 -- through the catalog instead of re-checking the same sets.
 ALTER TABLE lego_sets ADD COLUMN img_prewarmed_at TEXT;
+
+-- Upcoming / coming-soon LEGO sets (G2b release feed), scraped from LEGO.com.
+-- Separate from lego_sets so pre-catalog announcements never collide with the
+-- Rebrickable-sourced catalog; rows are pruned once no longer listed.
+CREATE TABLE IF NOT EXISTS upcoming_sets (
+  set_num TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  price_usd REAL,
+  availability TEXT,
+  first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  scraped_at TEXT
+);
