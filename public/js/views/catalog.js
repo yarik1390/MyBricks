@@ -574,7 +574,7 @@ function dealTagHTML(s, { overlay = false } = {}) {
   const pct = s.deal_discount_pct ? ` -${Math.round(s.deal_discount_pct)}%` : '';
   const txt = s.deal_strong ? `STRONG BUY${pct}` : `DEAL${pct}`;
   return overlay
-    ? `<span class="deal-tag-overlay" style="position:absolute;top:8px;left:8px;background:var(--up);color:#fff;font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.04em;border-radius:4px;padding:2px 6px;z-index:2;">${txt}</span>`
+    ? `<span class="deal-tag-overlay" style="position:absolute;bottom:8px;left:8px;background:var(--up);color:#fff;font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.04em;border-radius:4px;padding:2px 6px;z-index:2;">${txt}</span>`
     : `<span class="badge" style="background:var(--up);color:#fff;font-size:9px;font-weight:800;letter-spacing:.03em;border-radius:4px;padding:1px 5px;margin-left:4px;">${txt}</span>`;
 }
 
