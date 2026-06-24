@@ -34,8 +34,8 @@ export async function renderMeAdmin() {
     firecrawl: false
   };
 
-  const checkRow = (label, ok, okText, missText, optional = false) => `
-    <div class="u-between" style="min-height:28px;">
+  const checkRow = (label, ok, okText, missText, optional = false, id = "") => `
+    <div class="u-between" style="min-height:28px;"${id ? ` id="${id}"` : ""}>
       <span>${label}</span>
       ${ok
         ? `<span class="badge badge--up">● ${okText}</span>`
@@ -55,7 +55,7 @@ export async function renderMeAdmin() {
           ${checkRow("Google Sheets Integration", status.google, "Configured", "Unconfigured")}
           ${checkRow("BrickLink Pricing API", status.bricklink, "Connected", "Unconfigured")}
           ${checkRow("eBay Pricing API", status.ebay, "Connected", "Unconfigured (sold comps disabled)", true)}
-          ${checkRow("Firecrawl (scraping engine)", status.firecrawl, "Configured", "Unconfigured")}
+          ${checkRow("Firecrawl (scraping engine)", status.firecrawl, "Configured", "Unconfigured", false, "chkFirecrawl")}
           ${checkRow("BrickEconomy API (legacy)", status.brickeconomy, "Configured", "Now via Firecrawl", true)}
           ${checkRow("Rebrickable Catalog API", status.rebrickable, "Configured", "Missing")}
           ${checkRow("Brickset Metadata API", status.brickset, "Configured", "Optional", true)}
@@ -583,6 +583,19 @@ async function updateIntegrationsHealth() {
     const bePop = Number(beBoot.populated || 0);
     const bePct = Number(beBoot.pct || 0);
     const beRem = Number(beBoot.remaining ?? Math.max(0, beElig - bePop));
+
+    // The setup-checklist Firecrawl row reads a config snapshot that can lag a
+    // freshly-added key. If the credit ledger shows Firecrawl actually scraping
+    // today (or the bootstrap has populated rows), it IS configured — reflect
+    // that reality in the checklist instead of a stale "Unconfigured".
+    if (fcUsed > 0 || bePop > 0) {
+      const fcRow = document.getElementById("chkFirecrawl");
+      const fcRowBadge = fcRow?.querySelector(".badge");
+      if (fcRowBadge) {
+        fcRowBadge.className = "badge badge--up";
+        fcRowBadge.textContent = "● Configured";
+      }
+    }
     const firecrawlNote = "Firecrawl is metered in credits (1 per basic/product scrape, 5 per JSON extract). The daily ceiling is env-tunable via FIRECRAWL_DAILY_CREDITS and gates every scrape cron. The BrickEconomy bootstrap fills be_value_new across the year≥2000 catalog (one scrape per set) and self-limits when complete.";
     const firecrawlHTML = `
       <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
