@@ -693,6 +693,10 @@ async function updateIntegrationsHealth() {
       }
     }
     const firecrawlNote = "Firecrawl is metered in credits (1 per basic/product scrape, 5 per JSON extract). The daily ceiling is env-tunable via FIRECRAWL_DAILY_CREDITS and gates every scrape cron. The BrickEconomy bootstrap fills be_value_new across the year≥2000 catalog (one scrape per set) and self-limits when complete.";
+    const fc = data.firecrawl || {};
+    const fcAction = fc.recommended_action || "";
+    const bootState = fc.bootstrap_enabled ? "Bootstrap running" : (beRem > 0 ? "Bootstrap idle" : "Bootstrap complete");
+    const bootBadge = fc.bootstrap_enabled ? "badge--warn" : (beRem > 0 ? "badge--neutral" : "badge--up");
     const firecrawlHTML = `
       <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
         <div class="u-between u-gap-3" style="margin-bottom:8px;">
@@ -713,6 +717,11 @@ async function updateIntegrationsHealth() {
             <div class="adm-cov-val">${beRem.toLocaleString()}</div>
           </div>
         </div>
+        <div class="u-between u-gap-3" style="margin-top:8px;">
+          <span class="u-fs-2xs u-mute">Bootstrap state</span>
+          <span class="badge ${bootBadge}" style="text-transform:uppercase;">${escapeHtml(bootState)}</span>
+        </div>
+        ${fcAction ? `<div class="u-fs-xs" style="color:var(--ink-soft);margin-top:6px;line-height:1.4;">Action: ${escapeHtml(fcAction)}</div>` : ""}
         <div class="u-fs-2xs u-mute" style="line-height:1.4;margin-top:8px;">${escapeHtml(firecrawlNote)}</div>
       </div>`;
     const integrationsHTML = rows.map(r => {

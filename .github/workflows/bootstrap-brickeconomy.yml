@@ -1,0 +1,147 @@
+name: Bootstrap BrickEconomy (manual)
+
+# Manual, budget-limited takeover for the BrickEconomy be_value_new backfill.
+# This is the replacement for the temporary 4x/hour "5,20,35,50 * * * *" cron:
+# once the admin Firecrawl panel shows the bootstrap at ~100%, remove that cron
+# + reset FIRECRAWL_DAILY_CREDITS, and use THIS workflow to fill any later gaps.
+# Each run calls POST /api/admin/jobs/brickeconomy-enrich?limit=<per_run_limit>
+# (runs inline on the Worker) up to max_runs times, stopping early when the
+# bootstrap is complete or the Firecrawl credit budget for this run is spent.
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_runs:
+        description: "Maximum job invocations this run"
+        required: false
+        default: "20"
+      per_run_limit:
+        description: "Sets scraped per invocation (capped at 150 by the Worker)"
+        required: false
+        default: "100"
+      max_firecrawl_credits:
+        description: "Stop once this many Firecrawl credits are spent this run"
+        required: false
+        default: "5000"
+      dry_run:
+        description: "Report planned work + bootstrap state, make no writes"
+        required: false
+        default: "false"
+      worker_url:
+        description: "Production Worker URL"
+        required: false
+        default: "https://brickvault-api.zhydenko.workers.dev"
+
+concurrency:
+  group: brickvault-brickeconomy-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    env:
+      WORKER_URL: ${{ inputs.worker_url || 'https://brickvault-api.zhydenko.workers.dev' }}
+      MAX_RUNS: ${{ inputs.max_runs || '20' }}
+      PER_RUN_LIMIT: ${{ inputs.per_run_limit || '100' }}
+      MAX_CREDITS: ${{ inputs.max_firecrawl_credits || '5000' }}
+      DRY_RUN: ${{ inputs.dry_run || 'false' }}
+
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Prepare admin token
+        env:
+          SUPABASE_JWT_SECRET_FOR_CI: ${{ secrets.SUPABASE_JWT_SECRET }}
+          ADMIN_USER_ID_FOR_CI: ${{ secrets.ADMIN_USER_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_JWT_SECRET_FOR_CI}" ] || [ -z "${ADMIN_USER_ID_FOR_CI}" ]; then
+            echo "::error::SUPABASE_JWT_SECRET and ADMIN_USER_ID are required."
+            exit 1
+          fi
+          ADMIN_JWT="$(node - <<'NODE'
+          const crypto = require('crypto');
+          const secret = process.env.SUPABASE_JWT_SECRET_FOR_CI;
+          const sub = process.env.ADMIN_USER_ID_FOR_CI;
+          const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+          const header = { alg: 'HS256', typ: 'JWT' };
+          const payload = { sub, role: 'authenticated', exp: Math.floor(Date.now() / 1000) + 60 * 60 };
+          const unsigned = `${b64(header)}.${b64(payload)}`;
+          const sig = crypto.createHmac('sha256', secret).update(unsigned).digest('base64url');
+          process.stdout.write(`${unsigned}.${sig}`);
+          NODE
+          )"
+          echo "::add-mask::${ADMIN_JWT}"
+          echo "ADMIN_JWT=${ADMIN_JWT}" >> "$GITHUB_ENV"
+
+      - name: Preflight + bootstrap snapshot
+        run: |
+          set -euo pipefail
+          curl -sf "${WORKER_URL}/api/config" | jq -e '.status.d1 == true' >/dev/null
+          curl -sf "${WORKER_URL}/api/admin/integrations" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" -o /tmp/integ.json
+          jq -e '.firecrawl | type == "object"' /tmp/integ.json >/dev/null
+          echo "Firecrawl + bootstrap state:"
+          jq '.firecrawl' /tmp/integ.json
+
+      - name: Run bootstrap (or dry-run report)
+        run: |
+          set -euo pipefail
+
+          num() { [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -gt 0 ] && echo "$1" || echo "$2"; }
+          MAX_RUNS="$(num "${MAX_RUNS}" 20)"
+          PER_RUN_LIMIT="$(num "${PER_RUN_LIMIT}" 100)"
+          MAX_CREDITS="$(num "${MAX_CREDITS}" 5000)"
+          if [ "${PER_RUN_LIMIT}" -gt 150 ]; then PER_RUN_LIMIT=150; fi
+
+          remaining="$(jq -r '.firecrawl.bootstrap.remaining // 0' /tmp/integ.json)"
+          pct="$(jq -r '.firecrawl.bootstrap.pct // 0' /tmp/integ.json)"
+          baseline_used="$(jq -r '.firecrawl.credits_used_today // 0' /tmp/integ.json)"
+
+          echo "Bootstrap: ${pct}% filled, ${remaining} sets remaining."
+          echo "Plan: up to ${MAX_RUNS} runs x ${PER_RUN_LIMIT} sets, budget ${MAX_CREDITS} credits (≈$((MAX_CREDITS / 5)) JSON scrapes)."
+
+          if [ "${DRY_RUN}" = "true" ]; then
+            echo "DRY RUN — no jobs dispatched."
+            exit 0
+          fi
+
+          if [ "${remaining}" = "0" ]; then
+            echo "Nothing to do — bootstrap already complete."
+            exit 0
+          fi
+
+          for run in $(seq 1 "${MAX_RUNS}"); do
+            echo "--- run ${run}/${MAX_RUNS} ---"
+            status="$(curl -s -o /tmp/job.json -w "%{http_code}" \
+              -X POST "${WORKER_URL}/api/admin/jobs/brickeconomy-enrich?limit=${PER_RUN_LIMIT}" \
+              -H "Authorization: Bearer ${ADMIN_JWT}")"
+            echo "HTTP ${status}"
+            cat /tmp/job.json; echo
+            if [ "${status}" -ge 400 ]; then
+              echo "::warning::Job returned HTTP ${status}; stopping."
+              break
+            fi
+
+            curl -sf "${WORKER_URL}/api/admin/integrations" \
+              -H "Authorization: Bearer ${ADMIN_JWT}" -o /tmp/integ.json
+            remaining="$(jq -r '.firecrawl.bootstrap.remaining // 0' /tmp/integ.json)"
+            used="$(jq -r '.firecrawl.credits_used_today // 0' /tmp/integ.json)"
+            spent=$(( used - baseline_used ))
+            echo "Remaining sets: ${remaining} · credits spent this run: ${spent}/${MAX_CREDITS}"
+
+            if [ "${remaining}" = "0" ]; then
+              echo "Bootstrap complete."
+              break
+            fi
+            if [ "${spent}" -ge "${MAX_CREDITS}" ]; then
+              echo "Credit budget for this run reached; stopping."
+              break
+            fi
+            sleep 5
+          done
+
+          echo "Final bootstrap state:"
+          jq '.firecrawl' /tmp/integ.json

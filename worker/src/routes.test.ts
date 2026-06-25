@@ -683,6 +683,12 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(google.missing_secrets).toEqual(['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET']);
       expect(google.recommended_action).toContain('GOOGLE_CLIENT_ID');
       expect(data.coverage.total_sets).toBe(2);
+      // Firecrawl diagnostics block: credit ledger + bootstrap snapshot + action.
+      expect(data.firecrawl).toBeTruthy();
+      expect(typeof data.firecrawl.daily_cap).toBe('number');
+      expect(typeof data.firecrawl.credits_used_today).toBe('number');
+      expect(data.firecrawl.bootstrap).toBeTruthy();
+      expect(data.firecrawl.recommended_action).toBeTruthy();
       expect(data.coverage.sets_with_upc).toBe(1);
       expect(data.coverage.sets_with_ebay).toBe(1);
       expect(data.coverage.sets_with_ebay_new).toBe(1);

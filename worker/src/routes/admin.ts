@@ -6,7 +6,7 @@ import { BARCODE_PAGE_SIZE } from '../lib/brickset';
 import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
 import { ebaySoldCompsEnabled } from '../lib/pricing-flags';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
-import { getQuotaUsage } from '../lib/api-quota';
+import { getQuotaUsage, QUOTA_CAPS } from '../lib/api-quota';
 import { getAiUsageReport } from '../lib/ai-usage';
 import { isEbayAccessError } from '../lib/ebay';
 import { rebuildSearchIndex } from '../lib/search-index';
@@ -907,6 +907,7 @@ app.get('/integrations', async (c) => {
     coverage,
     quota,
     ai_usage,
+    firecrawl: buildFirecrawlDiagnostics(c.env, quota, coverage),
     api_routing: {
       worker_base_url: url.origin,
       config_endpoint: `${url.origin}/api/config`,
@@ -914,6 +915,45 @@ app.get('/integrations', async (c) => {
     },
   });
 });
+
+// Firecrawl credit-spend + BrickEconomy bootstrap snapshot for the admin panel.
+// Surfaces today's credit burn against the daily ceiling and how much of the
+// be_value_new backfill is left, so it's clear when the temporary 4x/hour
+// bootstrap cron can be retired and FIRECRAWL_DAILY_CREDITS reset.
+function buildFirecrawlDiagnostics(
+  env: Env,
+  quota: Array<{ service: string; used: number; cap: number; remaining: number }>,
+  coverage: { be_bootstrap?: { eligible: number; populated: number; remaining: number; pct: number } },
+) {
+  const override = Number(env.FIRECRAWL_DAILY_CREDITS);
+  const dailyCap = Number.isFinite(override) && override > 0 ? override : QUOTA_CAPS.firecrawl;
+  const row = quota.find((q) => q.service === 'firecrawl');
+  const creditsUsedToday = row?.used ?? 0;
+  const be = coverage.be_bootstrap || { eligible: 0, populated: 0, remaining: 0, pct: 0 };
+  // The ceiling is raised above the steady-state default only for the one-time
+  // bootstrap, so a non-default cap is a reliable "bootstrap mode" signal.
+  const bootstrapElevated = dailyCap > QUOTA_CAPS.firecrawl;
+  const filling = be.remaining > 0;
+  let recommendedAction: string;
+  if (!env.FIRECRAWL_API_KEY) {
+    recommendedAction = 'Add FIRECRAWL_API_KEY as a GitHub Actions secret to enable BrickEconomy/eBay scraping.';
+  } else if (filling) {
+    recommendedAction = `BrickEconomy bootstrap in progress (${be.pct}% of ${be.eligible} sets). Leave the 4x/hour cron + raised credit ceiling running; once it reaches 100%, remove the "5,20,35,50 * * * *" trigger and reset FIRECRAWL_DAILY_CREDITS to the ${QUOTA_CAPS.firecrawl} default.`;
+  } else if (bootstrapElevated) {
+    recommendedAction = `BrickEconomy bootstrap complete. Remove the temporary "5,20,35,50 * * * *" trigger and reset FIRECRAWL_DAILY_CREDITS to the ${QUOTA_CAPS.firecrawl} default; use the bootstrap-brickeconomy workflow for any future gap-fills.`;
+  } else {
+    recommendedAction = 'Steady state — Firecrawl on the default daily ceiling.';
+  }
+  return {
+    configured: !!env.FIRECRAWL_API_KEY,
+    credits_used_today: creditsUsedToday,
+    daily_cap: dailyCap,
+    credits_remaining: Math.max(0, dailyCap - creditsUsedToday),
+    bootstrap_enabled: bootstrapElevated && filling,
+    bootstrap: be,
+    recommended_action: recommendedAction,
+  };
+}
 
 app.post('/repair-search-index', async (c) => {
   const result = await rebuildSearchIndex(c.env.DB);
@@ -934,12 +974,22 @@ const JOB_LIMITS: Record<string, number> = {
   'brickeconomy-enrich': 5,
 };
 
+// Hard ceiling on an admin-triggered job's per-call limit, so a manual override
+// (e.g. the bootstrap-brickeconomy workflow) can advance a backfill faster than
+// the conservative default but still stay inside Worker CPU/subrequest budgets.
+const JOB_LIMIT_MAX = 150;
+
 app.post('/jobs/:job', async (c) => {
   const job = c.req.param('job');
   if (!Object.prototype.hasOwnProperty.call(JOB_LIMITS, job)) {
     return c.json({ error: `Unknown job '${job}'. Valid: ${Object.keys(JOB_LIMITS).join(', ')}` }, 400);
   }
-  const limit = JOB_LIMITS[job];
+  // Optional ?limit= override (capped) for manual backfill advancement; defaults
+  // to the job's conservative built-in limit.
+  const requested = Number(c.req.query('limit'));
+  const limit = Number.isFinite(requested) && requested > 0
+    ? Math.min(Math.floor(requested), JOB_LIMIT_MAX)
+    : JOB_LIMITS[job];
   const started_at = new Date().toISOString();
   try {
     let result: Record<string, unknown>;
