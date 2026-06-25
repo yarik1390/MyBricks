@@ -3467,6 +3467,7 @@ select:focus-visible,
 .support-card-active { text-align: center; padding: 20px 16px; }
 .supporter-badge-lg { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
 .supporter-flair { font-size: 12px; color: var(--accent); font-weight: 700; letter-spacing: .05em; margin-top: 2px; }
+.contributor-flair { color: var(--ink-2); }
 .lb-supporter-star { font-size: 11px; }
 
 .patreon-btn {

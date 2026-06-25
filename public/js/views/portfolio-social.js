@@ -38,6 +38,7 @@ export async function renderPublicProfile(handle) {
           <div class="topbar-eyebrow">@${escapeHtml(profile.handle || handle)}</div>
           <h1 class="topbar-title">${escapeHtml(profile.display_name || handle)}</h1>
           ${profile.is_supporter ? '<div class="supporter-flair">⭐ Supporter</div>' : ''}
+          ${!profile.is_supporter && profile.approved_contributions > 0 ? `<div class="supporter-flair contributor-flair">✦ Contributor · ${profile.approved_contributions}</div>` : ''}
         </div>
         <button class="icon-btn" id="pubBack" aria-label="Back">${I.chevL()}</button>
       </div>

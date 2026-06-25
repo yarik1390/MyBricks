@@ -53,7 +53,7 @@ app.get('/:handle/profile', async (c) => {
   const userId = prefs.user_id;
   const exposeValue = prefs.expose_public_value !== 0;
 
-  const [stats, topThemes, showcase] = await Promise.all([
+  const [stats, topThemes, showcase, contribCount] = await Promise.all([
     c.env.DB.prepare(`
       SELECT COUNT(*) as set_count,
              COALESCE(SUM(${CONDITION_VALUE_SQL} * uc.quantity), 0) as total_value
@@ -86,6 +86,16 @@ app.get('/:handle/profile', async (c) => {
       ORDER BY us.display_order ASC
       LIMIT 6
     `).bind(userId).all<Record<string, unknown>>(),
+
+    c.env.DB.prepare(`
+      SELECT (
+        SELECT COUNT(*) FROM set_reviews WHERE user_id=? AND status='approved' AND deleted_at IS NULL
+      ) + (
+        SELECT COUNT(*) FROM set_photos WHERE user_id=? AND status='approved' AND deleted_at IS NULL
+      ) + (
+        SELECT COUNT(*) FROM set_contributions WHERE user_id=? AND status='approved' AND deleted_at IS NULL
+      ) AS approved_contributions
+    `).bind(userId, userId, userId).first<{ approved_contributions: number }>(),
   ]);
 
   const themes = (topThemes.results || []).map(t => ({
@@ -97,6 +107,7 @@ app.get('/:handle/profile', async (c) => {
     handle,
     display_name: prefs.display_name || handle,
     is_supporter: prefs.is_supporter === 1,
+    approved_contributions: contribCount?.approved_contributions ?? 0,
     expose_public_value: exposeValue,
     set_count: stats?.set_count ?? 0,
     total_value: exposeValue ? (stats?.total_value ?? 0) : null,

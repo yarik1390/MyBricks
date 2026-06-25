@@ -198,6 +198,24 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         set_num TEXT NOT NULL, fig_num TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 1,
         fig_name TEXT, fig_img_url TEXT, PRIMARY KEY (set_num, fig_num)
       )`,
+      `CREATE TABLE IF NOT EXISTS set_reviews (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL,
+        rating INTEGER NOT NULL, title TEXT, body TEXT,
+        status TEXT NOT NULL DEFAULT 'pending', reviewer_id TEXT, review_note TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP, reviewed_at DATETIME, deleted_at DATETIME
+      )`,
+      `CREATE TABLE IF NOT EXISTS set_photos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL,
+        r2_key TEXT NOT NULL, caption TEXT,
+        status TEXT NOT NULL DEFAULT 'pending', reviewer_id TEXT, review_note TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP, reviewed_at DATETIME, deleted_at DATETIME
+      )`,
+      `CREATE TABLE IF NOT EXISTS set_contributions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL,
+        kind TEXT NOT NULL, payload TEXT NOT NULL, note TEXT,
+        status TEXT NOT NULL DEFAULT 'pending', reviewer_id TEXT, review_note TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP, reviewed_at DATETIME, deleted_at DATETIME
+      )`,
 
       `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
        VALUES ('75192', 'Millennium Falcon', 'Star Wars', 2017, 7541, 849.99, 799.99, 1)`,
