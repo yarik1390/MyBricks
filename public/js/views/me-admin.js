@@ -123,6 +123,11 @@ export async function renderMeAdmin() {
         </div>
         <div id="supporterResult" style="font-size:12px;margin-top:8px;min-height:18px;"></div>
       </div>
+
+      <h2 class="section-title">Contributions <span id="contribCount" class="contrib-count"></span></h2>
+      <div class="card" style="padding:14px 16px;">
+        <div id="contribQueue" class="u-fs-sm" style="color:var(--ink-soft);">Loading queue…</div>
+      </div>
     </div>`;
 
   $("#importSetsBtn")?.addEventListener("click", () => triggerImport("sets"));
@@ -150,6 +155,67 @@ export async function renderMeAdmin() {
   }
   $("#grantSupporterBtn")?.addEventListener("click", () => setSupporterStatus(1));
   $("#revokeSupporterBtn")?.addEventListener("click", () => setSupporterStatus(0));
+
+  loadContribQueue();
+}
+
+async function loadContribQueue() {
+  const box = $("#contribQueue");
+  const badge = $("#contribCount");
+  if (!box) return;
+  let data;
+  try {
+    data = await api("/api/admin/contributions?status=pending");
+  } catch (e) {
+    box.textContent = `Couldn't load queue: ${e.message}`;
+    return;
+  }
+  const total = data.counts?.total || 0;
+  if (badge) badge.textContent = total ? String(total) : "";
+  if (!data.items?.length) {
+    box.innerHTML = `<div style="text-align:center;padding:14px 0;color:var(--ink-mute);">No pending contributions 🎉</div>`;
+    return;
+  }
+  box.innerHTML = data.items.map(it => {
+    const thumb = it.photo_url
+      ? `<img src="${(window.WORKER_BASE || "") + it.photo_url}" alt="" style="width:54px;height:54px;object-fit:cover;border-radius:8px;flex:0 0 auto;">`
+      : "";
+    const detail = it.type === "data" ? escapeHtml(it.detail || "") : escapeHtml(it.detail || "");
+    return `
+      <div class="contrib-item" data-type="${it.type}" data-id="${it.id}">
+        ${thumb}
+        <div style="flex:1;min-width:0;">
+          <div class="ci-summary">${escapeHtml(it.summary || it.type)} · <span class="u-mute">${escapeHtml(it.set_num)} ${escapeHtml(it.set_name || "")}</span></div>
+          ${detail ? `<div class="ci-detail u-mute">${detail}</div>` : ""}
+        </div>
+        <div class="ci-actions">
+          <button class="btn-primary ci-approve" style="padding:6px 10px;font-size:12px;">Approve</button>
+          <button class="btn-secondary ci-reject" style="padding:6px 10px;font-size:12px;">Reject</button>
+        </div>
+      </div>`;
+  }).join("");
+
+  box.querySelectorAll(".contrib-item").forEach(row => {
+    const type = row.dataset.type, id = row.dataset.id;
+    const act = async (action) => {
+      row.querySelectorAll("button").forEach(b => b.disabled = true);
+      try {
+        const res = await api(`/api/admin/contributions/${type}/${id}`, { method: "PATCH", body: { action } });
+        haptic("light");
+        toast(res.applied ? `${action === "approve" ? "Approved" : "Rejected"} — ${res.applied}` : (action === "approve" ? "Approved" : "Rejected"), "success");
+        row.remove();
+        const badge2 = $("#contribCount");
+        const left = $("#contribQueue").querySelectorAll(".contrib-item").length;
+        if (badge2) badge2.textContent = left ? String(left) : "";
+        if (!left) loadContribQueue();
+      } catch (e) {
+        row.querySelectorAll("button").forEach(b => b.disabled = false);
+        toast(e.message || "Action failed", "error");
+      }
+    };
+    row.querySelector(".ci-approve").addEventListener("click", () => act("approve"));
+    row.querySelector(".ci-reject").addEventListener("click", () => act("reject"));
+  });
 }
 
 const ADMIN_JOB_TOOLS = {

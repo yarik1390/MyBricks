@@ -167,6 +167,22 @@ Key `worker/src/lib` integrations: `bricklink`, `ebay`, `brickeconomy`,
   auto-repair. **Both the SQL (`schema_search_index.sql`) and the TS rebuilder
   must list the same 6 columns** — they have drifted before and broken search.
 
+### User contributions (admin-reviewed)
+Three tables share one moderation lifecycle (`status` pending→approved/rejected,
+`reviewer_id`, `review_note`, `reviewed_at`, `deleted_at` soft-delete):
+- `set_reviews` — 1–5 star rating + optional title/body; one live row per
+  `(user_id, set_num)` (partial unique index). Aggregate avg/count uses only
+  `status='approved'`.
+- `set_photos` — shared gallery; bytes in `PHOTO_BUCKET` (R2) under
+  `set-photos/{set_num}/{user-ts}.{ext}`, `r2_key` stored in the row.
+- `set_contributions` — data fixes: `kind ∈ barcode|price|image|partlist|metadata`,
+  `payload` JSON. **Only `barcode` auto-applies** on approve
+  (`UPDATE lego_sets SET upc=…` when empty); `price` is shown as a community
+  data point (not merged into the blend); the rest are manual-action reports.
+Submissions are throttled via `rate_limits` (endpoint `'contributions'`, 10/day,
+×5 for supporters). Surfaced in the set-detail **Community** tab; moderated from
+the admin console; contributors see status + approved-count at `#/me/contributions`.
+
 ### Indexes (perf-critical)
 `lego_sets` has indexes on `theme`, `retired`, `upc`, plus the catalog
 filter/sort set added during the audit: `theme_group`, `category`, `year`,
@@ -216,8 +232,9 @@ Mutations use `requireMember`; everything under `/api/admin` uses `requireAdmin`
 | `/api/bricklink` | POST `/import-csv` |
 | `/api/rates` | GET `/` (FX rates) |
 | `/api/push` | GET `/vapid-key`, POST/DELETE `/subscribe` |
-| `/api/admin` | `/import-rebrickable`, `/import-status[/:id]`, `/backfill-upc`, `/populate-coverage`, `/revalue-brickeconomy`, `/populate-everything`, `/expire-valuations`, `/integrations`, `/repair-search-index` |
-| `/api/config` | public client-safe config (Supabase url/anon key, integration status flags) |
+| `/api/contributions` | user contributions (admin-reviewed): POST `/reviews`, POST `/photos/:setNum` (multipart→R2), POST `/data`, GET `/sets/:setNum` (approved bundle), GET `/photos/file/:id`, GET `/mine`, DELETE `/:type/:id` (withdraw pending) |
+| `/api/admin` | `/import-rebrickable`, `/import-status[/:id]`, `/backfill-upc`, `/populate-coverage`, `/revalue-brickeconomy`, `/populate-everything`, `/expire-valuations`, `/integrations`, `/repair-search-index`, `/contributions` (queue), PATCH `/contributions/:type/:id` (approve/reject), PATCH `/users/:userId/supporter` |
+| `/api/config` | public client-safe config (Supabase url/anon key, integration status flags, `patreon_url`) |
 
 Behavioral notes:
 - `GET /api/sets/:setnum` only calls the live Brickset API when the row is
@@ -413,6 +430,23 @@ exposes client-safe values.**
 ## 11. Recent-changes changelog
 
 Newest first. (Service-worker `VERSION` in parentheses where relevant.)
+
+**User contributions system (2026-06, v184)** — signed-in users can now improve
+the shared catalog and add community content, all behind an **admin-reviewed
+queue**. Three tables (`set_reviews`, `set_photos`, `set_contributions`) with a
+shared moderation lifecycle; new `routes/contributions.ts` (submit/read, R2 photo
+upload, daily rate limit ×5 for supporters) + admin queue/approve-reject in
+`routes/admin.ts` (barcode fixes auto-apply to `lego_sets.upc`). Frontend: a
+**Community** tab on set detail (`portfolio-detail.js` + `components/contribute.js`
+sheets), an admin **Contributions** review section in `me-admin.js`, and a
+`#/me/contributions` view with approved-count recognition. Public-profile
+contributor flair is the one deferred follow-up.
+
+**Patreon + Gold skin + supporter admin (2026-06, v180–v183)** — replaced the
+Stripe Connect experiment with a simple Patreon link-out (`PATREON_URL` via
+`/api/config`); rebuilt the supporter-only **Gold** skin as a full champagne
+token system in `skin-gold.css`; added a supporter-toggle and (above) a
+contributions queue to the admin console.
 
 **Offline hardening + per-view split (2026-06, v152–v159)** — two threads of work.
 - **Offline:** precached the lazily-imported `onboarding.js` so the You tab works

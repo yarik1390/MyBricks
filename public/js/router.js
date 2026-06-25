@@ -88,6 +88,7 @@ async function _routeImpl() {
     else if (hash === "/me") await (await import('./views/me.js')).renderMe();
     else if (hash === "/me/integrations") await (await import('./views/me-integrations.js')).renderMeIntegrations();
     else if (hash === "/me/data") await (await import('./views/me-data.js')).renderMeData();
+    else if (hash === "/me/contributions") await (await import('./views/me-contributions.js')).renderMeContributions();
     else if (hash === "/me/admin") await (await import('./views/me-admin.js')).renderMeAdmin();
     else if (hash === "/wishlist") await (await import('./views/portfolio-wishlist.js')).renderWishlist();
     else if (hash === "/leaderboard") await (await import('./views/portfolio-social.js')).renderLeaderboard();

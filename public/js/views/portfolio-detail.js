@@ -7,6 +7,7 @@ import { showSheet, hideSheet, confirmSheet } from '../components/sheet.js';
 import { go } from '../router.js';
 import { skelDetail } from '../components/skeleton.js';
 import { flipCalcHTML } from '../components/flip-calc.js';
+import { openReviewSheet, openPhotoSheet, openDataFixSheet } from '../components/contribute.js';
 import { refreshNavBadge } from './portfolio.js';
 
 // Module-level detail state (moved verbatim from portfolio.js; used only by
@@ -90,13 +91,14 @@ function paintSetDetail(set, entry) {
           <button class="detail-share-btn icon-btn" id="shareBtn" aria-label="Share">${I.share()}</button>
         </div>
         <div class="detail-tabs" id="detailTabs" role="tablist" aria-label="Set detail sections">
-          ${["info","forecast","manage"].filter(t => t !== "manage" || owned).map(t =>
+          ${["info","forecast","community","manage"].filter(t => t !== "manage" || owned).map(t =>
             `<button data-tab="${t}" role="tab" aria-selected="${state.detail.tab === t}" aria-controls="tabPanels" class="${state.detail.tab === t ? "active" : ""}">${t[0].toUpperCase()+t.slice(1)}</button>`
           ).join("")}
         </div>
         <div class="detail-tab-panel" id="tabPanels" role="tabpanel">
           ${state.detail.tab === "info" ? infoTabHTML(set, entry, isWish) :
             state.detail.tab === "forecast" ? forecastTabHTML(set) :
+            state.detail.tab === "community" ? communityTabHTML(set) :
             manageTabHTML(set, entry)}
         </div>
       </div>
@@ -106,6 +108,7 @@ function paintSetDetail(set, entry) {
   ensureDetailDelegation();
   if (state.detail.tab === "info") wireInfoTab(set, entry);
   else if (state.detail.tab === "manage") wireManageTab(set, entry);
+  else if (state.detail.tab === "community") wireCommunityTab(set);
   setupTabSwipe(set, entry);
 
   // Custom photos live behind the authed worker API, so an <img src> can't
@@ -995,9 +998,89 @@ function switchDetailTab(tab, set, entry) {
   if (!panel) return;
   mount(panel, tab === "info" ? infoTabHTML(set, entry, isWish)
     : tab === "forecast" ? forecastTabHTML(set)
+    : tab === "community" ? communityTabHTML(set)
     : manageTabHTML(set, entry));
   if (tab === "info") wireInfoTab(set, entry);
   else if (tab === "manage") wireManageTab(set, entry);
+  else if (tab === "community") wireCommunityTab(set);
+}
+
+/* ============================================================
+   Community tab — reviews, photo gallery, data-fix contributions
+   ============================================================ */
+function communityTabHTML(set) {
+  return `
+    <div class="tab-section community-tab" data-set="${escapeHtml(set.set_num)}">
+      <div class="community-actions">
+        <button class="btn-secondary contrib-act" data-act="review">★ Write a review</button>
+        <button class="btn-secondary contrib-act" data-act="photo">📷 Add photo</button>
+        <button class="btn-secondary contrib-act" data-act="fix">🛠 Suggest a fix</button>
+      </div>
+      <div id="communityBody" class="community-body">
+        <div class="u-mute" style="text-align:center;padding:24px 0;">Loading community content…</div>
+      </div>
+    </div>`;
+}
+
+function starRow(n) {
+  const full = Math.round(n);
+  return `<span class="star-row" aria-label="${n} out of 5">${[1,2,3,4,5].map(i => `<span style="opacity:${i <= full ? 1 : 0.25};">★</span>`).join("")}</span>`;
+}
+
+async function wireCommunityTab(set) {
+  const refresh = () => wireCommunityTab(set);
+  $$(".community-tab .contrib-act").forEach(b => b.addEventListener("click", () => {
+    haptic("light");
+    const act = b.dataset.act;
+    if (act === "review") openReviewSheet(set.set_num, refresh);
+    else if (act === "photo") openPhotoSheet(set.set_num, refresh);
+    else openDataFixSheet(set.set_num, refresh);
+  }));
+
+  const body = $("#communityBody");
+  if (!body) return;
+  let data;
+  try {
+    data = await api("/api/contributions/sets/" + encodeURIComponent(set.set_num));
+  } catch {
+    body.innerHTML = `<div class="u-mute" style="text-align:center;padding:24px 0;">Couldn't load community content.</div>`;
+    return;
+  }
+  if (!location.hash.includes(set.set_num) || state.detail.tab !== "community") return;
+
+  const pending = (data.mine || []).filter(m => m.status === "pending").length;
+  const ratingHTML = data.rating?.count
+    ? `<div class="community-rating">${starRow(data.rating.avg)} <b>${data.rating.avg.toFixed(1)}</b> <span class="u-mute">· ${data.rating.count} review${data.rating.count === 1 ? "" : "s"}</span></div>`
+    : `<div class="u-mute community-rating">No ratings yet — be the first.</div>`;
+
+  const reviewsHTML = (data.reviews || []).length
+    ? data.reviews.map(r => `
+        <div class="community-review">
+          <div class="cr-head">${starRow(r.rating)}${r.title ? `<b>${escapeHtml(r.title)}</b>` : ""}</div>
+          ${r.body ? `<div class="cr-body">${escapeHtml(r.body)}</div>` : ""}
+          <div class="cr-meta u-mute">${fmtDateUpdated(r.created_at)}</div>
+        </div>`).join("")
+    : "";
+
+  const photosHTML = (data.photos || []).length
+    ? `<div class="bs-gallery community-gallery no-tab-swipe">${data.photos.map(p =>
+        `<figure class="community-photo"><img loading="lazy" src="${(window.WORKER_BASE || "") + p.url}" alt="${escapeHtml(p.caption || set.name)}">${p.caption ? `<figcaption>${escapeHtml(p.caption)}</figcaption>` : ""}</figure>`
+      ).join("")}</div>`
+    : "";
+
+  const pricesHTML = (data.prices || []).length
+    ? `<div class="community-prices"><div class="cs-title">Community-reported sales</div>${data.prices.map(p =>
+        `<div class="cp-row"><span>${fmtMoney(p.price)} <span class="u-mute">(${escapeHtml(p.condition || "new")})</span></span><span class="u-mute">${fmtDateUpdated(p.at)}</span></div>`
+      ).join("")}</div>`
+    : "";
+
+  body.innerHTML = `
+    ${ratingHTML}
+    ${pending ? `<div class="community-pending">⏳ You have ${pending} submission${pending === 1 ? "" : "s"} awaiting approval.</div>` : ""}
+    ${photosHTML ? `<div class="cs-title">Photos</div>${photosHTML}` : ""}
+    ${reviewsHTML ? `<div class="cs-title">Reviews</div>${reviewsHTML}` : ""}
+    ${pricesHTML}
+    ${!reviewsHTML && !photosHTML && !pricesHTML ? `<div class="u-mute" style="text-align:center;padding:18px 0;">No community content yet. Add the first review, photo, or fix above.</div>` : ""}`;
 }
 
 function setupTabSwipe(set, entry) {
@@ -1019,7 +1102,7 @@ function setupTabSwipe(set, entry) {
     const dy = e.changedTouches[0].clientY - sy;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
       const owned = !!entry;
-      const tabs = owned ? ["info","forecast","manage"] : ["info","forecast"];
+      const tabs = owned ? ["info","forecast","community","manage"] : ["info","forecast","community"];
       const idx = tabs.indexOf(state.detail.tab);
       const next = clamp(idx + (dx < 0 ? 1 : -1), 0, tabs.length - 1);
       if (next !== idx) { haptic("light"); switchDetailTab(tabs[next], set, entry); }

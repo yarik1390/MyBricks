@@ -958,6 +958,78 @@ app.post('/jobs/:job', async (c) => {
   }
 });
 
+// GET /api/admin/contributions?status=pending — unified moderation queue across
+// the three contribution tables, oldest-first, with a per-type pending count.
+app.get('/contributions', async (c) => {
+  const status = c.req.query('status') || 'pending';
+  const rows = await c.env.DB.prepare(
+    "SELECT 'review' AS type, r.id, r.user_id, r.set_num, s.name AS set_name, " +
+    "  ('★' || r.rating || (CASE WHEN r.title IS NOT NULL THEN ' · ' || r.title ELSE '' END)) AS summary, " +
+    "  r.body AS detail, NULL AS photo_id, r.created_at " +
+    "FROM set_reviews r JOIN lego_sets s ON s.set_num=r.set_num WHERE r.status=? AND r.deleted_at IS NULL " +
+    "UNION ALL " +
+    "SELECT 'photo', p.id, p.user_id, p.set_num, s.name, COALESCE('Photo · ' || p.caption, 'Photo'), NULL, p.id, p.created_at " +
+    "FROM set_photos p JOIN lego_sets s ON s.set_num=p.set_num WHERE p.status=? AND p.deleted_at IS NULL " +
+    "UNION ALL " +
+    "SELECT 'data', d.id, d.user_id, d.set_num, s.name, (d.kind || ' fix'), d.payload, NULL, d.created_at " +
+    "FROM set_contributions d JOIN lego_sets s ON s.set_num=d.set_num WHERE d.status=? AND d.deleted_at IS NULL " +
+    "ORDER BY created_at ASC LIMIT 200"
+  ).bind(status, status, status).all();
+  const items = (rows.results || []).map((r: any) => ({
+    ...r,
+    photo_url: r.photo_id ? `/api/contributions/photos/file/${r.photo_id}` : null,
+  }));
+  const counts = await c.env.DB.prepare(
+    "SELECT (SELECT COUNT(*) FROM set_reviews WHERE status='pending' AND deleted_at IS NULL) AS reviews, " +
+    "(SELECT COUNT(*) FROM set_photos WHERE status='pending' AND deleted_at IS NULL) AS photos, " +
+    "(SELECT COUNT(*) FROM set_contributions WHERE status='pending' AND deleted_at IS NULL) AS data"
+  ).first<{ reviews: number; photos: number; data: number }>();
+  return c.json({ items, counts: { ...counts, total: (counts?.reviews || 0) + (counts?.photos || 0) + (counts?.data || 0) } });
+});
+
+const CONTRIB_TABLE: Record<string, string> = {
+  review: 'set_reviews',
+  photo: 'set_photos',
+  data: 'set_contributions',
+};
+
+// PATCH /api/admin/contributions/:type/:id — approve or reject. Approving a
+// barcode data-fix auto-applies the UPC to lego_sets when it's currently empty;
+// all other kinds are display-only or manual-action reports.
+app.patch('/contributions/:type/:id', async (c) => {
+  const type = c.req.param('type');
+  const table = CONTRIB_TABLE[type];
+  const id = parseInt(c.req.param('id'), 10);
+  const body = await c.req.json<{ action?: string; note?: string }>().catch(() => ({} as { action?: string; note?: string }));
+  const action = body.action;
+  if (!table || !id) return c.json({ error: 'Invalid request' }, 400);
+  if (action !== 'approve' && action !== 'reject') return c.json({ error: "action must be 'approve' or 'reject'" }, 400);
+
+  const status = action === 'approve' ? 'approved' : 'rejected';
+  const reviewer = c.env.ADMIN_USER_ID;
+  const res = await c.env.DB.prepare(
+    `UPDATE ${table} SET status=?, reviewer_id=?, review_note=?, reviewed_at=datetime('now') WHERE id=? AND deleted_at IS NULL`
+  ).bind(status, reviewer, (body.note || '').slice(0, 500) || null, id).run();
+  if (!res.meta.changes) return c.json({ error: 'Not found' }, 404);
+
+  let applied: string | null = null;
+  if (action === 'approve' && type === 'data') {
+    const row = await c.env.DB.prepare('SELECT set_num, kind, payload FROM set_contributions WHERE id=?')
+      .bind(id).first<{ set_num: string; kind: string; payload: string }>();
+    if (row?.kind === 'barcode') {
+      let upc = '';
+      try { upc = String(JSON.parse(row.payload).upc || ''); } catch {}
+      if (/^\d{8,14}$/.test(upc)) {
+        const upd = await c.env.DB.prepare(
+          "UPDATE lego_sets SET upc=? WHERE set_num=? AND (upc IS NULL OR upc='')"
+        ).bind(upc, row.set_num).run();
+        applied = upd.meta.changes ? `upc set on ${row.set_num}` : `upc already present on ${row.set_num} (not overwritten)`;
+      }
+    }
+  }
+  return c.json({ ok: true, status, applied });
+});
+
 app.patch('/users/:userId/supporter', async (c) => {
   const userId = c.req.param('userId');
   const { is_supporter } = await c.req.json<{ is_supporter: 0 | 1 }>();

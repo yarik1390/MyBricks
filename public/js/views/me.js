@@ -158,6 +158,7 @@ export async function renderMe() {
       <div>
         ${linkRow("#/me/integrations", "Integrations", "Google Sheets, Discord, Brickset, push alerts, AI keys")}
         ${linkRow("#/me/data", "Data", "Export &amp; import your collection as CSV")}
+        ${!guest ? linkRow("#/me/contributions", "Your contributions", "Reviews, photos &amp; data fixes you've submitted") : ""}
         ${me.is_admin ? linkRow("#/me/admin", "Admin console", "Catalog imports, jobs, integration health") : ""}
         ${linkRow("#/leaderboard", "Leaderboard", "Top public collections by value")}
         ${linkRow("#/build", "What Can I Build?", "Models you can build from sets you own")}

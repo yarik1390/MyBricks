@@ -199,6 +199,9 @@ jobs:
             "SELECT rarity, ebay_value, ebay_qty, ebay_cached_at FROM minifigs LIMIT 0"
             "SELECT part_num, color_id, price_new, qty_new, price_used, qty_used, cached_at FROM part_prices LIMIT 0"
             "SELECT set_num, name, price_usd, availability, first_seen_at, scraped_at FROM upcoming_sets LIMIT 0"
+            "SELECT id, user_id, set_num, rating, status, reviewer_id, deleted_at FROM set_reviews LIMIT 0"
+            "SELECT id, user_id, set_num, r2_key, caption, status, deleted_at FROM set_photos LIMIT 0"
+            "SELECT id, user_id, set_num, kind, payload, status, deleted_at FROM set_contributions LIMIT 0"
           )
           for sql in "${probes[@]}"; do
             if ! npx wrangler d1 execute brickvault --remote --command "$sql" >/dev/null 2>&1; then

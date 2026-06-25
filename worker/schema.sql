@@ -424,3 +424,63 @@ CREATE TABLE IF NOT EXISTS api_quota (
   updated_at TEXT,
   PRIMARY KEY (service, day)
 );
+
+-- ============================================================
+-- User contributions (admin-reviewed). Three purpose-built tables
+-- sharing one moderation lifecycle: status pending|approved|rejected,
+-- reviewer_id/review_note/reviewed_at set on moderation, deleted_at for
+-- soft-deletes (withdrawals). See worker/src/routes/contributions.ts.
+-- ============================================================
+
+-- Per-set star ratings + optional written reviews (one live row per user/set).
+CREATE TABLE IF NOT EXISTS set_reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  rating INTEGER NOT NULL,
+  title TEXT,
+  body TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  reviewer_id TEXT,
+  review_note TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at DATETIME,
+  deleted_at DATETIME
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_set_reviews_user_set ON set_reviews(user_id, set_num) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_set_reviews_set_status ON set_reviews(set_num, status);
+
+-- Shared set-photo gallery; bytes live in PHOTO_BUCKET (R2) under r2_key.
+CREATE TABLE IF NOT EXISTS set_photos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  r2_key TEXT NOT NULL,
+  caption TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  reviewer_id TEXT,
+  review_note TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at DATETIME,
+  deleted_at DATETIME
+);
+CREATE INDEX IF NOT EXISTS idx_set_photos_set_status ON set_photos(set_num, status);
+
+-- Catalog data fixes / reports: kind in barcode|price|image|partlist|metadata;
+-- payload is JSON specific to the kind. Only barcode auto-applies on approve.
+CREATE TABLE IF NOT EXISTS set_contributions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  note TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  reviewer_id TEXT,
+  review_note TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at DATETIME,
+  deleted_at DATETIME
+);
+CREATE INDEX IF NOT EXISTS idx_set_contributions_status ON set_contributions(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_set_contributions_user ON set_contributions(user_id);

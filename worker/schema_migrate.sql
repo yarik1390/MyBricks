@@ -433,3 +433,54 @@ CREATE TABLE IF NOT EXISTS upcoming_sets (
 ALTER TABLE user_prefs ADD COLUMN is_supporter INTEGER DEFAULT 0;
 ALTER TABLE user_prefs ADD COLUMN supporter_since TEXT;
 ALTER TABLE user_prefs ADD COLUMN stripe_customer_id TEXT;
+
+-- User contributions (admin-reviewed). New tables — safe in the whole-file
+-- backstop run; schema.sql is authoritative. See routes/contributions.ts.
+CREATE TABLE IF NOT EXISTS set_reviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  rating INTEGER NOT NULL,
+  title TEXT,
+  body TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  reviewer_id TEXT,
+  review_note TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at DATETIME,
+  deleted_at DATETIME
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_set_reviews_user_set ON set_reviews(user_id, set_num) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_set_reviews_set_status ON set_reviews(set_num, status);
+
+CREATE TABLE IF NOT EXISTS set_photos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  r2_key TEXT NOT NULL,
+  caption TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  reviewer_id TEXT,
+  review_note TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at DATETIME,
+  deleted_at DATETIME
+);
+CREATE INDEX IF NOT EXISTS idx_set_photos_set_status ON set_photos(set_num, status);
+
+CREATE TABLE IF NOT EXISTS set_contributions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  note TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  reviewer_id TEXT,
+  review_note TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at DATETIME,
+  deleted_at DATETIME
+);
+CREATE INDEX IF NOT EXISTS idx_set_contributions_status ON set_contributions(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_set_contributions_user ON set_contributions(user_id);

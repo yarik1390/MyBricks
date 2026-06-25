@@ -3482,3 +3482,45 @@ select:focus-visible,
 }
 .support-perks li { font-size: 13px; color: var(--ink-soft); }
 .support-perks li::before { content: "✓ "; color: var(--accent); font-weight: 700; }
+
+/* ── Community tab (user contributions) ──────────────────────────── */
+.community-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.community-actions .contrib-act { flex: 1; min-width: 120px; font-size: 13px; }
+.community-rating { display: flex; align-items: center; gap: 8px; font-size: 16px; margin-bottom: 12px; }
+.star-row { color: var(--accent); letter-spacing: 1px; }
+.community-pending {
+  background: var(--surface-2); border: var(--bw-thin) solid var(--border-soft-c);
+  border-radius: var(--r-1); padding: 8px 12px; font-size: 12px; color: var(--ink-mute); margin-bottom: 12px;
+}
+.cs-title { font-weight: 700; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-mute); margin: 14px 0 8px; }
+.community-review {
+  background: var(--surface); border: var(--bw-thin) solid var(--border-soft-c);
+  border-radius: var(--r-1); padding: 10px 12px; margin-bottom: 8px;
+}
+.cr-head { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.cr-body { font-size: 13px; color: var(--ink-soft); margin-top: 4px; line-height: 1.45; white-space: pre-wrap; }
+.cr-meta { font-size: 11px; margin-top: 6px; }
+.community-gallery { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.community-photo { flex: 0 0 auto; width: 140px; margin: 0; }
+.community-photo img { width: 140px; height: 140px; object-fit: cover; border-radius: var(--r-1); display: block; }
+.community-photo figcaption { font-size: 11px; color: var(--ink-mute); margin-top: 4px; }
+.community-prices { margin-top: 14px; }
+.cp-row { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; border-bottom: var(--bw-thin) solid var(--border-soft-c); }
+
+/* ── Admin contributions queue ───────────────────────────────────── */
+.contrib-count {
+  display: inline-block; min-width: 18px; padding: 0 6px; font-size: 11px; line-height: 18px;
+  text-align: center; border-radius: 9px; background: var(--accent); color: var(--accent-fg); vertical-align: middle;
+}
+.contrib-item { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: var(--bw-thin) solid var(--border-soft-c); }
+.contrib-item:last-child { border-bottom: 0; }
+.ci-summary { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.ci-detail { font-size: 12px; margin-top: 3px; max-height: 48px; overflow: hidden; }
+.ci-actions { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+
+/* ── Your contributions (Me subpage) ─────────────────────────────── */
+.contrib-mine-row { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: var(--bw-thin) solid var(--border-soft-c); }
+.contrib-status { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; text-transform: capitalize; flex: 0 0 auto; }
+.cs-pending { background: var(--surface-3); color: var(--ink-mute); }
+.cs-approved { background: var(--up); color: #fff; }
+.cs-rejected { background: var(--down); color: #fff; }
