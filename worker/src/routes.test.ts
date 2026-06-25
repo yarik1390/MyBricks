@@ -897,6 +897,21 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.item.purchase_price).toBe(700);
     });
 
+    it('rolls up portfolio pricing confidence over priced holdings', async () => {
+      await addSet();
+      // Give the set a fresh single sold source → medium-confidence blend.
+      await db.prepare(
+        "UPDATE lego_sets SET valuation_method='market', bl_new_value=820, bl_new_qty=8, bl_cached_at=datetime('now'), blended_value=820 WHERE set_num='75192'"
+      ).run();
+      const res = await app.fetch(new Request('http://localhost/api/collection', { headers: auth() }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.pricing_confidence).toBeTruthy();
+      expect(data.pricing_confidence.priced).toBe(1);
+      expect(data.pricing_confidence.high_medium).toBe(1);
+      expect(data.pricing_confidence.pct).toBe(100);
+    });
+
     it('records condition when adding a set as Used (drives used-vs-new valuation)', async () => {
       const add = await app.fetch(new Request('http://localhost/api/collection', {
         method: 'POST', headers: auth(),

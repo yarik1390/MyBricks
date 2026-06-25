@@ -1445,7 +1445,10 @@ function marketValueHeroHTML(set) {
   const basis = Array.isArray(set.market_value_basis) ? set.market_value_basis : [];
   const signalCount = basis.length;
   const band = (Number.isFinite(lo) && Number.isFinite(hi) && hi > lo)
-    ? `<span style="color:var(--ink-mute);font-size:12px;font-family:var(--mono);">${fmtMoney(lo)} – ${fmtMoney(hi)}</span>`
+    ? `<span style="color:var(--ink-mute);font-size:12px;font-family:var(--mono);">Likely ${fmtMoney(lo)} – ${fmtMoney(hi)}</span>`
+    : '';
+  const note = set.market_value_note
+    ? `<div style="margin-top:8px;font-size:11px;line-height:1.45;color:var(--bv-yellow);">${escapeHtml(set.market_value_note)}</div>`
     : '';
   return `
     <div class="card" style="padding:16px;margin-bottom:14px;">
@@ -1458,6 +1461,7 @@ function marketValueHeroHTML(set) {
         <span style="flex-shrink:0;font-family:var(--mono);font-size:10px;font-weight:800;text-transform:uppercase;color:${confColor};border:1px solid ${confColor};border-radius:8px;padding:3px 8px;">${escapeHtml(confLabel)}</span>
       </div>
       ${signalCount ? `<div style="margin-top:10px;font-size:11px;color:var(--ink-mute);">Based on ${signalCount} independent market signal${signalCount > 1 ? 's' : ''}</div>` : ''}
+      ${note}
     </div>`;
 }
 

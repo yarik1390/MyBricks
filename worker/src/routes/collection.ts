@@ -200,6 +200,21 @@ app.get('/', async (c) => {
   const figValue = minifigsStats?.fig_value || 0;
   const figCount = minifigsStats?.fig_count || 0;
 
+  // Portfolio-level pricing trust: what share of priced holdings rests on a
+  // high/medium-confidence market value (vs. a thin/estimated one). Uses the
+  // anomaly-aware blend confidence, falling back to the trust-panel confidence.
+  const priced = items.filter(r => conditionValue(r as Record<string, unknown>) > 0);
+  const confOf = (r: Record<string, unknown>) => String(r.market_value_confidence || r.confidence || '');
+  const highMed = priced.filter(r => {
+    const cf = confOf(r as Record<string, unknown>);
+    return cf === 'high' || cf === 'medium';
+  }).length;
+  const pricingConfidence = {
+    priced: priced.length,
+    high_medium: highMed,
+    pct: priced.length ? Math.round((highMed / priced.length) * 100) : 0,
+  };
+
   return c.json({
     items,
     total_value: totalValue,
@@ -208,7 +223,8 @@ app.get('/', async (c) => {
     minifig_count: minifigCount,
     fig_value: figValue,
     fig_count: figCount,
-    total_value_with_figs: totalValue + figValue
+    total_value_with_figs: totalValue + figValue,
+    pricing_confidence: pricingConfidence
   });
 });
 
