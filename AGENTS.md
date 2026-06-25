@@ -431,6 +431,27 @@ exposes client-safe values.**
 
 Newest first. (Service-worker `VERSION` in parentheses where relevant.)
 
+**Pricing v2.2: calibration, self-correction & portfolio trust (2026-06, v189)** —
+made the blended value more reliable without new external sources.
+- **History anomaly guard:** `blendMarketValue` (`lib/market-sources.ts`) takes an
+  optional trailing-median (`recentValueMedian`/`recentValueMedians` in
+  `price-trend.ts`, read from `set_value_history`). A value that jumps >2.5× (or
+  <0.4×) off its own 90-day median while NOT backed by ≥2 fresh sold comps is kept
+  as the displayed number but demoted to **low** confidence with a band spanning
+  the historical level — never silently overwritten.
+- **Calibrated band:** the flat ±10% is replaced by a half-width keyed to
+  confidence (high ≈6%, medium ≈15%, low ≈30%), widened for single-source/stale,
+  unioned with measured dispersion; shown as "Likely $Y–$Z".
+- **Disagreement note:** source-anonymized `market_value_note` when signals diverge
+  ≥1.5× (per the B1 convention — never names a provider).
+- **Persisted trust:** new `lego_sets` columns `blended_confidence/blended_low/`
+  `blended_high` (3-file rule + CI probe), written by `persistBlendedValue` /
+  `recomputeBlendedValues`. `GET /api/collection` returns a `pricing_confidence`
+  rollup; the portfolio hero shows "N% confidently priced".
+- Deferred (noted in plan): eBay Marketplace Insights enablement (external
+  approval), community prices into the blend (kept display-only), grounded AI
+  fallback + a used-condition blend.
+
 **Hardening: privacy, supporter cleanup, cost monitoring, deps (2026-06, v185–v188)** —
 stabilization pass.
 - **Privacy:** public reviews (`GET /api/contributions/sets/:setNum`) no longer
