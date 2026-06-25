@@ -62,6 +62,16 @@ export interface Env {
   // Per-day Firecrawl CREDIT ceiling override (credits, not scrapes). Raise for
   // the one-time bootstrap; defaults to the api-quota cap otherwise.
   FIRECRAWL_DAILY_CREDITS?: string;
+  // Comma-separated list of additional Firecrawl API keys for key rotation.
+  // When set, each scrape call picks a random key from FIRECRAWL_API_KEY +
+  // FIRECRAWL_API_KEYS; effectively multiplies the daily credit ceiling by the
+  // number of keys. FIRECRAWL_DAILY_CREDITS must be set to the TOTAL across all
+  // keys (e.g. 10 keys × 30,000 = 300,000) to avoid premature throttling.
+  FIRECRAWL_API_KEYS?: string;
+  // PriceCharting REST API token (Collector tier, $4.99/month).
+  // Enables pc_new_value + pc_complete_value as independent sold-comp sources
+  // in the pricing blend. Zero Firecrawl credits — uses PriceCharting's own API.
+  PRICECHARTING_TOKEN?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   // Patreon crowdfunding link (set via wrangler secret put PATREON_URL).

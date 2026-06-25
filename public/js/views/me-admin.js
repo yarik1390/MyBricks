@@ -683,6 +683,11 @@ async function updateIntegrationsHealth() {
     const bePop = Number(beBoot.populated || 0);
     const bePct = Number(beBoot.pct || 0);
     const beRem = Number(beBoot.remaining ?? Math.max(0, beElig - bePop));
+    const pcBoot = coverage.pc_bootstrap || {};
+    const pcPop = Number(pcBoot.populated || 0);
+    const pcPct = Number(pcBoot.pct || 0);
+    const pcRem = Number(pcBoot.remaining ?? Math.max(0, beElig - pcPop));
+    const fcKeyCount = Number((data.firecrawl || {}).key_count || 1);
 
     // The setup-checklist Firecrawl row reads a config snapshot that can lag a
     // freshly-added key. If the credit ledger shows Firecrawl actually scraping
@@ -696,11 +701,13 @@ async function updateIntegrationsHealth() {
         fcRowBadge.textContent = "● Configured";
       }
     }
-    const firecrawlNote = "Firecrawl is metered in credits (1 per basic/product scrape, 5 per JSON extract). The daily ceiling is env-tunable via FIRECRAWL_DAILY_CREDITS and gates every scrape cron. The BrickEconomy bootstrap fills be_value_new across the year≥2000 catalog (one scrape per set) and self-limits when complete.";
+    const firecrawlNote = "Firecrawl is metered in credits (1 per basic/product scrape, 5 per JSON extract). The daily ceiling is env-tunable via FIRECRAWL_DAILY_CREDITS and gates every scrape cron. Rotating FIRECRAWL_API_KEYS multiplies the effective daily capacity. PriceCharting uses its own REST API (zero Firecrawl credits).";
     const fc = data.firecrawl || {};
     const fcAction = fc.recommended_action || "";
-    const bootState = fc.bootstrap_enabled ? "Bootstrap running" : (beRem > 0 ? "Bootstrap idle" : "Bootstrap complete");
-    const bootBadge = fc.bootstrap_enabled ? "badge--warn" : (beRem > 0 ? "badge--neutral" : "badge--up");
+    const beBootState = fc.bootstrap_enabled && beRem > 0 ? "Running" : (beRem > 0 ? "Idle" : "Complete");
+    const beBootBadge = (fc.bootstrap_enabled && beRem > 0) ? "badge--warn" : (beRem > 0 ? "badge--neutral" : "badge--up");
+    const pcBootState = pcRem > 0 ? (fc.bootstrap_enabled ? "Running" : "Idle") : "Complete";
+    const pcBootBadge = pcRem > 0 ? (fc.bootstrap_enabled ? "badge--warn" : "badge--neutral") : "badge--up";
     const firecrawlHTML = `
       <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
         <div class="u-between u-gap-3" style="margin-bottom:8px;">
@@ -709,21 +716,19 @@ async function updateIntegrationsHealth() {
         </div>
         <div class="u-fs-xs u-mute" style="margin-bottom:8px;">
           <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${fcDot};margin-right:6px;"></span>
-          ${fcRemaining.toLocaleString()} credit${fcRemaining === 1 ? "" : "s"} remaining today
+          ${fcRemaining.toLocaleString()} credit${fcRemaining === 1 ? "" : "s"} remaining today${fcKeyCount > 1 ? ` · ${fcKeyCount} keys rotating` : ""}
         </div>
         <div class="adm-cov-grid">
           <div class="adm-cov-cell">
             <div class="adm-cov-lbl">BrickEconomy bootstrap</div>
             <div class="adm-cov-val">${beElig ? `${bePct}% (${bePop.toLocaleString()}/${beElig.toLocaleString()})` : "No catalog"}</div>
+            <span class="badge ${beBootBadge}" style="margin-top:2px;text-transform:uppercase;">${beBootState}</span>
           </div>
           <div class="adm-cov-cell">
-            <div class="adm-cov-lbl">Sets remaining</div>
-            <div class="adm-cov-val">${beRem.toLocaleString()}</div>
+            <div class="adm-cov-lbl">PriceCharting bootstrap</div>
+            <div class="adm-cov-val">${beElig ? `${pcPct}% (${pcPop.toLocaleString()}/${beElig.toLocaleString()})` : "No catalog"}</div>
+            <span class="badge ${pcBootBadge}" style="margin-top:2px;text-transform:uppercase;">${pcBootState}</span>
           </div>
-        </div>
-        <div class="u-between u-gap-3" style="margin-top:8px;">
-          <span class="u-fs-2xs u-mute">Bootstrap state</span>
-          <span class="badge ${bootBadge}" style="text-transform:uppercase;">${escapeHtml(bootState)}</span>
         </div>
         ${fcAction ? `<div class="u-fs-xs" style="color:var(--ink-soft);margin-top:6px;line-height:1.4;">Action: ${escapeHtml(fcAction)}</div>` : ""}
         <div class="u-fs-2xs u-mute" style="line-height:1.4;margin-top:8px;">${escapeHtml(firecrawlNote)}</div>

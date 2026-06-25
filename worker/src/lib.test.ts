@@ -585,6 +585,53 @@ describe('blendMarketValue (valuation v2)', () => {
     });
     expect(r.confidence).toBe('medium');
   });
+
+  it('reaches high confidence when BrickLink + PriceCharting agree within 40%', () => {
+    const r = blendMarketValue({
+      valuation_method: 'market',
+      bl_new_value: 100, bl_new_qty: 8, bl_cached_at: now,
+      pc_new_value: 110, pc_cached_at: now,
+    });
+    expect(r.confidence).toBe('high');
+    expect(r.value).toBeGreaterThan(100);
+    expect(r.value).toBeLessThan(115);
+  });
+
+  it('stays medium with only PriceCharting sealed price (single source)', () => {
+    const r = blendMarketValue({
+      valuation_method: 'formula_bulk',
+      pc_new_value: 150, pc_cached_at: now,
+    });
+    expect(r.confidence).toBe('medium');
+    expect(r.value).toBe(150);
+  });
+
+  it('stale PriceCharting data (>30 days) is not counted as fresh for confidence', () => {
+    // freshnessFactor = 0.4 (30-90d range) → fresh=false; BL alone → medium
+    const stale = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString();
+    const r = blendMarketValue({
+      valuation_method: 'market',
+      bl_new_value: 100, bl_new_qty: 8, bl_cached_at: now,
+      pc_new_value: 110, pc_cached_at: stale,
+    });
+    // PC is included in the blend (weight > 0) but marked stale → only BL is a
+    // fresh sold comp → medium, not high.
+    expect(r.confidence).toBe('medium');
+  });
+
+  it('disagreement note with BL + PC does not mention provider names', () => {
+    // BL at 100, PC at 165 — diverge >1.5x, should produce a note
+    const r = blendMarketValue({
+      valuation_method: 'market',
+      bl_new_value: 100, bl_new_qty: 8, bl_cached_at: now,
+      pc_new_value: 165, pc_cached_at: now,
+    });
+    if (r.note) {
+      expect(r.note).not.toMatch(/BrickLink/i);
+      expect(r.note).not.toMatch(/PriceCharting/i);
+      expect(r.note).not.toMatch(/eBay/i);
+    }
+  });
 });
 
 describe('computeDealSignal (E3a)', () => {

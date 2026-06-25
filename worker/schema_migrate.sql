@@ -492,3 +492,9 @@ CREATE TABLE IF NOT EXISTS set_contributions (
 );
 CREATE INDEX IF NOT EXISTS idx_set_contributions_status ON set_contributions(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_set_contributions_user ON set_contributions(user_id);
+
+-- PriceCharting pricing source (independent sold-comp for high-confidence blend)
+ALTER TABLE lego_sets ADD COLUMN pc_new_value REAL;
+ALTER TABLE lego_sets ADD COLUMN pc_complete_value REAL;
+ALTER TABLE lego_sets ADD COLUMN pc_id TEXT;
+ALTER TABLE lego_sets ADD COLUMN pc_cached_at TEXT;

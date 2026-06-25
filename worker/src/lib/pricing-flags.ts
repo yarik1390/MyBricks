@@ -34,8 +34,11 @@ export function brightDataSoldEnabled(env: Env): boolean {
 }
 
 // Firecrawl web scraping (lego.com stock, eBay sold comps via structured extraction,
-// Brickset enrichment backfill). Requires FIRECRAWL_API_KEY; on by default once set.
-// Set FIRECRAWL_ENABLED=0 to pause without removing the key.
+// Brickset enrichment backfill). Requires FIRECRAWL_API_KEY or FIRECRAWL_API_KEYS;
+// on by default once at least one key is set. Set FIRECRAWL_ENABLED=0 to pause.
 export function firecrawlEnabled(env: Env): boolean {
-  return !!env.FIRECRAWL_API_KEY && !/^(0|false|no|off)$/i.test(String(env.FIRECRAWL_ENABLED ?? ''));
+  const hasKey =
+    !!env.FIRECRAWL_API_KEY ||
+    !!(env.FIRECRAWL_API_KEYS?.split(',').some((k) => k.trim()));
+  return hasKey && !/^(0|false|no|off)$/i.test(String(env.FIRECRAWL_ENABLED ?? ''));
 }

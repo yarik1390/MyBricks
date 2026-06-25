@@ -91,7 +91,11 @@ CREATE TABLE IF NOT EXISTS lego_sets (
   brickset_description TEXT,
   brickset_set_id INTEGER,
   brickset_image_urls TEXT,
-  brickset_images_cached_at TEXT
+  brickset_images_cached_at TEXT,
+  pc_new_value REAL,
+  pc_complete_value REAL,
+  pc_id TEXT,
+  pc_cached_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS user_collection (

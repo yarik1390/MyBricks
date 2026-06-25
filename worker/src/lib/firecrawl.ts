@@ -5,6 +5,18 @@ import { spendQuota } from './api-quota';
 
 const FC_BASE = 'https://api.firecrawl.dev/v2';
 
+// Pick a Firecrawl API key: if FIRECRAWL_API_KEYS (comma-separated) is set,
+// rotate across all available keys (including FIRECRAWL_API_KEY) so that
+// running 10 keys × 30,000 credits/day each = 300,000/day effective capacity.
+// Set FIRECRAWL_DAILY_CREDITS to the TOTAL across all keys.
+function pickFirecrawlKey(env: Env): string | undefined {
+  const single = env.FIRECRAWL_API_KEY;
+  const multi = env.FIRECRAWL_API_KEYS?.split(',').map((k) => k.trim()).filter(Boolean) ?? [];
+  const all = [single, ...multi].filter(Boolean) as string[];
+  if (!all.length) return undefined;
+  return all[Math.floor(Math.random() * all.length)];
+}
+
 export interface FirecrawlScrapeOptions {
   url: string;
   /** v2 formats: 'markdown' | 'html' | 'json' | 'product' | 'links' | 'summary'. */
@@ -64,7 +76,7 @@ export async function firecrawlScrape<T = unknown>(
     const resp = await fetch(`${FC_BASE}/scrape`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${env.FIRECRAWL_API_KEY}`,
+        'Authorization': `Bearer ${pickFirecrawlKey(env)}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),

@@ -42,6 +42,7 @@ import { runUpcItemDbBackfill } from './jobs/upcitemdb-backfill';
 import { runLegoStockRefresh } from './jobs/lego-stock-refresh';
 import { runBricksetEnrich } from './jobs/brickset-enrich';
 import { runBrickEconomyEnrich } from './jobs/brickeconomy-enrich';
+import { runPriceChartingEnrich } from './jobs/pricecharting-enrich';
 
 import type { Env, Variables } from './types';
 
@@ -353,6 +354,10 @@ export default {
       case '0 14 * * *': await run('image-prewarm', () => runImagePrewarm(env, { limit: 100, concurrency: 3 })); break;
       // Upcoming/coming-soon release feed (G2b): one LEGO.com listing scrape/day.
       case '0 15 * * *': await run('upcoming-refresh', () => runUpcomingRefresh(env)); break;
+      case '0 16 * * *': await run('pricecharting-enrich', () => runPriceChartingEnrich(env, { limit: 50 })); break;
+      // TEMPORARY one-time bootstrap: fill pc_new_value across the year>=2000 catalog.
+      // Runs 4x/hour at limit 150 concurrency 10; remove once pc_new_value is filled.
+      case '10,25,40,55 * * * *': await run('pc-bootstrap', () => runPriceChartingEnrich(env, { limit: 150, concurrency: 10 })); break;
       // TEMPORARY one-time bootstrap: fill be_value_new across the year>=2000
       // catalog (~22.4k sets). Runs 4x/hour at limit 150 (concurrency 5); the
       // total spend self-limits at ~112k credits (one scrape per set) and the

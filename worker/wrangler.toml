@@ -44,6 +44,9 @@ crons = [
   "0 13 * * *",
   "0 14 * * *",
   "0 15 * * *",
+  "0 16 * * *",
+  # TEMPORARY: one-time PriceCharting bootstrap (remove after pc_new_value is filled).
+  "10,25,40,55 * * * *",
   # TEMPORARY: one-time BrickEconomy bootstrap (remove after be_value_new is filled).
   "5,20,35,50 * * * *",
   "15 * * * *",

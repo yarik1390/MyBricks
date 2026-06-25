@@ -160,7 +160,8 @@ async function getDataCoverage(env: Env) {
         CAST(SUM(CASE WHEN current_value IS NULL OR current_value <= 0 OR valuation_expires_at < datetime('now') OR cached_at IS NULL OR cached_at < datetime('now','-60 days') THEN 1 ELSE 0 END) AS INTEGER) AS needs_market_refresh,
         CAST(SUM(CASE WHEN year >= 2000 THEN 1 ELSE 0 END) AS INTEGER) AS be_eligible,
         CAST(SUM(CASE WHEN year >= 2000 AND be_value_new IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS be_populated,
-        CAST(SUM(CASE WHEN year >= 2000 AND brickset_enriched_at IS NULL THEN 1 ELSE 0 END) AS INTEGER) AS brickset_enrich_remaining
+        CAST(SUM(CASE WHEN year >= 2000 AND brickset_enriched_at IS NULL THEN 1 ELSE 0 END) AS INTEGER) AS brickset_enrich_remaining,
+        CAST(SUM(CASE WHEN year >= 2000 AND pc_new_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS pc_populated
       FROM lego_sets
     `).first<Record<string, number>>(),
     env.DB.prepare(`
@@ -293,12 +294,20 @@ async function getDataCoverage(env: Env) {
     remaining: Math.max(0, beEligible - bePopulated),
     pct: beEligible ? Math.round((bePopulated / beEligible) * 1000) / 10 : 0,
   };
+  const pcPopulated = Number(sets?.pc_populated || 0);
+  const pcBootstrap = {
+    eligible: beEligible,
+    populated: pcPopulated,
+    remaining: Math.max(0, beEligible - pcPopulated),
+    pct: beEligible ? Math.round((pcPopulated / beEligible) * 1000) / 10 : 0,
+  };
   const bricksetEnrichRemaining = Number(sets?.brickset_enrich_remaining || 0);
   return {
     ...sets,
     quality,
     blend_quality: blendQuality,
     be_bootstrap: beBootstrap,
+    pc_bootstrap: pcBootstrap,
     brickset_enrich_remaining: bricksetEnrichRemaining,
     barcode_health: barcodeHealthOut,
     sets_with_bricklink: bricklinkCount,
@@ -923,34 +932,48 @@ app.get('/integrations', async (c) => {
 function buildFirecrawlDiagnostics(
   env: Env,
   quota: Array<{ service: string; used: number; cap: number; remaining: number }>,
-  coverage: { be_bootstrap?: { eligible: number; populated: number; remaining: number; pct: number } },
+  coverage: {
+    be_bootstrap?: { eligible: number; populated: number; remaining: number; pct: number };
+    pc_bootstrap?: { eligible: number; populated: number; remaining: number; pct: number };
+  },
 ) {
   const override = Number(env.FIRECRAWL_DAILY_CREDITS);
   const dailyCap = Number.isFinite(override) && override > 0 ? override : QUOTA_CAPS.firecrawl;
   const row = quota.find((q) => q.service === 'firecrawl');
   const creditsUsedToday = row?.used ?? 0;
   const be = coverage.be_bootstrap || { eligible: 0, populated: 0, remaining: 0, pct: 0 };
+  const pc = coverage.pc_bootstrap || { eligible: 0, populated: 0, remaining: 0, pct: 0 };
+  // Count configured Firecrawl keys for key-rotation visibility.
+  const extraKeys = env.FIRECRAWL_API_KEYS?.split(',').map(k => k.trim()).filter(Boolean) ?? [];
+  const keyCount = (env.FIRECRAWL_API_KEY ? 1 : 0) + extraKeys.length;
   // The ceiling is raised above the steady-state default only for the one-time
   // bootstrap, so a non-default cap is a reliable "bootstrap mode" signal.
   const bootstrapElevated = dailyCap > QUOTA_CAPS.firecrawl;
-  const filling = be.remaining > 0;
+  const fillingBe = be.remaining > 0;
+  const fillingPc = pc.remaining > 0;
   let recommendedAction: string;
-  if (!env.FIRECRAWL_API_KEY) {
+  if (!env.FIRECRAWL_API_KEY && !env.FIRECRAWL_API_KEYS) {
     recommendedAction = 'Add FIRECRAWL_API_KEY as a GitHub Actions secret to enable BrickEconomy/eBay scraping.';
-  } else if (filling) {
-    recommendedAction = `BrickEconomy bootstrap in progress (${be.pct}% of ${be.eligible} sets). Leave the 4x/hour cron + raised credit ceiling running; once it reaches 100%, remove the "5,20,35,50 * * * *" trigger and reset FIRECRAWL_DAILY_CREDITS to the ${QUOTA_CAPS.firecrawl} default.`;
+  } else if (fillingBe && fillingPc) {
+    recommendedAction = `Bootstrap in progress — BrickEconomy: ${be.pct}%, PriceCharting: ${pc.pct}%. Leave the 4x/hour crons running.`;
+  } else if (fillingBe) {
+    recommendedAction = `BrickEconomy bootstrap in progress (${be.pct}% of ${be.eligible} sets). PriceCharting bootstrap complete.`;
+  } else if (fillingPc) {
+    recommendedAction = `PriceCharting bootstrap in progress (${pc.pct}% of ${pc.eligible} sets). BrickEconomy bootstrap complete — remove the "5,20,35,50 * * * *" trigger.`;
   } else if (bootstrapElevated) {
-    recommendedAction = `BrickEconomy bootstrap complete. Remove the temporary "5,20,35,50 * * * *" trigger and reset FIRECRAWL_DAILY_CREDITS to the ${QUOTA_CAPS.firecrawl} default; use the bootstrap-brickeconomy workflow for any future gap-fills.`;
+    recommendedAction = `Both bootstraps complete. Remove the temporary "5,20,35,50 * * * *" and "10,25,40,55 * * * *" triggers and reset FIRECRAWL_DAILY_CREDITS to the ${QUOTA_CAPS.firecrawl} default.`;
   } else {
     recommendedAction = 'Steady state — Firecrawl on the default daily ceiling.';
   }
   return {
-    configured: !!env.FIRECRAWL_API_KEY,
+    configured: !!env.FIRECRAWL_API_KEY || !!env.FIRECRAWL_API_KEYS,
+    key_count: keyCount,
     credits_used_today: creditsUsedToday,
     daily_cap: dailyCap,
     credits_remaining: Math.max(0, dailyCap - creditsUsedToday),
-    bootstrap_enabled: bootstrapElevated && filling,
+    bootstrap_enabled: bootstrapElevated && (fillingBe || fillingPc),
     bootstrap: be,
+    pc_bootstrap: pc,
     recommended_action: recommendedAction,
   };
 }

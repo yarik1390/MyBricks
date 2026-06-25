@@ -432,6 +432,13 @@ export function blendMarketValue(row: Record<string, unknown>, history?: BlendHi
   // BrickEconomy's value is only stored as current_value when it's the method.
   if (method === 'brickeconomy') push('brickeconomy', 'BrickEconomy', num(row.current_value), null, row.be_cached_at || row.cached_at, 0.9, false, RANK_MODEL);
   push('brickowl_new', 'BrickOwl', num(row.bo_new_value), null, row.bo_cached_at, 0.7, false, RANK_LISTING);
+  // PriceCharting sealed price — aggregated closed eBay auctions; an independent
+  // sold comp source. When it agrees with BrickLink within ~40%, the blend reaches
+  // "high" confidence without eBay Marketplace Insights approval.
+  push('pc_new', 'Market data', num(row.pc_new_value), null, row.pc_cached_at, 0.95, true, RANK_SOLD);
+  // PriceCharting complete-in-box — same auction source, different condition;
+  // corroborating only (not a sealed comp, so sold=false for confidence gating).
+  push('pc_complete', 'Market data', num(row.pc_complete_value), null, row.pc_cached_at, 0.75, false, RANK_MODEL);
   // eBay asking (median of active Browse listings) — soft FALLBACK only: used
   // when no sold/BrickEconomy/BrickOwl point exists, haircut + lowest weight, so
   // it fills the gap for unpriced sets without dragging real-comp blends upward.
@@ -686,6 +693,7 @@ export const BLEND_INPUT_COLUMNS =
   'bl_cached_at, ebay_new_value, ebay_new_qty, ebay_new_cached_at, ebay_new_last_sold, be_cached_at, ' +
   'cached_at, bo_new_value, bo_cached_at, ' +
   'ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at, ' +
+  'pc_new_value, pc_complete_value, pc_cached_at, ' +
   // Extra inputs the deal signal needs (persisted alongside blended_value so the
   // catalog deal filter + deal alerts share one source of truth with the badge).
   'retail_price, lego_in_stock, retirement_risk_score, lego_retiring_soon';
