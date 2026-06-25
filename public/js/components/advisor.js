@@ -26,12 +26,14 @@ export async function toggleAdvisor() {
     haptic("light");
     cancelActiveStream();
     drawer.classList.remove("open");
+    document.body.classList.remove("advisor-open");
     document.body.style.overflow = "";
     _advTrapRelease?.();
     _advTrapRelease = null;
   } else {
     haptic("medium");
     drawer.classList.add("open");
+    document.body.classList.add("advisor-open");
     document.body.style.overflow = "hidden";
     await renderAdvisorDrawer();
     drawer.setAttribute("role", "dialog");
@@ -123,6 +125,7 @@ export async function renderAdvisorDrawer() {
     haptic("light");
     cancelActiveStream();
     drawer.classList.remove("open");
+    document.body.classList.remove("advisor-open");
     document.body.style.overflow = "";
     _advTrapRelease?.();
     _advTrapRelease = null;

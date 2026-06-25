@@ -580,6 +580,24 @@ describe('sanitizeMoneyInput', () => {
   });
 });
 
+describe('routeMetaFor', () => {
+  it('assigns child routes to their owning bottom-nav section', async () => {
+    globalThis.localStorage ||= {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+    };
+    const { routeMetaFor } = await import('../router.js');
+    assert.equal(routeMetaFor('/build').nav, '/');
+    assert.equal(routeMetaFor('/wishlist').nav, '/');
+    assert.equal(routeMetaFor('/set/10300-1').nav, '/');
+    assert.equal(routeMetaFor('/leaderboard').nav, '/me');
+    assert.equal(routeMetaFor('/u/demo').nav, '/me');
+    assert.equal(routeMetaFor('/add').nav, '/add');
+    assert.equal(routeMetaFor('/pile').nav, '/pile');
+  });
+});
+
 import { resolveDownloadResume } from '../lib/pure.js';
 
 describe('resolveDownloadResume', () => {

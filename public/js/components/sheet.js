@@ -32,6 +32,7 @@ export function showSheet(html) {
   sheet.innerHTML = `<div class="sheet-handle"></div>` + html;
   back.classList.add("show");
   sheet.classList.add("show");
+  document.body.classList.add("sheet-open");
   document.body.style.overflow = "hidden";
   back.setAttribute("aria-hidden", "false");
   sheet.setAttribute("aria-hidden", "false");
@@ -58,6 +59,7 @@ export function hideSheet() {
   if (!backdrop || !backdrop.classList.contains("show")) return;
   backdrop.classList.remove("show");
   backdrop.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("sheet-open");
   document.body.style.overflow = "";
   if (sheet) {
     sheet.classList.remove("show");

@@ -1029,13 +1029,21 @@ function starRow(n) {
 
 async function wireCommunityTab(set) {
   const refresh = () => wireCommunityTab(set);
-  $$(".community-tab .contrib-act").forEach(b => b.addEventListener("click", () => {
-    haptic("light");
-    const act = b.dataset.act;
-    if (act === "review") openReviewSheet(set.set_num, refresh);
-    else if (act === "photo") openPhotoSheet(set.set_num, refresh);
-    else openDataFixSheet(set.set_num, refresh);
-  }));
+  const labels = {
+    review: `${I.star({w:16})}<span>Write a review</span>`,
+    photo: `${I.camera({w:16})}<span>Add photo</span>`,
+    fix: `${I.pencil({w:16})}<span>Suggest a fix</span>`,
+  };
+  $$(".community-tab .contrib-act").forEach(b => {
+    if (labels[b.dataset.act] && !b.querySelector("svg")) b.innerHTML = labels[b.dataset.act];
+    b.addEventListener("click", () => {
+      haptic("light");
+      const act = b.dataset.act;
+      if (act === "review") openReviewSheet(set.set_num, refresh);
+      else if (act === "photo") openPhotoSheet(set.set_num, refresh);
+      else openDataFixSheet(set.set_num, refresh);
+    });
+  });
 
   const body = $("#communityBody");
   if (!body) return;

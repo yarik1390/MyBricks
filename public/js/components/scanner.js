@@ -8,12 +8,59 @@ import { checkGemma3Downloaded, runLocalVisionScan, isWebGpuAvailable } from '..
 import { flipCalcHTML } from './flip-calc.js';
 
 let _scanTrapRelease = null;
+let _scanPending = false;
+
+function setScanPending(on) {
+  _scanPending = !!on;
+  const wrap = document.querySelector(".scan-video-wrap");
+  const capture = $("#scanCapture");
+  const gallery = $("#scanGalleryBtn");
+  wrap?.classList.toggle("scan-busy", _scanPending);
+  if (capture) {
+    capture.disabled = _scanPending || wrap?.classList.contains("camera-unavailable");
+    capture.setAttribute("aria-busy", _scanPending ? "true" : "false");
+  }
+  if (gallery) gallery.disabled = _scanPending;
+}
+
+function clearScanResult({ restartBarcode = false } = {}) {
+  const el = $("#scanResult");
+  if (el) {
+    el.classList.remove("show", "loading");
+    el.innerHTML = "";
+  }
+  document.querySelector(".scan-video-wrap")?.classList.remove("has-result");
+  setScanPending(false);
+  const hint = $("#scanHint");
+  if (hint) hint.textContent = state.camera.mode === "barcode" ? "Align barcode within the frame" : "Frame the set and tap to identify";
+  if (restartBarcode && state.camera.mode === "barcode" && state.camera.detector) {
+    state.camera.scanning = true;
+    clearInterval(state.camera.timer);
+    state.camera.timer = setInterval(scanBarcode, 400);
+  }
+}
+
+function showScanLoading(label = "Identifying...", detail = "This can take up to 30 seconds.") {
+  const el = $("#scanResult");
+  if (!el) return;
+  el.classList.add("show", "loading");
+  document.querySelector(".scan-video-wrap")?.classList.add("has-result");
+  el.innerHTML = `
+    <div class="scan-loading">
+      <div class="spinner" aria-hidden="true"></div>
+      <div class="scan-loading-copy">
+        <strong>${escapeHtml(label)}</strong>
+        <span>${escapeHtml(detail)}</span>
+      </div>
+    </div>`;
+}
 
 export function openScan(mode = "barcode") {
   state.camera.mode = mode;
   const ov = $("#scanOverlay");
   ov.innerHTML = scanOverlayHTML(mode);
   ov.classList.add("open");
+  document.body.classList.add("scan-active");
   $("#scanCloseBtn")?.addEventListener("click", closeScan);
   _scanTrapRelease?.();
   _scanTrapRelease = activateFocusTrap(ov, closeScan);
@@ -66,8 +113,10 @@ export function closeScan() {
   stopCamera();
   _scanTrapRelease?.();
   _scanTrapRelease = null;
+  document.body.classList.remove("scan-active");
   $("#scanOverlay").classList.remove("open");
   $("#scanOverlay").innerHTML = "";
+  _scanPending = false;
 }
 
 export function stopCamera() {
@@ -101,9 +150,15 @@ export async function startCamera() {
   } catch (err) {
     const hint = $("#scanHint");
     const isDenied = err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
+    document.querySelector(".scan-video-wrap")?.classList.add("camera-unavailable");
     if (hint) hint.textContent = isDenied
       ? "Camera permission denied — grant access in browser/system settings, or type a set number below."
       : "Camera not available — check permissions or try a different browser.";
+    const capture = $("#scanCapture");
+    if (capture) {
+      capture.disabled = true;
+      capture.setAttribute("aria-disabled", "true");
+    }
     showManualBarcodeEntry();
   }
 }
@@ -155,8 +210,14 @@ async function scanBarcode() {
 }
 
 export async function capturePhoto() {
-  haptic("heavy");
+  if (_scanPending) return;
   const btn = $("#scanCapture");
+  if (btn?.disabled) {
+    const hint = $("#scanHint");
+    if (hint) hint.textContent = "Camera is unavailable. Use Gallery or type a barcode.";
+    return;
+  }
+  haptic("heavy");
   if (btn) { btn.style.transform = "scale(0.85)"; setTimeout(() => btn.style.transform = "", 200); }
   const hint = $("#scanHint");
   if (hint) hint.textContent = "Identifying…";
@@ -269,14 +330,22 @@ async function cloudScanIdentify(payload, signal) {
 }
 
 async function sendScanToAPI(payload) {
+  setScanPending(true);
   const el = $("#scanResult");
   if (el) {
     el.classList.add("show");
     el.innerHTML = `<div class="scan-loading"><div class="spinner"></div><span>Identifying…</span></div>`;
   }
+  showScanLoading(
+    payload.mode === "barcode" ? "Looking up barcode..." : "Identifying...",
+    payload.mode === "barcode" ? "Checking the catalog and saved barcode data." : "This can take up to 30 seconds."
+  );
   const frame = document.querySelector(".scan-frame");
   if (frame) frame.classList.add("scan-pending");
-  const done = () => { if (frame) frame.classList.remove("scan-pending"); };
+  const done = () => {
+    if (frame) frame.classList.remove("scan-pending");
+    setScanPending(false);
+  };
 
   const scanEngine = localStorage.getItem('bv_ai_engine') || 'cloud';
   const online = navigator.onLine;
@@ -372,16 +441,20 @@ function routeScannedCode(code) {
 // Blind-box: resolve a Collectible Minifigures bag/box barcode to its series
 // roster, then let the user tap the fig they pulled (adds to their minifigs).
 async function sendBlindBoxLookup(code) {
+  setScanPending(true);
   const el = $("#scanResult");
   if (el) {
     el.classList.add("show");
     el.innerHTML = `<div class="scan-loading"><div class="spinner"></div><span>Finding the series…</span></div>`;
   }
+  showScanLoading("Finding the series...", "Matching the barcode against blind-box data.");
   try {
     const res = await api(`/api/minifigs/blindbox?code=${encodeURIComponent(code)}`);
     showBlindBoxResult(res);
   } catch (e) {
     showBlindBoxResult({ error: e.message || "Couldn't look that up." });
+  } finally {
+    setScanPending(false);
   }
 }
 
@@ -389,6 +462,8 @@ function showBlindBoxResult(res) {
   const el = $("#scanResult");
   if (!el) return;
   el.classList.add("show");
+  el.classList.remove("loading");
+  document.querySelector(".scan-video-wrap")?.classList.add("has-result");
   if (res.error || !res.figs || !res.figs.length) {
     el.innerHTML = `
       <div class="scan-result-head"><span class="badge" style="background:var(--ink-mute);">${I.info()} NO MATCH</span></div>
@@ -446,6 +521,8 @@ function showScanResult(res) {
   const el = $("#scanResult");
   if (!el) return;
   el.classList.add("show");
+  el.classList.remove("loading");
+  document.querySelector(".scan-video-wrap")?.classList.add("has-result");
   if (!res.identified) {
     const reason = res.reasoning || "Couldn't identify the set. Try a clearer photo.";
     const noKey = !localStorage.getItem("bv_gemini_key") && !localStorage.getItem("bv_openai_key");
@@ -473,14 +550,7 @@ function showScanResult(res) {
       ${nudge}
       <button class="btn-secondary" id="scanRetry">Try again</button>`;
     $("#scanRetry")?.addEventListener("click", () => {
-      el.classList.remove("show");
-      const hint = $("#scanHint");
-      if (hint) hint.textContent = state.camera.mode === "barcode" ? "Align barcode within the frame" : "Frame the set and tap to identify";
-      if (state.camera.mode === "barcode" && state.camera.detector) {
-        state.camera.scanning = true;
-        clearInterval(state.camera.timer);
-        state.camera.timer = setInterval(scanBarcode, 400);
-      }
+      clearScanResult({ restartBarcode: true });
     });
     return;
   }
@@ -495,14 +565,7 @@ function showScanResult(res) {
       <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">Matches weren't found in the local catalog.</p>
       <button class="btn-secondary" id="scanRetry">Try again</button>`;
     $("#scanRetry")?.addEventListener("click", () => {
-      el.classList.remove("show");
-      const hint = $("#scanHint");
-      if (hint) hint.textContent = state.camera.mode === "barcode" ? "Align barcode within the frame" : "Frame the set and tap to identify";
-      if (state.camera.mode === "barcode" && state.camera.detector) {
-        state.camera.scanning = true;
-        clearInterval(state.camera.timer);
-        state.camera.timer = setInterval(scanBarcode, 400);
-      }
+      clearScanResult({ restartBarcode: true });
     });
     return;
   }
@@ -719,10 +782,12 @@ function scanOverlayHTML(mode) {
 
 async function processBulkScanQueue(files) {
   stopCamera();
+  setScanPending(true);
 
   const el = $("#scanResult");
   if (el) {
-    el.classList.add("show");
+    el.classList.add("show", "loading");
+    document.querySelector(".scan-video-wrap")?.classList.add("has-result");
     el.innerHTML = `
       <div class="scan-loading" style="padding:24px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
         <div class="spinner"></div>
@@ -816,6 +881,9 @@ function showBulkScanResults(results) {
   const el = $("#scanResult");
   if (!el) return;
   el.classList.add("show");
+  el.classList.remove("loading");
+  document.querySelector(".scan-video-wrap")?.classList.add("has-result");
+  setScanPending(false);
 
   let rowsHTML = `<div style="display:flex;flex-direction:column;gap:12px;margin:8px 0 16px;max-height:55vh;overflow-y:auto;padding-right:4px;">`;
 
@@ -895,7 +963,7 @@ function showBulkScanResults(results) {
   `;
 
   document.getElementById("bulkCancel").addEventListener("click", () => {
-    el.classList.remove("show");
+    clearScanResult();
     state.camera.scanning = true;
     startCamera();
   });

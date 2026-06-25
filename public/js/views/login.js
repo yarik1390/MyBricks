@@ -31,6 +31,14 @@ export function renderLogin() {
   let mode = "signin";
   const nav = document.getElementById("nav");
   if (nav) nav.style.display = "none";
+  try {
+    const s = JSON.parse(localStorage.getItem("bv_session") || "null");
+    if (s?.expires_at && !s.refresh_token && Date.now() / 1000 > Number(s.expires_at) + 60) {
+      saveSession(null, { preserveGuestFigs: true });
+    }
+  } catch {
+    saveSession(null, { preserveGuestFigs: true });
+  }
 
   // Turnstile bot protection on the login form. Opt-in: only when the server
   // advertises a site key (/api/config). The token is passed to GoTrue and is
@@ -106,6 +114,12 @@ export function renderLogin() {
               </svg>
               <span>Continue with Google</span>
             </button>
+            <button id="authGuest" class="btn-secondary" style="width:100%;gap:10px;justify-content:center;">
+              <span>Continue as guest</span>
+            </button>
+            <div style="font-size:11px;color:var(--ink-mute);line-height:1.45;text-align:center;">
+              Guest data stays on this device. Sign in later to sync your vault and wishlist.
+            </div>
           </div>
         </div>
         <div style="text-align:center;margin-top:16px;font-size:13px;color:var(--ink-mute);">
@@ -143,6 +157,11 @@ export function renderLogin() {
       }
       const redirectTo = encodeURIComponent(location.origin + location.pathname);
       location.href = `${_sbUrl}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}&prompt=select_account`;
+    });
+    document.getElementById("authGuest")?.addEventListener("click", () => {
+      saveSession(null, { preserveGuestFigs: true });
+      if (nav) nav.style.display = "";
+      go("#/");
     });
 
     const submit = async () => {

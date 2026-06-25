@@ -506,8 +506,11 @@ function showFilterSheet(onApply) {
       </div>`;
   };
   showSheet(`
-    <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 16px;">Advanced Filters</div>
-    <div class="scrollable" style="max-height: 55vh; overflow-y: auto; padding: 2px;">
+    <div class="sheet-title-row">
+      <h2 class="u-serif-h" style="margin:0;">Advanced Filters</h2>
+      ${catalogRangesActive() ? `<span class="trust-badge warn">${catalogRangesActive()} active</span>` : `<span class="trust-badge neutral">None active</span>`}
+    </div>
+    <div class="scrollable advanced-filter-sheet" style="max-height: 55vh; overflow-y: auto; padding: 2px;">
       ${facetGroup("Theme group", "theme_group", state.themeGroups, f.catalogThemeGroup)}
       ${facetGroup("Category", "category", state.categories, f.catalogCategory)}
       ${rangeField("Release Year", "min_year", "max_year", "Min year", "Max year")}

@@ -14,6 +14,21 @@ import { cancelActiveStream } from './components/advisor-lazy.js';
 let _routeBusy = false;
 let _routeQueued = false;
 
+export function routeMetaFor(hash = "/") {
+  if (hash === "/" || hash === "") return { key: "vault", nav: "/", title: "Vault" };
+  if (hash === "/add") return { key: "catalog", nav: "/add", title: "Catalog" };
+  if (hash === "/pile") return { key: "scan", nav: "/pile", title: "Scan", fullscreen: true };
+  if (hash === "/minifigs") return { key: "minifigs", nav: "/minifigs", title: "Minifigs" };
+  if (hash === "/build") return { key: "build", nav: "/", title: "Build" };
+  if (hash === "/wishlist") return { key: "wishlist", nav: "/", title: "Wishlist" };
+  if (hash === "/leaderboard") return { key: "leaderboard", nav: "/me", title: "Leaderboard" };
+  if (hash.startsWith("/u/")) return { key: "public-profile", nav: "/me", title: "Public profile" };
+  if (hash.startsWith("/set/")) return { key: "set-detail", nav: "/", title: "Set detail" };
+  if (hash === "/me" || hash.startsWith("/me/")) return { key: "me", nav: "/me", title: "Me" };
+  if (hash === "/login") return { key: "login", nav: null, title: "Sign in", fullscreen: true };
+  return { key: "unknown", nav: null, title: "Brickvault" };
+}
+
 export async function route() {
   if (_routeBusy) { _routeQueued = true; return; }
   _routeBusy = true;
@@ -33,6 +48,11 @@ async function _routeImpl() {
   // Views that need the query string read location.hash directly.
   let hash = (location.hash.replace("#", "") || "/").split("?")[0];
   if (hash === "/blind") { location.hash = "#/minifigs"; return; }
+  const meta = routeMetaFor(hash);
+  document.body.dataset.route = meta.key;
+  $("#advisorDrawer")?.classList.remove("open");
+  document.body.classList.remove("advisor-open");
+  document.body.style.overflow = "";
 
   // Login is optional; guests can use the app with local-only data.
   if (hash === "/login") {
@@ -71,11 +91,9 @@ async function _routeImpl() {
     const fabHidden = hash === "/login" || hash === "/pile";
     fab.style.display = fabHidden ? "none" : "flex";
   }
-  $("#advisorDrawer")?.classList.remove("open");
-
   $$("#nav .nav-tab").forEach(t => {
     const r = t.dataset.route;
-    const active = r === hash || (hash.startsWith("/set/") && r === "/") || (hash === "/wishlist" && r === "/") || (hash.startsWith("/me/") && r === "/me");
+    const active = r === meta.nav;
     t.classList.toggle("active", active);
   });
 

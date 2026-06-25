@@ -154,7 +154,7 @@ export async function renderBlind() {
       </div>
 
       <div class="mini-grid" id="miniGrid">
-        ${b.items.map(fig => miniCardHTML(fig)).join("")}
+        ${miniGridHTML()}
       </div>
       <div id="blindSentinel" class="load-sentinel" style="${b.hasMore ? "" : "display:none;"}">
         <div class="spinner"></div>
@@ -283,9 +283,44 @@ function saveFigs() {
 function refreshMiniGrid() {
   const grid = $('#miniGrid');
   if (!grid) return;
-  mount(grid, state.blind.items.map(f => miniCardHTML(f)).join(''));
+  mount(grid, miniGridHTML());
   wireMiniCards();
   mountBlindSentinel();
+}
+
+function miniGridHTML() {
+  if (state.blind.items.length) return state.blind.items.map(f => miniCardHTML(f)).join('');
+  const hasFilters = !isFigFilterDefault() || !!state.filter.figQ;
+  return `
+    <div class="empty card" style="grid-column:1/-1;">
+      <div class="empty-icon">${I.figure()}</div>
+      <h3>No minifigs found</h3>
+      <p>${state.filter.figQ ? `Nothing matches "${escapeHtml(state.filter.figQ)}".` : "No minifigs match these filters."}</p>
+      ${hasFilters ? `<button class="btn-secondary" id="figClearFilters" style="margin-top:12px;">Clear filters</button>` : ""}
+    </div>`;
+}
+
+function clearFigFilters() {
+  state.filter.figQ = "";
+  state.filter.figRarity = "all";
+  state.filter.figOwned = "all";
+  state.filter.figSeries = "all";
+  haptic("light");
+  loadBlind({ reset: true }).then(() => {
+    if (location.hash === '#/minifigs' && $('#miniGrid')) {
+      const q = $("#figSearch");
+      if (q) q.value = "";
+      $$("[data-fig-rarity]").forEach(x => x.classList.toggle("active", x.dataset.figRarity === "all"));
+      const owned = $("#figOwnedChip");
+      if (owned) {
+        owned.textContent = "All";
+        owned.classList.remove("active");
+      }
+      refreshSeriesChips();
+      refreshMiniGrid();
+      refreshMiniStats();
+    }
+  }).catch(() => {});
 }
 
 const debouncedFigSearch = debounce(async () => {
@@ -299,6 +334,7 @@ function wireMiniCards() {
   if (!grid || grid._delegated) return;
   grid._delegated = true;
   grid.addEventListener("click", (evt) => {
+    if (evt.target.closest("#figClearFilters")) { clearFigFilters(); return; }
     const card = evt.target.closest(".mini-card");
     if (!card) return;
     const num = card.dataset.fig;

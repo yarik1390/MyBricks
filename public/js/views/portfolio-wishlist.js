@@ -89,6 +89,10 @@ export async function renderWishlist() {
           <div class="empty-icon">${I.heart()}</div>
           <h3>Nothing wishlisted yet</h3>
           <p>Tap the heart on any set to watch it. We'll alert you when the price hits your target.</p>
+          <div class="empty-actions">
+            <a class="btn-primary" href="#/add">${I.search()}<span>Browse catalog</span></a>
+            <a class="btn-secondary" href="#/pile">${I.scan()}<span>Scan a set</span></a>
+          </div>
         </div>` : `
         <div>${sorted.map(wishlistCardHTML).join("")}</div>`}
     </div>`;
