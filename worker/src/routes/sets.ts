@@ -88,7 +88,10 @@ const SEARCH_REPAIR_COOLDOWN_MS = 60 * 60 * 1000;
 let searchRepairLastAt = 0;
 let searchRepairInFlight = false;
 
-function scheduleSearchIndexRepair(c: { env: { DB: D1Database }; executionCtx: ExecutionContext }) {
+// Typed by what we actually use (env.DB + executionCtx.waitUntil) rather than the
+// full workers-types ExecutionContext, which drifts between type releases (e.g. a
+// newly-required `tracing` field) and wouldn't match Hono's context shape.
+function scheduleSearchIndexRepair(c: { env: { DB: D1Database }; executionCtx: { waitUntil(p: Promise<unknown>): void } }) {
   const now = Date.now();
   if (searchRepairInFlight || now - searchRepairLastAt < SEARCH_REPAIR_COOLDOWN_MS) return;
   searchRepairInFlight = true;
