@@ -126,7 +126,6 @@ function renderDashboard(root, account) {
     ready_to_process,
     onboarding_complete,
     requirements_status,
-    card_payments_status,
     subscription_status,
   } = account;
 
