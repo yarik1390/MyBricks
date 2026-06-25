@@ -109,6 +109,20 @@ export async function renderMeAdmin() {
           Loading integrations status...
         </div>
       </div>
+
+      <h2 class="section-title">Users</h2>
+      <div class="card" style="padding:14px 16px;">
+        <div class="lbl" style="margin-bottom:8px;">Grant / revoke Supporter badge</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <input id="supporterUserIdInput" class="input" placeholder="User ID (UUID)"
+            style="flex:1;font-family:var(--mono);font-size:13px;" />
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-primary" id="grantSupporterBtn" style="flex:1;">Grant ⭐</button>
+          <button class="btn-secondary" id="revokeSupporterBtn" style="flex:1;">Revoke</button>
+        </div>
+        <div id="supporterResult" style="font-size:12px;margin-top:8px;min-height:18px;"></div>
+      </div>
     </div>`;
 
   $("#importSetsBtn")?.addEventListener("click", () => triggerImport("sets"));
@@ -120,6 +134,22 @@ export async function renderMeAdmin() {
 
   updateJobsStatus();
   updateIntegrationsHealth();
+
+  async function setSupporterStatus(val) {
+    const userId = $("#supporterUserIdInput").value.trim();
+    const out = $("#supporterResult");
+    if (!userId) { out.textContent = "Paste a user ID first."; return; }
+    out.textContent = "…";
+    try {
+      await api(`/api/admin/users/${encodeURIComponent(userId)}/supporter`,
+        { method: "PATCH", body: { is_supporter: val } });
+      out.textContent = val ? "✓ Supporter granted." : "✓ Supporter revoked.";
+    } catch (e) {
+      out.textContent = `Error: ${e.message}`;
+    }
+  }
+  $("#grantSupporterBtn")?.addEventListener("click", () => setSupporterStatus(1));
+  $("#revokeSupporterBtn")?.addEventListener("click", () => setSupporterStatus(0));
 }
 
 const ADMIN_JOB_TOOLS = {

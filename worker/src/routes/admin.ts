@@ -958,4 +958,16 @@ app.post('/jobs/:job', async (c) => {
   }
 });
 
+app.patch('/users/:userId/supporter', async (c) => {
+  const userId = c.req.param('userId');
+  const { is_supporter } = await c.req.json<{ is_supporter: 0 | 1 }>();
+  if (is_supporter !== 0 && is_supporter !== 1) {
+    return c.json({ error: 'is_supporter must be 0 or 1' }, 400);
+  }
+  await c.env.DB.prepare(
+    `UPDATE user_prefs SET is_supporter = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`
+  ).bind(is_supporter, userId).run();
+  return c.json({ ok: true, userId, is_supporter });
+});
+
 export { app as adminRoute };
