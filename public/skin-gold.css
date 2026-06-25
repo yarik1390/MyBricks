@@ -1,0 +1,89 @@
+/* ============================================================
+   Brickvault — "Champagne" Gold skin (data-skin="gold").
+   Supporter-exclusive luxury treatment. Like the Premium skin,
+   this is a token override that layers a warm champagne-gold
+   palette on the modern soft-elevation structural language
+   (thin borders, generous radii, real shadows — no retro pixel
+   offsets). Component rules live in app.css and read these tokens;
+   a tiny set of skin-scoped flourishes lives at the bottom.
+   ============================================================ */
+:root[data-skin="gold"] {
+  /* Warm ivory surfaces with a faint gold undertone */
+  --bg: #FAF6EC;
+  --bg-deep: #F2ECDC;
+  --surface: #FFFDF7;
+  --surface-2: #F6F0E2;
+  --surface-3: #EFE7D4;
+  --border-c: #E5D9BC;
+  --border-soft-c: #EFE7D4;
+  --bw: 1px;
+  --bw-thin: 1px;
+  --r-1: 10px; --r-2: 16px; --r-3: 20px;
+  /* Champagne/satin gold accent — bright enough to read as metal,
+     paired with near-black text for a luxury "gold button" look. */
+  --accent: #C9A227;
+  --accent-fg: #2A2008;
+  --bv-yellow: #C9A227;
+  /* Soft elevation with a warm gold cast instead of neutral grey */
+  --shadow-1: 0 1px 2px rgba(120, 90, 20, 0.08);
+  --shadow-2: 0 2px 8px rgba(120, 90, 20, 0.10);
+  --shadow-3: 0 6px 20px rgba(120, 90, 20, 0.12);
+  --shadow-4: 0 12px 32px rgba(120, 90, 20, 0.16);
+  /* more whitespace, matching the premium rhythm */
+  --sp-3: 14px; --sp-4: 20px; --sp-5: 28px;
+  --photo-grad-top: rgba(250, 246, 236, 0.2);
+  --photo-grad-bot: rgba(250, 246, 236, 0);
+}
+
+/* Dark mode is where gold shines: deep warm charcoal + champagne.
+   Inherits the warm-cream ink from the retro dark block (which only
+   excludes premium), so text stays warm — this block just restyles
+   the surfaces, borders, accent and shadows. */
+:root[data-skin="gold"][data-theme="dark"] {
+  --bg: #14110A;
+  --bg-deep: #0E0B06;
+  --surface: #1C1810;
+  --surface-2: #241F14;
+  --surface-3: #2E2818;
+  --border-c: #3A331F;
+  --border-soft-c: #2A2416;
+  --accent: #E5C158;
+  --accent-fg: #2A2008;
+  --bv-yellow: #E5C158;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-2: 0 2px 10px rgba(0, 0, 0, 0.5);
+  --shadow-3: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --shadow-4: 0 14px 40px rgba(0, 0, 0, 0.6);
+  --photo-grad-top: rgba(20, 17, 10, 0.2);
+  --photo-grad-bot: rgba(20, 17, 10, 0);
+}
+
+/* ── Skin-scoped flourishes (keep this section tiny) ───────────── */
+
+/* Primary CTAs get a brushed-champagne gradient instead of a flat
+   fill — the signature "premium gold" treatment. */
+:root[data-skin="gold"] .btn-primary {
+  background: linear-gradient(135deg, #E4C969 0%, var(--accent) 55%, #B68A22 100%);
+  border-color: transparent;
+  color: var(--accent-fg);
+}
+
+/* Soft-elevation press feedback (collapse the lift) rather than the
+   retro pixel translate, coherent with this skin's depth language. */
+:root[data-skin="gold"] .chip:active,
+:root[data-skin="gold"] .card:active,
+:root[data-skin="gold"] .btn-primary:active,
+:root[data-skin="gold"] .btn-secondary:active {
+  box-shadow: var(--shadow-1);
+  transform: translateY(1px);
+}
+
+/* The supporter badge gets gold-gradient text — a small luxury accent
+   only this skin earns. */
+:root[data-skin="gold"] .supporter-badge-lg {
+  background: linear-gradient(135deg, #E4C969, #B68A22);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}

@@ -1,11 +1,12 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = 'v182';
+const VERSION = 'v183';
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 const STATIC_ASSETS = [
   '/',
   '/app.css',
   '/skin-premium.css',
+  '/skin-gold.css',
   '/theme-init.js',
   '/manifest.json',
   '/icon.svg',

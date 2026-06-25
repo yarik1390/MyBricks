@@ -3452,17 +3452,11 @@ select:focus-visible,
 }
 
 /* ============================================================
-   Gold accent skin — exclusive to Supporters
+   Gold "Champagne" skin — exclusive to Supporters.
+   Full token override lives in skin-gold.css (parallel to the
+   premium skin), loaded after app.css and scoped to
+   [data-skin="gold"].
    ============================================================ */
-:root[data-skin="gold"] {
-  --accent: #D4960A;
-  --accent-fg: #1a1208;
-  --bv-yellow: #D4960A;
-}
-:root[data-skin="gold"][data-theme="dark"] {
-  --accent: #F5B820;
-  --accent-fg: #1a1208;
-}
 
 /* ============================================================
    Support Brickvault card + Supporter badges

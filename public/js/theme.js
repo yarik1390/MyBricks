@@ -7,7 +7,7 @@
 const META_THEME_COLORS = {
   retro:   { light: "#F5F1E8", dark: "#16161C" },
   premium: { light: "#FAFAF7", dark: "#0E1014" },
-  gold:    { light: "#F5F1E8", dark: "#16161C" },
+  gold:    { light: "#FAF6EC", dark: "#14110A" },
 };
 
 export function getThemePref() {
