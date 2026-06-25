@@ -99,6 +99,13 @@ async function _routeImpl() {
     } else if (hash.startsWith("/u/")) {
       const handle = hash.slice(3);
       await (await import('./views/portfolio-social.js')).renderPublicProfile(handle);
+    } else if (hash.startsWith("/connect")) {
+      await (await import('./views/connect.js')).renderConnect();
+    } else if (hash.startsWith("/store/")) {
+      // TODO: In production, resolve a seller handle/slug to an account ID server-side
+      //       rather than using the raw Stripe account ID (acct_...) in the URL.
+      const accountId = hash.replace('/store/', '').split('?')[0];
+      await (await import('./views/storefront.js')).renderStorefront(accountId);
     } else {
       location.hash = "#/";
       throw { __redirect: true };

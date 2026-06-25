@@ -64,6 +64,10 @@ export interface Env {
   FIRECRAWL_DAILY_CREDITS?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
+  // Stripe Connect
+  STRIPE_CONNECT_WEBHOOK_SECRET?: string;         // whsec_... for V2 thin-event webhook (Connect account requirements)
+  STRIPE_SUBSCRIPTION_WEBHOOK_SECRET?: string;    // whsec_... for V1 subscription lifecycle webhook
+  STRIPE_CONNECT_SUBSCRIPTION_PRICE_ID?: string;  // price_... for the platform subscription sold to connected accounts
 }
 
 export type Variables = {

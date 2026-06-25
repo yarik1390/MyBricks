@@ -2,15 +2,12 @@ import { Hono } from 'hono';
 import Stripe from 'stripe';
 import { requireMember } from '../auth';
 import type { Env, Variables } from '../types';
+import { makeStripe } from '../lib/stripe-client';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 const ALLOWED_AMOUNTS = new Set([500, 1000, 2500]);
 const MONTHLY_AMOUNT = 500; // $5/month
-
-function makeStripe(secretKey: string) {
-  return new Stripe(secretKey, { httpClient: Stripe.createFetchHttpClient() });
-}
 
 // Upsert a Stripe customer for the given user; returns the customer ID.
 async function upsertCustomer(
