@@ -19,6 +19,7 @@ import { spendQuota } from '../lib/api-quota';
 import { getCachedPriceTrend } from '../lib/price-trend';
 import { fetchTracked } from '../lib/http';
 import { enrichSetRecord, persistBlendedValue } from '../lib/market-sources';
+import { recentValueMedian } from '../lib/price-trend';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { isSearchIndexCorruption, rebuildSearchIndex } from '../lib/search-index';
 import { checkLegoStock } from '../lib/lego-stock';
@@ -580,7 +581,10 @@ app.get('/:setnum', async (c) => {
       'SELECT fig_num, quantity, fig_name, fig_img_url FROM set_minifigs WHERE set_num=? ORDER BY quantity DESC'
     ).bind(resultSet.set_num).all<{ fig_num: string; quantity: number; fig_name: string; fig_img_url: string | null }>();
 
-    return c.json({ set: enrichSetRecord({ ...resultSet, retired: !!resultSet.retired, trend, brickset }), entry: entry || null, set_minifigs: setMinifigs });
+    // Trailing-history median feeds the blend's anomaly guard so a value that
+    // jumped off its own recent trend on thin data shows as low confidence.
+    const valueHistory = await recentValueMedian(c.env.DB, resultSet.set_num as string).catch(() => undefined);
+    return c.json({ set: enrichSetRecord({ ...resultSet, retired: !!resultSet.retired, trend, brickset }, valueHistory), entry: entry || null, set_minifigs: setMinifigs });
   }
 
   if (!c.env.REBRICKABLE_API_KEY) return c.json({ error: 'Set not found' }, 404);

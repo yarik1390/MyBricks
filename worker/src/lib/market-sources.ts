@@ -1,3 +1,5 @@
+import { recentValueMedian, recentValueMedians } from './price-trend';
+
 export type MarketConfidence = 'high' | 'medium' | 'low' | 'estimated';
 export type MarketFreshness = 'fresh' | 'stale' | 'expired' | 'missing';
 
@@ -302,6 +304,18 @@ export interface BlendedValue {
   high: number | null;
   confidence: MarketConfidence | null;
   basis: { id: string; name: string; value: number; weight: number }[];
+  // Source-anonymized plain-language note when signals materially disagree or the
+  // value moved sharply off its own recent trend (per the B1 convention — never
+  // names a provider). null when there's nothing noteworthy to explain.
+  note: string | null;
+}
+
+// Trailing price-history summary the blend consults so a value that has jumped
+// off its own recent trend can't read as trustworthy. Supplied by the caller
+// (async DB read) so blendMarketValue stays pure and testable.
+export interface BlendHistory {
+  recentMedian: number | null;
+  points: number;
 }
 
 function ageDays(ts: unknown): number | null {
@@ -352,6 +366,32 @@ const RANK_ASK = 1;
 // noise — matches the >=3-point median outlier band so the two paths agree.
 const DIVERGENCE_RATIO = 2.5;
 
+// Confidence band ("likely range") half-width keyed to how well-supported the
+// value is: corroborated → tight, thin/estimated → wide. Replaces a flat ±10%
+// so the range communicates real uncertainty. Single-source / stale data widen
+// it further, capped so it never becomes meaningless.
+const BAND_HALF_WIDTH: Record<MarketConfidence, number> = {
+  high: 0.06,
+  medium: 0.15,
+  low: 0.30,
+  estimated: 0.35,
+};
+const BAND_SINGLE_SOURCE_EXTRA = 0.04;
+const BAND_STALE_EXTRA = 0.05;
+const BAND_MAX_HALF_WIDTH = 0.40;
+
+// Surviving signals spanning at least this ratio read as a material disagreement
+// worth explaining to the user.
+const DISAGREEMENT_RATIO = 1.5;
+
+// History anomaly guard: a blended value this far off its own trailing median,
+// when NOT backed by >=2 fresh sold comps, is treated as suspicious — kept as the
+// displayed number but demoted to low confidence with a band spanning the
+// historical level. Needs a minimum history depth to avoid noise on thin series.
+const ANOMALY_HIGH_RATIO = 2.5;
+const ANOMALY_LOW_RATIO = 0.4;
+const ANOMALY_MIN_HISTORY_POINTS = 5;
+
 /**
  * Blend the available NEW-condition market signals into one fair value with a
  * confidence band. Sold comps (BrickLink, eBay) weigh highest, then a modeled
@@ -372,7 +412,7 @@ const DIVERGENCE_RATIO = 2.5;
  *
  * Pure + read-side: it never writes and never mutates current_value.
  */
-export function blendMarketValue(row: Record<string, unknown>): BlendedValue {
+export function blendMarketValue(row: Record<string, unknown>, history?: BlendHistory): BlendedValue {
   const method = String(row.valuation_method || '');
   type P = { id: string; name: string; value: number; weight: number; sold: boolean; fresh: boolean; rank: number };
   const pts: P[] = [];
@@ -400,7 +440,7 @@ export function blendMarketValue(row: Record<string, unknown>): BlendedValue {
     push('ebay_ask', 'eBay asking', ask ? Math.round(ask * EBAY_ASK_DISCOUNT * 100) / 100 : null, num(row.ebay_ask_qty), row.ebay_ask_cached_at, EBAY_ASK_TYPE_FACTOR, false, RANK_ASK);
   }
 
-  if (!pts.length) return { value: null, low: null, high: null, confidence: null, basis: [] };
+  if (!pts.length) return { value: null, low: null, high: null, confidence: null, basis: [], note: null };
 
   // --- Outlier / anomaly rejection -----------------------------------------
   let survivors = pts;
@@ -451,12 +491,60 @@ export function blendMarketValue(row: Record<string, unknown>): BlendedValue {
     confidence = 'low';
   }
 
+  // --- Calibrated confidence band ------------------------------------------
+  // Start from the real dispersion of the surviving signals (low/high above),
+  // then widen by an uncertainty half-width keyed to confidence so the band
+  // reflects how well-supported the value is. Always contains `value`.
+  const anyFresh = survivors.some(p => p.fresh);
+  let halfWidth = BAND_HALF_WIDTH[confidence] ?? 0.30;
+  if (survivors.length === 1) halfWidth += BAND_SINGLE_SOURCE_EXTRA;
+  if (!anyFresh) halfWidth += BAND_STALE_EXTRA;
+  halfWidth = Math.min(halfWidth, BAND_MAX_HALF_WIDTH);
+  let bandLow = Math.min(low, value * (1 - halfWidth));
+  let bandHigh = Math.max(high, value * (1 + halfWidth));
+
+  let note: string | null = null;
+
+  // --- Disagreement transparency -------------------------------------------
+  // Source-anonymized note when the surviving signals materially diverge, so the
+  // user understands a wide range instead of a single confident number.
+  if (survivors.length >= 2) {
+    const sv = survivors.map(p => p.value);
+    const lo = Math.min(...sv);
+    const hi = Math.max(...sv);
+    if (lo > 0 && hi / lo >= DISAGREEMENT_RATIO) {
+      const gapPct = Math.round((1 - lo / hi) * 100);
+      const soldIsLow = survivors.some(p => p.sold && p.value === lo);
+      note = soldIsLow
+        ? `Recent sales run about ${gapPct}% below listing guides — weighted toward realized sales.`
+        : `Market signals disagree by about ${gapPct}% — treat the range as wide.`;
+    }
+  }
+
+  // --- History anomaly guard (self-correction) -----------------------------
+  // A value sharply off its own recent trend, not backed by >=2 fresh sold comps,
+  // is suspicious. Keep the latest number but demote to low confidence and widen
+  // the band to span the historical level so it never reads as trustworthy.
+  if (history && history.recentMedian && history.recentMedian > 0 && history.points >= ANOMALY_MIN_HISTORY_POINTS) {
+    const ratio = value / history.recentMedian;
+    const corroborated = freshSoldVals.length >= 2;
+    if (!corroborated && (ratio > ANOMALY_HIGH_RATIO || ratio < ANOMALY_LOW_RATIO)) {
+      confidence = 'low';
+      bandLow = Math.min(bandLow, Math.min(value, history.recentMedian) * 0.95);
+      bandHigh = Math.max(bandHigh, Math.max(value, history.recentMedian) * 1.05);
+      note = ratio > 1
+        ? 'This value jumped above its recent trend on limited data — shown at low confidence until more sales confirm it.'
+        : 'This value dropped below its recent trend on limited data — shown at low confidence until more sales confirm it.';
+    }
+  }
+
   return {
     value,
-    low: Math.round(low * 100) / 100,
-    high: Math.round(high * 100) / 100,
+    low: Math.round(bandLow * 100) / 100,
+    high: Math.round(bandHigh * 100) / 100,
     confidence,
     basis: survivors.map(p => ({ id: p.id, name: p.name, value: p.value, weight: Math.round(p.weight * 100) / 100 })),
+    note,
   };
 }
 
@@ -542,11 +630,11 @@ export function computeDealSignal(
 // A figure built from <90% of a set's pieces understates badly, so withhold it.
 const PART_OUT_MIN_COVERAGE = 0.9;
 
-export function enrichSetRecord<T extends Record<string, unknown>>(row: T): T {
+export function enrichSetRecord<T extends Record<string, unknown>>(row: T, history?: BlendHistory): T {
   const sources = buildMarketSources(row);
   const freshness = marketFreshness(row);
   const confidence = marketConfidence(row, sources);
-  const blend = blendMarketValue(row);
+  const blend = blendMarketValue(row, history);
   const deal = computeDealSignal(row, { value: blend.value, confidence: blend.confidence });
   // Part-out (E1): expose the stored sum-of-parts value only when coverage is
   // high enough to be trustworthy; always expose coverage so the UI can explain.
@@ -565,6 +653,7 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T): T {
     market_value_high: blend.high,
     market_value_confidence: blend.confidence,
     market_value_basis: blend.basis,
+    market_value_note: blend.note,
     // Deal signal v1 (E3a; additive, read-side).
     deal_signal: deal.signal,
     deal_available_price: deal.available_price,
@@ -604,18 +693,23 @@ export const BLEND_INPUT_COLUMNS =
 // Compute the blended value AND the deal signal together, so the persisted
 // deal_* columns are produced by the exact same computeDealSignal used for the
 // read-time badge — no SQL re-implementation, no divergence.
-function blendAndDealRow(row: Record<string, unknown>): {
+function blendAndDealRow(row: Record<string, unknown>, history?: BlendHistory): {
   blended: number | null; signal: string | null; pct: number | null; strong: number;
+  confidence: string | null; low: number | null; high: number | null;
 } {
-  const blend = blendMarketValue(row);
+  const blend = blendMarketValue(row, history);
   const deal = computeDealSignal(row, { value: blend.value, confidence: blend.confidence });
-  return { blended: blend.value, signal: deal.signal, pct: deal.discount_pct, strong: deal.strong ? 1 : 0 };
+  return {
+    blended: blend.value, signal: deal.signal, pct: deal.discount_pct, strong: deal.strong ? 1 : 0,
+    confidence: blend.confidence, low: blend.low, high: blend.high,
+  };
 }
 
 // Single UPDATE shape for both persist paths (bind order: blended, signal, pct,
-// strong, set_num). deal_cached_at marks when the signal was last recomputed.
+// strong, confidence, low, high, set_num). deal_cached_at marks when the signal
+// was last recomputed (shared by the blend + confidence band).
 const BLEND_DEAL_UPDATE_SQL =
-  `UPDATE lego_sets SET blended_value=?, deal_signal=?, deal_discount_pct=?, deal_strong=?, deal_cached_at=datetime('now') WHERE set_num=?`;
+  `UPDATE lego_sets SET blended_value=?, deal_signal=?, deal_discount_pct=?, deal_strong=?, blended_confidence=?, blended_low=?, blended_high=?, deal_cached_at=datetime('now') WHERE set_num=?`;
 
 // Recompute + persist blended_value for one set (on-demand detail refresh /
 // revalue). Reads the post-write row so it always reflects the latest signals.
@@ -625,8 +719,9 @@ export async function persistBlendedValue(db: D1Database, setNum: string): Promi
       `SELECT ${BLEND_INPUT_COLUMNS} FROM lego_sets WHERE set_num=?`,
     ).bind(setNum).first<Record<string, unknown>>();
     if (!row) return null;
-    const r = blendAndDealRow(row);
-    await db.prepare(BLEND_DEAL_UPDATE_SQL).bind(r.blended, r.signal, r.pct, r.strong, setNum).run();
+    const history = await recentValueMedian(db, setNum).catch(() => undefined);
+    const r = blendAndDealRow(row, history);
+    await db.prepare(BLEND_DEAL_UPDATE_SQL).bind(r.blended, r.signal, r.pct, r.strong, r.confidence, r.low, r.high, setNum).run();
     return r.blended;
   } catch (e) {
     console.warn(`[blend] persist failed for ${setNum}:`, (e as Error).message);
@@ -648,9 +743,11 @@ export async function recomputeBlendedValues(db: D1Database, setNums: string[]):
       const { results } = await db.prepare(
         `SELECT set_num, ${BLEND_INPUT_COLUMNS} FROM lego_sets WHERE set_num IN (${placeholders})`,
       ).bind(...chunk).all<Record<string, unknown>>();
+      // One history read per chunk feeds the anomaly guard (subrequest-lean).
+      const medians = await recentValueMedians(db, chunk).catch(() => new Map());
       const stmts = results.map(row => {
-        const r = blendAndDealRow(row);
-        return db.prepare(BLEND_DEAL_UPDATE_SQL).bind(r.blended, r.signal, r.pct, r.strong, row.set_num as string);
+        const r = blendAndDealRow(row, medians.get(row.set_num as string));
+        return db.prepare(BLEND_DEAL_UPDATE_SQL).bind(r.blended, r.signal, r.pct, r.strong, r.confidence, r.low, r.high, row.set_num as string);
       });
       if (stmts.length) await db.batch(stmts);
       written += stmts.length;

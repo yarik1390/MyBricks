@@ -455,12 +455,16 @@ describe('blendMarketValue (valuation v2)', () => {
     expect(r.confidence).toBeNull();
   });
 
-  it('uses a single fresh BrickLink sold value with its lot range as the band', () => {
+  it('calibrates a single fresh BrickLink band to contain the lot range and value', () => {
     const r = blendMarketValue({ valuation_method: 'market', bl_new_value: 100, bl_new_qty: 12, bl_cached_at: now, bl_new_min: 90, bl_new_max: 115 });
     expect(r.value).toBe(100);
-    expect(r.low).toBe(90);
-    expect(r.high).toBe(115);
     expect(r.confidence).toBe('medium');
+    // Band is the wider of the measured lot range and the confidence-keyed
+    // uncertainty (single medium source → ±19%), and always contains the value.
+    expect(r.low).toBeLessThanOrEqual(90);
+    expect(r.high).toBeGreaterThanOrEqual(115);
+    expect(r.low).toBeLessThan(r.value as number);
+    expect(r.high).toBeGreaterThan(r.value as number);
   });
 
   it('blends two fresh sold sources and rates confidence high', () => {
@@ -515,6 +519,34 @@ describe('blendMarketValue (valuation v2)', () => {
     const r = blendMarketValue({ valuation_method: 'brickeconomy', current_value: 300, be_cached_at: now });
     expect(r.value).toBe(300);
     expect(r.confidence).toBe('medium');
+  });
+
+  it('demotes confidence and widens the band when a thin value jumps off its history', () => {
+    // One thin sold source at 300, but the trailing 90-day median sits at 100.
+    const r = blendMarketValue(
+      { valuation_method: 'market', bl_new_value: 300, bl_new_qty: 4, bl_cached_at: now },
+      { recentMedian: 100, points: 30 },
+    );
+    expect(r.value).toBe(300);              // latest number preserved, never overwritten
+    expect(r.confidence).toBe('low');       // demoted from medium by the guard
+    expect(r.low).toBeLessThanOrEqual(100); // band spans the historical level
+    expect(r.note).toMatch(/recent trend/i);
+  });
+
+  it('does not fire the anomaly guard when two fresh sold comps corroborate', () => {
+    const r = blendMarketValue(
+      { valuation_method: 'market', bl_new_value: 300, bl_new_qty: 10, bl_cached_at: now, ebay_new_value: 310, ebay_new_qty: 10, ebay_new_cached_at: now },
+      { recentMedian: 100, points: 30 },
+    );
+    expect(r.confidence).toBe('high');      // corroborated → guard stays out of the way
+    expect(r.note).toBeNull();
+  });
+
+  it('emits a source-anonymized note when signals materially disagree', () => {
+    // A sold comp at 80 vs a modeled value at 160 (2x apart, both survive).
+    const r = blendMarketValue({ valuation_method: 'brickeconomy', current_value: 160, be_cached_at: now, bl_new_value: 80, bl_new_qty: 6, bl_cached_at: now });
+    expect(r.note).toBeTruthy();
+    expect(r.note).not.toMatch(/bricklink|ebay|brickowl|brickeconomy/i);
   });
 
   it('anchors a two-signal standoff on the reliable tier instead of averaging', () => {

@@ -63,6 +63,58 @@ export async function computePriceTrend(setNum: string, env: Env): Promise<{ tre
   return { trend, slope_pct_per_week: slopePctPerWeek };
 }
 
+function medianOf(sortedAsc: number[]): number | null {
+  if (!sortedAsc.length) return null;
+  const mid = Math.floor(sortedAsc.length / 2);
+  return sortedAsc.length % 2 ? sortedAsc[mid] : (sortedAsc[mid - 1] + sortedAsc[mid]) / 2;
+}
+
+// Trailing-window median of the displayed value from set_value_history, used by
+// the blend's anomaly guard to detect a value that has jumped off its own trend.
+// Reads `db` directly so blend persistence (which holds a D1Database) can call it.
+export async function recentValueMedian(
+  db: D1Database,
+  setNum: string,
+  days = 90,
+): Promise<{ recentMedian: number | null; points: number }> {
+  const { results } = await db.prepare(`
+    SELECT current_value FROM set_value_history
+    WHERE set_num = ? AND snapshot_date >= DATE('now', ?) AND current_value IS NOT NULL
+    ORDER BY current_value ASC
+  `).bind(setNum, `-${days} days`).all<{ current_value: number }>();
+  const vals = (results || []).map(r => Number(r.current_value)).filter(v => v > 0).sort((a, b) => a - b);
+  return { recentMedian: medianOf(vals), points: vals.length };
+}
+
+// Batch form for the valuation cron: one query for many sets, medians in JS.
+export async function recentValueMedians(
+  db: D1Database,
+  setNums: string[],
+  days = 90,
+): Promise<Map<string, { recentMedian: number | null; points: number }>> {
+  const ids = [...new Set(setNums.filter(Boolean))];
+  const out = new Map<string, { recentMedian: number | null; points: number }>();
+  if (!ids.length) return out;
+  const placeholders = ids.map(() => '?').join(',');
+  const { results } = await db.prepare(`
+    SELECT set_num, current_value FROM set_value_history
+    WHERE set_num IN (${placeholders}) AND snapshot_date >= DATE('now', ?) AND current_value IS NOT NULL
+  `).bind(...ids, `-${days} days`).all<{ set_num: string; current_value: number }>();
+  const byset = new Map<string, number[]>();
+  for (const r of results || []) {
+    const v = Number(r.current_value);
+    if (!(v > 0)) continue;
+    const arr = byset.get(r.set_num) || [];
+    arr.push(v);
+    byset.set(r.set_num, arr);
+  }
+  for (const [sn, vals] of byset) {
+    vals.sort((a, b) => a - b);
+    out.set(sn, { recentMedian: medianOf(vals), points: vals.length });
+  }
+  return out;
+}
+
 export async function getCachedPriceTrend(setNum: string, env: Env): Promise<Trend | null> {
   const now = Date.now();
   const cached = trendCache.get(setNum);

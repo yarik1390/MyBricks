@@ -189,6 +189,7 @@ describe('BrickVault API Worker Tests', () => {
         bo_used_qty INTEGER,
         bo_cached_at TEXT,
         blended_value REAL,
+        blended_confidence TEXT, blended_low REAL, blended_high REAL,
         subtheme TEXT,
         bl_new_min REAL,
         bl_new_max REAL,
