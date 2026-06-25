@@ -140,8 +140,13 @@ app.get('/sets/:setNum', async (c) => {
     c.env.DB.prepare(
       "SELECT AVG(rating) AS avg, COUNT(*) AS count FROM set_reviews WHERE set_num=? AND status='approved' AND deleted_at IS NULL"
     ).bind(setNum).first<{ avg: number | null; count: number }>(),
+    // Public reviews: expose a public display name when the author's profile is
+    // public, never the raw user_id (an internal Supabase UUID).
     c.env.DB.prepare(
-      "SELECT id, user_id, rating, title, body, created_at FROM set_reviews WHERE set_num=? AND status='approved' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 50"
+      "SELECT r.id, r.rating, r.title, r.body, r.created_at, " +
+      "CASE WHEN p.is_public=1 THEN p.display_name ELSE NULL END AS author " +
+      "FROM set_reviews r LEFT JOIN user_prefs p ON p.user_id=r.user_id " +
+      "WHERE r.set_num=? AND r.status='approved' AND r.deleted_at IS NULL ORDER BY r.created_at DESC LIMIT 50"
     ).bind(setNum).all(),
     c.env.DB.prepare(
       "SELECT id, caption, created_at FROM set_photos WHERE set_num=? AND status='approved' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 30"
@@ -162,7 +167,9 @@ app.get('/sets/:setNum', async (c) => {
   });
   return c.json({
     rating: { avg: agg?.avg ? Math.round(agg.avg * 10) / 10 : null, count: agg?.count || 0 },
-    reviews: reviews.results || [],
+    reviews: (reviews.results || []).map((r: any) => ({
+      id: r.id, rating: r.rating, title: r.title, body: r.body, created_at: r.created_at, author: r.author || null,
+    })),
     photos: (photos.results || []).map((p: any) => ({ id: p.id, caption: p.caption, url: `/api/contributions/photos/file/${p.id}`, at: p.created_at })),
     prices: pricePoints,
     mine: mine.results || [],

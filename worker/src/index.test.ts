@@ -363,6 +363,20 @@ describe('BrickVault API Worker Tests', () => {
       expect(data.setup.google.recommended_action).toContain('ready');
     });
 
+    it('omits Stripe from public readiness (Patreon is the public supporter flow)', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/config'), env);
+      const data = await res.json<any>();
+      expect(data.status).not.toHaveProperty('stripe');
+    });
+
+    it('reflects PATREON_URL when configured', async () => {
+      (env as any).PATREON_URL = 'https://patreon.com/brickvault';
+      const res = await app.fetch(new Request('http://localhost/api/config'), env);
+      const data = await res.json<any>();
+      expect(data.patreon_url).toBe('https://patreon.com/brickvault');
+      delete (env as any).PATREON_URL;
+    });
+
     it('explains which Google secrets are missing when Sheets sync is disabled', async () => {
       delete (env as any).GOOGLE_CLIENT_ID;
       delete (env as any).GOOGLE_CLIENT_SECRET;

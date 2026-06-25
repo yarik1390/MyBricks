@@ -1,3 +1,7 @@
+// LEGACY / INTERNAL — Stripe checkout + webhook. Patreon is the public supporter
+// flow; these routes stay mounted but are not surfaced in /api/config readiness or
+// the user-facing UI. Keep working so Stripe billing can be re-enabled by exposing
+// `stripe` in /api/config and adding a checkout entry point in the Me tab.
 import { Hono } from 'hono';
 import Stripe from 'stripe';
 import { requireMember } from '../auth';

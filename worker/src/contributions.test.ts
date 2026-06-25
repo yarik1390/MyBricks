@@ -58,7 +58,7 @@ describe('User contributions: submit / read / moderate', () => {
       'DROP TABLE IF EXISTS set_photos',
       'DROP TABLE IF EXISTS set_contributions',
       `CREATE TABLE lego_sets (set_num TEXT PRIMARY KEY, name TEXT NOT NULL, upc TEXT)`,
-      `CREATE TABLE user_prefs (user_id TEXT PRIMARY KEY, is_supporter INTEGER DEFAULT 0)`,
+      `CREATE TABLE user_prefs (user_id TEXT PRIMARY KEY, is_supporter INTEGER DEFAULT 0, is_public INTEGER DEFAULT 0, display_name TEXT)`,
       `CREATE TABLE rate_limits (user_id TEXT NOT NULL, endpoint TEXT NOT NULL, window_start DATETIME NOT NULL, hit_count INTEGER DEFAULT 0, PRIMARY KEY (user_id, endpoint, window_start))`,
       `CREATE TABLE set_reviews (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL, rating INTEGER NOT NULL, title TEXT, body TEXT, status TEXT NOT NULL DEFAULT 'pending', reviewer_id TEXT, review_note TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, reviewed_at DATETIME, deleted_at DATETIME)`,
       `CREATE TABLE set_photos (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL, r2_key TEXT NOT NULL, caption TEXT, status TEXT NOT NULL DEFAULT 'pending', reviewer_id TEXT, review_note TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, reviewed_at DATETIME, deleted_at DATETIME)`,
@@ -132,6 +132,30 @@ describe('User contributions: submit / read / moderate', () => {
     bundle = await (await app.fetch(new Request('https://x/api/contributions/sets/111-1', { headers: auth() }), env)).json<any>();
     expect(bundle.rating.count).toBe(1);
     expect(bundle.rating.avg).toBe(5);
+  });
+
+  it('never exposes raw user_id in public reviews', async () => {
+    // Submit + approve a review, then confirm the public bundle omits user_id and
+    // only surfaces a display name when the author's profile is public.
+    await app.fetch(new Request('https://x/api/contributions/reviews', {
+      method: 'POST', headers: auth(), body: JSON.stringify({ set_num: '111-1', rating: 5, title: 'Nice' }),
+    }), env);
+    const r = await db.prepare("SELECT id FROM set_reviews WHERE set_num='111-1'").first<any>();
+    await app.fetch(new Request(`https://x/api/admin/contributions/review/${r.id}`, {
+      method: 'PATCH', headers: auth(adminToken), body: JSON.stringify({ action: 'approve' }),
+    }), env);
+
+    // Private profile → no display name leaked.
+    let bundle = await (await app.fetch(new Request('https://x/api/contributions/sets/111-1', { headers: auth() }), env)).json<any>();
+    expect(bundle.reviews.length).toBe(1);
+    expect(bundle.reviews[0]).not.toHaveProperty('user_id');
+    expect(bundle.reviews[0].author).toBeNull();
+
+    // Public profile → display name surfaces, still no user_id.
+    await db.prepare("INSERT INTO user_prefs (user_id, is_public, display_name) VALUES (?, 1, 'Brick Fan')").bind(userId).run();
+    bundle = await (await app.fetch(new Request('https://x/api/contributions/sets/111-1', { headers: auth() }), env)).json<any>();
+    expect(bundle.reviews[0]).not.toHaveProperty('user_id');
+    expect(bundle.reviews[0].author).toBe('Brick Fan');
   });
 
   it('withdraw soft-deletes a pending submission', async () => {

@@ -1058,7 +1058,7 @@ async function wireCommunityTab(set) {
         <div class="community-review">
           <div class="cr-head">${starRow(r.rating)}${r.title ? `<b>${escapeHtml(r.title)}</b>` : ""}</div>
           ${r.body ? `<div class="cr-body">${escapeHtml(r.body)}</div>` : ""}
-          <div class="cr-meta u-mute">${fmtDateUpdated(r.created_at)}</div>
+          <div class="cr-meta u-mute">${r.author ? `${escapeHtml(r.author)} · ` : ""}${fmtDateUpdated(r.created_at)}</div>
         </div>`).join("")
     : "";
 

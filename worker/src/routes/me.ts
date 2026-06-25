@@ -83,7 +83,6 @@ app.get('/', async (c) => {
     discord_webhook_url: (p.discord_webhook_url as string | null) ?? null,
     brickset_connected: !!(p.brickset_user_hash),
     is_supporter: p.is_supporter === 1,
-    stripe_configured: !!(c.env.STRIPE_SECRET_KEY && !c.env.STRIPE_SECRET_KEY.includes('dummy')),
     portfolio_stats: {
       set_count: Number(stats?.set_count ?? 0),
       total_value: Number(stats?.total_value ?? 0),

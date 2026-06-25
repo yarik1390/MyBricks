@@ -278,6 +278,8 @@ jobs:
           [ -n "${{ secrets.VAPID_PRIVATE_KEY }}" ]        && put VAPID_PRIVATE_KEY        "${{ secrets.VAPID_PRIVATE_KEY }}"        || true
           [ -n "${{ secrets.VAPID_SUBJECT }}" ]            && put VAPID_SUBJECT            "${{ secrets.VAPID_SUBJECT }}"            || true
           [ -n "${{ secrets.FIRECRAWL_API_KEY }}" ]        && put FIRECRAWL_API_KEY        "${{ secrets.FIRECRAWL_API_KEY }}"        || true
+          # Patreon creator URL — drives the public Support card on the Me tab.
+          [ -n "${{ secrets.PATREON_URL }}" ]              && put PATREON_URL              "${{ secrets.PATREON_URL }}"              || true
 
       - name: Inject Worker URL into Pages env.js
         run: |

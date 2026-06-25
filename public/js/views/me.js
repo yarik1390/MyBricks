@@ -9,7 +9,9 @@ import { skelPage, skelStatGrid, skelSettingRows } from '../components/skeleton.
 import { startOnboarding } from '../components/onboarding.js';
 
 export async function renderMe() {
-  // Detect Stripe Checkout success return before touching state.
+  // Legacy Stripe return: detect a Checkout success redirect (?supported=1) before
+  // touching state. Stripe is parked behind Patreon, but this path stays so a
+  // re-enabled Stripe checkout still refreshes the supporter flag correctly.
   const stripeSuccess = location.hash.includes('supported=1');
   if (stripeSuccess) {
     state.me = null; // force fresh fetch to pick up is_supporter flag
