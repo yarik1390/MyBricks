@@ -431,6 +431,30 @@ exposes client-safe values.**
 
 Newest first. (Service-worker `VERSION` in parentheses where relevant.)
 
+**Hardening: privacy, supporter cleanup, cost monitoring, deps (2026-06, v185–v188)** —
+stabilization pass.
+- **Privacy:** public reviews (`GET /api/contributions/sets/:setNum`) no longer
+  return the raw `user_id`; they expose a public `display_name` only when the
+  author's profile is public (LEFT JOIN `user_prefs`). Contributor flair lands on
+  public profiles via `approved_contributions` on the profile API (v185).
+- **Supporter flow:** **Patreon is the public supporter flow.** Stripe
+  (`routes/stripe.ts` + `lib/stripe-client.ts`) is kept and marked
+  **legacy/internal** but removed from `/api/config` readiness and `/api/me`
+  (`stripe_configured` gone) — re-enable by re-adding `stripe` to `/api/config`.
+  Deploy workflow now uploads `PATREON_URL` as a Worker secret.
+- **Firecrawl cost monitoring:** the temporary 4×/hour BrickEconomy bootstrap
+  cron + raised `FIRECRAWL_DAILY_CREDITS` are **intentionally left running** until
+  `be_value_new` is filled. `/api/admin/integrations` gained a `firecrawl` block
+  (credits used/cap, bootstrap fill %, cutover action) surfaced in `me-admin.js`;
+  `POST /api/admin/jobs/:job` accepts a `?limit=` override; new
+  `bootstrap-brickeconomy.yml` (manual, budget-limited, `dry_run`) is the planned
+  replacement once the fill reaches 100%.
+- **Security/deps:** `npm audit --omit=dev` clean (hono→4.12.27, ws→8.21.0);
+  `biome.json` migrated off the deprecated `rules.recommended` → `rules.preset`;
+  `WRANGLER_LOG=none` default to quiet Windows test noise.
+- The eBay valuation/scraping pipeline (the 3× corroboration-gated `ebay-sold-scrape`
+  job) was left **unchanged** by deliberate decision.
+
 **User contributions system (2026-06, v184)** — signed-in users can now improve
 the shared catalog and add community content, all behind an **admin-reviewed
 queue**. Three tables (`set_reviews`, `set_photos`, `set_contributions`) with a
@@ -440,7 +464,7 @@ upload, daily rate limit ×5 for supporters) + admin queue/approve-reject in
 **Community** tab on set detail (`portfolio-detail.js` + `components/contribute.js`
 sheets), an admin **Contributions** review section in `me-admin.js`, and a
 `#/me/contributions` view with approved-count recognition. Public-profile
-contributor flair is the one deferred follow-up.
+contributor flair shipped as a follow-up (v185, see the hardening entry above).
 
 **Patreon + Gold skin + supporter admin (2026-06, v180–v183)** — replaced the
 Stripe Connect experiment with a simple Patreon link-out (`PATREON_URL` via
