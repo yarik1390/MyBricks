@@ -54,7 +54,7 @@ export async function renderMeAdmin() {
           ${checkRow("Server AI (OpenAI)", status.openai, "Configured", "Unconfigured (use your own key)", true)}
           ${checkRow("Google Sheets Integration", status.google, "Configured", "Unconfigured")}
           ${checkRow("BrickLink Pricing API", status.bricklink, "Connected", "Unconfigured")}
-          ${checkRow("eBay Pricing API", status.ebay, "Connected", "Unconfigured (sold comps disabled)", true)}
+          ${checkRow("eBay Pricing API", status.ebay, "Credentials set", "Unconfigured (sold comps disabled)", true)}
           ${checkRow("Firecrawl (scraping engine)", status.firecrawl, "Configured", "Unconfigured", false, "chkFirecrawl")}
           ${checkRow("BrickEconomy API (legacy)", status.brickeconomy, "Configured", "Now via Firecrawl", true)}
           ${checkRow("Rebrickable Catalog API", status.rebrickable, "Configured", "Missing")}
@@ -93,6 +93,10 @@ export async function renderMeAdmin() {
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Populate everything</div><div class="desc" id="populateEverythingDesc">Auto-runs safe slices from every configured data source</div></div>
           <button class="import-btn" id="populateEverythingBtn" aria-label="Populate all configured data sources">${I.refresh({w: 16, h: 16})}</button>
+        </div>
+        <div class="u-fs-2xs u-mute" style="line-height:1.45;padding:8px 2px 2px;">
+          <strong>Fills:</strong> catalog import, barcode pages (Brickset/UPCitemdb), market valuation (BrickLink → BrickEconomy), and eBay <em>asking</em> prices.
+          <strong>Can't fill:</strong> eBay <em>sold</em> comps unless eBay Marketplace Insights is approved — the corroborating sold-scrape runs on its own daily cron. Each press advances one safe slice; daily provider quotas (UPCitemdb barcodes, BrickLink) cap how much lands per day, so gaps here are expected, not a failed deploy.
         </div>
       </div>
 
