@@ -25,7 +25,6 @@ import { pushRoute } from './routes/push';
 import { bricklinkImportRoute } from './routes/bricklink-import';
 import { buildRoute } from './routes/build';
 import { stripeRoute } from './routes/stripe';
-import { stripeConnectRoute } from './routes/stripe-connect';
 
 import { runValuateSets, runValuateMinifigs, runEbayAskBackfill } from './jobs/valuate-sets';
 import { runSnapshotPortfolios } from './jobs/snapshot-portfolios';
@@ -143,6 +142,9 @@ app.get('/api/config', (c) => {
     // Public Turnstile site key (safe to expose). When present, the scanner adds
     // a Turnstile token to shared server-key scans; null leaves scanning as-is.
     turnstile_site_key: c.env.TURNSTILE_SITE_KEY || null,
+    // Patreon creator page URL — set via `wrangler secret put PATREON_URL`.
+    // When present, the Me tab Support card shows a "Support on Patreon" button.
+    patreon_url: c.env.PATREON_URL || null,
     status,
     setup: {
       google: {
@@ -226,7 +228,6 @@ app.route('/api/push', pushRoute);
 app.route('/api/bricklink', bricklinkImportRoute);
 app.route('/api/build', buildRoute);
 app.route('/api/stripe', stripeRoute);
-app.route('/api/connect', stripeConnectRoute);
 // Public image proxy (no auth — images load via <img src>). R2-backed + edge-cached.
 app.route('/api/img', imgRoute);
 // Public coming-soon release feed (G2b).

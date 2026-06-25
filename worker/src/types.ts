@@ -64,10 +64,9 @@ export interface Env {
   FIRECRAWL_DAILY_CREDITS?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
-  // Stripe Connect
-  STRIPE_CONNECT_WEBHOOK_SECRET?: string;         // whsec_... for V2 thin-event webhook (Connect account requirements)
-  STRIPE_SUBSCRIPTION_WEBHOOK_SECRET?: string;    // whsec_... for V1 subscription lifecycle webhook
-  STRIPE_CONNECT_SUBSCRIPTION_PRICE_ID?: string;  // price_... for the platform subscription sold to connected accounts
+  // Patreon crowdfunding link (set via wrangler secret put PATREON_URL).
+  // When set, the Support card on the Me tab shows a "Support on Patreon" button.
+  PATREON_URL?: string;
 }
 
 export type Variables = {

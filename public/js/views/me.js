@@ -124,7 +124,7 @@ export async function renderMe() {
       ${guest ? guestModeCardHTML() : ""}
       ${publicProfileSectionHTML(me)}
       ${trophyShelfHTML}
-      ${!guest && me.stripe_configured ? supportCardHTML(me) : ''}
+      ${!guest ? supportCardHTML(me, state.config?.patreon_url) : ''}
 
       <h2 class="section-title">Preferences</h2>
       <div>
@@ -219,25 +219,6 @@ export async function renderMe() {
       x.setAttribute("aria-pressed", on);
     });
   }));
-
-  // Support Brickvault — Stripe Checkout buttons
-  $$(".support-btn").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const amount = Number(btn.dataset.amount);
-      const mode = btn.dataset.mode || "payment";
-      const label = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = "…";
-      try {
-        const { url } = await api("/api/stripe/checkout", { method: "POST", body: { amount, mode } });
-        window.location.href = url;
-      } catch (e) {
-        toast(e.message || "Could not start checkout", "error");
-        btn.disabled = false;
-        btn.textContent = label;
-      }
-    });
-  });
 
   if (stripeSuccess) toast("Thank you for supporting Brickvault!", "success");
 
@@ -375,7 +356,7 @@ export async function renderMe() {
   });
 }
 
-function supportCardHTML(me) {
+function supportCardHTML(me, patreonUrl) {
   if (me.is_supporter) {
     return `
       <h2 class="section-title">Supporter</h2>
@@ -384,18 +365,17 @@ function supportCardHTML(me) {
         <p class="support-desc">Thank you for backing Brickvault. Your support keeps this project alive.</p>
       </div>`;
   }
+  if (!patreonUrl) return '';
   return `
     <h2 class="section-title">Support Brickvault</h2>
     <div class="card support-card">
-      <p class="support-desc">Help keep the lights on and unlock supporter perks — leaderboard badge, profile flair, higher AI limits, and the Gold accent skin.</p>
-      <div class="support-btns" style="margin-bottom:10px;">
-        <button class="btn-secondary support-btn" data-amount="500" data-mode="payment">$5</button>
-        <button class="btn-secondary support-btn" data-amount="1000" data-mode="payment">$10</button>
-        <button class="btn-secondary support-btn" data-amount="2500" data-mode="payment">$25</button>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <button class="btn-primary support-btn" data-amount="500" data-mode="subscription" style="flex:1;">$5 / month</button>
-      </div>
+      <p class="support-desc">Back Brickvault on Patreon to unlock the Supporter badge, Gold skin, and higher AI limits.</p>
+      <a href="${patreonUrl}" target="_blank" rel="noopener" class="btn-primary patreon-btn">
+        Support on Patreon →
+      </a>
+      <p class="u-mute" style="font-size:11px;margin-top:10px;text-align:center;">
+        After pledging, your badge is granted within 24 hours.
+      </p>
     </div>`;
 }
 

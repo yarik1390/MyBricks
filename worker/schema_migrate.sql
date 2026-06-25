@@ -433,16 +433,3 @@ CREATE TABLE IF NOT EXISTS upcoming_sets (
 ALTER TABLE user_prefs ADD COLUMN is_supporter INTEGER DEFAULT 0;
 ALTER TABLE user_prefs ADD COLUMN supporter_since TEXT;
 ALTER TABLE user_prefs ADD COLUMN stripe_customer_id TEXT;
-
--- Connected Stripe accounts table (Stripe Connect integration).
-CREATE TABLE IF NOT EXISTS connect_accounts (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id TEXT NOT NULL,
-  stripe_account_id TEXT NOT NULL UNIQUE,
-  display_name TEXT,
-  email TEXT,
-  subscription_id TEXT,
-  subscription_status TEXT,
-  subscription_price_id TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
-);

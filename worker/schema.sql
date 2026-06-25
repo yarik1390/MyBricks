@@ -424,17 +424,3 @@ CREATE TABLE IF NOT EXISTS api_quota (
   updated_at TEXT,
   PRIMARY KEY (service, day)
 );
-
--- Connected Stripe accounts: maps platform users to their Stripe Connect
--- accounts so sellers can create products and accept direct-charge payments.
-CREATE TABLE IF NOT EXISTS connect_accounts (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id TEXT NOT NULL,
-  stripe_account_id TEXT NOT NULL UNIQUE,
-  display_name TEXT,
-  email TEXT,
-  subscription_id TEXT,
-  subscription_status TEXT,
-  subscription_price_id TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
-);
