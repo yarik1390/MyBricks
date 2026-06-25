@@ -357,19 +357,27 @@ export async function renderMe() {
 }
 
 function supportCardHTML(me, patreonUrl) {
+  const perksHTML = `
+    <ul class="support-perks">
+      <li>Gold ★ accent skin</li>
+      <li>Higher AI advisor limits</li>
+      <li>⭐ badge on your public profile</li>
+    </ul>`;
   if (me.is_supporter) {
     return `
       <h2 class="section-title">Supporter</h2>
       <div class="card support-card support-card-active">
         <div class="supporter-badge-lg">⭐ Supporter</div>
         <p class="support-desc">Thank you for backing Brickvault. Your support keeps this project alive.</p>
+        ${perksHTML}
       </div>`;
   }
   if (!patreonUrl) return '';
   return `
     <h2 class="section-title">Support Brickvault</h2>
     <div class="card support-card">
-      <p class="support-desc">Back Brickvault on Patreon to unlock the Supporter badge, Gold skin, and higher AI limits.</p>
+      <p class="support-desc">Back Brickvault on Patreon to unlock supporter perks:</p>
+      ${perksHTML}
       <a href="${patreonUrl}" target="_blank" rel="noopener" class="btn-primary patreon-btn">
         Support on Patreon →
       </a>

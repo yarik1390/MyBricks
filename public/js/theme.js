@@ -1,12 +1,13 @@
 // Centralized theme + skin management.
 // Two orthogonal axes on <html>:
-//   data-theme="light|dark"   — color scheme, pref "light|dark|auto" in localStorage bv_theme
-//   data-skin="retro|premium" — visual skin, pref in localStorage bv_skin (default retro)
+//   data-theme="light|dark"         — color scheme, pref "light|dark|auto" in localStorage bv_theme
+//   data-skin="retro|premium|gold"  — visual skin, pref in localStorage bv_skin (default retro)
 // theme-init.js applies both pre-paint; this module owns runtime changes.
 
 const META_THEME_COLORS = {
   retro:   { light: "#F5F1E8", dark: "#16161C" },
   premium: { light: "#FAFAF7", dark: "#0E1014" },
+  gold:    { light: "#F5F1E8", dark: "#16161C" },
 };
 
 export function getThemePref() {
@@ -19,7 +20,12 @@ export function resolveTheme(pref) {
 }
 
 export function getSkinPref() {
-  try { return localStorage.getItem("bv_skin") === "premium" ? "premium" : "retro"; } catch { return "retro"; }
+  try {
+    const s = localStorage.getItem("bv_skin");
+    if (s === "premium") return "premium";
+    if (s === "gold") return "gold";
+    return "retro";
+  } catch { return "retro"; }
 }
 
 function updateMetaThemeColor() {
@@ -41,11 +47,15 @@ export function setThemePref(pref) {
 
 export function applySkin(skin) {
   if (skin === "premium") document.documentElement.dataset.skin = "premium";
+  else if (skin === "gold") document.documentElement.dataset.skin = "gold";
   else delete document.documentElement.dataset.skin;
   updateMetaThemeColor();
 }
 
 export function setSkinPref(skin) {
-  try { localStorage.setItem("bv_skin", skin === "premium" ? "premium" : "retro"); } catch {}
+  try {
+    const val = skin === "premium" ? "premium" : skin === "gold" ? "gold" : "retro";
+    localStorage.setItem("bv_skin", val);
+  } catch {}
   applySkin(skin);
 }

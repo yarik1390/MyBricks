@@ -8,8 +8,9 @@
       (pref !== 'light' && window.matchMedia &&
        window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-    if (localStorage.getItem('bv_skin') === 'premium') {
-      document.documentElement.dataset.skin = 'premium';
+    var skin = localStorage.getItem('bv_skin');
+    if (skin === 'premium' || skin === 'gold') {
+      document.documentElement.dataset.skin = skin;
     }
   } catch (e) {}
 })();

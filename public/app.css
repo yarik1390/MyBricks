@@ -3482,3 +3482,9 @@ select:focus-visible,
   font-weight: 700; font-size: 15px;
 }
 .patreon-btn:hover { background: #e03040; }
+.support-perks {
+  list-style: none; padding: 0; margin: 8px 0 12px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.support-perks li { font-size: 13px; color: var(--ink-soft); }
+.support-perks li::before { content: "✓ "; color: var(--accent); font-weight: 700; }
