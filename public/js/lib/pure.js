@@ -119,6 +119,19 @@ export function buyWindow(item = {}) {
 }
 
 /**
+ * Classify a set's market liquidity from PriceCharting's yearly units-sold
+ * (sales_volume). Returns null when unknown so callers can hide the badge.
+ *   >= 30/yr → fast   ·   >= 6/yr → steady   ·   > 0 → slow
+ */
+export function liquidityLabel(salesVolume) {
+  const v = Number(salesVolume);
+  if (!Number.isFinite(v) || v <= 0) return null;
+  if (v >= 30) return { level: "fast", label: "Sells fast", volume: Math.round(v) };
+  if (v >= 6) return { level: "steady", label: "Steady demand", volume: Math.round(v) };
+  return { level: "slow", label: "Sells slowly", volume: Math.round(v) };
+}
+
+/**
  * Aggregates eBay-vs-BrickLink spread signals across a collection.
  * Returns { hot, cold, totalUpside }: hot = sets where eBay sold prices run
  * >= threshold above the BrickLink/primary value (sell opportunities), cold =

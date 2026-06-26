@@ -5,7 +5,7 @@ import {
   computeDealScore, valuationTrust, catalogFilterSummary, classifyJobRun,
   annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition,
   jobProgressSummary, computeSpreadSignals, buyWindow, pricePerPiece, isStalledJobRun,
-  parseCSVTable, parseCollectionCSV, sanitizeMoneyInput,
+  parseCSVTable, parseCollectionCSV, sanitizeMoneyInput, liquidityLabel,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -441,6 +441,24 @@ describe('computeSpreadSignals', () => {
   it('honors a custom threshold', () => {
     const out = computeSpreadSignals([item({ ebay_new_value: 110 })], { threshold: 0.05 });
     assert.equal(out.hot.length, 1);
+  });
+});
+
+describe('liquidityLabel', () => {
+  it('returns null for unknown/zero volume', () => {
+    assert.equal(liquidityLabel(undefined), null);
+    assert.equal(liquidityLabel(0), null);
+    assert.equal(liquidityLabel(-5), null);
+  });
+  it('classifies fast / steady / slow by yearly units sold', () => {
+    assert.equal(liquidityLabel(40).level, 'fast');
+    assert.equal(liquidityLabel(30).level, 'fast');
+    assert.equal(liquidityLabel(10).level, 'steady');
+    assert.equal(liquidityLabel(6).level, 'steady');
+    assert.equal(liquidityLabel(2).level, 'slow');
+  });
+  it('carries the rounded volume and a label', () => {
+    assert.deepEqual(liquidityLabel(33.6), { level: 'fast', label: 'Sells fast', volume: 34 });
   });
 });
 

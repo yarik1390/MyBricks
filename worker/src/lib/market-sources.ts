@@ -396,6 +396,13 @@ const BAND_HALF_WIDTH: Record<MarketConfidence, number> = {
 const BAND_SINGLE_SOURCE_EXTRA = 0.04;
 const BAND_STALE_EXTRA = 0.05;
 const BAND_MAX_HALF_WIDTH = 0.40;
+// Liquidity calibration (PriceCharting yearly units sold). An illiquid set has
+// noisier realized prices → widen the band; a deeply liquid one is well-supported
+// → modestly tighten. These adjust the band only; they never override confidence.
+const LIQUIDITY_THIN = 3;     // < this many sales/yr → illiquid
+const LIQUIDITY_DEEP = 30;    // >= this many sales/yr → deep, stable market
+const BAND_ILLIQUID_EXTRA = 0.06;
+const BAND_LIQUID_TIGHTEN = 0.03;
 
 // Surviving signals spanning at least this ratio read as a material disagreement
 // worth explaining to the user.
@@ -523,6 +530,12 @@ export function blendMarketValue(row: Record<string, unknown>, history?: BlendHi
   let halfWidth = BAND_HALF_WIDTH[confidence] ?? 0.30;
   if (survivors.length === 1) halfWidth += BAND_SINGLE_SOURCE_EXTRA;
   if (!anyFresh) halfWidth += BAND_STALE_EXTRA;
+  // Liquidity calibration: thin markets widen, deep markets tighten the band.
+  const salesVolume = Number(row.pc_sales_volume);
+  if (Number.isFinite(salesVolume) && salesVolume > 0) {
+    if (salesVolume < LIQUIDITY_THIN) halfWidth += BAND_ILLIQUID_EXTRA;
+    else if (salesVolume >= LIQUIDITY_DEEP) halfWidth = Math.max(BAND_HALF_WIDTH.high, halfWidth - BAND_LIQUID_TIGHTEN);
+  }
   halfWidth = Math.min(halfWidth, BAND_MAX_HALF_WIDTH);
   let bandLow = Math.min(low, value * (1 - halfWidth));
   let bandHigh = Math.max(high, value * (1 + halfWidth));

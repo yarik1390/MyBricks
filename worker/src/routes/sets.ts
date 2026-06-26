@@ -70,7 +70,14 @@ export const CATALOG_COLS =
   's.ebay_ask_value, s.ebay_ask_qty, s.ebay_ask_cached_at, s.retirement_risk_score, s.subtheme, s.be_growth_12m, ' +
   's.bl_new_min, s.bl_new_max, s.bl_used_min, s.bl_used_max, s.lego_in_stock, s.lego_retiring_soon, ' +
   's.bo_new_value, s.bo_used_value, s.bo_cached_at, s.blended_value, s.ebay_new_last_sold, ' +
-  's.deal_signal, s.deal_strong, s.deal_discount_pct';
+  's.deal_signal, s.deal_strong, s.deal_discount_pct, ' +
+  // Pricing v3 (set_market_ext side table): liquidity + used loose + live retail.
+  'ext.pc_loose_value, ext.pc_sales_volume, ext.pa_retail_value, ext.pa_lowest_offer, ext.pa_in_stock, ext.pa_best_merchant';
+
+// LEFT JOIN that brings the set_market_ext side-table columns into a flat row so
+// enrichSetRecord (deal signal / liquidity / used loose) sees them. Used by both
+// the catalog projection above and the SELECT * detail read.
+export const MARKET_EXT_JOIN = 'LEFT JOIN set_market_ext ext ON ext.set_num = s.set_num';
 
 function pushEbaySoldUpdate(
   stmts: D1PreparedStatement[],
@@ -193,7 +200,7 @@ app.get('/search', async (c) => {
   try {
     [pageRes, countRes] = await Promise.all([
       c.env.DB.prepare(
-        `SELECT ${CATALOG_COLS} FROM ${fromSQL} ${whereSQL} ORDER BY ${orderBySQL}, s.set_num LIMIT ? OFFSET ?`
+        `SELECT ${CATALOG_COLS} FROM ${fromSQL} ${MARKET_EXT_JOIN} ${whereSQL} ORDER BY ${orderBySQL}, s.set_num LIMIT ? OFFSET ?`
       ).bind(...params, lim, offset).all<Record<string, unknown>>(),
       c.env.DB.prepare(
         `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM ${fromSQL} ${whereSQL}`
@@ -213,7 +220,7 @@ app.get('/search', async (c) => {
     const fallbackWhereSQL = fallbackWhere.length ? `WHERE ${fallbackWhere.join(' AND ')}` : '';
     [pageRes, countRes] = await Promise.all([
       c.env.DB.prepare(
-        `SELECT ${CATALOG_COLS} FROM lego_sets s ${fallbackWhereSQL} ORDER BY ${orderBy}, s.set_num LIMIT ? OFFSET ?`
+        `SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN} ${fallbackWhereSQL} ORDER BY ${orderBy}, s.set_num LIMIT ? OFFSET ?`
       ).bind(...fallbackParams, lim, offset).all<Record<string, unknown>>(),
       c.env.DB.prepare(
         `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM lego_sets s ${fallbackWhereSQL}`
@@ -283,8 +290,9 @@ app.get('/:setnum', async (c) => {
   const setnum = c.req.param('setnum');
   const userId = c.get('userId');
 
-  let set = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(setnum).first<Record<string, unknown>>();
-  if (!set) set = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(setnum + '-1').first<Record<string, unknown>>();
+  const DETAIL_SQL = `SELECT s.*, ext.pc_loose_value, ext.pc_sales_volume, ext.pa_retail_value, ext.pa_lowest_offer, ext.pa_in_stock, ext.pa_best_merchant, ext.pa_offer_count, ext.pa_market FROM lego_sets s ${MARKET_EXT_JOIN} WHERE s.set_num=?`;
+  let set = await c.env.DB.prepare(DETAIL_SQL).bind(setnum).first<Record<string, unknown>>();
+  if (!set) set = await c.env.DB.prepare(DETAIL_SQL).bind(setnum + '-1').first<Record<string, unknown>>();
 
   if (set) {
     const activeSet = set;

@@ -748,6 +748,16 @@ describe('PriceCharting loose + liquidity (Phase 2)', () => {
     expect((enrichSetRecord({ pc_sales_volume: 250 }) as any).sales_volume).toBe(250);
     expect((enrichSetRecord({}) as any).sales_volume).toBeNull();
   });
+
+  it('liquidity calibrates the confidence band (illiquid wider than deep)', () => {
+    const fresh = new Date().toISOString();
+    // Two agreeing fresh sold comps → high confidence; same value, different volume.
+    const base = { bl_new_value: 200, bl_new_qty: 5, bl_cached_at: fresh, pc_new_value: 205, pc_cached_at: fresh };
+    const illiquid = blendMarketValue({ ...base, pc_sales_volume: 1 });
+    const deep = blendMarketValue({ ...base, pc_sales_volume: 50 });
+    const width = (b: { low: number | null; high: number | null }) => (Number(b.high) - Number(b.low));
+    expect(width(illiquid)).toBeGreaterThan(width(deep));
+  });
 });
 
 describe('computePartOutValue (E1 part-out)', () => {
