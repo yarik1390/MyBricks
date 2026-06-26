@@ -498,3 +498,36 @@ ALTER TABLE lego_sets ADD COLUMN pc_new_value REAL;
 ALTER TABLE lego_sets ADD COLUMN pc_complete_value REAL;
 ALTER TABLE lego_sets ADD COLUMN pc_id TEXT;
 ALTER TABLE lego_sets ADD COLUMN pc_cached_at TEXT;
+
+-- Extended market fields (PriceCharting loose/liquidity + pricesAPI retail/offers)
+-- live in a side table because lego_sets is at D1's 100-column ceiling.
+CREATE TABLE IF NOT EXISTS set_market_ext (
+  set_num TEXT PRIMARY KEY,
+  pc_loose_value REAL,
+  pc_sales_volume INTEGER,
+  pa_retail_value REAL,
+  pa_lowest_offer REAL,
+  pa_in_stock INTEGER,
+  pa_best_merchant TEXT,
+  pa_offer_count INTEGER,
+  pa_market TEXT,
+  pa_cached_at TEXT
+);
+
+-- Per-key monthly budget ledger for the pricesAPI rotating-key pool.
+CREATE TABLE IF NOT EXISTS pricesapi_keys (
+  key_hash TEXT PRIMARY KEY,
+  used INTEGER NOT NULL DEFAULT 0,
+  cap INTEGER NOT NULL DEFAULT 1000,
+  period_month TEXT,
+  exhausted_at TEXT,
+  last_used_at TEXT,
+  updated_at TEXT
+);
+
+-- Generic key/value settings store backing the admin source-tuning console.
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  updated_at TEXT
+);

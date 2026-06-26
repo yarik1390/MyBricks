@@ -24,6 +24,10 @@ export const QUOTA_CAPS: Record<string, number> = {
   // so this is a per-DAY credit ceiling that guards against a runaway day. Raise
   // it for the one-time bootstrap via the FIRECRAWL_DAILY_CREDITS env var.
   firecrawl: 2000,
+  // pricesAPI.io daily ceiling. Each cold call is a precious unit against a
+  // ~1000/month-per-key pooled budget, so keep the daily spend modest; the
+  // per-key pool (pricesapi_keys) is the authoritative monthly meter.
+  pricesapi: 60,
 };
 
 export function quotaDay(now = new Date()): string {

@@ -42,3 +42,13 @@ export function firecrawlEnabled(env: Env): boolean {
     !!(env.FIRECRAWL_API_KEYS?.split(',').some((k) => k.trim()));
   return hasKey && !/^(0|false|no|off)$/i.test(String(env.FIRECRAWL_ENABLED ?? ''));
 }
+
+// pricesAPI.io live retail/offers layer. Requires at least one key (PRICESAPI_API_KEY
+// or a non-empty PRICESAPI_API_KEYS entry) AND an explicit PRICESAPI_ENABLED opt-in,
+// because each call is a precious 30–90s cold request against a ~1000/month budget.
+export function pricesapiEnabled(env: Env): boolean {
+  const hasKey =
+    !!env.PRICESAPI_API_KEY ||
+    !!env.PRICESAPI_API_KEYS?.split(',').some((k) => k.trim());
+  return hasKey && /^(1|true|yes|on)$/i.test(String(env.PRICESAPI_ENABLED ?? ''));
+}

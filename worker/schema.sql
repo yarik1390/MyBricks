@@ -98,6 +98,24 @@ CREATE TABLE IF NOT EXISTS lego_sets (
   pc_cached_at TEXT
 );
 
+-- Extended market fields, kept in a side table because lego_sets is at D1's
+-- 100-column-per-table ceiling. One row per set; LEFT JOIN into lego_sets reads.
+--   pc_loose_value   PriceCharting loose (used/incomplete) value (USD)
+--   pc_sales_volume  PriceCharting yearly units sold (liquidity signal)
+--   pa_*             pricesAPI.io live retail/offers layer (deal/stock/alerts)
+CREATE TABLE IF NOT EXISTS set_market_ext (
+  set_num TEXT PRIMARY KEY REFERENCES lego_sets(set_num),
+  pc_loose_value REAL,
+  pc_sales_volume INTEGER,
+  pa_retail_value REAL,
+  pa_lowest_offer REAL,
+  pa_in_stock INTEGER,
+  pa_best_merchant TEXT,
+  pa_offer_count INTEGER,
+  pa_market TEXT,
+  pa_cached_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS user_collection (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id TEXT NOT NULL,
@@ -430,6 +448,29 @@ CREATE TABLE IF NOT EXISTS api_quota (
   cap INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT,
   PRIMARY KEY (service, day)
+);
+
+-- Per-key monthly budget ledger for the pricesAPI.io rotating-key pool. Keys are
+-- stored only as SHA-256 hashes. period_month (YYYY-MM) buckets the monthly
+-- budget; a key is "drained" when used >= cap or exhausted_at is set in the
+-- current month. See worker/src/lib/pricesapi-keys.ts.
+CREATE TABLE IF NOT EXISTS pricesapi_keys (
+  key_hash TEXT PRIMARY KEY,
+  used INTEGER NOT NULL DEFAULT 0,
+  cap INTEGER NOT NULL DEFAULT 1000,
+  period_month TEXT,
+  exhausted_at TEXT,
+  last_used_at TEXT,
+  updated_at TEXT
+);
+
+-- Generic key/value settings store (JSON values). Backs the admin source-tuning
+-- console (key 'source_config'); read fail-open with code defaults so a bad or
+-- missing row never breaks pricing. See worker/src/lib/source-config.ts.
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  updated_at TEXT
 );
 
 -- ============================================================

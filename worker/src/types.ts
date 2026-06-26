@@ -72,6 +72,21 @@ export interface Env {
   // Enables pc_new_value + pc_complete_value as independent sold-comp sources
   // in the pricing blend. Zero Firecrawl credits — uses PriceCharting's own API.
   PRICECHARTING_TOKEN?: string;
+  // Flag: PriceCharting account is on the Legendary tier, unlocking the optional
+  // admin bulk CSV-upload path. The per-set /api/product path (loose-price +
+  // sales-volume) works on any paid tier regardless of this flag.
+  PRICECHARTING_PRO?: string;
+  // pricesAPI.io — live retail + marketplace offers across major retailers
+  // (https://api.pricesapi.io/api/v1/products/search). Synchronous cold calls
+  // take 30–90s so it is cron-only. Free tier = 1000 calls/month, 6/min PER KEY,
+  // so multiple comma-separated keys in PRICESAPI_API_KEYS are pooled (see
+  // lib/pricesapi-keys.ts). OFF unless PRICESAPI_ENABLED is truthy AND a key is set.
+  PRICESAPI_API_KEY?: string;
+  PRICESAPI_API_KEYS?: string;
+  PRICESAPI_ENABLED?: string;
+  // ISO country/market code for pricesAPI lookups (default "us"; us/gb/au/de/nl
+  // have the deepest retailer coverage).
+  PRICESAPI_MARKET?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   // Patreon crowdfunding link (set via wrangler secret put PATREON_URL).

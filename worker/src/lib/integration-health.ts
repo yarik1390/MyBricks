@@ -20,7 +20,9 @@ export type IntegrationName =
   | 'brickinsights'
   | 'brightdata'
   | 'upcitemdb'
-  | 'firecrawl';
+  | 'firecrawl'
+  | 'pricecharting'
+  | 'pricesapi';
 
 export type IntegrationStatus = 'ok' | 'degraded' | 'down' | 'unknown' | 'unconfigured';
 
@@ -236,6 +238,22 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['BrickEconomy valuation + forecasts', 'lego.com stock/retirement checks', 'eBay sold comps (structured extraction)', 'Brickset page enrichment'],
     notes: 'Web-scraping engine (handles JS rendering + bot-protection). Now the BrickEconomy data source (replaces the paid API), plus lego.com stock, eBay sold comps, and Brickset enrichment. Metered in CREDITS: 1 per basic/product scrape, 5 per JSON LLM extract. Daily ceiling is env-tunable via FIRECRAWL_DAILY_CREDITS (default 2000/day).',
     recommended_action: 'Add FIRECRAWL_API_KEY as a Worker/Actions secret. Raise FIRECRAWL_DAILY_CREDITS temporarily for the one-time catalog bootstrap, then reset.',
+  },
+  pricecharting: {
+    label: 'PriceCharting',
+    configured: (env) => !!env.PRICECHARTING_TOKEN,
+    required_secrets: ['PRICECHARTING_TOKEN'],
+    used_by: ['set valuation (sealed/complete/loose sold comps)', 'liquidity (sales-volume)'],
+    notes: 'Per-set /api/product returns new-price (sealed), cib-price (complete), loose-price (used) and sales-volume (yearly units sold) from aggregated eBay closed auctions — an independent sold source. 1 call/sec. The optional bulk CSV upload needs the Legendary tier (PRICECHARTING_PRO).',
+    recommended_action: 'Add PRICECHARTING_TOKEN as a Worker secret to enable the loose/used and liquidity signals.',
+  },
+  pricesapi: {
+    label: 'pricesAPI.io',
+    configured: (env) => (!!env.PRICESAPI_API_KEY || !!env.PRICESAPI_API_KEYS) && /^(1|true|yes|on)$/i.test(String(env.PRICESAPI_ENABLED ?? '')),
+    required_secrets: ['PRICESAPI_API_KEYS'],
+    used_by: ['deal signal (cheapest channel)', 'in-stock truth', 'wishlist price-drop alerts'],
+    notes: 'Live retail + marketplace offers across major retailers (47 markets). NOT a value anchor — feeds the deal/buy signal and stock truth. Synchronous cold calls take 30–90s so it runs cron-only. Free tier = 1000 calls/month, 6/min PER KEY; comma-separated keys are pooled with per-key monthly budgets (pricesapi_keys table).',
+    recommended_action: 'Add one or more keys to PRICESAPI_API_KEYS (comma-separated) and set PRICESAPI_ENABLED=1. Add more keys to grow the pooled monthly budget.',
   },
 };
 
