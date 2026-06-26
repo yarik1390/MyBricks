@@ -44,6 +44,7 @@ import { runBricksetEnrich } from './jobs/brickset-enrich';
 import { runBrickEconomyEnrich } from './jobs/brickeconomy-enrich';
 import { runPriceChartingEnrich } from './jobs/pricecharting-enrich';
 import { runPricesApiRetail } from './jobs/pricesapi-retail';
+import { runPriceChartingBulkFetch } from './jobs/pricecharting-bulk';
 import { applySourceConfig } from './lib/source-config';
 
 import type { Env, Variables } from './types';
@@ -361,6 +362,7 @@ export default {
       case '0 15 * * *': await run('upcoming-refresh', () => runUpcomingRefresh(env)); break;
       case '0 16 * * *': await run('pricecharting-enrich', () => runPriceChartingEnrich(env, { limit: 50 })); break;
       case '0 17 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
+      case '0 18 * * SUN': await run('pricecharting-bulk', () => runPriceChartingBulkFetch(env)); break;
       // TEMPORARY one-time bootstrap: fill pc_new_value across the year>=2000 catalog.
       // Runs 4x/hour at limit 150 concurrency 10; remove once pc_new_value is filled.
       case '10,25,40,55 * * * *': await run('pc-bootstrap', () => runPriceChartingEnrich(env, { limit: 150, concurrency: 10 })); break;

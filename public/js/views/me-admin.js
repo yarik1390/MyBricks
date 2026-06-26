@@ -105,6 +105,16 @@ const ADMIN_JOB_TOOLS = {
     quota: 'Stops only for hard errors; unavailable providers stay degraded.',
     icon: I.refresh({ w: 16 }),
   },
+  pricechartingBulk: {
+    url: '/api/admin/pricecharting-bulk-fetch',
+    method: 'POST',
+    body: {},
+    label: 'Refresh PriceCharting (LEGO bulk)',
+    source: 'PriceCharting CSV',
+    duration: 'One ~2MB download',
+    quota: 'Auto-runs weekly; CSV downloads are limited to once per 10 minutes.',
+    icon: I.download(),
+  },
 };
 
 const MAINTENANCE_TOOLS = {
@@ -333,7 +343,7 @@ function setupRowsHTML() {
 }
 
 function populateSectionHTML() {
-  const secondary = ['sets', 'figs', 'upc', 'populate', 'revalue'];
+  const secondary = ['sets', 'figs', 'upc', 'populate', 'revalue', 'pricechartingBulk'];
   return `
     <div class="admin-populate-primary">
       <div class="admin-populate-copy">

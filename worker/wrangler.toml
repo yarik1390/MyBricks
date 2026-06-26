@@ -48,6 +48,9 @@ crons = [
   # pricesAPI.io live-retail refresh (deal signal / stock truth / wishlist alerts).
   # Small + sequential: cold calls run 30–90s and the free tier is 6/min per key.
   "0 17 * * *",
+  # PriceCharting LEGO-sets bulk CSV refresh — one ~2MB download covers the whole
+  # LEGO catalog. Weekly (CSV downloads are rate-limited to 1 per 10 minutes).
+  "0 18 * * SUN",
   # TEMPORARY: one-time PriceCharting bootstrap (remove after pc_new_value is filled).
   "10,25,40,55 * * * *",
   # TEMPORARY: one-time BrickEconomy bootstrap (remove after be_value_new is filled).

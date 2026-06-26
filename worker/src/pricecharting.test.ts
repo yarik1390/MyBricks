@@ -7,19 +7,19 @@ import { parsePriceChartingCsv, runPriceChartingBulk } from './jobs/pricechartin
 const db = (env as any).DB as D1Database;
 
 describe('parsePriceChartingCsv', () => {
-  it('parses pennies → USD, sales-volume, and the set base number', () => {
+  it('parses $-dollar prices, sales-volume, and the #set-number (real download format)', () => {
     const csv = [
-      'id,upc,product-name,new-price,cib-price,loose-price,sales-volume',
-      '6910,0673419340373,10300 Back to the Future Time Machine,21000,18000,12500,340',
-      '7777,,Not A Set Name,0,0,0,0',
+      'id,console-name,product-name,loose-price,cib-price,new-price,upc,sales-volume',
+      '5857984,LEGO Creator,Back to the Future Time Machine #10300,$50.00,$92.50,$122.50,673419761697,548',
+      '7777,LEGO Brand,Promo Polybag,,,,,0',
     ].join('\n');
     const rows = parsePriceChartingCsv(csv);
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
-      pcId: '6910', upc: '0673419340373', setBase: '10300',
-      newValue: 210, completeValue: 180, looseValue: 125, salesVolume: 340,
+      pcId: '5857984', upc: '673419761697', setBase: '10300',
+      newValue: 122.5, completeValue: 92.5, looseValue: 50, salesVolume: 548,
     });
-    // Zeros → null (PriceCharting returns 0 for no recent sales).
+    // Empty cells → null (PriceCharting leaves blanks for conditions with no sales).
     expect(rows[1].newValue).toBeNull();
     expect(rows[1].salesVolume).toBeNull();
   });
@@ -82,13 +82,13 @@ describe('runPriceChartingBulk', () => {
     expect(r.skipped).toMatch(/PRICECHARTING_PRO/);
   });
 
-  it('matches by UPC and by set number, writing loose + sales-volume', async () => {
+  it('matches by UPC and by #set-number, writing loose + sales-volume', async () => {
     const e: any = { ...env, PRICECHARTING_PRO: '1' };
     const csv = [
-      'id,upc,product-name,new-price,cib-price,loose-price,sales-volume',
-      '6910,0673419340373,10300 Back to the Future,21000,18000,12500,340', // UPC match
-      '5555,,75192 Millennium Falcon,90000,80000,60000,120',                // set-number match
-      '9999,,12121 Unknown Set,1000,0,0,5',                                  // no match
+      'id,console-name,upc,product-name,loose-price,cib-price,new-price,sales-volume',
+      '6910,LEGO Creator,0673419340373,Back to the Future #10300,$50.00,$92.50,$122.50,548', // UPC match
+      '5555,LEGO Star Wars,,Millennium Falcon #75192,$258.36,$577.84,$745.00,555',           // #set-number match
+      '9999,LEGO Brand,,Unknown Set #12121,$10.00,,,5',                                       // no match
     ].join('\n');
     const r = await runPriceChartingBulk(e, csv);
     expect(r.rows).toBe(3);
@@ -97,11 +97,11 @@ describe('runPriceChartingBulk', () => {
 
     const ext = await db.prepare(`SELECT set_num, pc_loose_value, pc_sales_volume FROM set_market_ext ORDER BY set_num`).all<any>();
     expect(ext.results).toEqual([
-      { set_num: '10300-1', pc_loose_value: 125, pc_sales_volume: 340 },
-      { set_num: '75192-1', pc_loose_value: 600, pc_sales_volume: 120 },
+      { set_num: '10300-1', pc_loose_value: 50, pc_sales_volume: 548 },
+      { set_num: '75192-1', pc_loose_value: 258.36, pc_sales_volume: 555 },
     ]);
     const ls = await db.prepare(`SELECT pc_new_value FROM lego_sets WHERE set_num='75192-1'`).first<any>();
-    expect(ls.pc_new_value).toBe(900);
+    expect(ls.pc_new_value).toBe(745);
 
     // Summary persisted for admin diagnostics.
     const summary = await db.prepare(`SELECT value FROM app_settings WHERE key='pc_bulk_last_result'`).first<any>();

@@ -3,18 +3,21 @@ import { recomputeBlendedValues } from '../lib/market-sources';
 import { isPlausibleMarketValue } from '../lib/valuation';
 
 // ---------------------------------------------------------------------------
-// Optional PriceCharting bulk CSV import (Legendary tier only).
+// PriceCharting bulk LEGO CSV import (Legendary tier).
 //
-// The bulk price-guide CSV is a manual download from the PriceCharting
-// Subscriptions page (there is no documented programmatic URL), so this job
-// takes the uploaded CSV TEXT from an admin route rather than fetching it. It is
-// gated by PRICECHARTING_PRO. The per-set /api/product path
-// (jobs/pricecharting-enrich.ts) remains the primary, always-on mechanism; this
-// is a fast bulk top-up when a Legendary user has the file.
+// Two entry points share one core (processBulkCsv):
+//   • runPriceChartingBulkFetch — downloads the LEGO-sets price guide directly
+//     from PriceCharting (…/price-guide/download-custom?t=TOKEN&category=lego-sets).
+//     One ~2 MB request covers the whole LEGO catalog (~13k sets) vs thousands of
+//     per-set API calls. Driven by a weekly cron + an admin button.
+//   • runPriceChartingBulk — same parser for an admin-UPLOADED CSV (PRICECHARTING_PRO).
 //
-// CSV column names match the API key names exactly: id, upc, product-name,
-// new-price, cib-price, loose-price, sales-volume. Prices are integer pennies.
-// Sets are matched by upc → pc_id → set number parsed from product-name.
+// The per-set /api/product path (jobs/pricecharting-enrich.ts) stays as the
+// always-on top-up for new sets and misses.
+//
+// IMPORTANT format note: the CSV DOWNLOAD formats money as "$57.94" dollar strings
+// (NOT the integer pennies the per-set API returns). LEGO product-names embed the
+// set number as "…#4620". Sets are matched by upc → pc_id → "#<num>"→"<num>-1".
 // ---------------------------------------------------------------------------
 
 const PROGRESS_KEY = 'pc_bulk_last_result';
@@ -44,9 +47,13 @@ interface BulkRow {
   salesVolume: number | null;
 }
 
-const cents = (v: string | undefined): number | null => {
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? n / 100 : null;
+// PriceCharting's CSV download formats money as "$57.94" dollar strings (unlike
+// the per-set /api/product, which returns integer pennies). Strip the $ / commas
+// and parse as dollars directly.
+const money = (v: string | undefined): number | null => {
+  if (!v) return null;
+  const n = parseFloat(String(v).replace(/[$,\s]/g, ''));
+  return Number.isFinite(n) && n > 0 ? n : null;
 };
 const gate = (v: number | null): number | null => (v != null && isPlausibleMarketValue(v, {}) ? v : null);
 
@@ -64,15 +71,17 @@ export function parsePriceChartingCsv(text: string): BulkRow[] {
     if (!line.trim()) continue;
     const v = parseLine(line);
     const name = iName >= 0 ? v[iName] ?? '' : '';
-    const setMatch = name.match(/\b(\d{4,6})\b/);
+    // LEGO product-names embed the set number as "…#4620"; prefer that, else a
+    // bare 4–6 digit run.
+    const setMatch = name.match(/#(\d{3,7})/) || name.match(/\b(\d{4,6})\b/);
     const vol = Number(iVol >= 0 ? v[iVol] : undefined);
     rows.push({
       pcId: iId >= 0 && v[iId] ? v[iId] : null,
       upc: iUpc >= 0 && v[iUpc] ? v[iUpc] : null,
       setBase: setMatch ? setMatch[1] : null,
-      newValue: gate(cents(iNew >= 0 ? v[iNew] : undefined)),
-      completeValue: gate(cents(iCib >= 0 ? v[iCib] : undefined)),
-      looseValue: gate(cents(iLoose >= 0 ? v[iLoose] : undefined)),
+      newValue: gate(money(iNew >= 0 ? v[iNew] : undefined)),
+      completeValue: gate(money(iCib >= 0 ? v[iCib] : undefined)),
+      looseValue: gate(money(iLoose >= 0 ? v[iLoose] : undefined)),
       salesVolume: Number.isFinite(vol) && vol > 0 ? Math.round(vol) : null,
     });
   }
@@ -98,6 +107,41 @@ export async function runPriceChartingBulk(env: Env, csvText: string): Promise<B
   if (!/^(1|true|yes|on)$/i.test(String(env.PRICECHARTING_PRO ?? ''))) {
     return { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: 'PRICECHARTING_PRO not set (Legendary tier required for bulk CSV)' };
   }
+  return processBulkCsv(env, csvText);
+}
+
+const LEGO_CSV_URL = 'https://www.pricecharting.com/price-guide/download-custom';
+
+/**
+ * Fetch the LEGO-sets price guide CSV directly from PriceCharting (Legendary
+ * tier) and bulk-populate. One ~2 MB request covers the whole LEGO catalog
+ * (~13k sets) vs thousands of per-set API calls. The download endpoint enforces
+ * the tier itself, so this gates only on PRICECHARTING_TOKEN. CSV downloads are
+ * rate-limited to 1 per 10 minutes — keep callers (weekly cron) well within that.
+ */
+export async function runPriceChartingBulkFetch(env: Env): Promise<BulkResult> {
+  const token = env.PRICECHARTING_TOKEN;
+  if (!token) return { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: 'PRICECHARTING_TOKEN not set' };
+  let text: string;
+  try {
+    const resp = await fetch(`${LEGO_CSV_URL}?t=${token}&category=lego-sets`, {
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!resp.ok) {
+      return { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: `download HTTP ${resp.status}` };
+    }
+    text = await resp.text();
+    // Guard against an error/HTML body (e.g. tier not entitled) instead of a CSV.
+    if (!/^id,console-name,product-name/i.test(text.slice(0, 200))) {
+      return { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: 'unexpected (non-CSV) download body' };
+    }
+  } catch (e) {
+    return { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: `download failed: ${(e as Error).message}` };
+  }
+  return processBulkCsv(env, text);
+}
+
+async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   const rows = parsePriceChartingCsv(csvText);
   if (!rows.length) return { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: 'no rows parsed' };
 
@@ -167,7 +211,25 @@ export async function runPriceChartingBulk(env: Env, csvText: string): Promise<B
     }
   }
 
-  if (touched.length) await recomputeBlendedValues(env.DB, touched);
+  // Recompute the persisted blend only for OWNED + WISHLISTED touched sets — the
+  // user-facing priority — to keep this subrequest-lean at catalog scale (13k+
+  // rows). Everything else surfaces live on read (enrichSetRecord) and its
+  // persisted blend catches up on the next daily valuation pass.
+  if (touched.length) {
+    try {
+      // Read the (small) owned+wishlisted universe once and intersect in memory —
+      // a 13k-item IN(...) would blow SQLite's bind-variable limit.
+      const { results } = await env.DB.prepare(
+        `SELECT set_num FROM user_collection WHERE deleted_at IS NULL
+         UNION SELECT set_num FROM user_wishlist`,
+      ).all<{ set_num: string }>();
+      const priorityUniverse = new Set(results.map((r) => r.set_num));
+      const priority = [...new Set(touched)].filter((s) => priorityUniverse.has(s));
+      if (priority.length) await recomputeBlendedValues(env.DB, priority);
+    } catch (e) {
+      console.warn('[pc-bulk] priority recompute failed:', (e as Error).message);
+    }
+  }
 
   const result: BulkResult = {
     rows: rows.length,

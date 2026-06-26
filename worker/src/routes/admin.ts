@@ -13,7 +13,7 @@ import { rebuildSearchIndex } from '../lib/search-index';
 import { runLegoStockRefresh } from '../jobs/lego-stock-refresh';
 import { runBricksetEnrich } from '../jobs/brickset-enrich';
 import { runBrickEconomyEnrich } from '../jobs/brickeconomy-enrich';
-import { runPriceChartingBulk } from '../jobs/pricecharting-bulk';
+import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricecharting-bulk';
 import { getKeyPoolStatus } from '../lib/pricesapi-keys';
 import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG } from '../lib/source-config';
 import type { Env, Variables } from '../types';
@@ -522,6 +522,26 @@ app.post('/pricecharting-bulk', async (c) => {
     runPriceChartingBulk(c.env, csv).catch((e) => console.warn('[pc-bulk] failed:', (e as Error).message)),
   );
   return c.json({ ok: true, status: 'running', note: 'Bulk import started; check integrations diagnostics for the result.' });
+});
+
+// On-demand PriceCharting LEGO bulk fetch — downloads the lego-sets CSV directly
+// (Legendary tier; the download endpoint enforces it). Guards the 1-per-10-minute
+// CSV download limit using the last run's timestamp.
+app.post('/pricecharting-bulk-fetch', async (c) => {
+  if (!c.env.PRICECHARTING_TOKEN) {
+    return c.json({ error: 'PRICECHARTING_TOKEN not set.' }, 400);
+  }
+  try {
+    const last = await c.env.DB.prepare(`SELECT value FROM app_settings WHERE key='pc_bulk_last_result'`).first<{ value: string }>();
+    const finishedAt = last?.value ? Date.parse(JSON.parse(last.value)?.finished_at ?? '') : NaN;
+    if (Number.isFinite(finishedAt) && Date.now() - finishedAt < 10 * 60_000) {
+      return c.json({ error: 'PriceCharting CSV downloads are limited to once per 10 minutes. Try again shortly.' }, 429);
+    }
+  } catch { /* best-effort guard */ }
+  c.executionCtx.waitUntil(
+    runPriceChartingBulkFetch(c.env).catch((e) => console.warn('[pc-bulk-fetch] failed:', (e as Error).message)),
+  );
+  return c.json({ ok: true, status: 'running', message: 'LEGO price-guide download started — results appear in diagnostics shortly.' });
 });
 
 app.get('/import-status/:id', requireAdmin, async (c) => {
