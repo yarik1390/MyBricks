@@ -3,6 +3,7 @@ import { pricesApiSearch } from '../lib/pricesapi';
 import { pricesapiEnabled } from '../lib/pricing-flags';
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { quotaRemaining, spendQuota } from '../lib/api-quota';
+import { getSourceConfig, sourceEnabled } from '../lib/source-config';
 
 /**
  * Refresh the pricesAPI.io live-retail layer (pa_* in set_market_ext) for the
@@ -23,6 +24,10 @@ export async function runPricesApiRetail(
   if (!pricesapiEnabled(env)) {
     return { processed: 0, updated: 0, limit: 0, skipped: 'pricesAPI disabled (set PRICESAPI_API_KEYS + PRICESAPI_ENABLED=1)' };
   }
+  // Admin kill-switch (source-tuning console) — overrides the env opt-in.
+  if (!(await sourceEnabled(env, 'pricesapi'))) {
+    return { processed: 0, updated: 0, limit: 0, skipped: 'pricesAPI disabled in admin source tuning' };
+  }
 
   const requested = Number(options.limit);
   // Cap at 10; cold-call latency means even this can take several minutes.
@@ -35,11 +40,12 @@ export async function runPricesApiRetail(
   }
   const limit = Math.min(wantLimit, remaining);
 
+  const refreshDays = Math.max(1, Math.round((await getSourceConfig(env)).pricesapi.refreshDays ?? 7));
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num, ls.name
     FROM lego_sets ls
     LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
-    WHERE (ext.pa_cached_at IS NULL OR ext.pa_cached_at < datetime('now', '-7 days'))
+    WHERE (ext.pa_cached_at IS NULL OR ext.pa_cached_at < datetime('now', '-${refreshDays} days'))
       AND ls.year >= 2018
     ORDER BY
       CASE WHEN EXISTS (

@@ -44,6 +44,7 @@ import { runBricksetEnrich } from './jobs/brickset-enrich';
 import { runBrickEconomyEnrich } from './jobs/brickeconomy-enrich';
 import { runPriceChartingEnrich } from './jobs/pricecharting-enrich';
 import { runPricesApiRetail } from './jobs/pricesapi-retail';
+import { applySourceConfig } from './lib/source-config';
 
 import type { Env, Variables } from './types';
 
@@ -249,6 +250,9 @@ export default {
       try { await fn(); }
       catch (e) { console.error(`[cron] ${name} failed:`, (e as Error).message); }
     };
+    // Apply admin source-tuning (blend weights + daily-cap overrides) for this
+    // cron invocation before any job runs. Fail-open to code defaults.
+    await applySourceConfig(env).catch(() => {});
     switch (event.cron) {
       // Hourly: BrickLink-primary catalog sweep. scope:'all' so idle capacity
       // (once owned/wishlisted are fresh) steadily converts the formula_bulk

@@ -19,6 +19,7 @@ import { spendQuota } from '../lib/api-quota';
 import { getCachedPriceTrend } from '../lib/price-trend';
 import { fetchTracked } from '../lib/http';
 import { enrichSetRecord, persistBlendedValue } from '../lib/market-sources';
+import { applySourceConfig } from '../lib/source-config';
 import { recentValueMedian } from '../lib/price-trend';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { isSearchIndexCorruption, rebuildSearchIndex } from '../lib/search-index';
@@ -36,6 +37,9 @@ interface ListingDraft {
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 app.use('*', optionalMember);
+// Apply admin source-tuning (blend weights) so read-side market values match the
+// persisted/tuned blend. Memoized 60s per isolate; fail-open to defaults.
+app.use('*', async (c, next) => { await applySourceConfig(c.env).catch(() => {}); await next(); });
 
 const SORTS: Record<string, string> = {
   value_desc: "(CASE WHEN valuation_method IN ('formula_bulk', 'local') THEN 1 ELSE 0 END), COALESCE(NULLIF(blended_value, 0), current_value) DESC",

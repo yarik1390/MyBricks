@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { fetchPriceChartingData } from '../lib/pricecharting';
 import { recomputeBlendedValues } from '../lib/market-sources';
+import { getSourceConfig } from '../lib/source-config';
 
 /**
  * Populate PriceCharting pricing data into pc_new_value / pc_complete_value
@@ -28,6 +29,12 @@ export async function runPriceChartingEnrich(
   if (!env.PRICECHARTING_TOKEN) {
     return { processed: 0, updated: 0, discovered: 0, limit: 0, skipped: 'PRICECHARTING_TOKEN not set' };
   }
+  // Admin source-tuning: kill-switch + refresh cadence.
+  const cfg = await getSourceConfig(env);
+  if (!cfg.pricecharting.enabled) {
+    return { processed: 0, updated: 0, discovered: 0, limit: 0, skipped: 'PriceCharting disabled in admin source tuning' };
+  }
+  const refreshDays = Math.max(1, Math.round(cfg.pricecharting.refreshDays ?? 14));
 
   const requestedLimit = Number(options.limit);
   // Cap at 200; concurrency 10 + ~1s/call → ≤20s wall-time per invocation.
@@ -38,7 +45,7 @@ export async function runPriceChartingEnrich(
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num, ls.name, ls.pc_id, ls.upc
     FROM lego_sets ls
-    WHERE (ls.pc_cached_at IS NULL OR ls.pc_cached_at < datetime('now', '-14 days'))
+    WHERE (ls.pc_cached_at IS NULL OR ls.pc_cached_at < datetime('now', '-${refreshDays} days'))
       AND ls.year >= 2000
     ORDER BY
       CASE WHEN ls.bl_new_value IS NOT NULL AND ls.pc_cached_at IS NULL THEN 0 ELSE 1 END,

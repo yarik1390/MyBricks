@@ -404,6 +404,29 @@ const LIQUIDITY_DEEP = 30;    // >= this many sales/yr → deep, stable market
 const BAND_ILLIQUID_EXTRA = 0.06;
 const BAND_LIQUID_TIGHTEN = 0.03;
 
+// Admin-tunable per-source weight multipliers (default 1.0 = unchanged). Set
+// from the DB source-config at the start of a blend pass (lib/source-config.ts).
+// Maps a blend push id → its owning source so one "trust" slider scales all of a
+// source's contributions (e.g. pricecharting scales both pc_new and pc_complete).
+const SOURCE_OF: Record<string, string> = {
+  bricklink_new: 'bricklink',
+  ebay_sold_new: 'ebay', ebay_ask: 'ebay',
+  brickeconomy: 'brickeconomy',
+  brickowl_new: 'brickowl',
+  pc_new: 'pricecharting', pc_complete: 'pricecharting',
+};
+const sourceWeightMultipliers: Record<string, number> = {};
+export function setSourceWeightMultipliers(m: Record<string, number>): void {
+  for (const k of Object.keys(sourceWeightMultipliers)) delete sourceWeightMultipliers[k];
+  for (const [k, v] of Object.entries(m)) {
+    const n = Number(v);
+    if (Number.isFinite(n) && n >= 0) sourceWeightMultipliers[k] = n;
+  }
+}
+export function resetSourceWeightMultipliers(): void {
+  for (const k of Object.keys(sourceWeightMultipliers)) delete sourceWeightMultipliers[k];
+}
+
 // Surviving signals spanning at least this ratio read as a material disagreement
 // worth explaining to the user.
 const DISAGREEMENT_RATIO = 1.5;
@@ -442,8 +465,10 @@ export function blendMarketValue(row: Record<string, unknown>, history?: BlendHi
   const pts: P[] = [];
   const push = (id: string, name: string, value: number | null, qty: number | null, ts: unknown, typeF: number, sold: boolean, rank: number) => {
     if (!value || value <= 0) return;
+    const mult = sourceWeightMultipliers[SOURCE_OF[id]] ?? 1;
+    if (mult <= 0) return; // source weight tuned to 0 → effectively disabled
     const ff = freshnessFactor(ts);
-    const w = ff * sampleFactor(qty) * typeF;
+    const w = ff * sampleFactor(qty) * typeF * mult;
     if (w <= 0) return;
     pts.push({ id, name, value, weight: w, sold, fresh: ff >= 0.7, rank });
   };

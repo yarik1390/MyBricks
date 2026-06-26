@@ -15,6 +15,7 @@ import { runBricksetEnrich } from '../jobs/brickset-enrich';
 import { runBrickEconomyEnrich } from '../jobs/brickeconomy-enrich';
 import { runPriceChartingBulk } from '../jobs/pricecharting-bulk';
 import { getKeyPoolStatus } from '../lib/pricesapi-keys';
+import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG } from '../lib/source-config';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -921,6 +922,21 @@ app.get('/import-status', async (c) => {
      LIMIT 8`
   ).all();
   return c.json({ runs: results });
+});
+
+// Source-tuning console: read the effective config (defaults merged with stored
+// overrides) plus the defaults so the UI can show a Reset affordance.
+app.get('/source-config', async (c) => {
+  const config = await getSourceConfig(c.env);
+  return c.json({ config, defaults: DEFAULT_SOURCE_CONFIG });
+});
+
+// Persist tuned source config. Validated + clamped server-side (saveSourceConfig).
+app.put('/source-config', async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object') return c.json({ error: 'Expected a JSON object of source settings.' }, 400);
+  const config = await saveSourceConfig(c.env, (body as { config?: unknown }).config ?? body);
+  return c.json({ ok: true, config });
 });
 
 app.get('/integrations', async (c) => {
