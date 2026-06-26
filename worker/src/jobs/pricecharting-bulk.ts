@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { isPlausibleMarketValue } from '../lib/valuation';
+import { recordIntegrationAttempt } from '../lib/integration-health';
 
 // ---------------------------------------------------------------------------
 // PriceCharting bulk LEGO CSV import (Legendary tier).
@@ -94,7 +95,21 @@ export interface BulkResult {
   unmatched: number;
   updated: number;
   skipped?: string;
+  detail?: string;
   finished_at?: string;
+}
+
+// Persist a bulk outcome (success OR skip/error) so every run is diagnosable in
+// admin diagnostics — silent skips were previously invisible. Fail-open.
+async function persistBulk(env: Env, result: BulkResult): Promise<BulkResult> {
+  const out = { ...result, finished_at: result.finished_at ?? new Date().toISOString() };
+  try {
+    await env.DB.prepare(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES (?1, ?2, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value=?2, updated_at=datetime('now')`,
+    ).bind(PROGRESS_KEY, JSON.stringify(out)).run();
+  } catch { /* non-fatal */ }
+  return out;
 }
 
 /**
@@ -121,24 +136,35 @@ const LEGO_CSV_URL = 'https://www.pricecharting.com/price-guide/download-custom'
  */
 export async function runPriceChartingBulkFetch(env: Env): Promise<BulkResult> {
   const token = env.PRICECHARTING_TOKEN;
-  if (!token) return { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: 'PRICECHARTING_TOKEN not set' };
+  if (!token) return persistBulk(env, { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: 'PRICECHARTING_TOKEN not set' });
   let text: string;
   try {
     const resp = await fetch(`${LEGO_CSV_URL}?t=${token}&category=lego-sets`, {
+      headers: { 'User-Agent': 'BrickvaultBot/1.0 (+https://brickvault-5ub.pages.dev)', Accept: 'text/csv,*/*' },
       signal: AbortSignal.timeout(120_000),
     });
     if (!resp.ok) {
-      return { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: `download HTTP ${resp.status}` };
+      await recordIntegrationAttempt(env, 'pricecharting', false, `bulk download HTTP ${resp.status}`);
+      return persistBulk(env, { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: `download HTTP ${resp.status}` });
     }
-    text = await resp.text();
+    text = (await resp.text()).replace(/^﻿/, '').trimStart();
     // Guard against an error/HTML body (e.g. tier not entitled) instead of a CSV.
+    // Capture a snippet so the failure is diagnosable from admin diagnostics.
     if (!/^id,console-name,product-name/i.test(text.slice(0, 200))) {
-      return { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: 'unexpected (non-CSV) download body' };
+      await recordIntegrationAttempt(env, 'pricecharting', false, 'bulk download returned non-CSV body');
+      return persistBulk(env, {
+        rows: 0, matched: 0, unmatched: 0, updated: 0,
+        skipped: 'unexpected (non-CSV) download body — check the token is the Legendary-tier token',
+        detail: text.slice(0, 200),
+      });
     }
   } catch (e) {
-    return { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: `download failed: ${(e as Error).message}` };
+    await recordIntegrationAttempt(env, 'pricecharting', false, `bulk download failed: ${(e as Error).message}`);
+    return persistBulk(env, { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: `download failed: ${(e as Error).message}` });
   }
-  return processBulkCsv(env, text);
+  const result = await processBulkCsv(env, text);
+  await recordIntegrationAttempt(env, 'pricecharting', result.matched > 0, result.skipped ?? null);
+  return result;
 }
 
 async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
