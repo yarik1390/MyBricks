@@ -4,7 +4,7 @@ import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
-import { figFilterSummary } from '../lib/pure.js';
+import { activeFigFilterCount, figFilterSummary } from '../lib/pure.js';
 
 let _blindGen = 0;
 let _seriesList = [];
@@ -151,6 +151,7 @@ export async function renderBlind() {
         <div class="filter-row" style="margin-top:2px;gap:6px;">
           <span style="font-size:11px;color:var(--ink-mute);display:inline-flex;align-items:center;margin-right:2px;font-family:var(--mono);font-weight:600;">SORT:</span>
           ${FIG_SORTS.map(o => `<button class="chip ${(f.figSort === o.asc || f.figSort === o.desc) ? 'active' : ''}" data-fig-sort-base="${o.base}">${figSortChipText(o, f.figSort)}</button>`).join('')}
+          <button class="chip ${activeFigFilterCount(f) ? 'active' : ''}" id="figFilterChip">${I.filter()}<span>Filters${activeFigFilterCount(f) ? " · " + activeFigFilterCount(f) : ""}</span></button>
         </div>
         <div class="filter-summary" id="figFilterSummary">${escapeHtml(figFilterSummary(f))}</div>
       </div>
@@ -196,6 +197,8 @@ export async function renderBlind() {
     });
     loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) { refreshMiniGrid(); refreshMiniStats(); } }).catch(() => {});
   }));
+
+  $("#figFilterChip")?.addEventListener("click", () => showFigFilterSheet());
 
   // Series filter: top series as quick chips, the rest behind a "More…" picker.
   // The facet list loads async; re-render the chip row once it arrives.
@@ -294,6 +297,22 @@ function refreshMiniGrid() {
 function refreshFigFilterSummary() {
   const el = $('#figFilterSummary');
   if (el) el.textContent = figFilterSummary(state.filter);
+  const chip = $('#figFilterChip');
+  if (chip) {
+    const n = activeFigFilterCount(state.filter);
+    chip.classList.toggle('active', n > 0);
+    const span = chip.querySelector('span');
+    if (span) span.textContent = `Filters${n ? " · " + n : ""}`;
+  }
+}
+
+async function reloadMiniView() {
+  await loadBlind({ reset: true });
+  if (location.hash === '#/minifigs' && $('#miniGrid')) {
+    refreshSeriesChips();
+    refreshMiniGrid();
+    refreshMiniStats();
+  }
 }
 
 function miniGridHTML() {
@@ -313,6 +332,7 @@ function clearFigFilters() {
   state.filter.figRarity = "all";
   state.filter.figOwned = "all";
   state.filter.figSeries = "all";
+  state.filter.figSort = "rarity_desc";
   haptic("light");
   loadBlind({ reset: true }).then(() => {
     if (location.hash === '#/minifigs' && $('#miniGrid')) {
@@ -324,11 +344,81 @@ function clearFigFilters() {
         owned.textContent = "All";
         owned.classList.remove("active");
       }
+      $$("[data-fig-sort-base]").forEach(btn => {
+        const opt = FIG_SORTS.find(s => s.base === btn.dataset.figSortBase);
+        if (!opt) return;
+        btn.classList.toggle("active", state.filter.figSort === opt.asc || state.filter.figSort === opt.desc);
+        btn.textContent = figSortChipText(opt, state.filter.figSort);
+      });
       refreshSeriesChips();
       refreshMiniGrid();
       refreshMiniStats();
     }
   }).catch(() => {});
+}
+
+function showFigFilterSheet() {
+  const f = state.filter;
+  const activeCount = activeFigFilterCount(f);
+  const rarityOptions = ['all', 'common', 'uncommon', 'rare', 'legendary'];
+  const ownedOptions = [['all', 'All'], ['owned', 'Owned'], ['unowned', 'Unowned']];
+  const sortOptions = FIG_SORTS.map(o => [o.def, o.label]);
+  const chipGroup = (label, id, values, current) => `
+    <section class="filter-sheet-section">
+      <div class="field-lbl">${escapeHtml(label)}</div>
+      <div class="sheet-chip-grid sheet-facet" data-fig-facet="${escapeHtml(id)}">
+        ${values.map(v => {
+          const value = Array.isArray(v) ? v[0] : v;
+          const labelText = Array.isArray(v) ? v[1] : (value === 'all' ? 'All' : value.charAt(0).toUpperCase() + value.slice(1));
+          return `<button class="chip ${current === value ? 'active' : ''}" data-fval="${escapeHtml(value)}">${escapeHtml(labelText)}</button>`;
+        }).join('')}
+      </div>
+    </section>`;
+  const seenSeries = new Set();
+  const seriesValues = [['all', 'All series']]
+    .concat((f.figSeries && f.figSeries !== 'all' ? [[f.figSeries, f.figSeries]] : []))
+    .concat(_seriesList.slice(0, 10).map(s => [s.series, `${s.series} (${s.n})`]))
+    .filter(([value]) => {
+      if (seenSeries.has(value)) return false;
+      seenSeries.add(value);
+      return true;
+    });
+  showSheet(`
+    <div class="sheet-title-row">
+      <h2 class="u-serif-h" style="margin:0;">Minifig Filters</h2>
+      ${activeCount ? `<span class="trust-badge warn">${activeCount} active</span>` : `<span class="trust-badge neutral">None active</span>`}
+    </div>
+    <div class="filter-active-line">${escapeHtml(figFilterSummary(f))}</div>
+    <div class="scrollable advanced-filter-sheet">
+      ${chipGroup('Rarity', 'rarity', rarityOptions, f.figRarity || 'all')}
+      ${chipGroup('Ownership', 'owned', ownedOptions, f.figOwned || 'all')}
+      ${chipGroup('Series', 'series', seriesValues, f.figSeries || 'all')}
+      ${chipGroup('Sort', 'sort', sortOptions, f.figSort || 'rarity_desc')}
+    </div>
+    <div class="btn-row sheet-sticky-actions">
+      <button class="btn-secondary" id="figFilterClear">Clear all</button>
+      <button class="btn-primary" id="figFilterApply">Apply filters</button>
+    </div>`);
+
+  $$("[data-fig-facet]").forEach(group => group.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-fval]");
+    if (!btn) return;
+    group.querySelectorAll("[data-fval]").forEach(x => x.classList.toggle("active", x === btn));
+  }));
+  const readFacet = (id) => document.querySelector(`[data-fig-facet="${id}"] .chip.active`)?.dataset.fval || 'all';
+  $("#figFilterClear")?.addEventListener("click", () => {
+    hideSheet();
+    clearFigFilters();
+  });
+  $("#figFilterApply")?.addEventListener("click", () => {
+    state.filter.figRarity = readFacet('rarity');
+    state.filter.figOwned = readFacet('owned');
+    state.filter.figSeries = readFacet('series');
+    state.filter.figSort = readFacet('sort');
+    hideSheet();
+    haptic("light");
+    reloadMiniView().catch(() => {});
+  });
 }
 
 const debouncedFigSearch = debounce(async () => {

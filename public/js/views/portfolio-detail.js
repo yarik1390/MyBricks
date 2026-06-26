@@ -208,8 +208,10 @@ function infoTabHTML(set, entry, isWish) {
     const categoryBadge = (categoryStr && categoryStr.toLowerCase() !== 'normal')
       ? `<div><span style="color:var(--ink-mute);">Category:</span> <strong style="color:var(--ink);">${escapeHtml(categoryStr)}</strong></div>`
       : '';
+    const visibleTags = tagsArr.slice(0, 10);
+    const hiddenTagCount = Math.max(0, tagsArr.length - visibleTags.length);
     const tagsBadge = tagsArr.length
-      ? `<div style="grid-column:span 2;display:flex;flex-wrap:wrap;gap:6px;align-items:center;"><span style="color:var(--ink-mute);">Tags:</span> ${tagsArr.slice(0, 10).map(t => `<span style="background:var(--surface-3);color:var(--ink-soft);border-radius:4px;padding:2px 8px;font-size:10px;">${escapeHtml(String(t))}</span>`).join('')}</div>`
+      ? `<div class="detail-tag-row"><span class="detail-tag-label">Tags:</span> ${visibleTags.map(t => `<span class="detail-tag-chip">${escapeHtml(String(t))}</span>`).join('')}${hiddenTagCount ? `<span class="detail-tag-more">+${hiddenTagCount} more</span>` : ''}</div>`
       : '';
 
     // Fine-grained LEGO.com status (pre-order/back-order/coming-soon/etc.) when
@@ -1437,14 +1439,21 @@ async function loadSetImages(setNum) {
   }
 }
 
-// Map any internal pricing source to a generic, provider-anonymous label. The
-// app presents ONE authoritative value and never names where the data came from.
+// Map pricing sources to collector-friendly labels that distinguish sold comps,
+// asking data, BrickLink-style market data, and formula/AI fallbacks.
 function genericSourceLabel(s) {
   const id = String((s && s.id) || '');
   const cond = String((s && s.condition) || '');
-  if (id.includes('ask')) return 'Active listings';
-  if (id.includes('sold') || id.includes('ebay')) return cond === 'used' ? 'Recent sold (used)' : 'Recent sold';
-  if (id === 'retail') return 'Retail';
+  const name = String((s && s.name) || '');
+  if (id.includes('ask')) return 'eBay asking';
+  if (id.includes('ebay_legacy')) return 'Legacy eBay avg';
+  if (id.includes('sold') || id.includes('ebay')) return cond === 'used' ? 'eBay sold used' : 'eBay sold new';
+  if (id.includes('bricklink') || id === 'market' || /bricklink/i.test(name)) return cond === 'used' ? 'BrickLink used' : 'BrickLink new';
+  if (id.includes('brickeconomy') || /brickeconomy/i.test(name)) return 'BrickEconomy';
+  if (id.includes('brickowl') || /brickowl/i.test(name)) return cond === 'used' ? 'BrickOwl used' : 'BrickOwl new';
+  if (id.includes('formula')) return 'Formula fallback';
+  if (id.includes('ai')) return 'AI estimate';
+  if (id === 'retail') return 'MSRP';
   if (cond === 'used' || id.includes('used')) return 'Used market';
   return 'Market value';
 }
@@ -1492,16 +1501,18 @@ function priceStripHTML(set, entry) {
   // Column 1: primary new-condition valuation source
   const isBE = set.valuation_method === "brickeconomy";
   const isBL = set.valuation_method === "market";
-  const label1 = (isBE || isBL) ? "Market"
+  const label1 = isBL ? "BrickLink"
+    : isBE ? "BrickEconomy"
     : set.valuation_method === "ai" ? "AI estimate"
-    : (set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "Recent sold"
-    : "Estimated";
+    : (set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "eBay sold"
+    : set.valuation_method === "formula_bulk" ? "Formula"
+    : "Market";
   const val1 = set.current_value;
 
   // Column 2: cross-source BrickLink new (when BE is primary, show BL independently)
   //           or BrickLink used when BL is primary (most useful comparison)
   const showBlCross = isBE && set.bl_new_value;
-  const _label2 = showBlCross ? "Market" : "Used";
+  const label2 = showBlCross ? "BrickLink new" : "Used market";
   const val2 = showBlCross ? set.bl_new_value : set.used_value;
 
   const ebaySold = ebaySoldSummary(set);
@@ -1510,18 +1521,24 @@ function priceStripHTML(set, entry) {
   // Browse API asking price so the column isn't dead.
   const askValue = Number(set.ebay_ask_value) > 0 ? Number(set.ebay_ask_value) : null;
   const showAsk = !ebaySold.newValue && askValue;
-  const label3 = showAsk ? "Active listings" : "Recent sold";
+  const label3 = showAsk ? "eBay asking" : ebaySold.legacy ? "Legacy eBay avg" : "eBay sold new";
   const val3 = ebaySold.newValue || askValue;
+  const soldSampleText = ebaySold.newSampleCount ? `${ebaySold.newSampleCount} comps` : null;
   const val3sub = showAsk
     ? (Number(set.ebay_ask_qty) > 0 ? `${set.ebay_ask_qty} listings` : null)
-    : (ebaySold.usedValue || (showBlCross ? set.used_value : null));
+    : (ebaySold.usedValue
+      ? `${soldSampleText ? `${soldSampleText} / ` : ""}Used: ${fmtMoney(ebaySold.usedValue)}`
+      : soldSampleText || (showBlCross && set.used_value ? `Used: ${fmtMoney(set.used_value)}` : null));
 
   const hasEbaySold = ebaySold.newValue || ebaySold.usedValue;
-  // Plain-language basis — never names a provider.
-  const sourceSuffix = set.valuation_method === "ai" ? "AI estimate"
-    : set.valuation_method === "formula_bulk" ? "Formula estimate"
-    : hasEbaySold ? "Recent sold prices + market guide"
-    : showAsk ? "Market guide + active listings"
+  // Plain-language basis for the active valuation mix.
+  const sourceSuffix = set.valuation_method === "ai" ? "AI fallback - refresh recommended"
+    : set.valuation_method === "formula_bulk" ? "Formula fallback - market refresh needed"
+    : hasEbaySold && !ebaySold.legacy ? "Sold comps + market guide"
+    : ebaySold.legacy ? "Legacy eBay value - needs sold refresh"
+    : showAsk ? "Asking listings only - not sold value"
+    : isBL ? "BrickLink market guide"
+    : isBE ? "BrickEconomy market guide"
     : "Market guide value";
 
   const updateDateStr = set.cached_at ? fmtDateUpdated(set.cached_at) : null;
@@ -1552,14 +1569,14 @@ function priceStripHTML(set, entry) {
         ${delta != null ? `<div class="delta ${delta >= 0 ? "up" : "down"}"><span class="arrow">${delta >= 0 ? "▲" : "▼"}</span>${fmtPct(Math.abs(delta))}</div>` : ""}
       </div>
       <div class="ps-cell">
-        <div class="ps-lbl">${showBlCross ? lotLabel(blNewQty, "Market (new)") : lotLabel(blUsedQty, "Used")}</div>
+        <div class="ps-lbl">${showBlCross ? lotLabel(blNewQty, label2) : lotLabel(blUsedQty, label2)}</div>
         <div class="ps-val${!val2 ? " muted" : ""}">${val2 ? fmtMoney(val2) : "—"}</div>
         ${col2Range ? `<div class="ps-sub muted" style="font-size:9px;">${col2Range}</div>` : ""}
       </div>
       <div class="ps-cell">
         <div class="ps-lbl">${label3}</div>
         <div class="ps-val${!val3 ? " muted" : ""}">${val3 ? fmtMoney(val3) : "—"}</div>
-        ${val3sub ? `<div class="ps-sub muted">${showAsk ? val3sub : `Used: ${fmtMoney(val3sub)}`}</div>` : ""}
+        ${val3sub ? `<div class="ps-sub muted">${val3sub}</div>` : ""}
       </div>
     </div>
     <div class="ps-footnote" style="display:flex;align-items:center;justify-content:space-between;width:100%;">
@@ -1604,6 +1621,15 @@ function marketConfidenceHTML(set) {
     : confidence === 'low' ? 'Low confidence — limited recent market data; treat as an estimate.'
     : 'Based on the latest available market data.';
   const relColor = (r) => r === 'primary' ? 'var(--up)' : r === 'fallback' ? 'var(--bv-yellow)' : 'var(--ink-mute)';
+  const sampleLabel = (s) => {
+    const count = Number(s.sample_count || 0);
+    if (!count) return '';
+    const id = String(s.id || '');
+    if (id.includes('ask')) return ` / ${count} listings`;
+    if (id.includes('sold') || id.includes('ebay')) return ` / ${count} comps`;
+    if (id.includes('bricklink') || id.includes('brickowl')) return ` / ${count} lots`;
+    return ` / ${count} samples`;
+  };
   const sourceRows = sources.slice(0, 6).map(s => {
     const rel = s.reliability
       ? `<span style="font-size:8px;letter-spacing:.04em;text-transform:uppercase;border:1px solid ${relColor(s.reliability)};color:${relColor(s.reliability)};border-radius:6px;padding:0 5px;margin-left:6px;white-space:nowrap;">${escapeHtml(s.reliability)}</span>`
@@ -1616,7 +1642,7 @@ function marketConfidenceHTML(set) {
     <div style="border-top:1px solid var(--line-soft);padding-top:7px;margin-top:7px;">
       <div style="display:flex;justify-content:space-between;gap:10px;">
         <span style="min-width:0;color:var(--ink-soft);">${escapeHtml(genericSourceLabel(s))}${rel}</span>
-        <span style="font-family:var(--mono);font-weight:700;color:var(--ink);white-space:nowrap;">${s.value ? fmtMoney(s.value) : 'pending'}${s.sample_count ? ` / ${s.sample_count} lots` : ''}</span>
+        <span style="font-family:var(--mono);font-weight:700;color:var(--ink);white-space:nowrap;">${s.value ? fmtMoney(s.value) : 'pending'}${sampleLabel(s)}</span>
       </div>
       ${sub}
     </div>`;

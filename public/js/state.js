@@ -15,7 +15,11 @@ export const state = {
   blind: { items: [], total: 0, offset: 0, hasMore: false, loading: false, ownedCount: 0, pageSize: 30 },
   themes: [], themeGroups: [], categories: [], themesLoadedAt: 0,
   me: null,
-  compactView: localStorage.getItem("bv_compact_view") === "true",
+  compactView: (() => {
+    const saved = localStorage.getItem("bv_compact_view");
+    if (saved != null) return saved === "true";
+    try { return window.matchMedia?.("(max-width: 640px)")?.matches ?? false; } catch { return false; }
+  })(),
   portfolioTab: "items",
   selectionMode: false,
   selectedSets: new Set(),

@@ -3931,9 +3931,51 @@ body.scan-active .advisor-fab {
 
 .detail-tabs {
   top: 0;
+  position: sticky;
   z-index: 5;
   background: color-mix(in srgb, var(--bg) 94%, transparent);
   backdrop-filter: blur(8px);
+}
+
+.detail-tag-row {
+  grid-column: span 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.detail-tag-label {
+  color: var(--ink-mute);
+}
+
+.detail-tag-chip,
+.detail-tag-more {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  border: var(--bw-thin) solid var(--border-soft-c);
+  border-radius: var(--r-1);
+  background: var(--surface-3);
+  color: var(--ink-soft);
+  padding: 2px 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.detail-tag-more {
+  background: transparent;
+  color: var(--ink-mute);
+}
+
+.filter-row {
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+
+.filter-row .chip {
+  scroll-snap-align: start;
 }
 
 .empty-actions {
@@ -3988,6 +4030,18 @@ body.scan-active .advisor-fab {
 
   .sheet-chip-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .detail-tab-panel {
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .detail-tabs {
+    margin-inline: 14px;
+  }
+
+  .detail-tag-row {
+    grid-column: 1 / -1;
   }
 }
 

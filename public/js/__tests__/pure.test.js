@@ -5,7 +5,7 @@ import {
   computeDealScore, valuationTrust, catalogFilterSummary, classifyJobRun,
   annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition,
   jobProgressSummary, computeSpreadSignals, buyWindow, pricePerPiece, isStalledJobRun,
-  parseCSVTable, parseCollectionCSV, sanitizeMoneyInput, activeCatalogFilterCount, figFilterSummary,
+  parseCSVTable, parseCollectionCSV, sanitizeMoneyInput, activeCatalogFilterCount, activeFigFilterCount, figFilterSummary,
   liquidityLabel, classifyProviderHealth, validateSourceTuningInput, groupAdminJobRuns,
 } from '../lib/pure.js';
 
@@ -266,6 +266,15 @@ describe('figFilterSummary', () => {
       figOwned: 'unowned',
       figSeries: 'Collectible Minifigures',
     }), '4 active: Search "wolf" · Rare rarity · Unowned only · Collectible Minifigures');
+  });
+  it('counts active minifig filters for badges', () => {
+    assert.equal(activeFigFilterCount({
+      figQ: 'wolf',
+      figRarity: 'rare',
+      figOwned: 'owned',
+      figSeries: 'Collectible Minifigures',
+    }), 4);
+    assert.equal(activeFigFilterCount({ figRarity: 'all', figOwned: 'all', figSeries: 'all' }), 0);
   });
 });
 

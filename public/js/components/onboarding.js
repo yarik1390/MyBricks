@@ -22,6 +22,11 @@ let idx = 0;
 let root = null;
 let onResize = null;
 
+function isLaunchSurface() {
+  const hashPath = (location.hash || '#/').replace(/^#/, '').split('?')[0] || '/';
+  return hashPath === '/';
+}
+
 function ensureStyles() {
   if (document.getElementById('bv-tour-style')) return;
   const css = `
@@ -165,6 +170,7 @@ export function startOnboarding() {
 export function maybeStartOnboarding() {
   try {
     if (localStorage.getItem(FLAG)) return;
+    if (!isLaunchSurface()) return;
     const nav = document.getElementById('nav');
     if (!nav || getComputedStyle(nav).display === 'none') return;
     startOnboarding();
@@ -311,6 +317,7 @@ export function showWelcome() {
 export function maybeShowWelcome() {
   try {
     if (localStorage.getItem(WELCOME_FLAG)) return;
+    if (!isLaunchSurface()) return;
     const nav = document.getElementById('nav');
     if (!nav || getComputedStyle(nav).display === 'none') return;
     showWelcome();

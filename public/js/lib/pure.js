@@ -229,6 +229,15 @@ export function figFilterSummary(filter = {}) {
   return parts.length ? `${parts.length} active: ${parts.join(" · ")}` : "No filters active";
 }
 
+export function activeFigFilterCount(filter = {}) {
+  let n = 0;
+  if (filter.figQ) n++;
+  if (filter.figRarity && filter.figRarity !== "all") n++;
+  if (filter.figOwned && filter.figOwned !== "all") n++;
+  if (filter.figSeries && filter.figSeries !== "all") n++;
+  return n;
+}
+
 export function classifyJobRun(run = {}) {
   const error = String(run.error || "");
   const status = String(run.status || "unknown").toLowerCase();
