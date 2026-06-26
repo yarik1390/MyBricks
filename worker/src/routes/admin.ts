@@ -1112,7 +1112,8 @@ app.post('/jobs/:job', async (c) => {
 // the three contribution tables, oldest-first, with a per-type pending count.
 app.get('/contributions', async (c) => {
   const status = c.req.query('status') || 'pending';
-  const rows = await c.env.DB.prepare(
+  try {
+    const rows = await c.env.DB.prepare(
     "SELECT 'review' AS type, r.id, r.user_id, r.set_num, s.name AS set_name, " +
     "  ('★' || r.rating || (CASE WHEN r.title IS NOT NULL THEN ' · ' || r.title ELSE '' END)) AS summary, " +
     "  r.body AS detail, NULL AS photo_id, r.created_at " +
@@ -1134,7 +1135,10 @@ app.get('/contributions', async (c) => {
     "(SELECT COUNT(*) FROM set_photos WHERE status='pending' AND deleted_at IS NULL) AS photos, " +
     "(SELECT COUNT(*) FROM set_contributions WHERE status='pending' AND deleted_at IS NULL) AS data"
   ).first<{ reviews: number; photos: number; data: number }>();
-  return c.json({ items, counts: { ...counts, total: (counts?.reviews || 0) + (counts?.photos || 0) + (counts?.data || 0) } });
+    return c.json({ items, counts: { ...counts, total: (counts?.reviews || 0) + (counts?.photos || 0) + (counts?.data || 0) } });
+  } catch (err) {
+    return c.json({ error: `Contribution queue unavailable: ${(err as Error).message}` }, 500);
+  }
 });
 
 const CONTRIB_TABLE: Record<string, string> = {
@@ -1178,6 +1182,20 @@ app.patch('/contributions/:type/:id', async (c) => {
     }
   }
   return c.json({ ok: true, status, applied });
+});
+
+app.get('/users/search', async (c) => {
+  const q = String(c.req.query('q') || '').trim();
+  if (q.length < 2) return c.json({ users: [] });
+  const like = `%${q.replace(/[%_]/g, '')}%`;
+  const rows = await c.env.DB.prepare(
+    `SELECT user_id, handle, display_name, email, is_supporter, updated_at
+     FROM user_prefs
+     WHERE user_id LIKE ? OR handle LIKE ? OR display_name LIKE ? OR email LIKE ?
+     ORDER BY updated_at DESC
+     LIMIT 12`
+  ).bind(like, like, like, like).all();
+  return c.json({ users: rows.results || [] });
 });
 
 app.patch('/users/:userId/supporter', async (c) => {

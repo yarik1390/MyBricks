@@ -240,7 +240,7 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
       const createResp = await fetchTracked(env, 'google', 'https://sheets.googleapis.com/v4/spreadsheets', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ properties: { title: 'MyBricks Vault' } }),
+        body: JSON.stringify({ properties: { title: 'Brickvault Vault' } }),
       });
 
       if (!createResp.ok) {

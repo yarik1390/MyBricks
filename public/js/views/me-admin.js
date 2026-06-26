@@ -2,7 +2,13 @@ import { $, $$, haptic, escapeHtml, toast } from '../utils.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
-import { classifyJobRun, jobProgressSummary } from '../lib/pure.js';
+import {
+  classifyJobRun,
+  jobProgressSummary,
+  groupAdminJobRuns,
+  classifyProviderHealth,
+  validateSourceTuningInput,
+} from '../lib/pure.js';
 import { go } from '../router.js';
 import { subpageTopbarHTML, loadMe } from './me-shared.js';
 import { skelPage, skelSettingRows } from '../components/skeleton.js';
@@ -12,356 +18,452 @@ let activeAdminTool = null;
 let adminJobPollTimer = null;
 let populateEverythingAuto = false;
 let populateEverythingContinueTimer = null;
+let showAllJobs = false;
+let providerFilter = 'needs';
+let contributionTab = 'all';
+let sourceDirty = false;
+
+let setupRows = [];
+let adminRuns = [];
+let adminHealth = null;
+let contributionData = null;
+let sourceDefaults = {};
+let sourceConfig = {};
+
+const ADMIN_SECTIONS = [
+  ['adminOverview', 'Overview'],
+  ['adminPopulate', 'Populate'],
+  ['adminJobs', 'Jobs'],
+  ['adminProviders', 'Providers'],
+  ['adminQuality', 'Catalog Quality'],
+  ['adminSources', 'Source Tuning'],
+  ['adminUsers', 'Users'],
+  ['adminContrib', 'Contributions'],
+];
+
+const ADMIN_JOB_TOOLS = {
+  sets: {
+    url: '/api/admin/import-rebrickable',
+    method: 'POST',
+    body: { dataset: 'sets' },
+    label: 'Import sets',
+    source: 'Rebrickable',
+    duration: 'Several minutes',
+    quota: 'Use only when catalog import is incomplete.',
+    icon: I.download(),
+    confirm: 'Import the set catalog now? This is safe, but it can take a while.',
+  },
+  figs: {
+    url: '/api/admin/import-rebrickable',
+    method: 'POST',
+    body: { dataset: 'figs' },
+    label: 'Import minifigs',
+    source: 'Rebrickable',
+    duration: 'Several minutes',
+    quota: 'Use when minifig data is missing or stale.',
+    icon: I.download(),
+    confirm: 'Import the minifig catalog now?',
+  },
+  upc: {
+    url: '/api/admin/backfill-upc',
+    method: 'POST',
+    body: {},
+    label: 'Backfill barcodes',
+    source: 'Brickset / UPCitemdb',
+    duration: '1 safe slice',
+    quota: 'Daily provider quota controls how far this advances.',
+    icon: I.barcode(),
+  },
+  populate: {
+    url: '/api/admin/populate-coverage',
+    method: 'POST',
+    body: {},
+    label: 'Populate coverage',
+    source: 'Configured providers',
+    duration: '1 safe slice',
+    quota: 'Barcode pages plus asking-price refresh.',
+    icon: I.refresh({ w: 16 }),
+  },
+  revalue: {
+    url: '/api/admin/revalue-brickeconomy',
+    method: 'POST',
+    body: { scope: 'all', limit: 4 },
+    label: 'Revalue prices',
+    source: 'Valuation sources',
+    duration: 'Small batch',
+    quota: 'Uses the current daily source budgets.',
+    icon: I.trend(),
+  },
+  everything: {
+    url: '/api/admin/populate-everything',
+    method: 'POST',
+    body: { valuation_limit: 6, barcode_pages: 4, ebay_limit: 2 },
+    label: 'Populate all safe sources',
+    source: 'All configured providers',
+    duration: 'Repeated safe slices',
+    quota: 'Stops only for hard errors; unavailable providers stay degraded.',
+    icon: I.refresh({ w: 16 }),
+  },
+};
+
+const MAINTENANCE_TOOLS = {
+  expire: {
+    url: '/api/admin/expire-valuations',
+    method: 'POST',
+    label: 'Expire valuations',
+    confirm: 'Expire valuations so cron jobs reprice them? This can create a lot of follow-up work.',
+  },
+  repair: {
+    url: '/api/admin/repair-search-index',
+    method: 'POST',
+    label: 'Repair search index',
+    confirm: 'Rebuild the catalog search index now?',
+  },
+};
+
+const SOURCE_META = {
+  bricklink: ['BrickLink', 'Primary collector-market pricing. Strong signal for new and used values.'],
+  ebay: ['eBay', 'Asking data plus sold comps only when approved and reachable. No weak sold fallback.'],
+  brickeconomy: ['BrickEconomy', 'Useful historical and forecast signal when reachable.'],
+  brickowl: ['BrickOwl', 'Optional marketplace signal and cross-check.'],
+  pricecharting: ['PriceCharting', 'Optional loose and volume signals for broader resale context.'],
+  pricesapi: ['pricesAPI.io', 'Optional retail offer signal; keep disabled unless keys and quota are ready.'],
+  firecrawl: ['Firecrawl', 'Scraping runtime for structured market enrichment.'],
+  brightdata: ['Bright Data', 'Scraping/runtime provider for restricted market data.'],
+};
+
+const PROVIDER_GROUPS = [
+  ['Core', ['d1', 'supabase', 'worker', 'pages']],
+  ['Catalog', ['rebrickable', 'brickset', 'upc', 'upcitemdb']],
+  ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'brickowl', 'pricecharting', 'pricesapi']],
+  ['Scraping', ['firecrawl', 'brightdata']],
+  ['AI', ['gemini', 'openai', 'openrouter', 'byok']],
+  ['Notifications', ['resend', 'push', 'vapid', 'discord']],
+  ['Sync', ['google']],
+];
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function renderMeAdmin() {
-  if (!state.me) $("#root").innerHTML = skelPage(skelSettingRows(6));
+  if (!state.me) $('#root').innerHTML = skelPage(skelSettingRows(6));
   const me = await loadMe();
-  if (!me?.is_admin) { go("#/me"); return; }
+  if (!me?.is_admin) { go('#/me'); return; }
 
-  const savedOpenAIKey = localStorage.getItem('bv_openai_key') || '';
-  const googleStatus = await api("/api/google/status").catch(() => ({ connected: false, configured: false }));
-  const status = state.config?.status || {
-    supabase: true,
-    d1: true,
-    openai: !!savedOpenAIKey,
-    google: googleStatus.connected,
-    ebay: me?.ebay_configured,
-    bricklink: me?.bricklink_configured,
-    brickeconomy: me?.brickeconomy_configured,
-    brickset: false,
-    brickowl: false,
-    rebrickable: false,
-    firecrawl: false
-  };
+  const googleStatus = await api('/api/google/status').catch(() => ({ connected: false, configured: false }));
+  setupRows = buildSetupRows(me, googleStatus);
 
-  const checkRow = (label, ok, okText, missText, optional = false, id = "") => `
-    <div class="u-between" style="min-height:28px;"${id ? ` id="${id}"` : ""}>
-      <span>${label}</span>
-      ${ok
-        ? `<span class="badge badge--up">● ${okText}</span>`
-        : `<span class="badge ${optional ? "badge--neutral" : "badge--down"}">${missText}</span>`}
-    </div>`;
+  $('#root').innerHTML = `
+    <div class="page admin-page admin-dashboard-page">
+      ${subpageTopbarHTML('Admin console', 'Admin')}
+      <nav class="admin-segments admin-segments-sticky" aria-label="Admin sections">
+        ${ADMIN_SECTIONS.map(([id, label], i) => `<a href="#${id}" class="${i === 0 ? 'active' : ''}" data-admin-section-link="${id}">${escapeHtml(label)}</a>`).join('')}
+      </nav>
 
-  $("#root").innerHTML = `
-    <div class="page admin-page">
-      ${subpageTopbarHTML("Admin console", "Admin")}
-      <div class="admin-segments" aria-label="Admin sections">
-        <a href="#adminSetup">Setup</a>
-        <a href="#adminCatalog">Catalog Jobs</a>
-        <a href="#adminJobs">Job History</a>
-        <a href="#adminHealth">Health</a>
-        <a href="#adminUsers">Users</a>
-        <a href="#adminContrib">Contributions</a>
-      </div>
-
-      <h2 class="section-title" id="adminSetup">System Setup Checklist</h2>
-      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-        <div class="u-col u-fs-sm" style="gap:10px;">
-          ${checkRow("Database (D1)", status.d1, "Connected", "Missing")}
-          ${checkRow("Authentication (Supabase)", status.supabase, "Configured", "Missing")}
-          ${checkRow("Server AI (OpenAI)", status.openai, "Configured", "Unconfigured (use your own key)", true)}
-          ${checkRow("Google Sheets Integration", status.google, "Configured", "Unconfigured")}
-          ${checkRow("BrickLink Pricing API", status.bricklink, "Connected", "Unconfigured")}
-          ${checkRow("eBay Pricing API", status.ebay, "Credentials set", "Unconfigured (sold comps disabled)", true)}
-          ${checkRow("Firecrawl (scraping engine)", status.firecrawl, "Configured", "Unconfigured", false, "chkFirecrawl")}
-          ${checkRow("BrickEconomy API (legacy)", status.brickeconomy, "Configured", "Now via Firecrawl", true)}
-          ${checkRow("Rebrickable Catalog API", status.rebrickable, "Configured", "Missing")}
-          ${checkRow("Brickset Metadata API", status.brickset, "Configured", "Optional", true)}
-          ${(!status.supabase || !status.google || !status.ebay || !status.firecrawl || !status.openai || !status.rebrickable) ? `
-            <div class="u-col u-gap-1 u-fs-2xs u-mute" style="border-top:1px solid var(--border-soft-c);padding-top:8px;line-height:1.4;">
-              <span>To configure integrations, set the following environment variables in your Cloudflare dashboard:</span>
-              <code style="word-break: break-all;">DB (D1 Binding), SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_JWT_SECRET, OPENAI_API_KEY, REBRICKABLE_API_KEY, BRICKSET_API_KEY, FIRECRAWL_API_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, EBAY_APP_ID, EBAY_CLIENT_SECRET</code>
+      <section class="admin-section" id="adminOverview">
+        <div class="section-kicker">Operations</div>
+        <h2 class="section-title">Overview</h2>
+        <div id="adminOverviewCards" class="admin-summary-grid"></div>
+        <div class="admin-layout">
+          <div class="admin-main">
+            <div class="admin-panel">
+              <div class="admin-panel-head">
+                <div>
+                  <h3>Needs attention</h3>
+                  <p>Hard failures first, expected provider limits last.</p>
+                </div>
+              </div>
+              <div id="adminNeedsList" class="admin-action-list"></div>
             </div>
-          ` : ''}
+            <div class="admin-panel">
+              <div class="admin-panel-head">
+                <div>
+                  <h3>Setup state</h3>
+                  <p>Ready, degraded, and action-needed integrations.</p>
+                </div>
+              </div>
+              <div class="admin-setup-grid">${setupRowsHTML()}</div>
+            </div>
+          </div>
+          <aside class="admin-rail">
+            <div class="admin-rail-card">
+              <h3>Priority rail</h3>
+              <div id="adminRail">Loading...</div>
+            </div>
+          </aside>
         </div>
-      </div>
+      </section>
 
-      <h2 class="section-title" id="adminCatalog">Catalog Jobs</h2>
-      <div>
-        <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Import sets</div><div class="desc" id="importSetsDesc">~22k sets from Rebrickable with themes &amp; images</div></div>
-          <button class="import-btn" id="importSetsBtn" aria-label="Import sets">${I.download()}</button>
-        </div>
-        <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Import minifigs</div><div class="desc" id="importFigsDesc">~10k minifigures from Rebrickable</div></div>
-          <button class="import-btn" id="importFigsBtn" aria-label="Import minifigs">${I.download()}</button>
-        </div>
-        <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Backfill barcodes</div><div class="desc" id="backfillUpcDesc">Daily safe slices from Brickset; press to advance now</div></div>
-          <button class="import-btn" id="backfillUpcBtn" aria-label="Backfill barcodes">${I.download()}</button>
-        </div>
-        <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Populate coverage</div><div class="desc" id="populateCoverageDesc">One safe slice: barcode pages plus eBay ask refresh</div></div>
-          <button class="import-btn" id="populateCoverageBtn" aria-label="Populate coverage">${I.refresh({w: 16, h: 16})}</button>
-        </div>
-        <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Revalue prices</div><div class="desc" id="revalueAllDesc">Daily safe valuation batches; press to advance now</div></div>
-          <button class="import-btn" id="revalueAllBtn" aria-label="Revalue all prices">${I.refresh({w: 16, h: 16})}</button>
-        </div>
-        <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Populate everything</div><div class="desc" id="populateEverythingDesc">Auto-runs safe slices from every configured data source</div></div>
-          <button class="import-btn" id="populateEverythingBtn" aria-label="Populate all configured data sources">${I.refresh({w: 16, h: 16})}</button>
-        </div>
-        <div class="u-fs-2xs u-mute" style="line-height:1.45;padding:8px 2px 2px;">
-          <strong>Fills:</strong> catalog import, barcode pages (Brickset/UPCitemdb), market valuation (BrickLink → BrickEconomy), and eBay <em>asking</em> prices.
-          <strong>Can't fill:</strong> eBay <em>sold</em> comps unless eBay Marketplace Insights is approved — the corroborating sold-scrape runs on its own daily cron. Each press advances one safe slice; daily provider quotas (UPCitemdb barcodes, BrickLink) cap how much lands per day, so gaps here are expected, not a failed deploy.
-        </div>
-      </div>
+      <section class="admin-section" id="adminPopulate">
+        <div class="section-kicker">Data population</div>
+        <h2 class="section-title">Populate</h2>
+        ${populateSectionHTML()}
+      </section>
 
-      <h2 class="section-title" id="adminJobs">Import &amp; Revalue Jobs</h2>
-      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-        <div id="jobsStatusContainer" class="u-col u-fs-sm" style="color:var(--ink-soft);">
-          Loading jobs status...
-        </div>
-      </div>
+      <section class="admin-section" id="adminJobs">
+        <div class="section-kicker">Import and revalue jobs</div>
+        <h2 class="section-title">Jobs</h2>
+        <div id="jobsStatusContainer" class="admin-panel" aria-live="polite">Loading jobs...</div>
+      </section>
 
-      <h2 class="section-title" id="adminHealth">Integrations Health</h2>
-      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-        <div id="integrationsHealthContainer" class="u-col u-fs-sm" style="color:var(--ink-soft);">
-          Loading integrations status...
+      <section class="admin-section" id="adminProviders">
+        <div class="section-kicker">Provider readiness</div>
+        <h2 class="section-title">Providers</h2>
+        <div class="admin-provider-filters" role="tablist" aria-label="Provider filters">
+          ${providerFilterButtonHTML('needs', 'Needs action')}
+          ${providerFilterButtonHTML('quota', 'Quota')}
+          ${providerFilterButtonHTML('ready', 'Ready')}
+          ${providerFilterButtonHTML('optional', 'Optional')}
+          ${providerFilterButtonHTML('all', 'All')}
         </div>
-      </div>
+        <div id="providersContainer" class="admin-provider-wrap">Loading providers...</div>
+      </section>
 
-      <h2 class="section-title" id="adminSourceTuning">Source Tuning</h2>
-      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-        <div class="desc" style="margin-bottom:10px;">Enable/disable each pricing source, set its blend trust (weight), daily API budget, and refresh cadence. Changes apply within ~1 minute.</div>
-        <div id="sourceTuningContainer" class="u-col u-fs-sm" style="color:var(--ink-soft);">Loading source config…</div>
-        <div style="display:flex;gap:8px;margin-top:12px;align-items:center;">
-          <button class="btn-primary" id="sourceTuningSaveBtn" style="flex:1;">Save tuning</button>
-          <button class="btn-secondary" id="sourceTuningResetBtn">Reset to defaults</button>
-        </div>
-        <div id="sourceTuningResult" style="font-size:12px;margin-top:8px;min-height:18px;"></div>
-      </div>
+      <section class="admin-section" id="adminQuality">
+        <div class="section-kicker">Catalog data quality</div>
+        <h2 class="section-title">Catalog Quality</h2>
+        <div id="qualityContainer" class="admin-panel">Loading coverage...</div>
+      </section>
 
-      <h2 class="section-title" id="adminUsers">Users</h2>
-      <div class="card" style="padding:14px 16px;">
-        <div class="lbl" style="margin-bottom:8px;">Grant / revoke Supporter badge</div>
-        <div style="display:flex;gap:8px;margin-bottom:10px;">
-          <input id="supporterUserIdInput" class="input" placeholder="User ID (UUID)"
-            style="flex:1;font-family:var(--mono);font-size:13px;" />
+      <section class="admin-section" id="adminSources">
+        <div class="section-kicker">Blend controls</div>
+        <h2 class="section-title">Source Tuning</h2>
+        <div class="admin-panel">
+          <div class="admin-panel-head">
+            <div>
+              <h3>Pricing source controls</h3>
+              <p>Adjust trust, daily budgets, and refresh cadence. Changes apply within about 1 minute.</p>
+            </div>
+          </div>
+          <div id="sourceTuningContainer">Loading source config...</div>
+          <div id="sourceTuningResult" class="admin-status-panel" hidden></div>
         </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn-primary" id="grantSupporterBtn" style="flex:1;">Grant ⭐</button>
-          <button class="btn-secondary" id="revokeSupporterBtn" style="flex:1;">Revoke</button>
-        </div>
-        <div id="supporterResult" style="font-size:12px;margin-top:8px;min-height:18px;"></div>
-      </div>
+      </section>
 
-      <h2 class="section-title" id="adminContrib">Contributions <span id="contribCount" class="contrib-count"></span></h2>
-      <div class="card" style="padding:14px 16px;">
-        <div id="contribQueue" class="u-fs-sm" style="color:var(--ink-soft);">Loading queue…</div>
-      </div>
+      <section class="admin-section" id="adminUsers">
+        <div class="section-kicker">Account support</div>
+        <h2 class="section-title">Users</h2>
+        <div class="admin-panel admin-user-panel">
+          <label class="admin-field">
+            <span>User ID</span>
+            <input id="supporterUserIdInput" class="input" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false">
+            <small>Paste the Supabase user UUID. This changes supporter status for exactly that account.</small>
+          </label>
+          <div class="admin-user-actions">
+            <button class="btn-primary" id="grantSupporterBtn">${I.star()}<span>Grant supporter</span></button>
+            <button class="btn-secondary" id="revokeSupporterBtn">${I.minus()}<span>Revoke</span></button>
+          </div>
+          <div class="admin-user-search">
+            <label class="admin-field">
+              <span>Find a user</span>
+              <input id="adminUserSearchInput" class="input" placeholder="Handle, email, or user ID" autocomplete="off">
+              <small>Search helps confirm the UUID before changing supporter status.</small>
+            </label>
+            <button class="btn-secondary" id="adminUserSearchBtn">${I.search()}<span>Search</span></button>
+          </div>
+          <div id="adminUserSearchResults" class="admin-search-results"></div>
+          <div id="supporterResult" class="admin-status-panel" hidden></div>
+        </div>
+      </section>
+
+      <section class="admin-section" id="adminContrib">
+        <div class="section-kicker">Community moderation</div>
+        <h2 class="section-title">Contributions <span id="contribCount" class="contrib-count"></span></h2>
+        <div class="admin-panel">
+          <div class="admin-contrib-tabs" role="tablist" aria-label="Contribution type">
+            ${contribTabButtonHTML('all', 'All')}
+            ${contribTabButtonHTML('review', 'Reviews')}
+            ${contribTabButtonHTML('photo', 'Photos')}
+            ${contribTabButtonHTML('data', 'Data fixes')}
+          </div>
+          <div id="contribQueue">Loading queue...</div>
+        </div>
+      </section>
     </div>`;
 
-  $("#importSetsBtn")?.addEventListener("click", () => triggerImport("sets"));
-  $("#importFigsBtn")?.addEventListener("click", () => triggerImport("figs"));
-  $("#backfillUpcBtn")?.addEventListener("click", () => triggerImport("upc"));
-  $("#populateCoverageBtn")?.addEventListener("click", () => triggerImport("populate"));
-  $("#revalueAllBtn")?.addEventListener("click", () => triggerImport("revalue"));
-  $("#populateEverythingBtn")?.addEventListener("click", () => triggerImport("everything"));
-
+  wireAdminShell();
+  renderAdminOverview();
   updateJobsStatus();
   updateIntegrationsHealth();
   loadSourceTuning();
-
-  async function setSupporterStatus(val) {
-    const userId = $("#supporterUserIdInput").value.trim();
-    const out = $("#supporterResult");
-    if (!userId) { out.textContent = "Paste a user ID first."; return; }
-    out.textContent = "…";
-    try {
-      await api(`/api/admin/users/${encodeURIComponent(userId)}/supporter`,
-        { method: "PATCH", body: { is_supporter: val } });
-      out.textContent = val ? "✓ Supporter granted." : "✓ Supporter revoked.";
-    } catch (e) {
-      out.textContent = `Error: ${e.message}`;
-    }
-  }
-  $("#grantSupporterBtn")?.addEventListener("click", () => setSupporterStatus(1));
-  $("#revokeSupporterBtn")?.addEventListener("click", () => setSupporterStatus(0));
-
-  // --- Source tuning ------------------------------------------------------
-  const SOURCE_LABELS = {
-    bricklink: "BrickLink", ebay: "eBay", brickeconomy: "BrickEconomy",
-    brickowl: "BrickOwl", pricecharting: "PriceCharting", pricesapi: "pricesAPI.io",
-    firecrawl: "Firecrawl", brightdata: "Bright Data",
-  };
-  let sourceDefaults = {};
-
-  function sourceRowHTML(name, t) {
-    const label = SOURCE_LABELS[name] || name;
-    return `
-      <div class="src-tune-row" data-src="${escapeHtml(name)}" style="display:grid;grid-template-columns:1.3fr .9fr .9fr .9fr;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft);">
-        <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
-          <input type="checkbox" class="src-enabled" ${t.enabled ? "checked" : ""} />
-          <span>${escapeHtml(label)}</span>
-        </label>
-        <label style="font-size:11px;color:var(--ink-mute);">Weight
-          <input type="number" class="src-weight input" min="0" max="3" step="0.05" value="${Number(t.weight)}" style="width:100%;font-family:var(--mono);font-size:12px;" />
-        </label>
-        <label style="font-size:11px;color:var(--ink-mute);">Daily cap
-          <input type="number" class="src-cap input" min="0" step="1" value="${t.dailyCap == null ? "" : Number(t.dailyCap)}" placeholder="—" style="width:100%;font-family:var(--mono);font-size:12px;" />
-        </label>
-        <label style="font-size:11px;color:var(--ink-mute);">Refresh d
-          <input type="number" class="src-refresh input" min="1" step="1" value="${t.refreshDays == null ? "" : Number(t.refreshDays)}" placeholder="—" style="width:100%;font-family:var(--mono);font-size:12px;" />
-        </label>
-      </div>`;
-  }
-
-  function renderSourceTuning(config) {
-    const c = $("#sourceTuningContainer");
-    if (!c) return;
-    c.innerHTML = Object.entries(config).map(([name, t]) => sourceRowHTML(name, t)).join("");
-  }
-
-  async function loadSourceTuning() {
-    try {
-      const data = await api("/api/admin/source-config");
-      sourceDefaults = data.defaults || {};
-      renderSourceTuning(data.config || {});
-    } catch (e) {
-      const c = $("#sourceTuningContainer");
-      if (c) c.textContent = `Could not load source config: ${e.message}`;
-    }
-  }
-
-  function collectSourceTuning() {
-    const config = {};
-    for (const row of $$(".src-tune-row")) {
-      const name = row.getAttribute("data-src");
-      const cap = row.querySelector(".src-cap").value.trim();
-      const refresh = row.querySelector(".src-refresh").value.trim();
-      config[name] = {
-        enabled: row.querySelector(".src-enabled").checked,
-        weight: Number(row.querySelector(".src-weight").value) || 0,
-        dailyCap: cap === "" ? null : Number(cap),
-        refreshDays: refresh === "" ? null : Number(refresh),
-      };
-    }
-    return config;
-  }
-
-  async function saveSourceTuning(config) {
-    const out = $("#sourceTuningResult");
-    out.textContent = "Saving…";
-    try {
-      const res = await api("/api/admin/source-config", { method: "PUT", body: { config } });
-      renderSourceTuning(res.config || {});
-      out.textContent = "✓ Source tuning saved.";
-    } catch (e) {
-      out.textContent = `Error: ${e.message}`;
-    }
-  }
-
-  $("#sourceTuningSaveBtn")?.addEventListener("click", () => saveSourceTuning(collectSourceTuning()));
-  $("#sourceTuningResetBtn")?.addEventListener("click", () => {
-    if (Object.keys(sourceDefaults).length) renderSourceTuning(sourceDefaults);
-    saveSourceTuning(sourceDefaults);
-  });
-
   loadContribQueue();
 }
 
-async function loadContribQueue() {
-  const box = $("#contribQueue");
-  const badge = $("#contribCount");
-  if (!box) return;
-  let data;
-  try {
-    data = await api("/api/admin/contributions?status=pending");
-  } catch (e) {
-    box.textContent = `Couldn't load queue: ${e.message}`;
-    return;
-  }
-  const total = data.counts?.total || 0;
-  if (badge) badge.textContent = total ? String(total) : "";
-  if (!data.items?.length) {
-    box.innerHTML = `<div style="text-align:center;padding:14px 0;color:var(--ink-mute);">No pending contributions 🎉</div>`;
-    return;
-  }
-  box.innerHTML = data.items.map(it => {
-    const thumb = it.photo_url
-      ? `<img src="${(window.WORKER_BASE || "") + it.photo_url}" alt="" style="width:54px;height:54px;object-fit:cover;border-radius:8px;flex:0 0 auto;">`
-      : "";
-    const detail = it.type === "data" ? escapeHtml(it.detail || "") : escapeHtml(it.detail || "");
-    return `
-      <div class="contrib-item" data-type="${it.type}" data-id="${it.id}">
-        ${thumb}
-        <div style="flex:1;min-width:0;">
-          <div class="ci-summary">${escapeHtml(it.summary || it.type)} · <span class="u-mute">${escapeHtml(it.set_num)} ${escapeHtml(it.set_name || "")}</span></div>
-          ${detail ? `<div class="ci-detail u-mute">${detail}</div>` : ""}
-        </div>
-        <div class="ci-actions">
-          <button class="btn-primary ci-approve" style="padding:6px 10px;font-size:12px;">Approve</button>
-          <button class="btn-secondary ci-reject" style="padding:6px 10px;font-size:12px;">Reject</button>
-        </div>
-      </div>`;
-  }).join("");
+function buildSetupRows(me, googleStatus) {
+  const savedOpenAIKey = localStorage.getItem('bv_openai_key') || '';
+  const status = state.config?.status || {};
+  return [
+    setupRow('D1 database', !!status.d1, 'ready', 'Missing binding', false),
+    setupRow('Supabase auth', !!status.supabase, 'ready', 'Missing auth config', false),
+    setupRow('Rebrickable catalog', !!status.rebrickable, 'ready', 'Missing REBRICKABLE_API_KEY', false),
+    setupRow('Brickset metadata', !!status.brickset, 'ready', 'Optional setup', true),
+    setupRow('BrickLink pricing', !!(status.bricklink || me?.bricklink_configured), 'ready', 'Missing BrickLink keys', false),
+    setupRow('eBay credentials', !!(status.ebay || me?.ebay_configured), 'credentials set', 'Sold comps unavailable', true),
+    setupRow('Google Sheets', !!(googleStatus.connected || googleStatus.configured || status.google), 'configured', 'Needs app setup/user connect', true),
+    setupRow('Server AI', !!(status.openai || savedOpenAIKey), 'configured', 'BYOK or server key needed', true),
+    setupRow('Notifications', !!(status.resend || status.push || status.vapid), 'configured', 'Optional setup', true),
+  ];
+}
 
-  box.querySelectorAll(".contrib-item").forEach(row => {
-    const type = row.dataset.type, id = row.dataset.id;
-    const act = async (action) => {
-      row.querySelectorAll("button").forEach(b => b.disabled = true);
-      try {
-        const res = await api(`/api/admin/contributions/${type}/${id}`, { method: "PATCH", body: { action } });
-        haptic("light");
-        toast(res.applied ? `${action === "approve" ? "Approved" : "Rejected"} — ${res.applied}` : (action === "approve" ? "Approved" : "Rejected"), "success");
-        row.remove();
-        const badge2 = $("#contribCount");
-        const left = $("#contribQueue").querySelectorAll(".contrib-item").length;
-        if (badge2) badge2.textContent = left ? String(left) : "";
-        if (!left) loadContribQueue();
-      } catch (e) {
-        row.querySelectorAll("button").forEach(b => b.disabled = false);
-        toast(e.message || "Action failed", "error");
-      }
-    };
-    row.querySelector(".ci-approve").addEventListener("click", () => act("approve"));
-    row.querySelector(".ci-reject").addEventListener("click", () => act("reject"));
+function setupRow(label, ok, okText, missText, optional) {
+  return { label, ok, okText, missText, optional };
+}
+
+function setupRowsHTML() {
+  return setupRows.map(row => {
+    const tone = row.ok ? 'ok' : row.optional ? 'neutral' : 'warn';
+    const status = row.ok ? row.okText : row.missText;
+    return `
+      <div class="admin-setup-card ${tone}">
+        <span>${escapeHtml(row.label)}</span>
+        <strong>${escapeHtml(status)}</strong>
+      </div>`;
+  }).join('');
+}
+
+function populateSectionHTML() {
+  const secondary = ['sets', 'figs', 'upc', 'populate', 'revalue'];
+  return `
+    <div class="admin-populate-primary">
+      <div class="admin-populate-copy">
+        <div class="section-kicker">Recommended</div>
+        <h3>Populate all safe sources</h3>
+        <p>Runs small protected slices against every configured and reachable provider. Blocked eBay sold comps stay unavailable instead of falling back to weak data.</p>
+        <div class="admin-fill-list">
+          <span>Rebrickable catalog</span>
+          <span>Brickset/UPC barcodes</span>
+          <span>BrickLink values</span>
+          <span>BrickEconomy values</span>
+          <span>eBay asking data</span>
+          <span>Approved eBay sold comps</span>
+        </div>
+      </div>
+      <button class="btn-primary admin-primary-action" data-admin-tool="everything">${I.refresh()}<span>Run safe slice</span></button>
+    </div>
+    <div class="admin-tool-grid">
+      ${secondary.map(key => adminToolCardHTML(key)).join('')}
+      ${maintenanceCardHTML('expire')}
+      ${maintenanceCardHTML('repair')}
+    </div>`;
+}
+
+function adminToolCardHTML(key) {
+  const tool = ADMIN_JOB_TOOLS[key];
+  return `
+    <article class="admin-tool-card">
+      <div class="admin-tool-icon">${tool.icon}</div>
+      <div>
+        <h3>${escapeHtml(tool.label)}</h3>
+        <p>${escapeHtml(tool.source)} - ${escapeHtml(tool.duration)}</p>
+        <small>${escapeHtml(tool.quota)}</small>
+      </div>
+      <button class="icon-btn admin-tool-run" data-admin-tool="${escapeHtml(key)}" aria-label="${escapeHtml(tool.label)}">${I.refresh({ w: 16 })}</button>
+    </article>`;
+}
+
+function maintenanceCardHTML(key) {
+  const tool = MAINTENANCE_TOOLS[key];
+  return `
+    <article class="admin-tool-card admin-tool-card-muted">
+      <div class="admin-tool-icon">${I.gear()}</div>
+      <div>
+        <h3>${escapeHtml(tool.label)}</h3>
+        <p>High-impact maintenance</p>
+        <small>Confirmation required before running.</small>
+      </div>
+      <button class="icon-btn admin-tool-run" data-maint-tool="${escapeHtml(key)}" aria-label="${escapeHtml(tool.label)}">${I.arrowR({ w: 16 })}</button>
+    </article>`;
+}
+
+function wireAdminShell() {
+  document.querySelectorAll('[data-admin-tool]').forEach(btn => {
+    btn.addEventListener('click', () => triggerImport(btn.getAttribute('data-admin-tool')));
+  });
+  document.querySelectorAll('[data-maint-tool]').forEach(btn => {
+    btn.addEventListener('click', () => triggerMaintenance(btn.getAttribute('data-maint-tool')));
+  });
+  document.querySelectorAll('[data-provider-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      providerFilter = btn.getAttribute('data-provider-filter') || 'needs';
+      renderProviderFilters();
+      renderProviders();
+    });
+  });
+  document.querySelectorAll('[data-contrib-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      contributionTab = btn.getAttribute('data-contrib-tab') || 'all';
+      renderContribQueue();
+    });
+  });
+  $('#grantSupporterBtn')?.addEventListener('click', () => setSupporterStatus(1));
+  $('#revokeSupporterBtn')?.addEventListener('click', () => setSupporterStatus(0));
+  $('#adminUserSearchBtn')?.addEventListener('click', searchUsers);
+  $('#adminUserSearchInput')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') searchUsers();
+  });
+  setupAdminSectionObserver();
+}
+
+function setupAdminSectionObserver() {
+  const links = Array.from(document.querySelectorAll('[data-admin-section-link]'));
+  const sections = ADMIN_SECTIONS.map(([id]) => document.getElementById(id)).filter(Boolean);
+  if (!('IntersectionObserver' in window) || !sections.length) return;
+  const observer = new IntersectionObserver((entries) => {
+    const visible = entries.filter(e => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+    if (!visible) return;
+    links.forEach(link => link.classList.toggle('active', link.dataset.adminSectionLink === visible.target.id));
+  }, { rootMargin: '-20% 0px -65% 0px', threshold: [0, 0.2, 0.6] });
+  sections.forEach(section => observer.observe(section));
+}
+
+function providerFilterButtonHTML(id, label) {
+  return `<button class="chip ${providerFilter === id ? 'active' : ''}" data-provider-filter="${escapeHtml(id)}" role="tab" aria-selected="${providerFilter === id}">${escapeHtml(label)}</button>`;
+}
+
+function renderProviderFilters() {
+  const wrap = document.querySelector('.admin-provider-filters');
+  if (!wrap) return;
+  wrap.innerHTML = [
+    providerFilterButtonHTML('needs', 'Needs action'),
+    providerFilterButtonHTML('quota', 'Quota'),
+    providerFilterButtonHTML('ready', 'Ready'),
+    providerFilterButtonHTML('optional', 'Optional'),
+    providerFilterButtonHTML('all', 'All'),
+  ].join('');
+  wrap.querySelectorAll('[data-provider-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      providerFilter = btn.getAttribute('data-provider-filter') || 'needs';
+      renderProviderFilters();
+      renderProviders();
+    });
   });
 }
 
-const ADMIN_JOB_TOOLS = {
-  sets: { url: "/api/admin/import-rebrickable", method: "POST", body: { dataset: "sets" }, desc: "importSetsDesc", btn: "importSetsBtn", text: "Importing sets...", idle: "~22k sets from Rebrickable with themes & images" },
-  figs: { url: "/api/admin/import-rebrickable", method: "POST", body: { dataset: "figs" }, desc: "importFigsDesc", btn: "importFigsBtn", text: "Importing figs...", idle: "~10k minifigures from Rebrickable" },
-  upc: { url: "/api/admin/backfill-upc", method: "POST", body: {}, desc: "backfillUpcDesc", btn: "backfillUpcBtn", text: "Backfilling UPC...", idle: "Daily safe slices from Brickset; press to advance now" },
-  populate: { url: "/api/admin/populate-coverage", method: "POST", body: {}, desc: "populateCoverageDesc", btn: "populateCoverageBtn", text: "Populating coverage...", idle: "One safe slice: barcode pages plus eBay ask refresh" },
-  revalue: { url: "/api/admin/revalue-brickeconomy", method: "POST", body: { scope: "all", limit: 4 }, desc: "revalueAllDesc", btn: "revalueAllBtn", text: "Revaluing prices...", idle: "Daily safe valuation batches; press to advance now" },
-  everything: { url: "/api/admin/populate-everything", method: "POST", body: { valuation_limit: 5, barcode_pages: 4, ebay_limit: 2 }, desc: "populateEverythingDesc", btn: "populateEverythingBtn", text: "Populating everything...", idle: "Auto-runs safe slices from every configured data source" }
-};
+function contribTabButtonHTML(id, label) {
+  return `<button class="chip ${contributionTab === id ? 'active' : ''}" data-contrib-tab="${escapeHtml(id)}" role="tab" aria-selected="${contributionTab === id}">${escapeHtml(label)}</button>`;
+}
 
-function adminToolFromJobType(jobType = "") {
-  if (jobType === "catalog_sets") return "sets";
-  if (jobType === "catalog_figs") return "figs";
-  if (jobType === "catalog_all") return "sets";
-  if (jobType === "barcode_backfill") return "upc";
-  if (jobType === "populate_coverage") return "populate";
-  if (jobType === "valuation") return "revalue";
-  if (jobType === "populate_everything") return "everything";
+function adminToolFromJobType(jobType = '') {
+  if (jobType === 'catalog_sets' || jobType === 'catalog_all') return 'sets';
+  if (jobType === 'catalog_figs') return 'figs';
+  if (jobType === 'barcode_backfill') return 'upc';
+  if (jobType === 'populate_coverage') return 'populate';
+  if (jobType === 'valuation') return 'revalue';
+  if (jobType === 'populate_everything') return 'everything';
   return null;
 }
 
 function setAdminJobButtons(runningType = null) {
-  Object.entries(ADMIN_JOB_TOOLS).forEach(([key, cfg]) => {
-    const btn = document.getElementById(cfg.btn);
-    if (!btn) return;
+  document.querySelectorAll('[data-admin-tool]').forEach(btn => {
+    const key = btn.getAttribute('data-admin-tool');
     const busy = !!runningType;
     btn.disabled = busy;
-    btn.setAttribute("aria-busy", busy && key === runningType ? "true" : "false");
-  });
-}
-
-function setAdminJobDescriptions(runningType = null, text = "") {
-  Object.entries(ADMIN_JOB_TOOLS).forEach(([key, cfg]) => {
-    const desc = document.getElementById(cfg.desc);
-    if (!desc) return;
-    desc.textContent = runningType && key === runningType ? (text || cfg.text) : cfg.idle;
+    btn.setAttribute('aria-busy', busy && key === runningType ? 'true' : 'false');
   });
 }
 
 function scheduleAdminJobPoll(delay = 2500) {
   if (adminJobPollTimer) clearTimeout(adminJobPollTimer);
-  if (location.hash !== "#/me/admin") return;
+  if (location.hash !== '#/me/admin') return;
   adminJobPollTimer = setTimeout(() => {
     adminJobPollTimer = null;
     updateJobsStatus();
@@ -369,91 +471,67 @@ function scheduleAdminJobPoll(delay = 2500) {
 }
 
 function isPopulateEverythingComplete(run = {}) {
-  return run.job_type === "populate_everything" && /method:populate-everything\b[\s\S]*complete:true/i.test(String(run.error || ""));
+  return run.job_type === 'populate_everything' && /method:populate-everything\b[\s\S]*complete:true/i.test(String(run.error || ''));
 }
 
 function schedulePopulateEverythingContinue(delay = 1400) {
   if (populateEverythingContinueTimer) clearTimeout(populateEverythingContinueTimer);
-  if (!populateEverythingAuto || location.hash !== "#/me/admin") return;
+  if (!populateEverythingAuto || location.hash !== '#/me/admin') return;
   populateEverythingContinueTimer = setTimeout(() => {
     populateEverythingContinueTimer = null;
-    if (populateEverythingAuto && !activeAdminRunId) triggerImport("everything");
+    if (populateEverythingAuto && !activeAdminRunId) triggerImport('everything');
   }, delay);
 }
 
-async function triggerImport(type) {
+async function triggerImport(type, { single = false } = {}) {
   const cnf = ADMIN_JOB_TOOLS[type];
   if (!cnf) return;
+  if (cnf.confirm && !window.confirm(cnf.confirm)) return;
   if (activeAdminRunId) {
-    toast("A catalog job is already running", "info");
+    toast('A catalog job is already running', 'info');
     scheduleAdminJobPoll(500);
     return;
   }
-  if (type === "everything") populateEverythingAuto = true;
-  else populateEverythingAuto = false;
-  haptic("medium");
-  const descEl = document.getElementById(cnf.desc);
-  const origText = descEl ? descEl.textContent : "";
-  if (descEl) descEl.textContent = cnf.text;
+  populateEverythingAuto = type === 'everything' && !single;
+  haptic('medium');
   setAdminJobButtons(type);
   try {
     const r = await api(cnf.url, { method: cnf.method, body: cnf.body });
     activeAdminRunId = r.run_id || null;
     activeAdminTool = type;
-    if (type === "everything" && r.done) populateEverythingAuto = false;
-    toast(r.message || `Job #${activeAdminRunId || ""} started`, "success");
+    if (type === 'everything' && r.done) populateEverythingAuto = false;
+    toast(r.message || `Job #${activeAdminRunId || ''} started`, 'success');
     await updateJobsStatus();
     scheduleAdminJobPoll(1200);
   } catch (e) {
-    toast("Job failed: " + e.message, "error");
-    if (descEl) descEl.textContent = origText;
+    toast('Job failed: ' + (e.message || e), 'error');
     activeAdminRunId = null;
     activeAdminTool = null;
     populateEverythingAuto = false;
-    if (populateEverythingContinueTimer) {
-      clearTimeout(populateEverythingContinueTimer);
-      populateEverythingContinueTimer = null;
-    }
     setAdminJobButtons(null);
-    setAdminJobDescriptions(null);
+  }
+}
+
+async function triggerMaintenance(type) {
+  const tool = MAINTENANCE_TOOLS[type];
+  if (!tool || !window.confirm(tool.confirm)) return;
+  try {
+    const res = await api(tool.url, { method: tool.method });
+    toast(res.message || `${tool.label} complete`, 'success');
+    await updateIntegrationsHealth();
+  } catch (e) {
+    toast(`${tool.label} failed: ${e.message || e}`, 'error');
   }
 }
 
 async function updateJobsStatus() {
-  const container = document.getElementById("jobsStatusContainer");
+  const container = $('#jobsStatusContainer');
   if (!container) return;
-  const ago = (ts) => {
-    if (!ts) return "";
-    const then = new Date(String(ts).replace(" ", "T") + "Z").getTime();
-    const mins = Math.round((Date.now() - then) / 60000);
-    if (!Number.isFinite(mins)) return "";
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.round(mins / 60);
-    return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
-  };
   try {
-    const data = await api("/api/admin/import-status");
-    const runs = data.runs || [];
-    if (runs.length === 0) {
-      activeAdminRunId = null;
-      activeAdminTool = null;
-      setAdminJobButtons(null);
-      setAdminJobDescriptions(null);
-      if (adminJobPollTimer) {
-        clearTimeout(adminJobPollTimer);
-        adminJobPollTimer = null;
-      }
-      if (populateEverythingContinueTimer) {
-        clearTimeout(populateEverythingContinueTimer);
-        populateEverythingContinueTimer = null;
-      }
-      container.innerHTML = `<div class="u-mute">No jobs have run yet.</div>`;
-      return;
-    }
-
-    const classified = runs.map(run => ({ run, state: classifyJobRun(run) }));
-    const runningRun = classified.find(x => x.state.label === "Running")?.run || null;
+    const data = await api('/api/admin/import-status');
+    adminRuns = data.runs || [];
+    const classified = adminRuns.map(run => ({ run, state: classifyJobRun(run) }));
+    const runningRun = classified.find(x => x.state.label === 'Running')?.run || null;
     if (runningRun) {
       activeAdminRunId = runningRun.id;
       activeAdminTool = adminToolFromJobType(runningRun.job_type) || activeAdminTool;
@@ -461,418 +539,775 @@ async function updateJobsStatus() {
       activeAdminRunId = null;
       activeAdminTool = null;
     }
-    const runningProgress = runningRun ? jobProgressSummary(runningRun) : null;
-    setAdminJobButtons(activeAdminTool || (runningRun ? "active" : null));
-    setAdminJobDescriptions(activeAdminTool, runningProgress?.label);
-    const isStoppedRun = (run) => ["Stopped", "Stalled"].includes(classifyJobRun(run).label) || /Timed out|Worker run stopped/i.test(String(run.error || ""));
-    const hasCompleted = classified.some(x => x.state.label === "Completed");
-    const hasRunning = classified.some(x => x.state.label === "Running");
-    const retryableCount = classified.filter(x => x.state.retryable).length;
-    const hardErrors = classified.filter(x => x.state.needsAttention);
-    const latestState = classified[0]?.state || null;
-    const summaryText = hasRunning
-      ? "Job running"
-      : latestState?.needsAttention
-        ? "Latest job needs attention"
-        : retryableCount
-          ? `${retryableCount} retryable stopped/provider note${retryableCount === 1 ? "" : "s"}`
-          : hasCompleted
-            ? "Latest batches completed"
-            : hardErrors.length
-              ? `${hardErrors.length} historical hard job error${hardErrors.length === 1 ? "" : "s"}`
-              : "No completed batches yet";
-    const activeProgressHTML = runningRun && runningProgress ? `
-      <div style="margin-top:9px;">
-        <div class="u-between u-fs-xs" style="color:var(--ink-soft);margin-bottom:5px;">
-          <span>${escapeHtml(runningProgress.label)}</span>
-          <span>${escapeHtml(runningProgress.countText || "working")}${runningProgress.pct != null ? ` / ${runningProgress.pct}%` : ""}</span>
-        </div>
-        <div style="height:8px;border:1px solid var(--border-c);border-radius:var(--r-full);background:var(--surface);overflow:hidden;">
-          <div style="height:100%;width:${runningProgress.pct ?? 32}%;background:var(--bv-yellow);transition:width .25s ease;"></div>
-        </div>
-      </div>
-    ` : "";
-    const summaryHTML = `
-      <div class="admin-job-summary ${hasRunning ? "is-running" : latestState?.needsAttention ? "is-danger" : retryableCount ? "is-warn" : "is-ok"}">
-        <div class="u-fs-sm" style="font-weight:700;color:${latestState?.needsAttention ? "var(--bv-red)" : (hasRunning || retryableCount) ? "var(--bv-yellow)" : "var(--up)"};">
-          ${summaryText}
-        </div>
-        <div class="u-fs-xs u-mute" style="line-height:1.45;margin-top:3px;">
-          Provider no-data and stopped slices are safe to retry. D1/SQLite corruption and access errors are highlighted as hard failures.
-        </div>
-        ${activeProgressHTML}
-      </div>`;
+    setAdminJobButtons(activeAdminTool || (runningRun ? 'active' : null));
+    renderJobs(container);
+    renderAdminOverview();
 
-    container.innerHTML = summaryHTML + runs.map(run => {
-      const jobState = classifyJobRun(run);
-      const statusColor = jobState.tone === "ok" ? "var(--up)"
-        : jobState.tone === "warn" ? "var(--warn)"
-        : jobState.tone === "danger" ? "var(--bv-red)"
-        : "var(--ink-mute)";
-      const statusBadge = jobState.tone === "ok" ? "badge--up"
-        : jobState.tone === "warn" ? "badge--warn"
-        : jobState.tone === "danger" ? "badge--down"
-        : "badge--neutral";
-      const statusText = jobState.label.toUpperCase();
-      const progress = jobProgressSummary(run);
-
-      const dateStr = run.started_at ? new Date(run.started_at.replace(" ", "T") + "Z").toLocaleString() : "Unknown date";
-      const details = [];
-      if (run.themes_loaded) details.push(`${run.themes_loaded} themes`);
-      if (run.error && /Brickset says:\s*success/i.test(String(run.error))) {
-        details.push("key valid; rerun backfill");
-      } else if (isStoppedRun(run)) {
-        details.push("continue with safe batch");
-      } else if (run.error && String(run.error).includes('method:valuation')) {
-        if (run.sets_skipped) details.push(`${run.sets_skipped} processed`);
-        if (run.sets_loaded) details.push(`${run.sets_loaded} updated`);
-      } else if (run.error && String(run.error).includes('method:')) {
-        if (run.sets_skipped) details.push(`${run.sets_skipped} processed`);
-        if (run.sets_loaded) details.push(`${run.sets_loaded} filled`);
-        const nextMatch = String(run.error).match(/next_page:(\d+)/);
-        if (nextMatch) details.push(`next page ${nextMatch[1]}`);
-      } else if (run.sets_loaded) details.push(`${run.sets_loaded} sets`);
-      if (run.figs_loaded) details.push(`${run.figs_loaded} figs`);
-      if (!(run.error && String(run.error).includes('method:')) && run.sets_skipped) details.push(`${run.sets_skipped} skipped/processed`);
-      if (jobState.retryable && !details.length) details.push("safe to retry");
-      if (jobState.needsAttention) details.push("check diagnostics");
-      if (progress.countText && !details.includes(progress.countText)) details.unshift(progress.countText);
-      const updatedText = run.updated_at ? `Updated ${ago(run.updated_at)}` : "";
-      const progressHTML = progress.pct != null ? `
-        <div style="margin-top:6px;">
-          <div class="u-between u-fs-2xs u-mute" style="margin-bottom:4px;">
-            <span>${escapeHtml(progress.label)}</span>
-            <span>${progress.pct}%</span>
-          </div>
-          <div style="height:6px;border:1px solid var(--border-soft-c);border-radius:var(--r-full);background:var(--surface-2);overflow:hidden;">
-            <div style="height:100%;width:${progress.pct}%;background:${statusColor};transition:width .25s ease;"></div>
-          </div>
-        </div>
-      ` : progress.active ? `
-        <div class="u-fs-2xs u-mute" style="margin-top:6px;">${escapeHtml(progress.label)}...</div>
-      ` : "";
-      const _errTxt = String(run.error || ""); const _errorHTML = run.error ? `<div class="u-fs-xs" style="color:${statusColor};margin-top:3px;overflow-wrap:anywhere;">${escapeHtml(_errTxt.length > 300 ? _errTxt.slice(0, 300) + "…" : _errTxt)}</div>` : "";
-
-      return `
-        <div class="admin-job-row ${jobState.tone}">
-          <div class="u-between" style="font-weight:600;margin-bottom:2px;">
-            <span>Job #${run.id}</span>
-            <span class="badge ${statusBadge}" style="max-width:58%;">${escapeHtml(statusText)}</span>
-          </div>
-          <div class="u-between u-fs-xs u-mute">
-            <span>Started: ${dateStr}</span>
-            <span>${details.join(", ") || "No items processed"}</span>
-          </div>
-          ${updatedText ? `<div class="u-fs-2xs u-faint" style="margin-top:2px;">${escapeHtml(updatedText)}</div>` : ""}
-          ${progressHTML}
-          ${run.error ? `<details class="admin-job-details"><summary>Details</summary><div>${escapeHtml(_errTxt.length > 800 ? _errTxt.slice(0, 800) + "..." : _errTxt)}</div></details>` : ""}
-        </div>
-      `;
-    }).join("");
-
-    const latestRun = runs[0] || null;
-    if (hasRunning && location.hash === "#/me/admin") {
+    if (runningRun && location.hash === '#/me/admin') {
       scheduleAdminJobPoll(2500);
     } else if (adminJobPollTimer) {
       clearTimeout(adminJobPollTimer);
       adminJobPollTimer = null;
     }
-    if (!hasRunning && populateEverythingAuto && latestRun?.job_type === "populate_everything") {
+
+    const latestRun = adminRuns[0] || null;
+    const latestState = latestRun ? classifyJobRun(latestRun) : null;
+    if (!runningRun && populateEverythingAuto && latestRun?.job_type === 'populate_everything') {
       if (isPopulateEverythingComplete(latestRun)) {
         populateEverythingAuto = false;
-        toast("All configured data sources are populated", "success");
+        toast('All configured data sources are populated', 'success');
       } else if (latestState?.needsAttention) {
         populateEverythingAuto = false;
-        toast("Populate everything stopped for a hard provider error", "error");
+        toast('Populate everything stopped for a hard provider error', 'error');
       } else {
         schedulePopulateEverythingContinue();
       }
     }
   } catch (err) {
     setAdminJobButtons(null);
-    container.innerHTML = `<div style="color:var(--bv-red);">Failed to load jobs: ${escapeHtml(err.message)}</div>`;
+    container.innerHTML = errorPanelHTML('Failed to load jobs', err.message || String(err), 'Retry');
+    $('#adminErrorRetry')?.addEventListener('click', updateJobsStatus);
   }
 }
 
-async function updateIntegrationsHealth() {
-  const container = document.getElementById("integrationsHealthContainer");
-  if (!container) return;
-  const ago = (ts) => {
-    if (!ts) return "never";
-    const then = new Date(String(ts).replace(" ", "T") + "Z").getTime();
-    const mins = Math.round((Date.now() - then) / 60000);
-    if (!Number.isFinite(mins)) return "unknown";
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.round(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.round(hrs / 24)}d ago`;
-  };
-  const statusColor = (status) => status === "ok" ? "var(--up)"
-    : status === "degraded" ? "var(--warn)"
-    : status === "down" ? "var(--bv-red)"
-    : "var(--ink-mute)";
-  const statusBadgeClass = (status) => status === "ok" ? "badge--up"
-    : status === "degraded" ? "badge--warn"
-    : status === "down" ? "badge--down"
-    : "badge--neutral";
-  const isLatestFailure = (r) => {
-    const okAt = r.last_ok_at ? new Date(String(r.last_ok_at).replace(" ", "T") + "Z").getTime() : 0;
-    const failAt = r.last_fail_at ? new Date(String(r.last_fail_at).replace(" ", "T") + "Z").getTime() : 0;
-    return failAt && failAt >= okAt;
-  };
-  const statusLabel = (r, standbyFallback = false) => {
-    if (standbyFallback) return "Standby fallback";
-    const latestFail = isLatestFailure(r);
-    if (latestFail && r.service === "ebay" && /OAuth|invalid[_ -]?client/i.test(r.last_error || "")) return "Check keys";
-    if (latestFail && r.service === "ebay" && /Marketplace Insights|HTTP 401|HTTP 403|access denied|insufficient permissions|invalid[_ -]?scope|not authorized/i.test(r.last_error || "")) return "Sold comps blocked";
-    if (latestFail && /HTTP 401|HTTP 403|access denied|insufficient permissions|invalid[_ -]?scope|not authorized/i.test(r.last_error || "")) return "Needs access";
-    if (latestFail && /Too many subrequests|operation was aborted|AbortError|timed out|timeout/i.test(r.last_error || "")) return "Batch limited";
-    if (r.status === "unknown") return r.configured ? "Ready / no calls" : "Unconfigured";
-    return String(r.status || "unknown").replace("_", " ");
-  };
-  try {
-    const data = await api("/api/admin/integrations");
-    const rows = data.integrations || [];
-    const bricksetRow = rows.find(r => r.service === "brickset");
-    const bricksetCoversBarcodes = !!bricksetRow?.configured && bricksetRow.status !== "down";
-    const isBrickOwlStandby = (r) => r.service === "brickowl"
-      && bricksetCoversBarcodes
-      && /HTTP 401|HTTP 403|access denied|not authorized/i.test(r.last_error || "");
-    const coverage = data.coverage || {};
-    const quality = coverage.quality || {};
-    const routing = data.api_routing || {};
-    const totalSets = Number(coverage.total_sets || 0);
-    const formatCoverage = (count, pct, denom = totalSets) => {
-      const n = Number(count || 0);
-      const d = Number(denom || 0);
-      if (!d) return "No catalog";
-      if (!n) return `No rows yet (0/${d.toLocaleString()})`;
-      const displayPct = Number(pct || 0);
-      const pctLabel = displayPct > 0 ? `${displayPct}%` : "<0.1%";
-      return `${pctLabel} (${n.toLocaleString()}/${d.toLocaleString()})`;
-    };
-    const bricklinkCount = coverage.sets_with_bricklink ?? coverage.sets_with_bricklink_new ?? 0;
-    const coverageRows = [
-      ["Catalog sets", Number(coverage.total_sets || 0).toLocaleString()],
-      ["Stale values", Number(coverage.stale_values || 0).toLocaleString()],
-      ["Expired values", Number(coverage.expired_values || 0).toLocaleString()],
-      ["Missing values", Number(coverage.missing_values || 0).toLocaleString()],
-      ["Missing MSRP", Number(quality.missing_msrp || 0).toLocaleString()],
-      ["Missing UPC (retail)", Number(Math.max(0, (coverage.barcode_retail_total || 0) - (coverage.barcode_retail_with_upc || 0))).toLocaleString()],
-      ["Old active sets", Number(quality.old_active_sets || 0).toLocaleString()],
-      ["Low-confidence values", Number(quality.low_confidence_values || 0).toLocaleString()],
-      ["Barcode coverage (retail)", formatCoverage(coverage.barcode_retail_with_upc, coverage.barcode_coverage_pct, coverage.barcode_retail_total)],
-      ["BrickLink coverage", formatCoverage(bricklinkCount, coverage.bricklink_coverage_pct)],
-      ["eBay new sold", formatCoverage(coverage.sets_with_ebay_new, coverage.ebay_new_coverage_pct)],
-      ["eBay used sold", formatCoverage(coverage.sets_with_ebay_used, coverage.ebay_used_coverage_pct)],
-    ];
-    const coverageNote = "Coverage tracks populated catalog fields. Barcode/UPC coverage is measured over scannable retail sets — it excludes Gear, books, parts packs, education and store/vintage items that have no retail barcode. BrickLink and eBay are split into new and used market data; daily safe batches advance barcode and price coverage automatically.";
-    const routingHTML = `
-      <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
-        <div class="u-mono-label u-fs-2xs" style="margin-bottom:6px;">API routing</div>
-        <div class="u-fs-xs" style="color:var(--ink-soft);line-height:1.45;word-break:break-all;">
-          Worker: ${escapeHtml(routing.worker_base_url || window.WORKER_BASE || "unknown")}<br>
-          Config: ${escapeHtml(routing.config_endpoint || "")}
-        </div>
-      </div>`;
-    const bh = coverage.barcode_health || null;
-    const bhOk = bh && bh.last_ok_at && (!bh.last_fail_at || bh.last_ok_at >= bh.last_fail_at);
-    const bhColor = !bh ? "var(--ink-mute)" : bhOk ? "var(--up)" : "var(--bv-yellow)";
-    const bhWhen = bh && bh.updated_at ? ago(bh.updated_at) : null;
-    const barcodeHealthHTML = bh ? `
-        <div class="u-fs-2xs" style="line-height:1.4;margin-top:8px;display:flex;align-items:flex-start;gap:6px;color:var(--ink-soft);">
-          <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${bhColor};margin-top:3px;flex-shrink:0;"></span>
-          <span><strong>Barcode backfill:</strong> ${escapeHtml(bh.last_error || "no run recorded yet")}${bhWhen ? ` · ${escapeHtml(bhWhen)}` : ""}</span>
-        </div>` : "";
-    const coverageHTML = `
-      <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
-        <div class="u-mono-label u-fs-2xs" style="margin-bottom:8px;">Data coverage</div>
-        <div class="adm-cov-grid">
-          ${coverageRows.map(([label, value]) => `
-            <div class="adm-cov-cell">
-              <div class="adm-cov-lbl">${escapeHtml(label)}</div>
-              <div class="adm-cov-val">${escapeHtml(value)}</div>
-            </div>
-          `).join("")}
-        </div>
-        ${barcodeHealthHTML}
-        <div class="u-fs-2xs u-mute" style="line-height:1.4;margin-top:8px;">${escapeHtml(coverageNote)}</div>
-      </div>`;
-    const bq = coverage.blend_quality || {};
-    const fresh = bq.freshness_30d || {};
-    const conf = bq.confidence || {};
-    const n = (v) => Number(v || 0).toLocaleString();
-    const blendRows = [
-      ["Multi-source (2+)", formatCoverage(bq.multi_source, bq.multi_source_pct)],
-      ["Source mix 0/1/2/3+", `${n(bq.src0)} / ${n(bq.src1)} / ${n(bq.src2)} / ${n(bq.src3plus)}`],
-      ["Blended populated", formatCoverage(bq.blended_count, bq.blended_coverage_pct)],
-      ["Diverged from formula", n(bq.blended_diverged)],
-      ["BrickOwl coverage", formatCoverage(bq.sets_with_brickowl, bq.brickowl_coverage_pct)],
-      ["eBay asking coverage", formatCoverage(bq.sets_with_ebay_ask, bq.ebay_ask_coverage_pct)],
-      ["BrickInsights ratings", formatCoverage(bq.sets_with_brickinsights, bq.brickinsights_rating_coverage_pct)],
-      ["Fresh <30d BL/eBay/BE/BO", `${n(fresh.bricklink)} / ${n(fresh.ebay_sold)} / ${n(fresh.brickeconomy)} / ${n(fresh.brickowl)}`],
-      ["Confidence H/M/L/est", `${n(conf.high)} / ${n(conf.medium)} / ${n(conf.low)} / ${n(conf.estimated)}`],
-    ];
-    const blendNote = "Valuation-v2 blend quality. The blend diverges from formula when a set has 2+ fresh sources; two fresh SOLD sources reach high confidence. Active sources: BrickLink, BrickEconomy (scraped via Firecrawl), eBay ask, and eBay sold comps (Firecrawl structured extraction, corroborating). BrickOwl is disabled (no provider access). BrickInsights ratings are a non-price quality signal.";
-    const blendHTML = Object.keys(bq).length ? `
-      <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
-        <div class="u-mono-label u-fs-2xs" style="margin-bottom:8px;">Blend quality</div>
-        <div class="adm-cov-grid">
-          ${blendRows.map(([label, value]) => `
-            <div class="adm-cov-cell">
-              <div class="adm-cov-lbl">${escapeHtml(label)}</div>
-              <div class="adm-cov-val">${escapeHtml(value)}</div>
-            </div>
-          `).join("")}
-        </div>
-        <div class="u-fs-2xs u-mute" style="line-height:1.4;margin-top:8px;">${escapeHtml(blendNote)}</div>
-      </div>` : "";
-    // AI spend (server-key only) — Phase 3 #3/#4. The $1/day AI Gateway cap is the
-    // ceiling; BYOK calls don't count. Status warns at 50% of the daily budget.
-    const ai = data.ai_usage || {};
-    const spend = ai.spend || {};
-    const aiByModel = Array.isArray(ai.by_model) ? ai.by_model : [];
-    const usd = (v) => {
-      const num = Number(v || 0);
-      return `$${num.toFixed(num >= 1 ? 2 : 4)}`;
-    };
-    const spendDotColor = spend.status === "over" ? "var(--bv-red)"
-      : spend.status === "warn" ? "var(--warn)"
-      : "var(--up)";
-    const spendBadgeClass = spend.status === "over" ? "badge--down"
-      : spend.status === "warn" ? "badge--warn"
-      : "badge--up";
-    const aiModelRows = aiByModel.map(m => [
-      `${m.provider} · ${m.model}`,
-      `${Number(m.calls || 0).toLocaleString()} call${Number(m.calls || 0) === 1 ? "" : "s"} · ${m.free ? "free" : usd(m.cost_usd)}`,
-    ]);
-    const aiUsageNote = "Server-key AI spend only — the $1/day AI Gateway cap is the ceiling. BYOK scans/advisor run on the user's own key and never count here. Free models cost $0; the paid fallback (DeepSeek/gpt-4o-mini) is the backstop. Status warns at 50% of the daily budget.";
-    const aiUsageHTML = `
-      <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
-        <div class="u-between u-gap-3" style="margin-bottom:8px;">
-          <div class="u-mono-label u-fs-2xs">AI spend (today)</div>
-          <span class="badge ${spendBadgeClass}" style="text-transform:uppercase;">${escapeHtml(usd(spend.total_usd))} / ${escapeHtml(usd(spend.budget_usd || 1))}${spend.pct != null ? ` · ${escapeHtml(String(spend.pct))}%` : ""}</span>
-        </div>
-        <div class="u-fs-xs u-mute" style="margin-bottom:8px;">
-          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${spendDotColor};margin-right:6px;"></span>
-          ${Number(spend.free_calls || 0).toLocaleString()} free call${Number(spend.free_calls || 0) === 1 ? "" : "s"} · ${Number(spend.paid_calls || 0).toLocaleString()} paid call${Number(spend.paid_calls || 0) === 1 ? "" : "s"} today
-        </div>
-        ${aiModelRows.length ? `<div class="adm-cov-grid">
-          ${aiModelRows.map(([label, value]) => `
-            <div class="adm-cov-cell">
-              <div class="adm-cov-lbl">${escapeHtml(label)}</div>
-              <div class="adm-cov-val">${escapeHtml(value)}</div>
-            </div>
-          `).join("")}
-        </div>` : `<div class="u-fs-xs u-mute">No server-key AI calls recorded today.</div>`}
-        <div class="u-fs-2xs u-mute" style="line-height:1.4;margin-top:8px;">${escapeHtml(aiUsageNote)}</div>
-      </div>`;
-    // Firecrawl credit ledger (today) + BrickEconomy bootstrap burn-down. The
-    // credit counter mirrors the api_quota row that gates every scrape cron.
-    const fcQuota = (Array.isArray(data.quota) ? data.quota : []).find(q => q.service === "firecrawl") || { used: 0, cap: 0, remaining: 0 };
-    const fcUsed = Number(fcQuota.used || 0);
-    const fcCap = Number(fcQuota.cap || 0);
-    const fcRemaining = Number(fcQuota.remaining ?? Math.max(0, fcCap - fcUsed));
-    const fcPct = fcCap ? Math.round((fcUsed / fcCap) * 100) : 0;
-    const fcDot = fcPct >= 90 ? "var(--bv-red)" : fcPct >= 50 ? "var(--warn)" : "var(--up)";
-    const fcBadge = fcPct >= 90 ? "badge--down" : fcPct >= 50 ? "badge--warn" : "badge--up";
-    const beBoot = coverage.be_bootstrap || {};
-    const beElig = Number(beBoot.eligible || 0);
-    const bePop = Number(beBoot.populated || 0);
-    const bePct = Number(beBoot.pct || 0);
-    const beRem = Number(beBoot.remaining ?? Math.max(0, beElig - bePop));
-    const pcBoot = coverage.pc_bootstrap || {};
-    const pcPop = Number(pcBoot.populated || 0);
-    const pcPct = Number(pcBoot.pct || 0);
-    const pcRem = Number(pcBoot.remaining ?? Math.max(0, beElig - pcPop));
-    const fcKeyCount = Number((data.firecrawl || {}).key_count || 1);
-
-    // The setup-checklist Firecrawl row reads a config snapshot that can lag a
-    // freshly-added key. If the credit ledger shows Firecrawl actually scraping
-    // today (or the bootstrap has populated rows), it IS configured — reflect
-    // that reality in the checklist instead of a stale "Unconfigured".
-    if (fcUsed > 0 || bePop > 0) {
-      const fcRow = document.getElementById("chkFirecrawl");
-      const fcRowBadge = fcRow?.querySelector(".badge");
-      if (fcRowBadge) {
-        fcRowBadge.className = "badge badge--up";
-        fcRowBadge.textContent = "● Configured";
-      }
-    }
-    const firecrawlNote = "Firecrawl is metered in credits (1 per basic/product scrape, 5 per JSON extract). The daily ceiling is env-tunable via FIRECRAWL_DAILY_CREDITS and gates every scrape cron. Rotating FIRECRAWL_API_KEYS multiplies the effective daily capacity. PriceCharting uses its own REST API (zero Firecrawl credits).";
-    const fc = data.firecrawl || {};
-    const fcAction = fc.recommended_action || "";
-    const beBootState = fc.bootstrap_enabled && beRem > 0 ? "Running" : (beRem > 0 ? "Idle" : "Complete");
-    const beBootBadge = (fc.bootstrap_enabled && beRem > 0) ? "badge--warn" : (beRem > 0 ? "badge--neutral" : "badge--up");
-    const pcBootState = pcRem > 0 ? (fc.bootstrap_enabled ? "Running" : "Idle") : "Complete";
-    const pcBootBadge = pcRem > 0 ? (fc.bootstrap_enabled ? "badge--warn" : "badge--neutral") : "badge--up";
-    const firecrawlHTML = `
-      <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px 12px;background:var(--surface-2);margin-bottom:10px;">
-        <div class="u-between u-gap-3" style="margin-bottom:8px;">
-          <div class="u-mono-label u-fs-2xs">Firecrawl credits (today)</div>
-          <span class="badge ${fcBadge}" style="text-transform:uppercase;">${fcUsed.toLocaleString()} / ${fcCap.toLocaleString()} · ${fcPct}%</span>
-        </div>
-        <div class="u-fs-xs u-mute" style="margin-bottom:8px;">
-          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${fcDot};margin-right:6px;"></span>
-          ${fcRemaining.toLocaleString()} credit${fcRemaining === 1 ? "" : "s"} remaining today${fcKeyCount > 1 ? ` · ${fcKeyCount} keys rotating` : ""}
-        </div>
-        <div class="adm-cov-grid">
-          <div class="adm-cov-cell">
-            <div class="adm-cov-lbl">BrickEconomy bootstrap</div>
-            <div class="adm-cov-val">${beElig ? `${bePct}% (${bePop.toLocaleString()}/${beElig.toLocaleString()})` : "No catalog"}</div>
-            <span class="badge ${beBootBadge}" style="margin-top:2px;text-transform:uppercase;">${beBootState}</span>
-          </div>
-          <div class="adm-cov-cell">
-            <div class="adm-cov-lbl">PriceCharting bootstrap</div>
-            <div class="adm-cov-val">${beElig ? `${pcPct}% (${pcPop.toLocaleString()}/${beElig.toLocaleString()})` : "No catalog"}</div>
-            <span class="badge ${pcBootBadge}" style="margin-top:2px;text-transform:uppercase;">${pcBootState}</span>
-          </div>
-        </div>
-        ${fcAction ? `<div class="u-fs-xs" style="color:var(--ink-soft);margin-top:6px;line-height:1.4;">Action: ${escapeHtml(fcAction)}</div>` : ""}
-        <div class="u-fs-2xs u-mute" style="line-height:1.4;margin-top:8px;">${escapeHtml(firecrawlNote)}</div>
-      </div>`;
-    const integrationsHTML = rows.map(r => {
-      const standbyFallback = isBrickOwlStandby(r);
-      const color = standbyFallback ? statusColor("unknown") : statusColor(r.status);
-      const hasAttempts = Number(r.ok_count || 0) + Number(r.fail_count || 0) > 0;
-      const latestFail = isLatestFailure(r);
-      const isEbayAccessBlocked = latestFail && r.service === "ebay"
-        && /Marketplace Insights|HTTP 401|HTTP 403|access denied|insufficient permissions|invalid[_ -]?scope|not authorized|OAuth|invalid[_ -]?client/i.test(r.last_error || "");
-      const timingText = standbyFallback ? "Brickset barcode backfill active" : hasAttempts
-        ? latestFail ? `OK ${ago(r.last_ok_at)} / Fail ${ago(r.last_fail_at)}` : `Last OK ${ago(r.last_ok_at)}`
-        : "No recent calls logged";
-      const countText = standbyFallback ? "Not used" : hasAttempts
-        ? isEbayAccessBlocked
-          ? `${r.fail_count || 0} blocked call${Number(r.fail_count || 0) === 1 ? "" : "s"}`
-          : latestFail ? `${r.ok_count || 0} ok / ${r.fail_count || 0} fail` : `${r.ok_count || 0} ok / ${r.fail_count || 0} past fail`
-        : "Ready when used";
-      const usedByText = standbyFallback
-        ? "optional barcode fallback; not used while Brickset is available"
-        : ((r.used_by || []).join(", ") || r.notes || "");
-      const actionText = standbyFallback ? "" : (r.recommended_action || "");
-      const missingSecrets = Array.isArray(r.missing_secrets) && r.missing_secrets.length
-        ? `Missing secrets: ${r.missing_secrets.join(", ")}`
-        : "";
-      return `
-        <div style="border-bottom:1px solid var(--border-soft-c);padding-bottom:8px;margin-bottom:4px;">
-          <div class="u-between u-gap-3" style="font-weight:600;margin-bottom:2px;">
-            <span style="min-width:0;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:6px;"></span>${escapeHtml(r.label || r.service)}</span>
-            <span class="badge ${standbyFallback ? "badge--neutral" : statusBadgeClass(r.status)}" style="text-transform:uppercase;">${escapeHtml(statusLabel(r, standbyFallback))}</span>
-          </div>
-          <div class="u-between u-gap-3 u-fs-xs u-mute">
-            <span>${escapeHtml(timingText)}</span>
-            <span>${escapeHtml(countText)}</span>
-          </div>
-          <div class="u-fs-xs u-mute" style="margin-top:2px;">${escapeHtml(usedByText)}</div>
-          ${missingSecrets ? `<div class="u-fs-xs" style="color:var(--bv-red);margin-top:2px;">${escapeHtml(missingSecrets)}</div>` : ""}
-          ${actionText ? `<div class="u-fs-xs" style="color:var(--ink-soft);margin-top:2px;">Action: ${escapeHtml(actionText)}</div>` : ""}
-          ${!standbyFallback && latestFail && r.last_error && (r.status === "down" || r.status === "degraded") ? `<div class="u-fs-xs" style="color:${color};margin-top:2px;">${escapeHtml(r.last_error)}</div>` : ""}
-        </div>
-      `;
-    }).join("");
-    container.innerHTML = routingHTML + coverageHTML + blendHTML + firecrawlHTML + aiUsageHTML + (integrationsHTML || `<div class="u-mute">No integration diagnostics available.</div>`);
-  } catch (err) {
-    container.innerHTML = `<div style="color:var(--bv-red);">Failed to load integrations: ${escapeHtml(err.message)}</div>`;
+function renderJobs(container) {
+  if (!adminRuns.length) {
+    container.innerHTML = `<div class="admin-empty-state">${I.info()}<strong>No jobs have run yet.</strong><span>Use Populate all safe sources to start a controlled data pass.</span></div>`;
+    return;
   }
+  const running = adminRuns.find(run => classifyJobRun(run).label === 'Running');
+  const activeHTML = running ? activeJobPanelHTML(running) : `
+    <div class="admin-job-idle">
+      <div><strong>No active job</strong><span>Safe slices can be run any time provider quotas allow.</span></div>
+      <button class="btn-primary" id="adminRunNextSlice">${I.refresh()}<span>Run next slice</span></button>
+    </div>`;
+  const groups = groupAdminJobRuns(adminRuns);
+  const visible = showAllJobs ? groups : groups.slice(0, 3);
+  container.innerHTML = `
+    ${activeHTML}
+    <div class="admin-job-list">
+      ${visible.map(jobGroupHTML).join('')}
+    </div>
+    ${groups.length > 3 ? `<button class="btn-secondary admin-show-more" id="adminShowMoreJobs">${showAllJobs ? 'Show newest 3' : `Show ${groups.length - 3} more`}</button>` : ''}`;
+  $('#adminRunNextSlice')?.addEventListener('click', () => triggerImport('everything', { single: true }));
+  $('#adminStopAutoRun')?.addEventListener('click', () => {
+    populateEverythingAuto = false;
+    if (populateEverythingContinueTimer) clearTimeout(populateEverythingContinueTimer);
+    toast('Auto-run stopped. The current slice, if any, will finish normally.', 'info');
+    renderJobs(container);
+  });
+  $('#adminShowMoreJobs')?.addEventListener('click', () => {
+    showAllJobs = !showAllJobs;
+    renderJobs(container);
+  });
+}
+
+function activeJobPanelHTML(run) {
+  const p = jobProgressSummary(run);
+  return `
+    <div class="admin-active-job" aria-live="polite">
+      <div class="admin-active-job-head">
+        <div>
+          <div class="section-kicker">Running now</div>
+          <h3>Job #${escapeHtml(run.id)} - ${escapeHtml(jobTypeLabel(run.job_type))}</h3>
+        </div>
+        <button class="btn-secondary" id="adminStopAutoRun">${I.close()}<span>Stop auto-run</span></button>
+      </div>
+      <div class="admin-progress-line">
+        <div>
+          <strong>${escapeHtml(p.label)}</strong>
+          <span>${escapeHtml(p.countText || 'Working')}${p.pct != null ? ` / ${p.pct}%` : ''}</span>
+        </div>
+        <div class="admin-progress-track"><span style="width:${p.pct ?? 30}%"></span></div>
+      </div>
+      <div class="admin-job-facts">
+        <span>Heartbeat: ${escapeHtml(ago(run.updated_at || run.started_at))}</span>
+        <span>Elapsed: ${escapeHtml(elapsed(run.started_at))}</span>
+        <span>Provider: ${escapeHtml(currentProvider(run))}</span>
+        <span>Next: ${escapeHtml(nextStep(run))}</span>
+      </div>
+    </div>`;
+}
+
+function jobGroupHTML(group) {
+  const run = group.latest;
+  const state = group.state;
+  const p = jobProgressSummary(run);
+  const grouped = group.count > 1 && state.label === 'Completed';
+  const title = grouped ? `${group.count} completed safe slices` : `Job #${run.id}`;
+  const details = jobDetails(run, state, p);
+  const error = String(run.error || '');
+  return `
+    <article class="admin-job-row ${state.tone}">
+      <div class="admin-job-row-head">
+        <div>
+          <h3>${escapeHtml(title)}</h3>
+          <p>${escapeHtml(jobTypeLabel(run.job_type))} - ${escapeHtml(startedAt(run.started_at))}</p>
+        </div>
+        <span class="badge ${badgeClass(state.tone)}">${escapeHtml(state.label)}</span>
+      </div>
+      ${p.pct != null ? `<div class="admin-mini-progress"><span style="width:${p.pct}%"></span></div>` : ''}
+      <div class="admin-job-meta">${details.map(x => `<span>${escapeHtml(x)}</span>`).join('')}</div>
+      ${error ? `<details class="admin-job-details"><summary>Details</summary><div>${escapeHtml(error.length > 1000 ? error.slice(0, 1000) + '...' : error)}</div></details>` : ''}
+    </article>`;
+}
+
+function jobDetails(run, state, progress) {
+  const details = [];
+  if (progress.countText) details.push(progress.countText);
+  if (run.sets_loaded) details.push(`${run.sets_loaded} filled`);
+  if (run.sets_skipped) details.push(`${run.sets_skipped} processed`);
+  if (run.figs_loaded) details.push(`${run.figs_loaded} figs`);
+  if (state.retryable) details.push('safe to retry');
+  if (state.needsAttention) details.push('check diagnostics');
+  return details.length ? details : ['No items processed'];
+}
+
+async function updateIntegrationsHealth() {
+  try {
+    adminHealth = await api('/api/admin/integrations');
+    renderProviders();
+    renderCatalogQuality();
+    renderAdminOverview();
+    renderSourceTuning(sourceConfig);
+  } catch (err) {
+    const providers = $('#providersContainer');
+    const quality = $('#qualityContainer');
+    if (providers) providers.innerHTML = errorPanelHTML('Provider health unavailable', err.message || String(err));
+    if (quality) quality.innerHTML = errorPanelHTML('Catalog quality unavailable', err.message || String(err));
+  }
+}
+
+function providerRows() {
+  const rows = Array.isArray(adminHealth?.integrations) ? [...adminHealth.integrations] : [];
+  const status = state.config?.status || {};
+  const addSynthetic = (service, configured, providerStatus, action) => {
+    if (!rows.some(r => String(r.service).toLowerCase() === service)) {
+      rows.push({ service, configured, status: providerStatus, last_ok_at: null, last_fail_at: null, last_error: '', recommended_action: action });
+    }
+  };
+  addSynthetic('d1', !!status.d1, status.d1 ? 'ok' : 'down', 'Check the D1 binding.');
+  addSynthetic('supabase', !!status.supabase, status.supabase ? 'ok' : 'down', 'Check Supabase URL, anon key, and JWT secret.');
+  addSynthetic('worker', true, 'ok', 'No action needed.');
+  return rows;
+}
+
+function renderProviders() {
+  const container = $('#providersContainer');
+  if (!container) return;
+  if (!adminHealth) {
+    container.textContent = 'Loading providers...';
+    return;
+  }
+  const rows = providerRows().map(row => ({ row, health: classifyProviderHealth(row), group: providerGroupFor(row.service) }));
+  const filtered = rows.filter(({ health }) => {
+    if (providerFilter === 'all') return true;
+    if (providerFilter === 'needs') return health.actionable || health.blocked || health.tone === 'danger';
+    if (providerFilter === 'quota') return health.quotaLimited;
+    if (providerFilter === 'ready') return health.ready;
+    if (providerFilter === 'optional') return health.optional;
+    return true;
+  });
+  if (!filtered.length) {
+    container.innerHTML = `<div class="admin-empty-state">${I.check()}<strong>No providers in this filter.</strong><span>Try All to see the full diagnostic list.</span></div>`;
+    return;
+  }
+  container.innerHTML = PROVIDER_GROUPS.map(([label]) => {
+    const groupRows = filtered.filter(x => x.group === label);
+    if (!groupRows.length) return '';
+    return `
+      <div class="admin-provider-group">
+        <h3>${escapeHtml(label)}</h3>
+        <div class="admin-provider-grid">${groupRows.map(providerCardHTML).join('')}</div>
+      </div>`;
+  }).join('') || filtered.map(providerCardHTML).join('');
+}
+
+function providerCardHTML({ row, health }) {
+  const service = String(row.service || row.name || 'provider');
+  const quota = quotaFor(service);
+  const statusBits = [
+    row.configured === false ? 'not configured' : 'configured',
+    row.status ? String(row.status) : 'unknown',
+    quota ? `${quota.used}/${quota.cap} quota` : '',
+  ].filter(Boolean);
+  return `
+    <article class="admin-provider-card ${health.tone}">
+      <div class="admin-provider-head">
+        <div>
+          <h4>${escapeHtml(providerLabel(service))}</h4>
+          <p>${escapeHtml(statusBits.join(' - '))}</p>
+        </div>
+        <span class="badge ${badgeClass(health.tone)}">${escapeHtml(health.label)}</span>
+      </div>
+      <div class="admin-provider-facts">
+        <span>Last OK: ${escapeHtml(ago(row.last_ok_at))}</span>
+        <span>Last fail: ${escapeHtml(ago(row.last_fail_at))}</span>
+        ${quota ? `<span>Remaining: ${escapeHtml(String(quota.remaining ?? Math.max(0, quota.cap - quota.used)))}</span>` : ''}
+      </div>
+      ${service.toLowerCase() === 'ebay' ? ebayStateHTML(row, health) : ''}
+      <p class="admin-provider-action">${escapeHtml(health.action)}</p>
+      ${row.last_error ? `<details class="admin-job-details"><summary>Latest failure</summary><div>${escapeHtml(String(row.last_error).slice(0, 900))}</div></details>` : ''}
+    </article>`;
+}
+
+function ebayStateHTML(row, health) {
+  const coverage = adminHealth?.coverage || {};
+  const soldState = health.blocked ? 'sold comps blocked' : (coverage.sets_with_ebay_new || coverage.sets_with_ebay_used) ? 'sold comps available' : 'sold comps not populated';
+  const askingState = coverage.sets_with_ebay_ask ? 'asking data available' : 'asking data not populated';
+  return `<div class="admin-ebay-state"><span>${escapeHtml(soldState)}</span><span>${escapeHtml(askingState)}</span><span>No weak sold fallback</span></div>`;
+}
+
+function renderCatalogQuality() {
+  const container = $('#qualityContainer');
+  if (!container) return;
+  const coverage = adminHealth?.coverage || {};
+  const quality = coverage.quality || {};
+  const blend = coverage.blend_quality || {};
+  const total = Number(coverage.total_sets || 0);
+  const barcodeTotal = Number(coverage.barcode_retail_total || total || 0);
+  const barcodeWith = Number(coverage.barcode_retail_with_upc || 0);
+  const cards = [
+    qualityCard('Catalog sets', total, total ? 100 : 0, 'ok', 'Rows in the live catalog.'),
+    qualityCard('Expired values', Number(coverage.expired_values || 0), percent(coverage.expired_values, total), 'warn', 'Values that need a refresh.'),
+    qualityCard('Missing MSRP', Number(quality.missing_msrp || 0), Number(quality.missing_msrp_pct || percent(quality.missing_msrp, total)), 'warn', 'Rows missing retail price context.'),
+    qualityCard('Missing UPC', Math.max(0, barcodeTotal - barcodeWith), 100 - Number(coverage.barcode_coverage_pct || percent(barcodeWith, barcodeTotal)), 'warn', 'Retail sets still missing barcode data.'),
+    qualityCard('Old active sets', Number(quality.old_active_sets || 0), Number(quality.old_active_sets_pct || percent(quality.old_active_sets, total)), 'warn', 'Older sets still marked active.'),
+    qualityCard('Low-confidence values', Number(quality.low_confidence_values || 0), Number(quality.low_confidence_values_pct || percent(quality.low_confidence_values, total)), 'danger', 'Rows using weak or formula-heavy valuation.'),
+    qualityCard('BrickLink coverage', coverage.sets_with_bricklink ?? coverage.sets_with_bricklink_new ?? 0, Number(coverage.bricklink_coverage_pct || 0), 'ok', 'Sets with BrickLink market data.'),
+    qualityCard('eBay new sold', coverage.sets_with_ebay_new || 0, Number(coverage.ebay_new_coverage_pct || 0), 'neutral', 'Sets with validated new/sealed sold comps.'),
+    qualityCard('eBay used sold', coverage.sets_with_ebay_used || 0, Number(coverage.ebay_used_coverage_pct || 0), 'neutral', 'Sets with validated used sold comps.'),
+    qualityCard('Blended values', blend.blended_count || 0, Number(blend.blended_coverage_pct || 0), 'ok', 'Rows with persisted blended values.'),
+  ];
+  container.innerHTML = `
+    <div class="admin-recommendation">
+      <strong>Recommended next action</strong>
+      <span>${escapeHtml(recommendedQualityAction(cards))}</span>
+    </div>
+    <div class="admin-quality-grid">${cards.map(card => card.html).join('')}</div>
+    <details class="admin-help-block">
+      <summary>How denominators work</summary>
+      <p>Catalog coverage is measured against all catalog rows. Barcode coverage uses scannable retail sets where a UPC is expected. eBay sold coverage stays at zero when Marketplace Insights or sold-comps access is blocked.</p>
+    </details>`;
+}
+
+function qualityCard(label, count, pctValue, tone, help) {
+  const pctClamped = Math.max(0, Math.min(100, Number(pctValue) || 0));
+  return {
+    label,
+    count: Number(count || 0),
+    pct: pctClamped,
+    tone,
+    html: `
+      <article class="admin-quality-card ${tone}">
+        <div class="admin-quality-head"><span>${escapeHtml(label)}</span><strong>${formatCount(count)}</strong></div>
+        <div class="admin-mini-progress"><span style="width:${pctClamped}%"></span></div>
+        <p>${pctClamped.toFixed(pctClamped < 1 && pctClamped > 0 ? 1 : 0)}% - ${escapeHtml(help)}</p>
+      </article>`,
+  };
+}
+
+function recommendedQualityAction(cards) {
+  const priority = cards
+    .filter(c => ['Missing UPC', 'Low-confidence values', 'Expired values', 'eBay new sold', 'eBay used sold'].includes(c.label))
+    .sort((a, b) => b.pct - a.pct)[0];
+  if (!priority) return 'Run Populate all safe sources to refresh the latest provider coverage.';
+  if (priority.label === 'Missing UPC') return 'Run Backfill barcodes or Populate all safe sources in daily safe slices.';
+  if (priority.label === 'Low-confidence values') return 'Run Revalue prices and check provider access before increasing source weights.';
+  if (priority.label.startsWith('eBay')) return 'Check eBay sold-comps access; do not fall back to active listings for sold value.';
+  return 'Run Populate all safe sources to advance the next safe slice.';
+}
+
+async function loadSourceTuning() {
+  const container = $('#sourceTuningContainer');
+  try {
+    const data = await api('/api/admin/source-config');
+    sourceDefaults = data.defaults || {};
+    sourceConfig = data.config || {};
+    sourceDirty = false;
+    renderSourceTuning(sourceConfig);
+  } catch (e) {
+    if (container) container.innerHTML = errorPanelHTML('Could not load source config', e.message || String(e), 'Retry source tuning');
+    $('#adminErrorRetry')?.addEventListener('click', loadSourceTuning);
+  }
+}
+
+function renderSourceTuning(config = sourceConfig) {
+  const container = $('#sourceTuningContainer');
+  if (!container) return;
+  const entries = Object.entries(config || {});
+  if (!entries.length) {
+    container.innerHTML = `<div class="admin-empty-state">${I.info()}<strong>No source tuning data yet.</strong><span>Reload after the admin endpoint is ready.</span></div>`;
+    return;
+  }
+  container.innerHTML = `
+    <div class="source-card-grid">
+      ${entries.map(([name, tuning]) => sourceCardHTML(name, tuning)).join('')}
+    </div>
+    <div class="source-tuning-footer">
+      <span id="sourceUnsavedCount">${sourceDirty ? 'Unsaved changes' : 'No unsaved changes'}</span>
+      <button class="btn-secondary" id="sourceTuningResetBtn">${I.refresh()}<span>Reset to defaults</span></button>
+      <button class="btn-primary" id="sourceTuningSaveBtn">${I.check()}<span>Save changes</span></button>
+    </div>`;
+  container.querySelectorAll('input').forEach(input => input.addEventListener('input', markSourceDirty));
+  $('#sourceTuningSaveBtn')?.addEventListener('click', saveSourceTuning);
+  $('#sourceTuningResetBtn')?.addEventListener('click', resetSourceTuning);
+}
+
+function sourceCardHTML(name, t) {
+  const meta = SOURCE_META[name] || [name, 'Pricing or data source.'];
+  const health = classifyProviderHealth(providerRows().find(r => String(r.service).toLowerCase() === String(name).toLowerCase()) || { service: name, configured: true, status: 'unknown' });
+  return `
+    <article class="source-card" data-src="${escapeHtml(name)}">
+      <div class="source-card-head">
+        <div>
+          <h3>${escapeHtml(meta[0])}</h3>
+          <p>${escapeHtml(meta[1])}</p>
+        </div>
+        <span class="badge ${badgeClass(health.tone)}">${escapeHtml(health.label)}</span>
+      </div>
+      <label class="source-toggle-row">
+        <input type="checkbox" class="src-enabled" ${t.enabled ? 'checked' : ''}>
+        <span>Enabled for scheduled jobs and valuation blend</span>
+      </label>
+      <div class="source-grid">
+        ${sourceInputHTML('Trust weight', 'src-weight', t.weight, 'decimal', '0.05')}
+        ${sourceInputHTML('Daily cap', 'src-cap', t.dailyCap == null ? '' : t.dailyCap, 'numeric', '1')}
+        ${sourceInputHTML('Refresh days', 'src-refresh', t.refreshDays == null ? '' : t.refreshDays, 'numeric', '1')}
+      </div>
+      <div class="source-error" hidden></div>
+    </article>`;
+}
+
+function sourceInputHTML(label, cls, value, inputMode, step) {
+  return `
+    <label class="admin-field source-field">
+      <span>${escapeHtml(label)}</span>
+      <input class="input ${cls}" inputmode="${inputMode}" step="${step}" value="${escapeHtml(value)}">
+    </label>`;
+}
+
+function markSourceDirty() {
+  sourceDirty = true;
+  const out = $('#sourceUnsavedCount');
+  if (out) out.textContent = `${document.querySelectorAll('.source-card').length} sources editable - unsaved changes`;
+}
+
+function collectSourceTuning() {
+  const config = {};
+  for (const row of $$('.source-card')) {
+    const name = row.getAttribute('data-src');
+    config[name] = {
+      enabled: !!row.querySelector('.src-enabled')?.checked,
+      weight: row.querySelector('.src-weight')?.value ?? '',
+      dailyCap: row.querySelector('.src-cap')?.value ?? '',
+      refreshDays: row.querySelector('.src-refresh')?.value ?? '',
+    };
+  }
+  return config;
+}
+
+async function saveSourceTuning() {
+  const out = $('#sourceTuningResult');
+  if (out) {
+    out.hidden = false;
+    out.className = 'admin-status-panel';
+    out.textContent = 'Saving source tuning...';
+  }
+  document.querySelectorAll('.source-card').forEach(card => {
+    card.classList.remove('invalid');
+    const err = card.querySelector('.source-error');
+    if (err) { err.hidden = true; err.textContent = ''; }
+  });
+  const validation = validateSourceTuningInput(collectSourceTuning());
+  if (!validation.ok) {
+    for (const [name, errors] of Object.entries(validation.errors)) {
+      const card = document.querySelector(`.source-card[data-src="${CSS.escape(name)}"]`);
+      card?.classList.add('invalid');
+      const err = card?.querySelector('.source-error');
+      if (err) { err.hidden = false; err.textContent = errors.join(' '); }
+    }
+    if (out) {
+      out.className = 'admin-status-panel danger';
+      out.textContent = 'Fix the highlighted source tuning values before saving.';
+    }
+    return;
+  }
+  try {
+    const res = await api('/api/admin/source-config', { method: 'PUT', body: { config: validation.config } });
+    sourceConfig = res.config || validation.config;
+    sourceDirty = false;
+    renderSourceTuning(sourceConfig);
+    if (out) {
+      out.hidden = false;
+      out.className = 'admin-status-panel ok';
+      out.textContent = 'Source tuning saved.';
+    }
+  } catch (e) {
+    if (out) {
+      out.className = 'admin-status-panel danger';
+      out.textContent = `Error: ${e.message || e}`;
+    }
+  }
+}
+
+function resetSourceTuning() {
+  if (!Object.keys(sourceDefaults).length) return;
+  if (!window.confirm('Reset source tuning to defaults?')) return;
+  sourceConfig = typeof structuredClone === 'function' ? structuredClone(sourceDefaults) : JSON.parse(JSON.stringify(sourceDefaults));
+  sourceDirty = true;
+  renderSourceTuning(sourceConfig);
+}
+
+async function setSupporterStatus(value) {
+  const input = $('#supporterUserIdInput');
+  const out = $('#supporterResult');
+  const userId = input?.value.trim() || '';
+  if (!UUID_RE.test(userId)) {
+    showPanel(out, 'danger', 'Enter a valid Supabase user UUID before changing supporter status.');
+    return;
+  }
+  const label = value ? 'grant supporter status to' : 'revoke supporter status from';
+  if (!window.confirm(`Confirm you want to ${label} ${userId}?`)) return;
+  showPanel(out, '', value ? 'Granting supporter status...' : 'Revoking supporter status...');
+  try {
+    await api(`/api/admin/users/${encodeURIComponent(userId)}/supporter`, { method: 'PATCH', body: { is_supporter: value } });
+    showPanel(out, 'ok', value ? 'Supporter granted.' : 'Supporter revoked.');
+  } catch (e) {
+    showPanel(out, 'danger', `Error: ${e.message || e}`);
+  }
+}
+
+async function searchUsers() {
+  const q = $('#adminUserSearchInput')?.value.trim() || '';
+  const out = $('#adminUserSearchResults');
+  if (!out) return;
+  if (q.length < 2) {
+    out.innerHTML = `<div class="admin-status-panel danger">Type at least 2 characters.</div>`;
+    return;
+  }
+  out.innerHTML = `<div class="admin-status-panel">Searching...</div>`;
+  try {
+    const data = await api(`/api/admin/users/search?q=${encodeURIComponent(q)}`);
+    const users = data.users || [];
+    out.innerHTML = users.length ? users.map(userSearchRowHTML).join('') : `<div class="admin-empty-state">${I.search()}<strong>No users found.</strong><span>Use the exact Supabase UUID if search has no result.</span></div>`;
+    out.querySelectorAll('[data-pick-user]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-pick-user') || '';
+        const input = $('#supporterUserIdInput');
+        if (input) input.value = id;
+      });
+    });
+  } catch (e) {
+    out.innerHTML = errorPanelHTML('User search unavailable', e.message || String(e));
+  }
+}
+
+function userSearchRowHTML(user) {
+  const id = String(user.user_id || user.id || '');
+  return `
+    <div class="admin-user-result">
+      <div>
+        <strong>${escapeHtml(user.handle || user.display_name || user.email || id)}</strong>
+        <span>${escapeHtml(id)}</span>
+      </div>
+      <button class="btn-secondary" data-pick-user="${escapeHtml(id)}">Use ID</button>
+    </div>`;
+}
+
+async function loadContribQueue() {
+  try {
+    contributionData = await api('/api/admin/contributions?status=pending');
+    renderContribQueue();
+    renderAdminOverview();
+  } catch (e) {
+    contributionData = { error: e.message || 'Unknown error', items: [], counts: { total: 0, reviews: 0, photos: 0, data: 0 } };
+    renderContribQueue();
+    renderAdminOverview();
+  }
+}
+
+function renderContribQueue() {
+  const box = $('#contribQueue');
+  const badge = $('#contribCount');
+  if (!box) return;
+  const counts = contributionData?.counts || {};
+  const total = Number(counts.total || 0);
+  if (badge) badge.textContent = total ? String(total) : '';
+  const tabs = document.querySelector('.admin-contrib-tabs');
+  if (tabs) {
+    tabs.innerHTML = [
+      contribTabButtonHTML('all', `All ${total || ''}`.trim()),
+      contribTabButtonHTML('review', `Reviews ${counts.reviews || ''}`.trim()),
+      contribTabButtonHTML('photo', `Photos ${counts.photos || ''}`.trim()),
+      contribTabButtonHTML('data', `Data fixes ${counts.data || ''}`.trim()),
+    ].join('');
+    tabs.querySelectorAll('[data-contrib-tab]').forEach(btn => btn.addEventListener('click', () => {
+      contributionTab = btn.getAttribute('data-contrib-tab') || 'all';
+      renderContribQueue();
+    }));
+  }
+  if (contributionData?.error) {
+    box.innerHTML = errorPanelHTML('Contribution queue unavailable', contributionData.error, 'Retry');
+    $('#adminErrorRetry')?.addEventListener('click', loadContribQueue);
+    return;
+  }
+  const items = (contributionData?.items || []).filter(item => contributionTab === 'all' || item.type === contributionTab);
+  if (!items.length) {
+    box.innerHTML = `<div class="admin-empty-state">${I.check()}<strong>No pending ${contributionTab === 'all' ? 'contributions' : contributionTab + ' items'}.</strong><span>Approved community content will appear on set detail pages.</span></div>`;
+    return;
+  }
+  box.innerHTML = `<div class="admin-contrib-list">${items.map(contribCardHTML).join('')}</div>`;
+  box.querySelectorAll('[data-contrib-action]').forEach(btn => {
+    btn.addEventListener('click', () => moderateContribution(btn));
+  });
+}
+
+function contribCardHTML(item) {
+  const detail = contributionDetail(item);
+  const thumb = item.photo_url
+    ? `<img src="${escapeHtml((window.WORKER_BASE || '') + item.photo_url)}" alt="" loading="lazy">`
+    : `<div class="admin-contrib-thumb">${item.type === 'photo' ? I.camera() : item.type === 'review' ? I.star() : I.pencil()}</div>`;
+  return `
+    <article class="admin-contrib-card" data-type="${escapeHtml(item.type)}" data-id="${escapeHtml(item.id)}">
+      ${thumb}
+      <div class="admin-contrib-body">
+        <div class="admin-contrib-head">
+          <div>
+            <h3>${escapeHtml(contributionSummary(item))}</h3>
+            <p>${escapeHtml(item.set_num)} ${escapeHtml(item.set_name || '')}</p>
+          </div>
+          <span class="badge badge--neutral">${escapeHtml(item.type)}</span>
+        </div>
+        <div class="admin-contrib-meta">
+          <span>Contributor: ${escapeHtml(item.user_id || 'unknown')}</span>
+          <span>Submitted: ${escapeHtml(startedAt(item.created_at))}</span>
+        </div>
+        ${detail ? `<div class="admin-contrib-detail">${detail}</div>` : ''}
+        ${item.type === 'data' ? `<p class="admin-impact-note">Barcode approval auto-applies UPC only when the set has no UPC. Other data fixes are review notes.</p>` : ''}
+        <div class="admin-contrib-actions">
+          <a class="btn-secondary" href="#/set/${encodeURIComponent(String(item.set_num || ''))}">${I.extLink()}<span>Open set</span></a>
+          <button class="btn-primary" data-contrib-action="approve">${I.check()}<span>Approve</span></button>
+          <button class="btn-secondary" data-contrib-action="reject">${I.close()}<span>Reject</span></button>
+        </div>
+      </div>
+    </article>`;
+}
+
+function contributionDetail(item) {
+  if (!item.detail) return '';
+  if (item.type !== 'data') return escapeHtml(String(item.detail));
+  try {
+    const parsed = typeof item.detail === 'string' ? JSON.parse(item.detail) : item.detail;
+    return `<pre>${escapeHtml(JSON.stringify(parsed, null, 2))}</pre>`;
+  } catch {
+    return `<pre>${escapeHtml(String(item.detail))}</pre>`;
+  }
+}
+
+function contributionSummary(item) {
+  const raw = String(item.summary || item.type || '');
+  if (item.type === 'review') {
+    const rating = raw.match(/\d+/)?.[0];
+    return rating ? `Review ${rating}/5` : 'Review';
+  }
+  if (item.type === 'photo') return raw.replace(/[\u0412\u00c2]\u00b7/g, '-').replace(/\s+-\s*$/, '').trim() || 'Photo';
+  return raw.replace(/[\u0412\u00c2]\u00b7/g, '-').trim();
+}
+
+async function moderateContribution(btn) {
+  const card = btn.closest('.admin-contrib-card');
+  const type = card?.dataset.type;
+  const id = card?.dataset.id;
+  const action = btn.getAttribute('data-contrib-action');
+  if (!type || !id || !action) return;
+  const note = action === 'reject' ? window.prompt('Optional reviewer note for rejection:') : '';
+  card.querySelectorAll('button').forEach(b => { b.disabled = true; });
+  try {
+    const res = await api(`/api/admin/contributions/${encodeURIComponent(type)}/${encodeURIComponent(id)}`, { method: 'PATCH', body: { action, note: note || '' } });
+    haptic('light');
+    toast(res.applied ? `${action === 'approve' ? 'Approved' : 'Rejected'} - ${res.applied}` : (action === 'approve' ? 'Approved' : 'Rejected'), 'success');
+    await loadContribQueue();
+  } catch (e) {
+    card.querySelectorAll('button').forEach(b => { b.disabled = false; });
+    toast(e.message || 'Action failed', 'error');
+  }
+}
+
+function renderAdminOverview() {
+  const cards = $('#adminOverviewCards');
+  const needs = $('#adminNeedsList');
+  const rail = $('#adminRail');
+  if (!cards || !needs || !rail) return;
+  const providerStates = providerRows().map(row => ({ row, health: classifyProviderHealth(row) }));
+  const running = adminRuns.find(run => classifyJobRun(run).label === 'Running');
+  const hardJobs = adminRuns.filter(run => classifyJobRun(run).needsAttention);
+  const blockedProviders = providerStates.filter(x => x.health.blocked || x.health.tone === 'danger');
+  const quotaProviders = providerStates.filter(x => x.health.quotaLimited);
+  const pending = Number(contributionData?.counts?.total || 0);
+  const coverage = adminHealth?.coverage || {};
+  const quotaPressure = (adminHealth?.quota || []).filter(q => Number(q.cap || 0) > 0 && Number(q.used || 0) / Number(q.cap || 1) >= 0.75);
+  cards.innerHTML = [
+    summaryCard('System ready', setupRows.some(r => !r.ok && !r.optional) ? 'Action needed' : 'Ready', setupRows.some(r => !r.ok && !r.optional) ? 'warn' : 'ok', 'Core setup and required providers.'),
+    summaryCard('Catalog coverage', `${Number(coverage.total_sets || 0).toLocaleString()} sets`, 'ok', `${Number(coverage.total_minifigs || 0).toLocaleString()} minifigs tracked.`),
+    summaryCard('Running job', running ? `#${running.id}` : 'None', running ? 'warn' : 'neutral', running ? jobProgressSummary(running).label : 'Safe slices can be started.'),
+    summaryCard('Provider issues', blockedProviders.length, blockedProviders.length ? 'danger' : 'ok', `${quotaProviders.length} quota-limited providers.`),
+    summaryCard('Pending contributions', pending, pending ? 'warn' : 'ok', 'Reviews, photos, and data fixes awaiting moderation.'),
+    summaryCard('Daily quota pressure', quotaPressure.length, quotaPressure.length ? 'warn' : 'ok', quotaPressure.length ? quotaPressure.map(q => q.service).join(', ') : 'Within daily budgets.'),
+  ].join('');
+  const actionItems = [
+    ...hardJobs.slice(0, 2).map(run => actionItem('Hard job error', `Job #${run.id}: ${classifyJobRun(run).label}`, '#adminJobs', 'danger')),
+    ...blockedProviders.slice(0, 4).map(x => actionItem(`${providerLabel(x.row.service)} blocked`, x.health.action, '#adminProviders', 'danger')),
+    ...quotaProviders.slice(0, 3).map(x => actionItem(`${providerLabel(x.row.service)} quota`, x.health.action, '#adminProviders', 'warn')),
+    ...setupRows.filter(r => !r.ok).slice(0, 3).map(r => actionItem(r.optional ? 'Optional setup' : 'Setup needed', `${r.label}: ${r.missText}`, '#adminOverview', r.optional ? 'neutral' : 'warn')),
+  ];
+  if (!actionItems.length) actionItems.push(actionItem('Nothing urgent', 'Core systems look ready. Keep Populate all safe sources moving in small slices.', '#adminPopulate', 'ok'));
+  needs.innerHTML = actionItems.join('');
+  rail.innerHTML = actionItems.slice(0, 5).join('');
+}
+
+function summaryCard(label, value, tone, body) {
+  return `
+    <article class="admin-summary-card ${tone}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(String(value))}</strong>
+      <p>${escapeHtml(body)}</p>
+    </article>`;
+}
+
+function actionItem(title, body, href, tone) {
+  return `
+    <a class="admin-action-item ${tone}" href="${escapeHtml(href)}">
+      <strong>${escapeHtml(title)}</strong>
+      <span>${escapeHtml(body)}</span>
+    </a>`;
+}
+
+function quotaFor(service) {
+  const name = String(service || '').toLowerCase();
+  return (adminHealth?.quota || []).find(q => String(q.service || '').toLowerCase() === name) || null;
+}
+
+function providerGroupFor(service) {
+  const name = String(service || '').toLowerCase();
+  const found = PROVIDER_GROUPS.find(([, keys]) => keys.some(key => name.includes(key)));
+  return found ? found[0] : 'Optional';
+}
+
+function providerLabel(service) {
+  const s = String(service || 'provider');
+  const labels = {
+    d1: 'D1',
+    supabase: 'Supabase',
+    upcitemdb: 'UPCitemdb',
+    bricklink: 'BrickLink',
+    brickeconomy: 'BrickEconomy',
+    brickowl: 'BrickOwl',
+    pricecharting: 'PriceCharting',
+    pricesapi: 'pricesAPI.io',
+    firecrawl: 'Firecrawl',
+    brightdata: 'Bright Data',
+    ebay: 'eBay',
+    rebrickable: 'Rebrickable',
+    brickset: 'Brickset',
+    openai: 'OpenAI',
+    gemini: 'Gemini',
+    openrouter: 'OpenRouter',
+    resend: 'Resend',
+    google: 'Google Sheets',
+  };
+  return labels[s.toLowerCase()] || s.replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function jobTypeLabel(type = '') {
+  const labels = {
+    catalog_sets: 'Catalog sets',
+    catalog_figs: 'Minifig import',
+    catalog_all: 'Catalog import',
+    barcode_backfill: 'Barcode backfill',
+    populate_coverage: 'Populate coverage',
+    valuation: 'Revalue prices',
+    populate_everything: 'Populate everything',
+  };
+  return labels[type] || String(type || 'Job').replace(/_/g, ' ');
+}
+
+function currentProvider(run) {
+  const text = String(run.error || run.progress_label || '');
+  if (/ebay/i.test(text)) return 'eBay';
+  if (/bricklink/i.test(text)) return 'BrickLink';
+  if (/brickset|barcode/i.test(text)) return 'Brickset / barcode';
+  if (/valuation/i.test(text)) return 'Valuation';
+  return 'Current slice';
+}
+
+function nextStep(run) {
+  const state = classifyJobRun(run);
+  if (state.label === 'Running') return 'Poll heartbeat';
+  if (state.retryable) return 'Retry with safe slice';
+  if (state.needsAttention) return 'Review provider diagnostics';
+  return 'Run next slice if coverage remains';
+}
+
+function badgeClass(tone) {
+  if (tone === 'ok') return 'badge--up';
+  if (tone === 'warn') return 'badge--warn';
+  if (tone === 'danger') return 'badge--down';
+  return 'badge--neutral';
+}
+
+function percent(part, whole) {
+  const p = Number(part || 0);
+  const w = Number(whole || 0);
+  return w > 0 ? Math.round((p / w) * 1000) / 10 : 0;
+}
+
+function formatCount(value) {
+  const n = Number(value || 0);
+  return Number.isFinite(n) ? n.toLocaleString() : String(value || 0);
+}
+
+function startedAt(ts) {
+  if (!ts) return 'unknown';
+  try { return new Date(String(ts).replace(' ', 'T') + 'Z').toLocaleString(); }
+  catch { return String(ts); }
+}
+
+function ago(ts) {
+  if (!ts) return 'never';
+  const then = new Date(String(ts).replace(' ', 'T') + 'Z').getTime();
+  const mins = Math.round((Date.now() - then) / 60000);
+  if (!Number.isFinite(mins)) return 'unknown';
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
+}
+
+function elapsed(ts) {
+  if (!ts) return 'unknown';
+  const then = new Date(String(ts).replace(' ', 'T') + 'Z').getTime();
+  const mins = Math.max(0, Math.round((Date.now() - then) / 60000));
+  if (!Number.isFinite(mins)) return 'unknown';
+  if (mins < 60) return `${mins}m`;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
+
+function showPanel(el, tone, text) {
+  if (!el) return;
+  el.hidden = false;
+  el.className = `admin-status-panel ${tone || ''}`.trim();
+  el.textContent = text;
+}
+
+function errorPanelHTML(title, body, retryLabel = '') {
+  return `
+    <div class="admin-error-state">
+      ${I.alert()}
+      <div>
+        <strong>${escapeHtml(title)}</strong>
+        <span>${escapeHtml(body || 'Unknown error')}</span>
+      </div>
+      ${retryLabel ? `<button class="btn-secondary" id="adminErrorRetry">${I.refresh()}<span>${escapeHtml(retryLabel)}</span></button>` : ''}
+    </div>`;
 }

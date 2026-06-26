@@ -45,7 +45,7 @@ export async function renderMeIntegrations() {
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">
             <div class="lbl">Google Sheets Auto-Sync</div>
-            <div class="desc">Keep your spreadsheet "MyBricks Vault" in sync in the background.</div>
+            <div class="desc">Keep your spreadsheet "Brickvault Vault" in sync in the background.</div>
           </div>
           ${googleStatus.connected ? `
             <div class="u-col u-wfull">

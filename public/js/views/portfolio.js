@@ -247,7 +247,7 @@ function paintPortfolio() {
       <div class="topbar">
         <div class="brand">
           <div class="brand-mark"></div>
-          <div class="brand-name">Brickvault</div>
+          <h1 class="brand-name">Brickvault</h1>
         </div>
         <div class="topbar-actions">
           ${(state.me?.handle && state.me?.is_public) ? `<button class="icon-btn vault-extra-action" id="portfolioShareBtn" aria-label="Share Portfolio">${I.share()}</button>` : ""}

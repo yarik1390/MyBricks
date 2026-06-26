@@ -6,7 +6,7 @@ import {
   annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition,
   jobProgressSummary, computeSpreadSignals, buyWindow, pricePerPiece, isStalledJobRun,
   parseCSVTable, parseCollectionCSV, sanitizeMoneyInput, activeCatalogFilterCount, figFilterSummary,
-  liquidityLabel,
+  liquidityLabel, classifyProviderHealth, validateSourceTuningInput, groupAdminJobRuns,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -300,6 +300,69 @@ describe('classifyJobRun', () => {
     const job = classifyJobRun(staleRun);
     assert.equal(job.label, 'Stalled');
     assert.equal(job.retryable, true);
+  });
+
+  it('separates quota limits from hard job errors', () => {
+    const job = classifyJobRun({ status: 'error', error: 'UPCitemdb EXCEED_LIMIT HTTP 429' });
+    assert.equal(job.label, 'Quota limited');
+    assert.equal(job.needsAttention, false);
+    assert.equal(job.retryable, true);
+  });
+
+  it('separates provider access blocks from retryable notes', () => {
+    const job = classifyJobRun({ status: 'error', error: 'eBay Marketplace Insights HTTP 401 insufficient permissions' });
+    assert.equal(job.label, 'Provider blocked');
+    assert.equal(job.needsAttention, true);
+    assert.equal(job.retryable, false);
+  });
+});
+
+describe('admin helper classification', () => {
+  it('classifies provider quota states as expected limits', () => {
+    const provider = classifyProviderHealth({
+      service: 'upcitemdb',
+      configured: true,
+      status: 'down',
+      last_fail_at: '2026-06-10 10:00:00',
+      last_error: 'EXCEED_LIMIT HTTP 429',
+    });
+    assert.equal(provider.label, 'Quota limited');
+    assert.equal(provider.quotaLimited, true);
+    assert.equal(provider.blocked, false);
+  });
+
+  it('classifies eBay 401 as sold-comps blocked', () => {
+    const provider = classifyProviderHealth({
+      service: 'ebay',
+      configured: true,
+      status: 'down',
+      last_fail_at: '2026-06-10 10:00:00',
+      last_error: 'Marketplace Insights HTTP 401 insufficient permissions',
+    });
+    assert.equal(provider.label, 'Sold comps blocked');
+    assert.equal(provider.blocked, true);
+  });
+
+  it('validates and normalizes source tuning inputs', () => {
+    const result = validateSourceTuningInput({
+      bricklink: { enabled: true, weight: '1,25', dailyCap: '4000', refreshDays: '14' },
+      ebay: { enabled: false, weight: '-1', dailyCap: '0', refreshDays: '' },
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.config.bricklink.weight, 1.25);
+    assert.equal(result.config.bricklink.dailyCap, 4000);
+    assert.equal(result.config.bricklink.refreshDays, 14);
+    assert.ok(result.errors.ebay.length >= 2);
+  });
+
+  it('groups repeated completed jobs for admin history', () => {
+    const groups = groupAdminJobRuns([
+      { id: 3, job_type: 'populate_everything', status: 'completed' },
+      { id: 2, job_type: 'populate_everything', status: 'completed' },
+      { id: 1, job_type: 'valuation', status: 'error', error: 'D1_ERROR: database disk image is malformed: SQLITE_CORRUPT' },
+    ]);
+    assert.equal(groups[0].count, 2);
+    assert.equal(groups[1].state.label, 'Hard error');
   });
 });
 
@@ -634,6 +697,17 @@ describe('routeMetaFor', () => {
     assert.equal(routeMetaFor('/u/demo').nav, '/me');
     assert.equal(routeMetaFor('/add').nav, '/add');
     assert.equal(routeMetaFor('/pile').nav, '/pile');
+  });
+
+  it('hides the AI FAB on operational and full-screen routes', async () => {
+    const { routeMetaFor } = await import('../route-meta.js');
+    assert.equal(routeMetaFor('/pile').fab, false);
+    assert.equal(routeMetaFor('/login').fab, false);
+    assert.equal(routeMetaFor('/me/admin').fab, false);
+    assert.equal(routeMetaFor('/me/data').fab, false);
+    assert.equal(routeMetaFor('/me/integrations').fab, false);
+    assert.equal(routeMetaFor('/').fab, true);
+    assert.equal(routeMetaFor('/build').fab, true);
   });
 });
 

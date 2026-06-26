@@ -71,14 +71,7 @@ async function _routeImpl() {
   if (nav) nav.style.display = "";
 
   const fab = document.getElementById("advisorFab");
-  if (fab) {
-    // Show the AI assistant on every screen except the Scan camera (/pile),
-    // where a floating button would fight the full-screen capture UI, and the
-    // login screen. It's now available on Catalog (/add), Minifigs and Build
-    // too (users asked for it there), plus Vault, set-detail and You.
-    const fabHidden = hash === "/login" || hash === "/pile";
-    fab.style.display = fabHidden ? "none" : "flex";
-  }
+  if (fab) fab.style.display = meta.fab ? "flex" : "none";
   $$("#nav .nav-tab").forEach(t => {
     const r = t.dataset.route;
     const active = r === meta.nav;

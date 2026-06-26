@@ -11,8 +11,8 @@ import { I } from '../icons.js';
 
 let _mode = 'sets';   // 'sets' | 'alts'
 let _q = '';
-const _sets = { loaded: false, loading: false, builds: [], can_build: 0, near: 0, owned_sets: 0, parts_sets: 0 };
-const _alts = { loaded: false, loading: false, builds: [], can_build: 0, sets_with_alts: 0, owned_sets: 0, indexing: 0 };
+const _sets = { loaded: false, loading: false, error: "", authRequired: false, builds: [], can_build: 0, near: 0, owned_sets: 0, parts_sets: 0 };
+const _alts = { loaded: false, loading: false, error: "", authRequired: false, builds: [], can_build: 0, sets_with_alts: 0, owned_sets: 0, indexing: 0 };
 
 
 async function loadSets() {
@@ -20,13 +20,20 @@ async function loadSets() {
   _sets.loading = true;
   try {
     const r = await api('/api/build/sets?limit=120');
+    _sets.error = "";
+    _sets.authRequired = false;
     _sets.builds = (r && r.builds) || [];
     _sets.can_build = (r && r.can_build) || 0;
     _sets.near = (r && r.near) || 0;
     _sets.owned_sets = (r && r.owned_sets) || 0;
     _sets.parts_sets = (r && r.parts_sets) || 0;
     _sets.loaded = true;
-  } catch (_e) { toast("Couldn't load buildable sets", 'error'); }
+  } catch (e) {
+    _sets.error = e?.message || "Couldn't load buildable sets";
+    _sets.authRequired = /sign in|sync this feature|session expired/i.test(_sets.error);
+    _sets.loaded = true;
+    if (!_sets.authRequired) toast("Couldn't load buildable sets", 'error');
+  }
   finally { _sets.loading = false; }
 }
 
@@ -35,13 +42,20 @@ async function loadAlts() {
   _alts.loading = true;
   try {
     const r = await api('/api/build?limit=300');
+    _alts.error = "";
+    _alts.authRequired = false;
     _alts.builds = (r && r.builds) || [];
     _alts.can_build = (r && r.can_build) || 0;
     _alts.sets_with_alts = (r && r.sets_with_alts) || 0;
     _alts.owned_sets = (r && r.owned_sets) || 0;
     _alts.indexing = (r && r.indexing) || 0;
     _alts.loaded = true;
-  } catch (_e) { toast("Couldn't load alternate builds", 'error'); }
+  } catch (e) {
+    _alts.error = e?.message || "Couldn't load alternate builds";
+    _alts.authRequired = /sign in|sync this feature|session expired/i.test(_alts.error);
+    _alts.loaded = true;
+    if (!_alts.authRequired) toast("Couldn't load alternate builds", 'error');
+  }
   finally { _alts.loading = false; }
 }
 
@@ -102,6 +116,22 @@ function tiles() {
 function listHtml() {
   const st = _mode === 'sets' ? _sets : _alts;
   if (st.loading && !st.loaded) return skelCardList(6);
+  if (st.authRequired) {
+    return emptyState({
+      icon: I.layers(),
+      title: 'Sign in to build from your vault',
+      body: 'Build tools need your synced collection and parts data. You can still browse the catalog or scan sets as a guest.',
+      action: `<div class="empty-actions"><a class="btn-primary" href="#/login">${I.user()}<span>Sign in</span></a><a class="btn-secondary" href="#/add">${I.search()}<span>Browse catalog</span></a><a class="btn-secondary" href="#/pile">${I.scan()}<span>Scan a set</span></a></div>`,
+    });
+  }
+  if (st.error) {
+    return emptyState({
+      icon: I.info(),
+      title: 'Build tools are unavailable',
+      body: st.error,
+      action: `<div class="empty-actions"><button class="btn-primary" id="buildRetry">${I.refresh()}<span>Retry</span></button><a class="btn-secondary" href="#/add">${I.search()}<span>Browse catalog</span></a></div>`,
+    });
+  }
   if (st.loaded && !st.owned_sets) {
     return emptyState({
       icon: I.box(),
@@ -130,7 +160,7 @@ function pageHtml() {
     : `Alternate models you can build from a set you own, each with free building instructions.`;
   return `<div class="page build-view">
     <div class="topbar">
-      <button class="icon-btn" id="buildBack" aria-label="Back">‹</button>
+      <button class="icon-btn" id="buildBack" aria-label="Back">${I.chevL()}</button>
       <div class="topbar-heading">
         <div class="topbar-eyebrow">Vault tools</div>
         <h1 class="topbar-title">Build</h1>
@@ -179,6 +209,15 @@ function wire() {
       if (s2) { s2.focus(); s2.setSelectionRange(s2.value.length, s2.value.length); }
     }, SEARCH_DEBOUNCE_MS || 250);
   }
+  $('#buildRetry')?.addEventListener('click', async () => {
+    const st = _mode === 'sets' ? _sets : _alts;
+    st.loaded = false;
+    st.error = "";
+    st.authRequired = false;
+    rerender();
+    await ensureLoaded();
+    rerender();
+  });
 }
 
 export async function renderBuild() {

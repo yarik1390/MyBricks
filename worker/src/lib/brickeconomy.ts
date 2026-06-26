@@ -49,7 +49,7 @@ export async function fetchBrickEconomyDetails(
       {
         headers: {
           'Accept': 'application/json',
-          'User-Agent': 'MyBricksApp/1.0',
+          'User-Agent': 'BrickvaultApp/1.0',
           'x-apikey': apiKey,
         },
       },

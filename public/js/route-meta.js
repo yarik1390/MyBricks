@@ -1,15 +1,18 @@
 const ROUTES = [
-  { match: (hash) => hash === "/" || hash === "", key: "vault", nav: "/", title: "Vault" },
-  { match: (hash) => hash === "/add", key: "catalog", nav: "/add", title: "Catalog" },
-  { match: (hash) => hash === "/pile", key: "scan", nav: "/pile", title: "Scan", fullscreen: true },
-  { match: (hash) => hash === "/minifigs", key: "minifigs", nav: "/minifigs", title: "Minifigs" },
-  { match: (hash) => hash === "/build", key: "build", nav: "/", title: "Build" },
-  { match: (hash) => hash === "/wishlist", key: "wishlist", nav: "/", title: "Wishlist" },
-  { match: (hash) => hash === "/leaderboard", key: "leaderboard", nav: "/me", title: "Leaderboard" },
-  { match: (hash) => hash.startsWith("/u/"), key: "public-profile", nav: "/me", title: "Public profile" },
-  { match: (hash) => hash.startsWith("/set/"), key: "set-detail", nav: "/", title: "Set detail" },
-  { match: (hash) => hash === "/me" || hash.startsWith("/me/"), key: "me", nav: "/me", title: "Me" },
-  { match: (hash) => hash === "/login", key: "login", nav: null, title: "Sign in", fullscreen: true },
+  { match: (hash) => hash === "/" || hash === "", key: "vault", nav: "/", title: "Vault", fab: true },
+  { match: (hash) => hash === "/add", key: "catalog", nav: "/add", title: "Catalog", fab: true },
+  { match: (hash) => hash === "/pile", key: "scan", nav: "/pile", title: "Scan a set", fullscreen: true, fab: false },
+  { match: (hash) => hash === "/minifigs", key: "minifigs", nav: "/minifigs", title: "Minifigs", fab: true },
+  { match: (hash) => hash === "/build", key: "build", nav: "/", title: "Build", fab: true },
+  { match: (hash) => hash === "/wishlist", key: "wishlist", nav: "/", title: "Wishlist", fab: true },
+  { match: (hash) => hash === "/leaderboard", key: "leaderboard", nav: "/me", title: "Leaderboard", fab: true },
+  { match: (hash) => hash.startsWith("/u/"), key: "public-profile", nav: "/me", title: "Public profile", fab: true },
+  { match: (hash) => hash.startsWith("/set/"), key: "set-detail", nav: "/", title: "Set detail", fab: true },
+  { match: (hash) => hash === "/me/admin", key: "admin", nav: "/me", title: "Admin", protected: true, fab: false },
+  { match: (hash) => hash === "/me/integrations", key: "integrations", nav: "/me", title: "Integrations", protected: true, fab: false },
+  { match: (hash) => hash === "/me/data", key: "data", nav: "/me", title: "Data", protected: true, fab: false },
+  { match: (hash) => hash === "/me" || hash.startsWith("/me/"), key: "me", nav: "/me", title: "Me", fab: true },
+  { match: (hash) => hash === "/login", key: "login", nav: null, title: "Sign in", fullscreen: true, fab: false },
 ];
 
 export function normalizeRouteHash(hash = "/") {
@@ -20,6 +23,6 @@ export function routeMetaFor(hash = "/") {
   const normalized = normalizeRouteHash(hash);
   const found = ROUTES.find(route => route.match(normalized));
   return found
-    ? { key: found.key, nav: found.nav, title: found.title, fullscreen: !!found.fullscreen }
-    : { key: "unknown", nav: null, title: "Brickvault", fullscreen: false };
+    ? { key: found.key, nav: found.nav, title: found.title, fullscreen: !!found.fullscreen, protected: !!found.protected, fab: found.fab !== false }
+    : { key: "unknown", nav: null, title: "Brickvault", fullscreen: false, protected: false, fab: true };
 }

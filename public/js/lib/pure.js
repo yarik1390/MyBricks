@@ -232,8 +232,11 @@ export function figFilterSummary(filter = {}) {
 export function classifyJobRun(run = {}) {
   const error = String(run.error || "");
   const status = String(run.status || "unknown").toLowerCase();
+  const quotaLimited = /HTTP 429|EXCEED_LIMIT|quota|rate limit|daily cap|too many requests/i.test(error);
+  const providerBlocked = /HTTP 401|HTTP 403|unauthorized|not authorized|access denied|insufficient permissions|invalid[_ -]?scope|Marketplace Insights/i.test(error);
   const retryable = /retry|no data|worker run stopped|timed out|timeout|operation was aborted|too many subrequests|brickset/i.test(error)
-    && !/database disk image|sqlite_corrupt|malformed/i.test(error);
+    && !/database disk image|sqlite_corrupt|malformed/i.test(error)
+    && !providerBlocked;
   if (status === "running" && isStalledJobRun(run)) {
     return { tone: "warn", label: "Stalled", needsAttention: false, retryable: true };
   }
@@ -245,11 +248,165 @@ export function classifyJobRun(run = {}) {
   }
   if (status === "expired") return { tone: "neutral", label: "Stopped", needsAttention: false, retryable: true };
   if (status === "error") {
+    if (quotaLimited) return { tone: "warn", label: "Quota limited", needsAttention: false, retryable: true };
+    if (providerBlocked) return { tone: "danger", label: "Provider blocked", needsAttention: true, retryable: false };
     return retryable
       ? { tone: "warn", label: "Retry needed", needsAttention: false, retryable: true }
       : { tone: "danger", label: "Hard error", needsAttention: true, retryable: false };
   }
   return { tone: "neutral", label: status || "Unknown", needsAttention: false, retryable: false };
+}
+
+export function classifyProviderHealth(row = {}) {
+  const service = String(row.service || row.name || "unknown").toLowerCase();
+  const configured = row.configured !== false && row.configured !== 0;
+  const status = String(row.status || "unknown").toLowerCase();
+  const error = String(row.last_error || row.error || "");
+  const latestFail = (() => {
+    const okAt = dbTimestampMs(row.last_ok_at);
+    const failAt = dbTimestampMs(row.last_fail_at);
+    return !!failAt && (!okAt || failAt >= okAt);
+  })();
+  const quotaLimited = /HTTP 429|EXCEED_LIMIT|quota|rate limit|daily cap|too many requests/i.test(error);
+  const blocked = latestFail && /HTTP 401|HTTP 403|unauthorized|not authorized|access denied|insufficient permissions|invalid[_ -]?scope|Marketplace Insights/i.test(error);
+  const optional = !!row.optional || /brickowl|pricecharting|pricesapi|firecrawl|brightdata|discord|openrouter|openai|gemini|resend|push|vapid|google/.test(service);
+  if (!configured) {
+    return {
+      tone: optional ? "neutral" : "warn",
+      label: optional ? "Optional setup" : "Needs setup",
+      priority: optional ? 4 : 2,
+      actionable: !optional,
+      optional,
+      quotaLimited: false,
+      blocked: false,
+      ready: false,
+      action: row.recommended_action || row.recommendedAction || (optional ? "Configure only if you want this feature." : "Add the required secret or binding."),
+    };
+  }
+  if (quotaLimited) {
+    return {
+      tone: "warn",
+      label: "Quota limited",
+      priority: 3,
+      actionable: false,
+      optional,
+      quotaLimited: true,
+      blocked: false,
+      ready: false,
+      action: row.recommended_action || row.recommendedAction || "Wait for the daily quota to reset or reduce batch size.",
+    };
+  }
+  if (blocked) {
+    return {
+      tone: "danger",
+      label: service === "ebay" ? "Sold comps blocked" : "Needs access",
+      priority: 1,
+      actionable: true,
+      optional,
+      quotaLimited: false,
+      blocked: true,
+      ready: false,
+      action: row.recommended_action || row.recommendedAction || "Check provider credentials, scopes, and account access.",
+    };
+  }
+  if (status === "down" || (latestFail && !/no data|not found|empty/i.test(error))) {
+    return {
+      tone: optional ? "warn" : "danger",
+      label: optional ? "Degraded" : "Failing",
+      priority: optional ? 3 : 1,
+      actionable: true,
+      optional,
+      quotaLimited: false,
+      blocked: false,
+      ready: false,
+      action: row.recommended_action || row.recommendedAction || "Check the latest failure and retry after provider status is healthy.",
+    };
+  }
+  if (status === "degraded") {
+    return {
+      tone: "warn",
+      label: "Degraded",
+      priority: 3,
+      actionable: true,
+      optional,
+      quotaLimited: false,
+      blocked: false,
+      ready: false,
+      action: row.recommended_action || row.recommendedAction || "Keep monitoring; retry a smaller batch if needed.",
+    };
+  }
+  if (status === "unknown") {
+    return {
+      tone: "neutral",
+      label: "Ready / no calls",
+      priority: 4,
+      actionable: false,
+      optional,
+      quotaLimited: false,
+      blocked: false,
+      ready: true,
+      action: row.recommended_action || row.recommendedAction || "No action needed until this provider is used.",
+    };
+  }
+  return {
+    tone: "ok",
+    label: "Ready",
+    priority: 5,
+    actionable: false,
+    optional,
+    quotaLimited: false,
+    blocked: false,
+    ready: true,
+    action: row.recommended_action || row.recommendedAction || "No action needed.",
+  };
+}
+
+export function validateSourceTuningInput(config = {}) {
+  const errors = {};
+  const normalized = {};
+  const parseNumber = (value) => {
+    if (typeof value === "string") return Number(value.trim().replace(",", "."));
+    return Number(value);
+  };
+  const parseNullableInt = (value) => {
+    if (value === "" || value == null) return null;
+    const n = parseNumber(value);
+    return Number.isFinite(n) ? Math.round(n) : NaN;
+  };
+  for (const [name, src] of Object.entries(config || {})) {
+    const sourceErrors = [];
+    const weight = parseNumber(src?.weight);
+    const dailyCap = parseNullableInt(src?.dailyCap);
+    const refreshDays = parseNullableInt(src?.refreshDays);
+    if (!Number.isFinite(weight) || weight < 0) sourceErrors.push("Weight must be a non-negative number.");
+    if (!(dailyCap == null || (Number.isInteger(dailyCap) && dailyCap > 0))) sourceErrors.push("Daily cap must be a positive integer or blank.");
+    if (!(refreshDays == null || (Number.isInteger(refreshDays) && refreshDays > 0))) sourceErrors.push("Refresh days must be a positive integer or blank.");
+    normalized[name] = {
+      enabled: !!src?.enabled,
+      weight: Number.isFinite(weight) && weight >= 0 ? weight : 0,
+      dailyCap: dailyCap == null || Number.isNaN(dailyCap) ? null : dailyCap,
+      refreshDays: refreshDays == null || Number.isNaN(refreshDays) ? null : refreshDays,
+    };
+    if (sourceErrors.length) errors[name] = sourceErrors;
+  }
+  return { ok: Object.keys(errors).length === 0, config: normalized, errors };
+}
+
+export function groupAdminJobRuns(runs = []) {
+  const groups = [];
+  for (const run of runs || []) {
+    const state = classifyJobRun(run);
+    const key = `${run.job_type || "job"}|${state.label}|${state.tone}|${state.retryable ? "retry" : "plain"}`;
+    const previous = groups[groups.length - 1];
+    if (previous && previous.key === key && state.label === "Completed") {
+      previous.runs.push(run);
+      previous.count += 1;
+      previous.latest = previous.latest || run;
+    } else {
+      groups.push({ key, state, runs: [run], latest: run, count: 1 });
+    }
+  }
+  return groups;
 }
 
 function dbTimestampMs(value) {

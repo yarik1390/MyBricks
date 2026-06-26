@@ -656,7 +656,7 @@ export function renderPile() {
       <div class="topbar">
         <div class="topbar-heading">
           <div class="topbar-eyebrow">Snap &amp; identify</div>
-          <h1 class="topbar-title">Pile scanner</h1>
+          <h1 class="topbar-title">Scan a set</h1>
         </div>
       </div>
 
