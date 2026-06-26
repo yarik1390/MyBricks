@@ -15,7 +15,7 @@ import { computeMinifigRarity } from './lib/minifig-rarity';
 import { proxyImageUrl, rewriteImages } from './lib/img-proxy';
 import { isSearchIndexCorruption } from './lib/search-index';
 import { formulaValuation, isLikelyRetired, isPlausibleMarketValue } from './lib/valuation';
-import { blendMarketValue, computeDealSignal } from './lib/market-sources';
+import { blendMarketValue, computeDealSignal, buildMarketSources, enrichSetRecord } from './lib/market-sources';
 import { computePartOutValue, partKey } from './lib/part-out';
 
 // ---------------------------------------------------------------------------
@@ -729,6 +729,24 @@ describe('computeDealSignal (E3a)', () => {
     );
     expect(d.available_price).toBe(150);
     expect(d.available_merchant).toBeNull();
+  });
+});
+
+describe('PriceCharting loose + liquidity (Phase 2)', () => {
+  it('surfaces pc_loose_value as a used-condition source, not in the new-value blend', () => {
+    const row = { bl_new_value: 200, bl_new_qty: 5, bl_cached_at: new Date().toISOString(), pc_loose_value: 90, pc_cached_at: new Date().toISOString() };
+    const sources = buildMarketSources(row);
+    const loose = sources.find((s) => s.id === 'pc_loose');
+    expect(loose).toBeTruthy();
+    expect(loose!.condition).toBe('used');
+    expect(loose!.value).toBe(90);
+    // The loose (used) value must not drag the new-value blend down.
+    expect(blendMarketValue(row).value).toBe(200);
+  });
+
+  it('exposes sales_volume on the enriched record', () => {
+    expect((enrichSetRecord({ pc_sales_volume: 250 }) as any).sales_volume).toBe(250);
+    expect((enrichSetRecord({}) as any).sales_volume).toBeNull();
   });
 });
 

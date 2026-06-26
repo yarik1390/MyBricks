@@ -13,6 +13,8 @@ import { rebuildSearchIndex } from '../lib/search-index';
 import { runLegoStockRefresh } from '../jobs/lego-stock-refresh';
 import { runBricksetEnrich } from '../jobs/brickset-enrich';
 import { runBrickEconomyEnrich } from '../jobs/brickeconomy-enrich';
+import { runPriceChartingBulk } from '../jobs/pricecharting-bulk';
+import { getKeyPoolStatus } from '../lib/pricesapi-keys';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -503,6 +505,24 @@ app.post('/import-rebrickable', async (c) => {
   return c.json({ ok: true, status: 'running', run_id: runId });
 });
 
+// Optional PriceCharting bulk CSV import (Legendary tier). Accepts the raw CSV
+// text the admin downloaded from their PriceCharting Subscriptions page. Runs in
+// the background; the summary lands in app_settings['pc_bulk_last_result'] and is
+// surfaced in /integrations diagnostics.
+app.post('/pricecharting-bulk', async (c) => {
+  if (!/^(1|true|yes|on)$/i.test(String(c.env.PRICECHARTING_PRO ?? ''))) {
+    return c.json({ error: 'PRICECHARTING_PRO not set — bulk CSV requires the PriceCharting Legendary tier.' }, 400);
+  }
+  const csv = await c.req.text().catch(() => '');
+  if (!csv.trim() || csv.indexOf('\n') < 0) {
+    return c.json({ error: 'Empty or malformed CSV body.' }, 400);
+  }
+  c.executionCtx.waitUntil(
+    runPriceChartingBulk(c.env, csv).catch((e) => console.warn('[pc-bulk] failed:', (e as Error).message)),
+  );
+  return c.json({ ok: true, status: 'running', note: 'Bulk import started; check integrations diagnostics for the result.' });
+});
+
 app.get('/import-status/:id', requireAdmin, async (c) => {
   const id = Number(c.req.param('id'));
   await expireStaleImportRuns(c.env);
@@ -904,11 +924,13 @@ app.get('/import-status', async (c) => {
 });
 
 app.get('/integrations', async (c) => {
-  const [integrations, coverage, quota, ai_usage] = await Promise.all([
+  const [integrations, coverage, quota, ai_usage, pricesapi_pool, market_ext] = await Promise.all([
     getIntegrationDiagnostics(c.env),
     getDataCoverage(c.env),
     getQuotaUsage(c.env),
     getAiUsageReport(c.env),
+    getKeyPoolStatus(c.env),
+    getMarketExtCoverage(c.env),
   ]);
   const url = new URL(c.req.url);
   return c.json({
@@ -917,6 +939,16 @@ app.get('/integrations', async (c) => {
     quota,
     ai_usage,
     firecrawl: buildFirecrawlDiagnostics(c.env, quota, coverage),
+    // Pricing v3 diagnostics: pricesAPI key-pool budget + PriceCharting extras
+    // coverage + last bulk-import summary.
+    pricesapi: {
+      pool: pricesapi_pool,
+      daily: quota.find((q) => q.service === 'pricesapi') ?? null,
+    },
+    pricecharting_ext: {
+      ...market_ext,
+      last_bulk: market_ext.last_bulk,
+    },
     api_routing: {
       worker_base_url: url.origin,
       config_endpoint: `${url.origin}/api/config`,
@@ -924,6 +956,35 @@ app.get('/integrations', async (c) => {
     },
   });
 });
+
+// set_market_ext coverage (pricesAPI pa_* + PriceCharting loose/sales-volume)
+// plus the last bulk-import summary, for the pricing diagnostics panel. Fails
+// open to zeros so the admin endpoint never errors on a fresh DB.
+async function getMarketExtCoverage(env: Env): Promise<{
+  sets_with_pa: number; sets_in_stock: number; sets_with_pc_loose: number; sets_with_sales_volume: number;
+  last_bulk: unknown;
+}> {
+  let counts = { sets_with_pa: 0, sets_in_stock: 0, sets_with_pc_loose: 0, sets_with_sales_volume: 0 };
+  try {
+    const row = await env.DB.prepare(`
+      SELECT
+        COUNT(pa_lowest_offer) AS sets_with_pa,
+        COALESCE(SUM(CASE WHEN pa_in_stock = 1 THEN 1 ELSE 0 END), 0) AS sets_in_stock,
+        COUNT(pc_loose_value) AS sets_with_pc_loose,
+        COUNT(pc_sales_volume) AS sets_with_sales_volume
+      FROM set_market_ext
+    `).first<typeof counts>();
+    if (row) counts = row;
+  } catch { /* table may not exist yet */ }
+
+  let last_bulk: unknown = null;
+  try {
+    const r = await env.DB.prepare(`SELECT value FROM app_settings WHERE key='pc_bulk_last_result'`).first<{ value: string }>();
+    if (r?.value) last_bulk = JSON.parse(r.value);
+  } catch { /* none yet */ }
+
+  return { ...counts, last_bulk };
+}
 
 // Firecrawl credit-spend + BrickEconomy bootstrap snapshot for the admin panel.
 // Surfaces today's credit burn against the daily ceiling and how much of the

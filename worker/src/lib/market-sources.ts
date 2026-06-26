@@ -202,6 +202,23 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
     });
   }
 
+  // PriceCharting loose value — item only, no box/manual. A used-condition
+  // corroborator from aggregated closed eBay auctions; kept out of the
+  // new-value blend (it sits well below sealed) but surfaced as a used source.
+  if (num(row.pc_loose_value)) {
+    sources.push({
+      id: 'pc_loose',
+      name: 'Used market',
+      value: num(row.pc_loose_value),
+      condition: 'used',
+      sample_count: null,
+      last_updated: text(row.pc_cached_at) || cachedAt,
+      freshness: sourceFreshness(row, 'pc_cached_at', 'pc_loose_value'),
+      reliability: 'corroborating',
+      note: 'Loose (incomplete) value — excludes box and manual.',
+    });
+  }
+
   if (method === 'ai' && num(row.current_value)) {
     sources.push({
       id: 'ai_estimate',
@@ -686,6 +703,9 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
       ? partOutValue
       : null,
     part_out_coverage: Number.isFinite(partOutCoverage) ? partOutCoverage : null,
+    // Liquidity (PriceCharting yearly units sold). Additive, read-side; the UI
+    // turns this into a "sells fast / slow" badge (Phase 3).
+    sales_volume: (() => { const v = Number(row.pc_sales_volume); return Number.isFinite(v) && v > 0 ? Math.round(v) : null; })(),
   };
 }
 
