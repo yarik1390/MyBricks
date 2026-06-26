@@ -70,7 +70,7 @@ async function fetchPCPrice(pcId: string, token: string): Promise<PCPrice | null
  */
 export async function fetchPriceChartingData(
   setNum: string,
-  setName: string,
+  _setName: string,
   existingPcId: string | null | undefined,
   env: Env,
 ): Promise<PriceChartingResult | null> {
