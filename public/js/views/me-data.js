@@ -17,17 +17,19 @@ export async function renderMeData() {
     <div class="page">
       ${subpageTopbarHTML("Import & export", "Data")}
 
-      <div class="section-title">Export</div>
-      <div>
-        <div class="setting-row">
+      <div class="data-grid">
+        <section class="data-card">
+          <div class="section-title">Export</div>
+          <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Export collection</div><div class="desc">CSV with all collector fields &amp; ROI.</div></div>
           <button class="import-btn" id="exportCsvBtn" aria-label="Export CSV">${I.download()}</button>
-        </div>
-      </div>
+          </div>
+          <div class="action-result" id="exportResult" aria-live="polite">${guest ? "Guest exports use the local vault on this device." : "Signed-in exports are pulled from your synced account."}</div>
+        </section>
 
-      <div class="section-title">Import</div>
-      <div>
-        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+        <section class="data-card">
+          <div class="section-title">Import</div>
+          <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">
             <div class="lbl">Import collection</div>
             <div class="desc">Upload a CSV to add sets in bulk. Existing sets are skipped.</div>
@@ -37,9 +39,9 @@ export async function renderMeData() {
             <span id="csvFileName"></span>
             <button class="btn-primary" id="csvImportBtn" style="display:none;">${I.plus()}<span>Import</span></button>
           </div>
-          <div id="csvImportResult" class="u-fs-base u-mute" style="font-family:var(--mono);"></div>
-        </div>
-        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+          <div id="csvImportResult" class="action-result" aria-live="polite"></div>
+          </div>
+          <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">
             <div class="lbl">Import from BrickLink orders</div>
             <div class="desc">Export your BrickLink order history as CSV and upload it here to auto-add sets you've bought.</div>
@@ -49,15 +51,18 @@ export async function renderMeData() {
             <span id="blOrderFileName"></span>
             <button class="btn-primary" id="blOrderImportBtn" style="display:none;">${I.plus()}<span>Import BrickLink Orders</span></button>
           </div>
-          <div id="blOrderImportResult" class="u-fs-base u-mute" style="font-family:var(--mono);"></div>
-        </div>
+          <div id="blOrderImportResult" class="action-result" aria-live="polite"></div>
+          </div>
+        </section>
       </div>
     </div>`;
 
   $("#exportCsvBtn")?.addEventListener("click", async () => {
     haptic("medium");
     const _expBtn = document.getElementById("exportCsvBtn");
+    const out = document.getElementById("exportResult");
     if (_expBtn) { _expBtn.disabled = true; _expBtn.setAttribute("aria-busy", "true"); }
+    if (out) out.textContent = "Preparing export...";
     try {
       if (guest) {
         const blob = guestCollectionCSVBlob();
@@ -67,6 +72,7 @@ export async function renderMeData() {
         a.download = "brickvault-collection.csv";
         a.click();
         URL.revokeObjectURL(url);
+        if (out) out.textContent = "Export ready from local guest data.";
         return;
       }
       const token = _authSession?.access_token;
@@ -82,7 +88,9 @@ export async function renderMeData() {
       a.download = "brickvault-collection.csv";
       a.click();
       URL.revokeObjectURL(url);
+      if (out) out.textContent = "Export downloaded from your synced vault.";
     } catch (e) {
+      if (out) out.textContent = "Export failed: " + e.message;
       toast("Error exporting: " + e.message, "error");
     } finally {
       if (_expBtn) { _expBtn.disabled = false; _expBtn.removeAttribute("aria-busy"); }

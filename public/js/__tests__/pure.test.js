@@ -5,7 +5,7 @@ import {
   computeDealScore, valuationTrust, catalogFilterSummary, classifyJobRun,
   annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition,
   jobProgressSummary, computeSpreadSignals, buyWindow, pricePerPiece, isStalledJobRun,
-  parseCSVTable, parseCollectionCSV, sanitizeMoneyInput,
+  parseCSVTable, parseCollectionCSV, sanitizeMoneyInput, activeCatalogFilterCount, figFilterSummary,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -240,6 +240,31 @@ describe('catalogFilterSummary', () => {
       catalogRanges: { min_year: 2010, max_year: 2020, min_value: 100, max_value: 250 }
     });
     assert.equal(summary, '5 active: Search "falcon" · Star Wars · Retired only · Year 2010-2020 · Value $100-$250');
+  });
+
+  it('counts active catalog filters for badges', () => {
+    assert.equal(activeCatalogFilterCount({
+      catalogQ: 'falcon',
+      catalogTheme: 'Star Wars',
+      catalogRetired: 'retired',
+      catalogDeal: true,
+      catalogRanges: { min_year: 2010, max_year: '' },
+    }), 5);
+  });
+});
+
+describe('figFilterSummary', () => {
+  it('returns a quiet empty state when no minifig filters are active', () => {
+    assert.equal(figFilterSummary({ figRarity: 'all', figOwned: 'all', figSeries: 'all' }), 'No filters active');
+  });
+
+  it('summarizes minifig search, rarity, ownership, and series', () => {
+    assert.equal(figFilterSummary({
+      figQ: 'wolf',
+      figRarity: 'rare',
+      figOwned: 'unowned',
+      figSeries: 'Collectible Minifigures',
+    }), '4 active: Search "wolf" · Rare rarity · Unowned only · Collectible Minifigures');
   });
 });
 
@@ -582,12 +607,7 @@ describe('sanitizeMoneyInput', () => {
 
 describe('routeMetaFor', () => {
   it('assigns child routes to their owning bottom-nav section', async () => {
-    globalThis.localStorage ||= {
-      getItem: () => null,
-      setItem: () => {},
-      removeItem: () => {},
-    };
-    const { routeMetaFor } = await import('../router.js');
+    const { routeMetaFor } = await import('../route-meta.js');
     assert.equal(routeMetaFor('/build').nav, '/');
     assert.equal(routeMetaFor('/wishlist').nav, '/');
     assert.equal(routeMetaFor('/set/10300-1').nav, '/');

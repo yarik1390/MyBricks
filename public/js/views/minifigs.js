@@ -4,6 +4,7 @@ import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
+import { figFilterSummary } from '../lib/pure.js';
 
 let _blindGen = 0;
 let _seriesList = [];
@@ -151,6 +152,7 @@ export async function renderBlind() {
           <span style="font-size:11px;color:var(--ink-mute);display:inline-flex;align-items:center;margin-right:2px;font-family:var(--mono);font-weight:600;">SORT:</span>
           ${FIG_SORTS.map(o => `<button class="chip ${(f.figSort === o.asc || f.figSort === o.desc) ? 'active' : ''}" data-fig-sort-base="${o.base}">${figSortChipText(o, f.figSort)}</button>`).join('')}
         </div>
+        <div class="filter-summary" id="figFilterSummary">${escapeHtml(figFilterSummary(f))}</div>
       </div>
 
       <div class="mini-grid" id="miniGrid">
@@ -284,8 +286,14 @@ function refreshMiniGrid() {
   const grid = $('#miniGrid');
   if (!grid) return;
   mount(grid, miniGridHTML());
+  refreshFigFilterSummary();
   wireMiniCards();
   mountBlindSentinel();
+}
+
+function refreshFigFilterSummary() {
+  const el = $('#figFilterSummary');
+  if (el) el.textContent = figFilterSummary(state.filter);
 }
 
 function miniGridHTML() {

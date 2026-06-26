@@ -44,6 +44,7 @@ export const I = {
   fire:     (o) => s('<path d="M8.5 2C8.5 2 9 5 7 8c-1.5 2.5-.5 5 1.5 6.5C8 12 10 10.5 10 10.5s.5 4 3 6a7 7 0 10-4.5-14.5z"/>', o),
   grid:     (o) => s('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>', o),
   list:     (o) => s('<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>', o),
+  more:     (o) => s('<circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>', o),
   alert:    (o) => s('<path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/>', o),
   trendDown:(o) => s('<path d="M3 7l6 6 4-4 8 9"/><path d="M14 18h7v-7"/>', o),
   money:    (o) => s('<circle cx="12" cy="12" r="9"/><path d="M12 6v12M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 .9-3 2.25 1.2 2 3 2.25 3 .9 3 2.25-1.3 2.25-3 2.25-3-1.1-3-2.5"/>', o),

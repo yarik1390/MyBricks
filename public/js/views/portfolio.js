@@ -250,18 +250,19 @@ function paintPortfolio() {
           <div class="brand-name">Brickvault</div>
         </div>
         <div class="topbar-actions">
-          ${(state.me?.handle && state.me?.is_public) ? `<button class="icon-btn" id="portfolioShareBtn" aria-label="Share Portfolio">${I.share()}</button>` : ""}
-          ${(state.portfolio?.items?.length) ? `<button class="icon-btn" id="selectToggle" aria-label="Select sets">${I.check()}</button>` : ""}
+          ${(state.me?.handle && state.me?.is_public) ? `<button class="icon-btn vault-extra-action" id="portfolioShareBtn" aria-label="Share Portfolio">${I.share()}</button>` : ""}
+          ${(state.portfolio?.items?.length) ? `<button class="icon-btn vault-extra-action" id="selectToggle" aria-label="Select sets">${I.check()}</button>` : ""}
           <button class="icon-btn" id="layoutToggle" aria-label="Toggle Layout">${state.compactView ? I.grid() : I.list()}</button>
           <button class="icon-btn" id="searchToggle" aria-label="Search">${I.search()}</button>
           <a href="#/wishlist" class="icon-btn" id="wishlistBtn" aria-label="Wishlist">
             ${I.heart()}
             ${state.wishlist.length > 0 ? `<span class="dot">${state.wishlist.length}</span>` : ""}
           </a>
-          <button class="icon-btn" id="alertsBtn" aria-label="Alerts">
+          <button class="icon-btn vault-extra-action" id="alertsBtn" aria-label="Alerts">
             ${I.bell()}
             ${alertsCount > 0 ? `<span class="dot">${alertsCount}</span>` : ""}
           </button>
+          <button class="icon-btn vault-overflow" id="vaultMoreBtn" aria-label="More vault actions">${I.more()}</button>
         </div>
       </div>
       <div class="search-wrap${state.filter.q ? " open" : ""}" id="searchWrap">
@@ -428,6 +429,18 @@ function paintPortfolio() {
   });
 
   $("#alertsBtn")?.addEventListener("click", () => showAlertsSheet(state.wishlistAlerts));
+  $("#vaultMoreBtn")?.addEventListener("click", () => {
+    haptic("light");
+    showSheet(`
+      <h2 class="u-serif-h" style="margin:0 4px 12px;">Vault actions</h2>
+      ${(state.me?.handle && state.me?.is_public) ? `<button class="sheet-action" id="vaultMoreShare">${I.share()}<span>Share public profile</span></button>` : ""}
+      ${(state.portfolio?.items?.length) ? `<button class="sheet-action" id="vaultMoreSelect">${I.check()}<span>Select sets</span></button>` : ""}
+      <button class="sheet-action" id="vaultMoreAlerts">${I.bell()}<span>Alerts${alertsCount ? ` (${alertsCount})` : ""}</span></button>
+    `);
+    $("#vaultMoreShare")?.addEventListener("click", () => { hideSheet(); $("#portfolioShareBtn")?.click(); });
+    $("#vaultMoreSelect")?.addEventListener("click", () => { hideSheet(); $("#selectToggle")?.click(); });
+    $("#vaultMoreAlerts")?.addEventListener("click", () => { hideSheet(); showAlertsSheet(state.wishlistAlerts); });
+  });
   
   if (state.portfolioTab === "items") {
     wirePortfolioCards();

@@ -1,7 +1,7 @@
 import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, clamp, confettiBurst, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail } from '../utils.js';
 import { computeDealScore, ebaySoldSummary, marketValueForCondition, pricePerPiece } from '../lib/pure.js';
 import { state, invalidatePortfolio } from '../state.js';
-import { api, getSessionUserId, _authSession, outboxEnqueue } from '../api.js';
+import { api, getSessionUserId, _authSession, outboxEnqueue, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet, confirmSheet } from '../components/sheet.js';
 import { go } from '../router.js';
@@ -633,6 +633,9 @@ function forecastTabHTML(set) {
   const forecastLabel = set.valuation_method === "ai" ? "AI forecast"
     : (set.valuation_method === "market" || set.valuation_method === "brickeconomy" || set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "Market forecast"
     : "Estimated";
+  const conflictNote = set.be_growth_12m != null && Number(set.be_growth_12m) < 0 && (g2 > 0 || g5 > 0)
+    ? `<p class="forecast-note">Short-term growth is negative, but the long-range forecast can still be positive when retirement timing, theme demand, or comparable older sets point upward. Treat this as a recovery scenario, not a current momentum signal.</p>`
+    : "";
   return `
     <div class="card" style="padding:14px 16px;margin-bottom:14px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
@@ -645,6 +648,7 @@ function forecastTabHTML(set) {
           : `Based on theme rarity, piece count, retirement status, and market trends for similar ${escapeHtml(set.theme || "")} sets.`}
       </p>
       ${set.be_growth_12m != null ? `<p style="margin:8px 0 0;font-size:12px;color:var(--ink-soft);">Trailing 12-month market growth: <strong style="color:${set.be_growth_12m >= 0 ? 'var(--up)' : 'var(--down)'};">${set.be_growth_12m >= 0 ? '+' : ''}${Number(set.be_growth_12m).toFixed(1)}%</strong></p>` : ''}
+      ${conflictNote}
     </div>
 
     <div class="forecast-card">
@@ -678,11 +682,11 @@ function forecastTabHTML(set) {
 function manageTabHTML(set, entry) {
   if (!entry) return `<p style="color:var(--ink-mute);">Not in your vault.</p>`;
   return `
-    <div class="u-between u-mb-2">
+    <div class="manage-save-bar">
       <span class="u-mono-label">Set details</span>
       <span id="manageSaveState" class="badge badge--neutral" aria-live="polite" style="visibility:hidden;">Saved ✓</span>
     </div>
-    <fieldset class="form-group" style="border:none;padding:0;margin:0 0 6px;">
+    <fieldset class="form-group manage-group">
       <legend class="u-mono-label u-mb-1">Purchase</legend>
       <div class="field">
         <div class="field-lbl">Purchase price</div>
@@ -703,7 +707,7 @@ function manageTabHTML(set, entry) {
         </select>
       </div>
     </fieldset>
-    <fieldset class="form-group" style="border:none;padding:0;margin:0 0 6px;">
+    <fieldset class="form-group manage-group">
       <legend class="u-mono-label u-mb-1">Condition</legend>
       <div class="field">
         <div class="field-lbl">Condition</div>
@@ -725,7 +729,7 @@ function manageTabHTML(set, entry) {
         </div>
       </div>
     </fieldset>
-    <fieldset class="form-group" style="border:none;padding:0;margin:0 0 6px;">
+    <fieldset class="form-group manage-group">
       <legend class="u-mono-label u-mb-1">Storage &amp; notes</legend>
       <div class="field">
         <div class="field-lbl">Storage location</div>
@@ -1009,12 +1013,18 @@ function switchDetailTab(tab, set, entry) {
    Community tab — reviews, photo gallery, data-fix contributions
    ============================================================ */
 function communityTabHTML(set) {
+  const guest = isGuestMode();
   return `
     <div class="tab-section community-tab" data-set="${escapeHtml(set.set_num)}">
       <div class="community-actions">
         <button class="btn-secondary contrib-act" data-act="review">★ Write a review</button>
         <button class="btn-secondary contrib-act" data-act="photo">📷 Add photo</button>
         <button class="btn-secondary contrib-act" data-act="fix">🛠 Suggest a fix</button>
+      </div>
+      <div class="community-mode-note ${guest ? "guest" : "member"}">
+        ${guest
+          ? "Guest mode can browse community content. Sign in before contributing so your review, photo, or fix can be reviewed and credited."
+          : "Contributions are reviewed before becoming public, keeping shared set data trustworthy."}
       </div>
       <div id="communityBody" class="community-body">
         <div class="u-mute" style="text-align:center;padding:24px 0;">Loading community content…</div>

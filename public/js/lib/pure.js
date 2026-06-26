@@ -190,6 +190,32 @@ export function catalogFilterSummary(filter = {}) {
   return parts.length ? `${parts.length} active: ${parts.join(" · ")}` : "No filters active";
 }
 
+export function activeCatalogFilterCount(filter = {}) {
+  const ranges = filter.catalogRanges || {};
+  let n = 0;
+  if (filter.catalogQ) n++;
+  if (filter.catalogTheme && filter.catalogTheme !== "all") n++;
+  if (filter.catalogThemeGroup && filter.catalogThemeGroup !== "all") n++;
+  if (filter.catalogCategory && filter.catalogCategory !== "all") n++;
+  if (filter.catalogRetired && filter.catalogRetired !== "all") n++;
+  if (filter.catalogDeal) n++;
+  n += Object.values(ranges).filter(v => v !== "" && v != null).length;
+  return n;
+}
+
+export function figFilterSummary(filter = {}) {
+  const parts = [];
+  if (filter.figQ) parts.push(`Search "${filter.figQ}"`);
+  if (filter.figRarity && filter.figRarity !== "all") {
+    const rarity = String(filter.figRarity);
+    parts.push(`${rarity.charAt(0).toUpperCase()}${rarity.slice(1)} rarity`);
+  }
+  if (filter.figOwned === "owned") parts.push("Owned only");
+  else if (filter.figOwned === "unowned") parts.push("Unowned only");
+  if (filter.figSeries && filter.figSeries !== "all") parts.push(filter.figSeries);
+  return parts.length ? `${parts.length} active: ${parts.join(" · ")}` : "No filters active";
+}
+
 export function classifyJobRun(run = {}) {
   const error = String(run.error || "");
   const status = String(run.status || "unknown").toLowerCase();

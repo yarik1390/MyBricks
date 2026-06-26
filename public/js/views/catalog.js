@@ -5,7 +5,7 @@ import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { openScan } from '../components/scanner-lazy.js';
 import { trustBadgeHTML } from '../components/trust.js';
-import { catalogFilterSummary, pricePerPiece } from '../lib/pure.js';
+import { activeCatalogFilterCount, catalogFilterSummary, pricePerPiece } from '../lib/pure.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
 
 let _catalogGen = 0;
@@ -224,7 +224,7 @@ function refreshCatalogSummary() {
   // that refreshCatalogGrid re-renders, so it otherwise goes stale after Apply/Clear).
   const chip = $("#filterChip");
   if (chip) {
-    const n = catalogRangesActive();
+    const n = activeCatalogFilterCount(state.filter);
     chip.classList.toggle("active", n > 0);
     const sp = chip.querySelector("span");
     if (sp) sp.textContent = `Filters${n ? " · " + n : ""}`;
@@ -333,7 +333,7 @@ function paintAdd() {
         ${[["all","All"],["active","Active"],["retired","Retired"],["retiring","Retiring"]].map(([k,l]) =>
           `<button class="chip ${(f.catalogRetired || "all") === k ? "active" : ""}" data-retired="${k}">${l}</button>`).join("")}
         <button class="chip ${f.catalogDeal ? "active" : ""}" id="dealChip" style="${f.catalogDeal ? "border-color:var(--up);color:var(--up);" : ""}"><span>Deals</span></button>
-        <button class="chip ${catalogRangesActive() ? "active" : ""}" id="filterChip">${I.filter()}<span>Filters${catalogRangesActive() ? " · " + catalogRangesActive() : ""}</span></button>
+        <button class="chip ${activeCatalogFilterCount(f) ? "active" : ""}" id="filterChip">${I.filter()}<span>Filters${activeCatalogFilterCount(f) ? " · " + activeCatalogFilterCount(f) : ""}</span></button>
       </div>
 
       <div class="filter-summary" id="catalogFilterSummary">${escapeHtml(catalogFilterSummary(f))}</div>
@@ -474,14 +474,6 @@ function clearCatalogFilters() {
   loadCatalog({ reset: true }).then(() => paintAdd());
 }
 
-function catalogRangesActive() {
-  const f = state.filter;
-  let n = Object.values(f.catalogRanges).filter(v => v !== "" && v != null).length;
-  if (f.catalogThemeGroup && f.catalogThemeGroup !== "all") n++;
-  if (f.catalogCategory && f.catalogCategory !== "all") n++;
-  return n;
-}
-
 function showFilterSheet(onApply) {
   const r = state.filter.catalogRanges;
   const rangeField = (label, minKey, maxKey, ph1, ph2) => `
@@ -494,30 +486,35 @@ function showFilterSheet(onApply) {
       </div>
     </div>`;
   const f = state.filter;
+  const activeCount = activeCatalogFilterCount(f);
   const facetGroup = (label, key, opts, cur) => {
     if (!opts || !opts.length) return '';
     return `
-      <div class="field" style="margin-bottom:14px;">
+      <section class="filter-sheet-section">
         <div class="field-lbl">${label}</div>
-        <div class="filter-row sheet-facet" data-facet="${key}" style="flex-wrap:wrap;gap:6px;">
+        <div class="sheet-chip-grid sheet-facet" data-facet="${key}">
           <button class="chip ${(cur || 'all') === 'all' ? 'active' : ''}" data-fval="all">All</button>
           ${opts.map(o => `<button class="chip ${cur === o ? 'active' : ''}" data-fval="${escapeHtml(o)}">${escapeHtml(o)}</button>`).join('')}
         </div>
-      </div>`;
+      </section>`;
   };
   showSheet(`
     <div class="sheet-title-row">
       <h2 class="u-serif-h" style="margin:0;">Advanced Filters</h2>
-      ${catalogRangesActive() ? `<span class="trust-badge warn">${catalogRangesActive()} active</span>` : `<span class="trust-badge neutral">None active</span>`}
+      ${activeCount ? `<span class="trust-badge warn">${activeCount} active</span>` : `<span class="trust-badge neutral">None active</span>`}
     </div>
-    <div class="scrollable advanced-filter-sheet" style="max-height: 55vh; overflow-y: auto; padding: 2px;">
+    <div class="filter-active-line">${escapeHtml(catalogFilterSummary(f))}</div>
+    <div class="scrollable advanced-filter-sheet">
       ${facetGroup("Theme group", "theme_group", state.themeGroups, f.catalogThemeGroup)}
       ${facetGroup("Category", "category", state.categories, f.catalogCategory)}
-      ${rangeField("Release Year", "min_year", "max_year", "Min year", "Max year")}
-      ${rangeField("Piece Count", "min_pieces", "max_pieces", "Min pieces", "Max pieces")}
-      ${rangeField("Current Value ($)", "min_value", "max_value", "Min value", "Max value")}
+      <section class="filter-sheet-section">
+        <div class="filter-section-title">Ranges</div>
+        ${rangeField("Release Year", "min_year", "max_year", "Min year", "Max year")}
+        ${rangeField("Piece Count", "min_pieces", "max_pieces", "Min pieces", "Max pieces")}
+        ${rangeField("Current Value ($)", "min_value", "max_value", "Min value", "Max value")}
+      </section>
     </div>
-    <div class="btn-row" style="margin-top:20px;">
+    <div class="btn-row sheet-sticky-actions">
       <button class="btn-secondary" id="filterClear">Clear all</button>
       <button class="btn-primary" id="filterApply">Apply filters</button>
     </div>`);

@@ -43,10 +43,18 @@ export async function renderMeAdmin() {
     </div>`;
 
   $("#root").innerHTML = `
-    <div class="page">
+    <div class="page admin-page">
       ${subpageTopbarHTML("Admin console", "Admin")}
+      <div class="admin-segments" aria-label="Admin sections">
+        <a href="#adminSetup">Setup</a>
+        <a href="#adminCatalog">Catalog Jobs</a>
+        <a href="#adminJobs">Job History</a>
+        <a href="#adminHealth">Health</a>
+        <a href="#adminUsers">Users</a>
+        <a href="#adminContrib">Contributions</a>
+      </div>
 
-      <h2 class="section-title">System Setup Checklist</h2>
+      <h2 class="section-title" id="adminSetup">System Setup Checklist</h2>
       <div class="card" style="padding:14px 16px;margin-bottom:14px;">
         <div class="u-col u-fs-sm" style="gap:10px;">
           ${checkRow("Database (D1)", status.d1, "Connected", "Missing")}
@@ -68,7 +76,7 @@ export async function renderMeAdmin() {
         </div>
       </div>
 
-      <h2 class="section-title">Catalog</h2>
+      <h2 class="section-title" id="adminCatalog">Catalog Jobs</h2>
       <div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Import sets</div><div class="desc" id="importSetsDesc">~22k sets from Rebrickable with themes &amp; images</div></div>
@@ -100,21 +108,21 @@ export async function renderMeAdmin() {
         </div>
       </div>
 
-      <h2 class="section-title">Import &amp; Revalue Jobs</h2>
+      <h2 class="section-title" id="adminJobs">Import &amp; Revalue Jobs</h2>
       <div class="card" style="padding:14px 16px;margin-bottom:14px;">
         <div id="jobsStatusContainer" class="u-col u-fs-sm" style="color:var(--ink-soft);">
           Loading jobs status...
         </div>
       </div>
 
-      <h2 class="section-title">Integrations Health</h2>
+      <h2 class="section-title" id="adminHealth">Integrations Health</h2>
       <div class="card" style="padding:14px 16px;margin-bottom:14px;">
         <div id="integrationsHealthContainer" class="u-col u-fs-sm" style="color:var(--ink-soft);">
           Loading integrations status...
         </div>
       </div>
 
-      <h2 class="section-title">Users</h2>
+      <h2 class="section-title" id="adminUsers">Users</h2>
       <div class="card" style="padding:14px 16px;">
         <div class="lbl" style="margin-bottom:8px;">Grant / revoke Supporter badge</div>
         <div style="display:flex;gap:8px;margin-bottom:10px;">
@@ -128,7 +136,7 @@ export async function renderMeAdmin() {
         <div id="supporterResult" style="font-size:12px;margin-top:8px;min-height:18px;"></div>
       </div>
 
-      <h2 class="section-title">Contributions <span id="contribCount" class="contrib-count"></span></h2>
+      <h2 class="section-title" id="adminContrib">Contributions <span id="contribCount" class="contrib-count"></span></h2>
       <div class="card" style="padding:14px 16px;">
         <div id="contribQueue" class="u-fs-sm" style="color:var(--ink-soft);">Loading queue…</div>
       </div>
@@ -394,7 +402,7 @@ async function updateJobsStatus() {
       </div>
     ` : "";
     const summaryHTML = `
-      <div style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);background:var(--surface-2);padding:10px 12px;margin-bottom:10px;">
+      <div class="admin-job-summary ${hasRunning ? "is-running" : latestState?.needsAttention ? "is-danger" : retryableCount ? "is-warn" : "is-ok"}">
         <div class="u-fs-sm" style="font-weight:700;color:${latestState?.needsAttention ? "var(--bv-red)" : (hasRunning || retryableCount) ? "var(--bv-yellow)" : "var(--up)"};">
           ${summaryText}
         </div>
@@ -452,10 +460,10 @@ async function updateJobsStatus() {
       ` : progress.active ? `
         <div class="u-fs-2xs u-mute" style="margin-top:6px;">${escapeHtml(progress.label)}...</div>
       ` : "";
-      const _errTxt = String(run.error || ""); const errorHTML = run.error ? `<div class="u-fs-xs" style="color:${statusColor};margin-top:3px;overflow-wrap:anywhere;">${escapeHtml(_errTxt.length > 300 ? _errTxt.slice(0, 300) + "…" : _errTxt)}</div>` : "";
+      const _errTxt = String(run.error || ""); const _errorHTML = run.error ? `<div class="u-fs-xs" style="color:${statusColor};margin-top:3px;overflow-wrap:anywhere;">${escapeHtml(_errTxt.length > 300 ? _errTxt.slice(0, 300) + "…" : _errTxt)}</div>` : "";
 
       return `
-        <div style="border-bottom:1px solid var(--border-soft-c);padding-bottom:8px;margin-bottom:4px;">
+        <div class="admin-job-row ${jobState.tone}">
           <div class="u-between" style="font-weight:600;margin-bottom:2px;">
             <span>Job #${run.id}</span>
             <span class="badge ${statusBadge}" style="max-width:58%;">${escapeHtml(statusText)}</span>
@@ -466,7 +474,7 @@ async function updateJobsStatus() {
           </div>
           ${updatedText ? `<div class="u-fs-2xs u-faint" style="margin-top:2px;">${escapeHtml(updatedText)}</div>` : ""}
           ${progressHTML}
-          ${errorHTML}
+          ${run.error ? `<details class="admin-job-details"><summary>Details</summary><div>${escapeHtml(_errTxt.length > 800 ? _errTxt.slice(0, 800) + "..." : _errTxt)}</div></details>` : ""}
         </div>
       `;
     }).join("");

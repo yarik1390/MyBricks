@@ -2,6 +2,7 @@ import { $, $$, prefersReducedMotion } from './utils.js';
 import { state } from './state.js';
 import { api } from './api.js';
 import { I } from './icons.js';
+import { routeMetaFor } from './route-meta.js';
 // View modules load on demand via dynamic import() in the route dispatch below,
 // so the initial bundle no longer eagerly pulls every page's code up front.
 // Each view is still pre-cached by the service worker (STATIC_ASSETS) so offline
@@ -14,20 +15,7 @@ import { cancelActiveStream } from './components/advisor-lazy.js';
 let _routeBusy = false;
 let _routeQueued = false;
 
-export function routeMetaFor(hash = "/") {
-  if (hash === "/" || hash === "") return { key: "vault", nav: "/", title: "Vault" };
-  if (hash === "/add") return { key: "catalog", nav: "/add", title: "Catalog" };
-  if (hash === "/pile") return { key: "scan", nav: "/pile", title: "Scan", fullscreen: true };
-  if (hash === "/minifigs") return { key: "minifigs", nav: "/minifigs", title: "Minifigs" };
-  if (hash === "/build") return { key: "build", nav: "/", title: "Build" };
-  if (hash === "/wishlist") return { key: "wishlist", nav: "/", title: "Wishlist" };
-  if (hash === "/leaderboard") return { key: "leaderboard", nav: "/me", title: "Leaderboard" };
-  if (hash.startsWith("/u/")) return { key: "public-profile", nav: "/me", title: "Public profile" };
-  if (hash.startsWith("/set/")) return { key: "set-detail", nav: "/", title: "Set detail" };
-  if (hash === "/me" || hash.startsWith("/me/")) return { key: "me", nav: "/me", title: "Me" };
-  if (hash === "/login") return { key: "login", nav: null, title: "Sign in", fullscreen: true };
-  return { key: "unknown", nav: null, title: "Brickvault" };
-}
+export { routeMetaFor };
 
 export async function route() {
   if (_routeBusy) { _routeQueued = true; return; }

@@ -103,7 +103,12 @@ function listHtml() {
   const st = _mode === 'sets' ? _sets : _alts;
   if (st.loading && !st.loaded) return skelCardList(6);
   if (st.loaded && !st.owned_sets) {
-    return emptyState({ icon: I.box(), title: 'Nothing to build yet', body: 'Add sets to your vault, then come back to see what you can build from their parts.' });
+    return emptyState({
+      icon: I.box(),
+      title: 'Nothing to build yet',
+      body: 'Add sets to your vault, then come back to see what you can build from their parts.',
+      action: `<div class="empty-actions"><a class="btn-primary" href="#/add">${I.search()}<span>Browse catalog</span></a><a class="btn-secondary" href="#/pile">${I.scan()}<span>Scan a set</span></a></div>`,
+    });
   }
   let items = st.builds;
   if (_q) {
@@ -120,19 +125,22 @@ function listHtml() {
 }
 
 function pageHtml() {
-  const intro = _mode === 'sets'
+  const _intro = _mode === 'sets'
     ? `Official sets you could build right now from the combined parts of the sets you own — with completion % and how many pieces you're short. (You'd part out your sets to build them.)`
     : `Alternate models you can build from a set you own, each with free building instructions.`;
-  return `<div class="build-view">
-    <header class="build-header">
+  return `<div class="page build-view">
+    <div class="topbar">
       <button class="icon-btn" id="buildBack" aria-label="Back">‹</button>
-      <h1>What Can I Build?</h1>
-    </header>
-    <div class="b-tabs" role="tablist" aria-label="Build views">
-      <button class="b-tab ${_mode === 'sets' ? 'b-tab-on' : ''}" data-mode="sets" aria-pressed="${_mode === 'sets'}">Buildable sets</button>
-      <button class="b-tab ${_mode === 'alts' ? 'b-tab-on' : ''}" data-mode="alts" aria-pressed="${_mode === 'alts'}">Alternate builds</button>
+      <div class="topbar-heading">
+        <div class="topbar-eyebrow">Vault tools</div>
+        <h1 class="topbar-title">Build</h1>
+      </div>
     </div>
-    <p class="build-intro">${intro}</p>
+    <div class="b-tabs" role="tablist" aria-label="Build views">
+      <button class="b-tab ${_mode === 'sets' ? 'b-tab-on' : ''}" data-mode="sets" role="tab" aria-selected="${_mode === 'sets'}">Buildable sets</button>
+      <button class="b-tab ${_mode === 'alts' ? 'b-tab-on' : ''}" data-mode="alts" role="tab" aria-selected="${_mode === 'alts'}">Alternate builds</button>
+    </div>
+    <p class="build-intro">${_mode === 'sets' ? 'Official sets you can build from owned parts, ranked by completion.' : 'Alternate models from sets you own, with instruction links.'}</p>
     ${tiles()}
     <input id="buildSearch" class="build-search" type="search" placeholder="Search…" value="${escapeHtml(_q)}">
     ${(_mode === 'alts' && _alts.indexing) ? `<div class="b-indexing">Indexing ${_alts.indexing} more set(s) in the background…</div>` : ''}

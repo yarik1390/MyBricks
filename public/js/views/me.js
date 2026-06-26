@@ -74,6 +74,7 @@ export async function renderMe() {
             </button>
           ` : ''}
         </div>
+        ${showcase.length === 0 ? `<div class="empty-inline"><strong>Your Trophy Shelf is empty.</strong><span>Pick up to six favorite sets from your vault to make your public profile feel alive.</span></div>` : ''}
       </div>
     `;
   }
@@ -123,10 +124,14 @@ export async function renderMe() {
           ${I.arrowR()}
         </button>` : ""}
 
-      ${guest ? guestModeCardHTML() : ""}
-      ${publicProfileSectionHTML(me)}
-      ${trophyShelfHTML}
-      ${!guest ? supportCardHTML(me, state.config?.patreon_url) : ''}
+      <div class="profile-layout">
+        <section class="profile-main">
+          ${guest ? guestModeCardHTML() : ""}
+          ${publicProfileSectionHTML(me)}
+          ${trophyShelfHTML}
+          ${!guest ? supportCardHTML(me, state.config?.patreon_url) : ''}
+        </section>
+        <aside class="profile-side">
 
       <h2 class="section-title">Preferences</h2>
       <div>
@@ -172,6 +177,8 @@ export async function renderMe() {
           <div class="lbl-wrap"><div class="lbl">${guest ? "Sign in" : "Sign out"}</div><div class="desc">${guest ? "Sync your local vault across devices." : "Sync resumes when you return."}</div></div>
           ${I.chev()}
         </div>
+      </div>
+        </aside>
       </div>
 
       <div class="u-mono-label u-fs-2xs u-faint" style="text-align:center;margin-top:24px;">
