@@ -24,7 +24,26 @@ export const QUOTA_CAPS: Record<string, number> = {
   // so this is a per-DAY credit ceiling that guards against a runaway day. Raise
   // it for the one-time bootstrap via the FIRECRAWL_DAILY_CREDITS env var.
   firecrawl: 2000,
+  // pricesAPI.io daily ceiling. Each cold call is a precious unit against a
+  // ~1000/month-per-key pooled budget, so keep the daily spend modest; the
+  // per-key pool (pricesapi_keys) is the authoritative monthly meter.
+  pricesapi: 60,
 };
+
+// Admin-tunable daily-cap overrides (lib/source-config.ts), keyed by service.
+// Empty by default → QUOTA_CAPS stands. A null override means "no cap".
+const capOverrides: Record<string, number | null> = {};
+export function setQuotaCapOverrides(m: Record<string, number | null>): void {
+  for (const k of Object.keys(capOverrides)) delete capOverrides[k];
+  Object.assign(capOverrides, m);
+}
+function effectiveCap(service: string): number | undefined {
+  if (service in capOverrides) {
+    const v = capOverrides[service];
+    return v == null ? undefined : v; // null override = uncapped
+  }
+  return QUOTA_CAPS[service];
+}
 
 export function quotaDay(now = new Date()): string {
   return now.toISOString().slice(0, 10);
@@ -39,7 +58,7 @@ const upsertRow = (env: Env, service: string, day: string, cap: number) =>
 // (insert-if-missing + guarded increment). Returns false when exhausted.
 // Services without a configured cap are never gated.
 export async function spendQuota(env: Env, service: string, n = 1): Promise<boolean> {
-  let cap = QUOTA_CAPS[service];
+  let cap = effectiveCap(service);
   // Firecrawl's daily credit ceiling is env-tunable (lift it for the one-time
   // bootstrap, keep it low for normal ops) without a code change.
   if (service === 'firecrawl') {
@@ -136,7 +155,7 @@ export async function getQuotaUsage(env: Env): Promise<QuotaUsageRow[]> {
 // real spend (no reservation double-count). Fails open — a bookkeeping hiccup
 // must never starve a run.
 export async function quotaRemaining(env: Env, service: string): Promise<number> {
-  let cap = QUOTA_CAPS[service];
+  let cap = effectiveCap(service);
   if (service === 'firecrawl') {
     const override = Number(env.FIRECRAWL_DAILY_CREDITS);
     if (Number.isFinite(override) && override > 0) cap = override;

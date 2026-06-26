@@ -1,4 +1,4 @@
-import { $, haptic, escapeHtml, toast } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast } from '../utils.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
@@ -122,6 +122,17 @@ export async function renderMeAdmin() {
         </div>
       </div>
 
+      <h2 class="section-title" id="adminSourceTuning">Source Tuning</h2>
+      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+        <div class="desc" style="margin-bottom:10px;">Enable/disable each pricing source, set its blend trust (weight), daily API budget, and refresh cadence. Changes apply within ~1 minute.</div>
+        <div id="sourceTuningContainer" class="u-col u-fs-sm" style="color:var(--ink-soft);">Loading source config…</div>
+        <div style="display:flex;gap:8px;margin-top:12px;align-items:center;">
+          <button class="btn-primary" id="sourceTuningSaveBtn" style="flex:1;">Save tuning</button>
+          <button class="btn-secondary" id="sourceTuningResetBtn">Reset to defaults</button>
+        </div>
+        <div id="sourceTuningResult" style="font-size:12px;margin-top:8px;min-height:18px;"></div>
+      </div>
+
       <h2 class="section-title" id="adminUsers">Users</h2>
       <div class="card" style="padding:14px 16px;">
         <div class="lbl" style="margin-bottom:8px;">Grant / revoke Supporter badge</div>
@@ -151,6 +162,7 @@ export async function renderMeAdmin() {
 
   updateJobsStatus();
   updateIntegrationsHealth();
+  loadSourceTuning();
 
   async function setSupporterStatus(val) {
     const userId = $("#supporterUserIdInput").value.trim();
@@ -167,6 +179,85 @@ export async function renderMeAdmin() {
   }
   $("#grantSupporterBtn")?.addEventListener("click", () => setSupporterStatus(1));
   $("#revokeSupporterBtn")?.addEventListener("click", () => setSupporterStatus(0));
+
+  // --- Source tuning ------------------------------------------------------
+  const SOURCE_LABELS = {
+    bricklink: "BrickLink", ebay: "eBay", brickeconomy: "BrickEconomy",
+    brickowl: "BrickOwl", pricecharting: "PriceCharting", pricesapi: "pricesAPI.io",
+    firecrawl: "Firecrawl", brightdata: "Bright Data",
+  };
+  let sourceDefaults = {};
+
+  function sourceRowHTML(name, t) {
+    const label = SOURCE_LABELS[name] || name;
+    return `
+      <div class="src-tune-row" data-src="${escapeHtml(name)}" style="display:grid;grid-template-columns:1.3fr .9fr .9fr .9fr;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft);">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
+          <input type="checkbox" class="src-enabled" ${t.enabled ? "checked" : ""} />
+          <span>${escapeHtml(label)}</span>
+        </label>
+        <label style="font-size:11px;color:var(--ink-mute);">Weight
+          <input type="number" class="src-weight input" min="0" max="3" step="0.05" value="${Number(t.weight)}" style="width:100%;font-family:var(--mono);font-size:12px;" />
+        </label>
+        <label style="font-size:11px;color:var(--ink-mute);">Daily cap
+          <input type="number" class="src-cap input" min="0" step="1" value="${t.dailyCap == null ? "" : Number(t.dailyCap)}" placeholder="—" style="width:100%;font-family:var(--mono);font-size:12px;" />
+        </label>
+        <label style="font-size:11px;color:var(--ink-mute);">Refresh d
+          <input type="number" class="src-refresh input" min="1" step="1" value="${t.refreshDays == null ? "" : Number(t.refreshDays)}" placeholder="—" style="width:100%;font-family:var(--mono);font-size:12px;" />
+        </label>
+      </div>`;
+  }
+
+  function renderSourceTuning(config) {
+    const c = $("#sourceTuningContainer");
+    if (!c) return;
+    c.innerHTML = Object.entries(config).map(([name, t]) => sourceRowHTML(name, t)).join("");
+  }
+
+  async function loadSourceTuning() {
+    try {
+      const data = await api("/api/admin/source-config");
+      sourceDefaults = data.defaults || {};
+      renderSourceTuning(data.config || {});
+    } catch (e) {
+      const c = $("#sourceTuningContainer");
+      if (c) c.textContent = `Could not load source config: ${e.message}`;
+    }
+  }
+
+  function collectSourceTuning() {
+    const config = {};
+    for (const row of $$(".src-tune-row")) {
+      const name = row.getAttribute("data-src");
+      const cap = row.querySelector(".src-cap").value.trim();
+      const refresh = row.querySelector(".src-refresh").value.trim();
+      config[name] = {
+        enabled: row.querySelector(".src-enabled").checked,
+        weight: Number(row.querySelector(".src-weight").value) || 0,
+        dailyCap: cap === "" ? null : Number(cap),
+        refreshDays: refresh === "" ? null : Number(refresh),
+      };
+    }
+    return config;
+  }
+
+  async function saveSourceTuning(config) {
+    const out = $("#sourceTuningResult");
+    out.textContent = "Saving…";
+    try {
+      const res = await api("/api/admin/source-config", { method: "PUT", body: { config } });
+      renderSourceTuning(res.config || {});
+      out.textContent = "✓ Source tuning saved.";
+    } catch (e) {
+      out.textContent = `Error: ${e.message}`;
+    }
+  }
+
+  $("#sourceTuningSaveBtn")?.addEventListener("click", () => saveSourceTuning(collectSourceTuning()));
+  $("#sourceTuningResetBtn")?.addEventListener("click", () => {
+    if (Object.keys(sourceDefaults).length) renderSourceTuning(sourceDefaults);
+    saveSourceTuning(sourceDefaults);
+  });
 
   loadContribQueue();
 }

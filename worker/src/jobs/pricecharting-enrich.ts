@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { fetchPriceChartingData } from '../lib/pricecharting';
 import { recomputeBlendedValues } from '../lib/market-sources';
+import { getSourceConfig } from '../lib/source-config';
 
 /**
  * Populate PriceCharting pricing data into pc_new_value / pc_complete_value
@@ -28,6 +29,12 @@ export async function runPriceChartingEnrich(
   if (!env.PRICECHARTING_TOKEN) {
     return { processed: 0, updated: 0, discovered: 0, limit: 0, skipped: 'PRICECHARTING_TOKEN not set' };
   }
+  // Admin source-tuning: kill-switch + refresh cadence.
+  const cfg = await getSourceConfig(env);
+  if (!cfg.pricecharting.enabled) {
+    return { processed: 0, updated: 0, discovered: 0, limit: 0, skipped: 'PriceCharting disabled in admin source tuning' };
+  }
+  const refreshDays = Math.max(1, Math.round(cfg.pricecharting.refreshDays ?? 14));
 
   const requestedLimit = Number(options.limit);
   // Cap at 200; concurrency 10 + ~1s/call → ≤20s wall-time per invocation.
@@ -36,9 +43,9 @@ export async function runPriceChartingEnrich(
     : 50;
 
   const { results } = await env.DB.prepare(`
-    SELECT ls.set_num, ls.name, ls.pc_id
+    SELECT ls.set_num, ls.name, ls.pc_id, ls.upc
     FROM lego_sets ls
-    WHERE (ls.pc_cached_at IS NULL OR ls.pc_cached_at < datetime('now', '-14 days'))
+    WHERE (ls.pc_cached_at IS NULL OR ls.pc_cached_at < datetime('now', '-${refreshDays} days'))
       AND ls.year >= 2000
     ORDER BY
       CASE WHEN ls.bl_new_value IS NOT NULL AND ls.pc_cached_at IS NULL THEN 0 ELSE 1 END,
@@ -51,7 +58,7 @@ export async function runPriceChartingEnrich(
       COALESCE(NULLIF(ls.blended_value, 0), ls.current_value, 0) DESC,
       ls.set_num ASC
     LIMIT ?
-  `).bind(limit).all<{ set_num: string; name: string; pc_id: string | null }>();
+  `).bind(limit).all<{ set_num: string; name: string; pc_id: string | null; upc: string | null }>();
 
   if (!results.length) return { processed: 0, updated: 0, discovered: 0, limit };
 
@@ -67,7 +74,7 @@ export async function runPriceChartingEnrich(
     const batch = results.slice(i, i + concurrency);
     const outs = await Promise.all(batch.map(async (set) => ({
       set,
-      result: await fetchPriceChartingData(set.set_num, set.name, set.pc_id, env).catch(() => null),
+      result: await fetchPriceChartingData(set.set_num, set.name, set.pc_id, env, set.upc).catch(() => null),
     })));
 
     for (const { set, result } of outs) {
@@ -96,7 +103,21 @@ export async function runPriceChartingEnrich(
           .bind(...binds, set.set_num),
       );
 
-      if (result.new_value != null || result.complete_value != null) {
+      // Loose (used) value + sales-volume (liquidity) live in the set_market_ext
+      // side table. UPSERT only when at least one is present.
+      if (result.loose_value != null || result.sales_volume != null) {
+        stmts.push(
+          env.DB.prepare(
+            `INSERT INTO set_market_ext (set_num, pc_loose_value, pc_sales_volume)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(set_num) DO UPDATE SET
+               pc_loose_value = COALESCE(?2, pc_loose_value),
+               pc_sales_volume = COALESCE(?3, pc_sales_volume)`,
+          ).bind(set.set_num, result.loose_value, result.sales_volume),
+        );
+      }
+
+      if (result.new_value != null || result.complete_value != null || result.loose_value != null) {
         touched.push(set.set_num);
         updated++;
       }

@@ -95,6 +95,7 @@ describe('BrickVault API Worker Tests', () => {
       'DROP TABLE IF EXISTS oauth_states',
       'DROP TABLE IF EXISTS user_collection',
       'DROP TABLE IF EXISTS lego_sets',
+      'DROP TABLE IF EXISTS set_market_ext',
       'DROP TABLE IF EXISTS rate_limits',
       'DROP TABLE IF EXISTS user_wishlist',
       'DROP TABLE IF EXISTS user_minifigs',
@@ -208,6 +209,13 @@ describe('BrickVault API Worker Tests', () => {
         deal_signal TEXT, deal_discount_pct REAL, deal_strong INTEGER, deal_cached_at TEXT,
         part_out_value REAL, part_out_coverage REAL, part_out_cached_at TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      `CREATE TABLE set_market_ext (
+        set_num TEXT PRIMARY KEY,
+        pc_loose_value REAL, pc_sales_volume INTEGER,
+        pa_retail_value REAL, pa_lowest_offer REAL, pa_in_stock INTEGER,
+        pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT
       )`,
 
       `CREATE TABLE user_collection (

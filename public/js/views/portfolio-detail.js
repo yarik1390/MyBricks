@@ -1,5 +1,5 @@
 import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, clamp, confettiBurst, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail } from '../utils.js';
-import { computeDealScore, ebaySoldSummary, marketValueForCondition, pricePerPiece } from '../lib/pure.js';
+import { computeDealScore, ebaySoldSummary, marketValueForCondition, pricePerPiece, liquidityLabel } from '../lib/pure.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
@@ -1478,7 +1478,10 @@ function marketValueHeroHTML(set) {
         </div>
         <span style="flex-shrink:0;font-family:var(--mono);font-size:10px;font-weight:800;text-transform:uppercase;color:${confColor};border:1px solid ${confColor};border-radius:8px;padding:3px 8px;">${escapeHtml(confLabel)}</span>
       </div>
-      ${signalCount ? `<div style="margin-top:10px;font-size:11px;color:var(--ink-mute);">Based on ${signalCount} independent market signal${signalCount > 1 ? 's' : ''}</div>` : ''}
+      ${(signalCount || liquidityBadgeHTML(set)) ? `<div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        ${signalCount ? `<span style="font-size:11px;color:var(--ink-mute);">Based on ${signalCount} independent market signal${signalCount > 1 ? 's' : ''}</span>` : '<span></span>'}
+        ${liquidityBadgeHTML(set)}
+      </div>` : ''}
       ${note}
     </div>`;
 }
@@ -1686,16 +1689,35 @@ function dealSignalHTML(set) {
   }[sig];
   const pct = Number(set.deal_discount_pct);
   const pctStr = (sig !== 'fair' && Number.isFinite(pct) && Math.abs(pct) >= 1) ? ` · ${Math.abs(Math.round(pct))}%` : '';
+  // Live buy destination: when the cheapest channel is an in-stock pricesAPI
+  // retail offer, name where to buy it (naming a buy destination is allowed even
+  // though valuation sources stay anonymized).
+  const merchant = set.deal_available_merchant;
+  const buyPrice = Number(set.deal_available_price);
+  const buyLine = merchant && Number.isFinite(buyPrice) && buyPrice > 0
+    ? `<div style="margin-top:6px;font-size:12px;color:${cfg.color};font-weight:700;">In stock — ${fmtMoney(buyPrice)} at ${escapeHtml(String(merchant))}</div>`
+    : '';
   return `
     <div class="card" style="padding:14px 16px;margin-bottom:14px;border:1px solid ${cfg.color};background:${cfg.bg};">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
         <div style="min-width:0;">
           <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:3px;">Deal check</div>
           <div style="font-size:13px;color:var(--ink-soft);line-height:1.45;">${escapeHtml(reason)}</div>
+          ${buyLine}
         </div>
         <span style="flex-shrink:0;font-family:var(--mono);font-size:11px;font-weight:800;text-transform:uppercase;color:${cfg.color};border:1px solid ${cfg.color};border-radius:8px;padding:4px 10px;white-space:nowrap;">${cfg.label}${pctStr}</span>
       </div>
     </div>`;
+}
+
+// Liquidity badge (PriceCharting yearly units sold) — how fast the set turns
+// over on the market. A small, source-anonymized pill.
+function liquidityBadgeHTML(set) {
+  const liq = liquidityLabel(set.sales_volume);
+  if (!liq) return '';
+  const color = liq.level === 'fast' ? 'var(--up)' : liq.level === 'slow' ? 'var(--down)' : 'var(--ink-soft)';
+  const icon = liq.level === 'fast' ? '↑' : liq.level === 'slow' ? '↓' : '→';
+  return `<span title="≈${liq.volume} sold per year" style="display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${color};border:1px solid ${color};border-radius:7px;padding:3px 8px;white-space:nowrap;">${icon} ${escapeHtml(liq.label)}</span>`;
 }
 
 // Sum-of-parts (part-out) value (E1) — the floor value if the set were sold as

@@ -15,7 +15,7 @@ import { computeMinifigRarity } from './lib/minifig-rarity';
 import { proxyImageUrl, rewriteImages } from './lib/img-proxy';
 import { isSearchIndexCorruption } from './lib/search-index';
 import { formulaValuation, isLikelyRetired, isPlausibleMarketValue } from './lib/valuation';
-import { blendMarketValue, computeDealSignal } from './lib/market-sources';
+import { blendMarketValue, computeDealSignal, buildMarketSources, enrichSetRecord } from './lib/market-sources';
 import { computePartOutValue, partKey } from './lib/part-out';
 
 // ---------------------------------------------------------------------------
@@ -320,6 +320,17 @@ describe('computeRetirementRisk', () => {
     });
     expect(soldOut).toBe(20);
     expect(inStock).toBe(0);
+  });
+
+  it('a LEGO.com sold-out is softened when pricesAPI still finds it in stock elsewhere', () => {
+    const soldOutOnly = computeRetirementRisk({
+      year: currentYear, theme: null, pieces: 100, retired: 0, lego_availability: 'sold_out',
+    });
+    const stillBuyable = computeRetirementRisk({
+      year: currentYear, theme: null, pieces: 100, retired: 0, lego_availability: 'sold_out', pa_in_stock: 1,
+    });
+    expect(soldOutOnly).toBe(20);
+    expect(stillBuyable).toBe(5); // only a local LEGO.com stockout
   });
 
   it('a near or passed retirement (exit) date raises the score', () => {
@@ -688,6 +699,64 @@ describe('computeDealSignal (E3a)', () => {
     const d = computeDealSignal({ ebay_ask_value: 102 }, { value: 100, confidence: 'medium' });
     expect(d.signal).toBe('fair');
     expect(d.strong).toBe(false);
+  });
+
+  it('uses a live pricesAPI retail offer as the cheapest channel and names the merchant', () => {
+    const d = computeDealSignal(
+      { pa_in_stock: 1, pa_lowest_offer: 160, pa_best_merchant: 'Target', ebay_ask_value: 190 },
+      { value: 200, confidence: 'high' },
+    );
+    expect(d.signal).toBe('buy');                 // 160 is 20% below 200
+    expect(d.available_price).toBe(160);
+    expect(d.available_channel).toBe('retail');
+    expect(d.available_merchant).toBe('Target');
+  });
+
+  it('ignores a pricesAPI offer when the set is not in stock', () => {
+    const d = computeDealSignal(
+      { pa_in_stock: 0, pa_lowest_offer: 160, pa_best_merchant: 'Target', ebay_ask_value: 195 },
+      { value: 200, confidence: 'high' },
+    );
+    expect(d.available_price).toBe(195);          // falls back to resale ask
+    expect(d.available_channel).toBe('resale');
+    expect(d.available_merchant).toBeNull();
+  });
+
+  it('does not name a merchant when lego.com retail is the cheapest channel', () => {
+    const d = computeDealSignal(
+      { lego_in_stock: 1, retail_price: 150, pa_in_stock: 1, pa_lowest_offer: 160, pa_best_merchant: 'Target' },
+      { value: 200, confidence: 'high' },
+    );
+    expect(d.available_price).toBe(150);
+    expect(d.available_merchant).toBeNull();
+  });
+});
+
+describe('PriceCharting loose + liquidity (Phase 2)', () => {
+  it('surfaces pc_loose_value as a used-condition source, not in the new-value blend', () => {
+    const row = { bl_new_value: 200, bl_new_qty: 5, bl_cached_at: new Date().toISOString(), pc_loose_value: 90, pc_cached_at: new Date().toISOString() };
+    const sources = buildMarketSources(row);
+    const loose = sources.find((s) => s.id === 'pc_loose');
+    expect(loose).toBeTruthy();
+    expect(loose!.condition).toBe('used');
+    expect(loose!.value).toBe(90);
+    // The loose (used) value must not drag the new-value blend down.
+    expect(blendMarketValue(row).value).toBe(200);
+  });
+
+  it('exposes sales_volume on the enriched record', () => {
+    expect((enrichSetRecord({ pc_sales_volume: 250 }) as any).sales_volume).toBe(250);
+    expect((enrichSetRecord({}) as any).sales_volume).toBeNull();
+  });
+
+  it('liquidity calibrates the confidence band (illiquid wider than deep)', () => {
+    const fresh = new Date().toISOString();
+    // Two agreeing fresh sold comps → high confidence; same value, different volume.
+    const base = { bl_new_value: 200, bl_new_qty: 5, bl_cached_at: fresh, pc_new_value: 205, pc_cached_at: fresh };
+    const illiquid = blendMarketValue({ ...base, pc_sales_volume: 1 });
+    const deep = blendMarketValue({ ...base, pc_sales_volume: 50 });
+    const width = (b: { low: number | null; high: number | null }) => (Number(b.high) - Number(b.low));
+    expect(width(illiquid)).toBeGreaterThan(width(deep));
   });
 });
 

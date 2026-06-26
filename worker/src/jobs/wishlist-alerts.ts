@@ -38,15 +38,33 @@ async function loadAlertPrefs(env: Env, userIds: string[]): Promise<Map<string, 
 }
 
 export async function runWishlistAlerts(env: Env) {
-  const { results } = await env.DB.prepare(`
+  const { results: rawResults } = await env.DB.prepare(`
     SELECT w.id, w.user_id, w.set_num, w.target_price, w.alerted_at,
-           s.name as set_name, s.current_value, s.image_url
+           s.name as set_name, s.current_value, s.image_url,
+           ext.pa_lowest_offer, ext.pa_in_stock, ext.pa_best_merchant
     FROM user_wishlist w
     JOIN lego_sets s ON s.set_num = w.set_num
+    LEFT JOIN set_market_ext ext ON ext.set_num = w.set_num
     WHERE w.target_price IS NOT NULL
-      AND s.current_value <= w.target_price
+      AND (
+        s.current_value <= w.target_price
+        OR (ext.pa_in_stock = 1 AND ext.pa_lowest_offer IS NOT NULL AND ext.pa_lowest_offer <= w.target_price)
+      )
       AND (w.alerted_at IS NULL OR w.alerted_at < datetime('now', '-7 days'))
-  `).all<{ id: number; user_id: string; set_num: string; target_price: number; set_name: string; current_value: number; image_url: string | null }>();
+  `).all<{ id: number; user_id: string; set_num: string; target_price: number; set_name: string; current_value: number; image_url: string | null; pa_lowest_offer: number | null; pa_in_stock: number | null; pa_best_merchant: string | null }>();
+
+  // The buyable price that triggered the alert: the lower of market value and the
+  // live pricesAPI offer (when in stock). When the live offer is the cheaper one,
+  // carry its merchant so the notification can name where to buy.
+  const results = rawResults.map((r) => {
+    const liveOffer = Number(r.pa_in_stock) === 1 ? r.pa_lowest_offer : null;
+    const buyPrice = liveOffer != null && liveOffer < r.current_value ? liveOffer : r.current_value;
+    return {
+      ...r,
+      current_value: buyPrice,
+      buy_merchant: buyPrice === liveOffer ? r.pa_best_merchant : null,
+    };
+  });
 
   if (!results.length) {
     const spike = await runSpikeAlerts(env);
@@ -89,11 +107,12 @@ export async function runWishlistAlerts(env: Env) {
         const html = wishlistAlertEmailHTML(row.set_name, row.set_num, row.target_price, row.current_value, 'drop');
         sendAlertEmail(prefs.email, `${row.set_name} hit your target price`, html, env).catch(() => {});
       }
+      const at = row.buy_merchant ? ` at ${row.buy_merchant}` : '';
       if (prefs.discord_webhook_url) {
         const fmt = (n: number) => `$${n.toFixed(2)}`;
         sendDiscordAlert(prefs.discord_webhook_url, {
           title: `Price target reached: ${row.set_name}`,
-          description: `**${row.set_num}** is now at **${fmt(row.current_value)}**, at or below your target of ${fmt(row.target_price)}.`,
+          description: `**${row.set_num}** is now available at **${fmt(row.current_value)}**${at}, at or below your target of ${fmt(row.target_price)}.`,
           color: 0x22c55e,
           imageUrl: row.image_url ?? undefined,
           url: `https://brickvault-5ub.pages.dev#/set/${encodeURIComponent(row.set_num)}`,
@@ -101,7 +120,7 @@ export async function runWishlistAlerts(env: Env) {
       }
       sendPushToUser(env, row.user_id, JSON.stringify({
         title: 'Price target reached',
-        body: `${row.set_name} is now $${row.current_value.toFixed(2)} — at or below your target.`,
+        body: `${row.set_name} is now $${row.current_value.toFixed(2)}${at} — at or below your target.`,
         url: `#/set/${encodeURIComponent(row.set_num)}`,
       })).catch(() => {});
     }

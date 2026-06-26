@@ -79,6 +79,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       'DROP TABLE IF EXISTS oauth_states',
       'DROP TABLE IF EXISTS user_minifigs',
       'DROP TABLE IF EXISTS set_value_history',
+      'DROP TABLE IF EXISTS set_market_ext',
 
       `CREATE TABLE lego_sets (
         set_num TEXT PRIMARY KEY, name TEXT NOT NULL, theme TEXT, year INTEGER,
@@ -107,6 +108,12 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         deal_signal TEXT, deal_discount_pct REAL, deal_strong INTEGER, deal_cached_at TEXT,
         part_out_value REAL, part_out_coverage REAL, part_out_cached_at TEXT,
         pc_new_value REAL, pc_complete_value REAL, pc_id TEXT, pc_cached_at TEXT
+      )`,
+      `CREATE TABLE set_market_ext (
+        set_num TEXT PRIMARY KEY,
+        pc_loose_value REAL, pc_sales_volume INTEGER,
+        pa_retail_value REAL, pa_lowest_offer REAL, pa_in_stock INTEGER,
+        pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT
       )`,
       `CREATE TABLE set_value_history (
         set_num TEXT NOT NULL, snapshot_date TEXT NOT NULL,

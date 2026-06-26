@@ -202,6 +202,23 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
     });
   }
 
+  // PriceCharting loose value — item only, no box/manual. A used-condition
+  // corroborator from aggregated closed eBay auctions; kept out of the
+  // new-value blend (it sits well below sealed) but surfaced as a used source.
+  if (num(row.pc_loose_value)) {
+    sources.push({
+      id: 'pc_loose',
+      name: 'Used market',
+      value: num(row.pc_loose_value),
+      condition: 'used',
+      sample_count: null,
+      last_updated: text(row.pc_cached_at) || cachedAt,
+      freshness: sourceFreshness(row, 'pc_cached_at', 'pc_loose_value'),
+      reliability: 'corroborating',
+      note: 'Loose (incomplete) value — excludes box and manual.',
+    });
+  }
+
   if (method === 'ai' && num(row.current_value)) {
     sources.push({
       id: 'ai_estimate',
@@ -379,6 +396,36 @@ const BAND_HALF_WIDTH: Record<MarketConfidence, number> = {
 const BAND_SINGLE_SOURCE_EXTRA = 0.04;
 const BAND_STALE_EXTRA = 0.05;
 const BAND_MAX_HALF_WIDTH = 0.40;
+// Liquidity calibration (PriceCharting yearly units sold). An illiquid set has
+// noisier realized prices → widen the band; a deeply liquid one is well-supported
+// → modestly tighten. These adjust the band only; they never override confidence.
+const LIQUIDITY_THIN = 3;     // < this many sales/yr → illiquid
+const LIQUIDITY_DEEP = 30;    // >= this many sales/yr → deep, stable market
+const BAND_ILLIQUID_EXTRA = 0.06;
+const BAND_LIQUID_TIGHTEN = 0.03;
+
+// Admin-tunable per-source weight multipliers (default 1.0 = unchanged). Set
+// from the DB source-config at the start of a blend pass (lib/source-config.ts).
+// Maps a blend push id → its owning source so one "trust" slider scales all of a
+// source's contributions (e.g. pricecharting scales both pc_new and pc_complete).
+const SOURCE_OF: Record<string, string> = {
+  bricklink_new: 'bricklink',
+  ebay_sold_new: 'ebay', ebay_ask: 'ebay',
+  brickeconomy: 'brickeconomy',
+  brickowl_new: 'brickowl',
+  pc_new: 'pricecharting', pc_complete: 'pricecharting',
+};
+const sourceWeightMultipliers: Record<string, number> = {};
+export function setSourceWeightMultipliers(m: Record<string, number>): void {
+  for (const k of Object.keys(sourceWeightMultipliers)) delete sourceWeightMultipliers[k];
+  for (const [k, v] of Object.entries(m)) {
+    const n = Number(v);
+    if (Number.isFinite(n) && n >= 0) sourceWeightMultipliers[k] = n;
+  }
+}
+export function resetSourceWeightMultipliers(): void {
+  for (const k of Object.keys(sourceWeightMultipliers)) delete sourceWeightMultipliers[k];
+}
 
 // Surviving signals spanning at least this ratio read as a material disagreement
 // worth explaining to the user.
@@ -418,8 +465,10 @@ export function blendMarketValue(row: Record<string, unknown>, history?: BlendHi
   const pts: P[] = [];
   const push = (id: string, name: string, value: number | null, qty: number | null, ts: unknown, typeF: number, sold: boolean, rank: number) => {
     if (!value || value <= 0) return;
+    const mult = sourceWeightMultipliers[SOURCE_OF[id]] ?? 1;
+    if (mult <= 0) return; // source weight tuned to 0 → effectively disabled
     const ff = freshnessFactor(ts);
-    const w = ff * sampleFactor(qty) * typeF;
+    const w = ff * sampleFactor(qty) * typeF * mult;
     if (w <= 0) return;
     pts.push({ id, name, value, weight: w, sold, fresh: ff >= 0.7, rank });
   };
@@ -506,6 +555,12 @@ export function blendMarketValue(row: Record<string, unknown>, history?: BlendHi
   let halfWidth = BAND_HALF_WIDTH[confidence] ?? 0.30;
   if (survivors.length === 1) halfWidth += BAND_SINGLE_SOURCE_EXTRA;
   if (!anyFresh) halfWidth += BAND_STALE_EXTRA;
+  // Liquidity calibration: thin markets widen, deep markets tighten the band.
+  const salesVolume = Number(row.pc_sales_volume);
+  if (Number.isFinite(salesVolume) && salesVolume > 0) {
+    if (salesVolume < LIQUIDITY_THIN) halfWidth += BAND_ILLIQUID_EXTRA;
+    else if (salesVolume >= LIQUIDITY_DEEP) halfWidth = Math.max(BAND_HALF_WIDTH.high, halfWidth - BAND_LIQUID_TIGHTEN);
+  }
   halfWidth = Math.min(halfWidth, BAND_MAX_HALF_WIDTH);
   let bandLow = Math.min(low, value * (1 - halfWidth));
   let bandHigh = Math.max(high, value * (1 + halfWidth));
@@ -563,6 +618,7 @@ export interface DealSignal {
   signal: DealVerdict | null;          // null when we can't responsibly assess
   available_price: number | null;       // cheapest price you can actually pay now
   available_channel: 'retail' | 'resale' | null; // INTERNAL — UI must stay source/channel-anonymized per B1
+  available_merchant: string | null;    // named buy destination (e.g. "Target") when the cheapest channel is a live pricesAPI retail offer; null for anonymized channels
   discount_pct: number | null;          // % the available price sits below market (positive = below = good)
   strong: boolean;                       // extra conviction (below value AND about to retire)
   reason: string;                        // plain-language, no source names
@@ -589,20 +645,31 @@ export function computeDealSignal(
   row: Record<string, unknown>,
   market: { value: number | null; confidence: MarketConfidence | null },
 ): DealSignal {
-  const none: DealSignal = { signal: null, available_price: null, available_channel: null, discount_pct: null, strong: false, reason: '' };
+  const none: DealSignal = { signal: null, available_price: null, available_channel: null, available_merchant: null, discount_pct: null, strong: false, reason: '' };
   const mv = market.value;
   if (!mv || mv <= 0) return none;
   // Need a corroborated value to judge a deal against — skip estimated/low.
   if (market.confidence !== 'high' && market.confidence !== 'medium') return none;
 
-  // Cheapest buyable price now: live retail (only when actually in stock at
-  // retail) vs current resale asking; take the lower.
-  const retail = Number(row.lego_in_stock) === 1 ? num(row.retail_price) : null;
+  // Cheapest retail channel right now: lego.com (when in stock) vs the cheapest
+  // live pricesAPI merchant offer (when in stock). lego.com is unnamed; a
+  // pricesAPI offer carries its merchant so the UI can show a buy destination.
+  const legoRetail = Number(row.lego_in_stock) === 1 ? num(row.retail_price) : null;
+  const paInStock = Number(row.pa_in_stock) === 1;
+  const paOffer = paInStock ? num(row.pa_lowest_offer) : null;
+  const paMerchant = paInStock && typeof row.pa_best_merchant === 'string' ? row.pa_best_merchant : null;
+  let retail: number | null = null;
+  let retailMerchant: string | null = null;
+  if (legoRetail != null && (paOffer == null || legoRetail <= paOffer)) { retail = legoRetail; retailMerchant = null; }
+  else if (paOffer != null) { retail = paOffer; retailMerchant = paMerchant; }
+
+  // …vs current resale asking; take the lower across retail and resale.
   const ask = num(row.ebay_ask_value);
   let availablePrice: number | null = null;
   let channel: 'retail' | 'resale' | null = null;
-  if (retail != null && (ask == null || retail <= ask)) { availablePrice = retail; channel = 'retail'; }
-  else if (ask != null) { availablePrice = ask; channel = 'resale'; }
+  let merchant: string | null = null;
+  if (retail != null && (ask == null || retail <= ask)) { availablePrice = retail; channel = 'retail'; merchant = retailMerchant; }
+  else if (ask != null) { availablePrice = ask; channel = 'resale'; merchant = null; }
   if (availablePrice == null) return none;
 
   const discount = (mv - availablePrice) / mv;          // >0 → below market
@@ -630,7 +697,7 @@ export function computeDealSignal(
     reason = 'Priced in line with its market value.';
   }
 
-  return { signal, available_price: availablePrice, available_channel: channel, discount_pct: discountPct, strong, reason };
+  return { signal, available_price: availablePrice, available_channel: channel, available_merchant: merchant, discount_pct: discountPct, strong, reason };
 }
 
 // Minimum quantity-weighted price coverage before a part-out value is shown.
@@ -665,6 +732,7 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
     deal_signal: deal.signal,
     deal_available_price: deal.available_price,
     deal_available_channel: deal.available_channel,
+    deal_available_merchant: deal.available_merchant,
     deal_discount_pct: deal.discount_pct,
     deal_strong: deal.strong,
     deal_reason: deal.reason,
@@ -673,6 +741,9 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
       ? partOutValue
       : null,
     part_out_coverage: Number.isFinite(partOutCoverage) ? partOutCoverage : null,
+    // Liquidity (PriceCharting yearly units sold). Additive, read-side; the UI
+    // turns this into a "sells fast / slow" badge (Phase 3).
+    sales_volume: (() => { const v = Number(row.pc_sales_volume); return Number.isFinite(v) && v > 0 ? Math.round(v) : null; })(),
   };
 }
 
@@ -697,6 +768,14 @@ export const BLEND_INPUT_COLUMNS =
   // Extra inputs the deal signal needs (persisted alongside blended_value so the
   // catalog deal filter + deal alerts share one source of truth with the badge).
   'retail_price, lego_in_stock, retirement_risk_score, lego_retiring_soon';
+
+// Extended market inputs that live in the set_market_ext side table (lego_sets is
+// at D1's 100-column ceiling). LEFT JOINed into the blend reads below so the deal
+// signal (pa_*) and the used/liquidity blend inputs (pc_loose/sales-volume) share
+// the same row the pure functions consume.
+export const BLEND_EXT_COLUMNS =
+  'pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count';
+const BLEND_FROM = 'lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num';
 
 // Compute the blended value AND the deal signal together, so the persisted
 // deal_* columns are produced by the exact same computeDealSignal used for the
@@ -724,7 +803,7 @@ const BLEND_DEAL_UPDATE_SQL =
 export async function persistBlendedValue(db: D1Database, setNum: string): Promise<number | null> {
   try {
     const row = await db.prepare(
-      `SELECT ${BLEND_INPUT_COLUMNS} FROM lego_sets WHERE set_num=?`,
+      `SELECT ${BLEND_INPUT_COLUMNS}, ${BLEND_EXT_COLUMNS} FROM ${BLEND_FROM} WHERE ls.set_num=?`,
     ).bind(setNum).first<Record<string, unknown>>();
     if (!row) return null;
     const history = await recentValueMedian(db, setNum).catch(() => undefined);
@@ -749,7 +828,7 @@ export async function recomputeBlendedValues(db: D1Database, setNums: string[]):
       const chunk = ids.slice(i, i + 90);
       const placeholders = chunk.map(() => '?').join(',');
       const { results } = await db.prepare(
-        `SELECT set_num, ${BLEND_INPUT_COLUMNS} FROM lego_sets WHERE set_num IN (${placeholders})`,
+        `SELECT ls.set_num, ${BLEND_INPUT_COLUMNS}, ${BLEND_EXT_COLUMNS} FROM ${BLEND_FROM} WHERE ls.set_num IN (${placeholders})`,
       ).bind(...chunk).all<Record<string, unknown>>();
       // One history read per chunk feeds the anomaly guard (subrequest-lean).
       const medians = await recentValueMedians(db, chunk).catch(() => new Map());
