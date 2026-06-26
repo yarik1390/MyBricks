@@ -18,6 +18,9 @@ export function computeRetirementRisk(set: {
   lego_retiring_soon?: number | boolean | null;
   lego_availability?: string | null;
   exit_date?: string | null;
+  // pricesAPI live-retail corroboration: when the set is still in stock across
+  // retailers, a LEGO.com "sold out" is only a local stockout, not a retirement.
+  pa_in_stock?: number | boolean | null;
 }): number {
   if (set.retired) return 0;
   const currentYear = new Date().getFullYear();
@@ -40,7 +43,7 @@ export function computeRetirementRisk(set: {
   const avail = (set.lego_availability ?? '').toLowerCase();
   if (set.lego_retiring_soon) availabilityFactor = 40;            // LEGO explicitly flags it retiring
   else if (avail === 'retiring') availabilityFactor = 35;
-  else if (avail === 'sold_out' || avail === 'out_of_stock') availabilityFactor = 20; // gone from LEGO.com (may be temporary)
+  else if (avail === 'sold_out' || avail === 'out_of_stock') availabilityFactor = set.pa_in_stock ? 5 : 20; // gone from LEGO.com — but if still in stock at other retailers, a much weaker signal
 
   // A known retirement (exit) date sharply raises the odds as it approaches or
   // once it has passed (the retired flag often lags the real exit date).

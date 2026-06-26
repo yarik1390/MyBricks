@@ -322,6 +322,17 @@ describe('computeRetirementRisk', () => {
     expect(inStock).toBe(0);
   });
 
+  it('a LEGO.com sold-out is softened when pricesAPI still finds it in stock elsewhere', () => {
+    const soldOutOnly = computeRetirementRisk({
+      year: currentYear, theme: null, pieces: 100, retired: 0, lego_availability: 'sold_out',
+    });
+    const stillBuyable = computeRetirementRisk({
+      year: currentYear, theme: null, pieces: 100, retired: 0, lego_availability: 'sold_out', pa_in_stock: 1,
+    });
+    expect(soldOutOnly).toBe(20);
+    expect(stillBuyable).toBe(5); // only a local LEGO.com stockout
+  });
+
   it('a near or passed retirement (exit) date raises the score', () => {
     const nearFuture = computeRetirementRisk({
       year: currentYear, theme: null, pieces: 100, retired: 0, exit_date: daysFromNow(90),
@@ -688,6 +699,36 @@ describe('computeDealSignal (E3a)', () => {
     const d = computeDealSignal({ ebay_ask_value: 102 }, { value: 100, confidence: 'medium' });
     expect(d.signal).toBe('fair');
     expect(d.strong).toBe(false);
+  });
+
+  it('uses a live pricesAPI retail offer as the cheapest channel and names the merchant', () => {
+    const d = computeDealSignal(
+      { pa_in_stock: 1, pa_lowest_offer: 160, pa_best_merchant: 'Target', ebay_ask_value: 190 },
+      { value: 200, confidence: 'high' },
+    );
+    expect(d.signal).toBe('buy');                 // 160 is 20% below 200
+    expect(d.available_price).toBe(160);
+    expect(d.available_channel).toBe('retail');
+    expect(d.available_merchant).toBe('Target');
+  });
+
+  it('ignores a pricesAPI offer when the set is not in stock', () => {
+    const d = computeDealSignal(
+      { pa_in_stock: 0, pa_lowest_offer: 160, pa_best_merchant: 'Target', ebay_ask_value: 195 },
+      { value: 200, confidence: 'high' },
+    );
+    expect(d.available_price).toBe(195);          // falls back to resale ask
+    expect(d.available_channel).toBe('resale');
+    expect(d.available_merchant).toBeNull();
+  });
+
+  it('does not name a merchant when lego.com retail is the cheapest channel', () => {
+    const d = computeDealSignal(
+      { lego_in_stock: 1, retail_price: 150, pa_in_stock: 1, pa_lowest_offer: 160, pa_best_merchant: 'Target' },
+      { value: 200, confidence: 'high' },
+    );
+    expect(d.available_price).toBe(150);
+    expect(d.available_merchant).toBeNull();
   });
 });
 

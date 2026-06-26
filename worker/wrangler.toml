@@ -45,6 +45,9 @@ crons = [
   "0 14 * * *",
   "0 15 * * *",
   "0 16 * * *",
+  # pricesAPI.io live-retail refresh (deal signal / stock truth / wishlist alerts).
+  # Small + sequential: cold calls run 30–90s and the free tier is 6/min per key.
+  "0 17 * * *",
   # TEMPORARY: one-time PriceCharting bootstrap (remove after pc_new_value is filled).
   "10,25,40,55 * * * *",
   # TEMPORARY: one-time BrickEconomy bootstrap (remove after be_value_new is filled).
