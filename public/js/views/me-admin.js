@@ -745,13 +745,13 @@ function providerCardHTML({ row, health }) {
         <span>Last fail: ${escapeHtml(ago(row.last_fail_at))}</span>
         ${quota ? `<span>Remaining: ${escapeHtml(String(quota.remaining ?? Math.max(0, quota.cap - quota.used)))}</span>` : ''}
       </div>
-      ${service.toLowerCase() === 'ebay' ? ebayStateHTML(row, health) : ''}
+      ${service.toLowerCase() === 'ebay' ? ebayStateHTML(health) : ''}
       <p class="admin-provider-action">${escapeHtml(health.action)}</p>
       ${row.last_error ? `<details class="admin-job-details"><summary>Latest failure</summary><div>${escapeHtml(String(row.last_error).slice(0, 900))}</div></details>` : ''}
     </article>`;
 }
 
-function ebayStateHTML(row, health) {
+function ebayStateHTML(health) {
   const coverage = adminHealth?.coverage || {};
   const soldState = health.blocked ? 'sold comps blocked' : (coverage.sets_with_ebay_new || coverage.sets_with_ebay_used) ? 'sold comps available' : 'sold comps not populated';
   const askingState = coverage.sets_with_ebay_ask ? 'asking data available' : 'asking data not populated';
