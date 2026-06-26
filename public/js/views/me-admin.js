@@ -156,7 +156,7 @@ export async function renderMeAdmin() {
     <div class="page admin-page admin-dashboard-page">
       ${subpageTopbarHTML('Admin console', 'Admin')}
       <nav class="admin-segments admin-segments-sticky" aria-label="Admin sections">
-        ${ADMIN_SECTIONS.map(([id, label], i) => `<a href="#${id}" class="${i === 0 ? 'active' : ''}" data-admin-section-link="${id}">${escapeHtml(label)}</a>`).join('')}
+        ${ADMIN_SECTIONS.map(([id, label], i) => `<button type="button" role="tab" aria-selected="${i === 0}" aria-controls="${id}" class="${i === 0 ? 'active' : ''}" data-admin-section-link="${id}">${escapeHtml(label)}</button>`).join('')}
       </nav>
 
       <section class="admin-section" id="adminOverview">
@@ -375,6 +375,21 @@ function maintenanceCardHTML(key) {
 }
 
 function wireAdminShell() {
+  const sectionLinks = Array.from(document.querySelectorAll('[data-admin-section-link]'));
+  sectionLinks.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-admin-section-link');
+      const section = id ? document.getElementById(id) : null;
+      if (!section) return;
+      haptic('light');
+      sectionLinks.forEach(link => {
+        const active = link === btn;
+        link.classList.toggle('active', active);
+        link.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      section.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  });
   document.querySelectorAll('[data-admin-tool]').forEach(btn => {
     btn.addEventListener('click', () => triggerImport(btn.getAttribute('data-admin-tool')));
   });
@@ -410,7 +425,11 @@ function setupAdminSectionObserver() {
   const observer = new IntersectionObserver((entries) => {
     const visible = entries.filter(e => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
     if (!visible) return;
-    links.forEach(link => link.classList.toggle('active', link.dataset.adminSectionLink === visible.target.id));
+    links.forEach(link => {
+      const active = link.dataset.adminSectionLink === visible.target.id;
+      link.classList.toggle('active', active);
+      link.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
   }, { rootMargin: '-20% 0px -65% 0px', threshold: [0, 0.2, 0.6] });
   sections.forEach(section => observer.observe(section));
 }

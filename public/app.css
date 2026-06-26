@@ -4117,7 +4117,8 @@ body.advisor-open #advisorFab {
   scrollbar-width: thin;
 }
 
-.admin-segments-sticky a {
+.admin-segments-sticky a,
+.admin-segments-sticky button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4133,10 +4134,13 @@ body.advisor-open #advisorFab {
   text-decoration: none;
   text-transform: uppercase;
   white-space: nowrap;
+  cursor: pointer;
 }
 
 .admin-segments-sticky a.active,
-.admin-segments-sticky a:focus-visible {
+.admin-segments-sticky button.active,
+.admin-segments-sticky a:focus-visible,
+.admin-segments-sticky button:focus-visible {
   background: var(--ink);
   color: var(--bg);
   outline: 0;
