@@ -27,6 +27,7 @@ let setupRows = [];
 let adminRuns = [];
 let adminHealth = null;
 let contributionData = null;
+let supporterData = null;
 let sourceDefaults = {};
 let sourceConfig = {};
 
@@ -262,6 +263,16 @@ export async function renderMeAdmin() {
           </div>
           <div id="adminUserSearchResults" class="admin-search-results"></div>
           <div id="supporterResult" class="admin-status-panel" hidden></div>
+          <div class="admin-supporters">
+            <div class="admin-supporters-head">
+              <div>
+                <strong>Current supporters</strong>
+                <span>Live accounts with supporter access enabled.</span>
+              </div>
+              <button class="btn-secondary" id="refreshSupportersBtn">${I.refresh({ w: 16 })}<span>Refresh</span></button>
+            </div>
+            <div id="supportersList" class="admin-supporter-list">Loading supporters...</div>
+          </div>
         </div>
       </section>
 
@@ -286,6 +297,7 @@ export async function renderMeAdmin() {
   updateIntegrationsHealth();
   loadSourceTuning();
   loadContribQueue();
+  loadSupporters();
 }
 
 function buildSetupRows(me, googleStatus) {
@@ -412,6 +424,7 @@ function wireAdminShell() {
   $('#grantSupporterBtn')?.addEventListener('click', () => setSupporterStatus(1));
   $('#revokeSupporterBtn')?.addEventListener('click', () => setSupporterStatus(0));
   $('#adminUserSearchBtn')?.addEventListener('click', searchUsers);
+  $('#refreshSupportersBtn')?.addEventListener('click', loadSupporters);
   $('#adminUserSearchInput')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') searchUsers();
   });
@@ -992,6 +1005,7 @@ async function setSupporterStatus(value) {
   try {
     await api(`/api/admin/users/${encodeURIComponent(userId)}/supporter`, { method: 'PATCH', body: { is_supporter: value } });
     showPanel(out, 'ok', value ? 'Supporter granted.' : 'Supporter revoked.');
+    await loadSupporters();
   } catch (e) {
     showPanel(out, 'danger', `Error: ${e.message || e}`);
   }
@@ -1031,6 +1045,66 @@ function userSearchRowHTML(user) {
         <span>${escapeHtml(id)}</span>
       </div>
       <button class="btn-secondary" data-pick-user="${escapeHtml(id)}">Use ID</button>
+    </div>`;
+}
+
+async function loadSupporters() {
+  const box = $('#supportersList');
+  if (box) box.innerHTML = 'Loading supporters...';
+  try {
+    supporterData = await api('/api/admin/users/supporters');
+  } catch (e) {
+    supporterData = { error: e.message || String(e), supporters: [] };
+  }
+  renderSupporters();
+}
+
+function renderSupporters() {
+  const box = $('#supportersList');
+  if (!box) return;
+  if (supporterData?.error) {
+    box.innerHTML = errorPanelHTML('Supporter list unavailable', supporterData.error, 'Retry');
+    $('#adminErrorRetry')?.addEventListener('click', loadSupporters);
+    return;
+  }
+  const supporters = supporterData?.supporters || [];
+  if (!supporters.length) {
+    box.innerHTML = `<div class="admin-empty-state">${I.info()}<strong>No supporters yet.</strong><span>Grant supporter status above, then refresh this list.</span></div>`;
+    return;
+  }
+  box.innerHTML = supporters.map(supporterRowHTML).join('');
+  box.querySelectorAll('[data-pick-user]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-pick-user') || '';
+      const input = $('#supporterUserIdInput');
+      if (input) input.value = id;
+    });
+  });
+  box.querySelectorAll('[data-revoke-supporter]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-revoke-supporter') || '';
+      const input = $('#supporterUserIdInput');
+      if (input) input.value = id;
+      await setSupporterStatus(0);
+    });
+  });
+}
+
+function supporterRowHTML(user) {
+  const id = String(user.user_id || '');
+  const name = user.handle || user.display_name || user.email || 'Unnamed supporter';
+  const since = user.supporter_since ? `Since ${startedAt(user.supporter_since)}` : 'Supporter enabled';
+  return `
+    <div class="admin-supporter-row">
+      <div>
+        <strong>${escapeHtml(name)}</strong>
+        <span>${escapeHtml(id)}</span>
+        <small>${escapeHtml(since)}</small>
+      </div>
+      <div class="admin-supporter-actions">
+        <button class="btn-secondary" data-pick-user="${escapeHtml(id)}">Use ID</button>
+        <button class="btn-secondary" data-revoke-supporter="${escapeHtml(id)}">${I.minus()}<span>Revoke</span></button>
+      </div>
     </div>`;
 }
 

@@ -1124,7 +1124,7 @@ app.get('/contributions', async (c) => {
     "UNION ALL " +
     "SELECT 'data', d.id, d.user_id, d.set_num, s.name, (d.kind || ' fix'), d.payload, NULL, d.created_at " +
     "FROM set_contributions d JOIN lego_sets s ON s.set_num=d.set_num WHERE d.status=? AND d.deleted_at IS NULL " +
-    "ORDER BY created_at ASC LIMIT 200"
+    "ORDER BY 9 ASC LIMIT 200"
   ).bind(status, status, status).all();
   const items = (rows.results || []).map((r: any) => ({
     ...r,
@@ -1198,6 +1198,17 @@ app.get('/users/search', async (c) => {
   return c.json({ users: rows.results || [] });
 });
 
+app.get('/users/supporters', async (c) => {
+  const rows = await c.env.DB.prepare(
+    `SELECT user_id, handle, display_name, email, supporter_since, updated_at
+     FROM user_prefs
+     WHERE is_supporter = 1
+     ORDER BY COALESCE(supporter_since, updated_at) DESC
+     LIMIT 100`
+  ).all();
+  return c.json({ supporters: rows.results || [] });
+});
+
 app.patch('/users/:userId/supporter', async (c) => {
   const userId = c.req.param('userId');
   const { is_supporter } = await c.req.json<{ is_supporter: 0 | 1 }>();
@@ -1205,8 +1216,16 @@ app.patch('/users/:userId/supporter', async (c) => {
     return c.json({ error: 'is_supporter must be 0 or 1' }, 400);
   }
   await c.env.DB.prepare(
-    `UPDATE user_prefs SET is_supporter = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`
-  ).bind(is_supporter, userId).run();
+    `INSERT INTO user_prefs (user_id, is_supporter, supporter_since, updated_at)
+     VALUES (?, ?, CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE NULL END, CURRENT_TIMESTAMP)
+     ON CONFLICT(user_id) DO UPDATE SET
+       is_supporter = excluded.is_supporter,
+       supporter_since = CASE
+         WHEN excluded.is_supporter = 1 THEN COALESCE(user_prefs.supporter_since, CURRENT_TIMESTAMP)
+         ELSE NULL
+       END,
+       updated_at = CURRENT_TIMESTAMP`
+  ).bind(userId, is_supporter, is_supporter).run();
   return c.json({ ok: true, userId, is_supporter });
 });
 

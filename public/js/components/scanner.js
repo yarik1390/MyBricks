@@ -168,6 +168,51 @@ export async function startCamera() {
 function showManualBarcodeEntry() {
   const hint = $("#scanHint");
   if (!hint || $("#manualBarcodeRow")) return;
+  const el = $("#scanResult");
+  if (el) {
+    document.querySelector(".scan-video-wrap")?.classList.add("has-result");
+    el.classList.add("show", "manual");
+    el.classList.remove("loading");
+    el.innerHTML = `
+      <div id="manualBarcodeRow" class="scan-manual-card">
+        <div class="scan-result-head">
+          <span class="badge">${I.search({ w: 12 })}LOOKUP</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">Barcode or set number</span>
+        </div>
+        <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;line-height:1.45;">Camera access is unavailable here. Type the UPC from the box or a set number such as 71043-1.</p>
+        <div class="scan-manual-row">
+          <input type="text" id="manualBarcodeInput" inputmode="text"
+            placeholder="Barcode or set number" autocomplete="off" spellcheck="false">
+          <button class="btn-primary" id="manualBarcodeGo">${I.search({ w: 16 })}<span>Find set</span></button>
+        </div>
+        ${state.camera.mode === "image" ? `<button class="btn-secondary scan-manual-gallery" id="manualGalleryGo">${I.layers({ w: 16, h: 16 })}<span>Choose photo instead</span></button>` : ""}
+      </div>`;
+    const submit = async () => {
+      const raw = ($("#manualBarcodeInput")?.value || "").trim();
+      if (raw.length < 3) {
+        hint.textContent = "Type a barcode or LEGO set number first";
+        return;
+      }
+      haptic("medium");
+      hint.textContent = "Looking up catalog...";
+      const setNum = manualSetNumber(raw);
+      if (setNum) {
+        await sendManualSetLookup(setNum);
+      } else {
+        const digits = raw.replace(/\D/g, "");
+        if (digits.length < 8) {
+          hint.textContent = "Use a set number like 71043-1, or a barcode with at least 8 digits";
+          return;
+        }
+        routeScannedCode(digits);
+      }
+    };
+    $("#manualBarcodeGo")?.addEventListener("click", submit);
+    $("#manualBarcodeInput")?.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+    $("#manualGalleryGo")?.addEventListener("click", () => $("#scanGalleryInput")?.click());
+    $("#manualBarcodeInput")?.focus();
+    return;
+  }
   const row = document.createElement("div");
   row.id = "manualBarcodeRow";
   row.style.cssText = "display:flex;gap:8px;margin:10px 16px 0;";
@@ -189,6 +234,31 @@ function showManualBarcodeEntry() {
   };
   $("#manualBarcodeGo")?.addEventListener("click", submit);
   $("#manualBarcodeInput")?.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+}
+
+function manualSetNumber(value) {
+  const raw = String(value || "").trim().toUpperCase();
+  if (/^\d{3,7}-\d+$/.test(raw)) return raw;
+  if (/^\d{3,7}$/.test(raw)) return `${raw}-1`;
+  return "";
+}
+
+async function sendManualSetLookup(setNum) {
+  setScanPending(true);
+  showScanLoading("Finding set...", `Looking up ${setNum} in the catalog.`);
+  try {
+    const data = await api(`/api/sets/${encodeURIComponent(setNum)}`);
+    const set = data?.set || data;
+    if (set?.set_num) {
+      showScanResult({ identified: true, confidence: "high", reasoning: "Set number matched in catalog.", set });
+    } else {
+      showScanResult({ identified: false, reasoning: `Set ${setNum} was not found in the catalog.` });
+    }
+  } catch (e) {
+    showScanResult({ identified: false, reasoning: e.message || `Set ${setNum} was not found in the catalog.` });
+  } finally {
+    setScanPending(false);
+  }
 }
 
 async function scanBarcode() {

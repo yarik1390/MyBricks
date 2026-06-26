@@ -453,8 +453,8 @@ function publicProfileSectionHTML(me) {
       <div class="u-fs-sm u-mute" style="margin-bottom:12px;line-height:1.45;">
         Expose the total value and thematic breakdown of your collection on your public profile.
       </div>
-      <div class="u-between u-fs-sm" style="background:var(--surface-3);border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);padding:10px;margin-top:8px;">
-        <a href="${url}" class="u-ellipsis" style="color:var(--accent);text-decoration:underline;max-width:200px;">${url}</a>
+      <div class="u-between u-fs-sm public-profile-linkbox">
+        <a href="${url}" class="u-ellipsis public-profile-link">${url}</a>
         <button class="btn-secondary" id="copyProfileUrl" style="padding:6px 12px;font-size:11px;width:auto;margin:0;">Copy</button>
       </div>
     </div>

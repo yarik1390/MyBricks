@@ -56,8 +56,27 @@ export async function renderSetDetail(setNum) {
         return;
       } catch {}
     }
-    $("#root").innerHTML = `<div class="page"><p>${navigator.onLine ? "Set not found." : "You're offline and this set isn't cached yet."}</p></div>`;
+    $("#root").innerHTML = setNotFoundHTML(setNum, navigator.onLine);
   }
+}
+
+function setNotFoundHTML(setNum, online) {
+  const title = online ? 'Set not found' : "Set isn't cached";
+  const body = online
+    ? `Brickvault could not find ${setNum} in the catalog. Check the set number variant, or search the catalog.`
+    : `You're offline and ${setNum} has not been opened on this device yet.`;
+  return `
+    <div class="page">
+      <div class="empty-state card" style="padding:18px;margin-top:16px;">
+        <div class="empty-state-icon">${I.search()}</div>
+        <h1 class="section-title">${escapeHtml(title)}</h1>
+        <p style="color:var(--ink-mute);line-height:1.45;">${escapeHtml(body)}</p>
+        <div class="empty-actions">
+          <a class="btn-primary" href="#/add">${I.search()}<span>Search catalog</span></a>
+          <a class="btn-secondary" href="#/pile">${I.scan()}<span>Scan a set</span></a>
+        </div>
+      </div>
+    </div>`;
 }
 
 function paintSetDetail(set, entry) {
@@ -692,7 +711,7 @@ function manageTabHTML(set, entry) {
       <legend class="u-mono-label u-mb-1">Purchase</legend>
       <div class="field">
         <div class="field-lbl">Purchase price</div>
-        <input id="mPrice" type="number" step="0.01" value="${entry.purchase_price ?? ""}" placeholder="0.00">
+        <input id="mPrice" type="number" step="0.01" value="${moneyInputValue(entry.purchase_price)}" placeholder="0.00" inputmode="decimal">
         <div class="field-err" id="mPriceErr"></div>
       </div>
       <div class="field">
@@ -751,9 +770,11 @@ function manageTabHTML(set, entry) {
     <div class="card" style="padding:14px 16px;margin-bottom:14px;" id="partsCard">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);">Parts completeness</div>
-        <button class="btn-secondary" id="loadPartsBtn" style="font-size:11px;padding:4px 10px;">Load parts</button>
+        <button class="btn-secondary" id="loadPartsBtn" style="font-size:11px;padding:4px 10px;">Refresh parts</button>
       </div>
-      <div id="partsContent" style="font-size:13px;color:var(--ink-mute);">Tap "Load parts" to check set completeness.</div>
+      <div id="partsContent" style="font-size:13px;color:var(--ink-mute);line-height:1.45;">
+        Compares the official parts list with missing pieces you mark for this set. 100% means no missing parts are recorded.
+      </div>
     </div>
 
     <div class="card" style="padding:14px 16px;margin-bottom:14px;">
@@ -941,6 +962,7 @@ function wireManageTab(set, entry) {
           <span style="font-size:22px;font-weight:700;color:${color};">${pctStr}</span>
           <span style="color:var(--ink-mute);font-size:12px;">complete${total_missing > 0 ? ` · ${total_missing} parts missing` : " · all parts present"}</span>
         </div>
+        <div style="color:var(--ink-mute);font-size:12px;line-height:1.45;margin-bottom:8px;">Based on the Rebrickable parts list and your saved missing-parts marks. Spares are ignored.</div>
         ${missingParts.length ? `
           <div style="font-size:12px;color:var(--ink-mute);margin-bottom:4px;">Missing:</div>
           <div style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;">
@@ -967,8 +989,14 @@ function wireManageTab(set, entry) {
 
 function optionalMoneyInput(value) {
   if (value == null || String(value).trim() === "") return null;
-  const n = Number(value);
+  const n = Number(String(value).trim().replace(',', '.'));
   return Number.isFinite(n) ? n : null;
+}
+
+function moneyInputValue(value) {
+  const n = optionalMoneyInput(value);
+  if (n == null) return "";
+  return (Math.round(n * 100) / 100).toFixed(2);
 }
 
 let _detailCtx = null;
@@ -1466,7 +1494,7 @@ function marketValueHeroHTML(set) {
   if (!Number.isFinite(mv) || mv <= 0) return '';
   const lo = Number(set.market_value_low);
   const hi = Number(set.market_value_high);
-  const conf = set.market_value_confidence || 'low';
+  const conf = String(set.market_value_confidence || set.confidence || 'low').toLowerCase();
   const confColor = conf === 'high' ? 'var(--up)' : conf === 'medium' ? 'var(--accent)' : 'var(--bv-yellow)';
   const confLabel = { high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence' }[conf] || conf;
   const basis = Array.isArray(set.market_value_basis) ? set.market_value_basis : [];
@@ -1606,7 +1634,7 @@ function marketConfidenceHTML(set) {
   const sources = Array.isArray(set.market_sources) && set.market_sources.length
     ? set.market_sources.filter(s => s.id !== 'retail')
     : fallbackSources();
-  const confidence = set.confidence || (set.valuation_method === 'formula_bulk' ? 'estimated' : 'medium');
+  const confidence = String(set.market_value_confidence || set.confidence || (set.valuation_method === 'formula_bulk' ? 'estimated' : 'medium')).toLowerCase();
   const freshness = set.freshness || 'fresh';
   const primary = sources.find(s => s.id === set.primary_value_source) || sources[0] || null;
   const color = confidence === 'high' ? 'var(--up)' : confidence === 'medium' ? 'var(--accent)' : confidence === 'low' ? 'var(--bv-yellow)' : 'var(--bv-red)';

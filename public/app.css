@@ -1711,6 +1711,45 @@ ul.set-list > li { display: contents; }
   align-items: center;
   justify-content: center;
 }
+
+.scan-result.manual {
+  max-height: min(56vh, 420px);
+}
+
+.scan-manual-card {
+  display: grid;
+  gap: 10px;
+}
+
+.scan-manual-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.scan-manual-row input {
+  min-height: 44px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: var(--bw-thin) solid var(--border-c);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 14px;
+}
+
+.scan-manual-row .btn-primary,
+.scan-manual-gallery {
+  min-height: 44px;
+}
+
+@media (max-width: 420px) {
+  .scan-manual-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 @keyframes slideUp {
   from { transform: translateY(60px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
@@ -3744,6 +3783,24 @@ body.scan-active .advisor-fab {
   margin-bottom: 3px;
 }
 
+.public-profile-linkbox {
+  background: var(--surface-3);
+  border: var(--bw-thin) solid var(--border-soft-c);
+  border-radius: var(--r-2);
+  padding: 10px;
+  margin-top: 8px;
+  gap: 10px;
+}
+
+.public-profile-link {
+  max-width: 100%;
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
 .action-result {
   min-height: 20px;
   margin-top: 8px;
@@ -3764,9 +3821,10 @@ body.scan-active .advisor-fab {
   display: none;
 }
 
-.admin-segments a {
+.admin-segments a,
+.admin-segments button {
   flex: 0 0 auto;
-  min-height: 40px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   padding: 0 12px;
@@ -3779,6 +3837,12 @@ body.scan-active .advisor-fab {
   text-decoration: none;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.admin-segments button.active,
+.admin-segments a.active {
+  background: var(--bv-yellow);
+  color: var(--line);
 }
 
 .admin-job-summary,
@@ -3971,7 +4035,14 @@ body.scan-active .advisor-fab {
 
 .filter-row {
   scroll-snap-type: x proximity;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.filter-row::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .filter-row .chip {
@@ -4114,7 +4185,8 @@ body.advisor-open #advisorFab {
   margin: 0 -2px 12px;
   background: color-mix(in srgb, var(--bg) 94%, transparent);
   backdrop-filter: blur(12px);
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .admin-segments-sticky a,
@@ -4441,6 +4513,17 @@ body.advisor-open #advisorFab {
   font-size: 12px;
 }
 
+.admin-job-idle > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.admin-job-idle strong,
+.admin-job-idle span {
+  display: block;
+}
+
 .admin-progress-line {
   display: grid;
   gap: 8px;
@@ -4701,6 +4784,56 @@ body.advisor-open #advisorFab {
   gap: 8px;
 }
 
+.admin-supporters {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: var(--bw-thin) solid var(--border-soft-c);
+}
+
+.admin-supporters-head,
+.admin-supporter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.admin-supporters-head strong,
+.admin-supporter-row strong {
+  display: block;
+  color: var(--ink);
+}
+
+.admin-supporters-head span,
+.admin-supporter-row span,
+.admin-supporter-row small {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink-mute);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.admin-supporter-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-supporter-row {
+  padding: 10px;
+  border: var(--bw-thin) solid var(--border-soft-c);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+}
+
+.admin-supporter-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
 .admin-user-result {
   display: flex;
   align-items: center;
@@ -4864,5 +4997,12 @@ body.advisor-open #advisorFab {
   .admin-contrib-head {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .admin-supporters-head,
+  .admin-supporter-row,
+  .admin-supporter-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
