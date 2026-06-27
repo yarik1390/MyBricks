@@ -4,7 +4,7 @@ import { importSets, importFigs } from '../jobs/import-catalog';
 import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
 import { BARCODE_PAGE_SIZE } from '../lib/brickset';
 import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
-import { ebaySoldCompsEnabled } from '../lib/pricing-flags';
+import { ebaySoldCompsEnabled, pricesapiEnabled } from '../lib/pricing-flags';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
 import { getQuotaUsage, QUOTA_CAPS } from '../lib/api-quota';
 import { getAiUsageReport } from '../lib/ai-usage';
@@ -16,7 +16,8 @@ import { runBrickEconomyEnrich } from '../jobs/brickeconomy-enrich';
 import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricecharting-bulk';
 import { getKeyPoolStatus } from '../lib/pricesapi-keys';
 import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG } from '../lib/source-config';
-import { getRecentRuns } from '../lib/cron-runs';
+import { getRecentRuns, recordCronStart, recordCronFinish, summarizeResult } from '../lib/cron-runs';
+import { runPricesApiRetail } from '../jobs/pricesapi-retail';
 import { PROCESS_REGISTRY, GROUP_ORDER, processInfo } from '../lib/process-registry';
 import type { Env, Variables } from '../types';
 
@@ -544,6 +545,33 @@ app.post('/pricecharting-bulk-fetch', async (c) => {
     runPriceChartingBulkFetch(c.env).catch((e) => console.warn('[pc-bulk-fetch] failed:', (e as Error).message)),
   );
   return c.json({ ok: true, status: 'running', message: 'LEGO price-guide download started — results appear in diagnostics shortly.' });
+});
+
+// On-demand pricesAPI.io live-retail refresh — same path as the daily cron, but
+// triggered manually so freshly-added keys can be verified without waiting for
+// 17:00 UTC. pricesAPI cold calls run 30–90s each, so this runs in the background
+// (a synchronous request would time out) and is recorded into cron_runs so the
+// Activity feed shows it go Running → OK/Failed with a summary.
+app.post('/run-pricesapi', async (c) => {
+  if (!pricesapiEnabled(c.env)) {
+    return c.json({ error: 'pricesAPI is not enabled. Set PRICESAPI_API_KEYS (one or more keys) and PRICESAPI_ENABLED=1.' }, 400);
+  }
+  const body = await c.req.json<{ limit?: number }>().catch(() => ({} as { limit?: number }));
+  const requested = Number(body.limit);
+  const limit = Number.isFinite(requested) && requested > 0 ? Math.min(Math.floor(requested), 10) : 3;
+
+  c.executionCtx.waitUntil((async () => {
+    const startedMs = Date.now();
+    const runId = await recordCronStart(c.env, 'pricesapi-retail').catch(() => null);
+    try {
+      const res = await runPricesApiRetail(c.env, { limit });
+      await recordCronFinish(c.env, runId, 'pricesapi-retail', { ok: true, summary: summarizeResult(res), durationMs: Date.now() - startedMs }).catch(() => {});
+    } catch (e) {
+      await recordCronFinish(c.env, runId, 'pricesapi-retail', { ok: false, error: (e as Error).message, durationMs: Date.now() - startedMs }).catch(() => {});
+    }
+  })());
+
+  return c.json({ ok: true, status: 'running', limit, message: 'pricesAPI refresh started — watch the Activity tab for the result (cold calls take up to ~90s each).' });
 });
 
 app.get('/import-status/:id', requireAdmin, async (c) => {

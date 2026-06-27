@@ -126,6 +126,17 @@ const ADMIN_JOB_TOOLS = {
     quota: 'Auto-runs weekly; CSV downloads are limited to once per 10 minutes.',
     icon: I.download(),
   },
+  pricesapi: {
+    url: '/api/admin/run-pricesapi',
+    method: 'POST',
+    body: { limit: 3 },
+    label: 'Run pricesAPI now',
+    desc: 'Refreshes live retailer offers + stock for a few sets — use to verify new keys.',
+    source: 'pricesAPI.io',
+    duration: 'Up to ~90s per set',
+    quota: 'Needs PRICESAPI_ENABLED=1 + keys; spends the daily pricesAPI budget.',
+    icon: I.refresh({ w: 16 }),
+  },
 };
 
 const MAINTENANCE_TOOLS = {
@@ -359,7 +370,7 @@ function setupRowsHTML() {
 }
 
 function populateSectionHTML() {
-  const secondary = ['sets', 'figs', 'upc', 'populate', 'revalue', 'pricechartingBulk'];
+  const secondary = ['sets', 'figs', 'upc', 'populate', 'revalue', 'pricechartingBulk', 'pricesapi'];
   return `
     <div class="admin-populate-primary">
       <div class="admin-populate-copy">
@@ -560,6 +571,7 @@ async function triggerImport(type, { single = false } = {}) {
     if (type === 'everything' && r.done) populateEverythingAuto = false;
     toast(r.message || `Job #${activeAdminRunId || ''} started`, 'success');
     await updateJobsStatus();
+    loadActivity();
     scheduleAdminJobPoll(1200);
   } catch (e) {
     toast('Job failed: ' + (e.message || e), 'error');
