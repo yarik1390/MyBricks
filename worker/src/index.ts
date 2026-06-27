@@ -363,6 +363,15 @@ export default {
       case '0 16 * * *': await run('pricecharting-enrich', () => runPriceChartingEnrich(env, { limit: 50 })); break;
       case '0 17 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 18 * * SUN': await run('pricecharting-bulk', () => runPriceChartingBulkFetch(env)); break;
+      // TEMPORARY: frequent trigger to fill the catalog + verify the bulk-fetch
+      // path server-side (remove once populated). Self-guards: skips when the last
+      // run finished < ~4 min ago via the summary timestamp it persists.
+      case '*/5 * * * *': await run('pricecharting-bulk-temp', async () => {
+        const last = await env.DB.prepare(`SELECT value FROM app_settings WHERE key='pc_bulk_last_result'`).first<{ value: string }>().catch(() => null);
+        const finishedAt = last?.value ? Date.parse(JSON.parse(last.value)?.finished_at ?? '') : NaN;
+        if (Number.isFinite(finishedAt) && Date.now() - finishedAt < 4 * 60_000) return;
+        await runPriceChartingBulkFetch(env);
+      }); break;
       // TEMPORARY one-time bootstrap: fill pc_new_value across the year>=2000 catalog.
       // Runs 4x/hour at limit 150 concurrency 10; remove once pc_new_value is filled.
       case '10,25,40,55 * * * *': await run('pc-bootstrap', () => runPriceChartingEnrich(env, { limit: 150, concurrency: 10 })); break;
