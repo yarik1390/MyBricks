@@ -294,11 +294,18 @@ app.get('/:setnum', async (c) => {
   const setnum = c.req.param('setnum');
   const userId = c.get('userId');
 
-  const DETAIL_SQL = `SELECT s.*, ext.pc_loose_value, ext.pc_sales_volume, ext.pa_retail_value, ext.pa_lowest_offer, ext.pa_in_stock, ext.pa_best_merchant, ext.pa_offer_count, ext.pa_market FROM lego_sets s ${MARKET_EXT_JOIN} WHERE s.set_num=?`;
-  let set = await c.env.DB.prepare(DETAIL_SQL).bind(setnum).first<Record<string, unknown>>();
-  if (!set) set = await c.env.DB.prepare(DETAIL_SQL).bind(setnum + '-1').first<Record<string, unknown>>();
+  // lego_sets is at D1's 100-column ceiling, so `SELECT *` already returns ~100
+  // columns. JOINing the set_market_ext columns into the same SELECT overflows
+  // D1's 100-column RESULT-SET limit ("too many columns in result set"), so fetch
+  // the extended market fields separately and merge them in.
+  let set = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(setnum).first<Record<string, unknown>>();
+  if (!set) set = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(setnum + '-1').first<Record<string, unknown>>();
 
   if (set) {
+    const ext = await c.env.DB.prepare(
+      'SELECT pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count, pa_market FROM set_market_ext WHERE set_num=?'
+    ).bind(set.set_num).first<Record<string, unknown>>().catch(() => null);
+    if (ext) set = { ...set, ...ext };
     const activeSet = set;
     let resultSet: Record<string, unknown> = set;
 
