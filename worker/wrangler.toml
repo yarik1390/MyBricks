@@ -51,9 +51,6 @@ crons = [
   # PriceCharting LEGO-sets bulk CSV refresh — one ~2MB download covers the whole
   # LEGO catalog. Weekly (CSV downloads are rate-limited to 1 per 10 minutes).
   "0 18 * * SUN",
-  # TEMPORARY: one-time PriceCharting bulk fill + diagnostics (remove after the
-  # catalog is populated / the path is verified).
-  "*/5 * * * *",
   # TEMPORARY: one-time PriceCharting bootstrap (remove after pc_new_value is filled).
   "10,25,40,55 * * * *",
   # TEMPORARY: one-time BrickEconomy bootstrap (remove after be_value_new is filled).
