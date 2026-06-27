@@ -51,6 +51,14 @@ import type { Env, Variables } from './types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
+// TEMPORARY diagnostics: surface the real error message/stack on 500s so a
+// production-only handler exception is visible (no logs tooling available).
+// Remove after diagnosing the set-detail 500.
+app.onError((err, c) => {
+  console.error('[onError]', err);
+  return c.json({ error: 'Internal Server Error', message: (err as Error)?.message, stack: ((err as Error)?.stack || '').split('\n').slice(0, 5).join(' | ') }, 500);
+});
+
 // Browser origins we reflect for CORS. Restricted to localhost (dev) and this
 // project's own Cloudflare Pages deployments: the production alias and its
 // preview deployments, which all live under the `brickvault-5ub.pages.dev`
