@@ -7,6 +7,7 @@ import {
   jobProgressSummary, computeSpreadSignals, buyWindow, pricePerPiece, isStalledJobRun,
   parseCSVTable, parseCollectionCSV, sanitizeMoneyInput, activeCatalogFilterCount, activeFigFilterCount, figFilterSummary,
   liquidityLabel, classifyProviderHealth, validateSourceTuningInput, groupAdminJobRuns,
+  formatRelativeTime, processRunBadge,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -539,6 +540,29 @@ describe('computeSpreadSignals', () => {
   it('honors a custom threshold', () => {
     const out = computeSpreadSignals([item({ ebay_new_value: 110 })], { threshold: 0.05 });
     assert.equal(out.hot.length, 1);
+  });
+});
+
+describe('formatRelativeTime', () => {
+  const now = Date.parse('2026-06-27T12:00:00Z');
+  it('returns — for missing/bad values', () => {
+    assert.equal(formatRelativeTime(null, now), '—');
+    assert.equal(formatRelativeTime('not-a-date', now), '—');
+  });
+  it('parses SQLite UTC strings and ISO', () => {
+    assert.equal(formatRelativeTime('2026-06-27 11:59:55', now), 'just now');
+    assert.equal(formatRelativeTime('2026-06-27 11:58:00', now), '2m ago');
+    assert.equal(formatRelativeTime('2026-06-27T09:00:00Z', now), '3h ago');
+    assert.equal(formatRelativeTime('2026-06-25 12:00:00', now), '2d ago');
+  });
+});
+
+describe('processRunBadge', () => {
+  it('maps status to tone + label', () => {
+    assert.deepEqual(processRunBadge({ status: 'running' }), { tone: 'running', label: 'Running' });
+    assert.deepEqual(processRunBadge({ status: 'failed' }), { tone: 'danger', label: 'Failed' });
+    assert.deepEqual(processRunBadge({ status: 'ok' }), { tone: 'ok', label: 'OK' });
+    assert.deepEqual(processRunBadge({}), { tone: 'idle', label: 'Not run yet' });
   });
 });
 

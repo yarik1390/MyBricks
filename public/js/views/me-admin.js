@@ -8,6 +8,8 @@ import {
   groupAdminJobRuns,
   classifyProviderHealth,
   validateSourceTuningInput,
+  formatRelativeTime,
+  processRunBadge,
 } from '../lib/pure.js';
 import { go } from '../router.js';
 import { subpageTopbarHTML, loadMe } from './me-shared.js';
@@ -30,11 +32,13 @@ let contributionData = null;
 let supporterData = null;
 let sourceDefaults = {};
 let sourceConfig = {};
+let activityData = null;
+let activityPollTimer = null;
 
 const ADMIN_SECTIONS = [
   ['adminOverview', 'Overview'],
   ['adminPopulate', 'Populate'],
-  ['adminJobs', 'Jobs'],
+  ['adminJobs', 'Activity'],
   ['adminProviders', 'Providers'],
   ['adminQuality', 'Catalog Quality'],
   ['adminSources', 'Source Tuning'],
@@ -48,6 +52,7 @@ const ADMIN_JOB_TOOLS = {
     method: 'POST',
     body: { dataset: 'sets' },
     label: 'Import sets',
+    desc: 'Imports the full LEGO set catalog from Rebrickable.',
     source: 'Rebrickable',
     duration: 'Several minutes',
     quota: 'Use only when catalog import is incomplete.',
@@ -59,6 +64,7 @@ const ADMIN_JOB_TOOLS = {
     method: 'POST',
     body: { dataset: 'figs' },
     label: 'Import minifigs',
+    desc: 'Imports the full minifigure catalog from Rebrickable.',
     source: 'Rebrickable',
     duration: 'Several minutes',
     quota: 'Use when minifig data is missing or stale.',
@@ -70,6 +76,7 @@ const ADMIN_JOB_TOOLS = {
     method: 'POST',
     body: {},
     label: 'Backfill barcodes',
+    desc: 'Fills in missing UPC barcodes so sets can be scanned.',
     source: 'Brickset / UPCitemdb',
     duration: '1 safe slice',
     quota: 'Daily provider quota controls how far this advances.',
@@ -80,6 +87,7 @@ const ADMIN_JOB_TOOLS = {
     method: 'POST',
     body: {},
     label: 'Populate coverage',
+    desc: 'Runs one safe slice of barcode + asking-price refresh.',
     source: 'Configured providers',
     duration: '1 safe slice',
     quota: 'Barcode pages plus asking-price refresh.',
@@ -90,6 +98,7 @@ const ADMIN_JOB_TOOLS = {
     method: 'POST',
     body: { scope: 'all', limit: 4 },
     label: 'Revalue prices',
+    desc: 'Re-prices a small batch of sets from current market sources.',
     source: 'Valuation sources',
     duration: 'Small batch',
     quota: 'Uses the current daily source budgets.',
@@ -100,6 +109,7 @@ const ADMIN_JOB_TOOLS = {
     method: 'POST',
     body: { valuation_limit: 6, barcode_pages: 4, ebay_limit: 2 },
     label: 'Populate all safe sources',
+    desc: 'Runs safe slices across every configured source until done.',
     source: 'All configured providers',
     duration: 'Repeated safe slices',
     quota: 'Stops only for hard errors; unavailable providers stay degraded.',
@@ -110,6 +120,7 @@ const ADMIN_JOB_TOOLS = {
     method: 'POST',
     body: {},
     label: 'Refresh PriceCharting (LEGO bulk)',
+    desc: 'Downloads the whole LEGO price guide and updates values + liquidity.',
     source: 'PriceCharting CSV',
     duration: 'One ~2MB download',
     quota: 'Auto-runs weekly; CSV downloads are limited to once per 10 minutes.',
@@ -122,12 +133,14 @@ const MAINTENANCE_TOOLS = {
     url: '/api/admin/expire-valuations',
     method: 'POST',
     label: 'Expire valuations',
+    desc: 'Marks current valuations stale so the pricing crons re-price every set.',
     confirm: 'Expire valuations so cron jobs reprice them? This can create a lot of follow-up work.',
   },
   repair: {
     url: '/api/admin/repair-search-index',
     method: 'POST',
     label: 'Repair search index',
+    desc: 'Rebuilds the catalog search index if set search starts returning wrong results.',
     confirm: 'Rebuild the catalog search index now?',
   },
 };
@@ -211,9 +224,11 @@ export async function renderMeAdmin() {
       </section>
 
       <section class="admin-section" id="adminJobs">
-        <div class="section-kicker">Import and revalue jobs</div>
-        <h2 class="section-title">Jobs</h2>
+        <div class="section-kicker">Live background activity</div>
+        <h2 class="section-title">Activity</h2>
+        <p class="admin-section-intro">Every background process and admin job, updated live while this page is open. Each row shows what it does, when it last ran, and the result.</p>
         <div id="jobsStatusContainer" class="admin-panel" aria-live="polite">Loading jobs...</div>
+        <div id="processesContainer" class="admin-process-wrap" aria-live="polite">Loading processes...</div>
       </section>
 
       <section class="admin-section" id="adminProviders">
@@ -304,6 +319,7 @@ export async function renderMeAdmin() {
   wireAdminShell();
   renderAdminOverview();
   updateJobsStatus();
+  loadActivity();
   updateIntegrationsHealth();
   loadSourceTuning();
   loadContribQueue();
@@ -375,8 +391,8 @@ function adminToolCardHTML(key) {
       <div class="admin-tool-icon">${tool.icon}</div>
       <div>
         <h3>${escapeHtml(tool.label)}</h3>
-        <p>${escapeHtml(tool.source)} - ${escapeHtml(tool.duration)}</p>
-        <small>${escapeHtml(tool.quota)}</small>
+        ${tool.desc ? `<p class="admin-tool-desc">${escapeHtml(tool.desc)}</p>` : ''}
+        <small>${escapeHtml(tool.source)} · ${escapeHtml(tool.duration)} · ${escapeHtml(tool.quota)}</small>
       </div>
       <button class="icon-btn admin-tool-run" data-admin-tool="${escapeHtml(key)}" aria-label="${escapeHtml(tool.label)}">${I.refresh({ w: 16 })}</button>
     </article>`;
@@ -389,8 +405,8 @@ function maintenanceCardHTML(key) {
       <div class="admin-tool-icon">${I.gear()}</div>
       <div>
         <h3>${escapeHtml(tool.label)}</h3>
-        <p>High-impact maintenance</p>
-        <small>Confirmation required before running.</small>
+        ${tool.desc ? `<p class="admin-tool-desc">${escapeHtml(tool.desc)}</p>` : ''}
+        <small>High-impact · confirmation required before running.</small>
       </div>
       <button class="icon-btn admin-tool-run" data-maint-tool="${escapeHtml(key)}" aria-label="${escapeHtml(tool.label)}">${I.arrowR({ w: 16 })}</button>
     </article>`;
@@ -610,6 +626,79 @@ async function updateJobsStatus() {
     container.innerHTML = errorPanelHTML('Failed to load jobs', err.message || String(err), 'Retry');
     $('#adminErrorRetry')?.addEventListener('click', updateJobsStatus);
   }
+}
+
+async function loadActivity() {
+  if (location.hash !== '#/me/admin') return;
+  try {
+    activityData = await api('/api/admin/activity');
+    renderProcesses();
+  } catch (err) {
+    const c = $('#processesContainer');
+    if (c) {
+      c.innerHTML = errorPanelHTML('Failed to load processes', err.message || String(err), 'Retry');
+      $('#adminErrorRetry')?.addEventListener('click', loadActivity);
+    }
+  } finally {
+    scheduleActivityPoll();
+  }
+}
+
+function scheduleActivityPoll() {
+  if (activityPollTimer) { clearTimeout(activityPollTimer); activityPollTimer = null; }
+  if (location.hash !== '#/me/admin') return;
+  const anyRunning = (activityData?.processes || []).some(p => p.status === 'running') || !!activeAdminRunId;
+  const delay = document.hidden ? 30000 : (anyRunning ? 3000 : 8000);
+  activityPollTimer = setTimeout(loadActivity, delay);
+}
+
+function renderProcesses() {
+  const c = $('#processesContainer');
+  if (!c || !activityData) return;
+  const procs = activityData.processes || [];
+  const order = activityData.group_order || [];
+  const counts = { ok: 0, failed: 0, running: 0, idle: 0 };
+  for (const p of procs) counts[p.status === 'ok' ? 'ok' : p.status === 'failed' ? 'failed' : p.status === 'running' ? 'running' : 'idle']++;
+  const byGroup = new Map();
+  for (const p of procs) {
+    if (!byGroup.has(p.group)) byGroup.set(p.group, []);
+    byGroup.get(p.group).push(p);
+  }
+  const groups = order.filter(g => byGroup.has(g));
+  c.innerHTML = `
+    <div class="admin-activity-summary">
+      ${counts.running ? `<span class="admin-pill admin-pill--running">${counts.running} running</span>` : ''}
+      <span class="admin-pill admin-pill--ok">${counts.ok} healthy</span>
+      ${counts.failed ? `<span class="admin-pill admin-pill--danger">${counts.failed} failed</span>` : ''}
+      ${counts.idle ? `<span class="admin-pill admin-pill--idle">${counts.idle} not yet run</span>` : ''}
+    </div>
+    ${groups.map(g => `
+      <div class="admin-process-group">
+        <h3 class="admin-process-group-title">${escapeHtml(g)}</h3>
+        <div class="admin-process-list">${byGroup.get(g).map(processRowHTML).join('')}</div>
+      </div>`).join('')}`;
+}
+
+function processRowHTML(p) {
+  const badge = processRunBadge(p);
+  const when = formatRelativeTime(p.finished_at || p.started_at);
+  const dur = p.duration_ms ? ` · ${(p.duration_ms / 1000).toFixed(1)}s` : '';
+  const result = p.status === 'failed'
+    ? `<span class="admin-process-result is-error">${escapeHtml(p.error || 'failed')}</span>`
+    : (p.summary ? `<span class="admin-process-result">${escapeHtml(p.summary)}</span>` : '');
+  return `
+    <div class="admin-process-row${p.status === 'running' ? ' is-running' : ''}">
+      <div class="admin-process-head">
+        <span class="admin-process-label">${escapeHtml(p.label)}</span>
+        <span class="badge badge--${badge.tone}">${escapeHtml(badge.label)}</span>
+      </div>
+      <p class="admin-process-desc">${escapeHtml(p.description)}</p>
+      <div class="admin-process-meta">
+        ${p.schedule ? `<span class="admin-process-sched">${escapeHtml(p.schedule)}</span>` : ''}
+        ${p.status === 'idle' ? '' : `<span>last run ${escapeHtml(when)}${dur}</span>`}
+        ${result}
+      </div>
+    </div>`;
 }
 
 function renderJobs(container) {

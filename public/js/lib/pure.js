@@ -16,6 +16,39 @@ export const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
 export const daysAgo = (iso) => Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
 
+/**
+ * Short relative time ("just now", "3m ago", "2h ago", "5d ago") for the admin
+ * Activity feed. Handles SQLite's UTC "YYYY-MM-DD HH:MM:SS" (no zone) and ISO.
+ * Returns "—" for missing/unparseable values.
+ */
+export function formatRelativeTime(value, now = Date.now()) {
+  if (!value) return "—";
+  let s = String(value);
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s)) s = s.replace(" ", "T") + "Z";
+  const t = new Date(s).getTime();
+  if (!Number.isFinite(t)) return "—";
+  const sec = Math.max(0, Math.floor((now - t) / 1000));
+  if (sec < 10) return "just now";
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  return `${Math.floor(hr / 24)}d ago`;
+}
+
+/**
+ * Maps a process's run status to a UI badge { tone, label }.
+ * tone is one of: running | danger | ok | idle.
+ */
+export function processRunBadge(proc = {}) {
+  const status = proc.status || "idle";
+  if (status === "running") return { tone: "running", label: "Running" };
+  if (status === "failed") return { tone: "danger", label: "Failed" };
+  if (status === "ok") return { tone: "ok", label: "OK" };
+  return { tone: "idle", label: "Not run yet" };
+}
+
 export function themeHue(theme = "") {
   let h = 0;
   for (let i = 0; i < theme.length; i++) h = (h * 31 + theme.charCodeAt(i)) & 0xFFFF;
