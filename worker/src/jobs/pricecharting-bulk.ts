@@ -167,109 +167,87 @@ export async function runPriceChartingBulkFetch(env: Env): Promise<BulkResult> {
   return result;
 }
 
+const STAGE = '_pc_bulk_stage';
+
 async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   const rows = parsePriceChartingCsv(csvText);
-  if (!rows.length) return { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: 'no rows parsed' };
+  if (!rows.length) return persistBulk(env, { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: 'no rows parsed' });
 
-  let matched = 0;
-  let updated = 0;
-  const touched: string[] = [];
+  // Stage rows into a temp table and resolve matches with set-based JOINs. This
+  // avoids D1's 100-bound-parameters-per-query limit (a 150-row chunk with three
+  // IN(...) lists bound up to ~450 params and threw before any write — the reason
+  // earlier runs left no trace) and keeps the whole import subrequest-lean.
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS ${STAGE} (upc TEXT, setnum TEXT, newv REAL, cibv REAL, loosev REAL, salesvol INTEGER)`,
+  ).run();
+  await env.DB.prepare(`DELETE FROM ${STAGE}`).run();
 
-  // Process in chunks: one resolve-read per chunk, then batched writes.
-  for (let i = 0; i < rows.length; i += 150) {
-    const chunk = rows.slice(i, i + 150);
-    const upcs = [...new Set(chunk.map((r) => r.upc).filter(Boolean) as string[])];
-    const pcIds = [...new Set(chunk.map((r) => r.pcId).filter(Boolean) as string[])];
-    // Candidate set numbers: the common "-1" suffix variant of each parsed base.
-    const setNums = [...new Set(chunk.map((r) => (r.setBase ? `${r.setBase}-1` : null)).filter(Boolean) as string[])];
+  // Bulk-insert via multi-row statements (16 rows × 6 cols = 96 binds, under the
+  // 100/statement limit), 80 statements per D1 batch (1 subrequest each).
+  const PER_STMT = 16;
+  const placeholders = Array.from({ length: PER_STMT }, () => '(?,?,?,?,?,?)').join(',');
+  let batch: D1PreparedStatement[] = [];
+  for (let i = 0; i < rows.length; i += PER_STMT) {
+    const slice = rows.slice(i, i + PER_STMT);
+    const ph = slice.length === PER_STMT ? placeholders : slice.map(() => '(?,?,?,?,?,?)').join(',');
+    const binds: unknown[] = [];
+    for (const r of slice) {
+      binds.push(r.upc, r.setBase ? `${r.setBase}-1` : null, r.newValue, r.completeValue, r.looseValue, r.salesVolume);
+    }
+    batch.push(env.DB.prepare(`INSERT INTO ${STAGE} (upc,setnum,newv,cibv,loosev,salesvol) VALUES ${ph}`).bind(...binds));
+    if (batch.length >= 80) { await env.DB.batch(batch); batch = []; }
+  }
+  if (batch.length) await env.DB.batch(batch);
 
-    const upcToSet = new Map<string, string>();
-    const pcIdToSet = new Map<string, string>();
-    const knownSetNums = new Set<string>();
-    const conds: string[] = [];
-    const binds: string[] = [];
-    if (upcs.length) { conds.push(`upc IN (${upcs.map(() => '?').join(',')})`); binds.push(...upcs); }
-    if (pcIds.length) { conds.push(`pc_id IN (${pcIds.map(() => '?').join(',')})`); binds.push(...pcIds); }
-    if (setNums.length) { conds.push(`set_num IN (${setNums.map(() => '?').join(',')})`); binds.push(...setNums); }
-    if (!conds.length) continue;
+  await env.DB.prepare(`CREATE INDEX IF NOT EXISTS ${STAGE}_setnum ON ${STAGE}(setnum)`).run();
+  await env.DB.prepare(`CREATE INDEX IF NOT EXISTS ${STAGE}_upc ON ${STAGE}(upc)`).run();
 
+  // Resolve matches by set_num first (exact "<base>-1"), then by UPC. COALESCE so
+  // a present value wins and we never overwrite existing data with NULL.
+  const newUpdate = (joinOn: string) => env.DB.prepare(
+    `UPDATE lego_sets AS ls SET
+       pc_new_value = COALESCE(s.newv, ls.pc_new_value),
+       pc_complete_value = COALESCE(s.cibv, ls.pc_complete_value),
+       pc_cached_at = datetime('now')
+     FROM ${STAGE} s WHERE ${joinOn} AND (s.newv IS NOT NULL OR s.cibv IS NOT NULL)`,
+  );
+  const extInsert = (joinOn: string) => env.DB.prepare(
+    `INSERT INTO set_market_ext (set_num, pc_loose_value, pc_sales_volume)
+       SELECT ls.set_num, s.loosev, s.salesvol FROM ${STAGE} s JOIN lego_sets ls ON ${joinOn}
+       WHERE s.loosev IS NOT NULL OR s.salesvol IS NOT NULL
+     ON CONFLICT(set_num) DO UPDATE SET
+       pc_loose_value = COALESCE(excluded.pc_loose_value, set_market_ext.pc_loose_value),
+       pc_sales_volume = COALESCE(excluded.pc_sales_volume, set_market_ext.pc_sales_volume)`,
+  );
+  const BY_SETNUM = 's.setnum = ls.set_num';
+  const BY_UPC = "s.upc = ls.upc AND s.upc IS NOT NULL AND s.upc <> ''";
+  await env.DB.batch([newUpdate(BY_SETNUM), newUpdate(BY_UPC), extInsert(BY_SETNUM), extInsert(BY_UPC)]);
+
+  const matchedRow = await env.DB.prepare(
+    `SELECT COUNT(DISTINCT ls.set_num) AS n FROM ${STAGE} s
+       JOIN lego_sets ls ON (s.setnum = ls.set_num) OR (s.upc = ls.upc AND s.upc <> '')`,
+  ).first<{ n: number }>().catch(() => ({ n: 0 }));
+  const matched = Number(matchedRow?.n ?? 0);
+
+  // Recompute the persisted blend for OWNED + WISHLISTED sets only (user-facing
+  // priority, bounded). Everything else surfaces live on read and catches up on
+  // the next daily valuation pass.
+  try {
     const { results } = await env.DB.prepare(
-      `SELECT set_num, upc, pc_id FROM lego_sets WHERE ${conds.join(' OR ')}`,
-    ).bind(...binds).all<{ set_num: string; upc: string | null; pc_id: string | null }>();
-    for (const r of results) {
-      if (r.upc) upcToSet.set(r.upc, r.set_num);
-      if (r.pc_id) pcIdToSet.set(r.pc_id, r.set_num);
-      knownSetNums.add(r.set_num);
-    }
-
-    const stmts: D1PreparedStatement[] = [];
-    for (const row of chunk) {
-      const setNum =
-        (row.upc && upcToSet.get(row.upc)) ||
-        (row.pcId && pcIdToSet.get(row.pcId)) ||
-        (row.setBase && knownSetNums.has(`${row.setBase}-1`) ? `${row.setBase}-1` : null);
-      if (!setNum) continue;
-      matched++;
-
-      const fields: string[] = [`pc_cached_at=datetime('now')`];
-      const fb: unknown[] = [];
-      if (row.pcId) { fields.push('pc_id=?'); fb.push(row.pcId); }
-      if (row.newValue != null) { fields.push('pc_new_value=?'); fb.push(row.newValue); }
-      if (row.completeValue != null) { fields.push('pc_complete_value=?'); fb.push(row.completeValue); }
-      stmts.push(env.DB.prepare(`UPDATE lego_sets SET ${fields.join(', ')} WHERE set_num=?`).bind(...fb, setNum));
-
-      if (row.looseValue != null || row.salesVolume != null) {
-        stmts.push(env.DB.prepare(
-          `INSERT INTO set_market_ext (set_num, pc_loose_value, pc_sales_volume) VALUES (?1, ?2, ?3)
-           ON CONFLICT(set_num) DO UPDATE SET
-             pc_loose_value = COALESCE(?2, pc_loose_value),
-             pc_sales_volume = COALESCE(?3, pc_sales_volume)`,
-        ).bind(setNum, row.looseValue, row.salesVolume));
-      }
-      if (row.newValue != null || row.completeValue != null || row.looseValue != null) {
-        touched.push(setNum);
-        updated++;
-      }
-    }
-    // D1 caps bound params + batch size; flush per chunk (≤300 stmts).
-    for (let j = 0; j < stmts.length; j += 90) {
-      await env.DB.batch(stmts.slice(j, j + 90));
-    }
+      `SELECT set_num FROM user_collection WHERE deleted_at IS NULL UNION SELECT set_num FROM user_wishlist`,
+    ).all<{ set_num: string }>();
+    const priority = results.map((r) => r.set_num);
+    if (priority.length) await recomputeBlendedValues(env.DB, priority);
+  } catch (e) {
+    console.warn('[pc-bulk] priority recompute failed:', (e as Error).message);
   }
 
-  // Recompute the persisted blend only for OWNED + WISHLISTED touched sets — the
-  // user-facing priority — to keep this subrequest-lean at catalog scale (13k+
-  // rows). Everything else surfaces live on read (enrichSetRecord) and its
-  // persisted blend catches up on the next daily valuation pass.
-  if (touched.length) {
-    try {
-      // Read the (small) owned+wishlisted universe once and intersect in memory —
-      // a 13k-item IN(...) would blow SQLite's bind-variable limit.
-      const { results } = await env.DB.prepare(
-        `SELECT set_num FROM user_collection WHERE deleted_at IS NULL
-         UNION SELECT set_num FROM user_wishlist`,
-      ).all<{ set_num: string }>();
-      const priorityUniverse = new Set(results.map((r) => r.set_num));
-      const priority = [...new Set(touched)].filter((s) => priorityUniverse.has(s));
-      if (priority.length) await recomputeBlendedValues(env.DB, priority);
-    } catch (e) {
-      console.warn('[pc-bulk] priority recompute failed:', (e as Error).message);
-    }
-  }
+  await env.DB.prepare(`DROP TABLE IF EXISTS ${STAGE}`).run().catch(() => {});
 
-  const result: BulkResult = {
+  return persistBulk(env, {
     rows: rows.length,
     matched,
     unmatched: rows.length - matched,
-    updated,
-    finished_at: new Date().toISOString(),
-  };
-  // Persist a summary for admin diagnostics (fail-open).
-  try {
-    await env.DB.prepare(
-      `INSERT INTO app_settings (key, value, updated_at) VALUES (?1, ?2, datetime('now'))
-       ON CONFLICT(key) DO UPDATE SET value=?2, updated_at=datetime('now')`,
-    ).bind(PROGRESS_KEY, JSON.stringify(result)).run();
-  } catch { /* non-fatal */ }
-  return result;
+    updated: matched,
+  });
 }
