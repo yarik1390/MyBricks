@@ -1,0 +1,112 @@
+import type { Env } from '../types';
+
+// ---------------------------------------------------------------------------
+// Background-process run tracking. The run() wrapper in index.ts calls
+// recordCronStart before a cron and recordCronFinish after, so the admin
+// "Activity" view shows every process running -> ok|failed with a short result
+// summary. EVERY helper FAILS OPEN: tracking must never break a cron.
+// ---------------------------------------------------------------------------
+
+const KEEP_PER_NAME = 5; // history depth retained per process
+
+export interface CronRunRow {
+  id: number;
+  name: string;
+  started_at: string | null;
+  finished_at: string | null;
+  status: string; // running | ok | failed
+  summary: string | null;
+  error: string | null;
+  duration_ms: number | null;
+}
+
+// Turn a cron's return value into a compact one-line summary for the UI.
+export function summarizeResult(res: unknown): string | null {
+  if (res == null || typeof res !== 'object') return null;
+  const r = res as Record<string, unknown>;
+  if (typeof r.skipped === 'string' && r.skipped) return `skipped: ${r.skipped}`;
+  const parts: string[] = [];
+  const add = (key: string, label: string) => {
+    const v = r[key];
+    if (typeof v === 'number' && Number.isFinite(v)) parts.push(`${label} ${v}`);
+  };
+  add('updated', 'updated');
+  add('matched', 'matched');
+  add('fired', 'fired');
+  add('discovered', 'found');
+  add('processed', 'processed');
+  add('rows', 'rows');
+  // Common nested alert counts from wishlist-alerts.
+  for (const k of ['spikes', 'retiring', 'deals', 'preorders']) {
+    const v = r[k];
+    if (typeof v === 'number' && v > 0) parts.push(`${k} ${v}`);
+  }
+  return parts.length ? parts.slice(0, 4).join(' · ') : null;
+}
+
+// Insert a 'running' row; returns its id (or null if tracking is unavailable).
+export async function recordCronStart(env: Env, name: string): Promise<number | null> {
+  try {
+    const res = await env.DB.prepare(
+      `INSERT INTO cron_runs (name, started_at, status) VALUES (?1, datetime('now'), 'running')`,
+    ).bind(name).run();
+    return Number(res.meta?.last_row_id ?? 0) || null;
+  } catch {
+    return null;
+  }
+}
+
+// Stamp a run as ok/failed with its summary/error + duration, then prune history.
+export async function recordCronFinish(
+  env: Env,
+  id: number | null,
+  name: string,
+  opts: { ok: boolean; summary?: string | null; error?: string | null; durationMs?: number },
+): Promise<void> {
+  try {
+    if (id) {
+      await env.DB.prepare(
+        `UPDATE cron_runs SET finished_at=datetime('now'), status=?2, summary=?3, error=?4, duration_ms=?5 WHERE id=?1`,
+      ).bind(id, opts.ok ? 'ok' : 'failed', opts.summary ?? null, opts.error ? String(opts.error).slice(0, 300) : null, opts.durationMs ?? null).run();
+    } else {
+      // Start row was never written (tracking was down then) — insert a closed row.
+      await env.DB.prepare(
+        `INSERT INTO cron_runs (name, started_at, finished_at, status, summary, error, duration_ms)
+         VALUES (?1, datetime('now'), datetime('now'), ?2, ?3, ?4, ?5)`,
+      ).bind(name, opts.ok ? 'ok' : 'failed', opts.summary ?? null, opts.error ? String(opts.error).slice(0, 300) : null, opts.durationMs ?? null).run();
+    }
+    // Keep only the most recent KEEP_PER_NAME rows for this process.
+    await env.DB.prepare(
+      `DELETE FROM cron_runs WHERE name=?1 AND id NOT IN
+         (SELECT id FROM cron_runs WHERE name=?1 ORDER BY id DESC LIMIT ?2)`,
+    ).bind(name, KEEP_PER_NAME).run();
+  } catch {
+    /* fail-open */
+  }
+}
+
+export interface RecentRuns {
+  latest: Record<string, CronRunRow>; // newest run per process name
+  recent: CronRunRow[];               // chronological feed (newest first)
+}
+
+// Latest run per process + a recent chronological feed. Fails open to empty.
+export async function getRecentRuns(env: Env): Promise<RecentRuns> {
+  const latest: Record<string, CronRunRow> = {};
+  let recent: CronRunRow[] = [];
+  try {
+    const { results } = await env.DB.prepare(
+      `SELECT id, name, started_at, finished_at, status, summary, error, duration_ms
+         FROM cron_runs WHERE id IN (SELECT MAX(id) FROM cron_runs GROUP BY name)`,
+    ).all<CronRunRow>();
+    for (const r of results ?? []) latest[r.name] = r;
+  } catch { /* none yet */ }
+  try {
+    const { results } = await env.DB.prepare(
+      `SELECT id, name, started_at, finished_at, status, summary, error, duration_ms
+         FROM cron_runs ORDER BY id DESC LIMIT 30`,
+    ).all<CronRunRow>();
+    recent = results ?? [];
+  } catch { /* none yet */ }
+  return { latest, recent };
+}

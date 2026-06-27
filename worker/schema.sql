@@ -473,6 +473,22 @@ CREATE TABLE IF NOT EXISTS app_settings (
   updated_at TEXT
 );
 
+-- Background-process run history. Every cron (via the run() wrapper in index.ts)
+-- records a row: running -> ok|failed, with a short result summary. Powers the
+-- admin "Activity" live view. Pruned to the last few rows per process name.
+-- See worker/src/lib/cron-runs.ts.
+CREATE TABLE IF NOT EXISTS cron_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  started_at TEXT,
+  finished_at TEXT,
+  status TEXT DEFAULT 'running',
+  summary TEXT,
+  error TEXT,
+  duration_ms INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_cron_runs_name ON cron_runs(name, id);
+
 -- ============================================================
 -- User contributions (admin-reviewed). Three purpose-built tables
 -- sharing one moderation lifecycle: status pending|approved|rejected,

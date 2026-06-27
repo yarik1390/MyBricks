@@ -16,6 +16,8 @@ import { runBrickEconomyEnrich } from '../jobs/brickeconomy-enrich';
 import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricecharting-bulk';
 import { getKeyPoolStatus } from '../lib/pricesapi-keys';
 import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG } from '../lib/source-config';
+import { getRecentRuns } from '../lib/cron-runs';
+import { PROCESS_REGISTRY, GROUP_ORDER, processInfo } from '../lib/process-registry';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -957,6 +959,31 @@ app.put('/source-config', async (c) => {
   if (!body || typeof body !== 'object') return c.json({ error: 'Expected a JSON object of source settings.' }, 400);
   const config = await saveSourceConfig(c.env, (body as { config?: unknown }).config ?? body);
   return c.json({ ok: true, config });
+});
+
+// Live "Activity" feed for the admin console: every background process with what
+// it does + its latest run (status, when, duration, result), plus a recent
+// chronological feed. The frontend merges this with admin import jobs.
+app.get('/activity', async (c) => {
+  const { latest, recent } = await getRecentRuns(c.env);
+  const processes = Object.entries(PROCESS_REGISTRY).map(([name, info]) => {
+    const r = latest[name];
+    return {
+      name,
+      label: info.label,
+      description: info.description,
+      schedule: info.schedule,
+      group: info.group,
+      status: r?.status ?? 'idle',
+      started_at: r?.started_at ?? null,
+      finished_at: r?.finished_at ?? null,
+      duration_ms: r?.duration_ms ?? null,
+      summary: r?.summary ?? null,
+      error: r?.error ?? null,
+    };
+  });
+  const recentFeed = recent.map((r) => ({ ...r, label: processInfo(r.name).label, group: processInfo(r.name).group }));
+  return c.json({ processes, recent: recentFeed, group_order: GROUP_ORDER, generated_at: new Date().toISOString() });
 });
 
 app.get('/integrations', async (c) => {

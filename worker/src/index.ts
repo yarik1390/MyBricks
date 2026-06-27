@@ -46,6 +46,7 @@ import { runPriceChartingEnrich } from './jobs/pricecharting-enrich';
 import { runPricesApiRetail } from './jobs/pricesapi-retail';
 import { runPriceChartingBulkFetch } from './jobs/pricecharting-bulk';
 import { applySourceConfig } from './lib/source-config';
+import { recordCronStart, recordCronFinish, summarizeResult } from './lib/cron-runs';
 
 import type { Env, Variables } from './types';
 
@@ -248,8 +249,17 @@ export default {
 
   async scheduled(event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
     const run = async (name: string, fn: () => Promise<unknown>) => {
-      try { await fn(); }
-      catch (e) { console.error(`[cron] ${name} failed:`, (e as Error).message); }
+      // Track every cron run (running -> ok|failed + summary) for the admin
+      // Activity view. Tracking is fail-open and never affects the job.
+      const startedMs = Date.now();
+      const runId = await recordCronStart(env, name).catch(() => null);
+      try {
+        const res = await fn();
+        await recordCronFinish(env, runId, name, { ok: true, summary: summarizeResult(res), durationMs: Date.now() - startedMs }).catch(() => {});
+      } catch (e) {
+        console.error(`[cron] ${name} failed:`, (e as Error).message);
+        await recordCronFinish(env, runId, name, { ok: false, error: (e as Error).message, durationMs: Date.now() - startedMs }).catch(() => {});
+      }
     };
     // Apply admin source-tuning (blend weights + daily-cap overrides) for this
     // cron invocation before any job runs. Fail-open to code defaults.

@@ -531,3 +531,16 @@ CREATE TABLE IF NOT EXISTS app_settings (
   value TEXT,
   updated_at TEXT
 );
+
+-- Background-process run history (admin "Activity" live view). See lib/cron-runs.ts.
+CREATE TABLE IF NOT EXISTS cron_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  started_at TEXT,
+  finished_at TEXT,
+  status TEXT DEFAULT 'running',
+  summary TEXT,
+  error TEXT,
+  duration_ms INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_cron_runs_name ON cron_runs(name, id);
