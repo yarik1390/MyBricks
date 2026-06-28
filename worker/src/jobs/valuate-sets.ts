@@ -788,21 +788,32 @@ export async function runValuateMinifigs(env: Env, options: { limit?: number } =
   // whole catalog on the hardcoded rarity fallback). Scope: owned → already-valuable
   // → Collectible-Minifigures series → popular (appears in ≥3 sets). Stale-first
   // (14-day TTL) so the targeted population cycles within the daily BrickLink budget.
+  // "Collectible Minifigures" = figs that appear in a set with that theme (the
+  // `series` column is populated for ~98% of figs, so it is NOT a CMF proxy).
+  // A MATERIALIZED CTE + LEFT JOINs keep this a single fast scan; a correlated
+  // EXISTS per fig was ~12s on the live catalog, this is ~1s.
   const { results } = await env.DB.prepare(`
+    WITH cmf AS MATERIALIZED (
+      SELECT DISTINCT sm.fig_num FROM set_minifigs sm
+      JOIN lego_sets ls ON ls.set_num = sm.set_num
+      WHERE ls.theme = 'Collectible Minifigures'
+    )
     SELECT m.fig_num, m.name, m.appears_in_sets,
       (CASE
-        WHEN EXISTS (SELECT 1 FROM user_minifigs um WHERE um.fig_num = m.fig_num) THEN 0
+        WHEN um.fig_num IS NOT NULL THEN 0
         WHEN COALESCE(m.current_value, 0) >= 10 THEN 1
-        WHEN m.series IS NOT NULL AND m.series <> '' THEN 2
+        WHEN cmf.fig_num IS NOT NULL THEN 2
         ELSE 3
       END) AS priority
     FROM minifigs m
+    LEFT JOIN cmf ON cmf.fig_num = m.fig_num
+    LEFT JOIN (SELECT DISTINCT fig_num FROM user_minifigs) um ON um.fig_num = m.fig_num
     WHERE (m.cached_at IS NULL OR m.cached_at < datetime('now', '-14 days'))
       AND (
-        EXISTS (SELECT 1 FROM user_minifigs um WHERE um.fig_num = m.fig_num)
-        OR (m.series IS NOT NULL AND m.series <> '')
-        OR COALESCE(m.appears_in_sets, 0) >= 3
+        um.fig_num IS NOT NULL
         OR COALESCE(m.current_value, 0) >= 10
+        OR cmf.fig_num IS NOT NULL
+        OR COALESCE(m.appears_in_sets, 0) >= 3
       )
     ORDER BY priority ASC, COALESCE(m.cached_at, '2000-01-01') ASC, COALESCE(m.appears_in_sets, 0) DESC
     LIMIT ?
