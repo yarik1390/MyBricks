@@ -34,6 +34,7 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   'valuate-topvalue': { label: 'Value top sets', description: 'Keeps the highest-value sets fresh with priority re-valuation.', schedule: 'Hourly', group: 'Valuation' },
   'valuate-formula-head': { label: 'Seed new sets', description: 'Gives new/unpriced sets a formula estimate until market data arrives.', schedule: 'Hourly (:15)', group: 'Valuation' },
   'valuate-minifigs': { label: 'Value minifigures', description: 'Prices owned, Collectible-Minifigures and popular figs from BrickLink + eBay sold comps.', schedule: 'Daily 01:00 & 05:00 UTC', group: 'Valuation' },
+  'valuate-ai-gapfill': { label: 'AI gap-fill', description: 'Estimates high-value sets no market source can price yet, using the free Gemini fallback.', schedule: 'Daily 20:00 UTC', group: 'Valuation' },
 
   // --- Enrichment ---
   'brickset-enrich': { label: 'Brickset metadata', description: 'Adds Brickset details — MSRP, launch/exit dates, ratings, barcodes.', schedule: 'Daily 09:00 UTC', group: 'Enrichment' },

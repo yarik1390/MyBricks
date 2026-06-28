@@ -168,7 +168,13 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
       if (val != null && val !== '') { fields.push(`${col}=?`); binds.push(val as string | number); }
     };
 
-    maybe('brickset_msrp', inRange(d.msrp_usd, 1, 2000));
+    const msrp = inRange(d.msrp_usd, 1, 2000);
+    maybe('brickset_msrp', msrp);
+    // Also seed the canonical ROI field (retail_price) when it has no real value
+    // yet — the cron used to fill brickset_msrp only, leaving retail_price null so
+    // ROI/discount math fell back to estimates. COALESCE never clobbers an existing
+    // (market-derived) retail.
+    if (msrp != null) { fields.push('retail_price=COALESCE(retail_price, ?)'); binds.push(msrp); }
     maybe('launch_date', plausibleDate(d.launch_date));
     maybe('exit_date', plausibleDate(d.exit_date));
     maybe('theme_group', d.theme_group);

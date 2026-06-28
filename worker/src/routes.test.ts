@@ -1179,6 +1179,10 @@ describe('DB hygiene job', () => {
       'DROP TABLE IF EXISTS oauth_sessions',
       'DROP TABLE IF EXISTS oauth_states',
       'DROP TABLE IF EXISTS import_runs',
+      'DROP TABLE IF EXISTS lego_sets',
+      `CREATE TABLE lego_sets (
+        set_num TEXT PRIMARY KEY, name TEXT, retail_price REAL, brickset_msrp REAL, be_retail REAL
+      )`,
       `CREATE TABLE rate_limits (
         user_id TEXT NOT NULL, endpoint TEXT NOT NULL, window_start TEXT NOT NULL,
         hit_count INTEGER DEFAULT 0, PRIMARY KEY (user_id, endpoint, window_start)
@@ -1241,5 +1245,26 @@ describe('DB hygiene job', () => {
     expect(result.deleted.import_runs).toBe(5);
     const remaining = await db.prepare('SELECT COUNT(*) AS n FROM import_runs').first<{ n: number }>();
     expect(remaining?.n).toBe(20);
+  });
+
+  it('backfills retail_price from brickset_msrp / be_retail without clobbering a real retail', async () => {
+    const db = (env as any).DB as D1Database;
+    const { runDbHygiene } = await import('./jobs/db-hygiene');
+    await db.batch([
+      db.prepare("INSERT INTO lego_sets (set_num, name, retail_price, brickset_msrp) VALUES ('A-1', 'From MSRP', NULL, 49.99)"),
+      db.prepare("INSERT INTO lego_sets (set_num, name, retail_price, be_retail) VALUES ('B-1', 'From BE retail', 0, 120)"),
+      db.prepare("INSERT INTO lego_sets (set_num, name, retail_price, brickset_msrp) VALUES ('C-1', 'Already set', 200, 180)"),
+      db.prepare("INSERT INTO lego_sets (set_num, name) VALUES ('D-1', 'No source')"),
+    ]);
+
+    const result = await runDbHygiene(env as any);
+    expect(result.retailBackfilled).toBe(2);
+
+    const rows = await db.prepare('SELECT set_num, retail_price FROM lego_sets ORDER BY set_num').all<{ set_num: string; retail_price: number | null }>();
+    const byNum = Object.fromEntries(rows.results.map(r => [r.set_num, r.retail_price]));
+    expect(byNum['A-1']).toBeCloseTo(49.99, 2);
+    expect(byNum['B-1']).toBeCloseTo(120, 2);
+    expect(byNum['C-1']).toBeCloseTo(200, 2); // not clobbered
+    expect(byNum['D-1']).toBeNull();
   });
 });

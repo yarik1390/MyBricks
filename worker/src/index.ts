@@ -382,6 +382,15 @@ export default {
       case '0 19 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 23 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 18 * * SUN': await run('pricecharting-bulk', () => runPriceChartingBulkFetch(env)); break;
+      // AI gap-fill: high-value formula sets that NO market source can price get a
+      // free Gemini estimate (tries market first, AI only on a full miss). Small
+      // limit + 3-day formula-head cooldown keep it well under the free tier; the
+      // plausibility guard + AI-spend ledger block bad/runaway values. BYOK honored.
+      case '0 20 * * *': await run('valuate-ai-gapfill', () => runValuateSets(env, {
+        scope: 'all', formulaHead: true, minValue: 50, limit: 30,
+        includeSupplemental: false, includeEbay: false, includeAiFallback: true,
+        subrequestBudget: 300,
+      })); break;
       // TEMPORARY one-time bootstrap: fill pc_new_value across the year>=2000 catalog.
       // Runs 4x/hour at limit 150 concurrency 10; remove once pc_new_value is filled.
       case '10,25,40,55 * * * *': await run('pc-bootstrap', () => runPriceChartingEnrich(env, { limit: 150, concurrency: 10 })); break;
