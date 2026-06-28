@@ -63,20 +63,27 @@ app.get('/', async (c) => {
   }
   if (!upstream.ok) return redirectToOrigin();
   const contentType = upstream.headers.get('content-type') || 'image/jpeg';
-  if (!contentType.startsWith('image/')) return redirectToOrigin();
+  if (!contentType.startsWith('image/') || !upstream.body) return redirectToOrigin();
 
-  const bytes = await upstream.arrayBuffer();
-  if (c.env.PHOTO_BUCKET) {
-    c.executionCtx.waitUntil(
-      c.env.PHOTO_BUCKET.put(key, bytes, { httpMetadata: { contentType } }).catch(() => {}),
-    );
-  }
   const headers = new Headers();
   headers.set('Content-Type', contentType);
   headers.set('Cache-Control', IMMUTABLE);
-  const resp = new Response(bytes, { headers });
-  c.executionCtx.waitUntil(cache.put(c.req.raw, resp.clone()).catch(() => {}));
-  return resp;
+
+  // Stream the image straight to the client instead of buffering the whole file
+  // into the Worker first (the old `await arrayBuffer()` made cold images wait
+  // for the full upstream download before a single byte reached the browser).
+  // A tee lets the second branch fill R2 + the edge cache in the background.
+  const [clientStream, storeStream] = upstream.body.tee();
+  c.executionCtx.waitUntil((async () => {
+    try {
+      const buf = await new Response(storeStream).arrayBuffer();
+      if (c.env.PHOTO_BUCKET) {
+        await c.env.PHOTO_BUCKET.put(key, buf, { httpMetadata: { contentType } }).catch(() => {});
+      }
+      await cache.put(c.req.raw, new Response(buf, { headers })).catch(() => {});
+    } catch { /* best-effort persist — the client already got the bytes */ }
+  })());
+  return new Response(clientStream, { headers });
 });
 
 export { app as imgRoute };

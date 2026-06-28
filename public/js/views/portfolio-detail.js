@@ -1477,7 +1477,7 @@ function genericSourceLabel(s) {
   if (id.includes('ebay_legacy')) return 'Legacy eBay avg';
   if (id.includes('sold') || id.includes('ebay')) return cond === 'used' ? 'eBay sold used' : 'eBay sold new';
   if (id.includes('bricklink') || id === 'market' || /bricklink/i.test(name)) return cond === 'used' ? 'BrickLink used' : 'BrickLink new';
-  if (id.includes('brickeconomy') || /brickeconomy/i.test(name)) return 'BrickEconomy';
+  if (id.includes('brickeconomy') || /brickeconomy/i.test(name)) return 'Market guide';
   if (id.includes('brickowl') || /brickowl/i.test(name)) return cond === 'used' ? 'BrickOwl used' : 'BrickOwl new';
   if (id.includes('formula')) return 'Formula fallback';
   if (id.includes('ai')) return 'AI estimate';
@@ -1530,7 +1530,7 @@ function priceStripHTML(set, entry) {
   const isBE = set.valuation_method === "brickeconomy";
   const isBL = set.valuation_method === "market";
   const label1 = isBL ? "BrickLink"
-    : isBE ? "BrickEconomy"
+    : isBE ? "Market guide"
     : set.valuation_method === "ai" ? "AI estimate"
     : (set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "eBay sold"
     : set.valuation_method === "formula_bulk" ? "Formula"

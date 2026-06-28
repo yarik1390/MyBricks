@@ -375,7 +375,12 @@ export default {
       // Upcoming/coming-soon release feed (G2b): one LEGO.com listing scrape/day.
       case '0 15 * * *': await run('upcoming-refresh', () => runUpcomingRefresh(env)); break;
       case '0 16 * * *': await run('pricecharting-enrich', () => runPriceChartingEnrich(env, { limit: 50 })); break;
+      // pricesAPI live-retail runs in 3 daily slots (~18 sets/day) now that the
+      // key pool spreads the monthly budget; cold calls are 30–90s so each slot
+      // stays small. The job prioritizes owned/wishlisted sets first.
       case '0 17 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
+      case '0 19 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
+      case '0 23 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 18 * * SUN': await run('pricecharting-bulk', () => runPriceChartingBulkFetch(env)); break;
       // TEMPORARY one-time bootstrap: fill pc_new_value across the year>=2000 catalog.
       // Runs 4x/hour at limit 150 concurrency 10; remove once pc_new_value is filled.

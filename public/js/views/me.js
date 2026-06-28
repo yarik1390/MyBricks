@@ -184,6 +184,10 @@ export async function renderMe() {
       <div class="u-mono-label u-fs-2xs u-faint" style="text-align:center;margin-top:24px;">
         BRICKVAULT · v5.0 · STACK SOMETHING BEAUTIFUL
       </div>
+      <div class="app-credits" style="text-align:center;margin-top:10px;font-size:11px;line-height:1.5;color:var(--ink-mute);">
+        Catalog data &amp; images from <a href="https://rebrickable.com/" target="_blank" rel="noopener noreferrer" style="color:var(--ink-soft);text-decoration:underline;">Rebrickable</a>.
+        Pricing from BrickLink, eBay, PriceCharting &amp; Brickset. LEGO® is a trademark of the LEGO Group, which does not sponsor or endorse this app.
+      </div>
     </div>`;
 
   $("#replayTourRow")?.addEventListener("click", () => { haptic("light"); startOnboarding(); });
