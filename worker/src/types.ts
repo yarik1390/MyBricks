@@ -30,6 +30,9 @@ export interface Env {
   BRICKOWL_ENABLED?: string;
   BRICKINSIGHTS_ENABLED?: string;
   BRIGHTDATA_API_TOKEN?: string;
+  // Comma-separated additional Bright Data tokens, pooled + rotated by remaining
+  // monthly budget (free tier = 5000 credits/key/mo). See lib/brightdata-keys.ts.
+  BRIGHTDATA_API_TOKENS?: string;
   BRIGHTDATA_ZONE?: string;
   BRIGHTDATA_SOLD_ENABLED?: string;
   // UPCitemdb barcode source (2nd source after Brickset). Trial needs no key;

@@ -23,8 +23,11 @@ export async function runEbaySoldScrape(
   env: Env,
   options: { limit?: number; concurrency?: number } = {},
 ) {
-  const useFirecrawl = firecrawlEnabled(env);
-  const useBrightData = !useFirecrawl && brightDataSoldEnabled(env);
+  // Prefer Bright Data when a token is configured: it has its own dedicated budget
+  // (5000/key/mo) so it doesn't compete with Firecrawl, which is reserved for the
+  // BrickEconomy enrichment. Fall back to Firecrawl only when no token is set.
+  const useBrightData = brightDataSoldEnabled(env);
+  const useFirecrawl = !useBrightData && firecrawlEnabled(env);
   if (!useFirecrawl && !useBrightData) {
     return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'neither firecrawl nor brightdata configured' };
   }

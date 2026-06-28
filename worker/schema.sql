@@ -474,6 +474,18 @@ CREATE TABLE IF NOT EXISTS pricesapi_keys (
   updated_at TEXT
 );
 
+-- Per-key monthly budget for the Bright Data Web Unlocker pool (eBay sold-comp
+-- scraping). Mirrors pricesapi_keys; free tier = 5000 credits/key/month.
+CREATE TABLE IF NOT EXISTS brightdata_keys (
+  key_hash TEXT PRIMARY KEY,
+  used INTEGER NOT NULL DEFAULT 0,
+  cap INTEGER NOT NULL DEFAULT 5000,
+  period_month TEXT,
+  exhausted_at TEXT,
+  last_used_at TEXT,
+  updated_at TEXT
+);
+
 -- Generic key/value settings store (JSON values). Backs the admin source-tuning
 -- console (key 'source_config'); read fail-open with code defaults so a bad or
 -- missing row never breaks pricing. See worker/src/lib/source-config.ts.

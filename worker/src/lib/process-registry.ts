@@ -23,7 +23,7 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   'pricecharting-bulk': { label: 'PriceCharting (bulk CSV)', description: 'Downloads the whole LEGO price guide (~13k sets) in one CSV and updates values + liquidity.', schedule: 'Weekly Sun 18:00 UTC', group: 'Pricing' },
   'pricesapi-retail': { label: 'pricesAPI live retail', description: 'Live retailer offers + stock across major stores — feeds the deal signal, in-stock truth and wishlist alerts.', schedule: 'Daily 17:00, 19:00 & 23:00 UTC', group: 'Pricing' },
   'brickeconomy-enrich': { label: 'BrickEconomy values', description: 'Scrapes BrickEconomy modeled values and 2y/5y forecasts (via Firecrawl).', schedule: 'Daily 11:00 UTC', group: 'Pricing' },
-  'ebay-sold-scrape': { label: 'eBay sold comps', description: 'Scrapes eBay sold listings as a corroborating realized-sale source.', schedule: 'Daily 07:00 UTC', group: 'Pricing' },
+  'ebay-sold-scrape': { label: 'eBay sold comps', description: 'Scrapes eBay realized sold prices (Bright Data, rotating tokens) as a high-confidence sold source.', schedule: 'Daily 07:00 UTC', group: 'Pricing' },
   'pc-bootstrap': { label: 'PriceCharting bootstrap', description: 'One-time per-set PriceCharting backfill across the catalog (4×/hour).', schedule: '4×/hour (bootstrap)', group: 'Pricing' },
   'be-bootstrap': { label: 'BrickEconomy bootstrap', description: 'One-time BrickEconomy backfill across the catalog (4×/hour).', schedule: '4×/hour (bootstrap)', group: 'Pricing' },
 

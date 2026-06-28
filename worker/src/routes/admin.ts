@@ -15,6 +15,7 @@ import { runBricksetEnrich } from '../jobs/brickset-enrich';
 import { runBrickEconomyEnrich } from '../jobs/brickeconomy-enrich';
 import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricecharting-bulk';
 import { getKeyPoolStatus } from '../lib/pricesapi-keys';
+import { getKeyPoolStatus as getBrightDataPoolStatus } from '../lib/brightdata-keys';
 import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG } from '../lib/source-config';
 import { getRecentRuns, recordCronStart, recordCronFinish, summarizeResult } from '../lib/cron-runs';
 import { runPricesApiRetail } from '../jobs/pricesapi-retail';
@@ -1015,13 +1016,14 @@ app.get('/activity', async (c) => {
 });
 
 app.get('/integrations', async (c) => {
-  const [integrations, coverage, quota, ai_usage, pricesapi_pool, market_ext] = await Promise.all([
+  const [integrations, coverage, quota, ai_usage, pricesapi_pool, market_ext, brightdata_pool] = await Promise.all([
     getIntegrationDiagnostics(c.env),
     getDataCoverage(c.env),
     getQuotaUsage(c.env),
     getAiUsageReport(c.env),
     getKeyPoolStatus(c.env),
     getMarketExtCoverage(c.env),
+    getBrightDataPoolStatus(c.env),
   ]);
   const url = new URL(c.req.url);
   return c.json({
@@ -1035,6 +1037,10 @@ app.get('/integrations', async (c) => {
     pricesapi: {
       pool: pricesapi_pool,
       daily: quota.find((q) => q.service === 'pricesapi') ?? null,
+    },
+    brightdata: {
+      pool: brightdata_pool,
+      daily: quota.find((q) => q.service === 'brightdata') ?? null,
     },
     pricecharting_ext: {
       ...market_ext,

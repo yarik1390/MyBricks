@@ -217,11 +217,11 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
   },
   brightdata: {
     label: 'Bright Data (eBay sold)',
-    configured: (env) => !!env.BRIGHTDATA_API_TOKEN,
+    configured: (env) => !!env.BRIGHTDATA_API_TOKEN?.trim() || !!env.BRIGHTDATA_API_TOKENS?.split(',').some((k) => k.trim()),
     required_secrets: ['BRIGHTDATA_API_TOKEN'],
     used_by: ['eBay sold comps (scraped, corroborating)'],
-    notes: 'Web Unlocker scrape of eBay US sold listings; a corroborating sold source for sets that already have BrickLink/BrickEconomy. Free tier ~5,000/month.',
-    recommended_action: 'Add BRIGHTDATA_API_TOKEN as a Worker secret to enable; set BRIGHTDATA_SOLD_ENABLED=0 to pause.',
+    notes: 'Web Unlocker scrape of eBay US sold listings; a corroborating sold source. Free tier ~5,000 credits/token/month; add more tokens via BRIGHTDATA_API_TOKENS (comma-separated) to grow the pooled budget.',
+    recommended_action: 'Add BRIGHTDATA_API_TOKEN (and/or BRIGHTDATA_API_TOKENS) as Worker secrets to enable; set BRIGHTDATA_SOLD_ENABLED=0 to pause.',
   },
   upcitemdb: {
     label: 'UPCitemdb (barcodes)',

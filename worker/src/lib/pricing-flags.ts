@@ -26,11 +26,13 @@ export function brickInsightsEnabled(env: Env): boolean {
   return !/^(0|false|no|off)$/i.test(String(env.BRICKINSIGHTS_ENABLED ?? ''));
 }
 
-// eBay SOLD comps via Bright Data Web Unlocker (scraping). Requires the
-// BRIGHTDATA_API_TOKEN Worker secret; on by default once that's set. Set
-// BRIGHTDATA_SOLD_ENABLED to a falsy value to pause without removing the token.
+// eBay SOLD comps via Bright Data Web Unlocker (scraping). Requires at least one
+// token in BRIGHTDATA_API_TOKEN or the comma-separated BRIGHTDATA_API_TOKENS pool;
+// on by default once set. Set BRIGHTDATA_SOLD_ENABLED to a falsy value to pause.
 export function brightDataSoldEnabled(env: Env): boolean {
-  return !!env.BRIGHTDATA_API_TOKEN && !/^(0|false|no|off)$/i.test(String(env.BRIGHTDATA_SOLD_ENABLED ?? ''));
+  const hasToken = !!env.BRIGHTDATA_API_TOKEN?.trim()
+    || !!env.BRIGHTDATA_API_TOKENS?.split(',').some((k) => k.trim());
+  return hasToken && !/^(0|false|no|off)$/i.test(String(env.BRIGHTDATA_SOLD_ENABLED ?? ''));
 }
 
 // Firecrawl web scraping (lego.com stock, eBay sold comps via structured extraction,

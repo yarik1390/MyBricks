@@ -352,7 +352,7 @@ export default {
       case '0 1 * * *': await run('valuate-minifigs', () => runValuateMinifigs(env, { limit: 200 })); break;
       case '0 5 * * *': await run('valuate-minifigs', () => runValuateMinifigs(env, { limit: 200 })); break;
       case '0 6 * * *': await run('brickinsights-ratings', () => runBrickInsightsBackfill(env, { limit: 80 })); break;
-      case '0 7 * * *': await run('ebay-sold-scrape', () => runEbaySoldScrape(env, { limit: 30 })); break;
+      case '0 7 * * *': await run('ebay-sold-scrape', () => runEbaySoldScrape(env, { limit: 80, concurrency: 6 })); break;
       // Phase-2 lean cadence (ongoing Firecrawl ~25k/mo budget): brickset is
       // mostly-static metadata (trimmed 50->30); LEGO stock is scoped to active
       // owned/wishlisted on a 14-day cycle inside the job (trimmed 100->40, it

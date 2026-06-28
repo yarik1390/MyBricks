@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { isValidLegoSetSaleTitle, summarizeSoldPrices } from './ebay';
 import { brightDataSoldEnabled } from './pricing-flags';
+import { pickKey, recordKeyCall } from './brightdata-keys';
 
 // Bright Data Web Unlocker REST contract (verified): POST /request with a Bearer
 // token, body { zone, url, format:"raw", method, country }. format "raw" returns
@@ -69,14 +70,14 @@ function parseCards(html: string): Array<{ title: string; price: number }> {
   return pairs;
 }
 
-async function unlock(env: Env, url: string, timeoutMs: number): Promise<string> {
+async function unlock(env: Env, url: string, token: string, timeoutMs: number): Promise<{ status: number; body: string }> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const resp = await fetch(BD_ENDPOINT, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${env.BRIGHTDATA_API_TOKEN}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -88,9 +89,7 @@ async function unlock(env: Env, url: string, timeoutMs: number): Promise<string>
       }),
       signal: ctrl.signal,
     });
-    const body = await resp.text();
-    if (!resp.ok) throw new Error(`Bright Data HTTP ${resp.status}: ${body.slice(0, 120)}`);
-    return body;
+    return { status: resp.status, body: await resp.text() };
   } finally {
     clearTimeout(timer);
   }
@@ -116,10 +115,23 @@ export async function fetchEbaySoldViaBrightData(
   const retries = options.retries ?? 1;
   let lastErr: string | null = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
+    // Rotate across the pooled tokens, each call spends one token's monthly
+    // budget; a drained/dead token is marked exhausted so the next attempt picks
+    // a different one. Null = every token is out of budget for the month.
+    const picked = await pickKey(env);
+    if (!picked) { lastErr = 'no live Bright Data token (monthly budget drained)'; break; }
     try {
-      const html = await unlock(env, url, options.timeoutMs ?? 45000);
-      if (!html || html.length < 50000) { lastErr = `short body (${html ? html.length : 0})`; continue; }
-      const prices = parseCards(html)
+      const { status, body } = await unlock(env, url, picked.key, options.timeoutMs ?? 45000);
+      // Auth / payment / forbidden → this token is dead or out of credits: mark it
+      // exhausted (so pickKey skips it) and fail over to the next token.
+      if (status === 401 || status === 402 || status === 403) {
+        await recordKeyCall(env, picked, { exhausted: true });
+        lastErr = `Bright Data HTTP ${status}`;
+        continue;
+      }
+      await recordKeyCall(env, picked);
+      if (status !== 200 || !body || body.length < 50000) { lastErr = `HTTP ${status} short body (${body ? body.length : 0})`; continue; }
+      const prices = parseCards(body)
         .filter(p => titleMatches(p.title, setNum, setName))
         .map(p => p.price);
       const summary = summarizeSoldPrices(prices);

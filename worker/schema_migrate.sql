@@ -536,6 +536,17 @@ CREATE TABLE IF NOT EXISTS pricesapi_keys (
   updated_at TEXT
 );
 
+-- Bright Data Web Unlocker per-key monthly budget pool (eBay sold-comp scraping).
+CREATE TABLE IF NOT EXISTS brightdata_keys (
+  key_hash TEXT PRIMARY KEY,
+  used INTEGER NOT NULL DEFAULT 0,
+  cap INTEGER NOT NULL DEFAULT 5000,
+  period_month TEXT,
+  exhausted_at TEXT,
+  last_used_at TEXT,
+  updated_at TEXT
+);
+
 -- Generic key/value settings store backing the admin source-tuning console.
 CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
