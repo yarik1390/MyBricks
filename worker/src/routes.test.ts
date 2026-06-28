@@ -73,6 +73,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       'DROP TABLE IF EXISTS integration_health',
       'DROP TABLE IF EXISTS import_runs',
       'DROP TABLE IF EXISTS minifigs',
+      'DROP TABLE IF EXISTS minifig_value_history',
       'DROP TABLE IF EXISTS lego_sets_fts',
       'DROP TABLE IF EXISTS rate_limits',
       'DROP TABLE IF EXISTS oauth_sessions',
@@ -190,7 +191,13 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         year INTEGER,
         num_parts INTEGER,
         appears_in_sets INTEGER,
-        cached_at TEXT
+        cached_at TEXT,
+        ebay_value REAL, ebay_qty INTEGER, ebay_cached_at TEXT
+      )`,
+      `CREATE TABLE minifig_value_history (
+        fig_num TEXT NOT NULL, snapshot_date TEXT NOT NULL,
+        current_value REAL, ebay_value REAL,
+        PRIMARY KEY (fig_num, snapshot_date)
       )`,
       `CREATE TABLE rate_limits (
         user_id TEXT NOT NULL, endpoint TEXT NOT NULL, window_start TEXT NOT NULL,
@@ -1097,6 +1104,68 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(hist).toBeTruthy();
       expect(hist.current_value).toBeCloseTo(250, 1);
     });
+
+    it('snapshots priced minifigs into minifig_value_history (and skips unpriced)', async () => {
+      const { runSnapshotSetValues } = await import('./jobs/snapshot-set-values');
+      await db.batch([
+        db.prepare("INSERT INTO minifigs (fig_num, name, current_value, ebay_value) VALUES ('sw0010', 'Priced Fig', 42.5, 40)"),
+        db.prepare("INSERT INTO minifigs (fig_num, name, current_value) VALUES ('sw0011', 'Unpriced Fig', NULL)"),
+      ]);
+
+      const result = await runSnapshotSetValues(env as any);
+      expect(result.figSnapshotted).toBeGreaterThanOrEqual(1);
+
+      const priced = await db.prepare(
+        "SELECT current_value, ebay_value FROM minifig_value_history WHERE fig_num='sw0010' AND snapshot_date = DATE('now')"
+      ).first<any>();
+      expect(priced).toBeTruthy();
+      expect(priced.current_value).toBeCloseTo(42.5, 1);
+
+      const unpriced = await db.prepare(
+        "SELECT 1 FROM minifig_value_history WHERE fig_num='sw0011'"
+      ).first<any>();
+      expect(unpriced).toBeFalsy();
+    });
+  });
+
+  describe('minifig detail + history routes', () => {
+  it('GET /api/minifigs/:fignum returns a real value + source when priced', async () => {
+    const db = (env as any).DB as D1Database;
+    await db.prepare(
+      "INSERT INTO minifigs (fig_num, name, series, rarity, current_value, source, appears_in_sets) VALUES ('sw0020', 'Boba Fett', 'Star Wars', 'legendary', 95, 'bricklink+ebay', 4)"
+    ).run();
+    const res = await app.fetch(new Request('http://localhost/api/minifigs/sw0020'), env);
+    expect(res.status).toBe(200);
+    const body = await res.json<any>();
+    expect(body.minifig.value).toBeCloseTo(95, 1);
+    expect(body.minifig.value_is_estimate).toBe(false);
+    expect(body.minifig.source).toBe('bricklink+ebay');
+  });
+
+  it('GET /api/minifigs/:fignum flags a rarity estimate when unpriced', async () => {
+    const db = (env as any).DB as D1Database;
+    await db.prepare(
+      "INSERT INTO minifigs (fig_num, name, rarity, current_value) VALUES ('cty050', 'Common Cop', 'common', NULL)"
+    ).run();
+    const res = await app.fetch(new Request('http://localhost/api/minifigs/cty050'), env);
+    const body = await res.json<any>();
+    expect(body.minifig.value_is_estimate).toBe(true);
+    expect(body.minifig.value).toBeCloseTo(3.5, 2);
+  });
+
+  it('GET /api/minifigs/:fignum/history returns ordered snapshots', async () => {
+    const db = (env as any).DB as D1Database;
+    await db.batch([
+      db.prepare("INSERT INTO minifigs (fig_num, name) VALUES ('sw0021', 'Fig With History')"),
+      db.prepare("INSERT INTO minifig_value_history (fig_num, snapshot_date, current_value) VALUES ('sw0021', DATE('now','-2 days'), 10)"),
+      db.prepare("INSERT INTO minifig_value_history (fig_num, snapshot_date, current_value) VALUES ('sw0021', DATE('now'), 14)"),
+    ]);
+    const res = await app.fetch(new Request('http://localhost/api/minifigs/sw0021/history?days=90'), env);
+    const body = await res.json<any>();
+    expect(body.history.length).toBe(2);
+    expect(body.history[0].current_value).toBeCloseTo(10, 1);
+    expect(body.history[1].current_value).toBeCloseTo(14, 1);
+  });
   });
 });
 

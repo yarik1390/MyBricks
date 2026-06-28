@@ -346,7 +346,11 @@ export default {
       // Daily maintenance is split across dedicated slots (Workers Paid: 250-cron
       // cap) so each heavy job runs in its own invocation — own subrequest budget
       // and failure isolation, and each can do more than the old packed 0 4 slot.
-      case '0 5 * * *': await run('valuate-minifigs', () => runValuateMinifigs(env, { limit: 80 })); break;
+      // Minifig valuation runs in two daily slots (200 each = ~400 figs/day) to
+      // cover the browsable population — owned + Collectible-Minifigures + popular
+      // figs — within BrickLink's daily headroom; stale-first cycling (14-day TTL).
+      case '0 1 * * *': await run('valuate-minifigs', () => runValuateMinifigs(env, { limit: 200 })); break;
+      case '0 5 * * *': await run('valuate-minifigs', () => runValuateMinifigs(env, { limit: 200 })); break;
       case '0 6 * * *': await run('brickinsights-ratings', () => runBrickInsightsBackfill(env, { limit: 80 })); break;
       case '0 7 * * *': await run('ebay-sold-scrape', () => runEbaySoldScrape(env, { limit: 30 })); break;
       // Phase-2 lean cadence (ongoing Firecrawl ~25k/mo budget): brickset is

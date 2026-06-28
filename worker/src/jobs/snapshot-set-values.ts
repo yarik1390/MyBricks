@@ -48,17 +48,40 @@ export async function runSnapshotSetValues(env: Env) {
         bl_value = EXCLUDED.bl_value
   `).bind(CATALOG_SNAPSHOT_TOP_N).run();
 
-  // Prune ancient history so widening coverage never grows the table without
+  // Mirror the snapshot for minifigs that carry a real market value (the
+  // populated population — owned/CMF/popular figs the valuation job prices), so
+  // their detail pages get the same 90-day trend line. Naturally bounded to
+  // priced figs; commons on the rarity fallback are excluded.
+  let figSnapshotted = 0;
+  try {
+    const figRes = await env.DB.prepare(`
+      INSERT INTO minifig_value_history (fig_num, snapshot_date, current_value, ebay_value)
+      SELECT m.fig_num, DATE('now'), m.current_value, m.ebay_value
+      FROM minifigs m
+      WHERE m.current_value IS NOT NULL AND m.current_value > 0
+      ON CONFLICT (fig_num, snapshot_date)
+        DO UPDATE SET current_value = EXCLUDED.current_value, ebay_value = EXCLUDED.ebay_value
+    `).run();
+    figSnapshotted = (figRes.meta.changes as number | undefined) ?? 0;
+  } catch (e) {
+    console.warn('[snapshot] minifig snapshot failed:', (e as Error).message);
+  }
+
+  // Prune ancient history so widening coverage never grows the tables without
   // bound. Fails open — a prune hiccup must not fail the snapshot itself.
   let pruned = 0;
   try {
+    const cutoff = `-${HISTORY_RETENTION_DAYS} days`;
     const del = await env.DB.prepare(
       `DELETE FROM set_value_history WHERE snapshot_date < DATE('now', ?)`,
-    ).bind(`-${HISTORY_RETENTION_DAYS} days`).run();
+    ).bind(cutoff).run();
     pruned = (del.meta.changes as number | undefined) ?? 0;
+    await env.DB.prepare(
+      `DELETE FROM minifig_value_history WHERE snapshot_date < DATE('now', ?)`,
+    ).bind(cutoff).run().catch(() => {});
   } catch (e) {
     console.warn('[snapshot] history prune failed:', (e as Error).message);
   }
 
-  return { snapshotted: result.meta.changes ?? 0, pruned };
+  return { snapshotted: result.meta.changes ?? 0, figSnapshotted, pruned };
 }

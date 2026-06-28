@@ -1322,6 +1322,15 @@ ul.set-list > li { display: contents; }
   font-family: var(--serif); font-size: 22px; font-weight: 500;
   letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
 }
+.fig-detail-source {
+  font-size: 11px; color: var(--ink-mute); margin: 4px 0 10px;
+}
+.fig-spark-wrap { margin: 4px 0 14px; }
+.fig-spark-lbl {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-mute); margin-bottom: 8px;
+}
+.fig-spark { width: 100%; }
 .fig-own-btn { width: 100%; justify-content: center; }
 .fig-own-btn.is-owned {
   background: var(--bv-yellow); color: var(--line);

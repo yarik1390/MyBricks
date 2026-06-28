@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, fmtMoney, toast, themeHue, debounce, bvIDB, SEARCH_DEBOUNCE_MS, mount } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoney, toast, themeHue, debounce, bvIDB, SEARCH_DEBOUNCE_MS, mount, drawSparkline, fmtDateUpdated } from '../utils.js';
 import { state } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
@@ -468,6 +468,14 @@ function refreshMiniStats() {
   updateFigStats();
 }
 
+// Attribution label for a fig's market value. Per the source-naming policy we
+// name the API sources (BrickLink, eBay) and fall back to a neutral estimate.
+function figSourceLabel(source) {
+  if (source === 'bricklink+ebay') return 'via BrickLink + eBay sold comps';
+  if (source === 'bricklink') return 'via BrickLink price guide';
+  return 'Blended market estimate';
+}
+
 function showFigDetail(f) {
   const owned = state.ownedFigs.has(f.fig_num);
   const realVal = f.current_value ?? null;
@@ -500,6 +508,11 @@ function showFigDetail(f) {
         <div class="fig-detail-value">
           <span class="fig-detail-value-lbl">Est. resale value</span>
           <span class="fig-detail-value-num">${fmtMoney(realVal, { cents: 0 })}</span>
+        </div>
+        <div class="fig-detail-source">${figSourceLabel(f.source)}${f.cached_at ? ` · ${escapeHtml(fmtDateUpdated(f.cached_at))}` : ''}</div>
+        <div class="fig-spark-wrap" id="figSparkWrap" style="display:none;">
+          <div class="fig-spark-lbl">Price history · 90d</div>
+          <div class="fig-spark" id="figSparkline" style="height:72px;"></div>
         </div>` : ''}
         ${(scarcityTxt || f.year || f.num_parts) ? `
         <div class="fig-detail-facts" style="display:flex;gap:14px;flex-wrap:wrap;margin:4px 0 12px;font-size:12.5px;color:var(--ink-mute);">
@@ -517,6 +530,28 @@ function showFigDetail(f) {
         <div id="figSetsSection" style="margin-top:16px;"></div>
       </div>
     </div>`);
+
+  // Lazily load the 90-day price history and draw the trend sparkline (mirrors
+  // the set detail chart). Only shown once we have ≥2 snapshots.
+  if (realVal != null && realVal > 0) {
+    (async () => {
+      try {
+        const r = await api('/api/minifigs/' + encodeURIComponent(f.fig_num) + '/history?days=90');
+        const hist = (r && r.history) || [];
+        if (hist.length < 2) return;
+        const wrap = $('#figSparkWrap');
+        const el = $('#figSparkline');
+        if (!wrap || !el) return;
+        const first = Number(hist[0].current_value) || 0;
+        const last = Number(hist[hist.length - 1].current_value) || 0;
+        wrap.style.display = '';
+        drawSparkline(el, hist, {
+          up: last >= first,
+          series: [{ key: 'ebay_value', color: 'var(--ink-mute)', dash: '4 3' }],
+        });
+      } catch { /* non-fatal — the chart just stays hidden */ }
+    })();
+  }
 
   // Lazily load the sets this minifig appears in — a navigable hub from the fig
   // to each set's detail. (Hidden if the fig isn't mapped to any catalog sets.)

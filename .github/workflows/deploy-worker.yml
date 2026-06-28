@@ -187,6 +187,7 @@ jobs:
             "SELECT hit_count FROM rate_limits LIMIT 0"
             "SELECT total_value, total_paid, set_count FROM portfolio_snapshots LIMIT 0"
             "SELECT current_value, ebay_value, bl_value FROM set_value_history LIMIT 0"
+            "SELECT fig_num, snapshot_date, current_value, ebay_value FROM minifig_value_history LIMIT 0"
             "SELECT quantity FROM user_minifigs LIMIT 0"
             "SELECT series, current_value, year, num_parts, appears_in_sets, cached_at FROM minifigs LIMIT 0"
             "SELECT job_type, progress_label, progress_current, figs_loaded FROM import_runs LIMIT 0"

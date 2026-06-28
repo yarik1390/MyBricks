@@ -249,6 +249,16 @@ CREATE TABLE IF NOT EXISTS set_value_history (
   PRIMARY KEY (set_num, snapshot_date)
 );
 
+-- Per-minifig value snapshots powering the minifig trend chart (mirrors
+-- set_value_history). Daily granularity, bounded retention pruned by the job.
+CREATE TABLE IF NOT EXISTS minifig_value_history (
+  fig_num TEXT NOT NULL REFERENCES minifigs(fig_num),
+  snapshot_date DATE NOT NULL,
+  current_value REAL,
+  ebay_value REAL,
+  PRIMARY KEY (fig_num, snapshot_date)
+);
+
 CREATE TABLE IF NOT EXISTS set_minifigs (
   set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
   fig_num TEXT NOT NULL,

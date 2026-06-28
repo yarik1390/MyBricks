@@ -162,6 +162,17 @@ CREATE TABLE IF NOT EXISTS set_value_history (
 );
 CREATE INDEX IF NOT EXISTS idx_svh_set ON set_value_history(set_num, snapshot_date);
 
+-- Per-minifig value snapshots powering the minifig trend chart (mirrors
+-- set_value_history). Added alongside catalog-wide minifig valuation.
+CREATE TABLE IF NOT EXISTS minifig_value_history (
+  fig_num TEXT NOT NULL REFERENCES minifigs(fig_num),
+  snapshot_date DATE NOT NULL,
+  current_value REAL,
+  ebay_value REAL,
+  PRIMARY KEY (fig_num, snapshot_date)
+);
+CREATE INDEX IF NOT EXISTS idx_mvh_fig ON minifig_value_history(fig_num, snapshot_date);
+
 -- Circuit breaker: skip an external service until this timestamp after
 -- access-denied failures (currently used for eBay Marketplace Insights).
 ALTER TABLE integration_health ADD COLUMN blocked_until TEXT;

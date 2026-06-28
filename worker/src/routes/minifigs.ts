@@ -72,7 +72,7 @@ app.get('/', async (c) => {
   const [pageRes, countRes] = await Promise.all([
     c.env.DB.prepare(
       `SELECT m.fig_num, m.name, m.series, m.rarity, m.image_url, m.added_at, m.source,
-              m.current_value, m.year, m.num_parts, m.appears_in_sets,
+              m.current_value, m.ebay_value, m.cached_at, m.year, m.num_parts, m.appears_in_sets,
               COALESCE(um.quantity, 0) as owned_qty
        FROM minifigs m
        LEFT JOIN user_minifigs um ON um.fig_num = m.fig_num AND um.user_id = ?
@@ -209,6 +209,47 @@ app.get('/:fignum/sets', async (c) => {
     LIMIT 50
   `).bind(figNum).all<Record<string, unknown>>();
   return c.json({ sets: results || [] });
+});
+
+// GET /api/minifigs/:fignum/history?days=90 — daily value snapshots powering the
+// minifig trend chart (mirrors the set history endpoint). Public.
+app.get('/:fignum/history', async (c) => {
+  const figNum = c.req.param('fignum');
+  const days = Math.min(parseInt(c.req.query('days') || '90', 10), 365);
+  const { results } = await c.env.DB.prepare(`
+    SELECT snapshot_date, current_value, ebay_value
+    FROM minifig_value_history
+    WHERE fig_num = ? AND snapshot_date >= DATE('now', ?)
+    ORDER BY snapshot_date ASC
+  `).bind(figNum, `-${days} days`).all();
+  return c.json({ history: results, days });
+});
+
+// GET /api/minifigs/:fignum — single minifig detail: market value + sources +
+// freshness + rarity factors. Public. Falls back to a clearly-flagged rarity
+// estimate when the fig hasn't been priced yet. image_url is proxied by the
+// global image-rewrite middleware.
+app.get('/:fignum', async (c) => {
+  const userId = c.get('userId') || '';
+  const figNum = c.req.param('fignum');
+  const fig = await c.env.DB.prepare(`
+    SELECT m.fig_num, m.name, m.series, m.rarity, m.image_url, m.year, m.num_parts,
+           m.appears_in_sets, m.current_value, m.ebay_value, m.ebay_qty, m.source,
+           m.cached_at, COALESCE(um.quantity, 0) AS owned_qty
+    FROM minifigs m
+    LEFT JOIN user_minifigs um ON um.fig_num = m.fig_num AND um.user_id = ?
+    WHERE m.fig_num = ?
+  `).bind(userId, figNum).first<Record<string, unknown>>();
+  if (!fig) return c.json({ error: 'Minifig not found' }, 404);
+
+  // Display value: real market value when priced, else a rarity-keyed estimate.
+  const rarityFallback: Record<string, number> = { common: 3.5, uncommon: 7.5, rare: 18, legendary: 50 };
+  const priced = fig.current_value != null && Number(fig.current_value) > 0;
+  const value = priced ? Number(fig.current_value) : (rarityFallback[String(fig.rarity)] ?? 3.5);
+
+  return c.json({
+    minifig: { ...fig, value, value_is_estimate: !priced },
+  });
 });
 
 // PUT /api/minifigs/:fignum — mark owned

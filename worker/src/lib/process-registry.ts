@@ -33,7 +33,7 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   'valuate-ebay-ask': { label: 'eBay ask refresh', description: 'Refreshes eBay current-listing (ask) prices used by the deal signal.', schedule: 'Hourly', group: 'Valuation' },
   'valuate-topvalue': { label: 'Value top sets', description: 'Keeps the highest-value sets fresh with priority re-valuation.', schedule: 'Hourly', group: 'Valuation' },
   'valuate-formula-head': { label: 'Seed new sets', description: 'Gives new/unpriced sets a formula estimate until market data arrives.', schedule: 'Hourly (:15)', group: 'Valuation' },
-  'valuate-minifigs': { label: 'Value minifigures', description: 'Values individual minifigures from market sources.', schedule: 'Daily 05:00 UTC', group: 'Valuation' },
+  'valuate-minifigs': { label: 'Value minifigures', description: 'Prices owned, Collectible-Minifigures and popular figs from BrickLink + eBay sold comps.', schedule: 'Daily 01:00 & 05:00 UTC', group: 'Valuation' },
 
   // --- Enrichment ---
   'brickset-enrich': { label: 'Brickset metadata', description: 'Adds Brickset details — MSRP, launch/exit dates, ratings, barcodes.', schedule: 'Daily 09:00 UTC', group: 'Enrichment' },

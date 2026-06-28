@@ -783,13 +783,28 @@ export async function runEbayAskBackfill(env: Env, options: { limit?: number } =
 }
 
 export async function runValuateMinifigs(env: Env, options: { limit?: number } = {}): Promise<number> {
-  const limit = Math.min(Math.max(1, Math.floor(options.limit ?? 10)), 200);
+  const limit = Math.min(Math.max(1, Math.floor(options.limit ?? 10)), 400);
+  // Price the figs users actually browse — not just owned ones (which left the
+  // whole catalog on the hardcoded rarity fallback). Scope: owned → already-valuable
+  // → Collectible-Minifigures series → popular (appears in ≥3 sets). Stale-first
+  // (14-day TTL) so the targeted population cycles within the daily BrickLink budget.
   const { results } = await env.DB.prepare(`
-    SELECT DISTINCT m.fig_num, m.name, m.appears_in_sets
+    SELECT m.fig_num, m.name, m.appears_in_sets,
+      (CASE
+        WHEN EXISTS (SELECT 1 FROM user_minifigs um WHERE um.fig_num = m.fig_num) THEN 0
+        WHEN COALESCE(m.current_value, 0) >= 10 THEN 1
+        WHEN m.series IS NOT NULL AND m.series <> '' THEN 2
+        ELSE 3
+      END) AS priority
     FROM minifigs m
-    JOIN user_minifigs um ON um.fig_num = m.fig_num
-    WHERE m.cached_at IS NULL OR m.cached_at < datetime('now', '-7 days')
-    ORDER BY COALESCE(m.cached_at, '2000-01-01') ASC
+    WHERE (m.cached_at IS NULL OR m.cached_at < datetime('now', '-14 days'))
+      AND (
+        EXISTS (SELECT 1 FROM user_minifigs um WHERE um.fig_num = m.fig_num)
+        OR (m.series IS NOT NULL AND m.series <> '')
+        OR COALESCE(m.appears_in_sets, 0) >= 3
+        OR COALESCE(m.current_value, 0) >= 10
+      )
+    ORDER BY priority ASC, COALESCE(m.cached_at, '2000-01-01') ASC, COALESCE(m.appears_in_sets, 0) DESC
     LIMIT ?
   `).bind(limit).all<{ fig_num: string; name: string; appears_in_sets: number | null }>();
 
@@ -825,12 +840,13 @@ export async function runValuateMinifigs(env: Env, options: { limit?: number } =
 
     // Rarity reflects the blended value + combined market liquidity.
     const rarity = computeMinifigRarity(value, fig.appears_in_sets, px.lots + ebayQty);
+    const source = ebayValue != null ? 'bricklink+ebay' : 'bricklink';
     await env.DB.prepare(`
-      UPDATE minifigs SET current_value = ?, rarity = ?,
+      UPDATE minifigs SET current_value = ?, rarity = ?, source = ?,
         ebay_value = ?, ebay_qty = ?, ebay_cached_at = CASE WHEN ? THEN datetime('now') ELSE ebay_cached_at END,
         cached_at = datetime('now')
       WHERE fig_num = ?
-    `).bind(value, rarity, ebayValue, ebayQty, fcOn && px.value >= EBAY_MIN_VALUE ? 1 : 0, fig.fig_num).run();
+    `).bind(value, rarity, source, ebayValue, ebayQty, fcOn && px.value >= EBAY_MIN_VALUE ? 1 : 0, fig.fig_num).run();
     updated++;
   }
   return updated;
