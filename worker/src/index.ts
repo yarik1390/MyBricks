@@ -352,10 +352,12 @@ export default {
       case '0 1 * * *': await run('valuate-minifigs', () => runValuateMinifigs(env, { limit: 200 })); break;
       case '0 5 * * *': await run('valuate-minifigs', () => runValuateMinifigs(env, { limit: 200 })); break;
       case '0 6 * * *': await run('brickinsights-ratings', () => runBrickInsightsBackfill(env, { limit: 80 })); break;
-      // eBay sold comps via Bright Data — 6 runs/day (every 4h) so the ~25k/mo
-      // pooled token budget gets spent at ~700/day (paced by the brightdata daily
-      // cap); each run stays small enough to finish well inside one invocation.
-      case '0 0,4,8,12,16,20 * * *': await run('ebay-sold-scrape', () => runEbaySoldScrape(env, { limit: 120, concurrency: 8 })); break;
+      // eBay sold comps via Bright Data — 8 runs/day (every 3h) at up to 150 each
+      // (~1200/day) to BURST through the never-scraped sets fast. It self-tapers:
+      // freshly-cached rows aren't due again for 30 days, and no-data sets are also
+      // stamped, so once the backfill is done daily volume drops to the refresh
+      // rate (~eligible/30) on its own — well within the ~25k/mo token pool.
+      case '0 0,3,6,9,12,15,18,21 * * *': await run('ebay-sold-scrape', () => runEbaySoldScrape(env, { limit: 150, concurrency: 8 })); break;
       // Phase-2 lean cadence (ongoing Firecrawl ~25k/mo budget): brickset is
       // mostly-static metadata (trimmed 50->30); LEGO stock is scoped to active
       // owned/wishlisted on a 14-day cycle inside the job (trimmed 100->40, it

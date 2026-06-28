@@ -33,7 +33,7 @@ export async function runEbaySoldScrape(
   }
   const requestedLimit = Number(options.limit);
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
-    ? Math.min(Math.floor(requestedLimit), 100)
+    ? Math.min(Math.floor(requestedLimit), 200)
     : 20;
   // Firecrawl is metered by its own per-scrape guard (5cr/json extract) inside
   // firecrawlScrape, so size to remaining daily credits WITHOUT reserving — a
@@ -53,7 +53,7 @@ export async function runEbaySoldScrape(
     SELECT ls.set_num, ls.name, ls.bl_new_value, ls.current_value
     FROM lego_sets ls
     WHERE (ls.bl_new_value IS NOT NULL OR ls.valuation_method = 'brickeconomy')
-      AND (ls.ebay_new_cached_at IS NULL OR ls.ebay_new_cached_at < datetime('now', '-21 days'))
+      AND (ls.ebay_new_cached_at IS NULL OR ls.ebay_new_cached_at < datetime('now', '-30 days'))
     ORDER BY
       CASE WHEN EXISTS (
         SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
