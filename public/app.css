@@ -2389,6 +2389,19 @@ select:focus-visible,
   font-family: var(--mono); font-size: 9px; color: var(--ink-faint);
   letter-spacing: 0.06em; text-align: center; margin-bottom: 14px;
 }
+.pc-comps {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px;
+  padding: 7px 10px; margin: -2px 0 10px; border-radius: var(--r-2, 10px);
+  background: var(--surface-2); font-size: 11.5px; color: var(--ink-soft);
+}
+.pc-comps-src {
+  font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--ink-mute);
+}
+.pc-comps-vals strong { font-weight: 700; color: var(--ink); }
+.pc-comps-vol {
+  margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--ink-mute);
+}
 .market-signal {
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 500;

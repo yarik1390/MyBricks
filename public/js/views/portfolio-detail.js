@@ -1566,7 +1566,6 @@ function priceStripHTML(set, entry) {
     : ebaySold.legacy ? "Legacy eBay value - needs sold refresh"
     : showAsk ? "Asking listings only - not sold value"
     : isBL ? "BrickLink market guide"
-    : isBE ? "BrickEconomy market guide"
     : "Market guide value";
 
   const updateDateStr = set.cached_at ? fmtDateUpdated(set.cached_at) : null;
@@ -1607,15 +1606,37 @@ function priceStripHTML(set, entry) {
         ${val3sub ? `<div class="ps-sub muted">${val3sub}</div>` : ""}
       </div>
     </div>
+    ${pcCompsHTML(set)}
     <div class="ps-footnote" style="display:flex;align-items:center;justify-content:space-between;width:100%;">
       <span>${sourceSuffix}</span>
       <span style="font-family:var(--mono);font-size:10px;color:${freshColor};">${lastUpdatedText}</span>
     </div>`;
 }
 
+// PriceCharting closed-auction comps (sealed / complete-in-box / loose) + yearly
+// sales volume. These are independent sold signals already in the blend but were
+// never surfaced. Named per the attribution policy (PriceCharting is an API).
+function pcCompsHTML(set) {
+  const sealed = Number(set.pc_new_value) > 0 ? Number(set.pc_new_value) : null;
+  const cib = Number(set.pc_complete_value) > 0 ? Number(set.pc_complete_value) : null;
+  const loose = Number(set.pc_loose_value) > 0 ? Number(set.pc_loose_value) : null;
+  if (!sealed && !cib && !loose) return '';
+  const vol = Number(set.pc_sales_volume) > 0 ? Number(set.pc_sales_volume) : null;
+  const parts = [];
+  if (sealed) parts.push(`Sealed <strong>${fmtMoney(sealed)}</strong>`);
+  if (cib) parts.push(`Complete <strong>${fmtMoney(cib)}</strong>`);
+  if (loose) parts.push(`Loose <strong>${fmtMoney(loose)}</strong>`);
+  return `
+    <div class="pc-comps">
+      <span class="pc-comps-src">PriceCharting sold</span>
+      <span class="pc-comps-vals">${parts.join(' · ')}</span>
+      ${vol ? `<span class="pc-comps-vol">${vol.toLocaleString()}/yr</span>` : ''}
+    </div>`;
+}
+
 function marketConfidenceHTML(set) {
   const fallbackSources = () => {
-    const primaryName = set.valuation_method === 'brickeconomy' ? 'BrickEconomy'
+    const primaryName = set.valuation_method === 'brickeconomy' ? 'Market guide'
       : set.valuation_method === 'market' ? 'BrickLink'
       : (set.valuation_method === 'ebay_rss' || set.valuation_method === 'ebay_sold') ? 'eBay sold'
       : set.valuation_method === 'ai' ? 'AI estimate'
