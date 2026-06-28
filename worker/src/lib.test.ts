@@ -15,7 +15,8 @@ import { computeMinifigRarity } from './lib/minifig-rarity';
 import { proxyImageUrl, rewriteImages } from './lib/img-proxy';
 import { isSearchIndexCorruption } from './lib/search-index';
 import { formulaValuation, isLikelyRetired, isPlausibleMarketValue } from './lib/valuation';
-import { blendMarketValue, computeDealSignal, buildMarketSources, enrichSetRecord } from './lib/market-sources';
+import { blendMarketValue, computeDealSignal, buildMarketSources, enrichSetRecord, BLEND_INPUT_COLUMNS, BLEND_EXT_COLUMNS } from './lib/market-sources';
+import { CATALOG_COLS } from './routes/sets';
 import { computePartOutValue, partKey } from './lib/part-out';
 
 // ---------------------------------------------------------------------------
@@ -642,6 +643,33 @@ describe('blendMarketValue (valuation v2)', () => {
       expect(r.note).not.toMatch(/PriceCharting/i);
       expect(r.note).not.toMatch(/eBay/i);
     }
+  });
+});
+
+describe('catalog projection covers every blend input', () => {
+  // Regression guard for the catalog-vs-detail price mismatch: the grid recomputes
+  // the blend from CATALOG_COLS, so it must SELECT every column blendMarketValue()
+  // reads or the card silently diverges from the detail page (e.g. omitting
+  // pc_new_value made Cloud City show $15,881 instead of the blended $9,473).
+  it('CATALOG_COLS is a superset of BLEND_INPUT_COLUMNS + BLEND_EXT_COLUMNS', () => {
+    const present = new Set(
+      CATALOG_COLS.split(',').map((c) => c.trim().replace(/^(s|ext)\./, '')),
+    );
+    const required = [...BLEND_INPUT_COLUMNS.split(','), ...BLEND_EXT_COLUMNS.split(',')]
+      .map((c) => c.trim())
+      .filter(Boolean);
+    const missing = required.filter((c) => !present.has(c));
+    expect(missing).toEqual([]);
+  });
+
+  it('including PriceCharting sold comps pulls the blend below the lone legacy value', () => {
+    const now = new Date().toISOString();
+    // Mirrors Cloud City 10123-1: a high single legacy value, dragged down by the
+    // PriceCharting sealed/complete sold comps.
+    const base = { valuation_method: 'brickeconomy', current_value: 15881, be_cached_at: now };
+    const withoutPc = blendMarketValue({ ...base });
+    const withPc = blendMarketValue({ ...base, pc_new_value: 8000, pc_complete_value: 3649.5, pc_cached_at: now });
+    expect(withPc.value as number).toBeLessThan(withoutPc.value as number);
   });
 });
 

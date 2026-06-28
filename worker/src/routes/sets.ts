@@ -63,8 +63,9 @@ const SORTS: Record<string, string> = {
 // brickset_tags are large text/JSON; ratings, dimensions, dates, age and
 // barcodes are detail-page only). Projecting them out trims the search payload
 // and D1 serialization on every catalog page; GET /:setnum still SELECT *s the
-// full row. (Verified: every column read by enrichSetRecord, the card and its
-// helpers is included.)
+// full row. IMPORTANT: every column blendMarketValue() reads must be here, or the
+// grid's blended value silently diverges from the detail page (this list must stay
+// a superset of BLEND_INPUT_COLUMNS + BLEND_EXT_COLUMNS in lib/market-sources.ts).
 export const CATALOG_COLS =
   's.set_num, s.name, s.year, s.theme, s.pieces, s.minifigs, ' +
   's.image_url, s.retail_price, s.current_value, s.forecast_2y, s.forecast_5y, s.retired, ' +
@@ -75,8 +76,12 @@ export const CATALOG_COLS =
   's.bl_new_min, s.bl_new_max, s.bl_used_min, s.bl_used_max, s.lego_in_stock, s.lego_retiring_soon, ' +
   's.bo_new_value, s.bo_used_value, s.bo_cached_at, s.blended_value, s.ebay_new_last_sold, ' +
   's.deal_signal, s.deal_strong, s.deal_discount_pct, ' +
+  // PriceCharting sealed/complete sold comps — blendMarketValue() reads these
+  // (pc_new weight 0.95, pc_complete 0.75). Omitting them made the grid blend
+  // diverge from the detail page (catalog showed the range-high, not the blend).
+  's.pc_new_value, s.pc_complete_value, s.pc_cached_at, ' +
   // Pricing v3 (set_market_ext side table): liquidity + used loose + live retail.
-  'ext.pc_loose_value, ext.pc_sales_volume, ext.pa_retail_value, ext.pa_lowest_offer, ext.pa_in_stock, ext.pa_best_merchant';
+  'ext.pc_loose_value, ext.pc_sales_volume, ext.pa_retail_value, ext.pa_lowest_offer, ext.pa_in_stock, ext.pa_best_merchant, ext.pa_offer_count';
 
 // LEFT JOIN that brings the set_market_ext side-table columns into a flat row so
 // enrichSetRecord (deal signal / liquidity / used loose) sees them. Used by both
