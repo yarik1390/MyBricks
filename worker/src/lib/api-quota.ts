@@ -17,7 +17,10 @@ export const QUOTA_CAPS: Record<string, number> = {
   brickeconomy: 80,
   brickset: 90,
   brickowl: 1500,
-  brightdata: 150,
+  // Daily pacing for the Bright Data eBay-sold scrape. The authoritative monthly
+  // limit is the per-token pool (brightdata_keys, 5000/token/mo); this just spreads
+  // a ~5-token pool (~25k/mo) across the month at ~700/day with margin to spare.
+  brightdata: 700,
   upcitemdb: 96,
   // Firecrawl is metered in CREDITS, not scrape-count (1 = basic/markdown/product,
   // 5 = json LLM extract). Plan is a one-time ~300k allotment then ~1,000/month,
