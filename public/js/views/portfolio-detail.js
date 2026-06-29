@@ -1585,19 +1585,19 @@ function priceStripHTML(set, entry) {
 
   const hasEbaySold = ebaySold.newValue || ebaySold.usedValue;
   // Plain-language basis for the active valuation mix.
-  const sourceSuffix = set.valuation_method === "ai" ? "AI fallback - refresh recommended"
-    : set.valuation_method === "formula_bulk" ? "Formula fallback - market refresh needed"
-    : hasEbaySold && !ebaySold.legacy ? "Sold comps + market guide"
-    : ebaySold.legacy ? "Legacy eBay value - needs sold refresh"
-    : showAsk ? "Asking listings only - not sold value"
+  const sourceSuffix = set.valuation_method === "ai" ? "AI estimate"
+    : set.valuation_method === "formula_bulk" ? "Estimated from set details"
+    : hasEbaySold && !ebaySold.legacy ? "From recent sales + market guide"
+    : ebaySold.legacy ? "Older eBay average"
+    : showAsk ? "From current listings (not yet sold)"
     : isBL ? "BrickLink market guide"
     : "Market guide value";
 
   const updateDateStr = set.cached_at ? fmtDateUpdated(set.cached_at) : null;
   // Surface data staleness from the enrichment freshness field.
   const freshColor = set.freshness === 'expired' ? 'var(--down)' : set.freshness === 'stale' ? 'var(--bv-yellow)' : 'var(--ink-mute)';
-  const freshNote = set.freshness === 'expired' ? ' · due for refresh' : set.freshness === 'stale' ? ' · >60d old' : '';
-  const lastUpdatedText = (updateDateStr ? `Updated: ${updateDateStr}` : "Update: pending") + freshNote;
+  const freshNote = set.freshness === 'expired' ? ' · needs refresh' : set.freshness === 'stale' ? ' · over 2 months old' : '';
+  const lastUpdatedText = (updateDateStr ? `Updated ${updateDateStr}` : "Updating soon") + freshNote;
 
   // Lot counts for BrickLink cells — show as confidence indicator
   const blNewQty = set.bl_new_qty;
@@ -1690,11 +1690,14 @@ function marketConfidenceHTML(set) {
       ? 'Estimated by AI because fresh market data was unavailable.'
     : set.valuation_method === 'formula_bulk'
       ? 'Estimated from set attributes until a market refresh completes.'
-    : confidence === 'high' ? 'High confidence — multiple fresh market signals agree.'
-    : confidence === 'medium' ? 'Medium confidence — based on recent market data with limited corroboration.'
-    : confidence === 'low' ? 'Low confidence — limited recent market data; treat as an estimate.'
+    : confidence === 'high' ? 'Several recent sources agree on this price.'
+    : confidence === 'medium' ? 'Based on recent market data, with a little disagreement.'
+    : confidence === 'low' ? 'Limited recent data — treat this as a rough guide.'
     : 'Based on the latest available market data.';
+  // Plain-language freshness + source-role wording (no "primary/fallback/stale").
+  const freshLabel = { fresh: 'Up to date', stale: 'A bit old', expired: 'Needs refresh' }[freshness] || freshness;
   const relColor = (r) => r === 'primary' ? 'var(--up)' : r === 'fallback' ? 'var(--bv-yellow)' : 'var(--ink-mute)';
+  const relLabel = (r) => r === 'primary' ? 'Main' : r === 'fallback' ? 'Backup' : r;
   const sampleLabel = (s) => {
     const count = Number(s.sample_count || 0);
     if (!count) return '';
@@ -1706,7 +1709,7 @@ function marketConfidenceHTML(set) {
   };
   const sourceRows = sources.slice(0, 6).map(s => {
     const rel = s.reliability
-      ? `<span style="font-size:8px;letter-spacing:.04em;text-transform:uppercase;border:1px solid ${relColor(s.reliability)};color:${relColor(s.reliability)};border-radius:6px;padding:0 5px;margin-left:6px;white-space:nowrap;">${escapeHtml(s.reliability)}</span>`
+      ? `<span style="font-size:8px;letter-spacing:.04em;text-transform:uppercase;border:1px solid ${relColor(s.reliability)};color:${relColor(s.reliability)};border-radius:6px;padding:0 5px;margin-left:6px;white-space:nowrap;">${escapeHtml(relLabel(s.reliability))}</span>`
       : '';
     const upd = s.last_updated ? fmtDateUpdated(s.last_updated) : '';
     const sub = (s.note || upd)
@@ -1728,7 +1731,7 @@ function marketConfidenceHTML(set) {
           <div class="detail-card-title" style="margin-bottom:4px;">How we priced this</div>
           <div style="font-size:13px;color:var(--ink-soft);line-height:1.45;">${escapeHtml(explanation)}</div>
         </div>
-        <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:${color};font-weight:800;white-space:nowrap;">${escapeHtml(freshness)}</div>
+        <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:${color};font-weight:800;white-space:nowrap;">${escapeHtml(freshLabel)}</div>
       </div>
       <div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;">
         <span style="color:var(--ink-mute);">Primary signal</span>
