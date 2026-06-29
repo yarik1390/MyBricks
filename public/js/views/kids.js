@@ -1,4 +1,4 @@
-import { $, escapeHtml, haptic, toast } from '../utils.js';
+import { $, escapeHtml, haptic, toast, setHue } from '../utils.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
@@ -8,14 +8,19 @@ import { showSheet, hideSheet } from '../components/sheet.js';
 import { BADGE_DEFS, levelForXp, xpForLevel } from '../lib/kids-xp.js';
 
 function renderSetCardKids(set) {
-  const img = set.image_url
-    ? `<img src="${escapeHtml(set.image_url)}" alt="${escapeHtml(set.name)}" loading="lazy" width="120" height="90" class="set-card-img">`
-    : `<div class="set-card-img set-card-img-empty"></div>`;
+  // Mirror the catalog card image structure so photos hydrate and size correctly:
+  // a .set-card-img frame holding a brick-tile placeholder + a .set-photo image
+  // (app.js adds .photo-loaded on load to reveal the photo).
+  const hasImg = set.image_url && !String(set.image_url).startsWith('data:');
+  const h = setHue(set);
   // Non-link: set detail is blocked in kids mode (would bounce to /kids), so the
   // card is display-only — image + name + facts, no price.
   return `
     <div class="set-card kids-set-card">
-      ${img}
+      <div class="set-card-img${hasImg ? ' has-photo' : ''}">
+        <div class="brick-tile" style="--h:${h};width:64%;height:64%;"></div>
+        ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="${escapeHtml(set.name || '')}" loading="lazy" decoding="async">` : ''}
+      </div>
       <div class="set-card-body">
         <div class="set-card-name">${escapeHtml(set.name)}</div>
         <div class="set-card-meta">${escapeHtml(set.theme || '')} · ${set.pieces ? set.pieces + ' pcs' : ''}</div>

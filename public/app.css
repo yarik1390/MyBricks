@@ -5168,6 +5168,10 @@ body.advisor-open #advisorFab {
 .nav-spacer { display: none; }
 [data-mode="kids"] .nav-spacer { display: block; flex: 1; }
 
+/* Kids mode has no wishlist (route blocked, no nav). Hide the only entry point —
+   the "Coming Soon" row and its + Wishlist buttons. */
+[data-mode="kids"] .coming-soon-wrap { display: none !important; }
+
 /* Hide all prices and investor UI in kids mode */
 [data-mode="kids"] .hero-value,
 [data-mode="kids"] .sl-value,
