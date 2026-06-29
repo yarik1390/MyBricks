@@ -371,7 +371,7 @@ export async function renderMe() {
           try {
             await api("/api/me/kids-pin/set", { method: "POST", body: JSON.stringify({ pin: p1, current_pin: oldPin }) });
             hideSheet(); state.me = null; toast("PIN changed!", "success");
-          } catch (e) {
+          } catch {
             if (errEl) { errEl.textContent = "Current PIN incorrect or something went wrong."; errEl.style.display = "block"; }
           }
         });
