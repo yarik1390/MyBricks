@@ -4,7 +4,7 @@ import { nextOfflineBannerState } from './lib/pure.js';
 import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionUserId, snapshotGuestVault, migrateGuestVault } from './api.js';
 import { I } from './icons.js';
 import { route } from './router.js';
-import { getThemePref, applyTheme } from './theme.js';
+import { getThemePref, applyTheme, getModePref, applyMode } from './theme.js';
 import { toggleAdvisor } from './components/advisor-lazy.js';
 import { openScan, closeScan, capturePhoto } from './components/scanner-lazy.js';
 // onboarding (welcome carousel) is lazy-loaded at the end of boot (see below).
@@ -225,6 +225,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Re-assert the stored theme (the inline bootstrap set it pre-paint; this
   // wires up meta theme-color + keeps state consistent after hydration).
   applyTheme(getThemePref());
+  applyMode(getModePref());
 
   // OS theme change listener
   if (window.matchMedia) {

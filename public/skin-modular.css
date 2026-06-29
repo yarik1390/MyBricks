@@ -1,0 +1,52 @@
+/* ============================================================
+   MyBricks — "Soft Modular" skin (data-skin="modular").
+   Token overrides ONLY — component rules in app.css read these.
+   Calm, rounded, premium-but-free. Soft elevation replaces the
+   retro pixel-offset shadows; hairline borders; generous radii.
+   ============================================================ */
+:root[data-skin="modular"] {
+  --bg: #FBF8F1;
+  --bg-deep: #F4F0E7;
+  --surface: #FFFFFF;
+  --surface-2: #F4F0E7;
+  --surface-3: #ECE6D8;
+  --border-c: #E7E0D0;
+  --border-soft-c: #F0EADD;
+  --bw: 1.5px;
+  --bw-thin: 1px;
+  --r-1: 10px; --r-2: 16px; --r-3: 22px;
+  /* soft elevation */
+  --shadow-1: 0 1px 3px rgba(33, 36, 43, 0.05);
+  --shadow-2: 0 6px 16px rgba(33, 36, 43, 0.07);
+  --shadow-3: 0 12px 28px rgba(33, 36, 43, 0.10);
+  --shadow-4: 0 20px 44px rgba(33, 36, 43, 0.13);
+  /* values stay on the brand serif (--val-font default) */
+  --photo-grad-top: rgba(251, 248, 241, 0.2);
+  --photo-grad-bot: rgba(251, 248, 241, 0);
+}
+
+:root[data-skin="modular"][data-theme="dark"] {
+  --bg: #16151A;
+  --bg-deep: #100F13;
+  --surface: #1E1D24;
+  --surface-2: #24232B;
+  --surface-3: #2C2B34;
+  --border-c: #2A2933;
+  --border-soft-c: #222129;
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 6px 18px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 12px 30px rgba(0, 0, 0, 0.5);
+  --shadow-4: 0 20px 46px rgba(0, 0, 0, 0.55);
+  --photo-grad-top: rgba(22, 21, 26, 0.2);
+  --photo-grad-bot: rgba(22, 21, 26, 0);
+}
+
+/* Soft-elevation press feedback (collapse the lift) instead of the
+   retro pixel translate — coherent with this skin's depth language. */
+:root[data-skin="modular"] .chip:active,
+:root[data-skin="modular"] .card:active,
+:root[data-skin="modular"] .btn-primary:active,
+:root[data-skin="modular"] .btn-secondary:active {
+  box-shadow: var(--shadow-1);
+  transform: translateY(1px);
+}

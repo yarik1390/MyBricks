@@ -1,0 +1,56 @@
+/* ============================================================
+   MyBricks — "Kids" skin (data-skin="kids").
+   ⚠ The SKIN (this file) only delivers the LOOK. The Kids THEME
+   as designed (XP, levels, badges, brick-buddy, simplified Kids
+   home, parent PIN) also needs data + view work — see
+   IMPLEMENTATION.md §6. Ship this file with that work, not alone.
+
+   Bright, chunky, friendly. Heavy rounded type (Baloo 2), big
+   radii, thick black outlines, hard downward shadows. No prices
+   in the UI is enforced in the VIEWS, not here.
+   ============================================================ */
+:root[data-skin="kids"] {
+  --bg: #FFF7E6;
+  --bg-deep: #FFEFD0;
+  --surface: #FFFFFF;
+  --surface-2: #FFF3DC;
+  --surface-3: #FFE9BE;
+  --ink: #17181C;
+  --ink-soft: #34363E;
+  --ink-mute: #7A715C;
+  --ink-faint: #A99C82;
+  --line: #17181C;
+  --border-c: #17181C;
+  --border-soft-c: #E7DCC2;
+  --bw: 3px;
+  --bw-thin: 2px;
+  --r-1: 14px; --r-2: 20px; --r-3: 26px; --r-full: 9999px;
+  /* playful primary palette */
+  --accent: #2D7DF6;
+  --bv-yellow: #FFC93C;
+  --bv-yellow-dark: #E9B11F;
+  --bv-red: #FF5A4D;
+  --bv-red-dark: #E8463A;
+  --up: #28C76F;       --up-pale: #E4F8EE;  --up-soft: #BFEFD4;
+  --down: #FF5A4D;     --down-pale: #FFE7E4; --down-soft: #FFC9C3;
+  /* rounded, friendly type everywhere (requires Baloo 2 — see index.html note) */
+  --sans: 'Baloo 2', system-ui, sans-serif;
+  --serif: 'Baloo 2', system-ui, sans-serif;
+  --val-font: 'Baloo 2', system-ui, sans-serif;
+  /* hard downward "toy" shadow */
+  --shadow-1: 0 3px 0 #17181C;
+  --shadow-2: 0 4px 0 #17181C;
+  --shadow-3: 0 5px 0 #17181C;
+  --shadow-4: 0 6px 0 #17181C;
+}
+
+/* Press = squish down toward the shadow (kids love tactile feedback) */
+:root[data-skin="kids"] .chip:active,
+:root[data-skin="kids"] .card:active,
+:root[data-skin="kids"] .set-list-card:active,
+:root[data-skin="kids"] .set-card:active,
+:root[data-skin="kids"] .btn-primary:active,
+:root[data-skin="kids"] .btn-secondary:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #17181C;
+}

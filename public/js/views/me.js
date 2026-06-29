@@ -4,7 +4,7 @@ import { api, sbSignOut, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
 import { promptSheet, showSheet, hideSheet } from '../components/sheet.js';
 import { go } from '../router.js';
-import { getThemePref, setThemePref, getSkinPref, setSkinPref } from '../theme.js';
+import { getThemePref, setThemePref, getSkinPref, setSkinPref, getModePref, setModePref } from '../theme.js';
 import { skelPage, skelStatGrid, skelSettingRows } from '../components/skeleton.js';
 import { startOnboarding } from '../components/onboarding.js';
 
@@ -143,10 +143,22 @@ export async function renderMe() {
           </div>
         </div>
         <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Style</div><div class="desc">Retro brick look or modern premium.</div></div>
+          <div class="lbl-wrap"><div class="lbl">Style</div><div class="desc">Pick a visual skin — free or supporter.</div></div>
           <div class="theme-seg" id="skinSeg" role="group" aria-label="Visual style">
-            ${[["retro","Retro"],["premium","Premium"],...(me.is_supporter ? [["gold","Gold ★"]] : [])].map(([v,l]) =>
+            ${[
+              ["retro","Retro"],
+              ["modular","Modular"],
+              ["vivid","Vivid"],
+              ...(me.is_supporter ? [["premium","Premium"],["gold","Gold ★"]] : [["premium","Premium ★"],["gold","Gold ★"]]),
+            ].map(([v,l]) =>
               `<button data-skin-val="${v}" class="${getSkinPref() === v ? "active" : ""}" aria-pressed="${getSkinPref() === v}">${l}</button>`).join("")}
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">View mode</div><div class="desc">Simple hides ROI charts &amp; forecasts — just value &amp; your sets.</div></div>
+          <div class="theme-seg" id="modeSeg" role="group" aria-label="View mode">
+            ${[["pro","Pro"],["simple","Simple"]].map(([v,l]) =>
+              `<button data-mode-val="${v}" class="${getModePref() === v ? "active" : ""}" aria-pressed="${getModePref() === v}">${l}</button>`).join("")}
           </div>
         </div>
         <div class="setting-row">
@@ -225,9 +237,24 @@ export async function renderMe() {
 
   $$("#skinSeg button").forEach(b => b.addEventListener("click", () => {
     const val = b.dataset.skinVal;
+    if (!me.is_supporter && (val === "premium" || val === "gold")) {
+      toast("Unlock Premium &amp; Gold by supporting Brickvault ★", "info");
+      return;
+    }
     haptic("light");
     setSkinPref(val);
     $$("#skinSeg button").forEach(x => {
+      const on = x === b;
+      x.classList.toggle("active", on);
+      x.setAttribute("aria-pressed", on);
+    });
+  }));
+
+  $$("#modeSeg button").forEach(b => b.addEventListener("click", () => {
+    const val = b.dataset.modeVal;
+    haptic("light");
+    setModePref(val);
+    $$("#modeSeg button").forEach(x => {
       const on = x === b;
       x.classList.toggle("active", on);
       x.setAttribute("aria-pressed", on);

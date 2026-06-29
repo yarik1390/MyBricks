@@ -37,6 +37,7 @@
   --serif: 'Fraunces', Georgia, serif;
   --sans: 'Geist', system-ui, sans-serif;
   --mono: 'IBM Plex Mono', monospace;
+  --val-font: var(--serif);
   --card-pad-sm: 12px;
   --card-pad-md: 16px;
   --card-pad-lg: 20px;
@@ -280,7 +281,7 @@ body.offline .offline-banner { display: block; }
   50% { box-shadow: 0 0 0 6px rgba(26,127,75,0); }
 }
 .hero-value {
-  font-family: var(--serif); font-weight: 500;
+  font-family: var(--val-font); font-weight: 500;
   font-size: 46px; line-height: 1.05;
   letter-spacing: -0.02em;
   margin: 8px 0 4px;
@@ -555,7 +556,7 @@ ul.set-list > li { display: contents; }
   padding: 2px 4px; flex-shrink: 0;
 }
 .sl-value {
-  font-family: var(--serif); font-weight: 500;
+  font-family: var(--val-font); font-weight: 500;
   font-size: 18px; letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
@@ -789,7 +790,7 @@ ul.set-list > li { display: contents; }
    card layout). Short subthemes are unaffected; long ones ellipsize. */
 .set-card-meta .set-card-sub { min-width: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .set-card-value {
-  font-family: var(--serif); font-size: 17px; font-weight: 500;
+  font-family: var(--val-font); font-size: 17px; font-weight: 500;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
@@ -958,7 +959,7 @@ ul.set-list > li { display: contents; }
 }
 .stat-cell .lbl svg { width: 11px; height: 11px; }
 .stat-cell .val, .summary-cell .val, .fig-stat-num {
-  font-family: var(--serif); font-size: 22px; font-weight: 500;
+  font-family: var(--val-font); font-size: 22px; font-weight: 500;
   letter-spacing: -0.01em; margin-top: 4px;
   font-variant-numeric: tabular-nums;
 }
@@ -980,7 +981,7 @@ ul.set-list > li { display: contents; }
   letter-spacing: 0.1em; color: var(--ink-mute);
   text-transform: uppercase;
 }
-.qty-row-val { font-family: var(--serif); font-size: 20px; font-weight: 500; }
+.qty-row-val { font-family: var(--val-font); font-size: 20px; font-weight: 500; }
 .qty-stepper { display: flex; align-items: center; gap: 6px; }
 .qty-btn {
   width: 44px; height: 44px;
@@ -1051,7 +1052,7 @@ ul.set-list > li { display: contents; }
   color: var(--ink-mute); text-transform: uppercase;
 }
 .forecast-card .fh-val {
-  font-family: var(--serif); font-size: 22px; font-weight: 500;
+  font-family: var(--val-font); font-size: 22px; font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 .forecast-bar {
@@ -1261,7 +1262,7 @@ ul.set-list > li { display: contents; }
   margin-top: auto; gap: 6px;
 }
 .mini-value {
-  font-family: var(--serif); font-size: 17px; font-weight: 500;
+  font-family: var(--val-font); font-size: 17px; font-weight: 500;
   letter-spacing: -0.01em; font-variant-numeric: tabular-nums;
 }
 .mini-value-est {
@@ -1319,7 +1320,7 @@ ul.set-list > li { display: contents; }
   letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-mute);
 }
 .fig-detail-value-num {
-  font-family: var(--serif); font-size: 22px; font-weight: 500;
+  font-family: var(--val-font); font-size: 22px; font-weight: 500;
   letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
 }
 .fig-detail-source {
@@ -1793,7 +1794,7 @@ ul.set-list > li { display: contents; }
 .scan-result-row .sx { flex: 1; min-width: 0; }
 .scan-result-row .sx-name { font-weight: 600; font-size: 15px; line-height: 1.2; }
 .scan-result-row .sx-meta { font-family: var(--mono); font-size: 10px; color: var(--ink-mute); margin-top: 2px; letter-spacing: 0.06em; text-transform: uppercase; }
-.scan-result-row .sx-val { font-family: var(--serif); font-size: 18px; font-weight: 500; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.scan-result-row .sx-val { font-family: var(--val-font); font-size: 18px; font-weight: 500; margin-top: 4px; font-variant-numeric: tabular-nums; }
 
 /* ============================================================
    Quick actions sheet (long-press menu)
@@ -5096,3 +5097,48 @@ body.advisor-open #advisorFab {
 @media (min-width: 640px) {
   .admin-process-list { grid-template-columns: 1fr 1fr; }
 }
+
+/* ============================================================
+   Responsive — tablet + desktop breakpoints
+   ============================================================ */
+
+/* Tablet: 3-column grids */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .grid, .mini-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* Desktop: left-rail nav, wider content, 2-column Vault */
+@media (min-width: 1025px) {
+  #nav {
+    flex-direction: column;
+    width: 84px;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: auto;
+    bottom: auto;
+    border-top: none;
+    border-right: var(--bw) solid var(--border-c);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    overflow-y: auto;
+  }
+  body { padding-bottom: 0; padding-left: 84px; }
+  .nav-tab { flex-direction: column; min-width: 0; padding: 14px 0; }
+  .nav-tab .scan-orb { margin-top: 0; }
+  .page { max-width: 1100px; margin: 0 auto; }
+}
+
+/* ============================================================
+   Simple mode — hide investor-layer when data-mode="simple"
+   ============================================================ */
+[data-mode="simple"] #heroChart,
+[data-mode="simple"] #rangePills,
+[data-mode="simple"] .portfolio-tabs,
+[data-mode="simple"] #insightsPanel,
+[data-mode="simple"] .sl-delta,
+[data-mode="simple"] .trend-badge,
+[data-mode="simple"] .forecast-card { display: none !important; }
+
+/* Hide Minifigs nav tab in simple mode */
+[data-mode="simple"] .nav-tab[data-route="/minifigs"] { display: none; }

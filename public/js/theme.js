@@ -1,38 +1,41 @@
 // Centralized theme + skin management.
 // Two orthogonal axes on <html>:
 //   data-theme="light|dark"         — color scheme, pref "light|dark|auto" in localStorage bv_theme
-//   data-skin="retro|premium|gold"  — visual skin, pref in localStorage bv_skin (default retro)
+//   data-skin="retro|modular|vivid|premium|gold|kids" — visual skin, pref in localStorage bv_skin (default retro)
 // theme-init.js applies both pre-paint; this module owns runtime changes.
 
+const SKINS = ['retro', 'modular', 'vivid', 'premium', 'gold', 'kids'];
+
 const META_THEME_COLORS = {
-  retro:   { light: "#F5F1E8", dark: "#16161C" },
-  premium: { light: "#FAFAF7", dark: "#0E1014" },
-  gold:    { light: "#FAF6EC", dark: "#14110A" },
+  retro:   { light: '#F5F1E8', dark: '#16161C' },
+  modular: { light: '#FBF8F1', dark: '#16151A' },
+  vivid:   { light: '#15141C', dark: '#100F16' },
+  premium: { light: '#FAFAF7', dark: '#0E1014' },
+  gold:    { light: '#FAF6EC', dark: '#14110A' },
+  kids:    { light: '#FFF7E6', dark: '#FFF7E6' },
 };
 
 export function getThemePref() {
-  try { return localStorage.getItem("bv_theme") || "auto"; } catch { return "auto"; }
+  try { return localStorage.getItem('bv_theme') || 'auto'; } catch { return 'auto'; }
 }
 
 export function resolveTheme(pref) {
-  if (pref === "light" || pref === "dark") return pref;
-  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  if (pref === 'light' || pref === 'dark') return pref;
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
 export function getSkinPref() {
   try {
-    const s = localStorage.getItem("bv_skin");
-    if (s === "premium") return "premium";
-    if (s === "gold") return "gold";
-    return "retro";
-  } catch { return "retro"; }
+    const s = localStorage.getItem('bv_skin');
+    return SKINS.includes(s) ? s : 'retro';
+  } catch { return 'retro'; }
 }
 
 function updateMetaThemeColor() {
   const scheme = resolveTheme(getThemePref());
   const skin = getSkinPref();
   const color = (META_THEME_COLORS[skin] || META_THEME_COLORS.retro)[scheme];
-  document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute("content", color));
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', color));
 }
 
 export function applyTheme(pref) {
@@ -41,21 +44,33 @@ export function applyTheme(pref) {
 }
 
 export function setThemePref(pref) {
-  try { localStorage.setItem("bv_theme", pref); } catch {}
+  try { localStorage.setItem('bv_theme', pref); } catch {}
   applyTheme(pref);
 }
 
 export function applySkin(skin) {
-  if (skin === "premium") document.documentElement.dataset.skin = "premium";
-  else if (skin === "gold") document.documentElement.dataset.skin = "gold";
+  if (SKINS.includes(skin) && skin !== 'retro') document.documentElement.dataset.skin = skin;
   else delete document.documentElement.dataset.skin;
   updateMetaThemeColor();
 }
 
 export function setSkinPref(skin) {
-  try {
-    const val = skin === "premium" ? "premium" : skin === "gold" ? "gold" : "retro";
-    localStorage.setItem("bv_skin", val);
-  } catch {}
+  try { localStorage.setItem('bv_skin', SKINS.includes(skin) ? skin : 'retro'); } catch {}
   applySkin(skin);
+}
+
+// Simple mode — third orthogonal axis (data-mode="simple" on <html>).
+// 'pro' (default) = full investor view; 'simple' = value + list only.
+export function getModePref() {
+  try { return localStorage.getItem('bv_mode') === 'simple' ? 'simple' : 'pro'; } catch { return 'pro'; }
+}
+
+export function applyMode(mode) {
+  if (mode === 'simple') document.documentElement.dataset.mode = 'simple';
+  else delete document.documentElement.dataset.mode;
+}
+
+export function setModePref(mode) {
+  try { localStorage.setItem('bv_mode', mode === 'simple' ? 'simple' : 'pro'); } catch {}
+  applyMode(mode);
 }

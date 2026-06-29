@@ -1,0 +1,54 @@
+/* ============================================================
+   MyBricks — "Vivid Play" skin (data-skin="vivid").
+   Token overrides ONLY. A dark canvas so set photos and LEGO
+   theme colours glow. Keeps the chunky brick energy via hard,
+   downward offset shadows (instead of the retro corner offset).
+   Vivid is dark by design: it sets dark surfaces under BOTH
+   colour schemes; the [data-theme="dark"] block just goes a
+   touch deeper. (Existing per-theme card left-borders from
+   THEME_COLORS already supply the "theme-coloured cards".)
+   ============================================================ */
+:root[data-skin="vivid"] {
+  color-scheme: dark;
+  --bg: #15141C;
+  --bg-deep: #100F16;
+  --surface: #211F2C;
+  --surface-2: #2B2838;
+  --surface-3: #332F42;
+  --ink: #FFFFFF;
+  --ink-soft: #E4E2F0;
+  --ink-mute: #A6A4BC;
+  --ink-faint: #6F6C84;
+  --line: #FFFFFF;
+  --line-soft: #3A3748;
+  --border-c: #0B0A11;
+  --border-soft-c: #34313F;
+  --bw: 2.5px;
+  --bw-thin: 1.5px;
+  --r-1: 8px; --r-2: 13px; --r-3: 18px;
+  --accent: #FFD23F;
+  --bv-yellow: #FFD23F;
+  --bv-yellow-dark: #E5BB1F;
+  --bv-red: #FF5147;
+  --bv-red-dark: #E23A30;
+  --up: #2BD27A;       --down: #FF5C7A;
+  --up-pale: #10362A;  --down-pale: #3A1622;
+  --up-soft: #1A5A3C;  --down-soft: #4A1F2E;
+  /* hard, downward offset shadow keeps the toy chunkiness on dark */
+  --shadow-1: 0 4px 0 rgba(0, 0, 0, 0.45);
+  --shadow-2: 0 5px 0 rgba(0, 0, 0, 0.5);
+  --shadow-3: 0 7px 0 rgba(0, 0, 0, 0.5);
+  --shadow-4: 0 9px 0 rgba(0, 0, 0, 0.55);
+  --photo-grad-top: rgba(21, 20, 28, 0.25);
+  --photo-grad-bot: rgba(21, 20, 28, 0);
+  /* crisp geometric numerals read better than a serif on dark */
+  --val-font: var(--sans);
+}
+
+:root[data-skin="vivid"][data-theme="dark"] {
+  --bg: #100F16;
+  --bg-deep: #0A0910;
+  --surface: #1B1A24;
+  --surface-2: #242230;
+  --surface-3: #2E2B3C;
+}

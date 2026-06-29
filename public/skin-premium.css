@@ -1,28 +1,39 @@
 /* ============================================================
-   Brickvault — "Modern Premium" skin (data-skin="premium").
-   Token overrides ONLY — component rules live in app.css and
-   read these tokens. Default skin (retro) needs no attribute.
+   MyBricks — "Premium" skin (data-skin="premium"). REFRESHED.
+   Drop-in replacement for the existing public/skin-premium.css.
+   Token overrides ONLY. Quiet, editorial luxe: warmer paper-
+   white surfaces (was a flat cool grey), longer soft shadows,
+   a refined high-contrast SERIF for value numerals, and a single
+   muted-gold accent so it feels intentional, not default.
    ============================================================ */
 :root[data-skin="premium"] {
-  --bg: #FAFAF7;
-  --bg-deep: #F1F1ED;
+  --bg: #F7F6F2;
+  --bg-deep: #EFEEE9;
   --surface: #FFFFFF;
-  --surface-2: #F4F4F1;
-  --surface-3: #ECECEA;
-  --border-c: #E2E2DE;
-  --border-soft-c: #ECECEA;
+  --surface-2: #F0EFEA;
+  --surface-3: #E8E7E1;
+  --border-c: #E7E5DE;
+  --border-soft-c: #EFEEE8;
   --bw: 1px;
   --bw-thin: 1px;
-  --r-1: 10px; --r-2: 16px; --r-3: 20px;
-  /* soft elevation replaces the retro pixel-offset shadows */
-  --shadow-1: 0 1px 2px rgba(16, 18, 24, 0.06);
-  --shadow-2: 0 2px 8px rgba(16, 18, 24, 0.07);
-  --shadow-3: 0 6px 20px rgba(16, 18, 24, 0.09);
-  --shadow-4: 0 12px 32px rgba(16, 18, 24, 0.12);
-  /* more whitespace */
+  --r-1: 12px; --r-2: 18px; --r-3: 24px;
+  --ink: #14161B;
+  --ink-soft: #2C2E36;
+  --ink-mute: #8A8E97;
+  --ink-faint: #B3B6BD;
+  /* one restrained accent, not the toy primary yellow */
+  --accent: #CDA53E;
+  --bv-yellow: #CDA53E;
+  /* refined high-contrast serif for big values */
+  --val-font: 'Spectral', Georgia, serif;
+  /* longer, softer elevation */
+  --shadow-1: 0 1px 2px rgba(16, 18, 24, 0.05);
+  --shadow-2: 0 6px 18px rgba(16, 18, 24, 0.07);
+  --shadow-3: 0 18px 40px rgba(16, 18, 24, 0.10);
+  --shadow-4: 0 28px 60px rgba(16, 18, 24, 0.13);
   --sp-3: 14px; --sp-4: 20px; --sp-5: 28px;
-  --photo-grad-top: rgba(250, 250, 247, 0.2);
-  --photo-grad-bot: rgba(250, 250, 247, 0);
+  --photo-grad-top: rgba(247, 246, 242, 0.2);
+  --photo-grad-bot: rgba(247, 246, 242, 0);
 }
 
 :root[data-skin="premium"][data-theme="dark"] {
@@ -33,22 +44,30 @@
   --surface-3: #232833;
   --border-c: #262B35;
   --border-soft-c: #1F242D;
+  --ink: #F4F5F7;
+  --ink-soft: #D6D8DD;
+  --ink-mute: #8A8E97;
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-2: 0 2px 10px rgba(0, 0, 0, 0.5);
-  --shadow-3: 0 8px 24px rgba(0, 0, 0, 0.55);
-  --shadow-4: 0 14px 40px rgba(0, 0, 0, 0.6);
+  --shadow-2: 0 6px 18px rgba(0, 0, 0, 0.5);
+  --shadow-3: 0 18px 40px rgba(0, 0, 0, 0.55);
+  --shadow-4: 0 28px 60px rgba(0, 0, 0, 0.6);
   --photo-grad-top: rgba(14, 16, 20, 0.2);
   --photo-grad-bot: rgba(14, 16, 20, 0);
 }
 
-/* Skin-scoped component exceptions — keep this section tiny. Pixel-shadow
-   press feedback (translate toward the shadow) reads wrong with soft
-   elevation; premium presses collapse the elevation instead — the surface
-   settles toward the page, coherent with the skin's depth language. */
+/* Press collapses the elevation (no retro pixel translate). */
 :root[data-skin="premium"] .chip:active,
 :root[data-skin="premium"] .card:active,
 :root[data-skin="premium"] .btn-primary:active,
 :root[data-skin="premium"] .btn-secondary:active {
   box-shadow: var(--shadow-1);
   transform: translateY(1px);
+}
+
+/* Monochrome, editorial accents: the active chip and primary CTA
+   read as confident ink rather than loud yellow. */
+:root[data-skin="premium"] .chip.active {
+  background: var(--ink);
+  color: var(--surface);
+  border-color: var(--ink);
 }
