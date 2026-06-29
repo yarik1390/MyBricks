@@ -996,6 +996,116 @@ ul.set-list > li { display: contents; }
   font-size: 17px; min-width: 30px; text-align: center;
 }
 
+/* ============================================================
+   Set detail — reusable building blocks (replaces inline styles)
+   ============================================================ */
+.detail-card {
+  background: var(--surface);
+  border: var(--bw) solid var(--border-c);
+  border-radius: var(--r-3);
+  box-shadow: var(--shadow-3);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.detail-card-title {
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-bottom: 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+/* 2-column key/value grid (Details card) */
+.detail-kv-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 12px; font-size: 12px;
+}
+.detail-kv { min-width: 0; }
+.detail-kv .k { color: var(--ink-mute); }
+.detail-kv .v { color: var(--ink); font-weight: 700; }
+.detail-kv.span2 { grid-column: span 2; }
+
+/* Plain-language status chip (confidence / growth / availability) */
+.detail-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--mono); font-size: 10px; font-weight: 800;
+  letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--ink-mute);
+  border: 1px solid var(--border-c); border-radius: 8px;
+  padding: 3px 8px;
+}
+.detail-chip--good { color: var(--up); border-color: var(--up); }
+.detail-chip--ok   { color: var(--accent); border-color: var(--accent); }
+.detail-chip--low  { color: var(--bv-yellow); border-color: var(--bv-yellow); }
+.detail-chip--warn { color: var(--down); border-color: var(--down); }
+
+/* Summary header — the value + chip + one-line facts that lead the Info tab */
+.detail-summary {
+  background: var(--surface);
+  border: var(--bw) solid var(--border-c);
+  border-radius: var(--r-3);
+  box-shadow: var(--shadow-3);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.detail-summary-top {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+}
+.detail-summary-val {
+  font-family: var(--val-font); font-size: 30px; font-weight: 700;
+  line-height: 1.02; letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.detail-summary-lbl {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-mute); margin-bottom: 3px;
+}
+.detail-summary-facts {
+  display: flex; flex-wrap: wrap; gap: 6px 14px;
+  margin-top: 12px; padding-top: 12px;
+  border-top: var(--bw-thin) solid var(--border-soft-c);
+  font-size: 12px;
+}
+.detail-summary-facts .f { color: var(--ink-mute); }
+.detail-summary-facts .f b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* "Pricing details" collapsible — wraps all the deep market breakdowns */
+.detail-disclose { margin-bottom: 14px; }
+.detail-disclose > summary {
+  cursor: pointer; list-style: none;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--ink-soft);
+  background: var(--surface-2); border: 1px solid var(--line-soft);
+  border-radius: var(--r-2); padding: 11px 14px;
+}
+.detail-disclose > summary::-webkit-details-marker { display: none; }
+.detail-disclose[open] > summary .detail-disclose-chev { transform: rotate(180deg); }
+.detail-disclose-chev { font-size: 12px; color: var(--ink-mute); transition: transform var(--dur-fast) var(--ease); }
+.detail-disclose-body { margin-top: 12px; }
+
+/* Sticky action bar — keeps the primary action reachable on the detail page */
+.detail-action-bar {
+  position: fixed; left: 0; right: 0;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+  z-index: 25;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px) * 0);
+  background: var(--surface);
+  border-top: var(--bw) solid var(--border-c);
+  box-shadow: 0 -6px 20px rgba(16, 18, 24, 0.08);
+}
+.detail-action-bar .btn-primary,
+.detail-action-bar .btn-secondary { margin: 0; box-shadow: var(--shadow-2); }
+.detail-action-bar .ab-wish { width: 52px; flex: 0 0 auto; }
+.detail-action-bar .ab-qty { display: flex; align-items: center; gap: 8px; flex: 1; }
+.detail-action-bar .ab-qty .qty-row-lbl { flex: 1; }
+/* On the detail page, pad the scroll area so content clears the sticky bar. */
+.detail-page-container { padding-bottom: 84px; }
+@media (min-width: 1025px) {
+  /* Left-rail nav layout has no bottom bar — pin the action bar to the viewport. */
+  .detail-action-bar { bottom: 0; }
+}
+
 /* primary CTA */
 .btn-primary {
   width: 100%;

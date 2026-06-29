@@ -1,5 +1,5 @@
 import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, clamp, confettiBurst, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail } from '../utils.js';
-import { computeDealScore, ebaySoldSummary, marketValueForCondition, pricePerPiece, liquidityLabel } from '../lib/pure.js';
+import { computeDealScore, ebaySoldSummary, marketValueForCondition } from '../lib/pure.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
@@ -133,13 +133,15 @@ function paintSetDetail(set, entry) {
             manageTabHTML(set, entry)}
         </div>
       </div>
+      ${detailActionBarHTML(set, entry, isWish)}
     </div>`;
 
   _detailCtx = { set, entry };
   ensureDetailDelegation();
-  if (state.detail.tab === "info") wireInfoTab(set, entry);
+  if (state.detail.tab === "info") wireInfoTab(set);
   else if (state.detail.tab === "manage") wireManageTab(set, entry);
   else if (state.detail.tab === "community") wireCommunityTab(set);
+  wireDetailActions(set, entry); // sticky action bar — present on every tab
   setupTabSwipe(set, entry);
 
   // Custom photos live behind the authed worker API, so an <img src> can't
@@ -201,9 +203,77 @@ function setDisplayValue(set) {
   return Number(set.market_value) > 0 ? Number(set.market_value) : (Number(set.current_value) || 0);
 }
 
+// Plain-language confidence chip (no "high/medium/low signal" jargon).
+function confidenceChip(set) {
+  const conf = String(set.market_value_confidence || set.confidence || '').toLowerCase();
+  const method = set.valuation_method;
+  if (method === 'ai') return `<span class="detail-chip detail-chip--low" title="Estimated by AI because fresh market data wasn't available">Estimated</span>`;
+  if (method === 'formula_bulk') return `<span class="detail-chip detail-chip--low" title="Estimated from the set's attributes until a market refresh runs">Rough estimate</span>`;
+  if (conf === 'high') return `<span class="detail-chip detail-chip--good" title="Multiple fresh market sources agree on this price">Reliable price</span>`;
+  if (conf === 'medium') return `<span class="detail-chip detail-chip--ok" title="Based on recent market data with limited corroboration">Good estimate</span>`;
+  if (conf === 'low') return `<span class="detail-chip detail-chip--low" title="Limited recent market data — treat as a rough guide">Rough estimate</span>`;
+  return '';
+}
+
+// One-line key facts row: Pieces · Year · Minifigs · Retail. Replaces the old
+// 3-col stat grid and the duplicate pieces row in Set Facts.
+function summaryFactsHTML(set) {
+  const figs = set.set_minifigs?.length || set.minifigs || 0;
+  const parts = [];
+  if (set.pieces) parts.push(`<span class="f"><b>${Number(set.pieces).toLocaleString()}</b> pieces</span>`);
+  if (set.year) parts.push(`<span class="f"><b>${set.year}</b></span>`);
+  if (figs) parts.push(`<span class="f"><b>${figs}</b> minifig${figs === 1 ? '' : 's'}</span>`);
+  if (set.retail_price) parts.push(`<span class="f">Retail <b>${fmtMoney(set.retail_price)}</b></span>`);
+  return parts.length ? `<div class="detail-summary-facts">${parts.join('')}</div>` : '';
+}
+
+// Compact summary header: the value + a plain-language confidence chip + key
+// facts. Leads the Info tab in every mode (chip is Pro-only).
+function detailSummaryHTML(set) {
+  const v = setDisplayValue(set);
+  const chip = isSimpleMode() ? '' : confidenceChip(set);
+  return `
+    <div class="detail-summary">
+      <div class="detail-summary-top">
+        <div style="min-width:0;">
+          <div class="detail-summary-lbl">Value</div>
+          <div class="detail-summary-val">${v > 0 ? fmtMoney(v) : '—'}</div>
+        </div>
+        ${chip}
+      </div>
+      ${summaryFactsHTML(set)}
+    </div>`;
+}
+
+// Sticky action bar pinned above the bottom nav — keeps the primary action
+// reachable without scrolling. Owned: qty stepper + Manage. Not owned: Add to
+// vault + a wishlist heart. IDs match the handlers in wireDetailActions.
+function detailActionBarHTML(set, entry, isWish) {
+  const owned = !!entry;
+  if (owned) {
+    return `
+      <div class="detail-action-bar">
+        <div class="ab-qty">
+          <span class="qty-row-lbl">In vault</span>
+          <div class="qty-stepper">
+            <button class="qty-btn" id="qtyDown" aria-label="Decrease quantity">${I.minus()}</button>
+            <div class="qty-num" id="qtyNum">${entry.quantity}</div>
+            <button class="qty-btn" id="qtyUp" aria-label="Increase quantity">${I.plus()}</button>
+          </div>
+        </div>
+        <a class="btn-secondary" href="#/set/${encodeURIComponent(set.set_num)}/manage" style="flex:1;">${I.gear()}<span>Manage</span></a>
+      </div>`;
+  }
+  const displayVal = setDisplayValue(set);
+  return `
+    <div class="detail-action-bar">
+      <button class="btn-primary" id="addBtn" style="flex:1;">${I.plus()}<span>Add to vault · ${fmtMoney(displayVal, { cents: 0 })}</span></button>
+      <button class="btn-secondary ab-wish" id="wishToggle" aria-label="${isWish ? 'Remove from wishlist' : 'Add to wishlist'}">${isWish ? I.heartF() : I.heart()}</button>
+    </div>`;
+}
+
 function infoTabHTML(set, entry, isWish) {
   const owned = !!entry;
-  const displayVal = setDisplayValue(set);
 
   let bricksetHtml = '';
   {
@@ -228,24 +298,24 @@ function infoTabHTML(set, entry, isWish) {
       ? `<span class="signal-hint" style="color:var(--green);font-size:10px;">High demand set</span>`
       : '';
     const growthBadge = (growthRate != null && !isSimpleMode())
-      ? `<div style="grid-column:span 2;display:flex;align-items:center;gap:8px;"><span style="color:var(--ink-mute);">12m growth:</span> <strong style="color:${growthRate >= 0 ? 'var(--up)' : 'var(--down)'};">${growthRate >= 0 ? '+' : ''}${Number(growthRate).toFixed(1)}%/yr</strong></div>`
+      ? `<div class="detail-kv span2"><span class="k" title="Change in market value over the past 12 months">Past year</span> <span class="v" style="color:${growthRate >= 0 ? 'var(--up)' : 'var(--down)'};">${growthRate >= 0 ? 'Up ' : 'Down '}${Math.abs(Number(growthRate)).toFixed(1)}%</span></div>`
       : '';
     const fmtMonthYear = (d) => { const t = d ? Date.parse(d) : NaN; return Number.isNaN(t) ? '' : new Date(t).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }); };
     const launchStr = fmtMonthYear(set.launch_date);
     const exitStr = fmtMonthYear(set.exit_date);
     const launchBadge = launchStr
-      ? `<div><span style="color:var(--ink-mute);">Released:</span> <strong style="color:var(--ink);">${launchStr}</strong></div>`
+      ? `<div class="detail-kv"><span class="k">Released</span> <span class="v">${launchStr}</span></div>`
       : '';
     const retiredYearBadge = exitStr
-      ? `<div><span style="color:var(--ink-mute);">Retired:</span> <strong style="color:var(--ink);">${exitStr}</strong></div>`
+      ? `<div class="detail-kv"><span class="k">Retired</span> <span class="v">${exitStr}</span></div>`
       : (retiredYear && set.retired
-        ? `<div><span style="color:var(--ink-mute);">Retired:</span> <strong style="color:var(--ink);">${retiredYear}</strong></div>`
+        ? `<div class="detail-kv"><span class="k">Retired</span> <span class="v">${retiredYear}</span></div>`
         : '');
     const themeGroupBadge = themeGroupStr
-      ? `<div><span style="color:var(--ink-mute);">Theme group:</span> <strong style="color:var(--ink);">${escapeHtml(themeGroupStr)}</strong></div>`
+      ? `<div class="detail-kv"><span class="k">Theme group</span> <span class="v">${escapeHtml(themeGroupStr)}</span></div>`
       : '';
     const categoryBadge = (categoryStr && categoryStr.toLowerCase() !== 'normal')
-      ? `<div><span style="color:var(--ink-mute);">Category:</span> <strong style="color:var(--ink);">${escapeHtml(categoryStr)}</strong></div>`
+      ? `<div class="detail-kv"><span class="k">Category</span> <span class="v">${escapeHtml(categoryStr)}</span></div>`
       : '';
     const visibleTags = tagsArr.slice(0, 10);
     const hiddenTagCount = Math.max(0, tagsArr.length - visibleTags.length);
@@ -267,13 +337,16 @@ function infoTabHTML(set, entry, isWish) {
     };
     const lb = legoAvail ? legoBadgeMap[legoAvail] : null;
     const legoStockBadge = lb
-      ? `<div style="grid-column:span 2;"><span style="background:${lb[1]};color:${lb[2]};font-weight:700;border-radius:4px;padding:2px 8px;font-size:11px;">${lb[0]}</span></div>`
+      ? `<div class="detail-kv span2"><span style="background:${lb[1]};color:${lb[2]};font-weight:700;border-radius:4px;padding:2px 8px;font-size:11px;">${lb[0]}</span></div>`
       : '';
 
-    // Retirement-risk likelihood (only meaningful while a set is still active).
+    // Retirement likelihood (only meaningful while a set is still active) — shown
+    // in plain language with the raw % as a tooltip.
     const riskScore = set.retirement_risk_score;
+    const riskWord = riskScore >= 70 ? 'Likely soon' : riskScore >= 40 ? 'Possible' : 'Unlikely';
+    const riskColor = riskScore >= 70 ? 'var(--down)' : riskScore >= 40 ? 'var(--bv-yellow)' : 'var(--ink)';
     const riskBadge = (riskScore != null && !set.retired)
-      ? `<div><span style="color:var(--ink-mute);">Retire risk:</span> <strong style="color:${riskScore >= 70 ? 'var(--down)' : riskScore >= 40 ? 'var(--bv-yellow)' : 'var(--ink)'};">${Math.round(riskScore)}%</strong></div>`
+      ? `<div class="detail-kv"><span class="k" title="Estimated chance this set retires soon (${Math.round(riskScore)}%)">Retiring</span> <span class="v" style="color:${riskColor};">${riskWord}</span></div>`
       : '';
 
     // BrickInsights aggregate review score (0-100) — distinct from the Brickset
@@ -282,28 +355,23 @@ function infoTabHTML(set, entry, isWish) {
     const biReviewCount = Number(set.brickinsights_review_count) || 0;
     const biReviewsStr = biReviewCount ? `${biReviewCount} review${biReviewCount > 1 ? 's' : ''}` : '';
     const brickInsightsBadge = (biRating && biRating > 0)
-      ? `<div style="grid-column: span 2; display:flex; align-items:center; gap:8px;"><span style="color:var(--ink-mute);">Critics' score:</span> <strong style="color:var(--ink);">${biRating}/100</strong> <span style="color:var(--ink-mute);font-size:10px;">${biReviewsStr}</span>${set.brickinsights_url ? ` <a href="${escapeHtml(set.brickinsights_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--ink-faint);font-size:10px;">\u2197</a>` : ''}</div>`
+      ? `<div class="detail-kv span2" style="display:flex;align-items:center;gap:8px;"><span class="k">Critics' score</span> <span class="v">${biRating}/100</span> <span style="color:var(--ink-mute);font-size:10px;">${biReviewsStr}</span>${set.brickinsights_url ? ` <a href="${escapeHtml(set.brickinsights_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--ink-faint);font-size:10px;">\u2197</a>` : ''}</div>`
       : '';
 
     if (ratingNum || ageStr || subthemeStr || themeGroupStr || categoryBadge || tagsArr.length || growthRate != null || retiredYear || set.launch_date || set.exit_date || legoStockBadge || riskBadge || brickInsightsBadge) {
       bricksetHtml = `
-        <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-          <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Catalog Insights</div>
-          <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;font-size:12px;">
-            ${subthemeStr ? `<div><span style="color:var(--ink-mute);">Subtheme:</span> <strong style="color:var(--ink);">${escapeHtml(subthemeStr)}</strong></div>` : ''}
+            ${subthemeStr ? `<div class="detail-kv"><span class="k">Subtheme</span> <span class="v">${escapeHtml(subthemeStr)}</span></div>` : ''}
             ${themeGroupBadge}
             ${categoryBadge}
-            ${ageStr ? `<div><span style="color:var(--ink-mute);">Ages:</span> <strong style="color:var(--ink);">${ageStr}</strong></div>` : ''}
+            ${ageStr ? `<div class="detail-kv"><span class="k">Ages</span> <span class="v">${ageStr}</span></div>` : ''}
             ${launchBadge}
             ${retiredYearBadge}
             ${riskBadge}
-            ${ratingNum ? `<div style="grid-column: span 2; display:flex; align-items:center; gap:8px;"><span style="color:var(--ink-mute);">Community:</span> <strong style="color:var(--ink);">⭐ ${ratingNum.toFixed(1)}</strong> <span style="color:var(--ink-mute);font-size:10px;">${reviewsStr}</span> ${ratingSignal}</div>` : ''}
+            ${ratingNum ? `<div class="detail-kv span2" style="display:flex;align-items:center;gap:8px;"><span class="k">Community</span> <span class="v">⭐ ${ratingNum.toFixed(1)}</span> <span style="color:var(--ink-mute);font-size:10px;">${reviewsStr}</span> ${ratingSignal}</div>` : ''}
             ${brickInsightsBadge}
             ${growthBadge}
             ${legoStockBadge}
             ${tagsBadge}
-          </div>
-        </div>
       `;
     }
   }
@@ -326,20 +394,14 @@ function infoTabHTML(set, entry, isWish) {
     const packaging = b3.packagingType || set.packaging_type || '';
     const instrRaw = (b3.instructionsCount != null ? b3.instructionsCount : set.instructions_count);
     const instrStr = (instrRaw != null && Number(instrRaw) > 0) ? String(instrRaw) : '';
-    const piecesStr = set.pieces ? Number(set.pieces).toLocaleString() : '';
-    const fact = (label, val) => val ? `<div><span style="color:var(--ink-mute);">${label}:</span> <strong style="color:var(--ink);">${escapeHtml(String(val))}</strong></div>` : '';
+    // Pieces intentionally omitted here — it's already in the summary facts row.
+    const fact = (label, val) => val ? `<div class="detail-kv"><span class="k">${label}</span> <span class="v">${escapeHtml(String(val))}</span></div>` : '';
     if (dimsStr || weightStr || packaging || instrStr) {
       setFactsHtml = `
-        <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-          <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Set Facts</div>
-          <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:12px;font-size:12px;">
-            ${fact('Pieces', piecesStr)}
             ${fact('Dimensions', dimsStr)}
             ${fact('Weight', weightStr)}
             ${fact('Packaging', packaging)}
-            ${fact('Instruction booklets', instrStr)}
-          </div>
-        </div>`;
+            ${fact('Instructions', instrStr)}`;
     }
     const stripHtml = (html) => String(html)
       .replace(/<\s*br\s*\/?>/gi, '\n')
@@ -358,8 +420,8 @@ function infoTabHTML(set, entry, isWish) {
       const longDesc = descr.length > 220;
       const clampStyle = longDesc ? 'display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;' : '';
       aboutHtml = `
-        <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-          <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">About This Set</div>
+        <div class="detail-card">
+          <div class="detail-card-title">About this set</div>
           <p id="aboutText"${longDesc ? ' data-collapsed="1"' : ''} style="margin:0;font-size:13px;line-height:1.55;color:var(--ink-soft);white-space:pre-line;${clampStyle}">${escapeHtml(descr)}</p>
           ${longDesc ? `<button id="aboutToggle" type="button" style="margin-top:8px;background:none;border:none;color:var(--ink);font-weight:600;font-size:12px;cursor:pointer;padding:0;text-decoration:underline;">Show more</button>` : ''}
         </div>`;
@@ -368,8 +430,8 @@ function infoTabHTML(set, entry, isWish) {
 
   const galleryHtml = (Number(set.additional_image_count) > 0)
     ? `
-      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Photos</div>
+      <div class="detail-card">
+        <div class="detail-card-title">Photos</div>
         <div id="bsGallery" class="bs-gallery" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;">
           <div class="spinner" style="margin:8px auto;"></div>
         </div>
@@ -431,46 +493,9 @@ function infoTabHTML(set, entry, isWish) {
     </div>
   ` : '';
 
-  return `
-    ${marketValueHeroHTML(set)}
-    ${isSimpleMode() ? '' : `
-    ${dealSignalHTML(set)}
-    ${priceStripHTML(set, entry)}
-    ${marketSpreadHTML(set)}
-    ${marketDepthHTML(set)}
-    ${partOutHTML(set)}
-    ${aiDisclaimerHTML}
-    <details class="howwegot" style="margin-bottom:14px;">
-      <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:11px 14px;">
-        <span>How we got this value</span>
-        <span class="howwegot-chev" style="font-size:12px;color:var(--ink-mute);">▾</span>
-      </summary>
-      <div style="margin-top:12px;">
-        ${marketConfidenceHTML(set)}
-        ${pricingSummaryHtml}
-      </div>
-    </details>`}
-
-    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr);">
-      <div class="stat-cell">
-        <div class="lbl">${I.tag()}Retail</div>
-        <div class="val s">${fmtMoney(set.retail_price)}</div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);margin-top:4px;letter-spacing:0.08em;">${set.year || ""} · MSRP</div>
-      </div>
-      <div class="stat-cell">
-        <div class="lbl">${I.box()}Pieces</div>
-        <div class="val s">${(set.pieces || 0).toLocaleString()}</div>
-        ${(() => { const r = pricePerPiece(set); return r ? `<div style="font-family:var(--mono);font-size:10px;color:${r.delta <= -0.25 ? "var(--up)" : r.delta >= 0.25 ? "var(--down)" : "var(--ink-mute)"};margin-top:4px;letter-spacing:0.08em;">$${r.ppp.toFixed(2)}/pc</div>` : ""; })()}
-      </div>
-      <div class="stat-cell">
-        <div class="lbl">${I.figure()}Minifigs</div>
-        <div class="val s">${set.set_minifigs?.length || set.minifigs || 0}</div>
-      </div>
-    </div>
-
-    ${set.set_minifigs?.length ? `
-      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:10px;">Minifigs in this set</div>
+  const minifigsCard = set.set_minifigs?.length ? `
+      <div class="detail-card">
+        <div class="detail-card-title">Minifigs in this set</div>
         <div style="display:flex;flex-wrap:wrap;gap:10px;">
           ${set.set_minifigs.map(f => `
             <div style="display:flex;align-items:center;gap:6px;font-size:12px;" title="${escapeHtml(f.fig_name)}">
@@ -482,63 +507,69 @@ function infoTabHTML(set, entry, isWish) {
             </div>
           `).join('')}
         </div>
-      </div>
-    ` : ''}
+      </div>` : '';
 
-    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-      <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Price history · 90d</div>
-      <div class="spark-wrap" id="setSpark" style="height:60px;"></div>
-      <div class="spark-legend" id="setSparkLegend"></div>
-    </div>
-
-    ${bricksetHtml}
-
-    ${setFactsHtml}
-
-    ${aboutHtml}
-
-    ${galleryHtml}
-
-    ${owned ? `
-      <div class="qty-row">
-        <div>
-          <div class="qty-row-lbl">In your vault</div>
-          <div class="qty-row-val" id="qtyBadgeVal">×${entry.quantity}</div>
-        </div>
-        <div class="qty-stepper">
-          <button class="qty-btn" id="qtyDown">${I.minus()}</button>
-          <div class="qty-num" id="qtyNum">${entry.quantity}</div>
-          <button class="qty-btn" id="qtyUp">${I.plus()}</button>
-        </div>
-      </div>
-      <div class="btn-row" style="margin-bottom: 8px;">
-        <button class="btn-secondary" id="wishToggle">
-          ${isWish ? I.heartF() : I.heart()}
-          <span>${isWish ? "Wishlisted" : "Wishlist"}</span>
-        </button>
-        <a class="btn-secondary" href="#/set/${encodeURIComponent(set.set_num)}/manage">
-          ${I.gear()}<span>Manage</span>
-        </a>
-      </div>
-      <button class="btn-secondary" id="genListingBtn" style="width:100%; display:flex; align-items:center; justify-content:center; gap:6px;">
-        ⚡ <span>Generate eBay Listing</span>
-      </button>
-    ` : `
-      <button class="btn-primary" id="addBtn">${I.plus()}<span>Add to vault · ${fmtMoney(displayVal, { cents: 0 })}</span></button>
-      <button class="btn-secondary" id="wishToggle" style="margin-top:8px;">
-        ${isWish ? I.heartF() : I.heart()}
-        <span>${isWish ? "Remove from wishlist" : "Add to wishlist"}</span>
-      </button>
-    `}
+  const externalLinks = `
     <a class="bl-buy-link" href="${bricklinkBuyURL(set.set_num)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--ink-mute);text-decoration:underline;margin-top:14px;">
       View on BrickLink ${I.extLink()}
     </a>
     <a class="bl-buy-link" href="https://www.google.com/search?q=LEGO+${encodeURIComponent(set.set_num)}+building+instructions+PDF" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--ink-mute);text-decoration:underline;margin-top:8px;">
-      Search Building Instructions PDF ${I.extLink()}
+      Building instructions (PDF) ${I.extLink()}
     </a>`;
+
+  // Secondary owned-set actions (wishlist + sell) live in the content; the
+  // primary add / qty controls live in the sticky action bar (paintSetDetail).
+  const ownedSecondary = owned ? `
+    <div class="btn-row" style="margin-top:14px;">
+      <button class="btn-secondary" id="wishToggle">
+        ${isWish ? I.heartF() : I.heart()}<span>${isWish ? "Wishlisted" : "Wishlist"}</span>
+      </button>
+      <button class="btn-secondary" id="genListingBtn">⚡ <span>Sell on eBay</span></button>
+    </div>` : '';
+
+  return `
+    ${detailSummaryHTML(set)}
+    ${isSimpleMode() ? '' : `
+    ${aiDisclaimerHTML}
+    <details class="detail-disclose">
+      <summary>
+        <span>Pricing details</span>
+        <span class="detail-disclose-chev">▾</span>
+      </summary>
+      <div class="detail-disclose-body">
+        ${dealSignalHTML(set)}
+        ${priceStripHTML(set, entry)}
+        ${marketSpreadHTML(set)}
+        ${marketDepthHTML(set)}
+        ${partOutHTML(set)}
+        ${pricingSummaryHtml}
+        ${marketConfidenceHTML(set)}
+      </div>
+    </details>`}
+
+    <div class="detail-card">
+      <div class="detail-card-title">${I.tag()}Price history · 90 days</div>
+      <div class="spark-wrap" id="setSpark" style="height:60px;"></div>
+      <div class="spark-legend" id="setSparkLegend"></div>
+    </div>
+
+    ${(bricksetHtml.trim() || setFactsHtml.trim()) ? `
+      <div class="detail-card">
+        <div class="detail-card-title">Details</div>
+        <div class="detail-kv-grid">${bricksetHtml}${setFactsHtml}</div>
+      </div>` : ''}
+
+    ${aboutHtml}
+
+    ${minifigsCard}
+
+    ${galleryHtml}
+
+    ${ownedSecondary}
+    ${externalLinks}`;
 }
 
-function wireInfoTab(set, entry) {
+function wireInfoTab(set) {
   loadSetHistory(set.set_num);
   loadSetImages(set.set_num);
 
@@ -560,7 +591,12 @@ function wireInfoTab(set, entry) {
     }
     haptic("light");
   });
+}
 
+// Action handlers for the sticky action bar (add / qty / wishlist / sell).
+// Wired from paintSetDetail on every tab so the bar always works — the bar
+// lives outside the swappable tab panel.
+function wireDetailActions(set, entry) {
   let qty = entry?.quantity || 1;
   $("#qtyDown")?.addEventListener("click", async () => {
     if (qty <= 1) return;
@@ -1515,55 +1551,6 @@ function genericSourceLabel(s) {
   return 'Market value';
 }
 
-// Valuation v2 headline: the blended fair value with its confidence band and a
-// plain-language basis (never named sources). Renders only when a blend exists;
-// otherwise the price strip below (current_value) carries the display.
-function marketValueHeroHTML(set) {
-  // Simple mode: just the value — no confidence band, range, signal count,
-  // liquidity or disagreement note. Uses the display value (market or formula)
-  // so it always shows something even when the price strip below is hidden.
-  if (isSimpleMode()) {
-    const v = setDisplayValue(set);
-    if (v <= 0) return '';
-    return `
-    <div class="card" style="padding:16px;margin-bottom:14px;">
-      <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:3px;">Value</div>
-      <div style="font-size:28px;font-weight:800;line-height:1.05;">${fmtMoney(v)}</div>
-    </div>`;
-  }
-  const mv = Number(set.market_value);
-  if (!Number.isFinite(mv) || mv <= 0) return '';
-  const lo = Number(set.market_value_low);
-  const hi = Number(set.market_value_high);
-  const conf = String(set.market_value_confidence || set.confidence || 'low').toLowerCase();
-  const confColor = conf === 'high' ? 'var(--up)' : conf === 'medium' ? 'var(--accent)' : 'var(--bv-yellow)';
-  const confLabel = { high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence' }[conf] || conf;
-  const basis = Array.isArray(set.market_value_basis) ? set.market_value_basis : [];
-  const signalCount = basis.length;
-  const band = (Number.isFinite(lo) && Number.isFinite(hi) && hi > lo)
-    ? `<span style="color:var(--ink-mute);font-size:12px;font-family:var(--mono);">Likely ${fmtMoney(lo)} – ${fmtMoney(hi)}</span>`
-    : '';
-  const note = set.market_value_note
-    ? `<div style="margin-top:8px;font-size:11px;line-height:1.45;color:var(--bv-yellow);">${escapeHtml(set.market_value_note)}</div>`
-    : '';
-  return `
-    <div class="card" style="padding:16px;margin-bottom:14px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
-        <div style="min-width:0;">
-          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:3px;">Market value</div>
-          <div style="font-size:28px;font-weight:800;line-height:1.05;">${fmtMoney(mv)}</div>
-          ${band ? `<div style="margin-top:4px;">${band}</div>` : ''}
-        </div>
-        <span style="flex-shrink:0;font-family:var(--mono);font-size:10px;font-weight:800;text-transform:uppercase;color:${confColor};border:1px solid ${confColor};border-radius:8px;padding:3px 8px;">${escapeHtml(confLabel)}</span>
-      </div>
-      ${(signalCount || liquidityBadgeHTML(set)) ? `<div style="margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-        ${signalCount ? `<span style="font-size:11px;color:var(--ink-mute);">Based on ${signalCount} independent market signal${signalCount > 1 ? 's' : ''}</span>` : '<span></span>'}
-        ${liquidityBadgeHTML(set)}
-      </div>` : ''}
-      ${note}
-    </div>`;
-}
-
 function priceStripHTML(set, entry) {
   const delta = entry?.purchase_price ? (set.current_value - entry.purchase_price) / entry.purchase_price : null;
 
@@ -1764,7 +1751,7 @@ function marketSpreadHTML(set) {
   if (Math.abs(spread) < 0.10) return '';
   const hot = spread > 0;
   return `<div class="market-signal ${hot ? "signal-hot" : "signal-cold"}">
-    <span>${hot ? "HOT" : "SOFT"} resale ${hot ? "running hot" : "below your value"} · ${fmtPct(Math.abs(spread))} spread</span>
+    <span>${hot ? `Selling about ${fmtPct(Math.abs(spread))} above this value` : `Selling about ${fmtPct(Math.abs(spread))} below this value`}</span>
     <span class="signal-hint">${hot ? "Good time to sell" : "Good time to buy"}</span>
   </div>`;
 }
@@ -1779,12 +1766,12 @@ function marketDepthHTML(set) {
   let hint = '';
   if (sold) {
     const askVsSold = (askValue - sold) / sold;
-    if (askQty <= 5) hint = `Scarce — only ${askQty} listings`;
-    else if (askVsSold > 0.20) hint = 'Sellers are ambitious — price near sold comps to move fast';
-    else if (askVsSold < 0) hint = 'Listings under sold comps — buying window';
+    if (askQty <= 5) hint = `Only ${askQty} for sale right now`;
+    else if (askVsSold > 0.20) hint = 'Sellers are asking high — list near the recent sold price to sell fast';
+    else if (askVsSold < 0) hint = 'Listed below recent sold prices — good time to buy';
   }
   return `<div class="market-depth">
-    <span class="u-row u-gap-1">${I.box({w:13,h:13})} ${askQty} active listing${askQty > 1 ? 's' : ''} · asking ${fmtMoney(askValue)}${sold ? ` vs ${fmtMoney(sold)} sold` : ''}</span>
+    <span class="u-row u-gap-1">${I.box({w:13,h:13})} ${askQty} for sale now · asking ${fmtMoney(askValue)}${sold ? ` vs ${fmtMoney(sold)} recently sold` : ''}</span>
     ${hint ? `<span class="signal-hint">${escapeHtml(hint)}</span>` : ''}
   </div>`;
 }
@@ -1828,14 +1815,6 @@ function dealSignalHTML(set) {
 
 // Liquidity badge (PriceCharting yearly units sold) — how fast the set turns
 // over on the market. A small, source-anonymized pill.
-function liquidityBadgeHTML(set) {
-  const liq = liquidityLabel(set.sales_volume);
-  if (!liq) return '';
-  const color = liq.level === 'fast' ? 'var(--up)' : liq.level === 'slow' ? 'var(--down)' : 'var(--ink-soft)';
-  const icon = liq.level === 'fast' ? '↑' : liq.level === 'slow' ? '↓' : '→';
-  return `<span title="≈${liq.volume} sold per year" style="display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:${color};border:1px solid ${color};border-radius:7px;padding:3px 8px;white-space:nowrap;">${icon} ${escapeHtml(liq.label)}</span>`;
-}
-
 // Sum-of-parts (part-out) value (E1) — the floor value if the set were sold as
 // individual parts. Only present when piece-price coverage is high (gated
 // server-side in enrichSetRecord), so a shown figure is trustworthy.
