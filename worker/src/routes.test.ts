@@ -67,6 +67,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       'DROP TABLE IF EXISTS lego_sets',
       'DROP TABLE IF EXISTS user_wishlist',
       'DROP TABLE IF EXISTS wishlist_alerts',
+      'DROP TABLE IF EXISTS kids_badges',
       'DROP TABLE IF EXISTS user_prefs',
       'DROP TABLE IF EXISTS user_showcase',
       'DROP TABLE IF EXISTS portfolio_snapshots',
@@ -147,7 +148,12 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         google_refresh_token TEXT, google_spreadsheet_id TEXT,
         email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT,
         is_supporter INTEGER DEFAULT 0, supporter_since TEXT, stripe_customer_id TEXT,
+        kids_pin_hash TEXT, kids_xp INTEGER NOT NULL DEFAULT 0, kids_level INTEGER NOT NULL DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS kids_badges (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, badge_slug TEXT NOT NULL,
+        awarded_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, badge_slug)
       )`,
       `CREATE TABLE user_showcase (
         user_id TEXT NOT NULL, set_num TEXT NOT NULL, display_order INTEGER NOT NULL DEFAULT 0,
@@ -1266,5 +1272,160 @@ describe('DB hygiene job', () => {
     expect(byNum['B-1']).toBeCloseTo(120, 2);
     expect(byNum['C-1']).toBeCloseTo(200, 2); // not clobbered
     expect(byNum['D-1']).toBeNull();
+  });
+});
+
+describe('Kids PIN and XP', () => {
+  const JWT_SECRET = 'test-secret-at-least-32-chars-long-and-super-secure';
+  const userId = 'kids-test-user';
+  let token: string;
+  let db: D1Database;
+
+  const auth = (t = token) => ({ Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' });
+
+  beforeEach(async () => {
+    (env as any).SUPABASE_JWT_SECRET = JWT_SECRET;
+    (env as any).SUPABASE_URL = 'https://supabase.mock.io';
+    (env as any).SUPABASE_ANON_KEY = 'supabase-anon-key-mock';
+    (env as any).ADMIN_USER_ID = 'admin-user';
+
+    token = await createMockJWT(userId, JWT_SECRET);
+    db = (env as any).DB;
+
+    const sqls = [
+      'DROP TABLE IF EXISTS kids_badges',
+      'DROP TABLE IF EXISTS user_prefs',
+      'DROP TABLE IF EXISTS user_collection',
+      'DROP TABLE IF EXISTS lego_sets',
+      'DROP TABLE IF EXISTS user_wishlist',
+      'DROP TABLE IF EXISTS wishlist_alerts',
+      'DROP TABLE IF EXISTS user_showcase',
+      'DROP TABLE IF EXISTS portfolio_snapshots',
+      'DROP TABLE IF EXISTS integration_health',
+      'DROP TABLE IF EXISTS import_runs',
+      'DROP TABLE IF EXISTS minifigs',
+      'DROP TABLE IF EXISTS minifig_value_history',
+      'DROP TABLE IF EXISTS lego_sets_fts',
+      'DROP TABLE IF EXISTS rate_limits',
+      'DROP TABLE IF EXISTS oauth_sessions',
+      'DROP TABLE IF EXISTS oauth_states',
+      'DROP TABLE IF EXISTS user_minifigs',
+      'DROP TABLE IF EXISTS set_value_history',
+      'DROP TABLE IF EXISTS set_market_ext',
+      `CREATE TABLE user_prefs (
+        user_id TEXT PRIMARY KEY, handle TEXT, display_name TEXT, currency TEXT DEFAULT 'USD',
+        notify_price_drops INTEGER DEFAULT 1, is_public INTEGER NOT NULL DEFAULT 0,
+        expose_public_value INTEGER NOT NULL DEFAULT 1,
+        google_refresh_token TEXT, google_spreadsheet_id TEXT,
+        email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT,
+        is_supporter INTEGER DEFAULT 0, supporter_since TEXT, stripe_customer_id TEXT,
+        kids_pin_hash TEXT, kids_xp INTEGER NOT NULL DEFAULT 0, kids_level INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE kids_badges (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, badge_slug TEXT NOT NULL,
+        awarded_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, badge_slug)
+      )`,
+      `CREATE TABLE lego_sets (
+        set_num TEXT PRIMARY KEY, name TEXT NOT NULL, theme TEXT, year INTEGER, pieces INTEGER,
+        minifigs INTEGER DEFAULT 0, retail_price REAL, current_value REAL,
+        blended_value REAL, image_url TEXT, retired INTEGER DEFAULT 0, cached_at TEXT,
+        valuation_method TEXT DEFAULT 'formula_bulk', valuation_expires_at TEXT
+      )`,
+      `CREATE VIRTUAL TABLE lego_sets_fts USING fts5(set_num, name, theme)`,
+      `CREATE TABLE user_collection (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 1, condition TEXT NOT NULL DEFAULT 'new',
+        purchase_price REAL, notes TEXT, added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        purchased_at TEXT, deleted_at TEXT, last_modified TEXT DEFAULT CURRENT_TIMESTAMP,
+        storage_location TEXT, acquisition_source TEXT, is_complete INTEGER DEFAULT 1,
+        missing_pieces INTEGER DEFAULT 0, spike_alerted_at TEXT, custom_image_url TEXT,
+        UNIQUE(user_id, set_num)
+      )`,
+      `CREATE TABLE rate_limits (
+        user_id TEXT NOT NULL, endpoint TEXT NOT NULL, window_start TEXT NOT NULL,
+        hit_count INTEGER DEFAULT 0, PRIMARY KEY (user_id, endpoint, window_start)
+      )`,
+      `CREATE TABLE set_market_ext (
+        set_num TEXT PRIMARY KEY, pc_loose_value REAL, pc_sales_volume INTEGER,
+        pa_retail_value REAL, pa_lowest_offer REAL, pa_in_stock INTEGER,
+        pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT
+      )`,
+      `INSERT INTO lego_sets (set_num, name, theme, current_value, retail_price)
+       VALUES ('75192', 'Millennium Falcon', 'Star Wars', 849.99, 799.99)`,
+    ];
+    for (const sql of sqls) await db.prepare(sql).run();
+  });
+
+  it('sets a PIN and stores a 64-char hex hash', async () => {
+    const res = await app.fetch(new Request('http://localhost/api/me/kids-pin/set', {
+      method: 'POST',
+      headers: auth(),
+      body: JSON.stringify({ pin: '1234' }),
+    }), env);
+    expect(res.status).toBe(200);
+    const row = await db.prepare('SELECT kids_pin_hash FROM user_prefs WHERE user_id=?')
+      .bind(userId).first<{ kids_pin_hash: string }>();
+    expect(row?.kids_pin_hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('verifies the correct PIN', async () => {
+    await app.fetch(new Request('http://localhost/api/me/kids-pin/set', {
+      method: 'POST', headers: auth(), body: JSON.stringify({ pin: '4321' }),
+    }), env);
+    const res = await app.fetch(new Request('http://localhost/api/me/kids-pin/verify', {
+      method: 'POST', headers: auth(), body: JSON.stringify({ pin: '4321' }),
+    }), env);
+    expect(res.status).toBe(200);
+    expect((await res.json<any>()).ok).toBe(true);
+  });
+
+  it('rejects an incorrect PIN', async () => {
+    await app.fetch(new Request('http://localhost/api/me/kids-pin/set', {
+      method: 'POST', headers: auth(), body: JSON.stringify({ pin: '4321' }),
+    }), env);
+    const res = await app.fetch(new Request('http://localhost/api/me/kids-pin/verify', {
+      method: 'POST', headers: auth(), body: JSON.stringify({ pin: '0000' }),
+    }), env);
+    expect(res.status).toBe(200);
+    expect((await res.json<any>()).ok).toBe(false);
+  });
+
+  it('adds XP when a set is added and a kids PIN is set', async () => {
+    await app.fetch(new Request('http://localhost/api/me/kids-pin/set', {
+      method: 'POST', headers: auth(), body: JSON.stringify({ pin: '9999' }),
+    }), env);
+    const res = await app.fetch(new Request('http://localhost/api/collection', {
+      method: 'POST', headers: auth(), body: JSON.stringify({ set_num: '75192', quantity: 1 }),
+    }), env);
+    expect(res.status).toBe(201);
+    const data = await res.json<any>();
+    expect(data.kids?.xp_gained).toBe(10);
+    const row = await db.prepare('SELECT kids_xp FROM user_prefs WHERE user_id=?')
+      .bind(userId).first<{ kids_xp: number }>();
+    expect(row?.kids_xp).toBe(10);
+  });
+
+  it('does not add XP when no kids PIN is set', async () => {
+    const res = await app.fetch(new Request('http://localhost/api/collection', {
+      method: 'POST', headers: auth(), body: JSON.stringify({ set_num: '75192', quantity: 1 }),
+    }), env);
+    expect(res.status).toBe(201);
+    const data = await res.json<any>();
+    expect(data.kids).toBeUndefined();
+  });
+
+  it('awards first_brick badge on the first set added in kids mode', async () => {
+    await app.fetch(new Request('http://localhost/api/me/kids-pin/set', {
+      method: 'POST', headers: auth(), body: JSON.stringify({ pin: '1111' }),
+    }), env);
+    const res = await app.fetch(new Request('http://localhost/api/collection', {
+      method: 'POST', headers: auth(), body: JSON.stringify({ set_num: '75192', quantity: 1 }),
+    }), env);
+    const data = await res.json<any>();
+    expect(data.kids?.new_badges).toContain('first_brick');
+    const badge = await db.prepare('SELECT badge_slug FROM kids_badges WHERE user_id=?')
+      .bind(userId).first<{ badge_slug: string }>();
+    expect(badge?.badge_slug).toBe('first_brick');
   });
 });

@@ -99,6 +99,7 @@ describe('BrickVault API Worker Tests', () => {
       'DROP TABLE IF EXISTS rate_limits',
       'DROP TABLE IF EXISTS user_wishlist',
       'DROP TABLE IF EXISTS user_minifigs',
+      'DROP TABLE IF EXISTS kids_badges',
       'DROP TABLE IF EXISTS user_prefs',
       'DROP TABLE IF EXISTS set_value_history',
       'DROP TABLE IF EXISTS minifigs',
@@ -277,7 +278,13 @@ describe('BrickVault API Worker Tests', () => {
         expose_public_value INTEGER NOT NULL DEFAULT 1,
         email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT,
         is_supporter INTEGER DEFAULT 0, supporter_since TEXT, stripe_customer_id TEXT,
+        kids_pin_hash TEXT, kids_xp INTEGER NOT NULL DEFAULT 0, kids_level INTEGER NOT NULL DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      `CREATE TABLE IF NOT EXISTS kids_badges (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, badge_slug TEXT NOT NULL,
+        awarded_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, badge_slug)
       )`,
 
       `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price)

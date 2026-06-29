@@ -566,3 +566,17 @@ CREATE TABLE IF NOT EXISTS cron_runs (
   duration_ms INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_cron_runs_name ON cron_runs(name, id);
+
+-- Kids Experience: PIN-gated gamification (XP + badges)
+ALTER TABLE user_prefs ADD COLUMN kids_pin_hash TEXT;
+ALTER TABLE user_prefs ADD COLUMN kids_xp INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE user_prefs ADD COLUMN kids_level INTEGER NOT NULL DEFAULT 1;
+
+CREATE TABLE IF NOT EXISTS kids_badges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  badge_slug TEXT NOT NULL,
+  awarded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, badge_slug)
+);
+CREATE INDEX IF NOT EXISTS idx_kids_badges_user ON kids_badges(user_id);

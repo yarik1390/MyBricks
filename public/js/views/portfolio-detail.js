@@ -572,9 +572,16 @@ function wireInfoTab(set, entry) {
     try {
       const prevCount = state.portfolio?.items?.length ?? 0;
       const prevValue = state.portfolio?.total_value ?? 0;
-      await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
+      const addResult = await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
       invalidatePortfolio(); state.catalog.items = [];
       toast("Added to vault", "success");
+      if (addResult?.kids?.xp_gained > 0) {
+        const { xp_gained, new_level, new_badges } = addResult.kids;
+        const badgePart = new_badges?.[0] ? ` · Badge: ${new_badges[0].replace(/_/g, " ")}! 🎉` : "";
+        const lvlPart = new_level ? ` Level ${new_level}!` : "";
+        setTimeout(() => toast(`+${xp_gained} XP!${lvlPart}${badgePart}`, "success"), 500);
+        state.me = null;
+      }
       const newCount = prevCount + 1;
       const newValue = prevValue + (Number(set.current_value) || 0);
       const countMs = [[1,"Your first set! Welcome to Brickvault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! Dedicated collector 🏅"],[100,"100 sets! Elite collector 🏆"]];

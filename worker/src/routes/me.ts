@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { requireMember } from '../auth';
 import type { Env, Variables } from '../types';
+import { hashPin, verifyPin } from '../lib/kids-xp';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -26,13 +27,14 @@ app.get('/', async (c) => {
   const userEmail = c.get('userEmail');
   const db = c.env.DB;
 
-  const [prefs, stats] = await Promise.all([
+  const [prefs, stats, kidsBadgesRows] = await Promise.all([
     // Explicit projection (not SELECT *): only the columns this response reads.
     // Deliberately excludes google_refresh_token / google_spreadsheet_id (OAuth
     // credentials) and other columns the client never needs.
     db.prepare(
       `SELECT display_name, handle, is_public, expose_public_value, currency,
-              notify_price_drops, discord_webhook_url, brickset_user_hash, email, is_supporter
+              notify_price_drops, discord_webhook_url, brickset_user_hash, email, is_supporter,
+              kids_pin_hash, kids_xp, kids_level
        FROM user_prefs WHERE user_id=?`
     ).bind(userId).first<Record<string, unknown>>(),
     db.prepare(`
@@ -43,6 +45,8 @@ app.get('/', async (c) => {
       JOIN lego_sets s ON s.set_num = uc.set_num
       WHERE uc.user_id=? AND uc.deleted_at IS NULL
     `).bind(userId).first<{ set_count: number; total_value: number; total_paid: number }>(),
+    db.prepare('SELECT badge_slug FROM kids_badges WHERE user_id=?')
+      .bind(userId).all<{ badge_slug: string }>(),
   ]);
 
   // Persist email from JWT claim on first encounter (no-op if already stored)
@@ -83,6 +87,10 @@ app.get('/', async (c) => {
     discord_webhook_url: (p.discord_webhook_url as string | null) ?? null,
     brickset_connected: !!(p.brickset_user_hash),
     is_supporter: p.is_supporter === 1,
+    has_kids_pin: !!(p.kids_pin_hash),
+    kids_xp: Number(p.kids_xp ?? 0),
+    kids_level: Number(p.kids_level ?? 1),
+    kids_badges: (kidsBadgesRows.results ?? []).map(r => r.badge_slug),
     portfolio_stats: {
       set_count: Number(stats?.set_count ?? 0),
       total_value: Number(stats?.total_value ?? 0),
@@ -147,6 +155,58 @@ app.patch('/', async (c) => {
     discord_webhook_url !== undefined ? 1 : null,
     discord_webhook_url !== undefined ? (discord_webhook_url || null) : null,
   ).run();
+  return c.json({ ok: true });
+});
+
+// POST /api/me/kids-pin/set — set or change the 4-digit kids PIN
+app.post('/kids-pin/set', async (c) => {
+  const { pin, current_pin } = await c.req.json<{ pin: string; current_pin?: string }>();
+  if (!pin || !/^\d{4}$/.test(pin)) {
+    return c.json({ error: 'PIN must be exactly 4 digits' }, 400);
+  }
+  const userId = c.get('userId');
+  const row = await c.env.DB.prepare(
+    'SELECT kids_pin_hash FROM user_prefs WHERE user_id=?'
+  ).bind(userId).first<{ kids_pin_hash: string | null }>();
+
+  if (row?.kids_pin_hash) {
+    if (!(await verifyPin(String(current_pin ?? ''), row.kids_pin_hash))) {
+      return c.json({ error: 'Current PIN incorrect' }, 403);
+    }
+  }
+
+  const hash = await hashPin(pin);
+  await c.env.DB.prepare(
+    `INSERT INTO user_prefs (user_id, kids_pin_hash, updated_at) VALUES (?,?,datetime('now'))
+     ON CONFLICT(user_id) DO UPDATE SET kids_pin_hash=excluded.kids_pin_hash, updated_at=excluded.updated_at`
+  ).bind(userId, hash).run();
+  return c.json({ ok: true });
+});
+
+// POST /api/me/kids-pin/verify — check PIN, returns { ok }
+app.post('/kids-pin/verify', async (c) => {
+  const { pin } = await c.req.json<{ pin: string }>();
+  const row = await c.env.DB.prepare(
+    'SELECT kids_pin_hash FROM user_prefs WHERE user_id=?'
+  ).bind(c.get('userId')).first<{ kids_pin_hash: string | null }>();
+  if (!row?.kids_pin_hash) return c.json({ ok: false, error: 'no_pin' }, 400);
+  return c.json({ ok: await verifyPin(String(pin ?? ''), row.kids_pin_hash) });
+});
+
+// DELETE /api/me/kids-pin — remove PIN (requires current_pin)
+app.delete('/kids-pin', async (c) => {
+  const { pin } = await c.req.json<{ pin: string }>();
+  const userId = c.get('userId');
+  const row = await c.env.DB.prepare(
+    'SELECT kids_pin_hash FROM user_prefs WHERE user_id=?'
+  ).bind(userId).first<{ kids_pin_hash: string | null }>();
+  if (!row?.kids_pin_hash) return c.json({ error: 'no_pin' }, 400);
+  if (!(await verifyPin(String(pin ?? ''), row.kids_pin_hash))) {
+    return c.json({ error: 'PIN incorrect' }, 403);
+  }
+  await c.env.DB.prepare(
+    "UPDATE user_prefs SET kids_pin_hash=NULL, updated_at=datetime('now') WHERE user_id=?"
+  ).bind(userId).run();
   return c.json({ ok: true });
 });
 

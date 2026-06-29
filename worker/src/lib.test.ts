@@ -1017,3 +1017,56 @@ describe('valuationExpiryModifier', () => {
     expect(valuationExpiryModifier('something_new')).toBe('+1 day');
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// kids-xp
+// ---------------------------------------------------------------------------
+describe('kids-xp pure helpers', () => {
+  it('levelForXp: xp=0 → 1, xp=10 → 2, xp=250 → 6', async () => {
+    const { levelForXp } = await import('./lib/kids-xp');
+    expect(levelForXp(0)).toBe(1);
+    expect(levelForXp(10)).toBe(2);
+    expect(levelForXp(250)).toBe(6);
+  });
+
+  it('levelForXp caps at 10', async () => {
+    const { levelForXp } = await import('./lib/kids-xp');
+    expect(levelForXp(10000)).toBe(10);
+  });
+
+  it('newBadgesForXpChange awards first_brick on first set', async () => {
+    const { newBadgesForXpChange } = await import('./lib/kids-xp');
+    expect(newBadgesForXpChange(0, 10)).toEqual(['first_brick']);
+  });
+
+  it('newBadgesForXpChange awards junior_builder at 5 sets', async () => {
+    const { newBadgesForXpChange } = await import('./lib/kids-xp');
+    expect(newBadgesForXpChange(40, 50)).toEqual(['junior_builder']);
+  });
+
+  it('newBadgesForXpChange awards all badges from 0 to 1000 XP', async () => {
+    const { newBadgesForXpChange } = await import('./lib/kids-xp');
+    const slugs = newBadgesForXpChange(0, 1000);
+    expect(slugs).toContain('first_brick');
+    expect(slugs).toContain('junior_builder');
+    expect(slugs).toContain('architect');
+    expect(slugs).toContain('master');
+    expect(slugs).toContain('grand_master');
+    expect(slugs).toContain('legend');
+    expect(slugs).toHaveLength(6);
+  });
+
+  it('hashPin returns a 64-char hex string', async () => {
+    const { hashPin } = await import('./lib/kids-xp');
+    const h = await hashPin('1234');
+    expect(h).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('verifyPin: correct PIN passes, wrong PIN fails', async () => {
+    const { hashPin, verifyPin } = await import('./lib/kids-xp');
+    const hash = await hashPin('1234');
+    expect(await verifyPin('1234', hash)).toBe(true);
+    expect(await verifyPin('0000', hash)).toBe(false);
+  });
+});

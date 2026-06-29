@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = 'v205';
+const VERSION = 'v206';
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 const STATIC_ASSETS = [
@@ -48,7 +48,9 @@ const STATIC_ASSETS = [
   '/js/views/portfolio-detail.js',
   '/js/views/catalog.js',
   '/js/views/minifigs.js',
-  '/js/views/build.js'
+  '/js/views/build.js',
+  '/js/views/kids.js',
+  '/js/lib/kids-xp.js'
 ];
 
 self.addEventListener('install', e => {

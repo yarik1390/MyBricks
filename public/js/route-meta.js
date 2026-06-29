@@ -13,6 +13,8 @@ const ROUTES = [
   { match: (hash) => hash === "/me/data", key: "data", nav: "/me", title: "Data", protected: true, fab: false },
   { match: (hash) => hash === "/me" || hash.startsWith("/me/"), key: "me", nav: "/me", title: "Me", fab: true },
   { match: (hash) => hash === "/login", key: "login", nav: null, title: "Sign in", fullscreen: true, fab: false },
+  { match: (hash) => hash === "/kids", key: "kids", nav: "/kids", title: "Kids Vault", fab: false },
+  { match: (hash) => hash === "/kids/badges", key: "kids-badges", nav: "/kids/badges", title: "Badges", fab: false },
 ];
 
 export function normalizeRouteHash(hash = "/") {

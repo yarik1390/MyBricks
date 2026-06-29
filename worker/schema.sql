@@ -202,9 +202,21 @@ CREATE TABLE IF NOT EXISTS user_prefs (
   is_supporter INTEGER DEFAULT 0,
   supporter_since TEXT,
   stripe_customer_id TEXT,
+  kids_pin_hash TEXT,
+  kids_xp INTEGER NOT NULL DEFAULT 0,
+  kids_level INTEGER NOT NULL DEFAULT 1,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS kids_badges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  badge_slug TEXT NOT NULL,
+  awarded_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, badge_slug)
+);
+CREATE INDEX IF NOT EXISTS idx_kids_badges_user ON kids_badges(user_id);
 
 CREATE TABLE IF NOT EXISTS portfolio_snapshots (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

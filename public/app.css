@@ -5142,3 +5142,76 @@ body.advisor-open #advisorFab {
 
 /* Hide Minifigs nav tab in simple mode */
 [data-mode="simple"] .nav-tab[data-route="/minifigs"] { display: none; }
+
+/* ============================================================
+   Kids mode — gamified, price-free experience
+   ============================================================ */
+
+/* Nav: show Badges tab only in kids mode; hide Minifigs */
+.nav-tab.kids-only { display: none; }
+[data-mode="kids"] .nav-tab.kids-only { display: flex; }
+[data-mode="kids"] .nav-tab[data-route="/minifigs"] { display: none; }
+
+/* Hide all prices and investor UI in kids mode */
+[data-mode="kids"] .hero-value,
+[data-mode="kids"] .sl-value,
+[data-mode="kids"] .set-card-value,
+[data-mode="kids"] .mini-value,
+[data-mode="kids"] .qty-row-val,
+[data-mode="kids"] .stat-cell .val,
+[data-mode="kids"] .forecast-card,
+[data-mode="kids"] .pc-comps,
+[data-mode="kids"] .sl-delta,
+[data-mode="kids"] .trend-badge,
+[data-mode="kids"] #heroChart,
+[data-mode="kids"] #rangePills,
+[data-mode="kids"] .portfolio-tabs,
+[data-mode="kids"] #insightsPanel { display: none !important; }
+
+/* Level orb + XP bar */
+.kids-hero { display: flex; align-items: center; gap: 16px; padding: 20px 0 16px; }
+.kids-level-orb {
+  width: 72px; height: 72px; border-radius: var(--r-full);
+  background: var(--bv-yellow, #FFD700); border: var(--bw) solid var(--border-c);
+  box-shadow: var(--shadow-2); display: flex; flex-direction: column;
+  align-items: center; justify-content: center; font-family: var(--val-font);
+  font-weight: 700; flex-shrink: 0;
+}
+.kids-level-orb span { font-size: 28px; line-height: 1; }
+.kids-xp-bar-wrap {
+  height: 12px; background: var(--surface-3); border-radius: var(--r-full);
+  border: var(--bw-thin, 1px) solid var(--border-c); overflow: hidden; margin: 6px 0;
+}
+.kids-xp-bar { height: 100%; background: var(--accent); border-radius: var(--r-full); transition: width 0.6s ease; }
+.kids-xp-label { font-size: 11px; color: var(--ink-mute); font-family: var(--mono); }
+
+/* Stat row */
+.kids-stats { display: flex; gap: 12px; margin-bottom: 20px; }
+.kids-stat {
+  flex: 1; background: var(--surface); border: var(--bw) solid var(--border-c);
+  border-radius: var(--r-2); padding: 14px; text-align: center; box-shadow: var(--shadow-1);
+}
+.kids-stat-n { display: block; font-family: var(--val-font); font-size: 32px; font-weight: 700; }
+.kids-stat-l { font-size: 12px; color: var(--ink-mute); text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* Section titles + badge shelf */
+.kids-section-title { font-weight: 700; font-size: 16px; margin: 20px 0 10px; }
+.kids-badge-shelf { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+
+/* Badge grid (badges page) */
+.kids-badge-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+
+/* Badge cards */
+.badge-card {
+  background: var(--surface); border: var(--bw) solid var(--border-c);
+  border-radius: var(--r-2); padding: 16px 10px; text-align: center; box-shadow: var(--shadow-2);
+}
+.badge-card.earned { border-color: var(--bv-yellow, #FFD700); background: var(--surface-2); }
+.badge-card.locked { opacity: 0.5; }
+.badge-emoji { font-size: 36px; margin-bottom: 6px; }
+.badge-label { font-weight: 700; font-size: 13px; line-height: 1.2; }
+.badge-sub { font-size: 11px; color: var(--ink-mute); margin-top: 3px; }
+.badge-card.earned .badge-sub { color: var(--up, #22c55e); }
+
+/* Kids set card — larger, no price */
+.kids-set-card { min-height: unset; }

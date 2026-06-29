@@ -14,6 +14,11 @@
       document.documentElement.dataset.skin = skin;
     }
     var mode = localStorage.getItem('bv_mode');
-    if (mode === 'simple') document.documentElement.dataset.mode = 'simple';
+    if (mode === 'simple') {
+      document.documentElement.dataset.mode = 'simple';
+    } else if (mode === 'kids') {
+      document.documentElement.dataset.mode = 'kids';
+      document.documentElement.dataset.skin = 'kids';
+    }
   } catch (e) {}
 })();

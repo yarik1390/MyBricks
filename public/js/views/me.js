@@ -161,6 +161,15 @@ export async function renderMe() {
               `<button data-mode-val="${v}" class="${getModePref() === v ? "active" : ""}" aria-pressed="${getModePref() === v}">${l}</button>`).join("")}
           </div>
         </div>
+        ${!guest ? `<div class="setting-row" id="kidsModeRow" style="cursor:pointer;">
+          <div class="lbl-wrap">
+            <div class="lbl">Kids Mode</div>
+            <div class="desc">${me.has_kids_pin
+              ? "PIN set — tap to enter Kids Mode or change settings."
+              : "Set a 4-digit PIN to enable a gamified, price-free view for kids."}</div>
+          </div>
+          ${I.chev()}
+        </div>` : ""}
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Price-drop alerts</div><div class="desc">Alert when wishlisted sets hit your target.</div></div>
           <button class="toggle ${me.notify_price_drops ? "on" : ""}" id="notifyToggle" role="switch" aria-label="Price-drop alerts" aria-checked="${!!me.notify_price_drops}"></button>
@@ -260,6 +269,137 @@ export async function renderMe() {
       x.setAttribute("aria-pressed", on);
     });
   }));
+
+  // Kids Mode PIN flow
+  $("#kidsModeRow")?.addEventListener("click", () => {
+    haptic("light");
+    const hasPin = me.has_kids_pin;
+    if (!hasPin) {
+      // Setup new PIN
+      showSheet(`
+        <h2 class="u-serif-h">Set Kids PIN</h2>
+        <p style="color:var(--ink-mute);margin-bottom:12px">Choose a 4-digit PIN. Kids will need this to exit Kids Mode.</p>
+        <input id="kidsPin1" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]*"
+          placeholder="New PIN" style="font-size:24px;text-align:center;letter-spacing:6px;width:100%;margin-bottom:10px" class="input">
+        <input id="kidsPin2" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]*"
+          placeholder="Confirm PIN" style="font-size:24px;text-align:center;letter-spacing:6px;width:100%;margin-bottom:12px" class="input">
+        <div id="kidsPinErr" style="color:var(--down);font-size:13px;margin-bottom:10px;display:none"></div>
+        <button class="btn-primary" id="kidsPinSetBtn" style="width:100%">Set PIN &amp; Enter Kids Mode</button>
+      `);
+      setTimeout(() => $("#kidsPin1")?.focus(), 100);
+      $("#kidsPinSetBtn")?.addEventListener("click", async () => {
+        const p1 = $("#kidsPin1")?.value || "";
+        const p2 = $("#kidsPin2")?.value || "";
+        const errEl = $("#kidsPinErr");
+        if (!/^\d{4}$/.test(p1)) {
+          if (errEl) { errEl.textContent = "PIN must be exactly 4 digits."; errEl.style.display = "block"; } return;
+        }
+        if (p1 !== p2) {
+          if (errEl) { errEl.textContent = "PINs don't match."; errEl.style.display = "block"; } return;
+        }
+        try {
+          await api("/api/me/kids-pin/set", { method: "POST", body: JSON.stringify({ pin: p1 }) });
+          hideSheet();
+          setModePref("kids");
+          state.me = null;
+          go("#/kids");
+        } catch { toast("Couldn't set PIN. Try again.", "error"); }
+      });
+    } else {
+      // Already has a PIN — show enter/change/remove options
+      showSheet(`
+        <h2 class="u-serif-h">Kids Mode</h2>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+          <button class="btn-primary" id="kidsEnterBtn">Enter Kids Mode</button>
+          <button class="btn-ghost" id="kidsChangePinBtn">Change PIN</button>
+          <button class="btn-ghost" style="color:var(--down)" id="kidsRemovePinBtn">Remove PIN</button>
+        </div>
+      `);
+      $("#kidsEnterBtn")?.addEventListener("click", () => {
+        hideSheet();
+        showSheet(`
+          <h2 class="u-serif-h">Enter Kids Mode</h2>
+          <p style="color:var(--ink-mute);margin-bottom:12px">Enter your 4-digit PIN.</p>
+          <input id="kidsVerifyPin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]*"
+            placeholder="••••" style="font-size:28px;text-align:center;letter-spacing:8px;width:100%;margin-bottom:12px" class="input">
+          <div id="kidsVerifyErr" style="color:var(--down);font-size:13px;margin-bottom:10px;display:none"></div>
+          <button class="btn-primary" id="kidsVerifyBtn" style="width:100%">Enter</button>
+        `);
+        setTimeout(() => $("#kidsVerifyPin")?.focus(), 100);
+        $("#kidsVerifyBtn")?.addEventListener("click", async () => {
+          const pin = $("#kidsVerifyPin")?.value || "";
+          const errEl = $("#kidsVerifyErr");
+          if (!/^\d{4}$/.test(pin)) {
+            if (errEl) { errEl.textContent = "Please enter a 4-digit PIN."; errEl.style.display = "block"; } return;
+          }
+          try {
+            const r = await api("/api/me/kids-pin/verify", { method: "POST", body: JSON.stringify({ pin }) });
+            if (r?.ok) {
+              hideSheet(); setModePref("kids"); state.me = null; go("#/kids");
+            } else {
+              if (errEl) { errEl.textContent = "Incorrect PIN."; errEl.style.display = "block"; }
+              haptic("medium");
+            }
+          } catch { toast("Something went wrong.", "error"); }
+        });
+      });
+      $("#kidsChangePinBtn")?.addEventListener("click", () => {
+        hideSheet();
+        showSheet(`
+          <h2 class="u-serif-h">Change Kids PIN</h2>
+          <input id="kidsOldPin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]*"
+            placeholder="Current PIN" style="font-size:24px;text-align:center;letter-spacing:6px;width:100%;margin-bottom:10px" class="input">
+          <input id="kidsNewPin1" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]*"
+            placeholder="New PIN" style="font-size:24px;text-align:center;letter-spacing:6px;width:100%;margin-bottom:10px" class="input">
+          <input id="kidsNewPin2" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]*"
+            placeholder="Confirm New PIN" style="font-size:24px;text-align:center;letter-spacing:6px;width:100%;margin-bottom:12px" class="input">
+          <div id="kidsChangeErr" style="color:var(--down);font-size:13px;margin-bottom:10px;display:none"></div>
+          <button class="btn-primary" id="kidsChangeBtn" style="width:100%">Change PIN</button>
+        `);
+        setTimeout(() => $("#kidsOldPin")?.focus(), 100);
+        $("#kidsChangeBtn")?.addEventListener("click", async () => {
+          const oldPin = $("#kidsOldPin")?.value || "";
+          const p1 = $("#kidsNewPin1")?.value || "";
+          const p2 = $("#kidsNewPin2")?.value || "";
+          const errEl = $("#kidsChangeErr");
+          if (!/^\d{4}$/.test(oldPin) || !/^\d{4}$/.test(p1)) {
+            if (errEl) { errEl.textContent = "PINs must be exactly 4 digits."; errEl.style.display = "block"; } return;
+          }
+          if (p1 !== p2) {
+            if (errEl) { errEl.textContent = "New PINs don't match."; errEl.style.display = "block"; } return;
+          }
+          try {
+            await api("/api/me/kids-pin/set", { method: "POST", body: JSON.stringify({ pin: p1, current_pin: oldPin }) });
+            hideSheet(); state.me = null; toast("PIN changed!", "success");
+          } catch (e) {
+            if (errEl) { errEl.textContent = "Current PIN incorrect or something went wrong."; errEl.style.display = "block"; }
+          }
+        });
+      });
+      $("#kidsRemovePinBtn")?.addEventListener("click", () => {
+        hideSheet();
+        showSheet(`
+          <h2 class="u-serif-h">Remove Kids PIN</h2>
+          <p style="color:var(--ink-mute);margin-bottom:12px">Enter your current PIN to remove Kids Mode.</p>
+          <input id="kidsRemovePin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]*"
+            placeholder="••••" style="font-size:28px;text-align:center;letter-spacing:8px;width:100%;margin-bottom:12px" class="input">
+          <div id="kidsRemoveErr" style="color:var(--down);font-size:13px;margin-bottom:10px;display:none"></div>
+          <button class="btn-primary" style="width:100%;background:var(--down)" id="kidsRemoveBtn">Remove PIN</button>
+        `);
+        setTimeout(() => $("#kidsRemovePin")?.focus(), 100);
+        $("#kidsRemoveBtn")?.addEventListener("click", async () => {
+          const pin = $("#kidsRemovePin")?.value || "";
+          const errEl = $("#kidsRemoveErr");
+          try {
+            await api("/api/me/kids-pin", { method: "DELETE", body: JSON.stringify({ pin }) });
+            hideSheet(); state.me = null; toast("Kids PIN removed.", "info");
+          } catch {
+            if (errEl) { errEl.textContent = "PIN incorrect or something went wrong."; errEl.style.display = "block"; }
+          }
+        });
+      });
+    }
+  });
 
   if (stripeSuccess) toast("Thank you for supporting Brickvault!", "success");
 

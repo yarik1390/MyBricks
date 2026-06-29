@@ -59,18 +59,31 @@ export function setSkinPref(skin) {
   applySkin(skin);
 }
 
-// Simple mode — third orthogonal axis (data-mode="simple" on <html>).
-// 'pro' (default) = full investor view; 'simple' = value + list only.
+// Mode — third orthogonal axis (data-mode on <html>).
+// 'pro' (default) = full investor view; 'simple' = value + list only; 'kids' = gamified price-free.
 export function getModePref() {
-  try { return localStorage.getItem('bv_mode') === 'simple' ? 'simple' : 'pro'; } catch { return 'pro'; }
+  try {
+    const m = localStorage.getItem('bv_mode');
+    return m === 'simple' ? 'simple' : m === 'kids' ? 'kids' : 'pro';
+  } catch { return 'pro'; }
 }
 
 export function applyMode(mode) {
-  if (mode === 'simple') document.documentElement.dataset.mode = 'simple';
-  else delete document.documentElement.dataset.mode;
+  if (mode === 'simple') {
+    document.documentElement.dataset.mode = 'simple';
+  } else if (mode === 'kids') {
+    document.documentElement.dataset.mode = 'kids';
+    document.documentElement.dataset.skin = 'kids';
+  } else {
+    delete document.documentElement.dataset.mode;
+  }
 }
 
 export function setModePref(mode) {
-  try { localStorage.setItem('bv_mode', mode === 'simple' ? 'simple' : 'pro'); } catch {}
+  try {
+    const m = mode === 'simple' ? 'simple' : mode === 'kids' ? 'kids' : 'pro';
+    localStorage.setItem('bv_mode', m);
+    if (mode === 'kids') localStorage.setItem('bv_skin', 'kids');
+  } catch {}
   applyMode(mode);
 }

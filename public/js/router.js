@@ -3,6 +3,7 @@ import { state } from './state.js';
 import { api } from './api.js';
 import { I } from './icons.js';
 import { routeMetaFor } from './route-meta.js';
+import { getModePref } from './theme.js';
 // View modules load on demand via dynamic import() in the route dispatch below,
 // so the initial bundle no longer eagerly pulls every page's code up front.
 // Each view is still pre-cached by the service worker (STATIC_ASSETS) so offline
@@ -58,6 +59,11 @@ async function _routeImpl() {
     }
   }
 
+  // Redirect to kids home when in kids mode
+  if ((hash === "/" || hash === "") && getModePref() === "kids") {
+    location.hash = "#/kids"; return;
+  }
+
   if (hash !== "/" && hash !== "") {
     if (state.selectionMode) {
       state.selectionMode = false;
@@ -99,6 +105,10 @@ async function _routeImpl() {
     } else if (hash.startsWith("/u/")) {
       const handle = hash.slice(3);
       await (await import('./views/portfolio-social.js')).renderPublicProfile(handle);
+    } else if (hash === "/kids") {
+      await (await import('./views/kids.js')).renderKidsHome();
+    } else if (hash === "/kids/badges") {
+      await (await import('./views/kids.js')).renderKidsBadges();
     } else {
       location.hash = "#/";
       throw { __redirect: true };

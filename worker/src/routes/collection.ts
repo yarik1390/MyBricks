@@ -6,6 +6,7 @@ import { enrichSetRecord } from '../lib/market-sources';
 import { logEvent } from '../lib/analytics';
 import type { Env, Variables } from '../types';
 import { runSyncProcess } from './google-sync';
+import { awardXpForAdd } from '../lib/kids-xp';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -272,8 +273,9 @@ app.post('/', async (c) => {
     'SELECT * FROM user_collection WHERE user_id=? AND set_num=? AND deleted_at IS NULL'
   ).bind(userId, set_num).first();
   logEvent(c.env, 'set_added', userId, { setNum: set_num });
+  const kidsResult = await awardXpForAdd(c.env.DB, userId);
   c.executionCtx.waitUntil(triggerGoogleSync(userId, c));
-  return c.json({ item }, 201);
+  return c.json({ item, kids: kidsResult.xp_gained > 0 ? kidsResult : undefined }, 201);
 });
 
 // GET /api/collection/export
