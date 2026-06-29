@@ -448,9 +448,9 @@ function infoTabHTML(set, entry, isWish) {
     const newQty = ebaySold.newSampleCount ? ` / ${ebaySold.newSampleCount} sales` : '';
     const usedQty = ebaySold.usedSampleCount ? ` / ${ebaySold.usedSampleCount} sales` : '';
     pricingSummaryHtml = `
-      <div class="card pricing-summary-card" style="margin-bottom:14px; padding:14px 16px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <div style="font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-mute);">Recent Sold Comps</div>
+      <div class="detail-card pricing-summary-card">
+        <div class="detail-card-title" style="justify-content:space-between;">
+          <span>Recently sold</span>
           <span class="badge" style="font-size:9px; padding:2px 6px; border-radius:4px; font-family:var(--mono); background:var(--surface-3); color:var(--ink-soft);">${ebaySold.legacy ? 'Legacy' : pricingTreatment === 'STP' ? 'Below MSRP' : pricingTreatment === 'APPRECIATED' ? 'Appreciated' : 'Sold data'}</span>
         </div>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
@@ -723,17 +723,14 @@ function forecastTabHTML(set) {
     ? `<p class="forecast-note">Short-term growth is negative, but the long-range forecast can still be positive when retirement timing, theme demand, or comparable older sets point upward. Treat this as a recovery scenario, not a current momentum signal.</p>`
     : "";
   return `
-    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-        ${I.sparkles()}
-        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);">${forecastLabel}</div>
-      </div>
+    <div class="detail-card">
+      <div class="detail-card-title">${I.sparkles()}${forecastLabel}</div>
       <p style="margin:6px 0 0;font-size:13px;color:var(--ink-soft);line-height:1.45;">
         ${(set.valuation_method === "market" || set.valuation_method === "brickeconomy" || set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold")
           ? "Based on recent sales and long-term market trends."
           : `Based on theme rarity, piece count, retirement status, and market trends for similar ${escapeHtml(set.theme || "")} sets.`}
       </p>
-      ${set.be_growth_12m != null ? `<p style="margin:8px 0 0;font-size:12px;color:var(--ink-soft);">Trailing 12-month market growth: <strong style="color:${set.be_growth_12m >= 0 ? 'var(--up)' : 'var(--down)'};">${set.be_growth_12m >= 0 ? '+' : ''}${Number(set.be_growth_12m).toFixed(1)}%</strong></p>` : ''}
+      ${set.be_growth_12m != null ? `<p style="margin:8px 0 0;font-size:12px;color:var(--ink-soft);">Past year: <strong style="color:${set.be_growth_12m >= 0 ? 'var(--up)' : 'var(--down)'};">${set.be_growth_12m >= 0 ? 'Up ' : 'Down '}${Math.abs(Number(set.be_growth_12m)).toFixed(1)}%</strong></p>` : ''}
       ${conflictNote}
     </div>
 
@@ -755,8 +752,8 @@ function forecastTabHTML(set) {
       <div class="forecast-pct${g5 < 0 ? " down" : ""}">${g5 >= 0 ? I.arrowU() : I.arrowD()}${fmtPct(g5)} projected${ann5 != null ? ` · ${fmtPct(ann5)}/yr` : ''}</div>
     </div>
 
-    <div class="card" style="background:var(--surface-2);margin-top:14px;">
-      <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;">Confidence factors</div>
+    <div class="detail-card" style="background:var(--surface-2);">
+      <div class="detail-card-title">What drives this</div>
       <ul style="margin:0;padding-left:18px;font-size:13px;color:var(--ink-soft);line-height:1.55;">
         <li>${set.retired ? "Retired — supply is fixed" : "Active — value tied to retail"}</li>
         <li>${(set.pieces||0) > 2000 ? "Large set, high collector appeal" : (set.pieces||0) > 500 ? "Mid-size set, moderate appeal" : "Compact set, lower aftermarket premium"}</li>
@@ -832,9 +829,9 @@ function manageTabHTML(set, entry) {
       <div id="mFlipCalcContainer">${flipCalcHTML(set, entry)}</div>
     </details>
 
-    <div class="card" style="padding:14px 16px;margin-bottom:14px;" id="partsCard">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);">Parts completeness</div>
+    <div class="detail-card" id="partsCard">
+      <div class="detail-card-title" style="justify-content:space-between;">
+        <span>Parts completeness</span>
         <button class="btn-secondary" id="loadPartsBtn" style="font-size:11px;padding:4px 10px;">Refresh parts</button>
       </div>
       <div id="partsContent" style="font-size:13px;color:var(--ink-mute);line-height:1.45;">
@@ -842,8 +839,8 @@ function manageTabHTML(set, entry) {
       </div>
     </div>
 
-    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-      <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:10px;">Custom Photo</div>
+    <div class="detail-card">
+      <div class="detail-card-title">Custom photo</div>
       ${entry.custom_image_url ? `
         <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">
           <img id="customPhotoImg" alt="Custom photo" style="width:80px;height:80px;object-fit:cover;border-radius:var(--r-1);border:1px solid var(--line);background:var(--surface-2);">
@@ -1515,7 +1512,7 @@ async function loadSetHistory(setNum) {
 async function loadSetImages(setNum) {
   const el = $("#bsGallery");
   if (!el) return;
-  const dropCard = () => { const card = el.closest(".card"); if (card) card.remove(); };
+  const dropCard = () => { const card = el.closest(".detail-card, .card"); if (card) card.remove(); };
   try {
     const res = await api("/api/sets/" + encodeURIComponent(setNum) + "/images");
     const imgs = (res && Array.isArray(res.images)) ? res.images.filter(u => typeof u === "string") : [];
@@ -1725,13 +1722,13 @@ function marketConfidenceHTML(set) {
     </div>`;
   }).join('');
   return `
-    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+    <div class="detail-card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px;">
         <div>
-          <div style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:4px;">Market confidence</div>
+          <div class="detail-card-title" style="margin-bottom:4px;">How we priced this</div>
           <div style="font-size:13px;color:var(--ink-soft);line-height:1.45;">${escapeHtml(explanation)}</div>
         </div>
-        <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:${color};font-weight:800;white-space:nowrap;">${escapeHtml(confidence)} confidence · ${escapeHtml(freshness)}</div>
+        <div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:${color};font-weight:800;white-space:nowrap;">${escapeHtml(freshness)}</div>
       </div>
       <div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;">
         <span style="color:var(--ink-mute);">Primary signal</span>
@@ -1801,10 +1798,10 @@ function dealSignalHTML(set) {
     ? `<div style="margin-top:6px;font-size:12px;color:${cfg.color};font-weight:700;">In stock — ${fmtMoney(buyPrice)} at ${escapeHtml(String(merchant))}</div>`
     : '';
   return `
-    <div class="card" style="padding:14px 16px;margin-bottom:14px;border:1px solid ${cfg.color};background:${cfg.bg};">
+    <div class="detail-card" style="border:1px solid ${cfg.color};background:${cfg.bg};">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
         <div style="min-width:0;">
-          <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:3px;">Deal check</div>
+          <div class="detail-card-title" style="margin-bottom:3px;">Deal check</div>
           <div style="font-size:13px;color:var(--ink-soft);line-height:1.45;">${escapeHtml(reason)}</div>
           ${buyLine}
         </div>
@@ -1830,8 +1827,8 @@ function partOutHTML(set) {
     else note = 'Roughly in line with the sealed value.';
   }
   return `
-    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-      <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:3px;">Part-out value</div>
+    <div class="detail-card">
+      <div class="detail-card-title" style="margin-bottom:3px;">Part-out value</div>
       <div style="font-size:22px;font-weight:800;line-height:1.05;">${fmtMoney(po)}</div>
       <div style="margin-top:6px;font-size:12px;color:var(--ink-mute);line-height:1.45;">${escapeHtml(note)}</div>
     </div>`;

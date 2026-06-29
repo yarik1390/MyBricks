@@ -2963,6 +2963,11 @@ body.scan-active .advisor-fab {
   pointer-events: none;
   transform: translateY(12px) scale(0.96);
 }
+/* On the set detail page the sticky action bar occupies the bottom — lift the
+   FAB above it so it doesn't cover the Add-to-vault / Manage controls. */
+body[data-route="set-detail"] .advisor-fab {
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 84px);
+}
 .advisor-fab:hover {
   transform: scale(1.08) translateY(-2px);
   box-shadow: 4px 6px 0 var(--line), 0 12px 28px rgba(0, 0, 0, 0.2);
