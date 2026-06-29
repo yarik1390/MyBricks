@@ -142,7 +142,7 @@ export async function renderMe() {
               `<button data-theme-val="${v}" class="${getThemePref() === v ? "active" : ""}" aria-pressed="${getThemePref() === v}">${l}</button>`).join("")}
           </div>
         </div>
-        <div class="setting-row">
+        <div class="setting-row skin-seg-row">
           <div class="lbl-wrap"><div class="lbl">Style</div><div class="desc">Pick a visual skin — free or supporter.</div></div>
           <div class="theme-seg" id="skinSeg" role="group" aria-label="Visual style">
             ${[
@@ -298,7 +298,7 @@ export async function renderMe() {
           if (errEl) { errEl.textContent = "PINs don't match."; errEl.style.display = "block"; } return;
         }
         try {
-          await api("/api/me/kids-pin/set", { method: "POST", body: JSON.stringify({ pin: p1 }) });
+          await api("/api/me/kids-pin/set", { method: "POST", body: { pin: p1 } });
           hideSheet();
           setModePref("kids");
           state.me = null;
@@ -333,7 +333,7 @@ export async function renderMe() {
             if (errEl) { errEl.textContent = "Please enter a 4-digit PIN."; errEl.style.display = "block"; } return;
           }
           try {
-            const r = await api("/api/me/kids-pin/verify", { method: "POST", body: JSON.stringify({ pin }) });
+            const r = await api("/api/me/kids-pin/verify", { method: "POST", body: { pin } });
             if (r?.ok) {
               hideSheet(); setModePref("kids"); state.me = null; go("#/kids");
             } else {
@@ -369,7 +369,7 @@ export async function renderMe() {
             if (errEl) { errEl.textContent = "New PINs don't match."; errEl.style.display = "block"; } return;
           }
           try {
-            await api("/api/me/kids-pin/set", { method: "POST", body: JSON.stringify({ pin: p1, current_pin: oldPin }) });
+            await api("/api/me/kids-pin/set", { method: "POST", body: { pin: p1, current_pin: oldPin } });
             hideSheet(); state.me = null; toast("PIN changed!", "success");
           } catch {
             if (errEl) { errEl.textContent = "Current PIN incorrect or something went wrong."; errEl.style.display = "block"; }
@@ -391,7 +391,7 @@ export async function renderMe() {
           const pin = $("#kidsRemovePin")?.value || "";
           const errEl = $("#kidsRemoveErr");
           try {
-            await api("/api/me/kids-pin", { method: "DELETE", body: JSON.stringify({ pin }) });
+            await api("/api/me/kids-pin", { method: "DELETE", body: { pin } });
             hideSheet(); state.me = null; toast("Kids PIN removed.", "info");
           } catch {
             if (errEl) { errEl.textContent = "PIN incorrect or something went wrong."; errEl.style.display = "block"; }

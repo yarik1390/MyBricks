@@ -1454,6 +1454,13 @@ ul.set-list > li { display: contents; }
 }
 .theme-seg button:last-child { border-right: 0; }
 .theme-seg button.active { background: var(--bv-yellow); color: var(--line); }
+
+/* Style/skin picker: 5 options don't fit a right-aligned inline pill, so stack
+   the label above and let the segments share the full row width. */
+.setting-row.skin-seg-row { flex-direction: column; align-items: stretch; }
+.setting-row.skin-seg-row .lbl-wrap { width: 100%; }
+.setting-row.skin-seg-row .theme-seg { display: flex; width: 100%; }
+.setting-row.skin-seg-row .theme-seg button { flex: 1 1 0; padding: 8px 4px; white-space: nowrap; }
 .import-btn {
   width: 44px; height: 44px; flex-shrink: 0;
   background: var(--bv-yellow); border: var(--bw) solid var(--border-c);
@@ -5135,7 +5142,7 @@ body.advisor-open #advisorFab {
 [data-mode="simple"] #heroChart,
 [data-mode="simple"] #rangePills,
 [data-mode="simple"] .portfolio-tabs,
-[data-mode="simple"] #insightsPanel,
+[data-mode="simple"] .hero .delta,
 [data-mode="simple"] .sl-delta,
 [data-mode="simple"] .trend-badge,
 [data-mode="simple"] .forecast-card { display: none !important; }

@@ -129,7 +129,7 @@ export async function renderKidsHome() {
         return;
       }
       try {
-        const res = await api('/api/me/kids-pin/verify', { method: 'POST', body: JSON.stringify({ pin }) });
+        const res = await api('/api/me/kids-pin/verify', { method: 'POST', body: { pin } });
         if (res?.ok) {
           hideSheet();
           setModePref('pro');

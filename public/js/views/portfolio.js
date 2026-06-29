@@ -6,6 +6,7 @@ import { I } from '../icons.js';
 import { showSheet, hideSheet, confirmSheet, promptSheet } from '../components/sheet.js';
 import { trustBadgeHTML } from '../components/trust.js';
 import { skelPage, skelHero, skelCardList } from '../components/skeleton.js';
+import { getModePref } from '../theme.js';
 
 
 /* ============================================================
@@ -230,6 +231,9 @@ function setupPortfolioSentinel(items) {
 
 function paintPortfolio() {
   const p = state.portfolio;
+  // Simple mode hides the Insights tab switcher, so never leave the user
+  // stranded on the (now-unreachable) insights panel.
+  if (getModePref() === "simple" && state.portfolioTab !== "items") state.portfolioTab = "items";
   const hist = state.portfolioHistory || [];
   const alertsCount = state.wishlistAlerts.length;
   const gain = p.total_value - p.total_paid;
