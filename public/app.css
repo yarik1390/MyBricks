@@ -5152,18 +5152,21 @@ body.advisor-open #advisorFab {
 [data-mode="simple"] [data-sort="roi_asc"],
 [data-mode="simple"] [data-csort-base="roi"] { display: none !important; }
 
-/* Hide Minifigs nav tab in simple mode */
-[data-mode="simple"] .nav-tab[data-route="/minifigs"] { display: none; }
+/* Simple mode keeps all 5 nav tabs so the centered Scan orb stays balanced —
+   it only declutters the investor data layer, not navigation. */
 
 /* ============================================================
    Kids mode — gamified, price-free experience
    ============================================================ */
 
-/* Nav: kids nav = Vault / Catalog / Scan / Badges. Show Badges; hide Minifigs + Me. */
+/* Nav: kids nav = Vault / Catalog / Scan / Badges. Show Badges; hide Minifigs + Me.
+   A trailing spacer keeps 5 equal slots so the Scan orb stays centered. */
 .nav-tab.kids-only { display: none; }
 [data-mode="kids"] .nav-tab.kids-only { display: flex; }
 [data-mode="kids"] .nav-tab[data-route="/minifigs"],
 [data-mode="kids"] .nav-tab[data-route="/me"] { display: none !important; }
+.nav-spacer { display: none; }
+[data-mode="kids"] .nav-spacer { display: block; flex: 1; }
 
 /* Hide all prices and investor UI in kids mode */
 [data-mode="kids"] .hero-value,

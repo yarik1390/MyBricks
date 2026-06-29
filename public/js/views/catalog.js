@@ -91,7 +91,17 @@ export async function renderAdd() {
       }
     }).catch(() => {});
   }
+  // Flag owned sets (any mode). Seed synchronously from what we already have so
+  // the first paint is usually correct, then backfill from the full collection
+  // and refresh once if that revealed more.
+  seedOwnedFromPortfolio();
   paintAdd();
+  if (!state.ownedSetNumsLoaded) {
+    const before = state.ownedSetNums.size;
+    ensureOwnedSetNums().then(() => {
+      if (state.ownedSetNums.size !== before && location.hash === "#/add" && $("#catalogResults")) refreshCatalogGrid();
+    });
+  }
 }
 
 export async function loadCatalog({ reset = false } = {}) {
@@ -267,31 +277,94 @@ function wireCatalogCards() {
     }
     const card = e.target.closest(".set-card, .set-list-card.compact");
     if (!card || !card.dataset.set) return;
-    // Kids mode: set detail is blocked, so a card tap adds the set directly and
-    // awards XP — a quick, satisfying loop with no prices and no navigation.
+    // Kids mode: set detail is blocked, so a card tap opens a friendly confirm
+    // sheet (no instant add) and, on confirm, adds the set and awards XP.
     if (getModePref() === "kids") {
       e.stopPropagation();
-      haptic("medium");
-      const setNum = card.dataset.set;
-      try {
-        const result = await api("/api/collection", { method: "POST", body: { set_num: setNum, quantity: 1 } });
-        invalidatePortfolio();
-        if (result?.kids?.xp_gained > 0) {
-          const { xp_gained, new_level, new_badges } = result.kids;
-          const badgePart = new_badges?.[0] ? ` · Badge: ${new_badges[0].replace(/_/g, " ")}! 🎉` : "";
-          const lvlPart = new_level ? ` Level ${new_level}!` : "";
-          toast(`+${xp_gained} XP!${lvlPart}${badgePart}`, "success");
-          state.me = null;
-        } else {
-          toast("Added to your vault!", "success");
-        }
-      } catch (err) {
-        toast(err.message || "Couldn't add that set", "error");
-      }
+      haptic("light");
+      openKidsAddSheet(card.dataset.set, card);
       return;
     }
     haptic("light");
     location.hash = "#/set/" + encodeURIComponent(card.dataset.set);
+  });
+}
+
+// Seed the owned-set from whatever collection data we already have, then (once
+// per session) fetch the full list so the catalog can flag owned sets.
+function seedOwnedFromPortfolio() {
+  const items = state.portfolio?.items;
+  if (Array.isArray(items)) for (const i of items) state.ownedSetNums.add(i.set_num);
+}
+async function ensureOwnedSetNums() {
+  seedOwnedFromPortfolio();
+  if (state.ownedSetNumsLoaded) return;
+  try {
+    const r = await api("/api/collection");
+    for (const i of (r?.items || [])) state.ownedSetNums.add(i.set_num);
+    state.ownedSetNumsLoaded = true;
+  } catch { /* non-fatal: owned badges just won't show until next load */ }
+}
+
+// Inject the OWNED overlay onto a catalog card without a full re-render.
+function markCardOwned(card) {
+  if (!card || card.classList.contains("is-owned")) return;
+  card.classList.add("is-owned");
+  const imgWrap = card.querySelector(".set-card-img, .sl-img");
+  if (imgWrap && !imgWrap.querySelector(".owned-tag")) {
+    imgWrap.insertAdjacentHTML("beforeend", `<span class="owned-tag">${I.check()}OWNED</span>`);
+  }
+}
+
+// Kid-friendly confirm-before-add sheet. Already-owned sets show a "you have
+// this" state instead of adding again.
+function openKidsAddSheet(setNum, card) {
+  const s = (state.catalog.items || []).find(x => x.set_num === setNum) || { set_num: setNum, name: setNum };
+  const already = state.ownedSetNums.has(setNum) || s.owned;
+  const hasImg = s.image_url && !s.image_url.startsWith("data:");
+  const imgHTML = hasImg
+    ? `<img src="${escapeHtml(s.image_url)}" alt="" style="width:96px;height:96px;object-fit:contain;margin:0 auto 12px;display:block;">`
+    : "";
+  if (already) {
+    showSheet(`
+      <div style="text-align:center;padding:4px 0 8px;">
+        ${imgHTML}
+        <div style="font-weight:800;font-size:18px;margin-bottom:6px;">${escapeHtml(s.name || setNum)}</div>
+        <div style="font-size:15px;color:var(--up);font-weight:700;margin-bottom:16px;">✓ Already in your vault!</div>
+        <button class="btn-secondary" id="kidsAddClose" style="width:100%;">OK</button>
+      </div>`);
+    $("#kidsAddClose")?.addEventListener("click", () => hideSheet());
+    return;
+  }
+  showSheet(`
+    <div style="text-align:center;padding:4px 0 8px;">
+      ${imgHTML}
+      <div style="font-weight:800;font-size:18px;margin-bottom:4px;">${escapeHtml(s.name || setNum)}</div>
+      <div style="font-size:13px;color:var(--ink-mute);margin-bottom:18px;">Add this set to your vault?</div>
+      <button class="btn-primary" id="kidsAddConfirm" style="width:100%;margin-bottom:8px;">🧱 Add to vault · +10 XP</button>
+      <button class="btn-secondary" id="kidsAddCancel" style="width:100%;">Not now</button>
+    </div>`);
+  $("#kidsAddCancel")?.addEventListener("click", () => hideSheet());
+  $("#kidsAddConfirm")?.addEventListener("click", async () => {
+    haptic("medium");
+    try {
+      const result = await api("/api/collection", { method: "POST", body: { set_num: setNum, quantity: 1 } });
+      state.ownedSetNums.add(setNum);
+      markCardOwned(card);
+      invalidatePortfolio();
+      hideSheet();
+      if (result?.kids?.xp_gained > 0) {
+        const { xp_gained, new_level, new_badges } = result.kids;
+        const badgePart = new_badges?.[0] ? ` · Badge: ${new_badges[0].replace(/_/g, " ")}! 🎉` : "";
+        const lvlPart = new_level ? ` Level ${new_level}!` : "";
+        toast(`+${xp_gained} XP!${lvlPart}${badgePart}`, "success");
+        state.me = null;
+      } else {
+        toast("Added to your vault!", "success");
+      }
+    } catch (err) {
+      toast(err.message || "Couldn't add that set", "error");
+    }
   });
 }
 
@@ -610,7 +683,14 @@ function pppBadgeHTML(s) {
   return `<span class="ppp-badge" style="color:${color};">$${r.ppp.toFixed(2)}/pc</span>`;
 }
 
+// Owned if the API flagged it OR it's in the client-side owned set (kept fresh
+// as the user adds sets, so the catalog reflects the vault without a reload).
+function isOwnedSet(s) {
+  return !!s.owned || state.ownedSetNums.has(s.set_num);
+}
+
 function catalogCardHTML(s) {
+  const owned = isOwnedSet(s);
   const hasImg = s.image_url && !s.image_url.startsWith("data:");
   const h = setHue(s);
   // Prefer the blended market value (valuation v2) over the formula estimate.
@@ -634,7 +714,7 @@ function catalogCardHTML(s) {
             <span>${escapeHtml(s.set_num)}</span>
             <span class="dot"></span>
             <span>${escapeHtml(s.theme || "")}</span>
-            ${s.owned ? `<span class="badge badge--up" style="margin-left:4px;">OWNED</span>` : ""}
+            ${owned ? `<span class="badge badge--up" style="margin-left:4px;">OWNED</span>` : ""}
             ${dealTagHTML(s)}
             ${sourceCueHTML(s)}
           </div>
@@ -657,7 +737,7 @@ function catalogCardHTML(s) {
         ${s.retired ? `<span class="retired-tag">RETIRED</span>` : ""}
         ${((s.retirement_risk_score || 0) >= 70 || s.lego_retiring_soon) && !s.retired ? `<span class="retire-risk-badge">🔥</span>` : ""}
         ${dealTagHTML(s, { overlay: true })}
-        ${s.owned ? `<span class="owned-tag">${I.check()}OWNED</span>` : ""}
+        ${owned ? `<span class="owned-tag">${I.check()}OWNED</span>` : ""}
       </div>
       <div class="set-card-body">
         <div class="set-card-name">${escapeHtml(s.name)}</div>

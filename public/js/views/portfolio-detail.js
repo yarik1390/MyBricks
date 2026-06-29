@@ -194,8 +194,16 @@ function shareSet(set) {
   }
 }
 
+// The value the page actually displays: the blended market value when present,
+// otherwise the formula current_value. Keeps the headline, the add button and
+// the recorded purchase price all showing the SAME number.
+function setDisplayValue(set) {
+  return Number(set.market_value) > 0 ? Number(set.market_value) : (Number(set.current_value) || 0);
+}
+
 function infoTabHTML(set, entry, isWish) {
   const owned = !!entry;
+  const displayVal = setDisplayValue(set);
 
   let bricksetHtml = '';
   {
@@ -219,7 +227,7 @@ function infoTabHTML(set, entry, isWish) {
     const ratingSignal = ratingNum >= 4.0 && reviewCount >= 20
       ? `<span class="signal-hint" style="color:var(--green);font-size:10px;">High demand set</span>`
       : '';
-    const growthBadge = growthRate != null
+    const growthBadge = (growthRate != null && !isSimpleMode())
       ? `<div style="grid-column:span 2;display:flex;align-items:center;gap:8px;"><span style="color:var(--ink-mute);">12m growth:</span> <strong style="color:${growthRate >= 0 ? 'var(--up)' : 'var(--down)'};">${growthRate >= 0 ? '+' : ''}${Number(growthRate).toFixed(1)}%/yr</strong></div>`
       : '';
     const fmtMonthYear = (d) => { const t = d ? Date.parse(d) : NaN; return Number.isNaN(t) ? '' : new Date(t).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }); };
@@ -425,6 +433,7 @@ function infoTabHTML(set, entry, isWish) {
 
   return `
     ${marketValueHeroHTML(set)}
+    ${isSimpleMode() ? '' : `
     ${dealSignalHTML(set)}
     ${priceStripHTML(set, entry)}
     ${marketSpreadHTML(set)}
@@ -440,7 +449,7 @@ function infoTabHTML(set, entry, isWish) {
         ${marketConfidenceHTML(set)}
         ${pricingSummaryHtml}
       </div>
-    </details>
+    </details>`}
 
     <div class="stat-grid" style="grid-template-columns:repeat(3,1fr);">
       <div class="stat-cell">
@@ -515,7 +524,7 @@ function infoTabHTML(set, entry, isWish) {
         ⚡ <span>Generate eBay Listing</span>
       </button>
     ` : `
-      <button class="btn-primary" id="addBtn">${I.plus()}<span>Add to vault · ${fmtMoney(set.current_value, { cents: 0 })}</span></button>
+      <button class="btn-primary" id="addBtn">${I.plus()}<span>Add to vault · ${fmtMoney(displayVal, { cents: 0 })}</span></button>
       <button class="btn-secondary" id="wishToggle" style="margin-top:8px;">
         ${isWish ? I.heartF() : I.heart()}
         <span>${isWish ? "Remove from wishlist" : "Add to wishlist"}</span>
@@ -584,7 +593,8 @@ function wireInfoTab(set, entry) {
     try {
       const prevCount = state.portfolio?.items?.length ?? 0;
       const prevValue = state.portfolio?.total_value ?? 0;
-      const addResult = await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
+      const displayVal = setDisplayValue(set);
+      const addResult = await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: displayVal } });
       invalidatePortfolio(); state.catalog.items = [];
       toast("Added to vault", "success");
       if (addResult?.kids?.xp_gained > 0) {
@@ -595,7 +605,7 @@ function wireInfoTab(set, entry) {
         state.me = null;
       }
       const newCount = prevCount + 1;
-      const newValue = prevValue + (Number(set.current_value) || 0);
+      const newValue = prevValue + displayVal;
       const countMs = [[1,"Your first set! Welcome to Brickvault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! Dedicated collector 🏅"],[100,"100 sets! Elite collector 🏆"]];
       const valueMs = [[1000,"$1,000 portfolio milestone!"],[5000,"$5,000 portfolio!"],[10000,"$10,000 portfolio 💰"],[50000,"$50,000 — serious money 🤑"]];
       for (const [n, msg] of countMs) {
@@ -1509,6 +1519,18 @@ function genericSourceLabel(s) {
 // plain-language basis (never named sources). Renders only when a blend exists;
 // otherwise the price strip below (current_value) carries the display.
 function marketValueHeroHTML(set) {
+  // Simple mode: just the value — no confidence band, range, signal count,
+  // liquidity or disagreement note. Uses the display value (market or formula)
+  // so it always shows something even when the price strip below is hidden.
+  if (isSimpleMode()) {
+    const v = setDisplayValue(set);
+    if (v <= 0) return '';
+    return `
+    <div class="card" style="padding:16px;margin-bottom:14px;">
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:3px;">Value</div>
+      <div style="font-size:28px;font-weight:800;line-height:1.05;">${fmtMoney(v)}</div>
+    </div>`;
+  }
   const mv = Number(set.market_value);
   if (!Number.isFinite(mv) || mv <= 0) return '';
   const lo = Number(set.market_value_low);
