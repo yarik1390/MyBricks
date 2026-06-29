@@ -1,6 +1,7 @@
-import { $, $$, haptic, escapeHtml, setHue, fmtMoney, trendBadgeHTML, THEME_COLORS, bvIDB, SEARCH_DEBOUNCE_MS, mount } from '../utils.js';
-import { state } from '../state.js';
+import { $, $$, haptic, escapeHtml, setHue, fmtMoney, trendBadgeHTML, THEME_COLORS, bvIDB, SEARCH_DEBOUNCE_MS, mount, toast } from '../utils.js';
+import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
+import { getModePref } from '../theme.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { openScan } from '../components/scanner-lazy.js';
@@ -171,7 +172,7 @@ function comingSoonSectionHTML() {
             <div style="font-size:12px;font-weight:600;color:var(--ink);line-height:1.3;height:32px;overflow:hidden;">${escapeHtml(String(u.name || ""))}</div>
             <div style="font-size:10px;font-family:var(--mono);color:var(--ink-mute);margin-top:4px;">#${escapeHtml(String(u.set_num || "").replace(/-\d+$/, ""))}</div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:6px;">
-              <span style="font-size:13px;font-weight:700;color:var(--ink);">${u.price_usd ? fmtMoney(u.price_usd, { cents: 0 }) : ""}</span>
+              <span class="price-cue" style="font-size:13px;font-weight:700;color:var(--ink);">${u.price_usd ? fmtMoney(u.price_usd, { cents: 0 }) : ""}</span>
               <span style="font-size:9px;font-family:var(--mono);font-weight:800;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:1px 5px;white-space:nowrap;">${escapeHtml(String(u.availability || "Soon"))}</span>
             </div>
             ${isLoggedIn ? `
@@ -266,6 +267,29 @@ function wireCatalogCards() {
     }
     const card = e.target.closest(".set-card, .set-list-card.compact");
     if (!card || !card.dataset.set) return;
+    // Kids mode: set detail is blocked, so a card tap adds the set directly and
+    // awards XP — a quick, satisfying loop with no prices and no navigation.
+    if (getModePref() === "kids") {
+      e.stopPropagation();
+      haptic("medium");
+      const setNum = card.dataset.set;
+      try {
+        const result = await api("/api/collection", { method: "POST", body: { set_num: setNum, quantity: 1 } });
+        invalidatePortfolio();
+        if (result?.kids?.xp_gained > 0) {
+          const { xp_gained, new_level, new_badges } = result.kids;
+          const badgePart = new_badges?.[0] ? ` · Badge: ${new_badges[0].replace(/_/g, " ")}! 🎉` : "";
+          const lvlPart = new_level ? ` Level ${new_level}!` : "";
+          toast(`+${xp_gained} XP!${lvlPart}${badgePart}`, "success");
+          state.me = null;
+        } else {
+          toast("Added to your vault!", "success");
+        }
+      } catch (err) {
+        toast(err.message || "Couldn't add that set", "error");
+      }
+      return;
+    }
     haptic("light");
     location.hash = "#/set/" + encodeURIComponent(card.dataset.set);
   });
@@ -574,8 +598,8 @@ function dealTagHTML(s, { overlay = false } = {}) {
   const pct = s.deal_discount_pct ? ` -${Math.round(s.deal_discount_pct)}%` : '';
   const txt = s.deal_strong ? `STRONG BUY${pct}` : `DEAL${pct}`;
   return overlay
-    ? `<span class="deal-tag-overlay" style="position:absolute;bottom:8px;left:8px;background:var(--up);color:#fff;font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.04em;border-radius:4px;padding:2px 6px;z-index:2;">${txt}</span>`
-    : `<span class="badge" style="background:var(--up);color:#fff;font-size:9px;font-weight:800;letter-spacing:.03em;border-radius:4px;padding:1px 5px;margin-left:4px;">${txt}</span>`;
+    ? `<span class="deal-tag-overlay price-cue" style="position:absolute;bottom:8px;left:8px;background:var(--up);color:#fff;font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.04em;border-radius:4px;padding:2px 6px;z-index:2;">${txt}</span>`
+    : `<span class="badge price-cue" style="background:var(--up);color:#fff;font-size:9px;font-weight:800;letter-spacing:.03em;border-radius:4px;padding:1px 5px;margin-left:4px;">${txt}</span>`;
 }
 
 // $/piece value cue: tinted when >=25% off the formula baseline either way.
@@ -592,7 +616,7 @@ function catalogCardHTML(s) {
   // Prefer the blended market value (valuation v2) over the formula estimate.
   const dispVal = Number(s.market_value) > 0 ? Number(s.market_value) : s.current_value;
   const mvConf = Number(s.market_value) > 0 ? (s.market_value_confidence || null) : null;
-  const confDot = mvConf ? `<span title="Market confidence: ${mvConf}" style="display:inline-block;width:6px;height:6px;border-radius:50%;vertical-align:middle;margin-right:4px;background:${mvConf === 'high' ? 'var(--up)' : mvConf === 'medium' ? 'var(--accent)' : 'var(--bv-yellow)'};"></span>` : '';
+  const confDot = mvConf ? `<span class="price-cue" title="Market confidence: ${mvConf}" style="display:inline-block;width:6px;height:6px;border-radius:50%;vertical-align:middle;margin-right:4px;background:${mvConf === 'high' ? 'var(--up)' : mvConf === 'medium' ? 'var(--accent)' : 'var(--bv-yellow)'};"></span>` : '';
 
   if (state.compactView) {
     const borderStyle = ` style="border-left-color: ${THEME_COLORS[s.theme] || 'var(--line)'};"`;

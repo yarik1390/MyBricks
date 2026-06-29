@@ -9,6 +9,15 @@ import { skelDetail } from '../components/skeleton.js';
 import { flipCalcHTML } from '../components/flip-calc.js';
 import { openReviewSheet, openPhotoSheet, openDataFixSheet } from '../components/contribute.js';
 import { refreshNavBadge } from './portfolio.js';
+import { getModePref } from '../theme.js';
+
+// Simple mode hides the forecast (price-projection) tab. Helper centralizes the
+// check and the available-tabs list so every tab build stays consistent.
+const isSimpleMode = () => getModePref() === "simple";
+function detailTabs(owned) {
+  const tabs = owned ? ["info", "forecast", "community", "manage"] : ["info", "forecast", "community"];
+  return isSimpleMode() ? tabs.filter(t => t !== "forecast") : tabs;
+}
 
 // Module-level detail state (moved verbatim from portfolio.js; used only by
 // the set-detail view's tab-swipe + custom-photo + event-delegation wiring).
@@ -82,6 +91,9 @@ function setNotFoundHTML(setNum, online) {
 function paintSetDetail(set, entry) {
   const isWish = state.wishlist.some(w => w.set_num === set.set_num);
   const owned = !!entry;
+  // Simple mode has no forecast tab — don't let a deep link (/set/x/forecast)
+  // strand the panel on a hidden tab.
+  if (isSimpleMode() && state.detail.tab === "forecast") state.detail.tab = "info";
   const h = setHue(set);
   const displayImg = set.image_url;
   const hasImg = displayImg && !displayImg.startsWith("data:");
@@ -110,7 +122,7 @@ function paintSetDetail(set, entry) {
           <button class="detail-share-btn icon-btn" id="shareBtn" aria-label="Share">${I.share()}</button>
         </div>
         <div class="detail-tabs" id="detailTabs" role="tablist" aria-label="Set detail sections">
-          ${["info","forecast","community","manage"].filter(t => t !== "manage" || owned).map(t =>
+          ${detailTabs(owned).map(t =>
             `<button data-tab="${t}" role="tab" aria-selected="${state.detail.tab === t}" aria-controls="tabPanels" class="${state.detail.tab === t ? "active" : ""}">${t[0].toUpperCase()+t.slice(1)}</button>`
           ).join("")}
         </div>
@@ -1157,7 +1169,7 @@ function setupTabSwipe(set, entry) {
     const dy = e.changedTouches[0].clientY - sy;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
       const owned = !!entry;
-      const tabs = owned ? ["info","forecast","community","manage"] : ["info","forecast","community"];
+      const tabs = detailTabs(owned);
       const idx = tabs.indexOf(state.detail.tab);
       const next = clamp(idx + (dx < 0 ? 1 : -1), 0, tabs.length - 1);
       if (next !== idx) { haptic("light"); switchDetailTab(tabs[next], set, entry); }

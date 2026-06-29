@@ -11,14 +11,16 @@ function renderSetCardKids(set) {
   const img = set.image_url
     ? `<img src="${escapeHtml(set.image_url)}" alt="${escapeHtml(set.name)}" loading="lazy" width="120" height="90" class="set-card-img">`
     : `<div class="set-card-img set-card-img-empty"></div>`;
+  // Non-link: set detail is blocked in kids mode (would bounce to /kids), so the
+  // card is display-only — image + name + facts, no price.
   return `
-    <a href="#/set/${encodeURIComponent(set.set_num)}" class="set-card kids-set-card">
+    <div class="set-card kids-set-card">
       ${img}
       <div class="set-card-body">
         <div class="set-card-name">${escapeHtml(set.name)}</div>
         <div class="set-card-meta">${escapeHtml(set.theme || '')} · ${set.pieces ? set.pieces + ' pcs' : ''}</div>
       </div>
-    </a>`;
+    </div>`;
 }
 
 export async function renderKidsHome() {

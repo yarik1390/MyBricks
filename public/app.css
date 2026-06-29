@@ -5144,8 +5144,13 @@ body.advisor-open #advisorFab {
 [data-mode="simple"] .portfolio-tabs,
 [data-mode="simple"] .hero .delta,
 [data-mode="simple"] .sl-delta,
+[data-mode="simple"] .sl-forecast,
 [data-mode="simple"] .trend-badge,
-[data-mode="simple"] .forecast-card { display: none !important; }
+[data-mode="simple"] .forecast-card,
+[data-mode="simple"] #advisorFab,
+[data-mode="simple"] [data-sort="roi_desc"],
+[data-mode="simple"] [data-sort="roi_asc"],
+[data-mode="simple"] [data-csort-base="roi"] { display: none !important; }
 
 /* Hide Minifigs nav tab in simple mode */
 [data-mode="simple"] .nav-tab[data-route="/minifigs"] { display: none; }
@@ -5154,26 +5159,37 @@ body.advisor-open #advisorFab {
    Kids mode — gamified, price-free experience
    ============================================================ */
 
-/* Nav: show Badges tab only in kids mode; hide Minifigs */
+/* Nav: kids nav = Vault / Catalog / Scan / Badges. Show Badges; hide Minifigs + Me. */
 .nav-tab.kids-only { display: none; }
 [data-mode="kids"] .nav-tab.kids-only { display: flex; }
-[data-mode="kids"] .nav-tab[data-route="/minifigs"] { display: none; }
+[data-mode="kids"] .nav-tab[data-route="/minifigs"],
+[data-mode="kids"] .nav-tab[data-route="/me"] { display: none !important; }
 
 /* Hide all prices and investor UI in kids mode */
 [data-mode="kids"] .hero-value,
 [data-mode="kids"] .sl-value,
 [data-mode="kids"] .set-card-value,
+[data-mode="kids"] .set-card-submeta,
 [data-mode="kids"] .mini-value,
 [data-mode="kids"] .qty-row-val,
 [data-mode="kids"] .stat-cell .val,
 [data-mode="kids"] .forecast-card,
 [data-mode="kids"] .pc-comps,
 [data-mode="kids"] .sl-delta,
+[data-mode="kids"] .sl-forecast,
 [data-mode="kids"] .trend-badge,
+[data-mode="kids"] .price-cue,
+[data-mode="kids"] .deal-tag-overlay,
+[data-mode="kids"] .ppp-badge,
+[data-mode="kids"] .retire-risk-badge,
+[data-mode="kids"] .sx-val,
+[data-mode="kids"] .deal-score-wrap,
+[data-mode="kids"] [data-csort-base="roi"],
+[data-mode="kids"] [data-csort-base="trending"],
+[data-mode="kids"] #advisorFab,
 [data-mode="kids"] #heroChart,
 [data-mode="kids"] #rangePills,
-[data-mode="kids"] .portfolio-tabs,
-[data-mode="kids"] #insightsPanel { display: none !important; }
+[data-mode="kids"] .portfolio-tabs { display: none !important; }
 
 /* Level orb + XP bar */
 .kids-hero { display: flex; align-items: center; gap: 16px; padding: 20px 0 16px; }

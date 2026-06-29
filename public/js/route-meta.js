@@ -13,9 +13,19 @@ const ROUTES = [
   { match: (hash) => hash === "/me/data", key: "data", nav: "/me", title: "Data", protected: true, fab: false },
   { match: (hash) => hash === "/me" || hash.startsWith("/me/"), key: "me", nav: "/me", title: "Me", fab: true },
   { match: (hash) => hash === "/login", key: "login", nav: null, title: "Sign in", fullscreen: true, fab: false },
-  { match: (hash) => hash === "/kids", key: "kids", nav: "/kids", title: "Kids Vault", fab: false },
+  { match: (hash) => hash === "/kids", key: "kids", nav: "/", title: "Kids Vault", fab: false },
   { match: (hash) => hash === "/kids/badges", key: "kids-badges", nav: "/kids/badges", title: "Badges", fab: false },
 ];
+
+// In Kids Mode the app is locked to a price-free sandbox. Only these routes are
+// reachable; everything else (set detail, /me, wishlist, leaderboard, minifigs,
+// build, public profiles) is redirected to the kids home. Catalog (/add) and
+// Scan (/pile) stay open so a child can add sets and earn XP.
+const KIDS_ALLOWED = new Set(["/kids", "/kids/badges", "/add", "/pile", "/login"]);
+
+export function allowedInKidsMode(hash) {
+  return KIDS_ALLOWED.has(normalizeRouteHash(hash));
+}
 
 export function normalizeRouteHash(hash = "/") {
   return (String(hash || "/").replace(/^#/, "") || "/").split("?")[0];

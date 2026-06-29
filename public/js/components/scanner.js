@@ -777,14 +777,22 @@ function showScanResult(res) {
 
     setBtnLoading($("#scanAdd"), true);
     let addedCount = 0;
+    let kidsXp = 0;
+    let kidsBadge = null;
+    let kidsLevel = null;
     for (const box of checkedBoxes) {
       const setnum = box.dataset.setnum;
       const targetSet = sets[parseInt(box.dataset.idx, 10)];
       const condValue = Number(marketValueForCondition(targetSet, scanCondition)) || Number(targetSet.current_value) || null;
       const body = { set_num: setnum, quantity: 1, condition: scanCondition, purchase_price: condValue };
       try {
-        await api("/api/collection", { method: "POST", body });
+        const result = await api("/api/collection", { method: "POST", body });
         addedCount++;
+        if (result?.kids?.xp_gained > 0) {
+          kidsXp += result.kids.xp_gained;
+          if (result.kids.new_level) kidsLevel = result.kids.new_level;
+          if (result.kids.new_badges?.[0] && !kidsBadge) kidsBadge = result.kids.new_badges[0];
+        }
       } catch (e) {
         if (!navigator.onLine) {
           outboxEnqueue({ path: '/api/collection', method: 'POST', body });
@@ -814,6 +822,14 @@ function showScanResult(res) {
     closeScan();
     if (addedCount > 0) {
       toast(navigator.onLine ? `Added ${addedCount} item${addedCount === 1 ? "" : "s"} to vault` : `Saved ${addedCount} offline — will sync`, "success");
+    }
+    // Kids mode: surface the XP reward and refresh state.me so the kids home
+    // reflects the new XP/level/badge.
+    if (kidsXp > 0) {
+      const badgePart = kidsBadge ? ` · Badge: ${kidsBadge.replace(/_/g, " ")}! 🎉` : "";
+      const lvlPart = kidsLevel ? ` Level ${kidsLevel}!` : "";
+      setTimeout(() => toast(`+${kidsXp} XP!${lvlPart}${badgePart}`, "success"), 500);
+      state.me = null;
     }
     location.hash = "#/";
   });

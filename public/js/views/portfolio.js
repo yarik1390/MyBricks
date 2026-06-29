@@ -564,7 +564,7 @@ function setListCardHTML(item) {
           ${item.trend ? trendBadgeHTML(item.trend) : ""}
         </div>
         <div class="sl-delta ${cls}" ${delta != null ? `role="img" aria-label="${cls === 'up' ? 'Up' : 'Down'} ${dStr}"` : ''}><span class="arrow" aria-hidden="true">${arrow}</span>${dStr}</div>
-        ${item.forecast_2y && dispVal && item.forecast_2y > dispVal ? `<div style="font-size:9px;color:var(--ink-mute);font-family:var(--mono);text-align:right;">→ ${fmtMoneyShort(item.forecast_2y)} 2yr</div>` : ''}
+        ${item.forecast_2y && dispVal && item.forecast_2y > dispVal ? `<div class="sl-forecast" style="font-size:9px;color:var(--ink-mute);font-family:var(--mono);text-align:right;">→ ${fmtMoneyShort(item.forecast_2y)} 2yr</div>` : ''}
       </div>
     </button>`;
 }

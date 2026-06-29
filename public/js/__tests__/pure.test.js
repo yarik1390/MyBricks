@@ -875,3 +875,25 @@ describe('upsertDetailCache (offline set-detail LRU)', () => {
     assert.equal(Object.keys(orig.items).length, snapshotKeys, 'original untouched');
   });
 });
+
+import { allowedInKidsMode } from '../route-meta.js';
+
+describe('allowedInKidsMode', () => {
+  it('allows the kids sandbox routes', () => {
+    for (const h of ['/kids', '/kids/badges', '/add', '/pile', '/login']) {
+      assert.equal(allowedInKidsMode(h), true, `${h} should be allowed`);
+    }
+  });
+
+  it('blocks every other route (redirects to kids home)', () => {
+    for (const h of ['/', '', '/set/75192-1', '/me', '/me/integrations', '/me/data',
+                     '/wishlist', '/leaderboard', '/minifigs', '/build', '/u/bob']) {
+      assert.equal(allowedInKidsMode(h), false, `${h} should be blocked`);
+    }
+  });
+
+  it('ignores a leading # and query string', () => {
+    assert.equal(allowedInKidsMode('#/add?theme=Star+Wars'), true);
+    assert.equal(allowedInKidsMode('#/me?x=1'), false);
+  });
+});

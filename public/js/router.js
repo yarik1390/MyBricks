@@ -2,7 +2,7 @@ import { $, $$, prefersReducedMotion } from './utils.js';
 import { state } from './state.js';
 import { api } from './api.js';
 import { I } from './icons.js';
-import { routeMetaFor } from './route-meta.js';
+import { routeMetaFor, allowedInKidsMode } from './route-meta.js';
 import { getModePref } from './theme.js';
 // View modules load on demand via dynamic import() in the route dispatch below,
 // so the initial bundle no longer eagerly pulls every page's code up front.
@@ -59,8 +59,10 @@ async function _routeImpl() {
     }
   }
 
-  // Redirect to kids home when in kids mode
-  if ((hash === "/" || hash === "") && getModePref() === "kids") {
+  // Kids Mode is a locked, price-free sandbox: only the kids home, badges,
+  // catalog and scan are reachable. Any other route (incl. "/", set detail,
+  // /me, wishlist, leaderboard) bounces back to the kids home.
+  if (getModePref() === "kids" && !allowedInKidsMode(hash)) {
     location.hash = "#/kids"; return;
   }
 
