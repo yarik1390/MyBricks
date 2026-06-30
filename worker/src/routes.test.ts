@@ -415,6 +415,38 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         delete (env as any).BRIGHTDATA_SOLD_ENABLED;
       }
     });
+
+    it('brightdata-reset-pool clears the exhausted/drained latch on the key pool', async () => {
+      await db.prepare(
+        `CREATE TABLE IF NOT EXISTS brightdata_keys (
+           key_hash TEXT PRIMARY KEY, used INTEGER NOT NULL DEFAULT 0, cap INTEGER NOT NULL DEFAULT 5000,
+           period_month TEXT, exhausted_at TEXT, last_used_at TEXT, updated_at TEXT
+         )`
+      ).run();
+      await db.prepare(`DELETE FROM brightdata_keys`).run();
+      await db.prepare(
+        `INSERT INTO brightdata_keys (key_hash, used, cap, period_month, exhausted_at)
+         VALUES ('hash-a', 5000, 5000, strftime('%Y-%m','now'), datetime('now')),
+                ('hash-b', 4999, 5000, strftime('%Y-%m','now'), datetime('now'))`
+      ).run();
+
+      const res = await app.fetch(new Request('http://localhost/api/admin/jobs/brightdata-reset-pool', {
+        method: 'POST', headers: auth(adminToken),
+      }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.ok).toBe(true);
+      expect(data.reset).toBe(2);
+
+      const rows = await db.prepare(
+        `SELECT used, exhausted_at FROM brightdata_keys ORDER BY key_hash`
+      ).all<any>();
+      for (const r of rows.results) {
+        expect(r.used).toBe(0);
+        expect(r.exhausted_at).toBeNull();
+      }
+      await db.prepare(`DROP TABLE brightdata_keys`).run();
+    });
   });
 
   describe('GET /api/me', () => {

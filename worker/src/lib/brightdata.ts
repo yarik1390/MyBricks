@@ -121,7 +121,7 @@ export async function fetchEbaySoldViaBrightData(
     const picked = await pickKey(env);
     if (!picked) { lastErr = 'no live Bright Data token (monthly budget drained)'; break; }
     try {
-      const { status, body } = await unlock(env, url, picked.key, options.timeoutMs ?? 45000);
+      const { status, body } = await unlock(env, url, picked.key, options.timeoutMs ?? 60000);
       // Auth / payment / forbidden → this token is dead or out of credits: mark it
       // exhausted (so pickKey skips it) and fail over to the next token.
       if (status === 401 || status === 402 || status === 403) {

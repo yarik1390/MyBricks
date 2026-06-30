@@ -118,6 +118,22 @@ export async function recordKeyCall(
   }
 }
 
+// Admin: clear the per-key "drained/exhausted" latch so a fixed token or zone can
+// be retried immediately instead of waiting for the next UTC-month rollover. Zeroes
+// `used` and clears `exhausted_at` for every pooled key; the normal recordKeyCall
+// flow repopulates them as real calls happen. Fails open.
+export async function resetKeyPool(env: Env): Promise<{ reset: number }> {
+  try {
+    const res = await env.DB.prepare(
+      `UPDATE brightdata_keys SET used = 0, exhausted_at = NULL, updated_at = datetime('now')`,
+    ).run();
+    return { reset: Number((res.meta?.changes as number | undefined) ?? 0) };
+  } catch (e) {
+    console.warn('[brightdata-keys] resetKeyPool failed:', (e as Error).message);
+    return { reset: 0 };
+  }
+}
+
 export interface KeyPoolEntry {
   key_hash: string;
   used: number;
