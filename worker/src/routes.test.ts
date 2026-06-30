@@ -447,6 +447,20 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       }
       await db.prepare(`DROP TABLE brightdata_keys`).run();
     });
+
+    it('ebay-sold-scrape admin job is dispatchable (skips cleanly when no scraper is configured)', async () => {
+      delete (env as any).BRIGHTDATA_API_TOKEN;
+      delete (env as any).BRIGHTDATA_API_TOKENS;
+      delete (env as any).FIRECRAWL_API_KEY;
+      const res = await app.fetch(new Request('http://localhost/api/admin/jobs/ebay-sold-scrape?limit=3', {
+        method: 'POST', headers: auth(adminToken),
+      }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.ok).toBe(true);
+      expect(data.job).toBe('ebay-sold-scrape');
+      expect(String(data.skipped || '')).toMatch(/neither/i);
+    });
   });
 
   describe('GET /api/me', () => {

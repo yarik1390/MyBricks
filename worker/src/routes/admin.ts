@@ -16,6 +16,7 @@ import { runBrickEconomyEnrich } from '../jobs/brickeconomy-enrich';
 import { runBrickInsightsBackfill } from '../jobs/brickinsights';
 import { runBlendRecomputeBackfill } from '../jobs/recompute-blends';
 import { resetKeyPool } from '../lib/brightdata-keys';
+import { runEbaySoldScrape } from '../jobs/ebay-sold-scrape';
 import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricecharting-bulk';
 import { getKeyPoolStatus } from '../lib/pricesapi-keys';
 import { getKeyPoolStatus as getBrightDataPoolStatus } from '../lib/brightdata-keys';
@@ -1159,6 +1160,7 @@ const JOB_LIMITS: Record<string, number> = {
   'brickinsights-ratings': 80,
   'recompute-blends': 100,
   'brightdata-reset-pool': 1,
+  'ebay-sold-scrape': 20,
 };
 
 // Hard ceiling on an admin-triggered job's per-call limit, so a manual override
@@ -1193,6 +1195,9 @@ app.post('/jobs/:job', async (c) => {
     } else if (job === 'brightdata-reset-pool') {
       // Clear the Bright Data key-pool drained/exhausted latch (no per-call limit).
       result = await resetKeyPool(c.env);
+    } else if (job === 'ebay-sold-scrape') {
+      // On-demand eBay-sold scrape (Bright Data / Firecrawl) for verification.
+      result = await runEbaySoldScrape(c.env, { limit });
     } else {
       return c.json({ error: 'Not implemented' }, 501);
     }
