@@ -13,6 +13,8 @@ import { rebuildSearchIndex } from '../lib/search-index';
 import { runLegoStockRefresh } from '../jobs/lego-stock-refresh';
 import { runBricksetEnrich } from '../jobs/brickset-enrich';
 import { runBrickEconomyEnrich } from '../jobs/brickeconomy-enrich';
+import { runBrickInsightsBackfill } from '../jobs/brickinsights';
+import { runBlendRecomputeBackfill } from '../jobs/recompute-blends';
 import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricecharting-bulk';
 import { getKeyPoolStatus } from '../lib/pricesapi-keys';
 import { getKeyPoolStatus as getBrightDataPoolStatus } from '../lib/brightdata-keys';
@@ -1153,6 +1155,8 @@ const JOB_LIMITS: Record<string, number> = {
   'lego-stock-refresh': 20,
   'brickset-enrich': 5,
   'brickeconomy-enrich': 5,
+  'brickinsights-ratings': 80,
+  'recompute-blends': 100,
 };
 
 // Hard ceiling on an admin-triggered job's per-call limit, so a manual override
@@ -1180,6 +1184,10 @@ app.post('/jobs/:job', async (c) => {
       result = await runBricksetEnrich(c.env, { limit });
     } else if (job === 'brickeconomy-enrich') {
       result = await runBrickEconomyEnrich(c.env, { limit });
+    } else if (job === 'brickinsights-ratings') {
+      result = await runBrickInsightsBackfill(c.env, { limit });
+    } else if (job === 'recompute-blends') {
+      result = await runBlendRecomputeBackfill(c.env, { limit });
     } else {
       return c.json({ error: 'Not implemented' }, 501);
     }

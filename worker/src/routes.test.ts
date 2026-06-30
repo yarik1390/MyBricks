@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import app from './index';
 
 declare module 'cloudflare:test' {
@@ -309,6 +309,72 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         .slice(firstGear + 1)
         .some((s: any) => s.theme !== 'Gear');
       expect(nonGearAfterGear).toBe(false);
+    });
+  });
+
+  describe('Admin maintenance jobs', () => {
+    it('recompute-blends fills a missing confidence band from existing sources', async () => {
+      // A retired set with real market sources but a value persisted before the
+      // band columns existed (blended_low/high NULL) — the v2.2-calibration gap.
+      await db.prepare(
+        `INSERT INTO lego_sets (set_num, name, theme, year, pieces, retired,
+           bl_new_value, bl_cached_at, pc_new_value, pc_cached_at,
+           be_value_new, be_cached_at, ebay_ask_value, ebay_ask_cached_at,
+           blended_value, blended_confidence, blended_low, blended_high)
+         VALUES ('RECOMP-1', 'Recompute Test Set', 'Icons', 2020, 1000, 1,
+           100, datetime('now'), 105, datetime('now'),
+           102, datetime('now'), 120, datetime('now'),
+           103, NULL, NULL, NULL)`
+      ).run();
+
+      const res = await app.fetch(new Request('http://localhost/api/admin/jobs/recompute-blends?limit=50', {
+        method: 'POST', headers: auth(adminToken),
+      }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.ok).toBe(true);
+      expect(data.recomputed).toBeGreaterThanOrEqual(1);
+
+      const row = await db.prepare(
+        `SELECT blended_low, blended_high FROM lego_sets WHERE set_num='RECOMP-1'`
+      ).first<any>();
+      expect(row.blended_low).not.toBeNull();
+      expect(row.blended_high).not.toBeNull();
+      expect(row.blended_high).toBeGreaterThan(row.blended_low);
+    });
+
+    it('brickinsights-ratings backfill prioritizes higher-value sets', async () => {
+      // Two never-rated retired sets; with limit=1 only the highest-value one
+      // (by the new COALESCE(blended_value,current_value) tiebreak) is processed.
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, retired, blended_value, current_value)
+                    VALUES ('BIHI-1', 'High Value Set', 'Icons', 2018, 1, 9999, 9999)`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, retired, blended_value, current_value)
+                    VALUES ('BILO-1', 'Low Value Set', 'Icons', 2018, 1, 5, 5)`),
+      ]);
+
+      (env as any).BRICKINSIGHTS_ENABLED = '1';
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({
+        average_rating: '88', review_count: '10', url: 'https://brickinsights.com/sets/x',
+      }), { status: 200 })) as any;
+      try {
+        const res = await app.fetch(new Request('http://localhost/api/admin/jobs/brickinsights-ratings?limit=1', {
+          method: 'POST', headers: auth(adminToken),
+        }), env);
+        expect(res.status).toBe(200);
+        const data = await res.json<any>();
+        expect(data.ok).toBe(true);
+        expect(data.processed).toBe(1);
+      } finally {
+        globalThis.fetch = originalFetch;
+        delete (env as any).BRICKINSIGHTS_ENABLED;
+      }
+
+      const hi = await db.prepare(`SELECT brickinsights_rating FROM lego_sets WHERE set_num='BIHI-1'`).first<any>();
+      const lo = await db.prepare(`SELECT brickinsights_rating FROM lego_sets WHERE set_num='BILO-1'`).first<any>();
+      expect(hi.brickinsights_rating).toBe(88);
+      expect(lo.brickinsights_rating).toBeNull();
     });
   });
 

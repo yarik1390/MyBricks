@@ -4,7 +4,8 @@ import { brickInsightsEnabled } from '../lib/pricing-flags';
 import { recordIntegrationHealth } from '../lib/integration-health';
 
 // Backfill BrickInsights review ratings for sets whose rating is missing or
-// stale (>30 days), prioritized owned/wishlist then retired then oldest. Stamps
+// stale (>30 days), prioritized owned/wishlist then retired then oldest, then by
+// highest value so marquee sets are rated before the cheap long tail. Stamps
 // brickinsights_cached_at on every SUCCESSFUL response (even when the set isn't
 // reviewed there) so we don't re-probe missing sets each run; a transport
 // failure leaves cached_at untouched so it retries next run. One GET per set;
@@ -29,6 +30,7 @@ export async function runBrickInsightsBackfill(env: Env, options: { limit?: numb
       ) THEN 0 ELSE 1 END,
       COALESCE(ls.retired, 0) DESC,
       COALESCE(ls.brickinsights_cached_at, '2000-01-01') ASC,
+      COALESCE(ls.blended_value, ls.current_value, 0) DESC,
       ls.set_num ASC
     LIMIT ?
   `).bind(limit).all<{ set_num: string }>();
