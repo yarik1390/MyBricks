@@ -930,6 +930,7 @@ function providerCardHTML({ row, health }) {
         ${quota ? `<span>Remaining: ${escapeHtml(String(quota.remaining ?? Math.max(0, quota.cap - quota.used)))}</span>` : ''}
       </div>
       ${service.toLowerCase() === 'ebay' ? ebayStateHTML(health) : ''}
+      ${service.toLowerCase() === 'brightdata' ? brightDataPoolHTML() : ''}
       <p class="admin-provider-action">${escapeHtml(health.action)}</p>
       ${row.last_error ? `<details class="admin-job-details"><summary>Latest failure</summary><div>${escapeHtml(String(row.last_error).slice(0, 900))}</div></details>` : ''}
     </article>`;
@@ -940,6 +941,25 @@ function ebayStateHTML(health) {
   const soldState = health.blocked ? 'sold comps blocked' : (coverage.sets_with_ebay_new || coverage.sets_with_ebay_used) ? 'sold comps available' : 'sold comps not populated';
   const askingState = coverage.sets_with_ebay_ask ? 'asking data available' : 'asking data not populated';
   return `<div class="admin-ebay-state"><span>${escapeHtml(soldState)}</span><span>${escapeHtml(askingState)}</span><span>No weak sold fallback</span></div>`;
+}
+
+// Per-key Bright Data spend this month (each key is capped at 5000 credits/mo on
+// the free tier). Reads adminHealth.brightdata.pool from /api/admin/integrations.
+function brightDataPoolHTML() {
+  const pool = adminHealth?.brightdata?.pool;
+  if (!pool || !Array.isArray(pool.entries) || !pool.entries.length) return '';
+  const live = pool.keys_live ?? 0;
+  const configured = pool.keys_configured ?? pool.entries.length;
+  const remaining = Number(pool.pooled_remaining ?? 0);
+  const head = `${live}/${configured} keys live · ${remaining.toLocaleString()} credits left this month`;
+  const rows = pool.entries.map((e) => {
+    const used = Number(e.used || 0);
+    const cap = Number(e.cap || 5000);
+    const left = Number(e.remaining ?? Math.max(0, cap - used));
+    const flag = e.exhausted ? ' (exhausted)' : '';
+    return `<div>…${escapeHtml(String(e.key_hash || '').slice(0, 8))} — ${used.toLocaleString()}/${cap.toLocaleString()} credits${escapeHtml(flag)} · ${left.toLocaleString()} left</div>`;
+  }).join('');
+  return `<details class="admin-job-details" open><summary>Key pool — monthly spend: ${escapeHtml(head)}</summary><div class="admin-bd-pool">${rows}</div></details>`;
 }
 
 function renderCatalogQuality() {
