@@ -15,7 +15,10 @@ import type { Env } from '../types';
 // table is safe to dump in admin diagnostics. Budget resets each month.
 // ---------------------------------------------------------------------------
 
-const DEFAULT_KEY_CAP = 5000;
+// Per-key monthly credit budget. Deliberately set BELOW the free-tier 5000 so
+// concurrent in-flight calls (the scrape runs up to ~8 at once) can never push a
+// key past 5000 real credits before it's marked exhausted — a hard safety margin.
+const DEFAULT_KEY_CAP = 4900;
 
 export interface PickedKey {
   key: string;
@@ -80,7 +83,7 @@ export async function pickKey(env: Env): Promise<PickedKey | null> {
     const row = rowByHash.get(hash);
     const sameMonth = row?.period_month === month;
     const used = sameMonth ? Number(row?.used ?? 0) : 0;
-    const cap = Number(row?.cap ?? DEFAULT_KEY_CAP) || DEFAULT_KEY_CAP;
+    const cap = DEFAULT_KEY_CAP; // authoritative: the code constant, not the stored row cap
     const exhausted = sameMonth && (!!row?.exhausted_at || used >= cap);
     if (exhausted) continue;
     if (!best || used < best.used) best = { hash, used };
@@ -174,7 +177,7 @@ export async function getKeyPoolStatus(env: Env): Promise<KeyPoolStatus> {
     const row = rowByHash.get(hash);
     const sameMonth = row?.period_month === month;
     const used = sameMonth ? Number(row?.used ?? 0) : 0;
-    const cap = Number(row?.cap ?? DEFAULT_KEY_CAP) || DEFAULT_KEY_CAP;
+    const cap = DEFAULT_KEY_CAP; // authoritative: the code constant, not the stored row cap
     const exhausted = sameMonth && (!!row?.exhausted_at || used >= cap);
     return {
       key_hash: hash.slice(0, 12),

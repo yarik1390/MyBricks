@@ -61,20 +61,25 @@ describe('bright data key pool', () => {
     expect(status.entries[0].exhausted).toBe(true);
   });
 
-  it('drains a token when used reaches the 5000 cap', async () => {
+  it('drains a token at the 4900 safety-margin cap even if the stored row cap is higher', async () => {
     const e = withKeys(['cap-test']);
     const hash = await hashKey('cap-test');
+    // Stored cap is 5000, but the code enforces DEFAULT_KEY_CAP (4900), so a key
+    // at 4900 used is already exhausted — the hard margin against concurrency overshoot.
     await db.prepare(
-      `INSERT INTO brightdata_keys (key_hash, used, cap, period_month) VALUES (?1, 5000, 5000, ?2)`,
+      `INSERT INTO brightdata_keys (key_hash, used, cap, period_month) VALUES (?1, 4900, 5000, ?2)`,
     ).bind(hash, new Date().toISOString().slice(0, 7)).run();
     expect(await pickKey(e)).toBeNull();
-    expect((await getKeyPoolStatus(e)).pooled_remaining).toBe(0);
+    const status = await getKeyPoolStatus(e);
+    expect(status.pooled_remaining).toBe(0);
+    expect(status.entries[0].cap).toBe(4900);
+    expect(status.entries[0].exhausted).toBe(true);
   });
 
   it('reports a pooled remaining budget across multiple tokens', async () => {
     const e = withKeys(['p1', 'p2', 'p3']);
     const status = await getKeyPoolStatus(e);
     expect(status.keys_configured).toBe(3);
-    expect(status.pooled_remaining).toBe(15000); // 3 × 5000 default cap
+    expect(status.pooled_remaining).toBe(14700); // 3 × 4900 cap (safety margin under the 5000 free tier)
   });
 });
