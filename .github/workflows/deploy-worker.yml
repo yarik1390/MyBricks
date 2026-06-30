@@ -287,6 +287,10 @@ jobs:
           [ -n "${{ secrets.VAPID_PRIVATE_KEY }}" ]        && put VAPID_PRIVATE_KEY        "${{ secrets.VAPID_PRIVATE_KEY }}"        || true
           [ -n "${{ secrets.VAPID_SUBJECT }}" ]            && put VAPID_SUBJECT            "${{ secrets.VAPID_SUBJECT }}"            || true
           [ -n "${{ secrets.FIRECRAWL_API_KEY }}" ]        && put FIRECRAWL_API_KEY        "${{ secrets.FIRECRAWL_API_KEY }}"        || true
+          # Bright Data Web Unlocker tokens (eBay sold-comp scraping). Single token
+          # or a comma-separated pool; the worker reads either (types.ts).
+          [ -n "${{ secrets.BRIGHTDATA_API_TOKEN }}" ]     && put BRIGHTDATA_API_TOKEN     "${{ secrets.BRIGHTDATA_API_TOKEN }}"     || true
+          [ -n "${{ secrets.BRIGHTDATA_API_TOKENS }}" ]    && put BRIGHTDATA_API_TOKENS    "${{ secrets.BRIGHTDATA_API_TOKENS }}"    || true
           # Patreon creator URL — drives the public Support card on the Me tab.
           [ -n "${{ secrets.PATREON_URL }}" ]              && put PATREON_URL              "${{ secrets.PATREON_URL }}"              || true
 
