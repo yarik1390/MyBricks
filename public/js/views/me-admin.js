@@ -137,6 +137,17 @@ const ADMIN_JOB_TOOLS = {
     quota: 'Needs PRICESAPI_ENABLED=1 + keys; spends the daily pricesAPI budget.',
     icon: I.refresh({ w: 16 }),
   },
+  ebaySold: {
+    url: '/api/admin/jobs/ebay-sold-scrape?limit=5',
+    method: 'POST',
+    body: {},
+    label: 'Run eBay-sold scrape',
+    desc: 'Scrapes eBay sold comps now (Bright Data) — use to verify tokens/zone.',
+    source: 'Bright Data',
+    duration: 'Up to ~60s for 5 sets',
+    quota: 'Spends Bright Data credits; runs synchronously and returns the result.',
+    icon: I.refresh({ w: 16 }),
+  },
 };
 
 const MAINTENANCE_TOOLS = {
@@ -370,7 +381,7 @@ function setupRowsHTML() {
 }
 
 function populateSectionHTML() {
-  const secondary = ['sets', 'figs', 'upc', 'populate', 'revalue', 'pricechartingBulk', 'pricesapi'];
+  const secondary = ['sets', 'figs', 'upc', 'populate', 'revalue', 'pricechartingBulk', 'pricesapi', 'ebaySold'];
   return `
     <div class="admin-populate-primary">
       <div class="admin-populate-copy">
@@ -440,7 +451,12 @@ function wireAdminShell() {
     });
   });
   document.querySelectorAll('[data-admin-tool]').forEach(btn => {
-    btn.addEventListener('click', () => triggerImport(btn.getAttribute('data-admin-tool')));
+    btn.addEventListener('click', () => {
+      const tool = btn.getAttribute('data-admin-tool');
+      // Synchronous jobs return their result inline (no run_id / progress polling).
+      if (tool === 'ebaySold') return triggerSyncJob(tool);
+      triggerImport(tool);
+    });
   });
   document.querySelectorAll('[data-maint-tool]').forEach(btn => {
     btn.addEventListener('click', () => triggerMaintenance(btn.getAttribute('data-maint-tool')));
@@ -550,6 +566,31 @@ function schedulePopulateEverythingContinue(delay = 1400) {
     populateEverythingContinueTimer = null;
     if (populateEverythingAuto && !activeAdminRunId) triggerImport('everything');
   }, delay);
+}
+
+// Run a synchronous admin job (returns its result inline rather than a tracked
+// run_id). Shows a running state on the button, then toasts the result summary
+// and refreshes the integrations panel so e.g. the Bright Data row updates.
+async function triggerSyncJob(type) {
+  const cnf = ADMIN_JOB_TOOLS[type];
+  if (!cnf) return;
+  if (cnf.confirm && !window.confirm(cnf.confirm)) return;
+  const btns = [...document.querySelectorAll(`[data-admin-tool="${type}"]`)];
+  btns.forEach(b => { b.disabled = true; b.setAttribute('aria-busy', 'true'); });
+  haptic('medium');
+  toast(`${cnf.label}: running…`, 'info');
+  try {
+    const r = await api(cnf.url, { method: cnf.method, body: cnf.body });
+    const summary = r.skipped
+      ? `skipped — ${r.skipped}`
+      : `processed ${r.processed ?? 0}, updated ${r.updated ?? 0}, rejected ${r.rejected ?? 0}`;
+    toast(`${cnf.label}: ${summary}`, (r.updated > 0 || r.skipped) ? 'success' : 'info');
+    await updateIntegrationsHealth();
+  } catch (e) {
+    toast(`${cnf.label} failed: ${e.message || e}`, 'error');
+  } finally {
+    btns.forEach(b => { b.disabled = false; b.setAttribute('aria-busy', 'false'); });
+  }
 }
 
 async function triggerImport(type, { single = false } = {}) {
