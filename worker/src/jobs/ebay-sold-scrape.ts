@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { fetchEbaySoldViaBrightData } from '../lib/brightdata';
+import { configuredKeys } from '../lib/brightdata-keys';
 import { fetchEbaySoldViaFirecrawl } from '../lib/ebay-firecrawl';
 import { brightDataSoldEnabled, firecrawlEnabled } from '../lib/pricing-flags';
 import { quotaRemaining, reserveQuota } from '../lib/api-quota';
@@ -30,6 +31,21 @@ export async function runEbaySoldScrape(
   const useFirecrawl = !useBrightData && firecrawlEnabled(env);
   if (!useFirecrawl && !useBrightData) {
     return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'neither firecrawl nor brightdata configured' };
+  }
+  // Hardening: Bright Data is the PREFERRED scraper (its own monthly budget;
+  // Firecrawl is reserved for BrickEconomy enrichment). If we're only falling back
+  // to Firecrawl because no Bright Data token reached the Worker — and it wasn't
+  // deliberately paused via BRIGHTDATA_SOLD_ENABLED — surface it on the admin
+  // integrations panel and in logs instead of silently degrading. This is exactly
+  // the "token added as a CI secret but never uploaded to the Worker" failure mode.
+  if (
+    useFirecrawl &&
+    configuredKeys(env).length === 0 &&
+    !/^(0|false|no|off)$/i.test(String(env.BRIGHTDATA_SOLD_ENABLED ?? ''))
+  ) {
+    const reason = 'Bright Data token not configured (BRIGHTDATA_API_TOKEN/BRIGHTDATA_API_TOKENS missing in Worker env); eBay-sold scrape is falling back to Firecrawl.';
+    console.warn(`[ebay-sold-scrape] ${reason}`);
+    await recordIntegrationHealth(env, 'brightdata', { ok: 0, fail: 1, lastError: reason });
   }
   const requestedLimit = Number(options.limit);
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0

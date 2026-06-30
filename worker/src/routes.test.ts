@@ -2,6 +2,7 @@
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import app from './index';
+import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
 
 declare module 'cloudflare:test' {
   interface ProvidedEnv {
@@ -375,6 +376,44 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const lo = await db.prepare(`SELECT brickinsights_rating FROM lego_sets WHERE set_num='BILO-1'`).first<any>();
       expect(hi.brickinsights_rating).toBe(88);
       expect(lo.brickinsights_rating).toBeNull();
+    });
+
+    it('flags Bright Data on the integration-health panel when it falls back to Firecrawl with no token', async () => {
+      // No Bright Data token in the Worker env, Firecrawl present, not paused: the
+      // scrape must record a brightdata health warning instead of silently degrading.
+      // (The seed has no scrape candidates, so no network call is made.)
+      delete (env as any).BRIGHTDATA_API_TOKEN;
+      delete (env as any).BRIGHTDATA_API_TOKENS;
+      delete (env as any).BRIGHTDATA_SOLD_ENABLED;
+      (env as any).FIRECRAWL_API_KEY = 'test-firecrawl-key';
+      try {
+        await runEbaySoldScrape(env as any, { limit: 5 });
+        const row = await db.prepare(
+          `SELECT fail_count, last_error FROM integration_health WHERE service='brightdata'`
+        ).first<any>();
+        expect(row).toBeTruthy();
+        expect(row.fail_count).toBeGreaterThanOrEqual(1);
+        expect(String(row.last_error)).toMatch(/not configured/i);
+      } finally {
+        delete (env as any).FIRECRAWL_API_KEY;
+      }
+    });
+
+    it('does not flag Bright Data when it is deliberately paused (BRIGHTDATA_SOLD_ENABLED=0)', async () => {
+      delete (env as any).BRIGHTDATA_API_TOKEN;
+      delete (env as any).BRIGHTDATA_API_TOKENS;
+      (env as any).BRIGHTDATA_SOLD_ENABLED = '0';
+      (env as any).FIRECRAWL_API_KEY = 'test-firecrawl-key';
+      try {
+        await runEbaySoldScrape(env as any, { limit: 5 });
+        const row = await db.prepare(
+          `SELECT 1 AS x FROM integration_health WHERE service='brightdata'`
+        ).first<any>();
+        expect(row).toBeNull();
+      } finally {
+        delete (env as any).FIRECRAWL_API_KEY;
+        delete (env as any).BRIGHTDATA_SOLD_ENABLED;
+      }
     });
   });
 
