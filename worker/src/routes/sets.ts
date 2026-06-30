@@ -57,6 +57,15 @@ const SORTS: Record<string, string> = {
   trending:   '(CASE WHEN s.current_value > 0 AND svh30.current_value > 0 THEN (s.current_value - svh30.current_value) / svh30.current_value ELSE -1 END) DESC',
 };
 
+// Non-building merchandise (bag tags, bags, apparel, stationery, books) is
+// catalogued under these themes. In keyword search we DEMOTE — never hide —
+// these below real building sets, so a tight name match such as "Millennium
+// Falcon Bag Tag" can't outrank the actual Millennium Falcon sets. Brickset's
+// `category` column is mostly NULL across the catalog, so `theme` is the
+// dependable signal. Used as the leading ORDER BY key (0 = real set, 1 = merch).
+const NON_SET_DEMOTION =
+  "(CASE WHEN COALESCE(s.theme, '') IN ('Gear', 'Books') THEN 1 ELSE 0 END)";
+
 // Catalog-card projection for GET /search. The grid + enrichSetRecord only need
 // identity, value and the per-source price/cache family — NOT the heavy
 // detail-only columns (brickset_description, brickset_image_urls and
@@ -166,7 +175,16 @@ app.get('/search', async (c) => {
       fromSQL = 'lego_sets s JOIN lego_sets_fts f ON s.rowid = f.rowid';
       where.push(`f.lego_sets_fts MATCH ?`);
       params.push(cleanedQ);
-      orderBySQL = `f.rank, ${orderBy}`;
+      // Keyword-search relevance ordering:
+      //  1. NON_SET_DEMOTION — real building sets rank above non-building merch.
+      //  2. weighted bm25 — boost name/set_num over the long theme_group +
+      //     brickset_tags fields that otherwise dilute a flagship set's score and
+      //     let sparse merch rows float up. Only 3 weights are supplied so this
+      //     stays valid whether the FTS index has 3 columns (minimal/test) or 6
+      //     (prod): unspecified columns default to weight 1.0, while supplying
+      //     MORE weights than columns is an error.
+      //  3. the requested sort (default value_desc) as the final tiebreak.
+      orderBySQL = `${NON_SET_DEMOTION}, bm25(lego_sets_fts, 4.0, 8.0, 2.0), ${orderBy}`;
     }
   }
   if (theme) addFilter(`s.theme = ?`, theme);
@@ -229,7 +247,7 @@ app.get('/search', async (c) => {
     const fallbackWhereSQL = fallbackWhere.length ? `WHERE ${fallbackWhere.join(' AND ')}` : '';
     [pageRes, countRes] = await Promise.all([
       c.env.DB.prepare(
-        `SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN} ${fallbackWhereSQL} ORDER BY ${orderBy}, s.set_num LIMIT ? OFFSET ?`
+        `SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN} ${fallbackWhereSQL} ORDER BY ${NON_SET_DEMOTION}, ${orderBy}, s.set_num LIMIT ? OFFSET ?`
       ).bind(...fallbackParams, lim, offset).all<Record<string, unknown>>(),
       c.env.DB.prepare(
         `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM lego_sets s ${fallbackWhereSQL}`

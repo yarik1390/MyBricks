@@ -267,6 +267,49 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(match).toBeTruthy();
       expect(match.current_value).toBe(67.64);
     });
+
+    it('ranks real sets above non-building "Gear" merch for a keyword query', async () => {
+      // Both rows match "millennium falcon". The Gear bag tag is the shorter /
+      // tighter bm25 match, so WITHOUT the theme demotion it would rank first —
+      // this asserts the demotion overrides raw text relevance.
+      await db.batch([
+        db.prepare(
+          `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
+           VALUES ('RELSET-1', 'Millennium Falcon Deluxe Edition', 'Star Wars', 2023, 1500, 180.00, 169.99, 0)`
+        ),
+        db.prepare(
+          `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
+           VALUES ('RELGEAR-1', 'Millennium Falcon', 'Gear', 2019, 0, 9.99, 7.99, 0)`
+        ),
+      ]);
+      await db.prepare(
+        `INSERT INTO lego_sets_fts(rowid, set_num, name, theme)
+         SELECT rowid, set_num, name, theme FROM lego_sets WHERE set_num IN ('RELSET-1', 'RELGEAR-1')`
+      ).run();
+
+      const res = await app.fetch(
+        new Request('http://localhost/api/sets/search?q=Millennium%20Falcon&limit=20'),
+        env,
+      );
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+
+      const setIdx = data.sets.findIndex((s: any) => s.set_num === 'RELSET-1');
+      const gearIdx = data.sets.findIndex((s: any) => s.set_num === 'RELGEAR-1');
+
+      // The merch is demoted, not hidden: both are still returned…
+      expect(setIdx).toBeGreaterThan(-1);
+      expect(gearIdx).toBeGreaterThan(-1);
+      // …and the real set outranks the Gear item.
+      expect(setIdx).toBeLessThan(gearIdx);
+
+      // Stronger invariant: no Gear-themed result appears before a non-Gear one.
+      const firstGear = data.sets.findIndex((s: any) => s.theme === 'Gear');
+      const nonGearAfterGear = data.sets
+        .slice(firstGear + 1)
+        .some((s: any) => s.theme !== 'Gear');
+      expect(nonGearAfterGear).toBe(false);
+    });
   });
 
   describe('GET /api/me', () => {
