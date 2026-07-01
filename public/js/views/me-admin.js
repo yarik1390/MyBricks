@@ -349,7 +349,6 @@ export async function renderMeAdmin() {
 }
 
 function populateSectionHTML() {
-  const secondary = ['sets', 'figs', 'upc', 'populate', 'revalue', 'pricechartingBulk', 'pricesapi', 'ebaySold'];
   return `
     <div class="admin-populate-primary">
       <div class="admin-populate-copy">
@@ -367,25 +366,11 @@ function populateSectionHTML() {
       </div>
       <button class="btn-primary admin-primary-action" data-admin-tool="everything">${I.refresh()}<span>Run safe slice</span></button>
     </div>
+    <p class="admin-section-note">To run one job on its own — catalog imports, PriceCharting bulk, pricesAPI, or the eBay sold-comps scrape — use its <strong>Run now</strong> button on the Activity tab, where you can also watch it finish.</p>
     <div class="admin-tool-grid">
-      ${secondary.map(key => adminToolCardHTML(key)).join('')}
       ${maintenanceCardHTML('expire')}
       ${maintenanceCardHTML('repair')}
     </div>`;
-}
-
-function adminToolCardHTML(key) {
-  const tool = ADMIN_JOB_TOOLS[key];
-  return `
-    <article class="admin-tool-card">
-      <div class="admin-tool-icon">${tool.icon}</div>
-      <div>
-        <h3>${escapeHtml(tool.label)}</h3>
-        ${tool.desc ? `<p class="admin-tool-desc">${escapeHtml(tool.desc)}</p>` : ''}
-        <small>${escapeHtml(tool.source)} · ${escapeHtml(tool.duration)} · ${escapeHtml(tool.quota)}</small>
-      </div>
-      <button class="icon-btn admin-tool-run" data-admin-tool="${escapeHtml(key)}" aria-label="${escapeHtml(tool.label)}">${I.refresh({ w: 16 })}</button>
-    </article>`;
 }
 
 function maintenanceCardHTML(key) {
@@ -451,6 +436,11 @@ function wireAdminShell() {
       if (flagInput) toggleServiceFlag(flagInput.getAttribute('data-svc-flag'), flagInput.checked, flagInput);
     });
   }
+  const processesEl = document.getElementById('processesContainer');
+  processesEl?.addEventListener('click', (e) => {
+    const runBtn = e.target.closest('[data-process-run]');
+    if (runBtn) runProcess(runBtn.getAttribute('data-process-run'), runBtn);
+  });
   document.querySelectorAll('[data-contrib-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
       contributionTab = btn.getAttribute('data-contrib-tab') || 'all';
@@ -691,6 +681,17 @@ function renderProcesses() {
       </div>`).join('')}`;
 }
 
+// Background processes an admin can trigger on demand, mapped to their job tool.
+// The rest of the registry (valuation, snapshots, alerts…) is monitor-only.
+const PROCESS_TRIGGER = {
+  'weekly-import-sets': 'sets',
+  'weekly-import-figs': 'figs',
+  'upcitemdb-backfill': 'upc',
+  'pricecharting-bulk': 'pricechartingBulk',
+  'pricesapi-retail': 'pricesapi',
+  'ebay-sold-scrape': 'ebaySold',
+};
+
 function processRowHTML(p) {
   const badge = processRunBadge(p);
   const when = formatRelativeTime(p.finished_at || p.started_at);
@@ -698,6 +699,7 @@ function processRowHTML(p) {
   const result = p.status === 'failed'
     ? `<span class="admin-process-result is-error">${escapeHtml(p.error || 'failed')}</span>`
     : (p.summary ? `<span class="admin-process-result">${escapeHtml(p.summary)}</span>` : '');
+  const canRun = !!PROCESS_TRIGGER[p.name] && p.status !== 'running';
   return `
     <div class="admin-process-row${p.status === 'running' ? ' is-running' : ''}">
       <div class="admin-process-head">
@@ -710,7 +712,22 @@ function processRowHTML(p) {
         ${p.status === 'idle' ? '' : `<span>last run ${escapeHtml(when)}${dur}</span>`}
         ${result}
       </div>
+      ${canRun ? `<div class="admin-process-actions"><button type="button" class="btn-secondary admin-proc-run" data-process-run="${escapeHtml(p.name)}">${I.refresh({ w: 14 })}<span>Run now</span></button></div>` : ''}
     </div>`;
+}
+
+// Trigger a background process from its Activity row, reusing the same job
+// pipeline the Populate buttons used. eBay sold comps runs synchronously; the
+// rest go through the tracked import-run path (which self-refreshes Activity).
+function runProcess(name, btn) {
+  const tool = PROCESS_TRIGGER[name];
+  if (!tool) return;
+  if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
+  if (tool === 'ebaySold') {
+    triggerSyncJob(tool).finally(() => loadActivity());
+  } else {
+    triggerImport(tool);
+  }
 }
 
 function renderJobs(container) {
@@ -1193,10 +1210,10 @@ function recommendedQualityAction(cards) {
   const priority = cards
     .filter(c => ['Missing UPC', 'Low-confidence values', 'Expired values', 'eBay new sold', 'eBay used sold'].includes(c.label))
     .sort((a, b) => b.pct - a.pct)[0];
-  if (!priority) return 'Run Populate all safe sources to refresh the latest provider coverage.';
-  if (priority.label === 'Missing UPC') return 'Run Backfill barcodes or Populate all safe sources in daily safe slices.';
-  if (priority.label === 'Low-confidence values') return 'Run Revalue prices and check provider access before increasing source weights.';
-  if (priority.label.startsWith('eBay')) return 'Check eBay sold-comps access; do not fall back to active listings for sold value.';
+  if (!priority) return 'Run Populate all safe sources (Populate tab) to refresh the latest provider coverage.';
+  if (priority.label === 'Missing UPC') return 'Run Populate all safe sources, or the Barcode backfill job from the Activity tab.';
+  if (priority.label === 'Low-confidence values') return 'Run Populate all safe sources and check provider access in the Services tab before increasing source weights.';
+  if (priority.label.startsWith('eBay')) return 'Check eBay sold-comps access in the Services tab; do not fall back to active listings for sold value.';
   return 'Run Populate all safe sources to advance the next safe slice.';
 }
 

@@ -5431,6 +5431,18 @@ body.advisor-open #advisorFab {
 }
 .admin-process-result { color: var(--ink-soft); font-weight: 600; }
 .admin-process-result.is-error { color: var(--down); }
+.admin-process-actions { margin-top: 10px; }
+.admin-proc-run { min-height: 40px; }
+.admin-section-note {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: var(--bw-thin) solid var(--border-soft-c);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
 
 @media (min-width: 640px) {
   .admin-process-list { grid-template-columns: 1fr 1fr; }
