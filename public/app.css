@@ -5159,6 +5159,11 @@ body.advisor-open #advisorFab {
   border-radius: var(--r-2);
   background: var(--surface-2);
 }
+.admin-service-control.is-blocked {
+  border-color: color-mix(in srgb, var(--bv-yellow) 55%, var(--border-soft-c));
+  background: color-mix(in srgb, var(--bv-yellow) 10%, var(--surface-2));
+}
+.admin-toggle-row-static .badge { margin-left: auto; flex: 0 0 auto; }
 .admin-toggle-row {
   display: flex;
   align-items: center;

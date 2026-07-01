@@ -351,7 +351,10 @@ export function classifyProviderHealth(row = {}) {
       action: row.recommended_action || row.recommendedAction || "Check provider credentials, scopes, and account access.",
     };
   }
-  if (status === "down" || (latestFail && !/no data|not found|empty/i.test(error))) {
+  // When the server already classified the provider healthy ("ok"), trust it —
+  // don't second-guess a recovered provider back into "Degraded" off a stale
+  // last_fail timestamp (e.g. a transient scrape timeout it has since recovered from).
+  if (status === "down" || (status !== "ok" && latestFail && !/no data|not found|empty/i.test(error))) {
     return {
       tone: optional ? "warn" : "danger",
       label: optional ? "Degraded" : "Failing",

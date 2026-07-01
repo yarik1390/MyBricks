@@ -279,9 +279,17 @@ export function classifyHealth(row: IntegrationHealthRow): 'ok' | 'degraded' | '
   const okAt = row.last_ok_at ? Date.parse(row.last_ok_at) : 0;
   const failAt = row.last_fail_at ? Date.parse(row.last_fail_at) : 0;
   if (failAt && failAt >= okAt) {
-    return (isCredentialOrAccessIssue(row.last_error) || isWorkerCapacityIssue(row.last_error))
-      ? 'degraded'
-      : 'down';
+    // Credential/access problems always need a human → keep flagged as degraded.
+    if (isCredentialOrAccessIssue(row.last_error)) return 'degraded';
+    // Transient worker-capacity blips (timeouts, aborts, "too many subrequests")
+    // are common for scrapers under load. If the provider ALSO succeeded within a
+    // day of this failure, it's flapping — not down — so it shouldn't stick on
+    // "degraded". Without any nearby success, treat it as degraded.
+    if (isWorkerCapacityIssue(row.last_error)) {
+      const recentSuccess = !!okAt && failAt - okAt < 24 * 60 * 60 * 1000;
+      return recentSuccess ? 'ok' : 'degraded';
+    }
+    return 'down';
   }
   if (okAt && okAt > failAt) return 'ok';
   const total = (row.ok_count || 0) + (row.fail_count || 0);

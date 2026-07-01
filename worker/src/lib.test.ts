@@ -47,6 +47,20 @@ describe('classifyHealth', () => {
     })).toBe('degraded');
   });
 
+  it('treats a transient timeout as recovered when a success is on record nearby', () => {
+    // Firecrawl-style flapping: the last recorded call timed out, but it succeeded
+    // ~20 min earlier — a load blip, not an outage. Should not stick on degraded.
+    expect(classifyHealth({
+      service: 'firecrawl',
+      last_ok_at: '2026-06-08 11:50:00',
+      last_fail_at: '2026-06-08 12:10:00',
+      last_error: 'Firecrawl scrape timed out',
+      ok_count: 210,
+      fail_count: 12,
+      updated_at: '2026-06-08 12:10:00',
+    })).toBe('ok');
+  });
+
   it('recognizes eBay OAuth and Marketplace Insights access failures', () => {
     expect(classifyHealth({
       service: 'ebay',

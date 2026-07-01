@@ -1067,18 +1067,30 @@ function serviceFlagHTML(svc, flag) {
   const hasOverride = featureFlags.overrides && flag in featureFlags.overrides;
   const intended = hasOverride ? !!featureFlags.overrides[flag] : !!featureFlags.effective?.[flag];
   const effective = !!featureFlags.effective?.[flag];
-  const mismatch = intended && !effective; // switched on but a prerequisite is missing
-  const hint = mismatch
-    ? 'On, but inactive — a required key/token is missing or the provider is unreachable.'
-    : 'Runtime switch — applies within about 1 minute, no redeploy.';
+  const label = FLAG_LABEL[flag] || flag;
+  // "Blocked" = switched on, but it can't actually run because a required
+  // key/token is missing (or the provider is unreachable). Don't render this as a
+  // happy checked/active switch — flag it clearly as needing setup so it doesn't
+  // read as "on" when it does nothing.
+  const blocked = intended && !effective;
+  if (blocked) {
+    return `
+    <div class="admin-service-control is-blocked">
+      <div class="admin-toggle-row admin-toggle-row-static">
+        <span>${escapeHtml(label)}</span>
+        <span class="badge badge--warn">needs key</span>
+      </div>
+      <small class="admin-svc-hint">Enabled, but inactive — add the required key/token (or the provider is unreachable). It won't run until then.</small>
+    </div>`;
+  }
   return `
     <div class="admin-service-control">
       <label class="admin-toggle-row">
         <input type="checkbox" class="admin-svc-flag" data-svc-flag="${escapeHtml(flag)}" data-svc="${escapeHtml(svc)}" ${intended ? 'checked' : ''}>
-        <span>${escapeHtml(FLAG_LABEL[flag] || flag)}</span>
-        <span class="badge ${effective ? 'badge--up' : 'badge--neutral'}">${effective ? 'active' : 'inactive'}</span>
+        <span>${escapeHtml(label)}</span>
+        <span class="badge ${effective ? 'badge--up' : 'badge--neutral'}">${effective ? 'active' : 'off'}</span>
       </label>
-      <small class="admin-svc-hint">${escapeHtml(hint)}</small>
+      <small class="admin-svc-hint">Runtime switch — applies within about 1 minute, no redeploy.</small>
     </div>`;
 }
 
