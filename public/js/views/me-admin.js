@@ -448,7 +448,20 @@ function wireAdminShell() {
   $('#adminUserSearchInput')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') searchUsers();
   });
+  syncAdminNavOffset();
+  window.removeEventListener('resize', syncAdminNavOffset);
+  window.addEventListener('resize', syncAdminNavOffset);
   activateAdminSection(ADMIN_SECTIONS[0][0]);
+}
+
+// Measure the sticky tab-nav's height into a CSS var so the Services category
+// bar can stick exactly beneath it (stacked sticky offsets). Recomputed on
+// resize / orientation change.
+function syncAdminNavOffset() {
+  const nav = document.querySelector('.admin-segments-sticky');
+  const page = document.querySelector('.admin-dashboard-page');
+  if (!nav || !page) return;
+  page.style.setProperty('--admin-seg-h', `${Math.round(nav.getBoundingClientRect().height)}px`);
 }
 
 // Tab view: show only the active section, sync the sticky nav (highlight +

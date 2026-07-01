@@ -5000,13 +5000,23 @@ body.advisor-open #advisorFab {
 
 /* ── Admin Services (service-first mobile console) ───────────────────────── */
 .admin-service-filters {
+  position: sticky;
+  top: calc(var(--admin-seg-h, 60px) - 1px);
+  z-index: 15;
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding-bottom: 8px;
-  margin-bottom: 10px;
+  padding: 8px 2px;
+  margin: 0 -2px 12px;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
+  scroll-padding-inline: 12px;
 }
+.admin-service-filters::-webkit-scrollbar { display: none; }
 .admin-service-filters .chip {
   flex: 0 0 auto;
   min-height: 44px;
