@@ -23,7 +23,6 @@ let populateEverythingContinueTimer = null;
 let showAllJobs = false;
 let contributionTab = 'all';
 
-let setupRows = [];
 let adminRuns = [];
 let adminHealth = null;
 let contributionData = null;
@@ -40,7 +39,6 @@ let serviceTab = 'attention';
 
 const ADMIN_SECTIONS = [
   ['adminServices', 'Services'],
-  ['adminOverview', 'Overview'],
   ['adminPopulate', 'Populate'],
   ['adminJobs', 'Activity'],
   ['adminQuality', 'Catalog Quality'],
@@ -252,9 +250,6 @@ export async function renderMeAdmin() {
   const me = await loadMe();
   if (!me?.is_admin) { go('#/me'); return; }
 
-  const googleStatus = await api('/api/google/status').catch(() => ({ connected: false, configured: false }));
-  setupRows = buildSetupRows(me, googleStatus);
-
   $('#root').innerHTML = `
     <div class="page admin-page admin-dashboard-page">
       ${subpageTopbarHTML('Admin console', 'Admin')}
@@ -270,40 +265,6 @@ export async function renderMeAdmin() {
           ${serviceTabs().map(([id, label]) => serviceTabButtonHTML(id, label)).join('')}
         </div>
         <div id="servicesContainer" class="admin-service-wrap" aria-live="polite">Loading services...</div>
-      </section>
-
-      <section class="admin-section" id="adminOverview">
-        <div class="section-kicker">Operations</div>
-        <h2 class="section-title">Overview</h2>
-        <div id="adminOverviewCards" class="admin-summary-grid"></div>
-        <div class="admin-layout">
-          <div class="admin-main">
-            <div class="admin-panel">
-              <div class="admin-panel-head">
-                <div>
-                  <h3>Needs attention</h3>
-                  <p>Hard failures first, expected provider limits last.</p>
-                </div>
-              </div>
-              <div id="adminNeedsList" class="admin-action-list"></div>
-            </div>
-            <div class="admin-panel">
-              <div class="admin-panel-head">
-                <div>
-                  <h3>Setup state</h3>
-                  <p>Ready, degraded, and action-needed integrations.</p>
-                </div>
-              </div>
-              <div class="admin-setup-grid">${setupRowsHTML()}</div>
-            </div>
-          </div>
-          <aside class="admin-rail">
-            <div class="admin-rail-card">
-              <h3>Priority rail</h3>
-              <div id="adminRail">Loading...</div>
-            </div>
-          </aside>
-        </div>
       </section>
 
       <section class="admin-section" id="adminPopulate">
@@ -378,7 +339,6 @@ export async function renderMeAdmin() {
     </div>`;
 
   wireAdminShell();
-  renderAdminOverview();
   updateJobsStatus();
   loadActivity();
   updateIntegrationsHealth();
@@ -386,38 +346,6 @@ export async function renderMeAdmin() {
   loadSourceTuning();
   loadContribQueue();
   loadSupporters();
-}
-
-function buildSetupRows(me, googleStatus) {
-  const savedOpenAIKey = localStorage.getItem('bv_openai_key') || '';
-  const status = state.config?.status || {};
-  return [
-    setupRow('D1 database', !!status.d1, 'ready', 'Missing binding', false),
-    setupRow('Supabase auth', !!status.supabase, 'ready', 'Missing auth config', false),
-    setupRow('Rebrickable catalog', !!status.rebrickable, 'ready', 'Missing REBRICKABLE_API_KEY', false),
-    setupRow('Brickset metadata', !!status.brickset, 'ready', 'Optional setup', true),
-    setupRow('BrickLink pricing', !!(status.bricklink || me?.bricklink_configured), 'ready', 'Missing BrickLink keys', false),
-    setupRow('eBay credentials', !!(status.ebay || me?.ebay_configured), 'credentials set', 'Sold comps unavailable', true),
-    setupRow('Google Sheets', !!(googleStatus.connected || googleStatus.configured || status.google), 'configured', 'Needs app setup/user connect', true),
-    setupRow('Server AI', !!(status.openai || savedOpenAIKey), 'configured', 'BYOK or server key needed', true),
-    setupRow('Notifications', !!(status.resend || status.push || status.vapid), 'configured', 'Optional setup', true),
-  ];
-}
-
-function setupRow(label, ok, okText, missText, optional) {
-  return { label, ok, okText, missText, optional };
-}
-
-function setupRowsHTML() {
-  return setupRows.map(row => {
-    const tone = row.ok ? 'ok' : row.optional ? 'neutral' : 'warn';
-    const status = row.ok ? row.okText : row.missText;
-    return `
-      <div class="admin-setup-card ${tone}">
-        <span>${escapeHtml(row.label)}</span>
-        <strong>${escapeHtml(status)}</strong>
-      </div>`;
-  }).join('');
 }
 
 function populateSectionHTML() {
@@ -684,7 +612,6 @@ async function updateJobsStatus() {
     }
     setAdminJobButtons(activeAdminTool || (runningRun ? 'active' : null));
     renderJobs(container);
-    renderAdminOverview();
 
     if (runningRun && location.hash === '#/me/admin') {
       scheduleAdminJobPoll(2500);
@@ -794,8 +721,7 @@ function renderJobs(container) {
   const running = adminRuns.find(run => classifyJobRun(run).label === 'Running');
   const activeHTML = running ? activeJobPanelHTML(running) : `
     <div class="admin-job-idle">
-      <div><strong>No active job</strong><span>Safe slices can be run any time provider quotas allow.</span></div>
-      <button class="btn-primary" id="adminRunNextSlice">${I.refresh()}<span>Run next slice</span></button>
+      <div><strong>No active job</strong><span>Start a run from the Populate tab — live progress shows here.</span></div>
     </div>`;
   const groups = groupAdminJobRuns(adminRuns);
   const visible = showAllJobs ? groups : groups.slice(0, 3);
@@ -805,7 +731,6 @@ function renderJobs(container) {
       ${visible.map(jobGroupHTML).join('')}
     </div>
     ${groups.length > 3 ? `<button class="btn-secondary admin-show-more" id="adminShowMoreJobs">${showAllJobs ? 'Show newest 3' : `Show ${groups.length - 3} more`}</button>` : ''}`;
-  $('#adminRunNextSlice')?.addEventListener('click', () => triggerImport('everything', { single: true }));
   $('#adminStopAutoRun')?.addEventListener('click', () => {
     populateEverythingAuto = false;
     if (populateEverythingContinueTimer) clearTimeout(populateEverythingContinueTimer);
@@ -884,7 +809,6 @@ async function updateIntegrationsHealth() {
     adminHealth = await api('/api/admin/integrations');
     renderServices();
     renderCatalogQuality();
-    renderAdminOverview();
   } catch (err) {
     const quality = $('#qualityContainer');
     const services = $('#servicesContainer');
@@ -1443,11 +1367,9 @@ async function loadContribQueue() {
   try {
     contributionData = await api('/api/admin/contributions?status=pending');
     renderContribQueue();
-    renderAdminOverview();
   } catch (e) {
     contributionData = { error: e.message || 'Unknown error', items: [], counts: { total: 0, reviews: 0, photos: 0, data: 0 } };
     renderContribQueue();
-    renderAdminOverview();
   }
 }
 
@@ -1556,55 +1478,6 @@ async function moderateContribution(btn) {
     card.querySelectorAll('button').forEach(b => { b.disabled = false; });
     toast(e.message || 'Action failed', 'error');
   }
-}
-
-function renderAdminOverview() {
-  const cards = $('#adminOverviewCards');
-  const needs = $('#adminNeedsList');
-  const rail = $('#adminRail');
-  if (!cards || !needs || !rail) return;
-  const providerStates = providerRows().map(row => ({ row, health: classifyProviderHealth(row) }));
-  const running = adminRuns.find(run => classifyJobRun(run).label === 'Running');
-  const hardJobs = adminRuns.filter(run => classifyJobRun(run).needsAttention);
-  const blockedProviders = providerStates.filter(x => x.health.blocked || x.health.tone === 'danger');
-  const quotaProviders = providerStates.filter(x => x.health.quotaLimited);
-  const pending = Number(contributionData?.counts?.total || 0);
-  const coverage = adminHealth?.coverage || {};
-  const quotaPressure = (adminHealth?.quota || []).filter(q => Number(q.cap || 0) > 0 && Number(q.used || 0) / Number(q.cap || 1) >= 0.75);
-  cards.innerHTML = [
-    summaryCard('System ready', setupRows.some(r => !r.ok && !r.optional) ? 'Action needed' : 'Ready', setupRows.some(r => !r.ok && !r.optional) ? 'warn' : 'ok', 'Core setup and required providers.'),
-    summaryCard('Catalog coverage', `${Number(coverage.total_sets || 0).toLocaleString()} sets`, 'ok', `${Number(coverage.total_minifigs || 0).toLocaleString()} minifigs tracked.`),
-    summaryCard('Running job', running ? `#${running.id}` : 'None', running ? 'warn' : 'neutral', running ? jobProgressSummary(running).label : 'Safe slices can be started.'),
-    summaryCard('Provider issues', blockedProviders.length, blockedProviders.length ? 'danger' : 'ok', `${quotaProviders.length} quota-limited providers.`),
-    summaryCard('Pending contributions', pending, pending ? 'warn' : 'ok', 'Reviews, photos, and data fixes awaiting moderation.'),
-    summaryCard('Daily quota pressure', quotaPressure.length, quotaPressure.length ? 'warn' : 'ok', quotaPressure.length ? quotaPressure.map(q => q.service).join(', ') : 'Within daily budgets.'),
-  ].join('');
-  const actionItems = [
-    ...hardJobs.slice(0, 2).map(run => actionItem('Hard job error', `Job #${run.id}: ${classifyJobRun(run).label}`, '#adminJobs', 'danger')),
-    ...blockedProviders.slice(0, 4).map(x => actionItem(`${providerLabel(x.row.service)} blocked`, x.health.action, '#adminServices', 'danger')),
-    ...quotaProviders.slice(0, 3).map(x => actionItem(`${providerLabel(x.row.service)} quota`, x.health.action, '#adminServices', 'warn')),
-    ...setupRows.filter(r => !r.ok).slice(0, 3).map(r => actionItem(r.optional ? 'Optional setup' : 'Setup needed', `${r.label}: ${r.missText}`, '#adminOverview', r.optional ? 'neutral' : 'warn')),
-  ];
-  if (!actionItems.length) actionItems.push(actionItem('Nothing urgent', 'Core systems look ready. Keep Populate all safe sources moving in small slices.', '#adminPopulate', 'ok'));
-  needs.innerHTML = actionItems.join('');
-  rail.innerHTML = actionItems.slice(0, 5).join('');
-}
-
-function summaryCard(label, value, tone, body) {
-  return `
-    <article class="admin-summary-card ${tone}">
-      <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(String(value))}</strong>
-      <p>${escapeHtml(body)}</p>
-    </article>`;
-}
-
-function actionItem(title, body, href, tone) {
-  return `
-    <a class="admin-action-item ${tone}" href="${escapeHtml(href)}">
-      <strong>${escapeHtml(title)}</strong>
-      <span>${escapeHtml(body)}</span>
-    </a>`;
 }
 
 function quotaFor(service) {
