@@ -34,8 +34,11 @@ let sourceDefaults = {};
 let sourceConfig = {};
 let activityData = null;
 let activityPollTimer = null;
+let featureFlags = { flags: [], overrides: {}, effective: {} };
+let serviceFilter = 'all';
 
 const ADMIN_SECTIONS = [
+  ['adminServices', 'Services'],
   ['adminOverview', 'Overview'],
   ['adminPopulate', 'Populate'],
   ['adminJobs', 'Activity'],
@@ -188,6 +191,61 @@ const PROVIDER_GROUPS = [
   ['Sync', ['google']],
 ];
 
+// Service key -> runtime feature flag (an env-default override you can flip from
+// the console with no redeploy). Kept in sync with worker FEATURE_FLAGS.
+const SERVICE_FLAG = {
+  ebay: 'ebay_sold_comps',
+  brickowl: 'brickowl',
+  brickinsights: 'brickinsights',
+  brightdata: 'brightdata_sold',
+  firecrawl: 'firecrawl',
+  pricesapi: 'pricesapi',
+};
+
+const FLAG_LABEL = {
+  ebay_sold_comps: 'eBay sold comps',
+  brickowl: 'BrickOwl source',
+  brickinsights: 'BrickInsights ratings',
+  brightdata_sold: 'Bright Data sold scrape',
+  firecrawl: 'Firecrawl scraping',
+  pricesapi: 'pricesAPI retail offers',
+};
+
+// Services the worker /test/:service probe can check (mirrors TESTABLE_SERVICES
+// in worker/src/lib/service-tests.ts).
+const TESTABLE = new Set([
+  'd1', 'supabase', 'rebrickable', 'brickset', 'brickinsights', 'bricklink', 'ebay',
+  'brightdata', 'firecrawl', 'brickeconomy', 'pricecharting', 'pricesapi',
+  'openrouter', 'gemini', 'openai', 'resend', 'turnstile', 'patreon', 'push',
+]);
+
+// Pricing sources with weight/cap/refresh tuning (worker DEFAULT_SOURCE_CONFIG).
+const TUNABLE_SOURCES = new Set([
+  'bricklink', 'ebay', 'brickeconomy', 'brickowl', 'pricecharting', 'pricesapi', 'firecrawl', 'brightdata',
+]);
+
+// Short "what it does" copy for services not already described in SOURCE_META.
+const SERVICE_DESC = {
+  d1: 'Primary database — catalog, valuations, jobs, settings.',
+  supabase: 'Authentication and user identity.',
+  worker: 'Cloudflare Worker runtime serving the API.',
+  pages: 'Static asset + PWA hosting on Cloudflare Pages.',
+  rebrickable: 'Master LEGO set and minifig catalog import.',
+  brickset: 'Set metadata, retail price, and barcode enrichment.',
+  upc: 'Barcode backfill so sets can be scanned.',
+  upcitemdb: 'Fallback barcode lookup provider.',
+  brickinsights: 'Aggregated community set ratings shown on set pages.',
+  gemini: 'Google Gemini — server-side AI features.',
+  openai: 'OpenAI — server-side AI features.',
+  openrouter: 'OpenRouter — model routing for AI features.',
+  byok: 'User bring-your-own AI key (stored client-side).',
+  resend: 'Transactional email delivery.',
+  push: 'Web-push notifications (VAPID).',
+  vapid: 'Web-push signing keys.',
+  discord: 'Optional Discord webhook alerts.',
+  google: 'Google Sheets collection export and sync.',
+};
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function renderMeAdmin() {
@@ -204,6 +262,19 @@ export async function renderMeAdmin() {
       <nav class="admin-segments admin-segments-sticky" aria-label="Admin sections">
         ${ADMIN_SECTIONS.map(([id, label], i) => `<button type="button" role="tab" aria-selected="${i === 0}" aria-controls="${id}" class="${i === 0 ? 'active' : ''}" data-admin-section-link="${id}">${escapeHtml(label)}</button>`).join('')}
       </nav>
+
+      <section class="admin-section" id="adminServices">
+        <div class="section-kicker">Every service in one place</div>
+        <h2 class="section-title">Services</h2>
+        <p class="admin-section-intro">Tap a service to see its status, usage, and controls. Test any provider on demand, flip capabilities on or off, and tune pricing weights — all without touching code.</p>
+        <div class="admin-service-filters" role="tablist" aria-label="Service filters">
+          ${serviceFilterButtonHTML('all', 'All')}
+          ${serviceFilterButtonHTML('attention', 'Needs action')}
+          ${serviceFilterButtonHTML('tunable', 'Tunable')}
+          ${serviceFilterButtonHTML('testable', 'Testable')}
+        </div>
+        <div id="servicesContainer" class="admin-service-wrap" aria-live="polite">Loading services...</div>
+      </section>
 
       <section class="admin-section" id="adminOverview">
         <div class="section-kicker">Operations</div>
@@ -343,6 +414,7 @@ export async function renderMeAdmin() {
   updateJobsStatus();
   loadActivity();
   updateIntegrationsHealth();
+  loadFeatureFlags();
   loadSourceTuning();
   loadContribQueue();
   loadSupporters();
@@ -468,6 +540,26 @@ function wireAdminShell() {
       renderProviders();
     });
   });
+  document.querySelectorAll('[data-service-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      serviceFilter = btn.getAttribute('data-service-filter') || 'all';
+      renderServiceFilters();
+      renderServices();
+    });
+  });
+  const servicesEl = document.getElementById('servicesContainer');
+  if (servicesEl) {
+    servicesEl.addEventListener('click', (e) => {
+      const testBtn = e.target.closest('[data-svc-test]');
+      if (testBtn) { runServiceProbe(testBtn.getAttribute('data-svc-test'), testBtn); return; }
+      const saveBtn = e.target.closest('[data-svc-save]');
+      if (saveBtn) { saveServiceTuning(saveBtn.getAttribute('data-svc-save'), saveBtn); }
+    });
+    servicesEl.addEventListener('change', (e) => {
+      const flagInput = e.target.closest('[data-svc-flag]');
+      if (flagInput) toggleServiceFlag(flagInput.getAttribute('data-svc-flag'), flagInput.checked, flagInput);
+    });
+  }
   document.querySelectorAll('[data-contrib-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
       contributionTab = btn.getAttribute('data-contrib-tab') || 'all';
@@ -851,15 +943,29 @@ async function updateIntegrationsHealth() {
   try {
     adminHealth = await api('/api/admin/integrations');
     renderProviders();
+    renderServices();
     renderCatalogQuality();
     renderAdminOverview();
     renderSourceTuning(sourceConfig);
   } catch (err) {
     const providers = $('#providersContainer');
     const quality = $('#qualityContainer');
+    const services = $('#servicesContainer');
     if (providers) providers.innerHTML = errorPanelHTML('Provider health unavailable', err.message || String(err));
+    if (services) services.innerHTML = errorPanelHTML('Service health unavailable', err.message || String(err));
     if (quality) quality.innerHTML = errorPanelHTML('Catalog quality unavailable', err.message || String(err));
   }
+}
+
+// Runtime capability flags (eBay sold comps, Bright Data sold, BrickInsights,
+// Firecrawl, pricesAPI, BrickOwl). Feeds the per-service toggles in Services.
+async function loadFeatureFlags() {
+  try {
+    featureFlags = await api('/api/admin/feature-flags');
+  } catch (e) {
+    featureFlags = { flags: [], overrides: {}, effective: {}, error: e.message || String(e) };
+  }
+  renderServices();
 }
 
 function providerRows() {
@@ -962,6 +1068,257 @@ function brightDataPoolHTML() {
   return `<details class="admin-job-details" open><summary>Key pool — monthly spend: ${escapeHtml(head)}</summary><div class="admin-bd-pool">${rows}</div></details>`;
 }
 
+// ---------------------------------------------------------------------------
+// Services section — the mobile-first, service-per-place view. Each provider is
+// a tap-to-expand card showing status, usage/spend, an on-demand Test button,
+// and (where applicable) a runtime capability toggle + pricing tuning, so an
+// admin can test and tune every service without touching code.
+// ---------------------------------------------------------------------------
+
+function serviceFilterButtonHTML(id, label) {
+  return `<button class="chip ${serviceFilter === id ? 'active' : ''}" data-service-filter="${escapeHtml(id)}" role="tab" aria-selected="${serviceFilter === id}">${escapeHtml(label)}</button>`;
+}
+
+function renderServiceFilters() {
+  const wrap = document.querySelector('.admin-service-filters');
+  if (!wrap) return;
+  wrap.innerHTML = [
+    serviceFilterButtonHTML('all', 'All'),
+    serviceFilterButtonHTML('attention', 'Needs action'),
+    serviceFilterButtonHTML('tunable', 'Tunable'),
+    serviceFilterButtonHTML('testable', 'Testable'),
+  ].join('');
+  wrap.querySelectorAll('[data-service-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      serviceFilter = btn.getAttribute('data-service-filter') || 'all';
+      renderServiceFilters();
+      renderServices();
+    });
+  });
+}
+
+function serviceDescription(service) {
+  const key = String(service || '').toLowerCase();
+  if (SOURCE_META[key]) return SOURCE_META[key][1];
+  return SERVICE_DESC[key] || 'Configured service.';
+}
+
+// Build a health row for a grouped service even when the health endpoint has no
+// entry for it (infra like worker/pages, or not-yet-probed providers).
+function serviceRow(service, rows) {
+  const key = String(service).toLowerCase();
+  const found = rows.find(r => String(r.service).toLowerCase() === key);
+  if (found) return found;
+  const status = state.config?.status || {};
+  if (key === 'worker' || key === 'pages') return { service: key, configured: true, status: 'ok' };
+  const known = key in status ? !!status[key] : null;
+  return {
+    service: key,
+    configured: known == null ? true : known,
+    status: known == null ? 'unknown' : known ? 'ok' : 'down',
+    last_ok_at: null, last_fail_at: null, last_error: '',
+  };
+}
+
+function serviceMatchesFilter(service, health) {
+  const key = String(service).toLowerCase();
+  if (serviceFilter === 'all') return true;
+  if (serviceFilter === 'attention') return health.actionable || health.blocked || health.tone === 'danger' || health.tone === 'warn';
+  if (serviceFilter === 'tunable') return TUNABLE_SOURCES.has(key) || !!SERVICE_FLAG[key];
+  if (serviceFilter === 'testable') return TESTABLE.has(key);
+  return true;
+}
+
+function renderServices() {
+  const container = $('#servicesContainer');
+  if (!container) return;
+  if (!adminHealth) { container.textContent = 'Loading services...'; return; }
+  // Preserve which cards the admin has expanded across re-renders.
+  const openSet = new Set(
+    Array.from(container.querySelectorAll('details.admin-service[open]')).map(d => d.getAttribute('data-svc')),
+  );
+  const rows = providerRows();
+  const cfg = sourceConfig || {};
+  const html = PROVIDER_GROUPS.map(([label, keys]) => {
+    const cards = keys.map(svc => {
+      const row = serviceRow(svc, rows);
+      const health = classifyProviderHealth(row);
+      return serviceMatchesFilter(svc, health) ? serviceCardHTML(svc, row, health, cfg, openSet) : '';
+    }).filter(Boolean);
+    if (!cards.length) return '';
+    return `<div class="admin-service-group"><h3>${escapeHtml(label)}</h3>${cards.join('')}</div>`;
+  }).join('');
+  container.innerHTML = html
+    || `<div class="admin-empty-state">${I.info()}<strong>No services match this filter.</strong><span>Switch to All to see every service.</span></div>`;
+}
+
+function serviceCardHTML(svc, row, health, cfg, openSet) {
+  const key = String(svc).toLowerCase();
+  const quota = quotaFor(key);
+  const flag = SERVICE_FLAG[key];
+  const tuning = TUNABLE_SOURCES.has(key) ? (cfg[key] || null) : null;
+  const isOpen = openSet.has(key);
+  const facts = [
+    `Last OK: ${ago(row.last_ok_at)}`,
+    `Last fail: ${ago(row.last_fail_at)}`,
+    quota ? `Quota: ${quota.used}/${quota.cap}` : '',
+    quota ? `Remaining: ${quota.remaining ?? Math.max(0, quota.cap - quota.used)}` : '',
+  ].filter(Boolean);
+  return `
+    <details class="admin-service ${health.tone}" data-svc="${escapeHtml(key)}" ${isOpen ? 'open' : ''}>
+      <summary class="admin-service-summary">
+        <span class="admin-service-id">
+          <strong>${escapeHtml(providerLabel(key))}</strong>
+          <small>${escapeHtml(serviceDescription(key))}</small>
+        </span>
+        <span class="badge ${badgeClass(health.tone)}">${escapeHtml(health.label)}</span>
+      </summary>
+      <div class="admin-service-body">
+        <div class="admin-service-facts">${facts.map(f => `<span>${escapeHtml(f)}</span>`).join('')}</div>
+        ${key === 'ebay' ? ebayStateHTML(health) : ''}
+        ${key === 'brightdata' ? brightDataPoolHTML() : ''}
+        <p class="admin-service-action">${escapeHtml(health.action)}</p>
+        ${row.last_error ? `<details class="admin-job-details"><summary>Latest failure</summary><div>${escapeHtml(String(row.last_error).slice(0, 900))}</div></details>` : ''}
+        ${TESTABLE.has(key) ? serviceTestHTML(key) : ''}
+        ${flag ? serviceFlagHTML(key, flag) : ''}
+        ${tuning ? serviceTuningHTML(key, tuning) : ''}
+      </div>
+    </details>`;
+}
+
+function serviceTestHTML(svc) {
+  return `
+    <div class="admin-service-test">
+      <button type="button" class="btn-secondary admin-svc-test-btn" data-svc-test="${escapeHtml(svc)}">${I.refresh({ w: 16 })}<span>Test now</span></button>
+      <div class="admin-svc-test-result" data-svc-test-result="${escapeHtml(svc)}" hidden></div>
+    </div>`;
+}
+
+function serviceFlagHTML(svc, flag) {
+  const hasOverride = featureFlags.overrides && flag in featureFlags.overrides;
+  const intended = hasOverride ? !!featureFlags.overrides[flag] : !!featureFlags.effective?.[flag];
+  const effective = !!featureFlags.effective?.[flag];
+  const mismatch = intended && !effective; // switched on but a prerequisite is missing
+  const hint = mismatch
+    ? 'On, but inactive — a required key/token is missing or the provider is unreachable.'
+    : 'Runtime switch — applies within about 1 minute, no redeploy.';
+  return `
+    <div class="admin-service-control">
+      <label class="admin-toggle-row">
+        <input type="checkbox" class="admin-svc-flag" data-svc-flag="${escapeHtml(flag)}" data-svc="${escapeHtml(svc)}" ${intended ? 'checked' : ''}>
+        <span>${escapeHtml(FLAG_LABEL[flag] || flag)}</span>
+        <span class="badge ${effective ? 'badge--up' : 'badge--neutral'}">${effective ? 'active' : 'inactive'}</span>
+      </label>
+      <small class="admin-svc-hint">${escapeHtml(hint)}</small>
+    </div>`;
+}
+
+function serviceTuningHTML(svc, t) {
+  return `
+    <div class="admin-service-tuning" data-src="${escapeHtml(svc)}">
+      <div class="admin-service-tuning-head">Valuation blend</div>
+      <label class="admin-toggle-row">
+        <input type="checkbox" class="src-enabled" ${t.enabled ? 'checked' : ''}>
+        <span>Included in scheduled jobs and the valuation blend</span>
+      </label>
+      <div class="admin-service-tuning-grid">
+        ${sourceInputHTML('Trust weight', 'src-weight', t.weight, 'decimal', '0.05')}
+        ${sourceInputHTML('Daily cap', 'src-cap', t.dailyCap == null ? '' : t.dailyCap, 'numeric', '1')}
+        ${sourceInputHTML('Refresh days', 'src-refresh', t.refreshDays == null ? '' : t.refreshDays, 'numeric', '1')}
+      </div>
+      <div class="source-error" hidden></div>
+      <div class="admin-service-tuning-actions">
+        <button type="button" class="btn-primary admin-svc-save" data-svc-save="${escapeHtml(svc)}">${I.check()}<span>Save ${escapeHtml(providerLabel(svc))}</span></button>
+      </div>
+    </div>`;
+}
+
+async function runServiceProbe(svc, btn) {
+  const box = document.querySelector(`[data-svc-test-result="${CSS.escape(svc)}"]`);
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  if (box) { box.hidden = false; box.className = 'admin-svc-test-result'; box.textContent = 'Testing…'; }
+  haptic('light');
+  try {
+    const r = await api(`/api/admin/test/${encodeURIComponent(svc)}`, { method: 'POST' });
+    const tone = r.ok ? 'ok' : r.status === 'unconfigured' ? 'warn' : 'danger';
+    const head = r.ok ? 'OK' : r.status || 'error';
+    if (box) {
+      box.className = `admin-svc-test-result ${tone}`;
+      box.textContent = `${head} — ${r.detail || ''} (${r.ms}ms)`;
+    }
+    toast(`${providerLabel(svc)}: ${head}`, r.ok ? 'success' : r.status === 'unconfigured' ? 'info' : 'error');
+  } catch (e) {
+    if (box) { box.className = 'admin-svc-test-result danger'; box.textContent = `Failed: ${e.message || e}`; }
+    toast(`${providerLabel(svc)} test failed`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.setAttribute('aria-busy', 'false');
+  }
+}
+
+async function toggleServiceFlag(flag, checked, input) {
+  input.disabled = true;
+  // saveFeatureFlags REPLACES the whole map, so send all current overrides plus
+  // the one we're changing (untouched env-default flags stay unset).
+  const next = { ...(featureFlags.overrides || {}), [flag]: checked };
+  try {
+    const r = await api('/api/admin/feature-flags', { method: 'PUT', body: { flags: next } });
+    featureFlags.overrides = r.overrides || next;
+    featureFlags.effective = r.effective || featureFlags.effective;
+    haptic('light');
+    const eff = !!featureFlags.effective?.[flag];
+    const suffix = checked && !eff ? ' (inactive — needs a key/token)' : '';
+    toast(`${FLAG_LABEL[flag] || flag}: ${checked ? 'enabled' : 'disabled'}${suffix}`, checked && !eff ? 'info' : 'success');
+    renderServices();
+  } catch (e) {
+    input.checked = !checked;
+    input.disabled = false;
+    toast(`Could not update ${FLAG_LABEL[flag] || flag}: ${e.message || e}`, 'error');
+  }
+}
+
+async function saveServiceTuning(svc, btn) {
+  const card = btn.closest('.admin-service-tuning');
+  if (!card) return;
+  const errEl = card.querySelector('.source-error');
+  card.classList.remove('invalid');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  // saveSourceConfig resets omitted sources to defaults, so send the FULL config
+  // with just this source's fields replaced from the inputs.
+  const draft = { ...(sourceConfig || {}) };
+  draft[svc] = {
+    enabled: !!card.querySelector('.src-enabled')?.checked,
+    weight: card.querySelector('.src-weight')?.value ?? '',
+    dailyCap: card.querySelector('.src-cap')?.value ?? '',
+    refreshDays: card.querySelector('.src-refresh')?.value ?? '',
+  };
+  const validation = validateSourceTuningInput(draft);
+  if (!validation.ok) {
+    const errs = validation.errors[svc];
+    if (errs && errEl) { errEl.hidden = false; errEl.textContent = errs.join(' '); }
+    card.classList.add('invalid');
+    toast('Fix the highlighted values before saving.', 'error');
+    return;
+  }
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  try {
+    const res = await api('/api/admin/source-config', { method: 'PUT', body: { config: validation.config } });
+    sourceConfig = res.config || validation.config;
+    sourceDirty = false;
+    haptic('light');
+    toast(`${providerLabel(svc)} saved.`, 'success');
+    renderSourceTuning(sourceConfig); // keep the legacy Source Tuning section in sync
+    renderServices();
+  } catch (e) {
+    toast(`Error saving ${providerLabel(svc)}: ${e.message || e}`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.setAttribute('aria-busy', 'false');
+  }
+}
+
 function renderCatalogQuality() {
   const container = $('#qualityContainer');
   if (!container) return;
@@ -1030,6 +1387,7 @@ async function loadSourceTuning() {
     sourceConfig = data.config || {};
     sourceDirty = false;
     renderSourceTuning(sourceConfig);
+    renderServices();
   } catch (e) {
     if (container) container.innerHTML = errorPanelHTML('Could not load source config', e.message || String(e), 'Retry source tuning');
     $('#adminErrorRetry')?.addEventListener('click', loadSourceTuning);

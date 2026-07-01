@@ -5165,6 +5165,200 @@ body.advisor-open #advisorFab {
   }
 }
 
+/* ── Admin Services (service-first mobile console) ───────────────────────── */
+.admin-service-filters {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  -webkit-overflow-scrolling: touch;
+}
+.admin-service-filters .chip {
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+.admin-service-wrap {
+  display: grid;
+  gap: 16px;
+}
+.admin-service-group {
+  display: grid;
+  gap: 10px;
+}
+.admin-service-group h3 {
+  margin: 0;
+  color: var(--ink-mute);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.admin-service {
+  border: var(--bw-thin) solid var(--border-soft-c);
+  border-radius: var(--r-2);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+.admin-service.warn {
+  background: color-mix(in srgb, var(--bv-yellow) 10%, var(--surface));
+}
+.admin-service.danger {
+  background: color-mix(in srgb, var(--down) 9%, var(--surface));
+}
+.admin-service.neutral {
+  background: var(--surface-2);
+}
+.admin-service-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 12px 14px;
+  cursor: pointer;
+  list-style: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.admin-service-summary::-webkit-details-marker {
+  display: none;
+}
+.admin-service-summary::after {
+  content: "";
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--ink-mute);
+  border-bottom: 2px solid var(--ink-mute);
+  transform: rotate(45deg);
+  transition: transform 0.18s ease;
+}
+.admin-service[open] > .admin-service-summary::after {
+  transform: rotate(-135deg);
+}
+.admin-service-id {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.admin-service-id strong {
+  font-size: 15px;
+  line-height: 1.2;
+}
+.admin-service-id small {
+  color: var(--ink-mute);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.admin-service-summary .badge {
+  flex: 0 0 auto;
+}
+.admin-service-body {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  border-top: var(--bw-thin) solid var(--border-soft-c);
+}
+.admin-service-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+.admin-service-facts span {
+  color: var(--ink-mute);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.admin-service-action {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.admin-service-test {
+  display: grid;
+  gap: 8px;
+}
+.admin-svc-test-btn {
+  min-height: 44px;
+  justify-self: start;
+}
+.admin-svc-test-result {
+  padding: 10px 12px;
+  border: var(--bw-thin) solid var(--border-soft-c);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.admin-svc-test-result.ok {
+  color: var(--up);
+  background: color-mix(in srgb, var(--up) 8%, var(--surface));
+}
+.admin-svc-test-result.warn {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--bv-yellow) 14%, var(--surface));
+}
+.admin-svc-test-result.danger {
+  color: var(--down);
+  background: color-mix(in srgb, var(--down) 9%, var(--surface));
+}
+.admin-service-control,
+.admin-service-tuning {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: var(--bw-thin) solid var(--border-soft-c);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+}
+.admin-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+.admin-toggle-row input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+}
+.admin-toggle-row .badge {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+.admin-svc-hint {
+  color: var(--ink-mute);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.admin-service-tuning-head {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+.admin-service-tuning-grid {
+  display: grid;
+  gap: 8px;
+}
+.admin-service-tuning-actions {
+  display: grid;
+}
+.admin-svc-save {
+  min-height: 44px;
+}
+@media (min-width: 700px) {
+  .admin-service-tuning-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 /* ── Admin Activity (live process view) ───────────────────────────────────── */
 .admin-section-intro {
   margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--ink-soft);
