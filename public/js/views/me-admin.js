@@ -667,6 +667,12 @@ function renderProcesses() {
     byGroup.get(p.group).push(p);
   }
   const groups = order.filter(g => byGroup.has(g));
+  // Preserve which groups the admin expanded across the live re-render poll. On
+  // first paint (no groups in the DOM yet), open only groups that have a running
+  // or failed process so problems surface without expanding everything.
+  const existing = c.querySelectorAll('details.admin-process-group');
+  const firstPaint = existing.length === 0;
+  const openGroups = new Set(Array.from(existing).filter(d => d.open).map(d => d.getAttribute('data-group')));
   c.innerHTML = `
     <div class="admin-activity-summary">
       ${counts.running ? `<span class="admin-pill admin-pill--running">${counts.running} running</span>` : ''}
@@ -674,11 +680,23 @@ function renderProcesses() {
       ${counts.failed ? `<span class="admin-pill admin-pill--danger">${counts.failed} failed</span>` : ''}
       ${counts.idle ? `<span class="admin-pill admin-pill--idle">${counts.idle} not yet run</span>` : ''}
     </div>
-    ${groups.map(g => `
-      <div class="admin-process-group">
-        <h3 class="admin-process-group-title">${escapeHtml(g)}</h3>
-        <div class="admin-process-list">${byGroup.get(g).map(processRowHTML).join('')}</div>
-      </div>`).join('')}`;
+    ${groups.map(g => {
+      const items = byGroup.get(g);
+      const gRunning = items.filter(p => p.status === 'running').length;
+      const gFailed = items.filter(p => p.status === 'failed').length;
+      const open = firstPaint ? (gRunning > 0 || gFailed > 0) : openGroups.has(g);
+      const meta = [gRunning ? `${gRunning} running` : '', gFailed ? `${gFailed} failed` : '']
+        .filter(Boolean).join(' · ') || `${items.length}`;
+      const metaTone = gFailed ? ' is-error' : gRunning ? ' is-running' : '';
+      return `
+      <details class="admin-process-group" data-group="${escapeHtml(g)}"${open ? ' open' : ''}>
+        <summary class="admin-process-group-title">
+          <span>${escapeHtml(g)}</span>
+          <span class="admin-process-group-count${metaTone}">${escapeHtml(meta)}</span>
+        </summary>
+        <div class="admin-process-list">${items.map(processRowHTML).join('')}</div>
+      </details>`;
+    }).join('')}`;
 }
 
 // Background processes an admin can trigger on demand, mapped to their job tool.
