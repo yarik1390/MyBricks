@@ -86,6 +86,10 @@ export interface Env {
   // lib/pricesapi-keys.ts). OFF unless PRICESAPI_ENABLED is truthy AND a key is set.
   PRICESAPI_API_KEY?: string;
   PRICESAPI_API_KEYS?: string;
+  // Accepted aliases for the pricesAPI key(s) — some deployments name the secret
+  // PRICE_API_KEY / PRICE_API_KEYS. Treated identically to PRICESAPI_API_KEY(S).
+  PRICE_API_KEY?: string;
+  PRICE_API_KEYS?: string;
   PRICESAPI_ENABLED?: string;
   // ISO country/market code for pricesAPI lookups (default "us"; us/gb/au/de/nl
   // have the deepest retailer coverage).

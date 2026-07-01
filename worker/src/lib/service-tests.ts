@@ -2,6 +2,7 @@ import type { Env } from '../types';
 import { fetchSetPricing } from './bricklink';
 import { fetchEbayActiveListings } from './ebay';
 import { configuredKeys } from './brightdata-keys';
+import { configuredKeys as pricesApiKeys } from './pricesapi-keys';
 
 // ---------------------------------------------------------------------------
 // On-demand per-service health probes for the admin console. Each probe is
@@ -163,10 +164,10 @@ const PROBES: Record<string, Probe> = {
   },
 
   async pricesapi(env) {
-    const key = env.PRICESAPI_API_KEY || (env.PRICESAPI_API_KEYS?.split(',').map((k) => k.trim()).find(Boolean));
-    if (!key) return configured('no PRICESAPI_API_KEY(S)');
+    const keys = pricesApiKeys(env);
+    if (!keys.length) return configured('no key (set PRICE_API_KEYS or PRICESAPI_API_KEYS)');
     // Live pricesAPI calls are 30-90s each — don't spend one on a health check.
-    return ok('key present (a live call takes ~30-90s; use Populate → Run pricesAPI to spend one)');
+    return ok(`${keys.length} key(s) present (a live call takes ~30-90s; use Populate → Run pricesAPI to spend one)`);
   },
 
   async openrouter() {

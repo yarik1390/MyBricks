@@ -1,4 +1,5 @@
 import type { Env } from '../types';
+import { hasPricesApiKey } from './pricesapi-keys';
 
 // Services whose configuration and recent outcomes are visible in the admin
 // diagnostics panel. The stored table is intentionally aggregate-only.
@@ -249,7 +250,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
   },
   pricesapi: {
     label: 'pricesAPI.io',
-    configured: (env) => (!!env.PRICESAPI_API_KEY || !!env.PRICESAPI_API_KEYS) && /^(1|true|yes|on)$/i.test(String(env.PRICESAPI_ENABLED ?? '')),
+    configured: (env) => hasPricesApiKey(env) && /^(1|true|yes|on)$/i.test(String(env.PRICESAPI_ENABLED ?? '')),
     required_secrets: ['PRICESAPI_API_KEYS'],
     used_by: ['deal signal (cheapest channel)', 'in-stock truth', 'wishlist price-drop alerts'],
     notes: 'Live retail + marketplace offers across major retailers (47 markets). NOT a value anchor — feeds the deal/buy signal and stock truth. Synchronous cold calls take 30–90s so it runs cron-only. Free tier = 1000 calls/month, 6/min PER KEY; comma-separated keys are pooled with per-key monthly budgets (pricesapi_keys table).',
