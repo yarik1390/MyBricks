@@ -947,6 +947,44 @@ function brightDataPoolHTML() {
   return `<details class="admin-job-details" open><summary>Key pool — monthly spend: ${escapeHtml(head)}</summary><div class="admin-bd-pool">${rows}</div></details>`;
 }
 
+// Relative age for an ISO-8601 timestamp (e.g. new Date().toISOString()). The
+// shared ago() helper is for SQLite "YYYY-MM-DD HH:MM:SS" strings — it appends a
+// 'Z', which double-stamps an ISO value and yields "unknown". Parse natively here.
+function agoIso(ts) {
+  if (!ts) return null;
+  const then = Date.parse(String(ts));
+  if (!Number.isFinite(then)) return null;
+  const mins = Math.round((Date.now() - then) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
+}
+
+// PriceCharting whole-catalog bulk-download status, surfaced right on the
+// PriceCharting service card so "is the Legendary CSV import healthy?" is
+// self-serve (no digging through the Activity tab). Reads
+// adminHealth.pricecharting_ext.last_bulk from /api/admin/integrations.
+function pcBulkStatusHTML() {
+  const lb = adminHealth?.pricecharting_ext?.last_bulk;
+  if (!lb || typeof lb !== 'object') {
+    return `<p class="admin-service-action"><strong>Last bulk import:</strong> none recorded yet — the weekly LEGO price-guide download hasn’t run (or isn’t tracked). Trigger it from Activity → Pricing → “PriceCharting (bulk CSV)”.</p>`;
+  }
+  const when = agoIso(lb.finished_at);
+  // A skip/failure is the important case to surface — usually a non-Legendary
+  // token. Show the reason inline in the error tone.
+  if (lb.skipped) {
+    return `<p class="admin-service-action"><strong>Last bulk import:</strong> <span class="admin-process-result is-error">skipped — ${escapeHtml(String(lb.skipped))}</span>${when ? ` · ${escapeHtml(when)}` : ''}</p>`;
+  }
+  const matched = Number(lb.matched || 0);
+  const rows = Number(lb.rows || 0);
+  const updated = Number(lb.updated || 0);
+  const parts = [`matched ${matched.toLocaleString()}${rows ? ` / ${rows.toLocaleString()} rows` : ''}`];
+  if (updated) parts.push(`updated ${updated.toLocaleString()}`);
+  if (when) parts.push(when);
+  return `<p class="admin-service-action"><strong>Last bulk import:</strong> <span class="admin-process-result">${escapeHtml(parts.join(' · '))}</span></p>`;
+}
+
 // ---------------------------------------------------------------------------
 // Services section — the mobile-first, service-per-place view. Each provider is
 // a tap-to-expand card showing status, usage/spend, an on-demand Test button,
@@ -1079,6 +1117,7 @@ function serviceCardHTML(svc, row, health, cfg, openSet) {
         <div class="admin-service-facts">${facts.map(f => `<span>${escapeHtml(f)}</span>`).join('')}</div>
         ${key === 'ebay' ? ebayStateHTML(health) : ''}
         ${key === 'brightdata' ? brightDataPoolHTML() : ''}
+        ${key === 'pricecharting' ? pcBulkStatusHTML() : ''}
         <p class="admin-service-action">${escapeHtml(health.action)}</p>
         ${row.last_error ? `<details class="admin-job-details"><summary>Latest failure</summary><div>${escapeHtml(String(row.last_error).slice(0, 900))}</div></details>` : ''}
         ${TESTABLE.has(key) ? serviceTestHTML(key) : ''}
