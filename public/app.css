@@ -5353,6 +5353,28 @@ body.advisor-open #advisorFab {
 .admin-svc-save {
   min-height: 44px;
 }
+.admin-service-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border: var(--bw-thin) solid var(--border-soft-c);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+}
+.admin-service-footer > span {
+  flex: 1 1 160px;
+  min-width: 0;
+  color: var(--ink-mute);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.admin-service-footer .btn-secondary {
+  flex: 0 0 auto;
+  min-height: 44px;
+}
 @media (min-width: 700px) {
   .admin-service-tuning-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));

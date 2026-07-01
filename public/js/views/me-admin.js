@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, toast } from '../utils.js';
+import { $, haptic, escapeHtml, toast } from '../utils.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
@@ -22,7 +22,6 @@ let populateEverythingAuto = false;
 let populateEverythingContinueTimer = null;
 let showAllJobs = false;
 let contributionTab = 'all';
-let sourceDirty = false;
 
 let setupRows = [];
 let adminRuns = [];
@@ -42,7 +41,6 @@ const ADMIN_SECTIONS = [
   ['adminPopulate', 'Populate'],
   ['adminJobs', 'Activity'],
   ['adminQuality', 'Catalog Quality'],
-  ['adminSources', 'Source Tuning'],
   ['adminUsers', 'Users'],
   ['adminContrib', 'Contributions'],
 ];
@@ -328,21 +326,6 @@ export async function renderMeAdmin() {
         <div id="qualityContainer" class="admin-panel">Loading coverage...</div>
       </section>
 
-      <section class="admin-section" id="adminSources">
-        <div class="section-kicker">Blend controls</div>
-        <h2 class="section-title">Source Tuning</h2>
-        <div class="admin-panel">
-          <div class="admin-panel-head">
-            <div>
-              <h3>Pricing source controls</h3>
-              <p>Adjust trust, daily budgets, and refresh cadence. Changes apply within about 1 minute.</p>
-            </div>
-          </div>
-          <div id="sourceTuningContainer">Loading source config...</div>
-          <div id="sourceTuningResult" class="admin-status-panel" hidden></div>
-        </div>
-      </section>
-
       <section class="admin-section" id="adminUsers">
         <div class="section-kicker">Account support</div>
         <h2 class="section-title">Users</h2>
@@ -531,7 +514,9 @@ function wireAdminShell() {
       const testBtn = e.target.closest('[data-svc-test]');
       if (testBtn) { runServiceProbe(testBtn.getAttribute('data-svc-test'), testBtn); return; }
       const saveBtn = e.target.closest('[data-svc-save]');
-      if (saveBtn) { saveServiceTuning(saveBtn.getAttribute('data-svc-save'), saveBtn); }
+      if (saveBtn) { saveServiceTuning(saveBtn.getAttribute('data-svc-save'), saveBtn); return; }
+      const resetBtn = e.target.closest('[data-svc-reset]');
+      if (resetBtn) { resetPricingDefaults(resetBtn); }
     });
     servicesEl.addEventListener('change', (e) => {
       const flagInput = e.target.closest('[data-svc-flag]');
@@ -900,7 +885,6 @@ async function updateIntegrationsHealth() {
     renderServices();
     renderCatalogQuality();
     renderAdminOverview();
-    renderSourceTuning(sourceConfig);
   } catch (err) {
     const quality = $('#qualityContainer');
     const services = $('#servicesContainer');
@@ -1040,7 +1024,13 @@ function renderServices() {
     if (!cards.length) return '';
     return `<div class="admin-service-group"><h3>${escapeHtml(label)}</h3>${cards.join('')}</div>`;
   }).join('');
-  container.innerHTML = html
+  const footer = html && Object.keys(cfg).length
+    ? `<div class="admin-service-footer">
+        <span>Pricing knobs live on each Pricing and Scraping service above.</span>
+        <button type="button" class="btn-secondary admin-svc-reset" data-svc-reset>${I.refresh({ w: 16 })}<span>Reset pricing to defaults</span></button>
+      </div>`
+    : '';
+  container.innerHTML = (html + footer)
     || `<div class="admin-empty-state">${I.info()}<strong>No services match this filter.</strong><span>Switch to All to see every service.</span></div>`;
 }
 
@@ -1198,10 +1188,8 @@ async function saveServiceTuning(svc, btn) {
   try {
     const res = await api('/api/admin/source-config', { method: 'PUT', body: { config: validation.config } });
     sourceConfig = res.config || validation.config;
-    sourceDirty = false;
     haptic('light');
     toast(`${providerLabel(svc)} saved.`, 'success');
-    renderSourceTuning(sourceConfig); // keep the legacy Source Tuning section in sync
     renderServices();
   } catch (e) {
     toast(`Error saving ${providerLabel(svc)}: ${e.message || e}`, 'error');
@@ -1271,66 +1259,17 @@ function recommendedQualityAction(cards) {
   return 'Run Populate all safe sources to advance the next safe slice.';
 }
 
+// Loads pricing source config (defaults + stored overrides) for the per-service
+// tuning + reset controls in the Services section. No dedicated UI of its own.
 async function loadSourceTuning() {
-  const container = $('#sourceTuningContainer');
   try {
     const data = await api('/api/admin/source-config');
     sourceDefaults = data.defaults || {};
     sourceConfig = data.config || {};
-    sourceDirty = false;
-    renderSourceTuning(sourceConfig);
     renderServices();
   } catch (e) {
-    if (container) container.innerHTML = errorPanelHTML('Could not load source config', e.message || String(e), 'Retry source tuning');
-    $('#adminErrorRetry')?.addEventListener('click', loadSourceTuning);
+    toast(`Could not load pricing config: ${e.message || e}`, 'error');
   }
-}
-
-function renderSourceTuning(config = sourceConfig) {
-  const container = $('#sourceTuningContainer');
-  if (!container) return;
-  const entries = Object.entries(config || {});
-  if (!entries.length) {
-    container.innerHTML = `<div class="admin-empty-state">${I.info()}<strong>No source tuning data yet.</strong><span>Reload after the admin endpoint is ready.</span></div>`;
-    return;
-  }
-  container.innerHTML = `
-    <div class="source-card-grid">
-      ${entries.map(([name, tuning]) => sourceCardHTML(name, tuning)).join('')}
-    </div>
-    <div class="source-tuning-footer">
-      <span id="sourceUnsavedCount">${sourceDirty ? 'Unsaved changes' : 'No unsaved changes'}</span>
-      <button class="btn-secondary" id="sourceTuningResetBtn">${I.refresh()}<span>Reset to defaults</span></button>
-      <button class="btn-primary" id="sourceTuningSaveBtn">${I.check()}<span>Save changes</span></button>
-    </div>`;
-  container.querySelectorAll('input').forEach(input => input.addEventListener('input', markSourceDirty));
-  $('#sourceTuningSaveBtn')?.addEventListener('click', saveSourceTuning);
-  $('#sourceTuningResetBtn')?.addEventListener('click', resetSourceTuning);
-}
-
-function sourceCardHTML(name, t) {
-  const meta = SOURCE_META[name] || [name, 'Pricing or data source.'];
-  const health = classifyProviderHealth(providerRows().find(r => String(r.service).toLowerCase() === String(name).toLowerCase()) || { service: name, configured: true, status: 'unknown' });
-  return `
-    <article class="source-card" data-src="${escapeHtml(name)}">
-      <div class="source-card-head">
-        <div>
-          <h3>${escapeHtml(meta[0])}</h3>
-          <p>${escapeHtml(meta[1])}</p>
-        </div>
-        <span class="badge ${badgeClass(health.tone)}">${escapeHtml(health.label)}</span>
-      </div>
-      <label class="source-toggle-row">
-        <input type="checkbox" class="src-enabled" ${t.enabled ? 'checked' : ''}>
-        <span>Enabled for scheduled jobs and valuation blend</span>
-      </label>
-      <div class="source-grid">
-        ${sourceInputHTML('Trust weight', 'src-weight', t.weight, 'decimal', '0.05')}
-        ${sourceInputHTML('Daily cap', 'src-cap', t.dailyCap == null ? '' : t.dailyCap, 'numeric', '1')}
-        ${sourceInputHTML('Refresh days', 'src-refresh', t.refreshDays == null ? '' : t.refreshDays, 'numeric', '1')}
-      </div>
-      <div class="source-error" hidden></div>
-    </article>`;
 }
 
 function sourceInputHTML(label, cls, value, inputMode, step) {
@@ -1341,76 +1280,29 @@ function sourceInputHTML(label, cls, value, inputMode, step) {
     </label>`;
 }
 
-function markSourceDirty() {
-  sourceDirty = true;
-  const out = $('#sourceUnsavedCount');
-  if (out) out.textContent = `${document.querySelectorAll('.source-card').length} sources editable - unsaved changes`;
-}
-
-function collectSourceTuning() {
-  const config = {};
-  for (const row of $$('.source-card')) {
-    const name = row.getAttribute('data-src');
-    config[name] = {
-      enabled: !!row.querySelector('.src-enabled')?.checked,
-      weight: row.querySelector('.src-weight')?.value ?? '',
-      dailyCap: row.querySelector('.src-cap')?.value ?? '',
-      refreshDays: row.querySelector('.src-refresh')?.value ?? '',
-    };
-  }
-  return config;
-}
-
-async function saveSourceTuning() {
-  const out = $('#sourceTuningResult');
-  if (out) {
-    out.hidden = false;
-    out.className = 'admin-status-panel';
-    out.textContent = 'Saving source tuning...';
-  }
-  document.querySelectorAll('.source-card').forEach(card => {
-    card.classList.remove('invalid');
-    const err = card.querySelector('.source-error');
-    if (err) { err.hidden = true; err.textContent = ''; }
-  });
-  const validation = validateSourceTuningInput(collectSourceTuning());
-  if (!validation.ok) {
-    for (const [name, errors] of Object.entries(validation.errors)) {
-      const card = document.querySelector(`.source-card[data-src="${CSS.escape(name)}"]`);
-      card?.classList.add('invalid');
-      const err = card?.querySelector('.source-error');
-      if (err) { err.hidden = false; err.textContent = errors.join(' '); }
-    }
-    if (out) {
-      out.className = 'admin-status-panel danger';
-      out.textContent = 'Fix the highlighted source tuning values before saving.';
-    }
+// Reset all pricing sources (weight, daily cap, refresh, enabled) to the server
+// defaults. The escape hatch that used to live in the Source Tuning tab; it now
+// applies immediately and re-renders Services.
+async function resetPricingDefaults(btn) {
+  if (!Object.keys(sourceDefaults).length) {
+    toast('Pricing defaults not loaded yet — try again in a moment.', 'info');
     return;
   }
+  if (!window.confirm('Reset all pricing sources (weight, daily cap, refresh, enabled) to defaults?')) return;
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
   try {
-    const res = await api('/api/admin/source-config', { method: 'PUT', body: { config: validation.config } });
-    sourceConfig = res.config || validation.config;
-    sourceDirty = false;
-    renderSourceTuning(sourceConfig);
-    if (out) {
-      out.hidden = false;
-      out.className = 'admin-status-panel ok';
-      out.textContent = 'Source tuning saved.';
-    }
+    const res = await api('/api/admin/source-config', { method: 'PUT', body: { config: sourceDefaults } });
+    sourceConfig = res.config || sourceDefaults;
+    haptic('light');
+    toast('Pricing sources reset to defaults.', 'success');
+    renderServices();
   } catch (e) {
-    if (out) {
-      out.className = 'admin-status-panel danger';
-      out.textContent = `Error: ${e.message || e}`;
-    }
+    toast(`Reset failed: ${e.message || e}`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.setAttribute('aria-busy', 'false');
   }
-}
-
-function resetSourceTuning() {
-  if (!Object.keys(sourceDefaults).length) return;
-  if (!window.confirm('Reset source tuning to defaults?')) return;
-  sourceConfig = typeof structuredClone === 'function' ? structuredClone(sourceDefaults) : JSON.parse(JSON.stringify(sourceDefaults));
-  sourceDirty = true;
-  renderSourceTuning(sourceConfig);
 }
 
 async function setSupporterStatus(value) {
