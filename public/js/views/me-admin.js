@@ -258,7 +258,6 @@ export async function renderMeAdmin() {
       </nav>
 
       <section class="admin-section" id="adminServices">
-        <div class="section-kicker">Every service in one place</div>
         <h2 class="section-title">Services</h2>
         <p class="admin-section-intro">Pick a category tab to see just those services. Tap any service for its status, usage, and controls — test it, flip capabilities on or off, and tune pricing, all without touching code.</p>
         <div class="admin-service-filters" role="tablist" aria-label="Service categories">
@@ -268,13 +267,11 @@ export async function renderMeAdmin() {
       </section>
 
       <section class="admin-section" id="adminPopulate">
-        <div class="section-kicker">Data population</div>
         <h2 class="section-title">Populate</h2>
         ${populateSectionHTML()}
       </section>
 
       <section class="admin-section" id="adminJobs">
-        <div class="section-kicker">Live background activity</div>
         <h2 class="section-title">Activity</h2>
         <p class="admin-section-intro">Every background process and admin job, updated live while this page is open. Each row shows what it does, when it last ran, and the result.</p>
         <div id="jobsStatusContainer" class="admin-panel" aria-live="polite">Loading jobs...</div>
@@ -282,13 +279,11 @@ export async function renderMeAdmin() {
       </section>
 
       <section class="admin-section" id="adminQuality">
-        <div class="section-kicker">Catalog data quality</div>
         <h2 class="section-title">Catalog Quality</h2>
         <div id="qualityContainer" class="admin-panel">Loading coverage...</div>
       </section>
 
       <section class="admin-section" id="adminUsers">
-        <div class="section-kicker">Account support</div>
         <h2 class="section-title">Users</h2>
         <div class="admin-panel admin-user-panel">
           <label class="admin-field">
@@ -324,7 +319,6 @@ export async function renderMeAdmin() {
       </section>
 
       <section class="admin-section" id="adminContrib">
-        <div class="section-kicker">Community moderation</div>
         <h2 class="section-title">Contributions <span id="contribCount" class="contrib-count"></span></h2>
         <div class="admin-panel">
           <div class="admin-contrib-tabs" role="tablist" aria-label="Contribution type">
