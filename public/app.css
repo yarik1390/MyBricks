@@ -4377,28 +4377,10 @@ body.advisor-open #advisorFab {
   text-transform: uppercase;
 }
 
-.admin-layout {
-  display: grid;
-  gap: 14px;
-}
-
-.admin-main {
-  display: grid;
-  gap: 14px;
-}
-
-.admin-rail {
-  display: none;
-}
-
 .admin-panel,
-.admin-rail-card,
 .admin-populate-primary,
 .admin-tool-card,
-.admin-summary-card,
-.admin-provider-card,
 .admin-quality-card,
-.source-card,
 .admin-contrib-card {
   border: var(--bw-thin) solid var(--border-soft-c);
   border-radius: var(--r-2);
@@ -4406,8 +4388,7 @@ body.advisor-open #advisorFab {
   box-shadow: var(--shadow-1);
 }
 
-.admin-panel,
-.admin-rail-card {
+.admin-panel {
   padding: 14px;
 }
 
@@ -4420,11 +4401,8 @@ body.advisor-open #advisorFab {
 }
 
 .admin-panel-head h3,
-.admin-rail-card h3,
 .admin-populate-primary h3,
 .admin-tool-card h3,
-.admin-provider-card h4,
-.source-card h3,
 .admin-contrib-card h3,
 .admin-active-job h3,
 .admin-job-row h3 {
@@ -4436,10 +4414,7 @@ body.advisor-open #advisorFab {
 .admin-panel-head p,
 .admin-populate-primary p,
 .admin-tool-card p,
-.admin-provider-card p,
-.source-card p,
 .admin-contrib-card p,
-.admin-summary-card p,
 .admin-quality-card p {
   margin: 4px 0 0;
   color: var(--ink-mute);
@@ -4460,19 +4435,6 @@ body.advisor-open #advisorFab {
   line-height: 1.4;
 }
 
-.admin-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.admin-summary-card {
-  min-height: 112px;
-  padding: 12px;
-}
-
-.admin-summary-card span,
 .admin-quality-head span {
   color: var(--ink-mute);
   font-family: var(--mono);
@@ -4482,81 +4444,20 @@ body.advisor-open #advisorFab {
   text-transform: uppercase;
 }
 
-.admin-summary-card strong {
-  display: block;
-  margin-top: 8px;
-  color: var(--ink);
-  font-size: 24px;
-  line-height: 1;
-}
-
-.admin-summary-card.ok,
-.admin-setup-card.ok,
 .admin-quality-card.ok {
   background: color-mix(in srgb, var(--up) 8%, var(--surface));
 }
 
-.admin-summary-card.warn,
-.admin-setup-card.warn,
-.admin-quality-card.warn,
-.admin-provider-card.warn,
-.source-card.invalid {
+.admin-quality-card.warn {
   background: color-mix(in srgb, var(--bv-yellow) 13%, var(--surface));
 }
 
-.admin-summary-card.danger,
-.admin-quality-card.danger,
-.admin-provider-card.danger {
+.admin-quality-card.danger {
   background: color-mix(in srgb, var(--down) 10%, var(--surface));
 }
 
-.admin-summary-card.neutral,
-.admin-setup-card.neutral,
-.admin-provider-card.neutral,
 .admin-quality-card.neutral {
   background: var(--surface-2);
-}
-
-.admin-action-list,
-.admin-setup-grid {
-  display: grid;
-  gap: 8px;
-}
-
-.admin-action-item,
-.admin-setup-card {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 54px;
-  padding: 10px 12px;
-  border: var(--bw-thin) solid var(--border-soft-c);
-  border-radius: var(--r-2);
-  color: var(--ink);
-  text-decoration: none;
-}
-
-.admin-action-item {
-  align-items: flex-start;
-  flex-direction: column;
-  justify-content: center;
-  background: var(--surface-2);
-}
-
-.admin-action-item span,
-.admin-setup-card strong {
-  color: var(--ink-mute);
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.admin-action-item.danger {
-  border-color: color-mix(in srgb, var(--down) 45%, var(--border-soft-c));
-}
-
-.admin-action-item.warn {
-  border-color: color-mix(in srgb, var(--bv-yellow) 60%, var(--border-soft-c));
 }
 
 .admin-populate-primary {
@@ -4590,9 +4491,7 @@ body.advisor-open #advisorFab {
 }
 
 .admin-tool-grid,
-.admin-provider-grid,
-.admin-quality-grid,
-.source-card-grid {
+.admin-quality-grid {
   display: grid;
   gap: 10px;
 }
@@ -4621,7 +4520,6 @@ body.advisor-open #advisorFab {
 }
 
 .admin-tool-card small,
-.admin-provider-action,
 .source-error {
   display: block;
   margin-top: 4px;
@@ -4635,9 +4533,7 @@ body.advisor-open #advisorFab {
 .admin-user-actions .btn-secondary,
 .admin-user-search .btn-secondary,
 .admin-contrib-actions .btn-primary,
-.admin-contrib-actions .btn-secondary,
-.source-tuning-footer .btn-primary,
-.source-tuning-footer .btn-secondary {
+.admin-contrib-actions .btn-secondary {
   min-height: 44px;
 }
 
@@ -4653,9 +4549,7 @@ body.advisor-open #advisorFab {
 .admin-active-job-head,
 .admin-job-idle,
 .admin-job-row-head,
-.admin-provider-head,
 .admin-quality-head,
-.source-card-head,
 .admin-contrib-head {
   display: flex;
   align-items: flex-start;
@@ -4665,7 +4559,6 @@ body.advisor-open #advisorFab {
 
 .admin-job-idle span,
 .admin-job-row p,
-.admin-provider-facts span,
 .admin-contrib-meta span {
   color: var(--ink-mute);
   font-size: 12px;
@@ -4714,7 +4607,6 @@ body.advisor-open #advisorFab {
 
 .admin-job-facts,
 .admin-job-meta,
-.admin-provider-facts,
 .admin-contrib-meta {
   display: flex;
   flex-wrap: wrap;
@@ -4743,7 +4635,6 @@ body.advisor-open #advisorFab {
   width: 100%;
 }
 
-.admin-provider-filters,
 .admin-contrib-tabs {
   display: flex;
   gap: 8px;
@@ -4752,32 +4643,13 @@ body.advisor-open #advisorFab {
   margin-bottom: 10px;
 }
 
-.admin-provider-filters .chip,
 .admin-contrib-tabs .chip {
   flex: 0 0 auto;
   min-height: 44px;
 }
 
-.admin-provider-group {
-  margin-bottom: 14px;
-}
-
-.admin-provider-group h3 {
-  margin: 0 0 8px;
-  color: var(--ink-mute);
-  font-family: var(--mono);
-  font-size: 11px;
-  text-transform: uppercase;
-}
-
-.admin-provider-card,
-.source-card,
 .admin-quality-card {
   padding: 12px;
-}
-
-.admin-provider-facts {
-  margin-top: 10px;
 }
 
 .admin-ebay-state {
@@ -4813,31 +4685,6 @@ body.advisor-open #advisorFab {
   line-height: 1.45;
 }
 
-.source-card-grid {
-  grid-template-columns: 1fr;
-}
-
-.source-toggle-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  margin-top: 10px;
-  color: var(--ink-soft);
-  font-size: 13px;
-}
-
-.source-toggle-row input {
-  width: 24px;
-  height: 24px;
-}
-
-.source-grid {
-  display: grid;
-  gap: 8px;
-  margin-top: 10px;
-}
-
 .admin-field {
   display: grid;
   gap: 5px;
@@ -4860,25 +4707,6 @@ body.advisor-open #advisorFab {
   min-height: 44px;
   font-family: var(--mono);
   font-size: 14px;
-}
-
-.source-tuning-footer {
-  position: sticky;
-  bottom: calc(var(--nav-h, 78px) + env(safe-area-inset-bottom) + 8px);
-  z-index: 8;
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
-  padding: 10px;
-  border: var(--bw-thin) solid var(--border-soft-c);
-  border-radius: var(--r-2);
-  background: color-mix(in srgb, var(--bg) 95%, var(--surface));
-  box-shadow: var(--shadow-2);
-}
-
-.source-tuning-footer > span {
-  color: var(--ink-mute);
-  font-size: 12px;
 }
 
 .source-error {
@@ -5086,19 +4914,8 @@ body.advisor-open #advisorFab {
   }
 
   .admin-tool-grid,
-  .admin-provider-grid,
-  .admin-quality-grid,
-  .source-card-grid {
+  .admin-quality-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .source-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .source-tuning-footer {
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    align-items: center;
   }
 
   .admin-user-actions {
@@ -5114,19 +4931,7 @@ body.advisor-open #advisorFab {
 }
 
 @media (min-width: 980px) {
-  .admin-layout {
-    grid-template-columns: minmax(0, 1fr) 280px;
-    align-items: start;
-  }
-
-  .admin-rail {
-    display: block;
-    position: sticky;
-    top: 76px;
-  }
-
   .admin-tool-grid,
-  .admin-provider-grid,
   .admin-quality-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -5150,8 +4955,6 @@ body.advisor-open #advisorFab {
   .admin-active-job-head,
   .admin-job-idle,
   .admin-job-row-head,
-  .admin-provider-head,
-  .source-card-head,
   .admin-contrib-head {
     flex-direction: column;
     align-items: stretch;
