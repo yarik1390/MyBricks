@@ -4,7 +4,7 @@ import { importSets, importFigs } from '../jobs/import-catalog';
 import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
 import { BARCODE_PAGE_SIZE } from '../lib/brickset';
 import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
-import { ebaySoldCompsEnabled, pricesapiEnabled } from '../lib/pricing-flags';
+import { ebaySoldCompsEnabled, pricesapiEnabled, brickOwlEnabled, brickInsightsEnabled, brightDataSoldEnabled, firecrawlEnabled } from '../lib/pricing-flags';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
 import { getQuotaUsage, QUOTA_CAPS } from '../lib/api-quota';
 import { getAiUsageReport } from '../lib/ai-usage';
@@ -21,6 +21,7 @@ import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricech
 import { getKeyPoolStatus } from '../lib/pricesapi-keys';
 import { getKeyPoolStatus as getBrightDataPoolStatus } from '../lib/brightdata-keys';
 import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG } from '../lib/source-config';
+import { getFeatureFlags, saveFeatureFlags, applyFeatureFlags, FEATURE_FLAGS } from '../lib/feature-flags';
 import { getRecentRuns, recordCronStart, recordCronFinish, summarizeResult } from '../lib/cron-runs';
 import { runPricesApiRetail } from '../jobs/pricesapi-retail';
 import { PROCESS_REGISTRY, GROUP_ORDER, processInfo } from '../lib/process-registry';
@@ -992,6 +993,40 @@ app.put('/source-config', async (c) => {
   if (!body || typeof body !== 'object') return c.json({ error: 'Expected a JSON object of source settings.' }, 400);
   const config = await saveSourceConfig(c.env, (body as { config?: unknown }).config ?? body);
   return c.json({ ok: true, config });
+});
+
+// Runtime feature flags: enable/disable capabilities (eBay sold comps, Bright
+// Data sold, BrickInsights, Firecrawl, pricesAPI, BrickOwl) with no redeploy.
+// GET returns the flag list, the raw stored overrides, and the resolved effective
+// state (override-or-env, with the required-secret prerequisite applied).
+app.get('/feature-flags', async (c) => {
+  await applyFeatureFlags(c.env);
+  const overrides = await getFeatureFlags(c.env);
+  const effective = {
+    ebay_sold_comps: ebaySoldCompsEnabled(c.env),
+    brickowl: brickOwlEnabled(c.env),
+    brickinsights: brickInsightsEnabled(c.env),
+    brightdata_sold: brightDataSoldEnabled(c.env),
+    firecrawl: firecrawlEnabled(c.env),
+    pricesapi: pricesapiEnabled(c.env),
+  };
+  return c.json({ flags: FEATURE_FLAGS, overrides, effective });
+});
+
+app.put('/feature-flags', async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object') return c.json({ error: 'Expected a JSON object of feature flags.' }, 400);
+  const overrides = await saveFeatureFlags(c.env, (body as { flags?: unknown }).flags ?? body);
+  await applyFeatureFlags(c.env);
+  const effective = {
+    ebay_sold_comps: ebaySoldCompsEnabled(c.env),
+    brickowl: brickOwlEnabled(c.env),
+    brickinsights: brickInsightsEnabled(c.env),
+    brightdata_sold: brightDataSoldEnabled(c.env),
+    firecrawl: firecrawlEnabled(c.env),
+    pricesapi: pricesapiEnabled(c.env),
+  };
+  return c.json({ ok: true, overrides, effective });
 });
 
 // Live "Activity" feed for the admin console: every background process with what
