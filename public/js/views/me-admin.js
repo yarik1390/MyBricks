@@ -253,7 +253,7 @@ export async function renderMeAdmin() {
   $('#root').innerHTML = `
     <div class="page admin-page admin-dashboard-page">
       ${subpageTopbarHTML('Admin console', 'Admin')}
-      <nav class="admin-segments admin-segments-sticky" aria-label="Admin sections">
+      <nav class="admin-segments admin-segments-sticky" role="tablist" aria-label="Admin sections">
         ${ADMIN_SECTIONS.map(([id, label], i) => `<button type="button" role="tab" aria-selected="${i === 0}" aria-controls="${id}" class="${i === 0 ? 'active' : ''}" data-admin-section-link="${id}">${escapeHtml(label)}</button>`).join('')}
       </nav>
 
@@ -388,19 +388,13 @@ function maintenanceCardHTML(key) {
 }
 
 function wireAdminShell() {
-  const sectionLinks = Array.from(document.querySelectorAll('[data-admin-section-link]'));
-  sectionLinks.forEach(btn => {
+  document.querySelectorAll('.admin-section').forEach(s => s.setAttribute('role', 'tabpanel'));
+  document.querySelectorAll('[data-admin-section-link]').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-admin-section-link');
-      const section = id ? document.getElementById(id) : null;
-      if (!section) return;
+      if (!id || !document.getElementById(id)) return;
       haptic('light');
-      sectionLinks.forEach(link => {
-        const active = link === btn;
-        link.classList.toggle('active', active);
-        link.setAttribute('aria-selected', active ? 'true' : 'false');
-      });
-      section.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      activateAdminSection(id);
     });
   });
   document.querySelectorAll('[data-admin-tool]').forEach(btn => {
@@ -454,23 +448,29 @@ function wireAdminShell() {
   $('#adminUserSearchInput')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') searchUsers();
   });
-  setupAdminSectionObserver();
+  activateAdminSection(ADMIN_SECTIONS[0][0]);
 }
 
-function setupAdminSectionObserver() {
-  const links = Array.from(document.querySelectorAll('[data-admin-section-link]'));
-  const sections = ADMIN_SECTIONS.map(([id]) => document.getElementById(id)).filter(Boolean);
-  if (!('IntersectionObserver' in window) || !sections.length) return;
-  const observer = new IntersectionObserver((entries) => {
-    const visible = entries.filter(e => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-    if (!visible) return;
-    links.forEach(link => {
-      const active = link.dataset.adminSectionLink === visible.target.id;
-      link.classList.toggle('active', active);
-      link.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
-  }, { rootMargin: '-20% 0px -65% 0px', threshold: [0, 0.2, 0.6] });
-  sections.forEach(section => observer.observe(section));
+// Tab view: show only the active section, sync the sticky nav (highlight +
+// reveal the active chip in the horizontal strip), and reset scroll to the top
+// — so switching tabs feels like a native segmented view instead of a long scroll.
+function activateAdminSection(id) {
+  document.querySelectorAll('.admin-section').forEach(s => s.classList.toggle('is-active', s.id === id));
+  let activeBtn = null;
+  document.querySelectorAll('[data-admin-section-link]').forEach(b => {
+    const on = b.getAttribute('data-admin-section-link') === id;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+    if (on) activeBtn = b;
+  });
+  const nav = document.querySelector('.admin-segments-sticky');
+  if (nav && activeBtn) {
+    const btnRect = activeBtn.getBoundingClientRect();
+    const navRect = nav.getBoundingClientRect();
+    const delta = (btnRect.left + btnRect.width / 2) - (navRect.left + navRect.width / 2);
+    if (Math.abs(delta) > 1) nav.scrollBy({ left: delta, behavior: 'smooth' });
+  }
+  window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
 function contribTabButtonHTML(id, label) {
