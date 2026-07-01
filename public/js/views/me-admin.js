@@ -33,7 +33,10 @@ let sourceConfig = {};
 let activityData = null;
 let activityPollTimer = null;
 let featureFlags = { flags: [], overrides: {}, effective: {} };
-let serviceFilter = 'all';
+// Active Services tab: 'attention' (triage across all categories) or a
+// PROVIDER_GROUPS category label ('Core', 'Pricing', …). Category-per-tab keeps
+// the mobile view short — one category on screen at a time.
+let serviceTab = 'attention';
 
 const ADMIN_SECTIONS = [
   ['adminServices', 'Services'],
@@ -262,12 +265,9 @@ export async function renderMeAdmin() {
       <section class="admin-section" id="adminServices">
         <div class="section-kicker">Every service in one place</div>
         <h2 class="section-title">Services</h2>
-        <p class="admin-section-intro">Tap a service to see its status, usage, and controls. Test any provider on demand, flip capabilities on or off, and tune pricing weights — all without touching code.</p>
-        <div class="admin-service-filters" role="tablist" aria-label="Service filters">
-          ${serviceFilterButtonHTML('all', 'All')}
-          ${serviceFilterButtonHTML('attention', 'Needs action')}
-          ${serviceFilterButtonHTML('tunable', 'Tunable')}
-          ${serviceFilterButtonHTML('testable', 'Testable')}
+        <p class="admin-section-intro">Pick a category tab to see just those services. Tap any service for its status, usage, and controls — test it, flip capabilities on or off, and tune pricing, all without touching code.</p>
+        <div class="admin-service-filters" role="tablist" aria-label="Service categories">
+          ${serviceTabs().map(([id, label]) => serviceTabButtonHTML(id, label)).join('')}
         </div>
         <div id="servicesContainer" class="admin-service-wrap" aria-live="polite">Loading services...</div>
       </section>
@@ -501,9 +501,9 @@ function wireAdminShell() {
   document.querySelectorAll('[data-maint-tool]').forEach(btn => {
     btn.addEventListener('click', () => triggerMaintenance(btn.getAttribute('data-maint-tool')));
   });
-  document.querySelectorAll('[data-service-filter]').forEach(btn => {
+  document.querySelectorAll('[data-service-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
-      serviceFilter = btn.getAttribute('data-service-filter') || 'all';
+      serviceTab = btn.getAttribute('data-service-tab') || 'attention';
       renderServiceFilters();
       renderServices();
     });
@@ -951,22 +951,25 @@ function brightDataPoolHTML() {
 // admin can test and tune every service without touching code.
 // ---------------------------------------------------------------------------
 
-function serviceFilterButtonHTML(id, label) {
-  return `<button class="chip ${serviceFilter === id ? 'active' : ''}" data-service-filter="${escapeHtml(id)}" role="tab" aria-selected="${serviceFilter === id}">${escapeHtml(label)}</button>`;
+// Tab set: a leading "Needs action" triage view, then one tab per service
+// category (PROVIDER_GROUPS). One category on screen at a time = far less
+// scrolling on mobile.
+function serviceTabs() {
+  return [['attention', 'Needs action'], ...PROVIDER_GROUPS.map(([label]) => [label, label])];
+}
+
+function serviceTabButtonHTML(id, label) {
+  const active = serviceTab === id;
+  return `<button class="chip ${active ? 'active' : ''}" data-service-tab="${escapeHtml(id)}" role="tab" aria-selected="${active}">${escapeHtml(label)}</button>`;
 }
 
 function renderServiceFilters() {
   const wrap = document.querySelector('.admin-service-filters');
   if (!wrap) return;
-  wrap.innerHTML = [
-    serviceFilterButtonHTML('all', 'All'),
-    serviceFilterButtonHTML('attention', 'Needs action'),
-    serviceFilterButtonHTML('tunable', 'Tunable'),
-    serviceFilterButtonHTML('testable', 'Testable'),
-  ].join('');
-  wrap.querySelectorAll('[data-service-filter]').forEach(btn => {
+  wrap.innerHTML = serviceTabs().map(([id, label]) => serviceTabButtonHTML(id, label)).join('');
+  wrap.querySelectorAll('[data-service-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
-      serviceFilter = btn.getAttribute('data-service-filter') || 'all';
+      serviceTab = btn.getAttribute('data-service-tab') || 'attention';
       renderServiceFilters();
       renderServices();
     });
@@ -996,15 +999,6 @@ function serviceRow(service, rows) {
   };
 }
 
-function serviceMatchesFilter(service, health) {
-  const key = String(service).toLowerCase();
-  if (serviceFilter === 'all') return true;
-  if (serviceFilter === 'attention') return health.actionable || health.blocked || health.tone === 'danger' || health.tone === 'warn';
-  if (serviceFilter === 'tunable') return TUNABLE_SOURCES.has(key) || !!SERVICE_FLAG[key];
-  if (serviceFilter === 'testable') return TESTABLE.has(key);
-  return true;
-}
-
 function renderServices() {
   const container = $('#servicesContainer');
   if (!container) return;
@@ -1015,23 +1009,46 @@ function renderServices() {
   );
   const rows = providerRows();
   const cfg = sourceConfig || {};
-  const html = PROVIDER_GROUPS.map(([label, keys]) => {
-    const cards = keys.map(svc => {
-      const row = serviceRow(svc, rows);
-      const health = classifyProviderHealth(row);
-      return serviceMatchesFilter(svc, health) ? serviceCardHTML(svc, row, health, cfg, openSet) : '';
-    }).filter(Boolean);
-    if (!cards.length) return '';
-    return `<div class="admin-service-group"><h3>${escapeHtml(label)}</h3>${cards.join('')}</div>`;
-  }).join('');
-  const footer = html && Object.keys(cfg).length
+  const card = (svc) => {
+    const row = serviceRow(svc, rows);
+    return { svc, row, health: classifyProviderHealth(row) };
+  };
+  const renderCard = (c) => serviceCardHTML(c.svc, c.row, c.health, cfg, openSet);
+
+  let body = '';
+  if (serviceTab === 'attention') {
+    // Triage across every category: only services that need attention, grouped
+    // so it's clear which area each belongs to.
+    body = PROVIDER_GROUPS.map(([label, keys]) => {
+      const cards = keys.map(card)
+        .filter(c => c.health.actionable || c.health.blocked || c.health.tone === 'danger' || c.health.tone === 'warn')
+        .map(renderCard);
+      return cards.length ? `<div class="admin-service-group"><h3>${escapeHtml(label)}</h3>${cards.join('')}</div>` : '';
+    }).join('');
+    if (!body) {
+      container.innerHTML = `<div class="admin-empty-state">${I.check()}<strong>Nothing needs attention.</strong><span>All services look healthy — tap a category tab to browse or tune them.</span></div>`;
+      return;
+    }
+    container.innerHTML = body;
+    return;
+  }
+
+  // A single category tab: show every service in that group, no sub-header
+  // (the active tab already names the category).
+  const group = PROVIDER_GROUPS.find(([label]) => label === serviceTab);
+  const keys = group ? group[1] : [];
+  const cards = keys.map(card).map(renderCard).filter(Boolean);
+  body = cards.length ? `<div class="admin-service-group">${cards.join('')}</div>` : '';
+  // The reset-to-defaults escape hatch lives with the tunable sources.
+  const showReset = (serviceTab === 'Pricing' || serviceTab === 'Scraping') && Object.keys(cfg).length;
+  const footer = body && showReset
     ? `<div class="admin-service-footer">
-        <span>Pricing knobs live on each Pricing and Scraping service above.</span>
+        <span>Adjust weight, daily cap, and refresh on each service above.</span>
         <button type="button" class="btn-secondary admin-svc-reset" data-svc-reset>${I.refresh({ w: 16 })}<span>Reset pricing to defaults</span></button>
       </div>`
     : '';
-  container.innerHTML = (html + footer)
-    || `<div class="admin-empty-state">${I.info()}<strong>No services match this filter.</strong><span>Switch to All to see every service.</span></div>`;
+  container.innerHTML = (body + footer)
+    || `<div class="admin-empty-state">${I.info()}<strong>No services in this category.</strong><span>Pick another category tab.</span></div>`;
 }
 
 function serviceCardHTML(svc, row, health, cfg, openSet) {
