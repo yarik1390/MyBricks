@@ -596,3 +596,10 @@ CREATE TABLE IF NOT EXISTS bricklink_minifigs (
   year INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_bl_mf_norm ON bricklink_minifigs(norm_name);
+
+-- BrickLink no-data backoff: stamped when a set's sold guide returns no reliable
+-- price (<5 lots). The valuation job skips that set's BrickLink calls for 90 days
+-- so the ~5,000/day API budget isn't spent re-querying sets that will never have
+-- data. Cleared (set NULL) the moment a BrickLink price does come back. Lives in
+-- the set_market_ext side table because lego_sets is at D1's 100-column ceiling.
+ALTER TABLE set_market_ext ADD COLUMN bl_nodata_at TEXT;

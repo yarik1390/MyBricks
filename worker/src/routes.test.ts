@@ -116,7 +116,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         set_num TEXT PRIMARY KEY,
         pc_loose_value REAL, pc_sales_volume INTEGER,
         pa_retail_value REAL, pa_lowest_offer REAL, pa_in_stock INTEGER,
-        pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT
+        pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT,
+        bl_nodata_at TEXT
       )`,
       `CREATE TABLE set_value_history (
         set_num TEXT NOT NULL, snapshot_date TEXT NOT NULL,
@@ -1559,7 +1560,8 @@ describe('Kids PIN and XP', () => {
       `CREATE TABLE set_market_ext (
         set_num TEXT PRIMARY KEY, pc_loose_value REAL, pc_sales_volume INTEGER,
         pa_retail_value REAL, pa_lowest_offer REAL, pa_in_stock INTEGER,
-        pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT
+        pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT,
+        bl_nodata_at TEXT
       )`,
       `INSERT INTO lego_sets (set_num, name, theme, current_value, retail_price)
        VALUES ('75192', 'Millennium Falcon', 'Star Wars', 849.99, 799.99)`,

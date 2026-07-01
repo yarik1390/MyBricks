@@ -169,10 +169,11 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   // cached valuations. With scope='all' this steadily covers the whole catalog.
   const { results } = await env.DB.prepare(`
     SELECT DISTINCT ls.set_num, ls.name, ls.theme, ls.year, ls.pieces, ls.minifigs, ls.retired,
-      ls.retail_price, ls.ebay_ask_value,
+      ls.retail_price, ls.ebay_ask_value, sme.bl_nodata_at,
       ls.be_value_new, ls.be_value_used, ls.be_forecast_2y, ls.be_forecast_5y, ls.be_retail, ls.be_growth_12m,
       (ls.ebay_ask_cached_at IS NULL OR ls.ebay_ask_cached_at < datetime('now', '-7 days')) AS ask_stale
     FROM lego_sets ls
+    LEFT JOIN set_market_ext sme ON sme.set_num = ls.set_num
     WHERE 1=1
       ${freshnessPredicate}
       ${valuePredicate}
@@ -185,15 +186,32 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       COALESCE(ls.valuation_expires_at, ls.cached_at, '2000-01-01') ASC,
       ls.set_num ASC
     LIMIT ?
-  `).bind(limit).all<{ set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number; retired: number; retail_price: number | null; ebay_ask_value: number | null; be_value_new: number | null; be_value_used: number | null; be_forecast_2y: number | null; be_forecast_5y: number | null; be_retail: number | null; be_growth_12m: number | null; ask_stale: number }>();
+  `).bind(limit).all<{ set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number; retired: number; retail_price: number | null; ebay_ask_value: number | null; bl_nodata_at: string | null; be_value_new: number | null; be_value_used: number | null; be_forecast_2y: number | null; be_forecast_5y: number | null; be_retail: number | null; be_growth_12m: number | null; ask_stale: number }>();
+
+  // 90-day BrickLink no-data backoff: a set stamped bl_nodata_at (sold guide had
+  // <5 lots) is skipped so the ~5,000/day budget goes to sets that have data.
+  // Shared by the up-front reserve and the per-set loop so the two never drift.
+  const blBackedOffAt = (v: string | null | undefined): boolean => {
+    if (!v) return false;
+    const s = String(v);
+    const ts = Date.parse(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
+    return Number.isFinite(ts) && ts > Date.now() - 90 * 86400000;
+  };
 
   // Reserve today's external-API budget for this batch up front (2-3 D1
   // round-trips total) for accounting/visibility; these budgets are far above
   // any single run. BrickEconomy is no longer reserved here — its values come
   // from the be_* columns (Firecrawl-populated by brickeconomy-enrich), not a
   // per-set API call, so the ~$1,000/mo BrickEconomy API is off the hot path.
+  // BrickLink is reserved to match the two budget savers below: backed-off sets
+  // cost 0, and only retired sets pay for the USED guide (modern sets skip it),
+  // so the ledger reflects real spend instead of a flat 2/set over-count.
+  const blReserve = results.reduce(
+    (n, s) => (blBackedOffAt(s.bl_nodata_at) ? n : n + (s.retired ? 2 : 1)),
+    0,
+  );
   await reserveQuota(env, {
-    bricklink: results.length * 2,
+    bricklink: blReserve,
     brickowl: (includeSupplemental && brickOwlEnabled(env)) ? results.length : 0,
     ebay: includeEbay ? results.length * (includeEbaySold ? 2 : 1) : 0,
   });
@@ -320,6 +338,16 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     // Detail-page refreshes still fan out across providers.
     let blPricing: { current_value: number; lot_count: number; min_price: number | null; max_price: number | null } | null = null;
 
+    // BrickLink budget savers (5,000/day API limit):
+    //  • no-data backoff — a set whose sold guide has no reliable price (<5 lots)
+    //    is stamped bl_nodata_at and its BrickLink calls are skipped for 90 days,
+    //    so we stop re-querying sets that will never have data every cycle.
+    //  • conditional used — only retired sets fetch the USED guide (used market is
+    //    negligible for modern sealed sets); this ~halves calls-per-set.
+    const blBackedOff = blBackedOffAt(set.bl_nodata_at);
+    const wantUsed = !!set.retired;
+    let blAttempted = false;
+
     // BrickEconomy values come from the be_* staging columns populated by the
     // brickeconomy-enrich Firecrawl cron — no hot-path API call (the ~$1,000/mo
     // API is gone). Shaped like the old API response so the plausibility gate +
@@ -355,11 +383,12 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       }
     }
 
-    if (includeSupplemental) {
+    if (includeSupplemental && !blBackedOff) {
+      blAttempted = true;
       blPricing = await fetchSetPricing(set.set_num, env, sourceOptions)
         .catch((err) => { tallyFail('bricklink', err); return null; });
       if (blPricing) tallyOk('bricklink');
-      if (!usedPricing) {
+      if (!usedPricing && wantUsed) {
         usedPricing = await fetchUsedPricing(set.set_num, env, sourceOptions)
           .catch((err) => { tallyFail('bricklink', err); return null; });
         if (usedPricing) tallyOk('bricklink');
@@ -378,26 +407,28 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
 
     if (!pricing) {
       // BrickEconomy not configured or returned no data — use BrickLink as primary
-      if (!blPricing || !usedPricing) {
+      // (still honoring the no-data backoff + retired-only used-guide savers).
+      if (!blBackedOff) {
         if (!blPricing) {
+          blAttempted = true;
           blPricing = await fetchSetPricing(set.set_num, env, sourceOptions)
             .catch((err) => { tallyFail('bricklink', err); return null; });
           if (blPricing) tallyOk('bricklink');
         }
-        if (!usedPricing) {
+        if (!usedPricing && wantUsed) {
           usedPricing = await fetchUsedPricing(set.set_num, env, sourceOptions)
             .catch((err) => { tallyFail('bricklink', err); return null; });
           if (usedPricing) tallyOk('bricklink');
         }
-        if (includeEbay && includeEbaySold && !ebayBlocked && ebayPrices === null) {
-          ebayPrices = await fetchEbaySoldPrices(set.set_num, set.name, env, sourceOptions)
-            .catch(async (err) => {
-              tallyFail('ebay', err);
-              if (isEbayAccessError((err as Error)?.message || String(err))) await markEbayBlocked();
-              return null;
-            });
-          await tallyEbayResult(ebayPrices);
-        }
+      }
+      if (includeEbay && includeEbaySold && !ebayBlocked && ebayPrices === null) {
+        ebayPrices = await fetchEbaySoldPrices(set.set_num, set.name, env, sourceOptions)
+          .catch(async (err) => {
+            tallyFail('ebay', err);
+            if (isEbayAccessError((err as Error)?.message || String(err))) await markEbayBlocked();
+            return null;
+          });
+        await tallyEbayResult(ebayPrices);
       }
       pricing = blPricing;
       valMethod = 'market';
@@ -432,6 +463,24 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       supplementStmts.push(
         env.DB.prepare(`UPDATE lego_sets SET bl_new_value=?, bl_new_qty=?, bl_new_min=?, bl_new_max=?, bl_cached_at=datetime('now') WHERE set_num=?`)
           .bind(blPricing.current_value, blPricing.lot_count, blPricing.min_price ?? null, blPricing.max_price ?? null, set.set_num)
+      );
+      // Data came back — clear a stale no-data backoff stamp (only if one existed,
+      // so successful sets that were never backed off skip this extra write).
+      if (set.bl_nodata_at) {
+        supplementStmts.push(
+          env.DB.prepare('UPDATE set_market_ext SET bl_nodata_at=NULL WHERE set_num=?').bind(set.set_num)
+        );
+      }
+    } else if (blAttempted) {
+      // Called BrickLink but the sold guide had no reliable price (<5 lots).
+      // Stamp so the 90-day backoff skips this set on future cycles and the
+      // API budget goes to sets that actually have data. UPSERT — the set may
+      // not have a set_market_ext row yet.
+      supplementStmts.push(
+        env.DB.prepare(
+          `INSERT INTO set_market_ext (set_num, bl_nodata_at) VALUES (?1, datetime('now'))
+           ON CONFLICT(set_num) DO UPDATE SET bl_nodata_at=datetime('now')`
+        ).bind(set.set_num)
       );
     }
     const hasBrickLinkUsedMeta = usedPricing?.lot_count != null

@@ -379,7 +379,10 @@ export default {
       case '0 14 * * *': await run('image-prewarm', () => runImagePrewarm(env, { limit: 100, concurrency: 3 })); break;
       // Upcoming/coming-soon release feed (G2b): one LEGO.com listing scrape/day.
       case '0 15 * * *': await run('upcoming-refresh', () => runUpcomingRefresh(env)); break;
-      case '0 16 * * *': await run('pricecharting-enrich', () => runPriceChartingEnrich(env, { limit: 50 })); break;
+      // PriceCharting is free (no BrickLink budget) and a genuine 2nd sold-comp
+      // source, so it's the cheapest coverage lever: limit 50 → 120/day, concurrency
+      // 8 keeps wall-time ~15s (≤240 subrequests, well under the scheduled cap).
+      case '0 16 * * *': await run('pricecharting-enrich', () => runPriceChartingEnrich(env, { limit: 120, concurrency: 8 })); break;
       // pricesAPI live-retail runs in 3 daily slots (~18 sets/day) now that the
       // key pool spreads the monthly budget; cold calls are 30–90s so each slot
       // stays small. The job prioritizes owned/wishlisted sets first.
