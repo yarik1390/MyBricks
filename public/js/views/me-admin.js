@@ -364,7 +364,19 @@ function populateSectionHTML() {
     <div class="admin-tool-grid">
       ${maintenanceCardHTML('expire')}
       ${maintenanceCardHTML('repair')}
-    </div>`;
+    </div>
+    <article class="admin-tool-card admin-upload-card">
+      <div class="admin-tool-icon">${I.download()}</div>
+      <div>
+        <h3>Import BrickLink minifig catalog</h3>
+        <p class="admin-tool-desc">Upload BrickLink's Minifigures export (the tab-separated file) to map minifig IDs so BrickLink minifig prices resolve.</p>
+        <small id="blMinifigUploadResult">Choose the exported Minifigures file (tab format).</small>
+      </div>
+      <label class="btn-secondary admin-upload-btn">
+        ${I.upload ? I.upload({ w: 16 }) : I.download({ w: 16 })}<span>Upload</span>
+        <input type="file" id="blMinifigFile" accept=".txt,.xml,.tsv,.csv,text/plain,text/xml,text/tab-separated-values" hidden>
+      </label>
+    </article>`;
 }
 
 function maintenanceCardHTML(key) {
@@ -399,6 +411,7 @@ function wireAdminShell() {
       triggerImport(tool);
     });
   });
+  $('#blMinifigFile')?.addEventListener('change', (e) => importBlMinifigCatalog(e.target));
   document.querySelectorAll('[data-maint-tool]').forEach(btn => {
     btn.addEventListener('click', () => triggerMaintenance(btn.getAttribute('data-maint-tool')));
   });
@@ -590,6 +603,26 @@ async function triggerMaintenance(type) {
     await updateIntegrationsHealth();
   } catch (e) {
     toast(`${tool.label} failed: ${e.message || e}`, 'error');
+  }
+}
+
+// Upload BrickLink's Minifigures catalog export (tab file) so minifig pricing can
+// resolve Rebrickable figs to BrickLink ids. Sends the file body verbatim.
+async function importBlMinifigCatalog(input) {
+  const file = input?.files?.[0];
+  const out = $('#blMinifigUploadResult');
+  if (!file) return;
+  if (out) out.textContent = `Uploading ${file.name}…`;
+  try {
+    const text = await file.text();
+    const r = await api('/api/admin/import-bricklink-minifigs', { method: 'POST', rawBody: text });
+    if (out) out.textContent = `Imported ${Number(r.inserted ?? 0).toLocaleString()} of ${Number(r.parsed ?? 0).toLocaleString()} minifigs. They map to prices as they're valued.`;
+    toast(`BrickLink minifig catalog: ${Number(r.inserted ?? 0).toLocaleString()} imported`, 'success');
+  } catch (e) {
+    if (out) out.textContent = `Failed: ${e.message || e}`;
+    toast(`Catalog upload failed: ${e.message || e}`, 'error');
+  } finally {
+    input.value = '';
   }
 }
 

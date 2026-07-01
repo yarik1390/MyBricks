@@ -862,19 +862,23 @@ export async function api(path, opts = {}) {
   }
   const geminiKey = localStorage.getItem('bv_gemini_key');
   const openaiKey = localStorage.getItem('bv_openai_key');
+  // rawBody sends a plain-text body verbatim (e.g. a tab-separated upload) — the
+  // server reads it via req.text(); JSON.stringify would escape tabs and break it.
+  const isRaw = typeof opts.rawBody === 'string';
   const init = {
     ...opts,
     cache: "no-store",
     headers: {
-      "content-type": "application/json",
+      "content-type": isRaw ? "text/plain; charset=utf-8" : "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(geminiKey ? { "X-Gemini-Key": geminiKey } : {}),
       ...(openaiKey ? { "X-OpenAI-Key": openaiKey } : {}),
       ...(opts.headers || {}),
     },
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
+    body: isRaw ? opts.rawBody : (opts.body ? JSON.stringify(opts.body) : undefined),
   };
   delete init.stream;
+  delete init.rawBody;
   const _url = (window.WORKER_BASE || '') + path;
   let r;
   try {

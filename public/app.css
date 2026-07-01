@@ -4533,6 +4533,20 @@ body.advisor-open #advisorFab {
   align-items: center;
   padding: 12px;
 }
+/* Upload card reuses the tool-card look but its action is a wider label-button. */
+.admin-upload-card {
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  margin-top: 10px;
+}
+.admin-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  white-space: nowrap;
+  cursor: pointer;
+}
 
 .admin-tool-card-muted {
   background: var(--surface-2);

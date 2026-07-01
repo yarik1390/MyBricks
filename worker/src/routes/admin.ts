@@ -18,6 +18,7 @@ import { runBlendRecomputeBackfill } from '../jobs/recompute-blends';
 import { resetKeyPool } from '../lib/brightdata-keys';
 import { runEbaySoldScrape } from '../jobs/ebay-sold-scrape';
 import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricecharting-bulk';
+import { importBrickLinkMinifigs } from '../jobs/import-bricklink-minifigs';
 import { getKeyPoolStatus } from '../lib/pricesapi-keys';
 import { getKeyPoolStatus as getBrightDataPoolStatus } from '../lib/brightdata-keys';
 import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG } from '../lib/source-config';
@@ -532,6 +533,24 @@ app.post('/pricecharting-bulk', async (c) => {
     runPriceChartingBulk(c.env, csv).catch((e) => console.warn('[pc-bulk] failed:', (e as Error).message)),
   );
   return c.json({ ok: true, status: 'running', note: 'Bulk import started; check integrations diagnostics for the result.' });
+});
+
+// Import BrickLink's minifig catalog export (TAB-separated: Category ID /
+// Category Name / Number / Name / Year / Weight) into bricklink_minifigs, so
+// minifig valuation can resolve each Rebrickable fig to its BrickLink id.
+// Idempotent; re-upload to refresh with newer series.
+app.post('/import-bricklink-minifigs', async (c) => {
+  const text = await c.req.text().catch(() => '');
+  if (!text.trim() || text.indexOf('\t') < 0) {
+    return c.json({ error: 'Empty or malformed catalog. Expected the tab-separated BrickLink minifig export.' }, 400);
+  }
+  try {
+    const res = await importBrickLinkMinifigs(c.env, text);
+    if (!res.parsed) return c.json({ error: 'No minifig rows parsed — check the file is the BrickLink Minifigures tab export.' }, 400);
+    return c.json({ ok: true, ...res });
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 500);
+  }
 });
 
 // On-demand PriceCharting LEGO bulk fetch — downloads the lego-sets CSV directly
