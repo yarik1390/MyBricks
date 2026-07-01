@@ -905,7 +905,10 @@ function brightDataPoolHTML() {
     const used = Number(e.used || 0);
     const cap = Number(e.cap || 5000);
     const left = Number(e.remaining ?? Math.max(0, cap - used));
-    const flag = e.exhausted ? ' (exhausted)' : '';
+    // A key latched as "exhausted" while barely used almost certainly failed
+    // auth (invalid/revoked token) rather than draining its budget — label it so
+    // it's clear the token should be dropped, not waited out.
+    const flag = e.exhausted ? (used < 100 ? ' (rejected — likely invalid token)' : ' (exhausted)') : '';
     return `<div>…${escapeHtml(String(e.key_hash || '').slice(0, 8))} — ${used.toLocaleString()}/${cap.toLocaleString()} credits${escapeHtml(flag)} · ${left.toLocaleString()} left</div>`;
   }).join('');
   return `<details class="admin-job-details" open><summary>Key pool — monthly spend: ${escapeHtml(head)}</summary><div class="admin-bd-pool">${rows}</div></details>`;
@@ -1107,13 +1110,14 @@ async function runServiceProbe(svc, btn) {
   haptic('light');
   try {
     const r = await api(`/api/admin/test/${encodeURIComponent(svc)}`, { method: 'POST' });
-    const tone = r.ok ? 'ok' : r.status === 'unconfigured' ? 'warn' : 'danger';
-    const head = r.ok ? 'OK' : r.status || 'error';
+    const degraded = r.status === 'degraded';
+    const tone = degraded ? 'warn' : r.ok ? 'ok' : r.status === 'unconfigured' ? 'warn' : 'danger';
+    const head = degraded ? 'Degraded' : r.ok ? 'OK' : r.status || 'error';
     if (box) {
       box.className = `admin-svc-test-result ${tone}`;
       box.textContent = `${head} — ${r.detail || ''} (${r.ms}ms)`;
     }
-    toast(`${providerLabel(svc)}: ${head}`, r.ok ? 'success' : r.status === 'unconfigured' ? 'info' : 'error');
+    toast(`${providerLabel(svc)}: ${head}`, degraded ? 'info' : r.ok ? 'success' : r.status === 'unconfigured' ? 'info' : 'error');
   } catch (e) {
     if (box) { box.className = 'admin-svc-test-result danger'; box.textContent = `Failed: ${e.message || e}`; }
     toast(`${providerLabel(svc)} test failed`, 'error');

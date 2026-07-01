@@ -104,14 +104,26 @@ const PROBES: Record<string, Probe> = {
     const keys = configuredKeys(env);
     if (!keys.length) return configured('no BRIGHTDATA_API_TOKEN(S)');
     const zone = String(env.BRIGHTDATA_ZONE || 'web_unlocker1');
-    const r = await http('POST', 'https://api.brightdata.com/request', {
-      headers: { Authorization: `Bearer ${keys[0]}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ zone, url: 'https://geo.brdtest.com/welcome.txt?product=unlocker&method=api', format: 'raw' }),
-      timeoutMs: 25000,
-    });
-    if (r.status === 200) return ok(`Web Unlocker OK on zone '${zone}'`);
-    if (r.status === 400) return err(`HTTP 400 (zone '${zone}' not found for this token?)`);
-    return err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
+    // Test EVERY configured token, not just the first. A single bad/rejected token
+    // must not make the whole service look down — real scraping rotates to a live
+    // key (that's why "Last OK" can be recent while a stale keys[0] 400s here).
+    const results = await Promise.all(keys.map(async (key) => {
+      const r = await http('POST', 'https://api.brightdata.com/request', {
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zone, url: 'https://geo.brdtest.com/welcome.txt?product=unlocker&method=api', format: 'raw' }),
+        timeoutMs: 25000,
+      });
+      return { status: r.status, text: r.text };
+    }));
+    const good = results.filter((r) => r.status === 200).length;
+    const bad = results.find((r) => r.status !== 200);
+    if (good === keys.length) return ok(`all ${keys.length} key(s) OK on zone '${zone}'`);
+    const detail = `${good}/${keys.length} key(s) OK on '${zone}'; ${keys.length - good} rejected`
+      + (bad ? ` (e.g. HTTP ${bad.status}: ${bad.text.slice(0, 50)})` : '')
+      + '. Drop the rejected token(s) from BRIGHTDATA_API_TOKENS.';
+    // Some keys work → the service is usable; flag as degraded, not down.
+    if (good > 0) return { ok: true, status: 'degraded', detail };
+    return err(detail);
   },
 
   async firecrawl(env) {
@@ -133,10 +145,20 @@ const PROBES: Record<string, Probe> = {
 
   async pricecharting(env) {
     if (!env.PRICECHARTING_TOKEN) return configured('PRICECHARTING_TOKEN not set');
-    const r = await http('GET', `https://www.pricecharting.com/api/product?t=${encodeURIComponent(String(env.PRICECHARTING_TOKEN))}&id=lego-${TEST_SET}`);
+    // Use the real /api/products search path. The per-set /api/product?id= call
+    // needs PriceCharting's OWN numeric product id, so passing a LEGO set number
+    // ("lego-75192-1") always returns "No such product" even with a perfectly
+    // valid token — a false negative. A search returns a products array whenever
+    // the token is accepted.
+    const t = encodeURIComponent(String(env.PRICECHARTING_TOKEN));
+    const r = await http('GET', `https://www.pricecharting.com/api/products?q=${encodeURIComponent('lego star wars')}&t=${t}`);
     try {
-      const j = JSON.parse(r.text) as { status?: string; 'error-message'?: string };
-      return j.status !== 'error' ? ok('token accepted') : err(j['error-message'] || 'token rejected');
+      const j = JSON.parse(r.text) as { status?: string; 'error-message'?: string; products?: unknown[] };
+      if (j.status === 'success' || Array.isArray(j.products)) {
+        const n = Array.isArray(j.products) ? j.products.length : 0;
+        return ok(`token valid — search returned ${n} product(s)`);
+      }
+      return err(j['error-message'] || `unexpected response: ${r.text.slice(0, 80)}`);
     } catch { return err(`HTTP ${r.status}: ${r.text.slice(0, 100)}`); }
   },
 
@@ -167,7 +189,20 @@ const PROBES: Record<string, Probe> = {
   async resend(env) {
     if (!env.RESEND_API_KEY) return configured('RESEND_API_KEY not set');
     const r = await http('GET', 'https://api.resend.com/domains', { headers: { Authorization: `Bearer ${env.RESEND_API_KEY}` }, timeoutMs: 12000 });
-    return r.status === 200 ? ok('key valid') : err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
+    if (r.status === 200) return ok('key valid (full access)');
+    // A send-only ("restricted") Resend key can't list domains but is valid for
+    // its only job here — sending transactional email. Resend returns 401 with
+    // name "restricted_api_key" for such keys; a genuinely bad key returns a
+    // different error. Treat the restricted case as healthy, not a failure.
+    if (r.status === 401 || r.status === 403) {
+      try {
+        const j = JSON.parse(r.text) as { name?: string; message?: string };
+        if (j.name === 'restricted_api_key' || /restricted to only send/i.test(String(j.message || ''))) {
+          return ok('key valid (send-only scope — can send email, cannot list domains)');
+        }
+      } catch { /* fall through to error */ }
+    }
+    return err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
   },
 
   async turnstile(env) {
