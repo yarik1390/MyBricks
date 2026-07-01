@@ -21,7 +21,6 @@ let adminJobPollTimer = null;
 let populateEverythingAuto = false;
 let populateEverythingContinueTimer = null;
 let showAllJobs = false;
-let providerFilter = 'needs';
 let contributionTab = 'all';
 let sourceDirty = false;
 
@@ -42,7 +41,6 @@ const ADMIN_SECTIONS = [
   ['adminOverview', 'Overview'],
   ['adminPopulate', 'Populate'],
   ['adminJobs', 'Activity'],
-  ['adminProviders', 'Providers'],
   ['adminQuality', 'Catalog Quality'],
   ['adminSources', 'Source Tuning'],
   ['adminUsers', 'Users'],
@@ -324,19 +322,6 @@ export async function renderMeAdmin() {
         <div id="processesContainer" class="admin-process-wrap" aria-live="polite">Loading processes...</div>
       </section>
 
-      <section class="admin-section" id="adminProviders">
-        <div class="section-kicker">Provider readiness</div>
-        <h2 class="section-title">Providers</h2>
-        <div class="admin-provider-filters" role="tablist" aria-label="Provider filters">
-          ${providerFilterButtonHTML('needs', 'Needs action')}
-          ${providerFilterButtonHTML('quota', 'Quota')}
-          ${providerFilterButtonHTML('ready', 'Ready')}
-          ${providerFilterButtonHTML('optional', 'Optional')}
-          ${providerFilterButtonHTML('all', 'All')}
-        </div>
-        <div id="providersContainer" class="admin-provider-wrap">Loading providers...</div>
-      </section>
-
       <section class="admin-section" id="adminQuality">
         <div class="section-kicker">Catalog data quality</div>
         <h2 class="section-title">Catalog Quality</h2>
@@ -533,13 +518,6 @@ function wireAdminShell() {
   document.querySelectorAll('[data-maint-tool]').forEach(btn => {
     btn.addEventListener('click', () => triggerMaintenance(btn.getAttribute('data-maint-tool')));
   });
-  document.querySelectorAll('[data-provider-filter]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      providerFilter = btn.getAttribute('data-provider-filter') || 'needs';
-      renderProviderFilters();
-      renderProviders();
-    });
-  });
   document.querySelectorAll('[data-service-filter]').forEach(btn => {
     btn.addEventListener('click', () => {
       serviceFilter = btn.getAttribute('data-service-filter') || 'all';
@@ -590,29 +568,6 @@ function setupAdminSectionObserver() {
     });
   }, { rootMargin: '-20% 0px -65% 0px', threshold: [0, 0.2, 0.6] });
   sections.forEach(section => observer.observe(section));
-}
-
-function providerFilterButtonHTML(id, label) {
-  return `<button class="chip ${providerFilter === id ? 'active' : ''}" data-provider-filter="${escapeHtml(id)}" role="tab" aria-selected="${providerFilter === id}">${escapeHtml(label)}</button>`;
-}
-
-function renderProviderFilters() {
-  const wrap = document.querySelector('.admin-provider-filters');
-  if (!wrap) return;
-  wrap.innerHTML = [
-    providerFilterButtonHTML('needs', 'Needs action'),
-    providerFilterButtonHTML('quota', 'Quota'),
-    providerFilterButtonHTML('ready', 'Ready'),
-    providerFilterButtonHTML('optional', 'Optional'),
-    providerFilterButtonHTML('all', 'All'),
-  ].join('');
-  wrap.querySelectorAll('[data-provider-filter]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      providerFilter = btn.getAttribute('data-provider-filter') || 'needs';
-      renderProviderFilters();
-      renderProviders();
-    });
-  });
 }
 
 function contribTabButtonHTML(id, label) {
@@ -942,16 +897,13 @@ function jobDetails(run, state, progress) {
 async function updateIntegrationsHealth() {
   try {
     adminHealth = await api('/api/admin/integrations');
-    renderProviders();
     renderServices();
     renderCatalogQuality();
     renderAdminOverview();
     renderSourceTuning(sourceConfig);
   } catch (err) {
-    const providers = $('#providersContainer');
     const quality = $('#qualityContainer');
     const services = $('#servicesContainer');
-    if (providers) providers.innerHTML = errorPanelHTML('Provider health unavailable', err.message || String(err));
     if (services) services.innerHTML = errorPanelHTML('Service health unavailable', err.message || String(err));
     if (quality) quality.innerHTML = errorPanelHTML('Catalog quality unavailable', err.message || String(err));
   }
@@ -980,66 +932,6 @@ function providerRows() {
   addSynthetic('supabase', !!status.supabase, status.supabase ? 'ok' : 'down', 'Check Supabase URL, anon key, and JWT secret.');
   addSynthetic('worker', true, 'ok', 'No action needed.');
   return rows;
-}
-
-function renderProviders() {
-  const container = $('#providersContainer');
-  if (!container) return;
-  if (!adminHealth) {
-    container.textContent = 'Loading providers...';
-    return;
-  }
-  const rows = providerRows().map(row => ({ row, health: classifyProviderHealth(row), group: providerGroupFor(row.service) }));
-  const filtered = rows.filter(({ health }) => {
-    if (providerFilter === 'all') return true;
-    if (providerFilter === 'needs') return health.actionable || health.blocked || health.tone === 'danger';
-    if (providerFilter === 'quota') return health.quotaLimited;
-    if (providerFilter === 'ready') return health.ready;
-    if (providerFilter === 'optional') return health.optional;
-    return true;
-  });
-  if (!filtered.length) {
-    container.innerHTML = `<div class="admin-empty-state">${I.check()}<strong>No providers in this filter.</strong><span>Try All to see the full diagnostic list.</span></div>`;
-    return;
-  }
-  container.innerHTML = PROVIDER_GROUPS.map(([label]) => {
-    const groupRows = filtered.filter(x => x.group === label);
-    if (!groupRows.length) return '';
-    return `
-      <div class="admin-provider-group">
-        <h3>${escapeHtml(label)}</h3>
-        <div class="admin-provider-grid">${groupRows.map(providerCardHTML).join('')}</div>
-      </div>`;
-  }).join('') || filtered.map(providerCardHTML).join('');
-}
-
-function providerCardHTML({ row, health }) {
-  const service = String(row.service || row.name || 'provider');
-  const quota = quotaFor(service);
-  const statusBits = [
-    row.configured === false ? 'not configured' : 'configured',
-    row.status ? String(row.status) : 'unknown',
-    quota ? `${quota.used}/${quota.cap} quota` : '',
-  ].filter(Boolean);
-  return `
-    <article class="admin-provider-card ${health.tone}">
-      <div class="admin-provider-head">
-        <div>
-          <h4>${escapeHtml(providerLabel(service))}</h4>
-          <p>${escapeHtml(statusBits.join(' - '))}</p>
-        </div>
-        <span class="badge ${badgeClass(health.tone)}">${escapeHtml(health.label)}</span>
-      </div>
-      <div class="admin-provider-facts">
-        <span>Last OK: ${escapeHtml(ago(row.last_ok_at))}</span>
-        <span>Last fail: ${escapeHtml(ago(row.last_fail_at))}</span>
-        ${quota ? `<span>Remaining: ${escapeHtml(String(quota.remaining ?? Math.max(0, quota.cap - quota.used)))}</span>` : ''}
-      </div>
-      ${service.toLowerCase() === 'ebay' ? ebayStateHTML(health) : ''}
-      ${service.toLowerCase() === 'brightdata' ? brightDataPoolHTML() : ''}
-      <p class="admin-provider-action">${escapeHtml(health.action)}</p>
-      ${row.last_error ? `<details class="admin-job-details"><summary>Latest failure</summary><div>${escapeHtml(String(row.last_error).slice(0, 900))}</div></details>` : ''}
-    </article>`;
 }
 
 function ebayStateHTML(health) {
@@ -1780,8 +1672,8 @@ function renderAdminOverview() {
   ].join('');
   const actionItems = [
     ...hardJobs.slice(0, 2).map(run => actionItem('Hard job error', `Job #${run.id}: ${classifyJobRun(run).label}`, '#adminJobs', 'danger')),
-    ...blockedProviders.slice(0, 4).map(x => actionItem(`${providerLabel(x.row.service)} blocked`, x.health.action, '#adminProviders', 'danger')),
-    ...quotaProviders.slice(0, 3).map(x => actionItem(`${providerLabel(x.row.service)} quota`, x.health.action, '#adminProviders', 'warn')),
+    ...blockedProviders.slice(0, 4).map(x => actionItem(`${providerLabel(x.row.service)} blocked`, x.health.action, '#adminServices', 'danger')),
+    ...quotaProviders.slice(0, 3).map(x => actionItem(`${providerLabel(x.row.service)} quota`, x.health.action, '#adminServices', 'warn')),
     ...setupRows.filter(r => !r.ok).slice(0, 3).map(r => actionItem(r.optional ? 'Optional setup' : 'Setup needed', `${r.label}: ${r.missText}`, '#adminOverview', r.optional ? 'neutral' : 'warn')),
   ];
   if (!actionItems.length) actionItems.push(actionItem('Nothing urgent', 'Core systems look ready. Keep Populate all safe sources moving in small slices.', '#adminPopulate', 'ok'));
@@ -1809,12 +1701,6 @@ function actionItem(title, body, href, tone) {
 function quotaFor(service) {
   const name = String(service || '').toLowerCase();
   return (adminHealth?.quota || []).find(q => String(q.service || '').toLowerCase() === name) || null;
-}
-
-function providerGroupFor(service) {
-  const name = String(service || '').toLowerCase();
-  const found = PROVIDER_GROUPS.find(([, keys]) => keys.some(key => name.includes(key)));
-  return found ? found[0] : 'Optional';
 }
 
 function providerLabel(service) {
