@@ -449,6 +449,7 @@ function wireAdminShell() {
     if (e.key === 'Enter') searchUsers();
   });
   syncAdminNavOffset();
+  requestAnimationFrame(syncAdminNavOffset);
   window.removeEventListener('resize', syncAdminNavOffset);
   window.addEventListener('resize', syncAdminNavOffset);
   activateAdminSection(ADMIN_SECTIONS[0][0]);

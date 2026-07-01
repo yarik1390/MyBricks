@@ -82,7 +82,7 @@ html, body {
   text-rendering: optimizeLegibility;
 }
 body {
-  overflow-x: hidden;
+  overflow-x: clip;
   padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
   min-height: 100vh;
 }
@@ -91,13 +91,13 @@ body.advisor-open,
 body.scan-active {
   overflow: hidden;
 }
-/* Keep only the horizontal-pan guard: overflow-x: hidden (paired with
-   `touch-action: pan-y` on `.spark-wrap`) stops a chart swipe from dragging the
-   page sideways. The document scrollbar is intentionally NOT hidden — a visible
-   scrollbar preserves scroll-position feedback and is better for accessibility
-   on desktop. (Revisited per the audit follow-up: the global scrollbar-hide was
-   a diagnostic-era workaround for the chart bug, now fixed by touch-action.) */
-html, body { overflow-x: hidden; }
+/* Horizontal-pan guard: overflow-x: clip (paired with `touch-action: pan-y` on
+   `.spark-wrap`) stops a chart swipe from dragging the page sideways. Uses clip
+   rather than hidden so it does NOT create a scroll container — hidden here
+   silently disables `position: sticky` for descendants (e.g. the admin tab nav),
+   whereas clip preserves the pan guard while letting sticky work against the
+   viewport. The document scrollbar is intentionally NOT hidden. */
+html, body { overflow-x: clip; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 input, textarea, select { font: inherit; color: inherit; }
 a { color: inherit; text-decoration: none; }
