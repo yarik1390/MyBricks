@@ -380,16 +380,21 @@ export default {
       // Upcoming/coming-soon release feed (G2b): one LEGO.com listing scrape/day.
       case '0 15 * * *': await run('upcoming-refresh', () => runUpcomingRefresh(env)); break;
       // PriceCharting is free (no BrickLink budget) and a genuine 2nd sold-comp
-      // source, so it's the cheapest coverage lever: limit 50 → 120/day, concurrency
-      // 8 keeps wall-time ~15s (≤240 subrequests, well under the scheduled cap).
-      case '0 16 * * *': await run('pricecharting-enrich', () => runPriceChartingEnrich(env, { limit: 120, concurrency: 8 })); break;
+      // source. The DAILY bulk CSV (0 18) now covers the whole catalog, so this
+      // per-set path is just a small top-up for brand-new sets + the ~6% of PC
+      // rows the bulk can't match by set_num/UPC (search-by-name may catch them).
+      // Trimmed 120 → 40 accordingly.
+      case '0 16 * * *': await run('pricecharting-enrich', () => runPriceChartingEnrich(env, { limit: 40, concurrency: 8 })); break;
       // pricesAPI live-retail runs in 3 daily slots (~18 sets/day) now that the
       // key pool spreads the monthly budget; cold calls are 30–90s so each slot
       // stays small. The job prioritizes owned/wishlisted sets first.
       case '0 17 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 19 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 23 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
-      case '0 18 * * SUN': await run('pricecharting-bulk', () => runPriceChartingBulkFetch(env)); break;
+      // PriceCharting whole-catalog bulk CSV — DAILY (Legendary tier confirmed
+      // working; one ~2MB download refreshes all ~13k sets, well under the
+      // 1-per-10-min download limit).
+      case '0 18 * * *': await run('pricecharting-bulk', () => runPriceChartingBulkFetch(env)); break;
       // AI gap-fill: high-value formula sets that NO market source can price get a
       // free Gemini estimate (tries market first, AI only on a full miss). Small
       // limit + 3-day formula-head cooldown keep it well under the free tier; the
@@ -399,9 +404,6 @@ export default {
         includeSupplemental: false, includeEbay: false, includeAiFallback: true,
         subrequestBudget: 300,
       })); break;
-      // TEMPORARY one-time bootstrap: fill pc_new_value across the year>=2000 catalog.
-      // Runs 4x/hour at limit 150 concurrency 10; remove once pc_new_value is filled.
-      case '10,25,40,55 * * * *': await run('pc-bootstrap', () => runPriceChartingEnrich(env, { limit: 150, concurrency: 10 })); break;
       // TEMPORARY one-time bootstrap: fill be_value_new across the year>=2000
       // catalog (~22.4k sets). Runs 4x/hour at limit 150 (concurrency 5); the
       // total spend self-limits at ~112k credits (one scrape per set) and the

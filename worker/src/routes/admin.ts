@@ -1176,18 +1176,17 @@ function buildFirecrawlDiagnostics(
   // bootstrap, so a non-default cap is a reliable "bootstrap mode" signal.
   const bootstrapElevated = dailyCap > QUOTA_CAPS.firecrawl;
   const fillingBe = be.remaining > 0;
-  const fillingPc = pc.remaining > 0;
+  // The PriceCharting per-set bootstrap was retired once the DAILY bulk CSV
+  // (Legendary tier) took over whole-catalog coverage, so only the BrickEconomy
+  // Firecrawl bootstrap remains — this guidance concerns that trigger alone.
+  // pc_bootstrap fill % is still returned below as a coverage signal.
   let recommendedAction: string;
   if (!env.FIRECRAWL_API_KEY && !env.FIRECRAWL_API_KEYS) {
     recommendedAction = 'Add FIRECRAWL_API_KEY as a GitHub Actions secret to enable BrickEconomy/eBay scraping.';
-  } else if (fillingBe && fillingPc) {
-    recommendedAction = `Bootstrap in progress — BrickEconomy: ${be.pct}%, PriceCharting: ${pc.pct}%. Leave the 4x/hour crons running.`;
   } else if (fillingBe) {
-    recommendedAction = `BrickEconomy bootstrap in progress (${be.pct}% of ${be.eligible} sets). PriceCharting bootstrap complete.`;
-  } else if (fillingPc) {
-    recommendedAction = `PriceCharting bootstrap in progress (${pc.pct}% of ${pc.eligible} sets). BrickEconomy bootstrap complete — remove the "5,20,35,50 * * * *" trigger.`;
+    recommendedAction = `BrickEconomy bootstrap in progress (${be.pct}% of ${be.eligible} sets). Leave the "5,20,35,50 * * * *" trigger running.`;
   } else if (bootstrapElevated) {
-    recommendedAction = `Both bootstraps complete. Remove the temporary "5,20,35,50 * * * *" and "10,25,40,55 * * * *" triggers and reset FIRECRAWL_DAILY_CREDITS to the ${QUOTA_CAPS.firecrawl} default.`;
+    recommendedAction = `BrickEconomy bootstrap complete. Remove the temporary "5,20,35,50 * * * *" trigger and reset FIRECRAWL_DAILY_CREDITS to the ${QUOTA_CAPS.firecrawl} default.`;
   } else {
     recommendedAction = 'Steady state — Firecrawl on the default daily ceiling.';
   }
@@ -1197,7 +1196,7 @@ function buildFirecrawlDiagnostics(
     credits_used_today: creditsUsedToday,
     daily_cap: dailyCap,
     credits_remaining: Math.max(0, dailyCap - creditsUsedToday),
-    bootstrap_enabled: bootstrapElevated && (fillingBe || fillingPc),
+    bootstrap_enabled: bootstrapElevated && fillingBe,
     bootstrap: be,
     pc_bootstrap: pc,
     recommended_action: recommendedAction,
