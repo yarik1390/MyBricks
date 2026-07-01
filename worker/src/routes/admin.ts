@@ -1174,21 +1174,21 @@ function buildFirecrawlDiagnostics(
   const keyCount = (env.FIRECRAWL_API_KEY ? 1 : 0) + extraKeys.length;
   // The ceiling is raised above the steady-state default only for the one-time
   // bootstrap, so a non-default cap is a reliable "bootstrap mode" signal.
+  // Both one-time catalog bootstraps (PriceCharting per-set + BrickEconomy) have
+  // been retired: PC coverage rides the daily bulk CSV, and the BrickEconomy sweep
+  // is complete (full year>=2000 pass; be.pct is BrickEconomy's real coverage
+  // ceiling, NOT unfinished work — the enrich stamps misses so they aren't
+  // re-scraped). So be.remaining > 0 is permanent and must NOT read as "in
+  // progress". A non-default cap now means someone manually re-raised credits.
+  // be/pc fill % are still returned as coverage signals.
   const bootstrapElevated = dailyCap > QUOTA_CAPS.firecrawl;
-  const fillingBe = be.remaining > 0;
-  // The PriceCharting per-set bootstrap was retired once the DAILY bulk CSV
-  // (Legendary tier) took over whole-catalog coverage, so only the BrickEconomy
-  // Firecrawl bootstrap remains — this guidance concerns that trigger alone.
-  // pc_bootstrap fill % is still returned below as a coverage signal.
   let recommendedAction: string;
   if (!env.FIRECRAWL_API_KEY && !env.FIRECRAWL_API_KEYS) {
     recommendedAction = 'Add FIRECRAWL_API_KEY as a GitHub Actions secret to enable BrickEconomy/eBay scraping.';
-  } else if (fillingBe) {
-    recommendedAction = `BrickEconomy bootstrap in progress (${be.pct}% of ${be.eligible} sets). Leave the "5,20,35,50 * * * *" trigger running.`;
   } else if (bootstrapElevated) {
-    recommendedAction = `BrickEconomy bootstrap complete. Remove the temporary "5,20,35,50 * * * *" trigger and reset FIRECRAWL_DAILY_CREDITS to the ${QUOTA_CAPS.firecrawl} default.`;
+    recommendedAction = `Firecrawl daily ceiling is ${dailyCap.toLocaleString()} — above the ${QUOTA_CAPS.firecrawl} steady-state default. If no manual catalog bootstrap is running, reset FIRECRAWL_DAILY_CREDITS to ${QUOTA_CAPS.firecrawl}.`;
   } else {
-    recommendedAction = 'Steady state — Firecrawl on the default daily ceiling.';
+    recommendedAction = `Steady state — Firecrawl on the ${QUOTA_CAPS.firecrawl}/day default; one-time catalog bootstraps retired. BrickEconomy coverage ${be.pct}% (its real ceiling); gap-fills via the manual bootstrap-brickeconomy workflow.`;
   }
   return {
     configured: !!env.FIRECRAWL_API_KEY || !!env.FIRECRAWL_API_KEYS,
@@ -1196,7 +1196,7 @@ function buildFirecrawlDiagnostics(
     credits_used_today: creditsUsedToday,
     daily_cap: dailyCap,
     credits_remaining: Math.max(0, dailyCap - creditsUsedToday),
-    bootstrap_enabled: bootstrapElevated && fillingBe,
+    bootstrap_enabled: bootstrapElevated,
     bootstrap: be,
     pc_bootstrap: pc,
     recommended_action: recommendedAction,

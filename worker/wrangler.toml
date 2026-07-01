@@ -56,8 +56,6 @@ crons = [
   # LEGO catalog (~13k sets). Daily now that the Legendary tier is confirmed
   # working: whole-catalog freshness for ~one download/day (rate limit is 1/10min).
   "0 18 * * *",
-  # TEMPORARY: one-time BrickEconomy bootstrap (remove after be_value_new is filled).
-  "5,20,35,50 * * * *",
   "15 * * * *",
   "30 * * * *",
 ]
@@ -68,10 +66,12 @@ crons = [
 # when AI_GATEWAY_ACCOUNT_ID is also present (uploaded as a secret in CI), so this
 # stays dormant until the gateway is provisioned + the account id is wired.
 AI_GATEWAY_ID = "brickvault"
-# TEMPORARY: raised Firecrawl daily credit ceiling for the one-time BrickEconomy
-# bootstrap (~5k sets/day at this rate). Reset to the default (omit → 2000/day)
-# once be_value_new is filled across the catalog.
-FIRECRAWL_DAILY_CREDITS = "30000"
+# Firecrawl daily credit ceiling — steady-state safety cap (guards against a
+# runaway day; actual spend is far lower). The one-time BrickEconomy catalog
+# bootstrap is complete (full year>=2000 sweep; ~67% populated = BrickEconomy's
+# real coverage ceiling), so this is back at the 2000/day default. The manual
+# bootstrap-brickeconomy.yml workflow handles any later gap-fills on demand.
+FIRECRAWL_DAILY_CREDITS = "2000"
 # pricesAPI.io live-retail layer opt-in. Non-secret toggle; the actual keys live
 # in the PRICESAPI_API_KEYS secret. Both this AND a key are required for the cron
 # to run (deliberate gate — cold calls are precious). Set to 0 to pause.
