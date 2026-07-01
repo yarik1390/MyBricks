@@ -1,0 +1,197 @@
+import type { Env } from '../types';
+import { fetchSetPricing } from './bricklink';
+import { fetchEbayActiveListings } from './ebay';
+import { configuredKeys } from './brightdata-keys';
+
+// ---------------------------------------------------------------------------
+// On-demand per-service health probes for the admin console. Each probe is
+// CHEAP and safe: a connectivity/auth check or a single minimal call — never a
+// full backfill. Reuses the real signed fetchers for OAuth providers (BrickLink,
+// eBay) so the test exercises the actual credential path. Every probe fails
+// closed to { ok:false } and never throws.
+// ---------------------------------------------------------------------------
+
+export interface ServiceTestResult {
+  service: string;
+  ok: boolean;
+  status: string;      // 'ok' | 'unconfigured' | 'error' | 'degraded'
+  detail: string;
+  ms: number;
+}
+
+const TEST_SET = '75192-1';
+
+async function http(
+  method: string,
+  url: string,
+  opts: { headers?: Record<string, string>; body?: string; timeoutMs?: number } = {},
+): Promise<{ status: number | null; text: string }> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 15000);
+  try {
+    const r = await fetch(url, { method, headers: opts.headers, body: opts.body, signal: ctrl.signal });
+    const text = await r.text();
+    return { status: r.status, text };
+  } catch (e) {
+    return { status: null, text: `${(e as Error).name}: ${(e as Error).message}` };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+const configured = (detail: string): { ok: boolean; status: string; detail: string } =>
+  ({ ok: false, status: 'unconfigured', detail });
+const ok = (detail: string) => ({ ok: true, status: 'ok', detail });
+const err = (detail: string) => ({ ok: false, status: 'error', detail });
+
+type Probe = (env: Env) => Promise<{ ok: boolean; status: string; detail: string }>;
+
+const PROBES: Record<string, Probe> = {
+  async d1(env) {
+    try {
+      const r = await env.DB.prepare('SELECT 1 AS ok').first<{ ok: number }>();
+      return r?.ok === 1 ? ok('D1 query returned') : err('unexpected D1 result');
+    } catch (e) { return err((e as Error).message); }
+  },
+
+  async supabase(env) {
+    if (!env.SUPABASE_URL) return configured('SUPABASE_URL not set');
+    const r = await http('GET', `${String(env.SUPABASE_URL).replace(/\/$/, '')}/auth/v1/health`, {
+      headers: env.SUPABASE_ANON_KEY ? { apikey: String(env.SUPABASE_ANON_KEY) } : {},
+    });
+    return r.status && r.status < 500 ? ok(`auth health HTTP ${r.status}`) : err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
+  },
+
+  async rebrickable(env) {
+    if (!env.REBRICKABLE_API_KEY) return configured('REBRICKABLE_API_KEY not set');
+    const r = await http('GET', 'https://rebrickable.com/api/v3/lego/sets/?page_size=1', {
+      headers: { Authorization: `key ${env.REBRICKABLE_API_KEY}`, Accept: 'application/json' },
+    });
+    return r.status === 200 ? ok('catalog reachable, key valid') : err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
+  },
+
+  async brickset(env) {
+    if (!env.BRICKSET_API_KEY) return configured('BRICKSET_API_KEY not set');
+    const r = await http('GET', `https://brickset.com/api/v3.asmx/checkKey?apiKey=${encodeURIComponent(String(env.BRICKSET_API_KEY))}`);
+    try {
+      const j = JSON.parse(r.text) as { status?: string };
+      return j.status === 'success' ? ok('checkKey: success') : err(`checkKey: ${j.status ?? r.text.slice(0, 80)}`);
+    } catch { return err(`HTTP ${r.status}: ${r.text.slice(0, 100)}`); }
+  },
+
+  async brickinsights() {
+    const r = await http('GET', `https://brickinsights.com/api/sets/${TEST_SET}`, { headers: { Accept: 'application/json' } });
+    return r.status === 200 ? ok('public API returned a rating') : err(`HTTP ${r.status}`);
+  },
+
+  async bricklink(env) {
+    if (!env.BRICKLINK_CONSUMER_KEY) return configured('BRICKLINK_CONSUMER_KEY not set');
+    try {
+      const p = await fetchSetPricing(TEST_SET, env, { recordHealth: false });
+      return p ? ok('signed price fetch OK') : err('signed call returned no data (check OAuth creds)');
+    } catch (e) { return err((e as Error).message); }
+  },
+
+  async ebay(env) {
+    if (!env.EBAY_APP_ID || !env.EBAY_CLIENT_SECRET) return configured('EBAY_APP_ID / EBAY_CLIENT_SECRET not set');
+    try {
+      const r = await fetchEbayActiveListings(TEST_SET, 'LEGO', env, { recordHealth: false });
+      return r ? ok('OAuth token + Browse search OK') : err('no result (check eBay credentials)');
+    } catch (e) { return err((e as Error).message); }
+  },
+
+  async brightdata(env) {
+    const keys = configuredKeys(env);
+    if (!keys.length) return configured('no BRIGHTDATA_API_TOKEN(S)');
+    const zone = String(env.BRIGHTDATA_ZONE || 'web_unlocker1');
+    const r = await http('POST', 'https://api.brightdata.com/request', {
+      headers: { Authorization: `Bearer ${keys[0]}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ zone, url: 'https://geo.brdtest.com/welcome.txt?product=unlocker&method=api', format: 'raw' }),
+      timeoutMs: 25000,
+    });
+    if (r.status === 200) return ok(`Web Unlocker OK on zone '${zone}'`);
+    if (r.status === 400) return err(`HTTP 400 (zone '${zone}' not found for this token?)`);
+    return err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
+  },
+
+  async firecrawl(env) {
+    const key = env.FIRECRAWL_API_KEY || (env.FIRECRAWL_API_KEYS?.split(',').map((k) => k.trim()).find(Boolean));
+    if (!key) return configured('no FIRECRAWL_API_KEY(S)');
+    const r = await http('POST', 'https://api.firecrawl.dev/v2/scrape', {
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://example.com', formats: ['markdown'] }),
+      timeoutMs: 25000,
+    });
+    return r.status === 200 ? ok('scrape OK (~1 credit)') : err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
+  },
+
+  async brickeconomy(env) {
+    // BrickEconomy is scraped via Firecrawl; a Firecrawl-key check is the proxy.
+    const res = await PROBES.firecrawl(env);
+    return { ok: res.ok, status: res.status, detail: `via Firecrawl — ${res.detail}` };
+  },
+
+  async pricecharting(env) {
+    if (!env.PRICECHARTING_TOKEN) return configured('PRICECHARTING_TOKEN not set');
+    const r = await http('GET', `https://www.pricecharting.com/api/product?t=${encodeURIComponent(String(env.PRICECHARTING_TOKEN))}&id=lego-${TEST_SET}`);
+    try {
+      const j = JSON.parse(r.text) as { status?: string; 'error-message'?: string };
+      return j.status !== 'error' ? ok('token accepted') : err(j['error-message'] || 'token rejected');
+    } catch { return err(`HTTP ${r.status}: ${r.text.slice(0, 100)}`); }
+  },
+
+  async pricesapi(env) {
+    const key = env.PRICESAPI_API_KEY || (env.PRICESAPI_API_KEYS?.split(',').map((k) => k.trim()).find(Boolean));
+    if (!key) return configured('no PRICESAPI_API_KEY(S)');
+    // Live pricesAPI calls are 30-90s each — don't spend one on a health check.
+    return ok('key present (a live call takes ~30-90s; use Populate → Run pricesAPI to spend one)');
+  },
+
+  async openrouter() {
+    const r = await http('GET', 'https://openrouter.ai/api/v1/models', { timeoutMs: 12000 });
+    return r.status === 200 ? ok('models endpoint reachable') : err(`HTTP ${r.status}`);
+  },
+
+  async gemini(env) {
+    if (!env.GEMINI_API_KEY) return configured('GEMINI_API_KEY not set');
+    const r = await http('GET', `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(String(env.GEMINI_API_KEY))}`, { timeoutMs: 12000 });
+    return r.status === 200 ? ok('key valid, models listed') : err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
+  },
+
+  async openai(env) {
+    if (!env.OPENAI_API_KEY) return configured('OPENAI_API_KEY not set');
+    const r = await http('GET', 'https://api.openai.com/v1/models', { headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}` }, timeoutMs: 12000 });
+    return r.status === 200 ? ok('key valid, models listed') : err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
+  },
+
+  async resend(env) {
+    if (!env.RESEND_API_KEY) return configured('RESEND_API_KEY not set');
+    const r = await http('GET', 'https://api.resend.com/domains', { headers: { Authorization: `Bearer ${env.RESEND_API_KEY}` }, timeoutMs: 12000 });
+    return r.status === 200 ? ok('key valid') : err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
+  },
+
+  async turnstile(env) {
+    return env.TURNSTILE_SITE_KEY ? ok('site key configured') : configured('TURNSTILE_SITE_KEY not set');
+  },
+  async patreon(env) {
+    return env.PATREON_URL ? ok(`configured (${String(env.PATREON_URL).slice(0, 60)})`) : configured('PATREON_URL not set');
+  },
+  async push(env) {
+    return env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY ? ok('VAPID keys configured') : configured('VAPID keys not set');
+  },
+};
+
+export const TESTABLE_SERVICES = Object.keys(PROBES);
+
+/** Run a single service's probe. Unknown service -> null. Always resolves. */
+export async function runServiceTest(env: Env, service: string): Promise<ServiceTestResult | null> {
+  const probe = PROBES[service];
+  if (!probe) return null;
+  const t0 = Date.now();
+  try {
+    const r = await probe(env);
+    return { service, ...r, ms: Date.now() - t0 };
+  } catch (e) {
+    return { service, ok: false, status: 'error', detail: (e as Error).message, ms: Date.now() - t0 };
+  }
+}

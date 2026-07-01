@@ -22,6 +22,7 @@ import { getKeyPoolStatus } from '../lib/pricesapi-keys';
 import { getKeyPoolStatus as getBrightDataPoolStatus } from '../lib/brightdata-keys';
 import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG } from '../lib/source-config';
 import { getFeatureFlags, saveFeatureFlags, applyFeatureFlags, FEATURE_FLAGS } from '../lib/feature-flags';
+import { runServiceTest, TESTABLE_SERVICES } from '../lib/service-tests';
 import { getRecentRuns, recordCronStart, recordCronFinish, summarizeResult } from '../lib/cron-runs';
 import { runPricesApiRetail } from '../jobs/pricesapi-retail';
 import { PROCESS_REGISTRY, GROUP_ORDER, processInfo } from '../lib/process-registry';
@@ -1027,6 +1028,15 @@ app.put('/feature-flags', async (c) => {
     pricesapi: pricesapiEnabled(c.env),
   };
   return c.json({ ok: true, overrides, effective });
+});
+
+// On-demand per-service test probe (cheap connectivity/auth check). Used by the
+// admin console's per-service Test button. See lib/service-tests.ts for probes.
+app.post('/test/:service', async (c) => {
+  const service = c.req.param('service');
+  const result = await runServiceTest(c.env, service);
+  if (!result) return c.json({ error: `Unknown service '${service}'. Valid: ${TESTABLE_SERVICES.join(', ')}` }, 400);
+  return c.json(result);
 });
 
 // Live "Activity" feed for the admin console: every background process with what

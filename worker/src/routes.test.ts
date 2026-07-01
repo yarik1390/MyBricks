@@ -461,6 +461,22 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.job).toBe('ebay-sold-scrape');
       expect(String(data.skipped || '')).toMatch(/neither/i);
     });
+
+    it('per-service test probe: d1 passes and an unknown service 400s', async () => {
+      const good = await app.fetch(new Request('http://localhost/api/admin/test/d1', {
+        method: 'POST', headers: auth(adminToken),
+      }), env);
+      expect(good.status).toBe(200);
+      const gd = await good.json<any>();
+      expect(gd.service).toBe('d1');
+      expect(gd.ok).toBe(true);
+      expect(typeof gd.ms).toBe('number');
+
+      const bad = await app.fetch(new Request('http://localhost/api/admin/test/not-a-service', {
+        method: 'POST', headers: auth(adminToken),
+      }), env);
+      expect(bad.status).toBe(400);
+    });
   });
 
   describe('GET /api/me', () => {
