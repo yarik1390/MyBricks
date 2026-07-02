@@ -113,9 +113,14 @@ export async function fetchUsedPricing(
       retries: options.retries,
       timeoutMs: options.timeoutMs,
     });
-    if (!resp.ok) return null;
+    // 404 → set has no used sold-guide entry (genuine no-data). Any other non-ok
+    // or API-error status is transient/credential — throw so a source outage is
+    // distinguishable from real no-data and reported accurately in run health.
+    if (resp.status === 404) return null;
+    if (!resp.ok) throw new Error(`bricklink used-sold HTTP ${resp.status}`);
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
-    if (body.meta?.code !== 200 || !body.data) return null;
+    if (body.meta?.code !== 200) throw new Error(`bricklink used-sold API code ${body.meta?.code ?? 'none'}`);
+    if (!body.data) return null;
     const d = body.data;
     const lotCount = Number(d.unit_quantity ?? 0);
     if (lotCount < 3) return null;
@@ -126,8 +131,8 @@ export async function fetchUsedPricing(
     const result = { used_value: used, lot_count: lotCount, min_price: minPrice, max_price: maxPrice };
     if (env.CACHE_KV) env.CACHE_KV.put(cacheKey, JSON.stringify(result), { expirationTtl: 21600 }).catch(() => {});
     return result;
-  } catch {
-    return null;
+  } catch (err) {
+    throw err instanceof Error ? err : new Error(String(err));
   }
 }
 
@@ -165,17 +170,24 @@ export async function fetchSetPricing(
       retries: options.retries,
       timeoutMs: options.timeoutMs,
     });
-    if (!resp.ok) return null;
+    // A 404 means the set genuinely has no BrickLink sold-guide entry → no data
+    // (a legitimate reason to back the set off). Any OTHER non-ok status is a
+    // transient/credential failure (429/5xx after retries, or 401/403) — THROW
+    // so callers can tell "the source failed" apart from "the set has no data"
+    // and never stamp a 90-day no-data backoff on a transient blip.
+    if (resp.status === 404) return null;
+    if (!resp.ok) throw new Error(`bricklink new-sold HTTP ${resp.status}`);
 
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
-    if (body.meta?.code !== 200 || !body.data) return null;
+    if (body.meta?.code !== 200) throw new Error(`bricklink new-sold API code ${body.meta?.code ?? 'none'}`);
+    if (!body.data) return null; // code 200 but empty guide → genuine no-data
 
     const d = body.data;
     const lotCount = Number(d.unit_quantity ?? 0);
-    if (lotCount < 5) return null; // require ≥5 sold lots for reliable pricing
+    if (lotCount < 5) return null; // require ≥5 sold lots for reliable pricing (genuine no-data)
 
     const current = parseFloat(String(d.qty_avg_price || d.avg_price || '')) || null;
-    if (!current) return null;
+    if (!current) return null; // lots present but no usable price → no-data
 
     const minPrice = parseFloat(String(d.min_price || '')) || null;
     const maxPrice = parseFloat(String(d.max_price || '')) || null;
@@ -183,8 +195,11 @@ export async function fetchSetPricing(
     const result = { current_value: current, lot_count: lotCount, min_price: minPrice, max_price: maxPrice };
     if (env.CACHE_KV) env.CACHE_KV.put(cacheKey, JSON.stringify(result), { expirationTtl: 21600 }).catch(() => {});
     return result;
-  } catch {
-    return null;
+  } catch (err) {
+    // Re-throw transient failures (network/abort/HTTP/API) so the caller can
+    // distinguish a source outage from genuine no-data. The no-key guard sits
+    // outside the try, so "not configured" still returns null (not an error).
+    throw err instanceof Error ? err : new Error(String(err));
   }
 }
 

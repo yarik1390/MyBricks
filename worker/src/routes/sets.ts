@@ -436,8 +436,8 @@ app.get('/:setnum', async (c) => {
         c.executionCtx.waitUntil(refreshPromise);
       } else if (c.env.BRICKLINK_CONSUMER_KEY) {
         const refreshPromise = Promise.all([
-          fetchSetPricing(activeSet.set_num as string, c.env),
-          fetchUsedPricing(activeSet.set_num as string, c.env),
+          fetchSetPricing(activeSet.set_num as string, c.env).catch(() => null),
+          fetchUsedPricing(activeSet.set_num as string, c.env).catch(() => null),
           fetchEbaySoldPrices(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null),
           askStale ? fetchEbayActiveListings(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null) : Promise.resolve(null),
         ]).then(async ([p, u, ebayPrices, askListings]) => {

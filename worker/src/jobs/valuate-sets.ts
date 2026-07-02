@@ -349,6 +349,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     const blBackedOff = blBackedOffAt(set.bl_nodata_at);
     const wantUsed = !!set.retired;
     let blAttempted = false;
+    // Set when the BrickLink NEW-sold fetch THROWS (a transient/credential
+    // outage, not genuine no-data). Gates the bl_nodata_at stamp below so a
+    // source blip never triggers a 90-day skip on a set that may have data.
+    let blErrored = false;
 
     // BrickEconomy values come from the be_* staging columns populated by the
     // brickeconomy-enrich Firecrawl cron — no hot-path API call (the ~$1,000/mo
@@ -388,7 +392,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     if (includeSupplemental && !blBackedOff) {
       blAttempted = true;
       blPricing = await fetchSetPricing(set.set_num, env, sourceOptions)
-        .catch((err) => { tallyFail('bricklink', err); return null; });
+        .catch((err) => { tallyFail('bricklink', err); blErrored = true; return null; });
       if (blPricing) tallyOk('bricklink');
       if (!usedPricing && wantUsed) {
         usedPricing = await fetchUsedPricing(set.set_num, env, sourceOptions)
@@ -414,7 +418,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         if (!blPricing) {
           blAttempted = true;
           blPricing = await fetchSetPricing(set.set_num, env, sourceOptions)
-            .catch((err) => { tallyFail('bricklink', err); return null; });
+            .catch((err) => { tallyFail('bricklink', err); blErrored = true; return null; });
           if (blPricing) tallyOk('bricklink');
         }
         if (!usedPricing && wantUsed) {
@@ -473,11 +477,14 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
           env.DB.prepare('UPDATE set_market_ext SET bl_nodata_at=NULL WHERE set_num=?').bind(set.set_num)
         );
       }
-    } else if (blAttempted) {
-      // Called BrickLink but the sold guide had no reliable price (<5 lots).
-      // Stamp so the 90-day backoff skips this set on future cycles and the
-      // API budget goes to sets that actually have data. UPSERT — the set may
-      // not have a set_market_ext row yet.
+    } else if (blAttempted && !blErrored) {
+      // Called BrickLink AND it answered cleanly, but the sold guide had no
+      // reliable price (404 / <5 lots / no usable avg). Stamp so the 90-day
+      // backoff skips this set on future cycles and the API budget goes to sets
+      // that actually have data. UPSERT — the set may not have a set_market_ext
+      // row yet. NB: gated on !blErrored so a transient outage (which THROWS out
+      // of fetchSetPricing) never masquerades as no-data and freezes a set for
+      // 90 days — it'll simply be retried on the next run.
       supplementStmts.push(
         env.DB.prepare(
           `INSERT INTO set_market_ext (set_num, bl_nodata_at) VALUES (?1, datetime('now'))
