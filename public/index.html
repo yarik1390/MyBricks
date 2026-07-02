@@ -28,17 +28,20 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Geist:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Spectral:wght@400;500;600&family=Baloo+2:wght@500;600;700;800&display=swap" rel="stylesheet">
+<!-- Warm the API + set-image origins so the first data/image fetch skips DNS+TLS. -->
+<link rel="preconnect" href="https://brickvault-api.zhydenko.workers.dev" crossorigin>
+<link rel="preconnect" href="https://cdn.rebrickable.com" crossorigin>
 <link rel="preload" href="/app.css" as="style">
 <link rel="preload" href="/js/app.js" as="script" crossorigin>
-<!-- Apply saved theme before the stylesheet to avoid a flash of the wrong theme. -->
-<script src="/theme-init.js"></script>
 <link rel="stylesheet" href="/app.css">
-<link rel="stylesheet" href="/skin-premium.css">
-<link rel="stylesheet" href="/skin-gold.css">
-<link rel="stylesheet" href="/skin-modular.css">
-<link rel="stylesheet" href="/skin-vivid.css">
-<link rel="stylesheet" href="/skin-kids.css">
+<!-- Only the ACTIVE skin is loaded — theme-init sets this href — instead of five
+     render-blocking skin sheets. Placed AFTER app.css so its rules win the cascade. -->
+<link rel="stylesheet" id="bvSkin">
+<!-- Sets the saved theme + active skin pre-paint AND loads Google Fonts
+     non-render-blocking. Runs after app.css so it can target #bvSkin; still
+     synchronous in <head>, so the theme is applied before first paint (no flash).
+     External file because the page CSP is script-src 'self'. -->
+<script src="/theme-init.js"></script>
 <link rel="icon" type="image/svg+xml" href="/icon.svg">
 </head>
 <body>

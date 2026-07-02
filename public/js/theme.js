@@ -48,9 +48,25 @@ export function setThemePref(pref) {
   applyTheme(pref);
 }
 
+// Load the given skin's stylesheet into the single #bvSkin <link>. theme-init
+// loads only the active skin at boot (avoiding 5 render-blocking sheets), so a
+// runtime switch must load the target on demand — served instantly from the SW
+// precache. retro/default has no skin file, so the href is cleared.
+function loadSkinCss(skin) {
+  const sk = document.getElementById('bvSkin');
+  if (!sk) return;
+  if (skin && skin !== 'retro' && SKINS.includes(skin)) {
+    const href = '/skin-' + skin + '.css';
+    if (sk.getAttribute('href') !== href) sk.href = href;
+  } else {
+    sk.removeAttribute('href');
+  }
+}
+
 export function applySkin(skin) {
   if (SKINS.includes(skin) && skin !== 'retro') document.documentElement.dataset.skin = skin;
   else delete document.documentElement.dataset.skin;
+  loadSkinCss(skin);
   updateMetaThemeColor();
 }
 
@@ -74,6 +90,7 @@ export function applyMode(mode) {
   } else if (mode === 'kids') {
     document.documentElement.dataset.mode = 'kids';
     document.documentElement.dataset.skin = 'kids';
+    loadSkinCss('kids');
   } else {
     delete document.documentElement.dataset.mode;
   }
