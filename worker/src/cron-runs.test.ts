@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { recordCronStart, recordCronFinish, getRecentRuns, summarizeResult } from './lib/cron-runs';
+import { recordCronStart, recordCronFinish, getRecentRuns, summarizeResult, sweepStaleCronRuns } from './lib/cron-runs';
 
 const db = (env as any).DB as D1Database;
 
@@ -61,6 +61,20 @@ describe('cron run tracking', () => {
     }
     const row = await db.prepare(`SELECT COUNT(*) AS n FROM cron_runs WHERE name='valuate-sets'`).first<{ n: number }>();
     expect(row!.n).toBe(5);
+  });
+
+  it('sweeps orphaned running rows older than the window, leaving fresh ones', async () => {
+    // A stale 'running' row (invocation killed 40 min ago) and a fresh one.
+    await db.prepare(`INSERT INTO cron_runs (name, started_at, status) VALUES ('stuck-job', datetime('now','-40 minutes'), 'running')`).run();
+    const fresh = await recordCronStart(env as any, 'live-job'); // started 'now'
+    const swept = await sweepStaleCronRuns(env as any, 30);
+    expect(swept).toBe(1);
+    const stuck = await db.prepare(`SELECT status, error, finished_at FROM cron_runs WHERE name='stuck-job'`).first<{ status: string; error: string; finished_at: string }>();
+    expect(stuck!.status).toBe('failed');
+    expect(stuck!.error).toMatch(/stale/);
+    expect(stuck!.finished_at).toBeTruthy();
+    const live = await db.prepare(`SELECT status FROM cron_runs WHERE id=?`).bind(fresh).first<{ status: string }>();
+    expect(live!.status).toBe('running'); // untouched
   });
 
   it('latest-per-name keeps processes separate', async () => {

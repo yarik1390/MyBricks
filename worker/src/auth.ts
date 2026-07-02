@@ -41,6 +41,15 @@ async function verifyJWT(token: string, env: Env): Promise<{ sub?: string; email
 
   if (payload.exp && payload.exp < Date.now() / 1000) return { error: 'expired token' };
   if (payload.role !== 'authenticated') return { error: 'not an authenticated role' };
+  // Defence-in-depth beyond the signature: reject a token minted for a different
+  // audience. Lenient — only reject a PRESENT, wrong `aud` so tokens lacking the
+  // claim still pass (no lockout risk). Supabase user access tokens use
+  // aud='authenticated'. (Strict `iss` enforcement is intentionally NOT added here
+  // without first verifying a live token's issuer — a wrong match locks everyone out.)
+  const aud = payload.aud;
+  if (aud != null && (Array.isArray(aud) ? !aud.includes('authenticated') : aud !== 'authenticated')) {
+    return { error: 'wrong audience' };
+  }
 
   const signed = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
   const sig = b64urlDecode(parts[2]);

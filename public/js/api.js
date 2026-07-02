@@ -34,21 +34,30 @@ export function outboxDequeue(id) {
   } catch {}
 }
 
+const OUTBOX_MAX_TRIES = 5;
+
 export async function drainOutbox() {
   try {
     const q = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]');
     if (!q.length) return;
-    let synced = 0;
+    let synced = 0, dropped = 0;
+    const keep = [];
     for (const item of q) {
       try {
         await api(item.path, { method: item.method, ...(item.body ? { body: item.body } : {}) });
-        outboxDequeue(item.id);
         synced++;
       } catch {
-        // keep failed items for next online event; continue processing the rest
+        // Cap retries so a permanently-failing item (e.g. server-side validation
+        // drift) is dropped + surfaced instead of retried forever every reconnect.
+        const tries = (item.tries || 0) + 1;
+        if (tries >= OUTBOX_MAX_TRIES) dropped++;
+        else keep.push({ ...item, tries });
       }
     }
+    // Persist only the items still worth retrying (synced dropped by omission).
+    try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(keep)); } catch {}
     if (synced) { invalidatePortfolio(); toast(`${synced} offline action${synced > 1 ? 's' : ''} synced`, 'success'); }
+    if (dropped) toast(`${dropped} offline action${dropped > 1 ? 's' : ''} couldn't sync and ${dropped > 1 ? 'were' : 'was'} discarded`, 'error');
   } catch {}
 }
 

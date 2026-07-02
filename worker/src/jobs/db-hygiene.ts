@@ -1,9 +1,14 @@
 import type { Env } from '../types';
+import { sweepStaleCronRuns } from '../lib/cron-runs';
 
 // Daily cleanup of unbounded tables. Each table accumulates rows that are only
 // useful for a short window: rate-limit counters, short-lived OAuth nonces, and
 // import job history. Without this, they grow forever on a busy deployment.
-export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, number>; retailBackfilled: number }> {
+export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, number>; retailBackfilled: number; staleCronRuns: number }> {
+  // Close out cron_runs rows orphaned at 'running' by a killed invocation, so the
+  // admin Activity view doesn't show dead jobs as live indefinitely.
+  const staleCronRuns = await sweepStaleCronRuns(env);
+
   const stmts = [
     // Hourly/daily windows — anything older than 48h can never match a live window.
     env.DB.prepare(`DELETE FROM rate_limits WHERE window_start < datetime('now', '-48 hours')`),
@@ -44,5 +49,5 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
     console.warn('[db-hygiene] retail_price backfill failed:', (e as Error).message);
   }
 
-  return { deleted, retailBackfilled };
+  return { deleted, retailBackfilled, staleCronRuns };
 }
