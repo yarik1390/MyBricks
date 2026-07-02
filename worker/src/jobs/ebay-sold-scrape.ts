@@ -1,6 +1,6 @@
 import type { Env } from '../types';
 import { fetchEbaySoldViaBrightData } from '../lib/brightdata';
-import { configuredKeys } from '../lib/brightdata-keys';
+import { configuredKeys, pickKey } from '../lib/brightdata-keys';
 import { fetchEbaySoldViaFirecrawl } from '../lib/ebay-firecrawl';
 import { brightDataSoldEnabled, firecrawlEnabled } from '../lib/pricing-flags';
 import { quotaRemaining, reserveQuota } from '../lib/api-quota';
@@ -61,6 +61,11 @@ export async function runEbaySoldScrape(
     if (remaining < 5) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
     effLimit = Math.min(limit, Math.floor(remaining / 5));
   } else {
+    // Confirm a live (non-exhausted) key exists BEFORE reserving the daily quota,
+    // so a fully-exhausted/broken pool doesn't debit the api_quota ledger for a
+    // run that will make zero HTTP calls (which inflated the admin usage panel).
+    const live = await pickKey(env);
+    if (!live) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'brightdata: all keys exhausted this month' };
     effLimit = (await reserveQuota(env, { brightdata: limit })).brightdata ?? 0;
     if (effLimit <= 0) return { processed: 0, updated: 0, rejected: 0, limit, skipped: 'brightdata quota spent' };
   }

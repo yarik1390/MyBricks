@@ -2,6 +2,7 @@ import type { Env } from '../types';
 import { fetchPriceChartingData } from '../lib/pricecharting';
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { getSourceConfig } from '../lib/source-config';
+import { spendQuota } from '../lib/api-quota';
 
 /**
  * Populate PriceCharting pricing data into pc_new_value / pc_complete_value
@@ -72,6 +73,9 @@ export async function runPriceChartingEnrich(
 
   for (let i = 0; i < results.length; i += concurrency) {
     const batch = results.slice(i, i + concurrency);
+    // Meter this batch's per-set API calls against the shared daily ledger so
+    // PriceCharting usage is visible in admin diagnostics and a runaway is capped.
+    if (!(await spendQuota(env, 'pricecharting', batch.length))) break;
     const outs = await Promise.all(batch.map(async (set) => ({
       set,
       result: await fetchPriceChartingData(set.set_num, set.name, set.pc_id, env, set.upc).catch(() => null),

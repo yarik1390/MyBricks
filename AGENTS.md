@@ -368,16 +368,31 @@ exposes client-safe values.**
 ### Cron schedule (`wrangler.toml [triggers]` → `index.ts` `scheduled()` switch)
 | Cron (UTC) | Job(s) |
 |---|---|
-| `0 * * * *` | valuate owned-deep, catalog coverage, eBay-ask backfill, top-value freshness |
-| `15 * * * *` | formula head revaluation |
+| `0 * * * *` | valuate: owned-deep + catalog coverage + eBay-ask backfill + top-value freshness |
+| `15 * * * *` | formula-head revaluation |
 | `30 * * * *` | UPCitemdb barcode backfill |
+| `0 0,3,6,9,12,15,18,21` | eBay-sold scrape (Bright Data, 8×/day; zone `web_unlocker1`) |
+| `0 1`, `0 5` | minifig valuation (two slots) |
 | `0 2` | snapshot portfolios |
 | `0 3` | snapshot set values |
 | `0 4` | db-hygiene + daily catalog maintenance (+ Sundays: weekly set/fig import) |
-| `0 5` | minifig valuation |
 | `0 6` | BrickInsights ratings backfill |
-| `0 7` | eBay-sold scrape (Bright Data) |
 | `0 8` | wishlist price-drop alerts |
+| `0 9` | Brickset enrich (Firecrawl) |
+| `0 10` | LEGO.com stock refresh (Firecrawl) |
+| `0 11` | BrickEconomy enrich (Firecrawl) |
+| `0 12` | part-price backfill (BrickLink) |
+| `0 13` | part-out compute (D1 only) |
+| `0 14` | image pre-warm (R2) |
+| `0 15` | upcoming / coming-soon refresh (Firecrawl) |
+| `0 16` | **PriceCharting per-set enrich** |
+| `0 17`, `0 19`, `0 23` | pricesAPI live-retail (three slots) |
+| `0 18` | **PriceCharting bulk CSV — DAILY** (one download covers the whole catalog) |
+| `0 20` | AI gap-fill (free Gemini/OpenRouter) |
+
+Both one-time bootstraps — PriceCharting per-set (`10,25,40,55`) and BrickEconomy (`5,20,35,50`) — were **retired 2026-07** once catalog coverage was swept; gap-fills ride the steady-state crons + the manual `bootstrap-brickeconomy.yml`.
+
+- **BrickLink no-data backoff:** a set whose sold guide returns <5 lots is stamped `set_market_ext.bl_nodata_at` and its BrickLink calls are skipped for **90 days** (`valuate-sets`), so the ~5k/day budget isn't spent re-querying dead sets. Cleared when a real price returns.
 
 ---
 

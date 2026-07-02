@@ -212,7 +212,9 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   );
   await reserveQuota(env, {
     bricklink: blReserve,
-    brickowl: (includeSupplemental && brickOwlEnabled(env)) ? results.length : 0,
+    // BrickOwl makes TWO calls per set (catalog/lookup + catalog/price_data), so
+    // reserve 2/set — the flat results.length under-counted its usage by half.
+    brickowl: (includeSupplemental && brickOwlEnabled(env)) ? results.length * 2 : 0,
     ebay: includeEbay ? results.length * (includeEbaySold ? 2 : 1) : 0,
   });
 

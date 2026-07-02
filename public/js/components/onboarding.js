@@ -21,6 +21,7 @@ const STEPS = [
 let idx = 0;
 let root = null;
 let onResize = null;
+let _tourTrapRelease = null;
 
 function isLaunchSurface() {
   const hashPath = (location.hash || '#/').replace(/^#/, '').split('?')[0] || '/';
@@ -55,6 +56,7 @@ function finish() {
   try { localStorage.setItem(FLAG, '1'); } catch {}
   if (onResize) { window.removeEventListener('resize', onResize); onResize = null; }
   document.removeEventListener('keydown', onKey);
+  if (_tourTrapRelease) { _tourTrapRelease(); _tourTrapRelease = null; }
   root?.remove();
   root = null;
 }
@@ -144,6 +146,12 @@ export function startOnboarding() {
     idx = 0;
     root = document.createElement('div');
     root.className = 'bv-tour';
+    // Modal-dialog semantics + Tab focus trap (keyboard users can't tab into the
+    // dimmed page behind the tour); Escape still closes via onKey. Mirrors the
+    // welcome carousel. release() (in finish) restores focus to the invoker.
+    root.setAttribute('role', 'dialog');
+    root.setAttribute('aria-modal', 'true');
+    root.setAttribute('aria-label', 'Product tour');
     root.innerHTML = `<div class="bv-tour-spot"></div><div class="bv-tour-card"></div>`;
     root.addEventListener('click', (e) => {
       const act = e.target?.dataset?.act;
@@ -155,10 +163,15 @@ export function startOnboarding() {
     });
     document.body.appendChild(root);
     document.addEventListener('keydown', onKey);
+    _tourTrapRelease = activateFocusTrap(root);
     onResize = () => render();
     window.addEventListener('resize', onResize);
-    // Wait a frame so freshly-rendered nav targets have measurable rects.
-    requestAnimationFrame(() => requestAnimationFrame(render));
+    // Wait a frame so freshly-rendered nav targets have measurable rects, then
+    // move focus into the tour card so keyboard users start inside the dialog.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      render();
+      root?.querySelector('.bv-tour-card button, .bv-tour-card [tabindex]')?.focus();
+    }));
   } catch {
     root?.remove();
     root = null;
