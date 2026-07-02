@@ -258,7 +258,7 @@ function wireCatalogCards() {
       haptic("light");
       try {
         if (isOn) {
-          await api(`/api/wishlist/${encodeURIComponent(setNum)}`, { method: "DELETE" });
+          await api(`/api/wishlist/by-set/${encodeURIComponent(setNum)}`, { method: "DELETE" });
           wishBtn.classList.remove("cs-wish-btn--on");
           wishBtn.style.cssText = "width:100%;margin-top:8px;padding:5px 0;font-size:11px;font-weight:600;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink-mute);cursor:pointer;";
           wishBtn.textContent = "+ Wishlist";

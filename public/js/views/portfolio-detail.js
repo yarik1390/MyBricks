@@ -116,7 +116,7 @@ function paintSetDetail(set, entry) {
       <div class="detail-content-col">
         <div class="detail-title-row">
           <div>
-            <div class="detail-eyebrow">${escapeHtml(set.theme || "")} · #${escapeHtml(set.set_num)}${set.retired ? " · RETIRED" : ""}${set.lego_retiring_soon ? " · <span style='color:var(--down);font-weight:700;'>RETIRING SOON</span>" : ""}</div>
+            <div class="detail-eyebrow">${escapeHtml(set.theme || "")} · #${escapeHtml(set.set_num)}${set.coming_soon ? " · <span style='color:var(--accent);font-weight:700;'>COMING SOON</span>" : `${set.retired ? " · RETIRED" : ""}${set.lego_retiring_soon ? " · <span style='color:var(--down);font-weight:700;'>RETIRING SOON</span>" : ""}`}</div>
             <div class="detail-title">${escapeHtml(set.name)}</div>
           </div>
           <button class="detail-share-btn icon-btn" id="shareBtn" aria-label="Share">${I.share()}</button>
@@ -200,11 +200,16 @@ function shareSet(set) {
 // otherwise the formula current_value. Keeps the headline, the add button and
 // the recorded purchase price all showing the SAME number.
 function setDisplayValue(set) {
+  // Coming-soon sets aren't released yet — there's no market, so show the
+  // announced retail (from the upcoming feed, else MSRP), not a formula estimate.
+  if (set.coming_soon) return Number(set.upcoming_price) || Number(set.retail_price) || 0;
   return Number(set.market_value) > 0 ? Number(set.market_value) : (Number(set.current_value) || 0);
 }
 
 // Plain-language confidence chip (no "high/medium/low signal" jargon).
 function confidenceChip(set) {
+  // Not released yet: the headline is the announced retail, not a market estimate.
+  if (set.coming_soon) return `<span class="detail-chip detail-chip--ok" title="Not released yet — showing the announced retail price">Coming soon</span>`;
   const conf = String(set.market_value_confidence || set.confidence || '').toLowerCase();
   const method = set.valuation_method;
   if (method === 'ai') return `<span class="detail-chip detail-chip--low" title="Estimated by AI because fresh market data wasn't available">Estimated</span>`;
@@ -325,7 +330,7 @@ function infoTabHTML(set, entry, isWish) {
 
     // Fine-grained LEGO.com status (pre-order/back-order/coming-soon/etc.) when
     // captured, falling back to the legacy retiring/in-stock booleans.
-    const legoAvail = set.lego_availability || (set.lego_retiring_soon ? 'retiring' : set.lego_in_stock === 1 ? 'in_stock' : null);
+    const legoAvail = set.coming_soon ? 'coming_soon' : (set.lego_availability || (set.lego_retiring_soon ? 'retiring' : set.lego_in_stock === 1 ? 'in_stock' : null));
     const legoBadgeMap = {
       retiring: ['Retiring Soon', 'rgba(239,68,68,.12)', 'var(--down)'],
       pre_order: ['Pre-order at LEGO.com', 'rgba(59,130,246,.12)', 'var(--accent)'],
@@ -345,7 +350,7 @@ function infoTabHTML(set, entry, isWish) {
     const riskScore = set.retirement_risk_score;
     const riskWord = riskScore >= 70 ? 'Likely soon' : riskScore >= 40 ? 'Possible' : 'Unlikely';
     const riskColor = riskScore >= 70 ? 'var(--down)' : riskScore >= 40 ? 'var(--bv-yellow)' : 'var(--ink)';
-    const riskBadge = (riskScore != null && !set.retired)
+    const riskBadge = (riskScore != null && !set.retired && !set.coming_soon)
       ? `<div class="detail-kv"><span class="k" title="Estimated chance this set retires soon (${Math.round(riskScore)}%)">Retiring</span> <span class="v" style="color:${riskColor};">${riskWord}</span></div>`
       : '';
 

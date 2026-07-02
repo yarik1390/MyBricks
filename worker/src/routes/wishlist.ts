@@ -104,6 +104,17 @@ app.delete('/:id', async (c) => {
   return new Response(null, { status: 204 });
 });
 
+// DELETE /api/wishlist/by-set/:setNum — remove a set from the wishlist by its
+// set number. The catalog coming-soon cards only know the set_num (not the
+// numeric wishlist row id the /:id route expects), so they use this.
+app.delete('/by-set/:setNum', async (c) => {
+  const userId = c.get('userId');
+  const setNum = c.req.param('setNum');
+  if (!setNum) return c.json({ error: 'set_num required' }, 400);
+  await c.env.DB.prepare('DELETE FROM user_wishlist WHERE set_num=? AND user_id=?').bind(setNum, userId).run();
+  return new Response(null, { status: 204 });
+});
+
 // POST /api/wishlist/:id — mark alert as read
 app.post('/:id', async (c) => {
   const userId = c.get('userId');

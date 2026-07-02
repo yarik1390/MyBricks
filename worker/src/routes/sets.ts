@@ -329,6 +329,16 @@ app.get('/:setnum', async (c) => {
       'SELECT pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count, pa_market FROM set_market_ext WHERE set_num=?'
     ).bind(set.set_num).first<Record<string, unknown>>().catch(() => null);
     if (ext) set = { ...set, ...ext };
+
+    // Coming-soon: is this set in the upcoming/pre-release feed? If so it hasn't
+    // launched yet — it must NOT read as "retiring soon", and its headline value
+    // should be the announced retail (price_usd), not a formula market estimate.
+    const upcoming = await c.env.DB.prepare(
+      'SELECT price_usd FROM upcoming_sets WHERE set_num=?'
+    ).bind(set.set_num).first<{ price_usd: number | null }>().catch(() => null);
+    const comingSoon = !!upcoming;
+    const upcomingPrice = upcoming?.price_usd ?? null;
+
     const activeSet = set;
     let resultSet: Record<string, unknown> = set;
 
@@ -626,7 +636,7 @@ app.get('/:setnum', async (c) => {
     // Trailing-history median feeds the blend's anomaly guard so a value that
     // jumped off its own recent trend on thin data shows as low confidence.
     const valueHistory = await recentValueMedian(c.env.DB, resultSet.set_num as string).catch(() => undefined);
-    return c.json({ set: enrichSetRecord({ ...resultSet, retired: !!resultSet.retired, trend, brickset }, valueHistory), entry: entry || null, set_minifigs: setMinifigs });
+    return c.json({ set: enrichSetRecord({ ...resultSet, retired: !!resultSet.retired, coming_soon: comingSoon, upcoming_price: upcomingPrice, trend, brickset }, valueHistory), entry: entry || null, set_minifigs: setMinifigs });
   }
 
   if (!c.env.REBRICKABLE_API_KEY) return c.json({ error: 'Set not found' }, 404);
