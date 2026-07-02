@@ -189,6 +189,17 @@ export const TABLE_DDL: Record<string, string> = {
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 )`,
 
+  portfolio_snapshots: `CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  snapshot_date DATE NOT NULL,
+  snapshot_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  total_value REAL DEFAULT 0,
+  total_paid REAL DEFAULT 0,
+  set_count INTEGER DEFAULT 0,
+  UNIQUE(user_id, snapshot_date)
+)`,
+
   user_wishlist: `CREATE TABLE IF NOT EXISTS user_wishlist (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id TEXT NOT NULL,
@@ -219,6 +230,29 @@ export const TABLE_DDL: Record<string, string> = {
   ebay_value REAL,
   bl_value REAL,
   PRIMARY KEY (set_num, snapshot_date)
+)`,
+
+  set_parts: `CREATE TABLE IF NOT EXISTS set_parts (
+  set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
+  part_num TEXT NOT NULL,
+  color_id INTEGER NOT NULL DEFAULT 0,
+  color_name TEXT,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  is_spare INTEGER NOT NULL DEFAULT 0,
+  part_name TEXT,
+  part_img_url TEXT,
+  PRIMARY KEY (set_num, part_num, color_id)
+)`,
+
+  part_prices: `CREATE TABLE IF NOT EXISTS part_prices (
+  part_num TEXT NOT NULL,
+  color_id INTEGER NOT NULL DEFAULT 0,
+  price_new REAL,
+  qty_new INTEGER,
+  price_used REAL,
+  qty_used INTEGER,
+  cached_at TEXT,
+  PRIMARY KEY (part_num, color_id)
 )`,
 
   oauth_sessions: `CREATE TABLE IF NOT EXISTS oauth_sessions (
@@ -295,9 +329,9 @@ export const TABLE_DDL: Record<string, string> = {
  * Create the named tables (dropping any prior copy) in a test D1.
  *
  * D1 enforces foreign keys, so DROP order matters: several tables
- * (set_market_ext, user_collection, user_wishlist, set_value_history) reference
- * lego_sets and can hold rows after a test runs. Callers list parents first, so we
- * drop in REVERSE (children before parents) and create in forward order.
+ * (set_market_ext, user_collection, user_wishlist, set_value_history, set_parts)
+ * reference lego_sets and can hold rows after a test runs. Callers list parents
+ * first, so we drop in REVERSE (children before parents) and create forward.
  */
 export async function applyTestTables(db: D1Database, names: string[]): Promise<void> {
   for (const name of names) {
