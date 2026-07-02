@@ -1,8 +1,5 @@
 name: Backup D1 to R2
 
-# Nightly logical backup of the whole D1 catalog to a private R2 bucket, so a bad
-# migration or accidental delete has a restore path beyond Cloudflare's built-in
-# D1 time-travel. Manual runs allowed via the Actions tab.
 on:
   schedule:
     - cron: "0 8 * * *"        # daily 08:00 UTC
@@ -25,13 +22,25 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Export D1 to a compressed SQL dump
+      - name: Export D1 (real tables only) to a compressed SQL dump
         run: |
           set -euo pipefail
           STAMP="$(date -u +%Y-%m-%d_%H%M%SZ)"
           FILE="brickvault-${STAMP}.sql"
-          # Full logical dump (schema + data) of the remote D1 database.
-          npx wrangler@3 d1 export "${DB_NAME}" --remote --output "${FILE}"
+
+          # D1 export refuses databases containing FTS5 virtual tables
+          # (lego_sets_fts + its *_fts_* shadow tables). That index is rebuilt
+          # from lego_sets on deploy, so we export only the real base tables.
+          TABLES="$(npx wrangler@3 d1 execute "${DB_NAME}" --remote --json \
+            --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '%fts%' AND (sql IS NULL OR sql NOT LIKE '%VIRTUAL TABLE%') ORDER BY name" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);const rows=(Array.isArray(j)?(j[0]&&j[0].results):j.results)||[];process.stdout.write(rows.map(r=>r.name).join(" "));}catch(e){process.exit(1);}})')"
+
+          if [ -z "${TABLES}" ]; then echo "::error::No tables resolved from sqlite_master"; exit 1; fi
+          echo "Exporting tables: ${TABLES}"
+
+          ARGS=(); for t in ${TABLES}; do ARGS+=(--table="${t}"); done
+          npx wrangler@3 d1 export "${DB_NAME}" --remote --output "${FILE}" "${ARGS[@]}"
+
           gzip -9 "${FILE}"
           echo "OBJECT_KEY=d1/${FILE}.gz" >> "$GITHUB_ENV"
           echo "LOCAL_FILE=${FILE}.gz"    >> "$GITHUB_ENV"
