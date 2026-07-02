@@ -812,6 +812,23 @@ app.post('/:setnum/listing-draft', requireMember, async (c) => {
   ]);
   if (!set) return c.json({ error: 'Set not found' }, 404);
 
+  // Rate limit the SERVER-key path only (BYOK bypasses) so a user can't loop the
+  // shared OpenAI key for free — mirrors /advisor, /scan, /revalue. Atomic
+  // increment+read (RETURNING) closes the read-after-write race.
+  if (!c.req.header('X-Gemini-Key') && !c.req.header('X-OpenAI-Key')) {
+    const LISTING_DRAFT_DAILY_LIMIT = 30;
+    const dws = new Date(); dws.setHours(0, 0, 0, 0);
+    const rl = await c.env.DB.prepare(`
+      INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+      VALUES (?, 'listing-draft', ?, 1)
+      ON CONFLICT (user_id, endpoint, window_start) DO UPDATE SET hit_count = rate_limits.hit_count + 1
+      RETURNING hit_count
+    `).bind(userId, dws.toISOString()).first<{ hit_count: number }>();
+    if ((rl?.hit_count ?? 0) > LISTING_DRAFT_DAILY_LIMIT) {
+      return c.json({ error: `Rate limit: ${LISTING_DRAFT_DAILY_LIMIT} listing drafts per day. Add your own Gemini or OpenAI key in Settings for unlimited access.` }, 429);
+    }
+  }
+
   const condition = (entry?.condition as string) || 'used_good';
   const conditionLabel: Record<string, string> = {
     sealed: 'Factory Sealed', new: 'New / Open Box',
@@ -920,17 +937,16 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
   windowStart.setMinutes(0, 0, 0);
   const ws = windowStart.toISOString();
 
-  await c.env.DB.prepare(`
+  // Atomic increment+read (RETURNING) so two concurrent requests can't both slip
+  // past the cap (the old increment-then-separate-SELECT had a check-after-write race).
+  const rl = await c.env.DB.prepare(`
     INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
     VALUES (?, 'revalue', ?, 1)
     ON CONFLICT (user_id, endpoint, window_start) DO UPDATE SET hit_count = rate_limits.hit_count + 1
-  `).bind(userId, ws).run();
+    RETURNING hit_count
+  `).bind(userId, ws).first<{ hit_count: number }>();
 
-  const rl = await c.env.DB.prepare(
-    'SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint=? AND window_start=?'
-  ).bind(userId, 'revalue', ws).first<{ hit_count: number }>();
-
-  if (rl && rl.hit_count > REVALUE_LIMIT) {
+  if ((rl?.hit_count ?? 0) > REVALUE_LIMIT) {
     return c.json({ error: `Rate limit: ${REVALUE_LIMIT} revaluations per hour.` }, 429);
   }
 
