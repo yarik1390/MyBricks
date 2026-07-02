@@ -50,5 +50,5 @@ jobs:
         run: |
           set -euo pipefail
           npx wrangler@3 r2 object put "${BACKUP_BUCKET}/${OBJECT_KEY}" \
-            --file "${LOCAL_FILE}" --remote --content-type "application/gzip"
+            --file "${LOCAL_FILE}" --content-type "application/gzip"
           echo "✅ Uploaded r2://${BACKUP_BUCKET}/${OBJECT_KEY}"
