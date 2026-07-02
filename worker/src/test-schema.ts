@@ -1,6 +1,7 @@
-// AUTO-EXTRACTED from schema.sql (Batch C job tests). Do not edit by hand.
-// Real DDL so job tests exercise the exact production column set (esp. valuate-sets
-// -> updateRetirementRiskBatch, which reads many lego_sets columns).
+// AUTO-EXTRACTED from schema.sql + schema_migrate.sql (Batch C job tests).
+// Do not edit by hand; regenerate if the schema changes. lego_sets/set_market_ext
+// fold in ADD COLUMN migrations so tests match the EFFECTIVE production schema
+// (e.g. deal_signal, part_out_*) that the valuation + alert jobs read/write.
 
 export const TABLE_DDL: Record<string, string> = {
   lego_sets: `CREATE TABLE IF NOT EXISTS lego_sets (
@@ -94,8 +95,16 @@ export const TABLE_DDL: Record<string, string> = {
   pc_new_value REAL,
   pc_complete_value REAL,
   pc_id TEXT,
-  pc_cached_at TEXT
-);`,
+  pc_cached_at TEXT,
+  part_out_value REAL,
+  part_out_coverage REAL,
+  part_out_cached_at TEXT,
+  deal_signal TEXT,
+  deal_discount_pct REAL,
+  deal_strong INTEGER,
+  deal_cached_at TEXT,
+  img_prewarmed_at TEXT
+)`,
 
   set_market_ext: `CREATE TABLE IF NOT EXISTS set_market_ext (
   set_num TEXT PRIMARY KEY REFERENCES lego_sets(set_num),
@@ -108,11 +117,8 @@ export const TABLE_DDL: Record<string, string> = {
   pa_offer_count INTEGER,
   pa_market TEXT,
   pa_cached_at TEXT,
-  -- BrickLink no-data backoff stamp (sold guide <5 lots): the valuation job skips
-  -- this set's BrickLink calls for 90 days so the ~5,000/day budget isn't wasted
-  -- re-querying sets that will never have data. Cleared when a BL price returns.
   bl_nodata_at TEXT
-);`,
+)`,
 
   user_collection: `CREATE TABLE IF NOT EXISTS user_collection (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -133,7 +139,7 @@ export const TABLE_DDL: Record<string, string> = {
   spike_alerted_at TEXT,
   custom_image_url TEXT,
   UNIQUE(user_id, set_num)
-);`,
+)`,
 
   import_runs: `CREATE TABLE IF NOT EXISTS import_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -150,7 +156,7 @@ export const TABLE_DDL: Record<string, string> = {
   sets_skipped INTEGER,
   figs_loaded INTEGER,
   error TEXT
-);`,
+)`,
 
   rate_limits: `CREATE TABLE IF NOT EXISTS rate_limits (
   user_id TEXT NOT NULL,
@@ -158,7 +164,30 @@ export const TABLE_DDL: Record<string, string> = {
   window_start DATETIME NOT NULL,
   hit_count INTEGER DEFAULT 0,
   PRIMARY KEY (user_id, endpoint, window_start)
-);`,
+)`,
+
+  user_prefs: `CREATE TABLE IF NOT EXISTS user_prefs (
+  user_id TEXT PRIMARY KEY,
+  handle TEXT,
+  display_name TEXT,
+  currency TEXT DEFAULT 'USD',
+  notify_price_drops INTEGER DEFAULT 1,
+  is_public INTEGER NOT NULL DEFAULT 0,
+  expose_public_value INTEGER DEFAULT 1,
+  google_refresh_token TEXT,
+  google_spreadsheet_id TEXT,
+  email TEXT,
+  discord_webhook_url TEXT,
+  brickset_user_hash TEXT,
+  is_supporter INTEGER DEFAULT 0,
+  supporter_since TEXT,
+  stripe_customer_id TEXT,
+  kids_pin_hash TEXT,
+  kids_xp INTEGER NOT NULL DEFAULT 0,
+  kids_level INTEGER NOT NULL DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`,
 
   user_wishlist: `CREATE TABLE IF NOT EXISTS user_wishlist (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -169,19 +198,40 @@ export const TABLE_DDL: Record<string, string> = {
   added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   alerted_at DATETIME,
   UNIQUE(user_id, set_num)
-);`,
+)`,
+
+  wishlist_alerts: `CREATE TABLE IF NOT EXISTS wishlist_alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  set_name TEXT,
+  target_price REAL,
+  current_value REAL,
+  triggered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  read_at DATETIME,
+  alert_type TEXT NOT NULL DEFAULT 'drop'
+)`,
+
+  set_value_history: `CREATE TABLE IF NOT EXISTS set_value_history (
+  set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
+  snapshot_date DATE NOT NULL,
+  current_value REAL,
+  ebay_value REAL,
+  bl_value REAL,
+  PRIMARY KEY (set_num, snapshot_date)
+)`,
 
   oauth_sessions: `CREATE TABLE IF NOT EXISTS oauth_sessions (
   code TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
   expires_at INTEGER NOT NULL
-);`,
+)`,
 
   oauth_states: `CREATE TABLE IF NOT EXISTS oauth_states (
   state TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
   expires_at INTEGER NOT NULL
-);`,
+)`,
 
   integration_health: `CREATE TABLE IF NOT EXISTS integration_health (
   service TEXT PRIMARY KEY,
@@ -192,7 +242,17 @@ export const TABLE_DDL: Record<string, string> = {
   fail_count INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT,
   blocked_until TEXT
-);`,
+)`,
+
+  push_subscriptions: `CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  endpoint TEXT NOT NULL,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, endpoint)
+)`,
 
   api_quota: `CREATE TABLE IF NOT EXISTS api_quota (
   service TEXT NOT NULL,
@@ -201,7 +261,7 @@ export const TABLE_DDL: Record<string, string> = {
   cap INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT,
   PRIMARY KEY (service, day)
-);`,
+)`,
 
   brightdata_keys: `CREATE TABLE IF NOT EXISTS brightdata_keys (
   key_hash TEXT PRIMARY KEY,
@@ -211,13 +271,13 @@ export const TABLE_DDL: Record<string, string> = {
   exhausted_at TEXT,
   last_used_at TEXT,
   updated_at TEXT
-);`,
+)`,
 
   app_settings: `CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
   value TEXT,
   updated_at TEXT
-);`,
+)`,
 
   cron_runs: `CREATE TABLE IF NOT EXISTS cron_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -228,16 +288,16 @@ export const TABLE_DDL: Record<string, string> = {
   summary TEXT,
   error TEXT,
   duration_ms INTEGER
-);`,
+)`,
 };
 
 /**
  * Create the named tables (dropping any prior copy) in a test D1.
  *
  * D1 enforces foreign keys, so DROP order matters: several tables
- * (set_market_ext, user_collection, user_wishlist) reference lego_sets and can
- * hold rows after a test runs. Callers list parents first, so we drop in REVERSE
- * (children before parents) and create in forward order (parents before children).
+ * (set_market_ext, user_collection, user_wishlist, set_value_history) reference
+ * lego_sets and can hold rows after a test runs. Callers list parents first, so we
+ * drop in REVERSE (children before parents) and create in forward order.
  */
 export async function applyTestTables(db: D1Database, names: string[]): Promise<void> {
   for (const name of names) {
