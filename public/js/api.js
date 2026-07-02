@@ -880,9 +880,16 @@ export async function api(path, opts = {}) {
   delete init.stream;
   delete init.rawBody;
   const _url = (window.WORKER_BASE || '') + path;
+  // Abort a hung request after 15s so the UI never waits forever on a stuck
+  // Worker response. Fresh controller per attempt (a signal can't be reused).
+  const fetchT = (u, i) => {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), 15000);
+    return fetch(u, { ...i, signal: ac.signal }).finally(() => clearTimeout(t));
+  };
   let r;
   try {
-    r = await fetch(_url, init);
+    r = await fetchT(_url, init);
   } catch (_e) {
     if (!navigator.onLine && (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE")) {
       outboxEnqueue({ path, method: init.method, body: opts.body });
@@ -891,11 +898,14 @@ export async function api(path, opts = {}) {
     }
     await new Promise(res => setTimeout(res, 600));
     try {
-      r = await fetch(_url, init);
+      r = await fetchT(_url, init);
     } catch (e2) {
-      // Both attempts hit a network-level failure — signal a confirming probe.
+      // Both attempts failed at the network level — signal a confirming probe.
       try { window.dispatchEvent(new Event("bv:api-fail")); } catch { /* non-browser ctx */ }
-      if (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE") {
+      // Only queue-and-fake-success when genuinely OFFLINE. When online, a double
+      // failure (timeout/DNS/5xx-at-network-level) is a real error and must
+      // surface to the caller — never masked as a fake success.
+      if (!navigator.onLine && (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE")) {
         outboxEnqueue({ path, method: init.method, body: opts.body });
         toast("Saved offline — will sync when connected", "info");
         return init.method === "DELETE" ? null : { item: opts.body || {} };
@@ -914,7 +924,7 @@ export async function api(path, opts = {}) {
         const fresh = await sbRefresh(_authSession.refresh_token);
         saveSession(fresh);
         init.headers["Authorization"] = `Bearer ${fresh.access_token}`;
-        r = await fetch(_url, init);
+        r = await fetchT(_url, init);
       } catch {
         saveSession(null);
         location.hash = "#/login";

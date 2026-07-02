@@ -36,6 +36,10 @@ export function showSheet(html) {
   document.body.style.overflow = "hidden";
   back.setAttribute("aria-hidden", "false");
   sheet.setAttribute("aria-hidden", "false");
+  // Announce the sheet as a modal dialog so screen readers scope to it (it
+  // already traps Tab + restores focus on close).
+  sheet.setAttribute("role", "dialog");
+  sheet.setAttribute("aria-modal", "true");
   haptic("light");
   back.addEventListener("click", hideSheet, { once: true });
   document.addEventListener("keydown", sheetKeyHandler);

@@ -271,7 +271,7 @@ function wireCatalogCards() {
           if (state.wishlist) state.wishlist.push({ set_num: setNum, name });
         }
       } catch (err) {
-        import('../utils.js').then(u => u.toast(err.message || "Failed", "error"));
+        toast(err.message || "Failed", "error");
       }
       return;
     }
