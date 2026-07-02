@@ -661,7 +661,7 @@ function wireDetailActions(set, entry) {
     } catch (e) {
       setBtnLoading($("#addBtn"), false);
       if (!navigator.onLine) {
-        outboxEnqueue({ path: '/api/collection', method: 'POST', body: { set_num: set.set_num, quantity: 1, purchase_price: set.current_value } });
+        outboxEnqueue({ path: '/api/collection', method: 'POST', body: { set_num: set.set_num, quantity: 1, purchase_price: setDisplayValue(set) } });
         toast('Saved offline — will sync when connected', 'info');
       } else { toast("Error: " + e.message, "error"); }
     } finally { state.pendingRequests.delete(set.set_num); }
