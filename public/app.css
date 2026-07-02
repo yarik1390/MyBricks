@@ -13,7 +13,7 @@
   --ink: #1C1C1E;
   --ink-soft: #2D2F36;
   --ink-mute: #5E6878;
-  --ink-faint: #97A0B0;
+  --ink-faint: #626C7C; /* WCAG AA: ~4.7:1 on --bg (was #97A0B0 ≈ 2.3:1, failed) */
   --bv-yellow: #FFD700;
   --bv-yellow-dark: #E5C000;
   --bv-red: #DA291C;
