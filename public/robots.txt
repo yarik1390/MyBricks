@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://brickvault-5ub.pages.dev/sitemap.xml
