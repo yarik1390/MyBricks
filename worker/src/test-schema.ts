@@ -1,9 +1,15 @@
 // AUTO-EXTRACTED from schema.sql + schema_migrate.sql (Batch C job tests).
-// Do not edit by hand; regenerate if the schema changes. lego_sets/set_market_ext
-// fold in ADD COLUMN migrations so tests match the EFFECTIVE production schema
-// (e.g. deal_signal, part_out_*) that the valuation + alert jobs read/write.
+// Do not edit by hand; regenerate if the schema changes. lego_sets/set_market_ext/
+// minifigs fold in ADD COLUMN migrations so tests match the EFFECTIVE production
+// schema (e.g. deal_signal, part_out_*, minifigs.ebay_value) the jobs read/write.
 
 export const TABLE_DDL: Record<string, string> = {
+  lego_themes: `CREATE TABLE IF NOT EXISTS lego_themes (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  parent_id INTEGER
+)`,
+
   lego_sets: `CREATE TABLE IF NOT EXISTS lego_sets (
   set_num TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -141,6 +147,25 @@ export const TABLE_DDL: Record<string, string> = {
   UNIQUE(user_id, set_num)
 )`,
 
+  minifigs: `CREATE TABLE IF NOT EXISTS minifigs (
+  fig_num TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  series TEXT,
+  rarity TEXT DEFAULT 'common' CHECK(rarity IN ('common','uncommon','rare','legendary')),
+  current_value REAL,
+  image_url TEXT,
+  added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  source TEXT,
+  cached_at TEXT,
+  year INTEGER,
+  num_parts INTEGER,
+  appears_in_sets INTEGER,
+  ebay_value REAL,
+  ebay_qty INTEGER,
+  ebay_cached_at TEXT,
+  bl_id TEXT
+)`,
+
   import_runs: `CREATE TABLE IF NOT EXISTS import_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   job_type TEXT,
@@ -232,6 +257,23 @@ export const TABLE_DDL: Record<string, string> = {
   PRIMARY KEY (set_num, snapshot_date)
 )`,
 
+  minifig_value_history: `CREATE TABLE IF NOT EXISTS minifig_value_history (
+  fig_num TEXT NOT NULL REFERENCES minifigs(fig_num),
+  snapshot_date DATE NOT NULL,
+  current_value REAL,
+  ebay_value REAL,
+  PRIMARY KEY (fig_num, snapshot_date)
+)`,
+
+  set_minifigs: `CREATE TABLE IF NOT EXISTS set_minifigs (
+  set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
+  fig_num TEXT NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  fig_name TEXT,
+  fig_img_url TEXT,
+  PRIMARY KEY (set_num, fig_num)
+)`,
+
   set_parts: `CREATE TABLE IF NOT EXISTS set_parts (
   set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
   part_num TEXT NOT NULL,
@@ -253,6 +295,15 @@ export const TABLE_DDL: Record<string, string> = {
   qty_used INTEGER,
   cached_at TEXT,
   PRIMARY KEY (part_num, color_id)
+)`,
+
+  upcoming_sets: `CREATE TABLE IF NOT EXISTS upcoming_sets (
+  set_num TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  price_usd REAL,
+  availability TEXT,
+  first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  scraped_at TEXT
 )`,
 
   oauth_sessions: `CREATE TABLE IF NOT EXISTS oauth_sessions (
@@ -328,10 +379,9 @@ export const TABLE_DDL: Record<string, string> = {
 /**
  * Create the named tables (dropping any prior copy) in a test D1.
  *
- * D1 enforces foreign keys, so DROP order matters: several tables
- * (set_market_ext, user_collection, user_wishlist, set_value_history, set_parts)
- * reference lego_sets and can hold rows after a test runs. Callers list parents
- * first, so we drop in REVERSE (children before parents) and create forward.
+ * D1 enforces foreign keys, so DROP order matters: child tables reference
+ * lego_sets/minifigs and can hold rows after a test. Callers list parents first,
+ * so we drop in REVERSE (children before parents) and create forward.
  */
 export async function applyTestTables(db: D1Database, names: string[]): Promise<void> {
   for (const name of names) {
