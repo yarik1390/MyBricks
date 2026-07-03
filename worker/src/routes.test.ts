@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import app from './index';
 import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
+import { USER_SCOPED_TABLES } from './routes/me';
 
 declare module 'cloudflare:test' {
   interface ProvidedEnv {
@@ -1744,5 +1745,120 @@ describe('Kids PIN and XP', () => {
       }), env);
       expect(res.status).toBe(429);
     });
+  });
+});
+
+describe('Account deletion (DELETE /api/me)', () => {
+  const JWT_SECRET = 'test-secret-at-least-32-chars-long-and-super-secure';
+  const userId = 'del-user-1';
+  const otherUserId = 'del-user-2';
+  let token: string;
+  let otherToken: string;
+  let db: D1Database;
+
+  const auth = (t = token) => ({ Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' });
+
+  beforeEach(async () => {
+    (env as any).SUPABASE_JWT_SECRET = JWT_SECRET;
+    (env as any).SUPABASE_URL = 'https://supabase.mock.io';
+    (env as any).SUPABASE_ANON_KEY = 'supabase-anon-key-mock';
+    (env as any).ADMIN_USER_ID = 'admin-user';
+    delete (env as any).SUPABASE_SERVICE_ROLE_KEY;
+    delete (env as any).PHOTO_BUCKET;
+
+    token = await createMockJWT(userId, JWT_SECRET);
+    otherToken = await createMockJWT(otherUserId, JWT_SECRET);
+    db = (env as any).DB;
+
+    // Recreate every user-scoped table with a uniform minimal shape. This unit
+    // tests the deletion MECHANISM (purge by user_id, scoped to the caller); the
+    // production DDL of each table is validated by the schema + other route
+    // tests, so a generic { user_id, r2_key } shape is sufficient and keeps the
+    // seed/assert loop table-agnostic. Iterating USER_SCOPED_TABLES (imported
+    // from the route) means adding/removing a table is covered automatically.
+    for (const t of USER_SCOPED_TABLES) {
+      await db.prepare(`DROP TABLE IF EXISTS ${t}`).run();
+      await db.prepare(`CREATE TABLE ${t} (user_id TEXT NOT NULL, set_num TEXT, r2_key TEXT, aux TEXT)`).run();
+      // One row for the caller and one for a different user, in every table.
+      await db.prepare(`INSERT INTO ${t} (user_id, r2_key) VALUES (?, ?)`).bind(userId, `${userId}/1234-1.jpg`).run();
+      await db.prepare(`INSERT INTO ${t} (user_id, r2_key) VALUES (?, ?)`).bind(otherUserId, `${otherUserId}/9999-1.jpg`).run();
+    }
+  });
+
+  async function countRows(uid: string): Promise<number> {
+    let total = 0;
+    for (const t of USER_SCOPED_TABLES) {
+      const row = await db.prepare(`SELECT COUNT(*) AS n FROM ${t} WHERE user_id=?`).bind(uid).first<{ n: number }>();
+      total += Number(row?.n ?? 0);
+    }
+    return total;
+  }
+
+  it('rejects an unauthenticated request', async () => {
+    const res = await app.fetch(new Request('http://localhost/api/me', { method: 'DELETE' }), env);
+    expect(res.status).toBe(401);
+  });
+
+  it('requires the typed DELETE confirmation', async () => {
+    const res = await app.fetch(new Request('http://localhost/api/me', {
+      method: 'DELETE', headers: auth(), body: JSON.stringify({ confirm: 'nope' }),
+    }), env);
+    expect(res.status).toBe(400);
+    // Nothing was deleted.
+    expect(await countRows(userId)).toBe(USER_SCOPED_TABLES.length);
+  });
+
+  it('purges every user-scoped table for the caller only', async () => {
+    expect(await countRows(userId)).toBe(USER_SCOPED_TABLES.length);
+    expect(await countRows(otherUserId)).toBe(USER_SCOPED_TABLES.length);
+
+    const res = await app.fetch(new Request('http://localhost/api/me', {
+      method: 'DELETE', headers: auth(), body: JSON.stringify({ confirm: 'DELETE' }),
+    }), env);
+    expect(res.status).toBe(200);
+    const json = await res.json<{ ok: boolean; auth_deleted: boolean }>();
+    expect(json.ok).toBe(true);
+
+    // The caller's rows are gone from all tables; the other user is untouched.
+    expect(await countRows(userId)).toBe(0);
+    expect(await countRows(otherUserId)).toBe(USER_SCOPED_TABLES.length);
+  });
+
+  it('deletes R2 photos and the auth identity when a service-role key is set', async () => {
+    const del = vi.fn().mockResolvedValue(undefined);
+    (env as any).PHOTO_BUCKET = { delete: del };
+    (env as any).SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }));
+    try {
+      const res = await app.fetch(new Request('http://localhost/api/me', {
+        method: 'DELETE', headers: auth(), body: JSON.stringify({ confirm: 'DELETE' }),
+      }), env);
+      expect(res.status).toBe(200);
+      const json = await res.json<{ ok: boolean; auth_deleted: boolean }>();
+      expect(json.ok).toBe(true);
+      expect(json.auth_deleted).toBe(true);
+      // Only the caller's photo key was deleted from R2.
+      expect(del).toHaveBeenCalledWith(`${userId}/1234-1.jpg`);
+      expect(del).toHaveBeenCalledTimes(1);
+      // The Supabase Admin API was called to remove the auth user.
+      expect(fetchSpy).toHaveBeenCalledWith(
+        `https://supabase.mock.io/auth/v1/admin/users/${userId}`,
+        expect.objectContaining({ method: 'DELETE' }),
+      );
+    } finally {
+      fetchSpy.mockRestore();
+      delete (env as any).PHOTO_BUCKET;
+      delete (env as any).SUPABASE_SERVICE_ROLE_KEY;
+    }
+  });
+
+  it('reports auth_deleted=false when no service-role key is configured', async () => {
+    const res = await app.fetch(new Request('http://localhost/api/me', {
+      method: 'DELETE', headers: auth(), body: JSON.stringify({ confirm: 'DELETE' }),
+    }), env);
+    expect(res.status).toBe(200);
+    const json = await res.json<{ ok: boolean; auth_deleted: boolean }>();
+    expect(json.auth_deleted).toBe(false);
+    expect(await countRows(userId)).toBe(0);
   });
 });

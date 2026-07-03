@@ -91,3 +91,28 @@ test('non-admin is redirected away from the admin console', async ({ page }) => 
   await page.goto('/#/me/admin', { waitUntil: 'domcontentloaded' });
   await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/me');
 });
+
+test('me: account deletion is gated behind typing DELETE (store requirement)', async ({ page, stub }) => {
+  await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
+
+  const row = page.locator('#deleteAccountRow');
+  await expect(row).toBeVisible();
+  await row.click();
+
+  // The confirm button is present but inert until the user types DELETE.
+  const btn = page.locator('#deleteAccountBtn');
+  await expect(btn).toBeVisible();
+  await expect(btn).toBeDisabled();
+
+  await page.locator('#deleteConfirmInput').fill('nope');
+  await expect(btn).toBeDisabled();
+
+  await page.locator('#deleteConfirmInput').fill('DELETE');
+  await expect(btn).toBeEnabled();
+
+  // Only after confirmation does the destructive DELETE /api/me fire.
+  await btn.click();
+  await expect
+    .poll(() => stub.calls.filter((c) => c.method === 'DELETE' && c.path === '/api/me').length)
+    .toBeGreaterThan(0);
+});

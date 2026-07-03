@@ -153,6 +153,11 @@ app.get('/api/config', (c) => {
     // Patreon creator page URL — set via `wrangler secret put PATREON_URL`.
     // When present, the Me tab Support card shows a "Support on Patreon" button.
     patreon_url: c.env.PATREON_URL || null,
+    // Show the "Sign in with Apple" button when APPLE_SIGNIN_ENABLED=1. Gated so
+    // the button stays hidden until the Apple provider is actually configured in
+    // Supabase (otherwise clicking it would 400 at GoTrue). Required for the iOS
+    // build since Apple mandates Sign in with Apple alongside Google (Guideline 4.8).
+    apple_signin: c.env.APPLE_SIGNIN_ENABLED === '1',
     status,
     setup: {
       google: {

@@ -158,6 +158,93 @@ app.patch('/', async (c) => {
   return c.json({ ok: true });
 });
 
+// Every D1 table keyed by the authenticated user. Deleting a user wipes each of
+// these WHERE user_id = them. Rows they merely *reviewed* (reviewer_id on
+// set_photos/set_reviews/set_contributions) belong to other users and are left
+// intact. Catalog tables (lego_sets, minifigs, …) and global tables
+// (integration_health, *_keys) are never user-scoped, so they're untouched.
+export const USER_SCOPED_TABLES = [
+  'user_collection',
+  'user_minifigs',
+  'user_wishlist',
+  'wishlist_alerts',
+  'user_missing_parts',
+  'user_build_cache',
+  'user_showcase',
+  'kids_badges',
+  'portfolio_snapshots',
+  'push_subscriptions',
+  'oauth_sessions',
+  'oauth_states',
+  'rate_limits',
+  'set_photos',
+  'set_reviews',
+  'set_contributions',
+  'user_prefs',
+];
+
+// DELETE /api/me — permanently delete the account and everything we hold about
+// the user. Required by both stores (Apple App Store Guideline 5.1.1(v) and
+// Google Play's account-deletion policy): a signed-in user must be able to
+// erase their account + data from inside the app.
+//
+// Order: (1) delete their uploaded photos from R2, (2) purge every user-scoped
+// D1 table in one atomic batch, (3) if a Supabase service-role key is
+// configured, delete the auth identity itself. Steps 1 and 3 are best-effort so
+// a transient failure there never leaves the D1 data half-deleted.
+app.delete('/', async (c) => {
+  const userId = c.get('userId');
+  const db = c.env.DB;
+
+  // Require an explicit confirmation token so a stray/forged DELETE can't wipe
+  // an account. The client sends { confirm: "DELETE" } after the user types it.
+  const body = await c.req.json<{ confirm?: string }>().catch(() => ({}) as { confirm?: string });
+  if (body?.confirm !== 'DELETE') {
+    return c.json({ error: 'confirmation required' }, 400);
+  }
+
+  // 1) Remove the user's uploaded set photos from R2 (best-effort).
+  if (c.env.PHOTO_BUCKET) {
+    try {
+      const photos = await db
+        .prepare('SELECT r2_key FROM set_photos WHERE user_id=?')
+        .bind(userId)
+        .all<{ r2_key: string }>();
+      await Promise.all(
+        (photos.results ?? []).map((p) =>
+          p.r2_key ? c.env.PHOTO_BUCKET!.delete(p.r2_key).catch(() => {}) : Promise.resolve(),
+        ),
+      );
+    } catch {
+      // Non-fatal: proceed with the D1 purge even if photo cleanup fails.
+    }
+  }
+
+  // 2) Purge every user-scoped table in a single atomic batch.
+  await db.batch(
+    USER_SCOPED_TABLES.map((t) => db.prepare(`DELETE FROM ${t} WHERE user_id=?`).bind(userId)),
+  );
+
+  // 3) Delete the Supabase auth identity when a service-role key is available.
+  //    Without it the data is gone but the login stub survives; the client still
+  //    signs the user out either way.
+  let authDeleted = false;
+  const serviceKey = c.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (serviceKey && c.env.SUPABASE_URL) {
+    try {
+      const resp = await fetch(`${c.env.SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+      });
+      authDeleted = resp.ok;
+    } catch {
+      // Non-fatal: data is already purged; the auth stub can be cleaned up later.
+    }
+  }
+
+  return c.json({ ok: true, auth_deleted: authDeleted });
+});
+
 // POST /api/me/kids-pin/set — set or change the 4-digit kids PIN
 app.post('/kids-pin/set', async (c) => {
   const { pin, current_pin } = await c.req.json<{ pin: string; current_pin?: string }>();
