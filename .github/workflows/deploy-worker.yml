@@ -306,6 +306,13 @@ jobs:
       - name: Inject Worker URL into Pages env.js
         run: |
           echo "window.WORKER_BASE = '${WORKER_URL}';" > public/env.js
+          # RevenueCat Google Play public SDK key (goog_…) for the Capacitor
+          # Android build. It's a publishable client key, not a secret, but we
+          # source it from a repo secret so it isn't hard-coded. Guarded: absent
+          # on web-only deploys, which is fine (native billing no-ops there).
+          if [ -n "${{ secrets.RC_PLAY_BILLING_KEY }}" ]; then
+            echo "window.RC_PLAY_BILLING_KEY = '${{ secrets.RC_PLAY_BILLING_KEY }}';" >> public/env.js
+          fi
           echo "env.js: $(cat public/env.js)"
 
       - name: Deploy Pages
