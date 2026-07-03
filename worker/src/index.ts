@@ -46,7 +46,7 @@ import { runPriceChartingEnrich } from './jobs/pricecharting-enrich';
 import { runPricesApiRetail } from './jobs/pricesapi-retail';
 import { runPriceChartingBulkFetch } from './jobs/pricecharting-bulk';
 import { applySourceConfig } from './lib/source-config';
-import { recordCronStart, recordCronFinish, summarizeResult } from './lib/cron-runs';
+import { recordCronStart, recordCronFinish, summarizeResult, isCronRunning } from './lib/cron-runs';
 
 import type { Env, Variables } from './types';
 
@@ -252,6 +252,13 @@ export default {
       // Track every cron run (running -> ok|failed + summary) for the admin
       // Activity view. Tracking is fail-open and never affects the job.
       const startedMs = Date.now();
+      // Overlap guard: if a prior invocation of this cron is still running (and
+      // not stale-swept), skip this tick instead of double-running a job that
+      // overran its interval. Fails open (proceeds) on any bookkeeping error.
+      if (await isCronRunning(env, name).catch(() => false)) {
+        console.warn(`[cron] ${name} skipped: previous run still active`);
+        return;
+      }
       const runId = await recordCronStart(env, name).catch(() => null);
       try {
         const res = await fn();

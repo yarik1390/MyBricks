@@ -63,6 +63,22 @@ export async function sweepStaleCronRuns(env: Env, maxAgeMinutes = 30): Promise<
   }
 }
 
+// Overlap guard: is a previous invocation of this cron still running (and not
+// yet stale-swept)? Lets the scheduled dispatcher skip a tick rather than double-
+// run a long job that overran its interval. maxAgeMinutes matches the stale sweep
+// so a crashed run can never wedge the lease past that window. FAILS OPEN (returns
+// false → "not running" → the job proceeds) so a bookkeeping hiccup never stalls crons.
+export async function isCronRunning(env: Env, name: string, maxAgeMinutes = 30): Promise<boolean> {
+  try {
+    const row = await env.DB.prepare(
+      `SELECT 1 AS x FROM cron_runs WHERE name=?1 AND status='running' AND started_at > datetime('now', ?2) LIMIT 1`,
+    ).bind(name, `-${maxAgeMinutes} minutes`).first<{ x: number }>();
+    return !!row;
+  } catch {
+    return false;
+  }
+}
+
 // Insert a 'running' row; returns its id (or null if tracking is unavailable).
 export async function recordCronStart(env: Env, name: string): Promise<number | null> {
   try {

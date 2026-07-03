@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { recordCronStart, recordCronFinish, getRecentRuns, summarizeResult, sweepStaleCronRuns } from './lib/cron-runs';
+import { recordCronStart, recordCronFinish, getRecentRuns, summarizeResult, sweepStaleCronRuns, isCronRunning } from './lib/cron-runs';
 
 const db = (env as any).DB as D1Database;
 
@@ -75,6 +75,20 @@ describe('cron run tracking', () => {
     expect(stuck!.finished_at).toBeTruthy();
     const live = await db.prepare(`SELECT status FROM cron_runs WHERE id=?`).bind(fresh).first<{ status: string }>();
     expect(live!.status).toBe('running'); // untouched
+  });
+
+  it('isCronRunning detects a fresh running row but not a stale or finished one', async () => {
+    expect(await isCronRunning(env as any, 'job-x')).toBe(false); // nothing yet
+    await recordCronStart(env as any, 'job-x'); // fresh 'running'
+    expect(await isCronRunning(env as any, 'job-x')).toBe(true);
+    expect(await isCronRunning(env as any, 'other-job')).toBe(false); // name-scoped
+    // A stale running row (older than the window) does NOT hold the lease.
+    await db.prepare(`INSERT INTO cron_runs (name, started_at, status) VALUES ('job-y', datetime('now','-40 minutes'), 'running')`).run();
+    expect(await isCronRunning(env as any, 'job-y', 30)).toBe(false);
+    // A finished row does not hold the lease.
+    const id = await recordCronStart(env as any, 'job-z');
+    await recordCronFinish(env as any, id, 'job-z', { ok: true });
+    expect(await isCronRunning(env as any, 'job-z')).toBe(false);
   });
 
   it('latest-per-name keeps processes separate', async () => {
