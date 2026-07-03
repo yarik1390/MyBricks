@@ -1640,4 +1640,109 @@ describe('Kids PIN and XP', () => {
       .bind(userId).first<{ badge_slug: string }>();
     expect(badge?.badge_slug).toBe('first_brick');
   });
+
+  describe('GET /api/sets/:setnum (detail)', () => {
+    // Gate off the on-demand provider refresh + Rebrickable fallback so the
+    // handler resolves synchronously from D1 with no network.
+    beforeEach(() => {
+      delete (env as any).BRICKLINK_CONSUMER_KEY;
+      delete (env as any).REBRICKABLE_API_KEY;
+      delete (env as any).BRICKSET_API_KEY;
+    });
+
+    it('returns the set with a null entry for an unauthenticated request', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/sets/75192'), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.set.set_num).toBe('75192');
+      expect(data.set.name).toBe('Millennium Falcon');
+      expect(data.entry).toBeNull();
+      expect(Array.isArray(data.set_minifigs)).toBe(true);
+    });
+
+    it('includes the owner collection entry when authenticated', async () => {
+      await db.prepare(
+        `INSERT INTO user_collection (user_id, set_num, quantity, condition, purchase_price)
+         VALUES (?, '75192', 3, 'sealed', 720)`
+      ).bind(userId).run();
+      const res = await app.fetch(new Request('http://localhost/api/sets/75192', { headers: auth() }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.entry).toBeTruthy();
+      expect(data.entry.quantity).toBe(3);
+      expect(data.entry.condition).toBe('sealed');
+    });
+
+    it('falls back to the -1 variant when the bare set number is not found', async () => {
+      await db.prepare(
+        `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
+         VALUES ('4002024-1', 'Employee Holiday Gift', 'Seasonal', 2024, 500, 300, 0, 1)`
+      ).run();
+      const res = await app.fetch(new Request('http://localhost/api/sets/4002024'), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.set.set_num).toBe('4002024-1');
+    });
+
+    it('404s for an unknown set when the Rebrickable fallback is unavailable', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/sets/00000'), env);
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('POST /api/sets/:setnum/listing-draft', () => {
+    it('requires authentication', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/sets/75192/listing-draft', { method: 'POST' }), env);
+      expect(res.status).toBe(401);
+    });
+
+    it('404s for an unknown set', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/sets/00000/listing-draft', {
+        method: 'POST', headers: auth(),
+      }), env);
+      expect(res.status).toBe(404);
+    });
+
+    it('500s cleanly when no AI provider is configured', async () => {
+      delete (env as any).OPENAI_API_KEY;
+      const res = await app.fetch(new Request('http://localhost/api/sets/75192/listing-draft', {
+        method: 'POST', headers: auth(),
+      }), env);
+      expect(res.status).toBe(500);
+      expect(String((await res.json<any>()).error)).toMatch(/listing/i);
+    });
+
+    it('generates a draft via a BYOK Gemini key', async () => {
+      const draft = { title: 'LEGO 75192 Millennium Falcon UCS', description: 'Huge sealed set.', suggested_price: 800, price_reasoning: 'Market comps.' };
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: JSON.stringify(draft) }] } }],
+      }), { status: 200 })) as any;
+      try {
+        const res = await app.fetch(new Request('http://localhost/api/sets/75192/listing-draft', {
+          method: 'POST', headers: { ...auth(), 'X-Gemini-Key': 'byok-test-key' },
+        }), env);
+        expect(res.status).toBe(200);
+        const data = await res.json<any>();
+        expect(data.title).toContain('75192');
+        expect(data.suggested_price).toBe(800);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it('enforces the daily rate limit on the shared server key', async () => {
+      // Pre-seed today's counter at the limit so the next server-key call trips 429
+      // (before any AI call — a BYOK header would bypass this path entirely).
+      const dws = new Date(); dws.setHours(0, 0, 0, 0);
+      await db.prepare(
+        `INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+         VALUES (?, 'listing-draft', ?, 30)`
+      ).bind(userId, dws.toISOString()).run();
+      const res = await app.fetch(new Request('http://localhost/api/sets/75192/listing-draft', {
+        method: 'POST', headers: auth(),
+      }), env);
+      expect(res.status).toBe(429);
+    });
+  });
 });
