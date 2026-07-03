@@ -18,7 +18,7 @@ export async function sendDiscordAlert(
     if (opts.url) embed.url = opts.url;
     if (opts.imageUrl) embed.thumbnail = { url: opts.imageUrl };
     if (opts.fields?.length) embed.fields = opts.fields;
-    embed.footer = { text: 'Brickvault · brickvault-5ub.pages.dev' };
+    embed.footer = { text: 'BricksVault · brickvault-5ub.pages.dev' };
 
     const resp = await fetch(webhookUrl, {
       method: 'POST',

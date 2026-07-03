@@ -63,8 +63,8 @@ app.post('/checkout', requireMember, async (c) => {
           unit_amount: MONTHLY_AMOUNT,
           recurring: { interval: 'month' },
           product_data: {
-            name: 'Brickvault Supporter Monthly',
-            description: 'Monthly contribution to support Brickvault development.',
+            name: 'BricksVault Supporter Monthly',
+            description: 'Monthly contribution to support BricksVault development.',
           },
         },
         quantity: 1,
@@ -74,8 +74,8 @@ app.post('/checkout', requireMember, async (c) => {
           currency: 'usd',
           unit_amount: amount,
           product_data: {
-            name: 'Brickvault Supporter',
-            description: 'One-time contribution to support Brickvault development.',
+            name: 'BricksVault Supporter',
+            description: 'One-time contribution to support BricksVault development.',
           },
         },
         quantity: 1,

@@ -1,6 +1,6 @@
 {
-  "name": "Brickvault",
-  "short_name": "Brickvault",
+  "name": "BricksVault",
+  "short_name": "BricksVault",
   "description": "Track, value, and forecast your brick collection.",
   "id": "/",
   "start_url": "/",

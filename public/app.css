@@ -1,5 +1,5 @@
 /* ============================================================
-   Brickvault — design tokens
+   BricksVault — design tokens
    ============================================================ */
 :root {
   color-scheme: light;
@@ -3793,7 +3793,7 @@ body[data-route="set-detail"] .advisor-fab {
    ============================================================ */
 
 /* ============================================================
-   Support Brickvault card + Supporter badges
+   Support BricksVault card + Supporter badges
    ============================================================ */
 .support-card { padding: var(--card-pad-md, 14px 16px); }
 .support-desc { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; line-height: 1.5; }

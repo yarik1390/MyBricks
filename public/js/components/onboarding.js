@@ -8,7 +8,7 @@ import { I } from '../icons.js';
 const FLAG = 'bv_onboarded_v1';
 
 const STEPS = [
-  { target: null, title: 'Welcome to Brickvault', body: 'Swipe through to see where everything lives.' },
+  { target: null, title: 'Welcome to BricksVault', body: 'Swipe through to see where everything lives.' },
   { target: '#nav .nav-tab[data-route="/"]', title: 'Your Vault', body: 'Tap any set to see its full value history.' },
   { target: '#nav .nav-tab[data-route="/add"]', title: 'Catalog', body: 'Search 27,000+ sets and add them to your vault.' },
   { target: '#nav .scan-tab', title: 'Scan', body: 'Point it at a box barcode — instant match.' },
@@ -198,7 +198,7 @@ export function maybeStartOnboarding() {
 const WELCOME_FLAG = 'bv_welcome_v1';
 
 const WELCOME_SLIDES = [
-  { icon: 'box',      hue: 4,   title: 'Welcome to Brickvault',  body: 'Your collection, valued like an investment portfolio.' },
+  { icon: 'box',      hue: 4,   title: 'Welcome to BricksVault',  body: 'Your collection, valued like an investment portfolio.' },
   { icon: 'trend',    hue: 152, title: 'Know what it’s worth', body: 'Real market values, ROI, and 2- & 5-year forecasts.' },
   { icon: 'scan',     hue: 212, title: 'Scan to add',          body: 'Point your camera — AI identifies it and adds it in a tap.' },
   { icon: 'advisor',  hue: 276, title: 'Ask the AI advisor',   body: 'Buy, sell, or hold? Get instant, portfolio-aware answers.' },
@@ -277,7 +277,7 @@ export function showWelcome() {
     wcRoot.className = 'bv-wc';
     wcRoot.setAttribute('role', 'dialog');
     wcRoot.setAttribute('aria-modal', 'true');
-    wcRoot.setAttribute('aria-label', 'Welcome to Brickvault');
+    wcRoot.setAttribute('aria-label', 'Welcome to BricksVault');
     const slides = WELCOME_SLIDES.map(s => `
       <div class="bv-wc-slide">
         <div class="bv-wc-hero" style="background:linear-gradient(145deg,oklch(.62 .19 ${s.hue}),oklch(.5 .16 ${(s.hue + 32) % 360}));">${typeof I[s.icon] === 'function' ? I[s.icon]({ w: 62 }) : ''}</div>

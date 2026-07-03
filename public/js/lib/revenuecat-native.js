@@ -1,6 +1,6 @@
 // RevenueCat — native Google Play (and later Apple) billing.
 //
-// WHY THE BRIDGE, NOT AN IMPORT: Brickvault ships as unbundled ES modules, so we
+// WHY THE BRIDGE, NOT AN IMPORT: BricksVault ships as unbundled ES modules, so we
 // can't `import { Purchases } from '@revenuecat/purchases-capacitor'` (bare
 // specifier won't resolve in the browser). Inside the Capacitor Android build the
 // plugins are reachable through the Capacitor runtime bridge, so we grab them via

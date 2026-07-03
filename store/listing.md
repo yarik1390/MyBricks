@@ -1,9 +1,9 @@
-# Brickvault — store listing copy & privacy answers
+# BricksVault — store listing copy & privacy answers
 
 Drafts to adapt. Review tone and specifics before publishing.
 
 ## App name
-- **Brickvault** (Play title ≤ 30 chars; Apple name ≤ 30 chars — "Brickvault" fits.)
+- **BricksVault** (Play title ≤ 30 chars; Apple name ≤ 30 chars — "BricksVault" fits.)
 
 ## Subtitle / short description
 - Apple subtitle (≤ 30): `Track & value your brick sets`
@@ -14,14 +14,14 @@ Drafts to adapt. Review tone and specifics before publishing.
 
 ## Full description (Play ≤ 4000 / Apple ≤ 4000)
 ```
-Brickvault turns your brick collection into a portfolio.
+BricksVault turns your brick collection into a portfolio.
 
 Add sets by scanning them with your camera, searching the catalog, or scanning
 a barcode — then track quantities, condition, purchase prices, and current market
 value in one place.
 
 FEATURES
-• AI photo scan — point your camera at a set and Brickvault identifies it.
+• AI photo scan — point your camera at a set and BricksVault identifies it.
 • Live valuations — market values blended from multiple pricing sources.
 • Forecasts — see how a set's value has trended and where it may be heading.
 • Wishlist & price-drop alerts — get notified when a set hits your target.

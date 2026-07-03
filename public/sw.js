@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = 'v245';
+const VERSION = 'v246';
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 const STATIC_ASSETS = [
@@ -149,7 +149,7 @@ self.addEventListener('message', e => {
 });
 
 self.addEventListener('push', e => {
-  let data = { title: 'Brickvault', body: 'New alert', url: '/' };
+  let data = { title: 'BricksVault', body: 'New alert', url: '/' };
   try { if (e.data) data = { ...data, ...e.data.json() }; } catch {}
   e.waitUntil(
     self.registration.showNotification(data.title, {

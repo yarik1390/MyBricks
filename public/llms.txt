@@ -1,8 +1,8 @@
-# Brickvault
+# BricksVault
 
 > A premium LEGO portfolio tracker (PWA). Blended market pricing, ROI tracking, camera scanning, and value forecasts for LEGO set and minifigure collections.
 
-Brickvault is a single-page web app. Page content is rendered client-side after
+BricksVault is a single-page web app. Page content is rendered client-side after
 load, and most user data (your vault, wishlist, portfolio value) requires
 sign-in — a fetch-only crawler will see the app shell, not personal data.
 

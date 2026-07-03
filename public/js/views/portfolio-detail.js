@@ -73,7 +73,7 @@ export async function renderSetDetail(setNum) {
 function setNotFoundHTML(setNum, online) {
   const title = online ? 'Set not found' : "Set isn't cached";
   const body = online
-    ? `Brickvault could not find ${setNum} in the catalog. Check the set number variant, or search the catalog.`
+    ? `BricksVault could not find ${setNum} in the catalog. Check the set number variant, or search the catalog.`
     : `You're offline and ${setNum} has not been opened on this device yet.`;
   return `
     <div class="page">
@@ -188,7 +188,7 @@ function shareSet(set) {
   if (navigator.share) {
     navigator.share({
       title: set.name,
-      text: `Check out ${set.name} (${set.set_num}) on Brickvault!`,
+      text: `Check out ${set.name} (${set.set_num}) on BricksVault!`,
       url: shareUrl
     }).catch(() => {});
   } else {
@@ -648,7 +648,7 @@ function wireDetailActions(set, entry) {
       }
       const newCount = prevCount + 1;
       const newValue = prevValue + displayVal;
-      const countMs = [[1,"Your first set! Welcome to Brickvault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! Dedicated collector 🏅"],[100,"100 sets! Elite collector 🏆"]];
+      const countMs = [[1,"Your first set! Welcome to BricksVault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! Dedicated collector 🏅"],[100,"100 sets! Elite collector 🏆"]];
       const valueMs = [[1000,"$1,000 portfolio milestone!"],[5000,"$5,000 portfolio!"],[10000,"$10,000 portfolio 💰"],[50000,"$50,000 — serious money 🤑"]];
       for (const [n, msg] of countMs) {
         if (prevCount < n && newCount >= n) { haptic("heavy"); setTimeout(() => { toast(msg, "milestone"); confettiBurst(); }, 700); break; }

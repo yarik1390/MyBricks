@@ -99,7 +99,7 @@ export async function renderMe() {
         <div class="avatar">${(me.display_name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}</div>
         <div class="u-flex1">
           <div class="profile-name">${escapeHtml(me.display_name || "Collector")}</div>
-          <div class="profile-handle">${guest ? "Guest mode - saved on this device" : "Member - Brickvault"}</div>
+          <div class="profile-handle">${guest ? "Guest mode - saved on this device" : "Member - BricksVault"}</div>
         </div>
         <button class="profile-pencil" aria-label="Edit name" id="editName">${I.pencil()}</button>
       </div>
@@ -119,7 +119,7 @@ export async function renderMe() {
         <button class="install-card" id="installBtn">
           <div class="install-icon">${I.download()}</div>
           <div class="install-text">
-            <div class="install-t1">Install Brickvault</div>
+            <div class="install-t1">Install BricksVault</div>
             <div class="install-t2">Add to your home screen for a full-screen, app-like experience.</div>
           </div>
           ${I.arrowR()}
@@ -209,7 +209,7 @@ export async function renderMe() {
       </div>
 
       <div class="u-mono-label u-fs-2xs u-faint" style="text-align:center;margin-top:24px;">
-        BRICKVAULT · v5.0 · STACK SOMETHING BEAUTIFUL
+        BRICKSVAULT · v1.0 · STACK SOMETHING BEAUTIFUL
       </div>
       <div style="text-align:center;margin-top:16px;font-size:12px;">
         <a href="/privacy.html" style="color:var(--ink-mute);text-decoration:underline;">Privacy Policy</a>
@@ -231,7 +231,7 @@ export async function renderMe() {
     dp.prompt();
     try {
       const { outcome } = await dp.userChoice;
-      if (outcome === "accepted") toast("Installing Brickvault…", "success");
+      if (outcome === "accepted") toast("Installing BricksVault…", "success");
     } catch {}
     state.pwa.deferredPrompt = null;
     $("#installBtn")?.remove();
@@ -258,7 +258,7 @@ export async function renderMe() {
   $$("#skinSeg button").forEach(b => b.addEventListener("click", () => {
     const val = b.dataset.skinVal;
     if (!me.is_supporter && (val === "premium" || val === "gold")) {
-      toast("Unlock Premium &amp; Gold by supporting Brickvault ★", "info");
+      toast("Unlock Premium &amp; Gold by supporting BricksVault ★", "info");
       return;
     }
     haptic("light");
@@ -412,7 +412,7 @@ export async function renderMe() {
     }
   });
 
-  if (stripeSuccess) toast("Thank you for supporting Brickvault!", "success");
+  if (stripeSuccess) toast("Thank you for supporting BricksVault!", "success");
 
   // Native (Google Play / Apple) billing via RevenueCat. Handlers are no-ops on web.
   $("#rcUpgradeBtn")?.addEventListener("click", async () => {
@@ -617,12 +617,13 @@ function supportCardHTML(me, patreonUrl) {
     </ul>`;
   const native = isNativeBilling();
   if (me.is_supporter) {
-    // On native, offer the RevenueCat Customer Center to manage/cancel.
+    // Premium members get BricksVault Pro. On native, offer the RevenueCat
+    // Customer Center to manage/cancel.
     return `
-      <h2 class="section-title">Supporter</h2>
+      <h2 class="section-title">BricksVault Pro</h2>
       <div class="card support-card support-card-active">
-        <div class="supporter-badge-lg">⭐ Supporter</div>
-        <p class="support-desc">Thank you for backing Brickvault. Your support keeps this project alive.</p>
+        <div class="supporter-badge-lg">⭐ BricksVault Pro</div>
+        <p class="support-desc">Thank you for going Pro. Your support keeps BricksVault alive — enjoy your perks.</p>
         ${perksHTML}
         ${native ? `<button class="btn-secondary" id="rcManageBtn" style="margin-top:12px;">Manage subscription</button>` : ''}
       </div>`;
@@ -630,9 +631,9 @@ function supportCardHTML(me, patreonUrl) {
   // Native (Google Play / Apple) build → Play Billing paywall. Web → Patreon.
   if (native) {
     return `
-      <h2 class="section-title">Brickvault Pro</h2>
+      <h2 class="section-title">BricksVault Pro</h2>
       <div class="card support-card">
-        <p class="support-desc">Unlock Brickvault Pro:</p>
+        <p class="support-desc">Unlock BricksVault Pro:</p>
         ${perksHTML}
         <button class="btn-primary" id="rcUpgradeBtn" style="margin-top:4px;">Upgrade to Pro</button>
         <button class="btn-ghost" id="rcRestoreBtn" style="width:100%;margin-top:8px;font-size:13px;color:var(--ink-mute);">Restore purchases</button>
@@ -640,9 +641,9 @@ function supportCardHTML(me, patreonUrl) {
   }
   if (!patreonUrl) return '';
   return `
-    <h2 class="section-title">Support Brickvault</h2>
+    <h2 class="section-title">Support BricksVault</h2>
     <div class="card support-card">
-      <p class="support-desc">Back Brickvault on Patreon to unlock supporter perks:</p>
+      <p class="support-desc">Back BricksVault on Patreon to unlock supporter perks:</p>
       ${perksHTML}
       <a href="${patreonUrl}" target="_blank" rel="noopener" class="btn-primary patreon-btn">
         Support on Patreon →

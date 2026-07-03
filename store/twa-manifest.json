@@ -1,8 +1,8 @@
 {
   "packageId": "app.brickvault",
   "host": "brickvault-5ub.pages.dev",
-  "name": "Brickvault",
-  "launcherName": "Brickvault",
+  "name": "BricksVault",
+  "launcherName": "BricksVault",
   "display": "standalone",
   "orientation": "portrait",
   "themeColor": "#F5F1E8",

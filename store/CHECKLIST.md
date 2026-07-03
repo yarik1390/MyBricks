@@ -1,4 +1,4 @@
-# Brickvault — App Store submission checklist
+# BricksVault — App Store submission checklist
 
 Ordered, end-to-end. Legend: **[DONE]** shipped in the repo · **[YOU]** needs your
 account / Mac / decision · **[REVIEW]** drafted, review before publishing.

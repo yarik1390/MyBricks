@@ -251,7 +251,7 @@ function paintPortfolio() {
       <div class="topbar">
         <div class="brand">
           <div class="brand-mark"></div>
-          <h1 class="brand-name">Brickvault</h1>
+          <h1 class="brand-name">BricksVault</h1>
         </div>
         <div class="topbar-actions">
           ${(state.me?.handle && state.me?.is_public) ? `<button class="icon-btn vault-extra-action" id="portfolioShareBtn" aria-label="Share Portfolio">${I.share()}</button>` : ""}
@@ -397,8 +397,8 @@ function paintPortfolio() {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "My LEGO Brickvault",
-          text: `Check out my LEGO collection on Brickvault!`,
+          title: "My LEGO BricksVault",
+          text: `Check out my LEGO collection on BricksVault!`,
           url: shareUrl
         });
       } catch (err) {

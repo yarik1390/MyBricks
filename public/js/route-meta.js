@@ -36,5 +36,5 @@ export function routeMetaFor(hash = "/") {
   const found = ROUTES.find(route => route.match(normalized));
   return found
     ? { key: found.key, nav: found.nav, title: found.title, fullscreen: !!found.fullscreen, protected: !!found.protected, fab: found.fab !== false }
-    : { key: "unknown", nav: null, title: "Brickvault", fullscreen: false, protected: false, fab: true };
+    : { key: "unknown", nav: null, title: "BricksVault", fullscreen: false, protected: false, fab: true };
 }

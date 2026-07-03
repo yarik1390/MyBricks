@@ -85,7 +85,7 @@ export function renderLogin() {
     document.getElementById("root").innerHTML = `
       <div class="page" style="max-width:420px;margin:0 auto;padding-top:48px;">
         <div style="text-align:center;margin-bottom:32px;">
-          <div style="font-family:var(--serif);font-size:30px;font-weight:600;margin-bottom:6px;">Brickvault</div>
+          <div style="font-family:var(--serif);font-size:30px;font-weight:600;margin-bottom:6px;">BricksVault</div>
           <div style="color:var(--ink-mute);font-size:14px;">Your brick portfolio, always in hand.</div>
         </div>
         <div class="card" style="padding:24px;">

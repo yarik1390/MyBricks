@@ -1,6 +1,6 @@
-# Brickvault — App Store packaging
+# BricksVault — App Store packaging
 
-Brickvault is a PWA (Cloudflare Pages + Workers). This folder holds everything needed to
+BricksVault is a PWA (Cloudflare Pages + Workers). This folder holds everything needed to
 package it for **Google Play** (as a Trusted Web Activity) and the **Apple App Store**
 (as a Capacitor native wrapper), plus the store paperwork.
 
@@ -37,7 +37,7 @@ two build paths.
 ## Google Play — Capacitor + Play Billing (RevenueCat)
 
 > ⚠️ **Capacitor, not a TWA.** A Trusted Web Activity can't use Google Play Billing, and
-> Brickvault sells a supporter tier ("BricksVault Pro") in-app — Play policy requires that
+> BricksVault sells a supporter tier ("BricksVault Pro") in-app — Play policy requires that
 > to go through Play Billing. Capacitor wraps the same PWA *and* exposes native Play
 > Billing via the RevenueCat plugin. (`twa-manifest.json` is kept only for reference.)
 > One Capacitor project also serves the iOS build later.
@@ -92,7 +92,7 @@ Apple does not accept TWAs. Wrap the PWA with Capacitor. Uses `store/capacitor.c
 5. Archive in Xcode → upload to App Store Connect → submit for review.
 
 > **Guideline 4.2 (minimum functionality):** Apple can reject a plain "website in a
-> webview." Brickvault's camera scan, offline PWA, and push are the native-feeling
+> webview." BricksVault's camera scan, offline PWA, and push are the native-feeling
 > capabilities that satisfy this — lean into them. Prefer bundling the web assets locally
 > (config mode B) and wiring real Capacitor plugins (Camera, Push, Haptics) over just
 > loading the remote URL. See notes in `capacitor.config.json`.
