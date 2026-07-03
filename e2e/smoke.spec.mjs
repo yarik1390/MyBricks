@@ -5,7 +5,7 @@ import { test, expect } from './fixtures.mjs';
 
 test('boots into the authed app (not the login screen) and loads the profile', async ({ page, stub }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('h1.brand-name')).toHaveText('Brickvault');
+  await expect(page.locator('h1.brand-name')).toHaveText('BricksVault');
   // Guests never see the vault header; reaching it proves the injected session took.
   expect(stub.calls.some((c) => c.path === '/api/me')).toBeTruthy();
   expect(stub.calls.some((c) => c.path === '/api/collection')).toBeTruthy();

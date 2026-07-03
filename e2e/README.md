@@ -1,6 +1,6 @@
 # Frontend smoke suite (Playwright)
 
-Hermetic end-to-end smoke tests for the Brickvault SPA. They run against the **real
+Hermetic end-to-end smoke tests for the BricksVault SPA. They run against the **real
 `public/` bundle** but need **no live services**: a tiny zero-dependency static
 server (`serve.mjs`) serves the app, and each test **stubs Supabase auth + every
 `/api/*` call** in the browser (`fixtures.mjs`), so the suite is deterministic,
