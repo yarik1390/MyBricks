@@ -27,16 +27,24 @@ function monthKey(now = new Date()): string {
   return now.toISOString().slice(0, 7);
 }
 
-// All configured keys (PRICESAPI_API_KEY + comma-separated PRICESAPI_API_KEYS),
-// trimmed and de-duplicated, in a stable order.
+// All configured keys, trimmed and de-duplicated, in a stable order. Reads the
+// canonical PRICESAPI_API_KEY(S) plus the PRICE_API_KEY(S) aliases (some
+// deployments name the Cloudflare secret PRICE_API_KEYS).
 export function configuredKeys(env: Env): string[] {
   const all = [
     env.PRICESAPI_API_KEY ?? '',
+    env.PRICE_API_KEY ?? '',
     ...(env.PRICESAPI_API_KEYS?.split(',') ?? []),
+    ...(env.PRICE_API_KEYS?.split(',') ?? []),
   ]
     .map((k) => k.trim())
     .filter(Boolean);
   return [...new Set(all)];
+}
+
+// True when at least one pricesAPI key is configured (under any accepted name).
+export function hasPricesApiKey(env: Env): boolean {
+  return configuredKeys(env).length > 0;
 }
 
 // SHA-256 hex of a key, for safe storage/identification.

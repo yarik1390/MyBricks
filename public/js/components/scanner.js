@@ -10,6 +10,58 @@ import { flipCalcHTML } from './flip-calc.js';
 let _scanTrapRelease = null;
 let _scanPending = false;
 
+// --- Per-scan latency instrumentation (opt-in) -----------------------------
+// Set localStorage bv_scan_debug='1' to log each stage's timing to the console,
+// so real per-photo latency can be measured on an actual device (which path,
+// on-device inference vs cloud round-trip, and the total).
+let _scanStartMs = 0;
+const _scanDbg = () => { try { return localStorage.getItem('bv_scan_debug') === '1'; } catch { return false; } };
+function scanTime(label, since) {
+  if (_scanDbg()) console.debug(`[scan-timing] ${label}: ${Math.round(performance.now() - (since ?? _scanStartMs))}ms`);
+}
+
+// --- Playful "analyzing" phrases -------------------------------------------
+// Rotate a few LEGO-flavored messages on the loading card while an image scan is
+// in flight, so the wait feels alive instead of a static "Identifying…". Image/AI
+// path only (barcode is instant). Stops on done(); the crossfade honors
+// prefers-reduced-motion (text still rotates, just without the fade).
+const SCAN_PHRASES = [
+  'Counting the studs…',
+  'Consulting the brick oracle…',
+  'Summoning the minifigs…',
+  'Sorting the 1×1 plates…',
+  'Rummaging the parts bin…',
+  'Matching the box art…',
+  'Asking the master builder…',
+  'Searching 20,000 sets…',
+  'Dusting off the instructions…',
+];
+let _scanPhraseTimer = null;
+function startScanPhrases() {
+  stopScanPhrases();
+  const queue = [...SCAN_PHRASES].sort(() => Math.random() - 0.5); // fresh order each scan
+  let i = 0;
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  _scanPhraseTimer = setInterval(() => {
+    const strong = document.querySelector('#scanResult .scan-loading-copy strong');
+    if (!strong) return;
+    const next = queue[i++ % queue.length];
+    if (reduce) { strong.textContent = next; return; }
+    strong.style.transition = 'opacity .18s ease';
+    strong.style.opacity = '0';
+    setTimeout(() => { strong.textContent = next; strong.style.opacity = '1'; }, 180);
+  }, 2200);
+}
+function stopScanPhrases() {
+  if (_scanPhraseTimer) { clearInterval(_scanPhraseTimer); _scanPhraseTimer = null; }
+}
+
+// NOTE: a Turnstile token pre-warm was tried here to hide the token fetch behind
+// framing time, but holding a token until capture triggered server-side
+// "could not verify" rejections (tokens are single-use + short-lived). The token
+// is now always minted inline, immediately before the scan request (see
+// cloudScanIdentify). Any future pre-warm must re-mint per request, not cache.
+
 function setScanPending(on) {
   _scanPending = !!on;
   const wrap = document.querySelector(".scan-video-wrap");
@@ -389,6 +441,9 @@ async function cloudScanIdentify(payload, signal) {
   // Shared server-key image scans (no BYOK key) carry a Turnstile token for bot
   // protection when configured; BYOK and barcode scans skip it.
   if (!geminiKey && !openaiKey && payload.mode === 'image') {
+    // Fetch a FRESH token immediately before the request. Turnstile tokens are
+    // single-use and short-lived, so they must be minted right before siteverify —
+    // holding a pre-warmed one caused server-side "could not verify" rejections.
     let token = await getTurnstileToken();
     // One retry on a transient miss (occasional invisible-challenge timeout on
     // rapid successive scans); a genuine config/script failure won't recover, so
@@ -396,10 +451,14 @@ async function cloudScanIdentify(payload, signal) {
     if (!token && /timeout|empty|error/.test(_tsReason)) token = await getTurnstileToken();
     if (token) extraHeaders['cf-turnstile-token'] = token;
   }
-  return api("/api/scan/identify", { method: "POST", body: payload, signal, headers: extraHeaders });
+  const _t = performance.now();
+  const res = await api("/api/scan/identify", { method: "POST", body: payload, signal, headers: extraHeaders });
+  scanTime(payload.mode === 'barcode' ? 'barcode lookup' : 'cloud identify round-trip', _t);
+  return res;
 }
 
 async function sendScanToAPI(payload) {
+  _scanStartMs = performance.now();
   setScanPending(true);
   const el = $("#scanResult");
   if (el) {
@@ -412,7 +471,11 @@ async function sendScanToAPI(payload) {
   );
   const frame = document.querySelector(".scan-frame");
   if (frame) frame.classList.add("scan-pending");
+  // Playful rotating copy for the (slower) image/AI path; barcode is instant.
+  if (payload.mode !== "barcode") startScanPhrases();
   const done = () => {
+    stopScanPhrases();
+    scanTime('total');
     if (frame) frame.classList.remove("scan-pending");
     setScanPending(false);
   };
@@ -430,10 +493,12 @@ async function sendScanToAPI(payload) {
     if (ready) {
       try {
         const bitmap = await imageBitmapFromDataUrl(payload.image);
+        const _tLocal = performance.now();
         const localResult = await runLocalVisionScan(bitmap, (statusText) => {
           const hint = $("#scanHint");
           if (hint) hint.textContent = statusText;
         });
+        scanTime('on-device inference', _tLocal);
         if (localResult.identified) {
           const setNum = localResult.set_num;
           let setResponse = await api(`/api/sets/${encodeURIComponent(setNum)}`).catch(() => null);

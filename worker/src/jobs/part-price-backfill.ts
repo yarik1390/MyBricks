@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { fetchPartPricing } from '../lib/bricklink';
+import { toBrickLinkColorId } from '../lib/bricklink-colors';
 import { reserveQuota } from '../lib/api-quota';
 
 /**
@@ -60,10 +61,15 @@ export async function runPartPriceBackfill(env: Env, options: { limit?: number }
   const concurrency = 4;
   for (let i = 0; i < results.length; i += concurrency) {
     const batch = results.slice(i, i + concurrency);
-    const outs = await Promise.all(batch.map(async (r) => ({
-      r,
-      px: await fetchPartPricing(r.part_num, r.color_id, env).catch(() => null),
-    })));
+    const outs = await Promise.all(batch.map(async (r) => {
+      // Rebrickable color id -> BrickLink color id, so the price guide is
+      // queried for the RIGHT color. null = no BrickLink equivalent -> skip.
+      const blColor = await toBrickLinkColorId(env, r.color_id);
+      return {
+        r,
+        px: blColor == null ? null : await fetchPartPricing(r.part_num, blColor, env).catch(() => null),
+      };
+    }));
     for (const { r, px } of outs) {
       processed++;
       if (px && px.price_new != null) {

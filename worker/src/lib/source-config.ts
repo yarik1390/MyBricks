@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { setSourceWeightMultipliers } from './market-sources';
 import { setQuotaCapOverrides } from './api-quota';
+import { applyFeatureFlags } from './feature-flags';
 
 // ---------------------------------------------------------------------------
 // Admin source-tuning config. One DB-backed row (app_settings['source_config'])
@@ -98,6 +99,9 @@ export async function applySourceConfig(env: Env): Promise<void> {
   }
   setSourceWeightMultipliers(mult);
   setQuotaCapOverrides(caps);
+  // Load runtime feature-flag overrides for this isolate on the same lifecycle
+  // (this runs at the start of every request and every cron invocation).
+  await applyFeatureFlags(env).catch(() => {});
 }
 
 /** Is a source enabled? Fail-open to the default. */

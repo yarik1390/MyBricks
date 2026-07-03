@@ -46,7 +46,7 @@ import { runPriceChartingEnrich } from './jobs/pricecharting-enrich';
 import { runPricesApiRetail } from './jobs/pricesapi-retail';
 import { runPriceChartingBulkFetch } from './jobs/pricecharting-bulk';
 import { applySourceConfig } from './lib/source-config';
-import { recordCronStart, recordCronFinish, summarizeResult } from './lib/cron-runs';
+import { recordCronStart, recordCronFinish, summarizeResult, isCronRunning } from './lib/cron-runs';
 
 import type { Env, Variables } from './types';
 
@@ -153,6 +153,11 @@ app.get('/api/config', (c) => {
     // Patreon creator page URL — set via `wrangler secret put PATREON_URL`.
     // When present, the Me tab Support card shows a "Support on Patreon" button.
     patreon_url: c.env.PATREON_URL || null,
+    // Show the "Sign in with Apple" button when APPLE_SIGNIN_ENABLED=1. Gated so
+    // the button stays hidden until the Apple provider is actually configured in
+    // Supabase (otherwise clicking it would 400 at GoTrue). Required for the iOS
+    // build since Apple mandates Sign in with Apple alongside Google (Guideline 4.8).
+    apple_signin: c.env.APPLE_SIGNIN_ENABLED === '1',
     status,
     setup: {
       google: {
@@ -252,6 +257,13 @@ export default {
       // Track every cron run (running -> ok|failed + summary) for the admin
       // Activity view. Tracking is fail-open and never affects the job.
       const startedMs = Date.now();
+      // Overlap guard: if a prior invocation of this cron is still running (and
+      // not stale-swept), skip this tick instead of double-running a job that
+      // overran its interval. Fails open (proceeds) on any bookkeeping error.
+      if (await isCronRunning(env, name).catch(() => false)) {
+        console.warn(`[cron] ${name} skipped: previous run still active`);
+        return;
+      }
       const runId = await recordCronStart(env, name).catch(() => null);
       try {
         const res = await fn();
@@ -379,14 +391,22 @@ export default {
       case '0 14 * * *': await run('image-prewarm', () => runImagePrewarm(env, { limit: 100, concurrency: 3 })); break;
       // Upcoming/coming-soon release feed (G2b): one LEGO.com listing scrape/day.
       case '0 15 * * *': await run('upcoming-refresh', () => runUpcomingRefresh(env)); break;
-      case '0 16 * * *': await run('pricecharting-enrich', () => runPriceChartingEnrich(env, { limit: 50 })); break;
+      // PriceCharting is free (no BrickLink budget) and a genuine 2nd sold-comp
+      // source. The DAILY bulk CSV (0 18) now covers the whole catalog, so this
+      // per-set path is just a small top-up for brand-new sets + the ~6% of PC
+      // rows the bulk can't match by set_num/UPC (search-by-name may catch them).
+      // Trimmed 120 → 40 accordingly.
+      case '0 16 * * *': await run('pricecharting-enrich', () => runPriceChartingEnrich(env, { limit: 40, concurrency: 8 })); break;
       // pricesAPI live-retail runs in 3 daily slots (~18 sets/day) now that the
       // key pool spreads the monthly budget; cold calls are 30–90s so each slot
       // stays small. The job prioritizes owned/wishlisted sets first.
       case '0 17 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 19 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 23 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
-      case '0 18 * * SUN': await run('pricecharting-bulk', () => runPriceChartingBulkFetch(env)); break;
+      // PriceCharting whole-catalog bulk CSV — DAILY (Legendary tier confirmed
+      // working; one ~2MB download refreshes all ~13k sets, well under the
+      // 1-per-10-min download limit).
+      case '0 18 * * *': await run('pricecharting-bulk', () => runPriceChartingBulkFetch(env)); break;
       // AI gap-fill: high-value formula sets that NO market source can price get a
       // free Gemini estimate (tries market first, AI only on a full miss). Small
       // limit + 3-day formula-head cooldown keep it well under the free tier; the
@@ -396,15 +416,11 @@ export default {
         includeSupplemental: false, includeEbay: false, includeAiFallback: true,
         subrequestBudget: 300,
       })); break;
-      // TEMPORARY one-time bootstrap: fill pc_new_value across the year>=2000 catalog.
-      // Runs 4x/hour at limit 150 concurrency 10; remove once pc_new_value is filled.
-      case '10,25,40,55 * * * *': await run('pc-bootstrap', () => runPriceChartingEnrich(env, { limit: 150, concurrency: 10 })); break;
-      // TEMPORARY one-time bootstrap: fill be_value_new across the year>=2000
-      // catalog (~22.4k sets). Runs 4x/hour at limit 150 (concurrency 5); the
-      // total spend self-limits at ~112k credits (one scrape per set) and the
-      // per-day rate is gated by FIRECRAWL_DAILY_CREDITS. REMOVE this trigger +
-      // reset FIRECRAWL_DAILY_CREDITS once be_value_new is filled.
-      case '5,20,35,50 * * * *': await run('be-bootstrap', () => runBrickEconomyEnrich(env, { limit: 150, concurrency: 5 })); break;
+      // NB: the temporary BrickEconomy bootstrap (was "5,20,35,50 * * * *", 4×/hour)
+      // was retired once the full year>=2000 catalog was swept (~67% populated =
+      // BrickEconomy's real coverage ceiling). Steady-state refresh now rides the
+      // daily brickeconomy-enrich (0 11) at limit 40; bootstrap-brickeconomy.yml
+      // (manual, budget-capped) fills any later gaps on demand.
       case '0 4 * * *': {
         await run('db-hygiene', () => runDbHygiene(env));
         await run('daily-catalog-maintenance', () => runDailyCatalogMaintenance(env));

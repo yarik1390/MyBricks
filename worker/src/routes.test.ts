@@ -2,6 +2,8 @@
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import app from './index';
+import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
+import { USER_SCOPED_TABLES } from './routes/me';
 
 declare module 'cloudflare:test' {
   interface ProvidedEnv {
@@ -115,7 +117,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         set_num TEXT PRIMARY KEY,
         pc_loose_value REAL, pc_sales_volume INTEGER,
         pa_retail_value REAL, pa_lowest_offer REAL, pa_in_stock INTEGER,
-        pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT
+        pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT,
+        bl_nodata_at TEXT
       )`,
       `CREATE TABLE set_value_history (
         set_num TEXT NOT NULL, snapshot_date TEXT NOT NULL,
@@ -375,6 +378,106 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const lo = await db.prepare(`SELECT brickinsights_rating FROM lego_sets WHERE set_num='BILO-1'`).first<any>();
       expect(hi.brickinsights_rating).toBe(88);
       expect(lo.brickinsights_rating).toBeNull();
+    });
+
+    it('flags Bright Data on the integration-health panel when it falls back to Firecrawl with no token', async () => {
+      // No Bright Data token in the Worker env, Firecrawl present, not paused: the
+      // scrape must record a brightdata health warning instead of silently degrading.
+      // (The seed has no scrape candidates, so no network call is made.)
+      delete (env as any).BRIGHTDATA_API_TOKEN;
+      delete (env as any).BRIGHTDATA_API_TOKENS;
+      delete (env as any).BRIGHTDATA_SOLD_ENABLED;
+      (env as any).FIRECRAWL_API_KEY = 'test-firecrawl-key';
+      try {
+        await runEbaySoldScrape(env as any, { limit: 5 });
+        const row = await db.prepare(
+          `SELECT fail_count, last_error FROM integration_health WHERE service='brightdata'`
+        ).first<any>();
+        expect(row).toBeTruthy();
+        expect(row.fail_count).toBeGreaterThanOrEqual(1);
+        expect(String(row.last_error)).toMatch(/not configured/i);
+      } finally {
+        delete (env as any).FIRECRAWL_API_KEY;
+      }
+    });
+
+    it('does not flag Bright Data when it is deliberately paused (BRIGHTDATA_SOLD_ENABLED=0)', async () => {
+      delete (env as any).BRIGHTDATA_API_TOKEN;
+      delete (env as any).BRIGHTDATA_API_TOKENS;
+      (env as any).BRIGHTDATA_SOLD_ENABLED = '0';
+      (env as any).FIRECRAWL_API_KEY = 'test-firecrawl-key';
+      try {
+        await runEbaySoldScrape(env as any, { limit: 5 });
+        const row = await db.prepare(
+          `SELECT 1 AS x FROM integration_health WHERE service='brightdata'`
+        ).first<any>();
+        expect(row).toBeNull();
+      } finally {
+        delete (env as any).FIRECRAWL_API_KEY;
+        delete (env as any).BRIGHTDATA_SOLD_ENABLED;
+      }
+    });
+
+    it('brightdata-reset-pool clears the exhausted/drained latch on the key pool', async () => {
+      await db.prepare(
+        `CREATE TABLE IF NOT EXISTS brightdata_keys (
+           key_hash TEXT PRIMARY KEY, used INTEGER NOT NULL DEFAULT 0, cap INTEGER NOT NULL DEFAULT 5000,
+           period_month TEXT, exhausted_at TEXT, last_used_at TEXT, updated_at TEXT
+         )`
+      ).run();
+      await db.prepare(`DELETE FROM brightdata_keys`).run();
+      await db.prepare(
+        `INSERT INTO brightdata_keys (key_hash, used, cap, period_month, exhausted_at)
+         VALUES ('hash-a', 5000, 5000, strftime('%Y-%m','now'), datetime('now')),
+                ('hash-b', 4999, 5000, strftime('%Y-%m','now'), datetime('now'))`
+      ).run();
+
+      const res = await app.fetch(new Request('http://localhost/api/admin/jobs/brightdata-reset-pool', {
+        method: 'POST', headers: auth(adminToken),
+      }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.ok).toBe(true);
+      expect(data.reset).toBe(2);
+
+      const rows = await db.prepare(
+        `SELECT used, exhausted_at FROM brightdata_keys ORDER BY key_hash`
+      ).all<any>();
+      for (const r of rows.results) {
+        expect(r.used).toBe(0);
+        expect(r.exhausted_at).toBeNull();
+      }
+      await db.prepare(`DROP TABLE brightdata_keys`).run();
+    });
+
+    it('ebay-sold-scrape admin job is dispatchable (skips cleanly when no scraper is configured)', async () => {
+      delete (env as any).BRIGHTDATA_API_TOKEN;
+      delete (env as any).BRIGHTDATA_API_TOKENS;
+      delete (env as any).FIRECRAWL_API_KEY;
+      const res = await app.fetch(new Request('http://localhost/api/admin/jobs/ebay-sold-scrape?limit=3', {
+        method: 'POST', headers: auth(adminToken),
+      }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.ok).toBe(true);
+      expect(data.job).toBe('ebay-sold-scrape');
+      expect(String(data.skipped || '')).toMatch(/neither/i);
+    });
+
+    it('per-service test probe: d1 passes and an unknown service 400s', async () => {
+      const good = await app.fetch(new Request('http://localhost/api/admin/test/d1', {
+        method: 'POST', headers: auth(adminToken),
+      }), env);
+      expect(good.status).toBe(200);
+      const gd = await good.json<any>();
+      expect(gd.service).toBe('d1');
+      expect(gd.ok).toBe(true);
+      expect(typeof gd.ms).toBe('number');
+
+      const bad = await app.fetch(new Request('http://localhost/api/admin/test/not-a-service', {
+        method: 'POST', headers: auth(adminToken),
+      }), env);
+      expect(bad.status).toBe(400);
     });
   });
 
@@ -1458,7 +1561,8 @@ describe('Kids PIN and XP', () => {
       `CREATE TABLE set_market_ext (
         set_num TEXT PRIMARY KEY, pc_loose_value REAL, pc_sales_volume INTEGER,
         pa_retail_value REAL, pa_lowest_offer REAL, pa_in_stock INTEGER,
-        pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT
+        pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT,
+        bl_nodata_at TEXT
       )`,
       `INSERT INTO lego_sets (set_num, name, theme, current_value, retail_price)
        VALUES ('75192', 'Millennium Falcon', 'Star Wars', 849.99, 799.99)`,
@@ -1536,5 +1640,225 @@ describe('Kids PIN and XP', () => {
     const badge = await db.prepare('SELECT badge_slug FROM kids_badges WHERE user_id=?')
       .bind(userId).first<{ badge_slug: string }>();
     expect(badge?.badge_slug).toBe('first_brick');
+  });
+
+  describe('GET /api/sets/:setnum (detail)', () => {
+    // Gate off the on-demand provider refresh + Rebrickable fallback so the
+    // handler resolves synchronously from D1 with no network.
+    beforeEach(() => {
+      delete (env as any).BRICKLINK_CONSUMER_KEY;
+      delete (env as any).REBRICKABLE_API_KEY;
+      delete (env as any).BRICKSET_API_KEY;
+    });
+
+    it('returns the set with a null entry for an unauthenticated request', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/sets/75192'), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.set.set_num).toBe('75192');
+      expect(data.set.name).toBe('Millennium Falcon');
+      expect(data.entry).toBeNull();
+      expect(Array.isArray(data.set_minifigs)).toBe(true);
+    });
+
+    it('includes the owner collection entry when authenticated', async () => {
+      await db.prepare(
+        `INSERT INTO user_collection (user_id, set_num, quantity, condition, purchase_price)
+         VALUES (?, '75192', 3, 'sealed', 720)`
+      ).bind(userId).run();
+      const res = await app.fetch(new Request('http://localhost/api/sets/75192', { headers: auth() }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.entry).toBeTruthy();
+      expect(data.entry.quantity).toBe(3);
+      expect(data.entry.condition).toBe('sealed');
+    });
+
+    it('falls back to the -1 variant when the bare set number is not found', async () => {
+      await db.prepare(
+        `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
+         VALUES ('4002024-1', 'Employee Holiday Gift', 'Seasonal', 2024, 500, 300, 0, 1)`
+      ).run();
+      const res = await app.fetch(new Request('http://localhost/api/sets/4002024'), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.set.set_num).toBe('4002024-1');
+    });
+
+    it('404s for an unknown set when the Rebrickable fallback is unavailable', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/sets/00000'), env);
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('POST /api/sets/:setnum/listing-draft', () => {
+    it('requires authentication', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/sets/75192/listing-draft', { method: 'POST' }), env);
+      expect(res.status).toBe(401);
+    });
+
+    it('404s for an unknown set', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/sets/00000/listing-draft', {
+        method: 'POST', headers: auth(),
+      }), env);
+      expect(res.status).toBe(404);
+    });
+
+    it('500s cleanly when no AI provider is configured', async () => {
+      delete (env as any).OPENAI_API_KEY;
+      const res = await app.fetch(new Request('http://localhost/api/sets/75192/listing-draft', {
+        method: 'POST', headers: auth(),
+      }), env);
+      expect(res.status).toBe(500);
+      expect(String((await res.json<any>()).error)).toMatch(/listing/i);
+    });
+
+    it('generates a draft via a BYOK Gemini key', async () => {
+      const draft = { title: 'LEGO 75192 Millennium Falcon UCS', description: 'Huge sealed set.', suggested_price: 800, price_reasoning: 'Market comps.' };
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({
+        candidates: [{ content: { parts: [{ text: JSON.stringify(draft) }] } }],
+      }), { status: 200 })) as any;
+      try {
+        const res = await app.fetch(new Request('http://localhost/api/sets/75192/listing-draft', {
+          method: 'POST', headers: { ...auth(), 'X-Gemini-Key': 'byok-test-key' },
+        }), env);
+        expect(res.status).toBe(200);
+        const data = await res.json<any>();
+        expect(data.title).toContain('75192');
+        expect(data.suggested_price).toBe(800);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it('enforces the daily rate limit on the shared server key', async () => {
+      // Pre-seed today's counter at the limit so the next server-key call trips 429
+      // (before any AI call — a BYOK header would bypass this path entirely).
+      const dws = new Date(); dws.setHours(0, 0, 0, 0);
+      await db.prepare(
+        `INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+         VALUES (?, 'listing-draft', ?, 30)`
+      ).bind(userId, dws.toISOString()).run();
+      const res = await app.fetch(new Request('http://localhost/api/sets/75192/listing-draft', {
+        method: 'POST', headers: auth(),
+      }), env);
+      expect(res.status).toBe(429);
+    });
+  });
+});
+
+describe('Account deletion (DELETE /api/me)', () => {
+  const JWT_SECRET = 'test-secret-at-least-32-chars-long-and-super-secure';
+  const userId = 'del-user-1';
+  const otherUserId = 'del-user-2';
+  let token: string;
+  let otherToken: string;
+  let db: D1Database;
+
+  const auth = (t = token) => ({ Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' });
+
+  beforeEach(async () => {
+    (env as any).SUPABASE_JWT_SECRET = JWT_SECRET;
+    (env as any).SUPABASE_URL = 'https://supabase.mock.io';
+    (env as any).SUPABASE_ANON_KEY = 'supabase-anon-key-mock';
+    (env as any).ADMIN_USER_ID = 'admin-user';
+    delete (env as any).SUPABASE_SERVICE_ROLE_KEY;
+    delete (env as any).PHOTO_BUCKET;
+
+    token = await createMockJWT(userId, JWT_SECRET);
+    otherToken = await createMockJWT(otherUserId, JWT_SECRET);
+    db = (env as any).DB;
+
+    // Recreate every user-scoped table with a uniform minimal shape. This unit
+    // tests the deletion MECHANISM (purge by user_id, scoped to the caller); the
+    // production DDL of each table is validated by the schema + other route
+    // tests, so a generic { user_id, r2_key } shape is sufficient and keeps the
+    // seed/assert loop table-agnostic. Iterating USER_SCOPED_TABLES (imported
+    // from the route) means adding/removing a table is covered automatically.
+    for (const t of USER_SCOPED_TABLES) {
+      await db.prepare(`DROP TABLE IF EXISTS ${t}`).run();
+      await db.prepare(`CREATE TABLE ${t} (user_id TEXT NOT NULL, set_num TEXT, r2_key TEXT, aux TEXT)`).run();
+      // One row for the caller and one for a different user, in every table.
+      await db.prepare(`INSERT INTO ${t} (user_id, r2_key) VALUES (?, ?)`).bind(userId, `${userId}/1234-1.jpg`).run();
+      await db.prepare(`INSERT INTO ${t} (user_id, r2_key) VALUES (?, ?)`).bind(otherUserId, `${otherUserId}/9999-1.jpg`).run();
+    }
+  });
+
+  async function countRows(uid: string): Promise<number> {
+    let total = 0;
+    for (const t of USER_SCOPED_TABLES) {
+      const row = await db.prepare(`SELECT COUNT(*) AS n FROM ${t} WHERE user_id=?`).bind(uid).first<{ n: number }>();
+      total += Number(row?.n ?? 0);
+    }
+    return total;
+  }
+
+  it('rejects an unauthenticated request', async () => {
+    const res = await app.fetch(new Request('http://localhost/api/me', { method: 'DELETE' }), env);
+    expect(res.status).toBe(401);
+  });
+
+  it('requires the typed DELETE confirmation', async () => {
+    const res = await app.fetch(new Request('http://localhost/api/me', {
+      method: 'DELETE', headers: auth(), body: JSON.stringify({ confirm: 'nope' }),
+    }), env);
+    expect(res.status).toBe(400);
+    // Nothing was deleted.
+    expect(await countRows(userId)).toBe(USER_SCOPED_TABLES.length);
+  });
+
+  it('purges every user-scoped table for the caller only', async () => {
+    expect(await countRows(userId)).toBe(USER_SCOPED_TABLES.length);
+    expect(await countRows(otherUserId)).toBe(USER_SCOPED_TABLES.length);
+
+    const res = await app.fetch(new Request('http://localhost/api/me', {
+      method: 'DELETE', headers: auth(), body: JSON.stringify({ confirm: 'DELETE' }),
+    }), env);
+    expect(res.status).toBe(200);
+    const json = await res.json<{ ok: boolean; auth_deleted: boolean }>();
+    expect(json.ok).toBe(true);
+
+    // The caller's rows are gone from all tables; the other user is untouched.
+    expect(await countRows(userId)).toBe(0);
+    expect(await countRows(otherUserId)).toBe(USER_SCOPED_TABLES.length);
+  });
+
+  it('deletes R2 photos and the auth identity when a service-role key is set', async () => {
+    const del = vi.fn().mockResolvedValue(undefined);
+    (env as any).PHOTO_BUCKET = { delete: del };
+    (env as any).SUPABASE_SERVICE_ROLE_KEY = 'service-role-key';
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }));
+    try {
+      const res = await app.fetch(new Request('http://localhost/api/me', {
+        method: 'DELETE', headers: auth(), body: JSON.stringify({ confirm: 'DELETE' }),
+      }), env);
+      expect(res.status).toBe(200);
+      const json = await res.json<{ ok: boolean; auth_deleted: boolean }>();
+      expect(json.ok).toBe(true);
+      expect(json.auth_deleted).toBe(true);
+      // Only the caller's photo key was deleted from R2.
+      expect(del).toHaveBeenCalledWith(`${userId}/1234-1.jpg`);
+      expect(del).toHaveBeenCalledTimes(1);
+      // The Supabase Admin API was called to remove the auth user.
+      expect(fetchSpy).toHaveBeenCalledWith(
+        `https://supabase.mock.io/auth/v1/admin/users/${userId}`,
+        expect.objectContaining({ method: 'DELETE' }),
+      );
+    } finally {
+      fetchSpy.mockRestore();
+      delete (env as any).PHOTO_BUCKET;
+      delete (env as any).SUPABASE_SERVICE_ROLE_KEY;
+    }
+  });
+
+  it('reports auth_deleted=false when no service-role key is configured', async () => {
+    const res = await app.fetch(new Request('http://localhost/api/me', {
+      method: 'DELETE', headers: auth(), body: JSON.stringify({ confirm: 'DELETE' }),
+    }), env);
+    expect(res.status).toBe(200);
+    const json = await res.json<{ ok: boolean; auth_deleted: boolean }>();
+    expect(json.auth_deleted).toBe(false);
+    expect(await countRows(userId)).toBe(0);
   });
 });

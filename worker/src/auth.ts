@@ -41,6 +41,25 @@ async function verifyJWT(token: string, env: Env): Promise<{ sub?: string; email
 
   if (payload.exp && payload.exp < Date.now() / 1000) return { error: 'expired token' };
   if (payload.role !== 'authenticated') return { error: 'not an authenticated role' };
+  // Defence-in-depth beyond the signature: reject a token minted for a different
+  // audience. Lenient — only reject a PRESENT, wrong `aud` so tokens lacking the
+  // claim still pass (no lockout risk). Supabase user access tokens use
+  // aud='authenticated'.
+  const aud = payload.aud;
+  if (aud != null && (Array.isArray(aud) ? !aud.includes('authenticated') : aud !== 'authenticated')) {
+    return { error: 'wrong audience' };
+  }
+  // Issuer (`iss`) check — LOG-ONLY. Supabase mints iss=`${SUPABASE_URL}/auth/v1`.
+  // Rejecting on a wrong match would lock everyone out if the expected value is
+  // even slightly off, so for now we only WARN on a mismatch to surface any
+  // discrepancy in logs. Once logs confirm the live issuer matches, flip this to
+  // `return { error: 'wrong issuer' }` to enforce.
+  if (payload.iss && env.SUPABASE_URL) {
+    const expectedIss = `${env.SUPABASE_URL.replace(/\/$/, '')}/auth/v1`;
+    if (payload.iss !== expectedIss) {
+      console.warn(`[auth] JWT iss mismatch (log-only): token iss=${payload.iss} expected=${expectedIss}`);
+    }
+  }
 
   const signed = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
   const sig = b64urlDecode(parts[2]);

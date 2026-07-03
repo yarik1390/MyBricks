@@ -1,0 +1,45 @@
+name: Backup D1 to R2
+
+# Nightly logical backup of the whole D1 catalog to a private R2 bucket, so a bad
+# migration or accidental delete has a restore path beyond Cloudflare's built-in
+# D1 time-travel. Manual runs allowed via the Actions tab.
+on:
+  schedule:
+    - cron: "0 8 * * *"        # daily 08:00 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: brickvault-d1-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      DB_NAME: brickvault
+      BACKUP_BUCKET: brickvault-backups
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Export D1 to a compressed SQL dump
+        run: |
+          set -euo pipefail
+          STAMP="$(date -u +%Y-%m-%d_%H%M%SZ)"
+          FILE="brickvault-${STAMP}.sql"
+          # Full logical dump (schema + data) of the remote D1 database.
+          npx wrangler@3 d1 export "${DB_NAME}" --remote --output "${FILE}"
+          gzip -9 "${FILE}"
+          echo "OBJECT_KEY=d1/${FILE}.gz" >> "$GITHUB_ENV"
+          echo "LOCAL_FILE=${FILE}.gz"    >> "$GITHUB_ENV"
+          ls -lh "${FILE}.gz"
+
+      - name: Upload the dump to R2 (private)
+        run: |
+          set -euo pipefail
+          npx wrangler@3 r2 object put "${BACKUP_BUCKET}/${OBJECT_KEY}" \
+            --file "${LOCAL_FILE}" --remote --content-type "application/gzip"
+          echo "✅ Uploaded r2://${BACKUP_BUCKET}/${OBJECT_KEY}"

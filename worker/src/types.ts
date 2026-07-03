@@ -12,6 +12,16 @@ export interface Env {
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
   SUPABASE_JWT_SECRET: string;
+  // Supabase service-role key (optional). When set as a Worker secret, account
+  // deletion (DELETE /api/me) also removes the Supabase auth identity via the
+  // Admin API so the email can't sign back into an empty account. Without it,
+  // deletion still purges all D1 data + R2 photos (store-compliant), but the
+  // auth stub remains until the key is configured.
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  // "1" enables the "Sign in with Apple" button on the login screen. Flip on
+  // only AFTER the Apple provider is configured in Supabase (Apple Developer
+  // Service ID + key) — required for the iOS App Store build (Guideline 4.8).
+  APPLE_SIGNIN_ENABLED?: string;
   ADMIN_USER_ID: string;
   BRICKSET_API_KEY: string;
   BRICKOWL_API_KEY?: string;
@@ -86,6 +96,10 @@ export interface Env {
   // lib/pricesapi-keys.ts). OFF unless PRICESAPI_ENABLED is truthy AND a key is set.
   PRICESAPI_API_KEY?: string;
   PRICESAPI_API_KEYS?: string;
+  // Accepted aliases for the pricesAPI key(s) — some deployments name the secret
+  // PRICE_API_KEY / PRICE_API_KEYS. Treated identically to PRICESAPI_API_KEY(S).
+  PRICE_API_KEY?: string;
+  PRICE_API_KEYS?: string;
   PRICESAPI_ENABLED?: string;
   // ISO country/market code for pricesAPI lookups (default "us"; us/gb/au/de/nl
   // have the deepest retailer coverage).

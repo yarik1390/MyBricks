@@ -1,7 +1,8 @@
-import { $, $$, haptic, escapeHtml, toast } from '../utils.js';
+import { $, haptic, escapeHtml, toast } from '../utils.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
+import { ADMIN_SECTIONS, ADMIN_JOB_TOOLS, MAINTENANCE_TOOLS, SOURCE_META, PROVIDER_GROUPS, SERVICE_FLAG, FLAG_LABEL, TESTABLE, TUNABLE_SOURCES, SERVICE_DESC, UUID_RE } from './me-admin-config.js';
 import {
   classifyJobRun,
   jobProgressSummary,
@@ -21,11 +22,8 @@ let adminJobPollTimer = null;
 let populateEverythingAuto = false;
 let populateEverythingContinueTimer = null;
 let showAllJobs = false;
-let providerFilter = 'needs';
 let contributionTab = 'all';
-let sourceDirty = false;
 
-let setupRows = [];
 let adminRuns = [];
 let adminHealth = null;
 let contributionData = null;
@@ -34,250 +32,52 @@ let sourceDefaults = {};
 let sourceConfig = {};
 let activityData = null;
 let activityPollTimer = null;
+let featureFlags = { flags: [], overrides: {}, effective: {} };
+// Active Services tab: 'attention' (triage across all categories) or a
+// PROVIDER_GROUPS category label ('Core', 'Pricing', …). Category-per-tab keeps
+// the mobile view short — one category on screen at a time.
+let serviceTab = 'attention';
 
-const ADMIN_SECTIONS = [
-  ['adminOverview', 'Overview'],
-  ['adminPopulate', 'Populate'],
-  ['adminJobs', 'Activity'],
-  ['adminProviders', 'Providers'],
-  ['adminQuality', 'Catalog Quality'],
-  ['adminSources', 'Source Tuning'],
-  ['adminUsers', 'Users'],
-  ['adminContrib', 'Contributions'],
-];
-
-const ADMIN_JOB_TOOLS = {
-  sets: {
-    url: '/api/admin/import-rebrickable',
-    method: 'POST',
-    body: { dataset: 'sets' },
-    label: 'Import sets',
-    desc: 'Imports the full LEGO set catalog from Rebrickable.',
-    source: 'Rebrickable',
-    duration: 'Several minutes',
-    quota: 'Use only when catalog import is incomplete.',
-    icon: I.download(),
-    confirm: 'Import the set catalog now? This is safe, but it can take a while.',
-  },
-  figs: {
-    url: '/api/admin/import-rebrickable',
-    method: 'POST',
-    body: { dataset: 'figs' },
-    label: 'Import minifigs',
-    desc: 'Imports the full minifigure catalog from Rebrickable.',
-    source: 'Rebrickable',
-    duration: 'Several minutes',
-    quota: 'Use when minifig data is missing or stale.',
-    icon: I.download(),
-    confirm: 'Import the minifig catalog now?',
-  },
-  upc: {
-    url: '/api/admin/backfill-upc',
-    method: 'POST',
-    body: {},
-    label: 'Backfill barcodes',
-    desc: 'Fills in missing UPC barcodes so sets can be scanned.',
-    source: 'Brickset / UPCitemdb',
-    duration: '1 safe slice',
-    quota: 'Daily provider quota controls how far this advances.',
-    icon: I.barcode(),
-  },
-  populate: {
-    url: '/api/admin/populate-coverage',
-    method: 'POST',
-    body: {},
-    label: 'Populate coverage',
-    desc: 'Runs one safe slice of barcode + asking-price refresh.',
-    source: 'Configured providers',
-    duration: '1 safe slice',
-    quota: 'Barcode pages plus asking-price refresh.',
-    icon: I.refresh({ w: 16 }),
-  },
-  revalue: {
-    url: '/api/admin/revalue-brickeconomy',
-    method: 'POST',
-    body: { scope: 'all', limit: 4 },
-    label: 'Revalue prices',
-    desc: 'Re-prices a small batch of sets from current market sources.',
-    source: 'Valuation sources',
-    duration: 'Small batch',
-    quota: 'Uses the current daily source budgets.',
-    icon: I.trend(),
-  },
-  everything: {
-    url: '/api/admin/populate-everything',
-    method: 'POST',
-    body: { valuation_limit: 6, barcode_pages: 4, ebay_limit: 2 },
-    label: 'Populate all safe sources',
-    desc: 'Runs safe slices across every configured source until done.',
-    source: 'All configured providers',
-    duration: 'Repeated safe slices',
-    quota: 'Stops only for hard errors; unavailable providers stay degraded.',
-    icon: I.refresh({ w: 16 }),
-  },
-  pricechartingBulk: {
-    url: '/api/admin/pricecharting-bulk-fetch',
-    method: 'POST',
-    body: {},
-    label: 'Refresh PriceCharting (LEGO bulk)',
-    desc: 'Downloads the whole LEGO price guide and updates values + liquidity.',
-    source: 'PriceCharting CSV',
-    duration: 'One ~2MB download',
-    quota: 'Auto-runs weekly; CSV downloads are limited to once per 10 minutes.',
-    icon: I.download(),
-  },
-  pricesapi: {
-    url: '/api/admin/run-pricesapi',
-    method: 'POST',
-    body: { limit: 3 },
-    label: 'Run pricesAPI now',
-    desc: 'Refreshes live retailer offers + stock for a few sets — use to verify new keys.',
-    source: 'pricesAPI.io',
-    duration: 'Up to ~90s per set',
-    quota: 'Needs PRICESAPI_ENABLED=1 + keys; spends the daily pricesAPI budget.',
-    icon: I.refresh({ w: 16 }),
-  },
-};
-
-const MAINTENANCE_TOOLS = {
-  expire: {
-    url: '/api/admin/expire-valuations',
-    method: 'POST',
-    label: 'Expire valuations',
-    desc: 'Marks current valuations stale so the pricing crons re-price every set.',
-    confirm: 'Expire valuations so cron jobs reprice them? This can create a lot of follow-up work.',
-  },
-  repair: {
-    url: '/api/admin/repair-search-index',
-    method: 'POST',
-    label: 'Repair search index',
-    desc: 'Rebuilds the catalog search index if set search starts returning wrong results.',
-    confirm: 'Rebuild the catalog search index now?',
-  },
-};
-
-const SOURCE_META = {
-  bricklink: ['BrickLink', 'Primary collector-market pricing. Strong signal for new and used values.'],
-  ebay: ['eBay', 'Asking data plus sold comps only when approved and reachable. No weak sold fallback.'],
-  brickeconomy: ['BrickEconomy', 'Useful historical and forecast signal when reachable.'],
-  brickowl: ['BrickOwl', 'Optional marketplace signal and cross-check.'],
-  pricecharting: ['PriceCharting', 'Optional loose and volume signals for broader resale context.'],
-  pricesapi: ['pricesAPI.io', 'Optional retail offer signal; keep disabled unless keys and quota are ready.'],
-  firecrawl: ['Firecrawl', 'Scraping runtime for structured market enrichment.'],
-  brightdata: ['Bright Data', 'Scraping/runtime provider for restricted market data.'],
-};
-
-const PROVIDER_GROUPS = [
-  ['Core', ['d1', 'supabase', 'worker', 'pages']],
-  ['Catalog', ['rebrickable', 'brickset', 'upc', 'upcitemdb']],
-  ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'brickowl', 'pricecharting', 'pricesapi']],
-  ['Scraping', ['firecrawl', 'brightdata']],
-  ['AI', ['gemini', 'openai', 'openrouter', 'byok']],
-  ['Notifications', ['resend', 'push', 'vapid', 'discord']],
-  ['Sync', ['google']],
-];
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function renderMeAdmin() {
   if (!state.me) $('#root').innerHTML = skelPage(skelSettingRows(6));
   const me = await loadMe();
   if (!me?.is_admin) { go('#/me'); return; }
 
-  const googleStatus = await api('/api/google/status').catch(() => ({ connected: false, configured: false }));
-  setupRows = buildSetupRows(me, googleStatus);
-
   $('#root').innerHTML = `
     <div class="page admin-page admin-dashboard-page">
       ${subpageTopbarHTML('Admin console', 'Admin')}
-      <nav class="admin-segments admin-segments-sticky" aria-label="Admin sections">
+      <nav class="admin-segments admin-segments-sticky" role="tablist" aria-label="Admin sections">
         ${ADMIN_SECTIONS.map(([id, label], i) => `<button type="button" role="tab" aria-selected="${i === 0}" aria-controls="${id}" class="${i === 0 ? 'active' : ''}" data-admin-section-link="${id}">${escapeHtml(label)}</button>`).join('')}
       </nav>
 
-      <section class="admin-section" id="adminOverview">
-        <div class="section-kicker">Operations</div>
-        <h2 class="section-title">Overview</h2>
-        <div id="adminOverviewCards" class="admin-summary-grid"></div>
-        <div class="admin-layout">
-          <div class="admin-main">
-            <div class="admin-panel">
-              <div class="admin-panel-head">
-                <div>
-                  <h3>Needs attention</h3>
-                  <p>Hard failures first, expected provider limits last.</p>
-                </div>
-              </div>
-              <div id="adminNeedsList" class="admin-action-list"></div>
-            </div>
-            <div class="admin-panel">
-              <div class="admin-panel-head">
-                <div>
-                  <h3>Setup state</h3>
-                  <p>Ready, degraded, and action-needed integrations.</p>
-                </div>
-              </div>
-              <div class="admin-setup-grid">${setupRowsHTML()}</div>
-            </div>
-          </div>
-          <aside class="admin-rail">
-            <div class="admin-rail-card">
-              <h3>Priority rail</h3>
-              <div id="adminRail">Loading...</div>
-            </div>
-          </aside>
+      <section class="admin-section" id="adminServices">
+        <h2 class="section-title">Services</h2>
+        <p class="admin-section-intro">Pick a category tab to see just those services. Tap any service for its status, usage, and controls — test it, flip capabilities on or off, and tune pricing, all without touching code.</p>
+        <div class="admin-service-filters" role="tablist" aria-label="Service categories">
+          ${serviceTabs().map(([id, label]) => serviceTabButtonHTML(id, label)).join('')}
         </div>
+        <div id="servicesContainer" class="admin-service-wrap" aria-live="polite">Loading services...</div>
       </section>
 
       <section class="admin-section" id="adminPopulate">
-        <div class="section-kicker">Data population</div>
         <h2 class="section-title">Populate</h2>
         ${populateSectionHTML()}
       </section>
 
       <section class="admin-section" id="adminJobs">
-        <div class="section-kicker">Live background activity</div>
         <h2 class="section-title">Activity</h2>
         <p class="admin-section-intro">Every background process and admin job, updated live while this page is open. Each row shows what it does, when it last ran, and the result.</p>
         <div id="jobsStatusContainer" class="admin-panel" aria-live="polite">Loading jobs...</div>
         <div id="processesContainer" class="admin-process-wrap" aria-live="polite">Loading processes...</div>
       </section>
 
-      <section class="admin-section" id="adminProviders">
-        <div class="section-kicker">Provider readiness</div>
-        <h2 class="section-title">Providers</h2>
-        <div class="admin-provider-filters" role="tablist" aria-label="Provider filters">
-          ${providerFilterButtonHTML('needs', 'Needs action')}
-          ${providerFilterButtonHTML('quota', 'Quota')}
-          ${providerFilterButtonHTML('ready', 'Ready')}
-          ${providerFilterButtonHTML('optional', 'Optional')}
-          ${providerFilterButtonHTML('all', 'All')}
-        </div>
-        <div id="providersContainer" class="admin-provider-wrap">Loading providers...</div>
-      </section>
-
       <section class="admin-section" id="adminQuality">
-        <div class="section-kicker">Catalog data quality</div>
         <h2 class="section-title">Catalog Quality</h2>
         <div id="qualityContainer" class="admin-panel">Loading coverage...</div>
       </section>
 
-      <section class="admin-section" id="adminSources">
-        <div class="section-kicker">Blend controls</div>
-        <h2 class="section-title">Source Tuning</h2>
-        <div class="admin-panel">
-          <div class="admin-panel-head">
-            <div>
-              <h3>Pricing source controls</h3>
-              <p>Adjust trust, daily budgets, and refresh cadence. Changes apply within about 1 minute.</p>
-            </div>
-          </div>
-          <div id="sourceTuningContainer">Loading source config...</div>
-          <div id="sourceTuningResult" class="admin-status-panel" hidden></div>
-        </div>
-      </section>
-
       <section class="admin-section" id="adminUsers">
-        <div class="section-kicker">Account support</div>
         <h2 class="section-title">Users</h2>
         <div class="admin-panel admin-user-panel">
           <label class="admin-field">
@@ -313,7 +113,6 @@ export async function renderMeAdmin() {
       </section>
 
       <section class="admin-section" id="adminContrib">
-        <div class="section-kicker">Community moderation</div>
         <h2 class="section-title">Contributions <span id="contribCount" class="contrib-count"></span></h2>
         <div class="admin-panel">
           <div class="admin-contrib-tabs" role="tablist" aria-label="Contribution type">
@@ -328,49 +127,16 @@ export async function renderMeAdmin() {
     </div>`;
 
   wireAdminShell();
-  renderAdminOverview();
   updateJobsStatus();
   loadActivity();
   updateIntegrationsHealth();
+  loadFeatureFlags();
   loadSourceTuning();
   loadContribQueue();
   loadSupporters();
 }
 
-function buildSetupRows(me, googleStatus) {
-  const savedOpenAIKey = localStorage.getItem('bv_openai_key') || '';
-  const status = state.config?.status || {};
-  return [
-    setupRow('D1 database', !!status.d1, 'ready', 'Missing binding', false),
-    setupRow('Supabase auth', !!status.supabase, 'ready', 'Missing auth config', false),
-    setupRow('Rebrickable catalog', !!status.rebrickable, 'ready', 'Missing REBRICKABLE_API_KEY', false),
-    setupRow('Brickset metadata', !!status.brickset, 'ready', 'Optional setup', true),
-    setupRow('BrickLink pricing', !!(status.bricklink || me?.bricklink_configured), 'ready', 'Missing BrickLink keys', false),
-    setupRow('eBay credentials', !!(status.ebay || me?.ebay_configured), 'credentials set', 'Sold comps unavailable', true),
-    setupRow('Google Sheets', !!(googleStatus.connected || googleStatus.configured || status.google), 'configured', 'Needs app setup/user connect', true),
-    setupRow('Server AI', !!(status.openai || savedOpenAIKey), 'configured', 'BYOK or server key needed', true),
-    setupRow('Notifications', !!(status.resend || status.push || status.vapid), 'configured', 'Optional setup', true),
-  ];
-}
-
-function setupRow(label, ok, okText, missText, optional) {
-  return { label, ok, okText, missText, optional };
-}
-
-function setupRowsHTML() {
-  return setupRows.map(row => {
-    const tone = row.ok ? 'ok' : row.optional ? 'neutral' : 'warn';
-    const status = row.ok ? row.okText : row.missText;
-    return `
-      <div class="admin-setup-card ${tone}">
-        <span>${escapeHtml(row.label)}</span>
-        <strong>${escapeHtml(status)}</strong>
-      </div>`;
-  }).join('');
-}
-
 function populateSectionHTML() {
-  const secondary = ['sets', 'figs', 'upc', 'populate', 'revalue', 'pricechartingBulk', 'pricesapi'];
   return `
     <div class="admin-populate-primary">
       <div class="admin-populate-copy">
@@ -388,24 +154,22 @@ function populateSectionHTML() {
       </div>
       <button class="btn-primary admin-primary-action" data-admin-tool="everything">${I.refresh()}<span>Run safe slice</span></button>
     </div>
+    <p class="admin-section-note">To run one job on its own — catalog imports, PriceCharting bulk, pricesAPI, or the eBay sold-comps scrape — use its <strong>Run now</strong> button on the Activity tab, where you can also watch it finish.</p>
     <div class="admin-tool-grid">
-      ${secondary.map(key => adminToolCardHTML(key)).join('')}
       ${maintenanceCardHTML('expire')}
       ${maintenanceCardHTML('repair')}
-    </div>`;
-}
-
-function adminToolCardHTML(key) {
-  const tool = ADMIN_JOB_TOOLS[key];
-  return `
-    <article class="admin-tool-card">
-      <div class="admin-tool-icon">${tool.icon}</div>
+    </div>
+    <article class="admin-tool-card admin-upload-card">
+      <div class="admin-tool-icon">${I.download()}</div>
       <div>
-        <h3>${escapeHtml(tool.label)}</h3>
-        ${tool.desc ? `<p class="admin-tool-desc">${escapeHtml(tool.desc)}</p>` : ''}
-        <small>${escapeHtml(tool.source)} · ${escapeHtml(tool.duration)} · ${escapeHtml(tool.quota)}</small>
+        <h3>Import BrickLink minifig catalog</h3>
+        <p class="admin-tool-desc">Upload BrickLink's Minifigures export (the tab-separated file) to map minifig IDs so BrickLink minifig prices resolve.</p>
+        <small id="blMinifigUploadResult">Choose the exported Minifigures file (tab format).</small>
       </div>
-      <button class="icon-btn admin-tool-run" data-admin-tool="${escapeHtml(key)}" aria-label="${escapeHtml(tool.label)}">${I.refresh({ w: 16 })}</button>
+      <label class="btn-secondary admin-upload-btn">
+        ${I.upload ? I.upload({ w: 16 }) : I.download({ w: 16 })}<span>Upload</span>
+        <input type="file" id="blMinifigFile" accept=".txt,.xml,.tsv,.csv,text/plain,text/xml,text/tab-separated-values" hidden>
+      </label>
     </article>`;
 }
 
@@ -424,33 +188,53 @@ function maintenanceCardHTML(key) {
 }
 
 function wireAdminShell() {
-  const sectionLinks = Array.from(document.querySelectorAll('[data-admin-section-link]'));
-  sectionLinks.forEach(btn => {
+  document.querySelectorAll('.admin-section').forEach(s => s.setAttribute('role', 'tabpanel'));
+  document.querySelectorAll('[data-admin-section-link]').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-admin-section-link');
-      const section = id ? document.getElementById(id) : null;
-      if (!section) return;
+      if (!id || !document.getElementById(id)) return;
       haptic('light');
-      sectionLinks.forEach(link => {
-        const active = link === btn;
-        link.classList.toggle('active', active);
-        link.setAttribute('aria-selected', active ? 'true' : 'false');
-      });
-      section.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      activateAdminSection(id);
     });
   });
   document.querySelectorAll('[data-admin-tool]').forEach(btn => {
-    btn.addEventListener('click', () => triggerImport(btn.getAttribute('data-admin-tool')));
+    btn.addEventListener('click', () => {
+      const tool = btn.getAttribute('data-admin-tool');
+      // Synchronous jobs return their result inline (no run_id / progress polling).
+      if (tool === 'ebaySold') return triggerSyncJob(tool);
+      triggerImport(tool);
+    });
   });
+  $('#blMinifigFile')?.addEventListener('change', (e) => importBlMinifigCatalog(e.target));
   document.querySelectorAll('[data-maint-tool]').forEach(btn => {
     btn.addEventListener('click', () => triggerMaintenance(btn.getAttribute('data-maint-tool')));
   });
-  document.querySelectorAll('[data-provider-filter]').forEach(btn => {
+  document.querySelectorAll('[data-service-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
-      providerFilter = btn.getAttribute('data-provider-filter') || 'needs';
-      renderProviderFilters();
-      renderProviders();
+      serviceTab = btn.getAttribute('data-service-tab') || 'attention';
+      renderServiceFilters();
+      renderServices();
     });
+  });
+  const servicesEl = document.getElementById('servicesContainer');
+  if (servicesEl) {
+    servicesEl.addEventListener('click', (e) => {
+      const testBtn = e.target.closest('[data-svc-test]');
+      if (testBtn) { runServiceProbe(testBtn.getAttribute('data-svc-test'), testBtn); return; }
+      const saveBtn = e.target.closest('[data-svc-save]');
+      if (saveBtn) { saveServiceTuning(saveBtn.getAttribute('data-svc-save'), saveBtn); return; }
+      const resetBtn = e.target.closest('[data-svc-reset]');
+      if (resetBtn) { resetPricingDefaults(resetBtn); }
+    });
+    servicesEl.addEventListener('change', (e) => {
+      const flagInput = e.target.closest('[data-svc-flag]');
+      if (flagInput) toggleServiceFlag(flagInput.getAttribute('data-svc-flag'), flagInput.checked, flagInput);
+    });
+  }
+  const processesEl = document.getElementById('processesContainer');
+  processesEl?.addEventListener('click', (e) => {
+    const runBtn = e.target.closest('[data-process-run]');
+    if (runBtn) runProcess(runBtn.getAttribute('data-process-run'), runBtn);
   });
   document.querySelectorAll('[data-contrib-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -465,46 +249,43 @@ function wireAdminShell() {
   $('#adminUserSearchInput')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') searchUsers();
   });
-  setupAdminSectionObserver();
+  syncAdminNavOffset();
+  requestAnimationFrame(syncAdminNavOffset);
+  window.removeEventListener('resize', syncAdminNavOffset);
+  window.addEventListener('resize', syncAdminNavOffset);
+  activateAdminSection(ADMIN_SECTIONS[0][0]);
 }
 
-function setupAdminSectionObserver() {
-  const links = Array.from(document.querySelectorAll('[data-admin-section-link]'));
-  const sections = ADMIN_SECTIONS.map(([id]) => document.getElementById(id)).filter(Boolean);
-  if (!('IntersectionObserver' in window) || !sections.length) return;
-  const observer = new IntersectionObserver((entries) => {
-    const visible = entries.filter(e => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-    if (!visible) return;
-    links.forEach(link => {
-      const active = link.dataset.adminSectionLink === visible.target.id;
-      link.classList.toggle('active', active);
-      link.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
-  }, { rootMargin: '-20% 0px -65% 0px', threshold: [0, 0.2, 0.6] });
-  sections.forEach(section => observer.observe(section));
+// Measure the sticky tab-nav's height into a CSS var so the Services category
+// bar can stick exactly beneath it (stacked sticky offsets). Recomputed on
+// resize / orientation change.
+function syncAdminNavOffset() {
+  const nav = document.querySelector('.admin-segments-sticky');
+  const page = document.querySelector('.admin-dashboard-page');
+  if (!nav || !page) return;
+  page.style.setProperty('--admin-seg-h', `${Math.round(nav.getBoundingClientRect().height)}px`);
 }
 
-function providerFilterButtonHTML(id, label) {
-  return `<button class="chip ${providerFilter === id ? 'active' : ''}" data-provider-filter="${escapeHtml(id)}" role="tab" aria-selected="${providerFilter === id}">${escapeHtml(label)}</button>`;
-}
-
-function renderProviderFilters() {
-  const wrap = document.querySelector('.admin-provider-filters');
-  if (!wrap) return;
-  wrap.innerHTML = [
-    providerFilterButtonHTML('needs', 'Needs action'),
-    providerFilterButtonHTML('quota', 'Quota'),
-    providerFilterButtonHTML('ready', 'Ready'),
-    providerFilterButtonHTML('optional', 'Optional'),
-    providerFilterButtonHTML('all', 'All'),
-  ].join('');
-  wrap.querySelectorAll('[data-provider-filter]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      providerFilter = btn.getAttribute('data-provider-filter') || 'needs';
-      renderProviderFilters();
-      renderProviders();
-    });
+// Tab view: show only the active section, sync the sticky nav (highlight +
+// reveal the active chip in the horizontal strip), and reset scroll to the top
+// — so switching tabs feels like a native segmented view instead of a long scroll.
+function activateAdminSection(id) {
+  document.querySelectorAll('.admin-section').forEach(s => s.classList.toggle('is-active', s.id === id));
+  let activeBtn = null;
+  document.querySelectorAll('[data-admin-section-link]').forEach(b => {
+    const on = b.getAttribute('data-admin-section-link') === id;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+    if (on) activeBtn = b;
   });
+  const nav = document.querySelector('.admin-segments-sticky');
+  if (nav && activeBtn) {
+    const btnRect = activeBtn.getBoundingClientRect();
+    const navRect = nav.getBoundingClientRect();
+    const delta = (btnRect.left + btnRect.width / 2) - (navRect.left + navRect.width / 2);
+    if (Math.abs(delta) > 1) nav.scrollBy({ left: delta, behavior: 'smooth' });
+  }
+  window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
 function contribTabButtonHTML(id, label) {
@@ -552,6 +333,31 @@ function schedulePopulateEverythingContinue(delay = 1400) {
   }, delay);
 }
 
+// Run a synchronous admin job (returns its result inline rather than a tracked
+// run_id). Shows a running state on the button, then toasts the result summary
+// and refreshes the integrations panel so e.g. the Bright Data row updates.
+async function triggerSyncJob(type) {
+  const cnf = ADMIN_JOB_TOOLS[type];
+  if (!cnf) return;
+  if (cnf.confirm && !window.confirm(cnf.confirm)) return;
+  const btns = [...document.querySelectorAll(`[data-admin-tool="${type}"]`)];
+  btns.forEach(b => { b.disabled = true; b.setAttribute('aria-busy', 'true'); });
+  haptic('medium');
+  toast(`${cnf.label}: running…`, 'info');
+  try {
+    const r = await api(cnf.url, { method: cnf.method, body: cnf.body });
+    const summary = r.skipped
+      ? `skipped — ${r.skipped}`
+      : `processed ${r.processed ?? 0}, updated ${r.updated ?? 0}, rejected ${r.rejected ?? 0}`;
+    toast(`${cnf.label}: ${summary}`, (r.updated > 0 || r.skipped) ? 'success' : 'info');
+    await updateIntegrationsHealth();
+  } catch (e) {
+    toast(`${cnf.label} failed: ${e.message || e}`, 'error');
+  } finally {
+    btns.forEach(b => { b.disabled = false; b.setAttribute('aria-busy', 'false'); });
+  }
+}
+
 async function triggerImport(type, { single = false } = {}) {
   const cnf = ADMIN_JOB_TOOLS[type];
   if (!cnf) return;
@@ -594,6 +400,26 @@ async function triggerMaintenance(type) {
   }
 }
 
+// Upload BrickLink's Minifigures catalog export (tab file) so minifig pricing can
+// resolve Rebrickable figs to BrickLink ids. Sends the file body verbatim.
+async function importBlMinifigCatalog(input) {
+  const file = input?.files?.[0];
+  const out = $('#blMinifigUploadResult');
+  if (!file) return;
+  if (out) out.textContent = `Uploading ${file.name}…`;
+  try {
+    const text = await file.text();
+    const r = await api('/api/admin/import-bricklink-minifigs', { method: 'POST', rawBody: text });
+    if (out) out.textContent = `Imported ${Number(r.inserted ?? 0).toLocaleString()} of ${Number(r.parsed ?? 0).toLocaleString()} minifigs. They map to prices as they're valued.`;
+    toast(`BrickLink minifig catalog: ${Number(r.inserted ?? 0).toLocaleString()} imported`, 'success');
+  } catch (e) {
+    if (out) out.textContent = `Failed: ${e.message || e}`;
+    toast(`Catalog upload failed: ${e.message || e}`, 'error');
+  } finally {
+    input.value = '';
+  }
+}
+
 async function updateJobsStatus() {
   const container = $('#jobsStatusContainer');
   if (!container) return;
@@ -611,7 +437,6 @@ async function updateJobsStatus() {
     }
     setAdminJobButtons(activeAdminTool || (runningRun ? 'active' : null));
     renderJobs(container);
-    renderAdminOverview();
 
     if (runningRun && location.hash === '#/me/admin') {
       scheduleAdminJobPoll(2500);
@@ -677,6 +502,12 @@ function renderProcesses() {
     byGroup.get(p.group).push(p);
   }
   const groups = order.filter(g => byGroup.has(g));
+  // Preserve which groups the admin expanded across the live re-render poll. On
+  // first paint (no groups in the DOM yet), open only groups that have a running
+  // or failed process so problems surface without expanding everything.
+  const existing = c.querySelectorAll('details.admin-process-group');
+  const firstPaint = existing.length === 0;
+  const openGroups = new Set(Array.from(existing).filter(d => d.open).map(d => d.getAttribute('data-group')));
   c.innerHTML = `
     <div class="admin-activity-summary">
       ${counts.running ? `<span class="admin-pill admin-pill--running">${counts.running} running</span>` : ''}
@@ -684,12 +515,35 @@ function renderProcesses() {
       ${counts.failed ? `<span class="admin-pill admin-pill--danger">${counts.failed} failed</span>` : ''}
       ${counts.idle ? `<span class="admin-pill admin-pill--idle">${counts.idle} not yet run</span>` : ''}
     </div>
-    ${groups.map(g => `
-      <div class="admin-process-group">
-        <h3 class="admin-process-group-title">${escapeHtml(g)}</h3>
-        <div class="admin-process-list">${byGroup.get(g).map(processRowHTML).join('')}</div>
-      </div>`).join('')}`;
+    ${groups.map(g => {
+      const items = byGroup.get(g);
+      const gRunning = items.filter(p => p.status === 'running').length;
+      const gFailed = items.filter(p => p.status === 'failed').length;
+      const open = firstPaint ? (gRunning > 0 || gFailed > 0) : openGroups.has(g);
+      const meta = [gRunning ? `${gRunning} running` : '', gFailed ? `${gFailed} failed` : '']
+        .filter(Boolean).join(' · ') || `${items.length}`;
+      const metaTone = gFailed ? ' is-error' : gRunning ? ' is-running' : '';
+      return `
+      <details class="admin-process-group" data-group="${escapeHtml(g)}"${open ? ' open' : ''}>
+        <summary class="admin-process-group-title">
+          <span>${escapeHtml(g)}</span>
+          <span class="admin-process-group-count${metaTone}">${escapeHtml(meta)}</span>
+        </summary>
+        <div class="admin-process-list">${items.map(processRowHTML).join('')}</div>
+      </details>`;
+    }).join('')}`;
 }
+
+// Background processes an admin can trigger on demand, mapped to their job tool.
+// The rest of the registry (valuation, snapshots, alerts…) is monitor-only.
+const PROCESS_TRIGGER = {
+  'weekly-import-sets': 'sets',
+  'weekly-import-figs': 'figs',
+  'upcitemdb-backfill': 'upc',
+  'pricecharting-bulk': 'pricechartingBulk',
+  'pricesapi-retail': 'pricesapi',
+  'ebay-sold-scrape': 'ebaySold',
+};
 
 function processRowHTML(p) {
   const badge = processRunBadge(p);
@@ -698,6 +552,7 @@ function processRowHTML(p) {
   const result = p.status === 'failed'
     ? `<span class="admin-process-result is-error">${escapeHtml(p.error || 'failed')}</span>`
     : (p.summary ? `<span class="admin-process-result">${escapeHtml(p.summary)}</span>` : '');
+  const canRun = !!PROCESS_TRIGGER[p.name] && p.status !== 'running';
   return `
     <div class="admin-process-row${p.status === 'running' ? ' is-running' : ''}">
       <div class="admin-process-head">
@@ -710,7 +565,22 @@ function processRowHTML(p) {
         ${p.status === 'idle' ? '' : `<span>last run ${escapeHtml(when)}${dur}</span>`}
         ${result}
       </div>
+      ${canRun ? `<div class="admin-process-actions"><button type="button" class="btn-secondary admin-proc-run" data-process-run="${escapeHtml(p.name)}">${I.refresh({ w: 14 })}<span>Run now</span></button></div>` : ''}
     </div>`;
+}
+
+// Trigger a background process from its Activity row, reusing the same job
+// pipeline the Populate buttons used. eBay sold comps runs synchronously; the
+// rest go through the tracked import-run path (which self-refreshes Activity).
+function runProcess(name, btn) {
+  const tool = PROCESS_TRIGGER[name];
+  if (!tool) return;
+  if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
+  if (tool === 'ebaySold') {
+    triggerSyncJob(tool).finally(() => loadActivity());
+  } else {
+    triggerImport(tool);
+  }
 }
 
 function renderJobs(container) {
@@ -721,8 +591,7 @@ function renderJobs(container) {
   const running = adminRuns.find(run => classifyJobRun(run).label === 'Running');
   const activeHTML = running ? activeJobPanelHTML(running) : `
     <div class="admin-job-idle">
-      <div><strong>No active job</strong><span>Safe slices can be run any time provider quotas allow.</span></div>
-      <button class="btn-primary" id="adminRunNextSlice">${I.refresh()}<span>Run next slice</span></button>
+      <div><strong>No active job</strong><span>Start a run from the Populate tab — live progress shows here.</span></div>
     </div>`;
   const groups = groupAdminJobRuns(adminRuns);
   const visible = showAllJobs ? groups : groups.slice(0, 3);
@@ -732,7 +601,6 @@ function renderJobs(container) {
       ${visible.map(jobGroupHTML).join('')}
     </div>
     ${groups.length > 3 ? `<button class="btn-secondary admin-show-more" id="adminShowMoreJobs">${showAllJobs ? 'Show newest 3' : `Show ${groups.length - 3} more`}</button>` : ''}`;
-  $('#adminRunNextSlice')?.addEventListener('click', () => triggerImport('everything', { single: true }));
   $('#adminStopAutoRun')?.addEventListener('click', () => {
     populateEverythingAuto = false;
     if (populateEverythingContinueTimer) clearTimeout(populateEverythingContinueTimer);
@@ -809,16 +677,25 @@ function jobDetails(run, state, progress) {
 async function updateIntegrationsHealth() {
   try {
     adminHealth = await api('/api/admin/integrations');
-    renderProviders();
+    renderServices();
     renderCatalogQuality();
-    renderAdminOverview();
-    renderSourceTuning(sourceConfig);
   } catch (err) {
-    const providers = $('#providersContainer');
     const quality = $('#qualityContainer');
-    if (providers) providers.innerHTML = errorPanelHTML('Provider health unavailable', err.message || String(err));
+    const services = $('#servicesContainer');
+    if (services) services.innerHTML = errorPanelHTML('Service health unavailable', err.message || String(err));
     if (quality) quality.innerHTML = errorPanelHTML('Catalog quality unavailable', err.message || String(err));
   }
+}
+
+// Runtime capability flags (eBay sold comps, Bright Data sold, BrickInsights,
+// Firecrawl, pricesAPI, BrickOwl). Feeds the per-service toggles in Services.
+async function loadFeatureFlags() {
+  try {
+    featureFlags = await api('/api/admin/feature-flags');
+  } catch (e) {
+    featureFlags = { flags: [], overrides: {}, effective: {}, error: e.message || String(e) };
+  }
+  renderServices();
 }
 
 function providerRows() {
@@ -835,70 +712,357 @@ function providerRows() {
   return rows;
 }
 
-function renderProviders() {
-  const container = $('#providersContainer');
-  if (!container) return;
-  if (!adminHealth) {
-    container.textContent = 'Loading providers...';
-    return;
-  }
-  const rows = providerRows().map(row => ({ row, health: classifyProviderHealth(row), group: providerGroupFor(row.service) }));
-  const filtered = rows.filter(({ health }) => {
-    if (providerFilter === 'all') return true;
-    if (providerFilter === 'needs') return health.actionable || health.blocked || health.tone === 'danger';
-    if (providerFilter === 'quota') return health.quotaLimited;
-    if (providerFilter === 'ready') return health.ready;
-    if (providerFilter === 'optional') return health.optional;
-    return true;
-  });
-  if (!filtered.length) {
-    container.innerHTML = `<div class="admin-empty-state">${I.check()}<strong>No providers in this filter.</strong><span>Try All to see the full diagnostic list.</span></div>`;
-    return;
-  }
-  container.innerHTML = PROVIDER_GROUPS.map(([label]) => {
-    const groupRows = filtered.filter(x => x.group === label);
-    if (!groupRows.length) return '';
-    return `
-      <div class="admin-provider-group">
-        <h3>${escapeHtml(label)}</h3>
-        <div class="admin-provider-grid">${groupRows.map(providerCardHTML).join('')}</div>
-      </div>`;
-  }).join('') || filtered.map(providerCardHTML).join('');
-}
-
-function providerCardHTML({ row, health }) {
-  const service = String(row.service || row.name || 'provider');
-  const quota = quotaFor(service);
-  const statusBits = [
-    row.configured === false ? 'not configured' : 'configured',
-    row.status ? String(row.status) : 'unknown',
-    quota ? `${quota.used}/${quota.cap} quota` : '',
-  ].filter(Boolean);
-  return `
-    <article class="admin-provider-card ${health.tone}">
-      <div class="admin-provider-head">
-        <div>
-          <h4>${escapeHtml(providerLabel(service))}</h4>
-          <p>${escapeHtml(statusBits.join(' - '))}</p>
-        </div>
-        <span class="badge ${badgeClass(health.tone)}">${escapeHtml(health.label)}</span>
-      </div>
-      <div class="admin-provider-facts">
-        <span>Last OK: ${escapeHtml(ago(row.last_ok_at))}</span>
-        <span>Last fail: ${escapeHtml(ago(row.last_fail_at))}</span>
-        ${quota ? `<span>Remaining: ${escapeHtml(String(quota.remaining ?? Math.max(0, quota.cap - quota.used)))}</span>` : ''}
-      </div>
-      ${service.toLowerCase() === 'ebay' ? ebayStateHTML(health) : ''}
-      <p class="admin-provider-action">${escapeHtml(health.action)}</p>
-      ${row.last_error ? `<details class="admin-job-details"><summary>Latest failure</summary><div>${escapeHtml(String(row.last_error).slice(0, 900))}</div></details>` : ''}
-    </article>`;
-}
-
 function ebayStateHTML(health) {
   const coverage = adminHealth?.coverage || {};
   const soldState = health.blocked ? 'sold comps blocked' : (coverage.sets_with_ebay_new || coverage.sets_with_ebay_used) ? 'sold comps available' : 'sold comps not populated';
   const askingState = coverage.sets_with_ebay_ask ? 'asking data available' : 'asking data not populated';
   return `<div class="admin-ebay-state"><span>${escapeHtml(soldState)}</span><span>${escapeHtml(askingState)}</span><span>No weak sold fallback</span></div>`;
+}
+
+// Per-key Bright Data spend this month (each key is capped at 5000 credits/mo on
+// the free tier). Reads adminHealth.brightdata.pool from /api/admin/integrations.
+function brightDataPoolHTML() {
+  const pool = adminHealth?.brightdata?.pool;
+  if (!pool || !Array.isArray(pool.entries) || !pool.entries.length) return '';
+  const live = pool.keys_live ?? 0;
+  const configured = pool.keys_configured ?? pool.entries.length;
+  const remaining = Number(pool.pooled_remaining ?? 0);
+  const head = `${live}/${configured} keys live · ${remaining.toLocaleString()} credits left this month`;
+  const rows = pool.entries.map((e) => {
+    const used = Number(e.used || 0);
+    const cap = Number(e.cap || 5000);
+    const left = Number(e.remaining ?? Math.max(0, cap - used));
+    // A key latched as "exhausted" while barely used almost certainly failed
+    // auth (invalid/revoked token) rather than draining its budget — label it so
+    // it's clear the token should be dropped, not waited out.
+    const flag = e.exhausted ? (used < 100 ? ' (rejected — likely invalid token)' : ' (exhausted)') : '';
+    return `<div>…${escapeHtml(String(e.key_hash || '').slice(0, 8))} — ${used.toLocaleString()}/${cap.toLocaleString()} credits${escapeHtml(flag)} · ${left.toLocaleString()} left</div>`;
+  }).join('');
+  return `<details class="admin-job-details" open><summary>Key pool — monthly spend: ${escapeHtml(head)}</summary><div class="admin-bd-pool">${rows}</div></details>`;
+}
+
+// Relative age for an ISO-8601 timestamp (e.g. new Date().toISOString()). The
+// shared ago() helper is for SQLite "YYYY-MM-DD HH:MM:SS" strings — it appends a
+// 'Z', which double-stamps an ISO value and yields "unknown". Parse natively here.
+function agoIso(ts) {
+  if (!ts) return null;
+  const then = Date.parse(String(ts));
+  if (!Number.isFinite(then)) return null;
+  const mins = Math.round((Date.now() - then) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
+}
+
+// PriceCharting whole-catalog bulk-download status, surfaced right on the
+// PriceCharting service card so "is the Legendary CSV import healthy?" is
+// self-serve (no digging through the Activity tab). Reads
+// adminHealth.pricecharting_ext.last_bulk from /api/admin/integrations.
+function pcBulkStatusHTML() {
+  const lb = adminHealth?.pricecharting_ext?.last_bulk;
+  if (!lb || typeof lb !== 'object') {
+    return `<p class="admin-service-action"><strong>Last bulk import:</strong> none recorded yet — the weekly LEGO price-guide download hasn’t run (or isn’t tracked). Trigger it from Activity → Pricing → “PriceCharting (bulk CSV)”.</p>`;
+  }
+  const when = agoIso(lb.finished_at);
+  // A skip/failure is the important case to surface — usually a non-Legendary
+  // token. Show the reason inline in the error tone.
+  if (lb.skipped) {
+    return `<p class="admin-service-action"><strong>Last bulk import:</strong> <span class="admin-process-result is-error">skipped — ${escapeHtml(String(lb.skipped))}</span>${when ? ` · ${escapeHtml(when)}` : ''}</p>`;
+  }
+  const matched = Number(lb.matched || 0);
+  const rows = Number(lb.rows || 0);
+  const updated = Number(lb.updated || 0);
+  const parts = [`matched ${matched.toLocaleString()}${rows ? ` / ${rows.toLocaleString()} rows` : ''}`];
+  if (updated) parts.push(`updated ${updated.toLocaleString()}`);
+  if (when) parts.push(when);
+  return `<p class="admin-service-action"><strong>Last bulk import:</strong> <span class="admin-process-result">${escapeHtml(parts.join(' · '))}</span></p>`;
+}
+
+// ---------------------------------------------------------------------------
+// Services section — the mobile-first, service-per-place view. Each provider is
+// a tap-to-expand card showing status, usage/spend, an on-demand Test button,
+// and (where applicable) a runtime capability toggle + pricing tuning, so an
+// admin can test and tune every service without touching code.
+// ---------------------------------------------------------------------------
+
+// Tab set: a leading "Needs action" triage view, then one tab per service
+// category (PROVIDER_GROUPS). One category on screen at a time = far less
+// scrolling on mobile.
+function serviceTabs() {
+  return [['attention', 'Needs action'], ...PROVIDER_GROUPS.map(([label]) => [label, label])];
+}
+
+function serviceTabButtonHTML(id, label) {
+  const active = serviceTab === id;
+  return `<button class="chip ${active ? 'active' : ''}" data-service-tab="${escapeHtml(id)}" role="tab" aria-selected="${active}">${escapeHtml(label)}</button>`;
+}
+
+function renderServiceFilters() {
+  const wrap = document.querySelector('.admin-service-filters');
+  if (!wrap) return;
+  wrap.innerHTML = serviceTabs().map(([id, label]) => serviceTabButtonHTML(id, label)).join('');
+  wrap.querySelectorAll('[data-service-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      serviceTab = btn.getAttribute('data-service-tab') || 'attention';
+      renderServiceFilters();
+      renderServices();
+    });
+  });
+}
+
+function serviceDescription(service) {
+  const key = String(service || '').toLowerCase();
+  if (SOURCE_META[key]) return SOURCE_META[key][1];
+  return SERVICE_DESC[key] || 'Configured service.';
+}
+
+// Build a health row for a grouped service even when the health endpoint has no
+// entry for it (infra like worker/pages, or not-yet-probed providers).
+function serviceRow(service, rows) {
+  const key = String(service).toLowerCase();
+  const found = rows.find(r => String(r.service).toLowerCase() === key);
+  if (found) return found;
+  const status = state.config?.status || {};
+  if (key === 'worker' || key === 'pages') return { service: key, configured: true, status: 'ok' };
+  const known = key in status ? !!status[key] : null;
+  return {
+    service: key,
+    configured: known == null ? true : known,
+    status: known == null ? 'unknown' : known ? 'ok' : 'down',
+    last_ok_at: null, last_fail_at: null, last_error: '',
+  };
+}
+
+function renderServices() {
+  const container = $('#servicesContainer');
+  if (!container) return;
+  if (!adminHealth) { container.textContent = 'Loading services...'; return; }
+  // Preserve which cards the admin has expanded across re-renders.
+  const openSet = new Set(
+    Array.from(container.querySelectorAll('details.admin-service[open]')).map(d => d.getAttribute('data-svc')),
+  );
+  const rows = providerRows();
+  const cfg = sourceConfig || {};
+  const card = (svc) => {
+    const row = serviceRow(svc, rows);
+    return { svc, row, health: classifyProviderHealth(row) };
+  };
+  const renderCard = (c) => serviceCardHTML(c.svc, c.row, c.health, cfg, openSet);
+
+  let body = '';
+  if (serviceTab === 'attention') {
+    // Triage across every category: only services that need attention, grouped
+    // so it's clear which area each belongs to.
+    body = PROVIDER_GROUPS.map(([label, keys]) => {
+      const cards = keys.map(card)
+        .filter(c => c.health.actionable || c.health.blocked || c.health.tone === 'danger' || c.health.tone === 'warn')
+        .map(renderCard);
+      return cards.length ? `<div class="admin-service-group"><h3>${escapeHtml(label)}</h3>${cards.join('')}</div>` : '';
+    }).join('');
+    if (!body) {
+      container.innerHTML = `<div class="admin-empty-state">${I.check()}<strong>Nothing needs attention.</strong><span>All services look healthy — tap a category tab to browse or tune them.</span></div>`;
+      return;
+    }
+    container.innerHTML = body;
+    return;
+  }
+
+  // A single category tab: show every service in that group, no sub-header
+  // (the active tab already names the category).
+  const group = PROVIDER_GROUPS.find(([label]) => label === serviceTab);
+  const keys = group ? group[1] : [];
+  const cards = keys.map(card).map(renderCard).filter(Boolean);
+  body = cards.length ? `<div class="admin-service-group">${cards.join('')}</div>` : '';
+  // The reset-to-defaults escape hatch lives with the tunable sources.
+  const showReset = (serviceTab === 'Pricing' || serviceTab === 'Scraping') && Object.keys(cfg).length;
+  const footer = body && showReset
+    ? `<div class="admin-service-footer">
+        <span>Adjust weight, daily cap, and refresh on each service above.</span>
+        <button type="button" class="btn-secondary admin-svc-reset" data-svc-reset>${I.refresh({ w: 16 })}<span>Reset pricing to defaults</span></button>
+      </div>`
+    : '';
+  container.innerHTML = (body + footer)
+    || `<div class="admin-empty-state">${I.info()}<strong>No services in this category.</strong><span>Pick another category tab.</span></div>`;
+}
+
+function serviceCardHTML(svc, row, health, cfg, openSet) {
+  const key = String(svc).toLowerCase();
+  const quota = quotaFor(key);
+  const flag = SERVICE_FLAG[key];
+  const tuning = TUNABLE_SOURCES.has(key) ? (cfg[key] || null) : null;
+  const isOpen = openSet.has(key);
+  const facts = [
+    `Last OK: ${ago(row.last_ok_at)}`,
+    `Last fail: ${ago(row.last_fail_at)}`,
+    quota ? `Quota: ${quota.used}/${quota.cap}` : '',
+    quota ? `Remaining: ${quota.remaining ?? Math.max(0, quota.cap - quota.used)}` : '',
+  ].filter(Boolean);
+  return `
+    <details class="admin-service ${health.tone}" data-svc="${escapeHtml(key)}" ${isOpen ? 'open' : ''}>
+      <summary class="admin-service-summary">
+        <span class="admin-service-id">
+          <strong>${escapeHtml(providerLabel(key))}</strong>
+          <small>${escapeHtml(serviceDescription(key))}</small>
+        </span>
+        <span class="badge ${badgeClass(health.tone)}">${escapeHtml(health.label)}</span>
+      </summary>
+      <div class="admin-service-body">
+        <div class="admin-service-facts">${facts.map(f => `<span>${escapeHtml(f)}</span>`).join('')}</div>
+        ${key === 'ebay' ? ebayStateHTML(health) : ''}
+        ${key === 'brightdata' ? brightDataPoolHTML() : ''}
+        ${key === 'pricecharting' ? pcBulkStatusHTML() : ''}
+        <p class="admin-service-action">${escapeHtml(health.action)}</p>
+        ${row.last_error ? `<details class="admin-job-details"><summary>Latest failure</summary><div>${escapeHtml(String(row.last_error).slice(0, 900))}</div></details>` : ''}
+        ${TESTABLE.has(key) ? serviceTestHTML(key) : ''}
+        ${flag ? serviceFlagHTML(key, flag) : ''}
+        ${tuning ? serviceTuningHTML(key, tuning) : ''}
+      </div>
+    </details>`;
+}
+
+function serviceTestHTML(svc) {
+  return `
+    <div class="admin-service-test">
+      <button type="button" class="btn-secondary admin-svc-test-btn" data-svc-test="${escapeHtml(svc)}">${I.refresh({ w: 16 })}<span>Test now</span></button>
+      <div class="admin-svc-test-result" data-svc-test-result="${escapeHtml(svc)}" hidden></div>
+    </div>`;
+}
+
+function serviceFlagHTML(svc, flag) {
+  const hasOverride = featureFlags.overrides && flag in featureFlags.overrides;
+  const intended = hasOverride ? !!featureFlags.overrides[flag] : !!featureFlags.effective?.[flag];
+  const effective = !!featureFlags.effective?.[flag];
+  const label = FLAG_LABEL[flag] || flag;
+  // "Blocked" = switched on, but it can't actually run because a required
+  // key/token is missing (or the provider is unreachable). Don't render this as a
+  // happy checked/active switch — flag it clearly as needing setup so it doesn't
+  // read as "on" when it does nothing.
+  const blocked = intended && !effective;
+  if (blocked) {
+    return `
+    <div class="admin-service-control is-blocked">
+      <div class="admin-toggle-row admin-toggle-row-static">
+        <span>${escapeHtml(label)}</span>
+        <span class="badge badge--warn">needs key</span>
+      </div>
+      <small class="admin-svc-hint">Enabled, but inactive — add the required key/token (or the provider is unreachable). It won't run until then.</small>
+    </div>`;
+  }
+  return `
+    <div class="admin-service-control">
+      <label class="admin-toggle-row">
+        <input type="checkbox" class="admin-svc-flag" data-svc-flag="${escapeHtml(flag)}" data-svc="${escapeHtml(svc)}" ${intended ? 'checked' : ''}>
+        <span>${escapeHtml(label)}</span>
+        <span class="badge ${effective ? 'badge--up' : 'badge--neutral'}">${effective ? 'active' : 'off'}</span>
+      </label>
+      <small class="admin-svc-hint">Runtime switch — applies within about 1 minute, no redeploy.</small>
+    </div>`;
+}
+
+function serviceTuningHTML(svc, t) {
+  return `
+    <div class="admin-service-tuning" data-src="${escapeHtml(svc)}">
+      <div class="admin-service-tuning-head">Valuation blend</div>
+      <label class="admin-toggle-row">
+        <input type="checkbox" class="src-enabled" ${t.enabled ? 'checked' : ''}>
+        <span>Included in scheduled jobs and the valuation blend</span>
+      </label>
+      <div class="admin-service-tuning-grid">
+        ${sourceInputHTML('Trust weight', 'src-weight', t.weight, 'decimal', '0.05')}
+        ${sourceInputHTML('Daily cap', 'src-cap', t.dailyCap == null ? '' : t.dailyCap, 'numeric', '1')}
+        ${sourceInputHTML('Refresh days', 'src-refresh', t.refreshDays == null ? '' : t.refreshDays, 'numeric', '1')}
+      </div>
+      <div class="source-error" hidden></div>
+      <div class="admin-service-tuning-actions">
+        <button type="button" class="btn-primary admin-svc-save" data-svc-save="${escapeHtml(svc)}">${I.check()}<span>Save ${escapeHtml(providerLabel(svc))}</span></button>
+      </div>
+    </div>`;
+}
+
+async function runServiceProbe(svc, btn) {
+  const box = document.querySelector(`[data-svc-test-result="${CSS.escape(svc)}"]`);
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  if (box) { box.hidden = false; box.className = 'admin-svc-test-result'; box.textContent = 'Testing…'; }
+  haptic('light');
+  try {
+    const r = await api(`/api/admin/test/${encodeURIComponent(svc)}`, { method: 'POST' });
+    const degraded = r.status === 'degraded';
+    const tone = degraded ? 'warn' : r.ok ? 'ok' : r.status === 'unconfigured' ? 'warn' : 'danger';
+    const head = degraded ? 'Degraded' : r.ok ? 'OK' : r.status || 'error';
+    if (box) {
+      box.className = `admin-svc-test-result ${tone}`;
+      box.textContent = `${head} — ${r.detail || ''} (${r.ms}ms)`;
+    }
+    toast(`${providerLabel(svc)}: ${head}`, degraded ? 'info' : r.ok ? 'success' : r.status === 'unconfigured' ? 'info' : 'error');
+  } catch (e) {
+    if (box) { box.className = 'admin-svc-test-result danger'; box.textContent = `Failed: ${e.message || e}`; }
+    toast(`${providerLabel(svc)} test failed`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.setAttribute('aria-busy', 'false');
+  }
+}
+
+async function toggleServiceFlag(flag, checked, input) {
+  input.disabled = true;
+  // saveFeatureFlags REPLACES the whole map, so send all current overrides plus
+  // the one we're changing (untouched env-default flags stay unset).
+  const next = { ...(featureFlags.overrides || {}), [flag]: checked };
+  try {
+    const r = await api('/api/admin/feature-flags', { method: 'PUT', body: { flags: next } });
+    featureFlags.overrides = r.overrides || next;
+    featureFlags.effective = r.effective || featureFlags.effective;
+    haptic('light');
+    const eff = !!featureFlags.effective?.[flag];
+    const suffix = checked && !eff ? ' (inactive — needs a key/token)' : '';
+    toast(`${FLAG_LABEL[flag] || flag}: ${checked ? 'enabled' : 'disabled'}${suffix}`, checked && !eff ? 'info' : 'success');
+    renderServices();
+  } catch (e) {
+    input.checked = !checked;
+    input.disabled = false;
+    toast(`Could not update ${FLAG_LABEL[flag] || flag}: ${e.message || e}`, 'error');
+  }
+}
+
+async function saveServiceTuning(svc, btn) {
+  const card = btn.closest('.admin-service-tuning');
+  if (!card) return;
+  const errEl = card.querySelector('.source-error');
+  card.classList.remove('invalid');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+  // saveSourceConfig resets omitted sources to defaults, so send the FULL config
+  // with just this source's fields replaced from the inputs.
+  const draft = { ...(sourceConfig || {}) };
+  draft[svc] = {
+    enabled: !!card.querySelector('.src-enabled')?.checked,
+    weight: card.querySelector('.src-weight')?.value ?? '',
+    dailyCap: card.querySelector('.src-cap')?.value ?? '',
+    refreshDays: card.querySelector('.src-refresh')?.value ?? '',
+  };
+  const validation = validateSourceTuningInput(draft);
+  if (!validation.ok) {
+    const errs = validation.errors[svc];
+    if (errs && errEl) { errEl.hidden = false; errEl.textContent = errs.join(' '); }
+    card.classList.add('invalid');
+    toast('Fix the highlighted values before saving.', 'error');
+    return;
+  }
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  try {
+    const res = await api('/api/admin/source-config', { method: 'PUT', body: { config: validation.config } });
+    sourceConfig = res.config || validation.config;
+    haptic('light');
+    toast(`${providerLabel(svc)} saved.`, 'success');
+    renderServices();
+  } catch (e) {
+    toast(`Error saving ${providerLabel(svc)}: ${e.message || e}`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.setAttribute('aria-busy', 'false');
+  }
 }
 
 function renderCatalogQuality() {
@@ -954,72 +1118,24 @@ function recommendedQualityAction(cards) {
   const priority = cards
     .filter(c => ['Missing UPC', 'Low-confidence values', 'Expired values', 'eBay new sold', 'eBay used sold'].includes(c.label))
     .sort((a, b) => b.pct - a.pct)[0];
-  if (!priority) return 'Run Populate all safe sources to refresh the latest provider coverage.';
-  if (priority.label === 'Missing UPC') return 'Run Backfill barcodes or Populate all safe sources in daily safe slices.';
-  if (priority.label === 'Low-confidence values') return 'Run Revalue prices and check provider access before increasing source weights.';
-  if (priority.label.startsWith('eBay')) return 'Check eBay sold-comps access; do not fall back to active listings for sold value.';
+  if (!priority) return 'Run Populate all safe sources (Populate tab) to refresh the latest provider coverage.';
+  if (priority.label === 'Missing UPC') return 'Run Populate all safe sources, or the Barcode backfill job from the Activity tab.';
+  if (priority.label === 'Low-confidence values') return 'Run Populate all safe sources and check provider access in the Services tab before increasing source weights.';
+  if (priority.label.startsWith('eBay')) return 'Check eBay sold-comps access in the Services tab; do not fall back to active listings for sold value.';
   return 'Run Populate all safe sources to advance the next safe slice.';
 }
 
+// Loads pricing source config (defaults + stored overrides) for the per-service
+// tuning + reset controls in the Services section. No dedicated UI of its own.
 async function loadSourceTuning() {
-  const container = $('#sourceTuningContainer');
   try {
     const data = await api('/api/admin/source-config');
     sourceDefaults = data.defaults || {};
     sourceConfig = data.config || {};
-    sourceDirty = false;
-    renderSourceTuning(sourceConfig);
+    renderServices();
   } catch (e) {
-    if (container) container.innerHTML = errorPanelHTML('Could not load source config', e.message || String(e), 'Retry source tuning');
-    $('#adminErrorRetry')?.addEventListener('click', loadSourceTuning);
+    toast(`Could not load pricing config: ${e.message || e}`, 'error');
   }
-}
-
-function renderSourceTuning(config = sourceConfig) {
-  const container = $('#sourceTuningContainer');
-  if (!container) return;
-  const entries = Object.entries(config || {});
-  if (!entries.length) {
-    container.innerHTML = `<div class="admin-empty-state">${I.info()}<strong>No source tuning data yet.</strong><span>Reload after the admin endpoint is ready.</span></div>`;
-    return;
-  }
-  container.innerHTML = `
-    <div class="source-card-grid">
-      ${entries.map(([name, tuning]) => sourceCardHTML(name, tuning)).join('')}
-    </div>
-    <div class="source-tuning-footer">
-      <span id="sourceUnsavedCount">${sourceDirty ? 'Unsaved changes' : 'No unsaved changes'}</span>
-      <button class="btn-secondary" id="sourceTuningResetBtn">${I.refresh()}<span>Reset to defaults</span></button>
-      <button class="btn-primary" id="sourceTuningSaveBtn">${I.check()}<span>Save changes</span></button>
-    </div>`;
-  container.querySelectorAll('input').forEach(input => input.addEventListener('input', markSourceDirty));
-  $('#sourceTuningSaveBtn')?.addEventListener('click', saveSourceTuning);
-  $('#sourceTuningResetBtn')?.addEventListener('click', resetSourceTuning);
-}
-
-function sourceCardHTML(name, t) {
-  const meta = SOURCE_META[name] || [name, 'Pricing or data source.'];
-  const health = classifyProviderHealth(providerRows().find(r => String(r.service).toLowerCase() === String(name).toLowerCase()) || { service: name, configured: true, status: 'unknown' });
-  return `
-    <article class="source-card" data-src="${escapeHtml(name)}">
-      <div class="source-card-head">
-        <div>
-          <h3>${escapeHtml(meta[0])}</h3>
-          <p>${escapeHtml(meta[1])}</p>
-        </div>
-        <span class="badge ${badgeClass(health.tone)}">${escapeHtml(health.label)}</span>
-      </div>
-      <label class="source-toggle-row">
-        <input type="checkbox" class="src-enabled" ${t.enabled ? 'checked' : ''}>
-        <span>Enabled for scheduled jobs and valuation blend</span>
-      </label>
-      <div class="source-grid">
-        ${sourceInputHTML('Trust weight', 'src-weight', t.weight, 'decimal', '0.05')}
-        ${sourceInputHTML('Daily cap', 'src-cap', t.dailyCap == null ? '' : t.dailyCap, 'numeric', '1')}
-        ${sourceInputHTML('Refresh days', 'src-refresh', t.refreshDays == null ? '' : t.refreshDays, 'numeric', '1')}
-      </div>
-      <div class="source-error" hidden></div>
-    </article>`;
 }
 
 function sourceInputHTML(label, cls, value, inputMode, step) {
@@ -1030,76 +1146,29 @@ function sourceInputHTML(label, cls, value, inputMode, step) {
     </label>`;
 }
 
-function markSourceDirty() {
-  sourceDirty = true;
-  const out = $('#sourceUnsavedCount');
-  if (out) out.textContent = `${document.querySelectorAll('.source-card').length} sources editable - unsaved changes`;
-}
-
-function collectSourceTuning() {
-  const config = {};
-  for (const row of $$('.source-card')) {
-    const name = row.getAttribute('data-src');
-    config[name] = {
-      enabled: !!row.querySelector('.src-enabled')?.checked,
-      weight: row.querySelector('.src-weight')?.value ?? '',
-      dailyCap: row.querySelector('.src-cap')?.value ?? '',
-      refreshDays: row.querySelector('.src-refresh')?.value ?? '',
-    };
-  }
-  return config;
-}
-
-async function saveSourceTuning() {
-  const out = $('#sourceTuningResult');
-  if (out) {
-    out.hidden = false;
-    out.className = 'admin-status-panel';
-    out.textContent = 'Saving source tuning...';
-  }
-  document.querySelectorAll('.source-card').forEach(card => {
-    card.classList.remove('invalid');
-    const err = card.querySelector('.source-error');
-    if (err) { err.hidden = true; err.textContent = ''; }
-  });
-  const validation = validateSourceTuningInput(collectSourceTuning());
-  if (!validation.ok) {
-    for (const [name, errors] of Object.entries(validation.errors)) {
-      const card = document.querySelector(`.source-card[data-src="${CSS.escape(name)}"]`);
-      card?.classList.add('invalid');
-      const err = card?.querySelector('.source-error');
-      if (err) { err.hidden = false; err.textContent = errors.join(' '); }
-    }
-    if (out) {
-      out.className = 'admin-status-panel danger';
-      out.textContent = 'Fix the highlighted source tuning values before saving.';
-    }
+// Reset all pricing sources (weight, daily cap, refresh, enabled) to the server
+// defaults. The escape hatch that used to live in the Source Tuning tab; it now
+// applies immediately and re-renders Services.
+async function resetPricingDefaults(btn) {
+  if (!Object.keys(sourceDefaults).length) {
+    toast('Pricing defaults not loaded yet — try again in a moment.', 'info');
     return;
   }
+  if (!window.confirm('Reset all pricing sources (weight, daily cap, refresh, enabled) to defaults?')) return;
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
   try {
-    const res = await api('/api/admin/source-config', { method: 'PUT', body: { config: validation.config } });
-    sourceConfig = res.config || validation.config;
-    sourceDirty = false;
-    renderSourceTuning(sourceConfig);
-    if (out) {
-      out.hidden = false;
-      out.className = 'admin-status-panel ok';
-      out.textContent = 'Source tuning saved.';
-    }
+    const res = await api('/api/admin/source-config', { method: 'PUT', body: { config: sourceDefaults } });
+    sourceConfig = res.config || sourceDefaults;
+    haptic('light');
+    toast('Pricing sources reset to defaults.', 'success');
+    renderServices();
   } catch (e) {
-    if (out) {
-      out.className = 'admin-status-panel danger';
-      out.textContent = `Error: ${e.message || e}`;
-    }
+    toast(`Reset failed: ${e.message || e}`, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.setAttribute('aria-busy', 'false');
   }
-}
-
-function resetSourceTuning() {
-  if (!Object.keys(sourceDefaults).length) return;
-  if (!window.confirm('Reset source tuning to defaults?')) return;
-  sourceConfig = typeof structuredClone === 'function' ? structuredClone(sourceDefaults) : JSON.parse(JSON.stringify(sourceDefaults));
-  sourceDirty = true;
-  renderSourceTuning(sourceConfig);
 }
 
 async function setSupporterStatus(value) {
@@ -1223,11 +1292,9 @@ async function loadContribQueue() {
   try {
     contributionData = await api('/api/admin/contributions?status=pending');
     renderContribQueue();
-    renderAdminOverview();
   } catch (e) {
     contributionData = { error: e.message || 'Unknown error', items: [], counts: { total: 0, reviews: 0, photos: 0, data: 0 } };
     renderContribQueue();
-    renderAdminOverview();
   }
 }
 
@@ -1338,64 +1405,9 @@ async function moderateContribution(btn) {
   }
 }
 
-function renderAdminOverview() {
-  const cards = $('#adminOverviewCards');
-  const needs = $('#adminNeedsList');
-  const rail = $('#adminRail');
-  if (!cards || !needs || !rail) return;
-  const providerStates = providerRows().map(row => ({ row, health: classifyProviderHealth(row) }));
-  const running = adminRuns.find(run => classifyJobRun(run).label === 'Running');
-  const hardJobs = adminRuns.filter(run => classifyJobRun(run).needsAttention);
-  const blockedProviders = providerStates.filter(x => x.health.blocked || x.health.tone === 'danger');
-  const quotaProviders = providerStates.filter(x => x.health.quotaLimited);
-  const pending = Number(contributionData?.counts?.total || 0);
-  const coverage = adminHealth?.coverage || {};
-  const quotaPressure = (adminHealth?.quota || []).filter(q => Number(q.cap || 0) > 0 && Number(q.used || 0) / Number(q.cap || 1) >= 0.75);
-  cards.innerHTML = [
-    summaryCard('System ready', setupRows.some(r => !r.ok && !r.optional) ? 'Action needed' : 'Ready', setupRows.some(r => !r.ok && !r.optional) ? 'warn' : 'ok', 'Core setup and required providers.'),
-    summaryCard('Catalog coverage', `${Number(coverage.total_sets || 0).toLocaleString()} sets`, 'ok', `${Number(coverage.total_minifigs || 0).toLocaleString()} minifigs tracked.`),
-    summaryCard('Running job', running ? `#${running.id}` : 'None', running ? 'warn' : 'neutral', running ? jobProgressSummary(running).label : 'Safe slices can be started.'),
-    summaryCard('Provider issues', blockedProviders.length, blockedProviders.length ? 'danger' : 'ok', `${quotaProviders.length} quota-limited providers.`),
-    summaryCard('Pending contributions', pending, pending ? 'warn' : 'ok', 'Reviews, photos, and data fixes awaiting moderation.'),
-    summaryCard('Daily quota pressure', quotaPressure.length, quotaPressure.length ? 'warn' : 'ok', quotaPressure.length ? quotaPressure.map(q => q.service).join(', ') : 'Within daily budgets.'),
-  ].join('');
-  const actionItems = [
-    ...hardJobs.slice(0, 2).map(run => actionItem('Hard job error', `Job #${run.id}: ${classifyJobRun(run).label}`, '#adminJobs', 'danger')),
-    ...blockedProviders.slice(0, 4).map(x => actionItem(`${providerLabel(x.row.service)} blocked`, x.health.action, '#adminProviders', 'danger')),
-    ...quotaProviders.slice(0, 3).map(x => actionItem(`${providerLabel(x.row.service)} quota`, x.health.action, '#adminProviders', 'warn')),
-    ...setupRows.filter(r => !r.ok).slice(0, 3).map(r => actionItem(r.optional ? 'Optional setup' : 'Setup needed', `${r.label}: ${r.missText}`, '#adminOverview', r.optional ? 'neutral' : 'warn')),
-  ];
-  if (!actionItems.length) actionItems.push(actionItem('Nothing urgent', 'Core systems look ready. Keep Populate all safe sources moving in small slices.', '#adminPopulate', 'ok'));
-  needs.innerHTML = actionItems.join('');
-  rail.innerHTML = actionItems.slice(0, 5).join('');
-}
-
-function summaryCard(label, value, tone, body) {
-  return `
-    <article class="admin-summary-card ${tone}">
-      <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(String(value))}</strong>
-      <p>${escapeHtml(body)}</p>
-    </article>`;
-}
-
-function actionItem(title, body, href, tone) {
-  return `
-    <a class="admin-action-item ${tone}" href="${escapeHtml(href)}">
-      <strong>${escapeHtml(title)}</strong>
-      <span>${escapeHtml(body)}</span>
-    </a>`;
-}
-
 function quotaFor(service) {
   const name = String(service || '').toLowerCase();
   return (adminHealth?.quota || []).find(q => String(q.service || '').toLowerCase() === name) || null;
-}
-
-function providerGroupFor(service) {
-  const name = String(service || '').toLowerCase();
-  const found = PROVIDER_GROUPS.find(([, keys]) => keys.some(key => name.includes(key)));
-  return found ? found[0] : 'Optional';
 }
 
 function providerLabel(service) {

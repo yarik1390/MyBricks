@@ -411,8 +411,11 @@ export async function runLocalVisionScan(imageElement, onStatus) {
 
   if (onStatus) onStatus('Analyzing image locally...');
   // tasks-genai multimodal prompt: array of string / {imageSource} parts.
+  // Keep the requested output TERSE: on-device latency is dominated by the number
+  // of tokens generated, so we drop the free-text "reasoning" field (the biggest
+  // token sink) and ask only for the set number, name and confidence.
   const prompt = [
-    'You are a LEGO product-identification expert. Identify the LEGO set in this image. Look for any visible set numbers (usually 5 digits, e.g., 75192 or 10300) or distinctive box art/mini-figure details. Return ONLY raw JSON in this format: { "set_num": "...", "name": "...", "confidence": "high|medium|low|none", "reasoning": "..." }',
+    'You are a LEGO product-identification expert. Identify the LEGO set in this image. Look for any visible set number (usually 5 digits, e.g. 75192 or 10300) or distinctive box art. Return ONLY raw JSON, no prose, no explanation: { "set_num": "...", "name": "...", "confidence": "high|medium|low|none" }',
     { imageSource: imageElement }
   ];
 

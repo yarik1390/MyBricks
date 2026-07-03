@@ -17,6 +17,11 @@ export const QUOTA_CAPS: Record<string, number> = {
   brickeconomy: 80,
   brickset: 90,
   brickowl: 1500,
+  // PriceCharting per-set /api/product calls (the daily enrich cron). Free/cheap
+  // tier but metered so admin usage is honest + a runaway is capped; the weekly
+  // bulk CSV is a single download and is not counted here. Enrich runs ~40/day,
+  // so this is generous headroom, not a throttle.
+  pricecharting: 500,
   // Daily pacing for the Bright Data eBay-sold scrape. The authoritative monthly
   // limit is the per-token pool (brightdata_keys, 5000/token/mo, ~25k for 5 tokens).
   // Set high to BURST through the initial backfill (~1200/day); the job self-tapers

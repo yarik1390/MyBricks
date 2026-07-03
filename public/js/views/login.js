@@ -45,6 +45,9 @@ export function renderLogin() {
   // ignored unless Supabase CAPTCHA protection is enabled, so logins keep
   // working until that's switched on.
   const siteKey = state.config && state.config.turnstile_site_key;
+  // Sign in with Apple — only shown when the server advertises it (Apple provider
+  // configured in Supabase). Apple requires this alongside Google on iOS (4.8).
+  const appleOn = !!(state.config && state.config.apple_signin);
   let captchaToken = null;
   let tsWidgetId = null;
   async function mountTurnstile() {
@@ -114,6 +117,13 @@ export function renderLogin() {
               </svg>
               <span>Continue with Google</span>
             </button>
+            ${appleOn ? `
+            <button id="appleSignIn" class="btn-secondary" style="width:100%;gap:10px;justify-content:center;">
+              <svg width="16" height="18" viewBox="0 0 16 18" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M13.09 9.55c-.02-1.9 1.55-2.81 1.62-2.86-.88-1.29-2.26-1.47-2.75-1.49-1.17-.12-2.28.69-2.87.69-.59 0-1.5-.67-2.47-.66-1.27.02-2.44.74-3.09 1.88-1.32 2.29-.34 5.68.95 7.54.63.91 1.38 1.93 2.36 1.9.95-.04 1.31-.61 2.46-.61 1.14 0 1.47.61 2.47.59 1.02-.02 1.67-.93 2.29-1.85.72-1.06 1.02-2.09 1.04-2.14-.02-.01-1.99-.76-2.01-3.02zM11.2 3.86c.52-.63.87-1.51.78-2.39-.75.03-1.66.5-2.2 1.13-.48.56-.9 1.45-.79 2.31.84.06 1.69-.42 2.21-1.05z"/>
+              </svg>
+              <span>Continue with Apple</span>
+            </button>` : ""}
             <button id="authGuest" class="btn-secondary" style="width:100%;gap:10px;justify-content:center;">
               <span>Continue as guest</span>
             </button>
@@ -157,6 +167,15 @@ export function renderLogin() {
       }
       const redirectTo = encodeURIComponent(location.origin + location.pathname);
       location.href = `${_sbUrl}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}&prompt=select_account`;
+    });
+    document.getElementById("appleSignIn")?.addEventListener("click", () => {
+      if (!_sbUrl) { toast(authUnavailableMsg(), "error"); return; }
+      const guestSnapshot = snapshotGuestVault();
+      if (guestSnapshot.collection?.length || guestSnapshot.wishlist?.length || guestSnapshot.ownedFigs?.length) {
+        try { sessionStorage.setItem("bv_pending_guest_migration", JSON.stringify(guestSnapshot)); } catch {}
+      }
+      const redirectTo = encodeURIComponent(location.origin + location.pathname);
+      location.href = `${_sbUrl}/auth/v1/authorize?provider=apple&redirect_to=${redirectTo}`;
     });
     document.getElementById("authGuest")?.addEventListener("click", () => {
       saveSession(null, { preserveGuestFigs: true });

@@ -198,12 +198,22 @@ export async function renderMe() {
           <div class="lbl-wrap"><div class="lbl">${guest ? "Sign in" : "Sign out"}</div><div class="desc">${guest ? "Sync your local vault across devices." : "Sync resumes when you return."}</div></div>
           ${I.chev()}
         </div>
+        ${guest ? "" : `
+        <div class="setting-row" id="deleteAccountRow" style="cursor:pointer;">
+          <div class="lbl-wrap"><div class="lbl" style="color:var(--down);">Delete account</div><div class="desc">Permanently erase your account and all data.</div></div>
+          ${I.chev()}
+        </div>`}
       </div>
         </aside>
       </div>
 
       <div class="u-mono-label u-fs-2xs u-faint" style="text-align:center;margin-top:24px;">
         BRICKVAULT · v5.0 · STACK SOMETHING BEAUTIFUL
+      </div>
+      <div style="text-align:center;margin-top:16px;font-size:12px;">
+        <a href="/privacy.html" style="color:var(--ink-mute);text-decoration:underline;">Privacy Policy</a>
+        <span style="color:var(--ink-mute);margin:0 8px;">·</span>
+        <a href="/terms.html" style="color:var(--ink-mute);text-decoration:underline;">Terms of Service</a>
       </div>
       <div class="app-credits" style="text-align:center;margin-top:10px;font-size:11px;line-height:1.5;color:var(--ink-mute);">
         Catalog data &amp; images from <a href="https://rebrickable.com/" target="_blank" rel="noopener noreferrer" style="color:var(--ink-soft);text-decoration:underline;">Rebrickable</a>.
@@ -521,9 +531,7 @@ export async function renderMe() {
     });
   });
 
-  $("#signOutRow")?.addEventListener("click", async () => {
-    haptic("medium");
-    await sbSignOut();
+  async function clearLocalSessionState() {
     invalidatePortfolio(); state.me = null; state.catalog.items = [];
     state.blind.items = []; state.wishlist = []; state.portfolioHistory = null;
     try {
@@ -533,7 +541,54 @@ export async function renderMe() {
         bvIDB.del('blind')
       ]);
     } catch {}
+  }
+
+  $("#signOutRow")?.addEventListener("click", async () => {
+    haptic("medium");
+    await sbSignOut();
+    await clearLocalSessionState();
     go("#/");
+  });
+
+  $("#deleteAccountRow")?.addEventListener("click", () => {
+    haptic("medium");
+    showSheet(`
+      <h2 class="u-serif-h" style="color:var(--down)">Delete account</h2>
+      <p style="color:var(--ink-mute);margin-bottom:10px;line-height:1.5">
+        This permanently erases your vault, wishlist, showcase, uploaded photos,
+        reviews, contributions, and preferences. <strong>This cannot be undone.</strong>
+      </p>
+      <p style="color:var(--ink-mute);margin-bottom:12px;line-height:1.5">
+        Type <strong>DELETE</strong> to confirm.
+      </p>
+      <input id="deleteConfirmInput" type="text" autocomplete="off" autocapitalize="characters"
+        placeholder="DELETE" style="font-size:18px;text-align:center;letter-spacing:2px;width:100%;margin-bottom:12px" class="input">
+      <div id="deleteAccountErr" style="color:var(--down);font-size:13px;margin-bottom:10px;display:none"></div>
+      <button class="btn-primary" style="width:100%;background:var(--down);opacity:.5" id="deleteAccountBtn" disabled>Delete my account</button>
+    `);
+    setTimeout(() => $("#deleteConfirmInput")?.focus(), 100);
+    const input = $("#deleteConfirmInput");
+    const btn = $("#deleteAccountBtn");
+    input?.addEventListener("input", () => {
+      const ok = (input.value || "").trim().toUpperCase() === "DELETE";
+      if (btn) { btn.disabled = !ok; btn.style.opacity = ok ? "1" : ".5"; }
+    });
+    btn?.addEventListener("click", async () => {
+      if ((input?.value || "").trim().toUpperCase() !== "DELETE") return;
+      const errEl = $("#deleteAccountErr");
+      if (btn) { btn.disabled = true; btn.textContent = "Deleting…"; }
+      try {
+        await api("/api/me", { method: "DELETE", body: { confirm: "DELETE" } });
+        await sbSignOut();
+        await clearLocalSessionState();
+        hideSheet();
+        toast("Your account has been deleted.", "info");
+        go("#/");
+      } catch {
+        if (errEl) { errEl.textContent = "Couldn't delete your account. Please try again."; errEl.style.display = "block"; }
+        if (btn) { btn.disabled = false; btn.textContent = "Delete my account"; }
+      }
+    });
   });
 }
 

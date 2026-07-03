@@ -359,8 +359,6 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
     } catch (wishErr) {
       console.error('[google-sync] Wishlist sheet error (Portfolio was written successfully):', wishErr);
     }
-
-    console.log(`[google-sync] Synced ${collRes.results?.length ?? 0} collection + ${wishRes.results?.length ?? 0} wishlist items`);
   } catch (err) {
     await recordIntegrationAttempt(env, 'google', false, err);
     console.error('[google-sync] Error running spreadsheet sync:', err);

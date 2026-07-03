@@ -304,7 +304,7 @@ function paintPortfolio() {
             ${[["added_desc","Recent"],["value_desc","Value"],["roi_desc","Growth"],["az","A–Z"]]
               .map(([k,l]) => `<button class="chip ${state.filter.sort === k ? "active" : ""}" data-sort="${k}">${l}</button>`).join("")}
           </div>
-          <div class="set-list ${state.compactView ? 'compact-list' : ''}" id="setList" role="list">
+          <div class="set-list ${state.compactView ? 'compact-list' : ''}" id="setList">
             ${items.length === 0 ? emptyVaultHTML() : items.map(setListCardHTML).join("")}
           </div>
         ` : `
@@ -343,7 +343,7 @@ function paintPortfolio() {
             ${[["added_desc","Recent"],["value_desc","Value"],["roi_desc","Growth"],["az","A\u2013Z"]]
               .map(([k,l]) => `<button class="chip ${state.filter.sort === k ? "active" : ""}" data-sort="${k}">${l}</button>`).join("")}
           </div>
-          <div class="set-list ${state.compactView ? 'compact-list' : ''}" id="setList" role="list">
+          <div class="set-list ${state.compactView ? 'compact-list' : ''}" id="setList">
             ${items.length === 0 ? emptyVaultHTML() : items.map(setListCardHTML).join("")}
           </div>`;
       wireSortChips();
@@ -574,7 +574,7 @@ function emptyVaultHTML() {
     <div class="onboarding-empty" style="display:flex;flex-direction:column;gap:16px;margin: 16px 0;">
       <div class="empty-cta-card" style="background:linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);border:2.5px dashed var(--line);border-radius:var(--r-3);padding:24px 20px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;box-shadow:var(--shadow-1);">
         <div class="u-center" style="color:var(--ink-mute);">${I.box({w:36,h:36})}</div>
-        <h3 style="font-family:var(--font-heading);font-weight:600;font-size:18px;margin:0;">Start Your Brick Vault</h3>
+        <h2 style="font-family:var(--font-heading);font-weight:600;font-size:18px;margin:0;">Start Your Brick Vault</h2>
         <p style="font-size:13px;color:var(--ink-mute);margin:0;line-height:1.4;max-width:280px;">Scan barcode boxes, search the catalog, and track your retirement values and ROI in real time.</p>
         <a href="#/add" class="btn-primary" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--r-2);font-weight:600;margin-top:8px;text-decoration:none;">
           <span>Add your first set</span> ${I.arrowR({w:14, h:14})}

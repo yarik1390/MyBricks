@@ -1,56 +1,65 @@
 import type { Env } from '../types';
+import { flagOverride, type FeatureFlag } from './feature-flags';
+import { hasPricesApiKey } from './pricesapi-keys';
 
-// Central kill-switches for pricing sources that currently lack provider
-// access. They are OFF unless the matching env var is truthy, so production
-// is disabled by default and re-enabling is a wrangler [vars] entry (or
-// secret) — no code change or redeploy of source needed:
-//   EBAY_SOLD_COMPS_ENABLED = "1"   (after eBay Marketplace Insights approval)
-//   BRICKOWL_ENABLED        = "1"   (after a valid BRICKOWL_API_KEY is set)
-// The basic-scope eBay Browse *ask* path is independent and always on.
+// Central capability switches for pricing/scraping sources. Each resolves in two
+// layers:
+//   1. runtime override — a DB-backed feature flag the admin console sets (wins
+//      when present), so a capability can be toggled with NO code change/redeploy;
+//   2. env default — the historical wrangler [vars]/secret behavior, used when no
+//      override is set (preserves exactly the prior semantics).
+// A required token/key is a separate PREREQUISITE: an override can express intent
+// but can never conjure a missing secret, so those checks stay outside resolve().
 function flagOn(value: unknown): boolean {
   return /^(1|true|yes|on)$/i.test(String(value ?? ''));
 }
+function flagOff(value: unknown): boolean {
+  return /^(0|false|no|off)$/i.test(String(value ?? ''));
+}
+
+// Runtime override wins; otherwise fall back to the env-derived default.
+function resolve(name: FeatureFlag, envDefaultOn: boolean): boolean {
+  const o = flagOverride(name);
+  return typeof o === 'boolean' ? o : envDefaultOn;
+}
 
 export function ebaySoldCompsEnabled(env: Env): boolean {
-  return flagOn(env.EBAY_SOLD_COMPS_ENABLED);
+  // OFF by default; on after eBay Marketplace Insights approval (env "1" or override).
+  return resolve('ebay_sold_comps', flagOn(env.EBAY_SOLD_COMPS_ENABLED));
 }
 
 export function brickOwlEnabled(env: Env): boolean {
-  return flagOn(env.BRICKOWL_ENABLED);
+  // OFF by default; on after a valid BRICKOWL_API_KEY (env "1" or override).
+  return resolve('brickowl', flagOn(env.BRICKOWL_ENABLED));
 }
 
-// BrickInsights review ratings use a sanctioned, documented public API, so
-// this source is ON by default; set BRICKINSIGHTS_ENABLED to a falsy value
-// (0/false/no/off) to disable it.
+// BrickInsights review ratings use a sanctioned, documented public API, so this
+// source is ON by default; disable via a falsy BRICKINSIGHTS_ENABLED or override.
 export function brickInsightsEnabled(env: Env): boolean {
-  return !/^(0|false|no|off)$/i.test(String(env.BRICKINSIGHTS_ENABLED ?? ''));
+  return resolve('brickinsights', !flagOff(env.BRICKINSIGHTS_ENABLED));
 }
 
-// eBay SOLD comps via Bright Data Web Unlocker (scraping). Requires at least one
-// token in BRIGHTDATA_API_TOKEN or the comma-separated BRIGHTDATA_API_TOKENS pool;
-// on by default once set. Set BRIGHTDATA_SOLD_ENABLED to a falsy value to pause.
+// eBay SOLD comps via Bright Data Web Unlocker (scraping). PREREQUISITE: at least
+// one token in BRIGHTDATA_API_TOKEN or the comma-separated BRIGHTDATA_API_TOKENS
+// pool. On by default once a token exists; pause via BRIGHTDATA_SOLD_ENABLED=0 or override.
 export function brightDataSoldEnabled(env: Env): boolean {
   const hasToken = !!env.BRIGHTDATA_API_TOKEN?.trim()
     || !!env.BRIGHTDATA_API_TOKENS?.split(',').some((k) => k.trim());
-  return hasToken && !/^(0|false|no|off)$/i.test(String(env.BRIGHTDATA_SOLD_ENABLED ?? ''));
+  return hasToken && resolve('brightdata_sold', !flagOff(env.BRIGHTDATA_SOLD_ENABLED));
 }
 
-// Firecrawl web scraping (lego.com stock, eBay sold comps via structured extraction,
-// Brickset enrichment backfill). Requires FIRECRAWL_API_KEY or FIRECRAWL_API_KEYS;
-// on by default once at least one key is set. Set FIRECRAWL_ENABLED=0 to pause.
+// Firecrawl web scraping. PREREQUISITE: FIRECRAWL_API_KEY or FIRECRAWL_API_KEYS.
+// On by default once a key exists; pause via FIRECRAWL_ENABLED=0 or override.
 export function firecrawlEnabled(env: Env): boolean {
   const hasKey =
     !!env.FIRECRAWL_API_KEY ||
     !!(env.FIRECRAWL_API_KEYS?.split(',').some((k) => k.trim()));
-  return hasKey && !/^(0|false|no|off)$/i.test(String(env.FIRECRAWL_ENABLED ?? ''));
+  return hasKey && resolve('firecrawl', !flagOff(env.FIRECRAWL_ENABLED));
 }
 
-// pricesAPI.io live retail/offers layer. Requires at least one key (PRICESAPI_API_KEY
-// or a non-empty PRICESAPI_API_KEYS entry) AND an explicit PRICESAPI_ENABLED opt-in,
-// because each call is a precious 30–90s cold request against a ~1000/month budget.
+// pricesAPI.io live retail/offers layer. PREREQUISITE: PRICESAPI_API_KEY or a
+// non-empty PRICESAPI_API_KEYS entry. OFF by default — needs an explicit opt-in
+// (PRICESAPI_ENABLED=1 or override), as each call is a precious ~30-90s cold request.
 export function pricesapiEnabled(env: Env): boolean {
-  const hasKey =
-    !!env.PRICESAPI_API_KEY ||
-    !!env.PRICESAPI_API_KEYS?.split(',').some((k) => k.trim());
-  return hasKey && /^(1|true|yes|on)$/i.test(String(env.PRICESAPI_ENABLED ?? ''));
+  return hasPricesApiKey(env) && resolve('pricesapi', flagOn(env.PRICESAPI_ENABLED));
 }

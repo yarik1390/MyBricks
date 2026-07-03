@@ -15,7 +15,10 @@ import type { Env } from '../types';
 // table is safe to dump in admin diagnostics. Budget resets each month.
 // ---------------------------------------------------------------------------
 
-const DEFAULT_KEY_CAP = 5000;
+// Per-key monthly credit budget. Deliberately set BELOW the free-tier 5000 so
+// concurrent in-flight calls (the scrape runs up to ~8 at once) can never push a
+// key past 5000 real credits before it's marked exhausted — a hard safety margin.
+const DEFAULT_KEY_CAP = 4900;
 
 export interface PickedKey {
   key: string;
@@ -80,7 +83,7 @@ export async function pickKey(env: Env): Promise<PickedKey | null> {
     const row = rowByHash.get(hash);
     const sameMonth = row?.period_month === month;
     const used = sameMonth ? Number(row?.used ?? 0) : 0;
-    const cap = Number(row?.cap ?? DEFAULT_KEY_CAP) || DEFAULT_KEY_CAP;
+    const cap = DEFAULT_KEY_CAP; // authoritative: the code constant, not the stored row cap
     const exhausted = sameMonth && (!!row?.exhausted_at || used >= cap);
     if (exhausted) continue;
     if (!best || used < best.used) best = { hash, used };
@@ -115,6 +118,22 @@ export async function recordKeyCall(
     ).bind(picked.hash, DEFAULT_KEY_CAP, month, exhausted).run();
   } catch (e) {
     console.warn('[brightdata-keys] recordKeyCall failed open:', (e as Error).message);
+  }
+}
+
+// Admin: clear the per-key "drained/exhausted" latch so a fixed token or zone can
+// be retried immediately instead of waiting for the next UTC-month rollover. Zeroes
+// `used` and clears `exhausted_at` for every pooled key; the normal recordKeyCall
+// flow repopulates them as real calls happen. Fails open.
+export async function resetKeyPool(env: Env): Promise<{ reset: number }> {
+  try {
+    const res = await env.DB.prepare(
+      `UPDATE brightdata_keys SET used = 0, exhausted_at = NULL, updated_at = datetime('now')`,
+    ).run();
+    return { reset: Number((res.meta?.changes as number | undefined) ?? 0) };
+  } catch (e) {
+    console.warn('[brightdata-keys] resetKeyPool failed:', (e as Error).message);
+    return { reset: 0 };
   }
 }
 
@@ -158,7 +177,7 @@ export async function getKeyPoolStatus(env: Env): Promise<KeyPoolStatus> {
     const row = rowByHash.get(hash);
     const sameMonth = row?.period_month === month;
     const used = sameMonth ? Number(row?.used ?? 0) : 0;
-    const cap = Number(row?.cap ?? DEFAULT_KEY_CAP) || DEFAULT_KEY_CAP;
+    const cap = DEFAULT_KEY_CAP; // authoritative: the code constant, not the stored row cap
     const exhausted = sameMonth && (!!row?.exhausted_at || used >= cap);
     return {
       key_hash: hash.slice(0, 12),

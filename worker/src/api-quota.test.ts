@@ -67,6 +67,14 @@ describe('spendQuota', () => {
     expect(await readRow('gemini')).toBeNull();
   });
 
+  it('meters PriceCharting now that it has a configured cap (was unmetered)', async () => {
+    expect(QUOTA_CAPS.pricecharting).toBe(500);
+    expect(await spendQuota(testEnv, 'pricecharting', 40)).toBe(true);
+    const row = await readRow('pricecharting');
+    expect(row?.used).toBe(40);
+    expect(row?.cap).toBe(500);
+  });
+
   it('fails open when the ledger table is unavailable', async () => {
     await testEnv.DB.prepare('DROP TABLE api_quota').run();
     expect(await spendQuota(testEnv, 'bricklink')).toBe(true);

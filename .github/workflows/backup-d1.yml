@@ -1,0 +1,54 @@
+name: Backup D1 to R2
+
+on:
+  schedule:
+    - cron: "0 8 * * *"        # daily 08:00 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: brickvault-d1-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      DB_NAME: brickvault
+      BACKUP_BUCKET: brickvault-backups
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Export D1 (real tables only) to a compressed SQL dump
+        run: |
+          set -euo pipefail
+          STAMP="$(date -u +%Y-%m-%d_%H%M%SZ)"
+          FILE="brickvault-${STAMP}.sql"
+
+          # D1 export refuses databases containing FTS5 virtual tables
+          # (lego_sets_fts + its *_fts_* shadow tables). That index is rebuilt
+          # from lego_sets on deploy, so we export only the real base tables.
+          TABLES="$(npx wrangler@3 d1 execute "${DB_NAME}" --remote --json \
+            --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '%fts%' AND (sql IS NULL OR sql NOT LIKE '%VIRTUAL TABLE%') ORDER BY name" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);const rows=(Array.isArray(j)?(j[0]&&j[0].results):j.results)||[];process.stdout.write(rows.map(r=>r.name).join(" "));}catch(e){process.exit(1);}})')"
+
+          if [ -z "${TABLES}" ]; then echo "::error::No tables resolved from sqlite_master"; exit 1; fi
+          echo "Exporting tables: ${TABLES}"
+
+          ARGS=(); for t in ${TABLES}; do ARGS+=(--table="${t}"); done
+          npx wrangler@3 d1 export "${DB_NAME}" --remote --output "${FILE}" "${ARGS[@]}"
+
+          gzip -9 "${FILE}"
+          echo "OBJECT_KEY=d1/${FILE}.gz" >> "$GITHUB_ENV"
+          echo "LOCAL_FILE=${FILE}.gz"    >> "$GITHUB_ENV"
+          ls -lh "${FILE}.gz"
+
+      - name: Upload the dump to R2 (private)
+        run: |
+          set -euo pipefail
+          npx wrangler@3 r2 object put "${BACKUP_BUCKET}/${OBJECT_KEY}" \
+            --file "${LOCAL_FILE}" --content-type "application/gzip"
+          echo "✅ Uploaded r2://${BACKUP_BUCKET}/${OBJECT_KEY}"

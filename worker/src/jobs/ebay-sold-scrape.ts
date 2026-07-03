@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { fetchEbaySoldViaBrightData } from '../lib/brightdata';
+import { configuredKeys, pickKey } from '../lib/brightdata-keys';
 import { fetchEbaySoldViaFirecrawl } from '../lib/ebay-firecrawl';
 import { brightDataSoldEnabled, firecrawlEnabled } from '../lib/pricing-flags';
 import { quotaRemaining, reserveQuota } from '../lib/api-quota';
@@ -31,6 +32,21 @@ export async function runEbaySoldScrape(
   if (!useFirecrawl && !useBrightData) {
     return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'neither firecrawl nor brightdata configured' };
   }
+  // Hardening: Bright Data is the PREFERRED scraper (its own monthly budget;
+  // Firecrawl is reserved for BrickEconomy enrichment). If we're only falling back
+  // to Firecrawl because no Bright Data token reached the Worker — and it wasn't
+  // deliberately paused via BRIGHTDATA_SOLD_ENABLED — surface it on the admin
+  // integrations panel and in logs instead of silently degrading. This is exactly
+  // the "token added as a CI secret but never uploaded to the Worker" failure mode.
+  if (
+    useFirecrawl &&
+    configuredKeys(env).length === 0 &&
+    !/^(0|false|no|off)$/i.test(String(env.BRIGHTDATA_SOLD_ENABLED ?? ''))
+  ) {
+    const reason = 'Bright Data token not configured (BRIGHTDATA_API_TOKEN/BRIGHTDATA_API_TOKENS missing in Worker env); eBay-sold scrape is falling back to Firecrawl.';
+    console.warn(`[ebay-sold-scrape] ${reason}`);
+    await recordIntegrationHealth(env, 'brightdata', { ok: 0, fail: 1, lastError: reason });
+  }
   const requestedLimit = Number(options.limit);
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
     ? Math.min(Math.floor(requestedLimit), 200)
@@ -45,6 +61,11 @@ export async function runEbaySoldScrape(
     if (remaining < 5) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
     effLimit = Math.min(limit, Math.floor(remaining / 5));
   } else {
+    // Confirm a live (non-exhausted) key exists BEFORE reserving the daily quota,
+    // so a fully-exhausted/broken pool doesn't debit the api_quota ledger for a
+    // run that will make zero HTTP calls (which inflated the admin usage panel).
+    const live = await pickKey(env);
+    if (!live) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'brightdata: all keys exhausted this month' };
     effLimit = (await reserveQuota(env, { brightdata: limit })).brightdata ?? 0;
     if (effLimit <= 0) return { processed: 0, updated: 0, rejected: 0, limit, skipped: 'brightdata quota spent' };
   }

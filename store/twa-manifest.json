@@ -1,0 +1,35 @@
+{
+  "packageId": "app.brickvault",
+  "host": "brickvault-5ub.pages.dev",
+  "name": "Brickvault",
+  "launcherName": "Brickvault",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#F5F1E8",
+  "themeColorDark": "#26231D",
+  "navigationColor": "#F5F1E8",
+  "navigationColorDark": "#26231D",
+  "navigationDividerColor": "#F5F1E8",
+  "backgroundColor": "#F5F1E8",
+  "startUrl": "/",
+  "iconUrl": "https://brickvault-5ub.pages.dev/icon-512.png",
+  "maskableIconUrl": "https://brickvault-5ub.pages.dev/icon-maskable-512.png",
+  "webManifestUrl": "https://brickvault-5ub.pages.dev/manifest.json",
+  "fallbackType": "customtabs",
+  "enableNotifications": true,
+  "features": {},
+  "shortcuts": [
+    { "name": "What Can I Build?", "shortName": "Build", "url": "/#/build" },
+    { "name": "Add a set", "shortName": "Add", "url": "/#/add" },
+    { "name": "My Vault", "shortName": "Vault", "url": "/#/" }
+  ],
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "android"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "minSdkVersion": 21,
+  "generatorApp": "bubblewrap-cli",
+  "_notes": "Generated as a starting point from public/manifest.json. The canonical way to produce/refresh this is `bubblewrap init --manifest https://brickvault-5ub.pages.dev/manifest.json`, which will also create the keystore and print the SHA-256 fingerprint you must paste into public/.well-known/assetlinks.json. If you move to a custom domain, update `host`, all *Url fields, and re-verify Digital Asset Links."
+}

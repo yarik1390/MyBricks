@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = 'v213';
+const VERSION = 'v244';
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 const STATIC_ASSETS = [
@@ -12,6 +12,8 @@ const STATIC_ASSETS = [
   '/skin-kids.css',
   '/theme-init.js',
   '/manifest.json',
+  '/privacy.html',
+  '/terms.html',
   '/icon.svg',
   '/env.js',
   '/js/app.js',
@@ -42,10 +44,12 @@ const STATIC_ASSETS = [
   '/js/views/me-data.js',
   '/js/views/me-contributions.js',
   '/js/views/me-admin.js',
+  '/js/views/me-admin-config.js',
   '/js/views/portfolio.js',
   '/js/views/portfolio-social.js',
   '/js/views/portfolio-wishlist.js',
   '/js/views/portfolio-detail.js',
+  '/js/views/portfolio-detail-market.js',
   '/js/views/catalog.js',
   '/js/views/minifigs.js',
   '/js/views/build.js',
@@ -54,8 +58,15 @@ const STATIC_ASSETS = [
 ];
 
 self.addEventListener('install', e => {
+  // Per-asset caching (not addAll) so one renamed/404 asset can't fail the WHOLE
+  // install and silently pin users to the previous version. Each miss is logged
+  // but non-fatal; the fetch handler still network-first's anything uncached.
   e.waitUntil(
-    caches.open(STATIC_CACHE).then(c => c.addAll(STATIC_ASSETS))
+    caches.open(STATIC_CACHE).then(c => Promise.all(
+      STATIC_ASSETS.map(url =>
+        c.add(url).catch(err => console.warn('[sw] precache skipped', url, err && err.message))
+      )
+    ))
   );
 });
 

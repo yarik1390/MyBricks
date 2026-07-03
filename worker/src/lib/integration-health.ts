@@ -1,4 +1,5 @@
 import type { Env } from '../types';
+import { hasPricesApiKey } from './pricesapi-keys';
 
 // Services whose configuration and recent outcomes are visible in the admin
 // diagnostics panel. The stored table is intentionally aggregate-only.
@@ -249,7 +250,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
   },
   pricesapi: {
     label: 'pricesAPI.io',
-    configured: (env) => (!!env.PRICESAPI_API_KEY || !!env.PRICESAPI_API_KEYS) && /^(1|true|yes|on)$/i.test(String(env.PRICESAPI_ENABLED ?? '')),
+    configured: (env) => hasPricesApiKey(env) && /^(1|true|yes|on)$/i.test(String(env.PRICESAPI_ENABLED ?? '')),
     required_secrets: ['PRICESAPI_API_KEYS'],
     used_by: ['deal signal (cheapest channel)', 'in-stock truth', 'wishlist price-drop alerts'],
     notes: 'Live retail + marketplace offers across major retailers (47 markets). NOT a value anchor — feeds the deal/buy signal and stock truth. Synchronous cold calls take 30–90s so it runs cron-only. Free tier = 1000 calls/month, 6/min PER KEY; comma-separated keys are pooled with per-key monthly budgets (pricesapi_keys table).',
@@ -279,9 +280,17 @@ export function classifyHealth(row: IntegrationHealthRow): 'ok' | 'degraded' | '
   const okAt = row.last_ok_at ? Date.parse(row.last_ok_at) : 0;
   const failAt = row.last_fail_at ? Date.parse(row.last_fail_at) : 0;
   if (failAt && failAt >= okAt) {
-    return (isCredentialOrAccessIssue(row.last_error) || isWorkerCapacityIssue(row.last_error))
-      ? 'degraded'
-      : 'down';
+    // Credential/access problems always need a human → keep flagged as degraded.
+    if (isCredentialOrAccessIssue(row.last_error)) return 'degraded';
+    // Transient worker-capacity blips (timeouts, aborts, "too many subrequests")
+    // are common for scrapers under load. If the provider ALSO succeeded within a
+    // day of this failure, it's flapping — not down — so it shouldn't stick on
+    // "degraded". Without any nearby success, treat it as degraded.
+    if (isWorkerCapacityIssue(row.last_error)) {
+      const recentSuccess = !!okAt && failAt - okAt < 24 * 60 * 60 * 1000;
+      return recentSuccess ? 'ok' : 'degraded';
+    }
+    return 'down';
   }
   if (okAt && okAt > failAt) return 'ok';
   const total = (row.ok_count || 0) + (row.fail_count || 0);

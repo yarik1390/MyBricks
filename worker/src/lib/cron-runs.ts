@@ -44,6 +44,41 @@ export function summarizeResult(res: unknown): string | null {
   return parts.length ? parts.slice(0, 4).join(' · ') : null;
 }
 
+// Mark orphaned 'running' rows as failed. A Worker invocation killed at the CPU
+// limit (or crashed) never reaches recordCronFinish, so its row stays 'running'
+// forever and the admin Activity view shows a dead job as live. Swept daily by
+// db-hygiene. 30 min is safely beyond any real job's wall time. Fails open.
+export async function sweepStaleCronRuns(env: Env, maxAgeMinutes = 30): Promise<number> {
+  try {
+    const res = await env.DB.prepare(
+      `UPDATE cron_runs
+         SET status='failed', finished_at=datetime('now'),
+             error=COALESCE(NULLIF(error, ''), 'stale: invocation ended before finish was recorded')
+       WHERE status='running' AND started_at < datetime('now', ?1)`,
+    ).bind(`-${maxAgeMinutes} minutes`).run();
+    return Number((res.meta?.changes as number | undefined) ?? 0);
+  } catch (e) {
+    console.warn('[cron-runs] stale sweep failed open:', (e as Error).message);
+    return 0;
+  }
+}
+
+// Overlap guard: is a previous invocation of this cron still running (and not
+// yet stale-swept)? Lets the scheduled dispatcher skip a tick rather than double-
+// run a long job that overran its interval. maxAgeMinutes matches the stale sweep
+// so a crashed run can never wedge the lease past that window. FAILS OPEN (returns
+// false → "not running" → the job proceeds) so a bookkeeping hiccup never stalls crons.
+export async function isCronRunning(env: Env, name: string, maxAgeMinutes = 30): Promise<boolean> {
+  try {
+    const row = await env.DB.prepare(
+      `SELECT 1 AS x FROM cron_runs WHERE name=?1 AND status='running' AND started_at > datetime('now', ?2) LIMIT 1`,
+    ).bind(name, `-${maxAgeMinutes} minutes`).first<{ x: number }>();
+    return !!row;
+  } catch {
+    return false;
+  }
+}
+
 // Insert a 'running' row; returns its id (or null if tracking is unavailable).
 export async function recordCronStart(env: Env, name: string): Promise<number | null> {
   try {

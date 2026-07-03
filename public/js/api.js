@@ -34,21 +34,30 @@ export function outboxDequeue(id) {
   } catch {}
 }
 
+const OUTBOX_MAX_TRIES = 5;
+
 export async function drainOutbox() {
   try {
     const q = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]');
     if (!q.length) return;
-    let synced = 0;
+    let synced = 0, dropped = 0;
+    const keep = [];
     for (const item of q) {
       try {
         await api(item.path, { method: item.method, ...(item.body ? { body: item.body } : {}) });
-        outboxDequeue(item.id);
         synced++;
       } catch {
-        // keep failed items for next online event; continue processing the rest
+        // Cap retries so a permanently-failing item (e.g. server-side validation
+        // drift) is dropped + surfaced instead of retried forever every reconnect.
+        const tries = (item.tries || 0) + 1;
+        if (tries >= OUTBOX_MAX_TRIES) dropped++;
+        else keep.push({ ...item, tries });
       }
     }
+    // Persist only the items still worth retrying (synced dropped by omission).
+    try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(keep)); } catch {}
     if (synced) { invalidatePortfolio(); toast(`${synced} offline action${synced > 1 ? 's' : ''} synced`, 'success'); }
+    if (dropped) toast(`${dropped} offline action${dropped > 1 ? 's' : ''} couldn't sync and ${dropped > 1 ? 'were' : 'was'} discarded`, 'error');
   } catch {}
 }
 
@@ -862,23 +871,34 @@ export async function api(path, opts = {}) {
   }
   const geminiKey = localStorage.getItem('bv_gemini_key');
   const openaiKey = localStorage.getItem('bv_openai_key');
+  // rawBody sends a plain-text body verbatim (e.g. a tab-separated upload) — the
+  // server reads it via req.text(); JSON.stringify would escape tabs and break it.
+  const isRaw = typeof opts.rawBody === 'string';
   const init = {
     ...opts,
     cache: "no-store",
     headers: {
-      "content-type": "application/json",
+      "content-type": isRaw ? "text/plain; charset=utf-8" : "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(geminiKey ? { "X-Gemini-Key": geminiKey } : {}),
       ...(openaiKey ? { "X-OpenAI-Key": openaiKey } : {}),
       ...(opts.headers || {}),
     },
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
+    body: isRaw ? opts.rawBody : (opts.body ? JSON.stringify(opts.body) : undefined),
   };
   delete init.stream;
+  delete init.rawBody;
   const _url = (window.WORKER_BASE || '') + path;
+  // Abort a hung request after 15s so the UI never waits forever on a stuck
+  // Worker response. Fresh controller per attempt (a signal can't be reused).
+  const fetchT = (u, i) => {
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), 15000);
+    return fetch(u, { ...i, signal: ac.signal }).finally(() => clearTimeout(t));
+  };
   let r;
   try {
-    r = await fetch(_url, init);
+    r = await fetchT(_url, init);
   } catch (_e) {
     if (!navigator.onLine && (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE")) {
       outboxEnqueue({ path, method: init.method, body: opts.body });
@@ -887,11 +907,14 @@ export async function api(path, opts = {}) {
     }
     await new Promise(res => setTimeout(res, 600));
     try {
-      r = await fetch(_url, init);
+      r = await fetchT(_url, init);
     } catch (e2) {
-      // Both attempts hit a network-level failure — signal a confirming probe.
+      // Both attempts failed at the network level — signal a confirming probe.
       try { window.dispatchEvent(new Event("bv:api-fail")); } catch { /* non-browser ctx */ }
-      if (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE") {
+      // Only queue-and-fake-success when genuinely OFFLINE. When online, a double
+      // failure (timeout/DNS/5xx-at-network-level) is a real error and must
+      // surface to the caller — never masked as a fake success.
+      if (!navigator.onLine && (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE")) {
         outboxEnqueue({ path, method: init.method, body: opts.body });
         toast("Saved offline — will sync when connected", "info");
         return init.method === "DELETE" ? null : { item: opts.body || {} };
@@ -910,7 +933,7 @@ export async function api(path, opts = {}) {
         const fresh = await sbRefresh(_authSession.refresh_token);
         saveSession(fresh);
         init.headers["Authorization"] = `Bearer ${fresh.access_token}`;
-        r = await fetch(_url, init);
+        r = await fetchT(_url, init);
       } catch {
         saveSession(null);
         location.hash = "#/login";

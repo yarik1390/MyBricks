@@ -1,19 +1,17 @@
 import { Hono } from 'hono';
-import OpenAI from 'openai';
 import { optionalMember, requireMember } from '../auth';
 import { formulaValuation, valuationExpiryModifier, isPlausibleMarketValue } from '../lib/valuation';
 import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
+import { SORTS, NON_SET_DEMOTION, CATALOG_COLS, MARKET_EXT_JOIN, toFtsPrefixQuery } from './sets-sql';
+import { scheduleSetDetailRefresh, pushEbaySoldUpdate } from './set-detail-refresh';
+import { generateListingDraft, type ListingDraft } from './listing-draft';
 import { fetchBricksetDetails, fetchAdditionalImages } from '../lib/brickset';
 import {
-  buildEbayAskUpdate,
-  buildEbaySoldUpdate,
   ebaySoldNewValue,
-  fetchEbayActiveListings,
   fetchEbaySoldPrices,
   type EbaySoldPrices,
 } from '../lib/ebay';
 import { callGeminiValuation } from '../lib/gemini';
-import { MODELS, geminiUrl, openAIServerBaseURL, gatewayHeaders } from '../lib/llm';
 import { beDetailsFromRow } from '../lib/brickeconomy-firecrawl';
 import { spendQuota } from '../lib/api-quota';
 import { getCachedPriceTrend } from '../lib/price-trend';
@@ -21,18 +19,11 @@ import { fetchTracked } from '../lib/http';
 import { enrichSetRecord, persistBlendedValue } from '../lib/market-sources';
 import { applySourceConfig } from '../lib/source-config';
 import { recentValueMedian } from '../lib/price-trend';
-import { recordIntegrationAttempt } from '../lib/integration-health';
 import { isSearchIndexCorruption, rebuildSearchIndex } from '../lib/search-index';
 import { checkLegoStock } from '../lib/lego-stock';
 import { fetchSetMinifigs } from '../lib/rebrickable';
 import type { Env, Variables } from '../types';
 
-interface ListingDraft {
-  title: string;
-  description: string;
-  suggested_price: number;
-  price_reasoning: string;
-}
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -41,71 +32,9 @@ app.use('*', optionalMember);
 // persisted/tuned blend. Memoized 60s per isolate; fail-open to defaults.
 app.use('*', async (c, next) => { await applySourceConfig(c.env).catch(() => {}); await next(); });
 
-const SORTS: Record<string, string> = {
-  value_desc: "(CASE WHEN valuation_method IN ('formula_bulk', 'local') THEN 1 ELSE 0 END), COALESCE(NULLIF(blended_value, 0), current_value) DESC",
-  // Ascending mirrors: keep formula/local rows last and NULL ROI/years last in
-  // both directions so the reversed sort still surfaces real data first.
-  value_asc:  "(CASE WHEN valuation_method IN ('formula_bulk', 'local') THEN 1 ELSE 0 END), COALESCE(NULLIF(blended_value, 0), current_value) ASC",
-  roi_desc:   '(current_value / NULLIF(retail_price, 0)) DESC',
-  roi_asc:    '(CASE WHEN retail_price IS NULL OR retail_price = 0 THEN 1 ELSE 0 END), (current_value / NULLIF(retail_price, 0)) ASC',
-  year_desc:  '(year IS NULL) ASC, year DESC',
-  year_asc:   '(year IS NULL) ASC, year ASC',
-  az:         'name ASC',
-  za:         'name DESC',
-  // Trending: 30-day price momentum — sets whose value rose most. Sets with no
-  // prior snapshot sort last (NULL treated as no change).
-  trending:   '(CASE WHEN s.current_value > 0 AND svh30.current_value > 0 THEN (s.current_value - svh30.current_value) / svh30.current_value ELSE -1 END) DESC',
-};
+// CATALOG_COLS + MARKET_EXT_JOIN live in ./sets-sql; re-exported for scan.ts + tests.
+export { CATALOG_COLS, MARKET_EXT_JOIN };
 
-// Non-building merchandise (bag tags, bags, apparel, stationery, books) is
-// catalogued under these themes. In keyword search we DEMOTE — never hide —
-// these below real building sets, so a tight name match such as "Millennium
-// Falcon Bag Tag" can't outrank the actual Millennium Falcon sets. Brickset's
-// `category` column is mostly NULL across the catalog, so `theme` is the
-// dependable signal. Used as the leading ORDER BY key (0 = real set, 1 = merch).
-const NON_SET_DEMOTION =
-  "(CASE WHEN COALESCE(s.theme, '') IN ('Gear', 'Books') THEN 1 ELSE 0 END)";
-
-// Catalog-card projection for GET /search. The grid + enrichSetRecord only need
-// identity, value and the per-source price/cache family — NOT the heavy
-// detail-only columns (brickset_description, brickset_image_urls and
-// brickset_tags are large text/JSON; ratings, dimensions, dates, age and
-// barcodes are detail-page only). Projecting them out trims the search payload
-// and D1 serialization on every catalog page; GET /:setnum still SELECT *s the
-// full row. IMPORTANT: every column blendMarketValue() reads must be here, or the
-// grid's blended value silently diverges from the detail page (this list must stay
-// a superset of BLEND_INPUT_COLUMNS + BLEND_EXT_COLUMNS in lib/market-sources.ts).
-export const CATALOG_COLS =
-  's.set_num, s.name, s.year, s.theme, s.pieces, s.minifigs, ' +
-  's.image_url, s.retail_price, s.current_value, s.forecast_2y, s.forecast_5y, s.retired, ' +
-  's.valuation_method, s.cached_at, s.source, s.valuation_expires_at, s.ebay_value, s.ebay_cached_at, ' +
-  's.ebay_new_value, s.ebay_used_value, s.ebay_new_qty, s.ebay_used_qty, s.ebay_new_cached_at, s.ebay_used_cached_at, ' +
-  's.used_value, s.bl_new_value, s.bl_new_qty, s.bl_used_qty, s.bl_cached_at, s.be_cached_at, ' +
-  's.ebay_ask_value, s.ebay_ask_qty, s.ebay_ask_cached_at, s.retirement_risk_score, s.subtheme, s.be_growth_12m, ' +
-  's.bl_new_min, s.bl_new_max, s.bl_used_min, s.bl_used_max, s.lego_in_stock, s.lego_retiring_soon, ' +
-  's.bo_new_value, s.bo_used_value, s.bo_cached_at, s.blended_value, s.ebay_new_last_sold, ' +
-  's.deal_signal, s.deal_strong, s.deal_discount_pct, ' +
-  // PriceCharting sealed/complete sold comps — blendMarketValue() reads these
-  // (pc_new weight 0.95, pc_complete 0.75). Omitting them made the grid blend
-  // diverge from the detail page (catalog showed the range-high, not the blend).
-  's.pc_new_value, s.pc_complete_value, s.pc_cached_at, ' +
-  // Pricing v3 (set_market_ext side table): liquidity + used loose + live retail.
-  'ext.pc_loose_value, ext.pc_sales_volume, ext.pa_retail_value, ext.pa_lowest_offer, ext.pa_in_stock, ext.pa_best_merchant, ext.pa_offer_count';
-
-// LEFT JOIN that brings the set_market_ext side-table columns into a flat row so
-// enrichSetRecord (deal signal / liquidity / used loose) sees them. Used by both
-// the catalog projection above and the SELECT * detail read.
-export const MARKET_EXT_JOIN = 'LEFT JOIN set_market_ext ext ON ext.set_num = s.set_num';
-
-function pushEbaySoldUpdate(
-  stmts: D1PreparedStatement[],
-  db: D1Database,
-  setNum: string,
-  prices: EbaySoldPrices | null | undefined,
-) {
-  const stmt = buildEbaySoldUpdate(db, setNum, prices);
-  if (stmt) stmts.push(stmt);
-}
 
 // Auto-repair throttle: at most one FTS rebuild per isolate per hour, and
 // never two in flight. Corrupted searches still answer via the LIKE fallback
@@ -130,15 +59,6 @@ function scheduleSearchIndexRepair(c: { env: { DB: D1Database }; executionCtx: {
   );
 }
 
-function toFtsPrefixQuery(value: string): string {
-  return value
-    .trim()
-    .replace(/[^a-zA-Z0-9]+/g, ' ')
-    .split(/\s+/)
-    .filter(Boolean)
-    .map(tok => `${tok}*`)
-    .join(' ');
-}
 
 // GET /api/sets/search
 app.get('/search', async (c) => {
@@ -329,6 +249,16 @@ app.get('/:setnum', async (c) => {
       'SELECT pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count, pa_market FROM set_market_ext WHERE set_num=?'
     ).bind(set.set_num).first<Record<string, unknown>>().catch(() => null);
     if (ext) set = { ...set, ...ext };
+
+    // Coming-soon: is this set in the upcoming/pre-release feed? If so it hasn't
+    // launched yet — it must NOT read as "retiring soon", and its headline value
+    // should be the announced retail (price_usd), not a formula market estimate.
+    const upcoming = await c.env.DB.prepare(
+      'SELECT price_usd FROM upcoming_sets WHERE set_num=?'
+    ).bind(set.set_num).first<{ price_usd: number | null }>().catch(() => null);
+    const comingSoon = !!upcoming;
+    const upcomingPrice = upcoming?.price_usd ?? null;
+
     const activeSet = set;
     let resultSet: Record<string, unknown> = set;
 
@@ -339,194 +269,7 @@ app.get('/:setnum', async (c) => {
     const trend = await getCachedPriceTrend(activeSet.set_num as string, c.env);
 
     // Non-blocking/blocking BrickLink or Gemini refresh when price is missing or stale
-    const geminiKey = c.req.header('X-Gemini-Key');
-    const isBulk = (activeSet.valuation_method === 'formula_bulk');
-    const missingEbaySoldComps =
-      (!activeSet.ebay_new_value && !activeSet.ebay_new_cached_at)
-      || (!activeSet.ebay_used_value && !activeSet.ebay_used_cached_at);
-    const askStale = !activeSet.ebay_ask_cached_at
-      || Date.now() - new Date(activeSet.ebay_ask_cached_at as string).getTime() > 7 * 24 * 3600 * 1000;
-    const needsRefresh = isBulk
-      || !activeSet.valuation_expires_at
-      || new Date(activeSet.valuation_expires_at as string) < new Date()
-      || missingEbaySoldComps;
-
-    if (needsRefresh) {
-      // BrickEconomy values come from the stored be_* columns (Firecrawl-
-      // populated by the brickeconomy-enrich cron) — no on-demand API call.
-      const be = beDetailsFromRow(activeSet);
-      if (be?.current_value_new != null && c.env.BRICKLINK_CONSUMER_KEY) {
-        // A plausible stored BE value wins; BrickLink + eBay still refresh live
-        // for the price strip + cross-validation. When there's no stored BE
-        // value the BrickLink-primary branch below handles the set instead.
-        const refreshPromise = Promise.all([
-          fetchSetPricing(activeSet.set_num as string, c.env).catch(() => null),
-          fetchUsedPricing(activeSet.set_num as string, c.env).catch(() => null),
-          fetchEbaySoldPrices(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null),
-          askStale ? fetchEbayActiveListings(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null) : Promise.resolve(null),
-        ]).then(async ([blp, u, ebayPrices, askListings]) => {
-          const supplementStmts: D1PreparedStatement[] = [];
-          pushEbaySoldUpdate(supplementStmts, c.env.DB, activeSet.set_num as string, ebayPrices);
-          const askStmt = buildEbayAskUpdate(c.env.DB, activeSet.set_num as string, askListings);
-          if (askStmt) supplementStmts.push(askStmt);
-
-          if (be && be.current_value_new !== null
-              && isPlausibleMarketValue(be.current_value_new, { retailPrice: activeSet.retail_price as number, pieces: activeSet.pieces as number, corroborators: [activeSet.ebay_ask_value as number, blp?.current_value, activeSet.bl_new_value as number] })) {
-            const defaultYr = activeSet.retired ? 0.15 : 0.10;
-            const yr = (be.rolling_growth_12months != null)
-              ? Math.min(0.25, Math.max(0.02, be.rolling_growth_12months / 100))
-              : defaultYr;
-            const forecast_2y = be.forecast_value_new_2_years ?? Math.round(be.current_value_new * Math.pow(1 + yr, 2) * 100) / 100;
-            // Real 5-year forecast from the BrickEconomy scrape when present (the
-            // old API never exposed it), else a growth-rate estimate.
-            const forecast_5y = be.forecast_value_new_5_years ?? Math.round(be.current_value_new * Math.pow(1 + yr, 5) * 100) / 100;
-
-            supplementStmts.push(c.env.DB.prepare(`
-              UPDATE lego_sets SET
-                current_value=?, used_value=COALESCE(?, ?, used_value),
-                bl_new_value=COALESCE(?, bl_new_value),
-                bl_new_qty=COALESCE(?, bl_new_qty),
-                bl_used_qty=COALESCE(?, bl_used_qty),
-                bl_cached_at=CASE WHEN ? IS NOT NULL THEN datetime('now') ELSE bl_cached_at END,
-                retail_price=COALESCE(?, retail_price),
-                forecast_2y=?, forecast_5y=?,
-                valuation_method='brickeconomy',
-                valuation_expires_at=datetime('now', '+1 day'),
-                cached_at=datetime('now')
-              WHERE set_num=?
-            `).bind(
-              be.current_value_new,
-              u?.used_value ?? null, be.current_value_used,
-              blp?.current_value ?? null,
-              blp?.lot_count ?? null,
-              u?.lot_count ?? null,
-              blp?.current_value ?? u?.used_value ?? null,
-              be.retail_price_us,
-              forecast_2y, forecast_5y,
-              activeSet.set_num
-            ));
-          } else {
-            // Stored BE value implausible — persist BL/eBay cross-source data regardless.
-            if (blp?.current_value) {
-              supplementStmts.push(c.env.DB.prepare(
-                `UPDATE lego_sets SET bl_new_value=?, bl_new_qty=COALESCE(?, bl_new_qty), bl_cached_at=datetime('now') WHERE set_num=?`
-              ).bind(blp.current_value, blp.lot_count ?? null, activeSet.set_num));
-            }
-            if (u?.used_value) {
-              supplementStmts.push(c.env.DB.prepare(
-                `UPDATE lego_sets SET used_value=?, bl_used_qty=COALESCE(?, bl_used_qty), bl_cached_at=datetime('now') WHERE set_num=?`
-              ).bind(u.used_value, u.lot_count ?? null, activeSet.set_num));
-            }
-          }
-
-          if (supplementStmts.length) await c.env.DB.batch(supplementStmts);
-          await persistBlendedValue(c.env.DB, activeSet.set_num as string);
-        }).catch(err => console.error('[bg-brickeconomy-reval] failed:', err));
-
-        c.executionCtx.waitUntil(refreshPromise);
-      } else if (c.env.BRICKLINK_CONSUMER_KEY) {
-        const refreshPromise = Promise.all([
-          fetchSetPricing(activeSet.set_num as string, c.env),
-          fetchUsedPricing(activeSet.set_num as string, c.env),
-          fetchEbaySoldPrices(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null),
-          askStale ? fetchEbayActiveListings(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null) : Promise.resolve(null),
-        ]).then(async ([p, u, ebayPrices, askListings]) => {
-          const supplementStmts: D1PreparedStatement[] = [];
-          pushEbaySoldUpdate(supplementStmts, c.env.DB, activeSet.set_num as string, ebayPrices);
-          const askStmt = buildEbayAskUpdate(c.env.DB, activeSet.set_num as string, askListings);
-          if (askStmt) supplementStmts.push(askStmt);
-          if (u) {
-            supplementStmts.push(c.env.DB.prepare(`UPDATE lego_sets SET used_value=?, bl_used_qty=COALESCE(?, bl_used_qty), bl_cached_at=datetime('now') WHERE set_num=?`).bind(u.used_value, u.lot_count ?? null, activeSet.set_num));
-          }
-          if (p) {
-            const yr = activeSet.retired ? 0.15 : 0.10;
-            const forecast_2y = Math.round(p.current_value * Math.pow(1 + yr, 2) * 100) / 100;
-            const forecast_5y = Math.round(p.current_value * Math.pow(1 + yr, 5) * 100) / 100;
-            supplementStmts.push(c.env.DB.prepare(`
-              UPDATE lego_sets SET
-                current_value=?, bl_new_value=?, bl_new_qty=?, bl_cached_at=datetime('now'),
-                forecast_2y=?, forecast_5y=?,
-                valuation_method='market',
-                valuation_expires_at=datetime('now', '+1 day'),
-                cached_at=datetime('now')
-              WHERE set_num=?
-            `).bind(p.current_value, p.current_value, p.lot_count, forecast_2y, forecast_5y, activeSet.set_num));
-          }
-          if (supplementStmts.length) {
-            await c.env.DB.batch(supplementStmts);
-          }
-          await persistBlendedValue(c.env.DB, activeSet.set_num as string);
-        }).catch(err => console.error('[bg-reval] failed:', err));
-
-        c.executionCtx.waitUntil(refreshPromise);
-      } else if (geminiKey) {
-        const refreshPromise = Promise.all([
-          callGeminiValuation(activeSet.set_num as string, activeSet.name as string, geminiKey, c.env).catch(() => null),
-          fetchEbaySoldPrices(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null)
-        ]).then(async ([gemVal, ebayPrices]) => {
-          const supplementStmts: D1PreparedStatement[] = [];
-          pushEbaySoldUpdate(supplementStmts, c.env.DB, activeSet.set_num as string, ebayPrices);
-          const ebayVal = ebaySoldNewValue(ebayPrices);
-          if (gemVal && isPlausibleMarketValue(gemVal.current_value, { retailPrice: activeSet.retail_price as number, pieces: activeSet.pieces as number, corroborators: [activeSet.ebay_ask_value as number, ebayVal, activeSet.bl_new_value as number] })) {
-            const yr = activeSet.retired ? 0.15 : 0.10;
-            const forecast_2y = Math.round(gemVal.current_value * Math.pow(1 + yr, 2) * 100) / 100;
-            const forecast_5y = Math.round(gemVal.current_value * Math.pow(1 + yr, 5) * 100) / 100;
-            supplementStmts.push(c.env.DB.prepare(`
-              UPDATE lego_sets SET
-                current_value=?, used_value=?, forecast_2y=?, forecast_5y=?,
-                valuation_method='ai',
-                valuation_expires_at=datetime('now', '+12 hours'),
-                cached_at=datetime('now')
-              WHERE set_num=?
-            `).bind(gemVal.current_value, gemVal.used_value, forecast_2y, forecast_5y, activeSet.set_num));
-          } else if (ebayVal !== null) {
-            const yr = activeSet.retired ? 0.15 : 0.10;
-            const forecast_2y = Math.round(ebayVal * Math.pow(1 + yr, 2) * 100) / 100;
-            const forecast_5y = Math.round(ebayVal * Math.pow(1 + yr, 5) * 100) / 100;
-            supplementStmts.push(c.env.DB.prepare(`
-              UPDATE lego_sets SET
-                current_value=?, forecast_2y=?, forecast_5y=?,
-                valuation_method='ebay_sold',
-                valuation_expires_at=datetime('now', '+7 days'),
-                cached_at=datetime('now')
-              WHERE set_num=?
-            `).bind(ebayVal, forecast_2y, forecast_5y, activeSet.set_num));
-          }
-          if (supplementStmts.length) {
-            await c.env.DB.batch(supplementStmts);
-          }
-          await persistBlendedValue(c.env.DB, activeSet.set_num as string);
-        }).catch(err => console.error('[bg-gemini-reval] failed:', err));
-
-        c.executionCtx.waitUntil(refreshPromise);
-      } else {
-        const refreshPromise = fetchEbaySoldPrices(activeSet.set_num as string, activeSet.name as string, c.env).then(async (ebayPrices) => {
-          const ebayVal = ebaySoldNewValue(ebayPrices);
-          const yr = activeSet.retired ? 0.15 : 0.10;
-          const hasVal = (ebayVal !== null && ebayVal !== undefined);
-          const forecast_2y = hasVal ? Math.round(ebayVal * Math.pow(1 + yr, 2) * 100) / 100 : null;
-          const forecast_5y = hasVal ? Math.round(ebayVal * Math.pow(1 + yr, 5) * 100) / 100 : null;
-          const supplementStmts: D1PreparedStatement[] = [];
-          pushEbaySoldUpdate(supplementStmts, c.env.DB, activeSet.set_num as string, ebayPrices);
-          if (hasVal) {
-            supplementStmts.push(c.env.DB.prepare(`
-              UPDATE lego_sets SET
-                current_value = COALESCE(?, current_value),
-                forecast_2y = COALESCE(?, forecast_2y),
-                forecast_5y = COALESCE(?, forecast_5y),
-                valuation_method = 'ebay_sold',
-                valuation_expires_at = datetime('now', '+7 days'),
-                cached_at = datetime('now')
-              WHERE set_num=?
-            `).bind(ebayVal, forecast_2y, forecast_5y, activeSet.set_num));
-          }
-          if (supplementStmts.length) await c.env.DB.batch(supplementStmts);
-          await persistBlendedValue(c.env.DB, activeSet.set_num as string);
-        }).catch(err => console.error('[bg-ebay-sold-reval] failed:', err));
-
-        c.executionCtx.waitUntil(refreshPromise);
-      }
-    }
+    scheduleSetDetailRefresh(c, activeSet);
 
     // Only call Brickset live when the set hasn't been enriched yet. Enriched sets
     // already have their brickset_* columns persisted, and the fill-guards below
@@ -626,7 +369,7 @@ app.get('/:setnum', async (c) => {
     // Trailing-history median feeds the blend's anomaly guard so a value that
     // jumped off its own recent trend on thin data shows as low confidence.
     const valueHistory = await recentValueMedian(c.env.DB, resultSet.set_num as string).catch(() => undefined);
-    return c.json({ set: enrichSetRecord({ ...resultSet, retired: !!resultSet.retired, trend, brickset }, valueHistory), entry: entry || null, set_minifigs: setMinifigs });
+    return c.json({ set: enrichSetRecord({ ...resultSet, retired: !!resultSet.retired, coming_soon: comingSoon, upcoming_price: upcomingPrice, trend, brickset }, valueHistory), entry: entry || null, set_minifigs: setMinifigs });
   }
 
   if (!c.env.REBRICKABLE_API_KEY) return c.json({ error: 'Set not found' }, 404);
@@ -802,96 +545,29 @@ app.post('/:setnum/listing-draft', requireMember, async (c) => {
   ]);
   if (!set) return c.json({ error: 'Set not found' }, 404);
 
-  const condition = (entry?.condition as string) || 'used_good';
-  const conditionLabel: Record<string, string> = {
-    sealed: 'Factory Sealed', new: 'New / Open Box',
-    used_good: 'Used - Good', used_acceptable: 'Used - Acceptable',
-  };
-  const blPrice = set.current_value ? `$${Number(set.current_value).toFixed(0)}` : 'unknown';
-  const ebayNew = Number(set.ebay_new_value ?? set.ebay_value ?? 0);
-  const ebayUsed = Number(set.ebay_used_value ?? 0);
-  const ebayPrice = condition.startsWith('used') && ebayUsed > 0
-    ? `$${ebayUsed.toFixed(0)} used sold`
-    : ebayNew > 0
-      ? `$${ebayNew.toFixed(0)} new sold`
-      : null;
-
-  const sourceName = set.valuation_method === 'market' ? 'BrickLink'
-    : set.valuation_method === 'brickeconomy' ? 'BrickEconomy'
-    : set.valuation_method === 'ai' ? 'AI estimate'
-    : (set.valuation_method === 'ebay_rss' || set.valuation_method === 'ebay_sold') ? 'eBay Sold' : 'Estimated';
-  const marketMeta = enrichSetRecord({ ...set });
-
-  const prompt = `Generate an eBay listing for this LEGO set. Return JSON only with keys: title, description, suggested_price (number), price_reasoning (string).
-
-Set: ${set.name}
-Set number: ${set.set_num}
-Theme: ${set.theme || 'LEGO'}
-Year: ${set.year}
-Pieces: ${set.pieces}
-Minifigs: ${set.minifigs || 0}
-Condition: ${conditionLabel[condition] || condition}
-Is complete: ${entry?.is_complete !== 0 ? 'Yes' : `No (${entry?.missing_pieces || '?'} pieces missing)`}
-${sourceName} market price (new): ${blPrice}${ebayPrice ? `\neBay recent sales: ${ebayPrice}` : ''}
-Market confidence: ${marketMeta.confidence}; freshness: ${marketMeta.freshness}
-Notes from owner: ${entry?.notes || 'none'}
-
-Title: max 80 characters, include set number and name.
-Description: 3-5 sentences covering set highlights, condition, and what's included.
-suggested_price: a specific dollar amount number (no $ sign).
-price_reasoning: one sentence explaining the price.`;
-
-  const geminiKey = c.req.header('X-Gemini-Key');
-  const openaiKey = c.req.header('X-OpenAI-Key');
-  let draft: ListingDraft;
-
-  try {
-    if (geminiKey) {
-      const resp = await fetchTracked(
-        c.env,
-        'gemini',
-        // BYOK listing draft: call Google directly with the user's key.
-        geminiUrl(MODELS.listing),
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiKey },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: { maxOutputTokens: 400, responseMimeType: 'application/json' },
-          }),
-        }
-      );
-      if (!resp.ok) throw new Error('Gemini request failed');
-      const body = await resp.json() as Record<string, unknown>;
-      const text = (body['candidates'] as { content: { parts: { text: string }[] } }[])?.[0]?.content?.parts?.[0]?.text ?? '{}';
-      draft = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as ListingDraft;
-    } else {
-      const finalOpenAIKey = openaiKey || c.env.OPENAI_API_KEY;
-      if (!finalOpenAIKey) throw new Error('OpenAI is not configured');
-      const openai = new OpenAI({
-        apiKey: finalOpenAIKey,
-        // Server-key calls route through the gateway; BYOK OpenAI stays direct.
-        baseURL: openaiKey ? undefined : openAIServerBaseURL(c.env),
-        defaultHeaders: openaiKey ? undefined : gatewayHeaders(c.env),
-      });
-      const result = await openai.chat.completions.create({
-        model: MODELS.openaiFallback,
-        max_tokens: 400,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: 'You are an expert eBay seller specializing in LEGO. Return JSON only.' },
-          { role: 'user', content: prompt },
-        ],
-      });
-      await recordIntegrationAttempt(c.env, 'openai', true);
-      draft = JSON.parse(result.choices[0].message.content!.trim()) as ListingDraft;
+  // Rate limit the SERVER-key path only (BYOK bypasses) so a user can't loop the
+  // shared OpenAI key for free — mirrors /advisor, /scan, /revalue. Atomic
+  // increment+read (RETURNING) closes the read-after-write race.
+  if (!c.req.header('X-Gemini-Key') && !c.req.header('X-OpenAI-Key')) {
+    const LISTING_DRAFT_DAILY_LIMIT = 30;
+    const dws = new Date(); dws.setHours(0, 0, 0, 0);
+    const rl = await c.env.DB.prepare(`
+      INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+      VALUES (?, 'listing-draft', ?, 1)
+      ON CONFLICT (user_id, endpoint, window_start) DO UPDATE SET hit_count = rate_limits.hit_count + 1
+      RETURNING hit_count
+    `).bind(userId, dws.toISOString()).first<{ hit_count: number }>();
+    if ((rl?.hit_count ?? 0) > LISTING_DRAFT_DAILY_LIMIT) {
+      return c.json({ error: `Rate limit: ${LISTING_DRAFT_DAILY_LIMIT} listing drafts per day. Add your own Gemini or OpenAI key in Settings for unlimited access.` }, 429);
     }
-  } catch (e) {
-    await recordIntegrationAttempt(c.env, geminiKey ? 'gemini' : 'openai', false, e);
-    console.warn('[listing-draft] AI failed:', (e as Error).message);
-    return c.json({ error: 'Could not generate listing. Check your AI key or try again later.' }, 500);
   }
 
+  let draft: ListingDraft;
+  try {
+    draft = await generateListingDraft(c, set, entry);
+  } catch {
+    return c.json({ error: 'Could not generate listing. Check your AI key or try again later.' }, 500);
+  }
   return c.json(draft);
 });
 
@@ -910,17 +586,16 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
   windowStart.setMinutes(0, 0, 0);
   const ws = windowStart.toISOString();
 
-  await c.env.DB.prepare(`
+  // Atomic increment+read (RETURNING) so two concurrent requests can't both slip
+  // past the cap (the old increment-then-separate-SELECT had a check-after-write race).
+  const rl = await c.env.DB.prepare(`
     INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
     VALUES (?, 'revalue', ?, 1)
     ON CONFLICT (user_id, endpoint, window_start) DO UPDATE SET hit_count = rate_limits.hit_count + 1
-  `).bind(userId, ws).run();
+    RETURNING hit_count
+  `).bind(userId, ws).first<{ hit_count: number }>();
 
-  const rl = await c.env.DB.prepare(
-    'SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint=? AND window_start=?'
-  ).bind(userId, 'revalue', ws).first<{ hit_count: number }>();
-
-  if (rl && rl.hit_count > REVALUE_LIMIT) {
+  if ((rl?.hit_count ?? 0) > REVALUE_LIMIT) {
     return c.json({ error: `Rate limit: ${REVALUE_LIMIT} revaluations per hour.` }, 429);
   }
 

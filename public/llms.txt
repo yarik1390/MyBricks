@@ -1,0 +1,23 @@
+# Brickvault
+
+> A premium LEGO portfolio tracker (PWA). Blended market pricing, ROI tracking, camera scanning, and value forecasts for LEGO set and minifigure collections.
+
+Brickvault is a single-page web app. Page content is rendered client-side after
+load, and most user data (your vault, wishlist, portfolio value) requires
+sign-in — a fetch-only crawler will see the app shell, not personal data.
+
+Set and minifigure valuations are a blend of independent sources: BrickLink
+(collector market), PriceCharting (eBay-derived sold comps), eBay sold listings,
+BrickOwl, and BrickEconomy (modeled values + forecasts).
+
+## Key areas
+- Vault: your owned sets, blended market value, and ROI vs. purchase price
+- Catalog: browse/search ~27,000 LEGO sets with values, deal signals, and coming-soon releases
+- Minifigs: minifigure valuations and ownership
+- Scan: identify a set by barcode or photo (AI)
+
+## For agents
+- This is a JavaScript PWA; there is no server-side-rendered content to scrape.
+- Navigation uses in-app hash routes (e.g. #/catalog/10300-1), not distinct crawlable URLs.
+- Read-only public config: https://brickvault-api.zhydenko.workers.dev/api/config
+- Do not attempt to access authenticated endpoints or private user data.

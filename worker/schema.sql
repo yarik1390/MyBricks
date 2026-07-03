@@ -113,7 +113,11 @@ CREATE TABLE IF NOT EXISTS set_market_ext (
   pa_best_merchant TEXT,
   pa_offer_count INTEGER,
   pa_market TEXT,
-  pa_cached_at TEXT
+  pa_cached_at TEXT,
+  -- BrickLink no-data backoff stamp (sold guide <5 lots): the valuation job skips
+  -- this set's BrickLink calls for 90 days so the ~5,000/day budget isn't wasted
+  -- re-querying sets that will never have data. Cleared when a BL price returns.
+  bl_nodata_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS user_collection (
