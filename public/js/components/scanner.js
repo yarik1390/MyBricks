@@ -20,6 +20,42 @@ function scanTime(label, since) {
   if (_scanDbg()) console.debug(`[scan-timing] ${label}: ${Math.round(performance.now() - (since ?? _scanStartMs))}ms`);
 }
 
+// --- Playful "analyzing" phrases -------------------------------------------
+// Rotate a few LEGO-flavored messages on the loading card while an image scan is
+// in flight, so the wait feels alive instead of a static "Identifying…". Image/AI
+// path only (barcode is instant). Stops on done(); the crossfade honors
+// prefers-reduced-motion (text still rotates, just without the fade).
+const SCAN_PHRASES = [
+  'Counting the studs…',
+  'Consulting the brick oracle…',
+  'Summoning the minifigs…',
+  'Sorting the 1×1 plates…',
+  'Rummaging the parts bin…',
+  'Matching the box art…',
+  'Asking the master builder…',
+  'Searching 20,000 sets…',
+  'Dusting off the instructions…',
+];
+let _scanPhraseTimer = null;
+function startScanPhrases() {
+  stopScanPhrases();
+  const queue = [...SCAN_PHRASES].sort(() => Math.random() - 0.5); // fresh order each scan
+  let i = 0;
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  _scanPhraseTimer = setInterval(() => {
+    const strong = document.querySelector('#scanResult .scan-loading-copy strong');
+    if (!strong) return;
+    const next = queue[i++ % queue.length];
+    if (reduce) { strong.textContent = next; return; }
+    strong.style.transition = 'opacity .18s ease';
+    strong.style.opacity = '0';
+    setTimeout(() => { strong.textContent = next; strong.style.opacity = '1'; }, 180);
+  }, 2200);
+}
+function stopScanPhrases() {
+  if (_scanPhraseTimer) { clearInterval(_scanPhraseTimer); _scanPhraseTimer = null; }
+}
+
 // NOTE: a Turnstile token pre-warm was tried here to hide the token fetch behind
 // framing time, but holding a token until capture triggered server-side
 // "could not verify" rejections (tokens are single-use + short-lived). The token
@@ -435,7 +471,10 @@ async function sendScanToAPI(payload) {
   );
   const frame = document.querySelector(".scan-frame");
   if (frame) frame.classList.add("scan-pending");
+  // Playful rotating copy for the (slower) image/AI path; barcode is instant.
+  if (payload.mode !== "barcode") startScanPhrases();
   const done = () => {
+    stopScanPhrases();
     scanTime('total');
     if (frame) frame.classList.remove("scan-pending");
     setScanPending(false);
