@@ -10,6 +10,45 @@ import { flipCalcHTML } from './flip-calc.js';
 let _scanTrapRelease = null;
 let _scanPending = false;
 
+// --- Per-scan latency instrumentation (opt-in) -----------------------------
+// Set localStorage bv_scan_debug='1' to log each stage's timing to the console,
+// so real per-photo latency can be measured on an actual device (which path,
+// on-device inference vs cloud round-trip, and the total).
+let _scanStartMs = 0;
+const _scanDbg = () => { try { return localStorage.getItem('bv_scan_debug') === '1'; } catch { return false; } };
+function scanTime(label, since) {
+  if (_scanDbg()) console.debug(`[scan-timing] ${label}: ${Math.round(performance.now() - (since ?? _scanStartMs))}ms`);
+}
+
+// --- Turnstile token pre-warm ----------------------------------------------
+// Shared-key image scans need a Turnstile token BEFORE the API call. Fetching it
+// only at capture time serializes that latency in front of every scan. Instead we
+// pre-warm one while the user is framing the shot (scanner open / after a capture)
+// and consume it at send time. Fully defensive: if no fresh token is ready,
+// cloudScanIdentify falls back to fetching inline (unchanged behavior), so this can
+// only remove latency, never add it. Tokens are single-use + short-lived (~5 min),
+// so we cap freshness at 3 min and re-warm after each consume.
+let _tsPrewarmed = null; // { token, ts }
+let _tsPrewarming = false;
+function prewarmTurnstile() {
+  try {
+    const siteKey = state.config && state.config.turnstile_site_key;
+    if (!siteKey || _tsPrewarming) return;
+    if (localStorage.getItem('bv_gemini_key') || localStorage.getItem('bv_openai_key')) return; // BYOK skips Turnstile
+    if (_tsPrewarmed && Date.now() - _tsPrewarmed.ts < 180_000) return; // still fresh
+    _tsPrewarming = true;
+    getTurnstileToken()
+      .then((tok) => { if (tok) _tsPrewarmed = { token: tok, ts: Date.now() }; })
+      .catch(() => {})
+      .finally(() => { _tsPrewarming = false; });
+  } catch { /* pre-warm is best-effort */ }
+}
+function takePrewarmedToken() {
+  const p = _tsPrewarmed;
+  _tsPrewarmed = null; // single-use
+  return p && p.token && Date.now() - p.ts < 180_000 ? p.token : null;
+}
+
 function setScanPending(on) {
   _scanPending = !!on;
   const wrap = document.querySelector(".scan-video-wrap");
@@ -93,6 +132,9 @@ export function openScan(mode = "barcode") {
   $("#scanCapture")?.addEventListener("click", capturePhoto);
 
   if (mode === "image") {
+    // Pre-warm a Turnstile token while the user frames the shot so it's ready at
+    // capture time (shared-key scans only; BYOK/no-config no-ops).
+    prewarmTurnstile();
     const galleryBtn = $("#scanGalleryBtn");
     const galleryInp = $("#scanGalleryInput");
     if (galleryBtn && galleryInp) {
@@ -389,17 +431,27 @@ async function cloudScanIdentify(payload, signal) {
   // Shared server-key image scans (no BYOK key) carry a Turnstile token for bot
   // protection when configured; BYOK and barcode scans skip it.
   if (!geminiKey && !openaiKey && payload.mode === 'image') {
-    let token = await getTurnstileToken();
-    // One retry on a transient miss (occasional invisible-challenge timeout on
-    // rapid successive scans); a genuine config/script failure won't recover, so
-    // only retry the transient outcomes.
-    if (!token && /timeout|empty|error/.test(_tsReason)) token = await getTurnstileToken();
+    // Use the token pre-warmed while framing (if fresh); otherwise fetch inline.
+    let token = takePrewarmedToken();
+    if (!token) {
+      token = await getTurnstileToken();
+      // One retry on a transient miss (occasional invisible-challenge timeout on
+      // rapid successive scans); a genuine config/script failure won't recover, so
+      // only retry the transient outcomes.
+      if (!token && /timeout|empty|error/.test(_tsReason)) token = await getTurnstileToken();
+    }
     if (token) extraHeaders['cf-turnstile-token'] = token;
+    // Re-warm for the next scan in the background (best-effort).
+    prewarmTurnstile();
   }
-  return api("/api/scan/identify", { method: "POST", body: payload, signal, headers: extraHeaders });
+  const _t = performance.now();
+  const res = await api("/api/scan/identify", { method: "POST", body: payload, signal, headers: extraHeaders });
+  scanTime(payload.mode === 'barcode' ? 'barcode lookup' : 'cloud identify round-trip', _t);
+  return res;
 }
 
 async function sendScanToAPI(payload) {
+  _scanStartMs = performance.now();
   setScanPending(true);
   const el = $("#scanResult");
   if (el) {
@@ -413,6 +465,7 @@ async function sendScanToAPI(payload) {
   const frame = document.querySelector(".scan-frame");
   if (frame) frame.classList.add("scan-pending");
   const done = () => {
+    scanTime('total');
     if (frame) frame.classList.remove("scan-pending");
     setScanPending(false);
   };
@@ -430,10 +483,12 @@ async function sendScanToAPI(payload) {
     if (ready) {
       try {
         const bitmap = await imageBitmapFromDataUrl(payload.image);
+        const _tLocal = performance.now();
         const localResult = await runLocalVisionScan(bitmap, (statusText) => {
           const hint = $("#scanHint");
           if (hint) hint.textContent = statusText;
         });
+        scanTime('on-device inference', _tLocal);
         if (localResult.identified) {
           const setNum = localResult.set_num;
           let setResponse = await api(`/api/sets/${encodeURIComponent(setNum)}`).catch(() => null);
