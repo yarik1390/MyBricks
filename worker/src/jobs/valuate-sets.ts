@@ -1,32 +1,24 @@
 import OpenAI from 'openai';
 import type { Env } from '../types';
-import { fetchSetPricing, fetchUsedPricing, fetchMinifigPricing } from '../lib/bricklink';
+import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
 import { fetchBrickOwlPricing } from '../lib/brickowl-pricing';
-import { ebaySoldCompsEnabled, brickOwlEnabled, firecrawlEnabled } from '../lib/pricing-flags';
-import { fetchMinifigEbaySoldViaFirecrawl } from '../lib/ebay-firecrawl';
-import { normalizeMinifigName, resolveBlId } from '../lib/bricklink-minifigs';
+import { ebaySoldCompsEnabled } from '../lib/pricing-flags';
 import { callGeminiValuation } from '../lib/gemini';
 import { MODELS, openAIServerBaseURL, gatewayHeaders, gatewayMetadataHeader, openRouterBaseURL } from '../lib/llm';
 import {
   buildEbayAskUpdate,
   buildEbaySoldUpdate,
-  ebaySoldHasValue,
   ebaySoldNewValue,
   fetchEbayActiveListings,
   fetchEbaySoldPrices,
   isEbayAccessError,
   type EbaySoldPrices,
 } from '../lib/ebay';
-import {
-  DEFAULT_CRON_BUDGET,
-  packBatch,
-  reserveQuota,
-  type PackProfile,
-} from '../lib/api-quota';
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { valuationExpiryModifier, isPlausibleMarketValue, formulaValuation } from '../lib/valuation';
 import { computeRetirementRisk } from '../lib/retirement-risk';
-import { computeMinifigRarity } from '../lib/minifig-rarity';
+import { runValuateMinifigs } from './valuate-minifigs';
+import { selectDueSets, blBackedOffAt } from './valuate-select';
 import {
   clearIntegrationBlock,
   isIntegrationBlocked,
@@ -111,111 +103,8 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   // burns calls or trips the breaker. Defaults to includeEbay (back-compat).
   const includeEbaySold = (options.includeEbaySold ?? includeEbay) && ebaySoldCompsEnabled(env);
   const includeAiFallback = options.includeAiFallback !== false;
-  const requestedLimit = Number(options.limit);
-  // Default raised from the old hand-tuned 4: the invocation packer below is
-  // now the real safety limit, sizing each batch to the subrequest budget.
-  const requested = Number.isFinite(requestedLimit) && requestedLimit > 0
-    ? Math.min(Math.floor(requestedLimit), 250)
-    : 12;
-  const packProfile: PackProfile = {
-    // BrickEconomy is no longer a per-set subrequest — its values are read from
-    // the be_* columns (populated by the brickeconomy-enrich Firecrawl cron), so
-    // the packer treats every set as BrickLink-primary.
-    brickEconomy: false,
-    supplemental: includeSupplemental,
-    ebay: includeEbay,
-    aiFallback: includeAiFallback && !!(env.GEMINI_API_KEY || env.OPENAI_API_KEY),
-    progressWrites: !!options.onProgress,
-  };
-  const requestedBudget = Number(options.subrequestBudget);
-  const subrequestBudget = Number.isFinite(requestedBudget) && requestedBudget > 0
-    ? requestedBudget
-    : DEFAULT_CRON_BUDGET;
-  const limit = packBatch(requested, subrequestBudget, packProfile);
-  const duePredicate = `(
-    ls.valuation_method = 'formula_bulk'
-    OR ls.valuation_expires_at IS NULL
-    OR ls.valuation_expires_at < datetime('now')
-    OR ls.cached_at IS NULL
-  )`;
-  const scopePredicate = scope === 'owned'
-    ? `AND (
-        ls.set_num IN (SELECT DISTINCT set_num FROM user_collection WHERE deleted_at IS NULL)
-        OR ls.set_num IN (SELECT DISTINCT set_num FROM user_wishlist)
-      )`
-    : '';
-  const freshnessPredicate = options.includeFresh ? '' : `AND ${duePredicate}`;
-  // High-value mode: restrict to real (non-formula) market values worth at
-  // least minValue, and order the most valuable first so the catalog head
-  // stays fresh rather than the oldest-expiry rotation used for coverage.
-  const prioritizeValue = options.prioritizeValue === true;
-  const formulaHead = options.formulaHead === true;
-  const minValueFloor = Number.isFinite(Number(options.minValue)) && Number(options.minValue) > 0
-    ? Math.floor(Number(options.minValue))
-    : 0;
-  const valuePredicate = prioritizeValue
-    ? `AND ls.valuation_method NOT IN ('formula_bulk', 'local')
-      AND COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) >= ${minValueFloor}`
-    : formulaHead
-    ? `AND ls.valuation_method IN ('formula_bulk', 'local')
-      AND COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) >= ${minValueFloor}
-      AND (ls.cached_at IS NULL OR ls.cached_at < datetime('now', '-3 days'))`
-    : '';
-  const valueOrder = (prioritizeValue || formulaHead)
-    ? `COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) DESC,`
-    : '';
-
-  // Prioritize overdue/formula rows first, then rotate through the oldest
-  // cached valuations. With scope='all' this steadily covers the whole catalog.
-  const { results } = await env.DB.prepare(`
-    SELECT DISTINCT ls.set_num, ls.name, ls.theme, ls.year, ls.pieces, ls.minifigs, ls.retired,
-      ls.retail_price, ls.ebay_ask_value, sme.bl_nodata_at,
-      ls.be_value_new, ls.be_value_used, ls.be_forecast_2y, ls.be_forecast_5y, ls.be_retail, ls.be_growth_12m,
-      (ls.ebay_ask_cached_at IS NULL OR ls.ebay_ask_cached_at < datetime('now', '-7 days')) AS ask_stale
-    FROM lego_sets ls
-    LEFT JOIN set_market_ext sme ON sme.set_num = ls.set_num
-    WHERE 1=1
-      ${freshnessPredicate}
-      ${valuePredicate}
-      ${scopePredicate}
-    ORDER BY
-      CASE WHEN ls.set_num IN (SELECT set_num FROM user_collection WHERE deleted_at IS NULL)
-             OR ls.set_num IN (SELECT set_num FROM user_wishlist) THEN 0 ELSE 1 END,
-      CASE WHEN ${duePredicate} THEN 0 ELSE 1 END,
-      ${valueOrder}
-      COALESCE(ls.valuation_expires_at, ls.cached_at, '2000-01-01') ASC,
-      ls.set_num ASC
-    LIMIT ?
-  `).bind(limit).all<{ set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number; retired: number; retail_price: number | null; ebay_ask_value: number | null; bl_nodata_at: string | null; be_value_new: number | null; be_value_used: number | null; be_forecast_2y: number | null; be_forecast_5y: number | null; be_retail: number | null; be_growth_12m: number | null; ask_stale: number }>();
-
-  // 90-day BrickLink no-data backoff: a set stamped bl_nodata_at (sold guide had
-  // <5 lots) is skipped so the ~5,000/day budget goes to sets that have data.
-  // Shared by the up-front reserve and the per-set loop so the two never drift.
-  const blBackedOffAt = (v: string | null | undefined): boolean => {
-    if (!v) return false;
-    const s = String(v);
-    const ts = Date.parse(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
-    return Number.isFinite(ts) && ts > Date.now() - 90 * 86400000;
-  };
-
-  // Reserve today's external-API budget for this batch up front (2-3 D1
-  // round-trips total) for accounting/visibility; these budgets are far above
-  // any single run. BrickEconomy is no longer reserved here — its values come
-  // from the be_* columns (Firecrawl-populated by brickeconomy-enrich), not a
-  // per-set API call, so the ~$1,000/mo BrickEconomy API is off the hot path.
-  // BrickLink is reserved to match the two budget savers below: backed-off sets
-  // cost 0, and only retired sets pay for the USED guide (modern sets skip it),
-  // so the ledger reflects real spend instead of a flat 2/set over-count.
-  const blReserve = results.reduce(
-    (n, s) => (blBackedOffAt(s.bl_nodata_at) ? n : n + (s.retired ? 2 : 1)),
-    0,
-  );
-  await reserveQuota(env, {
-    bricklink: blReserve,
-    // BrickOwl makes TWO calls per set (catalog/lookup + catalog/price_data), so
-    // reserve 2/set — the flat results.length under-counted its usage by half.
-    brickowl: (includeSupplemental && brickOwlEnabled(env)) ? results.length * 2 : 0,
-    ebay: includeEbay ? results.length * (includeEbaySold ? 2 : 1) : 0,
+  const { results, limit } = await selectDueSets(env, {
+    scope, options, includeSupplemental, includeEbay, includeEbaySold, includeAiFallback,
   });
 
   const openai = env.OPENAI_API_KEY
@@ -711,256 +600,11 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   return { processed: results.length, updated, market, ai, scope, limit };
 }
 
-export async function runEbayBackfill(env: Env, options: { limit?: number } = {}) {
-  // eBay sold comps are disabled unless EBAY_SOLD_COMPS_ENABLED is set.
-  if (!ebaySoldCompsEnabled(env)) {
-    return { processed: 0, updated: 0, limit: 0, skipped: 'ebay sold comps disabled' };
-  }
-  const requestedLimit = Number(options.limit);
-  const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
-    ? Math.min(Math.floor(requestedLimit), 2)
-    : 1;
-  // Circuit breaker: skip the whole backfill while a previous access-denied
-  // block is still active.
-  if (await isIntegrationBlocked(env, 'ebay')) {
-    return { processed: 0, updated: 0, limit, skipped: 'ebay access blocked' };
-  }
-  const { results } = await env.DB.prepare(`
-    SELECT ls.set_num, ls.name
-    FROM lego_sets ls
-    WHERE (
-      (ls.ebay_new_value IS NULL AND (ls.ebay_new_cached_at IS NULL OR ls.ebay_new_cached_at < datetime('now', '-7 days')))
-      OR (ls.ebay_used_value IS NULL AND (ls.ebay_used_cached_at IS NULL OR ls.ebay_used_cached_at < datetime('now', '-7 days')))
-    )
-    ORDER BY
-      CASE WHEN EXISTS (
-        SELECT 1 FROM user_collection uc
-        WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
-      ) OR EXISTS (
-        SELECT 1 FROM user_wishlist uw
-        WHERE uw.set_num = ls.set_num
-      ) THEN 0 ELSE 1 END,
-      COALESCE(ls.ebay_new_cached_at, '2000-01-01') ASC,
-      COALESCE(ls.ebay_used_cached_at, '2000-01-01') ASC,
-      ls.set_num ASC
-    LIMIT ?
-  `).bind(limit).all<{ set_num: string; name: string }>();
-
-  // Account the eBay spend in the daily ledger (advisory at backfill sizes).
-  await reserveQuota(env, { ebay: results.length });
-
-  let updated = 0;
-  let processed = 0;
-  const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
-  for (const set of results) {
-    processed++;
-    const prices = await fetchEbaySoldPrices(set.set_num, set.name, env, { recordHealth: false })
-      .catch((err) => {
-        health.fail++;
-        health.lastError = (err as Error)?.message || String(err);
-        return null;
-      });
-    if (prices?.status === 'error' || prices?.status === 'unauthorized') {
-      health.fail++;
-      health.lastError = prices.error || prices.status;
-    } else if (prices?.status && prices.status !== 'unconfigured') {
-      health.ok++;
-    }
-    const stmt = buildEbaySoldUpdate(env.DB, set.set_num, prices);
-    if (stmt) {
-      await stmt.run();
-      if (ebaySoldHasValue(prices)) updated++;
-    }
-    if (prices?.status === 'unauthorized' || isEbayAccessError(prices?.error)) {
-      await setIntegrationBlock(env, 'ebay', 6);
-      break;
-    }
-  }
-
-  await recordIntegrationHealth(env, 'ebay', health);
-
-  return { processed, updated, limit };
-}
-
-// Browse-API ASK backfill: refresh the eBay active-listing ask price + count for
-// sets whose ask is missing/stale, prioritized owned/wishlist then retired (where
-// secondary-market value lives) then oldest. Basic OAuth scope only — fully
-// independent of the disabled sold-comps path — so it grows the free ask signal
-// that feeds the blended value. Bounded by `limit`; the eBay daily quota is wide
-// open. Fails open per set and honors a Browse access denial by stopping early.
-export async function runEbayAskBackfill(env: Env, options: { limit?: number } = {}) {
-  const requestedLimit = Number(options.limit);
-  const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
-    ? Math.min(Math.floor(requestedLimit), 200)
-    : 40;
-  const { results } = await env.DB.prepare(`
-    SELECT ls.set_num, ls.name
-    FROM lego_sets ls
-    WHERE ls.ebay_ask_cached_at IS NULL OR ls.ebay_ask_cached_at < datetime('now', '-14 days')
-    ORDER BY
-      CASE WHEN EXISTS (
-        SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
-      ) OR EXISTS (
-        SELECT 1 FROM user_wishlist uw WHERE uw.set_num = ls.set_num
-      ) THEN 0 ELSE 1 END,
-      COALESCE(ls.retired, 0) DESC,
-      COALESCE(ls.ebay_ask_cached_at, '2000-01-01') ASC,
-      ls.set_num ASC
-    LIMIT ?
-  `).bind(limit).all<{ set_num: string; name: string }>();
-  if (!results.length) return { processed: 0, updated: 0, limit };
-
-  // Advisory ledger entry (eBay budget is far above any ask batch).
-  await reserveQuota(env, { ebay: results.length });
-
-  let updated = 0;
-  let processed = 0;
-  let browseDenied = false;
-  const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
-  const stmts: D1PreparedStatement[] = [];
-  for (const set of results) {
-    if (browseDenied) break;
-    processed++;
-    const listings = await fetchEbayActiveListings(set.set_num, set.name, env, { recordHealth: false })
-      .catch((err) => { health.fail++; health.lastError = (err as Error)?.message || String(err); return null; });
-    if (listings && !listings.error) {
-      health.ok++;
-      const stmt = buildEbayAskUpdate(env.DB, set.set_num, listings);
-      if (stmt) { stmts.push(stmt); if (listings.ask_value != null) updated++; }
-    } else if (listings?.error) {
-      health.fail++;
-      health.lastError = listings.error;
-      if (isEbayAccessError(listings.error)) browseDenied = true;
-    }
-  }
-  if (stmts.length) await env.DB.batch(stmts);
-  await recordIntegrationHealth(env, 'ebay', health);
-  // Refresh the persisted blend so newly-collected ask prices feed blended_value.
-  await recomputeBlendedValues(env.DB, results.map(r => r.set_num));
-
-  return { processed, updated, limit };
-}
-
-export async function runValuateMinifigs(env: Env, options: { limit?: number } = {}): Promise<number> {
-  const limit = Math.min(Math.max(1, Math.floor(options.limit ?? 10)), 400);
-  // Price the figs users actually browse — not just owned ones (which left the
-  // whole catalog on the hardcoded rarity fallback). Scope: owned → already-valuable
-  // → Collectible-Minifigures series → popular (appears in ≥3 sets). Stale-first
-  // (14-day TTL) so the targeted population cycles within the daily BrickLink budget.
-  // "Collectible Minifigures" = figs that appear in a set with that theme (the
-  // `series` column is populated for ~98% of figs, so it is NOT a CMF proxy).
-  // A MATERIALIZED CTE + LEFT JOINs keep this a single fast scan; a correlated
-  // EXISTS per fig was ~12s on the live catalog, this is ~1s.
-  const { results } = await env.DB.prepare(`
-    WITH cmf AS MATERIALIZED (
-      SELECT DISTINCT sm.fig_num FROM set_minifigs sm
-      JOIN lego_sets ls ON ls.set_num = sm.set_num
-      WHERE ls.theme = 'Collectible Minifigures'
-    )
-    SELECT m.fig_num, m.name, m.appears_in_sets, m.bl_id, m.year,
-      (CASE
-        WHEN um.fig_num IS NOT NULL THEN 0
-        WHEN COALESCE(m.current_value, 0) >= 10 THEN 1
-        WHEN cmf.fig_num IS NOT NULL THEN 2
-        ELSE 3
-      END) AS priority
-    FROM minifigs m
-    LEFT JOIN cmf ON cmf.fig_num = m.fig_num
-    LEFT JOIN (SELECT DISTINCT fig_num FROM user_minifigs) um ON um.fig_num = m.fig_num
-    WHERE (m.cached_at IS NULL OR m.cached_at < datetime('now', '-14 days'))
-      AND (
-        um.fig_num IS NOT NULL
-        OR COALESCE(m.current_value, 0) >= 10
-        OR cmf.fig_num IS NOT NULL
-        OR COALESCE(m.appears_in_sets, 0) >= 3
-      )
-    ORDER BY priority ASC, COALESCE(m.cached_at, '2000-01-01') ASC, COALESCE(m.appears_in_sets, 0) DESC
-    LIMIT ?
-  `).bind(limit).all<{ fig_num: string; name: string; appears_in_sets: number | null; bl_id: string | null; year: number | null; priority: number }>();
-
-  // Account the BrickLink spend in the daily ledger (advisory — minifig
-  // batches are far below the 4,000/day budget, but visibility matters).
-  await reserveQuota(env, { bricklink: results.length });
-
-  // Multi-source (G1b): only worth an eBay scrape (5 Firecrawl credits) for
-  // figs valuable enough that a second source matters — cheap commons don't.
-  const fcOn = firecrawlEnabled(env);
-  const EBAY_MIN_VALUE = 10;
-
-  let updated = 0;
-  for (const fig of results) {
-    // Resolve the BrickLink id lazily: Rebrickable fig-numbers aren't valid on
-    // BrickLink, so we match this fig's normalized name (+year) against the
-    // uploaded BrickLink catalog and cache the id on the row. Only unambiguous
-    // matches are accepted (resolveBlId returns null otherwise).
-    let blId = fig.bl_id;
-    if (!blId) {
-      const cand = await env.DB.prepare(
-        `SELECT bl_id, year FROM bricklink_minifigs WHERE norm_name = ?`,
-      ).bind(normalizeMinifigName(fig.name)).all<{ bl_id: string; year: number | null }>()
-        .catch(() => ({ results: [] as Array<{ bl_id: string; year: number | null }> }));
-      blId = resolveBlId(cand.results ?? [], fig.year);
-      if (blId) {
-        await env.DB.prepare(`UPDATE minifigs SET bl_id = ? WHERE fig_num = ?`)
-          .bind(blId, fig.fig_num).run().catch(() => {});
-      }
-    }
-
-    // BrickLink sold price (only with a real BrickLink id).
-    const px = blId
-      ? await fetchMinifigPricing(blId, env, { recordHealth: false }).catch(() => null)
-      : null;
-    const blValue = px && px.value != null && px.value > 0 ? px.value : null;
-    const blLots = px?.lots ?? 0;
-
-    let value = blValue;
-    let lots = blLots;
-    let ebayValue: number | null = null;
-    let ebayQty = 0;
-
-    // eBay sold comps: corroborate a real BrickLink value for valuable figs, OR
-    // act as the PRIMARY source for owned/wishlisted figs (priority 0) that
-    // BrickLink couldn't price — so those aren't left with no market value just
-    // because the fig isn't mapped. Gated so we don't scrape every common fig.
-    const wantEbay = fcOn && (
-      (blValue != null && blValue >= EBAY_MIN_VALUE)
-      || (blValue == null && fig.priority === 0)
-    );
-    let ebayAttempted = false;
-    if (wantEbay) {
-      ebayAttempted = true;
-      const eb = await fetchMinifigEbaySoldViaFirecrawl(fig.fig_num, fig.name, env).catch(() => null);
-      if (eb && eb.status === 'ok' && eb.value != null && eb.value > 0) {
-        if (blValue == null) {
-          value = eb.value;          // eBay is the only source
-          ebayValue = eb.value;
-          ebayQty = eb.count;
-          lots = 0;
-        } else if (eb.value >= blValue / 3 && eb.value <= blValue * 3) {  // corroboration gate
-          ebayValue = eb.value;
-          ebayQty = eb.count;
-          const w1 = Math.max(1, blLots);
-          const w2 = Math.max(1, eb.count);
-          value = Math.round(((blValue * w1 + eb.value * w2) / (w1 + w2)) * 100) / 100;
-        }
-      }
-    }
-
-    if (value == null || value <= 0) continue; // no market value from either source
-
-    // Rarity reflects the blended value + combined market liquidity.
-    const rarity = computeMinifigRarity(value, fig.appears_in_sets, lots + ebayQty);
-    const source = ebayValue != null ? (blValue != null ? 'bricklink+ebay' : 'ebay') : 'bricklink';
-    await env.DB.prepare(`
-      UPDATE minifigs SET current_value = ?, rarity = ?, source = ?,
-        ebay_value = ?, ebay_qty = ?, ebay_cached_at = CASE WHEN ? THEN datetime('now') ELSE ebay_cached_at END,
-        cached_at = datetime('now')
-      WHERE fig_num = ?
-    `).bind(value, rarity, source, ebayValue, ebayQty, ebayAttempted ? 1 : 0, fig.fig_num).run();
-    updated++;
-  }
-  return updated;
-}
+// runEbayBackfill / runEbayAskBackfill / runValuateMinifigs live in their own
+// modules now; re-exported here so existing importers (index.ts, admin.ts, tests)
+// keep importing them from ./valuate-sets unchanged.
+export { runEbayBackfill, runEbayAskBackfill } from './ebay-backfill';
+export { runValuateMinifigs };
 
 // Batch-update retirement risk scores for sets due for refresh (null or >7 days old).
 async function updateRetirementRiskBatch(env: Env): Promise<void> {
