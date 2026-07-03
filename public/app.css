@@ -1693,8 +1693,62 @@ ul.set-list > li { display: contents; }
   0%, 100% { top: 12%; }
   50% { top: 88%; }
 }
+/* --- "Analyzing" effect while a scan is in flight (.scan-pending) -----------
+   Idle shows the gentle bouncing laser; the moment a scan starts we energize the
+   frame so it reads as "the AI is working": a fast glowing sweep beam, pulsing
+   corner brackets, a diagonal sheen and a soft breathing glow. Pure CSS, driven by
+   the existing .scan-pending class. Honors prefers-reduced-motion. */
 .scan-frame.scan-pending .laser {
-  animation-play-state: paused;
+  height: 3px;
+  left: 6px; right: 6px;
+  background: linear-gradient(90deg, transparent, var(--bv-yellow) 18%, #fff 50%, var(--bv-yellow) 82%, transparent);
+  box-shadow: 0 0 12px var(--bv-yellow), 0 0 26px rgba(245, 197, 24, 0.55);
+  border-radius: 2px;
+  animation: scan-sweep 1.15s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+  animation-play-state: running;
+}
+@keyframes scan-sweep {
+  0%   { top: 6%;  opacity: 0.15; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { top: 94%; opacity: 0.15; }
+}
+.scan-frame.scan-pending .corner {
+  border-color: var(--bv-yellow);
+  animation: scan-corner-pulse 1.15s ease-in-out infinite;
+}
+@keyframes scan-corner-pulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(245, 197, 24, 0); opacity: 0.7; }
+  50%      { box-shadow: 0 0 16px var(--bv-yellow); opacity: 1; }
+}
+/* Diagonal sheen sweeping across the framed area (behind the beam/brackets). */
+.scan-frame.scan-pending::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: 10px;
+  background: linear-gradient(115deg, transparent 34%, rgba(255, 255, 255, 0.14) 50%, transparent 66%);
+  background-size: 230% 100%;
+  animation: scan-sheen 1.5s linear infinite;
+  pointer-events: none;
+}
+@keyframes scan-sheen {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -70% 0; }
+}
+/* Soft breathing glow ring around the frame. */
+.scan-frame.scan-pending::before {
+  content: ""; position: absolute; inset: -6px; z-index: -1; border-radius: 14px;
+  box-shadow: inset 0 0 26px rgba(245, 197, 24, 0.28), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  animation: scan-breathe 1.7s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes scan-breathe {
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 0.85; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scan-frame.scan-pending .laser,
+  .scan-frame.scan-pending .corner,
+  .scan-frame.scan-pending::after,
+  .scan-frame.scan-pending::before { animation: none; }
 }
 .scan-hint {
   position: absolute; bottom: calc(var(--scan-hint-offset) + var(--scan-result-space)); left: 16px; right: 16px;
