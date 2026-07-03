@@ -7,6 +7,7 @@ import { go } from '../router.js';
 import { getThemePref, setThemePref, getSkinPref, setSkinPref, getModePref, setModePref } from '../theme.js';
 import { skelPage, skelStatGrid, skelSettingRows } from '../components/skeleton.js';
 import { startOnboarding } from '../components/onboarding.js';
+import { isNativeBilling, presentProPaywall, restorePurchases, presentCustomerCenter } from '../lib/revenuecat-native.js';
 
 export async function renderMe() {
   // Legacy Stripe return: detect a Checkout success redirect (?supported=1) before
@@ -413,6 +414,21 @@ export async function renderMe() {
 
   if (stripeSuccess) toast("Thank you for supporting Brickvault!", "success");
 
+  // Native (Google Play / Apple) billing via RevenueCat. Handlers are no-ops on web.
+  $("#rcUpgradeBtn")?.addEventListener("click", async () => {
+    haptic("medium");
+    const r = await presentProPaywall();
+    if (r.ok && r.active) { toast("Welcome to Pro! ⭐", "success"); state.me = null; go("#/me"); }
+    else if (!r.ok && r.reason !== "cancelled") toast("Store unavailable — try again", "error");
+  });
+  $("#rcRestoreBtn")?.addEventListener("click", async () => {
+    haptic("light");
+    const active = await restorePurchases();
+    toast(active ? "Purchases restored ⭐" : "No purchases to restore", active ? "success" : "info");
+    if (active) { state.me = null; go("#/me"); }
+  });
+  $("#rcManageBtn")?.addEventListener("click", () => { haptic("light"); presentCustomerCenter(); });
+
   let notifyOn = me.notify_price_drops;
   $("#notifyToggle")?.addEventListener("click", async (e) => {
     notifyOn = !notifyOn;
@@ -599,13 +615,27 @@ function supportCardHTML(me, patreonUrl) {
       <li>Higher AI advisor limits</li>
       <li>⭐ badge on your public profile</li>
     </ul>`;
+  const native = isNativeBilling();
   if (me.is_supporter) {
+    // On native, offer the RevenueCat Customer Center to manage/cancel.
     return `
       <h2 class="section-title">Supporter</h2>
       <div class="card support-card support-card-active">
         <div class="supporter-badge-lg">⭐ Supporter</div>
         <p class="support-desc">Thank you for backing Brickvault. Your support keeps this project alive.</p>
         ${perksHTML}
+        ${native ? `<button class="btn-secondary" id="rcManageBtn" style="margin-top:12px;">Manage subscription</button>` : ''}
+      </div>`;
+  }
+  // Native (Google Play / Apple) build → Play Billing paywall. Web → Patreon.
+  if (native) {
+    return `
+      <h2 class="section-title">Brickvault Pro</h2>
+      <div class="card support-card">
+        <p class="support-desc">Unlock Brickvault Pro:</p>
+        ${perksHTML}
+        <button class="btn-primary" id="rcUpgradeBtn" style="margin-top:4px;">Upgrade to Pro</button>
+        <button class="btn-ghost" id="rcRestoreBtn" style="width:100%;margin-top:8px;font-size:13px;color:var(--ink-mute);">Restore purchases</button>
       </div>`;
   }
   if (!patreonUrl) return '';

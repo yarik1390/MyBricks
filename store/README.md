@@ -34,30 +34,51 @@ two build paths.
 
 ---
 
-## Google Play — Trusted Web Activity (TWA)
+## Google Play — Capacitor + Play Billing (RevenueCat)
 
-The recommended, Google-blessed way to put a PWA on Play. Uses `store/twa-manifest.json`.
+> ⚠️ **Capacitor, not a TWA.** A Trusted Web Activity can't use Google Play Billing, and
+> Brickvault sells a supporter tier ("BricksVault Pro") in-app — Play policy requires that
+> to go through Play Billing. Capacitor wraps the same PWA *and* exposes native Play
+> Billing via the RevenueCat plugin. (`twa-manifest.json` is kept only for reference.)
+> One Capacitor project also serves the iOS build later.
 
-1. Install Bubblewrap: `npm i -g @bubblewrap/cli`
-2. Initialize (generates the keystore and Android project):
+**Billing is already wired in the repo:**
+- Server webhook `POST /api/revenuecat/webhook` — authoritative, flips `is_supporter`.
+  Set GitHub secret `REVENUECAT_WEBHOOK_AUTH` and point RevenueCat's webhook at it.
+- Client `public/js/lib/revenuecat-native.js` + Me-tab "Upgrade to Pro" / "Restore" /
+  "Manage subscription" (shown only on the native build; web keeps Patreon).
+- Set the RevenueCat **Google** public key (`goog_…`) as `window.RC_PLAY_BILLING_KEY` in
+  `public/env.js`. (A `test_…` key is a *Web Billing* key and will NOT work here.)
+
+### Build steps
+1. Add Capacitor + the RevenueCat plugins (web assets are static, so `webDir` = `public`):
    ```
-   bubblewrap init --manifest https://brickvault-5ub.pages.dev/manifest.json
+   npm i @capacitor/core @capacitor/cli @capacitor/android
+   npm i @revenuecat/purchases-capacitor @revenuecat/purchases-capacitor-ui
+   cp store/capacitor.config.json ./capacitor.config.json   # appId app.brickvault, webDir public
+   npx cap add android
+   npx cap sync android
    ```
-   (You can seed answers from `store/twa-manifest.json`.)
-3. Bubblewrap prints your **SHA-256 signing fingerprint**. Paste it into
-   `public/.well-known/assetlinks.json`, replacing `REPLACE_WITH_YOUR_APP_SIGNING_SHA256_FINGERPRINT`,
-   and deploy so it's live at `https://brickvault-5ub.pages.dev/.well-known/assetlinks.json`.
-   Verify: `curl -s https://brickvault-5ub.pages.dev/.well-known/assetlinks.json`
-4. Build the release bundle: `bubblewrap build` → produces `app-release-bundle.aab`.
-5. In Play Console: create the app, upload the `.aab`, complete the store listing,
-   Data Safety form, and content rating, then roll out to internal testing → production.
+   `cap sync` links RevenueCat's native code so the bridge in `revenuecat-native.js`
+   resolves. **Verify the plugin names** (`Purchases`, `RevenueCatUI`) in
+   `node_modules/@revenuecat/purchases-capacitor*/dist/esm/index.js` and fix the two
+   constants at the top of `revenuecat-native.js` if they differ.
+2. Play Console → create products: `lifetime` (one-time), `yearly` + `monthly`
+   (auto-renewing subscriptions); set prices; activate.
+3. RevenueCat → add the **Google Play app** (Play service-account JSON), create entitlement
+   **`BricksVault Pro`**, attach the 3 products, build a `default` **Offering**, design the
+   **Paywall**, set the webhook + copy the `goog_` key into `env.js`.
+4. `npx cap open android` → Android Studio → set app id / signing → **Build → Generate
+   Signed Bundle (.aab)**. Test with a Play **license-tester** account (no real charge).
+5. Play Console: upload the `.aab`, complete the listing / Data Safety / content rating →
+   Internal testing → Production.
 
-> If you use **Play App Signing** (recommended), the fingerprint that must go in
-> `assetlinks.json` is the one Play shows under *Setup → App signing*, not only your
-> upload key. Add both the upload and the Play-managed fingerprints to be safe.
+> **assetlinks.json** is only needed for deep-link verification, not billing. If you keep
+> it, paste the Play App Signing SHA-256 (Play Console → *Setup → App signing*) into
+> `public/.well-known/assetlinks.json` and redeploy.
 
-Alternative: **PWABuilder.com** → enter the manifest URL → download the Android package.
-It wraps the same TWA flow with a UI.
+The camera scan + offline PWA + push give the app real native capability — a genuine app,
+not a thin wrapper.
 
 ## Apple App Store — Capacitor wrapper
 

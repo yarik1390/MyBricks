@@ -24,11 +24,21 @@ account / Mac / decision · **[REVIEW]** drafted, review before publishing.
 - [ ] **[YOU]** Host the privacy policy at a stable public URL (already will be `https://brickvault-5ub.pages.dev/privacy.html`) — you'll paste this into both store listings.
 - [ ] **[YOU]** Complete **Google Play Data Safety** and **Apple App Privacy** forms — answers drafted in `listing.md`.
 
-## 3. Payments decision (before you submit)
-- [ ] **[YOU]** Decide how the **supporter tier** is offered:
-  - If a digital benefit is **purchased inside the app** → Apple requires **In-App Purchase** (StoreKit, ~30%) and Google requires **Play Billing**.
-  - If it stays **fully external** (Patreon on the web, no in-app upgrade prompt/link that unlocks features) → allowed, but do not show in-app buttons that lead to external digital purchase on iOS. Reader/external-link rules are strict.
-  - Simplest path to approval: keep supporter status out of the app-store builds, or gate the Patreon card off on native.
+## 3. Payments — Play Billing via RevenueCat (DECIDED)
+Supporter tier ("BricksVault Pro") is sold in-app through **Google Play Billing**, wired
+with **RevenueCat**. Patreon stays on **web only**; it's auto-hidden in the native build.
+- [x] **[DONE]** Server webhook `POST /api/revenuecat/webhook` — flips `is_supporter` from
+  Play events (source of truth). Reuses the existing supporter-flip SQL. Tests pass.
+- [x] **[DONE]** Client `public/js/lib/revenuecat-native.js` + Me-tab Upgrade / Restore /
+  Manage subscription buttons (native only; web keeps Patreon).
+- [ ] **[YOU]** Set GitHub secret `REVENUECAT_WEBHOOK_AUTH`; add the webhook in RevenueCat
+  (Integrations → Webhooks) pointing at the Worker URL with that Authorization value.
+- [ ] **[YOU]** Play Console products: `lifetime` (one-time), `yearly` + `monthly` (subs).
+- [ ] **[YOU]** RevenueCat: add the Play app (service-account JSON), entitlement
+  `BricksVault Pro`, attach products, build the `default` Offering, design the Paywall,
+  copy the **`goog_`** public key into `public/env.js` as `window.RC_PLAY_BILLING_KEY`.
+- [ ] **[YOU]** After `cap sync`, verify the plugin names (`Purchases`, `RevenueCatUI`) at
+  the top of `revenuecat-native.js` against the installed plugin.
 
 ## 4. Assets
 - [x] **[DONE]** App icons: `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `icon.svg`.
@@ -38,11 +48,13 @@ account / Mac / decision · **[REVIEW]** drafted, review before publishing.
 - [ ] **[YOU]** Short & full descriptions, keywords — draft in `listing.md`.
 - [ ] **[YOU]** Content/age rating questionnaire (Play IARC; Apple age rating).
 
-## 5. Google Play — build & submit (TWA)
-- [ ] **[YOU]** `bubblewrap init --manifest https://brickvault-5ub.pages.dev/manifest.json` (see README).
-- [ ] **[YOU]** Paste the printed **SHA-256 fingerprint** into `public/.well-known/assetlinks.json` and deploy; verify it's live.
-- [ ] **[YOU]** `bubblewrap build` → upload the `.aab` to Play Console.
-- [ ] **[YOU]** Fill listing + Data Safety + rating → internal testing → production.
+## 5. Google Play — build & submit (Capacitor + Play Billing)
+- [ ] **[YOU]** `npm i @capacitor/core @capacitor/cli @capacitor/android @revenuecat/purchases-capacitor @revenuecat/purchases-capacitor-ui`
+- [ ] **[YOU]** `cp store/capacitor.config.json ./capacitor.config.json` (appId `app.brickvault`, `webDir` `public`) → `npx cap add android` → `npx cap sync android`.
+- [ ] **[YOU]** Android Studio (`npx cap open android`) → set signing → **Generate Signed Bundle (.aab)**.
+- [ ] **[YOU]** Test purchases with a Play **license-tester** account (no real charge).
+- [ ] **[YOU]** Upload the `.aab` → fill listing + Data Safety + rating → internal testing → production.
+- See README "Google Play — Capacitor + Play Billing" for the full sequence.
 
 ## 6. Apple App Store — build & submit (Capacitor)
 - [ ] **[YOU]** Copy `store/capacitor.config.json` to repo root; `npx cap add ios`; `npx cap open ios`.
