@@ -10,7 +10,8 @@
     "lint": "biome lint",
     "status": "git status",
     "a11y": "playwright test --config=a11y/playwright.config.mjs",
-    "lhci": "lhci autorun --config=a11y/lighthouserc.json"
+    "lhci": "lhci autorun --config=a11y/lighthouserc.json",
+    "e2e": "playwright test --config=e2e/playwright.config.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.0"
