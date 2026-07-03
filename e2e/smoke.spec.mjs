@@ -46,3 +46,48 @@ test('wishlist toggle removes the set and flips the button', async ({ page, stub
   await expect(wish).toHaveAttribute('aria-label', 'Add to wishlist');
   expect(stub.calls.some((c) => c.method === 'DELETE' && c.path.startsWith('/api/wishlist/'))).toBeTruthy();
 });
+
+test('set detail: adding to the vault posts to the collection', async ({ page, stub }) => {
+  await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
+  const add = page.locator('#addBtn');
+  await expect(add).toBeVisible();
+  await add.click();
+  await expect
+    .poll(() => stub.calls.some((c) => c.method === 'POST' && c.path === '/api/collection'))
+    .toBe(true);
+});
+
+test('set detail: switching to the forecast tab keeps the page mounted', async ({ page }) => {
+  await page.goto('/#/set/75192-1/forecast', { waitUntil: 'domcontentloaded' });
+  // The set-detail view still renders (tabbed) rather than falling back to an error.
+  await expect(page.getByText('Millennium Falcon').first()).toBeVisible();
+  await expect(page.locator('#addBtn')).toBeVisible();
+});
+
+test('admin console renders its sections for an admin user', async ({ page }) => {
+  // Elevate this run to admin (more-specific route registered after the fixture's
+  // catch-all, so it wins for /api/me); the admin section loads fall back to {}.
+  await page.route('**/api/me', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ display_name: 'Admin', handle: 'admin', currency: 'USD', is_guest: false, is_admin: true, notify_price_drops: true, portfolio_stats: {} }),
+  }));
+  await page.goto('/#/me/admin', { waitUntil: 'domcontentloaded' });
+
+  await expect(page.locator('.admin-dashboard-page')).toBeVisible();
+  await expect(page.locator('.admin-segments')).toBeVisible();
+  // The segment nav (always visible) exposes the section tabs.
+  await expect(page.locator('[data-admin-section-link="adminPopulate"]')).toBeVisible();
+  await expect(page.locator('[data-admin-section-link="adminUsers"]')).toBeVisible();
+
+  // Segment tabs are wired synchronously (wireAdminShell) — clicking one
+  // activates it without any network.
+  const usersTab = page.locator('[data-admin-section-link="adminUsers"]');
+  await usersTab.click();
+  await expect(usersTab).toHaveAttribute('aria-selected', 'true');
+});
+
+test('non-admin is redirected away from the admin console', async ({ page }) => {
+  // The default fixture profile has no is_admin flag → renderMeAdmin bounces to /me.
+  await page.goto('/#/me/admin', { waitUntil: 'domcontentloaded' });
+  await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/me');
+});
