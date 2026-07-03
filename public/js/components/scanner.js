@@ -20,34 +20,11 @@ function scanTime(label, since) {
   if (_scanDbg()) console.debug(`[scan-timing] ${label}: ${Math.round(performance.now() - (since ?? _scanStartMs))}ms`);
 }
 
-// --- Turnstile token pre-warm ----------------------------------------------
-// Shared-key image scans need a Turnstile token BEFORE the API call. Fetching it
-// only at capture time serializes that latency in front of every scan. Instead we
-// pre-warm one while the user is framing the shot (scanner open / after a capture)
-// and consume it at send time. Fully defensive: if no fresh token is ready,
-// cloudScanIdentify falls back to fetching inline (unchanged behavior), so this can
-// only remove latency, never add it. Tokens are single-use + short-lived (~5 min),
-// so we cap freshness at 3 min and re-warm after each consume.
-let _tsPrewarmed = null; // { token, ts }
-let _tsPrewarming = false;
-function prewarmTurnstile() {
-  try {
-    const siteKey = state.config && state.config.turnstile_site_key;
-    if (!siteKey || _tsPrewarming) return;
-    if (localStorage.getItem('bv_gemini_key') || localStorage.getItem('bv_openai_key')) return; // BYOK skips Turnstile
-    if (_tsPrewarmed && Date.now() - _tsPrewarmed.ts < 180_000) return; // still fresh
-    _tsPrewarming = true;
-    getTurnstileToken()
-      .then((tok) => { if (tok) _tsPrewarmed = { token: tok, ts: Date.now() }; })
-      .catch(() => {})
-      .finally(() => { _tsPrewarming = false; });
-  } catch { /* pre-warm is best-effort */ }
-}
-function takePrewarmedToken() {
-  const p = _tsPrewarmed;
-  _tsPrewarmed = null; // single-use
-  return p && p.token && Date.now() - p.ts < 180_000 ? p.token : null;
-}
+// NOTE: a Turnstile token pre-warm was tried here to hide the token fetch behind
+// framing time, but holding a token until capture triggered server-side
+// "could not verify" rejections (tokens are single-use + short-lived). The token
+// is now always minted inline, immediately before the scan request (see
+// cloudScanIdentify). Any future pre-warm must re-mint per request, not cache.
 
 function setScanPending(on) {
   _scanPending = !!on;
@@ -132,9 +109,6 @@ export function openScan(mode = "barcode") {
   $("#scanCapture")?.addEventListener("click", capturePhoto);
 
   if (mode === "image") {
-    // Pre-warm a Turnstile token while the user frames the shot so it's ready at
-    // capture time (shared-key scans only; BYOK/no-config no-ops).
-    prewarmTurnstile();
     const galleryBtn = $("#scanGalleryBtn");
     const galleryInp = $("#scanGalleryInput");
     if (galleryBtn && galleryInp) {
@@ -431,18 +405,15 @@ async function cloudScanIdentify(payload, signal) {
   // Shared server-key image scans (no BYOK key) carry a Turnstile token for bot
   // protection when configured; BYOK and barcode scans skip it.
   if (!geminiKey && !openaiKey && payload.mode === 'image') {
-    // Use the token pre-warmed while framing (if fresh); otherwise fetch inline.
-    let token = takePrewarmedToken();
-    if (!token) {
-      token = await getTurnstileToken();
-      // One retry on a transient miss (occasional invisible-challenge timeout on
-      // rapid successive scans); a genuine config/script failure won't recover, so
-      // only retry the transient outcomes.
-      if (!token && /timeout|empty|error/.test(_tsReason)) token = await getTurnstileToken();
-    }
+    // Fetch a FRESH token immediately before the request. Turnstile tokens are
+    // single-use and short-lived, so they must be minted right before siteverify —
+    // holding a pre-warmed one caused server-side "could not verify" rejections.
+    let token = await getTurnstileToken();
+    // One retry on a transient miss (occasional invisible-challenge timeout on
+    // rapid successive scans); a genuine config/script failure won't recover, so
+    // only retry the transient outcomes.
+    if (!token && /timeout|empty|error/.test(_tsReason)) token = await getTurnstileToken();
     if (token) extraHeaders['cf-turnstile-token'] = token;
-    // Re-warm for the next scan in the background (best-effort).
-    prewarmTurnstile();
   }
   const _t = performance.now();
   const res = await api("/api/scan/identify", { method: "POST", body: payload, signal, headers: extraHeaders });
