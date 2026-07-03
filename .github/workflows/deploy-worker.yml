@@ -267,6 +267,9 @@ jobs:
           put SUPABASE_URL              "${{ secrets.SUPABASE_URL }}"
           put SUPABASE_ANON_KEY         "${{ secrets.SUPABASE_ANON_KEY }}"
           put SUPABASE_JWT_SECRET       "${{ secrets.SUPABASE_JWT_SECRET }}"
+          # Service-role key lets DELETE /api/me remove the Supabase auth identity
+          # (not just app data) — required for a compliant "delete account" flow.
+          [ -n "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ] && put SUPABASE_SERVICE_ROLE_KEY "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" || true
           put ADMIN_USER_ID             "${{ secrets.ADMIN_USER_ID }}"
           [ -n "${{ secrets.BRICKSET_API_KEY }}" ]          && put BRICKSET_API_KEY          "${{ secrets.BRICKSET_API_KEY }}"          || true
           [ -n "${{ secrets.BRICKLINK_CONSUMER_KEY }}" ]   && put BRICKLINK_CONSUMER_KEY   "${{ secrets.BRICKLINK_CONSUMER_KEY }}"   || true
