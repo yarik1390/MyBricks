@@ -299,6 +299,9 @@ jobs:
           [ -n "${{ secrets.BRIGHTDATA_ZONE }}" ]          && put BRIGHTDATA_ZONE          "${{ secrets.BRIGHTDATA_ZONE }}"          || true
           # Patreon creator URL — drives the public Support card on the Me tab.
           [ -n "${{ secrets.PATREON_URL }}" ]              && put PATREON_URL              "${{ secrets.PATREON_URL }}"              || true
+          # RevenueCat webhook shared secret — verifies POST /api/revenuecat/webhook,
+          # which flips is_supporter from Google Play / Apple purchase events.
+          [ -n "${{ secrets.REVENUECAT_WEBHOOK_AUTH }}" ]  && put REVENUECAT_WEBHOOK_AUTH  "${{ secrets.REVENUECAT_WEBHOOK_AUTH }}"  || true
 
       - name: Inject Worker URL into Pages env.js
         run: |

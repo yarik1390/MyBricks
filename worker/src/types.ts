@@ -22,6 +22,10 @@ export interface Env {
   // only AFTER the Apple provider is configured in Supabase (Apple Developer
   // Service ID + key) — required for the iOS App Store build (Guideline 4.8).
   APPLE_SIGNIN_ENABLED?: string;
+  // Shared secret set as the Authorization header on the RevenueCat webhook
+  // (Dashboard → Integrations → Webhooks). POST /api/revenuecat/webhook flips
+  // is_supporter from Play/Apple purchase events. Authoritative entitlement source.
+  REVENUECAT_WEBHOOK_AUTH?: string;
   ADMIN_USER_ID: string;
   BRICKSET_API_KEY: string;
   BRICKOWL_API_KEY?: string;

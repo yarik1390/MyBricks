@@ -1862,3 +1862,62 @@ describe('Account deletion (DELETE /api/me)', () => {
     expect(await countRows(userId)).toBe(0);
   });
 });
+
+describe('RevenueCat webhook', () => {
+  const AUTH = 'rc-webhook-secret-123';
+  const uid = 'rc-user-1';
+  let db: D1Database;
+
+  beforeEach(async () => {
+    (env as any).REVENUECAT_WEBHOOK_AUTH = AUTH;
+    db = (env as any).DB;
+    await db.prepare('DROP TABLE IF EXISTS user_prefs').run();
+    await db.prepare(`CREATE TABLE user_prefs (
+      user_id TEXT PRIMARY KEY, handle TEXT, display_name TEXT, currency TEXT DEFAULT 'USD',
+      notify_price_drops INTEGER DEFAULT 1, is_public INTEGER NOT NULL DEFAULT 0,
+      expose_public_value INTEGER NOT NULL DEFAULT 1, email TEXT, discord_webhook_url TEXT,
+      brickset_user_hash TEXT, is_supporter INTEGER DEFAULT 0, supporter_since TEXT,
+      stripe_customer_id TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`).run();
+  });
+
+  const post = (evType: string, auth: string | null = AUTH) =>
+    app.fetch(new Request('http://localhost/api/revenuecat/webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: auth } : {}) },
+      body: JSON.stringify({ event: { type: evType, app_user_id: uid } }),
+    }), env);
+
+  const supporter = async () => (await db.prepare('SELECT is_supporter FROM user_prefs WHERE user_id=?')
+    .bind(uid).first<{ is_supporter: number }>())?.is_supporter;
+
+  it('rejects a wrong/missing auth header', async () => {
+    expect((await post('INITIAL_PURCHASE', 'wrong')).status).toBe(401);
+    expect((await post('INITIAL_PURCHASE', null)).status).toBe(401);
+  });
+
+  it('grants supporter on INITIAL_PURCHASE and keeps it on RENEWAL', async () => {
+    expect((await post('INITIAL_PURCHASE')).status).toBe(200);
+    expect(await supporter()).toBe(1);
+    await post('RENEWAL');
+    expect(await supporter()).toBe(1);
+  });
+
+  it('grants on the lifetime NON_RENEWING_PURCHASE', async () => {
+    await post('NON_RENEWING_PURCHASE');
+    expect(await supporter()).toBe(1);
+  });
+
+  it('revokes on EXPIRATION but not on CANCELLATION', async () => {
+    await post('INITIAL_PURCHASE');
+    await post('CANCELLATION');
+    expect(await supporter()).toBe(1); // still active until it expires
+    await post('EXPIRATION');
+    expect(await supporter()).toBe(0);
+  });
+
+  it('503s when the webhook secret is not configured', async () => {
+    delete (env as any).REVENUECAT_WEBHOOK_AUTH;
+    expect((await post('INITIAL_PURCHASE')).status).toBe(503);
+  });
+});
