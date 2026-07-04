@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, toast, fmtMoney, daysAgo, setHue, bricklinkBuyURL, bvIDB } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast, fmtMoney, daysAgo, setHue, bricklinkBuyURL, bvIDB, celebrate } from '../utils.js';
 import { state } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
@@ -12,6 +12,27 @@ import { spikeAlertCardHTML, refreshNavBadge } from './portfolio.js';
 /* ============================================================
    Wishlist screen
    ============================================================ */
+const SEEN_DROPS_KEY = "bv_seen_drop_alerts";
+
+// Fire the celebration popup once per never-before-seen price-drop alert. Seen
+// ids persist in localStorage (capped) so revisiting the wishlist — or seeing
+// the same alert again before marking it read — doesn't re-celebrate.
+function celebrateNewDropAlerts(dropAlerts) {
+  if (!dropAlerts?.length) return;
+  let seen;
+  try { seen = new Set(JSON.parse(localStorage.getItem(SEEN_DROPS_KEY) || "[]")); }
+  catch { seen = new Set(); }
+  const fresh = dropAlerts.filter(a => a.id != null && !seen.has(String(a.id)));
+  if (fresh.length) {
+    const n = fresh.length;
+    const msg = n > 1 ? `${n} price targets hit! 🎯` : "Price target hit! 🎯";
+    const quip = n > 1 ? "Your watchlist is paying off." : `${fresh[0].set_name} dropped to your target.`;
+    setTimeout(() => celebrate(msg, { quip, hue: 150 }), 400);
+  }
+  for (const a of dropAlerts) if (a.id != null) seen.add(String(a.id));
+  try { localStorage.setItem(SEEN_DROPS_KEY, JSON.stringify([...seen].slice(-200))); } catch {}
+}
+
 export async function renderWishlist() {
   if (!state.wishlist?.length) $("#root").innerHTML = skelPage(skelCardList(4));
   try {
@@ -96,6 +117,11 @@ export async function renderWishlist() {
         </div>` : `
         <div>${sorted.map(wishlistCardHTML).join("")}</div>`}
     </div>`;
+
+  // A wishlisted set reaching its target price is a real win — celebrate the
+  // first time we see each drop alert (tracked by id so it never re-fires on a
+  // later visit, independent of the mark-as-read flow).
+  celebrateNewDropAlerts(dropAlerts);
 
   $("#wlMarkAllRead")?.addEventListener("click", async () => {
     haptic("medium");

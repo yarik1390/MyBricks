@@ -782,6 +782,8 @@ function showSearchableTrophyPicker(currentSetNums) {
         haptic("light");
         const setNum = btn.dataset.set;
         const newShowcase = [...currentSetNums, setNum];
+        const wasEmpty = currentSetNums.length === 0;
+        const nowFull = newShowcase.length === 6;
         try {
           btn.disabled = true;
           btn.textContent = "...";
@@ -789,8 +791,11 @@ function showSearchableTrophyPicker(currentSetNums) {
             method: "POST",
             body: { set_nums: newShowcase }
           });
-          toast("Added to trophy shelf", "success");
           hideSheet();
+          // First trophy unlocks the shelf, the sixth fills it — both are moments.
+          if (wasEmpty) celebrate("Trophy Shelf unlocked! 🏆", { quip: "Your profile just got a display case.", hue: 50 });
+          else if (nowFull) celebrate("Trophy Shelf complete! 🏆", { quip: "All six slots filled — flex earned.", hue: 50 });
+          else toast("Added to trophy shelf", "success");
           await renderMe();
         } catch (err) {
           toast("Error adding: " + err.message, "error");
