@@ -629,6 +629,54 @@ function guestDeleteCollection(ref) {
   return null;
 }
 
+// One-time heal for guest vaults created before the blended market value was
+// stored locally: re-fetch it from the public set API so a vault card shows the
+// SAME price as the catalog, and assign an id to any legacy row missing one (so
+// bulk delete/location/export can address it). Runs at most once per device per
+// version; offline-safe — if any fetch fails we don't mark it done, so it
+// retries on a later online launch. Returns true if anything changed.
+const GUEST_BACKFILL_KEY = 'bv_guest_backfill_v';
+const GUEST_BACKFILL_VERSION = '2';
+
+export async function backfillGuestVault() {
+  if (!isGuestMode()) return false;
+  try {
+    if (localStorage.getItem(GUEST_BACKFILL_KEY) === GUEST_BACKFILL_VERSION) return false;
+    const items = readGuestCollection();
+    if (!items.length) { localStorage.setItem(GUEST_BACKFILL_KEY, GUEST_BACKFILL_VERSION); return false; }
+
+    let changed = false;
+    let networkFailed = false;
+
+    // 1) Heal missing ids (no network) so bulk actions never skip a row.
+    let maxId = items.reduce((m, it) => Math.max(m, Number(it.id) || 0), 0);
+    for (const it of items) {
+      if (!it.id) { it.id = ++maxId; changed = true; }
+    }
+
+    // 2) Re-hydrate the blended value for rows that predate it. Fetch the public
+    //    set directly — guestHydrateSet would prefer the (stale) in-memory copy.
+    const stale = items
+      .filter(it => !(Number(it.market_value) > 0) && !(Number(it.blended_value) > 0))
+      .slice(0, 200);
+    for (const it of stale) {
+      try {
+        const data = await fetchGuestPublicJSON('/api/sets/' + encodeURIComponent(it.set_num));
+        const set = data?.set || data || {};
+        if (Number(set.market_value) > 0) { it.market_value = Number(set.market_value); changed = true; }
+        if (Number(set.blended_value) > 0) { it.blended_value = Number(set.blended_value); changed = true; }
+        if (set.market_value_confidence) { it.market_value_confidence = set.market_value_confidence; changed = true; }
+        if (Number(set.current_value) > 0) { it.current_value = Number(set.current_value); changed = true; }
+      } catch { networkFailed = true; }
+    }
+
+    if (changed) writeGuestCollection(items);
+    if (!networkFailed) localStorage.setItem(GUEST_BACKFILL_KEY, GUEST_BACKFILL_VERSION);
+    if (changed) state.portfolio = null; // force a fresh render with healed values
+    return changed;
+  } catch { return false; }
+}
+
 async function guestImportCollection(rows = [], overwrite = false) {
   if (!Array.isArray(rows) || rows.length === 0) throw new Error('rows array required');
   if (rows.length > 500) throw new Error('max 500 rows per import');

@@ -89,7 +89,9 @@ function pval(x) {
 
 // Filter + sort the vault items according to current state.filter. Pure — no DOM.
 function sortedPortfolioItems() {
-  const p = state.portfolio;
+  // Null-safe: invalidatePortfolio() sets state.portfolio to null between a
+  // mutation and the refetch, and any repaint in that window must not throw.
+  const p = state.portfolio || { items: [] };
   let items = (p.items || []).slice();
   const q = state.filter.q.toLowerCase().trim();
   if (q) items = items.filter(i => i.name?.toLowerCase().includes(q) || i.set_num?.toLowerCase().includes(q) || i.theme?.toLowerCase().includes(q));
@@ -1164,9 +1166,11 @@ async function handleBulkLocation() {
     await Promise.all(selectedItems.map(item =>
       api("/api/collection/" + apiRef(item), { method: "PATCH", body: { storage_location: loc || null } })
     ));
-    invalidatePortfolio();
+    // Tear down selection UI BEFORE invalidating — exitSelectionMode repaints the
+    // list and must read a valid state.portfolio, not the null invalidate leaves.
     toast("Storage locations updated", "success");
     exitSelectionMode();
+    invalidatePortfolio();
     await renderPortfolio();
   } catch (err) {
     toast("Failed to update: " + err.message, "error");
@@ -1190,9 +1194,11 @@ async function handleBulkDelete() {
     await Promise.all(selectedItems.map(item =>
       api("/api/collection/" + apiRef(item), { method: "DELETE" })
     ));
-    invalidatePortfolio();
+    // Tear down selection UI BEFORE invalidating — exitSelectionMode repaints the
+    // list and must read a valid state.portfolio, not the null invalidate leaves.
     toast(`Removed ${selectedItems.length} set${selectedItems.length !== 1 ? "s" : ""}`, "success");
     exitSelectionMode();
+    invalidatePortfolio();
     await renderPortfolio();
   } catch (err) {
     toast("Failed to delete: " + err.message, "error");

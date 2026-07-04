@@ -1,7 +1,7 @@
 import { $, $$, haptic, toast, fetchExchangeRates, bvIDB } from './utils.js';
 import { state, invalidatePortfolio } from './state.js';
 import { nextOfflineBannerState } from './lib/pure.js';
-import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionUserId, snapshotGuestVault, migrateGuestVault } from './api.js';
+import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionUserId, snapshotGuestVault, migrateGuestVault, isGuestMode, backfillGuestVault } from './api.js';
 import { I } from './icons.js';
 import { route } from './router.js';
 import { getThemePref, applyTheme, getModePref, applyMode } from './theme.js';
@@ -344,6 +344,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   // remains replayable from the You tab and from the carousel's last slide.
   // Lazy-loaded so its code stays out of the initial bundle.
   import('./components/onboarding.js').then(m => m.maybeShowWelcome()).catch(() => {});
+
+  // One-time heal for guest vaults saved before the blended market value was
+  // stored locally: re-hydrate values (and assign missing ids) in the
+  // background, then repaint the vault if it's the current view.
+  if (isGuestMode()) {
+    (window.requestIdleCallback || (fn => setTimeout(fn, 3000)))(() => {
+      backfillGuestVault().then(changed => {
+        const h = location.hash;
+        if (changed && (h === '' || h === '#' || h === '#/')) route();
+      }).catch(() => {});
+    });
+  }
 
   // If the user has the Gemma model and is online, load MediaPipe + wasm into
   // the SW cache while idle so offline scanning works after next visit.
