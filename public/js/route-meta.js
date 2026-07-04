@@ -11,7 +11,9 @@ const ROUTES = [
   { match: (hash) => hash === "/me/admin", key: "admin", nav: "/me", title: "Admin", protected: true, fab: false },
   { match: (hash) => hash === "/me/integrations", key: "integrations", nav: "/me", title: "Integrations", protected: true, fab: false },
   { match: (hash) => hash === "/me/data", key: "data", nav: "/me", title: "Data", protected: true, fab: false },
-  { match: (hash) => hash === "/me" || hash.startsWith("/me/"), key: "me", nav: "/me", title: "Me", fab: true },
+  // Me is account/settings, not collection browsing — hide the advisor FAB so it
+  // doesn't float over the Appearance toggle and other bottom-of-card controls.
+  { match: (hash) => hash === "/me" || hash.startsWith("/me/"), key: "me", nav: "/me", title: "Me", fab: false },
   { match: (hash) => hash === "/login", key: "login", nav: null, title: "Sign in", fullscreen: true, fab: false },
   { match: (hash) => hash === "/kids", key: "kids", nav: "/", title: "Kids Vault", fab: false },
   { match: (hash) => hash === "/kids/badges", key: "kids-badges", nav: "/kids/badges", title: "Badges", fab: false },

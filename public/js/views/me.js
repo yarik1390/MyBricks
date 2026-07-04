@@ -237,7 +237,7 @@ export async function renderMe() {
     $("#installBtn")?.remove();
   });
 
-  ["#guestSignInBtn", "#profileSignInBtn", "#signInRow"].forEach(sel => {
+  ["#guestSignInBtn", "#signInRow"].forEach(sel => {
     $(sel)?.addEventListener("click", () => {
       haptic("medium");
       go("#/login");
@@ -671,10 +671,9 @@ function publicProfileSectionHTML(me) {
     return `
       <h2 class="section-title">Public Profile</h2>
       <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-        <div class="u-fs-base u-mute" style="line-height:1.45;margin-bottom:12px;">
-          Public profiles and Trophy Shelf sync require an account.
+        <div class="u-fs-base u-mute" style="line-height:1.45;">
+          Public profiles and Trophy Shelf sync require an account — use <b>Sign in to sync</b> above.
         </div>
-        <button class="btn-secondary u-wfull" id="profileSignInBtn">${I.user()}<span>Sign in</span></button>
       </div>
     `;
   }

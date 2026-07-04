@@ -267,7 +267,7 @@ function detailActionBarHTML(set, entry, isWish) {
             <button class="qty-btn" id="qtyUp" aria-label="Increase quantity">${I.plus()}</button>
           </div>
         </div>
-        <a class="btn-secondary" href="#/set/${encodeURIComponent(set.set_num)}/manage" style="flex:1;">${I.gear()}<span>Manage</span></a>
+        <button class="btn-secondary" id="manageBtn" style="flex:1;">${I.gear()}<span>Manage</span></button>
       </div>`;
   }
   const displayVal = setDisplayValue(set);
@@ -604,9 +604,40 @@ function wireInfoTab(set) {
 // lives outside the swappable tab panel.
 function wireDetailActions(set, entry) {
   let qty = entry?.quantity || 1;
+  // "Manage" in the action bar: switch to the Manage tab in place instead of a
+  // hash navigation. The hash route re-runs renderSetDetail (cache paint + a
+  // background refresh paint) which visibly blinks; an in-place switch doesn't.
+  // Scroll the tab bar into view so it's obvious the section changed, and keep
+  // the URL in sync without triggering the router.
+  $("#manageBtn")?.addEventListener("click", () => {
+    haptic("light");
+    switchDetailTab("manage", set, entry);
+    history.replaceState(null, "", `#/set/${encodeURIComponent(set.set_num)}/manage`);
+    document.querySelector("#detailTabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
   $("#qtyDown")?.addEventListener("click", async () => {
-    if (qty <= 1) return;
     haptic("medium");
+    // At one, minus removes the set from the vault (with a confirm) rather than
+    // being a dead no-op — that was the only way people expected to remove a set.
+    if (qty <= 1) {
+      const ok = await confirmSheet({
+        title: "Remove from vault?",
+        message: `Remove ${set.name} from your vault? Your notes and quantity for this set will be cleared.`,
+        confirmLabel: "Remove",
+        danger: true,
+      });
+      if (!ok) return;
+      try {
+        await api("/api/collection/" + entry.id, { method: "DELETE" });
+        invalidatePortfolio(); state.catalog.items = [];
+        toast("Removed from vault", "success");
+        const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
+        state.detail.tab = "info";
+        state.detail.cache[set.set_num] = { set: r.set || r, entry: r.entry || null, ts: Date.now() };
+        paintSetDetail(r.set || r, r.entry || null);
+      } catch (_e) { toast("Remove failed", "error"); }
+      return;
+    }
     qty--;
     $("#qtyNum").textContent = qty;
     const badge = $("#qtyBadgeVal");

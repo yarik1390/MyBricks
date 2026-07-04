@@ -182,12 +182,27 @@ const GUEST_FIG_DETAILS_KEY = 'bv_guest_fig_details';
 
 const SET_FIELDS = [
   'set_num','name','theme','year','pieces','minifigs','retail_price','current_value',
+  // Blended market valuation (v2) — MUST be kept so a guest vault card shows the
+  // SAME price the catalog/detail show (both prefer market_value over the formula
+  // current_value). Dropping these made the vault fall back to current_value and
+  // disagree with the catalog for the same set.
+  'market_value','blended_value','market_value_confidence',
   'forecast_2y','forecast_5y','image_url','retired','retirement_risk_score','used_value',
   'ebay_value','ebay_new_value','ebay_used_value','ebay_new_qty','ebay_used_qty',
   'ebay_new_cached_at','ebay_used_cached_at','cached_at','valuation_method','bl_new_value','bl_new_qty','bl_used_qty',
   'source','brickset','trend','market_sources','primary_value_source','confidence',
   'freshness','valuation_explanation','valuation_expires_at','ebay_cached_at'
 ];
+
+// Single source of a set/collection row's display value on the client: the
+// blended market value when present, else the formula current_value. Mirrors
+// setDisplayValue() in portfolio-detail.js and dispVal in catalog.js so the
+// catalog, the set detail and the vault never show three different numbers.
+function displayValueOf(row = {}) {
+  return Number(row.market_value) > 0 ? Number(row.market_value)
+    : Number(row.blended_value) > 0 ? Number(row.blended_value)
+    : (Number(row.current_value) || 0);
+}
 
 export function isGuestMode() {
   return !_authSession?.access_token;
@@ -406,7 +421,7 @@ function guestCollectionPayload() {
   const items = readGuestCollection()
     .map(normalizeCollectionItem)
     .sort((a, b) => new Date(b.added_at || 0) - new Date(a.added_at || 0));
-  const totalValue = items.reduce((s, r) => s + (Number(r.current_value) || 0) * Number(r.quantity || 1), 0);
+  const totalValue = items.reduce((s, r) => s + displayValueOf(r) * Number(r.quantity || 1), 0);
   const totalPaid = items.reduce((s, r) => s + (Number(r.purchase_price) || 0) * Number(r.quantity || 1), 0);
   const minifigCount = items.reduce((s, r) => s + (Number(r.minifigs) || 0) * Number(r.quantity || 1), 0);
   const figDetails = readGuestFigDetails();

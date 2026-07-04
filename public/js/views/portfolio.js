@@ -78,11 +78,13 @@ async function _revalidatePortfolio() {
 // the server now returns.
 function pval(x) {
   // Used holdings are worth their used-market price; new/sealed keep the v2
-  // blended fair value (falling back to the formula current_value).
+  // blended fair value. market_value is preferred first so a guest vault card
+  // (which carries market_value) shows the SAME number as the catalog/detail;
+  // authed items have no market_value column and fall through to blended_value.
   if (String(x?.condition || '').startsWith('used')) {
-    return Number(marketValueForCondition(x, x.condition)) || Number(x?.blended_value) || Number(x?.current_value) || 0;
+    return Number(marketValueForCondition(x, x.condition)) || Number(x?.market_value) || Number(x?.blended_value) || Number(x?.current_value) || 0;
   }
-  return Number(x?.blended_value) || Number(x?.current_value) || 0;
+  return Number(x?.market_value) || Number(x?.blended_value) || Number(x?.current_value) || 0;
 }
 
 // Filter + sort the vault items according to current state.filter. Pure — no DOM.
