@@ -1,4 +1,4 @@
-import { $, $$, prefersReducedMotion } from './utils.js';
+import { $, $$, prefersReducedMotion, advisorEnabled } from './utils.js';
 import { state } from './state.js';
 import { api } from './api.js';
 import { I } from './icons.js';
@@ -79,7 +79,7 @@ async function _routeImpl() {
   if (nav) nav.style.display = "";
 
   const fab = document.getElementById("advisorFab");
-  if (fab) fab.style.display = meta.fab ? "flex" : "none";
+  if (fab) fab.style.display = (meta.fab && advisorEnabled()) ? "flex" : "none";
   $$("#nav .nav-tab").forEach(t => {
     const r = t.dataset.route;
     const active = r === meta.nav;

@@ -290,6 +290,12 @@ export function soundEnabled() {
   return localStorage.getItem("bv_sound") !== "off";
 }
 
+// AI assistant (advisor FAB) preference — device-local, default on. When off,
+// the floating assistant button is hidden on every route.
+export function advisorEnabled() {
+  return localStorage.getItem("bv_advisor") !== "off";
+}
+
 // A short, cheerful synthesized "ta-da" arpeggio (Web Audio — no asset, CSP-safe).
 // Gated by the sound pref. The AudioContext is created lazily and resumed, so it
 // works after the user gesture that triggered the reward. Silent on any failure.

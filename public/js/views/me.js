@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, fmtPct, setHue, bvIDB, celebrate, celebrateChime, soundEnabled } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, fmtPct, setHue, bvIDB, celebrate, celebrateChime, soundEnabled, advisorEnabled } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, sbSignOut, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
@@ -178,6 +178,10 @@ export async function renderMe() {
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Celebration sounds</div><div class="desc">Play a chime on milestones and rewards.</div></div>
           <button class="toggle ${soundEnabled() ? "on" : ""}" id="soundToggle" role="switch" aria-label="Celebration sounds" aria-checked="${soundEnabled()}"></button>
+        </div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">AI assistant</div><div class="desc">Show the floating assistant button for price help.</div></div>
+          <button class="toggle ${advisorEnabled() ? "on" : ""}" id="advisorToggle" role="switch" aria-label="AI assistant" aria-checked="${advisorEnabled()}"></button>
         </div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Currency</div><div class="desc">Display values in your local currency.</div></div>
@@ -458,6 +462,19 @@ export async function renderMe() {
     haptic("medium");
     if (on) celebrateChime();
     toast(on ? "Sounds on" : "Sounds off", "info");
+  });
+
+  $("#advisorToggle")?.addEventListener("click", (e) => {
+    // Device-local preference. The router reads advisorEnabled() to show/hide the
+    // FAB per route; hide it immediately here so the change is instant.
+    const on = localStorage.getItem("bv_advisor") === "off";
+    localStorage.setItem("bv_advisor", on ? "on" : "off");
+    e.currentTarget.classList.toggle("on", on);
+    e.currentTarget.setAttribute("aria-checked", String(on));
+    haptic("medium");
+    const fab = document.getElementById("advisorFab");
+    if (fab && !on) fab.style.display = "none";
+    toast(on ? "AI assistant on" : "AI assistant off", "info");
   });
 
   $("#currencySelect")?.addEventListener("change", async (e) => {
