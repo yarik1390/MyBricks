@@ -1631,6 +1631,12 @@ ul.set-list > li { display: contents; }
 #toast.error { background: var(--down); color: #fff; }
 #toast .t-icon { flex-shrink: 0; }
 #toast .t-icon svg { width: 18px; height: 18px; }
+/* The set-detail page has a sticky action bar above the nav (~64px). Lift the
+   toast above it too, so a toast (e.g. "Removed from vault") never lands on the
+   action buttons / nav. Matches the advisor-FAB offset on this route. */
+body[data-route="set-detail"] #toast {
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 82px);
+}
 
 /* ============================================================
    Scan overlay
