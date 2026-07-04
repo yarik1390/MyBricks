@@ -3169,10 +3169,18 @@ body[data-route="set-detail"] .advisor-fab {
   max-width: 400px;
   box-shadow: var(--shadow-3);
   z-index: 1000;
-  transition: transform 0.25s var(--ease);
+  transition: transform 0.25s var(--ease), opacity 0.2s var(--ease);
 }
 .selection-bar.show {
   transform: translate(-50%, 0);
+}
+/* The bulk toolbar sits at z-index 1000 — above the sheet layer. When a confirm/
+   prompt sheet opens (e.g. "Bulk Delete"), slide the toolbar back down and fade
+   it so the two bottom elements don't overlap. Restores when the sheet closes. */
+body.sheet-open .selection-bar {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 150%);
 }
 .compact-btn {
   padding: 6px 10px;
