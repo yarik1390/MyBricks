@@ -15,6 +15,7 @@ import { getModePref } from '../theme.js';
 // Simple mode hides the forecast (price-projection) tab. Helper centralizes the
 // check and the available-tabs list so every tab build stays consistent.
 const isSimpleMode = () => getModePref() === "simple";
+const isKidsMode = () => getModePref() === "kids";
 function detailTabs(owned) {
   const tabs = owned ? ["info", "forecast", "community", "manage"] : ["info", "forecast", "community"];
   return isSimpleMode() ? tabs.filter(t => t !== "forecast") : tabs;
@@ -672,20 +673,27 @@ function wireDetailActions(set, entry) {
       toast("Added to vault", "success");
       if (addResult?.kids?.xp_gained > 0) {
         const { xp_gained, new_level, new_badges } = addResult.kids;
-        const badgePart = new_badges?.[0] ? ` · Badge: ${new_badges[0].replace(/_/g, " ")}! 🎉` : "";
-        const lvlPart = new_level ? ` Level ${new_level}!` : "";
-        setTimeout(() => toast(`+${xp_gained} XP!${lvlPart}${badgePart}`, "success"), 500);
+        setTimeout(() => toast(`+${xp_gained} XP!`, "success"), 500);
+        // A new badge or level-up is a real win — give it the celebration popup
+        // (kid-friendly copy). Routine XP stays a quick toast.
+        const badge = new_badges?.[0];
+        if (badge) setTimeout(() => celebrate(`New badge: ${badge.replace(/_/g, " ")}! 🎉`, "You're a building superstar! 🌟"), 900);
+        else if (new_level) setTimeout(() => celebrate(`Level ${new_level} reached! 🎉`, "Keep on building! 🧱"), 900);
         state.me = null;
       }
-      const newCount = prevCount + 1;
-      const newValue = prevValue + displayVal;
-      const countMs = [[1,"Your first set! Welcome to BricksVault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! Dedicated collector 🏅"],[100,"100 sets! Elite collector 🏆"]];
-      const valueMs = [[1000,"$1,000 portfolio milestone!"],[5000,"$5,000 portfolio!"],[10000,"$10,000 portfolio 💰"],[50000,"$50,000 — serious money 🤑"]];
-      for (const [n, msg] of countMs) {
-        if (prevCount < n && newCount >= n) { setTimeout(() => celebrate(msg), 700); break; }
-      }
-      for (const [v, msg] of valueMs) {
-        if (prevValue < v && newValue >= v) { setTimeout(() => celebrate(msg), 1100); break; }
+      // Portfolio count/value milestones are the grown-up celebration — skip them
+      // in Kids mode, which has its own badge/level popups above (and hides value).
+      if (!isKidsMode()) {
+        const newCount = prevCount + 1;
+        const newValue = prevValue + displayVal;
+        const countMs = [[1,"Your first set! Welcome to BricksVault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! Dedicated collector 🏅"],[100,"100 sets! Elite collector 🏆"]];
+        const valueMs = [[1000,"$1,000 portfolio milestone!"],[5000,"$5,000 portfolio!"],[10000,"$10,000 portfolio 💰"],[50000,"$50,000 — serious money 🤑"]];
+        for (const [n, msg] of countMs) {
+          if (prevCount < n && newCount >= n) { setTimeout(() => celebrate(msg), 700); break; }
+        }
+        for (const [v, msg] of valueMs) {
+          if (prevValue < v && newValue >= v) { setTimeout(() => celebrate(msg), 1100); break; }
+        }
       }
       const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
       state.detail.cache[set.set_num] = { set: r.set || r, entry: r.entry || null, ts: Date.now() };

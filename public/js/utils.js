@@ -298,7 +298,7 @@ export function celebrate(msg, quip) {
   scrim.innerHTML =
     `<div class="celebrate-card" role="alert" aria-live="assertive">` +
       `<div class="celebrate-studs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>` +
-      `<div class="celebrate-brick" aria-hidden="true">🧱</div>` +
+      `<div class="celebrate-brick" aria-hidden="true"><span class="cb-studs"><i></i><i></i></span><span class="cb-body"></span></div>` +
       `<div class="celebrate-title">${escapeHtml(msg)}</div>` +
       `<div class="celebrate-sub">${escapeHtml(line)}</div>` +
     `</div>`;
