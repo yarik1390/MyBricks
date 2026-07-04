@@ -358,6 +358,23 @@ export function celebrate(msg, opts = {}) {
   const timer = setTimeout(close, 3000);
 }
 
+// Persisted "last seen" portfolio totals — used to detect when an add crosses a
+// milestone threshold upward (prev < threshold <= current). Recorded on every
+// authoritative total (vault render + after an add), so deleting sets lowers the
+// baseline and re-crossing a threshold celebrates again instead of never firing.
+export function lastPortfolioMilestone() {
+  return {
+    value: Number(localStorage.getItem("bv_ms_value")) || 0,
+    count: Number(localStorage.getItem("bv_ms_count")) || 0,
+  };
+}
+export function recordPortfolioMilestone(count, value) {
+  try {
+    localStorage.setItem("bv_ms_count", String(Math.max(0, Math.round(Number(count) || 0))));
+    localStorage.setItem("bv_ms_value", String(Math.max(0, Math.round(Number(value) || 0))));
+  } catch {}
+}
+
 export function themeHue(theme = "") {
   let h = 0;
   for (let i = 0; i < theme.length; i++) h = (h * 31 + theme.charCodeAt(i)) & 0xFFFF;

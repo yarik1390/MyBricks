@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone } from '../utils.js';
 import { marketValueForCondition, computeSpreadSignals } from '../lib/pure.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
@@ -153,13 +153,18 @@ function wirePortfolioCards() {
         e.preventDefault();
         e.stopPropagation();
         const id = card.dataset.id;
-        if (state.selectedSets.has(id)) {
-          state.selectedSets.delete(id);
-        } else {
-          state.selectedSets.add(id);
-        }
+        const nowSelected = !state.selectedSets.has(id);
+        if (nowSelected) state.selectedSets.add(id); else state.selectedSets.delete(id);
         haptic("light");
-        repaintSetList();
+        // Toggle THIS card's checkbox in place — a full repaintSetList() rebuilds
+        // every card's <img>, which makes the set photos blink on each tick.
+        const cb = card.querySelector(".card-checkbox");
+        if (cb) {
+          cb.classList.toggle("checked", nowSelected);
+          cb.style.background = nowSelected ? "var(--up)" : "transparent";
+          cb.innerHTML = nowSelected ? I.check({ w: 12, h: 12 }) : "";
+        }
+        card.classList.toggle("selected", nowSelected);
         updateSelectionBar();
       } else {
         haptic("light");
@@ -243,6 +248,10 @@ function paintPortfolio() {
   const gain = p.total_value - p.total_paid;
   const gainPct = p.total_paid ? gain / p.total_paid : 0;
   const totalVal = p.total_value_with_figs ?? p.total_value ?? 0;
+  // Record the current totals as the milestone baseline so deleting sets lowers
+  // it — re-crossing a threshold later celebrates again (uses total_value, the
+  // same basis the add-flow milestone check reads from /api/collection).
+  recordPortfolioMilestone(p.count ?? p.items?.length ?? 0, p.total_value ?? 0);
 
   let items = sortedPortfolioItems();
 

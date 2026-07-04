@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML } from './portfolio-detail-market.js';
 import { computeDealScore, ebaySoldSummary, marketValueForCondition } from '../lib/pure.js';
 import { state, invalidatePortfolio } from '../state.js';
@@ -17,28 +17,14 @@ import { getModePref } from '../theme.js';
 const isSimpleMode = () => getModePref() === "simple";
 const isKidsMode = () => getModePref() === "kids";
 
-// Milestones fire ONCE ever, tracked in localStorage. Without this the check
-// relied on a "previous total" read from state.portfolio, which is null after an
-// add (invalidated) or when the page was deep-linked — so a pricey set re-fired
-// the same "$1,000 milestone" on every add.
-const MILESTONE_KEY = "bv_celebrated_ms";
-function milestoneSeen(key) {
-  try { return JSON.parse(localStorage.getItem(MILESTONE_KEY) || "[]").includes(key); }
-  catch { return false; }
-}
-function markMilestone(key) {
-  try {
-    const a = JSON.parse(localStorage.getItem(MILESTONE_KEY) || "[]");
-    if (!a.includes(key)) { a.push(key); localStorage.setItem(MILESTONE_KEY, JSON.stringify(a.slice(-60))); }
-  } catch {}
-}
-// From a [threshold, message] list, mark every reached threshold as seen and
-// return the message for the HIGHEST newly-reached one (null if none are new).
-function newMilestoneMsg(list, total, prefix) {
+// A milestone fires when an add CROSSES a threshold upward — prev < threshold <=
+// current — comparing against the persisted last-seen total (recordPortfolioMilestone),
+// not a stale state.portfolio read. This both stops re-firing on every add of a
+// pricey set AND lets a threshold celebrate again after you delete below it and
+// re-cross. Returns the highest newly-crossed message (null if none).
+function crossedMilestone(list, prev, cur) {
   let msg = null;
-  for (const [threshold, m] of list) {
-    if (total >= threshold) { if (!milestoneSeen(prefix + threshold)) msg = m; markMilestone(prefix + threshold); }
-  }
+  for (const [threshold, m] of list) if (prev < threshold && cur >= threshold) msg = m;
   return msg;
 }
 function detailTabs(owned) {
@@ -713,15 +699,14 @@ function wireDetailActions(set, entry) {
           // have been null), and re-warm the cache so the vault paints instantly.
           const coll = await api("/api/collection");
           state.portfolio = coll;
-          const trueCount = coll.count ?? coll.items?.length ?? 0;
-          const trueValue = coll.total_value ?? 0;
+          const curCount = coll.count ?? coll.items?.length ?? 0;
+          const curValue = coll.total_value ?? 0;
           const countMs = [[1,"Your first set! Welcome to BricksVault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! Dedicated collector 🏅"],[100,"100 sets! Elite collector 🏆"]];
           const valueMs = [[1000,"$1,000 portfolio milestone!"],[5000,"$5,000 portfolio!"],[10000,"$10,000 portfolio 💰"],[50000,"$50,000 — serious money 🤑"]];
-          // Evaluate BOTH (so every reached threshold is marked seen, not just the
-          // one we show), then fire at most ONE popup — value takes precedence.
-          const valueMsg = newMilestoneMsg(valueMs, trueValue, "value:");
-          const countMsg = newMilestoneMsg(countMs, trueCount, "count:");
-          const fire = valueMsg || countMsg;
+          const prev = lastPortfolioMilestone();
+          // Fire at most ONE popup per add — value takes precedence over count.
+          const fire = crossedMilestone(valueMs, prev.value, curValue) || crossedMilestone(countMs, prev.count, curCount);
+          recordPortfolioMilestone(curCount, curValue);
           if (fire) setTimeout(() => celebrate(fire, { hue: setHue(set) }), 700);
         } catch {}
       }
