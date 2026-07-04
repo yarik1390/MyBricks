@@ -1,5 +1,5 @@
 import { $, $$, escapeHtml, haptic, toast, debounce, SEARCH_DEBOUNCE_MS, mount, emptyState } from '../utils.js';
-import { api } from '../api.js';
+import { api, isGuestMode } from '../api.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
 import { I } from '../icons.js';
 
@@ -30,7 +30,9 @@ async function loadSets() {
     _sets.loaded = true;
   } catch (e) {
     _sets.error = e?.message || "Couldn't load buildable sets";
-    _sets.authRequired = /sign in|sync this feature|session expired/i.test(_sets.error);
+    // Build needs a synced (authed) collection. Guests — and any 401 ("Unauthorized:
+    // no token") — get the friendly sign-in prompt, not a raw error + dead Retry.
+    _sets.authRequired = isGuestMode() || /unauthorized|no token|sign in|sync this feature|session expired/i.test(_sets.error);
     _sets.loaded = true;
     if (!_sets.authRequired) toast("Couldn't load buildable sets", 'error');
   }
@@ -52,7 +54,7 @@ async function loadAlts() {
     _alts.loaded = true;
   } catch (e) {
     _alts.error = e?.message || "Couldn't load alternate builds";
-    _alts.authRequired = /sign in|sync this feature|session expired/i.test(_alts.error);
+    _alts.authRequired = isGuestMode() || /unauthorized|no token|sign in|sync this feature|session expired/i.test(_alts.error);
     _alts.loaded = true;
     if (!_alts.authRequired) toast("Couldn't load alternate builds", 'error');
   }

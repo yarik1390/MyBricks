@@ -241,6 +241,13 @@ function ensureSetupStyles() {
     .bv-skin.sel i{border-color:var(--accent,#e23b3b);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent,#e23b3b) 30%,transparent);}
     .bv-skin span{font-size:11.5px;color:var(--ink-soft);font-weight:600;}
     .bv-note{font-size:12.5px;color:var(--ink-soft);line-height:1.45;background:var(--surface-2,#f6f7f9);border-radius:12px;padding:11px 13px;}
+    .bv-preview{margin:0 0 20px;}
+    .bv-preview-card{display:flex;align-items:center;gap:12px;padding:12px 14px;border:2px solid var(--line,#e5e7eb);border-radius:14px;background:var(--surface-2,#f6f7f9);box-shadow:3px 3px 0 var(--line-soft,#e5e7eb);}
+    .bv-preview-brick{width:38px;height:38px;border-radius:8px;background:var(--accent,#e23b3b);border:2px solid var(--line,#e5e7eb);flex-shrink:0;}
+    .bv-preview-txt{flex:1;min-width:0;}
+    .bv-preview-txt b{display:block;font-size:14px;font-weight:700;}
+    .bv-preview-txt span{font-size:11.5px;color:var(--ink-mute,#8b91a0);}
+    .bv-preview-val{font-family:var(--serif,inherit);font-weight:800;font-size:17px;}
     .bv-perks{list-style:none;margin:0 0 16px;padding:0;display:flex;flex-direction:column;gap:10px;}
     .bv-perks li{position:relative;padding-left:26px;font-size:14px;line-height:1.4;}
     .bv-perks li::before{content:"✦";position:absolute;left:4px;top:0;color:var(--accent,#e23b3b);font-weight:700;}
@@ -299,6 +306,7 @@ function stepBodyHTML(key) {
       `<button class="bv-skin ${sk === s.id ? 'sel' : ''}" data-skin="${s.id}"><i style="background:${s.grad};"></i><span>${s.label}</span></button>`).join('');
     return `<h3>Pick your look</h3>
       <p class="sub">Preview updates instantly.</p>
+      <div class="bv-preview"><div class="bv-preview-card"><div class="bv-preview-brick"></div><div class="bv-preview-txt"><b>Cloud City</b><span>10123 · Star Wars</span></div><div class="bv-preview-val">$8,716</div></div></div>
       <div class="bv-field"><div class="bv-field-lbl">Theme</div><div class="bv-seg" id="suTheme">${seg}</div></div>
       ${kids
         ? `<div class="bv-note">🧒 Kids mode uses its own bright, playful colors — you can switch modes in Settings to choose a different look.</div>`
