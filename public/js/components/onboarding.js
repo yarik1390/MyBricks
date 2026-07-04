@@ -203,10 +203,13 @@ export function maybeStartOnboarding() {
 // ---------------------------------------------------------------------------
 const SETUP_FLAG = 'bv_setup_v1';
 const SETUP_STEPS = ['welcome', 'mode', 'appearance', 'extras', 'support', 'done'];
+// Swatches are mini-cards styled like the REAL skin (surface + border + shadow +
+// radius), not arbitrary colors — Retro is chunky pixel-shadow, Modular is soft &
+// rounded, Vivid is dark. That's what actually differs between them.
 const SETUP_SKINS = [
-  { id: 'retro',   label: 'Retro',   grad: 'linear-gradient(135deg,#F5F1E8 50%,#DA291C 50%)' },
-  { id: 'modular', label: 'Modular', grad: 'linear-gradient(135deg,#FBF8F1 50%,#2E7D32 50%)' },
-  { id: 'vivid',   label: 'Vivid',   grad: 'linear-gradient(135deg,#15141C 50%,#7C3AED 50%)' },
+  { id: 'retro',   label: 'Retro',   css: 'background:#F5F1E8;border:2px solid #1C1C1E;box-shadow:3px 3px 0 #1C1C1E;border-radius:8px;' },
+  { id: 'modular', label: 'Modular', css: 'background:#FFFFFF;border:1.5px solid #E7E0D0;box-shadow:0 6px 14px rgba(33,36,43,.18);border-radius:15px;' },
+  { id: 'vivid',   label: 'Vivid',   css: 'background:#211F2C;border:2px solid #FFFFFF;box-shadow:3px 3px 0 #FFFFFF;border-radius:9px;' },
 ];
 const SETUP_CURRENCIES = ['USD', 'GBP', 'EUR', 'CAD', 'AUD'];
 
@@ -235,15 +238,18 @@ function ensureSetupStyles() {
     .bv-seg{display:flex;gap:8px;}
     .bv-seg button{flex:1;padding:11px 6px;border:2px solid var(--line,#e5e7eb);border-radius:12px;background:var(--surface-2,#f6f7f9);color:inherit;font-size:13.5px;font-weight:600;cursor:pointer;}
     .bv-seg button.sel{border-color:var(--accent,#e23b3b);background:color-mix(in srgb,var(--accent,#e23b3b) 10%,transparent);}
-    .bv-skins{display:flex;gap:12px;}
+    .bv-skins{display:flex;gap:14px;}
     .bv-skin{cursor:pointer;background:none;border:none;padding:0;}
-    .bv-skin i{display:block;width:60px;height:46px;border-radius:12px;border:2px solid var(--line,#e5e7eb);margin-bottom:5px;}
-    .bv-skin.sel i{border-color:var(--accent,#e23b3b);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent,#e23b3b) 30%,transparent);}
+    .bv-skin i{display:block;width:60px;height:46px;margin:2px auto 7px;}
+    .bv-skin.sel i{outline:2.5px solid var(--accent,#e23b3b);outline-offset:3px;}
     .bv-skin span{font-size:11.5px;color:var(--ink-soft);font-weight:600;}
     .bv-note{font-size:12.5px;color:var(--ink-soft);line-height:1.45;background:var(--surface-2,#f6f7f9);border-radius:12px;padding:11px 13px;}
     .bv-preview{margin:0 0 20px;}
-    .bv-preview-card{display:flex;align-items:center;gap:12px;padding:12px 14px;border:2px solid var(--line,#e5e7eb);border-radius:14px;background:var(--surface-2,#f6f7f9);box-shadow:3px 3px 0 var(--line-soft,#e5e7eb);}
-    .bv-preview-brick{width:38px;height:38px;border-radius:8px;background:var(--accent,#e23b3b);border:2px solid var(--line,#e5e7eb);flex-shrink:0;}
+    /* Uses the skin's own tokens (border weight, shadow, radius, surface, accent)
+       so the card visibly takes on each skin — Retro's hard pixel shadow, Modular's
+       soft rounded elevation, Vivid's dark surface. */
+    .bv-preview-card{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--surface-2,#f6f7f9);border:var(--bw,2px) solid var(--border-c,var(--line,#e5e7eb));border-radius:var(--r-3,16px);box-shadow:var(--shadow-2,3px 3px 0 var(--line-soft,#e5e7eb));transition:border-radius .15s,box-shadow .15s;}
+    .bv-preview-brick{width:38px;height:38px;border-radius:var(--r-1,8px);background:var(--accent,#e23b3b);border:var(--bw,2px) solid var(--border-c,var(--line,#e5e7eb));flex-shrink:0;}
     .bv-preview-txt{flex:1;min-width:0;}
     .bv-preview-txt b{display:block;font-size:14px;font-weight:700;}
     .bv-preview-txt span{font-size:11.5px;color:var(--ink-mute,#8b91a0);}
@@ -303,7 +309,7 @@ function stepBodyHTML(key) {
       .map(([v, l]) => `<button class="${t === v ? 'sel' : ''}" data-theme="${v}">${l}</button>`).join('');
     const sk = getSkinPref();
     const skins = SETUP_SKINS.map(s =>
-      `<button class="bv-skin ${sk === s.id ? 'sel' : ''}" data-skin="${s.id}"><i style="background:${s.grad};"></i><span>${s.label}</span></button>`).join('');
+      `<button class="bv-skin ${sk === s.id ? 'sel' : ''}" data-skin="${s.id}"><i style="${s.css}"></i><span>${s.label}</span></button>`).join('');
     return `<h3>Pick your look</h3>
       <p class="sub">Preview updates instantly.</p>
       <div class="bv-preview"><div class="bv-preview-card"><div class="bv-preview-brick"></div><div class="bv-preview-txt"><b>Cloud City</b><span>10123 · Star Wars</span></div><div class="bv-preview-val">$8,716</div></div></div>
