@@ -58,3 +58,18 @@ export function invalidatePortfolio() {
   state._revalToken = (state._revalToken || 0) + 1;
   bvIDB.del('portfolio').catch(() => {});
 }
+
+/** Keep the client-side "owned" set and the cached set-detail snapshot in sync
+ *  when a set is added to / removed from the vault, so the catalog OWNED badge
+ *  and the set page reflect the change immediately without a page refresh. On
+ *  removal we also drop the cached detail entry (which still says "owned") so
+ *  reopening the set shows the Add action. */
+export function markSetOwned(setNum, owned) {
+  if (!setNum) return;
+  if (owned) {
+    state.ownedSetNums.add(setNum);
+  } else {
+    state.ownedSetNums.delete(setNum);
+    if (state.detail && state.detail.cache) delete state.detail.cache[setNum];
+  }
+}

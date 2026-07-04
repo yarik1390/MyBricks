@@ -1,7 +1,7 @@
 import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML } from './portfolio-detail-market.js';
 import { computeDealScore, ebaySoldSummary, marketValueForCondition } from '../lib/pure.js';
-import { state, invalidatePortfolio } from '../state.js';
+import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet, confirmSheet } from '../components/sheet.js';
@@ -26,6 +26,26 @@ function crossedMilestone(list, prev, cur) {
   let msg = null;
   for (const [threshold, m] of list) if (prev < threshold && cur >= threshold) msg = m;
   return msg;
+}
+
+// After any vault mutation from the set page (add, or qty +/-), read the
+// authoritative totals, celebrate a newly-crossed milestone (once per upward
+// crossing), and re-warm the portfolio cache. No-op in Kids mode.
+const COUNT_MS = [[1,"Your first set! Welcome to BricksVault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! Dedicated collector 🏅"],[100,"100 sets! Elite collector 🏆"]];
+const VALUE_MS = [[1000,"$1,000 portfolio milestone!"],[5000,"$5,000 portfolio!"],[10000,"$10,000 portfolio 💰"],[50000,"$50,000 — serious money 🤑"]];
+async function maybeCelebrateMilestone(hue) {
+  if (isKidsMode()) return;
+  try {
+    const coll = await api("/api/collection");
+    state.portfolio = coll;
+    const curCount = coll.count ?? coll.items?.length ?? 0;
+    const curValue = coll.total_value ?? 0;
+    const prev = lastPortfolioMilestone();
+    // Fire at most ONE popup — value takes precedence over count.
+    const fire = crossedMilestone(VALUE_MS, prev.value, curValue) || crossedMilestone(COUNT_MS, prev.count, curCount);
+    recordPortfolioMilestone(curCount, curValue);
+    if (fire) setTimeout(() => celebrate(fire, { hue }), 700);
+  } catch {}
 }
 function detailTabs(owned) {
   const tabs = owned ? ["info", "forecast", "community", "manage"] : ["info", "forecast", "community"];
@@ -641,7 +661,7 @@ function wireDetailActions(set, entry) {
       if (!ok) return;
       try {
         await api("/api/collection/" + encodeURIComponent(entry.id || set.set_num), { method: "DELETE" });
-        invalidatePortfolio(); state.catalog.items = [];
+        invalidatePortfolio(); state.catalog.items = []; markSetOwned(set.set_num, false);
         toast("Removed from vault", "success");
         const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
         state.detail.tab = "info";
@@ -654,7 +674,9 @@ function wireDetailActions(set, entry) {
     $("#qtyNum").textContent = qty;
     const badge = $("#qtyBadgeVal");
     if (badge) badge.textContent = `×${qty}`;
-    try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); invalidatePortfolio(); }
+    // Lowering quantity lowers the total — refresh the milestone baseline (won't
+    // celebrate on a decrease) so re-raising it can cross a threshold again.
+    try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); invalidatePortfolio(); maybeCelebrateMilestone(setHue(set)); }
     catch (_e) { toast("Save failed", "error"); }
   });
   $("#qtyUp")?.addEventListener("click", async () => {
@@ -663,7 +685,9 @@ function wireDetailActions(set, entry) {
     $("#qtyNum").textContent = qty;
     const badge = $("#qtyBadgeVal");
     if (badge) badge.textContent = `×${qty}`;
-    try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); invalidatePortfolio(); }
+    // Raising quantity raises the total — this can cross a value milestone, so
+    // run the same milestone check the Add button does.
+    try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); invalidatePortfolio(); maybeCelebrateMilestone(setHue(set)); }
     catch (_e) { toast("Save failed", "error"); }
   });
   $("#genListingBtn")?.addEventListener("click", () => {
@@ -678,7 +702,7 @@ function wireDetailActions(set, entry) {
     try {
       const displayVal = setDisplayValue(set);
       const addResult = await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: displayVal } });
-      invalidatePortfolio(); state.catalog.items = [];
+      invalidatePortfolio(); state.catalog.items = []; markSetOwned(set.set_num, true);
       toast("Added to vault", "success");
       if (addResult?.kids?.xp_gained > 0) {
         const { xp_gained, new_level, new_badges } = addResult.kids;
@@ -691,25 +715,8 @@ function wireDetailActions(set, entry) {
         else if (new_level) setTimeout(() => celebrate(`Level ${new_level} reached! 🎉`, { quip: "Keep on building! 🧱", hue: kidHue }), 900);
         state.me = null;
       }
-      // Portfolio count/value milestones are the grown-up celebration — skip them
-      // in Kids mode, which has its own badge/level popups above (and hides value).
-      if (!isKidsMode()) {
-        try {
-          // Read authoritative totals (state.portfolio was just invalidated and may
-          // have been null), and re-warm the cache so the vault paints instantly.
-          const coll = await api("/api/collection");
-          state.portfolio = coll;
-          const curCount = coll.count ?? coll.items?.length ?? 0;
-          const curValue = coll.total_value ?? 0;
-          const countMs = [[1,"Your first set! Welcome to BricksVault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! Dedicated collector 🏅"],[100,"100 sets! Elite collector 🏆"]];
-          const valueMs = [[1000,"$1,000 portfolio milestone!"],[5000,"$5,000 portfolio!"],[10000,"$10,000 portfolio 💰"],[50000,"$50,000 — serious money 🤑"]];
-          const prev = lastPortfolioMilestone();
-          // Fire at most ONE popup per add — value takes precedence over count.
-          const fire = crossedMilestone(valueMs, prev.value, curValue) || crossedMilestone(countMs, prev.count, curCount);
-          recordPortfolioMilestone(curCount, curValue);
-          if (fire) setTimeout(() => celebrate(fire, { hue: setHue(set) }), 700);
-        } catch {}
-      }
+      // Portfolio count/value milestones (skipped in Kids mode inside the helper).
+      await maybeCelebrateMilestone(setHue(set));
       const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
       state.detail.cache[set.set_num] = { set: r.set || r, entry: r.entry || null, ts: Date.now() };
       paintSetDetail(r.set || r, r.entry || null);

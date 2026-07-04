@@ -1,6 +1,6 @@
 import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone } from '../utils.js';
 import { marketValueForCondition, computeSpreadSignals } from '../lib/pure.js';
-import { state, invalidatePortfolio } from '../state.js';
+import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet, confirmSheet, promptSheet } from '../components/sheet.js';
@@ -1203,6 +1203,11 @@ async function handleBulkDelete() {
     await Promise.all(selectedItems.map(item =>
       api("/api/collection/" + apiRef(item), { method: "DELETE" })
     ));
+    // Sync the client-side owned set + drop cached detail snapshots + force a
+    // catalog refetch, so the OWNED badge and set pages don't stay stale until
+    // a manual refresh.
+    for (const item of selectedItems) markSetOwned(item.set_num, false);
+    state.catalog.items = [];
     // Tear down selection UI BEFORE invalidating — exitSelectionMode repaints the
     // list and must read a valid state.portfolio, not the null invalidate leaves.
     toast(`Removed ${selectedItems.length} set${selectedItems.length !== 1 ? "s" : ""}`, "success");
