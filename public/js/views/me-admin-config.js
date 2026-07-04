@@ -11,6 +11,7 @@ export const ADMIN_SECTIONS = [
   ['adminQuality', 'Catalog Quality'],
   ['adminUsers', 'Users'],
   ['adminContrib', 'Contributions'],
+  ['adminTools', 'Tools'],
 ];
 
 export const ADMIN_JOB_TOOLS = {

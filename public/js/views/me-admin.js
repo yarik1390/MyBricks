@@ -124,6 +124,26 @@ export async function renderMeAdmin() {
           <div id="contribQueue">Loading queue...</div>
         </div>
       </section>
+
+      <section class="admin-section" id="adminTools">
+        <h2 class="section-title">Tools</h2>
+        <div class="admin-panel">
+          <div class="admin-supporters-head">
+            <div>
+              <strong>Onboarding wizard</strong>
+              <span>Replay the first-run setup (mode, appearance, extras, Pro) to review it.</span>
+            </div>
+            <button class="btn-secondary" id="previewSetupBtn">${I.sparkles({ w: 16 })}<span>Preview</span></button>
+          </div>
+          <div class="admin-supporters-head" style="margin-top:10px;">
+            <div>
+              <strong>Guided tour</strong>
+              <span>Replay the coach-mark tour that spotlights the nav.</span>
+            </div>
+            <button class="btn-secondary" id="previewTourBtn">${I.info({ w: 16 })}<span>Preview</span></button>
+          </div>
+        </div>
+      </section>
     </div>`;
 
   wireAdminShell();
@@ -241,6 +261,16 @@ function wireAdminShell() {
       contributionTab = btn.getAttribute('data-contrib-tab') || 'all';
       renderContribQueue();
     });
+  });
+  $('#previewSetupBtn')?.addEventListener('click', async () => {
+    haptic('light');
+    try { (await import('../components/onboarding.js')).showSetup(); }
+    catch { toast('Could not open onboarding', 'error'); }
+  });
+  $('#previewTourBtn')?.addEventListener('click', async () => {
+    haptic('light');
+    try { (await import('../components/onboarding.js')).startOnboarding(); }
+    catch { toast('Could not open tour', 'error'); }
   });
   $('#grantSupporterBtn')?.addEventListener('click', () => setSupporterStatus(1));
   $('#revokeSupporterBtn')?.addEventListener('click', () => setSupporterStatus(0));
