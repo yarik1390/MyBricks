@@ -270,6 +270,55 @@ export function confettiBurst() {
   setTimeout(() => layer.remove(), 2400);
 }
 
+// LEGO-flavored one-liners shown under a milestone headline. Kept light and a
+// little silly — this only fires on genuine wins (first set, $1k, 100 sets…).
+const CELEBRATE_QUIPS = [
+  "Everything is awesome! 🎶",
+  "You're really stuck on this hobby. 🧱",
+  "Built different. Literally.",
+  "Snapping together nicely!",
+  "AFOL status: confirmed.",
+  "Your wallet felt that click.",
+  "One brick closer to stepping on them all. 🦶",
+  "That's a whole lotta studs.",
+  "No minifigs were harmed in this milestone.",
+  "Certified brick baron. 👑",
+];
+
+// Centered celebration popup for milestones — a bouncy LEGO-brick card with a
+// funny sub-line + confetti. Replaces the old bottom "milestone" toast so a big
+// win feels like a moment. Auto-dismisses; tap or Escape to close early.
+export function celebrate(msg, quip) {
+  confettiBurst();
+  haptic("heavy");
+  document.querySelector(".celebrate-scrim")?.remove();
+  const line = quip || CELEBRATE_QUIPS[Math.floor(Math.random() * CELEBRATE_QUIPS.length)];
+  const scrim = document.createElement("div");
+  scrim.className = "celebrate-scrim";
+  scrim.innerHTML =
+    `<div class="celebrate-card" role="alert" aria-live="assertive">` +
+      `<div class="celebrate-studs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>` +
+      `<div class="celebrate-brick" aria-hidden="true">🧱</div>` +
+      `<div class="celebrate-title">${escapeHtml(msg)}</div>` +
+      `<div class="celebrate-sub">${escapeHtml(line)}</div>` +
+    `</div>`;
+  document.body.appendChild(scrim);
+  requestAnimationFrame(() => scrim.classList.add("show"));
+  let done = false;
+  const close = () => {
+    if (done) return; done = true;
+    clearTimeout(timer);
+    document.removeEventListener("keydown", onKey);
+    scrim.classList.remove("show");
+    scrim.classList.add("closing");
+    setTimeout(() => scrim.remove(), 320);
+  };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  scrim.addEventListener("click", close);
+  document.addEventListener("keydown", onKey);
+  const timer = setTimeout(close, 3000);
+}
+
 export function themeHue(theme = "") {
   let h = 0;
   for (let i = 0; i < theme.length; i++) h = (h * 31 + theme.charCodeAt(i)) & 0xFFFF;

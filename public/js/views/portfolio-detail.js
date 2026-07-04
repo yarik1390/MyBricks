@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, clamp, confettiBurst, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML } from './portfolio-detail-market.js';
 import { computeDealScore, ebaySoldSummary, marketValueForCondition } from '../lib/pure.js';
 import { state, invalidatePortfolio } from '../state.js';
@@ -682,10 +682,10 @@ function wireDetailActions(set, entry) {
       const countMs = [[1,"Your first set! Welcome to BricksVault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! Dedicated collector 🏅"],[100,"100 sets! Elite collector 🏆"]];
       const valueMs = [[1000,"$1,000 portfolio milestone!"],[5000,"$5,000 portfolio!"],[10000,"$10,000 portfolio 💰"],[50000,"$50,000 — serious money 🤑"]];
       for (const [n, msg] of countMs) {
-        if (prevCount < n && newCount >= n) { haptic("heavy"); setTimeout(() => { toast(msg, "milestone"); confettiBurst(); }, 700); break; }
+        if (prevCount < n && newCount >= n) { setTimeout(() => celebrate(msg), 700); break; }
       }
       for (const [v, msg] of valueMs) {
-        if (prevValue < v && newValue >= v) { haptic("heavy"); setTimeout(() => { toast(msg, "milestone"); confettiBurst(); }, 1100); break; }
+        if (prevValue < v && newValue >= v) { setTimeout(() => celebrate(msg), 1100); break; }
       }
       const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
       state.detail.cache[set.set_num] = { set: r.set || r, entry: r.entry || null, ts: Date.now() };

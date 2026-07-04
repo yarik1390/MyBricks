@@ -2492,6 +2492,60 @@ select:focus-visible,
   100% { opacity: 0; transform: translateY(102vh) translateX(var(--drift, 0)) rotate(var(--rot, 360deg)); }
 }
 
+/* ============================================================
+   Milestone celebration popup (centered LEGO-brick card)
+   ============================================================ */
+.celebrate-scrim {
+  position: fixed; inset: 0; z-index: 130;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s var(--ease), background 0.2s var(--ease);
+}
+.celebrate-scrim.show { opacity: 1; pointer-events: auto; background: rgba(0, 0, 0, 0.28); }
+.celebrate-card {
+  position: relative;
+  max-width: 340px; width: 100%;
+  padding: 30px 26px 24px;
+  text-align: center;
+  background: var(--bv-yellow);
+  color: #1a1a1a;
+  border: var(--bw) solid var(--border-c);
+  border-radius: 18px;
+  box-shadow: 6px 6px 0 var(--line), 0 18px 40px rgba(0, 0, 0, 0.25);
+  transform: scale(0.4) translateY(30px);
+  opacity: 0;
+}
+.celebrate-scrim.show .celebrate-card { animation: celebratePop 0.5s cubic-bezier(0.18, 1.5, 0.5, 1) forwards; }
+.celebrate-scrim.closing .celebrate-card { animation: celebrateOut 0.28s var(--ease) forwards; }
+/* LEGO studs poking up over the top edge of the card */
+.celebrate-studs { position: absolute; top: -12px; left: 0; right: 0; display: flex; justify-content: center; gap: 14px; }
+.celebrate-studs i {
+  width: 22px; height: 13px;
+  border-radius: 7px 7px 3px 3px;
+  background: var(--bv-yellow);
+  border: var(--bw) solid var(--border-c);
+  border-bottom: none;
+}
+.celebrate-brick { font-size: 46px; line-height: 1; margin-bottom: 8px; display: inline-block; animation: celebrateWobble 0.7s ease-in-out 0.42s 2; }
+.celebrate-title { font-family: var(--serif); font-weight: 700; font-size: 22px; line-height: 1.2; margin-bottom: 6px; }
+.celebrate-sub { font-size: 14px; font-weight: 600; opacity: 0.72; }
+
+@keyframes celebratePop {
+  0%   { transform: scale(0.4) translateY(30px); opacity: 0; }
+  60%  { transform: scale(1.08) translateY(0); opacity: 1; }
+  80%  { transform: scale(0.96); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes celebrateOut { to { transform: scale(0.85) translateY(10px); opacity: 0; } }
+@keyframes celebrateWobble { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-12deg); } 75% { transform: rotate(12deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .celebrate-scrim.show .celebrate-card { animation: none; transform: scale(1); opacity: 1; }
+  .celebrate-brick { animation: none; }
+}
+
 /* Advanced filter range inputs (filter sheet) */
 .range-inputs { display: flex; align-items: center; gap: 10px; }
 .range-inputs input {
