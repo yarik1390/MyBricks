@@ -16,6 +16,31 @@ import { getModePref } from '../theme.js';
 // check and the available-tabs list so every tab build stays consistent.
 const isSimpleMode = () => getModePref() === "simple";
 const isKidsMode = () => getModePref() === "kids";
+
+// Milestones fire ONCE ever, tracked in localStorage. Without this the check
+// relied on a "previous total" read from state.portfolio, which is null after an
+// add (invalidated) or when the page was deep-linked — so a pricey set re-fired
+// the same "$1,000 milestone" on every add.
+const MILESTONE_KEY = "bv_celebrated_ms";
+function milestoneSeen(key) {
+  try { return JSON.parse(localStorage.getItem(MILESTONE_KEY) || "[]").includes(key); }
+  catch { return false; }
+}
+function markMilestone(key) {
+  try {
+    const a = JSON.parse(localStorage.getItem(MILESTONE_KEY) || "[]");
+    if (!a.includes(key)) { a.push(key); localStorage.setItem(MILESTONE_KEY, JSON.stringify(a.slice(-60))); }
+  } catch {}
+}
+// From a [threshold, message] list, mark every reached threshold as seen and
+// return the message for the HIGHEST newly-reached one (null if none are new).
+function newMilestoneMsg(list, total, prefix) {
+  let msg = null;
+  for (const [threshold, m] of list) {
+    if (total >= threshold) { if (!milestoneSeen(prefix + threshold)) msg = m; markMilestone(prefix + threshold); }
+  }
+  return msg;
+}
 function detailTabs(owned) {
   const tabs = owned ? ["info", "forecast", "community", "manage"] : ["info", "forecast", "community"];
   return isSimpleMode() ? tabs.filter(t => t !== "forecast") : tabs;
@@ -665,8 +690,6 @@ function wireDetailActions(set, entry) {
     haptic("heavy");
     setBtnLoading(e.currentTarget, true);
     try {
-      const prevCount = state.portfolio?.items?.length ?? 0;
-      const prevValue = state.portfolio?.total_value ?? 0;
       const displayVal = setDisplayValue(set);
       const addResult = await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: displayVal } });
       invalidatePortfolio(); state.catalog.items = [];
@@ -685,17 +708,22 @@ function wireDetailActions(set, entry) {
       // Portfolio count/value milestones are the grown-up celebration — skip them
       // in Kids mode, which has its own badge/level popups above (and hides value).
       if (!isKidsMode()) {
-        const newCount = prevCount + 1;
-        const newValue = prevValue + displayVal;
-        const countMs = [[1,"Your first set! Welcome to BricksVault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! Dedicated collector 🏅"],[100,"100 sets! Elite collector 🏆"]];
-        const valueMs = [[1000,"$1,000 portfolio milestone!"],[5000,"$5,000 portfolio!"],[10000,"$10,000 portfolio 💰"],[50000,"$50,000 — serious money 🤑"]];
-        const mHue = setHue(set);
-        for (const [n, msg] of countMs) {
-          if (prevCount < n && newCount >= n) { setTimeout(() => celebrate(msg, { hue: mHue }), 700); break; }
-        }
-        for (const [v, msg] of valueMs) {
-          if (prevValue < v && newValue >= v) { setTimeout(() => celebrate(msg, { hue: mHue }), 1100); break; }
-        }
+        try {
+          // Read authoritative totals (state.portfolio was just invalidated and may
+          // have been null), and re-warm the cache so the vault paints instantly.
+          const coll = await api("/api/collection");
+          state.portfolio = coll;
+          const trueCount = coll.count ?? coll.items?.length ?? 0;
+          const trueValue = coll.total_value ?? 0;
+          const countMs = [[1,"Your first set! Welcome to BricksVault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! Dedicated collector 🏅"],[100,"100 sets! Elite collector 🏆"]];
+          const valueMs = [[1000,"$1,000 portfolio milestone!"],[5000,"$5,000 portfolio!"],[10000,"$10,000 portfolio 💰"],[50000,"$50,000 — serious money 🤑"]];
+          // Evaluate BOTH (so every reached threshold is marked seen, not just the
+          // one we show), then fire at most ONE popup — value takes precedence.
+          const valueMsg = newMilestoneMsg(valueMs, trueValue, "value:");
+          const countMsg = newMilestoneMsg(countMs, trueCount, "count:");
+          const fire = valueMsg || countMsg;
+          if (fire) setTimeout(() => celebrate(fire, { hue: setHue(set) }), 700);
+        } catch {}
       }
       const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
       state.detail.cache[set.set_num] = { set: r.set || r, entry: r.entry || null, ts: Date.now() };
