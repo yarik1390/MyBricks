@@ -677,8 +677,9 @@ function wireDetailActions(set, entry) {
         // A new badge or level-up is a real win — give it the celebration popup
         // (kid-friendly copy). Routine XP stays a quick toast.
         const badge = new_badges?.[0];
-        if (badge) setTimeout(() => celebrate(`New badge: ${badge.replace(/_/g, " ")}! 🎉`, "You're a building superstar! 🌟"), 900);
-        else if (new_level) setTimeout(() => celebrate(`Level ${new_level} reached! 🎉`, "Keep on building! 🧱"), 900);
+        const kidHue = setHue(set);
+        if (badge) setTimeout(() => celebrate(`New badge: ${badge.replace(/_/g, " ")}! 🎉`, { quip: "You're a building superstar! 🌟", hue: kidHue }), 900);
+        else if (new_level) setTimeout(() => celebrate(`Level ${new_level} reached! 🎉`, { quip: "Keep on building! 🧱", hue: kidHue }), 900);
         state.me = null;
       }
       // Portfolio count/value milestones are the grown-up celebration — skip them
@@ -688,11 +689,12 @@ function wireDetailActions(set, entry) {
         const newValue = prevValue + displayVal;
         const countMs = [[1,"Your first set! Welcome to BricksVault!"],[10,"10 sets in the vault!"],[25,"25 sets! Nice collection."],[50,"50 sets! Dedicated collector 🏅"],[100,"100 sets! Elite collector 🏆"]];
         const valueMs = [[1000,"$1,000 portfolio milestone!"],[5000,"$5,000 portfolio!"],[10000,"$10,000 portfolio 💰"],[50000,"$50,000 — serious money 🤑"]];
+        const mHue = setHue(set);
         for (const [n, msg] of countMs) {
-          if (prevCount < n && newCount >= n) { setTimeout(() => celebrate(msg), 700); break; }
+          if (prevCount < n && newCount >= n) { setTimeout(() => celebrate(msg, { hue: mHue }), 700); break; }
         }
         for (const [v, msg] of valueMs) {
-          if (prevValue < v && newValue >= v) { setTimeout(() => celebrate(msg), 1100); break; }
+          if (prevValue < v && newValue >= v) { setTimeout(() => celebrate(msg, { hue: mHue }), 1100); break; }
         }
       }
       const r = await api("/api/sets/" + encodeURIComponent(set.set_num));

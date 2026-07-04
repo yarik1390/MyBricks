@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, fmtPct, setHue, bvIDB } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, fmtPct, setHue, bvIDB, celebrate, celebrateChime, soundEnabled } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, sbSignOut, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
@@ -174,6 +174,10 @@ export async function renderMe() {
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Price-drop alerts</div><div class="desc">Alert when wishlisted sets hit your target.</div></div>
           <button class="toggle ${me.notify_price_drops ? "on" : ""}" id="notifyToggle" role="switch" aria-label="Price-drop alerts" aria-checked="${!!me.notify_price_drops}"></button>
+        </div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Celebration sounds</div><div class="desc">Play a chime on milestones and rewards.</div></div>
+          <button class="toggle ${soundEnabled() ? "on" : ""}" id="soundToggle" role="switch" aria-label="Celebration sounds" aria-checked="${soundEnabled()}"></button>
         </div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Currency</div><div class="desc">Display values in your local currency.</div></div>
@@ -418,7 +422,11 @@ export async function renderMe() {
   $("#rcUpgradeBtn")?.addEventListener("click", async () => {
     haptic("medium");
     const r = await presentProPaywall();
-    if (r.ok && r.active) { toast("Welcome to Pro! ⭐", "success"); state.me = null; go("#/me"); }
+    if (r.ok && r.active) {
+      state.me = null;
+      celebrate("Welcome to BricksVault Pro! ⭐", { quip: "Thanks for the support — you rock. 🧱", hue: 300 });
+      go("#/me");
+    }
     else if (!r.ok && r.reason !== "cancelled") toast("Store unavailable — try again", "error");
   });
   $("#rcRestoreBtn")?.addEventListener("click", async () => {
@@ -438,6 +446,18 @@ export async function renderMe() {
     try { await api("/api/me", { method: "PATCH", body: { notify_price_drops: notifyOn } }); state.me = null; }
     catch {}
     toast(notifyOn ? "Alerts on" : "Alerts paused", "info");
+  });
+
+  $("#soundToggle")?.addEventListener("click", (e) => {
+    // Device-local preference (no server round-trip). Turning it on previews the
+    // chime so the user hears what they enabled.
+    const on = localStorage.getItem("bv_sound") === "off";
+    localStorage.setItem("bv_sound", on ? "on" : "off");
+    e.currentTarget.classList.toggle("on", on);
+    e.currentTarget.setAttribute("aria-checked", String(on));
+    haptic("medium");
+    if (on) celebrateChime();
+    toast(on ? "Sounds on" : "Sounds off", "info");
   });
 
   $("#currencySelect")?.addEventListener("change", async (e) => {

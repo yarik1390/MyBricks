@@ -2532,13 +2532,13 @@ select:focus-visible,
 .celebrate-brick { position: relative; width: 64px; height: 44px; margin: 2px auto 12px; animation: celebrateWobble 0.7s ease-in-out 0.42s 2; }
 .celebrate-brick .cb-body {
   position: absolute; bottom: 0; left: 0; right: 0; height: 32px;
-  background: var(--bv-red); border: var(--bw) solid var(--border-c); border-radius: 6px;
+  background: var(--cb-color, var(--bv-red)); border: var(--bw) solid var(--border-c); border-radius: 6px;
   box-shadow: inset -7px -7px 0 rgba(0, 0, 0, 0.14);
 }
 .celebrate-brick .cb-studs { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: center; gap: 12px; }
 .celebrate-brick .cb-studs i {
   width: 18px; height: 15px; border-radius: 50% 50% 4px 4px;
-  background: var(--bv-red); border: var(--bw) solid var(--border-c); border-bottom: none;
+  background: var(--cb-color, var(--bv-red)); border: var(--bw) solid var(--border-c); border-bottom: none;
 }
 .celebrate-title { font-family: var(--serif); font-weight: 700; font-size: 22px; line-height: 1.2; margin-bottom: 6px; }
 .celebrate-sub { font-size: 14px; font-weight: 600; opacity: 0.72; }

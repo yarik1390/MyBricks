@@ -285,20 +285,59 @@ const CELEBRATE_QUIPS = [
   "Certified brick baron. 👑",
 ];
 
+// Celebration sound preference (device-local, default on).
+export function soundEnabled() {
+  return localStorage.getItem("bv_sound") !== "off";
+}
+
+// A short, cheerful synthesized "ta-da" arpeggio (Web Audio — no asset, CSP-safe).
+// Gated by the sound pref. The AudioContext is created lazily and resumed, so it
+// works after the user gesture that triggered the reward. Silent on any failure.
+let _audioCtx = null;
+export function celebrateChime() {
+  if (!soundEnabled()) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    _audioCtx = _audioCtx || new AC();
+    if (_audioCtx.state === "suspended") _audioCtx.resume();
+    const ctx = _audioCtx;
+    const t0 = ctx.currentTime;
+    const notes = [523.25, 659.25, 783.99, 1046.5]; // C5–E5–G5–C6 major arpeggio
+    notes.forEach((f, i) => {
+      const t = t0 + i * 0.085;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.value = f;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.16, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0008, t + 0.34);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.4);
+    });
+  } catch {}
+}
+
 // Centered celebration popup for milestones — a bouncy LEGO-brick card with a
-// funny sub-line + confetti. Replaces the old bottom "milestone" toast so a big
-// win feels like a moment. Auto-dismisses; tap or Escape to close early.
-export function celebrate(msg, quip) {
+// funny sub-line + confetti + chime. Replaces the old bottom "milestone" toast
+// so a big win feels like a moment. Auto-dismisses; tap or Escape to close early.
+// opts: { quip?: string, hue?: number } — hue tints the brick to the set's theme.
+export function celebrate(msg, opts = {}) {
+  const { quip, hue } = typeof opts === "string" ? { quip: opts } : opts;
   confettiBurst();
   haptic("heavy");
+  celebrateChime();
   document.querySelector(".celebrate-scrim")?.remove();
   const line = quip || CELEBRATE_QUIPS[Math.floor(Math.random() * CELEBRATE_QUIPS.length)];
+  const brickStyle = Number.isFinite(hue) ? ` style="--cb-color:oklch(0.62 0.18 ${hue})"` : "";
   const scrim = document.createElement("div");
   scrim.className = "celebrate-scrim";
   scrim.innerHTML =
     `<div class="celebrate-card" role="alert" aria-live="assertive">` +
       `<div class="celebrate-studs" aria-hidden="true"><i></i><i></i><i></i><i></i></div>` +
-      `<div class="celebrate-brick" aria-hidden="true"><span class="cb-studs"><i></i><i></i></span><span class="cb-body"></span></div>` +
+      `<div class="celebrate-brick"${brickStyle} aria-hidden="true"><span class="cb-studs"><i></i><i></i></span><span class="cb-body"></span></div>` +
       `<div class="celebrate-title">${escapeHtml(msg)}</div>` +
       `<div class="celebrate-sub">${escapeHtml(line)}</div>` +
     `</div>`;
