@@ -2,8 +2,12 @@
 // nav targets with a tooltip card. Shows once (localStorage flag); replayable
 // from the You tab via startOnboarding(). Fully self-contained — if anything
 // throws it never breaks app boot (maybeStartOnboarding swallows errors).
-import { haptic, activateFocusTrap } from '../utils.js';
+import { haptic, activateFocusTrap, soundEnabled, advisorEnabled, celebrateChime, bvIDB } from '../utils.js';
 import { I } from '../icons.js';
+import { getThemePref, setThemePref, getSkinPref, setSkinPref, getModePref, setModePref } from '../theme.js';
+import { api } from '../api.js';
+import { state, invalidatePortfolio } from '../state.js';
+import { route } from '../router.js';
 
 const FLAG = 'bv_onboarded_v1';
 
@@ -191,148 +195,287 @@ export function maybeStartOnboarding() {
 }
 
 // ---------------------------------------------------------------------------
-// First-run WELCOME CAROUSEL — a full-screen, swipeable brand intro shown once.
-// Distinct from the coach-mark tour above (which spotlights the live nav and
-// stays replayable from the You tab). Self-contained; never throws into boot.
+// First-run SETUP WIZARD — pick view mode, appearance and a few options up front
+// so the app feels right from the very first view. Shown once (bv_setup_v1).
+// Every choice applies LIVE (setModePref/setThemePref/setSkinPref + prefs) so the
+// wizard chrome re-themes as you pick. The coach-mark tour (startOnboarding) is
+// still offered on the final step. Self-contained; never throws into boot.
 // ---------------------------------------------------------------------------
-const WELCOME_FLAG = 'bv_welcome_v1';
-
-const WELCOME_SLIDES = [
-  { icon: 'box',      hue: 4,   title: 'Welcome to BricksVault',  body: 'Your collection, valued like an investment portfolio.' },
-  { icon: 'trend',    hue: 152, title: 'Know what it’s worth', body: 'Real market values, ROI, and 2- & 5-year forecasts.' },
-  { icon: 'scan',     hue: 212, title: 'Scan to add',          body: 'Point your camera — AI identifies it and adds it in a tap.' },
-  { icon: 'advisor',  hue: 276, title: 'Ask the AI advisor',   body: 'Buy, sell, or hold? Get instant, portfolio-aware answers.' },
-  { icon: 'sparkles', hue: 36,  title: 'You’re ready',         body: 'Add your first set from Catalog or Scan.' },
+const SETUP_FLAG = 'bv_setup_v1';
+const SETUP_STEPS = ['welcome', 'mode', 'appearance', 'extras', 'done'];
+const SETUP_SKINS = [
+  { id: 'retro',   label: 'Retro',   grad: 'linear-gradient(135deg,#F5F1E8 50%,#DA291C 50%)' },
+  { id: 'modular', label: 'Modular', grad: 'linear-gradient(135deg,#FBF8F1 50%,#2E7D32 50%)' },
+  { id: 'vivid',   label: 'Vivid',   grad: 'linear-gradient(135deg,#15141C 50%,#7C3AED 50%)' },
 ];
+const SETUP_CURRENCIES = ['USD', 'GBP', 'EUR', 'CAD', 'AUD'];
 
-let wcRoot = null;
-let _wcTrapRelease = null;
-let wcIdx = 0;
+let suRoot = null, suTrap = null, suIdx = 0;
 
-function ensureWelcomeStyles() {
-  if (document.getElementById('bv-wc-style')) return;
+function ensureSetupStyles() {
+  if (document.getElementById('bv-setup-style')) return;
   const css = `
-    .bv-wc{position:fixed;inset:0;z-index:10000;background:var(--surface,#fff);color:var(--ink,#16181d);display:flex;flex-direction:column;animation:bvwcfade .3s ease;}
-    @keyframes bvwcfade{from{opacity:0}to{opacity:1}}
-    .bv-wc-top{display:flex;justify-content:flex-end;padding:14px 16px;}
-    .bv-wc-skip{background:none;border:none;color:var(--ink-mute,#8b91a0);font-size:14px;font-weight:600;cursor:pointer;padding:6px 8px;}
-    .bv-wc-view{flex:1;overflow:hidden;}
-    .bv-wc-track{display:flex;height:100%;transition:transform .35s cubic-bezier(.4,0,.2,1);}
-    .bv-wc-slide{min-width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 32px;box-sizing:border-box;}
-    .bv-wc-hero{width:148px;height:148px;border-radius:34px;display:flex;align-items:center;justify-content:center;margin-bottom:34px;color:#fff;box-shadow:0 18px 44px -12px rgba(0,0,0,.35);}
-    .bv-wc-hero svg{width:62px;height:62px;}
-    .bv-wc-slide h3{margin:0 0 12px;font-family:var(--font-heading,inherit);font-size:25px;font-weight:800;letter-spacing:-.01em;}
-    .bv-wc-slide p{margin:0;font-size:15px;line-height:1.55;color:var(--ink-soft,#3f4654);max-width:30ch;}
-    .bv-wc-foot{padding:18px 24px calc(24px + env(safe-area-inset-bottom,0));display:flex;flex-direction:column;gap:16px;}
-    .bv-wc-dots{display:flex;gap:7px;justify-content:center;}
-    .bv-wc-dots i{width:7px;height:7px;border-radius:50%;background:var(--line,#d6d9e0);transition:all .25s;}
-    .bv-wc-dots i.on{background:var(--accent,#e23b3b);width:22px;border-radius:4px;}
-    .bv-wc-btn{width:100%;border:none;border-radius:14px;padding:15px;font-size:15px;font-weight:700;cursor:pointer;background:var(--accent,#e23b3b);color:#fff;}
-    .bv-wc-tour{background:none;border:none;color:var(--ink-mute,#8b91a0);font-size:13.5px;font-weight:600;cursor:pointer;padding:2px;}
+    .bv-setup{position:fixed;inset:0;z-index:10000;background:var(--surface,#fff);color:var(--ink,#16181d);display:flex;flex-direction:column;animation:bvsufade .3s ease;}
+    @keyframes bvsufade{from{opacity:0}to{opacity:1}}
+    .bv-setup-top{display:flex;justify-content:flex-end;padding:12px 16px 0;min-height:20px;}
+    .bv-setup-skip{background:none;border:none;color:var(--ink-mute,#8b91a0);font-size:14px;font-weight:600;cursor:pointer;padding:6px 8px;}
+    .bv-setup-body{flex:1;overflow-y:auto;padding:6px 24px 12px;}
+    .bv-setup-hero{width:92px;height:92px;border-radius:24px;display:flex;align-items:center;justify-content:center;margin:6px auto 20px;color:#fff;box-shadow:0 14px 34px -12px rgba(0,0,0,.35);}
+    .bv-setup-hero svg{width:42px;height:42px;}
+    .bv-setup-body h3{margin:0 0 8px;text-align:center;font-family:var(--serif,inherit);font-size:23px;font-weight:800;letter-spacing:-.01em;}
+    .bv-setup-body .sub{margin:0 auto 20px;text-align:center;font-size:14px;line-height:1.5;color:var(--ink-soft,#3f4654);max-width:32ch;}
+    .bv-opts{display:flex;flex-direction:column;gap:12px;}
+    .bv-opt{display:flex;align-items:flex-start;gap:13px;text-align:left;width:100%;padding:14px 15px;border:2px solid var(--line,#e5e7eb);border-radius:16px;background:var(--surface-2,#f6f7f9);color:inherit;cursor:pointer;transition:border-color .15s,background .15s;}
+    .bv-opt.sel{border-color:var(--accent,#e23b3b);background:color-mix(in srgb,var(--accent,#e23b3b) 9%,var(--surface-2,#f6f7f9));}
+    .bv-opt-emoji{font-size:25px;line-height:1.1;flex-shrink:0;}
+    .bv-opt-txt b{display:block;font-size:15px;font-weight:700;margin-bottom:3px;}
+    .bv-opt-txt span{font-size:12.5px;color:var(--ink-soft,#3f4654);line-height:1.45;}
+    .bv-field{margin-bottom:18px;}
+    .bv-field-lbl{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-mute,#8b91a0);margin-bottom:9px;}
+    .bv-seg{display:flex;gap:8px;}
+    .bv-seg button{flex:1;padding:11px 6px;border:2px solid var(--line,#e5e7eb);border-radius:12px;background:var(--surface-2,#f6f7f9);color:inherit;font-size:13.5px;font-weight:600;cursor:pointer;}
+    .bv-seg button.sel{border-color:var(--accent,#e23b3b);background:color-mix(in srgb,var(--accent,#e23b3b) 10%,transparent);}
+    .bv-skins{display:flex;gap:12px;}
+    .bv-skin{cursor:pointer;background:none;border:none;padding:0;}
+    .bv-skin i{display:block;width:60px;height:46px;border-radius:12px;border:2px solid var(--line,#e5e7eb);margin-bottom:5px;}
+    .bv-skin.sel i{border-color:var(--accent,#e23b3b);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent,#e23b3b) 30%,transparent);}
+    .bv-skin span{font-size:11.5px;color:var(--ink-soft);font-weight:600;}
+    .bv-note{font-size:12.5px;color:var(--ink-soft);line-height:1.45;background:var(--surface-2,#f6f7f9);border-radius:12px;padding:11px 13px;}
+    .bv-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;border-top:1px solid var(--line-soft,#eee);}
+    .bv-row.first{border-top:none;}
+    .bv-row-lbl b{display:block;font-size:14.5px;font-weight:700;}
+    .bv-row-lbl span{font-size:12px;color:var(--ink-soft);}
+    .bv-sel{font-family:var(--mono,monospace);font-weight:700;font-size:14px;border:2px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface-2);color:inherit;cursor:pointer;}
+    .bv-tgl{width:48px;height:28px;border-radius:999px;border:2px solid var(--line);background:var(--surface-2);position:relative;cursor:pointer;flex-shrink:0;transition:background .2s,border-color .2s;}
+    .bv-tgl::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--ink-mute);transition:transform .2s,background .2s;}
+    .bv-tgl.on{background:var(--accent);border-color:var(--accent);}
+    .bv-tgl.on::after{transform:translateX(20px);background:#fff;}
+    .bv-setup-foot{padding:14px 24px calc(18px + env(safe-area-inset-bottom,0));display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--line-soft,#eee);}
+    .bv-setup-dots{display:flex;gap:7px;justify-content:center;}
+    .bv-setup-dots i{width:7px;height:7px;border-radius:50%;background:var(--line,#d6d9e0);transition:all .25s;}
+    .bv-setup-dots i.on{background:var(--accent,#e23b3b);width:22px;border-radius:4px;}
+    .bv-setup-nav{display:flex;gap:10px;}
+    .bv-setup-btn{flex:1;border:2px solid var(--line);border-radius:14px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;background:var(--surface-2);color:inherit;}
+    .bv-setup-btn.primary{flex:2;background:var(--accent,#e23b3b);border-color:var(--accent,#e23b3b);color:#fff;}
+    .bv-setup-ghost{background:none;border:none;color:var(--ink-mute);font-size:13.5px;font-weight:600;cursor:pointer;padding:2px;}
   `;
   const el = document.createElement('style');
-  el.id = 'bv-wc-style';
+  el.id = 'bv-setup-style';
   el.textContent = css;
   document.head.appendChild(el);
 }
 
-function wcFinish(thenTour) {
-  try { localStorage.setItem(WELCOME_FLAG, '1'); } catch {}
-  document.removeEventListener('keydown', wcKey);
-  _wcTrapRelease?.();
-  _wcTrapRelease = null;
-  wcRoot?.remove();
-  wcRoot = null;
-  if (thenTour) { try { startOnboarding(); } catch {} }
+function heroHTML(icon, hue) {
+  return `<div class="bv-setup-hero" style="background:linear-gradient(145deg,oklch(.62 .19 ${hue}),oklch(.5 .16 ${(hue + 32) % 360}));">${typeof I[icon] === 'function' ? I[icon]({ w: 42 }) : ''}</div>`;
 }
 
-function wcKey(e) {
-  if (e.key === 'Escape') wcFinish(false);
-  else if (e.key === 'ArrowRight') wcGo(1);
-  else if (e.key === 'ArrowLeft') wcGo(-1);
-}
-
-function wcRender() {
-  if (!wcRoot) return;
-  const track = wcRoot.querySelector('.bv-wc-track');
-  track.style.transform = `translateX(-${wcIdx * 100}%)`;
-  wcRoot.querySelectorAll('.bv-wc-dots i').forEach((d, i) => d.classList.toggle('on', i === wcIdx));
-  const last = wcIdx === WELCOME_SLIDES.length - 1;
-  wcRoot.querySelector('.bv-wc-btn').textContent = last ? 'Get started' : 'Next';
-  wcRoot.querySelector('.bv-wc-tour').style.display = last ? 'block' : 'none';
-  wcRoot.querySelector('.bv-wc-skip').style.visibility = last ? 'hidden' : 'visible';
-}
-
-function wcGo(delta) {
-  wcIdx = Math.max(0, Math.min(WELCOME_SLIDES.length - 1, wcIdx + delta));
-  wcRender();
-}
-
-export function showWelcome() {
-  try {
-    if (wcRoot) return;
-    ensureWelcomeStyles();
-    wcIdx = 0;
-    wcRoot = document.createElement('div');
-    wcRoot.className = 'bv-wc';
-    wcRoot.setAttribute('role', 'dialog');
-    wcRoot.setAttribute('aria-modal', 'true');
-    wcRoot.setAttribute('aria-label', 'Welcome to BricksVault');
-    const slides = WELCOME_SLIDES.map(s => `
-      <div class="bv-wc-slide">
-        <div class="bv-wc-hero" style="background:linear-gradient(145deg,oklch(.62 .19 ${s.hue}),oklch(.5 .16 ${(s.hue + 32) % 360}));">${typeof I[s.icon] === 'function' ? I[s.icon]({ w: 62 }) : ''}</div>
-        <h3>${s.title}</h3>
-        <p>${s.body}</p>
-      </div>`).join('');
-    const dots = WELCOME_SLIDES.map((_, i) => `<i class="${i === 0 ? 'on' : ''}"></i>`).join('');
-    wcRoot.innerHTML = `
-      <div class="bv-wc-top"><button class="bv-wc-skip" data-act="skip">Skip</button></div>
-      <div class="bv-wc-view"><div class="bv-wc-track">${slides}</div></div>
-      <div class="bv-wc-foot">
-        <div class="bv-wc-dots">${dots}</div>
-        <button class="bv-wc-btn" data-act="next">Next</button>
-        <button class="bv-wc-tour" data-act="tour" style="display:none;">Take the guided tour</button>
+function stepBodyHTML(key) {
+  if (key === 'welcome') {
+    return `${heroHTML('box', 4)}
+      <h3>Welcome to BricksVault</h3>
+      <p class="sub">Let's make it yours — a few quick choices so the app feels right from the first tap.</p>`;
+  }
+  if (key === 'mode') {
+    const m = getModePref();
+    const opt = (id, emoji, title, desc) =>
+      `<button class="bv-opt ${m === id ? 'sel' : ''}" data-mode="${id}"><div class="bv-opt-emoji">${emoji}</div><div class="bv-opt-txt"><b>${title}</b><span>${desc}</span></div></button>`;
+    return `<h3>How will you use it?</h3>
+      <p class="sub">You can change this anytime in Settings.</p>
+      <div class="bv-opts">
+        ${opt('pro', '📈', 'Pro', 'Full investor view — market value, ROI and 2- & 5-year forecasts.')}
+        ${opt('simple', '✨', 'Simple', 'Just your sets and what they\'re worth. No jargon.')}
+        ${opt('kids', '🧒', 'Kids', 'Playful, price-free mode with XP and badges. Add a parent PIN later.')}
       </div>`;
-    wcRoot.addEventListener('click', (e) => {
-      const act = e.target?.closest('[data-act]')?.dataset?.act;
-      if (!act) return;
+  }
+  if (key === 'appearance') {
+    const t = getThemePref(), kids = getModePref() === 'kids';
+    const seg = [['light', 'Light'], ['auto', 'Auto'], ['dark', 'Dark']]
+      .map(([v, l]) => `<button class="${t === v ? 'sel' : ''}" data-theme="${v}">${l}</button>`).join('');
+    const sk = getSkinPref();
+    const skins = SETUP_SKINS.map(s =>
+      `<button class="bv-skin ${sk === s.id ? 'sel' : ''}" data-skin="${s.id}"><i style="background:${s.grad};"></i><span>${s.label}</span></button>`).join('');
+    return `<h3>Pick your look</h3>
+      <p class="sub">Preview updates instantly.</p>
+      <div class="bv-field"><div class="bv-field-lbl">Theme</div><div class="bv-seg" id="suTheme">${seg}</div></div>
+      ${kids
+        ? `<div class="bv-note">🧒 Kids mode uses its own bright, playful colors — you can switch modes in Settings to choose a different look.</div>`
+        : `<div class="bv-field"><div class="bv-field-lbl">Color style</div><div class="bv-skins" id="suSkins">${skins}</div></div>`}`;
+  }
+  if (key === 'extras') {
+    const cur = (state.me && state.me.currency) || localStorage.getItem('bv_currency') || 'USD';
+    const opts = SETUP_CURRENCIES.map(c => `<option value="${c}" ${c === cur ? 'selected' : ''}>${c}</option>`).join('');
+    return `<h3>A few extras</h3>
+      <p class="sub">Optional — tweak later in Settings.</p>
+      <div class="bv-row first">
+        <div class="bv-row-lbl"><b>Currency</b><span>Show values in your local currency.</span></div>
+        <select class="bv-sel" id="suCurrency">${opts}</select>
+      </div>
+      <div class="bv-row">
+        <div class="bv-row-lbl"><b>Celebration sounds</b><span>A chime on milestones and rewards.</span></div>
+        <button class="bv-tgl ${soundEnabled() ? 'on' : ''}" id="suSound" role="switch" aria-label="Celebration sounds" aria-checked="${soundEnabled()}"></button>
+      </div>
+      <div class="bv-row">
+        <div class="bv-row-lbl"><b>AI assistant</b><span>Floating button for price help.</span></div>
+        <button class="bv-tgl ${advisorEnabled() ? 'on' : ''}" id="suAdvisor" role="switch" aria-label="AI assistant" aria-checked="${advisorEnabled()}"></button>
+      </div>`;
+  }
+  // done
+  return `${heroHTML('sparkles', 36)}
+    <h3>You're all set!</h3>
+    <p class="sub">Your app is ready. Add your first set to see it valued — or explore around.</p>`;
+}
+
+function stepFootHTML(key) {
+  const dots = SETUP_STEPS.map((_, i) => `<i class="${i === suIdx ? 'on' : ''}"></i>`).join('');
+  const last = key === 'done';
+  let nav;
+  if (last) {
+    nav = `<div class="bv-setup-nav">
+        <button class="bv-setup-btn" data-act="explore">Explore</button>
+        <button class="bv-setup-btn primary" data-act="add">Add my first set</button>
+      </div>
+      <button class="bv-setup-ghost" data-act="tour">Take the guided tour</button>`;
+  } else {
+    nav = `<div class="bv-setup-nav">
+        ${suIdx > 0 ? '<button class="bv-setup-btn" data-act="back">Back</button>' : ''}
+        <button class="bv-setup-btn primary" data-act="next">${key === 'welcome' ? "Let's go" : 'Continue'}</button>
+      </div>`;
+  }
+  return `<div class="bv-setup-dots">${dots}</div>${nav}`;
+}
+
+function suApplyCurrency(val) {
+  try {
+    localStorage.setItem('bv_currency', val);
+    api('/api/me', { method: 'PATCH', body: { currency: val } }).catch(() => {});
+    if (state.me) state.me.currency = val;
+    bvIDB.del('portfolio').catch(() => {});
+    invalidatePortfolio();
+    state.portfolioHistory = null;
+  } catch {}
+}
+
+function suWireStep(key) {
+  const body = suRoot.querySelector('.bv-setup-body');
+  if (key === 'mode') {
+    body.querySelectorAll('.bv-opt').forEach(b => b.addEventListener('click', () => {
       haptic('light');
-      if (act === 'skip') wcFinish(false);
-      else if (act === 'tour') wcFinish(true);
-      else if (act === 'next') {
-        if (wcIdx === WELCOME_SLIDES.length - 1) wcFinish(false);
-        else wcGo(1);
-      }
+      const mode = b.dataset.mode;
+      setModePref(mode);
+      // Leaving Kids mode? Its forced 'kids' skin would linger — reset to default.
+      if (mode !== 'kids' && getSkinPref() === 'kids') setSkinPref('retro');
+      body.querySelectorAll('.bv-opt').forEach(x => x.classList.toggle('sel', x === b));
+    }));
+  } else if (key === 'appearance') {
+    body.querySelectorAll('#suTheme button').forEach(b => b.addEventListener('click', () => {
+      haptic('light');
+      setThemePref(b.dataset.theme);
+      body.querySelectorAll('#suTheme button').forEach(x => x.classList.toggle('sel', x === b));
+    }));
+    body.querySelectorAll('#suSkins .bv-skin').forEach(b => b.addEventListener('click', () => {
+      haptic('light');
+      setSkinPref(b.dataset.skin);
+      body.querySelectorAll('#suSkins .bv-skin').forEach(x => x.classList.toggle('sel', x === b));
+    }));
+  } else if (key === 'extras') {
+    body.querySelector('#suCurrency')?.addEventListener('change', e => { haptic('light'); suApplyCurrency(e.target.value); });
+    body.querySelector('#suSound')?.addEventListener('click', e => {
+      const on = localStorage.getItem('bv_sound') === 'off';
+      localStorage.setItem('bv_sound', on ? 'on' : 'off');
+      e.currentTarget.classList.toggle('on', on);
+      e.currentTarget.setAttribute('aria-checked', String(on));
+      haptic('medium');
+      if (on) celebrateChime();
     });
-    // Touch swipe between slides.
-    let x0 = null;
-    const view = wcRoot.querySelector('.bv-wc-view');
-    view.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; }, { passive: true });
-    view.addEventListener('touchend', (e) => {
-      if (x0 == null) return;
-      const dx = e.changedTouches[0].clientX - x0;
-      if (Math.abs(dx) > 45) wcGo(dx < 0 ? 1 : -1);
-      x0 = null;
-    }, { passive: true });
-    document.body.appendChild(wcRoot);
-    document.addEventListener('keydown', wcKey);
-    _wcTrapRelease = activateFocusTrap(wcRoot);
-    wcRoot.querySelector('.bv-wc-btn')?.focus();
-    wcRender();
-  } catch {
-    wcRoot?.remove();
-    wcRoot = null;
+    body.querySelector('#suAdvisor')?.addEventListener('click', e => {
+      const on = localStorage.getItem('bv_advisor') === 'off';
+      localStorage.setItem('bv_advisor', on ? 'on' : 'off');
+      e.currentTarget.classList.toggle('on', on);
+      e.currentTarget.setAttribute('aria-checked', String(on));
+      haptic('medium');
+    });
   }
 }
 
-// First-run trigger for the welcome carousel. Defensive: only when not yet seen,
-// the main nav is visible (i.e. not the login screen), and never throws.
+function suRender() {
+  if (!suRoot) return;
+  const key = SETUP_STEPS[suIdx];
+  suRoot.querySelector('.bv-setup-body').innerHTML = stepBodyHTML(key);
+  suRoot.querySelector('.bv-setup-foot').innerHTML = stepFootHTML(key);
+  suRoot.querySelector('.bv-setup-skip').style.visibility = key === 'done' ? 'hidden' : 'visible';
+  suWireStep(key);
+  suRoot.querySelector('.bv-setup-body').scrollTop = 0;
+}
+
+function suGo(delta) {
+  suIdx = Math.max(0, Math.min(SETUP_STEPS.length - 1, suIdx + delta));
+  suRender();
+}
+
+function suFinish(dest) {
+  try { localStorage.setItem(SETUP_FLAG, '1'); } catch {}
+  document.removeEventListener('keydown', suKey);
+  suTrap?.(); suTrap = null;
+  suRoot?.remove(); suRoot = null;
+  // Re-render so mode/currency changes take effect on the live view underneath.
+  try {
+    if (getModePref() === 'kids') location.hash = '#/kids';
+    else if (dest === 'add') location.hash = '#/add';
+    else route();
+  } catch {}
+  if (dest === 'tour') { try { startOnboarding(); } catch {} }
+}
+
+function suKey(e) {
+  if (e.key === 'Escape') suFinish(null);
+  else if (e.key === 'ArrowRight') suGo(1);
+  else if (e.key === 'ArrowLeft') suGo(-1);
+}
+
+export function showSetup() {
+  try {
+    if (suRoot) return;
+    ensureSetupStyles();
+    suIdx = 0;
+    suRoot = document.createElement('div');
+    suRoot.className = 'bv-setup';
+    suRoot.setAttribute('role', 'dialog');
+    suRoot.setAttribute('aria-modal', 'true');
+    suRoot.setAttribute('aria-label', 'Set up BricksVault');
+    suRoot.innerHTML = `
+      <div class="bv-setup-top"><button class="bv-setup-skip" data-act="skip">Skip</button></div>
+      <div class="bv-setup-body"></div>
+      <div class="bv-setup-foot"></div>`;
+    suRoot.addEventListener('click', (e) => {
+      const act = e.target?.closest('[data-act]')?.dataset?.act;
+      if (!act) return;
+      haptic('light');
+      if (act === 'skip') suFinish(null);
+      else if (act === 'back') suGo(-1);
+      else if (act === 'next') suGo(1);
+      else if (act === 'add') suFinish('add');
+      else if (act === 'explore') suFinish(null);
+      else if (act === 'tour') suFinish('tour');
+    });
+    document.body.appendChild(suRoot);
+    document.addEventListener('keydown', suKey);
+    suTrap = activateFocusTrap(suRoot);
+    suRender();
+    suRoot.querySelector('.bv-setup-foot .primary')?.focus();
+  } catch {
+    suRoot?.remove();
+    suRoot = null;
+  }
+}
+
+// First-run trigger for the setup wizard. Defensive: only when not yet seen, the
+// main nav is visible (i.e. not the login screen), and never throws into boot.
 export function maybeShowWelcome() {
   try {
-    if (localStorage.getItem(WELCOME_FLAG)) return;
+    if (localStorage.getItem(SETUP_FLAG)) return;
     if (!isLaunchSurface()) return;
     const nav = document.getElementById('nav');
     if (!nav || getComputedStyle(nav).display === 'none') return;
-    showWelcome();
+    showSetup();
   } catch {}
 }
