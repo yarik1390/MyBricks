@@ -601,9 +601,11 @@ async function guestAddCollection(body = {}) {
   return { item };
 }
 
-function guestPatchCollection(id, body = {}) {
+function guestPatchCollection(ref, body = {}) {
   const items = readGuestCollection();
-  const idx = items.findIndex(item => String(item.id) === String(id));
+  // Match by id OR set_num — legacy/imported guest items may have no id, in
+  // which case the client addresses them by set_num (see selRef in portfolio.js).
+  const idx = items.findIndex(item => String(item.id) === String(ref) || sameSetNum(item.set_num, ref));
   if (idx < 0) throw new Error('Not found');
   const allowed = ['quantity','condition','purchase_price','purchased_at','notes','storage_location','acquisition_source','is_complete','missing_pieces'];
   const next = { ...items[idx] };
@@ -620,9 +622,10 @@ function guestPatchCollection(id, body = {}) {
   return { item: items[idx] };
 }
 
-function guestDeleteCollection(id) {
+function guestDeleteCollection(ref) {
   const items = readGuestCollection();
-  writeGuestCollection(items.filter(item => String(item.id) !== String(id)));
+  // Remove the row matching by id OR set_num (legacy items may lack an id).
+  writeGuestCollection(items.filter(item => String(item.id) !== String(ref) && !sameSetNum(item.set_num, ref)));
   return null;
 }
 

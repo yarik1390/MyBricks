@@ -1090,6 +1090,14 @@ export function refreshNavBadge() {
 /* ============================================================
    Selection & Bulk Actions Helpers
    ============================================================ */
+// A set card renders data-id="${item.id || item.set_num}" — so a selection key
+// can be a collection-row id OR (for legacy/imported items with no id) a
+// set_num. Bulk actions MUST resolve the selected items and address the API the
+// SAME way, otherwise a selected set matches nothing, gets skipped, and the
+// action still reports success (the "Sets removed but nothing deleted" bug).
+const selRef = (item) => String(item.id || item.set_num);
+const apiRef = (item) => encodeURIComponent(item.id || item.set_num);
+
 function enterSelectionMode(firstId) {
   state.selectionMode = true;
   state.selectedSets = new Set();
@@ -1149,11 +1157,12 @@ async function handleBulkLocation() {
   if (!ids.length) return;
   const loc = await promptSheet({ title: "Bulk Location", label: "Set storage location for selected sets", value: "", placeholder: "e.g. Closet A, Shelf 2" });
   if (loc === null) return;
+  const selectedItems = state.portfolio.items.filter(item => state.selectedSets.has(selRef(item)));
+  if (!selectedItems.length) { toast("No matching sets to update", "error"); return; }
   toast("Updating locations...", "info");
   try {
-    const selectedItems = state.portfolio.items.filter(item => state.selectedSets.has(String(item.id)));
-    await Promise.all(selectedItems.map(item => 
-      api("/api/collection/" + item.id, { method: "PATCH", body: { storage_location: loc || null } })
+    await Promise.all(selectedItems.map(item =>
+      api("/api/collection/" + apiRef(item), { method: "PATCH", body: { storage_location: loc || null } })
     ));
     invalidatePortfolio();
     toast("Storage locations updated", "success");
@@ -1174,14 +1183,15 @@ async function handleBulkDelete() {
     danger: true
   });
   if (!confirmed) return;
+  const selectedItems = state.portfolio.items.filter(item => state.selectedSets.has(selRef(item)));
+  if (!selectedItems.length) { toast("No matching sets to remove", "error"); return; }
   toast("Deleting sets...", "info");
   try {
-    const selectedItems = state.portfolio.items.filter(item => state.selectedSets.has(String(item.id)));
     await Promise.all(selectedItems.map(item =>
-      api("/api/collection/" + item.id, { method: "DELETE" })
+      api("/api/collection/" + apiRef(item), { method: "DELETE" })
     ));
     invalidatePortfolio();
-    toast("Sets removed", "success");
+    toast(`Removed ${selectedItems.length} set${selectedItems.length !== 1 ? "s" : ""}`, "success");
     exitSelectionMode();
     await renderPortfolio();
   } catch (err) {
@@ -1190,7 +1200,7 @@ async function handleBulkDelete() {
 }
 
 function handleBulkExport() {
-  const selectedItems = state.portfolio.items.filter(item => state.selectedSets.has(String(item.id)));
+  const selectedItems = state.portfolio.items.filter(item => state.selectedSets.has(selRef(item)));
   if (!selectedItems.length) return;
   
   let csvContent = "data:text/csv;charset=utf-8,";

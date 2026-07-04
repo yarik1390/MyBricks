@@ -628,7 +628,7 @@ function wireDetailActions(set, entry) {
       });
       if (!ok) return;
       try {
-        await api("/api/collection/" + entry.id, { method: "DELETE" });
+        await api("/api/collection/" + encodeURIComponent(entry.id || set.set_num), { method: "DELETE" });
         invalidatePortfolio(); state.catalog.items = [];
         toast("Removed from vault", "success");
         const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
