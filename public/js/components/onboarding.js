@@ -202,7 +202,7 @@ export function maybeStartOnboarding() {
 // still offered on the final step. Self-contained; never throws into boot.
 // ---------------------------------------------------------------------------
 const SETUP_FLAG = 'bv_setup_v1';
-const SETUP_STEPS = ['welcome', 'mode', 'appearance', 'extras', 'done'];
+const SETUP_STEPS = ['welcome', 'mode', 'appearance', 'extras', 'support', 'done'];
 const SETUP_SKINS = [
   { id: 'retro',   label: 'Retro',   grad: 'linear-gradient(135deg,#F5F1E8 50%,#DA291C 50%)' },
   { id: 'modular', label: 'Modular', grad: 'linear-gradient(135deg,#FBF8F1 50%,#2E7D32 50%)' },
@@ -241,6 +241,9 @@ function ensureSetupStyles() {
     .bv-skin.sel i{border-color:var(--accent,#e23b3b);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent,#e23b3b) 30%,transparent);}
     .bv-skin span{font-size:11.5px;color:var(--ink-soft);font-weight:600;}
     .bv-note{font-size:12.5px;color:var(--ink-soft);line-height:1.45;background:var(--surface-2,#f6f7f9);border-radius:12px;padding:11px 13px;}
+    .bv-perks{list-style:none;margin:0 0 16px;padding:0;display:flex;flex-direction:column;gap:10px;}
+    .bv-perks li{position:relative;padding-left:26px;font-size:14px;line-height:1.4;}
+    .bv-perks li::before{content:"✦";position:absolute;left:4px;top:0;color:var(--accent,#e23b3b);font-weight:700;}
     .bv-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;border-top:1px solid var(--line-soft,#eee);}
     .bv-row.first{border-top:none;}
     .bv-row-lbl b{display:block;font-size:14.5px;font-weight:700;}
@@ -319,6 +322,17 @@ function stepBodyHTML(key) {
         <button class="bv-tgl ${advisorEnabled() ? 'on' : ''}" id="suAdvisor" role="switch" aria-label="AI assistant" aria-checked="${advisorEnabled()}"></button>
       </div>`;
   }
+  if (key === 'support') {
+    return `${heroHTML('sparkles', 45)}
+      <h3>BricksVault Pro ⭐</h3>
+      <p class="sub">BricksVault is independent and ad-free. Going Pro keeps it alive — and unlocks a few extras.</p>
+      <ul class="bv-perks">
+        <li>Premium &amp; Gold ★ color skins</li>
+        <li>Higher AI advisor limits</li>
+        <li>⭐ badge on your public profile</li>
+      </ul>
+      <div class="bv-note">No pressure — everything you need stays free. You can go Pro anytime from Settings.</div>`;
+  }
   // done
   return `${heroHTML('sparkles', 36)}
     <h3>You're all set!</h3>
@@ -339,7 +353,8 @@ function stepFootHTML(key) {
     nav = `<div class="bv-setup-nav">
         ${suIdx > 0 ? '<button class="bv-setup-btn" data-act="back">Back</button>' : ''}
         <button class="bv-setup-btn primary" data-act="next">${key === 'welcome' ? "Let's go" : 'Continue'}</button>
-      </div>`;
+      </div>
+      ${key === 'support' ? '<button class="bv-setup-ghost" data-act="support">See Pro options →</button>' : ''}`;
   }
   return `<div class="bv-setup-dots">${dots}</div>${nav}`;
 }
@@ -419,8 +434,10 @@ function suFinish(dest) {
   suRoot?.remove(); suRoot = null;
   // Re-render so mode/currency changes take effect on the live view underneath.
   try {
-    if (getModePref() === 'kids') location.hash = '#/kids';
+    if (dest === 'tour') route();
+    else if (dest === 'support') location.hash = '#/me';
     else if (dest === 'add') location.hash = '#/add';
+    else if (getModePref() === 'kids') location.hash = '#/kids';
     else route();
   } catch {}
   if (dest === 'tour') { try { startOnboarding(); } catch {} }
@@ -455,6 +472,7 @@ export function showSetup() {
       else if (act === 'next') suGo(1);
       else if (act === 'add') suFinish('add');
       else if (act === 'explore') suFinish(null);
+      else if (act === 'support') suFinish('support');
       else if (act === 'tour') suFinish('tour');
     });
     document.body.appendChild(suRoot);
