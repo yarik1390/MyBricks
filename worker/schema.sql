@@ -427,42 +427,41 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 );
 CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
 
--- FTS5 search. This index is derived from lego_sets and can be rebuilt safely.
-DROP TRIGGER IF EXISTS lego_sets_ai;
-DROP TRIGGER IF EXISTS lego_sets_ad;
-DROP TRIGGER IF EXISTS lego_sets_au;
-DROP TABLE IF EXISTS lego_sets_fts;
-
-CREATE VIRTUAL TABLE lego_sets_fts USING fts5(
+-- FTS5 search — STANDALONE (not external-content), and IDEMPOTENT. schema.sql
+-- runs on every deploy, so this must NOT drop + rebuild the index (that wrote
+-- ~425k rows per deploy). The IF NOT EXISTS + backfill-when-empty form makes a
+-- re-run a no-op once the index exists; the triggers keep it current. Standalone
+-- (no content='lego_sets') so it can't raise SQLITE_CORRUPT_VTAB when it diverges
+-- from lego_sets under heavy writes — the cause of the FTS rebuild loop.
+CREATE VIRTUAL TABLE IF NOT EXISTS lego_sets_fts USING fts5(
   set_num,
   name,
   theme,
   subtheme,
   theme_group,
-  brickset_tags,
-  content='lego_sets',
-  content_rowid='rowid'
+  brickset_tags
 );
 
-CREATE TRIGGER lego_sets_ai AFTER INSERT ON lego_sets BEGIN
+CREATE TRIGGER IF NOT EXISTS lego_sets_ai AFTER INSERT ON lego_sets BEGIN
   INSERT INTO lego_sets_fts(rowid, set_num, name, theme, subtheme, theme_group, brickset_tags)
   VALUES (new.rowid, new.set_num, new.name, new.theme, new.subtheme, new.theme_group, new.brickset_tags);
 END;
 
-CREATE TRIGGER lego_sets_ad AFTER DELETE ON lego_sets BEGIN
-  INSERT INTO lego_sets_fts(lego_sets_fts, rowid, set_num, name, theme, subtheme, theme_group, brickset_tags)
-  VALUES('delete', old.rowid, old.set_num, old.name, old.theme, old.subtheme, old.theme_group, old.brickset_tags);
+CREATE TRIGGER IF NOT EXISTS lego_sets_ad AFTER DELETE ON lego_sets BEGIN
+  DELETE FROM lego_sets_fts WHERE rowid = old.rowid;
 END;
 
-CREATE TRIGGER lego_sets_au AFTER UPDATE OF set_num, name, theme, subtheme, theme_group, brickset_tags ON lego_sets BEGIN
-  INSERT INTO lego_sets_fts(lego_sets_fts, rowid, set_num, name, theme, subtheme, theme_group, brickset_tags)
-  VALUES('delete', old.rowid, old.set_num, old.name, old.theme, old.subtheme, old.theme_group, old.brickset_tags);
+CREATE TRIGGER IF NOT EXISTS lego_sets_au AFTER UPDATE OF set_num, name, theme, subtheme, theme_group, brickset_tags ON lego_sets BEGIN
+  DELETE FROM lego_sets_fts WHERE rowid = old.rowid;
   INSERT INTO lego_sets_fts(rowid, set_num, name, theme, subtheme, theme_group, brickset_tags)
   VALUES(new.rowid, new.set_num, new.name, new.theme, new.subtheme, new.theme_group, new.brickset_tags);
 END;
 
+-- One-time backfill: only runs while the index is empty (fresh DB). On an already
+-- populated index this inserts nothing, so re-running schema.sql writes no rows.
 INSERT INTO lego_sets_fts(rowid, set_num, name, theme, subtheme, theme_group, brickset_tags)
-SELECT rowid, set_num, name, theme, subtheme, theme_group, brickset_tags FROM lego_sets;
+SELECT rowid, set_num, name, theme, subtheme, theme_group, brickset_tags FROM lego_sets
+WHERE NOT EXISTS (SELECT 1 FROM lego_sets_fts);
 
 -- Per-source daily external-API budget ledger (Pricing Engine v2.1 Phase 1c).
 -- One row per (service, UTC day); `used` is incremented by spend/reserve

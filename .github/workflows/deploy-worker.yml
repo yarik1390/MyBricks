@@ -163,9 +163,13 @@ jobs:
           # authoritative and already ran above; best-effort backstop).
           npx wrangler d1 execute brickvault --remote --file=schema_migrate.sql 2>&1 || true
 
-      - name: Rebuild derived search index
-        working-directory: worker
-        run: npx wrangler d1 execute brickvault --remote --file=schema_search_index.sql 2>&1
+      # NOTE: the FTS search index is bootstrapped idempotently by schema.sql
+      # above (CREATE … IF NOT EXISTS + backfill-only-when-empty) and kept live by
+      # triggers — so there is deliberately NO per-deploy rebuild step here. The
+      # old `wrangler d1 execute --file=schema_search_index.sql` step DROP+rebuilt
+      # the whole ~425k-row index on EVERY deploy (a major D1 rows-written cost).
+      # To force a clean rebuild manually, run schema_search_index.sql or POST
+      # /api/admin/repair-search-index.
 
       # Migrations above run with error suppression, so a silently failed
       # migration can ship a broken DB (this caused a production outage where
