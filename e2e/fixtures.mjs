@@ -74,8 +74,9 @@ export const test = base.extend({
     await page.addInitScript((session) => {
       try {
         localStorage.setItem('bv_session', JSON.stringify(session));
-        // Suppress the first-run onboarding carousel + coach-mark tour, whose modal
+        // Suppress the first-run setup wizard + coach-mark tour, whose modal
         // overlay would otherwise intercept clicks (e.g. the wishlist toggle).
+        localStorage.setItem('bv_setup_v1', '1');
         localStorage.setItem('bv_welcome_v1', '1');
         localStorage.setItem('bv_onboarded_v1', '1');
       } catch {}
