@@ -4,6 +4,13 @@ on:
   push:
     branches: [claude/mybricks-lego-app-EdTPX]
   workflow_dispatch:
+
+# Cancel a running smoke suite when a newer commit supersedes it, so a burst of
+# pushes doesn't stack N parallel Playwright installs + browser downloads.
+concurrency:
+  group: e2e-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   smoke:
     runs-on: ubuntu-latest
@@ -14,6 +21,12 @@ jobs:
           node-version: 20
       - name: Install Playwright
         run: npm i -D @playwright/test
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json', 'e2e/**') }}
+          restore-keys: ${{ runner.os }}-playwright-
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run smoke suite

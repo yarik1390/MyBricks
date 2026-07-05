@@ -32,6 +32,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
 
       - name: Install worker dependencies
         working-directory: worker
@@ -377,7 +379,12 @@ jobs:
             -H "Authorization: Bearer ${ADMIN_JWT}" \
             | jq -e '.runs | type == "array"' >/dev/null
 
+      # Only seed data on production (main) deploys or an explicit manual run.
+      # Routine dev-branch code pushes deploy fast and skip this — the nightly
+      # populate-production.yml cron (02:30 UTC) keeps data fresh, so re-running
+      # it on every push was redundant (and added ~1.5 min + D1 writes per push).
       - name: Start full data population campaign
+        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
           if [ -z "${ADMIN_JWT:-}" ]; then

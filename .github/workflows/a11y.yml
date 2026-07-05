@@ -2,6 +2,13 @@ name: a11y
 on:
   pull_request:
   workflow_dispatch:
+
+# Cancel a superseded a11y run so rapid pushes don't stack parallel Playwright +
+# Lighthouse installs (both report-only, so nothing is lost by cancelling).
+concurrency:
+  group: a11y-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   a11y:
     runs-on: ubuntu-latest
@@ -12,6 +19,12 @@ jobs:
           node-version: 20
       - name: Install a11y tools
         run: npm i -D @playwright/test @axe-core/playwright @lhci/cli
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json', 'a11y/**') }}
+          restore-keys: ${{ runner.os }}-playwright-
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: axe-core (report-only)
