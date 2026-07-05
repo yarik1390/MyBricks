@@ -36,10 +36,16 @@ app.use('*', async (c, next) => { await applySourceConfig(c.env).catch(() => {})
 export { CATALOG_COLS, MARKET_EXT_JOIN };
 
 
-// Auto-repair throttle: at most one FTS rebuild per isolate per hour, and
-// never two in flight. Corrupted searches still answer via the LIKE fallback
-// while the rebuild runs in the background.
-const SEARCH_REPAIR_COOLDOWN_MS = 60 * 60 * 1000;
+// Auto-repair throttle. A cheap PER-ISOLATE gate (avoid hammering the guard
+// table) plus an authoritative GLOBAL cooldown claimed in app_settings.
+//
+// Why the global claim matters: the per-isolate variables below reset on every
+// cold start, and Cloudflare runs many isolates — so each fresh isolate used to
+// rebuild the whole ~425k-row FTS index once on the first corrupt search. That
+// turned intermittent external-content FTS5 corruption into ~60 full rebuilds =
+// ~25M D1 rows written. The app_settings claim caps rebuilds account-wide.
+const SEARCH_REPAIR_COOLDOWN_MS = 60 * 60 * 1000;   // per-isolate pre-check
+const SEARCH_REPAIR_GLOBAL_COOLDOWN = '-6 hours';   // account-wide cap
 let searchRepairLastAt = 0;
 let searchRepairInFlight = false;
 
@@ -52,11 +58,36 @@ function scheduleSearchIndexRepair(c: { env: { DB: D1Database }; executionCtx: {
   searchRepairInFlight = true;
   searchRepairLastAt = now;
   c.executionCtx.waitUntil(
-    rebuildSearchIndex(c.env.DB)
-      .then(r => console.log(`[search-index] auto-repaired, ${r.indexed_sets} sets indexed`))
+    repairSearchIndexOnce(c.env.DB)
       .catch(err => console.error('[search-index] auto-repair failed:', (err as Error).message))
       .finally(() => { searchRepairInFlight = false; })
   );
+}
+
+// Atomically claim the global rebuild slot, then rebuild only if we won it. The
+// UPSERT's WHERE runs the UPDATE (changes=1) only when the last rebuild is older
+// than the cooldown; concurrent isolates racing it see changes=0 and skip. Search
+// keeps answering via the LIKE fallback in between. Fails open if the guard table
+// is unavailable so search is never left permanently degraded.
+async function repairSearchIndexOnce(db: D1Database) {
+  let claimed = true;
+  try {
+    const res = await db.prepare(
+      `INSERT INTO app_settings (key, value, updated_at)
+       VALUES ('search_index_rebuilt_at', datetime('now'), datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value=datetime('now'), updated_at=datetime('now')
+       WHERE app_settings.updated_at < datetime('now', ?)`
+    ).bind(SEARCH_REPAIR_GLOBAL_COOLDOWN).run();
+    claimed = (res?.meta?.changes ?? 0) > 0;
+  } catch (err) {
+    console.warn('[search-index] cooldown guard unavailable, repairing anyway:', (err as Error).message);
+  }
+  if (!claimed) {
+    console.log('[search-index] repair skipped — rebuilt within the global cooldown');
+    return;
+  }
+  const r = await rebuildSearchIndex(db);
+  console.log(`[search-index] auto-repaired, ${r.indexed_sets} sets indexed`);
 }
 
 
