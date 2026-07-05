@@ -10,7 +10,9 @@ import { recordIntegrationAttempt } from '../lib/integration-health';
 //   • runPriceChartingBulkFetch — downloads the LEGO-sets price guide directly
 //     from PriceCharting (…/price-guide/download-custom?t=TOKEN&category=lego-sets).
 //     One ~2 MB request covers the whole LEGO catalog (~13k sets) vs thousands of
-//     per-set API calls. Driven by a weekly cron + an admin button.
+//     per-set API calls. Driven by a weekly (Sunday) cron + an admin button. A
+//     full-catalog re-stage + upsert is heavy on D1 rows-written, so it runs
+//     weekly (not daily) and skips unchanged prices (change-only upsert below).
 //   • runPriceChartingBulk — same parser for an admin-UPLOADED CSV (PRICECHARTING_PRO).
 //
 // The per-set /api/product path (jobs/pricecharting-enrich.ts) stays as the
@@ -211,13 +213,20 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
        pc_cached_at = datetime('now')
      FROM ${STAGE} s WHERE ${joinOn} AND (s.newv IS NOT NULL OR s.cibv IS NOT NULL)`,
   );
+  // COALESCE so a present value wins and NULL never clobbers existing data; the
+  // trailing WHERE skips the write entirely when neither column actually changes
+  // (IS NOT = null-safe inequality). Most rows are unchanged run-to-run, so this
+  // turns a full-table rewrite into a write only for genuinely-moved prices —
+  // set_market_ext has no freshness timestamp, so skipping no-ops has no downside.
   const extInsert = (joinOn: string) => env.DB.prepare(
     `INSERT INTO set_market_ext (set_num, pc_loose_value, pc_sales_volume)
        SELECT ls.set_num, s.loosev, s.salesvol FROM ${STAGE} s JOIN lego_sets ls ON ${joinOn}
        WHERE s.loosev IS NOT NULL OR s.salesvol IS NOT NULL
      ON CONFLICT(set_num) DO UPDATE SET
        pc_loose_value = COALESCE(excluded.pc_loose_value, set_market_ext.pc_loose_value),
-       pc_sales_volume = COALESCE(excluded.pc_sales_volume, set_market_ext.pc_sales_volume)`,
+       pc_sales_volume = COALESCE(excluded.pc_sales_volume, set_market_ext.pc_sales_volume)
+     WHERE COALESCE(excluded.pc_loose_value, set_market_ext.pc_loose_value) IS NOT set_market_ext.pc_loose_value
+        OR COALESCE(excluded.pc_sales_volume, set_market_ext.pc_sales_volume) IS NOT set_market_ext.pc_sales_volume`,
   );
   const BY_SETNUM = 's.setnum = ls.set_num';
   const BY_UPC = "s.upc = ls.upc AND s.upc IS NOT NULL AND s.upc <> ''";

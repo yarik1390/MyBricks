@@ -14,29 +14,33 @@ export async function runValuateMinifigs(env: Env, options: { limit?: number } =
   // (14-day TTL) so the targeted population cycles within the daily BrickLink budget.
   // "Collectible Minifigures" = figs that appear in a set with that theme (the
   // `series` column is populated for ~98% of figs, so it is NOT a CMF proxy).
-  // A MATERIALIZED CTE + LEFT JOINs keep this a single fast scan; a correlated
-  // EXISTS per fig was ~12s on the live catalog, this is ~1s.
+  //
+  // Membership is tested with `fig_num IN (subquery)` rather than LEFT JOINs onto
+  // a MATERIALIZED CTE. The old form left `cmf` un-indexed, so SQLite did
+  // `SCAN cmf LEFT-JOIN` once per minifigs row — a nested-loop blow-up that read
+  // billions of rows per run (dominating D1 query time). `IN (subquery)` lets
+  // SQLite build a bloom filter + ephemeral index for O(1) membership, so this
+  // is a single scan of minifigs: ~24k rows read vs billions, same result set.
   const { results } = await env.DB.prepare(`
-    WITH cmf AS MATERIALIZED (
+    WITH cmf AS (
       SELECT DISTINCT sm.fig_num FROM set_minifigs sm
       JOIN lego_sets ls ON ls.set_num = sm.set_num
       WHERE ls.theme = 'Collectible Minifigures'
-    )
+    ),
+    owned AS (SELECT DISTINCT fig_num FROM user_minifigs)
     SELECT m.fig_num, m.name, m.appears_in_sets, m.bl_id, m.year,
       (CASE
-        WHEN um.fig_num IS NOT NULL THEN 0
+        WHEN m.fig_num IN (SELECT fig_num FROM owned) THEN 0
         WHEN COALESCE(m.current_value, 0) >= 10 THEN 1
-        WHEN cmf.fig_num IS NOT NULL THEN 2
+        WHEN m.fig_num IN (SELECT fig_num FROM cmf) THEN 2
         ELSE 3
       END) AS priority
     FROM minifigs m
-    LEFT JOIN cmf ON cmf.fig_num = m.fig_num
-    LEFT JOIN (SELECT DISTINCT fig_num FROM user_minifigs) um ON um.fig_num = m.fig_num
     WHERE (m.cached_at IS NULL OR m.cached_at < datetime('now', '-14 days'))
       AND (
-        um.fig_num IS NOT NULL
+        m.fig_num IN (SELECT fig_num FROM owned)
         OR COALESCE(m.current_value, 0) >= 10
-        OR cmf.fig_num IS NOT NULL
+        OR m.fig_num IN (SELECT fig_num FROM cmf)
         OR COALESCE(m.appears_in_sets, 0) >= 3
       )
     ORDER BY priority ASC, COALESCE(m.cached_at, '2000-01-01') ASC, COALESCE(m.appears_in_sets, 0) DESC

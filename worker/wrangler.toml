@@ -53,9 +53,11 @@ crons = [
   "0 20 * * *",
   "0 23 * * *",
   # PriceCharting LEGO-sets bulk CSV refresh — one ~2MB download covers the whole
-  # LEGO catalog (~13k sets). Daily now that the Legendary tier is confirmed
-  # working: whole-catalog freshness for ~one download/day (rate limit is 1/10min).
-  "0 18 * * *",
+  # LEGO catalog (~13k sets). WEEKLY (Sunday): a full-catalog re-stage + upsert is
+  # the biggest recurring D1 rows-written source, and PC price-guide values move
+  # slowly, so weekly whole-catalog freshness is plenty. The per-set enrich (0 16)
+  # still tops up owned/wishlisted/new sets daily. (Cron day-name form, not 0=Sun.)
+  "0 18 * * SUN",
   "15 * * * *",
   "30 * * * *",
 ]

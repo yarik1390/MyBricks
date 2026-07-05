@@ -394,10 +394,10 @@ export default {
       // Upcoming/coming-soon release feed (G2b): one LEGO.com listing scrape/day.
       case '0 15 * * *': await run('upcoming-refresh', () => runUpcomingRefresh(env)); break;
       // PriceCharting is free (no BrickLink budget) and a genuine 2nd sold-comp
-      // source. The DAILY bulk CSV (0 18) now covers the whole catalog, so this
-      // per-set path is just a small top-up for brand-new sets + the ~6% of PC
-      // rows the bulk can't match by set_num/UPC (search-by-name may catch them).
-      // Trimmed 120 → 40 accordingly.
+      // source. The WEEKLY bulk CSV (0 18 Sun) covers the whole catalog, so this
+      // per-set path is the daily top-up for brand-new sets, owned/wishlisted
+      // priority, and the ~6% of PC rows the bulk can't match by set_num/UPC
+      // (search-by-name may catch them).
       case '0 16 * * *': await run('pricecharting-enrich', () => runPriceChartingEnrich(env, { limit: 40, concurrency: 8 })); break;
       // pricesAPI live-retail runs in 3 daily slots (~18 sets/day) now that the
       // key pool spreads the monthly budget; cold calls are 30–90s so each slot
@@ -405,10 +405,11 @@ export default {
       case '0 17 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 19 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 23 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
-      // PriceCharting whole-catalog bulk CSV — DAILY (Legendary tier confirmed
-      // working; one ~2MB download refreshes all ~13k sets, well under the
-      // 1-per-10-min download limit).
-      case '0 18 * * *': await run('pricecharting-bulk', () => runPriceChartingBulkFetch(env)); break;
+      // PriceCharting whole-catalog bulk CSV — WEEKLY (Sunday). The full-catalog
+      // re-stage + upsert was the biggest recurring D1 rows-written source; PC
+      // price-guide values move slowly, so weekly whole-catalog freshness is
+      // plenty and the per-set enrich (0 16) tops up owned/new sets daily.
+      case '0 18 * * SUN': await run('pricecharting-bulk', () => runPriceChartingBulkFetch(env)); break;
       // AI gap-fill: high-value formula sets that NO market source can price get a
       // free Gemini estimate (tries market first, AI only on a full miss). Small
       // limit + 3-day formula-head cooldown keep it well under the free tier; the
