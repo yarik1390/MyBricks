@@ -562,9 +562,9 @@ describe('BrickVault API Worker Tests', () => {
     });
 
     it('applies rate limit if X-OpenAI-Key header is missing', async () => {
-      // Setup rate limit to maximum
+      // Free users are capped per UTC day — seed today's bucket at the limit.
       const windowStart = new Date();
-      windowStart.setMinutes(0, 0, 0);
+      windowStart.setUTCHours(0, 0, 0, 0);
       const ws = windowStart.toISOString();
 
       await db.prepare(`
@@ -586,12 +586,14 @@ describe('BrickVault API Worker Tests', () => {
 
       expect(res.status).toBe(429);
       const data = await res.json<{ error: string }>();
-      expect(data.error).toContain('Rate limit: 20 photo scans per hour');
+      expect(data.error).toContain('Rate limit: 20 photo scans per day');
     });
 
     it('allows the 20th shared photo scan and blocks the 21st', async () => {
+      // Free tier: 20 scans per UTC day. Seed today's bucket at 19 so the next
+      // scan is the 20th (allowed) and the one after is the 21st (blocked).
       const windowStart = new Date();
-      windowStart.setMinutes(0, 0, 0);
+      windowStart.setUTCHours(0, 0, 0, 0);
       const ws = windowStart.toISOString();
 
       await db.prepare(`

@@ -14,8 +14,11 @@ import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// Free-tier server-key limit; bypassed when the user supplies their own Gemini/OpenAI key.
-const SCAN_HOURLY_LIMIT = 20;
+// Shared server-key scan limits; bypassed when the user supplies their own
+// Gemini/OpenAI key (BYOK). Free users get a daily cap; supporters keep a higher
+// hourly burst window.
+const SCAN_DAILY_LIMIT = 20;        // free tier: 20 AI photo scans per day
+const SCAN_HOURLY_LIMIT = 20;       // supporter burst window (× multiplier below)
 
 function openAIIdentificationMessage(error: unknown): string {
   const status = typeof (error as { status?: unknown })?.status === 'number'
@@ -211,16 +214,21 @@ app.post('/identify', async (c) => {
   }
 
   {
-    // Per-user hourly cap on the shared server quota. Supporters get 5× the limit.
+    // Per-user cap on the shared server quota (BYOK above bypasses this entirely).
+    // Free tier: 20 scans PER DAY (UTC-day bucket). Supporters keep a higher
+    // HOURLY burst window so paid users aren't newly restricted.
     const pref = await c.env.DB.prepare(
       'SELECT is_supporter FROM user_prefs WHERE user_id=?'
     ).bind(userId).first<{ is_supporter: number }>();
-    const limit = pref?.is_supporter ? SCAN_HOURLY_LIMIT * 5 : SCAN_HOURLY_LIMIT;
+    const isSupporter = !!pref?.is_supporter;
+    const limit = isSupporter ? SCAN_HOURLY_LIMIT * 5 : SCAN_DAILY_LIMIT;
+    const period = isSupporter ? 'hour' : 'day';
     const windowStart = new Date();
-    windowStart.setMinutes(0, 0, 0);
+    if (isSupporter) windowStart.setMinutes(0, 0, 0);   // top of the hour
+    else windowStart.setUTCHours(0, 0, 0, 0);           // start of the UTC day
     const ws = windowStart.toISOString();
     // Atomic increment+read (RETURNING) — closes the read-after-write race where
-    // two concurrent scans could both slip past the hourly cap.
+    // two concurrent scans could both slip past the cap.
     const rl = await c.env.DB.prepare(`
       INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
       VALUES (?, 'scan_image', ?, 1)
@@ -228,7 +236,7 @@ app.post('/identify', async (c) => {
       RETURNING hit_count
     `).bind(userId, ws).first<{ hit_count: number }>();
     if ((rl?.hit_count || 0) > limit) {
-      return c.json({ error: `Rate limit: ${limit} photo scans per hour. Set up your own API key to unlock unlimited scanning.` }, 429);
+      return c.json({ error: `Rate limit: ${limit} photo scans per ${period}. Add your own Gemini/OpenAI key for unlimited scanning.` }, 429);
     }
   }
 

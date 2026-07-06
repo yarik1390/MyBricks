@@ -670,7 +670,7 @@ function showScanResult(res) {
     const nudge = noKey ? `
       <div class="chat-gemini-card" style="margin:0 0 10px;">
         <div style="font-weight:600; font-size:13px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
-          ${I.flash({ w: 16 })}<span>${rateLimited ? "Hit the free scan limit?" : "Scan unlimited — free"}</span>
+          ${I.flash({ w: 16 })}<span>${rateLimited ? "Hit the daily scan limit?" : "Want unlimited scans?"}</span>
         </div>
         <div style="font-size:11px; color:var(--ink-mute); line-height:1.45;">
           Get a free key in 30 seconds at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--bv-red); font-weight:600; text-decoration:underline;">Google AI Studio</a> and save it in the <strong>Me</strong> tab for unlimited scans.
