@@ -127,6 +127,10 @@ app.get('/api/config', (c) => {
   const status = {
     supabase: !!(c.env.SUPABASE_URL && c.env.SUPABASE_ANON_KEY && c.env.SUPABASE_JWT_SECRET),
     d1: !!c.env.DB,
+    // Usage analytics (logEvent). The deploy strips this binding unless the
+    // ENABLE_ANALYTICS_ENGINE secret is true — surface it so "is my usage data
+    // actually being collected?" is answerable from /api/config, not CI logs.
+    analytics: !!c.env.ANALYTICS,
     openai: !!c.env.OPENAI_API_KEY,
     gemini: geminiMissing.length === 0,
     email: emailMissing.length === 0,

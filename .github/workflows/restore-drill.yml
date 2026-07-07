@@ -1,0 +1,101 @@
+name: D1 backup restore drill
+
+# A backup that has never been restored is a hope, not a backup. Monthly (and
+# on demand), this takes the NEWEST nightly dump from R2, restores it into a
+# throwaway D1 database, validates the core tables actually came back, then
+# deletes the scratch DB. Production (the `brickvault` database) is never
+# touched — the drill DB name is guarded below.
+#
+# Fails loudly when: no dump exists, the dump doesn't import, or the restored
+# catalog looks empty — i.e. exactly the cases where you'd WANT to find out
+# now rather than during a real disaster.
+
+on:
+  schedule:
+    - cron: "0 9 1 * *"   # 09:00 UTC on the 1st of each month (after the 08:00 backup)
+  workflow_dispatch: {}
+
+concurrency:
+  group: brickvault-restore-drill
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      BACKUP_BUCKET: brickvault-backups
+      DRILL_DB: brickvault-restore-drill
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Safety guard — the drill must never target production
+        run: |
+          set -euo pipefail
+          if [ "${DRILL_DB}" = "brickvault" ]; then
+            echo "::error::DRILL_DB must not be the production database name"; exit 1
+          fi
+
+      - name: Find the newest dump in R2
+        run: |
+          set -euo pipefail
+          # Timestamped keys (brickvault-YYYY-MM-DD_HHMMSSZ.sql.gz) sort
+          # lexicographically = chronologically, so the last key is the newest.
+          KEY="$(curl -sf \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets/${BACKUP_BUCKET}/objects?prefix=d1/&per_page=1000" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            | jq -r '[.result[].key] | sort | last // empty')"
+          if [ -z "${KEY}" ]; then
+            echo "::error::No dumps found under d1/ in ${BACKUP_BUCKET} — is the nightly backup running?"; exit 1
+          fi
+          echo "Newest dump: ${KEY}"
+          echo "DUMP_KEY=${KEY}" >> "$GITHUB_ENV"
+
+      - name: Download and unpack the dump
+        run: |
+          set -euo pipefail
+          npx wrangler@3 r2 object get "${BACKUP_BUCKET}/${DUMP_KEY}" --file dump.sql.gz
+          gunzip dump.sql.gz
+          ls -lh dump.sql
+          # An empty or tiny dump means the backup itself is broken.
+          [ "$(stat -c%s dump.sql)" -gt 1000000 ] || { echo "::error::Dump is suspiciously small (<1MB)"; exit 1; }
+
+      - name: Create the scratch database
+        run: |
+          set -euo pipefail
+          # Drop any leftover from a previously failed drill, then start clean.
+          npx wrangler@3 d1 delete "${DRILL_DB}" -y 2>/dev/null || true
+          npx wrangler@3 d1 create "${DRILL_DB}"
+
+      - name: Restore the dump into the scratch database
+        run: |
+          set -euo pipefail
+          npx wrangler@3 d1 execute "${DRILL_DB}" --remote --file dump.sql --yes 2>&1 | tail -5
+
+      - name: Validate the restored data
+        run: |
+          set -euo pipefail
+          count() {
+            npx wrangler@3 d1 execute "${DRILL_DB}" --remote --json \
+              --command "SELECT COUNT(*) AS n FROM $1" \
+              | jq -r '(if type == "array" then .[0] else . end).results[0].n'
+          }
+          SETS="$(count lego_sets)"
+          PREFS="$(count user_prefs)"
+          COLL="$(count user_collection)"
+          SNAPS="$(count portfolio_snapshots)"
+          echo "Restored: lego_sets=${SETS} user_prefs=${PREFS} user_collection=${COLL} portfolio_snapshots=${SNAPS}"
+          # The catalog is the canary: a healthy dump carries tens of thousands
+          # of sets. User tables just need to exist (fresh accounts may be few).
+          if [ "${SETS}" -lt 10000 ]; then
+            echo "::error::Restored catalog has only ${SETS} sets — the backup is not restorable/complete"; exit 1
+          fi
+          echo "✅ Restore drill passed — the newest backup is genuinely restorable."
+
+      - name: Delete the scratch database
+        if: always()
+        run: npx wrangler@3 d1 delete "${DRILL_DB}" -y || true

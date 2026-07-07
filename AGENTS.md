@@ -218,7 +218,7 @@ Mutations use `requireMember`; everything under `/api/admin` uses `requireAdmin`
 | Mount | Endpoints (method path) |
 |---|---|
 | `/api/me` | GET `/`, PATCH `/` |
-| `/api/collection` | GET `/`, POST `/`, GET `/export`, GET `/history`, POST `/import`, GET/PATCH/DELETE `/:id`; photos: POST/GET/DELETE `/:id/photo` |
+| `/api/collection` | GET `/`, POST `/`, GET `/export` (tiered: free = entered data only, Pro adds current_value/retail_price/roi_pct), GET `/history` (free capped 90d, Pro 365d; returns `{snapshots, days, pro}`), POST `/import`, GET/PATCH/DELETE `/:id`; photos: POST/GET/DELETE `/:id/photo` |
 | `/api/wishlist` | GET `/`, POST `/`, POST `/:id`, DELETE `/:id` |
 | `/api/sets` | GET `/search`, GET `/:setnum`, GET `/:setnum/images`, GET `/:setnum/parts`, PATCH `/:setnum/parts/:partNumColor`, GET `/:setnum/history`, POST `/:setnum/listing-draft`, POST `/:setnum/revalue` |
 | `/api/themes` | GET `/` (theme groups + categories + facets) |
@@ -293,7 +293,12 @@ kick off data population (main-branch or manual deploys only — dev-branch
 pushes skip it; the nightly `populate-production.yml` cron covers freshness).
 
 Other workflows: `a11y.yml` (accessibility), `populate-production.yml` (data
-backfill against `brickvault-api.zhydenko.workers.dev`).
+backfill against `brickvault-api.zhydenko.workers.dev`), `backup-d1.yml`
+(nightly D1→R2 dump), `d1-cost-watchdog.yml` (daily GraphQL check of D1 rows
+written/read vs thresholds; fails loudly + optional `DISCORD_OPS_WEBHOOK`
+ping — needs "Account Analytics: Read" on the CF token), and
+`restore-drill.yml` (monthly: restores the newest R2 dump into a scratch D1,
+validates core tables, deletes the scratch — proves backups are restorable).
 
 Poll runs at `https://api.github.com/repos/yarik1390/MyBricks/actions/runs`
 (unauthenticated is fine but IP-rate-limited; check-run **annotations** expose

@@ -1,0 +1,100 @@
+name: D1 cost watchdog
+
+# Daily guard against runaway D1 usage — the Aug 2026 rows-written overage
+# (85M/mo, driven by an FTS rebuild loop) was only discovered on the BILL,
+# weeks late. This queries Cloudflare's GraphQL analytics for YESTERDAY's
+# per-database rows written/read and fails loudly (GitHub emails on failure)
+# when a threshold is crossed; set the optional DISCORD_OPS_WEBHOOK secret to
+# also get a Discord ping.
+#
+# Budget math for the defaults: the free tier is 50M rows written/month
+# (~1.6M/day) and 25B read/month (~830M/day). Thresholds sit just above the
+# app's healthy steady state so a new write loop trips the alarm within a day.
+#
+# NOTE: the CLOUDFLARE_API_TOKEN must include the "Account Analytics: Read"
+# permission. If this job fails with an auth error, add that permission to the
+# token in the Cloudflare dashboard — everything else already works.
+
+on:
+  schedule:
+    - cron: "0 7 * * *"   # 07:00 UTC, after the nightly jobs (01:00–06:00) land
+  workflow_dispatch:
+    inputs:
+      write_threshold:
+        description: "Alert when a database writes more rows than this in a day"
+        required: false
+        default: "2000000"
+      read_threshold:
+        description: "Alert when a database reads more rows than this in a day"
+        required: false
+        default: "500000000"
+
+concurrency:
+  group: brickvault-d1-cost-watchdog
+  cancel-in-progress: false
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      DISCORD_OPS_WEBHOOK: ${{ secrets.DISCORD_OPS_WEBHOOK }}
+      WRITE_THRESHOLD: ${{ inputs.write_threshold || '2000000' }}
+      READ_THRESHOLD: ${{ inputs.read_threshold || '500000000' }}
+    steps:
+      - name: Query yesterday's D1 usage and compare against thresholds
+        shell: bash
+        run: |
+          set -euo pipefail
+          DATE="$(date -u -d 'yesterday' +%Y-%m-%d)"
+          echo "Checking D1 usage for ${DATE} (thresholds: ${WRITE_THRESHOLD} written / ${READ_THRESHOLD} read per DB per day)"
+
+          QUERY='query($account: String!, $date: String!) {
+            viewer { accounts(filter: { accountTag: $account }) {
+              d1AnalyticsAdaptiveGroups(limit: 100, filter: { date: $date }) {
+                dimensions { databaseId }
+                sum { rowsWritten rowsRead readQueries writeQueries }
+              }
+            } }
+          }'
+
+          BODY="$(jq -nc --arg q "$QUERY" --arg acct "$CLOUDFLARE_ACCOUNT_ID" --arg date "$DATE" \
+            '{query: $q, variables: {account: $acct, date: $date}}')"
+
+          RESP="$(curl -sf https://api.cloudflare.com/client/v4/graphql \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "$BODY")" || { echo "::error::GraphQL request failed (does the API token have Account Analytics: Read?)"; exit 1; }
+
+          if jq -e '.errors and (.errors | length > 0)' <<<"$RESP" >/dev/null; then
+            echo "::error::GraphQL returned errors:"
+            jq '.errors' <<<"$RESP"
+            exit 1
+          fi
+
+          GROUPS="$(jq -c '.data.viewer.accounts[0].d1AnalyticsAdaptiveGroups // []' <<<"$RESP")"
+          echo "Per-database usage for ${DATE}:"
+          jq -r '.[] | "\(.dimensions.databaseId): written=\(.sum.rowsWritten) read=\(.sum.rowsRead) (queries: \(.sum.writeQueries)w/\(.sum.readQueries)r)"' <<<"$GROUPS"
+
+          ALERTS="$(jq -r --argjson wt "$WRITE_THRESHOLD" --argjson rt "$READ_THRESHOLD" '
+            [ .[] | select((.sum.rowsWritten > $wt) or (.sum.rowsRead > $rt)) |
+              "db \(.dimensions.databaseId): \(.sum.rowsWritten) rows written, \(.sum.rowsRead) rows read" ]
+            | join("\n")' <<<"$GROUPS")"
+
+          if [ -z "$ALERTS" ]; then
+            echo "✅ All databases within budget."
+            exit 0
+          fi
+
+          echo "::error::D1 usage over threshold on ${DATE}:"
+          echo "$ALERTS"
+
+          # Optional Discord ping — the workflow failure itself already emails.
+          if [ -n "${DISCORD_OPS_WEBHOOK:-}" ]; then
+            MSG="⚠️ **BricksVault D1 watchdog** — usage over threshold on ${DATE}:\n${ALERTS}\nCheck the D1 Query Insights dashboard for the offending query."
+            jq -nc --arg content "$(printf '%b' "$MSG")" '{content: $content}' \
+              | curl -sf -X POST -H 'Content-Type: application/json' -d @- "$DISCORD_OPS_WEBHOOK" \
+              || echo "::warning::Discord notification failed (check DISCORD_OPS_WEBHOOK)"
+          fi
+          exit 1
