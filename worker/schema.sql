@@ -95,7 +95,15 @@ CREATE TABLE IF NOT EXISTS lego_sets (
   pc_new_value REAL,
   pc_complete_value REAL,
   pc_id TEXT,
-  pc_cached_at TEXT
+  pc_cached_at TEXT,
+  part_out_value REAL,
+  part_out_coverage REAL,
+  part_out_cached_at TEXT,
+  deal_signal TEXT,
+  deal_discount_pct REAL,
+  deal_strong INTEGER,
+  deal_cached_at TEXT,
+  img_prewarmed_at TEXT
 );
 
 -- Extended market fields, kept in a side table because lego_sets is at D1's
@@ -153,7 +161,11 @@ CREATE TABLE IF NOT EXISTS minifigs (
   cached_at TEXT,
   year INTEGER,
   num_parts INTEGER,
-  appears_in_sets INTEGER
+  appears_in_sets INTEGER,
+  ebay_value REAL,
+  ebay_qty INTEGER,
+  ebay_cached_at TEXT,
+  bl_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS user_minifigs (
