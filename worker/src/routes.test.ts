@@ -717,7 +717,11 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(row.purchase_price).toBe(0);
     });
 
-    it('exports CSV with a header row and the owned set', async () => {
+    it('exports CSV with a header row and the owned set (Pro)', async () => {
+      await db.prepare(
+        `INSERT INTO user_prefs (user_id, is_supporter) VALUES (?, 1)
+         ON CONFLICT(user_id) DO UPDATE SET is_supporter=1`
+      ).bind(userId).run();
       await db.prepare(
         `INSERT INTO user_collection (user_id, set_num, quantity, condition, purchase_price)
          VALUES (?, '75192', 1, 'new', 700)`
@@ -733,6 +737,25 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(csv).toContain('Millennium Falcon');
     });
 
+    it('free export keeps the entered data but omits the Pro market columns', async () => {
+      await db.prepare(
+        `INSERT INTO user_collection (user_id, set_num, quantity, condition, purchase_price)
+         VALUES (?, '75192', 1, 'new', 700)`
+      ).bind(userId).run();
+      const res = await app.fetch(new Request('http://localhost/api/collection/export', { headers: auth() }), env);
+      expect(res.status).toBe(200);
+      const csv = await res.text();
+      const header = csv.split('\n')[0];
+      // Data portability: everything the user typed in still exports…
+      expect(header).toContain('set_num');
+      expect(header).toContain('purchase_price');
+      expect(header).toContain('notes');
+      // …but the computed market-intelligence columns are Pro-only.
+      expect(header).not.toContain('current_value');
+      expect(header).not.toContain('roi_pct');
+      expect(header).not.toContain('retail_price');
+    });
+
     it('returns portfolio snapshots from history', async () => {
       await db.prepare(
         `INSERT INTO portfolio_snapshots (user_id, snapshot_date, total_value, total_paid, set_count)
@@ -743,6 +766,31 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const data = await res.json<any>();
       expect(data.snapshots).toHaveLength(1);
       expect(data.snapshots[0].total_value).toBe(1000);
+    });
+
+    it('caps history depth at 90 days for free users and unlocks 365 for Pro', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO portfolio_snapshots (user_id, snapshot_date, total_value, total_paid, set_count)
+                    VALUES (?, DATE('now', '-120 days'), 500, 400, 2)`).bind(userId),
+        db.prepare(`INSERT INTO portfolio_snapshots (user_id, snapshot_date, total_value, total_paid, set_count)
+                    VALUES (?, DATE('now'), 1000, 800, 3)`).bind(userId),
+      ]);
+      // Free: the 120-day-old snapshot is outside the capped window.
+      const free = await app.fetch(new Request('http://localhost/api/collection/history?days=365', { headers: auth() }), env);
+      const freeData = await free.json<any>();
+      expect(freeData.days).toBe(90);
+      expect(freeData.pro).toBe(false);
+      expect(freeData.snapshots).toHaveLength(1);
+      // Pro: the same request returns the full year.
+      await db.prepare(
+        `INSERT INTO user_prefs (user_id, is_supporter) VALUES (?, 1)
+         ON CONFLICT(user_id) DO UPDATE SET is_supporter=1`
+      ).bind(userId).run();
+      const pro = await app.fetch(new Request('http://localhost/api/collection/history?days=365', { headers: auth() }), env);
+      const proData = await pro.json<any>();
+      expect(proData.days).toBe(365);
+      expect(proData.pro).toBe(true);
+      expect(proData.snapshots).toHaveLength(2);
     });
   });
 

@@ -279,8 +279,23 @@ app.post('/', async (c) => {
 });
 
 // GET /api/collection/export
+// Pro (is_supporter) gates the investor toolkit: CSV export and full portfolio
+// history depth. The flag comes from Play/Apple/Stripe purchase events and is
+// the authoritative entitlement source (same check as scan/revalue limits).
+async function isSupporter(c: { env: { DB: D1Database } }, userId: string): Promise<boolean> {
+  const pref = await c.env.DB.prepare(
+    'SELECT is_supporter FROM user_prefs WHERE user_id=?'
+  ).bind(userId).first<{ is_supporter: number }>().catch(() => null);
+  return !!pref?.is_supporter;
+}
+
+// Export is tiered, never blocked: your own entered data (sets, qty, condition,
+// purchase price/date, notes) always exports — data portability is a right, not
+// a perk. Pro adds the computed market-intelligence columns (current value,
+// retail, ROI), which are the product's derived work.
 app.get('/export', async (c) => {
   const userId = c.get('userId');
+  const pro = await isSupporter(c, userId);
   const { results } = await c.env.DB.prepare(`
     SELECT
       uc.id, uc.set_num, uc.quantity, uc.condition, uc.purchase_price,
@@ -304,7 +319,7 @@ app.get('/export', async (c) => {
   const headers = [
     'set_num','name','theme','year','pieces','minifigs',
     'condition','quantity','purchase_price','purchased_at',
-    'current_value','retail_price','roi_pct',
+    ...(pro ? ['current_value','retail_price','roi_pct'] : []),
     'storage_location','acquisition_source',
     'is_complete','missing_pieces','notes','added_at',
   ];
@@ -318,7 +333,7 @@ app.get('/export', async (c) => {
     return [
       r.set_num, r.name, r.theme, r.year, r.pieces, r.minifigs,
       r.condition, r.quantity, r.purchase_price ?? '', pa,
-      r.current_value ?? '', r.retail_price ?? '', roi,
+      ...(pro ? [r.current_value ?? '', r.retail_price ?? '', roi] : []),
       r.storage_location ?? '', r.acquisition_source ?? '',
       r.is_complete == null ? 'true' : String(!!r.is_complete), r.missing_pieces ?? 0,
       r.notes ?? '', aa,
@@ -336,16 +351,21 @@ app.get('/export', async (c) => {
 });
 
 // GET /api/collection/history
+// Free tier sees the last 90 days; Pro unlocks the full retained history (365d).
+// The response reports the applied window + tier so the chart can show an
+// honest "unlock 1y" affordance instead of silently truncating.
 app.get('/history', async (c) => {
   const userId = c.get('userId');
-  const days = Math.min(parseInt(c.req.query('days') || '90', 10), 365);
+  const requested = Math.min(parseInt(c.req.query('days') || '90', 10), 365);
+  const pro = await isSupporter(c, userId);
+  const days = pro ? requested : Math.min(requested, 90);
   const { results } = await c.env.DB.prepare(`
     SELECT snapshot_date, total_value, total_paid, set_count
     FROM portfolio_snapshots
     WHERE user_id = ? AND snapshot_date >= DATE('now', ? )
     ORDER BY snapshot_date ASC
   `).bind(userId, `-${days} days`).all();
-  return c.json({ snapshots: results });
+  return c.json({ snapshots: results, days, pro });
 });
 
 // POST /api/collection/import
