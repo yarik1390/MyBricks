@@ -282,12 +282,15 @@ Behavioral notes:
 Push to `main` or the dev branch → **`.github/workflows/deploy-worker.yml`**
 runs (in order): install deps → **frontend tests** → **Typecheck Worker** →
 **Worker tests (vitest in workerd)** → create/find D1 + KV + R2 + Analytics →
-wrangler dry-run → **apply `schema.sql`** → **apply column migrations**
-(every `ALTER … ADD COLUMN` grepped out of `schema_migrate.sql`, applied
-per-statement) → **rebuild derived search index**
-(`schema_search_index.sql`) → validate schema → **deploy Worker** → **upload
-Worker secrets** → **inject Worker URL into `public/env.js`** → **deploy Pages**
-→ public + protected **smoke checks** → kick off data population.
+wrangler dry-run → **apply `schema.sql`** (also bootstraps the FTS search index
+idempotently — there is deliberately NO per-deploy rebuild step; force one via
+`schema_search_index.sql` or POST `/api/admin/repair-search-index`) → **apply
+column migrations** (every `ALTER … ADD COLUMN` grepped out of
+`schema_migrate.sql`, applied per-statement) → validate schema → **deploy
+Worker** → **upload Worker secrets** → **inject Worker URL into
+`public/env.js`** → **deploy Pages** → public + protected **smoke checks** →
+kick off data population (main-branch or manual deploys only — dev-branch
+pushes skip it; the nightly `populate-production.yml` cron covers freshness).
 
 Other workflows: `a11y.yml` (accessibility), `populate-production.yml` (data
 backfill against `brickvault-api.zhydenko.workers.dev`).
