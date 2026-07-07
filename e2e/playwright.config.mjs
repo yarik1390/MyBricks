@@ -22,6 +22,9 @@ export default defineConfig({
     // Block the service worker so its caching can't introduce cross-test races —
     // we want deterministic network interception via page.route().
     serviceWorkers: 'block',
+    // Sandboxes with a pre-installed Chromium (e.g. Claude Code remote env) set
+    // PW_CHROMIUM_PATH instead of downloading a browser; CI leaves it unset.
+    ...(process.env.PW_CHROMIUM_PATH ? { launchOptions: { executablePath: process.env.PW_CHROMIUM_PATH } } : {}),
   },
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
   webServer: {

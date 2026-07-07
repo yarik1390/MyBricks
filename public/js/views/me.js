@@ -648,9 +648,11 @@ export async function renderMe() {
 function supportCardHTML(me, patreonUrl) {
   const perksHTML = `
     <ul class="support-perks">
-      <li>Gold ★ accent skin</li>
-      <li>Higher AI advisor limits</li>
-      <li>⭐ badge on your public profile</li>
+      <li>Investor insights: sell/buy signals, top movers, retirement radar</li>
+      <li>Full 1-year portfolio history (free: 90 days)</li>
+      <li>Market value &amp; ROI columns in CSV export</li>
+      <li>5× photo-scan and revaluation limits</li>
+      <li>Gold ★ skin + ⭐ badge on your public profile</li>
     </ul>`;
   const native = isNativeBilling();
   if (me.is_supporter) {

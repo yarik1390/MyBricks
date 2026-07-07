@@ -6,7 +6,7 @@ import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { openScan } from '../components/scanner-lazy.js';
 import { trustBadgeHTML } from '../components/trust.js';
-import { activeCatalogFilterCount, catalogFilterSummary, pricePerPiece } from '../lib/pure.js';
+import { activeCatalogFilterCount, catalogFilterSummary, pricePerPiece, estMark } from '../lib/pure.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
 
 let _catalogGen = 0;
@@ -721,7 +721,7 @@ function catalogCardHTML(s) {
         </div>
         <div class="sl-right-compact">
           <div class="sl-value" style="display:flex;align-items:center;">
-            ${fmtMoney(dispVal)}
+            ${estMark(s)}${fmtMoney(dispVal)}
             ${s.trend ? trendBadgeHTML(s.trend) : ""}
           </div>
           <div class="sl-delta" style="color:var(--ink-mute);">${s.pieces || 0}pc ${pppBadgeHTML(s)}</div>
@@ -748,7 +748,7 @@ function catalogCardHTML(s) {
           ${s.minifigs > 0 ? `<span>${s.minifigs} fig</span>` : ""}
           ${s.subtheme ? `<span>${escapeHtml(s.subtheme)}</span>` : ""}
         </div>
-        <div class="set-card-value">${confDot}${fmtMoney(dispVal)}</div>
+        <div class="set-card-value">${confDot}${estMark(s)}${fmtMoney(dispVal)}</div>
         ${(sourceCueHTML(s) || pppBadgeHTML(s) || s.bl_new_qty || s.trend) ? `<div class="set-card-submeta">${sourceCueHTML(s)}${pppBadgeHTML(s)}${s.bl_new_qty ? `<span>${s.bl_new_qty} lots</span>` : ""}${s.trend ? trendBadgeHTML(s.trend) : ""}</div>` : ""}
       </div>
     </button>`;

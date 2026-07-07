@@ -7,7 +7,7 @@ import {
   jobProgressSummary, computeSpreadSignals, buyWindow, pricePerPiece, isStalledJobRun,
   parseCSVTable, parseCollectionCSV, sanitizeMoneyInput, activeCatalogFilterCount, activeFigFilterCount, figFilterSummary,
   liquidityLabel, classifyProviderHealth, validateSourceTuningInput, groupAdminJobRuns,
-  formatRelativeTime, processRunBadge,
+  formatRelativeTime, processRunBadge, isEstimatedValue, estMark,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -200,6 +200,25 @@ describe('eBay sold helpers', () => {
     assert.equal(summary.newValue, 99);
     assert.equal(summary.newUpdatedAt, '2026-06-01 00:00:00');
     assert.equal(summary.legacy, true);
+  });
+});
+
+describe('isEstimatedValue / estMark', () => {
+  it('flags formula, local, AI and unknown methods as estimates', () => {
+    assert.equal(isEstimatedValue({ valuation_method: 'formula_bulk', current_value: 120 }), true);
+    assert.equal(isEstimatedValue({ valuation_method: 'local', current_value: 50 }), true);
+    assert.equal(isEstimatedValue({ valuation_method: 'ai', current_value: 80 }), true);
+    assert.equal(isEstimatedValue({ current_value: 10 }), true);
+    assert.equal(estMark({ valuation_method: 'formula_bulk' }), '~');
+  });
+  it('never flags market-derived values', () => {
+    assert.equal(isEstimatedValue({ valuation_method: 'market', current_value: 120 }), false);
+    assert.equal(isEstimatedValue({ valuation_method: 'formula_bulk', market_value: 900 }), false);
+    assert.equal(isEstimatedValue({ valuation_method: 'formula_bulk', blended_value: 900 }), false);
+    assert.equal(estMark({ valuation_method: 'market' }), '');
+  });
+  it('treats coming-soon retail as a fact, not an estimate', () => {
+    assert.equal(isEstimatedValue({ coming_soon: true, valuation_method: 'formula_bulk' }), false);
   });
 });
 

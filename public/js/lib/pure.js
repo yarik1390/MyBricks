@@ -186,6 +186,21 @@ export function computeSpreadSignals(items = [], { threshold = 0.15 } = {}) {
   return { hot, cold, totalUpside: hot.reduce((s, x) => s + x.gap, 0) };
 }
 
+// A displayed value is an ESTIMATE (not market-derived) when no blended market
+// value survived and the stored value came from the attribute formula, a local
+// guess, or an AI gap-fill. Drives the "~" prefix on prices so estimates never
+// read with the same authority as real market values. Coming-soon sets show the
+// announced retail, which is a fact, not an estimate.
+export function isEstimatedValue(set = {}) {
+  if (set.coming_soon) return false;
+  if (Number(set.market_value) > 0 || Number(set.blended_value) > 0) return false;
+  const m = String(set.valuation_method || "");
+  return m === "formula_bulk" || m === "local" || m === "ai" || m === "";
+}
+
+// "~" for estimated values, "" for market-derived ones — prepend to fmtMoney.
+export const estMark = (set) => (isEstimatedValue(set) ? "~" : "");
+
 export function valuationTrust(set = {}) {
   const freshness = set.freshness || (set.cached_at && Date.now() - new Date(set.cached_at).getTime() > 60 * 86400000 ? "stale" : "fresh");
   const confidence = set.confidence || (set.valuation_method === "formula_bulk" || set.valuation_method === "local" ? "estimated" : "medium");

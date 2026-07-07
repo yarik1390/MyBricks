@@ -1059,6 +1059,9 @@ ul.set-list > li { display: contents; }
   font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
   text-transform: uppercase; color: var(--ink-mute); margin-bottom: 3px;
 }
+.detail-summary-src {
+  font-size: 11px; color: var(--ink-mute); margin-top: 4px; line-height: 1.4;
+}
 .detail-summary-facts {
   display: flex; flex-wrap: wrap; gap: 6px 14px;
   margin-top: 12px; padding-top: 12px;

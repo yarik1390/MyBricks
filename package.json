@@ -14,6 +14,7 @@
     "e2e": "playwright test --config=e2e/playwright.config.mjs"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.0"
+    "@biomejs/biome": "^2.5.0",
+    "@playwright/test": "^1.61.1"
   }
 }

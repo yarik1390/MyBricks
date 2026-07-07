@@ -24,12 +24,27 @@ const SESSION = {
 };
 
 // Canonical set used across collection / search / detail so assertions line up.
+// Carries the blended market provenance fields (market_value_*) the way the
+// Worker's enrichSetRecord emits them, so the trust UI (provenance line,
+// confidence chip) renders in tests exactly as in production.
 export const SET = {
   set_num: '75192-1', name: 'Millennium Falcon', year: 2017, pieces: 7541, minifigs: 4,
   theme: 'Star Wars', subtheme: 'Ultimate Collector Series', image_url: null,
   retail_price: 849.99, current_value: 850, blended_value: 850,
   blended_confidence: 'high', blended_low: 800, blended_high: 900,
   valuation_method: 'market', retired: 1, forecast_2y: 950, forecast_5y: 1100,
+  market_value: 850, market_value_low: 800, market_value_high: 900,
+  market_value_confidence: 'high',
+  market_value_basis: [{ id: 'pc_new' }, { id: 'bl_new' }, { id: 'ebay_new' }],
+};
+
+// Formula-valued set (no market data survived) — exercises the "~ estimate"
+// styling: humble value label, ~ prefix, and the no-market-sales provenance.
+export const EST_SET = {
+  set_num: '4000-1', name: 'Formula Test Set', year: 2015, pieces: 400, minifigs: 0,
+  theme: 'Creator', image_url: null,
+  retail_price: 39.99, current_value: 42,
+  valuation_method: 'formula_bulk', retired: 0,
 };
 
 function handlers(calls) {
@@ -51,17 +66,20 @@ function handlers(calls) {
     const json = (body, status = 200) =>
       route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
-    if (p === '/api/config') return json({ supabase_url: 'https://stub.supabase.co', supabase_anon_key: 'stub-anon-key' });
+    if (p === '/api/config') return json({ supabase_url: 'https://stub.supabase.co', supabase_anon_key: 'stub-anon-key', patreon_url: 'https://www.patreon.com/c/BricksVault' });
     if (p === '/api/rates') return json({ base: 'USD', rates: { USD: 1, EUR: 0.92, GBP: 0.79 } });
     if (p === '/api/me') return json({ display_name: 'Test Collector', handle: 'tester', currency: 'USD', is_guest: false, notify_price_drops: true, portfolio_stats: {} });
     if (p === '/api/collection' && m === 'GET') return json({ items: [{ id: 1, quantity: 1, purchase_price: 700, ...SET }], total_value: 850, total_paid: 700, count: 1 });
-    if (p.startsWith('/api/collection/history')) return json({ snapshots: [] });
+    // Free tier by default (pro:false) so the Insights gate + locked range
+    // pills render; Pro tests override this route per-test.
+    if (p.startsWith('/api/collection/history')) return json({ snapshots: [], days: 90, pro: false });
     if (p === '/api/wishlist' && m === 'GET') return json({ wishlist: [{ id: 'w1', set_num: SET.set_num, name: SET.name }], unread_alerts: 0 });
     if (p === '/api/wishlist' && m === 'POST') return json({ item: { id: 'w2', set_num: SET.set_num } });
     if (p.startsWith('/api/wishlist/') && m === 'DELETE') return json({ ok: true });
     if (p === '/api/themes') return json({ themes: [{ id: 1, name: 'Star Wars' }], theme_groups: [], categories: [] });
     if (p === '/api/upcoming') return json({ items: [] });
     if (p === '/api/sets/search') return json({ sets: [SET], total: 1, hasMore: false });
+    if (p.startsWith('/api/sets/4000-1')) return json({ set: EST_SET, entry: null });
     if (p.startsWith('/api/sets/')) return json({ set: SET, entry: null });
     // Benign fallback so an unenumerated endpoint never errors a view under test.
     return json({});

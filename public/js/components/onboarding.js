@@ -298,7 +298,7 @@ function stepBodyHTML(key) {
     return `<h3>How will you use it?</h3>
       <p class="sub">You can change this anytime in Settings.</p>
       <div class="bv-opts">
-        ${opt('pro', '📈', 'Pro', 'Full investor view — market value, ROI and 2- & 5-year forecasts.')}
+        ${opt('pro', '📈', 'Pro', 'Full investor view — market value, ROI and 2-year projections.')}
         ${opt('simple', '✨', 'Simple', 'Just your sets and what they\'re worth. No jargon.')}
         ${opt('kids', '🧒', 'Kids', 'Playful, price-free mode with XP and badges. Add a parent PIN later.')}
       </div>`;
@@ -339,11 +339,12 @@ function stepBodyHTML(key) {
   if (key === 'support') {
     return `${heroHTML('sparkles', 45)}
       <h3>BricksVault Pro ⭐</h3>
-      <p class="sub">BricksVault is independent and ad-free. Going Pro keeps it alive — and unlocks a few extras.</p>
+      <p class="sub">Tracking your vault is free, forever. Pro unlocks the investor toolkit — and keeps BricksVault independent and ad-free.</p>
       <ul class="bv-perks">
-        <li>Premium &amp; Gold ★ color skins</li>
-        <li>Higher AI advisor limits</li>
-        <li>⭐ badge on your public profile</li>
+        <li>Investor insights: sell/buy signals, top movers, retirement radar</li>
+        <li>Full 1-year portfolio history &amp; ROI export</li>
+        <li>5× scan and revaluation limits</li>
+        <li>Premium &amp; Gold ★ skins + ⭐ profile badge</li>
       </ul>
       <div class="bv-note">No pressure — everything you need stays free. You can go Pro anytime from Settings.</div>`;
   }

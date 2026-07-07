@@ -21,7 +21,9 @@ export async function renderMeData() {
         <section class="data-card">
           <div class="section-title">Export</div>
           <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Export collection</div><div class="desc">CSV with all collector fields &amp; ROI.</div></div>
+          <div class="lbl-wrap"><div class="lbl">Export collection</div><div class="desc">${state.me?.is_supporter
+            ? "CSV with all collector fields, market values &amp; ROI."
+            : "CSV of everything you've entered. <a href='#/me' style='color:var(--bv-red);font-weight:600;'>Pro</a> adds current value, retail &amp; ROI columns."}</div></div>
           <button class="import-btn" id="exportCsvBtn" aria-label="Export CSV">${I.download()}</button>
           </div>
           <div class="action-result" id="exportResult" aria-live="polite">${guest ? "Guest exports use the local vault on this device." : "Signed-in exports are pulled from your synced account."}</div>

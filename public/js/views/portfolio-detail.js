@@ -1,6 +1,6 @@
 import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML } from './portfolio-detail-market.js';
-import { computeDealScore, ebaySoldSummary, marketValueForCondition } from '../lib/pure.js';
+import { computeDealScore, ebaySoldSummary, marketValueForCondition, estMark } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
@@ -265,17 +265,34 @@ function summaryFactsHTML(set) {
   return parts.length ? `<div class="detail-summary-facts">${parts.join('')}</div>` : '';
 }
 
+// Provenance under the headline value: where the number comes from, in one
+// plain line. Market values cite the signal count + range; estimates say so.
+function valueProvenanceHTML(set) {
+  if (set.coming_soon) return '';
+  if (Number(set.market_value) > 0) {
+    const n = Array.isArray(set.market_value_basis) ? set.market_value_basis.length : 0;
+    const lo = Number(set.market_value_low), hi = Number(set.market_value_high);
+    const range = lo > 0 && hi > 0 && hi > lo ? ` · typically ${fmtMoney(lo, { cents: 0 })}–${fmtMoney(hi, { cents: 0 })}` : '';
+    return n > 0 ? `<div class="detail-summary-src">From ${n} market source${n === 1 ? '' : 's'}${range}</div>` : '';
+  }
+  if (estMark(set)) return `<div class="detail-summary-src">Estimate — no recent market sales for this set yet</div>`;
+  return '';
+}
+
 // Compact summary header: the value + a plain-language confidence chip + key
-// facts. Leads the Info tab in every mode (chip is Pro-only).
+// facts. Leads the Info tab in every mode (chip is Pro-only). Estimated values
+// read humbler than market ones: "Estimated value ~$120" vs "Value $120".
 function detailSummaryHTML(set) {
   const v = setDisplayValue(set);
+  const est = !!estMark(set);
   const chip = isSimpleMode() ? '' : confidenceChip(set);
   return `
     <div class="detail-summary">
       <div class="detail-summary-top">
         <div style="min-width:0;">
-          <div class="detail-summary-lbl">Value</div>
-          <div class="detail-summary-val">${v > 0 ? fmtMoney(v) : '—'}</div>
+          <div class="detail-summary-lbl">${est ? 'Estimated value' : 'Value'}</div>
+          <div class="detail-summary-val">${v > 0 ? `${est ? '~' : ''}${fmtMoney(v)}` : '—'}</div>
+          ${valueProvenanceHTML(set)}
         </div>
         ${chip}
       </div>
@@ -305,7 +322,7 @@ function detailActionBarHTML(set, entry, isWish) {
   const displayVal = setDisplayValue(set);
   return `
     <div class="detail-action-bar">
-      <button class="btn-primary" id="addBtn" style="flex:1;">${I.plus()}<span>Add to vault · ${fmtMoney(displayVal, { cents: 0 })}</span></button>
+      <button class="btn-primary" id="addBtn" style="flex:1;">${I.plus()}<span>Add to vault · ${estMark(set)}${fmtMoney(displayVal, { cents: 0 })}</span></button>
       <button class="btn-secondary ab-wish" id="wishToggle" aria-label="${isWish ? 'Remove from wishlist' : 'Add to wishlist'}">${isWish ? I.heartF() : I.heart()}</button>
     </div>`;
 }
@@ -776,17 +793,19 @@ function wireDetailActions(set, entry) {
   });
 }
 
+// Honesty rules: only a real 2-year projection renders (no fabricated default
+// growth bars, and the 5-year horizon is gone — nobody can forecast LEGO prices
+// 5 years out and pretending otherwise erodes trust in every other number).
 function forecastTabHTML(set) {
-  const g2 = set.forecast_2y && set.current_value ? (set.forecast_2y - set.current_value) / set.current_value : 0.18;
-  const g5 = set.forecast_5y && set.current_value ? (set.forecast_5y - set.current_value) / set.current_value : 0.45;
-  // Annualized (CAGR) rates — clearer than the total projected % above.
-  const ann2 = set.forecast_2y && set.current_value ? Math.pow(set.forecast_2y / set.current_value, 1 / 2) - 1 : null;
-  const ann5 = set.forecast_5y && set.current_value ? Math.pow(set.forecast_5y / set.current_value, 1 / 5) - 1 : null;
+  const hasForecast = Number(set.forecast_2y) > 0 && Number(set.current_value) > 0;
+  const g2 = hasForecast ? (set.forecast_2y - set.current_value) / set.current_value : null;
+  // Annualized (CAGR) rate — clearer than the total projected % above.
+  const ann2 = hasForecast ? Math.pow(set.forecast_2y / set.current_value, 1 / 2) - 1 : null;
   const pct = (g) => Math.min(100, Math.max(8, g * 100 + 12)).toFixed(1);
   const forecastLabel = set.valuation_method === "ai" ? "AI forecast"
     : (set.valuation_method === "market" || set.valuation_method === "brickeconomy" || set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "Market forecast"
     : "Estimated";
-  const conflictNote = set.be_growth_12m != null && Number(set.be_growth_12m) < 0 && (g2 > 0 || g5 > 0)
+  const conflictNote = set.be_growth_12m != null && Number(set.be_growth_12m) < 0 && g2 != null && g2 > 0
     ? `<p class="forecast-note">Short-term growth is negative, but the long-range forecast can still be positive when retirement timing, theme demand, or comparable older sets point upward. Treat this as a recovery scenario, not a current momentum signal.</p>`
     : "";
   return `
@@ -801,23 +820,19 @@ function forecastTabHTML(set) {
       ${conflictNote}
     </div>
 
+    ${hasForecast ? `
     <div class="forecast-card">
       <div class="fh">
-        <div class="fh-lbl">2-year forecast</div>
-        <div class="fh-val">${fmtMoney(set.forecast_2y)}</div>
+        <div class="fh-lbl">2-year projection</div>
+        <div class="fh-val">~${fmtMoney(set.forecast_2y)}</div>
       </div>
       <div class="forecast-bar"><div style="--fill:${pct(g2)}%;"></div></div>
       <div class="forecast-pct${g2 < 0 ? " down" : ""}">${g2 >= 0 ? I.arrowU() : I.arrowD()}${fmtPct(g2)} projected${ann2 != null ? ` · ${fmtPct(ann2)}/yr` : ''}</div>
-    </div>
-
-    <div class="forecast-card">
-      <div class="fh">
-        <div class="fh-lbl">5-year forecast</div>
-        <div class="fh-val">${fmtMoney(set.forecast_5y)}</div>
-      </div>
-      <div class="forecast-bar"><div style="--fill:${pct(g5)}%;"></div></div>
-      <div class="forecast-pct${g5 < 0 ? " down" : ""}">${g5 >= 0 ? I.arrowU() : I.arrowD()}${fmtPct(g5)} projected${ann5 != null ? ` · ${fmtPct(ann5)}/yr` : ''}</div>
-    </div>
+    </div>` : `
+    <div class="detail-card">
+      <div class="detail-card-title">2-year projection</div>
+      <p style="margin:6px 0 0;font-size:13px;color:var(--ink-mute);line-height:1.45;">No projection yet — it appears once this set has enough market data.</p>
+    </div>`}
 
     <div class="detail-card" style="background:var(--surface-2);">
       <div class="detail-card-title">What drives this</div>
@@ -826,6 +841,7 @@ function forecastTabHTML(set) {
         <li>${(set.pieces||0) > 2000 ? "Large set, high collector appeal" : (set.pieces||0) > 500 ? "Mid-size set, moderate appeal" : "Compact set, lower aftermarket premium"}</li>
         <li>${(set.minifigs||0) >= 5 ? "Many minifigs — strong parts-out potential" : "Few/no minifigs — value driven by set alone"}</li>
       </ul>
+      <p style="margin:10px 0 0;font-size:11px;color:var(--ink-mute);line-height:1.45;">Projections extrapolate current trends and can be wrong — collectible prices depend on future demand nobody can predict. Not financial advice.</p>
     </div>`;
 }
 

@@ -116,3 +116,88 @@ test('me: account deletion is gated behind typing DELETE (store requirement)', a
     .poll(() => stub.calls.filter((c) => c.method === 'DELETE' && c.path === '/api/me').length)
     .toBeGreaterThan(0);
 });
+
+// ---------------------------------------------------------------------------
+// Valuation trust pass: estimates read humbler than market values.
+// ---------------------------------------------------------------------------
+
+test('formula-valued set renders as a humble estimate (~, label, provenance)', async ({ page }) => {
+  await page.goto('/#/set/4000-1', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('Formula Test Set').first()).toBeVisible();
+  const summary = page.locator('.detail-summary');
+  await expect(summary.locator('.detail-summary-lbl')).toHaveText('Estimated value');
+  await expect(summary.locator('.detail-summary-val')).toContainText('~');
+  await expect(summary.locator('.detail-summary-src')).toContainText('no recent market sales');
+  // The sticky add button carries the same humility marker.
+  await expect(page.locator('#addBtn')).toContainText('~');
+});
+
+test('market-valued set cites its provenance (source count + typical range)', async ({ page }) => {
+  await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
+  const summary = page.locator('.detail-summary');
+  await expect(summary.locator('.detail-summary-lbl')).toHaveText('Value');
+  await expect(summary.locator('.detail-summary-val')).not.toContainText('~');
+  await expect(summary.locator('.detail-summary-src')).toContainText('From 3 market sources');
+  await expect(summary.locator('.detail-summary-src')).toContainText('typically');
+});
+
+test('forecast tab shows only the caveated 2-year projection (no 5-year)', async ({ page }) => {
+  await page.goto('/#/set/75192-1/forecast', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('2-year projection')).toBeVisible();
+  await expect(page.getByText('5-year')).toHaveCount(0);
+  await expect(page.getByText('Not financial advice')).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
+// Pro gating: Insights teaser, locked history ranges, tiered export copy.
+// ---------------------------------------------------------------------------
+
+test('free user sees the Insights teaser instead of the toolkit', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.locator('.portfolio-tab[data-tab="insights"]').click();
+  await expect(page.getByTestId('insights-teaser')).toBeVisible();
+  await expect(page.locator('#insightsUpgradeBtn')).toBeVisible();
+  // The real toolkit sections must NOT render — "Top Movers (90-day Slope)" is
+  // a section heading unique to the full view (the teaser only *names* radar
+  // etc., and getByText matches case-insensitive substrings).
+  await expect(page.getByText('Top Movers (90-day Slope)')).toHaveCount(0);
+});
+
+test('free user: 1Y range pill is locked and explains itself instead of lying', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  const pill = page.locator('#rangePills button[data-r="1Y"]');
+  await expect(pill).toContainText('⭐');
+  await pill.click();
+  await expect(page.getByText('History beyond 90 days is a Pro perk')).toBeVisible();
+  // The pill did not activate — the range selection stayed put.
+  await expect(pill).not.toHaveClass(/active/);
+});
+
+test('Pro user gets the full Insights toolkit, no teaser', async ({ page }) => {
+  await page.route('**/api/collection/history*', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      pro: true, days: 365,
+      snapshots: [
+        { snapshot_date: '2026-06-01', total_value: 800, total_paid: 700, set_count: 1 },
+        { snapshot_date: '2026-07-01', total_value: 850, total_paid: 700, set_count: 1 },
+      ],
+    }),
+  }));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.locator('.portfolio-tab[data-tab="insights"]').click();
+  await expect(page.getByText('Retirement Radar')).toBeVisible();
+  await expect(page.getByTestId('insights-teaser')).toHaveCount(0);
+});
+
+test('export page states the free/Pro column split honestly', async ({ page }) => {
+  await page.goto('/#/me/data', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText("CSV of everything you've entered")).toBeVisible();
+  await expect(page.getByText('adds current value, retail & ROI')).toBeVisible();
+});
+
+test('Pro pitch on the Me page leads with the investor toolkit', async ({ page }) => {
+  await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('Investor insights: sell/buy signals, top movers, retirement radar')).toBeVisible();
+  await expect(page.getByText('Full 1-year portfolio history')).toBeVisible();
+});

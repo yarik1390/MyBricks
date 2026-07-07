@@ -1,5 +1,5 @@
 import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone } from '../utils.js';
-import { marketValueForCondition, computeSpreadSignals } from '../lib/pure.js';
+import { marketValueForCondition, computeSpreadSignals, estMark } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
@@ -32,6 +32,10 @@ export async function renderPortfolio() {
       api("/api/wishlist").catch(() => null),
     ]);
     state.portfolioHistory = hist ? (hist.snapshots || []) : (state.portfolioHistory || []);
+    // Server-declared tier for the history window (free = 90 days, Pro = 365).
+    // Drives the honest "1Y ⭐" pills + the Insights gate instead of silently
+    // truncating the chart. Falsy for guests (local vaults have no entitlement).
+    if (hist) state.historyPro = !!hist.pro;
     if (wl) {
       state.wishlist = wl.wishlist || [];
       state.wishlistAlerts = wl.unread_alerts || [];
@@ -300,14 +304,17 @@ function paintPortfolio() {
         </div>
         <div class="spark-wrap" id="heroChart"></div>
         <div class="range-pills" id="rangePills">
-          ${["1W","1M","3M","1Y","ALL"].map(r => `<button data-r="${r}" aria-pressed="${state.filter.range === r ? "true" : "false"}" class="${state.filter.range === r ? "active" : ""}">${r}</button>`).join("")}
+          ${["1W","1M","3M","1Y","ALL"].map(r => {
+            const locked = !state.historyPro && (r === "1Y" || r === "ALL");
+            return `<button data-r="${r}" data-locked="${locked}" aria-pressed="${state.filter.range === r ? "true" : "false"}" class="${state.filter.range === r ? "active" : ""}">${r}${locked ? " ⭐" : ""}</button>`;
+          }).join("")}
         </div>
       </div>
 
       ${p.items.length > 0 ? `
         <div class="portfolio-tabs" role="tablist" aria-label="Portfolio views">
           <button class="portfolio-tab ${state.portfolioTab === 'items' ? 'active' : ''}" data-tab="items" role="tab" aria-selected="${state.portfolioTab === 'items'}" aria-controls="portfolioTabContent">Your Sets</button>
-          <button class="portfolio-tab ${state.portfolioTab === 'insights' ? 'active' : ''}" data-tab="insights" role="tab" aria-selected="${state.portfolioTab === 'insights'}" aria-controls="portfolioTabContent">Insights</button>
+          <button class="portfolio-tab ${state.portfolioTab === 'insights' ? 'active' : ''}" data-tab="insights" role="tab" aria-selected="${state.portfolioTab === 'insights'}" aria-controls="portfolioTabContent">Insights${state.historyPro ? '' : ' ⭐'}</button>
         </div>
       ` : ''}
 
@@ -322,7 +329,7 @@ function paintPortfolio() {
           </div>
         ` : `
           <div id="insightsPanelContent">
-            ${renderInsightsTab(p.items || [])}
+            ${renderInsightsTab(p.items || [], state.historyPro)}
           </div>
         `}
       </div>
@@ -362,7 +369,7 @@ function paintPortfolio() {
       wireSortChips();
       if (items.length) { wirePortfolioCards(); setupPortfolioSentinel(items); }
     } else {
-      panel.innerHTML = `<div id="insightsPanelContent">${renderInsightsTab(p.items || [])}</div>`;
+      panel.innerHTML = `<div id="insightsPanelContent">${renderInsightsTab(p.items || [], state.historyPro)}</div>`;
       wireInsightsTab();
       setTimeout(() => { const c = $("#insightsDoubleChart"); if (c) drawDoubleSparkline(c, clipped); }, 40);
     }
@@ -372,6 +379,11 @@ function paintPortfolio() {
   });
 
   $$("#rangePills button").forEach(b => b.addEventListener("click", () => {
+    if (b.dataset.locked === "true") {
+      haptic("light");
+      toast("History beyond 90 days is a Pro perk — showing your last 90 days.", "info");
+      return;
+    }
     state.filter.range = b.dataset.r; haptic("light");
     $$("#rangePills button").forEach(x => { x.classList.toggle("active", x.dataset.r === state.filter.range); x.setAttribute("aria-pressed", x.dataset.r === state.filter.range ? "true" : "false"); });
     const d = ranges[state.filter.range] || 30;
@@ -549,7 +561,7 @@ function setListCardHTML(item) {
         </div>
         <div class="sl-right-compact">
           <div class="sl-value" style="display:flex;align-items:center;">
-            ${fmtMoney(dispVal)}
+            ${estMark(item)}${fmtMoney(dispVal)}
             ${item.trend ? trendBadgeHTML(item.trend) : ""}
           </div>
           <div class="sl-delta ${cls}" ${delta != null ? `role="img" aria-label="${cls === 'up' ? 'Up' : 'Down'} ${dStr}"` : ''}><span aria-hidden="true">${arrow}</span>${dStr}</div>
@@ -573,7 +585,7 @@ function setListCardHTML(item) {
       <div class="sl-right">
         <div class="sl-value" style="display:flex;align-items:center;justify-content:flex-end;gap:4px;">
           ${item.market_value_confidence ? `<span title="Market confidence: ${item.market_value_confidence}" style="display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;background:${item.market_value_confidence === 'high' ? 'var(--up)' : item.market_value_confidence === 'medium' ? 'var(--accent)' : 'var(--bv-yellow)'};"></span>` : ''}
-          ${fmtMoney(dispVal)}
+          ${estMark(item)}${fmtMoney(dispVal)}
           ${item.trend ? trendBadgeHTML(item.trend) : ""}
         </div>
         <div class="sl-delta ${cls}" ${delta != null ? `role="img" aria-label="${cls === 'up' ? 'Up' : 'Down'} ${dStr}"` : ''}><span class="arrow" aria-hidden="true">${arrow}</span>${dStr}</div>
@@ -669,7 +681,31 @@ function showAlertsSheet(alerts) {
 /* ============================================================
    Portfolio Insights Helpers
    ============================================================ */
-function renderInsightsTab(items) {
+// Free users see an honest teaser of what's inside instead of the toolkit.
+// This is product framing (the server already caps history depth and export
+// columns); the insights themselves are computed client-side from the user's
+// own collection, so the gate is a paywall card, not DRM.
+function insightsTeaserHTML() {
+  return `
+    <div style="padding:12px 16px;">
+      <div class="card" style="padding:18px 16px;text-align:center;" data-testid="insights-teaser">
+        <div style="font-size:28px;margin-bottom:6px;">📈</div>
+        <div style="font-weight:700;font-size:15px;margin-bottom:6px;">Investor insights — a Pro toolkit</div>
+        <ul class="support-perks" style="text-align:left;margin:10px auto;max-width:340px;">
+          <li>Sell &amp; buy signals across your holdings</li>
+          <li>Top movers and underperformers</li>
+          <li>Retirement radar &amp; part-out opportunities</li>
+          <li>S&amp;P 500 comparison + allocation by theme</li>
+          <li>Full 1-year portfolio history</li>
+        </ul>
+        <button class="btn-primary" id="insightsUpgradeBtn" style="margin-top:6px;">See Pro options</button>
+        <div style="font-size:11px;color:var(--ink-mute);margin-top:8px;">Tracking your vault stays free, forever.</div>
+      </div>
+    </div>`;
+}
+
+function renderInsightsTab(items, pro) {
+  if (!pro) return insightsTeaserHTML();
   if (!items || !items.length) return `<p style="color:var(--ink-mute);font-size:14px;padding:16px;">Add sets to see insights.</p>`;
 
   const withSlope = items.filter(item => item.slope_90d != null && !isNaN(item.slope_90d));
@@ -811,6 +847,10 @@ function wireInsightsTab() {
       haptic("light");
       location.hash = "#/set/" + encodeURIComponent(el.dataset.set);
     });
+  });
+  $("#insightsUpgradeBtn")?.addEventListener("click", () => {
+    haptic("light");
+    location.hash = "#/me";
   });
 }
 
