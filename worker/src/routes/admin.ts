@@ -464,9 +464,24 @@ app.post('/populate-everything', async (c) => {
           await phaseProgress(1, 'Minifig catalog already imported', 1, 1);
         }
 
-        await phaseProgress(2, 'Rebuilding search index', 0, 1);
-        await rebuildSearchIndex(c.env.DB);
-        await phaseProgress(2, 'Search index rebuilt', 1, 1);
+        // The lego_sets_fts triggers keep the index live on every insert/update/
+        // delete, so a full rebuild is only needed when it has actually drifted
+        // out of sync (fresh DB, or a bulk import that ran before the triggers
+        // existed). Rebuilding on EVERY populate slice re-wrote all ~27k rows each
+        // run — a large recurring chunk of D1 rows-written (millions/day across the
+        // nightly slices). Gate it on a real row-count divergence so steady state
+        // is a no-op.
+        const ftsSync = await c.env.DB.prepare(
+          `SELECT (SELECT COUNT(*) FROM lego_sets) AS sets,
+                  (SELECT COUNT(*) FROM lego_sets_fts) AS fts`
+        ).first<{ sets: number; fts: number }>().catch(() => null);
+        if (!ftsSync || ftsSync.sets !== ftsSync.fts) {
+          await phaseProgress(2, 'Rebuilding search index', 0, 1);
+          await rebuildSearchIndex(c.env.DB);
+          await phaseProgress(2, 'Search index rebuilt', 1, 1);
+        } else {
+          await phaseProgress(2, 'Search index up to date', 1, 1);
+        }
 
         snapshot = await getPopulationSnapshot(c.env);
         if (snapshot.catalog_ready && (!snapshot.barcode_pass_complete || Number(((snapshot as Record<string, any>).quality || {}).missing_upc || 0) > 0)) {
