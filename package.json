@@ -2,6 +2,7 @@
   "name": "mybricks-workspace",
   "version": "1.0.0",
   "private": true,
+  "main": "node_modules/expo/AppEntry.js",
   "type": "module",
   "scripts": {
     "setup": "cmd /c \"npm --prefix worker install\"",
@@ -16,5 +17,11 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.0",
     "@playwright/test": "^1.61.1"
+  },
+  "dependencies": {
+    "expo": "^57.0.4",
+    "react": "^19.2.3",
+    "react-native": "^0.86.0",
+    "react-native-webview": "^13.16.1"
   }
 }

@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "BricksVault",
+    "slug": "bricksvault",
+    "owner": "yarik1390s-organization",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./public/icon-512.png",
+    "scheme": "brickvault",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "app.brickvault",
+      "buildNumber": "1",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "BricksVault uses the camera to scan LEGO boxes and barcodes.",
+        "NSPhotoLibraryUsageDescription": "BricksVault can use selected photos to identify LEGO sets."
+      }
+    },
+    "android": {
+      "package": "app.brickvault",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./public/icon-maskable-512.png",
+        "backgroundColor": "#F5F1E8"
+      }
+    }
+  }
+}
