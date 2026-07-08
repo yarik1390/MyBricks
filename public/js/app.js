@@ -1,6 +1,6 @@
 import { $, $$, haptic, toast, fetchExchangeRates, bvIDB } from './utils.js';
 import { state, invalidatePortfolio } from './state.js';
-import { nextOfflineBannerState } from './lib/pure.js';
+import { nextOfflineBannerState } from './lib/pure-core.js';
 import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionUserId, snapshotGuestVault, migrateGuestVault, isGuestMode, backfillGuestVault } from './api.js';
 import { I } from './icons.js';
 import { route } from './router.js';

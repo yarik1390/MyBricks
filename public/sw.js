@@ -1,7 +1,13 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = 'v266';
+const VERSION = 'v267';
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
+// Cross-origin product images live in their own UNVERSIONED, bounded cache:
+// unversioned so an app update doesn't re-download hundreds of set photos,
+// bounded (FIFO, see trimImgCache) so a heavy catalog browser can't grow it
+// until the browser evicts the whole origin — app shell included.
+const IMG_CACHE = 'brickvault-img-v1';
+const IMG_CACHE_MAX = 300;
 const STATIC_ASSETS = [
   '/',
   '/app.css',
@@ -75,11 +81,22 @@ self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
       .then(keys => Promise.all(
-        keys.filter(k => k !== STATIC_CACHE && k !== API_CACHE).map(k => caches.delete(k))
+        keys.filter(k => k !== STATIC_CACHE && k !== API_CACHE && k !== IMG_CACHE).map(k => caches.delete(k))
       ))
       .then(() => self.clients.claim())
   );
 });
+
+// FIFO bound for the image cache: Cache Storage keys() returns entries in
+// insertion order, so dropping from the front evicts the oldest images first.
+function trimImgCache() {
+  return caches.open(IMG_CACHE).then(c =>
+    c.keys().then(keys => {
+      if (keys.length <= IMG_CACHE_MAX) return;
+      return Promise.all(keys.slice(0, keys.length - IMG_CACHE_MAX).map(k => c.delete(k)));
+    })
+  ).catch(() => {});
+}
 
 // Network-first: try the network, fall back to cache (for offline). Always
 // refreshes the cache with the latest response so updates land immediately.
@@ -100,13 +117,15 @@ function networkFirst(request, cacheName) {
 }
 
 // Cache-first: serve from cache, fetch in the background to refresh. Good for
-// large immutable assets like product images.
+// large immutable assets like product images. Writes to IMG_CACHE are trimmed
+// so the image cache stays bounded.
 function cacheFirst(request, cacheName) {
   return caches.match(request).then(cached => {
     const fetched = fetch(request).then(r => {
       if (r && r.ok) {
         const clone = r.clone();
-        caches.open(cacheName).then(c => c.put(request, clone));
+        caches.open(cacheName).then(c => c.put(request, clone))
+          .then(() => { if (cacheName === IMG_CACHE) return trimImgCache(); });
       }
       return r;
     }).catch(() => cached);
@@ -135,7 +154,17 @@ self.addEventListener('fetch', e => {
         url.pathname.endsWith('.litertlm')) {
       return;
     }
-    e.respondWith(cacheFirst(request, STATIC_CACHE));
+    e.respondWith(cacheFirst(request, IMG_CACHE));
+    return;
+  }
+
+  // Navigations get the precached app shell as a last resort, so an offline
+  // deep link / first visit shows the app instead of a browser error page.
+  if (request.mode === 'navigate') {
+    e.respondWith(
+      networkFirst(request, STATIC_CACHE)
+        .then(r => (r && r.ok) ? r : caches.match('/').then(shell => shell || r))
+    );
     return;
   }
 

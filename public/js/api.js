@@ -1,6 +1,6 @@
 import { state, invalidatePortfolio } from './state.js';
 import { bvIDB, toast } from './utils.js';
-import { jwtSub, displayValueOf } from './lib/pure.js';
+import { jwtSub, displayValueOf } from './lib/pure-core.js';
 
 export let _authSession = null;
 export let _sbUrl = "";

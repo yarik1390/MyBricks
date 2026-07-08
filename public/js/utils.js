@@ -1,7 +1,7 @@
 import { I } from './icons.js';
 import { state } from './state.js';
 import morphdom from './lib/morphdom.js';
-import { upsertDetailCache } from './lib/pure.js';
+import { upsertDetailCache } from './lib/pure-core.js';
 
 /* ---------- DOM helpers ---------- */
 export const $ = (s, r = document) => r.querySelector(s);
@@ -564,7 +564,7 @@ export function slImgHTML(set, { newBadge = false, qtyBadge = 0 } = {}) {
   const hasImg = set.image_url && !set.image_url.startsWith("data:");
   return `<div class="sl-img has-tile${hasImg ? " has-photo" : ""}">
     ${brickTile(set)}
-    ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="" loading="lazy">` : ""}
+    ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="" loading="lazy" decoding="async">` : ""}
     ${newBadge ? `<span class="new-badge">NEW</span>` : ""}
     ${qtyBadge > 1 ? `<span class="qty-badge">×${qtyBadge}</span>` : ""}
   </div>`;

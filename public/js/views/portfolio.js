@@ -243,6 +243,10 @@ function setupPortfolioSentinel(items) {
 
 function paintPortfolio() {
   const p = state.portfolio;
+  // Full innerHTML repaints reset the scroll position — a state change while
+  // deep in a long vault list used to jump the user back to the top. Save and
+  // restore it (the list content is the same page, so the offset stays valid).
+  const scrollYBefore = window.scrollY;
   // Simple mode hides the Insights tab switcher, so never leave the user
   // stranded on the (now-unreachable) insights panel.
   if (getModePref() === "simple" && state.portfolioTab !== "items") state.portfolioTab = "items";
@@ -333,6 +337,9 @@ function paintPortfolio() {
         `}
       </div>
     </div>`;
+
+  // Restore the pre-repaint scroll offset (see note at the top of this fn).
+  if (scrollYBefore > 0) window.scrollTo(0, scrollYBefore);
 
   setTimeout(() => {
     if (state.portfolioTab === "items") {

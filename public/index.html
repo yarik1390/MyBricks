@@ -33,6 +33,17 @@
 <link rel="preconnect" href="https://cdn.rebrickable.com" crossorigin>
 <link rel="preload" href="/app.css" as="style">
 <link rel="preload" href="/js/app.js" as="script" crossorigin>
+<!-- The boot graph is discovered one module at a time (app.js → utils.js →
+     api.js → …), a request waterfall on cold loads. modulepreload the whole
+     boot set so they fetch in parallel with app.js itself. -->
+<link rel="modulepreload" href="/js/utils.js">
+<link rel="modulepreload" href="/js/state.js">
+<link rel="modulepreload" href="/js/api.js">
+<link rel="modulepreload" href="/js/router.js">
+<link rel="modulepreload" href="/js/icons.js">
+<link rel="modulepreload" href="/js/theme.js">
+<link rel="modulepreload" href="/js/lib/pure-core.js">
+<link rel="modulepreload" href="/js/lib/morphdom.js">
 <link rel="stylesheet" href="/app.css">
 <!-- Only the ACTIVE skin is loaded — theme-init sets this href — instead of five
      render-blocking skin sheets. Placed AFTER app.css so its rules win the cascade. -->
