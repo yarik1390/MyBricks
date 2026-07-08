@@ -142,8 +142,25 @@ export async function renderKidsHome() {
         class="input">
       <div id="exitPinErr" style="color:var(--down);font-size:13px;margin-bottom:10px;display:none"></div>
       <button class="btn-primary" id="exitPinConfirm" style="width:100%">Exit</button>
+      <button class="btn-ghost" id="exitPinForgot" style="width:100%;margin-top:8px;font-size:13px;color:var(--ink-mute)">Forgot PIN? Sign out to exit</button>
     `);
     setTimeout(() => $('#exitPinInput')?.focus(), 100);
+    // PIN recovery: the PIN protects THIS signed-in session, so signing out is
+    // a legitimate parent-level escape — the synced vault is untouched, and the
+    // PIN can be reset from Settings after signing back in.
+    $('#exitPinForgot')?.addEventListener('click', async () => {
+      haptic('medium');
+      try {
+        const { sbSignOut } = await import('../api.js');
+        await sbSignOut();
+      } catch { /* best effort — local mode reset below still frees the UI */ }
+      hideSheet();
+      setModePref('pro');
+      setSkinPref('retro');
+      state.me = null;
+      toast('Signed out. Sign back in and reset the PIN from Settings.', 'info');
+      go('#/login');
+    });
     $('#exitPinConfirm')?.addEventListener('click', async () => {
       const pin = $('#exitPinInput')?.value || '';
       if (!/^\d{4}$/.test(pin)) {

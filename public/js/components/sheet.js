@@ -1,5 +1,4 @@
-import { $, haptic, escapeHtml, fmtMoney, daysAgo } from '../utils.js';
-import { I } from '../icons.js';
+import { $, haptic, escapeHtml } from '../utils.js';
 
 let _sheetInvoker = null;
 
@@ -144,16 +143,6 @@ export function promptSheet({ title, label = "", value = "", placeholder = "", c
   });
 }
 
-export function showAlertsSheet(alerts) {
-  const html = alerts.length === 0
-    ? `<div style="padding:20px 0;text-align:center;color:var(--ink-mute);">No new alerts.</div>`
-    : alerts.map(a => `
-        <div class="alert-card">
-          <div class="ah">${I.bell()}Price drop · ${daysAgo(a.triggered_at)}d ago</div>
-          <div style="font-weight:600;">${escapeHtml(a.set_name)}</div>
-          <div style="font-size:13px;margin-top:4px;">Now <strong>${fmtMoney(a.current_value)}</strong> — your target was ${fmtMoney(a.target_price)}.</div>
-        </div>`).join("");
-  showSheet(`
-    <h2 class="u-serif-h" style="margin:0 4px 14px;">Alerts</h2>
-    ${html}`);
-}
+// NOTE: the alerts sheet lives in views/portfolio.js (its showAlertsSheet also
+// handles spike alerts and marks alerts read on view); the never-imported
+// duplicate that used to live here was removed by the audit sweep.
