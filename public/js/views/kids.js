@@ -1,6 +1,6 @@
 import { $, escapeHtml, haptic, toast, setHue } from '../utils.js';
 import { state } from '../state.js';
-import { api } from '../api.js';
+import { api, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
 import { go } from '../router.js';
 import { setModePref, setSkinPref } from '../theme.js';
@@ -118,6 +118,22 @@ export async function renderKidsHome() {
     </div>`;
 
   $('#exitKidsBtn')?.addEventListener('click', () => {
+    // The PIN gate only exists once a parent actually SET a PIN. Guests can't
+    // have a server-side PIN at all, and a signed-in user may have entered Kids
+    // (e.g. via the setup wizard) without ever setting one — in both cases
+    // there is nothing to verify, so exit freely instead of trapping the user
+    // behind a PIN prompt that can never succeed.
+    const freeExit = () => {
+      hideSheet();
+      setModePref('pro');
+      setSkinPref('retro');
+      state.me = null;
+      go('#/');
+    };
+    if (isGuestMode() || (state.me && state.me.has_kids_pin === false)) {
+      freeExit();
+      return;
+    }
     showSheet(`
       <h2 class="u-serif-h">Exit Kids Mode</h2>
       <p style="color:var(--ink-mute);margin-bottom:16px">Enter your 4-digit PIN to exit.</p>
@@ -138,17 +154,19 @@ export async function renderKidsHome() {
       try {
         const res = await api('/api/me/kids-pin/verify', { method: 'POST', body: { pin } });
         if (res?.ok) {
-          hideSheet();
-          setModePref('pro');
-          setSkinPref('retro');
-          state.me = null;
-          go('#/');
+          freeExit();
         } else {
           const err = $('#exitPinErr');
           if (err) { err.textContent = 'Incorrect PIN. Try again.'; err.style.display = 'block'; }
           haptic('medium');
         }
-      } catch {
+      } catch (e) {
+        // Server says no PIN is configured → nothing to verify, exit freely.
+        if (String(e?.message || '').includes('no_pin')) {
+          toast('No parent PIN is set — add one in Settings to lock Kids Mode.', 'info');
+          freeExit();
+          return;
+        }
         toast('Something went wrong. Try again.', 'error');
       }
     });

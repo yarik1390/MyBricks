@@ -1,6 +1,6 @@
 import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML } from './portfolio-detail-market.js';
-import { computeDealScore, ebaySoldSummary, marketValueForCondition, estMark } from '../lib/pure.js';
+import { computeDealScore, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
@@ -229,14 +229,14 @@ function shareSet(set) {
   }
 }
 
-// The value the page actually displays: the blended market value when present,
-// otherwise the formula current_value. Keeps the headline, the add button and
-// the recorded purchase price all showing the SAME number.
+// The value the page actually displays: the shared displayValueOf chain
+// (market_value → blended_value → current_value) so the headline, the add
+// button, the catalog card and the vault row all show the SAME number.
 function setDisplayValue(set) {
   // Coming-soon sets aren't released yet — there's no market, so show the
   // announced retail (from the upcoming feed, else MSRP), not a formula estimate.
   if (set.coming_soon) return Number(set.upcoming_price) || Number(set.retail_price) || 0;
-  return Number(set.market_value) > 0 ? Number(set.market_value) : (Number(set.current_value) || 0);
+  return displayValueOf(set);
 }
 
 // Plain-language confidence chip (no "high/medium/low signal" jargon).

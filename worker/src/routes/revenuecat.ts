@@ -31,10 +31,24 @@ const REVOKE = new Set([
   'SUBSCRIPTION_PAUSED',
 ]);
 
+// Constant-time string compare — a plain !== short-circuits on the first
+// differing byte, which leaks prefix-match timing to an attacker probing the
+// shared webhook secret. XOR-accumulating over the full length doesn't.
+// (Only the length is still observable, which is standard and acceptable.)
+function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
+
 app.post('/webhook', async (c) => {
   const expected = c.env.REVENUECAT_WEBHOOK_AUTH;
   if (!expected) return c.json({ error: 'RevenueCat webhook not configured' }, 503);
-  if ((c.req.header('Authorization') || '') !== expected) {
+  if (!timingSafeEqual(c.req.header('Authorization') || '', expected)) {
     return c.json({ error: 'unauthorized' }, 401);
   }
 

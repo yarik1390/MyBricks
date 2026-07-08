@@ -3,7 +3,7 @@ import { state, invalidatePortfolio } from '../state.js';
 import { api, outboxEnqueue, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from './sheet.js';
-import { computeDealScore as computeDealScorePure, marketValueForCondition } from '../lib/pure.js';
+import { computeDealScore as computeDealScorePure, marketValueForCondition, flipEconomics } from '../lib/pure.js';
 import { checkGemma3Downloaded, runLocalVisionScan, isWebGpuAvailable } from '../lib/local-ai.js';
 import { flipCalcHTML } from './flip-calc.js';
 
@@ -1133,6 +1133,23 @@ function showBulkScanResults(results) {
     }
 
     try {
+      // Offline: queue everything in the outbox in one pass (mirrors the
+      // single-add path) — one clear toast instead of N "Saved offline" toasts
+      // and a misleading "updated successfully".
+      if (!navigator.onLine) {
+        for (const chk of adds) {
+          outboxEnqueue({ path: "/api/collection", method: "POST", body: { set_num: chk.dataset.setnum, quantity: 1, purchase_price: parseFloat(chk.dataset.price) || 0 } });
+        }
+        for (const chk of qtys) {
+          outboxEnqueue({ path: "/api/collection/" + chk.dataset.ownedId, method: "PATCH", body: { quantity: parseInt(chk.dataset.ownedQty, 10) + 1 } });
+        }
+        invalidatePortfolio();
+        toast(`Saved ${adds.length + qtys.length} set${adds.length + qtys.length === 1 ? "" : "s"} offline — will sync when connected`, "info");
+        closeScan();
+        location.hash = "#/";
+        return;
+      }
+
       const addPromises = adds.map(chk => {
         const setNum = chk.dataset.setnum;
         const price = parseFloat(chk.dataset.price) || 0;
@@ -1151,9 +1168,11 @@ function showBulkScanResults(results) {
         });
       });
 
-      await Promise.all([...addPromises, ...qtyPromises]);
+      const results = await Promise.allSettled([...addPromises, ...qtyPromises]);
+      const failed = results.filter(r => r.status === "rejected").length;
       invalidatePortfolio();
-      toast("Collection updated successfully", "success");
+      if (failed === 0) toast("Vault updated", "success");
+      else toast(`Added ${results.length - failed} of ${results.length} — ${failed} failed, try those again`, "error");
       closeScan();
       // Wait, renderPortfolio can be imported or we navigate
       location.hash = "#/";
@@ -1205,11 +1224,9 @@ function openDealBreakdownSheet(set, storePrice) {
   const shipping = parseFloat(localStorage.getItem("bv_flip_shipping") ?? "5.00");
   const tax = parseFloat(localStorage.getItem("bv_flip_tax") ?? "0.00");
 
-  const estPrice = market * rate;
-  const ebayFee = estPrice * (feePct / 100);
-  const paypalFee = estPrice * (paymentPct / 100) + (0.30 * rate);
-  const totalFees = ebayFee + paypalFee + shipping + tax;
-  const net = Math.max(0, estPrice - totalFees);
+  const calc = flipEconomics({ marketUsd: market, rate, feePct, paymentPct, shipping, tax });
+  if (!calc) return;
+  const { marketplaceFee: ebayFee, paymentFee: paypalFee, net } = calc;
   const profit = net - storePrice;
   const roi = storePrice > 0 ? (profit / storePrice) * 100 : 0;
 
@@ -1263,19 +1280,22 @@ export function updateFlipCalc(set, entry, storePrice) {
   const market = parseFloat(marketValueForCondition(set, condition) || 0);
   if (market <= 0) return;
 
-  let estPrice = market;
+  let estPriceUsd = market;
   if (condition.startsWith('used') && !set.ebay_used_value) {
     const ratio = (set.used_value && set.current_value) ? (set.used_value / set.current_value) : 0.75;
-    estPrice = market * ratio;
+    estPriceUsd = market * ratio;
   }
+  // Same shared math (and the same exchange-rate conversion) as the deal
+  // breakdown sheet — the user-entered store price is in THEIR currency, so
+  // the net must be too, or the ROI is nonsense for non-USD users.
+  const rate2 = getExchangeRate(state.me?.currency || "USD");
   const feePct2 = parseFloat(localStorage.getItem("bv_flip_fee_pct") ?? "13.25");
   const paymentPct2 = parseFloat(localStorage.getItem("bv_flip_payment_pct") ?? "2.9");
   const shipping2 = parseFloat(localStorage.getItem("bv_flip_shipping") ?? "5.00");
-  const ebayFee = estPrice * (feePct2 / 100);
-  const paypalFee = estPrice * (paymentPct2 / 100) + 0.30;
-  const gross = estPrice;
-  const totalFees = ebayFee + paypalFee + shipping2;
-  const net = Math.max(0, gross - totalFees);
+  const tax2 = parseFloat(localStorage.getItem("bv_flip_tax") ?? "0.00");
+  const calc2 = flipEconomics({ marketUsd: estPriceUsd, rate: rate2, feePct: feePct2, paymentPct: paymentPct2, shipping: shipping2, tax: tax2 });
+  if (!calc2) return;
+  const net = calc2.net;
 
   const resultEl = container.querySelector(".flip-result");
   if (resultEl) {

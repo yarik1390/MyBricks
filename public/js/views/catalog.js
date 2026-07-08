@@ -6,7 +6,7 @@ import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { openScan } from '../components/scanner-lazy.js';
 import { trustBadgeHTML } from '../components/trust.js';
-import { activeCatalogFilterCount, catalogFilterSummary, pricePerPiece, estMark } from '../lib/pure.js';
+import { activeCatalogFilterCount, catalogFilterSummary, pricePerPiece, estMark, displayValueOf } from '../lib/pure.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
 
 let _catalogGen = 0;
@@ -694,7 +694,7 @@ function catalogCardHTML(s) {
   const hasImg = s.image_url && !s.image_url.startsWith("data:");
   const h = setHue(s);
   // Prefer the blended market value (valuation v2) over the formula estimate.
-  const dispVal = Number(s.market_value) > 0 ? Number(s.market_value) : s.current_value;
+  const dispVal = displayValueOf(s);
   const mvConf = Number(s.market_value) > 0 ? (s.market_value_confidence || null) : null;
   const confDot = mvConf ? `<span class="price-cue" title="Market confidence: ${mvConf}" style="display:inline-block;width:6px;height:6px;border-radius:50%;vertical-align:middle;margin-right:4px;background:${mvConf === 'high' ? 'var(--up)' : mvConf === 'medium' ? 'var(--accent)' : 'var(--bv-yellow)'};"></span>` : '';
 

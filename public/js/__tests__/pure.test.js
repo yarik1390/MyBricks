@@ -8,6 +8,7 @@ import {
   parseCSVTable, parseCollectionCSV, sanitizeMoneyInput, activeCatalogFilterCount, activeFigFilterCount, figFilterSummary,
   liquidityLabel, classifyProviderHealth, validateSourceTuningInput, groupAdminJobRuns,
   formatRelativeTime, processRunBadge, isEstimatedValue, estMark,
+  displayValueOf, flipEconomics,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -200,6 +201,42 @@ describe('eBay sold helpers', () => {
     assert.equal(summary.newValue, 99);
     assert.equal(summary.newUpdatedAt, '2026-06-01 00:00:00');
     assert.equal(summary.legacy, true);
+  });
+});
+
+describe('displayValueOf', () => {
+  it('prefers market_value, then blended_value, then current_value', () => {
+    assert.equal(displayValueOf({ market_value: 900, blended_value: 850, current_value: 800 }), 900);
+    assert.equal(displayValueOf({ blended_value: 850, current_value: 800 }), 850);
+    assert.equal(displayValueOf({ current_value: 800 }), 800);
+    assert.equal(displayValueOf({}), 0);
+  });
+  it('ignores zero/negative values in the chain', () => {
+    assert.equal(displayValueOf({ market_value: 0, blended_value: 850 }), 850);
+    assert.equal(displayValueOf({ market_value: -5, blended_value: 0, current_value: 42 }), 42);
+  });
+});
+
+describe('flipEconomics', () => {
+  it('computes fees on the converted price and converts the fixed fee', () => {
+    // 100 USD at rate 2 → gross 200; 10% marketplace = 20; 5% + $0.30×2 payment
+    // = 10.60; shipping 5 + tax 1 → net = 200 − 36.60 = 163.40.
+    const r = flipEconomics({ marketUsd: 100, rate: 2, feePct: 10, paymentPct: 5, shipping: 5, tax: 1 });
+    assert.equal(r.gross, 200);
+    assert.equal(r.marketplaceFee, 20);
+    assert.equal(Math.round(r.paymentFee * 100) / 100, 10.6);
+    assert.equal(Math.round(r.net * 100) / 100, 163.4);
+  });
+  it('returns null with no usable market value and never goes negative', () => {
+    assert.equal(flipEconomics({ marketUsd: 0 }), null);
+    assert.equal(flipEconomics({}), null);
+    const r = flipEconomics({ marketUsd: 1, feePct: 500 });
+    assert.equal(r.net, 0);
+  });
+  it('defaults rate to 1 (USD passthrough)', () => {
+    const r = flipEconomics({ marketUsd: 100, feePct: 13.25, paymentPct: 2.9 });
+    assert.equal(r.gross, 100);
+    assert.equal(Math.round(r.paymentFee * 100) / 100, 3.2);
   });
 });
 

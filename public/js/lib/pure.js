@@ -186,6 +186,36 @@ export function computeSpreadSignals(items = [], { threshold = 0.15 } = {}) {
   return { hot, cold, totalUpside: hot.reduce((s, x) => s + x.gap, 0) };
 }
 
+// Flip (resale) economics in the user's DISPLAY currency. Values are stored in
+// USD, so the market price and the marketplace's fixed payment fee (USD $0.30)
+// are converted at `rate`; percentage fees apply to the converted price;
+// shipping/tax are flat amounts the user entered in their own currency.
+// Returns null when there is no usable market value. Single source for BOTH
+// the deal-breakdown sheet and the flip calculator — they once diverged (the
+// calculator skipped the rate entirely), showing non-USD users a wrong ROI.
+export function flipEconomics({ marketUsd, rate = 1, feePct = 13.25, paymentPct = 2.9, fixedFeeUsd = 0.30, shipping = 0, tax = 0 } = {}) {
+  const r = Number(rate) > 0 ? Number(rate) : 1;
+  const gross = Number(marketUsd) * r;
+  if (!(gross > 0)) return null;
+  const marketplaceFee = gross * ((Number(feePct) || 0) / 100);
+  const paymentFee = gross * ((Number(paymentPct) || 0) / 100) + (Number(fixedFeeUsd) || 0) * r;
+  const ship = Number(shipping) || 0;
+  const taxAmt = Number(tax) || 0;
+  const totalFees = marketplaceFee + paymentFee + ship + taxAmt;
+  return { gross, marketplaceFee, paymentFee, shipping: ship, tax: taxAmt, totalFees, net: Math.max(0, gross - totalFees) };
+}
+
+// THE single source of a set/collection row's display value on the client:
+// the blended market value when present, then the persisted blend column, then
+// the formula current_value. Every surface (catalog card, vault row, set
+// detail, add button, CSV math) must use this — a second copy of this chain
+// once let the catalog show a different number than the vault for the same set.
+export function displayValueOf(row = {}) {
+  return Number(row.market_value) > 0 ? Number(row.market_value)
+    : Number(row.blended_value) > 0 ? Number(row.blended_value)
+    : (Number(row.current_value) || 0);
+}
+
 // A displayed value is an ESTIMATE (not market-derived) when no blended market
 // value survived and the stored value came from the attribute formula, a local
 // guess, or an AI gap-fill. Drives the "~" prefix on prices so estimates never

@@ -717,6 +717,40 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(row.purchase_price).toBe(0);
     });
 
+    it('caps external catalog lookups at 25 per import request', async () => {
+      (env as any).REBRICKABLE_API_KEY = 'test-key';
+      const originalFetch = globalThis.fetch;
+      // Successful Rebrickable lookup for whichever set was requested.
+      const fetchSpy = vi.fn(async (url: any) => {
+        const m = String(url).match(/sets\/([^/]+)\//);
+        const setNum = decodeURIComponent(m?.[1] || '999999-1');
+        return new Response(JSON.stringify({
+          set_num: setNum, name: `Set ${setNum}`, year: 2020,
+          num_parts: 100, num_minifigs: 0, set_img_url: null,
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      });
+      globalThis.fetch = fetchSpy as any;
+      try {
+        // 28 unique unknown sets: only the first 25 may hit Rebrickable; the
+        // remaining 3 must be skipped with an explicit lookup-limit reason
+        // instead of firing 28 serial external subrequests.
+        const rows = Array.from({ length: 28 }, (_, i) => ({ set_num: `99900${i}-1`, quantity: 1 }));
+        const res = await app.fetch(new Request('http://localhost/api/collection/import', {
+          method: 'POST',
+          headers: auth(),
+          body: JSON.stringify({ rows }),
+        }), env);
+        expect(res.status).toBe(200);
+        const data = await res.json<any>();
+        expect(fetchSpy.mock.calls.length).toBe(25);
+        expect(data.imported).toBe(25);
+        expect(data.errors.filter((e: any) => String(e.reason).includes('lookup limit'))).toHaveLength(3);
+      } finally {
+        globalThis.fetch = originalFetch;
+        delete (env as any).REBRICKABLE_API_KEY;
+      }
+    });
+
     it('exports CSV with a header row and the owned set (Pro)', async () => {
       await db.prepare(
         `INSERT INTO user_prefs (user_id, is_supporter) VALUES (?, 1)

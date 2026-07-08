@@ -1,5 +1,5 @@
 import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone } from '../utils.js';
-import { marketValueForCondition, computeSpreadSignals, estMark } from '../lib/pure.js';
+import { marketValueForCondition, computeSpreadSignals, estMark, displayValueOf } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
@@ -82,13 +82,12 @@ async function _revalidatePortfolio() {
 // the server now returns.
 function pval(x) {
   // Used holdings are worth their used-market price; new/sealed keep the v2
-  // blended fair value. market_value is preferred first so a guest vault card
-  // (which carries market_value) shows the SAME number as the catalog/detail;
-  // authed items have no market_value column and fall through to blended_value.
+  // blended fair value via the shared displayValueOf chain (market_value →
+  // blended_value → current_value) so vault, catalog and detail show ONE number.
   if (String(x?.condition || '').startsWith('used')) {
-    return Number(marketValueForCondition(x, x.condition)) || Number(x?.market_value) || Number(x?.blended_value) || Number(x?.current_value) || 0;
+    return Number(marketValueForCondition(x, x.condition)) || displayValueOf(x);
   }
-  return Number(x?.market_value) || Number(x?.blended_value) || Number(x?.current_value) || 0;
+  return displayValueOf(x);
 }
 
 // Filter + sort the vault items according to current state.filter. Pure — no DOM.

@@ -2,10 +2,10 @@
 // nav targets with a tooltip card. Shows once (localStorage flag); replayable
 // from the You tab via startOnboarding(). Fully self-contained — if anything
 // throws it never breaks app boot (maybeStartOnboarding swallows errors).
-import { haptic, activateFocusTrap, soundEnabled, advisorEnabled, celebrateChime, bvIDB } from '../utils.js';
+import { haptic, toast, activateFocusTrap, soundEnabled, advisorEnabled, celebrateChime, bvIDB } from '../utils.js';
 import { I } from '../icons.js';
 import { getThemePref, setThemePref, getSkinPref, setSkinPref, getModePref, setModePref } from '../theme.js';
-import { api } from '../api.js';
+import { api, isGuestMode } from '../api.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { route } from '../router.js';
 
@@ -293,14 +293,18 @@ function stepBodyHTML(key) {
   }
   if (key === 'mode') {
     const m = getModePref();
-    const opt = (id, emoji, title, desc) =>
-      `<button class="bv-opt ${m === id ? 'sel' : ''}" data-mode="${id}"><div class="bv-opt-emoji">${emoji}</div><div class="bv-opt-txt"><b>${title}</b><span>${desc}</span></div></button>`;
+    // Kids Mode needs a signed-in account: the parent PIN that locks it is
+    // stored server-side, and a guest who entered Kids would have no PIN and
+    // no account to manage it from.
+    const kidsLocked = isGuestMode();
+    const opt = (id, emoji, title, desc, locked = false) =>
+      `<button class="bv-opt ${m === id ? 'sel' : ''}${locked ? ' bv-opt-locked' : ''}" data-mode="${id}" ${locked ? 'data-locked="1" style="opacity:.55;"' : ''}><div class="bv-opt-emoji">${emoji}</div><div class="bv-opt-txt"><b>${title}</b><span>${desc}</span></div></button>`;
     return `<h3>How will you use it?</h3>
       <p class="sub">You can change this anytime in Settings.</p>
       <div class="bv-opts">
         ${opt('pro', '📈', 'Pro', 'Full investor view — market value, ROI and 2-year projections.')}
         ${opt('simple', '✨', 'Simple', 'Just your sets and what they\'re worth. No jargon.')}
-        ${opt('kids', '🧒', 'Kids', 'Playful, price-free mode with XP and badges. Add a parent PIN later.')}
+        ${opt('kids', '🧒', 'Kids', kidsLocked ? 'Sign in first — a parent PIN keeps kids from exiting.' : 'Playful, price-free mode with XP and badges.', kidsLocked)}
       </div>`;
   }
   if (key === 'appearance') {
@@ -390,6 +394,10 @@ function suWireStep(key) {
   if (key === 'mode') {
     body.querySelectorAll('.bv-opt').forEach(b => b.addEventListener('click', () => {
       haptic('light');
+      if (b.dataset.locked) {
+        toast('Sign in to use Kids Mode — the parent PIN needs an account.', 'info');
+        return;
+      }
       const mode = b.dataset.mode;
       setModePref(mode);
       // Leaving Kids mode? Its forced 'kids' skin would linger — reset to default.
@@ -452,7 +460,17 @@ function suFinish(dest) {
     if (dest === 'tour') route();
     else if (dest === 'support') location.hash = '#/me';
     else if (dest === 'add') location.hash = '#/add';
-    else if (getModePref() === 'kids') location.hash = '#/kids';
+    else if (getModePref() === 'kids') {
+      location.hash = '#/kids';
+      // No parent PIN yet → offer setup right away (signed-in only; the wizard
+      // gates Kids for guests). Dismissing is safe: until a PIN exists, exiting
+      // Kids Mode is free, so this sheet is a lock offer — not a lock-in.
+      if (state.me && !state.me.has_kids_pin) {
+        import('./kids-pin.js')
+          .then(({ showKidsPinSetup }) => showKidsPinSetup({ onSuccess: () => { state.me = null; } }))
+          .catch(() => {});
+      }
+    }
     else route();
   } catch {}
   if (dest === 'tour') { try { startOnboarding(); } catch {} }

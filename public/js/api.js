@@ -1,6 +1,6 @@
 import { state, invalidatePortfolio } from './state.js';
 import { bvIDB, toast } from './utils.js';
-import { jwtSub } from './lib/pure.js';
+import { jwtSub, displayValueOf } from './lib/pure.js';
 
 export let _authSession = null;
 export let _sbUrl = "";
@@ -194,15 +194,8 @@ const SET_FIELDS = [
   'freshness','valuation_explanation','valuation_expires_at','ebay_cached_at'
 ];
 
-// Single source of a set/collection row's display value on the client: the
-// blended market value when present, else the formula current_value. Mirrors
-// setDisplayValue() in portfolio-detail.js and dispVal in catalog.js so the
-// catalog, the set detail and the vault never show three different numbers.
-function displayValueOf(row = {}) {
-  return Number(row.market_value) > 0 ? Number(row.market_value)
-    : Number(row.blended_value) > 0 ? Number(row.blended_value)
-    : (Number(row.current_value) || 0);
-}
+// Display-value chain lives in lib/pure.js (displayValueOf) — imported above
+// and re-used here for guest-vault math so every surface shows one number.
 
 export function isGuestMode() {
   return !_authSession?.access_token;

@@ -391,12 +391,29 @@ app.post('/import', async (c) => {
   const stmts: D1PreparedStatement[] = [];
   const validConds = ['new', 'used_good', 'used_acceptable', 'sealed'];
 
+  // Unknown sets fall back to a Rebrickable lookup, but that's an external
+  // subrequest PER ROW: a 500-row import of unknown sets used to fire 500
+  // serial fetches — blowing the Workers subrequest cap / 30s limit and
+  // failing the whole import opaquely. Cap the lookups per request and dedupe
+  // misses so duplicate rows of the same unknown set don't refetch.
+  const EXTERNAL_LOOKUP_CAP = 25;
+  let externalLookups = 0;
+  const externalMisses = new Set<string>();
+
   for (const row of rows as Record<string, unknown>[]) {
     const set_num = String(row.set_num || '').trim();
     if (!set_num) { errors.push({ row, reason: 'missing set_num' }); continue; }
 
     let catalog = await c.env.DB.prepare('SELECT 1 FROM lego_sets WHERE set_num=?').bind(set_num).first();
+    if (!catalog && externalMisses.has(set_num)) {
+      errors.push({ set_num, reason: 'set not in catalog' }); skipped++; continue;
+    }
+    if (!catalog && c.env.REBRICKABLE_API_KEY && externalLookups >= EXTERNAL_LOOKUP_CAP) {
+      errors.push({ set_num, reason: `unknown set — catalog lookup limit (${EXTERNAL_LOOKUP_CAP}) reached for this import; re-import the remaining rows to continue` });
+      skipped++; continue;
+    }
     if (!catalog && c.env.REBRICKABLE_API_KEY) {
+      externalLookups++;
       try {
         const url = `https://rebrickable.com/api/v3/lego/sets/${encodeURIComponent(set_num)}/`;
         const rb = await fetchTracked(c.env, 'rebrickable', url, { headers: { 'Authorization': `key ${c.env.REBRICKABLE_API_KEY}` } });
@@ -410,8 +427,11 @@ app.post('/import', async (c) => {
           `).bind(s.set_num, s.name, s.year, s.num_parts, s.num_minifigs || 0, s.set_img_url,
                   vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y).run();
           catalog = { set_num: s.set_num };
+        } else {
+          externalMisses.add(set_num);
         }
       } catch (e) {
+        externalMisses.add(set_num);
         console.warn(`[import] Rebrickable fallback failed for ${set_num}:`, (e as Error).message);
       }
     }
