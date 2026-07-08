@@ -58,8 +58,11 @@ jobs:
       # the boot-critical helpers (incl. the display-value chain) under
       # @ts-check + JSDoc, so shape regressions there fail the deploy. Extend
       # file-by-file as more modules gain annotations.
+      # `--package typescript@5` (not `npx typescript@5`): the typescript
+      # package has two bins (tsc/tsserver), so a bare package spec fails with
+      # "could not determine executable to run".
       - name: Typecheck frontend core (checkJs)
-        run: npx --yes typescript@5 tsc --noEmit --checkJs --allowJs --strict --target es2022 --module es2022 --moduleResolution bundler --skipLibCheck public/js/lib/pure-core.js
+        run: npx --yes --package typescript@5 tsc --noEmit --checkJs --allowJs --strict --target es2022 --module es2022 --moduleResolution bundler --skipLibCheck public/js/lib/pure-core.js
 
       - name: Typecheck Worker
         run: npm --prefix worker run typecheck
