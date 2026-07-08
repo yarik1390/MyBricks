@@ -108,6 +108,12 @@ app.patch('/', async (c) => {
   }>();
   const { display_name, currency, notify_price_drops, handle, is_public, expose_public_value, discord_webhook_url } = body;
   if (display_name && display_name.length > 40) return c.json({ error: 'display_name max 40 chars' }, 400);
+  // Whitelist currency (mirrors CURRENCY_SYMBOLS in public/js/utils.js) — it
+  // was previously stored verbatim, so any string could persist unbounded.
+  const CURRENCIES = ['USD', 'GBP', 'EUR', 'CAD', 'AUD'];
+  if (currency !== undefined && !CURRENCIES.includes(String(currency))) {
+    return c.json({ error: `currency must be one of ${CURRENCIES.join(', ')}` }, 400);
+  }
 
   if (handle !== undefined) {
     if (!/^[a-zA-Z0-9-]{3,30}$/.test(handle)) {

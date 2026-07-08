@@ -81,7 +81,9 @@ app.use('*', cors({
 // hand an anonymous-cached body to a signed-in request) and let the CORS
 // middleware append Origin itself — setting "Origin, Authorization" here
 // produced a duplicate "Origin" token once CORS appended its own.
-const PUBLIC_CACHEABLE_GET = /^\/api\/(sets|themes|minifigs|rates|config)(?:\/|$)/;
+// users/leaderboard + users/:handle/profile are public GROUP-BY aggregations —
+// cacheable for the same short window so they can't be hammered per-request.
+const PUBLIC_CACHEABLE_GET = /^\/api\/(sets|themes|minifigs|rates|config|users\/leaderboard|users\/[^/]+\/profile)(?:\/|$)/;
 
 app.use('*', async (c, next) => {
   await next();

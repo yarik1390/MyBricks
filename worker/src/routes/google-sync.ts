@@ -153,10 +153,19 @@ app.get('/status', requireMember, async (c) => {
   const userId = c.get('userId');
   const prefs = await c.env.DB.prepare('SELECT google_refresh_token, google_spreadsheet_id FROM user_prefs WHERE user_id=?')
     .bind(userId).first() as { google_refresh_token?: string; google_spreadsheet_id?: string } | null;
+  // Last sync outcome (persisted by runSyncProcess) so a failing background
+  // sync is visible instead of looking eternally "started".
+  let lastSync: unknown = null;
+  try {
+    const row = await c.env.DB.prepare('SELECT value FROM app_settings WHERE key=?')
+      .bind(`gsync_status:${userId}`).first<{ value: string }>();
+    if (row?.value) lastSync = JSON.parse(row.value);
+  } catch { /* fail-open */ }
   return c.json({
     connected: !!prefs?.google_refresh_token,
     spreadsheet_id: prefs?.google_spreadsheet_id || null,
-    configured: googleConfigured(c.env)
+    configured: googleConfigured(c.env),
+    last_sync: lastSync,
   });
 });
 
@@ -172,6 +181,24 @@ app.post('/sync', requireMember, async (c) => {
   }
   if (_syncInProgress.has(userId)) {
     return c.json({ message: 'Sync already in progress' });
+  }
+
+  // Real per-user throttle: the in-flight Set above is per-ISOLATE only —
+  // Cloudflare runs many isolates, so concurrent /sync calls elsewhere all
+  // proceeded, each burning multiple Google API calls on the shared OAuth
+  // quota. Same atomic RETURNING pattern as scan/advisor/revalue.
+  {
+    const windowStart = new Date();
+    windowStart.setMinutes(0, 0, 0);
+    const rl = await c.env.DB.prepare(`
+      INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+      VALUES (?, 'google_sync', ?, 1)
+      ON CONFLICT (user_id, endpoint, window_start) DO UPDATE SET hit_count = rate_limits.hit_count + 1
+      RETURNING hit_count
+    `).bind(userId, windowStart.toISOString()).first<{ hit_count: number }>();
+    if ((rl?.hit_count || 0) > 4) {
+      return c.json({ error: 'Sync limit: 4 per hour. Your sheet updates automatically after vault changes.' }, 429);
+    }
   }
 
   _syncInProgress.add(userId);
@@ -359,10 +386,25 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
     } catch (wishErr) {
       console.error('[google-sync] Wishlist sheet error (Portfolio was written successfully):', wishErr);
     }
+    await persistSyncStatus(env, userId, true);
   } catch (err) {
     await recordIntegrationAttempt(env, 'google', false, err);
     console.error('[google-sync] Error running spreadsheet sync:', err);
+    await persistSyncStatus(env, userId, false, (err as Error).message);
   }
+}
+
+// The sync runs in waitUntil AFTER "Sync started" was already returned, so a
+// persistently broken sync used to look successful forever. Persist the last
+// outcome per user (app_settings k/v) and surface it from /status. Fail-open.
+async function persistSyncStatus(env: Env, userId: string, ok: boolean, error?: string) {
+  try {
+    const value = JSON.stringify({ ok, error: error ? error.slice(0, 300) : null, finished_at: new Date().toISOString() });
+    await env.DB.prepare(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES (?1, ?2, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value=?2, updated_at=datetime('now')`
+    ).bind(`gsync_status:${userId}`, value).run();
+  } catch { /* non-fatal */ }
 }
 
 export { app as googleSyncRoute };

@@ -6,6 +6,10 @@ import { enrichSetRecord } from '../lib/market-sources';
 import { logEvent } from '../lib/analytics';
 import type { Env, Variables } from '../types';
 import { runSyncProcess } from './google-sync';
+
+// Max length for user free-text fields (notes, storage location, acquisition
+// source) — persisted unbounded before, letting a client store multi-MB blobs.
+const FREE_TEXT_MAX = 500;
 import { awardXpForAdd } from '../lib/kids-xp';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -236,7 +240,10 @@ app.post('/', async (c) => {
     set_num?: string; quantity?: number; condition?: string;
     purchase_price?: number; notes?: string; purchased_at?: string;
   }>();
-  const { set_num, quantity = 1, condition = 'new', purchase_price, notes, purchased_at } = body;
+  const { set_num, quantity = 1, condition = 'new', purchase_price, purchased_at } = body;
+  // Cap free text so a client can't persist multi-MB strings (D1 storage is
+  // billed and every read pays for the bloat). 500 chars is generous for notes.
+  const notes = body.notes != null ? String(body.notes).slice(0, FREE_TEXT_MAX) : body.notes;
   if (!set_num) return c.json({ error: 'set_num required' }, 400);
   const validConditions = ['new', 'used_good', 'used_acceptable', 'sealed'];
   if (!validConditions.includes(condition)) return c.json({ error: 'Invalid condition' }, 400);
@@ -449,9 +456,9 @@ app.post('/import', async (c) => {
       : Number(rawPrice);
     const purchase_price = parsedPrice !== null && Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : null;
     const purchased_at = row.purchased_at ? String(row.purchased_at) : null;
-    const notes = row.notes ? String(row.notes) : null;
-    const storage_location = row.storage_location ? String(row.storage_location) : null;
-    const acquisition_source = row.acquisition_source ? String(row.acquisition_source) : null;
+    const notes = row.notes ? String(row.notes).slice(0, FREE_TEXT_MAX) : null;
+    const storage_location = row.storage_location ? String(row.storage_location).slice(0, FREE_TEXT_MAX) : null;
+    const acquisition_source = row.acquisition_source ? String(row.acquisition_source).slice(0, FREE_TEXT_MAX) : null;
     const is_complete = row.is_complete === 'false' || row.is_complete === false ? 0 : 1;
     const missing_pieces = parseInt(String(row.missing_pieces)) || 0;
 
@@ -558,12 +565,15 @@ app.patch('/:id', async (c) => {
 
   const ALLOWED = ['quantity','condition','purchase_price','purchased_at','notes',
                    'storage_location','acquisition_source','is_complete','missing_pieces'];
+  const FREE_TEXT = new Set(['notes', 'storage_location', 'acquisition_source']);
   const fields: string[] = [];
   const vals: unknown[] = [];
   for (const key of ALLOWED) {
     if (key in body) {
       fields.push(`${key}=?`);
-      vals.push(key === 'is_complete' ? (body[key] ? 1 : 0) : body[key]);
+      const v = key === 'is_complete' ? (body[key] ? 1 : 0)
+        : (FREE_TEXT.has(key) && body[key] != null ? String(body[key]).slice(0, FREE_TEXT_MAX) : body[key]);
+      vals.push(v);
     }
   }
   if (!fields.length) return c.json({ error: 'No fields to update' }, 400);

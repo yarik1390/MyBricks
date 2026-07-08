@@ -71,7 +71,9 @@ app.get('/', async (c) => {
 app.post('/', async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json<{ set_num?: string; target_price?: number; notes?: string }>();
-  const { set_num, target_price, notes } = body;
+  const { set_num, target_price } = body;
+  // Cap free text (same 500-char bound as collection notes).
+  const notes = body.notes != null ? String(body.notes).slice(0, 500) : body.notes;
   if (!set_num) return c.json({ error: 'set_num required' }, 400);
 
   if (target_price !== undefined && target_price !== null && (typeof target_price !== 'number' || target_price < 0)) {

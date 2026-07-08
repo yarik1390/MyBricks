@@ -717,6 +717,19 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(row.purchase_price).toBe(0);
     });
 
+    it('caps free-text fields at 500 chars server-side', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/collection', {
+        method: 'POST',
+        headers: auth(),
+        body: JSON.stringify({ set_num: '75192', quantity: 1, notes: 'x'.repeat(5000) }),
+      }), env);
+      expect(res.status).toBe(201);
+      const row = await db.prepare(
+        `SELECT LENGTH(notes) AS n FROM user_collection WHERE user_id=? AND set_num='75192'`
+      ).bind(userId).first<{ n: number }>();
+      expect(row?.n).toBe(500);
+    });
+
     it('caps external catalog lookups at 25 per import request', async () => {
       (env as any).REBRICKABLE_API_KEY = 'test-key';
       const originalFetch = globalThis.fetch;

@@ -73,7 +73,9 @@ app.get('/:handle/profile', async (c) => {
     `).bind(userId).all<{ theme: string; value: number }>(),
 
     c.env.DB.prepare(`
-      SELECT ls.*
+      SELECT ls.set_num, ls.name, ls.theme, ls.year, ls.pieces, ls.minifigs,
+             ls.image_url, ls.retired, ls.current_value, ls.blended_value,
+             ls.valuation_method
       FROM user_showcase us
       JOIN lego_sets ls ON ls.set_num = us.set_num
       WHERE us.user_id=?

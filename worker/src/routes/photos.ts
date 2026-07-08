@@ -6,6 +6,10 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 app.use('*', requireMember);
 
+// Daily cap on 4 MB R2 writes — every other upload endpoint has one; this was
+// the only unthrottled write path. Supporters get the usual 5× headroom.
+const PHOTO_DAILY_LIMIT = 20;
+
 // POST /api/collection/:id/photo — upload a custom photo for a collection entry.
 // Accepts multipart/form-data with a "photo" file field (JPEG/PNG/WebP, max 4 MB).
 app.post('/:id/photo', async (c) => {
@@ -19,6 +23,23 @@ app.post('/:id/photo', async (c) => {
   if (!row) return c.json({ error: 'Collection entry not found' }, 404);
 
   if (!c.env.PHOTO_BUCKET) return c.json({ error: 'Photo storage not configured' }, 503);
+
+  {
+    const pref = await c.env.DB.prepare('SELECT is_supporter FROM user_prefs WHERE user_id=?')
+      .bind(userId).first<{ is_supporter: number }>();
+    const limit = pref?.is_supporter ? PHOTO_DAILY_LIMIT * 5 : PHOTO_DAILY_LIMIT;
+    const windowStart = new Date();
+    windowStart.setUTCHours(0, 0, 0, 0);
+    const rl = await c.env.DB.prepare(`
+      INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+      VALUES (?, 'photo_upload', ?, 1)
+      ON CONFLICT (user_id, endpoint, window_start) DO UPDATE SET hit_count = rate_limits.hit_count + 1
+      RETURNING hit_count
+    `).bind(userId, windowStart.toISOString()).first<{ hit_count: number }>();
+    if ((rl?.hit_count || 0) > limit) {
+      return c.json({ error: `Photo upload limit: ${limit} per day.` }, 429);
+    }
+  }
 
   const form = await c.req.formData();
   const raw = form.get('photo');

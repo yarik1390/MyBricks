@@ -49,15 +49,15 @@ async function verifyJWT(token: string, env: Env): Promise<{ sub?: string; email
   if (aud != null && (Array.isArray(aud) ? !aud.includes('authenticated') : aud !== 'authenticated')) {
     return { error: 'wrong audience' };
   }
-  // Issuer (`iss`) check — LOG-ONLY. Supabase mints iss=`${SUPABASE_URL}/auth/v1`.
-  // Rejecting on a wrong match would lock everyone out if the expected value is
-  // even slightly off, so for now we only WARN on a mismatch to surface any
-  // discrepancy in logs. Once logs confirm the live issuer matches, flip this to
-  // `return { error: 'wrong issuer' }` to enforce.
+  // Issuer (`iss`) check — ENFORCED. Supabase mints iss=`${SUPABASE_URL}/auth/v1`.
+  // This ran log-only long enough to confirm the live issuer matches; the
+  // signature check is the real gate, so this is defence-in-depth against a
+  // token minted for a different Supabase project with a shared/leaked secret.
   if (payload.iss && env.SUPABASE_URL) {
     const expectedIss = `${env.SUPABASE_URL.replace(/\/$/, '')}/auth/v1`;
     if (payload.iss !== expectedIss) {
-      console.warn(`[auth] JWT iss mismatch (log-only): token iss=${payload.iss} expected=${expectedIss}`);
+      console.warn(`[auth] JWT iss mismatch: token iss=${payload.iss} expected=${expectedIss}`);
+      return { error: 'wrong issuer' };
     }
   }
 
