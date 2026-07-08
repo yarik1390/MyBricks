@@ -9,6 +9,32 @@ two build paths.
 
 ---
 
+## ⚠️ The Expo/EAS wrapper is PREVIEW-ONLY — do not submit it
+
+The repo root also contains an **Expo remote-WebView shell** (`App.js`, `app.json`,
+`eas.json`, `.eas/workflows/`) that loads the live site in a `react-native-webview`.
+It exists so iOS builds can be produced in the cloud (EAS) without a Mac — useful for
+**seeing BricksVault on a device**, nothing more. It must NOT become the store
+submission, because:
+
+1. **Billing breaks / gets rejected (Apple 3.1.1, Play Billing policy):** the
+   RevenueCat bridge in `revenuecat-native.js` detects `window.Capacitor` — absent in
+   the Expo WebView — so `isNativeBilling()` is false and Pro falls back to the
+   Patreon link. Selling a digital subscription via an external link in-app is a
+   rejection on iOS and a policy violation on Play.
+2. **Apple 4.2 (minimum functionality):** a plain remote-WebView wrapper with no
+   native capability is the most-rejected app category on iOS.
+3. **Feature degradation in WKWebView:** no service workers (offline mode dies
+   without App-Bound Domains entitlements), and camera `getUserMedia` needs
+   `mediaCapturePermissionGrantType` config the wrapper doesn't set — the scanner is
+   untested there.
+
+The path that ships is **Capacitor** (below) for BOTH stores: billing works through
+the native bridge and the camera/offline/push capabilities answer Guideline 4.2.
+Use the Expo `preview` profile for internal device checks only.
+
+---
+
 ## What's already done in the repo
 
 - **In-app account deletion** — `DELETE /api/me` purges every user-scoped table + the
