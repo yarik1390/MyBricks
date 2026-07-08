@@ -454,6 +454,36 @@ Both one-time bootstraps — PriceCharting per-set (`10,25,40,55`) and BrickEcon
 
 Newest first. (Service-worker `VERSION` in parentheses where relevant.)
 
+**Full-sweep audit remediation (2026-07, v267)** — a 3-track independent audit
+(UX journeys, backend security/reliability, perf/PWA) surfaced ~60 findings;
+all remediated across 7 commits (`audit-1`…`audit-7`).
+- **Critical:** onboarding Kids-mode trap defused (PIN gate only engages once a
+  PIN exists; guests can't pick Kids in the wizard; shared `components/kids-pin.js`
+  setup sheet; "Forgot PIN? Sign out" escape). ONE display-value chain
+  (`displayValueOf`, now in `lib/pure-core.js`) across catalog/vault/detail —
+  the catalog copy had dropped the `blended_value` fallback. Shared
+  `flipEconomics()` fixes the flip calculator's missing exchange-rate/tax.
+- **UX:** alerts mark read on view + per-alert ✓ dismiss; undo toast after
+  single/bulk delete (`undoToast` in utils.js); bulk ops report partial
+  failures; wishlist target pre-filled with a no-target explanation; guest-
+  migration failures keep a snapshot + "Retry guest sync" in You → Data;
+  honest offline guards; "vault"/"wishlist" terminology unified.
+- **Backend:** 500-char caps on free-text fields; currency whitelist;
+  google-sync + photo-upload rate limits; sync status persisted + on /status;
+  public profile/leaderboard cacheable (s-maxage) + projected columns;
+  JWT `iss` now ENFORCED; RevenueCat webhook constant-time compare; CSV
+  import external lookups capped at 25/request.
+- **Perf:** `lib/pure-core.js` boot split + modulepreload for the boot set;
+  bounded unversioned SW `IMG_CACHE` (FIFO 300); offline navigation falls back
+  to the precached shell; vault repaints keep scroll. (The physical app.css
+  split was deliberately SKIPPED — order-dependent token/skin layers.)
+- **PWA/CI:** manifest `share_target` (shared text → catalog search) +
+  real `screenshots/` (regenerate via `e2e/screenshots.config.mjs`); deploy CI
+  runs all schema probes in ONE round-trip and uploads secrets only on main /
+  manual `push_secrets`; `@ts-check` on pure-core.js gated in CI; e2e suite
+  now 24 tests (Kids escape, undo, alerts-read, value consistency, share
+  target regressions).
+
 **Pricing v2.2: calibration, self-correction & portfolio trust (2026-06, v189)** —
 made the blended value more reliable without new external sources.
 - **History anomaly guard:** `blendMarketValue` (`lib/market-sources.ts`) takes an

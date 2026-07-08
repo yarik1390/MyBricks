@@ -201,3 +201,108 @@ test('Pro pitch on the Me page leads with the investor toolkit', async ({ page }
   await expect(page.getByText('Investor insights: sell/buy signals, top movers, retirement radar')).toBeVisible();
   await expect(page.getByText('Full 1-year portfolio history')).toBeVisible();
 });
+
+// ---------------------------------------------------------------------------
+// Audit-remediation regressions: Kids escape, undo, alerts, wishlist target,
+// value consistency, share target.
+// ---------------------------------------------------------------------------
+
+test('kids mode without a PIN exits freely (no PIN trap)', async ({ page }) => {
+  await page.route('**/api/me', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ display_name: 'Parent', handle: 'parent', currency: 'USD', is_guest: false, has_kids_pin: false, notify_price_drops: true, portfolio_stats: {} }),
+  }));
+  await page.addInitScript(() => localStorage.setItem('bv_mode', 'kids'));
+  // Load the app (state.me populates via /api/me on the me-dependent views);
+  // prime state.me by visiting the vault first, then enter kids.
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.evaluate(async () => {
+    const { api } = await import('/js/api.js');
+    const { state } = await import('/js/state.js');
+    state.me = await api('/api/me');
+    location.hash = '#/kids';
+  });
+  const exit = page.locator('#exitKidsBtn');
+  await exit.waitFor();
+  await exit.click();
+  // No PIN configured → no PIN sheet, straight back to the vault.
+  await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/');
+  await expect(page.locator('#exitPinInput')).toHaveCount(0);
+});
+
+test('deleting an owned set offers a working Undo', async ({ page, stub }) => {
+  await page.route('**/api/sets/75192-1', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ set: stub.SET, entry: { id: 1, quantity: 1, purchase_price: 700, condition: 'new' } }),
+  }));
+  await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
+  await page.locator('#qtyDown').click();
+  // Confirm sheet → Remove
+  await page.locator('#cfYes').click();
+  await expect.poll(() => stub.calls.some((c) => c.method === 'DELETE' && c.path.startsWith('/api/collection/'))).toBe(true);
+  // Undo toast appears; tapping it re-POSTs the kept payload.
+  const undo = page.locator('#toast .toast-undo-btn');
+  await expect(undo).toBeVisible();
+  await undo.click();
+  await expect.poll(() => stub.calls.some((c) => c.method === 'POST' && c.path === '/api/collection')).toBe(true);
+});
+
+test('viewing the alerts sheet marks alerts read and clears the badge', async ({ page, stub }) => {
+  await page.route('**/api/wishlist', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      wishlist: [{ id: 'w1', set_num: '75192-1', name: 'Millennium Falcon' }],
+      unread_alerts: [{ id: 'a1', alert_type: 'drop', set_name: 'Millennium Falcon', current_value: 800, target_price: 850, triggered_at: new Date().toISOString() }],
+    }),
+  }));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.locator('#alertsBtn').click();
+  await expect(page.getByText('Price drop ·')).toBeVisible();
+  // Viewing IS reading: the per-alert mark-read POST fires without any tap.
+  await expect.poll(() => stub.calls.some((c) => c.method === 'POST' && c.path === '/api/wishlist/a1')).toBe(true);
+});
+
+test('wishlist sheet pre-fills a suggested target and explains the no-target case', async ({ page }) => {
+  await page.route('**/api/wishlist', (route, req) => {
+    if (req.method() === 'GET') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ wishlist: [], unread_alerts: [] }) });
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ item: { id: 'w9' } }) });
+  });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => { location.hash = '#/set/75192-1'; });
+  const wish = page.locator('#wishToggle');
+  await expect(wish).toHaveAttribute('aria-label', 'Add to wishlist');
+  await wish.click();
+  const target = page.locator('#wlTargetPrice');
+  await expect(target).toBeVisible();
+  // 85% of the $850 market value, pre-filled so "no target" is an explicit act.
+  await expect(target).toHaveValue('722.50');
+  await expect(page.getByText('Leave empty to watch without price-drop alerts.')).toBeVisible();
+});
+
+test('catalog and detail show the SAME value for a blended-only set', async ({ page }) => {
+  const BLENDED_ONLY = {
+    set_num: '77777-1', name: 'Blend Test Set', year: 2020, pieces: 500, minifigs: 0,
+    theme: 'Creator', image_url: null, retail_price: 49.99,
+    blended_value: 500, valuation_method: 'market', retired: 0,
+  };
+  await page.route('**/api/sets/search**', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ sets: [BLENDED_ONLY], total: 1, hasMore: false }),
+  }));
+  await page.route('**/api/sets/77777-1', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ set: BLENDED_ONLY, entry: null }),
+  }));
+  await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
+  // Catalog card must use the blended value (the old code fell through to a
+  // missing current_value and disagreed with the vault/detail).
+  await expect(page.locator('.set-card-value').first()).toContainText('$500');
+  await page.evaluate(() => { location.hash = '#/set/77777-1'; });
+  await expect(page.locator('.detail-summary-val')).toContainText('$500');
+});
+
+test('web share target lands as a catalog search', async ({ page }) => {
+  await page.goto('/?text=75192', { waitUntil: 'domcontentloaded' });
+  await expect.poll(() => page.evaluate(() => location.hash)).toContain('#/add?q=75192');
+  await expect(page.locator('h1.topbar-title')).toHaveText('Find a set');
+});

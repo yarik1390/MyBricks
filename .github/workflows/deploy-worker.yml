@@ -10,6 +10,11 @@ on:
       - 'public/**'
       - '.github/workflows/deploy-worker.yml'
   workflow_dispatch:
+    inputs:
+      push_secrets:
+        description: "Also (re-)upload Worker secrets from GitHub secrets"
+        required: false
+        default: "false"
 
 # Serialize deploys per branch: a newer push cancels an in-progress deploy so
 # parallel-agent commits (and multi-file feature landings) can't race two
@@ -48,6 +53,13 @@ jobs:
           version: 2.5.0
       - name: Run Biome lint
         run: biome lint
+
+      # The frontend is vanilla JS with no type layer; lib/pure-core.js carries
+      # the boot-critical helpers (incl. the display-value chain) under
+      # @ts-check + JSDoc, so shape regressions there fail the deploy. Extend
+      # file-by-file as more modules gain annotations.
+      - name: Typecheck frontend core (checkJs)
+        run: npx --yes typescript@5 tsc --noEmit --checkJs --allowJs --strict --target es2022 --module es2022 --moduleResolution bundler --skipLibCheck public/js/lib/pure-core.js
 
       - name: Typecheck Worker
         run: npm --prefix worker run typecheck
@@ -218,13 +230,25 @@ jobs:
             "SELECT id, user_id, set_num, r2_key, caption, status, deleted_at FROM set_photos LIMIT 0"
             "SELECT id, user_id, set_num, kind, payload, status, deleted_at FROM set_contributions LIMIT 0"
           )
-          for sql in "${probes[@]}"; do
-            if ! npx wrangler d1 execute brickvault --remote --command "$sql" >/dev/null 2>&1; then
-              echo "::error::Schema validation failed — missing column or table for: $sql"
-              exit 1
-            fi
-          done
-          echo "Schema validation passed (${#probes[@]} probes)"
+          # Fast path: run ALL probes as one --file execution (1 remote
+          # round-trip instead of ~33 sequential ones — this step used to take
+          # ~45s). D1 aborts a multi-statement file on the first error, which
+          # is exactly the fail-fast we want; only on failure do we fall back
+          # to per-probe execution to name the culprit.
+          printf '%s;\n' "${probes[@]}" > /tmp/schema_probes.sql
+          if npx wrangler d1 execute brickvault --remote --file /tmp/schema_probes.sql >/dev/null 2>&1; then
+            echo "Schema validation passed (${#probes[@]} probes, single round-trip)"
+          else
+            echo "Combined probe run failed — identifying the failing probe…"
+            for sql in "${probes[@]}"; do
+              if ! npx wrangler d1 execute brickvault --remote --command "$sql" >/dev/null 2>&1; then
+                echo "::error::Schema validation failed — missing column or table for: $sql"
+                exit 1
+              fi
+            done
+            echo "::error::Combined probe file failed but every individual probe passed — check wrangler output"
+            exit 1
+          fi
 
       # Deploy BEFORE uploading secrets: `wrangler secret put` refuses to run
       # while the Worker's latest version isn't deployed (e.g. after a
@@ -263,7 +287,14 @@ jobs:
           echo "Worker URL: ${WORKER_URL}"
           echo "WORKER_URL=${WORKER_URL}" >> "$GITHUB_ENV"
 
+      # Secrets persist across deploys, so re-uploading ~30 of them on EVERY
+      # push (each `secret put` re-deploys the Worker!) was pure time sink —
+      # roughly a minute per deploy. Both branches deploy the same Worker, so
+      # dev pushes reuse the secrets main already uploaded. Runs on main pushes
+      # and on manual dispatch with push_secrets=true (use that after rotating
+      # or adding a secret).
       - name: Upload Worker secrets
+        if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.push_secrets == 'true')
         working-directory: worker
         run: |
           set -euo pipefail

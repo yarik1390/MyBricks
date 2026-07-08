@@ -1,3 +1,4 @@
+// @ts-check
 // Boot-critical pure helpers, split from pure.js so the app-shell boot graph
 // (app.js → utils.js/api.js) doesn't parse the full ~800-line helper module
 // for four small functions. pure.js re-exports these, so views and tests keep
@@ -9,6 +10,8 @@
  * so normalize before decoding — plain atob() can choke on missing padding,
  * which previously made account-switch detection silently fail (two valid
  * tokens both resolving to null and comparing "equal").
+ * @param {string|null|undefined} token
+ * @returns {string|null}
  */
 export function jwtSub(token) {
   if (!token || typeof token !== "string") return null;
@@ -30,6 +33,7 @@ export function jwtSub(token) {
 // the formula current_value. Every surface (catalog card, vault row, set
 // detail, add button, CSV math) must use this — a second copy of this chain
 // once let the catalog show a different number than the vault for the same set.
+/** @param {{market_value?: unknown, blended_value?: unknown, current_value?: unknown}} [row] */
 export function displayValueOf(row = {}) {
   return Number(row.market_value) > 0 ? Number(row.market_value)
     : Number(row.blended_value) > 0 ? Number(row.blended_value)
@@ -52,6 +56,9 @@ export function displayValueOf(row = {}) {
  * grace window elapses, so the banner never paints. 'pending' + 'grace' →
  * 'offline' promotes a *persistent* offline state to shown. Any state + 'online'
  * clears immediately. An unknown `current` is treated as 'online'.
+ * @param {string} current
+ * @param {string} event
+ * @returns {"online"|"pending"|"offline"}
  */
 export function nextOfflineBannerState(current, event) {
   const state = current === "pending" || current === "offline" ? current : "online";
@@ -70,9 +77,9 @@ export function nextOfflineBannerState(current, event) {
  * uid change (sign-out / switch) discards the whole map rather than leaking it.
  * When the map exceeds `cap`, the oldest entries (by ts) are evicted.
  *
- * @param {object|null} store  the previous cache object (or null/undefined)
- * @param {{setNum:string, set:object, entry:object|null, ts:number, uid:(string|null), cap?:number}} e
- * @returns {{uid:(string|null), items:object}} the next cache object (new ref)
+ * @param {{uid?: string|null, items?: Record<string, {set: object, entry: object|null, ts: number}>}|null|undefined} store  the previous cache object
+ * @param {{setNum: string, set: object, entry?: object|null, ts: number, uid?: string|null, cap?: number}} e
+ * @returns {{uid: string|null, items: Record<string, {set: object, entry: object|null, ts: number}>}} the next cache object (new ref)
  */
 export function upsertDetailCache(store, { setNum, set, entry = null, ts, uid = null, cap = 40 }) {
   const next = (store && store.uid === uid && store.items)

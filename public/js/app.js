@@ -108,6 +108,22 @@ function setupImageHydration() {
 // the initial load (DOMContentLoaded) and on later hashchanges — an installed PWA
 // can deliver the redirect to a live window without a full reload, which only fires
 // hashchange. Idempotent: strips the hash after handling.
+// Web Share Target (manifest share_target): another app shared text/a URL into
+// BricksVault via GET params on "/". Turn it into a catalog search and clean
+// the URL. Runs before the first route() so the shared query lands directly.
+function consumeShareTarget() {
+  try {
+    if (!location.search) return;
+    const sp = new URLSearchParams(location.search);
+    const shared = sp.get('text') || sp.get('title') || sp.get('url') || '';
+    if (!shared) return;
+    // Strip URLs — a set number or name is searchable, a link is not.
+    const q = shared.replace(/https?:\/\/\S+/g, ' ').trim().slice(0, 80);
+    history.replaceState(null, '', location.pathname);
+    if (q) location.hash = '#/add?q=' + encodeURIComponent(q);
+  } catch { /* never break boot over a malformed share */ }
+}
+
 async function consumeOAuthHash() {
   if (location.hash.includes('access_token=')) {
     try {
@@ -209,6 +225,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   await consumeOAuthHash();
+  consumeShareTarget();
 
   // Wire nav icons using icon library
   const icons = { "/": I.home, "/add": I.search, "/minifigs": I.figure, "/kids/badges": I.star, "/me": I.user };

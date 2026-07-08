@@ -21,5 +21,14 @@
     { "name": "My Vault", "short_name": "Vault", "url": "/#/" }
   ],
   "categories": ["lifestyle", "finance"],
-  "screenshots": []
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  },
+  "screenshots": [
+    { "src": "/screenshots/vault-narrow.png", "sizes": "786x1704", "type": "image/png", "form_factor": "narrow", "label": "Your vault with live market values" },
+    { "src": "/screenshots/detail-narrow.png", "sizes": "786x1704", "type": "image/png", "form_factor": "narrow", "label": "Set detail with value provenance" },
+    { "src": "/screenshots/catalog-wide.png", "sizes": "1280x800", "type": "image/png", "form_factor": "wide", "label": "Search the 27,000-set catalog" }
+  ]
 }
