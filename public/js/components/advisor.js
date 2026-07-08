@@ -100,7 +100,7 @@ export async function renderAdvisorDrawer() {
                   Unlock AI advice! Get a key in 30 seconds at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--bv-red); font-weight:600; text-decoration:underline;">Google AI Studio</a> and save it in the <strong>Me</strong> tab.
                 </div>
               </div>` : ""}
-            <div style="font-size:12px; color:var(--ink-mute); text-align:center; margin-bottom:8px;">Ask about your collection…</div>
+            <div style="font-size:12px; color:var(--ink-mute); text-align:center; margin-bottom:8px;">Ask about your vault…</div>
             <div style="display:flex; flex-direction:column; gap:6px;">
               ${ADVISOR_PROMPTS.map(p => `<button class="chat-suggestion-chip" style="font-size:12px; text-align:left; padding:8px 12px; width:100%;">${escapeHtml(p)}</button>`).join("")}
             </div>
@@ -116,7 +116,7 @@ export async function renderAdvisorDrawer() {
 
       <!-- Chat input row -->
       <div class="chat-input-row" id="chatInputRow" style="padding:10px 16px; border-top:1.5px solid var(--line-soft); background:var(--surface); flex-shrink:0;">
-        <textarea class="chat-input" id="chatInput" placeholder="Ask anything about your collection…" rows="1" style="max-height:80px;"></textarea>
+        <textarea class="chat-input" id="chatInput" placeholder="Ask anything about your vault…" rows="1" style="max-height:80px;"></textarea>
         <button class="chat-send-btn" id="chatSend" aria-label="Send">${I.arrowU()}</button>
       </div>
     </div>`;
@@ -247,7 +247,7 @@ function localAnalystHTML() {
 
   const healthScore = Math.max(10, Math.min(100, Math.round(score)));
   const healthColor = healthScore >= 80 ? 'var(--up)' : healthScore >= 50 ? 'var(--bv-yellow)' : 'var(--bv-red)';
-  let healthStatusText = "Your collection is well-diversified and in excellent condition.";
+  let healthStatusText = "Your vault is well-diversified and in excellent condition.";
   if (healthScore < 50) healthStatusText = "High theme concentration or missing parts detected. Consider diversifying.";
   else if (healthScore < 70) healthStatusText = "Decent health, but room to improve on theme diversification or set completeness.";
 
@@ -329,7 +329,7 @@ function localAnalystHTML() {
         }).join('')}
         ${themeSummaries.length > 4 ? `
           <div style="font-size:11px;color:var(--ink-mute);text-align:right;">
-            + ${themeSummaries.length - 4} other themes in your collection
+            + ${themeSummaries.length - 4} other themes in your vault
           </div>` : ''}
       </div>
     </div>

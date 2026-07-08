@@ -222,7 +222,12 @@ export function renderLogin() {
         saveSession(session, { preserveGuestFigs: true });
         const migrated = await migrateGuestVault(guestSnapshot);
         if (migrated.migrated) toast(`Synced ${migrated.migrated} local item${migrated.migrated === 1 ? "" : "s"}`, "success");
-        if (migrated.errors?.length) toast("Some local items couldn't sync", "error");
+        if (migrated.errors?.length) {
+          // Keep the snapshot so the user can retry from You → Data instead of
+          // silently losing whichever local items didn't make it across.
+          try { localStorage.setItem("bv_failed_guest_migration", JSON.stringify(guestSnapshot)); } catch {}
+          toast("Some local items couldn't sync — retry from You → Data", "error");
+        }
         if (nav) nav.style.display = "";
         go("#/");
       } catch (e) {

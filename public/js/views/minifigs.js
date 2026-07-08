@@ -211,7 +211,7 @@ export async function renderBlind() {
   loadRareFinds();
 }
 
-// "Rare finds in your collection" — surfaces the signed-in user's owned
+// "Rare finds in your vault" — surfaces the signed-in user's owned
 // rare/legendary figs as a tappable highlight row above the catalog. Empty for
 // guests / collections with none, so it self-hides. Loaded lazily (non-blocking).
 async function loadRareFinds() {
@@ -220,7 +220,7 @@ async function loadRareFinds() {
   const el = $('#rareFindsSection');
   if (!el || !figs.length) return;
   el.innerHTML = `
-    <h2 class="section-title" style="margin-top:0;">Rare finds in your collection</h2>
+    <h2 class="section-title" style="margin-top:0;">Rare finds in your vault</h2>
     <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;margin-bottom:14px;-webkit-overflow-scrolling:touch;">
       ${figs.map((f) => {
         const r = f.rarity || 'rare';

@@ -1634,6 +1634,14 @@ ul.set-list > li { display: contents; }
 #toast.error { background: var(--down); color: #fff; }
 #toast .t-icon { flex-shrink: 0; }
 #toast .t-icon svg { width: 18px; height: 18px; }
+/* Undo button inside the 5s undo toast — big enough to actually tap. */
+#toast .toast-undo-btn {
+  margin-left: auto; flex-shrink: 0;
+  min-height: 40px; padding: 6px 16px;
+  background: var(--bg); color: var(--ink);
+  border: var(--bw-thin) solid var(--border-c); border-radius: var(--r-2);
+  font-size: 13px; font-weight: 700; cursor: pointer;
+}
 /* The set-detail page has a sticky action bar above the nav (~64px). Lift the
    toast above it too, so a toast (e.g. "Removed from vault") never lands on the
    action buttons / nav. Matches the advisor-FAB offset on this route. */
@@ -2066,6 +2074,17 @@ body[data-route="set-detail"] #toast {
   display: flex; align-items: center; gap: 6px;
 }
 .alert-card .ah svg { width: 14px; height: 14px; }
+/* Per-alert "mark read" ✓ — visually compact but with a ≥44px hit area. */
+.alert-card { position: relative; }
+.alert-card .alert-dismiss {
+  position: absolute; top: 0; right: 0; z-index: 5;
+  min-width: 44px; min-height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: none; cursor: pointer;
+  font-size: 15px; font-weight: 700; color: var(--line);
+  opacity: 0.75;
+}
+.alert-card .alert-dismiss:hover, .alert-card .alert-dismiss:focus-visible { opacity: 1; }
 
 /* ============================================================
    utility — color-coded brick placeholder by hue

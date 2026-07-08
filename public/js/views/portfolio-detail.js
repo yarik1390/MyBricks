@@ -1,6 +1,6 @@
-import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML } from './portfolio-detail-market.js';
-import { computeDealScore, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf } from '../lib/pure.js';
+import { computeDealScore, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
@@ -677,9 +677,25 @@ function wireDetailActions(set, entry) {
       });
       if (!ok) return;
       try {
+        // Keep the payload so a mis-tap after the confirm is still recoverable
+        // — soft deletes make re-POSTing the entry a faithful restore.
+        const restore = {
+          set_num: set.set_num, quantity: entry.quantity || 1,
+          condition: entry.condition || undefined, purchase_price: entry.purchase_price ?? undefined,
+          purchased_at: entry.purchased_at || undefined, notes: entry.notes || undefined,
+        };
         await api("/api/collection/" + encodeURIComponent(entry.id || set.set_num), { method: "DELETE" });
         invalidatePortfolio(); state.catalog.items = []; markSetOwned(set.set_num, false);
-        toast("Removed from vault", "success");
+        undoToast("Removed from vault", async () => {
+          try {
+            await api("/api/collection", { method: "POST", body: restore });
+            invalidatePortfolio(); state.catalog.items = []; markSetOwned(set.set_num, true);
+            const r2 = await api("/api/sets/" + encodeURIComponent(set.set_num));
+            state.detail.cache[set.set_num] = { set: r2.set || r2, entry: r2.entry || null, ts: Date.now() };
+            paintSetDetail(r2.set || r2, r2.entry || null);
+            toast("Restored to vault", "success");
+          } catch { toast("Couldn't restore — add it again from the catalog.", "error"); }
+        });
         const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
         state.detail.tab = "info";
         state.detail.cache[set.set_num] = { set: r.set || r, entry: r.entry || null, ts: Date.now() };
@@ -1016,13 +1032,24 @@ function wireManageTab(set, entry) {
   $("#mCondition")?.addEventListener("change", updateLocalFlip);
 
   $("#mRemove")?.addEventListener("click", async () => {
-    if (!(await confirmSheet({ title: "Remove from vault?", message: "This set will be removed from your collection.", confirmLabel: "Remove", danger: true }))) return;
+    if (!(await confirmSheet({ title: "Remove from vault?", message: "This set will be removed from your vault.", confirmLabel: "Remove", danger: true }))) return;
     haptic("heavy");
     try {
+      const restore = {
+        set_num: set.set_num, quantity: entry.quantity || 1,
+        condition: entry.condition || undefined, purchase_price: entry.purchase_price ?? undefined,
+        purchased_at: entry.purchased_at || undefined, notes: entry.notes || undefined,
+      };
       await api("/api/collection/" + entry.id, { method: "DELETE" });
       invalidatePortfolio();
       delete state.detail.cache[set.set_num];
-      toast("Removed from vault", "info");
+      undoToast("Removed from vault", async () => {
+        try {
+          await api("/api/collection", { method: "POST", body: restore });
+          invalidatePortfolio(); markSetOwned(set.set_num, true);
+          toast("Restored to vault", "success");
+        } catch { toast("Couldn't restore — add it again from the catalog.", "error"); }
+      });
       go("#/");
     } catch (e) {
       if (!navigator.onLine && entry?.id) {
@@ -1393,19 +1420,23 @@ function openAddWishlistSheet(set, onConfirm) {
   const userCurrency = state.me?.currency || "USD";
   const rate = getExchangeRate(userCurrency);
   const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
-  const marketLocal = (set.current_value || 0) * rate;
+  const marketLocal = displayValueOf(set) * rate;
   const suggestedLocal = marketLocal * 0.85;
 
+  // Pre-fill the suggested target: a blank target silently produces ZERO
+  // price-drop alerts, which contradicts the wishlist's promise — so no-target
+  // must be an explicit choice, and the copy says what it means.
   showSheet(`
     <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 14px;">Add to Wishlist</div>
     <div style="font-size:14px;color:var(--ink-mute);margin:0 4px 14px;">${escapeHtml(set.set_num)} — ${escapeHtml(set.name)}</div>
-    
+
     <div class="field">
       <label class="field-lbl">Target Price (${symbol})</label>
-      <input type="number" step="0.01" id="wlTargetPrice" class="field-input" placeholder="0.00" autocomplete="off">
+      <input type="number" step="0.01" id="wlTargetPrice" class="field-input" placeholder="0.00" autocomplete="off" value="${suggestedLocal > 0 ? suggestedLocal.toFixed(2) : ''}">
       <div id="wlSuggestedChip" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:4px 8px;background:var(--surface-3);border:1px solid var(--line);border-radius:12px;font-size:12px;cursor:pointer;color:var(--ink);">
         💡 Suggested: ${symbol}${suggestedLocal.toFixed(2)}
       </div>
+      <div style="font-size:11px;color:var(--ink-mute);margin-top:6px;line-height:1.4;">Leave empty to watch without price-drop alerts.</div>
     </div>
     <div class="field" style="margin-top:14px;">
       <label class="field-lbl">Notes</label>
@@ -1448,11 +1479,9 @@ function openDealBreakdownSheet(set, storePrice) {
   const shipping = parseFloat(localStorage.getItem("bv_flip_shipping") ?? "5.00");
   const tax = parseFloat(localStorage.getItem("bv_flip_tax") ?? "0.00");
 
-  const estPrice = market * rate;
-  const ebayFee = estPrice * (feePct / 100);
-  const paypalFee = estPrice * (paymentPct / 100) + (0.30 * rate);
-  const totalFees = ebayFee + paypalFee + shipping + tax;
-  const net = Math.max(0, estPrice - totalFees);
+  // Shared flip math (lib/pure.js) — same numbers as the scanner's calculator.
+  const calc = flipEconomics({ marketUsd: market, rate, feePct, paymentPct, shipping, tax });
+  const { marketplaceFee: ebayFee, paymentFee: paypalFee, net } = calc || { marketplaceFee: 0, paymentFee: 0, net: 0 };
   const profit = net - storePrice;
   const roi = storePrice > 0 ? (profit / storePrice) * 100 : 0;
 

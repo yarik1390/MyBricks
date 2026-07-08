@@ -127,7 +127,12 @@ async function consumeOAuthHash() {
         const migrated = await migrateGuestVault(guestSnapshot);
         try { sessionStorage.removeItem("bv_pending_guest_migration"); } catch {}
         if (migrated.migrated) toast(`Synced ${migrated.migrated} local item${migrated.migrated === 1 ? "" : "s"}`, "success");
-        if (migrated.errors?.length) toast("Some local items couldn't sync", "error");
+        if (migrated.errors?.length) {
+          // Keep the snapshot so the user can retry from You → Data instead of
+          // silently losing whichever local items didn't make it across.
+          try { localStorage.setItem("bv_failed_guest_migration", JSON.stringify(guestSnapshot)); } catch {}
+          toast("Some local items couldn't sync — retry from You → Data", "error");
+        }
         // Force a clean slate for the freshly-authenticated account so a prior
         // account's profile/portfolio can never linger in memory (saveSession
         // also clears on user change, but this guards non-reload returns too).

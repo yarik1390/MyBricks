@@ -203,8 +203,13 @@ export async function startCamera() {
     const hint = $("#scanHint");
     const isDenied = err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
     document.querySelector(".scan-video-wrap")?.classList.add("camera-unavailable");
+    // The fallback differs by mode: Photo mode can still identify from a
+    // gallery image; Barcode mode falls back to typing the digits.
+    const photoMode = state.camera.mode === 'image';
     if (hint) hint.textContent = isDenied
-      ? "Camera permission denied — grant access in browser/system settings, or type a set number below."
+      ? (photoMode
+        ? "Camera permission denied — grant access in browser/system settings, or pick a photo from your gallery instead."
+        : "Camera permission denied — grant access in browser/system settings, or type a set number below.")
       : "Camera not available — check permissions or try a different browser.";
     const capture = $("#scanCapture");
     if (capture) {
@@ -663,6 +668,11 @@ function showScanResult(res) {
     const noKey = !localStorage.getItem("bv_gemini_key") && !localStorage.getItem("bv_openai_key");
     const rateLimited = /rate.?limit|unlimited|api key|quota|limit reached|too many|429/i.test(reason);
     const headLabel = rateLimited ? "Limit reached" : "Not found";
+    // Rate-limited: say WHEN it resets instead of offering a retry that will
+    // just fail again (free = daily UTC window, supporters = hourly bursts).
+    const resetHint = rateLimited
+      ? `<p style="font-size:11px;color:var(--ink-mute);margin:0 0 10px;">${/per hour/i.test(reason) ? "Your hourly window resets within the hour." : "The daily limit resets at midnight UTC."}</p>`
+      : "";
     // BYOK nudge: keyless users share the server's free scan quota. A personal
     // Gemini key (free tier ~1500/day) makes photo scans effectively unlimited
     // and offloads the cost from the shared server quota — emphasized when the
@@ -682,8 +692,9 @@ function showScanResult(res) {
         <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${headLabel}</span>
       </div>
       <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">${escapeHtml(reason)}</p>
+      ${resetHint}
       ${nudge}
-      <button class="btn-secondary" id="scanRetry">Try again</button>`;
+      <button class="btn-secondary" id="scanRetry">${rateLimited ? "Close" : "Try again"}</button>`;
     $("#scanRetry")?.addEventListener("click", () => {
       clearScanResult({ restartBarcode: true });
     });

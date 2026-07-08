@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, toast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone } from '../utils.js';
 import { marketValueForCondition, computeSpreadSignals, estMark, displayValueOf } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
@@ -659,7 +659,7 @@ function showAlertsSheet(alerts) {
   showSheet(`
     <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 14px;">Notifications</div>
     <div class="scrollable" style="max-height: 50vh; overflow-y: auto; display:flex; flex-direction:column; gap:12px; padding:2px;">
-      ${spikeAlerts.map(spikeAlertCardHTML).join("")}
+      ${spikeAlerts.map(a => spikeAlertCardHTML(a)).join("")}
       ${dropAlerts.map(a => `
         <div class="alert-card">
           <div class="ah">${I.bell()}Price drop · ${daysAgo(a.triggered_at)}d ago</div>
@@ -675,6 +675,16 @@ function showAlertsSheet(alerts) {
     hideSheet();
     location.hash = "#/set/" + encodeURIComponent(c.dataset.set);
   }));
+  // Viewing IS reading: the badge exists to say "something new" — once the
+  // sheet has shown the alerts, clear it (any close path, not just the
+  // button). Offline we deliberately skip: the server never learned they were
+  // seen, so the badge honestly persists instead of silently un-clearing later.
+  if (navigator.onLine) {
+    const ids = alerts.map(a => a.id).filter(Boolean);
+    state.wishlistAlerts = [];
+    refreshNavBadge();
+    for (const id of ids) api(`/api/wishlist/${id}`, { method: "POST" }).catch(() => {});
+  }
 }
 
 /* ============================================================
@@ -952,11 +962,12 @@ function drawDoubleSparkline(container, data) {
   container.addEventListener("touchend", onLeave);
 }
 
-export function spikeAlertCardHTML(a) {
+export function spikeAlertCardHTML(a, { dismiss = false } = {}) {
   const gain = a.purchase_price && a.current_value
     ? (a.current_value - (a.purchase_price || 0)) / (a.purchase_price || 1) : 0;
   return `
     <div class="alert-card spike-alert" data-set="${escapeHtml(a.set_num || "")}">
+      ${dismiss && a.id ? `<button class="alert-dismiss" data-alert-id="${escapeHtml(String(a.id))}" aria-label="Mark this alert read" title="Mark read">✓</button>` : ""}
       <div class="ah">${I.dollar()}Sell opportunity · ${daysAgo(a.triggered_at)}d ago</div>
       <div style="font-weight:600;">${escapeHtml(a.set_name || a.name || "")}</div>
       <div style="font-size:13px;margin-top:4px;">
@@ -1210,19 +1221,17 @@ async function handleBulkLocation() {
   const selectedItems = state.portfolio.items.filter(item => state.selectedSets.has(selRef(item)));
   if (!selectedItems.length) { toast("No matching sets to update", "error"); return; }
   toast("Updating locations...", "info");
-  try {
-    await Promise.all(selectedItems.map(item =>
-      api("/api/collection/" + apiRef(item), { method: "PATCH", body: { storage_location: loc || null } })
-    ));
-    // Tear down selection UI BEFORE invalidating — exitSelectionMode repaints the
-    // list and must read a valid state.portfolio, not the null invalidate leaves.
-    toast("Storage locations updated", "success");
-    exitSelectionMode();
-    invalidatePortfolio();
-    await renderPortfolio();
-  } catch (err) {
-    toast("Failed to update: " + err.message, "error");
-  }
+  const results = await Promise.allSettled(selectedItems.map(item =>
+    api("/api/collection/" + apiRef(item), { method: "PATCH", body: { storage_location: loc || null } })
+  ));
+  const failed = results.filter(r => r.status === "rejected").length;
+  // Tear down selection UI BEFORE invalidating — exitSelectionMode repaints the
+  // list and must read a valid state.portfolio, not the null invalidate leaves.
+  toast(failed === 0 ? "Storage locations updated"
+    : `Updated ${results.length - failed} of ${results.length} — ${failed} failed, try those again`, failed ? "error" : "success");
+  exitSelectionMode();
+  invalidatePortfolio();
+  await renderPortfolio();
 }
 
 async function handleBulkDelete() {
@@ -1238,24 +1247,42 @@ async function handleBulkDelete() {
   const selectedItems = state.portfolio.items.filter(item => state.selectedSets.has(selRef(item)));
   if (!selectedItems.length) { toast("No matching sets to remove", "error"); return; }
   toast("Deleting sets...", "info");
-  try {
-    await Promise.all(selectedItems.map(item =>
-      api("/api/collection/" + apiRef(item), { method: "DELETE" })
-    ));
-    // Sync the client-side owned set + drop cached detail snapshots + force a
-    // catalog refetch, so the OWNED badge and set pages don't stay stale until
-    // a manual refresh.
-    for (const item of selectedItems) markSetOwned(item.set_num, false);
-    state.catalog.items = [];
-    // Tear down selection UI BEFORE invalidating — exitSelectionMode repaints the
-    // list and must read a valid state.portfolio, not the null invalidate leaves.
-    toast(`Removed ${selectedItems.length} set${selectedItems.length !== 1 ? "s" : ""}`, "success");
-    exitSelectionMode();
-    invalidatePortfolio();
-    await renderPortfolio();
-  } catch (err) {
-    toast("Failed to delete: " + err.message, "error");
+  // allSettled + per-item accounting: with Promise.all one failure reported
+  // "Failed to delete" even though earlier deletes already landed server-side.
+  const results = await Promise.allSettled(selectedItems.map(item =>
+    api("/api/collection/" + apiRef(item), { method: "DELETE" })
+  ));
+  const removed = selectedItems.filter((_, i) => results[i].status === "fulfilled");
+  const failed = selectedItems.length - removed.length;
+  // Sync the client-side owned set + drop cached detail snapshots + force a
+  // catalog refetch, so the OWNED badge and set pages don't stay stale until
+  // a manual refresh.
+  for (const item of removed) markSetOwned(item.set_num, false);
+  state.catalog.items = [];
+  // Tear down selection UI BEFORE invalidating — exitSelectionMode repaints the
+  // list and must read a valid state.portfolio, not the null invalidate leaves.
+  if (failed > 0) {
+    toast(`Removed ${removed.length} of ${selectedItems.length} — ${failed} failed, try those again`, "error");
+  } else if (removed.length) {
+    // Soft deletes make a bulk restore a straight re-POST of the kept payloads.
+    const restorePayloads = removed.map(item => ({
+      set_num: item.set_num, quantity: item.quantity || 1,
+      condition: item.condition || undefined, purchase_price: item.purchase_price ?? undefined,
+      purchased_at: item.purchased_at || undefined, notes: item.notes || undefined,
+    }));
+    undoToast(`Removed ${removed.length} set${removed.length !== 1 ? "s" : ""}`, async () => {
+      const res = await Promise.allSettled(restorePayloads.map(b => api("/api/collection", { method: "POST", body: b })));
+      const back = res.filter(r => r.status === "fulfilled").length;
+      for (const p of restorePayloads) markSetOwned(p.set_num, true);
+      state.catalog.items = [];
+      invalidatePortfolio();
+      await renderPortfolio();
+      toast(back === restorePayloads.length ? "Restored to vault" : `Restored ${back} of ${restorePayloads.length}`, back ? "success" : "error");
+    });
   }
+  exitSelectionMode();
+  invalidatePortfolio();
+  await renderPortfolio();
 }
 
 function handleBulkExport() {

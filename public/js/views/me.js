@@ -194,7 +194,7 @@ export async function renderMe() {
       <h2 class="section-title">More</h2>
       <div>
         ${linkRow("#/me/integrations", "Integrations", "Google Sheets, Discord, Brickset, push alerts, AI keys")}
-        ${linkRow("#/me/data", "Data", "Export &amp; import your collection as CSV")}
+        ${linkRow("#/me/data", "Data", "Export &amp; import your vault as CSV")}
         ${!guest ? linkRow("#/me/contributions", "Your contributions", "Reviews, photos &amp; data fixes you've submitted") : ""}
         ${me.is_admin ? linkRow("#/me/admin", "Admin console", "Catalog imports, jobs, integration health") : ""}
         ${linkRow("#/leaderboard", "Leaderboard", "Top public collections by value")}
@@ -713,14 +713,14 @@ function publicProfileSectionHTML(me) {
         <button class="toggle ${me.is_public ? "on" : ""}" id="publicToggle" role="switch" aria-label="Public profile" aria-checked="${!!me.is_public}"></button>
       </div>
       <div class="u-fs-sm u-mute" style="margin-bottom:12px;line-height:1.45;">
-        When turned on, anyone with the link can view your collection and showcase shelf.
+        When turned on, anyone with the link can view your vault and showcase shelf.
       </div>
       <div class="u-between" style="margin-bottom:10px;margin-top:14px;border-top:1px solid var(--border-soft-c);padding-top:10px;">
         <span class="u-fs-base" style="font-weight:600;">Show total valuation</span>
         <button class="toggle ${me.expose_public_value ? "on" : ""}" id="publicValToggle" role="switch" aria-label="Public valuation" aria-checked="${!!me.expose_public_value}"></button>
       </div>
       <div class="u-fs-sm u-mute" style="margin-bottom:12px;line-height:1.45;">
-        Expose the total value and thematic breakdown of your collection on your public profile.
+        Expose the total value and thematic breakdown of your vault on your public profile.
       </div>
       <div class="u-between u-fs-sm public-profile-linkbox">
         <a href="${url}" class="u-ellipsis public-profile-link">${url}</a>
@@ -739,7 +739,7 @@ function showSearchableTrophyPicker(currentSetNums) {
     <h2 class="u-serif-h" style="margin:0 4px 12px;">Add to Trophy Shelf</h2>
     <div class="search-wrap" style="margin: 0 4px 14px;">
       <span class="s-icon">${I.search()}</span>
-      <input class="search-input" id="trophySearchInput" placeholder="Search your collection…" autocomplete="off">
+      <input class="search-input" id="trophySearchInput" placeholder="Search your vault…" autocomplete="off">
     </div>
     <div id="trophyPickerResults" class="scrollable u-col" style="max-height: 300px; overflow-y: auto; margin: 4px;"></div>
     <button class="btn-secondary" id="trophyPickerClose" style="margin-top: 14px;">Close</button>

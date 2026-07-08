@@ -189,6 +189,32 @@ export function toast(msg, type) {
   if (!_toastShowing) _renderNextToast();
 }
 
+// Post-action Undo toast: shows `msg` with an UNDO button for 5s (longer than
+// a normal toast so a mis-tap after a confirm is still recoverable). Takes over
+// the shared toast element directly, then hands back to the queue.
+export function undoToast(msg, onUndo) {
+  const el = $("#toast");
+  if (!el) return;
+  clearTimeout(toastTimer);
+  _toastShowing = true;
+  el.className = "show info";
+  el.innerHTML = `<span class="t-icon">${I.check()}</span><span></span><button class="toast-undo-btn">Undo</button>`;
+  el.children[1].textContent = msg;
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    el.classList.remove("show");
+    setTimeout(_renderNextToast, 180);
+  };
+  el.querySelector(".toast-undo-btn").addEventListener("click", () => {
+    const run = !done;
+    finish();
+    if (run) { try { onUndo(); } catch { /* undo is best-effort */ } }
+  });
+  toastTimer = setTimeout(finish, 5000);
+}
+
 // One debounce interval for every search box — consistent feel across screens.
 export const SEARCH_DEBOUNCE_MS = 250;
 

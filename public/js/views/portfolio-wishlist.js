@@ -26,7 +26,7 @@ function celebrateNewDropAlerts(dropAlerts) {
   if (fresh.length) {
     const n = fresh.length;
     const msg = n > 1 ? `${n} price targets hit! 🎯` : "Price target hit! 🎯";
-    const quip = n > 1 ? "Your watchlist is paying off." : `${fresh[0].set_name} dropped to your target.`;
+    const quip = n > 1 ? "Your wishlist is paying off." : `${fresh[0].set_name} dropped to your target.`;
     setTimeout(() => celebrate(msg, { quip, hue: 150 }), 400);
   }
   for (const a of dropAlerts) if (a.id != null) seen.add(String(a.id));
@@ -85,7 +85,7 @@ export async function renderWishlist() {
       ${spikeAlerts.length > 0 ? `
         <h2 class="section-title"><span aria-hidden="true">💰</span> Sell Opportunities</h2>
         <div style="margin-bottom:14px;">
-          ${spikeAlerts.map(a => spikeAlertCardHTML(a)).join("")}
+          ${spikeAlerts.map(a => spikeAlertCardHTML(a, { dismiss: true })).join("")}
         </div>` : ""}
 
       ${dropAlerts.length > 0 ? `
@@ -93,6 +93,7 @@ export async function renderWishlist() {
         <div style="margin-bottom:14px;">
           ${dropAlerts.map(a => `
             <div class="alert-card">
+              ${a.id ? `<button class="alert-dismiss" data-alert-id="${escapeHtml(String(a.id))}" aria-label="Mark this alert read" title="Mark read">✓</button>` : ""}
               <div class="ah">${I.bell()}Price drop · ${daysAgo(a.triggered_at)}d ago</div>
               <div style="font-weight:600;">${escapeHtml(a.set_name)}</div>
               <div style="font-size:13px;margin-top:4px;">Now <strong>${fmtMoney(a.current_value)}</strong> — your target was ${fmtMoney(a.target_price)}.</div>
@@ -125,6 +126,12 @@ export async function renderWishlist() {
 
   $("#wlMarkAllRead")?.addEventListener("click", async () => {
     haptic("medium");
+    // Offline the POSTs can't land — clearing the list would just "un-clear"
+    // on the next load with no explanation. Be honest instead of optimistic.
+    if (!navigator.onLine) {
+      toast("You're offline — try marking alerts read when connected.", "info");
+      return;
+    }
     state.wishlistAlerts = [];
     refreshNavBadge();
     await Promise.all(alerts.map(a =>
@@ -132,6 +139,21 @@ export async function renderWishlist() {
     ));
     renderWishlist();
   });
+
+  // Per-alert dismiss (the ✓ on each alert card) — mark just that one read.
+  $$(".alert-dismiss").forEach(btn => btn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    haptic("light");
+    if (!navigator.onLine) {
+      toast("You're offline — try marking alerts read when connected.", "info");
+      return;
+    }
+    const id = btn.dataset.alertId;
+    state.wishlistAlerts = (state.wishlistAlerts || []).filter(a => String(a.id) !== String(id));
+    refreshNavBadge();
+    await api(`/api/wishlist/${id}`, { method: "POST" }).catch(err => console.error("Failed to mark alert as read:", err));
+    renderWishlist();
+  }));
 
   $$("[data-wl-sort]").forEach(b => b.addEventListener("click", () => {
     localStorage.setItem("bv_wl_sort", b.dataset.wlSort);

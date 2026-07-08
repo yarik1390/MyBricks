@@ -29,6 +29,16 @@ export async function renderMeData() {
           <div class="action-result" id="exportResult" aria-live="polite">${guest ? "Guest exports use the local vault on this device." : "Signed-in exports are pulled from your synced account."}</div>
         </section>
 
+        ${!guest && localStorage.getItem("bv_failed_guest_migration") ? `
+        <section class="data-card">
+          <div class="section-title">Guest sync</div>
+          <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Retry guest sync</div><div class="desc">Some items from your guest vault didn't sync when you signed in. Retry now — already-synced sets are skipped.</div></div>
+          <button class="btn-primary" id="retryGuestSyncBtn" style="width:auto;padding:8px 14px;font-size:13px;">Retry</button>
+          </div>
+          <div class="action-result" id="retryGuestSyncResult" aria-live="polite"></div>
+        </section>` : ""}
+
         <section class="data-card">
           <div class="section-title">Import</div>
           <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
@@ -58,6 +68,31 @@ export async function renderMeData() {
         </section>
       </div>
     </div>`;
+
+  $("#retryGuestSyncBtn")?.addEventListener("click", async () => {
+    haptic("medium");
+    const out = $("#retryGuestSyncResult");
+    const btn = $("#retryGuestSyncBtn");
+    if (btn) { btn.disabled = true; btn.setAttribute("aria-busy", "true"); }
+    if (out) out.textContent = "Retrying sync…";
+    try {
+      const snapshot = JSON.parse(localStorage.getItem("bv_failed_guest_migration") || "null");
+      const { migrateGuestVault } = await import("../api.js");
+      const migrated = await migrateGuestVault(snapshot || undefined);
+      if (migrated.errors?.length) {
+        if (out) out.textContent = `Still ${migrated.errors.length} item${migrated.errors.length === 1 ? "" : "s"} failing: ${migrated.errors[0]}`;
+      } else {
+        localStorage.removeItem("bv_failed_guest_migration");
+        invalidatePortfolio();
+        if (out) out.textContent = `Done — ${migrated.migrated} item${migrated.migrated === 1 ? "" : "s"} synced.`;
+        toast("Guest vault synced", "success");
+      }
+    } catch (e) {
+      if (out) out.textContent = "Retry failed: " + e.message;
+    } finally {
+      if (btn) { btn.disabled = false; btn.removeAttribute("aria-busy"); }
+    }
+  });
 
   $("#exportCsvBtn")?.addEventListener("click", async () => {
     haptic("medium");
