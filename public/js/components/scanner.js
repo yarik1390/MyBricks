@@ -938,7 +938,7 @@ function scanOverlayHTML(mode) {
           <input type="file" id="scanGalleryInput" accept="image/*" multiple style="display:none;">
           <span class="scan-bottom-spacer" aria-hidden="true"></span>
         </div>` : ""}
-      <div class="scan-result" id="scanResult"></div>
+      <div class="scan-result" id="scanResult" role="status" aria-live="polite"></div>
     </div>`;
 }
 

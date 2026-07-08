@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, ratesUnavailable, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone } from '../utils.js';
 import { marketValueForCondition, computeSpreadSignals, estMark, displayValueOf } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
@@ -304,6 +304,7 @@ function paintPortfolio() {
           <span>Invested ${fmtMoney(p.total_paid)}</span>
           ${p.fig_count > 0 ? `<span style="cursor:help;" title="Minifig collection value tracked separately">· Figs ${p.fig_count} (${fmtMoney(p.fig_value || 0)})</span>` : ""}
           ${p.pricing_confidence?.priced ? `<span style="cursor:help;" title="Share of your sets priced from corroborated, fresh market data (high or medium confidence) rather than a thin or estimated value">· ${p.pricing_confidence.pct}% confidently priced</span>` : ""}
+          ${ratesUnavailable() && (state.me?.currency || "USD") !== "USD" ? `<span style="color:var(--bv-yellow);cursor:help;" title="Exchange rates couldn't be loaded — values are shown in USD until they refresh">· shown in USD</span>` : ""}
         </div>
         <div class="spark-wrap" id="heroChart"></div>
         <div class="range-pills" id="rangePills">

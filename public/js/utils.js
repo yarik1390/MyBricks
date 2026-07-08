@@ -57,6 +57,10 @@ export const CURRENCY_SYMBOLS = {
 };
 
 let exchangeRates = { USD: 1 };
+// True when the rates fetch failed and no fresh cache exists — non-USD users
+// are then silently seeing USD numbers, so views can surface a small notice.
+let _ratesUnavailable = false;
+export const ratesUnavailable = () => _ratesUnavailable;
 
 export async function fetchExchangeRates() {
   const cached = localStorage.getItem("bv_exchange_rates");
@@ -74,12 +78,16 @@ export async function fetchExchangeRates() {
     const json = await res.json();
     if (json && json.rates) {
       exchangeRates = json.rates;
+      _ratesUnavailable = false;
       localStorage.setItem("bv_exchange_rates", JSON.stringify({
         timestamp: Date.now(),
         rates: json.rates
       }));
     }
   } catch (e) {
+    // Keep any previously-cached rates (even stale) over a silent 1:1; only
+    // flag "unavailable" when we truly have nothing but the USD identity.
+    _ratesUnavailable = Object.keys(exchangeRates).length <= 1;
     console.error("Failed to fetch exchange rates, falling back to USD = 1", e);
   }
 }

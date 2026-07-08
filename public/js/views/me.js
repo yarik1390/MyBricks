@@ -724,7 +724,7 @@ function publicProfileSectionHTML(me) {
       </div>
       <div class="u-between u-fs-sm public-profile-linkbox">
         <a href="${url}" class="u-ellipsis public-profile-link">${url}</a>
-        <button class="btn-secondary" id="copyProfileUrl" style="padding:6px 12px;font-size:11px;width:auto;margin:0;">Copy</button>
+        <button class="btn-secondary" id="copyProfileUrl" style="padding:6px 14px;font-size:12px;width:auto;margin:0;min-height:44px;">Copy</button>
       </div>
     </div>
   `;

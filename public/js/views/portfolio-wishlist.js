@@ -201,7 +201,9 @@ function wishlistCardHTML(w) {
         ${preorderCueHTML(w)}
         ${(w.retirement_risk_score || 0) >= 70 && !w.retired ? `<div class="u-row u-gap-1" style="font-size:11px;color:var(--down);margin-top:4px;font-family:var(--mono);">${I.alert({w:12,h:12})} Retirement risk: High</div>` : ""}
       </div>
-      <a href="${bricklinkBuyURL(w.set_num)}" target="_blank" rel="noopener" class="bl-badge" style="position:absolute;bottom:10px;right:10px;z-index:5;font-size:10px;font-family:var(--mono);font-weight:700;padding:2px 5px;background:var(--bv-yellow);color:#000;border:1.5px solid var(--line);border-radius:var(--r-1);text-decoration:none;">BL ↗</a>
+      <a href="${bricklinkBuyURL(w.set_num)}" target="_blank" rel="noopener" class="bl-badge" aria-label="Open on BrickLink" style="position:absolute;bottom:4px;right:4px;z-index:5;font-size:10px;font-family:var(--mono);font-weight:700;min-width:44px;min-height:40px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;">
+        <span style="padding:2px 5px;background:var(--bv-yellow);color:#000;border:1.5px solid var(--line);border-radius:var(--r-1);">BL ↗</span>
+      </a>
     </div>`;
 }
 
