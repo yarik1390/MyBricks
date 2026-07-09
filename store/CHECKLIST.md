@@ -13,7 +13,7 @@ account / Mac / decision · **[REVIEW]** drafted, review before publishing.
 - [ ] **[YOU]** Create a **Google Play Console** account — $25 one-time.
 - [ ] **[YOU — iOS round]** Create an **Apple Developer Program** account — $99/year.
 - [ ] **[YOU — iOS round]** Have a **Mac with Xcode** available (or a macOS CI: Codemagic, Xcode Cloud, EAS).
-- [x] **[DONE]** App id decided: `app.brickvault` — consistent across `capacitor.config.json`, `android/app/build.gradle`, `assetlinks.json`, `twa-manifest.json`, `expo-preview/app.json`.
+- [x] **[DONE]** App id decided: `app.bricksvault` (matches the Play Console app) — consistent across `capacitor.config.json`, `android/app/build.gradle`, `assetlinks.json`, `twa-manifest.json`, `expo-preview/app.json`.
 
 ## 1. Hard store blockers
 - [x] **[DONE]** In-app **account deletion** — `DELETE /api/me` + Me-tab "Delete account" (both stores require this).
@@ -59,7 +59,7 @@ with **RevenueCat**. Patreon stays on **web only**; it's auto-hidden in the nati
 
 ## 5. Google Play — build & submit (Capacitor + Play Billing)
 - [x] **[DONE]** Capacitor installed at repo root; `android/` project committed
-  (appId `app.brickvault`, versionName 1.0.0/versionCode 1 in
+  (appId `app.bricksvault`, versionName 1.0.0/versionCode 1 in
   `android/app/build.gradle` — bump both on every upload); CAMERA permission wired.
 - [x] **[DONE]** CI build: `.github/workflows/build-android.yml` produces the signed
   `.aab` on a plain ubuntu runner — **no Android Studio needed**. One-time setup:

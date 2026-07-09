@@ -9,7 +9,7 @@ which can't drive the RevenueCat native plugin.
 > - Billing client `public/js/lib/revenuecat-native.js` (entitlement `BricksVault Pro`).
 > - Me-tab Upgrade / Restore / Manage buttons (native only; web keeps Patreon).
 > - Server webhook `POST /api/revenuecat/webhook` — flips `is_supporter` (source of truth).
-> - `store/capacitor.config.json` (appId `app.brickvault`, appName `BricksVault`).
+> - `store/capacitor.config.json` (appId `app.bricksvault`, appName `BricksVault`).
 > - CI injects `window.RC_PLAY_BILLING_KEY` into the deployed `env.js` from a secret.
 >
 > Everything below is account/machine work only you can do.
@@ -22,7 +22,7 @@ Legend: **[ONCE]** one-time setup · **[EACH]** repeat on every release.
 - [ ] **Google Play Console** account — **$25 one-time** (https://play.google.com/console).
 - [ ] A machine with **Node 20+**, **Java 17**, and **Android Studio** (Windows/Mac/Linux all fine — Android does *not* need a Mac; only the later iOS build does).
 - [ ] A **RevenueCat** account (free tier is enough to start) — https://www.revenuecat.com.
-- [ ] Confirm the **app id**: repo uses `app.brickvault`. If you change it, change it consistently in `store/capacitor.config.json`, the Play Console listing, and RevenueCat. **Once published you can never change it**, so decide now.
+- [x] **App id is decided and locked: `app.bricksvault`** — matches the app you created in Play Console. It is used consistently in `capacitor.config.json`, `android/`, `assetlinks.json`, and must be used in RevenueCat too. **Once published you can never change it.**
 
 ---
 
@@ -67,7 +67,7 @@ redeploy Pages.
    - **Data safety** form — answers drafted in `store/listing.md`.
    - **Content rating** questionnaire (IARC).
    - **Target audience**, **Ads** (declare none if true), **Government apps** (no).
-3. Note your **package name** must equal `app.brickvault`.
+3. Note your **package name** must equal `app.bricksvault`.
 
 ---
 

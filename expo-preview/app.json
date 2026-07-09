@@ -9,7 +9,7 @@
     "scheme": "brickvault",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "app.brickvault",
+      "bundleIdentifier": "app.bricksvault",
       "buildNumber": "1",
       "supportsTablet": true,
       "infoPlist": {
@@ -18,7 +18,7 @@
       }
     },
     "android": {
-      "package": "app.brickvault",
+      "package": "app.bricksvault",
       "versionCode": 1,
       "permissions": [
         "CAMERA"

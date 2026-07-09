@@ -83,7 +83,7 @@ Use the Expo `preview` profile for internal device checks only.
    ```
    npm i @capacitor/core @capacitor/cli @capacitor/android
    npm i @revenuecat/purchases-capacitor @revenuecat/purchases-capacitor-ui
-   cp store/capacitor.config.json ./capacitor.config.json   # appId app.brickvault, webDir public
+   cp store/capacitor.config.json ./capacitor.config.json   # appId app.bricksvault, webDir public
    npx cap add android
    npx cap sync android
    ```
