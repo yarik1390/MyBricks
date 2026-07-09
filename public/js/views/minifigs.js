@@ -37,13 +37,18 @@ async function loadSeriesList() {
 // Top series shown as quick chips; the rest live behind a "More…" picker
 // (40+ series — too many for a flat row). Mirrors the catalog theme chips.
 function seriesChipsHTML(f) {
-  const top = _seriesList.slice(0, 6);
+  const top = _seriesList.slice(0, quickSeriesCount());
   const sel = f.figSeries && f.figSeries !== 'all' ? f.figSeries : null;
   const inTop = top.some(s => s.series === sel);
   return `<button class="chip ${!sel ? 'active' : ''}" data-fig-series="all">All series</button>` +
     (sel && !inTop ? `<button class="chip active" data-fig-series="${escapeHtml(sel)}">${escapeHtml(sel)}</button>` : '') +
     top.map(s => `<button class="chip ${sel === s.series ? 'active' : ''}" data-fig-series="${escapeHtml(s.series)}">${escapeHtml(s.series)}</button>`).join('') +
     (_seriesList.length > 6 ? `<button class="chip" id="moreSeriesChip">${I.filter()}<span>More…</span></button>` : '');
+}
+
+function quickSeriesCount() {
+  try { return window.matchMedia?.("(max-width: 480px)")?.matches ? 3 : 6; }
+  catch { return 6; }
 }
 
 function applySeriesFilter(value) {
@@ -149,7 +154,7 @@ export async function renderBlind() {
           ${seriesChipsHTML(f)}
         </div>
         <div class="filter-row" style="margin-top:2px;gap:6px;">
-          <span style="font-size:11px;color:var(--ink-mute);display:inline-flex;align-items:center;margin-right:2px;font-family:var(--mono);font-weight:600;">SORT:</span>
+          <span class="filter-row-label">Sort</span>
           ${FIG_SORTS.map(o => `<button class="chip ${(f.figSort === o.asc || f.figSort === o.desc) ? 'active' : ''}" data-fig-sort-base="${o.base}">${figSortChipText(o, f.figSort)}</button>`).join('')}
           <button class="chip ${activeFigFilterCount(f) ? 'active' : ''}" id="figFilterChip">${I.filter()}<span>Filters${activeFigFilterCount(f) ? " · " + activeFigFilterCount(f) : ""}</span></button>
         </div>

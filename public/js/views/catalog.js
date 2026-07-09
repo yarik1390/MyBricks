@@ -419,8 +419,8 @@ function paintAdd() {
 
       <div class="filter-row">
         <button class="chip ${f.catalogTheme === "all" ? "active" : ""}" data-cat-theme="all">All themes</button>
-        ${state.themes.length > 8 && f.catalogTheme !== "all" && !popularThemes(state.themes).includes(f.catalogTheme) ? `<button class="chip active" data-cat-theme="${escapeHtml(f.catalogTheme)}">${escapeHtml(f.catalogTheme)}</button>` : ""}
-        ${popularThemes(state.themes).map(t => `<button class="chip ${f.catalogTheme === t ? "active" : ""}" data-cat-theme="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join("")}
+        ${state.themes.length > 8 && f.catalogTheme !== "all" && !popularThemes(state.themes, quickThemeCount()).includes(f.catalogTheme) ? `<button class="chip active" data-cat-theme="${escapeHtml(f.catalogTheme)}">${escapeHtml(f.catalogTheme)}</button>` : ""}
+        ${popularThemes(state.themes, quickThemeCount()).map(t => `<button class="chip ${f.catalogTheme === t ? "active" : ""}" data-cat-theme="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join("")}
         ${state.themes.length > 8 ? `<button class="chip" id="moreThemesChip">${I.filter()}<span>More…</span></button>` : ""}
       </div>
 
@@ -658,6 +658,11 @@ function popularThemes(all, n = 8) {
   const picked = POPULAR_THEMES.filter(t => present.has(t));
   for (const t of all) { if (picked.length >= n) break; if (!picked.includes(t)) picked.push(t); }
   return picked.slice(0, n);
+}
+
+function quickThemeCount() {
+  try { return window.matchMedia?.("(max-width: 480px)")?.matches ? 3 : 8; }
+  catch { return 8; }
 }
 
 function sourceCueHTML(s) { return trustBadgeHTML(s, { compact: true }); }

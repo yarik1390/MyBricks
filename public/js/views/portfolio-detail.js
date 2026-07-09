@@ -132,7 +132,7 @@ function paintSetDetail(set, entry) {
   const hasImg = displayImg && !displayImg.startsWith("data:");
 
   $("#root").innerHTML = `
-    <div class="page no-pad detail-page-container">
+    <div class="page no-pad detail-page-container" data-detail-tab="${escapeHtml(state.detail.tab)}">
       <div class="detail-hero-col">
         <div class="detail-hero${hasImg ? " has-photo" : ""}">
           <button class="detail-back" id="detailBack" aria-label="Back">${I.chevL()}</button>
@@ -141,7 +141,7 @@ function paintSetDetail(set, entry) {
             : `<div class="detail-hero-bg placeholder" style="--brick-hue:linear-gradient(135deg, oklch(0.72 0.13 ${h}), oklch(0.55 0.13 ${h}));"></div>`}
           <div class="detail-hero-overlay"></div>
           <div class="detail-img${hasImg ? " has-photo" : ""}">
-            <div class="brick-art" style="--brick-color:oklch(0.72 0.13 ${h});">${escapeHtml(set.set_num)}</div>
+            ${hasImg ? "" : `<div class="brick-art" style="--brick-color:oklch(0.72 0.13 ${h});">${escapeHtml(set.set_num)}</div>`}
             ${hasImg ? `<img class="set-photo" src="${escapeHtml(displayImg)}" alt="${escapeHtml(set.name)}">` : ""}
           </div>
         </div>

@@ -278,7 +278,7 @@ function paintPortfolio() {
           ${(state.portfolio?.items?.length) ? `<button class="icon-btn vault-extra-action" id="selectToggle" aria-label="Select sets">${I.check()}</button>` : ""}
           <button class="icon-btn" id="layoutToggle" aria-label="Toggle Layout">${state.compactView ? I.grid() : I.list()}</button>
           <button class="icon-btn" id="searchToggle" aria-label="Search">${I.search()}</button>
-          <a href="#/wishlist" class="icon-btn" id="wishlistBtn" aria-label="Wishlist">
+          <a href="#/wishlist" class="icon-btn vault-wishlist-action" id="wishlistBtn" aria-label="Wishlist">
             ${I.heart()}
             ${state.wishlist.length > 0 ? `<span class="dot">${state.wishlist.length}</span>` : ""}
           </a>
@@ -471,10 +471,12 @@ function paintPortfolio() {
       <h2 class="u-serif-h" style="margin:0 4px 12px;">Vault actions</h2>
       ${(state.me?.handle && state.me?.is_public) ? `<button class="sheet-action" id="vaultMoreShare">${I.share()}<span>Share public profile</span></button>` : ""}
       ${(state.portfolio?.items?.length) ? `<button class="sheet-action" id="vaultMoreSelect">${I.check()}<span>Select sets</span></button>` : ""}
+      <a class="sheet-action" href="#/wishlist" id="vaultMoreWishlist">${I.heart()}<span>Wishlist${state.wishlist.length ? ` (${state.wishlist.length})` : ""}</span></a>
       <button class="sheet-action" id="vaultMoreAlerts">${I.bell()}<span>Alerts${alertsCount ? ` (${alertsCount})` : ""}</span></button>
     `);
     $("#vaultMoreShare")?.addEventListener("click", () => { hideSheet(); $("#portfolioShareBtn")?.click(); });
     $("#vaultMoreSelect")?.addEventListener("click", () => { hideSheet(); $("#selectToggle")?.click(); });
+    $("#vaultMoreWishlist")?.addEventListener("click", () => hideSheet());
     $("#vaultMoreAlerts")?.addEventListener("click", () => { hideSheet(); showAlertsSheet(state.wishlistAlerts); });
   });
   

@@ -10,6 +10,16 @@
       (pref !== 'light' && window.matchMedia &&
        window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    var ua = navigator.userAgent || '';
+    var isAndroidWebView = /Android/i.test(ua) && /\bwv\b/i.test(ua);
+    var isNative = isAndroidWebView || !!(window.Capacitor && (
+      typeof window.Capacitor.isNativePlatform === 'function'
+        ? window.Capacitor.isNativePlatform()
+        : window.Capacitor.platform
+    ));
+    if (isNative) {
+      document.documentElement.dataset.nativeShell = isAndroidWebView ? 'android' : 'native';
+    }
     var skin = localStorage.getItem('bv_skin');
     var activeSkin = null;
     if (SKINS.indexOf(skin) !== -1) {

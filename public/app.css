@@ -43,6 +43,14 @@
   --card-pad-lg: 20px;
   --section-gap: 16px;
   --item-gap: 10px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --native-status-top: 0px;
+  --app-top-pad: max(var(--safe-top), var(--native-status-top));
+  --bottom-nav-clear: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+}
+
+:root[data-native-shell="android"] {
+  --native-status-top: 34px;
 }
 
 :root[data-theme="dark"] {
@@ -83,7 +91,8 @@ html, body {
 }
 body {
   overflow-x: clip;
-  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  padding-top: var(--app-top-pad);
+  padding-bottom: var(--bottom-nav-clear);
   min-height: 100vh;
 }
 body.sheet-open,
@@ -353,7 +362,10 @@ body.offline .offline-banner { display: block; }
   margin: 18px 0 14px;
   overflow-x: auto; scrollbar-width: none;
   margin-left: -22px; margin-right: -22px;
-  padding: 2px 22px;
+  padding: 2px max(22px, env(safe-area-inset-right, 0px)) 8px 22px;
+  scroll-padding-inline: 22px;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
 }
 .filter-row::-webkit-scrollbar { display: none; }
 .chip {
@@ -385,6 +397,19 @@ body.offline .offline-banner { display: block; }
   letter-spacing: 0.06em;
   text-transform: uppercase;
   overflow-wrap: anywhere;
+}
+.filter-row-label {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-right: 2px;
+  color: var(--ink-mute);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .trust-badge {
@@ -553,12 +578,16 @@ ul.set-list > li { display: contents; }
 .sl-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: 0.6; flex-shrink: 0; }
 .sl-right {
   display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between;
-  padding: 2px 4px; flex-shrink: 0;
+  padding: 2px 0 2px 4px; flex: 0 1 108px;
+  min-width: 0;
 }
 .sl-value {
   font-family: var(--val-font); font-weight: 500;
   font-size: 18px; letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sl-delta {
   font-family: var(--mono); font-size: 11px; font-weight: 600;
@@ -577,12 +606,12 @@ ul.set-list > li { display: contents; }
   /* box-sizing is border-box globally, so the safe-area padding must be ADDED
      to the height — otherwise it eats into the 64px content area and squishes
      the icons/labels on notched phones (no safe area = no issue on desktop). */
-  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  height: var(--bottom-nav-clear);
   background: var(--surface);
   border-top: var(--bw) solid var(--border-c);
   display: flex;
   z-index: 30;
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .nav-tab {
   flex: 1;
@@ -802,6 +831,64 @@ ul.set-list > li { display: contents; }
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 
+.coming-soon-wrap {
+  margin: 0 0 16px;
+}
+.coming-soon-wrap .section-title {
+  margin-top: 0;
+}
+.coming-soon-wrap > div,
+.coming-soon-scroll {
+  display: flex !important;
+  gap: 10px !important;
+  overflow-x: auto !important;
+  padding: 0 22px 8px 0 !important;
+  margin-right: -22px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.coming-soon-wrap > div::-webkit-scrollbar,
+.coming-soon-scroll::-webkit-scrollbar {
+  display: none;
+}
+.coming-soon-wrap .cs-card {
+  flex: 0 0 clamp(158px, 44vw, 190px) !important;
+  width: clamp(158px, 44vw, 190px) !important;
+  min-width: 0;
+}
+.coming-soon-wrap .cs-card > div:first-child,
+.coming-soon-wrap .cs-name {
+  height: auto !important;
+  min-height: 34px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-wrap: pretty;
+}
+.coming-soon-wrap .cs-card > div:nth-child(3),
+.coming-soon-wrap .cs-price-row {
+  display: grid !important;
+  grid-template-columns: 1fr;
+  justify-items: start;
+  align-items: start;
+  gap: 4px !important;
+}
+.coming-soon-wrap .cs-card .price-cue {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.coming-soon-wrap .cs-card > div:nth-child(3) > span:last-child,
+.coming-soon-wrap .cs-status {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.coming-soon-wrap .cs-wish-btn {
+  min-height: 40px !important;
+  width: 100% !important;
+}
+
 /* ============================================================
    Detail page
    ============================================================ */
@@ -839,7 +926,7 @@ ul.set-list > li { display: contents; }
 }
 .detail-back {
   position: absolute;
-  top: calc(16px + env(safe-area-inset-top, 0px));
+  top: calc(16px + var(--app-top-pad));
   left: 16px;
   width: 44px; height: 44px;
   background: var(--surface); border: var(--bw) solid var(--border-c);
@@ -864,6 +951,13 @@ ul.set-list > li { display: contents; }
   z-index: 2;
 }
 .detail-hero.has-photo .detail-img { width: min(320px, 92vw); height: min(320px, 92vw); }
+.detail-img.has-photo:not(.photo-loaded) {
+  background:
+    radial-gradient(circle at 50% 45%, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.34) 44%, transparent 68%),
+    linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2));
+  background-size: auto, 200% 100%;
+  animation: shimmer 1.4s infinite ease-in-out;
+}
 :root[data-theme="dark"] .detail-img {
   background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.14) 0%, transparent 66%);
 }
@@ -1089,7 +1183,7 @@ ul.set-list > li { display: contents; }
 /* Sticky action bar — keeps the primary action reachable on the detail page */
 .detail-action-bar {
   position: fixed; left: 0; right: 0;
-  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+  bottom: var(--bottom-nav-clear);
   z-index: 25;
   display: flex; align-items: center; gap: 10px;
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px) * 0);
@@ -1103,7 +1197,13 @@ ul.set-list > li { display: contents; }
 .detail-action-bar .ab-qty { display: flex; align-items: center; gap: 8px; flex: 1; }
 .detail-action-bar .ab-qty .qty-row-lbl { flex: 1; }
 /* On the detail page, pad the scroll area so content clears the sticky bar. */
-.detail-page-container { padding-bottom: 84px; }
+.detail-page-container { padding-bottom: calc(var(--bottom-nav-clear) + 92px); }
+.detail-page-container[data-detail-tab="manage"] {
+  padding-bottom: calc(var(--bottom-nav-clear) + 36px);
+}
+.detail-page-container[data-detail-tab="manage"] .detail-action-bar {
+  display: none;
+}
 @media (min-width: 1025px) {
   /* Left-rail nav layout has no bottom bar — pin the action bar to the viewport. */
   .detail-action-bar { bottom: 0; }
@@ -3086,7 +3186,7 @@ select:focus-visible,
 /* ── Floating Advisor FAB & Drawer ── */
 .advisor-fab {
   position: fixed;
-  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px);
+  bottom: calc(var(--bottom-nav-clear) + 16px);
   right: 20px;
   width: 54px;
   height: 54px;
@@ -3113,7 +3213,7 @@ body.scan-active .advisor-fab {
 /* On the set detail page the sticky action bar occupies the bottom — lift the
    FAB above it so it doesn't cover the Add-to-vault / Manage controls. */
 body[data-route="set-detail"] .advisor-fab {
-  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 84px);
+  bottom: calc(var(--bottom-nav-clear) + 84px);
 }
 .advisor-fab:hover {
   transform: scale(1.08) translateY(-2px);
@@ -3178,7 +3278,16 @@ body[data-route="set-detail"] .advisor-fab {
   }
   .advisor-fab {
     right: 16px;
-    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px);
+    bottom: calc(var(--bottom-nav-clear) + 12px);
+  }
+}
+
+@media (max-width: 640px) {
+  body[data-route="vault"] #advisorFab,
+  body[data-route="catalog"] #advisorFab,
+  body[data-route="minifigs"] #advisorFab,
+  body[data-route="set-detail"] #advisorFab {
+    display: none !important;
   }
 }
 
@@ -3468,7 +3577,7 @@ body.sheet-open .selection-bar {
 }
 
 .sl-right {
-  min-width: 96px;
+  min-width: 0;
 }
 
 .sl-value,
@@ -3595,7 +3704,7 @@ body.sheet-open .selection-bar {
 
   .brand-name {
     font-size: 20px;
-    max-width: 132px;
+    max-width: 150px;
   }
 
   .topbar-actions {
@@ -3630,7 +3739,104 @@ body.sheet-open .selection-bar {
   }
 
   .sl-right {
-    min-width: 82px;
+    flex-basis: 90px;
+    min-width: 0;
+  }
+
+  .filter-row {
+    gap: 7px;
+    margin-left: -18px;
+    margin-right: -18px;
+    padding-left: 18px;
+    scroll-padding-inline: 18px;
+    -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 36px), transparent 100%);
+    mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 36px), transparent 100%);
+  }
+
+  .filter-row-label {
+    display: none;
+  }
+
+  .chip {
+    padding-inline: 12px;
+    font-size: 12px;
+  }
+
+  .set-list-card {
+    gap: 10px;
+    padding: 9px;
+  }
+
+  .set-list-card:not(.compact) {
+    min-height: 98px;
+  }
+
+  .sl-img {
+    width: 70px;
+    height: 74px;
+  }
+
+  .sl-name {
+    font-size: 14px;
+    -webkit-line-clamp: 2;
+  }
+
+  .sl-meta {
+    gap: 4px;
+    font-size: 9px;
+  }
+
+  .sl-value {
+    font-size: 16px;
+  }
+
+  .sl-delta {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .grid,
+  .mini-grid {
+    gap: 10px;
+  }
+
+  .set-card-body,
+  .mini-body {
+    padding: 9px 10px 11px;
+  }
+
+  .set-card-name {
+    font-size: 13px;
+  }
+
+  .set-card-value,
+  .mini-value {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .set-card-submeta,
+  .mini-meta {
+    gap: 4px;
+  }
+
+  .mini-img {
+    aspect-ratio: 1 / 0.92;
+  }
+
+  .mini-rarity-tag {
+    max-width: calc(100% - 16px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .coming-soon-wrap > div,
+  .coming-soon-scroll {
+    margin-right: -18px;
+    padding-right: 18px !important;
   }
 }
 
@@ -3965,7 +4171,7 @@ body.sheet-open .selection-bar {
    UI improvement pass: shared shells, filters, admin, profile
    ============================================================ */
 .page {
-  padding-bottom: calc(92px + env(safe-area-inset-bottom));
+  padding-bottom: calc(var(--bottom-nav-clear) + 40px);
 }
 
 .topbar {
@@ -4388,6 +4594,10 @@ body.sheet-open .selection-bar {
     display: none !important;
   }
 
+  .vault-wishlist-action {
+    display: none !important;
+  }
+
   .vault-overflow {
     display: inline-flex;
   }
@@ -4404,7 +4614,7 @@ body.sheet-open .selection-bar {
   }
 
   .detail-tab-panel {
-    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--bottom-nav-clear) + 48px);
   }
 
   .detail-tabs {
