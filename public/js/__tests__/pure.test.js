@@ -801,7 +801,7 @@ describe('routeMetaFor', () => {
 });
 
 describe('native auth helpers', () => {
-  it('uses the Pages bridge callback on native platforms', async () => {
+  it('uses the verified Pages App Link callback on native platforms', async () => {
     const { authRedirectUrlForPlatform } = await import('../lib/native-auth.js');
     const nativeWin = {
       Capacitor: { isNativePlatform: () => true },
@@ -811,7 +811,7 @@ describe('native auth helpers', () => {
       Capacitor: { isNativePlatform: () => false },
       location: { origin: 'https://brickvault-5ub.pages.dev', pathname: '/' },
     };
-    assert.equal(authRedirectUrlForPlatform(nativeWin), 'https://brickvault-5ub.pages.dev/?native_oauth=1');
+    assert.equal(authRedirectUrlForPlatform(nativeWin), 'https://brickvault-5ub.pages.dev/');
     assert.equal(authRedirectUrlForPlatform(webWin), 'https://brickvault-5ub.pages.dev/');
   });
 
@@ -829,7 +829,7 @@ describe('native auth helpers', () => {
     assert.equal(url.searchParams.get('prompt'), 'select_account');
   });
 
-  it('extracts only BricksVault native OAuth callback hashes', async () => {
+  it('extracts only trusted BricksVault OAuth callback hashes', async () => {
     const { nativeOAuthCallbackFromWebBridge, oauthHashFromCallbackUrl } = await import('../lib/native-auth.js');
     assert.equal(
       oauthHashFromCallbackUrl('app.bricksvault://auth/callback#access_token=tok&refresh_token=ref'),
@@ -839,8 +839,12 @@ describe('native auth helpers', () => {
       oauthHashFromCallbackUrl('app.bricksvault://auth/callback#error=access_denied'),
       '#error=access_denied',
     );
-    assert.equal(oauthHashFromCallbackUrl('https://brickvault-5ub.pages.dev/#access_token=tok'), '');
     assert.equal(oauthHashFromCallbackUrl('app.bricksvault://wrong/callback#access_token=tok'), '');
+    assert.equal(
+      oauthHashFromCallbackUrl('https://brickvault-5ub.pages.dev/#access_token=tok&refresh_token=ref'),
+      '#access_token=tok&refresh_token=ref',
+    );
+    assert.equal(oauthHashFromCallbackUrl('https://example.com/#access_token=tok'), '');
     assert.equal(
       nativeOAuthCallbackFromWebBridge('https://brickvault-5ub.pages.dev/?native_oauth=1#access_token=tok&refresh_token=ref'),
       'app.bricksvault://auth/callback#access_token=tok&refresh_token=ref',
