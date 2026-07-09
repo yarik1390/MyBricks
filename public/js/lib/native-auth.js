@@ -1,4 +1,5 @@
 export const NATIVE_AUTH_CALLBACK_URL = 'app.bricksvault://auth/callback';
+export const NATIVE_AUTH_BRIDGE_PARAM = 'native_oauth';
 
 function currentWindow(win) {
   if (win) return win;
@@ -25,8 +26,31 @@ export function getCapacitorPlugin(name, win) {
 
 export function authRedirectUrlForPlatform(win) {
   const w = currentWindow(win);
-  if (isNativeCapacitor(w)) return NATIVE_AUTH_CALLBACK_URL;
-  return `${w?.location?.origin || ''}${w?.location?.pathname || '/'}`;
+  const origin = w?.location?.origin || '';
+  const pathname = w?.location?.pathname || '/';
+  if (!isNativeCapacitor(w)) return `${origin}${pathname}`;
+
+  // Supabase allows the hosted Pages URL in every environment. The page returns
+  // the OAuth hash straight to the app scheme before it can create a browser-only
+  // session, so native sign-in remains reliable even when custom schemes are not
+  // listed in a project's Supabase redirect allow-list.
+  const url = new URL(pathname, origin);
+  url.searchParams.set(NATIVE_AUTH_BRIDGE_PARAM, '1');
+  return url.toString();
+}
+
+export function nativeOAuthCallbackFromWebBridge(url) {
+  let parsed;
+  try {
+    parsed = new URL(String(url || ''));
+  } catch {
+    return '';
+  }
+  if (parsed.searchParams.get(NATIVE_AUTH_BRIDGE_PARAM) !== '1') return '';
+
+  const hash = parsed.hash || '';
+  if (!/(?:^#|&)access_token=|(?:^#|&)error=/.test(hash)) return '';
+  return `${NATIVE_AUTH_CALLBACK_URL}${hash}`;
 }
 
 export function buildSupabaseProviderAuthUrl(sbUrl, provider, redirectTo) {

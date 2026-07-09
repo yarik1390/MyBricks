@@ -7,7 +7,7 @@ import { route } from './router.js';
 import { getThemePref, applyTheme, getModePref, applyMode } from './theme.js';
 import { toggleAdvisor } from './components/advisor-lazy.js';
 import { openScan, closeScan, capturePhoto } from './components/scanner-lazy.js';
-import { closeNativeAuthBrowser, getCapacitorPlugin, isNativeCapacitor, oauthHashFromCallbackUrl } from './lib/native-auth.js';
+import { closeNativeAuthBrowser, getCapacitorPlugin, isNativeCapacitor, nativeOAuthCallbackFromWebBridge, oauthHashFromCallbackUrl } from './lib/native-auth.js';
 // onboarding (welcome carousel) is lazy-loaded at the end of boot (see below).
 
 // Setup gestures: Pull-to-refresh + swipe-back
@@ -230,6 +230,15 @@ function showUpdatePrompt(worker) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // Native OAuth returns through the allow-listed Pages URL first, then this
+  // one-time bridge immediately opens the app callback before Chrome persists a
+  // browser-only session.
+  const nativeOAuthCallback = nativeOAuthCallbackFromWebBridge(location.href);
+  if (nativeOAuthCallback) {
+    location.replace(nativeOAuthCallback);
+    return;
+  }
+
   // Load session and Supabase config before any routing.
   let session = loadSession();
   // Fetch /api/config with a few retries. If it never comes back, the most
