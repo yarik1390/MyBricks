@@ -1,0 +1,16 @@
+{
+  "name": "bricksvault-expo-preview",
+  "version": "1.0.0",
+  "private": true,
+  "main": "node_modules/expo/AppEntry.js",
+  "description": "PREVIEW-ONLY Expo WebView shell for seeing BricksVault on a device via EAS cloud builds. NOT the store submission — see store/README.md (billing/4.2/WKWebView caveats). The store path is Capacitor at the repo root.",
+  "scripts": {
+    "start": "expo start"
+  },
+  "dependencies": {
+    "expo": "^57.0.4",
+    "react": "^19.2.3",
+    "react-native": "^0.86.0",
+    "react-native-webview": "^13.16.1"
+  }
+}

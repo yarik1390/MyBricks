@@ -11,8 +11,10 @@ two build paths.
 
 ## ⚠️ The Expo/EAS wrapper is PREVIEW-ONLY — do not submit it
 
-The repo root also contains an **Expo remote-WebView shell** (`App.js`, `app.json`,
-`eas.json`, `.eas/workflows/`) that loads the live site in a `react-native-webview`.
+The **`expo-preview/`** directory contains an Expo remote-WebView shell (`App.js`,
+`app.json`, `eas.json`, `.eas/workflows/`) that loads the live site in a
+`react-native-webview`. (It was moved out of the repo root so the root can host
+the real Capacitor project — `capacitor.config.json` + `android/`.)
 It exists so iOS builds can be produced in the cloud (EAS) without a Mac — useful for
 **seeing BricksVault on a device**, nothing more. It must NOT become the store
 submission, because:

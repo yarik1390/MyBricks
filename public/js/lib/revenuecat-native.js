@@ -7,11 +7,10 @@
 // `Capacitor.registerPlugin(name)`. On the web these functions are safe no-ops, so
 // importing this module never affects the PWA.
 //
-// ⚠️ VERIFY ON-DEVICE: this code can't run in the browser. After
-// `npm i @revenuecat/purchases-capacitor @revenuecat/purchases-capacitor-ui`
-// and `npx cap sync android`, confirm the plugin names + method shapes below
-// against node_modules/@revenuecat/purchases-capacitor*/dist/esm/index.js
-// (look for the `registerPlugin('…')` calls) and RevenueCat's Capacitor docs.
+// ✅ PLUGIN NAMES VERIFIED (2026-07, @revenuecat/purchases-capacitor@13.2.2):
+// registerPlugin('Purchases') and registerPlugin('RevenueCatUI') match the
+// constants below exactly. Method SHAPES still need one on-device pass during
+// the Play license-tester purchase test (this code can't run in the browser).
 
 import { getSessionUserId } from '../api.js';
 

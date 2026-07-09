@@ -1,0 +1,21 @@
+{
+  "appId": "app.brickvault",
+  "appName": "BricksVault",
+  "webDir": "public",
+  "backgroundColor": "#F5F1E8",
+  "server": {
+    "url": "https://brickvault-5ub.pages.dev",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#F5F1E8"
+  },
+  "plugins": {},
+  "_notes": [
+    "This wraps the live PWA in a native iOS shell for the Apple App Store (Apple does not accept TWAs).",
+    "Two modes: (A) server.url points at the hosted site (fastest to a working build, shown here); (B) remove server.url and bundle the built web assets into webDir so the app ships self-contained — stronger for App Store Guideline 4.2 (minimum functionality). Prefer (B) before submitting, and add real native capability via Capacitor plugins (Camera, Push Notifications, Haptics).",
+    "Setup on a Mac: `npm i @capacitor/core @capacitor/cli @capacitor/ios`, place this file at repo root as capacitor.config.json, then `npx cap add ios` and `npx cap open ios`. Add NSCameraUsageDescription to ios/App/App/Info.plist for the scanner.",
+    "appId must match the Bundle ID you register in your Apple Developer account."
+  ]
+}

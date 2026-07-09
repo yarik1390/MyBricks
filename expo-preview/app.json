@@ -5,7 +5,7 @@
     "owner": "yarik1390s-organization",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./public/icon-512.png",
+    "icon": "./assets/icon-512.png",
     "scheme": "brickvault",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -24,7 +24,7 @@
         "CAMERA"
       ],
       "adaptiveIcon": {
-        "foregroundImage": "./public/icon-maskable-512.png",
+        "foregroundImage": "./assets/icon-maskable-512.png",
         "backgroundColor": "#F5F1E8"
       }
     }

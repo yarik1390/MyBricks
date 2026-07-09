@@ -2,7 +2,6 @@
   "name": "mybricks-workspace",
   "version": "1.0.0",
   "private": true,
-  "main": "node_modules/expo/AppEntry.js",
   "type": "module",
   "scripts": {
     "setup": "cmd /c \"npm --prefix worker install\"",
@@ -19,9 +18,10 @@
     "@playwright/test": "^1.61.1"
   },
   "dependencies": {
-    "expo": "^57.0.4",
-    "react": "^19.2.3",
-    "react-native": "^0.86.0",
-    "react-native-webview": "^13.16.1"
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@revenuecat/purchases-capacitor": "^13.2.2",
+    "@revenuecat/purchases-capacitor-ui": "^13.2.2"
   }
 }
