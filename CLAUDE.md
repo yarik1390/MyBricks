@@ -119,6 +119,24 @@ throw) — all three test files show the pattern.
 - To add more: put new pure (no-DOM, no-state) helpers in `public/js/lib/pure.js`
   and test them in `pure.test.js`.
 
+## Token-efficient command output (rtk)
+
+If the `rtk` CLI is on PATH (`command -v rtk`), prefix verbose commands with it
+to shrink Bash tool output: `rtk vitest run`, `rtk tsc --noEmit`, `rtk npm run
+<script>`, `rtk playwright test`, `rtk git status|diff|log`. It strips
+boilerplate but keeps failures verbatim; run the plain command when you need
+full output. If it's not installed (remote sessions block GitHub release
+downloads, so build from source, ~3 min):
+
+```bash
+git clone --depth 1 https://github.com/rtk-ai/rtk /tmp/rtk-src
+cargo build --release --locked --manifest-path /tmp/rtk-src/Cargo.toml
+mkdir -p ~/.local/bin && cp /tmp/rtk-src/target/release/rtk ~/.local/bin/
+```
+
+Skip the install if `cargo` is unavailable or you only need a few short
+commands — it's an optimization, never a requirement.
+
 ## Working in parallel (important)
 
 - `git pull origin claude/mybricks-lego-app-EdTPX` before each push.
