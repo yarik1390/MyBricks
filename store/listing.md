@@ -1,6 +1,9 @@
 # BricksVault — store listing copy & privacy answers
 
-Drafts to adapt. Review tone and specifics before publishing.
+Finalized for the Play submission (2026-07); the Data Safety answers below were
+verified against the shipped code (email + user content collected, encrypted in
+transit, in-app deletion at Me → Delete account). Assets: 4 phone screenshots +
+the 1024×500 feature graphic live in `store/play/`.
 
 ## App name
 - **BricksVault** (Play title ≤ 30 chars; Apple name ≤ 30 chars — "BricksVault" fits.)
