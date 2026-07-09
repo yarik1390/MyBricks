@@ -26,7 +26,7 @@ android {
     signingConfigs {
         if (System.getenv("ANDROID_KEYSTORE_PASSWORD")) {
             release {
-                storeFile file("../upload.jks")
+                storeFile file(System.getenv("ANDROID_KEYSTORE_PATH") ?: "../upload.jks")
                 storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
                 keyAlias System.getenv("ANDROID_KEY_ALIAS") ?: "upload"
                 keyPassword System.getenv("ANDROID_KEY_PASSWORD") ?: System.getenv("ANDROID_KEYSTORE_PASSWORD")
