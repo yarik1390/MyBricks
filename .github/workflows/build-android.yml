@@ -1,0 +1,104 @@
+name: Build Android (.aab)
+
+# Builds the Capacitor Android app on a plain ubuntu runner — no Android Studio
+# needed. Produces the Play-ready SIGNED app bundle as a workflow artifact.
+#
+# One-time owner setup (see also store/CAPACITOR-PLAYSTORE.md):
+#   1. Create the upload keystore locally (any machine with Java):
+#        keytool -genkeypair -v -keystore upload.jks -alias upload \
+#          -keyalg RSA -keysize 2048 -validity 10000
+#      (Play App Signing re-signs for distribution — this is only the UPLOAD key,
+#       but keep it safe: losing it means a reset request to Google.)
+#   2. GitHub secrets:
+#        ANDROID_KEYSTORE_BASE64   ← `base64 -w0 upload.jks`
+#        ANDROID_KEYSTORE_PASSWORD ← the -storepass you chose
+#        ANDROID_KEY_ALIAS         ← "upload" (or your alias)
+#        ANDROID_KEY_PASSWORD      ← key password (often same as store password)
+#   3. Dispatch this workflow → download the .aab artifact → upload to Play
+#      Console (internal testing first).
+#
+# Without the keystore secrets the build still runs but produces an UNSIGNED
+# bundle (marked in the artifact name) — Play will not accept it; useful only
+# to prove the project compiles.
+#
+# NOTE: manual dispatch requires this file to exist on the DEFAULT branch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "What to build"
+        required: false
+        default: "bundle"
+        type: choice
+        options: [bundle, apk-debug]
+
+concurrency:
+  group: build-android
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install workspace deps (Capacitor CLI + platform)
+        run: npm ci
+
+      - name: Sync web assets + plugins into the Android project
+        run: npx cap sync android
+
+      - name: Restore the upload keystore (if configured)
+        id: keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "${ANDROID_KEYSTORE_BASE64}" ]; then
+            printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 -d > android/upload.jks
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "Keystore restored — building a SIGNED bundle."
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret — building UNSIGNED (compile check only; Play will reject it)."
+          fi
+
+      - name: Build
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ "${{ inputs.build_type }}" = "apk-debug" ]; then
+            ./gradlew assembleDebug --no-daemon
+          else
+            ./gradlew bundleRelease --no-daemon
+          fi
+
+      - name: Report version (bump build.gradle before each Play upload)
+        run: grep -E 'versionCode|versionName' android/app/build.gradle | sed 's/^ *//'
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bricksvault-${{ inputs.build_type == 'apk-debug' && 'debug-apk' || (steps.keystore.outputs.signed == 'true' && 'release-aab' || 'UNSIGNED-aab') }}
+          path: |
+            android/app/build/outputs/bundle/release/*.aab
+            android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
