@@ -1,5 +1,6 @@
 export const NATIVE_AUTH_CALLBACK_URL = 'app.bricksvault://auth/callback';
 export const NATIVE_AUTH_BRIDGE_PARAM = 'native_oauth';
+export const NATIVE_AUTH_APP_LINK_ORIGIN = 'https://brickvault-5ub.pages.dev';
 
 function currentWindow(win) {
   if (win) return win;
@@ -28,15 +29,9 @@ export function authRedirectUrlForPlatform(win) {
   const w = currentWindow(win);
   const origin = w?.location?.origin || '';
   const pathname = w?.location?.pathname || '/';
-  if (!isNativeCapacitor(w)) return `${origin}${pathname}`;
-
-  // Supabase allows the hosted Pages URL in every environment. The page returns
-  // the OAuth hash straight to the app scheme before it can create a browser-only
-  // session, so native sign-in remains reliable even when custom schemes are not
-  // listed in a project's Supabase redirect allow-list.
-  const url = new URL(pathname, origin);
-  url.searchParams.set(NATIVE_AUTH_BRIDGE_PARAM, '1');
-  return url.toString();
+  // The Supabase site URL is already allow-listed. Android verifies this Pages
+  // origin as an App Link and returns its final OAuth URL to the native app.
+  return `${origin}${pathname}`;
 }
 
 export function nativeOAuthCallbackFromWebBridge(url) {
@@ -72,10 +67,12 @@ export function oauthHashFromCallbackUrl(url) {
   } catch {
     return '';
   }
-  const isNativeCallback = parsed.protocol === 'app.bricksvault:'
+  const isCustomSchemeCallback = parsed.protocol === 'app.bricksvault:'
     && parsed.host === 'auth'
     && parsed.pathname === '/callback';
-  if (!isNativeCallback) return '';
+  const isVerifiedAppLinkCallback = parsed.origin === NATIVE_AUTH_APP_LINK_ORIGIN
+    && parsed.protocol === 'https:';
+  if (!isCustomSchemeCallback && !isVerifiedAppLinkCallback) return '';
 
   const hash = parsed.hash || (raw.includes('#') ? raw.slice(raw.indexOf('#')) : '');
   if (hash && /(?:^#|&)access_token=|(?:^#|&)error=/.test(hash)) return hash;
