@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = 'v269';
+const VERSION = 'v270';
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 // Cross-origin product images live in their own UNVERSIONED, bounded cache:
@@ -30,6 +30,7 @@ const STATIC_ASSETS = [
   '/js/api.js',
   '/js/router.js',
   '/js/route-meta.js',
+  '/js/lib/pure-core.js',
   '/js/lib/pure.js',
   '/js/lib/morphdom.js',
   '/js/lib/local-ai.js',
@@ -146,6 +147,9 @@ self.addEventListener('fetch', e => {
 
   // Cross-origin (e.g. Rebrickable CDN images, fonts) — cache-first, opaque OK.
   if (url.origin !== self.location.origin) {
+    if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
+      return;
+    }
     // AI model downloads are multi-GB — cloning them into Cache Storage OOMs
     // mobile devices (they stream straight to OPFS instead). Let the browser
     // fetch natively, bypassing the SW cache entirely.
