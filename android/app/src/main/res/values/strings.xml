@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">BricksVault</string>
     <string name="title_activity_main">BricksVault</string>
-    <string name="package_name">app.brickvault</string>
-    <string name="custom_url_scheme">app.brickvault</string>
+    <string name="package_name">app.bricksvault</string>
+    <string name="custom_url_scheme">app.bricksvault</string>
 </resources>

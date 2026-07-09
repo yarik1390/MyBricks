@@ -1,4 +1,4 @@
-package app.brickvault;
+package app.bricksvault;
 
 import com.getcapacitor.BridgeActivity;
 

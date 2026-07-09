@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "app.brickvault"
+    namespace = "app.bricksvault"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "app.brickvault"
+        applicationId "app.bricksvault"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Single source of truth for the native app version. Bump BOTH on every
