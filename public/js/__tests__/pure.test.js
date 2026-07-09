@@ -800,6 +800,50 @@ describe('routeMetaFor', () => {
   });
 });
 
+describe('native auth helpers', () => {
+  it('uses the custom scheme callback on native platforms', async () => {
+    const { authRedirectUrlForPlatform } = await import('../lib/native-auth.js');
+    const nativeWin = {
+      Capacitor: { isNativePlatform: () => true },
+      location: { origin: 'https://brickvault-5ub.pages.dev', pathname: '/' },
+    };
+    const webWin = {
+      Capacitor: { isNativePlatform: () => false },
+      location: { origin: 'https://brickvault-5ub.pages.dev', pathname: '/' },
+    };
+    assert.equal(authRedirectUrlForPlatform(nativeWin), 'app.bricksvault://auth/callback');
+    assert.equal(authRedirectUrlForPlatform(webWin), 'https://brickvault-5ub.pages.dev/');
+  });
+
+  it('builds a Supabase Google authorize URL with the selected redirect target', async () => {
+    const { buildSupabaseProviderAuthUrl } = await import('../lib/native-auth.js');
+    const url = new URL(buildSupabaseProviderAuthUrl(
+      'https://example.supabase.co',
+      'google',
+      'app.bricksvault://auth/callback',
+    ));
+    assert.equal(url.origin, 'https://example.supabase.co');
+    assert.equal(url.pathname, '/auth/v1/authorize');
+    assert.equal(url.searchParams.get('provider'), 'google');
+    assert.equal(url.searchParams.get('redirect_to'), 'app.bricksvault://auth/callback');
+    assert.equal(url.searchParams.get('prompt'), 'select_account');
+  });
+
+  it('extracts only BricksVault native OAuth callback hashes', async () => {
+    const { oauthHashFromCallbackUrl } = await import('../lib/native-auth.js');
+    assert.equal(
+      oauthHashFromCallbackUrl('app.bricksvault://auth/callback#access_token=tok&refresh_token=ref'),
+      '#access_token=tok&refresh_token=ref',
+    );
+    assert.equal(
+      oauthHashFromCallbackUrl('app.bricksvault://auth/callback#error=access_denied'),
+      '#error=access_denied',
+    );
+    assert.equal(oauthHashFromCallbackUrl('https://brickvault-5ub.pages.dev/#access_token=tok'), '');
+    assert.equal(oauthHashFromCallbackUrl('app.bricksvault://wrong/callback#access_token=tok'), '');
+  });
+});
+
 import { resolveDownloadResume } from '../lib/pure.js';
 
 describe('resolveDownloadResume', () => {

@@ -7,6 +7,7 @@ import { route } from './router.js';
 import { getThemePref, applyTheme, getModePref, applyMode } from './theme.js';
 import { toggleAdvisor } from './components/advisor-lazy.js';
 import { openScan, closeScan, capturePhoto } from './components/scanner-lazy.js';
+import { closeNativeAuthBrowser, getCapacitorPlugin, isNativeCapacitor, oauthHashFromCallbackUrl } from './lib/native-auth.js';
 // onboarding (welcome carousel) is lazy-loaded at the end of boot (see below).
 
 // Setup gestures: Pull-to-refresh + swipe-back
@@ -170,6 +171,41 @@ async function consumeOAuthHash() {
   return false;
 }
 
+let nativeAuthBridgeReady = false;
+
+async function consumeNativeOAuthCallback(url, { reroute = false } = {}) {
+  const hash = oauthHashFromCallbackUrl(url);
+  if (!hash) return false;
+  try { await closeNativeAuthBrowser(); } catch {}
+  history.replaceState(null, '', `${location.pathname}${location.search}${hash}`);
+  const consumed = await consumeOAuthHash();
+  if (consumed && reroute) await route();
+  return consumed;
+}
+
+async function setupNativeAuthBridge() {
+  if (nativeAuthBridgeReady || !isNativeCapacitor()) return false;
+  nativeAuthBridgeReady = true;
+  const App = getCapacitorPlugin('App');
+  if (!App) return false;
+  try {
+    App.addListener?.('appUrlOpen', event => {
+      consumeNativeOAuthCallback(event?.url, { reroute: true }).catch(err => {
+        console.warn('[native-auth] failed to consume OAuth callback:', err);
+      });
+    });
+  } catch (err) {
+    console.warn('[native-auth] appUrlOpen listener unavailable:', err);
+  }
+  try {
+    const launch = await App.getLaunchUrl?.();
+    if (launch?.url) return await consumeNativeOAuthCallback(launch.url, { reroute: false });
+  } catch (err) {
+    console.warn('[native-auth] launch URL unavailable:', err);
+  }
+  return false;
+}
+
 // Service-worker update prompt: surface a tappable "Update ready" toast instead
 // of silently reloading mid-session. Reload only happens after the user opts in.
 function showUpdatePrompt(worker) {
@@ -224,7 +260,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  await consumeOAuthHash();
+  const consumedNativeOAuth = await setupNativeAuthBridge();
+  if (!consumedNativeOAuth) await consumeOAuthHash();
   consumeShareTarget();
 
   // Wire nav icons using icon library

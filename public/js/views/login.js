@@ -3,6 +3,7 @@ import { _sbUrl, sbSignIn, sbSignUp, sbRecover, saveSession, snapshotGuestVault,
 import { state } from '../state.js';
 import { go } from '../router.js';
 import { promptSheet } from '../components/sheet.js';
+import { authRedirectUrlForPlatform, buildSupabaseProviderAuthUrl, isNativeCapacitor, openNativeAuthUrl } from '../lib/native-auth.js';
 
 // When auth can't run because _sbUrl is empty, distinguish "the API was
 // blocked/unreachable" (state.configError, set during boot) from a genuine
@@ -159,24 +160,25 @@ export function renderLogin() {
       }
     });
 
-    document.getElementById("googleSignIn")?.addEventListener("click", () => {
+    async function startProviderSignIn(provider) {
       if (!_sbUrl) { toast(authUnavailableMsg(), "error"); return; }
       const guestSnapshot = snapshotGuestVault();
       if (guestSnapshot.collection?.length || guestSnapshot.wishlist?.length || guestSnapshot.ownedFigs?.length) {
         try { sessionStorage.setItem("bv_pending_guest_migration", JSON.stringify(guestSnapshot)); } catch {}
       }
-      const redirectTo = encodeURIComponent(location.origin + location.pathname);
-      location.href = `${_sbUrl}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}&prompt=select_account`;
-    });
-    document.getElementById("appleSignIn")?.addEventListener("click", () => {
-      if (!_sbUrl) { toast(authUnavailableMsg(), "error"); return; }
-      const guestSnapshot = snapshotGuestVault();
-      if (guestSnapshot.collection?.length || guestSnapshot.wishlist?.length || guestSnapshot.ownedFigs?.length) {
-        try { sessionStorage.setItem("bv_pending_guest_migration", JSON.stringify(guestSnapshot)); } catch {}
+      const redirectTo = authRedirectUrlForPlatform();
+      const authUrl = buildSupabaseProviderAuthUrl(_sbUrl, provider, redirectTo);
+      if (isNativeCapacitor()) {
+        try {
+          if (await openNativeAuthUrl(authUrl)) return;
+        } catch (e) {
+          toast(e?.message || "Could not open secure sign-in", "error");
+        }
       }
-      const redirectTo = encodeURIComponent(location.origin + location.pathname);
-      location.href = `${_sbUrl}/auth/v1/authorize?provider=apple&redirect_to=${redirectTo}`;
-    });
+      location.href = authUrl;
+    }
+    document.getElementById("googleSignIn")?.addEventListener("click", () => { startProviderSignIn("google"); });
+    document.getElementById("appleSignIn")?.addEventListener("click", () => { startProviderSignIn("apple"); });
     document.getElementById("authGuest")?.addEventListener("click", () => {
       saveSession(null, { preserveGuestFigs: true });
       if (nav) nav.style.display = "";

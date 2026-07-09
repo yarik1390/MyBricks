@@ -80,8 +80,16 @@ Configure a custom domain in the Cloudflare dashboard and add a Worker Route for
 1. Create a project at supabase.com
 2. Enable Email auth (Auth > Providers > Email)
 3. Set `SITE_URL` in Auth settings to your Pages domain
-4. Create your admin account via the Supabase Auth dashboard
-5. Copy your user UUID to `ADMIN_USER_ID`. Find it in the Supabase dashboard
+4. Under **Auth > URL Configuration > Redirect URLs**, add the Android native
+   callback used by the Play build:
+
+```text
+app.bricksvault://auth/callback
+```
+
+   Keep the Pages domain redirect there too for the web/PWA login flow.
+5. Create your admin account via the Supabase Auth dashboard
+6. Copy your user UUID to `ADMIN_USER_ID`. Find it in the Supabase dashboard
    under **Authentication → Users** — the `UID` column for your account (a
    UUID like `1c2f...-...`). Alternatively, sign in to the app and decode the
    `sub` claim of your JWT at jwt.io.
