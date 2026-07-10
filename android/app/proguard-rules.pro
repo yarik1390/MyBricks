@@ -19,3 +19,12 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# --- BricksVault: R8 keep rules for the Capacitor WebView bridge ---
+# Capacitor + plugins ship consumer rules; these are defensive duplicates for
+# the reflection-heavy surfaces that break silently when stripped.
+-keep @com.getcapacitor.annotation.CapacitorPlugin public class * { *; }
+-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }
+-keepattributes JavascriptInterface, *Annotation*
+# RevenueCat models cross the JS bridge as JSON via reflection.
+-keep class com.revenuecat.purchases.** { *; }

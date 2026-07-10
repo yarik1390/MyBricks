@@ -10,8 +10,8 @@ android {
         // Single source of truth for the native app version. Bump BOTH on every
         // Play upload: versionCode is monotonically increasing (Play rejects
         // duplicates); versionName is the user-visible string.
-        versionCode 3
-        versionName "1.0.2"
+        versionCode 4
+        versionName "1.0.3"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -35,11 +35,16 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
+            // R8 shrink + obfuscate (Play "app optimisation" advisory). The
+            // Capacitor bridge and plugins ship consumer keep rules; app-side
+            // extras live in proguard-rules.pro. Keep mapping.txt from CI for
+            // deobfuscated crash reports.
+            minifyEnabled true
+            shrinkResources true
             ndk {
                 debugSymbolLevel 'SYMBOL_TABLE'
             }
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (System.getenv("ANDROID_KEYSTORE_PASSWORD")) {
                 signingConfig signingConfigs.release
             }
