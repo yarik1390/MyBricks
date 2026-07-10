@@ -917,9 +917,9 @@ function scanOverlayHTML(mode) {
       <video class="scan-video" id="scanVideo" autoplay playsinline muted></video>
       <div class="scan-top" style="justify-content: space-between;">
         <button id="scanCloseBtn" aria-label="Close">${I.close()}</button>
-        <div class="scan-mode-toggle" style="display: flex; align-items: center;">
-          <button data-mode="barcode" class="${mode === "barcode" ? "active" : ""}">Barcode</button>
-          <button data-mode="image" class="${mode === "image" ? "active" : ""}">Photo</button>
+        <div class="scan-mode-toggle" role="group" aria-label="Scan mode" style="display: flex; align-items: center;">
+          <button data-mode="barcode" aria-pressed="${mode === "barcode"}" class="${mode === "barcode" ? "active" : ""}">Barcode</button>
+          <button data-mode="image" aria-pressed="${mode === "image"}" class="${mode === "image" ? "active" : ""}">Photo</button>
         </div>
         <div style="width:42px;"></div>
       </div>

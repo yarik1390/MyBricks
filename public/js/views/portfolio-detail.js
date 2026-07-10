@@ -150,7 +150,7 @@ function paintSetDetail(set, entry) {
         <div class="detail-title-row">
           <div>
             <div class="detail-eyebrow">${escapeHtml(set.theme || "")} · #${escapeHtml(set.set_num)}${set.coming_soon ? " · <span style='color:var(--accent);font-weight:700;'>COMING SOON</span>" : `${set.retired ? " · RETIRED" : ""}${set.lego_retiring_soon ? " · <span style='color:var(--down);font-weight:700;'>RETIRING SOON</span>" : ""}`}</div>
-            <div class="detail-title">${escapeHtml(set.name)}</div>
+            <h1 class="detail-title">${escapeHtml(set.name)}</h1>
           </div>
           <button class="detail-share-btn icon-btn" id="shareBtn" aria-label="Share">${I.share()}</button>
         </div>
@@ -410,7 +410,7 @@ function infoTabHTML(set, entry, isWish) {
     const biReviewCount = Number(set.brickinsights_review_count) || 0;
     const biReviewsStr = biReviewCount ? `${biReviewCount} review${biReviewCount > 1 ? 's' : ''}` : '';
     const brickInsightsBadge = (biRating && biRating > 0)
-      ? `<div class="detail-kv span2" style="display:flex;align-items:center;gap:8px;"><span class="k">Critics' score</span> <span class="v">${biRating}/100</span> <span style="color:var(--ink-mute);font-size:10px;">${biReviewsStr}</span>${set.brickinsights_url ? ` <a href="${escapeHtml(set.brickinsights_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--ink-faint);font-size:10px;">\u2197</a>` : ''}</div>`
+      ? `<div class="detail-kv span2" style="display:flex;align-items:center;gap:8px;"><span class="k">Critics' score</span> <span class="v">${biRating}/100</span> <span style="color:var(--ink-mute);font-size:10px;">${biReviewsStr}</span>${set.brickinsights_url ? ` <a href="${escapeHtml(set.brickinsights_url)}" target="_blank" rel="noopener noreferrer" aria-label="View BrickInsights rating" style="color:var(--ink-faint);font-size:10px;">\u2197</a>` : ''}</div>`
       : '';
 
     if (ratingNum || ageStr || subthemeStr || themeGroupStr || categoryBadge || tagsArr.length || growthRate != null || retiredYear || set.launch_date || set.exit_date || legoStockBadge || riskBadge || brickInsightsBadge) {

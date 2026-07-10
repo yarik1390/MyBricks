@@ -3,6 +3,7 @@ import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
 import { isLocalAiSupported, createLocalAiSession, getLocalAiAvailability, checkGemma3Downloaded, runLocalTextInference } from '../lib/local-ai.js';
+import { displayValueOf } from '../lib/pure.js';
 
 let _activeReader = null;
 export function cancelActiveStream() {
@@ -82,13 +83,13 @@ export async function renderAdvisorDrawer() {
       </div>
 
       <!-- Tab bar -->
-      <div class="chat-tabs" style="display:flex; border-bottom:1.5px solid var(--line-soft); background:var(--surface); flex-shrink:0;">
-        <button class="chat-tab-btn active" data-tab="chat" style="flex:1; padding:12px; background:transparent; border:none; border-bottom:2.5px solid var(--ink); font-weight:700; color:var(--ink); cursor:pointer; font-family:var(--sans); font-size:13px; outline:none;">AI Advisor</button>
-        <button class="chat-tab-btn" data-tab="analyst" style="flex:1; padding:12px; background:transparent; border:none; border-bottom:2.5px solid transparent; font-weight:500; color:var(--ink-mute); cursor:pointer; font-family:var(--sans); font-size:13px; outline:none;">Local Analyst</button>
+      <div class="chat-tabs" role="tablist" aria-label="Advisor views" style="display:flex; border-bottom:1.5px solid var(--line-soft); background:var(--surface); flex-shrink:0;">
+        <button class="chat-tab-btn active" data-tab="chat" role="tab" aria-selected="true" aria-controls="chatHistory" style="flex:1; padding:12px; background:transparent; border:none; border-bottom:2.5px solid var(--ink); font-weight:700; color:var(--ink); cursor:pointer; font-family:var(--sans); font-size:13px; outline:none;">AI Advisor</button>
+        <button class="chat-tab-btn" data-tab="analyst" role="tab" aria-selected="false" aria-controls="analystArea" style="flex:1; padding:12px; background:transparent; border:none; border-bottom:2.5px solid transparent; font-weight:500; color:var(--ink-mute); cursor:pointer; font-family:var(--sans); font-size:13px; outline:none;">Local Analyst</button>
       </div>
 
       <!-- AI Chat Tab Area -->
-      <div class="chat-history" id="chatHistory" style="display:flex; flex-direction:column; flex:1; overflow-y:auto; padding:12px 16px; gap:12px;">
+      <div class="chat-history" id="chatHistory" role="tabpanel" style="display:flex; flex-direction:column; flex:1; overflow-y:auto; padding:12px 16px; gap:12px;">
         ${chatHistory.length === 0 ? `
           <div class="chat-suggestions" id="chatSuggestions" style="padding:0;">
             ${!savedGeminiKey ? `
@@ -110,13 +111,13 @@ export async function renderAdvisorDrawer() {
       </div>
 
       <!-- Local Analyst Tab Area -->
-      <div id="analystArea" style="display:none; flex:1; overflow-y:auto; padding:12px 16px;">
+      <div id="analystArea" role="tabpanel" style="display:none; flex:1; overflow-y:auto; padding:12px 16px;">
         ${localAnalystHTML()}
       </div>
 
       <!-- Chat input row -->
       <div class="chat-input-row" id="chatInputRow" style="padding:10px 16px; border-top:1.5px solid var(--line-soft); background:var(--surface); flex-shrink:0;">
-        <textarea class="chat-input" id="chatInput" placeholder="Ask anything about your vault…" rows="1" style="max-height:80px;"></textarea>
+        <textarea class="chat-input" id="chatInput" aria-label="Ask the AI advisor" placeholder="Ask anything about your vault…" rows="1" style="max-height:80px;"></textarea>
         <button class="chat-send-btn" id="chatSend" aria-label="Send">${I.arrowU()}</button>
       </div>
     </div>`;
@@ -144,6 +145,7 @@ export async function renderAdvisorDrawer() {
       haptic("light");
       $$(".chat-tab-btn").forEach(b => {
         b.classList.toggle("active", b === btn);
+        b.setAttribute("aria-selected", String(b === btn));
         b.style.borderBottomColor = b === btn ? "var(--ink)" : "transparent";
         b.style.color = b === btn ? "var(--ink)" : "var(--ink-mute)";
         b.style.fontWeight = b === btn ? "700" : "500";
@@ -210,17 +212,24 @@ function localAnalystHTML() {
   let retiredValue = 0;
   let retiredCount = 0;
 
+  const itemValue = (item) => {
+    const base = displayValueOf(item);
+    if (!String(item?.condition || '').startsWith('used')) return base;
+    return Number(item.ebay_used_value) || Number(item.used_value) || Number(item.bo_used_value) || base;
+  };
+
   items.forEach(i => {
     const t = i.theme || 'Other';
     const qty = i.quantity || 1;
+    const value = itemValue(i);
     themeCounts[t] = (themeCounts[t] || 0) + qty;
-    themeValues[t] = (themeValues[t] || 0) + (Number(i.current_value) || 0) * qty;
-    totalValue += (Number(i.current_value) || 0) * qty;
+    themeValues[t] = (themeValues[t] || 0) + value * qty;
+    totalValue += value * qty;
     totalSets += qty;
     totalPaid += (Number(i.purchase_price) || 0) * qty;
     if (i.is_complete !== 0) completeCount += qty;
     if (i.retired === 1 || i.retired === true) {
-      retiredValue += (Number(i.current_value) || 0) * qty;
+      retiredValue += value * qty;
       retiredCount += qty;
     }
     if (themeCounts[t] > maxThemeCount) maxThemeCount = themeCounts[t];
@@ -283,7 +292,7 @@ function localAnalystHTML() {
   const retiredPct = totalValue > 0 ? (retiredValue / totalValue) * 100 : 0;
 
   const performanceItems = items.map(i => {
-    const current = Number(i.current_value) || 0;
+    const current = itemValue(i);
     const paid = Number(i.purchase_price) || 0;
     const gain = current - paid;
     const roi = paid > 0 ? (gain / paid) * 100 : 0;
@@ -375,7 +384,7 @@ function localAnalystHTML() {
               <span style="color:var(--ink);text-overflow:ellipsis;overflow:hidden;white-space:nowrap;max-width:200px;">
                 ${idx + 1}. <strong style="font-family:var(--mono);">${item.set_num}</strong> ${escapeHtml(item.name)}
               </span>
-              <strong style="color:var(--up);flex-shrink:0;margin-left:8px;">+${item.roi.toFixed(1)}%</strong>
+              <strong style="color:${item.roi >= 0 ? 'var(--up)' : 'var(--down)'};flex-shrink:0;margin-left:8px;">${item.roi > 0 ? '+' : ''}${item.roi.toFixed(1)}%</strong>
             </div>
           `).join('') : '<div style="font-size:11px;color:var(--ink-mute);text-align:center;">No data available</div>'}
         </div>
@@ -389,7 +398,7 @@ function localAnalystHTML() {
               <span style="color:var(--ink);text-overflow:ellipsis;overflow:hidden;white-space:nowrap;max-width:200px;">
                 ${idx + 1}. <strong style="font-family:var(--mono);">${item.set_num}</strong> ${escapeHtml(item.name)}
               </span>
-              <strong style="color:var(--up);flex-shrink:0;margin-left:8px;">+${fmtMoney(item.gain, { cents: 0 })}</strong>
+              <strong style="color:${item.gain >= 0 ? 'var(--up)' : 'var(--down)'};flex-shrink:0;margin-left:8px;">${item.gain > 0 ? '+' : ''}${fmtMoney(item.gain, { cents: 0 })}</strong>
             </div>
           `).join('') : '<div style="font-size:11px;color:var(--ink-mute);text-align:center;">No data available</div>'}
         </div>

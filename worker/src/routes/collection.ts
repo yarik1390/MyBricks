@@ -88,10 +88,22 @@ app.get('/', async (c) => {
       s.image_url, s.retired, s.retirement_risk_score, s.used_value, s.ebay_value,
       s.ebay_new_value, s.ebay_used_value, s.ebay_new_qty, s.ebay_used_qty,
       s.ebay_new_cached_at, s.ebay_used_cached_at, s.ebay_cached_at, s.cached_at,
-      s.valuation_method, s.bl_new_value, s.bl_new_qty, s.bl_used_qty,
-      s.bo_used_value, s.bl_cached_at, s.be_cached_at, s.blended_value
+      s.valuation_method, s.valuation_expires_at, s.source,
+      s.bl_new_value, s.bl_new_qty, s.bl_new_min, s.bl_new_max,
+      s.bl_used_qty, s.bl_used_min, s.bl_used_max,
+      s.ebay_new_last_sold, s.ebay_used_last_sold,
+      s.ebay_ask_value, s.ebay_ask_qty, s.ebay_ask_cached_at,
+      s.bo_new_value, s.bo_used_value, s.bo_cached_at,
+      s.pc_new_value, s.pc_complete_value, s.pc_cached_at,
+      s.lego_in_stock, s.lego_retiring_soon,
+      s.bl_cached_at, s.be_cached_at, s.blended_value,
+      s.blended_confidence, s.blended_low, s.blended_high,
+      ext.pc_loose_value, ext.pc_sales_volume,
+      ext.pa_retail_value, ext.pa_lowest_offer, ext.pa_in_stock,
+      ext.pa_best_merchant, ext.pa_offer_count
     FROM user_collection uc
     JOIN lego_sets s ON s.set_num = uc.set_num
+    LEFT JOIN set_market_ext ext ON ext.set_num = s.set_num
     WHERE uc.user_id = ? AND uc.deleted_at IS NULL
     ORDER BY uc.added_at DESC
   `).bind(userId).all<Record<string, unknown>>();
@@ -156,15 +168,23 @@ app.get('/', async (c) => {
   // (real used comps when present), so condition affects the holding's worth —
   // mirrors marketValueForCondition() on the front end.
   const conditionValue = (r: Record<string, unknown>): number => {
-    const base = Number(r.blended_value) || Number(r.current_value) || 0;
+    const base = Number(r.market_value) || Number(r.blended_value) || Number(r.current_value) || 0;
     if (!String(r.condition || '').startsWith('used')) return base;
     const used = Number(r.ebay_used_value) || Number(r.used_value)
       || Number(r.bo_used_value) || 0;
     return used || base;
   };
 
-  const items = results.map(row => {
-    const marketVal = conditionValue(row as Record<string, unknown>);
+  const items: Record<string, unknown>[] = results.map(row => {
+    const t = trends[row.set_num as string] || { trend: 'stable', slope: 0 };
+    const enriched = enrichSetRecord({
+      ...row,
+      retired: !!row.retired,
+      is_complete: !!row.is_complete,
+      trend: t.trend,
+      slope_90d: t.slope
+    } as Record<string, unknown>);
+    const marketVal = conditionValue(enriched);
     let annualizedRoi = null;
     if (row.purchased_at && Number(row.purchase_price) > 0 && marketVal > 0) {
       const years = (Date.now() - new Date(row.purchased_at as string).getTime()) / (365.25 * 24 * 3600 * 1000);
@@ -172,15 +192,7 @@ app.get('/', async (c) => {
         annualizedRoi = Math.pow(marketVal / Number(row.purchase_price), 1 / years) - 1;
       }
     }
-    const t = trends[row.set_num as string] || { trend: 'stable', slope: 0 };
-    return enrichSetRecord({
-      ...row,
-      retired: !!row.retired,
-      is_complete: !!row.is_complete,
-      annualized_roi: annualizedRoi,
-      trend: t.trend,
-      slope_90d: t.slope
-    } as Record<string, unknown>);
+    return { ...enriched, annualized_roi: annualizedRoi } as Record<string, unknown>;
   });
 
   const totalValue = items.reduce((s, r) => s + conditionValue(r as Record<string, unknown>) * Number(r.quantity), 0);

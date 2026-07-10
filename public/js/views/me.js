@@ -217,7 +217,7 @@ export async function renderMe() {
       </div>
 
       <div class="u-mono-label u-fs-2xs u-faint" style="text-align:center;margin-top:24px;">
-        BRICKSVAULT · v1.0 · STACK SOMETHING BEAUTIFUL
+        BRICKSVAULT · v1.0.2 · STACK SOMETHING BEAUTIFUL
       </div>
       <div style="text-align:center;margin-top:16px;font-size:12px;">
         <a href="/privacy.html" style="color:var(--ink-mute);text-decoration:underline;">Privacy Policy</a>

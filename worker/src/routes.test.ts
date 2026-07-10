@@ -1240,6 +1240,18 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.pricing_confidence.pct).toBe(100);
     });
 
+    it('uses the same complete market blend for collection cards and the portfolio total', async () => {
+      await addSet();
+      await db.prepare(
+        "UPDATE lego_sets SET current_value=850, pc_new_value=1200, pc_cached_at=datetime('now'), blended_value=1200 WHERE set_num='75192'"
+      ).run();
+      const res = await app.fetch(new Request('http://localhost/api/collection', { headers: auth() }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.items[0].market_value).toBeCloseTo(1200, 1);
+      expect(data.total_value).toBeCloseTo(data.items[0].market_value, 1);
+    });
+
     it('records condition when adding a set as Used (drives used-vs-new valuation)', async () => {
       const add = await app.fetch(new Request('http://localhost/api/collection', {
         method: 'POST', headers: auth(),
