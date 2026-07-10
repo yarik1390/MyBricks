@@ -88,8 +88,12 @@ jobs:
             # Sanitize common paste mistakes: an accidental "NAME=" prefix from
             # the secrets txt, and whitespace/newlines introduced by copying.
             VAL="${ANDROID_KEYSTORE_BASE64#ANDROID_KEYSTORE_BASE64=}"
-            printf '%s' "$VAL" | tr -d ' \t\r\n' | base64 -d > android/upload.jks || {
-              echo "::error::ANDROID_KEYSTORE_BASE64 does not decode as base64 — re-paste ONLY the value (no name= prefix)."; exit 1; }
+            # Keep ONLY legal base64 characters — kills BOMs, non-breaking
+            # spaces and other invisible junk that editors sneak into pastes.
+            CLEAN="$(printf '%s' "$VAL" | tr -cd 'A-Za-z0-9+/=')"
+            echo "Keystore secret: raw ${#VAL} chars, cleaned ${#CLEAN} chars (expected ~3512)."
+            printf '%s' "$CLEAN" | base64 -d > android/upload.jks 2>/dev/null || {
+              echo "::error::ANDROID_KEYSTORE_BASE64 does not decode — the value is truncated or wrong. Re-paste the full single-line value from the secrets file."; exit 1; }
             # JKS files start with magic bytes FE ED FE ED.
             MAGIC=$(head -c4 android/upload.jks | od -An -tx1 | tr -d ' \n')
             if [ "$MAGIC" != "feedfeed" ]; then
