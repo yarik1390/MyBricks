@@ -85,9 +85,18 @@ jobs:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           if [ -n "${ANDROID_KEYSTORE_BASE64}" ]; then
-            printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 -d > android/upload.jks
+            # Sanitize common paste mistakes: an accidental "NAME=" prefix from
+            # the secrets txt, and whitespace/newlines introduced by copying.
+            VAL="${ANDROID_KEYSTORE_BASE64#ANDROID_KEYSTORE_BASE64=}"
+            printf '%s' "$VAL" | tr -d ' \t\r\n' | base64 -d > android/upload.jks || {
+              echo "::error::ANDROID_KEYSTORE_BASE64 does not decode as base64 — re-paste ONLY the value (no name= prefix)."; exit 1; }
+            # JKS files start with magic bytes FE ED FE ED.
+            MAGIC=$(head -c4 android/upload.jks | od -An -tx1 | tr -d ' \n')
+            if [ "$MAGIC" != "feedfeed" ]; then
+              echo "::error::Decoded keystore is not a JKS file (magic=$MAGIC) — the secret value is corrupted."; exit 1
+            fi
             echo "signed=true" >> "$GITHUB_OUTPUT"
-            echo "Keystore restored — building a SIGNED bundle."
+            echo "Keystore restored ($(stat -c%s android/upload.jks) bytes) — building a SIGNED bundle."
           else
             echo "signed=false" >> "$GITHUB_OUTPUT"
             echo "::warning::No ANDROID_KEYSTORE_BASE64 secret — building UNSIGNED (compile check only; Play will reject it)."
