@@ -811,7 +811,7 @@ describe('native auth helpers', () => {
       Capacitor: { isNativePlatform: () => false },
       location: { origin: 'https://localhost', pathname: '/app/' },
     };
-    assert.equal(authRedirectUrlForPlatform(nativeWin), 'https://brickvault-5ub.pages.dev/');
+    assert.equal(authRedirectUrlForPlatform(nativeWin), 'https://brickvault-5ub.pages.dev/?native_oauth=1');
     assert.equal(authRedirectUrlForPlatform(webWin), 'https://localhost/app/');
   });
 

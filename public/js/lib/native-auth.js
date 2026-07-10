@@ -29,9 +29,13 @@ export function authRedirectUrlForPlatform(win) {
   const w = currentWindow(win);
   const origin = w?.location?.origin || '';
   const pathname = w?.location?.pathname || '/';
-  // The Supabase site URL is already allow-listed. Android verifies this Pages
-  // origin as an App Link and returns its final OAuth URL to the native app.
-  if (isNativeCapacitor(w)) return `${NATIVE_AUTH_APP_LINK_ORIGIN}/`;
+  // OAuth returns to the Pages origin WITH the bridge flag: app.js sees
+  // ?native_oauth=1 plus the token hash and immediately re-opens
+  // app.bricksvault://auth/callback so the session lands in the native app
+  // instead of the browser. (This exact URL must be in the Supabase Auth
+  // redirect allowlist, or GoTrue silently falls back to the site URL and
+  // the user stays logged into the website — the bug this flag fixes.)
+  if (isNativeCapacitor(w)) return `${NATIVE_AUTH_APP_LINK_ORIGIN}/?${NATIVE_AUTH_BRIDGE_PARAM}=1`;
   return `${origin}${pathname}`;
 }
 
