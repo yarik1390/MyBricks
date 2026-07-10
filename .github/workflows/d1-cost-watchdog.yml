@@ -62,14 +62,36 @@ jobs:
           BODY="$(jq -nc --arg q "$QUERY" --arg acct "$CLOUDFLARE_ACCOUNT_ID" --arg date "$DATE" \
             '{query: $q, variables: {account: $acct, date: $date}}')"
 
-          RESP="$(curl -sf https://api.cloudflare.com/client/v4/graphql \
+          # -w appends the HTTP status on its own line; no -f so we keep the
+          # body on 4xx/5xx — an auth failure must say WHY in the log, not
+          # just kill the job silently.
+          HTTP_RESP="$(curl -s -w $'\n%{http_code}' https://api.cloudflare.com/client/v4/graphql \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             -H "Content-Type: application/json" \
-            --data "$BODY")" || { echo "::error::GraphQL request failed (does the API token have Account Analytics: Read?)"; exit 1; }
+            --data "$BODY")" || { echo "::error::curl could not reach the Cloudflare API (network error)"; exit 1; }
+          STATUS="${HTTP_RESP##*$'\n'}"
+          RESP="${HTTP_RESP%$'\n'*}"
+          echo "GraphQL HTTP status: ${STATUS}"
+
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::GraphQL request returned HTTP ${STATUS} — if 401/403, the CLOUDFLARE_API_TOKEN is missing the 'Account Analytics: Read' permission. Response body:"
+            echo "${RESP:0:1000}"
+            exit 1
+          fi
+          if ! jq -e . <<<"$RESP" >/dev/null 2>&1; then
+            echo "::error::GraphQL response is not valid JSON. First 1000 chars:"
+            echo "${RESP:0:1000}"
+            exit 1
+          fi
 
           if jq -e '.errors and (.errors | length > 0)' <<<"$RESP" >/dev/null; then
             echo "::error::GraphQL returned errors:"
             jq '.errors' <<<"$RESP"
+            exit 1
+          fi
+
+          if jq -e '(.data.viewer.accounts // []) | length == 0' <<<"$RESP" >/dev/null; then
+            echo "::error::GraphQL returned no account — CLOUDFLARE_ACCOUNT_ID may be wrong, or the token cannot see this account."
             exit 1
           fi
 
