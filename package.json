@@ -11,7 +11,9 @@
     "status": "git status",
     "a11y": "playwright test --config=a11y/playwright.config.mjs",
     "lhci": "lhci autorun --config=a11y/lighthouserc.json",
-    "e2e": "playwright test --config=e2e/playwright.config.mjs"
+    "e2e": "playwright test --config=e2e/playwright.config.mjs",
+    "android:assetlinks": "node scripts/configure-assetlinks.mjs",
+    "android:preflight": "node scripts/android-release-preflight.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.0",
@@ -23,6 +25,7 @@
     "@capacitor/browser": "^8.0.3",
     "@capacitor/cli": "^8.4.1",
     "@capacitor/core": "^8.4.1",
+    "@capacitor/push-notifications": "^8.1.1",
     "@revenuecat/purchases-capacitor": "^13.2.2",
     "@revenuecat/purchases-capacitor-ui": "^13.2.2"
   }

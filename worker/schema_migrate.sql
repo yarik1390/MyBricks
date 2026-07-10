@@ -317,6 +317,18 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   UNIQUE(user_id, endpoint)
 );
 
+-- Native app push subscriptions (Firebase Cloud Messaging on Android).
+CREATE TABLE IF NOT EXISTS native_push_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  token TEXT NOT NULL,
+  platform TEXT NOT NULL DEFAULT 'android',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, token)
+);
+CREATE INDEX IF NOT EXISTS idx_native_push_user ON native_push_tokens(user_id);
+
 -- Pricing Engine v2.1 Phase 1c: per-source daily external-API budget ledger.
 CREATE TABLE IF NOT EXISTS api_quota (
   service TEXT NOT NULL,

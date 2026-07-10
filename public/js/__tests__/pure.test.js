@@ -805,14 +805,14 @@ describe('native auth helpers', () => {
     const { authRedirectUrlForPlatform } = await import('../lib/native-auth.js');
     const nativeWin = {
       Capacitor: { isNativePlatform: () => true },
-      location: { origin: 'https://brickvault-5ub.pages.dev', pathname: '/' },
+      location: { origin: 'https://localhost', pathname: '/' },
     };
     const webWin = {
       Capacitor: { isNativePlatform: () => false },
-      location: { origin: 'https://brickvault-5ub.pages.dev', pathname: '/' },
+      location: { origin: 'https://localhost', pathname: '/app/' },
     };
     assert.equal(authRedirectUrlForPlatform(nativeWin), 'https://brickvault-5ub.pages.dev/');
-    assert.equal(authRedirectUrlForPlatform(webWin), 'https://brickvault-5ub.pages.dev/');
+    assert.equal(authRedirectUrlForPlatform(webWin), 'https://localhost/app/');
   });
 
   it('builds a Supabase Google authorize URL with the selected redirect target', async () => {

@@ -7,6 +7,7 @@ import { confirmSheet, showSheet, hideSheet } from '../components/sheet.js';
 import { go } from '../router.js';
 import { subpageTopbarHTML, loadMe } from './me-shared.js';
 import { skelPage, skelSettingRows } from '../components/skeleton.js';
+import { disableNativePush, enableNativePush, nativePushEnabled, nativePushSupported } from '../lib/native-push.js';
 
 export async function renderMeIntegrations() {
   // OAuth return from Google lands here with a query param.
@@ -90,7 +91,7 @@ export async function renderMeIntegrations() {
       <h2 class="section-title">Push Notifications</h2>
       <div>
         <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Push notifications</div><div class="desc">Receive price alerts on your device even when the app is closed.</div></div>
+          <div class="lbl-wrap"><div class="lbl">Push notifications</div><div class="desc" id="pushNotifDesc">Receive price alerts on your device even when the app is closed.</div></div>
           <button class="btn-secondary u-fs-sm" id="pushNotifBtn" style="padding:6px 12px;" data-push-state="unknown">Enable</button>
         </div>
       </div>
@@ -322,7 +323,39 @@ export async function renderMeIntegrations() {
 
   // --- Push notification hooks ---
   const pushBtn = $("#pushNotifBtn");
-  if (pushBtn && 'serviceWorker' in navigator && 'PushManager' in window) {
+  if (pushBtn && nativePushSupported()) {
+    const nativeConfigured = state.config?.status?.native_push === true;
+    const pushDesc = $("#pushNotifDesc");
+    if (!nativeConfigured) {
+      pushBtn.textContent = "Setup needed";
+      pushBtn.disabled = true;
+      if (pushDesc) pushDesc.textContent = "Native alerts are waiting for the app's Firebase configuration.";
+    } else {
+      pushBtn.textContent = nativePushEnabled() ? "Disable" : "Enable";
+      pushBtn.dataset.pushState = nativePushEnabled() ? "enabled" : "disabled";
+      pushBtn.addEventListener("click", async () => {
+        pushBtn.disabled = true;
+        try {
+          if (pushBtn.dataset.pushState === "enabled") {
+            await disableNativePush();
+            pushBtn.textContent = "Enable";
+            pushBtn.dataset.pushState = "disabled";
+            toast("Push notifications disabled", "info");
+          } else {
+            await enableNativePush();
+            pushBtn.textContent = "Disable";
+            pushBtn.dataset.pushState = "enabled";
+            haptic("medium");
+            toast("Push notifications enabled", "success");
+          }
+        } catch (e) {
+          toast("Failed to update notifications: " + e.message, "error");
+        } finally {
+          pushBtn.disabled = false;
+        }
+      });
+    }
+  } else if (pushBtn && 'serviceWorker' in navigator && 'PushManager' in window) {
     pushBtn.textContent = "…";
     (async () => {
       const perm = Notification.permission;

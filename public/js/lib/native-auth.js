@@ -31,6 +31,7 @@ export function authRedirectUrlForPlatform(win) {
   const pathname = w?.location?.pathname || '/';
   // The Supabase site URL is already allow-listed. Android verifies this Pages
   // origin as an App Link and returns its final OAuth URL to the native app.
+  if (isNativeCapacitor(w)) return `${NATIVE_AUTH_APP_LINK_ORIGIN}/`;
   return `${origin}${pathname}`;
 }
 

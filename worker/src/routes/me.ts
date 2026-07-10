@@ -180,6 +180,7 @@ export const USER_SCOPED_TABLES = [
   'kids_badges',
   'portfolio_snapshots',
   'push_subscriptions',
+  'native_push_tokens',
   'oauth_sessions',
   'oauth_states',
   'rate_limits',

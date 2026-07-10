@@ -439,6 +439,17 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 );
 CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
 
+CREATE TABLE IF NOT EXISTS native_push_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  token TEXT NOT NULL,
+  platform TEXT NOT NULL DEFAULT 'android',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, token)
+);
+CREATE INDEX IF NOT EXISTS idx_native_push_user ON native_push_tokens(user_id);
+
 -- FTS5 search — STANDALONE (not external-content), and IDEMPOTENT. schema.sql
 -- runs on every deploy, so this must NOT drop + rebuild the index (that wrote
 -- ~425k rows per deploy). The IF NOT EXISTS + backfill-when-empty form makes a

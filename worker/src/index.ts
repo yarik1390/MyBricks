@@ -23,6 +23,7 @@ import { runUpcomingRefresh } from './jobs/upcoming-refresh';
 import { upcomingRoute } from './routes/upcoming';
 import type { MiddlewareHandler } from 'hono';
 import { pushRoute } from './routes/push';
+import { firebasePushConfigured } from './lib/firebase-push';
 import { bricklinkImportRoute } from './routes/bricklink-import';
 import { buildRoute } from './routes/build';
 import { stripeRoute } from './routes/stripe';
@@ -63,6 +64,8 @@ const PROD_ORIGIN = 'https://brickvault-5ub.pages.dev';
 const isAllowedOrigin = (origin: string): boolean =>
   origin.startsWith('http://localhost:') ||
   origin.startsWith('http://127.0.0.1:') ||
+  origin === 'https://localhost' ||
+  origin === 'capacitor://localhost' ||
   origin === PROD_ORIGIN ||
   origin.endsWith('.brickvault-5ub.pages.dev');
 
@@ -124,6 +127,7 @@ app.get('/api/config', (c) => {
     ['VAPID_PRIVATE_KEY', c.env.VAPID_PRIVATE_KEY],
     ['VAPID_SUBJECT', c.env.VAPID_SUBJECT],
   ]);
+  const nativePushMissing = firebasePushConfigured(c.env) ? [] : ['FIREBASE_SERVICE_ACCOUNT_JSON'];
   const geminiMissing = missing([['GEMINI_API_KEY', c.env.GEMINI_API_KEY]]);
   const emailMissing = missing([['RESEND_API_KEY', c.env.RESEND_API_KEY]]);
   const status = {
@@ -137,6 +141,7 @@ app.get('/api/config', (c) => {
     gemini: geminiMissing.length === 0,
     email: emailMissing.length === 0,
     push: pushMissing.length === 0,
+    native_push: nativePushMissing.length === 0,
     google: googleMissing.length === 0,
     ebay: ebayMissing.length === 0,
     bricklink: !!(c.env.BRICKLINK_CONSUMER_KEY && c.env.BRICKLINK_TOKEN),
@@ -201,6 +206,13 @@ app.get('/api/config', (c) => {
         recommended_action: pushMissing.length
           ? `Add ${pushMissing.join(', ')} as GitHub Actions secrets to enable browser push alerts.`
           : 'Browser push alerts are ready.',
+      },
+      native_push: {
+        configured: nativePushMissing.length === 0,
+        missing_secrets: nativePushMissing,
+        recommended_action: nativePushMissing.length
+          ? 'Add FIREBASE_SERVICE_ACCOUNT_JSON as a Worker secret and include android/app/google-services.json in the Android build to enable native notifications.'
+          : 'Firebase native push delivery is ready.',
       },
     },
   });
