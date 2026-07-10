@@ -91,7 +91,11 @@ jobs:
           fi
 
           if jq -e '(.data.viewer.accounts // []) | length == 0' <<<"$RESP" >/dev/null; then
-            echo "::error::GraphQL returned no account — CLOUDFLARE_ACCOUNT_ID may be wrong, or the token cannot see this account."
+            # Plain echo BEFORE the ::error:: one — annotation lines don't show
+            # up in API log fetches, only in the web UI.
+            echo "GraphQL returned no account. CLOUDFLARE_ACCOUNT_ID may be wrong, or the token lacks 'Account Analytics: Read'. Response:"
+            echo "${RESP:0:800}"
+            echo "::error::GraphQL returned no account — check CLOUDFLARE_ACCOUNT_ID / token Account Analytics: Read permission."
             exit 1
           fi
 
