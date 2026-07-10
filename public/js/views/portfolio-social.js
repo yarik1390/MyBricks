@@ -3,6 +3,22 @@ import { I } from '../icons.js';
 import { state } from '../state.js';
 import { skelCardList } from '../components/skeleton.js';
 
+const LEADERBOARD_CACHE_KEY = 'bv_leaderboard_cache_v1';
+const LEADERBOARD_CACHE_MS = 5 * 60 * 1000;
+
+function readLeaderboardCache() {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(LEADERBOARD_CACHE_KEY) || 'null');
+    return cached?.ts && Date.now() - cached.ts < LEADERBOARD_CACHE_MS && Array.isArray(cached.leaders)
+      ? cached.leaders
+      : null;
+  } catch { return null; }
+}
+
+function writeLeaderboardCache(leaders) {
+  try { sessionStorage.setItem(LEADERBOARD_CACHE_KEY, JSON.stringify({ ts: Date.now(), leaders })); } catch {}
+}
+
 /* ============================================================
    Public collection profile
    ============================================================ */
@@ -51,6 +67,7 @@ export async function renderPublicProfile(handle) {
 }
 
 export async function renderLeaderboard() {
+  const cachedLeaders = readLeaderboardCache();
   const nav = document.getElementById("nav");
   if (nav) nav.style.display = "";
   $("#root").innerHTML = `
@@ -63,16 +80,18 @@ export async function renderLeaderboard() {
         <button class="icon-btn" id="lbBack" aria-label="Back">${I.chevL()}</button>
       </div>
       <p style="font-size:12.5px;color:var(--ink-mute);margin:-2px 2px 12px;line-height:1.5;">Top public collections by value. Make your profile public and expose your value in the <strong>You</strong> tab to join.</p>
-      <div id="lbBody">${skelCardList(8)}</div>
+      <div id="lbBody">${cachedLeaders ? leaderboardBodyHTML(cachedLeaders) : skelCardList(8)}</div>
     </div>`;
   document.getElementById("lbBack")?.addEventListener("click", () => { if (history.length > 1) history.back(); else location.hash = "#/"; });
 
-  let leaders = [];
+  let leaders = cachedLeaders || [];
   try {
     const r = await fetch((window.WORKER_BASE || '') + "/api/users/leaderboard");
     if (!r.ok) throw new Error("Couldn't load the leaderboard");
     leaders = (await r.json()).leaders || [];
+    writeLeaderboardCache(leaders);
   } catch (err) {
+    if (cachedLeaders) return;
     const b = $("#lbBody");
     if (b) b.innerHTML = `<div class="empty card"><div class="empty-icon">${I.trend()}</div><h3>Couldn't load leaderboard</h3><p>${escapeHtml(err.message)}</p></div>`;
     return;
@@ -80,18 +99,21 @@ export async function renderLeaderboard() {
 
   const body = $("#lbBody");
   if (!body) return;
+  body.innerHTML = leaderboardBodyHTML(leaders);
+}
+
+function leaderboardBodyHTML(leaders) {
   if (!leaders.length) {
-    body.innerHTML = `<div class="empty card">
+    return `<div class="empty card">
       <div class="empty-icon">${I.trend()}</div>
       <h3>No public collections yet</h3>
       <p>Be the first — make your profile public and expose your value in the You tab.</p>
     </div>`;
-    return;
   }
 
   const myHandle = state.me?.handle || null;
   const medal = (rank) => rank === 1 ? "#f5b301" : rank === 2 ? "#9aa0ab" : rank === 3 ? "#cd7f32" : "var(--ink-mute)";
-  body.innerHTML = `<div class="card" style="padding:6px 4px;">
+  return `<div class="card" style="padding:6px 4px;">
     ${leaders.map(l => {
       const mine = myHandle && l.handle === myHandle;
       return `<a href="#/u/${encodeURIComponent(l.handle)}" class="lb-row" style="display:flex;align-items:center;gap:12px;padding:11px 12px;text-decoration:none;color:inherit;border-radius:12px;${mine ? 'background:color-mix(in oklch, var(--accent) 12%, transparent);' : ''}">

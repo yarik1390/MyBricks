@@ -37,3 +37,4 @@ RESEND_API_KEY=your_resend_api_key
 VAPID_PUBLIC_KEY=your_vapid_public_key
 VAPID_PRIVATE_KEY=your_vapid_private_key
 VAPID_SUBJECT=mailto:you@example.com
+FIREBASE_SERVICE_ACCOUNT_JSON={"project_id":"your-project","client_email":"firebase-adminsdk@example.iam.gserviceaccount.com","private_key":"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"}

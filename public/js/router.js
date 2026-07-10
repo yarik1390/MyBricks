@@ -12,6 +12,7 @@ import { getModePref } from './theme.js';
 import { hideSheet } from './components/sheet.js';
 import { closeScan } from './components/scanner-lazy.js';
 import { cancelActiveStream } from './components/advisor-lazy.js';
+import { skelCardList, skelDetail, skelPage } from './components/skeleton.js';
 
 let _routeBusy = false;
 let _routeQueued = false;
@@ -48,6 +49,16 @@ async function _routeImpl() {
     const { renderLogin } = await import('./views/login.js');
     await withViewTransition(() => renderLogin());
     return;
+  }
+
+  // Paint before profile loading and lazy view-module imports. This matters on
+  // Android process restarts, where both can otherwise leave a blank canvas.
+  if (!hasCachedView(hash)) {
+    showNavProgress();
+    const root = $("#root");
+    if (root) root.innerHTML = hash.startsWith('/set/')
+      ? skelDetail()
+      : skelPage(skelCardList(hash === '/build' || hash === '/leaderboard' ? 6 : 4));
   }
 
   if (!state.me) {

@@ -15,6 +15,7 @@ export type IntegrationName =
   | 'gemini'
   | 'email'
   | 'push'
+  | 'firebase'
   | 'openai'
   | 'openrouter'
   | 'rebrickable'
@@ -80,6 +81,13 @@ const hasRealGoogleConfig = (env: Env) => !!(
   !env.GOOGLE_CLIENT_ID.includes('dummy') &&
   !env.GOOGLE_CLIENT_SECRET.includes('dummy')
 );
+
+const hasFirebaseConfig = (env: Env) => {
+  try {
+    const value = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON || '{}');
+    return !!(value.project_id && value.client_email && value.private_key);
+  } catch { return false; }
+};
 
 export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinition> = {
   d1: {
@@ -183,6 +191,14 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['wishlist alerts', 'browser notifications'],
     notes: 'Optional Web Push notifications. Requires a VAPID keypair and subject.',
     recommended_action: 'Add VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, and VAPID_SUBJECT as GitHub Actions secrets to enable browser push alerts.',
+  },
+  firebase: {
+    label: 'Native Push',
+    configured: hasFirebaseConfig,
+    required_secrets: ['FIREBASE_SERVICE_ACCOUNT_JSON'],
+    used_by: ['Android wishlist alerts', 'native price notifications'],
+    notes: 'Firebase Cloud Messaging delivery for installed Android devices.',
+    recommended_action: 'Add FIREBASE_SERVICE_ACCOUNT_JSON as a Worker secret and google-services.json to the Android build.',
   },
   openai: {
     label: 'OpenAI',

@@ -329,6 +329,7 @@ jobs:
           [ -n "${{ secrets.VAPID_PUBLIC_KEY }}" ]         && put VAPID_PUBLIC_KEY         "${{ secrets.VAPID_PUBLIC_KEY }}"         || true
           [ -n "${{ secrets.VAPID_PRIVATE_KEY }}" ]        && put VAPID_PRIVATE_KEY        "${{ secrets.VAPID_PRIVATE_KEY }}"        || true
           [ -n "${{ secrets.VAPID_SUBJECT }}" ]            && put VAPID_SUBJECT            "${{ secrets.VAPID_SUBJECT }}"            || true
+          [ -n "${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}" ] && put FIREBASE_SERVICE_ACCOUNT_JSON "${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}" || true
           [ -n "${{ secrets.FIRECRAWL_API_KEY }}" ]        && put FIRECRAWL_API_KEY        "${{ secrets.FIRECRAWL_API_KEY }}"        || true
           # Bright Data Web Unlocker tokens (eBay sold-comp scraping). Single token
           # or a comma-separated pool; the worker reads either (types.ts).
@@ -354,6 +355,11 @@ jobs:
             echo "window.RC_PLAY_BILLING_KEY = '${{ secrets.RC_PLAY_BILLING_KEY }}';" >> public/env.js
           fi
           echo "env.js: $(cat public/env.js)"
+
+      - name: Configure Android App Links
+        env:
+          ANDROID_APP_LINK_SHA256: ${{ secrets.ANDROID_APP_LINK_SHA256 }}
+        run: node scripts/configure-assetlinks.mjs
 
       - name: Deploy Pages
         working-directory: worker

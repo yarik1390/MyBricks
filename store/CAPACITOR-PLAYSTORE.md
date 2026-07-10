@@ -30,15 +30,16 @@ Legend: **[ONCE]** one-time setup · **[EACH]** repeat on every release.
 Run from the **repo root** (`/…/MyBricks`).
 
 ```bash
-# 1a. Install Capacitor core + Android + the RevenueCat native plugins.
+# 1a. Install Capacitor core + Android, push, and RevenueCat plugins.
 npm i @capacitor/core @capacitor/cli @capacitor/android
+npm i @capacitor/push-notifications
 npm i @revenuecat/purchases-capacitor @revenuecat/purchases-capacitor-ui
 
 # 1b. Put the Capacitor config at the repo root (it lives in store/ in git).
 cp store/capacitor.config.json ./capacitor.config.json
 
-# 1c. Add the native Android project. webDir is "public" and server.url points
-#     at the live Pages site, so no web build step is needed.
+# 1c. Add the native Android project. webDir is "public" and is bundled into
+#     the app, so the shell and guest features start without network access.
 npx cap add android
 
 # 1d. Link the native plugin code into the Android project.
@@ -116,6 +117,9 @@ Two secrets, both set in **GitHub → repo → Settings → Secrets and variable
 |---|---|---|
 | `RC_PLAY_BILLING_KEY` | the `goog_…` public key | CI injects it into the deployed `env.js`; the app reads `window.RC_PLAY_BILLING_KEY` |
 | `REVENUECAT_WEBHOOK_AUTH` | any long random string you choose | Worker verifies the `Authorization` header on `POST /api/revenuecat/webhook` |
+| `ANDROID_GOOGLE_SERVICES_JSON_BASE64` | base64 of Firebase `google-services.json` | Android build configures FCM device registration |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Firebase Admin service-account JSON | Worker sends native alerts through FCM HTTP v1 |
+| `ANDROID_APP_LINK_SHA256` | Play App Signing SHA-256 fingerprint | Pages publishes a verified App Link so Google login returns to the app |
 
 Then in **RevenueCat → Integrations → Webhooks**:
 - **URL:** `https://brickvault-api.zhydenko.workers.dev/api/revenuecat/webhook`
@@ -125,8 +129,14 @@ Push any commit (or re-run the deploy workflow) so CI rebuilds `env.js` with the
 key. Verify: open `https://brickvault-5ub.pages.dev/env.js` in a browser — you
 should see the `window.RC_PLAY_BILLING_KEY = 'goog_…'` line.
 
-> Because the Capacitor app loads the **live** Pages site (`server.url`), the key
-> must be in the *deployed* `env.js` — a local edit alone won't reach the app.
+> The Capacitor app bundles `public/`. The Android workflow injects the RevenueCat
+> key before `cap sync`; the Pages workflow injects it separately for the web app.
+
+Create a Firebase Android app with package `app.bricksvault`, download
+`google-services.json`, and base64-encode it into
+`ANDROID_GOOGLE_SERVICES_JSON_BASE64`. Create a Firebase service account with
+Cloud Messaging permission and store its complete JSON as
+`FIREBASE_SERVICE_ACCOUNT_JSON`. Do not commit either credential file.
 
 ---
 
@@ -147,7 +157,9 @@ future updates**. Keep it out of git.
 1. Bump the version for every upload: in `android/app/build.gradle` set
    `versionName "1.0.0"` and increment `versionCode` (integer, must go up each
    upload: 1, 2, 3…). (Matches `store/twa-manifest.json` `appVersionName 1.0.0`.)
-2. `npx cap sync android` (picks up any web/plugin changes), then
+2. Run `npm run android:assetlinks` with `ANDROID_APP_LINK_SHA256` set, then
+   `npm run android:preflight`. Run `npx cap sync android` (picks up bundled
+   web/plugin changes), then
    `npx cap open android` to open Android Studio.
 3. Android Studio → **Build → Generate Signed Bundle / APK → Android App
    Bundle** → choose your `bricksvault-upload.keystore` → **release** → produces
@@ -207,5 +219,6 @@ key. See `store/README.md` → *Apple App Store* and `store/CHECKLIST.md` §6.
 - No native rewrite — the Capacitor shell reuses the existing PWA.
 - No separate codebase for iOS — same project, `cap add ios` later.
 - No PWABuilder/TWA — it can't run the RevenueCat native plugin.
-- `assetlinks.json` is **not** required for Capacitor billing (it's a TWA
-  deep-link concept); only add it if you later want verified App Links.
+- `assetlinks.json` is required for the Google OAuth return path. It must include
+  the **Play App Signing** certificate fingerprint, not only the local debug or
+  upload-key fingerprint.

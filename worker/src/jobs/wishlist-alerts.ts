@@ -2,21 +2,24 @@ import type { Env } from '../types';
 import { sendAlertEmail, wishlistAlertEmailHTML } from '../lib/resend';
 import { sendDiscordAlert } from '../lib/discord';
 import { sendWebPush } from '../lib/webpush';
+import { sendNativePushToUser } from '../lib/firebase-push';
 
 async function sendPushToUser(env: Env, userId: string, payload: string) {
-  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return;
-  const { results } = await env.DB.prepare(
-    'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id=?'
-  ).bind(userId).all<{ endpoint: string; p256dh: string; auth: string }>();
-  const subject = env.VAPID_SUBJECT || 'mailto:alerts@brickvault.app';
-  for (const sub of results) {
-    try {
-      const ok = await sendWebPush(sub, payload, env.VAPID_PRIVATE_KEY, env.VAPID_PUBLIC_KEY, subject);
-      if (!ok) {
-        await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').bind(sub.endpoint).run().catch(() => {});
-      }
-    } catch { /* non-fatal */ }
+  if (env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) {
+    const { results } = await env.DB.prepare(
+      'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id=?'
+    ).bind(userId).all<{ endpoint: string; p256dh: string; auth: string }>();
+    const subject = env.VAPID_SUBJECT || 'mailto:alerts@brickvault.app';
+    for (const sub of results) {
+      try {
+        const ok = await sendWebPush(sub, payload, env.VAPID_PRIVATE_KEY, env.VAPID_PUBLIC_KEY, subject);
+        if (!ok) {
+          await env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').bind(sub.endpoint).run().catch(() => {});
+        }
+      } catch { /* non-fatal */ }
+    }
   }
+  await sendNativePushToUser(env, userId, payload);
 }
 
 interface AlertPrefs { email: string | null; discord_webhook_url: string | null; notify_price_drops: number }

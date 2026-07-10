@@ -7,3 +7,5 @@ dist/
 .dev.vars
 test-results/
 playwright-report/
+android/app/google-services.json
+android/upload.jks

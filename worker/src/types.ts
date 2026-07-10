@@ -72,6 +72,10 @@ export interface Env {
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
+  // Firebase Admin service-account JSON used by FCM HTTP v1 for native Android
+  // notifications. Keep the complete JSON in a Worker secret; never expose it
+  // through /api/config or logs.
+  FIREBASE_SERVICE_ACCOUNT_JSON?: string;
   // Firecrawl web-scraping API (lego.com stock, eBay sold comps, Brickset enrichment).
   // On by default once the key is set. Set FIRECRAWL_ENABLED=0 to pause without removing the key.
   FIRECRAWL_API_KEY?: string;

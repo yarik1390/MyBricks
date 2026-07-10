@@ -60,6 +60,22 @@ jobs:
       - name: Install workspace deps (Capacitor CLI + platform)
         run: npm ci
 
+      - name: Prepare bundled native configuration
+        env:
+          RC_PLAY_BILLING_KEY: ${{ secrets.RC_PLAY_BILLING_KEY }}
+          ANDROID_GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -n "${RC_PLAY_BILLING_KEY}" ]; then
+            printf "\nwindow.RC_PLAY_BILLING_KEY = '%s';\n" "${RC_PLAY_BILLING_KEY}" >> public/env.js
+          else
+            echo "::warning::RC_PLAY_BILLING_KEY is missing; Play billing will be unavailable."
+          fi
+          if [ -n "${ANDROID_GOOGLE_SERVICES_JSON_BASE64}" ]; then
+            printf '%s' "${ANDROID_GOOGLE_SERVICES_JSON_BASE64}" | base64 -d > android/app/google-services.json
+          else
+            echo "::warning::ANDROID_GOOGLE_SERVICES_JSON_BASE64 is missing; native push will be unavailable."
+          fi
+
       - name: Sync web assets + plugins into the Android project
         run: npx cap sync android
 
@@ -84,6 +100,10 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          if [ "${{ steps.keystore.outputs.signed }}" = "true" ] && [ ! -s app/google-services.json ]; then
+            echo "::error::A signed Play bundle requires ANDROID_GOOGLE_SERVICES_JSON_BASE64 so native push is functional."
+            exit 1
+          fi
           if [ "${{ inputs.build_type }}" = "apk-debug" ]; then
             ./gradlew assembleDebug --no-daemon
           else

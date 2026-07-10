@@ -407,6 +407,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Initial route — after config and session are loaded.
   await route();
 
+  // Re-register an opted-in native device after app/Firebase token rotation and
+  // install the notification-tap route handler. This never prompts by itself.
+  if (state.config?.status?.native_push) {
+    import('./lib/native-push.js').then(m => m.restoreNativePush()).catch(() => {});
+  }
+
   // First-run welcome carousel (self-contained; no-op after the first time or
   // on the login screen, and never throws into boot). The coach-mark tour
   // remains replayable from the You tab and from the carousel's last slide.

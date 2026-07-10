@@ -313,6 +313,16 @@ describe('BrickVault API Worker Tests', () => {
       expect(res.headers.get('Access-Control-Allow-Headers')).toContain('X-OpenAI-Key');
     });
 
+    it('reflects the bundled Capacitor origins', async () => {
+      for (const origin of ['https://localhost', 'capacitor://localhost']) {
+        const res = await app.fetch(
+          new Request('http://localhost/api/config', { headers: { Origin: origin } }),
+          env,
+        );
+        expect(res.headers.get('Access-Control-Allow-Origin')).toBe(origin);
+      }
+    });
+
     // Regression guard: every request header the front-end sends to the worker MUST
     // be in the CORS allowHeaders (worker/src/index.ts), or the browser preflight
     // silently blocks the whole cross-origin request (this is exactly what broke

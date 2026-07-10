@@ -339,6 +339,16 @@ export const TABLE_DDL: Record<string, string> = {
   UNIQUE(user_id, endpoint)
 )`,
 
+  native_push_tokens: `CREATE TABLE IF NOT EXISTS native_push_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  token TEXT NOT NULL,
+  platform TEXT NOT NULL DEFAULT 'android',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, token)
+)`,
+
   api_quota: `CREATE TABLE IF NOT EXISTS api_quota (
   service TEXT NOT NULL,
   day TEXT NOT NULL,
