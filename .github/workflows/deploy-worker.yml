@@ -15,6 +15,10 @@ on:
         description: "Also (re-)upload Worker secrets from GitHub secrets"
         required: false
         default: "false"
+      populate:
+        description: "Run the full data population campaign after deploy"
+        required: false
+        default: "false"
 
 # Serialize deploys per branch: a newer push cancels an in-progress deploy so
 # parallel-agent commits (and multi-file feature landings) can't race two
@@ -419,12 +423,12 @@ jobs:
             -H "Authorization: Bearer ${ADMIN_JWT}" \
             | jq -e '.runs | type == "array"' >/dev/null
 
-      # Only seed data on production (main) deploys or an explicit manual run.
-      # Routine dev-branch code pushes deploy fast and skip this — the nightly
-      # populate-production.yml cron (02:30 UTC) keeps data fresh, so re-running
-      # it on every push was redundant (and added ~1.5 min + D1 writes per push).
+      # Population is opt-in: dispatch with populate=true. It used to fire on
+      # EVERY workflow_dispatch (so every push_secrets run re-populated), and
+      # the refs/heads/main clause never matches — this repo has no main. The
+      # nightly populate-production.yml cron (02:30 UTC) keeps data fresh.
       - name: Start full data population campaign
-        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && inputs.populate == 'true'
         run: |
           set -euo pipefail
           if [ -z "${ADMIN_JWT:-}" ]; then
