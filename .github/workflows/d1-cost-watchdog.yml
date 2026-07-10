@@ -99,14 +99,14 @@ jobs:
             exit 1
           fi
 
-          GROUPS="$(jq -c '.data.viewer.accounts[0].d1AnalyticsAdaptiveGroups // []' <<<"$RESP")"
+          USAGE_ROWS="$(jq -c '.data.viewer.accounts[0].d1AnalyticsAdaptiveGroups // []' <<<"$RESP")"
           echo "Per-database usage for ${DATE}:"
-          jq -r '.[] | "\(.dimensions.databaseId): written=\(.sum.rowsWritten) read=\(.sum.rowsRead) (queries: \(.sum.writeQueries)w/\(.sum.readQueries)r)"' <<<"$GROUPS"
+          jq -r '.[] | "\(.dimensions.databaseId): written=\(.sum.rowsWritten) read=\(.sum.rowsRead) (queries: \(.sum.writeQueries)w/\(.sum.readQueries)r)"' <<<"$USAGE_ROWS"
 
           ALERTS="$(jq -r --argjson wt "$WRITE_THRESHOLD" --argjson rt "$READ_THRESHOLD" '
             [ .[] | select((.sum.rowsWritten > $wt) or (.sum.rowsRead > $rt)) |
               "db \(.dimensions.databaseId): \(.sum.rowsWritten) rows written, \(.sum.rowsRead) rows read" ]
-            | join("\n")' <<<"$GROUPS")"
+            | join("\n")' <<<"$USAGE_ROWS")"
 
           if [ -z "$ALERTS" ]; then
             echo "✅ All databases within budget."
