@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML } from './portfolio-detail-market.js';
 import { computeDealScore, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
@@ -216,7 +216,7 @@ async function customPhotoObjectURL(path) {
 }
 
 function shareSet(set) {
-  const shareUrl = `${location.origin}/#/set/${encodeURIComponent(set.set_num)}`;
+  const shareUrl = `${publicOrigin()}/#/set/${encodeURIComponent(set.set_num)}`;
   if (navigator.share) {
     navigator.share({
       title: set.name,
@@ -261,7 +261,10 @@ function summaryFactsHTML(set) {
   if (set.pieces) parts.push(`<span class="f"><b>${Number(set.pieces).toLocaleString()}</b> pieces</span>`);
   if (set.year) parts.push(`<span class="f"><b>${set.year}</b></span>`);
   if (figs) parts.push(`<span class="f"><b>${figs}</b> minifig${figs === 1 ? '' : 's'}</span>`);
-  if (set.retail_price) parts.push(`<span class="f">Retail <b>${fmtMoney(set.retail_price)}</b></span>`);
+  // Unreleased sets: stored retail can be a formula placeholder; the
+  // BrickEconomy RRP is authoritative until release.
+  const retailShown = (set.coming_soon && set.be_retail) ? set.be_retail : set.retail_price;
+  if (retailShown) parts.push(`<span class="f">Retail <b>${fmtMoney(retailShown)}</b></span>`);
   return parts.length ? `<div class="detail-summary-facts">${parts.join('')}</div>` : '';
 }
 
@@ -468,6 +471,8 @@ function infoTabHTML(set, entry, isWish) {
       .replace(/&rdquo;|&#8221;/gi, '\u201d').replace(/&ldquo;|&#8220;/gi, '\u201c')
       .replace(/&mdash;|&#8212;/gi, '\u2014').replace(/&ndash;|&#8211;/gi, '\u2013')
       .replace(/&hellip;/gi, '\u2026').replace(/&quot;/gi, '"').replace(/&#39;/g, "'")
+      // Generic fallback for any remaining named/numeric entity (&iacute; etc.)
+      .replace(/&#?\w+;/g, (ent) => { const el = document.createElement("textarea"); el.innerHTML = ent; return el.value; })
       .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
       .replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim();
     const descr = stripHtml(b3.description || set.brickset_description || '');
@@ -483,15 +488,10 @@ function infoTabHTML(set, entry, isWish) {
     }
   }
 
-  const galleryHtml = (Number(set.additional_image_count) > 0)
-    ? `
-      <div class="detail-card">
-        <div class="detail-card-title">Photos</div>
-        <div id="bsGallery" class="bs-gallery" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;">
-          <div class="spinner" style="margin:8px auto;"></div>
-        </div>
-      </div>`
-    : '';
+  // Brickset-hosted extra photos removed: hotlinking their gallery images in a
+  // commercial app is outside the Brickset API terms. The main set image
+  // (stored image_url) remains.
+  const galleryHtml = '';
 
   const ebaySold = ebaySoldSummary(set);
   const ebayPrice = ebaySold.newValue || 0;
@@ -626,7 +626,6 @@ function infoTabHTML(set, entry, isWish) {
 
 function wireInfoTab(set) {
   loadSetHistory(set.set_num);
-  loadSetImages(set.set_num);
 
   const aboutBtn = $("#aboutToggle");
   aboutBtn?.addEventListener("click", () => {
@@ -1619,27 +1618,6 @@ async function loadSetHistory(setNum) {
   }
 }
 
-// Lazy Brickset photo gallery — fetched only for sets with extra images, cached
-// server-side + quota-gated. Removes the Photos card if there's nothing to show.
-async function loadSetImages(setNum) {
-  const el = $("#bsGallery");
-  if (!el) return;
-  const dropCard = () => { const card = el.closest(".detail-card, .card"); if (card) card.remove(); };
-  try {
-    const res = await api("/api/sets/" + encodeURIComponent(setNum) + "/images");
-    const imgs = (res && Array.isArray(res.images)) ? res.images.filter(u => typeof u === "string") : [];
-    if (!imgs.length) { dropCard(); return; }
-    el.innerHTML = imgs.map(u => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" style="flex:0 0 auto;display:block;"><img src="${escapeHtml(u)}" loading="lazy" alt="Set photo" style="height:120px;width:auto;border-radius:var(--r-1);border:1px solid var(--line-soft);object-fit:cover;display:block;"></a>`).join("");
-    // Drop any image Brickset 404s on, so we never show a broken-image icon;
-    // if all fail, remove the empty Photos card.
-    el.querySelectorAll("img").forEach(img => img.addEventListener("error", () => {
-      const a = img.closest("a"); if (a) a.remove();
-      if (!el.querySelector("a")) dropCard();
-    }));
-  } catch {
-    dropCard();
-  }
-}
 
 // Map pricing sources to collector-friendly labels that distinguish sold comps,
 // asking data, BrickLink-style market data, and formula/AI fallbacks.

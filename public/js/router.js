@@ -145,6 +145,9 @@ async function _routeImpl() {
       $("#errorRetry")?.addEventListener("click", () => route());
     }
   }
+  // renderLogin adds this to drop the reserved bottom-nav space; any route
+  // that renders with the nav visible must restore it.
+  if (!location.hash.startsWith("#/login")) document.body.classList.remove("nav-hidden");
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 

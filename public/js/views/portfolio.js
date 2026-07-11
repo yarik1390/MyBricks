@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, ratesUnavailable, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, ratesUnavailable, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone, publicOrigin } from '../utils.js';
 import { marketValueForCondition, computeSpreadSignals, estMark, displayValueOf } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
@@ -425,7 +425,7 @@ function paintPortfolio() {
     const handle = state.me?.handle;
     if (!handle) return;
     haptic("light");
-    const shareUrl = `${location.origin}/#/u/${encodeURIComponent(handle)}`;
+    const shareUrl = `${publicOrigin()}/#/u/${encodeURIComponent(handle)}`;
     if (navigator.share) {
       try {
         await navigator.share({

@@ -55,22 +55,48 @@ describe('runDbHygiene', () => {
     expect(left!.n).toBe(20);
   });
 
-  it('backfills retail_price from brickset_msrp/be_retail without touching rows that already have it', async () => {
+  it('backfills retail_price from brickset_msrp/be_retail and heals formula rows that wildly disagree', async () => {
     await db.batch([
       db.prepare(`INSERT INTO lego_sets (set_num, name, retail_price, brickset_msrp, be_retail) VALUES ('A-1','A', NULL, 49.99, NULL)`),
       db.prepare(`INSERT INTO lego_sets (set_num, name, retail_price, brickset_msrp, be_retail) VALUES ('B-1','B', NULL, NULL, 30)`),
+      // Formula placeholder ($10) vs authoritative MSRP ($999) — the 21065
+      // "Retail $9.90 on an $800 set" bug; MSRP must win.
       db.prepare(`INSERT INTO lego_sets (set_num, name, retail_price, brickset_msrp, be_retail) VALUES ('C-1','C', 10, 999, 999)`),
+      // Non-formula rows keep their retail even when MSRP disagrees.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, retail_price, brickset_msrp, be_retail, valuation_method) VALUES ('D-1','D', 10, 999, 999, 'bricklink')`),
+      // Formula rows within 2x of MSRP are plausible — untouched.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, retail_price, brickset_msrp, be_retail) VALUES ('E-1','E', 60, 99.99, NULL)`),
     ]);
 
     const r = await runDbHygiene(env as any);
 
-    expect(r.retailBackfilled).toBe(2);
+    expect(r.retailBackfilled).toBe(3);
     const rows = await db.prepare(`SELECT set_num, retail_price FROM lego_sets ORDER BY set_num`).all<{ set_num: string; retail_price: number }>();
     expect(rows.results).toEqual([
       { set_num: 'A-1', retail_price: 49.99 }, // from brickset_msrp
       { set_num: 'B-1', retail_price: 30 },    // from be_retail (COALESCE fallback)
-      { set_num: 'C-1', retail_price: 10 },    // untouched — already set
+      { set_num: 'C-1', retail_price: 999 },   // formula placeholder healed from MSRP
+      { set_num: 'D-1', retail_price: 10 },    // non-formula valuation — untouched
+      { set_num: 'E-1', retail_price: 60 },    // formula but plausible — untouched
     ]);
+  });
+
+  it('sets coming-soon current_value to retail for formula-valued sets', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO lego_sets (set_num, name, retail_price, current_value, lego_availability) VALUES ('CS-1','CS', 799.99, 9.9, 'coming_soon')`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, retail_price, current_value, lego_availability, valuation_method) VALUES ('CS-2','CS2', 100, 250, 'coming_soon', 'bricklink')`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, retail_price, current_value) VALUES ('RL-1','Released', 100, 250)`),
+    ]);
+
+    const r = await runDbHygiene(env as any);
+
+    expect(r.comingSoonHealed).toBe(1);
+    const cs = await db.prepare(`SELECT current_value FROM lego_sets WHERE set_num='CS-1'`).first<{ current_value: number }>();
+    expect(cs!.current_value).toBe(799.99);
+    const market = await db.prepare(`SELECT current_value FROM lego_sets WHERE set_num='CS-2'`).first<{ current_value: number }>();
+    expect(market!.current_value).toBe(250); // market-valued — untouched
+    const rl = await db.prepare(`SELECT current_value FROM lego_sets WHERE set_num='RL-1'`).first<{ current_value: number }>();
+    expect(rl!.current_value).toBe(250); // released — untouched
   });
 
   it('sweeps orphaned running cron rows older than the window and reports the count', async () => {

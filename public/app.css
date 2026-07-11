@@ -95,6 +95,8 @@ body {
   padding-bottom: var(--bottom-nav-clear);
   min-height: 100vh;
 }
+/* Login (and other nav-less views): don't reserve space for the hidden nav. */
+body.nav-hidden { padding-bottom: env(safe-area-inset-bottom, 0px); }
 body.sheet-open,
 body.advisor-open,
 body.scan-active {
@@ -903,6 +905,10 @@ ul.set-list > li { display: contents; }
 /* With a real photo, ditch the blurred ambient backdrop + scrim entirely so the
    product floats directly on the page and the bigger image fades into it. */
 .detail-hero.has-photo { height: 380px; }
+/* Product photos ship on white; multiply melts that into the kraft page like
+   the catalog tiles already do. Dark mode can't multiply white away. */
+.detail-hero .detail-img img.set-photo { mix-blend-mode: multiply; }
+:root[data-theme="dark"] .detail-hero .detail-img img.set-photo { mix-blend-mode: normal; filter: brightness(0.95); }
 .detail-hero.has-photo .detail-hero-bg,
 .detail-hero.has-photo .detail-hero-overlay { display: none; }
 .detail-hero-bg {

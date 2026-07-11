@@ -1506,7 +1506,8 @@ describe('DB hygiene job', () => {
       'DROP TABLE IF EXISTS import_runs',
       'DROP TABLE IF EXISTS lego_sets',
       `CREATE TABLE lego_sets (
-        set_num TEXT PRIMARY KEY, name TEXT, retail_price REAL, brickset_msrp REAL, be_retail REAL
+        set_num TEXT PRIMARY KEY, name TEXT, retail_price REAL, brickset_msrp REAL, be_retail REAL,
+        current_value REAL, valuation_method TEXT DEFAULT 'formula_bulk', lego_availability TEXT
       )`,
       `CREATE TABLE rate_limits (
         user_id TEXT NOT NULL, endpoint TEXT NOT NULL, window_start TEXT NOT NULL,

@@ -32,6 +32,9 @@ export function renderLogin() {
   let mode = "signin";
   const nav = document.getElementById("nav");
   if (nav) nav.style.display = "none";
+  // The body reserves bottom-nav space; without the nav that's a blank band.
+  document.body.classList.add("nav-hidden");
+  window.scrollTo(0, 0);
   try {
     const s = JSON.parse(localStorage.getItem("bv_session") || "null");
     if (s?.expires_at && !s.refresh_token && Date.now() / 1000 > Number(s.expires_at) + 60) {
@@ -97,7 +100,7 @@ export function renderLogin() {
             <input type="password" id="authPass" placeholder="Password"
               autocomplete="${mode === "signin" ? "current-password" : "new-password"}"
               style="padding:12px;border:1.5px solid var(--line);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-size:15px;outline:none;font-family:var(--sans);">
-            ${siteKey ? `<div id="authTurnstile" style="display:flex;justify-content:center;margin-top:4px;min-height:65px;"></div>` : ""}
+            ${siteKey ? `<div id="authTurnstile" style="display:flex;justify-content:center;"></div>` : ""}
             <button class="btn-primary" id="authSubmit" style="margin-top:4px;">
               <span>${mode === "signin" ? "Sign in" : "Create account"}</span>
             </button>
@@ -182,6 +185,7 @@ export function renderLogin() {
     document.getElementById("authGuest")?.addEventListener("click", () => {
       saveSession(null, { preserveGuestFigs: true });
       if (nav) nav.style.display = "";
+      document.body.classList.remove("nav-hidden");
       go("#/");
     });
 
@@ -231,6 +235,7 @@ export function renderLogin() {
           toast("Some local items couldn't sync — retry from You → Data", "error");
         }
         if (nav) nav.style.display = "";
+        document.body.classList.remove("nav-hidden");
         go("#/");
       } catch (e) {
         if (errEl) errEl.textContent = e.message;

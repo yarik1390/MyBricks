@@ -178,7 +178,7 @@ function comingSoonSectionHTML() {
         ${up.slice(0, 20).map((u) => {
           const onWishlist = wishlist.has(u.set_num);
           return `
-          <div class="cs-card" style="flex:0 0 auto;width:144px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:10px;">
+          <div class="cs-card" data-cs-open="${escapeHtml(String(u.set_num))}" style="cursor:pointer;flex:0 0 auto;width:144px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:10px;">
             <div style="font-size:12px;font-weight:600;color:var(--ink);line-height:1.3;height:32px;overflow:hidden;">${escapeHtml(String(u.name || ""))}</div>
             <div style="font-size:10px;font-family:var(--mono);color:var(--ink-mute);margin-top:4px;">#${escapeHtml(String(u.set_num || "").replace(/-\d+$/, ""))}</div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:6px;">
@@ -250,6 +250,11 @@ function wireCatalogCards() {
     if (e.target.closest("#catalogClearFilters")) { clearCatalogFilters(); return; }
     // Coming-soon wishlist button
     const wishBtn = e.target.closest("[data-cs-wish]");
+    if (!wishBtn) {
+      // The rest of the coming-soon card opens the set detail like any result.
+      const csCard = e.target.closest("[data-cs-open]");
+      if (csCard) { location.hash = "#/set/" + encodeURIComponent(csCard.dataset.csOpen); return; }
+    }
     if (wishBtn) {
       e.stopPropagation();
       const setNum = wishBtn.dataset.csWish;

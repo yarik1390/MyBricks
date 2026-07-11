@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, fmtPct, setHue, bvIDB, celebrate, celebrateChime, soundEnabled, advisorEnabled } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, fmtPct, setHue, bvIDB, celebrate, celebrateChime, soundEnabled, advisorEnabled, publicOrigin } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, sbSignOut, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
@@ -523,12 +523,17 @@ export async function renderMe() {
     e.currentTarget.classList.toggle("on", isPublicState);
     e.currentTarget.setAttribute("aria-checked", isPublicState);
     haptic("medium");
+    const toggleEl = e.currentTarget;
     try {
       await api("/api/me", { method: "PATCH", body: { is_public: isPublicState } });
-      state.me = null;
+      // Update in place — a full renderMe() here repainted the whole page and
+      // jumped the scroll on every flip.
+      if (state.me) state.me.is_public = isPublicState;
       toast(isPublicState ? "Profile public" : "Profile private", "info");
-      await renderMe();
     } catch (err) {
+      isPublicState = !isPublicState;
+      toggleEl.classList.toggle("on", isPublicState);
+      toggleEl.setAttribute("aria-checked", isPublicState);
       toast("Error: " + err.message, "error");
     }
   });
@@ -539,18 +544,21 @@ export async function renderMe() {
     e.currentTarget.classList.toggle("on", epvState);
     e.currentTarget.setAttribute("aria-checked", epvState);
     haptic("medium");
+    const epvEl = e.currentTarget;
     try {
       await api("/api/me", { method: "PATCH", body: { expose_public_value: epvState } });
-      state.me = null;
+      if (state.me) state.me.expose_public_value = epvState;
       toast(epvState ? "Valuation visible publicly" : "Valuation hidden publicly", "info");
-      await renderMe();
     } catch (err) {
+      epvState = !epvState;
+      epvEl.classList.toggle("on", epvState);
+      epvEl.setAttribute("aria-checked", epvState);
       toast("Error: " + err.message, "error");
     }
   });
 
   $("#copyProfileUrl")?.addEventListener("click", () => {
-    const url = `${location.origin}/#/u/${encodeURIComponent(me.handle)}`;
+    const url = `${publicOrigin()}/#/u/${encodeURIComponent(me.handle)}`;
     navigator.clipboard.writeText(url).then(() => {
       toast("Link copied to clipboard", "success");
     }).catch(() => {
@@ -704,7 +712,7 @@ function publicProfileSectionHTML(me) {
       </div>
     `;
   }
-  const url = `${location.origin}/#/u/${encodeURIComponent(me.handle)}`;
+  const url = `${publicOrigin()}/#/u/${encodeURIComponent(me.handle)}`;
   return `
     <div class="section-title">Public Profile</div>
     <div class="card" style="padding:14px 16px;margin-bottom:14px;">

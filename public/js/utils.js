@@ -60,6 +60,14 @@ let exchangeRates = { USD: 1 };
 // True when the rates fetch failed and no fresh cache exists — non-USD users
 // are then silently seeing USD numbers, so views can surface a small notice.
 let _ratesUnavailable = false;
+// Share/permalink origin: inside the native app the WebView origin is
+// https://localhost (bundled assets) — useless in a shared link. Always build
+// outward-facing URLs on the public site origin.
+export function publicOrigin() {
+  const o = (typeof location !== "undefined" && location.origin) || "";
+  return /^https?:\/\/localhost|^capacitor:/.test(o) ? "https://brickvault-5ub.pages.dev" : o;
+}
+
 export const ratesUnavailable = () => _ratesUnavailable;
 
 export async function fetchExchangeRates() {

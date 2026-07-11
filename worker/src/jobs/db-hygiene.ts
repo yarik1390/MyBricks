@@ -4,7 +4,7 @@ import { sweepStaleCronRuns } from '../lib/cron-runs';
 // Daily cleanup of unbounded tables. Each table accumulates rows that are only
 // useful for a short window: rate-limit counters, short-lived OAuth nonces, and
 // import job history. Without this, they grow forever on a busy deployment.
-export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, number>; retailBackfilled: number; staleCronRuns: number }> {
+export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, number>; retailBackfilled: number; comingSoonHealed: number; staleCronRuns: number }> {
   // Close out cron_runs rows orphaned at 'running' by a killed invocation, so the
   // admin Activity view doesn't show dead jobs as live indefinitely.
   const staleCronRuns = await sweepStaleCronRuns(env);
@@ -39,8 +39,16 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
       UPDATE lego_sets SET retail_price = COALESCE(brickset_msrp, be_retail)
       WHERE set_num IN (
         SELECT set_num FROM lego_sets
-        WHERE (retail_price IS NULL OR retail_price <= 0)
-          AND COALESCE(brickset_msrp, be_retail) > 0
+        WHERE COALESCE(brickset_msrp, be_retail) > 0
+          AND (
+            retail_price IS NULL OR retail_price <= 0
+            -- Formula-valued rows (imported with pieces=0 etc.) can carry a
+            -- nonsense retail like $9.90 on an $800 set; when an authoritative
+            -- MSRP disagrees by more than 2x either way, the MSRP wins.
+            OR (valuation_method LIKE 'formula%' AND (
+                 retail_price * 2 < COALESCE(brickset_msrp, be_retail)
+              OR retail_price > COALESCE(brickset_msrp, be_retail) * 2))
+          )
         LIMIT 5000
       )
     `).run();
@@ -49,5 +57,21 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
     console.warn('[db-hygiene] retail_price backfill failed:', (e as Error).message);
   }
 
-  return { deleted, retailBackfilled, staleCronRuns };
+  // Unreleased ("coming soon") sets have no market yet: their current value is
+  // their retail price, not a formula guess. Keeps wishlist "Now" prices sane.
+  let comingSoonHealed = 0;
+  try {
+    const fix = await env.DB.prepare(`
+      UPDATE lego_sets SET current_value = retail_price
+      WHERE lego_availability = 'coming_soon'
+        AND valuation_method LIKE 'formula%'
+        AND retail_price > 0
+        AND (current_value IS NULL OR current_value < retail_price * 0.8 OR current_value > retail_price * 1.2)
+    `).run();
+    comingSoonHealed = (fix.meta?.changes as number | undefined) ?? 0;
+  } catch (e) {
+    console.warn('[db-hygiene] coming-soon value heal failed:', (e as Error).message);
+  }
+
+  return { deleted, retailBackfilled, comingSoonHealed, staleCronRuns };
 }
