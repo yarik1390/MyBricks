@@ -249,23 +249,42 @@ document.addEventListener("DOMContentLoaded", async () => {
   state.configError = false;
   {
     const configUrl = (window.WORKER_BASE || '') + "/api/config";
-    let cfg = null;
-    for (let attempt = 0; attempt < 3 && !cfg; attempt++) {
-      if (attempt) await new Promise(r => setTimeout(r, 400 * attempt));
-      try {
-        const res = await fetch(configUrl, { cache: "no-store" });
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        cfg = await res.json();
-      } catch (e) {
-        console.warn("[config] attempt " + (attempt + 1) + " failed:", (e && e.message) || e);
+    const CONFIG_CACHE_KEY = "bv_config_cache";
+    const applyCfg = (c) => {
+      state.config = c;
+      setSupabaseConfig(c.supabase_url || "", c.supabase_anon_key || "");
+    };
+    const fetchConfig = async (attempts) => {
+      for (let attempt = 0; attempt < attempts; attempt++) {
+        if (attempt) await new Promise(r => setTimeout(r, 400 * attempt));
+        try {
+          const res = await fetch(configUrl, { cache: "no-store" });
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return await res.json();
+        } catch (e) {
+          console.warn("[config] attempt " + (attempt + 1) + " failed:", (e && e.message) || e);
+        }
       }
-    }
-    if (cfg) {
-      state.config = cfg;
-      setSupabaseConfig(cfg.supabase_url || "", cfg.supabase_anon_key || "");
+      return null;
+    };
+    const saveCfg = (c) => { try { localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(c)); } catch {} };
+    let cachedCfg = null;
+    try { cachedCfg = JSON.parse(localStorage.getItem(CONFIG_CACHE_KEY) || "null"); } catch {}
+    if (cachedCfg && cachedCfg.supabase_url) {
+      // Stale-while-revalidate: boot instantly on the cached copy (config
+      // rarely changes) and refresh in the background for the NEXT launch.
+      // This removes a full network round trip from every cold start.
+      applyCfg(cachedCfg);
+      fetchConfig(1).then((fresh) => { if (fresh) { saveCfg(fresh); applyCfg(fresh); } });
     } else {
-      state.configError = true;
-      toast("Can't reach the server — an ad-blocker or privacy extension may be blocking it. Disable it for this site, or try another browser.", "error");
+      const cfg = await fetchConfig(3);
+      if (cfg) {
+        saveCfg(cfg);
+        applyCfg(cfg);
+      } else {
+        state.configError = true;
+        toast("Can't reach the server — an ad-blocker or privacy extension may be blocking it. Disable it for this site, or try another browser.", "error");
+      }
     }
   }
 
