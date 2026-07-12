@@ -488,10 +488,19 @@ function infoTabHTML(set, entry, isWish) {
     }
   }
 
-  // Brickset-hosted extra photos removed: hotlinking their gallery images in a
-  // commercial app is outside the Brickset API terms. The main set image
-  // (stored image_url) remains.
-  const galleryHtml = '';
+  // Brickset's published guidance allows republishing official set images
+  // (LEGO fair-play applies) and box scans WITH attribution — so the gallery
+  // carries an explicit "courtesy of Brickset.com" credit.
+  const galleryHtml = (Number(set.additional_image_count) > 0)
+    ? `
+      <div class="detail-card">
+        <div class="detail-card-title">Photos</div>
+        <div id="bsGallery" class="bs-gallery" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;">
+          <div class="spinner" style="margin:8px auto;"></div>
+        </div>
+        <div class="u-mute" style="font-size:10px;margin-top:6px;">Images courtesy of <a href="https://brickset.com" target="_blank" rel="noopener noreferrer" style="color:inherit;">Brickset.com</a></div>
+      </div>`
+    : '';
 
   const ebaySold = ebaySoldSummary(set);
   const ebayPrice = ebaySold.newValue || 0;
@@ -626,6 +635,7 @@ function infoTabHTML(set, entry, isWish) {
 
 function wireInfoTab(set) {
   loadSetHistory(set.set_num);
+  loadSetImages(set.set_num);
 
   const aboutBtn = $("#aboutToggle");
   aboutBtn?.addEventListener("click", () => {
@@ -1618,6 +1628,28 @@ async function loadSetHistory(setNum) {
   }
 }
 
+
+// Lazy Brickset photo gallery — fetched only for sets with extra images, cached
+// server-side + quota-gated. Removes the Photos card if there's nothing to show.
+async function loadSetImages(setNum) {
+  const el = $("#bsGallery");
+  if (!el) return;
+  const dropCard = () => { const card = el.closest(".detail-card, .card"); if (card) card.remove(); };
+  try {
+    const res = await api("/api/sets/" + encodeURIComponent(setNum) + "/images");
+    const imgs = (res && Array.isArray(res.images)) ? res.images.filter(u => typeof u === "string") : [];
+    if (!imgs.length) { dropCard(); return; }
+    el.innerHTML = imgs.map(u => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" style="flex:0 0 auto;display:block;"><img src="${escapeHtml(u)}" loading="lazy" alt="Set photo" style="height:120px;width:auto;border-radius:var(--r-1);border:1px solid var(--line-soft);object-fit:cover;display:block;"></a>`).join("");
+    // Drop any image Brickset 404s on, so we never show a broken-image icon;
+    // if all fail, remove the empty Photos card.
+    el.querySelectorAll("img").forEach(img => img.addEventListener("error", () => {
+      const a = img.closest("a"); if (a) a.remove();
+      if (!el.querySelector("a")) dropCard();
+    }));
+  } catch {
+    dropCard();
+  }
+}
 
 // Map pricing sources to collector-friendly labels that distinguish sold comps,
 // asking data, BrickLink-style market data, and formula/AI fallbacks.
