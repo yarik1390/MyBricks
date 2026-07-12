@@ -50,7 +50,8 @@
 }
 
 :root[data-native-shell="android"] {
-  --native-status-top: 34px;
+  /* Capacitor's WebView is already laid out below the native status bar. */
+  --native-status-top: 0px;
 }
 
 :root[data-theme="dark"] {
@@ -92,7 +93,7 @@ html, body {
 body {
   overflow-x: clip;
   padding-top: var(--app-top-pad);
-  padding-bottom: var(--bottom-nav-clear);
+  padding-bottom: 0;
   min-height: 100vh;
 }
 /* Login (and other nav-less views): don't reserve space for the hidden nav. */
@@ -538,11 +539,12 @@ ul.set-list > li { display: contents; }
    the card — multiply makes the white studio background disappear. */
 .sl-img.photo-loaded { background: transparent; border-color: transparent; }
 :root[data-theme="dark"] .sl-img img.set-photo {
-  mix-blend-mode: normal; filter: brightness(0.95);
+  mix-blend-mode: normal;
+  filter: none;
 }
-/* Dark mode can't multiply away white, so float the photo on a soft glow. */
+/* Extend the supplied studio background to the thumbnail edges in dark mode. */
 :root[data-theme="dark"] .sl-img.photo-loaded {
-  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.10), transparent 72%);
+  background: #f4f4f2;
 }
 .sl-img .qty-badge {
   position: absolute; top: 4px; right: 4px;
@@ -772,10 +774,11 @@ ul.set-list > li { display: contents; }
 .detail-img.photo-loaded .brick-art,
 .scan-result-row .si.photo-loaded .brick-tile { display: none; }
 :root[data-theme="dark"] .set-card-img img.set-photo {
-  mix-blend-mode: normal; filter: brightness(0.95);
+  mix-blend-mode: normal;
+  filter: none;
 }
 :root[data-theme="dark"] .set-card-img.photo-loaded {
-  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.08), transparent 72%);
+  background: #f4f4f2;
 }
 .set-card-img .ph-mark {
   font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em;
@@ -904,11 +907,12 @@ ul.set-list > li { display: contents; }
 }
 /* With a real photo, ditch the blurred ambient backdrop + scrim entirely so the
    product floats directly on the page and the bigger image fades into it. */
-.detail-hero.has-photo { height: 380px; }
+.detail-hero.has-photo { height: 380px; background: var(--bg); }
 /* Product photos ship on white; multiply melts that into the kraft page like
    the catalog tiles already do. Dark mode can't multiply white away. */
 .detail-hero .detail-img img.set-photo { mix-blend-mode: multiply; }
 :root[data-theme="dark"] .detail-hero .detail-img img.set-photo { mix-blend-mode: normal; filter: brightness(0.95); }
+:root[data-theme="dark"] .detail-hero.has-photo { background: #f4f4f2; }
 .detail-hero.has-photo .detail-hero-bg,
 .detail-hero.has-photo .detail-hero-overlay { display: none; }
 .detail-hero-bg {
@@ -965,15 +969,17 @@ ul.set-list > li { display: contents; }
   animation: shimmer 1.4s infinite ease-in-out;
 }
 :root[data-theme="dark"] .detail-img {
-  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.14) 0%, transparent 66%);
+  background: transparent;
 }
 .detail-img img.set-photo {
   width: 100%; height: 100%;
   object-fit: contain;
   mix-blend-mode: multiply;
 }
+:root:not([data-theme="dark"]) .detail-img.photo-loaded { background: transparent; }
 :root[data-theme="dark"] .detail-img img.set-photo {
-  mix-blend-mode: normal; filter: brightness(0.95);
+  mix-blend-mode: normal;
+  filter: none;
 }
 .detail-img .brick-art {
   width: 180px; height: 180px;
@@ -3324,10 +3330,28 @@ body[data-route="set-detail"] .advisor-fab {
 .set-list-card.compact .sl-name, .set-card.compact .sl-name {
   font-size: 13px;
   line-height: 1.2;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 .set-list-card.compact .sl-meta, .set-card.compact .sl-meta {
   font-size: 10px;
   margin-top: 1px;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  overflow: visible;
+}
+.set-list-card.compact .sl-meta .sl-setnum,
+.set-list-card.compact .sl-meta .trust-badge,
+.set-list-card.compact .sl-meta .price-cue {
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+.set-list-card.compact .sl-meta .trust-badge,
+.set-list-card.compact .sl-meta .price-cue {
+  overflow: visible;
+  text-overflow: clip;
 }
 .set-list-card.compact .sl-right-compact, .set-card.compact .sl-right-compact {
   margin-left: auto;
@@ -3337,6 +3361,8 @@ body[data-route="set-detail"] .advisor-fab {
   justify-content: center;
   align-items: flex-end;
   gap: 1px;
+  flex: 0 0 auto;
+  max-width: 38%;
 }
 .set-list-card.compact .sl-value, .set-card.compact .sl-value {
   font-family: var(--mono);
@@ -4630,6 +4656,30 @@ body.sheet-open .selection-bar {
 
   .detail-tag-row {
     grid-column: 1 / -1;
+  }
+
+  .detail-hero.has-photo {
+    height: 318px;
+  }
+
+  .detail-hero.has-photo .detail-img {
+    width: min(278px, 84vw);
+    height: min(278px, 84vw);
+  }
+
+  .detail-title-row {
+    margin-top: -18px;
+    padding-top: 14px;
+  }
+
+  .set-list-card.compact {
+    min-height: 58px;
+    align-items: center;
+  }
+
+  .set-list-card.compact .sl-theme,
+  .set-list-card.compact .sl-meta > .dot {
+    display: none;
   }
 }
 

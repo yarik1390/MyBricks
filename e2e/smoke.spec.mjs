@@ -25,6 +25,20 @@ test('catalog ("Find a set") renders search results', async ({ page }) => {
   await expect(page.locator('#catalogCount')).toContainText('1 result');
 });
 
+test('compact catalog rows reflow long labels without horizontal clipping', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => localStorage.setItem('bv_compact_view', 'true'));
+  await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
+
+  const row = page.locator('.set-list-card.compact').first();
+  await expect(row).toBeVisible();
+  await expect(row.locator('.sl-name')).toHaveCSS('-webkit-line-clamp', '2');
+  const clippedBadge = await row.locator('.trust-badge').evaluate(el => el.scrollWidth > el.clientWidth + 1);
+  expect(clippedBadge).toBe(false);
+  const pageOverflows = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+  expect(pageOverflows).toBe(false);
+});
+
 test('set detail renders with the action bar', async ({ page }) => {
   await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
   await expect(page.getByText('Millennium Falcon').first()).toBeVisible();

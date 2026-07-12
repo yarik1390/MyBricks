@@ -717,13 +717,13 @@ function catalogCardHTML(s) {
           ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="${escapeHtml(s.name || '')}" loading="lazy" decoding="async">` : ""}
         </div>
         <div class="sl-body" style="flex: 1; min-width: 0;">
-          <div class="sl-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left;">
+          <div class="sl-name" style="text-align:left;">
             ${((s.retirement_risk_score || 0) >= 70 || s.lego_retiring_soon) && !s.retired ? '🔥 ' : ''}${escapeHtml(s.name)}
           </div>
           <div class="sl-meta" style="text-align: left;">
-            <span>${escapeHtml(s.set_num)}</span>
+            <span class="sl-setnum">${escapeHtml(s.set_num)}</span>
             <span class="dot"></span>
-            <span>${escapeHtml(s.theme || "")}</span>
+            <span class="sl-theme">${escapeHtml(s.theme || "")}</span>
             ${owned ? `<span class="badge badge--up" style="margin-left:4px;">OWNED</span>` : ""}
             ${dealTagHTML(s)}
             ${sourceCueHTML(s)}
