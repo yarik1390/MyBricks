@@ -853,6 +853,35 @@ describe('native auth helpers', () => {
   });
 });
 
+describe('native sharing', () => {
+  it('uses the Capacitor share sheet before the browser API', async () => {
+    const { shareContent } = await import('../lib/native-share.js');
+    const calls = [];
+    const win = {
+      Capacitor: {
+        isNativePlatform: () => true,
+        Plugins: { Share: { share: async payload => { calls.push(payload); } } },
+      },
+      navigator: { share: async () => { throw new Error('browser share should not run'); } },
+    };
+    const payload = { title: 'Set', text: 'A LEGO set', url: 'https://example.test/#/set/1' };
+    assert.equal(await shareContent(payload, win), 'shared');
+    assert.deepEqual(calls, [payload]);
+  });
+
+  it('falls back to Web Share and distinguishes unsupported devices', async () => {
+    const { shareContent } = await import('../lib/native-share.js');
+    let browserCalls = 0;
+    const web = {
+      Capacitor: { isNativePlatform: () => false },
+      navigator: { share: async () => { browserCalls++; } },
+    };
+    assert.equal(await shareContent({ title: 'Set' }, web), 'shared');
+    assert.equal(browserCalls, 1);
+    assert.equal(await shareContent({ title: 'Set' }, { navigator: {} }), 'unsupported');
+  });
+});
+
 import { resolveDownloadResume } from '../lib/pure.js';
 
 describe('resolveDownloadResume', () => {

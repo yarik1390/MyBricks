@@ -21,9 +21,11 @@ app.get('/', async (c) => {
         s.used_value, s.bl_new_value, s.bl_new_qty,
         s.bl_used_qty, s.bl_cached_at, s.be_cached_at,
         s.valuation_method, s.valuation_expires_at, s.cached_at,
-        s.lego_availability, s.lego_retiring_soon
+        s.lego_availability, s.lego_retiring_soon, s.be_retail,
+        u.price_usd AS upcoming_price, u.availability AS upcoming_availability
       FROM user_wishlist w
       JOIN lego_sets s ON s.set_num = w.set_num
+      LEFT JOIN upcoming_sets u ON u.set_num = w.set_num
       WHERE w.user_id = ?
       ORDER BY w.added_at DESC
     `).bind(userId).all(),
@@ -58,11 +60,27 @@ app.get('/', async (c) => {
   }
 
   return c.json({
-    wishlist: (wl.results || []).map(r => enrichSetRecord({
-      ...r,
-      retired: !!(r as Record<string, unknown>).retired,
-      trend_weekly: trendWeekly[(r as Record<string, unknown>).set_num as string] ?? null,
-    } as Record<string, unknown>)),
+    wishlist: (wl.results || []).map(r => {
+      const row = r as Record<string, unknown>;
+      const comingSoon = row.upcoming_availability != null;
+      const announcedPrice = [row.upcoming_price, row.retail_price, row.be_retail]
+        .map(Number)
+        .find(value => Number.isFinite(value) && value > 0) ?? null;
+      const enriched: Record<string, unknown> = enrichSetRecord({
+        ...row,
+        retired: !!row.retired,
+        trend_weekly: trendWeekly[row.set_num as string] ?? null,
+      });
+      if (!comingSoon) return enriched;
+      const availability = /pre/i.test(String(row.upcoming_availability)) ? 'pre_order' : 'coming_soon';
+      return {
+        ...enriched,
+        coming_soon: true,
+        upcoming_price: announcedPrice,
+        current_value: announcedPrice ?? enriched.current_value,
+        lego_availability: availability,
+      };
+    }),
     unread_alerts: alerts.results,
   });
 });

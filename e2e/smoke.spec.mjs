@@ -117,6 +117,23 @@ test('me: account deletion is gated behind typing DELETE (store requirement)', a
     .toBeGreaterThan(0);
 });
 
+test('me: public profile switches update without repainting the page', async ({ page, stub }) => {
+  await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
+
+  for (const id of ['publicToggle', 'publicValToggle']) {
+    const toggle = page.locator(`#${id}`);
+    await expect(toggle).toBeVisible();
+    await toggle.evaluate(el => { el.dataset.keptAcrossToggle = 'yes'; });
+    const before = await toggle.getAttribute('aria-checked');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', before === 'true' ? 'false' : 'true');
+    await expect(toggle).toHaveAttribute('data-kept-across-toggle', 'yes');
+  }
+
+  await expect.poll(() => stub.calls.filter(c => c.method === 'PATCH' && c.path === '/api/me').length).toBe(2);
+  await expect(page).toHaveURL(/#\/me$/);
+});
+
 // ---------------------------------------------------------------------------
 // Valuation trust pass: estimates read humbler than market values.
 // ---------------------------------------------------------------------------

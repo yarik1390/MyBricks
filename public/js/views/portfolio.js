@@ -2,6 +2,7 @@ import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, daysAgo,
 import { marketValueForCondition, computeSpreadSignals, estMark, displayValueOf } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
+import { shareContent } from '../lib/native-share.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet, confirmSheet, promptSheet } from '../components/sheet.js';
 import { trustBadgeHTML } from '../components/trust.js';
@@ -426,22 +427,19 @@ function paintPortfolio() {
     if (!handle) return;
     haptic("light");
     const shareUrl = `${publicOrigin()}/#/u/${encodeURIComponent(handle)}`;
-    if (navigator.share) {
+    const outcome = await shareContent({
+      title: "My LEGO BricksVault",
+      text: "Check out my LEGO collection on BricksVault!",
+      url: shareUrl,
+      dialogTitle: "Share my BricksVault",
+    });
+    if (outcome === 'unsupported') {
       try {
-        await navigator.share({
-          title: "My LEGO BricksVault",
-          text: `Check out my LEGO collection on BricksVault!`,
-          url: shareUrl
-        });
-      } catch (err) {
-        if (err.name !== 'AbortError') {
-          navigator.clipboard.writeText(shareUrl);
-          toast("Link copied to clipboard!", "success");
-        }
+        await navigator.clipboard.writeText(shareUrl);
+        toast("Link copied to clipboard!", "success");
+      } catch {
+        toast("Sharing isn't available on this device", "error");
       }
-    } else {
-      navigator.clipboard.writeText(shareUrl);
-      toast("Link copied to clipboard!", "success");
     }
   });
 

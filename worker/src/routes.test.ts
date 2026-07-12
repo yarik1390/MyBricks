@@ -84,6 +84,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       'DROP TABLE IF EXISTS user_minifigs',
       'DROP TABLE IF EXISTS set_value_history',
       'DROP TABLE IF EXISTS set_market_ext',
+      'DROP TABLE IF EXISTS upcoming_sets',
 
       `CREATE TABLE lego_sets (
         set_num TEXT PRIMARY KEY, name TEXT NOT NULL, theme TEXT, year INTEGER,
@@ -124,6 +125,10 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         set_num TEXT NOT NULL, snapshot_date TEXT NOT NULL,
         current_value REAL, ebay_value REAL, bl_value REAL,
         PRIMARY KEY (set_num, snapshot_date)
+      )`,
+      `CREATE TABLE upcoming_sets (
+        set_num TEXT PRIMARY KEY, name TEXT NOT NULL, price_usd REAL,
+        availability TEXT, first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP, scraped_at TEXT
       )`,
       `CREATE VIRTUAL TABLE lego_sets_fts USING fts5(set_num, name, theme)`,
       `CREATE TABLE user_collection (
@@ -581,6 +586,24 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
 
       const list2 = await app.fetch(new Request('http://localhost/api/wishlist', { headers: auth() }), env);
       expect((await list2.json<any>()).wishlist).toHaveLength(0);
+    });
+
+    it('shows the announced price immediately for an upcoming wishlisted set', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, retail_price, current_value, valuation_method)
+          VALUES ('90001-1', 'Upcoming Set', 799.99, 9.9, 'formula_bulk')`),
+        db.prepare(`INSERT INTO upcoming_sets (set_num, name, price_usd, availability)
+          VALUES ('90001-1', 'Upcoming Set', 849.99, 'Pre-order')`),
+        db.prepare(`INSERT INTO user_wishlist (user_id, set_num) VALUES (?, '90001-1')`).bind(userId),
+      ]);
+
+      const response = await app.fetch(new Request('http://localhost/api/wishlist', { headers: auth() }), env);
+      expect(response.status).toBe(200);
+      const item = (await response.json<any>()).wishlist[0];
+      expect(item.current_value).toBe(849.99);
+      expect(item.upcoming_price).toBe(849.99);
+      expect(item.coming_soon).toBe(true);
+      expect(item.lego_availability).toBe('pre_order');
     });
 
     it('marks an alert as read via POST /:id', async () => {

@@ -2,6 +2,7 @@ import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, c
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML } from './portfolio-detail-market.js';
 import { computeDealScore, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
+import { shareContent } from '../lib/native-share.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet, confirmSheet } from '../components/sheet.js';
@@ -215,17 +216,21 @@ async function customPhotoObjectURL(path) {
   } catch { return null; }
 }
 
-function shareSet(set) {
+async function shareSet(set) {
   const shareUrl = `${publicOrigin()}/#/set/${encodeURIComponent(set.set_num)}`;
-  if (navigator.share) {
-    navigator.share({
-      title: set.name,
-      text: `Check out ${set.name} (${set.set_num}) on BricksVault!`,
-      url: shareUrl
-    }).catch(() => {});
-  } else {
-    navigator.clipboard.writeText(shareUrl);
-    toast("Link copied to clipboard!", "success");
+  const outcome = await shareContent({
+    title: set.name,
+    text: `Check out ${set.name} (${set.set_num}) on BricksVault!`,
+    url: shareUrl,
+    dialogTitle: `Share ${set.name}`,
+  });
+  if (outcome === 'unsupported') {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast("Link copied to clipboard!", "success");
+    } catch {
+      toast("Sharing isn't available on this device", "error");
+    }
   }
 }
 
