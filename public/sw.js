@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = 'v280';
+const VERSION = 'v281';
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 // Cross-origin product images live in their own UNVERSIONED, bounded cache:
@@ -140,6 +140,14 @@ self.addEventListener('fetch', e => {
   const { request } = e;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
+
+  // Proxied catalog images: /api/img serves immutable image bytes — the one
+  // API path that belongs in the image cache (offline images, fewer Worker
+  // hits). Must precede the blanket /api/ bypass below.
+  if (url.pathname === '/api/img') {
+    e.respondWith(cacheFirst(request, IMG_CACHE));
+    return;
+  }
 
   // API — bypass the SW entirely. The API runs on a separate origin
   // (brickvault-api.*.workers.dev), so this must come BEFORE the cross-origin

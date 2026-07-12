@@ -25,9 +25,11 @@ export async function runImagePrewarm(
     ? Math.min(Math.floor(requestedLimit), 300)
     : 100;
 
-  // Rebrickable-only, never-prewarmed, owned/wishlisted first then high-value.
-  const { results } = await env.DB.prepare(`
-    SELECT ls.set_num, ls.image_url
+  // Two queues, sets first: Rebrickable-only, never-prewarmed, owned/wishlisted
+  // first then high-value. Any leftover capacity drains the minifig queue the
+  // same way, so one pacing knob covers the whole ~44k-image catalog.
+  const { results: setRows } = await env.DB.prepare(`
+    SELECT ls.set_num AS id, ls.image_url
     FROM lego_sets ls
     WHERE ls.img_prewarmed_at IS NULL
       AND ls.image_url LIKE 'https://cdn.rebrickable.com/%'
@@ -40,9 +42,32 @@ export async function runImagePrewarm(
       COALESCE(NULLIF(ls.blended_value, 0), ls.current_value, 0) DESC,
       ls.set_num ASC
     LIMIT ?
-  `).bind(limit).all<{ set_num: string; image_url: string }>();
+  `).bind(limit).all<{ id: string; image_url: string }>();
 
-  if (!results.length) return { processed: 0, cached: 0, limit };
+  const figLimit = limit - setRows.length;
+  const figRows: { id: string; image_url: string }[] = [];
+  if (figLimit > 0) {
+    const { results } = await env.DB.prepare(`
+      SELECT m.fig_num AS id, m.image_url
+      FROM minifigs m
+      WHERE m.img_prewarmed_at IS NULL
+        AND m.image_url LIKE 'https://cdn.rebrickable.com/%'
+      ORDER BY
+        CASE WHEN EXISTS (
+          SELECT 1 FROM user_minifigs um WHERE um.fig_num = m.fig_num
+        ) THEN 0 ELSE 1 END,
+        COALESCE(m.current_value, 0) DESC,
+        m.fig_num ASC
+      LIMIT ?
+    `).bind(figLimit).all<{ id: string; image_url: string }>();
+    figRows.push(...results);
+  }
+
+  const queue = [
+    ...setRows.map((r) => ({ ...r, table: 'lego_sets' as const })),
+    ...figRows.map((r) => ({ ...r, table: 'minifigs' as const })),
+  ];
+  if (!queue.length) return { processed: 0, cached: 0, limit };
 
   let processed = 0;
   let cached = 0;
@@ -51,39 +76,39 @@ export async function runImagePrewarm(
 
   // Low concurrency to stay polite to the source (not bulk automation).
   const concurrency = Math.max(1, Math.min(options.concurrency ?? 3, 6));
-  for (let i = 0; i < results.length; i += concurrency) {
-    const batch = results.slice(i, i + concurrency);
+  for (let i = 0; i < queue.length; i += concurrency) {
+    const batch = queue.slice(i, i + concurrency);
     const outs = await Promise.all(batch.map(async (r) => {
       // Defensive ToS host re-check — only Rebrickable.
       let host = '';
-      try { host = new URL(r.image_url).hostname; } catch { return { set_num: r.set_num, ok: false }; }
-      if (!ALLOWED_IMG_HOSTS.has(host)) return { set_num: r.set_num, ok: false };
+      try { host = new URL(r.image_url).hostname; } catch { return { row: r, ok: false }; }
+      if (!ALLOWED_IMG_HOSTS.has(host)) return { row: r, ok: false };
       try {
         const key = await imageR2Key(r.image_url);
         // Skip if already cached (e.g. lazily filled by a prior view).
-        if (await bucket.head(key).catch(() => null)) return { set_num: r.set_num, ok: true };
+        if (await bucket.head(key).catch(() => null)) return { row: r, ok: true };
         const resp = await fetch(r.image_url, { headers: { Accept: 'image/*' } });
-        if (!resp.ok) return { set_num: r.set_num, ok: false };
+        if (!resp.ok) return { row: r, ok: false };
         const contentType = resp.headers.get('content-type') || 'image/jpeg';
-        if (!contentType.startsWith('image/')) return { set_num: r.set_num, ok: false };
+        if (!contentType.startsWith('image/')) return { row: r, ok: false };
         await bucket.put(key, await resp.arrayBuffer(), { httpMetadata: { contentType } });
-        return { set_num: r.set_num, ok: true };
+        return { row: r, ok: true };
       } catch {
-        return { set_num: r.set_num, ok: false };
+        return { row: r, ok: false };
       }
     }));
-    for (const { set_num, ok } of outs) {
+    for (const { row, ok } of outs) {
       processed++;
       if (ok) cached++;
       // Stamp regardless: catalog images are immutable and the lazy proxy
       // backstops any miss, so a one-time attempt is enough — and stamping
-      // advances the queue instead of re-hammering the same sets.
-      stamps.push(env.DB.prepare(
-        `UPDATE lego_sets SET img_prewarmed_at=datetime('now') WHERE set_num=?`,
-      ).bind(set_num));
+      // advances the queue instead of re-hammering the same images.
+      stamps.push(row.table === 'lego_sets'
+        ? env.DB.prepare(`UPDATE lego_sets SET img_prewarmed_at=datetime('now') WHERE set_num=?`).bind(row.id)
+        : env.DB.prepare(`UPDATE minifigs SET img_prewarmed_at=datetime('now') WHERE fig_num=?`).bind(row.id));
     }
   }
 
   for (let i = 0; i < stamps.length; i += 90) await env.DB.batch(stamps.slice(i, i + 90));
-  return { processed, cached, limit };
+  return { processed, cached, limit, sets: setRows.length, minifigs: figRows.length };
 }

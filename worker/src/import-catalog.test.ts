@@ -61,6 +61,28 @@ describe('import-catalog', () => {
     expect(row.valuation_method).toBe('formula_bulk');
   });
 
+  it('importSets is delta-only: a repeat import writes zero rows, market values stay protected', async () => {
+    const first = await importSets(db);
+    expect(first.inserted).toBe(1);
+    // Simulate a later market valuation that the weekly import must not clobber.
+    await db.prepare(`UPDATE lego_sets SET current_value=850, valuation_method='market' WHERE set_num='75192-1'`).run();
+
+    const again = await importSets(db);
+    expect(again.inserted).toBe(0);
+    expect(again.updated).toBe(0); // identical dump + protected valuation = no writes
+
+    const row = await db.prepare(`SELECT current_value, valuation_method FROM lego_sets WHERE set_num='75192-1'`).first<any>();
+    expect(row.current_value).toBe(850);
+    expect(row.valuation_method).toBe('market');
+  });
+
+  it('importFigs is delta-only on repeat', async () => {
+    const first = await importFigs(db);
+    expect(first.inserted).toBe(1);
+    const again = await importFigs(db);
+    expect(again).toMatchObject({ inserted: 0, updated: 0 });
+  });
+
   it('importFigs upserts minifigs and maps an img_url of "None" to null', async () => {
     const r = await importFigs(db);
     expect(r.loaded).toBe(1);

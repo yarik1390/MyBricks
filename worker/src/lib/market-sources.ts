@@ -795,8 +795,18 @@ function blendAndDealRow(row: Record<string, unknown>, history?: BlendHistory): 
 // Single UPDATE shape for both persist paths (bind order: blended, signal, pct,
 // strong, confidence, low, high, set_num). deal_cached_at marks when the signal
 // was last recomputed (shared by the blend + confidence band).
+// Numbered params so the trailing guard can re-reference the SET values:
+// IS NOT = null-safe inequality, so a recompute that lands on identical
+// numbers writes nothing (lego_sets is heavily indexed; the hourly valuate
+// sweep re-blends up to ~170 sets and most blends don't move run-to-run).
+// deal_cached_at is display metadata, not a scheduling gate, so skipping the
+// stamp on unchanged rows is safe.
 const BLEND_DEAL_UPDATE_SQL =
-  `UPDATE lego_sets SET blended_value=?, deal_signal=?, deal_discount_pct=?, deal_strong=?, blended_confidence=?, blended_low=?, blended_high=?, deal_cached_at=datetime('now') WHERE set_num=?`;
+  `UPDATE lego_sets SET blended_value=?1, deal_signal=?2, deal_discount_pct=?3, deal_strong=?4, blended_confidence=?5, blended_low=?6, blended_high=?7, deal_cached_at=datetime('now')
+   WHERE set_num=?8 AND (
+     blended_value IS NOT ?1 OR deal_signal IS NOT ?2 OR deal_discount_pct IS NOT ?3
+     OR deal_strong IS NOT ?4 OR blended_confidence IS NOT ?5 OR blended_low IS NOT ?6
+     OR blended_high IS NOT ?7)`;
 
 // Recompute + persist blended_value for one set (on-demand detail refresh /
 // revalue). Reads the post-write row so it always reflects the latest signals.

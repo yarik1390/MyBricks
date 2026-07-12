@@ -370,11 +370,17 @@ export default {
       // BrickLink/BE market values using idle BrickLink budget. No AI fallback
       // (keep the formula value if no market data; retry later). Complements
       // Pass 4, which refreshes already-real values.
-      case '15 * * * *': await run('valuate-formula-head', () => runValuateSets(env, {
-        scope: 'all', formulaHead: true, minValue: 50, limit: 40,
-        includeSupplemental: false, includeEbay: false, includeAiFallback: false,
-        subrequestBudget: 300,
-      })); break;
+      case '15 * * * *':
+        await run('valuate-formula-head', () => runValuateSets(env, {
+          scope: 'all', formulaHead: true, minValue: 50, limit: 40,
+          includeSupplemental: false, includeEbay: false, includeAiFallback: false,
+          subrequestBudget: 300,
+        }));
+        // Image mirror backfill: hourly x100 warms the full ~44k set+minifig
+        // catalog in ~3 weeks, then degrades to a no-op SELECT. Shares this
+        // invocation comfortably: ~300 subrequests each against the 1000 cap.
+        await run('image-prewarm', () => runImagePrewarm(env, { limit: 100, concurrency: 3 }));
+        break;
       // Daily maintenance is split across dedicated slots (Workers Paid: 250-cron
       // cap) so each heavy job runs in its own invocation — own subrequest budget
       // and failure isolation, and each can do more than the old packed 0 4 slot.
@@ -408,7 +414,6 @@ export default {
       // Image pre-warm: pull Rebrickable set images into the R2 cache so first
       // views are instant. Gentle (limit 100, concurrency 3) to respect
       // Rebrickable's no-automation rule; Rebrickable-only per ToS.
-      case '0 14 * * *': await run('image-prewarm', () => runImagePrewarm(env, { limit: 100, concurrency: 3 })); break;
       // Upcoming/coming-soon release feed (G2b): one LEGO.com listing scrape/day.
       case '0 15 * * *': await run('upcoming-refresh', () => runUpcomingRefresh(env)); break;
       // PriceCharting is free (no BrickLink budget) and a genuine 2nd sold-comp

@@ -163,7 +163,8 @@ export const TABLE_DDL: Record<string, string> = {
   ebay_value REAL,
   ebay_qty INTEGER,
   ebay_cached_at TEXT,
-  bl_id TEXT
+  bl_id TEXT,
+  img_prewarmed_at TEXT
 )`,
 
   import_runs: `CREATE TABLE IF NOT EXISTS import_runs (
@@ -265,6 +266,14 @@ export const TABLE_DDL: Record<string, string> = {
   PRIMARY KEY (fig_num, snapshot_date)
 )`,
 
+  user_minifigs: `CREATE TABLE IF NOT EXISTS user_minifigs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  fig_num TEXT NOT NULL,
+  quantity INTEGER DEFAULT 1,
+  added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, fig_num)
+)`,
   set_minifigs: `CREATE TABLE IF NOT EXISTS set_minifigs (
   set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
   fig_num TEXT NOT NULL,

@@ -230,7 +230,7 @@ jobs:
             "SELECT key_hash, used, cap, period_month, exhausted_at FROM brightdata_keys LIMIT 0"
             "SELECT key, value, updated_at FROM app_settings LIMIT 0"
             "SELECT id, name, started_at, finished_at, status, summary, error, duration_ms FROM cron_runs LIMIT 0"
-            "SELECT rarity, ebay_value, ebay_qty, ebay_cached_at FROM minifigs LIMIT 0"
+            "SELECT rarity, ebay_value, ebay_qty, ebay_cached_at, img_prewarmed_at FROM minifigs LIMIT 0"
             "SELECT part_num, color_id, price_new, qty_new, price_used, qty_used, cached_at FROM part_prices LIMIT 0"
             "SELECT set_num, name, price_usd, availability, first_seen_at, scraped_at FROM upcoming_sets LIMIT 0"
             "SELECT id, user_id, set_num, rating, status, reviewer_id, deleted_at FROM set_reviews LIMIT 0"

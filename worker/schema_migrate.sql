@@ -615,3 +615,8 @@ CREATE INDEX IF NOT EXISTS idx_bl_mf_norm ON bricklink_minifigs(norm_name);
 -- data. Cleared (set NULL) the moment a BrickLink price does come back. Lives in
 -- the set_market_ext side table because lego_sets is at D1's 100-column ceiling.
 ALTER TABLE set_market_ext ADD COLUMN bl_nodata_at TEXT;
+
+-- Image mirror: stamp minifigs once their Rebrickable image has been pre-warmed
+-- into R2 (same pattern as lego_sets.img_prewarmed_at) so the hourly prewarm
+-- queue advances instead of re-fetching.
+ALTER TABLE minifigs ADD COLUMN img_prewarmed_at TEXT;

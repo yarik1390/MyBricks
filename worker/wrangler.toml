@@ -43,7 +43,6 @@ crons = [
   "0 11 * * *",
   "0 12 * * *",
   "0 13 * * *",
-  "0 14 * * *",
   "0 15 * * *",
   "0 16 * * *",
   # pricesAPI.io live-retail refresh (deal signal / stock truth / wishlist alerts).

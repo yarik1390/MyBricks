@@ -98,7 +98,9 @@ export async function importSets(db: D1Database, env?: Env, options: CatalogImpo
   const themeRows = themes.filter(t => t.id && t.name);
   await options.onProgress?.({ current: 0, total: themeRows.length, label: 'Importing themes' });
   await runBatches(db, themeRows.map(t =>
-    db.prepare('INSERT INTO lego_themes (id,name,parent_id) VALUES (?,?,?) ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,parent_id=EXCLUDED.parent_id')
+    db.prepare(`INSERT INTO lego_themes (id,name,parent_id) VALUES (?,?,?)
+      ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,parent_id=EXCLUDED.parent_id
+      WHERE EXCLUDED.name IS NOT lego_themes.name OR EXCLUDED.parent_id IS NOT lego_themes.parent_id`)
       .bind(parseInt(t.id!), t.name, t.parent_id ? parseInt(t.parent_id) : null)
   ), {
     onProgress: async (processed) => options.onProgress?.({
@@ -111,8 +113,34 @@ export async function importSets(db: D1Database, env?: Env, options: CatalogImpo
   const sets = parseCSV(setsText).filter(s => s.set_num && s.name);
   await options.onProgress?.({ current: 0, total: sets.length, label: 'Preparing set records' });
   let skipped = 0;
-  const setStmts: D1PreparedStatement[] = [];
 
+  // Stage the whole dump, then write only genuinely new/changed rows (the
+  // pricecharting-bulk pattern). The old row-per-row upsert rewrote all ~27k
+  // heavily-indexed lego_sets rows every Sunday even when nothing changed;
+  // staging costs ~27k index-light scratch writes and turns the real table's
+  // write volume into (new sets + actual deltas), typically a few hundred.
+  await db.prepare(`CREATE TABLE IF NOT EXISTS _rb_sets_stage (
+    set_num TEXT PRIMARY KEY, name TEXT, year INTEGER, theme TEXT, pieces INTEGER,
+    minifigs INTEGER, image_url TEXT, retail_price REAL, current_value REAL,
+    forecast_2y REAL, forecast_5y REAL
+  )`).run();
+  await db.prepare('DELETE FROM _rb_sets_stage').run();
+
+  // 8 rows x 11 cols = 88 binds, under D1's 100-per-statement limit.
+  const PER_STMT = 8;
+  const ROW_PH = '(?,?,?,?,?,?,?,?,?,?,?)';
+  const stageStmts: D1PreparedStatement[] = [];
+  let pending: unknown[] = [];
+  let pendingRows = 0;
+  const flush = () => {
+    if (!pendingRows) return;
+    const ph = Array.from({ length: pendingRows }, () => ROW_PH).join(',');
+    stageStmts.push(db.prepare(
+      `INSERT OR REPLACE INTO _rb_sets_stage (set_num,name,year,theme,pieces,minifigs,image_url,retail_price,current_value,forecast_2y,forecast_5y) VALUES ${ph}`,
+    ).bind(...pending));
+    pending = [];
+    pendingRows = 0;
+  };
   for (const s of sets) {
     const pieces = parseInt(s.num_parts || '0') || 0;
     const year = parseInt(s.year || '0') || null;
@@ -122,55 +150,110 @@ export async function importSets(db: D1Database, env?: Env, options: CatalogImpo
     let vals;
     try { vals = formulaValuation({ pieces, year: year ?? undefined, theme, retired: isLikelyRetired(year), minifigs }); }
     catch { skipped++; continue; }
-    setStmts.push(db.prepare(`
-      INSERT INTO lego_sets (set_num,name,year,theme,pieces,minifigs,image_url,retail_price,current_value,forecast_2y,forecast_5y,valuation_method,source,cached_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,'formula_bulk','rebrickable',datetime('now'))
-      ON CONFLICT (set_num) DO UPDATE SET
-        name=EXCLUDED.name, year=EXCLUDED.year, theme=EXCLUDED.theme,
-        pieces=EXCLUDED.pieces, minifigs=EXCLUDED.minifigs,
-        image_url=COALESCE(EXCLUDED.image_url, lego_sets.image_url),
-        retail_price=CASE WHEN lego_sets.valuation_method IN ('ai','market','ebay_rss','ebay_sold','brickeconomy') THEN lego_sets.retail_price ELSE EXCLUDED.retail_price END,
-        current_value=CASE WHEN lego_sets.valuation_method IN ('ai','market','ebay_rss','ebay_sold','brickeconomy') THEN lego_sets.current_value ELSE EXCLUDED.current_value END,
-        forecast_2y=CASE WHEN lego_sets.valuation_method IN ('ai','market','ebay_rss','ebay_sold','brickeconomy') THEN lego_sets.forecast_2y ELSE EXCLUDED.forecast_2y END,
-        forecast_5y=CASE WHEN lego_sets.valuation_method IN ('ai','market','ebay_rss','ebay_sold','brickeconomy') THEN lego_sets.forecast_5y ELSE EXCLUDED.forecast_5y END,
-        valuation_method=CASE WHEN lego_sets.valuation_method IN ('ai','market','ebay_rss','ebay_sold','brickeconomy') THEN lego_sets.valuation_method ELSE 'formula_bulk' END,
-        source='rebrickable', cached_at=datetime('now')
-    `).bind(s.set_num, s.name, year, theme, pieces, minifigs, img,
-            vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y));
+    pending.push(s.set_num, s.name, year, theme, pieces, minifigs, img,
+      vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y);
+    pendingRows++;
+    if (pendingRows >= PER_STMT) flush();
   }
+  flush();
 
-  await options.onProgress?.({ current: 0, total: setStmts.length, label: 'Importing sets' });
-  await runBatches(db, setStmts, {
+  await options.onProgress?.({ current: 0, total: stageStmts.length, label: 'Staging sets' });
+  await runBatches(db, stageStmts, {
     onProgress: async (processed) => options.onProgress?.({
       current: processed,
-      total: setStmts.length,
-      label: 'Importing sets',
+      total: stageStmts.length,
+      label: 'Staging sets',
     }),
   });
-  return { loaded: setStmts.length, skipped, themes: themeRows.length };
+
+  await options.onProgress?.({ current: 0, total: null, label: 'Applying set deltas' });
+  // Sources whose market-derived values must never be clobbered by the bulk
+  // formula placeholder — keep in sync with the guards this replaced.
+  const PROTECTED = `('ai','market','ebay_rss','ebay_sold','brickeconomy')`;
+  const inserted = await db.prepare(`
+    INSERT INTO lego_sets (set_num,name,year,theme,pieces,minifigs,image_url,retail_price,current_value,forecast_2y,forecast_5y,valuation_method,source,cached_at)
+    SELECT s.set_num, s.name, s.year, s.theme, s.pieces, s.minifigs, s.image_url,
+           s.retail_price, s.current_value, s.forecast_2y, s.forecast_5y,
+           'formula_bulk', 'rebrickable', datetime('now')
+    FROM _rb_sets_stage s
+    WHERE NOT EXISTS (SELECT 1 FROM lego_sets ls WHERE ls.set_num = s.set_num)
+  `).run();
+  // IS NOT = null-safe inequality: unchanged rows write nothing at all.
+  const updated = await db.prepare(`
+    UPDATE lego_sets AS ls SET
+      name = s.name, year = s.year, theme = s.theme,
+      pieces = s.pieces, minifigs = s.minifigs,
+      image_url = COALESCE(s.image_url, ls.image_url),
+      retail_price = CASE WHEN ls.valuation_method IN ${PROTECTED} THEN ls.retail_price ELSE s.retail_price END,
+      current_value = CASE WHEN ls.valuation_method IN ${PROTECTED} THEN ls.current_value ELSE s.current_value END,
+      forecast_2y = CASE WHEN ls.valuation_method IN ${PROTECTED} THEN ls.forecast_2y ELSE s.forecast_2y END,
+      forecast_5y = CASE WHEN ls.valuation_method IN ${PROTECTED} THEN ls.forecast_5y ELSE s.forecast_5y END,
+      valuation_method = CASE WHEN ls.valuation_method IN ${PROTECTED} THEN ls.valuation_method ELSE 'formula_bulk' END,
+      source = 'rebrickable', cached_at = datetime('now')
+    FROM _rb_sets_stage AS s
+    WHERE s.set_num = ls.set_num AND (
+      s.name IS NOT ls.name OR s.year IS NOT ls.year OR s.theme IS NOT ls.theme
+      OR s.pieces IS NOT ls.pieces OR s.minifigs IS NOT ls.minifigs
+      OR COALESCE(s.image_url, ls.image_url) IS NOT ls.image_url
+      OR (ls.valuation_method NOT IN ${PROTECTED} AND (
+        s.retail_price IS NOT ls.retail_price OR s.current_value IS NOT ls.current_value
+        OR s.forecast_2y IS NOT ls.forecast_2y OR s.forecast_5y IS NOT ls.forecast_5y
+        OR ls.valuation_method IS NOT 'formula_bulk'))
+    )
+  `).run();
+  await db.prepare('DELETE FROM _rb_sets_stage').run();
+
+  return { loaded: sets.length - skipped, skipped, themes: themeRows.length, inserted: inserted.meta?.changes ?? 0, updated: updated.meta?.changes ?? 0 };
 }
 
 export async function importFigs(db: D1Database, env?: Env, options: CatalogImportOptions = {}) {
   await options.onProgress?.({ current: 0, total: null, label: 'Downloading Rebrickable minifigs' });
   const text = await fetchGzip(`${CDN}/minifigs.csv.gz`, env);
   const figs = parseCSV(text).filter(f => f.fig_num && f.name);
-  await options.onProgress?.({ current: 0, total: figs.length, label: 'Importing minifigs' });
-  const stmts = figs.map(f => {
-    const img = f.img_url && f.img_url !== 'None' ? f.img_url : null;
-    return db.prepare(`
-      INSERT INTO minifigs (fig_num,name,image_url)
-      VALUES (?,?,?)
-      ON CONFLICT (fig_num) DO UPDATE SET
-        name=EXCLUDED.name,
-        image_url=COALESCE(EXCLUDED.image_url, minifigs.image_url)
-    `).bind(f.fig_num, f.name, img);
-  });
-  await runBatches(db, stmts, {
+  await options.onProgress?.({ current: 0, total: figs.length, label: 'Staging minifigs' });
+
+  // Same staging + delta pattern as importSets: only new/changed figs write.
+  await db.prepare(`CREATE TABLE IF NOT EXISTS _rb_figs_stage (
+    fig_num TEXT PRIMARY KEY, name TEXT, image_url TEXT
+  )`).run();
+  await db.prepare('DELETE FROM _rb_figs_stage').run();
+
+  // 30 rows x 3 cols = 90 binds, under D1's 100-per-statement limit.
+  const PER_STMT = 30;
+  const stageStmts: D1PreparedStatement[] = [];
+  for (let i = 0; i < figs.length; i += PER_STMT) {
+    const slice = figs.slice(i, i + PER_STMT);
+    const ph = slice.map(() => '(?,?,?)').join(',');
+    const binds: unknown[] = [];
+    for (const f of slice) {
+      binds.push(f.fig_num, f.name, f.img_url && f.img_url !== 'None' ? f.img_url : null);
+    }
+    stageStmts.push(db.prepare(`INSERT OR REPLACE INTO _rb_figs_stage (fig_num,name,image_url) VALUES ${ph}`).bind(...binds));
+  }
+  await runBatches(db, stageStmts, {
     onProgress: async (processed) => options.onProgress?.({
       current: processed,
-      total: stmts.length,
-      label: 'Importing minifigs',
+      total: stageStmts.length,
+      label: 'Staging minifigs',
     }),
   });
-  return { loaded: stmts.length };
+
+  await options.onProgress?.({ current: 0, total: null, label: 'Applying minifig deltas' });
+  const inserted = await db.prepare(`
+    INSERT INTO minifigs (fig_num, name, image_url)
+    SELECT s.fig_num, s.name, s.image_url FROM _rb_figs_stage s
+    WHERE NOT EXISTS (SELECT 1 FROM minifigs m WHERE m.fig_num = s.fig_num)
+  `).run();
+  const updated = await db.prepare(`
+    UPDATE minifigs AS m SET
+      name = s.name,
+      image_url = COALESCE(s.image_url, m.image_url)
+    FROM _rb_figs_stage AS s
+    WHERE s.fig_num = m.fig_num AND (
+      s.name IS NOT m.name OR COALESCE(s.image_url, m.image_url) IS NOT m.image_url
+    )
+  `).run();
+  await db.prepare('DELETE FROM _rb_figs_stage').run();
+
+  return { loaded: figs.length, inserted: inserted.meta?.changes ?? 0, updated: updated.meta?.changes ?? 0 };
 }

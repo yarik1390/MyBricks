@@ -165,7 +165,8 @@ CREATE TABLE IF NOT EXISTS minifigs (
   ebay_value REAL,
   ebay_qty INTEGER,
   ebay_cached_at TEXT,
-  bl_id TEXT
+  bl_id TEXT,
+  img_prewarmed_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS user_minifigs (

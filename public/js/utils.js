@@ -575,12 +575,23 @@ export function brickTile(set) {
   return `<div class="brick-tile" style="--h:${h};"></div>`;
 }
 
+// Route Rebrickable-hosted images through our /api/img mirror (R2 + edge
+// cache). Logged-in API responses arrive already rewritten server-side; this
+// covers GUEST-mode data (localStorage snapshots hold raw CDN URLs). Any other
+// host passes through untouched — the allowlist matches the worker's.
+export function proxyImg(url) {
+  if (typeof url === "string" && url.startsWith("https://cdn.rebrickable.com/")) {
+    return `${window.WORKER_BASE || ""}/api/img?u=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
 export function slImgHTML(set, { newBadge = false, qtyBadge = 0 } = {}) {
   const _h = setHue(set);
   const hasImg = set.image_url && !set.image_url.startsWith("data:");
   return `<div class="sl-img has-tile${hasImg ? " has-photo" : ""}">
     ${brickTile(set)}
-    ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="" loading="lazy" decoding="async">` : ""}
+    ${hasImg ? `<img class="set-photo" src="${escapeHtml(proxyImg(set.image_url))}" alt="" loading="lazy" decoding="async">` : ""}
     ${newBadge ? `<span class="new-badge">NEW</span>` : ""}
     ${qtyBadge > 1 ? `<span class="qty-badge">×${qtyBadge}</span>` : ""}
   </div>`;

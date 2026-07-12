@@ -19,7 +19,7 @@ const REB = 'https://cdn.rebrickable.com/media/sets/75192-1.jpg';
 
 describe('runImagePrewarm', () => {
   beforeEach(async () => {
-    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist']);
+    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist', 'minifigs', 'user_minifigs']);
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -55,5 +55,16 @@ describe('runImagePrewarm', () => {
     expect(bucket.puts.length).toBe(0);
     const row = await db.prepare(`SELECT img_prewarmed_at FROM lego_sets WHERE set_num='75192-1'`).first<{ img_prewarmed_at: string }>();
     expect(row!.img_prewarmed_at).toBeTruthy(); // still stamped so we don't re-hammer it
+  });
+
+  it('drains the minifig queue with leftover capacity and stamps minifigs', async () => {
+    await db.prepare(`INSERT INTO minifigs (fig_num, name, image_url) VALUES ('fig-000123','Chewbacca','https://cdn.rebrickable.com/media/figs/fig-000123.jpg')`).run();
+    const bucket = fakeBucket();
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new ArrayBuffer(8), { status: 200, headers: { 'content-type': 'image/jpeg' } })));
+
+    const r = await runImagePrewarm({ ...env, PHOTO_BUCKET: bucket } as any);
+    expect(r).toMatchObject({ processed: 1, cached: 1, sets: 0, minifigs: 1 });
+    const row = await db.prepare(`SELECT img_prewarmed_at FROM minifigs WHERE fig_num='fig-000123'`).first<{ img_prewarmed_at: string }>();
+    expect(row!.img_prewarmed_at).toBeTruthy();
   });
 });
