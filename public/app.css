@@ -1209,7 +1209,7 @@ ul.set-list > li { display: contents; }
 .detail-action-bar .ab-qty { display: flex; align-items: center; gap: 8px; flex: 1; }
 .detail-action-bar .ab-qty .qty-row-lbl { flex: 1; }
 /* On the detail page, pad the scroll area so content clears the sticky bar. */
-.detail-page-container { padding-bottom: calc(var(--bottom-nav-clear) + 132px); }
+.detail-page-container { padding-bottom: calc(var(--bottom-nav-clear) + 172px); }
 .detail-page-container[data-detail-tab="manage"] {
   padding-bottom: calc(var(--bottom-nav-clear) + 36px);
 }
@@ -5909,3 +5909,49 @@ body.advisor-open #advisorFab {
 
 /* Kids set card — larger, no price */
 .kids-set-card { min-height: unset; }
+
+/* ── In-app image lightbox (set-detail Photos gallery) ── */
+.lightbox {
+  position: fixed; inset: 0; z-index: 1300;
+  background: rgba(8, 8, 10, 0.94);
+  display: flex; align-items: center; justify-content: center;
+  animation: fadeIn 0.15s;
+}
+body.lightbox-open { overflow: hidden; }
+.lightbox .lb-stage {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: calc(var(--safe-top) + 56px) 16px calc(var(--safe-bottom) + 40px);
+}
+.lightbox .lb-img {
+  max-width: 100%; max-height: 100%;
+  object-fit: contain; border-radius: var(--r-1);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+}
+.lightbox .lb-close {
+  position: absolute; top: calc(var(--safe-top) + 12px); right: 14px;
+  width: 42px; height: 42px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12); color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  font-size: 16px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2; cursor: pointer;
+}
+.lightbox .lb-count {
+  position: absolute; top: calc(var(--safe-top) + 22px); left: 0; right: 0;
+  text-align: center; color: rgba(255, 255, 255, 0.85);
+  font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em;
+  pointer-events: none;
+}
+.lightbox .lb-nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 44px; height: 56px;
+  background: rgba(255, 255, 255, 0.1); color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 30px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2;
+}
+.lightbox .lb-prev { left: 0; border-radius: 0 var(--r-2) var(--r-2) 0; border-left: 0; }
+.lightbox .lb-next { right: 0; border-radius: var(--r-2) 0 0 var(--r-2); border-right: 0; }
+@media (prefers-reduced-motion: reduce) { .lightbox { animation: none; } }

@@ -1644,12 +1644,22 @@ async function loadSetImages(setNum) {
     const res = await api("/api/sets/" + encodeURIComponent(setNum) + "/images");
     const imgs = (res && Array.isArray(res.images)) ? res.images.filter(u => typeof u === "string") : [];
     if (!imgs.length) { dropCard(); return; }
-    el.innerHTML = imgs.map(u => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" style="flex:0 0 auto;display:block;"><img src="${escapeHtml(u)}" loading="lazy" alt="Set photo" style="height:120px;width:auto;border-radius:var(--r-1);border:1px solid var(--line-soft);object-fit:cover;display:block;"></a>`).join("");
+    el.innerHTML = imgs.map((u, i) => `<button type="button" data-lb-idx="${i}" aria-label="Open photo ${i + 1}" style="flex:0 0 auto;display:block;padding:0;border:none;background:none;cursor:pointer;"><img src="${escapeHtml(u)}" loading="lazy" alt="Set photo" style="height:120px;width:auto;border-radius:var(--r-1);border:1px solid var(--line-soft);object-fit:cover;display:block;"></button>`).join("");
+    // Tapping a thumbnail opens the in-app viewer (swipe between photos, back
+    // button closes) instead of bouncing the user out to the browser.
+    el.addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-lb-idx]");
+      if (!btn) return;
+      const urls = Array.from(el.querySelectorAll("[data-lb-idx] img")).map(im => im.src);
+      const idx = Array.from(el.querySelectorAll("[data-lb-idx]")).indexOf(btn);
+      const { openLightbox } = await import("../components/lightbox.js");
+      openLightbox(urls, Math.max(0, idx));
+    });
     // Drop any image Brickset 404s on, so we never show a broken-image icon;
     // if all fail, remove the empty Photos card.
     el.querySelectorAll("img").forEach(img => img.addEventListener("error", () => {
-      const a = img.closest("a"); if (a) a.remove();
-      if (!el.querySelector("a")) dropCard();
+      const a = img.closest("[data-lb-idx]"); if (a) a.remove();
+      if (!el.querySelector("[data-lb-idx]")) dropCard();
     }));
   } catch {
     dropCard();
