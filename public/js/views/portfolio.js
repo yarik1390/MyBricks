@@ -1172,8 +1172,15 @@ function enterSelectionMode(firstId) {
   state.selectedSets = new Set();
   if (firstId) state.selectedSets.add(String(firstId));
   haptic("medium");
+  // The class reserves scroll room under the list; without it a short vault's
+  // cards sit behind the floating toolbar with no way to scroll them clear.
+  document.body.classList.add("selection-mode");
   repaintSetList();
   showSelectionBar();
+  if (firstId) {
+    const card = document.querySelector(`.set-list-card[data-id="${CSS.escape(String(firstId))}"]`);
+    card?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
 }
 
 function showSelectionBar() {
@@ -1213,6 +1220,7 @@ function updateSelectionBar() {
 function exitSelectionMode() {
   state.selectionMode = false;
   state.selectedSets = new Set();
+  document.body.classList.remove("selection-mode");
   const bar = document.getElementById("selectionBar");
   if (bar) {
     bar.classList.remove("show");

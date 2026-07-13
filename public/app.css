@@ -43,15 +43,14 @@
   --card-pad-lg: 20px;
   --section-gap: 16px;
   --item-gap: 10px;
-  --safe-top: env(safe-area-inset-top, 0px);
-  --native-status-top: 0px;
-  --app-top-pad: max(var(--safe-top), var(--native-status-top));
-  --bottom-nav-clear: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
-}
-
-:root[data-native-shell="android"] {
-  /* Capacitor's WebView is already laid out below the native status bar. */
-  --native-status-top: 0px;
+  /* Safe areas: iOS/PWA exposes env(safe-area-inset-*); the Capacitor 8 Android
+     shell instead injects --safe-area-inset-* inline on <html> (SystemBars
+     plugin, insetsHandling "css") because the WebView's env() reports 0 while
+     the app draws edge-to-edge under the system bars. max() covers both. */
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  --app-top-pad: var(--safe-top);
+  --bottom-nav-clear: calc(var(--nav-h) + var(--safe-bottom));
 }
 
 :root[data-theme="dark"] {
@@ -97,7 +96,7 @@ body {
   min-height: 100vh;
 }
 /* Login (and other nav-less views): don't reserve space for the hidden nav. */
-body.nav-hidden { padding-bottom: env(safe-area-inset-bottom, 0px); }
+body.nav-hidden { padding-bottom: var(--safe-bottom); }
 body.sheet-open,
 body.advisor-open,
 body.scan-active {
@@ -134,7 +133,7 @@ a { color: inherit; text-decoration: none; }
   display: none;
   position: fixed; top: 0; left: 0; right: 0;
   background: var(--ink); color: var(--bg);
-  text-align: center; padding: 8px;
+  text-align: center; padding: calc(8px + var(--app-top-pad)) 8px 8px;
   font-family: var(--mono); font-size: 11px;
   letter-spacing: 0.1em; text-transform: uppercase;
   z-index: 90;
@@ -196,7 +195,7 @@ body.offline .offline-banner { display: block; }
    Layout primitives
    ============================================================ */
 .page {
-  padding: 18px 22px calc(28px + env(safe-area-inset-bottom));
+  padding: 18px 22px calc(28px + var(--safe-bottom));
 }
 .page.no-pad { padding: 0 0 28px; }
 .page.no-pad-top { padding-top: 0; }
@@ -365,7 +364,7 @@ body.offline .offline-banner { display: block; }
   margin: 18px 0 14px;
   overflow-x: auto; scrollbar-width: none;
   margin-left: -22px; margin-right: -22px;
-  padding: 2px max(22px, env(safe-area-inset-right, 0px)) 8px 22px;
+  padding: 2px max(22px, env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px)) 8px 22px;
   scroll-padding-inline: 22px;
   overscroll-behavior-x: contain;
   touch-action: pan-x pan-y;
@@ -615,7 +614,7 @@ ul.set-list > li { display: contents; }
   border-top: var(--bw) solid var(--border-c);
   display: flex;
   z-index: 30;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: var(--safe-bottom);
 }
 .nav-tab {
   flex: 1;
@@ -1199,7 +1198,7 @@ ul.set-list > li { display: contents; }
   bottom: var(--bottom-nav-clear);
   z-index: 25;
   display: flex; align-items: center; gap: 10px;
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px) * 0);
+  padding: 10px 16px calc(10px + var(--safe-bottom) * 0);
   background: var(--surface);
   border-top: var(--bw) solid var(--border-c);
   box-shadow: 0 -6px 20px rgba(16, 18, 24, 0.08);
@@ -1210,7 +1209,7 @@ ul.set-list > li { display: contents; }
 .detail-action-bar .ab-qty { display: flex; align-items: center; gap: 8px; flex: 1; }
 .detail-action-bar .ab-qty .qty-row-lbl { flex: 1; }
 /* On the detail page, pad the scroll area so content clears the sticky bar. */
-.detail-page-container { padding-bottom: calc(var(--bottom-nav-clear) + 92px); }
+.detail-page-container { padding-bottom: calc(var(--bottom-nav-clear) + 132px); }
 .detail-page-container[data-detail-tab="manage"] {
   padding-bottom: calc(var(--bottom-nav-clear) + 36px);
 }
@@ -1685,8 +1684,19 @@ ul.set-list > li { display: contents; }
    the label above and let the segments share the full row width. */
 .setting-row.skin-seg-row { flex-direction: column; align-items: stretch; }
 .setting-row.skin-seg-row .lbl-wrap { width: 100%; }
-.setting-row.skin-seg-row .theme-seg { display: flex; width: 100%; }
-.setting-row.skin-seg-row .theme-seg button { flex: 1 1 0; padding: 8px 4px; white-space: nowrap; }
+/* Five options can't fit one pill row on narrow phones (buttons refuse to
+   shrink below their label), so render them as wrapping chips instead. */
+.setting-row.skin-seg-row .theme-seg {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  width: 100%; border: 0; border-radius: 0;
+  background: transparent; overflow: visible;
+}
+.setting-row.skin-seg-row .theme-seg button {
+  flex: 1 1 auto; padding: 8px 12px; white-space: nowrap;
+  border: var(--bw) solid var(--border-c); border-radius: var(--r-full);
+  background: var(--surface-2);
+}
+.setting-row.skin-seg-row .theme-seg button.active { background: var(--bv-yellow); }
 .import-btn {
   width: 44px; height: 44px; flex-shrink: 0;
   background: var(--bv-yellow); border: var(--bw) solid var(--border-c);
@@ -1730,7 +1740,7 @@ ul.set-list > li { display: contents; }
    Toast
    ============================================================ */
 #toast {
-  position: fixed; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 22px); left: 16px; right: 16px;
+  position: fixed; bottom: calc(var(--nav-h) + var(--safe-bottom) + 22px); left: 16px; right: 16px;
   background: var(--ink); color: var(--bg);
   border: var(--bw) solid var(--border-c);
   border-radius: var(--r-3);
@@ -1759,7 +1769,7 @@ ul.set-list > li { display: contents; }
    toast above it too, so a toast (e.g. "Removed from vault") never lands on the
    action buttons / nav. Matches the advisor-FAB offset on this route. */
 body[data-route="set-detail"] #toast {
-  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 82px);
+  bottom: calc(var(--nav-h) + var(--safe-bottom) + 82px);
 }
 
 /* ============================================================
@@ -1778,7 +1788,7 @@ body[data-route="set-detail"] #toast {
   position: relative; flex: 1; overflow: hidden;
   background: #111;
   --scan-control-size: 72px;
-  --scan-bottom-offset: calc(92px + env(safe-area-inset-bottom));
+  --scan-bottom-offset: calc(92px + var(--safe-bottom));
   --scan-hint-offset: calc(var(--scan-bottom-offset) + var(--scan-control-size) + 22px);
   --scan-result-space: 0px;
 }
@@ -1930,6 +1940,10 @@ body[data-route="set-detail"] #toast {
 .scan-video-wrap.scan-busy .scan-bottom { opacity: 0.55; pointer-events: none; }
 .scan-video-wrap.has-result { --scan-result-space: clamp(148px, 28vh, 210px); }
 .scan-video-wrap.has-result .scan-bottom { opacity: 0; pointer-events: none; }
+/* The result card repeats the status message — hide the hint so a tall card
+   (e.g. the rate-limit error with its tip box) doesn't overlap the same text. */
+.scan-video-wrap.has-result .scan-hint { opacity: 0; pointer-events: none; }
+.scan-hint { transition: opacity var(--dur) var(--ease); }
 .scan-gallery-btn {
   justify-self: start;
   width: auto;
@@ -1976,7 +1990,7 @@ body[data-route="set-detail"] #toast {
 @media (max-width: 380px), (max-height: 700px) {
   .scan-video-wrap {
     --scan-control-size: 64px;
-    --scan-bottom-offset: calc(76px + env(safe-area-inset-bottom));
+    --scan-bottom-offset: calc(76px + var(--safe-bottom));
     --scan-hint-offset: calc(var(--scan-bottom-offset) + var(--scan-control-size) + 16px);
   }
   .scan-bottom {
@@ -1994,7 +2008,7 @@ body[data-route="set-detail"] #toast {
 @media (max-height: 560px) {
   .scan-video-wrap {
     --scan-control-size: 58px;
-    --scan-bottom-offset: calc(58px + env(safe-area-inset-bottom));
+    --scan-bottom-offset: calc(58px + var(--safe-bottom));
     --scan-hint-offset: calc(var(--scan-bottom-offset) + var(--scan-control-size) + 12px);
   }
   .scan-hint {
@@ -2004,7 +2018,7 @@ body[data-route="set-detail"] #toast {
 
 /* scan-result card */
 .scan-result {
-  position: absolute; bottom: calc(20px + env(safe-area-inset-bottom)); left: 16px; right: 16px;
+  position: absolute; bottom: calc(20px + var(--safe-bottom)); left: 16px; right: 16px;
   background: var(--surface); border: var(--bw) solid var(--border-c);
   border-radius: var(--r-3); padding: 14px;
   box-shadow: var(--shadow-3);
@@ -2113,7 +2127,7 @@ body[data-route="set-detail"] #toast {
   border-top: var(--bw) solid var(--border-c);
   border-radius: 20px 20px 0 0;
   z-index: 81;
-  padding: 12px 18px calc(30px + env(safe-area-inset-bottom));
+  padding: 12px 18px calc(30px + var(--safe-bottom));
   transform: translateY(100%);
   transition: transform 0.28s var(--ease), visibility 0.28s;
   max-height: 80vh; overflow-x: hidden; overflow-y: auto;
@@ -2159,11 +2173,11 @@ body[data-route="set-detail"] #toast {
 }
 .sheet .btn-row {
   position: sticky;
-  bottom: calc(-30px - env(safe-area-inset-bottom));
+  bottom: calc(-30px - var(--safe-bottom));
   margin-left: -18px;
   margin-right: -18px;
-  margin-bottom: calc(-30px - env(safe-area-inset-bottom));
-  padding: 12px 18px calc(18px + env(safe-area-inset-bottom));
+  margin-bottom: calc(-30px - var(--safe-bottom));
+  padding: 12px 18px calc(18px + var(--safe-bottom));
   background: linear-gradient(180deg, transparent, var(--bg) 18%, var(--bg));
   border-top: 1px solid var(--border-soft-c);
 }
@@ -2861,8 +2875,8 @@ select:focus-visible,
 /* ── Advisor Chat Layout ── */
 #chatWrap {
   display: flex; flex-direction: column;
-  height: calc(100vh - var(--nav-h, 64px) - env(safe-area-inset-bottom, 0px));
-  height: calc(100dvh - var(--nav-h, 64px) - env(safe-area-inset-bottom, 0px));
+  height: calc(100vh - var(--nav-h, 64px) - var(--safe-bottom));
+  height: calc(100dvh - var(--nav-h, 64px) - var(--safe-bottom));
   padding: 0 !important;
   max-width: 720px;
   margin: 0 auto;
@@ -3243,7 +3257,7 @@ body[data-route="set-detail"] .advisor-fab {
 
 .advisor-drawer {
   position: fixed;
-  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 80px);
+  bottom: calc(var(--nav-h) + var(--safe-bottom) + 80px);
   right: 20px;
   width: 380px;
   height: 540px;
@@ -3390,7 +3404,7 @@ body[data-route="set-detail"] .advisor-fab {
 /* Floating selection mode bar */
 .selection-bar {
   position: fixed;
-  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px);
+  bottom: calc(var(--nav-h) + var(--safe-bottom) + 12px);
   left: 50%;
   transform: translate(-50%, 150%);
   background: var(--surface);
@@ -3412,6 +3426,9 @@ body[data-route="set-detail"] .advisor-fab {
 /* The bulk toolbar sits at z-index 1000 — above the sheet layer. When a confirm/
    prompt sheet opens (e.g. "Bulk Delete"), slide the toolbar back down and fade
    it so the two bottom elements don't overlap. Restores when the sheet closes. */
+/* While the bulk toolbar floats, reserve scroll room so any card can be
+   scrolled above it (otherwise short vaults hide cards behind the bar). */
+body.selection-mode #root .page { padding-bottom: calc(var(--bottom-nav-clear) + 170px); }
 body.sheet-open .selection-bar {
   opacity: 0;
   pointer-events: none;
@@ -4493,7 +4510,7 @@ body.sheet-open .selection-bar {
 
 .manage-save-bar {
   position: sticky;
-  top: 8px;
+  top: calc(8px + var(--app-top-pad));
   z-index: 4;
   display: flex;
   align-items: center;
@@ -4533,7 +4550,8 @@ body.sheet-open .selection-bar {
 }
 
 .detail-tabs {
-  top: 0;
+  /* Stick below the status bar — at top:0 the OS clock overlaps the tab row. */
+  top: var(--app-top-pad);
   position: sticky;
   z-index: 5;
   background: color-mix(in srgb, var(--bg) 94%, transparent);
@@ -4733,7 +4751,7 @@ body.sheet-open .selection-bar {
 }
 
 .admin-dashboard-page {
-  padding-bottom: calc(var(--nav-h, 78px) + env(safe-area-inset-bottom) + 32px);
+  padding-bottom: calc(var(--nav-h, 78px) + var(--safe-bottom) + 32px);
 }
 
 body.sheet-open #advisorFab,
@@ -4743,7 +4761,7 @@ body.advisor-open #advisorFab {
 
 .admin-segments-sticky {
   position: sticky;
-  top: 0;
+  top: var(--app-top-pad);
   z-index: 20;
   display: flex;
   gap: 8px;
@@ -5773,7 +5791,7 @@ body.advisor-open #advisorFab {
     bottom: auto;
     border-top: none;
     border-right: var(--bw) solid var(--border-c);
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: var(--safe-bottom);
     overflow-y: auto;
   }
   body { padding-bottom: 0; padding-left: 84px; }

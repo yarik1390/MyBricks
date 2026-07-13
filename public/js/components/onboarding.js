@@ -266,7 +266,7 @@ function ensureSetupStyles() {
     .bv-tgl::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--ink-mute);transition:transform .2s,background .2s;}
     .bv-tgl.on{background:var(--accent);border-color:var(--accent);}
     .bv-tgl.on::after{transform:translateX(20px);background:#fff;}
-    .bv-setup-foot{padding:14px 24px calc(18px + env(safe-area-inset-bottom,0));display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--line-soft,#eee);}
+    .bv-setup-foot{padding:14px 24px calc(18px + var(--safe-bottom, 0px));display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--line-soft,#eee);}
     .bv-setup-dots{display:flex;gap:7px;justify-content:center;}
     .bv-setup-dots i{width:7px;height:7px;border-radius:50%;background:var(--line,#d6d9e0);transition:all .25s;}
     .bv-setup-dots i.on{background:var(--accent,#e23b3b);width:22px;border-radius:4px;}

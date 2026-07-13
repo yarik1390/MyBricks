@@ -781,7 +781,9 @@ describe('routeMetaFor', () => {
     const { routeMetaFor } = await import('../route-meta.js');
     assert.equal(routeMetaFor('/build').nav, '/');
     assert.equal(routeMetaFor('/wishlist').nav, '/');
-    assert.equal(routeMetaFor('/set/10300-1').nav, '/');
+    // Set detail is reachable from Vault, Catalog and Minifigs alike, so no
+    // bottom-nav tab should light up there.
+    assert.equal(routeMetaFor('/set/10300-1').nav, null);
     assert.equal(routeMetaFor('/leaderboard').nav, '/me');
     assert.equal(routeMetaFor('/u/demo').nav, '/me');
     assert.equal(routeMetaFor('/add').nav, '/add');

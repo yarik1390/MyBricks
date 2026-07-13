@@ -81,6 +81,7 @@ async function _routeImpl() {
     if (state.selectionMode) {
       state.selectionMode = false;
       state.selectedSets.clear();
+      document.body.classList.remove("selection-mode");
       $("#selectionBar")?.remove();
     }
   }
