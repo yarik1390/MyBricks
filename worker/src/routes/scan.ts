@@ -95,10 +95,11 @@ async function describeSharedScan(env: Env, image: string): Promise<{ sets: Desc
     }
   }
 
-  // 2. OpenRouter free vision models (tried in order).
+  // 2. OpenRouter: free vision models first, then the cheap paid tier (still
+  //    ~2.6× cheaper than the gpt-4o-mini backstop below).
   if (env.OPENROUTER_API_KEY) {
     const orc = new OpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: openRouterBaseURL(env), defaultHeaders: meta });
-    for (const model of MODELS.scanOpenrouterVisionPool) {
+    for (const model of [...MODELS.scanOpenrouterVisionPool, MODELS.scanOpenrouterPaid]) {
       try {
         const { sets, minifigs, usage } = await openaiVisionDescribe(orc, model, image);
         await recordAiUsage(env, 'openrouter', model, usage);

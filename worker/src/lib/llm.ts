@@ -45,8 +45,15 @@ export const MODELS = {
   // OpenRouter; tried in order before the paid gpt-4o-mini backstop.
   scanOpenrouterVisionPool: [
     'google/gemma-4-31b-it:free',          // large, strong general multimodal + world knowledge
+    'google/gemma-4-26b-a4b-it:free',      // MoE sibling (4B active) — fast, same family
     'nvidia/nemotron-nano-12b-v2-vl:free', // dedicated vision-language model
   ],
+  // Cheap PAID vision tier tried before the gpt-4o-mini backstop: at
+  // $0.075/M in + $0.20/M out it is ~2.6× cheaper than gpt-4o-mini
+  // ($0.15/$0.60) for the same structured-JSON identification task. Runs on
+  // OpenRouter credits; the OpenAI backstop still guarantees a result if the
+  // whole OpenRouter path is down.
+  scanOpenrouterPaid: 'mistralai/mistral-small-3.2-24b-instruct',
 } as const;
 
 // Shared photo-scan instruction. Used by BOTH the Gemini scan (gemini.ts) and the
