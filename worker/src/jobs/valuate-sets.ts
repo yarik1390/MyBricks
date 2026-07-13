@@ -4,7 +4,7 @@ import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
 import { fetchBrickOwlPricing } from '../lib/brickowl-pricing';
 import { ebaySoldCompsEnabled } from '../lib/pricing-flags';
 import { callGeminiValuation } from '../lib/gemini';
-import { MODELS, openAIServerBaseURL, gatewayHeaders, gatewayMetadataHeader, openRouterBaseURL } from '../lib/llm';
+import { MODELS, getOpenRouterPools, openAIServerBaseURL, gatewayHeaders, gatewayMetadataHeader, openRouterBaseURL } from '../lib/llm';
 import {
   buildEbayAskUpdate,
   buildEbaySoldUpdate,
@@ -148,9 +148,12 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       model, max_tokens: 600, response_format: { type: 'json_object' }, messages: aiMessages(s),
     });
     if (openrouter) {
-      // Try each pinned free model in order; fall through on error/empty/unparseable
-      // so a single churned/unavailable free model never forces a paid call.
-      for (const model of MODELS.openrouterFreePool) {
+      // Try each free model in order (live-validated pool from the daily
+      // model-refresh cron, curated constants as fallback); fall through on
+      // error/empty/unparseable so a single churned/unavailable free model
+      // never forces a paid call.
+      const { text: freePool } = await getOpenRouterPools(env);
+      for (const model of freePool) {
         try {
           const completion = await ask(openrouter, model);
           aiUsage.record('openrouter', model, completion.usage);

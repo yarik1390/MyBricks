@@ -5,7 +5,7 @@ import { callGeminiScan } from '../lib/gemini';
 import { enrichSetRecord } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { logEvent } from '../lib/analytics';
-import { MODELS, openAIServerBaseURL, openRouterBaseURL, gatewayHeaders, gatewayMetadataHeader, SCAN_SYSTEM_PROMPT } from '../lib/llm';
+import { MODELS, getOpenRouterPools, openAIServerBaseURL, openRouterBaseURL, gatewayHeaders, gatewayMetadataHeader, SCAN_SYSTEM_PROMPT } from '../lib/llm';
 import { recordAiUsage } from '../lib/ai-usage';
 import { verifyTurnstileToken } from '../lib/turnstile';
 import { matchSetsToCatalog, matchMinifigsToCatalog, type DescribedSet, type DescribedMinifig } from '../lib/scan-match';
@@ -99,7 +99,9 @@ async function describeSharedScan(env: Env, image: string): Promise<{ sets: Desc
   //    ~2.6× cheaper than the gpt-4o-mini backstop below).
   if (env.OPENROUTER_API_KEY) {
     const orc = new OpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: openRouterBaseURL(env), defaultHeaders: meta });
-    for (const model of [...MODELS.scanOpenrouterVisionPool, MODELS.scanOpenrouterPaid]) {
+    // Live-validated free pool (daily model-refresh cron), curated as fallback.
+    const { vision: visionPool } = await getOpenRouterPools(env);
+    for (const model of [...visionPool, MODELS.scanOpenrouterPaid]) {
       try {
         const { sets, minifigs, usage } = await openaiVisionDescribe(orc, model, image);
         await recordAiUsage(env, 'openrouter', model, usage);

@@ -71,6 +71,41 @@ export const SCAN_SYSTEM_PROMPT =
   '"minifigs": [ { "name": string, "theme": string|null, "confidence": "high"|"medium"|"low"|"none", "reasoning": string } ] }. ' +
   'Use empty arrays when none are present, and confidence "none" when unsure.';
 
+/**
+ * Effective OpenRouter FREE pools. The daily model-refresh cron validates the
+ * curated pools above against OpenRouter's live catalog (dropping models that
+ * vanished or lost their :free variant, appending a few discovered free ones)
+ * and publishes the result to KV. Consumers call this instead of reading the
+ * MODELS constants directly; when KV is empty/unavailable (fresh deploy, KV
+ * outage, tests) the curated constants are the fallback, so behavior can only
+ * improve, never regress.
+ */
+export async function getOpenRouterPools(env?: Env): Promise<{ vision: string[]; text: string[] }> {
+  const fallback = {
+    vision: [...MODELS.scanOpenrouterVisionPool],
+    text: [...MODELS.openrouterFreePool],
+  };
+  const kv = env?.CACHE_KV;
+  if (!kv) return fallback;
+  if (_poolsCache && Date.now() - _poolsCache.at < 5 * 60_000) return _poolsCache.pools;
+  try {
+    const stored = await kv.get<{ vision?: string[]; text?: string[] }>('ai:or-free-pools', 'json');
+    const pools = {
+      vision: stored?.vision?.length ? stored.vision : fallback.vision,
+      text: stored?.text?.length ? stored.text : fallback.text,
+    };
+    _poolsCache = { pools, at: Date.now() };
+    return pools;
+  } catch {
+    return fallback;
+  }
+}
+let _poolsCache: { pools: { vision: string[]; text: string[] }; at: number } | null = null;
+
+export function __resetOpenRouterPoolsCacheForTests(): void {
+  _poolsCache = null;
+}
+
 const GEMINI_DIRECT = 'https://generativelanguage.googleapis.com';
 
 // Cloudflare AI Gateway base: https://gateway.ai.cloudflare.com/v1/{acct}/{gw}
