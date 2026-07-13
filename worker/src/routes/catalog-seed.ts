@@ -22,7 +22,7 @@ const SEED_FIELDS = [
 ] as const;
 
 const DEFAULT_LIMIT = 2000;
-const MAX_LIMIT = 6000;
+const MAX_PAGE = 5000; // per-request cap; the generator pages through with offset for the full catalog.
 const KV_TTL = 86_400; // 24h — the catalog head moves slowly; the build snapshot is the real cache.
 
 function pick(row: Record<string, unknown>): Record<string, unknown> {
@@ -44,15 +44,17 @@ function pick(row: Record<string, unknown>): Record<string, unknown> {
 app.get('/seed', async (c) => {
   const requested = Number(c.req.query('limit'));
   const limit = Number.isFinite(requested) && requested > 0
-    ? Math.min(Math.floor(requested), MAX_LIMIT)
+    ? Math.min(Math.floor(requested), MAX_PAGE)
     : DEFAULT_LIMIT;
+  const requestedOffset = Number(c.req.query('offset'));
+  const offset = Number.isFinite(requestedOffset) && requestedOffset > 0 ? Math.floor(requestedOffset) : 0;
 
-  const kvKey = `catalog:seed:v1:${limit}`;
+  const kvKey = `catalog:seed:v2:${limit}:${offset}`;
   const kv = c.env.CACHE_KV;
   if (kv) {
     const cached = await kv.get(kvKey);
     if (cached) {
-      const etag = `"seed-${limit}-${cached.length}"`;
+      const etag = `"seed-${limit}-${offset}-${cached.length}"`;
       if (c.req.header('if-none-match') === etag) return c.body(null, 304);
       c.header('ETag', etag);
       c.header('Cache-Control', 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800');
@@ -61,21 +63,23 @@ app.get('/seed', async (c) => {
     }
   }
 
-  // Top sets by market value, image-backed, modern era — the sets people
-  // actually browse and scan. enrichSetRecord derives market_value etc. exactly
-  // as /search does, so seed rows are drop-in for the catalog card.
+  // Sets by market value, image-backed — value DESC so the "head" (the sets
+  // people actually browse) comes first; set_num tiebreak makes the ordering
+  // deterministic so offset pagination is stable across pages during a build.
+  // enrichSetRecord derives market_value etc. exactly as /search does, so seed
+  // rows are drop-in for the catalog card.
   const { results } = await c.env.DB.prepare(
     `SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN}
-     WHERE s.year >= 1990 AND s.image_url IS NOT NULL
+     WHERE s.image_url IS NOT NULL
      ORDER BY COALESCE(NULLIF(s.blended_value, 0), s.current_value, 0) DESC, s.set_num
-     LIMIT ?`,
-  ).bind(limit).all<Record<string, unknown>>();
+     LIMIT ? OFFSET ?`,
+  ).bind(limit, offset).all<Record<string, unknown>>();
 
   const sets = (results || []).map((r) => pick(enrichSetRecord({ ...r, retired: !!r.retired })));
-  const body = JSON.stringify({ generated_at: new Date().toISOString(), count: sets.length, sets });
+  const body = JSON.stringify({ generated_at: new Date().toISOString(), count: sets.length, offset, sets });
 
   if (kv) c.executionCtx.waitUntil(kv.put(kvKey, body, { expirationTtl: KV_TTL }));
-  const etag = `"seed-${limit}-${body.length}"`;
+  const etag = `"seed-${limit}-${offset}-${body.length}"`;
   c.header('ETag', etag);
   c.header('Cache-Control', 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800');
   c.header('Content-Type', 'application/json');

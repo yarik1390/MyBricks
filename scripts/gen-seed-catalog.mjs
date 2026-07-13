@@ -13,21 +13,30 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const API_BASE = process.env.API_BASE || 'https://brickvault-api.zhydenko.workers.dev';
-const LIMIT = Number(process.env.SEED_LIMIT) || 2000;
+// SEED_LIMIT caps the total sets bundled (default: the full catalog). The
+// endpoint serves at most PAGE per request, so we page through with offset.
+const TOTAL = Number(process.env.SEED_LIMIT) || 100000;
+const PAGE = 5000;
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'data', 'seed-catalog.json');
 
 async function main() {
-  const url = `${API_BASE}/api/catalog/seed?limit=${LIMIT}`;
-  console.log(`[seed] fetching ${url}`);
-  const res = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (!res.ok) throw new Error(`seed endpoint ${res.status}`);
-  const json = await res.json();
-  const sets = Array.isArray(json?.sets) ? json.sets : [];
-  if (sets.length < 50) throw new Error(`seed suspiciously small (${sets.length} sets) — keeping existing snapshot`);
+  const all = [];
+  for (let offset = 0; offset < TOTAL; offset += PAGE) {
+    const limit = Math.min(PAGE, TOTAL - offset);
+    const url = `${API_BASE}/api/catalog/seed?limit=${limit}&offset=${offset}`;
+    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!res.ok) throw new Error(`seed endpoint ${res.status} at offset ${offset}`);
+    const json = await res.json();
+    const sets = Array.isArray(json?.sets) ? json.sets : [];
+    all.push(...sets);
+    console.log(`[seed] +${sets.length} (offset ${offset}, total ${all.length})`);
+    if (sets.length < limit) break; // last page reached
+  }
+  if (all.length < 50) throw new Error(`seed suspiciously small (${all.length} sets) — keeping existing snapshot`);
   await mkdir(dirname(OUT), { recursive: true });
-  const body = JSON.stringify({ generated_at: json.generated_at || new Date().toISOString(), count: sets.length, sets });
+  const body = JSON.stringify({ generated_at: new Date().toISOString(), count: all.length, sets: all });
   await writeFile(OUT, body);
-  console.log(`[seed] wrote ${sets.length} sets (${(body.length / 1024).toFixed(0)} KB) → public/data/seed-catalog.json`);
+  console.log(`[seed] wrote ${all.length} sets (${(body.length / 1024 / 1024).toFixed(1)} MB) → public/data/seed-catalog.json`);
 }
 
 main().catch((e) => {
