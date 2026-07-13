@@ -99,6 +99,17 @@ export async function renderSetDetail(setNum) {
         return;
       } catch {}
     }
+    // Never opened on this device — fall back to the bundled seed catalog so a
+    // top set still opens offline instead of a dead end.
+    try {
+      const { getSeedSetDetail } = await import("../lib/seed-catalog.js");
+      const seed = await getSeedSetDetail(setNum);
+      if (seed?.set) {
+        paintSetDetail(seed.set, seed.entry);
+        if (!navigator.onLine) toast("You're offline — showing bundled data", "info");
+        return;
+      }
+    } catch { /* seed unavailable — fall through to not-found */ }
     $("#root").innerHTML = setNotFoundHTML(setNum, navigator.onLine);
   }
 }

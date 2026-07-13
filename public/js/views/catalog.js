@@ -119,8 +119,26 @@ export async function loadCatalog({ reset = false } = {}) {
     c.total = res.total ?? c.items.length;
     c.offset = c.items.length;
     c.hasMore = !!res.hasMore;
+    c._seed = false;
     return fresh;
   } catch (e) {
+    if (myGen !== _catalogGen) return [];
+    // Offline / API unreachable: fall back to the bundled seed catalog so a
+    // fresh install with no network can still browse and search the top sets.
+    try {
+      const { searchSeedCatalog } = await import("../lib/seed-catalog.js");
+      const params = Object.fromEntries(new URLSearchParams(catalogQuery()));
+      const seed = await searchSeedCatalog(params);
+      if (myGen === _catalogGen && seed && (seed.sets.length || reset)) {
+        const fresh = seed.sets;
+        c.items = reset ? fresh : c.items.concat(fresh);
+        c.total = seed.total;
+        c.offset = c.items.length;
+        c.hasMore = seed.hasMore;
+        c._seed = true;
+        return fresh;
+      }
+    } catch { /* seed unavailable (web deploy without snapshot) — show the error */ }
     if (myGen !== _catalogGen) return [];
     const results = $("#catalogResults");
     if (results) {

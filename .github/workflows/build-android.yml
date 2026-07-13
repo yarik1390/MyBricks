@@ -76,6 +76,12 @@ jobs:
             echo "::warning::ANDROID_GOOGLE_SERVICES_JSON_BASE64 is missing; native push will be unavailable."
           fi
 
+      - name: Refresh the bundled offline seed catalog
+        # Regenerate public/data/seed-catalog.json from the live catalog so the
+        # freshest top-sets snapshot is bundled into the app. Non-fatal: on any
+        # failure the committed snapshot is kept, so a build never breaks here.
+        run: node scripts/gen-seed-catalog.mjs || true
+
       - name: Sync web assets + plugins into the Android project
         run: npx cap sync android
 

@@ -1037,3 +1037,44 @@ describe('allowedInKidsMode', () => {
     assert.equal(allowedInKidsMode('#/me?x=1'), false);
   });
 });
+
+import { seedFilterSort } from '../lib/pure.js';
+
+describe('seedFilterSort (offline catalog)', () => {
+  const rows = [
+    { set_num: '1', name: 'Millennium Falcon', theme: 'Star Wars', year: 2017, pieces: 7541, market_value: 850, retail_price: 800, retired: 1, retirement_risk_score: 90 },
+    { set_num: '2', name: 'City Police Station', theme: 'City', year: 2022, pieces: 668, market_value: 90, retail_price: 100, lego_retiring_soon: 1, retirement_risk_score: 40 },
+    { set_num: '3', name: 'Hogwarts Castle', theme: 'Harry Potter', year: 2018, pieces: 6020, market_value: 430, retail_price: 400, retirement_risk_score: 70 },
+  ];
+
+  it('sorts by value descending by default and honors value_asc', () => {
+    assert.deepEqual(seedFilterSort(rows, { sort: 'value_desc' }).map(r => r.set_num), ['1', '3', '2']);
+    assert.deepEqual(seedFilterSort(rows, { sort: 'value_asc' }).map(r => r.set_num), ['2', '3', '1']);
+  });
+
+  it('text search matches name, theme and set number across tokens', () => {
+    assert.deepEqual(seedFilterSort(rows, { q: 'hogwarts' }).map(r => r.set_num), ['3']);
+    assert.deepEqual(seedFilterSort(rows, { q: 'star wars' }).map(r => r.set_num), ['1']);
+    assert.equal(seedFilterSort(rows, { q: 'nonexistent' }).length, 0);
+  });
+
+  it('filters by theme, retired, retiring and value range', () => {
+    assert.deepEqual(seedFilterSort(rows, { theme: 'City' }).map(r => r.set_num), ['2']);
+    assert.deepEqual(seedFilterSort(rows, { retired: '1' }).map(r => r.set_num), ['1']);
+    assert.deepEqual(seedFilterSort(rows, { retiring: '1' }).map(r => r.set_num), ['2']);
+    assert.deepEqual(seedFilterSort(rows, { min_value: '100' }).map(r => r.set_num).sort(), ['1', '3']);
+  });
+
+  it('sorts by year, name and roi', () => {
+    assert.deepEqual(seedFilterSort(rows, { sort: 'year_desc' }).map(r => r.set_num), ['2', '3', '1']);
+    assert.deepEqual(seedFilterSort(rows, { sort: 'az' }).map(r => r.name)[0], 'City Police Station');
+    // ROI: #1 = 50/800=.06, #3 = 30/400=.075, #2 = -10/100=-.1 → 3,1,2
+    assert.deepEqual(seedFilterSort(rows, { sort: 'roi_desc' }).map(r => r.set_num), ['3', '1', '2']);
+  });
+
+  it('does not mutate the input array', () => {
+    const copy = rows.slice();
+    seedFilterSort(rows, { sort: 'value_asc' });
+    assert.deepEqual(rows, copy);
+  });
+});

@@ -730,3 +730,64 @@ export function resolveDownloadResume(meta, responseStatus, responseEtag) {
   return meta.loadedBytes;
 }
 
+
+/**
+ * Pure filter+sort over the bundled offline seed catalog. Mirrors the subset of
+ * /api/sets/search semantics that offline browsing needs (text search, theme,
+ * retired/retiring, deal, numeric ranges, and the catalog sort keys). Kept
+ * DOM-free and state-free so it's unit-tested in pure.test.js.
+ *
+ *   rows   — array of compact seed rows (see routes/catalog-seed.ts SEED_FIELDS)
+ *   params — plain object with the same keys catalogQuery() emits
+ * Returns a new sorted+filtered array (does not mutate rows).
+ */
+export function seedFilterSort(rows, params = {}) {
+  const val = (s) => Number(s.market_value) || 0;
+  const num = (v) => (v === "" || v == null ? null : Number(v));
+
+  const q = (params.q || "").trim().toLowerCase();
+  const tokens = q ? q.split(/\s+/).filter(Boolean) : [];
+  const theme = params.theme && params.theme !== "all" ? String(params.theme) : null;
+  const minYear = num(params.min_year), maxYear = num(params.max_year);
+  const minPieces = num(params.min_pieces), maxPieces = num(params.max_pieces);
+  const minValue = num(params.min_value), maxValue = num(params.max_value);
+
+  let out = rows.filter((s) => {
+    if (tokens.length) {
+      const hay = `${s.set_num || ""} ${s.name || ""} ${s.theme || ""} ${s.subtheme || ""}`.toLowerCase();
+      if (!tokens.every((t) => hay.includes(t))) return false;
+    }
+    if (theme && String(s.theme) !== theme) return false;
+    if (params.retired === "1" && !s.retired) return false;
+    if (params.retired === "0" && s.retired) return false;
+    if (params.retiring === "1" && !s.lego_retiring_soon) return false;
+    if (params.deal === "1" && !(s.deal_strong || s.deal_signal)) return false;
+    if (minYear != null && Number(s.year) < minYear) return false;
+    if (maxYear != null && Number(s.year) > maxYear) return false;
+    if (minPieces != null && Number(s.pieces || 0) < minPieces) return false;
+    if (maxPieces != null && Number(s.pieces || 0) > maxPieces) return false;
+    if (minValue != null && val(s) < minValue) return false;
+    if (maxValue != null && val(s) > maxValue) return false;
+    return true;
+  });
+
+  const roi = (s) => {
+    const r = Number(s.retail_price) || 0;
+    return r > 0 ? (val(s) - r) / r : -Infinity;
+  };
+  const cmp = {
+    value_desc: (a, b) => val(b) - val(a),
+    value_asc: (a, b) => val(a) - val(b),
+    roi_desc: (a, b) => roi(b) - roi(a),
+    roi_asc: (a, b) => roi(a) - roi(b),
+    year_desc: (a, b) => (Number(b.year) || 0) - (Number(a.year) || 0),
+    year_asc: (a, b) => (Number(a.year) || 0) - (Number(b.year) || 0),
+    az: (a, b) => String(a.name || "").localeCompare(String(b.name || "")),
+    za: (a, b) => String(b.name || "").localeCompare(String(a.name || "")),
+    trending: (a, b) => (Number(b.retirement_risk_score) || 0) - (Number(a.retirement_risk_score) || 0) || val(b) - val(a),
+  }[params.sort] || cmpValueDescFallback;
+  return out.sort(cmp);
+}
+function cmpValueDescFallback(a, b) {
+  return (Number(b.market_value) || 0) - (Number(a.market_value) || 0);
+}

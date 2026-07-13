@@ -320,6 +320,32 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
     });
   });
 
+  describe('GET /api/catalog/seed (offline seed)', () => {
+    it('returns compact, image-backed top sets ordered by value', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, blended_value, retail_price, retired, image_url)
+          VALUES ('SEED-HI', 'High Value Set', 'Icons', 2021, 3000, 400, 450, 300, 0, 'https://cdn.rebrickable.com/x.jpg')`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, blended_value, retail_price, retired, image_url)
+          VALUES ('SEED-LO', 'Low Value Set', 'City', 2021, 200, 20, 25, 20, 0, 'https://cdn.rebrickable.com/y.jpg')`),
+        // No image → must be excluded from the seed.
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
+          VALUES ('SEED-NOIMG', 'No Image Set', 'City', 2021, 100, 500, 20, 0)`),
+      ]);
+      const res = await app.fetch(new Request('http://localhost/api/catalog/seed?limit=50'), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      const nums = data.sets.map((s: any) => s.set_num);
+      expect(nums).toContain('SEED-HI');
+      expect(nums).toContain('SEED-LO');
+      expect(nums).not.toContain('SEED-NOIMG');           // no image_url → excluded
+      expect(nums.indexOf('SEED-HI')).toBeLessThan(nums.indexOf('SEED-LO')); // value DESC
+      const hi = data.sets.find((s: any) => s.set_num === 'SEED-HI');
+      expect(hi.market_value).toBe(450);                  // enriched blended value
+      expect(hi).not.toHaveProperty('bl_new_min');        // compact: pricing internals stripped
+      expect(res.headers.get('ETag')).toBeTruthy();
+    });
+  });
+
   describe('Admin maintenance jobs', () => {
     it('recompute-blends fills a missing confidence band from existing sources', async () => {
       // A retired set with real market sources but a value persisted before the

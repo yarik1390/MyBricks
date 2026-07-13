@@ -365,6 +365,13 @@ jobs:
           ANDROID_APP_LINK_SHA256: ${{ secrets.ANDROID_APP_LINK_SHA256 }}
         run: node scripts/configure-assetlinks.mjs
 
+      - name: Refresh the bundled offline seed catalog
+        # The Worker (with the /api/catalog/seed endpoint) is already deployed
+        # above, so regenerate public/data/seed-catalog.json before Pages deploy
+        # to ship the freshest snapshot to web. Non-fatal — keeps the committed
+        # snapshot on failure.
+        run: node scripts/gen-seed-catalog.mjs || true
+
       - name: Deploy Pages
         working-directory: worker
         run: |
