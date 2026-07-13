@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = 'v286';
+const VERSION = 'v287';
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 // Cross-origin product images live in their own UNVERSIONED, bounded cache:
@@ -8,6 +8,11 @@ const API_CACHE = `brickvault-api-${VERSION}`;
 // until the browser evicts the whole origin — app shell included.
 const IMG_CACHE = 'brickvault-img-v1';
 const IMG_CACHE_MAX = 300;
+// The bundled offline seed catalog is large (~11 MB) and changes rarely, so it
+// lives in its own UNVERSIONED cache — a service-worker VERSION bump must NOT
+// force web users to re-download it. Filled on-demand (cache-first), not
+// precached. The native app serves it straight from the APK bundle regardless.
+const DATA_CACHE = 'brickvault-data-v1';
 const STATIC_ASSETS = [
   '/',
   '/app.css',
@@ -33,7 +38,6 @@ const STATIC_ASSETS = [
   '/js/lib/pure-core.js',
   '/js/lib/pure.js',
   '/js/lib/seed-catalog.js',
-  '/data/seed-catalog.json',
   '/js/lib/native-auth.js',
   '/js/lib/native-push.js',
   '/js/lib/native-share.js',
@@ -88,7 +92,7 @@ self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
       .then(keys => Promise.all(
-        keys.filter(k => k !== STATIC_CACHE && k !== API_CACHE && k !== IMG_CACHE).map(k => caches.delete(k))
+        keys.filter(k => k !== STATIC_CACHE && k !== API_CACHE && k !== IMG_CACHE && k !== DATA_CACHE).map(k => caches.delete(k))
       ))
       .then(() => self.clients.claim())
   );
@@ -150,6 +154,13 @@ self.addEventListener('fetch', e => {
   // hits). Must precede the blanket /api/ bypass below.
   if (url.pathname === '/api/img') {
     e.respondWith(cacheFirst(request, IMG_CACHE));
+    return;
+  }
+
+  // Bundled offline seed catalog — large + rarely-changing, so cache-first in
+  // its own unversioned cache (never re-downloaded on a VERSION bump).
+  if (url.origin === self.location.origin && url.pathname === '/data/seed-catalog.json') {
+    e.respondWith(cacheFirst(request, DATA_CACHE));
     return;
   }
 
