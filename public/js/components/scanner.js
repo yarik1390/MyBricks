@@ -182,6 +182,14 @@ export function stopCamera() {
 }
 
 export async function startCamera() {
+  // On the installed app, barcode / blind-box modes use the native ML Kit
+  // scanner instead of getUserMedia + the flaky web BarcodeDetector.
+  if (state.camera.mode !== "image") {
+    try {
+      const { nativeBarcodeSupported } = await import("../lib/native-barcode.js");
+      if (await nativeBarcodeSupported(window)) { runNativeBarcodeScan(); return; }
+    } catch { /* plugin unavailable — fall through to the web camera path */ }
+  }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: "environment", width: { ideal: 1280 } }
@@ -218,6 +226,49 @@ export async function startCamera() {
     }
     showManualBarcodeEntry();
   }
+}
+
+// Native ML Kit barcode flow (installed app). Launches the full-screen native
+// scanner and routes the result through the same lookup path as the web
+// detector; on cancel it offers a rescan CTA + manual entry (and the Barcode
+// toggle re-enters here). No getUserMedia loop — ML Kit owns the camera.
+async function runNativeBarcodeScan() {
+  document.querySelector(".scan-video-wrap")?.classList.add("native-scan");
+  const hint = $("#scanHint");
+  if (hint) hint.textContent = "Opening scanner…";
+  let code = null;
+  try {
+    const { scanBarcodeNative } = await import("../lib/native-barcode.js");
+    code = await scanBarcodeNative(window);
+  } catch { code = null; }
+  // The overlay may have been dismissed (back button / swipe) mid-scan.
+  if (!$("#scanOverlay")?.classList.contains("open")) return;
+  if (code) {
+    haptic("medium");
+    if (hint) hint.textContent = state.camera.mode === "blindbox" ? "Finding the series…" : "Looking up barcode…";
+    routeScannedCode(code);
+    return;
+  }
+  if (hint) hint.textContent = "Tap to scan a barcode, or type the digits below";
+  ensureNativeRescanButton();
+  showManualBarcodeEntry();
+}
+
+function ensureNativeRescanButton() {
+  if ($("#nativeRescanBtn")) return;
+  const wrap = document.querySelector(".scan-video-wrap");
+  if (!wrap) return;
+  const btn = document.createElement("button");
+  btn.id = "nativeRescanBtn";
+  btn.className = "scan-native-cta";
+  btn.type = "button";
+  btn.textContent = "Scan barcode";
+  btn.addEventListener("click", () => {
+    $("#nativeRescanBtn")?.remove();
+    $("#manualBarcodeRow")?.remove();
+    runNativeBarcodeScan();
+  });
+  wrap.appendChild(btn);
 }
 
 // Fallback for browsers without the BarcodeDetector API (e.g. desktop
