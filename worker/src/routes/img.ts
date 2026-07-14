@@ -32,13 +32,24 @@ app.get('/', async (c) => {
   const src = target.toString();
   const redirectToOrigin = () => c.redirect(src, 302);
 
+  // Optional downscale for the catalog grid: ?w=<px> serves a smaller thumbnail
+  // (via Cloudflare Image Resizing) so the offline image cache holds far more
+  // sets per byte. Best-effort — if Image Resizing isn't enabled on the account
+  // the cf.image directive is ignored and the full image is returned, so this
+  // never breaks. Thumbnails are keyed separately from the full image so the two
+  // never collide in R2 or the edge cache.
+  const rawW = Number(c.req.query('w'));
+  const width = Number.isFinite(rawW) && rawW >= 64 && rawW <= 1024 ? Math.round(rawW) : 0;
+
   const cache = caches.default;
 
-  // 1) Cloudflare edge cache — fastest, shared across users.
+  // 1) Cloudflare edge cache — fastest, shared across users. The request URL
+  //    includes ?w=, so thumbnails and full images cache under distinct keys.
   const hit = await cache.match(c.req.raw).catch(() => undefined);
   if (hit) return hit;
 
-  const key = await imageR2Key(src);
+  const baseKey = await imageR2Key(src);
+  const key = width ? `${baseKey}@w${width}` : baseKey;
 
   // 2) Our durable R2 copy — no external dependency once stored.
   if (c.env.PHOTO_BUCKET) {
@@ -57,7 +68,14 @@ app.get('/', async (c) => {
   //    Any failure → redirect to the source so the image still loads.
   let upstream: Response;
   try {
-    upstream = await fetch(src, { headers: { Accept: 'image/*' } });
+    // Best-effort resize via Cloudflare Image Resizing; the cf.image directive
+    // is ignored (full image returned) when the feature isn't enabled. Cast to
+    // any because the workers-types RequestInit.cf expects the inbound-request
+    // CfProperties shape, not the fetch-time image-resizing subset.
+    const init = { headers: { Accept: 'image/*' } } as RequestInit;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (width) (init as any).cf = { image: { width, quality: 82, fit: 'scale-down', format: 'auto' } };
+    upstream = await fetch(src, init);
   } catch {
     return redirectToOrigin();
   }
