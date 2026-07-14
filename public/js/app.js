@@ -459,6 +459,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       }).catch(() => {});
     }
   });
+
+  // First-launch (once, wifi-gated): warm the top sets' images into the SW
+  // cache so the catalog shows pictures offline even before you've browsed to
+  // them. Gentle + best-effort — see lib/image-prewarm.js.
+  (window.requestIdleCallback || (fn => setTimeout(fn, 4000)))(() => {
+    import('./lib/image-prewarm.js').then(({ prewarmTopImages }) => prewarmTopImages()).catch(() => {});
+  });
 });
 
 window.addEventListener("hashchange", async () => {
