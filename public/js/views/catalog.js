@@ -828,12 +828,18 @@ export function renderPile() {
       </button>
     </div>`;
 
-  const dismissIntro = () => {
-    try { localStorage.setItem("bv_scan_intro_seen", "1"); } catch { /* storage unavailable */ }
-    $("#scanIntro")?.remove();
-  };
+  const markSeen = () => { try { localStorage.setItem("bv_scan_intro_seen", "1"); } catch { /* storage unavailable */ } };
+  const dismissIntro = () => { markSeen(); $("#scanIntro")?.remove(); };
   $("#scanIntroClose")?.addEventListener("click", dismissIntro);
-  $("#scanIntroGotIt")?.addEventListener("click", dismissIntro);
-  $("#pileScanBarcode")?.addEventListener("click", () => openScan("barcode"));
-  $("#pileScanPhoto")?.addEventListener("click", () => openScan("image"));
+  $("#scanIntroGotIt")?.addEventListener("click", () => { dismissIntro(); openScan("barcode"); });
+  $("#pileScanBarcode")?.addEventListener("click", () => { markSeen(); openScan("barcode"); });
+  $("#pileScanPhoto")?.addEventListener("click", () => { markSeen(); openScan("image"); });
+
+  // Once the one-time intro has been seen, tapping Scan goes STRAIGHT to the
+  // barcode scanner. The two buttons stay behind it as a fallback for when the
+  // scanner is closed. (Deferred so the overlay opens after the page paints and
+  // after the router's closeScan() on entry.)
+  if (introSeen) {
+    requestAnimationFrame(() => { if (location.hash === "#/pile") openScan("barcode"); });
+  }
 }

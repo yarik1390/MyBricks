@@ -465,7 +465,10 @@ function infoTabHTML(set, entry, isWish) {
     const dh = pnum(dim.height), dw = pnum(dim.width), dd = pnum(dim.depth), dwt = pnum(dim.weight);
     const dimsStr = (dh && dw && dd) ? `${dh} \u00d7 ${dw} \u00d7 ${dd} cm` : '';
     const weightStr = dwt ? `${dwt} kg` : '';
-    const packaging = b3.packagingType || set.packaging_type || '';
+    // Some sources return literal placeholders like "{Not specified}" — treat
+    // those (and N/A / Unknown / brace-wrapped) as empty so they don't render.
+    const cleanFact = (v) => { const s = String(v ?? '').trim(); return /^\{.*\}$/.test(s) || /^(not specified|n\/?a|unknown|none|null|-)$/i.test(s) ? '' : s; };
+    const packaging = cleanFact(b3.packagingType || set.packaging_type || '');
     const instrRaw = (b3.instructionsCount != null ? b3.instructionsCount : set.instructions_count);
     const instrStr = (instrRaw != null && Number(instrRaw) > 0) ? String(instrRaw) : '';
     // Pieces intentionally omitted here — it's already in the summary facts row.
@@ -481,7 +484,9 @@ function infoTabHTML(set, entry, isWish) {
       .replace(/<\s*br\s*\/?>/gi, '\n')
       .replace(/<\/(p|div|li|h[1-6])\s*>/gi, '\n\n')
       .replace(/<li[^>]*>/gi, '\u2022 ')
-      .replace(/<[^>]+>/g, '')
+      // Replace any remaining tag with a SPACE, not '' \u2014 an inline
+      // <span>/<b>/<a> between two words otherwise fuses them ("withBuild").
+      .replace(/<[^>]+>/g, ' ')
       .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&reg;/gi, '\u00ae')
       .replace(/&trade;/gi, '\u2122').replace(/&rsquo;|&#8217;/gi, '\u2019').replace(/&lsquo;|&#8216;/gi, '\u2018')
       .replace(/&rdquo;|&#8221;/gi, '\u201d').replace(/&ldquo;|&#8220;/gi, '\u201c')
@@ -490,6 +495,9 @@ function infoTabHTML(set, entry, isWish) {
       // Generic fallback for any remaining named/numeric entity (&iacute; etc.)
       .replace(/&#?\w+;/g, (ent) => { const el = document.createElement("textarea"); el.innerHTML = ent; return el.value; })
       .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+      // Collapse whitespace that pads a newline first, so runs like "\n \n \n"
+      // (which \n{3,} misses) don't survive as a huge vertical gap in About.
+      .replace(/[ \t]*\n[ \t]*/g, '\n')
       .replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim();
     const descr = stripHtml(b3.description || set.brickset_description || '');
     if (descr) {

@@ -912,14 +912,29 @@ ul.set-list > li { display: contents; }
 }
 /* With a real photo, ditch the blurred ambient backdrop + scrim entirely so the
    product floats directly on the page and the bigger image fades into it. */
-.detail-hero.has-photo { height: 380px; background: var(--bg); }
-/* Product photos ship on white; multiply melts that into the kraft page like
-   the catalog tiles already do. Dark mode can't multiply white away. */
+/* Shorter than before (was 380px) so the product doesn't sit in a sea of empty
+   space above the title. */
+.detail-hero.has-photo { height: 300px; background: var(--bg); }
+/* Product photos ship on white; multiply melts that white into BOTH the page
+   AND the image's own blurred backdrop below — so a boxy/photographic image
+   dissolves at its edges instead of floating as a hard rectangle. Dark mode
+   can't multiply white away. */
 .detail-hero .detail-img img.set-photo { mix-blend-mode: multiply; }
 :root[data-theme="dark"] .detail-hero .detail-img img.set-photo { mix-blend-mode: normal; filter: brightness(0.95); }
 :root[data-theme="dark"] .detail-hero.has-photo { background: #f4f4f2; }
-.detail-hero.has-photo .detail-hero-bg,
+/* Keep the image's OWN blurred backdrop for photos (Apple-Music style) so the
+   area around the product is a soft wash of its own colours instead of a bare
+   rectangle on the page — that's what makes it blend. Only the dark photo scrim
+   (overlay) is dropped. The backdrop is masked to fade into the page at the
+   bottom so the hero melts into the content below. */
 .detail-hero.has-photo .detail-hero-overlay { display: none; }
+.detail-hero.has-photo .detail-hero-bg {
+  filter: blur(36px) saturate(150%);
+  transform: scale(1.25);
+  opacity: 0.42;
+  -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+}
 .detail-hero-bg {
   position: absolute; inset: 0;
   background-size: cover; background-position: center;
@@ -941,14 +956,18 @@ ul.set-list > li { display: contents; }
 }
 .detail-back {
   position: absolute;
-  top: calc(16px + var(--app-top-pad));
-  left: 16px;
-  width: 44px; height: 44px;
-  background: var(--surface); border: var(--bw) solid var(--border-c);
+  top: calc(12px + var(--app-top-pad));
+  left: 12px;
+  width: 40px; height: 40px;
+  /* Translucent + blurred so it floats cleanly over the tinted hero and reads
+     as an intentional control even if the artwork creeps near it. */
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: var(--bw) solid var(--border-c);
   border-radius: 50%;
   box-shadow: var(--shadow-2);
   display: flex; align-items: center; justify-content: center;
-  z-index: 5;
+  z-index: 6;
   transition: transform var(--dur-fast) var(--ease);
 }
 .detail-back:active {
@@ -965,7 +984,9 @@ ul.set-list > li { display: contents; }
   border-radius: 50%;
   z-index: 2;
 }
-.detail-hero.has-photo .detail-img { width: min(320px, 92vw); height: min(320px, 92vw); }
+/* Sized to sit inside the 300px hero with breathing room, and nudged down a
+   touch (top 54%) so the back button in the top-left never lands on the image. */
+.detail-hero.has-photo .detail-img { width: min(250px, 74vw); height: min(230px, 68vw); top: 54%; }
 .detail-img.has-photo:not(.photo-loaded) {
   background:
     radial-gradient(circle at 50% 45%, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.34) 44%, transparent 68%),
@@ -1215,7 +1236,7 @@ ul.set-list > li { display: contents; }
 .detail-action-bar .ab-qty { display: flex; align-items: center; gap: 8px; flex: 1; }
 .detail-action-bar .ab-qty .qty-row-lbl { flex: 1; }
 /* On the detail page, pad the scroll area so content clears the sticky bar. */
-.detail-page-container { padding-bottom: calc(var(--bottom-nav-clear) + 172px); }
+.detail-page-container { padding-bottom: calc(var(--bottom-nav-clear) + 196px); }
 .detail-page-container[data-detail-tab="manage"] {
   padding-bottom: calc(var(--bottom-nav-clear) + 36px);
 }
@@ -4703,12 +4724,12 @@ body.sheet-open .selection-bar {
   }
 
   .detail-hero.has-photo {
-    height: 318px;
+    height: 296px;
   }
 
   .detail-hero.has-photo .detail-img {
-    width: min(278px, 84vw);
-    height: min(278px, 84vw);
+    width: min(248px, 74vw);
+    height: min(228px, 66vw);
   }
 
   .detail-title-row {

@@ -184,12 +184,21 @@ export function stopCamera() {
 
 export async function startCamera() {
   // On the installed app, barcode / blind-box modes use the native ML Kit
-  // scanner instead of getUserMedia + the flaky web BarcodeDetector.
-  if (state.camera.mode !== "image") {
+  // scanner — NEVER the getUserMedia path. The overlay is rendered in
+  // "native-scan" mode (video hidden), so a getUserMedia fallback would show a
+  // black screen. If ML Kit isn't usable, offer manual entry instead.
+  if (state.camera.mode !== "image" && isNativeCapacitor()) {
+    let supported = false;
     try {
       const { nativeBarcodeSupported } = await import("../lib/native-barcode.js");
-      if (await nativeBarcodeSupported(window)) { runNativeBarcodeScan(); return; }
-    } catch { /* plugin unavailable — fall through to the web camera path */ }
+      supported = await nativeBarcodeSupported(window);
+    } catch { /* import/plugin failure → manual entry below */ }
+    if (supported) { runNativeBarcodeScan(); return; }
+    const hint = $("#scanHint");
+    if (hint) hint.textContent = "Type the barcode or set number below";
+    ensureNativeRescanButton();
+    showManualBarcodeEntry();
+    return;
   }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -234,9 +243,16 @@ export async function startCamera() {
 // detector; on cancel it offers a rescan CTA + manual entry (and the Barcode
 // toggle re-enters here). No getUserMedia loop — ML Kit owns the camera.
 async function runNativeBarcodeScan() {
+  // Release any getUserMedia stream first (e.g. after switching from Photo
+  // mode) so ML Kit's scanner can acquire the camera — otherwise scan() fails
+  // and drops to the "camera unavailable" manual-entry fallback.
+  stopCamera();
+  $("#nativeRescanBtn")?.remove();
   document.querySelector(".scan-video-wrap")?.classList.add("native-scan");
   const hint = $("#scanHint");
   if (hint) hint.textContent = "Opening scanner…";
+  // Give the OS a moment to fully release the camera before ML Kit grabs it.
+  await new Promise((r) => setTimeout(r, 200));
   let code = null;
   try {
     const { scanBarcodeNative } = await import("../lib/native-barcode.js");

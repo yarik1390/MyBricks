@@ -213,7 +213,9 @@ function showUpdatePrompt(worker) {
   const bar = document.createElement("div");
   bar.id = "swUpdateBar";
   bar.setAttribute("role", "status");
-  bar.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);bottom:calc(74px + var(--safe-bottom, 0px));z-index:300;display:flex;align-items:center;gap:12px;background:var(--ink,#1C1C1E);color:var(--bg,#fff);padding:10px 14px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.28);font-size:14px;max-width:92vw;";
+  // Anchored to the TOP (below the status bar) so it never collides with the
+  // bottom nav or a page's sticky bottom sort/filter chips.
+  bar.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);top:calc(12px + var(--safe-top, 0px));z-index:1200;display:flex;align-items:center;gap:12px;background:var(--ink,#1C1C1E);color:var(--bg,#fff);padding:10px 14px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.28);font-size:14px;max-width:92vw;";
   const msg = document.createElement("span");
   msg.textContent = "Update ready";
   const btn = document.createElement("button");
