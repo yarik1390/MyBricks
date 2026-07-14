@@ -598,12 +598,33 @@ export function proxyImg(url) {
   return url;
 }
 
+// The image path served through the Transformations-enabled zone. Requesting
+// ?w=<px> here returns a downscaled thumbnail (~15KB vs ~100KB full), so grid
+// cards load ~10× lighter and the offline cache holds far more of them.
+export const IMAGE_ORIGIN = window.IMAGE_BASE || "https://img.bricksvault.app";
+
+// Thumbnail URL for GRID cards. Accepts a raw Rebrickable CDN URL OR an already
+// proxied /api/img URL (from the API or the bundled seed) and re-points it at
+// the Transformations zone with a width. Detail/lightbox keep full-size images
+// (they call proxyImg, not this). Non-Rebrickable images pass through.
+export function thumbImg(url, w = 400) {
+  if (typeof url !== "string" || !url || url.startsWith("data:")) return url;
+  let src = null;
+  if (url.startsWith("https://cdn.rebrickable.com/")) {
+    src = url;
+  } else if (url.includes("/api/img?")) {
+    try { src = new URL(url, IMAGE_ORIGIN).searchParams.get("u"); } catch { src = null; }
+  }
+  if (!src || !src.startsWith("https://cdn.rebrickable.com/")) return url;
+  return `${IMAGE_ORIGIN}/api/img?u=${encodeURIComponent(src)}&w=${w}`;
+}
+
 export function slImgHTML(set, { newBadge = false, qtyBadge = 0 } = {}) {
   const _h = setHue(set);
   const hasImg = set.image_url && !set.image_url.startsWith("data:");
   return `<div class="sl-img has-tile${hasImg ? " has-photo" : ""}">
     ${brickTile(set)}
-    ${hasImg ? `<img class="set-photo" src="${escapeHtml(proxyImg(set.image_url))}" alt="" loading="lazy" decoding="async">` : ""}
+    ${hasImg ? `<img class="set-photo" src="${escapeHtml(thumbImg(set.image_url))}" alt="" loading="lazy" decoding="async">` : ""}
     ${newBadge ? `<span class="new-badge">NEW</span>` : ""}
     ${qtyBadge > 1 ? `<span class="qty-badge">×${qtyBadge}</span>` : ""}
   </div>`;

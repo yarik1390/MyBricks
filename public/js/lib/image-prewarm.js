@@ -10,9 +10,12 @@
 // so the only real cost is the user's own first-launch bandwidth — hence the
 // wifi/unmetered gate.
 
-const DONE_FLAG = 'bv_img_prewarm_v1';
-const MAX_IMAGES = 80;   // ~80 × ~100KB ≈ 8MB one-time, wifi only
-const CONCURRENCY = 3;
+// v2: prewarm the GRID THUMBNAILS (via the Transformations zone, ~15KB each)
+// instead of the full images (~100KB) — so the same wifi budget warms ~3× more
+// sets and it's exactly the variant the catalog grid requests.
+const DONE_FLAG = 'bv_img_prewarm_v2';
+const MAX_IMAGES = 250;  // ~250 × ~15KB ≈ 4MB one-time, wifi only
+const CONCURRENCY = 4;
 
 export async function prewarmTopImages() {
   try {
@@ -22,14 +25,18 @@ export async function prewarmTopImages() {
     const { isUnmetered } = await import('./native-net.js');
     if (!(await isUnmetered())) return;
 
-    const { loadSeedCatalog } = await import('./seed-catalog.js');
+    const [{ loadSeedCatalog }, { thumbImg }] = await Promise.all([
+      import('./seed-catalog.js'),
+      import('../utils.js'),
+    ]);
     const seed = await loadSeedCatalog();
     if (!seed?.sets?.length) return;
 
     // Seed is already ordered by value DESC, so the head is the iconic set list.
+    // Warm the thumbnail variant the grid actually shows.
     const urls = seed.sets
       .slice(0, MAX_IMAGES)
-      .map((s) => s.image_url)
+      .map((s) => thumbImg(s.image_url))
       .filter((u) => typeof u === 'string' && u.includes('/api/img'));
 
     // Mark done up-front so a mid-run reload doesn't restart the whole batch.

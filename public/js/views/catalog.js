@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, setHue, fmtMoney, trendBadgeHTML, THEME_COLORS, bvIDB, SEARCH_DEBOUNCE_MS, mount, toast } from '../utils.js';
+import { $, $$, haptic, escapeHtml, setHue, fmtMoney, trendBadgeHTML, THEME_COLORS, bvIDB, SEARCH_DEBOUNCE_MS, mount, toast, thumbImg } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
 import { getModePref } from '../theme.js';
@@ -346,7 +346,7 @@ function openKidsAddSheet(setNum, card) {
   const already = state.ownedSetNums.has(setNum) || s.owned;
   const hasImg = s.image_url && !s.image_url.startsWith("data:");
   const imgHTML = hasImg
-    ? `<img src="${escapeHtml(s.image_url)}" alt="" style="width:96px;height:96px;object-fit:contain;margin:0 auto 12px;display:block;">`
+    ? `<img src="${escapeHtml(thumbImg(s.image_url))}" alt="" style="width:96px;height:96px;object-fit:contain;margin:0 auto 12px;display:block;">`
     : "";
   if (already) {
     showSheet(`
@@ -733,7 +733,7 @@ function catalogCardHTML(s) {
       <button class="set-list-card compact" data-set="${escapeHtml(s.set_num)}"${borderStyle}>
         <div class="sl-img${hasImg ? " has-photo" : ""}" style="width:42px;height:42px;">
           <div class="brick-tile" style="--h:${h};width:100%;height:100%;border-radius:var(--r-1);"></div>
-          ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="${escapeHtml(s.name || '')}" loading="lazy" decoding="async">` : ""}
+          ${hasImg ? `<img class="set-photo" src="${escapeHtml(thumbImg(s.image_url))}" alt="${escapeHtml(s.name || '')}" loading="lazy" decoding="async">` : ""}
         </div>
         <div class="sl-body" style="flex: 1; min-width: 0;">
           <div class="sl-name" style="text-align:left;">
@@ -762,7 +762,7 @@ function catalogCardHTML(s) {
     <button class="set-card" data-set="${escapeHtml(s.set_num)}">
       <div class="set-card-img${hasImg ? " has-photo" : ""}">
         <div class="brick-tile" style="--h:${h};width:64%;height:64%;"></div>
-        ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="${escapeHtml(s.name || '')}" loading="lazy" decoding="async">` : ""}
+        ${hasImg ? `<img class="set-photo" src="${escapeHtml(thumbImg(s.image_url))}" alt="${escapeHtml(s.name || '')}" loading="lazy" decoding="async">` : ""}
         ${s.retired ? `<span class="retired-tag">RETIRED</span>` : ""}
         ${((s.retirement_risk_score || 0) >= 70 || s.lego_retiring_soon) && !s.retired ? `<span class="retire-risk-badge">🔥</span>` : ""}
         ${dealTagHTML(s, { overlay: true })}

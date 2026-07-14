@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = 'v292';
+const VERSION = 'v293';
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 // Cross-origin product images live in their own UNVERSIONED, bounded cache:
@@ -7,10 +7,10 @@ const API_CACHE = `brickvault-api-${VERSION}`;
 // bounded (FIFO, see trimImgCache) so a heavy catalog browser can't grow it
 // until the browser evicts the whole origin — app shell included.
 const IMG_CACHE = 'brickvault-img-v1';
-// Raised from 300 so browsing the catalog online leaves far more set images
-// available offline (FIFO-bounded, ~104KB each → ~73MB ceiling). Paired with a
-// gentle first-launch prewarm (lib/image-prewarm.js) of the top sets.
-const IMG_CACHE_MAX = 700;
+// Grid images are now ~15KB thumbnails (Transformations zone), so a large cap
+// still fits a modest budget (~1800 × ~15KB ≈ 27MB) and leaves far more sets
+// available offline. Paired with the first-launch thumbnail prewarm.
+const IMG_CACHE_MAX = 1800;
 // The bundled offline seed catalog is large (~11 MB) and changes rarely, so it
 // lives in its own UNVERSIONED cache — a service-worker VERSION bump must NOT
 // force web users to re-download it. Filled on-demand (cache-first), not
