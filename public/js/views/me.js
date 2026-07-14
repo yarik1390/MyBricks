@@ -175,6 +175,10 @@ export async function renderMe() {
           <div class="lbl-wrap"><div class="lbl">Price-drop alerts</div><div class="desc">Alert when wishlisted sets hit your target.</div></div>
           <button class="toggle ${me.notify_price_drops ? "on" : ""}" id="notifyToggle" role="switch" aria-label="Price-drop alerts" aria-checked="${!!me.notify_price_drops}"></button>
         </div>
+        <div class="setting-row" id="appLockRow" style="display:none;">
+          <div class="lbl-wrap"><div class="lbl">App lock</div><div class="desc">Require your fingerprint (or device PIN) to open BricksVault.</div></div>
+          <button class="toggle" id="appLockToggle" role="switch" aria-label="App lock" aria-checked="false"></button>
+        </div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Celebration sounds</div><div class="desc">Play a chime on milestones and rewards.</div></div>
           <button class="toggle ${soundEnabled() ? "on" : ""}" id="soundToggle" role="switch" aria-label="Celebration sounds" aria-checked="${soundEnabled()}"></button>
@@ -425,6 +429,38 @@ export async function renderMe() {
     catch {}
     toast(notifyOn ? "Alerts on" : "Alerts paused", "info");
   });
+
+  // App lock (biometric) — native only, revealed once biometrics are confirmed
+  // available. Enabling/disabling both require a successful verify so only the
+  // device owner can change it (and can't be locked out — device PIN fallback).
+  (async () => {
+    const row = $("#appLockRow");
+    const toggle = $("#appLockToggle");
+    if (!row || !toggle) return;
+    try {
+      const [{ biometricAvailable, verifyBiometric }, { appLockEnabled, setAppLockEnabled }] = await Promise.all([
+        import("../lib/native-biometric.js"),
+        import("../lib/app-lock.js"),
+      ]);
+      if (!(await biometricAvailable(window))) return; // not native / no biometrics → keep hidden
+      row.style.display = "";
+      const paint = () => {
+        const on = appLockEnabled();
+        toggle.classList.toggle("on", on);
+        toggle.setAttribute("aria-checked", String(on));
+      };
+      paint();
+      toggle.addEventListener("click", async () => {
+        const turningOn = !appLockEnabled();
+        const ok = await verifyBiometric(turningOn ? "Enable app lock" : "Disable app lock");
+        if (!ok) { toast("Couldn't verify — app lock unchanged", "error"); return; }
+        setAppLockEnabled(turningOn);
+        paint();
+        haptic("medium");
+        toast(turningOn ? "App lock on — fingerprint required to open" : "App lock off", "info");
+      });
+    } catch { /* biometric modules unavailable — leave the row hidden */ }
+  })();
 
   $("#soundToggle")?.addEventListener("click", (e) => {
     // Device-local preference (no server round-trip). Turning it on previews the

@@ -239,6 +239,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
+  // Biometric app-lock: if enabled, cover the app and require a fingerprint
+  // before anything is visible. Native + opt-in only; no-op otherwise.
+  import('./lib/app-lock.js').then(({ initAppLock }) => initAppLock(window)).catch(() => {});
+
   // Load session and Supabase config before any routing.
   let session = loadSession();
   // Fetch /api/config with a few retries. If it never comes back, the most
