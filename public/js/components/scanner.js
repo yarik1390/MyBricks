@@ -6,6 +6,7 @@ import { showSheet, hideSheet } from './sheet.js';
 import { computeDealScore as computeDealScorePure, marketValueForCondition, flipEconomics } from '../lib/pure.js';
 import { checkGemma3Downloaded, runLocalVisionScan, isWebGpuAvailable } from '../lib/local-ai.js';
 import { flipCalcHTML } from './flip-calc.js';
+import { isNativeCapacitor } from '../lib/native-auth.js';
 
 let _scanTrapRelease = null;
 let _scanPending = false;
@@ -963,8 +964,13 @@ function showScanResult(res) {
 }
 
 function scanOverlayHTML(mode) {
+  // On the native app, barcode / blind-box modes hand off to ML Kit's own
+  // full-screen scanner — so render a clean loading state from the start (class
+  // native-scan) instead of the web camera chrome (video + laser frame), which
+  // otherwise flashes before ML Kit opens and again after a scan returns.
+  const nativeBarcode = mode !== "image" && isNativeCapacitor();
   return `
-    <div class="scan-video-wrap">
+    <div class="scan-video-wrap${nativeBarcode ? " native-scan" : ""}">
       <video class="scan-video" id="scanVideo" autoplay playsinline muted></video>
       <div class="scan-top" style="justify-content: space-between;">
         <button id="scanCloseBtn" aria-label="Close">${I.close()}</button>
@@ -974,12 +980,13 @@ function scanOverlayHTML(mode) {
         </div>
         <div style="width:42px;"></div>
       </div>
+      ${nativeBarcode ? `<div class="scan-native-loading"><span class="spinner"></span></div>` : `
       <div class="scan-frame ${mode !== "image" ? "barcode" : ""}">
         <span class="corner tl"></span><span class="corner tr"></span>
         <span class="corner bl"></span><span class="corner br"></span>
         ${mode !== "image" ? `<span class="laser"></span>` : ""}
-      </div>
-      <div class="scan-hint" id="scanHint">${mode === "blindbox" ? "Scan the blind bag or box barcode" : mode === "barcode" ? "Align barcode within the frame" : "Frame the set and tap to identify"}</div>
+      </div>`}
+      <div class="scan-hint" id="scanHint">${nativeBarcode ? "Opening scanner…" : mode === "blindbox" ? "Scan the blind bag or box barcode" : mode === "barcode" ? "Align barcode within the frame" : "Frame the set and tap to identify"}</div>
       ${mode === "image" ? `
         <div class="scan-bottom">
           <button class="btn-secondary scan-gallery-btn" id="scanGalleryBtn">

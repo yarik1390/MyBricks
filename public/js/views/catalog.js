@@ -422,20 +422,12 @@ function paintAdd() {
           <h1 class="topbar-title">Find a set</h1>
         </div>
         <div class="topbar-actions" style="margin-left:auto;">
+          <button class="icon-btn" id="catalogSearchToggle" aria-label="Search" aria-expanded="${f.catalogQ ? "true" : "false"}">${I.search()}</button>
           <button class="icon-btn" id="catalogLayoutToggle" aria-label="Toggle Layout">${state.compactView ? I.grid() : I.list()}</button>
         </div>
       </div>
 
-      <button class="scan-cta" id="scanCta">
-        <div class="scan-cta-icon">${I.scan()}</div>
-        <div class="scan-cta-text">
-          <div class="t1">Scan with camera</div>
-          <div class="t2">Barcode or photo · AI identifies any set</div>
-        </div>
-        <div class="scan-cta-arrow">${I.arrowR()}</div>
-      </button>
-
-      <div class="search-wrap open" style="margin-bottom:14px;">
+      <div class="search-wrap${f.catalogQ ? " open" : ""}" style="margin-bottom:14px;">
         <span class="s-icon">${I.search()}</span>
         <input class="search-input" id="catalogSearch" placeholder="Search sets, themes, tags…" autocomplete="off" value="${escapeHtml(f.catalogQ)}">
       </div>
@@ -461,8 +453,17 @@ function paintAdd() {
       <div id="catalogResults">${catalogResultsHTML()}</div>
     </div>`;
 
-  $("#scanCta")?.addEventListener("click", () => openScan());
-  
+  // Search is collapsed by default under the header search icon; tapping it
+  // reveals the field and focuses it (tapping again with an empty query hides).
+  $("#catalogSearchToggle")?.addEventListener("click", (e) => {
+    const wrap = document.querySelector(".search-wrap");
+    if (!wrap) return;
+    const open = wrap.classList.toggle("open");
+    e.currentTarget.setAttribute("aria-expanded", String(open));
+    if (open) { $("#catalogSearch")?.focus(); }
+    else if (!state.filter.catalogQ) { /* stays closed */ }
+  });
+
   const catInput = $("#catalogSearch");
   let catalogSearchTimer = null;
   catInput?.addEventListener("input", (e) => {
@@ -783,6 +784,7 @@ function catalogCardHTML(s) {
 }
 
 export function renderPile() {
+  const introSeen = (() => { try { return localStorage.getItem("bv_scan_intro_seen") === "1"; } catch { return false; } })();
   $("#root").innerHTML = `
     <div class="page">
       <div class="topbar">
@@ -792,38 +794,46 @@ export function renderPile() {
         </div>
       </div>
 
-      <div class="card" style="padding:18px;margin-bottom:14px;">
+      ${introSeen ? "" : `
+      <div class="card scan-intro" id="scanIntro" style="padding:16px;margin-bottom:14px;position:relative;">
+        <button class="icon-btn scan-intro-close" id="scanIntroClose" aria-label="Dismiss">${I.close()}</button>
         <div style="display:flex;gap:10px;align-items:flex-start;">
           ${I.sparkles()}
           <div>
-            <div style="font-family:var(--serif);font-weight:500;font-size:17px;line-height:1.2;">Point. Snap. Identify.</div>
+            <div style="font-family:var(--serif);font-weight:500;font-size:16px;line-height:1.2;">Point. Snap. Identify.</div>
             <p style="margin:6px 0 0;font-size:13px;color:var(--ink-soft);line-height:1.45;">
-              Take a photo of any set — built, in pieces, or in the box. AI reads the bricks and tells you what you're holding.
+              <b>Barcode</b> scans the box code instantly. <b>Photo</b> reads any set — built, loose, or boxed — with AI.
             </p>
           </div>
         </div>
-      </div>
+        <button class="btn-secondary" id="scanIntroGotIt" style="margin-top:12px;width:100%;">Got it</button>
+      </div>`}
 
-      <button class="scan-cta" id="pileScan" style="margin-bottom:18px;">
-        <div class="scan-cta-icon">${I.camera()}</div>
+      <button class="scan-cta" id="pileScanBarcode" style="margin-bottom:12px;">
+        <div class="scan-cta-icon">${I.scan()}</div>
         <div class="scan-cta-text">
-          <div class="t1">Open camera</div>
-          <div class="t2">20 shared scans/hour · bring your own key for more</div>
+          <div class="t1">Scan barcode</div>
+          <div class="t2">Fastest — point at the box code</div>
         </div>
         <div class="scan-cta-arrow">${I.arrowR()}</div>
       </button>
 
-      <h2 class="section-title">How it works</h2>
-      <div class="card" style="background:var(--surface-2);padding:14px;">
-        <ol style="margin:0;padding-left:18px;font-size:13px;color:var(--ink-soft);line-height:1.7;">
-          <li>Tap "Open camera" above</li>
-          <li>Switch to Photo mode</li>
-          <li>Frame the set clearly and tap the shutter</li>
-          <li>AI identifies the set and shows price info</li>
-          <li>Tap "Add to vault" to log it instantly</li>
-        </ol>
-      </div>
+      <button class="scan-cta" id="pileScanPhoto">
+        <div class="scan-cta-icon">${I.camera()}</div>
+        <div class="scan-cta-text">
+          <div class="t1">Photo scan</div>
+          <div class="t2">AI identifies any set · 20 shared scans/hour</div>
+        </div>
+        <div class="scan-cta-arrow">${I.arrowR()}</div>
+      </button>
     </div>`;
 
-  $("#pileScan")?.addEventListener("click", () => openScan("image"));
+  const dismissIntro = () => {
+    try { localStorage.setItem("bv_scan_intro_seen", "1"); } catch { /* storage unavailable */ }
+    $("#scanIntro")?.remove();
+  };
+  $("#scanIntroClose")?.addEventListener("click", dismissIntro);
+  $("#scanIntroGotIt")?.addEventListener("click", dismissIntro);
+  $("#pileScanBarcode")?.addEventListener("click", () => openScan("barcode"));
+  $("#pileScanPhoto")?.addEventListener("click", () => openScan("image"));
 }
