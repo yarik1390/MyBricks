@@ -466,6 +466,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   (window.requestIdleCallback || (fn => setTimeout(fn, 4000)))(() => {
     import('./lib/image-prewarm.js').then(({ prewarmTopImages }) => prewarmTopImages()).catch(() => {});
   });
+
+  // Android hardware back button: dismiss overlays / step back through the SPA
+  // instead of Capacitor's default (walk history → exit the app). Native only.
+  import('./lib/native-back.js').then(({ initNativeBack }) => initNativeBack(window)).catch(() => {});
 });
 
 window.addEventListener("hashchange", async () => {

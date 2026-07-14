@@ -175,6 +175,18 @@ export function parseMarkdown(text) {
 }
 
 export function haptic(t) {
+  // Native @capacitor/haptics gives crisp, OS-tuned impact feedback on Android
+  // (navigator.vibrate is a blunt buzz). Accessed via the global bridge to keep
+  // utils dependency-free; falls back to vibrate on the web / when unavailable.
+  try {
+    const cap = window.Capacitor;
+    const Haptics = cap?.isNativePlatform?.() ? cap.Plugins?.Haptics : null;
+    if (Haptics?.impact) {
+      const style = t === "heavy" ? "HEAVY" : t === "medium" ? "MEDIUM" : "LIGHT";
+      Haptics.impact({ style }); // fire-and-forget
+      return;
+    }
+  } catch { /* fall through to vibrate */ }
   const ms = t === "heavy" ? 30 : t === "medium" ? 15 : 8;
   try { navigator.vibrate && navigator.vibrate(ms); } catch {}
 }

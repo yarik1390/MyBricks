@@ -14,21 +14,13 @@ const DONE_FLAG = 'bv_img_prewarm_v1';
 const MAX_IMAGES = 80;   // ~80 × ~100KB ≈ 8MB one-time, wifi only
 const CONCURRENCY = 3;
 
-// Skip on metered or data-saver connections; proceed when the API is unknown
-// (older browsers) since most first launches are on wifi.
-function connectionAllowsPrewarm() {
-  const c = navigator.connection || navigator.webkitConnection;
-  if (!c) return true;
-  if (c.saveData) return false;
-  if (c.effectiveType && /(^|\b)(slow-2g|2g|3g)\b/.test(c.effectiveType)) return false;
-  return true;
-}
-
 export async function prewarmTopImages() {
   try {
-    if (!navigator.onLine) return;
     if (localStorage.getItem(DONE_FLAG)) return;
-    if (!connectionAllowsPrewarm()) return;
+    // @capacitor/network gives a real wifi/cellular answer in the Android
+    // WebView (navigator.connection is missing there); falls back to web APIs.
+    const { isUnmetered } = await import('./native-net.js');
+    if (!(await isUnmetered())) return;
 
     const { loadSeedCatalog } = await import('./seed-catalog.js');
     const seed = await loadSeedCatalog();
