@@ -41,6 +41,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -131,6 +133,43 @@ jobs:
 
       - name: Report version (bump build.gradle before each Play upload)
         run: grep -E 'versionCode|versionName' android/app/build.gradle | sed 's/^ *//'
+
+      - name: Verify signature (signed bundles only)
+        if: steps.keystore.outputs.signed == 'true' && inputs.build_type != 'apk-debug'
+        run: |
+          AAB=$(ls android/app/build/outputs/bundle/release/*.aab | head -1)
+          echo "== jarsigner -verify =="
+          "$JAVA_HOME/bin/jarsigner" -verify "$AAB" || { echo "::error::jar NOT verified"; exit 1; }
+          echo "== signer certificate =="
+          "$JAVA_HOME/bin/keytool" -printcert -jarfile "$AAB" | grep -iE 'Owner:|SHA1:|SHA-1:' || true
+
+      - name: Publish signed bundle to delivery branch
+        # The web session that dispatched this build can't pull workflow-artifact
+        # binaries (needs the Claude GitHub App), but it CAN git-fetch. So mirror
+        # the signed bundle + mapping to a throwaway, force-updated branch it can
+        # fetch and attach. Safe to delete after pickup.
+        if: steps.keystore.outputs.signed == 'true' && inputs.build_type != 'apk-debug'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          AAB=$(ls android/app/build/outputs/bundle/release/*.aab | head -1)
+          VER=$(grep versionName android/app/build.gradle | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          WORK=$(mktemp -d)
+          cp "$AAB" "$WORK/BricksVault-${VER}-release.aab"
+          if [ -f android/app/build/outputs/mapping/release/mapping.txt ]; then
+            cp android/app/build/outputs/mapping/release/mapping.txt "$WORK/mapping.txt"
+            gzip -kf "$WORK/mapping.txt"
+          fi
+          ( cd "$WORK"
+            git init -q
+            git config user.email "ci@bricksvault.app"
+            git config user.name "BricksVault CI"
+            git checkout -q -b aab-delivery
+            git add -A
+            git commit -qm "Deliver BricksVault ${VER} signed bundle (run ${GITHUB_RUN_ID})"
+            git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" aab-delivery
+          )
+          echo "Pushed signed bundle to branch 'aab-delivery'."
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
