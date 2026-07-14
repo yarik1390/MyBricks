@@ -304,7 +304,7 @@ function showManualBarcodeEntry() {
           <span class="badge">${I.search({ w: 12 })}LOOKUP</span>
           <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">Barcode or set number</span>
         </div>
-        <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;line-height:1.45;">Camera access is unavailable here. Type the UPC from the box or a set number such as 71043-1.</p>
+        <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;line-height:1.45;">Prefer to type it in? Enter the UPC from the box or a set number such as 71043-1.</p>
         <div class="scan-manual-row">
           <input type="text" id="manualBarcodeInput" inputmode="text"
             placeholder="Barcode or set number" autocomplete="off" spellcheck="false">

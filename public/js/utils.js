@@ -619,6 +619,47 @@ export function thumbImg(url, w = 400) {
   return `${IMAGE_ORIGIN}/api/img?u=${encodeURIComponent(src)}&w=${w}`;
 }
 
+// Grid thumbnails go through the Transformations zone (img.bricksvault.app). If
+// that host ever fails to load an <img> on a device — a stale-DNS window on the
+// freshly-added subdomain, an edge hiccup — the card would show only its
+// brick-tile placeholder. This capture-phase listener transparently retries a
+// failed proxied image via the proven Worker proxy (full size), then the origin
+// CDN, and only then gives up. One handler covers every view's <img>, no
+// per-tag onerror needed.
+export function installImageFallback(win = window) {
+  const doc = win.document;
+  if (!doc || doc.__bvImgFallback) return;
+  doc.__bvImgFallback = true;
+  doc.addEventListener(
+    "error",
+    (e) => {
+      const img = e.target;
+      if (!img || img.tagName !== "IMG") return;
+      const src = img.currentSrc || img.getAttribute("src") || "";
+      if (!src.includes("/api/img?")) return; // only our proxied images
+      let cdn = null;
+      try { cdn = new URL(src, IMAGE_ORIGIN).searchParams.get("u"); } catch { cdn = null; }
+      const stage = img.dataset.imgFb || "";
+      if (stage === "" && cdn && src.includes("img.bricksvault.app")) {
+        // Stage 1: retry via the Worker proxy (proven to load on-device).
+        img.dataset.imgFb = "worker";
+        img.src = `${win.WORKER_BASE || ""}/api/img?u=${encodeURIComponent(cdn)}`;
+        return;
+      }
+      if (stage !== "cdn" && cdn && cdn.startsWith("https://cdn.rebrickable.com/")) {
+        // Stage 2: straight to the origin CDN.
+        img.dataset.imgFb = "cdn";
+        img.src = cdn;
+        return;
+      }
+      // Stage 3: give up — hide the <img> so the brick-tile placeholder shows.
+      img.dataset.imgFb = "failed";
+      img.style.display = "none";
+    },
+    true,
+  );
+}
+
 export function slImgHTML(set, { newBadge = false, qtyBadge = 0 } = {}) {
   const _h = setHue(set);
   const hasImg = set.image_url && !set.image_url.startsWith("data:");

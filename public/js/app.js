@@ -1,4 +1,4 @@
-import { $, $$, haptic, toast, fetchExchangeRates, bvIDB } from './utils.js';
+import { $, $$, haptic, toast, fetchExchangeRates, bvIDB, installImageFallback } from './utils.js';
 import { state, invalidatePortfolio } from './state.js';
 import { nextOfflineBannerState } from './lib/pure-core.js';
 import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionUserId, snapshotGuestVault, migrateGuestVault, isGuestMode, backfillGuestVault } from './api.js';
@@ -244,6 +244,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Biometric app-lock: if enabled, cover the app and require a fingerprint
   // before anything is visible. Native + opt-in only; no-op otherwise.
   import('./lib/app-lock.js').then(({ initAppLock }) => initAppLock(window)).catch(() => {});
+
+  // Grid thumbnails route through img.bricksvault.app; if that host fails to
+  // load an <img> on a device, transparently fall back to the Worker proxy so
+  // cards never sit on bare placeholders.
+  installImageFallback(window);
 
   // Load session and Supabase config before any routing.
   let session = loadSession();
