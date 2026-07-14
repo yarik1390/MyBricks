@@ -3,7 +3,7 @@
 // famously unreliable there — so features that need to know "are we on wifi?"
 // or "are we truly offline?" get a trustworthy answer here, falling back to the
 // web APIs on the web build.
-import { getCapacitorPlugin, isNativeCapacitor } from './native-auth.js';
+import { getCapacitorPlugin } from './native-auth.js';
 
 // Returns { connected, type } where type is 'wifi' | 'cellular' | 'none' |
 // 'unknown'. Async because the native plugin call is async.
