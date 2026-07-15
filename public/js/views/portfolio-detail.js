@@ -632,7 +632,7 @@ function infoTabHTML(set, entry, isWish) {
 
   return `
     ${detailSummaryHTML(set)}
-    ${isSimpleMode() || !set.valuation?.read_enabled ? '' : investmentPricingHTML(set)}
+    ${isSimpleMode() || isKidsMode() || !set.valuation?.read_enabled ? '' : investmentPricingHTML(set)}
     ${isSimpleMode() ? '' : `
     ${aiDisclaimerHTML}
     <details class="detail-disclose">
