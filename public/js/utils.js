@@ -598,15 +598,29 @@ export function proxyImg(url) {
   return url;
 }
 
-// The image path served through the Transformations-enabled zone. Requesting
-// ?w=<px> here returns a downscaled thumbnail (~15KB vs ~100KB full), so grid
-// cards load ~10× lighter and the offline cache holds far more of them.
+// The Transformations-enabled zone that reliably downscales (?w=<px> → ~15-27KB
+// vs ~100KB full). This is the SAME Worker exposed on the bricksvault.app zone,
+// which is the only host where Cloudflare Image Resizing is enabled — the
+// workers.dev host returns full-size. Used for parsing/base only; the live
+// origin comes from thumbOrigin() below so it can fail over per session.
 export const IMAGE_ORIGIN = window.IMAGE_BASE || "https://img.bricksvault.app";
+
+// Live origin for thumbnails. The Transformations zone (img.bricksvault.app) is
+// a freshly-added subdomain that has been seen to fail on some devices (stale
+// DNS, edge/WebView hiccup). The first time a thumbnail from it fails to load,
+// installImageFallback flips this flag so every SUBSEQUENT thumbnail is built
+// against the proven Worker host instead (full-size but reliable) — no repeated
+// failed first-requests. An explicit window.IMAGE_BASE always wins.
+function thumbOrigin() {
+  if (window.IMAGE_BASE) return window.IMAGE_BASE;
+  if (window.__bvThumbHostDown) return window.WORKER_BASE || "";
+  return "https://img.bricksvault.app";
+}
 
 // Thumbnail URL for GRID cards. Accepts a raw Rebrickable CDN URL OR an already
 // proxied /api/img URL (from the API or the bundled seed) and re-points it at
-// the Transformations zone with a width. Detail/lightbox keep full-size images
-// (they call proxyImg, not this). Non-Rebrickable images pass through.
+// the current thumbnail origin with a width. Detail/lightbox keep full-size
+// images (they call proxyImg, not this). Non-Rebrickable images pass through.
 export function thumbImg(url, w = 400) {
   if (typeof url !== "string" || !url || url.startsWith("data:")) return url;
   let src = null;
@@ -616,7 +630,7 @@ export function thumbImg(url, w = 400) {
     try { src = new URL(url, IMAGE_ORIGIN).searchParams.get("u"); } catch { src = null; }
   }
   if (!src || !src.startsWith("https://cdn.rebrickable.com/")) return url;
-  return `${IMAGE_ORIGIN}/api/img?u=${encodeURIComponent(src)}&w=${w}`;
+  return `${thumbOrigin()}/api/img?u=${encodeURIComponent(src)}&w=${w}`;
 }
 
 // Grid thumbnails go through the Transformations zone (img.bricksvault.app). If
@@ -641,9 +655,12 @@ export function installImageFallback(win = window) {
       try { cdn = new URL(src, IMAGE_ORIGIN).searchParams.get("u"); } catch { cdn = null; }
       const stage = img.dataset.imgFb || "";
       if (stage === "" && cdn && src.includes("img.bricksvault.app")) {
-        // Stage 1: retry via the Worker proxy (proven to load on-device).
+        // Stage 1: retry via the Worker proxy (proven to load on-device) AND
+        // flip the session so every subsequent thumbnail skips the failing host
+        // entirely — one failed request, then all cards render from the Worker.
+        win.__bvThumbHostDown = true;
         img.dataset.imgFb = "worker";
-        img.src = `${win.WORKER_BASE || ""}/api/img?u=${encodeURIComponent(cdn)}`;
+        img.src = `${win.WORKER_BASE || ""}/api/img?u=${encodeURIComponent(cdn)}&w=400`;
         return;
       }
       if (stage !== "cdn" && cdn && cdn.startsWith("https://cdn.rebrickable.com/")) {
