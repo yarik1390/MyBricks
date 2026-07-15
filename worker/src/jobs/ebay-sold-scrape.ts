@@ -6,6 +6,7 @@ import { brightDataSoldEnabled, firecrawlEnabled } from '../lib/pricing-flags';
 import { quotaRemaining, reserveQuota } from '../lib/api-quota';
 import { recordIntegrationHealth } from '../lib/integration-health';
 import { recomputeBlendedValues } from '../lib/market-sources';
+import { sourceEnabled } from '../lib/source-config';
 
 /**
  * Corroborating-only eBay-sold scrape (Bright Data Web Unlocker).
@@ -24,11 +25,14 @@ export async function runEbaySoldScrape(
   env: Env,
   options: { limit?: number; concurrency?: number } = {},
 ) {
+  if (!(await sourceEnabled(env, 'ebay'))) {
+    return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'ebay disabled in source tuning' };
+  }
   // Prefer Bright Data when a token is configured: it has its own dedicated budget
   // (5000/key/mo) so it doesn't compete with Firecrawl, which is reserved for the
   // BrickEconomy enrichment. Fall back to Firecrawl only when no token is set.
-  const useBrightData = brightDataSoldEnabled(env);
-  const useFirecrawl = !useBrightData && firecrawlEnabled(env);
+  const useBrightData = brightDataSoldEnabled(env) && await sourceEnabled(env, 'brightdata');
+  const useFirecrawl = !useBrightData && firecrawlEnabled(env) && await sourceEnabled(env, 'firecrawl');
   if (!useFirecrawl && !useBrightData) {
     return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'neither firecrawl nor brightdata configured' };
   }
@@ -124,15 +128,19 @@ export async function runEbaySoldScrape(
           updated++;
         } else {
           rejected++;
-          // Stamp cached_at so a divergent set isn't re-scraped every run.
-          stmts.push(env.DB.prepare(
-            `UPDATE lego_sets SET ebay_new_cached_at=datetime('now') WHERE set_num=?`,
-          ).bind(set.set_num));
+          stmts.push(env.DB.prepare(`
+            INSERT INTO pricing_anomalies (
+              anomaly_key, set_num, condition, source, anomaly_type, severity,
+              detail_json, status, first_seen_at, last_seen_at
+            ) VALUES (?1, ?2, 'new_sealed', 'ebay_sold', 'value_divergence', 'warning', ?3, 'open', datetime('now'), datetime('now'))
+            ON CONFLICT(anomaly_key) DO UPDATE SET
+              detail_json=excluded.detail_json, status='open', last_seen_at=datetime('now'), resolved_at=NULL
+          `).bind(
+            `ebay_sold:${set.set_num}:value_divergence`,
+            set.set_num,
+            JSON.stringify({ observed: r.new_value, reference: ref }),
+          ));
         }
-      } else if (r.status === 'no_data') {
-        stmts.push(env.DB.prepare(
-          `UPDATE lego_sets SET ebay_new_cached_at=datetime('now') WHERE set_num=?`,
-        ).bind(set.set_num));
       }
     }
   }

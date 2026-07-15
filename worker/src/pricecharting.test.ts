@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { fetchPriceChartingData } from './lib/pricecharting';
 import { parsePriceChartingCsv, runPriceChartingBulk } from './jobs/pricecharting-bulk';
+import { clearSourceConfigCache, saveSourceConfig } from './lib/source-config';
 
 const db = (env as any).DB as D1Database;
 
@@ -39,7 +40,11 @@ describe('fetchPriceChartingData (UPC + loose/sales)', () => {
     }));
     const e: any = { ...env, PRICECHARTING_TOKEN: 'tok' };
     const r = await fetchPriceChartingData('10300-1', 'BTTF', null, e, '0673419340373');
-    expect(r).toEqual({ pc_id: '6910', new_value: 210, complete_value: 180, loose_value: 125, sales_volume: 340 });
+    expect(r).toMatchObject({
+      pc_id: '6910', new_value: 210, complete_value: 180, loose_value: 125,
+      sales_volume: 340, match_method: 'upc', match_confidence: 1,
+      upc: '0673419340373', variant_key: '10300-1',
+    });
     expect(seen[0]).toContain('upc=0673419340373'); // took the exact UPC path, no search
   });
 
@@ -59,6 +64,8 @@ describe('runPriceChartingBulk', () => {
     await db.prepare('DROP TABLE IF EXISTS lego_sets').run();
     await db.prepare('DROP TABLE IF EXISTS set_market_ext').run();
     await db.prepare('DROP TABLE IF EXISTS app_settings').run();
+    await db.prepare('DROP TABLE IF EXISTS pricing_source_map').run();
+    await db.prepare('DROP TABLE IF EXISTS pricing_signals').run();
     await db.prepare(`CREATE TABLE lego_sets (
       set_num TEXT PRIMARY KEY, name TEXT, upc TEXT, pc_id TEXT,
       pc_new_value REAL, pc_complete_value REAL, pc_cached_at TEXT,
@@ -70,6 +77,18 @@ describe('runPriceChartingBulk', () => {
       pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT
     )`).run();
     await db.prepare(`CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)`).run();
+    await db.prepare(`CREATE TABLE pricing_source_map (
+      source TEXT, source_item_id TEXT, set_num TEXT, source_title TEXT, upc TEXT,
+      variant_key TEXT, match_method TEXT, match_confidence REAL, status TEXT,
+      verified_at TEXT, created_at TEXT, updated_at TEXT, PRIMARY KEY(source, source_item_id)
+    )`).run();
+    await db.prepare(`CREATE TABLE pricing_signals (
+      set_num TEXT, source TEXT, source_item_id TEXT, provider_family TEXT,
+      condition TEXT, signal_type TEXT, currency TEXT, value REAL, low REAL, high REAL,
+      sample_count INTEGER, sales_volume INTEGER, source_observed_at TEXT, checked_at TEXT,
+      match_status TEXT, flags_json TEXT, updated_at TEXT,
+      PRIMARY KEY(set_num, source, condition)
+    )`).run();
     await db.batch([
       db.prepare(`INSERT INTO lego_sets (set_num, name, upc) VALUES ('10300-1', 'BTTF', '0673419340373')`),
       db.prepare(`INSERT INTO lego_sets (set_num, name) VALUES ('75192-1', 'Falcon')`),
@@ -82,8 +101,10 @@ describe('runPriceChartingBulk', () => {
     expect(r.skipped).toMatch(/PRICECHARTING_PRO/);
   });
 
-  it('matches by UPC and by #set-number, writing loose + sales-volume', async () => {
-    const e: any = { ...env, PRICECHARTING_PRO: '1' };
+  it('matches only a unique UPC and quarantines unverified base-number candidates', async () => {
+    const e: any = { ...env, PRICECHARTING_PRO: '1', PRICECHARTING_VERIFIED_ENABLED: '1' };
+    await saveSourceConfig(e, { pricecharting: { enabled: true, weight: 0 } } as any);
+    clearSourceConfigCache();
     const csv = [
       'id,console-name,upc,product-name,loose-price,cib-price,new-price,sales-volume',
       '6910,LEGO Creator,0673419340373,Back to the Future #10300,$50.00,$92.50,$122.50,548', // UPC match
@@ -92,19 +113,20 @@ describe('runPriceChartingBulk', () => {
     ].join('\n');
     const r = await runPriceChartingBulk(e, csv);
     expect(r.rows).toBe(3);
-    expect(r.matched).toBe(2);
-    expect(r.unmatched).toBe(1);
+    expect(r.matched).toBe(1);
+    expect(r.unmatched).toBe(2);
 
     const ext = await db.prepare(`SELECT set_num, pc_loose_value, pc_sales_volume FROM set_market_ext ORDER BY set_num`).all<any>();
     expect(ext.results).toEqual([
       { set_num: '10300-1', pc_loose_value: 50, pc_sales_volume: 548 },
-      { set_num: '75192-1', pc_loose_value: 258.36, pc_sales_volume: 555 },
     ]);
     const ls = await db.prepare(`SELECT pc_new_value FROM lego_sets WHERE set_num='75192-1'`).first<any>();
-    expect(ls.pc_new_value).toBe(745);
+    expect(ls.pc_new_value).toBeNull();
+    const candidate = await db.prepare(`SELECT status, set_num FROM pricing_source_map WHERE source_item_id='5555'`).first<any>();
+    expect(candidate).toMatchObject({ status: 'quarantined', set_num: '75192-1' });
 
     // Summary persisted for admin diagnostics.
     const summary = await db.prepare(`SELECT value FROM app_settings WHERE key='pc_bulk_last_result'`).first<any>();
-    expect(JSON.parse(summary.value).matched).toBe(2);
+    expect(JSON.parse(summary.value).matched).toBe(1);
   });
 });

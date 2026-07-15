@@ -29,6 +29,21 @@ EBAY_CLIENT_SECRET=your_matching_ebay_production_cert_id_or_client_secret
 BRICKECONOMY_API_KEY=your_brickeconomy_api_key
 BRICKOWL_API_KEY=your_brickowl_api_key
 
+# Investment pricing rollout and PriceCharting quarantine
+PRICING_V3_READ_PERCENT=0
+PRICECHARTING_VERIFIED_ENABLED=0
+
+# Amazon Associates (Phase A: Web link-only)
+AMAZON_PARTNER_TAG_FR_WEB=your_web_tracking_id
+AMAZON_PARTNER_TAG_FR_ANDROID=your_android_tracking_id
+AMAZON_DEFAULT_MARKET=FR
+AMAZON_WEB_ENABLED=0
+AMAZON_ANDROID_ENABLED=0
+# Phase B only after Creators API + mobile-app approval
+AMAZON_CREATORS_PUBLIC_KEY=your_creators_public_key
+AMAZON_CREATORS_PRIVATE_KEY=your_creators_private_key
+AMAZON_CREATORS_ENABLED=0
+
 # Optional server-side AI fallback. BYOK browser keys work without this.
 GEMINI_API_KEY=your_gemini_api_key
 

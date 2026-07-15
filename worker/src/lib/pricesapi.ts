@@ -38,6 +38,11 @@ export interface PricesApiResult {
   offer_count: number;
   /** ISO country/market the result came from. */
   market: string;
+  currency: string;
+  item_price: number | null;
+  delivered_price: number | null;
+  offer_url: string | null;
+  matched_title: string | null;
 }
 
 interface PaOffer {
@@ -58,6 +63,8 @@ interface PaCandidate {
   currency?: string;
   offerCount?: number;
   offers?: PaOffer[];
+  upc?: string;
+  gtin?: string;
 }
 
 interface PaResponse {
@@ -74,14 +81,36 @@ export interface PricesApiOptions {
   limit?: number;
   offersLimit?: number;
   timeoutMs?: number;
+  setNum?: string;
+  setName?: string;
+  upc?: string | null;
 }
 
 function market(env: Env, opts: PricesApiOptions): string {
   return (opts.country || env.PRICESAPI_MARKET || 'us').toLowerCase();
 }
 
-function normalize(resp: PaResponse, country: string): PricesApiResult | null {
-  const candidate = resp.data?.products?.[0];
+function titleTokens(value: string): string[] {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(/\s+/)
+    .filter(token => token.length > 2 && !['lego', 'set', 'with', 'the', 'and'].includes(token));
+}
+
+export function pricesApiCandidateMatches(candidate: PaCandidate, opts: PricesApiOptions): boolean {
+  if (!opts.setNum && !opts.upc) return true;
+  const candidateUpc = String(candidate.upc || candidate.gtin || '').replace(/\D/g, '');
+  const expectedUpc = String(opts.upc || '').replace(/\D/g, '');
+  if (expectedUpc && candidateUpc && candidateUpc === expectedUpc) return true;
+  const title = String(candidate.title || '');
+  const base = String(opts.setNum || '').replace(/-\d+$/, '');
+  if (!base || !new RegExp(`(?:#|\\b)${base}(?:\\b|-)`, 'i').test(title)) return false;
+  const expected = titleTokens(String(opts.setName || ''));
+  if (!expected.length) return true;
+  const actual = new Set(titleTokens(title));
+  return expected.filter(token => actual.has(token)).length / expected.length >= 0.5;
+}
+
+function normalize(resp: PaResponse, country: string, opts: PricesApiOptions): PricesApiResult | null {
+  const candidate = resp.data?.products?.find(product => pricesApiCandidateMatches(product, opts));
   if (!candidate) return null;
 
   const retail =
@@ -92,7 +121,8 @@ function normalize(resp: PaResponse, country: string): PricesApiResult | null {
   const offers = (candidate.offers ?? []).filter(
     (o): o is PaOffer & { price: number } => typeof o.price === 'number' && o.price > 0,
   );
-  offers.sort((a, b) => a.price - b.price);
+  const delivered = (offer: PaOffer & { price: number }) => offer.price + Math.max(0, Number(offer.shipping || 0));
+  offers.sort((a, b) => delivered(a) - delivered(b));
   const cheapest = offers[0] ?? null;
 
   const offerCount = Number(candidate.offerCount ?? offers.length) || 0;
@@ -102,8 +132,9 @@ function normalize(resp: PaResponse, country: string): PricesApiResult | null {
   // Plausibility gate (shared with the valuation sources) so a junk scrape never
   // poisons the deal signal.
   const retailValue = retail && isPlausibleMarketValue(retail, {}) ? retail : null;
+  const deliveredPrice = cheapest ? delivered(cheapest) : null;
   const lowestOffer =
-    cheapest && isPlausibleMarketValue(cheapest.price, {}) ? cheapest.price : null;
+    deliveredPrice && isPlausibleMarketValue(deliveredPrice, {}) ? deliveredPrice : null;
 
   return {
     retail_value: retailValue,
@@ -112,6 +143,11 @@ function normalize(resp: PaResponse, country: string): PricesApiResult | null {
     best_merchant: cheapest?.seller ?? candidate.source ?? null,
     offer_count: offerCount,
     market: country,
+    currency: cheapest?.currency || candidate.currency || 'USD',
+    item_price: cheapest?.price ?? retailValue,
+    delivered_price: lowestOffer,
+    offer_url: cheapest?.url || cheapest?.seller_url || null,
+    matched_title: candidate.title || null,
   };
 }
 
@@ -194,7 +230,7 @@ export async function pricesApiSearch(
     // A billed call — count it against the key's monthly budget.
     await recordKeyCall(env, picked);
     const body = (await resp.json()) as PaResponse;
-    const result = normalize(body, country);
+    const result = normalize(body, country, opts);
     await recordIntegrationAttempt(env, 'pricesapi', true);
 
     if (result && env.CACHE_KV) {

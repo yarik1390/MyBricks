@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { recomputeBlendedValues } from '../lib/market-sources';
+import { pricingWritesAllowed } from '../lib/pricing-budget';
 
 // Re-persist the calibrated blended value + confidence + band for sets that have
 // a value but NO band — the cohort last valued before the v2.2 calibration added
@@ -13,16 +14,22 @@ import { recomputeBlendedValues } from '../lib/market-sources';
 export async function runBlendRecomputeBackfill(
   env: Env,
   options: { limit?: number } = {},
-): Promise<{ candidates: number; recomputed: number; limit: number }> {
+): Promise<{ candidates: number; recomputed: number; limit: number; paused?: boolean }> {
   const requested = Number(options.limit);
   const limit = Number.isFinite(requested) && requested > 0
     ? Math.min(Math.floor(requested), 400)
     : 100;
+  if (!(await pricingWritesAllowed(env.DB))) {
+    return { candidates: 0, recomputed: 0, limit, paused: true };
+  }
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num
     FROM lego_sets ls
-    WHERE ls.blended_value IS NOT NULL AND ls.blended_low IS NULL
+    LEFT JOIN set_valuation_state sv
+      ON sv.set_num=ls.set_num AND sv.condition='new_sealed' AND sv.model_version='v3-shadow'
+    WHERE sv.set_num IS NULL
     ORDER BY
+      CASE WHEN ls.pc_new_value IS NOT NULL OR ls.pc_complete_value IS NOT NULL THEN 0 ELSE 1 END,
       CASE WHEN EXISTS (
         SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
       ) OR EXISTS (

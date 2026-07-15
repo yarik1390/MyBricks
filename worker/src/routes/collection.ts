@@ -100,10 +100,22 @@ app.get('/', async (c) => {
       s.blended_confidence, s.blended_low, s.blended_high,
       ext.pc_loose_value, ext.pc_sales_volume,
       ext.pa_retail_value, ext.pa_lowest_offer, ext.pa_in_stock,
-      ext.pa_best_merchant, ext.pa_offer_count
+      ext.pa_best_merchant, ext.pa_offer_count,
+      svn.fair_value AS v3_new_fair, svn.low AS v3_new_low, svn.high AS v3_new_high,
+      svn.liquidation_value AS v3_new_liquidation, svn.confidence AS v3_new_confidence,
+      svn.confidence_score AS v3_new_score, svn.sample_count AS v3_new_samples,
+      svn.independent_family_count AS v3_new_families, svn.basis_json AS v3_new_basis,
+      svn.flags_json AS v3_new_flags, svn.as_of AS v3_new_as_of,
+      svu.fair_value AS v3_used_fair, svu.low AS v3_used_low, svu.high AS v3_used_high,
+      svu.liquidation_value AS v3_used_liquidation, svu.confidence AS v3_used_confidence,
+      svu.confidence_score AS v3_used_score, svu.sample_count AS v3_used_samples,
+      svu.independent_family_count AS v3_used_families, svu.basis_json AS v3_used_basis,
+      svu.flags_json AS v3_used_flags, svu.as_of AS v3_used_as_of
     FROM user_collection uc
     JOIN lego_sets s ON s.set_num = uc.set_num
     LEFT JOIN set_market_ext ext ON ext.set_num = s.set_num
+    LEFT JOIN set_valuation_state svn ON svn.set_num=s.set_num AND svn.condition='new_sealed'
+    LEFT JOIN set_valuation_state svu ON svu.set_num=s.set_num AND svu.condition='used_complete'
     WHERE uc.user_id = ? AND uc.deleted_at IS NULL
     ORDER BY uc.added_at DESC
   `).bind(userId).all<Record<string, unknown>>();
@@ -168,17 +180,37 @@ app.get('/', async (c) => {
   // (real used comps when present), so condition affects the holding's worth —
   // mirrors marketValueForCondition() on the front end.
   const conditionValue = (r: Record<string, unknown>): number => {
-    const base = Number(r.market_value) || Number(r.blended_value) || Number(r.current_value) || 0;
+    const valuation = r.valuation as any;
+    const v3Enabled = valuation?.read_enabled === true;
+    const base = (v3Enabled ? Number(valuation?.new?.fair_value) : 0)
+      || Number(r.market_value) || Number(r.blended_value) || Number(r.current_value) || 0;
     if (!String(r.condition || '').startsWith('used')) return base;
-    const used = Number(r.ebay_used_value) || Number(r.used_value)
+    const used = (v3Enabled ? Number(valuation?.used?.fair_value) : 0) || Number(r.ebay_used_value) || Number(r.used_value)
       || Number(r.bo_used_value) || 0;
     return used || base;
   };
 
+  const stateFromColumns = (row: Record<string, unknown>, prefix: 'v3_new' | 'v3_used', condition: 'new_sealed' | 'used_complete') => {
+    if (row[`${prefix}_fair`] == null) return undefined;
+    const parse = (value: unknown) => { try { return JSON.parse(String(value || '[]')); } catch { return []; } };
+    return {
+      condition,
+      fair_value: row[`${prefix}_fair`], low: row[`${prefix}_low`], high: row[`${prefix}_high`],
+      liquidation_value: row[`${prefix}_liquidation`], confidence: row[`${prefix}_confidence`],
+      confidence_score: row[`${prefix}_score`], sample_count: row[`${prefix}_samples`],
+      independent_family_count: row[`${prefix}_families`], basis: parse(row[`${prefix}_basis`]),
+      flags: parse(row[`${prefix}_flags`]), as_of: row[`${prefix}_as_of`], model_version: 'v3',
+    };
+  };
+
   const items: Record<string, unknown>[] = results.map(row => {
     const t = trends[row.set_num as string] || { trend: 'stable', slope: 0 };
+    const newState = stateFromColumns(row, 'v3_new', 'new_sealed');
+    const usedState = stateFromColumns(row, 'v3_used', 'used_complete');
     const enriched = enrichSetRecord({
       ...row,
+      __valuation_new: newState,
+      __valuation_used: usedState,
       retired: !!row.retired,
       is_complete: !!row.is_complete,
       trend: t.trend,
@@ -192,7 +224,7 @@ app.get('/', async (c) => {
         annualizedRoi = Math.pow(marketVal / Number(row.purchase_price), 1 / years) - 1;
       }
     }
-    return { ...enriched, annualized_roi: annualizedRoi } as Record<string, unknown>;
+    return { ...enriched, holding_market_value: marketVal, annualized_roi: annualizedRoi } as Record<string, unknown>;
   });
 
   const totalValue = items.reduce((s, r) => s + conditionValue(r as Record<string, unknown>) * Number(r.quantity), 0);
@@ -226,10 +258,24 @@ app.get('/', async (c) => {
     const cf = confOf(r as Record<string, unknown>);
     return cf === 'high' || cf === 'medium';
   }).length;
+  const confidenceWeight = (r: Record<string, unknown>): number => {
+    const valuation = r.valuation as any;
+    const state = valuation?.read_enabled === true
+      ? (String(r.condition || '').startsWith('used') ? valuation?.used : valuation?.new)
+      : null;
+    const confidence = String(state?.confidence || confOf(r));
+    return confidence === 'high' ? 1 : confidence === 'medium' ? 0.75 : confidence === 'low' ? 0.25 : 0;
+  };
+  const quantityDenom = priced.reduce((sum, r) => sum + Number(r.quantity || 1), 0);
+  const quantityNumer = priced.reduce((sum, r) => sum + Number(r.quantity || 1) * confidenceWeight(r), 0);
+  const valueDenom = priced.reduce((sum, r) => sum + conditionValue(r) * Number(r.quantity || 1), 0);
+  const valueNumer = priced.reduce((sum, r) => sum + conditionValue(r) * Number(r.quantity || 1) * confidenceWeight(r), 0);
   const pricingConfidence = {
     priced: priced.length,
     high_medium: highMed,
-    pct: priced.length ? Math.round((highMed / priced.length) * 100) : 0,
+    pct: valueDenom ? Math.round((valueNumer / valueDenom) * 100) : 0,
+    value_weighted_pct: valueDenom ? Math.round((valueNumer / valueDenom) * 100) : 0,
+    quantity_weighted_pct: quantityDenom ? Math.round((quantityNumer / quantityDenom) * 100) : 0,
   };
 
   return c.json({

@@ -1,4 +1,5 @@
 import type { Env } from '../types';
+import { pricingWritesAllowed, recordPricingWrites } from '../lib/pricing-budget';
 
 // Beyond the user's own collection/wishlist, also snapshot the highest-value
 // catalog sets each day so their detail charts accumulate a real history line
@@ -48,6 +49,36 @@ export async function runSnapshotSetValues(env: Env) {
         bl_value = EXCLUDED.bl_value
   `).bind(CATALOG_SNAPSHOT_TOP_N).run();
 
+  let v3Snapshotted = 0;
+  if (await pricingWritesAllowed(env.DB)) {
+    const v3 = await env.DB.prepare(`
+      INSERT INTO set_valuation_history_v2 (
+        set_num, condition, snapshot_date, fair_value, low, high, confidence, model_version
+      )
+      SELECT sv.set_num, sv.condition, date('now'), sv.fair_value, sv.low, sv.high,
+             sv.confidence, 'v3'
+      FROM set_valuation_state sv
+      WHERE sv.fair_value IS NOT NULL AND sv.set_num IN (
+        SELECT set_num FROM user_collection WHERE deleted_at IS NULL
+        UNION SELECT set_num FROM user_wishlist
+        UNION SELECT set_num FROM (
+          SELECT set_num FROM set_valuation_state
+          WHERE condition='new_sealed' AND fair_value IS NOT NULL
+          ORDER BY fair_value DESC LIMIT ?
+        )
+      )
+      ON CONFLICT(set_num, condition, snapshot_date) DO UPDATE SET
+        fair_value=excluded.fair_value, low=excluded.low, high=excluded.high,
+        confidence=excluded.confidence, model_version='v3'
+      WHERE set_valuation_history_v2.fair_value IS NOT excluded.fair_value
+         OR set_valuation_history_v2.low IS NOT excluded.low
+         OR set_valuation_history_v2.high IS NOT excluded.high
+         OR set_valuation_history_v2.confidence IS NOT excluded.confidence
+    `).bind(CATALOG_SNAPSHOT_TOP_N).run().catch(() => null);
+    v3Snapshotted = Number(v3?.meta?.changes || 0);
+    await recordPricingWrites(env.DB, 'valuation-history-v2', v3Snapshotted);
+  }
+
   // Mirror the snapshot for minifigs that carry a real market value (the
   // populated population — owned/CMF/popular figs the valuation job prices), so
   // their detail pages get the same 90-day trend line. Naturally bounded to
@@ -79,9 +110,13 @@ export async function runSnapshotSetValues(env: Env) {
     await env.DB.prepare(
       `DELETE FROM minifig_value_history WHERE snapshot_date < DATE('now', ?)`,
     ).bind(cutoff).run().catch(() => {});
+    const v3Prune = await env.DB.prepare(
+      `DELETE FROM set_valuation_history_v2 WHERE snapshot_date < DATE('now', ?)`,
+    ).bind(cutoff).run().catch(() => null);
+    pruned += Number(v3Prune?.meta?.changes || 0);
   } catch (e) {
     console.warn('[snapshot] history prune failed:', (e as Error).message);
   }
 
-  return { snapshotted: result.meta.changes ?? 0, figSnapshotted, pruned };
+  return { snapshotted: result.meta.changes ?? 0, v3Snapshotted, figSnapshotted, pruned };
 }

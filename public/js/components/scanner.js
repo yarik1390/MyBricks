@@ -7,6 +7,7 @@ import { computeDealScore as computeDealScorePure, marketValueForCondition, flip
 import { checkGemma3Downloaded, runLocalVisionScan, isWebGpuAvailable } from '../lib/local-ai.js';
 import { flipCalcHTML } from './flip-calc.js';
 import { isNativeCapacitor } from '../lib/native-auth.js';
+import { amazonSlotHTML, hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
 
 let _scanTrapRelease = null;
 let _scanPending = false;
@@ -844,6 +845,7 @@ function showScanResult(res) {
       <div style="margin: 0 0 12px 0;">
         ${dealScoreHTML(sets[0])}
         <div id="scanFlipCalcContainer">${flipCalcHTML(sets[0], null)}</div>
+        ${amazonSlotHTML(sets[0].set_num, { compact: true })}
       </div>`;
   }
 
@@ -863,6 +865,7 @@ function showScanResult(res) {
       <button class="btn-primary" id="scanAdd">${I.plus()}<span>Add selected</span></button>
     </div>`;
   el.innerHTML = headHTML + listHTML + dealHTML + actionsHTML;
+  hydrateAmazonSlots(el, state.me?.retail_market || 'FR');
 
   // Condition selection drives the stored condition + the value the set is added at.
   let scanCondition = 'new';

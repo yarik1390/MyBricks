@@ -32,7 +32,9 @@ export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   ebay:          { enabled: true,  weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
   brickeconomy:  { enabled: true,  weight: 1.0,  dailyCap: 80,   refreshDays: 14 },
   brickowl:      { enabled: true,  weight: 1.0,  dailyCap: 1500, refreshDays: 14 },
-  pricecharting: { enabled: true,  weight: 1.0,  dailyCap: null, refreshDays: 14 },
+  // Quarantined until every product mapping is identity-verified. PriceCharting
+  // is part of the ebay_market family and never independently raises confidence.
+  pricecharting: { enabled: false, weight: 0,    dailyCap: 0,    refreshDays: 14 },
   pricesapi:     { enabled: false, weight: 1.0,  dailyCap: 60,   refreshDays: 7 },
   firecrawl:     { enabled: true,  weight: 1.0,  dailyCap: 2000, refreshDays: 14 },
   brightdata:    { enabled: true,  weight: 1.0,  dailyCap: 150,  refreshDays: 14 },
@@ -83,6 +85,9 @@ export async function getSourceConfig(env: Env): Promise<Record<SourceName, Sour
     if (row?.value) stored = JSON.parse(row.value);
   } catch { /* defaults */ }
   memo = merge(stored);
+  if (!/^(1|true|yes|on)$/i.test(String(env.PRICECHARTING_VERIFIED_ENABLED || ''))) {
+    memo.pricecharting = { ...memo.pricecharting, enabled: false, weight: 0, dailyCap: 0 };
+  }
   memoAt = Date.now();
   return memo;
 }
@@ -94,7 +99,10 @@ export async function applySourceConfig(env: Env): Promise<void> {
   const mult: Record<string, number> = {};
   const caps: Record<string, number | null> = {};
   for (const [name, t] of Object.entries(cfg)) {
-    mult[name] = t.weight;
+    // `enabled` is a real global kill switch, including read-side blends. Jobs
+    // still check sourceEnabled() before external calls, but stale values cannot
+    // leak back into a headline while a provider is disabled.
+    mult[name] = t.enabled ? t.weight : 0;
     caps[name] = t.dailyCap;
   }
   setSourceWeightMultipliers(mult);

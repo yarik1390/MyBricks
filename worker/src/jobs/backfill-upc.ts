@@ -2,6 +2,7 @@ import type { Env } from '../types';
 import { fetchBarcodesPage, BARCODE_PAGE_SIZE, getLastBarcodeFetchDiag } from '../lib/brickset';
 import { fetchBrickOwlBarcode } from '../lib/brickowl-barcode';
 import { brickOwlEnabled } from '../lib/pricing-flags';
+import { sourceEnabled } from '../lib/source-config';
 
 export interface BackfillResult {
   processed: number;
@@ -103,6 +104,7 @@ export async function recordBarcodeHealth(env: Env, ok: boolean, detail: string)
 }
 
 export async function runBackfillUpc(env: Env, options: BackfillOptions = {}): Promise<BackfillResult> {
+  const brickOwlSourceEnabled = await sourceEnabled(env, 'brickowl');
   if (!env.BRICKSET_API_KEY && !env.BRICKOWL_API_KEY) {
     return {
       processed: 0,
@@ -139,7 +141,7 @@ export async function runBackfillUpc(env: Env, options: BackfillOptions = {}): P
     // Brickset bulk returned no data (e.g. a timed-out page). Don't fail silently
     // with zero fills — fall back to BrickOwl per-set lookups when available so
     // barcode coverage still advances.
-    if (env.BRICKOWL_API_KEY && brickOwlEnabled(env)) {
+    if (env.BRICKOWL_API_KEY && brickOwlEnabled(env) && brickOwlSourceEnabled) {
       console.warn('[backfill-upc] Brickset bulk returned no data; falling back to BrickOwl');
       const perSetResult = await tryBrickOwlBackfill(env);
       return {
@@ -161,6 +163,9 @@ export async function runBackfillUpc(env: Env, options: BackfillOptions = {}): P
     };
   }
 
+  if (!brickOwlSourceEnabled) {
+    return { processed: 0, filled: 0, catalogSize, method: 'none', complete: false, note: 'BrickOwl disabled in source tuning' };
+  }
   const perSetResult = await tryBrickOwlBackfill(env);
   return { ...perSetResult, catalogSize, method: 'brickowl' };
 }

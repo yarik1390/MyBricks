@@ -464,8 +464,11 @@ export function buildEbaySoldUpdate(
   prices: EbaySoldPrices | null | undefined,
 ): D1PreparedStatement | null {
   if (!prices || prices.status === 'unconfigured') return null;
-  const attempted = ebaySoldAttempted(prices) ? 1 : 0;
   const hasNewValue = prices.new_value != null ? 1 : 0;
+  const hasUsedValue = prices.used_value != null ? 1 : 0;
+  // No-data and provider failures must not refresh an old observation or spend
+  // a D1 write. Retry/backoff state belongs in KV/integration health.
+  if (!hasNewValue && !hasUsedValue) return null;
   return db.prepare(`
     UPDATE lego_sets SET
       ebay_new_value=COALESCE(?, ebay_new_value),
@@ -482,11 +485,11 @@ export function buildEbaySoldUpdate(
   `).bind(
     prices.new_value,
     prices.new_sample_count, prices.new_sample_count,
-    attempted,
+    hasNewValue,
     prices.new_last_sold ?? null,
     prices.used_value,
     prices.used_sample_count, prices.used_sample_count,
-    attempted,
+    hasUsedValue,
     prices.used_last_sold ?? null,
     prices.new_value,
     hasNewValue,

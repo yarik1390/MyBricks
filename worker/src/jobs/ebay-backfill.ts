@@ -11,8 +11,12 @@ import {
 import { reserveQuota } from '../lib/api-quota';
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { isIntegrationBlocked, recordIntegrationHealth, setIntegrationBlock } from '../lib/integration-health';
+import { sourceEnabled } from '../lib/source-config';
 
 export async function runEbayBackfill(env: Env, options: { limit?: number } = {}) {
+  if (!(await sourceEnabled(env, 'ebay'))) {
+    return { processed: 0, updated: 0, limit: 0, skipped: 'ebay disabled in source tuning' };
+  }
   // eBay sold comps are disabled unless EBAY_SOLD_COMPS_ENABLED is set.
   if (!ebaySoldCompsEnabled(env)) {
     return { processed: 0, updated: 0, limit: 0, skipped: 'ebay sold comps disabled' };
@@ -90,6 +94,9 @@ export async function runEbayBackfill(env: Env, options: { limit?: number } = {}
 // that feeds the blended value. Bounded by `limit`; the eBay daily quota is wide
 // open. Fails open per set and honors a Browse access denial by stopping early.
 export async function runEbayAskBackfill(env: Env, options: { limit?: number } = {}) {
+  if (!(await sourceEnabled(env, 'ebay'))) {
+    return { processed: 0, updated: 0, limit: 0, skipped: 'ebay disabled in source tuning' };
+  }
   const requestedLimit = Number(options.limit);
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
     ? Math.min(Math.floor(requestedLimit), 200)

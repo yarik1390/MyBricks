@@ -469,6 +469,7 @@ function readGuestPrefs() {
   return {
     display_name: prefs.display_name || 'Guest Collector',
     currency: prefs.currency || 'USD',
+    retail_market: prefs.retail_market || 'FR',
     notify_price_drops: prefs.notify_price_drops !== false,
   };
 }
@@ -841,6 +842,7 @@ async function guestApi(path, opts = {}, streamMode = false) {
         ...prefs,
         ...(body.display_name !== undefined ? { display_name: String(body.display_name || 'Guest Collector') } : {}),
         ...(body.currency !== undefined ? { currency: String(body.currency || 'USD') } : {}),
+        ...(body.retail_market !== undefined ? { retail_market: String(body.retail_market || 'FR').toUpperCase() } : {}),
         ...(body.notify_price_drops !== undefined ? { notify_price_drops: !!body.notify_price_drops } : {}),
       };
       writeLocalJSON(GUEST_PREFS_KEY, next);
@@ -930,6 +932,7 @@ export async function api(path, opts = {}) {
   }
   const geminiKey = localStorage.getItem('bv_gemini_key');
   const openaiKey = localStorage.getItem('bv_openai_key');
+  const platform = globalThis.window?.Capacitor?.isNativePlatform?.() ? 'android' : 'web';
   // rawBody sends a plain-text body verbatim (e.g. a tab-separated upload) — the
   // server reads it via req.text(); JSON.stringify would escape tabs and break it.
   const isRaw = typeof opts.rawBody === 'string';
@@ -941,6 +944,7 @@ export async function api(path, opts = {}) {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(geminiKey ? { "X-Gemini-Key": geminiKey } : {}),
       ...(openaiKey ? { "X-OpenAI-Key": openaiKey } : {}),
+      "X-Brickvault-Platform": platform,
       ...(opts.headers || {}),
     },
     body: isRaw ? opts.rawBody : (opts.body ? JSON.stringify(opts.body) : undefined),

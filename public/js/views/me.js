@@ -193,6 +193,12 @@ export async function renderMe() {
             ${["USD","GBP","EUR","CAD","AUD"].map(cur => `<option value="${cur}" ${me.currency === cur ? "selected" : ""}>${cur}</option>`).join("")}
           </select>
         </div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Retail market</div><div class="desc">Local market for store offers. Resale values remain in USD.</div></div>
+          <select id="retailMarketSelect" class="setting-select" aria-label="Retail market">
+            ${[["FR","France"],["US","United States"],["GB","United Kingdom"],["DE","Germany"],["CA","Canada"],["AU","Australia"]].map(([code, label]) => `<option value="${code}" ${me.retail_market === code ? "selected" : ""}>${label}</option>`).join("")}
+          </select>
+        </div>
       </div>
 
       <h2 class="section-title">More</h2>
@@ -499,6 +505,18 @@ export async function renderMe() {
       toast("Currency updated to " + val, "success");
       await renderMe();
     } catch {}
+  });
+
+  $("#retailMarketSelect")?.addEventListener("change", async (e) => {
+    const val = e.target.value;
+    haptic("medium");
+    try {
+      await api("/api/me", { method: "PATCH", body: { retail_market: val } });
+      if (state.me) state.me.retail_market = val;
+      toast("Retail market updated", "success");
+    } catch (error) {
+      toast(error?.message || "Could not update retail market", "error");
+    }
   });
 
   $("#editName")?.addEventListener("click", async () => {

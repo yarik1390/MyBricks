@@ -23,7 +23,11 @@ describe('runPricesApiRetail', () => {
   beforeEach(async () => {
     mockSearch.mockReset();
     clearSourceConfigCache();
-    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'app_settings']);
+    await applyTestTables(db, [
+      'lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist',
+      'api_quota', 'app_settings', 'retail_price_current', 'retail_price_history',
+      'pricing_write_ledger', 'pricing_signals', 'set_valuation_state',
+    ]);
   });
 
   it('skips when pricesAPI is not opted in via env', async () => {
@@ -61,14 +65,13 @@ describe('runPricesApiRetail', () => {
     expect(ext!.pa_cached_at).toBeTruthy();
   });
 
-  it('stamps pa_cached_at without values when the provider has no coverage', async () => {
+  it('keeps a provider miss out of D1 so stale data is not made fresh', async () => {
     await enableSourceAndSeed();
     mockSearch.mockResolvedValue(null as any); // both the base-num and name queries miss
     const r = await runPricesApiRetail(on, { limit: 1 });
     expect(r).toMatchObject({ processed: 1, updated: 0 });
     const ext = await db.prepare(`SELECT pa_retail_value, pa_cached_at FROM set_market_ext WHERE set_num='75300-1'`)
       .first<{ pa_retail_value: number | null; pa_cached_at: string }>();
-    expect(ext!.pa_retail_value).toBeNull();
-    expect(ext!.pa_cached_at).toBeTruthy();
+    expect(ext).toBeNull();
   });
 });

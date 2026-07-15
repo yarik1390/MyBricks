@@ -126,6 +126,72 @@ export const TABLE_DDL: Record<string, string> = {
   bl_nodata_at TEXT
 )`,
 
+  pricing_source_map: `CREATE TABLE IF NOT EXISTS pricing_source_map (
+  source TEXT NOT NULL, source_item_id TEXT NOT NULL, set_num TEXT,
+  source_title TEXT, upc TEXT, variant_key TEXT, match_method TEXT,
+  match_confidence REAL NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'quarantined',
+  verified_at TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (source, source_item_id)
+)`,
+
+  pricing_signals: `CREATE TABLE IF NOT EXISTS pricing_signals (
+  set_num TEXT NOT NULL, source TEXT NOT NULL, source_item_id TEXT,
+  provider_family TEXT NOT NULL, condition TEXT NOT NULL, signal_type TEXT NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'USD', value REAL NOT NULL, low REAL, high REAL,
+  sample_count INTEGER, sales_volume INTEGER, source_observed_at TEXT,
+  checked_at TEXT NOT NULL, match_status TEXT NOT NULL DEFAULT 'quarantined',
+  flags_json TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (set_num, source, condition)
+)`,
+
+  set_valuation_state: `CREATE TABLE IF NOT EXISTS set_valuation_state (
+  set_num TEXT NOT NULL, condition TEXT NOT NULL, fair_value REAL, low REAL, high REAL,
+  liquidation_value REAL, confidence TEXT NOT NULL DEFAULT 'estimated',
+  confidence_score INTEGER NOT NULL DEFAULT 0, sample_count INTEGER NOT NULL DEFAULT 0,
+  independent_family_count INTEGER NOT NULL DEFAULT 0, basis_json TEXT NOT NULL DEFAULT '[]',
+  flags_json TEXT NOT NULL DEFAULT '[]', forecast_json TEXT, as_of TEXT,
+  model_version TEXT NOT NULL DEFAULT 'v3-shadow', updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (set_num, condition)
+)`,
+
+  set_valuation_history_v2: `CREATE TABLE IF NOT EXISTS set_valuation_history_v2 (
+  set_num TEXT NOT NULL, condition TEXT NOT NULL, snapshot_date TEXT NOT NULL,
+  fair_value REAL, low REAL, high REAL, confidence TEXT, model_version TEXT,
+  PRIMARY KEY (set_num, condition, snapshot_date)
+)`,
+
+  retail_price_current: `CREATE TABLE IF NOT EXISTS retail_price_current (
+  set_num TEXT NOT NULL, market TEXT NOT NULL, currency TEXT NOT NULL,
+  item_price REAL, delivered_price REAL, merchant TEXT, stock TEXT, offer_count INTEGER,
+  msrp REAL, lowest_90d REAL, all_time_low REAL, checked_at TEXT NOT NULL, source TEXT,
+  PRIMARY KEY (set_num, market)
+)`,
+
+  retail_price_history: `CREATE TABLE IF NOT EXISTS retail_price_history (
+  set_num TEXT NOT NULL, market TEXT NOT NULL, observed_at TEXT NOT NULL,
+  delivered_price REAL, merchant TEXT, stock TEXT, source TEXT,
+  PRIMARY KEY (set_num, market, observed_at)
+)`,
+
+  pricing_anomalies: `CREATE TABLE IF NOT EXISTS pricing_anomalies (
+  anomaly_key TEXT PRIMARY KEY, set_num TEXT, condition TEXT, source TEXT,
+  anomaly_type TEXT NOT NULL, severity TEXT NOT NULL DEFAULT 'warning', detail_json TEXT,
+  status TEXT NOT NULL DEFAULT 'open', first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  last_seen_at TEXT DEFAULT CURRENT_TIMESTAMP, resolved_at TEXT
+)`,
+
+  amazon_product_map: `CREATE TABLE IF NOT EXISTS amazon_product_map (
+  set_num TEXT NOT NULL, market TEXT NOT NULL, asin TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'quarantined', match_method TEXT,
+  match_confidence REAL NOT NULL DEFAULT 0, checked_at TEXT,
+  PRIMARY KEY (set_num, market), UNIQUE (market, asin)
+)`,
+
+  pricing_write_ledger: `CREATE TABLE IF NOT EXISTS pricing_write_ledger (
+  day TEXT NOT NULL, job TEXT NOT NULL, rows_written INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (day, job)
+)`,
+
   user_collection: `CREATE TABLE IF NOT EXISTS user_collection (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id TEXT NOT NULL,
@@ -197,6 +263,7 @@ export const TABLE_DDL: Record<string, string> = {
   handle TEXT,
   display_name TEXT,
   currency TEXT DEFAULT 'USD',
+  retail_market TEXT DEFAULT 'FR',
   notify_price_drops INTEGER DEFAULT 1,
   is_public INTEGER NOT NULL DEFAULT 0,
   expose_public_value INTEGER DEFAULT 1,

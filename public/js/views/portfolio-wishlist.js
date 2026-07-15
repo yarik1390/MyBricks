@@ -4,6 +4,7 @@ import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
 import { buyWindow } from '../lib/pure.js';
+import { amazonSlotHTML, hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
 // spikeAlertCardHTML + refreshNavBadge are shared with the vault view, so they
 // stay in portfolio.js (this is the only back-import; portfolio.js never imports
 // this module, so there is no cycle — the router lazy-loads each view).
@@ -161,7 +162,10 @@ export async function renderWishlist() {
     renderWishlist();
   }));
 
-  $$(".wishlist-card").forEach(c => c.addEventListener("click", () => {
+  hydrateAmazonSlots(document, state.me?.retail_market || 'FR');
+
+  $$(".wishlist-card").forEach(c => c.addEventListener("click", (event) => {
+    if (event.target.closest('a, button')) return;
     location.hash = "#/set/" + encodeURIComponent(c.dataset.set);
   }));
   $$(".wishlist-card .bl-badge").forEach(a => a.addEventListener("click", e => {
@@ -198,6 +202,7 @@ function wishlistCardHTML(w) {
         </div>
         <div class="progress${hit ? " over" : ""}"><div style="width:${progress}%;"></div></div>
         ${buyWindowHTML(w)}
+        ${amazonSlotHTML(w.set_num, { compact: true })}
         ${preorderCueHTML(w)}
         ${(w.retirement_risk_score || 0) >= 70 && !w.retired ? `<div class="u-row u-gap-1" style="font-size:11px;color:var(--down);margin-top:4px;font-family:var(--mono);">${I.alert({w:12,h:12})} Retirement risk: High</div>` : ""}
       </div>

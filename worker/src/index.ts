@@ -46,11 +46,12 @@ import { runUpcItemDbBackfill } from './jobs/upcitemdb-backfill';
 import { runLegoStockRefresh } from './jobs/lego-stock-refresh';
 import { runBricksetEnrich } from './jobs/brickset-enrich';
 import { runBrickEconomyEnrich } from './jobs/brickeconomy-enrich';
-import { runPriceChartingEnrich } from './jobs/pricecharting-enrich';
 import { runPricesApiRetail } from './jobs/pricesapi-retail';
-import { runPriceChartingBulkFetch } from './jobs/pricecharting-bulk';
+import { runBlendRecomputeBackfill } from './jobs/recompute-blends';
 import { applySourceConfig } from './lib/source-config';
 import { recordCronStart, recordCronFinish, summarizeResult, isCronRunning } from './lib/cron-runs';
+import { amazonReadiness } from './lib/amazon';
+import { setPricingV3ReadPercent } from './lib/market-sources';
 
 import type { Env, Variables } from './types';
 
@@ -74,8 +75,13 @@ const isAllowedOrigin = (origin: string): boolean =>
 app.use('*', cors({
   origin: (origin) => (origin && isAllowedOrigin(origin) ? origin : PROD_ORIGIN),
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Gemini-Key', 'X-OpenAI-Key', 'cf-turnstile-token'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Gemini-Key', 'X-OpenAI-Key', 'X-Brickvault-Platform', 'cf-turnstile-token'],
 }));
+
+app.use('*', async (c, next) => {
+  setPricingV3ReadPercent(c.env.PRICING_V3_READ_PERCENT);
+  await next();
+});
 
 // Public, anonymous catalog GETs (sets / themes / minifigs / rates / config) are
 // shared reference data that only changes on the hourly cron, so let browsers,
@@ -153,6 +159,7 @@ app.get('/api/config', (c) => {
     rebrickable: !!c.env.REBRICKABLE_API_KEY,
     firecrawl: !!c.env.FIRECRAWL_API_KEY,
     turnstile: !!c.env.TURNSTILE_SITE_KEY,
+    amazon: amazonReadiness(c.env).web_links_ready,
     // Stripe is parked as legacy/internal — Patreon is the public supporter flow,
     // so Stripe is intentionally omitted from public readiness. Re-add this line
     // to surface it again if Stripe checkout is brought back.
@@ -215,6 +222,12 @@ app.get('/api/config', (c) => {
         recommended_action: nativePushMissing.length
           ? 'Add FIREBASE_SERVICE_ACCOUNT_JSON as a Worker secret and include android/app/google-services.json in the Android build to enable native notifications.'
           : 'Firebase native push delivery is ready.',
+      },
+      amazon: {
+        ...amazonReadiness(c.env),
+        recommended_action: amazonReadiness(c.env).web_links_ready
+          ? 'Amazon Web Special Links are ready. Android and Creators API remain separately policy-gated.'
+          : 'Add AMAZON_PARTNER_TAG_FR_WEB and set AMAZON_WEB_ENABLED=1 to enable link-only Web CTAs.',
       },
     },
   });
@@ -359,6 +372,9 @@ export default {
           includeAiFallback: false,
           subrequestBudget: 320,
         }));
+        // Change-only v3 shadow sweep. PriceCharting-era records are healed
+        // first and the shared D1 pricing ledger can pause it automatically.
+        await run('pricing-v3-shadow', () => runBlendRecomputeBackfill(env, { limit: 400 }));
         break;
       }
       case '0 2 * * *': await run('snapshot-portfolios', () => runSnapshotPortfolios(env)); break;
@@ -424,23 +440,12 @@ export default {
       // Rebrickable's no-automation rule; Rebrickable-only per ToS.
       // Upcoming/coming-soon release feed (G2b): one LEGO.com listing scrape/day.
       case '0 15 * * *': await run('upcoming-refresh', () => runUpcomingRefresh(env)); break;
-      // PriceCharting is free (no BrickLink budget) and a genuine 2nd sold-comp
-      // source. The WEEKLY bulk CSV (0 18 Sun) covers the whole catalog, so this
-      // per-set path is the daily top-up for brand-new sets, owned/wishlisted
-      // priority, and the ~6% of PC rows the bulk can't match by set_num/UPC
-      // (search-by-name may catch them).
-      case '0 16 * * *': await run('pricecharting-enrich', () => runPriceChartingEnrich(env, { limit: 40, concurrency: 8 })); break;
       // pricesAPI live-retail runs in 3 daily slots (~18 sets/day) now that the
       // key pool spreads the monthly budget; cold calls are 30–90s so each slot
       // stays small. The job prioritizes owned/wishlisted sets first.
       case '0 17 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 19 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 23 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
-      // PriceCharting whole-catalog bulk CSV — WEEKLY (Sunday). The full-catalog
-      // re-stage + upsert was the biggest recurring D1 rows-written source; PC
-      // price-guide values move slowly, so weekly whole-catalog freshness is
-      // plenty and the per-set enrich (0 16) tops up owned/new sets daily.
-      case '0 18 * * SUN': await run('pricecharting-bulk', () => runPriceChartingBulkFetch(env)); break;
       // AI gap-fill: high-value formula sets that NO market source can price get a
       // free Gemini estimate (tries market first, AI only on a full miss). Small
       // limit + 3-day formula-head cooldown keep it well under the free tier; the

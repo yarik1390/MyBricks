@@ -2,7 +2,7 @@
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { runPriceChartingEnrich } from './jobs/pricecharting-enrich';
-import { clearSourceConfigCache } from './lib/source-config';
+import { clearSourceConfigCache, saveSourceConfig } from './lib/source-config';
 import { applyTestTables } from './test-schema';
 
 const db = (env as any).DB as D1Database;
@@ -21,7 +21,11 @@ async function seedSets(n: number) {
 describe('runPriceChartingEnrich', () => {
   beforeEach(async () => {
     clearSourceConfigCache();
-    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'app_settings']);
+    await applyTestTables(db, [
+      'lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota',
+      'app_settings', 'pricing_source_map', 'pricing_signals', 'set_valuation_state',
+      'pricing_write_ledger', 'set_value_history',
+    ]);
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -48,12 +52,15 @@ describe('runPriceChartingEnrich', () => {
 
   it('writes PriceCharting values when quota is available', async () => {
     await seedSets(1);
+    const enabled = { ...env, PRICECHARTING_TOKEN: 'tok', PRICECHARTING_VERIFIED_ENABLED: '1' } as any;
+    await saveSourceConfig(enabled, { pricecharting: { enabled: true, weight: 0 } } as any);
+    clearSourceConfigCache();
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
       status: 'success', id: '6910', 'console-name': 'LEGO Creator',
       'new-price': 12250, 'cib-price': 9250, 'loose-price': 5000, 'sales-volume': 100,
     }), { status: 200 })));
 
-    const r = await runPriceChartingEnrich({ ...env, PRICECHARTING_TOKEN: 'tok' } as any, { concurrency: 1 });
+    const r = await runPriceChartingEnrich(enabled, { concurrency: 1 });
 
     expect(r.processed).toBe(1);
     expect(r.updated).toBe(1);

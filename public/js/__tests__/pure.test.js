@@ -855,6 +855,49 @@ describe('native auth helpers', () => {
   });
 });
 
+describe('Amazon affiliate isolation', () => {
+  it('expires API prices after 23 hours and keeps the link-only fallback', async () => {
+    const { AMAZON_OFFER_TTL_MS, amazonOfferIsFresh, amazonOfferHTML } = await import('../lib/amazon-affiliate.js');
+    const now = Date.now();
+    const base = {
+      available: true,
+      mode: 'creators_api',
+      url: 'https://www.amazon.fr/s?k=LEGO&tag=brickvault-test',
+      price: 99.99,
+      currency: 'EUR',
+      checked_at: new Date(now - AMAZON_OFFER_TTL_MS + 1000).toISOString(),
+      disclosure: 'As an Amazon Associate, Brickvault earns from qualifying purchases.',
+    };
+    assert.equal(amazonOfferIsFresh(base, now), true);
+    assert.equal(amazonOfferIsFresh({ ...base, checked_at: new Date(now - AMAZON_OFFER_TTL_MS).toISOString() }, now), false);
+    const staleHTML = amazonOfferHTML({ ...base, checked_at: new Date(now - AMAZON_OFFER_TTL_MS - 1000).toISOString() });
+    assert.match(staleHTML, /Check current price/);
+    assert.doesNotMatch(staleHTML, /99[.,]99/);
+    assert.match(staleHTML, /rel="sponsored nofollow noopener"/);
+  });
+
+  it('reports Android only for a native Capacitor runtime and opens Browser externally', async () => {
+    const { brickvaultPlatform, openExternalCommerce } = await import('../lib/amazon-affiliate.js');
+    const calls = [];
+    const nativeWin = {
+      Capacitor: {
+        isNativePlatform: () => true,
+        Plugins: { Browser: { open: async (payload) => calls.push(payload) } },
+      },
+    };
+    assert.equal(brickvaultPlatform(nativeWin), 'android');
+    assert.equal(brickvaultPlatform({ Capacitor: { isNativePlatform: () => false } }), 'web');
+    assert.equal(await openExternalCommerce('https://www.amazon.fr/test', nativeWin), true);
+    assert.deepEqual(calls, [{ url: 'https://www.amazon.fr/test' }]);
+  });
+
+  it('exposes Pricing as a first-class admin section', async () => {
+    const { ADMIN_SECTIONS, ADMIN_JOB_TOOLS } = await import('../views/me-admin-config.js');
+    assert.ok(ADMIN_SECTIONS.some(([id, label]) => id === 'adminPricing' && label === 'Pricing'));
+    assert.equal(ADMIN_JOB_TOOLS.pricechartingBulk.disabled, true);
+  });
+});
+
 describe('native sharing', () => {
   it('uses the Capacitor share sheet before the browser API', async () => {
     const { shareContent } = await import('../lib/native-share.js');

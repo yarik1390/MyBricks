@@ -2,6 +2,7 @@ import type { Env } from '../types';
 import { fetchPartPricing } from '../lib/bricklink';
 import { toBrickLinkColorId } from '../lib/bricklink-colors';
 import { reserveQuota } from '../lib/api-quota';
+import { sourceEnabled } from '../lib/source-config';
 
 /**
  * Fill the shared part_prices cache (BrickLink NEW sold price guide) for the
@@ -16,6 +17,9 @@ import { reserveQuota } from '../lib/api-quota';
  * priced part is reused by every set that contains it.
  */
 export async function runPartPriceBackfill(env: Env, options: { limit?: number } = {}) {
+  if (!(await sourceEnabled(env, 'bricklink'))) {
+    return { processed: 0, priced: 0, limit: 0, skipped: 'bricklink disabled in source tuning' };
+  }
   if (!env.BRICKLINK_CONSUMER_KEY) {
     return { processed: 0, priced: 0, limit: 0, skipped: 'bricklink not configured' };
   }

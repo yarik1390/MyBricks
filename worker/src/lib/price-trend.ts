@@ -76,14 +76,24 @@ export async function recentValueMedian(
   db: D1Database,
   setNum: string,
   days = 90,
-): Promise<{ recentMedian: number | null; points: number }> {
+): Promise<{ recentMedian: number | null; points: number; days: number; firstValue: number | null; lastValue: number | null }> {
   const { results } = await db.prepare(`
-    SELECT current_value FROM set_value_history
+    SELECT snapshot_date, current_value FROM set_value_history
     WHERE set_num = ? AND snapshot_date >= DATE('now', ?) AND current_value IS NOT NULL
-    ORDER BY current_value ASC
-  `).bind(setNum, `-${days} days`).all<{ current_value: number }>();
+    ORDER BY snapshot_date ASC
+  `).bind(setNum, `-${days} days`).all<{ snapshot_date: string; current_value: number }>();
   const vals = (results || []).map(r => Number(r.current_value)).filter(v => v > 0).sort((a, b) => a - b);
-  return { recentMedian: medianOf(vals), points: vals.length };
+  const chronological = (results || []).filter(r => Number(r.current_value) > 0);
+  const span = chronological.length > 1
+    ? Math.max(0, (Date.parse(chronological.at(-1)!.snapshot_date) - Date.parse(chronological[0].snapshot_date)) / 86_400_000)
+    : 0;
+  return {
+    recentMedian: medianOf(vals),
+    points: vals.length,
+    days: span,
+    firstValue: chronological.length ? Number(chronological[0].current_value) : null,
+    lastValue: chronological.length ? Number(chronological.at(-1)!.current_value) : null,
+  };
 }
 
 // Batch form for the valuation cron: one query for many sets, medians in JS.
@@ -91,26 +101,33 @@ export async function recentValueMedians(
   db: D1Database,
   setNums: string[],
   days = 90,
-): Promise<Map<string, { recentMedian: number | null; points: number }>> {
+): Promise<Map<string, { recentMedian: number | null; points: number; days: number; firstValue: number | null; lastValue: number | null }>> {
   const ids = [...new Set(setNums.filter(Boolean))];
-  const out = new Map<string, { recentMedian: number | null; points: number }>();
+  const out = new Map<string, { recentMedian: number | null; points: number; days: number; firstValue: number | null; lastValue: number | null }>();
   if (!ids.length) return out;
   const placeholders = ids.map(() => '?').join(',');
   const { results } = await db.prepare(`
-    SELECT set_num, current_value FROM set_value_history
+    SELECT set_num, snapshot_date, current_value FROM set_value_history
     WHERE set_num IN (${placeholders}) AND snapshot_date >= DATE('now', ?) AND current_value IS NOT NULL
-  `).bind(...ids, `-${days} days`).all<{ set_num: string; current_value: number }>();
-  const byset = new Map<string, number[]>();
+  `).bind(...ids, `-${days} days`).all<{ set_num: string; snapshot_date: string; current_value: number }>();
+  const byset = new Map<string, Array<{ value: number; date: string }>>();
   for (const r of results || []) {
     const v = Number(r.current_value);
     if (!(v > 0)) continue;
     const arr = byset.get(r.set_num) || [];
-    arr.push(v);
+    arr.push({ value: v, date: r.snapshot_date });
     byset.set(r.set_num, arr);
   }
-  for (const [sn, vals] of byset) {
-    vals.sort((a, b) => a - b);
-    out.set(sn, { recentMedian: medianOf(vals), points: vals.length });
+  for (const [sn, entries] of byset) {
+    entries.sort((a, b) => Date.parse(a.date) - Date.parse(b.date));
+    const vals = entries.map(entry => entry.value).sort((a, b) => a - b);
+    out.set(sn, {
+      recentMedian: medianOf(vals),
+      points: entries.length,
+      days: entries.length > 1 ? Math.max(0, (Date.parse(entries.at(-1)!.date) - Date.parse(entries[0].date)) / 86_400_000) : 0,
+      firstValue: entries[0]?.value ?? null,
+      lastValue: entries.at(-1)?.value ?? null,
+    });
   }
   return out;
 }

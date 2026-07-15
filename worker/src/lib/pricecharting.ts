@@ -21,6 +21,11 @@ interface PCPrice {
 
 export interface PriceChartingResult {
   pc_id: string;
+  product_title: string | null;
+  upc: string | null;
+  variant_key: string | null;
+  match_method: 'manual' | 'upc' | 'title';
+  match_confidence: number;
   new_value: number | null;
   complete_value: number | null;
   // Loose = item only, without box/manual (a used-condition corroborator).
@@ -83,7 +88,11 @@ async function fetchPCByUpc(upc: string, token: string): Promise<PCPrice | null>
 
 // Map a raw PCPrice (pennies) into the normalized result, applying the shared
 // plausibility gate. PriceCharting returns 0 for conditions with no recent sales.
-function toResult(pcId: string, price: PCPrice): PriceChartingResult {
+function toResult(
+  pcId: string,
+  price: PCPrice,
+  match: Pick<PriceChartingResult, 'upc' | 'variant_key' | 'match_method' | 'match_confidence'>,
+): PriceChartingResult {
   const cents = (v: number | undefined) => (v && v > 0 ? v / 100 : null);
   const newValue = cents(price['new-price']);
   const completeValue = cents(price['cib-price']);
@@ -91,11 +100,39 @@ function toResult(pcId: string, price: PCPrice): PriceChartingResult {
   const vol = Number(price['sales-volume']);
   return {
     pc_id: pcId,
+    product_title: price['product-name'] || null,
+    ...match,
     new_value: newValue && isPlausibleMarketValue(newValue, {}) ? newValue : null,
     complete_value: completeValue && isPlausibleMarketValue(completeValue, {}) ? completeValue : null,
     loose_value: looseValue && isPlausibleMarketValue(looseValue, {}) ? looseValue : null,
     sales_volume: Number.isFinite(vol) && vol > 0 ? Math.round(vol) : null,
   };
+}
+
+const normalizeTitle = (value: string): string[] => String(value || '')
+  .toLowerCase()
+  .replace(/\b(lego|set|new|sealed|complete|cib|with|the|and)\b/g, ' ')
+  .replace(/#?\d{3,7}(?:-\d+)?/g, ' ')
+  .replace(/[^a-z0-9]+/g, ' ')
+  .trim()
+  .split(/\s+/)
+  .filter(token => token.length > 2);
+
+/** Strict title guard used by API discovery and the Finch Dallow regression. */
+export function isExactPriceChartingMatch(setNum: string, setName: string, productTitle: string): boolean {
+  const base = setNum.replace(/-\d+$/, '');
+  if (!new RegExp(`(?:#|\\b)${base}(?:\\b|-)`, 'i').test(productTitle)) return false;
+  // Known named/limited variants share a base number with the standard set.
+  // They require UPC or manual approval; title overlap alone is unsafe.
+  const variantMarkers = ['finch dallow'];
+  const normalizedName = setName.toLowerCase();
+  const normalizedProduct = productTitle.toLowerCase();
+  if (variantMarkers.some(marker => normalizedProduct.includes(marker) && !normalizedName.includes(marker))) return false;
+  const expected = normalizeTitle(setName);
+  const actual = new Set(normalizeTitle(productTitle));
+  if (!expected.length) return false;
+  const overlap = expected.filter(token => actual.has(token)).length / expected.length;
+  return overlap >= 0.6;
 }
 
 /**
@@ -127,13 +164,25 @@ export async function fetchPriceChartingData(
   // 1. Known id → direct price fetch.
   if (existingPcId) {
     const price = await fetchPCPrice(existingPcId, token);
-    return price ? toResult(existingPcId, price) : null;
+    return price ? toResult(existingPcId, price, {
+      upc: upc || null,
+      variant_key: setNum,
+      match_method: 'manual',
+      match_confidence: 1,
+    }) : null;
   }
 
   // 2. Known UPC → exact one-call lookup (id + prices together).
   if (upc) {
     const byUpc = await fetchPCByUpc(upc, token);
-    if (byUpc) return toResult(byUpc.id, byUpc);
+    if (byUpc) {
+      return toResult(byUpc.id, byUpc, {
+        upc,
+        variant_key: setNum,
+        match_method: 'upc',
+        match_confidence: 1,
+      });
+    }
     // fall through to search if the UPC isn't in PriceCharting
   }
 
@@ -148,10 +197,16 @@ export async function fetchPriceChartingData(
   );
   if (!legoProducts.length) return null;
 
-  const matched =
-    legoProducts.find((p) => p['product-name']?.includes(baseNum)) ??
-    legoProducts[0];
+  const exactMatches = legoProducts.filter((p) => isExactPriceChartingMatch(setNum, _setName, p['product-name'] || ''));
+  // Multiple variants sharing the same base number require manual review.
+  if (exactMatches.length !== 1) return null;
+  const matched = exactMatches[0];
 
   const price = await fetchPCPrice(matched.id, token);
-  return price ? toResult(matched.id, price) : null;
+  return price ? toResult(matched.id, price, {
+    upc: upc || null,
+    variant_key: setNum,
+    match_method: 'title',
+    match_confidence: 0.9,
+  }) : null;
 }

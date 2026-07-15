@@ -23,6 +23,15 @@ import { isSearchIndexCorruption, rebuildSearchIndex } from '../lib/search-index
 import { checkLegoStock } from '../lib/lego-stock';
 import { fetchSetMinifigs } from '../lib/rebrickable';
 import type { Env, Variables } from '../types';
+import {
+  AMAZON_ASSOCIATE_DISCLOSURE,
+  AMAZON_PRICE_DISCLAIMER,
+  amazonLinkEnabled,
+  amazonMarket,
+  amazonPartnerTag,
+  buildAmazonSpecialLink,
+  getFreshAmazonOffer,
+} from '../lib/amazon';
 
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -264,6 +273,76 @@ app.get('/search', async (c) => {
 });
 
 // GET /api/sets/:setnum
+app.get('/:setnum/amazon', async (c) => {
+  c.header('Cache-Control', 'no-store');
+  const requested = c.req.param('setnum');
+  const set = await c.env.DB.prepare('SELECT set_num, name FROM lego_sets WHERE set_num=? OR set_num=? LIMIT 1')
+    .bind(requested, `${requested}-1`).first<{ set_num: string; name: string }>();
+  if (!set) return c.json({ error: 'Set not found' }, 404);
+
+  const platform = c.req.header('X-Brickvault-Platform') === 'android' ? 'android' : 'web';
+  const market = amazonMarket(c.req.query('market'), c.env);
+  const tag = amazonPartnerTag(c.env, market, platform);
+  if (!amazonLinkEnabled(c.env, platform) || !tag) {
+    return c.json({
+      available: false,
+      platform,
+      market,
+      mode: 'disabled',
+      reason: platform === 'android'
+        ? 'Amazon purchasing is disabled until Brickvault is approved as an Amazon Mobile Application.'
+        : 'Amazon Web affiliate links are not configured.',
+    });
+  }
+
+  const offer = await getFreshAmazonOffer(c.env, set.set_num, market);
+  return c.json({
+    available: true,
+    platform,
+    market,
+    currency: offer?.currency || (market === 'FR' || market === 'DE' ? 'EUR' : market === 'GB' ? 'GBP' : market === 'CA' ? 'CAD' : market === 'AU' ? 'AUD' : 'USD'),
+    mode: offer ? 'creators_api' : 'link_only',
+    url: offer?.url || buildAmazonSpecialLink(set.set_num, set.name, market, tag),
+    asin: offer?.asin || null,
+    price: offer?.price || null,
+    availability: offer?.availability || null,
+    checked_at: offer?.fetched_at || null,
+    disclosure: AMAZON_ASSOCIATE_DISCLOSURE,
+    price_disclaimer: offer ? AMAZON_PRICE_DISCLAIMER : null,
+  });
+});
+
+app.get('/:setnum/price-history', async (c) => {
+  const setNum = c.req.param('setnum');
+  const condition = c.req.query('condition') || 'new_sealed';
+  if (!['new_sealed', 'used_complete', 'loose'].includes(condition)) {
+    return c.json({ error: 'condition must be new_sealed, used_complete, or loose' }, 400);
+  }
+  const { results } = await c.env.DB.prepare(`
+    SELECT snapshot_date, fair_value, low, high, confidence, model_version
+    FROM set_valuation_history_v2
+    WHERE set_num=? AND condition=?
+    ORDER BY snapshot_date ASC LIMIT 400
+  `).bind(setNum, condition).all();
+  return c.json({ set_num: setNum, condition, currency: 'USD', history: results });
+});
+
+app.get('/:setnum/offers', async (c) => {
+  const setNum = c.req.param('setnum');
+  const market = String(c.req.query('market') || 'FR').toUpperCase();
+  const current = await c.env.DB.prepare(`
+    SELECT market, currency, item_price, delivered_price, merchant, stock,
+           offer_count, msrp, lowest_90d, all_time_low, checked_at, source
+    FROM retail_price_current WHERE set_num=? AND market=?
+  `).bind(setNum, market).first();
+  const stats = await c.env.DB.prepare(`
+    SELECT MIN(delivered_price) AS all_time_low,
+      MIN(CASE WHEN observed_at >= datetime('now','-90 days') THEN delivered_price END) AS lowest_90d
+    FROM retail_price_history WHERE set_num=? AND market=?
+  `).bind(setNum, market).first();
+  return c.json({ set_num: setNum, market, current: current ? { ...current, ...stats } : null });
+});
+
 app.get('/:setnum', async (c) => {
   const setnum = c.req.param('setnum');
   const userId = c.get('userId');
@@ -280,6 +359,48 @@ app.get('/:setnum', async (c) => {
       'SELECT pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count, pa_market FROM set_market_ext WHERE set_num=?'
     ).bind(set.set_num).first<Record<string, unknown>>().catch(() => null);
     if (ext) set = { ...set, ...ext };
+    const retailMarket = userId
+      ? await c.env.DB.prepare(`SELECT retail_market FROM user_prefs WHERE user_id=?`)
+        .bind(userId).first<{ retail_market?: string }>().then(r => String(r?.retail_market || 'FR')).catch(() => 'FR')
+      : 'FR';
+    const retailOffer = await c.env.DB.prepare(`
+      SELECT market, currency, item_price, delivered_price, merchant, stock,
+             offer_count, msrp, lowest_90d, all_time_low, checked_at, source
+      FROM retail_price_current WHERE set_num=? AND market=?
+    `).bind(set.set_num, retailMarket).first<Record<string, unknown>>().catch(() => null);
+    if (retailOffer) set = { ...set, __retail_offer: retailOffer };
+    const valuationRows = await c.env.DB.prepare(`
+      SELECT condition, fair_value, low, high, liquidation_value, confidence,
+             confidence_score, sample_count, independent_family_count,
+             basis_json, flags_json, forecast_json, as_of
+      FROM set_valuation_state WHERE set_num=?
+    `).bind(set.set_num).all<Record<string, unknown>>().catch(() => ({ results: [] as Record<string, unknown>[] }));
+    for (const valuationRow of valuationRows.results || []) {
+      const parse = (value: unknown, fallback: unknown) => {
+        try { return JSON.parse(String(value ?? '')); } catch { return fallback; }
+      };
+      const state = {
+        condition: valuationRow.condition,
+        fair_value: valuationRow.fair_value,
+        low: valuationRow.low,
+        high: valuationRow.high,
+        liquidation_value: valuationRow.liquidation_value,
+        confidence: valuationRow.confidence,
+        confidence_score: valuationRow.confidence_score,
+        sample_count: valuationRow.sample_count,
+        independent_family_count: valuationRow.independent_family_count,
+        basis: parse(valuationRow.basis_json, []),
+        flags: parse(valuationRow.flags_json, []),
+        as_of: valuationRow.as_of,
+        model_version: 'v3',
+      };
+      if (valuationRow.condition === 'new_sealed') {
+        set.__valuation_new = state;
+        set.__valuation_forecast = parse(valuationRow.forecast_json, null);
+      } else if (valuationRow.condition === 'used_complete') {
+        set.__valuation_used = state;
+      }
+    }
 
     // Coming-soon: is this set in the upcoming/pre-release feed? If so it hasn't
     // launched yet — it must NOT read as "retiring soon", and its headline value

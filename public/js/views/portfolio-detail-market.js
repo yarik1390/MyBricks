@@ -3,6 +3,7 @@
 // Extracted from portfolio-detail.js; stateless (set-in, HTML-out), so they carry
 // no module state. The main view imports the six the info tab renders.
 import { I } from '../icons.js';
+import { amazonSlotHTML } from '../lib/amazon-affiliate.js';
 import { ebaySoldSummary } from '../lib/pure.js';
 import { escapeHtml, fmtMoney, fmtPct, fmtDateUpdated, trendBadgeHTML } from '../utils.js';
 
@@ -35,7 +36,7 @@ export function priceStripHTML(set, entry) {
     : (set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "eBay sold"
     : set.valuation_method === "formula_bulk" ? "Formula"
     : "Market";
-  const val1 = set.current_value;
+  const val1 = (set.valuation?.read_enabled && Number(set.valuation?.new?.fair_value)) || set.current_value;
 
   // Column 2: cross-source BrickLink new (when BE is primary, show BL independently)
   //           or BrickLink used when BL is primary (most useful comparison)
@@ -106,32 +107,130 @@ export function priceStripHTML(set, entry) {
         ${val3sub ? `<div class="ps-sub muted">${val3sub}</div>` : ""}
       </div>
     </div>
-    ${pcCompsHTML(set)}
     <div class="ps-footnote" style="display:flex;align-items:center;justify-content:space-between;width:100%;">
       <span>${sourceSuffix}</span>
       <span style="font-family:var(--mono);font-size:10px;color:${freshColor};">${lastUpdatedText}</span>
     </div>`;
 }
 
-// PriceCharting closed-auction comps (sealed / complete-in-box / loose) + yearly
-// sales volume. These are independent sold signals already in the blend but were
-// never surfaced. Named per the attribution policy (PriceCharting is an API).
-function pcCompsHTML(set) {
-  const sealed = Number(set.pc_new_value) > 0 ? Number(set.pc_new_value) : null;
-  const cib = Number(set.pc_complete_value) > 0 ? Number(set.pc_complete_value) : null;
-  const loose = Number(set.pc_loose_value) > 0 ? Number(set.pc_loose_value) : null;
-  if (!sealed && !cib && !loose) return '';
-  const vol = Number(set.pc_sales_volume) > 0 ? Number(set.pc_sales_volume) : null;
-  const parts = [];
-  if (sealed) parts.push(`Sealed <strong>${fmtMoney(sealed)}</strong>`);
-  if (cib) parts.push(`Complete <strong>${fmtMoney(cib)}</strong>`);
-  if (loose) parts.push(`Loose <strong>${fmtMoney(loose)}</strong>`);
+function localMoney(value, currency = 'USD') {
+  if (!(Number(value) > 0)) return 'Not available';
+  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(Number(value)); }
+  catch { return `${currency} ${Number(value).toFixed(2)}`; }
+}
+
+function confidenceLabel(value) {
+  return ({ high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence', estimated: 'Estimated' })[value] || 'Pending';
+}
+
+function sourceTypeLabel(value) {
+  return ({ sold: 'Verified sold data', modeled: 'Modeled market guide', asking: 'Active asking data', estimate: 'Estimated only' })[value] || 'Market signal';
+}
+
+function conditionStateHTML(state, label) {
+  if (!state) return '';
+  const basis = Array.isArray(state.basis) ? state.basis : [];
+  const primaryType = basis.find((item) => item.signal_type === 'sold')?.signal_type || basis[0]?.signal_type || 'estimate';
+  const flags = Array.isArray(state.flags) ? state.flags : [];
+  const range = Number(state.low) > 0 && Number(state.high) > 0
+    ? `${fmtMoney(state.low)} - ${fmtMoney(state.high)}`
+    : 'Range pending';
   return `
-    <div class="pc-comps">
-      <span class="pc-comps-src">PriceCharting sold</span>
-      <span class="pc-comps-vals">${parts.join(' · ')}</span>
-      ${vol ? `<span class="pc-comps-vol">${vol.toLocaleString()}/yr</span>` : ''}
-    </div>`;
+    <article class="pricing-condition-card">
+      <div class="pricing-condition-head">
+        <span>${escapeHtml(label)}</span>
+        <span class="pricing-confidence pricing-confidence--${escapeHtml(state.confidence || 'estimated')}">${escapeHtml(confidenceLabel(state.confidence))}</span>
+      </div>
+      <strong class="pricing-condition-value">${Number(state.fair_value) > 0 ? fmtMoney(state.fair_value) : 'Not enough verified data'}</strong>
+      <span class="pricing-condition-range">${escapeHtml(range)}</span>
+      <dl class="pricing-metrics">
+        <div><dt>Basis</dt><dd>${escapeHtml(sourceTypeLabel(primaryType))}</dd></div>
+        <div><dt>Sales</dt><dd>${Number(state.sample_count || 0).toLocaleString()}</dd></div>
+        <div><dt>Independent families</dt><dd>${Number(state.independent_family_count || 0)}</dd></div>
+        <div><dt>As of</dt><dd>${state.as_of ? escapeHtml(fmtDateUpdated(state.as_of)) : 'Pending'}</dd></div>
+      </dl>
+      ${flags.length ? `<div class="pricing-flags">${flags.map((flag) => `<span>${escapeHtml(String(flag).replaceAll('_', ' '))}</span>`).join('')}</div>` : ''}
+    </article>`;
+}
+
+export function investmentPricingHTML(set) {
+  const valuation = set.valuation || {};
+  const legacyValue = Number(set.market_value) || Number(set.blended_value) || Number(set.current_value) || 0;
+  const newState = valuation.new || (legacyValue > 0 ? {
+    fair_value: legacyValue,
+    low: null,
+    high: null,
+    confidence: 'estimated',
+    sample_count: 0,
+    independent_family_count: 0,
+    basis: [],
+    flags: ['legacy_estimate'],
+    as_of: set.cached_at || null,
+  } : null);
+  const legacyUsed = Number(set.used_value) || 0;
+  const usedState = valuation.used || (legacyUsed > 0 ? {
+    fair_value: legacyUsed,
+    low: null,
+    high: null,
+    confidence: 'low',
+    sample_count: Number(set.bl_used_qty || 0),
+    independent_family_count: 1,
+    basis: [],
+    flags: ['legacy_signal'],
+    as_of: set.bl_cached_at || set.cached_at || null,
+  } : null);
+  const acquisition = valuation.acquisition || {};
+  const partOut = valuation.part_out || {};
+  const forecast = valuation.forecast || {};
+  const fairValue = Number(newState?.fair_value) || legacyValue;
+  const liquidation = Number(newState?.liquidation_value) || 0;
+  const delivered = Number(acquisition.delivered_price) || 0;
+  const forecastReady = forecast.status === 'ready' || forecast.status === 'external';
+  return `
+    <section class="investment-pricing" aria-labelledby="investmentPricingTitle">
+      <div class="investment-pricing-head">
+        <div>
+          <span class="u-mono-label">Investment pricing</span>
+          <h2 id="investmentPricingTitle">Five numbers, five different jobs</h2>
+        </div>
+        <span class="pricing-model-badge">${escapeHtml(valuation.model_version || 'legacy')}</span>
+      </div>
+
+      <div class="pricing-block">
+        <div class="pricing-block-title"><span>1</span><div><h3>Market value</h3><p>Expected resale value, separated by condition.</p></div></div>
+        <div class="pricing-condition-grid">
+          ${conditionStateHTML(newState, 'New and sealed')}
+          ${conditionStateHTML(usedState, 'Used and complete')}
+        </div>
+      </div>
+
+      <div class="pricing-block pricing-block--split">
+        <div>
+          <div class="pricing-block-title"><span>2</span><div><h3>Sell now</h3><p>Fast-sale estimate after fees and a liquidity haircut.</p></div></div>
+          <strong class="pricing-block-value">${liquidation > 0 ? fmtMoney(liquidation) : 'Not enough sold data'}</strong>
+          ${liquidation > 0 && fairValue > 0 ? `<small>${Math.round((liquidation / fairValue) * 100)}% of fair value</small>` : ''}
+        </div>
+        <div>
+          <div class="pricing-block-title"><span>3</span><div><h3>Buy now</h3><p>Current retail acquisition price, never part of resale value.</p></div></div>
+          <strong class="pricing-block-value">${delivered > 0 ? escapeHtml(localMoney(delivered, acquisition.currency || 'USD')) : 'No current retail offer'}</strong>
+          ${acquisition.merchant ? `<small>${escapeHtml(acquisition.merchant)}${acquisition.checked_at ? ` · ${escapeHtml(fmtDateUpdated(acquisition.checked_at))}` : ''}</small>` : ''}
+          ${amazonSlotHTML(set.set_num)}
+        </div>
+      </div>
+
+      <div class="pricing-block pricing-block--split">
+        <div>
+          <div class="pricing-block-title"><span>4</span><div><h3>Part out</h3><p>Value of parts and minifigures sold separately.</p></div></div>
+          <strong class="pricing-block-value">${Number(partOut.value) > 0 ? fmtMoney(partOut.value) : 'Coverage too low'}</strong>
+          ${Number(partOut.coverage) > 0 ? `<small>${Math.round(Number(partOut.coverage) * 100)}% parts coverage</small>` : ''}
+        </div>
+        <div>
+          <div class="pricing-block-title"><span>5</span><div><h3>Forecast</h3><p>Scenario range based on the current fair value.</p></div></div>
+          <strong class="pricing-block-value">${forecastReady && Number(forecast.base) > 0 ? fmtMoney(forecast.base) : 'Insufficient history'}</strong>
+          ${forecastReady ? `<small>Bear ${fmtMoney(forecast.bear)} · Base ${fmtMoney(forecast.base)} · Bull ${fmtMoney(forecast.bull)}</small>` : `<small>${escapeHtml(forecast.methodology || 'Requires at least 180 days and 12 history points.')}</small>`}
+        </div>
+      </div>
+    </section>`;
 }
 
 export function marketConfidenceHTML(set) {
@@ -152,10 +251,20 @@ export function marketConfidenceHTML(set) {
     if (set.bo_used_value) out.push({ id: 'brickowl_used', name: 'BrickOwl used', value: set.bo_used_value, condition: 'used', sample_count: set.bo_used_qty });
     return out;
   };
-  const sources = Array.isArray(set.market_sources) && set.market_sources.length
-    ? set.market_sources.filter(s => s.id !== 'retail')
-    : fallbackSources();
-  const confidence = String(set.market_value_confidence || set.confidence || (set.valuation_method === 'formula_bulk' ? 'estimated' : 'medium')).toLowerCase();
+  const v3State = set.valuation?.read_enabled ? set.valuation?.new : null;
+  const sources = Array.isArray(v3State?.basis) && v3State.basis.length
+    ? v3State.basis.map((basis) => ({
+        id: basis.provider_family,
+        name: basis.provider_family,
+        value: basis.value,
+        condition: 'new',
+        sample_count: basis.sample_count,
+        note: sourceTypeLabel(basis.signal_type),
+      }))
+    : Array.isArray(set.market_sources) && set.market_sources.length
+      ? set.market_sources.filter(s => s.id !== 'retail')
+      : fallbackSources();
+  const confidence = String(v3State?.confidence || set.market_value_confidence || set.confidence || (set.valuation_method === 'formula_bulk' ? 'estimated' : 'medium')).toLowerCase();
   const freshness = set.freshness || 'fresh';
   const primary = sources.find(s => s.id === set.primary_value_source) || sources[0] || null;
   const color = confidence === 'high' ? 'var(--up)' : confidence === 'medium' ? 'var(--accent)' : confidence === 'low' ? 'var(--bv-yellow)' : 'var(--bv-red)';
@@ -256,6 +365,8 @@ export function marketDepthHTML(set) {
 // produced server-side and is already source-anonymized (retail vs resale, no
 // provider names); we only choose the badge styling here.
 export function dealSignalHTML(set) {
+  const confidence = String(set.valuation?.new?.confidence || set.market_value_confidence || '').toLowerCase();
+  if (!confidence || confidence === 'low' || confidence === 'estimated') return '';
   const sig = set.deal_signal;
   if (sig !== 'buy' && sig !== 'fair' && sig !== 'premium') return '';
   const reason = set.deal_reason || '';
@@ -294,7 +405,7 @@ export function dealSignalHTML(set) {
 // individual parts. Only present when piece-price coverage is high (gated
 // server-side in enrichSetRecord), so a shown figure is trustworthy.
 export function partOutHTML(set) {
-  const po = Number(set.part_out_value);
+  const po = Number(set.valuation?.part_out?.value || set.part_out_value);
   if (!Number.isFinite(po) || po <= 0) return '';
   const mv = Number(set.market_value) || Number(set.current_value) || 0;
   let note = 'Estimated value if sold as individual parts.';

@@ -44,13 +44,16 @@ export async function runPriceChartingEnrich(
     : 50;
 
   const { results } = await env.DB.prepare(`
-    SELECT ls.set_num, ls.name, ls.pc_id, ls.upc
+    SELECT ls.set_num, ls.name, pm.source_item_id AS pc_id, ls.upc
     FROM lego_sets ls
+    LEFT JOIN pricing_source_map pm
+      ON pm.source='pricecharting' AND pm.set_num=ls.set_num
+     AND pm.status IN ('verified','manual')
     WHERE (ls.pc_cached_at IS NULL OR ls.pc_cached_at < datetime('now', '-${refreshDays} days'))
       AND ls.year >= 2000
     ORDER BY
       CASE WHEN ls.bl_new_value IS NOT NULL AND ls.pc_cached_at IS NULL THEN 0 ELSE 1 END,
-      CASE WHEN ls.pc_id IS NOT NULL THEN 0 ELSE 1 END,
+      CASE WHEN pm.source_item_id IS NOT NULL THEN 0 ELSE 1 END,
       CASE WHEN EXISTS (
         SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
       ) OR EXISTS (
@@ -85,11 +88,7 @@ export async function runPriceChartingEnrich(
       processed++;
 
       if (!result) {
-        // Stamp pc_cached_at so a set missing from PC isn't retried every run.
-        stmts.push(
-          env.DB.prepare(`UPDATE lego_sets SET pc_cached_at=datetime('now') WHERE set_num=?`)
-            .bind(set.set_num),
-        );
+        // A no-data response must not make an old observation look fresh.
         continue;
       }
 
@@ -106,6 +105,46 @@ export async function runPriceChartingEnrich(
         env.DB.prepare(`UPDATE lego_sets SET ${fields.join(', ')} WHERE set_num=?`)
           .bind(...binds, set.set_num),
       );
+
+      stmts.push(env.DB.prepare(`
+        INSERT INTO pricing_source_map (
+          source, source_item_id, set_num, source_title, upc, variant_key,
+          match_method, match_confidence, status, verified_at, updated_at
+        ) VALUES ('pricecharting', ?1, ?2, ?3, ?4, ?5, ?6, ?7, 'verified', datetime('now'), datetime('now'))
+        ON CONFLICT(source, source_item_id) DO UPDATE SET
+          set_num=excluded.set_num, source_title=excluded.source_title,
+          upc=excluded.upc, variant_key=excluded.variant_key,
+          match_method=excluded.match_method, match_confidence=excluded.match_confidence,
+          status='verified', verified_at=datetime('now'), updated_at=datetime('now')
+      `).bind(
+        result.pc_id, set.set_num, result.product_title, result.upc || set.upc,
+        result.variant_key || set.set_num, result.match_method, result.match_confidence,
+      ));
+
+      const addSignal = (
+        condition: 'new_sealed' | 'used_complete' | 'loose',
+        value: number | null,
+      ) => {
+        if (value == null) return;
+        stmts.push(env.DB.prepare(`
+          INSERT INTO pricing_signals (
+            set_num, source, source_item_id, provider_family, condition,
+            signal_type, currency, value, sample_count, sales_volume,
+            source_observed_at, checked_at, match_status, flags_json, updated_at
+          ) VALUES (?1, 'pricecharting', ?2, 'ebay_market', ?3, 'sold', 'USD', ?4, ?5, ?5, datetime('now'), datetime('now'), 'verified', '[]', datetime('now'))
+          ON CONFLICT(set_num, source, condition) DO UPDATE SET
+            source_item_id=excluded.source_item_id, value=excluded.value,
+            sample_count=excluded.sample_count, sales_volume=excluded.sales_volume,
+            source_observed_at=excluded.source_observed_at, checked_at=excluded.checked_at,
+            match_status='verified', flags_json='[]', updated_at=datetime('now')
+          WHERE pricing_signals.value IS NOT excluded.value
+             OR pricing_signals.sample_count IS NOT excluded.sample_count
+             OR pricing_signals.match_status IS NOT 'verified'
+        `).bind(set.set_num, result.pc_id, condition, value, result.sales_volume));
+      };
+      addSignal('new_sealed', result.new_value);
+      addSignal('used_complete', result.complete_value);
+      addSignal('loose', result.loose_value);
 
       // Loose (used) value + sales-volume (liquidity) live in the set_market_ext
       // side table. UPSERT only when at least one is present.

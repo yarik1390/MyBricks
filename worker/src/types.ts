@@ -97,6 +97,9 @@ export interface Env {
   // admin bulk CSV-upload path. The per-set /api/product path (loose-price +
   // sales-volume) works on any paid tier regardless of this flag.
   PRICECHARTING_PRO?: string;
+  // Second lock protecting the PriceCharting quarantine. Admin source tuning
+  // cannot re-enable its jobs until identity review is explicitly approved.
+  PRICECHARTING_VERIFIED_ENABLED?: string;
   // pricesAPI.io — live retail + marketplace offers across major retailers
   // (https://api.pricesapi.io/api/v1/products/search). Synchronous cold calls
   // take 30–90s so it is cron-only. Free tier = 1000 calls/month, 6/min PER KEY,
@@ -112,6 +115,19 @@ export interface Env {
   // ISO country/market code for pricesAPI lookups (default "us"; us/gb/au/de/nl
   // have the deepest retailer coverage).
   PRICESAPI_MARKET?: string;
+  // Amazon Associates link-only is the default integration. Creators API is
+  // separately gated and its product content must remain in KV for <24 hours.
+  AMAZON_PARTNER_TAG_FR_WEB?: string;
+  AMAZON_PARTNER_TAG_FR_ANDROID?: string;
+  AMAZON_WEB_ENABLED?: string;
+  AMAZON_ANDROID_ENABLED?: string;
+  AMAZON_DEFAULT_MARKET?: string;
+  AMAZON_CREATORS_PUBLIC_KEY?: string;
+  AMAZON_CREATORS_PRIVATE_KEY?: string;
+  AMAZON_CREATORS_ENABLED?: string;
+  // Shadow rollout percentage for v3 reads (0, 10, 50, 100). The state is
+  // always computed; this only controls whether it replaces legacy headlines.
+  PRICING_V3_READ_PERCENT?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   // Patreon crowdfunding link (set via wrangler secret put PATREON_URL).

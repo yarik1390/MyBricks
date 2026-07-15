@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { requireMember } from '../auth';
 import type { Env, Variables } from '../types';
 import { hashPin, verifyPin } from '../lib/kids-xp';
+import { holdingValueForRollout } from '../lib/market-sources';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -27,27 +28,39 @@ app.get('/', async (c) => {
   const userEmail = c.get('userEmail');
   const db = c.env.DB;
 
-  const [prefs, stats, kidsBadgesRows] = await Promise.all([
+  const [prefs, holdings, kidsBadgesRows] = await Promise.all([
     // Explicit projection (not SELECT *): only the columns this response reads.
     // Deliberately excludes google_refresh_token / google_spreadsheet_id (OAuth
     // credentials) and other columns the client never needs.
     db.prepare(
-      `SELECT display_name, handle, is_public, expose_public_value, currency,
+      `SELECT display_name, handle, is_public, expose_public_value, currency, retail_market,
               notify_price_drops, discord_webhook_url, brickset_user_hash, email, is_supporter,
               kids_pin_hash, kids_xp, kids_level
        FROM user_prefs WHERE user_id=?`
     ).bind(userId).first<Record<string, unknown>>(),
     db.prepare(`
-      SELECT COUNT(*) as set_count,
-        COALESCE(SUM(COALESCE(s.blended_value, s.current_value) * uc.quantity), 0) as total_value,
-        COALESCE(SUM(COALESCE(uc.purchase_price,0) * uc.quantity), 0) as total_paid
+      SELECT uc.set_num, uc.condition, uc.quantity, uc.purchase_price,
+             s.current_value, s.blended_value, s.used_value,
+             s.ebay_used_value, s.bo_used_value,
+             svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair
       FROM user_collection uc
       JOIN lego_sets s ON s.set_num = uc.set_num
+      LEFT JOIN set_valuation_state svn ON svn.set_num=s.set_num AND svn.condition='new_sealed'
+      LEFT JOIN set_valuation_state svu ON svu.set_num=s.set_num AND svu.condition='used_complete'
       WHERE uc.user_id=? AND uc.deleted_at IS NULL
-    `).bind(userId).first<{ set_count: number; total_value: number; total_paid: number }>(),
+    `).bind(userId).all<Record<string, unknown>>(),
     db.prepare('SELECT badge_slug FROM kids_badges WHERE user_id=?')
       .bind(userId).all<{ badge_slug: string }>(),
   ]);
+  const rolloutPercent = Number(c.env.PRICING_V3_READ_PERCENT || 0);
+  const holdingRows = holdings.results || [];
+  const stats = holdingRows.reduce<{ set_count: number; total_value: number; total_paid: number }>((total, row) => {
+    const quantity = Number(row.quantity || 1);
+    total.total_value += holdingValueForRollout(row, rolloutPercent) * quantity;
+    total.total_paid += Number(row.purchase_price || 0) * quantity;
+    total.set_count += 1;
+    return total;
+  }, { set_count: 0, total_value: 0, total_paid: 0 });
 
   // Persist email from JWT claim on first encounter (no-op if already stored)
   if (userEmail && !prefs?.email) {
@@ -79,6 +92,7 @@ app.get('/', async (c) => {
     is_public: p.is_public ? true : false,
     expose_public_value: p.expose_public_value !== 0,
     currency: (p.currency as string) || 'USD',
+    retail_market: (p.retail_market as string) || 'FR',
     notify_price_drops: p.notify_price_drops !== 0,
     ebay_configured: ebayConfigured,
     bricklink_configured: bricklinkConfigured,
@@ -102,17 +116,21 @@ app.get('/', async (c) => {
 app.patch('/', async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json<{
-    display_name?: string; currency?: string; notify_price_drops?: boolean;
+    display_name?: string; currency?: string; retail_market?: string; notify_price_drops?: boolean;
     handle?: string; is_public?: boolean; expose_public_value?: boolean;
     discord_webhook_url?: string | null;
   }>();
-  const { display_name, currency, notify_price_drops, handle, is_public, expose_public_value, discord_webhook_url } = body;
+  const { display_name, currency, retail_market, notify_price_drops, handle, is_public, expose_public_value, discord_webhook_url } = body;
   if (display_name && display_name.length > 40) return c.json({ error: 'display_name max 40 chars' }, 400);
   // Whitelist currency (mirrors CURRENCY_SYMBOLS in public/js/utils.js) — it
   // was previously stored verbatim, so any string could persist unbounded.
   const CURRENCIES = ['USD', 'GBP', 'EUR', 'CAD', 'AUD'];
   if (currency !== undefined && !CURRENCIES.includes(String(currency))) {
     return c.json({ error: `currency must be one of ${CURRENCIES.join(', ')}` }, 400);
+  }
+  const RETAIL_MARKETS = ['FR', 'US', 'GB', 'DE', 'CA', 'AU', 'NL'];
+  if (retail_market !== undefined && !RETAIL_MARKETS.includes(String(retail_market).toUpperCase())) {
+    return c.json({ error: `retail_market must be one of ${RETAIL_MARKETS.join(', ')}` }, 400);
   }
 
   if (handle !== undefined) {
@@ -132,11 +150,12 @@ app.patch('/', async (c) => {
 
   const epv = expose_public_value != null ? (expose_public_value ? 1 : 0) : 1;
   await c.env.DB.prepare(`
-    INSERT INTO user_prefs (user_id, display_name, currency, notify_price_drops, handle, is_public, expose_public_value, discord_webhook_url, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    INSERT INTO user_prefs (user_id, display_name, currency, retail_market, notify_price_drops, handle, is_public, expose_public_value, discord_webhook_url, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT (user_id) DO UPDATE SET
       display_name = COALESCE(?, user_prefs.display_name),
       currency = COALESCE(?, user_prefs.currency),
+      retail_market = COALESCE(?, user_prefs.retail_market),
       notify_price_drops = COALESCE(?, user_prefs.notify_price_drops),
       handle = COALESCE(?, user_prefs.handle),
       is_public = COALESCE(?, user_prefs.is_public),
@@ -147,6 +166,7 @@ app.patch('/', async (c) => {
     userId,
     display_name ?? null,
     currency ?? 'USD',
+    retail_market?.toUpperCase() ?? 'FR',
     notify_price_drops != null ? (notify_price_drops ? 1 : 0) : 1,
     handle ?? null,
     is_public != null ? (is_public ? 1 : 0) : 0,
@@ -154,6 +174,7 @@ app.patch('/', async (c) => {
     discord_webhook_url !== undefined ? (discord_webhook_url || null) : null,
     display_name ?? null,
     currency ?? null,
+    retail_market?.toUpperCase() ?? null,
     notify_price_drops != null ? (notify_price_drops ? 1 : 0) : null,
     handle ?? null,
     is_public != null ? (is_public ? 1 : 0) : null,

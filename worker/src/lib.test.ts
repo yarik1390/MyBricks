@@ -475,10 +475,10 @@ describe('blendMarketValue (valuation v2)', () => {
   const now = new Date().toISOString();
   const old = new Date(Date.now() - 200 * 86_400_000).toISOString();
 
-  it('returns null when there is no market data', () => {
+  it('labels a formula-only value as estimated', () => {
     const r = blendMarketValue({ valuation_method: 'formula_bulk', current_value: 20 });
-    expect(r.value).toBeNull();
-    expect(r.confidence).toBeNull();
+    expect(r.value).toBe(20);
+    expect(r.confidence).toBe('estimated');
   });
 
   it('calibrates a single fresh BrickLink band to contain the lot range and value', () => {
@@ -495,10 +495,9 @@ describe('blendMarketValue (valuation v2)', () => {
 
   it('blends two fresh sold sources and rates confidence high', () => {
     const r = blendMarketValue({ valuation_method: 'market', bl_new_value: 100, bl_new_qty: 10, bl_cached_at: now, ebay_new_value: 120, ebay_new_qty: 10, ebay_new_cached_at: now });
-    expect(r.value).toBeGreaterThan(100);
-    expect(r.value).toBeLessThan(120);
+    expect(r.value).toBe(100);
     expect(r.confidence).toBe('high');
-    expect(r.low).toBe(100);
+    expect(r.low).toBe(94);
     expect(r.high).toBe(120);
   });
 
@@ -516,11 +515,11 @@ describe('blendMarketValue (valuation v2)', () => {
     expect(r.high).toBeLessThanOrEqual(120);
   });
 
-  it('includes eBay asking as a discounted, low-confidence soft signal', () => {
+  it('does not promote eBay asking into fair market value', () => {
     const r = blendMarketValue({ valuation_method: 'formula_bulk', ebay_ask_value: 200, ebay_ask_qty: 5, ebay_ask_cached_at: now });
-    expect(r.value).toBe(170);          // 200 × 0.85 haircut
-    expect(r.confidence).toBe('low');   // asks never count as a sold source
-    expect(r.basis.some(b => b.id === 'ebay_ask')).toBe(true);
+    expect(r.value).toBeNull();
+    expect(r.confidence).toBeNull();
+    expect(r.basis.some(b => b.id === 'ebay_market')).toBe(true);
   });
 
   it('ignores asking prices entirely when real comps exist (fallback only)', () => {
@@ -531,12 +530,12 @@ describe('blendMarketValue (valuation v2)', () => {
       ebay_ask_value: 200, ebay_ask_qty: 5, ebay_ask_cached_at: now,
     });
     expect(r.confidence).toBe('high');                              // two fresh sold sources
-    expect(r.basis.some(b => b.id === 'ebay_ask')).toBe(false);    // ask dropped — comps present
+    expect(r.basis.filter(b => b.id === 'ebay_market')).toHaveLength(1);
     expect(r.value).toBeLessThanOrEqual(104);                      // no upward drag from the ask
   });
 
   it('treats a stale-only source as low confidence', () => {
-    const r = blendMarketValue({ valuation_method: 'market', bl_new_value: 50, bl_new_qty: 3, bl_cached_at: old });
+    const r = blendMarketValue({ valuation_method: 'market', bl_new_value: 50, bl_new_qty: 5, bl_cached_at: old });
     expect(r.value).toBe(50);
     expect(r.confidence).toBe('low');
   });
@@ -544,13 +543,13 @@ describe('blendMarketValue (valuation v2)', () => {
   it('uses BrickEconomy current_value when it is the method', () => {
     const r = blendMarketValue({ valuation_method: 'brickeconomy', current_value: 300, be_cached_at: now });
     expect(r.value).toBe(300);
-    expect(r.confidence).toBe('medium');
+    expect(r.confidence).toBe('low');
   });
 
   it('demotes confidence and widens the band when a thin value jumps off its history', () => {
     // One thin sold source at 300, but the trailing 90-day median sits at 100.
     const r = blendMarketValue(
-      { valuation_method: 'market', bl_new_value: 300, bl_new_qty: 4, bl_cached_at: now },
+      { valuation_method: 'market', bl_new_value: 300, bl_new_qty: 5, bl_cached_at: now },
       { recentMedian: 100, points: 30 },
     );
     expect(r.value).toBe(300);              // latest number preserved, never overwritten
@@ -585,7 +584,7 @@ describe('blendMarketValue (valuation v2)', () => {
       bo_new_value: 900, bo_cached_at: now,
     });
     expect(r.value).toBe(100);
-    expect(r.basis.map(b => b.id)).toEqual(['bricklink_new']);
+    expect(r.basis.map(b => b.id)).toEqual(['bricklink', 'brickowl']);
     expect(r.confidence).toBe('medium');
   });
 
@@ -598,8 +597,7 @@ describe('blendMarketValue (valuation v2)', () => {
       ebay_new_value: 400, ebay_new_qty: 10, ebay_new_cached_at: now,
     });
     expect(r.confidence).toBe('low');
-    expect(r.value).toBeGreaterThan(100);
-    expect(r.value).toBeLessThan(400);
+    expect(r.value).toBe(100);
   });
 
   it('rates two fresh sold comps that are moderately apart as medium, not high', () => {
@@ -612,24 +610,23 @@ describe('blendMarketValue (valuation v2)', () => {
     expect(r.confidence).toBe('medium');
   });
 
-  it('reaches high confidence when BrickLink + PriceCharting agree within 40%', () => {
+  it('does not treat legacy PriceCharting as an independent sealed signal', () => {
     const r = blendMarketValue({
       valuation_method: 'market',
       bl_new_value: 100, bl_new_qty: 8, bl_cached_at: now,
       pc_new_value: 110, pc_cached_at: now,
     });
-    expect(r.confidence).toBe('high');
-    expect(r.value).toBeGreaterThan(100);
-    expect(r.value).toBeLessThan(115);
+    expect(r.confidence).toBe('medium');
+    expect(r.value).toBe(100);
   });
 
-  it('stays medium with only PriceCharting sealed price (single source)', () => {
+  it('quarantines a lone legacy PriceCharting sealed price', () => {
     const r = blendMarketValue({
       valuation_method: 'formula_bulk',
       pc_new_value: 150, pc_cached_at: now,
     });
-    expect(r.confidence).toBe('medium');
-    expect(r.value).toBe(150);
+    expect(r.confidence).toBeNull();
+    expect(r.value).toBeNull();
   });
 
   it('stale PriceCharting data (>30 days) is not counted as fresh for confidence', () => {
@@ -676,14 +673,14 @@ describe('catalog projection covers every blend input', () => {
     expect(missing).toEqual([]);
   });
 
-  it('including PriceCharting sold comps pulls the blend below the lone legacy value', () => {
+  it('legacy PriceCharting columns cannot change the blend', () => {
     const now = new Date().toISOString();
     // Mirrors Cloud City 10123-1: a high single legacy value, dragged down by the
     // PriceCharting sealed/complete sold comps.
     const base = { valuation_method: 'brickeconomy', current_value: 15881, be_cached_at: now };
     const withoutPc = blendMarketValue({ ...base });
     const withPc = blendMarketValue({ ...base, pc_new_value: 8000, pc_complete_value: 3649.5, pc_cached_at: now });
-    expect(withPc.value as number).toBeLessThan(withoutPc.value as number);
+    expect(withPc.value).toBe(withoutPc.value);
   });
 });
 
@@ -775,14 +772,12 @@ describe('computeDealSignal (E3a)', () => {
 });
 
 describe('PriceCharting loose + liquidity (Phase 2)', () => {
-  it('surfaces pc_loose_value as a used-condition source, not in the new-value blend', () => {
+  it('quarantines legacy pc_loose_value from every public valuation source', () => {
     const row = { bl_new_value: 200, bl_new_qty: 5, bl_cached_at: new Date().toISOString(), pc_loose_value: 90, pc_cached_at: new Date().toISOString() };
     const sources = buildMarketSources(row);
     const loose = sources.find((s) => s.id === 'pc_loose');
-    expect(loose).toBeTruthy();
-    expect(loose!.condition).toBe('used');
-    expect(loose!.value).toBe(90);
-    // The loose (used) value must not drag the new-value blend down.
+    expect(loose).toBeUndefined();
+    // Neither loose nor complete PriceCharting values can move sealed value.
     expect(blendMarketValue(row).value).toBe(200);
   });
 
@@ -791,14 +786,14 @@ describe('PriceCharting loose + liquidity (Phase 2)', () => {
     expect((enrichSetRecord({}) as any).sales_volume).toBeNull();
   });
 
-  it('liquidity calibrates the confidence band (illiquid wider than deep)', () => {
+  it('legacy PriceCharting liquidity cannot alter the sealed confidence band', () => {
     const fresh = new Date().toISOString();
     // Two agreeing fresh sold comps → high confidence; same value, different volume.
     const base = { bl_new_value: 200, bl_new_qty: 5, bl_cached_at: fresh, pc_new_value: 205, pc_cached_at: fresh };
     const illiquid = blendMarketValue({ ...base, pc_sales_volume: 1 });
     const deep = blendMarketValue({ ...base, pc_sales_volume: 50 });
     const width = (b: { low: number | null; high: number | null }) => (Number(b.high) - Number(b.low));
-    expect(width(illiquid)).toBeGreaterThan(width(deep));
+    expect(width(illiquid)).toBe(width(deep));
   });
 });
 

@@ -96,6 +96,7 @@ describe('BrickVault API Worker Tests', () => {
       'DROP TABLE IF EXISTS user_collection',
       'DROP TABLE IF EXISTS lego_sets',
       'DROP TABLE IF EXISTS set_market_ext',
+      'DROP TABLE IF EXISTS set_valuation_state',
       'DROP TABLE IF EXISTS rate_limits',
       'DROP TABLE IF EXISTS user_wishlist',
       'DROP TABLE IF EXISTS user_minifigs',
@@ -218,6 +219,13 @@ describe('BrickVault API Worker Tests', () => {
         pc_loose_value REAL, pc_sales_volume INTEGER,
         pa_retail_value REAL, pa_lowest_offer REAL, pa_in_stock INTEGER,
         pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT
+      )`,
+
+      `CREATE TABLE set_valuation_state (
+        set_num TEXT NOT NULL, condition TEXT NOT NULL, fair_value REAL, low REAL, high REAL,
+        liquidation_value REAL, confidence TEXT, confidence_score REAL, sample_count INTEGER,
+        independent_family_count INTEGER, basis_json TEXT, flags_json TEXT, forecast_json TEXT,
+        as_of TEXT, model_version TEXT, updated_at TEXT, PRIMARY KEY (set_num, condition)
       )`,
 
       `CREATE TABLE user_collection (

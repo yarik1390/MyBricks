@@ -1,5 +1,5 @@
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg } from '../utils.js';
-import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML } from './portfolio-detail-market.js';
+import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML } from './portfolio-detail-market.js';
 import { computeDealScore, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { shareContent } from '../lib/native-share.js';
@@ -12,6 +12,7 @@ import { flipCalcHTML } from '../components/flip-calc.js';
 import { openReviewSheet, openPhotoSheet, openDataFixSheet } from '../components/contribute.js';
 import { refreshNavBadge } from './portfolio.js';
 import { getModePref } from '../theme.js';
+import { hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
 
 // Simple mode hides the forecast (price-projection) tab. Helper centralizes the
 // check and the available-tabs list so every tab build stays consistent.
@@ -252,15 +253,21 @@ function setDisplayValue(set) {
   // Coming-soon sets aren't released yet — there's no market, so show the
   // announced retail (from the upcoming feed, else MSRP), not a formula estimate.
   if (set.coming_soon) return Number(set.upcoming_price) || Number(set.retail_price) || 0;
-  return displayValueOf(set);
+  return (set.valuation?.read_enabled && Number(set.valuation?.new?.fair_value)) || displayValueOf(set);
 }
 
 // Plain-language confidence chip (no "high/medium/low signal" jargon).
 function confidenceChip(set) {
   // Not released yet: the headline is the announced retail, not a market estimate.
   if (set.coming_soon) return `<span class="detail-chip detail-chip--ok" title="Not released yet — showing the announced retail price">Coming soon</span>`;
-  const conf = String(set.market_value_confidence || set.confidence || '').toLowerCase();
+  const conf = String((set.valuation?.read_enabled && set.valuation?.new?.confidence) || set.market_value_confidence || set.confidence || '').toLowerCase();
   const method = set.valuation_method;
+  if (set.valuation?.read_enabled && set.valuation?.new) {
+    if (conf === 'high') return `<span class="detail-chip detail-chip--good" title="Multiple fresh independent sold markets agree on this price">Reliable price</span>`;
+    if (conf === 'medium') return `<span class="detail-chip detail-chip--ok" title="Recent market evidence supports this price">Good estimate</span>`;
+    if (conf === 'low') return `<span class="detail-chip detail-chip--low" title="Limited, stale, or conflicting market evidence">Low confidence</span>`;
+    return `<span class="detail-chip detail-chip--low" title="No sufficient verified sold evidence yet">Estimated</span>`;
+  }
   if (method === 'ai') return `<span class="detail-chip detail-chip--low" title="Estimated by AI because fresh market data wasn't available">Estimated</span>`;
   if (method === 'formula_bulk') return `<span class="detail-chip detail-chip--low" title="Estimated from the set's attributes until a market refresh runs">Rough estimate</span>`;
   if (conf === 'high') return `<span class="detail-chip detail-chip--good" title="Multiple fresh market sources agree on this price">Reliable price</span>`;
@@ -288,6 +295,14 @@ function summaryFactsHTML(set) {
 // plain line. Market values cite the signal count + range; estimates say so.
 function valueProvenanceHTML(set) {
   if (set.coming_soon) return '';
+  const v3 = set.valuation?.read_enabled ? set.valuation?.new : null;
+  if (Number(v3?.fair_value) > 0) {
+    const families = Number(v3.independent_family_count || 0);
+    const sales = Number(v3.sample_count || 0);
+    const lo = Number(v3.low), hi = Number(v3.high);
+    const range = lo > 0 && hi > 0 ? ` · likely ${fmtMoney(lo, { cents: 0 })}-${fmtMoney(hi, { cents: 0 })}` : '';
+    return `<div class="detail-summary-src">${families} independent market famil${families === 1 ? 'y' : 'ies'} · ${sales} verified sale${sales === 1 ? '' : 's'}${range}</div>`;
+  }
   if (Number(set.market_value) > 0) {
     const n = Array.isArray(set.market_value_basis) ? set.market_value_basis.length : 0;
     const lo = Number(set.market_value_low), hi = Number(set.market_value_high);
@@ -303,7 +318,7 @@ function valueProvenanceHTML(set) {
 // read humbler than market ones: "Estimated value ~$120" vs "Value $120".
 function detailSummaryHTML(set) {
   const v = setDisplayValue(set);
-  const est = !!estMark(set);
+  const est = !(set.valuation?.read_enabled && Number(set.valuation?.new?.fair_value) > 0) && !!estMark(set);
   const chip = isSimpleMode() ? '' : confidenceChip(set);
   return `
     <div class="detail-summary">
@@ -617,6 +632,7 @@ function infoTabHTML(set, entry, isWish) {
 
   return `
     ${detailSummaryHTML(set)}
+    ${isSimpleMode() || !set.valuation?.read_enabled ? '' : investmentPricingHTML(set)}
     ${isSimpleMode() ? '' : `
     ${aiDisclaimerHTML}
     <details class="detail-disclose">
@@ -660,6 +676,7 @@ function infoTabHTML(set, entry, isWish) {
 function wireInfoTab(set) {
   loadSetHistory(set.set_num);
   loadSetImages(set.set_num);
+  hydrateAmazonSlots(document, state.me?.retail_market || 'FR');
 
   const aboutBtn = $("#aboutToggle");
   aboutBtn?.addEventListener("click", () => {
@@ -846,10 +863,13 @@ function wireDetailActions(set, entry) {
 // growth bars, and the 5-year horizon is gone — nobody can forecast LEGO prices
 // 5 years out and pretending otherwise erodes trust in every other number).
 function forecastTabHTML(set) {
-  const hasForecast = Number(set.forecast_2y) > 0 && Number(set.current_value) > 0;
-  const g2 = hasForecast ? (set.forecast_2y - set.current_value) / set.current_value : null;
+  const forecast = set.valuation?.read_enabled ? set.valuation?.forecast : null;
+  const baseline = Number(forecast?.base_value) || Number(set.valuation?.new?.fair_value) || Number(set.current_value) || 0;
+  const projection = Number(forecast?.base) || Number(set.forecast_2y) || 0;
+  const hasForecast = (forecast?.status === 'ready' || forecast?.status === 'external') && projection > 0 && baseline > 0;
+  const g2 = hasForecast ? (projection - baseline) / baseline : null;
   // Annualized (CAGR) rate — clearer than the total projected % above.
-  const ann2 = hasForecast ? Math.pow(set.forecast_2y / set.current_value, 1 / 2) - 1 : null;
+  const ann2 = hasForecast ? Math.pow(projection / baseline, 1 / 2) - 1 : null;
   const pct = (g) => Math.min(100, Math.max(8, g * 100 + 12)).toFixed(1);
   const forecastLabel = set.valuation_method === "ai" ? "AI forecast"
     : (set.valuation_method === "market" || set.valuation_method === "brickeconomy" || set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "Market forecast"
@@ -873,14 +893,14 @@ function forecastTabHTML(set) {
     <div class="forecast-card">
       <div class="fh">
         <div class="fh-lbl">2-year projection</div>
-        <div class="fh-val">~${fmtMoney(set.forecast_2y)}</div>
+        <div class="fh-val">~${fmtMoney(projection)}</div>
       </div>
       <div class="forecast-bar"><div style="--fill:${pct(g2)}%;"></div></div>
       <div class="forecast-pct${g2 < 0 ? " down" : ""}">${g2 >= 0 ? I.arrowU() : I.arrowD()}${fmtPct(g2)} projected${ann2 != null ? ` · ${fmtPct(ann2)}/yr` : ''}</div>
     </div>` : `
     <div class="detail-card">
       <div class="detail-card-title">2-year projection</div>
-      <p style="margin:6px 0 0;font-size:13px;color:var(--ink-mute);line-height:1.45;">No projection yet — it appears once this set has enough market data.</p>
+      <p style="margin:6px 0 0;font-size:13px;color:var(--ink-mute);line-height:1.45;">${escapeHtml(forecast?.methodology || 'No projection yet - it appears after at least 180 days and 12 history points.')}</p>
     </div>`}
 
     <div class="detail-card" style="background:var(--surface-2);">

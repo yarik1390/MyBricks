@@ -8,7 +8,7 @@ const db = (env as any).DB as D1Database;
 
 describe('runSnapshotPortfolios', () => {
   beforeEach(async () => {
-    await applyTestTables(db, ['lego_sets', 'user_collection', 'portfolio_snapshots']);
+    await applyTestTables(db, ['lego_sets', 'user_collection', 'portfolio_snapshots', 'set_valuation_state']);
   });
 
   it('snapshots nothing when no user owns anything', async () => {

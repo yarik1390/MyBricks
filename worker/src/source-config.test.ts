@@ -48,14 +48,14 @@ describe('source-config', () => {
 
   it('applySourceConfig drives blend weights (a 0 weight excludes the source)', async () => {
     const fresh = new Date().toISOString();
-    const row = { bl_new_value: 200, bl_new_qty: 5, bl_cached_at: fresh, pc_new_value: 300, pc_cached_at: fresh };
+    const row = { bl_new_value: 200, bl_new_qty: 5, bl_cached_at: fresh, ebay_new_value: 300, ebay_new_qty: 20, ebay_new_cached_at: fresh };
     // Default: both contribute → value between 200 and 300.
     resetSourceWeightMultipliers();
     const base = blendMarketValue(row).value!;
     expect(base).toBeGreaterThan(200);
 
     clearSourceConfigCache();
-    await saveSourceConfig(env as any, { pricecharting: { weight: 0 } });
+    await saveSourceConfig(env as any, { ebay: { weight: 0 } });
     clearSourceConfigCache();
     await applySourceConfig(env as any);
     // pc_new excluded → only BrickLink remains.

@@ -129,6 +129,26 @@ After adding or changing any optional GitHub secret, rerun the deploy workflow
 or push a deploy-triggering change so GitHub Actions uploads the new value to
 Cloudflare Worker secrets.
 
+## 10. Investment pricing rollout and Amazon Associates
+
+Pricing v3 is deployed behind `PRICING_V3_READ_PERCENT`. Keep it at `0` for the
+14-day shadow comparison, then raise it to `10`, `50`, and `100` after reviewing
+the Pricing Center. Returning it to `0` immediately restores legacy read paths.
+`PRICECHARTING_VERIFIED_ENABLED` must stay `0` until quarantined product mappings
+have been reviewed; source config alone cannot bypass this hard gate.
+
+Amazon starts in Web/PWA link-only mode:
+
+1. Add `AMAZON_PARTNER_TAG_FR_WEB` in the Cloudflare Worker dashboard.
+2. Set `AMAZON_WEB_ENABLED=1` only after the website is approved in Associates.
+3. Keep `AMAZON_ANDROID_ENABLED=0` until Brickvault is an Approved Mobile Application.
+4. Keep `AMAZON_CREATORS_ENABLED=0` until Creators API access and written use-case approval are available.
+
+Amazon prices are never written to D1, the offline seed, IndexedDB, or the
+service-worker cache. Creators API offers may live only in KV for up to 23 hours.
+The Android app opens Amazon through the system browser/Amazon app, never an
+embedded WebView.
+
 ## Local development
 
 ```bash
@@ -186,4 +206,14 @@ curl -X POST https://<worker-url>/api/admin/repair-search-index \
 | `EBAY_CLIENT_SECRET` | Worker secret / GitHub secret | Matching production Cert ID / Client Secret. The keyset must also be approved for limited-release Marketplace Insights sold-comps access |
 | `BRICKECONOMY_API_KEY` | Worker secret / GitHub secret | Optional primary valuation source |
 | `BRICKOWL_API_KEY` | Worker secret / GitHub secret | Optional UPC fallback |
+| `PRICING_V3_READ_PERCENT` | Worker var | Deterministic v3 read rollout: `0`, `10`, `50`, or `100` |
+| `PRICECHARTING_VERIFIED_ENABLED` | Worker var | Hard gate; leave `0` while mappings are quarantined |
+| `AMAZON_PARTNER_TAG_FR_WEB` | Worker secret/dashboard | Amazon France Web tracking ID for direct Special Links |
+| `AMAZON_PARTNER_TAG_FR_ANDROID` | Worker secret/dashboard | Separate Android tracking ID; inactive until mobile approval |
+| `AMAZON_WEB_ENABLED` | Worker var | Enables Web/PWA link-only CTA when a Web tag exists |
+| `AMAZON_ANDROID_ENABLED` | Worker var | Keep disabled until Approved Mobile Application status |
+| `AMAZON_DEFAULT_MARKET` | Worker var | Initial acquisition market, currently `FR` |
+| `AMAZON_CREATORS_PUBLIC_KEY` | Worker secret/dashboard | Phase B only; Creators API credential |
+| `AMAZON_CREATORS_PRIVATE_KEY` | Worker secret/dashboard | Phase B only; Creators API credential |
+| `AMAZON_CREATORS_ENABLED` | Worker var | Phase B kill switch; keep `0` until approved |
 | `ADMIN_JWT` | GitHub secret | Optional fallback only; CI now mints a one-hour admin smoke token from `SUPABASE_JWT_SECRET` and `ADMIN_USER_ID` |

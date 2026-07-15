@@ -1,4 +1,12 @@
 import { recentValueMedian, recentValueMedians } from './price-trend';
+import {
+  buildForecastV3,
+  legacySignalsFor,
+  valueSignalsV3,
+  type PricingSignal,
+  type ValuationStateV3,
+} from './valuation-v3';
+import { recordPricingWrites } from './pricing-budget';
 
 export type MarketConfidence = 'high' | 'medium' | 'low' | 'estimated';
 export type MarketFreshness = 'fresh' | 'stale' | 'expired' | 'missing';
@@ -202,23 +210,6 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
     });
   }
 
-  // PriceCharting loose value — item only, no box/manual. A used-condition
-  // corroborator from aggregated closed eBay auctions; kept out of the
-  // new-value blend (it sits well below sealed) but surfaced as a used source.
-  if (num(row.pc_loose_value)) {
-    sources.push({
-      id: 'pc_loose',
-      name: 'Used market',
-      value: num(row.pc_loose_value),
-      condition: 'used',
-      sample_count: null,
-      last_updated: text(row.pc_cached_at) || cachedAt,
-      freshness: sourceFreshness(row, 'pc_cached_at', 'pc_loose_value'),
-      reliability: 'corroborating',
-      note: 'Loose (incomplete) value — excludes box and manual.',
-    });
-  }
-
   if (method === 'ai' && num(row.current_value)) {
     sources.push({
       id: 'ai_estimate',
@@ -333,89 +324,62 @@ export interface BlendedValue {
 export interface BlendHistory {
   recentMedian: number | null;
   points: number;
+  days?: number;
+  firstValue?: number | null;
+  lastValue?: number | null;
 }
-
-function ageDays(ts: unknown): number | null {
-  const s = text(ts);
-  if (!s) return null;
-  const t = Date.parse(s);
-  return Number.isNaN(t) ? null : (Date.now() - t) / 86_400_000;
-}
-
-// Recency weight: fresh data counts fully, older data is discounted.
-function freshnessFactor(ts: unknown): number {
-  const d = ageDays(ts);
-  if (d == null) return 0.1;
-  if (d < 7) return 1;
-  if (d < 30) return 0.7;
-  if (d < 90) return 0.4;
-  return 0.15;
-}
-
-// Sample-size weight: a guide value backed by many lots is more trustworthy.
-// Null (modeled / single-listing sources) gets a neutral mid weight.
-function sampleFactor(qty: number | null): number {
-  if (qty == null) return 0.7;
-  return 0.5 + 0.5 * Math.min(1, qty / 8);
-}
-
-// eBay *asking* prices overstate realized value, so they're a soft FALLBACK,
-// not a corroborator: used only when no sold/BrickEconomy/BrickOwl signal
-// exists, with the median ask haircut by this factor (and the lowest type
-// weight). Never a "sold" source, so an ask-only set stays "low" confidence.
-// This keeps asks from dragging a real-comp blend upward while still giving
-// otherwise-unpriced sets a market-grounded estimate. Revisit once real sold
-// comps (Marketplace Insights / scrape) are available.
-const EBAY_ASK_DISCOUNT = 0.85;
-const EBAY_ASK_TYPE_FACTOR = 0.4;
-
-// Reliability tiers used to arbitrate a two-signal standoff (higher = more
-// trusted): fresh sold comps are the gold standard, then a modeled valuation,
-// then live listings, then haircut asks. All source values arrive already
-// normalized to USD at the fetch layer (BrickLink/BrickOwl are queried with
-// currency=USD; eBay comps are US/USD; the modeled value is USD), so the blend
-// is a single-currency mix — no per-point conversion is applied or needed here.
-const RANK_SOLD = 4;
-const RANK_MODEL = 3;
-const RANK_LISTING = 2;
-const RANK_ASK = 1;
-// A two-point standoff this far apart is treated as a real disagreement, not
-// noise — matches the >=3-point median outlier band so the two paths agree.
-const DIVERGENCE_RATIO = 2.5;
-
-// Confidence band ("likely range") half-width keyed to how well-supported the
-// value is: corroborated → tight, thin/estimated → wide. Replaces a flat ±10%
-// so the range communicates real uncertainty. Single-source / stale data widen
-// it further, capped so it never becomes meaningless.
-const BAND_HALF_WIDTH: Record<MarketConfidence, number> = {
-  high: 0.06,
-  medium: 0.15,
-  low: 0.30,
-  estimated: 0.35,
-};
-const BAND_SINGLE_SOURCE_EXTRA = 0.04;
-const BAND_STALE_EXTRA = 0.05;
-const BAND_MAX_HALF_WIDTH = 0.40;
-// Liquidity calibration (PriceCharting yearly units sold). An illiquid set has
-// noisier realized prices → widen the band; a deeply liquid one is well-supported
-// → modestly tighten. These adjust the band only; they never override confidence.
-const LIQUIDITY_THIN = 3;     // < this many sales/yr → illiquid
-const LIQUIDITY_DEEP = 30;    // >= this many sales/yr → deep, stable market
-const BAND_ILLIQUID_EXTRA = 0.06;
-const BAND_LIQUID_TIGHTEN = 0.03;
 
 // Admin-tunable per-source weight multipliers (default 1.0 = unchanged). Set
 // from the DB source-config at the start of a blend pass (lib/source-config.ts).
-// Maps a blend push id → its owning source so one "trust" slider scales all of a
-// source's contributions (e.g. pricecharting scales both pc_new and pc_complete).
-const SOURCE_OF: Record<string, string> = {
-  bricklink_new: 'bricklink',
-  ebay_sold_new: 'ebay', ebay_ask: 'ebay',
-  brickeconomy: 'brickeconomy',
-  brickowl_new: 'brickowl',
-  pc_new: 'pricecharting', pc_complete: 'pricecharting',
-};
 const sourceWeightMultipliers: Record<string, number> = {};
+// Direct library callers (tests/jobs) see the v3 result. HTTP requests always
+// set the deployed rollout percentage in middleware before any route runs.
+let pricingV3ReadPercent = 100;
+
+export function setPricingV3ReadPercent(value: unknown): void {
+  const parsed = Number(value);
+  pricingV3ReadPercent = Number.isFinite(parsed) ? Math.min(100, Math.max(0, Math.floor(parsed))) : 0;
+}
+
+export function pricingV3ReadEnabled(setNum: unknown, percent = pricingV3ReadPercent): boolean {
+  const bounded = Math.min(100, Math.max(0, Math.floor(Number(percent) || 0)));
+  if (bounded <= 0) return false;
+  if (bounded >= 100) return true;
+  let hash = 2166136261;
+  for (const char of String(setNum || '')) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % 100 < bounded;
+}
+
+export interface HoldingValuationRow {
+  set_num?: unknown;
+  condition?: unknown;
+  current_value?: unknown;
+  blended_value?: unknown;
+  used_value?: unknown;
+  ebay_used_value?: unknown;
+  bo_used_value?: unknown;
+  v3_new_fair?: unknown;
+  v3_used_fair?: unknown;
+}
+
+/** One rollout-aware value chain shared by collection, profile and snapshots. */
+export function holdingValueForRollout(
+  row: HoldingValuationRow,
+  percent = pricingV3ReadPercent,
+): number {
+  const legacyNew = num(row.blended_value) || num(row.current_value) || 0;
+  const legacyUsed = num(row.ebay_used_value) || num(row.used_value)
+    || num(row.bo_used_value) || legacyNew;
+  const isUsed = String(row.condition || '').startsWith('used');
+  if (!pricingV3ReadEnabled(row.set_num, percent)) return isUsed ? legacyUsed : legacyNew;
+
+  const v3New = num(row.v3_new_fair) || legacyNew;
+  if (!isUsed) return v3New;
+  return num(row.v3_used_fair) || v3New || legacyUsed;
+}
 export function setSourceWeightMultipliers(m: Record<string, number>): void {
   for (const k of Object.keys(sourceWeightMultipliers)) delete sourceWeightMultipliers[k];
   for (const [k, v] of Object.entries(m)) {
@@ -427,17 +391,30 @@ export function resetSourceWeightMultipliers(): void {
   for (const k of Object.keys(sourceWeightMultipliers)) delete sourceWeightMultipliers[k];
 }
 
-// Surviving signals spanning at least this ratio read as a material disagreement
-// worth explaining to the user.
-const DISAGREEMENT_RATIO = 1.5;
+function sourceOwner(signal: PricingSignal): string {
+  if (signal.source.startsWith('bricklink')) return 'bricklink';
+  if (signal.source.startsWith('ebay')) return 'ebay';
+  if (signal.source.startsWith('brickeconomy')) return 'brickeconomy';
+  if (signal.source.startsWith('brickowl')) return 'brickowl';
+  if (signal.source.startsWith('pricecharting')) return 'pricecharting';
+  return signal.source;
+}
 
-// History anomaly guard: a blended value this far off its own trailing median,
-// when NOT backed by >=2 fresh sold comps, is treated as suspicious — kept as the
-// displayed number but demoted to low confidence with a band spanning the
-// historical level. Needs a minimum history depth to avoid noise on thin series.
-const ANOMALY_HIGH_RATIO = 2.5;
-const ANOMALY_LOW_RATIO = 0.4;
-const ANOMALY_MIN_HISTORY_POINTS = 5;
+function effectiveSignals(row: Record<string, unknown>, extraSignals: PricingSignal[] = []): PricingSignal[] {
+  return [...legacySignalsFor(row), ...extraSignals].filter((signal) => {
+    const multiplier = sourceWeightMultipliers[sourceOwner(signal)];
+    return multiplier == null || multiplier > 0;
+  });
+}
+
+function computeV3State(
+  row: Record<string, unknown>,
+  condition: 'new_sealed' | 'used_complete' | 'loose',
+  history?: BlendHistory,
+  extraSignals: PricingSignal[] = [],
+): ValuationStateV3 {
+  return valueSignalsV3(condition, effectiveSignals(row, extraSignals), history);
+}
 
 /**
  * Blend the available NEW-condition market signals into one fair value with a
@@ -460,6 +437,32 @@ const ANOMALY_MIN_HISTORY_POINTS = 5;
  * Pure + read-side: it never writes and never mutates current_value.
  */
 export function blendMarketValue(row: Record<string, unknown>, history?: BlendHistory): BlendedValue {
+  const v3 = computeV3State(row, 'new_sealed', history);
+  const v3Note = v3.flags.includes('history_anomaly')
+    ? 'This value moved sharply away from its recent trend and is shown at low confidence until independent sales confirm it.'
+    : v3.flags.includes('source_conflict')
+      ? 'Market signals disagree materially; use the likely range rather than the headline alone.'
+      : v3.flags.includes('identity_unverified')
+        ? 'One or more source matches are quarantined and excluded from this value.'
+        : null;
+  return {
+    value: v3.fair_value,
+    low: v3.low,
+    high: v3.high,
+    confidence: v3.fair_value ? v3.confidence : null,
+    basis: v3.basis.map((family) => ({
+      id: family.provider_family,
+      name: family.provider_family,
+      value: family.value,
+      weight: family.signal_type === 'sold' ? 1 : family.signal_type === 'modeled' ? 0.65 : 0.35,
+    })),
+    note: v3Note,
+  };
+
+  /* Legacy v2 implementation is retained temporarily below as unreachable code
+   * for a one-release rollback diff. It will be deleted after v3 shadow data is
+   * stable. All live callers return above. */
+  /*
   const method = String(row.valuation_method || '');
   type P = { id: string; name: string; value: number; weight: number; sold: boolean; fresh: boolean; rank: number };
   const pts: P[] = [];
@@ -608,6 +611,7 @@ export function blendMarketValue(row: Record<string, unknown>, history?: BlendHi
     basis: survivors.map(p => ({ id: p.id, name: p.name, value: p.value, weight: Math.round(p.weight * 100) / 100 })),
     note,
   };
+  */
 }
 
 // ---------------------------------------------------------------------------
@@ -707,27 +711,101 @@ const PART_OUT_MIN_COVERAGE = 0.9;
 export function enrichSetRecord<T extends Record<string, unknown>>(row: T, history?: BlendHistory): T {
   const sources = buildMarketSources(row);
   const freshness = marketFreshness(row);
-  const confidence = marketConfidence(row, sources);
-  const blend = blendMarketValue(row, history);
+  const storedNew = row.__valuation_new as ValuationStateV3 | undefined;
+  const storedUsed = row.__valuation_used as ValuationStateV3 | undefined;
+  const newState = storedNew?.model_version === 'v3' ? storedNew : computeV3State(row, 'new_sealed', history);
+  const usedState = storedUsed?.model_version === 'v3' ? storedUsed : computeV3State(row, 'used_complete');
+  const v3ReadEnabled = pricingV3ReadEnabled(row.set_num);
+  const legacyValue = num(row.blended_value) || num(row.current_value);
+  const legacyConfidence = String(row.blended_confidence || '') as MarketConfidence;
+  const confidence = v3ReadEnabled && newState.fair_value
+    ? newState.confidence
+    : legacyConfidence || marketConfidence(row, sources);
+  const blend: BlendedValue = {
+    value: newState.fair_value,
+    low: newState.low,
+    high: newState.high,
+    confidence: newState.fair_value ? newState.confidence : null,
+    basis: newState.basis.map(family => ({ id: family.provider_family, name: family.provider_family, value: family.value, weight: family.signal_type === 'sold' ? 1 : 0.5 })),
+    note: newState.flags.includes('source_conflict') ? 'Market signals disagree materially; use the likely range rather than the headline alone.' : null,
+  };
+  const publicBlend: BlendedValue = v3ReadEnabled
+    ? blend
+    : {
+        value: legacyValue,
+        low: num(row.blended_low),
+        high: num(row.blended_high),
+        confidence: legacyConfidence || (legacyValue ? marketConfidence(row, sources) : null),
+        basis: [],
+        note: null,
+      };
   const deal = computeDealSignal(row, { value: blend.value, confidence: blend.confidence });
   // Part-out (E1): expose the stored sum-of-parts value only when coverage is
   // high enough to be trustworthy; always expose coverage so the UI can explain.
   const partOutCoverage = Number(row.part_out_coverage);
   const partOutValue = num(row.part_out_value);
+  const storedForecast = row.__valuation_forecast as ReturnType<typeof buildForecastV3> | undefined;
+  const forecast = storedForecast || buildForecastV3(newState, history, {
+    twoYear: num(row.be_forecast_2y) || num(row.forecast_2y),
+    fiveYear: num(row.be_forecast_5y) || num(row.forecast_5y),
+    sourceBaseline: num(row.be_value_new) || num(row.current_value),
+    asOf: text(row.be_cached_at) || text(row.cached_at),
+  });
+  const acquisitionPrice = num(row.pa_lowest_offer)
+    || (Number(row.lego_in_stock) === 1 ? num(row.retail_price) : null);
+  const retailOffer = row.__retail_offer as Record<string, unknown> | undefined;
+  const publicRow = { ...row } as Record<string, unknown>;
+  delete publicRow.__valuation_new;
+  delete publicRow.__valuation_used;
+  delete publicRow.__valuation_forecast;
+  delete publicRow.__retail_offer;
+  for (const key of Object.keys(publicRow)) if (key.startsWith('v3_')) delete publicRow[key];
   return {
-    ...row,
+    ...publicRow,
     market_sources: sources,
     primary_value_source: primaryValueSource(row),
     confidence,
     freshness,
     valuation_explanation: valuationExplanation(row, confidence, freshness),
     // Valuation v2 (additive; current_value is unchanged).
-    market_value: blend.value,
-    market_value_low: blend.low,
-    market_value_high: blend.high,
-    market_value_confidence: blend.confidence,
-    market_value_basis: blend.basis,
-    market_value_note: blend.note,
+    market_value: publicBlend.value,
+    market_value_low: publicBlend.low,
+    market_value_high: publicBlend.high,
+    market_value_confidence: publicBlend.confidence,
+    market_value_basis: publicBlend.basis,
+    market_value_note: publicBlend.note,
+    // Pricing v3 contract. Legacy fields stay present during the dual-write
+    // window, while every new surface reads one condition-aware object.
+    valuation: {
+      currency: 'USD',
+      model_version: 'v3',
+      read_enabled: v3ReadEnabled,
+      rollout_percent: pricingV3ReadPercent,
+      as_of: newState.as_of,
+      new: newState,
+      used: usedState,
+      forecast,
+      acquisition: {
+        market: String(retailOffer?.market || row.pa_market || 'FR').toUpperCase(),
+        currency: String(retailOffer?.currency || 'USD').toUpperCase(),
+        msrp: num(retailOffer?.msrp) || num(row.brickset_msrp) || num(row.retail_price),
+        item_price: num(retailOffer?.item_price) || acquisitionPrice,
+        delivered_price: num(retailOffer?.delivered_price) || acquisitionPrice,
+        merchant: text(retailOffer?.merchant) || text(row.pa_best_merchant),
+        offer_count: Number(retailOffer?.offer_count || row.pa_offer_count || 0),
+        lowest_90d: num(retailOffer?.lowest_90d),
+        all_time_low: num(retailOffer?.all_time_low),
+        deal_score: deal.signal,
+        checked_at: text(retailOffer?.checked_at) || text(row.pa_cached_at) || text(row.lego_checked_at),
+      },
+      part_out: {
+        value: partOutValue != null && Number.isFinite(partOutCoverage) && partOutCoverage >= PART_OUT_MIN_COVERAGE
+          ? partOutValue
+          : null,
+        coverage: Number.isFinite(partOutCoverage) ? partOutCoverage : null,
+        source_age: text(row.part_out_cached_at),
+      },
+    },
     // Deal signal v1 (E3a; additive, read-side).
     deal_signal: deal.signal,
     deal_available_price: deal.available_price,
@@ -744,7 +822,7 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
     // Liquidity (PriceCharting yearly units sold). Additive, read-side; the UI
     // turns this into a "sells fast / slow" badge (Phase 3).
     sales_volume: (() => { const v = Number(row.pc_sales_volume); return Number.isFinite(v) && v > 0 ? Math.round(v) : null; })(),
-  };
+  } as unknown as T;
 }
 
 // ---------------------------------------------------------------------------
@@ -760,9 +838,12 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
 // Columns blendMarketValue() reads. Re-selected after a price write so the
 // blend reflects the freshly stored signals (no fragile in-memory merge).
 export const BLEND_INPUT_COLUMNS =
-  'valuation_method, current_value, bl_new_value, bl_new_qty, bl_new_min, bl_new_max, ' +
-  'bl_cached_at, ebay_new_value, ebay_new_qty, ebay_new_cached_at, ebay_new_last_sold, be_cached_at, ' +
-  'cached_at, bo_new_value, bo_cached_at, ' +
+  'valuation_method, current_value, used_value, bl_new_value, bl_new_qty, bl_new_min, bl_new_max, ' +
+  'bl_used_qty, bl_used_min, bl_used_max, bl_cached_at, ' +
+  'ebay_new_value, ebay_new_qty, ebay_new_cached_at, ebay_new_last_sold, ' +
+  'ebay_used_value, ebay_used_qty, ebay_used_cached_at, ebay_used_last_sold, ' +
+  'be_value_new, be_value_used, be_cached_at, cached_at, ' +
+  'bo_new_value, bo_new_qty, bo_used_value, bo_used_qty, bo_cached_at, ' +
   'ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at, ' +
   'pc_new_value, pc_complete_value, pc_cached_at, ' +
   // Extra inputs the deal signal needs (persisted alongside blended_value so the
@@ -774,22 +855,137 @@ export const BLEND_INPUT_COLUMNS =
 // signal (pa_*) and the used/liquidity blend inputs (pc_loose/sales-volume) share
 // the same row the pure functions consume.
 export const BLEND_EXT_COLUMNS =
-  'pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count';
+  'pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, ' +
+  'pa_best_merchant, pa_offer_count, pa_market, pa_cached_at';
 const BLEND_FROM = 'lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num';
 
 // Compute the blended value AND the deal signal together, so the persisted
 // deal_* columns are produced by the exact same computeDealSignal used for the
 // read-time badge — no SQL re-implementation, no divergence.
-function blendAndDealRow(row: Record<string, unknown>, history?: BlendHistory): {
+function blendAndDealRow(row: Record<string, unknown>, history?: BlendHistory, extraSignals: PricingSignal[] = []): {
   blended: number | null; signal: string | null; pct: number | null; strong: number;
   confidence: string | null; low: number | null; high: number | null;
+  newState: ValuationStateV3; usedState: ValuationStateV3;
 } {
-  const blend = blendMarketValue(row, history);
+  const newState = computeV3State(row, 'new_sealed', history, extraSignals);
+  const usedState = computeV3State(row, 'used_complete', undefined, extraSignals);
+  const blend: BlendedValue = {
+    value: newState.fair_value,
+    low: newState.low,
+    high: newState.high,
+    confidence: newState.fair_value ? newState.confidence : null,
+    basis: newState.basis.map(family => ({
+      id: family.provider_family,
+      name: family.provider_family,
+      value: family.value,
+      weight: family.signal_type === 'sold' ? 1 : family.signal_type === 'modeled' ? 0.65 : 0.35,
+    })),
+    note: null,
+  };
   const deal = computeDealSignal(row, { value: blend.value, confidence: blend.confidence });
   return {
     blended: blend.value, signal: deal.signal, pct: deal.discount_pct, strong: deal.strong ? 1 : 0,
     confidence: blend.confidence, low: blend.low, high: blend.high,
+    newState, usedState,
   };
+}
+
+async function loadNormalizedSignals(db: D1Database, setNums: string[]): Promise<Map<string, PricingSignal[]>> {
+  const out = new Map<string, PricingSignal[]>();
+  if (!setNums.length) return out;
+  try {
+    const placeholders = setNums.map(() => '?').join(',');
+    const { results } = await db.prepare(`
+      SELECT set_num, source, provider_family, condition, signal_type, currency,
+             value, low, high, sample_count, sales_volume, source_observed_at,
+             checked_at, match_status, flags_json
+      FROM pricing_signals
+      WHERE set_num IN (${placeholders})
+        AND match_status IN ('verified','manual')
+    `).bind(...setNums).all<Record<string, unknown>>();
+    for (const row of results) {
+      const setNum = String(row.set_num);
+      const signal: PricingSignal = {
+        source: String(row.source),
+        provider_family: String(row.provider_family),
+        condition: row.condition as PricingSignal['condition'],
+        signal_type: row.signal_type as PricingSignal['signal_type'],
+        currency: String(row.currency || 'USD'),
+        value: Number(row.value),
+        low: num(row.low),
+        high: num(row.high),
+        sample_count: row.sample_count == null ? null : Number(row.sample_count),
+        sales_volume: row.sales_volume == null ? null : Number(row.sales_volume),
+        source_observed_at: text(row.source_observed_at),
+        checked_at: text(row.checked_at),
+        match_status: row.match_status as PricingSignal['match_status'],
+        flags: (() => { try { return JSON.parse(String(row.flags_json || '[]')); } catch { return []; } })(),
+      };
+      out.set(setNum, [...(out.get(setNum) || []), signal]);
+    }
+  } catch {
+    // Older/local schemas keep using legacy columns until migration lands.
+  }
+  return out;
+}
+
+const VALUATION_STATE_UPSERT_SQL = `
+  INSERT INTO set_valuation_state (
+    set_num, condition, fair_value, low, high, liquidation_value, confidence,
+    confidence_score, sample_count, independent_family_count, basis_json,
+    flags_json, forecast_json, as_of, model_version, updated_at
+  ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 'v3-shadow', datetime('now'))
+  ON CONFLICT(set_num, condition) DO UPDATE SET
+    fair_value=excluded.fair_value, low=excluded.low, high=excluded.high,
+    liquidation_value=excluded.liquidation_value, confidence=excluded.confidence,
+    confidence_score=excluded.confidence_score, sample_count=excluded.sample_count,
+    independent_family_count=excluded.independent_family_count,
+    basis_json=excluded.basis_json, flags_json=excluded.flags_json,
+    forecast_json=excluded.forecast_json, as_of=excluded.as_of,
+    model_version=excluded.model_version, updated_at=datetime('now')
+  WHERE set_valuation_state.fair_value IS NOT excluded.fair_value
+     OR set_valuation_state.low IS NOT excluded.low
+     OR set_valuation_state.high IS NOT excluded.high
+     OR set_valuation_state.liquidation_value IS NOT excluded.liquidation_value
+     OR set_valuation_state.confidence IS NOT excluded.confidence
+     OR set_valuation_state.confidence_score IS NOT excluded.confidence_score
+     OR set_valuation_state.sample_count IS NOT excluded.sample_count
+     OR set_valuation_state.independent_family_count IS NOT excluded.independent_family_count
+     OR set_valuation_state.basis_json IS NOT excluded.basis_json
+     OR set_valuation_state.flags_json IS NOT excluded.flags_json
+     OR set_valuation_state.forecast_json IS NOT excluded.forecast_json`;
+
+function valuationStateStatement(
+  db: D1Database,
+  setNum: string,
+  state: ValuationStateV3,
+  row: Record<string, unknown>,
+  history?: BlendHistory,
+): D1PreparedStatement {
+  const forecast = state.condition === 'new_sealed'
+    ? buildForecastV3(state, history, {
+      twoYear: num(row.be_forecast_2y) || num(row.forecast_2y),
+      fiveYear: num(row.be_forecast_5y) || num(row.forecast_5y),
+      sourceBaseline: num(row.be_value_new) || num(row.current_value),
+      asOf: text(row.be_cached_at) || text(row.cached_at),
+    })
+    : null;
+  return db.prepare(VALUATION_STATE_UPSERT_SQL).bind(
+    setNum,
+    state.condition,
+    state.fair_value,
+    state.low,
+    state.high,
+    state.liquidation_value,
+    state.confidence,
+    state.confidence_score,
+    state.sample_count,
+    state.independent_family_count,
+    JSON.stringify(state.basis),
+    JSON.stringify(state.flags),
+    forecast ? JSON.stringify(forecast) : null,
+    state.as_of,
+  );
 }
 
 // Single UPDATE shape for both persist paths (bind order: blended, signal, pct,
@@ -817,8 +1013,16 @@ export async function persistBlendedValue(db: D1Database, setNum: string): Promi
     ).bind(setNum).first<Record<string, unknown>>();
     if (!row) return null;
     const history = await recentValueMedian(db, setNum).catch(() => undefined);
-    const r = blendAndDealRow(row, history);
+    const signals = await loadNormalizedSignals(db, [setNum]);
+    const r = blendAndDealRow(row, history, signals.get(setNum) || []);
     await db.prepare(BLEND_DEAL_UPDATE_SQL).bind(r.blended, r.signal, r.pct, r.strong, r.confidence, r.low, r.high, setNum).run();
+    // Side-table dual-write is fail-open for local/older schemas. The legacy
+    // headline was already written above, so a migration race cannot break a
+    // price refresh.
+    await db.batch([
+      valuationStateStatement(db, setNum, r.newState, row, history),
+      valuationStateStatement(db, setNum, r.usedState, row),
+    ]).catch((e) => console.warn(`[pricing-v3] state write failed for ${setNum}:`, (e as Error).message));
     return r.blended;
   } catch (e) {
     console.warn(`[blend] persist failed for ${setNum}:`, (e as Error).message);
@@ -842,13 +1046,28 @@ export async function recomputeBlendedValues(db: D1Database, setNums: string[]):
       ).bind(...chunk).all<Record<string, unknown>>();
       // One history read per chunk feeds the anomaly guard (subrequest-lean).
       const medians = await recentValueMedians(db, chunk).catch(() => new Map());
-      const stmts = results.map(row => {
-        const r = blendAndDealRow(row, medians.get(row.set_num as string));
-        return db.prepare(BLEND_DEAL_UPDATE_SQL).bind(r.blended, r.signal, r.pct, r.strong, r.confidence, r.low, r.high, row.set_num as string);
+      const signals = await loadNormalizedSignals(db, chunk);
+      const computed = results.map(row => {
+        const r = blendAndDealRow(row, medians.get(row.set_num as string), signals.get(row.set_num as string) || []);
+        return { row, r, history: medians.get(row.set_num as string) };
       });
-      if (stmts.length) await db.batch(stmts);
-      written += stmts.length;
+      const stmts = computed.map(({ row, r }) => db.prepare(BLEND_DEAL_UPDATE_SQL)
+        .bind(r.blended, r.signal, r.pct, r.strong, r.confidence, r.low, r.high, row.set_num as string));
+      if (stmts.length) {
+        const legacyResults = await db.batch(stmts);
+        written += legacyResults.reduce((sum, result) => sum + Number(result.meta?.changes || 0), 0);
+      }
+      // Keep each D1 batch under 100 statements. Change-only UPSERTs make the
+      // steady-state cost close to zero when the fair value has not moved.
+      if (computed.length) {
+        const newStates = computed.map(({ row, r, history }) => valuationStateStatement(db, row.set_num as string, r.newState, row, history));
+        const usedStates = computed.map(({ row, r }) => valuationStateStatement(db, row.set_num as string, r.usedState, row));
+        const stateResults = await db.batch(newStates).catch(() => []);
+        const usedResults = await db.batch(usedStates).catch(() => []);
+        written += [...stateResults, ...usedResults].reduce((sum, result) => sum + Number(result.meta?.changes || 0), 0);
+      }
     }
+    await recordPricingWrites(db, 'recompute-blends', written);
     return written;
   } catch (e) {
     console.warn('[blend] batch recompute failed:', (e as Error).message);

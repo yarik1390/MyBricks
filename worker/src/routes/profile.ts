@@ -1,36 +1,42 @@
 import { Hono } from 'hono';
 import { requireMember } from '../auth';
 import type { Env, Variables } from '../types';
+import { holdingValueForRollout } from '../lib/market-sources';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// Condition-aware per-holding value (SQL): used holdings are worth their
-// used-market price, everything else the blended fair value (else formula).
-// Mirrors marketValueForCondition() on the front end and conditionValue() in
-// the collection route so a user's vault, public profile, and leaderboard rank
-// all agree.
-const CONDITION_VALUE_SQL = `(CASE WHEN uc.condition LIKE 'used%'
-  THEN COALESCE(NULLIF(ls.ebay_used_value,0), NULLIF(ls.used_value,0), NULLIF(ls.bo_used_value,0), ls.blended_value, ls.current_value)
-  ELSE COALESCE(ls.blended_value, ls.current_value) END)`;
+const HOLDING_VALUE_COLUMNS = `uc.set_num, uc.condition, uc.quantity,
+  ls.current_value, ls.blended_value, ls.used_value,
+  ls.ebay_used_value, ls.bo_used_value,
+  svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair`;
 
 // GET /api/users/leaderboard — public ranking of opted-in collections by value.
 // Opt-in = a public profile that also exposes its value and has a handle.
 app.get('/leaderboard', async (c) => {
   const res = await c.env.DB.prepare(`
-    SELECT p.handle, p.display_name, p.is_supporter,
-           CAST(COUNT(uc.set_num) AS INTEGER) AS set_count,
-           COALESCE(SUM(${CONDITION_VALUE_SQL} * uc.quantity), 0) AS total_value
+    SELECT p.user_id, p.handle, p.display_name, p.is_supporter,
+           ${HOLDING_VALUE_COLUMNS}
     FROM user_prefs p
     JOIN user_collection uc ON uc.user_id = p.user_id AND uc.deleted_at IS NULL
     JOIN lego_sets ls ON ls.set_num = uc.set_num
+    LEFT JOIN set_valuation_state svn ON svn.set_num=ls.set_num AND svn.condition='new_sealed'
+    LEFT JOIN set_valuation_state svu ON svu.set_num=ls.set_num AND svu.condition='used_complete'
     WHERE p.is_public = 1 AND p.expose_public_value = 1 AND p.handle IS NOT NULL
-    GROUP BY p.user_id
-    HAVING total_value > 0
-    ORDER BY total_value DESC
-    LIMIT 50
-  `).all<{ handle: string; display_name: string | null; is_supporter: number; set_count: number; total_value: number }>();
-
-  const leaders = (res.results || []).map((r, i) => ({
+  `).all<Record<string, unknown>>();
+  const rolloutPercent = Number(c.env.PRICING_V3_READ_PERCENT || 0);
+  const grouped = new Map<string, Record<string, unknown>>();
+  for (const row of res.results || []) {
+    const userId = String(row.user_id);
+    const current = grouped.get(userId) || { ...row, set_count: 0, total_value: 0 };
+    current.set_count = Number(current.set_count) + 1;
+    current.total_value = Number(current.total_value) + holdingValueForRollout(row, rolloutPercent) * Number(row.quantity || 1);
+    grouped.set(userId, current);
+  }
+  const ranked = [...grouped.values()]
+    .filter(row => Number(row.total_value) > 0)
+    .sort((a, b) => Number(b.total_value) - Number(a.total_value))
+    .slice(0, 50);
+  const leaders = ranked.map((r, i) => ({
     rank: i + 1,
     handle: r.handle,
     display_name: r.display_name || r.handle,
@@ -53,24 +59,15 @@ app.get('/:handle/profile', async (c) => {
   const userId = prefs.user_id;
   const exposeValue = prefs.expose_public_value !== 0;
 
-  const [stats, topThemes, showcase, contribCount] = await Promise.all([
+  const [holdingResult, showcase, contribCount] = await Promise.all([
     c.env.DB.prepare(`
-      SELECT COUNT(*) as set_count,
-             COALESCE(SUM(${CONDITION_VALUE_SQL} * uc.quantity), 0) as total_value
+      SELECT ${HOLDING_VALUE_COLUMNS}, ls.theme
       FROM user_collection uc
       JOIN lego_sets ls ON ls.set_num = uc.set_num
+      LEFT JOIN set_valuation_state svn ON svn.set_num=ls.set_num AND svn.condition='new_sealed'
+      LEFT JOIN set_valuation_state svu ON svu.set_num=ls.set_num AND svu.condition='used_complete'
       WHERE uc.user_id=? AND uc.deleted_at IS NULL
-    `).bind(userId).first<{ set_count: number; total_value: number }>(),
-
-    c.env.DB.prepare(`
-      SELECT ls.theme, SUM(${CONDITION_VALUE_SQL} * uc.quantity) as value
-      FROM user_collection uc
-      JOIN lego_sets ls ON ls.set_num = uc.set_num
-      WHERE uc.user_id=? AND uc.deleted_at IS NULL AND ls.theme IS NOT NULL
-      GROUP BY ls.theme
-      ORDER BY value DESC
-      LIMIT 5
-    `).bind(userId).all<{ theme: string; value: number }>(),
+    `).bind(userId).all<Record<string, unknown>>(),
 
     c.env.DB.prepare(`
       SELECT ls.set_num, ls.name, ls.theme, ls.year, ls.pieces, ls.minifigs,
@@ -99,11 +96,19 @@ app.get('/:handle/profile', async (c) => {
       ) AS approved_contributions
     `).bind(userId, userId, userId).first<{ approved_contributions: number }>(),
   ]);
-
-  const themes = (topThemes.results || []).map(t => ({
-    theme: t.theme,
-    value: exposeValue ? t.value : null
-  }));
+  const rolloutPercent = Number(c.env.PRICING_V3_READ_PERCENT || 0);
+  let totalValue = 0;
+  const themeValues = new Map<string, number>();
+  for (const row of holdingResult.results || []) {
+    const value = holdingValueForRollout(row, rolloutPercent) * Number(row.quantity || 1);
+    totalValue += value;
+    const theme = String(row.theme || 'Other');
+    themeValues.set(theme, (themeValues.get(theme) || 0) + value);
+  }
+  const themes = [...themeValues.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([theme, value]) => ({ theme, value: exposeValue ? value : null }));
 
   return c.json({
     handle,
@@ -111,8 +116,8 @@ app.get('/:handle/profile', async (c) => {
     is_supporter: prefs.is_supporter === 1,
     approved_contributions: contribCount?.approved_contributions ?? 0,
     expose_public_value: exposeValue,
-    set_count: stats?.set_count ?? 0,
-    total_value: exposeValue ? (stats?.total_value ?? 0) : null,
+    set_count: holdingResult.results?.length ?? 0,
+    total_value: exposeValue ? totalValue : null,
     top_themes: themes,
     showcase: showcase.results.map(s => ({ ...s, retired: !!s.retired })),
   });

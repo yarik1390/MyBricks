@@ -2,6 +2,7 @@ import type { Env } from '../types';
 import { fetchBrickEconomyViaFirecrawl } from '../lib/brickeconomy-firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 import { quotaRemaining } from '../lib/api-quota';
+import { sourceEnabled } from '../lib/source-config';
 
 /**
  * Populate BrickEconomy valuation data via Firecrawl structured extraction — a
@@ -25,6 +26,12 @@ export async function runBrickEconomyEnrich(
   env: Env,
   options: { limit?: number; concurrency?: number } = {},
 ) {
+  if (!(await sourceEnabled(env, 'brickeconomy'))) {
+    return { processed: 0, updated: 0, limit: 0, skipped: 'brickeconomy disabled in source tuning' };
+  }
+  if (!(await sourceEnabled(env, 'firecrawl'))) {
+    return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl disabled in source tuning' };
+  }
   if (!firecrawlEnabled(env)) {
     return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl disabled or no key' };
   }

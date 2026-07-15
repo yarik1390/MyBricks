@@ -18,6 +18,7 @@ import { recomputeBlendedValues } from '../lib/market-sources';
 import { valuationExpiryModifier, isPlausibleMarketValue, formulaValuation } from '../lib/valuation';
 import { computeRetirementRisk } from '../lib/retirement-risk';
 import { runValuateMinifigs } from './valuate-minifigs';
+import { sourceEnabled } from '../lib/source-config';
 import { selectDueSets, blBackedOffAt } from './valuate-select';
 import {
   clearIntegrationBlock,
@@ -96,8 +97,11 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     retries: options.sourceRetries ?? 0,
     timeoutMs: options.sourceTimeoutMs ?? 5000,
   };
+  const bricklinkEnabled = await sourceEnabled(env, 'bricklink');
+  const brickeconomyEnabled = await sourceEnabled(env, 'brickeconomy');
+  const brickowlEnabled = await sourceEnabled(env, 'brickowl');
   const includeSupplemental = options.includeSupplemental === true;
-  const includeEbay = options.includeEbay === true;
+  const includeEbay = options.includeEbay === true && await sourceEnabled(env, 'ebay');
   // Sold comps need the restricted Marketplace Insights scope; ask-only
   // callers (the recurring cron) skip them so a non-approved keyset never
   // burns calls or trips the breaker. Defaults to includeEbay (back-compat).
@@ -250,7 +254,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     // brickeconomy-enrich Firecrawl cron — no hot-path API call (the ~$1,000/mo
     // API is gone). Shaped like the old API response so the plausibility gate +
     // forecast logic below are unchanged.
-    const beDetails = (set.be_value_new != null || set.be_value_used != null
+    const beDetails = brickeconomyEnabled && (set.be_value_new != null || set.be_value_used != null
         || set.be_forecast_2y != null || set.be_forecast_5y != null || set.be_retail != null)
       ? {
           current_value_new: set.be_value_new,
@@ -281,7 +285,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       }
     }
 
-    if (includeSupplemental && !blBackedOff) {
+    if (includeSupplemental && bricklinkEnabled && !blBackedOff) {
       blAttempted = true;
       blPricing = await fetchSetPricing(set.set_num, env, sourceOptions)
         .catch((err) => { tallyFail('bricklink', err); blErrored = true; return null; });
@@ -306,7 +310,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     if (!pricing) {
       // BrickEconomy not configured or returned no data — use BrickLink as primary
       // (still honoring the no-data backoff + retired-only used-guide savers).
-      if (!blBackedOff) {
+      if (bricklinkEnabled && !blBackedOff) {
         if (!blPricing) {
           blAttempted = true;
           blPricing = await fetchSetPricing(set.set_num, env, sourceOptions)
@@ -398,7 +402,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     // be_cached_at (doing so would make the enrich cron treat the set as freshly
     // scraped and skip it).
     // BrickOwl as 4th supplemental pricing source
-    if (includeSupplemental) {
+    if (includeSupplemental && brickowlEnabled) {
       const boPricing = await fetchBrickOwlPricing(set.set_num, env, sourceOptions)
         .catch((err) => { tallyFail('brickowl', err); return null; });
       if (boPricing) {

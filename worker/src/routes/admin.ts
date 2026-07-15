@@ -26,6 +26,8 @@ import { runServiceTest, TESTABLE_SERVICES } from '../lib/service-tests';
 import { getRecentRuns, recordCronStart, recordCronFinish, summarizeResult } from '../lib/cron-runs';
 import { runPricesApiRetail } from '../jobs/pricesapi-retail';
 import { PROCESS_REGISTRY, GROUP_ORDER, processInfo } from '../lib/process-registry';
+import { getPricingWriteBudget } from '../lib/pricing-budget';
+import { amazonReadiness } from '../lib/amazon';
 import type { Env, Variables } from '../types';
 
 import { createImportRun, updateImportRunProgress, completeImportRun, failImportRun, expireStaleImportRuns, getActiveImportRun, getDataCoverage, getPopulationSnapshot, populationDone, populationRemainingNote, getMarketExtCoverage, buildFirecrawlDiagnostics, IMPORT_RUN_FIELDS } from './admin-helpers';
@@ -712,6 +714,7 @@ app.get('/integrations', async (c) => {
       ...market_ext,
       last_bulk: market_ext.last_bulk,
     },
+    amazon: amazonReadiness(c.env),
     api_routing: {
       worker_base_url: url.origin,
       config_endpoint: `${url.origin}/api/config`,
@@ -719,6 +722,107 @@ app.get('/integrations', async (c) => {
     },
   });
 });
+
+// Pricing Center: compact operational views over the normalized v3 side tables.
+app.get('/pricing/quality', async (c) => {
+  const [states, mappings, signals, anomalies, retail, legacyPc] = await Promise.all([
+    c.env.DB.prepare(`
+      SELECT condition, confidence, COUNT(*) AS count,
+             SUM(CASE WHEN fair_value IS NOT NULL THEN 1 ELSE 0 END) AS valued,
+             SUM(CASE WHEN as_of < datetime('now','-14 days') THEN 1 ELSE 0 END) AS stale
+      FROM set_valuation_state GROUP BY condition, confidence
+    `).all(),
+    c.env.DB.prepare(`SELECT source, status, COUNT(*) AS count FROM pricing_source_map GROUP BY source, status`).all(),
+    c.env.DB.prepare(`SELECT condition, signal_type, provider_family, COUNT(*) AS count FROM pricing_signals GROUP BY condition, signal_type, provider_family`).all(),
+    c.env.DB.prepare(`SELECT severity, COUNT(*) AS count FROM pricing_anomalies WHERE status='open' GROUP BY severity`).all(),
+    c.env.DB.prepare(`SELECT market, COUNT(*) AS count, SUM(CASE WHEN stock='in_stock' THEN 1 ELSE 0 END) AS in_stock FROM retail_price_current GROUP BY market`).all(),
+    c.env.DB.prepare(`SELECT COUNT(*) AS count FROM lego_sets WHERE pc_id IS NOT NULL OR pc_new_value IS NOT NULL OR pc_complete_value IS NOT NULL`).first(),
+  ]);
+  const quarantined = (mappings.results || []).filter((row: any) => row.status === 'quarantined')
+    .reduce((sum: number, row: any) => sum + Number(row.count || 0), 0);
+  const openAnomalies = (anomalies.results || []).reduce((sum: number, row: any) => sum + Number(row.count || 0), 0);
+  return c.json({
+    model_version: 'v3-shadow',
+    states: states.results || [],
+    mappings: mappings.results || [],
+    signals: signals.results || [],
+    anomalies: anomalies.results || [],
+    retail: retail.results || [],
+    legacy_pricecharting_rows: Number((legacyPc as any)?.count || 0),
+    recommended_action: quarantined > 0
+      ? `Review ${quarantined} quarantined source matches before enabling PriceCharting.`
+      : openAnomalies > 0
+        ? `Resolve ${openAnomalies} open pricing anomalies.`
+        : 'Continue the v3 shadow rollout and compare fair values with legacy headlines.',
+  });
+});
+
+app.get('/pricing/anomalies', async (c) => {
+  const status = String(c.req.query('status') || 'open');
+  const limit = Math.min(200, Math.max(1, Number(c.req.query('limit') || 100)));
+  const { results } = await c.env.DB.prepare(`
+    SELECT anomaly_key, set_num, condition, source, anomaly_type, severity,
+           detail_json, status, first_seen_at, last_seen_at, resolved_at
+    FROM pricing_anomalies WHERE status=? ORDER BY
+      CASE severity WHEN 'critical' THEN 0 WHEN 'error' THEN 1 ELSE 2 END,
+      last_seen_at DESC LIMIT ?
+  `).bind(status, limit).all();
+  return c.json({ anomalies: results || [] });
+});
+
+app.get('/pricing/source-matches', async (c) => {
+  const status = String(c.req.query('status') || 'quarantined');
+  const source = String(c.req.query('source') || '');
+  const limit = Math.min(200, Math.max(1, Number(c.req.query('limit') || 100)));
+  const { results } = await c.env.DB.prepare(`
+    SELECT pm.source, pm.source_item_id, pm.set_num, pm.source_title, pm.upc,
+           pm.variant_key, pm.match_method, pm.match_confidence, pm.status,
+           pm.verified_at, pm.updated_at, ls.name AS set_name
+    FROM pricing_source_map pm LEFT JOIN lego_sets ls ON ls.set_num=pm.set_num
+    WHERE pm.status=? AND (?='' OR pm.source=?)
+    ORDER BY pm.updated_at DESC LIMIT ?
+  `).bind(status, source, source, limit).all();
+  return c.json({ matches: results || [] });
+});
+
+app.patch('/pricing/source-matches', async (c) => {
+  type SourceMatchPatch = {
+    source?: string; source_item_id?: string; set_num?: string | null;
+    status?: 'verified' | 'quarantined' | 'rejected' | 'manual';
+  };
+  const body: SourceMatchPatch = await c.req.json<SourceMatchPatch>().catch(() => ({}));
+  if (!body.source || !body.source_item_id || !body.status
+      || !['verified', 'quarantined', 'rejected', 'manual'].includes(body.status)) {
+    return c.json({ error: 'source, source_item_id and a valid status are required' }, 400);
+  }
+  if ((body.status === 'verified' || body.status === 'manual') && !body.set_num) {
+    return c.json({ error: 'set_num is required for a verified/manual match' }, 400);
+  }
+  if (body.set_num) {
+    const exists = await c.env.DB.prepare('SELECT 1 AS ok FROM lego_sets WHERE set_num=?').bind(body.set_num).first();
+    if (!exists) return c.json({ error: 'set_num not found' }, 404);
+  }
+  const result = await c.env.DB.prepare(`
+    UPDATE pricing_source_map SET
+      set_num=COALESCE(?1, set_num), status=?2,
+      match_method=CASE WHEN ?2='manual' THEN 'manual' ELSE match_method END,
+      match_confidence=CASE WHEN ?2 IN ('manual','verified') THEN 1 ELSE match_confidence END,
+      verified_at=CASE WHEN ?2 IN ('manual','verified') THEN datetime('now') ELSE NULL END,
+      updated_at=datetime('now')
+    WHERE source=?3 AND source_item_id=?4
+  `).bind(body.set_num || null, body.status, body.source, body.source_item_id).run();
+  if (!result.meta.changes) return c.json({ error: 'source match not found' }, 404);
+  if (body.status === 'rejected' || body.status === 'quarantined') {
+    await c.env.DB.prepare(`DELETE FROM pricing_signals WHERE source=? AND source_item_id=?`)
+      .bind(body.source, body.source_item_id).run();
+  } else {
+    await c.env.DB.prepare(`UPDATE pricing_signals SET match_status=?, updated_at=datetime('now') WHERE source=? AND source_item_id=?`)
+      .bind(body.status, body.source, body.source_item_id).run();
+  }
+  return c.json({ ok: true, ...body });
+});
+
+app.get('/pricing/budget', async (c) => c.json(await getPricingWriteBudget(c.env.DB)));
 
 // set_market_ext coverage (pricesAPI pa_* + PriceCharting loose/sales-volume)
 // plus the last bulk-import summary, for the pricing diagnostics panel. Fails
@@ -751,6 +855,9 @@ const JOB_LIMITS: Record<string, number> = {
 // (e.g. the bootstrap-brickeconomy workflow) can advance a backfill faster than
 // the conservative default but still stay inside Worker CPU/subrequest budgets.
 const JOB_LIMIT_MAX = 150;
+const JOB_LIMIT_OVERRIDES: Record<string, number> = {
+  'recompute-blends': 400,
+};
 
 app.post('/jobs/:job', async (c) => {
   const job = c.req.param('job');
@@ -760,8 +867,9 @@ app.post('/jobs/:job', async (c) => {
   // Optional ?limit= override (capped) for manual backfill advancement; defaults
   // to the job's conservative built-in limit.
   const requested = Number(c.req.query('limit'));
+  const maxLimit = JOB_LIMIT_OVERRIDES[job] ?? JOB_LIMIT_MAX;
   const limit = Number.isFinite(requested) && requested > 0
-    ? Math.min(Math.floor(requested), JOB_LIMIT_MAX)
+    ? Math.min(Math.floor(requested), maxLimit)
     : JOB_LIMITS[job];
   const started_at = new Date().toISOString();
   try {

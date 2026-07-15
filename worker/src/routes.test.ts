@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import app from './index';
 import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
 import { USER_SCOPED_TABLES } from './routes/me';
+import { recomputeBlendedValues } from './lib/market-sources';
 
 declare module 'cloudflare:test' {
   interface ProvidedEnv {
@@ -84,6 +85,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       'DROP TABLE IF EXISTS user_minifigs',
       'DROP TABLE IF EXISTS set_value_history',
       'DROP TABLE IF EXISTS set_market_ext',
+      'DROP TABLE IF EXISTS set_valuation_state',
       'DROP TABLE IF EXISTS upcoming_sets',
 
       `CREATE TABLE lego_sets (
@@ -121,6 +123,12 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT,
         bl_nodata_at TEXT
       )`,
+      `CREATE TABLE set_valuation_state (
+        set_num TEXT NOT NULL, condition TEXT NOT NULL, fair_value REAL, low REAL, high REAL,
+        liquidation_value REAL, confidence TEXT, confidence_score REAL, sample_count INTEGER,
+        independent_family_count INTEGER, basis_json TEXT, flags_json TEXT, forecast_json TEXT,
+        as_of TEXT, model_version TEXT, updated_at TEXT, PRIMARY KEY (set_num, condition)
+      )`,
       `CREATE TABLE set_value_history (
         set_num TEXT NOT NULL, snapshot_date TEXT NOT NULL,
         current_value REAL, ebay_value REAL, bl_value REAL,
@@ -150,7 +158,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         triggered_at TEXT DEFAULT CURRENT_TIMESTAMP, read_at TEXT, alert_type TEXT DEFAULT 'drop'
       )`,
       `CREATE TABLE user_prefs (
-        user_id TEXT PRIMARY KEY, handle TEXT, display_name TEXT, currency TEXT DEFAULT 'USD',
+        user_id TEXT PRIMARY KEY, handle TEXT, display_name TEXT, currency TEXT DEFAULT 'USD', retail_market TEXT DEFAULT 'FR',
         notify_price_drops INTEGER DEFAULT 1, is_public INTEGER NOT NULL DEFAULT 0,
         expose_public_value INTEGER NOT NULL DEFAULT 1,
         google_refresh_token TEXT, google_spreadsheet_id TEXT,
@@ -340,7 +348,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(nums).not.toContain('SEED-NOIMG');           // no image_url → excluded
       expect(nums.indexOf('SEED-HI')).toBeLessThan(nums.indexOf('SEED-LO')); // value DESC
       const hi = data.sets.find((s: any) => s.set_num === 'SEED-HI');
-      expect(hi.market_value).toBe(450);                  // enriched blended value
+      expect(hi.market_value).toBe(450);                  // shadow rollout keeps the legacy read path
       expect(hi).not.toHaveProperty('bl_new_min');        // compact: pricing internals stripped
       expect(res.headers.get('ETag')).toBeTruthy();
     });
@@ -1286,7 +1294,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.pricing_confidence).toBeTruthy();
       expect(data.pricing_confidence.priced).toBe(1);
       expect(data.pricing_confidence.high_medium).toBe(1);
-      expect(data.pricing_confidence.pct).toBe(100);
+      expect(data.pricing_confidence.pct).toBe(75);       // medium confidence is weighted at 75%
     });
 
     it('uses the same complete market blend for collection cards and the portfolio total', async () => {
@@ -1294,10 +1302,11 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       await db.prepare(
         "UPDATE lego_sets SET current_value=850, pc_new_value=1200, pc_cached_at=datetime('now'), blended_value=1200 WHERE set_num='75192'"
       ).run();
+      await recomputeBlendedValues(db, ['75192']);
       const res = await app.fetch(new Request('http://localhost/api/collection', { headers: auth() }), env);
       expect(res.status).toBe(200);
       const data = await res.json<any>();
-      expect(data.items[0].market_value).toBeCloseTo(1200, 1);
+      expect(data.items[0].market_value).toBeCloseTo(850, 1); // unverified legacy PC cannot alter fair value
       expect(data.total_value).toBeCloseTo(data.items[0].market_value, 1);
     });
 

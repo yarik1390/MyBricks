@@ -33,6 +33,7 @@ let sourceConfig = {};
 let activityData = null;
 let activityPollTimer = null;
 let featureFlags = { flags: [], overrides: {}, effective: {} };
+let pricingCenterData = null;
 // Active Services tab: 'attention' (triage across all categories) or a
 // PROVIDER_GROUPS category label ('Core', 'Pricing', …). Category-per-tab keeps
 // the mobile view short — one category on screen at a time.
@@ -75,6 +76,12 @@ export async function renderMeAdmin() {
       <section class="admin-section" id="adminQuality">
         <h2 class="section-title">Catalog Quality</h2>
         <div id="qualityContainer" class="admin-panel">Loading coverage...</div>
+      </section>
+
+      <section class="admin-section" id="adminPricing">
+        <h2 class="section-title">Pricing Center</h2>
+        <p class="admin-section-intro">Review valuation v3 coverage, identity quarantine, anomalies, provider eligibility, and D1 write pressure before enabling a source.</p>
+        <div id="pricingCenterContainer" class="admin-pricing-center" aria-live="polite">Loading pricing controls...</div>
       </section>
 
       <section class="admin-section" id="adminUsers">
@@ -154,6 +161,7 @@ export async function renderMeAdmin() {
   loadSourceTuning();
   loadContribQueue();
   loadSupporters();
+  loadPricingCenter();
 }
 
 function populateSectionHTML() {
@@ -255,6 +263,12 @@ function wireAdminShell() {
   processesEl?.addEventListener('click', (e) => {
     const runBtn = e.target.closest('[data-process-run]');
     if (runBtn) runProcess(runBtn.getAttribute('data-process-run'), runBtn);
+  });
+  const pricingEl = document.getElementById('pricingCenterContainer');
+  pricingEl?.addEventListener('click', (event) => {
+    const action = event.target.closest('[data-pricing-match-action]');
+    if (action) reviewPricingMatch(action);
+    if (event.target.closest('[data-pricing-retry]')) loadPricingCenter();
   });
   document.querySelectorAll('[data-contrib-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -582,7 +596,9 @@ function processRowHTML(p) {
   const result = p.status === 'failed'
     ? `<span class="admin-process-result is-error">${escapeHtml(p.error || 'failed')}</span>`
     : (p.summary ? `<span class="admin-process-result">${escapeHtml(p.summary)}</span>` : '');
-  const canRun = !!PROCESS_TRIGGER[p.name] && p.status !== 'running';
+  const trigger = PROCESS_TRIGGER[p.name];
+  const disabledReason = trigger ? ADMIN_JOB_TOOLS[trigger]?.disabledReason : '';
+  const canRun = !!trigger && !ADMIN_JOB_TOOLS[trigger]?.disabled && p.status !== 'running';
   return `
     <div class="admin-process-row${p.status === 'running' ? ' is-running' : ''}">
       <div class="admin-process-head">
@@ -596,6 +612,7 @@ function processRowHTML(p) {
         ${result}
       </div>
       ${canRun ? `<div class="admin-process-actions"><button type="button" class="btn-secondary admin-proc-run" data-process-run="${escapeHtml(p.name)}">${I.refresh({ w: 14 })}<span>Run now</span></button></div>` : ''}
+      ${disabledReason ? `<p class="admin-process-disabled">${escapeHtml(disabledReason)}</p>` : ''}
     </div>`;
 }
 
@@ -605,6 +622,10 @@ function processRowHTML(p) {
 function runProcess(name, btn) {
   const tool = PROCESS_TRIGGER[name];
   if (!tool) return;
+  if (ADMIN_JOB_TOOLS[tool]?.disabled) {
+    toast(ADMIN_JOB_TOOLS[tool].disabledReason || 'This source is disabled.', 'info');
+    return;
+  }
   if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
   if (tool === 'ebaySold') {
     triggerSyncJob(tool).finally(() => loadActivity());
@@ -1153,6 +1174,159 @@ function recommendedQualityAction(cards) {
   if (priority.label === 'Low-confidence values') return 'Run Populate all safe sources and check provider access in the Services tab before increasing source weights.';
   if (priority.label.startsWith('eBay')) return 'Check eBay sold-comps access in the Services tab; do not fall back to active listings for sold value.';
   return 'Run Populate all safe sources to advance the next safe slice.';
+}
+
+async function loadPricingCenter() {
+  const container = $('#pricingCenterContainer');
+  if (!container) return;
+  container.setAttribute('aria-busy', 'true');
+  try {
+    const [quality, budget, anomalies, matches] = await Promise.all([
+      api('/api/admin/pricing/quality'),
+      api('/api/admin/pricing/budget'),
+      api('/api/admin/pricing/anomalies?status=open&limit=25'),
+      api('/api/admin/pricing/source-matches?status=quarantined&limit=25'),
+    ]);
+    pricingCenterData = { quality, budget, anomalies, matches };
+    renderPricingCenter();
+  } catch (error) {
+    container.innerHTML = `
+      <div class="admin-status-panel error">
+        <strong>Pricing Center unavailable</strong>
+        <span>${escapeHtml(error?.message || String(error))}</span>
+        <button type="button" class="btn-secondary" data-pricing-retry>${I.refresh({ w: 16 })}<span>Retry</span></button>
+      </div>`;
+  } finally {
+    container.removeAttribute('aria-busy');
+  }
+}
+
+function pricingMetricHTML(label, value, detail, tone = 'neutral') {
+  return `
+    <article class="admin-pricing-metric ${escapeHtml(tone)}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(String(value))}</strong>
+      <small>${escapeHtml(detail)}</small>
+    </article>`;
+}
+
+function amazonAdminStateHTML() {
+  const amazon = adminHealth?.amazon || {};
+  const states = [
+    ['Web links', amazon.web_links_ready ? 'Ready' : 'Disabled'],
+    ['Android links', amazon.android_links_ready ? 'Ready' : 'Awaiting mobile approval'],
+    ['Creators API', amazon.creators_enabled ? 'Ready' : amazon.creators_credentials_ready ? 'Credentials ready; disabled' : 'Ineligible / not configured'],
+  ];
+  return `
+    <div class="admin-pricing-subsection">
+      <div class="admin-pricing-subhead"><div><h3>Amazon acquisition channel</h3><p>Kept outside fair value, forecasts, history, alerts, and portfolio totals.</p></div></div>
+      <div class="admin-pricing-state-list">${states.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}</div>
+    </div>`;
+}
+
+function renderPricingCenter() {
+  const container = $('#pricingCenterContainer');
+  if (!container || !pricingCenterData) return;
+  const { quality = {}, budget = {}, anomalies = {}, matches = {} } = pricingCenterData;
+  const states = quality.states || [];
+  const valued = states.reduce((sum, row) => sum + Number(row.valued || 0), 0);
+  const high = states.filter((row) => row.confidence === 'high').reduce((sum, row) => sum + Number(row.count || 0), 0);
+  const stale = states.reduce((sum, row) => sum + Number(row.stale || 0), 0);
+  const anomalyRows = anomalies.anomalies || [];
+  const matchRows = matches.matches || [];
+  const budgetTone = budget.state === 'healthy' ? 'ok' : budget.state === 'warning' ? 'warn' : 'danger';
+  const limit = Number(budget.limits?.operational_30d || 10_000_000);
+  const budgetPct = limit ? Math.min(100, (Number(budget.rolling_30d || 0) / limit) * 100) : 0;
+
+  container.innerHTML = `
+    <div class="admin-recommendation">
+      <strong>Recommended next action</strong>
+      <span>${escapeHtml(quality.recommended_action || 'Continue valuation v3 shadow checks.')}</span>
+    </div>
+    <div class="admin-pricing-metrics">
+      ${pricingMetricHTML('v3 valued states', formatCount(valued), `${quality.model_version || 'v3 shadow'} records`, valued ? 'ok' : 'warn')}
+      ${pricingMetricHTML('High confidence', formatCount(high), 'Verified independent sold families', high ? 'ok' : 'warn')}
+      ${pricingMetricHTML('Stale states', formatCount(stale), 'Older than 14 days', stale ? 'warn' : 'ok')}
+      ${pricingMetricHTML('Open anomalies', formatCount(anomalyRows.length), 'Identity, value, or forecast conflicts', anomalyRows.length ? 'danger' : 'ok')}
+      ${pricingMetricHTML('Quarantined matches', formatCount(matchRows.length), 'Excluded from every blend', matchRows.length ? 'warn' : 'ok')}
+      ${pricingMetricHTML('Legacy PriceCharting', formatCount(quality.legacy_pricecharting_rows || 0), 'Stored only; weight and jobs are off', 'neutral')}
+    </div>
+
+    <div class="admin-pricing-subsection">
+      <div class="admin-pricing-subhead"><div><h3>D1 write budget</h3><p>Pricing target is below 2M writes/month; operational ceiling is 10M.</p></div><span class="badge badge--${budgetTone}">${escapeHtml(budget.state || 'unknown')}</span></div>
+      <div class="admin-mini-progress"><span style="width:${budgetPct.toFixed(1)}%"></span></div>
+      <div class="admin-pricing-budget-grid">
+        <span>Today <strong>${formatCount(budget.today || 0)}</strong></span>
+        <span>Rolling 30d <strong>${formatCount(budget.rolling_30d || 0)}</strong></span>
+        <span>Projected 30d <strong>${formatCount(budget.projected_30d || 0)}</strong></span>
+      </div>
+    </div>
+
+    ${amazonAdminStateHTML()}
+
+    <div class="admin-pricing-subsection">
+      <div class="admin-pricing-subhead"><div><h3>Quarantined source matches</h3><p>Verify only when set number, title, UPC, and variant all describe the same product.</p></div><span>${matchRows.length}</span></div>
+      ${matchRows.length ? `<div class="admin-pricing-review-list">${matchRows.map(pricingMatchHTML).join('')}</div>` : '<div class="admin-empty-state"><strong>No quarantined matches.</strong><span>Verified sources can proceed to shadow valuation.</span></div>'}
+    </div>
+
+    <div class="admin-pricing-subsection">
+      <div class="admin-pricing-subhead"><div><h3>Open anomalies</h3><p>Extreme jumps and source conflicts remain low confidence until resolved.</p></div><span>${anomalyRows.length}</span></div>
+      ${anomalyRows.length ? `<div class="admin-pricing-anomaly-list">${anomalyRows.map(pricingAnomalyHTML).join('')}</div>` : '<div class="admin-empty-state"><strong>No open pricing anomalies.</strong><span>The current shadow set has no unresolved extreme conflicts.</span></div>'}
+    </div>`;
+}
+
+function pricingMatchHTML(match) {
+  const key = `${match.source}:${match.source_item_id}`;
+  return `
+    <article class="admin-pricing-review" data-pricing-match="${escapeHtml(key)}">
+      <div>
+        <span class="u-mono-label">${escapeHtml(match.source || 'source')} · ${escapeHtml(match.source_item_id || '')}</span>
+        <strong>${escapeHtml(match.source_title || 'Untitled provider product')}</strong>
+        <small>Candidate: ${escapeHtml(match.set_num || 'none')} ${match.set_name ? `· ${escapeHtml(match.set_name)}` : ''} · ${escapeHtml(match.match_method || 'unknown match')}</small>
+      </div>
+      <label class="admin-field"><span>Confirmed set number</span><input class="input" data-pricing-set-num value="${escapeHtml(match.set_num || '')}" placeholder="75188-1"></label>
+      <div class="admin-pricing-review-actions">
+        <button type="button" class="btn-secondary" data-pricing-match-action="rejected" data-source="${escapeHtml(match.source)}" data-source-id="${escapeHtml(match.source_item_id)}">Reject</button>
+        <button type="button" class="btn-primary" data-pricing-match-action="verified" data-source="${escapeHtml(match.source)}" data-source-id="${escapeHtml(match.source_item_id)}">Verify</button>
+      </div>
+    </article>`;
+}
+
+function pricingAnomalyHTML(anomaly) {
+  return `
+    <article class="admin-pricing-anomaly ${escapeHtml(anomaly.severity || 'warning')}">
+      <div><strong>${escapeHtml(anomaly.anomaly_type || 'Pricing anomaly')}</strong><span>${escapeHtml(anomaly.set_num || '')}${anomaly.condition ? ` · ${escapeHtml(anomaly.condition)}` : ''}</span></div>
+      <small>${escapeHtml(anomaly.source || 'valuation v3')} · last seen ${escapeHtml(formatRelativeTime(anomaly.last_seen_at))}</small>
+    </article>`;
+}
+
+async function reviewPricingMatch(button) {
+  const row = button.closest('[data-pricing-match]');
+  const status = button.dataset.pricingMatchAction;
+  const setNum = row?.querySelector('[data-pricing-set-num]')?.value.trim() || null;
+  if (status === 'verified' && !setNum) {
+    toast('Enter the exact set number before verifying.', 'error');
+    return;
+  }
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  try {
+    await api('/api/admin/pricing/source-matches', {
+      method: 'PATCH',
+      body: {
+        source: button.dataset.source,
+        source_item_id: button.dataset.sourceId,
+        set_num: setNum,
+        status,
+      },
+    });
+    toast(status === 'verified' ? 'Source match verified.' : 'Source match rejected.', 'success');
+    await loadPricingCenter();
+  } catch (error) {
+    toast(error?.message || 'Could not update source match.', 'error');
+    button.disabled = false;
+    button.setAttribute('aria-busy', 'false');
+  }
 }
 
 // Loads pricing source config (defaults + stored overrides) for the per-service

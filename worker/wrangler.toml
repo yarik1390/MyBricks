@@ -44,19 +44,12 @@ crons = [
   "0 12 * * *",
   "0 13 * * *",
   "0 15 * * *",
-  "0 16 * * *",
   # pricesAPI.io live-retail refresh (deal signal / stock truth / wishlist alerts).
   # Small + sequential: cold calls run 30–90s and the free tier is 6/min per key.
   "0 17 * * *",
   "0 19 * * *",
   "0 20 * * *",
   "0 23 * * *",
-  # PriceCharting LEGO-sets bulk CSV refresh — one ~2MB download covers the whole
-  # LEGO catalog (~13k sets). WEEKLY (Sunday): a full-catalog re-stage + upsert is
-  # the biggest recurring D1 rows-written source, and PC price-guide values move
-  # slowly, so weekly whole-catalog freshness is plenty. The per-set enrich (0 16)
-  # still tops up owned/wishlisted/new sets daily. (Cron day-name form, not 0=Sun.)
-  "0 18 * * SUN",
   "15 * * * *",
   "30 * * * *",
 ]
@@ -77,3 +70,13 @@ FIRECRAWL_DAILY_CREDITS = "2000"
 # in the PRICESAPI_API_KEYS secret. Both this AND a key are required for the cron
 # to run (deliberate gate — cold calls are precious). Set to 0 to pause.
 PRICESAPI_ENABLED = "1"
+# Pricing v3 starts in shadow mode. Raise to 10, then 50, then 100 after the
+# observation gates in the rollout plan pass. Set back to 0 for instant rollback.
+PRICING_V3_READ_PERCENT = "0"
+# Hard quarantine gate. Both this flag and the source config must be enabled
+# before any PriceCharting per-set or bulk job can run.
+PRICECHARTING_VERIFIED_ENABLED = "0"
+AMAZON_DEFAULT_MARKET = "FR"
+AMAZON_WEB_ENABLED = "0"
+AMAZON_ANDROID_ENABLED = "0"
+AMAZON_CREATORS_ENABLED = "0"

@@ -128,6 +128,151 @@ CREATE TABLE IF NOT EXISTS set_market_ext (
   bl_nodata_at TEXT
 );
 
+-- Pricing Engine v3 keeps identity, normalized observations and condition-aware
+-- valuation outside lego_sets (which is already at D1's 100-column ceiling).
+CREATE TABLE IF NOT EXISTS pricing_source_map (
+  source TEXT NOT NULL,
+  source_item_id TEXT NOT NULL,
+  set_num TEXT REFERENCES lego_sets(set_num),
+  source_title TEXT,
+  upc TEXT,
+  variant_key TEXT,
+  match_method TEXT,
+  match_confidence REAL NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'quarantined' CHECK(status IN ('verified','quarantined','rejected','manual')),
+  verified_at TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (source, source_item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_pricing_source_map_set ON pricing_source_map(set_num, source, status);
+CREATE INDEX IF NOT EXISTS idx_pricing_source_map_review ON pricing_source_map(status, source, updated_at);
+CREATE INDEX IF NOT EXISTS idx_pricing_source_map_upc ON pricing_source_map(source, upc);
+
+CREATE TABLE IF NOT EXISTS pricing_signals (
+  set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
+  source TEXT NOT NULL,
+  source_item_id TEXT,
+  provider_family TEXT NOT NULL,
+  condition TEXT NOT NULL CHECK(condition IN ('new_sealed','used_complete','loose')),
+  signal_type TEXT NOT NULL CHECK(signal_type IN ('sold','modeled','asking','estimate')),
+  currency TEXT NOT NULL DEFAULT 'USD',
+  value REAL NOT NULL,
+  low REAL,
+  high REAL,
+  sample_count INTEGER,
+  sales_volume INTEGER,
+  source_observed_at TEXT,
+  checked_at TEXT NOT NULL,
+  match_status TEXT NOT NULL DEFAULT 'quarantined',
+  flags_json TEXT,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (set_num, source, condition)
+);
+CREATE INDEX IF NOT EXISTS idx_pricing_signals_refresh ON pricing_signals(condition, checked_at);
+CREATE INDEX IF NOT EXISTS idx_pricing_signals_family ON pricing_signals(set_num, condition, provider_family);
+
+CREATE TABLE IF NOT EXISTS set_valuation_state (
+  set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
+  condition TEXT NOT NULL CHECK(condition IN ('new_sealed','used_complete','loose')),
+  fair_value REAL,
+  low REAL,
+  high REAL,
+  liquidation_value REAL,
+  confidence TEXT NOT NULL DEFAULT 'estimated',
+  confidence_score INTEGER NOT NULL DEFAULT 0,
+  sample_count INTEGER NOT NULL DEFAULT 0,
+  independent_family_count INTEGER NOT NULL DEFAULT 0,
+  basis_json TEXT NOT NULL DEFAULT '[]',
+  flags_json TEXT NOT NULL DEFAULT '[]',
+  forecast_json TEXT,
+  as_of TEXT,
+  model_version TEXT NOT NULL DEFAULT 'v3-shadow',
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (set_num, condition)
+);
+CREATE INDEX IF NOT EXISTS idx_valuation_state_confidence ON set_valuation_state(condition, confidence, as_of);
+
+CREATE TABLE IF NOT EXISTS set_valuation_history_v2 (
+  set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
+  condition TEXT NOT NULL CHECK(condition IN ('new_sealed','used_complete','loose')),
+  snapshot_date TEXT NOT NULL,
+  fair_value REAL,
+  low REAL,
+  high REAL,
+  confidence TEXT,
+  model_version TEXT,
+  PRIMARY KEY (set_num, condition, snapshot_date)
+);
+CREATE INDEX IF NOT EXISTS idx_valuation_history_v2_date ON set_valuation_history_v2(snapshot_date);
+
+CREATE TABLE IF NOT EXISTS retail_price_current (
+  set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
+  market TEXT NOT NULL,
+  currency TEXT NOT NULL,
+  item_price REAL,
+  delivered_price REAL,
+  merchant TEXT,
+  stock TEXT,
+  offer_count INTEGER,
+  msrp REAL,
+  lowest_90d REAL,
+  all_time_low REAL,
+  checked_at TEXT NOT NULL,
+  source TEXT,
+  PRIMARY KEY (set_num, market)
+);
+CREATE INDEX IF NOT EXISTS idx_retail_current_refresh ON retail_price_current(market, checked_at);
+
+CREATE TABLE IF NOT EXISTS retail_price_history (
+  set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
+  market TEXT NOT NULL,
+  observed_at TEXT NOT NULL,
+  delivered_price REAL,
+  merchant TEXT,
+  stock TEXT,
+  source TEXT,
+  PRIMARY KEY (set_num, market, observed_at)
+);
+CREATE INDEX IF NOT EXISTS idx_retail_history_lookup ON retail_price_history(set_num, market, observed_at);
+
+CREATE TABLE IF NOT EXISTS pricing_anomalies (
+  anomaly_key TEXT PRIMARY KEY,
+  set_num TEXT REFERENCES lego_sets(set_num),
+  condition TEXT,
+  source TEXT,
+  anomaly_type TEXT NOT NULL,
+  severity TEXT NOT NULL DEFAULT 'warning',
+  detail_json TEXT,
+  status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved','ignored')),
+  first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  last_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  resolved_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_pricing_anomalies_open ON pricing_anomalies(status, severity, last_seen_at);
+
+CREATE TABLE IF NOT EXISTS amazon_product_map (
+  set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
+  market TEXT NOT NULL,
+  asin TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'quarantined',
+  match_method TEXT,
+  match_confidence REAL NOT NULL DEFAULT 0,
+  checked_at TEXT,
+  PRIMARY KEY (set_num, market),
+  UNIQUE (market, asin)
+);
+
+-- One compact row per job/day. New pricing jobs add D1 meta.rows_written here;
+-- the watchdog uses it to pause non-critical work before the paid-plan ceiling.
+CREATE TABLE IF NOT EXISTS pricing_write_ledger (
+  day TEXT NOT NULL,
+  job TEXT NOT NULL,
+  rows_written INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (day, job)
+);
+
 CREATE TABLE IF NOT EXISTS user_collection (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id TEXT NOT NULL,
@@ -208,6 +353,7 @@ CREATE TABLE IF NOT EXISTS user_prefs (
   handle TEXT,
   display_name TEXT,
   currency TEXT DEFAULT 'USD',
+  retail_market TEXT DEFAULT 'FR',
   notify_price_drops INTEGER DEFAULT 1,
   is_public INTEGER NOT NULL DEFAULT 0,
   expose_public_value INTEGER DEFAULT 1,
