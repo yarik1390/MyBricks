@@ -8,7 +8,7 @@ export async function runSnapshotPortfolios(env: Env) {
     SELECT
       uc.user_id, uc.set_num, uc.condition, uc.quantity, uc.purchase_price,
       s.current_value, s.blended_value, s.used_value,
-      s.ebay_used_value, s.bo_used_value,
+      s.ebay_used_value, s.bo_used_value, s.pc_new_value, s.pc_complete_value,
       svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair
     FROM user_collection uc
     JOIN lego_sets s ON s.set_num = uc.set_num

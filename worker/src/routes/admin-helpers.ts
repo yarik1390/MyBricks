@@ -313,7 +313,7 @@ export async function getDataCoverage(env: Env) {
 }
 
 export async function getPopulationSnapshot(env: Env) {
-  const [coverage, minifigs, ebayAttempts, latestBarcode, ebayHealth, ownedCov] = await Promise.all([
+  const [coverage, minifigs, ebayAttempts, latestBarcode, ebayHealth, ownedCov, pricingV3] = await Promise.all([
     getDataCoverage(env),
     env.DB.prepare(`SELECT CAST(COUNT(*) AS INTEGER) AS total_minifigs FROM minifigs`).first<{ total_minifigs: number }>(),
     env.DB.prepare(`
@@ -324,7 +324,8 @@ export async function getPopulationSnapshot(env: Env) {
     `).first<{ ebay_new_attempted: number; ebay_used_attempted: number }>(),
     env.DB.prepare(`
       SELECT error FROM import_runs
-      WHERE error LIKE '%method:bulk%' OR error LIKE '%barcode_complete:%' OR error LIKE '%method:populate-everything%'
+      WHERE error LIKE '%method:bulk%complete:true%'
+         OR error LIKE '%barcode_complete:%'
       ORDER BY started_at DESC
       LIMIT 1
     `).first<{ error: string | null }>(),
@@ -347,6 +348,15 @@ export async function getPopulationSnapshot(env: Env) {
       WHERE set_num IN (SELECT set_num FROM user_collection WHERE deleted_at IS NULL)
          OR set_num IN (SELECT set_num FROM user_wishlist)
     `).first<{ total: number; non_formula: number; has_real: number; has_blended: number }>(),
+    env.DB.prepare(`
+      SELECT CAST(COUNT(*) AS INTEGER) AS missing
+      FROM lego_sets ls
+      LEFT JOIN set_valuation_state sv
+        ON sv.set_num=ls.set_num
+       AND sv.condition='new_sealed'
+       AND sv.model_version='v3-shadow'
+      WHERE sv.set_num IS NULL
+    `).first<{ missing: number }>().catch(() => ({ missing: 0 })),
   ]);
   const c = coverage as Record<string, any>;
   const totalSets = Number(c.total_sets || 0);
@@ -387,6 +397,7 @@ export async function getPopulationSnapshot(env: Env) {
     ebay_access_blocked: ebayAccessBlocked,
     ebay_source_available: ebaySourceAvailable,
     owned_coverage: ownedCoverage,
+    pricing_v3_missing: Number(pricingV3?.missing || 0),
     formula_bulk_count: formulaBulkCount,
     ebay_new_attempted_pct: totalSets ? Math.round((ebayNewAttempted / totalSets) * 1000) / 10 : 0,
     ebay_used_attempted_pct: totalSets ? Math.round((ebayUsedAttempted / totalSets) * 1000) / 10 : 0,
@@ -399,6 +410,7 @@ export async function getPopulationSnapshot(env: Env) {
 
 export function populationDone(snapshot: Awaited<ReturnType<typeof getPopulationSnapshot>>): boolean {
   if (!snapshot.catalog_ready || !snapshot.minifigs_ready) return false;
+  if (Number(snapshot.pricing_v3_missing || 0) > 0) return false;
   if (Number((snapshot as Record<string, any>).formula_bulk_count || 0) > 0) return false;
   if (Number((snapshot as Record<string, any>).needs_market_refresh || 0) > 0) return false;
   if (!snapshot.ebay_attempts_complete) return false;
@@ -416,6 +428,7 @@ export function populationRemainingNote(snapshot: Awaited<ReturnType<typeof getP
     `missing_upc:${quality.missing_upc ?? 0}`,
     `needs_market_refresh:${quality.needs_market_refresh ?? 0}`,
     `formula_bulk:${(snapshot as Record<string, any>).formula_bulk_count ?? 0}`,
+    `pricing_v3_missing:${snapshot.pricing_v3_missing ?? 0}`,
     `ebay_new_attempted:${snapshot.ebay_new_attempted}/${snapshot.total_sets}`,
     `ebay_used_attempted:${snapshot.ebay_used_attempted}/${snapshot.total_sets}`,
     `ebay_available:${(snapshot as Record<string, any>).ebay_source_available ?? false}`,

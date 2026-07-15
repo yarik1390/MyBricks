@@ -181,6 +181,8 @@ describe('pricing v3 rollout consistency', () => {
   it('uses one condition-aware chain at 0% and 100%', () => {
     expect(holdingValueForRollout(holding, 0)).toBe(600);
     expect(holdingValueForRollout(holding, 100)).toBe(650);
+
+    expect(holdingValueForRollout({ ...holding, pc_new_value: 999 }, 0)).toBe(650);
   });
 
   it('assigns partial rollout deterministically by set number', () => {

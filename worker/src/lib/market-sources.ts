@@ -361,6 +361,8 @@ export interface HoldingValuationRow {
   used_value?: unknown;
   ebay_used_value?: unknown;
   bo_used_value?: unknown;
+  pc_new_value?: unknown;
+  pc_complete_value?: unknown;
   v3_new_fair?: unknown;
   v3_used_fair?: unknown;
 }
@@ -374,7 +376,10 @@ export function holdingValueForRollout(
   const legacyUsed = num(row.ebay_used_value) || num(row.used_value)
     || num(row.bo_used_value) || legacyNew;
   const isUsed = String(row.condition || '').startsWith('used');
-  if (!pricingV3ReadEnabled(row.set_num, percent)) return isUsed ? legacyUsed : legacyNew;
+  const quarantineOverride = !!(num(row.pc_new_value) || num(row.pc_complete_value));
+  if (!pricingV3ReadEnabled(row.set_num, percent) && !quarantineOverride) {
+    return isUsed ? legacyUsed : legacyNew;
+  }
 
   const v3New = num(row.v3_new_fair) || legacyNew;
   if (!isUsed) return v3New;
@@ -715,7 +720,11 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
   const storedUsed = row.__valuation_used as ValuationStateV3 | undefined;
   const newState = storedNew?.model_version === 'v3' ? storedNew : computeV3State(row, 'new_sealed', history);
   const usedState = storedUsed?.model_version === 'v3' ? storedUsed : computeV3State(row, 'used_complete');
-  const v3ReadEnabled = pricingV3ReadEnabled(row.set_num);
+  const rolloutReadEnabled = pricingV3ReadEnabled(row.set_num);
+  const quarantineOverride = !!(
+    newState.fair_value && (num(row.pc_new_value) || num(row.pc_complete_value))
+  );
+  const v3ReadEnabled = rolloutReadEnabled || quarantineOverride;
   const legacyValue = num(row.blended_value) || num(row.current_value);
   const legacyConfidence = String(row.blended_confidence || '') as MarketConfidence;
   const confidence = v3ReadEnabled && newState.fair_value
@@ -780,10 +789,11 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
       currency: 'USD',
       model_version: 'v3',
       read_enabled: v3ReadEnabled,
+      read_reason: quarantineOverride ? 'pricecharting_quarantine' : (rolloutReadEnabled ? 'rollout' : 'legacy'),
       rollout_percent: pricingV3ReadPercent,
       as_of: newState.as_of,
-      new: newState,
-      used: usedState,
+      new: { ...newState, independent_families: newState.independent_family_count },
+      used: { ...usedState, independent_families: usedState.independent_family_count },
       forecast,
       acquisition: {
         market: String(retailOffer?.market || row.pa_market || 'FR').toUpperCase(),

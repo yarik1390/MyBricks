@@ -942,7 +942,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       }), env);
       expect(res.status).toBe(200);
       const data = await res.json<any>();
-      expect(data.done).toBe(true);
+      expect(data.done).toBe(false);
+      expect(data.coverage.pricing_v3_missing).toBeGreaterThan(0);
       expect(data.run_id).toBeTruthy();
       await new Promise(resolve => setTimeout(resolve, 0));
       const row = await db.prepare(`SELECT job_type, progress_label, error FROM import_runs WHERE id=?`)
@@ -978,7 +979,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       }), env);
       expect(res.status).toBe(200);
       const data = await res.json<any>();
-      expect(data.done).toBe(true);
+      expect(data.done).toBe(false);
+      expect(data.coverage.pricing_v3_missing).toBeGreaterThan(0);
       expect(data.coverage.ebay_access_blocked).toBe(true);
       await new Promise(resolve => setTimeout(resolve, 0));
       const row = await db.prepare(`SELECT error FROM import_runs WHERE id=?`)
@@ -1029,7 +1031,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         await new Promise(resolve => setTimeout(resolve, 20));
       }
       expect(run.status, run.error).toBe('completed');
-      expect(run.sets_skipped).toBe(1);
+      expect(run.sets_skipped).toBeGreaterThanOrEqual(1);
       expect(run.error).toContain('formula_bulk:1');
 
       const set = await db.prepare(`

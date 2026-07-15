@@ -509,6 +509,17 @@ app.post('/populate-everything', async (c) => {
 
         snapshot = await getPopulationSnapshot(c.env);
         const includeEbay = !!snapshot.ebay_source_available;
+        await phaseProgress(4, 'Building pricing v3 shadow state', 0, 400);
+        const pricingV3 = await runBlendRecomputeBackfill(c.env, { limit: 400 });
+        updated += pricingV3.recomputed;
+        processed += pricingV3.candidates;
+        await phaseProgress(
+          4,
+          pricingV3.paused ? 'Pricing v3 paused by write budget' : 'Pricing v3 shadow slice complete',
+          pricingV3.candidates,
+          Math.max(pricingV3.candidates, 1),
+          `method:populate-everything step:pricing-v3 candidates:${pricingV3.candidates} recomputed:${pricingV3.recomputed} paused:${!!pricingV3.paused}`,
+        );
         // This slice already spent subrequests on earlier phases (each barcode
         // page ≈ 1 fetch + D1 batch + progress write). Hand the valuation run
         // what realistically remains of the invocation's 50 so its packer can
