@@ -17,6 +17,7 @@ const API_BASE = process.env.API_BASE || 'https://brickvault-api.zhydenko.worker
 // endpoint serves at most PAGE per request, so we page through with offset.
 const TOTAL = Number(process.env.SEED_LIMIT) || 100000;
 const PAGE = 5000;
+const REQUIRED_MODEL_VERSION = 'v4';
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'data', 'seed-catalog.json');
 
 async function main() {
@@ -27,6 +28,9 @@ async function main() {
     const res = await fetch(url, { headers: { Accept: 'application/json' } });
     if (!res.ok) throw new Error(`seed endpoint ${res.status} at offset ${offset}`);
     const json = await res.json();
+    if (json?.model_version !== REQUIRED_MODEL_VERSION) {
+      throw new Error(`seed model ${json?.model_version || 'missing'}; expected ${REQUIRED_MODEL_VERSION}`);
+    }
     const sets = Array.isArray(json?.sets) ? json.sets : [];
     all.push(...sets);
     console.log(`[seed] +${sets.length} (offset ${offset}, total ${all.length})`);
@@ -34,7 +38,7 @@ async function main() {
   }
   if (all.length < 50) throw new Error(`seed suspiciously small (${all.length} sets) — keeping existing snapshot`);
   await mkdir(dirname(OUT), { recursive: true });
-  const body = JSON.stringify({ generated_at: new Date().toISOString(), count: all.length, sets: all });
+  const body = JSON.stringify({ model_version: REQUIRED_MODEL_VERSION, generated_at: new Date().toISOString(), count: all.length, sets: all });
   await writeFile(OUT, body);
   console.log(`[seed] wrote ${all.length} sets (${(body.length / 1024 / 1024).toFixed(1)} MB) → public/data/seed-catalog.json`);
 }

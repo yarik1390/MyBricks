@@ -359,6 +359,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const res = await app.fetch(new Request('http://localhost/api/catalog/seed?limit=50'), env);
       expect(res.status).toBe(200);
       const data = await res.json<any>();
+      expect(data.model_version).toBe('v4');
       const nums = data.sets.map((s: any) => s.set_num);
       expect(nums).toContain('SEED-HI');
       expect(nums).toContain('SEED-LO');

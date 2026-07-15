@@ -24,6 +24,7 @@ const SEED_FIELDS = [
 const DEFAULT_LIMIT = 2000;
 const MAX_PAGE = 5000; // per-request cap; the generator pages through with offset for the full catalog.
 const KV_TTL = 86_400; // 24h — the catalog head moves slowly; the build snapshot is the real cache.
+const SEED_MODEL_VERSION = 'v4';
 
 function pick(row: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -52,7 +53,7 @@ app.get('/seed', async (c) => {
   // v3 invalidates seed pages cached before PriceCharting quarantine became a
   // mandatory read-path override. Android builds must never bundle those
   // legacy values for offline use.
-  const kvKey = `catalog:seed:v3:${limit}:${offset}`;
+  const kvKey = `catalog:seed:${SEED_MODEL_VERSION}:${limit}:${offset}`;
   const kv = c.env.CACHE_KV;
   if (kv) {
     const cached = await kv.get(kvKey);
@@ -79,7 +80,7 @@ app.get('/seed', async (c) => {
   ).bind(limit, offset).all<Record<string, unknown>>();
 
   const sets = (results || []).map((r) => pick(enrichSetRecord(attachCatalogValuationState({ ...r, retired: !!r.retired }))));
-  const body = JSON.stringify({ generated_at: new Date().toISOString(), count: sets.length, offset, sets });
+  const body = JSON.stringify({ model_version: SEED_MODEL_VERSION, generated_at: new Date().toISOString(), count: sets.length, offset, sets });
 
   if (kv) c.executionCtx.waitUntil(kv.put(kvKey, body, { expirationTtl: KV_TTL }));
   const etag = `"seed-${limit}-${offset}-${body.length}"`;
