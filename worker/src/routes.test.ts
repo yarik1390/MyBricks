@@ -344,6 +344,14 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
             280, 2413.58, 20, 1, 'https://cdn.rebrickable.com/pc.jpg',
             280, datetime('now'), 2413.58, datetime('now')
           )`),
+        db.prepare(`INSERT INTO set_valuation_state (
+            set_num, condition, fair_value, low, high, confidence,
+            confidence_score, sample_count, independent_family_count,
+            basis_json, flags_json, as_of, model_version
+          ) VALUES (
+            'SEED-PC', 'new_sealed', 280, 266, 410, 'low',
+            30, 5, 1, '[]', '["history_anomaly"]', datetime('now'), 'v3-shadow'
+          )`),
         // No image → must be excluded from the seed.
         db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
           VALUES ('SEED-NOIMG', 'No Image Set', 'City', 2021, 100, 500, 20, 0)`),
@@ -361,6 +369,11 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const quarantined = data.sets.find((s: any) => s.set_num === 'SEED-PC');
       expect(quarantined.market_value).toBe(280);         // PriceCharting cannot leak into the offline headline
       expect(quarantined.market_value_confidence).toBe('low');
+      const searchRes = await app.fetch(new Request('http://localhost/api/sets/search?sort=value_desc&limit=100'), env);
+      const searchData = await searchRes.json<any>();
+      const searchQuarantined = searchData.sets.find((s: any) => s.set_num === 'SEED-PC');
+      expect(searchQuarantined.market_value).toBe(quarantined.market_value);
+      expect(searchQuarantined.market_value_confidence).toBe(quarantined.market_value_confidence);
       expect(hi).not.toHaveProperty('bl_new_min');        // compact: pricing internals stripped
       expect(res.headers.get('ETag')).toBeTruthy();
     });

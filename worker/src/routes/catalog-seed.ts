@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { CATALOG_COLS, MARKET_EXT_JOIN } from './sets-sql';
+import { CATALOG_COLS, MARKET_EXT_JOIN, attachCatalogValuationState } from './sets-sql';
 import { enrichSetRecord } from '../lib/market-sources';
 import type { Env, Variables } from '../types';
 
@@ -78,7 +78,7 @@ app.get('/seed', async (c) => {
      LIMIT ? OFFSET ?`,
   ).bind(limit, offset).all<Record<string, unknown>>();
 
-  const sets = (results || []).map((r) => pick(enrichSetRecord({ ...r, retired: !!r.retired })));
+  const sets = (results || []).map((r) => pick(enrichSetRecord(attachCatalogValuationState({ ...r, retired: !!r.retired }))));
   const body = JSON.stringify({ generated_at: new Date().toISOString(), count: sets.length, offset, sets });
 
   if (kv) c.executionCtx.waitUntil(kv.put(kvKey, body, { expirationTtl: KV_TTL }));

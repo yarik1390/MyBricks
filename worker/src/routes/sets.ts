@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { optionalMember, requireMember } from '../auth';
 import { formulaValuation, valuationExpiryModifier, isPlausibleMarketValue } from '../lib/valuation';
 import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
-import { SORTS, NON_SET_DEMOTION, CATALOG_COLS, MARKET_EXT_JOIN, toFtsPrefixQuery } from './sets-sql';
+import { SORTS, NON_SET_DEMOTION, CATALOG_COLS, MARKET_EXT_JOIN, attachCatalogValuationState, toFtsPrefixQuery } from './sets-sql';
 import { scheduleSetDetailRefresh, pushEbaySoldUpdate } from './set-detail-refresh';
 import { generateListingDraft, type ListingDraft } from './listing-draft';
 import { fetchBricksetDetails, fetchAdditionalImages } from '../lib/brickset';
@@ -215,7 +215,7 @@ app.get('/search', async (c) => {
     ]);
   }
 
-  let rows = pageRes.results.map(r => enrichSetRecord({ ...r, retired: !!r.retired })) as Record<string, unknown>[];
+  let rows = pageRes.results.map(r => enrichSetRecord(attachCatalogValuationState({ ...r, retired: !!r.retired }))) as Record<string, unknown>[];
   let total = countRes?.total ?? 0;
 
   if (q && offset === 0 && rows.length < lim && c.env.REBRICKABLE_API_KEY) {
