@@ -307,7 +307,8 @@ function paintPortfolio() {
           ${p.pricing_confidence?.priced ? `<span style="cursor:help;" title="Share of your sets priced from corroborated, fresh market data (high or medium confidence) rather than a thin or estimated value">· ${p.pricing_confidence.pct}% confidently priced</span>` : ""}
           ${ratesUnavailable() && (state.me?.currency || "USD") !== "USD" ? `<span style="color:var(--bv-yellow);cursor:help;" title="Exchange rates couldn't be loaded — values are shown in USD until they refresh">· shown in USD</span>` : ""}
         </div>
-        <div class="spark-wrap" id="heroChart"></div>
+        <div class="spark-wrap" id="heroChart">${clipped.length < 2 ? `
+          <div class="spark-empty">Your trend appears after the next daily valuation snapshot.</div>` : ""}</div>
         <div class="range-pills" id="rangePills">
           ${["1W","1M","3M","1Y","ALL"].map(r => {
             const locked = !state.historyPro && (r === "1Y" || r === "ALL");

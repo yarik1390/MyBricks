@@ -822,7 +822,7 @@ export function renderPile() {
         <div class="scan-cta-icon">${I.camera()}</div>
         <div class="scan-cta-text">
           <div class="t1">Photo scan</div>
-          <div class="t2">AI identifies any set · 20 shared scans/hour</div>
+          <div class="t2">Barcode is free · photo ID uses cloud or on-device AI</div>
         </div>
         <div class="scan-cta-arrow">${I.arrowR()}</div>
       </button>

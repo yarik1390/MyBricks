@@ -1487,7 +1487,7 @@ function openAddWishlistSheet(set, onConfirm) {
       <label class="field-lbl">Target Price (${symbol})</label>
       <input type="number" step="0.01" id="wlTargetPrice" class="field-input" placeholder="0.00" autocomplete="off" value="${suggestedLocal > 0 ? suggestedLocal.toFixed(2) : ''}">
       <div id="wlSuggestedChip" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:4px 8px;background:var(--surface-3);border:1px solid var(--line);border-radius:12px;font-size:12px;cursor:pointer;color:var(--ink);">
-        💡 Suggested: ${symbol}${suggestedLocal.toFixed(2)}
+        ${I.sparkles({ w: 14 })} Suggested: ${symbol}${suggestedLocal.toFixed(2)}
       </div>
       <div style="font-size:11px;color:var(--ink-mute);margin-top:6px;line-height:1.4;">Leave empty to watch without price-drop alerts.</div>
     </div>

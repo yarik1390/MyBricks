@@ -2,7 +2,7 @@
 // nextOfflineBannerState, upsertDetailCache) so the app-shell boot graph
 // doesn't parse this whole module; re-exported here so every existing
 // `from '../lib/pure.js'` import keeps working.
-export { jwtSub, displayValueOf, nextOfflineBannerState, upsertDetailCache } from './pure-core.js';
+export { jwtSub, displayValueOf, withDisplayValue, shouldUseKeyboardShell, nextOfflineBannerState, upsertDetailCache } from './pure-core.js';
 
 /**
  * Pure, stateless helper functions with no DOM, state, or network dependencies.
@@ -21,6 +21,28 @@ export function fmtPct(n) {
 export const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
 export const daysAgo = (iso) => Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+
+/**
+ * Turn provider/auth failures into a user-facing scanner state. A missing AI
+ * provider is setup work, not a visual "no match" from the photo.
+ * @param {unknown} value
+ */
+export function classifyScanFailure(value) {
+  const message = String(value || "");
+  if (/rate.?limit|quota|limit reached|too many|429/i.test(message)) {
+    return { kind: "limit", label: "Limit reached", retryable: false };
+  }
+  if (/sign in|add your own|api key|not configured|provider unavailable|setup/i.test(message)) {
+    return { kind: "setup", label: "Setup needed", retryable: false };
+  }
+  if (/timed? out|took too long|abort/i.test(message)) {
+    return { kind: "timeout", label: "Timed out", retryable: true };
+  }
+  if (/offline|network|fetch/i.test(message)) {
+    return { kind: "offline", label: "Connection needed", retryable: true };
+  }
+  return { kind: "nomatch", label: "Not found", retryable: true };
+}
 
 /**
  * Short relative time ("just now", "3m ago", "2h ago", "5d ago") for the admin

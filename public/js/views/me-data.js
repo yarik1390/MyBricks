@@ -7,6 +7,7 @@ import { parseCollectionCSV } from '../lib/pure.js';
 import { subpageTopbarHTML, loadMe } from './me-shared.js';
 import { state } from '../state.js';
 import { skelPage, skelSettingRows } from '../components/skeleton.js';
+import { exportBlob } from '../lib/native-file-export.js';
 
 export async function renderMeData() {
   if (!state.me) $("#root").innerHTML = skelPage(skelSettingRows(3));
@@ -47,7 +48,7 @@ export async function renderMeData() {
             <div class="desc">Upload a CSV to add sets in bulk. Existing sets are skipped.</div>
           </div>
           <div class="csv-import-wrap">
-            <label class="csv-file-label">${I.download()}<span>Choose CSV file</span><input type="file" id="csvFile" accept=".csv"></label>
+            <label class="csv-file-label">${I.upload()}<span>Choose CSV file</span><input type="file" id="csvFile" accept=".csv"></label>
             <span id="csvFileName"></span>
             <button class="btn-primary" id="csvImportBtn" style="display:none;">${I.plus()}<span>Import</span></button>
           </div>
@@ -59,7 +60,7 @@ export async function renderMeData() {
             <div class="desc">Export your BrickLink order history as CSV and upload it here to auto-add sets you've bought.</div>
           </div>
           <div class="csv-import-wrap">
-            <label class="csv-file-label">${I.download()}<span>Choose BrickLink CSV</span><input type="file" id="blOrderFile" accept=".csv"></label>
+            <label class="csv-file-label">${I.upload()}<span>Choose BrickLink CSV</span><input type="file" id="blOrderFile" accept=".csv"></label>
             <span id="blOrderFileName"></span>
             <button class="btn-primary" id="blOrderImportBtn" style="display:none;">${I.plus()}<span>Import BrickLink Orders</span></button>
           </div>
@@ -103,13 +104,10 @@ export async function renderMeData() {
     try {
       if (guest) {
         const blob = guestCollectionCSVBlob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "brickvault-collection.csv";
-        a.click();
-        URL.revokeObjectURL(url);
-        if (out) out.textContent = "Export ready from local guest data.";
+        const result = await exportBlob(blob, "brickvault-collection.csv", { title: "Share BricksVault collection" });
+        if (out) out.textContent = result === "shared"
+          ? "Your local guest export is ready to share or save."
+          : "Export downloaded from local guest data.";
         return;
       }
       const token = _authSession?.access_token;
@@ -119,13 +117,10 @@ export async function renderMeData() {
       });
       if (!res.ok) throw new Error("Export failed");
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "brickvault-collection.csv";
-      a.click();
-      URL.revokeObjectURL(url);
-      if (out) out.textContent = "Export downloaded from your synced vault.";
+      const result = await exportBlob(blob, "brickvault-collection.csv", { title: "Share BricksVault collection" });
+      if (out) out.textContent = result === "shared"
+        ? "Your synced export is ready to share or save."
+        : "Export downloaded from your synced vault.";
     } catch (e) {
       if (out) out.textContent = "Export failed: " + e.message;
       toast("Error exporting: " + e.message, "error");

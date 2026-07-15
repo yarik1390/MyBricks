@@ -8,7 +8,7 @@ import {
   parseCSVTable, parseCollectionCSV, sanitizeMoneyInput, activeCatalogFilterCount, activeFigFilterCount, figFilterSummary,
   liquidityLabel, classifyProviderHealth, validateSourceTuningInput, groupAdminJobRuns,
   formatRelativeTime, processRunBadge, isEstimatedValue, estMark,
-  displayValueOf, flipEconomics,
+  displayValueOf, withDisplayValue, shouldUseKeyboardShell, classifyScanFailure, flipEconomics,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -214,6 +214,30 @@ describe('displayValueOf', () => {
   it('ignores zero/negative values in the chain', () => {
     assert.equal(displayValueOf({ market_value: 0, blended_value: 850 }), 850);
     assert.equal(displayValueOf({ market_value: -5, blended_value: 0, current_value: 42 }), 42);
+  });
+});
+
+describe('canonical pricing surfaces', () => {
+  it('normalizes legacy wishlist math to the same fair value as set detail', () => {
+    const item = withDisplayValue({ market_value: 357.47, blended_value: 360.2, current_value: 410, target_price: 350 });
+    assert.equal(item.current_value, 357.47);
+    assert.equal(item.target_price, 350);
+  });
+});
+
+describe('mobile keyboard shell', () => {
+  it('collapses fixed chrome for focused mobile inputs', () => {
+    assert.equal(shouldUseKeyboardShell({ editable: true, compact: true, innerHeight: 800, viewportHeight: 800 }), true);
+    assert.equal(shouldUseKeyboardShell({ editable: false, compact: true, innerHeight: 800, viewportHeight: 500 }), false);
+    assert.equal(shouldUseKeyboardShell({ editable: true, compact: false, innerHeight: 800, viewportHeight: 500 }), true);
+  });
+});
+
+describe('scanner failure states', () => {
+  it('does not label provider setup failures as photo no-matches', () => {
+    assert.deepEqual(classifyScanFailure('Sign in or add your own Gemini API key'), { kind: 'setup', label: 'Setup needed', retryable: false });
+    assert.equal(classifyScanFailure('Quota exceeded (HTTP 429)').kind, 'limit');
+    assert.equal(classifyScanFailure("Couldn't identify the set").kind, 'nomatch');
   });
 });
 
@@ -924,6 +948,29 @@ describe('native sharing', () => {
     assert.equal(await shareContent({ title: 'Set' }, web), 'shared');
     assert.equal(browserCalls, 1);
     assert.equal(await shareContent({ title: 'Set' }, { navigator: {} }), 'unsupported');
+  });
+});
+
+describe('native CSV export', () => {
+  it('writes to the native cache and opens the system share sheet', async () => {
+    const { exportBlob } = await import('../lib/native-file-export.js');
+    const calls = [];
+    const win = {
+      Capacitor: {
+        isNativePlatform: () => true,
+        Plugins: {
+          Filesystem: {
+            writeFile: async payload => { calls.push(['write', payload]); },
+            getUri: async payload => { calls.push(['uri', payload]); return { uri: 'content://cache/brickvault.csv' }; },
+          },
+          Share: { share: async payload => { calls.push(['share', payload]); } },
+        },
+      },
+    };
+    assert.equal(await exportBlob(new Blob(['set_num\n71043-1']), 'brickvault.csv', {}, win), 'shared');
+    assert.equal(calls[0][0], 'write');
+    assert.equal(calls[0][1].directory, 'CACHE');
+    assert.deepEqual(calls[2][1].files, ['content://cache/brickvault.csv']);
   });
 });
 

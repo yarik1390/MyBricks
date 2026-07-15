@@ -59,6 +59,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
     delete (env as any).GOOGLE_CLIENT_SECRET;
     delete (env as any).EBAY_APP_ID;
     delete (env as any).EBAY_CLIENT_SECRET;
+    delete (env as any).PRICING_V3_READ_PERCENT;
 
     token = await createMockJWT(userId, JWT_SECRET);
     otherToken = await createMockJWT(otherUserId, JWT_SECRET);
@@ -708,6 +709,12 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       await db.prepare(
         `INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '75192', 1, 'new')`
       ).bind(userId).run();
+      await db.batch([
+        db.prepare(`INSERT INTO user_showcase (user_id, set_num) VALUES (?, '75192')`).bind(userId),
+        db.prepare(`INSERT INTO set_valuation_state (set_num, condition, fair_value, model_version)
+                    VALUES ('75192', 'new_sealed', 899.5, 'v3-test')`),
+      ]);
+      (env as any).PRICING_V3_READ_PERCENT = '100';
 
       const res = await app.fetch(new Request('http://localhost/api/users/pub/profile'), env);
       expect(res.status).toBe(200);
@@ -715,8 +722,9 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.handle).toBe('pub');
       expect(data.display_name).toBe('Public Collector');
       expect(data.set_count).toBe(1);
-      expect(data.total_value).toBeCloseTo(849.99, 1);
+      expect(data.total_value).toBeCloseTo(899.5, 1);
       expect(data.top_themes[0].theme).toBe('Star Wars');
+      expect(data.showcase[0].market_value).toBeCloseTo(899.5, 1);
     });
 
     it('hides value when expose_public_value is off', async () => {

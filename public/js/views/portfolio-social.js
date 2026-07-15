@@ -2,6 +2,7 @@ import { $, escapeHtml, fmtMoney, fmtMoneyShort, themeHue, setHue, THEME_COLORS 
 import { I } from '../icons.js';
 import { state } from '../state.js';
 import { skelCardList } from '../components/skeleton.js';
+import { displayValueOf } from '../lib/pure.js';
 
 const LEADERBOARD_CACHE_KEY = 'bv_leaderboard_cache_v1';
 const LEADERBOARD_CACHE_MS = 5 * 60 * 1000;
@@ -33,8 +34,8 @@ export async function renderPublicProfile(handle) {
     if (nav) nav.style.display = "";
     $("#root").innerHTML = `<div class="page">
       <div class="topbar">
+        <button class="icon-btn" id="pubBack" aria-label="Back">${I.chevL()}</button>
         <div class="topbar-heading"><h1 class="topbar-title">Profile</h1></div>
-        <button class="icon-btn" id="pubBack">${I.chevL()}</button>
       </div>
       <div class="empty card">
         <div class="empty-icon">${I.user()}</div>
@@ -50,18 +51,23 @@ export async function renderPublicProfile(handle) {
   $("#root").innerHTML = `
     <div class="page">
       <div class="topbar">
+        <button class="icon-btn" id="pubBack" aria-label="Back">${I.chevL()}</button>
         <div class="topbar-heading">
           <div class="topbar-eyebrow">@${escapeHtml(profile.handle || handle)}</div>
           <h1 class="topbar-title">${escapeHtml(profile.display_name || handle)}</h1>
           ${profile.is_supporter ? '<div class="supporter-flair">⭐ Supporter</div>' : ''}
           ${!profile.is_supporter && profile.approved_contributions > 0 ? `<div class="supporter-flair contributor-flair">✦ Contributor · ${profile.approved_contributions}</div>` : ''}
         </div>
-        <button class="icon-btn" id="pubBack" aria-label="Back">${I.chevL()}</button>
       </div>
       ${publicStatsHTML(profile)}
       ${(profile.showcase || []).length > 0 ? `
         <div class="section-title">Trophy Shelf</div>
-        ${trophyShelfHTML(profile.showcase, profile.expose_public_value !== false)}` : ""}
+        ${trophyShelfHTML(profile.showcase, profile.expose_public_value !== false)}` : `
+        <div class="empty card public-showcase-empty">
+          <div class="empty-icon">${I.star()}</div>
+          <h3>No showcased sets yet</h3>
+          <p>This collector has not added anything to their public Trophy Shelf.</p>
+        </div>`}
     </div>`;
   document.getElementById("pubBack")?.addEventListener("click", () => { if (history.length > 1) history.back(); else location.hash = "#/"; });
 }
@@ -73,11 +79,11 @@ export async function renderLeaderboard() {
   $("#root").innerHTML = `
     <div class="page">
       <div class="topbar">
+        <button class="icon-btn" id="lbBack" aria-label="Back">${I.chevL()}</button>
         <div class="topbar-heading">
           <div class="topbar-eyebrow">Community</div>
           <h1 class="topbar-title">Leaderboard</h1>
         </div>
-        <button class="icon-btn" id="lbBack" aria-label="Back">${I.chevL()}</button>
       </div>
       <p style="font-size:12.5px;color:var(--ink-mute);margin:-2px 2px 12px;line-height:1.5;">Top public collections by value. Make your profile public and expose your value in the <strong>You</strong> tab to join.</p>
       <div id="lbBody">${cachedLeaders ? leaderboardBodyHTML(cachedLeaders) : skelCardList(8)}</div>
@@ -162,7 +168,7 @@ function trophyShelfHTML(sets, showVal = true) {
         ${s.retired ? `<span class="retired-tag">RETIRED</span>` : ""}
       </div>
       <div class="trophy-card-name">${escapeHtml(s.name)}</div>
-      ${showVal ? `<div class="trophy-card-val">${fmtMoney(s.current_value)}</div>` : ""}
+      ${showVal ? `<div class="trophy-card-val">${fmtMoney(displayValueOf(s))}</div>` : ""}
     </a>`;
   }).join("")}</div>`;
 }

@@ -70,18 +70,15 @@ app.get('/:handle/profile', async (c) => {
     `).bind(userId).all<Record<string, unknown>>(),
 
     c.env.DB.prepare(`
-      SELECT ls.set_num, ls.name, ls.theme, ls.year, ls.pieces, ls.minifigs,
-             ls.image_url, ls.retired, ls.current_value, ls.blended_value,
-             ls.valuation_method
+      SELECT ${HOLDING_VALUE_COLUMNS}, ls.name, ls.theme, ls.year, ls.pieces,
+             ls.minifigs, ls.image_url, ls.retired, ls.valuation_method
       FROM user_showcase us
+      JOIN user_collection uc ON uc.user_id = us.user_id
+        AND uc.set_num = us.set_num AND uc.deleted_at IS NULL
       JOIN lego_sets ls ON ls.set_num = us.set_num
+      LEFT JOIN set_valuation_state svn ON svn.set_num=ls.set_num AND svn.condition='new_sealed'
+      LEFT JOIN set_valuation_state svu ON svu.set_num=ls.set_num AND svu.condition='used_complete'
       WHERE us.user_id=?
-        AND EXISTS (
-          SELECT 1 FROM user_collection uc
-          WHERE uc.user_id = us.user_id
-            AND uc.set_num = us.set_num
-            AND uc.deleted_at IS NULL
-        )
       ORDER BY us.display_order ASC
       LIMIT 6
     `).bind(userId).all<Record<string, unknown>>(),
@@ -119,7 +116,11 @@ app.get('/:handle/profile', async (c) => {
     set_count: holdingResult.results?.length ?? 0,
     total_value: exposeValue ? totalValue : null,
     top_themes: themes,
-    showcase: showcase.results.map(s => ({ ...s, retired: !!s.retired })),
+    showcase: showcase.results.map(s => ({
+      ...s,
+      retired: !!s.retired,
+      market_value: holdingValueForRollout(s, rolloutPercent),
+    })),
   });
 });
 

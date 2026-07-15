@@ -340,6 +340,19 @@ body.offline .offline-banner { display: block; }
 }
 .spark-scrub.show { opacity: 1; }
 
+.spark-empty {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 20px;
+  color: var(--ink-mute);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: center;
+}
+
 .range-pills {
   display: flex; gap: 6px; margin-top: 14px;
   background: var(--surface-2);
@@ -4122,7 +4135,7 @@ body.sheet-open .selection-bar {
 .build-view{padding:0 5% 96px;max-width:680px;margin:0 auto}
 .build-header{display:flex;align-items:center;gap:8px;padding:14px 0 2px}
 .build-header h1{font-size:1.4rem;margin:0}
-.build-view .icon-btn{background:none;border:none;color:inherit;cursor:pointer;padding:6px;font-size:1.3rem;line-height:1}
+.build-view .icon-btn{cursor:pointer}
 .build-intro{opacity:.68;font-size:.83rem;line-height:1.45;margin:.5rem 0 1rem}
 .b-tabs{display:flex;gap:8px;margin:6px 0 4px}
 .b-tab{flex:1;padding:9px;border-radius:10px;border:1px solid rgba(127,127,127,.2);background:transparent;color:inherit;font-size:.85rem;font-weight:600;cursor:pointer}
@@ -4804,6 +4817,20 @@ body.sheet-open .selection-bar {
 body.sheet-open #advisorFab,
 body.advisor-open #advisorFab {
   display: none !important;
+}
+
+/* Android/iOS editing shell: fixed navigation above the soft keyboard steals
+   most of the viewport and can cover the focused input. app.js toggles this
+   class only while a compact/coarse layout has an editable control focused. */
+body.keyboard-open #nav,
+body.keyboard-open #advisorFab,
+body.keyboard-open .detail-action-bar {
+  display: none !important;
+}
+
+body.keyboard-open .page,
+body.keyboard-open .detail-page-container {
+  padding-bottom: calc(24px + var(--safe-bottom));
 }
 
 .admin-segments-sticky {
@@ -5810,6 +5837,41 @@ body.advisor-open #advisorFab {
   color: var(--ink-soft);
   font-size: 12.5px;
   line-height: 1.45;
+}
+
+.integration-ready-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 12px;
+  border: var(--bw-thin) solid color-mix(in srgb, var(--up) 40%, var(--border-soft-c));
+  border-radius: var(--r-2);
+  background: color-mix(in srgb, var(--up) 8%, var(--surface));
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.integration-ready-note svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--up);
+}
+
+.public-showcase-empty {
+  padding: 24px 18px;
+}
+
+.public-showcase-empty .empty-icon {
+  width: 58px;
+  height: 58px;
+  border-radius: var(--r-2);
+}
+
+.public-showcase-empty .empty-icon svg {
+  width: 28px;
+  height: 28px;
 }
 
 @media (min-width: 640px) {

@@ -41,6 +41,29 @@ export function displayValueOf(row = {}) {
 }
 
 /**
+ * Return a shallow copy whose legacy `current_value` points at the canonical
+ * display value. This keeps older helpers (target-gap and buy-window math)
+ * aligned with cards that already render `market_value`/`blended_value`.
+ * @template {Record<string, unknown>} T
+ * @param {T} row
+ * @returns {T & {current_value: number}}
+ */
+export function withDisplayValue(row) {
+  return { ...row, current_value: displayValueOf(row) };
+}
+
+/**
+ * Mobile WebViews resize around the software keyboard inconsistently. Treat a
+ * focused editable control as keyboard-open on compact/coarse layouts, while a
+ * large VisualViewport occlusion is sufficient on every platform.
+ * @param {{editable: boolean, compact: boolean, innerHeight?: number, viewportHeight?: number}} input
+ */
+export function shouldUseKeyboardShell({ editable, compact, innerHeight = 0, viewportHeight = 0 }) {
+  const occluded = Number(innerHeight) - Number(viewportHeight) > 120;
+  return editable && (compact || occluded);
+}
+
+/**
  * Pure state machine for the offline banner's show/cancel debounce. Kept here
  * (and unit-tested) so the "never flash on load" logic has a single source of
  * truth; app.js maps the returned state onto a real grace timer + the

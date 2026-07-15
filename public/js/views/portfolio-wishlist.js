@@ -3,7 +3,7 @@ import { state } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
-import { buyWindow } from '../lib/pure.js';
+import { buyWindow, withDisplayValue } from '../lib/pure.js';
 import { amazonSlotHTML, hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
 // spikeAlertCardHTML + refreshNavBadge are shared with the vault view, so they
 // stay in portfolio.js (this is the only back-import; portfolio.js never imports
@@ -59,7 +59,9 @@ export async function renderWishlist() {
 
   // Sort the list: closest-to-target first, by value, or most recent.
   const wlSort = localStorage.getItem("bv_wl_sort") || "recent";
-  const sorted = [...state.wishlist];
+  // Normalize once so target gaps, sorting, cards and buy-window math all use
+  // the same fair-value chain as Catalog and Set Detail.
+  const sorted = state.wishlist.map(withDisplayValue);
   if (wlSort === "gap") {
     const gapOf = w => w.target_price ? (w.current_value - w.target_price) / w.target_price : Infinity;
     sorted.sort((a, b) => gapOf(a) - gapOf(b));
@@ -97,7 +99,7 @@ export async function renderWishlist() {
               ${a.id ? `<button class="alert-dismiss" data-alert-id="${escapeHtml(String(a.id))}" aria-label="Mark this alert read" title="Mark read">✓</button>` : ""}
               <div class="ah">${I.bell()}Price drop · ${daysAgo(a.triggered_at)}d ago</div>
               <div style="font-weight:600;">${escapeHtml(a.set_name)}</div>
-              <div style="font-size:13px;margin-top:4px;">Now <strong>${fmtMoney(a.current_value)}</strong> — your target was ${fmtMoney(a.target_price)}.</div>
+              <div style="font-size:13px;margin-top:4px;">Now <strong>${fmtMoney(withDisplayValue(state.wishlist.find(w => w.set_num === a.set_num) || a).current_value)}</strong> — your target was ${fmtMoney(a.target_price)}.</div>
             </div>`).join("")}
         </div>` : ""}
 

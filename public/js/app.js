@@ -1,6 +1,6 @@
 import { $, $$, haptic, toast, fetchExchangeRates, bvIDB, installImageFallback } from './utils.js';
 import { state, invalidatePortfolio } from './state.js';
-import { nextOfflineBannerState } from './lib/pure-core.js';
+import { nextOfflineBannerState, shouldUseKeyboardShell } from './lib/pure-core.js';
 import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionUserId, snapshotGuestVault, migrateGuestVault, isGuestMode, backfillGuestVault } from './api.js';
 import { I } from './icons.js';
 import { route } from './router.js';
@@ -102,6 +102,35 @@ function setupImageHydration() {
       img.remove();
     }
   }, true);
+}
+
+// When Android opens the software keyboard, fixed bottom controls otherwise
+// remain pinned above it and cover the focused field. Collapse that shell while
+// editing, then restore it as soon as focus leaves the control.
+function setupKeyboardAwareShell() {
+  const editableSelector = 'input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, select, [contenteditable="true"]';
+  const isEditable = (el) => el instanceof Element && el.matches(editableSelector);
+  const compactLayout = () => window.matchMedia?.('(max-width: 700px), (pointer: coarse)')?.matches ?? false;
+
+  const update = () => {
+    const active = document.activeElement;
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    const open = shouldUseKeyboardShell({
+      editable: isEditable(active),
+      compact: compactLayout(),
+      innerHeight: window.innerHeight,
+      viewportHeight,
+    });
+    document.body.classList.toggle('keyboard-open', open);
+    if (open) {
+      requestAnimationFrame(() => active?.scrollIntoView?.({ block: 'center', inline: 'nearest', behavior: 'smooth' }));
+    }
+  };
+
+  document.addEventListener('focusin', update);
+  document.addEventListener('focusout', () => setTimeout(update, 120));
+  window.visualViewport?.addEventListener('resize', update);
+  window.visualViewport?.addEventListener('scroll', update);
 }
 
 // Detect a Supabase OAuth return in the URL hash (#access_token=...&refresh_token=...
@@ -406,8 +435,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   setupGestures();
   setupImageHydration();
+  setupKeyboardAwareShell();
 
-  if ("serviceWorker" in navigator) {
+  if ("serviceWorker" in navigator && !isNativeCapacitor()) {
     navigator.serviceWorker.register("/sw.js")
       .then(reg => {
         reg.update();
@@ -427,6 +457,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         location.hash = e.data.url.startsWith("#") ? e.data.url : "#/";
       }
     });
+  } else if ("serviceWorker" in navigator && isNativeCapacitor()) {
+    // The installed app is versioned by Play/App Store and serves assets from
+    // its APK bundle. A Web service worker can survive an in-place APK update,
+    // show a meaningless "Update ready" prompt, and serve an older shell.
+    navigator.serviceWorker.getRegistrations?.()
+      .then(registrations => Promise.all(registrations.map(reg => reg.unregister())))
+      .catch(() => {});
   }
 
   // Hydrate in-memory state from IDB so first tab visit is instant.

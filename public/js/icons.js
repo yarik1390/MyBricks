@@ -23,6 +23,7 @@ export const I = {
   arrowD:   (o) => s('<path d="M7 9l5 5 5-5"/>', o),
   sparkles: (o) => s('<path d="M12 3l1.8 4.4L18 9l-4.2 1.6L12 15l-1.8-4.4L6 9l4.2-1.6L12 3zM19 15l.8 1.7L21 18l-1.2.7L19 21l-.8-2.3L17 18l1.2-1.3z"/>', o),
   download: (o) => s('<path d="M12 4v12m0 0l-5-5m5 5l5-5M4 20h16"/>', o),
+  upload:   (o) => s('<path d="M12 20V8m0 0l-5 5m5-5l5 5M4 4h16"/>', o),
   pencil:   (o) => s('<path d="M4 20h4l10-10-4-4L4 16v4z"/>', o),
   eye:      (o) => s('<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>', o),
   dollar:   (o) => s('<path d="M12 2v20M17 6H9.5a3 3 0 100 6h5a3 3 0 010 6H6"/>', o),

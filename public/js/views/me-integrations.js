@@ -22,9 +22,15 @@ export async function renderMeIntegrations() {
   if (!state.me) $("#root").innerHTML = skelPage(skelSettingRows(5));
   const me = await loadMe();
   const guest = isGuestMode();
-  const googleStatus = await api("/api/google/status").catch(() => ({ connected: false, spreadsheet_id: null }));
-  const googleConfigured = googleStatus.configured ?? false;
   const googleSetup = state.config?.setup?.google || {};
+  const googleStatus = await api("/api/google/status").catch(() => ({ connected: false, spreadsheet_id: null }));
+  // The protected status call returns 401 for guests. Public /api/config is the
+  // readiness source in that state; defaulting to false produced the impossible
+  // "disabled" + "OAuth is ready" message on the same card.
+  const googleConfigured = googleStatus.configured
+    ?? googleSetup.configured
+    ?? state.config?.status?.google
+    ?? false;
   const googleMissing = Array.isArray(googleSetup.missing_secrets) ? googleSetup.missing_secrets : ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"];
   const googleSetupMessage = googleSetup.recommended_action
     || `Missing Worker secrets: ${googleMissing.join(", ")}. Add them as GitHub Actions secrets and redeploy to enable account linking.`;
@@ -68,6 +74,14 @@ export async function renderMeIntegrations() {
             <div class="u-wfull u-fs-sm u-mute" style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);background:var(--surface-2);padding:10px 12px;line-height:1.45;">
               Google Sheets is disabled until OAuth is configured. ${escapeHtml(googleSetupMessage)}
             </div>
+          ` : guest ? `
+            <div class="integration-ready-note">
+              ${I.check({ w: 16 })}
+              <span>Google OAuth is ready. Sign in first, then connect the spreadsheet you want BricksVault to keep in sync.</span>
+            </div>
+            <button class="btn-primary u-wfull" id="connectGoogleBtn" style="font-size:13px;padding:10px 14px;background:#4285F4;border-color:#4285F4;color:#fff;">
+              ${I.user()} <span>Sign in to connect</span>
+            </button>
           ` : `
             <button class="btn-primary u-wfull" id="connectGoogleBtn" style="font-size:13px;padding:10px 14px;background:#4285F4;border-color:#4285F4;color:#fff;">
               ${I.extLink()} <span>Connect Google Sheets</span>

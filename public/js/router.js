@@ -44,6 +44,16 @@ async function _routeImpl() {
   document.body.classList.remove("advisor-open");
   document.body.style.overflow = "";
 
+  // Apply route-owned chrome before any early return. Login used to return
+  // before this block, leaving the Advisor FAB from the previous screen visible.
+  const nav = document.getElementById("nav");
+  if (nav) nav.style.display = "";
+  const fab = document.getElementById("advisorFab");
+  if (fab) fab.style.display = (meta.fab && advisorEnabled()) ? "flex" : "none";
+  $$("#nav .nav-tab").forEach(t => {
+    t.classList.toggle("active", t.dataset.route === meta.nav);
+  });
+
   // Login is optional; guests can use the app with local-only data.
   if (hash === "/login") {
     const { renderLogin } = await import('./views/login.js');
@@ -85,18 +95,6 @@ async function _routeImpl() {
       $("#selectionBar")?.remove();
     }
   }
-
-  // Restore nav if it was hidden by the login screen.
-  const nav = document.getElementById("nav");
-  if (nav) nav.style.display = "";
-
-  const fab = document.getElementById("advisorFab");
-  if (fab) fab.style.display = (meta.fab && advisorEnabled()) ? "flex" : "none";
-  $$("#nav .nav-tab").forEach(t => {
-    const r = t.dataset.route;
-    const active = r === meta.nav;
-    t.classList.toggle("active", active);
-  });
 
   const render = async () => {
     if (hash === "/" || hash === "") await (await import('./views/portfolio.js')).renderPortfolio();

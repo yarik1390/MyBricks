@@ -3,7 +3,7 @@ import { state, invalidatePortfolio } from '../state.js';
 import { api, outboxEnqueue, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from './sheet.js';
-import { computeDealScore as computeDealScorePure, marketValueForCondition, flipEconomics } from '../lib/pure.js';
+import { computeDealScore as computeDealScorePure, marketValueForCondition, flipEconomics, classifyScanFailure } from '../lib/pure.js';
 import { checkGemma3Downloaded, runLocalVisionScan, isWebGpuAvailable } from '../lib/local-ai.js';
 import { flipCalcHTML } from './flip-calc.js';
 import { isNativeCapacitor } from '../lib/native-auth.js';
@@ -735,8 +735,12 @@ function showScanResult(res) {
   if (!res.identified) {
     const reason = res.reasoning || "Couldn't identify the set. Try a clearer photo.";
     const noKey = !localStorage.getItem("bv_gemini_key") && !localStorage.getItem("bv_openai_key");
-    const rateLimited = /rate.?limit|unlimited|api key|quota|limit reached|too many|429/i.test(reason);
-    const headLabel = rateLimited ? "Limit reached" : "Not found";
+    const failure = classifyScanFailure(reason);
+    const rateLimited = failure.kind === "limit";
+    const setupNeeded = failure.kind === "setup";
+    const badgeLabel = setupNeeded ? "SETUP NEEDED" : rateLimited ? "LIMIT REACHED" : failure.kind === "timeout" ? "TIMED OUT" : "NO MATCH";
+    const badgeIcon = setupNeeded ? I.gear() : rateLimited ? I.alert() : I.close();
+    const headLabel = failure.label;
     // Rate-limited: say WHEN it resets instead of offering a retry that will
     // just fail again (free = daily UTC window, supporters = hourly bursts).
     const resetHint = rateLimited
@@ -746,27 +750,28 @@ function showScanResult(res) {
     // Gemini key (free tier ~1500/day) makes photo scans effectively unlimited
     // and offloads the cost from the shared server quota — emphasized when the
     // miss looks quota-driven rather than a genuine no-match.
-    const nudge = noKey ? `
+    const nudge = noKey && (setupNeeded || rateLimited) ? `
       <div class="chat-gemini-card" style="margin:0 0 10px;">
         <div style="font-weight:600; font-size:13px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
-          ${I.flash({ w: 16 })}<span>${rateLimited ? "Hit the daily scan limit?" : "Want unlimited scans?"}</span>
+          ${I.flash({ w: 16 })}<span>${rateLimited ? "Shared scan limit reached" : "Enable photo scanning"}</span>
         </div>
         <div style="font-size:11px; color:var(--ink-mute); line-height:1.45;">
-          Get a free key in 30 seconds at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--bv-red); font-weight:600; text-decoration:underline;">Google AI Studio</a> and save it in the <strong>Me</strong> tab for unlimited scans.
+          Sign in to use the shared service, or add a free personal key in <strong>Me &gt; Integrations</strong> for scans on your own quota.
         </div>
       </div>` : "";
     el.innerHTML = `
       <div class="scan-result-head">
-        <span class="badge miss">${I.close()}NO MATCH</span>
+        <span class="badge miss">${badgeIcon}${badgeLabel}</span>
         <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${headLabel}</span>
       </div>
       <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">${escapeHtml(reason)}</p>
       ${resetHint}
       ${nudge}
-      <button class="btn-secondary" id="scanRetry">${rateLimited ? "Close" : "Try again"}</button>`;
-    $("#scanRetry")?.addEventListener("click", () => {
-      clearScanResult({ restartBarcode: true });
-    });
+      ${setupNeeded ? `<div class="btn-row"><button class="btn-primary" id="scanSignIn">Sign in</button><button class="btn-secondary" id="scanSetup">Add AI key</button></div>`
+        : `<button class="btn-secondary" id="scanRetry">${rateLimited ? "Close" : "Try again"}</button>`}`;
+    $("#scanRetry")?.addEventListener("click", () => clearScanResult({ restartBarcode: true }));
+    $("#scanSignIn")?.addEventListener("click", () => { location.hash = "#/login"; });
+    $("#scanSetup")?.addEventListener("click", () => { location.hash = "#/me/integrations"; });
     return;
   }
   const sets = res.sets || (res.set ? [res.set] : []);

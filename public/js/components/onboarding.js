@@ -222,7 +222,7 @@ function ensureSetupStyles() {
     @keyframes bvsufade{from{opacity:0}to{opacity:1}}
     .bv-setup-top{display:flex;justify-content:flex-end;padding:12px 16px 0;min-height:20px;}
     .bv-setup-skip{background:none;border:none;color:var(--ink-mute,#8b91a0);font-size:14px;font-weight:600;cursor:pointer;padding:6px 8px;}
-    .bv-setup-body{flex:1;overflow-y:auto;padding:6px 24px 12px;}
+    .bv-setup-body{flex:1;overflow-y:auto;padding:18px 24px;display:flex;flex-direction:column;justify-content:safe center;width:min(100%,520px);margin:0 auto;box-sizing:border-box;}
     .bv-setup-hero{width:92px;height:92px;border-radius:24px;display:flex;align-items:center;justify-content:center;margin:6px auto 20px;color:#fff;box-shadow:0 14px 34px -12px rgba(0,0,0,.35);}
     .bv-setup-hero svg{width:42px;height:42px;}
     .bv-setup-body h3{margin:0 0 8px;text-align:center;font-family:var(--serif,inherit);font-size:23px;font-weight:800;letter-spacing:-.01em;}
