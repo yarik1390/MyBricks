@@ -77,6 +77,9 @@ PRICING_V3_READ_PERCENT = "0"
 # before any PriceCharting per-set or bulk job can run.
 PRICECHARTING_VERIFIED_ENABLED = "0"
 AMAZON_DEFAULT_MARKET = "FR"
-AMAZON_WEB_ENABLED = "0"
+# Associates tracking IDs are public by design: every Special Link exposes the
+# tag. Keep API credentials in secrets, but deploy the approved Web tag as a var.
+AMAZON_PARTNER_TAG_FR_WEB = "bricksvault-21"
+AMAZON_WEB_ENABLED = "1"
 AMAZON_ANDROID_ENABLED = "0"
 AMAZON_CREATORS_ENABLED = "0"

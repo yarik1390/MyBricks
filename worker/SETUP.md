@@ -139,7 +139,8 @@ have been reviewed; source config alone cannot bypass this hard gate.
 
 Amazon starts in Web/PWA link-only mode:
 
-1. Add `AMAZON_PARTNER_TAG_FR_WEB` in the Cloudflare Worker dashboard.
+1. Set `AMAZON_PARTNER_TAG_FR_WEB` as a Worker var or dashboard value. Tracking
+   IDs are public in every Special Link; Creators API credentials remain secrets.
 2. Set `AMAZON_WEB_ENABLED=1` only after the website is approved in Associates.
 3. Keep `AMAZON_ANDROID_ENABLED=0` until Brickvault is an Approved Mobile Application.
 4. Keep `AMAZON_CREATORS_ENABLED=0` until Creators API access and written use-case approval are available.
@@ -208,7 +209,7 @@ curl -X POST https://<worker-url>/api/admin/repair-search-index \
 | `BRICKOWL_API_KEY` | Worker secret / GitHub secret | Optional UPC fallback |
 | `PRICING_V3_READ_PERCENT` | Worker var | Deterministic v3 read rollout: `0`, `10`, `50`, or `100` |
 | `PRICECHARTING_VERIFIED_ENABLED` | Worker var | Hard gate; leave `0` while mappings are quarantined |
-| `AMAZON_PARTNER_TAG_FR_WEB` | Worker secret/dashboard | Amazon France Web tracking ID for direct Special Links |
+| `AMAZON_PARTNER_TAG_FR_WEB` | Worker var/dashboard | Amazon France Web tracking ID for direct Special Links; public in generated URLs |
 | `AMAZON_PARTNER_TAG_FR_ANDROID` | Worker secret/dashboard | Separate Android tracking ID; inactive until mobile approval |
 | `AMAZON_WEB_ENABLED` | Worker var | Enables Web/PWA link-only CTA when a Web tag exists |
 | `AMAZON_ANDROID_ENABLED` | Worker var | Keep disabled until Approved Mobile Application status |
