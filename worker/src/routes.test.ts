@@ -335,6 +335,15 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
           VALUES ('SEED-HI', 'High Value Set', 'Icons', 2021, 3000, 400, 450, 300, 0, 'https://cdn.rebrickable.com/x.jpg')`),
         db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, blended_value, retail_price, retired, image_url)
           VALUES ('SEED-LO', 'Low Value Set', 'City', 2021, 200, 20, 25, 20, 0, 'https://cdn.rebrickable.com/y.jpg')`),
+        db.prepare(`INSERT INTO lego_sets (
+            set_num, name, theme, year, pieces, current_value, blended_value,
+            retail_price, retired, image_url, be_value_new, be_cached_at,
+            pc_new_value, pc_cached_at
+          ) VALUES (
+            'SEED-PC', 'Quarantined Variant', 'Star Wars', 2018, 100,
+            280, 2413.58, 20, 1, 'https://cdn.rebrickable.com/pc.jpg',
+            280, datetime('now'), 2413.58, datetime('now')
+          )`),
         // No image → must be excluded from the seed.
         db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
           VALUES ('SEED-NOIMG', 'No Image Set', 'City', 2021, 100, 500, 20, 0)`),
@@ -349,6 +358,9 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(nums.indexOf('SEED-HI')).toBeLessThan(nums.indexOf('SEED-LO')); // value DESC
       const hi = data.sets.find((s: any) => s.set_num === 'SEED-HI');
       expect(hi.market_value).toBe(450);                  // shadow rollout keeps the legacy read path
+      const quarantined = data.sets.find((s: any) => s.set_num === 'SEED-PC');
+      expect(quarantined.market_value).toBe(280);         // PriceCharting cannot leak into the offline headline
+      expect(quarantined.market_value_confidence).toBe('low');
       expect(hi).not.toHaveProperty('bl_new_min');        // compact: pricing internals stripped
       expect(res.headers.get('ETag')).toBeTruthy();
     });

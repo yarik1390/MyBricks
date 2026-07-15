@@ -49,7 +49,10 @@ app.get('/seed', async (c) => {
   const requestedOffset = Number(c.req.query('offset'));
   const offset = Number.isFinite(requestedOffset) && requestedOffset > 0 ? Math.floor(requestedOffset) : 0;
 
-  const kvKey = `catalog:seed:v2:${limit}:${offset}`;
+  // v3 invalidates seed pages cached before PriceCharting quarantine became a
+  // mandatory read-path override. Android builds must never bundle those
+  // legacy values for offline use.
+  const kvKey = `catalog:seed:v3:${limit}:${offset}`;
   const kv = c.env.CACHE_KV;
   if (kv) {
     const cached = await kv.get(kvKey);
