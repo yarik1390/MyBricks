@@ -360,6 +360,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(res.status).toBe(200);
       const data = await res.json<any>();
       expect(data.model_version).toBe('v4');
+      expect(data.valuation_generation).toMatch(/-1$/);
       const nums = data.sets.map((s: any) => s.set_num);
       expect(nums).toContain('SEED-HI');
       expect(nums).toContain('SEED-LO');

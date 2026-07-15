@@ -22,6 +22,7 @@ const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'data'
 
 async function main() {
   const all = [];
+  let valuationGeneration = null;
   for (let offset = 0; offset < TOTAL; offset += PAGE) {
     const limit = Math.min(PAGE, TOTAL - offset);
     const url = `${API_BASE}/api/catalog/seed?limit=${limit}&offset=${offset}`;
@@ -31,6 +32,11 @@ async function main() {
     if (json?.model_version !== REQUIRED_MODEL_VERSION) {
       throw new Error(`seed model ${json?.model_version || 'missing'}; expected ${REQUIRED_MODEL_VERSION}`);
     }
+    if (!json?.valuation_generation) throw new Error('seed valuation generation missing');
+    if (valuationGeneration && valuationGeneration !== json.valuation_generation) {
+      throw new Error(`seed generation changed while paging (${valuationGeneration} -> ${json.valuation_generation})`);
+    }
+    valuationGeneration = json.valuation_generation;
     const sets = Array.isArray(json?.sets) ? json.sets : [];
     all.push(...sets);
     console.log(`[seed] +${sets.length} (offset ${offset}, total ${all.length})`);
@@ -38,7 +44,7 @@ async function main() {
   }
   if (all.length < 50) throw new Error(`seed suspiciously small (${all.length} sets) — keeping existing snapshot`);
   await mkdir(dirname(OUT), { recursive: true });
-  const body = JSON.stringify({ model_version: REQUIRED_MODEL_VERSION, generated_at: new Date().toISOString(), count: all.length, sets: all });
+  const body = JSON.stringify({ model_version: REQUIRED_MODEL_VERSION, valuation_generation: valuationGeneration, generated_at: new Date().toISOString(), count: all.length, sets: all });
   await writeFile(OUT, body);
   console.log(`[seed] wrote ${all.length} sets (${(body.length / 1024 / 1024).toFixed(1)} MB) → public/data/seed-catalog.json`);
 }
