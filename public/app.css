@@ -94,6 +94,9 @@ body {
   padding-top: var(--app-top-pad);
   padding-bottom: 0;
   min-height: 100vh;
+  /* Native-app scroll feel: no browser pull-to-refresh or glow chaining —
+     the app ships its own pull-to-refresh gesture (see setupGestures). */
+  overscroll-behavior-y: contain;
 }
 /* Login (and other nav-less views): don't reserve space for the hidden nav. */
 body.nav-hidden { padding-bottom: var(--safe-bottom); }
@@ -386,8 +389,8 @@ body.offline .offline-banner { display: block; }
 .chip {
   flex-shrink: 0;
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 14px;
-  min-height: 40px;
+  padding: 6px 13px;
+  min-height: 36px;
   background: var(--surface); color: var(--ink);
   border: var(--bw) solid var(--border-c);
   border-radius: var(--r-full);
@@ -396,6 +399,7 @@ body.offline .offline-banner { display: block; }
   transition: all var(--dur-fast) var(--ease);
   white-space: nowrap;
 }
+.chip:active { transform: scale(0.95); }
 .chip svg { width: 14px; height: 14px; }
 .chip.active { background: var(--bv-yellow); color: var(--line); }
 .chip:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--line); }
@@ -404,8 +408,8 @@ body.offline .offline-banner { display: block; }
   mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 28px), transparent 100%);
 }
 .filter-summary {
-  min-height: 18px;
-  margin: -6px 4px 12px;
+  min-height: 14px;
+  margin: -8px 4px 8px;
   font-family: var(--mono);
   font-size: 10px;
   color: var(--ink-mute);
@@ -641,7 +645,11 @@ ul.set-list > li { display: contents; }
   font-weight: 600;
   position: relative;
 }
-.nav-tab .nav-icon { display: inline-flex; align-items: center; justify-content: center; height: 24px; }
+.nav-tab .nav-icon {
+  display: inline-flex; align-items: center; justify-content: center; height: 24px;
+  transition: transform var(--dur-fast) var(--ease);
+}
+.nav-tab:active .nav-icon { transform: scale(0.85); }
 .nav-tab svg { width: 22px; height: 22px; }
 .nav-tab .nav-label { display: block; text-align: center; }
 /* Scan tab floats the orb above the nav bar; needs flex-start so the orb
@@ -651,6 +659,14 @@ ul.set-list > li { display: contents; }
 .nav-tab.active::before {
   content: ""; position: absolute; top: 0; left: 28%; right: 28%;
   height: 3px; background: var(--bv-yellow); border-radius: 0 0 4px 4px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* Material-style ink bar: grows out from the center when a tab activates. */
+  .nav-tab.active::before { animation: navInk 0.26s var(--ease); }
+}
+@keyframes navInk {
+  from { left: 46%; right: 46%; opacity: 0.3; }
+  to { left: 28%; right: 28%; opacity: 1; }
 }
 .nav-tab.scan-tab .scan-orb {
   width: 44px; height: 44px; border-radius: 50%;
@@ -875,8 +891,10 @@ ul.set-list > li { display: contents; }
   display: none;
 }
 .coming-soon-wrap .cs-card {
-  flex: 0 0 clamp(158px, 44vw, 190px) !important;
-  width: clamp(158px, 44vw, 190px) !important;
+  /* Compact rail: peek-a-third sizing keeps the row clearly swipeable while
+     costing far less vertical space on the way to the results list. */
+  flex: 0 0 clamp(128px, 36vw, 156px) !important;
+  width: clamp(128px, 36vw, 156px) !important;
   min-width: 0;
 }
 .coming-soon-wrap .cs-card > div:first-child,
@@ -987,19 +1005,21 @@ ul.set-list > li { display: contents; }
   transform: scale(0.9);
 }
 .detail-img {
-  position: absolute; top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
+  /* Centered WITHOUT transform/z-index: both would create an isolated stacking
+     context, which silently breaks mix-blend-mode on the photo — the multiply
+     could never reach the hero backdrop behind it, so white box art sat in a
+     hard white rectangle. inset+margin:auto centers with no isolation. */
+  position: absolute; inset: 0; margin: auto;
   width: min(300px, 86vw); height: min(300px, 86vw);
   display: flex; align-items: center; justify-content: center;
   /* Soft light halo that fades to nothing, so the photo melts into the page
      rather than sitting in a box. */
   background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.55) 38%, transparent 66%);
   border-radius: 50%;
-  z-index: 2;
 }
-/* Sized to sit inside the 300px hero with breathing room, and nudged down a
-   touch (top 54%) so the back button in the top-left never lands on the image. */
-.detail-hero.has-photo .detail-img { width: min(250px, 74vw); height: min(230px, 68vw); top: 54%; }
+/* Sized to sit inside the 300px hero with breathing room, and nudged down
+   (top inset) so the back button in the top-left never lands on the image. */
+.detail-hero.has-photo .detail-img { width: min(250px, 74vw); height: min(230px, 68vw); inset: 44px 0 0 0; }
 .detail-img.has-photo:not(.photo-loaded) {
   background:
     radial-gradient(circle at 50% 45%, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.34) 44%, transparent 68%),
@@ -2311,12 +2331,14 @@ body[data-route="set-detail"] #toast {
    motion users skip it (the JS guard bypasses the class too). */
 @media (prefers-reduced-motion: no-preference) {
   #root.route-fade > .page {
-    animation: routeFade 0.18s var(--ease);
+    /* Android-style screen entrance: short fade + 10px settle, on Material's
+       emphasized-decelerate curve. Fast enough to never gate interaction. */
+    animation: routeFade 0.24s cubic-bezier(0.05, 0.7, 0.1, 1);
   }
 }
 @keyframes routeFade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* A4 — chart scrub helpers (the bubble itself uses .spark-scrub above) */
@@ -6203,12 +6225,24 @@ body.lightbox-open { overflow: hidden; }
 .wishlist-card .amazon-affiliate-card--compact .amazon-affiliate-copy { display: none; }
 
 @media (max-width: 600px) {
-  .pricing-block--split,
-  .pricing-condition-grid { grid-template-columns: 1fr; }
-  .pricing-block--split { gap: 0; }
-  .pricing-block--split > div + div { margin-top: 16px; padding: 16px 0 0; border-top: 1px dashed var(--line-soft); border-left: 0; }
+  /* Phones keep the paired blocks side-by-side — each holds one short value +
+     caption, and stacking them doubled the page's scroll depth. */
+  .pricing-block { padding: 12px 0; }
+  .pricing-block--split { gap: 14px; }
+  .pricing-block--split > div + div { border-left: 1px dashed var(--line-soft); padding-left: 14px; }
+  .pricing-block-value { margin: 8px 0 2px; font-size: 16px; }
   .investment-pricing-head h2 { font-size: 17px; }
+  /* Inside a half-width column the Amazon offer card stacks vertically —
+     side-by-side it collides with its own CTA button. */
+  .pricing-block--split .amazon-affiliate-card { flex-direction: column; align-items: stretch; }
+  .pricing-block--split .amazon-affiliate-link { justify-content: center; }
   .setting-select { max-width: 155px; }
+}
+/* Very narrow phones: condition cards finally stack. */
+@media (max-width: 360px) {
+  .pricing-condition-grid { grid-template-columns: 1fr; }
+  .pricing-block--split { grid-template-columns: 1fr; gap: 0; }
+  .pricing-block--split > div + div { margin-top: 12px; padding: 12px 0 0; border-top: 1px dashed var(--line-soft); border-left: 0; }
 }
 
 /* Admin Pricing Center */

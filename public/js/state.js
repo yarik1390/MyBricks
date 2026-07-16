@@ -19,9 +19,10 @@ export const state = {
   themes: [], themeGroups: [], categories: [], themesLoadedAt: 0,
   me: null,
   compactView: (() => {
+    // Default to the image-forward 2-col GRID everywhere (halves catalog scroll
+    // depth on phones vs the tall list rows). A user's explicit toggle wins.
     const saved = localStorage.getItem("bv_compact_view");
-    if (saved != null) return saved === "true";
-    try { return window.matchMedia?.("(max-width: 640px)")?.matches ?? false; } catch { return false; }
+    return saved != null ? saved === "true" : false;
   })(),
   portfolioTab: "items",
   selectionMode: false,
