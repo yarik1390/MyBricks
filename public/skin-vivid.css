@@ -27,6 +27,7 @@
   --bw-thin: 1.5px;
   --r-1: 8px; --r-2: 13px; --r-3: 18px;
   --accent: #FFD23F;
+  --accent-text: #FFD23F; /* vivid is dark even in light scheme — the base dark-gold text token would vanish */
   --bv-yellow: #FFD23F;
   --bv-yellow-dark: #E5BB1F;
   --bv-red: #FF5147;

@@ -344,12 +344,15 @@ function paintPortfolio() {
   // Restore the pre-repaint scroll offset (see note at the top of this fn).
   if (scrollYBefore > 0) window.scrollTo(0, scrollYBefore);
 
-  setTimeout(() => {
-    drawSparkline($("#heroChart"), clipped, { up: gain >= 0 });
-    // Day-one vaults have snapshots but no movement yet — a bare flat line
-    // reads as "broken chart". Say what's actually happening.
-    const flatSoFar = clipped.length >= 2 && new Set(clipped.map(d => d.total_value ?? d.current_value ?? d)).size === 1;
+  // Day-one vaults have snapshots but no movement yet — a bare flat line
+  // reads as "broken chart". Say what's actually happening.
+  const drawHeroChart = (points) => {
+    drawSparkline($("#heroChart"), points, { up: gain >= 0 });
+    const flatSoFar = points.length >= 2 && new Set(points.map(d => d.total_value ?? d.current_value ?? d)).size === 1;
     if (flatSoFar) $("#heroChart")?.insertAdjacentHTML("beforeend", `<div class="spark-note">Tracking has begun — your curve builds with each daily snapshot</div>`);
+  };
+  setTimeout(() => {
+    drawHeroChart(clipped);
     if (state.portfolioTab !== "items") {
       const container = $("#insightsDoubleChart");
       if (container) drawDoubleSparkline(container, clipped);
@@ -399,7 +402,7 @@ function paintPortfolio() {
     $$("#rangePills button").forEach(x => { x.classList.toggle("active", x.dataset.r === state.filter.range); x.setAttribute("aria-pressed", x.dataset.r === state.filter.range ? "true" : "false"); });
     const d = ranges[state.filter.range] || 30;
     const freshClipped = hist.slice(-Math.min(d + 1, hist.length));
-    drawSparkline($("#heroChart"), freshClipped, { up: gain >= 0 });
+    drawHeroChart(freshClipped);
     const container = $("#insightsDoubleChart");
     if (container) drawDoubleSparkline(container, freshClipped);
   }));
