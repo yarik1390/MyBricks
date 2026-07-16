@@ -99,6 +99,52 @@ describe('runDbHygiene', () => {
     expect(rl!.current_value).toBe(250); // released — untouched
   });
 
+  it('scrubs a fabricated retail echo (BE scrape copied value into retail)', async () => {
+    await db.batch([
+      // Ole Kirk's House case: retail = be_retail = be_value_new = $13,037, no MSRP.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, pieces, retail_price, be_retail, be_value_new, current_value, valuation_method) VALUES ('LIT-1','Echo', 910, 13037, 13037, 13037, 13037, 'brickeconomy')`),
+      // New set legitimately worth exactly RRP, MSRP-corroborated — untouched.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, pieces, retail_price, brickset_msrp, be_retail, be_value_new, current_value, valuation_method) VALUES ('NEW-1','New', 9000, 799.99, 799.99, 799.99, 799.99, 799.99, 'brickeconomy')`),
+      // Cheap echo under the $500 bar — untouched (plenty of legit sets there).
+      db.prepare(`INSERT INTO lego_sets (set_num, name, pieces, retail_price, be_retail, be_value_new, current_value, valuation_method) VALUES ('CHP-1','Cheap', 500, 49.99, 49.99, 49.99, 49.99, 'brickeconomy')`),
+    ]);
+
+    const r = await runDbHygiene(env as any);
+
+    expect(r.retailEchoScrubbed).toBe(1);
+    const echo = await db.prepare(`SELECT retail_price, be_retail FROM lego_sets WHERE set_num='LIT-1'`).first<{ retail_price: number | null; be_retail: number | null }>();
+    expect(echo!.retail_price).toBeNull();
+    expect(echo!.be_retail).toBeNull();
+    const fresh = await db.prepare(`SELECT retail_price FROM lego_sets WHERE set_num='NEW-1'`).first<{ retail_price: number }>();
+    expect(fresh!.retail_price).toBe(799.99);
+  });
+
+  it('re-formulas an implausible uncorroborated BrickEconomy value', async () => {
+    await db.batch([
+      // Volcanic Panic case: $15,000 on 177 pieces, retail fed by the same
+      // scrape (retail_price = be_retail), nothing independent behind it.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, pieces, year, theme, minifigs, retired, retail_price, be_retail, be_value_new, current_value, valuation_method) VALUES ('VP-1','Junk', 177, 2000, 'FIRST LEGO League', 1, 1, 4999, 4999, 15000, 15000, 'brickeconomy')`),
+      // Plausible ultra-rare ($14.3/piece) — kept even without corroboration.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, pieces, year, theme, retired, current_value, valuation_method) VALUES ('OK-1','Rare', 910, 2009, 'Promotional', 1, 13037, 'brickeconomy')`),
+      // High value but corroborated by a real comp — untouched.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, pieces, year, current_value, bl_new_value, valuation_method) VALUES ('CORR-1','Backed', 5198, 2007, 2983, 2900, 'brickeconomy')`),
+    ]);
+
+    const r = await runDbHygiene(env as any);
+
+    expect(r.beValuesHealed).toBe(1);
+    const healed = await db.prepare(`SELECT current_value, valuation_method, be_value_new, retail_price FROM lego_sets WHERE set_num='VP-1'`).first<{ current_value: number; valuation_method: string; be_value_new: number | null; retail_price: number | null }>();
+    expect(healed!.valuation_method).toBe('formula_bulk');
+    expect(healed!.current_value).toBeLessThan(200); // formula scale, not $15k
+    expect(healed!.be_value_new).toBeNull();
+    expect(healed!.retail_price).toBeNull(); // scrape-fed retail dropped with it
+    const rare = await db.prepare(`SELECT current_value, valuation_method FROM lego_sets WHERE set_num='OK-1'`).first<{ current_value: number; valuation_method: string }>();
+    expect(rare!.current_value).toBe(13037);
+    expect(rare!.valuation_method).toBe('brickeconomy');
+    const backed = await db.prepare(`SELECT current_value FROM lego_sets WHERE set_num='CORR-1'`).first<{ current_value: number }>();
+    expect(backed!.current_value).toBe(2983);
+  });
+
   it('sweeps orphaned running cron rows older than the window and reports the count', async () => {
     await db.batch([
       db.prepare(`INSERT INTO cron_runs (name, started_at, status) VALUES ('stuck', datetime('now','-40 minutes'), 'running')`),

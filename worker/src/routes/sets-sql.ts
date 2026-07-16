@@ -45,7 +45,7 @@ export const CATALOG_COLS =
   's.ebay_new_value, s.ebay_used_value, s.ebay_new_qty, s.ebay_used_qty, s.ebay_new_cached_at, s.ebay_used_cached_at, ' +
   's.ebay_new_last_sold, s.ebay_used_last_sold, ' +
   's.used_value, s.bl_new_value, s.bl_new_qty, s.bl_used_qty, s.bl_cached_at, s.be_cached_at, ' +
-  's.be_value_new, s.be_value_used, ' +
+  's.be_value_new, s.be_value_used, s.be_retail, ' +
   's.ebay_ask_value, s.ebay_ask_qty, s.ebay_ask_cached_at, s.retirement_risk_score, s.subtheme, s.be_growth_12m, ' +
   's.bl_new_min, s.bl_new_max, s.bl_used_min, s.bl_used_max, s.lego_in_stock, s.lego_retiring_soon, ' +
   's.bo_new_value, s.bo_new_qty, s.bo_used_value, s.bo_used_qty, s.bo_cached_at, s.blended_value, ' +

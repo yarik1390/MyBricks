@@ -16,7 +16,7 @@ import {
 } from '../lib/ebay';
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { beDetailsFromRow } from '../lib/brickeconomy-firecrawl';
-import { valuationExpiryModifier, isPlausibleMarketValue, formulaValuation } from '../lib/valuation';
+import { valuationExpiryModifier, isPlausibleMarketValue, independentRetailAnchor, formulaValuation } from '../lib/valuation';
 import { computeRetirementRisk } from '../lib/retirement-risk';
 import { runValuateMinifigs } from './valuate-minifigs';
 import { sourceEnabled } from '../lib/source-config';
@@ -263,10 +263,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       if (beDetails.current_value_new !== null) {
         // Guard against BrickEconomy mismatches (e.g. a $10k value on a $6 vintage
         // set). A corroborating ask overrides; otherwise a retail ceiling applies.
-        // The anchor must be INDEPENDENT of BrickEconomy: brickset_msrp first —
-        // lego_sets.retail_price may itself have been fed by a past BE scrape,
-        // and garbage validating garbage is how $15,000 kits reached the catalog.
-        if (isPlausibleMarketValue(beDetails.current_value_new, { retailPrice: set.brickset_msrp ?? set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value] })) {
+        // The anchor must be INDEPENDENT of BrickEconomy: brickset_msrp, or a
+        // retail_price that did NOT come from the same scrape — garbage
+        // validating garbage is how $15,000 kits reached the catalog.
+        if (isPlausibleMarketValue(beDetails.current_value_new, { retailPrice: independentRetailAnchor(set), pieces: set.pieces, corroborators: [set.ebay_ask_value] })) {
           pricing = { current_value: beDetails.current_value_new };
           valMethod = 'brickeconomy';
         } else {
@@ -499,7 +499,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         // Count the completed server Gemini call (free tier → $0 billable cost).
         aiUsage.record('gemini', MODELS.valuation, null);
         if (gemVals?.current_value) {
-          if (isPlausibleMarketValue(gemVals.current_value, { retailPrice: set.brickset_msrp ?? set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value, blPricing?.current_value] })) {
+          if (isPlausibleMarketValue(gemVals.current_value, { retailPrice: independentRetailAnchor(set), pieces: set.pieces, corroborators: [set.ebay_ask_value, blPricing?.current_value] })) {
             await env.DB.prepare(`
               UPDATE lego_sets SET
                 current_value=?, used_value=COALESCE(?, used_value),
@@ -542,7 +542,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     }
     // Catalog-retail plausibility: catches AI hallucinations even when the AI's
     // own retail estimate is also off (the check above only compares to that).
-    if (!isPlausibleMarketValue(vals.current_value, { retailPrice: set.brickset_msrp ?? set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value, blPricing?.current_value] })) {
+    if (!isPlausibleMarketValue(vals.current_value, { retailPrice: independentRetailAnchor(set), pieces: set.pieces, corroborators: [set.ebay_ask_value, blPricing?.current_value] })) {
       console.warn(`[valuate] ${set.set_num}: rejected implausible AI value $${vals.current_value} vs catalog retail $${set.retail_price ?? '?'} — skipped`);
       processed++;
       if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });

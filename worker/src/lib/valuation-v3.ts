@@ -1,4 +1,4 @@
-import { isPlausibleMarketValue } from './valuation';
+import { independentRetailAnchor, isPlausibleMarketValue } from './valuation';
 
 export type PricingCondition = 'new_sealed' | 'used_complete' | 'loose';
 export type PricingSignalType = 'sold' | 'modeled' | 'asking' | 'estimate';
@@ -323,7 +323,7 @@ export function legacySignalsFor(row: Record<string, unknown>): PricingSignal[] 
   // become blended_value just because nothing contradicts it.
   const beNew = positive(row.be_value_new) || (method === 'brickeconomy' ? positive(row.current_value) : null);
   const beTrusted = beNew == null ? false : isPlausibleMarketValue(beNew, {
-    retailPrice: positive(row.brickset_msrp) ?? positive(row.retail_price),
+    retailPrice: independentRetailAnchor({ brickset_msrp: positive(row.brickset_msrp), retail_price: positive(row.retail_price), be_retail: positive(row.be_retail) }),
     pieces: Number(row.pieces) || null,
     corroborators: [positive(row.bl_new_value), positive(row.ebay_new_value), positive(row.ebay_ask_value), positive(row.bo_new_value)],
   });

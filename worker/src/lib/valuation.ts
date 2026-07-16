@@ -110,6 +110,27 @@ export function formulaValuation(set: {
 }
 
 /**
+ * The only retail figure that may ANCHOR a plausibility judgement is one that
+ * is independent of the value being judged. brickset_msrp qualifies; a
+ * retail_price that matches be_retail was fed by the same BrickEconomy scrape
+ * as the value itself (backfill path), so it can't corroborate it — a
+ * misparsed "$4,999" retail is exactly what let a $15,000 scrape through.
+ */
+export function independentRetailAnchor(row: {
+  brickset_msrp?: number | null;
+  retail_price?: number | null;
+  be_retail?: number | null;
+}): number | null {
+  const msrp = Number(row.brickset_msrp);
+  if (Number.isFinite(msrp) && msrp > 0) return msrp;
+  const retail = Number(row.retail_price);
+  if (!Number.isFinite(retail) || retail <= 0) return null;
+  const beRetail = Number(row.be_retail);
+  if (Number.isFinite(beRetail) && beRetail > 0 && retail === beRetail) return null;
+  return retail;
+}
+
+/**
  * Guard against implausible market values — chiefly BrickEconomy mismatches
  * (e.g. a $10,153 "value" on a 1985 59-piece UNICEF Van whose eBay asks are
  * ~$14). Returns true if the value should be TRUSTED, false if it's implausible

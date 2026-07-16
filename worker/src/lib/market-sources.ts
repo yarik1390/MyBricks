@@ -855,9 +855,10 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
 // Columns blendMarketValue() reads. Re-selected after a price write so the
 // blend reflects the freshly stored signals (no fragile in-memory merge).
 export const BLEND_INPUT_COLUMNS =
-  // pieces + brickset_msrp feed the BrickEconomy plausibility quarantine in
-  // legacySignalsFor (independent anchors for an LLM-scraped value).
-  'pieces, brickset_msrp, ' +
+  // pieces + brickset_msrp + be_retail feed the BrickEconomy plausibility
+  // quarantine in legacySignalsFor (independent anchors for an LLM-scraped
+  // value; be_retail marks a retail_price as scrape-derived, not independent).
+  'pieces, brickset_msrp, be_retail, ' +
   'valuation_method, current_value, used_value, bl_new_value, bl_new_qty, bl_new_min, bl_new_max, ' +
   'bl_used_qty, bl_used_min, bl_used_max, bl_cached_at, ' +
   'ebay_new_value, ebay_new_qty, ebay_new_cached_at, ebay_new_last_sold, ' +
