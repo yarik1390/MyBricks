@@ -4,6 +4,8 @@
 //   data-skin="retro|modular|vivid|premium|gold|kids" — visual skin, pref in localStorage bv_skin (default retro)
 // theme-init.js applies both pre-paint; this module owns runtime changes.
 
+import { getCapacitorPlugin } from './lib/native-auth.js';
+
 const SKINS = ['retro', 'modular', 'vivid', 'premium', 'gold', 'kids'];
 
 const META_THEME_COLORS = {
@@ -36,6 +38,20 @@ function updateMetaThemeColor() {
   const skin = getSkinPref();
   const color = (META_THEME_COLORS[skin] || META_THEME_COLORS.retro)[scheme];
   document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', color));
+  syncNativeSystemBars(color);
+}
+
+// The Android shell paints the status/navigation bars natively (MainActivity
+// boots them light). Without this call a dark in-app theme leaves a glaring
+// light status bar — keep both bars matched to the app background. Icon
+// lightness follows the color's luminance (the "vivid" skin is dark even in
+// light scheme), not the scheme name.
+function syncNativeSystemBars(color) {
+  const bars = getCapacitorPlugin('SystemBars');
+  if (!bars?.setStyle) return;
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16) || 0);
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  bars.setStyle({ color, lightIcons: luminance < 0.5 }).catch(() => {});
 }
 
 export function applyTheme(pref) {
