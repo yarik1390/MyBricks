@@ -191,8 +191,13 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
     maybe('brickset_set_id', intInRange(d.brickset_set_id, 1, 100_000_000));
     maybe('brickset_dimensions', d.dimensions);
     if (Array.isArray(d.tags) && d.tags.length) {
-      fields.push('brickset_tags=?');
-      binds.push(JSON.stringify(d.tags));
+      // Scraped tags can carry a "|x" metadata suffix ("Harry Potter|n") that
+      // must never reach the UI — store the bare label.
+      const tags = d.tags.map((t) => String(t).split('|')[0].trim()).filter(Boolean);
+      if (tags.length) {
+        fields.push('brickset_tags=?');
+        binds.push(JSON.stringify(tags));
+      }
     }
 
     stmts.push(env.DB.prepare(
