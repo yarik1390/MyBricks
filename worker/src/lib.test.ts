@@ -481,6 +481,21 @@ describe('blendMarketValue (valuation v2)', () => {
     expect(r.confidence).toBe('estimated');
   });
 
+  it('quarantines an implausible lone BrickEconomy scrape out of the headline', () => {
+    // Volcanic Panic case: be_value $15,000 on a 177-piece kit, no comps, no
+    // independent retail — must not become the blended fair value.
+    const r = blendMarketValue({ valuation_method: 'brickeconomy', current_value: 15000, be_value_new: 15000, be_cached_at: now, pieces: 177 });
+    expect(r.value).toBeNull();
+  });
+
+  it('keeps a plausible lone BrickEconomy value as a low-confidence headline', () => {
+    // Ole Kirk's House scale: $14.3/piece is credible for an ultra-rare — kept,
+    // but graded low until anything independent corroborates.
+    const r = blendMarketValue({ valuation_method: 'brickeconomy', current_value: 13037, be_value_new: 13037, be_cached_at: now, pieces: 910 });
+    expect(r.value).toBe(13037);
+    expect(r.confidence).toBe('low');
+  });
+
   it('calibrates a single fresh BrickLink band to contain the lot range and value', () => {
     const r = blendMarketValue({ valuation_method: 'market', bl_new_value: 100, bl_new_qty: 12, bl_cached_at: now, bl_new_min: 90, bl_new_max: 115 });
     expect(r.value).toBe(100);
@@ -940,8 +955,25 @@ describe('isPlausibleMarketValue (BrickEconomy mismatch guard)', () => {
   it('accepts a normal market value', () => {
     expect(isPlausibleMarketValue(140, { retailPrice: 100, pieces: 300 })).toBe(true);
   });
-  it('does not block when neither retail nor a comp is known', () => {
-    expect(isPlausibleMarketValue(9999, {})).toBe(true);
+  it('ignores a retail anchor that exactly echoes the value (scrape artifact)', () => {
+    // Ole Kirk's House case: BE stored retail=$13,037=value; the echo must not
+    // self-corroborate. 910 pieces → judged on $/piece instead (14.3 ≤ 20: ok).
+    expect(isPlausibleMarketValue(13037, { retailPrice: 13037, pieces: 910 })).toBe(true);
+    // Same echo on a tiny/no-piece item falls to the absolute no-anchor cap.
+    expect(isPlausibleMarketValue(3866, { retailPrice: 3866, pieces: 0 })).toBe(false);
+  });
+  it('rejects an absurd uncorroborated $/piece with no independent anchor', () => {
+    // Volcanic Panic case: $15,000 for a 177-piece kit ($85/pc), nothing backing it.
+    expect(isPlausibleMarketValue(15000, { pieces: 177 })).toBe(false);
+    expect(isPlausibleMarketValue(2578, { pieces: 1535 })).toBe(true); // $1.68/pc — fine
+  });
+  it('caps uncorroborated anchorless values at $2,000 for small/no-piece items', () => {
+    expect(isPlausibleMarketValue(3999, { pieces: 0 })).toBe(false);  // the $3,999 pencil case
+    expect(isPlausibleMarketValue(9999, {})).toBe(false);             // was blanket-trusted before
+    expect(isPlausibleMarketValue(1500, { pieces: 3 })).toBe(true);   // chrome-fig-scale promos still pass
+  });
+  it('still trusts big anchorless values once any comp corroborates', () => {
+    expect(isPlausibleMarketValue(2796, { pieces: 1, corroborators: [13500] })).toBe(true);
   });
 });
 

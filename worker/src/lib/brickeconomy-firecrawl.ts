@@ -42,6 +42,19 @@ const anyNum = (v: unknown): number | null =>
   (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 /**
+ * The LLM extraction sometimes echoes the market value into the retail field
+ * (e.g. retail=$13,037=value for a set whose real RRP was never public). A
+ * retail figure identical to the value is fabricated, and downstream it
+ * poisons the plausibility gate that uses retail as its anchor — drop it.
+ */
+function stripRetailEcho(out: BrickEconomyScrape): BrickEconomyScrape {
+  if (out.retail_price_us != null && out.retail_price_us === out.current_value_new) {
+    return { ...out, retail_price_us: null };
+  }
+  return out;
+}
+
+/**
  * Build a BrickEconomy-shaped value object from a lego_sets row's stored be_*
  * columns (populated by the brickeconomy-enrich Firecrawl cron). Lets the
  * valuation + set-detail paths consume BrickEconomy data without an on-demand
@@ -61,7 +74,7 @@ export function beDetailsFromRow(row: Record<string, unknown>): BrickEconomyScra
       && out.retail_price_us == null) {
     return null;
   }
-  return out;
+  return stripRetailEcho(out);
 }
 
 export async function fetchBrickEconomyViaFirecrawl(
@@ -108,5 +121,5 @@ export async function fetchBrickEconomyViaFirecrawl(
   if (out.current_value_new == null && out.current_value_used == null && out.retail_price_us == null) {
     return null;
   }
-  return out;
+  return stripRetailEcho(out);
 }

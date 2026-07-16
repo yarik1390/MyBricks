@@ -40,7 +40,7 @@ export const NON_SET_DEMOTION =
 // a superset of BLEND_INPUT_COLUMNS + BLEND_EXT_COLUMNS in lib/market-sources.ts).
 export const CATALOG_COLS =
   's.set_num, s.name, s.year, s.theme, s.pieces, s.minifigs, ' +
-  's.image_url, s.retail_price, s.current_value, s.forecast_2y, s.forecast_5y, s.retired, ' +
+  's.image_url, s.retail_price, s.brickset_msrp, s.current_value, s.forecast_2y, s.forecast_5y, s.retired, ' +
   's.valuation_method, s.cached_at, s.source, s.valuation_expires_at, s.ebay_value, s.ebay_cached_at, ' +
   's.ebay_new_value, s.ebay_used_value, s.ebay_new_qty, s.ebay_used_qty, s.ebay_new_cached_at, s.ebay_used_cached_at, ' +
   's.ebay_new_last_sold, s.ebay_used_last_sold, ' +

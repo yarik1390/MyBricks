@@ -332,6 +332,14 @@ describe('valuationTrust', () => {
     assert.equal(trust.label, 'High confidence');
   });
 
+  it('defaults an uncorroborated BrickEconomy row to low confidence, never "Market price"', () => {
+    // No explicit confidence from the API (offline/legacy row): a lone scrape
+    // must not wear the ok-tone "Market price" badge.
+    const trust = valuationTrust({ valuation_method: 'brickeconomy', freshness: 'fresh' });
+    assert.equal(trust.tone, 'warn');
+    assert.equal(trust.label, 'Low confidence');
+  });
+
   it('flags AI-estimated values as an AI estimate, not a market price', () => {
     const trust = valuationTrust({ valuation_method: 'ai', confidence: 'medium', freshness: 'fresh' });
     assert.equal(trust.tone, 'warn');

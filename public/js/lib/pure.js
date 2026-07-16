@@ -261,7 +261,12 @@ export const estMark = (set) => (isEstimatedValue(set) ? "~" : "");
 
 export function valuationTrust(set = {}) {
   const freshness = set.freshness || (set.cached_at && Date.now() - new Date(set.cached_at).getTime() > 60 * 86400000 ? "stale" : "fresh");
-  const confidence = set.confidence || (set.valuation_method === "formula_bulk" || set.valuation_method === "local" ? "estimated" : "medium");
+  // Without an explicit confidence from the API, only sold-comp methods may
+  // default to "medium" — a lone BrickEconomy scrape defaults to "low" so it
+  // can never wear the green "Market price" badge uncorroborated.
+  const confidence = set.confidence
+    || (set.valuation_method === "formula_bulk" || set.valuation_method === "local" ? "estimated"
+      : set.valuation_method === "brickeconomy" ? "low" : "medium");
   const source = set.primary_value_source || set.valuation_method || "unknown";
   // AI-estimated values are a guess until a market source answers — always flag
   // them as such so they never read as a real "Market price".

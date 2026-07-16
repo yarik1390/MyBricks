@@ -5,7 +5,8 @@ import { brickOwlEnabled } from '../lib/pricing-flags';
 // One row of the valuation due-set query (the shape runValuateSets iterates).
 export interface DueSetRow {
   set_num: string; name: string; theme: string | null; year: number; pieces: number;
-  minifigs: number; retired: number; retail_price: number | null; ebay_ask_value: number | null;
+  minifigs: number; retired: number; retail_price: number | null; brickset_msrp: number | null;
+  ebay_ask_value: number | null;
   bl_nodata_at: string | null; be_value_new: number | null; be_value_used: number | null;
   be_forecast_2y: number | null; be_forecast_5y: number | null; be_retail: number | null;
   be_growth_12m: number | null; ask_stale: number;
@@ -101,7 +102,7 @@ export async function selectDueSets(
   // cached valuations. With scope='all' this steadily covers the whole catalog.
   const { results } = await env.DB.prepare(`
     SELECT DISTINCT ls.set_num, ls.name, ls.theme, ls.year, ls.pieces, ls.minifigs, ls.retired,
-      ls.retail_price, ls.ebay_ask_value, sme.bl_nodata_at,
+      ls.retail_price, ls.brickset_msrp, ls.ebay_ask_value, sme.bl_nodata_at,
       ls.be_value_new, ls.be_value_used, ls.be_forecast_2y, ls.be_forecast_5y, ls.be_retail, ls.be_growth_12m,
       (ls.ebay_ask_cached_at IS NULL OR ls.ebay_ask_cached_at < datetime('now', '-7 days')) AS ask_stale
     FROM lego_sets ls

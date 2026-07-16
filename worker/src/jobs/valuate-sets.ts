@@ -15,6 +15,7 @@ import {
   type EbaySoldPrices,
 } from '../lib/ebay';
 import { recomputeBlendedValues } from '../lib/market-sources';
+import { beDetailsFromRow } from '../lib/brickeconomy-firecrawl';
 import { valuationExpiryModifier, isPlausibleMarketValue, formulaValuation } from '../lib/valuation';
 import { computeRetirementRisk } from '../lib/retirement-risk';
 import { runValuateMinifigs } from './valuate-minifigs';
@@ -252,19 +253,9 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
 
     // BrickEconomy values come from the be_* staging columns populated by the
     // brickeconomy-enrich Firecrawl cron — no hot-path API call (the ~$1,000/mo
-    // API is gone). Shaped like the old API response so the plausibility gate +
-    // forecast logic below are unchanged.
-    const beDetails = brickeconomyEnabled && (set.be_value_new != null || set.be_value_used != null
-        || set.be_forecast_2y != null || set.be_forecast_5y != null || set.be_retail != null)
-      ? {
-          current_value_new: set.be_value_new,
-          current_value_used: set.be_value_used,
-          forecast_value_new_2_years: set.be_forecast_2y,
-          forecast_value_new_5_years: set.be_forecast_5y,
-          retail_price_us: set.be_retail,
-          rolling_growth_12months: set.be_growth_12m,
-        }
-      : null;
+    // API is gone). beDetailsFromRow also strips a fabricated retail echo
+    // (retail==value) so a scraped value can never anchor itself.
+    const beDetails = brickeconomyEnabled ? beDetailsFromRow(set as unknown as Record<string, unknown>) : null;
     if (beDetails) {
       tallyOk('brickeconomy');
       usedPricing = beDetails.current_value_used ? { used_value: beDetails.current_value_used } : null;
@@ -272,10 +263,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       if (beDetails.current_value_new !== null) {
         // Guard against BrickEconomy mismatches (e.g. a $10k value on a $6 vintage
         // set). A corroborating ask overrides; otherwise a retail ceiling applies.
-        // (BrickLink isn't fetched yet at this point, so the eBay ask is the only
-        // corroborator available here.) A scraped figure can never set
-        // current_value without passing this gate.
-        if (isPlausibleMarketValue(beDetails.current_value_new, { retailPrice: set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value] })) {
+        // The anchor must be INDEPENDENT of BrickEconomy: brickset_msrp first —
+        // lego_sets.retail_price may itself have been fed by a past BE scrape,
+        // and garbage validating garbage is how $15,000 kits reached the catalog.
+        if (isPlausibleMarketValue(beDetails.current_value_new, { retailPrice: set.brickset_msrp ?? set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value] })) {
           pricing = { current_value: beDetails.current_value_new };
           valMethod = 'brickeconomy';
         } else {
@@ -449,10 +440,13 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         }
       }
 
+      // Backfill-only: a scraped BE retail may fill a missing RRP but must never
+      // OVERWRITE an existing one — BE-sourced retail overwriting real retail is
+      // what poisoned the plausibility anchor for rare/promo sets.
       await env.DB.prepare(`
         UPDATE lego_sets SET
           current_value=?, forecast_2y=?, forecast_5y=?,
-          retail_price=COALESCE(?, retail_price),
+          retail_price=COALESCE(retail_price, ?),
           valuation_method=?,
           valuation_expires_at=datetime('now', ?),
           cached_at=datetime('now')
@@ -505,7 +499,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         // Count the completed server Gemini call (free tier → $0 billable cost).
         aiUsage.record('gemini', MODELS.valuation, null);
         if (gemVals?.current_value) {
-          if (isPlausibleMarketValue(gemVals.current_value, { retailPrice: set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value, blPricing?.current_value] })) {
+          if (isPlausibleMarketValue(gemVals.current_value, { retailPrice: set.brickset_msrp ?? set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value, blPricing?.current_value] })) {
             await env.DB.prepare(`
               UPDATE lego_sets SET
                 current_value=?, used_value=COALESCE(?, used_value),
@@ -548,7 +542,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     }
     // Catalog-retail plausibility: catches AI hallucinations even when the AI's
     // own retail estimate is also off (the check above only compares to that).
-    if (!isPlausibleMarketValue(vals.current_value, { retailPrice: set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value, blPricing?.current_value] })) {
+    if (!isPlausibleMarketValue(vals.current_value, { retailPrice: set.brickset_msrp ?? set.retail_price, pieces: set.pieces, corroborators: [set.ebay_ask_value, blPricing?.current_value] })) {
       console.warn(`[valuate] ${set.set_num}: rejected implausible AI value $${vals.current_value} vs catalog retail $${set.retail_price ?? '?'} — skipped`);
       processed++;
       if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });

@@ -136,11 +136,21 @@ export function isPlausibleMarketValue(
     return value <= 3 * Math.max(...corr) && value >= 0.15 * Math.min(...corr);
   }
   const retail = Number(ctx.retailPrice);
-  if (Number.isFinite(retail) && retail > 0) {
+  // A retail anchor that exactly equals the candidate value is no anchor at
+  // all: the BrickEconomy scrape sometimes echoes the market value into the
+  // retail field (Ole Kirk's House stored retail=$13,037=value), and a value
+  // can't corroborate itself. Treat it as unknown retail instead.
+  if (Number.isFinite(retail) && retail > 0 && retail !== value) {
     const cap = Number(ctx.pieces) > 500 ? 25 : 40; // big sets rarely exceed 25x retail; small/vintage get more headroom
     return value >= 0.2 * retail && value <= cap * retail;
   }
-  return true; // no retail and no comp — can't judge, don't block
+  // No independent anchor at all. Modest claims pass (low stakes, can't judge),
+  // but an uncorroborated four-figure value — or an absurd $/piece — is exactly
+  // how scrape garbage reached the top of the catalog ($15,000 for a 177-piece
+  // kit, $3,999 for a pencil case). Reject those until any real comp lands.
+  const pieces = Number(ctx.pieces);
+  if (Number.isFinite(pieces) && pieces >= 30) return value / pieces <= 20;
+  return value <= 2000;
 }
 
 // Refresh cadence by valuation source quality. Market-backed prices hold for a

@@ -1,3 +1,5 @@
+import { isPlausibleMarketValue } from './valuation';
+
 export type PricingCondition = 'new_sealed' | 'used_complete' | 'loose';
 export type PricingSignalType = 'sold' | 'modeled' | 'asking' | 'estimate';
 export type PricingMatchStatus = 'verified' | 'manual' | 'quarantined' | 'rejected';
@@ -303,9 +305,9 @@ export function valueSignalsV3(
 /** Convert the existing columns into normalized inputs during the dual-write period. */
 export function legacySignalsFor(row: Record<string, unknown>): PricingSignal[] {
   const out: PricingSignal[] = [];
-  const add = (signal: Omit<PricingSignal, 'currency' | 'match_status' | 'value'> & { value: number | null }) => {
+  const add = (signal: Omit<PricingSignal, 'currency' | 'match_status' | 'value'> & { value: number | null; match_status?: PricingMatchStatus }) => {
     if (!signal.value) return;
-    out.push({ ...signal, value: signal.value, currency: 'USD', match_status: 'verified' });
+    out.push({ ...signal, value: signal.value, currency: 'USD', match_status: signal.match_status ?? 'verified' });
   };
   const method = String(row.valuation_method || '');
   const cached = iso(row.cached_at);
@@ -314,7 +316,18 @@ export function legacySignalsFor(row: Record<string, unknown>): PricingSignal[] 
   add({ source: 'bricklink_used', provider_family: 'bricklink', condition: 'used_complete', signal_type: 'sold', value: positive(row.used_value), low: positive(row.bl_used_min), high: positive(row.bl_used_max), sample_count: positive(row.bl_used_qty), checked_at: iso(row.bl_cached_at) || cached, source_observed_at: iso(row.bl_cached_at) || cached });
   add({ source: 'ebay_sold_new', provider_family: 'ebay_market', condition: 'new_sealed', signal_type: 'sold', value: positive(row.ebay_new_value), sample_count: positive(row.ebay_new_qty), checked_at: iso(row.ebay_new_cached_at) || cached, source_observed_at: iso(row.ebay_new_last_sold) || iso(row.ebay_new_cached_at) || cached });
   add({ source: 'ebay_sold_used', provider_family: 'ebay_market', condition: 'used_complete', signal_type: 'sold', value: positive(row.ebay_used_value), sample_count: positive(row.ebay_used_qty), checked_at: iso(row.ebay_used_cached_at) || cached, source_observed_at: iso(row.ebay_used_last_sold) || iso(row.ebay_used_cached_at) || cached });
-  add({ source: 'brickeconomy_new', provider_family: 'brickeconomy', condition: 'new_sealed', signal_type: 'modeled', value: positive(row.be_value_new) || (method === 'brickeconomy' ? positive(row.current_value) : null), checked_at: iso(row.be_cached_at) || cached });
+  // The BrickEconomy figure is an LLM-extracted scrape: quarantine it (visible
+  // in diagnostics, ineligible for the fair-value headline) when it is not
+  // plausible against INDEPENDENT anchors — real comps, or Brickset's MSRP.
+  // A lone $15,000 scrape on an uncorroborated 177-piece kit must never
+  // become blended_value just because nothing contradicts it.
+  const beNew = positive(row.be_value_new) || (method === 'brickeconomy' ? positive(row.current_value) : null);
+  const beTrusted = beNew == null ? false : isPlausibleMarketValue(beNew, {
+    retailPrice: positive(row.brickset_msrp) ?? positive(row.retail_price),
+    pieces: Number(row.pieces) || null,
+    corroborators: [positive(row.bl_new_value), positive(row.ebay_new_value), positive(row.ebay_ask_value), positive(row.bo_new_value)],
+  });
+  add({ source: 'brickeconomy_new', provider_family: 'brickeconomy', condition: 'new_sealed', signal_type: 'modeled', value: beNew, checked_at: iso(row.be_cached_at) || cached, match_status: beTrusted ? 'verified' : 'quarantined' });
   add({ source: 'brickeconomy_used', provider_family: 'brickeconomy', condition: 'used_complete', signal_type: 'modeled', value: positive(row.be_value_used), checked_at: iso(row.be_cached_at) || cached });
   add({ source: 'brickowl_new_asking', provider_family: 'brickowl', condition: 'new_sealed', signal_type: 'asking', value: positive(row.bo_new_value), sample_count: positive(row.bo_new_qty), checked_at: iso(row.bo_cached_at) || cached });
   add({ source: 'brickowl_used_asking', provider_family: 'brickowl', condition: 'used_complete', signal_type: 'asking', value: positive(row.bo_used_value), sample_count: positive(row.bo_used_qty), checked_at: iso(row.bo_cached_at) || cached });
