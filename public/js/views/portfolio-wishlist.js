@@ -74,7 +74,7 @@ export async function renderWishlist() {
       <div class="topbar">
         <a href="#/" class="icon-btn" aria-label="Back" style="margin-top:2px;margin-right:8px;">${I.chevL()}</a>
         <div class="topbar-heading">
-          <div class="topbar-eyebrow">${state.wishlist.length} sets · ${totalAlerts} alert${totalAlerts !== 1 ? "s" : ""}</div>
+          <div class="topbar-eyebrow">${state.wishlist.length} set${state.wishlist.length !== 1 ? "s" : ""} · ${totalAlerts} alert${totalAlerts !== 1 ? "s" : ""}</div>
           <h1 class="topbar-title">Wishlist</h1>
         </div>
       </div>
@@ -191,7 +191,7 @@ function wishlistCardHTML(w) {
         <div class="brick-tile" style="--h:${h};width:100%;height:76%;margin-top:auto;"></div>
         ${hasImg ? `<img class="set-photo" src="${escapeHtml(w.image_url)}" alt="${escapeHtml(w.name || '')}" loading="lazy">` : ""}
       </div>
-      <div class="sl-body" style="flex:1;text-align:left;padding-right:32px;">
+      <div class="sl-body" style="flex:1;text-align:left;padding-right:56px;">
         <div class="sl-name">${escapeHtml(w.name || w.set_num)}</div>
         <div class="sl-meta">
           <span>${escapeHtml(w.theme || "")}</span>

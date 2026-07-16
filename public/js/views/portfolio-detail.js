@@ -1,6 +1,6 @@
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML } from './portfolio-detail-market.js';
-import { computeDealScore, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics } from '../lib/pure.js';
+import { computeDealScore, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { shareContent } from '../lib/native-share.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue, isGuestMode } from '../api.js';
@@ -380,6 +380,8 @@ function infoTabHTML(set, entry, isWish) {
     let tagsArr = [];
     try { tagsArr = set.brickset_tags ? JSON.parse(set.brickset_tags) : []; } catch { tagsArr = []; }
     if (!Array.isArray(tagsArr)) tagsArr = [];
+    // Stored tags may carry scraper metadata suffixes ("Harry Potter|n") — never show them.
+    tagsArr = tagsArr.map(cleanTagLabel).filter(Boolean);
     const growthRate = set.be_growth_12m;
     const retiredYear = b.retiredYear ?? set.retired_year;
 
@@ -601,11 +603,11 @@ function infoTabHTML(set, entry, isWish) {
         <div class="detail-card-title">Minifigs in this set</div>
         <div style="display:flex;flex-wrap:wrap;gap:10px;">
           ${set.set_minifigs.map(f => `
-            <div style="display:flex;align-items:center;gap:6px;font-size:12px;" title="${escapeHtml(f.fig_name)}">
-              ${f.fig_img_url ? `<img src="${escapeHtml(f.fig_img_url)}" alt="${escapeHtml(f.fig_name || '')}" style="width:32px;height:32px;object-fit:contain;border-radius:4px;background:var(--surface-2);">` : `<div style="width:32px;height:32px;background:var(--surface-2);border-radius:4px;"></div>`}
-              <div>
-                <div style="color:var(--ink-soft);font-size:11px;font-family:var(--mono);">${escapeHtml(f.fig_num)}</div>
-                ${f.quantity > 1 ? `<div style="color:var(--ink-mute);font-size:10px;">×${f.quantity}</div>` : ''}
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;max-width:100%;" title="${escapeHtml(f.fig_name || f.fig_num)}">
+              ${f.fig_img_url ? `<img src="${escapeHtml(f.fig_img_url)}" alt="${escapeHtml(f.fig_name || '')}" style="width:36px;height:36px;object-fit:contain;border-radius:4px;background:var(--surface-2);flex-shrink:0;">` : `<div style="width:36px;height:36px;background:var(--surface-2);border-radius:4px;flex-shrink:0;"></div>`}
+              <div style="min-width:0;">
+                <div style="color:var(--ink-soft);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;">${escapeHtml(f.fig_name || 'Minifig')}${f.quantity > 1 ? ` <span style="color:var(--ink-mute);">×${f.quantity}</span>` : ''}</div>
+                <div style="color:var(--ink-mute);font-size:10px;font-family:var(--mono);">${escapeHtml(f.fig_num)}</div>
               </div>
             </div>
           `).join('')}
@@ -1316,7 +1318,11 @@ async function wireCommunityTab(set) {
   try {
     data = await api("/api/contributions/sets/" + encodeURIComponent(set.set_num));
   } catch {
-    body.innerHTML = `<div class="u-mute" style="text-align:center;padding:24px 0;">Couldn't load community content.</div>`;
+    body.innerHTML = `<div style="text-align:center;padding:24px 0;">
+      <div class="u-mute" style="margin-bottom:12px;">Couldn't load community content.</div>
+      <button class="btn-secondary" id="communityRetry" style="width:auto;padding:8px 18px;">Retry</button>
+    </div>`;
+    $("#communityRetry")?.addEventListener("click", () => wireCommunityTab(set));
     return;
   }
   if (!location.hash.includes(set.set_num) || state.detail.tab !== "community") return;

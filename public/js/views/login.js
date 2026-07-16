@@ -138,7 +138,7 @@ export function renderLogin() {
         </div>
         <div style="text-align:center;margin-top:16px;font-size:13px;color:var(--ink-mute);">
           ${mode === "signin" ? "Don't have an account?" : "Already have an account?"}
-          <button id="authSwitch" style="color:var(--accent);background:none;border:none;font-size:13px;font-weight:600;cursor:pointer;padding:0 4px;">
+          <button id="authSwitch" style="color:var(--accent-text);background:none;border:none;font-size:13px;font-weight:700;cursor:pointer;padding:0 4px;text-decoration:underline;text-underline-offset:2px;">
             ${mode === "signin" ? "Sign up" : "Sign in"}
           </button>
         </div>

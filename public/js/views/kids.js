@@ -105,7 +105,7 @@ export async function renderKidsHome() {
       <div class="kids-section-title">My Badges</div>
       <div class="kids-badge-shelf">${badgeShelfHTML}</div>
       <div style="text-align:right;margin-top:6px">
-        <a href="#/kids/badges" style="font-size:13px;color:var(--accent)">View all →</a>
+        <a href="#/kids/badges" style="font-size:13px;font-weight:700;color:var(--accent-text);text-decoration:underline;text-underline-offset:2px;">View all →</a>
       </div>
 
       ${setGrid}
@@ -220,7 +220,7 @@ export async function renderKidsBadges() {
       </div>
       <div class="kids-badge-grid">${badgeCards}</div>
       <div style="margin-top:28px;text-align:center">
-        <a href="#/kids" style="font-size:14px;color:var(--accent)">← Back to Vault</a>
+        <a href="#/kids" style="font-size:14px;font-weight:700;color:var(--accent-text);text-decoration:underline;text-underline-offset:2px;">← Back to Vault</a>
       </div>
     </div>`;
 }

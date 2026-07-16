@@ -336,7 +336,8 @@ function showManualBarcodeEntry() {
     $("#manualBarcodeGo")?.addEventListener("click", submit);
     $("#manualBarcodeInput")?.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
     $("#manualGalleryGo")?.addEventListener("click", () => $("#scanGalleryInput")?.click());
-    $("#manualBarcodeInput")?.focus();
+    // No auto-focus: it pops the Android keyboard over the camera view the
+    // moment the scanner opens. The field is one tap away when wanted.
     return;
   }
   const row = document.createElement("div");

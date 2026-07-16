@@ -9,6 +9,7 @@ import {
   liquidityLabel, classifyProviderHealth, validateSourceTuningInput, groupAdminJobRuns,
   formatRelativeTime, processRunBadge, isEstimatedValue, estMark,
   displayValueOf, withDisplayValue, shouldUseKeyboardShell, classifyScanFailure, flipEconomics,
+  cleanTagLabel, pluralize,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -43,6 +44,35 @@ describe('jwtSub', () => {
     assert.equal(jwtSub('not-a-jwt'), null);
     assert.equal(jwtSub('only.two'), null);
     assert.equal(jwtSub(fakeJwt({ role: 'authenticated' })), null);
+  });
+});
+
+describe('cleanTagLabel', () => {
+  it('strips the scraper metadata suffix', () => {
+    assert.equal(cleanTagLabel('Harry Potter|n'), 'Harry Potter');
+    assert.equal(cleanTagLabel('Albus Dumbledore|n '), 'Albus Dumbledore');
+  });
+  it('leaves plain tags untouched', () => {
+    assert.equal(cleanTagLabel('Castle'), 'Castle');
+  });
+  it('handles empties and non-strings without throwing', () => {
+    assert.equal(cleanTagLabel(''), '');
+    assert.equal(cleanTagLabel(null), '');
+    assert.equal(cleanTagLabel(undefined), '');
+    assert.equal(cleanTagLabel(42), '42');
+  });
+});
+
+describe('pluralize', () => {
+  it('uses the singular for exactly one', () => {
+    assert.equal(pluralize(1, 'set'), '1 set');
+  });
+  it('adds s otherwise', () => {
+    assert.equal(pluralize(0, 'set'), '0 sets');
+    assert.equal(pluralize(2, 'alert'), '2 alerts');
+  });
+  it('accepts an irregular plural', () => {
+    assert.equal(pluralize(3, 'entry', 'entries'), '3 entries');
   });
 });
 

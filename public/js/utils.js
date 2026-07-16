@@ -524,7 +524,9 @@ export function drawSparkline(container, data, opts = {}) {
   const mn = Math.min(...allVals), mx = Math.max(...allVals);
   const pad = 4;
   const xs = (i) => pad + (i / (data.length - 1)) * (W - pad * 2);
-  const ys = (v) => H - pad - ((v - mn) / ((mx - mn) || 1)) * (H - pad * 2);
+  // A flat series (all snapshots equal — e.g. day-one vaults) would otherwise
+  // normalize to y=max and hug the bottom edge; center it instead.
+  const ys = (v) => mx === mn ? H / 2 : H - pad - ((v - mn) / (mx - mn)) * (H - pad * 2);
   let path = `M${xs(0).toFixed(1)} ${ys(vals[0]).toFixed(1)}`;
   for (let i = 1; i < data.length; i++) path += ` L${xs(i).toFixed(1)} ${ys(vals[i]).toFixed(1)}`;
   const area = path + ` L${xs(data.length - 1).toFixed(1)} ${H} L${xs(0).toFixed(1)} ${H} Z`;
@@ -704,10 +706,10 @@ export function emptyState({ icon = '', title, body = '', action = '' } = {}) {
 
 export function trendBadgeHTML(trend) {
   if (trend === "rising") {
-    return `<span class="trend-badge rising" title="Price trend: Rising">${I.trend({w:10, h:10})} ↑ Rising</span>`;
+    return `<span class="trend-badge rising" title="Price trend: Rising">${I.trend({w:10, h:10})} Rising</span>`;
   }
   if (trend === "falling") {
-    return `<span class="trend-badge falling" title="Price trend: Falling">${I.trend({w:10, h:10})} ↓ Falling</span>`;
+    return `<span class="trend-badge falling" title="Price trend: Falling">${I.trendDown({w:10, h:10})} Falling</span>`;
   }
   return "";
 }

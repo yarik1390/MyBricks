@@ -8,6 +8,7 @@ import { getThemePref, setThemePref, getSkinPref, setSkinPref, getModePref, setM
 import { skelPage, skelStatGrid, skelSettingRows } from '../components/skeleton.js';
 import { startOnboarding } from '../components/onboarding.js';
 import { isNativeBilling, presentProPaywall, restorePurchases, presentCustomerCenter } from '../lib/revenuecat-native.js';
+import { getCapacitorPlugin } from '../lib/native-auth.js';
 
 export async function renderMe() {
   // Legacy Stripe return: detect a Checkout success redirect (?supported=1) before
@@ -226,8 +227,8 @@ export async function renderMe() {
         </aside>
       </div>
 
-      <div class="u-mono-label u-fs-2xs u-faint" style="text-align:center;margin-top:24px;">
-        BRICKSVAULT · v1.0.2 · STACK SOMETHING BEAUTIFUL
+      <div class="u-mono-label u-fs-2xs u-faint" id="appVersionLine" style="text-align:center;margin-top:24px;">
+        BRICKSVAULT · STACK SOMETHING BEAUTIFUL
       </div>
       <div style="text-align:center;margin-top:16px;font-size:12px;">
         <a href="/privacy.html" style="color:var(--ink-mute);text-decoration:underline;">Privacy Policy</a>
@@ -239,6 +240,13 @@ export async function renderMe() {
         Pricing from BrickLink, eBay, PriceCharting &amp; Brickset. LEGO® is a trademark of the LEGO Group, which does not sponsor or endorse this app.
       </div>
     </div>`;
+
+  // Native installs are versioned by the store build — show the real one
+  // instead of a hand-maintained string that drifts out of date.
+  getCapacitorPlugin('App')?.getInfo?.().then(info => {
+    const line = $("#appVersionLine");
+    if (line && info?.version) line.textContent = `BRICKSVAULT · v${info.version} · STACK SOMETHING BEAUTIFUL`;
+  }).catch(() => {});
 
   $("#replayTourRow")?.addEventListener("click", () => { haptic("light"); startOnboarding(); });
 

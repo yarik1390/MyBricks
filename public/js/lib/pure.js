@@ -18,6 +18,17 @@ export function fmtPct(n) {
   return (n >= 0 ? "+" : "") + (n * 100).toFixed(1) + "%";
 }
 
+/** Brickset tag strings arrive as "Label|t" ("Harry Potter|n") — the suffix is
+ *  scraper metadata, never meant for display. Strip it and trim. */
+export function cleanTagLabel(tag) {
+  return String(tag ?? "").split("|")[0].trim();
+}
+
+/** "1 set", "2 sets" — count labels that read like a human wrote them. */
+export function pluralize(n, singular, plural = singular + "s") {
+  return `${n} ${n === 1 ? singular : plural}`;
+}
+
 export const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
 export const daysAgo = (iso) => Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);

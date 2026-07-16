@@ -19,6 +19,9 @@
   --bv-red: #DA291C;
   --bv-red-dark: #B8220F;
   --accent: #FFD700;
+  /* Yellow as TEXT fails contrast on cream — text links/labels use this
+     darker gold in light scheme (AA on --bg) and true yellow in dark. */
+  --accent-text: #7A5E00;
   --up: #1A7F4B;
   --up-soft: #D4EDDA;
   --up-pale: #EAF7EE;
@@ -54,6 +57,7 @@
 }
 
 :root[data-theme="dark"] {
+  --accent-text: #FFD700;
   --bg: #16161C;
     --bg-deep: #0F0F14;
     --surface: #1F1F26;
@@ -343,6 +347,17 @@ body.offline .offline-banner { display: block; }
 }
 .spark-scrub.show { opacity: 1; }
 
+/* Day-one caption over a flat sparkline — sits above the centered line. */
+.spark-note {
+  position: absolute; left: 0; right: 0; top: 12%;
+  text-align: center;
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-mute);
+  pointer-events: none;
+  animation: fadeIn 0.5s var(--ease) both;
+}
+
 .spark-empty {
   height: 100%;
   display: flex;
@@ -591,8 +606,11 @@ ul.set-list > li { display: contents; }
   font-family: var(--mono); font-size: 10px;
   text-transform: uppercase; letter-spacing: 0.06em;
   color: var(--ink-mute);
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: 3px 6px;
   min-width: 0;
+  /* The trust badge can't shrink — let it drop to its own line instead of
+     getting clipped mid-word by the card edge ("MARKET PRI"). */
+  flex-wrap: wrap;
 }
 .sl-meta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sl-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: 0.6; flex-shrink: 0; }
@@ -951,8 +969,19 @@ ul.set-list > li { display: contents; }
    dissolves at its edges instead of floating as a hard rectangle. Dark mode
    can't multiply white away. */
 .detail-hero .detail-img img.set-photo { mix-blend-mode: multiply; }
-:root[data-theme="dark"] .detail-hero .detail-img img.set-photo { mix-blend-mode: normal; filter: brightness(0.95); }
-:root[data-theme="dark"] .detail-hero.has-photo { background: #f4f4f2; }
+/* Dark mode can't multiply the white product background away — so instead of
+   painting the WHOLE hero light (a glaring slab against the dark page), keep
+   the hero dark and frame the photo on its own compact card-style plate. */
+:root[data-theme="dark"] .detail-hero .detail-img img.set-photo { mix-blend-mode: normal; filter: brightness(0.97); }
+:root[data-theme="dark"] .detail-hero.has-photo { background: var(--bg); }
+:root[data-theme="dark"] .detail-hero.has-photo .detail-img {
+  background: #f6f4ef;
+  border: 2px solid var(--line-soft);
+  border-radius: var(--r-3);
+  box-shadow: var(--shadow-2);
+  padding: 10px;
+}
+:root[data-theme="dark"] .detail-hero.has-photo .detail-hero-bg { opacity: 0.22; }
 /* Keep the image's OWN blurred backdrop for photos (Apple-Music style) so the
    area around the product is a soft wash of its own colours instead of a bare
    rectangle on the page — that's what makes it blend. Only the dark photo scrim
@@ -1276,10 +1305,8 @@ ul.set-list > li { display: contents; }
 .detail-page-container[data-detail-tab="manage"] .detail-action-bar {
   display: none;
 }
-@media (min-width: 1025px) {
-  /* Left-rail nav layout has no bottom bar — pin the action bar to the viewport. */
-  .detail-action-bar { bottom: 0; }
-}
+/* (Rail layouts ≥900px zero out --bottom-nav-clear where the rail is defined,
+   which pins this bar to the viewport bottom — no per-breakpoint override.) */
 
 /* primary CTA */
 .btn-primary {
@@ -2572,9 +2599,6 @@ body[data-route="set-detail"] #toast {
 /* Accessibility Focus States */
 button:focus-visible,
 a:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible,
 .chip:focus-visible,
 .set-list-card:focus-visible,
 .set-card:focus-visible,
@@ -2584,6 +2608,15 @@ select:focus-visible,
 .insights-row:focus-visible {
   outline: 3px solid var(--bv-red);
   outline-offset: 2px;
+}
+/* Text fields match :focus-visible on every tap — the 3px offset red halo
+   reads as an error state around an already-bordered box. Keep a visible but
+   calmer ring hugging the field. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--bv-red);
+  outline-offset: 0;
 }
 
 /* A6 — Active chip yellow glow ring */
@@ -3182,6 +3215,12 @@ select:focus-visible,
 }
 
 @media (min-width: 900px) {
+  /* The bottom nav becomes the left rail below — fixed bottom elements
+     (set-detail action bar, advisor FAB, selection toolbar, page padding)
+     must stop reserving space for a bar that isn't there. */
+  :root {
+    --bottom-nav-clear: var(--safe-bottom);
+  }
   body {
     padding-bottom: 0;
     padding-left: 240px;
@@ -3189,6 +3228,10 @@ select:focus-visible,
   #app {
     max-width: 1200px;
     margin: 0 auto;
+  }
+  /* Fixed elements ignore body padding — keep them clear of the 240px rail. */
+  .detail-action-bar {
+    left: 240px;
   }
   #chatWrap {
     height: 100vh;
@@ -4097,9 +4140,14 @@ body.sheet-open .selection-bar {
 .trend-badge {
   display: inline-flex; align-items: center; gap: 3px;
   font-size: var(--fs-2xs); font-weight: 700; margin-left: 6px;
+  white-space: nowrap;
 }
 .trend-badge.rising  { color: var(--up); }
 .trend-badge.falling { color: var(--bv-red); }
+/* On vault cards the badge sits on its own line under the delta so a long
+   value + badge can never overflow the card and clip the price. */
+.sl-trend-row { display: flex; justify-content: flex-end; }
+.sl-trend-row .trend-badge { margin-left: 0; }
 
 /* form validation — reserve error-text height so toggling causes no shift */
 .field.error input, .field.error select, .field.error textarea,

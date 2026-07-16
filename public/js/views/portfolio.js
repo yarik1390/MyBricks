@@ -345,10 +345,12 @@ function paintPortfolio() {
   if (scrollYBefore > 0) window.scrollTo(0, scrollYBefore);
 
   setTimeout(() => {
-    if (state.portfolioTab === "items") {
-      drawSparkline($("#heroChart"), clipped, { up: gain >= 0 });
-    } else {
-      drawSparkline($("#heroChart"), clipped, { up: gain >= 0 });
+    drawSparkline($("#heroChart"), clipped, { up: gain >= 0 });
+    // Day-one vaults have snapshots but no movement yet — a bare flat line
+    // reads as "broken chart". Say what's actually happening.
+    const flatSoFar = clipped.length >= 2 && new Set(clipped.map(d => d.total_value ?? d.current_value ?? d)).size === 1;
+    if (flatSoFar) $("#heroChart")?.insertAdjacentHTML("beforeend", `<div class="spark-note">Tracking has begun — your curve builds with each daily snapshot</div>`);
+    if (state.portfolioTab !== "items") {
       const container = $("#insightsDoubleChart");
       if (container) drawDoubleSparkline(container, clipped);
     }
@@ -594,9 +596,9 @@ function setListCardHTML(item) {
         <div class="sl-value" style="display:flex;align-items:center;justify-content:flex-end;gap:4px;">
           ${item.market_value_confidence ? `<span title="Market confidence: ${item.market_value_confidence}" style="display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;background:${item.market_value_confidence === 'high' ? 'var(--up)' : item.market_value_confidence === 'medium' ? 'var(--accent)' : 'var(--bv-yellow)'};"></span>` : ''}
           ${estMark(item)}${fmtMoney(dispVal)}
-          ${item.trend ? trendBadgeHTML(item.trend) : ""}
         </div>
         <div class="sl-delta ${cls}" ${delta != null ? `role="img" aria-label="${cls === 'up' ? 'Up' : 'Down'} ${dStr}"` : ''}><span class="arrow" aria-hidden="true">${arrow}</span>${dStr}</div>
+        ${item.trend ? `<div class="sl-trend-row">${trendBadgeHTML(item.trend)}</div>` : ""}
         ${item.forecast_2y && dispVal && item.forecast_2y > dispVal ? `<div class="sl-forecast" style="font-size:9px;color:var(--ink-mute);font-family:var(--mono);text-align:right;">→ ${fmtMoneyShort(item.forecast_2y)} 2yr</div>` : ''}
       </div>
     </button>`;
