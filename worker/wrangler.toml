@@ -77,9 +77,11 @@ PRICESAPI_ENABLED = "1"
 # Pricing v3 starts in shadow mode. Raise to 10, then 50, then 100 after the
 # observation gates in the rollout plan pass. Set back to 0 for instant rollback.
 PRICING_V3_READ_PERCENT = "0"
-# Hard quarantine gate. Both this flag and the source config must be enabled
-# before any PriceCharting per-set or bulk job can run.
-PRICECHARTING_VERIFIED_ENABLED = "0"
+# PriceCharting emergency kill-switch (set "0" for an instant hard-disable).
+# Signals flow ONLY from identity-verified mappings (unique UPC via the weekly
+# bulk CSV, or cross-source price agreement via the daily pricecharting-verify
+# job); everything unverified stays quarantined, so the source is on by default.
+PRICECHARTING_VERIFIED_ENABLED = "1"
 AMAZON_DEFAULT_MARKET = "FR"
 # Associates tracking IDs are public by design: every Special Link exposes the
 # tag. Keep API credentials in secrets, but deploy the approved Web tag as a var.

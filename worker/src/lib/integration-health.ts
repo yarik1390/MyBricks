@@ -262,8 +262,8 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     configured: (env) => !!env.PRICECHARTING_TOKEN,
     required_secrets: ['PRICECHARTING_TOKEN'],
     used_by: ['set valuation (sealed/complete/loose sold comps)', 'liquidity (sales-volume)'],
-    notes: 'Per-set /api/product returns new-price (sealed), cib-price (complete), loose-price (used) and sales-volume (yearly units sold) from aggregated eBay closed auctions — an independent sold source. 1 call/sec. The optional bulk CSV upload needs the Legendary tier (PRICECHARTING_PRO).',
-    recommended_action: 'Add PRICECHARTING_TOKEN as a Worker secret to enable the loose/used and liquidity signals.',
+    notes: 'Aggregated eBay closed-auction comps (sealed/complete/loose + yearly sales volume) — the sold-comp replacement for eBay\'s retired Marketplace Insights API. VERIFIED-ONLY: signals flow solely from pricing_source_map rows proven by unique UPC (weekly bulk CSV) or cross-source price agreement (daily pricecharting-verify); unverified mappings stay quarantined. Collapses into the ebay_market family. The bulk CSV needs the Legendary tier (PRICECHARTING_PRO).',
+    recommended_action: 'Add PRICECHARTING_TOKEN as a Worker secret; set PRICECHARTING_PRO=1 on the Legendary tier so the weekly bulk CSV refreshes the whole catalog in one download.',
   },
   pricesapi: {
     label: 'pricesAPI.io',

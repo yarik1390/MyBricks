@@ -32,9 +32,12 @@ export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   ebay:          { enabled: true,  weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
   brickeconomy:  { enabled: true,  weight: 1.0,  dailyCap: 80,   refreshDays: 14 },
   brickowl:      { enabled: true,  weight: 1.0,  dailyCap: 1500, refreshDays: 14 },
-  // Quarantined until every product mapping is identity-verified. PriceCharting
-  // is part of the ebay_market family and never independently raises confidence.
-  pricecharting: { enabled: false, weight: 0,    dailyCap: 0,    refreshDays: 14 },
+  // Verified-mappings-only: signals flow solely through pricing_source_map rows
+  // proven by unique UPC (bulk import) or cross-source price agreement
+  // (pricecharting-verify). Unverified mappings stay quarantined. PriceCharting
+  // collapses into the ebay_market family, so it corroborates BrickLink without
+  // double-counting as an extra independent family alongside real eBay comps.
+  pricecharting: { enabled: true,  weight: 1.0,  dailyCap: 500,  refreshDays: 14 },
   pricesapi:     { enabled: false, weight: 1.0,  dailyCap: 60,   refreshDays: 7 },
   firecrawl:     { enabled: true,  weight: 1.0,  dailyCap: 2000, refreshDays: 14 },
   brightdata:    { enabled: true,  weight: 1.0,  dailyCap: 150,  refreshDays: 14 },
@@ -88,7 +91,12 @@ export async function getSourceConfig(env: Env): Promise<Record<SourceName, Sour
     if (row?.value) stored = JSON.parse(row.value);
   } catch { /* defaults */ }
   memo = merge(stored);
-  if (!/^(1|true|yes|on)$/i.test(String(env.PRICECHARTING_VERIFIED_ENABLED || ''))) {
+  // PriceCharting emergency kill-switch. Historically an opt-IN gate while
+  // mappings were unverified; now that signals flow ONLY from verified
+  // pricing_source_map rows (unique UPC or cross-source price agreement), the
+  // source is on by default and this env var is the opt-OUT: set
+  // PRICECHARTING_VERIFIED_ENABLED=0 to hard-disable regardless of admin config.
+  if (/^(0|false|no|off)$/i.test(String(env.PRICECHARTING_VERIFIED_ENABLED || ''))) {
     memo.pricecharting = { ...memo.pricecharting, enabled: false, weight: 0, dailyCap: 0 };
   }
   memoAt = Date.now();

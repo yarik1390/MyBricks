@@ -40,6 +40,8 @@ import { runWishlistAlerts } from './jobs/wishlist-alerts';
 import { runDailyCatalogMaintenance } from './jobs/catalog-maintenance';
 import { runDbHygiene } from './jobs/db-hygiene';
 import { runAmazonOffers } from './jobs/amazon-offers';
+import { runPriceChartingVerify } from './jobs/pricecharting-verify';
+import { runPriceChartingBulkFetch } from './jobs/pricecharting-bulk';
 import { importSets, importFigs } from './jobs/import-catalog';
 import { runBrickInsightsBackfill } from './jobs/brickinsights';
 import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
@@ -469,10 +471,17 @@ export default {
       case '0 4 * * *': {
         await run('db-hygiene', () => runDbHygiene(env));
         await run('daily-catalog-maintenance', () => runDailyCatalogMaintenance(env));
+        // Promote PriceCharting mappings proven by cross-source price agreement
+        // and refresh their sold-comp signals (set-based SQL, subrequest-lean).
+        await run('pricecharting-verify', () => runPriceChartingVerify(env));
         const isSunday = new Date(event.scheduledTime).getUTCDay() === 0;
         if (!isSunday) break;
         await run('weekly-import-sets', () => importSets(env.DB, env));
         await run('weekly-import-figs', () => importFigs(env.DB, env));
+        // Weekly PriceCharting LEGO price-guide CSV (Legendary tier; one ~2 MB
+        // download for the whole catalog). Gates itself on token + source config;
+        // auto-verifies unique-UPC matches and refreshes verified signals.
+        await run('pricecharting-bulk-fetch', () => runPriceChartingBulkFetch(env));
         break;
       }
     }

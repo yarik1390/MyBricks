@@ -143,7 +143,7 @@ export const SOURCE_META = {
   ebay: ['eBay', 'Asking data plus sold comps only when approved and reachable. No weak sold fallback.'],
   brickeconomy: ['BrickEconomy', 'Useful historical and forecast signal when reachable.'],
   brickowl: ['BrickOwl', 'Optional marketplace signal and cross-check.'],
-  pricecharting: ['PriceCharting', 'Quarantined until product identity is verified. Weight, per-set jobs, and bulk jobs stay disabled.'],
+  pricecharting: ['PriceCharting', 'eBay closed-auction sold comps (Marketplace Insights replacement). Verified mappings only — unique UPC or cross-source price agreement; the rest stay quarantined.'],
   pricesapi: ['pricesAPI.io', 'Optional retail offer signal; keep disabled unless keys and quota are ready.'],
   amazon: ['Amazon Creators API', 'Live Amazon offers for the buy slot. KV-only (24h) per Associates terms; never a valuation input — weight stays 0.'],
   firecrawl: ['Firecrawl', 'Scraping runtime for structured market enrichment.'],
