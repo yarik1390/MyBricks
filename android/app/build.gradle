@@ -10,8 +10,8 @@ android {
         // Single source of truth for the native app version. Bump BOTH on every
         // Play upload: versionCode is monotonically increasing (Play rejects
         // duplicates); versionName is the user-visible string.
-        versionCode 23
-        versionName "1.0.22"
+        versionCode 24
+        versionName "1.0.23"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
