@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   amazonLinkEnabled,
   amazonMarket,
@@ -7,6 +7,7 @@ import {
   buildAmazonSpecialLink,
   getFreshAmazonOffer,
 } from './lib/amazon';
+import { creatorsTokenEndpoint, fetchAmazonCreatorsOffer } from './lib/amazon-creators';
 import { legacySignalsFor } from './lib/valuation-v3';
 
 describe('Amazon affiliate policy boundary', () => {
@@ -57,5 +58,70 @@ describe('Amazon affiliate policy boundary', () => {
     });
     expect(signals).toHaveLength(1);
     expect(signals[0].source).toBe('formula');
+  });
+});
+
+describe('Amazon Creators API client', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const creatorsEnv = {
+    AMAZON_CREATORS_PUBLIC_KEY: 'cred-id',
+    AMAZON_CREATORS_PRIVATE_KEY: 'cred-secret',
+    // No CACHE_KV → the token is minted per call in these tests (fine for mocks).
+  } as any;
+
+  it('routes token minting to the credential region for the marketplace', () => {
+    expect(creatorsTokenEndpoint('US')).toBe('https://api.amazon.com/auth/o2/token');
+    expect(creatorsTokenEndpoint('FR')).toBe('https://api.amazon.co.uk/auth/o2/token');
+    expect(creatorsTokenEndpoint('DE')).toBe('https://api.amazon.co.uk/auth/o2/token');
+    expect(creatorsTokenEndpoint('AU')).toBe('https://api.amazon.co.jp/auth/o2/token');
+  });
+
+  it('extracts an identity-matched offer and skips wrong-item results', async () => {
+    const calls: { url: string; init: RequestInit }[] = [];
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+      calls.push({ url: String(url), init });
+      if (String(url).includes('/auth/o2/token')) {
+        return new Response(JSON.stringify({ access_token: 'tok', expires_in: 3600 }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        searchResult: {
+          items: [
+            // Wrong item first (a minifig lot without the set number) — must be skipped.
+            { asin: 'B0WRONG', itemInfo: { title: { displayValue: 'LEGO Harry Potter minifigure lot' } }, offersV2: { listings: [{ price: { money: { amount: 25, currencyCode: 'EUR' } } }] } },
+            // Identity match with the PA-API-style money shape.
+            { asin: 'B0RIGHT', detailPageURL: 'https://www.amazon.fr/dp/B0RIGHT', itemInfo: { title: { displayValue: 'LEGO Harry Potter 71043 Hogwarts Castle' } }, offersV2: { listings: [{ price: { money: { amount: 399.9, currencyCode: 'EUR' } }, availability: { type: 'IN_STOCK' } }] } },
+          ],
+        },
+      }), { status: 200 });
+    });
+
+    const offer = await fetchAmazonCreatorsOffer(creatorsEnv, { set_num: '71043-1', name: 'Hogwarts Castle' }, 'FR');
+    expect(offer?.asin).toBe('B0RIGHT');
+    expect(offer?.price).toBe(399.9);
+    expect(offer?.currency).toBe('EUR');
+    // The product call carries the marketplace header, not a per-locale host.
+    const search = calls.find(c => c.url.includes('/catalog/v1/searchItems'));
+    expect(search).toBeTruthy();
+    expect((search!.init.headers as Record<string, string>)['x-marketplace']).toBe('www.amazon.fr');
+  });
+
+  it('returns null (never throws) on provider failure', async () => {
+    vi.stubGlobal('fetch', async () => new Response('denied', { status: 403 }));
+    const offer = await fetchAmazonCreatorsOffer(creatorsEnv, { set_num: '10300-1' }, 'US');
+    expect(offer).toBeNull();
+  });
+
+  it('returns null when no result matches the set number', async () => {
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (String(url).includes('/auth/o2/token')) {
+        return new Response(JSON.stringify({ access_token: 'tok', expires_in: 3600 }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ searchResult: { items: [
+        { asin: 'B0OTHER', itemInfo: { title: { displayValue: 'LEGO 10299 something else' } }, offersV2: { listings: [{ price: { amount: 99, currency: 'USD' } }] } },
+      ] } }), { status: 200 });
+    });
+    const offer = await fetchAmazonCreatorsOffer(creatorsEnv, { set_num: '10300-1' }, 'US');
+    expect(offer).toBeNull();
   });
 });

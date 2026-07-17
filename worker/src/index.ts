@@ -39,6 +39,7 @@ import { runPartOutCompute } from './jobs/part-out-compute';
 import { runWishlistAlerts } from './jobs/wishlist-alerts';
 import { runDailyCatalogMaintenance } from './jobs/catalog-maintenance';
 import { runDbHygiene } from './jobs/db-hygiene';
+import { runAmazonOffers } from './jobs/amazon-offers';
 import { importSets, importFigs } from './jobs/import-catalog';
 import { runBrickInsightsBackfill } from './jobs/brickinsights';
 import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
@@ -443,6 +444,11 @@ export default {
       // pricesAPI live-retail runs in 3 daily slots (~18 sets/day) now that the
       // key pool spreads the monthly budget; cold calls are 30–90s so each slot
       // stays small. The job prioritizes owned/wishlisted sets first.
+      // Amazon Creators API offer refresh — KV-only (24h TTL, Associates terms),
+      // owned/wishlisted + catalog head. No-ops until AMAZON_CREATORS_ENABLED=1
+      // with eligible credentials (>= 10 qualifying sales / 30 days).
+      case '30 7 * * *': await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 })); break;
+      case '30 16 * * *': await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 })); break;
       case '0 17 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 19 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 23 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;

@@ -24,7 +24,8 @@ export type IntegrationName =
   | 'upcitemdb'
   | 'firecrawl'
   | 'pricecharting'
-  | 'pricesapi';
+  | 'pricesapi'
+  | 'amazon';
 
 export type IntegrationStatus = 'ok' | 'degraded' | 'down' | 'unknown' | 'unconfigured';
 
@@ -271,6 +272,15 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['deal signal (cheapest channel)', 'in-stock truth', 'wishlist price-drop alerts'],
     notes: 'Live retail + marketplace offers across major retailers (47 markets). NOT a value anchor — feeds the deal/buy signal and stock truth. Synchronous cold calls take 30–90s so it runs cron-only. Free tier = 1000 calls/month, 6/min PER KEY; comma-separated keys are pooled with per-key monthly budgets (pricesapi_keys table).',
     recommended_action: 'Add one or more keys to PRICESAPI_API_KEYS (comma-separated) and set PRICESAPI_ENABLED=1. Add more keys to grow the pooled monthly budget.',
+  },
+  amazon: {
+    label: 'Amazon Creators API',
+    configured: (env) => !!(env.AMAZON_CREATORS_PUBLIC_KEY && env.AMAZON_CREATORS_PRIVATE_KEY
+      && /^(1|true|yes|on)$/i.test(String(env.AMAZON_CREATORS_ENABLED ?? ''))),
+    required_secrets: ['AMAZON_CREATORS_PUBLIC_KEY', 'AMAZON_CREATORS_PRIVATE_KEY'],
+    used_by: ['live acquisition price (buy slot)', 'affiliate links'],
+    notes: 'Live Amazon offers for current sets. COMPLIANCE: offers are KV-cached <= 24h and never persisted or used as a valuation input (Associates terms). Access needs an approved Associates account with >= 10 qualifying sales in the trailing 30 days; below that Amazon suspends credentials and calls 403.',
+    recommended_action: 'Once the Associates account qualifies (10 sales/30 days), create Creators API credentials in Associates Central, add them as AMAZON_CREATORS_PUBLIC_KEY / AMAZON_CREATORS_PRIVATE_KEY, and set AMAZON_CREATORS_ENABLED=1.',
   },
 };
 

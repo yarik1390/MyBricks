@@ -52,6 +52,10 @@ crons = [
   "0 23 * * *",
   "15 * * * *",
   "30 * * * *",
+  # Amazon Creators API live offers (KV-only, 24h TTL per Associates terms).
+  # Two slots/day so the 23h read-freshness window never gaps between refreshes.
+  "30 7 * * *",
+  "30 16 * * *",
 ]
 
 [vars]

@@ -369,6 +369,34 @@ app.get('/:setnum', async (c) => {
       FROM retail_price_current WHERE set_num=? AND market=?
     `).bind(set.set_num, retailMarket).first<Record<string, unknown>>().catch(() => null);
     if (retailOffer) set = { ...set, __retail_offer: retailOffer };
+    // Amazon Creators offer — merged at READ TIME only. It lives in KV with a
+    // <24h TTL (Associates terms forbid persisting/republishing prices), so it
+    // can sharpen the live acquisition price but is never stored in D1 and
+    // never becomes a valuation comp. Wins only when cheaper than (or the only)
+    // stored retail offer.
+    const amOffer = await getFreshAmazonOffer(c.env, String(set.set_num), amazonMarket(retailMarket, c.env)).catch(() => null);
+    if (amOffer) {
+      const storedPrice = Number(retailOffer?.delivered_price ?? retailOffer?.item_price);
+      if (!Number.isFinite(storedPrice) || storedPrice <= 0 || amOffer.price < storedPrice) {
+        set = {
+          ...set,
+          __retail_offer: {
+            market: amazonMarket(retailMarket, c.env),
+            currency: amOffer.currency,
+            item_price: amOffer.price,
+            delivered_price: amOffer.price,
+            merchant: 'Amazon',
+            stock: amOffer.availability && /out/i.test(amOffer.availability) ? 'out_of_stock' : 'in_stock',
+            offer_count: Number(retailOffer?.offer_count) || 1,
+            msrp: retailOffer?.msrp ?? null,
+            lowest_90d: retailOffer?.lowest_90d ?? null,
+            all_time_low: retailOffer?.all_time_low ?? null,
+            checked_at: amOffer.fetched_at,
+            source: 'amazon',
+          },
+        };
+      }
+    }
     const valuationRows = await c.env.DB.prepare(`
       SELECT condition, fair_value, low, high, liquidation_value, confidence,
              confidence_score, sample_count, independent_family_count,

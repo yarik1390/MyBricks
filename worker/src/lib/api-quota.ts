@@ -37,6 +37,9 @@ export const QUOTA_CAPS: Record<string, number> = {
   // ~1000/month-per-key pooled budget, so keep the daily spend modest; the
   // per-key pool (pricesapi_keys) is the authoritative monthly meter.
   pricesapi: 60,
+  // Amazon Creators API searchItems calls (plus ~1 token mint/hour). The API is
+  // free but eligibility-gated; this cap bounds a runaway day, not the plan.
+  amazon: 300,
 };
 
 // Admin-tunable daily-cap overrides (lib/source-config.ts), keyed by service.

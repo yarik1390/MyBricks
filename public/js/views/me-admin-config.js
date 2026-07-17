@@ -145,6 +145,7 @@ export const SOURCE_META = {
   brickowl: ['BrickOwl', 'Optional marketplace signal and cross-check.'],
   pricecharting: ['PriceCharting', 'Quarantined until product identity is verified. Weight, per-set jobs, and bulk jobs stay disabled.'],
   pricesapi: ['pricesAPI.io', 'Optional retail offer signal; keep disabled unless keys and quota are ready.'],
+  amazon: ['Amazon Creators API', 'Live Amazon offers for the buy slot. KV-only (24h) per Associates terms; never a valuation input — weight stays 0.'],
   firecrawl: ['Firecrawl', 'Scraping runtime for structured market enrichment.'],
   brightdata: ['Bright Data', 'Scraping/runtime provider for restricted market data.'],
 };
@@ -152,7 +153,7 @@ export const SOURCE_META = {
 export const PROVIDER_GROUPS = [
   ['Core', ['d1', 'supabase', 'worker', 'pages']],
   ['Catalog', ['rebrickable', 'brickset', 'upc', 'upcitemdb']],
-  ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'brickowl', 'pricecharting', 'pricesapi']],
+  ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'brickowl', 'pricecharting', 'pricesapi', 'amazon']],
   ['Scraping', ['firecrawl', 'brightdata']],
   ['AI', ['gemini', 'openai', 'openrouter', 'byok']],
   ['Notifications', ['resend', 'push', 'vapid', 'discord']],

@@ -25,7 +25,7 @@ export interface SourceTuning {
 
 export type SourceName =
   | 'bricklink' | 'ebay' | 'brickeconomy' | 'brickowl'
-  | 'pricecharting' | 'pricesapi' | 'firecrawl' | 'brightdata';
+  | 'pricecharting' | 'pricesapi' | 'firecrawl' | 'brightdata' | 'amazon';
 
 export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   bricklink:     { enabled: true,  weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
@@ -38,6 +38,9 @@ export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   pricesapi:     { enabled: false, weight: 1.0,  dailyCap: 60,   refreshDays: 7 },
   firecrawl:     { enabled: true,  weight: 1.0,  dailyCap: 2000, refreshDays: 14 },
   brightdata:    { enabled: true,  weight: 1.0,  dailyCap: 150,  refreshDays: 14 },
+  // Amazon Creators API retail offers (ephemeral KV only, never a valuation
+  // input — weight is 0 by design and must stay 0 per Associates terms).
+  amazon:        { enabled: true,  weight: 0,    dailyCap: 300,  refreshDays: 1 },
 };
 
 const SETTINGS_KEY = 'source_config';
