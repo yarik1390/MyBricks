@@ -25,6 +25,7 @@ import { getFeatureFlags, saveFeatureFlags, applyFeatureFlags, FEATURE_FLAGS } f
 import { runServiceTest, TESTABLE_SERVICES } from '../lib/service-tests';
 import { getRecentRuns, recordCronStart, recordCronFinish, summarizeResult } from '../lib/cron-runs';
 import { runPricesApiRetail } from '../jobs/pricesapi-retail';
+import { runPriceChartingVerify } from '../jobs/pricecharting-verify';
 import { PROCESS_REGISTRY, GROUP_ORDER, processInfo } from '../lib/process-registry';
 import { getPricingWriteBudget } from '../lib/pricing-budget';
 import { amazonReadiness } from '../lib/amazon';
@@ -183,6 +184,30 @@ app.post('/run-pricesapi', async (c) => {
   })());
 
   return c.json({ ok: true, status: 'running', limit, message: 'pricesAPI refresh started — watch the Activity tab for the result (cold calls take up to ~90s each).' });
+});
+
+// On-demand PriceCharting agreement-verification — same path as the hourly
+// drain / daily cron, triggered manually so the promotion backlog can be
+// cleared immediately instead of waiting for the next slot. Set-based SQL, so
+// even a full-width run finishes in seconds; recorded into cron_runs so the
+// Activity feed shows the outcome.
+app.post('/run-pricecharting-verify', async (c) => {
+  const body = await c.req.json<{ limit?: number }>().catch(() => ({} as { limit?: number }));
+  const requested = Number(body.limit);
+  const limit = Number.isFinite(requested) && requested > 0 ? Math.min(Math.floor(requested), 2500) : 2500;
+
+  c.executionCtx.waitUntil((async () => {
+    const startedMs = Date.now();
+    const runId = await recordCronStart(c.env, 'pricecharting-verify').catch(() => null);
+    try {
+      const res = await runPriceChartingVerify(c.env, { limit });
+      await recordCronFinish(c.env, runId, 'pricecharting-verify', { ok: !res.skipped, summary: summarizeResult(res), durationMs: Date.now() - startedMs }).catch(() => {});
+    } catch (e) {
+      await recordCronFinish(c.env, runId, 'pricecharting-verify', { ok: false, error: (e as Error).message, durationMs: Date.now() - startedMs }).catch(() => {});
+    }
+  })());
+
+  return c.json({ ok: true, status: 'running', limit, message: 'PriceCharting verification started — watch the Activity tab for promoted/signal counts.' });
 });
 
 app.get('/import-status/:id', requireAdmin, async (c) => {

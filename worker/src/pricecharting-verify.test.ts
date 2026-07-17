@@ -60,6 +60,20 @@ describe('runPriceChartingVerify (price-agreement promotion)', () => {
     expect(second.signals).toBe(0); // change-only upsert: unchanged prices write nothing
   });
 
+  it('drain mode still materializes signals for what it promotes', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO lego_sets (set_num, name, pc_id, pc_new_value, bl_new_value) VALUES ('DRAIN-1','Set','pcD', 110, 100)`),
+    ]);
+    const r = await runPriceChartingVerify(env as any, { limit: 400, refreshSignals: false });
+    expect(r.promoted).toBe(1);
+    const sig = await db.prepare(`SELECT COUNT(*) AS n FROM pricing_signals WHERE set_num='DRAIN-1'`).first<{ n: number }>();
+    expect(sig!.n).toBe(1);
+    // Drained: the next drain-mode run skips the signal sweep entirely.
+    const idle = await runPriceChartingVerify(env as any, { limit: 400, refreshSignals: false });
+    expect(idle.promoted).toBe(0);
+    expect(idle.signals).toBe(0);
+  });
+
   it('never demotes a manually verified mapping', async () => {
     await db.batch([
       db.prepare(`INSERT INTO lego_sets (set_num, name, pc_id, pc_new_value, bl_new_value) VALUES ('MAN-1','Set','pcM', 110, 100)`),

@@ -403,6 +403,12 @@ export default {
           includeSupplemental: false, includeEbay: false, includeAiFallback: false,
           subrequestBudget: 300,
         }));
+        // PriceCharting agreement-promotion drain: idempotent and change-only,
+        // so once the backlog (couple thousand sets) is promoted, this costs a
+        // single empty SELECT per hour (refreshSignals=false skips the signal
+        // sweep when nothing promoted). The daily 04:00 run does the full
+        // signal refresh.
+        await run('pricecharting-verify-drain', () => runPriceChartingVerify(env, { limit: 400, refreshSignals: false }));
         // Image mirror backfill: hourly x100 warms the full ~44k set+minifig
         // catalog in ~3 weeks, then degrades to a no-op SELECT. Shares this
         // invocation comfortably: ~300 subrequests each against the 1000 cap.
@@ -473,7 +479,9 @@ export default {
         await run('daily-catalog-maintenance', () => runDailyCatalogMaintenance(env));
         // Promote PriceCharting mappings proven by cross-source price agreement
         // and refresh their sold-comp signals (set-based SQL, subrequest-lean).
-        await run('pricecharting-verify', () => runPriceChartingVerify(env));
+        // Full-width run: the hourly drain handles the backlog, this one also
+        // refreshes signals for already-verified mappings whose prices moved.
+        await run('pricecharting-verify', () => runPriceChartingVerify(env, { limit: 2500 }));
         const isSunday = new Date(event.scheduledTime).getUTCDay() === 0;
         if (!isSunday) break;
         await run('weekly-import-sets', () => importSets(env.DB, env));

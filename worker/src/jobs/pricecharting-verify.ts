@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { recomputeBlendedValues } from '../lib/market-sources';
+import { pricingWritesAllowed, recordPricingWrites } from '../lib/pricing-budget';
 import { sourceEnabled } from '../lib/source-config';
 
 /**
@@ -32,12 +33,27 @@ const BAND_HIGH = 1.67;
 
 export async function runPriceChartingVerify(
   env: Env,
-  options: { limit?: number } = {},
+  options: {
+    limit?: number;
+    /**
+     * When false, the full signal-materialization sweep only runs if this
+     * invocation actually promoted something — the mode for the hourly
+     * backlog drain, which must cost one SELECT once the backlog is empty.
+     * The daily run keeps the default (true) so PC price movements refresh
+     * the signals of already-verified mappings.
+     */
+    refreshSignals?: boolean;
+  } = {},
 ): Promise<{ promoted: number; signals: number; reblended: number; skipped?: string }> {
   if (!(await sourceEnabled(env, 'pricecharting'))) {
     return { promoted: 0, signals: 0, reblended: 0, skipped: 'PriceCharting disabled in source tuning' };
   }
-  const limit = Math.min(Math.max(Number(options.limit) || 800, 1), 2000);
+  // Self-imposed D1 pricing-write budget: a full drain is ~17k rows (<2% of the
+  // daily pause threshold), but respect a paused ledger like every other job.
+  if (!(await pricingWritesAllowed(env.DB))) {
+    return { promoted: 0, signals: 0, reblended: 0, skipped: 'D1 pricing write budget paused non-critical jobs' };
+  }
+  const limit = Math.min(Math.max(Number(options.limit) || 800, 1), 2500);
 
   try {
     // Candidates: legacy pc_new_value rows whose mapping is not yet verified and
@@ -82,6 +98,9 @@ export async function runPriceChartingVerify(
     // Materialize signals for EVERY verified/manual PriceCharting mapping from
     // the legacy pc_* columns (covers this run's promotions AND any verified
     // mapping whose prices moved since the last pass). Change-only upserts.
+    // Skipped entirely on drain-mode runs that promoted nothing, so the hourly
+    // slot costs one empty SELECT once the backlog is gone.
+    const wantSignals = promoted > 0 || options.refreshSignals !== false;
     const signalUpsert = (condition: string, valueExpr: string, joinExt: boolean) => env.DB.prepare(`
       INSERT INTO pricing_signals (
         set_num, source, source_item_id, provider_family, condition, signal_type,
@@ -106,12 +125,15 @@ export async function runPriceChartingVerify(
          OR pricing_signals.sales_volume IS NOT excluded.sales_volume
          OR pricing_signals.match_status IS NOT excluded.match_status
     `);
-    const signalResults = await env.DB.batch([
-      signalUpsert('new_sealed', 'ls.pc_new_value', false),
-      signalUpsert('used_complete', 'ls.pc_complete_value', false),
-      signalUpsert('loose', 'ext.pc_loose_value', true),
-    ]);
-    const signals = signalResults.reduce((sum, r) => sum + Number(r.meta?.changes || 0), 0);
+    let signals = 0;
+    if (wantSignals) {
+      const signalResults = await env.DB.batch([
+        signalUpsert('new_sealed', 'ls.pc_new_value', false),
+        signalUpsert('used_complete', 'ls.pc_complete_value', false),
+        signalUpsert('loose', 'ext.pc_loose_value', true),
+      ]);
+      signals = signalResults.reduce((sum, r) => sum + Number(r.meta?.changes || 0), 0);
+    }
 
     // Re-blend the sets whose mappings were promoted this run so blended_value
     // and confidence pick up the new corroborating family immediately.
@@ -120,6 +142,7 @@ export async function runPriceChartingVerify(
       reblended = await recomputeBlendedValues(env.DB, candidates.map((c) => c.set_num));
     }
 
+    await recordPricingWrites(env.DB, 'pricecharting-verify', promoted + signals + reblended);
     if (promoted || signals) {
       console.log(`[pc-verify] promoted ${promoted} mappings by price agreement, ${signals} signal rows, re-blended ${reblended}`);
     }
