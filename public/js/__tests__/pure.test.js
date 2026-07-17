@@ -956,7 +956,11 @@ describe('Amazon affiliate isolation', () => {
   it('exposes Pricing as a first-class admin section', async () => {
     const { ADMIN_SECTIONS, ADMIN_JOB_TOOLS } = await import('../views/me-admin-config.js');
     assert.ok(ADMIN_SECTIONS.some(([id, label]) => id === 'adminPricing' && label === 'Pricing'));
-    assert.equal(ADMIN_JOB_TOOLS.pricechartingBulk.disabled, true);
+    // PriceCharting jobs are enabled now that signals flow only from verified
+    // mappings (unique UPC / price agreement); the on-demand verify runs the
+    // same promotion path as the hourly drain.
+    assert.ok(!ADMIN_JOB_TOOLS.pricechartingBulk.disabled);
+    assert.equal(ADMIN_JOB_TOOLS.pricechartingVerify.url, '/api/admin/run-pricecharting-verify');
   });
 });
 
