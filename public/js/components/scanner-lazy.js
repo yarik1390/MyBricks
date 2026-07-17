@@ -14,8 +14,12 @@ function load() {
   return (_mod ||= import('./scanner.js'));
 }
 
-export function openScan(mode = 'barcode') {
-  return load().then(m => m.openScan(mode));
+export function openScan(mode = 'barcode', options = {}) {
+  return load().then(m => m.openScan(mode, options));
+}
+
+export function lookupScanInput(value) {
+  return load().then(m => m.lookupScanInput(value));
 }
 
 export function closeScan() {

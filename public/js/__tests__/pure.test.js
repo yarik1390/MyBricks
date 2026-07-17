@@ -9,7 +9,7 @@ import {
   liquidityLabel, classifyProviderHealth, validateSourceTuningInput, groupAdminJobRuns,
   formatRelativeTime, processRunBadge, isEstimatedValue, estMark,
   displayValueOf, withDisplayValue, shouldUseKeyboardShell, classifyScanFailure, flipEconomics,
-  cleanTagLabel, pluralize,
+  cleanTagLabel, pluralize, manualScanTarget,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -268,6 +268,18 @@ describe('scanner failure states', () => {
     assert.deepEqual(classifyScanFailure('Sign in or add your own Gemini API key'), { kind: 'setup', label: 'Setup needed', retryable: false });
     assert.equal(classifyScanFailure('Quota exceeded (HTTP 429)').kind, 'limit');
     assert.equal(classifyScanFailure("Couldn't identify the set").kind, 'nomatch');
+  });
+});
+
+describe('manual scanner input', () => {
+  it('normalizes complete and bare LEGO set numbers', () => {
+    assert.deepEqual(manualScanTarget('71043-1'), { kind: 'set', value: '71043-1' });
+    assert.deepEqual(manualScanTarget(' 71043 '), { kind: 'set', value: '71043-1' });
+  });
+
+  it('keeps retail barcodes separate and rejects short noise', () => {
+    assert.deepEqual(manualScanTarget('5 709 123 456 789'), { kind: 'barcode', value: '5709123456789' });
+    assert.deepEqual(manualScanTarget('12-AB'), { kind: 'invalid', value: '' });
   });
 });
 

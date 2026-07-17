@@ -4,7 +4,7 @@ import { api, getSessionUserId } from '../api.js';
 import { getModePref } from '../theme.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
-import { openScan } from '../components/scanner-lazy.js';
+import { openScan, lookupScanInput } from '../components/scanner-lazy.js';
 import { trustBadgeHTML } from '../components/trust.js';
 import { activeCatalogFilterCount, catalogFilterSummary, pricePerPiece, estMark, displayValueOf } from '../lib/pure.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
@@ -784,9 +784,8 @@ function catalogCardHTML(s) {
 }
 
 export function renderPile() {
-  const introSeen = (() => { try { return localStorage.getItem("bv_scan_intro_seen") === "1"; } catch { return false; } })();
   $("#root").innerHTML = `
-    <div class="page">
+    <div class="page scan-page">
       <div class="topbar">
         <div class="topbar-heading">
           <div class="topbar-eyebrow">Snap &amp; identify</div>
@@ -794,52 +793,57 @@ export function renderPile() {
         </div>
       </div>
 
-      ${introSeen ? "" : `
-      <div class="card scan-intro" id="scanIntro" style="padding:16px;margin-bottom:14px;position:relative;">
-        <button class="icon-btn scan-intro-close" id="scanIntroClose" aria-label="Dismiss">${I.close()}</button>
-        <div style="display:flex;gap:10px;align-items:flex-start;">
-          ${I.sparkles()}
+      <section class="card scan-choice" aria-labelledby="scanChoiceTitle">
+        <div class="scan-choice-head">
+          <div class="scan-choice-mark">${I.sparkles()}</div>
           <div>
-            <div style="font-family:var(--serif);font-weight:500;font-size:16px;line-height:1.2;">Point. Snap. Identify.</div>
-            <p style="margin:6px 0 0;font-size:13px;color:var(--ink-soft);line-height:1.45;">
-              <b>Barcode</b> scans the box code instantly. <b>Photo</b> reads any set — built, loose, or boxed — with AI.
-            </p>
+            <h2 id="scanChoiceTitle">How would you like to identify it?</h2>
+            <p>Use the box barcode, take a photo, or type the number.</p>
           </div>
         </div>
-        <button class="btn-secondary" id="scanIntroGotIt" style="margin-top:12px;width:100%;">Got it</button>
-      </div>`}
 
-      <button class="scan-cta" id="pileScanBarcode" style="margin-bottom:12px;">
-        <div class="scan-cta-icon">${I.scan()}</div>
-        <div class="scan-cta-text">
-          <div class="t1">Scan barcode</div>
-          <div class="t2">Fastest — point at the box code</div>
+        <div class="scan-method-list" role="group" aria-label="Scan method">
+          <button class="scan-method" id="pileScanBarcode" type="button">
+            <span class="scan-method-icon scan-method-icon--barcode">${I.scan()}</span>
+            <span class="scan-method-copy"><strong>Scan barcode</strong><small>Fastest and free for boxed sets</small></span>
+            <span class="scan-method-arrow" aria-hidden="true">${I.arrowR()}</span>
+          </button>
+          <button class="scan-method" id="pileScanPhoto" type="button">
+            <span class="scan-method-icon scan-method-icon--photo">${I.camera()}</span>
+            <span class="scan-method-copy"><strong>Identify from photo</strong><small>For built, loose, or boxed sets</small></span>
+            <span class="scan-method-arrow" aria-hidden="true">${I.arrowR()}</span>
+          </button>
         </div>
-        <div class="scan-cta-arrow">${I.arrowR()}</div>
-      </button>
 
-      <button class="scan-cta" id="pileScanPhoto">
-        <div class="scan-cta-icon">${I.camera()}</div>
-        <div class="scan-cta-text">
-          <div class="t1">Photo scan</div>
-          <div class="t2">Barcode is free · photo ID uses cloud or on-device AI</div>
-        </div>
-        <div class="scan-cta-arrow">${I.arrowR()}</div>
-      </button>
+        <form class="scan-manual-lookup" id="pileManualForm" novalidate>
+          <label for="pileManualInput">Set number or barcode</label>
+          <div class="scan-manual-lookup-row">
+            <input id="pileManualInput" type="text" inputmode="search" autocomplete="off" spellcheck="false" placeholder="71043-1 or UPC">
+            <button id="pileManualSubmit" type="submit" aria-label="Look up set">${I.search({ w: 19, h: 19 })}<span>Look up</span></button>
+          </div>
+          <p class="scan-manual-error" id="pileManualError" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <p class="scan-privacy-note">Photo identification uses your selected AI provider. Images are processed only to identify the set.</p>
     </div>`;
 
-  const markSeen = () => { try { localStorage.setItem("bv_scan_intro_seen", "1"); } catch { /* storage unavailable */ } };
-  const dismissIntro = () => { markSeen(); $("#scanIntro")?.remove(); };
-  $("#scanIntroClose")?.addEventListener("click", dismissIntro);
-  $("#scanIntroGotIt")?.addEventListener("click", () => { dismissIntro(); openScan("barcode"); });
-  $("#pileScanBarcode")?.addEventListener("click", () => { markSeen(); openScan("barcode"); });
-  $("#pileScanPhoto")?.addEventListener("click", () => { markSeen(); openScan("image"); });
-
-  // Once the one-time intro has been seen, tapping Scan goes STRAIGHT to the
-  // barcode scanner. The two buttons stay behind it as a fallback for when the
-  // scanner is closed. (Deferred so the overlay opens after the page paints and
-  // after the router's closeScan() on entry.)
-  if (introSeen) {
-    requestAnimationFrame(() => { if (location.hash === "#/pile") openScan("barcode"); });
-  }
+  $("#pileScanBarcode")?.addEventListener("click", () => openScan("barcode"));
+  $("#pileScanPhoto")?.addEventListener("click", () => openScan("image"));
+  $("#pileManualForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const input = $("#pileManualInput");
+    const submit = $("#pileManualSubmit");
+    const error = $("#pileManualError");
+    if (error) error.textContent = "";
+    if (submit) submit.disabled = true;
+    try {
+      await lookupScanInput(input?.value || "");
+    } catch (e) {
+      if (error) error.textContent = e.message || "Check the number and try again.";
+      input?.focus();
+    } finally {
+      if (submit) submit.disabled = false;
+    }
+  });
 }

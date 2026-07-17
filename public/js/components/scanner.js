@@ -3,7 +3,7 @@ import { state, invalidatePortfolio } from '../state.js';
 import { api, outboxEnqueue, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from './sheet.js';
-import { computeDealScore as computeDealScorePure, marketValueForCondition, flipEconomics, classifyScanFailure } from '../lib/pure.js';
+import { computeDealScore as computeDealScorePure, marketValueForCondition, flipEconomics, classifyScanFailure, manualScanTarget } from '../lib/pure.js';
 import { checkGemma3Downloaded, runLocalVisionScan, isWebGpuAvailable } from '../lib/local-ai.js';
 import { flipCalcHTML } from './flip-calc.js';
 import { isNativeCapacitor } from '../lib/native-auth.js';
@@ -109,7 +109,7 @@ function showScanLoading(label = "Identifying...", detail = "This can take up to
     </div>`;
 }
 
-export function openScan(mode = "barcode") {
+export function openScan(mode = "barcode", { deferStart = false } = {}) {
   state.camera.mode = mode;
   const ov = $("#scanOverlay");
   ov.innerHTML = scanOverlayHTML(mode);
@@ -160,7 +160,7 @@ export function openScan(mode = "barcode") {
     }
   }
 
-  startCamera();
+  if (!deferStart) startCamera();
 }
 
 export function closeScan() {
@@ -241,8 +241,8 @@ export async function startCamera() {
 
 // Native ML Kit barcode flow (installed app). Launches the full-screen native
 // scanner and routes the result through the same lookup path as the web
-// detector; on cancel it offers a rescan CTA + manual entry (and the Barcode
-// toggle re-enters here). No getUserMedia loop — ML Kit owns the camera.
+// detector. Cancelling returns to the Scan route's method picker. No
+// getUserMedia loop — ML Kit owns the camera.
 async function runNativeBarcodeScan() {
   // Release any getUserMedia stream first (e.g. after switching from Photo
   // mode) so ML Kit's scanner can acquire the camera — otherwise scan() fails
@@ -267,9 +267,10 @@ async function runNativeBarcodeScan() {
     routeScannedCode(code);
     return;
   }
-  if (hint) hint.textContent = "Tap to scan a barcode, or type the digits below";
-  ensureNativeRescanButton();
-  showManualBarcodeEntry();
+  // Cancellation is navigation, not an error state. Return to the Scan route's
+  // method picker instead of revealing a second, redundant scanner screen.
+  closeScan();
+  requestAnimationFrame(() => $("#pileScanBarcode")?.focus());
 }
 
 function ensureNativeRescanButton() {
@@ -321,17 +322,10 @@ function showManualBarcodeEntry() {
       }
       haptic("medium");
       hint.textContent = "Looking up catalog...";
-      const setNum = manualSetNumber(raw);
-      if (setNum) {
-        await sendManualSetLookup(setNum);
-      } else {
-        const digits = raw.replace(/\D/g, "");
-        if (digits.length < 8) {
-          hint.textContent = "Use a set number like 71043-1, or a barcode with at least 8 digits";
-          return;
-        }
-        routeScannedCode(digits);
-      }
+      const target = manualScanTarget(raw);
+      if (target.kind === "set") await sendManualSetLookup(target.value);
+      else if (target.kind === "barcode") routeScannedCode(target.value);
+      else hint.textContent = "Use a set number like 71043-1, or a barcode with at least 8 digits";
     };
     $("#manualBarcodeGo")?.addEventListener("click", submit);
     $("#manualBarcodeInput")?.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
@@ -363,13 +357,6 @@ function showManualBarcodeEntry() {
   $("#manualBarcodeInput")?.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
 }
 
-function manualSetNumber(value) {
-  const raw = String(value || "").trim().toUpperCase();
-  if (/^\d{3,7}-\d+$/.test(raw)) return raw;
-  if (/^\d{3,7}$/.test(raw)) return `${raw}-1`;
-  return "";
-}
-
 async function sendManualSetLookup(setNum) {
   setScanPending(true);
   showScanLoading("Finding set...", `Looking up ${setNum} in the catalog.`);
@@ -386,6 +373,23 @@ async function sendManualSetLookup(setNum) {
   } finally {
     setScanPending(false);
   }
+}
+
+export async function lookupScanInput(value) {
+  const target = manualScanTarget(value);
+  if (target.kind === "invalid") {
+    throw new Error("Enter a set number such as 71043-1, or a barcode with at least 8 digits.");
+  }
+  if (target.kind === "set") {
+    location.hash = `#/set/${encodeURIComponent(target.value)}`;
+    return target;
+  }
+
+  openScan("barcode", { deferStart: true });
+  const hint = $("#scanHint");
+  if (hint) hint.textContent = "Looking up barcode...";
+  await routeScannedCode(target.value);
+  return target;
 }
 
 async function scanBarcode() {

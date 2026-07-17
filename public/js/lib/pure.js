@@ -291,6 +291,18 @@ export function valuationTrust(set = {}) {
   return { tone: "ok", label: "Market price", detail: "Fresh price from a market source.", confidence, freshness, source };
 }
 
+// Normalize the scanner's manual-entry field without coupling the Scan route
+// to camera/UI code. A bare LEGO number means the standard -1 variant; longer
+// digit-only values are treated as retail barcodes.
+export function manualScanTarget(value) {
+  const raw = String(value || '').trim().toUpperCase();
+  if (/^\d{3,7}-\d+$/.test(raw)) return { kind: 'set', value: raw };
+  if (/^\d{3,7}$/.test(raw)) return { kind: 'set', value: `${raw}-1` };
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length >= 8) return { kind: 'barcode', value: digits };
+  return { kind: 'invalid', value: '' };
+}
+
 export function catalogFilterSummary(filter = {}) {
   const parts = [];
   if (filter.catalogQ) parts.push(`Search "${filter.catalogQ}"`);

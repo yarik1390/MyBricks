@@ -93,12 +93,17 @@ function setupImageHydration() {
   }, true);
   document.addEventListener("error", (e) => {
     const img = e.target;
-    if (img instanceof HTMLImageElement && img.classList.contains("set-photo")) {
+    if (!(img instanceof HTMLImageElement)) return;
+    // installImageFallback runs first and may have just swapped the failed
+    // transformations URL for the Worker proxy or source CDN. Keep the element
+    // alive until that retry succeeds or reaches the final `failed` stage.
+    if (img.dataset.imgFb === "worker" || img.dataset.imgFb === "cdn") return;
+    if (img.classList.contains("set-photo")) {
       // Drop the broken photo so the brick-tile placeholder shows through
       // instead of a broken-image glyph.
       img.remove();
     }
-    if (img instanceof HTMLImageElement && img.classList.contains("fig-photo")) {
+    if (img.classList.contains("fig-photo")) {
       img.remove();
     }
   }, true);

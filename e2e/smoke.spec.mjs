@@ -25,6 +25,20 @@ test('catalog ("Find a set") renders search results', async ({ page }) => {
   await expect(page.locator('#catalogCount')).toContainText('1 result');
 });
 
+test('scan route waits for a method choice and accepts a manual set number', async ({ page }) => {
+  await page.goto('/#/pile', { waitUntil: 'domcontentloaded' });
+
+  await expect(page.locator('.scan-choice')).toBeVisible();
+  await expect(page.locator('#pileScanBarcode')).toBeVisible();
+  await expect(page.locator('#pileScanPhoto')).toBeVisible();
+  await expect(page.locator('#scanOverlay')).not.toHaveClass(/open/);
+
+  await page.locator('#pileManualInput').fill('75192');
+  await page.locator('#pileManualSubmit').click();
+  await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/set/75192-1');
+  await expect(page.getByText('Millennium Falcon').first()).toBeVisible();
+});
+
 test('compact catalog rows reflow long labels without horizontal clipping', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => localStorage.setItem('bv_compact_view', 'true'));
