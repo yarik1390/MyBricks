@@ -1984,6 +1984,7 @@ body[data-route="set-detail"] #toast {
   flex-direction: column;
 }
 #scanOverlay.open { display: flex; animation: fadeIn 0.2s; }
+#scanOverlay.open.native-handoff { display: none; animation: none; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .scan-video-wrap {
   position: relative; flex: 1; overflow: hidden;

@@ -39,6 +39,34 @@ test('scan route waits for a method choice and accepts a manual set number', asy
   await expect(page.getByText('Millennium Falcon').first()).toBeVisible();
 });
 
+test('native barcode cancellation returns to the method picker without a scanner flash', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      getPlatform: () => 'android',
+      Plugins: {
+        BarcodeScanner: {
+          isSupported: async () => ({ supported: true }),
+          isGoogleBarcodeScannerModuleAvailable: async () => ({ available: true }),
+          scan: async () => {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            return { barcodes: [] };
+          },
+        },
+      },
+    };
+  });
+  await page.goto('/#/pile', { waitUntil: 'domcontentloaded' });
+
+  await page.locator('#pileScanBarcode').click();
+  await expect(page.locator('#scanOverlay')).toHaveClass(/native-handoff/);
+  await expect(page.locator('#scanOverlay')).not.toBeVisible();
+  await expect(page.locator('.scan-choice')).toBeVisible();
+
+  await expect(page.locator('#scanOverlay')).not.toHaveClass(/open/);
+  await expect(page.locator('#pileScanBarcode')).toBeFocused();
+});
+
 test('compact catalog rows reflow long labels without horizontal clipping', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => localStorage.setItem('bv_compact_view', 'true'));

@@ -112,6 +112,7 @@ function showScanLoading(label = "Identifying...", detail = "This can take up to
 export function openScan(mode = "barcode", { deferStart = false } = {}) {
   state.camera.mode = mode;
   const ov = $("#scanOverlay");
+  ov.classList.remove("native-handoff");
   ov.innerHTML = scanOverlayHTML(mode);
   ov.classList.add("open");
   document.body.classList.add("scan-active");
@@ -168,7 +169,7 @@ export function closeScan() {
   _scanTrapRelease?.();
   _scanTrapRelease = null;
   document.body.classList.remove("scan-active");
-  $("#scanOverlay").classList.remove("open");
+  $("#scanOverlay").classList.remove("open", "native-handoff");
   $("#scanOverlay").innerHTML = "";
   _scanPending = false;
 }
@@ -252,6 +253,13 @@ async function runNativeBarcodeScan() {
   document.querySelector(".scan-video-wrap")?.classList.add("native-scan");
   const hint = $("#scanHint");
   if (hint) hint.textContent = "Opening scanner…";
+  const overlay = $("#scanOverlay");
+  // Once control passes to ML Kit, reveal the route's method picker underneath.
+  // Android can take a moment to settle the cancelled scan promise after Back;
+  // keeping this WebView overlay hidden prevents the redundant scanner flash.
+  overlay?.classList.add("native-handoff");
+  _scanTrapRelease?.();
+  _scanTrapRelease = null;
   // Give the OS a moment to fully release the camera before ML Kit grabs it.
   await new Promise((r) => setTimeout(r, 200));
   let code = null;
@@ -260,8 +268,10 @@ async function runNativeBarcodeScan() {
     code = await scanBarcodeNative(window);
   } catch { code = null; }
   // The overlay may have been dismissed (back button / swipe) mid-scan.
-  if (!$("#scanOverlay")?.classList.contains("open")) return;
+  if (!overlay?.classList.contains("open")) return;
   if (code) {
+    overlay.classList.remove("native-handoff");
+    _scanTrapRelease = activateFocusTrap(overlay, closeScan);
     haptic("medium");
     if (hint) hint.textContent = state.camera.mode === "blindbox" ? "Finding the series…" : "Looking up barcode…";
     routeScannedCode(code);
