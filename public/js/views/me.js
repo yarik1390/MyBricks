@@ -231,6 +231,8 @@ export async function renderMe() {
         BRICKSVAULT · STACK SOMETHING BEAUTIFUL
       </div>
       <div style="text-align:center;margin-top:16px;font-size:12px;">
+        <a href="/methodology.html" style="color:var(--ink-mute);text-decoration:underline;">How We Price</a>
+        <span style="color:var(--ink-faint);">·</span>
         <a href="/privacy.html" style="color:var(--ink-mute);text-decoration:underline;">Privacy Policy</a>
         <span style="color:var(--ink-mute);margin:0 8px;">·</span>
         <a href="/terms.html" style="color:var(--ink-mute);text-decoration:underline;">Terms of Service</a>

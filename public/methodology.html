@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="index,follow">
+<title>How We Price — BricksVault</title>
+<meta name="description" content="How BricksVault computes LEGO set values: verified identities, independent market families, confidence tiers, and honest gaps instead of guesses.">
+<style>
+  :root { --bg:#F5F1E8; --ink:#26231d; --ink-mute:#6b6455; --line:#e3ddcf; --accent:#b9821f; --up:#2c7a4b; --down:#b3402a; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.65; font-size:16px; }
+  .wrap { max-width:720px; margin:0 auto; padding:32px 22px 80px; }
+  a { color:var(--accent); }
+  .top { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:28px; padding-bottom:16px; border-bottom:1px solid var(--line); }
+  .brand { font-family:Georgia,"Times New Roman",serif; font-size:22px; font-weight:600; }
+  .back { font-size:13px; text-decoration:none; }
+  h1 { font-family:Georgia,"Times New Roman",serif; font-size:30px; font-weight:600; margin:0 0 6px; }
+  h2 { font-family:Georgia,"Times New Roman",serif; font-size:20px; font-weight:600; margin:34px 0 10px; }
+  .updated { color:var(--ink-mute); font-size:13px; margin-bottom:8px; }
+  p, li { color:var(--ink); }
+  ul, ol { padding-left:20px; }
+  li { margin:6px 0; }
+  .muted { color:var(--ink-mute); font-size:14px; }
+  .callout { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:18px 0; font-size:15px; }
+  .tier { display:inline-block; border:1px solid; border-radius:999px; padding:1px 10px; font-size:12px; font-weight:700; letter-spacing:.03em; }
+  .tier.high { color:var(--up); border-color:var(--up); }
+  .tier.med { color:var(--accent); border-color:var(--accent); }
+  .tier.low { color:var(--down); border-color:var(--down); }
+  table { border-collapse:collapse; width:100%; font-size:14px; margin:14px 0; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-mute); }
+  footer { margin-top:48px; padding-top:16px; border-top:1px solid var(--line); font-size:13px; color:var(--ink-mute); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <span class="brand">BricksVault</span>
+    <a class="back" href="/">← Back to app</a>
+  </div>
+
+  <h1>How we price LEGO sets</h1>
+  <p class="updated">The rules behind every number in the app — no black box.</p>
+
+  <p>Most price guides show you one number and ask you to trust it. We'd rather
+  show you how the number is made, what it's based on, and — when the evidence
+  isn't good enough — say so instead of guessing.</p>
+
+  <div class="callout"><strong>The one-sentence version:</strong> a set's value is a
+  weighted median of <em>verified, recent, sold</em> prices from independent
+  markets — and if we don't have that, we tell you exactly what we have instead.</div>
+
+  <h2>Five numbers, five different jobs</h2>
+  <p>A single "value" hides too much. Each set page separates:</p>
+  <ol>
+    <li><strong>Market value</strong> — what it actually resells for, split by condition (new &amp; sealed vs used &amp; complete).</li>
+    <li><strong>Sell now</strong> — a fast-sale estimate after marketplace fees and a liquidity haircut.</li>
+    <li><strong>Buy now</strong> — today's real retail offer, never mixed into resale value.</li>
+    <li><strong>Part out</strong> — the parts-and-minifigs value, shown only when piece coverage is high enough to be honest.</li>
+    <li><strong>Forecast</strong> — bear/base/bull scenarios, unlocked only after at least 180 days and 12 observations of real history.</li>
+  </ol>
+
+  <h2>Identity before price</h2>
+  <p>The most common price-guide error isn't a wrong price — it's the right price
+  for the <em>wrong item</em> (a re-release, a minifig-only lot, a similar set
+  number). Every source record must pass an identity check before its price can
+  touch a valuation. Unverified matches are quarantined, visible to us, and
+  ignored by the math.</p>
+
+  <h2>Independent sources, counted honestly</h2>
+  <p>Two feeds that watch the same marketplace are one source, not two. We
+  collapse every signal into <em>provider families</em> (for example, everything
+  that ultimately observes eBay counts once), so agreement between "two sources"
+  always means genuinely independent markets agreeing.</p>
+
+  <h2>Sold beats asking</h2>
+  <p>Sold prices are facts; asking prices are wishes. Sold data leads every
+  valuation. Listing and modeled data may widen the likely range slightly, but
+  they can never move a sold-based headline.</p>
+
+  <h2>Confidence you can see</h2>
+  <table>
+    <tr><th>Badge</th><th>What it means</th></tr>
+    <tr><td><span class="tier high">Reliable price</span></td><td>Two or more independent families of fresh sold data agree within a tight band.</td></tr>
+    <tr><td><span class="tier med">Good estimate</span></td><td>Recent sold evidence supports the number, but from fewer markets or with more spread.</td></tr>
+    <tr><td><span class="tier low">Low confidence / Estimated</span></td><td>Evidence is limited, stale, or conflicting — treat the range, not the headline, as the answer.</td></tr>
+  </table>
+  <p>Every value carries its evidence: how many independent families, how many
+  verified sales, the likely range, and when it was last checked.</p>
+
+  <h2>Watchdogs run every night</h2>
+  <ul>
+    <li>Overnight value jumps of ±40% on any set are flagged and reviewed — automatically resolved only when the market genuinely confirms them.</li>
+    <li>A scraped price that disagrees with the set's corroborated value by more than 3× is rejected, not averaged in.</li>
+    <li>Sole-source outliers (one marketplace, no corroboration) can't overwrite a value that history contradicts.</li>
+  </ul>
+
+  <h2>What we won't do</h2>
+  <ul>
+    <li>No invented numbers: a set without enough verified evidence says <em>"not enough verified data"</em> — we think that's more useful than a guess.</li>
+    <li>No mixing retail offers into resale value.</li>
+    <li>No five-year forecasts. Nobody can forecast LEGO prices five years out; pretending otherwise would poison your trust in every other number.</li>
+  </ul>
+
+  <footer>
+    Questions or a price that looks wrong? Use <em>Suggest a fix</em> on any set
+    page — corrections feed the same verification pipeline.
+    · <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a>
+  </footer>
+</div>
+</body>
+</html>
