@@ -643,3 +643,5 @@ CREATE INDEX IF NOT EXISTS idx_pricing_anomalies_open ON pricing_anomalies(statu
 CREATE TABLE IF NOT EXISTS amazon_product_map (set_num TEXT NOT NULL, market TEXT NOT NULL, asin TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'quarantined', match_method TEXT, match_confidence REAL NOT NULL DEFAULT 0, checked_at TEXT, PRIMARY KEY (set_num, market), UNIQUE (market, asin));
 CREATE TABLE IF NOT EXISTS pricing_write_ledger (day TEXT NOT NULL, job TEXT NOT NULL, rows_written INTEGER NOT NULL DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (day, job));
 ALTER TABLE user_prefs ADD COLUMN retail_market TEXT DEFAULT 'FR';
+ALTER TABLE user_collection ADD COLUMN sold_price REAL;
+ALTER TABLE user_collection ADD COLUMN sold_at DATE;

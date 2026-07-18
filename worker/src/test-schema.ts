@@ -187,6 +187,18 @@ export const TABLE_DDL: Record<string, string> = {
   PRIMARY KEY (set_num, market), UNIQUE (market, asin)
 )`,
 
+  community_comps: `CREATE TABLE IF NOT EXISTS community_comps (
+  set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
+  condition TEXT NOT NULL CHECK(condition IN ('new_sealed','used_complete')),
+  median REAL NOT NULL,
+  p25 REAL,
+  p75 REAL,
+  sample_count INTEGER NOT NULL,
+  contributor_count INTEGER NOT NULL,
+  window_days INTEGER NOT NULL DEFAULT 365,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (set_num, condition)
+)`,
   pricing_write_ledger: `CREATE TABLE IF NOT EXISTS pricing_write_ledger (
   day TEXT NOT NULL, job TEXT NOT NULL, rows_written INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (day, job)
@@ -210,6 +222,8 @@ export const TABLE_DDL: Record<string, string> = {
   missing_pieces INTEGER DEFAULT 0,
   spike_alerted_at TEXT,
   custom_image_url TEXT,
+  sold_price REAL,
+  sold_at DATE,
   UNIQUE(user_id, set_num)
 )`,
 

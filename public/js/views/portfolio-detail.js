@@ -1,11 +1,11 @@
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML } from './portfolio-detail-market.js';
-import { computeDealScore, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel } from '../lib/pure.js';
+import { computeDealScore, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { shareContent } from '../lib/native-share.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
-import { showSheet, hideSheet, confirmSheet } from '../components/sheet.js';
+import { showSheet, hideSheet, confirmSheet, promptSheet } from '../components/sheet.js';
 import { go } from '../router.js';
 import { skelDetail } from '../components/skeleton.js';
 import { flipCalcHTML } from '../components/flip-calc.js';
@@ -1006,7 +1006,8 @@ function manageTabHTML(set, entry) {
       <div id="photoUploadStatus" style="font-size:11px;color:var(--ink-mute);margin-top:6px;display:none;"></div>
     </div>
 
-      <button class="btn-danger" id="mRemove" style="margin-top:14px;">${I.trash()}<span>Remove from vault</span></button>
+      <button class="btn-secondary" id="mSold" style="margin-top:14px;">${I.tag()}<span>Mark as sold…</span></button>
+      <button class="btn-danger" id="mRemove" style="margin-top:8px;">${I.trash()}<span>Remove from vault</span></button>
       <button class="btn-secondary" id="mListSale" style="margin-top:8px;">${I.tag()}<span>List for Sale</span></button>`;
 }
 
@@ -1114,6 +1115,28 @@ function wireManageTab(set, entry) {
         go("#/");
       } else { toast("Error: " + e.message, "error"); }
     }
+  });
+  $("#mSold")?.addEventListener("click", async () => {
+    // Records the real sale price (feeds the anonymized community comps) and
+    // removes the set from the vault in one step.
+    const raw = await promptSheet({
+      title: "Mark as sold",
+      label: "What did it sell for? (before fees)",
+      placeholder: "e.g. 189.99",
+      confirmLabel: "Mark sold",
+    });
+    if (raw == null) return;
+    const price = sanitizeMoneyInput(String(raw));
+    if (price == null || price <= 0) { toast("Enter the sale price as a number", "error"); return; }
+    haptic("heavy");
+    try {
+      await api("/api/collection/sell", { method: "POST", body: { set_num: set.set_num, sold_price: price } });
+      invalidatePortfolio();
+      delete state.detail.cache[set.set_num];
+      markSetOwned(set.set_num, false);
+      toast(`Sold for ${fmtMoney(price)} — removed from vault`, "success");
+      go("#/");
+    } catch (e) { toast("Error: " + e.message, "error"); }
   });
   $("#mListSale")?.addEventListener("click", () => showListingSheet(set, entry));
 

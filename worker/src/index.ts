@@ -42,6 +42,7 @@ import { runDbHygiene } from './jobs/db-hygiene';
 import { runAmazonOffers } from './jobs/amazon-offers';
 import { runPriceChartingVerify } from './jobs/pricecharting-verify';
 import { runPriceChartingEnrich } from './jobs/pricecharting-enrich';
+import { runCommunityComps } from './jobs/community-comps';
 import { runPriceChartingBulkFetch } from './jobs/pricecharting-bulk';
 import { importSets, importFigs } from './jobs/import-catalog';
 import { runBrickInsightsBackfill } from './jobs/brickinsights';
@@ -463,6 +464,7 @@ export default {
       case '30 16 * * *': await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 })); break;
       case '0 17 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 19 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
+      case '0 22 * * *': await run('community-comps', () => runCommunityComps(env)); break;
       case '0 23 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       // AI gap-fill: high-value formula sets that NO market source can price get a
       // free Gemini estimate (tries market first, AI only on a full miss). Small

@@ -434,6 +434,32 @@ app.get('/history', async (c) => {
 });
 
 // POST /api/collection/import
+// POST /api/collection/sell — record what a set actually SOLD for, then
+// soft-delete it from the vault. Sale prices feed the first-party community
+// comps (anonymized, k-gated aggregates), so this is both a vault action and
+// a data contribution.
+app.post('/sell', async (c) => {
+  const userId = c.get('userId');
+  const body = await c.req.json<{ set_num?: string; sold_price?: number; sold_at?: string }>().catch(() => ({} as Record<string, never>));
+  const { set_num, sold_price } = body;
+  if (!set_num) return c.json({ error: 'set_num required' }, 400);
+  if (typeof sold_price !== 'number' || !Number.isFinite(sold_price) || sold_price <= 0) {
+    return c.json({ error: 'sold_price must be a number > 0' }, 400);
+  }
+  const sold_at = body.sold_at ?? new Date().toISOString().slice(0, 10);
+  if (typeof sold_at !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(sold_at) || Number.isNaN(Date.parse(sold_at))) {
+    return c.json({ error: 'sold_at must be a valid YYYY-MM-DD date string' }, 400);
+  }
+  const res = await c.env.DB.prepare(`
+    UPDATE user_collection
+    SET sold_price=?, sold_at=?, deleted_at=datetime('now'), last_modified=datetime('now')
+    WHERE user_id=? AND set_num=? AND deleted_at IS NULL
+  `).bind(sold_price, sold_at, userId, set_num).run();
+  if (!res.meta.changes) return c.json({ error: 'Set not in your vault' }, 404);
+  logEvent(c.env, 'set_sold', userId, { setNum: set_num });
+  return c.json({ ok: true, set_num, sold_price, sold_at });
+});
+
 app.post('/import', async (c) => {
   const userId = c.get('userId');
   const body = await c.req.json<{ rows?: unknown[]; overwrite?: boolean }>();

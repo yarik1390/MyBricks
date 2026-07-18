@@ -291,7 +291,26 @@ CREATE TABLE IF NOT EXISTS user_collection (
   missing_pieces INTEGER DEFAULT 0,
   spike_alerted_at TEXT,
   custom_image_url TEXT,
+  sold_price REAL,
+  sold_at DATE,
   UNIQUE(user_id, set_num)
+);
+
+-- First-party community comps: anonymized aggregates of what collectors
+-- actually paid/sold for, per set + condition bucket. Written nightly by the
+-- community-comps job (k>=5 distinct contributors, outlier-trimmed). Read-side
+-- integration into the blend comes later (v3 dual-write discipline).
+CREATE TABLE IF NOT EXISTS community_comps (
+  set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
+  condition TEXT NOT NULL CHECK(condition IN ('new_sealed','used_complete')),
+  median REAL NOT NULL,
+  p25 REAL,
+  p75 REAL,
+  sample_count INTEGER NOT NULL,
+  contributor_count INTEGER NOT NULL,
+  window_days INTEGER NOT NULL DEFAULT 365,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (set_num, condition)
 );
 
 CREATE TABLE IF NOT EXISTS minifigs (

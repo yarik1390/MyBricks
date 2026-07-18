@@ -3,6 +3,7 @@ import type { Env } from '../types';
 export type AnalyticsEvent =
   | 'set_viewed'
   | 'set_added'
+  | 'set_sold'
   | 'set_removed'
   | 'valuation_triggered'
   | 'advisor_used'
