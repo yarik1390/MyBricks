@@ -58,23 +58,28 @@ export async function runEbaySoldScrape(
   // Firecrawl is metered by its own per-scrape guard (5cr/json extract) inside
   // firecrawlScrape, so size to remaining daily credits WITHOUT reserving — a
   // double reservation here would make the admin Firecrawl credits panel
-  // over-report. Bright Data has no in-scrape meter, so it still books up front.
-  let effLimit: number;
+  // over-report. Bright Data has no in-scrape meter; it books AFTER the
+  // negative-cache filter below, so KV-skipped sets never debit the ledger.
+  let capLimit: number;
   if (useFirecrawl) {
     const remaining = await quotaRemaining(env, 'firecrawl');
     if (remaining < 5) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
-    effLimit = Math.min(limit, Math.floor(remaining / 5));
+    capLimit = Math.min(limit, Math.floor(remaining / 5));
   } else {
-    // Confirm a live (non-exhausted) key exists BEFORE reserving the daily quota,
-    // so a fully-exhausted/broken pool doesn't debit the api_quota ledger for a
-    // run that will make zero HTTP calls (which inflated the admin usage panel).
+    // Confirm a live (non-exhausted) key exists BEFORE any selection work, so a
+    // fully-exhausted/broken pool doesn't debit the api_quota ledger for a run
+    // that will make zero HTTP calls (which inflated the admin usage panel).
     const live = await pickKey(env);
     if (!live) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'brightdata: all keys exhausted this month' };
-    effLimit = (await reserveQuota(env, { brightdata: limit })).brightdata ?? 0;
-    if (effLimit <= 0) return { processed: 0, updated: 0, rejected: 0, limit, skipped: 'brightdata quota spent' };
+    capLimit = limit;
   }
 
-  const { results } = await env.DB.prepare(`
+  // Over-select 2x, then drop sets in the KV negative cache (recent no-data /
+  // divergence / provider error). Without this, the freshness ordering below
+  // pins perennial failures to the queue front forever: they never get an
+  // ebay_new_cached_at stamp (deliberately — stamping absent data would make it
+  // look fresh to the blend), so they'd out-sort every new candidate each run.
+  const { results: candidates } = await env.DB.prepare(`
     SELECT ls.set_num, ls.name, ls.bl_new_value, ls.current_value
     FROM lego_sets ls
     WHERE (ls.bl_new_value IS NOT NULL OR ls.valuation_method = 'brickeconomy')
@@ -88,8 +93,30 @@ export async function runEbaySoldScrape(
       COALESCE(ls.ebay_new_cached_at, '2000-01-01') ASC,
       ls.set_num ASC
     LIMIT ?
-  `).bind(effLimit).all<{ set_num: string; name: string; bl_new_value: number | null; current_value: number | null }>();
-  if (!results.length) return { processed: 0, updated: 0, rejected: 0, limit: effLimit };
+  `).bind(capLimit * 2).all<{ set_num: string; name: string; bl_new_value: number | null; current_value: number | null }>();
+
+  const kv = env.CACHE_KV;
+  const skipKey = (setNum: string) => `ebay-sold:skip:${setNum}`;
+  const filtered: typeof candidates = [];
+  for (let i = 0; i < candidates.length && filtered.length < capLimit; i += 20) {
+    const wave = candidates.slice(i, i + 20);
+    const skips = kv
+      ? await Promise.all(wave.map((s) => kv.get(skipKey(s.set_num)).catch(() => null)))
+      : wave.map(() => null);
+    for (let j = 0; j < wave.length && filtered.length < capLimit; j++) {
+      if (!skips[j]) filtered.push(wave[j]);
+    }
+  }
+  if (!filtered.length) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: candidates.length ? 'all candidates negative-cached' : undefined };
+
+  // Reserve Bright Data quota for what will ACTUALLY be scraped.
+  let results = filtered;
+  let effLimit = filtered.length;
+  if (!useFirecrawl) {
+    effLimit = (await reserveQuota(env, { brightdata: filtered.length })).brightdata ?? 0;
+    if (effLimit <= 0) return { processed: 0, updated: 0, rejected: 0, limit, skipped: 'brightdata quota spent' };
+    results = filtered.slice(0, effLimit);
+  }
 
   const concurrency = Math.max(1, Math.min(options.concurrency ?? 5, 8));
   let updated = 0;
@@ -98,6 +125,23 @@ export async function runEbaySoldScrape(
   const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
   const stmts: D1PreparedStatement[] = [];
   const touched: string[] = [];
+
+  // Negative-cache writes. A KV key — NOT an ebay_new_cached_at stamp — because
+  // stamping would make absent data look fresh to the blend's freshness checks.
+  // no_data / divergence get a long cooldown; provider errors a short one.
+  const negCache = (setNum: string, reason: 'no_data' | 'diverged' | 'err') =>
+    kv?.put(skipKey(setNum), reason, { expirationTtl: (reason === 'err' ? 2 : 14) * 86_400 }).catch(() => {});
+
+  // Incremental persistence: flush accumulated writes + re-blend as we go, so a
+  // dying invocation (the "stale: invocation ended" cron_runs rows) keeps every
+  // completed wave instead of losing the whole run's work.
+  const flush = async () => {
+    if (!stmts.length && !touched.length) return;
+    const s = stmts.splice(0);
+    const t = touched.splice(0);
+    for (let j = 0; j < s.length; j += 90) await env.DB.batch(s.slice(j, j + 90));
+    if (t.length) await recomputeBlendedValues(env.DB, t);
+  };
 
   for (let i = 0; i < results.length; i += concurrency) {
     const batch = results.slice(i, i + concurrency);
@@ -114,6 +158,9 @@ export async function runEbaySoldScrape(
       if (r.status === 'ok' || r.status === 'no_data') health.ok++;
       else { health.fail++; if (r.error) health.lastError = r.error; }
 
+      if (r.status === 'no_data') await negCache(set.set_num, 'no_data');
+      else if (r.status !== 'ok') await negCache(set.set_num, 'err');
+
       if (r.status === 'ok' && r.new_value != null) {
         // Corroboration gate: accept only if within 3x of the existing
         // BrickLink/BrickEconomy value, so a polluted scrape can't skew a blend.
@@ -128,6 +175,7 @@ export async function runEbaySoldScrape(
           updated++;
         } else {
           rejected++;
+          await negCache(set.set_num, 'diverged');
           stmts.push(env.DB.prepare(`
             INSERT INTO pricing_anomalies (
               anomaly_key, set_num, condition, source, anomaly_type, severity,
@@ -143,10 +191,10 @@ export async function runEbaySoldScrape(
         }
       }
     }
+    if (stmts.length >= 90) await flush();
   }
 
-  for (let i = 0; i < stmts.length; i += 90) await env.DB.batch(stmts.slice(i, i + 90));
-  if (touched.length) await recomputeBlendedValues(env.DB, touched);
+  await flush();
   // Firecrawl self-records each scrape attempt inside firecrawlScrape, so only
   // the Bright Data path (which doesn't self-record) needs the aggregate write —
   // writing it for Firecrawl too would double-count and clobber the real error.

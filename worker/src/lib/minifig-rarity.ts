@@ -29,3 +29,21 @@ export function computeMinifigRarity(
   if (v >= 6 || semiExclusive) return 'uncommon';
   return 'common';
 }
+
+// Plausibility guard for an eBay-ONLY minifig value (no BrickLink to
+// corroborate). Firecrawl's eBay extraction occasionally returns a wild outlier
+// (wrong listing matched, lot auctions, etc.) — with no second source, that
+// number must not become the fig's market value unchecked. Accept modest values
+// outright, or anything within 3x of the fig's OWN previous value (its history
+// acts as the corroborating source). The BrickLink-corroborated path is
+// deliberately untouched and uncapped.
+export function plausibleEbayOnlyFigValue(
+  value: number,
+  { prior }: { prior?: number | null } = {},
+): boolean {
+  if (!Number.isFinite(value) || value <= 0) return false;
+  if (value <= 150) return true;
+  const p = Number(prior);
+  if (Number.isFinite(p) && p > 0) return value >= p / 3 && value <= p * 3;
+  return false;
+}

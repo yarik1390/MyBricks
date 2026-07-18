@@ -3,7 +3,7 @@ import { fetchMinifigPricing } from '../lib/bricklink';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 import { fetchMinifigEbaySoldViaFirecrawl } from '../lib/ebay-firecrawl';
 import { normalizeMinifigName, resolveBlId } from '../lib/bricklink-minifigs';
-import { computeMinifigRarity } from '../lib/minifig-rarity';
+import { computeMinifigRarity, plausibleEbayOnlyFigValue } from '../lib/minifig-rarity';
 import { reserveQuota } from '../lib/api-quota';
 
 export async function runValuateMinifigs(env: Env, options: { limit?: number } = {}): Promise<number> {
@@ -28,7 +28,7 @@ export async function runValuateMinifigs(env: Env, options: { limit?: number } =
       WHERE ls.theme = 'Collectible Minifigures'
     ),
     owned AS (SELECT DISTINCT fig_num FROM user_minifigs)
-    SELECT m.fig_num, m.name, m.appears_in_sets, m.bl_id, m.year,
+    SELECT m.fig_num, m.name, m.appears_in_sets, m.bl_id, m.year, m.current_value,
       (CASE
         WHEN m.fig_num IN (SELECT fig_num FROM owned) THEN 0
         WHEN COALESCE(m.current_value, 0) >= 10 THEN 1
@@ -45,7 +45,7 @@ export async function runValuateMinifigs(env: Env, options: { limit?: number } =
       )
     ORDER BY priority ASC, COALESCE(m.cached_at, '2000-01-01') ASC, COALESCE(m.appears_in_sets, 0) DESC
     LIMIT ?
-  `).bind(limit).all<{ fig_num: string; name: string; appears_in_sets: number | null; bl_id: string | null; year: number | null; priority: number }>();
+  `).bind(limit).all<{ fig_num: string; name: string; appears_in_sets: number | null; bl_id: string | null; year: number | null; current_value: number | null; priority: number }>();
 
   // Account the BrickLink spend in the daily ledger (advisory — minifig
   // batches are far below the 4,000/day budget, but visibility matters).
@@ -101,10 +101,35 @@ export async function runValuateMinifigs(env: Env, options: { limit?: number } =
       const eb = await fetchMinifigEbaySoldViaFirecrawl(fig.fig_num, fig.name, env).catch(() => null);
       if (eb && eb.status === 'ok' && eb.value != null && eb.value > 0) {
         if (blValue == null) {
-          value = eb.value;          // eBay is the only source
-          ebayValue = eb.value;
-          ebayQty = eb.count;
-          lots = 0;
+          // eBay is the SOLE source — apply the plausibility guard (<= $150, or
+          // within 3x of the fig's own previous value). On rejection: record
+          // the observation + stamp cached_at so the fig doesn't re-queue at
+          // the head of every run, but leave current_value/rarity untouched,
+          // and surface the reject in the admin anomaly panel.
+          if (plausibleEbayOnlyFigValue(eb.value, { prior: fig.current_value })) {
+            value = eb.value;          // eBay is the only source
+            ebayValue = eb.value;
+            ebayQty = eb.count;
+            lots = 0;
+          } else {
+            await env.DB.prepare(`
+              UPDATE minifigs SET ebay_value = ?, ebay_qty = ?, ebay_cached_at = datetime('now'),
+                cached_at = datetime('now')
+              WHERE fig_num = ?
+            `).bind(eb.value, eb.count, fig.fig_num).run().catch(() => {});
+            await env.DB.prepare(`
+              INSERT INTO pricing_anomalies (
+                anomaly_key, set_num, condition, source, anomaly_type, severity,
+                detail_json, status, first_seen_at, last_seen_at
+              ) VALUES (?1, NULL, 'used_complete', 'ebay_sold', 'implausible_solo_value', 'warning', ?2, 'open', datetime('now'), datetime('now'))
+              ON CONFLICT(anomaly_key) DO UPDATE SET
+                detail_json=excluded.detail_json, status='open', last_seen_at=datetime('now'), resolved_at=NULL
+            `).bind(
+              `minifig:${fig.fig_num}:ebay_solo`,
+              JSON.stringify({ fig_num: fig.fig_num, observed: eb.value, prior: fig.current_value ?? null }),
+            ).run().catch(() => {});
+            continue;
+          }
         } else if (eb.value >= blValue / 3 && eb.value <= blValue * 3) {  // corroboration gate
           ebayValue = eb.value;
           ebayQty = eb.count;

@@ -11,7 +11,7 @@ import {
 } from './lib/ebay';
 import { classifyHealth } from './lib/integration-health';
 import { computeRetirementRisk } from './lib/retirement-risk';
-import { computeMinifigRarity } from './lib/minifig-rarity';
+import { computeMinifigRarity, plausibleEbayOnlyFigValue } from './lib/minifig-rarity';
 import { proxyImageUrl, rewriteImages } from './lib/img-proxy';
 import { isSearchIndexCorruption } from './lib/search-index';
 import { formulaValuation, isLikelyRetired, isPlausibleMarketValue } from './lib/valuation';
@@ -1111,3 +1111,31 @@ describe('kids-xp pure helpers', () => {
     expect(await verifyPin('0000', hash)).toBe(false);
   });
 });
+
+describe('plausibleEbayOnlyFigValue (eBay-solo plausibility guard)', () => {
+  it('accepts modest values outright (<= $150 cap)', () => {
+    expect(plausibleEbayOnlyFigValue(25)).toBe(true);
+    expect(plausibleEbayOnlyFigValue(150)).toBe(true);
+    expect(plausibleEbayOnlyFigValue(150, { prior: null })).toBe(true);
+  });
+  it('rejects a big value with no prior to corroborate it', () => {
+    expect(plausibleEbayOnlyFigValue(151)).toBe(false);
+    expect(plausibleEbayOnlyFigValue(900, { prior: null })).toBe(false);
+    expect(plausibleEbayOnlyFigValue(900, { prior: 0 })).toBe(false);
+  });
+  it('accepts a big value inside the prior/3..prior*3 band', () => {
+    expect(plausibleEbayOnlyFigValue(300, { prior: 200 })).toBe(true);   // 1.5x
+    expect(plausibleEbayOnlyFigValue(600, { prior: 200 })).toBe(true);   // exactly 3x
+    expect(plausibleEbayOnlyFigValue(200, { prior: 600 })).toBe(true);   // exactly prior/3
+  });
+  it('rejects a big value outside the prior band', () => {
+    expect(plausibleEbayOnlyFigValue(601, { prior: 200 })).toBe(false);  // just past 3x
+    expect(plausibleEbayOnlyFigValue(160, { prior: 500 })).toBe(false); // below prior/3 (166.7)
+  });
+  it('rejects garbage inputs', () => {
+    expect(plausibleEbayOnlyFigValue(0)).toBe(false);
+    expect(plausibleEbayOnlyFigValue(-5)).toBe(false);
+    expect(plausibleEbayOnlyFigValue(Number.NaN)).toBe(false);
+  });
+});
+
