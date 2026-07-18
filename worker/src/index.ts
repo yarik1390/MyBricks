@@ -32,7 +32,7 @@ import { revenuecatRoute } from './routes/revenuecat';
 
 import { runValuateSets, runValuateMinifigs, runEbayAskBackfill } from './jobs/valuate-sets';
 import { runSnapshotPortfolios } from './jobs/snapshot-portfolios';
-import { runSnapshotSetValues } from './jobs/snapshot-set-values';
+import { runSnapshotSetValues, detectValueMovers } from './jobs/snapshot-set-values';
 import { runModelRefresh } from './jobs/model-refresh';
 import { runPartPriceBackfill } from './jobs/part-price-backfill';
 import { runPartOutCompute } from './jobs/part-out-compute';
@@ -384,6 +384,8 @@ export default {
       case '0 2 * * *': await run('snapshot-portfolios', () => runSnapshotPortfolios(env)); break;
       case '0 3 * * *':
         await run('snapshot-set-values', () => runSnapshotSetValues(env));
+        // Day-over-day movers read today's snapshot, so they run right after it.
+        await run('pricing-movers', () => detectValueMovers(env));
         // Revalidate the OpenRouter free-model pools against the live catalog
         // so the AI cascades stay on free models as availability churns.
         await run('model-refresh', () => runModelRefresh(env));

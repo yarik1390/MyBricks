@@ -120,3 +120,87 @@ export async function runSnapshotSetValues(env: Env) {
 
   return { snapshotted: result.meta.changes ?? 0, v3Snapshotted, figSnapshotted, pruned };
 }
+
+// Day-over-day movers: after the 03:00 snapshot, flag sets whose displayed
+// value jumped >= +40% or fell <= -40% overnight — excluding high-confidence
+// blends, where a real market move is plausible and corroborated. Until now
+// only the eBay-scrape writer had anomaly detection; this watches the OUTPUT
+// (the value users see) regardless of which writer moved it. Rows land in
+// pricing_anomalies, which the admin Pricing Center already renders.
+const MOVER_MIN_PREV = 25;      // ignore penny sets — ratios there are noise
+const MOVER_UP = 1.4;
+const MOVER_DOWN = 0.6;
+const MOVER_SEVERE_UP = 2.5;
+const MOVER_SEVERE_DOWN = 0.4;
+const MOVER_LIMIT = 200;
+
+export async function detectValueMovers(env: Env) {
+  if (!(await pricingWritesAllowed(env.DB))) {
+    return { flagged: 0, resolved: 0, skipped: 'pricing write budget exhausted' };
+  }
+
+  const { results: movers } = await env.DB.prepare(`
+    SELECT t.set_num, y.current_value AS prev, t.current_value AS curr
+    FROM set_value_history t
+    JOIN set_value_history y
+      ON y.set_num = t.set_num AND y.snapshot_date = DATE('now', '-1 day')
+    JOIN lego_sets ls ON ls.set_num = t.set_num
+    WHERE t.snapshot_date = DATE('now')
+      AND y.current_value >= ?1
+      AND t.current_value IS NOT NULL
+      AND (t.current_value >= ?2 * y.current_value OR t.current_value <= ?3 * y.current_value)
+      AND COALESCE(ls.blended_confidence, '') != 'high'
+    ORDER BY MAX(
+      t.current_value / y.current_value,
+      y.current_value / MAX(t.current_value, 0.01)
+    ) DESC
+    LIMIT ?4
+  `).bind(MOVER_MIN_PREV, MOVER_UP, MOVER_DOWN, MOVER_LIMIT)
+    .all<{ set_num: string; prev: number; curr: number }>();
+
+  const stmts: D1PreparedStatement[] = [];
+  for (const m of movers) {
+    const ratio = m.prev > 0 ? m.curr / m.prev : 0;
+    const severe = ratio >= MOVER_SEVERE_UP || ratio <= MOVER_SEVERE_DOWN;
+    stmts.push(env.DB.prepare(`
+      INSERT INTO pricing_anomalies (
+        anomaly_key, set_num, condition, source, anomaly_type, severity,
+        detail_json, status, first_seen_at, last_seen_at
+      ) VALUES (?1, ?2, 'new_sealed', 'blend', 'day_move', ?3, ?4, 'open', datetime('now'), datetime('now'))
+      ON CONFLICT(anomaly_key) DO UPDATE SET
+        severity=excluded.severity, detail_json=excluded.detail_json,
+        status='open', last_seen_at=datetime('now'), resolved_at=NULL
+    `).bind(
+      `blend:${m.set_num}:day_move`,
+      m.set_num,
+      severe ? 'error' : 'warning',
+      JSON.stringify({ prev: m.prev, curr: m.curr, ratio: Math.round(ratio * 100) / 100 }),
+    ));
+  }
+  for (let i = 0; i < stmts.length; i += 90) await env.DB.batch(stmts.slice(i, i + 90));
+
+  // Auto-resolve open day_move rows whose set either reverted to within the
+  // band today or has since earned a high-confidence blend — keeps the panel
+  // showing only live problems without manual triage.
+  const resolved = await env.DB.prepare(`
+    UPDATE pricing_anomalies SET status='resolved', resolved_at=datetime('now')
+    WHERE anomaly_type='day_move' AND status='open'
+      AND (
+        set_num IN (SELECT set_num FROM lego_sets WHERE blended_confidence = 'high')
+        OR set_num IN (
+          SELECT t.set_num
+          FROM set_value_history t
+          JOIN set_value_history y
+            ON y.set_num = t.set_num AND y.snapshot_date = DATE('now', '-1 day')
+          WHERE t.snapshot_date = DATE('now')
+            AND y.current_value > 0 AND t.current_value IS NOT NULL
+            AND t.current_value < ?1 * y.current_value
+            AND t.current_value > ?2 * y.current_value
+        )
+      )
+  `).bind(MOVER_UP, MOVER_DOWN).run().catch(() => null);
+
+  const resolvedCount = Number(resolved?.meta?.changes || 0);
+  await recordPricingWrites(env.DB, 'pricing-movers', movers.length + resolvedCount);
+  return { flagged: movers.length, resolved: resolvedCount };
+}
