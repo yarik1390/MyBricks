@@ -4,7 +4,7 @@ import { sendDiscordAlert } from '../lib/discord';
 import { sendWebPush } from '../lib/webpush';
 import { sendNativePushToUser } from '../lib/firebase-push';
 
-async function sendPushToUser(env: Env, userId: string, payload: string) {
+export async function sendPushToUser(env: Env, userId: string, payload: string) {
   if (env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) {
     const { results } = await env.DB.prepare(
       'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id=?'

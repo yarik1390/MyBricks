@@ -160,7 +160,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       )`,
       `CREATE TABLE user_prefs (
         user_id TEXT PRIMARY KEY, handle TEXT, display_name TEXT, currency TEXT DEFAULT 'USD', retail_market TEXT DEFAULT 'FR',
-        notify_price_drops INTEGER DEFAULT 1, is_public INTEGER NOT NULL DEFAULT 0,
+        notify_price_drops INTEGER DEFAULT 1, notify_weekly_digest INTEGER DEFAULT 0, is_public INTEGER NOT NULL DEFAULT 0,
         expose_public_value INTEGER NOT NULL DEFAULT 1,
         google_refresh_token TEXT, google_spreadsheet_id TEXT,
         email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT,
@@ -1729,7 +1729,7 @@ describe('Kids PIN and XP', () => {
       'DROP TABLE IF EXISTS set_market_ext',
       `CREATE TABLE user_prefs (
         user_id TEXT PRIMARY KEY, handle TEXT, display_name TEXT, currency TEXT DEFAULT 'USD',
-        notify_price_drops INTEGER DEFAULT 1, is_public INTEGER NOT NULL DEFAULT 0,
+        notify_price_drops INTEGER DEFAULT 1, notify_weekly_digest INTEGER DEFAULT 0, is_public INTEGER NOT NULL DEFAULT 0,
         expose_public_value INTEGER NOT NULL DEFAULT 1,
         google_refresh_token TEXT, google_spreadsheet_id TEXT,
         email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT,
@@ -2077,7 +2077,7 @@ describe('RevenueCat webhook', () => {
     await db.prepare('DROP TABLE IF EXISTS user_prefs').run();
     await db.prepare(`CREATE TABLE user_prefs (
       user_id TEXT PRIMARY KEY, handle TEXT, display_name TEXT, currency TEXT DEFAULT 'USD',
-      notify_price_drops INTEGER DEFAULT 1, is_public INTEGER NOT NULL DEFAULT 0,
+      notify_price_drops INTEGER DEFAULT 1, notify_weekly_digest INTEGER DEFAULT 0, is_public INTEGER NOT NULL DEFAULT 0,
       expose_public_value INTEGER NOT NULL DEFAULT 1, email TEXT, discord_webhook_url TEXT,
       brickset_user_hash TEXT, is_supporter INTEGER DEFAULT 0, supporter_since TEXT,
       stripe_customer_id TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP

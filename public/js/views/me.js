@@ -176,6 +176,10 @@ export async function renderMe() {
           <div class="lbl-wrap"><div class="lbl">Price-drop alerts</div><div class="desc">Alert when wishlisted sets hit your target.</div></div>
           <button class="toggle ${me.notify_price_drops ? "on" : ""}" id="notifyToggle" role="switch" aria-label="Price-drop alerts" aria-checked="${!!me.notify_price_drops}"></button>
         </div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Weekly vault digest</div><div class="desc">A Sunday summary: value change, top mover, wishlist hits.</div></div>
+          <button class="toggle ${me.notify_weekly_digest ? "on" : ""}" id="digestToggle" role="switch" aria-label="Weekly vault digest" aria-checked="${!!me.notify_weekly_digest}"></button>
+        </div>
         <div class="setting-row" id="appLockRow" style="display:none;">
           <div class="lbl-wrap"><div class="lbl">App lock</div><div class="desc">Require your fingerprint (or device PIN) to open BricksVault.</div></div>
           <button class="toggle" id="appLockToggle" role="switch" aria-label="App lock" aria-checked="false"></button>
@@ -444,6 +448,17 @@ export async function renderMe() {
     try { await api("/api/me", { method: "PATCH", body: { notify_price_drops: notifyOn } }); state.me = null; }
     catch {}
     toast(notifyOn ? "Alerts on" : "Alerts paused", "info");
+  });
+
+  let digestOn = !!me.notify_weekly_digest;
+  $("#digestToggle")?.addEventListener("click", async (e) => {
+    digestOn = !digestOn;
+    e.currentTarget.classList.toggle("on", digestOn);
+    e.currentTarget.setAttribute("aria-checked", digestOn);
+    haptic("medium");
+    try { await api("/api/me", { method: "PATCH", body: { notify_weekly_digest: digestOn } }); state.me = null; }
+    catch {}
+    toast(digestOn ? "Weekly digest on — first one this Sunday" : "Weekly digest off", "info");
   });
 
   // App lock (biometric) — native only, revealed once biometrics are confirmed

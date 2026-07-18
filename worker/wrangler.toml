@@ -38,6 +38,8 @@ crons = [
   "0 6 * * *",
   "0 0,3,6,9,12,15,18,21 * * *",
   "0 8 * * *",
+  # Weekly vault digest (opt-in). Day-NAME form: Cloudflare rejects numeric 0.
+  "0 8 * * SUN",
   "0 9 * * *",
   "0 10 * * *",
   "0 11 * * *",

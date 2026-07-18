@@ -37,6 +37,7 @@ import { runModelRefresh } from './jobs/model-refresh';
 import { runPartPriceBackfill } from './jobs/part-price-backfill';
 import { runPartOutCompute } from './jobs/part-out-compute';
 import { runWishlistAlerts } from './jobs/wishlist-alerts';
+import { runWeeklyDigest } from './jobs/weekly-digest';
 import { runDailyCatalogMaintenance } from './jobs/catalog-maintenance';
 import { runDbHygiene } from './jobs/db-hygiene';
 import { runAmazonOffers } from './jobs/amazon-offers';
@@ -405,6 +406,7 @@ export default {
         await run('model-refresh', () => runModelRefresh(env));
         break;
       case '0 8 * * *': await run('wishlist-alerts', () => runWishlistAlerts(env)); break;
+      case '0 8 * * SUN': await run('weekly-digest', () => runWeeklyDigest(env)); break;
       // Small UPCitemdb barcode trickle hourly (a few spaced searches/run) — a
       // 2nd barcode source for missing modern retail sets, gentle on the trial's
       // per-window rate limit. Auto-scales if UPCITEMDB_USER_KEY is set.

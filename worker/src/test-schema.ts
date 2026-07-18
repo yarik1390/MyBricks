@@ -279,6 +279,7 @@ export const TABLE_DDL: Record<string, string> = {
   currency TEXT DEFAULT 'USD',
   retail_market TEXT DEFAULT 'FR',
   notify_price_drops INTEGER DEFAULT 1,
+  notify_weekly_digest INTEGER DEFAULT 0,
   is_public INTEGER NOT NULL DEFAULT 0,
   expose_public_value INTEGER DEFAULT 1,
   google_refresh_token TEXT,
