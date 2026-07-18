@@ -67,12 +67,12 @@ crons = [
 # when AI_GATEWAY_ACCOUNT_ID is also present (uploaded as a secret in CI), so this
 # stays dormant until the gateway is provisioned + the account id is wired.
 AI_GATEWAY_ID = "brickvault"
-# Firecrawl daily credit ceiling — steady-state safety cap (guards against a
-# runaway day; actual spend is far lower). The one-time BrickEconomy catalog
-# bootstrap is complete (full year>=2000 sweep; ~67% populated = BrickEconomy's
-# real coverage ceiling), so this is back at the 2000/day default. The manual
-# bootstrap-brickeconomy.yml workflow handles any later gap-fills on demand.
-FIRECRAWL_DAILY_CREDITS = "2000"
+# Firecrawl daily credit ceiling — raised to 5000/day for the eBay-sold
+# coverage burst: the account holds ~158k banked one-time credits while daily
+# spend was ~183, and the scrape job now rescues Bright Data failures through
+# Firecrawl (see ebay-sold-scrape.ts). Drop back to 2000 once the corroborated
+# eBay backfill flattens or the credit packs run down.
+FIRECRAWL_DAILY_CREDITS = "5000"
 # pricesAPI.io live-retail layer opt-in. Non-secret toggle; the actual keys live
 # in the PRICESAPI_API_KEYS secret. Both this AND a key are required for the cron
 # to run (deliberate gate — cold calls are precious). Set to 0 to pause.

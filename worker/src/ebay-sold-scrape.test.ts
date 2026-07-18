@@ -3,12 +3,15 @@ import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
 import { fetchEbaySoldViaBrightData } from './lib/brightdata';
+import { fetchEbaySoldViaFirecrawl } from './lib/ebay-firecrawl';
 
 // The scrape job is exercised against a module-mocked Bright Data fetcher so
 // tests control per-set outcomes (ok / no_data / error) without 50KB HTML
 // fixtures. pickKey/recordKeyCall live in brightdata-keys and stay real.
 vi.mock('./lib/brightdata', () => ({ fetchEbaySoldViaBrightData: vi.fn() }));
+vi.mock('./lib/ebay-firecrawl', () => ({ fetchEbaySoldViaFirecrawl: vi.fn() }));
 const mockFetcher = vi.mocked(fetchEbaySoldViaBrightData);
+const mockFcFetcher = vi.mocked(fetchEbaySoldViaFirecrawl);
 import { hashKey } from './lib/brightdata-keys';
 import { applyTestTables } from './test-schema';
 
@@ -139,5 +142,48 @@ describe('runEbaySoldScrape', () => {
     expect(kv.store.get('ebay-sold:skip:DV-1')).toBe('diverged');
     const anomaly = await db.prepare(`SELECT status FROM pricing_anomalies WHERE anomaly_key='ebay_sold:DV-1:value_divergence'`).first<{ status: string }>();
     expect(anomaly!.status).toBe('open');
+  });
+
+
+  // --- Firecrawl rescue lane (Bright Data primary + FC configured) ---
+  const rescueEnv = { ...bare, BRIGHTDATA_API_TOKENS: 'tkB', FIRECRAWL_API_KEY: 'fk' };
+
+  it('rescues a Bright Data failure through Firecrawl and writes the value', async () => {
+    const kv = kvStub();
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('RS-1','Rescued', 100)`).run();
+    mockFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'blocked' } as any);
+    mockFcFetcher.mockResolvedValue({ status: 'ok', new_value: 120, new_count: 5 } as any);
+
+    const r = await runEbaySoldScrape({ ...rescueEnv, CACHE_KV: kv } as any, { limit: 5 });
+
+    expect(r.rescued).toBe(1);
+    expect(r.updated).toBe(1);
+    expect(kv.store.has('ebay-sold:skip:RS-1')).toBe(false); // rescued, not negative-cached
+    const row = await db.prepare(`SELECT ebay_new_value FROM lego_sets WHERE set_num='RS-1'`).first<{ ebay_new_value: number | null }>();
+    expect(row!.ebay_new_value).toBe(120);
+  });
+
+  it('rescue returning no_data writes the long-TTL skip key, not err', async () => {
+    const kv = kvStub();
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('RS-2','NoDataRescue', 100)`).run();
+    mockFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'blocked' } as any);
+    mockFcFetcher.mockResolvedValue({ status: 'no_data', new_value: null, new_count: 0 } as any);
+
+    const r = await runEbaySoldScrape({ ...rescueEnv, CACHE_KV: kv } as any, { limit: 5 });
+
+    expect(r.rescued).toBe(1);
+    expect(kv.store.get('ebay-sold:skip:RS-2')).toBe('no_data');
+  });
+
+  it('when the rescue also fails, the set is err-cached as before', async () => {
+    const kv = kvStub();
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('RS-3','DoubleFail', 100)`).run();
+    mockFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'blocked' } as any);
+    mockFcFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'fc down' } as any);
+
+    const r = await runEbaySoldScrape({ ...rescueEnv, CACHE_KV: kv } as any, { limit: 5 });
+
+    expect(r.rescued).toBe(0);
+    expect(kv.store.get('ebay-sold:skip:RS-3')).toBe('err');
   });
 });

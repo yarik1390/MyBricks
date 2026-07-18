@@ -33,6 +33,12 @@ export async function runEbaySoldScrape(
   // BrickEconomy enrichment. Fall back to Firecrawl only when no token is set.
   const useBrightData = brightDataSoldEnabled(env) && await sourceEnabled(env, 'brightdata');
   const useFirecrawl = !useBrightData && firecrawlEnabled(env) && await sourceEnabled(env, 'firecrawl');
+  // Rescue lane: Bright Data fails ~71% of eBay scrapes (blocks / short bodies).
+  // When it's the primary and Firecrawl is also configured, a set whose BD
+  // scrape errors gets ONE Firecrawl retry in the same wave before it's
+  // negative-cached — converting most of that failure rate into coverage at
+  // ~5 credits a set. Firecrawl self-meters its credits inside firecrawlScrape.
+  const fcRescue = useBrightData && firecrawlEnabled(env) && await sourceEnabled(env, 'firecrawl');
   if (!useFirecrawl && !useBrightData) {
     return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'neither firecrawl nor brightdata configured' };
   }
@@ -122,6 +128,11 @@ export async function runEbaySoldScrape(
   let updated = 0;
   let processed = 0;
   let rejected = 0;
+  let rescued = 0;
+  // Per-run rescue budget: each rescue adds a Firecrawl scrape (~5 credits and
+  // ~20s to an already-failing wave), so cap it to keep the invocation inside
+  // its window — the negative cache means unrescued failures retry in 2 days.
+  let rescuesLeft = fcRescue ? 40 : 0;
   const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
   const stmts: D1PreparedStatement[] = [];
   const touched: string[] = [];
@@ -149,14 +160,24 @@ export async function runEbaySoldScrape(
       const fetcher = useFirecrawl
         ? fetchEbaySoldViaFirecrawl(set.set_num, set.name, env)
         : fetchEbaySoldViaBrightData(set.set_num, set.name, env);
-      const r = await fetcher
+      const primary = await fetcher
         .catch((e) => ({ status: 'error' as const, new_value: null, new_count: 0, error: (e as Error)?.message }));
-      return { set, r };
+      let r = primary;
+      if (primary.status === 'error' && rescuesLeft > 0) {
+        rescuesLeft--;
+        const fr = await fetchEbaySoldViaFirecrawl(set.set_num, set.name, env).catch(() => null);
+        if (fr && (fr.status === 'ok' || fr.status === 'no_data')) r = fr;
+      }
+      return { set, primary, r };
     }));
-    for (const { set, r } of outs) {
+    for (const { set, primary, r } of outs) {
       processed++;
-      if (r.status === 'ok' || r.status === 'no_data') health.ok++;
-      else { health.fail++; if (r.error) health.lastError = r.error; }
+      // Integration health tracks the PRIMARY provider's attempt — a rescue
+      // masking Bright Data's failure in the health panel would hide the very
+      // signal that says its keys/proxies are degrading.
+      if (primary.status === 'ok' || primary.status === 'no_data') health.ok++;
+      else { health.fail++; if (primary.error) health.lastError = primary.error; }
+      if (r !== primary) rescued++;
 
       if (r.status === 'no_data') await negCache(set.set_num, 'no_data');
       else if (r.status !== 'ok') await negCache(set.set_num, 'err');
@@ -199,5 +220,5 @@ export async function runEbaySoldScrape(
   // the Bright Data path (which doesn't self-record) needs the aggregate write —
   // writing it for Firecrawl too would double-count and clobber the real error.
   if (!useFirecrawl) await recordIntegrationHealth(env, 'brightdata', health);
-  return { processed, updated, rejected, limit: effLimit };
+  return { processed, updated, rejected, rescued, limit: effLimit };
 }
