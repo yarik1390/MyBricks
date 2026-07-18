@@ -43,6 +43,9 @@ crons = [
   "0 11 * * *",
   "0 12 * * *",
   "0 13 * * *",
+  # PriceCharting per-set enrich: verified-mapping identity + sold comps for the
+  # highest-value uncovered sets (self-guarded: token gate + 500/day spend cap).
+  "0 14 * * *",
   "0 15 * * *",
   # pricesAPI.io live-retail refresh (deal signal / stock truth / wishlist alerts).
   # Small + sequential: cold calls run 30–90s and the free tier is 6/min per key.

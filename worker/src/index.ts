@@ -41,6 +41,7 @@ import { runDailyCatalogMaintenance } from './jobs/catalog-maintenance';
 import { runDbHygiene } from './jobs/db-hygiene';
 import { runAmazonOffers } from './jobs/amazon-offers';
 import { runPriceChartingVerify } from './jobs/pricecharting-verify';
+import { runPriceChartingEnrich } from './jobs/pricecharting-enrich';
 import { runPriceChartingBulkFetch } from './jobs/pricecharting-bulk';
 import { importSets, importFigs } from './jobs/import-catalog';
 import { runBrickInsightsBackfill } from './jobs/brickinsights';
@@ -448,6 +449,7 @@ export default {
       // views are instant. Gentle (limit 100, concurrency 3) to respect
       // Rebrickable's no-automation rule; Rebrickable-only per ToS.
       // Upcoming/coming-soon release feed (G2b): one LEGO.com listing scrape/day.
+      case '0 14 * * *': await run('pricecharting-enrich', () => runPriceChartingEnrich(env, { limit: 100, concurrency: 5 })); break;
       case '0 15 * * *': await run('upcoming-refresh', () => runUpcomingRefresh(env)); break;
       // pricesAPI live-retail runs in 3 daily slots (~18 sets/day) now that the
       // key pool spreads the monthly budget; cold calls are 30–90s so each slot

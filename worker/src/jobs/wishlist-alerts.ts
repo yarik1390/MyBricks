@@ -41,16 +41,32 @@ async function loadAlertPrefs(env: Env, userIds: string[]): Promise<Map<string, 
 }
 
 export async function runWishlistAlerts(env: Env) {
+  // Market-value leg fires on the BLENDED value (the same number the UI shows —
+  // withDisplayValue prefers blended) and only when that value is trustworthy:
+  // blend confidence high/medium, or (no blend yet) a real market valuation
+  // method. A raw single-source current_value dipping below target must not
+  // page anyone. The LIVE-OFFER leg stays ungated — an in-stock retail offer at
+  // or under target is always actionable regardless of valuation confidence.
   const { results: rawResults } = await env.DB.prepare(`
     SELECT w.id, w.user_id, w.set_num, w.target_price, w.alerted_at,
-           s.name as set_name, s.current_value, s.image_url,
+           s.name as set_name, s.image_url,
+           COALESCE(NULLIF(s.blended_value, 0), s.current_value) AS current_value,
            ext.pa_lowest_offer, ext.pa_in_stock, ext.pa_best_merchant
     FROM user_wishlist w
     JOIN lego_sets s ON s.set_num = w.set_num
     LEFT JOIN set_market_ext ext ON ext.set_num = w.set_num
     WHERE w.target_price IS NOT NULL
       AND (
-        s.current_value <= w.target_price
+        (
+          COALESCE(NULLIF(s.blended_value, 0), s.current_value) <= w.target_price
+          AND (
+            s.blended_confidence IN ('high', 'medium')
+            OR (
+              (s.blended_value IS NULL OR s.blended_value = 0)
+              AND COALESCE(s.valuation_method, '') NOT IN ('formula_bulk', 'local', 'ai')
+            )
+          )
+        )
         OR (ext.pa_in_stock = 1 AND ext.pa_lowest_offer IS NOT NULL AND ext.pa_lowest_offer <= w.target_price)
       )
       AND (w.alerted_at IS NULL OR w.alerted_at < datetime('now', '-7 days'))
@@ -137,13 +153,25 @@ export async function runWishlistAlerts(env: Env) {
 }
 
 async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
+  // Same trust rules as the drop leg: spike on the blended value the UI shows,
+  // and only when it's corroborated (high/medium) or a market method filled the
+  // gap — a single-source current_value jumping 30% is exactly the false-positive
+  // this job used to fire on.
   const { results } = await env.DB.prepare(`
     SELECT uc.id as collection_id, uc.user_id, uc.set_num, uc.purchase_price,
-           ls.name as set_name, ls.current_value, ls.image_url
+           ls.name as set_name, ls.image_url,
+           COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS current_value
     FROM user_collection uc
     JOIN lego_sets ls ON ls.set_num = uc.set_num
     WHERE uc.purchase_price > 0
-      AND ls.current_value > 1.30 * uc.purchase_price
+      AND COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) > 1.30 * uc.purchase_price
+      AND (
+        ls.blended_confidence IN ('high', 'medium')
+        OR (
+          (ls.blended_value IS NULL OR ls.blended_value = 0)
+          AND COALESCE(ls.valuation_method, '') NOT IN ('formula_bulk', 'local', 'ai')
+        )
+      )
       AND uc.deleted_at IS NULL
       AND (uc.spike_alerted_at IS NULL OR uc.spike_alerted_at < datetime('now', '-30 days'))
   `).all<{
