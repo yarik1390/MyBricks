@@ -45,7 +45,7 @@ export async function renderMeData() {
           <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap">
             <div class="lbl">Import collection</div>
-            <div class="desc">Upload a CSV to add sets in bulk. Existing sets are skipped.</div>
+            <div class="desc">Upload a CSV to add sets in bulk — works with Brickset and BrickEconomy exports too. Existing sets are skipped.</div>
           </div>
           <div class="csv-import-wrap">
             <label class="csv-file-label">${I.upload()}<span>Choose CSV file</span><input type="file" id="csvFile" accept=".csv"></label>

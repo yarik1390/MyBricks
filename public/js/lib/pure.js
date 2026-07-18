@@ -691,13 +691,18 @@ export function parseCollectionCSV(text) {
     const wanted = names.map(n => n.toLowerCase().replace(/\s+/g, "_"));
     return normHeader.findIndex(h => wanted.includes(h));
   };
-  const setNumIdx = findIdx("set_num", "set_number");
+  // Header synonyms cover Brickset ("Number", "QtyOwned", "PricePaid",
+  // "DateAcquired") and BrickEconomy ("Number", "Qty", "Paid", "Purchase Date")
+  // exports, so collectors can import their existing lists without editing the
+  // file. "Value"-style columns are deliberately NOT mapped to purchase price —
+  // that's a market estimate, not what the user paid.
+  const setNumIdx = findIdx("set_num", "set_number", "number", "set", "setnumber", "item_number");
   if (setNumIdx === -1) return [];
 
-  const quantityIdx = findIdx("quantity");
-  const priceIdx = findIdx("purchase_price");
+  const quantityIdx = findIdx("quantity", "qty", "qtyowned", "qty_owned", "quantity_owned", "owned");
+  const priceIdx = findIdx("purchase_price", "pricepaid", "price_paid", "paid", "purchase_cost", "cost", "my_price");
   const condIdx = findIdx("condition");
-  const dateIdx = findIdx("purchased_at", "date_added");
+  const dateIdx = findIdx("purchased_at", "date_added", "dateacquired", "date_acquired", "purchase_date", "acquired");
   const notesIdx = findIdx("notes");
   const storageIdx = findIdx("storage_location");
   const sourceIdx = findIdx("acquisition_source");
@@ -708,8 +713,11 @@ export function parseCollectionCSV(text) {
   for (let i = 1; i < table.length; i++) {
     const parts = table[i].map(p => String(p || "").trim());
     if (!parts.some(Boolean)) continue;
-    const set_num = parts[setNumIdx];
+    let set_num = parts[setNumIdx];
     if (!set_num) continue;
+    // Brickset/BrickEconomy often export bare numbers ("75192"); the catalog's
+    // canonical form carries the variant suffix ("75192-1").
+    if (/^\d{3,7}$/.test(set_num)) set_num = `${set_num}-1`;
     const quantity = quantityIdx !== -1 ? (parseInt(parts[quantityIdx], 10) || 1) : 1;
     const purchase_price = priceIdx !== -1 ? optionalNumber(parts[priceIdx]) : null;
     let condition = condIdx !== -1 ? parts[condIdx].toLowerCase() : "new";

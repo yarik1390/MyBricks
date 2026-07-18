@@ -794,6 +794,37 @@ describe('parseCSVTable', () => {
 });
 
 describe('parseCollectionCSV', () => {
+  it('imports a Brickset-style export (Number/QtyOwned/PricePaid/DateAcquired)', () => {
+    const csv = 'Number,Theme,Year,SetName,Pieces,QtyOwned,DateAcquired,PricePaid,Notes\n' +
+      '75192-1,Star Wars,2017,Millennium Falcon,7541,2,2020-10-15,649.99,UCS grail';
+    const rows = parseCollectionCSV(csv);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].set_num, '75192-1');
+    assert.equal(rows[0].quantity, 2);
+    assert.equal(rows[0].purchase_price, 649.99);
+    assert.equal(rows[0].purchased_at, '2020-10-15');
+    assert.equal(rows[0].notes, 'UCS grail');
+  });
+
+  it('imports a BrickEconomy-style export and normalizes bare set numbers', () => {
+    const csv = 'Number,Name,Condition,Qty,Paid,Purchase Date\n' +
+      '75257,Millennium Falcon,Used,1,89.5,2023-01-02';
+    const rows = parseCollectionCSV(csv);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].set_num, '75257-1'); // bare number gets the canonical -1
+    assert.equal(rows[0].condition, 'used_good');
+    assert.equal(rows[0].purchase_price, 89.5);
+    assert.equal(rows[0].purchased_at, '2023-01-02');
+  });
+
+  it('does not treat a market Value column as the price paid', () => {
+    const csv = 'Number,Value\n10307,1200';
+    const rows = parseCollectionCSV(csv);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].set_num, '10307-1');
+    assert.equal(rows[0].purchase_price, null);
+  });
+
   it('returns [] when the set_num column is missing', () => {
     assert.deepEqual(parseCollectionCSV('name,qty\nFalcon,1\n'), []);
   });
