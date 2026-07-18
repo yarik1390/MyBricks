@@ -174,6 +174,21 @@ export function parseMarkdown(text) {
   return processed.join("<br>").replace(/<\/ul><br>/g, "</ul>").replace(/<br><ul/g, "<ul");
 }
 
+// Fire-and-forget client telemetry - anonymous, allowlisted server-side, and
+// sampled here so hot paths (route views) cost a fraction of a request. Never
+// throws into the caller; failures are silently dropped.
+export function track(event, detail = "", sample = 1) {
+  try {
+    if (sample < 1 && Math.random() > sample) return;
+    fetch((window.WORKER_BASE || "") + "/api/telemetry", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ e: event, d: String(detail).slice(0, 120) }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch { /* telemetry must never break the app */ }
+}
+
 export function haptic(t) {
   // Native @capacitor/haptics gives crisp, OS-tuned impact feedback on Android
   // (navigator.vibrate is a blunt buzz). Accessed via the global bridge to keep

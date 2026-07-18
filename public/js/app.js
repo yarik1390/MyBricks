@@ -1,4 +1,4 @@
-import { $, $$, haptic, toast, fetchExchangeRates, bvIDB, installImageFallback } from './utils.js';
+import { $, $$, haptic, toast, fetchExchangeRates, bvIDB, installImageFallback, track } from './utils.js';
 import { state, invalidatePortfolio } from './state.js';
 import { nextOfflineBannerState, shouldUseKeyboardShell } from './lib/pure-core.js';
 import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionUserId, snapshotGuestVault, migrateGuestVault, isGuestMode, backfillGuestVault } from './api.js';
@@ -264,6 +264,15 @@ function showUpdatePrompt(worker) {
   bar.append(msg, btn);
   document.body.appendChild(bar);
 }
+
+// Client error telemetry: message + source only (no stacks, no user data),
+// sampled so an error loop can't flood the endpoint.
+window.addEventListener("error", (e) => {
+  track("client_error", `${String(e.message || "").slice(0, 80)} @${String(e.filename || "").split("/").pop()}:${e.lineno || 0}`, 0.25);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  track("client_error", `unhandled: ${String(e.reason?.message || e.reason || "").slice(0, 90)}`, 0.25);
+});
 
 document.addEventListener("DOMContentLoaded", async () => {
   // Native OAuth returns through the allow-listed Pages URL first, then this

@@ -56,6 +56,7 @@ import { runBlendRecomputeBackfill } from './jobs/recompute-blends';
 import { applySourceConfig } from './lib/source-config';
 import { recordCronStart, recordCronFinish, summarizeResult, isCronRunning } from './lib/cron-runs';
 import { amazonReadiness } from './lib/amazon';
+import { CLIENT_EVENTS, logClientEvent } from './lib/analytics';
 import { setPricingV3ReadPercent } from './lib/market-sources';
 
 import type { Env, Variables } from './types';
@@ -120,6 +121,18 @@ app.use('*', async (c, next) => {
   c.header('X-Frame-Options', 'DENY');
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
   c.header('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
+});
+
+// Client telemetry: anonymous, sampled client-side, event names allowlisted,
+// detail capped at 120 chars, no user identifiers. Fire-and-forget on the
+// client; a 204 either way so the endpoint can't be used as an oracle.
+app.post('/api/telemetry', async (c) => {
+  try {
+    const body = await c.req.json<{ e?: string; d?: string }>();
+    const event = String(body.e || '');
+    if (CLIENT_EVENTS.has(event)) logClientEvent(c.env, event, String(body.d || ''));
+  } catch { /* ignore malformed */ }
+  return c.body(null, 204);
 });
 
 // Public config for the frontend (Supabase URL + anon key are client-safe)

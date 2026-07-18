@@ -1,4 +1,4 @@
-import { $, $$, prefersReducedMotion, advisorEnabled } from './utils.js';
+import { $, $$, prefersReducedMotion, advisorEnabled, track } from './utils.js';
 import { state } from './state.js';
 import { api } from './api.js';
 import { I } from './icons.js';
@@ -147,6 +147,7 @@ async function _routeImpl() {
   // renderLogin adds this to drop the reserved bottom-nav space; any route
   // that renders with the nav visible must restore it.
   if (!location.hash.startsWith("#/login")) document.body.classList.remove("nav-hidden");
+  track("route_view", routeMetaFor(hash).key, 0.1);
   window.scrollTo({ top: 0, behavior: "instant" });
 }
 

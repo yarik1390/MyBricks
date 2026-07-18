@@ -33,3 +33,23 @@ export function logEvent(
     });
   } catch { /* non-fatal */ }
 }
+
+// Client telemetry events (POST /api/telemetry). Allowlisted so the public
+// endpoint can't be used to stuff arbitrary blobs into the dataset.
+export const CLIENT_EVENTS = new Set([
+  'route_view',
+  'scan_attempt', 'scan_success', 'scan_fallback',
+  'feature_open',
+  'client_error',
+]);
+
+export function logClientEvent(env: Env, event: string, detail: string): void {
+  if (!env.ANALYTICS) return;
+  try {
+    env.ANALYTICS.writeDataPoint({
+      blobs: ['client:' + event, String(detail || '').slice(0, 120), ''],
+      doubles: [Date.now()],
+      indexes: ['client'],
+    });
+  } catch { /* non-fatal */ }
+}

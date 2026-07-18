@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDataURL, resizeImage, setHue, getExchangeRate, CURRENCY_SYMBOLS, activateFocusTrap, FOCUSABLE_SEL, getCachedSetDetail } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDataURL, resizeImage, setHue, getExchangeRate, CURRENCY_SYMBOLS, activateFocusTrap, FOCUSABLE_SEL, getCachedSetDetail, track } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, outboxEnqueue, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
@@ -185,6 +185,7 @@ export function stopCamera() {
 }
 
 export async function startCamera() {
+  track("scan_attempt", state.camera.mode || "barcode");
   // On the installed app, barcode / blind-box modes use the native ML Kit
   // scanner — NEVER the getUserMedia path. The overlay is rendered in
   // "native-scan" mode (video hidden), so a getUserMedia fallback would show a
@@ -303,6 +304,7 @@ function ensureNativeRescanButton() {
 // Fallback for browsers without the BarcodeDetector API (e.g. desktop
 // Firefox): a manual digit-entry field wired to the same barcode lookup.
 function showManualBarcodeEntry() {
+  track("scan_fallback", state.camera.mode || "barcode");
   const hint = $("#scanHint");
   if (!hint || $("#manualBarcodeRow")) return;
   const el = $("#scanResult");
@@ -658,6 +660,7 @@ async function sendScanToAPI(payload) {
 
 // Route a scanned/typed barcode to the right handler for the active mode.
 function routeScannedCode(code) {
+  track("scan_success", state.camera.mode || "barcode");
   if (state.camera.mode === "blindbox") return sendBlindBoxLookup(code);
   return sendScanToAPI({ mode: "barcode", barcode: code });
 }
