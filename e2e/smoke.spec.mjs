@@ -125,8 +125,6 @@ test('set detail renders with the action bar', async ({ page }) => {
 
 test('pricing details opens as a bottom sheet and keeps the set page mounted', async ({ page }) => {
   await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('.detail-summary-facts')).toContainText('Retail $299.99');
-  await expect(page.locator('.detail-summary-facts')).not.toContainText('Retail $849.99');
   await page.locator('#pricingDetailsBtn').click();
   await expect(page.locator('#sheet')).toHaveClass(/show/);
   await expect(page.locator('#pricingDetailsSheetTitle')).toHaveText('Pricing details');
@@ -280,6 +278,8 @@ test('upcoming sets show announced retail instead of stale market estimates', as
     body: JSON.stringify({ set: upcoming, entry: null }),
   }));
   await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.detail-summary-facts')).toContainText('Retail $299.99');
+  await expect(page.locator('.detail-summary-facts')).not.toContainText('Retail $849.99');
   await page.locator('#pricingDetailsBtn').click();
 
   const sheet = page.locator('.pricing-details-sheet-body');
