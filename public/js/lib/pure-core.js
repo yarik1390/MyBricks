@@ -29,6 +29,7 @@ export function jwtSub(token) {
 }
 
 /** Distinguish an invalid login token from a feature-level 401 response. */
+/** @param {unknown} value */
 export function isCredentialAuthFailure(value) {
   const message = String(value || "");
   return /unauthorized.*(?:expired|malformed|undecodable|invalid|no token)|(?:expired|malformed|undecodable|invalid) (?:jwt|token)|not an authenticated role|issuer.*mismatch|audience.*mismatch/i.test(message);
