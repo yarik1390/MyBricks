@@ -36,11 +36,11 @@ export async function renderGame() {
   root.innerHTML = `
     <div class="page">
       <div class="topbar">
+        <a class="icon-btn" href="#/" aria-label="Back to vault" style="margin-top:2px;margin-right:8px;">${I.chevL()}</a>
         <div class="topbar-heading">
           <div class="topbar-eyebrow">Daily challenge</div>
           <h1 class="topbar-title">Price It!</h1>
         </div>
-        <a href="#/" class="btn-secondary" style="font-size:12px;padding:6px 12px;text-decoration:none;">Close</a>
       </div>
       <div id="gameBody" style="max-width:520px;margin:0 auto;">
         <div style="text-align:center;padding:40px 0;color:var(--ink-mute);"><div class="spinner" style="margin:0 auto 10px;"></div>Setting up today's five…</div>
