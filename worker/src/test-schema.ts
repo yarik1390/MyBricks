@@ -216,6 +216,16 @@ export const TABLE_DDL: Record<string, string> = {
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (set_num, condition)
 )`,
+  collection_stories: `CREATE TABLE IF NOT EXISTS collection_stories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  collection_id INTEGER,
+  kind TEXT NOT NULL DEFAULT 'note' CHECK(kind IN ('note','photo')),
+  body TEXT,
+  r2_key TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+)`,
   pricing_write_ledger: `CREATE TABLE IF NOT EXISTS pricing_write_ledger (
   day TEXT NOT NULL, job TEXT NOT NULL, rows_written INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (day, job)

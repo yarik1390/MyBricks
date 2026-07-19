@@ -211,6 +211,11 @@ export async function renderMe() {
         ${linkRow("#/me/integrations", "Integrations", "Google Sheets, Discord, Brickset, push alerts, AI keys")}
         ${linkRow("#/me/data", "Data", "Export &amp; import your vault as CSV")}
         ${!guest ? linkRow("#/me/contributions", "Your contributions", "Reviews, photos &amp; data fixes you've submitted") : ""}
+        ${!guest ? `
+        <div class="setting-row" id="wrappedRow" style="cursor:pointer;">
+          <div class="lbl-wrap"><div class="lbl">Brick Wrapped ${new Date().getFullYear()}</div><div class="desc">Your collector year in numbers — share it.</div></div>
+          ${I.chev()}
+        </div>` : ""}
         ${me.is_admin ? linkRow("#/me/admin", "Admin console", "Catalog imports, jobs, integration health") : ""}
         ${linkRow("#/leaderboard", "Leaderboard", "Top public collections by value")}
         ${linkRow("#/build", "What Can I Build?", "Models you can build from sets you own")}
@@ -255,6 +260,7 @@ export async function renderMe() {
   }).catch(() => {});
 
   $("#replayTourRow")?.addEventListener("click", () => { haptic("light"); startOnboarding(); });
+  $("#wrappedRow")?.addEventListener("click", () => { haptic("medium"); showWrappedSheet(); });
 
   $("#installBtn")?.addEventListener("click", async () => {
     const dp = state.pwa.deferredPrompt;
@@ -890,4 +896,116 @@ function showSearchableTrophyPicker(currentSetNums) {
 
   searchInp.addEventListener("input", (e) => renderResults(e.target.value));
   $("#trophyPickerClose").addEventListener("click", hideSheet);
+}
+
+// --- Brick Wrapped ----------------------------------------------------------
+// The collector's year in numbers, rendered as story stats + a shareable card.
+async function showWrappedSheet() {
+  showSheet(`
+    <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 12px;">Brick Wrapped</div>
+    <div id="wrappedContent" style="text-align:center;padding:30px 0;color:var(--ink-mute);">
+      <div class="spinner" style="margin:0 auto 10px;"></div>Counting your bricks…
+    </div>`);
+  let w;
+  try { w = await api("/api/me/wrapped"); }
+  catch (e) {
+    const el = $("#wrappedContent");
+    if (el) el.innerHTML = `<p style="color:var(--down);font-size:13px;">Couldn't load your year: ${escapeHtml(e.message)}</p>`;
+    return;
+  }
+  const el = $("#wrappedContent");
+  if (!el) return;
+  const gain = (w.value_end != null && w.value_start != null) ? w.value_end - w.value_start : null;
+  const stat = (num, lbl) => `
+    <div style="background:var(--surface-2);border:1.5px solid var(--line-soft);border-radius:var(--r-2);padding:12px 8px;">
+      <div style="font-family:var(--serif);font-size:22px;font-weight:600;">${num}</div>
+      <div style="font-size:10px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-mute);margin-top:2px;">${lbl}</div>
+    </div>`;
+  el.style.textAlign = "";
+  el.style.padding = "";
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">
+      ${stat(w.sets_added, `set${w.sets_added === 1 ? "" : "s"} added`)}
+      ${stat(w.pieces_added >= 1000 ? (w.pieces_added / 1000).toFixed(1) + "k" : w.pieces_added, "pieces")}
+      ${stat(w.minifig_count, "minifigs")}
+      ${stat(fmtMoneyShort(w.invested), "invested")}
+      ${gain != null ? stat(`${gain >= 0 ? "+" : ""}${fmtMoneyShort(gain)}`, "value change") : stat("—", "value change")}
+      ${stat(w.sets_sold ? fmtMoneyShort(w.sale_total) : "—", w.sets_sold ? `${w.sets_sold} sold` : "sold")}
+    </div>
+    ${w.best_performer ? `
+      <div style="margin-top:12px;background:var(--surface-2);border:1.5px solid var(--line-soft);border-radius:var(--r-2);padding:12px 14px;font-size:13px;">
+        <div class="u-mono-label" style="margin-bottom:4px;">Best performer</div>
+        <strong>${escapeHtml(w.best_performer.name)}</strong>
+        ${w.best_performer.roi_pct != null ? `<span style="color:var(--up);font-weight:700;"> +${w.best_performer.roi_pct}%</span>` : ""}
+      </div>` : ""}
+    ${w.longest_held ? `
+      <div style="margin-top:8px;font-size:12px;color:var(--ink-mute);">Longest held: <strong>${escapeHtml(w.longest_held.name)}</strong> (since ${escapeHtml(String(w.longest_held.purchased_at).slice(0, 4))})</div>` : ""}
+    <div class="btn-row" style="margin-top:14px;">
+      <button class="btn-secondary" id="wrappedClose">Close</button>
+      <button class="btn-primary" id="wrappedShare">${I.share ? I.share() : ""}<span>Share my year</span></button>
+    </div>`;
+  $("#wrappedClose")?.addEventListener("click", hideSheet);
+  $("#wrappedShare")?.addEventListener("click", async () => {
+    haptic("medium");
+    const img = renderWrappedCard(w, gain);
+    // Prefer sharing the image card; fall back to a text summary anywhere the
+    // platform can't share files.
+    try {
+      if (img && navigator.canShare) {
+        const blob = await new Promise(res => img.toBlob(res, "image/png"));
+        if (blob) {
+          const file = new File([blob], `brick-wrapped-${w.year}.png`, { type: "image/png" });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: `Brick Wrapped ${w.year}` });
+            return;
+          }
+        }
+      }
+    } catch (e) { if (e?.name === "AbortError") return; }
+    const { shareContent } = await import("../lib/native-share.js");
+    const lines = [
+      `🧱 My Brick Wrapped ${w.year}`,
+      `${w.sets_added} sets added · ${w.pieces_added} pieces`,
+      gain != null ? `Vault ${gain >= 0 ? "up" : "down"} ${fmtMoneyShort(Math.abs(gain))} this year` : null,
+      w.best_performer ? `Best performer: ${w.best_performer.name}${w.best_performer.roi_pct != null ? ` (+${w.best_performer.roi_pct}%)` : ""}` : null,
+      "Tracked with BricksVault",
+    ].filter(Boolean);
+    shareContent({ title: `Brick Wrapped ${w.year}`, text: lines.join("\n") });
+  });
+}
+
+// Offscreen 1080×1080 share card. Deliberately simple: bold numbers on the
+// brand cream, no external assets, so it renders instantly everywhere.
+function renderWrappedCard(w, gain) {
+  try {
+    const c = document.createElement("canvas");
+    c.width = 1080; c.height = 1080;
+    const x = c.getContext("2d");
+    x.fillStyle = "#F5F1E8"; x.fillRect(0, 0, 1080, 1080);
+    x.fillStyle = "#26231d";
+    x.font = "600 64px Georgia, serif";
+    x.fillText("Brick Wrapped", 80, 140);
+    x.fillStyle = "#b9821f";
+    x.fillText(String(w.year), 80, 220);
+    const rows = [
+      [`${w.sets_added}`, "sets added"],
+      [`${w.pieces_added}`, "pieces"],
+      [gain != null ? `${gain >= 0 ? "+" : "−"}${fmtMoneyShort(Math.abs(gain))}` : "—", "vault value change"],
+      [w.best_performer ? w.best_performer.name.slice(0, 26) : "—", w.best_performer?.roi_pct != null ? `best performer · +${w.best_performer.roi_pct}%` : "best performer"],
+    ];
+    let y = 380;
+    for (const [big, small] of rows) {
+      x.fillStyle = "#26231d";
+      x.font = "700 88px Georgia, serif";
+      x.fillText(String(big), 80, y);
+      x.fillStyle = "#6b6455";
+      x.font = "500 34px -apple-system, sans-serif";
+      x.fillText(String(small).toUpperCase(), 80, y + 48);
+      y += 170;
+    }
+    x.fillStyle = "#b9821f";
+    x.font = "600 36px -apple-system, sans-serif";
+    x.fillText("BRICKSVAULT · STACK SOMETHING BEAUTIFUL", 80, 1020);
+    return c;
+  } catch { return null; }
 }

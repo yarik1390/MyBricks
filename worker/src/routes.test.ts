@@ -68,6 +68,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
 
     const sqls = [
       'DROP TABLE IF EXISTS user_collection',
+      'DROP TABLE IF EXISTS collection_stories',
       'DROP TABLE IF EXISTS lego_sets',
       'DROP TABLE IF EXISTS user_wishlist',
       'DROP TABLE IF EXISTS wishlist_alerts',
@@ -146,7 +147,13 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         purchase_price REAL, notes TEXT, added_at TEXT DEFAULT CURRENT_TIMESTAMP,
         purchased_at TEXT, deleted_at TEXT, last_modified TEXT DEFAULT CURRENT_TIMESTAMP,
         storage_location TEXT, acquisition_source TEXT, is_complete INTEGER DEFAULT 1,
-        missing_pieces INTEGER DEFAULT 0, spike_alerted_at TEXT, custom_image_url TEXT, UNIQUE(user_id, set_num)
+        missing_pieces INTEGER DEFAULT 0, spike_alerted_at TEXT, custom_image_url TEXT,
+        sold_price REAL, sold_at TEXT, UNIQUE(user_id, set_num)
+      )`,
+      `CREATE TABLE collection_stories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL,
+        collection_id INTEGER, kind TEXT NOT NULL DEFAULT 'note' CHECK(kind IN ('note','photo')),
+        body TEXT, r2_key TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE user_wishlist (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL,
@@ -1636,6 +1643,97 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
     expect(body.history[1].current_value).toBeCloseTo(14, 1);
   });
   });
+
+  describe('Set stories', () => {
+    let entryId: number;
+    beforeEach(async () => {
+      await db.prepare(`INSERT INTO lego_sets (set_num, name, current_value) VALUES ('75192-1', 'Millennium Falcon', 800)`).run();
+      const row = await db.prepare(
+        `INSERT INTO user_collection (user_id, set_num, purchase_price) VALUES (?, '75192-1', 700) RETURNING id`
+      ).bind(userId).first<{ id: number }>();
+      entryId = row!.id;
+    });
+
+    it('adds a note and lists it on the timeline', async () => {
+      const post = await app.fetch(new Request(`http://localhost/api/collection/${entryId}/story`, {
+        method: 'POST', headers: auth(), body: JSON.stringify({ body: 'Built it with my son over the holidays.' }),
+      }), env);
+      expect(post.status).toBe(200);
+      const list = await app.fetch(new Request(`http://localhost/api/collection/${entryId}/story`, { headers: auth() }), env);
+      const data = await list.json<{ set_num: string; stories: Array<{ kind: string; body: string }> }>();
+      expect(data.set_num).toBe('75192-1');
+      expect(data.stories.length).toBe(1);
+      expect(data.stories[0].kind).toBe('note');
+      expect(data.stories[0].body).toContain('holidays');
+    });
+
+    it('rejects empty and over-long notes', async () => {
+      const empty = await app.fetch(new Request(`http://localhost/api/collection/${entryId}/story`, {
+        method: 'POST', headers: auth(), body: JSON.stringify({ body: '   ' }),
+      }), env);
+      expect(empty.status).toBe(400);
+      const long = await app.fetch(new Request(`http://localhost/api/collection/${entryId}/story`, {
+        method: 'POST', headers: auth(), body: JSON.stringify({ body: 'x'.repeat(1001) }),
+      }), env);
+      expect(long.status).toBe(400);
+    });
+
+    it("404s on another user's entry and deletes only own stories", async () => {
+      const foreign = await app.fetch(new Request(`http://localhost/api/collection/${entryId}/story`, {
+        method: 'POST', headers: auth(otherToken), body: JSON.stringify({ body: 'not mine' }),
+      }), env);
+      expect(foreign.status).toBe(404);
+
+      const post = await app.fetch(new Request(`http://localhost/api/collection/${entryId}/story`, {
+        method: 'POST', headers: auth(), body: JSON.stringify({ body: 'mine' }),
+      }), env);
+      const { id: storyId } = await post.json<{ id: number }>();
+      const foreignDel = await app.fetch(new Request(`http://localhost/api/collection/story/${storyId}`, {
+        method: 'DELETE', headers: auth(otherToken),
+      }), env);
+      expect(foreignDel.status).toBe(404);
+      const del = await app.fetch(new Request(`http://localhost/api/collection/story/${storyId}`, {
+        method: 'DELETE', headers: auth(),
+      }), env);
+      expect(del.status).toBe(204);
+      const n = await db.prepare('SELECT COUNT(*) AS n FROM collection_stories').first<{ n: number }>();
+      expect(n!.n).toBe(0);
+    });
+  });
+
+  describe('GET /api/me/wrapped', () => {
+    it('aggregates the collector year: adds, sales, snapshots, best performer', async () => {
+      const year = new Date().getUTCFullYear();
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, pieces, current_value, blended_value) VALUES ('W1-1', 'Winner', 1000, 200, 200)`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, pieces, current_value) VALUES ('W2-1', 'Sold One', 500, 300)`),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, purchase_price, purchased_at) VALUES (?, 'W1-1', 100, '2020-03-01')`).bind(userId),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, purchase_price, sold_price, sold_at, deleted_at) VALUES (?, 'W2-1', 100, 250, ?, datetime('now'))`).bind(userId, `${year}-05-10`),
+        db.prepare(`INSERT INTO portfolio_snapshots (user_id, snapshot_date, total_value) VALUES (?, ?, 1000)`).bind(userId, `${year}-01-05`),
+        db.prepare(`INSERT INTO portfolio_snapshots (user_id, snapshot_date, total_value) VALUES (?, ?, 1500)`).bind(userId, `${year}-06-01`),
+      ]);
+      const res = await app.fetch(new Request('http://localhost/api/me/wrapped', { headers: auth() }), env);
+      expect(res.status).toBe(200);
+      const w = await res.json<Record<string, any>>();
+      expect(w.year).toBe(year);
+      expect(w.sets_added).toBe(2);           // both rows added_at now
+      expect(w.invested).toBe(200);
+      expect(w.pieces_added).toBe(1500);
+      expect(w.sets_sold).toBe(1);
+      expect(w.sale_total).toBe(250);
+      expect(w.realized_gain).toBe(150);
+      expect(w.value_start).toBe(1000);
+      expect(w.value_end).toBe(1500);
+      expect(w.best_performer.set_num).toBe('W1-1');
+      expect(w.best_performer.roi_pct).toBe(100);
+      expect(w.longest_held.set_num).toBe('W1-1');
+    });
+
+    it('requires auth', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/me/wrapped'), env);
+      expect(res.status).toBe(401);
+    });
+  });
 });
 
 describe('DB hygiene job', () => {
@@ -1737,6 +1835,7 @@ describe('DB hygiene job', () => {
     expect(byNum['C-1']).toBeCloseTo(200, 2); // not clobbered
     expect(byNum['D-1']).toBeNull();
   });
+
 });
 
 describe('Kids PIN and XP', () => {

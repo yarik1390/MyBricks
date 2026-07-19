@@ -341,6 +341,22 @@ CREATE TABLE IF NOT EXISTS community_comps (
   PRIMARY KEY (set_num, condition)
 );
 
+-- Set stories: per-user memories attached to a set — notes and photos on a
+-- timeline ("built it with my son", the eBay find photo). Keyed by set_num
+-- (not collection_id) so memories survive selling and re-adding a set;
+-- collection_id is informational. Photos live in R2 under stories/.
+CREATE TABLE IF NOT EXISTS collection_stories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  collection_id INTEGER,
+  kind TEXT NOT NULL DEFAULT 'note' CHECK(kind IN ('note','photo')),
+  body TEXT,
+  r2_key TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_stories_user_set ON collection_stories(user_id, set_num);
+
 CREATE TABLE IF NOT EXISTS minifigs (
   fig_num TEXT PRIMARY KEY,
   name TEXT NOT NULL,

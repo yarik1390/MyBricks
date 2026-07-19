@@ -1006,6 +1006,19 @@ function manageTabHTML(set, entry) {
       <div id="photoUploadStatus" style="font-size:11px;color:var(--ink-mute);margin-top:6px;display:none;"></div>
     </div>
 
+    ${isGuestMode() ? "" : `
+    <div class="detail-card" id="storyCard">
+      <div class="detail-card-title">Story</div>
+      <div id="storyTimeline" style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--ink-mute);">Loading…</div>
+      <div class="field" style="margin-top:10px;">
+        <input id="storyInput" type="text" maxlength="1000" placeholder="Add a memory — a gift, a build day, a great find…">
+      </div>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="btn-secondary" id="storyAddNote" style="font-size:12px;padding:6px 12px;">${I.plus()}<span>Add memory</span></button>
+        <button class="btn-secondary" id="storyAddPhoto" style="font-size:12px;padding:6px 12px;">${I.camera ? I.camera() : "📷"}<span>Add photo</span></button>
+        <input type="file" id="storyPhotoInput" accept="image/jpeg,image/png,image/webp" style="display:none;">
+      </div>
+    </div>`}
       ${sellTimingHTML(set, entry)}
       <button class="btn-secondary" id="mSold" style="margin-top:14px;">${I.tag()}<span>Sell this set…</span></button>
       <button class="btn-danger" id="mRemove" style="margin-top:8px;">${I.trash()}<span>Remove from vault</span></button>
@@ -1047,8 +1060,89 @@ function sellTimingHTML(set, entry) {
     </div>`;
 }
 
+// Story timeline: the set's memories (notes + photos) plus the automatic
+// lifecycle events. Signed-in only — stories live on the account.
+async function wireStoryCard(set, entry) {
+  const timeline = $("#storyTimeline");
+  if (!timeline || !entry?.id) return;
+
+  const render = (stories) => {
+    const items = stories.map(s => `
+      <div class="story-item" data-story="${s.id}" style="display:flex;gap:8px;align-items:flex-start;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-1);padding:8px 10px;">
+        <div style="flex:1;min-width:0;">
+          ${s.kind === "photo" ? `<img class="story-photo" data-story-photo="${s.id}" alt="" style="max-width:100%;border-radius:var(--r-1);margin-bottom:${s.body ? "6px" : "0"};">` : ""}
+          ${s.body ? `<div style="color:var(--ink);line-height:1.45;">${escapeHtml(s.body)}</div>` : ""}
+          <div style="font-size:10px;color:var(--ink-faint);font-family:var(--mono);margin-top:3px;">${escapeHtml(String(s.created_at || "").slice(0, 10))}</div>
+        </div>
+        <button class="story-del" data-story-del="${s.id}" aria-label="Delete memory" style="border:none;background:none;color:var(--ink-faint);cursor:pointer;padding:2px;">${I.close({ w: 14, h: 14 })}</button>
+      </div>`).join("");
+    const auto = `
+      <div style="font-size:11px;color:var(--ink-faint);">
+        ${entry.purchased_at ? `${I.check({ w: 12, h: 12 })} Acquired ${escapeHtml(String(entry.purchased_at).slice(0, 10))}${entry.acquisition_source ? ` · ${escapeHtml(entry.acquisition_source)}` : ""}` : `${I.check({ w: 12, h: 12 })} In your vault`}
+      </div>`;
+    timeline.innerHTML = (items || `<div style="font-size:12px;">No memories yet — the story starts with you.</div>`) + auto;
+
+    timeline.querySelectorAll("[data-story-photo]").forEach(img => {
+      customPhotoObjectURL(`/api/collection/story/${img.dataset.storyPhoto}/photo`).then(url => { if (url) img.src = url; });
+    });
+    timeline.querySelectorAll("[data-story-del]").forEach(btn => btn.addEventListener("click", async () => {
+      haptic("light");
+      try {
+        await api(`/api/collection/story/${btn.dataset.storyDel}`, { method: "DELETE" });
+        btn.closest(".story-item")?.remove();
+      } catch (e) { toast("Couldn't delete: " + e.message, "error"); }
+    }));
+  };
+
+  const load = async () => {
+    try {
+      const r = await api(`/api/collection/${entry.id}/story`);
+      render(r.stories || []);
+    } catch { timeline.innerHTML = `<div style="font-size:12px;">Story unavailable right now.</div>`; }
+  };
+  await load();
+
+  $("#storyAddNote")?.addEventListener("click", async () => {
+    const input = $("#storyInput");
+    const body = (input?.value || "").trim();
+    if (!body) { toast("Write the memory first", "info"); return; }
+    haptic("medium");
+    try {
+      await api(`/api/collection/${entry.id}/story`, { method: "POST", body: { body } });
+      if (input) input.value = "";
+      toast("Memory saved", "success");
+      load();
+    } catch (e) { toast("Couldn't save: " + e.message, "error"); }
+  });
+  $("#storyAddPhoto")?.addEventListener("click", () => $("#storyPhotoInput")?.click());
+  $("#storyPhotoInput")?.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    haptic("medium");
+    try {
+      const form = new FormData();
+      form.append("photo", file);
+      const caption = ($("#storyInput")?.value || "").trim();
+      if (caption) form.append("body", caption);
+      const accessToken = _authSession?.access_token;
+      const res = await fetch((window.WORKER_BASE || "") + `/api/collection/${entry.id}/story`, {
+        method: "POST",
+        headers: accessToken ? { Authorization: "Bearer " + accessToken } : {},
+        body: form,
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+      const input = $("#storyInput");
+      if (input) input.value = "";
+      toast("Photo added to the story", "success");
+      load();
+    } catch (err) { toast("Couldn't upload: " + err.message, "error"); }
+  });
+}
+
 function wireManageTab(set, entry) {
   if (!entry) return;
+
+  if (!isGuestMode()) wireStoryCard(set, entry);
 
   const container = $("#mFlipCalcContainer");
   if (container) {

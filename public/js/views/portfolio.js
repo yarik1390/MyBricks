@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, ratesUnavailable, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone, publicOrigin } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, ratesUnavailable, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone, publicOrigin, celebrate } from '../utils.js';
 import { marketValueForCondition, computeSpreadSignals, estMark, displayValueOf } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
@@ -492,7 +492,34 @@ function paintPortfolio() {
     if (items.length === 0) wireShelfSnapCTA();
   }
 
+  checkAnniversaries(items);
   refreshNavBadge();
+}
+
+// Set anniversaries: exactly N years to the day since a set was purchased →
+// a one-time celebration with the gain since. At most one per page load, each
+// (set, year) fires once ever (localStorage de-dup).
+function checkAnniversaries(items) {
+  const today = new Date();
+  for (const it of items || []) {
+    if (!it.purchased_at) continue;
+    const d = new Date(it.purchased_at);
+    if (Number.isNaN(d.getTime())) continue;
+    const years = today.getUTCFullYear() - d.getUTCFullYear();
+    if (years < 1) continue;
+    if (d.getUTCMonth() !== today.getUTCMonth() || d.getUTCDate() !== today.getUTCDate()) continue;
+    const key = `bv_anniv_${it.set_num}_${years}`;
+    if (localStorage.getItem(key)) continue;
+    try { localStorage.setItem(key, "1"); } catch {}
+    const paid = Number(it.purchase_price) || 0;
+    const now = Number(displayValueOf(it)) || 0;
+    const gain = paid > 0 && now > 0 ? now - paid : null;
+    const quip = gain != null
+      ? (gain >= 0 ? `Bought for ${fmtMoney(paid)} — up ${fmtMoney(gain)} since.` : `Bought for ${fmtMoney(paid)}. Some sets are for love, not profit.`)
+      : "Time flies when you're building.";
+    setTimeout(() => celebrate(`${years} year${years > 1 ? "s" : ""} with ${it.name || it.set_num}! 🎂`, { quip, hue: themeHue(it.theme || "") }), 1200);
+    break;
+  }
 }
 
 const showSearchSpinner = (containerSel, active) => {

@@ -495,4 +495,90 @@ app.post('/backups/:date/restore', async (c) => {
   return c.json({ ok: true, restored: stmts.length, date });
 });
 
+// GET /api/me/wrapped?year=YYYY — "Brick Wrapped": the collector's year in
+// numbers, aggregated fresh from their own rows (no new storage). Defaults to
+// the current year; sold sets count toward the year they sold.
+app.get('/wrapped', async (c) => {
+  const userId = c.get('userId');
+  const now = new Date();
+  const yearParam = parseInt(c.req.query('year') || '', 10);
+  const year = yearParam >= 2000 && yearParam <= now.getUTCFullYear() ? yearParam : now.getUTCFullYear();
+  const y0 = `${year}-01-01`;
+  const y1 = `${year + 1}-01-01`;
+
+  const added = await c.env.DB.prepare(`
+    SELECT COUNT(*) AS sets_added, COALESCE(SUM(purchase_price), 0) AS invested,
+           COALESCE(SUM(s.pieces * COALESCE(uc.quantity, 1)), 0) AS pieces_added
+    FROM user_collection uc JOIN lego_sets s ON s.set_num = uc.set_num
+    WHERE uc.user_id=? AND uc.added_at >= ? AND uc.added_at < ?
+  `).bind(userId, y0, y1).first<{ sets_added: number; invested: number; pieces_added: number }>();
+
+  const sold = await c.env.DB.prepare(`
+    SELECT COUNT(*) AS sets_sold, COALESCE(SUM(sold_price), 0) AS sale_total,
+           COALESCE(SUM(sold_price - COALESCE(purchase_price, 0)), 0) AS realized_gain
+    FROM user_collection
+    WHERE user_id=? AND sold_at >= ? AND sold_at < ?
+  `).bind(userId, y0, y1).first<{ sets_sold: number; sale_total: number; realized_gain: number }>();
+
+  // Portfolio movement over the year from the daily snapshots (first vs last
+  // inside the window — tolerates accounts created mid-year).
+  const snaps = await c.env.DB.prepare(`
+    SELECT MIN(snapshot_date) AS first_date, MAX(snapshot_date) AS last_date
+    FROM portfolio_snapshots WHERE user_id=? AND snapshot_date >= ? AND snapshot_date < ?
+  `).bind(userId, y0, y1).first<{ first_date: string | null; last_date: string | null }>();
+  let value_start: number | null = null;
+  let value_end: number | null = null;
+  if (snaps?.first_date && snaps?.last_date) {
+    const pick = (d: string) => c.env.DB.prepare(
+      'SELECT total_value FROM portfolio_snapshots WHERE user_id=? AND snapshot_date=?'
+    ).bind(userId, d).first<{ total_value: number }>();
+    value_start = Number((await pick(snaps.first_date))?.total_value) || null;
+    value_end = Number((await pick(snaps.last_date))?.total_value) || null;
+  }
+
+  // Best performer among currently-owned sets with a real purchase price.
+  const best = await c.env.DB.prepare(`
+    SELECT uc.set_num, s.name, s.image_url, uc.purchase_price,
+           COALESCE(s.blended_value, s.current_value) AS value_now
+    FROM user_collection uc JOIN lego_sets s ON s.set_num = uc.set_num
+    WHERE uc.user_id=? AND uc.deleted_at IS NULL AND uc.purchase_price > 0
+      AND COALESCE(s.blended_value, s.current_value) > 0
+    ORDER BY (COALESCE(s.blended_value, s.current_value) - uc.purchase_price) / uc.purchase_price DESC
+    LIMIT 1
+  `).bind(userId).first<Record<string, unknown>>();
+
+  const longest = await c.env.DB.prepare(`
+    SELECT uc.set_num, s.name, uc.purchased_at
+    FROM user_collection uc JOIN lego_sets s ON s.set_num = uc.set_num
+    WHERE uc.user_id=? AND uc.deleted_at IS NULL AND uc.purchased_at IS NOT NULL
+    ORDER BY uc.purchased_at ASC LIMIT 1
+  `).bind(userId).first<Record<string, unknown>>();
+
+  const figs = await c.env.DB.prepare(
+    'SELECT COUNT(*) AS minifig_count FROM user_minifigs WHERE user_id=?'
+  ).bind(userId).first<{ minifig_count: number }>().catch(() => ({ minifig_count: 0 }));
+
+  return c.json({
+    year,
+    sets_added: Number(added?.sets_added) || 0,
+    invested: Number(added?.invested) || 0,
+    pieces_added: Number(added?.pieces_added) || 0,
+    sets_sold: Number(sold?.sets_sold) || 0,
+    sale_total: Number(sold?.sale_total) || 0,
+    realized_gain: Number(sold?.realized_gain) || 0,
+    value_start,
+    value_end,
+    best_performer: best ? {
+      set_num: best.set_num, name: best.name, image_url: best.image_url,
+      purchase_price: Number(best.purchase_price) || 0,
+      value_now: Number(best.value_now) || 0,
+      roi_pct: Number(best.purchase_price) > 0
+        ? Math.round(((Number(best.value_now) - Number(best.purchase_price)) / Number(best.purchase_price)) * 100)
+        : null,
+    } : null,
+    longest_held: longest ? { set_num: longest.set_num, name: longest.name, purchased_at: longest.purchased_at } : null,
+    minifig_count: Number(figs?.minifig_count) || 0,
+  });
+});
+
 export { app as meRoute };
