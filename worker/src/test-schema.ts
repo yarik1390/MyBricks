@@ -187,6 +187,16 @@ export const TABLE_DDL: Record<string, string> = {
   PRIMARY KEY (set_num, market), UNIQUE (market, asin)
 )`,
 
+  minifig_bl_candidates: `CREATE TABLE IF NOT EXISTS minifig_bl_candidates (
+  fig_num TEXT NOT NULL REFERENCES minifigs(fig_num),
+  bl_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','verified','rejected')),
+  evidence_json TEXT,
+  first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  checked_at TEXT,
+  decided_at TEXT,
+  PRIMARY KEY (fig_num, bl_id)
+)`,
   community_comps: `CREATE TABLE IF NOT EXISTS community_comps (
   set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
   condition TEXT NOT NULL CHECK(condition IN ('new_sealed','used_complete')),

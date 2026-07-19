@@ -51,6 +51,9 @@ crons = [
   # highest-value uncovered sets (self-guarded: token gate + 500/day spend cap).
   "0 14 * * *",
   "0 15 * * *",
+  # Minifig identity verification: price-agreement settling of ambiguous
+  # Rebrickable->BrickLink name matches (minifig_bl_candidates queue).
+  "0 16 * * *",
   # pricesAPI.io live-retail refresh (deal signal / stock truth / wishlist alerts).
   # Small + sequential: cold calls run 30–90s and the free tier is 6/min per key.
   "0 17 * * *",

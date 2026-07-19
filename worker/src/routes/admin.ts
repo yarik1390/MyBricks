@@ -762,7 +762,7 @@ app.get('/integrations', async (c) => {
 
 // Pricing Center: compact operational views over the normalized v3 side tables.
 app.get('/pricing/quality', async (c) => {
-  const [states, mappings, signals, anomalies, retail, legacyPc] = await Promise.all([
+  const [states, mappings, signals, anomalies, retail, legacyPc, figQueue] = await Promise.all([
     c.env.DB.prepare(`
       SELECT condition, confidence, COUNT(*) AS count,
              SUM(CASE WHEN fair_value IS NOT NULL THEN 1 ELSE 0 END) AS valued,
@@ -774,6 +774,7 @@ app.get('/pricing/quality', async (c) => {
     c.env.DB.prepare(`SELECT severity, COUNT(*) AS count FROM pricing_anomalies WHERE status='open' GROUP BY severity`).all(),
     c.env.DB.prepare(`SELECT market, COUNT(*) AS count, SUM(CASE WHEN stock='in_stock' THEN 1 ELSE 0 END) AS in_stock FROM retail_price_current GROUP BY market`).all(),
     c.env.DB.prepare(`SELECT COUNT(*) AS count FROM lego_sets WHERE pc_id IS NOT NULL OR pc_new_value IS NOT NULL OR pc_complete_value IS NOT NULL`).first(),
+    c.env.DB.prepare(`SELECT status, COUNT(DISTINCT fig_num) AS figs, COUNT(*) AS candidates FROM minifig_bl_candidates GROUP BY status`).all().catch(() => ({ results: [] })),
   ]);
   const quarantined = (mappings.results || []).filter((row: any) => row.status === 'quarantined')
     .reduce((sum: number, row: any) => sum + Number(row.count || 0), 0);
@@ -786,6 +787,7 @@ app.get('/pricing/quality', async (c) => {
     anomalies: anomalies.results || [],
     retail: retail.results || [],
     legacy_pricecharting_rows: Number((legacyPc as any)?.count || 0),
+    minifig_identity_queue: (figQueue as any).results || [],
     recommended_action: quarantined > 0
       ? `Review ${quarantined} quarantined source matches before enabling PriceCharting.`
       : openAnomalies > 0

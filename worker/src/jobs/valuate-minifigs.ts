@@ -72,6 +72,16 @@ export async function runValuateMinifigs(env: Env, options: { limit?: number } =
       if (blId) {
         await env.DB.prepare(`UPDATE minifigs SET bl_id = ? WHERE fig_num = ?`)
           .bind(blId, fig.fig_num).run().catch(() => {});
+      } else if ((cand.results ?? []).length > 1) {
+        // Ambiguous same-name matches: park every candidate in the verification
+        // queue (settled later by price-agreement in minifig-verify) instead of
+        // dropping them — dropped meant the fig could never be priced.
+        for (const c of cand.results ?? []) {
+          await env.DB.prepare(`
+            INSERT INTO minifig_bl_candidates (fig_num, bl_id, evidence_json)
+            VALUES (?, ?, ?) ON CONFLICT (fig_num, bl_id) DO NOTHING
+          `).bind(fig.fig_num, c.bl_id, JSON.stringify({ candidate_year: c.year, fig_year: fig.year })).run().catch(() => {});
+        }
       }
     }
 

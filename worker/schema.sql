@@ -300,6 +300,23 @@ CREATE TABLE IF NOT EXISTS user_collection (
 -- actually paid/sold for, per set + condition bucket. Written nightly by the
 -- community-comps job (k>=5 distinct contributors, outlier-trimmed). Read-side
 -- integration into the blend comes later (v3 dual-write discipline).
+-- Minifig identity verification queue: Rebrickable->BrickLink name matches
+-- that resolveBlId could NOT disambiguate (multiple same-name candidates) are
+-- parked here and settled by price-agreement (minifig-verify job) instead of
+-- being silently dropped — the same identity discipline sets get from
+-- pricing_source_map.
+CREATE TABLE IF NOT EXISTS minifig_bl_candidates (
+  fig_num TEXT NOT NULL REFERENCES minifigs(fig_num),
+  bl_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','verified','rejected')),
+  evidence_json TEXT,
+  first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  checked_at TEXT,
+  decided_at TEXT,
+  PRIMARY KEY (fig_num, bl_id)
+);
+CREATE INDEX IF NOT EXISTS idx_minifig_bl_candidates_status ON minifig_bl_candidates(status, checked_at);
+
 CREATE TABLE IF NOT EXISTS community_comps (
   set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
   condition TEXT NOT NULL CHECK(condition IN ('new_sealed','used_complete')),
