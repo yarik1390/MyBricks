@@ -368,6 +368,7 @@ function paintPortfolio() {
     value: fmtMoney(totalVal, { cents: 0 }),
     delta: `${gain >= 0 ? "▲" : "▼"} ${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(Math.abs(gainPct))})`,
     deltaUp: gain >= 0,
+    sets: p.set_count ?? (p.items ? p.items.length : 0),
   })).catch(() => {});
   if (state.portfolioTab === "insights") wireInsightsTab();
 

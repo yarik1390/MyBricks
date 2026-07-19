@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A LEGO-style 2x2 brick glyph: brand-yellow body with a dark outline and
+     four studs. Used as the widget's brand mark on the right. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- studs -->
+    <path android:fillColor="#E0B200"
+        android:pathData="M14,8 m-5,0 a5,3 0 1,0 10,0 a5,3 0 1,0 -10,0" />
+    <path android:fillColor="#E0B200"
+        android:pathData="M34,8 m-5,0 a5,3 0 1,0 10,0 a5,3 0 1,0 -10,0" />
+    <!-- brick body -->
+    <path android:fillColor="#F7C600"
+        android:strokeColor="#26231D"
+        android:strokeWidth="2"
+        android:pathData="M8,11 L40,11 A2,2 0 0 1 42,13 L42,38 A2,2 0 0 1 40,40 L8,40 A2,2 0 0 1 6,38 L6,13 A2,2 0 0 1 8,11 Z" />
+    <!-- top studs on the body -->
+    <path android:fillColor="#F7C600"
+        android:strokeColor="#26231D"
+        android:strokeWidth="2"
+        android:pathData="M14,11 m-5,-3 a5,3 0 1,0 10,0 a5,3 0 1,0 -10,0" />
+    <path android:fillColor="#F7C600"
+        android:strokeColor="#26231D"
+        android:strokeWidth="2"
+        android:pathData="M34,11 m-5,-3 a5,3 0 1,0 10,0 a5,3 0 1,0 -10,0" />
+</vector>

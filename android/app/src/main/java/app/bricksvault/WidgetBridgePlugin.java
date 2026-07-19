@@ -23,6 +23,7 @@ public class WidgetBridgePlugin extends Plugin {
     static final String KEY_VALUE = "value";
     static final String KEY_DELTA = "delta";
     static final String KEY_DELTA_UP = "delta_up";
+    static final String KEY_SETS = "sets";
     static final String KEY_UPDATED = "updated_at";
 
     @PluginMethod
@@ -32,6 +33,7 @@ public class WidgetBridgePlugin extends Plugin {
         ed.putString(KEY_VALUE, call.getString("value", "—"));
         ed.putString(KEY_DELTA, call.getString("delta", ""));
         ed.putBoolean(KEY_DELTA_UP, Boolean.TRUE.equals(call.getBoolean("deltaUp", true)));
+        ed.putInt(KEY_SETS, call.getInt("sets", 0));
         ed.putLong(KEY_UPDATED, System.currentTimeMillis());
         ed.apply();
 

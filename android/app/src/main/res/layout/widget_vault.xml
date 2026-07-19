@@ -3,37 +3,63 @@
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="14dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="16dp"
     android:background="@drawable/widget_bg">
 
-    <TextView
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="@string/widget_eyebrow"
-        android:textSize="10sp"
-        android:letterSpacing="0.08"
-        android:textColor="#6b6455" />
+        android:layout_weight="1"
+        android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/widget_value"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:text="—"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:textColor="#26231d"
-        android:maxLines="1" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/widget_eyebrow"
+            android:textSize="10sp"
+            android:letterSpacing="0.08"
+            android:fontFamily="monospace"
+            android:textColor="#8A8172" />
 
-    <TextView
-        android:id="@+id/widget_delta"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:text=""
-        android:textSize="12sp"
-        android:textStyle="bold"
-        android:textColor="#2c7a4b"
-        android:maxLines="1" />
+        <TextView
+            android:id="@+id/widget_value"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:text="Open the app"
+            android:textSize="26sp"
+            android:textStyle="bold"
+            android:textColor="#26231D"
+            android:maxLines="1" />
+
+        <TextView
+            android:id="@+id/widget_delta"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:text=""
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="#2C7A4B"
+            android:maxLines="1" />
+
+        <TextView
+            android:id="@+id/widget_meta"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Open the app to sync"
+            android:textSize="10sp"
+            android:textColor="#8A8172"
+            android:maxLines="1" />
+    </LinearLayout>
+
+    <ImageView
+        android:layout_width="46dp"
+        android:layout_height="46dp"
+        android:layout_marginStart="10dp"
+        android:src="@drawable/widget_brick"
+        android:contentDescription="@string/app_name" />
 </LinearLayout>
