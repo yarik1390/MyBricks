@@ -1,4 +1,4 @@
-import { $, haptic, escapeHtml, fmtMoney, toast, celebrate, getExchangeRate, CURRENCY_SYMBOLS, mount } from '../utils.js';
+import { $, haptic, escapeHtml, fmtMoney, toast, celebrate, getExchangeRate, CURRENCY_SYMBOLS } from '../utils.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
@@ -50,11 +50,11 @@ export async function renderGame() {
   let daily;
   try { daily = await api("/api/game/daily"); }
   catch (e) {
-    mount($("#gameBody"), `<p style="color:var(--down);font-size:13px;text-align:center;padding:30px 0;">Couldn't load today's game: ${escapeHtml(e.message)}</p>`);
+    $("#gameBody").innerHTML = `<p style="color:var(--down);font-size:13px;text-align:center;padding:30px 0;">Couldn't load today's game: ${escapeHtml(e.message)}</p>`;
     return;
   }
   if (!daily.rounds?.length) {
-    mount($("#gameBody"), `<p style="color:var(--ink-mute);font-size:13px;text-align:center;padding:30px 0;">Today's game isn't ready yet — check back soon.</p>`);
+    $("#gameBody").innerHTML = `<p style="color:var(--ink-mute);font-size:13px;text-align:center;padding:30px 0;">Today's game isn't ready yet — check back soon.</p>`;
     return;
   }
 
@@ -95,15 +95,25 @@ function roundHTML(round, idx, total) {
 
 function playRound(daily, idx, results) {
   const round = daily.rounds[idx];
-  mount($("#gameBody"), roundHTML(round, idx, daily.rounds.length));
+  // Plain innerHTML (not morphdom mount): each round is a full-screen swap, so
+  // fresh DOM nodes are correct — and crucially they prevent click listeners
+  // from stacking on a reused #gameLock/#gameNext across rounds (which caused
+  // one tap to fire multiple times → duplicate results and racing re-renders).
+  $("#gameBody").innerHTML = roundHTML(round, idx, daily.rounds.length);
   const input = $("#gameGuess");
   input?.focus();
 
+  let locked = false;   // this round has already been answered
   const lock = async () => {
+    if (locked) return;
+    // A round is answered exactly once (defends against a double-tap landing
+    // before the button disables, and against any stray duplicate listener).
+    if (results.some(r => r.set_num === round.set_num)) return;
     const userCurrency = state.me?.currency || "USD";
     const rate = getExchangeRate(userCurrency);
     const raw = Number(input?.value);
     if (!Number.isFinite(raw) || raw <= 0) { toast("Enter your guess first", "info"); return; }
+    locked = true;
     const guessUsd = raw / (rate || 1);
     haptic("medium");
     const btn = $("#gameLock");
@@ -113,6 +123,7 @@ function playRound(daily, idx, results) {
       out = await api("/api/game/guess", { method: "POST", body: { set_num: round.set_num, guess: guessUsd } });
     } catch (e) {
       toast("Couldn't check that guess: " + e.message, "error");
+      locked = false;
       if (btn) btn.disabled = false;
       return;
     }
@@ -125,11 +136,12 @@ function playRound(daily, idx, results) {
           <div style="font-size:12px;opacity:.9;margin-top:2px;">You were ${out.pct_off}% off</div>
         </div>
         <button class="btn-primary" id="gameNext" style="margin-top:12px;width:100%;">${idx + 1 < daily.rounds.length ? "Next set" : "See my score"}</button>`;
+      // once:true — a single Next tap advances exactly one round.
       $("#gameNext")?.addEventListener("click", () => {
         haptic("light");
         if (idx + 1 < daily.rounds.length) playRound(daily, idx + 1, results);
         else finish(daily, results);
-      });
+      }, { once: true });
     }
     if (out.correct) haptic("heavy");
   };
@@ -156,7 +168,7 @@ function showSummary(daily, results) {
         <span style="font-weight:700;color:${res?.correct ? "var(--up)" : "var(--down)"};margin-left:8px;">${res ? (res.correct ? "🎯" : `${res.pct_off}% off`) : "—"}</span>
       </div>`;
   }).join("");
-  mount($("#gameBody"), `
+  $("#gameBody").innerHTML = `
     <div class="card" style="padding:18px;text-align:center;">
       <div style="font-family:var(--serif);font-size:26px;font-weight:600;">${score}/5</div>
       <div style="font-size:12px;color:var(--ink-mute);margin:2px 0 12px;">${escapeHtml(daily.day)} · streak ${streak.streak} · best ${streak.best}</div>
@@ -166,7 +178,7 @@ function showSummary(daily, results) {
         <button class="btn-primary" id="gameShare">${I.share ? I.share() : ""}<span>Share</span></button>
       </div>
       <div style="font-size:11px;color:var(--ink-faint);margin-top:12px;">New sets every day at midnight UTC. Values are BricksVault market prices.</div>
-    </div>`);
+    </div>`;
   $("#gameShare")?.addEventListener("click", async () => {
     haptic("medium");
     const squares = daily.rounds.map(r => (results.find(x => x.set_num === r.set_num)?.correct ? "🟩" : "🟥")).join("");

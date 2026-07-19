@@ -30,12 +30,16 @@ export async function verifyBiometric(reason, win) {
   const bio = plugin(win);
   if (!bio?.authenticate) return false;
   try {
+    // Android's BiometricPrompt forbids a negative/cancel button when device
+    // credential (PIN/pattern) fallback is enabled — passing both throws
+    // IllegalArgumentException, which surfaced as a permanent "Couldn't verify".
+    // Keep the PIN fallback (so a broken sensor never locks the owner out) and
+    // drop cancelTitle; the system dialog provides its own cancel affordance.
     await bio.authenticate({
       reason: reason || 'Unlock BricksVault',
       androidTitle: 'BricksVault',
       androidSubtitle: reason || 'Confirm it’s you',
       allowDeviceCredential: true,
-      cancelTitle: 'Cancel',
     });
     return true;
   } catch {

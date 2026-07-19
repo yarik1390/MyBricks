@@ -1,6 +1,6 @@
 import { $, $$, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDataURL, resizeImage, setHue, getExchangeRate, CURRENCY_SYMBOLS, activateFocusTrap, FOCUSABLE_SEL, getCachedSetDetail, track } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
-import { api, outboxEnqueue, getSessionUserId } from '../api.js';
+import { api, outboxEnqueue, getSessionUserId, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from './sheet.js';
 import { computeDealScore as computeDealScorePure, computeStoreVerdict, marketValueForCondition, flipEconomics, classifyScanFailure, manualScanTarget } from '../lib/pure.js';
@@ -186,7 +186,44 @@ export function openScan(mode = "barcode", { deferStart = false, shelf = false }
     }));
   }
 
+  // Photo/AI scanning needs a signed-in account (shared server key) OR the
+  // user's own AI key. A guest with neither would open the camera, frame a
+  // shot, and only THEN hit a 401 — a wasted capture. Gate it up front:
+  // show the setup card and never start the camera. Barcode mode is auth-free,
+  // so it stays fully available to guests.
+  if (mode === "image" && guestPhotoScanBlocked()) {
+    showPhotoScanSignInCard();
+    return;
+  }
+
   if (!deferStart) startCamera();
+}
+
+// A guest with no BYOK AI key can't use the shared photo-scan service.
+function guestPhotoScanBlocked() {
+  try {
+    if (!isGuestMode()) return false;
+    return !localStorage.getItem("bv_gemini_key") && !localStorage.getItem("bv_openai_key");
+  } catch { return false; }
+}
+
+// Renders the "photo scanning needs an account or key" card into the scan
+// result area, matching the setup-needed styling used for scan failures.
+function showPhotoScanSignInCard() {
+  const el = $("#scanResult");
+  if (!el) return;
+  el.classList.add("show");
+  el.classList.remove("loading");
+  document.querySelector(".scan-video-wrap")?.classList.add("has-result");
+  el.innerHTML = `
+    <div class="scan-result-head">
+      <span class="badge miss">${I.gear()}SETUP NEEDED</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">Photo scan</span>
+    </div>
+    <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">Photo &amp; AI scanning needs a free account, or your own Gemini/OpenAI key. Barcode scanning works right now — tap Barcode above.</p>
+    <div class="btn-row"><button class="btn-primary" id="scanSignIn">Sign in</button><button class="btn-secondary" id="scanSetup">Add AI key</button></div>`;
+  $("#scanSignIn")?.addEventListener("click", () => { closeScan(); location.hash = "#/login"; });
+  $("#scanSetup")?.addEventListener("click", () => { closeScan(); location.hash = "#/me/integrations"; });
 }
 
 export function closeScan() {
@@ -1056,14 +1093,15 @@ function scanOverlayHTML(mode, shelf = false) {
         <span class="corner bl"></span><span class="corner br"></span>
         ${mode !== "image" ? `<span class="laser"></span>` : ""}
       </div>`}
-      <div class="scan-hint" id="scanHint">${nativeBarcode ? "Opening scanner…" : mode === "blindbox" ? "Scan the blind bag or box barcode" : mode === "barcode" ? "Align barcode within the frame" : shelf ? "Fit the whole shelf in frame — good light helps" : "Frame the set and tap to identify"}</div>
-      ${mode === "image" ? `
-        <div class="scan-shelf-row" role="group" aria-label="Photo scope" style="position:absolute;left:0;right:0;bottom:112px;display:flex;justify-content:center;">
+      ${mode === "image" && !nativeBarcode ? `
+        <div class="scan-shelf-row" role="group" aria-label="Photo scope" style="position:absolute;left:0;right:0;top:calc(var(--safe-top, 0px) + 62px);display:flex;justify-content:center;z-index:3;">
           <div style="display:inline-flex;border:1.5px solid #fff5;border-radius:999px;overflow:hidden;backdrop-filter:blur(6px);background:#0006;">
             <button type="button" class="scan-shelf-opt" data-shelf="0" aria-pressed="${shelf ? "false" : "true"}" style="border:none;background:${shelf ? "transparent" : "var(--accent)"};color:${shelf ? "#fff9" : "#fff"};font-size:12px;font-weight:700;padding:7px 14px;cursor:pointer;">One set</button>
             <button type="button" class="scan-shelf-opt" data-shelf="1" aria-pressed="${shelf ? "true" : "false"}" style="border:none;background:${shelf ? "var(--accent)" : "transparent"};color:${shelf ? "#fff" : "#fff9"};font-size:12px;font-weight:700;padding:7px 14px;cursor:pointer;">Whole shelf</button>
           </div>
-        </div>
+        </div>` : ""}
+      <div class="scan-hint" id="scanHint">${nativeBarcode ? "Opening scanner…" : mode === "blindbox" ? "Scan the blind bag or box barcode" : mode === "barcode" ? "Align barcode within the frame" : shelf ? "Fit the whole shelf in frame — good light helps" : "Frame the set and tap to identify"}</div>
+      ${mode === "image" ? `
         <div class="scan-bottom">
           <button class="btn-secondary scan-gallery-btn" id="scanGalleryBtn">
             ${I.layers({w:16, h:16})} <span>Gallery</span>
