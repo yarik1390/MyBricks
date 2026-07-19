@@ -1,6 +1,6 @@
 import { $, $$, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDataURL, resizeImage, setHue, getExchangeRate, CURRENCY_SYMBOLS, activateFocusTrap, FOCUSABLE_SEL, getCachedSetDetail, track } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
-import { api, outboxEnqueue, getSessionUserId, isGuestMode } from '../api.js';
+import { api, outboxEnqueue, getSessionUserId, photoScanNeedsSetup } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from './sheet.js';
 import { computeDealScore as computeDealScorePure, computeStoreVerdict, marketValueForCondition, flipEconomics, classifyScanFailure, manualScanTarget } from '../lib/pure.js';
@@ -110,6 +110,13 @@ function showScanLoading(label = "Identifying...", detail = "This can take up to
 }
 
 export function openScan(mode = "barcode", { deferStart = false, shelf = false } = {}) {
+  // Check access before mounting the full-screen camera. Guests without a BYOK
+  // key get a small setup sheet while barcode/manual lookup remain available.
+  if (mode === "image" && photoScanNeedsSetup()) {
+    showPhotoScanSetupSheet();
+    return;
+  }
+
   state.camera.mode = mode;
   // Shelf Snap: photo mode variant — one wide photo, every set on the shelf.
   state.camera.shelf = mode === "image" && !!shelf;
@@ -186,44 +193,26 @@ export function openScan(mode = "barcode", { deferStart = false, shelf = false }
     }));
   }
 
-  // Photo/AI scanning needs a signed-in account (shared server key) OR the
-  // user's own AI key. A guest with neither would open the camera, frame a
-  // shot, and only THEN hit a 401 — a wasted capture. Gate it up front:
-  // show the setup card and never start the camera. Barcode mode is auth-free,
-  // so it stays fully available to guests.
-  if (mode === "image" && guestPhotoScanBlocked()) {
-    showPhotoScanSignInCard();
-    return;
-  }
-
   if (!deferStart) startCamera();
 }
 
-// A guest with no BYOK AI key can't use the shared photo-scan service.
-function guestPhotoScanBlocked() {
-  try {
-    if (!isGuestMode()) return false;
-    return !localStorage.getItem("bv_gemini_key") && !localStorage.getItem("bv_openai_key");
-  } catch { return false; }
-}
-
-// Renders the "photo scanning needs an account or key" card into the scan
-// result area, matching the setup-needed styling used for scan failures.
-function showPhotoScanSignInCard() {
-  const el = $("#scanResult");
-  if (!el) return;
-  el.classList.add("show");
-  el.classList.remove("loading");
-  document.querySelector(".scan-video-wrap")?.classList.add("has-result");
-  el.innerHTML = `
-    <div class="scan-result-head">
-      <span class="badge miss">${I.gear()}SETUP NEEDED</span>
-      <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">Photo scan</span>
+function showPhotoScanSetupSheet() {
+  showSheet(`
+    <div class="sheet-title-row">
+      <div>
+        <div class="u-mono-label">Photo identification</div>
+        <h2 class="u-serif-h" style="margin:2px 0 0;">Set up photo scanning</h2>
+      </div>
+      <button type="button" class="icon-btn" id="photoScanSetupClose" aria-label="Close">${I.close()}</button>
     </div>
-    <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">Photo &amp; AI scanning needs a free account, or your own Gemini/OpenAI key. Barcode scanning works right now — tap Barcode above.</p>
-    <div class="btn-row"><button class="btn-primary" id="scanSignIn">Sign in</button><button class="btn-secondary" id="scanSetup">Add AI key</button></div>`;
-  $("#scanSignIn")?.addEventListener("click", () => { closeScan(); location.hash = "#/login"; });
-  $("#scanSetup")?.addEventListener("click", () => { closeScan(); location.hash = "#/me/integrations"; });
+    <p class="u-mute" style="margin:0 4px 14px;">Sign in to use the shared scan service, or add your own Gemini/OpenAI key. Barcode and manual lookup stay free for guests.</p>
+    <div class="btn-row">
+      <button class="btn-primary" id="scanSignIn">Sign in</button>
+      <button class="btn-secondary" id="scanSetup">Add AI key</button>
+    </div>`);
+  $("#photoScanSetupClose")?.addEventListener("click", hideSheet);
+  $("#scanSignIn")?.addEventListener("click", () => { hideSheet(); location.hash = "#/login"; });
+  $("#scanSetup")?.addEventListener("click", () => { hideSheet(); location.hash = "#/me/integrations"; });
 }
 
 export function closeScan() {
@@ -818,6 +807,7 @@ function showScanResult(res) {
   if (!res.identified) {
     const reason = res.reasoning || "Couldn't identify the set. Try a clearer photo.";
     const noKey = !localStorage.getItem("bv_gemini_key") && !localStorage.getItem("bv_openai_key");
+    const needsAccount = photoScanNeedsSetup();
     const failure = classifyScanFailure(reason);
     const rateLimited = failure.kind === "limit";
     const setupNeeded = failure.kind === "setup";
@@ -839,9 +829,14 @@ function showScanResult(res) {
           ${I.flash({ w: 16 })}<span>${rateLimited ? "Shared scan limit reached" : "Enable photo scanning"}</span>
         </div>
         <div style="font-size:11px; color:var(--ink-mute); line-height:1.45;">
-          Sign in to use the shared service, or add a free personal key in <strong>Me &gt; Integrations</strong> for scans on your own quota.
+          ${needsAccount
+            ? "Sign in to use the shared service, or add a free personal key in <strong>Me &gt; Integrations</strong>."
+            : "Your account is still signed in. Try again, or add a free personal key in <strong>Me &gt; Integrations</strong> for scans on your own quota."}
         </div>
       </div>` : "";
+    const setupActions = needsAccount
+      ? `<div class="btn-row"><button class="btn-primary" id="scanSignIn">Sign in</button><button class="btn-secondary" id="scanSetup">Add AI key</button></div>`
+      : `<div class="btn-row"><button class="btn-primary" id="scanRetry">Try again</button><button class="btn-secondary" id="scanSetup">Add AI key</button></div>`;
     el.innerHTML = `
       <div class="scan-result-head">
         <span class="badge miss">${badgeIcon}${badgeLabel}</span>
@@ -850,7 +845,7 @@ function showScanResult(res) {
       <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">${escapeHtml(reason)}</p>
       ${resetHint}
       ${nudge}
-      ${setupNeeded ? `<div class="btn-row"><button class="btn-primary" id="scanSignIn">Sign in</button><button class="btn-secondary" id="scanSetup">Add AI key</button></div>`
+      ${setupNeeded ? setupActions
         : `<button class="btn-secondary" id="scanRetry">${rateLimited ? "Close" : "Try again"}</button>`}`;
     $("#scanRetry")?.addEventListener("click", () => clearScanResult({ restartBarcode: true }));
     $("#scanSignIn")?.addEventListener("click", () => { location.hash = "#/login"; });

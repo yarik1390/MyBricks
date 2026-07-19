@@ -6560,14 +6560,70 @@ body[data-route="set-detail"] .detail-page-container[data-detail-tab="manage"] {
 :root[data-skin="vivid"] .scan-result-row .si img,
 :root[data-skin="vivid"] .game-set-photo { mix-blend-mode: normal !important; }
 
+.scan-method.needs-setup { background: var(--surface-2); }
+.scan-method-status {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-1);
+  color: var(--ink-mute);
+  font: 700 9px/1 var(--mono);
+  text-transform: uppercase;
+}
+
+/* The page already starts below the system inset. Adding --safe-top again to
+   this in-hero control produced the large Pixel-only gap seen in native builds. */
+.detail-back { top: 12px; }
+.detail-title-row > div:first-child { min-width: 0; }
+.detail-title { overflow-wrap: anywhere; }
+
+/* Pixel's scrolling-screenshot compositor repeats sticky content inside fixed
+   WebView sheets. The sheet itself remains scrollable and dismissible. */
+:root[data-native-shell="android"] .pricing-details-sheet-head { position: static; }
+
 @media (max-width: 600px) {
-  .detail-hero.has-photo { height: 264px; }
+  .detail-hero.has-photo { height: 232px; }
   .detail-hero.has-photo .detail-img {
-    width: min(230px, 72vw);
-    height: min(204px, 62vw);
-    inset: 32px 0 0;
+    width: min(224px, 70vw);
+    height: min(202px, 61vw);
+    inset: 0;
   }
-  .detail-title-row { margin-top: -38px; }
+  .detail-title-row { margin-top: -18px; }
+  .detail-title.is-long { font-size: 24px; line-height: 1.08; }
+  .detail-title.is-very-long { font-size: 21px; line-height: 1.08; }
   .detail-action-bar { padding: 8px 14px 10px; }
   .detail-action-bar .btn-primary { min-height: 60px; padding: 10px 12px; line-height: 1.2; }
+}
+
+@media (max-width: 480px) {
+  .set-list-card:not(.compact) { gap: 8px; padding: 8px; }
+  .set-list-card:not(.compact) .sl-img { width: 64px; height: 70px; }
+  .set-list-card:not(.compact) .sl-name { font-size: 13px; }
+  .set-list-card:not(.compact) .sl-right {
+    flex: 0 0 94px;
+    width: 94px;
+    padding-left: 0;
+  }
+  .set-list-card:not(.compact) .sl-value {
+    max-width: none;
+    overflow: visible;
+    font-size: 14px;
+  }
+  .set-list-card:not(.compact) .sl-delta { font-size: 9px; padding-inline: 4px; }
+}
+
+@media (max-width: 430px) {
+  .pricing-condition-grid,
+  .pricing-block--split { grid-template-columns: 1fr; }
+  .pricing-block--split { gap: 0; }
+  .pricing-block--split > div + div {
+    margin-top: 12px;
+    padding: 12px 0 0;
+    border-top: 1px dashed var(--line-soft);
+    border-left: 0;
+  }
+  .pricing-condition-head { align-items: flex-start; flex-wrap: wrap; }
+  .pricing-confidence { max-width: 100%; white-space: normal; line-height: 1.2; }
+  .pricing-metrics dd { max-width: 58%; overflow-wrap: anywhere; }
+  .pricing-details-sheet-title { font-size: 22px; }
 }

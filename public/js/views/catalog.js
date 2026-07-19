@@ -1,6 +1,6 @@
 import { $, $$, haptic, escapeHtml, setHue, fmtMoney, trendBadgeHTML, THEME_COLORS, bvIDB, SEARCH_DEBOUNCE_MS, mount, toast, thumbImg } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
-import { api, getSessionUserId } from '../api.js';
+import { api, getSessionUserId, photoScanNeedsSetup } from '../api.js';
 import { getModePref } from '../theme.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
@@ -784,6 +784,7 @@ function catalogCardHTML(s) {
 }
 
 export function renderPile() {
+  const photoNeedsSetup = photoScanNeedsSetup();
   $("#root").innerHTML = `
     <div class="page scan-page">
       <div class="topbar">
@@ -808,9 +809,10 @@ export function renderPile() {
             <span class="scan-method-copy"><strong>Scan barcode</strong><small>Fastest and free for boxed sets</small></span>
             <span class="scan-method-arrow" aria-hidden="true">${I.arrowR()}</span>
           </button>
-          <button class="scan-method" id="pileScanPhoto" type="button">
+          <button class="scan-method${photoNeedsSetup ? ' needs-setup' : ''}" id="pileScanPhoto" type="button"${photoNeedsSetup ? ' aria-describedby="photoScanAvailability"' : ''}>
             <span class="scan-method-icon scan-method-icon--photo">${I.camera()}</span>
-            <span class="scan-method-copy"><strong>Identify from photo</strong><small>For built, loose, or boxed sets</small></span>
+            <span class="scan-method-copy"><strong>Identify from photo</strong><small id="photoScanAvailability">${photoNeedsSetup ? 'Sign in or add an AI key first' : 'For built, loose, or boxed sets'}</small></span>
+            ${photoNeedsSetup ? '<span class="scan-method-status">Setup</span>' : ''}
             <span class="scan-method-arrow" aria-hidden="true">${I.arrowR()}</span>
           </button>
         </div>
@@ -825,7 +827,7 @@ export function renderPile() {
         </form>
       </section>
 
-      <p class="scan-privacy-note">Photo identification uses your selected AI provider. Images are processed only to identify the set.</p>
+      <p class="scan-privacy-note">${photoNeedsSetup ? 'Barcode and manual lookup work for guests. Photo identification needs an account or personal AI key.' : 'Photo identification uses your selected AI provider. Images are processed only to identify the set.'}</p>
     </div>`;
 
   $("#pileScanBarcode")?.addEventListener("click", () => openScan("barcode"));

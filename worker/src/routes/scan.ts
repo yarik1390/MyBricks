@@ -221,7 +221,13 @@ app.post('/identify', async (c) => {
 
   // 3. SHARED keyless path: Turnstile (opt-in) + per-user rate limit + the
   //    cost-tiered vision cascade (Gemini free -> OpenRouter free -> gpt-4o-mini).
-  if (c.env.TURNSTILE_SECRET_KEY) {
+  // Turnstile tokens are bound to web hostnames and cannot be minted reliably
+  // by the bundled Capacitor WebView (`https://localhost`). Authenticated
+  // Android scans remain cost-bounded by the per-user quota below. The platform
+  // header is not an auth boundary; a spoofed caller still needs a valid member
+  // JWT and remains capped to the same daily quota.
+  const authenticatedAndroid = c.req.header('X-Brickvault-Platform')?.toLowerCase() === 'android' && !!userId;
+  if (c.env.TURNSTILE_SECRET_KEY && !authenticatedAndroid) {
     const verified = await verifyTurnstileToken(
       c.req.header('cf-turnstile-token'),
       c.env.TURNSTILE_SECRET_KEY,

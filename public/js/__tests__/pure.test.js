@@ -8,7 +8,7 @@ import {
   parseCSVTable, parseCollectionCSV, sanitizeMoneyInput, activeCatalogFilterCount, activeFigFilterCount, figFilterSummary,
   liquidityLabel, classifyProviderHealth, validateSourceTuningInput, groupAdminJobRuns,
   formatRelativeTime, processRunBadge, isEstimatedValue, estMark,
-  displayValueOf, withDisplayValue, shouldUseKeyboardShell, classifyScanFailure, flipEconomics,
+  displayValueOf, withDisplayValue, shouldUseKeyboardShell, classifyScanFailure, isCredentialAuthFailure, flipEconomics,
   cleanTagLabel, pluralize, manualScanTarget,
   computeStoreVerdict, computeSellSignal,
 } from '../lib/pure.js';
@@ -310,6 +310,15 @@ describe('scanner failure states', () => {
     assert.deepEqual(classifyScanFailure('Sign in or add your own Gemini API key'), { kind: 'setup', label: 'Setup needed', retryable: false });
     assert.equal(classifyScanFailure('Quota exceeded (HTTP 429)').kind, 'limit');
     assert.equal(classifyScanFailure("Couldn't identify the set").kind, 'nomatch');
+  });
+});
+
+describe('authentication failure classification', () => {
+  it('clears sessions only for credential failures', () => {
+    assert.equal(isCredentialAuthFailure('Unauthorized: expired token'), true);
+    assert.equal(isCredentialAuthFailure('Unauthorized: malformed token'), true);
+    assert.equal(isCredentialAuthFailure('Could not verify the request'), false);
+    assert.equal(isCredentialAuthFailure('Sign in or add your own Gemini API key'), false);
   });
 });
 

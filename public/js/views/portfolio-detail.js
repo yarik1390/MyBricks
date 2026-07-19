@@ -143,6 +143,8 @@ function paintSetDetail(set, entry) {
   const h = setHue(set);
   const displayImg = proxyImg(set.image_url);
   const hasImg = displayImg && !displayImg.startsWith("data:");
+  const titleLength = String(set.name || '').length;
+  const titleSizeClass = titleLength > 58 ? ' is-very-long' : titleLength > 36 ? ' is-long' : '';
 
   $("#root").innerHTML = `
     <div class="page no-pad detail-page-container" data-detail-tab="${escapeHtml(state.detail.tab)}">
@@ -163,7 +165,7 @@ function paintSetDetail(set, entry) {
         <div class="detail-title-row">
           <div>
             <div class="detail-eyebrow">${escapeHtml(set.theme || "")} · #${escapeHtml(set.set_num)}${set.coming_soon ? " · <span style='color:var(--accent);font-weight:700;'>COMING SOON</span>" : `${set.retired ? " · RETIRED" : ""}${set.lego_retiring_soon ? " · <span style='color:var(--down);font-weight:700;'>RETIRING SOON</span>" : ""}`}</div>
-            <h1 class="detail-title">${escapeHtml(set.name)}</h1>
+            <h1 class="detail-title${titleSizeClass}">${escapeHtml(set.name)}</h1>
           </div>
           <button class="detail-share-btn icon-btn" id="shareBtn" aria-label="Share">${I.share()}</button>
         </div>

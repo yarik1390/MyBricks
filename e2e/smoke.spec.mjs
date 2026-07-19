@@ -39,6 +39,21 @@ test('scan route waits for a method choice and accepts a manual set number', asy
   await expect(page.getByText('Millennium Falcon').first()).toBeVisible();
 });
 
+test('guest photo scan asks for setup before mounting the camera', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.removeItem('bv_session');
+    localStorage.removeItem('bv_gemini_key');
+    localStorage.removeItem('bv_openai_key');
+  });
+  await page.goto('/#/pile', { waitUntil: 'domcontentloaded' });
+
+  await expect(page.locator('#pileScanPhoto')).toContainText('Sign in or add an AI key first');
+  await page.locator('#pileScanPhoto').click();
+  await expect(page.locator('#sheet')).toHaveClass(/show/);
+  await expect(page.getByRole('heading', { name: 'Set up photo scanning' })).toBeVisible();
+  await expect(page.locator('#scanOverlay')).not.toHaveClass(/open/);
+});
+
 test('native barcode cancellation returns to the method picker without a scanner flash', async ({ page }) => {
   await page.addInitScript(() => {
     window.Capacitor = {
@@ -124,7 +139,72 @@ test('Pixel-sized set detail clears the sticky action bar and uses a compact her
     return { panelBottom: panel.bottom, actionTop: action.top, heroHeight: hero.height };
   });
   expect(layout.panelBottom).toBeLessThanOrEqual(layout.actionTop - 16);
-  expect(layout.heroHeight).toBeLessThanOrEqual(264);
+  expect(layout.heroHeight).toBeLessThanOrEqual(232);
+});
+
+test('Pixel-sized vault card reserves enough room for a four-digit price', async ({ page, stub }) => {
+  await page.setViewportSize({ width: 412, height: 915 });
+  const item = {
+    id: 7, quantity: 1, purchase_price: 4121.46, ...stub.SET,
+    name: "Jango Fett's Slave I with Bonus Collector Packaging",
+    market_value: 2796.67, blended_value: 2796.67, current_value: 2796.67,
+  };
+  await page.route('**/api/collection', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ items: [item], total_value: 2796.67, total_paid: 4121.46, count: 1 }),
+  }));
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+  const layout = await page.locator('.set-list-card:not(.compact)').first().evaluate((card) => {
+    const name = card.querySelector('.sl-name').getBoundingClientRect();
+    const value = card.querySelector('.sl-value');
+    const valueRect = value.getBoundingClientRect();
+    return {
+      nameRight: name.right,
+      valueLeft: valueRect.left,
+      valueFits: value.scrollWidth <= value.clientWidth + 1,
+      cardFits: card.scrollWidth <= card.clientWidth + 1,
+    };
+  });
+  expect(layout.nameRight).toBeLessThanOrEqual(layout.valueLeft - 4);
+  expect(layout.valueFits).toBe(true);
+  expect(layout.cardFits).toBe(true);
+});
+
+test('Pixel-sized long set title and pricing sheet remain readable', async ({ page, stub }) => {
+  await page.setViewportSize({ width: 412, height: 915 });
+  const longSet = {
+    ...stub.SET,
+    name: `H.C. Andersen's "Clumsy Hans" by D.H. Design (LEGO Inside Tour Version)`,
+    image_url: '/icon.svg',
+    valuation: {
+      read_enabled: true,
+      model_version: 'v3',
+      new: { fair_value: 3052.8, low: 2800, high: 3300, confidence: 'medium', sample_count: 8, independent_family_count: 2, basis: [], as_of: '2026-07-19' },
+      used: { fair_value: 341.13, low: 277, high: 444, confidence: 'low', sample_count: 12, independent_family_count: 1, basis: [], as_of: '2026-06-22' },
+    },
+  };
+  await page.route('**/api/sets/75192-1', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ set: longSet, entry: null }),
+  }));
+  await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
+
+  const title = page.locator('.detail-title');
+  await expect(title).toHaveClass(/is-very-long/);
+  expect(await title.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  await page.locator('#pricingDetailsBtn').click();
+  const cards = page.locator('.pricing-condition-card');
+  await expect(cards).toHaveCount(2);
+  const stacked = await cards.evaluateAll((els) => {
+    const first = els[0].getBoundingClientRect();
+    const second = els[1].getBoundingClientRect();
+    return second.top >= first.bottom;
+  });
+  expect(stacked).toBe(true);
+  expect(await page.locator('#sheet').evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
 });
 
 test('vivid light mode gives set photos a neutral non-blended stage', async ({ page }) => {

@@ -966,6 +966,48 @@ describe('BrickVault API Worker Tests', () => {
       expect(res.status).toBe(400);
     });
 
+    it('requires Turnstile for shared web scans when configured', async () => {
+      const previous = (env as any).TURNSTILE_SECRET_KEY;
+      (env as any).TURNSTILE_SECRET_KEY = 'turnstile-test-secret';
+      try {
+        const res = await app.fetch(
+          new Request('http://localhost/api/scan/identify', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'image', image: 'data:image/png;base64,mock' })
+          }),
+          env
+        );
+        expect(res.status).toBe(403);
+      } finally {
+        (env as any).TURNSTILE_SECRET_KEY = previous;
+      }
+    });
+
+    it('uses the authenticated per-user quota instead of Turnstile in Android', async () => {
+      const previous = (env as any).TURNSTILE_SECRET_KEY;
+      (env as any).TURNSTILE_SECRET_KEY = 'turnstile-test-secret';
+      try {
+        const res = await app.fetch(
+          new Request('http://localhost/api/scan/identify', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'X-Brickvault-Platform': 'android',
+            },
+            body: JSON.stringify({ mode: 'image', image: 'data:image/png;base64,mock' })
+          }),
+          env
+        );
+        expect(res.status).toBe(200);
+        const data = await res.json<{ identified: boolean }>();
+        expect(data.identified).toBe(true);
+      } finally {
+        (env as any).TURNSTILE_SECRET_KEY = previous;
+      }
+    });
+
     it('uses BYOK OpenAI key and returns matched set', async () => {
       // 75192 already seeded by beforeEach; OpenAI module is fully mocked to return it
       const res = await app.fetch(

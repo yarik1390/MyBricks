@@ -2,7 +2,7 @@
 // nextOfflineBannerState, upsertDetailCache) so the app-shell boot graph
 // doesn't parse this whole module; re-exported here so every existing
 // `from '../lib/pure.js'` import keeps working.
-export { jwtSub, displayValueOf, withDisplayValue, shouldUseKeyboardShell, nextOfflineBannerState, upsertDetailCache } from './pure-core.js';
+export { jwtSub, displayValueOf, withDisplayValue, shouldUseKeyboardShell, nextOfflineBannerState, upsertDetailCache, isCredentialAuthFailure } from './pure-core.js';
 
 /**
  * Pure, stateless helper functions with no DOM, state, or network dependencies.

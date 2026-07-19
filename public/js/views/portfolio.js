@@ -1,7 +1,7 @@
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, ratesUnavailable, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone, publicOrigin, celebrate } from '../utils.js';
 import { marketValueForCondition, computeSpreadSignals, estMark, displayValueOf } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
-import { api, getSessionUserId } from '../api.js';
+import { api, getSessionUserId, photoScanNeedsSetup } from '../api.js';
 import { shareContent } from '../lib/native-share.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet, confirmSheet, promptSheet } from '../components/sheet.js';
@@ -681,6 +681,7 @@ function wireShelfSnapCTA() {
 }
 
 function emptyVaultHTML() {
+  const shelfNeedsSetup = photoScanNeedsSetup();
   return `
     <div class="onboarding-empty" style="display:flex;flex-direction:column;gap:16px;margin: 16px 0;">
       <div class="empty-cta-card" style="background:linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);border:2.5px dashed var(--line);border-radius:var(--r-3);padding:24px 20px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;box-shadow:var(--shadow-1);">
@@ -691,7 +692,7 @@ function emptyVaultHTML() {
           <span>Add your first set</span> ${I.arrowR({w:14, h:14})}
         </a>
         <button type="button" id="shelfSnapBtn" class="btn-secondary" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--r-2);font-weight:600;">
-          ${I.camera ? I.camera({w:16, h:16}) : "📸"} <span>Snap your shelf — add everything at once</span>
+          ${I.camera ? I.camera({w:16, h:16}) : "📸"} <span>${shelfNeedsSetup ? 'Sign in for Shelf Snap' : 'Snap your shelf — add everything at once'}</span>
         </button>
       </div>
       

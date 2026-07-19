@@ -28,6 +28,12 @@ export function jwtSub(token) {
   }
 }
 
+/** Distinguish an invalid login token from a feature-level 401 response. */
+export function isCredentialAuthFailure(value) {
+  const message = String(value || "");
+  return /unauthorized.*(?:expired|malformed|undecodable|invalid|no token)|(?:expired|malformed|undecodable|invalid) (?:jwt|token)|not an authenticated role|issuer.*mismatch|audience.*mismatch/i.test(message);
+}
+
 // THE single source of a set/collection row's display value on the client:
 // the blended market value when present, then the persisted blend column, then
 // the formula current_value. Every surface (catalog card, vault row, set

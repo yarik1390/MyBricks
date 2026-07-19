@@ -1,6 +1,6 @@
 import { state, invalidatePortfolio } from './state.js';
 import { bvIDB, toast } from './utils.js';
-import { jwtSub, displayValueOf } from './lib/pure-core.js';
+import { jwtSub, displayValueOf, isCredentialAuthFailure } from './lib/pure-core.js';
 
 export let _authSession = null;
 export let _sbUrl = "";
@@ -14,6 +14,15 @@ export function setSupabaseConfig(url, anonKey) {
 
 export function getSessionUserId() {
   return jwtSub(_authSession?.access_token);
+}
+
+export function photoScanNeedsSetup() {
+  try {
+    if (getSessionUserId()) return false;
+    return !localStorage.getItem('bv_gemini_key') && !localStorage.getItem('bv_openai_key');
+  } catch {
+    return true;
+  }
 }
 
 /* ---------- Offline outbox (queue mutations for replay when back online) ---------- */
@@ -991,7 +1000,18 @@ export async function api(path, opts = {}) {
   try { window.dispatchEvent(new Event("bv:api-ok")); } catch { /* non-browser ctx */ }
 
   if (r.status === 401) {
-    if (_authSession?.refresh_token) {
+    let unauthorized = {};
+    try { unauthorized = await r.clone().json(); } catch {}
+    const unauthorizedMessage = [unauthorized.error, unauthorized.message, unauthorized.reason].filter(Boolean).join(': ');
+    const credentialFailure = isCredentialAuthFailure(unauthorizedMessage);
+
+    // Feature-level access/setup responses must not erase a valid login. Only
+    // an explicit JWT/token failure is allowed to refresh or clear the session.
+    if (token && !credentialFailure) {
+      throw new Error(unauthorizedMessage || 'This feature needs additional setup');
+    }
+
+    if (credentialFailure && _authSession?.refresh_token) {
       try {
         const fresh = await sbRefresh(_authSession.refresh_token);
         saveSession(fresh);
@@ -1003,14 +1023,11 @@ export async function api(path, opts = {}) {
         throw new Error("Session expired — please sign in again");
       }
     } else {
-      saveSession(null);
-      let msg = "Please sign in to sync this feature";
-      try {
-        const b = await r.json();
-        msg = b.error || b.message || msg;
-        if (b.reason) msg += ': ' + b.reason;
-      } catch {}
-      throw new Error(msg);
+      if (credentialFailure) {
+        saveSession(null);
+        location.hash = "#/login";
+      }
+      throw new Error(unauthorizedMessage || "Please sign in to sync this feature");
     }
   }
   if (!r.ok) {
