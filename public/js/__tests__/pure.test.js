@@ -10,6 +10,7 @@ import {
   formatRelativeTime, processRunBadge, isEstimatedValue, estMark,
   displayValueOf, withDisplayValue, shouldUseKeyboardShell, classifyScanFailure, flipEconomics,
   cleanTagLabel, pluralize, manualScanTarget,
+  computeStoreVerdict, computeSellSignal,
 } from '../lib/pure.js';
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
@@ -1251,5 +1252,92 @@ describe('seedFilterSort (offline catalog)', () => {
     const copy = rows.slice();
     seedFilterSort(rows, { sort: 'value_asc' });
     assert.deepEqual(rows, copy);
+  });
+});
+
+describe('computeStoreVerdict', () => {
+  const set = { current_value: 100, valuation_method: 'market', market_value: 100 };
+
+  it('returns null without a market value', () => {
+    assert.equal(computeStoreVerdict({}, 50), null);
+  });
+
+  it('guides without a store price: grab under market minus the threshold', () => {
+    const v = computeStoreVerdict(set);
+    assert.equal(v.verdict, 'guide');
+    assert.equal(v.market, 100);
+    assert.equal(v.grabUnder, 85);
+    assert.equal(v.estimated, false);
+  });
+
+  it('says grab at 15%+ under market (active sets)', () => {
+    const v = computeStoreVerdict(set, 80);
+    assert.equal(v.verdict, 'grab');
+    assert.equal(v.deltaUsd, 20);
+  });
+
+  it('retired sets grab at just 5% under', () => {
+    const v = computeStoreVerdict({ ...set, retired: true }, 94);
+    assert.equal(v.verdict, 'grab');
+  });
+
+  it('says walk away when 5%+ over market', () => {
+    assert.equal(computeStoreVerdict(set, 106).verdict, 'walk');
+  });
+
+  it('fair in the middle band', () => {
+    assert.equal(computeStoreVerdict(set, 95).verdict, 'fair');
+  });
+
+  it('flags formula-only values as estimated', () => {
+    const v = computeStoreVerdict({ current_value: 50, valuation_method: 'formula_bulk' }, 40);
+    assert.equal(v.estimated, true);
+  });
+});
+
+describe('computeSellSignal', () => {
+  it('returns null without a current value', () => {
+    assert.equal(computeSellSignal({ purchasePrice: 50 }), null);
+  });
+
+  it('sell: big gain + falling trend', () => {
+    const s = computeSellSignal({ purchasePrice: 100, currentValue: 150, trend: 'falling', retired: true });
+    assert.equal(s.signal, 'sell');
+    assert.ok(Math.abs(s.roiPct - 50) < 1e-9);
+    assert.ok(s.reasons.some(r => /turned down/.test(r)));
+  });
+
+  it('sell: big gain + flat trend + thin remaining upside', () => {
+    const s = computeSellSignal({ purchasePrice: 100, currentValue: 140, trend: 'stable', forecast2y: 145, retired: true });
+    assert.equal(s.signal, 'sell');
+    assert.ok(s.reasons.some(r => /upside/.test(r)));
+  });
+
+  it('hold: still rising with real forecast upside', () => {
+    const s = computeSellSignal({ purchasePrice: 100, currentValue: 140, trend: 'rising', forecast2y: 200, retired: true });
+    assert.equal(s.signal, 'hold');
+    assert.ok(s.reasons.some(r => /climbing/.test(r)));
+  });
+
+  it('hold: not retired yet, modest gain', () => {
+    const s = computeSellSignal({ purchasePrice: 100, currentValue: 110, trend: 'stable', retired: false });
+    assert.equal(s.signal, 'hold');
+    assert.ok(s.reasons.some(r => /retired/.test(r)));
+  });
+
+  it('watch: falling without a healthy gain', () => {
+    const s = computeSellSignal({ purchasePrice: 100, currentValue: 105, trend: 'falling' });
+    assert.equal(s.signal, 'watch');
+  });
+
+  it('works without a purchase price (no ROI, trend-only)', () => {
+    const s = computeSellSignal({ currentValue: 100, trend: 'falling' });
+    assert.equal(s.signal, 'watch');
+    assert.equal(s.roiPct, null);
+  });
+
+  it('slope stands in for the trend label', () => {
+    const s = computeSellSignal({ purchasePrice: 100, currentValue: 150, slopePctPerWeek: -1.2 });
+    assert.equal(s.signal, 'sell');
   });
 });

@@ -3,7 +3,7 @@ import { state, invalidatePortfolio } from '../state.js';
 import { api, outboxEnqueue, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from './sheet.js';
-import { computeDealScore as computeDealScorePure, marketValueForCondition, flipEconomics, classifyScanFailure, manualScanTarget } from '../lib/pure.js';
+import { computeDealScore as computeDealScorePure, computeStoreVerdict, marketValueForCondition, flipEconomics, classifyScanFailure, manualScanTarget } from '../lib/pure.js';
 import { checkGemma3Downloaded, runLocalVisionScan, isWebGpuAvailable } from '../lib/local-ai.js';
 import { flipCalcHTML } from './flip-calc.js';
 import { isNativeCapacitor } from '../lib/native-auth.js';
@@ -1328,7 +1328,28 @@ function showBulkScanResults(results) {
   });
 }
 
-function dealScoreHTML(_set) {
+// The loud in-store answer. Without a typed price it coaches ("grab under
+// $X"); with one it renders the GRAB IT / FAIR PRICE / WALK AWAY banner.
+function storeVerdictHTML(set, price) {
+  const v = computeStoreVerdict(set, price);
+  if (!v) return "";
+  const est = v.estimated ? ` <span style="font-weight:500;opacity:.8;">(~estimated value)</span>` : "";
+  if (v.verdict === "guide") {
+    return `<div style="font-size:12px;color:var(--ink-mute);margin-top:6px;">Market ${fmtMoney(v.market)} — under <strong style="color:var(--up);">${fmtMoney(v.grabUnder)}</strong> is a grab${est}</div>`;
+  }
+  const styles = {
+    grab: { bg: "var(--up)", label: "GRAB IT", sub: `${fmtMoney(Math.abs(v.deltaUsd))} under market${est}` },
+    fair: { bg: "var(--accent)", label: "FAIR PRICE", sub: `within ${Math.round(Math.abs(v.deltaPct) * 100)}% of market${est}` },
+    walk: { bg: "var(--down)", label: "WALK AWAY", sub: `${fmtMoney(Math.abs(v.deltaUsd))} over market${est}` },
+  }[v.verdict];
+  return `
+    <div class="store-verdict ${v.verdict}" style="display:flex;align-items:baseline;gap:10px;margin-top:8px;padding:10px 14px;border-radius:var(--r-2);background:${styles.bg};color:#fff;">
+      <span style="font-family:var(--mono);font-weight:800;font-size:16px;letter-spacing:.05em;">${styles.label}</span>
+      <span style="font-size:12px;opacity:.95;">${styles.sub}</span>
+    </div>`;
+}
+
+function dealScoreHTML(set) {
   return `
     <div class="deal-score-wrap" id="dealScoreWrap">
       <div class="deal-score-lbl">In-store price check</div>
@@ -1336,6 +1357,7 @@ function dealScoreHTML(_set) {
         <input type="number" class="deal-price-input" id="dealPriceInput" placeholder="Enter store price…" min="0" step="0.01">
         <div class="deal-badge" id="dealBadge"></div>
       </div>
+      <div id="storeVerdictSlot">${storeVerdictHTML(set)}</div>
     </div>`;
 }
 
@@ -1343,6 +1365,8 @@ function updateDealBadge(set, priceStr) {
   const badge = document.getElementById("dealBadge");
   if (!badge) return;
   const price = parseFloat(priceStr);
+  const slot = document.getElementById("storeVerdictSlot");
+  if (slot) slot.innerHTML = storeVerdictHTML(set, price);
   if (!price || price <= 0) { badge.textContent = ""; badge.className = "deal-badge"; return; }
   const score = computeDealScorePure(set, price);
   if (!score) return;

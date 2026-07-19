@@ -1,11 +1,11 @@
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML } from './portfolio-detail-market.js';
-import { computeDealScore, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput } from '../lib/pure.js';
+import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { shareContent } from '../lib/native-share.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
-import { showSheet, hideSheet, confirmSheet, promptSheet } from '../components/sheet.js';
+import { showSheet, hideSheet, confirmSheet } from '../components/sheet.js';
 import { go } from '../router.js';
 import { skelDetail } from '../components/skeleton.js';
 import { flipCalcHTML } from '../components/flip-calc.js';
@@ -1006,9 +1006,45 @@ function manageTabHTML(set, entry) {
       <div id="photoUploadStatus" style="font-size:11px;color:var(--ink-mute);margin-top:6px;display:none;"></div>
     </div>
 
-      <button class="btn-secondary" id="mSold" style="margin-top:14px;">${I.tag()}<span>Mark as sold…</span></button>
+      ${sellTimingHTML(set, entry)}
+      <button class="btn-secondary" id="mSold" style="margin-top:14px;">${I.tag()}<span>Sell this set…</span></button>
       <button class="btn-danger" id="mRemove" style="margin-top:8px;">${I.trash()}<span>Remove from vault</span></button>
       <button class="btn-secondary" id="mListSale" style="margin-top:8px;">${I.tag()}<span>List for Sale</span></button>`;
+}
+
+// Sell-timing read for this holding: conservative 'sell' | 'watch' | 'hold'
+// with the reasons spelled out. Pure logic lives in computeSellSignal.
+function sellSignalFor(set, entry) {
+  return computeSellSignal({
+    purchasePrice: entry?.purchase_price,
+    currentValue: marketValueForCondition(set, entry?.condition || "new"),
+    retired: !!set.retired,
+    forecast2y: set.forecast_2y,
+    trend: set.trend?.trend,
+    slopePctPerWeek: set.trend?.slope_pct_per_week,
+    salesVolume: set.pc_sales_volume,
+  });
+}
+
+function sellTimingHTML(set, entry) {
+  // Investment-flavored read — hidden in simple and kids modes, like the rest
+  // of the investor toolkit.
+  if (isSimpleMode() || isKidsMode()) return "";
+  const s = sellSignalFor(set, entry);
+  if (!s) return "";
+  const look = {
+    sell: { label: "Good time to sell", color: "var(--up)" },
+    watch: { label: "Worth watching", color: "var(--accent)" },
+    hold: { label: "Hold", color: "var(--ink-mute)" },
+  }[s.signal];
+  return `
+    <div class="detail-card" style="margin-top:14px;">
+      <div class="detail-card-title" style="justify-content:space-between;">
+        <span>Sell timing</span>
+        <span class="badge" style="background:${look.color};color:#fff;">${look.label}</span>
+      </div>
+      <div style="font-size:12px;color:var(--ink-mute);line-height:1.5;">${escapeHtml(s.reasons.join(" · "))}</div>
+    </div>`;
 }
 
 function wireManageTab(set, entry) {
@@ -1116,28 +1152,7 @@ function wireManageTab(set, entry) {
       } else { toast("Error: " + e.message, "error"); }
     }
   });
-  $("#mSold")?.addEventListener("click", async () => {
-    // Records the real sale price (feeds the anonymized community comps) and
-    // removes the set from the vault in one step.
-    const raw = await promptSheet({
-      title: "Mark as sold",
-      label: "What did it sell for? (before fees)",
-      placeholder: "e.g. 189.99",
-      confirmLabel: "Mark sold",
-    });
-    if (raw == null) return;
-    const price = sanitizeMoneyInput(String(raw));
-    if (price == null || price <= 0) { toast("Enter the sale price as a number", "error"); return; }
-    haptic("heavy");
-    try {
-      await api("/api/collection/sell", { method: "POST", body: { set_num: set.set_num, sold_price: price } });
-      invalidatePortfolio();
-      delete state.detail.cache[set.set_num];
-      markSetOwned(set.set_num, false);
-      toast(`Sold for ${fmtMoney(price)} — removed from vault`, "success");
-      go("#/");
-    } catch (e) { toast("Error: " + e.message, "error"); }
-  });
+  $("#mSold")?.addEventListener("click", () => showExitCopilotSheet(set, entry));
   $("#mListSale")?.addEventListener("click", () => showListingSheet(set, entry));
 
   // Photo upload
@@ -1415,6 +1430,69 @@ function setupTabSwipe(set, entry) {
 /* ============================================================
    eBay Listing Generator
    ============================================================ */
+// Exit copilot: one sheet that answers "how do I sell this well?" — the
+// timing read, a price recommendation with the fee math, a jump into the AI
+// listing generator, and finally logging the real sale (which feeds the
+// anonymized community comps).
+function showExitCopilotSheet(set, entry) {
+  const signal = isSimpleMode() || isKidsMode() ? null : sellSignalFor(set, entry);
+  const market = marketValueForCondition(set, entry?.condition || "new");
+  const userCurrency = state.me?.currency || "USD";
+  const rate = getExchangeRate(userCurrency);
+  const feePct = parseFloat(localStorage.getItem("bv_flip_fee_pct") ?? "13.25");
+  const paymentPct = parseFloat(localStorage.getItem("bv_flip_payment_pct") ?? "2.9");
+  const shipping = parseFloat(localStorage.getItem("bv_flip_shipping") ?? "5.00");
+  const calc = market ? flipEconomics({ marketUsd: market, rate, feePct, paymentPct, shipping }) : null;
+  const paid = Number(entry?.purchase_price) || 0;
+
+  const look = signal ? {
+    sell: { label: "Good time to sell", color: "var(--up)" },
+    watch: { label: "Worth watching", color: "var(--accent)" },
+    hold: { label: "Consider holding", color: "var(--ink-mute)" },
+  }[signal.signal] : null;
+
+  showSheet(`
+    <div style="font-family:var(--serif);font-size:20px;font-weight:500;margin:0 4px 12px;">Sell ${escapeHtml(set.name || set.set_num)}</div>
+    ${signal ? `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span class="badge" style="background:${look.color};color:#fff;">${look.label}</span>
+        <span style="font-size:12px;color:var(--ink-mute);">${escapeHtml(signal.reasons.join(" · "))}</span>
+      </div>` : ""}
+    ${market ? `
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;background:var(--surface-2);border:1.5px solid var(--line-soft);border-radius:var(--r-2);padding:12px 14px;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;"><span style="color:var(--ink-mute);">Ask around</span><strong>${estMark(set)}${fmtMoney(market)}</strong></div>
+        ${calc ? `<div style="display:flex;justify-content:space-between;"><span style="color:var(--ink-mute);">≈ in your pocket after fees</span><strong>${fmtMoney(calc.net / rate)}</strong></div>` : ""}
+        ${paid > 0 && calc ? `<div style="display:flex;justify-content:space-between;"><span style="color:var(--ink-mute);">vs what you paid</span><strong style="color:${calc.net / rate >= paid ? "var(--up)" : "var(--down)"};">${calc.net / rate >= paid ? "+" : ""}${fmtMoney(calc.net / rate - paid)}</strong></div>` : ""}
+      </div>` : ""}
+    <button class="btn-secondary" id="exitGenListing" style="width:100%;margin-bottom:14px;">${I.sparkles()}<span>Generate eBay listing</span></button>
+    <div class="field">
+      <div class="field-lbl">Sold price (before fees)</div>
+      <input id="exitSoldPrice" type="number" step="0.01" inputmode="decimal" placeholder="e.g. ${market ? Math.round(market) : "189.99"}">
+      <div style="font-size:11px;color:var(--ink-mute);margin-top:4px;">Real sale prices power the community price signal — anonymized, never shown individually.</div>
+    </div>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn-secondary" id="exitCancel">Cancel</button>
+      <button class="btn-primary" id="exitConfirmSold">${I.tag()}<span>Mark sold</span></button>
+    </div>`);
+
+  $("#exitCancel")?.addEventListener("click", hideSheet);
+  $("#exitGenListing")?.addEventListener("click", () => { hideSheet(); showListingSheet(set, entry); });
+  $("#exitConfirmSold")?.addEventListener("click", async () => {
+    const price = sanitizeMoneyInput(String($("#exitSoldPrice")?.value ?? ""));
+    if (price == null || price <= 0) { toast("Enter the sale price as a number", "error"); return; }
+    haptic("heavy");
+    try {
+      await api("/api/collection/sell", { method: "POST", body: { set_num: set.set_num, sold_price: price } });
+      hideSheet();
+      invalidatePortfolio();
+      delete state.detail.cache[set.set_num];
+      markSetOwned(set.set_num, false);
+      toast(`Sold for ${fmtMoney(price)} — removed from vault`, "success");
+      go("#/");
+    } catch (e) { toast("Error: " + e.message, "error"); }
+  });
+}
+
 async function showListingSheet(set, _entry) {
   showSheet(`
     <div style="font-family:var(--serif);font-size:20px;font-weight:500;margin:0 4px 12px;">Generate eBay Listing</div>

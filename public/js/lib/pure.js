@@ -128,6 +128,77 @@ function positiveNumber(value) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/**
+ * In-store verdict: "should I buy this set at the price on the shelf in front
+ * of me?" Wraps computeDealScore's thresholds into an actionable answer, and
+ * — unlike computeDealScore — still answers WITHOUT a store price by telling
+ * the shopper what a grab-worthy price would be.
+ * Returns null without a market value, otherwise:
+ *   { verdict: 'grab'|'fair'|'walk'|'guide', market, grabUnder,
+ *     deltaUsd?, deltaPct?, estimated }
+ * deltaUsd is the saving (positive) or overpayment (negative) vs market.
+ * All values USD; the caller converts/formats for display.
+ */
+export function computeStoreVerdict(set = {}, storePrice) {
+  const market = marketValueForCondition(set, set?.condition || "new");
+  if (!market) return null;
+  const estimated = isEstimatedValue(set);
+  // Retired sets rarely discount, so a small cut is already a grab (mirrors
+  // computeDealScore's greatThreshold).
+  const greatThreshold = set.retired ? 0.05 : 0.15;
+  const grabUnder = market * (1 - greatThreshold);
+  const price = Number(storePrice);
+  if (!Number.isFinite(price) || price <= 0) {
+    return { verdict: "guide", market, grabUnder, estimated };
+  }
+  const deltaUsd = market - price;
+  const deltaPct = deltaUsd / market;
+  const verdict = deltaPct >= greatThreshold ? "grab" : deltaPct <= -0.05 ? "walk" : "fair";
+  return { verdict, market, grabUnder, deltaUsd, deltaPct, estimated };
+}
+
+/**
+ * Sell-timing signal for an OWNED set: is now a good moment to exit?
+ * Inputs mirror what the set-detail payload already carries:
+ *   purchasePrice (entry), currentValue, retired, forecast2y,
+ *   trend ('rising'|'stable'|'falling'), slopePctPerWeek, salesVolume.
+ * Returns null without a current value, otherwise
+ *   { signal: 'sell'|'watch'|'hold', roiPct, upsidePct, reasons: string[] }.
+ * Deliberately conservative: 'sell' needs BOTH a healthy realized gain AND
+ * evidence the run is ending (falling/flat trend or thin remaining upside).
+ */
+export function computeSellSignal({ purchasePrice, currentValue, retired, forecast2y, trend, slopePctPerWeek, salesVolume } = {}) {
+  const value = positiveNumber(currentValue);
+  if (!value) return null;
+  const paid = positiveNumber(purchasePrice);
+  const roiPct = paid ? ((value - paid) / paid) * 100 : null;
+  const fc = positiveNumber(forecast2y);
+  const upsidePct = fc ? ((fc - value) / value) * 100 : null;
+  const slope = Number(slopePctPerWeek);
+  const falling = trend === "falling" || (Number.isFinite(slope) && slope < -0.5);
+  const rising = trend === "rising" || (Number.isFinite(slope) && slope > 0.5);
+  const liquidity = liquidityLabel(salesVolume);
+
+  const reasons = [];
+  if (roiPct != null && roiPct >= 5) reasons.push(`up ${fmtPct(roiPct / 100)} since you bought it`);
+  if (falling) reasons.push("price trend has turned down");
+  else if (!rising && roiPct != null && roiPct >= 30) reasons.push("the climb has flattened");
+  if (upsidePct != null && upsidePct <= 10) reasons.push("little 2-year upside left");
+  if (liquidity?.level === "fast") reasons.push("sells fast right now");
+
+  if (roiPct != null && roiPct >= 30 && (falling || (!rising && upsidePct != null && upsidePct <= 10))) {
+    return { signal: "sell", roiPct, upsidePct, reasons };
+  }
+  if (falling || (roiPct != null && roiPct >= 30 && upsidePct != null && upsidePct <= 20)) {
+    return { signal: "watch", roiPct, upsidePct, reasons: reasons.length ? reasons : ["worth keeping an eye on"] };
+  }
+  const holdReasons = [];
+  if (rising) holdReasons.push("still climbing");
+  if (upsidePct != null && upsidePct > 10) holdReasons.push(`forecast has ~${fmtPct(upsidePct / 100)} more upside`);
+  if (!retired) holdReasons.push("not retired yet — the main gains come after retirement");
+  return { signal: "hold", roiPct, upsidePct, reasons: holdReasons.length ? holdReasons : ["no sell trigger yet"] };
+}
+
 export function ebaySoldSummary(set = {}) {
   const explicitNew = positiveNumber(set.ebay_new_value);
   const legacy = !explicitNew ? positiveNumber(set.ebay_value) : null;
