@@ -1062,7 +1062,7 @@ function sellTimingHTML(set, entry) {
 
 // Story timeline: the set's memories (notes + photos) plus the automatic
 // lifecycle events. Signed-in only — stories live on the account.
-async function wireStoryCard(set, entry) {
+async function wireStoryCard(_set, entry) {
   const timeline = $("#storyTimeline");
   if (!timeline || !entry?.id) return;
 
