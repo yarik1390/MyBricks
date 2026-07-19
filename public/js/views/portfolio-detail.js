@@ -288,7 +288,9 @@ function summaryFactsHTML(set) {
   if (figs) parts.push(`<span class="f"><b>${figs}</b> minifig${figs === 1 ? '' : 's'}</span>`);
   // Unreleased sets: stored retail can be a formula placeholder; the
   // BrickEconomy RRP is authoritative until release.
-  const retailShown = (set.coming_soon && set.be_retail) ? set.be_retail : set.retail_price;
+  const retailShown = set.coming_soon
+    ? Number(set.upcoming_price) || Number(set.be_retail) || Number(set.retail_price) || 0
+    : set.retail_price;
   if (retailShown) parts.push(`<span class="f">Retail <b>${fmtMoney(retailShown)}</b></span>`);
   return parts.length ? `<div class="detail-summary-facts">${parts.join('')}</div>` : '';
 }
