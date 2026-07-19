@@ -71,6 +71,21 @@ export const SCAN_SYSTEM_PROMPT =
   '"minifigs": [ { "name": string, "theme": string|null, "confidence": "high"|"medium"|"low"|"none", "reasoning": string } ] }. ' +
   'Use empty arrays when none are present, and confidence "none" when unsure.';
 
+// Shelf Snap: one wide photo of a display shelf / cabinet -> EVERY set on it.
+// Same JSON shape as SCAN_SYSTEM_PROMPT so the whole matching pipeline is
+// shared; the differences are exhaustiveness (list them all, not the best one)
+// and tolerance for tiny/partial views where no number is readable.
+export const SHELF_SCAN_PROMPT =
+  'You are a LEGO product-identification expert. This photo shows a COLLECTION on a shelf, cabinet or table. ' +
+  'Identify EVERY distinct LEGO set visible — built/displayed models AND boxed sets. Do not stop at the most prominent one. ' +
+  'For each: if a printed set number is readable, return just the digits in set_num; otherwise identify by official set name, ' +
+  'theme, and approximate release year from the model\'s appearance (most display sets have no visible number — a confident ' +
+  'name identification is expected and useful). List at most 25 sets, largest/clearest first. Ignore loose parts and non-LEGO items. ' +
+  'Return ONLY raw JSON (no markdown fences) in this shape: ' +
+  '{ "sets": [ { "set_num": string|null, "name": string, "theme": string|null, "year": number|null, "confidence": "high"|"medium"|"low"|"none", "reasoning": string } ], ' +
+  '"minifigs": [] }. ' +
+  'Use confidence "none" only when you cannot even guess the set; prefer "low" with your best name guess.';
+
 /**
  * Effective OpenRouter FREE pools. The daily model-refresh cron validates the
  * curated pools above against OpenRouter's live catalog (dropping models that

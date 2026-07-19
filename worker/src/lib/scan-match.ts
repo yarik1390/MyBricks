@@ -83,7 +83,10 @@ export async function matchSetsToCatalog(env: Env, described: DescribedSet[]): P
       const setNum = String(row.set_num);
       if (seen.has(setNum)) continue;
       seen.add(setNum);
-      matched.push(enrichSetRecord({ ...row, retired: !!row.retired, confidence: cand.confidence, reasoning: cand.reasoning }));
+      // enrichSetRecord recomputes `confidence` as PRICING confidence, so the
+      // AI's identification confidence travels under its own key — the shelf
+      // checklist shows it per row ("medium match" ≠ "estimated price").
+      matched.push(enrichSetRecord({ ...row, retired: !!row.retired, confidence: cand.confidence, reasoning: cand.reasoning, match_confidence: cand.confidence ?? null }));
       if (topConfidence === 'none' || cand.confidence === 'high') {
         topConfidence = cand.confidence ?? topConfidence;
         reasoning = cand.reasoning ?? reasoning;

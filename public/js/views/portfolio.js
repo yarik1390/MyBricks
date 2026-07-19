@@ -126,6 +126,7 @@ function repaintSetList() {
   
   if (items.length === 0) {
     list.innerHTML = emptyVaultHTML();
+    wireShelfSnapCTA();
     if (state._portfolioObserver) {
       state._portfolioObserver.disconnect();
       state._portfolioObserver = null;
@@ -382,6 +383,7 @@ function paintPortfolio() {
           </div>`;
       wireSortChips();
       if (items.length) { wirePortfolioCards(); setupPortfolioSentinel(items); }
+      else wireShelfSnapCTA();
     } else {
       panel.innerHTML = `<div id="insightsPanelContent">${renderInsightsTab(p.items || [], state.historyPro)}</div>`;
       wireInsightsTab();
@@ -487,8 +489,9 @@ function paintPortfolio() {
   if (state.portfolioTab === "items") {
     wirePortfolioCards();
     setupPortfolioSentinel(items);
+    if (items.length === 0) wireShelfSnapCTA();
   }
-  
+
   refreshNavBadge();
 }
 
@@ -607,6 +610,17 @@ function setListCardHTML(item) {
     </button>`;
 }
 
+// Shelf Snap entry: one wide photo of the collection -> the scanner's shelf
+// mode identifies every set in it. Wired after each render that can show the
+// empty-vault card (initial paint, tab switch, repaint after removal).
+function wireShelfSnapCTA() {
+  $("#shelfSnapBtn")?.addEventListener("click", async () => {
+    haptic("medium");
+    const { openScan } = await import("../components/scanner-lazy.js");
+    openScan("image", { shelf: true });
+  });
+}
+
 function emptyVaultHTML() {
   return `
     <div class="onboarding-empty" style="display:flex;flex-direction:column;gap:16px;margin: 16px 0;">
@@ -617,6 +631,9 @@ function emptyVaultHTML() {
         <a href="#/add" class="btn-primary" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--r-2);font-weight:600;margin-top:8px;text-decoration:none;">
           <span>Add your first set</span> ${I.arrowR({w:14, h:14})}
         </a>
+        <button type="button" id="shelfSnapBtn" class="btn-secondary" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--r-2);font-weight:600;">
+          ${I.camera ? I.camera({w:16, h:16}) : "📸"} <span>Snap your shelf — add everything at once</span>
+        </button>
       </div>
       
       <div style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:0.1em;margin-top:8px;padding-left:4px;" aria-hidden="true">Demo Portfolio Preview</div>

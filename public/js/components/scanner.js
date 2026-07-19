@@ -109,11 +109,13 @@ function showScanLoading(label = "Identifying...", detail = "This can take up to
     </div>`;
 }
 
-export function openScan(mode = "barcode", { deferStart = false } = {}) {
+export function openScan(mode = "barcode", { deferStart = false, shelf = false } = {}) {
   state.camera.mode = mode;
+  // Shelf Snap: photo mode variant — one wide photo, every set on the shelf.
+  state.camera.shelf = mode === "image" && !!shelf;
   const ov = $("#scanOverlay");
   ov.classList.remove("native-handoff");
-  ov.innerHTML = scanOverlayHTML(mode);
+  ov.innerHTML = scanOverlayHTML(mode, state.camera.shelf);
   ov.classList.add("open");
   document.body.classList.add("scan-active");
   $("#scanCloseBtn")?.addEventListener("click", closeScan);
@@ -152,13 +154,36 @@ export function openScan(mode = "barcode", { deferStart = false } = {}) {
     const galleryInp = $("#scanGalleryInput");
     if (galleryBtn && galleryInp) {
       galleryBtn.addEventListener("click", () => galleryInp.click());
-      galleryInp.addEventListener("change", (e) => {
+      galleryInp.addEventListener("change", async (e) => {
         const files = Array.from(e.target.files || []).slice(0, 10);
-        if (files.length) {
-          processBulkScanQueue(files);
+        if (!files.length) return;
+        // Shelf mode: ONE wide photo -> many sets in a single identify call.
+        if (state.camera.shelf) {
+          stopCamera();
+          const dataUrl = await readFileAsDataURL(files[0]);
+          const resized = await resizeImage(dataUrl, 1280);
+          sendScanToAPI({ mode: "shelf", image: resized });
+          return;
         }
+        processBulkScanQueue(files);
       });
     }
+    // One set vs whole shelf — flips the capture between the single-set
+    // identify and the exhaustive Shelf Snap prompt.
+    $$(".scan-shelf-opt").forEach(btn => btn.addEventListener("click", () => {
+      state.camera.shelf = btn.dataset.shelf === "1";
+      haptic("light");
+      $$(".scan-shelf-opt").forEach(b => {
+        const on = b === btn;
+        b.style.background = on ? "var(--accent)" : "transparent";
+        b.style.color = on ? "#fff" : "#fff9";
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      const hint = $("#scanHint");
+      if (hint) hint.textContent = state.camera.shelf
+        ? "Fit the whole shelf in frame — good light helps"
+        : "Frame the set and tap to identify";
+    }));
   }
 
   if (!deferStart) startCamera();
@@ -438,13 +463,14 @@ export async function capturePhoto() {
   const vid = $("#scanVideo");
   if (!vid) return;
   const canvas = document.createElement("canvas");
-  const maxSide = 1024;
+  // Shelf shots keep more resolution — the model has to read many small boxes.
+  const maxSide = state.camera.shelf ? 1280 : 1024;
   const w = vid.videoWidth || 640; const h = vid.videoHeight || 480;
   const scale = Math.min(1, maxSide / Math.max(w, h));
   canvas.width = w * scale; canvas.height = h * scale;
   canvas.getContext("2d").drawImage(vid, 0, 0, canvas.width, canvas.height);
   const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-  sendScanToAPI({ mode: "image", image: dataUrl });
+  sendScanToAPI({ mode: state.camera.shelf ? "shelf" : "image", image: dataUrl });
 }
 
 // data: URL -> ImageBitmap, the canonical input MediaPipe accepts (avoids
@@ -531,7 +557,7 @@ async function cloudScanIdentify(payload, signal) {
   if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
   // Shared server-key image scans (no BYOK key) carry a Turnstile token for bot
   // protection when configured; BYOK and barcode scans skip it.
-  if (!geminiKey && !openaiKey && payload.mode === 'image') {
+  if (!geminiKey && !openaiKey && (payload.mode === 'image' || payload.mode === 'shelf')) {
     // Fetch a FRESH token immediately before the request. Turnstile tokens are
     // single-use and short-lived, so they must be minted right before siteverify —
     // holding a pre-warmed one caused server-side "could not verify" rejections.
@@ -557,8 +583,10 @@ async function sendScanToAPI(payload) {
     el.innerHTML = `<div class="scan-loading"><div class="spinner"></div><span>Identifying…</span></div>`;
   }
   showScanLoading(
-    payload.mode === "barcode" ? "Looking up barcode..." : "Identifying...",
-    payload.mode === "barcode" ? "Checking the catalog and saved barcode data." : "This can take up to 30 seconds."
+    payload.mode === "barcode" ? "Looking up barcode..." : payload.mode === "shelf" ? "Reading your shelf..." : "Identifying...",
+    payload.mode === "barcode" ? "Checking the catalog and saved barcode data."
+      : payload.mode === "shelf" ? "Finding every set in the photo — up to 30 seconds."
+      : "This can take up to 30 seconds."
   );
   const frame = document.querySelector(".scan-frame");
   if (frame) frame.classList.add("scan-pending");
@@ -637,7 +665,7 @@ async function sendScanToAPI(payload) {
   }
 
   // Cloud path — primary when online, and the fallback for every case above.
-  if (payload.mode === 'image' && !online) {
+  if ((payload.mode === 'image' || payload.mode === 'shelf') && !online) {
     showScanResult({ identified: false, reasoning: "You're offline. Reconnect to identify by photo, or set up on-device AI in Settings." });
     done();
     return;
@@ -809,7 +837,7 @@ function showScanResult(res) {
   }
   let headHTML = `
     <div class="scan-result-head">
-      <span class="badge">${I.check()}MATCH</span>
+      <span class="badge">${I.check()}${sets.length > 1 ? `${sets.length} SETS FOUND` : "MATCH"}</span>
       <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${escapeHtml(res.confidence || "high")} confidence</span>
     </div>`;
   let listHTML = "";
@@ -834,7 +862,7 @@ function showScanResult(res) {
           </div>
           <div class="sx" style="margin-left:10px;flex:1;min-width:0;text-align:left;">
             <div class="sx-name" style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(set.name)}</div>
-            <div class="sx-meta" style="font-size:10px;color:var(--ink-mute);">${escapeHtml(set.theme||"")} · #${escapeHtml(set.set_num)}</div>
+            <div class="sx-meta" style="font-size:10px;color:var(--ink-mute);">${escapeHtml(set.theme||"")} · #${escapeHtml(set.set_num)}${sets.length > 1 && set.match_confidence && set.match_confidence !== "high" ? ` · <span style="color:${set.match_confidence === "low" ? "var(--down)" : "var(--accent)"};font-weight:700;">${escapeHtml(set.match_confidence)} match</span>` : ""}</div>
             <div class="sx-val" style="font-weight:600;font-size:12px;color:var(--up);">${valLine}</div>
           </div>
         </div>`;
@@ -1005,7 +1033,7 @@ function showScanResult(res) {
   });
 }
 
-function scanOverlayHTML(mode) {
+function scanOverlayHTML(mode, shelf = false) {
   // On the native app, barcode / blind-box modes hand off to ML Kit's own
   // full-screen scanner — so render a clean loading state from the start (class
   // native-scan) instead of the web camera chrome (video + laser frame), which
@@ -1028,8 +1056,14 @@ function scanOverlayHTML(mode) {
         <span class="corner bl"></span><span class="corner br"></span>
         ${mode !== "image" ? `<span class="laser"></span>` : ""}
       </div>`}
-      <div class="scan-hint" id="scanHint">${nativeBarcode ? "Opening scanner…" : mode === "blindbox" ? "Scan the blind bag or box barcode" : mode === "barcode" ? "Align barcode within the frame" : "Frame the set and tap to identify"}</div>
+      <div class="scan-hint" id="scanHint">${nativeBarcode ? "Opening scanner…" : mode === "blindbox" ? "Scan the blind bag or box barcode" : mode === "barcode" ? "Align barcode within the frame" : shelf ? "Fit the whole shelf in frame — good light helps" : "Frame the set and tap to identify"}</div>
       ${mode === "image" ? `
+        <div class="scan-shelf-row" role="group" aria-label="Photo scope" style="position:absolute;left:0;right:0;bottom:112px;display:flex;justify-content:center;">
+          <div style="display:inline-flex;border:1.5px solid #fff5;border-radius:999px;overflow:hidden;backdrop-filter:blur(6px);background:#0006;">
+            <button type="button" class="scan-shelf-opt" data-shelf="0" aria-pressed="${shelf ? "false" : "true"}" style="border:none;background:${shelf ? "transparent" : "var(--accent)"};color:${shelf ? "#fff9" : "#fff"};font-size:12px;font-weight:700;padding:7px 14px;cursor:pointer;">One set</button>
+            <button type="button" class="scan-shelf-opt" data-shelf="1" aria-pressed="${shelf ? "true" : "false"}" style="border:none;background:${shelf ? "var(--accent)" : "transparent"};color:${shelf ? "#fff" : "#fff9"};font-size:12px;font-weight:700;padding:7px 14px;cursor:pointer;">Whole shelf</button>
+          </div>
+        </div>
         <div class="scan-bottom">
           <button class="btn-secondary scan-gallery-btn" id="scanGalleryBtn">
             ${I.layers({w:16, h:16})} <span>Gallery</span>

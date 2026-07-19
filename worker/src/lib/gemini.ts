@@ -12,7 +12,8 @@ export async function callGeminiScan(
   env?: Env,
   // routeThroughGateway: true only for SERVER-key callers (the keyless scan
   // cascade). BYOK callers leave it false to hit Google directly.
-  opts: { routeThroughGateway?: boolean } = {},
+  // prompt: overrides the default single-set instruction (e.g. SHELF_SCAN_PROMPT).
+  opts: { routeThroughGateway?: boolean; prompt?: string } = {},
 ): Promise<{
   sets?: Array<{ set_num: string | null; name: string; theme?: string | null; year?: number | null; confidence: string; reasoning: string }>;
   minifigs?: Array<{ name: string; theme?: string | null; confidence: string; reasoning: string }>;
@@ -24,7 +25,7 @@ export async function callGeminiScan(
   const body = {
     contents: [{
       parts: [
-        { text: SCAN_SYSTEM_PROMPT },
+        { text: opts.prompt || SCAN_SYSTEM_PROMPT },
         { inline_data: { mime_type: mimeType, data: b64data } },
       ],
     }],

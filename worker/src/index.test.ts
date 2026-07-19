@@ -17,12 +17,25 @@ vi.mock('openai', () => {
         create: vi.fn().mockImplementation((args: any) => {
           const userMessage = args?.messages?.find((m: any) => m.role === 'user')?.content;
           const promptText = typeof userMessage === 'string' ? userMessage : JSON.stringify(userMessage || '');
+          const systemMessage = args?.messages?.find((m: any) => m.role === 'system')?.content;
+          const systemText = typeof systemMessage === 'string' ? systemMessage : '';
           const content = promptText.includes('Generate an eBay listing')
             ? JSON.stringify({
                 title: 'LEGO 75192 Millennium Falcon - Star Wars UCS',
                 description: 'Complete LEGO Star Wars UCS Millennium Falcon set with collector appeal.',
                 suggested_price: 849,
                 price_reasoning: 'Suggested near current market value with room for offers.',
+              })
+            // Shelf Snap prompt -> many sets, including one not in the catalog
+            // (must be dropped by matching, not returned).
+            : systemText.includes('COLLECTION on a shelf')
+            ? JSON.stringify({
+                sets: [
+                  { set_num: '75192', name: 'Millennium Falcon', confidence: 'high', reasoning: 'UCS dish visible' },
+                  { set_num: '10497', name: 'Galaxy Explorer', confidence: 'medium', reasoning: 'Classic space colors' },
+                  { set_num: '55555', name: 'Not A Real Set', confidence: 'low', reasoning: 'Partial view' },
+                ],
+                minifigs: [],
               })
             : JSON.stringify({
                 sets: [{ set_num: '75192', name: 'Millennium Falcon', confidence: 'high', reasoning: 'Visual match' }]
@@ -577,6 +590,51 @@ describe('BrickVault API Worker Tests', () => {
       expect(rateLimitHits?.count).toBe(0);
 
       globalThis.fetch = originalFetch;
+    });
+
+    it('shelf mode returns every catalog-matched set from one photo', async () => {
+      await db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price)
+        VALUES ('10497', 'Galaxy Explorer', 'Icons', 2022, 1254, 120, 99.99)`).run();
+
+      // BYOK OpenAI goes through the mocked 'openai' module, whose shelf branch
+      // returns three described sets — one of which (55555) is not in the
+      // catalog and must be dropped by matching.
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-OpenAI-Key': 'user-provided-key',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ mode: 'shelf', image: 'data:image/png;base64,mock' }),
+        }),
+        env
+      );
+
+      expect(res.status).toBe(200);
+      const data = await res.json<{ identified: boolean; sets: Array<{ set_num: string; match_confidence?: string }> }>();
+      expect(data.identified).toBe(true);
+      const nums = data.sets.map(s => s.set_num);
+      expect(nums).toContain('75192');
+      expect(nums).toContain('10497');
+      expect(nums).not.toContain('55555');
+      // Per-set AI identification confidence survives the catalog match under
+      // its own key (enrichSetRecord overwrites `confidence` with PRICING
+      // confidence); the shelf checklist UI shows it per row.
+      expect(data.sets.find(s => s.set_num === '10497')?.match_confidence).toBe('medium');
+    });
+
+    it('rejects unknown scan modes', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'bogus', image: 'data:image/png;base64,mock' }),
+        }),
+        env
+      );
+      expect(res.status).toBe(400);
     });
 
     it('applies rate limit if X-OpenAI-Key header is missing', async () => {

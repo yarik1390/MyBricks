@@ -5,7 +5,7 @@ import { callGeminiScan } from '../lib/gemini';
 import { enrichSetRecord } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { logEvent } from '../lib/analytics';
-import { MODELS, getOpenRouterPools, openAIServerBaseURL, openRouterBaseURL, gatewayHeaders, gatewayMetadataHeader, SCAN_SYSTEM_PROMPT } from '../lib/llm';
+import { MODELS, getOpenRouterPools, openAIServerBaseURL, openRouterBaseURL, gatewayHeaders, gatewayMetadataHeader, SCAN_SYSTEM_PROMPT, SHELF_SCAN_PROMPT } from '../lib/llm';
 import { recordAiUsage } from '../lib/ai-usage';
 import { verifyTurnstileToken } from '../lib/turnstile';
 import { matchSetsToCatalog, matchMinifigsToCatalog, type DescribedSet, type DescribedMinifig } from '../lib/scan-match';
@@ -19,6 +19,14 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 // hourly burst window.
 const SCAN_DAILY_LIMIT = 20;        // free tier: 20 AI photo scans per day
 const SCAN_HOURLY_LIMIT = 20;       // supporter burst window (× multiplier below)
+
+// Shelf Snap returns up to this many sets from one photo. Also sizes the
+// completion budget: ~25 sets × ~70 tokens of JSON each fits well inside 2400.
+const SHELF_MAX_SETS = 25;
+
+// Prompt override threaded through every vision provider. Default (empty)
+// keeps the single-set SCAN_SYSTEM_PROMPT / 700-token behavior.
+type ScanPromptOpts = { prompt?: string; maxTokens?: number };
 
 function openAIIdentificationMessage(error: unknown): string {
   const status = typeof (error as { status?: unknown })?.status === 'number'
@@ -47,9 +55,10 @@ async function openaiVisionDescribe(
   client: OpenAI,
   model: string,
   image: string,
+  opts: ScanPromptOpts = {},
 ): Promise<{ sets: DescribedSet[]; minifigs: DescribedMinifig[]; usage?: { prompt_tokens?: number; completion_tokens?: number } }> {
   const messages: Parameters<typeof client.chat.completions.create>[0]['messages'] = [
-    { role: 'system', content: SCAN_SYSTEM_PROMPT },
+    { role: 'system', content: opts.prompt || SCAN_SYSTEM_PROMPT },
     { role: 'user', content: [
       { type: 'image_url', image_url: { url: image } },
       { type: 'text', text: 'Identify the LEGO set(s) and minifigure(s) in this image.' },
@@ -57,7 +66,7 @@ async function openaiVisionDescribe(
   ];
   const completion = await client.chat.completions.create({
     model,
-    max_tokens: 700,
+    max_tokens: opts.maxTokens || 700,
     response_format: { type: 'json_object' },
     messages,
   });
@@ -77,13 +86,13 @@ async function openaiVisionDescribe(
 // Cost-tiered vision cascade for the SHARED (keyless) scan: server Gemini on the
 // free tier first, then OpenRouter free vision models, then the paid gpt-4o-mini
 // backstop. Records each call in the ai_usage ledger + integration health.
-async function describeSharedScan(env: Env, image: string): Promise<{ sets: DescribedSet[]; minifigs: DescribedMinifig[]; model: string } | { error: string }> {
+async function describeSharedScan(env: Env, image: string, opts: ScanPromptOpts = {}): Promise<{ sets: DescribedSet[]; minifigs: DescribedMinifig[]; model: string } | { error: string }> {
   const meta = { ...gatewayHeaders(env), ...gatewayMetadataHeader({ workload: 'scan-shared' }) };
 
   // 1. Server Gemini (free tier) — routed through the gateway when configured.
   if (env.GEMINI_API_KEY) {
     try {
-      const r = await callGeminiScan(image, env.GEMINI_API_KEY, env, { routeThroughGateway: true });
+      const r = await callGeminiScan(image, env.GEMINI_API_KEY, env, { routeThroughGateway: true, prompt: opts.prompt });
       await recordAiUsage(env, 'gemini', MODELS.scan, null);
       await recordIntegrationAttempt(env, 'gemini', true);
       if (r?.sets?.length || r?.minifigs?.length) {
@@ -103,7 +112,7 @@ async function describeSharedScan(env: Env, image: string): Promise<{ sets: Desc
     const { vision: visionPool } = await getOpenRouterPools(env);
     for (const model of [...visionPool, MODELS.scanOpenrouterPaid]) {
       try {
-        const { sets, minifigs, usage } = await openaiVisionDescribe(orc, model, image);
+        const { sets, minifigs, usage } = await openaiVisionDescribe(orc, model, image, opts);
         await recordAiUsage(env, 'openrouter', model, usage);
         if (sets.length || minifigs.length) {
           await recordIntegrationAttempt(env, 'openrouter', true);
@@ -119,7 +128,7 @@ async function describeSharedScan(env: Env, image: string): Promise<{ sets: Desc
   if (env.OPENAI_API_KEY) {
     const oac = new OpenAI({ apiKey: env.OPENAI_API_KEY, baseURL: openAIServerBaseURL(env), defaultHeaders: meta });
     try {
-      const { sets, minifigs, usage } = await openaiVisionDescribe(oac, MODELS.openaiFallback, image);
+      const { sets, minifigs, usage } = await openaiVisionDescribe(oac, MODELS.openaiFallback, image, opts);
       await recordAiUsage(env, 'openai', MODELS.openaiFallback, usage);
       await recordIntegrationAttempt(env, 'openai', true);
       return { sets, minifigs, model: MODELS.openaiFallback };
@@ -158,18 +167,25 @@ app.post('/identify', async (c) => {
     return c.json({ identified: true, set: enrichSetRecord({ ...(r as Record<string, unknown>), retired: !!(r as Record<string, unknown>).retired }), confidence: 'high', reasoning: 'Barcode matched in catalog.' });
   }
 
-  if (mode !== 'image') return c.json({ error: 'mode must be image or barcode' }, 400);
+  if (mode !== 'image' && mode !== 'shelf') return c.json({ error: 'mode must be image, shelf or barcode' }, 400);
   if (!image) return c.json({ error: 'image required' }, 400);
   if (image.length > 2_000_000) return c.json({ error: 'Image too large (max ~1.5 MB)' }, 413);
+
+  // Shelf Snap: same pipeline, exhaustive prompt + a completion budget sized
+  // for up to SHELF_MAX_SETS sets instead of one.
+  const shelfMode = mode === 'shelf';
+  const promptOpts: ScanPromptOpts = shelfMode ? { prompt: SHELF_SCAN_PROMPT, maxTokens: 2400 } : {};
 
   const geminiKey = c.req.header('X-Gemini-Key');
   const openaiKey = c.req.header('X-OpenAI-Key');
 
-  const NOT_FOUND = "Couldn't confidently identify a set. Try a clearer photo, include the box number, or scan the barcode.";
+  const NOT_FOUND = shelfMode
+    ? "Couldn't identify any sets on that shelf. Try a closer, well-lit photo — a few sets at a time works best."
+    : "Couldn't confidently identify a set. Try a clearer photo, include the box number, or scan the barcode.";
   // Match AI-described sets to the catalog (exact number, then FTS name search)
   // and shape the response. Shared by every provider path below.
   const respondMatched = async (describedSets: DescribedSet[], describedMinifigs: DescribedMinifig[], model: string) => {
-    const setMatch = await matchSetsToCatalog(c.env, describedSets);
+    const setMatch = await matchSetsToCatalog(c.env, describedSets.slice(0, SHELF_MAX_SETS));
     const figMatch = await matchMinifigsToCatalog(c.env, describedMinifigs);
     if (!setMatch.sets.length && !figMatch.minifigs.length) return c.json({ identified: false, reasoning: NOT_FOUND });
     const firstId = String((setMatch.sets[0] as Record<string, unknown>)?.set_num || (figMatch.minifigs[0] as Record<string, unknown>)?.fig_num || '');
@@ -180,7 +196,7 @@ app.post('/identify', async (c) => {
   // 1. BYOK Gemini — the user's own key, called directly on their quota.
   if (geminiKey) {
     let res: Awaited<ReturnType<typeof callGeminiScan>> = null;
-    try { res = await callGeminiScan(image, geminiKey, c.env); }
+    try { res = await callGeminiScan(image, geminiKey, c.env, { prompt: promptOpts.prompt }); }
     catch (e) { console.warn('[scan] BYOK Gemini failed:', (e as Error).message); }
     const sets = res?.sets ?? [];
     const minifigs = res?.minifigs ?? [];
@@ -197,7 +213,7 @@ app.post('/identify', async (c) => {
   if (openaiKey) {
     const client = new OpenAI({ apiKey: openaiKey });
     let described: { sets: DescribedSet[]; minifigs: DescribedMinifig[] } = { sets: [], minifigs: [] };
-    try { described = await openaiVisionDescribe(client, MODELS.openaiFallback, image); }
+    try { described = await openaiVisionDescribe(client, MODELS.openaiFallback, image, promptOpts); }
     catch (e) { return c.json({ identified: false, reasoning: openAIIdentificationMessage(e) }); }
     if (!described.sets.length && !described.minifigs.length) return c.json({ identified: false, reasoning: NOT_FOUND });
     return respondMatched(described.sets, described.minifigs, MODELS.openaiFallback);
@@ -243,7 +259,7 @@ app.post('/identify', async (c) => {
     }
   }
 
-  const desc = await describeSharedScan(c.env, image);
+  const desc = await describeSharedScan(c.env, image, promptOpts);
   if ('error' in desc) return c.json({ identified: false, reasoning: desc.error });
   if (!desc.sets.length && !desc.minifigs.length) return c.json({ identified: false, reasoning: NOT_FOUND });
   return respondMatched(desc.sets, desc.minifigs, desc.model);
