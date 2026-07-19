@@ -330,4 +330,84 @@ app.delete('/kids-pin', async (c) => {
   return c.json({ ok: true });
 });
 
+// --- Collection backups ("never lose a brick") -------------------------------
+// Weekly snapshots are written by jobs/collection-backups.ts to R2 under
+// backups/{user_id}/{date}.json. These endpoints are strictly scoped to the
+// authenticated user: the object key is always built from the session user id,
+// never from a client-supplied path.
+
+const BACKUP_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+app.get('/backups', async (c) => {
+  const userId = c.get('userId');
+  if (!c.env.PHOTO_BUCKET) return c.json({ error: 'Backups not configured' }, 503);
+  const listing = await c.env.PHOTO_BUCKET.list({ prefix: `backups/${userId}/` }).catch(() => null);
+  const dates = (listing?.objects ?? [])
+    .map((o) => o.key.slice(o.key.lastIndexOf('/') + 1).replace(/\.json$/, ''))
+    .filter((d) => BACKUP_DATE_RE.test(d))
+    .sort()
+    .reverse();
+  return c.json({ backups: dates });
+});
+
+app.get('/backups/:date', async (c) => {
+  const userId = c.get('userId');
+  const date = c.req.param('date');
+  if (!BACKUP_DATE_RE.test(date)) return c.json({ error: 'bad date' }, 400);
+  if (!c.env.PHOTO_BUCKET) return c.json({ error: 'Backups not configured' }, 503);
+  const obj = await c.env.PHOTO_BUCKET.get(`backups/${userId}/${date}.json`).catch(() => null);
+  if (!obj) return c.json({ error: 'Backup not found' }, 404);
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Disposition': `attachment; filename="bricksvault-backup-${date}.json"`,
+    },
+  });
+});
+
+app.post('/backups/:date/restore', async (c) => {
+  const userId = c.get('userId');
+  const date = c.req.param('date');
+  if (!BACKUP_DATE_RE.test(date)) return c.json({ error: 'bad date' }, 400);
+  if (!c.env.PHOTO_BUCKET) return c.json({ error: 'Backups not configured' }, 503);
+  const obj = await c.env.PHOTO_BUCKET.get(`backups/${userId}/${date}.json`).catch(() => null);
+  if (!obj) return c.json({ error: 'Backup not found' }, 404);
+  let snapshot: { rows?: Array<Record<string, unknown>> };
+  try { snapshot = JSON.parse(await obj.text()); } catch { return c.json({ error: 'Backup unreadable' }, 500); }
+  const rows = Array.isArray(snapshot.rows) ? snapshot.rows.slice(0, 2000) : [];
+  if (!rows.length) return c.json({ error: 'Backup empty' }, 400);
+
+  // Merge, never destroy: every snapshot row is upserted to its snapshot state
+  // (including deleted_at as it was, so restore can un-delete). Sets added
+  // AFTER the snapshot are left untouched.
+  const stmts = rows
+    .filter((r) => typeof r.set_num === 'string' && r.set_num)
+    .map((r) => c.env.DB.prepare(`
+      INSERT INTO user_collection (
+        user_id, set_num, quantity, condition, purchase_price, notes,
+        purchased_at, deleted_at, storage_location, acquisition_source,
+        is_complete, missing_pieces, custom_image_url, sold_price, sold_at,
+        last_modified
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      ON CONFLICT (user_id, set_num) DO UPDATE SET
+        quantity=excluded.quantity, condition=excluded.condition,
+        purchase_price=excluded.purchase_price, notes=excluded.notes,
+        purchased_at=excluded.purchased_at, deleted_at=excluded.deleted_at,
+        storage_location=excluded.storage_location,
+        acquisition_source=excluded.acquisition_source,
+        is_complete=excluded.is_complete, missing_pieces=excluded.missing_pieces,
+        custom_image_url=excluded.custom_image_url,
+        sold_price=excluded.sold_price, sold_at=excluded.sold_at,
+        last_modified=datetime('now')
+    `).bind(
+      userId, r.set_num, r.quantity ?? 1, r.condition ?? 'new',
+      r.purchase_price ?? null, r.notes ?? null, r.purchased_at ?? null,
+      r.deleted_at ?? null, r.storage_location ?? null,
+      r.acquisition_source ?? null, r.is_complete ?? 1, r.missing_pieces ?? 0,
+      r.custom_image_url ?? null, r.sold_price ?? null, r.sold_at ?? null,
+    ));
+  for (let i = 0; i < stmts.length; i += 90) await c.env.DB.batch(stmts.slice(i, i + 90));
+  return c.json({ ok: true, restored: stmts.length, date });
+});
+
 export { app as meRoute };

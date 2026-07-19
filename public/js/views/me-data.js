@@ -30,6 +30,18 @@ export async function renderMeData() {
           <div class="action-result" id="exportResult" aria-live="polite">${guest ? "Guest exports use the local vault on this device." : "Signed-in exports are pulled from your synced account."}</div>
         </section>
 
+        ${guest ? "" : `
+        <section class="data-card">
+          <div class="section-title">Backups</div>
+          <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+            <div class="lbl-wrap">
+              <div class="lbl">Vault snapshots</div>
+              <div class="desc">Your vault is snapshotted every Sunday. Restore rolls your collection back to that day without losing history.</div>
+            </div>
+            <div id="backupList" class="action-result" aria-live="polite">Loading…</div>
+          </div>
+        </section>`}
+
         ${!guest && localStorage.getItem("bv_failed_guest_migration") ? `
         <section class="data-card">
           <div class="section-title">Guest sync</div>
@@ -69,6 +81,40 @@ export async function renderMeData() {
         </section>
       </div>
     </div>`;
+
+  // Backups: list snapshot dates with per-date Restore. Best-effort — the card
+  // simply reports when backups aren't configured or none exist yet.
+  (async () => {
+    const list = $("#backupList");
+    if (!list || isGuestMode()) return;
+    try {
+      const r = await api("/api/me/backups");
+      const dates = r?.backups || [];
+      if (!dates.length) { list.textContent = "No snapshots yet — the first one is written next Sunday."; return; }
+      list.innerHTML = dates.slice(0, 8).map((d) => `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line-soft);">
+          <span style="font-family:var(--mono);font-size:12px;">${d}</span>
+          <button class="btn-secondary backup-restore" data-date="${d}" style="width:auto;padding:6px 12px;font-size:12px;">Restore</button>
+        </div>`).join("");
+      list.querySelectorAll(".backup-restore").forEach((btn) => btn.addEventListener("click", async (e) => {
+        const date = e.currentTarget.dataset.date;
+        const ok = await confirmSheet({
+          title: `Restore ${date}?`,
+          message: "Your collection rolls back to this snapshot. Sets added since stay; nothing is permanently deleted.",
+          confirmLabel: "Restore",
+        });
+        if (!ok) return;
+        haptic("heavy");
+        setBtnLoading(e.target.closest("button"), true);
+        try {
+          const res = await api(`/api/me/backups/${encodeURIComponent(date)}/restore`, { method: "POST" });
+          invalidatePortfolio();
+          toast(`Restored ${res.restored} sets from ${date}`, "success");
+        } catch (err) { toast("Restore failed: " + err.message, "error"); }
+        finally { setBtnLoading(e.target.closest("button"), false); }
+      }));
+    } catch { list.textContent = "Backups unavailable right now."; }
+  })();
 
   $("#retryGuestSyncBtn")?.addEventListener("click", async () => {
     haptic("medium");
