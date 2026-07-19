@@ -383,6 +383,23 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
   });
 
   describe('Admin maintenance jobs', () => {
+    it('v3-preview reports the 0-vs-100 rollout delta for seeded holdings', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, blended_value) VALUES ('PV-1','Preview Set', 100, 100)`),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity) VALUES (?, 'PV-1', 1)`).bind(userId),
+        db.prepare(`INSERT INTO set_valuation_state (set_num, condition, fair_value, confidence, model_version) VALUES ('PV-1','new_sealed', 150, 'high', 'v3')`),
+      ]);
+      const res = await app.fetch(new Request('http://localhost/api/admin/pricing/v3-preview', {
+        headers: auth(adminToken),
+      }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.holdings).toBeGreaterThanOrEqual(1);
+      expect(data.users_with_delta).toBeGreaterThanOrEqual(1);
+      expect(data.top_set_deltas[0].set_num).toBe('PV-1');
+      expect(data.top_set_deltas[0].delta).toBe(50); // 150 v3 vs 100 legacy
+    });
+
     it('recompute-blends fills a missing confidence band from existing sources', async () => {
       // A retired set with real market sources but a value persisted before the
       // band columns existed (blended_low/high NULL) — the v2.2-calibration gap.

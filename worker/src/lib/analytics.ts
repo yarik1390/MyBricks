@@ -53,3 +53,19 @@ export function logClientEvent(env: Env, event: string, detail: string): void {
     });
   } catch { /* non-fatal */ }
 }
+
+// Events whose daily counts are mirrored into D1 so the admin panel can
+// compute SLOs (scan success rate). route_view is deliberately AE-only —
+// highest volume, no SLO value.
+const MIRROR_EVENTS = new Set(['scan_attempt', 'scan_success', 'scan_fallback', 'client_error']);
+
+export async function mirrorClientMetric(env: Env, event: string, detail: string): Promise<void> {
+  if (!MIRROR_EVENTS.has(event)) return;
+  // Keep PK cardinality bounded: only scan modes carry a detail dimension.
+  const d = event === 'client_error' ? '' : String(detail || '').slice(0, 24);
+  await env.DB.prepare(`
+    INSERT INTO client_metrics_daily (day, event, detail, count)
+    VALUES (date('now'), ?, ?, 1)
+    ON CONFLICT (day, event, detail) DO UPDATE SET count = count + 1
+  `).bind(event, d).run().catch(() => {});
+}

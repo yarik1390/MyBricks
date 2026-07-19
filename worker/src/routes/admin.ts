@@ -30,6 +30,7 @@ import { runPriceChartingVerify } from '../jobs/pricecharting-verify';
 import { PROCESS_REGISTRY, GROUP_ORDER, processInfo } from '../lib/process-registry';
 import { getPricingWriteBudget } from '../lib/pricing-budget';
 import { amazonReadiness } from '../lib/amazon';
+import { holdingValueForRollout } from '../lib/market-sources';
 import type { Env, Variables } from '../types';
 
 import { createImportRun, updateImportRunProgress, completeImportRun, failImportRun, expireStaleImportRuns, getActiveImportRun, getDataCoverage, getPopulationSnapshot, populationDone, populationRemainingNote, getMarketExtCoverage, buildFirecrawlDiagnostics, IMPORT_RUN_FIELDS } from './admin-helpers';
@@ -762,7 +763,7 @@ app.get('/integrations', async (c) => {
 
 // Pricing Center: compact operational views over the normalized v3 side tables.
 app.get('/pricing/quality', async (c) => {
-  const [states, mappings, signals, anomalies, retail, legacyPc, figQueue] = await Promise.all([
+  const [states, mappings, signals, anomalies, retail, legacyPc, figQueue, scanMetrics] = await Promise.all([
     c.env.DB.prepare(`
       SELECT condition, confidence, COUNT(*) AS count,
              SUM(CASE WHEN fair_value IS NOT NULL THEN 1 ELSE 0 END) AS valued,
@@ -775,6 +776,7 @@ app.get('/pricing/quality', async (c) => {
     c.env.DB.prepare(`SELECT market, COUNT(*) AS count, SUM(CASE WHEN stock='in_stock' THEN 1 ELSE 0 END) AS in_stock FROM retail_price_current GROUP BY market`).all(),
     c.env.DB.prepare(`SELECT COUNT(*) AS count FROM lego_sets WHERE pc_id IS NOT NULL OR pc_new_value IS NOT NULL OR pc_complete_value IS NOT NULL`).first(),
     c.env.DB.prepare(`SELECT status, COUNT(DISTINCT fig_num) AS figs, COUNT(*) AS candidates FROM minifig_bl_candidates GROUP BY status`).all().catch(() => ({ results: [] })),
+    c.env.DB.prepare(`SELECT event, detail, SUM(count) AS n FROM client_metrics_daily WHERE day >= date('now','-14 days') GROUP BY event, detail`).all().catch(() => ({ results: [] })),
   ]);
   const quarantined = (mappings.results || []).filter((row: any) => row.status === 'quarantined')
     .reduce((sum: number, row: any) => sum + Number(row.count || 0), 0);
@@ -788,11 +790,56 @@ app.get('/pricing/quality', async (c) => {
     retail: retail.results || [],
     legacy_pricecharting_rows: Number((legacyPc as any)?.count || 0),
     minifig_identity_queue: (figQueue as any).results || [],
+    scanner_slo: (scanMetrics as any).results || [],
     recommended_action: quarantined > 0
       ? `Review ${quarantined} quarantined source matches before enabling PriceCharting.`
       : openAnomalies > 0
         ? `Resolve ${openAnomalies} open pricing anomalies.`
         : 'Continue the v3 shadow rollout and compare fair values with legacy headlines.',
+  });
+});
+
+// GET /api/admin/pricing/v3-preview — READ-ONLY dry run of the v3 flip: every
+// holding valued at rollout 0 vs 100 via the same holdingValueForRollout the
+// portfolio endpoints use. This is the pre-bump evidence the rollout plan
+// requires before PRICING_V3_READ_PERCENT moves to "100".
+app.get('/pricing/v3-preview', async (c) => {
+  const { results: holdings } = await c.env.DB.prepare(`
+    SELECT
+      uc.user_id, uc.set_num, uc.condition, uc.quantity, uc.purchase_price,
+      s.current_value, s.blended_value, s.used_value,
+      s.ebay_used_value, s.bo_used_value, s.pc_new_value, s.pc_complete_value,
+      svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair
+    FROM user_collection uc
+    JOIN lego_sets s ON s.set_num = uc.set_num
+    LEFT JOIN set_valuation_state svn ON svn.set_num=s.set_num AND svn.condition='new_sealed'
+    LEFT JOIN set_valuation_state svu ON svu.set_num=s.set_num AND svu.condition='used_complete'
+    WHERE uc.deleted_at IS NULL
+  `).all<Record<string, unknown>>();
+
+  const byUser = new Map<string, { at0: number; at100: number }>();
+  const perSet: Array<{ set_num: string; at0: number; at100: number; delta: number }> = [];
+  for (const row of holdings) {
+    const qty = Number(row.quantity || 1);
+    const at0 = holdingValueForRollout(row, 0) * qty;
+    const at100 = holdingValueForRollout(row, 100) * qty;
+    const u = byUser.get(String(row.user_id)) || { at0: 0, at100: 0 };
+    u.at0 += at0; u.at100 += at100;
+    byUser.set(String(row.user_id), u);
+    if (Math.abs(at100 - at0) > 0.005) {
+      perSet.push({ set_num: String(row.set_num), at0, at100, delta: at100 - at0 });
+    }
+  }
+  const userDeltas = [...byUser.values()].map((u) => u.at100 - u.at0).sort((a, b) => Math.abs(a) - Math.abs(b));
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  perSet.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  return c.json({
+    users: byUser.size,
+    holdings: holdings.length,
+    users_with_delta: userDeltas.filter((d) => Math.abs(d) > 0.005).length,
+    median_abs_user_delta: round2(userDeltas.length ? Math.abs(userDeltas[Math.floor(userDeltas.length / 2)]) : 0),
+    max_abs_user_delta: round2(userDeltas.length ? Math.max(...userDeltas.map(Math.abs)) : 0),
+    top_set_deltas: perSet.slice(0, 20).map((s) => ({ ...s, at0: round2(s.at0), at100: round2(s.at100), delta: round2(s.delta) })),
   });
 });
 

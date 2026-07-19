@@ -300,6 +300,17 @@ CREATE TABLE IF NOT EXISTS user_collection (
 -- actually paid/sold for, per set + condition bucket. Written nightly by the
 -- community-comps job (k>=5 distinct contributors, outlier-trimmed). Read-side
 -- integration into the blend comes later (v3 dual-write discipline).
+-- Daily client telemetry counters (D1 mirror of the Analytics Engine events
+-- that back operational SLOs — AE can't be queried from the Worker). Detail is
+-- LOW-CARDINALITY by contract: scan modes only; client_error collapses to ''.
+CREATE TABLE IF NOT EXISTS client_metrics_daily (
+  day TEXT NOT NULL,
+  event TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT '',
+  count INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, event, detail)
+);
+
 -- Minifig identity verification queue: Rebrickable->BrickLink name matches
 -- that resolveBlId could NOT disambiguate (multiple same-name candidates) are
 -- parked here and settled by price-agreement (minifig-verify job) instead of

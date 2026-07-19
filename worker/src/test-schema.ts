@@ -187,6 +187,13 @@ export const TABLE_DDL: Record<string, string> = {
   PRIMARY KEY (set_num, market), UNIQUE (market, asin)
 )`,
 
+  client_metrics_daily: `CREATE TABLE IF NOT EXISTS client_metrics_daily (
+  day TEXT NOT NULL,
+  event TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT '',
+  count INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, event, detail)
+)`,
   minifig_bl_candidates: `CREATE TABLE IF NOT EXISTS minifig_bl_candidates (
   fig_num TEXT NOT NULL REFERENCES minifigs(fig_num),
   bl_id TEXT NOT NULL,

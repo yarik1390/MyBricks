@@ -1250,6 +1250,22 @@ function renderPricingCenter() {
       ${pricingMetricHTML('Open anomalies', formatCount(anomalyRows.length), 'Identity, value, or forecast conflicts', anomalyRows.length ? 'danger' : 'ok')}
       ${pricingMetricHTML('Quarantined matches', formatCount(matchRows.length), 'Excluded from every blend', matchRows.length ? 'warn' : 'ok')}
       ${pricingMetricHTML('Legacy PriceCharting', formatCount(quality.legacy_pricecharting_rows || 0), 'Stored only; weight and jobs are off', 'neutral')}
+      ${(() => {
+        const slo = quality.scanner_slo || [];
+        const sum = (ev) => slo.filter((r) => r.event === ev).reduce((s, r) => s + Number(r.n || 0), 0);
+        const attempts = sum('scan_attempt');
+        const rate = attempts ? Math.round((sum('scan_success') / attempts) * 100) : null;
+        return pricingMetricHTML('Scanner success (14d)', rate == null ? '—' : `${rate}%`,
+          attempts ? `${formatCount(attempts)} attempts · target ≥95% barcode` : 'No telemetry yet',
+          rate == null ? 'neutral' : rate >= 95 ? 'ok' : 'warn');
+      })()}
+      ${(() => {
+        const q = quality.minifig_identity_queue || [];
+        const pending = Number((q.find((r) => r.status === 'pending') || {}).figs || 0);
+        const verified = Number((q.find((r) => r.status === 'verified') || {}).figs || 0);
+        return pricingMetricHTML('Minifig identity queue', formatCount(pending),
+          `${formatCount(verified)} verified by price agreement`, pending ? 'warn' : 'ok');
+      })()}
     </div>
 
     <div class="admin-pricing-subsection">

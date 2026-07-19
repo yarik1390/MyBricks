@@ -59,7 +59,7 @@ import { runBlendRecomputeBackfill } from './jobs/recompute-blends';
 import { applySourceConfig } from './lib/source-config';
 import { recordCronStart, recordCronFinish, summarizeResult, isCronRunning } from './lib/cron-runs';
 import { amazonReadiness } from './lib/amazon';
-import { CLIENT_EVENTS, logClientEvent } from './lib/analytics';
+import { CLIENT_EVENTS, logClientEvent, mirrorClientMetric } from './lib/analytics';
 import { setPricingV3ReadPercent } from './lib/market-sources';
 
 import type { Env, Variables } from './types';
@@ -133,7 +133,11 @@ app.post('/api/telemetry', async (c) => {
   try {
     const body = await c.req.json<{ e?: string; d?: string }>();
     const event = String(body.e || '');
-    if (CLIENT_EVENTS.has(event)) logClientEvent(c.env, event, String(body.d || ''));
+    if (CLIENT_EVENTS.has(event)) {
+      const detail = String(body.d || '');
+      logClientEvent(c.env, event, detail);
+      c.executionCtx.waitUntil(mirrorClientMetric(c.env, event, detail));
+    }
   } catch { /* ignore malformed */ }
   return c.body(null, 204);
 });
