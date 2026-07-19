@@ -88,6 +88,65 @@ test('set detail renders with the action bar', async ({ page }) => {
   await expect(page.locator('#addBtn')).toBeVisible();
 });
 
+test('pricing details opens as a bottom sheet and keeps the set page mounted', async ({ page }) => {
+  await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
+  await page.locator('#pricingDetailsBtn').click();
+  await expect(page.locator('#sheet')).toHaveClass(/show/);
+  await expect(page.locator('#pricingDetailsSheetTitle')).toHaveText('Pricing details');
+  await expect(page).toHaveURL(/#\/set\/75192-1$/);
+  await page.locator('#pricingDetailsClose').click();
+  await expect(page.locator('#sheet')).not.toHaveClass(/show/);
+});
+
+test('how-we-price opens in-app and preserves the current route', async ({ page }) => {
+  await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('link', { name: 'How We Price' }).click();
+  await expect(page.locator('#methodologySheetTitle')).toHaveText('How we price LEGO sets');
+  await expect(page.locator('.methodology-sheet')).toContainText('Five numbers, five different jobs');
+  await expect(page).toHaveURL(/#\/me$/);
+});
+
+test('Pixel-sized set detail clears the sticky action bar and uses a compact hero', async ({ page, stub }) => {
+  await page.setViewportSize({ width: 412, height: 915 });
+  await page.route('**/api/sets/75192-1', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ set: { ...stub.SET, image_url: '/icon.svg' }, entry: null }),
+  }));
+  await page.goto('/#/set/75192-1/community', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.detail-action-bar')).toBeVisible();
+  await expect(page.locator('.detail-tab-panel')).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const layout = await page.evaluate(() => {
+    const panel = document.querySelector('.detail-tab-panel').getBoundingClientRect();
+    const action = document.querySelector('.detail-action-bar').getBoundingClientRect();
+    const hero = document.querySelector('.detail-hero').getBoundingClientRect();
+    return { panelBottom: panel.bottom, actionTop: action.top, heroHeight: hero.height };
+  });
+  expect(layout.panelBottom).toBeLessThanOrEqual(layout.actionTop - 16);
+  expect(layout.heroHeight).toBeLessThanOrEqual(264);
+});
+
+test('vivid light mode gives set photos a neutral non-blended stage', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('bv_skin', 'vivid');
+    localStorage.setItem('bv_theme', 'light');
+  });
+  await page.route('**/api/sets/search*', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ sets: [{
+      set_num: '75192-1', name: 'Millennium Falcon', year: 2017, pieces: 7541,
+      theme: 'Star Wars', image_url: '/icon.svg', current_value: 850,
+    }], total: 1, hasMore: false }),
+  }));
+  await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
+  const image = page.locator('.set-card-img img.set-photo').first();
+  await expect(image).toBeVisible();
+  await expect(image).toHaveCSS('mix-blend-mode', 'normal');
+  await expect(page.locator('.set-card-img').first()).toHaveCSS('background-color', 'rgb(244, 244, 242)');
+});
+
 test('wishlist toggle removes the set and flips the button', async ({ page, stub }) => {
   // Load the portfolio first so state.wishlist is populated (the set is wished).
   await page.goto('/', { waitUntil: 'domcontentloaded' });

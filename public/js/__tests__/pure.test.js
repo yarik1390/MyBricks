@@ -12,6 +12,47 @@ import {
   cleanTagLabel, pluralize, manualScanTarget,
   computeStoreVerdict, computeSellSignal,
 } from '../lib/pure.js';
+import { biometricAvailable, verifyBiometricResult } from '../lib/native-biometric.js';
+
+describe('native biometric bridge', () => {
+  it('uses Capacitor native internalAuthenticate and permits device credentials', async () => {
+    let received;
+    const win = {
+      Capacitor: {
+        isNativePlatform: () => true,
+        Plugins: {
+          BiometricAuthNative: {
+            checkBiometry: async () => ({ isAvailable: false, deviceIsSecure: true }),
+            internalAuthenticate: async (options) => { received = options; },
+          },
+        },
+      },
+    };
+
+    assert.equal(await biometricAvailable(win), true);
+    const result = await verifyBiometricResult('Enable app lock', win);
+    assert.equal(result.ok, true);
+    assert.equal(received.allowDeviceCredential, true);
+    assert.equal(received.androidTitle, 'BricksVault');
+  });
+
+  it('surfaces actionable native enrollment errors', async () => {
+    const win = {
+      Capacitor: {
+        isNativePlatform: () => true,
+        Plugins: {
+          BiometricAuthNative: {
+            internalAuthenticate: async () => { throw { code: 'biometryNotEnrolled', message: 'native failure' }; },
+          },
+        },
+      },
+    };
+
+    const result = await verifyBiometricResult('Unlock BricksVault', win);
+    assert.equal(result.ok, false);
+    assert.match(result.message, /Android settings/i);
+  });
+});
 
 // Build a fake JWT (header.payload.signature) with base64url, no padding —
 // matching how Supabase access tokens are encoded.

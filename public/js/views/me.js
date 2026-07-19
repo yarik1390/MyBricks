@@ -475,7 +475,7 @@ export async function renderMe() {
     const toggle = $("#appLockToggle");
     if (!row || !toggle) return;
     try {
-      const [{ biometricAvailable, verifyBiometric }, { appLockEnabled, setAppLockEnabled }] = await Promise.all([
+      const [{ biometricAvailable, verifyBiometricResult }, { appLockEnabled, setAppLockEnabled }] = await Promise.all([
         import("../lib/native-biometric.js"),
         import("../lib/app-lock.js"),
       ]);
@@ -489,8 +489,8 @@ export async function renderMe() {
       paint();
       toggle.addEventListener("click", async () => {
         const turningOn = !appLockEnabled();
-        const ok = await verifyBiometric(turningOn ? "Enable app lock" : "Disable app lock");
-        if (!ok) { toast("Couldn't verify — app lock unchanged", "error"); return; }
+        const result = await verifyBiometricResult(turningOn ? "Enable app lock" : "Disable app lock");
+        if (!result.ok) { toast(`${result.message} - app lock unchanged`, "error"); return; }
         setAppLockEnabled(turningOn);
         paint();
         haptic("medium");

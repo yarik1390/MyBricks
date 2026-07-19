@@ -17,9 +17,42 @@ export async function biometricAvailable(win) {
   if (!bio?.checkBiometry) return false;
   try {
     const r = await bio.checkBiometry();
-    return !!r?.isAvailable;
+    return !!(r?.isAvailable || r?.deviceIsSecure);
   } catch {
     return false;
+  }
+}
+
+function friendlyBiometryError(error) {
+  const code = String(error?.code || '');
+  if (code === 'userCancel' || code === 'systemCancel' || code === 'appCancel') return 'Authentication canceled';
+  if (code === 'biometryNotEnrolled') return 'Set up fingerprint or face unlock in Android settings first';
+  if (code === 'passcodeNotSet' || code === 'noDeviceCredential') return 'Set up a device PIN, pattern, or password first';
+  if (code === 'biometryLockout') return 'Biometrics are temporarily locked. Use your device PIN or try again later';
+  if (code === 'biometryNotAvailable') return 'Biometric authentication is not available on this device';
+  return error?.message ? String(error.message) : "Couldn't verify your identity";
+}
+
+export async function verifyBiometricResult(reason, win) {
+  const bio = plugin(win);
+  // Capacitor.Plugins exposes native @PluginMethod methods directly. The
+  // package's public authenticate() wrapper is bundled JavaScript and is not
+  // present there; its native counterpart is internalAuthenticate().
+  const authenticate = bio?.authenticate || bio?.internalAuthenticate;
+  if (typeof authenticate !== 'function') {
+    return { ok: false, code: 'biometryNotAvailable', message: 'Biometric authentication is unavailable. Update BricksVault and try again' };
+  }
+  try {
+    await authenticate.call(bio, {
+      reason: reason || 'Unlock BricksVault',
+      androidTitle: 'BricksVault',
+      androidSubtitle: reason || 'Confirm it\u2019s you',
+      allowDeviceCredential: true,
+      androidConfirmationRequired: false,
+    });
+    return { ok: true, code: '', message: '' };
+  } catch (error) {
+    return { ok: false, code: String(error?.code || ''), message: friendlyBiometryError(error) };
   }
 }
 
@@ -27,22 +60,5 @@ export async function biometricAvailable(win) {
 // allowDeviceCredential lets the user fall back to their PIN/pattern, so a
 // broken sensor can never lock them out of their own data.
 export async function verifyBiometric(reason, win) {
-  const bio = plugin(win);
-  if (!bio?.authenticate) return false;
-  try {
-    // Android's BiometricPrompt forbids a negative/cancel button when device
-    // credential (PIN/pattern) fallback is enabled — passing both throws
-    // IllegalArgumentException, which surfaced as a permanent "Couldn't verify".
-    // Keep the PIN fallback (so a broken sensor never locks the owner out) and
-    // drop cancelTitle; the system dialog provides its own cancel affordance.
-    await bio.authenticate({
-      reason: reason || 'Unlock BricksVault',
-      androidTitle: 'BricksVault',
-      androidSubtitle: reason || 'Confirm it’s you',
-      allowDeviceCredential: true,
-    });
-    return true;
-  } catch {
-    return false; // user cancelled or authentication failed
-  }
+  return (await verifyBiometricResult(reason, win)).ok;
 }

@@ -7,6 +7,7 @@ import { route } from './router.js';
 import { getThemePref, applyTheme, getModePref, applyMode } from './theme.js';
 import { toggleAdvisor } from './components/advisor-lazy.js';
 import { openScan, closeScan, capturePhoto } from './components/scanner-lazy.js';
+import { installMethodologySheet } from './components/methodology.js';
 import { closeNativeAuthBrowser, getCapacitorPlugin, isNativeCapacitor, nativeOAuthCallbackFromWebBridge, oauthHashFromCallbackUrl } from './lib/native-auth.js';
 // onboarding (welcome carousel) is lazy-loaded at the end of boot (see below).
 
@@ -275,6 +276,7 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 document.addEventListener("DOMContentLoaded", async () => {
+  installMethodologySheet();
   // Native OAuth returns through the allow-listed Pages URL first, then this
   // one-time bridge immediately opens the app callback before Chrome persists a
   // browser-only session.

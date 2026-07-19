@@ -637,12 +637,12 @@ function infoTabHTML(set, entry, isWish) {
     ${isSimpleMode() || isKidsMode() || !set.valuation?.read_enabled ? '' : investmentPricingHTML(set)}
     ${isSimpleMode() ? '' : `
     ${aiDisclaimerHTML}
-    <details class="detail-disclose">
-      <summary>
+    <button type="button" class="detail-disclose" id="pricingDetailsBtn" aria-haspopup="dialog">
         <span>Pricing details</span>
         <span class="detail-disclose-chev">▾</span>
-      </summary>
-      <div class="detail-disclose-body">
+    </button>
+    <template id="pricingDetailsTemplate">
+      <div class="pricing-details-sheet-body">
         ${set.valuation?.read_enabled ? investmentPricingDetailHTML(set) : ''}
         ${dealSignalHTML(set)}
         ${priceStripHTML(set, entry)}
@@ -652,7 +652,7 @@ function infoTabHTML(set, entry, isWish) {
         ${pricingSummaryHtml}
         ${marketConfidenceHTML(set)}
       </div>
-    </details>`}
+    </template>`}
 
     <div class="detail-card">
       <div class="detail-card-title">${I.tag()}Price history · 90 days</div>
@@ -698,6 +698,21 @@ function wireInfoTab(set) {
       aboutBtn.textContent = "Show more";
     }
     haptic("light");
+  });
+
+  $("#pricingDetailsBtn")?.addEventListener("click", () => {
+    const content = $("#pricingDetailsTemplate")?.innerHTML || "";
+    showSheet(`
+      <div class="sheet-title-row pricing-details-sheet-head">
+        <div>
+          <div class="u-mono-label">Market evidence</div>
+          <h2 id="pricingDetailsSheetTitle" class="u-serif-h pricing-details-sheet-title">Pricing details</h2>
+        </div>
+        <button type="button" class="icon-btn" id="pricingDetailsClose" aria-label="Close">${I.close()}</button>
+      </div>
+      <div class="pricing-details-sheet">${content}</div>`);
+    $("#sheet")?.setAttribute("aria-labelledby", "pricingDetailsSheetTitle");
+    $("#pricingDetailsClose")?.addEventListener("click", hideSheet);
   });
 }
 

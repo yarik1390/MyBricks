@@ -576,12 +576,14 @@ ul.set-list > li { display: contents; }
 /* With a real photo, drop the framed tile so the product art sits directly on
    the card — multiply makes the white studio background disappear. */
 .sl-img.photo-loaded { background: transparent; border-color: transparent; }
-:root[data-theme="dark"] .sl-img img.set-photo {
+:root[data-theme="dark"] .sl-img img.set-photo,
+:root[data-skin="vivid"] .sl-img img.set-photo {
   mix-blend-mode: normal;
   filter: none;
 }
 /* Extend the supplied studio background to the thumbnail edges in dark mode. */
-:root[data-theme="dark"] .sl-img.photo-loaded {
+:root[data-theme="dark"] .sl-img.photo-loaded,
+:root[data-skin="vivid"] .sl-img.photo-loaded {
   background: #f4f4f2;
 }
 .sl-img .qty-badge {
@@ -924,11 +926,13 @@ ul.set-list > li { display: contents; }
 .fig-detail-hero.photo-loaded .mini-figure,
 .detail-img.photo-loaded .brick-art,
 .scan-result-row .si.photo-loaded .brick-tile { display: none; }
-:root[data-theme="dark"] .set-card-img img.set-photo {
+:root[data-theme="dark"] .set-card-img img.set-photo,
+:root[data-skin="vivid"] .set-card-img img.set-photo {
   mix-blend-mode: normal;
   filter: none;
 }
-:root[data-theme="dark"] .set-card-img.photo-loaded {
+:root[data-theme="dark"] .set-card-img.photo-loaded,
+:root[data-skin="vivid"] .set-card-img.photo-loaded {
   background: #f4f4f2;
 }
 .set-card-img .ph-mark {
@@ -1076,9 +1080,11 @@ ul.set-list > li { display: contents; }
 /* Dark mode can't multiply the white product background away — so instead of
    painting the WHOLE hero light (a glaring slab against the dark page), keep
    the hero dark and frame the photo on its own compact card-style plate. */
-:root[data-theme="dark"] .detail-hero .detail-img img.set-photo { mix-blend-mode: normal; filter: brightness(0.97); }
+:root[data-theme="dark"] .detail-hero .detail-img img.set-photo,
+:root[data-skin="vivid"] .detail-hero .detail-img img.set-photo { mix-blend-mode: normal; filter: brightness(0.97); }
 :root[data-theme="dark"] .detail-hero.has-photo { background: var(--bg); }
-:root[data-theme="dark"] .detail-hero.has-photo .detail-img {
+:root[data-theme="dark"] .detail-hero.has-photo .detail-img,
+:root[data-skin="vivid"] .detail-hero.has-photo .detail-img {
   background: #f6f4ef;
   border: 2px solid var(--line-soft);
   border-radius: var(--r-3);
@@ -1169,7 +1175,12 @@ ul.set-list > li { display: contents; }
   mix-blend-mode: multiply;
 }
 :root:not([data-theme="dark"]) .detail-img.photo-loaded { background: transparent; }
+:root[data-skin="vivid"] .detail-img.photo-loaded { background: #f6f4ef; }
 :root[data-theme="dark"] .detail-img img.set-photo {
+  mix-blend-mode: normal;
+  filter: none;
+}
+:root[data-skin="vivid"] .detail-img img.set-photo {
   mix-blend-mode: normal;
   filter: none;
 }
@@ -1371,8 +1382,8 @@ ul.set-list > li { display: contents; }
 .detail-summary-facts .f b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* "Pricing details" collapsible — wraps all the deep market breakdowns */
-.detail-disclose { margin-bottom: 14px; }
-.detail-disclose > summary {
+.detail-disclose {
+  width: 100%; margin-bottom: 14px;
   cursor: pointer; list-style: none;
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
@@ -1380,10 +1391,8 @@ ul.set-list > li { display: contents; }
   background: var(--surface-2); border: 1px solid var(--line-soft);
   border-radius: var(--r-2); padding: 11px 14px;
 }
-.detail-disclose > summary::-webkit-details-marker { display: none; }
-.detail-disclose[open] > summary .detail-disclose-chev { transform: rotate(180deg); }
-.detail-disclose-chev { font-size: 12px; color: var(--ink-mute); transition: transform var(--dur-fast) var(--ease); }
-.detail-disclose-body { margin-top: 12px; }
+.detail-disclose:active { transform: scale(0.985); }
+.detail-disclose-chev { font-size: 12px; color: var(--ink-mute); transform: rotate(-90deg); }
 
 /* Sticky action bar — keeps the primary action reachable on the detail page */
 .detail-action-bar {
@@ -1402,7 +1411,7 @@ ul.set-list > li { display: contents; }
 .detail-action-bar .ab-qty { display: flex; align-items: center; gap: 8px; flex: 1; }
 .detail-action-bar .ab-qty .qty-row-lbl { flex: 1; }
 /* On the detail page, pad the scroll area so content clears the sticky bar. */
-.detail-page-container { padding-bottom: calc(var(--bottom-nav-clear) + 196px); }
+.detail-page-container { padding-bottom: calc(var(--bottom-nav-clear) + 140px); }
 .detail-page-container[data-detail-tab="manage"] {
   padding-bottom: calc(var(--bottom-nav-clear) + 36px);
 }
@@ -6502,4 +6511,63 @@ body.lightbox-open { overflow: hidden; }
   .admin-pricing-metrics { grid-template-columns: 1fr; }
   .admin-pricing-budget-grid { grid-template-columns: 1fr; }
   .admin-pricing-anomaly { flex-direction: column; }
+}
+
+/* Detail evidence and methodology reuse the app's native-style bottom sheet. */
+.pricing-details-sheet-head,
+.methodology-sheet-head {
+  position: sticky;
+  top: -12px;
+  z-index: 3;
+  margin: -2px -2px 10px;
+  padding: 4px 2px 10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line-soft);
+}
+.pricing-details-sheet-title,
+.methodology-sheet-title { margin: 2px 0 0; font-size: 24px; line-height: 1.1; }
+.pricing-details-sheet-head .icon-btn,
+.methodology-sheet-head .icon-btn { flex: 0 0 44px; }
+.pricing-details-sheet .investment-pricing { margin-top: 4px; }
+.pricing-details-sheet .detail-card:last-child,
+.pricing-details-sheet-body > :last-child { margin-bottom: 4px; }
+.methodology-sheet { font-size: 14px; line-height: 1.55; color: var(--ink); }
+.methodology-sheet > h1 { display: none; }
+.methodology-sheet h2 { margin: 26px 0 8px; font: 600 19px/1.2 var(--serif); }
+.methodology-sheet p { margin: 0 0 14px; }
+.methodology-sheet ul,
+.methodology-sheet ol { margin: 0 0 16px; padding-left: 22px; }
+.methodology-sheet li { margin: 6px 0; }
+.methodology-sheet .updated { margin: 0 0 14px; color: var(--ink-mute); }
+.methodology-sheet .callout { margin: 16px 0; padding: 14px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r-2); }
+.methodology-sheet table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.methodology-sheet th,
+.methodology-sheet td { padding: 8px 6px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line-soft); }
+.methodology-sheet footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--line-soft); color: var(--ink-mute); }
+.methodology-sheet-loading { min-height: 140px; display: grid; place-items: center; color: var(--ink-mute); }
+
+/* The later generic .page rule must not shrink the set-detail clearance. */
+body[data-route="set-detail"] .detail-page-container {
+  padding-bottom: calc(var(--bottom-nav-clear) + 140px);
+}
+body[data-route="set-detail"] .detail-page-container[data-detail-tab="manage"] {
+  padding-bottom: calc(var(--bottom-nav-clear) + 36px);
+}
+
+/* Vivid is intentionally a dark canvas even when the global theme is light. */
+:root[data-skin="vivid"] .scan-result-row .si.photo-loaded,
+:root[data-skin="vivid"] .game-set-photo-stage { background: #f4f4f2 !important; }
+:root[data-skin="vivid"] .scan-result-row .si img,
+:root[data-skin="vivid"] .game-set-photo { mix-blend-mode: normal !important; }
+
+@media (max-width: 600px) {
+  .detail-hero.has-photo { height: 264px; }
+  .detail-hero.has-photo .detail-img {
+    width: min(230px, 72vw);
+    height: min(204px, 62vw);
+    inset: 32px 0 0;
+  }
+  .detail-title-row { margin-top: -38px; }
+  .detail-action-bar { padding: 8px 14px 10px; }
+  .detail-action-bar .btn-primary { min-height: 60px; padding: 10px 12px; line-height: 1.2; }
 }

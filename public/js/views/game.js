@@ -75,8 +75,8 @@ function roundHTML(round, idx, total) {
   return `
     <div class="card" style="padding:16px;text-align:center;">
       <div class="u-mono-label" style="margin-bottom:8px;">Round ${idx + 1} of ${total}</div>
-      <div style="height:180px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border-radius:var(--r-2);margin-bottom:12px;">
-        ${hasImg ? `<img src="${escapeHtml(round.image_url)}" alt="" style="max-width:100%;max-height:100%;object-fit:contain;mix-blend-mode:multiply;">` : `<div style="font-size:40px;">🧱</div>`}
+      <div class="game-set-photo-stage" style="height:180px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border-radius:var(--r-2);margin-bottom:12px;">
+        ${hasImg ? `<img class="game-set-photo" src="${escapeHtml(round.image_url)}" alt="" style="max-width:100%;max-height:100%;object-fit:contain;mix-blend-mode:multiply;">` : `<div style="font-size:40px;">🧱</div>`}
       </div>
       <div style="font-family:var(--serif);font-size:19px;font-weight:600;">${escapeHtml(round.name)}</div>
       <div style="font-size:12px;color:var(--ink-mute);margin:4px 0 12px;">
