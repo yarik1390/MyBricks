@@ -100,6 +100,20 @@ describe('investment-grade valuation v3', () => {
   });
 });
 
+describe('community comps as a blend family', () => {
+  it('BrickLink sold + community sold = two independent families (high reachable)', () => {
+    const state = valueSignalsV3('new_sealed', [
+      sold('bricklink_new', 'bricklink', 100, 6),
+      sold('community_comps', 'community', 104, 8),
+    ]);
+    expect(state.independent_family_count).toBe(2);
+    expect(state.confidence).toBe('high'); // 2 fresh verified sold families, tight agreement
+    expect(state.fair_value).toBeGreaterThanOrEqual(100);
+    expect(state.fair_value).toBeLessThanOrEqual(104);
+    expect(state.basis.map((b) => b.provider_family).sort()).toEqual(['bricklink', 'community']);
+  });
+});
+
 describe('PriceCharting identity regressions', () => {
   it('never maps Finch Dallow #75188 to the standard 75188-1 set', () => {
     expect(isExactPriceChartingMatch(

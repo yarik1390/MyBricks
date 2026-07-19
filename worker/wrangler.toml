@@ -60,7 +60,8 @@ crons = [
   "0 19 * * *",
   "0 20 * * *",
   # First-party community comps: nightly anonymized purchase/sale aggregates
-  # (k>=5 contributors) into community_comps. Write-only until quality is proven.
+  # (k>=5 contributors) into community_comps AND verified pricing_signals, so
+  # the 'community' family joins the blend as soon as data exists.
   "0 22 * * *",
   "0 23 * * *",
   "15 * * * *",
@@ -87,9 +88,9 @@ FIRECRAWL_DAILY_CREDITS = "5000"
 # in the PRICESAPI_API_KEYS secret. Both this AND a key are required for the cron
 # to run (deliberate gate — cold calls are precious). Set to 0 to pause.
 PRICESAPI_ENABLED = "1"
-# Pricing v3 starts in shadow mode. Raise to 10, then 50, then 100 after the
-# observation gates in the rollout plan pass. Set back to 0 for instant rollback.
-PRICING_V3_READ_PERCENT = "0"
+# Pricing v3 reads at 100% (flipped pre-launch with zero users — no live
+# portfolios to protect). Set back to "0" for instant rollback to legacy reads.
+PRICING_V3_READ_PERCENT = "100"
 # PriceCharting emergency kill-switch (set "0" for an instant hard-disable).
 # Signals flow ONLY from identity-verified mappings (unique UPC via the weekly
 # bulk CSV, or cross-source price agreement via the daily pricecharting-verify

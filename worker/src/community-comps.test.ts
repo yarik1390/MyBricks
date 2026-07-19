@@ -14,7 +14,7 @@ const addPurchase = (user: string, setNum: string, price: number, cond = 'new') 
 
 describe('runCommunityComps (first-party comps aggregation)', () => {
   beforeEach(async () => {
-    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist', 'community_comps', 'pricing_write_ledger']);
+    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist', 'community_comps', 'pricing_signals', 'pricing_write_ledger']);
   });
 
   it('publishes a k>=5 set with the right median and counts', async () => {
@@ -88,5 +88,34 @@ describe('runCommunityComps (first-party comps aggregation)', () => {
     expect(r.pruned).toBe(1);
     const row = await db.prepare(`SELECT COUNT(*) AS n FROM community_comps`).first<{ n: number }>();
     expect(row!.n).toBe(0);
+  });
+
+
+  it('mirrors a published aggregate into pricing_signals as the community family', async () => {
+    await db.batch([
+      addSet('CC-7', 100),
+      ...['u1', 'u2', 'u3', 'u4', 'u5'].map((u) => addPurchase(u, 'CC-7', 100)),
+    ]);
+    await runCommunityComps(env as any);
+    const sig = await db.prepare(
+      `SELECT provider_family, signal_type, value, sample_count, match_status FROM pricing_signals WHERE set_num='CC-7' AND source='community_comps'`,
+    ).first<any>();
+    expect(sig).toBeTruthy();
+    expect(sig.provider_family).toBe('community');
+    expect(sig.signal_type).toBe('sold');
+    expect(sig.match_status).toBe('verified');
+    expect(sig.value).toBe(100);
+    expect(sig.sample_count).toBe(5);
+  });
+
+  it('removes the blend mirror when an aggregate falls below the k-gate', async () => {
+    await db.batch([
+      addSet('CC-8', 100),
+      db.prepare(`INSERT INTO pricing_signals (set_num, source, provider_family, condition, signal_type, currency, value, sample_count, checked_at, match_status)
+                  VALUES ('CC-8','community_comps','community','new_sealed','sold','USD', 95, 6, datetime('now','-10 days'), 'verified')`),
+    ]);
+    await runCommunityComps(env as any); // no current contributors
+    const n = await db.prepare(`SELECT COUNT(*) AS n FROM pricing_signals WHERE source='community_comps'`).first<{ n: number }>();
+    expect(n!.n).toBe(0);
   });
 });

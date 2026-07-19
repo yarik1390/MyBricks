@@ -98,6 +98,15 @@
     <li>Sole-source outliers (one marketplace, no corroboration) can't overwrite a value that history contradicts.</li>
   </ul>
 
+  <h2>Real collector transactions</h2>
+  <p>BricksVault collectors can log what they actually paid for a set and what
+  it actually sold for. We aggregate those real transactions into a community
+  price signal — published only when <strong>five or more independent
+  collectors</strong> have contributed, always anonymized (only medians and
+  ranges are ever stored), and outlier-trimmed like every other source. As the
+  community grows, this becomes a sold-price source that no marketplace outage
+  or scraper block can take away.</p>
+
   <h2>What we won't do</h2>
   <ul>
     <li>No invented numbers: a set without enough verified evidence says <em>"not enough verified data"</em> — we think that's more useful than a guess.</li>
