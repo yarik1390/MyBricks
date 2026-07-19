@@ -4,4 +4,6 @@
     <string name="title_activity_main">BricksVault</string>
     <string name="package_name">app.bricksvault</string>
     <string name="custom_url_scheme">app.bricksvault</string>
+    <string name="widget_eyebrow">VAULT · BRICKSVAULT</string>
+    <string name="widget_description">Your vault value and today\'s change at a glance.</string>
 </resources>

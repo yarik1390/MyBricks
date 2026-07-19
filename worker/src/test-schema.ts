@@ -216,6 +216,15 @@ export const TABLE_DDL: Record<string, string> = {
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (set_num, condition)
 )`,
+  price_guesses: `CREATE TABLE IF NOT EXISTS price_guesses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  day TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  guessed_value REAL NOT NULL,
+  actual_value REAL NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+)`,
   collection_stories: `CREATE TABLE IF NOT EXISTS collection_stories (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id TEXT NOT NULL,

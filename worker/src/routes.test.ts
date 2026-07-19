@@ -69,6 +69,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
     const sqls = [
       'DROP TABLE IF EXISTS user_collection',
       'DROP TABLE IF EXISTS collection_stories',
+      'DROP TABLE IF EXISTS price_guesses',
       'DROP TABLE IF EXISTS lego_sets',
       'DROP TABLE IF EXISTS user_wishlist',
       'DROP TABLE IF EXISTS wishlist_alerts',
@@ -154,6 +155,11 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL,
         collection_id INTEGER, kind TEXT NOT NULL DEFAULT 'note' CHECK(kind IN ('note','photo')),
         body TEXT, r2_key TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE price_guesses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, day TEXT NOT NULL,
+        set_num TEXT NOT NULL, guessed_value REAL NOT NULL, actual_value REAL NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE user_wishlist (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL,
@@ -1732,6 +1738,70 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
     it('requires auth', async () => {
       const res = await app.fetch(new Request('http://localhost/api/me/wrapped'), env);
       expect(res.status).toBe(401);
+    });
+  });
+
+  describe('Daily price game', () => {
+    beforeEach(async () => {
+      const stmts = [];
+      for (let i = 1; i <= 8; i++) {
+        stmts.push(db.prepare(
+          `INSERT INTO lego_sets (set_num, name, theme, year, pieces, image_url, retail_price, blended_value, current_value, valuation_method)
+           VALUES (?, ?, 'Icons', 2020, 1000, 'https://img/x.jpg', 100, ?, ?, 'market')`
+        ).bind(`G${i}-1`, `Game Set ${i}`, 100 + i * 50, 100 + i * 50));
+      }
+      await db.batch(stmts);
+    });
+
+    it('serves five deterministic rounds with values withheld', async () => {
+      const a = await (await app.fetch(new Request('http://localhost/api/game/daily'), env)).json<any>();
+      const b = await (await app.fetch(new Request('http://localhost/api/game/daily'), env)).json<any>();
+      expect(a.rounds.length).toBe(5);
+      expect(a.rounds.map((r: any) => r.set_num)).toEqual(b.rounds.map((r: any) => r.set_num));
+      for (const r of a.rounds) {
+        expect(r.value).toBeUndefined();
+        expect(r.name).toBeTruthy();
+      }
+    });
+
+    it('scores a guess within ±20% as correct and records it for members', async () => {
+      const daily = await (await app.fetch(new Request('http://localhost/api/game/daily'), env)).json<any>();
+      const setNum = daily.rounds[0].set_num;
+      const actualRow = await db.prepare('SELECT blended_value AS v FROM lego_sets WHERE set_num=?').bind(setNum).first<{ v: number }>();
+      const res = await app.fetch(new Request('http://localhost/api/game/guess', {
+        method: 'POST', headers: auth(),
+        body: JSON.stringify({ set_num: setNum, guess: actualRow!.v * 1.1 }),
+      }), env);
+      expect(res.status).toBe(200);
+      const out = await res.json<any>();
+      expect(out.correct).toBe(true);
+      expect(out.actual).toBe(actualRow!.v);
+      const n = await db.prepare('SELECT COUNT(*) AS n FROM price_guesses WHERE user_id=?').bind(userId).first<{ n: number }>();
+      expect(n!.n).toBe(1);
+    });
+
+    it('guests get scored but nothing is recorded', async () => {
+      const daily = await (await app.fetch(new Request('http://localhost/api/game/daily'), env)).json<any>();
+      const res = await app.fetch(new Request('http://localhost/api/game/guess', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ set_num: daily.rounds[0].set_num, guess: 10 }),
+      }), env);
+      expect(res.status).toBe(200);
+      const out = await res.json<any>();
+      expect(out.correct).toBe(false);
+      const n = await db.prepare('SELECT COUNT(*) AS n FROM price_guesses').first<{ n: number }>();
+      expect(n!.n).toBe(0);
+    });
+
+    it("404s a set that isn't in today's game and 400s junk guesses", async () => {
+      const notInGame = await app.fetch(new Request('http://localhost/api/game/guess', {
+        method: 'POST', headers: auth(), body: JSON.stringify({ set_num: 'NOPE-1', guess: 100 }),
+      }), env);
+      expect(notInGame.status).toBe(404);
+      const junk = await app.fetch(new Request('http://localhost/api/game/guess', {
+        method: 'POST', headers: auth(), body: JSON.stringify({ set_num: 'G1-1', guess: -5 }),
+      }), env);
+      expect(junk.status).toBe(400);
     });
   });
 });

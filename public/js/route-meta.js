@@ -5,6 +5,9 @@ const ROUTES = [
   { match: (hash) => hash === "/minifigs", key: "minifigs", nav: "/minifigs", title: "Minifigs", fab: true },
   { match: (hash) => hash === "/build", key: "build", nav: "/", title: "Build", fab: true },
   { match: (hash) => hash === "/wishlist", key: "wishlist", nav: "/", title: "Wishlist", fab: true },
+  // Price game shows real market values — like all pricing surfaces, it stays
+  // out of Kids Mode (not in KIDS_ALLOWED).
+  { match: (hash) => hash === "/game", key: "game", nav: "/", title: "Price It!", fab: false },
   { match: (hash) => hash === "/leaderboard", key: "leaderboard", nav: "/me", title: "Leaderboard", fab: true },
   { match: (hash) => hash.startsWith("/u/"), key: "public-profile", nav: "/me", title: "Public profile", fab: true },
   // nav: null — a set can be reached from Vault, Catalog or Minifigs, so

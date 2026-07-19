@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:background="@drawable/widget_bg">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/widget_eyebrow"
+        android:textSize="10sp"
+        android:letterSpacing="0.08"
+        android:textColor="#6b6455" />
+
+    <TextView
+        android:id="@+id/widget_value"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="—"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="#26231d"
+        android:maxLines="1" />
+
+    <TextView
+        android:id="@+id/widget_delta"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text=""
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="#2c7a4b"
+        android:maxLines="1" />
+</LinearLayout>

@@ -341,6 +341,19 @@ CREATE TABLE IF NOT EXISTS community_comps (
   PRIMARY KEY (set_num, condition)
 );
 
+-- Daily price game guesses (signed-in players only). ANALYTICS ONLY — a crowd
+-- price prior that never touches the valuation blend. Rate-limited writes.
+CREATE TABLE IF NOT EXISTS price_guesses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  day TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  guessed_value REAL NOT NULL,
+  actual_value REAL NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_guesses_day_set ON price_guesses(day, set_num);
+
 -- Set stories: per-user memories attached to a set — notes and photos on a
 -- timeline ("built it with my son", the eBay find photo). Keyed by set_num
 -- (not collection_id) so memories survive selling and re-adding a set;

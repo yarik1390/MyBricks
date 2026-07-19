@@ -240,6 +240,7 @@ jobs:
             "SELECT id, user_id, set_num, r2_key, caption, status, deleted_at FROM set_photos LIMIT 0"
             "SELECT id, user_id, set_num, kind, payload, status, deleted_at FROM set_contributions LIMIT 0"
             "SELECT id, user_id, set_num, collection_id, kind, body, r2_key, created_at FROM collection_stories LIMIT 0"
+            "SELECT id, user_id, day, set_num, guessed_value, actual_value FROM price_guesses LIMIT 0"
           )
           # Fast path: run ALL probes as one --file execution (1 remote
           # round-trip instead of ~33 sequential ones — this step used to take

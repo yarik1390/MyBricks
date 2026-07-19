@@ -318,6 +318,8 @@ function paintPortfolio() {
         </div>
       </div>
 
+      ${gameTeaserHTML()}
+
       ${p.items.length > 0 ? `
         <div class="portfolio-tabs" role="tablist" aria-label="Portfolio views">
           <button class="portfolio-tab ${state.portfolioTab === 'items' ? 'active' : ''}" data-tab="items" role="tab" aria-selected="${state.portfolioTab === 'items'}" aria-controls="portfolioTabContent">Your Sets</button>
@@ -361,6 +363,12 @@ function paintPortfolio() {
   }, 40);
   
   animateHeroValue(totalVal);
+  // Mirror the fresh totals to the Android home-screen widget (no-op on web).
+  import('../lib/native-widget.js').then(m => m.updateVaultWidget({
+    value: fmtMoney(totalVal, { cents: 0 }),
+    delta: `${gain >= 0 ? "▲" : "▼"} ${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(Math.abs(gainPct))})`,
+    deltaUp: gain >= 0,
+  })).catch(() => {});
   if (state.portfolioTab === "insights") wireInsightsTab();
 
   const switchPortfolioTab = (tab) => {
@@ -494,6 +502,29 @@ function paintPortfolio() {
 
   checkAnniversaries(items);
   refreshNavBadge();
+}
+
+// Daily price-game teaser: one slim row under the hero. Shows played/unplayed
+// state from the local result (the game itself lives at #/game).
+function gameTeaserHTML() {
+  let played = false;
+  let score = 0;
+  try {
+    const r = JSON.parse(localStorage.getItem("bv_game_result") || "null");
+    const today = new Date().toISOString().slice(0, 10);
+    if (r?.day === today) { played = true; score = (r.results || []).filter(x => x.correct).length; }
+  } catch {}
+  let streak = 0;
+  try { streak = JSON.parse(localStorage.getItem("bv_game_streak") || "null")?.streak || 0; } catch {}
+  return `
+    <a href="#/game" class="card" style="display:flex;align-items:center;gap:10px;padding:10px 14px;margin-top:10px;text-decoration:none;color:inherit;">
+      <span style="font-size:20px;">🎯</span>
+      <span style="flex:1;min-width:0;">
+        <span style="display:block;font-weight:700;font-size:13px;">Price It! — today's 5 sets</span>
+        <span style="display:block;font-size:11px;color:var(--ink-mute);">${played ? `Played · ${score}/5 today` : "Guess the market value, build your streak"}${streak > 1 ? ` · 🔥 ${streak}-day streak` : ""}</span>
+      </span>
+      ${I.chev()}
+    </a>`;
 }
 
 // Set anniversaries: exactly N years to the day since a set was purchased →
