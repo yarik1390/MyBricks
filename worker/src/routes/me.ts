@@ -330,6 +330,91 @@ app.delete('/kids-pin', async (c) => {
   return c.json({ ok: true });
 });
 
+// --- Insurance report (Pro) --------------------------------------------------
+// A printable valuation document for home/contents insurance: every owned set
+// with its purchase data and current market value + confidence + as-of date,
+// totals, and the methodology reference. Server-composed self-contained HTML;
+// the client saves/prints it to PDF. Pro-gated: this is the product's derived
+// valuation work, not the user's own entered data (which always exports free).
+
+const escapeHtmlS = (s: unknown): string =>
+  String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] as string));
+
+app.get('/insurance-report', async (c) => {
+  const userId = c.get('userId');
+  const pref = await c.env.DB.prepare(
+    'SELECT is_supporter, display_name, handle FROM user_prefs WHERE user_id=?'
+  ).bind(userId).first<{ is_supporter: number; display_name: string | null; handle: string | null }>().catch(() => null);
+  if (!pref?.is_supporter) return c.json({ error: 'The insurance report is a Pro feature' }, 403);
+
+  const { results } = await c.env.DB.prepare(`
+    SELECT uc.set_num, uc.quantity, uc.condition, uc.purchase_price, uc.purchased_at,
+           s.name, s.theme, s.year,
+           COALESCE(NULLIF(s.blended_value, 0), s.current_value) AS value,
+           s.blended_confidence, s.cached_at
+    FROM user_collection uc
+    JOIN lego_sets s ON s.set_num = uc.set_num
+    WHERE uc.user_id = ? AND uc.deleted_at IS NULL
+    ORDER BY value DESC NULLS LAST
+  `).bind(userId).all<Record<string, unknown>>();
+  if (!results.length) return c.json({ error: 'No sets in your vault yet' }, 400);
+
+  const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+  const money = (v: unknown) => `$${num(v).toFixed(2)}`;
+  const totalValue = results.reduce((sum, r) => sum + num(r.value) * Math.max(1, num(r.quantity)), 0);
+  const totalPaid = results.reduce((sum, r) => sum + num(r.purchase_price) * Math.max(1, num(r.quantity)), 0);
+  const today = new Date().toISOString().slice(0, 10);
+  const owner = escapeHtmlS(pref.display_name || pref.handle || 'BricksVault collector');
+  const conf = (v: unknown) => ({ high: 'Verified market price', medium: 'Market estimate', low: 'Low-confidence estimate' })[String(v || '')] || 'Estimate';
+
+  const rows = results.map((r) => `
+    <tr>
+      <td class="mono">${escapeHtmlS(r.set_num)}</td>
+      <td>${escapeHtmlS(r.name)}<div class="sub">${escapeHtmlS(r.theme || '')}${r.year ? ` · ${escapeHtmlS(r.year)}` : ''}</div></td>
+      <td>${escapeHtmlS(String(r.condition || 'new').replace('_', ' '))}</td>
+      <td class="num">${Math.max(1, num(r.quantity))}</td>
+      <td class="num">${r.purchase_price != null ? money(r.purchase_price) : '—'}</td>
+      <td class="num"><strong>${num(r.value) > 0 ? money(r.value) : '—'}</strong><div class="sub">${conf(r.blended_confidence)}</div></td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>BricksVault insurance report — ${today}</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #26231d; margin: 32px; }
+  h1 { font-family: Georgia, serif; font-size: 24px; margin: 0 0 4px; }
+  .meta { color: #6b6455; font-size: 13px; margin-bottom: 20px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid #e3ddcf; vertical-align: top; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #6b6455; }
+  td.num, th.num { text-align: right; }
+  .mono { font-family: ui-monospace, monospace; font-size: 12px; }
+  .sub { color: #6b6455; font-size: 11px; }
+  .totals { margin-top: 16px; font-size: 15px; }
+  .totals strong { font-size: 18px; }
+  footer { margin-top: 28px; padding-top: 12px; border-top: 1px solid #e3ddcf; color: #6b6455; font-size: 11px; line-height: 1.5; }
+  @media print { body { margin: 12mm; } }
+</style></head><body>
+  <h1>LEGO collection valuation report</h1>
+  <div class="meta">Prepared for ${owner} · Generated ${today} · ${results.length} sets · BricksVault</div>
+  <table>
+    <thead><tr><th>Set</th><th>Name</th><th>Condition</th><th class="num">Qty</th><th class="num">Paid</th><th class="num">Market value</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="totals">
+    Total purchase cost: ${money(totalPaid)}<br>
+    Total current market value: <strong>${money(totalValue)}</strong>
+  </div>
+  <footer>
+    Values are USD market valuations computed by BricksVault from verified sold
+    prices across independent marketplaces, with per-set confidence as shown.
+    Methodology: https://brickvault-5ub.pages.dev/methodology.html · This report
+    reflects market conditions on the generation date and is provided for
+    insurance documentation purposes; it is not a certified appraisal.
+  </footer>
+</body></html>`;
+  return c.html(html);
+});
+
 // --- Collection backups ("never lose a brick") -------------------------------
 // Weekly snapshots are written by jobs/collection-backups.ts to R2 under
 // backups/{user_id}/{date}.json. These endpoints are strictly scoped to the

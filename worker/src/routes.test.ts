@@ -856,6 +856,38 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       }
     });
 
+    it('insurance report: Pro user gets printable HTML with set + totals', async () => {
+      await db.prepare(
+        `INSERT INTO user_prefs (user_id, is_supporter) VALUES (?, 1)
+         ON CONFLICT(user_id) DO UPDATE SET is_supporter=1`
+      ).bind(userId).run();
+      await db.prepare(
+        `UPDATE lego_sets SET blended_value=850, blended_confidence='high' WHERE set_num='75192'`
+      ).run();
+      await db.prepare(
+        `INSERT INTO user_collection (user_id, set_num, quantity, condition, purchase_price)
+         VALUES (?, '75192', 1, 'new', 700)`
+      ).bind(userId).run();
+      const res = await app.fetch(new Request('http://localhost/api/me/insurance-report', { headers: auth() }), env);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Content-Type')).toContain('text/html');
+      const html = await res.text();
+      expect(html).toContain('75192');
+      expect(html).toContain('$850.00');
+      expect(html).toContain('Verified market price');
+      expect(html).toContain('methodology');
+    });
+
+    it('insurance report: free user gets a 403 naming the Pro gate', async () => {
+      await db.prepare(
+        `INSERT INTO user_collection (user_id, set_num) VALUES (?, '75192')`
+      ).bind(userId).run();
+      const res = await app.fetch(new Request('http://localhost/api/me/insurance-report', { headers: auth() }), env);
+      expect(res.status).toBe(403);
+      const data = await res.json<any>();
+      expect(data.error).toMatch(/Pro/);
+    });
+
     it('exports CSV with a header row and the owned set (Pro)', async () => {
       await db.prepare(
         `INSERT INTO user_prefs (user_id, is_supporter) VALUES (?, 1)

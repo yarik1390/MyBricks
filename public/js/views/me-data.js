@@ -28,6 +28,14 @@ export async function renderMeData() {
           <button class="import-btn" id="exportCsvBtn" aria-label="Export CSV">${I.download()}</button>
           </div>
           <div class="action-result" id="exportResult" aria-live="polite">${guest ? "Guest exports use the local vault on this device." : "Signed-in exports are pulled from your synced account."}</div>
+          ${guest ? "" : `
+          <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">Insurance report</div><div class="desc">${state.me?.is_supporter
+            ? "Printable valuation of your vault — save as PDF for home insurance."
+            : "Printable valuation for home insurance. A <a href='#/me' style='color:var(--bv-red);font-weight:600;'>Pro</a> feature."}</div></div>
+          <button class="import-btn" id="insuranceReportBtn" aria-label="Insurance report" ${state.me?.is_supporter ? "" : "disabled"}>${I.download()}</button>
+          </div>
+          <div class="action-result" id="insuranceResult" aria-live="polite"></div>`}
         </section>
 
         ${guest ? "" : `
@@ -81,6 +89,27 @@ export async function renderMeData() {
         </section>
       </div>
     </div>`;
+
+  $("#insuranceReportBtn")?.addEventListener("click", async () => {
+    haptic("medium");
+    const out = $("#insuranceResult");
+    if (out) out.textContent = "Preparing report…";
+    try {
+      const token = _authSession?.access_token;
+      const res = await fetch((window.WORKER_BASE || "") + "/api/me/insurance-report", {
+        cache: "no-store",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || "Report failed");
+      const blob = await res.blob();
+      const result = await exportBlob(blob, "bricksvault-insurance-report.html", { title: "BricksVault insurance report" });
+      if (out) out.textContent = result === "shared"
+        ? "Report ready — open it and print to PDF."
+        : "Report downloaded — open it and print to PDF.";
+    } catch (e) {
+      if (out) out.textContent = "Report failed: " + e.message;
+    }
+  });
 
   // Backups: list snapshot dates with per-date Restore. Best-effort — the card
   // simply reports when backups aren't configured or none exist yet.
