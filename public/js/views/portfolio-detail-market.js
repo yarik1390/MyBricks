@@ -124,7 +124,7 @@ function confidenceLabel(value) {
 }
 
 function sourceTypeLabel(value) {
-  return ({ sold: 'Verified sold data', modeled: 'Modeled market guide', asking: 'Active asking data', estimate: 'Estimated only' })[value] || 'Market signal';
+  return ({ sold: 'Verified sold data', modeled: 'Market guides (not live sales)', asking: 'Active asking data', estimate: 'Estimated only' })[value] || 'Market signal';
 }
 
 function conditionStateHTML(state, label) {
@@ -153,47 +153,105 @@ function conditionStateHTML(state, label) {
     </article>`;
 }
 
-export function investmentPricingHTML(set) {
+// Derive the five valuation numbers (with legacy fallbacks) once, so the
+// compact "More prices" card and the full expander grid stay consistent.
+function deriveV3States(set) {
   const valuation = set.valuation || {};
   const legacyValue = Number(set.market_value) || Number(set.blended_value) || Number(set.current_value) || 0;
   const newState = valuation.new || (legacyValue > 0 ? {
-    fair_value: legacyValue,
-    low: null,
-    high: null,
-    confidence: 'estimated',
-    sample_count: 0,
-    independent_family_count: 0,
-    basis: [],
-    flags: ['legacy_estimate'],
+    fair_value: legacyValue, low: null, high: null, confidence: 'estimated',
+    sample_count: 0, independent_family_count: 0, basis: [], flags: ['legacy_estimate'],
     as_of: set.cached_at || null,
   } : null);
   const legacyUsed = Number(set.used_value) || 0;
   const usedState = valuation.used || (legacyUsed > 0 ? {
-    fair_value: legacyUsed,
-    low: null,
-    high: null,
-    confidence: 'low',
-    sample_count: Number(set.bl_used_qty || 0),
-    independent_family_count: 1,
-    basis: [],
-    flags: ['legacy_signal'],
+    fair_value: legacyUsed, low: null, high: null, confidence: 'low',
+    sample_count: Number(set.bl_used_qty || 0), independent_family_count: 1, basis: [], flags: ['legacy_signal'],
     as_of: set.bl_cached_at || set.cached_at || null,
   } : null);
   const acquisition = valuation.acquisition || {};
   const partOut = valuation.part_out || {};
   const forecast = valuation.forecast || {};
-  const fairValue = Number(newState?.fair_value) || legacyValue;
-  const liquidation = Number(newState?.liquidation_value) || 0;
-  const delivered = Number(acquisition.delivered_price) || 0;
-  const forecastReady = forecast.status === 'ready' || forecast.status === 'external';
+  return {
+    valuation, newState, usedState, acquisition, partOut, forecast,
+    fairValue: Number(newState?.fair_value) || legacyValue,
+    liquidation: Number(newState?.liquidation_value) || 0,
+    delivered: Number(acquisition.delivered_price) || 0,
+    usedValue: Number(usedState?.fair_value) || 0,
+    partOutValue: Number(partOut.value) > 0 && Number(partOut.coverage) >= 0.6 ? Number(partOut.value) : 0,
+    forecastReady: forecast.status === 'ready' || forecast.status === 'external',
+  };
+}
+
+// Compact "More prices" card shown on the Info tab. The headline New & sealed
+// value already lives in the top summary card, so this only lists the OTHER
+// numbers — and only the ones that actually exist. Everything empty collapses
+// into a single honest footnote instead of four jargon cards. The full
+// evidence grid moves into the "Pricing details" expander (see below).
+export function investmentPricingHTML(set) {
+  const d = deriveV3States(set);
+  const rows = [];
+  if (d.usedValue > 0) {
+    rows.push(['Used &amp; complete', fmtMoney(d.usedValue), 'what a used, complete copy resells for']);
+  }
+  if (d.liquidation > 0) {
+    const pct = d.fairValue > 0 ? ` · ${Math.round((d.liquidation / d.fairValue) * 100)}% of value` : '';
+    rows.push(['Sell now', `${fmtMoney(d.liquidation)}`, `fast sale after fees${pct}`]);
+  }
+  if (d.delivered > 0) {
+    const merchant = d.acquisition.merchant ? escapeHtml(d.acquisition.merchant) : 'retail';
+    rows.push(['Buy now', escapeHtml(localMoney(d.delivered, d.acquisition.currency || 'USD')), `today at ${merchant}`]);
+  }
+  if (d.partOutValue > 0) {
+    const cov = Number(d.partOut.coverage) > 0 ? ` · ${Math.round(Number(d.partOut.coverage) * 100)}% coverage` : '';
+    rows.push(['Part out', fmtMoney(d.partOutValue), `parts &amp; minifigs sold separately${cov}`]);
+  }
+  if (d.forecastReady && Number(d.forecast.base) > 0) {
+    rows.push(['2-year forecast', fmtMoney(d.forecast.base), `range ${fmtMoney(d.forecast.bear)}–${fmtMoney(d.forecast.bull)}`]);
+  }
+
+  // Which of the four scenario numbers are still missing → one honest line.
+  const missing = [];
+  if (!(d.liquidation > 0)) missing.push('sell-now');
+  if (!(d.partOutValue > 0)) missing.push('part-out');
+  if (!(d.forecastReady && Number(d.forecast.base) > 0)) missing.push('forecast');
+  const missingLine = missing.length
+    ? `<div class="more-price-note">${missing.join(', ').replace(/, ([^,]*)$/, ' and $1')} ${missing.length === 1 ? 'estimate' : 'estimates'} unlock as more sold data arrives.</div>`
+    : '';
+
+  const rowsHTML = rows.map(([label, value, sub]) => `
+    <div class="more-price-row">
+      <div class="more-price-label">${label}<span class="more-price-sub">${sub}</span></div>
+      <div class="more-price-value">${value}</div>
+    </div>`).join('');
+
+  return `
+    <div class="detail-card">
+      <div class="detail-card-title" style="justify-content:space-between;">
+        <span>More prices</span>
+        <span class="pricing-model-badge">${escapeHtml(d.valuation.model_version || 'legacy')}</span>
+      </div>
+      ${rowsHTML || ''}
+      ${d.delivered > 0 ? amazonSlotHTML(set.set_num) : ''}
+      ${missingLine}
+      <div class="more-price-hint">Open <em>Pricing details</em> below for the full evidence and sources.</div>
+    </div>`;
+}
+
+// The original "Five numbers, five different jobs" grid — full evidence, now
+// tucked inside the Pricing details expander for anyone who wants the depth.
+export function investmentPricingDetailHTML(set) {
+  const d = deriveV3States(set);
+  const { newState, usedState, acquisition, partOut, forecast, fairValue, liquidation, delivered, forecastReady } = d;
+  if (!newState && !usedState) return '';
   return `
     <section class="investment-pricing" aria-labelledby="investmentPricingTitle">
       <div class="investment-pricing-head">
         <div>
-          <span class="u-mono-label">Investment pricing</span>
+          <span class="u-mono-label">Full breakdown</span>
           <h2 id="investmentPricingTitle">Five numbers, five different jobs</h2>
         </div>
-        <span class="pricing-model-badge">${escapeHtml(valuation.model_version || 'legacy')}</span>
+        <span class="pricing-model-badge">${escapeHtml(d.valuation.model_version || 'legacy')}</span>
       </div>
 
       <div class="pricing-block">
@@ -207,27 +265,26 @@ export function investmentPricingHTML(set) {
       <div class="pricing-block pricing-block--split">
         <div>
           <div class="pricing-block-title"><span>2</span><div><h3>Sell now</h3><p>Fast-sale estimate after fees and a liquidity haircut.</p></div></div>
-          <strong class="pricing-block-value">${liquidation > 0 ? fmtMoney(liquidation) : 'Not enough sold data'}</strong>
+          <strong class="pricing-block-value">${liquidation > 0 ? fmtMoney(liquidation) : 'Not enough sold data yet'}</strong>
           ${liquidation > 0 && fairValue > 0 ? `<small>${Math.round((liquidation / fairValue) * 100)}% of fair value</small>` : ''}
         </div>
         <div>
           <div class="pricing-block-title"><span>3</span><div><h3>Buy now</h3><p>Current retail acquisition price, never part of resale value.</p></div></div>
           <strong class="pricing-block-value">${delivered > 0 ? escapeHtml(localMoney(delivered, acquisition.currency || 'USD')) : 'No current retail offer'}</strong>
           ${acquisition.merchant ? `<small>${escapeHtml(acquisition.merchant)}${acquisition.checked_at ? ` · ${escapeHtml(fmtDateUpdated(acquisition.checked_at))}` : ''}</small>` : ''}
-          ${amazonSlotHTML(set.set_num)}
         </div>
       </div>
 
       <div class="pricing-block pricing-block--split">
         <div>
           <div class="pricing-block-title"><span>4</span><div><h3>Part out</h3><p>Value of parts and minifigures sold separately.</p></div></div>
-          <strong class="pricing-block-value">${Number(partOut.value) > 0 ? fmtMoney(partOut.value) : 'Coverage too low'}</strong>
+          <strong class="pricing-block-value">${Number(partOut.value) > 0 ? fmtMoney(partOut.value) : 'Not enough parts data yet'}</strong>
           ${Number(partOut.coverage) > 0 ? `<small>${Math.round(Number(partOut.coverage) * 100)}% parts coverage</small>` : ''}
         </div>
         <div>
           <div class="pricing-block-title"><span>5</span><div><h3>Forecast</h3><p>Scenario range based on the current fair value.</p></div></div>
-          <strong class="pricing-block-value">${forecastReady && Number(forecast.base) > 0 ? fmtMoney(forecast.base) : 'Insufficient history'}</strong>
-          ${forecastReady ? `<small>Bear ${fmtMoney(forecast.bear)} · Base ${fmtMoney(forecast.base)} · Bull ${fmtMoney(forecast.bull)}</small>` : `<small>${escapeHtml(forecast.methodology || 'Requires at least 180 days and 12 history points.')}</small>`}
+          <strong class="pricing-block-value">${forecastReady && Number(forecast.base) > 0 ? fmtMoney(forecast.base) : 'Not enough history yet'}</strong>
+          ${forecastReady ? `<small>Bear ${fmtMoney(forecast.bear)} · Base ${fmtMoney(forecast.base)} · Bull ${fmtMoney(forecast.bull)}</small>` : `<small>${escapeHtml(forecast.methodology || 'Unlocks after 180 days and 12 recorded values.')}</small>`}
         </div>
       </div>
     </section>`;

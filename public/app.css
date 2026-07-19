@@ -6285,6 +6285,19 @@ body.lightbox-open { overflow: hidden; }
   color: var(--ink);
   font: 600 13px var(--mono);
 }
+/* Compact "More prices" card (Info tab) — one row per number that exists. */
+.more-price-row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 9px 0; border-top: 1px solid var(--line-soft);
+}
+.more-price-row:first-of-type { border-top: none; }
+.more-price-label { font-size: 13px; font-weight: 600; color: var(--ink); min-width: 0; }
+.more-price-sub { display: block; font-size: 11px; font-weight: 400; color: var(--ink-mute); margin-top: 1px; }
+.more-price-value { font-family: var(--mono); font-weight: 700; font-size: 16px; color: var(--ink); white-space: nowrap; }
+.more-price-note { font-size: 12px; color: var(--ink-mute); line-height: 1.45; margin-top: 10px; }
+.more-price-hint { font-size: 11px; color: var(--ink-faint); margin-top: 8px; }
+.more-price-hint em { font-style: normal; font-weight: 600; color: var(--ink-mute); }
+
 .investment-pricing { margin: 18px 0; }
 .investment-pricing-head,
 .pricing-condition-head,
