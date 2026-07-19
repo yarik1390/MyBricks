@@ -40,6 +40,7 @@ test('scan route waits for a method choice and accepts a manual set number', asy
 });
 
 test('guest photo scan asks for setup before mounting the camera', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
   await page.addInitScript(() => {
     localStorage.removeItem('bv_session');
     localStorage.removeItem('bv_gemini_key');
@@ -48,9 +49,28 @@ test('guest photo scan asks for setup before mounting the camera', async ({ page
   await page.goto('/#/pile', { waitUntil: 'domcontentloaded' });
 
   await expect(page.locator('#pileScanPhoto')).toContainText('Sign in or add an AI key first');
+  const scanLayout = await page.locator('#pileScanPhoto').evaluate((row) => {
+    const copy = row.querySelector('.scan-method-copy').getBoundingClientRect();
+    const arrow = row.querySelector('.scan-method-arrow').getBoundingClientRect();
+    return {
+      fits: row.scrollWidth <= row.clientWidth + 1,
+      arrowAligned: Math.abs((copy.top + copy.height / 2) - (arrow.top + arrow.height / 2)) < 12,
+    };
+  });
+  expect(scanLayout.fits).toBe(true);
+  expect(scanLayout.arrowAligned).toBe(true);
   await page.locator('#pileScanPhoto').click();
   await expect(page.locator('#sheet')).toHaveClass(/show/);
   await expect(page.getByRole('heading', { name: 'Set up photo scanning' })).toBeVisible();
+  const setupButtons = await page.locator('.photo-scan-setup .btn-row').evaluate((row) => {
+    const buttons = [...row.querySelectorAll('button')].map((button) => button.getBoundingClientRect());
+    return {
+      stacked: buttons[1].top >= buttons[0].bottom,
+      fits: row.scrollWidth <= row.clientWidth + 1,
+    };
+  });
+  expect(setupButtons.stacked).toBe(true);
+  expect(setupButtons.fits).toBe(true);
   await expect(page.locator('#scanOverlay')).not.toHaveClass(/open/);
 });
 
@@ -142,6 +162,36 @@ test('Pixel-sized set detail clears the sticky action bar and uses a compact her
   expect(layout.heroHeight).toBeLessThanOrEqual(232);
 });
 
+test('Pixel-sized set detail ends close to the action bar and blends the hero at both edges', async ({ page, stub }) => {
+  await page.setViewportSize({ width: 412, height: 915 });
+  await page.route('**/api/sets/75192-1', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ set: { ...stub.SET, image_url: '/icon.svg' }, entry: null }),
+  }));
+  await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.detail-action-bar')).toBeVisible();
+  await expect(page.locator('.bl-buy-link').last()).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+
+  const layout = await page.evaluate(() => {
+    const lastLink = [...document.querySelectorAll('.bl-buy-link')].at(-1).getBoundingClientRect();
+    const action = document.querySelector('.detail-action-bar').getBoundingClientRect();
+    const backdrop = getComputedStyle(document.querySelector('.detail-hero-bg'));
+    const photo = getComputedStyle(document.querySelector('.detail-img img.set-photo'));
+    return {
+      gap: action.top - lastLink.bottom,
+      mask: backdrop.maskImage || backdrop.webkitMaskImage,
+      filter: photo.filter,
+    };
+  });
+  expect(layout.gap).toBeGreaterThanOrEqual(8);
+  expect(layout.gap).toBeLessThanOrEqual(72);
+  expect(layout.mask).toContain('rgba(0, 0, 0, 0) 0%');
+  expect(layout.mask).toContain('rgba(0, 0, 0, 0) 100%');
+  expect(layout.filter).toContain('drop-shadow');
+});
+
 test('Pixel-sized vault card reserves enough room for a four-digit price', async ({ page, stub }) => {
   await page.setViewportSize({ width: 412, height: 915 });
   const item = {
@@ -205,6 +255,38 @@ test('Pixel-sized long set title and pricing sheet remain readable', async ({ pa
   });
   expect(stacked).toBe(true);
   expect(await page.locator('#sheet').evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+});
+
+test('upcoming sets show announced retail instead of stale market estimates', async ({ page, stub }) => {
+  await page.setViewportSize({ width: 412, height: 915 });
+  const upcoming = {
+    ...stub.SET,
+    coming_soon: true,
+    upcoming_price: 299.99,
+    current_value: 11,
+    market_value: 11,
+    launch_date: '2026-09-01',
+    valuation: {
+      read_enabled: true,
+      model_version: 'v3',
+      new: { fair_value: 11, low: 7.15, high: 14.85, confidence: 'estimated', sample_count: 0, independent_family_count: 1, basis: [] },
+    },
+  };
+  await page.route('**/api/sets/75192-1', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ set: upcoming, entry: null }),
+  }));
+  await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
+  await page.locator('#pricingDetailsBtn').click();
+
+  const sheet = page.locator('.pricing-details-sheet-body');
+  await expect(sheet).toContainText('Retail price, not resale value');
+  await expect(sheet).toContainText('Announced retail price');
+  await expect(sheet).toContainText('$299.99');
+  await expect(sheet).toContainText('Resale pricing');
+  await expect(sheet).not.toContainText('$11.00');
+  await expect(sheet.locator('.pricing-condition-card')).toHaveCount(1);
 });
 
 test('vivid light mode gives set photos a neutral non-blended stage', async ({ page }) => {

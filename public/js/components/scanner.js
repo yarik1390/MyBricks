@@ -198,17 +198,19 @@ export function openScan(mode = "barcode", { deferStart = false, shelf = false }
 
 function showPhotoScanSetupSheet() {
   showSheet(`
-    <div class="sheet-title-row">
-      <div>
-        <div class="u-mono-label">Photo identification</div>
-        <h2 class="u-serif-h" style="margin:2px 0 0;">Set up photo scanning</h2>
+    <div class="photo-scan-setup">
+      <div class="sheet-title-row">
+        <div>
+          <div class="u-mono-label">Photo identification</div>
+          <h2 class="u-serif-h" style="margin:2px 0 0;">Set up photo scanning</h2>
+        </div>
+        <button type="button" class="icon-btn" id="photoScanSetupClose" aria-label="Close">${I.close()}</button>
       </div>
-      <button type="button" class="icon-btn" id="photoScanSetupClose" aria-label="Close">${I.close()}</button>
-    </div>
-    <p class="u-mute" style="margin:0 4px 14px;">Sign in to use the shared scan service, or add your own Gemini/OpenAI key. Barcode and manual lookup stay free for guests.</p>
-    <div class="btn-row">
-      <button class="btn-primary" id="scanSignIn">Sign in</button>
-      <button class="btn-secondary" id="scanSetup">Add AI key</button>
+      <p class="u-mute" style="margin:0 4px 14px;">Sign in to use the shared scan service, or add your own Gemini/OpenAI key. Barcode and manual lookup stay free for guests.</p>
+      <div class="btn-row">
+        <button class="btn-primary" id="scanSignIn">Sign in</button>
+        <button class="btn-secondary" id="scanSetup">Add AI key</button>
+      </div>
     </div>`);
   $("#photoScanSetupClose")?.addEventListener("click", hideSheet);
   $("#scanSignIn")?.addEventListener("click", () => { hideSheet(); location.hash = "#/login"; });

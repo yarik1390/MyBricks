@@ -254,7 +254,7 @@ async function shareSet(set) {
 function setDisplayValue(set) {
   // Coming-soon sets aren't released yet — there's no market, so show the
   // announced retail (from the upcoming feed, else MSRP), not a formula estimate.
-  if (set.coming_soon) return Number(set.upcoming_price) || Number(set.retail_price) || 0;
+  if (set.coming_soon) return Number(set.upcoming_price) || Number(set.be_retail) || Number(set.retail_price) || 0;
   return (set.valuation?.read_enabled && Number(set.valuation?.new?.fair_value)) || displayValueOf(set);
 }
 
@@ -645,14 +645,16 @@ function infoTabHTML(set, entry, isWish) {
     </button>
     <template id="pricingDetailsTemplate">
       <div class="pricing-details-sheet-body">
-        ${set.valuation?.read_enabled ? investmentPricingDetailHTML(set) : ''}
-        ${dealSignalHTML(set)}
-        ${priceStripHTML(set, entry)}
-        ${marketSpreadHTML(set)}
-        ${marketDepthHTML(set)}
-        ${partOutHTML(set)}
-        ${pricingSummaryHtml}
-        ${marketConfidenceHTML(set)}
+        ${set.coming_soon
+          ? investmentPricingDetailHTML(set)
+          : `${set.valuation?.read_enabled ? investmentPricingDetailHTML(set) : ''}
+            ${dealSignalHTML(set)}
+            ${priceStripHTML(set, entry)}
+            ${marketSpreadHTML(set)}
+            ${marketDepthHTML(set)}
+            ${partOutHTML(set)}
+            ${pricingSummaryHtml}
+            ${marketConfidenceHTML(set)}`}
       </div>
     </template>`}
 

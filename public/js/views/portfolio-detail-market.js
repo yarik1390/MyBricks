@@ -153,6 +153,10 @@ function conditionStateHTML(state, label) {
     </article>`;
 }
 
+function announcedRetailPrice(set) {
+  return Number(set.upcoming_price) || Number(set.be_retail) || Number(set.retail_price) || 0;
+}
+
 // Derive the five valuation numbers (with legacy fallbacks) once, so the
 // compact "More prices" card and the full expander grid stay consistent.
 function deriveV3States(set) {
@@ -189,6 +193,9 @@ function deriveV3States(set) {
 // into a single honest footnote instead of four jargon cards. The full
 // evidence grid moves into the "Pricing details" expander (see below).
 export function investmentPricingHTML(set) {
+  // An unreleased set has no honest resale scenarios yet. The headline already
+  // shows its announced retail price; don't follow it with modeled market rows.
+  if (set.coming_soon) return '';
   const d = deriveV3States(set);
   const rows = [];
   if (d.usedValue > 0) {
@@ -241,6 +248,35 @@ export function investmentPricingHTML(set) {
 // The original "Five numbers, five different jobs" grid — full evidence, now
 // tucked inside the Pricing details expander for anyone who wants the depth.
 export function investmentPricingDetailHTML(set) {
+  if (set.coming_soon) {
+    const retail = announcedRetailPrice(set);
+    const releaseDate = set.launch_date ? new Date(set.launch_date) : null;
+    const release = releaseDate && !Number.isNaN(releaseDate.getTime())
+      ? releaseDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+      : '';
+    return `
+      <section class="investment-pricing investment-pricing--upcoming" aria-labelledby="investmentPricingTitle">
+        <div class="investment-pricing-head">
+          <div>
+            <span class="u-mono-label">Before release</span>
+            <h2 id="investmentPricingTitle">Retail price, not resale value</h2>
+          </div>
+          <span class="pricing-model-badge">Coming soon</span>
+        </div>
+        <div class="pricing-block">
+          <div class="pricing-block-title"><span>1</span><div><h3>Announced retail price</h3><p>The expected price at launch. This is not a secondary-market valuation.</p></div></div>
+          <article class="pricing-condition-card pricing-upcoming-card">
+            <div class="pricing-condition-head">
+              <span>New from retail</span>
+              <span class="pricing-confidence pricing-confidence--estimated">Pre-release</span>
+            </div>
+            <strong class="pricing-condition-value">${retail > 0 ? fmtMoney(retail) : 'Price not announced'}</strong>
+            <span class="pricing-condition-range">${release ? `Expected ${escapeHtml(release)}` : 'Release date pending'}</span>
+          </article>
+          <p class="more-price-note">Resale pricing, used value, sell-now estimates, and forecasts begin only after verified market evidence arrives.</p>
+        </div>
+      </section>`;
+  }
   const d = deriveV3States(set);
   const { newState, usedState, acquisition, partOut, forecast, fairValue, liquidation, delivered, forecastReady } = d;
   if (!newState && !usedState) return '';

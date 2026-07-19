@@ -812,7 +812,6 @@ export function renderPile() {
           <button class="scan-method${photoNeedsSetup ? ' needs-setup' : ''}" id="pileScanPhoto" type="button"${photoNeedsSetup ? ' aria-describedby="photoScanAvailability"' : ''}>
             <span class="scan-method-icon scan-method-icon--photo">${I.camera()}</span>
             <span class="scan-method-copy"><strong>Identify from photo</strong><small id="photoScanAvailability">${photoNeedsSetup ? 'Sign in or add an AI key first' : 'For built, loose, or boxed sets'}</small></span>
-            ${photoNeedsSetup ? '<span class="scan-method-status">Setup</span>' : ''}
             <span class="scan-method-arrow" aria-hidden="true">${I.arrowR()}</span>
           </button>
         </div>

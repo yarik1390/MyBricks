@@ -1076,7 +1076,10 @@ ul.set-list > li { display: contents; }
    AND the image's own blurred backdrop below — so a boxy/photographic image
    dissolves at its edges instead of floating as a hard rectangle. Dark mode
    can't multiply white away. */
-.detail-hero .detail-img img.set-photo { mix-blend-mode: multiply; }
+.detail-hero .detail-img img.set-photo {
+  mix-blend-mode: multiply;
+  filter: drop-shadow(0 12px 10px rgba(20, 20, 24, 0.16));
+}
 /* Dark mode can't multiply the white product background away — so instead of
    painting the WHOLE hero light (a glaring slab against the dark page), keep
    the hero dark and frame the photo on its own compact card-style plate. */
@@ -1102,8 +1105,8 @@ ul.set-list > li { display: contents; }
   filter: blur(36px) saturate(150%);
   transform: scale(1.25);
   opacity: 0.42;
-  -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 20%, #000 68%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 20%, #000 68%, transparent 100%);
 }
 .detail-hero-bg {
   position: absolute; inset: 0;
@@ -1411,7 +1414,7 @@ ul.set-list > li { display: contents; }
 .detail-action-bar .ab-qty { display: flex; align-items: center; gap: 8px; flex: 1; }
 .detail-action-bar .ab-qty .qty-row-lbl { flex: 1; }
 /* On the detail page, pad the scroll area so content clears the sticky bar. */
-.detail-page-container { padding-bottom: calc(var(--bottom-nav-clear) + 140px); }
+.detail-page-container { padding-bottom: calc(var(--bottom-nav-clear) + 96px); }
 .detail-page-container[data-detail-tab="manage"] {
   padding-bottom: calc(var(--bottom-nav-clear) + 36px);
 }
@@ -4925,9 +4928,7 @@ body.sheet-open .selection-bar {
     grid-template-columns: 1fr 1fr;
   }
 
-  .detail-tab-panel {
-    padding-bottom: calc(var(--bottom-nav-clear) + 48px);
-  }
+  .detail-tab-panel { padding-bottom: 8px; }
 
   .detail-tabs {
     margin-inline: 14px;
@@ -6548,7 +6549,7 @@ body.lightbox-open { overflow: hidden; }
 
 /* The later generic .page rule must not shrink the set-detail clearance. */
 body[data-route="set-detail"] .detail-page-container {
-  padding-bottom: calc(var(--bottom-nav-clear) + 140px);
+  padding-bottom: calc(var(--bottom-nav-clear) + 96px);
 }
 body[data-route="set-detail"] .detail-page-container[data-detail-tab="manage"] {
   padding-bottom: calc(var(--bottom-nav-clear) + 36px);
@@ -6561,15 +6562,12 @@ body[data-route="set-detail"] .detail-page-container[data-detail-tab="manage"] {
 :root[data-skin="vivid"] .game-set-photo { mix-blend-mode: normal !important; }
 
 .scan-method.needs-setup { background: var(--surface-2); }
-.scan-method-status {
-  flex: 0 0 auto;
-  padding: 3px 7px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-1);
-  color: var(--ink-mute);
-  font: 700 9px/1 var(--mono);
-  text-transform: uppercase;
-}
+.scan-method.needs-setup .scan-method-copy small { color: var(--ink-soft); }
+
+.photo-scan-setup { min-width: 0; }
+.photo-scan-setup .sheet-title-row > div:first-child { min-width: 0; }
+.photo-scan-setup .u-serif-h { overflow-wrap: anywhere; }
+.photo-scan-setup .btn-row > * { min-width: 0; white-space: normal; }
 
 /* The page already starts below the system inset. Adding --safe-top again to
    this in-hero control produced the large Pixel-only gap seen in native builds. */
@@ -6626,4 +6624,16 @@ body[data-route="set-detail"] .detail-page-container[data-detail-tab="manage"] {
   .pricing-confidence { max-width: 100%; white-space: normal; line-height: 1.2; }
   .pricing-metrics dd { max-width: 58%; overflow-wrap: anywhere; }
   .pricing-details-sheet-title { font-size: 22px; }
+}
+
+@media (max-width: 360px) {
+  .scan-method {
+    grid-template-columns: 44px minmax(0, 1fr) 20px;
+    gap: 9px;
+    padding-inline: 12px;
+  }
+  .scan-method-icon { width: 44px; height: 44px; }
+  .scan-method-copy strong { font-size: 14px; }
+  .scan-method-copy small { font-size: 11px; }
+  .photo-scan-setup .btn-row { flex-direction: column; }
 }
