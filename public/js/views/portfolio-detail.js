@@ -192,9 +192,6 @@ function paintSetDetail(set, entry) {
   wireDetailActions(set, entry); // sticky action bar — present on every tab
   setupTabSwipe(set, entry);
 
-  // Pick the hero photo's presentation from its actual background (see below).
-  if (hasImg && displayImg) applyHeroTone(displayImg);
-
   // Custom photos live behind the authed worker API, so an <img src> can't
   // load them directly — fetch with the bearer token and swap in a blob URL.
   if (entry?.custom_image_url) {
@@ -212,27 +209,8 @@ function paintSetDetail(set, entry) {
         document.querySelector(".detail-hero")?.classList.add("has-photo");
       }
       img.src = url;
-      applyHeroTone(url); // blob URL is same-origin, always sampleable
     });
   }
-}
-
-// White/transparent cutouts keep the floating-multiply look; dark or coloured
-// photographic backgrounds (which multiply can't melt — they become a hard
-// rectangle) get a framed plate coloured to match the photo, so it reads as a
-// deliberate rounded photo with depth instead of a black box on the page.
-function applyHeroTone(src) {
-  if (!document.querySelector(".detail-hero.has-photo .detail-img")) return;
-  import("../lib/image-tone.js")
-    .then(({ classifyImageTone }) => classifyImageTone(src))
-    .then((res) => {
-      const w = document.querySelector(".detail-hero.has-photo .detail-img");
-      if (!w || !res || res.tone !== "framed") return; // keep the default float
-      if (res.bg) w.style.setProperty("--plate-bg", `rgb(${res.bg.r},${res.bg.g},${res.bg.b})`);
-      w.classList.add("bg-framed");
-      if (res.dark) w.classList.add("bg-dark");
-    })
-    .catch(() => {});
 }
 
 // Track the live blob URL so re-renders and navigation don't leak memory —

@@ -181,15 +181,20 @@ test('Pixel-sized set detail ends close to the action bar and blends the hero at
     const photo = getComputedStyle(document.querySelector('.detail-img img.set-photo'));
     return {
       gap: action.top - lastLink.bottom,
-      mask: backdrop.maskImage || backdrop.webkitMaskImage,
-      filter: photo.filter,
+      // Immersive hero: the photo carries a radial edge-feather mask so its own
+      // background melts into the full-bleed blurred backdrop of the same colours.
+      photoMask: photo.maskImage || photo.webkitMaskImage,
+      photoFilter: photo.filter,
+      backdropOpacity: Number(backdrop.opacity),
     };
   });
   expect(layout.gap).toBeGreaterThanOrEqual(8);
   expect(layout.gap).toBeLessThanOrEqual(72);
-  expect(layout.mask).toContain('rgba(0, 0, 0, 0) 0%');
-  expect(layout.mask).toContain('rgba(0, 0, 0, 0) 100%');
-  expect(layout.filter).toContain('drop-shadow');
+  expect(layout.photoMask).toContain('radial-gradient');
+  expect(layout.photoMask).toContain('rgba(0, 0, 0, 0) 100%'); // edge feather (transparent serialized)
+  expect(layout.photoFilter).toContain('drop-shadow');
+  // The blurred backdrop is strong/full-bleed (album-art ambient wash).
+  expect(layout.backdropOpacity).toBeGreaterThan(0.7);
 });
 
 test('Pixel-sized vault card reserves enough room for a four-digit price', async ({ page, stub }) => {
