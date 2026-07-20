@@ -12,19 +12,44 @@ import { closeNativeAuthBrowser, getCapacitorPlugin, isNativeCapacitor, nativeOA
 // onboarding (welcome carousel) is lazy-loaded at the end of boot (see below).
 
 // Setup gestures: Pull-to-refresh + swipe-back
+// An overlay (bottom sheet, scanner, app-lock) captures the gesture — pulling
+// down inside one must never refresh the page underneath.
+function overlayOpen() {
+  const b = document.body.classList;
+  return b.contains("sheet-open") || b.contains("scan-active") || b.contains("app-locked")
+    || $("#scanOverlay")?.classList.contains("open");
+}
 function setupGestures() {
-  let sy = 0, pulling = false;
+  // Deliberately conservative so a normal downward flick from the top doesn't
+  // trigger a refresh: the gesture must be a slow, mostly-vertical pull past a
+  // generous distance, with the page still at the very top, and no overlay open.
+  const START_SHOW = 60;   // px pulled before the indicator appears
+  const TRIGGER = 130;     // px pulled before a refresh actually fires
+  let sy = 0, sx = 0, pulling = false, aborted = false;
   document.addEventListener("touchstart", e => {
-    if (window.scrollY <= 0) { sy = e.touches[0].clientY; pulling = true; }
+    if (window.scrollY <= 0 && !overlayOpen()) {
+      sy = e.touches[0].clientY; sx = e.touches[0].clientX; pulling = true; aborted = false;
+    } else {
+      pulling = false;
+    }
   }, { passive: true });
   document.addEventListener("touchmove", e => {
-    if (!pulling) return;
-    if (e.touches[0].clientY - sy > 30) $("#ptrIndicator")?.classList.add("show");
+    if (!pulling || aborted) return;
+    const dy = e.touches[0].clientY - sy;
+    const dx = Math.abs(e.touches[0].clientX - sx);
+    // Cancel if the page scrolled away from the top, an overlay opened, or the
+    // gesture is more horizontal than vertical (a swipe, not a pull).
+    if (window.scrollY > 0 || overlayOpen() || (dy > 0 && dx > dy)) {
+      aborted = true;
+      $("#ptrIndicator")?.classList.remove("show");
+      return;
+    }
+    if (dy > START_SHOW) $("#ptrIndicator")?.classList.add("show");
   }, { passive: true });
   document.addEventListener("touchend", e => {
     if (!pulling) return;
     const dy = (e.changedTouches[0]?.clientY ?? sy) - sy;
-    if (dy > 80) {
+    if (!aborted && dy > TRIGGER && window.scrollY <= 0 && !overlayOpen()) {
       haptic("medium");
       invalidatePortfolio();
       state.portfolioHistory = null;
@@ -36,14 +61,15 @@ function setupGestures() {
     setTimeout(() => $("#ptrIndicator")?.classList.remove("show"), 300);
   });
 
-  // swipe-back from left edge
+  // swipe-back from left edge (disabled while an overlay owns the gesture, so
+  // dragging a sheet near the edge can't navigate back underneath it).
   let edgeSx = 0;
   document.addEventListener("touchstart", e => {
-    if (e.touches[0].clientX < 44) edgeSx = e.touches[0].clientX;
+    if (e.touches[0].clientX < 44 && !overlayOpen()) edgeSx = e.touches[0].clientX;
     else edgeSx = 0;
   }, { passive: true });
   document.addEventListener("touchend", e => {
-    if (edgeSx > 0 && e.changedTouches[0].clientX - edgeSx > 60) {
+    if (edgeSx > 0 && !overlayOpen() && e.changedTouches[0].clientX - edgeSx > 60) {
       if (history.length > 1) history.back();
     }
   });

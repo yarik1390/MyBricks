@@ -2,6 +2,34 @@ import { $, haptic, escapeHtml } from '../utils.js';
 
 let _sheetInvoker = null;
 
+// Background scroll-lock. `overflow:hidden` on <body> does NOT reliably stop
+// touch scroll-chaining in mobile WebViews (the page behind the sheet still
+// scrolls). Pinning the body with position:fixed freezes it completely; we
+// stash the scroll offset and restore it on close so the page doesn't jump.
+let _lockedScrollY = 0;
+function lockBodyScroll() {
+  _lockedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+  document.body.style.position = "fixed";
+  document.body.style.top = `-${_lockedScrollY}px`;
+  document.body.style.left = "0";
+  document.body.style.right = "0";
+  document.body.style.width = "100%";
+  document.body.style.overflow = "hidden";
+}
+function unlockBodyScroll() {
+  document.body.style.position = "";
+  document.body.style.top = "";
+  document.body.style.left = "";
+  document.body.style.right = "";
+  document.body.style.width = "";
+  document.body.style.overflow = "";
+  window.scrollTo(0, _lockedScrollY);
+}
+
+// Swallow touch drags that start on the dim backdrop so they can't scroll the
+// (now position:fixed) page or trigger pull-to-refresh.
+function blockBackdropTouch(e) { e.preventDefault(); }
+
 const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 function sheetKeyHandler(e) {
@@ -32,7 +60,7 @@ export function showSheet(html) {
   back.classList.add("show");
   sheet.classList.add("show");
   document.body.classList.add("sheet-open");
-  document.body.style.overflow = "hidden";
+  lockBodyScroll();
   back.setAttribute("aria-hidden", "false");
   sheet.setAttribute("aria-hidden", "false");
   // Announce the sheet as a modal dialog so screen readers scope to it (it
@@ -41,6 +69,7 @@ export function showSheet(html) {
   sheet.setAttribute("aria-modal", "true");
   haptic("light");
   back.addEventListener("click", hideSheet, { once: true });
+  back.addEventListener("touchmove", blockBackdropTouch, { passive: false });
   document.addEventListener("keydown", sheetKeyHandler);
   wireSheetDrag(sheet);
 }
@@ -62,8 +91,9 @@ export function hideSheet() {
   if (!backdrop || !backdrop.classList.contains("show")) return;
   backdrop.classList.remove("show");
   backdrop.setAttribute("aria-hidden", "true");
+  backdrop.removeEventListener("touchmove", blockBackdropTouch, { passive: false });
   document.body.classList.remove("sheet-open");
-  document.body.style.overflow = "";
+  unlockBodyScroll();
   if (sheet) {
     sheet.classList.remove("show");
     sheet.style.transform = "";

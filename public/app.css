@@ -2365,6 +2365,8 @@ body[data-route="set-detail"] #toast {
   transform: translateY(100%);
   transition: transform 0.28s var(--ease), visibility 0.28s;
   max-height: 80vh; overflow-x: hidden; overflow-y: auto;
+  /* Keep the sheet's inner scroll from chaining to the page behind it. */
+  overscroll-behavior: contain;
   visibility: hidden;
 }
 .sheet.show { transform: translateY(0); visibility: visible; }
