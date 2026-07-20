@@ -1,7 +1,7 @@
 import type { Env } from '../types';
 import { fetchSetPricing } from './bricklink';
 import { fetchEbayActiveListings } from './ebay';
-import { configuredKeys } from './brightdata-keys';
+import { configuredKeys, pickKey } from './brightdata-keys';
 import { configuredKeys as pricesApiKeys } from './pricesapi-keys';
 
 // ---------------------------------------------------------------------------
@@ -130,6 +130,32 @@ const PROBES: Record<string, Probe> = {
     // Some keys work → the service is usable; flag as degraded, not down.
     if (good > 0) return { ok: true, status: 'degraded', detail };
     return err(detail);
+  },
+
+  // Feasibility probe for a *potential* StockX sold/ask source. StockX blocks
+  // plain fetches (returns an error interstitial) and renders all prices
+  // client-side, so scraping it needs BrightData's unlocker/rendering. This probe
+  // spends ONE pooled BrightData call on a StockX search and reports whether the
+  // returned body is the real product markup (with a price) or a block page — the
+  // ground truth needed before building a parser and wiring it into valuations.
+  async stockx(env) {
+    const picked = await pickKey(env);
+    if (!picked) return configured('no live Bright Data token (StockX would ride the BrightData pool)');
+    const setNum = '10307'; // Eiffel Tower — a set StockX definitely lists.
+    const r = await http('POST', 'https://api.brightdata.com/request', {
+      headers: { Authorization: `Bearer ${picked.key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ zone: env.BRIGHTDATA_ZONE || 'web_unlocker1', url: `https://stockx.com/search?s=lego%20${setNum}`, format: 'raw', method: 'GET', country: 'US' }),
+      timeoutMs: 40000,
+    });
+    if (r.status !== 200) return err(`BrightData HTTP ${r.status}: ${String(r.text).slice(0, 60)}`);
+    const body = r.text || '';
+    const blocked = /<title>\s*Error\s*<\/title>|captcha|Access Denied|Just a moment|cf-challenge/i.test(body);
+    const hasProduct = /eiffel/i.test(body) || new RegExp(`set-${setNum}\\b`).test(body) || /lego-[a-z0-9-]+-set-\d/i.test(body);
+    const hasPrice = /Lowest Ask|lowestAsk|Last Sale|lastSale|"amount"\s*:/i.test(body);
+    if (hasProduct && hasPrice) return ok(`Web Unlocker rendered StockX — found product + price markup (${body.length}b). Safe to build the parser.`);
+    if (hasProduct) return { ok: true, status: 'degraded', detail: `Got StockX product markup but no price fields (${body.length}b) — needs the rendered variant (BrightData render/Scraping Browser).` };
+    if (blocked) return err(`StockX served a block/interstitial via Web Unlocker (${body.length}b) — plain unlocking is not enough; needs BrightData Scraping Browser (JS render).`);
+    return err(`Unexpected StockX body (${body.length}b): ${body.slice(0, 80)}`);
   },
 
   async firecrawl(env) {
