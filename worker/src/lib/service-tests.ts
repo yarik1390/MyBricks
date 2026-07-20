@@ -108,20 +108,25 @@ const PROBES: Record<string, Probe> = {
     // Test EVERY configured token, not just the first. A single bad/rejected token
     // must not make the whole service look down — real scraping rotates to a live
     // key (that's why "Last OK" can be recent while a stale keys[0] 400s here).
-    const results = await Promise.all(keys.map(async (key) => {
+    const results = await Promise.all(keys.map(async (key, i) => {
       const r = await http('POST', 'https://api.brightdata.com/request', {
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ zone, url: 'https://geo.brdtest.com/welcome.txt?product=unlocker&method=api', format: 'raw' }),
         timeoutMs: 25000,
       });
-      return { status: r.status, text: r.text };
+      // Index + last-4 fingerprint so the admin can pinpoint WHICH token to drop
+      // (index 0 = BRIGHTDATA_API_TOKEN, then the BRIGHTDATA_API_TOKENS comma list
+      // in order). Only the last 4 chars are exposed — safe in an admin-only probe.
+      return { i, tail: key.slice(-4), status: r.status, text: r.text };
     }));
     const good = results.filter((r) => r.status === 200).length;
-    const bad = results.find((r) => r.status !== 200);
+    const bad = results.filter((r) => r.status !== 200);
     if (good === keys.length) return ok(`all ${keys.length} key(s) OK on zone '${zone}'`);
-    const detail = `${good}/${keys.length} key(s) OK on '${zone}'; ${keys.length - good} rejected`
-      + (bad ? ` (e.g. HTTP ${bad.status}: ${bad.text.slice(0, 50)})` : '')
-      + '. Drop the rejected token(s) from BRIGHTDATA_API_TOKENS.';
+    const badList = bad
+      .map((b) => `#${b.i} (…${b.tail}) HTTP ${b.status}: ${String(b.text).slice(0, 40)}`)
+      .join('; ');
+    const detail = `${good}/${keys.length} key(s) OK on '${zone}'; ${keys.length - good} rejected → ${badList}`
+      + '. Remove the rejected token(s) from BRIGHTDATA_API_TOKENS (index 0 = BRIGHTDATA_API_TOKEN, then the comma list in order).';
     // Some keys work → the service is usable; flag as degraded, not down.
     if (good > 0) return { ok: true, status: 'degraded', detail };
     return err(detail);
