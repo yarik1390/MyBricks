@@ -1080,6 +1080,29 @@ ul.set-list > li { display: contents; }
   mix-blend-mode: multiply;
   filter: drop-shadow(0 12px 10px rgba(20, 20, 24, 0.16));
 }
+/* Framed presentation for dark/coloured-background product photos (set by
+   applyHeroTone after sampling the image). The plate is coloured to match the
+   photo's own background (--plate-bg) so a black-backdrop shot sits on a black
+   rounded card — a deliberate, shadowed photo with depth instead of a hard
+   rectangle multiply leaves behind. Overrides the round white halo default. */
+.detail-hero.has-photo .detail-img.bg-framed {
+  background: var(--plate-bg, #17171b);
+  border-radius: 18px;
+  overflow: hidden;
+  width: min(300px, 84vw);
+  height: min(216px, 60vw);
+  box-shadow: 0 16px 38px rgba(16, 16, 20, 0.30), 0 3px 10px rgba(16, 16, 20, 0.18);
+}
+.detail-hero.has-photo .detail-img.bg-framed img.set-photo {
+  mix-blend-mode: normal;
+  filter: none;
+  width: 100%; height: 100%;
+  object-fit: contain;
+}
+/* A hairline light edge lifts a dark plate off the cream page. */
+.detail-hero.has-photo .detail-img.bg-framed.bg-dark {
+  box-shadow: 0 16px 38px rgba(16, 16, 20, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
 /* Dark mode can't multiply the white product background away — so instead of
    painting the WHOLE hero light (a glaring slab against the dark page), keep
    the hero dark and frame the photo on its own compact card-style plate. */

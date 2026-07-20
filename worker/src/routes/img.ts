@@ -58,6 +58,10 @@ app.get('/', async (c) => {
       const headers = new Headers();
       headers.set('Content-Type', obj.httpMetadata?.contentType || 'image/jpeg');
       headers.set('Cache-Control', IMMUTABLE);
+      // Public product images — allow the browser to read pixels on a canvas
+      // (the set-detail hero samples the photo's background to pick between the
+      // floating-cutout and framed-plate presentation).
+      headers.set('Access-Control-Allow-Origin', '*');
       const resp = new Response(obj.body, { headers });
       c.executionCtx.waitUntil(cache.put(c.req.raw, resp.clone()).catch(() => {}));
       return resp;
@@ -86,6 +90,7 @@ app.get('/', async (c) => {
   const headers = new Headers();
   headers.set('Content-Type', contentType);
   headers.set('Cache-Control', IMMUTABLE);
+  headers.set('Access-Control-Allow-Origin', '*');
 
   // Stream the image straight to the client instead of buffering the whole file
   // into the Worker first (the old `await arrayBuffer()` made cold images wait
