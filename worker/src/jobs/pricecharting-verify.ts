@@ -13,10 +13,13 @@ import { sourceEnabled } from '../lib/source-config';
  * but its product mappings were quarantined wholesale because base-number
  * matching mis-mapped variants (e.g. 75188 vs the Finch Dallow 75188-2). The
  * bulk import auto-verifies only unique-UPC matches. This job adds the second
- * safe path: when PriceCharting's sealed price independently AGREES (within
- * 0.6–1.67x) with a BrickLink or eBay sold value for the same set, two
- * independent sources concur on the same market level — a wrong-item mapping
- * essentially can't do that, so the mapping identity is confirmed.
+ * safe path: when PriceCharting's price independently AGREES (within 0.6–1.67x)
+ * with a BrickLink or eBay sold value for the same set, two independent sources
+ * concur on the same market level — a wrong-item mapping essentially can't do
+ * that, so the mapping identity is confirmed. Agreement is checked on EITHER
+ * axis — PC-new vs a new-condition comp (BrickLink/eBay new) OR PC-complete vs a
+ * used-condition comp (BrickLink `used_value`/eBay used) — so a set with only
+ * used comps still gets promoted. A wrong item won't agree on either axis.
  *
  * Idempotent + bounded: promotions upsert by (source, source_item_id); signal
  * rows upsert change-only by (set_num, source, condition). Disagreeing or
@@ -63,10 +66,19 @@ export async function runPriceChartingVerify(
       SELECT ls.set_num, COALESCE(NULLIF(ls.pc_id, ''), 'legacy:' || ls.set_num) AS item_id,
              ls.name, ls.upc
       FROM lego_sets ls
-      WHERE ls.pc_new_value IS NOT NULL
-        AND COALESCE(ls.bl_new_value, ls.ebay_new_value) IS NOT NULL
-        AND ls.pc_new_value >= ${BAND_LOW} * COALESCE(ls.bl_new_value, ls.ebay_new_value)
-        AND ls.pc_new_value <= ${BAND_HIGH} * COALESCE(ls.bl_new_value, ls.ebay_new_value)
+      WHERE (
+          -- new-condition agreement: PC-new vs BrickLink/eBay new
+          (ls.pc_new_value IS NOT NULL
+            AND COALESCE(ls.bl_new_value, ls.ebay_new_value) IS NOT NULL
+            AND ls.pc_new_value >= ${BAND_LOW} * COALESCE(ls.bl_new_value, ls.ebay_new_value)
+            AND ls.pc_new_value <= ${BAND_HIGH} * COALESCE(ls.bl_new_value, ls.ebay_new_value))
+          OR
+          -- used-condition agreement: PC-complete vs BrickLink used_value / eBay used
+          (ls.pc_complete_value IS NOT NULL
+            AND COALESCE(ls.used_value, ls.ebay_used_value) IS NOT NULL
+            AND ls.pc_complete_value >= ${BAND_LOW} * COALESCE(ls.used_value, ls.ebay_used_value)
+            AND ls.pc_complete_value <= ${BAND_HIGH} * COALESCE(ls.used_value, ls.ebay_used_value))
+        )
         AND NOT EXISTS (
           SELECT 1 FROM pricing_source_map pm
           WHERE pm.source = 'pricecharting'

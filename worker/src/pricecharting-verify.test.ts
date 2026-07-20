@@ -49,6 +49,30 @@ describe('runPriceChartingVerify (price-agreement promotion)', () => {
     ]);
   });
 
+  it('promotes on used-condition agreement (PC complete vs used comp) with no new comp', async () => {
+    await db.batch([
+      // PC complete $80 agrees with BrickLink used_value $75; there is NO
+      // new-condition comp, so only the used axis can confirm identity.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, pc_id, pc_complete_value, pc_cached_at, used_value) VALUES ('USED-1','Used-corroborated set','pcU', 80, datetime('now'), 75)`),
+      // PC complete $500 vs used_value $75 — disagreement; a wrong-item mapping,
+      // stays quarantined.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, pc_id, pc_complete_value, used_value) VALUES ('USEDBAD-1','Wrong item','pcB', 500, 75)`),
+    ]);
+
+    const r = await runPriceChartingVerify(env as any);
+    expect(r.skipped).toBeUndefined();
+    expect(r.promoted).toBe(1);
+    const mapRows = await db.prepare(`SELECT set_num, status, match_method FROM pricing_source_map ORDER BY set_num`).all<{ set_num: string; status: string; match_method: string }>();
+    expect(mapRows.results).toEqual([
+      { set_num: 'USED-1', status: 'verified', match_method: 'price_agreement' },
+    ]);
+    // The used_complete signal is materialized from pc_complete_value.
+    const sig = await db.prepare(`SELECT set_num, condition, value FROM pricing_signals ORDER BY set_num, condition`).all<Record<string, unknown>>();
+    expect(sig.results).toEqual([
+      { set_num: 'USED-1', condition: 'used_complete', value: 80 },
+    ]);
+  });
+
   it('is idempotent — a second run promotes nothing new and rewrites no signals', async () => {
     await db.batch([
       db.prepare(`INSERT INTO lego_sets (set_num, name, pc_id, pc_new_value, bl_new_value) VALUES ('AGREE-2','Set','pcA', 110, 100)`),
