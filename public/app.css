@@ -1062,52 +1062,32 @@ ul.set-list > li { display: contents; }
 .detail-hero-col {
   position: relative;
 }
-/* Immersive hero bleeds up under the status bar: cancel the app's top safe-area
-   pad above it (the blurred backdrop reaches the screen top with no cream gap —
-   the Pixel's tall inset made that gap glaring), then add the same amount back
-   to the hero height so the content below stays put. */
-.detail-page-container .detail-hero-col { margin-top: calc(-1 * var(--app-top-pad)); }
+/* The hero sits below the status bar via the body's top safe-area pad — no
+   edge-to-edge bleed, so the system clock/battery never overlap the artwork. */
+.detail-page-container .detail-hero-col { margin-top: 0; }
 .detail-hero {
-  position: relative; height: calc(320px + var(--app-top-pad));
+  position: relative; height: 300px;
   overflow: hidden;
   background: var(--surface);
 }
-.detail-hero.has-photo { height: calc(300px + var(--app-top-pad)); background: var(--bg); }
-/* Immersive "album-art" hero: the product photo floats on a full-bleed blurred
-   copy of itself (see .detail-hero-bg below), so its own baked-in background —
-   black, blue, box-art, white — melts into the same colours behind it instead
-   of sitting as a hard rectangle. No blend mode, no plate, no pixel-sampling.
-   A soft radial edge-feather dissolves the photo's rectangular boundary into
-   the backdrop; the drop-shadow gives it lift/depth. */
+.detail-hero.has-photo { height: 300px; background: var(--bg); }
+/* Clean framed card: the product photo sits inside an intentional white rounded
+   card (see .detail-hero.has-photo .detail-img.has-photo below) on the page
+   background. White-bg renders blend invisibly into the card; black/blue/box-art
+   photos read as a deliberately framed poster. Robust for every baked-in
+   background — no blend mode, no blurred backdrop, no per-image guessing. */
 .detail-hero .detail-img img.set-photo {
   mix-blend-mode: normal;
   object-fit: contain;
   width: 100%; height: 100%;
-  filter: drop-shadow(0 16px 26px rgba(16, 16, 20, 0.28));
-  -webkit-mask-image: radial-gradient(ellipse 82% 82% at 50% 48%, #000 74%, transparent 100%);
-  mask-image: radial-gradient(ellipse 82% 82% at 50% 48%, #000 74%, transparent 100%);
+  filter: none;
+  -webkit-mask-image: none;
+  mask-image: none;
 }
-/* Dark/vivid themes keep the same immersive treatment (nothing to multiply). */
-:root[data-theme="dark"] .detail-hero .detail-img img.set-photo,
-:root[data-skin="vivid"] .detail-hero .detail-img img.set-photo { filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.5)); }
-/* The photo's OWN colours, blurred and scaled to fill the WHOLE hero edge-to-
-   edge — this ambient field is what the sharp photo melts into (its black/blue/
-   white backdrop matches the blur behind it). The flat photo scrim is dropped;
-   only the bottom gradient fade into the page remains (.detail-hero::after). */
-.detail-hero.has-photo .detail-hero-overlay { display: none; }
-.detail-hero.has-photo .detail-hero-bg {
-  filter: blur(34px) saturate(155%);
-  transform: scale(1.35);
-  opacity: 0.92;
-}
-/* A soft top scrim keeps the (dark) status-bar icons legible where the backdrop
-   bleeds up under the system bar. */
-.detail-hero.has-photo::before {
-  content: ""; position: absolute; top: 0; left: 0; right: 0;
-  height: calc(var(--app-top-pad) + 40px);
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 78%, transparent) 0%, transparent 100%);
-  pointer-events: none; z-index: 2;
-}
+/* No blurred backdrop or overlay for the card look — the hero is just the page
+   background and the framed card floats on it. */
+.detail-hero.has-photo .detail-hero-overlay,
+.detail-hero.has-photo .detail-hero-bg { display: none; }
 .detail-hero-bg {
   position: absolute; inset: 0;
   background-size: cover; background-position: center;
@@ -1129,7 +1109,7 @@ ul.set-list > li { display: contents; }
 }
 .detail-back {
   position: absolute;
-  top: calc(12px + var(--app-top-pad));
+  top: 12px;
   left: 12px;
   width: 40px; height: 40px;
   /* Translucent + blurred so it floats cleanly over the tinted hero and reads
@@ -1152,12 +1132,27 @@ ul.set-list > li { display: contents; }
   display: flex; align-items: center; justify-content: center;
   z-index: 3;
 }
-/* Sized to sit inside the hero, nudged below the status bar + back button. The
-   photo floats on the immersive blurred backdrop (no plate/halo — the img's own
-   radial mask feathers its edges into that backdrop). */
-.detail-hero.has-photo .detail-img {
-  width: min(272px, 80vw); height: min(230px, 62vw);
-  inset: calc(var(--app-top-pad) + 40px) 0 0 0;
+/* The framed product card, centred in the hero. Rounded plate + soft shadow
+   reads as an intentional frame: white-bg renders blend into it, other
+   backgrounds sit as a deliberately framed poster. Geometry + frame live here;
+   the plate COLOUR is set per-theme below with a specificity bump so it wins
+   over the equal-specificity `.detail-img.photo-loaded { background: transparent }`
+   reset that fires once the photo loads (otherwise the plate would vanish). */
+.detail-hero.has-photo .detail-img.has-photo {
+  width: min(300px, 84vw); height: min(224px, 60vw);
+  inset: 0; margin: auto;
+  border: 1px solid rgba(18, 18, 22, 0.06);
+  border-radius: 22px;
+  padding: 18px;
+  box-shadow: 0 12px 30px rgba(16, 16, 20, 0.14), 0 2px 8px rgba(16, 16, 20, 0.07);
+}
+:root:not([data-theme="dark"]) .detail-hero.has-photo .detail-img.has-photo {
+  background: #fff;
+}
+:root[data-theme="dark"] .detail-hero.has-photo .detail-img.has-photo {
+  background: #f4f4f6;
+  border-color: rgba(0, 0, 0, 0.14);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
 }
 .detail-img.has-photo:not(.photo-loaded) {
   background:
@@ -3318,8 +3313,13 @@ select:focus-visible {
     z-index: 10;
     margin-bottom: 0;
   }
+  /* The inner framed card is the single frame on wide screens too — drop the
+     outer sticky-hero border/shadow so photos aren't double-framed. */
   .detail-page-container .detail-hero.has-photo {
     height: 320px;
+    border: none;
+    box-shadow: none;
+    background: transparent;
   }
   .detail-page-container .detail-title-row {
     margin-top: 0;
@@ -6563,11 +6563,12 @@ body[data-route="set-detail"] .detail-page-container[data-detail-tab="manage"] {
 :root[data-native-shell="android"] .pricing-details-sheet-head { position: static; }
 
 @media (max-width: 600px) {
-  .detail-hero.has-photo { height: 232px; }
-  .detail-hero.has-photo .detail-img {
-    width: min(224px, 70vw);
-    height: min(202px, 61vw);
-    inset: 0;
+  .detail-hero.has-photo { height: 248px; }
+  /* Card sized to fit the shorter phone hero without crowding the back button. */
+  .detail-hero.has-photo .detail-img.has-photo {
+    width: min(292px, 82vw);
+    height: min(196px, 52vw);
+    inset: 0; margin: auto;
   }
   .detail-title-row { margin-top: -18px; }
   .detail-title.is-long { font-size: 24px; line-height: 1.08; }

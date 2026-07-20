@@ -159,10 +159,10 @@ test('Pixel-sized set detail clears the sticky action bar and uses a compact her
     return { panelBottom: panel.bottom, actionTop: action.top, heroHeight: hero.height };
   });
   expect(layout.panelBottom).toBeLessThanOrEqual(layout.actionTop - 16);
-  expect(layout.heroHeight).toBeLessThanOrEqual(232);
+  expect(layout.heroHeight).toBeLessThanOrEqual(248);
 });
 
-test('Pixel-sized set detail ends close to the action bar and blends the hero at both edges', async ({ page, stub }) => {
+test('Pixel-sized set detail ends close to the action bar and frames the photo in a clean card', async ({ page, stub }) => {
   await page.setViewportSize({ width: 412, height: 915 });
   await page.route('**/api/sets/75192-1', (route) => route.fulfill({
     status: 200,
@@ -178,23 +178,39 @@ test('Pixel-sized set detail ends close to the action bar and blends the hero at
     const lastLink = [...document.querySelectorAll('.bl-buy-link')].at(-1).getBoundingClientRect();
     const action = document.querySelector('.detail-action-bar').getBoundingClientRect();
     const backdrop = getComputedStyle(document.querySelector('.detail-hero-bg'));
+    const card = getComputedStyle(document.querySelector('.detail-img.has-photo'));
     const photo = getComputedStyle(document.querySelector('.detail-img img.set-photo'));
+    const heroCol = getComputedStyle(document.querySelector('.detail-hero-col'));
     return {
       gap: action.top - lastLink.bottom,
-      // Immersive hero: the photo carries a radial edge-feather mask so its own
-      // background melts into the full-bleed blurred backdrop of the same colours.
+      // Clean framed card: the photo sits in an intentional white rounded card
+      // with a soft shadow — no dissolve, no blurred backdrop, no blend mode.
+      cardBg: card.backgroundColor,
+      cardRadius: card.borderTopLeftRadius,
+      cardShadow: card.boxShadow,
       photoMask: photo.maskImage || photo.webkitMaskImage,
       photoFilter: photo.filter,
-      backdropOpacity: Number(backdrop.opacity),
+      photoBlend: photo.mixBlendMode,
+      backdropDisplay: backdrop.display,
+      // No status-bar bleed: the hero column keeps the body's top safe-area pad
+      // instead of pulling up under the system bar.
+      heroColMarginTop: heroCol.marginTop,
     };
   });
   expect(layout.gap).toBeGreaterThanOrEqual(8);
   expect(layout.gap).toBeLessThanOrEqual(72);
-  expect(layout.photoMask).toContain('radial-gradient');
-  expect(layout.photoMask).toContain('rgba(0, 0, 0, 0) 100%'); // edge feather (transparent serialized)
-  expect(layout.photoFilter).toContain('drop-shadow');
-  // The blurred backdrop is strong/full-bleed (album-art ambient wash).
-  expect(layout.backdropOpacity).toBeGreaterThan(0.7);
+  // The card is a real frame: opaque light plate, rounded, with a shadow.
+  expect(layout.cardBg).toBe('rgb(255, 255, 255)');
+  expect(parseFloat(layout.cardRadius)).toBeGreaterThan(0);
+  expect(layout.cardShadow).not.toBe('none');
+  // The photo itself carries no dissolve treatment.
+  expect(layout.photoMask === 'none' || !layout.photoMask).toBeTruthy();
+  expect(layout.photoFilter).toBe('none');
+  expect(layout.photoBlend).toBe('normal');
+  // The blurred backdrop is gone for photos.
+  expect(layout.backdropDisplay).toBe('none');
+  // Hero no longer bleeds under the status bar.
+  expect(layout.heroColMarginTop).toBe('0px');
 });
 
 test('Pixel-sized vault card reserves enough room for a four-digit price', async ({ page, stub }) => {
