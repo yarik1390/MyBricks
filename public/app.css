@@ -1919,19 +1919,8 @@ ul.set-list > li { display: contents; }
 .import-btn svg { width: 16px; height: 16px; }
 
 /* ============================================================
-   Pull-to-refresh
+   Spinner keyframe (shared by loaders + busy buttons)
    ============================================================ */
-.ptr-indicator {
-  position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
-  width: 36px; height: 36px; border-radius: 50%;
-  background: var(--surface); border: var(--bw) solid var(--border-c);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 40; opacity: 0; pointer-events: none;
-  transition: opacity 0.2s;
-  color: var(--ink);
-}
-.ptr-indicator.show { opacity: 1; }
-.ptr-indicator svg { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .load-sentinel {
@@ -3692,15 +3681,6 @@ body.sheet-open .selection-bar {
 .compact-btn {
   padding: 6px 10px;
   font-size: 12px;
-}
-
-/* Pull-to-refresh SVG progress ring */
-.ptr-ring {
-  overflow: visible;
-  transition: transform 0.1s linear;
-}
-.ptr-ring-progress {
-  transition: stroke-dashoffset 0.1s linear;
 }
 
 /* Scrollable showcase shelf */
