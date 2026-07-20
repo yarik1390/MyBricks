@@ -6,7 +6,7 @@ import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { openScan, lookupScanInput } from '../components/scanner-lazy.js';
 import { trustBadgeHTML } from '../components/trust.js';
-import { activeCatalogFilterCount, catalogFilterSummary, pricePerPiece, estMark, displayValueOf } from '../lib/pure.js';
+import { activeCatalogFilterCount, catalogFilterSummary, pricePerPiece, estMark, displayValueOf, cleanFacetList } from '../lib/pure.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
 
 let _catalogGen = 0;
@@ -68,7 +68,16 @@ export async function renderAdd() {
   readCatalogURLParams();
   if (!state.catalog.items.length) $("#root").innerHTML = skelPage(skelCardList(6));
   if (!state.themes.length) {
-    try { const t = await api("/api/themes"); state.themes = t.themes || []; state.themeGroups = t.theme_groups || []; state.categories = t.categories || []; state.themesLoadedAt = Date.now(); } catch {}
+    try {
+      const t = await api("/api/themes");
+      // Strip junk placeholders (":null", "N/A", "{t.b.a.}", …) from all facets.
+      // Themes keep their popularity order (the quick-chip row shows the top 8);
+      // the filter facets are sorted A→Z for scannability.
+      state.themes = cleanFacetList(t.themes || []);
+      state.themeGroups = cleanFacetList(t.theme_groups || [], { sort: true });
+      state.categories = cleanFacetList(t.categories || [], { sort: true });
+      state.themesLoadedAt = Date.now();
+    } catch {}
   }
   // Coming-soon feed (G2b) — load in the background and surface it on the default
   // catalog view once ready (non-blocking; never delays the catalog paint).
@@ -548,7 +557,9 @@ function paintAdd() {
     const inp = $("#themePickerInput");
     const paintThemes = (q = "") => {
       const query = q.toLowerCase().trim();
-      const matches = state.themes.filter(t => !query || t.toLowerCase().includes(query));
+      const matches = state.themes
+        .filter(t => !query || t.toLowerCase().includes(query))
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
       results.innerHTML = matches.length
         ? matches.map(t => `<button class="chip u-wfull ${state.filter.catalogTheme === t ? "active" : ""}" data-pick-theme="${escapeHtml(t)}" style="justify-content:flex-start;">${escapeHtml(t)}</button>`).join("")
         : `<div class="u-mute u-fs-base" style="text-align:center;padding:20px;">No themes match</div>`;

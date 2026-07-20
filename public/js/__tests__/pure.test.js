@@ -9,7 +9,7 @@ import {
   liquidityLabel, classifyProviderHealth, validateSourceTuningInput, groupAdminJobRuns,
   formatRelativeTime, processRunBadge, isEstimatedValue, estMark,
   displayValueOf, withDisplayValue, shouldUseKeyboardShell, classifyScanFailure, isCredentialAuthFailure, flipEconomics,
-  cleanTagLabel, pluralize, manualScanTarget,
+  cleanTagLabel, pluralize, manualScanTarget, cleanFacetList,
   computeStoreVerdict, computeSellSignal,
 } from '../lib/pure.js';
 import { biometricAvailable, verifyBiometricResult } from '../lib/native-biometric.js';
@@ -115,6 +115,30 @@ describe('pluralize', () => {
   });
   it('accepts an irregular plural', () => {
     assert.equal(pluralize(3, 'entry', 'entries'), '3 entries');
+  });
+});
+
+describe('cleanFacetList', () => {
+  it('drops junk placeholder values from real catalog facets', () => {
+    const input = ['Star Wars', ':null', 'null', 'N/A', 'Unknown', 'Random', '{t.b.a.}', 'Technic', 'undefined', 'none', '-', '???'];
+    assert.deepEqual(cleanFacetList(input), ['Star Wars', 'Technic']);
+  });
+  it('sorts A→Z when asked, keeping real values', () => {
+    assert.deepEqual(
+      cleanFacetList(['Technic', 'Star Wars', 'Icons', 'null'], { sort: true }),
+      ['Icons', 'Star Wars', 'Technic'],
+    );
+  });
+  it('preserves the given order by default (popularity)', () => {
+    assert.deepEqual(cleanFacetList(['Technic', 'Star Wars', 'Icons']), ['Technic', 'Star Wars', 'Icons']);
+  });
+  it('de-dupes case-insensitively, keeping the first spelling', () => {
+    assert.deepEqual(cleanFacetList(['City', 'city', 'CITY', 'Castle']), ['City', 'Castle']);
+  });
+  it('trims whitespace and tolerates non-arrays / non-strings', () => {
+    assert.deepEqual(cleanFacetList(['  Space  ', 42, null, 'Space']), ['Space']);
+    assert.deepEqual(cleanFacetList(null), []);
+    assert.deepEqual(cleanFacetList(undefined), []);
   });
 });
 

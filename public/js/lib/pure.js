@@ -29,6 +29,30 @@ export function pluralize(n, singular, plural = singular + "s") {
   return `${n} ${n === 1 ? singular : plural}`;
 }
 
+// Placeholder/junk values that leak into theme/theme_group/category columns from
+// upstream catalog imports and must never appear as a pickable filter facet.
+const JUNK_FACET_RE = /^(:?\s*null|n\/?a|unknown|random|undefined|none|tbd|tba|t\.?\s*b\.?\s*a\.?|\{.*\}|:.*|\?+|-+|\.+)$/i;
+/**
+ * Clean a list of facet values (themes / theme groups / categories): drop empty
+ * and junk placeholders, de-dupe (case-insensitively, keeping first spelling),
+ * and — when `sort` is true — return them A→Z. Keeps real values untouched.
+ */
+export function cleanFacetList(list, { sort = false } = {}) {
+  const seen = new Set();
+  const out = [];
+  for (const raw of Array.isArray(list) ? list : []) {
+    if (typeof raw !== "string") continue;
+    const v = raw.trim();
+    if (!v || JUNK_FACET_RE.test(v)) continue;
+    const key = v.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(v);
+  }
+  if (sort) out.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  return out;
+}
+
 export const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
 export const daysAgo = (iso) => Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
