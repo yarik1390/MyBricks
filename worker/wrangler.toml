@@ -3,6 +3,15 @@ main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
+# Workers PAID plan: lift the per-invocation CPU ceiling from the 30s default to
+# the paid max (300s). Fetch I/O wait is free, but the scrape/enrich crons do real
+# CPU parsing large HTML/JSON bodies (Firecrawl StockX renders are ~160KB each), so
+# a big batch could accumulate >30s CPU and get killed mid-run (the StockX backfill
+# zombied at 32-set batches for exactly this reason). Subrequests (1000 on paid) and
+# the per-provider api_quota ledger remain the real batch-size governors.
+[limits]
+cpu_ms = 300000
+
 [[d1_databases]]
 binding = "DB"
 database_name = "brickvault"
