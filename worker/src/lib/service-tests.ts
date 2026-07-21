@@ -2,9 +2,8 @@ import type { Env } from '../types';
 import { fetchSetPricing } from './bricklink';
 import { fetchEbayActiveListings } from './ebay';
 import { configuredKeys, pickKey } from './brightdata-keys';
-import { firecrawlScrape } from './firecrawl';
 import { firecrawlEnabled } from './pricing-flags';
-import { parseStockXSearch } from './stockx';
+import { fetchStockXViaFirecrawl } from './stockx';
 import { configuredKeys as pricesApiKeys } from './pricesapi-keys';
 
 // ---------------------------------------------------------------------------
@@ -161,38 +160,19 @@ const PROBES: Record<string, Probe> = {
     return err(`Unexpected StockX body (${body.length}b): ${body.slice(0, 80)}`);
   },
 
-  // Retry Firecrawl on StockX with the ENHANCED proxy (mobile, anti-bot) + a
-  // wait-for-tile action — the earlier attempt used the (now-removed) 'stealth'
-  // value and fell back to basic, so it wasn't a fair test. Spends ~5 credits.
+  // StockX via Firecrawl (ENHANCED proxy, mobile/anti-bot) — the PREFERRED engine
+  // for the bulk backfill (large credit pool). Spends ~5 credits: renders the
+  // Eiffel (10307) search and confirms the parser reads a Lowest Ask.
   async stockx_firecrawl(env) {
     if (!firecrawlEnabled(env)) return configured('Firecrawl not enabled (key missing or flag off)');
-    const res = await firecrawlScrape<{ html?: string }>(
-      {
-        url: 'https://stockx.com/search?s=lego%2010307',
-        formats: ['html'],
-        proxy: 'enhanced',
-        // Tiles load first, prices hydrate a beat later — wait harder for prices.
-        actions: [
-          { type: 'wait', selector: 'a[data-testid="productTile-ProductSwitcherLink"]' },
-          { type: 'wait', milliseconds: 7000 },
-          { type: 'scroll', direction: 'down' },
-          { type: 'wait', milliseconds: 3000 },
-        ],
-        waitFor: 5000,
-        timeoutMs: 60000,
-      },
-      env,
-    );
-    const html = res?.data?.html || '';
-    const parsed = parseStockXSearch(html, '10307-1');
-    if (parsed.ask != null) return ok(`Firecrawl(enhanced) rendered StockX — Eiffel (10307) ask $${parsed.ask}. Bulk backfill via Firecrawl IS viable (~5cr/set).`);
-    if (!html) return err('Firecrawl returned no body (blocked or credit ceiling).');
-    // Firecrawl renders StockX (prices present) but my slug regex missed 10307 —
-    // capture the actual href format + a "Lowest Ask" context sample to fix the parser.
-    const hrefs = [...new Set([...html.matchAll(/href="([^"]*lego[^"]*set-\d+[^"]*)"/gi)].map((m) => m[1]))].slice(0, 5);
-    const askIdx = html.search(/Lowest Ask/i);
-    const askCtx = askIdx >= 0 ? html.slice(Math.max(0, askIdx - 160), askIdx + 30).replace(/\s+/g, ' ') : 'none';
-    return { ok: false, status: 'degraded', detail: `Firecrawl(enhanced) ${html.length}b renders prices — fixing parser. HREFS=${JSON.stringify(hrefs)} | ASKCTX=${askCtx}` };
+    const r = await fetchStockXViaFirecrawl('10307-1', 'LEGO Eiffel Tower', env);
+    if (r.status === 'ok' && r.ask != null) {
+      return ok(`Firecrawl(enhanced) rendered StockX — Eiffel (10307) ask $${r.ask} (${r.url}). Bulk backfill via Firecrawl IS viable (~5cr/set).`);
+    }
+    if (r.status === 'no_data') {
+      return { ok: true, status: 'degraded', detail: `Firecrawl rendered StockX but no Lowest Ask parsed${r.url ? ` (matched ${r.url})` : ''} — prices may not have hydrated in time.` };
+    }
+    return err(`Firecrawl StockX scrape failed: ${r.error || 'unknown'}`);
   },
 
   async firecrawl(env) {

@@ -49,4 +49,23 @@ describe('parseStockXSearch', () => {
     // castle must return 497, proving the region scoping works.
     expect(parseStockXSearch(SEARCH_HTML, '10305').ask).toBe(497);
   });
+
+  // Firecrawl emits ABSOLUTE hrefs (https://stockx.com/...) and some carry a
+  // ?sponsored=true query — Bright Data gave relative paths. Parse both.
+  const absTile = (slug: string, name: string, ask: string, q = '') =>
+    `<a href="https://stockx.com/${slug}${q}">` +
+    `<p data-testid="product-tile-title">${name}</p></div>` +
+    `<div><p class="chakra-text css-e7a57k">Lowest Ask</p><div><p>${ask}</p></div></div></a>`;
+  const ABS_HTML =
+    '<html><body>' +
+    absTile('lego-eiffel-tower-set-10307', 'LEGO Eiffel Tower Set 10307', '$743') +
+    absTile('lego-icons-tudor-corner-set-10350', 'LEGO Tudor Corner Set 10350', '$219', '?sponsored=true') +
+    '</body></html>';
+
+  it('parses Firecrawl absolute URLs', () => {
+    expect(parseStockXSearch(ABS_HTML, '10307-1')).toEqual({ ask: 743, url: 'https://stockx.com/lego-eiffel-tower-set-10307' });
+  });
+  it('parses absolute URLs that carry a query string', () => {
+    expect(parseStockXSearch(ABS_HTML, '10350').ask).toBe(219);
+  });
 });

@@ -92,17 +92,21 @@ async function unlock(env: Env, url: string, token: string, timeoutMs: number): 
  */
 export function parseStockXSearch(html: string, setNum: string): { ask: number | null; url: string | null } {
   const base = setNum.replace(/-\d+$/, '');
-  // Tile anchors: href="/lego-<slug>-set-<num>". Require the number to terminate
-  // the slug (closing quote) so a longer number can't false-match.
-  const linkRe = new RegExp(`href="(/lego-[a-z0-9-]+-set-${base})"`, 'i');
+  // Tile anchors: href="/lego-<slug>-set-<num>" (Bright Data, relative) OR
+  // href="https://stockx.com/lego-<slug>-set-<num>[?...]" (Firecrawl, absolute).
+  // A lookahead on the number's terminator (" ? or /) stops 10307 matching 103070.
+  const linkRe = new RegExp(`href="((?:https?://[^"]*?)?/lego-[a-z0-9-]+-set-${base})(?=["?/])`, 'i');
   const m = linkRe.exec(html);
   if (!m) return { ask: null, url: null };
   const url = m[1];
 
-  // Scope to this product's tile: from its link to the next product link.
+  // Scope to this product's tile: from its link to the NEXT product link (works
+  // regardless of the surrounding markup / absolute-vs-relative hrefs).
   const start = m.index;
-  const nextIdx = html.indexOf('productTile-ProductSwitcherLink', start + 1);
-  const region = html.slice(start, nextIdx > start ? nextIdx : start + 4000);
+  const nextRe = /href="(?:https?:\/\/[^"]*?)?\/lego-[a-z0-9-]+-set-\d+/gi;
+  nextRe.lastIndex = start + 1;
+  const nm = nextRe.exec(html);
+  const region = html.slice(start, nm ? nm.index : start + 4000);
 
   const priceRe = /\$([\d,]+)/g;
   // Basic sanity only — collectible sets legitimately ask into the thousands, so
