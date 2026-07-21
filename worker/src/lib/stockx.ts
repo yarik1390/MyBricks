@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { pickKey, recordKeyCall } from './brightdata-keys';
+import { firecrawlScrape } from './firecrawl';
 
 // ---------------------------------------------------------------------------
 // StockX lowest-ask scrape (Bright Data Web Unlocker).
@@ -94,6 +95,33 @@ export function parseStockXSearch(html: string, setNum: string): { ask: number |
     if (v != null) return { ask: v, url };
   }
   return { ask: null, url };
+}
+
+const SEARCH_URL = (setNum: string) =>
+  `https://stockx.com/search?s=${encodeURIComponent(`lego ${setNum.replace(/-\d+$/, '')}`)}`;
+
+/**
+ * Fetch a set's StockX lowest ask via FIRECRAWL (rendered HTML, ~1 credit).
+ * Preferred for BULK backfill — Firecrawl's large credit allotment scales far
+ * past Bright Data's small daily pool. `proxy: 'stealth'` + a render wait give
+ * StockX's client-rendered prices time to appear. Firecrawl self-meters credits
+ * and records its own health; returns null on any failure.
+ */
+export async function fetchStockXViaFirecrawl(
+  setNum: string,
+  _setName: string,
+  env: Env,
+  options: { timeoutMs?: number } = {},
+): Promise<StockXResult> {
+  const res = await firecrawlScrape<{ html?: string }>(
+    { url: SEARCH_URL(setNum), formats: ['html'], proxy: 'stealth', waitFor: 3500, timeoutMs: options.timeoutMs ?? 45_000 },
+    env,
+  );
+  const html = res?.data?.html;
+  if (!html || html.length < 20_000) return { status: 'error', ask: null, url: null, error: 'firecrawl: empty/short body' };
+  const parsed = parseStockXSearch(html, setNum);
+  if (parsed.ask == null) return { status: 'no_data', ask: null, url: parsed.url };
+  return { status: 'ok', ask: parsed.ask, url: parsed.url };
 }
 
 /**

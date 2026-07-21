@@ -2,6 +2,8 @@ import type { Env } from '../types';
 import { fetchSetPricing } from './bricklink';
 import { fetchEbayActiveListings } from './ebay';
 import { configuredKeys, pickKey } from './brightdata-keys';
+import { fetchStockXViaFirecrawl } from './stockx';
+import { firecrawlEnabled } from './pricing-flags';
 import { configuredKeys as pricesApiKeys } from './pricesapi-keys';
 
 // ---------------------------------------------------------------------------
@@ -156,6 +158,17 @@ const PROBES: Record<string, Probe> = {
     if (hasProduct) return { ok: true, status: 'degraded', detail: `Got StockX product markup but no price fields (${body.length}b) — needs the rendered variant (BrightData render/Scraping Browser).` };
     if (blocked) return err(`StockX served a block/interstitial via Web Unlocker (${body.length}b) — plain unlocking is not enough; needs BrightData Scraping Browser (JS render).`);
     return err(`Unexpected StockX body (${body.length}b): ${body.slice(0, 80)}`);
+  },
+
+  // Can FIRECRAWL (not just Bright Data) render StockX? Decides whether the bulk
+  // backfill can ride Firecrawl's large credit allotment instead of Bright Data's
+  // small daily pool. Spends ~1 Firecrawl credit.
+  async stockx_firecrawl(env) {
+    if (!firecrawlEnabled(env)) return configured('Firecrawl not enabled (key missing or flag off)');
+    const r = await fetchStockXViaFirecrawl('10307-1', 'LEGO Eiffel Tower', env, { timeoutMs: 55000 });
+    if (r.status === 'ok') return ok(`Firecrawl rendered StockX — Eiffel (10307) lowest ask $${r.ask} (${r.url}). Bulk backfill via Firecrawl is viable.`);
+    if (r.status === 'no_data') return { ok: false, status: 'degraded', detail: `Firecrawl reached StockX but no ask parsed (url=${r.url ?? 'none'}) — may need proxy:stealth/waitFor tuning or Firecrawl can't fully render it.` };
+    return err(`Firecrawl StockX failed: ${r.error || 'unknown'}`);
   },
 
   async firecrawl(env) {
