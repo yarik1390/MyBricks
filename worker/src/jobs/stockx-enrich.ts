@@ -64,17 +64,19 @@ export async function runStockXEnrich(
     capLimit = Math.min(limit, remaining);
   }
 
-  // Candidates: sets with a corroborating value and a stale/absent StockX ask.
-  // Owned/wishlist first, then oldest cache. Over-select 2x for the neg-cache drop.
+  // Candidates: modern, DESIRABLE sets with a corroborating value and a stale/
+  // absent StockX ask. StockX's LEGO market is recent-era and only carries sets
+  // worth chasing, so require year>=2000 and value>=$150 and work HIGHEST-VALUE
+  // first. (The old ordering by set_num ASC front-loaded 1970s-90s promo junk —
+  // Gears, minifig packs, "Special Offer" — that StockX has never listed, burning
+  // an entire batch on guaranteed no-data misses.) Owned/wishlist first, then
+  // oldest cache, then value. Over-select 2x for the neg-cache drop.
   const { results: candidates } = await env.DB.prepare(`
     SELECT ls.set_num, ls.name, ls.bl_new_value, ls.current_value
     FROM lego_sets ls
     LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
-    WHERE COALESCE(ls.bl_new_value, ls.current_value) IS NOT NULL
-      -- StockX only lists collectible/sealed sets (mostly retired, higher value),
-      -- so target those and skip the long tail of cheap current sets it won't
-      -- carry — keeps the limited Bright Data budget on sets that can return data.
-      AND (ls.retired = 1 OR COALESCE(ls.bl_new_value, ls.current_value) >= 150)
+    WHERE COALESCE(ls.bl_new_value, ls.current_value) >= 150
+      AND ls.year >= 2000
       AND (ext.stockx_cached_at IS NULL OR ext.stockx_cached_at < datetime('now', '-30 days'))
     ORDER BY
       CASE WHEN EXISTS (
@@ -83,6 +85,7 @@ export async function runStockXEnrich(
         SELECT 1 FROM user_wishlist uw WHERE uw.set_num = ls.set_num
       ) THEN 0 ELSE 1 END,
       COALESCE(ext.stockx_cached_at, '2000-01-01') ASC,
+      COALESCE(ls.bl_new_value, ls.current_value) DESC,
       ls.set_num ASC
     LIMIT ?
   `).bind(capLimit * 2).all<{ set_num: string; name: string; bl_new_value: number | null; current_value: number | null }>();
