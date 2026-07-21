@@ -145,7 +145,7 @@ const PROBES: Record<string, Probe> = {
     const r = await http('POST', 'https://api.brightdata.com/request', {
       headers: { Authorization: `Bearer ${picked.key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ zone: env.BRIGHTDATA_ZONE || 'web_unlocker1', url: `https://stockx.com/search?s=lego%20${setNum}`, format: 'raw', method: 'GET', country: 'US' }),
-      timeoutMs: 40000,
+      timeoutMs: 55000,
     });
     if (r.status !== 200) return err(`BrightData HTTP ${r.status}: ${String(r.text).slice(0, 60)}`);
     const body = r.text || '';

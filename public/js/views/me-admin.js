@@ -1038,7 +1038,9 @@ async function runServiceProbe(svc, btn) {
   if (box) { box.hidden = false; box.className = 'admin-svc-test-result'; box.textContent = 'Testing…'; }
   haptic('light');
   try {
-    const r = await api(`/api/admin/test/${encodeURIComponent(svc)}`, { method: 'POST' });
+    // Live scrape probes (BrightData → StockX, etc.) can take ~30–45s, well past
+    // the default 15s abort — give the probe room to actually return a result.
+    const r = await api(`/api/admin/test/${encodeURIComponent(svc)}`, { method: 'POST', timeoutMs: 60000 });
     const degraded = r.status === 'degraded';
     const tone = degraded ? 'warn' : r.ok ? 'ok' : r.status === 'unconfigured' ? 'warn' : 'danger';
     const head = degraded ? 'Degraded' : r.ok ? 'OK' : r.status || 'error';

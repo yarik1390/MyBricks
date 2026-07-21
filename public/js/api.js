@@ -960,12 +960,15 @@ export async function api(path, opts = {}) {
   };
   delete init.stream;
   delete init.rawBody;
+  delete init.timeoutMs;
   const _url = (window.WORKER_BASE || '') + path;
   // Abort a hung request after 15s so the UI never waits forever on a stuck
-  // Worker response. Fresh controller per attempt (a signal can't be reused).
+  // Worker response. Slow endpoints (live scrape probes) can pass a longer
+  // opts.timeoutMs. Fresh controller per attempt (a signal can't be reused).
+  const timeoutMs = Number(opts.timeoutMs) || 15000;
   const fetchT = (u, i) => {
     const ac = new AbortController();
-    const t = setTimeout(() => ac.abort(), 15000);
+    const t = setTimeout(() => ac.abort(), timeoutMs);
     return fetch(u, { ...i, signal: ac.signal }).finally(() => clearTimeout(t));
   };
   let r;
