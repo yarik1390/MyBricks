@@ -178,6 +178,7 @@ export const SERVICE_FLAG = {
   brightdata: 'brightdata_sold',
   firecrawl: 'firecrawl',
   pricesapi: 'pricesapi',
+  stockx: 'stockx',
 };
 
 export const FLAG_LABEL = {
@@ -187,6 +188,7 @@ export const FLAG_LABEL = {
   brightdata_sold: 'Bright Data sold scrape',
   firecrawl: 'Firecrawl scraping',
   pricesapi: 'pricesAPI retail offers',
+  stockx: 'StockX lowest ask',
 };
 
 // Services the worker /test/:service probe can check (mirrors TESTABLE_SERVICES
