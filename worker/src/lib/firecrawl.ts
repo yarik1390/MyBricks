@@ -26,8 +26,16 @@ export interface FirecrawlScrapeOptions {
   /** Milliseconds to wait after page load before extracting (for JS-heavy pages). */
   waitFor?: number;
   timeoutMs?: number;
-  /** Proxy mode: 'auto' (default — basic, escalate to stealth only on failure), 'basic', 'stealth'. */
-  proxy?: 'auto' | 'basic' | 'stealth';
+  /**
+   * Proxy mode (Firecrawl v2): 'auto' (default — basic, auto-escalates to
+   * enhanced on a block), 'basic', or 'enhanced' (mobile/residential, for sites
+   * with advanced anti-bot — StockX-tier; up to 5 credits). ('stealth' was the
+   * old name and is no longer accepted — kept in the union only for back-compat.)
+   */
+  proxy?: 'auto' | 'basic' | 'stealth' | 'enhanced';
+  /** Browser actions run before extraction, e.g. wait for a selector to render:
+   *  [{ type: 'wait', selector: '.price' }, { type: 'wait', milliseconds: 4000 }]. */
+  actions?: Array<Record<string, unknown>>;
   /** Serve a cached copy if younger than this many ms (faster; same credit cost). */
   maxAge?: number;
 }
@@ -50,7 +58,8 @@ export async function firecrawlScrape<T = unknown>(
   // ~1,000/mo plan. (A failed scrape is free at Firecrawl, so this only ever
   // over-counts slightly — the safe direction.)
   const formats = opts.formats ?? ['json'];
-  const creditCost = (opts.jsonOptions || formats.includes('json')) ? 5 : 1;
+  // json LLM extract = 5; enhanced proxy (mobile, anti-bot) = up to 5; else 1.
+  const creditCost = (opts.jsonOptions || formats.includes('json') || opts.proxy === 'enhanced') ? 5 : 1;
   if (!(await spendQuota(env, 'firecrawl', creditCost))) {
     await recordIntegrationAttempt(env, 'firecrawl', false, 'daily Firecrawl credit ceiling reached');
     return null;
@@ -68,6 +77,7 @@ export async function firecrawlScrape<T = unknown>(
     proxy: opts.proxy ?? 'auto',
   };
   if (opts.waitFor) body.waitFor = opts.waitFor;
+  if (opts.actions?.length) body.actions = opts.actions;
   if (opts.maxAge != null) body.maxAge = opts.maxAge;
 
   const ctrl = new AbortController();

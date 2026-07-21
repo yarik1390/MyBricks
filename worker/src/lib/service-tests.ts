@@ -2,6 +2,9 @@ import type { Env } from '../types';
 import { fetchSetPricing } from './bricklink';
 import { fetchEbayActiveListings } from './ebay';
 import { configuredKeys, pickKey } from './brightdata-keys';
+import { firecrawlScrape } from './firecrawl';
+import { firecrawlEnabled } from './pricing-flags';
+import { parseStockXSearch } from './stockx';
 import { configuredKeys as pricesApiKeys } from './pricesapi-keys';
 
 // ---------------------------------------------------------------------------
@@ -156,6 +159,35 @@ const PROBES: Record<string, Probe> = {
     if (hasProduct) return { ok: true, status: 'degraded', detail: `Got StockX product markup but no price fields (${body.length}b) — needs the rendered variant (BrightData render/Scraping Browser).` };
     if (blocked) return err(`StockX served a block/interstitial via Web Unlocker (${body.length}b) — plain unlocking is not enough; needs BrightData Scraping Browser (JS render).`);
     return err(`Unexpected StockX body (${body.length}b): ${body.slice(0, 80)}`);
+  },
+
+  // Retry Firecrawl on StockX with the ENHANCED proxy (mobile, anti-bot) + a
+  // wait-for-tile action — the earlier attempt used the (now-removed) 'stealth'
+  // value and fell back to basic, so it wasn't a fair test. Spends ~5 credits.
+  async stockx_firecrawl(env) {
+    if (!firecrawlEnabled(env)) return configured('Firecrawl not enabled (key missing or flag off)');
+    const res = await firecrawlScrape<{ html?: string }>(
+      {
+        url: 'https://stockx.com/search?s=lego%2010307',
+        formats: ['html'],
+        proxy: 'enhanced',
+        actions: [
+          { type: 'wait', selector: 'a[data-testid="productTile-ProductSwitcherLink"]' },
+          { type: 'wait', milliseconds: 2500 },
+        ],
+        waitFor: 4000,
+        timeoutMs: 55000,
+      },
+      env,
+    );
+    const html = res?.data?.html || '';
+    const parsed = parseStockXSearch(html, '10307-1');
+    const hasTile = /productTile-ProductSwitcherLink|lego-[a-z0-9-]+-set-\d/i.test(html);
+    const blocked = /<title>\s*(Error|Access Denied|Just a moment)|captcha|cf-challenge|px-captcha|verify you are human/i.test(html);
+    if (parsed.ask != null) return ok(`Firecrawl(enhanced) rendered StockX — Eiffel (10307) ask $${parsed.ask}. Bulk backfill via Firecrawl IS viable (~5cr/set).`);
+    if (!html) return err('Firecrawl returned no body (blocked or credit ceiling).');
+    if (blocked) return err(`Firecrawl(enhanced) still got a block/challenge from StockX (${html.length}b) — StockX beats Firecrawl; stick with Bright Data.`);
+    return { ok: false, status: 'degraded', detail: `Firecrawl(enhanced) got ${html.length}b, tiles=${hasTile}, but no ask parsed — under-rendered or markup shift.` };
   },
 
   async firecrawl(env) {
