@@ -74,6 +74,11 @@ crons = [
   # Two slots/day so the 23h read-freshness window never gaps between refreshes.
   "30 7 * * *",
   "30 16 * * *",
+  # TEMPORARY: StockX one-time bulk backfill. Runs every 5 min at a large batch to
+  # sweep the ~2.3k modern high-value candidates via Firecrawl in a few hours. The
+  # scheduled() overlap guard skips a tick if a prior run is still active, and once
+  # every candidate is cached this is a fast no-op. REMOVE once the sweep completes.
+  "*/5 * * * *",
 ]
 
 [vars]

@@ -113,7 +113,7 @@ export async function runStockXEnrich(
   const negCache = (setNum: string, reason: 'no_data' | 'diverged' | 'err') =>
     kv?.put(skipKey(setNum), reason, { expirationTtl: (reason === 'err' ? 2 : 14) * 86_400 }).catch(() => {});
 
-  const concurrency = Math.max(1, Math.min(options.concurrency ?? 3, 5));
+  const concurrency = Math.max(1, Math.min(options.concurrency ?? 3, 8));
   let processed = 0;
   let updated = 0;
   let rejected = 0;
@@ -154,7 +154,9 @@ export async function runStockXEnrich(
         await negCache(set.set_num, 'diverged');
       }
     }
-    if (stmts.length >= 90) await flush();
+    // Flush every wave (not just at ≥90) so a long backfill run that gets cut
+    // short by the invocation window still persists all completed waves.
+    await flush();
   }
   await flush();
   await recordIntegrationHealth(env, 'stockx', health);

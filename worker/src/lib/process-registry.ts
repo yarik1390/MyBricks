@@ -24,7 +24,8 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   'pricesapi-retail': { label: 'pricesAPI live retail', description: 'Live retailer offers + stock across major stores — feeds the deal signal, in-stock truth and wishlist alerts.', schedule: 'Daily 17:00, 19:00 & 23:00 UTC', group: 'Pricing' },
   'brickeconomy-enrich': { label: 'BrickEconomy values', description: 'Scrapes BrickEconomy modeled values and 2y/5y forecasts (via Firecrawl).', schedule: 'Daily 11:00 UTC', group: 'Pricing' },
   'ebay-sold-scrape': { label: 'eBay sold comps', description: 'Scrapes eBay realized sold prices (Bright Data, rotating tokens) as a high-confidence sold source. Bursts the backfill, then self-tapers to a 30-day refresh.', schedule: '8×/day (every 3h)', group: 'Pricing' },
-  'stockx-enrich': { label: 'StockX lowest ask', description: 'Scrapes StockX lowest ask (Bright Data, rendered) as a corroborating new-condition signal. OFF by default; collect-only until validated and wired into the blend.', schedule: 'Daily 18:00 UTC', group: 'Pricing' },
+  'stockx-enrich': { label: 'StockX lowest ask', description: 'Scrapes StockX lowest ask (Firecrawl-preferred, rendered) as a corroborating new-condition signal. OFF by default; collect-only until validated and wired into the blend.', schedule: 'Daily 18:00 UTC', group: 'Pricing' },
+  'stockx-backfill': { label: 'StockX backfill (temp)', description: 'One-time bulk sweep of the modern high-value candidate pool via Firecrawl. Overlap-guarded; a fast no-op once every set is cached. Removed after the sweep completes.', schedule: 'Every 5 min (temporary)', group: 'Pricing' },
 
   // --- Valuation ---
   'valuate-owned-deep': { label: 'Value owned & wishlist', description: 'Refreshes blended market values for your owned and wishlisted sets first.', schedule: 'Hourly', group: 'Valuation' },
