@@ -23,13 +23,16 @@ export async function fetchStockXViaFirecrawl(
       url: SEARCH_URL(setNum),
       formats: ['html'],
       proxy: 'enhanced',
-      // Wait for a product tile to render, then a short settle for prices.
+      // Tiles render first; the Lowest Ask prices hydrate a beat later, so wait
+      // for the tile then give the prices time (a scroll nudges lazy hydration).
       actions: [
         { type: 'wait', selector: 'a[data-testid="productTile-ProductSwitcherLink"]' },
-        { type: 'wait', milliseconds: 2500 },
+        { type: 'wait', milliseconds: 7000 },
+        { type: 'scroll', direction: 'down' },
+        { type: 'wait', milliseconds: 3000 },
       ],
-      waitFor: 4000,
-      timeoutMs: options.timeoutMs ?? 55_000,
+      waitFor: 5000,
+      timeoutMs: options.timeoutMs ?? 60_000,
     },
     env,
   );

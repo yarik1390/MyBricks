@@ -171,23 +171,28 @@ const PROBES: Record<string, Probe> = {
         url: 'https://stockx.com/search?s=lego%2010307',
         formats: ['html'],
         proxy: 'enhanced',
+        // Tiles load first, prices hydrate a beat later — wait harder for prices.
         actions: [
           { type: 'wait', selector: 'a[data-testid="productTile-ProductSwitcherLink"]' },
-          { type: 'wait', milliseconds: 2500 },
+          { type: 'wait', milliseconds: 7000 },
+          { type: 'scroll', direction: 'down' },
+          { type: 'wait', milliseconds: 3000 },
         ],
-        waitFor: 4000,
-        timeoutMs: 55000,
+        waitFor: 5000,
+        timeoutMs: 60000,
       },
       env,
     );
     const html = res?.data?.html || '';
     const parsed = parseStockXSearch(html, '10307-1');
-    const hasTile = /productTile-ProductSwitcherLink|lego-[a-z0-9-]+-set-\d/i.test(html);
+    const hasHref = /href="\/lego-[a-z0-9-]+-set-10307"/i.test(html);
+    const hasLowestAsk = /Lowest Ask/i.test(html);
+    const dollars = (html.match(/\$[\d,]+/g) || []).length;
     const blocked = /<title>\s*(Error|Access Denied|Just a moment)|captcha|cf-challenge|px-captcha|verify you are human/i.test(html);
     if (parsed.ask != null) return ok(`Firecrawl(enhanced) rendered StockX — Eiffel (10307) ask $${parsed.ask}. Bulk backfill via Firecrawl IS viable (~5cr/set).`);
     if (!html) return err('Firecrawl returned no body (blocked or credit ceiling).');
-    if (blocked) return err(`Firecrawl(enhanced) still got a block/challenge from StockX (${html.length}b) — StockX beats Firecrawl; stick with Bright Data.`);
-    return { ok: false, status: 'degraded', detail: `Firecrawl(enhanced) got ${html.length}b, tiles=${hasTile}, but no ask parsed — under-rendered or markup shift.` };
+    if (blocked) return err(`Firecrawl(enhanced) got a block/challenge from StockX (${html.length}b).`);
+    return { ok: false, status: 'degraded', detail: `Firecrawl(enhanced) ${html.length}b — href10307=${hasHref} lowestAskText=${hasLowestAsk} dollarCount=${dollars}. Prices not fully hydrated.` };
   },
 
   async firecrawl(env) {
