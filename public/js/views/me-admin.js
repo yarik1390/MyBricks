@@ -1651,6 +1651,7 @@ function providerLabel(service) {
     openrouter: 'OpenRouter',
     resend: 'Resend',
     google: 'Google Sheets',
+    stockx: 'StockX (probe)',
   };
   return labels[s.toLowerCase()] || s.replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }

@@ -163,7 +163,7 @@ export const PROVIDER_GROUPS = [
   ['Core', ['d1', 'supabase', 'worker', 'pages']],
   ['Catalog', ['rebrickable', 'brickset', 'upc', 'upcitemdb']],
   ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'brickowl', 'pricecharting', 'pricesapi', 'amazon']],
-  ['Scraping', ['firecrawl', 'brightdata']],
+  ['Scraping', ['firecrawl', 'brightdata', 'stockx']],
   ['AI', ['gemini', 'openai', 'openrouter', 'byok']],
   ['Notifications', ['resend', 'push', 'vapid', 'discord']],
   ['Sync', ['google']],
@@ -194,7 +194,7 @@ export const FLAG_LABEL = {
 export const TESTABLE = new Set([
   'd1', 'supabase', 'rebrickable', 'brickset', 'brickinsights', 'bricklink', 'ebay',
   'brightdata', 'firecrawl', 'brickeconomy', 'pricecharting', 'pricesapi',
-  'openrouter', 'gemini', 'openai', 'resend', 'turnstile', 'patreon', 'push',
+  'openrouter', 'gemini', 'openai', 'resend', 'turnstile', 'patreon', 'push', 'stockx',
 ]);
 
 // Pricing sources with weight/cap/refresh tuning (worker DEFAULT_SOURCE_CONFIG).
@@ -222,6 +222,7 @@ export const SERVICE_DESC = {
   vapid: 'Web-push signing keys.',
   discord: 'Optional Discord webhook alerts.',
   google: 'Google Sheets collection export and sync.',
+  stockx: 'Feasibility probe — can Bright Data reach StockX market data? Not a live valuation source yet.',
 };
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
