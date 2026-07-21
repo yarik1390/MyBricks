@@ -155,11 +155,10 @@ const PROBES: Record<string, Probe> = {
     if (hasProduct && hasPrice) {
       // TEMP: capture a sample of the real markup so the parser targets actual
       // structure. Slug list + context around the Eiffel set's price.
-      const slugs = [...new Set([...body.matchAll(/lego-[a-z0-9-]+-set-\d+/gi)].map((m) => m[0]))].slice(0, 6);
-      const idx = body.search(/set-10307/i);
-      const around = idx >= 0 ? body.slice(Math.max(0, idx - 220), idx + 220).replace(/\s+/g, ' ') : '';
-      const askCtx = (body.match(/.{0,60}(?:Lowest Ask|lowestAsk|"amount"\s*:)[^<]{0,80}/i) || [''])[0].replace(/\s+/g, ' ');
-      return { ok: true, status: 'ok', detail: `Web Unlocker rendered StockX (${body.length}b). SLUGS=${JSON.stringify(slugs)} | AROUND=${around} | ASKCTX=${askCtx}` };
+      const idx = body.search(/href="\/lego-eiffel-tower-set-10307"/i);
+      const tile = idx >= 0 ? body.slice(idx, idx + 900).replace(/\s+/g, ' ') : 'NO_TILE';
+      const dollars = [...body.matchAll(/\$[\d,]+/g)].slice(0, 6).map((m) => m[0]);
+      return { ok: true, status: 'ok', detail: `TILE=${tile} || DOLLARS=${JSON.stringify(dollars)}` };
     }
     if (hasProduct) return { ok: true, status: 'degraded', detail: `Got StockX product markup but no price fields (${body.length}b) — needs the rendered variant (BrightData render/Scraping Browser).` };
     if (blocked) return err(`StockX served a block/interstitial via Web Unlocker (${body.length}b) — plain unlocking is not enough; needs BrightData Scraping Browser (JS render).`);
