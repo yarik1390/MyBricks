@@ -390,8 +390,23 @@ jobs:
       - name: Public production smoke checks
         run: |
           set -euo pipefail
-          curl -sf "${WORKER_URL}/api/config" | jq -e '.status.d1 == true' >/dev/null
-          curl -sf "${WORKER_URL}/api/sets/search?q=Millennium&limit=1" | jq -e '.sets | length >= 0' >/dev/null
+          # Retry a few times before failing: a single cold-start/network blip on
+          # the post-deploy probe must not red-flag a deploy that already
+          # succeeded. curl also gets its own connect/max time + retries.
+          check() {
+            local url="$1" filter="$2"
+            for attempt in 1 2 3 4 5; do
+              if curl -sf --connect-timeout 10 --max-time 25 --retry 2 --retry-delay 2 "$url" | jq -e "$filter" >/dev/null; then
+                return 0
+              fi
+              echo "smoke check attempt ${attempt} failed for ${url}; retrying in 5s..."
+              sleep 5
+            done
+            echo "::error::smoke check failed after 5 attempts: ${url}"
+            return 1
+          }
+          check "${WORKER_URL}/api/config" '.status.d1 == true'
+          check "${WORKER_URL}/api/sets/search?q=Millennium&limit=1" '.sets | length >= 0'
 
       - name: Prepare admin smoke token
         env:
