@@ -17,6 +17,7 @@ import { runBlendRecomputeBackfill } from '../jobs/recompute-blends';
 import { resetKeyPool } from '../lib/brightdata-keys';
 import { runEbaySoldScrape } from '../jobs/ebay-sold-scrape';
 import { runPriceChartingEnrich } from '../jobs/pricecharting-enrich';
+import { runStockXEnrich } from '../jobs/stockx-enrich';
 import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricecharting-bulk';
 import { importBrickLinkMinifigs } from '../jobs/import-bricklink-minifigs';
 import { getKeyPoolStatus } from '../lib/pricesapi-keys';
@@ -938,6 +939,10 @@ const JOB_LIMITS: Record<string, number> = {
   'brightdata-reset-pool': 1,
   'ebay-sold-scrape': 20,
   'pricecharting-enrich': 25,
+  // Conservative: each Firecrawl(enhanced) StockX render is ~20s, so a small
+  // default keeps a manual trigger inside the Worker request window. Advance the
+  // backfill with ?limit= (the job self-caps at 60).
+  'stockx-enrich': 8,
 };
 
 // Hard ceiling on an admin-triggered job's per-call limit, so a manual override
@@ -982,6 +987,10 @@ app.post('/jobs/:job', async (c) => {
     } else if (job === 'pricecharting-enrich') {
       // On-demand PriceCharting per-set enrich (verified mappings + sold comps).
       result = await runPriceChartingEnrich(c.env, { limit, concurrency: 5 });
+    } else if (job === 'stockx-enrich') {
+      // On-demand StockX lowest-ask enrich (Firecrawl-preferred) for verification
+      // + backfill advancement. Low concurrency: slow renders, self-metered credits.
+      result = await runStockXEnrich(c.env, { limit, concurrency: 3 });
     } else {
       return c.json({ error: 'Not implemented' }, 501);
     }
