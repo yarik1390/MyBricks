@@ -121,21 +121,23 @@ throw) — all three test files show the pattern.
 
 ## Token-efficient command output (rtk)
 
-If the `rtk` CLI is on PATH (`command -v rtk`), prefix verbose commands with it
-to shrink Bash tool output: `rtk vitest run`, `rtk tsc --noEmit`, `rtk npm run
-<script>`, `rtk playwright test`, `rtk git status|diff|log`. It strips
-boilerplate but keeps failures verbatim; run the plain command when you need
-full output. If it's not installed (remote sessions block GitHub release
-downloads, so build from source, ~3 min):
+**rtk is applied automatically — you do not need to prefix commands.** A
+`PreToolUse` Bash hook (`.claude/settings.json` → `rtk hook claude`) transparently
+rewrites verbose commands to their rtk equivalents (`git status` → `rtk git
+status`, `npx tsc` → `rtk tsc`, etc.). The rewrite is shell-aware: it targets only
+the verbose segment of a compound/piped command and skips things it shouldn't
+touch (heredocs, `cd`, unknown commands). The hook is guarded (`command -v rtk
+&& …`), so if the rtk binary isn't installed the command runs unchanged — rtk
+stays an optimization that can never block a command.
 
-```bash
-git clone --depth 1 https://github.com/rtk-ai/rtk /tmp/rtk-src
-cargo build --release --locked --manifest-path /tmp/rtk-src/Cargo.toml
-mkdir -p ~/.local/bin && cp /tmp/rtk-src/target/release/rtk ~/.local/bin/
-```
+rtk strips boilerplate but keeps failures verbatim. **When you need the raw,
+unfiltered output** (debugging, exact formatting), bypass the rewrite with
+`rtk proxy <cmd>` (the hook leaves an already-`rtk`-prefixed command alone).
 
-Skip the install if `cargo` is unavailable or you only need a few short
-commands — it's an optimization, never a requirement.
+The `rtk` binary is installed each remote session by
+`.claude/hooks/session-start.sh` (builds from source, ~3 min first run; GitHub
+release downloads are blocked by the egress policy). If `cargo` is unavailable
+the install is skipped and the guarded hook simply no-ops.
 
 ## Working in parallel (important)
 

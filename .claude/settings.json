@@ -23,6 +23,17 @@
                     }
                 ]
             }
+        ],
+        "PreToolUse": [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "command -v rtk >/dev/null 2>&1 && rtk hook claude || true"
+                    }
+                ]
+            }
         ]
     }
 }
