@@ -70,7 +70,9 @@ export async function runStockXEnrich(
   // first. (The old ordering by set_num ASC front-loaded 1970s-90s promo junk —
   // Gears, minifig packs, "Special Offer" — that StockX has never listed, burning
   // an entire batch on guaranteed no-data misses.) Owned/wishlist first, then
-  // oldest cache, then value. Over-select 2x for the neg-cache drop.
+  // oldest cache, then value. Over-select 4x so the KV neg-cache drop below can
+  // punch through a wall of recently-missed sets (they no longer get a cached_at
+  // stamp only if the miss predates that fix) and still reach fresh candidates.
   const { results: candidates } = await env.DB.prepare(`
     SELECT ls.set_num, ls.name, ls.bl_new_value, ls.current_value
     FROM lego_sets ls
@@ -88,7 +90,7 @@ export async function runStockXEnrich(
       COALESCE(ls.bl_new_value, ls.current_value) DESC,
       ls.set_num ASC
     LIMIT ?
-  `).bind(capLimit * 2).all<{ set_num: string; name: string; bl_new_value: number | null; current_value: number | null }>();
+  `).bind(capLimit * 4).all<{ set_num: string; name: string; bl_new_value: number | null; current_value: number | null }>();
 
   const kv = env.CACHE_KV;
   const skipKey = (setNum: string) => `stockx:skip:${setNum}`;
