@@ -155,10 +155,11 @@ const PROBES: Record<string, Probe> = {
     if (hasProduct && hasPrice) {
       // TEMP: capture a sample of the real markup so the parser targets actual
       // structure. Slug list + context around the Eiffel set's price.
-      const idx = body.search(/href="\/lego-eiffel-tower-set-10307"/i);
-      const tile = idx >= 0 ? body.slice(idx, idx + 900).replace(/\s+/g, ' ') : 'NO_TILE';
-      const dollars = [...body.matchAll(/\$[\d,]+/g)].slice(0, 6).map((m) => m[0]);
-      return { ok: true, status: 'ok', detail: `TILE=${tile} || DOLLARS=${JSON.stringify(dollars)}` };
+      const la = body.search(/Lowest Ask/i);
+      const askRegion = la >= 0 ? body.slice(Math.max(0, la - 90), la + 40).replace(/\s+/g, ' ') : 'NO_ASK';
+      const ls = body.search(/Last Sale/i);
+      const saleRegion = ls >= 0 ? body.slice(Math.max(0, ls - 90), ls + 40).replace(/\s+/g, ' ') : 'NO_SALE';
+      return { ok: true, status: 'ok', detail: `ASKREGION=${askRegion} || SALEREGION=${saleRegion}` };
     }
     if (hasProduct) return { ok: true, status: 'degraded', detail: `Got StockX product markup but no price fields (${body.length}b) — needs the rendered variant (BrightData render/Scraping Browser).` };
     if (blocked) return err(`StockX served a block/interstitial via Web Unlocker (${body.length}b) — plain unlocking is not enough; needs BrightData Scraping Browser (JS render).`);
