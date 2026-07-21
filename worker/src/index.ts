@@ -493,7 +493,7 @@ export default {
       // TEMPORARY: StockX one-time bulk backfill — large batch every 5 min so the
       // ~2.3k modern high-value candidates fill in a few hours. Overlap-guarded;
       // becomes a fast no-op once everything is cached. REMOVE after the sweep.
-      case '*/5 * * * *': await run('stockx-backfill', () => runStockXEnrich(env, { limit: 40, concurrency: 8 })); break;
+      case '*/5 * * * *': await run('stockx-backfill', () => runStockXEnrich(env, { limit: 32, concurrency: 8 })); break;
       case '0 19 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 22 * * *': await run('community-comps', () => runCommunityComps(env)); break;
       case '0 23 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;

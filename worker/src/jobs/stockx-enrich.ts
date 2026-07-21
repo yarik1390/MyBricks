@@ -136,7 +136,20 @@ export async function runStockXEnrich(
       if (r.status === 'ok' || r.status === 'no_data') health.ok++;
       else { health.fail++; if (r.error) health.lastError = r.error; }
 
-      if (r.status === 'no_data') { await negCache(set.set_num, 'no_data'); continue; }
+      // Stamp stockx_cached_at (ask left NULL) so a no-data/diverged set isn't
+      // re-queried for 30 days. This column feeds ONLY this job's freshness gate,
+      // never the blend, so stamping absent data is safe — and it's essential:
+      // without it, no-data sets (which never get an ask) keep sorting to the top
+      // of the value-DESC queue forever (never-cached = '2000-01-01'), stalling the
+      // sweep behind a growing wall of them. The KV neg-cache stays as a fast skip.
+      const stampMiss = () =>
+        stmts.push(env.DB.prepare(
+          `INSERT INTO set_market_ext (set_num, stockx_cached_at) VALUES (?1, datetime('now'))
+           ON CONFLICT(set_num) DO UPDATE SET stockx_cached_at=datetime('now')`,
+        ).bind(set.set_num));
+
+      if (r.status === 'no_data') { stampMiss(); await negCache(set.set_num, 'no_data'); continue; }
+      // Provider errors are transient — do NOT stamp (retry soon); short KV cooldown only.
       if (r.status !== 'ok' || r.ask == null) { await negCache(set.set_num, 'err'); continue; }
 
       // Corroboration gate: accept only within 3x of the existing value.
@@ -150,7 +163,9 @@ export async function runStockXEnrich(
         ).bind(set.set_num, r.ask));
         updated++;
       } else {
+        // Wrong-item match — stamp it too (re-scraping yields the same bad match).
         rejected++;
+        stampMiss();
         await negCache(set.set_num, 'diverged');
       }
     }
