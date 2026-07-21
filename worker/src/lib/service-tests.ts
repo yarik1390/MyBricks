@@ -165,10 +165,21 @@ const PROBES: Record<string, Probe> = {
   // small daily pool. Spends ~1 Firecrawl credit.
   async stockx_firecrawl(env) {
     if (!firecrawlEnabled(env)) return configured('Firecrawl not enabled (key missing or flag off)');
-    const r = await fetchStockXViaFirecrawl('10307-1', 'LEGO Eiffel Tower', env, { timeoutMs: 55000 });
-    if (r.status === 'ok') return ok(`Firecrawl rendered StockX — Eiffel (10307) lowest ask $${r.ask} (${r.url}). Bulk backfill via Firecrawl is viable.`);
-    if (r.status === 'no_data') return { ok: false, status: 'degraded', detail: `Firecrawl reached StockX but no ask parsed (url=${r.url ?? 'none'}) — may need proxy:stealth/waitFor tuning or Firecrawl can't fully render it.` };
-    return err(`Firecrawl StockX failed: ${r.error || 'unknown'}`);
+    // Call Firecrawl directly so we can diagnose WHAT it got back (block page vs
+    // under-rendered) when no ask parses — that decides tune-able vs hopeless.
+    const { firecrawlScrape } = await import('./firecrawl');
+    const res = await firecrawlScrape<{ html?: string }>(
+      { url: 'https://stockx.com/search?s=lego%2010307', formats: ['html'], proxy: 'stealth', waitFor: 8000, timeoutMs: 55000 },
+      env,
+    );
+    const html = res?.data?.html || '';
+    const hasTile = /productTile-ProductSwitcherLink|lego-[a-z0-9-]+-set-\d/i.test(html);
+    const hasPrice = /Lowest Ask|"amount"\s*:/i.test(html);
+    const blocked = /<title>\s*(Error|Access Denied|Just a moment)|captcha|cf-challenge|px-captcha|verify you are human/i.test(html);
+    if (hasTile && hasPrice) return ok(`Firecrawl rendered StockX (${html.length}b, tiles+prices present). Bulk backfill via Firecrawl is viable.`);
+    if (blocked) return err(`Firecrawl got a BLOCK/challenge page from StockX (${html.length}b) — StockX blocks Firecrawl's browser; stick with Bright Data.`);
+    if (html.length < 1000) return err(`Firecrawl returned an empty/short body (${html.length}b) — likely blocked or failed.`);
+    return { ok: false, status: 'degraded', detail: `Firecrawl returned ${html.length}b but NO product tiles/prices (tile=${hasTile} price=${hasPrice}) — StockX served an unrendered/decoy shell; not usable for StockX.` };
   },
 
   async firecrawl(env) {
