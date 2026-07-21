@@ -40,6 +40,9 @@ export const QUOTA_CAPS: Record<string, number> = {
   // Amazon Creators API searchItems calls (plus ~1 token mint/hour). The API is
   // free but eligibility-gated; this cap bounds a runaway day, not the plan.
   amazon: 300,
+  // StockX lowest-ask scrape (rides the Bright Data pool). Low daily cap: slow
+  // rendered calls, corroborating-only, OFF by default.
+  stockx: 100,
 };
 
 // Admin-tunable daily-cap overrides (lib/source-config.ts), keyed by service.

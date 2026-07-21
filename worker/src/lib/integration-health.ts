@@ -25,7 +25,8 @@ export type IntegrationName =
   | 'firecrawl'
   | 'pricecharting'
   | 'pricesapi'
-  | 'amazon';
+  | 'amazon'
+  | 'stockx';
 
 export type IntegrationStatus = 'ok' | 'degraded' | 'down' | 'unknown' | 'unconfigured';
 
@@ -240,6 +241,14 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['eBay sold comps (scraped, corroborating)'],
     notes: 'Web Unlocker scrape of eBay US sold listings; a corroborating sold source. Free tier ~5,000 credits/token/month; add more tokens via BRIGHTDATA_API_TOKENS (comma-separated) to grow the pooled budget.',
     recommended_action: 'Add BRIGHTDATA_API_TOKEN (and/or BRIGHTDATA_API_TOKENS) as Worker secrets to enable; set BRIGHTDATA_SOLD_ENABLED=0 to pause.',
+  },
+  stockx: {
+    label: 'StockX (lowest ask)',
+    configured: (env) => !!env.BRIGHTDATA_API_TOKEN?.trim() || !!env.BRIGHTDATA_API_TOKENS?.split(',').some((k) => k.trim()),
+    required_secrets: ['BRIGHTDATA_API_TOKEN'],
+    used_by: ['StockX lowest-ask (scraped, corroborating new-condition signal)'],
+    notes: 'Rendered Web Unlocker scrape of StockX search for a set\'s lowest ask — a corroborating ceiling, never a sold comp. Rides the Bright Data pool. OFF by default (STOCKX_ENABLED=1 or the admin stockx flag); a slow ~30-45s call, so it runs only from the background cron.',
+    recommended_action: 'Validate via the admin StockX probe, then set STOCKX_ENABLED=1 (or flip the stockx flag) to start the enrichment cron.',
   },
   upcitemdb: {
     label: 'UPCitemdb (barcodes)',

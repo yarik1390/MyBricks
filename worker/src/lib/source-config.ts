@@ -25,7 +25,7 @@ export interface SourceTuning {
 
 export type SourceName =
   | 'bricklink' | 'ebay' | 'brickeconomy' | 'brickowl'
-  | 'pricecharting' | 'pricesapi' | 'firecrawl' | 'brightdata' | 'amazon';
+  | 'pricecharting' | 'pricesapi' | 'firecrawl' | 'brightdata' | 'amazon' | 'stockx';
 
 export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   bricklink:     { enabled: true,  weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
@@ -44,6 +44,9 @@ export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   // Amazon Creators API retail offers (ephemeral KV only, never a valuation
   // input — weight is 0 by design and must stay 0 per Associates terms).
   amazon:        { enabled: true,  weight: 0,    dailyCap: 300,  refreshDays: 1 },
+  // StockX lowest-ask (Bright Data). OFF by default + low cap: slow rendered
+  // scrape, corroborating-only (an ASK is a ceiling, not a sold comp).
+  stockx:        { enabled: false, weight: 0.6,  dailyCap: 100,  refreshDays: 30 },
 };
 
 const SETTINGS_KEY = 'source_config';

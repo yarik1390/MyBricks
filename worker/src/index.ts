@@ -51,6 +51,7 @@ import { runPriceChartingBulkFetch } from './jobs/pricecharting-bulk';
 import { importSets, importFigs } from './jobs/import-catalog';
 import { runBrickInsightsBackfill } from './jobs/brickinsights';
 import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
+import { runStockXEnrich } from './jobs/stockx-enrich';
 import { runUpcItemDbBackfill } from './jobs/upcitemdb-backfill';
 import { runLegoStockRefresh } from './jobs/lego-stock-refresh';
 import { runBricksetEnrich } from './jobs/brickset-enrich';
@@ -488,6 +489,7 @@ export default {
       case '30 7 * * *': await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 })); break;
       case '30 16 * * *': await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 })); break;
       case '0 17 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
+      case '0 18 * * *': await run('stockx-enrich', () => runStockXEnrich(env, { limit: 20, concurrency: 3 })); break;
       case '0 19 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 22 * * *': await run('community-comps', () => runCommunityComps(env)); break;
       case '0 23 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;

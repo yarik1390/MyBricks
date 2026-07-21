@@ -19,7 +19,8 @@ export type FeatureFlag =
   | 'brickinsights'
   | 'brightdata_sold'
   | 'firecrawl'
-  | 'pricesapi';
+  | 'pricesapi'
+  | 'stockx';
 
 export const FEATURE_FLAGS: FeatureFlag[] = [
   'ebay_sold_comps',
@@ -28,6 +29,7 @@ export const FEATURE_FLAGS: FeatureFlag[] = [
   'brightdata_sold',
   'firecrawl',
   'pricesapi',
+  'stockx',
 ];
 
 const FLAGS_KEY = 'feature_flags';

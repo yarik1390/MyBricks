@@ -63,3 +63,13 @@ export function firecrawlEnabled(env: Env): boolean {
 export function pricesapiEnabled(env: Env): boolean {
   return hasPricesApiKey(env) && resolve('pricesapi', flagOn(env.PRICESAPI_ENABLED));
 }
+
+// StockX lowest-ask scrape (Bright Data Web Unlocker, rendered). PREREQUISITE: a
+// Bright Data token (rides the shared pool). OFF by default — a fragile, slow
+// (~30-45s/call) scrape that must be validated before it feeds valuations, so it
+// needs an explicit opt-in (STOCKX_ENABLED=1 or the admin `stockx` flag).
+export function stockxEnabled(env: Env): boolean {
+  const hasToken = !!env.BRIGHTDATA_API_TOKEN?.trim()
+    || !!env.BRIGHTDATA_API_TOKENS?.split(',').some((k) => k.trim());
+  return hasToken && resolve('stockx', flagOn(env.STOCKX_ENABLED));
+}

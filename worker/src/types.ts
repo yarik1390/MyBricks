@@ -49,6 +49,9 @@ export interface Env {
   BRIGHTDATA_API_TOKENS?: string;
   BRIGHTDATA_ZONE?: string;
   BRIGHTDATA_SOLD_ENABLED?: string;
+  // StockX lowest-ask scrape (rides the Bright Data pool). OFF unless
+  // STOCKX_ENABLED is truthy AND a Bright Data token is set.
+  STOCKX_ENABLED?: string;
   // UPCitemdb barcode source (2nd source after Brickset). Trial needs no key;
   // UPCITEMDB_USER_KEY switches to the higher-limit v1 endpoint. Default enabled.
   UPCITEMDB_USER_KEY?: string;

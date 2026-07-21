@@ -123,6 +123,8 @@ export const TABLE_DDL: Record<string, string> = {
   pa_offer_count INTEGER,
   pa_market TEXT,
   pa_cached_at TEXT,
+  stockx_ask REAL,
+  stockx_cached_at TEXT,
   bl_nodata_at TEXT
 )`,
 
