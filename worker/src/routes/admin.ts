@@ -4,7 +4,7 @@ import { importSets, importFigs } from '../jobs/import-catalog';
 import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
 import { BARCODE_PAGE_SIZE } from '../lib/brickset';
 import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
-import { ebaySoldCompsEnabled, pricesapiEnabled, brickOwlEnabled, brickInsightsEnabled, brightDataSoldEnabled, firecrawlEnabled } from '../lib/pricing-flags';
+import { ebaySoldCompsEnabled, pricesapiEnabled, brickOwlEnabled, brickInsightsEnabled, brightDataSoldEnabled, firecrawlEnabled, stockxEnabled } from '../lib/pricing-flags';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
 import { getQuotaUsage } from '../lib/api-quota';
 import { getAiUsageReport } from '../lib/ai-usage';
@@ -667,6 +667,7 @@ app.get('/feature-flags', async (c) => {
     brightdata_sold: brightDataSoldEnabled(c.env),
     firecrawl: firecrawlEnabled(c.env),
     pricesapi: pricesapiEnabled(c.env),
+    stockx: stockxEnabled(c.env),
   };
   return c.json({ flags: FEATURE_FLAGS, overrides, effective });
 });
@@ -683,6 +684,7 @@ app.put('/feature-flags', async (c) => {
     brightdata_sold: brightDataSoldEnabled(c.env),
     firecrawl: firecrawlEnabled(c.env),
     pricesapi: pricesapiEnabled(c.env),
+    stockx: stockxEnabled(c.env),
   };
   return c.json({ ok: true, overrides, effective });
 });
