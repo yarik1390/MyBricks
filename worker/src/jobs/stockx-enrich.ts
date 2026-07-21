@@ -69,10 +69,15 @@ export async function runStockXEnrich(
   // worth chasing, so require year>=2000 and value>=$150 and work HIGHEST-VALUE
   // first. (The old ordering by set_num ASC front-loaded 1970s-90s promo junk —
   // Gears, minifig packs, "Special Offer" — that StockX has never listed, burning
-  // an entire batch on guaranteed no-data misses.) Owned/wishlist first, then
-  // oldest cache, then value. Over-select 4x so the KV neg-cache drop below can
-  // punch through a wall of recently-missed sets (they no longer get a cached_at
-  // stamp only if the miss predates that fix) and still reach fresh candidates.
+  // an entire batch on guaranteed no-data misses.) Owned/wishlist first, then value.
+  //
+  // Skip logic is the stockx_cached_at stamp ALONE (written on every outcome below,
+  // ask or no ask). That column feeds ONLY this job's freshness gate, never the
+  // blend, so stamping absent data is safe — and it's the whole skip mechanism:
+  // a stamped set drops out of this query for 30 days. An earlier KV neg-cache was
+  // removed because it created a wall the SQL couldn't see past — sets neg-cached
+  // but not yet stamped kept sorting to the top (never-cached = '2000-01-01') and
+  // no over-select was reliably large enough to reach fresh candidates behind them.
   const { results: candidates } = await env.DB.prepare(`
     SELECT ls.set_num, ls.name, ls.bl_new_value, ls.current_value
     FROM lego_sets ls
@@ -86,34 +91,21 @@ export async function runStockXEnrich(
       ) OR EXISTS (
         SELECT 1 FROM user_wishlist uw WHERE uw.set_num = ls.set_num
       ) THEN 0 ELSE 1 END,
-      COALESCE(ext.stockx_cached_at, '2000-01-01') ASC,
       COALESCE(ls.bl_new_value, ls.current_value) DESC,
       ls.set_num ASC
     LIMIT ?
-  `).bind(capLimit * 4).all<{ set_num: string; name: string; bl_new_value: number | null; current_value: number | null }>();
-
-  const kv = env.CACHE_KV;
-  const skipKey = (setNum: string) => `stockx:skip:${setNum}`;
-  const filtered: typeof candidates = [];
-  for (let i = 0; i < candidates.length && filtered.length < capLimit; i += 20) {
-    const wave = candidates.slice(i, i + 20);
-    const skips = kv ? await Promise.all(wave.map((s) => kv.get(skipKey(s.set_num)).catch(() => null))) : wave.map(() => null);
-    for (let j = 0; j < wave.length && filtered.length < capLimit; j++) if (!skips[j]) filtered.push(wave[j]);
-  }
-  if (!filtered.length) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: candidates.length ? 'all candidates negative-cached' : undefined };
+  `).bind(capLimit).all<{ set_num: string; name: string; bl_new_value: number | null; current_value: number | null }>();
+  if (!candidates.length) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: undefined };
 
   // Firecrawl self-meters its credits per scrape, so nothing to reserve here — only
   // the Bright Data path books the stockx ledger for what will actually be scraped.
-  let results = filtered;
-  let effLimit = filtered.length;
+  let results = candidates;
+  let effLimit = candidates.length;
   if (!useFirecrawl) {
-    effLimit = (await reserveQuota(env, { stockx: filtered.length })).stockx ?? 0;
+    effLimit = (await reserveQuota(env, { stockx: candidates.length })).stockx ?? 0;
     if (effLimit <= 0) return { processed: 0, updated: 0, rejected: 0, limit, skipped: 'stockx quota spent' };
-    results = filtered.slice(0, effLimit);
+    results = candidates.slice(0, effLimit);
   }
-
-  const negCache = (setNum: string, reason: 'no_data' | 'diverged' | 'err') =>
-    kv?.put(skipKey(setNum), reason, { expirationTtl: (reason === 'err' ? 2 : 14) * 86_400 }).catch(() => {});
 
   const concurrency = Math.max(1, Math.min(options.concurrency ?? 3, 8));
   let processed = 0;
@@ -138,21 +130,18 @@ export async function runStockXEnrich(
       if (r.status === 'ok' || r.status === 'no_data') health.ok++;
       else { health.fail++; if (r.error) health.lastError = r.error; }
 
-      // Stamp stockx_cached_at (ask left NULL) so a no-data/diverged set isn't
-      // re-queried for 30 days. This column feeds ONLY this job's freshness gate,
-      // never the blend, so stamping absent data is safe — and it's essential:
-      // without it, no-data sets (which never get an ask) keep sorting to the top
-      // of the value-DESC queue forever (never-cached = '2000-01-01'), stalling the
-      // sweep behind a growing wall of them. The KV neg-cache stays as a fast skip.
+      // Stamp stockx_cached_at (ask left NULL) on every miss — no_data, provider
+      // error, OR a diverged wrong-item match — so the set drops out of the query
+      // for 30 days. Stamping errors too (vs retrying) is deliberate: it keeps a
+      // one-time bulk sweep bounded and terminating; the daily cron re-checks after
+      // 30 days. The ask INSERT below stamps cached_at on a hit the same way.
       const stampMiss = () =>
         stmts.push(env.DB.prepare(
           `INSERT INTO set_market_ext (set_num, stockx_cached_at) VALUES (?1, datetime('now'))
            ON CONFLICT(set_num) DO UPDATE SET stockx_cached_at=datetime('now')`,
         ).bind(set.set_num));
 
-      if (r.status === 'no_data') { stampMiss(); await negCache(set.set_num, 'no_data'); continue; }
-      // Provider errors are transient — do NOT stamp (retry soon); short KV cooldown only.
-      if (r.status !== 'ok' || r.ask == null) { await negCache(set.set_num, 'err'); continue; }
+      if (r.status !== 'ok' || r.ask == null) { stampMiss(); continue; }
 
       // Corroboration gate: accept only within 3x of the existing value.
       const ref = set.bl_new_value ?? set.current_value ?? null;
@@ -168,7 +157,6 @@ export async function runStockXEnrich(
         // Wrong-item match — stamp it too (re-scraping yields the same bad match).
         rejected++;
         stampMiss();
-        await negCache(set.set_num, 'diverged');
       }
     }
     // Flush every wave (not just at ≥90) so a long backfill run that gets cut
