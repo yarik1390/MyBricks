@@ -198,6 +198,15 @@ function populateSectionHTML() {
         ${I.upload ? I.upload({ w: 16 }) : I.download({ w: 16 })}<span>Upload</span>
         <input type="file" id="blMinifigFile" accept=".txt,.xml,.tsv,.csv,text/plain,text/xml,text/tab-separated-values" hidden>
       </label>
+    </article>
+    <article class="admin-tool-card">
+      <div class="admin-tool-icon">${I.gear()}</div>
+      <div>
+        <h3>Copy admin token</h3>
+        <p class="admin-tool-desc">Copies your current bearer access token to the clipboard — handy for running admin API probes from a terminal or support session. Short-lived; logging out invalidates it.</p>
+        <small id="copyAdminTokenResult">Tap to copy your access token.</small>
+      </div>
+      <button class="btn-secondary" id="copyAdminTokenBtn" type="button">${I.download({ w: 16 })}<span>Copy</span></button>
     </article>`;
 }
 
@@ -285,6 +294,26 @@ function wireAdminShell() {
     haptic('light');
     try { (await import('../components/onboarding.js')).startOnboarding(); }
     catch { toast('Could not open tour', 'error'); }
+  });
+  $('#copyAdminTokenBtn')?.addEventListener('click', async () => {
+    haptic('light');
+    let token = '';
+    try { token = JSON.parse(localStorage.getItem('bv_session') || 'null')?.access_token || ''; } catch { /* malformed session */ }
+    const res = $('#copyAdminTokenResult');
+    if (!token) {
+      if (res) res.textContent = 'No active session token found — sign in again.';
+      toast('No token found', 'error');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(token);
+      if (res) res.textContent = 'Copied — paste it wherever you need it.';
+      toast('Admin token copied', 'success');
+    } catch {
+      // Clipboard blocked (insecure context / permission) — fall back to a
+      // selectable prompt the user can long-press-copy on mobile.
+      window.prompt('Copy your admin token:', token);
+    }
   });
   $('#grantSupporterBtn')?.addEventListener('click', () => setSupporterStatus(1));
   $('#revokeSupporterBtn')?.addEventListener('click', () => setSupporterStatus(0));
