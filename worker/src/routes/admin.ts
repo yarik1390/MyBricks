@@ -22,7 +22,7 @@ import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricech
 import { importBrickLinkMinifigs } from '../jobs/import-bricklink-minifigs';
 import { getKeyPoolStatus } from '../lib/pricesapi-keys';
 import { getKeyPoolStatus as getBrightDataPoolStatus } from '../lib/brightdata-keys';
-import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG } from '../lib/source-config';
+import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG, applySourceConfig } from '../lib/source-config';
 import { getFeatureFlags, saveFeatureFlags, applyFeatureFlags, FEATURE_FLAGS } from '../lib/feature-flags';
 import { runServiceTest, TESTABLE_SERVICES } from '../lib/service-tests';
 import { getRecentRuns, recordCronStart, recordCronFinish, summarizeResult } from '../lib/cron-runs';
@@ -966,6 +966,11 @@ app.post('/jobs/:job', async (c) => {
     ? Math.min(Math.floor(requested), maxLimit)
     : JOB_LIMITS[job];
   const started_at = new Date().toISOString();
+  // Mirror the cron lifecycle: load admin source-tuning + runtime feature-flag
+  // overrides into this isolate BEFORE the job runs, so a manually-triggered job
+  // sees exactly what its scheduled run would (e.g. a DB-set `stockx` flag). The
+  // HTTP request path doesn't otherwise apply these — only scheduled() does.
+  await applySourceConfig(c.env).catch(() => {});
   try {
     let result: Record<string, unknown>;
     if (job === 'lego-stock-refresh') {
