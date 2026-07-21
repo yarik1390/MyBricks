@@ -2,8 +2,6 @@ import type { Env } from '../types';
 import { fetchSetPricing } from './bricklink';
 import { fetchEbayActiveListings } from './ebay';
 import { configuredKeys, pickKey } from './brightdata-keys';
-import { fetchStockXViaFirecrawl } from './stockx';
-import { firecrawlEnabled } from './pricing-flags';
 import { configuredKeys as pricesApiKeys } from './pricesapi-keys';
 
 // ---------------------------------------------------------------------------
@@ -158,28 +156,6 @@ const PROBES: Record<string, Probe> = {
     if (hasProduct) return { ok: true, status: 'degraded', detail: `Got StockX product markup but no price fields (${body.length}b) — needs the rendered variant (BrightData render/Scraping Browser).` };
     if (blocked) return err(`StockX served a block/interstitial via Web Unlocker (${body.length}b) — plain unlocking is not enough; needs BrightData Scraping Browser (JS render).`);
     return err(`Unexpected StockX body (${body.length}b): ${body.slice(0, 80)}`);
-  },
-
-  // Can FIRECRAWL (not just Bright Data) render StockX? Decides whether the bulk
-  // backfill can ride Firecrawl's large credit allotment instead of Bright Data's
-  // small daily pool. Spends ~1 Firecrawl credit.
-  async stockx_firecrawl(env) {
-    if (!firecrawlEnabled(env)) return configured('Firecrawl not enabled (key missing or flag off)');
-    // Call Firecrawl directly so we can diagnose WHAT it got back (block page vs
-    // under-rendered) when no ask parses — that decides tune-able vs hopeless.
-    const { firecrawlScrape } = await import('./firecrawl');
-    const res = await firecrawlScrape<{ html?: string }>(
-      { url: 'https://stockx.com/search?s=lego%2010307', formats: ['html'], proxy: 'stealth', waitFor: 8000, timeoutMs: 55000 },
-      env,
-    );
-    const html = res?.data?.html || '';
-    const hasTile = /productTile-ProductSwitcherLink|lego-[a-z0-9-]+-set-\d/i.test(html);
-    const hasPrice = /Lowest Ask|"amount"\s*:/i.test(html);
-    const blocked = /<title>\s*(Error|Access Denied|Just a moment)|captcha|cf-challenge|px-captcha|verify you are human/i.test(html);
-    if (hasTile && hasPrice) return ok(`Firecrawl rendered StockX (${html.length}b, tiles+prices present). Bulk backfill via Firecrawl is viable.`);
-    if (blocked) return err(`Firecrawl got a BLOCK/challenge page from StockX (${html.length}b) — StockX blocks Firecrawl's browser; stick with Bright Data.`);
-    if (html.length < 1000) return err(`Firecrawl returned an empty/short body (${html.length}b) — likely blocked or failed.`);
-    return { ok: false, status: 'degraded', detail: `Firecrawl returned ${html.length}b but NO product tiles/prices (tile=${hasTile} price=${hasPrice}) — StockX served an unrendered/decoy shell; not usable for StockX.` };
   },
 
   async firecrawl(env) {

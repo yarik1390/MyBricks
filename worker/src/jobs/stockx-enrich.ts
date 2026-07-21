@@ -50,6 +50,10 @@ export async function runStockXEnrich(
     FROM lego_sets ls
     LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
     WHERE COALESCE(ls.bl_new_value, ls.current_value) IS NOT NULL
+      -- StockX only lists collectible/sealed sets (mostly retired, higher value),
+      -- so target those and skip the long tail of cheap current sets it won't
+      -- carry — keeps the limited Bright Data budget on sets that can return data.
+      AND (ls.retired = 1 OR COALESCE(ls.bl_new_value, ls.current_value) >= 150)
       AND (ext.stockx_cached_at IS NULL OR ext.stockx_cached_at < datetime('now', '-30 days'))
     ORDER BY
       CASE WHEN EXISTS (
