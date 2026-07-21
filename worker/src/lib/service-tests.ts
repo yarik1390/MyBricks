@@ -185,14 +185,14 @@ const PROBES: Record<string, Probe> = {
     );
     const html = res?.data?.html || '';
     const parsed = parseStockXSearch(html, '10307-1');
-    const hasHref = /href="\/lego-[a-z0-9-]+-set-10307"/i.test(html);
-    const hasLowestAsk = /Lowest Ask/i.test(html);
-    const dollars = (html.match(/\$[\d,]+/g) || []).length;
-    const blocked = /<title>\s*(Error|Access Denied|Just a moment)|captcha|cf-challenge|px-captcha|verify you are human/i.test(html);
     if (parsed.ask != null) return ok(`Firecrawl(enhanced) rendered StockX — Eiffel (10307) ask $${parsed.ask}. Bulk backfill via Firecrawl IS viable (~5cr/set).`);
     if (!html) return err('Firecrawl returned no body (blocked or credit ceiling).');
-    if (blocked) return err(`Firecrawl(enhanced) got a block/challenge from StockX (${html.length}b).`);
-    return { ok: false, status: 'degraded', detail: `Firecrawl(enhanced) ${html.length}b — href10307=${hasHref} lowestAskText=${hasLowestAsk} dollarCount=${dollars}. Prices not fully hydrated.` };
+    // Firecrawl renders StockX (prices present) but my slug regex missed 10307 —
+    // capture the actual href format + a "Lowest Ask" context sample to fix the parser.
+    const hrefs = [...new Set([...html.matchAll(/href="([^"]*lego[^"]*set-\d+[^"]*)"/gi)].map((m) => m[1]))].slice(0, 5);
+    const askIdx = html.search(/Lowest Ask/i);
+    const askCtx = askIdx >= 0 ? html.slice(Math.max(0, askIdx - 160), askIdx + 30).replace(/\s+/g, ' ') : 'none';
+    return { ok: false, status: 'degraded', detail: `Firecrawl(enhanced) ${html.length}b renders prices — fixing parser. HREFS=${JSON.stringify(hrefs)} | ASKCTX=${askCtx}` };
   },
 
   async firecrawl(env) {
