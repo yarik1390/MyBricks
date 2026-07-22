@@ -101,7 +101,7 @@ AI_GATEWAY_ID = "brickvault"
 # sharing the budget with the saturated BrickEconomy enrich). ~158k banked credits
 # cover it. Restore to 2000 once the eBay-sold backfill completes (and its temp
 # */3 cron is removed).
-FIRECRAWL_DAILY_CREDITS = "15000"
+FIRECRAWL_DAILY_CREDITS = "50000"
 # pricesAPI.io live-retail layer opt-in. Non-secret toggle; the actual keys live
 # in the PRICESAPI_API_KEYS secret. Both this AND a key are required for the cron
 # to run (deliberate gate — cold calls are precious). Set to 0 to pause.

@@ -19,8 +19,9 @@ there). `git pull` before every push. Do NOT open a PR unless asked.
    (delete the trigger, the switch case, and the registry entry — mirror how the
    StockX temp cron was retired in commit `9090681`).
 
-2. **`FIRECRAWL_DAILY_CREDITS = "15000"`** in `wrangler.toml [vars]` — temporarily
-   raised for the eBay-sold backfill. **Restore to `"2000"`** when the backfill is done.
+2. **`FIRECRAWL_DAILY_CREDITS = "50000"`** in `wrangler.toml [vars]` — temporarily
+   raised for the eBay-sold backfill after confirming ~10k eligible sets remained and
+   sufficient account credits were available. **Restore to `"2000"`** when done.
 
 3. The StockX arc is fully finished and cleaned up (its temp cron is gone, budgets
    restored). StockX is live and blended. Don't touch it.
