@@ -317,14 +317,14 @@ export default {
   fetch: app.fetch,
 
   async scheduled(event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
-    const run = async (name: string, fn: () => Promise<unknown>) => {
+    const run = async (name: string, fn: () => Promise<unknown>, maxAgeMinutes = 30) => {
       // Track every cron run (running -> ok|failed + summary) for the admin
       // Activity view. Tracking is fail-open and never affects the job.
       const startedMs = Date.now();
       // Overlap guard: if a prior invocation of this cron is still running (and
       // not stale-swept), skip this tick instead of double-running a job that
       // overran its interval. Fails open (proceeds) on any bookkeeping error.
-      if (await isCronRunning(env, name).catch(() => false)) {
+      if (await isCronRunning(env, name, maxAgeMinutes).catch(() => false)) {
         console.warn(`[cron] ${name} skipped: previous run still active`);
         return;
       }
@@ -463,7 +463,10 @@ export default {
       // sold-comp coverage quickly. Overlap-guarded; the attempt-marker keeps it
       // monotonic (no stall). REMOVE once coverage catches up (then Bright Data is
       // primary again with Firecrawl rescue, per Step 2).
-      case '*/3 * * * *': await run('ebay-sold-backfill', () => runEbaySoldScrape(env, { limit: 28, concurrency: 5, preferFirecrawl: true })); break;
+      // A full 28-set Firecrawl slice normally takes 2-4 minutes. Use a short,
+      // job-specific stale lease so a killed invocation cannot block the fast
+      // backfill for the global 30-minute cron window.
+      case '*/3 * * * *': await run('ebay-sold-backfill', () => runEbaySoldScrape(env, { limit: 28, concurrency: 5, preferFirecrawl: true }), 6); break;
       // Phase-2 lean cadence (ongoing Firecrawl ~25k/mo budget): brickset is
       // mostly-static metadata (trimmed 50->30); LEGO stock is scoped to active
       // owned/wishlisted on a 14-day cycle inside the job (trimmed 100->40, it
