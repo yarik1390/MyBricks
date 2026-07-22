@@ -83,11 +83,6 @@ crons = [
   # Two slots/day so the 23h read-freshness window never gaps between refreshes.
   "30 7 * * *",
   "30 16 * * *",
-  # TEMPORARY: StockX one-time bulk backfill. Runs every 3 min at a small batch (20)
-  # to sweep the ~2.3k modern high-value candidates via Firecrawl in a few hours.
-  # Small batch = a run reliably finishes inside the invocation window (bigger ones
-  # zombied). Overlap-guarded; a fast no-op once cached. REMOVE after the sweep.
-  "*/3 * * * *",
 ]
 
 [vars]
@@ -96,12 +91,10 @@ crons = [
 # when AI_GATEWAY_ACCOUNT_ID is also present (uploaded as a secret in CI), so this
 # stays dormant until the gateway is provisioned + the account id is wired.
 AI_GATEWAY_ID = "brickvault"
-# Firecrawl daily credit ceiling — TEMPORARILY raised to 15000/day for the
-# one-time StockX bulk backfill (~2.3k sets × 5cr, sharing the budget with the
-# eBay-sold + BrickEconomy jobs). The account holds ~158k banked one-time credits,
-# so a couple of high days is comfortable. Drop back to 2000 once the StockX
-# backfill completes (and the temporary */3 backfill cron is removed).
-FIRECRAWL_DAILY_CREDITS = "15000"
+# Firecrawl daily credit ceiling. Normal steady-state cap; lift it temporarily
+# (e.g. 15000) for a one-time bulk scrape backfill, then restore. Was briefly at
+# 15000 for the StockX lowest-ask backfill (~2.3k sets), now back to baseline.
+FIRECRAWL_DAILY_CREDITS = "2000"
 # pricesAPI.io live-retail layer opt-in. Non-secret toggle; the actual keys live
 # in the PRICESAPI_API_KEYS secret. Both this AND a key are required for the cron
 # to run (deliberate gate — cold calls are precious). Set to 0 to pause.

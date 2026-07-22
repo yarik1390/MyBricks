@@ -490,15 +490,6 @@ export default {
       case '30 16 * * *': await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 })); break;
       case '0 17 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 18 * * *': await run('stockx-enrich', () => runStockXEnrich(env, { limit: 20, concurrency: 3 })); break;
-      // TEMPORARY: StockX one-time bulk backfill — every 3 min. Batch sized to the
-      // LARGEST that finishes inside the 180s tick (~6s/set at concurrency 8 → ~28)
-      // so every tick fires: a bigger 40-set batch overran ~246s and the overlap
-      // guard skipped the next tick, giving no net throughput gain. [limits]
-      // cpu_ms=300000 removes the 30s CPU ceiling that used to kill runs mid-parse.
-      // Concurrency stays 8 to keep clear of Firecrawl's per-plan rate limit (a 429
-      // stamps a good set as a miss and skips it for 30 days). Per-wave flush so an
-      // overrun loses nothing; a fast no-op once cached. REMOVE after the sweep.
-      case '*/3 * * * *': await run('stockx-backfill', () => runStockXEnrich(env, { limit: 28, concurrency: 8 })); break;
       case '0 19 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 22 * * *': await run('community-comps', () => runCommunityComps(env)); break;
       case '0 23 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
