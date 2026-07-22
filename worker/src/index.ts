@@ -317,6 +317,7 @@ export default {
   fetch: app.fetch,
 
   async scheduled(event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
+    // High-frequency temporary jobs may pass a shorter stale-lease window.
     const run = async (name: string, fn: () => Promise<unknown>, maxAgeMinutes = 30) => {
       // Track every cron run (running -> ok|failed + summary) for the admin
       // Activity view. Tracking is fail-open and never affects the job.
