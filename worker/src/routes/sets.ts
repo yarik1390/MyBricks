@@ -356,7 +356,7 @@ app.get('/:setnum', async (c) => {
 
   if (set) {
     const ext = await c.env.DB.prepare(
-      'SELECT pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count, pa_market FROM set_market_ext WHERE set_num=?'
+      'SELECT pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count, pa_market, stockx_ask, stockx_cached_at FROM set_market_ext WHERE set_num=?'
     ).bind(set.set_num).first<Record<string, unknown>>().catch(() => null);
     if (ext) set = { ...set, ...ext };
     const retailMarket = userId

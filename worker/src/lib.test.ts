@@ -549,6 +549,34 @@ describe('blendMarketValue (valuation v2)', () => {
     expect(r.value).toBeLessThanOrEqual(104);                      // no upward drag from the ask
   });
 
+  it('does not promote a lone StockX ask into fair market value', () => {
+    const r = blendMarketValue({ valuation_method: 'formula_bulk', stockx_ask: 800, stockx_cached_at: now });
+    expect(r.value).toBeNull();
+    expect(r.confidence).toBeNull();
+    expect(r.basis.some(b => b.id === 'stockx')).toBe(true);   // visible as its own family
+  });
+
+  it('never drags a sold headline up from a StockX ask (corroborating only)', () => {
+    const r = blendMarketValue({
+      valuation_method: 'market',
+      bl_new_value: 100, bl_new_qty: 10, bl_cached_at: now,
+      ebay_new_value: 104, ebay_new_qty: 10, ebay_new_cached_at: now,
+      stockx_ask: 130, stockx_cached_at: now,                  // ~1.3x asking premium
+    });
+    expect(r.confidence).toBe('high');                          // two fresh sold sources
+    expect(r.value).toBeLessThanOrEqual(104);                   // ask cannot move the headline
+  });
+
+  it('blends StockX + eBay asking as an estimate when no sold comps exist', () => {
+    const r = blendMarketValue({
+      valuation_method: 'formula_bulk',
+      ebay_ask_value: 100, ebay_ask_qty: 5, ebay_ask_cached_at: now,
+      stockx_ask: 120, stockx_cached_at: now,
+    });
+    expect(r.value).not.toBeNull();                             // two asking families → an estimate
+    expect(r.basis.some(b => b.id === 'stockx')).toBe(true);
+  });
+
   it('treats a stale-only source as low confidence', () => {
     const r = blendMarketValue({ valuation_method: 'market', bl_new_value: 50, bl_new_qty: 5, bl_cached_at: old });
     expect(r.value).toBe(50);

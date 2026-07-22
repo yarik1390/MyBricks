@@ -182,6 +182,20 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
     });
   }
 
+  if (num(row.stockx_ask)) {
+    sources.push({
+      id: 'stockx_ask',
+      name: 'StockX ask',
+      value: num(row.stockx_ask),
+      condition: 'new',
+      sample_count: null,
+      last_updated: text(row.stockx_cached_at) || cachedAt,
+      freshness: sourceFreshness(row, 'stockx_cached_at', 'stockx_ask'),
+      reliability: 'corroborating',
+      note: 'StockX lowest ask — a single sealed listing price, not a sold comp.',
+    });
+  }
+
   if (num(row.bo_new_value)) {
     sources.push({
       id: 'brickowl_new',
@@ -409,6 +423,7 @@ function sourceOwner(signal: PricingSignal): string {
   if (signal.source.startsWith('brickeconomy')) return 'brickeconomy';
   if (signal.source.startsWith('brickowl')) return 'brickowl';
   if (signal.source.startsWith('pricecharting')) return 'pricecharting';
+  if (signal.source.startsWith('stockx')) return 'stockx';
   return signal.source;
 }
 
@@ -877,7 +892,9 @@ export const BLEND_INPUT_COLUMNS =
 // the same row the pure functions consume.
 export const BLEND_EXT_COLUMNS =
   'pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, ' +
-  'pa_best_merchant, pa_offer_count, pa_market, pa_cached_at';
+  'pa_best_merchant, pa_offer_count, pa_market, pa_cached_at, ' +
+  // StockX lowest ask (corroborating new-sealed asking signal in legacySignalsFor).
+  'stockx_ask, stockx_cached_at';
 const BLEND_FROM = 'lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num';
 
 // Compute the blended value AND the deal signal together, so the persisted

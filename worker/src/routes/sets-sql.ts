@@ -54,9 +54,11 @@ export const CATALOG_COLS =
   // (pc_new weight 0.95, pc_complete 0.75). Omitting them made the grid blend
   // diverge from the detail page (catalog showed the range-high, not the blend).
   's.pc_new_value, s.pc_complete_value, s.pc_cached_at, ' +
-  // Pricing v3 (set_market_ext side table): liquidity + used loose + live retail.
+  // Pricing v3 (set_market_ext side table): liquidity + used loose + live retail
+  // + StockX lowest ask (corroborating asking signal in blendMarketValue).
   'ext.pc_loose_value, ext.pc_sales_volume, ext.pa_retail_value, ext.pa_lowest_offer, ext.pa_in_stock, ' +
   'ext.pa_best_merchant, ext.pa_offer_count, ext.pa_market, ext.pa_cached_at, ' +
+  'ext.stockx_ask, ext.stockx_cached_at, ' +
   // Persisted v3 state keeps catalog cards and offline seed confidence aligned
   // with set detail, including history-based anomaly demotions.
   'svn.fair_value AS v3_new_fair, svn.low AS v3_new_low, svn.high AS v3_new_high, ' +

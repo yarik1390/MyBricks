@@ -6,6 +6,7 @@ import { quotaRemaining, reserveQuota } from '../lib/api-quota';
 import { recordIntegrationHealth } from '../lib/integration-health';
 import { sourceEnabled } from '../lib/source-config';
 import { pricingWritesAllowed } from '../lib/pricing-budget';
+import { recomputeBlendedValues } from '../lib/market-sources';
 
 /**
  * StockX lowest-ask enrichment (Firecrawl-preferred, Bright Data fallback).
@@ -13,10 +14,11 @@ import { pricingWritesAllowed } from '../lib/pricing-budget';
  * Populates set_market_ext.stockx_ask for sets that ALREADY have a BrickLink/
  * BrickEconomy value, accepting the scraped ask only when it's within 3x of that
  * existing value — so a wrong-item StockX match can never land as a lone source.
- * OFF by default (stockxEnabled): a slow, fragile scrape that must be validated
- * before it feeds anything. Currently COLLECT-ONLY — stockx_ask is stored for
- * review and is NOT yet wired into the blend (a deliberate follow-up once the data
- * proves out).
+ * OFF by default (stockxEnabled): a slow, fragile scrape validated before it fed
+ * anything. stockx_ask is wired into the v3 blend as a corroborating new-sealed
+ * ASKING signal (its own 'stockx' provider family) — with any sold family it only
+ * nudges the range/confidence, never the sold headline; a lone StockX ask reads as
+ * asking_only. On a new ask this job re-blends the touched set so it folds in.
  *
  * PROVIDER: prefers Firecrawl (enhanced proxy, ~5 credits/call) — its large credit
  * pool scales to a bulk backfill that Bright Data's small daily budget can't. Falls
@@ -113,9 +115,15 @@ export async function runStockXEnrich(
   let rejected = 0;
   const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
   const stmts: D1PreparedStatement[] = [];
+  const touched: string[] = []; // sets that got a new ask → re-blend so it folds in
   const flush = async () => {
     const s = stmts.splice(0);
+    const t = touched.splice(0);
     for (let j = 0; j < s.length; j += 90) await env.DB.batch(s.slice(j, j + 90));
+    // StockX ask is a corroborating asking signal in the v3 blend; re-blend the
+    // touched sets so the newly stored ask is reflected (it can only nudge the
+    // range/confidence when a sold family exists, never move the sold headline).
+    if (t.length) await recomputeBlendedValues(env.DB, t);
   };
 
   for (let i = 0; i < results.length; i += concurrency) {
@@ -152,6 +160,7 @@ export async function runStockXEnrich(
            VALUES (?1, ?2, datetime('now'))
            ON CONFLICT(set_num) DO UPDATE SET stockx_ask=excluded.stockx_ask, stockx_cached_at=datetime('now')`,
         ).bind(set.set_num, r.ask));
+        touched.push(set.set_num);
         updated++;
       } else {
         // Wrong-item match — stamp it too (re-scraping yields the same bad match).

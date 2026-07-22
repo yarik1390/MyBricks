@@ -332,6 +332,12 @@ export function legacySignalsFor(row: Record<string, unknown>): PricingSignal[] 
   add({ source: 'brickowl_new_asking', provider_family: 'brickowl', condition: 'new_sealed', signal_type: 'asking', value: positive(row.bo_new_value), sample_count: positive(row.bo_new_qty), checked_at: iso(row.bo_cached_at) || cached });
   add({ source: 'brickowl_used_asking', provider_family: 'brickowl', condition: 'used_complete', signal_type: 'asking', value: positive(row.bo_used_value), sample_count: positive(row.bo_used_qty), checked_at: iso(row.bo_cached_at) || cached });
   add({ source: 'ebay_asking', provider_family: 'ebay_market', condition: 'new_sealed', signal_type: 'asking', value: positive(row.ebay_ask_value), sample_count: positive(row.ebay_ask_qty), checked_at: iso(row.ebay_ask_cached_at) || cached });
+  // StockX lowest ask — a single new/sealed listing ceiling from an INDEPENDENT
+  // marketplace (its own provider_family, so it corroborates rather than collapsing
+  // into ebay_market). Asking signal (0.35 weight): with any sold family it can only
+  // nudge the range ±15%, never move the headline; a lone StockX ask reads as
+  // asking_only (no fair value). StockX only lists sealed, so new_sealed only.
+  add({ source: 'stockx_ask', provider_family: 'stockx', condition: 'new_sealed', signal_type: 'asking', value: positive(row.stockx_ask), checked_at: iso(row.stockx_cached_at) || cached });
 
   // PriceCharting legacy columns are deliberately absent. Existing mappings are
   // quarantined; verified records enter through pricing_signals and collapse into
