@@ -105,6 +105,10 @@ export async function runEbaySoldScrape(
         SELECT 1 FROM user_wishlist uw WHERE uw.set_num = ls.set_num
       ) THEN 0 ELSE 1 END,
       COALESCE(ext.ebay_sold_attempted_at, ls.ebay_new_cached_at, '2000-01-01') ASC,
+      -- HIGHEST-VALUE first: eBay sold listings exist for desirable sets; ordering by
+      -- set_num front-loaded low-numbered vintage sets with no sold activity, wasting
+      -- the scrape (Firecrawl credits) on guaranteed no-data misses.
+      COALESCE(ls.bl_new_value, ls.current_value) DESC,
       ls.set_num ASC
     LIMIT ?
   `).bind(capLimit).all<{ set_num: string; name: string; bl_new_value: number | null; current_value: number | null }>();
