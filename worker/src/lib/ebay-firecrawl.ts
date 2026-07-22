@@ -56,11 +56,15 @@ export async function fetchEbaySoldViaFirecrawl(
     {
       url,
       formats: ['json'],
+      // eBay heavily bot-protects its sold-search: the default (basic) proxy gets
+      // thin/blocked pages, so the extraction found comps only ~7% of the time.
+      // The mobile/residential ENHANCED proxy renders it (the same lesson as StockX).
+      proxy: 'enhanced',
       jsonOptions: {
         schema: LISTING_SCHEMA,
         prompt: `Extract sold LEGO set listings. Only include items where the title contains the set number "${base}" or the set name "${setName}". For each, include title, price in USD, condition, and the sold date in YYYY-MM-DD format.`,
       },
-      timeoutMs: 30_000,
+      timeoutMs: 40_000,
     },
     env,
   );
