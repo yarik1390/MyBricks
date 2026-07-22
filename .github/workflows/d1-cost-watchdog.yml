@@ -7,9 +7,9 @@ name: D1 cost watchdog
 # when a threshold is crossed; set the optional DISCORD_OPS_WEBHOOK secret to
 # also get a Discord ping.
 #
-# Budget math for the defaults: the free tier is 50M rows written/month
-# (~1.6M/day) and 25B read/month (~830M/day). Thresholds sit just above the
-# app's healthy steady state so a new write loop trips the alarm within a day.
+# Workers Paid includes 50M rows written/month (~1.67M/day) and 25B rows read.
+# The daily threshold leaves 10% headroom, so a new write loop trips the alarm
+# quickly without treating historical spikes as an active incident.
 #
 # NOTE: the CLOUDFLARE_API_TOKEN must include the "Account Analytics: Read"
 # permission. If this job fails with an auth error, add that permission to the
@@ -23,7 +23,7 @@ on:
       write_threshold:
         description: "Alert when a database writes more rows than this in a day"
         required: false
-        default: "2000000"
+        default: "1500000"
       read_threshold:
         description: "Alert when a database reads more rows than this in a day"
         required: false
@@ -40,7 +40,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       DISCORD_OPS_WEBHOOK: ${{ secrets.DISCORD_OPS_WEBHOOK }}
-      WRITE_THRESHOLD: ${{ inputs.write_threshold || '2000000' }}
+      WRITE_THRESHOLD: ${{ inputs.write_threshold || '1500000' }}
       READ_THRESHOLD: ${{ inputs.read_threshold || '500000000' }}
     steps:
       - name: Query yesterday's D1 usage and compare against thresholds

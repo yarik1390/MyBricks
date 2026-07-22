@@ -36,7 +36,7 @@ async function brightdataUsedToday(): Promise<number | null> {
 describe('runEbaySoldScrape', () => {
   beforeEach(async () => {
     vi.clearAllMocks(); // reset fetcher call history so cross-test calls don't leak
-    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'brightdata_keys', 'integration_health']);
+    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'brightdata_keys', 'integration_health', 'pricing_write_ledger']);
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -100,6 +100,11 @@ describe('runEbaySoldScrape', () => {
       .first<{ ebay_new_cached_at: string | null; ebay_used_cached_at: string | null }>();
     expect(row!.ebay_new_cached_at).toBeNull();
     expect(row!.ebay_used_cached_at).toBeNull();
+    const ledger = await db.prepare(`
+      SELECT rows_written FROM pricing_write_ledger
+      WHERE day=date('now') AND job='ebay-sold-scrape'
+    `).first<{ rows_written: number }>();
+    expect(Number(ledger?.rows_written)).toBe(2);
   });
 
   it('provider error stamps the attempt marker', async () => {

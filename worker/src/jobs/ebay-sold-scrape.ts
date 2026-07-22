@@ -6,6 +6,7 @@ import { brightDataSoldEnabled, firecrawlEnabled } from '../lib/pricing-flags';
 import { quotaRemaining, reserveQuota } from '../lib/api-quota';
 import { recordIntegrationHealth } from '../lib/integration-health';
 import { recomputeBlendedValues } from '../lib/market-sources';
+import { recordPricingWrites } from '../lib/pricing-budget';
 import { sourceEnabled } from '../lib/source-config';
 
 /**
@@ -193,6 +194,7 @@ export async function runEbaySoldScrape(
     const s = stmts.splice(0);
     const t = touched.splice(0);
     for (let j = 0; j < s.length; j += 90) await env.DB.batch(s.slice(j, j + 90));
+    await recordPricingWrites(env.DB, 'ebay-sold-scrape', s.length);
     if (t.length) await recomputeBlendedValues(env.DB, t);
   };
 
