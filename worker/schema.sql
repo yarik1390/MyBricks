@@ -129,6 +129,9 @@ CREATE TABLE IF NOT EXISTS set_market_ext (
   -- filters candidates by this so a miss drops out of the queue for a cooldown
   -- instead of perpetually re-sorting to the front (the neg-cache-wall stall).
   ebay_sold_attempted_at TEXT,
+  -- Independent miss/retry marker for used-condition eBay sold comps. Keeping it
+  -- separate prevents a new-condition result from starving the used backfill.
+  ebay_used_attempted_at TEXT,
   -- BrickLink no-data backoff stamp (sold guide <5 lots): the valuation job skips
   -- this set's BrickLink calls for 90 days so the ~5,000/day budget isn't wasted
   -- re-querying sets that will never have data. Cleared when a BL price returns.

@@ -463,7 +463,7 @@ export default {
       // sold-comp coverage quickly. Overlap-guarded; the attempt-marker keeps it
       // monotonic (no stall). REMOVE once coverage catches up (then Bright Data is
       // primary again with Firecrawl rescue, per Step 2).
-      case '*/3 * * * *': await run('ebay-sold-backfill', () => runEbaySoldScrape(env, { limit: 28, concurrency: 8, preferFirecrawl: true })); break;
+      case '*/3 * * * *': await run('ebay-sold-backfill', () => runEbaySoldScrape(env, { limit: 28, concurrency: 5, preferFirecrawl: true })); break;
       // Phase-2 lean cadence (ongoing Firecrawl ~25k/mo budget): brickset is
       // mostly-static metadata (trimmed 50->30); LEGO stock is scoped to active
       // owned/wishlisted on a 14-day cycle inside the job (trimmed 100->40, it

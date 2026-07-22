@@ -14,7 +14,7 @@ there). `git pull` before every push. Do NOT open a PR unless asked.
 
 1. **Temporary cron `*/3 * * * *` → `ebay-sold-backfill`** (in `worker/wrangler.toml`
    `[triggers]` + `worker/src/index.ts` `scheduled()` switch + `process-registry.ts`).
-   It runs `runEbaySoldScrape(env, { limit: 28, concurrency: 8, preferFirecrawl: true })`
+   It runs `runEbaySoldScrape(env, { limit: 28, concurrency: 5, preferFirecrawl: true })`
    every 3 min to build eBay-sold coverage. **REMOVE it once coverage catches up**
    (delete the trigger, the switch case, and the registry entry — mirror how the
    StockX temp cron was retired in commit `9090681`).
@@ -28,8 +28,10 @@ there). `git pull` before every push. Do NOT open a PR unless asked.
 Monitor live state via the **Cloudflare D1 MCP** (database uuid
 `1badcfb3-8a41-46d9-9553-637af727d8b0`). Useful query:
 ```sql
-SELECT (SELECT COUNT(*) FROM lego_sets WHERE ebay_new_value IS NOT NULL) AS ebay_sold,
+SELECT (SELECT COUNT(*) FROM lego_sets WHERE ebay_new_value IS NOT NULL) AS ebay_new_sold,
+       (SELECT COUNT(*) FROM lego_sets WHERE ebay_used_value IS NOT NULL) AS ebay_used_sold,
        (SELECT COUNT(*) FROM set_market_ext WHERE ebay_sold_attempted_at IS NOT NULL) AS attempted,
+       (SELECT COUNT(*) FROM set_market_ext WHERE ebay_used_attempted_at IS NOT NULL) AS used_attempted,
        (SELECT group_concat(summary,' | ') FROM (SELECT summary FROM cron_runs
           WHERE name='ebay-sold-backfill' ORDER BY started_at DESC LIMIT 6)) AS recent;
 ```
@@ -48,6 +50,8 @@ they paste one from Admin → Services → "Copy admin token").
   was killing big parsing batches). Keep this.
 - **Comprehensive price-source audit** (findings below).
 - **eBay-sold Step 1**: un-stalled + Firecrawl fast-backfill (details below).
+- **eBay-sold Step 1.5/2**: condition-separated used comps plus hardened Bright Data
+  parsing are implemented; production coverage validation remains before cleanup.
 
 ## Audit findings (production D1, ~27.4k sets) — the roadmap
 
@@ -60,12 +64,12 @@ they paste one from Admin → Services → "Copy admin token").
 | StockX | 598 | New, blended |
 | eBay sold | was 302, **now growing** | Was stalled; Step 1 un-stalled it |
 | BrickOwl | **0** | ☠️ DEAD — 0 ok / 272 fail, HTTP 403 since ~June 13 |
-| Bright Data (engine) | — | 🔴 **70% failure rate** on eBay scrapes |
+| Bright Data (engine) | — | Parser hardened for compact/JSON-wrapped bodies; live recovery rate pending |
 
 Note: Rebrickable's on-page "prices" are just BrickLink guide data we already ingest
 first-hand — **not worth scraping** (also 403s bots). Don't add it.
 
-## eBay-sold Step 1 (done) + the open decision
+## eBay-sold Step 1/2 status
 
 The eBay-sold scrape was frozen at 302 sets ("all candidates negative-cached"). Fixed:
 - Added **`set_market_ext.ebay_sold_attempted_at`** — a SQL-visible last-attempt marker
@@ -78,22 +82,23 @@ The eBay-sold scrape was frozen at 302 sets ("all candidates negative-cached"). 
 - eBay Firecrawl fetcher (`worker/src/lib/ebay-firecrawl.ts`) now uses `proxy:'enhanced'`
   (eBay bot-protects the sold search).
 
-**Measured result:** un-stall works (coverage growing again). Hit rate ~15–20% — the
-big lever was the value-DESC ordering (2%→14%); the enhanced proxy was marginal
-(~14%→~18%) and costs more credits. The real limiter is that we only capture
-**New/sealed** sold comps (`LH_ItemCondition=1000`); most retired sets sell *used*.
+**Measured Step-1 result:** un-stall works (coverage growing again). Hit rate was
+~15–20%; value-DESC ordering was the main gain. Step 1.5/2 is now implemented:
+- New/sealed and used/complete comps have independent success freshness and miss
+  cooldowns (`ebay_sold_attempted_at` / `ebay_used_attempted_at`). A result for one
+  condition cannot hide a miss for the other.
+- Firecrawl can extract both conditions in one request, or apply eBay condition 1000/
+  3000 when only one is due. Used evidence feeds the existing v3 `used_complete` signal.
+- Bright Data remains steady-state primary. It no longer rejects every response under
+  50 KB; it unwraps JSON envelopes, detects actual block pages, recognizes explicit
+  no-results pages, and parses each condition sequentially under the Worker socket cap.
+- Focused tests cover compact HTML, blocked pages, new/used separation, condition-only
+  quota use, independent cooldowns, and partial provider results.
 
-**OPEN DECISIONS (ask the owner, then act):**
-- (a) **Enhanced vs basic proxy** in `ebay-firecrawl.ts` — enhanced is marginal for
-  extra credits. Get a larger sample or revert to basic.
-- (b) **Capture USED sold comps too** (`ebay_used_value` / `ebay_used_cached_at`) — the
-  bigger coverage lever, since most retired sets trade used. This feeds the
-  used-condition v3 blend. ~Step 1.5.
-- (c) **Step 2**: fix Bright Data's eBay fetching (`worker/src/lib/brightdata.ts`,
-  `fetchEbaySoldViaBrightData`) so it works as the steady-state PRIMARY (its own budget)
-  with Firecrawl as rescue — the owner explicitly wants Bright Data kept, not retired.
-  Diagnose the "HTTP 200 short body" blocks (likely needs render mode / different zone /
-  params). `runEbaySoldScrape` already supports both providers + rescue.
+**Still open:** keep `proxy:'enhanced'` while the temporary Firecrawl sweep runs. Once
+new and used coverage are measured live, compare its observed hit-rate/credit cost and
+switch back to basic if the marginal gain does not justify the credits. Then retire the
+temp cron and restore `FIRECRAWL_DAILY_CREDITS` to `2000`.
 
 ## Remaining roadmap (after eBay-sold)
 - **BrickOwl**: refresh the API key (`BRICKOWL_API_KEY`) or disable it — it's `enabled`

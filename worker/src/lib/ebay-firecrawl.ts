@@ -37,7 +37,8 @@ function normalizeSoldDate(raw?: string | null): string | null {
 }
 
 /**
- * Fetch eBay US NEW-condition SOLD comps via Firecrawl structured extraction.
+ * Fetch eBay US SOLD comps via Firecrawl structured extraction, separated into
+ * new/sealed and used/complete condition buckets.
  * A drop-in alternative to fetchEbaySoldViaBrightData — same corroboration gate,
  * same return type. Preferred over Bright Data when FIRECRAWL_API_KEY is set.
  */
@@ -45,12 +46,16 @@ export async function fetchEbaySoldViaFirecrawl(
   setNum: string,
   setName: string,
   env: Env,
+  options: { includeNew?: boolean; includeUsed?: boolean } = {},
 ): Promise<EbaySoldScrapeResult> {
   if (!firecrawlEnabled(env)) return { status: 'disabled', new_value: null, new_count: 0 };
 
   const base = setNum.replace(/-\d+$/, '');
   const q = encodeURIComponent(`LEGO ${base} ${setName || ''}`.trim());
-  const url = `https://www.ebay.com/sch/i.html?_nkw=${q}&LH_Sold=1&LH_Complete=1&LH_ItemCondition=1000&_ipg=60`;
+  const includeNew = options.includeNew !== false;
+  const includeUsed = options.includeUsed !== false;
+  const conditionFilter = includeNew === includeUsed ? '' : `&LH_ItemCondition=${includeNew ? 1000 : 3000}`;
+  const url = `https://www.ebay.com/sch/i.html?_nkw=${q}&LH_Sold=1&LH_Complete=1${conditionFilter}&_ipg=60`;
 
   const result = await firecrawlScrape<{ listings?: Array<{ title: string; price_usd: number; condition: string; sold_date?: string }> }>(
     {
@@ -62,7 +67,7 @@ export async function fetchEbaySoldViaFirecrawl(
       proxy: 'enhanced',
       jsonOptions: {
         schema: LISTING_SCHEMA,
-        prompt: `Extract sold LEGO set listings. Only include items where the title contains the set number "${base}" or the set name "${setName}". For each, include title, price in USD, condition, and the sold date in YYYY-MM-DD format.`,
+        prompt: `Extract sold LEGO set listings. Only include items where the title contains the set number "${base}" or the set name "${setName}". Normalize condition to either "new" for new/sealed items or "used" for used/pre-owned complete sets. Exclude incomplete sets, loose parts, boxes, manuals and minifigure-only listings. For each, include title, price in USD, condition, and the sold date in YYYY-MM-DD format.`,
       },
       timeoutMs: 40_000,
     },
@@ -71,27 +76,44 @@ export async function fetchEbaySoldViaFirecrawl(
 
   if (!result) return { status: 'error', new_value: null, new_count: 0, error: 'Firecrawl returned null' };
 
-  const matched = (result.data?.listings ?? [])
-    .filter(l => isValidLegoSetSaleTitle(l.title, setNum))
-    .filter(l => /new/i.test(l.condition ?? '') || !l.condition);
-  const prices = matched
-    .map(l => l.price_usd)
-    .filter(p => Number.isFinite(p) && p > 0);
-
-  if (!prices.length) return { status: 'no_data', new_value: null, new_count: 0 };
-
-  const summary = summarizeSoldPrices(prices);
-  if (summary.value == null) return { status: 'no_data', new_value: null, new_count: 0 };
-
-  // Most-recent sale date among the matched comps so the blend can weight eBay
-  // sold by when items ACTUALLY sold, not when we scraped (see market-sources).
-  let newLastSold: string | null = null;
-  for (const l of matched) {
-    const d = normalizeSoldDate(l.sold_date);
-    if (d && (!newLastSold || d > newLastSold)) newLastSold = d;
+  const matched = (result.data?.listings ?? []).filter(l => isValidLegoSetSaleTitle(l.title, setNum));
+  const bucket = (listing: { title: string; condition: string }): 'new' | 'used' | null => {
+    if (includeNew && !includeUsed) return 'new';
+    if (includeUsed && !includeNew) return 'used';
+    const condition = `${listing.condition || ''} ${listing.title || ''}`.toLowerCase();
+    if (/\b(new|sealed|misb|nib|bnib)\b/.test(condition)) return 'new';
+    if (/\b(used|pre[ -]?owned|prebuilt|built|complete)\b/.test(condition)) return 'used';
+    return null;
+  };
+  const newListings = includeNew ? matched.filter((listing) => bucket(listing) === 'new') : [];
+  const usedListings = includeUsed ? matched.filter((listing) => bucket(listing) === 'used') : [];
+  const summarize = (listings: typeof matched) => summarizeSoldPrices(
+    listings.map(l => l.price_usd).filter(p => Number.isFinite(p) && p > 0),
+  );
+  const newSummary = summarize(newListings);
+  const usedSummary = summarize(usedListings);
+  if (newSummary.value == null && usedSummary.value == null) {
+    return { status: 'no_data', new_value: null, new_count: 0, used_value: null, used_count: 0 };
   }
 
-  return { status: 'ok', new_value: summary.value, new_count: summary.sample_count, new_last_sold: newLastSold };
+  const latestDate = (listings: typeof matched): string | null => {
+    let latest: string | null = null;
+    for (const listing of listings) {
+      const date = normalizeSoldDate(listing.sold_date);
+      if (date && (!latest || date > latest)) latest = date;
+    }
+    return latest;
+  };
+
+  return {
+    status: 'ok',
+    new_value: newSummary.value,
+    new_count: newSummary.sample_count,
+    new_last_sold: latestDate(newListings),
+    used_value: usedSummary.value,
+    used_count: usedSummary.sample_count,
+    used_last_sold: latestDate(usedListings),
+  };
 }
 
 // A sold-listing title is a plausible match for this minifig if it reads as a

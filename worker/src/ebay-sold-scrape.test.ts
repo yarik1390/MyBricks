@@ -6,7 +6,7 @@ import { fetchEbaySoldViaBrightData } from './lib/brightdata';
 import { fetchEbaySoldViaFirecrawl } from './lib/ebay-firecrawl';
 
 // The scrape job is exercised against a module-mocked Bright Data fetcher so
-// tests control per-set outcomes (ok / no_data / error) without 50KB HTML
+// tests control per-set outcomes (ok / partial / no_data / error) without HTML
 // fixtures. pickKey/recordKeyCall live in brightdata-keys and stay real.
 vi.mock('./lib/brightdata', () => ({ fetchEbaySoldViaBrightData: vi.fn() }));
 vi.mock('./lib/ebay-firecrawl', () => ({ fetchEbaySoldViaFirecrawl: vi.fn() }));
@@ -77,15 +77,16 @@ describe('runEbaySoldScrape', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  // A miss now stamps set_market_ext.ebay_sold_attempted_at (SQL cooldown marker)
-  // instead of a KV skip key; a success leaves it NULL (ebay_new_cached_at handles
-  // freshness). These helpers read/seed that marker.
-  const attemptedAt = async (setNum: string): Promise<string | null> => {
-    const row = await db.prepare(`SELECT ebay_sold_attempted_at FROM set_market_ext WHERE set_num=?1`).bind(setNum).first<{ ebay_sold_attempted_at: string | null }>();
-    return row?.ebay_sold_attempted_at ?? null;
+  // Misses use condition-specific SQL cooldown markers. Success timestamps remain
+  // blend-facing and are never written when that condition has no evidence.
+  const attemptedAt = async (setNum: string, condition: 'new' | 'used' = 'new'): Promise<string | null> => {
+    const column = condition === 'new' ? 'ebay_sold_attempted_at' : 'ebay_used_attempted_at';
+    const row = await db.prepare(`SELECT ${column} AS attempted_at FROM set_market_ext WHERE set_num=?1`)
+      .bind(setNum).first<{ attempted_at: string | null }>();
+    return row?.attempted_at ?? null;
   };
 
-  it('no_data stamps ebay_sold_attempted_at and leaves ebay_new_cached_at NULL', async () => {
+  it('no_data stamps both condition attempts without stamping blend freshness', async () => {
     await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('ND-1','NoData Set', 100)`).run();
     mockFetcher.mockResolvedValue({ status: 'no_data', new_value: null, new_count: 0 } as any);
 
@@ -93,9 +94,12 @@ describe('runEbaySoldScrape', () => {
 
     expect(r.processed).toBe(1);
     expect(r.updated).toBe(0);
-    expect(await attemptedAt('ND-1')).not.toBeNull();       // cooldown marker set
-    const row = await db.prepare(`SELECT ebay_new_cached_at FROM lego_sets WHERE set_num='ND-1'`).first<{ ebay_new_cached_at: string | null }>();
-    expect(row!.ebay_new_cached_at).toBeNull();             // never a blend freshness stamp
+    expect(await attemptedAt('ND-1', 'new')).not.toBeNull();
+    expect(await attemptedAt('ND-1', 'used')).not.toBeNull();
+    const row = await db.prepare(`SELECT ebay_new_cached_at, ebay_used_cached_at FROM lego_sets WHERE set_num='ND-1'`)
+      .first<{ ebay_new_cached_at: string | null; ebay_used_cached_at: string | null }>();
+    expect(row!.ebay_new_cached_at).toBeNull();
+    expect(row!.ebay_used_cached_at).toBeNull();
   });
 
   it('provider error stamps the attempt marker', async () => {
@@ -104,7 +108,8 @@ describe('runEbaySoldScrape', () => {
 
     await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB' } as any, { limit: 5 });
 
-    expect(await attemptedAt('ER-1')).not.toBeNull();
+    expect(await attemptedAt('ER-1', 'new')).not.toBeNull();
+    expect(await attemptedAt('ER-1', 'used')).not.toBeNull();
   });
 
   it('a recently-attempted set is excluded and quota books only the scraped count', async () => {
@@ -112,7 +117,7 @@ describe('runEbaySoldScrape', () => {
       db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('SK-1','Skipped', 100)`),
       db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('SK-2','Scraped', 100)`),
       // SK-1 was attempted just now → inside the 14-day cooldown → excluded.
-      db.prepare(`INSERT INTO set_market_ext (set_num, ebay_sold_attempted_at) VALUES ('SK-1', datetime('now'))`),
+      db.prepare(`INSERT INTO set_market_ext (set_num, ebay_sold_attempted_at, ebay_used_attempted_at) VALUES ('SK-1', datetime('now'), datetime('now'))`),
     ]);
     mockFetcher.mockResolvedValue({ status: 'ok', new_value: 110, new_count: 6 } as any);
 
@@ -120,11 +125,91 @@ describe('runEbaySoldScrape', () => {
 
     expect(r.processed).toBe(1); // only SK-2
     expect(r.updated).toBe(1);
-    expect(await brightdataUsedToday()).toBe(1); // reserved for the FILTERED count
+    expect(await brightdataUsedToday()).toBe(2); // one request per due condition
     const skipped = await db.prepare(`SELECT ebay_new_value FROM lego_sets WHERE set_num='SK-1'`).first<{ ebay_new_value: number | null }>();
     expect(skipped!.ebay_new_value).toBeNull();
     const scraped = await db.prepare(`SELECT ebay_new_value FROM lego_sets WHERE set_num='SK-2'`).first<{ ebay_new_value: number | null }>();
     expect(scraped!.ebay_new_value).toBe(110);
+  });
+
+  it('persists used sold comps independently when new comps are absent', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value, used_value) VALUES ('US-1','Used Market', 120, 80)`).run();
+    mockFetcher.mockResolvedValue({
+      status: 'partial',
+      new_value: null,
+      new_count: 0,
+      used_value: 75,
+      used_count: 8,
+      used_last_sold: '2026-07-20',
+      error: 'new condition blocked',
+    } as any);
+
+    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB' } as any, { limit: 5 });
+
+    expect(r.updated).toBe(1);
+    expect(r.newUpdated).toBe(0);
+    expect(r.usedUpdated).toBe(1);
+    expect(await attemptedAt('US-1', 'new')).not.toBeNull();
+    expect(await attemptedAt('US-1', 'used')).toBeNull();
+    const row = await db.prepare(`
+      SELECT ebay_new_value, ebay_new_cached_at, ebay_used_value, ebay_used_qty,
+        ebay_used_cached_at, ebay_used_last_sold
+      FROM lego_sets WHERE set_num='US-1'
+    `).first<any>();
+    expect(row.ebay_new_value).toBeNull();
+    expect(row.ebay_new_cached_at).toBeNull();
+    expect(row.ebay_used_value).toBe(75);
+    expect(row.ebay_used_qty).toBe(8);
+    expect(row.ebay_used_cached_at).not.toBeNull();
+    expect(row.ebay_used_last_sold).toBe('2026-07-20');
+  });
+
+  it('requests and reserves only the stale condition', async () => {
+    await db.prepare(`
+      INSERT INTO lego_sets (
+        set_num, name, bl_new_value, used_value, ebay_new_value, ebay_new_cached_at
+      ) VALUES ('UD-1','Used Due', 120, 80, 125, datetime('now'))
+    `).run();
+    mockFetcher.mockResolvedValue({
+      status: 'ok',
+      new_value: null,
+      new_count: 0,
+      used_value: 78,
+      used_count: 6,
+    } as any);
+
+    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB' } as any, { limit: 5 });
+
+    expect(r.usedUpdated).toBe(1);
+    expect(await brightdataUsedToday()).toBe(1);
+    expect(mockFetcher).toHaveBeenCalledWith(
+      'UD-1',
+      'Used Due',
+      expect.anything(),
+      { includeNew: false, includeUsed: true },
+    );
+  });
+
+  it('does not let a new-condition success hide a used-condition miss', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('NS-1','New Only', 100)`).run();
+    mockFetcher.mockResolvedValue({
+      status: 'partial',
+      new_value: 105,
+      new_count: 5,
+      used_value: null,
+      used_count: 0,
+      error: 'used condition blocked',
+    } as any);
+
+    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB' } as any, { limit: 5 });
+
+    expect(r.newUpdated).toBe(1);
+    expect(r.usedUpdated).toBe(0);
+    expect(await attemptedAt('NS-1', 'new')).toBeNull();
+    expect(await attemptedAt('NS-1', 'used')).not.toBeNull();
+    const row = await db.prepare(`SELECT ebay_new_cached_at, ebay_used_cached_at FROM lego_sets WHERE set_num='NS-1'`).first<any>();
+    expect(row.ebay_new_cached_at).not.toBeNull();
+    expect(row.ebay_used_cached_at).toBeNull();
   });
 
   it('3x-divergence rejection writes the anomaly row AND stamps the attempt', async () => {

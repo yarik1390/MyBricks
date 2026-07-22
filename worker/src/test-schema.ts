@@ -126,6 +126,7 @@ export const TABLE_DDL: Record<string, string> = {
   stockx_ask REAL,
   stockx_cached_at TEXT,
   ebay_sold_attempted_at TEXT,
+  ebay_used_attempted_at TEXT,
   bl_nodata_at TEXT
 )`,
 

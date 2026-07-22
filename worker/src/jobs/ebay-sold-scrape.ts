@@ -1,5 +1,5 @@
 import type { Env } from '../types';
-import { fetchEbaySoldViaBrightData } from '../lib/brightdata';
+import { fetchEbaySoldViaBrightData, type EbaySoldScrapeResult } from '../lib/brightdata';
 import { configuredKeys, pickKey } from '../lib/brightdata-keys';
 import { fetchEbaySoldViaFirecrawl } from '../lib/ebay-firecrawl';
 import { brightDataSoldEnabled, firecrawlEnabled } from '../lib/pricing-flags';
@@ -16,14 +16,15 @@ import { sourceEnabled } from '../lib/source-config';
  * eBay-sold figure is always cross-checked and can never become a noisy SOLE
  * source — the collision-prone long-tail failure found in Phase-0 validation
  * (e.g. Darth Maul) is structurally excluded (no BrickLink/BE -> not a candidate).
- * Writes ebay_new_value so a corroborated set with BrickLink + eBay-sold reaches
- * high-confidence blend.
+ * Writes condition-separated ebay_new_value and ebay_used_value observations so
+ * the v3 blend can corroborate sealed and used values independently.
  *
  * PROVIDER: steady-state prefers Bright Data (its own budget) with a Firecrawl
  * rescue; `preferFirecrawl:true` (the fast-backfill lane) makes Firecrawl primary
  * to bypass Bright Data's ~70% eBay failure rate. ANTI-STALL: a miss stamps
- * set_market_ext.ebay_sold_attempted_at (14-day cooldown, SQL-visible) instead of
- * a KV neg-cache the candidate query couldn't see — so the sweep can't wall itself.
+ * condition-specific set_market_ext attempt markers (14-day cooldown, SQL-visible)
+ * instead of a KV neg-cache the candidate query couldn't see, so neither sweep can
+ * wall itself or starve the other condition.
  */
 export async function runEbaySoldScrape(
   env: Env,
@@ -83,54 +84,87 @@ export async function runEbaySoldScrape(
     capLimit = limit;
   }
 
-  // Candidates need a stale/absent SUCCESS (ebay_new_cached_at, which feeds the
-  // blend) AND a stale/absent ATTEMPT (ext.ebay_sold_attempted_at). The attempt
-  // marker — written on every MISS below — is the whole anti-stall mechanism:
-  // a miss drops out of the queue for 14 days instead of perpetually re-sorting to
-  // the front (the old KV neg-cache couldn't be seen by SQL, so the freshness sort
-  // pinned failures to the front and no over-select could reach past the wall —
-  // the "all candidates negative-cached" stall). Order least-recently-attempted
-  // first so the sweep is monotonic; fetch exactly the batch (no over-select needed).
+  // New and used have independent success freshness and miss cooldowns. A miss
+  // only stamps set_market_ext; it never stamps either blend-facing cached_at
+  // column. This lets one scrape fill the much broader used market without an
+  // absent condition masquerading as fresh evidence.
   const { results: candidates } = await env.DB.prepare(`
-    SELECT ls.set_num, ls.name, ls.bl_new_value, ls.current_value
+    SELECT ls.set_num, ls.name, ls.bl_new_value, ls.used_value, ls.current_value,
+      CASE WHEN (ls.ebay_new_cached_at IS NULL OR ls.ebay_new_cached_at < datetime('now', '-30 days'))
+        AND (ext.ebay_sold_attempted_at IS NULL OR ext.ebay_sold_attempted_at < datetime('now', '-14 days'))
+        THEN 1 ELSE 0 END AS new_due,
+      CASE WHEN (ls.ebay_used_cached_at IS NULL OR ls.ebay_used_cached_at < datetime('now', '-30 days'))
+        AND (ext.ebay_used_attempted_at IS NULL OR ext.ebay_used_attempted_at < datetime('now', '-14 days'))
+        THEN 1 ELSE 0 END AS used_due
     FROM lego_sets ls
     LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
-    WHERE (ls.bl_new_value IS NOT NULL OR ls.valuation_method = 'brickeconomy')
-      AND (ls.ebay_new_cached_at IS NULL OR ls.ebay_new_cached_at < datetime('now', '-30 days'))
-      AND (ext.ebay_sold_attempted_at IS NULL OR ext.ebay_sold_attempted_at < datetime('now', '-14 days'))
+    WHERE (ls.bl_new_value IS NOT NULL OR ls.used_value IS NOT NULL OR ls.valuation_method = 'brickeconomy')
+      AND (
+        ((ls.ebay_new_cached_at IS NULL OR ls.ebay_new_cached_at < datetime('now', '-30 days'))
+          AND (ext.ebay_sold_attempted_at IS NULL OR ext.ebay_sold_attempted_at < datetime('now', '-14 days')))
+        OR
+        ((ls.ebay_used_cached_at IS NULL OR ls.ebay_used_cached_at < datetime('now', '-30 days'))
+          AND (ext.ebay_used_attempted_at IS NULL OR ext.ebay_used_attempted_at < datetime('now', '-14 days')))
+      )
     ORDER BY
       CASE WHEN EXISTS (
         SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
       ) OR EXISTS (
         SELECT 1 FROM user_wishlist uw WHERE uw.set_num = ls.set_num
       ) THEN 0 ELSE 1 END,
-      COALESCE(ext.ebay_sold_attempted_at, ls.ebay_new_cached_at, '2000-01-01') ASC,
       -- HIGHEST-VALUE first: eBay sold listings exist for desirable sets; ordering by
       -- set_num front-loaded low-numbered vintage sets with no sold activity, wasting
       -- the scrape (Firecrawl credits) on guaranteed no-data misses.
       COALESCE(ls.bl_new_value, ls.current_value) DESC,
       ls.set_num ASC
     LIMIT ?
-  `).bind(capLimit).all<{ set_num: string; name: string; bl_new_value: number | null; current_value: number | null }>();
+  `).bind(capLimit).all<{
+    set_num: string;
+    name: string;
+    bl_new_value: number | null;
+    used_value: number | null;
+    current_value: number | null;
+    new_due: number;
+    used_due: number;
+  }>();
   if (!candidates.length) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: undefined };
 
   // Reserve Bright Data quota for what will ACTUALLY be scraped.
   let results = candidates;
   let effLimit = candidates.length;
   if (!useFirecrawl) {
-    effLimit = (await reserveQuota(env, { brightdata: candidates.length })).brightdata ?? 0;
-    if (effLimit <= 0) return { processed: 0, updated: 0, rejected: 0, limit, skipped: 'brightdata quota spent' };
-    results = candidates.slice(0, effLimit);
+    const plannedCalls = candidates.reduce((sum, set) => sum + Number(!!set.new_due) + Number(!!set.used_due), 0);
+    let callsLeft = (await reserveQuota(env, { brightdata: plannedCalls })).brightdata ?? 0;
+    if (callsLeft <= 0) return { processed: 0, updated: 0, rejected: 0, limit, skipped: 'brightdata quota spent' };
+    results = [];
+    for (const candidate of candidates) {
+      if (callsLeft <= 0) break;
+      const needed = Number(!!candidate.new_due) + Number(!!candidate.used_due);
+      if (needed <= callsLeft) {
+        results.push(candidate);
+        callsLeft -= needed;
+      } else {
+        // At the edge of the daily budget, prioritize the missing used market.
+        results.push({ ...candidate, new_due: candidate.used_due ? 0 : candidate.new_due, used_due: candidate.used_due ? 1 : 0 });
+        callsLeft--;
+      }
+    }
+    effLimit = results.length;
   }
 
-  const concurrency = Math.max(1, Math.min(options.concurrency ?? 5, 8));
+  // Leave one of the Worker's six outbound connection slots free for provider
+  // bookkeeping and rescue traffic. Each Bright Data set performs its condition
+  // requests sequentially, so this also bounds the whole invocation to five.
+  const concurrency = Math.max(1, Math.min(options.concurrency ?? 5, 5));
   let updated = 0;
+  let newUpdated = 0;
+  let usedUpdated = 0;
   let processed = 0;
   let rejected = 0;
   let rescued = 0;
   // Per-run rescue budget: each rescue adds a Firecrawl scrape (~5 credits and
   // ~20s to an already-failing wave), so cap it to keep the invocation inside
-  // its window — the negative cache means unrescued failures retry in 2 days.
+  // its window; the SQL attempt cooldown means unrescued failures retry in 14 days.
   let rescuesLeft = fcRescue ? 40 : 0;
   const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
   const stmts: D1PreparedStatement[] = [];
@@ -140,10 +174,15 @@ export async function runEbaySoldScrape(
   // for 14 days (see the query above). A SQL column — NOT ebay_new_cached_at, which
   // is success-only and feeds the blend — so absent data never looks fresh to the
   // blend while still being skipped by the scrape queue. Batched with the writes.
-  const stampAttempt = (setNum: string) =>
+  const stampNewAttempt = (setNum: string) =>
     stmts.push(env.DB.prepare(
       `INSERT INTO set_market_ext (set_num, ebay_sold_attempted_at) VALUES (?1, datetime('now'))
        ON CONFLICT(set_num) DO UPDATE SET ebay_sold_attempted_at=datetime('now')`,
+    ).bind(setNum));
+  const stampUsedAttempt = (setNum: string) =>
+    stmts.push(env.DB.prepare(
+      `INSERT INTO set_market_ext (set_num, ebay_used_attempted_at) VALUES (?1, datetime('now'))
+       ON CONFLICT(set_num) DO UPDATE SET ebay_used_attempted_at=datetime('now')`,
     ).bind(setNum));
 
   // Incremental persistence: flush accumulated writes + re-blend as we go, so a
@@ -160,16 +199,38 @@ export async function runEbaySoldScrape(
   for (let i = 0; i < results.length; i += concurrency) {
     const batch = results.slice(i, i + concurrency);
     const outs = await Promise.all(batch.map(async (set) => {
+      const fetchOptions = { includeNew: !!set.new_due, includeUsed: !!set.used_due };
       const fetcher = useFirecrawl
-        ? fetchEbaySoldViaFirecrawl(set.set_num, set.name, env)
-        : fetchEbaySoldViaBrightData(set.set_num, set.name, env);
-      const primary = await fetcher
-        .catch((e) => ({ status: 'error' as const, new_value: null, new_count: 0, error: (e as Error)?.message }));
+        ? fetchEbaySoldViaFirecrawl(set.set_num, set.name, env, fetchOptions)
+        : fetchEbaySoldViaBrightData(set.set_num, set.name, env, fetchOptions);
+      const primary: EbaySoldScrapeResult = await fetcher
+        .catch((e): EbaySoldScrapeResult => ({
+          status: 'error',
+          new_value: null,
+          new_count: 0,
+          used_value: null,
+          used_count: 0,
+          error: (e as Error)?.message,
+        }));
       let r = primary;
-      if (primary.status === 'error' && rescuesLeft > 0) {
+      if ((primary.status === 'error' || primary.status === 'partial') && rescuesLeft > 0) {
         rescuesLeft--;
-        const fr = await fetchEbaySoldViaFirecrawl(set.set_num, set.name, env).catch(() => null);
-        if (fr && (fr.status === 'ok' || fr.status === 'no_data')) r = fr;
+        const fr = await fetchEbaySoldViaFirecrawl(set.set_num, set.name, env, fetchOptions).catch(() => null);
+        if (fr && (fr.status === 'ok' || fr.status === 'partial' || fr.status === 'no_data')) {
+          const newValue = primary.new_value ?? fr.new_value;
+          const usedValue = primary.used_value ?? fr.used_value;
+          r = {
+            ...primary,
+            status: newValue != null || usedValue != null ? 'ok' : fr.status,
+            new_value: newValue,
+            new_count: primary.new_value != null ? primary.new_count : fr.new_count,
+            new_last_sold: primary.new_value != null ? primary.new_last_sold : fr.new_last_sold,
+            used_value: usedValue,
+            used_count: primary.used_value != null ? primary.used_count : fr.used_count,
+            used_last_sold: primary.used_value != null ? primary.used_last_sold : fr.used_last_sold,
+            error: newValue != null || usedValue != null ? null : (fr.error ?? primary.error),
+          };
+        }
       }
       return { set, primary, r };
     }));
@@ -182,39 +243,73 @@ export async function runEbaySoldScrape(
       else { health.fail++; if (primary.error) health.lastError = primary.error; }
       if (r !== primary) rescued++;
 
-      // Any non-success (no_data / provider error) → stamp the attempt so it
-      // cools down for 14 days instead of jamming the queue front.
-      if (r.status !== 'ok' || r.new_value == null) stampAttempt(set.set_num);
+      const addAnomaly = (condition: 'new_sealed' | 'used_complete', observed: number, reference: number | null) => {
+        const key = condition === 'new_sealed'
+          ? `ebay_sold:${set.set_num}:value_divergence`
+          : `ebay_sold_used:${set.set_num}:value_divergence`;
+        stmts.push(env.DB.prepare(`
+          INSERT INTO pricing_anomalies (
+            anomaly_key, set_num, condition, source, anomaly_type, severity,
+            detail_json, status, first_seen_at, last_seen_at
+          ) VALUES (?1, ?2, ?3, 'ebay_sold', 'value_divergence', 'warning', ?4, 'open', datetime('now'), datetime('now'))
+          ON CONFLICT(anomaly_key) DO UPDATE SET
+            detail_json=excluded.detail_json, status='open', last_seen_at=datetime('now'), resolved_at=NULL
+        `).bind(key, set.set_num, condition, JSON.stringify({ observed, reference })));
+      };
 
-      if (r.status === 'ok' && r.new_value != null) {
-        // Corroboration gate: accept only if within 3x of the existing
-        // BrickLink/BrickEconomy value, so a polluted scrape can't skew a blend.
-        const ref = set.bl_new_value ?? set.current_value ?? null;
-        const corroborated = ref == null ? true : (r.new_value >= ref / 3 && r.new_value <= ref * 3);
-        if (corroborated) {
-          stmts.push(env.DB.prepare(
-            `UPDATE lego_sets SET ebay_new_value=?, ebay_new_qty=?, ebay_new_cached_at=datetime('now'),
-             ebay_new_last_sold=COALESCE(?, ebay_new_last_sold) WHERE set_num=?`,
-          ).bind(r.new_value, r.new_count, r.new_last_sold ?? null, set.set_num));
-          touched.push(set.set_num);
-          updated++;
+      let acceptedNew: number | null = null;
+      let acceptedUsed: number | null = null;
+      if (set.new_due) {
+        if (r.new_value != null) {
+          const ref = set.bl_new_value ?? set.current_value ?? null;
+          if (ref == null || (r.new_value >= ref / 3 && r.new_value <= ref * 3)) {
+            acceptedNew = r.new_value;
+            newUpdated++;
+          } else {
+            rejected++;
+            stampNewAttempt(set.set_num);
+            addAnomaly('new_sealed', r.new_value, ref);
+          }
         } else {
-          // Wrong-item / polluted scrape — stamp the attempt (cooldown) too.
-          rejected++;
-          stampAttempt(set.set_num);
-          stmts.push(env.DB.prepare(`
-            INSERT INTO pricing_anomalies (
-              anomaly_key, set_num, condition, source, anomaly_type, severity,
-              detail_json, status, first_seen_at, last_seen_at
-            ) VALUES (?1, ?2, 'new_sealed', 'ebay_sold', 'value_divergence', 'warning', ?3, 'open', datetime('now'), datetime('now'))
-            ON CONFLICT(anomaly_key) DO UPDATE SET
-              detail_json=excluded.detail_json, status='open', last_seen_at=datetime('now'), resolved_at=NULL
-          `).bind(
-            `ebay_sold:${set.set_num}:value_divergence`,
-            set.set_num,
-            JSON.stringify({ observed: r.new_value, reference: ref }),
-          ));
+          stampNewAttempt(set.set_num);
         }
+      }
+
+      if (set.used_due) {
+        if (r.used_value != null) {
+          const ref = set.used_value ?? set.bl_new_value ?? set.current_value ?? null;
+          if (ref == null || (r.used_value >= ref / 3 && r.used_value <= ref * 3)) {
+            acceptedUsed = r.used_value;
+            usedUpdated++;
+          } else {
+            rejected++;
+            stampUsedAttempt(set.set_num);
+            addAnomaly('used_complete', r.used_value, ref);
+          }
+        } else {
+          stampUsedAttempt(set.set_num);
+        }
+      }
+
+      if (acceptedNew != null || acceptedUsed != null) {
+        stmts.push(env.DB.prepare(`
+          UPDATE lego_sets SET
+            ebay_new_value=COALESCE(?1, ebay_new_value),
+            ebay_new_qty=CASE WHEN ?1 IS NULL THEN ebay_new_qty ELSE ?2 END,
+            ebay_new_cached_at=CASE WHEN ?1 IS NULL THEN ebay_new_cached_at ELSE datetime('now') END,
+            ebay_new_last_sold=CASE WHEN ?1 IS NULL THEN ebay_new_last_sold ELSE COALESCE(?3, ebay_new_last_sold) END,
+            ebay_used_value=COALESCE(?4, ebay_used_value),
+            ebay_used_qty=CASE WHEN ?4 IS NULL THEN ebay_used_qty ELSE ?5 END,
+            ebay_used_cached_at=CASE WHEN ?4 IS NULL THEN ebay_used_cached_at ELSE datetime('now') END,
+            ebay_used_last_sold=CASE WHEN ?4 IS NULL THEN ebay_used_last_sold ELSE COALESCE(?6, ebay_used_last_sold) END
+          WHERE set_num=?7
+        `).bind(
+          acceptedNew, r.new_count || 0, r.new_last_sold ?? null,
+          acceptedUsed, r.used_count || 0, r.used_last_sold ?? null,
+          set.set_num,
+        ));
+        touched.push(set.set_num);
+        updated++;
       }
     }
     if (stmts.length >= 90) await flush();
@@ -225,5 +320,5 @@ export async function runEbaySoldScrape(
   // the Bright Data path (which doesn't self-record) needs the aggregate write —
   // writing it for Firecrawl too would double-count and clobber the real error.
   if (!useFirecrawl) await recordIntegrationHealth(env, 'brightdata', health);
-  return { processed, updated, rejected, rescued, limit: effLimit };
+  return { processed, updated, newUpdated, usedUpdated, rejected, rescued, limit: effLimit };
 }
