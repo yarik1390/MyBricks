@@ -35,7 +35,8 @@ async function brightdataUsedToday(): Promise<number | null> {
 
 describe('runEbaySoldScrape', () => {
   beforeEach(async () => {
-    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist', 'api_quota', 'brightdata_keys', 'integration_health']);
+    vi.clearAllMocks(); // reset fetcher call history so cross-test calls don't leak
+    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'brightdata_keys', 'integration_health']);
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -76,49 +77,46 @@ describe('runEbaySoldScrape', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  function kvStub() {
-    const store = new Map<string, string>();
-    return {
-      store,
-      get: async (k: string) => store.get(k) ?? null,
-      put: async (k: string, v: string) => { store.set(k, v); },
-    };
-  }
+  // A miss now stamps set_market_ext.ebay_sold_attempted_at (SQL cooldown marker)
+  // instead of a KV skip key; a success leaves it NULL (ebay_new_cached_at handles
+  // freshness). These helpers read/seed that marker.
+  const attemptedAt = async (setNum: string): Promise<string | null> => {
+    const row = await db.prepare(`SELECT ebay_sold_attempted_at FROM set_market_ext WHERE set_num=?1`).bind(setNum).first<{ ebay_sold_attempted_at: string | null }>();
+    return row?.ebay_sold_attempted_at ?? null;
+  };
 
-  it('no_data writes the KV skip key and leaves ebay_new_cached_at NULL', async () => {
-    const kv = kvStub();
+  it('no_data stamps ebay_sold_attempted_at and leaves ebay_new_cached_at NULL', async () => {
     await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('ND-1','NoData Set', 100)`).run();
     mockFetcher.mockResolvedValue({ status: 'no_data', new_value: null, new_count: 0 } as any);
 
-    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB', CACHE_KV: kv } as any, { limit: 5 });
+    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB' } as any, { limit: 5 });
 
     expect(r.processed).toBe(1);
     expect(r.updated).toBe(0);
-    expect(kv.store.get('ebay-sold:skip:ND-1')).toBe('no_data');
+    expect(await attemptedAt('ND-1')).not.toBeNull();       // cooldown marker set
     const row = await db.prepare(`SELECT ebay_new_cached_at FROM lego_sets WHERE set_num='ND-1'`).first<{ ebay_new_cached_at: string | null }>();
-    expect(row!.ebay_new_cached_at).toBeNull(); // KV, never a freshness stamp
+    expect(row!.ebay_new_cached_at).toBeNull();             // never a blend freshness stamp
   });
 
-  it('provider error writes the short-TTL skip key', async () => {
-    const kv = kvStub();
+  it('provider error stamps the attempt marker', async () => {
     await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('ER-1','Err Set', 100)`).run();
     mockFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'boom' } as any);
 
-    await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB', CACHE_KV: kv } as any, { limit: 5 });
+    await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB' } as any, { limit: 5 });
 
-    expect(kv.store.get('ebay-sold:skip:ER-1')).toBe('err');
+    expect(await attemptedAt('ER-1')).not.toBeNull();
   });
 
-  it('pre-seeded skip keys exclude sets and quota books only the scraped count', async () => {
-    const kv = kvStub();
-    kv.store.set('ebay-sold:skip:SK-1', 'no_data');
+  it('a recently-attempted set is excluded and quota books only the scraped count', async () => {
     await db.batch([
       db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('SK-1','Skipped', 100)`),
       db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('SK-2','Scraped', 100)`),
+      // SK-1 was attempted just now → inside the 14-day cooldown → excluded.
+      db.prepare(`INSERT INTO set_market_ext (set_num, ebay_sold_attempted_at) VALUES ('SK-1', datetime('now'))`),
     ]);
     mockFetcher.mockResolvedValue({ status: 'ok', new_value: 110, new_count: 6 } as any);
 
-    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB', CACHE_KV: kv } as any, { limit: 10 });
+    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB' } as any, { limit: 10 });
 
     expect(r.processed).toBe(1); // only SK-2
     expect(r.updated).toBe(1);
@@ -129,19 +127,31 @@ describe('runEbaySoldScrape', () => {
     expect(scraped!.ebay_new_value).toBe(110);
   });
 
-  it('3x-divergence rejection writes the anomaly row AND the skip key', async () => {
+  it('3x-divergence rejection writes the anomaly row AND stamps the attempt', async () => {
     await applyTestTables(db, ['pricing_anomalies']);
-    const kv = kvStub();
     await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('DV-1','Diverged', 100)`).run();
     mockFetcher.mockResolvedValue({ status: 'ok', new_value: 900, new_count: 4 } as any); // 9x the reference
 
-    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB', CACHE_KV: kv } as any, { limit: 5 });
+    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB' } as any, { limit: 5 });
 
     expect(r.rejected).toBe(1);
     expect(r.updated).toBe(0);
-    expect(kv.store.get('ebay-sold:skip:DV-1')).toBe('diverged');
+    expect(await attemptedAt('DV-1')).not.toBeNull();
     const anomaly = await db.prepare(`SELECT status FROM pricing_anomalies WHERE anomaly_key='ebay_sold:DV-1:value_divergence'`).first<{ status: string }>();
     expect(anomaly!.status).toBe('open');
+  });
+
+  it('preferFirecrawl forces Firecrawl primary with no Bright Data token', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('FB-1','FcBackfill', 100)`).run();
+    mockFcFetcher.mockResolvedValue({ status: 'ok', new_value: 108, new_count: 7 } as any);
+
+    const r = await runEbaySoldScrape({ ...bare, FIRECRAWL_API_KEY: 'fk' } as any, { limit: 5, preferFirecrawl: true });
+
+    expect(r.updated).toBe(1);
+    expect(mockFcFetcher).toHaveBeenCalled();
+    expect(mockFetcher).not.toHaveBeenCalled();             // Bright Data bypassed
+    const row = await db.prepare(`SELECT ebay_new_value FROM lego_sets WHERE set_num='FB-1'`).first<{ ebay_new_value: number | null }>();
+    expect(row!.ebay_new_value).toBe(108);
   });
 
 
@@ -149,41 +159,38 @@ describe('runEbaySoldScrape', () => {
   const rescueEnv = { ...bare, BRIGHTDATA_API_TOKENS: 'tkB', FIRECRAWL_API_KEY: 'fk' };
 
   it('rescues a Bright Data failure through Firecrawl and writes the value', async () => {
-    const kv = kvStub();
     await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('RS-1','Rescued', 100)`).run();
     mockFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'blocked' } as any);
     mockFcFetcher.mockResolvedValue({ status: 'ok', new_value: 120, new_count: 5 } as any);
 
-    const r = await runEbaySoldScrape({ ...rescueEnv, CACHE_KV: kv } as any, { limit: 5 });
+    const r = await runEbaySoldScrape({ ...rescueEnv } as any, { limit: 5 });
 
     expect(r.rescued).toBe(1);
     expect(r.updated).toBe(1);
-    expect(kv.store.has('ebay-sold:skip:RS-1')).toBe(false); // rescued, not negative-cached
+    expect(await attemptedAt('RS-1')).toBeNull();           // rescued success → no cooldown marker
     const row = await db.prepare(`SELECT ebay_new_value FROM lego_sets WHERE set_num='RS-1'`).first<{ ebay_new_value: number | null }>();
     expect(row!.ebay_new_value).toBe(120);
   });
 
-  it('rescue returning no_data writes the long-TTL skip key, not err', async () => {
-    const kv = kvStub();
+  it('rescue returning no_data stamps the attempt marker', async () => {
     await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('RS-2','NoDataRescue', 100)`).run();
     mockFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'blocked' } as any);
     mockFcFetcher.mockResolvedValue({ status: 'no_data', new_value: null, new_count: 0 } as any);
 
-    const r = await runEbaySoldScrape({ ...rescueEnv, CACHE_KV: kv } as any, { limit: 5 });
+    const r = await runEbaySoldScrape({ ...rescueEnv } as any, { limit: 5 });
 
     expect(r.rescued).toBe(1);
-    expect(kv.store.get('ebay-sold:skip:RS-2')).toBe('no_data');
+    expect(await attemptedAt('RS-2')).not.toBeNull();
   });
 
-  it('when the rescue also fails, the set is err-cached as before', async () => {
-    const kv = kvStub();
+  it('when the rescue also fails, the attempt marker is stamped', async () => {
     await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('RS-3','DoubleFail', 100)`).run();
     mockFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'blocked' } as any);
     mockFcFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'fc down' } as any);
 
-    const r = await runEbaySoldScrape({ ...rescueEnv, CACHE_KV: kv } as any, { limit: 5 });
+    const r = await runEbaySoldScrape({ ...rescueEnv } as any, { limit: 5 });
 
     expect(r.rescued).toBe(0);
-    expect(kv.store.get('ebay-sold:skip:RS-3')).toBe('err');
+    expect(await attemptedAt('RS-3')).not.toBeNull();
   });
 });

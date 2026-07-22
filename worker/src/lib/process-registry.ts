@@ -23,7 +23,8 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   'pricecharting-bulk': { label: 'PriceCharting (bulk CSV)', description: 'Downloads the whole LEGO price guide (~13k sets) in one CSV and updates values + liquidity.', schedule: 'Daily 18:00 UTC', group: 'Pricing' },
   'pricesapi-retail': { label: 'pricesAPI live retail', description: 'Live retailer offers + stock across major stores — feeds the deal signal, in-stock truth and wishlist alerts.', schedule: 'Daily 17:00, 19:00 & 23:00 UTC', group: 'Pricing' },
   'brickeconomy-enrich': { label: 'BrickEconomy values', description: 'Scrapes BrickEconomy modeled values and 2y/5y forecasts (via Firecrawl).', schedule: 'Daily 11:00 UTC', group: 'Pricing' },
-  'ebay-sold-scrape': { label: 'eBay sold comps', description: 'Scrapes eBay realized sold prices (Bright Data, rotating tokens) as a high-confidence sold source. Bursts the backfill, then self-tapers to a 30-day refresh.', schedule: '8×/day (every 3h)', group: 'Pricing' },
+  'ebay-sold-scrape': { label: 'eBay sold comps', description: 'Scrapes eBay realized sold prices (Bright Data primary, Firecrawl rescue) as a high-confidence sold source. Bursts the backfill, then self-tapers to a 30-day refresh.', schedule: '8×/day (every 3h)', group: 'Pricing' },
+  'ebay-sold-backfill': { label: 'eBay sold backfill (temp)', description: 'One-time Firecrawl-primary sweep to build real sold-comp coverage, bypassing Bright Data. Overlap-guarded; a fast no-op once caught up. Removed after the sweep.', schedule: 'Every 3 min (temporary)', group: 'Pricing' },
   'stockx-enrich': { label: 'StockX lowest ask', description: 'Scrapes StockX lowest ask (Firecrawl-preferred, rendered) as a corroborating new-condition signal. OFF by default; collect-only until validated and wired into the blend.', schedule: 'Daily 18:00 UTC', group: 'Pricing' },
 
   // --- Valuation ---

@@ -648,3 +648,4 @@ ALTER TABLE user_collection ADD COLUMN sold_at DATE;
 ALTER TABLE user_prefs ADD COLUMN notify_weekly_digest INTEGER DEFAULT 0;
 ALTER TABLE set_market_ext ADD COLUMN stockx_ask REAL;
 ALTER TABLE set_market_ext ADD COLUMN stockx_cached_at TEXT;
+ALTER TABLE set_market_ext ADD COLUMN ebay_sold_attempted_at TEXT;

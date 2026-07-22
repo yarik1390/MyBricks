@@ -124,6 +124,11 @@ CREATE TABLE IF NOT EXISTS set_market_ext (
   pa_cached_at TEXT,
   stockx_ask REAL,
   stockx_cached_at TEXT,
+  -- eBay-sold LAST-ATTEMPT stamp (any outcome). Separate from lego_sets.ebay_new_cached_at
+  -- (which is success-only and feeds the blend's freshness): the scrape job orders/
+  -- filters candidates by this so a miss drops out of the queue for a cooldown
+  -- instead of perpetually re-sorting to the front (the neg-cache-wall stall).
+  ebay_sold_attempted_at TEXT,
   -- BrickLink no-data backoff stamp (sold guide <5 lots): the valuation job skips
   -- this set's BrickLink calls for 90 days so the ~5,000/day budget isn't wasted
   -- re-querying sets that will never have data. Cleared when a BL price returns.

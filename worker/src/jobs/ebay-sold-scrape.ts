@@ -9,47 +9,50 @@ import { recomputeBlendedValues } from '../lib/market-sources';
 import { sourceEnabled } from '../lib/source-config';
 
 /**
- * Corroborating-only eBay-sold scrape (Bright Data Web Unlocker).
+ * Corroborating-only eBay-sold scrape (Firecrawl or Bright Data).
  *
  * Only targets sets that ALREADY have a BrickLink (or BrickEconomy) value, and
  * only accepts a scraped median that is within 3x of that existing value. So the
  * eBay-sold figure is always cross-checked and can never become a noisy SOLE
  * source — the collision-prone long-tail failure found in Phase-0 validation
  * (e.g. Darth Maul) is structurally excluded (no BrickLink/BE -> not a candidate).
- *
  * Writes ebay_new_value so a corroborated set with BrickLink + eBay-sold reaches
- * high-confidence blend. Prefers Firecrawl (structured extraction) when available;
- * falls back to Bright Data Web Unlocker.
+ * high-confidence blend.
+ *
+ * PROVIDER: steady-state prefers Bright Data (its own budget) with a Firecrawl
+ * rescue; `preferFirecrawl:true` (the fast-backfill lane) makes Firecrawl primary
+ * to bypass Bright Data's ~70% eBay failure rate. ANTI-STALL: a miss stamps
+ * set_market_ext.ebay_sold_attempted_at (14-day cooldown, SQL-visible) instead of
+ * a KV neg-cache the candidate query couldn't see — so the sweep can't wall itself.
  */
 export async function runEbaySoldScrape(
   env: Env,
-  options: { limit?: number; concurrency?: number } = {},
+  options: { limit?: number; concurrency?: number; preferFirecrawl?: boolean } = {},
 ) {
   if (!(await sourceEnabled(env, 'ebay'))) {
     return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'ebay disabled in source tuning' };
   }
-  // Prefer Bright Data when a token is configured: it has its own dedicated budget
-  // (5000/key/mo) so it doesn't compete with Firecrawl, which is reserved for the
-  // BrickEconomy enrichment. Fall back to Firecrawl only when no token is set.
-  const useBrightData = brightDataSoldEnabled(env) && await sourceEnabled(env, 'brightdata');
-  const useFirecrawl = !useBrightData && firecrawlEnabled(env) && await sourceEnabled(env, 'firecrawl');
-  // Rescue lane: Bright Data fails ~71% of eBay scrapes (blocks / short bodies).
-  // When it's the primary and Firecrawl is also configured, a set whose BD
-  // scrape errors gets ONE Firecrawl retry in the same wave before it's
-  // negative-cached — converting most of that failure rate into coverage at
-  // ~5 credits a set. Firecrawl self-meters its credits inside firecrawlScrape.
-  const fcRescue = useBrightData && firecrawlEnabled(env) && await sourceEnabled(env, 'firecrawl');
+  const canFirecrawl = firecrawlEnabled(env) && await sourceEnabled(env, 'firecrawl');
+  const canBrightData = brightDataSoldEnabled(env) && await sourceEnabled(env, 'brightdata');
+  // preferFirecrawl (the fast-backfill lane) forces Firecrawl as the PRIMARY engine,
+  // bypassing Bright Data's ~70%-failure bottleneck to build coverage quickly.
+  // Steady-state (preferFirecrawl false): Bright Data is primary (its own dedicated
+  // 5000/key/mo budget) with a Firecrawl RESCUE on failure; falls all the way back to
+  // Firecrawl-primary only when no Bright Data token is configured.
+  const useFirecrawl = options.preferFirecrawl ? canFirecrawl : (!canBrightData && canFirecrawl);
+  const useBrightData = !useFirecrawl && canBrightData;
+  const fcRescue = useBrightData && canFirecrawl;
   if (!useFirecrawl && !useBrightData) {
     return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'neither firecrawl nor brightdata configured' };
   }
-  // Hardening: Bright Data is the PREFERRED scraper (its own monthly budget;
-  // Firecrawl is reserved for BrickEconomy enrichment). If we're only falling back
-  // to Firecrawl because no Bright Data token reached the Worker — and it wasn't
-  // deliberately paused via BRIGHTDATA_SOLD_ENABLED — surface it on the admin
-  // integrations panel and in logs instead of silently degrading. This is exactly
-  // the "token added as a CI secret but never uploaded to the Worker" failure mode.
+  // Hardening: outside the backfill lane, Bright Data is the PREFERRED scraper. If we
+  // fell back to Firecrawl only because no Bright Data token reached the Worker — and
+  // it wasn't deliberately paused via BRIGHTDATA_SOLD_ENABLED — surface it on the admin
+  // integrations panel and in logs instead of silently degrading. (In preferFirecrawl
+  // mode the Firecrawl-primary path is intentional, so no warning.)
   if (
     useFirecrawl &&
+    !options.preferFirecrawl &&
     configuredKeys(env).length === 0 &&
     !/^(0|false|no|off)$/i.test(String(env.BRIGHTDATA_SOLD_ENABLED ?? ''))
   ) {
@@ -80,48 +83,40 @@ export async function runEbaySoldScrape(
     capLimit = limit;
   }
 
-  // Over-select 2x, then drop sets in the KV negative cache (recent no-data /
-  // divergence / provider error). Without this, the freshness ordering below
-  // pins perennial failures to the queue front forever: they never get an
-  // ebay_new_cached_at stamp (deliberately — stamping absent data would make it
-  // look fresh to the blend), so they'd out-sort every new candidate each run.
+  // Candidates need a stale/absent SUCCESS (ebay_new_cached_at, which feeds the
+  // blend) AND a stale/absent ATTEMPT (ext.ebay_sold_attempted_at). The attempt
+  // marker — written on every MISS below — is the whole anti-stall mechanism:
+  // a miss drops out of the queue for 14 days instead of perpetually re-sorting to
+  // the front (the old KV neg-cache couldn't be seen by SQL, so the freshness sort
+  // pinned failures to the front and no over-select could reach past the wall —
+  // the "all candidates negative-cached" stall). Order least-recently-attempted
+  // first so the sweep is monotonic; fetch exactly the batch (no over-select needed).
   const { results: candidates } = await env.DB.prepare(`
     SELECT ls.set_num, ls.name, ls.bl_new_value, ls.current_value
     FROM lego_sets ls
+    LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
     WHERE (ls.bl_new_value IS NOT NULL OR ls.valuation_method = 'brickeconomy')
       AND (ls.ebay_new_cached_at IS NULL OR ls.ebay_new_cached_at < datetime('now', '-30 days'))
+      AND (ext.ebay_sold_attempted_at IS NULL OR ext.ebay_sold_attempted_at < datetime('now', '-14 days'))
     ORDER BY
       CASE WHEN EXISTS (
         SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
       ) OR EXISTS (
         SELECT 1 FROM user_wishlist uw WHERE uw.set_num = ls.set_num
       ) THEN 0 ELSE 1 END,
-      COALESCE(ls.ebay_new_cached_at, '2000-01-01') ASC,
+      COALESCE(ext.ebay_sold_attempted_at, ls.ebay_new_cached_at, '2000-01-01') ASC,
       ls.set_num ASC
     LIMIT ?
-  `).bind(capLimit * 2).all<{ set_num: string; name: string; bl_new_value: number | null; current_value: number | null }>();
-
-  const kv = env.CACHE_KV;
-  const skipKey = (setNum: string) => `ebay-sold:skip:${setNum}`;
-  const filtered: typeof candidates = [];
-  for (let i = 0; i < candidates.length && filtered.length < capLimit; i += 20) {
-    const wave = candidates.slice(i, i + 20);
-    const skips = kv
-      ? await Promise.all(wave.map((s) => kv.get(skipKey(s.set_num)).catch(() => null)))
-      : wave.map(() => null);
-    for (let j = 0; j < wave.length && filtered.length < capLimit; j++) {
-      if (!skips[j]) filtered.push(wave[j]);
-    }
-  }
-  if (!filtered.length) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: candidates.length ? 'all candidates negative-cached' : undefined };
+  `).bind(capLimit).all<{ set_num: string; name: string; bl_new_value: number | null; current_value: number | null }>();
+  if (!candidates.length) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: undefined };
 
   // Reserve Bright Data quota for what will ACTUALLY be scraped.
-  let results = filtered;
-  let effLimit = filtered.length;
+  let results = candidates;
+  let effLimit = candidates.length;
   if (!useFirecrawl) {
-    effLimit = (await reserveQuota(env, { brightdata: filtered.length })).brightdata ?? 0;
+    effLimit = (await reserveQuota(env, { brightdata: candidates.length })).brightdata ?? 0;
     if (effLimit <= 0) return { processed: 0, updated: 0, rejected: 0, limit, skipped: 'brightdata quota spent' };
-    results = filtered.slice(0, effLimit);
+    results = candidates.slice(0, effLimit);
   }
 
   const concurrency = Math.max(1, Math.min(options.concurrency ?? 5, 8));
@@ -137,11 +132,15 @@ export async function runEbaySoldScrape(
   const stmts: D1PreparedStatement[] = [];
   const touched: string[] = [];
 
-  // Negative-cache writes. A KV key — NOT an ebay_new_cached_at stamp — because
-  // stamping would make absent data look fresh to the blend's freshness checks.
-  // no_data / divergence get a long cooldown; provider errors a short one.
-  const negCache = (setNum: string, reason: 'no_data' | 'diverged' | 'err') =>
-    kv?.put(skipKey(setNum), reason, { expirationTtl: (reason === 'err' ? 2 : 14) * 86_400 }).catch(() => {});
+  // Stamp the attempt marker on a MISS so the set drops out of the candidate query
+  // for 14 days (see the query above). A SQL column — NOT ebay_new_cached_at, which
+  // is success-only and feeds the blend — so absent data never looks fresh to the
+  // blend while still being skipped by the scrape queue. Batched with the writes.
+  const stampAttempt = (setNum: string) =>
+    stmts.push(env.DB.prepare(
+      `INSERT INTO set_market_ext (set_num, ebay_sold_attempted_at) VALUES (?1, datetime('now'))
+       ON CONFLICT(set_num) DO UPDATE SET ebay_sold_attempted_at=datetime('now')`,
+    ).bind(setNum));
 
   // Incremental persistence: flush accumulated writes + re-blend as we go, so a
   // dying invocation (the "stale: invocation ended" cron_runs rows) keeps every
@@ -179,8 +178,9 @@ export async function runEbaySoldScrape(
       else { health.fail++; if (primary.error) health.lastError = primary.error; }
       if (r !== primary) rescued++;
 
-      if (r.status === 'no_data') await negCache(set.set_num, 'no_data');
-      else if (r.status !== 'ok') await negCache(set.set_num, 'err');
+      // Any non-success (no_data / provider error) → stamp the attempt so it
+      // cools down for 14 days instead of jamming the queue front.
+      if (r.status !== 'ok' || r.new_value == null) stampAttempt(set.set_num);
 
       if (r.status === 'ok' && r.new_value != null) {
         // Corroboration gate: accept only if within 3x of the existing
@@ -195,8 +195,9 @@ export async function runEbaySoldScrape(
           touched.push(set.set_num);
           updated++;
         } else {
+          // Wrong-item / polluted scrape — stamp the attempt (cooldown) too.
           rejected++;
-          await negCache(set.set_num, 'diverged');
+          stampAttempt(set.set_num);
           stmts.push(env.DB.prepare(`
             INSERT INTO pricing_anomalies (
               anomaly_key, set_num, condition, source, anomaly_type, severity,
