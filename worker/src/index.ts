@@ -459,15 +459,6 @@ export default {
       // stamped, so once the backfill is done daily volume drops to the refresh
       // rate (~eligible/30) on its own — well within the ~25k/mo token pool.
       case '0 0,3,6,9,12,15,18,21 * * *': await run('ebay-sold-scrape', () => runEbaySoldScrape(env, { limit: 100, concurrency: 8 })); break;
-      // TEMPORARY: eBay-sold Firecrawl fast-backfill — every 3 min, Firecrawl primary
-      // (preferFirecrawl) to bypass Bright Data's ~70% failure rate and build real
-      // sold-comp coverage quickly. Overlap-guarded; the attempt-marker keeps it
-      // monotonic (no stall). REMOVE once coverage catches up (then Bright Data is
-      // primary again with Firecrawl rescue, per Step 2).
-      // A full 28-set Firecrawl slice normally takes 2-4 minutes. Use a short,
-      // job-specific stale lease so a killed invocation cannot block the fast
-      // backfill for the global 30-minute cron window.
-      case '*/3 * * * *': await run('ebay-sold-backfill', () => runEbaySoldScrape(env, { limit: 28, concurrency: 5, preferFirecrawl: true }), 6); break;
       // Phase-2 lean cadence (ongoing Firecrawl ~25k/mo budget): brickset is
       // mostly-static metadata (trimmed 50->30); LEGO stock is scoped to active
       // owned/wishlisted on a 14-day cycle inside the job (trimmed 100->40, it

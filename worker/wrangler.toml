@@ -83,11 +83,6 @@ crons = [
   # Two slots/day so the 23h read-freshness window never gaps between refreshes.
   "30 7 * * *",
   "30 16 * * *",
-  # TEMPORARY: eBay-sold Firecrawl fast-backfill (Firecrawl primary) — every 3 min
-  # to un-stall + build real sold-comp coverage. Overlap-guarded; a fast no-op once
-  # candidates are exhausted. REMOVE once coverage catches up (Step 2 restores
-  # Bright Data primary + Firecrawl rescue).
-  "*/3 * * * *",
 ]
 
 [vars]
@@ -96,12 +91,12 @@ crons = [
 # when AI_GATEWAY_ACCOUNT_ID is also present (uploaded as a secret in CI), so this
 # stays dormant until the gateway is provisioned + the account id is wired.
 AI_GATEWAY_ID = "brickvault"
-# Firecrawl daily credit ceiling. Normal steady-state is 2000; TEMPORARILY raised
-# to 15000 for the eBay-sold Firecrawl fast-backfill (real sold comps, ~5cr/set,
-# sharing the budget with the saturated BrickEconomy enrich). ~158k banked credits
-# cover it. Restore to 2000 once the eBay-sold backfill completes (and its temp
-# */3 cron is removed).
-FIRECRAWL_DAILY_CREDITS = "50000"
+# Firecrawl daily credit ceiling — steady-state. Lift it temporarily (and restore
+# it right after) for a one-time bulk backfill; the StockX sweep ran at 15000 and
+# the eBay-sold new+used sweep at 50000, together burning ~82k credits over four
+# days. At the steady-state cadence the eBay/BrickEconomy/StockX crons only refresh
+# what has aged past its cooldown, which fits well inside 2000/day.
+FIRECRAWL_DAILY_CREDITS = "2000"
 # pricesAPI.io live-retail layer opt-in. Non-secret toggle; the actual keys live
 # in the PRICESAPI_API_KEYS secret. Both this AND a key are required for the cron
 # to run (deliberate gate — cold calls are precious). Set to 0 to pause.

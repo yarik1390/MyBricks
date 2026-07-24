@@ -10,21 +10,18 @@ there). `git pull` before every push. Do NOT open a PR unless asked.
 
 ---
 
-## ⚠️ LIVE STATE — things running right now that need cleanup
+## LIVE STATE — all temporary scaffolding retired ✅
 
-1. **Temporary cron `*/3 * * * *` → `ebay-sold-backfill`** (in `worker/wrangler.toml`
-   `[triggers]` + `worker/src/index.ts` `scheduled()` switch + `process-registry.ts`).
-   It runs `runEbaySoldScrape(env, { limit: 28, concurrency: 5, preferFirecrawl: true })`
-   every 3 min to build eBay-sold coverage. **REMOVE it once coverage catches up**
-   (delete the trigger, the switch case, and the registry entry — mirror how the
-   StockX temp cron was retired in commit `9090681`).
+Both bulk backfills (StockX, then eBay-sold new+used) are **complete and cleaned up**:
+the temporary `*/3` crons are gone from `wrangler.toml` / `index.ts` / `process-registry.ts`,
+and `FIRECRAWL_DAILY_CREDITS` is back to its steady-state `"2000"`. Nothing temporary is
+running. StockX is live and blended; don't touch it.
 
-2. **`FIRECRAWL_DAILY_CREDITS = "50000"`** in `wrangler.toml [vars]` — temporarily
-   raised for the eBay-sold backfill after confirming ~10k eligible sets remained and
-   sufficient account credits were available. **Restore to `"2000"`** when done.
-
-3. The StockX arc is fully finished and cleaned up (its temp cron is gone, budgets
-   restored). StockX is live and blended. Don't touch it.
+**Credit budget note:** the two sweeps burned **~82k Firecrawl credits over four days**
+(Jul 21 12.2k → Jul 22 27.2k → Jul 23 40.1k → Jul 24 2.3k) out of a ~158k banked pool, so
+roughly half of it is spent. Check the real balance in the Firecrawl dashboard (our
+`api_quota` ledger only counts our own spend) before authorising another bulk sweep, and
+always restore the ceiling immediately afterwards.
 
 Monitor live state via the **Cloudflare D1 MCP** (database uuid
 `1badcfb3-8a41-46d9-9553-637af727d8b0`). Useful query:
@@ -96,10 +93,20 @@ The eBay-sold scrape was frozen at 302 sets ("all candidates negative-cached"). 
 - Focused tests cover compact HTML, blocked pages, new/used separation, condition-only
   quota use, independent cooldowns, and partial provider results.
 
-**Still open:** keep `proxy:'enhanced'` while the temporary Firecrawl sweep runs. Once
-new and used coverage are measured live, compare its observed hit-rate/credit cost and
-switch back to basic if the marginal gain does not justify the credits. Then retire the
-temp cron and restore `FIRECRAWL_DAILY_CREDITS` to `2000`.
+**FINAL RESULT (sweep complete, 0 candidates remaining):**
+
+| Metric | Before | After |
+|---|---|---|
+| eBay sold **new** comps | 302 | **3,961** |
+| eBay sold **used** comps | 0 | **2,258** |
+| Sets with any sold comp | 302 | **5,285** |
+| eBay-new + BrickLink (2 independent sold families) | ~0 | **1,804** |
+
+Overall fill rate ≈ **43%** (3,659 new fills / 8,479 attempts). Note the gain cannot be
+cleanly attributed — value-DESC ordering, `proxy:'enhanced'`, and used-comp capture all
+landed together. `proxy:'enhanced'` was KEPT (an early 18% sample suggested it was only
+marginal, but that sample was too small to conclude from). If you want to trim credit
+cost later, A/B basic-vs-enhanced over a few hundred sets before switching.
 
 ## Remaining roadmap (after eBay-sold)
 - **BrickOwl**: refresh the API key (`BRICKOWL_API_KEY`) or disable it — it's `enabled`
