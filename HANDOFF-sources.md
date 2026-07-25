@@ -109,10 +109,42 @@ marginal, but that sample was too small to conclude from). If you want to trim c
 cost later, A/B basic-vs-enhanced over a few hundred sets before switching.
 
 ## Remaining roadmap (after eBay-sold)
-- **BrickOwl**: refresh the API key (`BRICKOWL_API_KEY`) or disable it — it's `enabled`
-  in `source-config.ts` but produces nothing (403 since June), which is misleading.
-- **BrickEconomy +38% bias**: apply a haircut or tighten the BE plausibility quarantine
-  in `valuation-v3.ts` `legacySignalsFor` (the `beTrusted` / `corroborators` logic).
+
+- **BrickOwl — no code change needed.** Earlier notes called it "misleadingly enabled";
+  that was wrong. It is already gated OFF by its feature flag (`brickOwlEnabled` requires
+  an explicit `BRICKOWL_ENABLED=1`, and no DB override is set — which is why it has made
+  zero calls since 2026-06-13), and `integration-health.ts` already labels it accurately:
+  *"Disabled pending a valid API key (current key returns HTTP 403)."* Its
+  `source-config` `enabled: true` is deliberate and follows the StockX convention — the
+  feature flag is the single activation gate. The ONLY action is external: obtain a valid
+  `BRICKOWL_API_KEY`, then set `BRICKOWL_ENABLED=1`. Don't "fix" it in code.
+
+- **⚠️ BrickEconomy bias — DO NOT apply the 38% haircut earlier notes suggested.**
+  That figure compared BE against BrickLink alone, and BrickLink is itself a biased
+  anchor. Measured against eBay sold comps (now 3.9k sets, an independent ground truth
+  that did not exist when the "+38%" claim was made):
+
+  | Ratio | Median | Mean |
+  |---|---|---|
+  | BE ÷ eBay sold | **1.14** | 1.20 |
+  | BrickLink ÷ eBay sold | **0.877** | 0.884 |
+  | BE ÷ BrickLink | 1.264 | 1.372 |
+
+  So BE overstates realized prices by only ~14%, while **BrickLink understates by ~12%**;
+  the headline BE-vs-BL gap is mostly those two opposite biases stacking. Applying a 38%
+  haircut would have pushed ~12k BE-only sets roughly 24% BELOW what they actually sell
+  for. The structural difference is expected (BL guide = 6-month trailing average, item
+  price only; eBay realized = current, shipping effectively baked in).
+
+  Note the divergence is LARGER for active sets (1.46) than retired (1.34), which rules
+  out "BE is simply more current" as the explanation.
+
+  Existing safeguards are already appropriate: BE is a `modeled` signal (weight 0.65), any
+  sold family outranks it for the headline, and a BE-only set is forced to `low` confidence
+  in `valueSignalsV3`. If you still want to calibrate, do it as a small (~10-15%) explicit
+  factor validated against eBay sold — never against BrickLink alone — and only for
+  BE-only sets. Re-measure first; these ratios move as coverage grows.
+
 - **BrickInsights price index** (optional): a 2nd independent *modeled* source to reduce
   the single-source BrickEconomy dependence. We already have the BrickInsights integration
   for ratings — verify their per-set value data is genuinely independent before wiring.
