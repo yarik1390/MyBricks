@@ -79,6 +79,11 @@ crons = [
   "0 23 * * *",
   "15 * * * *",
   "30 * * * *",
+  # Hourly BrickLink-staleness refresh. BrickLink age (not data availability) is what
+  # caps blend confidence: of the sets with two independent sold families, 100% meet
+  # the sample bar and 78% agree within 1.4x, but only ~19% had BOTH sources fresh.
+  # Small hourly slices stay well inside the 4000/day BrickLink budget.
+  "45 * * * *",
   # Amazon Creators API live offers (KV-only, 24h TTL per Associates terms).
   # Two slots/day so the 23h read-freshness window never gaps between refreshes.
   "30 7 * * *",

@@ -15,7 +15,7 @@ import { computeMinifigRarity, plausibleEbayOnlyFigValue } from './lib/minifig-r
 import { proxyImageUrl, rewriteImages } from './lib/img-proxy';
 import { isSearchIndexCorruption } from './lib/search-index';
 import { formulaValuation, isLikelyRetired, isPlausibleMarketValue } from './lib/valuation';
-import { blendMarketValue, computeDealSignal, buildMarketSources, enrichSetRecord, BLEND_INPUT_COLUMNS, BLEND_EXT_COLUMNS } from './lib/market-sources';
+import { blendMarketValue, computeDealSignal, buildMarketSources, enrichSetRecord, correctedValuationMethod, BLEND_INPUT_COLUMNS, BLEND_EXT_COLUMNS } from './lib/market-sources';
 import { CATALOG_COLS } from './routes/sets';
 import { computePartOutValue, partKey } from './lib/part-out';
 
@@ -471,6 +471,39 @@ describe('isLikelyRetired', () => {
 // ---------------------------------------------------------------------------
 // barcode backfill resume state
 // ---------------------------------------------------------------------------
+describe('correctedValuationMethod', () => {
+  it('leaves an already-correct method alone', () => {
+    expect(correctedValuationMethod({ valuation_method: 'market', bl_new_value: 100 })).toBeNull();
+    expect(correctedValuationMethod({ valuation_method: 'brickeconomy', be_value_new: 100 })).toBeNull();
+    expect(correctedValuationMethod({ valuation_method: 'ai', current_value: 100 })).toBeNull();
+  });
+
+  it('relabels a formula set that actually has BrickLink sold data', () => {
+    expect(correctedValuationMethod({ valuation_method: 'formula_bulk', bl_new_value: 120 })).toBe('market');
+    expect(correctedValuationMethod({ valuation_method: 'local', bl_new_value: 120 })).toBe('market');
+  });
+
+  it('falls back to eBay sold, with BrickLink winning when both are present', () => {
+    expect(correctedValuationMethod({ valuation_method: 'formula_bulk', ebay_new_value: 90 })).toBe('ebay_sold');
+    expect(correctedValuationMethod({
+      valuation_method: 'formula_bulk', bl_new_value: 100, ebay_new_value: 90,
+    })).toBe('market');
+  });
+
+  it('never relabels a formula set from a REJECTED BrickEconomy value', () => {
+    // A row still saying formula_bulk while carrying be_value_new is one where the
+    // BE value was quarantined as implausible and the formula was used instead —
+    // crediting BE there would show users a value we deliberately discarded.
+    expect(correctedValuationMethod({ valuation_method: 'formula_bulk', be_value_new: 90 })).toBeNull();
+  });
+
+  it('invents no label for a formula set with no market data (or PriceCharting only)', () => {
+    expect(correctedValuationMethod({ valuation_method: 'formula_bulk', current_value: 25 })).toBeNull();
+    // PriceCharting has no valuation_method value that describes it — leave it be.
+    expect(correctedValuationMethod({ valuation_method: 'formula_bulk', pc_new_value: 140 })).toBeNull();
+  });
+});
+
 describe('blendMarketValue (valuation v2)', () => {
   const now = new Date().toISOString();
   const old = new Date(Date.now() - 200 * 86_400_000).toISOString();

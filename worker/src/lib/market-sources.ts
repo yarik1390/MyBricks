@@ -900,9 +900,38 @@ const BLEND_FROM = 'lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num = l
 // Compute the blended value AND the deal signal together, so the persisted
 // deal_* columns are produced by the exact same computeDealSignal used for the
 // read-time badge — no SQL re-implementation, no divergence.
+/**
+ * Corrected legacy `valuation_method` for a row, or null to leave it alone.
+ *
+ * valuation_method is USER-VISIBLE (portfolio-detail-market.js renders "Formula" /
+ * "Estimated from set details" from it), but only the valuation job writes it — so a
+ * set whose real market data arrived via another job (ebay-sold-scrape, pricecharting,
+ * brickeconomy-enrich) keeps saying `formula_bulk` and is shown to users as an
+ * estimate even though we hold actual sold comps. That understates our own data:
+ * ~40% of $500+ sets were still labelled formula despite 94% of that tier having a
+ * sold source.
+ *
+ * Deliberately relabels ONLY on hard SOLD evidence:
+ *  - a PriceCharting-only set gets no label invented, as no valuation_method value
+ *    describes that source;
+ *  - BrickEconomy is excluded on purpose. When BE is trusted the valuation job
+ *    already writes `brickeconomy`, so a row that still says formula_bulk while
+ *    carrying be_value_new is precisely one where BE was REJECTED as implausible
+ *    and the formula was used instead. Relabelling those would credit a value we
+ *    deliberately threw away (caught by the no-data-backoff test).
+ */
+export function correctedValuationMethod(row: Record<string, unknown>): string | null {
+  const method = String(row.valuation_method || '');
+  if (method !== 'formula_bulk' && method !== 'local') return null;
+  if (num(row.bl_new_value)) return 'market';
+  if (num(row.ebay_new_value)) return 'ebay_sold';
+  return null;
+}
+
 function blendAndDealRow(row: Record<string, unknown>, history?: BlendHistory, extraSignals: PricingSignal[] = []): {
   blended: number | null; signal: string | null; pct: number | null; strong: number;
   confidence: string | null; low: number | null; high: number | null;
+  method: string | null;
   newState: ValuationStateV3; usedState: ValuationStateV3;
 } {
   const newState = computeV3State(row, 'new_sealed', history, extraSignals);
@@ -924,6 +953,7 @@ function blendAndDealRow(row: Record<string, unknown>, history?: BlendHistory, e
   return {
     blended: blend.value, signal: deal.signal, pct: deal.discount_pct, strong: deal.strong ? 1 : 0,
     confidence: blend.confidence, low: blend.low, high: blend.high,
+    method: correctedValuationMethod(row),
     newState, usedState,
   };
 }
@@ -1035,12 +1065,16 @@ function valuationStateStatement(
 // sweep re-blends up to ~170 sets and most blends don't move run-to-run).
 // deal_cached_at is display metadata, not a scheduling gate, so skipping the
 // stamp on unchanged rows is safe.
+// ?9 is the corrected legacy valuation_method (see correctedValuationMethod) or NULL
+// to leave it untouched — COALESCE keeps this a no-op for every already-correct row,
+// and the change-detection clause still skips writes when nothing actually moved.
 const BLEND_DEAL_UPDATE_SQL =
-  `UPDATE lego_sets SET blended_value=?1, deal_signal=?2, deal_discount_pct=?3, deal_strong=?4, blended_confidence=?5, blended_low=?6, blended_high=?7, deal_cached_at=datetime('now')
+  `UPDATE lego_sets SET blended_value=?1, deal_signal=?2, deal_discount_pct=?3, deal_strong=?4, blended_confidence=?5, blended_low=?6, blended_high=?7, valuation_method=COALESCE(?9, valuation_method), deal_cached_at=datetime('now')
    WHERE set_num=?8 AND (
      blended_value IS NOT ?1 OR deal_signal IS NOT ?2 OR deal_discount_pct IS NOT ?3
      OR deal_strong IS NOT ?4 OR blended_confidence IS NOT ?5 OR blended_low IS NOT ?6
-     OR blended_high IS NOT ?7)`;
+     OR blended_high IS NOT ?7
+     OR (?9 IS NOT NULL AND valuation_method IS NOT ?9))`;
 
 // Recompute + persist blended_value for one set (on-demand detail refresh /
 // revalue). Reads the post-write row so it always reflects the latest signals.
@@ -1053,7 +1087,7 @@ export async function persistBlendedValue(db: D1Database, setNum: string): Promi
     const history = await recentValueMedian(db, setNum).catch(() => undefined);
     const signals = await loadNormalizedSignals(db, [setNum]);
     const r = blendAndDealRow(row, history, signals.get(setNum) || []);
-    await db.prepare(BLEND_DEAL_UPDATE_SQL).bind(r.blended, r.signal, r.pct, r.strong, r.confidence, r.low, r.high, setNum).run();
+    await db.prepare(BLEND_DEAL_UPDATE_SQL).bind(r.blended, r.signal, r.pct, r.strong, r.confidence, r.low, r.high, setNum, r.method).run();
     // Side-table dual-write is fail-open for local/older schemas. The legacy
     // headline was already written above, so a migration race cannot break a
     // price refresh.
@@ -1090,7 +1124,7 @@ export async function recomputeBlendedValues(db: D1Database, setNums: string[]):
         return { row, r, history: medians.get(row.set_num as string) };
       });
       const stmts = computed.map(({ row, r }) => db.prepare(BLEND_DEAL_UPDATE_SQL)
-        .bind(r.blended, r.signal, r.pct, r.strong, r.confidence, r.low, r.high, row.set_num as string));
+        .bind(r.blended, r.signal, r.pct, r.strong, r.confidence, r.low, r.high, row.set_num as string, r.method));
       if (stmts.length) {
         const legacyResults = await db.batch(stmts);
         written += legacyResults.reduce((sum, result) => sum + Number(result.meta?.changes || 0), 0);

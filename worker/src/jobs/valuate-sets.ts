@@ -46,6 +46,15 @@ export interface ValuateSetsOptions {
    * prioritizeValue (which excludes formula). No overlap.
    */
   formulaHead?: boolean;
+  /**
+   * BrickLink-staleness refresh mode: re-query sets that ALREADY have a BrickLink
+   * value which has aged past the blend's 14-day freshness window, ordered so those
+   * that also carry an eBay sold comp go first (one refresh from a two-fresh-family
+   * high-confidence blend). These sets are NOT "due" by the normal rule, so without
+   * this mode they never re-enter the queue and the blend's confidence ceiling is
+   * pinned by BrickLink age rather than by data availability.
+   */
+  blStale?: boolean;
   minValue?: number;
   includeFresh?: boolean;
   includeSupplemental?: boolean;

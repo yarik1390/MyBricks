@@ -427,6 +427,24 @@ export default {
       // BrickLink/BE market values using idle BrickLink budget. No AI fallback
       // (keep the formula value if no market data; retry later). Complements
       // Pass 4, which refreshes already-real values.
+      // Hourly BrickLink-staleness refresh: re-query sets whose BrickLink value has
+      // aged past the blend's 14-day freshness window, eBay-corroborated ones first.
+      // These are NOT "due" by the normal rule, so they previously starved while the
+      // daily BrickLink budget went on probing sets that have no BrickLink data at
+      // all. ~15 sets/h (~2 BrickLink calls each for retired sets) fits the ~1.1k/day
+      // headroom under the 4000 cap and clears the stale backlog in a few days.
+      case '45 * * * *':
+        await run('valuate-bl-refresh', () => runValuateSets(env, {
+          scope: 'all',
+          blStale: true,
+          limit: 15,
+          includeSupplemental: false,
+          includeEbay: false,
+          includeEbaySold: false,
+          includeAiFallback: false,
+          subrequestBudget: 200,
+        }));
+        break;
       case '15 * * * *':
         await run('valuate-formula-head', () => runValuateSets(env, {
           scope: 'all', formulaHead: true, minValue: 50, limit: 40,

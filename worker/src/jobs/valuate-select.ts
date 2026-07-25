@@ -26,6 +26,7 @@ export interface SelectDueSetsConfig {
   scope: 'owned' | 'all';
   options: {
     limit?: number; includeFresh?: boolean; prioritizeValue?: boolean; formulaHead?: boolean;
+    blStale?: boolean;
     minValue?: number; subrequestBudget?: number; onProgress?: unknown;
   };
   includeSupplemental: boolean;
@@ -77,7 +78,9 @@ export async function selectDueSets(
         OR ls.set_num IN (SELECT DISTINCT set_num FROM user_wishlist)
       )`
     : '';
-  const freshnessPredicate = options.includeFresh ? '' : `AND ${duePredicate}`;
+  // blStale supplies its own freshness criterion (BrickLink age), and its targets are
+  // deliberately NOT "due" by the normal rule — that is exactly why they were starving.
+  const freshnessPredicate = (options.includeFresh || options.blStale) ? '' : `AND ${duePredicate}`;
   // High-value mode: restrict to real (non-formula) market values worth at
   // least minValue, and order the most valuable first so the catalog head
   // stays fresh rather than the oldest-expiry rotation used for coverage.
@@ -86,7 +89,19 @@ export async function selectDueSets(
   const minValueFloor = Number.isFinite(Number(options.minValue)) && Number(options.minValue) > 0
     ? Math.floor(Number(options.minValue))
     : 0;
-  const valuePredicate = prioritizeValue
+  // BrickLink-staleness refresh: target sets that ALREADY have a BrickLink value
+  // which has aged out of the blend's 14-day freshness window. This is the binding
+  // constraint on high-confidence valuations — of the sets carrying two independent
+  // sold families, 100% meet the sample-size bar and 78% agree within 1.4x, but only
+  // ~19% had BOTH sources fresh, because BrickLink goes stale while eBay stays fresh.
+  // The normal duePredicate misses them (a set can be well past its BrickLink refresh
+  // yet still inside valuation_expires_at), so they never re-enter the queue and the
+  // daily BrickLink budget is spent probing sets that have no BrickLink data at all.
+  const blStale = options.blStale === true;
+  const valuePredicate = blStale
+    ? `AND ls.bl_new_value IS NOT NULL
+      AND (ls.bl_cached_at IS NULL OR ls.bl_cached_at < datetime('now', '-14 days'))`
+    : prioritizeValue
     ? `AND ls.valuation_method NOT IN ('formula_bulk', 'local')
       AND COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) >= ${minValueFloor}`
     : formulaHead
@@ -94,7 +109,12 @@ export async function selectDueSets(
       AND COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) >= ${minValueFloor}
       AND (ls.cached_at IS NULL OR ls.cached_at < datetime('now', '-3 days'))`
     : '';
-  const valueOrder = (prioritizeValue || formulaHead)
+  // Sets that also carry a fresh eBay sold comp are ONE BrickLink refresh away from
+  // a two-fresh-family high-confidence blend, so they lead the queue; then by value.
+  const valueOrder = blStale
+    ? `CASE WHEN ls.ebay_new_value IS NOT NULL THEN 0 ELSE 1 END,
+      COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) DESC,`
+    : (prioritizeValue || formulaHead)
     ? `COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) DESC,`
     : '';
 
