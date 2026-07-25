@@ -145,9 +145,22 @@ cost later, A/B basic-vs-enhanced over a few hundred sets before switching.
   factor validated against eBay sold — never against BrickLink alone — and only for
   BE-only sets. Re-measure first; these ratios move as coverage grows.
 
-- **BrickInsights price index** (optional): a 2nd independent *modeled* source to reduce
-  the single-source BrickEconomy dependence. We already have the BrickInsights integration
-  for ratings — verify their per-set value data is genuinely independent before wiring.
+- **BrickInsights price index — DEAD END, do not pursue.** An earlier note claimed they
+  "publish an aggregated price/value index". They do not. Verified against the live API we
+  already call (`https://brickinsights.com/api/sets/{set_num}`): the response contains only
+  `average_rating`, `review_count`, `url`, `image_urls`, `reviews[]` — zero price fields.
+  Their public set page carries only **retail MSRP** and MSRP-derived ratios (price-per-part,
+  price-per-minifig) — no resale value, no market index, no investment valuation. We already
+  store MSRP (`retail_price` / `brickset_msrp`) and can derive PPP trivially. BrickInsights
+  is a *review* aggregator; keep using it for ratings only.
+
+- **The "single modeled source" risk it was meant to solve is now largely gone.** That
+  concern was measured before the eBay-sold backfill. Current state of the 27,361 priced sets:
+  **15,948 (58%) have at least one SOLD source**, and only **2,109 (7.7%) rest on
+  BrickEconomy alone with no sold corroboration** — those are already forced to `low`
+  confidence by `valueSignalsV3`. Confidence split: 491 high / 6,545 medium / 9,082 low.
+  If you still want a second modeled source, look for one with genuine *market* valuations
+  (not MSRP derivatives) and validate independence against eBay sold before wiring it.
 
 ---
 
