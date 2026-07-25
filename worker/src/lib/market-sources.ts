@@ -77,8 +77,11 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
 
   if (method === 'brickeconomy' && num(row.current_value)) {
     sources.push({
+      // `id` stays as the internal provider key (persisted in basis_json, keyed on
+      // by the admin panels and source tuning). `name` is the USER-FACING label and
+      // is deliberately generic — we surface the signal, not the upstream site.
       id: 'brickeconomy',
-      name: 'BrickEconomy',
+      name: 'Market guide',
       value: num(row.current_value),
       condition: 'new',
       sample_count: null,
@@ -316,7 +319,7 @@ export function valuationExplanation(row: Record<string, unknown>, confidence: M
         ? 'Low confidence'
         : 'Estimated';
   const stale = freshness === 'expired' ? ' The value is due for refresh.' : freshness === 'stale' ? ' The value is older than 60 days.' : '';
-  if (method === 'brickeconomy') return `${prefix}: BrickEconomy is primary, with BrickLink/eBay used when available.${stale}`;
+  if (method === 'brickeconomy') return `${prefix}: a modeled market guide is primary, with BrickLink/eBay used when available.${stale}`;
   if (method === 'market') return `${prefix}: BrickLink sold data is primary, with eBay used as a cross-check.${stale}`;
   if (method === 'ebay_rss') return `${prefix}: legacy eBay completed-listing data is the current fallback source until sold comps refresh.${stale}`;
   if (method === 'ebay_sold') return `${prefix}: eBay US/USD sold comps are the current fallback source.${stale}`;

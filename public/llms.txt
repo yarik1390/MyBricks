@@ -7,8 +7,8 @@ load, and most user data (your vault, wishlist, portfolio value) requires
 sign-in — a fetch-only crawler will see the app shell, not personal data.
 
 Set and minifigure valuations are a blend of independent sources: BrickLink
-(collector market), PriceCharting (eBay-derived sold comps), eBay sold listings,
-BrickOwl, and BrickEconomy (modeled values + forecasts).
+(collector market), PriceCharting (eBay-derived sold comps), eBay sold and active
+listings, StockX (sealed lowest ask), and modeled market-guide values with forecasts.
 
 ## Key areas
 - Vault: your owned sets, blended market value, and ROI vs. purchase price
