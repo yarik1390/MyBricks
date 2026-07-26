@@ -36,12 +36,56 @@ export function isLikelyRetired(year?: number | null): boolean {
   return year <= new Date().getFullYear() - 3;
 }
 
+/**
+ * Empirically-measured RRP -> current-value multiplier.
+ *
+ * Calibrated 2026-07-25 against PRODUCTION sets that carry a real sold comp
+ * (eBay sold or BrickLink), median of value/RRP per (age, retired) bucket over
+ * ~5,200 sets, outliers clipped to 0.1-30x:
+ *
+ *   active   age 0-2  0.85 (n=1107)   retired  age 3-5   1.10 (n=762)
+ *   active   age 3-5  0.98 (n=383)    retired  age 6-8   1.50 (n=941)
+ *                                     retired  age 9-11  2.11 (n=822)
+ *                                     retired  age 12-15 2.84 (n=658)
+ *                                     retired  age 16-20 4.03 (n=280)
+ *                                     retired  age 21-25 6.01 (n=167)
+ *                                     retired  age 26+   7.93 (n=118)
+ *
+ * The curve is smooth and monotonic and reproduces the known market shape: sets
+ * trade BELOW RRP while in production (discounting), then appreciate once
+ * retired. Interpolated between bucket midpoints so neighbouring years don't
+ * jump. Re-measure periodically — these are empirical, not physical, constants.
+ */
+export function retailAgeMultiplier(ageYears: number, retired: boolean): number {
+  const age = Number.isFinite(ageYears) ? Math.max(0, ageYears) : 0;
+  // Still in production: shallow discount curve, never the retirement premium.
+  if (!retired) return age <= 2 ? 0.85 : Math.min(0.98, 0.85 + (age - 2) * 0.043);
+  // Retired: (bucket midpoint age, median multiplier) with linear interpolation.
+  const curve: Array<[number, number]> = [
+    [1, 0.90], [4, 1.10], [7, 1.50], [10, 2.11],
+    [13.5, 2.84], [18, 4.03], [23, 6.01], [28, 7.93],
+  ];
+  if (age <= curve[0][0]) return curve[0][1];
+  for (let i = 1; i < curve.length; i++) {
+    const [x1, y1] = curve[i - 1];
+    const [x2, y2] = curve[i];
+    if (age <= x2) return y1 + ((age - x1) / (x2 - x1)) * (y2 - y1);
+  }
+  // Beyond the measured range, extend the final observed slope but cap it: we
+  // have no evidence past ~30 years and must not extrapolate a runaway value.
+  const [lastX, lastY] = curve[curve.length - 1];
+  return Math.min(12, lastY + (age - lastX) * 0.19);
+}
+
 export function formulaValuation(set: {
   pieces?: number;
   year?: number;
   theme?: string | null;
   retired?: boolean;
   minifigs?: number;
+  /** Real RRP (retail_price / brickset_msrp). Strongly preferred over the
+   *  piece-count estimate — present for ~99.99% of formula-priced sets. */
+  retailPrice?: number | null;
 }) {
   const pieces = set.pieces || 100;
   const year = set.year || new Date().getFullYear();
@@ -80,21 +124,35 @@ export function formulaValuation(set: {
   // Shelf life defaults to 2 years before a set is retired
   const yearsSinceRetirement = retired ? Math.max(0, currentYear - (year + 2)) : 0;
 
-  // Compound appreciation value
-  let currentValue = msrp * Math.pow(1 + appreciationRate, yearsSinceRetirement);
-
-  // Cap appreciation at 5x MSRP
-  const maxCap = msrp * 5;
-  if (currentValue > maxCap) {
-    currentValue = maxCap;
+  // PREFERRED PATH: a real RRP with the empirical age curve. The piece-count
+  // route below synthesises an MSRP ($0.11/pc x theme) and only then compounds a
+  // theme appreciation rate — two stacked estimates, and it silently defaults
+  // `pieces` to 100 when the piece count is missing (true for ~37% of
+  // formula-priced sets, which made those values meaningless). The real retail
+  // price is present for ~99.99% of them, so prefer it whenever we have one.
+  const realRrp = Number(set.retailPrice);
+  const haveRealRrp = Number.isFinite(realRrp) && realRrp > 0;
+  let currentValue: number;
+  if (haveRealRrp) {
+    currentValue = realRrp * retailAgeMultiplier(currentYear - year, retired);
+  } else {
+    // Compound appreciation value
+    currentValue = msrp * Math.pow(1 + appreciationRate, yearsSinceRetirement);
+    // Cap appreciation at 5x MSRP
+    const maxCap = msrp * 5;
+    if (currentValue > maxCap) {
+      currentValue = maxCap;
+    }
   }
 
-  // Minifigure rarity bonus
-  const isLicensed = t.includes('star wars') || t.includes('marvel') || t.includes('dc') || t.includes('harry potter') || t.includes('ideas');
-  const figBonusVal = isLicensed ? 7.50 : 4.50;
-  const minifigBonus = minifigs * figBonusVal;
-
-  currentValue += minifigBonus;
+  // Minifigure rarity bonus — piece-count path ONLY. The empirical RRP curve is
+  // measured on real sets WITH their minifigs already priced in, so adding the
+  // bonus on top of it would double-count them.
+  if (!haveRealRrp) {
+    const isLicensed = t.includes('star wars') || t.includes('marvel') || t.includes('dc') || t.includes('harry potter') || t.includes('ideas');
+    const figBonusVal = isLicensed ? 7.50 : 4.50;
+    currentValue += minifigs * figBonusVal;
+  }
 
   // Round values
   currentValue = Math.round(currentValue * 100) / 100;
@@ -102,7 +160,9 @@ export function formulaValuation(set: {
   const forecast5y = Math.round(currentValue * Math.pow(1 + appreciationRate, 5) * 100) / 100;
 
   return {
-    retail_price: msrp,
+    // Report the REAL retail price when we have one; only fall back to the
+    // synthesised piece-count MSRP when we don't.
+    retail_price: haveRealRrp ? realRrp : msrp,
     current_value: currentValue,
     forecast_2y: forecast2y,
     forecast_5y: forecast5y,

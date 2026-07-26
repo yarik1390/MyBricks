@@ -14,7 +14,7 @@ import { computeRetirementRisk } from './lib/retirement-risk';
 import { computeMinifigRarity, plausibleEbayOnlyFigValue } from './lib/minifig-rarity';
 import { proxyImageUrl, rewriteImages } from './lib/img-proxy';
 import { isSearchIndexCorruption } from './lib/search-index';
-import { formulaValuation, isLikelyRetired, isPlausibleMarketValue } from './lib/valuation';
+import { formulaValuation, retailAgeMultiplier, isLikelyRetired, isPlausibleMarketValue } from './lib/valuation';
 import { blendMarketValue, computeDealSignal, buildMarketSources, enrichSetRecord, correctedValuationMethod, BLEND_INPUT_COLUMNS, BLEND_EXT_COLUMNS } from './lib/market-sources';
 import { CATALOG_COLS } from './routes/sets';
 import { computePartOutValue, partKey } from './lib/part-out';
@@ -379,6 +379,67 @@ describe('computeRetirementRisk', () => {
 // ---------------------------------------------------------------------------
 // formulaValuation
 // ---------------------------------------------------------------------------
+describe('retailAgeMultiplier (empirical RRP curve)', () => {
+  it('keeps in-production sets at or below RRP', () => {
+    // Real sets trade BELOW retail while still in production (discounting).
+    expect(retailAgeMultiplier(0, false)).toBeLessThan(1);
+    expect(retailAgeMultiplier(4, false)).toBeLessThanOrEqual(0.98);
+  });
+
+  it('rises monotonically with age once retired', () => {
+    const ages = [1, 4, 7, 10, 13.5, 18, 23, 28];
+    const vals = ages.map((a) => retailAgeMultiplier(a, true));
+    for (let i = 1; i < vals.length; i++) expect(vals[i]).toBeGreaterThan(vals[i - 1]);
+  });
+
+  it('matches the measured bucket medians at their midpoints', () => {
+    expect(retailAgeMultiplier(4, true)).toBeCloseTo(1.10, 2);
+    expect(retailAgeMultiplier(7, true)).toBeCloseTo(1.50, 2);
+    expect(retailAgeMultiplier(10, true)).toBeCloseTo(2.11, 2);
+    expect(retailAgeMultiplier(18, true)).toBeCloseTo(4.03, 2);
+  });
+
+  it('prices retirement above still-in-production at the same age', () => {
+    expect(retailAgeMultiplier(5, true)).toBeGreaterThan(retailAgeMultiplier(5, false));
+  });
+
+  it('caps extrapolation beyond the measured range', () => {
+    expect(retailAgeMultiplier(200, true)).toBeLessThanOrEqual(12);
+  });
+});
+
+describe('formulaValuation with a real RRP', () => {
+  const YEAR = new Date().getFullYear();
+
+  it('uses the RRP curve instead of the synthesised piece MSRP', () => {
+    // A retired ~10y set should land near RRP x ~2.1, NOT pieces x $0.11.
+    const r = formulaValuation({ pieces: 500, year: YEAR - 10, theme: 'City', retired: true, minifigs: 0, retailPrice: 100 });
+    expect(r.current_value).toBeGreaterThan(150);
+    expect(r.current_value).toBeLessThan(260);
+    expect(r.retail_price).toBe(100); // reports the REAL retail price
+  });
+
+  it('still prices a set with no piece count at all', () => {
+    // ~37% of formula-priced sets have no piece count; the old path defaulted to
+    // 100 pieces and produced a meaningless number.
+    const r = formulaValuation({ year: YEAR - 8, theme: 'Icons', retired: true, retailPrice: 200 });
+    expect(r.current_value).toBeGreaterThan(200);
+  });
+
+  it('falls back to the piece-count estimate when no RRP is known', () => {
+    // theme null => no theme multiplier, so the synthesised MSRP is pieces x $0.11.
+    const r = formulaValuation({ pieces: 500, year: YEAR - 10, theme: null, retired: true, minifigs: 0 });
+    expect(r.current_value).toBeGreaterThan(0);
+    expect(r.retail_price).toBeCloseTo(500 * 0.11, 1); // synthesised MSRP
+  });
+
+  it('does not double-count minifigs on the RRP path', () => {
+    const none = formulaValuation({ year: YEAR - 10, retired: true, retailPrice: 100, minifigs: 0 });
+    const many = formulaValuation({ year: YEAR - 10, retired: true, retailPrice: 100, minifigs: 8 });
+    expect(many.current_value).toBe(none.current_value);
+  });
+});
+
 describe('formulaValuation', () => {
   it('returns four numeric fields', () => {
     const r = formulaValuation({ pieces: 500, year: 2020, theme: 'City', retired: false, minifigs: 0 });

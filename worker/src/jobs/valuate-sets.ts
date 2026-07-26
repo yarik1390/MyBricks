@@ -418,7 +418,12 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     if (!pricing && beRejected) {
       // BrickEconomy returned an implausible value and no clean market source
       // replaced it — write the formula estimate so the bad value never persists.
-      const f = formulaValuation({ pieces: set.pieces, year: set.year, theme: set.theme, retired: !!set.retired, minifigs: set.minifigs });
+      const f = formulaValuation({
+        pieces: set.pieces, year: set.year, theme: set.theme, retired: !!set.retired, minifigs: set.minifigs,
+        // Real RRP drives the empirical age curve; far better than the synthesised
+        // piece-count MSRP, and available for ~99.99% of formula-priced sets.
+        retailPrice: set.retail_price || set.brickset_msrp || null,
+      });
       pricing = { current_value: f.current_value };
       valMethod = 'formula_bulk';
     }
