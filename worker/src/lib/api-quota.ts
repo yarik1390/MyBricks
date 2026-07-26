@@ -12,7 +12,12 @@ import type { Env } from '../types';
 // ---------------------------------------------------------------------------
 
 export const QUOTA_CAPS: Record<string, number> = {
-  bricklink: 4000,
+  // BrickLink's hard cap is 5,000/day. Held at 90% rather than the ~80% used
+  // elsewhere: BrickLink freshness is the binding constraint on high-confidence
+  // valuations (of the sets with two independent sold families, only ~19% had
+  // BOTH sources fresh), so the refresh lane needs the room. 500/day is still
+  // reserved for organic on-demand revaluations and clock skew.
+  bricklink: 4500,
   ebay: 4000,
   brickeconomy: 80,
   brickset: 90,

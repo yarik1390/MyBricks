@@ -431,18 +431,25 @@ export default {
       // aged past the blend's 14-day freshness window, eBay-corroborated ones first.
       // These are NOT "due" by the normal rule, so they previously starved while the
       // daily BrickLink budget went on probing sets that have no BrickLink data at
-      // all. ~15 sets/h (~2 BrickLink calls each for retired sets) fits the ~1.1k/day
-      // headroom under the 4000 cap and clears the stale backlog in a few days.
+      // all. Sized against BrickLink's 5,000/day hard cap (ledger held at 4,500):
+      // 24 sets/h x <=2 calls for retired sets is <=1,152/day on top of the ~3,230/day
+      // the other jobs (including valuate-minifigs) actually used before this lane
+      // existed — ~4,380 worst case, so the lane cannot starve the main valuation
+      // crons. Measured at the previous 15/h the lane refreshed every set it touched
+      // but needed ~8 days for the ~2,550-set stale backlog; this roughly halves it.
       case '45 * * * *':
         await run('valuate-bl-refresh', () => runValuateSets(env, {
           scope: 'all',
           blStale: true,
-          limit: 15,
+          limit: 24,
           includeSupplemental: false,
           includeEbay: false,
           includeEbaySold: false,
           includeAiFallback: false,
-          subrequestBudget: 200,
+          // packBatch sizes the batch to (budget - 20 overhead) / perSetCost, and
+          // perSetCost is 7 for this BrickLink-only profile — so 200 would silently
+          // clamp the 30 back to 25. 260 lets the full batch through.
+          subrequestBudget: 260,
         }));
         break;
       case '15 * * * *':

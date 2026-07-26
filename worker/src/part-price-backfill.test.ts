@@ -8,6 +8,7 @@ vi.mock('./lib/bricklink-colors', () => ({ toBrickLinkColorId: vi.fn() }));
 import { fetchPartPricing } from './lib/bricklink';
 import { toBrickLinkColorId } from './lib/bricklink-colors';
 import { runPartPriceBackfill } from './jobs/part-price-backfill';
+import { QUOTA_CAPS } from './lib/api-quota';
 
 const db = (env as any).DB as D1Database;
 const mockPrice = vi.mocked(fetchPartPricing);
@@ -37,7 +38,11 @@ describe('runPartPriceBackfill', () => {
   });
 
   it('skips when the BrickLink daily budget is spent', async () => {
-    await db.prepare(`INSERT INTO api_quota (service, day, used, cap) VALUES ('bricklink', ?1, 4000, 4000)`).bind(today).run();
+    // Seed `used` from the LIVE cap: the budget check reads QUOTA_CAPS, not the
+    // row's cap column, so hard-coding 4000 here silently stopped simulating a
+    // spent budget the moment the cap was raised.
+    const cap = QUOTA_CAPS.bricklink;
+    await db.prepare(`INSERT INTO api_quota (service, day, used, cap) VALUES ('bricklink', ?1, ?2, ?2)`).bind(today, cap).run();
     const r = await runPartPriceBackfill(withBl);
     expect(r.skipped).toMatch(/bricklink budget spent/);
   });
