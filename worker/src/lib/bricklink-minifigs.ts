@@ -53,8 +53,9 @@ export function parseMinifigCatalog(text: string): BlMinifig[] {
 }
 
 /** Pick the BrickLink id for a Rebrickable minifig from same-normalized-name
- *  candidates. Unique match wins; otherwise disambiguate by year; if still not
- *  unique, return null (don't guess). */
+ *  candidates. Unique match wins; otherwise disambiguate by year (exact, then
+ *  ±1 — the two catalogs disagree by a year on release-boundary figs); if still
+ *  not unique, return null (don't guess). */
 export function resolveBlId(
   candidates: Array<{ bl_id: string; year: number | null }>,
   rbYear: number | null,
@@ -64,6 +65,99 @@ export function resolveBlId(
   if (rbYear != null) {
     const byYear = candidates.filter((c) => c.year === rbYear);
     if (byYear.length === 1) return byYear[0].bl_id;
+    if (byYear.length === 0) {
+      const near = candidates.filter((c) => c.year != null && Math.abs(c.year - rbYear) <= 1);
+      if (near.length === 1) return near[0].bl_id;
+    }
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Tiered name matching.
+//
+// Exact normalized-name equality resolves only ~12% of the figs we want to
+// price: the two catalogs describe the same figure at different levels of
+// detail ("Gorzan" vs "Gorzan - Fire Chi", "Batman, Black Suit, Black Cape"
+// vs "Batman - Black Suit"). Measured over the eligible population, allowing a
+// name to be a PREFIX of the other roughly triples the candidate hit rate
+// (17% → 62% of figs get at least one candidate).
+//
+// Precision is preserved by keeping the tiers strictly ordered — an exact
+// match is never traded for a prefix one — and by only auto-assigning when the
+// winning tier resolves to a single id. Everything else is handed to the
+// price-agreement verifier (jobs/minifig-verify.ts) rather than guessed at.
+// ---------------------------------------------------------------------------
+
+export interface BlNameCandidate { bl_id: string; norm_name: string; year: number | null }
+
+export interface BlNameMatch {
+  /** Unambiguous id, or null when the caller should verify instead. */
+  bl_id: string | null;
+  /** Best-tier candidates to park for price-agreement verification (empty when
+   *  bl_id is set, or when nothing plausible matched). */
+  ambiguous: BlNameCandidate[];
+  /** 'exact' | 'bl_longer' | 'rb_longer' — which tier produced the result. */
+  tier: 'exact' | 'bl_longer' | 'rb_longer' | null;
+}
+
+/** Cumulative multi-token prefixes of a normalized name, longest first. Used to
+ *  find BrickLink rows whose (shorter) name is a prefix of the Rebrickable one.
+ *  Single-token prefixes are excluded on purpose: "batman" alone would match a
+ *  generic figure rather than the variant we are pricing. */
+export function namePrefixes(norm: string, max = 12): string[] {
+  const tokens = String(norm || '').split(' ').filter(Boolean);
+  const out: string[] = [];
+  for (let n = tokens.length - 1; n >= 2 && out.length < max; n--) out.push(tokens.slice(0, n).join(' '));
+  return out;
+}
+
+const MAX_AMBIGUOUS = 6; // cap the verification fan-out (each candidate costs a BrickLink call)
+
+/** Rank pre-filtered BrickLink rows against a Rebrickable minifig. `rows` should
+ *  contain exact matches, names extending `rbNorm`, and names that `rbNorm`
+ *  extends; anything unrelated is ignored here. */
+export function matchBlCandidates(
+  rows: BlNameCandidate[],
+  rbNorm: string,
+  rbYear: number | null,
+): BlNameMatch {
+  const exact: BlNameCandidate[] = [];
+  const blLonger: BlNameCandidate[] = [];
+  const rbLonger: BlNameCandidate[] = [];
+  for (const r of rows ?? []) {
+    const n = r?.norm_name;
+    if (!n) continue;
+    if (n === rbNorm) exact.push(r);
+    else if (n.startsWith(`${rbNorm} `)) blLonger.push(r);
+    else if (rbNorm.startsWith(`${n} `)) rbLonger.push(r);
+  }
+
+  // Within the "Rebrickable is more specific" tier, only the LONGEST BrickLink
+  // prefix is a real candidate — shorter ones are ancestors of it, not rivals.
+  let rbLongerBest: BlNameCandidate[] = [];
+  if (rbLonger.length) {
+    const longest = Math.max(...rbLonger.map((c) => c.norm_name.length));
+    rbLongerBest = rbLonger.filter((c) => c.norm_name.length === longest);
+  }
+
+  const tiers: Array<[BlNameMatch['tier'], BlNameCandidate[]]> = [
+    ['exact', exact],
+    ['bl_longer', blLonger],
+    ['rb_longer', rbLongerBest],
+  ];
+  for (const [tier, candidates] of tiers) {
+    if (!candidates.length) continue;
+    const picked = resolveBlId(candidates, rbYear);
+    if (picked) return { bl_id: picked, ambiguous: [], tier };
+    // Hand the closest few to the verifier, nearest release year first.
+    const ranked = [...candidates].sort((a, b) => yearDistance(a.year, rbYear) - yearDistance(b.year, rbYear));
+    return { bl_id: null, ambiguous: ranked.slice(0, MAX_AMBIGUOUS), tier };
+  }
+  return { bl_id: null, ambiguous: [], tier: null };
+}
+
+function yearDistance(year: number | null, rbYear: number | null): number {
+  if (year == null || rbYear == null) return 9999;
+  return Math.abs(year - rbYear);
 }

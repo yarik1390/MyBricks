@@ -208,6 +208,13 @@ export const TABLE_DDL: Record<string, string> = {
   decided_at TEXT,
   PRIMARY KEY (fig_num, bl_id)
 )`,
+  bricklink_minifigs: `CREATE TABLE IF NOT EXISTS bricklink_minifigs (
+  bl_id TEXT PRIMARY KEY,
+  name TEXT,
+  norm_name TEXT,
+  category TEXT,
+  year INTEGER
+)`,
   community_comps: `CREATE TABLE IF NOT EXISTS community_comps (
   set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
   condition TEXT NOT NULL CHECK(condition IN ('new_sealed','used_complete')),

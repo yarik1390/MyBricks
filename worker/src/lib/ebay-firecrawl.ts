@@ -157,6 +157,10 @@ export async function fetchMinifigEbaySoldViaFirecrawl(
     {
       url,
       formats: ['json'],
+      // Same anti-bot lesson as the set scraper above: eBay's sold search returns
+      // a thin/blocked page through the default proxy, so this extraction almost
+      // never found comps. The mobile/residential ENHANCED proxy renders it.
+      proxy: 'enhanced',
       jsonOptions: {
         schema: LISTING_SCHEMA,
         prompt: `Extract sold LEGO MINIFIGURE listings matching "${figName}" (${figNum}). Only individual minifigures — exclude full sets and lots. For each, include title, price in USD, condition, and the sold date in YYYY-MM-DD format.`,
