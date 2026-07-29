@@ -184,15 +184,37 @@ app.get('/search', async (c) => {
   let searchDegraded = false;
   let pageRes: D1Result<Record<string, unknown>>;
   let countRes: { total: number } | null;
+  // The unfiltered browse is the app's most-hit query, and its COUNT(*) is a full
+  // scan of the catalog on EVERY page — once idx_sets_browse_value reduced the
+  // page itself to ~24 rows read, this count was 99.9% of what the request cost
+  // (27,660 of 27,684 rows). The catalog only changes on the weekly import, so
+  // cache the unfiltered total briefly instead of recounting it per request.
+  // Filtered/searched counts are NOT cached — they vary per query and must stay exact.
+  const cacheTotal = !q && !whereSQL;
+  const TOTAL_KEY = 'catalog:total';
+  let cachedTotal: number | null = null;
+  if (cacheTotal) {
+    const hit = await c.env.CACHE_KV?.get(TOTAL_KEY).catch(() => null);
+    const n = Number(hit);
+    if (Number.isFinite(n) && n > 0) cachedTotal = n;
+  }
   try {
     [pageRes, countRes] = await Promise.all([
       c.env.DB.prepare(
         `SELECT ${CATALOG_COLS} FROM ${fromSQL} ${MARKET_EXT_JOIN} ${whereSQL} ORDER BY ${orderBySQL}, s.set_num LIMIT ? OFFSET ?`
       ).bind(...params, lim, offset).all<Record<string, unknown>>(),
-      c.env.DB.prepare(
-        `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM ${fromSQL} ${whereSQL}`
-      ).bind(...params).first<{ total: number }>(),
+      cachedTotal != null
+        ? Promise.resolve({ total: cachedTotal })
+        : c.env.DB.prepare(
+            `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM ${fromSQL} ${whereSQL}`
+          ).bind(...params).first<{ total: number }>(),
     ]);
+    if (cacheTotal && cachedTotal == null && countRes?.total && c.env.CACHE_KV) {
+      // Best-effort, non-blocking: a missed cache write just means one more count.
+      c.executionCtx?.waitUntil?.(
+        c.env.CACHE_KV.put(TOTAL_KEY, String(countRes.total), { expirationTtl: 900 }).catch(() => {}),
+      );
+    }
   } catch (error) {
     if (!q || !isSearchIndexCorruption(error)) throw error;
 

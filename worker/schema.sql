@@ -400,6 +400,16 @@ CREATE TABLE IF NOT EXISTS minifigs (
   img_prewarmed_at TEXT
 );
 
+-- Default minifig browse sort (rarity tier, then name) — same expression-index
+-- reasoning as idx_sets_browse_value: the CASE on rarity is not indexable as a
+-- plain column, so listing figs scanned all ~17k rows into a temp b-tree to
+-- return 30. Measured 34,136 rows read / ~29ms before, 30 rows / ~0.5ms after.
+-- Keep in sync with the rarity_desc ORDER BY in routes/minifigs.ts.
+CREATE INDEX IF NOT EXISTS idx_minifigs_browse_rarity ON minifigs(
+  (CASE rarity WHEN 'legendary' THEN 4 WHEN 'rare' THEN 3 WHEN 'uncommon' THEN 2 ELSE 1 END) DESC,
+  name ASC
+);
+
 CREATE TABLE IF NOT EXISTS user_minifigs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id TEXT NOT NULL,
@@ -659,6 +669,22 @@ CREATE INDEX IF NOT EXISTS idx_sets_year ON lego_sets(year);
 CREATE INDEX IF NOT EXISTS idx_sets_pieces ON lego_sets(pieces);
 CREATE INDEX IF NOT EXISTS idx_sets_current_value ON lego_sets(current_value);
 CREATE INDEX IF NOT EXISTS idx_sets_blended_value ON lego_sets(blended_value);
+-- Default catalog browse sort (SORTS.value_desc in routes/sets-sql.ts). The two
+-- plain indexes above CANNOT serve it: the ORDER BY is a CASE plus a
+-- COALESCE(NULLIF(...)), and SQLite will not use a column index for an
+-- expression. So the catalog's first screen scanned all ~27k rows and sorted
+-- them in a temp b-tree to return 24 — measured at 55,320 rows read (the scan,
+-- doubled by the set_market_ext join) and ~51ms, on every page load.
+--
+-- An EXPRESSION index matching the ORDER BY exactly turns that into an ordered
+-- walk: measured 24 rows read and ~0.9ms, identical results. Keep this in sync
+-- with SORTS.value_desc — if that expression changes and this does not, the
+-- index silently stops matching and the full scan comes back.
+CREATE INDEX IF NOT EXISTS idx_sets_browse_value ON lego_sets(
+  (CASE WHEN valuation_method IN ('formula_bulk','local') THEN 1 ELSE 0 END),
+  COALESCE(NULLIF(blended_value, 0), current_value) DESC,
+  set_num
+);
 CREATE INDEX IF NOT EXISTS idx_showcase_user ON user_showcase(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_prefs_handle ON user_prefs(handle) WHERE handle IS NOT NULL;
 

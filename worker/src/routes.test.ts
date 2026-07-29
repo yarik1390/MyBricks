@@ -281,6 +281,34 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
   });
 
   describe('Set search', () => {
+    // The unfiltered total is cached (the COUNT was a full catalog scan on every
+    // page load). A cached total must never be served for a FILTERED query — that
+    // would report the whole catalog as the result count.
+    it('caches only the unfiltered total, never a filtered one', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, current_value) VALUES ('CNT-1','One','Castle',2002,10)`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, current_value) VALUES ('CNT-2','Two','Castle',2003,20)`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, current_value) VALUES ('CNT-3','Three','City',2004,30)`),
+      ]);
+
+      // Other tests in this suite share the catalog, so compare against the DB
+      // rather than hard-coded counts.
+      const all = (await db.prepare(`SELECT COUNT(*) AS n FROM lego_sets`).first<{ n: number }>())!.n;
+      const castle = (await db.prepare(`SELECT COUNT(*) AS n FROM lego_sets WHERE theme='Castle'`).first<{ n: number }>())!.n;
+      expect(castle).toBeLessThan(all); // the filter must actually narrow
+
+      const bare = await (await app.fetch(new Request('http://localhost/api/sets/search?limit=2'), env)).json<any>();
+      expect(bare.total).toBe(all);
+
+      // Filtered request while the unfiltered total is warm in KV.
+      const filtered = await (await app.fetch(new Request('http://localhost/api/sets/search?theme=Castle&limit=50'), env)).json<any>();
+      expect(filtered.total).toBe(castle);
+
+      // Unfiltered again still reports the full catalog.
+      const again = await (await app.fetch(new Request('http://localhost/api/sets/search?limit=2'), env)).json<any>();
+      expect(again.total).toBe(all);
+    });
+
     it('handles exact set numbers with dashes as plain search text', async () => {
       await db.prepare(
         `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
