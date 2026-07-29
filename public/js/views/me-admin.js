@@ -818,7 +818,16 @@ function brightDataPoolHTML() {
     const flag = e.exhausted ? (used < 100 ? ' (rejected — likely invalid token)' : ' (exhausted)') : '';
     return `<div>…${escapeHtml(String(e.key_hash || '').slice(0, 8))} — ${used.toLocaleString()}/${cap.toLocaleString()} credits${escapeHtml(flag)} · ${left.toLocaleString()} left</div>`;
   }).join('');
-  return `<details class="admin-job-details" open><summary>Key pool — monthly spend: ${escapeHtml(head)}</summary><div class="admin-bd-pool">${rows}</div></details>`;
+  // The Worker opens a circuit breaker when Bright Data has not succeeded in 24h
+  // and routes eBay-sold to Firecrawl. Without saying so, the card reads as an
+  // unhandled outage and invites manual intervention that is already automatic.
+  const row = (adminHealth?.integrations || []).find((r) => String(r.service).toLowerCase() === 'brightdata');
+  const okAt = Date.parse(String(row?.last_ok_at || '').replace(' ', 'T') + 'Z');
+  const breakerOpen = !!row?.last_fail_at && (!Number.isFinite(okAt) || Date.now() - okAt > 24 * 3600 * 1000);
+  const breaker = breakerOpen
+    ? `<p class="admin-service-action"><strong>Breaker open.</strong> No success in 24h, so the eBay-sold scrape has switched itself to Firecrawl. It goes back to Bright Data automatically on the first success — the key pool is untouched.</p>`
+    : '';
+  return `<details class="admin-job-details" open><summary>Key pool — monthly spend: ${escapeHtml(head)}</summary><div class="admin-bd-pool">${rows}</div></details>${breaker}`;
 }
 
 // Firecrawl key pool. Unlike Bright Data's monthly pool these are one-time credit
@@ -962,7 +971,16 @@ function renderServices() {
   const cfg = sourceConfig || {};
   const card = (svc) => {
     const row = serviceRow(svc, rows);
-    return { svc, row, health: classifyProviderHealth(row) };
+    // "Off" (the admin unchecked it) is not the same as "on but blocked by a
+    // missing key" — serviceFlagHTML draws that distinction the same way. Only
+    // the former should silence the card.
+    const flag = SERVICE_FLAG[String(svc).toLowerCase()];
+    const intended = flag
+      ? (featureFlags.overrides && flag in featureFlags.overrides
+          ? !!featureFlags.overrides[flag]
+          : !!featureFlags.effective?.[flag])
+      : true;
+    return { svc, row, health: classifyProviderHealth({ ...row, disabled: !intended }) };
   };
   const renderCard = (c) => serviceCardHTML(c.svc, c.row, c.health, cfg, openSet);
 

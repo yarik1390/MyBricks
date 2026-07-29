@@ -562,6 +562,44 @@ describe('admin helper classification', () => {
     assert.notEqual(provider.label, 'Quota limited');
   });
 
+  it('reports a switched-off source as Off rather than demanding action', () => {
+    // BrickOwl: switch off, 403 recorded 46 days ago — it was sitting in
+    // "Needs action" as "Needs access" for a source nothing calls.
+    const provider = classifyProviderHealth({
+      service: 'brickowl',
+      configured: true,
+      disabled: true,
+      status: 'down',
+      last_ok_at: null,
+      last_fail_at: '2026-06-13 09:11:00',
+      last_error: 'HTTP 403',
+    });
+    assert.equal(provider.label, 'Off');
+    assert.equal(provider.actionable, false);
+    assert.equal(provider.blocked, false);
+    assert.equal(provider.tone, 'neutral');
+  });
+
+  it('still flags a source that is switched ON but failing', () => {
+    const provider = classifyProviderHealth({
+      service: 'brickowl',
+      configured: true,
+      disabled: false,
+      status: 'down',
+      last_fail_at: '2026-06-13 09:11:00',
+      last_error: 'HTTP 403',
+    });
+    assert.equal(provider.blocked, true);
+    assert.equal(provider.label, 'Needs access');
+  });
+
+  it('treats Amazon as optional so an unqualified account is not triaged', () => {
+    const provider = classifyProviderHealth({ service: 'amazon', configured: false, status: 'unknown' });
+    assert.equal(provider.optional, true);
+    assert.equal(provider.actionable, false);
+    assert.equal(provider.label, 'Optional setup');
+  });
+
   it('classifies eBay 401 as sold-comps blocked', () => {
     const provider = classifyProviderHealth({
       service: 'ebay',

@@ -320,6 +320,15 @@ function isQuotaIssue(error?: string | null): boolean {
   return !!error && /(HTTP 429|EXCEED_LIMIT|rate limit|quota|too many requests|daily cap)/i.test(error);
 }
 
+// A failure on the PROVIDER's side — 5xx, an unavailable upstream, or a page
+// that came back empty. There is nothing to fix locally, so the credential
+// advice is just as misleading here as it is for a quota refusal: Bright Data
+// (HTTP 502), pricesAPI (scraper unavailable HTTP 503) and StockX (empty/short
+// body) were all telling the admin to go rotate working keys.
+function isProviderOutage(error?: string | null): boolean {
+  return !!error && /(HTTP 5\d\d|unavailable|bad gateway|service unavailable|gateway timeout|empty\/short body|empty body)/i.test(error);
+}
+
 export function classifyHealth(row: IntegrationHealthRow): 'ok' | 'degraded' | 'down' {
   const okAt = row.last_ok_at ? Date.parse(row.last_ok_at) : 0;
   const failAt = row.last_fail_at ? Date.parse(row.last_fail_at) : 0;
@@ -511,6 +520,8 @@ export async function getIntegrationDiagnostics(env: Env): Promise<IntegrationDi
       // discard whatever balance is left on it.
       : (configured && row && isQuotaIssue(row.last_error))
         ? 'Provider is refusing calls on quota or rate limit, not credentials — leave the keys alone. Wait for the window to reset, lower the daily cap, or add capacity.'
+      : (configured && row && isProviderOutage(row.last_error))
+        ? 'The provider is erroring on its own side (5xx / empty response), so there is nothing to fix here. Jobs retry on their next scheduled run; if it persists for a day, check the provider status page or account standing.'
       : status === 'down'
         ? 'Check the latest provider error, refresh credentials, then rerun a small batch.'
         : degraded
