@@ -177,6 +177,12 @@ export interface FirecrawlKeyPoolStatus {
   /** Sum of remaining credits across live keys with a known balance. */
   pooled_remaining: number | null;
   active_key_index: number | null;
+  /** How many balances FIRECRAWL_KEY_CREDITS declares. When this exceeds
+   *  keys_configured, a key was declared but never reached the Worker — the
+   *  likely cause is adding it as a GitHub Actions secret, which is NOT in the
+   *  deploy workflow's upload list, instead of as a Worker secret. Surfaced so
+   *  the mismatch is visible now rather than when the active key runs dry. */
+  caps_declared: number;
   entries: FirecrawlKeyEntry[];
 }
 
@@ -225,6 +231,7 @@ export async function getFirecrawlKeyPoolStatus(env: Env): Promise<FirecrawlKeyP
     keys_live: entries.filter((e) => !e.exhausted).length,
     pooled_remaining: known.length ? known.reduce((s, e) => s + (e.remaining ?? 0), 0) : null,
     active_key_index: activeIndex,
+    caps_declared: (env.FIRECRAWL_KEY_CREDITS?.split(',').filter((s) => s.trim()) ?? []).length,
     entries,
   };
 }

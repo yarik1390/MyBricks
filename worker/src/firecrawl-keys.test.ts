@@ -161,6 +161,16 @@ describe('firecrawl key pool', () => {
       expect(status.entries[0].key_hash).toHaveLength(12);
     });
 
+    it('flags a declared balance whose key never reached the Worker', async () => {
+      // FIRECRAWL_API_KEYS added as a GitHub Actions secret instead of a Worker
+      // secret: the balance is declared but the key is invisible, and without
+      // this signal the mistake only shows up when the active key runs dry.
+      const oneKey = { ...pool, FIRECRAWL_API_KEYS: '' } as any;
+      const status = await getFirecrawlKeyPoolStatus(oneKey);
+      expect(status.keys_configured).toBe(1);
+      expect(status.caps_declared).toBe(2);
+    });
+
     it('reset un-latches and zeroes the pool', async () => {
       await spend(await hashFirecrawlKey('fc-small'), 100, true).run();
       expect((await resetFirecrawlKeyPool(pool)).reset).toBe(1);

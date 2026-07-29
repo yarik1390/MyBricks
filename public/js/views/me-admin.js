@@ -821,6 +821,42 @@ function brightDataPoolHTML() {
   return `<details class="admin-job-details" open><summary>Key pool — monthly spend: ${escapeHtml(head)}</summary><div class="admin-bd-pool">${rows}</div></details>`;
 }
 
+// Firecrawl key pool. Unlike Bright Data's monthly pool these are one-time credit
+// balances drained IN ORDER, so the useful facts are which key is currently being
+// spent and how much is left in it. Reads adminHealth.firecrawl.pool.
+function firecrawlPoolHTML() {
+  const pool = adminHealth?.firecrawl?.pool;
+  if (!pool || !Array.isArray(pool.entries)) return '';
+  const configured = Number(pool.keys_configured ?? 0);
+  const declared = Number(pool.caps_declared ?? 0);
+
+  // A balance declared for a key the Worker cannot see means the secret never
+  // arrived — FIRECRAWL_API_KEYS is not in the deploy workflow's upload list, so
+  // adding it as a GitHub Actions secret silently does nothing. Say so plainly:
+  // otherwise this only shows up as scraping stopping when the active key drains.
+  const warn = declared > configured
+    ? `<p class="admin-service-action"><strong>${declared - configured} declared key(s) missing.</strong>
+        FIRECRAWL_KEY_CREDITS lists ${declared} balances but the Worker sees ${configured} key(s).
+        FIRECRAWL_API_KEYS must be a <em>Worker</em> secret (wrangler secret put / dashboard →
+        Settings → Variables) — a GitHub Actions secret is not uploaded for this name.</p>`
+    : '';
+  if (!pool.entries.length) return warn;
+
+  const remaining = pool.pooled_remaining;
+  const head = remaining == null
+    ? `${pool.keys_live ?? 0}/${configured} keys live`
+    : `${pool.keys_live ?? 0}/${configured} keys live · ${Number(remaining).toLocaleString()} credits left`;
+  const rows = pool.entries.map((e) => {
+    const used = Number(e.used || 0);
+    const budget = e.cap == null
+      ? `${used.toLocaleString()} credits used · balance unknown`
+      : `${used.toLocaleString()}/${Number(e.cap).toLocaleString()} credits · ${Number(e.remaining ?? 0).toLocaleString()} left`;
+    const tag = e.exhausted ? ' — spent' : (e.active ? ' — in use' : ' — queued');
+    return `<div>#${Number(e.index) + 1} …${escapeHtml(String(e.key_hash || '').slice(0, 8))} — ${escapeHtml(budget)}${escapeHtml(tag)}</div>`;
+  }).join('');
+  return `<details class="admin-job-details" open><summary>Key pool — drains in order: ${escapeHtml(head)}</summary><div class="admin-bd-pool">${rows}</div></details>${warn}`;
+}
+
 // Relative age for an ISO-8601 timestamp (e.g. new Date().toISOString()). The
 // shared ago() helper is for SQLite "YYYY-MM-DD HH:MM:SS" strings — it appends a
 // 'Z', which double-stamps an ISO value and yields "unknown". Parse natively here.
@@ -991,6 +1027,7 @@ function serviceCardHTML(svc, row, health, cfg, openSet) {
         <div class="admin-service-facts">${facts.map(f => `<span>${escapeHtml(f)}</span>`).join('')}</div>
         ${key === 'ebay' ? ebayStateHTML(health) : ''}
         ${key === 'brightdata' ? brightDataPoolHTML() : ''}
+        ${key === 'firecrawl' ? firecrawlPoolHTML() : ''}
         ${key === 'pricecharting' ? pcBulkStatusHTML() : ''}
         <p class="admin-service-action">${escapeHtml(health.action)}</p>
         ${row.last_error ? `<details class="admin-job-details"><summary>Latest failure</summary><div>${escapeHtml(String(row.last_error).slice(0, 900))}</div></details>` : ''}
