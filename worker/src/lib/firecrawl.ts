@@ -4,8 +4,10 @@ import { firecrawlEnabled } from './pricing-flags';
 import { spendQuota } from './api-quota';
 import {
   pickFirecrawlKey,
+  pickNextFirecrawlKey,
   recordFirecrawlSpend,
   isCreditExhaustion,
+  isRateLimited,
   type PickedFirecrawlKey,
 } from './firecrawl-keys';
 
@@ -78,29 +80,42 @@ export async function firecrawlScrape<T = unknown>(
   if (opts.actions?.length) body.actions = opts.actions;
   if (opts.maxAge != null) body.maxAge = opts.maxAge;
 
-  // One retry, and only for a drained key: the call that DISCOVERS a key is out
-  // of credits would otherwise be thrown away, making every switchover cost a
-  // scrape. Any other failure is returned as-is — retrying a timeout or a block
-  // on a second key just burns the second key's credits too.
-  const attempted: string[] = [];
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const picked = await pickFirecrawlKey(env);
-    if (!picked) {
-      await recordIntegrationAttempt(env, 'firecrawl', false, 'all Firecrawl keys are out of credits');
-      return null;
-    }
-    if (attempted.includes(picked.hash)) break; // pool didn't advance; don't loop
-    attempted.push(picked.hash);
+  // Retry on TWO conditions, both of which mean "this key can't serve the call
+  // but another one could", and neither of which costs credits on the key that
+  // refused it:
+  //   exhausted (402) — the balance is gone; the key is retired and we move on.
+  //   rate_limited (429) — Firecrawl's per-minute ceiling is PER KEY, so an idle
+  //     key still has its own allowance. The key is NOT retired and keeps its
+  //     place in the drain order; we just borrow the next one for this call.
+  // Anything else returns as-is: retrying a timeout or a block on a second key
+  // would burn the second key's credits for the same failure.
+  const attempted = new Set<string>();
+  let picked = await pickFirecrawlKey(env);
+  for (let attempt = 0; attempt < 3 && picked; attempt++) {
+    if (attempted.has(picked.hash)) break;   // pool didn't advance; don't loop
+    attempted.add(picked.hash);
 
     const out = await scrapeOnce<T>(picked, body, opts, env, creditCost);
     if (out.kind === 'ok') return { data: out.data };
-    if (out.kind === 'exhausted') continue;     // key retired; next iteration picks the next one
-    return null;
+    if (out.kind === 'failed') return null;
+    // exhausted -> the key is now latched, so the normal head-of-pool pick
+    // advances by itself. rate_limited -> the key is still live and still first
+    // in the drain order, so step PAST it explicitly for this call only.
+    picked = out.kind === 'exhausted'
+      ? await pickFirecrawlKey(env)
+      : await pickNextFirecrawlKey(env, picked.index);
+  }
+  if (!picked) {
+    await recordIntegrationAttempt(env, 'firecrawl', false, 'no Firecrawl key could serve the request');
   }
   return null;
 }
 
-type ScrapeOutcome<T> = { kind: 'ok'; data: T } | { kind: 'failed' } | { kind: 'exhausted' };
+type ScrapeOutcome<T> =
+  | { kind: 'ok'; data: T }
+  | { kind: 'failed' }
+  | { kind: 'exhausted' }
+  | { kind: 'rate_limited' };
 
 async function scrapeOnce<T>(
   picked: PickedFirecrawlKey,
@@ -127,12 +142,18 @@ async function scrapeOnce<T>(
       // Firecrawl's own verdict on a drained balance is authoritative and beats
       // our credit counter, which can only ever be an estimate.
       const exhausted = isCreditExhaustion(resp.status, text);
+      const throttled = !exhausted && isRateLimited(resp.status);
       const msg = exhausted
-        ? `Firecrawl key ${picked.index} is out of credits (HTTP ${resp.status}) — failing over`
-        : `Firecrawl HTTP ${resp.status}: ${text.slice(0, 120)}`;
+        ? `Firecrawl key ${picked.index + 1} is out of credits (HTTP ${resp.status}) — retiring it and failing over`
+        : throttled
+          ? `Firecrawl key ${picked.index + 1} hit its per-minute rate limit — borrowing the next key for this call`
+          : `Firecrawl HTTP ${resp.status}: ${text.slice(0, 120)}`;
+      // A throttled key is healthy: don't latch it, and don't charge it either
+      // (Firecrawl bills nothing for a request it refused).
       await recordFirecrawlSpend(env, picked, 0, { exhausted });
       await recordIntegrationAttempt(env, 'firecrawl', false, msg);
-      return { kind: exhausted ? 'exhausted' : 'failed' };
+      if (exhausted) return { kind: 'exhausted' };
+      return { kind: throttled ? 'rate_limited' : 'failed' };
     }
 
     // Book the credits only on a call Firecrawl actually served — a rejected

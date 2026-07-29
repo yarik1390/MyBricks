@@ -311,6 +311,15 @@ function isWorkerCapacityIssue(error?: string | null): boolean {
   return !!error && /(Too many subrequests|operation was aborted|AbortError|timed out|timeout)/i.test(error);
 }
 
+// A quota / rate-limit refusal, as opposed to a credential problem. Worth
+// distinguishing because the generic "refresh credentials" advice is actively
+// harmful here: rotating a throttled-but-healthy key throws away whatever
+// balance is left on it. Firecrawl (HTTP 429 per-minute ceiling), Gemini (free
+// tier 429) and UPCitemdb (EXCEED_LIMIT) all land in this bucket.
+function isQuotaIssue(error?: string | null): boolean {
+  return !!error && /(HTTP 429|EXCEED_LIMIT|rate limit|quota|too many requests|daily cap)/i.test(error);
+}
+
 export function classifyHealth(row: IntegrationHealthRow): 'ok' | 'degraded' | 'down' {
   const okAt = row.last_ok_at ? Date.parse(row.last_ok_at) : 0;
   const failAt = row.last_fail_at ? Date.parse(row.last_fail_at) : 0;
@@ -497,6 +506,11 @@ export async function getIntegrationDiagnostics(env: Env): Promise<IntegrationDi
         ? 'The eBay keyset is configured but sold-comps access is denied. Marketplace Insights is limited-release; request Buy Marketplace Insights approval for this production keyset or leave eBay pricing disabled while BrickLink/BrickEconomy continue.'
         : !configured
       ? (def.recommended_action || (missing.length ? `Set ${missing.join(', ')}.` : 'Complete setup for this integration.'))
+      // Check quota BEFORE the generic "down" advice: telling someone to refresh
+      // credentials over a rate limit sends them to rotate a working key and
+      // discard whatever balance is left on it.
+      : (configured && row && isQuotaIssue(row.last_error))
+        ? 'Provider is refusing calls on quota or rate limit, not credentials — leave the keys alone. Wait for the window to reset, lower the daily cap, or add capacity.'
       : status === 'down'
         ? 'Check the latest provider error, refresh credentials, then rerun a small batch.'
         : degraded

@@ -546,6 +546,22 @@ describe('admin helper classification', () => {
     assert.equal(provider.blocked, false);
   });
 
+  it('clears the quota badge once the provider has succeeded since the failure', () => {
+    // BrickEconomy: last OK 30 minutes ago, last fail 47 days ago, 0/80 of its
+    // daily quota used — yet it was badged "Quota limited" because last_error
+    // still held an old HTTP 429 and nothing checked whether it was current.
+    const provider = classifyProviderHealth({
+      service: 'brickeconomy',
+      configured: true,
+      status: 'ok',
+      last_ok_at: '2026-07-29 09:45:00',
+      last_fail_at: '2026-06-12 13:58:00',
+      last_error: 'HTTP 429',
+    });
+    assert.equal(provider.quotaLimited, false);
+    assert.notEqual(provider.label, 'Quota limited');
+  });
+
   it('classifies eBay 401 as sold-comps blocked', () => {
     const provider = classifyProviderHealth({
       service: 'ebay',

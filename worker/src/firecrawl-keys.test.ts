@@ -107,8 +107,40 @@ describe('firecrawl key pool', () => {
       expect(row!.exhausted_at).toBeTruthy();
     });
 
+    it('borrows the next key on a 429 without retiring the throttled one', async () => {
+      // Firecrawl's per-minute ceiling is per key, so an idle key still has its
+      // own allowance — and a refused request costs no credits.
+      const fetchSpy = vi.fn()
+        .mockResolvedValueOnce(new Response('{"error":"Rate limit exceeded"}', { status: 429 }))
+        .mockResolvedValueOnce(new Response(okBody, { status: 200 }));
+      vi.stubGlobal('fetch', fetchSpy);
+
+      const out = await firecrawlScrape<{ hit: number }>({ url: 'https://x.test', formats: ['markdown'] }, pool);
+
+      expect(out?.data).toEqual({ hit: 1 });
+      expect((fetchSpy.mock.calls[0][1] as any).headers.Authorization).toBe('Bearer fc-small');
+      expect((fetchSpy.mock.calls[1][1] as any).headers.Authorization).toBe('Bearer fc-big');
+      // The throttled key keeps its place at the head of the drain order...
+      const row = await db.prepare(`SELECT used, exhausted_at FROM firecrawl_keys WHERE key_hash=?`)
+        .bind(await hashFirecrawlKey('fc-small')).first<{ used: number; exhausted_at: string | null }>();
+      expect(row!.exhausted_at).toBeNull();
+      expect(row!.used).toBe(0);            // ...and is not charged for the refusal
+      expect((await pickFirecrawlKey(pool))!.key).toBe('fc-small');
+    });
+
+    it('gives up when the last key is also throttled', async () => {
+      const fetchSpy = vi.fn(async () => new Response('rate limited', { status: 429 }));
+      vi.stubGlobal('fetch', fetchSpy);
+
+      expect(await firecrawlScrape({ url: 'https://x.test', formats: ['markdown'] }, pool)).toBeNull();
+      expect(fetchSpy).toHaveBeenCalledTimes(2); // both keys tried, then stop
+    });
+
     it('does NOT burn a second key on an ordinary failure', async () => {
-      const fetchSpy = vi.fn().mockResolvedValue(new Response('rate limited', { status: 429 }));
+      // A server error is the same failure whichever key asks, so retrying would
+      // spend the next key's credits for nothing. (429 is deliberately NOT this
+      // case — it is per-key, and gets the detour tested above.)
+      const fetchSpy = vi.fn().mockResolvedValue(new Response('upstream exploded', { status: 500 }));
       vi.stubGlobal('fetch', fetchSpy);
 
       expect(await firecrawlScrape({ url: 'https://x.test', formats: ['markdown'] }, pool)).toBeNull();

@@ -494,7 +494,12 @@ export function classifyProviderHealth(row = {}) {
     const failAt = dbTimestampMs(row.last_fail_at);
     return !!failAt && (!okAt || failAt >= okAt);
   })();
-  const quotaLimited = /HTTP 429|EXCEED_LIMIT|quota|rate limit|daily cap|too many requests/i.test(error);
+  // `error` is the LAST error ever recorded, not necessarily a current one, so
+  // this must be gated on that failure actually being the latest event — exactly
+  // as `blocked` below already is. Without the gate a provider that 429'd once
+  // and has succeeded ever since stayed badged "Quota limited" forever (seen on
+  // BrickEconomy: last OK 30m ago, last fail 47d ago, 0/80 of quota used).
+  const quotaLimited = latestFail && /HTTP 429|EXCEED_LIMIT|quota|rate limit|daily cap|too many requests/i.test(error);
   const blocked = latestFail && /HTTP 401|HTTP 403|unauthorized|not authorized|access denied|insufficient permissions|invalid[_ -]?scope|Marketplace Insights/i.test(error);
   const optional = !!row.optional || /brickowl|pricecharting|pricesapi|firecrawl|brightdata|discord|openrouter|openai|gemini|resend|push|vapid|google/.test(service);
   if (!configured) {

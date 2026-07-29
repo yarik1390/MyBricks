@@ -146,6 +146,44 @@ export function isCreditExhaustion(status: number, body: string): boolean {
   return /insufficient credits|out of credits|no credits|payment required|credit limit/i.test(body);
 }
 
+/** Is this the per-minute request ceiling rather than a drained balance?
+ *  Firecrawl's limits are PER KEY, so a 429 on the active key says nothing about
+ *  the others — the call can be retried immediately on the next key. Costs no
+ *  credits on the throttled key (Firecrawl does not charge for a rejected
+ *  request), so this borrows throughput without disturbing the drain order. */
+export function isRateLimited(status: number): boolean {
+  return status === 429;
+}
+
+/** The next usable key AFTER `afterIndex`, ignoring balances already spent.
+ *  Used only for the rate-limit detour: unlike pickFirecrawlKey this deliberately
+ *  skips forward rather than restarting at the head, so a throttled key is not
+ *  handed straight back. */
+export async function pickNextFirecrawlKey(
+  env: Env,
+  afterIndex: number,
+): Promise<PickedFirecrawlKey | null> {
+  const keys = configuredFirecrawlKeys(env);
+  const caps = configuredFirecrawlCaps(env);
+  if (afterIndex + 1 >= keys.length) return null;
+  const hashes = await Promise.all(keys.map(hashFirecrawlKey));
+
+  let rowByHash: Map<string, KeyRow>;
+  try {
+    rowByHash = await readRows(env, hashes);
+  } catch {
+    return null;
+  }
+  for (let i = afterIndex + 1; i < keys.length; i++) {
+    const row = rowByHash.get(hashes[i]);
+    if (row?.exhausted_at) continue;
+    const cap = caps[i] ?? null;
+    if (cap != null && Number(row?.used ?? 0) >= cap) continue;
+    return { key: keys[i], hash: hashes[i], index: i };
+  }
+  return null;
+}
+
 /** Admin: un-latch every key (e.g. after topping a plan up) and zero the counters. */
 export async function resetFirecrawlKeyPool(env: Env): Promise<{ reset: number }> {
   try {

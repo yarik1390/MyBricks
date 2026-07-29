@@ -803,6 +803,14 @@ function showBlindBoxResult(res) {
 function showScanResult(res) {
   const el = $("#scanResult");
   if (!el) return;
+  // Photo scans never reported success: scan_success was emitted only from
+  // routeScannedCode (the barcode path), so every identified PHOTO counted as an
+  // attempt with no matching success and the admin SLO sat at 0% with image
+  // scans making up most of the traffic. Barcode scans still report at decode
+  // time, so guard on mode to avoid double-counting the barcode->API round trip.
+  if (res?.identified && state.camera.mode !== "barcode") {
+    track("scan_success", state.camera.mode || "image");
+  }
   el.classList.add("show");
   el.classList.remove("loading");
   document.querySelector(".scan-video-wrap")?.classList.add("has-result");

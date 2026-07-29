@@ -1302,6 +1302,20 @@ function renderPricingCenter() {
   const stale = states.reduce((sum, row) => sum + Number(row.stale || 0), 0);
   const anomalyRows = anomalies.anomalies || [];
   const matchRows = matches.matches || [];
+  // These two arrays are one PAGE of the review queues (fetched with limit=25),
+  // so their length is the page size, not the population. Using it made both
+  // headline metrics read a flat "25" while the recommendation right above them
+  // said "Review 10,269 quarantined source matches". Totals come from the
+  // grouped counts in /pricing/quality; fall back to the page length only when
+  // those are unavailable.
+  const totalQuarantined = (quality.mappings || [])
+    .filter((row) => row.status === 'quarantined')
+    .reduce((sum, row) => sum + Number(row.count || 0), 0) || matchRows.length;
+  const totalAnomalies = (quality.anomalies || [])
+    .reduce((sum, row) => sum + Number(row.count || 0), 0) || anomalyRows.length;
+  // "showing 25 of 10,269" for a queue header.
+  const subsetLabel = (shown, total) =>
+    total > shown ? `${formatCount(shown)} of ${formatCount(total)}` : formatCount(total);
   const budgetTone = budget.state === 'healthy' ? 'ok' : budget.state === 'warning' ? 'warn' : 'danger';
   const limit = Number(budget.limits?.operational_30d || 10_000_000);
   const budgetPct = limit ? Math.min(100, (Number(budget.rolling_30d || 0) / limit) * 100) : 0;
@@ -1315,16 +1329,27 @@ function renderPricingCenter() {
       ${pricingMetricHTML('v3 valued states', formatCount(valued), `${quality.model_version || 'v3 shadow'} records`, valued ? 'ok' : 'warn')}
       ${pricingMetricHTML('High confidence', formatCount(high), 'Verified independent sold families', high ? 'ok' : 'warn')}
       ${pricingMetricHTML('Stale states', formatCount(stale), 'Older than 14 days', stale ? 'warn' : 'ok')}
-      ${pricingMetricHTML('Open anomalies', formatCount(anomalyRows.length), 'Identity, value, or forecast conflicts', anomalyRows.length ? 'danger' : 'ok')}
-      ${pricingMetricHTML('Quarantined matches', formatCount(matchRows.length), 'Excluded from every blend', matchRows.length ? 'warn' : 'ok')}
+      ${pricingMetricHTML('Open anomalies', formatCount(totalAnomalies), 'Identity, value, or forecast conflicts', totalAnomalies ? 'danger' : 'ok')}
+      ${pricingMetricHTML('Quarantined matches', formatCount(totalQuarantined), 'Excluded from every blend', totalQuarantined ? 'warn' : 'ok')}
       ${pricingMetricHTML('Legacy PriceCharting', formatCount(quality.legacy_pricecharting_rows || 0), 'Stored only; weight and jobs are off', 'neutral')}
       ${(() => {
+        // The ≥95% target is a BARCODE target — a clean decode should almost
+        // always resolve. Photo identification is inherently lossier, so pooling
+        // the two made the headline unable to reach its own target whenever
+        // image scans dominated the traffic. Score barcode against the target
+        // and report photo alongside it. `detail` carries the scan mode.
         const slo = quality.scanner_slo || [];
-        const sum = (ev) => slo.filter((r) => r.event === ev).reduce((s, r) => s + Number(r.n || 0), 0);
-        const attempts = sum('scan_attempt');
-        const rate = attempts ? Math.round((sum('scan_success') / attempts) * 100) : null;
-        return pricingMetricHTML('Scanner success (14d)', rate == null ? '—' : `${rate}%`,
-          attempts ? `${formatCount(attempts)} attempts · target ≥95% barcode` : 'No telemetry yet',
+        const sum = (ev, pred = () => true) =>
+          slo.filter((r) => r.event === ev && pred(String(r.detail || ''))).reduce((s, r) => s + Number(r.n || 0), 0);
+        const isBarcode = (d) => d === 'barcode';
+        const barcodeTries = sum('scan_attempt', isBarcode);
+        const photoTries = sum('scan_attempt', (d) => !isBarcode(d));
+        const rate = barcodeTries ? Math.round((sum('scan_success', isBarcode) / barcodeTries) * 100) : null;
+        const photoRate = photoTries ? Math.round((sum('scan_success', (d) => !isBarcode(d)) / photoTries) * 100) : null;
+        const note = barcodeTries
+          ? `${formatCount(barcodeTries)} barcode attempts · target ≥95%${photoRate == null ? '' : ` · photo ${photoRate}% of ${formatCount(photoTries)}`}`
+          : photoTries ? `No barcode scans yet · photo ${photoRate}% of ${formatCount(photoTries)}` : 'No telemetry yet';
+        return pricingMetricHTML('Scanner success (14d)', rate == null ? '—' : `${rate}%`, note,
           rate == null ? 'neutral' : rate >= 95 ? 'ok' : 'warn');
       })()}
       ${(() => {
@@ -1349,12 +1374,12 @@ function renderPricingCenter() {
     ${amazonAdminStateHTML()}
 
     <div class="admin-pricing-subsection">
-      <div class="admin-pricing-subhead"><div><h3>Quarantined source matches</h3><p>Verify only when set number, title, UPC, and variant all describe the same product.</p></div><span>${matchRows.length}</span></div>
+      <div class="admin-pricing-subhead"><div><h3>Quarantined source matches</h3><p>Verify only when set number, title, UPC, and variant all describe the same product.</p></div><span>${escapeHtml(subsetLabel(matchRows.length, totalQuarantined))}</span></div>
       ${matchRows.length ? `<div class="admin-pricing-review-list">${matchRows.map(pricingMatchHTML).join('')}</div>` : '<div class="admin-empty-state"><strong>No quarantined matches.</strong><span>Verified sources can proceed to shadow valuation.</span></div>'}
     </div>
 
     <div class="admin-pricing-subsection">
-      <div class="admin-pricing-subhead"><div><h3>Open anomalies</h3><p>Extreme jumps and source conflicts remain low confidence until resolved.</p></div><span>${anomalyRows.length}</span></div>
+      <div class="admin-pricing-subhead"><div><h3>Open anomalies</h3><p>Extreme jumps and source conflicts remain low confidence until resolved.</p></div><span>${escapeHtml(subsetLabel(anomalyRows.length, totalAnomalies))}</span></div>
       ${anomalyRows.length ? `<div class="admin-pricing-anomaly-list">${anomalyRows.map(pricingAnomalyHTML).join('')}</div>` : '<div class="admin-empty-state"><strong>No open pricing anomalies.</strong><span>The current shadow set has no unresolved extreme conflicts.</span></div>'}
     </div>`;
 }
