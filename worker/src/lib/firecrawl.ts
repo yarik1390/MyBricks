@@ -2,20 +2,18 @@ import type { Env } from '../types';
 import { recordIntegrationAttempt } from './integration-health';
 import { firecrawlEnabled } from './pricing-flags';
 import { spendQuota } from './api-quota';
+import {
+  pickFirecrawlKey,
+  recordFirecrawlSpend,
+  isCreditExhaustion,
+  type PickedFirecrawlKey,
+} from './firecrawl-keys';
 
 const FC_BASE = 'https://api.firecrawl.dev/v2';
 
-// Pick a Firecrawl API key: if FIRECRAWL_API_KEYS (comma-separated) is set,
-// rotate across all available keys (including FIRECRAWL_API_KEY) so that
-// running 10 keys × 30,000 credits/day each = 300,000/day effective capacity.
-// Set FIRECRAWL_DAILY_CREDITS to the TOTAL across all keys.
-function pickFirecrawlKey(env: Env): string | undefined {
-  const single = env.FIRECRAWL_API_KEY;
-  const multi = env.FIRECRAWL_API_KEYS?.split(',').map((k) => k.trim()).filter(Boolean) ?? [];
-  const all = [single, ...multi].filter(Boolean) as string[];
-  if (!all.length) return undefined;
-  return all[Math.floor(Math.random() * all.length)];
-}
+// Keys are drained IN ORDER by lib/firecrawl-keys.ts (not rotated at random as
+// they were before): the balances are one-time allotments of wildly different
+// sizes, so spreading load across them would strand a nearly-empty key forever.
 
 export interface FirecrawlScrapeOptions {
   url: string;
@@ -80,13 +78,44 @@ export async function firecrawlScrape<T = unknown>(
   if (opts.actions?.length) body.actions = opts.actions;
   if (opts.maxAge != null) body.maxAge = opts.maxAge;
 
+  // One retry, and only for a drained key: the call that DISCOVERS a key is out
+  // of credits would otherwise be thrown away, making every switchover cost a
+  // scrape. Any other failure is returned as-is — retrying a timeout or a block
+  // on a second key just burns the second key's credits too.
+  const attempted: string[] = [];
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const picked = await pickFirecrawlKey(env);
+    if (!picked) {
+      await recordIntegrationAttempt(env, 'firecrawl', false, 'all Firecrawl keys are out of credits');
+      return null;
+    }
+    if (attempted.includes(picked.hash)) break; // pool didn't advance; don't loop
+    attempted.push(picked.hash);
+
+    const out = await scrapeOnce<T>(picked, body, opts, env, creditCost);
+    if (out.kind === 'ok') return { data: out.data };
+    if (out.kind === 'exhausted') continue;     // key retired; next iteration picks the next one
+    return null;
+  }
+  return null;
+}
+
+type ScrapeOutcome<T> = { kind: 'ok'; data: T } | { kind: 'failed' } | { kind: 'exhausted' };
+
+async function scrapeOnce<T>(
+  picked: PickedFirecrawlKey,
+  body: Record<string, unknown>,
+  opts: FirecrawlScrapeOptions,
+  env: Env,
+  creditCost: number,
+): Promise<ScrapeOutcome<T>> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 30_000);
   try {
     const resp = await fetch(`${FC_BASE}/scrape`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${pickFirecrawlKey(env)}`,
+        'Authorization': `Bearer ${picked.key}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
@@ -95,23 +124,32 @@ export async function firecrawlScrape<T = unknown>(
 
     const text = await resp.text();
     if (!resp.ok) {
-      const msg = `Firecrawl HTTP ${resp.status}: ${text.slice(0, 120)}`;
+      // Firecrawl's own verdict on a drained balance is authoritative and beats
+      // our credit counter, which can only ever be an estimate.
+      const exhausted = isCreditExhaustion(resp.status, text);
+      const msg = exhausted
+        ? `Firecrawl key ${picked.index} is out of credits (HTTP ${resp.status}) — failing over`
+        : `Firecrawl HTTP ${resp.status}: ${text.slice(0, 120)}`;
+      await recordFirecrawlSpend(env, picked, 0, { exhausted });
       await recordIntegrationAttempt(env, 'firecrawl', false, msg);
-      return null;
+      return { kind: exhausted ? 'exhausted' : 'failed' };
     }
+
+    // Book the credits only on a call Firecrawl actually served — a rejected
+    // request is free at their end, so charging the key for it would retire it early.
+    await recordFirecrawlSpend(env, picked, creditCost);
 
     const json = JSON.parse(text) as { success: boolean; data?: { json?: T; markdown?: string; html?: string } };
     if (!json.success) {
       await recordIntegrationAttempt(env, 'firecrawl', false, 'success=false from Firecrawl');
-      return null;
+      return { kind: 'failed' };
     }
 
     await recordIntegrationAttempt(env, 'firecrawl', true);
-    const extracted = (json.data?.json ?? json.data) as T;
-    return { data: extracted };
+    return { kind: 'ok', data: (json.data?.json ?? json.data) as T };
   } catch (e) {
     await recordIntegrationAttempt(env, 'firecrawl', false, e);
-    return null;
+    return { kind: 'failed' };
   } finally {
     clearTimeout(timer);
   }

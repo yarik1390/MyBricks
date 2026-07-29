@@ -92,6 +92,12 @@ export interface Env {
   // number of keys. FIRECRAWL_DAILY_CREDITS must be set to the TOTAL across all
   // keys (e.g. 10 keys × 30,000 = 300,000) to avoid premature throttling.
   FIRECRAWL_API_KEYS?: string;
+  // Per-key one-time credit balances, positionally aligned with the key list
+  // (FIRECRAWL_API_KEY first, then FIRECRAWL_API_KEYS) — e.g. "19000,650000".
+  // Keys are drained in that order, so put the one you want spent first in
+  // FIRECRAWL_API_KEY. Omitted/zero entries mean "unknown balance": that key is
+  // then retired only when Firecrawl itself answers 402.
+  FIRECRAWL_KEY_CREDITS?: string;
   // Discord (or any Discord-compatible) webhook for OPS alerts: dead crons and
   // providers that stopped succeeding. Same secret the d1-cost-watchdog workflow
   // uses. Unset = alerting is a no-op, the daily check still records its findings.

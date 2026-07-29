@@ -22,6 +22,7 @@ import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricech
 import { importBrickLinkMinifigs } from '../jobs/import-bricklink-minifigs';
 import { getKeyPoolStatus } from '../lib/pricesapi-keys';
 import { getKeyPoolStatus as getBrightDataPoolStatus } from '../lib/brightdata-keys';
+import { getFirecrawlKeyPoolStatus, resetFirecrawlKeyPool } from '../lib/firecrawl-keys';
 import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG, applySourceConfig } from '../lib/source-config';
 import { getFeatureFlags, saveFeatureFlags, applyFeatureFlags, FEATURE_FLAGS } from '../lib/feature-flags';
 import { runServiceTest, TESTABLE_SERVICES } from '../lib/service-tests';
@@ -725,7 +726,7 @@ app.get('/activity', async (c) => {
 });
 
 app.get('/integrations', async (c) => {
-  const [integrations, coverage, quota, ai_usage, pricesapi_pool, market_ext, brightdata_pool] = await Promise.all([
+  const [integrations, coverage, quota, ai_usage, pricesapi_pool, market_ext, brightdata_pool, firecrawl_pool] = await Promise.all([
     getIntegrationDiagnostics(c.env),
     getDataCoverage(c.env),
     getQuotaUsage(c.env),
@@ -733,6 +734,7 @@ app.get('/integrations', async (c) => {
     getKeyPoolStatus(c.env),
     getMarketExtCoverage(c.env),
     getBrightDataPoolStatus(c.env),
+    getFirecrawlKeyPoolStatus(c.env),
   ]);
   const url = new URL(c.req.url);
   return c.json({
@@ -740,7 +742,7 @@ app.get('/integrations', async (c) => {
     coverage,
     quota,
     ai_usage,
-    firecrawl: buildFirecrawlDiagnostics(c.env, quota, coverage),
+    firecrawl: { ...buildFirecrawlDiagnostics(c.env, quota, coverage), pool: firecrawl_pool },
     // Pricing v3 diagnostics: pricesAPI key-pool budget + PriceCharting extras
     // coverage + last bulk-import summary.
     pricesapi: {
@@ -986,6 +988,10 @@ app.post('/jobs/:job', async (c) => {
     } else if (job === 'brightdata-reset-pool') {
       // Clear the Bright Data key-pool drained/exhausted latch (no per-call limit).
       result = await resetKeyPool(c.env);
+    } else if (job === 'firecrawl-reset-pool') {
+      // Un-latch Firecrawl keys + zero their credit counters — for after a plan
+      // top-up, or to recover from a 402 that turned out to be transient.
+      result = await resetFirecrawlKeyPool(c.env);
     } else if (job === 'ebay-sold-scrape') {
       // On-demand eBay-sold scrape (Bright Data / Firecrawl) for verification.
       result = await runEbaySoldScrape(c.env, { limit });
