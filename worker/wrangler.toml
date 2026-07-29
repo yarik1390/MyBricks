@@ -100,8 +100,21 @@ AI_GATEWAY_ID = "brickvault"
 # it right after) for a one-time bulk backfill; the StockX sweep ran at 15000 and
 # the eBay-sold new+used sweep at 50000, together burning ~82k credits over four
 # days. At the steady-state cadence the eBay/BrickEconomy/StockX crons only refresh
-# what has aged past its cooldown, which fits well inside 2000/day.
-FIRECRAWL_DAILY_CREDITS = "2000"
+# what has aged past its cooldown.
+#
+# 2000 -> 4000: Firecrawl is now the fallback ENGINE for eBay-sold whenever the
+# Bright Data breaker opens (~40 sets x 5cr x 8 runs = 1,600/day) on top of
+# ~1,400/day of steady enrich + minifig traffic. NOTE this var OVERRIDES
+# QUOTA_CAPS.firecrawl in code (see spendQuota) — raising the code constant alone
+# does nothing while this is set.
+FIRECRAWL_DAILY_CREDITS = "4000"
+# Per-key REMAINING credit balances, positionally aligned with the key list
+# (FIRECRAWL_API_KEY first, then the comma-separated FIRECRAWL_API_KEYS secret).
+# Keys are drained in that order, so the key you want spent first goes in
+# FIRECRAWL_API_KEY. Counting starts from zero when a key is first used, so these
+# are "credits left from now", not lifetime plan size. Leave an entry blank to say
+# "unknown" — that key is then retired only when Firecrawl itself answers 402.
+FIRECRAWL_KEY_CREDITS = "19000,650000"
 # pricesAPI.io live-retail layer opt-in. Non-secret toggle; the actual keys live
 # in the PRICESAPI_API_KEYS secret. Both this AND a key are required for the cron
 # to run (deliberate gate — cold calls are precious). Set to 0 to pause.
