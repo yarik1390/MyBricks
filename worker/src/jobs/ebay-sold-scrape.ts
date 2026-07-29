@@ -4,7 +4,7 @@ import { configuredKeys, pickKey } from '../lib/brightdata-keys';
 import { fetchEbaySoldViaFirecrawl } from '../lib/ebay-firecrawl';
 import { brightDataSoldEnabled, firecrawlEnabled } from '../lib/pricing-flags';
 import { quotaRemaining, reserveQuota } from '../lib/api-quota';
-import { recordIntegrationHealth } from '../lib/integration-health';
+import { recordIntegrationHealth, integrationRecentlyHealthy } from '../lib/integration-health';
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { recordPricingWrites } from '../lib/pricing-budget';
 import { sourceEnabled } from '../lib/source-config';
@@ -27,15 +27,44 @@ import { sourceEnabled } from '../lib/source-config';
  * instead of a KV neg-cache the candidate query couldn't see, so neither sweep can
  * wall itself or starve the other condition.
  */
+// Max sets per run when Firecrawl is the primary engine (5 concurrent × 8 waves
+// at ~30s ≈ 4 min, comfortably inside the 3-hourly tick).
+const FIRECRAWL_PRIMARY_MAX = 40;
+
+export interface EbaySoldScrapeRun {
+  // Index signature: the admin /jobs/:job handler hands run summaries around as
+  // Record<string, unknown> before serialising them.
+  [key: string]: unknown;
+  processed: number;
+  updated: number;
+  rejected: number;
+  limit: number;
+  skipped?: string;
+  newUpdated?: number;
+  usedUpdated?: number;
+  rescued?: number;
+  /** Which scraper actually ran this batch. */
+  engine?: 'firecrawl' | 'brightdata';
+  /** Present when Bright Data was configured but routed around as unhealthy. */
+  brightdata_breaker?: 'open';
+}
+
 export async function runEbaySoldScrape(
   env: Env,
   options: { limit?: number; concurrency?: number; preferFirecrawl?: boolean } = {},
-) {
+): Promise<EbaySoldScrapeRun> {
   if (!(await sourceEnabled(env, 'ebay'))) {
     return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'ebay disabled in source tuning' };
   }
   const canFirecrawl = firecrawlEnabled(env) && await sourceEnabled(env, 'firecrawl');
-  const canBrightData = brightDataSoldEnabled(env) && await sourceEnabled(env, 'brightdata');
+  const configuredBrightData = brightDataSoldEnabled(env) && await sourceEnabled(env, 'brightdata');
+  // CIRCUIT BREAKER: Bright Data can be configured, funded and still totally
+  // broken — it 502'd every call for six days while its key pool reported ~1,800
+  // calls of headroom per key, so pickKey kept approving runs that wrote nothing
+  // and died on the rescue path. If it has not succeeded once in 24h, stop
+  // treating it as the primary and let Firecrawl carry the lane.
+  const brightDataHealthy = configuredBrightData ? await integrationRecentlyHealthy(env, 'brightdata', 24) : false;
+  const canBrightData = configuredBrightData && brightDataHealthy;
   // preferFirecrawl (the fast-backfill lane) forces Firecrawl as the PRIMARY engine,
   // bypassing Bright Data's ~70%-failure bottleneck to build coverage quickly.
   // Steady-state (preferFirecrawl false): Bright Data is primary (its own dedicated
@@ -62,6 +91,12 @@ export async function runEbaySoldScrape(
     console.warn(`[ebay-sold-scrape] ${reason}`);
     await recordIntegrationHealth(env, 'brightdata', { ok: 0, fail: 1, lastError: reason });
   }
+  // Breaker tripped (as opposed to "never configured") — say so in the logs and
+  // the run summary so a silent provider outage reads as a routing decision.
+  const brightDataTripped = configuredBrightData && !brightDataHealthy;
+  if (brightDataTripped) {
+    console.warn('[ebay-sold-scrape] Bright Data has not succeeded in 24h — running Firecrawl-primary.');
+  }
   const requestedLimit = Number(options.limit);
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
     ? Math.min(Math.floor(requestedLimit), 200)
@@ -75,7 +110,10 @@ export async function runEbaySoldScrape(
   if (useFirecrawl) {
     const remaining = await quotaRemaining(env, 'firecrawl');
     if (remaining < 5) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
-    capLimit = Math.min(limit, Math.floor(remaining / 5));
+    // A Firecrawl scrape is ~20-40s against Bright Data's ~2s, so the batch size
+    // tuned for Bright Data overruns the tick on this path — which is how runs
+    // ended up killed before they could flush. Cap the wave count instead.
+    capLimit = Math.min(limit, FIRECRAWL_PRIMARY_MAX, Math.floor(remaining / 5));
   } else {
     // Confirm a live (non-exhausted) key exists BEFORE any selection work, so a
     // fully-exhausted/broken pool doesn't debit the api_quota ledger for a run
@@ -322,5 +360,9 @@ export async function runEbaySoldScrape(
   // the Bright Data path (which doesn't self-record) needs the aggregate write —
   // writing it for Firecrawl too would double-count and clobber the real error.
   if (!useFirecrawl) await recordIntegrationHealth(env, 'brightdata', health);
-  return { processed, updated, newUpdated, usedUpdated, rejected, rescued, limit: effLimit };
+  return {
+    processed, updated, newUpdated, usedUpdated, rejected, rescued, limit: effLimit,
+    engine: useFirecrawl ? 'firecrawl' : 'brightdata',
+    ...(brightDataTripped ? { brightdata_breaker: 'open' } : {}),
+  };
 }

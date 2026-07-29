@@ -37,7 +37,12 @@ export const QUOTA_CAPS: Record<string, number> = {
   // 5 = json LLM extract). Plan is a one-time ~300k allotment then ~1,000/month,
   // so this is a per-DAY credit ceiling that guards against a runaway day. Raise
   // it for the one-time bootstrap via the FIRECRAWL_DAILY_CREDITS env var.
-  firecrawl: 2000,
+  //
+  // Raised 2000 -> 4000: Firecrawl is now the fallback ENGINE for eBay-sold when
+  // the Bright Data breaker opens (~40 sets x 5cr x 8 runs = 1,600/day) on top of
+  // ~1,400/day of steady enrich + minifig traffic. At 2,000 the two would have
+  // contended and the loser would silently skip its run.
+  firecrawl: 4000,
   // pricesAPI.io daily ceiling. Each cold call is a precious unit against a
   // ~1000/month-per-key pooled budget, so keep the daily spend modest; the
   // per-key pool (pricesapi_keys) is the authoritative monthly meter.

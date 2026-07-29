@@ -18,7 +18,7 @@ export interface ValuateMinifigsSummary {
 
 export async function runValuateMinifigs(
   env: Env,
-  options: { limit?: number; ebayLimit?: number } = {},
+  options: { limit?: number; ebayLimit?: number; budgetMs?: number } = {},
 ): Promise<ValuateMinifigsSummary> {
   const limit = Math.min(Math.max(1, Math.floor(options.limit ?? 10)), 400);
   // Price the figs users actually browse — not just owned ones (which left the
@@ -73,6 +73,13 @@ export async function runValuateMinifigs(
   // on owned → valuable → Collectible-Minifigures before generic popular figs.
   // Also keeps the invocation inside the subrequest budget.
   const ebayBudget = Math.min(Math.max(0, Math.floor(options.ebayLimit ?? 60)), limit);
+  // WALL-CLOCK guard. The scrapes run one at a time, so the run length is set by
+  // provider latency, not by our batch size: 60 scrapes at a normal ~10s is 10
+  // minutes, at a bad 30s it is half an hour and the invocation gets killed
+  // before it writes (exactly how ebay-sold-scrape lost six days). Past the
+  // deadline we stop STARTING scrapes and let the cheap D1-only work finish, so
+  // a slow provider costs coverage for one run instead of the whole run.
+  const deadline = Date.now() + Math.max(30_000, Math.floor(options.budgetMs ?? 240_000));
 
   const summary: ValuateMinifigsSummary = { figs: results.length, priced: 0, bl_matched: 0, parked: 0, ebay: 0, missed: 0 };
   let ebaySpent = 0;
@@ -139,7 +146,7 @@ export async function runValuateMinifigs(
     // no owned figs in the database that branch never fired — leaving every
     // unmapped fig permanently unpriced. Spend is bounded by ebayBudget rather
     // than by priority, so the highest-priority figs still go first.
-    const wantEbay = fcOn && ebaySpent < ebayBudget && (
+    const wantEbay = fcOn && ebaySpent < ebayBudget && Date.now() < deadline && (
       (blValue != null && blValue >= EBAY_MIN_VALUE)
       || blValue == null
     );

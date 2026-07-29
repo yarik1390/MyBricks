@@ -283,4 +283,53 @@ describe('runEbaySoldScrape', () => {
     expect(r.rescued).toBe(0);
     expect(await attemptedAt('RS-3')).not.toBeNull();
   });
+
+  // Bright Data 502'd every call for six days while its key pool still reported
+  // budget, so pickKey kept approving runs that wrote nothing and were killed on
+  // the rescue path. The breaker routes around a provider that has stopped
+  // succeeding, rather than paying the failure tax on every set.
+  describe('Bright Data circuit breaker', () => {
+    const bothEnv = { ...bare, BRIGHTDATA_API_TOKENS: 'tkB', FIRECRAWL_API_KEY: 'fc-test' };
+    const seedHealth = (okAgo: string | null, failAgo: string | null) =>
+      db.prepare(
+        `INSERT INTO integration_health (service, last_ok_at, last_fail_at, ok_count, fail_count)
+         VALUES ('brightdata', ${okAgo ? `datetime('now', '${okAgo}')` : 'NULL'},
+                                ${failAgo ? `datetime('now', '${failAgo}')` : 'NULL'}, 10, 500)`,
+      ).run();
+
+    it('routes to Firecrawl when Bright Data has not succeeded in 24h', async () => {
+      await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('CB-1','Broken Provider', 100)`).run();
+      await seedHealth('-6 days', '-10 minutes');
+      mockFcFetcher.mockResolvedValue({ status: 'ok', new_value: 105, new_count: 4 } as any);
+
+      const r = await runEbaySoldScrape(bothEnv as any, { limit: 5 });
+
+      expect(r.brightdata_breaker).toBe('open');
+      expect(r.engine).toBe('firecrawl');
+      expect(mockFetcher).not.toHaveBeenCalled();          // no failure tax
+      expect(await brightdataUsedToday()).toBeNull();       // and no wasted quota
+      expect(r.updated).toBe(1);
+    });
+
+    it('keeps Bright Data primary while it is still succeeding', async () => {
+      await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('CB-2','Healthy Provider', 100)`).run();
+      await seedHealth('-1 hour', '-10 minutes');
+      mockFetcher.mockResolvedValue({ status: 'ok', new_value: 108, new_count: 5 } as any);
+
+      const r = await runEbaySoldScrape(bothEnv as any, { limit: 5 });
+
+      expect(r.brightdata_breaker).toBeUndefined();
+      expect(r.engine).toBe('brightdata');
+      expect(mockFetcher).toHaveBeenCalled();
+    });
+
+    it('does not trip for a provider with no history (fresh deploy)', async () => {
+      await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('CB-3','Untried', 100)`).run();
+      mockFetcher.mockResolvedValue({ status: 'ok', new_value: 101, new_count: 5 } as any);
+
+      const r = await runEbaySoldScrape(bothEnv as any, { limit: 5 });
+
+      expect(r.engine).toBe('brightdata');
+    });
+  });
 });

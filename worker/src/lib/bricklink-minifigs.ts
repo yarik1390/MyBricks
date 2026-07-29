@@ -148,13 +148,32 @@ export function matchBlCandidates(
   ];
   for (const [tier, candidates] of tiers) {
     if (!candidates.length) continue;
-    const picked = resolveBlId(candidates, rbYear);
+    // An exact name match is self-corroborating: same name, same figure. The two
+    // PREFIX tiers are not — they matched on a truncation, so a lone candidate is
+    // NOT evidence on its own and must agree on release year before we assign it.
+    //
+    // This is not hypothetical. Rebrickable "Captain America - Zombie" (2021)
+    // truncates to "captain america", which is exactly what BrickLink sh0028
+    // "Captain America (Toy Fair 2012 Exclusive)" normalizes to once the
+    // parenthetical is dropped — and that figure is worth $884. Without the year
+    // gate, a $9 fig inherited a $884 price. Rivals and un-corroborated matches
+    // go to the price-agreement verifier instead.
+    const picked = tier === 'exact'
+      ? resolveBlId(candidates, rbYear)
+      : resolveBlId(candidates.filter((c) => yearAgrees(c.year, rbYear)), rbYear);
     if (picked) return { bl_id: picked, ambiguous: [], tier };
     // Hand the closest few to the verifier, nearest release year first.
     const ranked = [...candidates].sort((a, b) => yearDistance(a.year, rbYear) - yearDistance(b.year, rbYear));
     return { bl_id: null, ambiguous: ranked.slice(0, MAX_AMBIGUOUS), tier };
   }
   return { bl_id: null, ambiguous: [], tier: null };
+}
+
+/** Do the two catalogs agree on the release year? Unknown on either side is NOT
+ *  agreement — the prefix tiers need positive corroboration, not absence of
+ *  contradiction. ±1 absorbs release-boundary disagreements. */
+function yearAgrees(year: number | null, rbYear: number | null): boolean {
+  return year != null && rbYear != null && Math.abs(year - rbYear) <= 1;
 }
 
 function yearDistance(year: number | null, rbYear: number | null): number {

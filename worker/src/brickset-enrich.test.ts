@@ -6,6 +6,7 @@ import { applyTestTables } from './test-schema';
 vi.mock('./lib/firecrawl', () => ({ firecrawlScrape: vi.fn() }));
 import { firecrawlScrape } from './lib/firecrawl';
 import { runBricksetEnrich } from './jobs/brickset-enrich';
+import { QUOTA_CAPS } from './lib/api-quota';
 
 const db = (env as any).DB as D1Database;
 const mockScrape = vi.mocked(firecrawlScrape);
@@ -28,7 +29,7 @@ describe('runBricksetEnrich', () => {
   });
 
   it('skips when the daily Firecrawl credit ceiling is reached', async () => {
-    await db.prepare(`INSERT INTO api_quota (service, day, used, cap) VALUES ('firecrawl', ?1, 2000, 2000)`).bind(today).run();
+    await db.prepare(`INSERT INTO api_quota (service, day, used, cap) VALUES ('firecrawl', ?1, ?2, ?2)`).bind(today, QUOTA_CAPS.firecrawl).run();
     const r = await runBricksetEnrich(withKey);
     expect(r.skipped).toMatch(/firecrawl daily ceiling/);
     expect(mockScrape).not.toHaveBeenCalled();

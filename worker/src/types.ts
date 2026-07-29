@@ -92,6 +92,10 @@ export interface Env {
   // number of keys. FIRECRAWL_DAILY_CREDITS must be set to the TOTAL across all
   // keys (e.g. 10 keys × 30,000 = 300,000) to avoid premature throttling.
   FIRECRAWL_API_KEYS?: string;
+  // Discord (or any Discord-compatible) webhook for OPS alerts: dead crons and
+  // providers that stopped succeeding. Same secret the d1-cost-watchdog workflow
+  // uses. Unset = alerting is a no-op, the daily check still records its findings.
+  DISCORD_OPS_WEBHOOK?: string;
   // PriceCharting REST API token (Collector tier, $4.99/month).
   // Enables pc_new_value + pc_complete_value as independent sold-comp sources
   // in the pricing blend. Zero Firecrawl credits — uses PriceCharting's own API.

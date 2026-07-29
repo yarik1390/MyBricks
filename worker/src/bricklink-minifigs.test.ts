@@ -130,6 +130,28 @@ describe('matchBlCandidates', () => {
     expect(m.ambiguous.map((c) => c.bl_id).sort()).toEqual(['a', 'b']);
   });
 
+  it('refuses a lone prefix match whose release year disagrees (regression: fig-011751)', () => {
+    // Rebrickable "Captain America - Zombie" (2021) truncates to "captain
+    // america" — exactly what BrickLink sh0028 "Captain America (Toy Fair 2012
+    // Exclusive)" normalizes to. That figure is worth $884; before the year gate
+    // it was assigned outright and priced the zombie at $884.
+    const rows = [row('sh0028', 'captain america', 2012)];
+    const m = matchBlCandidates(rows, 'captain america zombie', 2021);
+    expect(m.bl_id).toBeNull();
+    expect(m.tier).toBe('rb_longer');
+    expect(m.ambiguous.map((c) => c.bl_id)).toEqual(['sh0028']); // verifier decides
+  });
+
+  it('refuses a lone prefix match when either year is unknown', () => {
+    expect(matchBlCandidates([row('x', 'gorzan fire chi', null)], 'gorzan', 2014).bl_id).toBeNull();
+    expect(matchBlCandidates([row('x', 'gorzan fire chi', 2014)], 'gorzan', null).bl_id).toBeNull();
+  });
+
+  it('still trusts an exact name match with no year to compare', () => {
+    expect(matchBlCandidates([row('loc031', 'gorzan', null)], 'gorzan', 2014))
+      .toMatchObject({ bl_id: 'loc031', tier: 'exact' });
+  });
+
   it('ignores unrelated rows and reports no tier', () => {
     const rows = [row('z', 'harry potter', 2001)];
     expect(matchBlCandidates(rows, 'gorzan', 2014)).toEqual({ bl_id: null, ambiguous: [], tier: null });

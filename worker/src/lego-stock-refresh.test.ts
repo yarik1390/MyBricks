@@ -6,6 +6,7 @@ import { applyTestTables } from './test-schema';
 vi.mock('./lib/lego-stock', () => ({ checkLegoStock: vi.fn() }));
 import { checkLegoStock } from './lib/lego-stock';
 import { runLegoStockRefresh } from './jobs/lego-stock-refresh';
+import { QUOTA_CAPS } from './lib/api-quota';
 
 const db = (env as any).DB as D1Database;
 const mockStock = vi.mocked(checkLegoStock);
@@ -34,7 +35,7 @@ describe('runLegoStockRefresh', () => {
   });
 
   it('skips when the daily Firecrawl ceiling is reached', async () => {
-    await db.prepare(`INSERT INTO api_quota (service, day, used, cap) VALUES ('firecrawl', ?1, 2000, 2000)`).bind(today).run();
+    await db.prepare(`INSERT INTO api_quota (service, day, used, cap) VALUES ('firecrawl', ?1, ?2, ?2)`).bind(today, QUOTA_CAPS.firecrawl).run();
     const r = await runLegoStockRefresh(withKey);
     expect(r.skipped).toMatch(/firecrawl daily ceiling/);
   });

@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { searchUpcItemDb, UPC_THROTTLE_CODES } from '../lib/upcitemdb';
 import { reserveQuota } from '../lib/api-quota';
+import { integrationRecentlyHealthy } from '../lib/integration-health';
 
 // Categories with no retail barcode — never worth a UPCitemdb call.
 const RETAIL_EXCLUDE =
@@ -65,6 +66,14 @@ export interface UpcBackfillResult { processed: number; filled: number; lastCode
 // (a few per run) so it stays inside the trial's per-window search rate limit.
 export async function runUpcItemDbBackfill(env: Env, options: { limit?: number } = {}): Promise<UpcBackfillResult> {
   if (!upcItemDbEnabled(env)) return { processed: 0, filled: 0, lastCode: 'disabled' };
+  // The trial endpoint has been answering EXCEED_LIMIT since 2026-07-11 — 962
+  // failures against 13 lifetime successes — while our own ledger still showed
+  // budget, so this fired every 30 minutes to accomplish nothing. Skip while the
+  // provider is refusing us; one probe gets through per day once 24h has passed
+  // since the last failure, which is enough to notice a recovery.
+  if (!(await integrationRecentlyHealthy(env, 'upcitemdb', 24))) {
+    return { processed: 0, filled: 0, lastCode: 'provider_unhealthy' };
+  }
   const want = Math.min(Math.max(1, Math.floor(options.limit ?? 4)), 10);
 
   const grant = await reserveQuota(env, { upcitemdb: want });

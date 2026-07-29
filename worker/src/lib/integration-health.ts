@@ -429,6 +429,36 @@ export async function isIntegrationBlocked(env: Env, service: IntegrationName): 
   }
 }
 
+// Provider circuit-breaker. `blocked_until` is a short, deliberate pause set by a
+// caller that saw a 429/ban; this answers the different question "has this
+// provider succeeded AT ALL lately?", so a job can route around an outage that
+// nothing thought to block.
+//
+// Bright Data 502'd every eBay-sold call for six days while its key pool still
+// reported budget, so `pickKey` kept handing out live keys and every run was
+// killed mid-flight without writing a single price. Requires POSITIVE evidence of
+// breakage — recent failures AND no recent success — so a provider that is merely
+// idle (nothing scheduled yet, fresh deploy) is never declared down. FAILS OPEN.
+export async function integrationRecentlyHealthy(
+  env: Env,
+  service: IntegrationName,
+  windowHours = 24,
+): Promise<boolean> {
+  try {
+    const row = await env.DB.prepare(
+      `SELECT last_ok_at, last_fail_at FROM integration_health WHERE service=?`,
+    ).bind(service).first<{ last_ok_at: string | null; last_fail_at: string | null }>();
+    if (!row) return true;                              // never used -> let it try
+    const cutoff = new Date(Date.now() - windowHours * 3_600_000).toISOString().replace('T', ' ').slice(0, 19);
+    const okRecently = !!row.last_ok_at && row.last_ok_at >= cutoff;
+    const failedRecently = !!row.last_fail_at && row.last_fail_at >= cutoff;
+    return okRecently || !failedRecently;
+  } catch (e) {
+    console.warn('[integration-health] health probe failed open:', (e as Error).message);
+    return true;
+  }
+}
+
 export async function getIntegrationHealth(env: Env): Promise<IntegrationHealthRow[]> {
   try {
     const { results } = await env.DB

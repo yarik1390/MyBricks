@@ -1,15 +1,20 @@
 import type { Env } from '../types';
 import { sweepStaleCronRuns } from '../lib/cron-runs';
+import { runOpsHealthCheck } from '../lib/ops-alerts';
 import { formulaValuation, valuationExpiryModifier } from '../lib/valuation';
 import { recomputeBlendedValues } from '../lib/market-sources';
 
 // Daily cleanup of unbounded tables. Each table accumulates rows that are only
 // useful for a short window: rate-limit counters, short-lived OAuth nonces, and
 // import job history. Without this, they grow forever on a busy deployment.
-export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, number>; retailBackfilled: number; comingSoonHealed: number; retailEchoScrubbed: number; beValuesHealed: number; staleCronRuns: number }> {
+export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, number>; retailBackfilled: number; comingSoonHealed: number; retailEchoScrubbed: number; beValuesHealed: number; staleCronRuns: number; opsAlerts: number }> {
   // Close out cron_runs rows orphaned at 'running' by a killed invocation, so the
   // admin Activity view doesn't show dead jobs as live indefinitely.
   const staleCronRuns = await sweepStaleCronRuns(env);
+
+  // ...then actually LOOK at what the sweep and integration_health are saying.
+  // Runs after the sweep so jobs killed mid-flight are already marked failed.
+  const ops = await runOpsHealthCheck(env);
 
   const stmts = [
     // Hourly/daily windows — anything older than 48h can never match a live window.
@@ -100,7 +105,7 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
 
   const beValuesHealed = await healImplausibleBeValues(env);
 
-  return { deleted, retailBackfilled, comingSoonHealed, retailEchoScrubbed, beValuesHealed, staleCronRuns };
+  return { deleted, retailBackfilled, comingSoonHealed, retailEchoScrubbed, beValuesHealed, staleCronRuns, opsAlerts: ops.alerts.length };
 }
 
 // Rows whose current_value came from an UNCORROBORATED BrickEconomy scrape that
