@@ -224,6 +224,24 @@ export async function runEbaySoldScrape(
        ON CONFLICT(set_num) DO UPDATE SET ebay_used_attempted_at=datetime('now')`,
     ).bind(setNum));
 
+  // Bright Data health, persisted PER WAVE rather than once at the end. Firecrawl
+  // self-records inside firecrawlScrape, so only the Bright Data path needs this;
+  // writing it for Firecrawl too would double-count and clobber the real error.
+  //
+  // Per-wave and not per-run because the end-of-run write is unreachable exactly
+  // when it matters most: while Bright Data was 502-ing everything, every
+  // invocation was killed before this line, so `last_fail_at` froze six days in
+  // the past and the outage looked, to anything reading the table, like silence.
+  // The circuit breaker above reads that column — it can only route around a
+  // dead provider if the deaths are actually recorded.
+  const flushHealth = async () => {
+    if (useFirecrawl || (!health.ok && !health.fail)) return;
+    await recordIntegrationHealth(env, 'brightdata', { ...health });
+    health.ok = 0;
+    health.fail = 0;
+    health.lastError = undefined;
+  };
+
   // Incremental persistence: flush accumulated writes + re-blend as we go, so a
   // dying invocation (the "stale: invocation ended" cron_runs rows) keeps every
   // completed wave instead of losing the whole run's work.
@@ -353,13 +371,11 @@ export async function runEbaySoldScrape(
       }
     }
     if (stmts.length >= 90) await flush();
+    await flushHealth();
   }
 
   await flush();
-  // Firecrawl self-records each scrape attempt inside firecrawlScrape, so only
-  // the Bright Data path (which doesn't self-record) needs the aggregate write —
-  // writing it for Firecrawl too would double-count and clobber the real error.
-  if (!useFirecrawl) await recordIntegrationHealth(env, 'brightdata', health);
+  await flushHealth();
   return {
     processed, updated, newUpdated, usedUpdated, rejected, rescued, limit: effLimit,
     engine: useFirecrawl ? 'firecrawl' : 'brightdata',
