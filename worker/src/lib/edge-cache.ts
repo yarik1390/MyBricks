@@ -66,3 +66,34 @@ export async function edgeCached(
   res.headers.set('X-Edge-Cache', 'MISS');
   return res;
 }
+
+/** Markets a user can pick (user_prefs.retail_market). Shared so the set-detail
+ *  cache key and its invalidation cannot drift apart from the validation list. */
+export const RETAIL_MARKETS = ['FR', 'US', 'GB', 'DE', 'CA', 'AU', 'NL'];
+
+/** Cache key for set detail's shared half. The raw request param is used rather
+ *  than the resolved set_num because the key has to be computable BEFORE the
+ *  lookup — which means "10182" and "10182-1" occupy separate entries for the
+ *  same set, so invalidation has to cover both forms. */
+export function setDetailCacheKey(setnum: string, market: string): string {
+  return `https://set-detail.internal/${encodeURIComponent(setnum)}/${encodeURIComponent(market)}`;
+}
+
+/**
+ * Drop every cached variant of one set: both the bare and -1 spellings, across
+ * all markets. Called when a user forces a revaluation — without it a longer TTL
+ * would leave them staring at the old price after clicking the button, which
+ * reads as "revalue is broken" rather than "the cache is doing its job".
+ * Best-effort: a failed purge only costs one stale window.
+ */
+export async function invalidateSetDetail(setnum: string): Promise<void> {
+  const cache = (globalThis as { caches?: { default?: Cache } }).caches?.default;
+  if (!cache) return;
+  const bare = setnum.replace(/-\d+$/, '');
+  const forms = [...new Set([setnum, bare, `${bare}-1`])];
+  await Promise.all(
+    forms.flatMap((form) =>
+      RETAIL_MARKETS.map((m) => cache.delete(new Request(setDetailCacheKey(form, m))).catch(() => false)),
+    ),
+  );
+}

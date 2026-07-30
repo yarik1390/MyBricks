@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
 import { describe, it, expect, vi } from 'vitest';
-import { edgeCached } from './lib/edge-cache';
+import { edgeCached, invalidateSetDetail, setDetailCacheKey, RETAIL_MARKETS } from './lib/edge-cache';
 
 // The whole point of edgeCached is that it ignores Authorization so one user's
 // fetch can serve the next user's. That is only safe for a handler with no
@@ -45,6 +45,40 @@ describe('edgeCached', () => {
         async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ ok: true });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('invalidateSetDetail', () => {
+  it('purges every market and both set-number spellings', async () => {
+    const deleted: string[] = [];
+    vi.stubGlobal('caches', {
+      default: {
+        delete: async (req: Request) => { deleted.push(req.url); return true; },
+        match: async () => undefined,
+        put: async () => {},
+      },
+    });
+    try {
+      await invalidateSetDetail('10182-1');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    // A user may have reached the page as "10182" or "10182-1" — those are
+    // separate cache entries, so a revalue has to clear both.
+    for (const form of ['10182-1', '10182']) {
+      for (const market of RETAIL_MARKETS) {
+        expect(deleted).toContain(setDetailCacheKey(form, market));
+      }
+    }
+  });
+
+  it('is a no-op rather than a throw when the Cache API is absent', async () => {
+    vi.stubGlobal('caches', undefined);
+    try {
+      await expect(invalidateSetDetail('10182-1')).resolves.toBeUndefined();
     } finally {
       vi.unstubAllGlobals();
     }
