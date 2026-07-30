@@ -3,7 +3,7 @@ import { fetchEbaySoldViaBrightData, type EbaySoldScrapeResult } from '../lib/br
 import { configuredKeys, pickKey } from '../lib/brightdata-keys';
 import { fetchEbaySoldViaFirecrawl } from '../lib/ebay-firecrawl';
 import { brightDataSoldEnabled, firecrawlEnabled } from '../lib/pricing-flags';
-import { quotaRemaining, reserveQuota } from '../lib/api-quota';
+import { quotaRemaining, reserveQuota, spendQuota } from '../lib/api-quota';
 import { recordIntegrationHealth, integrationRecentlyHealthy } from '../lib/integration-health';
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { recordPricingWrites } from '../lib/pricing-budget';
@@ -47,6 +47,49 @@ export interface EbaySoldScrapeRun {
   engine?: 'firecrawl' | 'brightdata';
   /** Present when Bright Data was configured but routed around as unhealthy. */
   brightdata_breaker?: 'open';
+  /** Outcome of the half-open probe taken while the breaker is open. */
+  brightdata_canary?: 'ok' | 'fail' | 'skipped';
+}
+
+/**
+ * HALF-OPEN PROBE. Bright Data is meant to be the primary eBay-sold scraper — it
+ * has its own paid budget (6 keys x 5,000/month) and answers in ~2s against
+ * Firecrawl's ~30s. The breaker routes around it when it stops succeeding, but a
+ * breaker with no way back is just a permanent demotion: once Firecrawl carries
+ * the lane, Bright Data is never called, so `last_ok_at` can never advance.
+ *
+ * Before this, the only thing that reopened it was `last_fail_at` itself ageing
+ * out of the 24h window — which meant a full 40-set run got spent as the probe,
+ * every day, forever, on a provider that had been dead for a week.
+ *
+ * So: one set, one condition, one call. Success re-stamps `last_ok_at` and the
+ * NEXT run (3h later) is Bright Data-primary again; failure keeps the lane with
+ * Firecrawl and costs a single credit to have asked.
+ */
+async function brightDataCanary(
+  env: Env,
+  set: { set_num: string; name: string },
+): Promise<'ok' | 'fail' | 'skipped'> {
+  if (!(await pickKey(env))) return 'skipped';
+  if (!(await spendQuota(env, 'brightdata', 1))) return 'skipped';
+  const probe = await fetchEbaySoldViaBrightData(set.set_num, set.name, env, {
+    includeNew: true,
+    includeUsed: false,
+    retries: 0,
+    timeoutMs: 20000,
+  }).catch((e): EbaySoldScrapeResult => ({
+    status: 'error', new_value: null, new_count: 0, error: (e as Error)?.message,
+  }));
+  // 'no_data' is a SUCCESSFUL unlock of a page with no matching comps — the
+  // provider worked. Only 'error' means Bright Data itself failed us.
+  const ok = probe.status === 'ok' || probe.status === 'partial' || probe.status === 'no_data';
+  await recordIntegrationHealth(env, 'brightdata', {
+    ok: ok ? 1 : 0,
+    fail: ok ? 0 : 1,
+    lastError: ok ? null : `half-open probe on ${set.set_num}: ${probe.error ?? 'unknown error'}`,
+  });
+  console.warn(`[ebay-sold-scrape] Bright Data half-open probe: ${ok ? 'RECOVERED' : 'still failing'}`);
+  return ok ? 'ok' : 'fail';
 }
 
 export async function runEbaySoldScrape(
@@ -93,7 +136,7 @@ export async function runEbaySoldScrape(
   }
   // Breaker tripped (as opposed to "never configured") — say so in the logs and
   // the run summary so a silent provider outage reads as a routing decision.
-  const brightDataTripped = configuredBrightData && !brightDataHealthy;
+  const brightDataTripped = configuredBrightData && !brightDataHealthy && useFirecrawl;
   if (brightDataTripped) {
     console.warn('[ebay-sold-scrape] Bright Data has not succeeded in 24h — running Firecrawl-primary.');
   }
@@ -167,6 +210,10 @@ export async function runEbaySoldScrape(
     used_due: number;
   }>();
   if (!candidates.length) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: undefined };
+
+  // Half-open probe, before the batch: if it recovers Bright Data the whole lane
+  // swings back to it on the next tick instead of waiting a day.
+  const canary = brightDataTripped ? await brightDataCanary(env, candidates[0]) : undefined;
 
   // Reserve Bright Data quota for what will ACTUALLY be scraped.
   let results = candidates;
@@ -379,6 +426,7 @@ export async function runEbaySoldScrape(
   return {
     processed, updated, newUpdated, usedUpdated, rejected, rescued, limit: effLimit,
     engine: useFirecrawl ? 'firecrawl' : 'brightdata',
-    ...(brightDataTripped ? { brightdata_breaker: 'open' } : {}),
+    ...(brightDataTripped ? { brightdata_breaker: 'open' as const } : {}),
+    ...(canary ? { brightdata_canary: canary } : {}),
   };
 }

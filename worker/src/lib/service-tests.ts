@@ -123,7 +123,43 @@ const PROBES: Record<string, Probe> = {
     }));
     const good = results.filter((r) => r.status === 200).length;
     const bad = results.filter((r) => r.status !== 200);
-    if (good === keys.length) return ok(`all ${keys.length} key(s) OK on zone '${zone}'`);
+    if (good === keys.length) {
+      // Tokens + zone being fine says nothing about the lane this integration
+      // actually exists to serve. Bright Data 502'd every eBay sold-search for a
+      // week while this probe stayed green, because welcome.txt is not a
+      // bot-protected target. Spend one more call on the REAL url so the admin
+      // console can tell "your tokens are bad" from "eBay is blocking us".
+      const ebay = await http('POST', 'https://api.brightdata.com/request', {
+        headers: { Authorization: `Bearer ${keys[0]}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          zone,
+          url: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(`LEGO ${TEST_SET.replace(/-\d+$/, '')}`)}&LH_Sold=1&LH_Complete=1&_ipg=60`,
+          format: 'raw',
+          method: 'GET',
+          country: 'US',
+        }),
+        timeoutMs: 25000,
+      });
+      const base = `all ${keys.length} key(s) OK on zone '${zone}'`;
+      if (ebay.status !== 200) {
+        return {
+          ok: true,
+          status: 'degraded',
+          detail: `${base}, but the eBay sold-search lane failed: HTTP ${ebay.status} ${String(ebay.text).slice(0, 160)}`
+            + '. The tokens are fine — eBay is refusing the unlock. eBay-sold runs on Firecrawl until a probe here comes back 200.',
+        };
+      }
+      const looksBlocked = /pardon our interruption|verify you are human|captcha|access denied/i.test(ebay.text);
+      if (looksBlocked || !/s-card__price|s-item__price/.test(ebay.text)) {
+        return {
+          ok: true,
+          status: 'degraded',
+          detail: `${base}; eBay returned HTTP 200 but ${looksBlocked ? 'a bot-check interstitial' : 'no parseable listing markup'} (${ebay.text.length} bytes).`
+            + ' The unlock is getting through to a challenge page, not the results — eBay-sold stays on Firecrawl.',
+        };
+      }
+      return ok(`${base}; eBay sold-search lane returns parseable results`);
+    }
     const badList = bad
       .map((b) => `#${b.i} (…${b.tail}) HTTP ${b.status}: ${String(b.text).slice(0, 40)}`)
       .join('; ');

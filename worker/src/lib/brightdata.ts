@@ -190,15 +190,29 @@ export async function fetchEbaySoldViaBrightData(
       const picked = await pickKey(env);
       if (!picked) { lastErr = 'no live Bright Data token (monthly budget drained)'; break; }
       try {
-        const { status, body } = await unlock(env, url, picked.key, options.timeoutMs ?? 60000);
+        // 25s, not 60s. Two conditions x two attempts at a 60s ceiling is a
+        // four-minute worst case for ONE set, which is how a dead provider took
+        // whole invocations down with it ("The operation was aborted" in
+        // integration_health). A healthy unlock returns in ~2s; anything past 25s
+        // is the unlocker retrying a target that is not going to answer.
+        const { status, body } = await unlock(env, url, picked.key, options.timeoutMs ?? 25000);
         if (status === 401 || status === 402 || status === 403) {
           await recordKeyCall(env, picked, { exhausted: true });
-          lastErr = `Bright Data HTTP ${status}`;
+          lastErr = `Bright Data HTTP ${status}: ${body.slice(0, 200)}`;
           continue;
         }
         await recordKeyCall(env, picked);
         if (status !== 200 || !body) {
-          lastErr = `Bright Data HTTP ${status} (${body ? body.length : 0} bytes)`;
+          // Carry the provider's OWN explanation. This used to report only
+          // "HTTP 502 (N bytes)", which is why a six-day eBay outage could not be
+          // told apart from a bad token without reading the vendor console —
+          // Bright Data puts the actual reason (zone, target block, upstream
+          // status) in this body.
+          lastErr = `Bright Data HTTP ${status} (${body ? body.length : 0} bytes)${body ? `: ${body.slice(0, 200)}` : ''}`;
+          // A 5xx is the unlocker telling us the TARGET refused it, not a
+          // transport blip. Retrying immediately with another token buys the same
+          // answer at twice the cost — let the Firecrawl rescue take it instead.
+          if (status >= 500) break;
           continue;
         }
         const analyzed = analyzeEbaySoldHtml(body, setNum, setName);

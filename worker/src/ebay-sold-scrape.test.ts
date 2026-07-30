@@ -301,14 +301,41 @@ describe('runEbaySoldScrape', () => {
       await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('CB-1','Broken Provider', 100)`).run();
       await seedHealth('-6 days', '-10 minutes');
       mockFcFetcher.mockResolvedValue({ status: 'ok', new_value: 105, new_count: 4 } as any);
+      mockFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'HTTP 502' } as any);
 
       const r = await runEbaySoldScrape(bothEnv as any, { limit: 5 });
 
       expect(r.brightdata_breaker).toBe('open');
       expect(r.engine).toBe('firecrawl');
-      expect(mockFetcher).not.toHaveBeenCalled();          // no failure tax
-      expect(await brightdataUsedToday()).toBeNull();       // and no wasted quota
+      // Exactly ONE Bright Data call: the half-open probe. The batch itself pays
+      // no failure tax — that was the whole point of the breaker.
+      expect(mockFetcher).toHaveBeenCalledTimes(1);
+      expect(r.brightdata_canary).toBe('fail');
+      expect(await brightdataUsedToday()).toBe(1);
       expect(r.updated).toBe(1);
+    });
+
+    it('half-open probe success reopens the lane for the next run', async () => {
+      await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('CB-4','Recovering', 100)`).run();
+      await seedHealth('-6 days', '-10 minutes');
+      mockFcFetcher.mockResolvedValue({ status: 'ok', new_value: 105, new_count: 4 } as any);
+      mockFetcher.mockResolvedValue({ status: 'ok', new_value: 101, new_count: 3 } as any);
+
+      const first = await runEbaySoldScrape(bothEnv as any, { limit: 5 });
+      expect(first.engine).toBe('firecrawl');
+      expect(first.brightdata_canary).toBe('ok');
+
+      // The probe stamped last_ok_at, so the breaker is closed on the next tick
+      // — without it, Firecrawl-primary means Bright Data is never called again
+      // and last_ok_at can never advance.
+      const row = await db.prepare(`SELECT last_ok_at FROM integration_health WHERE service='brightdata'`)
+        .first<{ last_ok_at: string }>();
+      expect(row?.last_ok_at).toBeTruthy();
+
+      await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('CB-5','Recovered', 100)`).run();
+      const second = await runEbaySoldScrape(bothEnv as any, { limit: 5 });
+      expect(second.engine).toBe('brightdata');
+      expect(second.brightdata_breaker).toBeUndefined();
     });
 
     it('keeps Bright Data primary while it is still succeeding', async () => {
