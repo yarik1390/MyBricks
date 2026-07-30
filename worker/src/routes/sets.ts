@@ -1,5 +1,6 @@
 import { Hono, type Context } from 'hono';
 import { optionalMember, requireMember } from '../auth';
+import { edgeCached } from '../lib/edge-cache';
 import { formulaValuation, valuationExpiryModifier, isPlausibleMarketValue } from '../lib/valuation';
 import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
 import { SORTS, NON_SET_DEMOTION, CATALOG_COLS, MARKET_EXT_JOIN, attachCatalogValuationState, toFtsPrefixQuery } from './sets-sql';
@@ -101,7 +102,15 @@ async function repairSearchIndexOnce(db: D1Database) {
 
 
 // GET /api/sets/search
-app.get('/search', async (c) => {
+// Catalog search is the app's most-hit endpoint and is identical for every
+// caller — it reads no userId and joins no user table — so it is served from the
+// colo edge cache regardless of whether the request is signed in. Without this
+// the global middleware skips caching for any request bearing an Authorization
+// header, i.e. for every real user of the app. 120s keeps a valuation cron's
+// price change visible quickly while collapsing browse bursts onto one query.
+app.get('/search', (c) => edgeCached(c, 120, () => searchHandler(c)));
+
+const searchHandler = async (c: Context<{ Bindings: Env; Variables: Variables }>) => {
   const q = c.req.query('q') || '';
   const theme = c.req.query('theme') || '';
   const retired = c.req.query('retired') || '';
@@ -313,7 +322,7 @@ app.get('/search', async (c) => {
   }
 
   return c.json({ sets: rows, total, hasMore: offset + rows.length < total, search_degraded: searchDegraded });
-});
+};
 
 // GET /api/sets/:setnum
 app.get('/:setnum/amazon', async (c) => {

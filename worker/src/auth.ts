@@ -3,9 +3,24 @@ import type { Env, Variables } from './types';
 
 type C = Context<{ Bindings: Env; Variables: Variables }>;
 
-// Cache the JWKS (public signing keys) to avoid fetching on every request.
+// JWKS (public signing keys) cache. Supabase mints ES256 tokens here, so EVERY
+// authenticated request takes the asymmetric path below and needs these keys.
+//
+// The module-level cache alone is per-ISOLATE: on a low-traffic Worker isolates
+// recycle constantly, so a large share of requests were paying a live fetch to
+// Supabase on the critical path — latency the user sees on every page. KV is the
+// shared L2 (one copy per colo, refreshed hourly) so a cold isolate costs a KV
+// read instead of a round trip to another provider.
 let _jwksCache: any[] | null = null;
 let _jwksFetchedAt = 0;
+const JWKS_TTL_MS = 3_600_000;
+const JWKS_KV_KEY = 'auth:jwks:v1';
+
+// Imported CryptoKeys, keyed by `${kid}:${alg}`. importKey is pure CPU but runs
+// on every authenticated request otherwise, and the key material never changes
+// for a given kid. Per-isolate, bounded by the number of signing keys Supabase
+// publishes (a handful).
+const _cryptoKeys = new Map<string, CryptoKey>();
 
 function b64urlDecode(s: string): Uint8Array {
   return Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
@@ -15,15 +30,43 @@ function b64urlJson(s: string): any {
   return JSON.parse(new TextDecoder().decode(b64urlDecode(s)));
 }
 
-async function getJWKS(supabaseUrl: string): Promise<any[]> {
+async function getJWKS(env: Env): Promise<any[]> {
   const now = Date.now();
-  if (_jwksCache && now - _jwksFetchedAt < 3_600_000) return _jwksCache;
-  const resp = await fetch(`${supabaseUrl}/auth/v1/.well-known/jwks.json`);
+  if (_jwksCache && now - _jwksFetchedAt < JWKS_TTL_MS) return _jwksCache;
+
+  // L2: KV, shared by every isolate in the colo. Failing open here just means
+  // falling through to the origin fetch below — never a failed login.
+  if (env.CACHE_KV) {
+    const cached = await env.CACHE_KV.get<{ keys?: any[] }>(JWKS_KV_KEY, 'json').catch(() => null);
+    if (cached?.keys?.length) {
+      _jwksCache = cached.keys;
+      _jwksFetchedAt = now;
+      return _jwksCache;
+    }
+  }
+
+  const resp = await fetch(`${env.SUPABASE_URL}/auth/v1/.well-known/jwks.json`);
   if (!resp.ok) throw new Error(`jwks fetch failed: ${resp.status}`);
   const data = await resp.json<{ keys?: any[] }>();
   _jwksCache = data.keys || [];
   _jwksFetchedAt = now;
+  if (env.CACHE_KV && _jwksCache.length) {
+    // TTL slightly over the in-memory window so the two layers do not expire in
+    // lockstep and stampede Supabase together.
+    await env.CACHE_KV.put(JWKS_KV_KEY, JSON.stringify({ keys: _jwksCache }), { expirationTtl: 4200 })
+      .catch(() => {});
+  }
   return _jwksCache;
+}
+
+/** Import (and memoise) the verification key for a JWKS entry. */
+async function getCryptoKey(jwk: any, alg: string, importAlgo: any): Promise<CryptoKey> {
+  const cacheKey = `${jwk.kid}:${alg}`;
+  const hit = _cryptoKeys.get(cacheKey);
+  if (hit) return hit;
+  const key = await crypto.subtle.importKey('jwk', jwk, importAlgo, false, ['verify']);
+  _cryptoKeys.set(cacheKey, key);
+  return key;
 }
 
 // Returns the user id (sub) and email if the token is valid, else { error }.
@@ -76,7 +119,7 @@ async function verifyJWT(token: string, env: Env): Promise<{ sub?: string; email
     }
 
     // Asymmetric (ES256 / RS256) — verify against the project's public JWKS.
-    const keys = await getJWKS(env.SUPABASE_URL);
+    const keys = await getJWKS(env);
     const jwk = keys.find(k => k.kid === header.kid);
     if (!jwk) return { error: `no JWKS key for kid ${header.kid}` };
 
@@ -91,7 +134,7 @@ async function verifyJWT(token: string, env: Env): Promise<{ sub?: string; email
       return { error: `unsupported alg ${header.alg}` };
     }
 
-    const cryptoKey = await crypto.subtle.importKey('jwk', jwk, importAlgo, false, ['verify']);
+    const cryptoKey = await getCryptoKey(jwk, header.alg, importAlgo);
     const ok = await crypto.subtle.verify(verifyAlgo, cryptoKey, sig, signed);
     return ok ? { sub: payload.sub, email: payload.email } : { error: `${header.alg} signature mismatch` };
   } catch (e) {
