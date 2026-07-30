@@ -189,10 +189,11 @@ export async function runEbaySoldScrape(
           AND (ext.ebay_used_attempted_at IS NULL OR ext.ebay_used_attempted_at < datetime('now', '-14 days')))
       )
     ORDER BY
-      CASE WHEN EXISTS (
-        SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
-      ) OR EXISTS (
-        SELECT 1 FROM user_wishlist uw WHERE uw.set_num = ls.set_num
+      -- Uncorrelated IN rather than two correlated EXISTS: one materialized
+      -- subquery instead of two lookups per candidate row. Same result set.
+      CASE WHEN ls.set_num IN (
+        SELECT set_num FROM user_collection WHERE deleted_at IS NULL
+        UNION SELECT set_num FROM user_wishlist
       ) THEN 0 ELSE 1 END,
       -- HIGHEST-VALUE first: eBay sold listings exist for desirable sets; ordering by
       -- set_num front-loaded low-numbered vintage sets with no sold activity, wasting

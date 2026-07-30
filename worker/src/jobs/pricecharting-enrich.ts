@@ -69,10 +69,11 @@ export async function runPriceChartingEnrich(
     ORDER BY
       CASE WHEN ls.bl_new_value IS NOT NULL AND ls.pc_cached_at IS NULL THEN 0 ELSE 1 END,
       CASE WHEN pm.source_item_id IS NOT NULL THEN 0 ELSE 1 END,
-      CASE WHEN EXISTS (
-        SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
-      ) OR EXISTS (
-        SELECT 1 FROM user_wishlist uw WHERE uw.set_num = ls.set_num
+      -- Uncorrelated IN rather than two correlated EXISTS: one materialized
+      -- subquery instead of two lookups per candidate row. Same result set.
+      CASE WHEN ls.set_num IN (
+        SELECT set_num FROM user_collection WHERE deleted_at IS NULL
+        UNION SELECT set_num FROM user_wishlist
       ) THEN 0 ELSE 1 END,
       COALESCE(NULLIF(ls.blended_value, 0), ls.current_value, 0) DESC,
       ls.set_num ASC
