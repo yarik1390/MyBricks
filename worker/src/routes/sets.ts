@@ -118,8 +118,24 @@ app.get('/search', async (c) => {
   let orderBySQL = orderBy;
 
   // Trending sort needs a 30-day price history snapshot for momentum computation.
+  //
+  // INNER join, not LEFT: only ~2,002 of 27,660 sets have a snapshot from exactly
+  // 30 days ago, and the LEFT join gave the other 25,658 a -1 sentinel that sorted
+  // them to the bottom as filler nobody ever pages to. Keeping them meant scanning
+  // the whole catalog and probing history once per row — 57,322 rows read. Driving
+  // from the snapshot side instead (idx_svh_date_set makes the date a range scan)
+  // costs 6,007 rows for the identical top page.
+  //
+  // The value guards move into WHERE for the same reason: they are what the old
+  // CASE tested for before falling back to -1, so as filters they change nothing
+  // about which sets can actually rank — only how many rows we look at.
+  // NOTE: these go in `where`, NOT via addFilter — filterWhere feeds the
+  // FTS-corruption fallback below, which queries lego_sets alone and would break
+  // on an svh30 reference.
   if (sort === 'trending') {
-    fromSQL += " LEFT JOIN set_value_history svh30 ON svh30.set_num = s.set_num AND svh30.snapshot_date = date('now','-30 days')";
+    fromSQL += " JOIN set_value_history svh30 ON svh30.set_num = s.set_num AND svh30.snapshot_date = date('now','-30 days')";
+    where.push('svh30.current_value > 0');
+    where.push('s.current_value > 0');
   }
 
   const addFilter = (sql: string, ...values: unknown[]) => {
@@ -227,9 +243,14 @@ app.get('/search', async (c) => {
       fallbackParams.push(`%${token}%`, `%${token}%`, `%${token}%`, `%${token}%`, `%${token}%`);
     }
     const fallbackWhereSQL = fallbackWhere.length ? `WHERE ${fallbackWhere.join(' AND ')}` : '';
+    // This path queries lego_sets ALONE, so it cannot use a sort that references
+    // the trending snapshot join — that would throw "no such column: svh30..."
+    // and turn a degraded search into a 500. Momentum is meaningless on a
+    // keyword-search fallback anyway; rank by value instead.
+    const fallbackOrderBy = sort === 'trending' ? SORTS.value_desc : orderBy;
     [pageRes, countRes] = await Promise.all([
       c.env.DB.prepare(
-        `SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN} ${fallbackWhereSQL} ORDER BY ${NON_SET_DEMOTION}, ${orderBy}, s.set_num LIMIT ? OFFSET ?`
+        `SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN} ${fallbackWhereSQL} ORDER BY ${NON_SET_DEMOTION}, ${fallbackOrderBy}, s.set_num LIMIT ? OFFSET ?`
       ).bind(...fallbackParams, lim, offset).all<Record<string, unknown>>(),
       c.env.DB.prepare(
         `SELECT CAST(COUNT(*) AS INTEGER) AS total FROM lego_sets s ${fallbackWhereSQL}`

@@ -15,9 +15,11 @@ export const SORTS: Record<string, string> = {
   year_asc:   '(year IS NULL) ASC, year ASC',
   az:         'name ASC',
   za:         'name DESC',
-  // Trending: 30-day price momentum — sets whose value rose most. Sets with no
-  // prior snapshot sort last (NULL treated as no change).
-  trending:   '(CASE WHEN s.current_value > 0 AND svh30.current_value > 0 THEN (s.current_value - svh30.current_value) / svh30.current_value ELSE -1 END) DESC',
+  // Trending: 30-day price momentum — sets whose value rose most. The route
+  // INNER-joins the 30-day snapshot and filters both values > 0, so every row
+  // reaching this sort has real momentum; the old CASE/-1 fallback for
+  // snapshot-less sets is gone with the LEFT join that produced them.
+  trending:   '((s.current_value - svh30.current_value) / svh30.current_value) DESC',
 };
 
 // Non-building merchandise (bag tags, bags, apparel, stationery, books) is

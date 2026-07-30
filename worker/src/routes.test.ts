@@ -309,6 +309,26 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(again.total).toBe(all);
     });
 
+    it('trending ranks by real momentum and excludes sets with no 30-day snapshot', async () => {
+      const d30 = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, current_value) VALUES ('TR-UP','Riser',200)`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, current_value) VALUES ('TR-FLAT','Flat',100)`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, current_value) VALUES ('TR-NOSNAP','No Snapshot',9999)`),
+        db.prepare(`INSERT INTO set_value_history (set_num, snapshot_date, current_value) VALUES ('TR-UP', ?1, 100)`).bind(d30),
+        db.prepare(`INSERT INTO set_value_history (set_num, snapshot_date, current_value) VALUES ('TR-FLAT', ?1, 100)`).bind(d30),
+      ]);
+
+      const res = await app.fetch(new Request('http://localhost/api/sets/search?sort=trending&limit=50'), env);
+      expect(res.status).toBe(200);
+      const nums = (await res.json<any>()).sets.map((s: any) => s.set_num);
+
+      expect(nums.indexOf('TR-UP')).toBeLessThan(nums.indexOf('TR-FLAT')); // +100% beats flat
+      // A set with no snapshot has no momentum, so it is absent rather than
+      // padding the tail — that padding is what made this sort scan the catalog.
+      expect(nums).not.toContain('TR-NOSNAP');
+    });
+
     it('handles exact set numbers with dashes as plain search text', async () => {
       await db.prepare(
         `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)

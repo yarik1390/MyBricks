@@ -409,6 +409,14 @@ CREATE INDEX IF NOT EXISTS idx_minifigs_browse_rarity ON minifigs(
   (CASE rarity WHEN 'legendary' THEN 4 WHEN 'rare' THEN 3 WHEN 'uncommon' THEN 2 ELSE 1 END) DESC,
   name ASC
 );
+-- The minifig value sort, which falls back to a per-rarity nominal price when a
+-- fig has no market value. Same expression-index reasoning; 34,136 rows -> 30.
+CREATE INDEX IF NOT EXISTS idx_minifigs_browse_value ON minifigs(
+  COALESCE(current_value, CASE rarity
+    WHEN 'common' THEN 3.50 WHEN 'uncommon' THEN 7.50
+    WHEN 'rare' THEN 18.00 WHEN 'legendary' THEN 50.00 ELSE 3.50 END) DESC,
+  name ASC
+);
 
 CREATE TABLE IF NOT EXISTS user_minifigs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -685,6 +693,17 @@ CREATE INDEX IF NOT EXISTS idx_sets_browse_value ON lego_sets(
   COALESCE(NULLIF(blended_value, 0), current_value) DESC,
   set_num
 );
+-- The remaining catalog sorts, same reasoning: every one of them was a full scan
+-- plus a temp b-tree. Measured 55,320 rows -> 24-49 rows each.
+--   az/za      -> plain name sort had no index at all
+--   year_*     -> the leading (year IS NULL) expression blocked idx_sets_year
+--   roi_*      -> a division expression, not a column
+CREATE INDEX IF NOT EXISTS idx_sets_name ON lego_sets(name);
+CREATE INDEX IF NOT EXISTS idx_sets_year_sort ON lego_sets((year IS NULL), year DESC, set_num);
+CREATE INDEX IF NOT EXISTS idx_sets_roi ON lego_sets((current_value / NULLIF(retail_price, 0)) DESC, set_num);
+-- sort=trending drives from the snapshot side (see routes/sets.ts): this makes
+-- "the snapshot for date X" a range scan instead of 27k per-row probes.
+CREATE INDEX IF NOT EXISTS idx_svh_date_set ON set_value_history(snapshot_date, set_num);
 CREATE INDEX IF NOT EXISTS idx_showcase_user ON user_showcase(user_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_prefs_handle ON user_prefs(handle) WHERE handle IS NOT NULL;
 
