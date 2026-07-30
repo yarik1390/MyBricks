@@ -60,6 +60,18 @@ crons = [
   # highest-value uncovered sets (self-guarded: token gate + 500/day spend cap).
   "0 14 * * *",
   "0 15 * * *",
+  # BrickEconomy refresh, two extra slots an hour. BrickEconomy is the widest
+  # price source in the app (15,154 sets) and 98.8% of it had gone stale on a
+  # 40/day cadence that needed 379 days to complete one cycle. 48 runs x 60 sets
+  # = 2,880/day of capacity, so the ~weekly gate (BRICKECONOMY_REFRESH_DAYS)
+  # is what actually paces it. Own invocations: each run is ~220s.
+  "25 * * * *",
+  "50 * * * *",
+  # PriceCharting bulk CSV, DAILY. One ~2 MB download refreshes 13,145 catalog
+  # rows and costs no metered quota — the cheapest freshness in the system. It
+  # sat behind a Sunday gate inside the 04:00 slot; its own slot keeps that
+  # heavy invocation from having to carry it.
+  "30 4 * * *",
   # Minifig identity verification: price-agreement settling of ambiguous
   # Rebrickable->BrickLink name matches (minifig_bl_candidates queue).
   "0 16 * * *",
@@ -107,7 +119,21 @@ AI_GATEWAY_ID = "brickvault"
 # ~1,400/day of steady enrich + minifig traffic. NOTE this var OVERRIDES
 # QUOTA_CAPS.firecrawl in code (see spendQuota) — raising the code constant alone
 # does nothing while this is set.
-FIRECRAWL_DAILY_CREDITS = "4000"
+#
+# 4000 -> 16000: brickeconomy-enrich now refreshes its 15,154 covered sets on a
+# ~weekly cycle instead of a 379-day one. That is ~2,165 sets/day x 5cr = ~10,825,
+# on top of ~2,400/day of existing enrich + eBay-sold + minifig traffic.
+#
+# BURN RATE — read this before leaving it here. At ~13,200 credits/day the pooled
+# balance (FIRECRAWL_KEY_CREDITS below, ~669k) lasts roughly 50 days. The dial to
+# turn is BRICKECONOMY_REFRESH_DAYS, not this ceiling: 14 days halves the
+# BrickEconomy burn to ~5,400/day (~90 days of runway), 21 days thirds it. This
+# ceiling is only the safety net that stops a runaway.
+FIRECRAWL_DAILY_CREDITS = "16000"
+# BrickEconomy refresh cadence in days, for sets that HAVE BrickEconomy data.
+# The real Firecrawl-credit governor (see the burn-rate note above). Sets that
+# have never yielded a value are on a fixed 90-day gate and ignore this.
+BRICKECONOMY_REFRESH_DAYS = "7"
 # Per-key REMAINING credit balances, positionally aligned with the key list
 # (FIRECRAWL_API_KEY first, then the comma-separated FIRECRAWL_API_KEYS secret).
 # Keys are drained in that order, so the key you want spent first goes in

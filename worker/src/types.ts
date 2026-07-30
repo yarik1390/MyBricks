@@ -38,6 +38,11 @@ export interface Env {
   BRICKLINK_TOKEN: string;
   BRICKLINK_TOKEN_SECRET: string;
   BRICKECONOMY_API_KEY?: string;
+  /** Days before a set that HAS BrickEconomy data is re-scraped (default 7).
+   *  This is the Firecrawl-credit governor for brickeconomy-enrich — raising it
+   *  cuts the burn proportionally. Sets BrickEconomy has no data for ignore it
+   *  and stay on a fixed 90-day gate. */
+  BRICKECONOMY_REFRESH_DAYS?: string;
   // Pricing-source kill switches (see lib/pricing-flags.ts). Default OFF;
   // set to "1" via wrangler [vars] to re-enable once provider access returns.
   EBAY_SOLD_COMPS_ENABLED?: string;

@@ -69,4 +69,46 @@ describe('runBrickEconomyEnrich', () => {
     expect(row!.be_value_new).toBeNull();      // nothing written
     expect(row!.be_cached_at).toBeTruthy();     // but parked so it isn't re-scraped
   });
+
+  // BrickEconomy is the widest price source in the app (15,154 sets) and 98.8%
+  // of it had gone stale under a single 90-day gate. The gate is now split: sets
+  // that HAVE data refresh weekly, sets BrickEconomy has nothing for stay on 90
+  // days. That split is the Firecrawl-credit governor, so it is worth pinning.
+  describe('split refresh cadence', () => {
+    const seedAged = (setNum: string, days: number, beValue: number | null) => db.prepare(
+      `INSERT INTO lego_sets (set_num, name, year, be_value_new, be_cached_at)
+       VALUES (?1, 'Aged', 2015, ?2, datetime('now', '-${days} days'))`,
+    ).bind(setNum, beValue).run();
+
+    it('re-scrapes a covered set past the weekly gate but not an empty one', async () => {
+      await seedAged('COVERED-1', 10, 120);   // has data, 10 days old -> due
+      await seedAged('EMPTY-1', 10, null);    // no data, 10 days old  -> not due
+      mockScrape.mockResolvedValue({ current_value_new: 130 } as any);
+
+      const r = await runBrickEconomyEnrich(withKey);
+
+      expect(r.processed).toBe(1);
+      expect(mockScrape).toHaveBeenCalledWith('COVERED-1', expect.anything());
+    });
+
+    it('still re-scrapes an empty set once it passes the 90-day gate', async () => {
+      await seedAged('EMPTY-2', 120, null);
+      mockScrape.mockResolvedValue(null as any);
+
+      const r = await runBrickEconomyEnrich(withKey);
+
+      expect(r.processed).toBe(1);
+    });
+
+    it('honours BRICKECONOMY_REFRESH_DAYS as the credit dial', async () => {
+      await seedAged('COVERED-2', 10, 120);
+      mockScrape.mockResolvedValue({ current_value_new: 130 } as any);
+
+      // 21 days -> a 10-day-old set is not yet due, so the burn drops ~3x.
+      const r = await runBrickEconomyEnrich({ ...withKey, BRICKECONOMY_REFRESH_DAYS: '21' });
+
+      expect(r.processed).toBe(0);
+      expect(mockScrape).not.toHaveBeenCalled();
+    });
+  });
 });

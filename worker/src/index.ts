@@ -491,7 +491,7 @@ export default {
       // freshness rides on the free APIs (BrickLink/eBay/BrickOwl), not Firecrawl.
       case '0 9 * * *': await run('brickset-enrich', () => runBricksetEnrich(env, { limit: 30 })); break;
       case '0 10 * * *': await run('lego-stock-refresh', () => runLegoStockRefresh(env, { limit: 40 })); break;
-      case '0 11 * * *': await run('brickeconomy-enrich', () => runBrickEconomyEnrich(env, { limit: 40 })); break;
+      case '0 11 * * *': await run('brickeconomy-enrich', () => runBrickEconomyEnrich(env, { limit: 60 })); break;
       // Part-out (E1): trickle the shared part_prices cache from BrickLink's NEW
       // price guide, most-shared parts first. Budget-gated (reserveQuota shares
       // the BrickLink cap; never starves valuations). limit 150 → ~150 parts/day.
@@ -545,12 +545,24 @@ export default {
         if (!isSunday) break;
         await run('weekly-import-sets', () => importSets(env.DB, env));
         await run('weekly-import-figs', () => importFigs(env.DB, env));
-        // Weekly PriceCharting LEGO price-guide CSV (Legendary tier; one ~2 MB
-        // download for the whole catalog). Gates itself on token + source config;
-        // auto-verifies unique-UPC matches and refreshes verified signals.
-        await run('pricecharting-bulk-fetch', () => runPriceChartingBulkFetch(env));
         break;
       }
+      // PriceCharting LEGO price-guide CSV (Legendary tier; one ~2 MB download
+      // for the whole catalog). Gates itself on token + source config;
+      // auto-verifies unique-UPC matches and refreshes verified signals.
+      //
+      // DAILY, not weekly. It used to sit behind the Sunday gate above, so 13,145
+      // catalog rows refreshed once every seven days from a job that takes ~38s
+      // and spends no metered quota at all. Six more downloads a week is the
+      // cheapest freshness available anywhere in this system.
+      case '30 4 * * *':
+        await run('pricecharting-bulk-fetch', () => runPriceChartingBulkFetch(env));
+        break;
+      // BrickEconomy weekly refresh cycle — see wrangler.toml [triggers].
+      case '25 * * * *':
+      case '50 * * * *':
+        await run('brickeconomy-enrich', () => runBrickEconomyEnrich(env, { limit: 60 }));
+        break;
     }
   },
 };

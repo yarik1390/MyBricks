@@ -37,9 +37,10 @@ export async function runBrickEconomyEnrich(
   }
 
   const requestedLimit = Number(options.limit);
-  // Cap at 200: with concurrency 5 and ~15s/scrape that's ~10 min wall — safe
-  // inside a scheduled invocation. The temporary bootstrap cron drives the high
-  // limit; the steady-state daily cron passes a small one.
+  // Cap at 200 for the manual bootstrap. Measured steady-state: 40 sets took 148s
+  // at concurrency 5 (~3.7s/set), so the hourly slots pass 60 (~220s) to stay
+  // clear of the invocation wall — the 5-minute run at 200 is what killed the
+  // eBay job, and this one now runs 48x a day.
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
     ? Math.min(Math.floor(requestedLimit), 200)
     : 40;
@@ -57,13 +58,35 @@ export async function runBrickEconomyEnrich(
   // re-charge 5cr for — those un-populatable sets every single run, burning the
   // daily credit ceiling while the bootstrap never advances past them. The
   // ORDER BY still prioritizes never-valued sets, so real values fill first.
+  // TWO cadences, because the catalog splits cleanly in two:
+  //   - 15,154 sets that HAVE yielded BrickEconomy data. This is the app's widest
+  //     price source and 98.8% of it was stale, so it refreshes on a ~weekly gate
+  //     (BRICKECONOMY_REFRESH_DAYS, default 7).
+  //   - ~7,700 sets that have never yielded a value. BrickEconomy simply has no
+  //     page-worth of data for them; re-asking weekly would burn ~38,000 Firecrawl
+  //     credits a week for nothing, so they stay on the old 90-day gate.
+  // The refresh gate — not the cron cadence — is the real credit governor here:
+  // once the whole set is inside the window, only ~1/7th of it comes due per day.
+  const refreshDays = Math.min(Math.max(Number(env.BRICKECONOMY_REFRESH_DAYS) || 7, 1), 365);
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num
     FROM lego_sets ls
-    WHERE (ls.be_cached_at IS NULL OR ls.be_cached_at < datetime('now', '-90 days'))
+    WHERE (
+        ls.be_cached_at IS NULL
+        OR (ls.be_value_new IS NOT NULL AND ls.be_cached_at < datetime('now', '-${refreshDays} days'))
+        OR (ls.be_value_new IS NULL AND ls.be_cached_at < datetime('now', '-90 days'))
+      )
       AND ls.year >= 2000
     ORDER BY
-      CASE WHEN ls.be_value_new IS NULL THEN 0 ELSE 1 END,
+      -- Never tried first, then the weekly refresh of sets that actually carry
+      -- data, and only then the known-empty tail. (Was "be_value_new IS NULL
+      -- first", which under the split cadence would have front-loaded exactly
+      -- the sets BrickEconomy has nothing for.)
+      CASE
+        WHEN ls.be_cached_at IS NULL THEN 0
+        WHEN ls.be_value_new IS NOT NULL THEN 1
+        ELSE 2
+      END,
       CASE WHEN EXISTS (
         SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
       ) OR EXISTS (
