@@ -2156,6 +2156,19 @@ describe('Kids PIN and XP', () => {
       expect(data.set.set_num).toBe('4002024-1');
     });
 
+    it('prefers the exact set number when a -1 variant also exists', async () => {
+      // The bare and -1 lookups were two sequential queries; they are now one
+      // IN (...) with an ORDER BY tiebreak, so the exact match must still win
+      // rather than whichever row SQLite happens to return first.
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, current_value) VALUES ('8888','Exact Match',10)`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, current_value) VALUES ('8888-1','Variant',20)`),
+      ]);
+      const res = await app.fetch(new Request('http://localhost/api/sets/8888'), env);
+      expect(res.status).toBe(200);
+      expect((await res.json<any>()).set.set_num).toBe('8888');
+    });
+
     it('404s for an unknown set when the Rebrickable fallback is unavailable', async () => {
       const res = await app.fetch(new Request('http://localhost/api/sets/00000'), env);
       expect(res.status).toBe(404);

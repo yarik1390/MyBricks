@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { optionalMember, requireMember } from '../auth';
 import { formulaValuation, valuationExpiryModifier, isPlausibleMarketValue } from '../lib/valuation';
 import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
@@ -386,6 +386,62 @@ app.get('/:setnum/offers', async (c) => {
   return c.json({ set_num: setNum, market, current: current ? { ...current, ...stats } : null });
 });
 
+/**
+ * Fetch Brickset details for a set we have never enriched and persist whatever
+ * columns are still blank. Runs in waitUntil, off the response path — it is a
+ * 200-500ms third-party call and every write below is a fill-the-blank, so
+ * nothing here is needed to render the current response.
+ *
+ * Guards are unchanged from when this ran inline: rating/reviewCount always
+ * refresh, everything else only fills a null/empty column, so re-running is safe
+ * and never clobbers better data. Stamps brickset_enriched_at last so a failed
+ * run retries on the next view rather than latching the set as done.
+ */
+async function persistBricksetDetails(
+  c: Context<{ Bindings: Env; Variables: Variables }>,
+  row: Record<string, unknown>,
+): Promise<void> {
+  const brickset = await fetchBricksetDetails(row.set_num as string, c.env).catch(() => null);
+  if (!brickset) return;
+  const updates: D1PreparedStatement[] = [];
+  if (brickset.minifigs !== null && brickset.minifigs > 0 && !row.minifigs) {
+    updates.push(c.env.DB.prepare('UPDATE lego_sets SET minifigs=? WHERE set_num=?').bind(brickset.minifigs, row.set_num));
+  }
+  if (brickset.retired === true && !row.retired) {
+    updates.push(c.env.DB.prepare('UPDATE lego_sets SET retired=1 WHERE set_num=?').bind(row.set_num));
+  }
+  // Prefer official Brickset MSRP for retail_price (store it separately too).
+  if (brickset.msrp) {
+    updates.push(c.env.DB.prepare('UPDATE lego_sets SET retail_price=?, brickset_msrp=? WHERE set_num=?')
+      .bind(brickset.msrp, brickset.msrp, row.set_num));
+  }
+  const meta: Record<string, unknown> = {};
+  if (brickset.subtheme && !row.subtheme) meta.subtheme = brickset.subtheme;
+  if (brickset.ageMin !== null && row.age_min == null) meta.age_min = brickset.ageMin;
+  if (brickset.ageMax !== null && row.age_max == null) meta.age_max = brickset.ageMax;
+  if (brickset.rating !== null) meta.brickset_rating = brickset.rating;
+  if (brickset.reviewCount !== null) meta.brickset_review_count = brickset.reviewCount;
+  if (brickset.retiredYear !== null && row.retired_year == null) meta.retired_year = brickset.retiredYear;
+  if (brickset.launchDate && !row.launch_date) meta.launch_date = brickset.launchDate;
+  if (brickset.exitDate && !row.exit_date) meta.exit_date = brickset.exitDate;
+  if (brickset.themeGroup && !row.theme_group) meta.theme_group = brickset.themeGroup;
+  if (brickset.category && !row.category) meta.category = brickset.category;
+  if (brickset.tags && !row.brickset_tags) meta.brickset_tags = brickset.tags;
+  if (brickset.dimensions && !row.brickset_dimensions) meta.brickset_dimensions = brickset.dimensions;
+  if (brickset.packagingType && !row.packaging_type) meta.packaging_type = brickset.packagingType;
+  if (brickset.instructionsCount !== null && row.instructions_count == null) meta.instructions_count = brickset.instructionsCount;
+  if (brickset.additionalImageCount !== null && row.additional_image_count == null) meta.additional_image_count = brickset.additionalImageCount;
+  if (brickset.description && !row.brickset_description) meta.brickset_description = brickset.description;
+  if (brickset.setId !== null && row.brickset_set_id == null) meta.brickset_set_id = brickset.setId;
+  if (Object.keys(meta).length) {
+    const clauses = Object.keys(meta).map((k) => `${k}=?`).join(', ');
+    updates.push(c.env.DB.prepare(`UPDATE lego_sets SET ${clauses} WHERE set_num=?`)
+      .bind(...Object.values(meta), row.set_num));
+  }
+  updates.push(c.env.DB.prepare(`UPDATE lego_sets SET brickset_enriched_at=datetime('now') WHERE set_num=?`).bind(row.set_num));
+  await c.env.DB.batch(updates).catch(() => {});
+}
+
 app.get('/:setnum', async (c) => {
   const setnum = c.req.param('setnum');
   const userId = c.get('userId');
@@ -394,23 +450,59 @@ app.get('/:setnum', async (c) => {
   // columns. JOINing the set_market_ext columns into the same SELECT overflows
   // D1's 100-column RESULT-SET limit ("too many columns in result set"), so fetch
   // the extended market fields separately and merge them in.
-  let set = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(setnum).first<Record<string, unknown>>();
-  if (!set) set = await c.env.DB.prepare('SELECT * FROM lego_sets WHERE set_num=?').bind(setnum + '-1').first<Record<string, unknown>>();
+  // Resolve the set and its "-1" variant in ONE query. The old form issued a
+  // second round trip for every set number that lacks the suffix, which is the
+  // common case from search results.
+  let set = await c.env.DB.prepare(
+    'SELECT * FROM lego_sets WHERE set_num IN (?1, ?2) ORDER BY (set_num <> ?1) LIMIT 1',
+  ).bind(setnum, `${setnum}-1`).first<Record<string, unknown>>();
 
   if (set) {
-    const ext = await c.env.DB.prepare(
-      'SELECT pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count, pa_market, stockx_ask, stockx_cached_at FROM set_market_ext WHERE set_num=?'
-    ).bind(set.set_num).first<Record<string, unknown>>().catch(() => null);
+    // This handler used to issue ~12 D1 queries strictly one after another, each
+    // paying a full round trip, which is what made set detail the slowest page
+    // (~1.1s p50, 2.3s max) — not row counts: every one of these is a keyed
+    // lookup reading a handful of rows. They only ever depended on set_num and
+    // userId, never on each other, so they now go out in one wave. Only the
+    // retail offer genuinely depends on an earlier result (the user's market),
+    // so it forms a second, smaller wave.
+    const setNum = set.set_num as string;
+    const [extRes, prefsRes, valuationRows, upcoming, entry, setMinifigsRes, trend, valueHistory] = await Promise.all([
+      c.env.DB.prepare(
+        'SELECT pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count, pa_market, stockx_ask, stockx_cached_at FROM set_market_ext WHERE set_num=?'
+      ).bind(setNum).first<Record<string, unknown>>().catch(() => null),
+      userId
+        ? c.env.DB.prepare('SELECT retail_market FROM user_prefs WHERE user_id=?')
+          .bind(userId).first<{ retail_market?: string }>().catch(() => null)
+        : Promise.resolve(null),
+      c.env.DB.prepare(`
+        SELECT condition, fair_value, low, high, liquidation_value, confidence,
+               confidence_score, sample_count, independent_family_count,
+               basis_json, flags_json, forecast_json, as_of
+        FROM set_valuation_state WHERE set_num=?
+      `).bind(setNum).all<Record<string, unknown>>().catch(() => ({ results: [] as Record<string, unknown>[] })),
+      c.env.DB.prepare('SELECT price_usd FROM upcoming_sets WHERE set_num=?')
+        .bind(setNum).first<{ price_usd: number | null }>().catch(() => null),
+      userId
+        ? c.env.DB.prepare('SELECT * FROM user_collection WHERE user_id=? AND set_num=? AND deleted_at IS NULL')
+          .bind(userId, setNum).first().catch(() => null)
+        : Promise.resolve(null),
+      c.env.DB.prepare(
+        'SELECT fig_num, quantity, fig_name, fig_img_url FROM set_minifigs WHERE set_num=? ORDER BY quantity DESC'
+      ).bind(setNum).all<{ fig_num: string; quantity: number; fig_name: string; fig_img_url: string | null }>()
+        .catch(() => ({ results: [] as Array<{ fig_num: string; quantity: number; fig_name: string; fig_img_url: string | null }> })),
+      getCachedPriceTrend(setNum, c.env),
+      recentValueMedian(c.env.DB, setNum).catch(() => undefined),
+    ]);
+
+    const ext = extRes;
     if (ext) set = { ...set, ...ext };
-    const retailMarket = userId
-      ? await c.env.DB.prepare(`SELECT retail_market FROM user_prefs WHERE user_id=?`)
-        .bind(userId).first<{ retail_market?: string }>().then(r => String(r?.retail_market || 'FR')).catch(() => 'FR')
-      : 'FR';
+    const retailMarket = String(prefsRes?.retail_market || 'FR');
+    const setMinifigs = setMinifigsRes.results ?? [];
     const retailOffer = await c.env.DB.prepare(`
       SELECT market, currency, item_price, delivered_price, merchant, stock,
              offer_count, msrp, lowest_90d, all_time_low, checked_at, source
       FROM retail_price_current WHERE set_num=? AND market=?
-    `).bind(set.set_num, retailMarket).first<Record<string, unknown>>().catch(() => null);
+    `).bind(setNum, retailMarket).first<Record<string, unknown>>().catch(() => null);
     if (retailOffer) set = { ...set, __retail_offer: retailOffer };
     // Amazon Creators offer — merged at READ TIME only. It lives in KV with a
     // <24h TTL (Associates terms forbid persisting/republishing prices), so it
@@ -440,12 +532,6 @@ app.get('/:setnum', async (c) => {
         };
       }
     }
-    const valuationRows = await c.env.DB.prepare(`
-      SELECT condition, fair_value, low, high, liquidation_value, confidence,
-             confidence_score, sample_count, independent_family_count,
-             basis_json, flags_json, forecast_json, as_of
-      FROM set_valuation_state WHERE set_num=?
-    `).bind(set.set_num).all<Record<string, unknown>>().catch(() => ({ results: [] as Record<string, unknown>[] }));
     for (const valuationRow of valuationRows.results || []) {
       const parse = (value: unknown, fallback: unknown) => {
         try { return JSON.parse(String(value ?? '')); } catch { return fallback; }
@@ -476,74 +562,26 @@ app.get('/:setnum', async (c) => {
     // Coming-soon: is this set in the upcoming/pre-release feed? If so it hasn't
     // launched yet — it must NOT read as "retiring soon", and its headline value
     // should be the announced retail (price_usd), not a formula market estimate.
-    const upcoming = await c.env.DB.prepare(
-      'SELECT price_usd FROM upcoming_sets WHERE set_num=?'
-    ).bind(set.set_num).first<{ price_usd: number | null }>().catch(() => null);
     const comingSoon = !!upcoming;
     const upcomingPrice = upcoming?.price_usd ?? null;
 
     const activeSet = set;
-    let resultSet: Record<string, unknown> = set;
-
-    const entry = userId
-      ? await c.env.DB.prepare('SELECT * FROM user_collection WHERE user_id=? AND set_num=? AND deleted_at IS NULL').bind(userId, activeSet.set_num).first()
-      : null;
-
-    const trend = await getCachedPriceTrend(activeSet.set_num as string, c.env);
+    const resultSet: Record<string, unknown> = set;
 
     // Non-blocking/blocking BrickLink or Gemini refresh when price is missing or stale
     scheduleSetDetailRefresh(c, activeSet);
 
-    // Only call Brickset live when the set hasn't been enriched yet. Enriched sets
-    // already have their brickset_* columns persisted, and the fill-guards below
-    // (!resultSet.X) would set nothing on a re-fetch — so the ~200-500ms blocking
-    // call was pure latency on the set-detail response path. Stored columns are
-    // returned via resultSet either way; the frontend already falls back to them.
-    const brickset = resultSet.brickset_enriched_at
-      ? null
-      : await fetchBricksetDetails(resultSet.set_num as string, c.env).catch(() => null);
-    if (brickset) {
-      const bsUpdates: D1PreparedStatement[] = [];
-      if (brickset.minifigs !== null && brickset.minifigs > 0 && !resultSet.minifigs) {
-        bsUpdates.push(c.env.DB.prepare('UPDATE lego_sets SET minifigs=? WHERE set_num=?').bind(brickset.minifigs, resultSet.set_num));
-        resultSet.minifigs = brickset.minifigs;
-      }
-      if (brickset.retired === true && !resultSet.retired) {
-        bsUpdates.push(c.env.DB.prepare('UPDATE lego_sets SET retired=1 WHERE set_num=?').bind(resultSet.set_num));
-        resultSet.retired = 1;
-      }
-      // Prefer official Brickset MSRP for retail_price (store it separately too).
-      if (brickset.msrp) {
-        bsUpdates.push(c.env.DB.prepare('UPDATE lego_sets SET retail_price=?, brickset_msrp=? WHERE set_num=?').bind(brickset.msrp, brickset.msrp, resultSet.set_num));
-        resultSet.retail_price = brickset.msrp;
-        resultSet.brickset_msrp = brickset.msrp;
-      }
-      // Persist rich Brickset metadata fields that were previously discarded
-      const bsMeta: Record<string, unknown> = {};
-      if (brickset.subtheme && !resultSet.subtheme) bsMeta.subtheme = brickset.subtheme;
-      if (brickset.ageMin !== null && resultSet.age_min == null) bsMeta.age_min = brickset.ageMin;
-      if (brickset.ageMax !== null && resultSet.age_max == null) bsMeta.age_max = brickset.ageMax;
-      if (brickset.rating !== null) bsMeta.brickset_rating = brickset.rating;
-      if (brickset.reviewCount !== null) bsMeta.brickset_review_count = brickset.reviewCount;
-      if (brickset.retiredYear !== null && resultSet.retired_year == null) bsMeta.retired_year = brickset.retiredYear;
-      if (brickset.launchDate && !resultSet.launch_date) bsMeta.launch_date = brickset.launchDate;
-      if (brickset.exitDate && !resultSet.exit_date) bsMeta.exit_date = brickset.exitDate;
-      if (brickset.themeGroup && !resultSet.theme_group) bsMeta.theme_group = brickset.themeGroup;
-      if (brickset.category && !resultSet.category) bsMeta.category = brickset.category;
-      if (brickset.tags && !resultSet.brickset_tags) bsMeta.brickset_tags = brickset.tags;
-      if (brickset.dimensions && !resultSet.brickset_dimensions) bsMeta.brickset_dimensions = brickset.dimensions;
-      if (brickset.packagingType && !resultSet.packaging_type) bsMeta.packaging_type = brickset.packagingType;
-      if (brickset.instructionsCount !== null && resultSet.instructions_count == null) bsMeta.instructions_count = brickset.instructionsCount;
-      if (brickset.additionalImageCount !== null && resultSet.additional_image_count == null) bsMeta.additional_image_count = brickset.additionalImageCount;
-      if (brickset.description && !resultSet.brickset_description) bsMeta.brickset_description = brickset.description;
-      if (brickset.setId !== null && resultSet.brickset_set_id == null) bsMeta.brickset_set_id = brickset.setId;
-      if (Object.keys(bsMeta).length) {
-        const setClauses = Object.keys(bsMeta).map(k => `${k}=?`).join(', ');
-        bsUpdates.push(c.env.DB.prepare(`UPDATE lego_sets SET ${setClauses} WHERE set_num=?`)
-          .bind(...Object.values(bsMeta), resultSet.set_num));
-        Object.assign(resultSet, bsMeta);
-      }
-      if (bsUpdates.length) await c.env.DB.batch(bsUpdates);
+    // Brickset enrichment for a set we have never enriched (23% of the catalog).
+    // A previous pass narrowed this from every request to only un-enriched sets;
+    // it now moves OFF the response path entirely. It is a 200-500ms third-party
+    // call whose whole purpose is to persist columns for next time — the guards
+    // below only ever fill blanks, so the sole cost of deferring is that the
+    // FIRST viewer of an un-enriched set sees the stored (possibly null) values
+    // that the frontend already falls back to. Everyone after gets a fast
+    // response AND the data. Matches how LEGO stock and minifig population in
+    // this same handler already behave.
+    if (!resultSet.brickset_enriched_at) {
+      c.executionCtx.waitUntil(persistBricksetDetails(c, resultSet));
     }
 
     // Background LEGO.com stock check — runs for active sets not checked in 24h
@@ -584,15 +622,17 @@ app.get('/:setnum', async (c) => {
       }
     }
 
-    // Fetch stored set_minifigs to include in response
-    const { results: setMinifigs } = await c.env.DB.prepare(
-      'SELECT fig_num, quantity, fig_name, fig_img_url FROM set_minifigs WHERE set_num=? ORDER BY quantity DESC'
-    ).bind(resultSet.set_num).all<{ fig_num: string; quantity: number; fig_name: string; fig_img_url: string | null }>();
-
-    // Trailing-history median feeds the blend's anomaly guard so a value that
-    // jumped off its own recent trend on thin data shows as low confidence.
-    const valueHistory = await recentValueMedian(c.env.DB, resultSet.set_num as string).catch(() => undefined);
-    return c.json({ set: enrichSetRecord({ ...resultSet, retired: !!resultSet.retired, coming_soon: comingSoon, upcoming_price: upcomingPrice, trend, brickset }, valueHistory), entry: entry || null, set_minifigs: setMinifigs });
+    // set_minifigs, the trend and the trailing-history median were all fetched in
+    // the opening wave above; `brickset` is null because enrichment now runs in
+    // waitUntil (the frontend reads the persisted brickset_* columns on the set).
+    return c.json({
+      set: enrichSetRecord(
+        { ...resultSet, retired: !!resultSet.retired, coming_soon: comingSoon, upcoming_price: upcomingPrice, trend, brickset: null },
+        valueHistory,
+      ),
+      entry: entry || null,
+      set_minifigs: setMinifigs,
+    });
   }
 
   if (!c.env.REBRICKABLE_API_KEY) return c.json({ error: 'Set not found' }, 404);
