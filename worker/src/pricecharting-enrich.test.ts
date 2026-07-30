@@ -75,4 +75,62 @@ describe('runPriceChartingEnrich', () => {
     const q = await db.prepare(`SELECT used FROM api_quota WHERE service='pricecharting' AND day=?1`).bind(today).first<{ used: number }>();
     expect(q!.used).toBe(1);
   });
+
+  // `legacy:<set_num>` is a synthetic id minted by pricecharting-verify so a
+  // price-agreement promotion has a mapping key when lego_sets.pc_id is empty.
+  // It is not a PriceCharting product id — 5,531 verified mappings carried one
+  // and the job spent 100 calls a day on /product?id=legacy:… 404s, which is why
+  // production read "updated 0 · found 0 · processed 100" every single run.
+  const enableJob = async () => {
+    const enabled = { ...env, PRICECHARTING_TOKEN: 'tok', PRICECHARTING_VERIFIED_ENABLED: '1' } as any;
+    await saveSourceConfig(enabled, { pricecharting: { enabled: true, weight: 0 } } as any);
+    clearSourceConfigCache();
+    return enabled;
+  };
+
+  it('ignores a synthetic legacy: mapping and rediscovers the real product id', async () => {
+    await seedSets(1);
+    await db.prepare(`
+      INSERT INTO pricing_source_map (source, source_item_id, set_num, status, match_method, match_confidence)
+      VALUES ('pricecharting', 'legacy:1000-1', '1000-1', 'verified', 'price_agreement', 0.85)
+    `).run();
+    const enabled = await enableJob();
+    const urls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (u: any) => {
+      urls.push(String(u));
+      return new Response(JSON.stringify({
+        status: 'success', id: '6910', 'console-name': 'LEGO Creator',
+        'product-name': 'LEGO Set 1000', 'new-price': 12250,
+      }), { status: 200 });
+    }));
+
+    const r = await runPriceChartingEnrich(enabled, { concurrency: 1 });
+
+    expect(urls.some((u) => u.includes('legacy%3A') || u.includes('legacy:'))).toBe(false);
+    expect(r.discovered).toBe(1); // "found" is no longer structurally pinned at 0
+    expect(r.updated).toBe(1);
+    // The real id replaces the placeholder rather than sitting beside it.
+    const ids = await db.prepare(
+      `SELECT source_item_id FROM pricing_source_map WHERE source='pricecharting' AND set_num='1000-1'`,
+    ).all<{ source_item_id: string }>();
+    expect(ids.results.map((x) => x.source_item_id)).toEqual(['6910']);
+  });
+
+  it('stamps an attempt marker on a miss so it stops re-filling the queue', async () => {
+    await seedSets(1);
+    const enabled = await enableJob();
+    // A set PriceCharting does not carry. pc_cached_at is success-only, so
+    // without the marker this same set heads every future batch forever.
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ status: 'error' }), { status: 404 })));
+
+    const first = await runPriceChartingEnrich(enabled, { concurrency: 1 });
+    expect(first.processed).toBe(1);
+    expect(first.updated).toBe(0);
+    const ext = await db.prepare(`SELECT pc_attempted_at FROM set_market_ext WHERE set_num='1000-1'`)
+      .first<{ pc_attempted_at: string }>();
+    expect(ext?.pc_attempted_at).toBeTruthy();
+
+    const second = await runPriceChartingEnrich(enabled, { concurrency: 1 });
+    expect(second.processed).toBe(0);
+  });
 });

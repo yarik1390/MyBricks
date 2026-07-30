@@ -43,13 +43,28 @@ export async function runPriceChartingEnrich(
     ? Math.min(Math.floor(requestedLimit), 200)
     : 50;
 
+  // `legacy:<set_num>` is a SYNTHETIC mapping id minted by pricecharting-verify so
+  // a price-agreement promotion has something to key on when lego_sets.pc_id is
+  // empty. It is meaningful to the signal sweep (which reads the pc_* columns) but
+  // it is NOT a PriceCharting product id — handing it to /api/product?id= 404s every
+  // time. 5,531 verified mappings carry one, and because a miss never stamps
+  // pc_cached_at those sets stayed pinned to the head of this queue and the job
+  // burned 100 calls a day re-asking about ids that cannot exist ("found 0").
+  // Treat them as "no id" so discovery by UPC/search can find the real one.
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num, ls.name, pm.source_item_id AS pc_id, ls.upc
     FROM lego_sets ls
     LEFT JOIN pricing_source_map pm
       ON pm.source='pricecharting' AND pm.set_num=ls.set_num
      AND pm.status IN ('verified','manual')
+     AND pm.source_item_id NOT LIKE 'legacy:%'
+    LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
     WHERE (ls.pc_cached_at IS NULL OR ls.pc_cached_at < datetime('now', '-${refreshDays} days'))
+      -- Anti-stall: a set PriceCharting genuinely does not carry can never stamp
+      -- pc_cached_at (that column is success-only and feeds the blend), so without
+      -- a separate attempt marker the same permanent misses re-fill every batch
+      -- forever. Same pattern as ebay_sold_attempted_at in ebay-sold-scrape.
+      AND (ext.pc_attempted_at IS NULL OR ext.pc_attempted_at < datetime('now', '-30 days'))
       AND ls.year >= 2000
     ORDER BY
       CASE WHEN ls.bl_new_value IS NOT NULL AND ls.pc_cached_at IS NULL THEN 0 ELSE 1 END,
@@ -88,11 +103,27 @@ export async function runPriceChartingEnrich(
       processed++;
 
       if (!result) {
-        // A no-data response must not make an old observation look fresh.
+        // A no-data response must not make an old observation look fresh — so
+        // stamp the ATTEMPT marker instead of pc_cached_at. The set drops out of
+        // the candidate query for 30 days rather than re-consuming a call every
+        // run, while the blend still sees its PriceCharting evidence as absent.
+        stmts.push(env.DB.prepare(
+          `INSERT INTO set_market_ext (set_num, pc_attempted_at) VALUES (?1, datetime('now'))
+           ON CONFLICT(set_num) DO UPDATE SET pc_attempted_at=datetime('now')`,
+        ).bind(set.set_num));
         continue;
       }
 
-      if (result.pc_id && !set.pc_id) discovered++;
+      if (result.pc_id && !set.pc_id) {
+        discovered++;
+        // A real id supersedes the synthetic `legacy:<set_num>` placeholder. Drop
+        // it, or the set keeps two verified mappings and the join above stays
+        // ambiguous. Scoped to legacy rows so a genuine second id is never lost.
+        stmts.push(env.DB.prepare(
+          `DELETE FROM pricing_source_map
+           WHERE source='pricecharting' AND set_num=?1 AND source_item_id LIKE 'legacy:%'`,
+        ).bind(set.set_num));
+      }
 
       // Sparse update: only write figures that were actually returned.
       const fields: string[] = [`pc_cached_at=datetime('now')`];

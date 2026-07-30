@@ -650,3 +650,4 @@ ALTER TABLE set_market_ext ADD COLUMN stockx_ask REAL;
 ALTER TABLE set_market_ext ADD COLUMN stockx_cached_at TEXT;
 ALTER TABLE set_market_ext ADD COLUMN ebay_sold_attempted_at TEXT;
 ALTER TABLE set_market_ext ADD COLUMN ebay_used_attempted_at TEXT;
+ALTER TABLE set_market_ext ADD COLUMN pc_attempted_at TEXT;
