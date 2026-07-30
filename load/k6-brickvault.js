@@ -33,7 +33,20 @@ import { randomIntBetween } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js';
 const BASE = __ENV.BASE_URL || 'https://brickvault-api.zhydenko.workers.dev';
 const TOKEN = __ENV.TOKEN || '';           // optional: exercises authenticated paths
 const SCENARIO = __ENV.SCENARIO || 'cached';
-const PEAK_RPS = Number(__ENV.PEAK_RPS || (SCENARIO === 'origin' ? 20 : 120));
+
+// ITERATIONS per second, not HTTP requests. One iteration is a whole user
+// journey: ~5 requests plus ~6s of think time. So the HTTP rate is roughly
+// 5x this, and the VUs needed to sustain it are roughly `rate x 6` — a
+// journey that takes 6s of wall clock occupies a VU for all 6.
+//
+// Getting this wrong is not harmless: if maxVUs cannot cover `rate x duration`,
+// k6 drops iterations and reports "insufficient VUs", quietly delivering LESS
+// load than requested — which looks like a server that coped.
+const PEAK_ITER_RATE = Number(__ENV.PEAK_RPS || (SCENARIO === 'origin' ? 10 : 25));
+const ITERATION_SECONDS = 8;                       // ~6s think time + slack
+// x2 covers the spike stage, x1.5 is headroom for a slow origin stretching
+// iterations (which raises VU demand exactly when the server is struggling).
+const MAX_VUS = Math.ceil(PEAK_ITER_RATE * 2 * ITERATION_SECONDS * 1.5);
 
 // A spread of real set numbers, used to defeat set-detail's (set, market) cache
 // key. Sets a load test picks at random must exist, or you measure the 404 path.
@@ -56,16 +69,16 @@ export const options = {
       // Arrival-rate, not VU-count: it holds a REQUEST rate and adds VUs to keep
       // up, so a slowing server shows as queued iterations rather than silently
       // reducing offered load — which is exactly what hides a capacity limit.
-      startRate: 5,
+      startRate: 1,
       timeUnit: '1s',
-      preAllocatedVUs: 50,
-      maxVUs: 500,
+      preAllocatedVUs: Math.min(50, MAX_VUS),
+      maxVUs: MAX_VUS,
       stages: [
-        { target: Math.round(PEAK_RPS * 0.25), duration: '30s' }, // warm caches
-        { target: Math.round(PEAK_RPS * 0.5), duration: '1m' },
-        { target: PEAK_RPS, duration: '2m' },                     // sustain
-        { target: PEAK_RPS * 2, duration: '30s' },                // spike
-        { target: 0, duration: '30s' },                           // recover
+        { target: Math.max(1, Math.round(PEAK_ITER_RATE * 0.25)), duration: '30s' }, // warm caches
+        { target: Math.max(1, Math.round(PEAK_ITER_RATE * 0.5)), duration: '1m' },
+        { target: PEAK_ITER_RATE, duration: '2m' },                                  // sustain
+        { target: PEAK_ITER_RATE * 2, duration: '30s' },                             // spike
+        { target: 0, duration: '30s' },                                              // recover
       ],
       gracefulStop: '30s',
     },
@@ -162,12 +175,15 @@ export function handleSummary(data) {
   const hitRate = m.edge_cache_hit ? `${(get('edge_cache_hit', 'rate') * 100).toFixed(1)}%` : 'n/a';
   const summary = [
     '',
-    `scenario: ${SCENARIO}   peak: ${PEAK_RPS} req/s   auth: ${TOKEN ? 'yes' : 'no'}`,
+    `scenario: ${SCENARIO}   peak: ${PEAK_ITER_RATE} journeys/s (~${PEAK_ITER_RATE * 5} req/s)   ` +
+      `maxVUs: ${MAX_VUS}   auth: ${TOKEN ? 'yes' : 'no'}`,
     line('catalog browse', 'browse_latency'),
     line('set detail', 'detail_latency'),
     `  edge cache hit     ${hitRate}`,
     `  failed requests    ${(get('http_req_failed', 'rate') * 100).toFixed(2)}%`,
     `  throughput         ${get('http_reqs', 'rate').toFixed(1)} req/s`,
+    `  dropped iterations ${Number.isNaN(get('dropped_iterations', 'count')) ? 0 : get('dropped_iterations', 'count')}` +
+      '   <- non-zero means the GENERATOR ran out of VUs, not that the server coped',
     '',
   ].join('\n');
   return { stdout: summary, 'k6-summary.json': JSON.stringify(data, null, 2) };

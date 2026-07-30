@@ -18,8 +18,27 @@ measures Cloudflare's CDN and tells you nothing about your own capacity.
 
 | `SCENARIO` | Question it answers | Peak default |
 |---|---|---|
-| `cached` | What do real users experience? | 120 req/s |
-| `origin` | What can the Worker + D1 actually take? | 20 req/s |
+| `cached` | What do real users experience? | 25 journeys/s (~125 req/s) |
+| `origin` | What can the Worker + D1 actually take? | 10 journeys/s (~50 req/s) |
+
+### The rate is JOURNEYS per second, not requests
+
+`PEAK_RPS` sets iterations of the user journey per second. One journey is ~5
+requests plus ~6s of think time, so the HTTP rate is roughly 5x the number you
+set, and the VUs required are roughly `rate x 8`. The script sizes `maxVUs`
+from that automatically — don't override it by hand without redoing the
+arithmetic.
+
+This matters because of how it fails. If `maxVUs` cannot cover
+`rate x journey duration`, k6 drops iterations and delivers **less** load than
+you asked for, which in the summary looks like a server comfortably keeping up.
+The summary therefore prints `dropped iterations`: **any non-zero value means the
+generator ran out of VUs and the run understated the load** — fix that before
+believing the latency numbers.
+
+For scale: even 10,000 daily active users works out to single-digit requests per
+second at peak, so the defaults are already about an order of magnitude above a
+generous launch. They are sized to find a ceiling, not to imitate real traffic.
 
 `origin` defeats the cache on every request, so **every request is real D1 work
 and real billed rows**. Keep the rate low and the run short.
