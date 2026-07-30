@@ -377,30 +377,36 @@ exposes client-safe values.**
 | Cron (UTC) | Job(s) |
 |---|---|
 | `0 * * * *` | valuate: owned-deep + catalog coverage + eBay-ask backfill + top-value freshness |
-| `15 * * * *` | formula-head revaluation |
+| `15 * * * *` | formula-head revaluation + PriceCharting verify-drain + image pre-warm (R2) |
+| `25 * * * *`, `50 * * * *` | **BrickEconomy enrich** (Firecrawl, 60 sets/run) |
 | `30 * * * *` | UPCitemdb barcode backfill |
-| `0 0,3,6,9,12,15,18,21` | eBay-sold scrape (Bright Data, 8×/day; zone `web_unlocker1`) |
+| `0 0,3,6,9,12,15,18,21` | eBay-sold scrape (Bright Data primary, 8×/day; zone `web_unlocker1`) |
 | `0 1`, `0 5` | minifig valuation (two slots) |
 | `0 2` | snapshot portfolios |
 | `0 3` | snapshot set values |
-| `0 4` | db-hygiene + daily catalog maintenance (+ Sundays: weekly set/fig import) |
+| `0 4` | db-hygiene + daily catalog maintenance + PriceCharting verify (+ Sundays: weekly set/fig import) |
+| `30 4` | **PriceCharting bulk CSV — DAILY** (one ~2 MB download refreshes 13,145 rows; no metered quota) |
 | `0 6` | BrickInsights ratings backfill |
 | `0 8` | wishlist price-drop alerts |
 | `0 9` | Brickset enrich (Firecrawl) |
 | `0 10` | LEGO.com stock refresh (Firecrawl) |
-| `0 11` | BrickEconomy enrich (Firecrawl) |
+| `0 11` | BrickEconomy enrich (Firecrawl) — third slot alongside the two hourly ones |
 | `0 12` | part-price backfill (BrickLink) |
 | `0 13` | part-out compute (D1 only) |
-| `0 14` | image pre-warm (R2) |
+| `0 14` | **PriceCharting per-set enrich** |
 | `0 15` | upcoming / coming-soon refresh (Firecrawl) |
-| `0 16` | **PriceCharting per-set enrich** |
+| `0 16` | minifig identity verification (price-agreement settling) |
 | `0 17`, `0 19`, `0 23` | pricesAPI live-retail (three slots) |
-| `0 18` | **PriceCharting bulk CSV — DAILY** (one download covers the whole catalog) |
+| `0 18` | StockX lowest-ask enrich (off unless `STOCKX_ENABLED=1`) |
 | `0 20` | AI gap-fill (free Gemini/OpenRouter) |
+| `0 22` | community comps |
 
 Both one-time bootstraps — PriceCharting per-set (`10,25,40,55`) and BrickEconomy (`5,20,35,50`) — were **retired 2026-07** once catalog coverage was swept; gap-fills ride the steady-state crons + the manual `bootstrap-brickeconomy.yml`.
 
 - **BrickLink no-data backoff:** a set whose sold guide returns <5 lots is stamped `set_market_ext.bl_nodata_at` and its BrickLink calls are skipped for **90 days** (`valuate-sets`), so the ~5k/day budget isn't spent re-querying dead sets. Cleared when a real price returns.
+- **BrickEconomy split cadence (2026-07-30):** sets that HAVE BrickEconomy data refresh on `BRICKECONOMY_REFRESH_DAYS` (default **7**); sets it has never carried stay on a fixed **90-day** gate. The refresh gate — not the cron cadence — is the Firecrawl-credit governor: raise it to cut the burn. At 7 days the whole 15,154-set covered catalog cycles weekly for ~10,800 credits/day.
+- **PriceCharting attempt marker:** `pc_cached_at` is success-only, so a miss stamps `set_market_ext.pc_attempted_at` (**30-day** cooldown) instead. Without it the same permanent misses re-filled every batch. Note also that `pricing_source_map` rows whose `source_item_id` starts `legacy:` are SYNTHETIC (minted by `pricecharting-verify` for price-agreement promotions) — never pass one to the PriceCharting product API.
+- **Bright Data breaker is half-open:** while the breaker routes eBay-sold to Firecrawl, each run still spends ONE Bright Data call as a probe. A success re-stamps `last_ok_at` and the next tick (3h) goes back to Bright Data-primary. Without the probe, Firecrawl-primary means Bright Data is never called and can never be shown to have recovered.
 
 ---
 

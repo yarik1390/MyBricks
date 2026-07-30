@@ -3,6 +3,37 @@
 Every figure here was measured against production D1 on the date above. Where
 something is inferred rather than measured it says so.
 
+> **STATUS — all four items actioned, same day.** What shipped, and what the
+> audit got wrong once the code was actually opened:
+>
+> 1. **Bulk CSV daily.** Moved out of the Sunday gate into its own `30 4` slot.
+> 2. **BrickEconomy.** The audit said "throttled to 40/day". That was true but not
+>    the binding constraint: only **78 sets** were actually due, because the
+>    staleness gate was **90 days** and the bootstrap had swept everything inside
+>    that window. The job was not throttled, it was *idle* — which is why it read
+>    `updated 0 · processed 40`. Fixed by splitting the gate (7 days for the
+>    15,154 covered sets, 90 for the ~7,700 BrickEconomy has nothing for) and
+>    adding two hourly slots. Cost: `FIRECRAWL_DAILY_CREDITS` 4,000 → 16,000,
+>    ~13,200/day actual, **≈50 days of the 669k balance.**
+>    `BRICKECONOMY_REFRESH_DAYS` is the dial — 14 days doubles the runway.
+> 3. **Bright Data.** The tokens and zone are fine (the admin probe passes); what
+>    fails is eBay specifically. Three fixes: the provider's own error body is now
+>    kept instead of discarded, the timeout drops 60s → 25s with no retry on 5xx,
+>    and the breaker is **half-open** — one probe call per run, so a recovery is
+>    picked up within 3 hours instead of costing a whole 40-set run every 24h.
+>    The admin `Test` button now exercises the real eBay URL, so "tokens bad" and
+>    "eBay is blocking us" stop looking identical.
+> 4. **`found 0` — root cause found.** 5,531 verified `pricing_source_map` rows
+>    carry a **synthetic `legacy:<set_num>` id** minted by `pricecharting-verify`.
+>    It is not a PriceCharting product id, so `/product?id=legacy:10123-1` 404s
+>    every time. Because a miss never stamps `pc_cached_at`, those same sets stayed
+>    pinned to the head of the queue and the job burned 100 calls a day on ids that
+>    cannot exist. Legacy ids are now ignored for lookup (so discovery can find the
+>    real one, which then replaces the placeholder), and misses stamp a 30-day
+>    `pc_attempted_at` marker.
+>
+> The rest of this document is the original audit, unedited.
+
 ## Headline
 
 The app is not short of pricing **sources**. It is short of **throughput on the
