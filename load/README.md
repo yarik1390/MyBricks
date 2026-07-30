@@ -62,17 +62,24 @@ back into a cache run:
 
 | | cached | origin |
 |---|---|---|
-| catalog browse p95 | **22ms** | **184ms** |
-| set detail p95 | 15ms | 24ms † |
+| catalog browse | p95 22ms | med 123ms · p95 242ms · p99 482ms |
+| set detail | p95 15ms | med 218ms · p95 324ms · p99 650ms |
 | edge cache hit | 99.7% | 0.0% |
 | failed requests | 0.00% | 0.00% |
-| throughput | 66.8 req/s | 27.5 req/s |
+| throughput | 66.8 req/s | 27.8 req/s |
 
-† Not a real origin number. That first run used a 20-set hardcoded pool over
-1,895 iterations against a 120s cache TTL, so ~97% of "origin" set-detail
-requests were cache hits — it measured the cache a second time. The pool is now
-built from the live catalog in `setup()` (~500 sets), so re-run `origin` to get
-a true figure for that endpoint.
+Neither scenario found a ceiling — no errors at any point, so these are floors on
+capacity, not limits.
+
+### Expect production to land between the two columns
+
+The `cached` figures were measured with all traffic on a handful of URLs, which
+is not how a 27,660-set catalog gets browsed. Real users spread across the long
+tail, and a set nobody else is looking at within the 120s TTL is a MISS. So
+set-detail latency in production sits somewhere between 15ms and 324ms depending
+on how concentrated traffic is on popular sets — closer to the origin number
+than the cached one for the tail. The catalog browse endpoint is the opposite:
+everyone lands on the same default first page, so it stays near 22ms.
 
 ## Reading the result
 
