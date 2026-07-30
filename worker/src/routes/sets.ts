@@ -451,10 +451,61 @@ async function persistBricksetDetails(
   await c.env.DB.batch(updates).catch(() => {});
 }
 
+/**
+ * Set detail, split so the expensive half can be shared between users.
+ *
+ * Everything about a set except the caller's own collection row is identical for
+ * every viewer, and the retail offer varies only by MARKET (a handful of values),
+ * not by user. So the response is assembled from two halves:
+ *
+ *   shared  — set, valuation states, minifigs, trend, retail offer for a market.
+ *             Cached at the colo under (set, market), so a popular set is built
+ *             once per 2 minutes instead of once per view.
+ *   private — the caller's user_collection entry, always read live.
+ *
+ * The per-user reads happen FIRST because the market they yield is part of the
+ * cache key. Both are keyed single-row lookups, so this wave is cheap.
+ *
+ * Note: a cache hit skips the shared builder, and with it the background
+ * refreshes it schedules (valuation top-up, LEGO stock, minifig population).
+ * With a 120s TTL those still fire regularly, and the crons own them anyway —
+ * this path was only ever an opportunistic top-up.
+ */
 app.get('/:setnum', async (c) => {
   const setnum = c.req.param('setnum');
   const userId = c.get('userId');
 
+  const [prefsRes, entry] = await Promise.all([
+    userId
+      ? c.env.DB.prepare('SELECT retail_market FROM user_prefs WHERE user_id=?')
+        .bind(userId).first<{ retail_market?: string }>().catch(() => null)
+      : Promise.resolve(null),
+    // Matches the set lookup's bare/-1 handling so the entry is found whichever
+    // form the caller used.
+    userId
+      ? c.env.DB.prepare(
+        'SELECT * FROM user_collection WHERE user_id=?1 AND set_num IN (?2, ?3) AND deleted_at IS NULL LIMIT 1',
+      ).bind(userId, setnum, `${setnum}-1`).first().catch(() => null)
+      : Promise.resolve(null),
+  ]);
+  const retailMarket = String(prefsRes?.retail_market || 'FR');
+
+  const sharedRes = await edgeCached(
+    c, 120,
+    () => buildSharedSetDetail(c, setnum, retailMarket),
+    `https://set-detail.internal/${encodeURIComponent(setnum)}/${encodeURIComponent(retailMarket)}`,
+  );
+  // Non-200 (404 / Rebrickable failure) passes straight through and is not cached.
+  if (sharedRes.status !== 200) return sharedRes;
+  const shared = await sharedRes.json<Record<string, unknown>>();
+  return c.json({ ...shared, entry: entry || null });
+});
+
+async function buildSharedSetDetail(
+  c: Context<{ Bindings: Env; Variables: Variables }>,
+  setnum: string,
+  retailMarket: string,
+): Promise<Response> {
   // lego_sets is at D1's 100-column ceiling, so `SELECT *` already returns ~100
   // columns. JOINing the set_market_ext columns into the same SELECT overflows
   // D1's 100-column RESULT-SET limit ("too many columns in result set"), so fetch
@@ -470,19 +521,14 @@ app.get('/:setnum', async (c) => {
     // This handler used to issue ~12 D1 queries strictly one after another, each
     // paying a full round trip, which is what made set detail the slowest page
     // (~1.1s p50, 2.3s max) — not row counts: every one of these is a keyed
-    // lookup reading a handful of rows. They only ever depended on set_num and
-    // userId, never on each other, so they now go out in one wave. Only the
-    // retail offer genuinely depends on an earlier result (the user's market),
-    // so it forms a second, smaller wave.
+    // lookup reading a handful of rows. They only ever depended on set_num, never
+    // on each other, so they go out in one wave; the retail offer follows in a
+    // second, smaller one because it needs the market.
     const setNum = set.set_num as string;
-    const [extRes, prefsRes, valuationRows, upcoming, entry, setMinifigsRes, trend, valueHistory] = await Promise.all([
+    const [extRes, valuationRows, upcoming, setMinifigsRes, trend, valueHistory] = await Promise.all([
       c.env.DB.prepare(
         'SELECT pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count, pa_market, stockx_ask, stockx_cached_at FROM set_market_ext WHERE set_num=?'
       ).bind(setNum).first<Record<string, unknown>>().catch(() => null),
-      userId
-        ? c.env.DB.prepare('SELECT retail_market FROM user_prefs WHERE user_id=?')
-          .bind(userId).first<{ retail_market?: string }>().catch(() => null)
-        : Promise.resolve(null),
       c.env.DB.prepare(`
         SELECT condition, fair_value, low, high, liquidation_value, confidence,
                confidence_score, sample_count, independent_family_count,
@@ -491,10 +537,6 @@ app.get('/:setnum', async (c) => {
       `).bind(setNum).all<Record<string, unknown>>().catch(() => ({ results: [] as Record<string, unknown>[] })),
       c.env.DB.prepare('SELECT price_usd FROM upcoming_sets WHERE set_num=?')
         .bind(setNum).first<{ price_usd: number | null }>().catch(() => null),
-      userId
-        ? c.env.DB.prepare('SELECT * FROM user_collection WHERE user_id=? AND set_num=? AND deleted_at IS NULL')
-          .bind(userId, setNum).first().catch(() => null)
-        : Promise.resolve(null),
       c.env.DB.prepare(
         'SELECT fig_num, quantity, fig_name, fig_img_url FROM set_minifigs WHERE set_num=? ORDER BY quantity DESC'
       ).bind(setNum).all<{ fig_num: string; quantity: number; fig_name: string; fig_img_url: string | null }>()
@@ -505,7 +547,6 @@ app.get('/:setnum', async (c) => {
 
     const ext = extRes;
     if (ext) set = { ...set, ...ext };
-    const retailMarket = String(prefsRes?.retail_market || 'FR');
     const setMinifigs = setMinifigsRes.results ?? [];
     // Wave 2. Both of these need the user's market and nothing else, so they go
     // together — the Amazon lookup used to wait on the retail offer it is only
@@ -645,7 +686,6 @@ app.get('/:setnum', async (c) => {
         { ...resultSet, retired: !!resultSet.retired, coming_soon: comingSoon, upcoming_price: upcomingPrice, trend, brickset: null },
         valueHistory,
       ),
-      entry: entry || null,
       set_minifigs: setMinifigs,
     });
   }
@@ -676,12 +716,12 @@ app.get('/:setnum', async (c) => {
         .run();
       row.minifigs = brickset.minifigs;
     }
-    return c.json({ set: enrichSetRecord({ ...row, brickset }), entry: null });
+    return c.json({ set: enrichSetRecord({ ...row, brickset }), set_minifigs: [] });
   } catch (e) {
     console.warn('[sets/:setnum] Rebrickable lookup failed:', (e as Error).message);
     return c.json({ error: 'Could not load that set. Try again in a moment.' }, 500);
   }
-});
+}
 
 // GET /api/sets/:setnum/history
 // GET /api/sets/:setnum/images — lazy, cached, quota-gated Brickset photo gallery.

@@ -2156,6 +2156,32 @@ describe('Kids PIN and XP', () => {
       expect(data.set.set_num).toBe('4002024-1');
     });
 
+    it('never serves one user the other user\'s collection entry', async () => {
+      // THE safety property of splitting this response: the shared half (set,
+      // valuation, minifigs) is cached across users, so if `entry` ever rode
+      // along inside it, the first viewer's holdings would leak to everyone
+      // else who opened that set.
+      await db.prepare(
+        `INSERT INTO user_collection (user_id, set_num, quantity, condition, purchase_price)
+         VALUES (?, '75192', 7, 'sealed', 640)`
+      ).bind(userId).run();
+
+      const mine = await (await app.fetch(new Request('http://localhost/api/sets/75192', { headers: auth() }), env)).json<any>();
+      expect(mine.entry?.quantity).toBe(7);
+
+      // Second user, same set, immediately after — must see the shared set data
+      // but NOT the first user's entry.
+      const otherToken = await createMockJWT('kids-other-user', JWT_SECRET);
+      const theirs = await (await app.fetch(new Request('http://localhost/api/sets/75192', { headers: auth(otherToken) }), env)).json<any>();
+      expect(theirs.set.set_num).toBe('75192');
+      expect(theirs.entry).toBeNull();
+
+      // ...and an anonymous viewer likewise.
+      const anon = await (await app.fetch(new Request('http://localhost/api/sets/75192'), env)).json<any>();
+      expect(anon.set.set_num).toBe('75192');
+      expect(anon.entry).toBeNull();
+    });
+
     it('prefers the exact set number when a -1 variant also exists', async () => {
       // The bare and -1 lookups were two sequential queries; they are now one
       // IN (...) with an ORDER BY tiebreak, so the exact match must still win

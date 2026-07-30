@@ -29,12 +29,20 @@ export async function edgeCached(
   c: Ctx,
   ttlSeconds: number,
   produce: () => Promise<Response>,
+  /**
+   * Override the cache key. Use when the request URL is NOT the right identity
+   * for the cached body — e.g. set detail caches only the shared half of its
+   * response, keyed by (set, retail market), while the per-user half is fetched
+   * live and merged by the caller. Must be an absolute URL and must include
+   * every input the cached body varies on.
+   */
+  keyUrl?: string,
 ): Promise<Response> {
   // Cache API is unavailable in some test/dev runtimes — fall straight through.
   const cache = (globalThis as { caches?: { default?: Cache } }).caches?.default;
   if (!cache || c.req.method !== 'GET') return produce();
 
-  const key = new Request(new URL(c.req.url).toString(), { method: 'GET' });
+  const key = new Request(keyUrl ?? new URL(c.req.url).toString(), { method: 'GET' });
   try {
     const hit = await cache.match(key);
     if (hit) {
