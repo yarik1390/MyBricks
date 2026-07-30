@@ -7,6 +7,7 @@ import {
   type ValuationStateV3,
 } from './valuation-v3';
 import { recordPricingWrites } from './pricing-budget';
+import { invalidateSetDetailMany } from './edge-cache';
 
 export type MarketConfidence = 'high' | 'medium' | 'low' | 'estimated';
 export type MarketFreshness = 'fresh' | 'stale' | 'expired' | 'missing';
@@ -1112,6 +1113,10 @@ export async function recomputeBlendedValues(db: D1Database, setNums: string[]):
   const ids = [...new Set(setNums.filter(Boolean))];
   if (!ids.length) return 0;
   let written = 0;
+  // Sets whose headline value actually MOVED. Callers hand in everything they
+  // touched, but a set-detail cache purge is only warranted when the number a
+  // user would see has changed — which is ~3.8% of sets on a given day.
+  const valueChanged: string[] = [];
   try {
     for (let i = 0; i < ids.length; i += 90) {
       const chunk = ids.slice(i, i + 90);
@@ -1124,6 +1129,13 @@ export async function recomputeBlendedValues(db: D1Database, setNums: string[]):
       const signals = await loadNormalizedSignals(db, chunk);
       const computed = results.map(row => {
         const r = blendAndDealRow(row, medians.get(row.set_num as string), signals.get(row.set_num as string) || []);
+        // `row` is the pre-update state, so this compares old against new with no
+        // extra read. Rounded before comparing: float noise well below a cent
+        // is not a price change anyone can see, and purging on it would throw
+        // away the cache for nothing.
+        const before = Math.round(Number(row.blended_value ?? 0) * 100);
+        const after = Math.round(Number(r.blended ?? 0) * 100);
+        if (before !== after) valueChanged.push(row.set_num as string);
         return { row, r, history: medians.get(row.set_num as string) };
       });
       const stmts = computed.map(({ row, r }) => db.prepare(BLEND_DEAL_UPDATE_SQL)
@@ -1143,6 +1155,12 @@ export async function recomputeBlendedValues(db: D1Database, setNums: string[]):
       }
     }
     await recordPricingWrites(db, 'recompute-blends', written);
+    // Purge the cached set-detail bodies for the sets that actually moved, so a
+    // cron reprice shows up immediately instead of after the 15-minute TTL.
+    // Bounded and fail-open inside the helper; never worth failing a cron over.
+    if (valueChanged.length) {
+      await invalidateSetDetailMany(db, valueChanged).catch(() => 0);
+    }
     return written;
   } catch (e) {
     console.warn('[blend] batch recompute failed:', (e as Error).message);

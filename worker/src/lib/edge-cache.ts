@@ -97,3 +97,49 @@ export async function invalidateSetDetail(setnum: string): Promise<void> {
     ),
   );
 }
+
+/**
+ * Bulk purge for the valuation crons, so a repriced set stops serving its old
+ * number for the rest of the TTL instead of up to 15 minutes.
+ *
+ * Deliberately narrow, because cache writes are not free and some callers hand
+ * in thousands of set numbers:
+ *   - callers pass only sets whose value ACTUALLY moved (~3.8%/day), not every
+ *     set they touched;
+ *   - markets are limited to the ones users have actually chosen, read once,
+ *     rather than all seven;
+ *   - a hard cap bounds the worst case if a sweep ever does move a lot at once.
+ * Returns how many keys were dropped. Fails open — a missed purge costs one
+ * stale window, a throw would fail the cron.
+ */
+export async function invalidateSetDetailMany(
+  db: D1Database,
+  setNums: string[],
+  cap = 50,
+): Promise<number> {
+  const cache = (globalThis as { caches?: { default?: Cache } }).caches?.default;
+  const ids = [...new Set(setNums.filter(Boolean))].slice(0, cap);
+  if (!cache || !ids.length) return 0;
+
+  let markets = ['FR']; // the default anonymous/unset market
+  try {
+    const { results } = await db.prepare(
+      `SELECT DISTINCT retail_market AS m FROM user_prefs WHERE retail_market IS NOT NULL AND retail_market <> ''`,
+    ).all<{ m: string }>();
+    markets = [...new Set(['FR', ...(results ?? []).map((r) => String(r.m).toUpperCase())])]
+      .filter((m) => RETAIL_MARKETS.includes(m));
+  } catch { /* default market only */ }
+
+  let dropped = 0;
+  for (const setNum of ids) {
+    const bare = setNum.replace(/-\d+$/, '');
+    const forms = [...new Set([setNum, bare, `${bare}-1`])];
+    const hits = await Promise.all(
+      forms.flatMap((form) =>
+        markets.map((m) => cache.delete(new Request(setDetailCacheKey(form, m))).catch(() => false)),
+      ),
+    );
+    dropped += hits.filter(Boolean).length;
+  }
+  return dropped;
+}

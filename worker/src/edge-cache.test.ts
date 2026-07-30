@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
 import { describe, it, expect, vi } from 'vitest';
-import { edgeCached, invalidateSetDetail, setDetailCacheKey, RETAIL_MARKETS } from './lib/edge-cache';
+import { edgeCached, invalidateSetDetail, invalidateSetDetailMany, setDetailCacheKey, RETAIL_MARKETS } from './lib/edge-cache';
 
 // The whole point of edgeCached is that it ignores Authorization so one user's
 // fetch can serve the next user's. That is only safe for a handler with no
@@ -82,5 +82,54 @@ describe('invalidateSetDetail', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe('invalidateSetDetailMany', () => {
+  const stubCache = (sink: string[]) => vi.stubGlobal('caches', {
+    default: {
+      delete: async (req: Request) => { sink.push(req.url); return true; },
+      match: async () => undefined,
+      put: async () => {},
+    },
+  });
+  // Only the markets users actually chose, not all seven — the crons call this
+  // often enough that the difference matters.
+  const db = (markets: string[]) => ({
+    prepare: () => ({ all: async () => ({ results: markets.map((m) => ({ m })) }) }),
+  }) as unknown as D1Database;
+
+  it('purges only the markets in use', async () => {
+    const deleted: string[] = [];
+    stubCache(deleted);
+    try {
+      await invalidateSetDetailMany(db(['US']), ['10182-1']);
+    } finally { vi.unstubAllGlobals(); }
+    expect(deleted).toContain(setDetailCacheKey('10182-1', 'US'));
+    expect(deleted).toContain(setDetailCacheKey('10182-1', 'FR')); // anonymous default
+    expect(deleted).not.toContain(setDetailCacheKey('10182-1', 'AU'));
+  });
+
+  it('caps the purge so a large sweep cannot blow the request budget', async () => {
+    const deleted: string[] = [];
+    stubCache(deleted);
+    // Names chosen so the bare/-1 forms of different sets cannot collide
+    // (a "SET-0" would strip to "SET", which every other one shares).
+    const many = Array.from({ length: 500 }, (_, i) => `X${i}-1`);
+    try {
+      await invalidateSetDetailMany(db([]), many, 10);
+    } finally { vi.unstubAllGlobals(); }
+    expect(deleted.some((u) => u.includes('/X0-1/'))).toBe(true);    // first is purged
+    expect(deleted.some((u) => u.includes('/X10-1/'))).toBe(false);  // past the cap is not
+    expect(deleted.some((u) => u.includes('/X499-1/'))).toBe(false);
+  });
+
+  it('returns 0 without touching the db when there is nothing to purge', async () => {
+    const deleted: string[] = [];
+    stubCache(deleted);
+    try {
+      expect(await invalidateSetDetailMany(db([]), [])).toBe(0);
+    } finally { vi.unstubAllGlobals(); }
+    expect(deleted).toHaveLength(0);
   });
 });
