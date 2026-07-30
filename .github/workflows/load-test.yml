@@ -1,0 +1,49 @@
+# Load test (k6). TEMPLATE — the GitHub App cannot push files under
+# .github/workflows/, so copy this to .github/workflows/load-test.yml and commit
+# it yourself. See load/README.md.
+#
+# Manual-dispatch only ON PURPOSE. This hits the LIVE Worker and bills real D1
+# reads, so it must never fire on every push.
+name: Load test
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: 'cached (what users feel) or origin (Worker+D1 capacity, defeats the cache)'
+        type: choice
+        options: [cached, origin]
+        default: cached
+      peak_rps:
+        description: 'Peak request rate. Keep origin runs low — every request is real D1 work.'
+        default: ''
+      base_url:
+        description: 'API base URL'
+        default: 'https://brickvault-api.zhydenko.workers.dev'
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install k6
+        run: |
+          curl -sSL https://dl.k6.io/key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/k6-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update && sudo apt-get install -y k6
+      - name: Run k6
+        env:
+          BASE_URL: ${{ github.event.inputs.base_url }}
+          SCENARIO: ${{ github.event.inputs.scenario }}
+          PEAK_RPS: ${{ github.event.inputs.peak_rps }}
+          # Optional. Without it the run covers only the public surface, which is
+          # still the majority of traffic. A Supabase access token expires in an
+          # hour, so this is only useful as a short-lived manually-set secret.
+          TOKEN: ${{ secrets.LOAD_TEST_TOKEN }}
+        run: k6 run load/k6-brickvault.js
+      - name: Upload summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-summary-${{ github.event.inputs.scenario }}
+          path: k6-summary.json
