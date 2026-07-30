@@ -48,13 +48,17 @@ const ITERATION_SECONDS = 8;                       // ~6s think time + slack
 // iterations (which raises VU demand exactly when the server is struggling).
 const MAX_VUS = Math.ceil(PEAK_ITER_RATE * 2 * ITERATION_SECONDS * 1.5);
 
-// A spread of real set numbers, used to defeat set-detail's (set, market) cache
-// key. Sets a load test picks at random must exist, or you measure the 404 path.
-const SET_POOL = [
-  '10182-1', '75192-1', '10179-1', '10188-1', '10221-1', '21309-1', '10214-1',
-  '42115-1', '10276-1', '71043-1', '10256-1', '10261-1', '75252-1', '10270-1',
-  '21318-1', '10265-1', '76139-1', '10497-1', '10302-1', '10303-1',
-];
+// Fallback only. The real pool is fetched in setup() — see why below.
+const SEED_SETS = ['10182-1', '75192-1', '10179-1', '10188-1', '10221-1'];
+
+// How many distinct sets the origin scenario needs to actually MISS the cache.
+// Set detail caches on (set, market) for 120s, so a pool of N sets over a run of
+// R iterations gives roughly N misses per 120s window and (R - N) hits. The first
+// run used 20 hardcoded sets for 1,895 iterations: ~97% of "origin" set-detail
+// requests were served from cache, so that number measured the cache AGAIN and
+// the origin path was never exercised. A pool on the order of the iteration count
+// is what makes the miss rate meaningful.
+const ORIGIN_POOL_TARGET = 500;
 
 const cacheHit = new Rate('edge_cache_hit');
 const browseLatency = new Trend('browse_latency', true);
@@ -63,6 +67,9 @@ const detailLatency = new Trend('detail_latency', true);
 const authHeaders = TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {};
 
 export const options = {
+  // k6 Trends do not carry p(50) by default — reading it yields NaN, which is
+  // how the first run printed "p50 NaNms". Declare the stats we actually print.
+  summaryTrendStats: ['med', 'p(95)', 'p(99)', 'max'],
   scenarios: {
     [SCENARIO]: {
       executor: 'ramping-arrival-rate',
@@ -71,7 +78,11 @@ export const options = {
       // reducing offered load — which is exactly what hides a capacity limit.
       startRate: 1,
       timeUnit: '1s',
-      preAllocatedVUs: Math.min(50, MAX_VUS),
+      // Enough for the sustained stage up front. Allocating lazily meant k6 was
+      // still spinning up VUs when the spike stage raised the rate, and dropped
+      // iterations it could not start in time — 3-4% in the first runs, despite
+      // peak usage sitting well under maxVUs.
+      preAllocatedVUs: Math.min(MAX_VUS, Math.ceil(PEAK_ITER_RATE * ITERATION_SECONDS)),
       maxVUs: MAX_VUS,
       stages: [
         { target: Math.max(1, Math.round(PEAK_ITER_RATE * 0.25)), duration: '30s' }, // warm caches
@@ -93,13 +104,36 @@ export const options = {
   },
 };
 
+// Build the set pool from the live catalog rather than hardcoding it: it
+// guarantees the numbers exist (a made-up one measures the 404 path) and gives
+// enough distinct sets to genuinely miss set-detail's cache in origin mode.
+export function setup() {
+  if (SCENARIO !== 'origin') return { sets: SEED_SETS };
+  const sets = [];
+  for (let offset = 0; sets.length < ORIGIN_POOL_TARGET && offset < 2000; offset += 100) {
+    const res = http.get(`${BASE}/api/sets/search?limit=100&offset=${offset}`, { headers: authHeaders });
+    if (res.status !== 200) break;
+    let page = [];
+    try { page = res.json('sets') || []; } catch { break; }
+    if (!page.length) break;
+    for (const s of page) if (s && s.set_num) sets.push(s.set_num);
+  }
+  if (sets.length < 50) {
+    // Better to fail loudly than to silently run an "origin" test against cache.
+    throw new Error(`origin scenario needs a real set pool; only got ${sets.length}`);
+  }
+  console.log(`origin pool: ${sets.length} distinct sets`);
+  return { sets };
+}
+
 function bust() {
   // Unique per iteration AND per VU, so parallel VUs never share a cache entry.
   return `_cb=${__VU}-${__ITER}-${Date.now()}`;
 }
 
-export default function () {
+export default function (data) {
   const origin = SCENARIO === 'origin';
+  const pool = (data && data.sets && data.sets.length) ? data.sets : SEED_SETS;
 
   group('catalog browse', () => {
     const url = origin
@@ -122,8 +156,8 @@ export default function () {
     // In origin mode the set must VARY: set detail keys its cache on
     // (set, market), so a query-string buster would be a no-op here.
     const setNum = origin
-      ? SET_POOL[randomIntBetween(0, SET_POOL.length - 1)]
-      : SET_POOL[0];
+      ? pool[randomIntBetween(0, pool.length - 1)]
+      : pool[0];
     const res = http.get(`${BASE}/api/sets/${setNum}`, { headers: authHeaders, tags: { name: 'detail' } });
     detailLatency.add(res.timings.duration);
     check(res, {
@@ -170,8 +204,9 @@ export function handleSummary(data) {
   const m = data.metrics;
   const get = (name, stat) => (m[name] && m[name].values[stat] != null ? m[name].values[stat] : NaN);
   const line = (label, name) =>
-    `  ${label.padEnd(18)} p50 ${get(name, 'p(50)').toFixed(0).padStart(6)}ms   ` +
-    `p95 ${get(name, 'p(95)').toFixed(0).padStart(6)}ms`;
+    `  ${label.padEnd(18)} med ${get(name, 'med').toFixed(0).padStart(6)}ms   ` +
+    `p95 ${get(name, 'p(95)').toFixed(0).padStart(6)}ms   ` +
+    `p99 ${get(name, 'p(99)').toFixed(0).padStart(6)}ms`;
   const hitRate = m.edge_cache_hit ? `${(get('edge_cache_hit', 'rate') * 100).toFixed(1)}%` : 'n/a';
   const summary = [
     '',

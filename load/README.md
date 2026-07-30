@@ -32,9 +32,16 @@ arithmetic.
 This matters because of how it fails. If `maxVUs` cannot cover
 `rate x journey duration`, k6 drops iterations and delivers **less** load than
 you asked for, which in the summary looks like a server comfortably keeping up.
-The summary therefore prints `dropped iterations`: **any non-zero value means the
-generator ran out of VUs and the run understated the load** — fix that before
-believing the latency numbers.
+
+The summary prints `dropped iterations`. Non-zero means some scheduled
+iterations never started, so the run understated the offered load — but check
+which cause before rewriting anything:
+
+- **VUs pinned at `maxVUs`** — a genuine ceiling; raise the rate budget.
+- **Peak VUs well under `maxVUs`** — allocation lag, not exhaustion. The first
+  runs dropped 3–4% this way (254/600 and 104/240 VUs at peak) because k6 was
+  still spinning VUs up when the spike stage raised the rate. `preAllocatedVUs`
+  now covers the sustained stage up front, which should remove it.
 
 For scale: even 10,000 daily active users works out to single-digit requests per
 second at peak, so the defaults are already about an order of magnitude above a
@@ -50,6 +57,22 @@ back into a cache run:
 - `/api/sets/:setnum` keys on `(set, market)` *internally*, not on the URL — a
   query param does **not** miss it. Only a different set number does. That is why
   the script varies the set number rather than adding a parameter.
+
+## Baseline results (2026-07-30, GitHub runner, anonymous)
+
+| | cached | origin |
+|---|---|---|
+| catalog browse p95 | **22ms** | **184ms** |
+| set detail p95 | 15ms | 24ms † |
+| edge cache hit | 99.7% | 0.0% |
+| failed requests | 0.00% | 0.00% |
+| throughput | 66.8 req/s | 27.5 req/s |
+
+† Not a real origin number. That first run used a 20-set hardcoded pool over
+1,895 iterations against a 120s cache TTL, so ~97% of "origin" set-detail
+requests were cache hits — it measured the cache a second time. The pool is now
+built from the live catalog in `setup()` (~500 sets), so re-run `origin` to get
+a true figure for that endpoint.
 
 ## Reading the result
 
