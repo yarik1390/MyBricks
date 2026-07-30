@@ -498,18 +498,24 @@ app.get('/:setnum', async (c) => {
     if (ext) set = { ...set, ...ext };
     const retailMarket = String(prefsRes?.retail_market || 'FR');
     const setMinifigs = setMinifigsRes.results ?? [];
-    const retailOffer = await c.env.DB.prepare(`
-      SELECT market, currency, item_price, delivered_price, merchant, stock,
-             offer_count, msrp, lowest_90d, all_time_low, checked_at, source
-      FROM retail_price_current WHERE set_num=? AND market=?
-    `).bind(setNum, retailMarket).first<Record<string, unknown>>().catch(() => null);
-    if (retailOffer) set = { ...set, __retail_offer: retailOffer };
+    // Wave 2. Both of these need the user's market and nothing else, so they go
+    // together — the Amazon lookup used to wait on the retail offer it is only
+    // ever *compared against*.
+    //
     // Amazon Creators offer — merged at READ TIME only. It lives in KV with a
     // <24h TTL (Associates terms forbid persisting/republishing prices), so it
     // can sharpen the live acquisition price but is never stored in D1 and
     // never becomes a valuation comp. Wins only when cheaper than (or the only)
     // stored retail offer.
-    const amOffer = await getFreshAmazonOffer(c.env, String(set.set_num), amazonMarket(retailMarket, c.env)).catch(() => null);
+    const [retailOffer, amOffer] = await Promise.all([
+      c.env.DB.prepare(`
+        SELECT market, currency, item_price, delivered_price, merchant, stock,
+               offer_count, msrp, lowest_90d, all_time_low, checked_at, source
+        FROM retail_price_current WHERE set_num=? AND market=?
+      `).bind(setNum, retailMarket).first<Record<string, unknown>>().catch(() => null),
+      getFreshAmazonOffer(c.env, setNum, amazonMarket(retailMarket, c.env)).catch(() => null),
+    ]);
+    if (retailOffer) set = { ...set, __retail_offer: retailOffer };
     if (amOffer) {
       const storedPrice = Number(retailOffer?.delivered_price ?? retailOffer?.item_price);
       if (!Number.isFinite(storedPrice) || storedPrice <= 0 || amOffer.price < storedPrice) {
@@ -599,13 +605,13 @@ app.get('/:setnum', async (c) => {
       })());
     }
 
-    // Background minifig-set relationship population — runs once per set if Rebrickable key is set
+    // Background minifig-set relationship population — runs once per set if Rebrickable key is set.
+    // The "do we already have them?" check was its own COUNT(*) round trip on the
+    // response path; the rows themselves are already in hand from wave 1, so their
+    // length answers it for free.
     const minifigCount = Number(resultSet.minifigs ?? 0);
     if (minifigCount > 0 && c.env.REBRICKABLE_API_KEY) {
-      const existing = await c.env.DB.prepare(
-        'SELECT COUNT(*) as n FROM set_minifigs WHERE set_num=?'
-      ).bind(resultSet.set_num).first<{ n: number }>();
-      if (!existing?.n) {
+      if (!setMinifigs.length) {
         c.executionCtx.waitUntil((async () => {
           const figs = await fetchSetMinifigs(resultSet.set_num as string, c.env).catch(() => null);
           if (!figs?.length) return;
