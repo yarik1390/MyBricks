@@ -5,7 +5,7 @@ import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionUse
 import { I } from './icons.js';
 import { route } from './router.js';
 import { getThemePref, applyTheme, getModePref, applyMode } from './theme.js';
-import { initLocale, t as translate, onLocaleChange } from './lib/i18n.js';
+import { initLocale, t as translate, onLocaleChange, applyUiDictionary, startAutoTranslate } from './lib/i18n.js';
 import { toggleAdvisor } from './components/advisor-lazy.js';
 import { openScan, closeScan, capturePhoto } from './components/scanner-lazy.js';
 import { installMethodologySheet } from './components/methodology.js';
@@ -266,6 +266,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   // English and then flips. Non-fatal: a failure here leaves the bundled
   // English catalogue active rather than blocking boot.
   await initLocale().catch((e) => console.warn("[i18n] init failed:", e && e.message));
+  // Load the exact-match UI dictionary for the active language and keep it
+  // applied as the app re-renders. Non-fatal — no dictionary just means English.
+  await applyUiDictionary().catch(() => {});
+  startAutoTranslate();
+  onLocaleChange(() => { applyUiDictionary().catch(() => {}); });
   installMethodologySheet();
   // Native OAuth returns through the allow-listed Pages URL first, then this
   // one-time bridge immediately opens the app callback before Chrome persists a

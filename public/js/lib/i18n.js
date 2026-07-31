@@ -188,3 +188,133 @@ export async function initLocale() {
 export function intlLocale() {
   return active;
 }
+
+// ---------------------------------------------------------------------------
+// Exact-match UI dictionary.
+//
+// The keyed catalogue above is for new code. This covers the ~776 English
+// strings already hard-coded across 31 view/component files, WITHOUT rewriting
+// every call site — a refactor that size is far more likely to break the app
+// than to translate it.
+//
+// It works by replacing rendered text nodes whose EXACT trimmed content matches
+// a known English UI string. That exactness is the safety property:
+//   - a LEGO set name ("Millennium Falcon") is not in the dictionary, so it is
+//     never touched;
+//   - user-entered text and numbers never match;
+//   - anything we did not harvest simply stays English, exactly as today.
+// The harvester (scripts/harvest-ui-strings.mjs) only collects hole-free
+// strings, which is precisely the set that CAN match a rendered node — a
+// template with a ${hole} renders as one node the dictionary cannot know.
+// ---------------------------------------------------------------------------
+
+const uiDicts = {};   // code -> { english: translated }
+let uiDict = null;    // the active one, or null for English
+
+/** Elements whose text is data, not UI copy, or where rewriting is unsafe. */
+const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'CODE', 'PRE']);
+
+async function loadUiDict(code) {
+  if (code === FALLBACK) return null;
+  if (uiDicts[code] !== undefined) return uiDicts[code];
+  try {
+    const mod = await import(`../locales/ui-${code}.js`);
+    uiDicts[code] = mod.ui || mod.default || null;
+  } catch {
+    uiDicts[code] = null; // no dictionary for this language yet — stay English
+  }
+  return uiDicts[code];
+}
+
+/**
+ * Translate a rendered subtree in place. Safe to call repeatedly: replacements
+ * are English->target, and a target string is not itself a key, so a second
+ * pass finds nothing to do.
+ */
+export function translateDOM(root = document.body) {
+  if (!uiDict || !root) return 0;
+  let n = 0;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      const parent = node.parentElement;
+      if (!parent || SKIP_TAGS.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
+      if (parent.closest('[data-no-i18n]')) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const hits = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const raw = node.nodeValue;
+    const key = raw.replace(/\s+/g, ' ').trim();
+    const hit = uiDict[key];
+    if (hit) hits.push([node, raw, hit]);
+  }
+  for (const [node, raw, hit] of hits) {
+    // Keep the original leading/trailing whitespace so inline layout (spacing
+    // between adjacent inline elements) is not silently changed.
+    const lead = raw.match(/^\s*/)[0];
+    const tail = raw.match(/\s*$/)[0];
+    node.nodeValue = lead + hit + tail;
+    n++;
+  }
+  // User-visible attributes carry copy too.
+  for (const attr of ['placeholder', 'aria-label', 'title']) {
+    for (const el of root.querySelectorAll(`[${attr}]`)) {
+      if (el.closest('[data-no-i18n]')) continue;
+      const hit = uiDict[el.getAttribute(attr).replace(/\s+/g, ' ').trim()];
+      if (hit) { el.setAttribute(attr, hit); n++; }
+    }
+  }
+  return n;
+}
+
+/** Load the active language's UI dictionary and apply it to what is on screen. */
+export async function applyUiDictionary() {
+  uiDict = await loadUiDict(active);
+  if (uiDict) translateDOM(document.body);
+  return !!uiDict;
+}
+
+/** True when the active language has an exact-match dictionary loaded. */
+export function hasUiDictionary() {
+  return !!uiDict;
+}
+
+let observer = null;
+let pending = null;
+
+/**
+ * Keep the dictionary applied as the app re-renders.
+ *
+ * A hook on route() alone is not enough: views also repaint through morphdom,
+ * and sheets/toasts/drawers are injected outside the router entirely. Observing
+ * the tree catches every path without threading a call through 31 files.
+ *
+ * Only ADDED subtrees are re-scanned, and the work is coalesced into one
+ * animation frame, so a chatty render loop costs one pass rather than one per
+ * mutation. Our own text writes mutate characterData, which is NOT observed —
+ * that is what stops the observer retriggering itself.
+ */
+export function startAutoTranslate() {
+  if (observer || typeof MutationObserver === 'undefined') return;
+  observer = new MutationObserver((records) => {
+    if (!uiDict) return;
+    const roots = [];
+    for (const rec of records) {
+      for (const node of rec.addedNodes) {
+        if (node.nodeType === 1) roots.push(node);
+        else if (node.nodeType === 3 && node.parentElement) roots.push(node.parentElement);
+      }
+    }
+    if (!roots.length) return;
+    if (pending) cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(() => {
+      pending = null;
+      for (const r of roots) {
+        try { translateDOM(r); } catch { /* one bad subtree must not stop the rest */ }
+      }
+    });
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+}
