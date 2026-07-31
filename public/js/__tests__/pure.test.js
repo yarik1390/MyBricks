@@ -1469,3 +1469,62 @@ describe('computeSellSignal', () => {
     assert.equal(s.signal, 'sell');
   });
 });
+
+import { themeColor, THEME_COLORS } from '../lib/pure.js';
+
+describe('themeColor', () => {
+  // Assert against the map rather than hardcoded hex: the exact shades are
+  // tuned for contrast (see the ratio test below), so pinning literals here just
+  // makes a legitimate accessibility fix look like a regression.
+  it('returns the curated pair for a mapped theme', () => {
+    assert.deepEqual(themeColor('Star Wars'), THEME_COLORS['Star Wars']);
+    assert.deepEqual(themeColor('Technic'), THEME_COLORS['Technic']);
+    assert.match(THEME_COLORS['Star Wars'].c, /^#[0-9A-F]{6}$/);
+  });
+
+  it('trims and still matches', () => {
+    assert.equal(themeColor('  Ninjago  ').c, THEME_COLORS['Ninjago'].c);
+  });
+
+  // The whole point of the fallback: themeHue() alone can land on a hue that
+  // cannot carry white text (Modular Buildings hashes to 57 = yellow), so the
+  // fallback pins lightness rather than passing the raw hue through.
+  it('falls back to a dark-enough hue for an unmapped theme', () => {
+    const c = themeColor('Modular Buildings');
+    assert.match(c.c, /^hsl\(\d+ 42% 38%\)$/);
+    assert.match(c.d, /^hsl\(\d+ 44% 28%\)$/);
+  });
+
+  it('is stable for the same unmapped theme and differs across themes', () => {
+    assert.equal(themeColor('Pirates').c, themeColor('Pirates').c);
+    assert.notEqual(themeColor('Pirates').c, themeColor('Vikings').c);
+  });
+
+  it('never throws on missing or junk input', () => {
+    for (const bad of [undefined, null, '', 0, {}]) {
+      const r = themeColor(bad);
+      assert.ok(r && typeof r.c === 'string' && typeof r.d === 'string');
+    }
+  });
+
+  // Deliberate exclusions — bulk non-set rows. If someone "helpfully" adds them
+  // later, that is a decision worth making on purpose, not by accident.
+  it('leaves the bulk non-set themes unmapped', () => {
+    for (const t of ['Gear', 'Books', 'Educational and Dacta']) {
+      assert.equal(THEME_COLORS[t], undefined);
+    }
+  });
+
+  it('every curated colour is dark enough to carry white text', () => {
+    const lum = (hex) => {
+      const v = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+    };
+    for (const [name, { c, d }] of Object.entries(THEME_COLORS)) {
+      const ratio = 1.05 / (lum(c) + 0.05);
+      assert.ok(ratio >= 4.5, `${name} ${c} contrast ${ratio.toFixed(2)} < 4.5`);
+      assert.ok(lum(d) < lum(c), `${name}: d should be deeper than c`);
+    }
+  });
+});

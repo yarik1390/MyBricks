@@ -1,6 +1,6 @@
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML, investmentPricingDetailHTML } from './portfolio-detail-market.js';
-import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput } from '../lib/pure.js';
+import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput, themeColor } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { shareContent } from '../lib/native-share.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue, isGuestMode } from '../api.js';
@@ -147,7 +147,7 @@ function paintSetDetail(set, entry) {
   const titleSizeClass = titleLength > 58 ? ' is-very-long' : titleLength > 36 ? ' is-long' : '';
 
   $("#root").innerHTML = `
-    <div class="page no-pad detail-page-container" data-detail-tab="${escapeHtml(state.detail.tab)}">
+    <div class="page no-pad detail-page-container" data-detail-tab="${escapeHtml(state.detail.tab)}"${hasImg ? ' data-hero="photo"' : ""}>
       <div class="detail-hero-col">
         <div class="detail-hero${hasImg ? " has-photo" : ""}">
           <button class="detail-back" id="detailBack" aria-label="Back">${I.chevL()}</button>
@@ -159,12 +159,13 @@ function paintSetDetail(set, entry) {
             ${hasImg ? "" : `<div class="brick-art" style="--brick-color:oklch(0.72 0.13 ${h});">${escapeHtml(set.set_num)}</div>`}
             ${hasImg ? `<img class="set-photo" src="${escapeHtml(displayImg)}" alt="${escapeHtml(set.name)}">` : ""}
           </div>
+          ${hasImg ? `<div class="detail-setnum" style="--set-accent:${escapeHtml(themeColor(set.theme).c)};">${escapeHtml(set.set_num)}</div>` : ""}
         </div>
       </div>
       <div class="detail-content-col">
         <div class="detail-title-row">
           <div>
-            <div class="detail-eyebrow">${escapeHtml(set.theme || "")} · #${escapeHtml(set.set_num)}${set.coming_soon ? " · <span style='color:var(--accent);font-weight:700;'>COMING SOON</span>" : `${set.retired ? " · RETIRED" : ""}${set.lego_retiring_soon ? " · <span style='color:var(--down);font-weight:700;'>RETIRING SOON</span>" : ""}`}</div>
+            <div class="detail-eyebrow">${escapeHtml(set.theme || "")}${hasImg ? "" : ` · #${escapeHtml(set.set_num)}`}${set.coming_soon ? " · <span style='color:var(--accent);font-weight:700;'>COMING SOON</span>" : `${set.retired ? " · RETIRED" : ""}${set.lego_retiring_soon ? " · <span style='color:var(--down);font-weight:700;'>RETIRING SOON</span>" : ""}`}</div>
             <h1 class="detail-title${titleSizeClass}">${escapeHtml(set.name)}</h1>
           </div>
           <button class="detail-share-btn icon-btn" id="shareBtn" aria-label="Share">${I.share()}</button>

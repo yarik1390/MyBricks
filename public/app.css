@@ -1073,7 +1073,51 @@ ul.set-list > li { display: contents; }
   overflow: hidden;
   background: var(--surface);
 }
-.detail-hero.has-photo { height: 300px; background: var(--bg); }
+/* PHOTO HERO — a full-bleed white field, closed by a hairline that the set
+   number breaks. White (not a tint) because set photos carry every kind of
+   baked-in background: a white studio shot dissolves into it with no blend
+   mode at all, and vintage box art simply sits on it, so neither case needs
+   detecting. The old treatment floated a small plate in a 300px box, which
+   read as a vague shape on the cream page and wasted most of the height. */
+.detail-hero.has-photo {
+  height: auto;
+  background: #fff;
+  padding: 8px 20px 16px;
+  border-bottom: 1px solid var(--line-soft);
+  /* The base .detail-hero clips (it framed a fixed-height box); the set-number
+     badge deliberately straddles the bottom border, so it must not clip here. */
+  overflow: visible;
+}
+/* The base hero fades its bottom into --bg to blend a 300px art box into the
+   page. On the white field that just smears cream over the photo, and the
+   hairline + badge are doing that job now. */
+.detail-hero.has-photo::after { display: none; }
+/* The set number sits ON the hairline, with the rule turning the set's theme
+   colour beneath it (--set-accent, from themeColor() in lib/pure.js). */
+.detail-setnum {
+  position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%);
+  padding: 0 14px; white-space: nowrap; z-index: 4;
+  font-family: var(--mono); font-size: 11.5px; font-weight: 600;
+  line-height: 20px; letter-spacing: 0.15em; color: var(--ink);
+  /* The badge straddles the hairline, so a single flat background reads as a
+     notch: its top half sits on the white hero and its bottom half on the cream
+     page. Split it at the midpoint and both halves disappear into their side —
+     what's left looks like the rule breaking around the number, which is the
+     whole idea. */
+  background: linear-gradient(to bottom, #fff 0 50%, var(--bg) 50% 100%);
+}
+.detail-setnum::before {
+  content: ""; position: absolute; left: 50%; bottom: -1px; transform: translateX(-50%);
+  width: calc(100% + 34px); height: 3px; border-radius: 2px; z-index: -1;
+  background: var(--set-accent, var(--line));
+}
+/* Dark keeps the page background behind a light photo card (below) rather than
+   a full white field, which would be a slab of glare on an ink page. */
+:root[data-theme="dark"] .detail-hero.has-photo {
+  background: var(--bg);
+  border-bottom-color: rgba(255, 255, 255, 0.10);
+}
+:root[data-theme="dark"] .detail-setnum { background: var(--bg); color: var(--ink); }
 /* Framed card: the product photo sits inside an intentional rounded card (see
    .detail-hero.has-photo .detail-img.has-photo below) on the page background.
    The plate is TINTED (--surface-2) and the photo multiplies into it, matching
@@ -1145,32 +1189,22 @@ ul.set-list > li { display: contents; }
   display: flex; align-items: center; justify-content: center;
   z-index: 3;
 }
-/* The framed product card, centred in the hero. Rounded plate + soft shadow
-   reads as an intentional frame: white-bg renders blend into it, other
-   backgrounds sit as a deliberately framed poster. Geometry + frame live here;
-   the plate COLOUR is set per-theme below with a specificity bump so it wins
-   over the equal-specificity `.detail-img.photo-loaded { background: transparent }`
-   reset that fires once the photo loads (otherwise the plate would vanish). */
+/* In the photo hero the image is the hero — it flows in normal layout across
+   the full width instead of being absolutely centred inside a fixed 300px box,
+   which is what let the plate shrink the artwork to a thumbnail. */
 .detail-hero.has-photo .detail-img.has-photo {
-  width: min(300px, 84vw); height: min(224px, 60vw);
-  inset: 0; margin: auto;
-  border: 1px solid rgba(18, 18, 22, 0.06);
-  border-radius: 22px;
-  padding: 18px;
-  box-shadow: 0 12px 30px rgba(16, 16, 20, 0.14), 0 2px 8px rgba(16, 16, 20, 0.07);
+  position: static; width: 100%; height: 208px; margin: 0;
 }
-:root:not([data-theme="dark"]) .detail-hero.has-photo .detail-img.has-photo {
-  background: #fff;
-}
-/* Tinted plate for the default light skin, so the multiply above has a warm
-   colour to pull the photo's white background down to. Vivid keeps the white
-   plate (it renders photos with mix-blend-mode: normal). */
-:root:not([data-theme="dark"]):not([data-skin="vivid"]) .detail-hero.has-photo .detail-img.has-photo {
-  background: var(--surface-2);
-}
+/* No plate: the hero's own white field IS the surface, so the photo needs no
+   frame, no shadow and no blend mode. (This replaced a rounded plate that was
+   inset in a fixed 300px box — see .detail-hero.has-photo above for why.)
+   Dark mode keeps a light card, since a white-background photo cannot sit
+   directly on an ink page. */
 :root[data-theme="dark"] .detail-hero.has-photo .detail-img.has-photo {
   background: #f4f4f6;
-  border-color: rgba(0, 0, 0, 0.14);
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 18px;
+  padding: 14px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
 }
 .detail-img.has-photo:not(.photo-loaded) {
@@ -1226,6 +1260,14 @@ ul.set-list > li { display: contents; }
   padding: 20px 22px 8px;
   margin-top: -30px; position: relative; z-index: 3;
   gap: 12px;
+}
+/* The -30px above tucks the title under the fixed 300px art hero. The photo
+   hero is auto-height and ends in a hairline with the set-number badge hanging
+   10px below it, so the same pull drags the eyebrow straight through the badge.
+   Clear it instead. */
+.detail-page-container[data-hero="photo"] .detail-title-row {
+  margin-top: 0;
+  padding-top: 26px;
 }
 .detail-eyebrow {
   font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em;

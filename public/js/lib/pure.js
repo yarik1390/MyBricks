@@ -970,3 +970,64 @@ export function seedFilterSort(rows, params = {}) {
 function cmpValueDescFallback(a, b) {
   return (Number(b.market_value) || 0) - (Number(a.market_value) || 0);
 }
+
+/**
+ * Hand-picked accent colour per LEGO theme, for the set-detail number badge.
+ *
+ * themeHue() (above) hashes the theme NAME to a hue. That is stable and needs no
+ * maintenance, but the hue it lands on is arbitrary: "Modular Buildings" hashes
+ * to 57 (yellow), which cannot legibly carry white text. These are chosen for
+ * brand association AND contrast — every `c` below holds white text at >= 4.5:1.
+ *
+ * `d` is a deeper shade of the same colour, used for the badge's darker details.
+ *
+ * Coverage is the catalogue's real head by set count. Deliberately NOT mapped:
+ * Gear (5,882), Books (1,435) and Educational and Dacta (1,113) are the three
+ * biggest "themes" by row count but are bulk non-set records, so a curated
+ * colour would be spent on rows a user never opens. Anything unmapped falls
+ * back to themeHue(), so no set is ever left without an accent.
+ */
+export const THEME_COLORS = {
+  "Star Wars": { c: "#2B4C9B", d: "#1F3A78" },
+  "City": { c: "#0E76B8", d: "#0A5C91" },
+  "Technic": { c: "#CC3E1A", d: "#A83214" },
+  "Ninjago": { c: "#0D7F74", d: "#0A6960" },
+  "Friends": { c: "#C8317F", d: "#9C2463" },
+  "Creator": { c: "#2A8441", d: "#217036" },
+  "Duplo": { c: "#D33A26", d: "#B62E1D" },
+  "Bionicle": { c: "#5A6570", d: "#414A53" },
+  "Super Heroes Marvel": { c: "#C01E2E", d: "#941623" },
+  "Super Heroes DC": { c: "#1B3F8F", d: "#132E6B" },
+  "Castle": { c: "#7A5B33", d: "#5B4426" },
+  "Space": { c: "#1F2A44", d: "#141C30" },
+  "Harry Potter": { c: "#5B2233", d: "#411824" },
+  "Minecraft": { c: "#487F2F", d: "#3A6926" },
+  "Super Mario": { c: "#D9382E", d: "#B02A21" },
+  "Disney": { c: "#8B3FA8", d: "#6A2F81" },
+  "Train": { c: "#1E6B4F", d: "#14513B" },
+  "Racers": { c: "#B15D15", d: "#8C4A0F" },
+  "Town": { c: "#966B0D", d: "#7A5709" },
+  "Seasonal": { c: "#B3352F", d: "#8A2823" },
+  "Brickheadz": { c: "#7A57B8", d: "#5E4193" },
+  "Legends of Chima": { c: "#966D18", d: "#745413" },
+  "Sports": { c: "#166B8C", d: "#0F506B" },
+  "Collectible Minifigures": { c: "#5C6B7A", d: "#44515D" },
+  "Legoland": { c: "#C4452A", d: "#98341F" },
+  "System": { c: "#4A5A6B", d: "#35424F" },
+  "Promotional": { c: "#7A6A4F", d: "#5B4E3A" },
+  "Other": { c: "#6B7280", d: "#4E545C" },
+};
+
+/**
+ * Accent colours for a theme: the curated pair when we have one, otherwise a
+ * hue-derived pair from themeHue(). The fallback pins lightness low enough
+ * (38%/28%) that white text stays legible whatever hue the hash produces —
+ * that is the whole reason it does not just return `hsl(h 60% 50%)`.
+ * Returns CSS colour strings; never throws, never returns null.
+ */
+export function themeColor(theme) {
+  const hit = THEME_COLORS[String(theme || "").trim()];
+  if (hit) return hit;
+  const h = themeHue(theme || "");
+  return { c: `hsl(${h} 42% 38%)`, d: `hsl(${h} 44% 28%)` };
+}

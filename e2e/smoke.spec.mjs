@@ -178,19 +178,26 @@ test('Pixel-sized set detail ends close to the action bar and frames the photo i
     const lastLink = [...document.querySelectorAll('.bl-buy-link')].at(-1).getBoundingClientRect();
     const action = document.querySelector('.detail-action-bar').getBoundingClientRect();
     const backdrop = getComputedStyle(document.querySelector('.detail-hero-bg'));
-    const card = getComputedStyle(document.querySelector('.detail-img.has-photo'));
-    const photo = getComputedStyle(document.querySelector('.detail-img img.set-photo'));
+    const hero = document.querySelector('.detail-hero.has-photo');
+    const heroCs = getComputedStyle(hero);
+    const photoEl = document.querySelector('.detail-img img.set-photo');
+    const photo = getComputedStyle(photoEl);
     const heroCol = getComputedStyle(document.querySelector('.detail-hero-col'));
+    const badge = document.querySelector('.detail-setnum');
     return {
       gap: action.top - lastLink.bottom,
-      // Clean framed card: the photo sits in an intentional white rounded card
-      // with a soft shadow — no dissolve, no blurred backdrop, no blend mode.
-      cardBg: card.backgroundColor,
-      cardRadius: card.borderTopLeftRadius,
-      cardShadow: card.boxShadow,
+      // The photo hero is a full-bleed WHITE field closed by a hairline — no
+      // plate, so the photo needs no frame and no background detection.
+      heroBg: heroCs.backgroundColor,
+      heroBorder: heroCs.borderBottomWidth,
+      // The badge straddles that hairline, so the hero must not clip.
+      heroOverflow: heroCs.overflowY,
+      photoWide: photoEl.getBoundingClientRect().width,
+      heroWide: hero.getBoundingClientRect().width,
       photoMask: photo.maskImage || photo.webkitMaskImage,
       photoFilter: photo.filter,
-      photoBlend: photo.mixBlendMode,
+      badgeText: badge ? badge.textContent.trim() : null,
+      badgeAccent: badge ? badge.style.getPropertyValue('--set-accent').trim() : null,
       backdropDisplay: backdrop.display,
       // No status-bar bleed: the hero column keeps the body's top safe-area pad
       // instead of pulling up under the system bar.
@@ -199,24 +206,26 @@ test('Pixel-sized set detail ends close to the action bar and frames the photo i
   });
   expect(layout.gap).toBeGreaterThanOrEqual(8);
   expect(layout.gap).toBeLessThanOrEqual(72);
-  // The card is a real frame: an OPAQUE light plate, rounded, with a shadow.
-  // Deliberately not pinned to an exact colour — the plate tint is a live design
-  // knob (it moved from #fff to --surface-2 so the photo can multiply into it).
-  // What must not regress is that the plate is opaque: a transparent one leaves
-  // the photo's studio background sitting on the page as a bright rectangle.
-  expect(layout.cardBg).not.toBe('rgba(0, 0, 0, 0)');
-  expect(layout.cardBg).toMatch(/^rgb\(/);
-  expect(parseFloat(layout.cardRadius)).toBeGreaterThan(0);
-  expect(layout.cardShadow).not.toBe('none');
+  // A WHITE field, not a tint: set photos carry every kind of baked-in
+  // background, and white is the one surface a white studio shot and a vintage
+  // box-art scan both sit on cleanly with no per-image detection.
+  expect(layout.heroBg).toBe('rgb(255, 255, 255)');
+  expect(parseFloat(layout.heroBorder)).toBeGreaterThan(0);
+  // The set-number badge straddles the hairline, so a clipping hero would cut
+  // it in half — that is exactly what the base .detail-hero does.
+  expect(layout.heroOverflow).toBe('visible');
+  // The photo IS the hero: it spans the field rather than sitting in a small
+  // centred plate, which is what made the old hero read as mostly empty.
+  expect(layout.photoWide).toBeGreaterThan(layout.heroWide * 0.7);
   // No mask — that dissolve treatment was removed and should not come back.
   expect(layout.photoMask === 'none' || !layout.photoMask).toBeTruthy();
   // filter MUST stay none, and not just for looks: a filter on the <img> creates
-  // a stacking context, which silently disables mix-blend-mode against the plate
-  // and puts the white rectangle straight back. Costly to rediscover by eye.
+  // a stacking context which silently disables mix-blend-mode. Costly to
+  // rediscover by eye, so it is pinned here.
   expect(layout.photoFilter).toBe('none');
-  // Light theme multiplies the photo into the tinted plate; dark/vivid keep a
-  // light plate with a normal blend. This spec runs in the default light theme.
-  expect(layout.photoBlend).toBe('multiply');
+  // The badge carries the set number and its theme accent colour.
+  expect(layout.badgeText).toBe('75192-1');
+  expect(layout.badgeAccent).toBeTruthy();
   // The blurred backdrop is gone for photos.
   expect(layout.backdropDisplay).toBe('none');
   // Hero no longer bleeds under the status bar.
