@@ -573,9 +573,11 @@ ul.set-list > li { display: contents; }
   mix-blend-mode: multiply;
   z-index: 1;
 }
-/* With a real photo, drop the framed tile so the product art sits directly on
-   the card — multiply makes the white studio background disappear. */
-.sl-img.photo-loaded { background: transparent; border-color: transparent; }
+/* With a real photo, KEEP the warm tile rather than dropping to transparent.
+   multiply pulls the photo's white studio background down to the tile colour,
+   so the art reads as embedded in a tinted plate instead of floating on a bright
+   white rectangle. (Dark/vivid override this below with their own plate.) */
+.sl-img.photo-loaded { background: var(--surface-2); border-color: var(--border-soft-c); }
 :root[data-theme="dark"] .sl-img img.set-photo,
 :root[data-skin="vivid"] .sl-img img.set-photo {
   mix-blend-mode: normal;
@@ -917,8 +919,9 @@ ul.set-list > li { display: contents; }
   mix-blend-mode: multiply;
   z-index: 1;
 }
-/* Photo present → strip the framed tile so the set reads as embedded art. */
-.set-card-img.photo-loaded { background: transparent; }
+/* Photo present → flatten the loading gradient to the solid warm tile and let
+   multiply blend the photo into it (same treatment as the Price It! game). */
+.set-card-img.photo-loaded { background: var(--surface-2); }
 /* When a real photo is loaded, hide the placeholder underneath it. */
 .set-card-img.photo-loaded .brick-tile,
 .sl-img.photo-loaded .brick-tile,
@@ -1071,11 +1074,21 @@ ul.set-list > li { display: contents; }
   background: var(--surface);
 }
 .detail-hero.has-photo { height: 300px; background: var(--bg); }
-/* Clean framed card: the product photo sits inside an intentional white rounded
-   card (see .detail-hero.has-photo .detail-img.has-photo below) on the page
-   background. White-bg renders blend invisibly into the card; black/blue/box-art
-   photos read as a deliberately framed poster. Robust for every baked-in
-   background — no blend mode, no blurred backdrop, no per-image guessing. */
+/* Framed card: the product photo sits inside an intentional rounded card (see
+   .detail-hero.has-photo .detail-img.has-photo below) on the page background.
+   The plate is TINTED (--surface-2) and the photo multiplies into it, matching
+   the Price It! game.
+   This was a plain white plate with no blend mode, on the reasoning that a
+   blend mode is unsafe when photos carry every kind of baked-in background.
+   Checked against the real catalog mix (modern white-studio shots plus vintage
+   box-art on yellow/black/blue) and the opposite holds: multiplying onto a very
+   light warm plate leaves saturated art essentially untouched, while pulling the
+   white studio background — AND the white scan margin around box art — down to
+   the tile colour. Both cases end up better, not one at the other's expense.
+   Dark and vivid keep the light plate + normal blend (overrides below). */
+:root:not([data-theme="dark"]):not([data-skin="vivid"]) .detail-hero .detail-img img.set-photo {
+  mix-blend-mode: multiply;
+}
 .detail-hero .detail-img img.set-photo {
   mix-blend-mode: normal;
   object-fit: contain;
@@ -1148,6 +1161,12 @@ ul.set-list > li { display: contents; }
 }
 :root:not([data-theme="dark"]) .detail-hero.has-photo .detail-img.has-photo {
   background: #fff;
+}
+/* Tinted plate for the default light skin, so the multiply above has a warm
+   colour to pull the photo's white background down to. Vivid keeps the white
+   plate (it renders photos with mix-blend-mode: normal). */
+:root:not([data-theme="dark"]):not([data-skin="vivid"]) .detail-hero.has-photo .detail-img.has-photo {
+  background: var(--surface-2);
 }
 :root[data-theme="dark"] .detail-hero.has-photo .detail-img.has-photo {
   background: #f4f4f6;
