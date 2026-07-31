@@ -13,9 +13,10 @@
  * entry leaves every dictionary holding a key that no longer exists in the
  * source, which verify-ui-dicts.mjs reports as drift. Regenerating means
  * re-running the translators. The filter below is kept current anyway so the
- * next deliberate regeneration starts clean — as of this commit it drops 3
+ * next deliberate regeneration starts clean — as of this commit it drops the 6
  * expression fragments that reached the first harvest and had to be passed
- * through by hand in every language (776 -> 773).
+ * through by hand in every language (776 -> 770), while keeping lookalikes
+ * that are real UI ("Critics' score", "No active high-risk sets (score >= 70)").
  *
  * Usage: node scripts/harvest-ui-strings.mjs > /tmp/ui-strings.json
  */
@@ -46,10 +47,11 @@ const REJECT = [
   /[;:]\s*[\w-]+\s*:/,                             // css declarations
   /^\w+\(/,                                        // fn call
   // Expression fragments that survived the char-class filters because the
-  // template hole fell outside the captured span, e.g. "80 && Math.abs(dy)".
-  // Two of these reached the first harvest and had to be passed through by
-  // hand in every language.
+  // template hole fell OUTSIDE the captured span, so no `${` was ever seen,
+  // e.g. "80 && Math.abs(dy)". Six reached the first harvest and had to be
+  // passed through by hand in every language.
   /&&|\|\||=>|\+\+|--|\bMath\.|\.\w+\(|[([]\s*[a-z]{1,3}\s*[)\]]/,
+  /\+=|-=|\belse if\b|^\d+(\.\d+)?\)/,   // "0.2) score += 8; else if (…"
 ];
 
 function isProse(s) {
