@@ -8,6 +8,15 @@
  * stays English — the same as today. So the filters below reject anything that
  * looks like code, a class list, a URL, a format token or a bare number.
  *
+ * FROZEN SOURCE. scripts/ui-strings.json is the list the shipped ui-<code>.js
+ * dictionaries are keyed to, and it is NOT regenerated casually: dropping an
+ * entry leaves every dictionary holding a key that no longer exists in the
+ * source, which verify-ui-dicts.mjs reports as drift. Regenerating means
+ * re-running the translators. The filter below is kept current anyway so the
+ * next deliberate regeneration starts clean — as of this commit it drops 3
+ * expression fragments that reached the first harvest and had to be passed
+ * through by hand in every language (776 -> 773).
+ *
  * Usage: node scripts/harvest-ui-strings.mjs > /tmp/ui-strings.json
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -36,6 +45,11 @@ const REJECT = [
   /^(px|em|rem|vh|vw|deg|ms|USD|EUR|GBP|CAD|AUD)$/i,
   /[;:]\s*[\w-]+\s*:/,                             // css declarations
   /^\w+\(/,                                        // fn call
+  // Expression fragments that survived the char-class filters because the
+  // template hole fell outside the captured span, e.g. "80 && Math.abs(dy)".
+  // Two of these reached the first harvest and had to be passed through by
+  // hand in every language.
+  /&&|\|\||=>|\+\+|--|\bMath\.|\.\w+\(|[([]\s*[a-z]{1,3}\s*[)\]]/,
 ];
 
 function isProse(s) {
