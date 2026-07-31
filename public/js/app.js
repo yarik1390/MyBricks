@@ -5,6 +5,7 @@ import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionUse
 import { I } from './icons.js';
 import { route } from './router.js';
 import { getThemePref, applyTheme, getModePref, applyMode } from './theme.js';
+import { initLocale, t as translate, onLocaleChange } from './lib/i18n.js';
 import { toggleAdvisor } from './components/advisor-lazy.js';
 import { openScan, closeScan, capturePhoto } from './components/scanner-lazy.js';
 import { installMethodologySheet } from './components/methodology.js';
@@ -261,6 +262,10 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // Resolve the language BEFORE anything renders, so the UI never paints in
+  // English and then flips. Non-fatal: a failure here leaves the bundled
+  // English catalogue active rather than blocking boot.
+  await initLocale().catch((e) => console.warn("[i18n] init failed:", e && e.message));
   installMethodologySheet();
   // Native OAuth returns through the allow-listed Pages URL first, then this
   // one-time bridge immediately opens the app callback before Chrome persists a
@@ -332,6 +337,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   const consumedNativeOAuth = await setupNativeAuthBridge();
   if (!consumedNativeOAuth) await consumeOAuthHash();
   consumeShareTarget();
+
+  // Nav labels come from the active language. The markup ships English so the
+  // shell is readable before this runs (and if i18n ever fails to load).
+  const navKeys = { "/": "vault", "/add": "catalog", "/pile": "scan", "/minifigs": "minifigs", "/kids/badges": "badges", "/me": "me" };
+  const paintNavLabels = () => {
+    $$("#nav .nav-tab").forEach(tab => {
+      const key = navKeys[tab.dataset.route];
+      if (!key) return;
+      const label = tab.querySelector(".nav-label");
+      const text = translate(`nav.${key}`);
+      if (label) label.textContent = text;
+      tab.setAttribute("aria-label", text);
+    });
+  };
+  paintNavLabels();
+  onLocaleChange(paintNavLabels);
 
   // Wire nav icons using icon library
   const icons = { "/": I.home, "/add": I.search, "/minifigs": I.figure, "/kids/badges": I.star, "/me": I.user };

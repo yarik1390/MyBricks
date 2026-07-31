@@ -573,11 +573,9 @@ ul.set-list > li { display: contents; }
   mix-blend-mode: multiply;
   z-index: 1;
 }
-/* With a real photo, KEEP the warm tile rather than dropping to transparent.
-   multiply pulls the photo's white studio background down to the tile colour,
-   so the art reads as embedded in a tinted plate instead of floating on a bright
-   white rectangle. (Dark/vivid override this below with their own plate.) */
-.sl-img.photo-loaded { background: var(--surface-2); border-color: var(--border-soft-c); }
+/* With a real photo, the thumbnail is the card's own white — same rule as the
+   catalog card and the detail hero. */
+.sl-img.photo-loaded { background: var(--surface); border-color: transparent; }
 :root[data-theme="dark"] .sl-img img.set-photo,
 :root[data-skin="vivid"] .sl-img img.set-photo {
   mix-blend-mode: normal;
@@ -919,9 +917,12 @@ ul.set-list > li { display: contents; }
   mix-blend-mode: multiply;
   z-index: 1;
 }
-/* Photo present → flatten the loading gradient to the solid warm tile and let
-   multiply blend the photo into it (same treatment as the Price It! game). */
-.set-card-img.photo-loaded { background: var(--surface-2); }
+/* Photo present → drop the loading gradient so the art sits on the card's own
+   white, matching the set-detail hero. One rule across the app: product photos
+   live on WHITE, because that is the single surface a white studio shot and a
+   vintage box-art scan both sit on with no per-image detection. (Was briefly a
+   warm tile; the detail hero settled the question the other way.) */
+.set-card-img.photo-loaded { background: var(--surface); }
 /* When a real photo is loaded, hide the placeholder underneath it. */
 .set-card-img.photo-loaded .brick-tile,
 .sl-img.photo-loaded .brick-tile,

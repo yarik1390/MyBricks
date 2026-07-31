@@ -1528,3 +1528,81 @@ describe('themeColor', () => {
     }
   });
 });
+
+import { normalizeLocale, pickDeviceLocale, lookup, interpolate, SUPPORTED } from '../lib/i18n.js';
+import { en } from '../locales/en.js';
+import { de } from '../locales/de.js';
+import { fr } from '../locales/fr.js';
+import { es } from '../locales/es.js';
+import { nl } from '../locales/nl.js';
+
+describe('i18n', () => {
+  it('narrows a region tag to a supported language', () => {
+    assert.equal(normalizeLocale('de-AT'), 'de');   // Austrian German -> German
+    assert.equal(normalizeLocale('en_GB'), 'en');   // underscore form
+    assert.equal(normalizeLocale('FR'), 'fr');      // uppercase
+    assert.equal(normalizeLocale('pl'), null);      // unsupported
+    assert.equal(normalizeLocale(''), null);
+    assert.equal(normalizeLocale(undefined), null);
+  });
+
+  // A device set to [pl, de, en] should get German, not English — walking the
+  // list in order is the whole point of reading navigator.languages.
+  it('picks the first supported device language, in order', () => {
+    assert.equal(pickDeviceLocale(['pl', 'de-DE', 'en-US']), 'de');
+    assert.equal(pickDeviceLocale(['pl', 'cs']), 'en');   // none supported -> fallback
+    assert.equal(pickDeviceLocale([]), 'en');
+    assert.equal(pickDeviceLocale(undefined), 'en');
+  });
+
+  it('resolves dotted keys and reports misses as undefined', () => {
+    assert.equal(lookup(en, 'nav.vault'), 'Vault');
+    assert.equal(lookup(en, 'nav.nope'), undefined);
+    assert.equal(lookup(en, 'nav'), undefined);        // a group is not a string
+    assert.equal(lookup(en, 'a.b.c.d'), undefined);
+    assert.equal(lookup({}, 'nav.vault'), undefined);
+  });
+
+  // An absent variable leaves {count} visible. "undefined sets" looks like a
+  // broken product; a visible placeholder looks like a bug worth reporting.
+  it('interpolates and leaves unknown placeholders intact', () => {
+    assert.equal(interpolate('{count} sets', { count: 3 }), '3 sets');
+    assert.equal(interpolate('{count} sets', {}), '{count} sets');
+    assert.equal(interpolate('{a} and {b}', { a: 1, b: 2 }), '1 and 2');
+    assert.equal(interpolate('no vars', { a: 1 }), 'no vars');
+  });
+
+  it('offers every supported language a catalogue, named in its own language', () => {
+    const codes = SUPPORTED.map((l) => l.code);
+    assert.deepEqual(codes, ['en', 'de', 'fr', 'es', 'nl']);
+    for (const l of SUPPORTED) assert.ok(l.native && l.english, `${l.code} needs both names`);
+    assert.equal(SUPPORTED.find((l) => l.code === 'de').native, 'Deutsch');
+  });
+
+  // Every translated key must exist in English, because t() falls back to
+  // English before falling back to the raw key. A key that exists ONLY in
+  // German means English users see "detail.value" on screen.
+  it('has no translation key missing from the English source', () => {
+    const flat = (o, p = '') => Object.entries(o).flatMap(([k, v]) =>
+      typeof v === 'string' ? [`${p}${k}`] : flat(v, `${p}${k}.`));
+    const source = new Set(flat(en));
+    for (const [code, cat] of Object.entries({ de, fr, es, nl })) {
+      for (const key of flat(cat)) {
+        assert.ok(source.has(key), `${code}: "${key}" is not in the English source`);
+      }
+    }
+  });
+
+  it('keeps placeholders identical across translations', () => {
+    const flat = (o, p = '') => Object.entries(o).flatMap(([k, v]) =>
+      typeof v === 'string' ? [[`${p}${k}`, v]] : flat(v, `${p}${k}.`));
+    const vars = (s) => (s.match(/\{(\w+)\}/g) || []).sort().join(',');
+    const source = new Map(flat(en));
+    for (const [code, cat] of Object.entries({ de, fr, es, nl })) {
+      for (const [key, str] of flat(cat)) {
+        assert.equal(vars(str), vars(source.get(key)),
+          `${code}: "${key}" placeholders drifted from English`);
+      }
+    }
+  });
+});

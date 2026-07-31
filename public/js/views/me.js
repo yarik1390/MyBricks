@@ -5,6 +5,11 @@ import { I } from '../icons.js';
 import { promptSheet, showSheet, hideSheet } from '../components/sheet.js';
 import { go } from '../router.js';
 import { getThemePref, setThemePref, getSkinPref, setSkinPref, getModePref, setModePref } from '../theme.js';
+import { t, SUPPORTED, savedLocale, getLocale, setLocale, clearLocale } from '../lib/i18n.js';
+
+// The picker shows each language in its OWN language — "German" is no help to
+// someone who only reads German.
+const nativeName = (code) => (SUPPORTED.find((l) => l.code === code) || SUPPORTED[0]).native;
 import { skelPage, skelStatGrid, skelSettingRows } from '../components/skeleton.js';
 import { startOnboarding } from '../components/onboarding.js';
 import { isNativeBilling, presentProPaywall, restorePurchases, presentCustomerCenter } from '../lib/revenuecat-native.js';
@@ -193,7 +198,14 @@ export async function renderMe() {
           <button class="toggle ${advisorEnabled() ? "on" : ""}" id="advisorToggle" role="switch" aria-label="AI assistant" aria-checked="${advisorEnabled()}"></button>
         </div>
         <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Currency</div><div class="desc">Display values in your local currency.</div></div>
+          <div class="lbl-wrap"><div class="lbl">${escapeHtml(t("settings.language"))}</div><div class="desc">${escapeHtml(t("settings.languageDesc"))}</div></div>
+          <select id="languageSelect" class="setting-select" aria-label="${escapeHtml(t("settings.language"))}">
+            <option value="auto" ${savedLocale() ? "" : "selected"}>${escapeHtml(t("settings.languageAuto", { name: nativeName(getLocale()) }))}</option>
+            ${SUPPORTED.map(l => `<option value="${l.code}" ${savedLocale() === l.code ? "selected" : ""}>${escapeHtml(l.native)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="lbl-wrap"><div class="lbl">${escapeHtml(t("settings.currency"))}</div><div class="desc">${escapeHtml(t("settings.currencyDesc"))}</div></div>
           <select id="currencySelect" style="font-family:var(--mono);font-weight:600;font-size:14px;border:none;background:transparent;color:var(--ink);cursor:pointer;outline:none;text-align-last:right;">
             ${["USD","GBP","EUR","CAD","AUD"].map(cur => `<option value="${cur}" ${me.currency === cur ? "selected" : ""}>${cur}</option>`).join("")}
           </select>
@@ -522,6 +534,16 @@ export async function renderMe() {
     const fab = document.getElementById("advisorFab");
     if (fab && !on) fab.style.display = "none";
     toast(on ? "AI assistant on" : "AI assistant off", "info");
+  });
+
+  // "auto" clears the stored choice so the app follows the device again — the
+  // reason setLocale/clearLocale are separate calls rather than one setter.
+  $("#languageSelect")?.addEventListener("change", async (e) => {
+    haptic("medium");
+    const val = e.target.value;
+    if (val === "auto") await clearLocale();
+    else await setLocale(val);
+    renderMe();
   });
 
   $("#currencySelect")?.addEventListener("change", async (e) => {

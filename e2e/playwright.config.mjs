@@ -10,7 +10,7 @@ const PORT = Number(process.env.PORT || 4321);
 
 export default defineConfig({
   testDir: '.',
-  testMatch: 'smoke.spec.mjs',
+  testMatch: /(smoke|i18n)\.spec\.mjs$/,
   timeout: 30000,
   expect: { timeout: 7000 },
   retries: process.env.CI ? 1 : 0,

@@ -412,6 +412,15 @@ Both one-time bootstraps — PriceCharting per-set (`10,25,40,55`) and BrickEcon
 
 ## 9. Conventions & patterns
 
+- **i18n (`public/js/lib/i18n.js`)**: device-first — `navigator.languages` is the
+  default (it reflects the OS locale inside the Capacitor WebView, so no plugin
+  is needed), an explicit Settings choice overrides it, "Automatic" clears it.
+  Strings live in `public/js/locales/<code>.js` and load on demand; English is
+  bundled because it is the fallback for every other locale. **Missing keys fall
+  back to English, then to the key itself — never to blank**, so a locale can
+  ship partially translated. Two tests enforce the invariants: no translated key
+  may be absent from the English source (or English users see a raw key), and
+  `{placeholders}` must match English exactly. Add a string to `en.js` FIRST.
 - **Hono sub-app per resource** in `routes/`; register specific paths before
   `:param` routes; prepared statements via `c.env.DB.prepare(...).bind(...)`.
 - **D1 limits:** ≤100 bound params/query, ≤100 KB/statement, batch ≤100
