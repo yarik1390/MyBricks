@@ -77,6 +77,19 @@ export interface ValuateSetsOptions {
    * admin populate slices) should pass what remains of their budget.
    */
   subrequestBudget?: number;
+  /**
+   * Wall-clock ceiling for the whole run, in ms. The loop stops cleanly at the
+   * top of the next set once this is spent.
+   *
+   * Exists because a single set could stall the entire nightly populate: the
+   * admin populate slice reports `Refreshing <set_num>` from onProgress, so a
+   * set whose sources hang produces NO further progress writes, the run's
+   * heartbeat goes stale after 10 minutes, and the slice is expired. `BIGBOX-1`
+   * ("The Ultimate Battle for Chima", a junk catalog row listing 10,001 pieces
+   * at $44.99 retail) did exactly that on two consecutive nights. A per-source
+   * timeout is not enough — it bounds one fetch, not the set's whole fan-out.
+   */
+  budgetMs?: number;
   onProgress?: (progress: { processed: number; updated: number; total: number; currentSet?: string }) => Promise<void>;
 }
 
@@ -233,7 +246,16 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   };
 
   let processed = 0;
+  // See ValuateSetsOptions.budgetMs — one hanging set must not be able to stall
+  // the whole run past its caller's heartbeat.
+  const deadline = options.budgetMs && options.budgetMs > 0 ? Date.now() + options.budgetMs : 0;
+  let budgetExhausted = false;
   for (const set of results) {
+    if (deadline && Date.now() > deadline) {
+      budgetExhausted = true;
+      console.warn(`[valuate-sets] wall-clock budget spent after ${processed}/${results.length} sets — stopping cleanly`);
+      break;
+    }
     const processedBefore = processed;
     try {
     let pricing: { current_value: number } | null = null;
@@ -612,7 +634,14 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     }
   }
 
-  return { processed: results.length, updated, market, ai, scope, limit };
+  // When the budget cut the run short, report what was ACTUALLY processed —
+  // results.length would claim the skipped tail was done. Unchanged when no
+  // budget is set, so existing callers/tests see the same numbers as before.
+  return {
+    processed: budgetExhausted ? processed : results.length,
+    updated, market, ai, scope, limit,
+    ...(budgetExhausted ? { budget_exhausted: true } : {}),
+  };
 }
 
 // runEbayBackfill / runEbayAskBackfill / runValuateMinifigs live in their own

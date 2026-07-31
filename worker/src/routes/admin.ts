@@ -214,14 +214,32 @@ app.post('/run-pricecharting-verify', async (c) => {
   return c.json({ ok: true, status: 'running', limit, message: 'PriceCharting verification started — watch the Activity tab for promoted/signal counts.' });
 });
 
+// Polled every ~10s for hours by the nightly populate workflow, which treats a
+// non-200 as fatal and aborts the whole 60-slice run. So this must not be able
+// to 500: the stale-run sweep is a WRITE, and a D1 hiccup on it used to take
+// down a populate run that was otherwise healthy (the workflow already knows how
+// to recover from an `expired` run — it just retries the next slice). Failing
+// the sweep open costs at most one extra poll before the run is marked expired.
 app.get('/import-status/:id', requireAdmin, async (c) => {
   const id = Number(c.req.param('id'));
-  await expireStaleImportRuns(c.env);
-  const row = await c.env.DB.prepare(
-    `SELECT ${IMPORT_RUN_FIELDS} FROM import_runs WHERE id=?`
-  ).bind(id).first<Record<string, unknown>>();
-  if (!row) return c.json({ error: 'run not found' }, 404);
-  return c.json(row);
+  if (!Number.isFinite(id)) return c.json({ error: 'invalid run id' }, 400);
+  try {
+    await expireStaleImportRuns(c.env);
+  } catch (e) {
+    console.warn('[import-status] stale sweep failed (non-fatal):', (e as Error).message);
+  }
+  try {
+    const row = await c.env.DB.prepare(
+      `SELECT ${IMPORT_RUN_FIELDS} FROM import_runs WHERE id=?`
+    ).bind(id).first<Record<string, unknown>>();
+    if (!row) return c.json({ error: 'run not found' }, 404);
+    return c.json(row);
+  } catch (e) {
+    // 503 + a running-shaped body: the poller keeps waiting instead of treating
+    // a transient read failure as the end of the run.
+    console.warn('[import-status] read failed:', (e as Error).message);
+    return c.json({ id, status: 'running', progress_label: 'Status temporarily unavailable' }, 503);
+  }
 });
 
 // POST /api/admin/backfill-upc
@@ -567,6 +585,10 @@ app.post('/populate-everything', async (c) => {
           sourceTimeoutMs: 5000,
           limit: valuationLimit,
           subrequestBudget: valuationBudget,
+          // Well inside the caller's 10-minute stale-run heartbeat, so a set
+          // whose sources hang costs this slice its tail instead of costing the
+          // whole nightly populate its remaining 30+ slices.
+          budgetMs: 240_000,
           onProgress: async (p) => phaseProgress(
             4,
             p.currentSet ? `Refreshing ${p.currentSet}` : 'Refreshing market data',

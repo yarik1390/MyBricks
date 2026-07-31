@@ -199,14 +199,24 @@ test('Pixel-sized set detail ends close to the action bar and frames the photo i
   });
   expect(layout.gap).toBeGreaterThanOrEqual(8);
   expect(layout.gap).toBeLessThanOrEqual(72);
-  // The card is a real frame: opaque light plate, rounded, with a shadow.
-  expect(layout.cardBg).toBe('rgb(255, 255, 255)');
+  // The card is a real frame: an OPAQUE light plate, rounded, with a shadow.
+  // Deliberately not pinned to an exact colour — the plate tint is a live design
+  // knob (it moved from #fff to --surface-2 so the photo can multiply into it).
+  // What must not regress is that the plate is opaque: a transparent one leaves
+  // the photo's studio background sitting on the page as a bright rectangle.
+  expect(layout.cardBg).not.toBe('rgba(0, 0, 0, 0)');
+  expect(layout.cardBg).toMatch(/^rgb\(/);
   expect(parseFloat(layout.cardRadius)).toBeGreaterThan(0);
   expect(layout.cardShadow).not.toBe('none');
-  // The photo itself carries no dissolve treatment.
+  // No mask — that dissolve treatment was removed and should not come back.
   expect(layout.photoMask === 'none' || !layout.photoMask).toBeTruthy();
+  // filter MUST stay none, and not just for looks: a filter on the <img> creates
+  // a stacking context, which silently disables mix-blend-mode against the plate
+  // and puts the white rectangle straight back. Costly to rediscover by eye.
   expect(layout.photoFilter).toBe('none');
-  expect(layout.photoBlend).toBe('normal');
+  // Light theme multiplies the photo into the tinted plate; dark/vivid keep a
+  // light plate with a normal blend. This spec runs in the default light theme.
+  expect(layout.photoBlend).toBe('multiply');
   // The blurred backdrop is gone for photos.
   expect(layout.backdropDisplay).toBe('none');
   // Hero no longer bleeds under the status bar.
