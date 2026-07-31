@@ -43,6 +43,11 @@ export interface Env {
    *  cuts the burn proportionally. Sets BrickEconomy has no data for ignore it
    *  and stay on a fixed 90-day gate. */
   BRICKECONOMY_REFRESH_DAYS?: string;
+  /** Firecrawl credits brickeconomy-enrich must leave for the day's other
+   *  consumers (default 3000). It runs 48x a day and reaches the shared ledger
+   *  first, so without a floor it can drain the ceiling before the evening
+   *  eBay-sold runs — the lane currently carrying for Bright Data. */
+  FIRECRAWL_RESERVE_CREDITS?: string;
   // Pricing-source kill switches (see lib/pricing-flags.ts). Default OFF;
   // set to "1" via wrangler [vars] to re-enable once provider access returns.
   EBAY_SOLD_COMPS_ENABLED?: string;

@@ -134,6 +134,12 @@ FIRECRAWL_DAILY_CREDITS = "16000"
 # The real Firecrawl-credit governor (see the burn-rate note above). Sets that
 # have never yielded a value are on a fixed 90-day gate and ignore this.
 BRICKECONOMY_REFRESH_DAYS = "7"
+# Firecrawl credits brickeconomy-enrich must leave on the table each day for the
+# other consumers (Brickset, LEGO stock, minifig eBay, eBay-sold rescue — ~2,400
+# between them). BE runs at :25 and :50 of every hour, so it reaches the shared
+# ledger before jobs scheduled later in the day; without this floor it drains the
+# ceiling by ~20:00 and the 21:00/00:00 eBay-sold runs get nothing.
+FIRECRAWL_RESERVE_CREDITS = "3000"
 # Per-key REMAINING credit balances, positionally aligned with the key list
 # (FIRECRAWL_API_KEY first, then the comma-separated FIRECRAWL_API_KEYS secret).
 # Keys are drained in that order, so the key you want spent first goes in

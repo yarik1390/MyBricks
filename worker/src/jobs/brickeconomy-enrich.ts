@@ -48,9 +48,29 @@ export async function runBrickEconomyEnrich(
   // Size the batch to the remaining daily credits WITHOUT reserving (the
   // per-scrape guard in firecrawlScrape is the sole real-credit meter). Use the
   // worst-case 5-credit json cost as the divisor so we never overshoot the cap.
+  //
+  // RESERVE: this job now runs 48x a day and, during the catch-up sweep, wants
+  // ~14,400 of the 16,000 daily ceiling. It also runs at :25 and :50 of EVERY
+  // hour, so it reaches the shared Firecrawl ledger before the jobs scheduled
+  // later in the day do — measured burn is ~740 credits/hour, which exhausts the
+  // ceiling around 20:00 and would leave the 21:00 and 00:00 eBay-sold runs with
+  // nothing. That lane is Firecrawl-primary precisely because Bright Data is
+  // down, so starving it is the worst possible trade.
+  //
+  // So BrickEconomy stops at a floor rather than at zero, leaving the rest of the
+  // day's Firecrawl consumers (Brickset, LEGO stock, minifigs, eBay-sold rescue —
+  // ~2,400/day between them) their budget. BrickEconomy is the one job here that
+  // loses nothing by deferring: an unswept set just comes due again tomorrow.
+  const reserve = Math.max(0, Number(env.FIRECRAWL_RESERVE_CREDITS ?? 3000) || 0);
   const remaining = await quotaRemaining(env, 'firecrawl');
-  if (remaining < 5) return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
-  const effLimit = Math.min(limit, Math.floor(remaining / 5));
+  const spendable = Number.isFinite(remaining) ? remaining - reserve : remaining;
+  if (spendable < 5) {
+    return {
+      processed: 0, updated: 0, limit: 0,
+      skipped: `firecrawl budget floor reached (${remaining} left, ${reserve} reserved for other jobs)`,
+    };
+  }
+  const effLimit = Math.min(limit, Math.floor(spendable / 5));
 
   // Select by FRESHNESS (never-scraped or >90d stale), NOT by "be_value_new IS
   // NULL". A scrape that yields no usable value still stamps be_cached_at (see

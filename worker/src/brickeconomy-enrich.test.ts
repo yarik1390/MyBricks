@@ -30,8 +30,29 @@ describe('runBrickEconomyEnrich', () => {
   it('skips when the daily Firecrawl credit ceiling is reached', async () => {
     await db.prepare(`INSERT INTO api_quota (service, day, used, cap) VALUES ('firecrawl', ?1, ?2, ?2)`).bind(today, QUOTA_CAPS.firecrawl).run();
     const r = await runBrickEconomyEnrich(withKey);
-    expect(r.skipped).toMatch(/firecrawl daily ceiling/);
+    expect(r.skipped).toMatch(/firecrawl (daily ceiling|budget floor)/);
     expect(mockScrape).not.toHaveBeenCalled();
+  });
+
+  // This job runs 48x a day at :25 and :50, so it reaches the shared Firecrawl
+  // ledger before the evening jobs do. Without a floor it drains the ceiling and
+  // starves the eBay-sold lane that is currently covering for Bright Data.
+  it('stops at the reserve floor instead of draining the shared ledger', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, be_cached_at) VALUES ('75192-1','Falcon', 2017, NULL)`).run();
+    // 40 credits left against a 3000 reserve -> nothing spendable.
+    await db.prepare(`INSERT INTO api_quota (service, day, used, cap) VALUES ('firecrawl', ?1, ?2, ?3)`)
+      .bind(today, QUOTA_CAPS.firecrawl - 40, QUOTA_CAPS.firecrawl).run();
+
+    const r = await runBrickEconomyEnrich(withKey);
+
+    expect(r.skipped).toMatch(/budget floor/);
+    expect(mockScrape).not.toHaveBeenCalled();
+
+    // ...but with the reserve turned off the same 40 credits are spendable, so
+    // the floor is what stopped it, not an empty ledger.
+    mockScrape.mockResolvedValue({ current_value_new: 120 } as any);
+    const r2 = await runBrickEconomyEnrich({ ...withKey, FIRECRAWL_RESERVE_CREDITS: '0' });
+    expect(r2.processed).toBe(1);
   });
 
   it('writes only the be_* fields the scrape returned (sparse update)', async () => {
