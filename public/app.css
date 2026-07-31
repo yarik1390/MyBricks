@@ -1106,11 +1106,21 @@ ul.set-list > li { display: contents; }
      whole idea. */
   background: linear-gradient(to bottom, #fff 0 50%, var(--bg) 50% 100%);
 }
-.detail-setnum::before {
-  content: ""; position: absolute; left: 50%; bottom: -1px; transform: translateX(-50%);
-  width: calc(100% + 34px); height: 3px; border-radius: 2px; z-index: -1;
+/* The hairline picks up the set's theme colour either side of the number.
+   Drawn as TWO dashes flanking the badge rather than one bar behind it: a
+   single bar has to be masked by the badge's background to get this look, and
+   it cannot be — .detail-setnum is positioned with a z-index, so it forms a
+   stacking context, and inside one a negative-z child paints AFTER the
+   parent's background, not behind it. The bar stayed visible straight through
+   the number. Two dashes need no masking at all. */
+.detail-setnum::before,
+.detail-setnum::after {
+  content: ""; position: absolute; top: 50%; transform: translateY(-50%);
+  width: 24px; height: 3px; border-radius: 2px;
   background: var(--set-accent, var(--line));
 }
+.detail-setnum::before { right: 100%; }
+.detail-setnum::after { left: 100%; }
 /* Dark keeps the page background behind a light photo card (below) rather than
    a full white field, which would be a slab of glare on an ink page. */
 :root[data-theme="dark"] .detail-hero.has-photo {
