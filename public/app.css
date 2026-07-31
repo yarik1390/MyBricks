@@ -1123,12 +1123,17 @@ ul.set-list > li { display: contents; }
 .detail-setnum::before { right: 100%; }
 .detail-setnum::after { left: 100%; }
 /* Dark keeps the page background behind a light photo card (below) rather than
-   a full white field, which would be a slab of glare on an ink page. */
-:root[data-theme="dark"] .detail-hero.has-photo {
+   a full white field, which would be a slab of glare on an ink page.
+   VIVID GETS THE SAME TREATMENT: it is a dark skin under BOTH colour schemes
+   (see skin-vivid.css — "Vivid is dark by design"), so keying only off
+   data-theme="dark" left it with a white hero on a near-black canvas. */
+:root[data-theme="dark"] .detail-hero.has-photo,
+:root[data-skin="vivid"] .detail-hero.has-photo {
   background: var(--bg);
   border-bottom-color: rgba(255, 255, 255, 0.10);
 }
-:root[data-theme="dark"] .detail-setnum { background: var(--bg); color: var(--ink); }
+:root[data-theme="dark"] .detail-setnum,
+:root[data-skin="vivid"] .detail-setnum { background: var(--bg); color: var(--ink); }
 /* Framed card: the product photo sits inside an intentional rounded card (see
    .detail-hero.has-photo .detail-img.has-photo below) on the page background.
    The plate is TINTED (--surface-2) and the photo multiplies into it, matching
@@ -1211,7 +1216,8 @@ ul.set-list > li { display: contents; }
    inset in a fixed 300px box — see .detail-hero.has-photo above for why.)
    Dark mode keeps a light card, since a white-background photo cannot sit
    directly on an ink page. */
-:root[data-theme="dark"] .detail-hero.has-photo .detail-img.has-photo {
+:root[data-theme="dark"] .detail-hero.has-photo .detail-img.has-photo,
+:root[data-skin="vivid"] .detail-hero.has-photo .detail-img.has-photo {
   background: #f4f4f6;
   border: 1px solid rgba(0, 0, 0, 0.14);
   border-radius: 18px;
@@ -1234,6 +1240,9 @@ ul.set-list > li { display: contents; }
   mix-blend-mode: multiply;
 }
 :root:not([data-theme="dark"]) .detail-img.photo-loaded { background: transparent; }
+/* Vivid's own tint for the loaded photo box. The photo hero overrides it above
+   with the same light card dark mode uses — vivid is a dark skin, so the photo
+   needs a light surface under it, not a cream tint on a dark canvas. */
 :root[data-skin="vivid"] .detail-img.photo-loaded { background: #f6f4ef; }
 :root[data-theme="dark"] .detail-img img.set-photo {
   mix-blend-mode: normal;
