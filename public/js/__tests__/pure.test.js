@@ -1535,6 +1535,12 @@ import { de } from '../locales/de.js';
 import { fr } from '../locales/fr.js';
 import { es } from '../locales/es.js';
 import { nl } from '../locales/nl.js';
+import { uk } from '../locales/uk.js';
+import { zh } from '../locales/zh.js';
+import { hi } from '../locales/hi.js';
+import { ja } from '../locales/ja.js';
+
+const TRANSLATIONS = { de, fr, es, nl, uk, zh, hi, ja };
 
 describe('i18n', () => {
   it('narrows a region tag to a supported language', () => {
@@ -1574,7 +1580,7 @@ describe('i18n', () => {
 
   it('offers every supported language a catalogue, named in its own language', () => {
     const codes = SUPPORTED.map((l) => l.code);
-    assert.deepEqual(codes, ['en', 'de', 'fr', 'es', 'nl']);
+    assert.deepEqual(codes, ['en', 'de', 'fr', 'es', 'nl', 'uk', 'zh', 'hi', 'ja']);
     for (const l of SUPPORTED) assert.ok(l.native && l.english, `${l.code} needs both names`);
     assert.equal(SUPPORTED.find((l) => l.code === 'de').native, 'Deutsch');
   });
@@ -1586,7 +1592,7 @@ describe('i18n', () => {
     const flat = (o, p = '') => Object.entries(o).flatMap(([k, v]) =>
       typeof v === 'string' ? [`${p}${k}`] : flat(v, `${p}${k}.`));
     const source = new Set(flat(en));
-    for (const [code, cat] of Object.entries({ de, fr, es, nl })) {
+    for (const [code, cat] of Object.entries(TRANSLATIONS)) {
       for (const key of flat(cat)) {
         assert.ok(source.has(key), `${code}: "${key}" is not in the English source`);
       }
@@ -1598,11 +1604,34 @@ describe('i18n', () => {
       typeof v === 'string' ? [[`${p}${k}`, v]] : flat(v, `${p}${k}.`));
     const vars = (s) => (s.match(/\{(\w+)\}/g) || []).sort().join(',');
     const source = new Map(flat(en));
-    for (const [code, cat] of Object.entries({ de, fr, es, nl })) {
+    for (const [code, cat] of Object.entries(TRANSLATIONS)) {
       for (const [key, str] of flat(cat)) {
         assert.equal(vars(str), vars(source.get(key)),
           `${code}: "${key}" placeholders drifted from English`);
       }
     }
+  });
+});
+
+// Every language must cover every English key. This is what "add a language"
+// actually costs, and leaving it implicit is how a locale ships 40% translated
+// while looking finished on the picker.
+describe('i18n coverage', () => {
+  const flat = (o, p = '') => Object.entries(o).flatMap(([k, v]) =>
+    typeof v === 'string' ? [`${p}${k}`] : flat(v, `${p}${k}.`));
+  const SOURCE = flat(en);
+
+  it('reports full coverage for every shipped language', () => {
+    const gaps = [];
+    for (const [code, cat] of Object.entries(TRANSLATIONS)) {
+      const have = new Set(flat(cat));
+      const missing = SOURCE.filter((k) => !have.has(k));
+      if (missing.length) gaps.push(`${code}: ${missing.length} missing (${missing.slice(0, 3).join(', ')}…)`);
+    }
+    assert.deepEqual(gaps, [], `incomplete locales:\n  ${gaps.join('\n  ')}`);
+  });
+
+  it('has a non-trivial source catalogue', () => {
+    assert.ok(SOURCE.length >= 70, `only ${SOURCE.length} keys — did en.js get truncated?`);
   });
 });

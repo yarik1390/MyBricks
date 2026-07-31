@@ -26,6 +26,10 @@ export const SUPPORTED = [
   { code: 'fr', native: 'Français', english: 'French' },
   { code: 'es', native: 'Español', english: 'Spanish' },
   { code: 'nl', native: 'Nederlands', english: 'Dutch' },
+  { code: 'uk', native: 'Українська', english: 'Ukrainian' },
+  { code: 'zh', native: '简体中文', english: 'Chinese (Simplified)' },
+  { code: 'hi', native: 'हिन्दी', english: 'Hindi' },
+  { code: 'ja', native: '日本語', english: 'Japanese' },
 ];
 
 const SUPPORTED_CODES = SUPPORTED.map((l) => l.code);

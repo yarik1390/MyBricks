@@ -1,6 +1,7 @@
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML, investmentPricingDetailHTML } from './portfolio-detail-market.js';
 import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput, themeColor } from '../lib/pure.js';
+import { t } from '../lib/i18n.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { shareContent } from '../lib/native-share.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue, isGuestMode } from '../api.js';
@@ -49,6 +50,15 @@ async function maybeCelebrateMilestone(hue) {
     if (fire) setTimeout(() => celebrate(fire, { hue }), 700);
   } catch {}
 }
+/** Tab labels come from the catalogue; "manage" has no key yet, so it falls
+ *  through to the capitalised English name rather than showing a raw key. */
+function tabLabel(tab) {
+  const key = { info: "detail.tabInfo", forecast: "detail.tabForecast", community: "detail.tabCommunity" }[tab];
+  if (!key) return tab[0].toUpperCase() + tab.slice(1);
+  const label = t(key);
+  return label === key ? tab[0].toUpperCase() + tab.slice(1) : label;
+}
+
 function detailTabs(owned) {
   const tabs = owned ? ["info", "forecast", "community", "manage"] : ["info", "forecast", "community"];
   return isSimpleMode() ? tabs.filter(t => t !== "forecast") : tabs;
@@ -171,8 +181,9 @@ function paintSetDetail(set, entry) {
           <button class="detail-share-btn icon-btn" id="shareBtn" aria-label="Share">${I.share()}</button>
         </div>
         <div class="detail-tabs" id="detailTabs" role="tablist" aria-label="Set detail sections">
-          ${detailTabs(owned).map(t =>
-            `<button data-tab="${t}" role="tab" aria-selected="${state.detail.tab === t}" aria-controls="tabPanels" class="${state.detail.tab === t ? "active" : ""}">${t[0].toUpperCase()+t.slice(1)}</button>`
+          ${detailTabs(owned).map(tab =>
+            // NB: the map param is `tab`, not `t` — `t` is the translator.
+            `<button data-tab="${tab}" role="tab" aria-selected="${state.detail.tab === tab}" aria-controls="tabPanels" class="${state.detail.tab === tab ? "active" : ""}">${escapeHtml(tabLabel(tab))}</button>`
           ).join("")}
         </div>
         <div class="detail-tab-panel" id="tabPanels" role="tabpanel">

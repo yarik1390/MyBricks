@@ -4,6 +4,7 @@
  * Every key that exists anywhere must exist here, because t() falls back to
  * English before falling back to the key itself. Adding a string to a
  * translation without adding it here means English users see the raw key.
+ * A test enforces this; another enforces that {placeholders} match.
  *
  * Keys are dotted and grouped by surface. Placeholders are {braced}.
  */
@@ -21,11 +22,20 @@ export const en = {
     save: 'Save',
     close: 'Close',
     retry: 'Retry',
+    delete: 'Delete',
+    edit: 'Edit',
+    done: 'Done',
+    undo: 'Undo',
     loading: 'Loading…',
     search: 'Search',
     all: 'All',
     none: 'None',
+    yes: 'Yes',
+    no: 'No',
     error: 'Something went wrong',
+    offline: 'You are offline',
+    seeAll: 'See all',
+    share: 'Share',
   },
   settings: {
     title: 'Settings',
@@ -35,7 +45,10 @@ export const en = {
     currency: 'Currency',
     currencyDesc: 'Display values in your local currency.',
     market: 'Retail market',
-    marketDesc: 'Which store prices to show.',
+    marketDesc: 'Local market for store offers. Resale values remain in USD.',
+    appearance: 'Appearance',
+    notifications: 'Notifications',
+    signOut: 'Sign out',
   },
   detail: {
     value: 'Value',
@@ -47,18 +60,45 @@ export const en = {
     retail: 'Retail',
     addToVault: 'Add to vault',
     inVault: 'In vault',
+    removeFromVault: 'Remove from vault',
     tabInfo: 'Info',
     tabForecast: 'Forecast',
     tabCommunity: 'Community',
     reliablePrice: 'Reliable price',
     pricingDetails: 'Pricing details',
     priceHistory: 'Price history',
+    details: 'Details',
+    estimated: 'Estimated',
+    year: 'Year',
+    theme: 'Theme',
+    addToWishlist: 'Add to wishlist',
+    inWishlist: 'On your wishlist',
   },
   catalog: {
     title: 'Catalog',
     searchPlaceholder: 'Find a set',
     results: '{count} sets',
     noResults: 'No sets found',
+    filters: 'Filters',
+    sort: 'Sort',
+    clearFilters: 'Clear filters',
+  },
+  vault: {
+    title: 'Vault',
+    empty: 'Your vault is empty',
+    emptyDesc: 'Add a set to start tracking its value.',
+    setsOwned: 'Sets owned',
+    totalValue: 'Total value',
+    invested: 'Invested',
+    gain: 'Gain',
+    addSet: 'Add a set',
+  },
+  wishlist: {
+    title: 'Wishlist',
+    empty: 'Your wishlist is empty',
+    targetPrice: 'Target price',
+    priceDropAlert: 'Alert me on a price drop',
+    remove: 'Remove from wishlist',
   },
 };
 
