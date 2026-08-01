@@ -24,6 +24,75 @@ const ROUTES = [
   '/kids', '/kids/badges',
 ];
 
+// Sheets, drawers and menus are injected outside the router, so a route walk
+// never renders them — they were a blind spot in the first audit, and they hold
+// some of the wordiest copy in the app (the wishlist target explainer, the
+// advisor drawer, the sort/filter menus).
+const OVERLAYS = [
+  { name: 'alerts sheet', route: '/', open: '#alertsBtn' },
+  { name: 'wishlist sheet', route: '/set/75192-1', open: '#wishToggle' },
+  { name: 'advisor drawer', route: '/', open: '#advisorFab' },
+  { name: 'catalog filters', route: '/add', open: '#filterChip' },
+  { name: 'minifig filters', route: '/minifigs', open: '#figFilterChip' },
+];
+
+// Shared DOM sweep: which visible text is English, and did the dictionary
+// replace it? Returned counts feed both the route pass and the overlay pass.
+const SWEEP = async () => {
+  const dictMod = await import('/js/locales/ui-uk.js');
+  const translated = new Set(Object.values(dictMod.ui));
+  const out = { hit: 0, miss: 0, missed: [] };
+  const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode(n) {
+      if (!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      const p = n.parentElement;
+      if (!p || ['SCRIPT', 'STYLE'].includes(p.tagName)) return NodeFilter.FILTER_REJECT;
+      if (!p.offsetParent && p.tagName !== 'BODY') return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  for (let n = w.nextNode(); n; n = w.nextNode()) {
+    const t = n.nodeValue.replace(/\s+/g, ' ').trim();
+    if (t.length < 3) continue;
+    if (translated.has(t)) { out.hit++; continue; }
+    if (/[Ѐ-ӿ]/.test(t)) { out.hit++; continue; }
+    if (/[A-Za-z]{3}/.test(t) && /\s/.test(t) && !/^[\d\s.,$%+-]+$/.test(t)) {
+      out.miss++; out.missed.push(t.slice(0, 400));
+    }
+  }
+  return out;
+};
+
+test('audit overlay coverage', async ({ page }) => {
+  const misses = new Map();
+  const rows = [];
+  for (const { name, route, open } of OVERLAYS) {
+    await page.goto(`/#${route}`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(900);
+    const btn = page.locator(open);
+    if (!(await btn.count()) || !(await btn.first().isVisible().catch(() => false))) {
+      rows.push({ name, skipped: 'control not present' });
+      continue;
+    }
+    const before = await page.evaluate(SWEEP);
+    await btn.first().click();
+    await page.waitForTimeout(700);
+    const after = await page.evaluate(SWEEP);
+    // Only what the overlay ADDED, so the underlying page is not counted twice.
+    const added = after.missed.filter((s) => !before.missed.includes(s));
+    rows.push({ name, hit: after.hit - before.hit, miss: added.length });
+    for (const s of added) misses.set(s, (misses.get(s) || 0) + 1);
+  }
+  const ranked = [...misses.keys()];
+  writeFileSync('/tmp/i18n-overlays.json', JSON.stringify({ rows, missed: ranked }, null, 2));
+  console.log(`OVERLAY untranslated strings: ${ranked.length}`);
+  for (const r of rows) {
+    console.log(r.skipped ? `  ${r.name.padEnd(20)} SKIPPED (${r.skipped})`
+      : `  ${r.name.padEnd(20)} ${String(r.hit).padStart(3)} ok  ${String(r.miss).padStart(3)} miss`);
+  }
+  for (const s of ranked) console.log(`     ${JSON.stringify(s.slice(0, 100))}`);
+});
+
 test('audit runtime coverage', async ({ page }) => {
   const misses = new Map();      // text -> count
   const where = new Map();       // text -> Set(routes)
@@ -54,7 +123,7 @@ test('audit runtime coverage', async ({ page }) => {
         if (/[Ѐ-ӿ]/.test(t)) { out.hit++; continue; }
         // Latin letters + a space = probably untranslated English prose.
         if (/[A-Za-z]{3}/.test(t) && /\s/.test(t) && !/^[\d\s.,$%+-]+$/.test(t)) {
-          out.miss++; out.missed.push(t.slice(0, 90));
+          out.miss++; out.missed.push(t.slice(0, 400));
         }
       }
       return out;

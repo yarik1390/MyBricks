@@ -1,5 +1,47 @@
 [
   {
+    "text": "- bypasses shared AI limits",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
+    "text": "— most accurate and works on any device. Choose “Prefer on-device” to run free, private Gemma / Gemini Nano locally",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
+    "text": "— Requires Chrome on desktop/Android with Gemini Nano flags enabled.",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
+    "text": ", then download with a Hugging Face token — or download the file in your browser and import it below.",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
+    "text": ". Pricing from BrickLink, eBay, PriceCharting & Brickset. LEGO® is a trademark of the LEGO Group, which does not sponsor or endorse this app.",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
+    "text": "(WebGPU) or you're offline; it falls back to Cloud automatically, so scanning always works.",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
+    "text": "← Back to Vault",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "0 && ebayPrice",
     "files": [
       "views/portfolio-detail.js"
@@ -84,12 +126,6 @@
     ]
   },
   {
-    "text": "A Sunday summary: value change, top mover, wishlist hits.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "A catalog job is already running",
     "files": [
       "views/me-admin.js"
@@ -108,70 +144,21 @@
     ]
   },
   {
-    "text": "AI & Local Insights",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
-    "text": "AI Advisor",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
-    "text": "AI Scanning",
-    "files": [
-      "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "AI assistant",
-    "files": [
-      "components/onboarding.js",
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "AI assistant off",
+    "text": "A Sunday summary: value change, top mover, wishlist hits.",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "AI assistant on",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "AI estimate",
-    "files": [
-      "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "AI-estimated price — may vary from market.",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "ALREADY OWNED",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
-    "text": "AT TARGET",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
     "text": "About this set",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "accept the license",
+    "files": [
+      "views/me-integrations.js"
     ]
   },
   {
@@ -199,12 +186,6 @@
     ]
   },
   {
-    "text": "Add AI key",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Add a memory — a gift, a build day, a great find…",
     "files": [
       "views/portfolio-detail.js"
@@ -214,6 +195,12 @@
     "text": "Add a photo",
     "files": [
       "components/contribute.js"
+    ]
+  },
+  {
+    "text": "Add AI key",
+    "files": [
+      "components/scanner.js"
     ]
   },
   {
@@ -253,6 +240,12 @@
     ]
   },
   {
+    "text": "Add sets to your vault, then come back to see what you can build from their parts.",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Add the required secret or binding.",
     "files": [
       "lib/pure.js"
@@ -265,25 +258,25 @@
     ]
   },
   {
-    "text": "Add to Trophy Shelf",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Add to Wishlist",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Add to shelf",
     "files": [
       "views/me.js"
     ]
   },
   {
+    "text": "Add to Trophy Shelf",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
     "text": "Add to wishlist",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Add to Wishlist",
     "files": [
       "views/portfolio-detail.js"
     ]
@@ -337,6 +330,12 @@
     ]
   },
   {
+    "text": "adds current value, retail & ROI columns.",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Adjust weight, daily cap, and refresh on each service above.",
     "files": [
       "views/me-admin.js"
@@ -373,6 +372,55 @@
     ]
   },
   {
+    "text": "AI & Local Insights",
+    "files": [
+      "components/advisor.js"
+    ]
+  },
+  {
+    "text": "AI Advisor",
+    "files": [
+      "components/advisor.js"
+    ]
+  },
+  {
+    "text": "AI assistant",
+    "files": [
+      "components/onboarding.js",
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "AI assistant off",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "AI assistant on",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "AI estimate",
+    "files": [
+      "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "AI Scanning",
+    "files": [
+      "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "AI-estimated price — may vary from market.",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Alert when wishlisted sets hit your target.",
     "files": [
       "views/me.js"
@@ -394,6 +442,12 @@
     "text": "Align barcode within the frame",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "ALL ⭐",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -427,7 +481,25 @@
     ]
   },
   {
+    "text": "almost (≥80%)",
+    "files": [
+      "views/build.js"
+    ]
+  },
+  {
+    "text": "ALREADY OWNED",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
     "text": "Alternate builds",
+    "files": [
+      "views/build.js"
+    ]
+  },
+  {
+    "text": "alternate models",
     "files": [
       "views/build.js"
     ]
@@ -442,6 +514,18 @@
     "text": "Amazon acquisition channel",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "and download the Gemma model for offline use.",
+    "files": [
+      "components/advisor.js"
+    ]
+  },
+  {
+    "text": "and save it in the",
+    "files": [
+      "components/advisor.js"
     ]
   },
   {
@@ -488,6 +572,12 @@
     ]
   },
   {
+    "text": "approved contributions",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Approved eBay sold comps",
     "files": [
       "views/me-admin.js"
@@ -500,15 +590,15 @@
     ]
   },
   {
-    "text": "Ask AI Advisor",
-    "files": [
-      "index.html"
-    ]
-  },
-  {
     "text": "Ask about your vault…",
     "files": [
       "components/advisor.js"
+    ]
+  },
+  {
+    "text": "Ask AI Advisor",
+    "files": [
+      "index.html"
     ]
   },
   {
@@ -530,6 +620,24 @@
     ]
   },
   {
+    "text": "asking data available",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "asking data not populated",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "AT TARGET",
+    "files": [
+      "views/portfolio-wishlist.js"
+    ]
+  },
+  {
     "text": "Auto-run stopped. The current slice, if any, will finish normally.",
     "files": [
       "views/me-admin.js"
@@ -539,18 +647,6 @@
     "text": "Awaiting mobile approval",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "BL ↗",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
-    "text": "BRICKSVAULT · STACK SOMETHING BEAUTIFUL",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -590,6 +686,12 @@
     ]
   },
   {
+    "text": "barcode lookup",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
     "text": "Barcode must be 8–14 digits",
     "files": [
       "components/contribute.js"
@@ -608,15 +710,21 @@
     ]
   },
   {
-    "text": "Based on the Rebrickable parts list and your saved missing-parts marks. Spares are ignored.",
+    "text": "Based on recent sales and long-term market trends.",
     "files": [
-      "views/portfolio-detail.js"
+      "runtime-audit"
     ]
   },
   {
     "text": "Based on the latest available market data.",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Based on the Rebrickable parts list and your saved missing-parts marks. Spares are ignored.",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -632,9 +740,21 @@
     ]
   },
   {
+    "text": "below for the full evidence and sources.",
+    "files": [
+      "views/portfolio-detail-market.js"
+    ]
+  },
+  {
     "text": "Best performer",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "BL ↗",
+    "files": [
+      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -647,6 +767,12 @@
     "text": "Brick Wrapped",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Brick Wrapped 2026",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -698,43 +824,13 @@
     ]
   },
   {
-    "text": "BricksVault Pro",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "BricksVault Pro ⭐",
-    "files": [
-      "components/onboarding.js"
-    ]
-  },
-  {
-    "text": "BricksVault is locked",
-    "files": [
-      "lib/app-lock.js"
-    ]
-  },
-  {
-    "text": "BricksVault — Portfolio Tracker",
-    "files": [
-      "index.html"
-    ]
-  },
-  {
-    "text": "BricksVault — a premium brick portfolio tracker. AI-powered pricing, ROI tracking, camera scanning.",
-    "files": [
-      "index.html"
-    ]
-  },
-  {
-    "text": "Brickset Collection Sync",
+    "text": "Brickset account connected",
     "files": [
       "views/me-integrations.js"
     ]
   },
   {
-    "text": "Brickset account connected",
+    "text": "Brickset Collection Sync",
     "files": [
       "views/me-integrations.js"
     ]
@@ -776,6 +872,42 @@
     ]
   },
   {
+    "text": "BricksVault — a premium brick portfolio tracker. AI-powered pricing, ROI tracking, camera scanning.",
+    "files": [
+      "index.html"
+    ]
+  },
+  {
+    "text": "BricksVault — Portfolio Tracker",
+    "files": [
+      "index.html"
+    ]
+  },
+  {
+    "text": "BRICKSVAULT · STACK SOMETHING BEAUTIFUL",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "BricksVault is locked",
+    "files": [
+      "lib/app-lock.js"
+    ]
+  },
+  {
+    "text": "BricksVault Pro",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "BricksVault Pro ⭐",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
     "text": "Browse catalog",
     "files": [
       "views/build.js",
@@ -795,6 +927,18 @@
     ]
   },
   {
+    "text": "Building instructions (PDF)",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
+    "text": "button on the Activity tab, where you can also watch it finish.",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Buy now",
     "files": [
       "lib/amazon-affiliate.js",
@@ -803,18 +947,6 @@
   },
   {
     "text": "Buy windows — resale below market",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "COMING SOON",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "CSV exported",
     "files": [
       "views/portfolio.js"
     ]
@@ -844,9 +976,9 @@
     ]
   },
   {
-    "text": "Catalog Quality",
+    "text": "Catalog data & images from",
     "files": [
-      "views/me-admin.js"
+      "runtime-audit"
     ]
   },
   {
@@ -856,10 +988,22 @@
     ]
   },
   {
+    "text": "Catalog Quality",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Celebration sounds",
     "files": [
       "components/onboarding.js",
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Change in market value over the past 12 months",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -872,12 +1016,6 @@
     "text": "Change PIN",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Change in market value over the past 12 months",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -899,18 +1037,6 @@
     ]
   },
   {
-    "text": "Choose BrickLink CSV",
-    "files": [
-      "views/me-data.js"
-    ]
-  },
-  {
-    "text": "Choose CSV file",
-    "files": [
-      "views/me-data.js"
-    ]
-  },
-  {
     "text": "Choose a 4-digit PIN. Kids will need this to exit Kids Mode.",
     "files": [
       "components/kids-pin.js"
@@ -926,6 +1052,18 @@
     "text": "Choose a unique username/handle to create a public profile page showing off your stats and Trophy Shelf.",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Choose BrickLink CSV",
+    "files": [
+      "views/me-data.js"
+    ]
+  },
+  {
+    "text": "Choose CSV file",
+    "files": [
+      "views/me-data.js"
     ]
   },
   {
@@ -991,9 +1129,21 @@
     ]
   },
   {
+    "text": "cloud identify round-trip",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
     "text": "Cohort Performance by Purchase Year",
     "files": [
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "collection value",
+    "files": [
+      "views/minifigs.js"
     ]
   },
   {
@@ -1009,15 +1159,21 @@
     ]
   },
   {
+    "text": "Coming soon",
+    "files": [
+      "views/portfolio-detail-market.js",
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Coming Soon",
     "files": [
       "views/catalog.js"
     ]
   },
   {
-    "text": "Coming soon",
+    "text": "COMING SOON",
     "files": [
-      "views/portfolio-detail-market.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -1085,6 +1241,12 @@
     "text": "Connect Google Sheets",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Connected services",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -1214,6 +1376,18 @@
     ]
   },
   {
+    "text": "CSV exported",
+    "files": [
+      "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "CSV of everything you've entered.",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Currency updated to",
     "files": [
       "views/me.js"
@@ -1256,16 +1430,16 @@
     ]
   },
   {
+    "text": "Deal check",
+    "files": [
+      "views/portfolio-detail-market.js"
+    ]
+  },
+  {
     "text": "Deal Score Breakdown",
     "files": [
       "components/scanner.js",
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Deal check",
-    "files": [
-      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -1365,6 +1539,36 @@
     ]
   },
   {
+    "text": "e.g. Display shelf A3, Attic box 2",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "e.g. Look for sealed, boxed only",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "eBay asking data",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "eBay sold new",
+    "files": [
+      "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "eBay sold used",
+    "files": [
+      "views/portfolio-detail-market.js"
+    ]
+  },
+  {
     "text": "Edit name",
     "files": [
       "views/me.js"
@@ -1401,18 +1605,6 @@
     ]
   },
   {
-    "text": "Enter Brickset username and password",
-    "files": [
-      "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "Enter Kids Mode",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Enter a handle",
     "files": [
       "views/me.js"
@@ -1428,6 +1620,18 @@
     "text": "Enter a valid price",
     "files": [
       "components/contribute.js"
+    ]
+  },
+  {
+    "text": "Enter Brickset username and password",
+    "files": [
+      "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Enter Kids Mode",
+    "files": [
+      "views/me.js"
     ]
   },
   {
@@ -1504,21 +1708,15 @@
     ]
   },
   {
-    "text": "Est. Return on Investment",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Est. resale value",
     "files": [
       "views/minifigs.js"
     ]
   },
   {
-    "text": "Estimate based on partial price coverage",
+    "text": "Est. Return on Investment",
     "files": [
-      "views/portfolio.js"
+      "components/scanner.js"
     ]
   },
   {
@@ -1528,16 +1726,9 @@
     ]
   },
   {
-    "text": "Estimated Net Profit",
+    "text": "Estimate based on partial price coverage",
     "files": [
-      "components/scanner.js",
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Estimated ROI",
-    "files": [
-      "views/portfolio-detail.js"
+      "views/portfolio.js"
     ]
   },
   {
@@ -1560,6 +1751,19 @@
   },
   {
     "text": "Estimated from the set's attributes until a market refresh runs",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Estimated Net Profit",
+    "files": [
+      "components/scanner.js",
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Estimated ROI",
     "files": [
       "views/portfolio-detail.js"
     ]
@@ -1601,13 +1805,19 @@
     ]
   },
   {
-    "text": "Export CSV",
+    "text": "Export & import your vault as CSV",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
+    "text": "Export collection",
     "files": [
       "views/me-data.js"
     ]
   },
   {
-    "text": "Export collection",
+    "text": "Export CSV",
     "files": [
       "views/me-data.js"
     ]
@@ -1739,6 +1949,12 @@
     ]
   },
   {
+    "text": "First Brick!",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Fit the whole shelf in frame — good light helps",
     "files": [
       "components/scanner.js"
@@ -1781,15 +1997,15 @@
     ]
   },
   {
-    "text": "Forgot PIN? Sign out to exit",
-    "files": [
-      "views/kids.js"
-    ]
-  },
-  {
     "text": "Forgot password?",
     "files": [
       "views/login.js"
+    ]
+  },
+  {
+    "text": "Forgot PIN? Sign out to exit",
+    "files": [
+      "views/kids.js"
     ]
   },
   {
@@ -1811,15 +2027,15 @@
     ]
   },
   {
-    "text": "Full 1-year portfolio history &amp; ROI export",
-    "files": [
-      "components/onboarding.js"
-    ]
-  },
-  {
     "text": "Full 1-year portfolio history (free: 90 days)",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Full 1-year portfolio history &amp; ROI export",
+    "files": [
+      "components/onboarding.js"
     ]
   },
   {
@@ -1877,13 +2093,13 @@
     ]
   },
   {
-    "text": "Generate eBay Listing",
+    "text": "Generate eBay listing",
     "files": [
       "views/portfolio-detail.js"
     ]
   },
   {
-    "text": "Generate eBay listing",
+    "text": "Generate eBay Listing",
     "files": [
       "views/portfolio-detail.js"
     ]
@@ -1895,13 +2111,19 @@
     ]
   },
   {
-    "text": "Get Free Gemini Key",
+    "text": "Get a free key at",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
+    "text": "Get a free key in 30 seconds at",
     "files": [
       "components/advisor.js"
     ]
   },
   {
-    "text": "Get a free key in 30 seconds at",
+    "text": "Get Free Gemini Key",
     "files": [
       "components/advisor.js"
     ]
@@ -1922,6 +2144,12 @@
     "text": "Go to sign in",
     "files": [
       "views/login.js"
+    ]
+  },
+  {
+    "text": "Gold ★",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -1967,21 +2195,39 @@
     ]
   },
   {
-    "text": "Google Sheets Sync",
-    "files": [
-      "views/me-integrations.js"
-    ]
-  },
-  {
     "text": "Google Sheets connected successfully!",
     "files": [
       "views/me-integrations.js"
     ]
   },
   {
+    "text": "Google Sheets is disabled until OAuth is configured. Missing Worker secrets: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET. Add them as GitHub Actions secrets and redeploy to enable account linking.",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
+    "text": "Google Sheets Sync",
+    "files": [
+      "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Google Sheets, Discord, Brickset, push alerts, AI keys",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Got it",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Grand Master",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -1997,9 +2243,21 @@
     ]
   },
   {
+    "text": "grant supporter status to",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Granting supporter status...",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Guess the market value, build your streak",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -2087,12 +2345,6 @@
     ]
   },
   {
-    "text": "How We Price",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "How denominators work",
     "files": [
       "views/me-admin.js"
@@ -2102,6 +2354,12 @@
     "text": "How we price",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "How We Price",
+    "files": [
+      "views/me.js"
     ]
   },
   {
@@ -2153,15 +2411,21 @@
     ]
   },
   {
-    "text": "Import BrickLink Orders",
+    "text": "Import & export",
     "files": [
-      "views/me-data.js"
+      "runtime-audit"
     ]
   },
   {
     "text": "Import BrickLink minifig catalog",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Import BrickLink Orders",
+    "files": [
+      "views/me-data.js"
     ]
   },
   {
@@ -2232,6 +2496,12 @@
     ]
   },
   {
+    "text": "Insights ⭐",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Install BricksVault",
     "files": [
       "views/me.js"
@@ -2263,15 +2533,27 @@
     ]
   },
   {
+    "text": "Job failed:",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "JPEG/PNG/WebP, max 4 MB. Photos appear once approved.",
     "files": [
       "components/contribute.js"
     ]
   },
   {
-    "text": "Job failed:",
+    "text": "Junior Builder",
     "files": [
-      "views/me-admin.js"
+      "runtime-audit"
+    ]
+  },
+  {
+    "text": "Keep your spreadsheet \"BricksVault Vault\" in sync in the background.",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -2290,6 +2572,12 @@
     "text": "Kids PIN removed.",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Large set, high collector appeal",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -2549,19 +2837,6 @@
     ]
   },
   {
-    "text": "Market Signals",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Market Value",
-    "files": [
-      "components/scanner.js",
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Market evidence",
     "files": [
       "views/portfolio-detail.js"
@@ -2580,6 +2855,18 @@
     ]
   },
   {
+    "text": "Market price",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
+    "text": "Market Signals",
+    "files": [
+      "views/portfolio.js"
+    ]
+  },
+  {
     "text": "Market trust",
     "files": [
       "components/trust.js"
@@ -2592,9 +2879,28 @@
     ]
   },
   {
+    "text": "Market Value",
+    "files": [
+      "components/scanner.js",
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Market value & ROI columns in CSV export",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Market value &amp; ROI columns in CSV export",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Master Builder",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -2640,15 +2946,15 @@
     ]
   },
   {
-    "text": "Minifig Filters",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
     "text": "Minifig collection value tracked separately",
     "files": [
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "Minifig Filters",
+    "files": [
+      "views/minifigs.js"
     ]
   },
   {
@@ -2661,6 +2967,12 @@
     "text": "Model URL (.task / .litertlm)",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Models you can build from sets you own",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -2700,12 +3012,6 @@
     ]
   },
   {
-    "text": "NO MATCH",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Name updated",
     "files": [
       "views/me.js"
@@ -2715,6 +3021,12 @@
     "text": "Needs access",
     "files": [
       "lib/pure.js"
+    ]
+  },
+  {
+    "text": "needs key",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -2738,16 +3050,16 @@
     ]
   },
   {
+    "text": "New from retail",
+    "files": [
+      "views/portfolio-detail-market.js"
+    ]
+  },
+  {
     "text": "New PIN",
     "files": [
       "components/kids-pin.js",
       "views/me.js"
-    ]
-  },
-  {
-    "text": "New from retail",
-    "files": [
-      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -2805,9 +3117,21 @@
     ]
   },
   {
+    "text": "No filters active",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "No jobs have run yet.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "NO MATCH",
+    "files": [
+      "components/scanner.js"
     ]
   },
   {
@@ -2835,6 +3159,12 @@
     ]
   },
   {
+    "text": "No minifigs match these filters.",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "No new alerts",
     "files": [
       "views/portfolio.js"
@@ -2856,6 +3186,12 @@
     "text": "No pressure — everything you need stays free. You can go Pro anytime from Settings.",
     "files": [
       "components/onboarding.js"
+    ]
+  },
+  {
+    "text": "No projection yet - it appears after at least 180 days and 12 history points.",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -2932,6 +3268,12 @@
     ]
   },
   {
+    "text": "No snapshots yet — the first one is written next Sunday.",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "No submissions yet. Open any set's",
     "files": [
       "views/me-contributions.js"
@@ -2947,6 +3289,12 @@
     "text": "No supporters yet.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "No target",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -2978,6 +3326,12 @@
     "files": [
       "views/catalog.js",
       "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "none recorded yet — the weekly LEGO price-guide download hasn’t run (or isn’t tracked). Trigger it from Activity → Pricing → “PriceCharting (bulk CSV)”.",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -3029,6 +3383,12 @@
     ]
   },
   {
+    "text": "Nothing to build yet",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Nothing wishlisted yet",
     "files": [
       "views/portfolio-wishlist.js"
@@ -3053,15 +3413,15 @@
     ]
   },
   {
-    "text": "Official sets you can build from owned parts, ranked by completion.",
+    "text": "of your total portfolio value. Consider spreading acquisitions across other high-performing themes to reduce risk.",
     "files": [
-      "views/build.js"
+      "components/advisor.js"
     ]
   },
   {
-    "text": "On-Device Offline AI",
+    "text": "Official sets you can build from owned parts, ranked by completion.",
     "files": [
-      "views/me-integrations.js"
+      "views/build.js"
     ]
   },
   {
@@ -3098,6 +3458,12 @@
     "text": "On-device model not downloaded — using cloud scan.",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "On-Device Offline AI",
+    "files": [
+      "views/me-integrations.js"
     ]
   },
   {
@@ -3155,33 +3521,21 @@
     ]
   },
   {
-    "text": "Optional setup",
-    "files": [
-      "lib/pure.js"
-    ]
-  },
-  {
     "text": "Optional — tweak later in Settings.",
     "files": [
       "components/onboarding.js"
     ]
   },
   {
+    "text": "Optional setup",
+    "files": [
+      "lib/pure.js"
+    ]
+  },
+  {
     "text": "Optional: use your own OpenAI key for scans, advisor, and listing drafts",
     "files": [
       "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "PIN changed!",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "PIN set — tap to enter Kids Mode or change settings.",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -3323,6 +3677,24 @@
     ]
   },
   {
+    "text": "pieces missing",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "PIN changed!",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "PIN set — tap to enter Kids Mode or change settings.",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
     "text": "Play a chime on milestones and rewards.",
     "files": [
       "views/me.js"
@@ -3395,6 +3767,12 @@
     ]
   },
   {
+    "text": "Premium ★",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Press back again to exit",
     "files": [
       "lib/native-back.js"
@@ -3413,6 +3791,12 @@
     ]
   },
   {
+    "text": "Price history · 90d",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
     "text": "Price It!",
     "files": [
       "views/game.js"
@@ -3422,12 +3806,6 @@
     "text": "Price It! — today's 5 sets",
     "files": [
       "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Price history · 90d",
-    "files": [
-      "views/minifigs.js"
     ]
   },
   {
@@ -3492,6 +3870,12 @@
     ]
   },
   {
+    "text": "Printable valuation for home insurance. A",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Privacy Policy",
     "files": [
       "views/me.js"
@@ -3540,13 +3924,13 @@
     ]
   },
   {
-    "text": "Public Profile",
+    "text": "Public profile",
     "files": [
       "views/me.js"
     ]
   },
   {
-    "text": "Public profile",
+    "text": "Public Profile",
     "files": [
       "views/me.js"
     ]
@@ -3582,13 +3966,13 @@
     ]
   },
   {
-    "text": "Push Notifications",
+    "text": "Push notifications",
     "files": [
       "views/me-integrations.js"
     ]
   },
   {
-    "text": "Push notifications",
+    "text": "Push Notifications",
     "files": [
       "views/me-integrations.js"
     ]
@@ -3612,15 +3996,15 @@
     ]
   },
   {
-    "text": "RETIRING SOON",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Rare finds in your vault",
     "files": [
       "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "Rarity ↓",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -3690,18 +4074,6 @@
     ]
   },
   {
-    "text": "Remove Kids PIN",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Remove PIN",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Remove failed",
     "files": [
       "views/portfolio-detail.js"
@@ -3732,9 +4104,21 @@
     ]
   },
   {
+    "text": "Remove Kids PIN",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
     "text": "Remove photo",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Remove PIN",
+    "files": [
+      "views/me.js"
     ]
   },
   {
@@ -3792,6 +4176,12 @@
     ]
   },
   {
+    "text": "Requires the model weights (~3GB) to run set photo scanning 100% on-device for free. Official Gemma weights are license-gated:",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Resale pricing, used value, sell-now estimates, and forecasts begin only after verified market evidence arrives.",
     "files": [
       "views/portfolio-detail-market.js"
@@ -3834,12 +4224,6 @@
     ]
   },
   {
-    "text": "Retail MSRP",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Retail market",
     "files": [
       "views/me.js"
@@ -3852,9 +4236,21 @@
     ]
   },
   {
+    "text": "Retail MSRP",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Retail price, not resale value",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Retired — supply is fixed",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -3870,21 +4266,9 @@
     ]
   },
   {
-    "text": "Retired — supply is fixed",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Retirement Radar",
     "files": [
       "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Retirement Risk & Analytics",
-    "files": [
-      "components/advisor.js"
     ]
   },
   {
@@ -3897,6 +4281,18 @@
     "text": "Retirement risk — act now",
     "files": [
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "Retirement Risk & Analytics",
+    "files": [
+      "components/advisor.js"
+    ]
+  },
+  {
+    "text": "RETIRING SOON",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -3921,6 +4317,18 @@
     "text": "Reviews appear once approved by a moderator.",
     "files": [
       "components/contribute.js"
+    ]
+  },
+  {
+    "text": "Reviews, photos & data fixes you've submitted",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
+    "text": "revoke supporter status from",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -3972,21 +4380,15 @@
     ]
   },
   {
-    "text": "S&P 500 Performance Comparison",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "S&amp;P 500 comparison + allocation by theme",
     "files": [
       "views/portfolio.js"
     ]
   },
   {
-    "text": "STRONG BUY",
+    "text": "S&P 500 Performance Comparison",
     "files": [
-      "views/portfolio-detail-market.js"
+      "views/portfolio.js"
     ]
   },
   {
@@ -4008,13 +4410,13 @@
     ]
   },
   {
-    "text": "Saved offline — will sync when connected",
+    "text": "Saved ✓",
     "files": [
       "views/portfolio-detail.js"
     ]
   },
   {
-    "text": "Saved ✓",
+    "text": "Saved offline — will sync when connected",
     "files": [
       "views/portfolio-detail.js"
     ]
@@ -4120,6 +4522,18 @@
     ]
   },
   {
+    "text": "secret (wrangler secret put / dashboard → Settings → Variables) — a GitHub Actions secret is not uploaded for this name.",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "See my score",
+    "files": [
+      "views/game.js"
+    ]
+  },
+  {
     "text": "See Pro options",
     "files": [
       "views/portfolio.js"
@@ -4129,12 +4543,6 @@
     "text": "See Pro options →",
     "files": [
       "components/onboarding.js"
-    ]
-  },
-  {
-    "text": "See my score",
-    "files": [
-      "views/game.js"
     ]
   },
   {
@@ -4150,12 +4558,6 @@
     ]
   },
   {
-    "text": "Sell Opportunities",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Sell now",
     "files": [
       "views/portfolio-detail-market.js"
@@ -4165,6 +4567,12 @@
     "text": "Sell on eBay",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Sell Opportunities",
+    "files": [
+      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -4198,24 +4606,6 @@
     ]
   },
   {
-    "text": "Set Handle",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Set Kids PIN",
-    "files": [
-      "components/kids-pin.js"
-    ]
-  },
-  {
-    "text": "Set PIN &amp; Enter Kids Mode",
-    "files": [
-      "components/kids-pin.js"
-    ]
-  },
-  {
     "text": "Set a 4-digit PIN to enable a gamified, price-free view for kids.",
     "files": [
       "views/me.js"
@@ -4234,9 +4624,27 @@
     ]
   },
   {
+    "text": "Set Handle",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "Set Kids PIN",
+    "files": [
+      "components/kids-pin.js"
+    ]
+  },
+  {
     "text": "Set number or barcode",
     "files": [
       "views/catalog.js"
+    ]
+  },
+  {
+    "text": "Set PIN &amp; Enter Kids Mode",
+    "files": [
+      "components/kids-pin.js"
     ]
   },
   {
@@ -4258,6 +4666,12 @@
     ]
   },
   {
+    "text": "sets you can build",
+    "files": [
+      "views/build.js"
+    ]
+  },
+  {
     "text": "Setting up today's five…",
     "files": [
       "views/game.js"
@@ -4270,12 +4684,6 @@
     ]
   },
   {
-    "text": "Share Portfolio",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Share my year",
     "files": [
       "views/me.js"
@@ -4283,6 +4691,12 @@
   },
   {
     "text": "Share of your sets priced from corroborated, fresh market data (high or medium confidence) rather than a thin or estimated value",
+    "files": [
+      "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "Share Portfolio",
     "files": [
       "views/portfolio.js"
     ]
@@ -4417,6 +4831,12 @@
     ]
   },
   {
+    "text": "Simple hides ROI charts & forecasts — just value & your sets.",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Simple hides ROI charts &amp; forecasts — just value &amp; your sets.",
     "files": [
       "views/me.js"
@@ -4426,6 +4846,12 @@
     "text": "Skip to content",
     "files": [
       "index.html"
+    ]
+  },
+  {
+    "text": "Snap & identify",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -4441,9 +4867,21 @@
     ]
   },
   {
+    "text": "sold comps available",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Sold comps blocked",
     "files": [
       "lib/pure.js"
+    ]
+  },
+  {
+    "text": "sold comps not populated",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -4513,15 +4951,15 @@
     ]
   },
   {
-    "text": "Start Your Brick Vault",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Start a run from the Populate tab — live progress shows here.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Start Your Brick Vault",
+    "files": [
+      "views/portfolio.js"
     ]
   },
   {
@@ -4558,6 +4996,12 @@
     "text": "Story, details, anything…",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "STRONG BUY",
+    "files": [
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -4610,6 +5054,12 @@
     ]
   },
   {
+    "text": "Sync resumes when you return.",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Sync sets you've marked as owned on Brickset.com into your vault.",
     "files": [
       "views/me-integrations.js"
@@ -4628,9 +5078,21 @@
     ]
   },
   {
-    "text": "TIMED OUT",
+    "text": "tab for unlimited advice.",
     "files": [
-      "components/scanner.js"
+      "components/advisor.js"
+    ]
+  },
+  {
+    "text": "tab to contribute.",
+    "files": [
+      "views/me-contributions.js"
+    ]
+  },
+  {
+    "text": "tab to join.",
+    "files": [
+      "views/portfolio-social.js"
     ]
   },
   {
@@ -4761,9 +5223,21 @@
     ]
   },
   {
+    "text": "TIMED OUT",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
     "text": "Title (optional)",
     "files": [
       "components/contribute.js"
+    ]
+  },
+  {
+    "text": "to confirm.",
+    "files": [
+      "views/me.js"
     ]
   },
   {
@@ -4773,9 +5247,21 @@
     ]
   },
   {
+    "text": "to manually force Chrome to download the model weights.",
+    "files": [
+      "views/me-integrations.js"
+    ]
+  },
+  {
     "text": "To run one job on its own — catalog imports, PriceCharting bulk, pricesAPI, or the eBay sold-comps scrape — use its",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "to use the advisor offline.",
+    "files": [
+      "components/advisor.js"
     ]
   },
   {
@@ -4804,12 +5290,6 @@
     ]
   },
   {
-    "text": "Top ROI Leaders",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
     "text": "Top movers and underperformers",
     "files": [
       "views/portfolio.js"
@@ -4822,9 +5302,21 @@
     ]
   },
   {
+    "text": "Top public collections by value",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Top public collections by value. Make your profile public and expose your value in the",
     "files": [
       "views/portfolio-social.js"
+    ]
+  },
+  {
+    "text": "Top ROI Leaders",
+    "files": [
+      "components/advisor.js"
     ]
   },
   {
@@ -4918,15 +5410,15 @@
     ]
   },
   {
-    "text": "Upload BrickLink's Minifigures export (the tab-separated file) to map minifig IDs so BrickLink minifig prices resolve.",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
     "text": "Upload a CSV to add sets in bulk — works with Brickset and BrickEconomy exports too. Existing sets are skipped.",
     "files": [
       "views/me-data.js"
+    ]
+  },
+  {
+    "text": "Upload BrickLink's Minifigures export (the tab-separated file) to map minifig IDs so BrickLink minifig prices resolve.",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -4972,12 +5464,6 @@
     ]
   },
   {
-    "text": "Used market",
-    "files": [
-      "views/portfolio-detail-market.js"
-    ]
-  },
-  {
     "text": "Used — acceptable",
     "files": [
       "views/portfolio-detail.js"
@@ -4987,6 +5473,12 @@
     "text": "Used — good",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Used market",
+    "files": [
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -5020,6 +5512,12 @@
     ]
   },
   {
+    "text": "Value ↓",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Value by theme",
     "files": [
       "views/portfolio.js"
@@ -5029,6 +5527,12 @@
     "text": "Value of parts and minifigures sold separately.",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Vault · LIVE",
+    "files": [
+      "views/portfolio.js"
     ]
   },
   {
@@ -5056,12 +5560,6 @@
     ]
   },
   {
-    "text": "Vault · LIVE",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Verified sources can proceed to shadow valuation.",
     "files": [
       "views/me-admin.js"
@@ -5074,21 +5572,27 @@
     ]
   },
   {
-    "text": "View BrickInsights rating",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "View all →",
     "files": [
       "views/kids.js"
     ]
   },
   {
+    "text": "View BrickInsights rating",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "View mode",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "View on BrickLink",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -5101,6 +5605,12 @@
     "text": "Visual style",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "vs what you paid",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -5140,6 +5650,12 @@
     ]
   },
   {
+    "text": "What Can I Build?",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "What drives this",
     "files": [
       "views/portfolio-detail.js"
@@ -5164,9 +5680,21 @@
     ]
   },
   {
+    "text": "when your device supports it",
+    "files": [
+      "views/me-integrations.js"
+    ]
+  },
+  {
     "text": "Whole shelf",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0",
+    "files": [
+      "index.html"
     ]
   },
   {
@@ -5195,40 +5723,21 @@
     ]
   },
   {
-    "text": "You're offline and no local AI is available. Download the Gemma model in",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
     "text": "You're offline — showing cached data",
     "files": [
       "index.html"
     ]
   },
   {
-    "text": "You're offline. Switch to Local AI in",
+    "text": "You're offline and no local AI is available. Download the Gemma model in",
     "files": [
       "components/advisor.js"
     ]
   },
   {
-    "text": "Your Sets",
+    "text": "You're offline. Switch to Local AI in",
     "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Your Store Price",
-    "files": [
-      "components/scanner.js",
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Your Trophy Shelf is empty.",
-    "files": [
-      "views/me.js"
+      "components/advisor.js"
     ]
   },
   {
@@ -5262,6 +5771,12 @@
     ]
   },
   {
+    "text": "Your contributions",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Your guess",
     "files": [
       "views/game.js"
@@ -5286,6 +5801,19 @@
     ]
   },
   {
+    "text": "Your Sets",
+    "files": [
+      "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "Your Store Price",
+    "files": [
+      "components/scanner.js",
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Your synced export is ready to share or save.",
     "files": [
       "views/me-data.js"
@@ -5304,225 +5832,15 @@
     ]
   },
   {
-    "text": "Your vault is snapshotted every Sunday. Restore rolls your collection back to that day without losing history.",
-    "files": [
-      "views/me-data.js"
-    ]
-  },
-  {
-    "text": "accept the license",
-    "files": [
-      "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "almost (≥80%)",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
-    "text": "alternate models",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
-    "text": "and download the Gemma model for offline use.",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
-    "text": "and save it in the",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
-    "text": "asking data available",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "asking data not populated",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "barcode lookup",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
-    "text": "below for the full evidence and sources.",
-    "files": [
-      "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "button on the Activity tab, where you can also watch it finish.",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "cloud identify round-trip",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
-    "text": "collection value",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
-    "text": "e.g. Display shelf A3, Attic box 2",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "e.g. Look for sealed, boxed only",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "eBay asking data",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "eBay sold new",
-    "files": [
-      "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "eBay sold used",
-    "files": [
-      "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "grant supporter status to",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "needs key",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "none recorded yet — the weekly LEGO price-guide download hasn’t run (or isn’t tracked). Trigger it from Activity → Pricing → “PriceCharting (bulk CSV)”.",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "of your total portfolio value. Consider spreading acquisitions across other high-performing themes to reduce risk.",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
-    "text": "pieces missing",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "revoke supporter status from",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "secret (wrangler secret put / dashboard → Settings → Variables) — a GitHub Actions secret is not uploaded for this name.",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "sets you can build",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
-    "text": "sold comps available",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "sold comps not populated",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "tab for unlimited advice.",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
-    "text": "tab to contribute.",
-    "files": [
-      "views/me-contributions.js"
-    ]
-  },
-  {
-    "text": "tab to join.",
-    "files": [
-      "views/portfolio-social.js"
-    ]
-  },
-  {
-    "text": "to confirm.",
+    "text": "Your Trophy Shelf is empty.",
     "files": [
       "views/me.js"
     ]
   },
   {
-    "text": "to manually force Chrome to download the model weights.",
+    "text": "Your vault is snapshotted every Sunday. Restore rolls your collection back to that day without losing history.",
     "files": [
-      "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "to use the advisor offline.",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
-    "text": "vs what you paid",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "when your device supports it",
-    "files": [
-      "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0",
-    "files": [
-      "index.html"
+      "views/me-data.js"
     ]
   }
 ]
