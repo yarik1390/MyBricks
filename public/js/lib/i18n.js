@@ -283,6 +283,10 @@ export function hasUiDictionary() {
 
 let observer = null;
 let pending = null;
+// Subtrees awaiting a pass, accumulated ACROSS observer batches. This has to
+// outlive a single callback: a route render fires many batches inside one
+// frame, and anything collected in an earlier batch must still be translated.
+const queued = [];
 
 /**
  * Keep the dictionary applied as the app re-renders.
@@ -295,23 +299,35 @@ let pending = null;
  * animation frame, so a chatty render loop costs one pass rather than one per
  * mutation. Our own text writes mutate characterData, which is NOT observed —
  * that is what stops the observer retriggering itself.
+ *
+ * The coalescing QUEUES subtrees rather than replacing them. An earlier version
+ * kept `roots` local to the callback and did cancelAnimationFrame + reschedule
+ * on each batch, which silently dropped every subtree collected before the last
+ * batch of the frame. A route render is many batches, so most of a freshly
+ * rendered page was never visited — strings sat untranslated in English while
+ * the dictionary held a perfectly good entry for them, and a manual
+ * translateDOM(document.body) fixed them instantly. Rescheduling also risked
+ * starving the pass entirely under a continuous mutation stream, since each new
+ * batch pushed the frame back. Now the frame is scheduled once and drains
+ * whatever accumulated.
  */
 export function startAutoTranslate() {
   if (observer || typeof MutationObserver === 'undefined') return;
   observer = new MutationObserver((records) => {
     if (!uiDict) return;
-    const roots = [];
     for (const rec of records) {
       for (const node of rec.addedNodes) {
-        if (node.nodeType === 1) roots.push(node);
-        else if (node.nodeType === 3 && node.parentElement) roots.push(node.parentElement);
+        if (node.nodeType === 1) queued.push(node);
+        else if (node.nodeType === 3 && node.parentElement) queued.push(node.parentElement);
       }
     }
-    if (!roots.length) return;
-    if (pending) cancelAnimationFrame(pending);
+    if (!queued.length || pending) return;
     pending = requestAnimationFrame(() => {
       pending = null;
-      for (const r of roots) {
+      for (const r of queued.splice(0)) {
+        // A queued subtree can be replaced again before the frame runs; walking
+        // a detached tree is wasted work that changes nothing on screen.
+        if (!r.isConnected) continue;
         try { translateDOM(r); } catch { /* one bad subtree must not stop the rest */ }
       }
     });
