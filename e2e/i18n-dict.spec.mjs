@@ -2,7 +2,7 @@ import { test, expect, SET } from './fixtures.mjs';
 
 // The dictionary must reach the SCREEN, not merely parse. And it must not touch
 // data: a LEGO set name is not in the dictionary and has to survive untranslated.
-for (const [locale, code] of [['uk-UA', 'uk'], ['de-DE', 'de']]) {
+for (const [locale, code] of [['uk-UA','uk'],['de-DE','de'],['nl-NL','nl'],['zh-CN','zh'],['hi-IN','hi'],['ja-JP','ja'],['fr-FR','fr'],['es-ES','es']]) {
   test.describe(() => {
     test.use({ locale });
     test(`${code}: exact-match dictionary translates chrome but not data`, async ({ page }) => {
