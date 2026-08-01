@@ -78,7 +78,9 @@ const DO_NOT_TRANSLATE = new Set([
 // condition key echoed into markup), a dotted identifier, and a URL that has no
 // scheme so the REJECT list's url rule misses it.
 const RENDERED_JUNK = [
-  /^[a-z][a-z0-9_]*$/,              // "gray", "green", "used", and "value_desc"
+  /^[a-z][a-z0-9_-]*$/,             // "gray", "used", "value_desc", "your-name"
+  /^[a-z-]+=$/i,                    // "aria-live=", "data-set=" attribute stubs
+  /\.\.\.$/,                        // "AIza...", "sk-..." credential placeholders
   /^[a-z]\.\w+$/i,                  // "i.annualized_roi", "x.slope_90d"
   /^[a-z][\w.-]*:\/\//i,            // "chrome://flags/…"
   /^[a-z0-9-]+(\.[a-z]{2,})+\//i,   // "aistudio.google.com/apikey"
@@ -142,10 +144,17 @@ for (const root of ROOTS) {
     const short = file.replace('public/js/', '');
     // 1. Text between tags inside template literals: >Some words<
     for (const m of src.matchAll(/>([^<>{}`$]{2,160})</g)) add(m[1], short, true);
-    // 2. Quoted strings passed to the obvious user-facing calls.
-    for (const m of src.matchAll(/\b(?:toast|confirm|alert|promptSheet|aria-label=|placeholder=|title=)\s*\(?\s*["']([^"'`]{2,160})["']/g)) add(m[1], short);
+    // 2. Quoted strings passed to the obvious user-facing calls. These are as
+    //    explicitly user-facing as rendered text, so they take rendered=true —
+    //    otherwise the identifier reject eats every single-word one ("Alerts"),
+    //    which is exactly what it did to the vault sheet's aria-labels.
+    //    The quote styles are matched SEPARATELY: a single char class excluding
+    //    both truncated any double-quoted string at its first apostrophe, so
+    //    alert("Couldn't reach the server") harvested the word "Couldn".
+    for (const m of src.matchAll(/\b(?:toast|confirm|alert|promptSheet|aria-label=|placeholder=|title=)\s*\(?\s*"([^"`]{2,160})"/g)) add(m[1], short, true);
+    for (const m of src.matchAll(/\b(?:toast|confirm|alert|promptSheet|aria-label=|placeholder=|title=)\s*\(?\s*'([^'`]{2,160})'/g)) add(m[1], short, true);
     // 3. HTML attributes inside templates.
-    for (const m of src.matchAll(/(?:aria-label|placeholder|title)="([^"{}`$]{2,160})"/g)) add(m[1], short);
+    for (const m of src.matchAll(/(?:aria-label|placeholder|title)="([^"{}`$]{2,160})"/g)) add(m[1], short, true);
     // 4. Both branches of a ternary INSIDE a template hole:
     //      <button>${owned ? 'Your Sets' : 'All sets'}</button>
     // Rule 1 cannot see these — it requires the span between > and < to contain

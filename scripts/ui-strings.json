@@ -517,6 +517,12 @@
     ]
   },
   {
+    "text": "Alerts",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
     "text": "Alerts on",
     "files": [
       "views/me.js"
@@ -1210,6 +1216,12 @@
     ]
   },
   {
+    "text": "Capture",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
     "text": "Catalog",
     "files": [
       "harvest-v2"
@@ -1652,9 +1664,39 @@
     ]
   },
   {
+    "text": "Couldn't check that guess:",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
+    "text": "Couldn't delete:",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
+    "text": "Couldn't load alternate builds",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
+    "text": "Couldn't load buildable sets",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
     "text": "Couldn't load catalog",
     "files": [
       "views/catalog.js"
+    ]
+  },
+  {
+    "text": "Couldn't load collection:",
+    "files": [
+      "harvest-v3"
     ]
   },
   {
@@ -1670,9 +1712,63 @@
     ]
   },
   {
+    "text": "Couldn't load minifigs",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
     "text": "Couldn't load price history.",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Couldn't load profile",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
+    "text": "Couldn't load wishlist",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
+    "text": "Couldn't open PIN setup. Try again.",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
+    "text": "Couldn't restore — add it again from the catalog.",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
+    "text": "Couldn't save — try again",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
+    "text": "Couldn't save:",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
+    "text": "Couldn't set PIN. Try again.",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
+    "text": "Couldn't upload:",
+    "files": [
+      "harvest-v3"
     ]
   },
   {
@@ -2170,6 +2266,12 @@
     ]
   },
   {
+    "text": "Error:",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
     "text": "Est. Net",
     "files": [
       "components/flip-calc.js"
@@ -2618,6 +2720,12 @@
     "text": "Gemini Nano is not supported and Gemma isn",
     "files": [
       "components/advisor.js"
+    ]
+  },
+  {
+    "text": "Gemini Nano is not supported and Gemma isn't downloaded. Falling back to Cloud AI.",
+    "files": [
+      "harvest-v3"
     ]
   },
   {
@@ -4289,6 +4397,12 @@
     ]
   },
   {
+    "text": "On-device AI couldn't identify it — trying cloud…",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
     "text": "On-device AI needs WebGPU — using cloud scan.",
     "files": [
       "components/scanner.js"
@@ -4448,6 +4562,12 @@
     "text": "Parts list is being fetched — check back in a moment.",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Password",
+    "files": [
+      "harvest-v3"
     ]
   },
   {
@@ -5746,6 +5866,12 @@
     ]
   },
   {
+    "text": "Search…",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
     "text": "Searching...",
     "files": [
       "harvest-v2"
@@ -5833,6 +5959,12 @@
     "text": "Sells slowly",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Send",
+    "files": [
+      "harvest-v3"
     ]
   },
   {
@@ -6014,6 +6146,12 @@
     "files": [
       "views/portfolio-detail.js",
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "Sharing isn't available on this device",
+    "files": [
+      "harvest-v3"
     ]
   },
   {
@@ -6202,6 +6340,12 @@
     "text": "Some local items couldn",
     "files": [
       "views/login.js"
+    ]
+  },
+  {
+    "text": "Some local items couldn't sync — retry from You → Data",
+    "files": [
+      "harvest-v3"
     ]
   },
   {
@@ -7132,6 +7276,12 @@
     ]
   },
   {
+    "text": "WebGPU is required for local scanning but isn't supported by this browser. Try Chrome on Android or desktop.",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
     "text": "Weekly digest off",
     "files": [
       "views/me.js"
@@ -7228,6 +7378,12 @@
     ]
   },
   {
+    "text": "Withdrawn",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
     "text": "Worker",
     "files": [
       "harvest-v2"
@@ -7283,9 +7439,21 @@
     ]
   },
   {
+    "text": "You're offline — showing bundled data",
+    "files": [
+      "harvest-v3"
+    ]
+  },
+  {
     "text": "You're offline — showing cached data",
     "files": [
       "index.html"
+    ]
+  },
+  {
+    "text": "You're offline — try marking alerts read when connected.",
+    "files": [
+      "harvest-v3"
     ]
   },
   {

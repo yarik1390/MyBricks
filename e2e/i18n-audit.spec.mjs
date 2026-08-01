@@ -12,7 +12,12 @@ import { writeFileSync } from 'node:fs';
 // Ukrainian is the probe language because it is non-Latin: anything still in
 // Latin script is, with very few exceptions, untranslated. The same audit in
 // German or Dutch could not tell a translation from a miss.
-test.use({ locale: 'uk-UA' });
+// Phone viewport, because Brickvault is a mobile-first PWA and that is what
+// users actually see. It is not cosmetic: several controls exist only at one
+// width — the vault overflow menu is display:none above 520px, so a desktop
+// run silently skipped that sheet entirely, while the alerts and wishlist
+// buttons are display:none BELOW 520px because they fold into that same menu.
+test.use({ locale: 'uk-UA', viewport: { width: 390, height: 844 } });
 
 // Rows behind a flag render as nothing, and nothing reads as fully translated —
 // the admin and share-profile rows on /me were invisible to the first audit for
@@ -45,9 +50,11 @@ const ROUTES = [
 // some of the wordiest copy in the app (the wishlist target explainer, the
 // advisor drawer, the sort/filter menus).
 const OVERLAYS = [
-  { name: 'alerts sheet', route: '/', open: '#alertsBtn' },
+  // `wide` = only reachable above the 520px breakpoint, where it is not folded
+  // into the vault overflow menu.
+  { name: 'alerts sheet', route: '/', open: '#alertsBtn', wide: true },
   { name: 'wishlist sheet', route: '/set/75192-1', open: '#wishToggle' },
-  { name: 'advisor drawer', route: '/', open: '#advisorFab' },
+  { name: 'advisor drawer', route: '/', open: '#advisorFab', wide: true },
   { name: 'catalog filters', route: '/add', open: '#filterChip' },
   { name: 'minifig filters', route: '/minifigs', open: '#figFilterChip' },
   // The two richest sheets in the app, and both were missing from the first
@@ -90,7 +97,8 @@ const SWEEP = async () => {
 test('audit overlay coverage', async ({ page }) => {
   const misses = new Map();
   const rows = [];
-  for (const { name, route, open } of OVERLAYS) {
+  for (const { name, route, open, wide } of OVERLAYS) {
+    await page.setViewportSize(wide ? { width: 1280, height: 900 } : { width: 390, height: 844 });
     await page.goto(`/#${route}`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(900);
     const btn = page.locator(open);
