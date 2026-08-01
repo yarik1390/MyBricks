@@ -12,9 +12,6 @@ export interface DueSetRow {
   be_growth_12m: number | null; ask_stale: number;
 }
 
-// 90-day BrickLink no-data backoff: a set stamped bl_nodata_at (sold guide had
-// <5 lots) is skipped so the ~5,000/day budget goes to sets that have data.
-// Shared by the up-front reserve AND the per-set loop so the two never drift.
 /**
  * Themes that are NOT priceable sets and must never consume a valuation budget.
  *
@@ -45,6 +42,9 @@ export const NON_PRICEABLE_THEMES = [
 export const PRICEABLE_PREDICATE =
   `AND (ls.theme IS NULL OR ls.theme NOT IN (${NON_PRICEABLE_THEMES.map((t) => `'${t}'`).join(', ')}))`;
 
+// 90-day BrickLink no-data backoff: a set stamped bl_nodata_at (sold guide had
+// <5 lots) is skipped so the ~5,000/day budget goes to sets that have data.
+// Shared by the up-front reserve AND the per-set loop so the two never drift.
 export function blBackedOffAt(v: string | null | undefined): boolean {
   if (!v) return false;
   const s = String(v);
@@ -165,17 +165,21 @@ export async function selectDueSets(
     ORDER BY
       CASE WHEN ls.set_num IN (SELECT set_num FROM user_collection WHERE deleted_at IS NULL)
              OR ls.set_num IN (SELECT set_num FROM user_wishlist) THEN 0 ELSE 1 END,
-      -- SOURCELESS-AND-VALUABLE FIRST. 814 sets are worth >= $100 and have no
+      -- SOURCELESS-AND-VALUABLE FIRST. 230 sets are worth >= $100 and have no
       -- market evidence at all, so they sit on the formula with nothing to
       -- corroborate it — the worst state a set can be in on a page that leads
       -- with a price. They are overwhelmingly pre-1990 vintage (Town, Space,
       -- Castle, Train, Pirates), which is BrickLink's strongest territory, and
-      -- they clear in a few days inside the existing ~1,500/day of unused
+      -- they clear in a day or two inside the existing ~1,500/day of unused
       -- BrickLink budget. This ranks above the generic due/value ordering so
       -- they are not perpetually out-competed by fresher, higher-value rows.
       CASE WHEN ls.bl_new_value IS NULL AND ls.used_value IS NULL
                 AND ls.be_value_new IS NULL AND ls.ebay_new_value IS NULL
                 AND ls.ebay_used_value IS NULL
+                -- PriceCharting counts as evidence too. Omitting it here would
+                -- pull in sets that already have a sold-comp source and inflate
+                -- the target cohort more than threefold (230 -> 814).
+                AND ls.pc_new_value IS NULL AND ls.pc_complete_value IS NULL
                 AND COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) >= 100
            THEN 0 ELSE 1 END,
       CASE WHEN ${duePredicate} THEN 0 ELSE 1 END,

@@ -4,7 +4,13 @@
 // (env, args) with no route/middleware coupling; the routes import them back.
 import { QUOTA_CAPS } from '../lib/api-quota';
 import { isEbayAccessError } from '../lib/ebay';
+import { NON_PRICEABLE_THEMES } from '../jobs/valuate-select';
 import type { Env } from '../types';
+
+// Same definition the valuation queue uses, so the panel cannot report coverage
+// over a different population than the one the crons actually work on.
+const PRICEABLE_SQL =
+  `(theme IS NULL OR theme NOT IN (${NON_PRICEABLE_THEMES.map((t) => `'${t}'`).join(', ')}))`;
 
 export type JobProgress = {
   current?: number | null;
@@ -148,7 +154,29 @@ export async function getDataCoverage(env: Env) {
         CAST(SUM(CASE WHEN year >= 2000 THEN 1 ELSE 0 END) AS INTEGER) AS be_eligible,
         CAST(SUM(CASE WHEN year >= 2000 AND be_value_new IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS be_populated,
         CAST(SUM(CASE WHEN year >= 2000 AND brickset_enriched_at IS NULL THEN 1 ELSE 0 END) AS INTEGER) AS brickset_enrich_remaining,
-        CAST(SUM(CASE WHEN year >= 2000 AND pc_new_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS pc_populated
+        CAST(SUM(CASE WHEN year >= 2000 AND pc_new_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS pc_populated,
+        -- PRICEABLE lens. Pricing coverage measured over the whole table reads
+        -- ~34% worse than reality, because half the sets with no market
+        -- evidence are Gear (avg ONE piece) and Books (avg seven) — merchandise
+        -- no source carries and no collector tracks. These two columns scope the
+        -- gap to things that can actually be priced.
+        --
+        -- NB this list is deliberately NOT the retail_sets list above. That one
+        -- answers "should this have a barcode?" and so excludes System and
+        -- Universal Building Set, which pre-date retail UPCs. Those ARE
+        -- priceable — some are worth four figures — so they stay in here.
+        CAST(SUM(CASE WHEN ${PRICEABLE_SQL} THEN 1 ELSE 0 END) AS INTEGER) AS priceable_sets,
+        CAST(SUM(CASE WHEN ${PRICEABLE_SQL}
+          AND (bl_new_value IS NOT NULL OR used_value IS NOT NULL OR be_value_new IS NOT NULL
+               OR ebay_new_value IS NOT NULL OR ebay_used_value IS NOT NULL
+               OR pc_new_value IS NOT NULL OR pc_complete_value IS NOT NULL)
+          THEN 1 ELSE 0 END) AS INTEGER) AS priceable_with_source,
+        CAST(SUM(CASE WHEN ${PRICEABLE_SQL}
+          AND bl_new_value IS NULL AND used_value IS NULL AND be_value_new IS NULL
+          AND ebay_new_value IS NULL AND ebay_used_value IS NULL
+          AND pc_new_value IS NULL AND pc_complete_value IS NULL
+          AND COALESCE(NULLIF(blended_value,0), current_value) >= 100
+          THEN 1 ELSE 0 END) AS INTEGER) AS priceable_valuable_no_source
       FROM lego_sets
     `).first<Record<string, number>>(),
     env.DB.prepare(`
@@ -281,6 +309,24 @@ export async function getDataCoverage(env: Env) {
     remaining: Math.max(0, beEligible - bePopulated),
     pct: beEligible ? Math.round((bePopulated / beEligible) * 1000) / 10 : 0,
   };
+  // The honest pricing gap. `total_sets` is the wrong denominator for a coverage
+  // question: it counts keyrings and paperbacks that no source prices, which made
+  // the headline read ~34% worse than the real state of the catalogue.
+  const priceableTotal = Number(sets?.priceable_sets || 0);
+  const priceableWithSource = Number(sets?.priceable_with_source || 0);
+  const priceable = {
+    total: priceableTotal,
+    with_source: priceableWithSource,
+    no_source: Math.max(0, priceableTotal - priceableWithSource),
+    // The number worth acting on: priceable, worth >= $100, and sitting on a
+    // formula with nothing corroborating it. valuate-select ranks these first.
+    valuable_no_source: Number(sets?.priceable_valuable_no_source || 0),
+    source_coverage_pct: priceableTotal
+      ? Math.round((priceableWithSource / priceableTotal) * 1000) / 10
+      : 0,
+    excluded_themes: NON_PRICEABLE_THEMES,
+    excluded_count: total - priceableTotal,
+  };
   const pcPopulated = Number(sets?.pc_populated || 0);
   const pcBootstrap = {
     eligible: beEligible,
@@ -295,6 +341,7 @@ export async function getDataCoverage(env: Env) {
     blend_quality: blendQuality,
     be_bootstrap: beBootstrap,
     pc_bootstrap: pcBootstrap,
+    priceable,
     brickset_enrich_remaining: bricksetEnrichRemaining,
     barcode_health: barcodeHealthOut,
     sets_with_bricklink: bricklinkCount,
