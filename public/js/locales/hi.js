@@ -27,6 +27,18 @@ export const hi = {
   counts: {
     results: '{n} परिणाम', resultsOne: '1 परिणाम', collected: '{owned}/{total} एकत्रित', owned: '{n} स्वामित्व में', ofFigs: '{total} में से', figs: '{n} मिनीफ़िगर', figsOne: '1 मिनीफ़िगर',
   },
+  fees: {
+    marketplace: 'मार्केटप्लेस शुल्क ({pct}%)', payment: 'भुगतान शुल्क ({pct}% + निश्चित)',
+  },
+  alerts: {
+    priceDrop: 'कीमत में गिरावट · {days} दिन पहले', targetWas: '— आपका लक्ष्य {price} था।',
+  },
+  game: {
+    roundOf: 'राउंड {n} / {total}', pctOff: 'आप {pct}% चूक गए', streakLine: '{day} · स्ट्रीक {streak} · सर्वश्रेष्ठ {best}',
+  },
+  build: {
+    needParts: '{n} और पुर्जे चाहिए', ofOwnedSets: '{n} स्वामित्व वाले सेट में से', indexing: 'पृष्ठभूमि में {n} और सेट अनुक्रमित हो रहे हैं…',
+  },
   catalog: {
     title: 'कैटलॉग', searchPlaceholder: 'सेट खोजें', results: '{count} सेट',
     noResults: 'कोई सेट नहीं मिला', filters: 'फ़िल्टर', sort: 'क्रमबद्ध करें', clearFilters: 'फ़िल्टर हटाएँ',

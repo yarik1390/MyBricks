@@ -27,6 +27,18 @@ export const uk = {
   counts: {
     results: '{n} результатів', resultsOne: '1 результат', collected: '{owned}/{total} зібрано', owned: '{n} у власності', ofFigs: 'з {total} фігурок', figs: '{n} фігурок', figsOne: '1 фігурка',
   },
+  fees: {
+    marketplace: 'Комісія маркетплейсу ({pct}%)', payment: 'Комісія за оплату ({pct}% + фікс.)',
+  },
+  alerts: {
+    priceDrop: 'Зниження ціни · {days} дн. тому', targetWas: '— ваша ціль була {price}.',
+  },
+  game: {
+    roundOf: 'Раунд {n} з {total}', pctOff: 'Ви помилилися на {pct}%', streakLine: '{day} · серія {streak} · рекорд {best}',
+  },
+  build: {
+    needParts: 'Потрібно ще {n} деталей', ofOwnedSets: 'з {n} наборів у власності', indexing: 'Індексуємо ще {n} набір(ів) у фоні…',
+  },
   catalog: {
     title: 'Каталог', searchPlaceholder: 'Знайти набір', results: '{count} наборів',
     noResults: 'Наборів не знайдено', filters: 'Фільтри', sort: 'Сортувати', clearFilters: 'Скинути фільтри',

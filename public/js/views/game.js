@@ -2,6 +2,7 @@ import { $, haptic, escapeHtml, fmtMoney, toast, celebrate, getExchangeRate, CUR
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
+import { t } from '../lib/i18n.js';
 
 // "Price It!" — the daily price game. Five real sets, guess the market value,
 // within ±20% counts. Everyone worldwide plays the same five (server picks
@@ -74,7 +75,7 @@ function roundHTML(round, idx, total) {
   const hasImg = round.image_url && !String(round.image_url).startsWith("data:");
   return `
     <div class="card" style="padding:16px;text-align:center;">
-      <div class="u-mono-label" style="margin-bottom:8px;">Round ${idx + 1} of ${total}</div>
+      <div class="u-mono-label" style="margin-bottom:8px;">${t("game.roundOf", { n: idx + 1, total })}</div>
       <div class="game-set-photo-stage" style="height:180px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border-radius:var(--r-2);margin-bottom:12px;">
         ${hasImg ? `<img class="game-set-photo" src="${escapeHtml(round.image_url)}" alt="" style="max-width:100%;max-height:100%;object-fit:contain;mix-blend-mode:multiply;">` : `<div style="font-size:40px;">🧱</div>`}
       </div>
@@ -133,7 +134,7 @@ function playRound(daily, idx, results) {
       reveal.innerHTML = `
         <div style="padding:12px;border-radius:var(--r-2);background:${out.correct ? "var(--up)" : "var(--surface-2)"};color:${out.correct ? "#fff" : "var(--ink)"};">
           <div style="font-weight:800;font-size:15px;">${out.correct ? "🎯 Nailed it!" : "Not quite"} — it's ${fmtMoney(out.actual)}</div>
-          <div style="font-size:12px;opacity:.9;margin-top:2px;">You were ${out.pct_off}% off</div>
+          <div style="font-size:12px;opacity:.9;margin-top:2px;">${t("game.pctOff", { pct: out.pct_off })}</div>
         </div>
         <button class="btn-primary" id="gameNext" style="margin-top:12px;width:100%;">${idx + 1 < daily.rounds.length ? "Next set" : "See my score"}</button>`;
       // once:true — a single Next tap advances exactly one round.
@@ -171,7 +172,7 @@ function showSummary(daily, results) {
   $("#gameBody").innerHTML = `
     <div class="card" style="padding:18px;text-align:center;">
       <div style="font-family:var(--serif);font-size:26px;font-weight:600;">${score}/5</div>
-      <div style="font-size:12px;color:var(--ink-mute);margin:2px 0 12px;">${escapeHtml(daily.day)} · streak ${streak.streak} · best ${streak.best}</div>
+      <div style="font-size:12px;color:var(--ink-mute);margin:2px 0 12px;">${t("game.streakLine", { day: escapeHtml(daily.day), streak: streak.streak, best: streak.best })}</div>
       <div style="text-align:left;">${rows}</div>
       <div class="btn-row" style="margin-top:14px;">
         <a href="#/" class="btn-secondary" style="text-decoration:none;">Back to vault</a>

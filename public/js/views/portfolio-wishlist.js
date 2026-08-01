@@ -9,6 +9,7 @@ import { amazonSlotHTML, hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
 // stay in portfolio.js (this is the only back-import; portfolio.js never imports
 // this module, so there is no cycle — the router lazy-loads each view).
 import { spikeAlertCardHTML, refreshNavBadge } from './portfolio.js';
+import { t } from '../lib/i18n.js';
 
 /* ============================================================
    Wishlist screen
@@ -97,9 +98,9 @@ export async function renderWishlist() {
           ${dropAlerts.map(a => `
             <div class="alert-card">
               ${a.id ? `<button class="alert-dismiss" data-alert-id="${escapeHtml(String(a.id))}" aria-label="Mark this alert read" title="Mark read">✓</button>` : ""}
-              <div class="ah">${I.bell()}Price drop · ${daysAgo(a.triggered_at)}d ago</div>
+              <div class="ah">${I.bell()}${t("alerts.priceDrop", { days: daysAgo(a.triggered_at) })}</div>
               <div style="font-weight:600;">${escapeHtml(a.set_name)}</div>
-              <div style="font-size:13px;margin-top:4px;">Now <strong>${fmtMoney(withDisplayValue(state.wishlist.find(w => w.set_num === a.set_num) || a).current_value)}</strong> — your target was ${fmtMoney(a.target_price)}.</div>
+              <div style="font-size:13px;margin-top:4px;">Now <strong>${fmtMoney(withDisplayValue(state.wishlist.find(w => w.set_num === a.set_num) || a).current_value)}</strong> ${t("alerts.targetWas", { price: fmtMoney(a.target_price) })}</div>
             </div>`).join("")}
         </div>` : ""}
 

@@ -27,6 +27,18 @@ export const nl = {
   counts: {
     results: '{n} resultaten', resultsOne: '1 resultaat', collected: '{owned}/{total} verzameld', owned: '{n} in bezit', ofFigs: 'van {total} figuren', figs: '{n} figuren', figsOne: '1 figuur',
   },
+  fees: {
+    marketplace: 'Marktplaatskosten ({pct}%)', payment: 'Betaalkosten ({pct}% + vast)',
+  },
+  alerts: {
+    priceDrop: 'Prijsdaling · {days} d geleden', targetWas: '— je doel was {price}.',
+  },
+  game: {
+    roundOf: 'Ronde {n} van {total}', pctOff: 'Je zat er {pct}% naast', streakLine: '{day} · reeks {streak} · beste {best}',
+  },
+  build: {
+    needParts: 'Nog {n} onderdelen nodig', ofOwnedSets: 'van {n} sets in bezit', indexing: '{n} extra set(s) worden op de achtergrond geïndexeerd…',
+  },
   catalog: {
     title: 'Catalogus', searchPlaceholder: 'Zoek een set', results: '{count} sets',
     noResults: 'Geen sets gevonden', filters: 'Filters', sort: 'Sorteren', clearFilters: 'Filters wissen',

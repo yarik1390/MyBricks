@@ -85,6 +85,24 @@ export const en = {
     figs: '{n} figs',
     figsOne: '1 fig',
   },
+  fees: {
+    marketplace: 'Marketplace Fee ({pct}%)',
+    payment: 'Payment Fee ({pct}% + fixed)',
+  },
+  alerts: {
+    priceDrop: 'Price drop · {days}d ago',
+    targetWas: '— your target was {price}.',
+  },
+  game: {
+    roundOf: 'Round {n} of {total}',
+    pctOff: 'You were {pct}% off',
+    streakLine: '{day} · streak {streak} · best {best}',
+  },
+  build: {
+    needParts: 'Need {n} more parts',
+    ofOwnedSets: 'of {n} owned sets',
+    indexing: 'Indexing {n} more set(s) in the background…',
+  },
   catalog: {
     title: 'Catalog',
     searchPlaceholder: 'Find a set',

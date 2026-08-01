@@ -27,6 +27,18 @@ export const ja = {
   counts: {
     results: '{n} 件', resultsOne: '1 件', collected: '{owned}/{total} 収集済み', owned: '{n} 個所有', ofFigs: '全 {total} 体中', figs: '{n} 体', figsOne: '1 体',
   },
+  fees: {
+    marketplace: 'マーケットプレイス手数料（{pct}%）', payment: '決済手数料（{pct}% + 固定）',
+  },
+  alerts: {
+    priceDrop: '値下がり · {days}日前', targetWas: '— 目標価格は {price} でした。',
+  },
+  game: {
+    roundOf: 'ラウンド {n} / {total}', pctOff: '{pct}% ずれていました', streakLine: '{day} · 連続 {streak} · 最高 {best}',
+  },
+  build: {
+    needParts: 'あと {n} 個のパーツが必要', ofOwnedSets: '所有セット {n} 件中', indexing: 'バックグラウンドでさらに {n} セットをインデックス中…',
+  },
   catalog: {
     title: 'カタログ', searchPlaceholder: 'セットを探す', results: '{count} セット',
     noResults: 'セットが見つかりません', filters: 'フィルター', sort: '並べ替え', clearFilters: 'フィルターを解除',

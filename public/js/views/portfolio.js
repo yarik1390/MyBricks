@@ -8,6 +8,7 @@ import { showSheet, hideSheet, confirmSheet, promptSheet } from '../components/s
 import { trustBadgeHTML } from '../components/trust.js';
 import { skelPage, skelHero, skelCardList } from '../components/skeleton.js';
 import { getModePref } from '../theme.js';
+import { t } from '../lib/i18n.js';
 
 
 /* ============================================================
@@ -753,9 +754,9 @@ function showAlertsSheet(alerts) {
       ${spikeAlerts.map(a => spikeAlertCardHTML(a)).join("")}
       ${dropAlerts.map(a => `
         <div class="alert-card">
-          <div class="ah">${I.bell()}Price drop · ${daysAgo(a.triggered_at)}d ago</div>
+          <div class="ah">${I.bell()}${t("alerts.priceDrop", { days: daysAgo(a.triggered_at) })}</div>
           <div style="font-weight:600;">${escapeHtml(a.set_name)}</div>
-          <div style="font-size:13px;margin-top:4px;">Now <strong>${fmtMoney(a.current_value)}</strong> — your target was ${fmtMoney(a.target_price)}.</div>
+          <div style="font-size:13px;margin-top:4px;">Now <strong>${fmtMoney(a.current_value)}</strong> ${t("alerts.targetWas", { price: fmtMoney(a.target_price) })}</div>
         </div>
       `).join("")}
     </div>

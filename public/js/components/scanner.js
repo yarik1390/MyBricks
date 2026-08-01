@@ -8,6 +8,7 @@ import { checkGemma3Downloaded, runLocalVisionScan, isWebGpuAvailable } from '..
 import { flipCalcHTML } from './flip-calc.js';
 import { isNativeCapacitor } from '../lib/native-auth.js';
 import { amazonSlotHTML, hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
+import { t } from '../lib/i18n.js';
 
 let _scanTrapRelease = null;
 let _scanPending = false;
@@ -1454,11 +1455,11 @@ function openDealBreakdownSheet(set, storePrice) {
         <strong>${symbol}${storePrice.toFixed(2)}</strong>
       </div>
       <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line-soft);padding-bottom:6px;">
-        <span style="color:var(--ink-mute);">Marketplace Fee (${feePct}%)</span>
+        <span style="color:var(--ink-mute);">${t("fees.marketplace", { pct: feePct })}</span>
         <span style="color:var(--bv-red); font-family: var(--mono); font-weight: 500;">-${symbol}${ebayFee.toFixed(2)}</span>
       </div>
       <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line-soft);padding-bottom:6px;">
-        <span style="color:var(--ink-mute);">Payment Fee (${paymentPct}% + fixed)</span>
+        <span style="color:var(--ink-mute);">${t("fees.payment", { pct: paymentPct })}</span>
         <span style="color:var(--bv-red); font-family: var(--mono); font-weight: 500;">-${symbol}${paypalFee.toFixed(2)}</span>
       </div>
       <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line-soft);padding-bottom:6px;">

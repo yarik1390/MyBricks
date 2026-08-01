@@ -27,6 +27,18 @@ export const es = {
   counts: {
     results: '{n} resultados', resultsOne: '1 resultado', collected: '{owned}/{total} coleccionadas', owned: '{n} en propiedad', ofFigs: 'de {total} minifiguras', figs: '{n} minifiguras', figsOne: '1 minifigura',
   },
+  fees: {
+    marketplace: 'Comisión del marketplace ({pct}%)', payment: 'Comisión de pago ({pct}% + fija)',
+  },
+  alerts: {
+    priceDrop: 'Bajada de precio · hace {days} d', targetWas: '— tu objetivo era {price}.',
+  },
+  game: {
+    roundOf: 'Ronda {n} de {total}', pctOff: 'Te desviaste un {pct}%', streakLine: '{day} · racha {streak} · mejor {best}',
+  },
+  build: {
+    needParts: 'Faltan {n} piezas', ofOwnedSets: 'de {n} sets en propiedad', indexing: 'Indexando {n} set(s) más en segundo plano…',
+  },
   catalog: {
     title: 'Catálogo', searchPlaceholder: 'Buscar un set', results: '{count} sets',
     noResults: 'No se encontraron sets', filters: 'Filtros', sort: 'Ordenar', clearFilters: 'Borrar filtros',

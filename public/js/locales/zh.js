@@ -27,6 +27,18 @@ export const zh = {
   counts: {
     results: '{n} 个结果', resultsOne: '1 个结果', collected: '已收集 {owned}/{total}', owned: '拥有 {n}', ofFigs: '共 {total} 个人仔', figs: '{n} 个人仔', figsOne: '1 个人仔',
   },
+  fees: {
+    marketplace: '平台费用（{pct}%）', payment: '支付手续费（{pct}% + 固定）',
+  },
+  alerts: {
+    priceDrop: '降价 · {days} 天前', targetWas: '— 您的目标价为 {price}。',
+  },
+  game: {
+    roundOf: '第 {n} 轮，共 {total} 轮', pctOff: '您猜错了 {pct}%', streakLine: '{day} · 连续 {streak} · 最佳 {best}',
+  },
+  build: {
+    needParts: '还需要 {n} 个零件', ofOwnedSets: '共 {n} 个已拥有的套装', indexing: '正在后台索引另外 {n} 个套装…',
+  },
   catalog: {
     title: '目录', searchPlaceholder: '查找套装', results: '{count} 个套装',
     noResults: '未找到套装', filters: '筛选', sort: '排序', clearFilters: '清除筛选',
