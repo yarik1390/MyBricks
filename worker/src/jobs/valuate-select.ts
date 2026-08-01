@@ -15,6 +15,36 @@ export interface DueSetRow {
 // 90-day BrickLink no-data backoff: a set stamped bl_nodata_at (sold guide had
 // <5 lots) is skipped so the ~5,000/day budget goes to sets that have data.
 // Shared by the up-front reserve AND the per-set loop so the two never drift.
+/**
+ * Themes that are NOT priceable sets and must never consume a valuation budget.
+ *
+ * Measured against the catalogue: of 9,440 rows with no market evidence from any
+ * source, Gear (3,493, average ONE piece) and Books (1,271, average seven) are
+ * half of them. They are keyrings, apparel, stationery and paperbacks — no
+ * pricing source carries them and no collector tracks them as an investment, so
+ * every call spent on one is a call not spent on a real set. Service Packs
+ * (spare-part bags) and Educational/Dacta (school kits) are the same story.
+ *
+ * They also made coverage look far worse than it is: excluding these drops the
+ * "no real source" population by ~5,500 without changing a single real set.
+ *
+ * Kept OUT of this list deliberately: Duplo, System, Universal Building Set and
+ * Promotional. Those are genuine buildable sets — old and thinly traded, but
+ * real, and some carry four-figure values.
+ */
+export const NON_PRICEABLE_THEMES = [
+  'Gear',
+  'Books',
+  'Service Packs',
+  'Educational and Dacta',
+  'LEGO Brand Store',
+];
+
+/** SQL fragment excluding the non-priceable themes. Shared so the valuation
+ *  queue and any coverage metric cannot drift apart on what counts as a set. */
+export const PRICEABLE_PREDICATE =
+  `AND (ls.theme IS NULL OR ls.theme NOT IN (${NON_PRICEABLE_THEMES.map((t) => `'${t}'`).join(', ')}))`;
+
 export function blBackedOffAt(v: string | null | undefined): boolean {
   if (!v) return false;
   const s = String(v);
@@ -131,9 +161,23 @@ export async function selectDueSets(
       ${freshnessPredicate}
       ${valuePredicate}
       ${scopePredicate}
+      ${PRICEABLE_PREDICATE}
     ORDER BY
       CASE WHEN ls.set_num IN (SELECT set_num FROM user_collection WHERE deleted_at IS NULL)
              OR ls.set_num IN (SELECT set_num FROM user_wishlist) THEN 0 ELSE 1 END,
+      -- SOURCELESS-AND-VALUABLE FIRST. 814 sets are worth >= $100 and have no
+      -- market evidence at all, so they sit on the formula with nothing to
+      -- corroborate it — the worst state a set can be in on a page that leads
+      -- with a price. They are overwhelmingly pre-1990 vintage (Town, Space,
+      -- Castle, Train, Pirates), which is BrickLink's strongest territory, and
+      -- they clear in a few days inside the existing ~1,500/day of unused
+      -- BrickLink budget. This ranks above the generic due/value ordering so
+      -- they are not perpetually out-competed by fresher, higher-value rows.
+      CASE WHEN ls.bl_new_value IS NULL AND ls.used_value IS NULL
+                AND ls.be_value_new IS NULL AND ls.ebay_new_value IS NULL
+                AND ls.ebay_used_value IS NULL
+                AND COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) >= 100
+           THEN 0 ELSE 1 END,
       CASE WHEN ${duePredicate} THEN 0 ELSE 1 END,
       ${valueOrder}
       COALESCE(ls.valuation_expires_at, ls.cached_at, '2000-01-01') ASC,

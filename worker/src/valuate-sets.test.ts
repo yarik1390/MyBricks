@@ -90,3 +90,66 @@ describe('runValuateSets — BrickLink no-data backoff correctness', () => {
     expect(fetchSpy).not.toHaveBeenCalled(); // no BL key configured → no network at all
   });
 });
+
+// The valuation budget is finite (~5,000 BrickLink calls/day), so WHAT the queue
+// picks is as consequential as how fast it runs.
+describe('selectDueSets queue composition', () => {
+  beforeEach(async () => {
+    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'integration_health']);
+  });
+
+  const seed = (setNum: string, theme: string, value: number, sourced: boolean) =>
+    db.prepare(
+      `INSERT INTO lego_sets (set_num, name, theme, year, pieces, retired, current_value, blended_value, bl_new_value, valuation_method)
+       VALUES (?1, ?1, ?2, 1995, 500, 1, ?3, ?3, ?4, 'formula_bulk')`,
+    ).bind(setNum, theme, value, sourced ? value : null).run();
+
+  it('never spends budget on themes that are not priceable sets', async () => {
+    // Gear averages ONE piece and Books seven — merchandise, not sets. Together
+    // they are half of the catalogue rows with no market evidence, so letting
+    // them into the queue burns calls no source could ever satisfy.
+    await seed('GEAR-1', 'Gear', 400, false);
+    await seed('BOOK-1', 'Books', 400, false);
+    await seed('REAL-1', 'Town', 400, false);
+
+    const { selectDueSets } = await import('./jobs/valuate-select');
+    const { results } = await selectDueSets(env as any, {
+      scope: 'all', options: { limit: 20 },
+      includeSupplemental: false, includeEbay: false, includeEbaySold: false, includeAiFallback: false,
+    });
+    const picked = results.map((r) => r.set_num);
+    expect(picked).toContain('REAL-1');
+    expect(picked).not.toContain('GEAR-1');
+    expect(picked).not.toContain('BOOK-1');
+  });
+
+  it('puts a valuable set with NO market evidence ahead of a richer sourced one', async () => {
+    // A $100+ set on a formula with nothing corroborating it is the worst state
+    // on a page that leads with a price, and without this rank it is perpetually
+    // out-competed by fresher, higher-value rows.
+    await seed('SOURCED-9000', 'Town', 9000, true);
+    await seed('BARE-150', 'Town', 150, false);
+
+    const { selectDueSets } = await import('./jobs/valuate-select');
+    const { results } = await selectDueSets(env as any, {
+      scope: 'all', options: { limit: 20, prioritizeValue: false },
+      includeSupplemental: false, includeEbay: false, includeEbaySold: false, includeAiFallback: false,
+    });
+    expect(results[0].set_num).toBe('BARE-150');
+  });
+
+  it('does not treat Duplo or Universal Building Set as unpriceable', async () => {
+    // Old and thinly traded, but real buildable sets — some worth four figures.
+    await seed('DUP-1', 'Duplo', 300, false);
+    await seed('UBS-1', 'Universal Building Set', 660, false);
+
+    const { selectDueSets } = await import('./jobs/valuate-select');
+    const { results } = await selectDueSets(env as any, {
+      scope: 'all', options: { limit: 20 },
+      includeSupplemental: false, includeEbay: false, includeEbaySold: false, includeAiFallback: false,
+    });
+    const picked = results.map((r) => r.set_num);
+    expect(picked).toContain('DUP-1');
+    expect(picked).toContain('UBS-1');
+  });
+});
