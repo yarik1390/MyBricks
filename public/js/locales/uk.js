@@ -24,6 +24,9 @@ export const uk = {
     details: 'Деталі', estimated: 'Оцінка', year: 'Рік', theme: 'Тема',
     addToWishlist: 'До списку бажань', inWishlist: 'У списку бажань',
   },
+  counts: {
+    results: '{n} результатів', resultsOne: '1 результат', collected: '{owned}/{total} зібрано', owned: '{n} у власності', ofFigs: 'з {total} фігурок', figs: '{n} фігурок', figsOne: '1 фігурка',
+  },
   catalog: {
     title: 'Каталог', searchPlaceholder: 'Знайти набір', results: '{count} наборів',
     noResults: 'Наборів не знайдено', filters: 'Фільтри', sort: 'Сортувати', clearFilters: 'Скинути фільтри',

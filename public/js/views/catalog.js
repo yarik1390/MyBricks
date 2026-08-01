@@ -1,4 +1,5 @@
 import { $, $$, haptic, escapeHtml, setHue, fmtMoney, trendBadgeHTML, THEME_COLORS, bvIDB, SEARCH_DEBOUNCE_MS, mount, toast, thumbImg } from '../utils.js';
+import { t } from '../lib/i18n.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId, photoScanNeedsSetup } from '../api.js';
 import { getModePref } from '../theme.js';
@@ -229,7 +230,7 @@ function catalogResultsHTML() {
   const listClass = state.compactView ? "compact-list" : "grid";
   return `
     ${comingSoonSectionHTML()}
-    <div id="catalogCount" class="result-count">${c.total.toLocaleString()} result${c.total === 1 ? "" : "s"}</div>
+    <div id="catalogCount" class="result-count">${c.total === 1 ? t("counts.resultsOne") : t("counts.results", { n: c.total.toLocaleString() })}</div>
     ${c.items.length === 0 ? `
       <div class="empty card">
         <div class="empty-icon">${I.search()}</div>

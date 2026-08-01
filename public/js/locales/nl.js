@@ -24,6 +24,9 @@ export const nl = {
     details: 'Details', estimated: 'Geschat', year: 'Jaar', theme: 'Thema',
     addToWishlist: 'Aan verlanglijst', inWishlist: 'Op je verlanglijst',
   },
+  counts: {
+    results: '{n} resultaten', resultsOne: '1 resultaat', collected: '{owned}/{total} verzameld', owned: '{n} in bezit', ofFigs: 'van {total} figuren', figs: '{n} figuren', figsOne: '1 figuur',
+  },
   catalog: {
     title: 'Catalogus', searchPlaceholder: 'Zoek een set', results: '{count} sets',
     noResults: 'Geen sets gevonden', filters: 'Filters', sort: 'Sorteren', clearFilters: 'Filters wissen',

@@ -24,6 +24,9 @@ export const fr = {
     details: 'Détails', estimated: 'Estimé', year: 'Année', theme: 'Thème',
     addToWishlist: 'Ajouter aux envies', inWishlist: 'Dans vos envies',
   },
+  counts: {
+    results: '{n} résultats', resultsOne: '1 résultat', collected: '{owned}/{total} collectées', owned: '{n} en possession', ofFigs: 'sur {total} figurines', figs: '{n} figurines', figsOne: '1 figurine',
+  },
   catalog: {
     title: 'Catalogue', searchPlaceholder: 'Trouver un set', results: '{count} sets',
     noResults: 'Aucun set trouvé', filters: 'Filtres', sort: 'Trier', clearFilters: 'Effacer les filtres',

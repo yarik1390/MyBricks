@@ -24,6 +24,9 @@ export const hi = {
     details: 'विवरण', estimated: 'अनुमानित', year: 'वर्ष', theme: 'थीम',
     addToWishlist: 'इच्छा-सूची में जोड़ें', inWishlist: 'इच्छा-सूची में है',
   },
+  counts: {
+    results: '{n} परिणाम', resultsOne: '1 परिणाम', collected: '{owned}/{total} एकत्रित', owned: '{n} स्वामित्व में', ofFigs: '{total} में से', figs: '{n} मिनीफ़िगर', figsOne: '1 मिनीफ़िगर',
+  },
   catalog: {
     title: 'कैटलॉग', searchPlaceholder: 'सेट खोजें', results: '{count} सेट',
     noResults: 'कोई सेट नहीं मिला', filters: 'फ़िल्टर', sort: 'क्रमबद्ध करें', clearFilters: 'फ़िल्टर हटाएँ',

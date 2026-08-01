@@ -1,4 +1,5 @@
 import { $, $$, haptic, escapeHtml, fmtMoney, toast, themeHue, debounce, bvIDB, SEARCH_DEBOUNCE_MS, mount, drawSparkline, fmtDateUpdated, thumbImg } from '../utils.js';
+import { t } from '../lib/i18n.js';
 import { state } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
@@ -122,15 +123,15 @@ export async function renderBlind() {
     <div class="page">
       <div class="topbar">
         <div class="topbar-heading">
-          <div class="topbar-eyebrow" id="blindCount">${ownedCount}/${b.total.toLocaleString()} collected</div>
+          <div class="topbar-eyebrow" id="blindCount">${t("counts.collected", { owned: ownedCount, total: b.total.toLocaleString() })}</div>
           <h1 class="topbar-title">Minifigs</h1>
         </div>
       </div>
 
       <div class="fig-stats-row">
         <div class="fig-stat-pill">
-          <div class="fig-stat-num" id="figStatCount">${ownedCount} owned</div>
-          <div class="fig-stat-lbl">of ${b.total.toLocaleString()} figs</div>
+          <div class="fig-stat-num" id="figStatCount">${t("counts.owned", { n: ownedCount })}</div>
+          <div class="fig-stat-lbl">${t("counts.ofFigs", { total: b.total.toLocaleString() })}</div>
         </div>
         <div class="fig-stat-pill">
           <div class="fig-stat-num" id="figStatValue">${fmtMoney(ownedValue, { cents: 0 })}</div>
@@ -452,7 +453,7 @@ function updateBlindCount() {
   const el = $("#blindCount");
   if (!el) return;
   const owned = state.blind.items.filter(f => state.ownedFigs.has(f.fig_num)).length;
-  el.textContent = `${owned}/${state.blind.total.toLocaleString()} collected`;
+  el.textContent = t("counts.collected", { owned, total: state.blind.total.toLocaleString() });
 }
 
 function updateFigStats() {
@@ -461,7 +462,7 @@ function updateFigStats() {
   const valueEl = $("#figStatValue");
   if (countEl) countEl.textContent = `${ownedItems.length} owned`;
   const totalEl = countEl?.nextElementSibling;
-  if (totalEl) totalEl.textContent = `of ${state.blind.total.toLocaleString()} figs`;
+  if (totalEl) totalEl.textContent = t("counts.ofFigs", { total: state.blind.total.toLocaleString() });
   if (valueEl) {
     const total = ownedItems.reduce((s, f) => s + (f.value ?? f.current_value ?? 0), 0);
     valueEl.textContent = fmtMoney(total, { cents: 0 });

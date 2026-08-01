@@ -24,6 +24,9 @@ export const es = {
     details: 'Detalles', estimated: 'Estimado', year: 'Año', theme: 'Tema',
     addToWishlist: 'Añadir a deseos', inWishlist: 'En tu lista de deseos',
   },
+  counts: {
+    results: '{n} resultados', resultsOne: '1 resultado', collected: '{owned}/{total} coleccionadas', owned: '{n} en propiedad', ofFigs: 'de {total} minifiguras', figs: '{n} minifiguras', figsOne: '1 minifigura',
+  },
   catalog: {
     title: 'Catálogo', searchPlaceholder: 'Buscar un set', results: '{count} sets',
     noResults: 'No se encontraron sets', filters: 'Filtros', sort: 'Ordenar', clearFilters: 'Borrar filtros',

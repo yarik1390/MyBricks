@@ -24,6 +24,9 @@ export const ja = {
     details: '詳細', estimated: '推定', year: '年', theme: 'テーマ',
     addToWishlist: 'ウィッシュリストに追加', inWishlist: 'ウィッシュリストに登録済み',
   },
+  counts: {
+    results: '{n} 件', resultsOne: '1 件', collected: '{owned}/{total} 収集済み', owned: '{n} 個所有', ofFigs: '全 {total} 体中', figs: '{n} 体', figsOne: '1 体',
+  },
   catalog: {
     title: 'カタログ', searchPlaceholder: 'セットを探す', results: '{count} セット',
     noResults: 'セットが見つかりません', filters: 'フィルター', sort: '並べ替え', clearFilters: 'フィルターを解除',

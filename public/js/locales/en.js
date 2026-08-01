@@ -74,6 +74,17 @@ export const en = {
     addToWishlist: 'Add to wishlist',
     inWishlist: 'On your wishlist',
   },
+  counts: {
+    // Interpolated UI: the rendered node contains a value, so the exact-match
+    // dictionary can never reach it. These need t() with {placeholders}.
+    results: '{n} results',
+    resultsOne: '1 result',
+    collected: '{owned}/{total} collected',
+    owned: '{n} owned',
+    ofFigs: 'of {total} figs',
+    figs: '{n} figs',
+    figsOne: '1 fig',
+  },
   catalog: {
     title: 'Catalog',
     searchPlaceholder: 'Find a set',

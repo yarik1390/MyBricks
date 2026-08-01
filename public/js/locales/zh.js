@@ -24,6 +24,9 @@ export const zh = {
     details: '详情', estimated: '估算', year: '年份', theme: '主题',
     addToWishlist: '加入心愿单', inWishlist: '已在心愿单',
   },
+  counts: {
+    results: '{n} 个结果', resultsOne: '1 个结果', collected: '已收集 {owned}/{total}', owned: '拥有 {n}', ofFigs: '共 {total} 个人仔', figs: '{n} 个人仔', figsOne: '1 个人仔',
+  },
   catalog: {
     title: '目录', searchPlaceholder: '查找套装', results: '{count} 个套装',
     noResults: '未找到套装', filters: '筛选', sort: '排序', clearFilters: '清除筛选',
