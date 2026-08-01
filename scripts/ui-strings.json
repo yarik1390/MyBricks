@@ -42,6 +42,12 @@
     ]
   },
   {
+    "text": "✓ Earned!",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "0 && ebayPrice",
     "files": [
       "views/portfolio-detail.js"
@@ -746,6 +752,12 @@
     ]
   },
   {
+    "text": "Best buy with $200 budget?",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Best performer",
     "files": [
       "views/me.js"
@@ -979,12 +991,6 @@
     "text": "Catalog data & images from",
     "files": [
       "runtime-audit"
-    ]
-  },
-  {
-    "text": "Catalog data &amp; images from",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -1409,6 +1415,12 @@
     "text": "Current supporters",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Current Value ($)",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -2033,7 +2045,7 @@
     ]
   },
   {
-    "text": "Full 1-year portfolio history &amp; ROI export",
+    "text": "Full 1-year portfolio history & ROI export",
     "files": [
       "components/onboarding.js"
     ]
@@ -2348,6 +2360,12 @@
     "text": "How denominators work",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "How is my Star Wars collection doing?",
+    "files": [
+      "runtime-audit"
     ]
   },
   {
@@ -2892,12 +2910,6 @@
     ]
   },
   {
-    "text": "Market value &amp; ROI columns in CSV export",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Master Builder",
     "files": [
       "runtime-audit"
@@ -2922,7 +2934,7 @@
     ]
   },
   {
-    "text": "Me &gt; Integrations",
+    "text": "Me > Integrations",
     "files": [
       "components/scanner.js"
     ]
@@ -3677,6 +3689,12 @@
     ]
   },
   {
+    "text": "Piece Count",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "pieces missing",
     "files": [
       "views/portfolio-detail.js"
@@ -3761,7 +3779,7 @@
     ]
   },
   {
-    "text": "Premium &amp; Gold ★ skins + ⭐ profile badge",
+    "text": "Premium & Gold ★ skins + ⭐ profile badge",
     "files": [
       "components/onboarding.js"
     ]
@@ -4068,6 +4086,12 @@
     ]
   },
   {
+    "text": "Release Year",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Reliable price",
     "files": [
       "views/portfolio-detail.js"
@@ -4248,6 +4272,12 @@
     ]
   },
   {
+    "text": "RETIRED",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Retired — supply is fixed",
     "files": [
       "views/portfolio-detail.js"
@@ -4272,7 +4302,7 @@
     ]
   },
   {
-    "text": "Retirement radar &amp; part-out opportunities",
+    "text": "Retirement radar & part-out opportunities",
     "files": [
       "views/portfolio.js"
     ]
@@ -4380,7 +4410,7 @@
     ]
   },
   {
-    "text": "S&amp;P 500 comparison + allocation by theme",
+    "text": "S&P 500 comparison + allocation by theme",
     "files": [
       "views/portfolio.js"
     ]
@@ -4552,7 +4582,7 @@
     ]
   },
   {
-    "text": "Sell &amp; buy signals across your holdings",
+    "text": "Sell & buy signals across your holdings",
     "files": [
       "views/portfolio.js"
     ]
@@ -4642,7 +4672,7 @@
     ]
   },
   {
-    "text": "Set PIN &amp; Enter Kids Mode",
+    "text": "Set PIN & Enter Kids Mode",
     "files": [
       "components/kids-pin.js"
     ]
@@ -4801,12 +4831,6 @@
     ]
   },
   {
-    "text": "Sign in to use the shared service, or add a free personal key in <strong>Me &gt; Integrations</strong>.",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Sign out",
     "files": [
       "views/me.js"
@@ -4837,12 +4861,6 @@
     ]
   },
   {
-    "text": "Simple hides ROI charts &amp; forecasts — just value &amp; your sets.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Skip to content",
     "files": [
       "index.html"
@@ -4852,12 +4870,6 @@
     "text": "Snap & identify",
     "files": [
       "runtime-audit"
-    ]
-  },
-  {
-    "text": "Snap &amp; identify",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -4969,7 +4981,7 @@
     ]
   },
   {
-    "text": "Storage &amp; notes",
+    "text": "Storage & notes",
     "files": [
       "views/portfolio-detail.js"
     ]
@@ -5392,7 +5404,7 @@
     ]
   },
   {
-    "text": "Unlock Premium &amp; Gold by supporting BricksVault ★",
+    "text": "Unlock Premium & Gold by supporting BricksVault ★",
     "files": [
       "views/me.js"
     ]
@@ -5686,6 +5698,18 @@
     ]
   },
   {
+    "text": "Which of my sets might retire soon?",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
+    "text": "Which sets should I sell this month?",
+    "files": [
+      "runtime-audit"
+    ]
+  },
+  {
     "text": "Whole shelf",
     "files": [
       "components/scanner.js"
@@ -5744,12 +5768,6 @@
     "text": "Your account has been deleted.",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Your account is still signed in. Try again, or add a free personal key in <strong>Me &gt; Integrations</strong> for scans on your own quota.",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {

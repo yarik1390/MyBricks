@@ -57,24 +57,23 @@ for (const file of readdirSync('public/js/locales').filter((f) => /^ui-\w+\.js$/
   const lines = readFileSync(path, 'utf8').split('\n');
   let renamed = 0, dropped = 0;
   const out = [];
-  const entries = [];   // [key, line] for the entry block, re-sorted at the end
   for (const line of lines) {
     const m = line.match(/^(\s*)("(?:[^"\\]|\\.)*")(: .*)$/);
     if (!m) { out.push(line); continue; }
     const key = JSON.parse(m[2]);
     if (drop.has(key)) { dropped++; continue; }
     if (rename.has(key)) {
-      entries.push([rename.get(key), `${m[1]}${JSON.stringify(rename.get(key))}${m[3]}`]);
+      // Rewritten IN PLACE, deliberately leaving it out of alphabetical order.
+      // These files are maintained sorted, but re-sorting here moves all 968
+      // lines in all 8 files (the dictionaries were built with different string
+      // comparators), burying a 15-line fix in a 7,700-line diff. Nine keys
+      // slightly out of position is the cheaper problem by a wide margin.
+      out.push(`${m[1]}${JSON.stringify(rename.get(key))}${m[3]}`);
       renamed++;
       continue;
     }
-    entries.push([key, line]);
+    out.push(line);
   }
-  // Renaming moves keys out of order, and the file is maintained sorted by the
-  // English key — leaving it shuffled would make every future merge noisier.
-  entries.sort((a, b) => a[0].localeCompare(b[0]));
-  const at = out.findIndex((l) => l.includes('export const ui = {'));
-  out.splice(at + 1, 0, ...entries.map((e) => e[1]));
   if (!DRY) writeFileSync(path, out.join('\n'));
   console.log(`  ${file}: renamed ${renamed}, dropped ${dropped}`);
 }
