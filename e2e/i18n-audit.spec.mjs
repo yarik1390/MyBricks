@@ -34,6 +34,11 @@ const OVERLAYS = [
   { name: 'advisor drawer', route: '/', open: '#advisorFab' },
   { name: 'catalog filters', route: '/add', open: '#filterChip' },
   { name: 'minifig filters', route: '/minifigs', open: '#figFilterChip' },
+  // The two richest sheets in the app, and both were missing from the first
+  // overlay pass — which is most of why it reported 95.5% while the real app
+  // still showed English on these exact screens.
+  { name: 'pricing details', route: '/set/75192-1', open: '#pricingDetailsBtn' },
+  { name: 'vault actions', route: '/', open: '#vaultMoreBtn' },
 ];
 
 // Shared DOM sweep: which visible text is English, and did the dictionary
@@ -56,7 +61,10 @@ const SWEEP = async () => {
     if (t.length < 3) continue;
     if (translated.has(t)) { out.hit++; continue; }
     if (/[Ѐ-ӿ]/.test(t)) { out.hit++; continue; }
-    if (/[A-Za-z]{3}/.test(t) && /\s/.test(t) && !/^[\d\s.,$%+-]+$/.test(t)) {
+    // Single words COUNT. Requiring a space here is what let "Appearance",
+    // "Style", "Forecast", "Basis", "Sales" and the whole single-word UI
+    // vocabulary pass as translated — the same blind spot the harvester had.
+    if (/[A-Za-z]{3}/.test(t) && !/^[\d\s.,$%+-]+$/.test(t)) {
       out.miss++; out.missed.push(t.slice(0, 400));
     }
   }
@@ -102,32 +110,7 @@ test('audit runtime coverage', async ({ page }) => {
   for (const r of ROUTES) {
     await page.goto(`/#${r}`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1200);
-    const res = await page.evaluate(async () => {
-      const dictMod = await import('/js/locales/ui-uk.js');
-      const translated = new Set(Object.values(dictMod.ui));
-      const out = { hit: 0, miss: 0, missed: [] };
-      const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
-        acceptNode(n) {
-          if (!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-          const p = n.parentElement;
-          if (!p || ['SCRIPT', 'STYLE'].includes(p.tagName)) return NodeFilter.FILTER_REJECT;
-          if (!p.offsetParent && p.tagName !== 'BODY') return NodeFilter.FILTER_REJECT;
-          return NodeFilter.FILTER_ACCEPT;
-        },
-      });
-      for (let n = w.nextNode(); n; n = w.nextNode()) {
-        const t = n.nodeValue.replace(/\s+/g, ' ').trim();
-        if (t.length < 3) continue;
-        if (translated.has(t)) { out.hit++; continue; }
-        // Cyrillic present = already translated (or a t() result), not a miss.
-        if (/[Ѐ-ӿ]/.test(t)) { out.hit++; continue; }
-        // Latin letters + a space = probably untranslated English prose.
-        if (/[A-Za-z]{3}/.test(t) && /\s/.test(t) && !/^[\d\s.,$%+-]+$/.test(t)) {
-          out.miss++; out.missed.push(t.slice(0, 400));
-        }
-      }
-      return out;
-    });
+    const res = await page.evaluate(SWEEP);
     hit += res.hit; miss += res.miss;
     perRoute.push({ route: r, hit: res.hit, miss: res.miss });
     for (const s of res.missed) {

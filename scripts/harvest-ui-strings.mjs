@@ -46,7 +46,6 @@ const REJECT = [
   /^[\s\d.,:;%+\-*/()[\]{}<>|&$#@!?"'`~^=_]*$/,   // punctuation / numbers only
   /^(https?:|\/|\.\/|#|data:|mailto:)/i,           // urls and paths
   /[{}]/,                                          // template holes / JSON
-  /^[a-z0-9_-]+$/i,                                // single identifier-ish token
   /^[A-Z_]{2,}$/,                                  // CONSTANT_CASE
   /\b(var|const|let|function|return|await|async)\b/,
   /^(px|em|rem|vh|vw|deg|ms|USD|EUR|GBP|CAD|AUD)$/i,
@@ -60,18 +59,60 @@ const REJECT = [
   /\+=|-=|\belse if\b|^\d+(\.\d+)?\)/,   // "0.2) score += 8; else if (…"
 ];
 
-function isProse(s) {
+// Acronyms, units and formats that are the SAME word in every language. They
+// reach the screen as real labels, so nothing else here would reject them, and
+// translating one is a visible bug rather than a missed opportunity.
+const DO_NOT_TRANSLATE = new Set([
+  'CSV', 'PDF', 'JSON', 'API', 'URL', 'PIN', 'ROI', 'AI', 'XP', 'ID', 'OK',
+  'USD', 'EUR', 'GBP', 'CAD', 'AUD', 'UPC', 'EAN', 'SKU', 'PWA', 'QR',
+  'BrickLink', 'BrickEconomy', 'Brickset', 'Brickset.com', 'Rebrickable',
+  'PriceCharting', 'LEGO', 'BricksVault', 'Brickvault', 'Amazon', 'eBay',
+  'WebGPU', 'Gemma', 'Gemini', 'Discord', 'Chrome',
+  // Supporter tier names, shown as "PRO"/"Pro" and left English on purpose so
+  // the paywall copy reads the same in every language.
+  'PRO', 'Pro',
+]);
+
+// Rendered position is strong evidence a string is UI, but not proof. These are
+// the shapes that still slip through it: a bare lowercase word (a colour or a
+// condition key echoed into markup), a dotted identifier, and a URL that has no
+// scheme so the REJECT list's url rule misses it.
+const RENDERED_JUNK = [
+  /^[a-z][a-z0-9_]*$/,              // "gray", "green", "used", and "value_desc"
+  /^[a-z]\.\w+$/i,                  // "i.annualized_roi", "x.slope_90d"
+  /^[a-z][\w.-]*:\/\//i,            // "chrome://flags/…"
+  /^[a-z0-9-]+(\.[a-z]{2,})+\//i,   // "aistudio.google.com/apikey"
+  /\bhigh\/medium\/low\b/i,         // enum documentation, not a label
+];
+
+/**
+ * `rendered` = the string was captured between > and <, i.e. it IS a text node
+ * the browser paints. That is much stronger evidence than a quoted argument
+ * somewhere in the source, so the filters relax: a single word, an ALL-CAPS
+ * display label ("VALUE", "PREFERENCES") or a symbol-led label ("+ Wishlist",
+ * "A–Z") are all legitimate UI there, and they are a large share of this app's
+ * vocabulary — every settings row, sort chip and section heading.
+ */
+function isProse(s, rendered = false) {
   const v = s.trim();
   if (v.length < 2 || v.length > 160) return false;
   if (!/[A-Za-z]{2}/.test(v)) return false;
-  // Needs either a space (a phrase) or to be a plain capitalised word.
-  if (!/\s/.test(v) && !/^[A-Z][a-z]+$/.test(v)) return false;
+  if (DO_NOT_TRANSLATE.has(v)) return false;
+  if (rendered && RENDERED_JUNK.some((re) => re.test(v))) return false;
+  // A phrase, a plain capitalised word, or — only when rendered — any single
+  // display label. The old code intended to allow capitalised single words but
+  // the REJECT list's identifier rule (/^[a-z0-9_-]+$/i) silently overrode it,
+  // which is why "Appearance", "Forecast", "Wishlist" and the whole single-word
+  // UI vocabulary never reached a dictionary.
+  if (!/\s/.test(v) && !/^[A-Z][a-z]+$/.test(v) && !rendered) return false;
+  if (!rendered && /^[a-z0-9_-]+$/i.test(v)) return false;
   // Must READ as a complete label: start on a letter/digit, not mid-sentence.
-  // Only hole-free strings can ever exact-match a rendered text node, so a
-  // fragment left over from a split template literal is pure noise here.
-  if (!/^[A-Za-z0-9]/.test(v)) return false;
+  // Rendered labels may lead with a symbol ("+ Wishlist", "← Back"); a quoted
+  // fragment from a split template literal may not.
+  if (!/^[A-Za-z0-9]/.test(v) && !(rendered && /^[+←→✓✕·—–]\s?\S/.test(v))) return false;
   if (/[,;]$/.test(v)) return false;
   if (/["\\]|\bnull\b|\bundefined\b/.test(v)) return false;
+  if (rendered && /^[A-Z][A-Z\d\s&()/–—-]+$/.test(v)) return true;   // ALL-CAPS label
   return !REJECT.some((re) => re.test(v));
 }
 
@@ -85,12 +126,12 @@ const decodeEntities = (s) => s
   .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&nbsp;/g, ' ');
 
 const found = new Map(); // string -> Set(files)
-const add = (s, file) => {
+const add = (s, file, rendered = false) => {
   const v = decodeEntities(s).replace(/\s+/g, ' ').trim();
   // Decoding can reveal a tag, which means the span was never one text node —
   // the DOM splits it around the element and no single key can ever match.
   if (/<[a-z/]/i.test(v)) return;
-  if (!isProse(v)) return;
+  if (!isProse(v, rendered)) return;
   if (!found.has(v)) found.set(v, new Set());
   found.get(v).add(file);
 };
@@ -100,7 +141,7 @@ for (const root of ROOTS) {
     const src = readFileSync(file, 'utf8');
     const short = file.replace('public/js/', '');
     // 1. Text between tags inside template literals: >Some words<
-    for (const m of src.matchAll(/>([^<>{}`$]{2,160})</g)) add(m[1], short);
+    for (const m of src.matchAll(/>([^<>{}`$]{2,160})</g)) add(m[1], short, true);
     // 2. Quoted strings passed to the obvious user-facing calls.
     for (const m of src.matchAll(/\b(?:toast|confirm|alert|promptSheet|aria-label=|placeholder=|title=)\s*\(?\s*["']([^"'`]{2,160})["']/g)) add(m[1], short);
     // 3. HTML attributes inside templates.
@@ -112,6 +153,23 @@ for (const root of ROOTS) {
     // share of the visible untranslated text.
     for (const m of src.matchAll(/\?\s*(['"])([^'"`\n]{3,160})\1\s*:\s*(['"])([^'"`\n]{3,160})\3/g)) {
       add(m[2], short); add(m[4], short);
+    }
+    // 5. User-facing OBJECT-LITERAL properties. This codebase builds most lists
+    //    declaratively — sort chips are { label: 'Newest' }, settings rows are
+    //    { title: 'Integrations', sub: '...' } — and none of it is inside a
+    //    template, so rules 1-4 are blind to all of it.
+    //    A `label:` key is as strong a signal as rendered position — stronger,
+    //    if anything — so these pass rendered=true. Without it the identifier
+    //    reject swallows every single-word label ("Newest", "Growth", "Recent",
+    //    "Integrations"), which is exactly what it did.
+    for (const m of src.matchAll(/\b(?:label|title|sub|subtitle|desc|description|heading|caption|hint|cta|blurb|body|tip)\s*:\s*(['"])([^'"`\n]{2,160})\1/g)) {
+      add(m[2], short, true);
+    }
+    // 6. Positional string arguments to the app's own row/section helpers, which
+    //    render their arguments as the visible title and subtitle:
+    //      linkRow("#/me/admin", "Admin console", "Catalog imports, jobs, ...")
+    for (const m of src.matchAll(/\b(?:linkRow|settingRow|sectionRow|navRow|card|tile|emptyState|conditionStateHTML|chip)\s*\(([^)]{0,400})\)/g)) {
+      for (const q of m[1].matchAll(/(['"])([^'"`\n]{2,160})\1/g)) add(q[2], short, true);
     }
   }
 }

@@ -295,7 +295,7 @@ function confidenceChip(set) {
 function summaryFactsHTML(set) {
   const figs = set.set_minifigs?.length || set.minifigs || 0;
   const parts = [];
-  if (set.pieces) parts.push(`<span class="f"><b>${Number(set.pieces).toLocaleString()}</b> pieces</span>`);
+  if (set.pieces) parts.push(`<span class="f"><b>${Number(set.pieces).toLocaleString()}</b> ${t("detail.pieces")}</span>`);
   if (set.year) parts.push(`<span class="f"><b>${set.year}</b></span>`);
   if (figs) parts.push(`<span class="f"><b>${figs}</b> minifig${figs === 1 ? '' : 's'}</span>`);
   // Unreleased sets: stored retail can be a formula placeholder; the
