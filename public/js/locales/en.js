@@ -80,6 +80,9 @@ export const en = {
     fromSourcesOne: 'From 1 market source',
     typicalRange: ' · typically {low}–{high}',
   },
+  me: {
+    trophyShelf: 'Trophy Shelf ({n}/6)',
+  },
   kids: {
     xp: '{n} XP',
     xpToLevel: '{n} XP to Level {level}',

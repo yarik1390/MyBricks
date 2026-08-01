@@ -28,6 +28,9 @@ export const fr = {
   counts: {
     results: '{n} résultats', resultsOne: '1 résultat', collected: '{owned}/{total} collectées', owned: '{n} en possession', ofFigs: 'sur {total} figurines', figs: '{n} figurines', figsOne: '1 figurine',
   },
+  me: {
+    trophyShelf: 'Vitrine ({n}/6)',
+  },
   kids: {
     xp: '{n} XP', xpToLevel: '{n} XP avant le niveau {level}', maxLevel: 'Niveau max !', pcs: '{n} pièces', earned: '{n} sur {total} obtenus', setsToGo: 'Encore {n} sets', setsToGoOne: 'Encore 1 set !',
   },

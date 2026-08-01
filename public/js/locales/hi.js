@@ -28,6 +28,9 @@ export const hi = {
   counts: {
     results: '{n} परिणाम', resultsOne: '1 परिणाम', collected: '{owned}/{total} एकत्रित', owned: '{n} स्वामित्व में', ofFigs: '{total} में से', figs: '{n} मिनीफ़िगर', figsOne: '1 मिनीफ़िगर',
   },
+  me: {
+    trophyShelf: 'ट्रॉफी शेल्फ ({n}/6)',
+  },
   kids: {
     xp: '{n} XP', xpToLevel: 'लेवल {level} तक {n} XP', maxLevel: 'अधिकतम लेवल!', pcs: '{n} पुर्जे', earned: '{total} में से {n} अर्जित', setsToGo: '{n} सेट बाकी', setsToGoOne: '1 सेट बाकी!',
   },

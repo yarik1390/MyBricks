@@ -28,6 +28,9 @@ export const zh = {
   counts: {
     results: '{n} 个结果', resultsOne: '1 个结果', collected: '已收集 {owned}/{total}', owned: '拥有 {n}', ofFigs: '共 {total} 个人仔', figs: '{n} 个人仔', figsOne: '1 个人仔',
   },
+  me: {
+    trophyShelf: '展示架（{n}/6）',
+  },
   kids: {
     xp: '{n} XP', xpToLevel: '还需 {n} XP 升到第 {level} 级', maxLevel: '已达最高等级！', pcs: '{n} 个零件', earned: '已获得 {n} / {total}', setsToGo: '还差 {n} 个套装', setsToGoOne: '还差 1 个套装！',
   },

@@ -57,7 +57,7 @@ export async function renderMe() {
   let trophyShelfHTML = '';
   if (!guest && me.handle && me.is_public) {
     trophyShelfHTML = `
-      <h2 class="section-title">Trophy Shelf (${showcase.length}/6)</h2>
+      <h2 class="section-title">${t("me.trophyShelf", { n: showcase.length })}</h2>
       <div class="card" style="padding:14px 16px;margin-bottom:14px;">
         <div class="trophy-shelf scrollable" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px;">
           ${showcase.map(s => {

@@ -28,6 +28,9 @@ export const nl = {
   counts: {
     results: '{n} resultaten', resultsOne: '1 resultaat', collected: '{owned}/{total} verzameld', owned: '{n} in bezit', ofFigs: 'van {total} figuren', figs: '{n} figuren', figsOne: '1 figuur',
   },
+  me: {
+    trophyShelf: 'Trofeeplank ({n}/6)',
+  },
   kids: {
     xp: '{n} XP', xpToLevel: '{n} XP tot niveau {level}', maxLevel: 'Max niveau!', pcs: '{n} onderdelen', earned: '{n} van {total} verdiend', setsToGo: 'Nog {n} sets', setsToGoOne: 'Nog 1 set!',
   },

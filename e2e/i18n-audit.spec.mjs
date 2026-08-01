@@ -14,6 +14,22 @@ import { writeFileSync } from 'node:fs';
 // German or Dutch could not tell a translation from a miss.
 test.use({ locale: 'uk-UA' });
 
+// Rows behind a flag render as nothing, and nothing reads as fully translated —
+// the admin and share-profile rows on /me were invisible to the first audit for
+// exactly that reason. Overridden HERE rather than in fixtures.mjs, because the
+// shared fixture is also what proves a NON-admin gets redirected away from the
+// admin console, and flipping it globally breaks that test.
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/me', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({
+      display_name: 'Test Collector', handle: 'tester', currency: 'USD',
+      is_guest: false, is_admin: true, is_public: true,
+      notify_price_drops: true, portfolio_stats: {},
+    }),
+  }));
+});
+
 // EVERY route the router dispatches (see public/js/router.js), not the six the
 // first version of this audit sampled. The set-detail tabs are separate entries
 // because each renders a different view module.

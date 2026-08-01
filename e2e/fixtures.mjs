@@ -68,10 +68,10 @@ function handlers(calls) {
 
     if (p === '/api/config') return json({ supabase_url: 'https://stub.supabase.co', supabase_anon_key: 'stub-anon-key', patreon_url: 'https://www.patreon.com/c/BricksVault' });
     if (p === '/api/rates') return json({ base: 'USD', rates: { USD: 1, EUR: 0.92, GBP: 0.79 } });
-    // is_admin/is_public are ON so the admin and share rows RENDER. The i18n
-    // audit walks whatever is on screen, so a row hidden behind a flag is a row
-    // it silently reports as fully translated.
-    if (p === '/api/me') return json({ display_name: 'Test Collector', handle: 'tester', currency: 'USD', is_guest: false, is_admin: true, is_public: true, notify_price_drops: true, portfolio_stats: {} });
+    // NO is_admin/is_public here on purpose: a smoke test asserts a non-admin is
+    // bounced off /me/admin, so this profile must stay non-admin. The i18n audit
+    // needs those rows to RENDER and overrides this route itself.
+    if (p === '/api/me') return json({ display_name: 'Test Collector', handle: 'tester', currency: 'USD', is_guest: false, notify_price_drops: true, portfolio_stats: {} });
     if (p === '/api/collection' && m === 'GET') return json({ items: [{ id: 1, quantity: 1, purchase_price: 700, ...SET }], total_value: 850, total_paid: 700, count: 1 });
     // Free tier by default (pro:false) so the Insights gate + locked range
     // pills render; Pro tests override this route per-test.

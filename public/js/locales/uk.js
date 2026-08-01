@@ -28,6 +28,9 @@ export const uk = {
   counts: {
     results: '{n} результатів', resultsOne: '1 результат', collected: '{owned}/{total} зібрано', owned: '{n} у власності', ofFigs: 'з {total} фігурок', figs: '{n} фігурок', figsOne: '1 фігурка',
   },
+  me: {
+    trophyShelf: 'Полиця трофеїв ({n}/6)',
+  },
   kids: {
     xp: '{n} XP', xpToLevel: '{n} XP до рівня {level}', maxLevel: 'Максимальний рівень!', pcs: '{n} деталей', earned: '{n} з {total} отримано', setsToGo: 'Ще {n} наборів', setsToGoOne: 'Ще 1 набір!',
   },

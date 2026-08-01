@@ -28,6 +28,9 @@ export const es = {
   counts: {
     results: '{n} resultados', resultsOne: '1 resultado', collected: '{owned}/{total} coleccionadas', owned: '{n} en propiedad', ofFigs: 'de {total} minifiguras', figs: '{n} minifiguras', figsOne: '1 minifigura',
   },
+  me: {
+    trophyShelf: 'Estantería de trofeos ({n}/6)',
+  },
   kids: {
     xp: '{n} XP', xpToLevel: '{n} XP para el nivel {level}', maxLevel: '¡Nivel máximo!', pcs: '{n} piezas', earned: '{n} de {total} conseguidos', setsToGo: 'Faltan {n} sets', setsToGoOne: '¡Falta 1 set!',
   },

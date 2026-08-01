@@ -1,5 +1,12 @@
 /** Japanese exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Ownership": "所有状況",
+  "Unowned": "未所有",
+  "Series": "シリーズ",
+  "BrickLink (new)": "BrickLink（新品）",
+  "Updating soon": "まもなく更新",
+  "Several recent sources agree on this price.": "複数の最近のソースがこの価格で一致しています。",
+  "Up to date": "最新",
   "- bypasses shared AI limits": "- 共有AI制限を回避",
   "— most accurate and works on any device. Choose “Prefer on-device” to run free, private Gemma / Gemini Nano locally": "— 最も正確で、あらゆる端末で動作します。無料でプライベートなGemma / Gemini Nanoをローカルで実行するには「デバイス上を優先」を選択してください",
   "— Requires Chrome on desktop/Android with Gemini Nano flags enabled.": "— Gemini Nanoフラグを有効にしたデスクトップ/AndroidのChromeが必要です。",

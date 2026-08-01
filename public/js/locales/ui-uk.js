@@ -1,5 +1,12 @@
 /** Ukrainian exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Ownership": "Власність",
+  "Unowned": "Немає у власності",
+  "Series": "Серія",
+  "BrickLink (new)": "BrickLink (новий)",
+  "Updating soon": "Скоро оновиться",
+  "Several recent sources agree on this price.": "Кілька свіжих джерел збігаються щодо цієї ціни.",
+  "Up to date": "Актуально",
   "- bypasses shared AI limits": "- обходить спільні ліміти ШІ",
   "— most accurate and works on any device. Choose “Prefer on-device” to run free, private Gemma / Gemini Nano locally": "— найточніше і працює на будь-якому пристрої. Оберіть «Надавати перевагу пристрою», щоб безкоштовно й приватно запускати Gemma / Gemini Nano локально",
   "— Requires Chrome on desktop/Android with Gemini Nano flags enabled.": "— потрібен Chrome на комп'ютері/Android з увімкненими прапорцями Gemini Nano.",

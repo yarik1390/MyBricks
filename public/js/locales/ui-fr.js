@@ -1,5 +1,12 @@
 /** French exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Ownership": "Possession",
+  "Unowned": "Non possédé",
+  "Series": "Série",
+  "BrickLink (new)": "BrickLink (neuf)",
+  "Updating soon": "Mise à jour imminente",
+  "Several recent sources agree on this price.": "Plusieurs sources récentes s'accordent sur ce prix.",
+  "Up to date": "À jour",
   "- bypasses shared AI limits": "- contourne les limites d'IA partagées",
   "— most accurate and works on any device. Choose “Prefer on-device” to run free, private Gemma / Gemini Nano locally": "— la plus précise et fonctionne sur n'importe quel appareil. Choisissez « Préférer sur l'appareil » pour exécuter Gemma / Gemini Nano localement, gratuitement et en privé",
   "— Requires Chrome on desktop/Android with Gemini Nano flags enabled.": "— Nécessite Chrome sur ordinateur/Android avec les flags Gemini Nano activés.",

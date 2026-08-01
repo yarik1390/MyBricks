@@ -28,6 +28,9 @@ export const ja = {
   counts: {
     results: '{n} 件', resultsOne: '1 件', collected: '{owned}/{total} 収集済み', owned: '{n} 個所有', ofFigs: '全 {total} 体中', figs: '{n} 体', figsOne: '1 体',
   },
+  me: {
+    trophyShelf: 'トロフィー棚（{n}/6）',
+  },
   kids: {
     xp: '{n} XP', xpToLevel: 'レベル {level} まであと {n} XP', maxLevel: '最高レベル！', pcs: '{n} ピース', earned: '{total} 個中 {n} 個獲得', setsToGo: 'あと {n} セット', setsToGoOne: 'あと 1 セット！',
   },

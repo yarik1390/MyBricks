@@ -962,6 +962,12 @@
     ]
   },
   {
+    "text": "BrickLink (new)",
+    "files": [
+      "overlay-audit"
+    ]
+  },
+  {
     "text": "BrickLink import failed:",
     "files": [
       "views/me-data.js"
@@ -4409,6 +4415,12 @@
     ]
   },
   {
+    "text": "Ownership",
+    "files": [
+      "overlay-audit"
+    ]
+  },
+  {
     "text": "Part out",
     "files": [
       "views/portfolio-detail-market.js"
@@ -5824,6 +5836,12 @@
     ]
   },
   {
+    "text": "Series",
+    "files": [
+      "overlay-audit"
+    ]
+  },
+  {
     "text": "Service categories",
     "files": [
       "views/me-admin.js"
@@ -5941,6 +5959,12 @@
     "text": "Setup needed",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Several recent sources agree on this price.",
+    "files": [
+      "overlay-audit"
     ]
   },
   {
@@ -6802,15 +6826,33 @@
     ]
   },
   {
+    "text": "Unowned",
+    "files": [
+      "overlay-audit"
+    ]
+  },
+  {
     "text": "Unsupported",
     "files": [
       "harvest-v2"
     ]
   },
   {
+    "text": "Up to date",
+    "files": [
+      "overlay-audit"
+    ]
+  },
+  {
     "text": "Updating locations...",
     "files": [
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "Updating soon",
+    "files": [
+      "overlay-audit"
     ]
   },
   {

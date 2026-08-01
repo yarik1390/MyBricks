@@ -1,5 +1,12 @@
 /** Hindi exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Ownership": "स्वामित्व",
+  "Unowned": "स्वामित्व नहीं",
+  "Series": "श्रृंखला",
+  "BrickLink (new)": "BrickLink (नया)",
+  "Updating soon": "जल्द अपडेट होगा",
+  "Several recent sources agree on this price.": "कई हालिया स्रोत इस कीमत पर सहमत हैं।",
+  "Up to date": "अद्यतन",
   "- bypasses shared AI limits": "- साझा AI सीमाओं को बायपास करता है",
   "— most accurate and works on any device. Choose “Prefer on-device” to run free, private Gemma / Gemini Nano locally": "— सबसे सटीक और किसी भी डिवाइस पर काम करता है। मुफ़्त, निजी Gemma / Gemini Nano को लोकल रूप से चलाने के लिए “डिवाइस-पर प्राथमिकता” चुनें",
   "— Requires Chrome on desktop/Android with Gemini Nano flags enabled.": "— डेस्कटॉप/Android पर Chrome चाहिए जिसमें Gemini Nano फ़्लैग सक्षम हों।",

@@ -28,6 +28,9 @@ export const de = {
   counts: {
     results: '{n} Ergebnisse', resultsOne: '1 Ergebnis', collected: '{owned}/{total} gesammelt', owned: '{n} im Besitz', ofFigs: 'von {total} Figuren', figs: '{n} Figuren', figsOne: '1 Figur',
   },
+  me: {
+    trophyShelf: 'Pokalregal ({n}/6)',
+  },
   kids: {
     xp: '{n} XP', xpToLevel: '{n} XP bis Level {level}', maxLevel: 'Max. Level!', pcs: '{n} Teile', earned: '{n} von {total} verdient', setsToGo: 'Noch {n} Sets', setsToGoOne: 'Noch 1 Set!',
   },
