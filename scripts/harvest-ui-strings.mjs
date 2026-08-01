@@ -24,7 +24,13 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, extname } from 'node:path';
 
 const ROOTS = ['public/js/views', 'public/js/components', 'public/js/lib'];
-const SKIP_FILES = /pure\.js$|pure-core\.js$|morphdom\.js$|i18n\.js$|locales\//;
+// The app SHELL is not JavaScript. "Skip to content", the nav labels and the
+// offline banner live in index.html and were invisible to the first harvest.
+const HTML_FILES = ['public/index.html'];
+// pure.js was skipped as "pure logic" — wrong. It returns user-facing COPY from
+// helpers like catalogFilterSummary() and valuationTrust() ("Market price",
+// "No filters active"), so its strings reach the screen like any other.
+const SKIP_FILES = /pure-core\.js$|morphdom\.js$|i18n\.js$|locales\/|__tests__\//;
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -87,7 +93,23 @@ for (const root of ROOTS) {
     for (const m of src.matchAll(/\b(?:toast|confirm|alert|promptSheet|aria-label=|placeholder=|title=)\s*\(?\s*["']([^"'`]{2,160})["']/g)) add(m[1], short);
     // 3. HTML attributes inside templates.
     for (const m of src.matchAll(/(?:aria-label|placeholder|title)="([^"{}`$]{2,160})"/g)) add(m[1], short);
+    // 4. Both branches of a ternary INSIDE a template hole:
+    //      <button>${owned ? 'Your Sets' : 'All sets'}</button>
+    // Rule 1 cannot see these — it requires the span between > and < to contain
+    // no `$`, which a hole always does — and they turned out to be a large
+    // share of the visible untranslated text.
+    for (const m of src.matchAll(/\?\s*(['"])([^'"`\n]{3,160})\1\s*:\s*(['"])([^'"`\n]{3,160})\3/g)) {
+      add(m[2], short); add(m[4], short);
+    }
   }
+}
+
+// The app shell: static markup, so plain tag-text extraction is enough.
+for (const file of HTML_FILES) {
+  const src = readFileSync(file, 'utf8');
+  const short = file.replace('public/', '');
+  for (const m of src.matchAll(/>([^<>{}`$]{2,160})</g)) add(m[1], short);
+  for (const m of src.matchAll(/(?:aria-label|placeholder|title|content)="([^"{}`$]{2,160})"/g)) add(m[1], short);
 }
 
 const rows = [...found.entries()]
