@@ -2314,12 +2314,6 @@
     ]
   },
   {
-    "text": "Estimated by AI because fresh market data wasn",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Estimated by AI because fresh market data wasn't available",
     "files": [
       "views/portfolio-detail.js"
@@ -2360,12 +2354,6 @@
     "text": "Every background process and admin job, updated live while this page is open. Each row shows what it does, when it last ran, and the result.",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Exchange rates couldn",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -2714,12 +2702,6 @@
     "text": "Gemini Nano (Chrome Built-in AI)",
     "files": [
       "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "Gemini Nano is not supported and Gemma isn",
-    "files": [
-      "components/advisor.js"
     ]
   },
   {
@@ -4388,12 +4370,6 @@
     "text": "Older price",
     "files": [
       "harvest-v2"
-    ]
-  },
-  {
-    "text": "On-device AI couldn",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {
@@ -6142,13 +6118,6 @@
     ]
   },
   {
-    "text": "Sharing isn",
-    "files": [
-      "views/portfolio-detail.js",
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Sharing isn't available on this device",
     "files": [
       "harvest-v3"
@@ -6334,12 +6303,6 @@
     "text": "Some items from your guest vault didn't sync when you signed in. Retry now — already-synced sets are skipped.",
     "files": [
       "views/me-data.js"
-    ]
-  },
-  {
-    "text": "Some local items couldn",
-    "files": [
-      "views/login.js"
     ]
   },
   {
@@ -7267,12 +7230,6 @@
     "text": "We sent a confirmation link to",
     "files": [
       "views/login.js"
-    ]
-  },
-  {
-    "text": "WebGPU is required for local scanning but isn",
-    "files": [
-      "views/me-integrations.js"
     ]
   },
   {
