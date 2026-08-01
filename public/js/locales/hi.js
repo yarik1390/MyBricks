@@ -23,9 +23,13 @@ export const hi = {
     reliablePrice: 'विश्वसनीय मूल्य', pricingDetails: 'मूल्य विवरण', priceHistory: 'मूल्य इतिहास',
     details: 'विवरण', estimated: 'अनुमानित', year: 'वर्ष', theme: 'थीम',
     addToWishlist: 'इच्छा-सूची में जोड़ें', inWishlist: 'इच्छा-सूची में है',
+    addToVaultPrice: 'वॉल्ट में जोड़ें · {price}', priceHistoryDays: 'कीमत इतिहास · {days} दिन', priceHistoryShort: 'कीमत इतिहास · {days} दि', fromSources: '{n} बाज़ार स्रोतों से', fromSourcesOne: '1 बाज़ार स्रोत से', typicalRange: ' · आमतौर पर {low}–{high}',
   },
   counts: {
     results: '{n} परिणाम', resultsOne: '1 परिणाम', collected: '{owned}/{total} एकत्रित', owned: '{n} स्वामित्व में', ofFigs: '{total} में से', figs: '{n} मिनीफ़िगर', figsOne: '1 मिनीफ़िगर',
+  },
+  kids: {
+    xp: '{n} XP', xpToLevel: 'लेवल {level} तक {n} XP', maxLevel: 'अधिकतम लेवल!', pcs: '{n} पुर्जे', earned: '{total} में से {n} अर्जित', setsToGo: '{n} सेट बाकी', setsToGoOne: '1 सेट बाकी!',
   },
   fees: {
     marketplace: 'मार्केटप्लेस शुल्क ({pct}%)', payment: 'भुगतान शुल्क ({pct}% + निश्चित)',
@@ -46,10 +50,12 @@ export const hi = {
   vault: {
     title: 'संग्रह', empty: 'आपका संग्रह खाली है', emptyDesc: 'मूल्य ट्रैक करने के लिए एक सेट जोड़ें।',
     setsOwned: 'स्वामित्व वाले सेट', totalValue: 'कुल मूल्य', invested: 'निवेशित', gain: 'लाभ', addSet: 'सेट जोड़ें',
+    investedAmount: 'निवेश {amount}',
   },
   wishlist: {
     title: 'इच्छा-सूची', empty: 'आपकी इच्छा-सूची खाली है', targetPrice: 'लक्ष्य मूल्य',
     priceDropAlert: 'कीमत घटने पर सूचित करें', remove: 'इच्छा-सूची से हटाएँ',
+    setsCount: '{n} सेट', setsCountOne: '1 सेट', alertsCount: '{n} अलर्ट', alertsCountOne: '1 अलर्ट', nowPrice: 'अभी {price}',
   },
 };
 export default hi;

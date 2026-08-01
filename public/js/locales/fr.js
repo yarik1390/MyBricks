@@ -23,9 +23,13 @@ export const fr = {
     reliablePrice: 'Prix fiable', pricingDetails: 'Détails du prix', priceHistory: 'Historique des prix',
     details: 'Détails', estimated: 'Estimé', year: 'Année', theme: 'Thème',
     addToWishlist: 'Ajouter aux envies', inWishlist: 'Dans vos envies',
+    addToVaultPrice: 'Ajouter au coffre · {price}', priceHistoryDays: 'Historique des prix · {days} jours', priceHistoryShort: 'Historique des prix · {days} j', fromSources: 'De {n} sources de marché', fromSourcesOne: 'De 1 source de marché', typicalRange: ' · généralement {low}–{high}',
   },
   counts: {
     results: '{n} résultats', resultsOne: '1 résultat', collected: '{owned}/{total} collectées', owned: '{n} en possession', ofFigs: 'sur {total} figurines', figs: '{n} figurines', figsOne: '1 figurine',
+  },
+  kids: {
+    xp: '{n} XP', xpToLevel: '{n} XP avant le niveau {level}', maxLevel: 'Niveau max !', pcs: '{n} pièces', earned: '{n} sur {total} obtenus', setsToGo: 'Encore {n} sets', setsToGoOne: 'Encore 1 set !',
   },
   fees: {
     marketplace: 'Frais de place de marché ({pct}%)', payment: 'Frais de paiement ({pct}% + fixe)',
@@ -46,10 +50,12 @@ export const fr = {
   vault: {
     title: 'Coffre', empty: 'Votre coffre est vide', emptyDesc: 'Ajoutez un set pour suivre sa valeur.',
     setsOwned: 'Sets possédés', totalValue: 'Valeur totale', invested: 'Investi', gain: 'Gain', addSet: 'Ajouter un set',
+    investedAmount: 'Investi {amount}',
   },
   wishlist: {
     title: 'Liste d’envies', empty: 'Votre liste d’envies est vide', targetPrice: 'Prix cible',
     priceDropAlert: 'M’alerter en cas de baisse', remove: 'Retirer des envies',
+    setsCount: '{n} sets', setsCountOne: '1 set', alertsCount: '{n} alertes', alertsCountOne: '1 alerte', nowPrice: 'Maintenant {price}',
   },
 };
 export default fr;

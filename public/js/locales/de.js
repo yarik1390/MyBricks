@@ -23,9 +23,13 @@ export const de = {
     reliablePrice: 'Verlässlicher Preis', pricingDetails: 'Preisdetails', priceHistory: 'Preisverlauf',
     details: 'Details', estimated: 'Geschätzt', year: 'Jahr', theme: 'Thema',
     addToWishlist: 'Zur Wunschliste', inWishlist: 'Auf deiner Wunschliste',
+    addToVaultPrice: 'In den Tresor · {price}', priceHistoryDays: 'Preisverlauf · {days} Tage', priceHistoryShort: 'Preisverlauf · {days} T.', fromSources: 'Aus {n} Marktquellen', fromSourcesOne: 'Aus 1 Marktquelle', typicalRange: ' · typisch {low}–{high}',
   },
   counts: {
     results: '{n} Ergebnisse', resultsOne: '1 Ergebnis', collected: '{owned}/{total} gesammelt', owned: '{n} im Besitz', ofFigs: 'von {total} Figuren', figs: '{n} Figuren', figsOne: '1 Figur',
+  },
+  kids: {
+    xp: '{n} XP', xpToLevel: '{n} XP bis Level {level}', maxLevel: 'Max. Level!', pcs: '{n} Teile', earned: '{n} von {total} verdient', setsToGo: 'Noch {n} Sets', setsToGoOne: 'Noch 1 Set!',
   },
   fees: {
     marketplace: 'Marktplatzgebühr ({pct}%)', payment: 'Zahlungsgebühr ({pct}% + fest)',
@@ -46,10 +50,12 @@ export const de = {
   vault: {
     title: 'Tresor', empty: 'Dein Tresor ist leer', emptyDesc: 'Füge ein Set hinzu, um seinen Wert zu verfolgen.',
     setsOwned: 'Sets im Besitz', totalValue: 'Gesamtwert', invested: 'Investiert', gain: 'Gewinn', addSet: 'Set hinzufügen',
+    investedAmount: 'Investiert {amount}',
   },
   wishlist: {
     title: 'Wunschliste', empty: 'Deine Wunschliste ist leer', targetPrice: 'Zielpreis',
     priceDropAlert: 'Bei Preissenkung benachrichtigen', remove: 'Von der Wunschliste entfernen',
+    setsCount: '{n} Sets', setsCountOne: '1 Set', alertsCount: '{n} Hinweise', alertsCountOne: '1 Hinweis', nowPrice: 'Jetzt {price}',
   },
 };
 export default de;

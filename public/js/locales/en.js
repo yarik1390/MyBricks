@@ -73,6 +73,21 @@ export const en = {
     theme: 'Theme',
     addToWishlist: 'Add to wishlist',
     inWishlist: 'On your wishlist',
+    addToVaultPrice: 'Add to vault · {price}',
+    priceHistoryDays: 'Price history · {days} days',
+    priceHistoryShort: 'Price history · {days}d',
+    fromSources: 'From {n} market sources',
+    fromSourcesOne: 'From 1 market source',
+    typicalRange: ' · typically {low}–{high}',
+  },
+  kids: {
+    xp: '{n} XP',
+    xpToLevel: '{n} XP to Level {level}',
+    maxLevel: 'Max Level!',
+    pcs: '{n} pcs',
+    earned: '{n} of {total} earned',
+    setsToGo: '{n} sets to go',
+    setsToGoOne: '1 set to go!',
   },
   counts: {
     // Interpolated UI: the rendered node contains a value, so the exact-match
@@ -119,6 +134,7 @@ export const en = {
     setsOwned: 'Sets owned',
     totalValue: 'Total value',
     invested: 'Invested',
+    investedAmount: 'Invested {amount}',
     gain: 'Gain',
     addSet: 'Add a set',
   },
@@ -128,6 +144,11 @@ export const en = {
     targetPrice: 'Target price',
     priceDropAlert: 'Alert me on a price drop',
     remove: 'Remove from wishlist',
+    setsCount: '{n} sets',
+    setsCountOne: '1 set',
+    alertsCount: '{n} alerts',
+    alertsCountOne: '1 alert',
+    nowPrice: 'Now {price}',
   },
 };
 

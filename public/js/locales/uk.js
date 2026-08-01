@@ -23,9 +23,13 @@ export const uk = {
     reliablePrice: 'Надійна ціна', pricingDetails: 'Деталі ціни', priceHistory: 'Історія цін',
     details: 'Деталі', estimated: 'Оцінка', year: 'Рік', theme: 'Тема',
     addToWishlist: 'До списку бажань', inWishlist: 'У списку бажань',
+    addToVaultPrice: 'Додати до сховища · {price}', priceHistoryDays: 'Історія цін · {days} днів', priceHistoryShort: 'Історія цін · {days} дн.', fromSources: 'З {n} ринкових джерел', fromSourcesOne: 'З 1 ринкового джерела', typicalRange: ' · зазвичай {low}–{high}',
   },
   counts: {
     results: '{n} результатів', resultsOne: '1 результат', collected: '{owned}/{total} зібрано', owned: '{n} у власності', ofFigs: 'з {total} фігурок', figs: '{n} фігурок', figsOne: '1 фігурка',
+  },
+  kids: {
+    xp: '{n} XP', xpToLevel: '{n} XP до рівня {level}', maxLevel: 'Максимальний рівень!', pcs: '{n} деталей', earned: '{n} з {total} отримано', setsToGo: 'Ще {n} наборів', setsToGoOne: 'Ще 1 набір!',
   },
   fees: {
     marketplace: 'Комісія маркетплейсу ({pct}%)', payment: 'Комісія за оплату ({pct}% + фікс.)',
@@ -46,10 +50,12 @@ export const uk = {
   vault: {
     title: 'Сховище', empty: 'Ваше сховище порожнє', emptyDesc: 'Додайте набір, щоб стежити за його вартістю.',
     setsOwned: 'Наборів у власності', totalValue: 'Загальна вартість', invested: 'Вкладено', gain: 'Прибуток', addSet: 'Додати набір',
+    investedAmount: 'Вкладено {amount}',
   },
   wishlist: {
     title: 'Список бажань', empty: 'Ваш список бажань порожній', targetPrice: 'Бажана ціна',
     priceDropAlert: 'Сповістити про зниження ціни', remove: 'Прибрати зі списку бажань',
+    setsCount: '{n} наборів', setsCountOne: '1 набір', alertsCount: '{n} сповіщень', alertsCountOne: '1 сповіщення', nowPrice: 'Зараз {price}',
   },
 };
 export default uk;

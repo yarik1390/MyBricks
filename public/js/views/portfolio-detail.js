@@ -175,7 +175,7 @@ function paintSetDetail(set, entry) {
       <div class="detail-content-col">
         <div class="detail-title-row">
           <div>
-            <div class="detail-eyebrow">${escapeHtml(set.theme || "")}${hasImg ? "" : ` · #${escapeHtml(set.set_num)}`}${set.coming_soon ? " · <span style='color:var(--accent);font-weight:700;'>COMING SOON</span>" : `${set.retired ? " · RETIRED" : ""}${set.lego_retiring_soon ? " · <span style='color:var(--down);font-weight:700;'>RETIRING SOON</span>" : ""}`}</div>
+            <div class="detail-eyebrow">${escapeHtml(set.theme || "")}${hasImg ? "" : ` · #${escapeHtml(set.set_num)}`}${set.coming_soon ? " · <span style='color:var(--accent);font-weight:700;'>COMING SOON</span>" : `${set.retired ? " · <span>RETIRED</span>" : ""}${set.lego_retiring_soon ? " · <span style='color:var(--down);font-weight:700;'>RETIRING SOON</span>" : ""}`}</div>
             <h1 class="detail-title${titleSizeClass}">${escapeHtml(set.name)}</h1>
           </div>
           <button class="detail-share-btn icon-btn" id="shareBtn" aria-label="Share">${I.share()}</button>
@@ -322,8 +322,8 @@ function valueProvenanceHTML(set) {
   if (Number(set.market_value) > 0) {
     const n = Array.isArray(set.market_value_basis) ? set.market_value_basis.length : 0;
     const lo = Number(set.market_value_low), hi = Number(set.market_value_high);
-    const range = lo > 0 && hi > 0 && hi > lo ? ` · typically ${fmtMoney(lo, { cents: 0 })}–${fmtMoney(hi, { cents: 0 })}` : '';
-    return n > 0 ? `<div class="detail-summary-src">From ${n} market source${n === 1 ? '' : 's'}${range}</div>` : '';
+    const range = lo > 0 && hi > 0 && hi > lo ? t('detail.typicalRange', { low: fmtMoney(lo, { cents: 0 }), high: fmtMoney(hi, { cents: 0 }) }) : '';
+    return n > 0 ? `<div class="detail-summary-src">${n === 1 ? t('detail.fromSourcesOne') : t('detail.fromSources', { n })}${range}</div>` : '';
   }
   if (estMark(set)) return `<div class="detail-summary-src">Estimate — no recent market sales for this set yet</div>`;
   return '';
@@ -372,7 +372,7 @@ function detailActionBarHTML(set, entry, isWish) {
   const displayVal = setDisplayValue(set);
   return `
     <div class="detail-action-bar">
-      <button class="btn-primary" id="addBtn" style="flex:1;">${I.plus()}<span>Add to vault · ${estMark(set)}${fmtMoney(displayVal, { cents: 0 })}</span></button>
+      <button class="btn-primary" id="addBtn" style="flex:1;">${I.plus()}<span>${t("detail.addToVaultPrice", { price: estMark(set) + fmtMoney(displayVal, { cents: 0 }) })}</span></button>
       <button class="btn-secondary ab-wish" id="wishToggle" aria-label="${isWish ? 'Remove from wishlist' : 'Add to wishlist'}">${isWish ? I.heartF() : I.heart()}</button>
     </div>`;
 }
@@ -673,7 +673,7 @@ function infoTabHTML(set, entry, isWish) {
     </template>`}
 
     <div class="detail-card">
-      <div class="detail-card-title">${I.tag()}Price history · 90 days</div>
+      <div class="detail-card-title">${I.tag()}${t("detail.priceHistoryDays", { days: 90 })}</div>
       <div class="spark-wrap" id="setSpark" style="height:60px;"></div>
       <div class="spark-legend" id="setSparkLegend"></div>
     </div>

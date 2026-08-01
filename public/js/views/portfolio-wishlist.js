@@ -75,7 +75,7 @@ export async function renderWishlist() {
       <div class="topbar">
         <a href="#/" class="icon-btn" aria-label="Back" style="margin-top:2px;margin-right:8px;">${I.chevL()}</a>
         <div class="topbar-heading">
-          <div class="topbar-eyebrow">${state.wishlist.length} set${state.wishlist.length !== 1 ? "s" : ""} · ${totalAlerts} alert${totalAlerts !== 1 ? "s" : ""}</div>
+          <div class="topbar-eyebrow">${state.wishlist.length === 1 ? t("wishlist.setsCountOne") : t("wishlist.setsCount", { n: state.wishlist.length })} · ${totalAlerts === 1 ? t("wishlist.alertsCountOne") : t("wishlist.alertsCount", { n: totalAlerts })}</div>
           <h1 class="topbar-title">Wishlist</h1>
         </div>
       </div>
@@ -200,7 +200,7 @@ function wishlistCardHTML(w) {
           <span>${escapeHtml(w.set_num)}</span>
         </div>
         <div class="gap-row">
-          <span style="color:var(--ink-mute);">Now ${fmtMoney(w.current_value, { cents: 0 })}</span>
+          <span style="color:var(--ink-mute);">${t("wishlist.nowPrice", { price: fmtMoney(w.current_value, { cents: 0 }) })}</span>
           <span style="color:${hit ? "var(--up)" : "var(--ink)"};font-weight:700;">${gap == null ? "No target" : hit ? "AT TARGET" : "Target " + fmtMoney(w.target_price, { cents: 0 })}</span>
         </div>
         <div class="progress${hit ? " over" : ""}"><div style="width:${progress}%;"></div></div>

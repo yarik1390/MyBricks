@@ -517,7 +517,7 @@ function showFigDetail(f) {
         </div>
         <div class="fig-detail-source">${figSourceLabel(f.source)}${f.cached_at ? ` · ${escapeHtml(fmtDateUpdated(f.cached_at))}` : ''}</div>
         <div class="fig-spark-wrap" id="figSparkWrap" style="display:none;">
-          <div class="fig-spark-lbl">Price history · 90d</div>
+          <div class="fig-spark-lbl">${t("detail.priceHistoryShort", { days: 90 })}</div>
           <div class="fig-spark" id="figSparkline" style="height:72px;"></div>
         </div>` : ''}
         ${(scarcityTxt || f.year || f.num_parts) ? `

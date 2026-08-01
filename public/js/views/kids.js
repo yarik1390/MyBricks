@@ -6,6 +6,7 @@ import { go } from '../router.js';
 import { setModePref, setSkinPref } from '../theme.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { BADGE_DEFS, levelForXp, xpForLevel } from '../lib/kids-xp.js';
+import { t } from '../lib/i18n.js';
 
 function renderSetCardKids(set) {
   // Mirror the catalog card image structure so photos hydrate and size correctly:
@@ -23,7 +24,7 @@ function renderSetCardKids(set) {
       </div>
       <div class="set-card-body">
         <div class="set-card-name">${escapeHtml(set.name)}</div>
-        <div class="set-card-meta">${escapeHtml(set.theme || '')} · ${set.pieces ? set.pieces + ' pcs' : ''}</div>
+        <div class="set-card-meta">${escapeHtml(set.theme || '')} · ${set.pieces ? t('kids.pcs', { n: set.pieces }) : ''}</div>
       </div>
     </div>`;
 }
@@ -83,7 +84,7 @@ export async function renderKidsHome() {
           <div class="kids-xp-bar-wrap">
             <div class="kids-xp-bar" style="width:${xpProgress}%"></div>
           </div>
-          <div class="kids-xp-label">${xp} XP${level < 10 ? ` · ${nextLevelXp - xp} XP to Level ${level + 1}` : ' · Max Level!'}</div>
+          <div class="kids-xp-label">${t('kids.xp', { n: xp })}${level < 10 ? ` · ${t('kids.xpToLevel', { n: nextLevelXp - xp, level: level + 1 })}` : ` · ${t('kids.maxLevel')}`}</div>
         </div>
       </div>
 
@@ -206,7 +207,7 @@ export async function renderKidsBadges() {
       <div class="badge-card ${earned ? 'earned' : 'locked'}">
         <div class="badge-emoji">${b.emoji}</div>
         <div class="badge-label">${escapeHtml(b.label)}</div>
-        <div class="badge-sub">${earned ? '✓ Earned!' : needed === 1 ? '1 set to go!' : `${needed} sets to go`}</div>
+        <div class="badge-sub">${earned ? '✓ Earned!' : needed === 1 ? t('kids.setsToGoOne') : t('kids.setsToGo', { n: needed })}</div>
       </div>`;
   }).join('');
 
@@ -216,7 +217,7 @@ export async function renderKidsBadges() {
     <div class="page">
       <div class="page-header" style="margin-bottom:20px">
         <h1 style="font-size:22px;font-weight:800">My Badges</h1>
-        <p style="color:var(--ink-mute);font-size:14px">${earnedSlugs.size} of ${BADGE_DEFS.length} earned</p>
+        <p style="color:var(--ink-mute);font-size:14px">${t('kids.earned', { n: earnedSlugs.size, total: BADGE_DEFS.length })}</p>
       </div>
       <div class="kids-badge-grid">${badgeCards}</div>
       <div style="margin-top:28px;text-align:center">

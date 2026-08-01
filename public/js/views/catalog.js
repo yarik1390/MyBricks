@@ -786,7 +786,7 @@ function catalogCardHTML(s) {
           ${THEME_COLORS[s.theme] ? `<span class="theme-dot" style="background:${THEME_COLORS[s.theme]};"></span>` : ""}
           <span>${s.year || ""}</span>
           <span>${s.pieces || 0}pc</span>
-          ${s.minifigs > 0 ? `<span>${s.minifigs} fig</span>` : ""}
+          ${s.minifigs > 0 ? `<span>${s.minifigs === 1 ? t("counts.figsOne") : t("counts.figs", { n: s.minifigs })}</span>` : ""}
           ${s.subtheme ? `<span>${escapeHtml(s.subtheme)}</span>` : ""}
         </div>
         <div class="set-card-value">${confDot}${estMark(s)}${fmtMoney(dispVal)}</div>

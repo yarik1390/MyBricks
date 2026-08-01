@@ -23,9 +23,13 @@ export const ja = {
     reliablePrice: '信頼できる価格', pricingDetails: '価格の詳細', priceHistory: '価格推移',
     details: '詳細', estimated: '推定', year: '年', theme: 'テーマ',
     addToWishlist: 'ウィッシュリストに追加', inWishlist: 'ウィッシュリストに登録済み',
+    addToVaultPrice: 'ボールトに追加 · {price}', priceHistoryDays: '価格履歴 · {days}日間', priceHistoryShort: '価格履歴 · {days}日', fromSources: '{n} 件の市場ソースから', fromSourcesOne: '1 件の市場ソースから', typicalRange: ' · 通常 {low}–{high}',
   },
   counts: {
     results: '{n} 件', resultsOne: '1 件', collected: '{owned}/{total} 収集済み', owned: '{n} 個所有', ofFigs: '全 {total} 体中', figs: '{n} 体', figsOne: '1 体',
+  },
+  kids: {
+    xp: '{n} XP', xpToLevel: 'レベル {level} まであと {n} XP', maxLevel: '最高レベル！', pcs: '{n} ピース', earned: '{total} 個中 {n} 個獲得', setsToGo: 'あと {n} セット', setsToGoOne: 'あと 1 セット！',
   },
   fees: {
     marketplace: 'マーケットプレイス手数料（{pct}%）', payment: '決済手数料（{pct}% + 固定）',
@@ -46,10 +50,12 @@ export const ja = {
   vault: {
     title: 'コレクション', empty: 'コレクションは空です', emptyDesc: 'セットを追加すると価値の追跡を開始できます。',
     setsOwned: '所有セット数', totalValue: '合計価値', invested: '投資額', gain: '損益', addSet: 'セットを追加',
+    investedAmount: '投資額 {amount}',
   },
   wishlist: {
     title: 'ウィッシュリスト', empty: 'ウィッシュリストは空です', targetPrice: '目標価格',
     priceDropAlert: '値下がり時に通知', remove: 'ウィッシュリストから削除',
+    setsCount: '{n} セット', setsCountOne: '1 セット', alertsCount: '{n} 件の通知', alertsCountOne: '1 件の通知', nowPrice: '現在 {price}',
   },
 };
 export default ja;

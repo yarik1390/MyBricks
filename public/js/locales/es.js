@@ -23,9 +23,13 @@ export const es = {
     reliablePrice: 'Precio fiable', pricingDetails: 'Detalles del precio', priceHistory: 'Historial de precios',
     details: 'Detalles', estimated: 'Estimado', year: 'Año', theme: 'Tema',
     addToWishlist: 'Añadir a deseos', inWishlist: 'En tu lista de deseos',
+    addToVaultPrice: 'Añadir a la cámara · {price}', priceHistoryDays: 'Historial de precios · {days} días', priceHistoryShort: 'Historial de precios · {days} d', fromSources: 'De {n} fuentes de mercado', fromSourcesOne: 'De 1 fuente de mercado', typicalRange: ' · normalmente {low}–{high}',
   },
   counts: {
     results: '{n} resultados', resultsOne: '1 resultado', collected: '{owned}/{total} coleccionadas', owned: '{n} en propiedad', ofFigs: 'de {total} minifiguras', figs: '{n} minifiguras', figsOne: '1 minifigura',
+  },
+  kids: {
+    xp: '{n} XP', xpToLevel: '{n} XP para el nivel {level}', maxLevel: '¡Nivel máximo!', pcs: '{n} piezas', earned: '{n} de {total} conseguidos', setsToGo: 'Faltan {n} sets', setsToGoOne: '¡Falta 1 set!',
   },
   fees: {
     marketplace: 'Comisión del marketplace ({pct}%)', payment: 'Comisión de pago ({pct}% + fija)',
@@ -46,10 +50,12 @@ export const es = {
   vault: {
     title: 'Colección', empty: 'Tu colección está vacía', emptyDesc: 'Añade un set para seguir su valor.',
     setsOwned: 'Sets en propiedad', totalValue: 'Valor total', invested: 'Invertido', gain: 'Ganancia', addSet: 'Añadir un set',
+    investedAmount: 'Invertido {amount}',
   },
   wishlist: {
     title: 'Lista de deseos', empty: 'Tu lista de deseos está vacía', targetPrice: 'Precio objetivo',
     priceDropAlert: 'Avisarme si baja el precio', remove: 'Quitar de deseos',
+    setsCount: '{n} sets', setsCountOne: '1 set', alertsCount: '{n} alertas', alertsCountOne: '1 alerta', nowPrice: 'Ahora {price}',
   },
 };
 export default es;

@@ -75,9 +75,21 @@ function isProse(s) {
   return !REJECT.some((re) => re.test(v));
 }
 
+// Source templates carry HTML-ENCODED text ("Snap &amp; identify"), but the
+// browser hands translateDOM the DECODED text node ("Snap & identify"). An
+// encoded key therefore never matches anything: it is dead weight that still
+// gets translated into every language and still counts towards "100% covered".
+// 15 such keys shipped before a runtime audit caught them.
+const decodeEntities = (s) => s
+  .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&nbsp;/g, ' ');
+
 const found = new Map(); // string -> Set(files)
 const add = (s, file) => {
-  const v = s.replace(/\s+/g, ' ').trim();
+  const v = decodeEntities(s).replace(/\s+/g, ' ').trim();
+  // Decoding can reveal a tag, which means the span was never one text node —
+  // the DOM splits it around the element and no single key can ever match.
+  if (/<[a-z/]/i.test(v)) return;
   if (!isProse(v)) return;
   if (!found.has(v)) found.set(v, new Set());
   found.get(v).add(file);

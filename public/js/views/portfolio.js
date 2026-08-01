@@ -304,7 +304,7 @@ function paintPortfolio() {
           <span class="delta ${gain >= 0 ? "up" : "down"}" role="img" aria-label="${gain >= 0 ? 'Up' : 'Down'} ${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(gainPct)})"><span class="arrow" aria-hidden="true">${gain >= 0 ? "▲" : "▼"}</span>${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(gainPct)})</span>
         </div>
         <div class="hero-meta u-mono-label" style="letter-spacing:0.06em;">
-          <span>Invested ${fmtMoney(p.total_paid)}</span>
+          <span>${t("vault.investedAmount", { amount: fmtMoney(p.total_paid) })}</span>
           ${p.fig_count > 0 ? `<span style="cursor:help;" title="Minifig collection value tracked separately">· Figs ${p.fig_count} (${fmtMoney(p.fig_value || 0)})</span>` : ""}
           ${p.pricing_confidence?.priced ? `<span style="cursor:help;" title="Share of your sets priced from corroborated, fresh market data (high or medium confidence) rather than a thin or estimated value">· ${p.pricing_confidence.pct}% confidently priced</span>` : ""}
           ${ratesUnavailable() && (state.me?.currency || "USD") !== "USD" ? `<span style="color:var(--bv-yellow);cursor:help;" title="Exchange rates couldn't be loaded — values are shown in USD until they refresh">· shown in USD</span>` : ""}

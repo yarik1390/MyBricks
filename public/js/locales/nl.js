@@ -23,9 +23,13 @@ export const nl = {
     reliablePrice: 'Betrouwbare prijs', pricingDetails: 'Prijsdetails', priceHistory: 'Prijsgeschiedenis',
     details: 'Details', estimated: 'Geschat', year: 'Jaar', theme: 'Thema',
     addToWishlist: 'Aan verlanglijst', inWishlist: 'Op je verlanglijst',
+    addToVaultPrice: 'Aan kluis toevoegen · {price}', priceHistoryDays: 'Prijsgeschiedenis · {days} dagen', priceHistoryShort: 'Prijsgeschiedenis · {days} d', fromSources: 'Uit {n} marktbronnen', fromSourcesOne: 'Uit 1 marktbron', typicalRange: ' · doorgaans {low}–{high}',
   },
   counts: {
     results: '{n} resultaten', resultsOne: '1 resultaat', collected: '{owned}/{total} verzameld', owned: '{n} in bezit', ofFigs: 'van {total} figuren', figs: '{n} figuren', figsOne: '1 figuur',
+  },
+  kids: {
+    xp: '{n} XP', xpToLevel: '{n} XP tot niveau {level}', maxLevel: 'Max niveau!', pcs: '{n} onderdelen', earned: '{n} van {total} verdiend', setsToGo: 'Nog {n} sets', setsToGoOne: 'Nog 1 set!',
   },
   fees: {
     marketplace: 'Marktplaatskosten ({pct}%)', payment: 'Betaalkosten ({pct}% + vast)',
@@ -46,10 +50,12 @@ export const nl = {
   vault: {
     title: 'Kluis', empty: 'Je kluis is leeg', emptyDesc: 'Voeg een set toe om de waarde te volgen.',
     setsOwned: 'Sets in bezit', totalValue: 'Totale waarde', invested: 'Geïnvesteerd', gain: 'Winst', addSet: 'Set toevoegen',
+    investedAmount: 'Geïnvesteerd {amount}',
   },
   wishlist: {
     title: 'Verlanglijst', empty: 'Je verlanglijst is leeg', targetPrice: 'Streefprijs',
     priceDropAlert: 'Waarschuw me bij prijsdaling', remove: 'Van verlanglijst verwijderen',
+    setsCount: '{n} sets', setsCountOne: '1 set', alertsCount: '{n} meldingen', alertsCountOne: '1 melding', nowPrice: 'Nu {price}',
   },
 };
 export default nl;
