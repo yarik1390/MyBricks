@@ -2324,6 +2324,12 @@
     ]
   },
   {
+    "text": "could not verify",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "Could not withdraw",
     "files": [
       "harvest-v6"
@@ -3665,6 +3671,12 @@
     ]
   },
   {
+    "text": "five or more independent collectors",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "Fix submitted for approval",
     "files": [
       "components/contribute.js"
@@ -4946,6 +4958,12 @@
     ]
   },
   {
+    "text": "login with fingerprint",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "Longest held:",
     "files": [
       "views/me.js"
@@ -5685,6 +5703,12 @@
     ]
   },
   {
+    "text": "no match",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "NO MATCH",
     "files": [
       "components/scanner.js"
@@ -5790,6 +5814,12 @@
     "text": "No ratings yet — be the first.",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "no sell trigger yet",
+    "files": [
+      "harvest-v7"
     ]
   },
   {
@@ -6677,6 +6707,12 @@
     ]
   },
   {
+    "text": "pop in",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "Populate",
     "files": [
       "harvest-v2"
@@ -6848,6 +6884,12 @@
     "text": "Price tracking just started — check back soon for a trend.",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "price trend has turned down",
+    "files": [
+      "harvest-v7"
     ]
   },
   {
@@ -8019,6 +8061,12 @@
     "text": "S&P 500 Performance Comparison",
     "files": [
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "safe to retry",
+    "files": [
+      "harvest-v7"
     ]
   },
   {
@@ -9356,6 +9404,12 @@
     ]
   },
   {
+    "text": "the climb has flattened",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "The current shadow set has no unresolved extreme conflicts.",
     "files": [
       "views/me-admin.js"
@@ -9521,6 +9575,12 @@
     "text": "To enable in Google Chrome (Desktop or Android):",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "to log each stage",
+    "files": [
+      "harvest-v7"
     ]
   },
   {
@@ -10419,6 +10479,12 @@
     ]
   },
   {
+    "text": "what it does",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "What it means",
     "files": [
       "harvest-v6"
@@ -10446,6 +10512,12 @@
     "text": "When turned on, anyone with the link can view your vault and showcase shelf.",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "when your device supports it",
+    "files": [
+      "harvest-v7"
     ]
   },
   {
@@ -10509,6 +10581,12 @@
     ]
   },
   {
+    "text": "worth keeping an eye on",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "Worth watching",
     "files": [
       "harvest-v2"
@@ -10537,6 +10615,12 @@
     "text": "Year",
     "files": [
       "harvest-v6"
+    ]
+  },
+  {
+    "text": "You",
+    "files": [
+      "harvest-v7"
     ]
   },
   {

@@ -68,7 +68,28 @@ const REJECT = [
   // "icon-btn vault-extra-action", "chip active". Two or more all-lowercase
   // hyphenated tokens is a class list, never a sentence — prose that short has
   // a capital or punctuation.
-  /^[a-z][a-z0-9-]*([ ,]+[a-z][a-z0-9-]*)+$/,   // also "a, button" selector lists
+  // A class list has no English function words; "when your device supports it"
+  // is a sentence fragment split by a link and was being rejected as one.
+  //    The stopword test must match a WHOLE token: \b finds "is" inside the
+  //    class name "is-error" and "no" inside "no-tab-swipe", which let class
+  //    lists straight back through.
+  (v) => {
+    if (!/^[a-z][a-z0-9-]*([ ,]+[a-z][a-z0-9-]*)+$/.test(v)) return false;
+    const STOP = new Set(['the', 'a', 'an', 'and', 'or', 'of', 'to', 'in', 'on', 'for',
+      'with', 'your', 'you', 'we', 'is', 'are', 'it', 'this', 'that', 'when', 'if',
+      'not', 'no', 'from', 'by', 'at', 'as', 'has', 'have', 'each', 'more', 'yet']);
+    return !v.split(/[\s,]+/).some((tok) => STOP.has(tok));
+  },
+  // CSS SELECTOR of bare tag names, e.g. querySelectorAll('a, button'). The
+  // stopword exemption above protects it, because "a" is both an article and a
+  // tag. Every token being an HTML tag is the tell.
+  (v) => {
+    const TAGS = new Set(['a', 'button', 'div', 'span', 'p', 'ul', 'ol', 'li', 'img',
+      'svg', 'input', 'select', 'textarea', 'label', 'form', 'table', 'tr', 'td', 'th',
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'section', 'article', 'header', 'footer', 'nav']);
+    const toks = v.split(/[\s,]+/).filter(Boolean);
+    return toks.length > 1 && toks.every((t) => TAGS.has(t));
+  },
   // Inline CSS values: "opacity .18s ease", "transform .2s linear".
   /\d*\.?\d+(s|ms|px|em|rem|vh|vw)\b/,
   /\b(ease|ease-in|ease-out|linear|cubic-bezier|infinite|forwards|nowrap|inherit)\b/,
@@ -82,7 +103,6 @@ const REJECT = [
   // These shapes are the giveaway and are never real UI: no label begins with a
   // lowercase contraction ending, and none is a bare pronoun.
   /^(re|t|s|ve|ll|d|m)\s/,
-  /^(You|We|It|They|That|There)$/,
 ];
 
 // Acronyms, units and formats that are the SAME word in every language. They
@@ -150,6 +170,10 @@ function isProse(s, rendered = false) {
   // Exempting anything that already read as a label is what makes the two
   // rules agree.
   if (!rendered && !looksLikeLabel && /^[a-z0-9_-]+$/i.test(v)) return false;
+  // A bare pronoun is the tail of a mis-paired contraction ("(You" from
+  // "You're short. (You need 4)") — unless it is rendered, where "You" is the
+  // profile tab's label.
+  if (!rendered && /^(You|We|It|They|That|There)$/.test(v)) return false;
   // Must READ as a complete label: start on a letter/digit, not mid-sentence.
   // Rendered labels may lead with a symbol ("+ Wishlist", "← Back"); a quoted
   // fragment from a split template literal may not.
@@ -157,7 +181,7 @@ function isProse(s, rendered = false) {
   if (/[,;]$/.test(v)) return false;
   if (/["\\]|\bnull\b|\bundefined\b/.test(v)) return false;
   if (rendered && /^[A-Z][A-Z\d\s&()/–—-]+$/.test(v)) return true;   // ALL-CAPS label
-  return !REJECT.some((re) => re.test(v));
+  return !REJECT.some((re) => (typeof re === 'function' ? re(v) : re.test(v)));
 }
 
 // Source templates carry HTML-ENCODED text ("Snap &amp; identify"), but the
@@ -274,7 +298,13 @@ for (const root of ROOTS) {
 
 // The app shell: static markup, so plain tag-text extraction is enough.
 for (const file of HTML_FILES) {
-  const src = readFileSync(file, 'utf8');
+  // <style> and <script> bodies are not copy. Scanning them harvested the CSS
+  // selector "a, button" from methodology.html, which the stopword exemption
+  // then protected from the class-list reject ("a" is a stopword). Stripping
+  // the blocks is the honest fix; filtering their output is whack-a-mole.
+  const src = readFileSync(file, 'utf8')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
   const short = file.replace('public/', '');
   for (const m of src.matchAll(/>([^<>{}`$]{2,160})</g)) add(m[1], short);
   // `content` is deliberately NOT here: <meta content="width=device-width,…">
