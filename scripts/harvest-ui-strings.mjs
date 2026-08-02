@@ -68,12 +68,13 @@ const REJECT = [
   // "icon-btn vault-extra-action", "chip active". Two or more all-lowercase
   // hyphenated tokens is a class list, never a sentence — prose that short has
   // a capital or punctuation.
-  /^[a-z][a-z0-9-]*( [a-z][a-z0-9-]*)+$/,
+  /^[a-z][a-z0-9-]*([ ,]+[a-z][a-z0-9-]*)+$/,   // also "a, button" selector lists
   // Inline CSS values: "opacity .18s ease", "transform .2s linear".
   /\d*\.?\d+(s|ms|px|em|rem|vh|vw)\b/,
   /\b(ease|ease-in|ease-out|linear|cubic-bezier|infinite|forwards|nowrap|inherit)\b/,
   // Pipe/tab-delimited data blobs, e.g. "Harry Potter|n".
   /[|\t]/,
+  /=device-width|initial-scale|user-scalable|charset=/i,   // <meta> directives
 ];
 
 // Acronyms, units and formats that are the SAME word in every language. They
@@ -262,7 +263,10 @@ for (const file of HTML_FILES) {
   const src = readFileSync(file, 'utf8');
   const short = file.replace('public/', '');
   for (const m of src.matchAll(/>([^<>{}`$]{2,160})</g)) add(m[1], short);
-  for (const m of src.matchAll(/(?:aria-label|placeholder|title|content)="([^"{}`$]{2,160})"/g)) add(m[1], short);
+  // `content` is deliberately NOT here: <meta content="width=device-width,…">
+  // is a browser directive, and og:description is page metadata rather than
+  // in-app UI. Both reached the source list before this.
+  for (const m of src.matchAll(/(?:aria-label|placeholder|title)="([^"{}`$]{2,160})"/g)) add(m[1], short);
 }
 
 const rows = [...found.entries()]

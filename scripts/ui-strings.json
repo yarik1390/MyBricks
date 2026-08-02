@@ -270,12 +270,6 @@
     ]
   },
   {
-    "text": "a, button",
-    "files": [
-      "harvest-v6"
-    ]
-  },
-  {
     "text": "About this set",
     "files": [
       "views/portfolio-detail.js"
@@ -10410,12 +10404,6 @@
     "text": "Whole shelf",
     "files": [
       "components/scanner.js"
-    ]
-  },
-  {
-    "text": "width=device-width, initial-scale=1",
-    "files": [
-      "harvest-v6"
     ]
   },
   {
