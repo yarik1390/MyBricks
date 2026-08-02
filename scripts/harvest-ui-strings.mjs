@@ -26,7 +26,13 @@ import { join, extname } from 'node:path';
 const ROOTS = ['public/js/views', 'public/js/components', 'public/js/lib'];
 // The app SHELL is not JavaScript. "Skip to content", the nav labels and the
 // offline banner live in index.html and were invisible to the first harvest.
-const HTML_FILES = ['public/index.html'];
+// methodology.html is a full page of product copy ("How we price LEGO sets"),
+// reachable from every set page, and it was never scanned — HTML_FILES held only
+// the shell. privacy.html and terms.html are deliberately NOT here: they are
+// legal text, where shipping an unreviewed machine translation is a real risk
+// rather than a cosmetic one, and English is the safer default until a human
+// translates them.
+const HTML_FILES = ['public/index.html', 'public/methodology.html'];
 // pure.js was skipped as "pure logic" — wrong. It returns user-facing COPY from
 // helpers like catalogFilterSummary() and valuationTrust() ("Market price",
 // "No filters active"), so its strings reach the screen like any other.
@@ -57,6 +63,17 @@ const REJECT = [
   // passed through by hand in every language.
   /&&|\|\||=>|\+\+|--|\bMath\.|\.\w+\(|[([]\s*[a-z]{1,3}\s*[)\]]/,
   /\+=|-=|\belse if\b|^\d+(\.\d+)?\)/,   // "0.2) score += 8; else if (…"
+  // CLASS LISTS. The broad literal rule (9) sees every quoted string, and this
+  // codebase passes className strings constantly: "btn-secondary compact-btn",
+  // "icon-btn vault-extra-action", "chip active". Two or more all-lowercase
+  // hyphenated tokens is a class list, never a sentence — prose that short has
+  // a capital or punctuation.
+  /^[a-z][a-z0-9-]*( [a-z][a-z0-9-]*)+$/,
+  // Inline CSS values: "opacity .18s ease", "transform .2s linear".
+  /\d*\.?\d+(s|ms|px|em|rem|vh|vw)\b/,
+  /\b(ease|ease-in|ease-out|linear|cubic-bezier|infinite|forwards|nowrap|inherit)\b/,
+  // Pipe/tab-delimited data blobs, e.g. "Harry Potter|n".
+  /[|\t]/,
 ];
 
 // Acronyms, units and formats that are the SAME word in every language. They
@@ -143,6 +160,13 @@ const decodeEntities = (s) => s
   .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
   .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&nbsp;/g, ' ');
 
+// LEGO THEME NAMES are brands, not copy — "Creator", "Friends", "Technic" must
+// read the same in every language. Sourced from the THEME_COLORS map in
+// lib/pure.js rather than hand-listed, so a theme added there is excluded here
+// automatically instead of quietly reaching a translator.
+for (const m of readFileSync('public/js/lib/pure.js', 'utf8')
+  .matchAll(/^\s*"([^"]{2,40})":\s*\{\s*c:/gm)) DO_NOT_TRANSLATE.add(m[1]);
+
 const found = new Map(); // string -> Set(files)
 const add = (s, file, rendered = false) => {
   const v = decodeEntities(s).replace(/\s+/g, ' ').trim();
@@ -211,6 +235,24 @@ for (const root of ROOTS) {
     //      linkRow("#/me/admin", "Admin console", "Catalog imports, jobs, ...")
     for (const m of src.matchAll(/\b(?:linkRow|settingRow|sectionRow|navRow|card|tile|emptyState|conditionStateHTML|chip)\s*\(([^)]{0,400})\)/g)) {
       for (const q of m[1].matchAll(/(['"])([^'"`\n]{2,160})\1/g)) add(q[2], short, true);
+    }
+    // 9. EVERY remaining quoted literal, gated ONLY by the strict prose test.
+    //    Rules 1-8 each chase a syntactic shape, and the shapes kept coming:
+    //    array elements (rows.push(['Used & complete', ...])), positional args
+    //    to helpers not on the list (fact('Packaging', value)), and so on. The
+    //    real gate was never the shape — it is isProse, which already demands a
+    //    phrase or a capitalised word and rejects identifiers, code fragments,
+    //    URLs and CSS. Running it over every literal is both simpler and wider;
+    //    the shape-specific rules above remain only because they pass
+    //    rendered=true where the evidence justifies relaxing the filter.
+    //    A quoted OBJECT KEY is skipped (the literal is followed by a colon):
+    //    those are config and lookup tables — THEME_COLORS is keyed by LEGO
+    //    theme name, so taking keys would have handed "Disney", "Creator" and
+    //    "Collectible Minifigures" to the translators as if they were UI copy.
+    //    Rule 7 already takes the VALUE side of `key: 'string'`.
+    for (const m of src.matchAll(/(['"])((?:[^'"\\`\n]|\\.){3,160})\1(\s*:)?/g)) {
+      if (m[3]) continue;
+      add(m[2], short);
     }
   }
 }

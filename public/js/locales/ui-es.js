@@ -518,7 +518,7 @@ export const ui = {
   "Match your device or pick a side.": "Coincide con tu dispositivo o elige un lado.",
   "Matches weren't found in the local catalog.": "No se encontraron coincidencias en el catálogo local.",
   "Math.abs(dy) * 1.5) show(lb.index + (dx": "Math.abs(dy) * 1.5) show(lb.index + (dx",
-  "Me > Integrations": "Yo &gt; Integraciones",
+  "Me > Integrations": "Yo > Integraciones",
   "Member - BricksVault": "Miembro - BricksVault",
   "Memory saved": "Recuerdo guardado",
   "Mid-size set, moderate appeal": "Set de tamaño medio, atractivo moderado",

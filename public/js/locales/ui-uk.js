@@ -518,7 +518,7 @@ export const ui = {
   "Match your device or pick a side.": "Відповідно до пристрою або оберіть сторону.",
   "Matches weren't found in the local catalog.": "У локальному каталозі збігів не знайдено.",
   "Math.abs(dy) * 1.5) show(lb.index + (dx": "Math.abs(dy) * 1.5) show(lb.index + (dx",
-  "Me > Integrations": "Я &gt; Інтеграції",
+  "Me > Integrations": "Я > Інтеграції",
   "Member - BricksVault": "Учасник - BricksVault",
   "Memory saved": "Спогад збережено",
   "Mid-size set, moderate appeal": "Набір середнього розміру, помірна привабливість",

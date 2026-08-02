@@ -108,6 +108,24 @@
     ]
   },
   {
+    "text": "1 set",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "10 sets in the vault!",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "100 sets! Elite collector 🏆",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "10123 · Star Wars",
     "files": [
       "components/onboarding.js"
@@ -126,9 +144,39 @@
     ]
   },
   {
+    "text": "2 sets",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "2-year forecast",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "2-year projection",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "25 sets! Nice collection.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "2h ago",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "3m ago",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -141,6 +189,18 @@
     "text": "5× scan and revaluation limits",
     "files": [
       "components/onboarding.js"
+    ]
+  },
+  {
+    "text": "50 sets! Dedicated collector 🏅",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "5d ago",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -192,15 +252,39 @@
     ]
   },
   {
+    "text": "A scraped price that disagrees with the set's corroborated value by more than 3× is rejected, not averaged in.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "a set's value is a weighted median of",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "A Sunday summary: value change, top mover, wishlist hits.",
     "files": [
       "views/me.js"
     ]
   },
   {
+    "text": "a, button",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "About this set",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "About This Set",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -234,6 +318,12 @@
     ]
   },
   {
+    "text": "Action failed",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Active",
     "files": [
       "harvest-v2+runtime"
@@ -261,6 +351,12 @@
     "text": "Active asking data",
     "files": [
       "harvest-v4"
+    ]
+  },
+  {
+    "text": "Active only",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -441,6 +537,12 @@
     "text": "Adjust weight, daily cap, and refresh on each service above.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Admin",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -691,6 +793,18 @@
     ]
   },
   {
+    "text": "Amazon Creators API",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Analyzing image locally...",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "and download the Gemma model for offline use.",
     "files": [
       "components/advisor.js"
@@ -703,9 +817,21 @@
     ]
   },
   {
+    "text": "Android links",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Announced retail price",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "App",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -724,6 +850,12 @@
     "text": "App lock on — fingerprint required to open",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "App locked",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -788,6 +920,30 @@
     ]
   },
   {
+    "text": "Architecture",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "are we on wifi?",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "are we truly offline?",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "As an Amazon Associate, Brickvault earns from qualifying purchases.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "As of",
     "files": [
       "views/portfolio-detail-market.js"
@@ -842,6 +998,18 @@
     ]
   },
   {
+    "text": "Asking data plus sold comps only when approved and reachable. No weak sold fallback.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Asking the master builder…",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "AT TARGET",
     "files": [
       "views/portfolio-wishlist.js"
@@ -854,6 +1022,12 @@
     ]
   },
   {
+    "text": "Australia",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Auth not configured",
     "files": [
       "harvest-v4"
@@ -863,6 +1037,12 @@
     "text": "Authentication and user identity.",
     "files": [
       "harvest-v4"
+    ]
+  },
+  {
+    "text": "Authentication canceled",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -887,6 +1067,12 @@
     "text": "Auto-runs weekly (Sunday); CSV downloads are limited to once per 10 minutes. Needs the Legendary-tier token.",
     "files": [
       "harvest-v4"
+    ]
+  },
+  {
+    "text": "Available to pre-order",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -920,6 +1106,12 @@
     ]
   },
   {
+    "text": "Back-order at LEGO.com",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Backfill barcodes",
     "files": [
       "harvest-v2"
@@ -935,6 +1127,18 @@
     "text": "Backups",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Backups unavailable right now.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Badge",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -1001,6 +1205,12 @@
     "text": "Barcode pages plus asking-price refresh.",
     "files": [
       "harvest-v4"
+    ]
+  },
+  {
+    "text": "Barcodes are at least 8 digits — check the number under the bars",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -1082,15 +1292,45 @@
     ]
   },
   {
+    "text": "Biometric authentication is not available on this device",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Biometric authentication is unavailable. Update BricksVault and try again",
     "files": [
       "harvest-v4"
     ]
   },
   {
+    "text": "Biometrics are temporarily locked. Use your device PIN or try again later",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "BL ↗",
     "files": [
       "views/portfolio-wishlist.js"
+    ]
+  },
+  {
+    "text": "Blended market estimate",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Blended values",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Blocked",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -1127,6 +1367,12 @@
     "text": "BrickLink (new)",
     "files": [
       "overlay-audit"
+    ]
+  },
+  {
+    "text": "BrickLink coverage",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -1175,6 +1421,12 @@
     "text": "BrickOwl used",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Brickset / barcode",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -1250,6 +1502,12 @@
     ]
   },
   {
+    "text": "BricksVault export",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "BricksVault insurance report",
     "files": [
       "harvest-v2"
@@ -1274,6 +1532,12 @@
     ]
   },
   {
+    "text": "BricksVault Vault",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Bright Data sold scrape",
     "files": [
       "harvest-v4"
@@ -1284,6 +1548,12 @@
     "files": [
       "views/build.js",
       "views/portfolio-wishlist.js"
+    ]
+  },
+  {
+    "text": "Browser",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -1323,9 +1593,21 @@
     ]
   },
   {
+    "text": "Builder",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Building instructions (PDF)",
     "files": [
       "runtime-audit"
+    ]
+  },
+  {
+    "text": "Built-in AI is not supported on this browser.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -1360,6 +1642,24 @@
     ]
   },
   {
+    "text": "By value",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "bytes START-END/TOTAL",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Camera is unavailable. Use Gallery or type a barcode.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Camera not available — check permissions or try a different browser.",
     "files": [
       "harvest-v4"
@@ -1381,6 +1681,12 @@
     "text": "Camera scanner",
     "files": [
       "index.html"
+    ]
+  },
+  {
+    "text": "Canada",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -1432,6 +1738,12 @@
     ]
   },
   {
+    "text": "Catalog quality unavailable",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Catalog sets",
     "files": [
       "harvest-v4"
@@ -1475,6 +1787,12 @@
     ]
   },
   {
+    "text": "Check eBay sold-comps access in the Services tab; do not fall back to active listings for sold value.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Check for update",
     "files": [
       "views/me-integrations.js"
@@ -1484,6 +1802,36 @@
     "text": "Check out my LEGO collection on BricksVault!",
     "files": [
       "harvest-v4"
+    ]
+  },
+  {
+    "text": "Check provider credentials, scopes, and account access.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Check Supabase URL, anon key, and JWT secret.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Check the D1 binding.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Check the latest failure and retry after provider status is healthy.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Check the number and try again.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -1585,6 +1933,12 @@
     ]
   },
   {
+    "text": "Closest to target",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Cloud AI (recommended)",
     "files": [
       "views/me-integrations.js"
@@ -1664,6 +2018,12 @@
     ]
   },
   {
+    "text": "Coming Soon to LEGO.com",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Common",
     "files": [
       "harvest-v2+runtime"
@@ -1736,6 +2096,12 @@
     ]
   },
   {
+    "text": "Confidence you can see",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Configure only if you want this feature.",
     "files": [
       "lib/pure.js"
@@ -1745,6 +2111,12 @@
     "text": "Configured providers",
     "files": [
       "harvest-v4"
+    ]
+  },
+  {
+    "text": "Configured service.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -1802,6 +2174,12 @@
     ]
   },
   {
+    "text": "Consulting the brick oracle…",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Continue",
     "files": [
       "harvest-v5"
@@ -1814,6 +2192,12 @@
     ]
   },
   {
+    "text": "Continue valuation v3 shadow checks.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Continue with Apple",
     "files": [
       "views/login.js"
@@ -1823,6 +2207,12 @@
     "text": "Continue with Google",
     "files": [
       "views/login.js"
+    ]
+  },
+  {
+    "text": "Contribution queue unavailable",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -1841,6 +2231,12 @@
     "text": "Contributions are reviewed before becoming public, keeping shared set data trustworthy.",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Copied — paste it wherever you need it.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -1868,6 +2264,18 @@
     ]
   },
   {
+    "text": "Copy your admin token:",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Core",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Could not identify",
     "files": [
       "components/scanner.js"
@@ -1886,9 +2294,45 @@
     ]
   },
   {
+    "text": "Could not open secure sign-in",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Could not open tour",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Could not submit",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Could not update retail market",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Could not update source match.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Could not upload",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Could not withdraw",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -2000,15 +2444,33 @@
     ]
   },
   {
+    "text": "Counting the studs…",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Counting your bricks…",
     "files": [
       "views/me.js"
     ]
   },
   {
+    "text": "courtesy of Brickset.com",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Create account",
     "files": [
       "views/login.js"
+    ]
+  },
+  {
+    "text": "Creators API",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -2060,9 +2522,21 @@
     ]
   },
   {
+    "text": "Current PIN incorrect or something went wrong.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Current retail acquisition price, never part of resale value.",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Current slice",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -2087,6 +2561,18 @@
     "text": "D1 write budget",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Daily cap",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Daily cap must be a positive integer or blank.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -2120,6 +2606,12 @@
     ]
   },
   {
+    "text": "Data fixes",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Deal check",
     "files": [
       "views/portfolio-detail-market.js"
@@ -2136,6 +2628,12 @@
     "text": "Deals",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Decent health, but room to improve on theme diversification or set completeness.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -2226,6 +2724,12 @@
     "text": "Details",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Dimensions",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -2331,6 +2835,18 @@
     ]
   },
   {
+    "text": "Download cancelled.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Download stalled — connection may be idle. Tap Resume to continue.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Download the Gemma model below for on-device/offline scanning — until then, scans use Cloud.",
     "files": [
       "views/me-integrations.js"
@@ -2352,6 +2868,12 @@
     "text": "Downloads the whole LEGO price guide, updates values + liquidity, and auto-verifies unique-UPC mappings.",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Dusting off the instructions…",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -2385,6 +2907,12 @@
     ]
   },
   {
+    "text": "eBay new sold",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "eBay sold",
     "files": [
       "harvest-v4"
@@ -2409,6 +2937,12 @@
     ]
   },
   {
+    "text": "eBay used sold",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Edit Display Name",
     "files": [
       "harvest-v2"
@@ -2424,6 +2958,12 @@
     "text": "Email address",
     "files": [
       "views/login.js"
+    ]
+  },
+  {
+    "text": "Email and password required.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -2463,6 +3003,12 @@
     ]
   },
   {
+    "text": "Ensure Gemini Nano is enabled in Chrome settings.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Enter",
     "files": [
       "harvest-v2"
@@ -2475,6 +3021,12 @@
     ]
   },
   {
+    "text": "Enter a set number such as 71043-1, or a barcode with at least 8 digits.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Enter a valid Discord webhook URL",
     "files": [
       "views/me-integrations.js"
@@ -2484,6 +3036,12 @@
     "text": "Enter a valid price",
     "files": [
       "components/contribute.js"
+    ]
+  },
+  {
+    "text": "Enter a valid Supabase user UUID before changing supporter status.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -2569,6 +3127,12 @@
     "text": "Error:",
     "files": [
       "harvest-v3"
+    ]
+  },
+  {
+    "text": "Escape",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -2681,15 +3245,39 @@
     ]
   },
   {
+    "text": "Estimated value if sold as individual parts.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Every background process and admin job, updated live while this page is open. Each row shows what it does, when it last ran, and the result.",
     "files": [
       "views/me-admin.js"
     ]
   },
   {
+    "text": "Every value carries its evidence: how many independent families, how many verified sales, the likely range, and when it was last checked.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Evidence is limited, stale, or conflicting — treat the range, not the headline, as the answer.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Exchange rates couldn't be loaded — values are shown in USD until they refresh",
     "files": [
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "Excluded from every blend",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -2720,6 +3308,12 @@
     "text": "Expire valuations so cron jobs reprice them? This can create a lot of follow-up work.",
     "files": [
       "harvest-v4"
+    ]
+  },
+  {
+    "text": "Expired values",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -2765,6 +3359,18 @@
     ]
   },
   {
+    "text": "Export failed",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Export failed:",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Export your BrickLink order history as CSV and upload it here to auto-add sets you've bought.",
     "files": [
       "views/me-data.js"
@@ -2786,6 +3392,12 @@
     "text": "Extreme jumps and source conflicts remain low confidence until resolved.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Facebook Marketplace",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -2813,6 +3425,12 @@
     ]
   },
   {
+    "text": "Failed to delete",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Failed to enable push:",
     "files": [
       "views/me-integrations.js"
@@ -2822,6 +3440,30 @@
     "text": "Failed to initiate sync session",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Failed to load jobs",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Failed to load parts.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Failed to load processes",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Failed to mark alert as read:",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -2891,6 +3533,12 @@
     ]
   },
   {
+    "text": "Filesystem",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Fills in missing UPC barcodes so sets can be scanned.",
     "files": [
       "harvest-v2"
@@ -2927,9 +3575,27 @@
     ]
   },
   {
+    "text": "Finding set...",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Finding the series...",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Finding the series…",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "Firebase returned an invalid device token",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -3017,6 +3683,12 @@
     ]
   },
   {
+    "text": "Formula fallback",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Formula or local estimate until market data is available.",
     "files": [
       "harvest-v4"
@@ -3026,6 +3698,12 @@
     "text": "Frame the set and tap to identify",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "France",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -3077,6 +3755,12 @@
     ]
   },
   {
+    "text": "Full investor view — market value, ROI and 2-year projections.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Gain",
     "files": [
       "harvest-v2"
@@ -3119,6 +3803,12 @@
     ]
   },
   {
+    "text": "Gemma model is not downloaded. Please download it in Settings.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Gemma Vision Model (Offline Scanning)",
     "files": [
       "views/me-integrations.js"
@@ -3155,6 +3845,18 @@
     ]
   },
   {
+    "text": "German",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Germany",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Get a free key at",
     "files": [
       "runtime-audit"
@@ -3170,6 +3872,12 @@
     "text": "Get Free Gemini Key",
     "files": [
       "components/advisor.js"
+    ]
+  },
+  {
+    "text": "Gift",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -3419,6 +4127,12 @@
     ]
   },
   {
+    "text": "High theme concentration or missing parts detected. Consider diversifying.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "High-impact · confirmation required before running.",
     "files": [
       "views/me-admin.js"
@@ -3455,9 +4169,21 @@
     ]
   },
   {
+    "text": "How BricksVault computes LEGO set values: verified identities, independent market families, confidence tiers, and honest gaps instead of guesses.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "How denominators work",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "how do I sell this well?",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -3476,6 +4202,12 @@
     "text": "How We Price",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "How We Price — BricksVault",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -3509,6 +4241,12 @@
     ]
   },
   {
+    "text": "Icons",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Identified Set",
     "files": [
       "harvest-v4"
@@ -3527,9 +4265,33 @@
     ]
   },
   {
+    "text": "Identity before price",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Identity, value, or forecast conflicts",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Image too large (max 20 MB) — skipped",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Image too large (max 4 MB)",
     "files": [
       "components/contribute.js"
+    ]
+  },
+  {
+    "text": "Image viewer",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -3629,6 +4391,12 @@
     ]
   },
   {
+    "text": "In Stock at LEGO.com",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "In vault",
     "files": [
       "views/portfolio-detail.js"
@@ -3648,6 +4416,18 @@
     ]
   },
   {
+    "text": "Incorrect PIN.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Incorrect PIN. Try again.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Increase quantity",
     "files": [
       "views/portfolio-detail.js"
@@ -3660,6 +4440,12 @@
     ]
   },
   {
+    "text": "Independent sources, counted honestly",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Indexing parts",
     "files": [
       "harvest-v2"
@@ -3669,6 +4455,12 @@
     "text": "Ineligible / not configured",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Initializing local engine...",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -3708,6 +4500,12 @@
     ]
   },
   {
+    "text": "Invalid model URL.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Invested",
     "files": [
       "harvest-v2"
@@ -3727,6 +4525,18 @@
     ]
   },
   {
+    "text": "is the Legendary CSV import healthy?",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Job",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Job failed:",
     "files": [
       "views/me-admin.js"
@@ -3742,6 +4552,12 @@
     "text": "Junior Builder",
     "files": [
       "runtime-audit"
+    ]
+  },
+  {
+    "text": "Keep monitoring; retry a smaller batch if needed.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -3772,6 +4588,12 @@
     "text": "Key works but its quota is exhausted",
     "files": [
       "harvest-v4"
+    ]
+  },
+  {
+    "text": "Kids",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -3835,6 +4657,12 @@
     ]
   },
   {
+    "text": "Legacy PriceCharting",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Legacy single-value data is shown until the latest sold comps refresh this set.",
     "files": [
       "views/portfolio-detail.js"
@@ -3850,6 +4678,12 @@
     "text": "Legendary!",
     "files": [
       "harvest-v2+runtime"
+    ]
+  },
+  {
+    "text": "LEGO Ideas and CUUSOO",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -3926,9 +4760,27 @@
     ]
   },
   {
+    "text": "Listed below recent sold prices — good time to buy",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "little 2-year upside left",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Live accounts with supporter access enabled.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Live Amazon offers for the buy slot. KV-only (24h) per Associates terms; never a valuation input — weight stays 0.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -4077,15 +4929,33 @@
     ]
   },
   {
+    "text": "Looking up catalog...",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Low confidence",
     "files": [
       "views/portfolio-detail.js"
     ]
   },
   {
+    "text": "Low confidence / Estimated",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Low RAM detected",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Low-confidence values",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -4199,6 +5069,12 @@
     ]
   },
   {
+    "text": "Market signal",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Market Signals",
     "files": [
       "views/portfolio.js"
@@ -4236,6 +5112,12 @@
     ]
   },
   {
+    "text": "Marvel Super Heroes",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Master Builder",
     "files": [
       "runtime-audit"
@@ -4260,9 +5142,39 @@
     ]
   },
   {
+    "text": "Matching the barcode against blind-box data.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Matching the box art…",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Math.abs(dy) * 1.5) show(lb.index + (dx",
     "files": [
       "components/lightbox.js"
+    ]
+  },
+  {
+    "text": "Max pieces",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Max value",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Max year",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -4296,9 +5208,39 @@
     ]
   },
   {
+    "text": "Methodology content is missing",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Mid-size set, moderate appeal",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Min pieces",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Min value",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Min year",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Minifig",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -4311,6 +5253,12 @@
     "text": "Minifig Filters",
     "files": [
       "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "Minifig identity queue",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -4344,6 +5292,24 @@
     ]
   },
   {
+    "text": "Missing barcode",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Missing MSRP",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Missing UPC",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Missing:",
     "files": [
       "harvest-v2"
@@ -4353,6 +5319,12 @@
     "text": "Model URL (.task / .litertlm)",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Model URL not found (HTTP 404) — check the URL.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -4434,9 +5406,27 @@
     ]
   },
   {
+    "text": "Native notifications are unavailable",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Need N",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Needs access",
     "files": [
       "lib/pure.js"
+    ]
+  },
+  {
+    "text": "Needs action",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -4469,6 +5459,12 @@
       "components/flip-calc.js",
       "components/scanner.js",
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Network",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -4539,6 +5535,18 @@
     ]
   },
   {
+    "text": "No action needed until this provider is used.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "No action needed.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "No active high-risk sets (score ≥ 70)",
     "files": [
       "views/portfolio.js"
@@ -4548,6 +5556,12 @@
     "text": "No active job",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "No active session token found — sign in again.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -4575,9 +5589,33 @@
     ]
   },
   {
+    "text": "No file selected.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "No filters active",
     "files": [
       "runtime-audit"
+    ]
+  },
+  {
+    "text": "No five-year forecasts. Nobody can forecast LEGO prices five years out; pretending otherwise would poison your trust in every other number.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "No invented numbers: a set without enough verified evidence says",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "No items processed",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -4590,6 +5628,12 @@
     "text": "NO MATCH",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "No match found",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -4626,6 +5670,12 @@
     "text": "No minifigs match these filters.",
     "files": [
       "runtime-audit"
+    ]
+  },
+  {
+    "text": "No mixing retail offers into resale value.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -4792,6 +5842,12 @@
     ]
   },
   {
+    "text": "No valid rows found — check set_num column exists",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "No weak sold fallback",
     "files": [
       "views/me-admin.js"
@@ -4811,9 +5867,21 @@
     ]
   },
   {
+    "text": "Not available",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Not enough history yet",
     "files": [
       "harvest-v4"
+    ]
+  },
+  {
+    "text": "Not enough memory to load the model. Try closing other apps or tabs.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -4865,9 +5933,21 @@
     ]
   },
   {
+    "text": "not retired yet — the main gains come after retirement",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Not run yet",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Not supported",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -4931,6 +6011,18 @@
     ]
   },
   {
+    "text": "Notification registration failed",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Notification registration timed out",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Notifications",
     "files": [
       "harvest-v2"
@@ -4940,6 +6032,18 @@
     "text": "Now",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Number",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "OAuth is ready",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -4961,6 +6065,12 @@
     ]
   },
   {
+    "text": "Old active sets",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Older eBay average",
     "files": [
       "harvest-v4"
@@ -4973,6 +6083,30 @@
     ]
   },
   {
+    "text": "Older sets still marked active.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Older than 14 days",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "on any set page — corrections feed the same verification pipeline. ·",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "On back-order",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "On-device AI couldn't identify it — trying cloud…",
     "files": [
       "harvest-v3"
@@ -4982,6 +6116,12 @@
     "text": "On-device AI needs WebGPU — using cloud scan.",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "On-device AI requires WebGPU, which this browser/device does not support.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -5117,6 +6257,24 @@
     ]
   },
   {
+    "text": "Optional marketplace signal and cross-check.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Optional retail offer signal; keep disabled unless keys and quota are ready.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Optional reviewer note for rejection:",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Optional setup",
     "files": [
       "lib/pure.js"
@@ -5126,6 +6284,24 @@
     "text": "Optional: use your own OpenAI key for scans, advisor, and listing drafts",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Other metadata",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Out of Stock at LEGO.com",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Overnight value jumps of ±40% on any set are flagged and reviewed — automatically resolved only when the market genuinely confirms them.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -5141,15 +6317,45 @@
     ]
   },
   {
+    "text": "Owned only",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Ownership",
     "files": [
       "overlay-audit"
     ]
   },
   {
+    "text": "Packaging",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Paid",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Parsing BrickLink orders...",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Part out",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Part-list error",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -5321,6 +6527,12 @@
     ]
   },
   {
+    "text": "Pieces",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "pieces missing",
     "files": [
       "views/portfolio-detail.js"
@@ -5333,9 +6545,27 @@
     ]
   },
   {
+    "text": "PIN incorrect or something went wrong.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "PIN must be exactly 4 digits.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "PIN set — tap to enter Kids Mode or change settings.",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "PINs must be exactly 4 digits.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -5357,6 +6587,12 @@
     ]
   },
   {
+    "text": "Please enter a 4-digit PIN.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Please provide a valid model URL.",
     "files": [
       "views/me-integrations.js"
@@ -5366,6 +6602,12 @@
     "text": "Point it at a box barcode — instant match.",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Poll heartbeat",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -5423,6 +6665,12 @@
     ]
   },
   {
+    "text": "Pre-order at LEGO.com",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Pre-release",
     "files": [
       "harvest-v2"
@@ -5447,6 +6695,12 @@
     ]
   },
   {
+    "text": "Premium",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Premium & Gold ★ skins + ⭐ profile badge",
     "files": [
       "components/onboarding.js"
@@ -5456,6 +6710,18 @@
     "text": "Premium ★",
     "files": [
       "runtime-audit"
+    ]
+  },
+  {
+    "text": "Preparing export...",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Preparing report…",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -5537,9 +6803,27 @@
     ]
   },
   {
+    "text": "prices from independent markets — and if we don't have that, we tell you exactly what we have instead.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "pricesAPI retail offers",
     "files": [
       "harvest-v4"
+    ]
+  },
+  {
+    "text": "Pricing",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Pricing anomaly",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -5586,6 +6870,12 @@
     ]
   },
   {
+    "text": "Primary collector-market pricing. Strong signal for new and used values.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Primary database — catalog, valuations, jobs, settings.",
     "files": [
       "harvest-v4"
@@ -5610,6 +6900,12 @@
     ]
   },
   {
+    "text": "Privacy",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Privacy Policy",
     "files": [
       "views/me.js"
@@ -5625,6 +6921,12 @@
     "text": "Processing queue...",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "Product tour",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -5724,9 +7026,21 @@
     ]
   },
   {
+    "text": "Purchase Date",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Purchase price",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Purchases",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -5760,15 +7074,39 @@
     ]
   },
   {
+    "text": "Qty",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Quarantined matches",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Quarantined source matches",
     "files": [
       "views/me-admin.js"
     ]
   },
   {
+    "text": "Questions or a price that looks wrong? Use",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Quota limited",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Range",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -5814,6 +7152,18 @@
     ]
   },
   {
+    "text": "re offline — wishlist isn",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "re short. (You",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Re-prices a small batch of sets from current market sources.",
     "files": [
       "harvest-v2"
@@ -5835,6 +7185,12 @@
     "text": "Ready / no calls",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Real collector transactions",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -5880,9 +7236,21 @@
     ]
   },
   {
+    "text": "Recent sale price",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Recent sale price (USD)",
     "files": [
       "components/contribute.js"
+    ]
+  },
+  {
+    "text": "Recent sold evidence supports the number, but from fewer markets or with more spread.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -5907,6 +7275,18 @@
     "text": "Refresh",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Refresh days",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Refresh days must be a positive integer or blank.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -6042,6 +7422,12 @@
     ]
   },
   {
+    "text": "Removed from vault",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Removed from wishlist",
     "files": [
       "views/portfolio-detail.js"
@@ -6087,6 +7473,18 @@
     "text": "Report downloaded — open it and print to PDF.",
     "files": [
       "views/me-data.js"
+    ]
+  },
+  {
+    "text": "Report failed",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Report failed:",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -6150,6 +7548,12 @@
     ]
   },
   {
+    "text": "Response timed out",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Restore",
     "files": [
       "harvest-v2"
@@ -6171,6 +7575,12 @@
     "text": "Restored to vault",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Resume (NN%)",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -6204,6 +7614,12 @@
     ]
   },
   {
+    "text": "Retail sets still missing barcode data.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Retired",
     "files": [
       "harvest-v2"
@@ -6219,6 +7635,12 @@
     "text": "Retired — supply is fixed",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Retired only",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -6264,6 +7686,12 @@
     ]
   },
   {
+    "text": "Retiring Soon",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "RETIRING SOON",
     "files": [
       "views/portfolio-detail.js"
@@ -6282,6 +7710,12 @@
     ]
   },
   {
+    "text": "Retry failed:",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Retry guest sync",
     "files": [
       "views/me-data.js"
@@ -6294,9 +7728,21 @@
     ]
   },
   {
+    "text": "Retry with safe slice",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Retryable no-op",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Retrying sync…",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -6309,6 +7755,18 @@
     "text": "Review",
     "files": [
       "harvest-v5"
+    ]
+  },
+  {
+    "text": "Review 10,269 quarantined source matches",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Review provider diagnostics",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -6372,15 +7830,81 @@
     ]
   },
   {
+    "text": "Roughly in line with the sealed value.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Rows in the live catalog.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Rows missing retail price context.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Rows using weak or formula-heavy valuation.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Rows with persisted blended values.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Rummaging the parts bin…",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Run eBay-sold scrape",
     "files": [
       "harvest-v2"
     ]
   },
   {
+    "text": "Run next slice if coverage remains",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Run now",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Run Populate all safe sources (Populate tab) to refresh the latest provider coverage.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Run Populate all safe sources and check provider access in the Services tab before increasing source weights.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Run Populate all safe sources to advance the next safe slice.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Run Populate all safe sources, or the Barcode backfill job from the Activity tab.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -6432,6 +7956,24 @@
     ]
   },
   {
+    "text": "s detail. (Hidden if the fig isn",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "s hard pixel shadow, Modular",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "s market liquidity from PriceCharting",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "S&P 500 comparison + allocation by theme",
     "files": [
       "views/portfolio.js"
@@ -6462,6 +8004,12 @@
     ]
   },
   {
+    "text": "Save failed — retry",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Save failed:",
     "files": [
       "views/portfolio-detail.js"
@@ -6477,6 +8025,12 @@
     "text": "Saved ✓",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Saved offline",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -6537,6 +8091,12 @@
     ]
   },
   {
+    "text": "Scanner success (14d)",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Scanning and the advisor use",
     "files": [
       "views/me-integrations.js"
@@ -6552,6 +8112,24 @@
     "text": "Scrapes eBay sold comps now (Bright Data) — use to verify tokens/zone.",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Scraping",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Scraping runtime for structured market enrichment.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Scraping/runtime provider for restricted market data.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -6619,6 +8197,12 @@
     "text": "Search…",
     "files": [
       "harvest-v3"
+    ]
+  },
+  {
+    "text": "Searching 20,000 sets…",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -6706,6 +8290,12 @@
     ]
   },
   {
+    "text": "Sellers are asking high — list near the recent sold price to sell fast",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Sells fast",
     "files": [
       "harvest-v2"
@@ -6742,6 +8332,12 @@
     ]
   },
   {
+    "text": "Service health unavailable",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Service worker not available",
     "files": [
       "views/me-integrations.js"
@@ -6760,6 +8356,12 @@
     ]
   },
   {
+    "text": "set a parent PIN",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Set detail sections",
     "files": [
       "views/portfolio-detail.js"
@@ -6769,6 +8371,12 @@
     "text": "Set details",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Set Facts",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -6796,6 +8404,12 @@
     ]
   },
   {
+    "text": "Set Number",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Set number matched in catalog.",
     "files": [
       "harvest-v4"
@@ -6808,6 +8422,12 @@
     ]
   },
   {
+    "text": "Set photo",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Set PIN & Enter Kids Mode",
     "files": [
       "components/kids-pin.js"
@@ -6817,6 +8437,24 @@
     "text": "Set storage location for selected sets",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Set up a device PIN, pattern, or password first",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Set up BricksVault",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Set up fingerprint or face unlock in Android settings first",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -6853,6 +8491,30 @@
     "text": "Sets owned",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Sets removed but nothing deleted",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Sets with BrickLink market data.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Sets with validated new/sealed sold comps.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Sets with validated used sold comps.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -6959,6 +8621,12 @@
     ]
   },
   {
+    "text": "Show less",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Show more",
     "files": [
       "views/portfolio-detail.js"
@@ -6989,10 +8657,22 @@
     ]
   },
   {
+    "text": "showing 25 of 10,269",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Sign in",
     "files": [
       "components/scanner.js",
       "views/build.js"
+    ]
+  },
+  {
+    "text": "Sign in before enabling notifications",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -7110,6 +8790,12 @@
     ]
   },
   {
+    "text": "Sold beats asking",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "sold comps available",
     "files": [
       "views/me-admin.js"
@@ -7140,9 +8826,21 @@
     ]
   },
   {
+    "text": "Sold Out at LEGO.com",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Sold price (before fees)",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Sole-source outliers (one marketplace, no corroboration) can't overwrite a value that history contradicts.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -7173,6 +8871,12 @@
     "text": "Sort",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Sorting the 1×1 plates…",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -7209,6 +8913,12 @@
     "text": "Spreadsheet ID:",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Stale states",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -7290,9 +9000,21 @@
     ]
   },
   {
+    "text": "Store",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Store unavailable — try again",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Stored only; weight and jobs are off",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -7351,6 +9073,12 @@
     ]
   },
   {
+    "text": "Summoning the minifigs…",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Support BricksVault",
     "files": [
       "views/me.js"
@@ -7381,6 +9109,12 @@
     ]
   },
   {
+    "text": "Supporter list unavailable",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Supporter revoked.",
     "files": [
       "views/me-admin.js"
@@ -7396,6 +9130,18 @@
     "text": "Switched off — turn the source on if you want it used.",
     "files": [
       "harvest-v4"
+    ]
+  },
+  {
+    "text": "Sync",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Sync failed:",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -7417,6 +9163,12 @@
     ]
   },
   {
+    "text": "Sync Started",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Sync started in the background",
     "files": [
       "views/me-integrations.js"
@@ -7426,6 +9178,18 @@
     "text": "Sync your local vault across devices.",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "t released yet — there",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Tab",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -7514,6 +9278,12 @@
     ]
   },
   {
+    "text": "Terms",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Terms of Service",
     "files": [
       "views/me.js"
@@ -7544,6 +9314,12 @@
     ]
   },
   {
+    "text": "That file is too small to be a model — expected the multi-GB .task/.litertlm weights.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "The current shadow set has no unresolved extreme conflicts.",
     "files": [
       "views/me-admin.js"
@@ -7562,9 +9338,39 @@
     ]
   },
   {
+    "text": "The most common price-guide error isn't a wrong price — it's the right price for the",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "The one-sentence version:",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "The rules behind every number in the app — no black box.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "The sealed set is worth more than its individual parts.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Theme",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "THEME BREAKDOWN:",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -7613,6 +9419,12 @@
     "text": "This set will be removed from your vault.",
     "files": [
       "harvest-v4"
+    ]
+  },
+  {
+    "text": "This source is disabled.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -7725,6 +9537,12 @@
     ]
   },
   {
+    "text": "TOP OWNED SETS:",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Top performers (annualized ROI)",
     "files": [
       "views/portfolio.js"
@@ -7773,6 +9591,12 @@
     ]
   },
   {
+    "text": "Tracked with BricksVault",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Tracking has begun — your curve builds with each daily snapshot",
     "files": [
       "views/portfolio.js"
@@ -7788,6 +9612,12 @@
     "text": "Tracking your vault stays free, forever.",
     "files": [
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "Trade",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -7809,6 +9639,24 @@
     ]
   },
   {
+    "text": "Trophy Shelf complete! 🏆",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Trophy Shelf unlocked! 🏆",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Trust weight",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Try a different search term.",
     "files": [
       "harvest-v4"
@@ -7821,9 +9669,33 @@
     ]
   },
   {
+    "text": "Turnstile failed to load",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Two feeds that watch the same marketplace are one source, not two. We collapse every signal into",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Two or more independent families of fresh sold data agree within a tight band.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Type",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Type a barcode or LEGO set number first",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -7839,6 +9711,12 @@
     ]
   },
   {
+    "text": "Type the barcode or set number below",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Uncommon",
     "files": [
       "harvest-v2+runtime"
@@ -7848,6 +9726,36 @@
     "text": "Underperformers",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "United Kingdom",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "United States",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Unknown",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Unknown error",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Unknown Set",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -7869,6 +9777,12 @@
     ]
   },
   {
+    "text": "Unlock BricksVault",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Unlock BricksVault Pro:",
     "files": [
       "views/me.js"
@@ -7881,15 +9795,45 @@
     ]
   },
   {
+    "text": "Unlocks after 180 days and 12 recorded values.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Unnamed supporter",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Unowned",
     "files": [
       "overlay-audit"
     ]
   },
   {
+    "text": "Unowned only",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Unsupported",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Untitled build",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Untitled provider product",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -7971,6 +9915,18 @@
     ]
   },
   {
+    "text": "Uploading & parsing...",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Use a set number like 71043-1, or a barcode with at least 8 digits",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Use ID",
     "files": [
       "views/me-admin.js"
@@ -8025,6 +9981,12 @@
     ]
   },
   {
+    "text": "Used & complete",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Used and complete",
     "files": [
       "harvest-v2"
@@ -8037,6 +9999,12 @@
     ]
   },
   {
+    "text": "Useful historical and forecast signal when reachable.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "User bring-your-own AI key (stored client-side).",
     "files": [
       "harvest-v4"
@@ -8046,6 +10014,12 @@
     "text": "User ID",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "User search unavailable",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -8064,6 +10038,12 @@
     "text": "Using Cloud AI for scanning and the advisor.",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Valuation",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -8103,6 +10083,12 @@
     ]
   },
   {
+    "text": "Value $120",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Value by theme",
     "files": [
       "views/portfolio.js"
@@ -8112,6 +10098,12 @@
     "text": "Value of parts and minifigures sold separately.",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Values that need a refresh.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -8151,6 +10143,12 @@
     ]
   },
   {
+    "text": "Verified independent sold families",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Verified sold data",
     "files": [
       "harvest-v4"
@@ -8160,6 +10158,12 @@
     "text": "Verified sources can proceed to shadow valuation.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "verified, recent, sold",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -8178,6 +10182,18 @@
     "text": "Verify PriceCharting mappings",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "via BrickLink + eBay sold comps",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "via BrickLink price guide",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -8229,15 +10245,39 @@
     ]
   },
   {
+    "text": "Wait for the daily quota to reset or reduce batch size.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Waiting",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "WALK AWAY",
     "files": [
       "harvest-v2"
     ]
   },
   {
+    "text": "Watchdogs run every night",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "We sent a confirmation link to",
     "files": [
       "views/login.js"
+    ]
+  },
+  {
+    "text": "Web links",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -8277,9 +10317,33 @@
     ]
   },
   {
+    "text": "Weight",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Weight must be a non-negative number.",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Welcome to BricksVault",
     "files": [
       "components/onboarding.js"
+    ]
+  },
+  {
+    "text": "Welcome to BricksVault Pro! ⭐",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "what a used, complete copy resells for",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -8295,9 +10359,21 @@
     ]
   },
   {
+    "text": "What it means",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "What needs fixing?",
     "files": [
       "components/contribute.js"
+    ]
+  },
+  {
+    "text": "What we won't do",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -8334,6 +10410,12 @@
     "text": "Whole shelf",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "width=device-width, initial-scale=1",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -8395,6 +10477,18 @@
     "text": "Write the memory first",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Wrong image",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
+    "text": "Year",
+    "files": [
+      "harvest-v6"
     ]
   },
   {
@@ -8494,6 +10588,12 @@
     ]
   },
   {
+    "text": "Your first set! Welcome to BricksVault!",
+    "files": [
+      "harvest-v6"
+    ]
+  },
+  {
     "text": "Your guess",
     "files": [
       "views/game.js"
@@ -8570,6 +10670,12 @@
     "text": "Your vault is snapshotted every Sunday. Restore rolls your collection back to that day without losing history.",
     "files": [
       "views/me-data.js"
+    ]
+  },
+  {
+    "text": "Your vault is well-diversified and in excellent condition.",
+    "files": [
+      "harvest-v6"
     ]
   },
   {

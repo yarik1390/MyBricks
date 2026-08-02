@@ -38,17 +38,24 @@ for (const file of files.sort()) {
   // but a large count means the translator passed text through wholesale.
   const passthrough = keys.filter((k) => dict[k] === k);
   const empty = keys.filter((k) => !String(dict[k]).trim());
+  // An HTML entity in a VALUE paints literally: translateDOM assigns to
+  // node.nodeValue, which the browser does not decode, so "Me &gt; Integrations"
+  // renders the five characters "&gt;" on screen. 45 such values shipped across
+  // seven languages before a user photographed one.
+  const entities = keys.filter((k) => /&(amp|lt|gt|quot|#0?39|nbsp);/.test(String(dict[k])));
 
   // Drift and empties are BUGS — a drifted key is dead code, an empty value
   // renders as blank UI. Incompleteness is not: a missing key simply falls back
   // to English for that one string, which is a legitimate shipping state while a
   // language is still being translated. So only the former fails the check.
-  const broken = drifted.length || empty.length;
+  const broken = drifted.length || empty.length || entities.length;
   if (broken) bad++;
   const pct = Math.round(((source.length - missing.length) / source.length) * 100);
   const tag = broken ? 'FAIL' : missing.length ? 'PART' : 'OK  ';
   console.log(`${tag} ${file.padEnd(10)} ${String(keys.length).padStart(4)} keys  ${String(pct).padStart(3)}%` +
-    `  drifted:${drifted.length}  missing:${missing.length}  passthrough:${passthrough.length}  empty:${empty.length}`);
+    `  drifted:${drifted.length}  missing:${missing.length}  passthrough:${passthrough.length}  empty:${empty.length}` +
+    (entities.length ? `  ENTITIES:${entities.length}` : ''));
+  for (const k of entities.slice(0, 3)) console.log(`       entity in value: ${JSON.stringify(String(dict[k]).slice(0, 60))}`);
   for (const k of drifted.slice(0, 3)) console.log(`       drifted key: ${JSON.stringify(k.slice(0, 60))}`);
   for (const k of missing.slice(0, 3)) console.log(`       missing key: ${JSON.stringify(k.slice(0, 60))}`);
 }
