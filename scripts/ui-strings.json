@@ -746,9 +746,21 @@
     ]
   },
   {
+    "text": "Appreciated",
+    "files": [
+      "harvest-v5"
+    ]
+  },
+  {
     "text": "Approve",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Approved",
+    "files": [
+      "harvest-v5"
     ]
   },
   {
@@ -911,6 +923,12 @@
     "text": "Backfill barcodes",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Backup",
+    "files": [
+      "harvest-v5"
     ]
   },
   {
@@ -1615,6 +1633,12 @@
     ]
   },
   {
+    "text": "Collector",
+    "files": [
+      "harvest-v5"
+    ]
+  },
+  {
     "text": "Color style",
     "files": [
       "components/onboarding.js"
@@ -1775,6 +1799,12 @@
     "text": "Consider holding",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Continue",
+    "files": [
+      "harvest-v5"
     ]
   },
   {
@@ -2199,9 +2229,21 @@
     ]
   },
   {
+    "text": "Disable",
+    "files": [
+      "harvest-v5"
+    ]
+  },
+  {
     "text": "Disable app lock",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Disabled",
+    "files": [
+      "harvest-v5"
     ]
   },
   {
@@ -2262,6 +2304,12 @@
     "text": "Done",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Down",
+    "files": [
+      "harvest-v5"
     ]
   },
   {
@@ -2789,6 +2837,12 @@
     ]
   },
   {
+    "text": "Failing",
+    "files": [
+      "harvest-v5"
+    ]
+  },
+  {
     "text": "FAIR PRICE",
     "files": [
       "harvest-v2"
@@ -2948,6 +3002,12 @@
     "text": "Forgot PIN? Sign out to exit",
     "files": [
       "views/kids.js"
+    ]
+  },
+  {
+    "text": "Formula",
+    "files": [
+      "harvest-v5"
     ]
   },
   {
@@ -3757,6 +3817,12 @@
     ]
   },
   {
+    "text": "Legacy",
+    "files": [
+      "harvest-v5"
+    ]
+  },
+  {
     "text": "Legacy eBay",
     "files": [
       "views/portfolio-detail-market.js"
@@ -4026,6 +4092,12 @@
     "text": "LVL",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Main",
+    "files": [
+      "harvest-v5"
     ]
   },
   {
@@ -4446,6 +4518,12 @@
     "text": "Newest",
     "files": [
       "harvest-v2+runtime"
+    ]
+  },
+  {
+    "text": "Next",
+    "files": [
+      "harvest-v5"
     ]
   },
   {
@@ -5123,6 +5201,12 @@
     ]
   },
   {
+    "text": "Pending",
+    "files": [
+      "harvest-v5"
+    ]
+  },
+  {
     "text": "Pending refresh",
     "files": [
       "harvest-v4"
@@ -5327,6 +5411,12 @@
     ]
   },
   {
+    "text": "Possible",
+    "files": [
+      "harvest-v5"
+    ]
+  },
+  {
     "text": "Post price-drop and spike alerts to a Discord channel.",
     "files": [
       "views/me-integrations.js"
@@ -5523,6 +5613,12 @@
     "text": "Privacy Policy",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Private",
+    "files": [
+      "harvest-v5"
     ]
   },
   {
@@ -5838,6 +5934,12 @@
     ]
   },
   {
+    "text": "Rejected",
+    "files": [
+      "harvest-v5"
+    ]
+  },
+  {
     "text": "Relaunch Chrome, then go to",
     "files": [
       "views/me-integrations.js"
@@ -5865,6 +5967,12 @@
     "text": "Reliable price",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Remove",
+    "files": [
+      "harvest-v5"
     ]
   },
   {
@@ -5919,6 +6027,12 @@
     "text": "Remove PIN",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Removed",
+    "files": [
+      "harvest-v5"
     ]
   },
   {
@@ -6003,6 +6117,12 @@
     "text": "Resale pricing, used value, sell-now estimates, and forecasts begin only after verified market evidence arrives.",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Resend",
+    "files": [
+      "harvest-v5"
     ]
   },
   {
@@ -6183,6 +6303,12 @@
     "text": "Revalue prices",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Review",
+    "files": [
+      "harvest-v5"
     ]
   },
   {
@@ -6703,6 +6829,12 @@
     "text": "Set your currency, sync, and AI options here.",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Set-exclusive",
+    "files": [
+      "harvest-v5"
     ]
   },
   {
@@ -7363,6 +7495,12 @@
     ]
   },
   {
+    "text": "Target",
+    "files": [
+      "harvest-v5"
+    ]
+  },
+  {
     "text": "Tax / VAT",
     "files": [
       "components/scanner.js",
@@ -7713,6 +7851,12 @@
     ]
   },
   {
+    "text": "Unlikely",
+    "files": [
+      "harvest-v5"
+    ]
+  },
+  {
     "text": "Unlock",
     "files": [
       "harvest-v2"
@@ -7746,6 +7890,12 @@
     "text": "Unsupported",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Up",
+    "files": [
+      "harvest-v5"
     ]
   },
   {
@@ -7962,6 +8112,12 @@
     "text": "Value of parts and minifigures sold separately.",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Vault",
+    "files": [
+      "harvest-v5"
     ]
   },
   {
@@ -8193,6 +8349,12 @@
     ]
   },
   {
+    "text": "Wishlisted",
+    "files": [
+      "harvest-v5"
+    ]
+  },
+  {
     "text": "Withdraw",
     "files": [
       "harvest-v2"
@@ -8208,6 +8370,12 @@
     "text": "Worker",
     "files": [
       "harvest-v2"
+    ]
+  },
+  {
+    "text": "Working",
+    "files": [
+      "harvest-v5"
     ]
   },
   {

@@ -75,6 +75,8 @@ const DO_NOT_TRANSLATE = new Set([
   'BrickOwl', 'BrickInsights', 'Cloudflare', 'Hugging Face', 'UPCitemdb',
   // A LEGO theme name, not UI copy.
   'Modular Buildings',
+  // Vendor, and an HTTP auth scheme that appears verbatim in a header.
+  'Supabase', 'Bearer',
   // Supporter tier names, shown as "PRO"/"Pro" and left English on purpose so
   // the paywall copy reads the same in every language.
   'PRO', 'Pro',
@@ -113,8 +115,15 @@ function isProse(s, rendered = false) {
   // the REJECT list's identifier rule (/^[a-z0-9_-]+$/i) silently overrode it,
   // which is why "Appearance", "Forecast", "Wishlist" and the whole single-word
   // UI vocabulary never reached a dictionary.
-  if (!/\s/.test(v) && !/^[A-Z][a-z]+(-[a-z]+)*$/.test(v) && !rendered) return false;
-  if (!rendered && /^[a-z0-9_-]+$/i.test(v)) return false;
+  // A capitalised word, optionally hyphenated: "Forecast", "Set-exclusive".
+  const looksLikeLabel = /^[A-Z][a-z]+(-[a-z]+)*$/.test(v);
+  if (!/\s/.test(v) && !looksLikeLabel && !rendered) return false;
+  // The identifier reject is CASE-INSENSITIVE, so on its own it also matches
+  // "Forecast" and "Set-exclusive" and undoes the line above — the same shape
+  // of bug that hid the single-word vocabulary for the whole first pass.
+  // Exempting anything that already read as a label is what makes the two
+  // rules agree.
+  if (!rendered && !looksLikeLabel && /^[a-z0-9_-]+$/i.test(v)) return false;
   // Must READ as a complete label: start on a letter/digit, not mid-sentence.
   // Rendered labels may lead with a symbol ("+ Wishlist", "← Back"); a quoted
   // fragment from a split template literal may not.
