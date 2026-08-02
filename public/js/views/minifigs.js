@@ -7,6 +7,11 @@ import { showSheet, hideSheet } from '../components/sheet.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
 import { activeFigFilterCount, figFilterSummary } from '../lib/pure.js';
 
+// Rarity reaches the DOM as the raw enum ('legendary') with CSS uppercasing it,
+// so the text node never matched the dictionary's capitalised 'Legendary'.
+// Capitalising here makes the badge translatable with no new keys.
+const capRarity = (r) => (r ? r.charAt(0).toUpperCase() + r.slice(1) : r);
+
 let _blindGen = 0;
 let _seriesList = [];
 
@@ -236,7 +241,7 @@ async function loadRareFinds() {
           </div>
           <div style="font-size:11px;font-weight:600;color:var(--ink);line-height:1.25;height:28px;overflow:hidden;">${escapeHtml(String(f.name || ''))}</div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:4px;">
-            <span class="mini-rarity-tag rarity-${r}" style="font-size:8px;padding:1px 5px;">${escapeHtml(r)}</span>
+            <span class="mini-rarity-tag rarity-${r}" style="font-size:8px;padding:1px 5px;">${escapeHtml(capRarity(r))}</span>
             ${f.current_value ? `<span style="font-size:12px;font-weight:700;color:var(--ink);">${fmtMoney(f.current_value, { cents: 0 })}</span>` : ''}
           </div>
         </button>`;
@@ -505,7 +510,7 @@ function showFigDetail(f) {
           <div class="head"></div><div class="body"></div><div class="legs"></div>
         </div>
         ${hasImg ? `<img class="fig-photo" src="${escapeHtml(thumbImg(f.image_url))}" alt="${escapeHtml(f.name)}" loading="lazy" decoding="async">` : ''}
-        <span class="mini-rarity-tag rarity-${rarity}">${rarity}</span>
+        <span class="mini-rarity-tag rarity-${rarity}">${capRarity(rarity)}</span>
       </div>
       <div class="fig-detail-body">
         <div class="fig-detail-series">${escapeHtml(f.series || 'Minifig')}</div>
@@ -671,7 +676,7 @@ function miniCardHTML(f) {
           <div class="legs"></div>
         </div>
         ${hasImg ? `<img class="fig-photo" src="${escapeHtml(thumbImg(f.image_url))}" alt="" loading="lazy" decoding="async">` : ""}
-        <span class="mini-rarity-tag rarity-${rarity}">${rarity}</span>
+        <span class="mini-rarity-tag rarity-${rarity}">${capRarity(rarity)}</span>
       </div>
       <div class="mini-body">
         <div class="mini-name">${escapeHtml(f.name)}</div>

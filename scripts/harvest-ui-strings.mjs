@@ -68,6 +68,13 @@ const DO_NOT_TRANSLATE = new Set([
   'BrickLink', 'BrickEconomy', 'Brickset', 'Brickset.com', 'Rebrickable',
   'PriceCharting', 'LEGO', 'BricksVault', 'Brickvault', 'Amazon', 'eBay',
   'WebGPU', 'Gemma', 'Gemini', 'Discord', 'Chrome',
+  // Provider and vendor names that appear as bare labels in the admin
+  // console and the source list. Translating a vendor's name is wrong in
+  // every language.
+  'Bright Data', 'Google Sheets', 'StockX', 'Firecrawl', 'OpenAI', 'OpenRouter',
+  'BrickOwl', 'BrickInsights', 'Cloudflare', 'Hugging Face', 'UPCitemdb',
+  // A LEGO theme name, not UI copy.
+  'Modular Buildings',
   // Supporter tier names, shown as "PRO"/"Pro" and left English on purpose so
   // the paywall copy reads the same in every language.
   'PRO', 'Pro',
@@ -106,7 +113,7 @@ function isProse(s, rendered = false) {
   // the REJECT list's identifier rule (/^[a-z0-9_-]+$/i) silently overrode it,
   // which is why "Appearance", "Forecast", "Wishlist" and the whole single-word
   // UI vocabulary never reached a dictionary.
-  if (!/\s/.test(v) && !/^[A-Z][a-z]+$/.test(v) && !rendered) return false;
+  if (!/\s/.test(v) && !/^[A-Z][a-z]+(-[a-z]+)*$/.test(v) && !rendered) return false;
   if (!rendered && /^[a-z0-9_-]+$/i.test(v)) return false;
   // Must READ as a complete label: start on a letter/digit, not mid-sentence.
   // Rendered labels may lead with a symbol ("+ Wishlist", "← Back"); a quoted
@@ -174,6 +181,22 @@ for (const root of ROOTS) {
     for (const m of src.matchAll(/\b(?:label|title|sub|subtitle|desc|description|heading|caption|hint|cta|blurb|body|tip)\s*:\s*(['"])([^'"`\n]{2,160})\1/g)) {
       add(m[2], short, true);
     }
+    // 7. ENUM LOOKUP MAPS. This app renders a lot of copy through
+    //      ({ sold: 'Verified sold data', modeled: 'Market guides (not live sales)' })[value]
+    //    where the keys are the enum, not `label`/`title`, so rule 5's fixed key
+    //    list never sees them. Any identifier key is accepted here, but the
+    //    STRICT prose test applies (rendered=false): a value has to read like a
+    //    phrase, which keeps enum keys like 'sold' and 'modeled' out.
+    for (const m of src.matchAll(/\b[A-Za-z_$][\w$]*\s*:\s*(['"])([^'"`\n]{3,160})\1/g)) {
+      add(m[2], short);
+    }
+    // 8. EITHER branch of a ternary, not both. Rule 4 requires two quoted
+    //    strings, so it misses the common shapes where one side is a template
+    //    literal or a call:
+    //      n === 1 ? 'Set-exclusive' : `Appears in ${n} sets`
+    //      liquidation > 0 ? fmtMoney(liquidation) : 'Not enough sold data yet'
+    for (const m of src.matchAll(/\?\s*(['"])([^'"`\n]{3,160})\1/g)) add(m[2], short);
+    for (const m of src.matchAll(/:\s*(['"])([^'"`\n]{3,160})\1/g)) add(m[2], short);
     // 6. Positional string arguments to the app's own row/section helpers, which
     //    render their arguments as the visible title and subtitle:
     //      linkRow("#/me/admin", "Admin console", "Catalog imports, jobs, ...")
