@@ -851,7 +851,7 @@ function showScanResult(res) {
     el.innerHTML = `
       <div class="scan-result-head">
         <span class="badge miss">${badgeIcon}${badgeLabel}</span>
-        <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${headLabel}</span>
+        ${headLabel.toUpperCase() === badgeLabel.toUpperCase() ? "" : `<span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${headLabel}</span>`}
       </div>
       <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">${escapeHtml(reason)}</p>
       ${resetHint}
@@ -1100,10 +1100,10 @@ function scanOverlayHTML(mode, shelf = false) {
         ${mode !== "image" ? `<span class="laser"></span>` : ""}
       </div>`}
       ${mode === "image" && !nativeBarcode ? `
-        <div class="scan-shelf-row" role="group" aria-label="Photo scope" style="position:absolute;left:0;right:0;top:calc(var(--safe-top, 0px) + 62px);display:flex;justify-content:center;z-index:3;">
+        <div class="scan-shelf-row scan-top-stack" role="group" aria-label="Photo scope" style="position:absolute;left:0;right:0;display:flex;justify-content:center;z-index:3;">
           <div style="display:inline-flex;border:1.5px solid #fff5;border-radius:999px;overflow:hidden;backdrop-filter:blur(6px);background:#0006;">
-            <button type="button" class="scan-shelf-opt" data-shelf="0" aria-pressed="${shelf ? "false" : "true"}" style="border:none;background:${shelf ? "transparent" : "var(--accent)"};color:${shelf ? "#fff9" : "#fff"};font-size:12px;font-weight:700;padding:7px 14px;cursor:pointer;">One set</button>
-            <button type="button" class="scan-shelf-opt" data-shelf="1" aria-pressed="${shelf ? "true" : "false"}" style="border:none;background:${shelf ? "var(--accent)" : "transparent"};color:${shelf ? "#fff" : "#fff9"};font-size:12px;font-weight:700;padding:7px 14px;cursor:pointer;">Whole shelf</button>
+            <button type="button" class="scan-shelf-opt" data-shelf="0" aria-pressed="${shelf ? "false" : "true"}" style="border:none;background:${shelf ? "transparent" : "var(--accent)"};color:${shelf ? "#fff9" : "#fff"};font-size:12px;font-weight:700;padding:7px 14px;cursor:pointer;white-space:nowrap;">One set</button>
+            <button type="button" class="scan-shelf-opt" data-shelf="1" aria-pressed="${shelf ? "true" : "false"}" style="border:none;background:${shelf ? "var(--accent)" : "transparent"};color:${shelf ? "#fff" : "#fff9"};font-size:12px;font-weight:700;padding:7px 14px;cursor:pointer;white-space:nowrap;">Whole shelf</button>
           </div>
         </div>` : ""}
       <div class="scan-hint" id="scanHint">${nativeBarcode ? "Opening scanner…" : mode === "blindbox" ? "Scan the blind bag or box barcode" : mode === "barcode" ? "Align barcode within the frame" : shelf ? "Fit the whole shelf in frame — good light helps" : "Frame the set and tap to identify"}</div>

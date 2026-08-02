@@ -2197,8 +2197,16 @@ body[data-route="set-detail"] #toast {
 .scan-top {
   position: absolute; top: 0; left: 0; right: 0;
   display: flex; justify-content: space-between; align-items: center;
-  padding: 60px 18px 0;
+  padding: var(--scan-top-pad) 18px 0;
   z-index: 3;
+}
+/* Height of the top row, so anything stacking under it can be positioned from
+   a real measurement instead of a guess. The photo-scope row used a hard-coded
+   62px, which lands INSIDE this row (60px of padding plus a 42px control), so
+   the two centred pills drew on top of each other. */
+.scan-video-wrap { --scan-top-pad: 60px; --scan-top-ctl: 42px; }
+.scan-top-stack {
+  top: calc(var(--safe-top, 0px) + var(--scan-top-pad) + var(--scan-top-ctl) + 12px);
 }
 .scan-top button {
   width: 42px; height: 42px; border-radius: 50%;
@@ -2216,6 +2224,9 @@ body[data-route="set-detail"] #toast {
 }
 .scan-mode-toggle button {
   padding: 8px 14px;
+  /* Translations run longer than the English "Barcode"/"Photo"; wrapping would
+     grow the row and push it into whatever sits below. */
+  white-space: nowrap;
   font-family: var(--mono); font-size: 11px; font-weight: 600;
   letter-spacing: 0.08em;
   color: rgba(255,255,255,0.7);
@@ -2377,8 +2388,14 @@ body[data-route="set-detail"] #toast {
 }
 .scan-result-head {
   display: flex; align-items: center; gap: 10px;
+  /* Wrap, and let each item shrink. Flex items default to min-width:auto, so
+     they refuse to shrink below their content and overflow the row instead —
+     with English labels ("SETUP NEEDED") everything fits, but the Ukrainian
+     equivalent is nearly twice as long and the badge overlapped the label. */
+  flex-wrap: wrap;
   margin-bottom: 10px;
 }
+.scan-result-head > * { min-width: 0; }
 .scan-result .badge {
   font-family: var(--mono); font-size: 10px;
   padding: 3px 7px; border-radius: var(--r-1);
