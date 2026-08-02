@@ -2330,15 +2330,39 @@
     ]
   },
   {
+    "text": "Couldn't add that set",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "Couldn't check that guess:",
     "files": [
       "harvest-v3"
     ]
   },
   {
+    "text": "Couldn't delete your account. Please try again.",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "Couldn't delete:",
     "files": [
       "harvest-v3"
+    ]
+  },
+  {
+    "text": "Couldn't identify the set on-device. Try a clearer photo.",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
+    "text": "Couldn't identify the set. Try a clearer photo.",
+    "files": [
+      "harvest-v7"
     ]
   },
   {
@@ -2396,9 +2420,27 @@
     ]
   },
   {
+    "text": "Couldn't load the leaderboard",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "Couldn't load wishlist",
     "files": [
       "harvest-v3"
+    ]
+  },
+  {
+    "text": "Couldn't look that up.",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
+    "text": "Couldn't match that barcode to a Collectible Minifigures series. Try the series number (e.g. 71045).",
+    "files": [
+      "harvest-v7"
     ]
   },
   {
@@ -2435,6 +2477,12 @@
     "text": "Couldn't upload:",
     "files": [
       "harvest-v3"
+    ]
+  },
+  {
+    "text": "Couldn't verify your identity",
+    "files": [
+      "harvest-v7"
     ]
   },
   {
@@ -4778,6 +4826,12 @@
     ]
   },
   {
+    "text": "Live barcode scanning isn't supported on this browser — type the digits instead",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "Loading community content…",
     "files": [
       "views/portfolio-detail.js"
@@ -5400,6 +5454,12 @@
     ]
   },
   {
+    "text": "Native alerts are waiting for the app's Firebase configuration.",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "Native notifications are unavailable",
     "files": [
       "harvest-v6"
@@ -5490,6 +5550,12 @@
     "files": [
       "components/kids-pin.js",
       "views/me.js"
+    ]
+  },
+  {
+    "text": "New PINs don't match.",
+    "files": [
+      "harvest-v7"
     ]
   },
   {
@@ -6557,6 +6623,12 @@
     ]
   },
   {
+    "text": "PINs don't match.",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "PINs must be exactly 4 digits.",
     "files": [
       "harvest-v6"
@@ -7143,18 +7215,6 @@
     "text": "Rarity ↓",
     "files": [
       "runtime-audit"
-    ]
-  },
-  {
-    "text": "re offline — wishlist isn",
-    "files": [
-      "harvest-v6"
-    ]
-  },
-  {
-    "text": "re short. (You",
-    "files": [
-      "harvest-v6"
     ]
   },
   {
@@ -7950,24 +8010,6 @@
     ]
   },
   {
-    "text": "s detail. (Hidden if the fig isn",
-    "files": [
-      "harvest-v6"
-    ]
-  },
-  {
-    "text": "s hard pixel shadow, Modular",
-    "files": [
-      "harvest-v6"
-    ]
-  },
-  {
-    "text": "s market liquidity from PriceCharting",
-    "files": [
-      "harvest-v6"
-    ]
-  },
-  {
     "text": "S&P 500 comparison + allocation by theme",
     "files": [
       "views/portfolio.js"
@@ -8377,6 +8419,12 @@
     "text": "Set Handle",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Set isn't cached",
+    "files": [
+      "harvest-v7"
     ]
   },
   {
@@ -9175,12 +9223,6 @@
     ]
   },
   {
-    "text": "t released yet — there",
-    "files": [
-      "harvest-v6"
-    ]
-  },
-  {
     "text": "Tab",
     "files": [
       "harvest-v6"
@@ -9404,6 +9446,12 @@
     ]
   },
   {
+    "text": "This price hasn't refreshed in a while.",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "This price is over 60 days old.",
     "files": [
       "harvest-v4"
@@ -9422,9 +9470,21 @@
     ]
   },
   {
+    "text": "This stops auto-syncing. Your spreadsheet won't be deleted.",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "This will remove the multi-GB model weights from your local browser storage.",
     "files": [
       "harvest-v4"
+    ]
+  },
+  {
+    "text": "Time flies when you're building.",
+    "files": [
+      "harvest-v7"
     ]
   },
   {
@@ -10269,6 +10329,12 @@
     ]
   },
   {
+    "text": "We're still indexing the part lists for your sets — check back shortly.",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "Web links",
     "files": [
       "harvest-v6"
@@ -10383,12 +10449,6 @@
     ]
   },
   {
-    "text": "when your device supports it",
-    "files": [
-      "views/me-integrations.js"
-    ]
-  },
-  {
     "text": "Which of my sets might retire soon?",
     "files": [
       "runtime-audit"
@@ -10480,12 +10540,6 @@
     ]
   },
   {
-    "text": "You",
-    "files": [
-      "harvest-v2"
-    ]
-  },
-  {
     "text": "YOU",
     "files": [
       "harvest-v2"
@@ -10495,6 +10549,12 @@
     "text": "You can change this anytime in Settings.",
     "files": [
       "components/onboarding.js"
+    ]
+  },
+  {
+    "text": "You're a building superstar! 🌟",
+    "files": [
+      "harvest-v7"
     ]
   },
   {
@@ -10528,9 +10588,27 @@
     ]
   },
   {
+    "text": "You're offline — wishlist isn't cached yet",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
     "text": "You're offline and no local AI is available. Download the Gemma model in",
     "files": [
       "components/advisor.js"
+    ]
+  },
+  {
+    "text": "You're offline and this device can't run on-device AI (no WebGPU).",
+    "files": [
+      "harvest-v7"
+    ]
+  },
+  {
+    "text": "You're offline. Reconnect to identify by photo, or set up on-device AI in Settings.",
+    "files": [
+      "harvest-v7"
     ]
   },
   {

@@ -75,6 +75,14 @@ const REJECT = [
   // Pipe/tab-delimited data blobs, e.g. "Harry Potter|n".
   /[|\t]/,
   /=device-width|initial-scale|user-scalable|charset=/i,   // <meta> directives
+  // CONTRACTION REMNANTS. Scanning for quoted literals without a JS parser
+  // mis-pairs an apostrophe inside a template literal with a later quote, so
+  // `You're short. (You need ${n})` can yield the tail "re short. (You".
+  // Matching per quote style fixed most of it; a parser would fix the rest.
+  // These shapes are the giveaway and are never real UI: no label begins with a
+  // lowercase contraction ending, and none is a bare pronoun.
+  /^(re|t|s|ve|ll|d|m)\s/,
+  /^(You|We|It|They|That|There)$/,
 ];
 
 // Acronyms, units and formats that are the SAME word in every language. They
@@ -251,9 +259,15 @@ for (const root of ROOTS) {
     //    theme name, so taking keys would have handed "Disney", "Creator" and
     //    "Collectible Minifigures" to the translators as if they were UI copy.
     //    Rule 7 already takes the VALUE side of `key: 'string'`.
-    for (const m of src.matchAll(/(['"])((?:[^'"\\`\n]|\\.){3,160})\1(\s*:)?/g)) {
-      if (m[3]) continue;
-      add(m[2], short);
+    //    Matched PER QUOTE STYLE. A single class excluding both truncates any
+    //    double-quoted string at its first apostrophe and harvests the tail:
+    //    "You're short. (You need 4)" yielded the fragment "re short. (You".
+    //    Rule 2 had this exact bug; rule 9 inherited it by copying the pattern.
+    for (const re of [/"((?:[^"\\`\n]|\\.){3,160})"(\s*:)?/g, /'((?:[^'\\`\n]|\\.){3,160})'(\s*:)?/g]) {
+      for (const m of src.matchAll(re)) {
+        if (m[2]) continue;   // quoted OBJECT KEY — config, not copy
+        add(m[1], short);
+      }
     }
   }
 }
