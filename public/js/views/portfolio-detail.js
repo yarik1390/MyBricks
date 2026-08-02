@@ -317,7 +317,7 @@ function valueProvenanceHTML(set) {
     const sales = Number(v3.sample_count || 0);
     const lo = Number(v3.low), hi = Number(v3.high);
     const range = lo > 0 && hi > 0 ? ` · likely ${fmtMoney(lo, { cents: 0 })}-${fmtMoney(hi, { cents: 0 })}` : '';
-    return `<div class="detail-summary-src">${families} independent market famil${families === 1 ? 'y' : 'ies'} · ${sales} verified sale${sales === 1 ? '' : 's'}${range} · <a href="/methodology.html" style="color:inherit;text-decoration:underline;">How we price</a></div>`;
+    return `<div class="detail-summary-src">${families === 1 ? t('market.familyOne') : t('market.families', { n: families })} · ${sales === 1 ? t('market.saleOne') : t('market.sales', { n: sales })}${range} · <a href="/methodology.html" style="color:inherit;text-decoration:underline;">How we price</a></div>`;
   }
   if (Number(set.market_value) > 0) {
     const n = Array.isArray(set.market_value_basis) ? set.market_value_basis.length : 0;

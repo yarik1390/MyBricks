@@ -2,6 +2,7 @@ import { I } from './icons.js';
 import { state } from './state.js';
 import morphdom from './lib/morphdom.js';
 import { upsertDetailCache } from './lib/pure-core.js';
+import { t, getLocale } from './lib/i18n.js';
 
 /* ---------- DOM helpers ---------- */
 export const $ = (s, r = document) => r.querySelector(s);
@@ -501,18 +502,20 @@ export function parseUTCDate(str) {
 
 export function fmtDateUpdated(str) {
   const d = parseUTCDate(str);
-  if (!d) return "unknown";
+  if (!d) return t("time.unknown");
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   if (diffDays === 0 && now.getDate() === d.getDate()) {
-    return "Today";
+    return t("time.today");
   } else if (diffDays === 1 || (diffDays === 0 && now.getDate() !== d.getDate())) {
-    return "Yesterday";
+    return t("time.yesterday");
   } else if (diffDays < 7) {
-    return `${diffDays} days ago`;
+    // "2 days ago" carries a number, so no exact-match key can ever reach it.
+    return t("time.daysAgo", { n: diffDays });
   }
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  // Was pinned to en-US, which rendered "Nov 3, 2025" for every language.
+  return d.toLocaleDateString(getLocale(), { month: "short", day: "numeric", year: "numeric" });
 }
 
 export function setBtnLoading(el, on) {

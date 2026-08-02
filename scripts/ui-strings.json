@@ -6,9 +6,21 @@
     ]
   },
   {
+    "text": "— in use",
+    "files": [
+      "harvest-v8"
+    ]
+  },
+  {
     "text": "— most accurate and works on any device. Choose “Prefer on-device” to run free, private Gemma / Gemini Nano locally",
     "files": [
       "runtime-audit"
+    ]
+  },
+  {
+    "text": "— queued",
+    "files": [
+      "harvest-v8"
     ]
   },
   {
@@ -60,6 +72,12 @@
     ]
   },
   {
+    "text": "+ Wishlist",
+    "files": [
+      "harvest-v8"
+    ]
+  },
+  {
     "text": "+1 Qty",
     "files": [
       "harvest-v2"
@@ -75,6 +93,12 @@
     "text": "✓ Earned!",
     "files": [
       "runtime-audit"
+    ]
+  },
+  {
+    "text": "✓ Wishlisted",
+    "files": [
+      "harvest-v8"
     ]
   },
   {
@@ -878,6 +902,12 @@
     ]
   },
   {
+    "text": "APPRECIATED",
+    "files": [
+      "harvest-v8"
+    ]
+  },
+  {
     "text": "Approve",
     "files": [
       "harvest-v2"
@@ -1620,6 +1650,12 @@
     "text": "button on the Activity tab, where you can also watch it finish.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "BUY",
+    "files": [
+      "harvest-v8"
     ]
   },
   {
@@ -4205,6 +4241,12 @@
     ]
   },
   {
+    "text": "History anomaly",
+    "files": [
+      "harvest-v8"
+    ]
+  },
+  {
     "text": "History beyond 90 days is a Pro perk — showing your last 90 days.",
     "files": [
       "views/portfolio.js"
@@ -4542,6 +4584,12 @@
     ]
   },
   {
+    "text": "Insufficient sample",
+    "files": [
+      "harvest-v8"
+    ]
+  },
+  {
     "text": "Insurance report",
     "files": [
       "views/me-data.js"
@@ -4711,9 +4759,21 @@
     ]
   },
   {
+    "text": "Legacy estimate",
+    "files": [
+      "harvest-v8"
+    ]
+  },
+  {
     "text": "Legacy PriceCharting",
     "files": [
       "harvest-v6"
+    ]
+  },
+  {
+    "text": "Legacy signal",
+    "files": [
+      "harvest-v8"
     ]
   },
   {
@@ -5941,6 +6001,12 @@
     "text": "No weak sold fallback",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "NONE",
+    "files": [
+      "harvest-v8"
     ]
   },
   {
@@ -7680,6 +7746,12 @@
     ]
   },
   {
+    "text": "Resuming:",
+    "files": [
+      "harvest-v8"
+    ]
+  },
+  {
     "text": "Retail",
     "files": [
       "harvest-v2"
@@ -8982,6 +9054,12 @@
     ]
   },
   {
+    "text": "Source conflict",
+    "files": [
+      "harvest-v8"
+    ]
+  },
+  {
     "text": "Source match rejected.",
     "files": [
       "views/me-admin.js"
@@ -9003,6 +9081,12 @@
     "text": "Spreadsheet ID:",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Stale data",
+    "files": [
+      "harvest-v8"
     ]
   },
   {
@@ -10536,6 +10620,12 @@
     "text": "Whole shelf",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "Wide range",
+    "files": [
+      "harvest-v8"
     ]
   },
   {

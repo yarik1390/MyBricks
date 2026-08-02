@@ -7,6 +7,7 @@ export const zh = {
     loading: '加载中…', search: '搜索', all: '全部', none: '无',
     yes: '是', no: '否', error: '出错了', offline: '你已离线',
     seeAll: '查看全部', share: '分享',
+    and: '和',
   },
   settings: {
     title: '设置', language: '语言',
@@ -27,6 +28,22 @@ export const zh = {
   },
   counts: {
     results: '{n} 个结果', resultsOne: '1 个结果', collected: '已收集 {owned}/{total}', owned: '拥有 {n}', ofFigs: '共 {total} 个人仔', figs: '{n} 个人仔', figsOne: '1 个人仔',
+  },
+  market: {
+    sellNowLabel: '立即卖出',
+    fastSaleAfterFees: '扣除费用后的快速出售',
+    pctOfValue: '价值的 {pct}%',
+    pctOfFairValue: '合理价值的 {pct}%',
+    confidentlyPriced: '{pct}% 定价可信',
+    families: '{n} 个独立市场来源',
+    familyOne: '1 个独立市场来源',
+    sales: '{n} 笔已验证成交',
+    saleOne: '1 笔已验证成交',
+    estimateUnlocks: '{list}估算将在获得更多成交数据后解锁。',
+    estimatesUnlock: '{list}估算将在获得更多成交数据后解锁。',
+  },
+  time: {
+    unknown: '未知', today: '今天', yesterday: '昨天', daysAgo: '{n} 天前',
   },
   me: {
     trophyShelf: '展示架（{n}/6）',

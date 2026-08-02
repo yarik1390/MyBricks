@@ -7,6 +7,7 @@ export const fr = {
     loading: 'Chargement…', search: 'Rechercher', all: 'Tous', none: 'Aucun',
     yes: 'Oui', no: 'Non', error: 'Une erreur est survenue', offline: 'Vous êtes hors ligne',
     seeAll: 'Tout voir', share: 'Partager',
+    and: 'et',
   },
   settings: {
     title: 'Réglages', language: 'Langue',
@@ -27,6 +28,22 @@ export const fr = {
   },
   counts: {
     results: '{n} résultats', resultsOne: '1 résultat', collected: '{owned}/{total} collectées', owned: '{n} en possession', ofFigs: 'sur {total} figurines', figs: '{n} figurines', figsOne: '1 figurine',
+  },
+  market: {
+    sellNowLabel: 'Vendre maintenant',
+    fastSaleAfterFees: 'vente rapide après frais',
+    pctOfValue: '{pct}% de la valeur',
+    pctOfFairValue: '{pct}% de la juste valeur',
+    confidentlyPriced: '{pct}% évalués avec confiance',
+    families: '{n} sources de marché indépendantes',
+    familyOne: '1 source de marché indépendante',
+    sales: '{n} ventes vérifiées',
+    saleOne: '1 vente vérifiée',
+    estimateUnlocks: 'L’estimation {list} se débloquera avec plus de données de ventes.',
+    estimatesUnlock: 'Les estimations {list} se débloqueront avec plus de données de ventes.',
+  },
+  time: {
+    unknown: 'inconnu', today: 'Aujourd’hui', yesterday: 'Hier', daysAgo: 'il y a {n} jours',
   },
   me: {
     trophyShelf: 'Vitrine ({n}/6)',

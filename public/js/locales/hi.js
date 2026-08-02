@@ -7,6 +7,7 @@ export const hi = {
     loading: 'लोड हो रहा है…', search: 'खोजें', all: 'सभी', none: 'कोई नहीं',
     yes: 'हाँ', no: 'नहीं', error: 'कुछ गड़बड़ हो गई', offline: 'आप ऑफ़लाइन हैं',
     seeAll: 'सभी देखें', share: 'साझा करें',
+    and: 'और',
   },
   settings: {
     title: 'सेटिंग्स', language: 'भाषा',
@@ -27,6 +28,22 @@ export const hi = {
   },
   counts: {
     results: '{n} परिणाम', resultsOne: '1 परिणाम', collected: '{owned}/{total} एकत्रित', owned: '{n} स्वामित्व में', ofFigs: '{total} में से', figs: '{n} मिनीफ़िगर', figsOne: '1 मिनीफ़िगर',
+  },
+  market: {
+    sellNowLabel: 'अभी बेचें',
+    fastSaleAfterFees: 'शुल्क के बाद तेज़ बिक्री',
+    pctOfValue: 'मूल्य का {pct}%',
+    pctOfFairValue: 'उचित मूल्य का {pct}%',
+    confidentlyPriced: '{pct}% भरोसेमंद कीमत',
+    families: '{n} स्वतंत्र बाज़ार स्रोत',
+    familyOne: '1 स्वतंत्र बाज़ार स्रोत',
+    sales: '{n} सत्यापित बिक्रियाँ',
+    saleOne: '1 सत्यापित बिक्री',
+    estimateUnlocks: '{list} का अनुमान अधिक बिक्री डेटा आने पर उपलब्ध होगा।',
+    estimatesUnlock: '{list} के अनुमान अधिक बिक्री डेटा आने पर उपलब्ध होंगे।',
+  },
+  time: {
+    unknown: 'अज्ञात', today: 'आज', yesterday: 'कल', daysAgo: '{n} दिन पहले',
   },
   me: {
     trophyShelf: 'ट्रॉफी शेल्फ ({n}/6)',

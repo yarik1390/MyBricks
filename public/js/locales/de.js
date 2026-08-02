@@ -7,6 +7,7 @@ export const de = {
     loading: 'Wird geladen…', search: 'Suchen', all: 'Alle', none: 'Keine',
     yes: 'Ja', no: 'Nein', error: 'Etwas ist schiefgelaufen', offline: 'Du bist offline',
     seeAll: 'Alle ansehen', share: 'Teilen',
+    and: 'und',
   },
   settings: {
     title: 'Einstellungen', language: 'Sprache',
@@ -27,6 +28,22 @@ export const de = {
   },
   counts: {
     results: '{n} Ergebnisse', resultsOne: '1 Ergebnis', collected: '{owned}/{total} gesammelt', owned: '{n} im Besitz', ofFigs: 'von {total} Figuren', figs: '{n} Figuren', figsOne: '1 Figur',
+  },
+  market: {
+    sellNowLabel: 'Jetzt verkaufen',
+    fastSaleAfterFees: 'Schnellverkauf nach Gebühren',
+    pctOfValue: '{pct}% des Werts',
+    pctOfFairValue: '{pct}% des fairen Werts',
+    confidentlyPriced: '{pct}% sicher bewertet',
+    families: '{n} unabhängige Marktquellen',
+    familyOne: '1 unabhängige Marktquelle',
+    sales: '{n} bestätigte Verkäufe',
+    saleOne: '1 bestätigter Verkauf',
+    estimateUnlocks: 'Schätzung für {list} wird verfügbar, sobald mehr Verkaufsdaten vorliegen.',
+    estimatesUnlock: 'Schätzungen für {list} werden verfügbar, sobald mehr Verkaufsdaten vorliegen.',
+  },
+  time: {
+    unknown: 'unbekannt', today: 'Heute', yesterday: 'Gestern', daysAgo: 'vor {n} Tagen',
   },
   me: {
     trophyShelf: 'Pokalregal ({n}/6)',

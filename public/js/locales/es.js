@@ -7,6 +7,7 @@ export const es = {
     loading: 'Cargando…', search: 'Buscar', all: 'Todos', none: 'Ninguno',
     yes: 'Sí', no: 'No', error: 'Algo salió mal', offline: 'Estás sin conexión',
     seeAll: 'Ver todo', share: 'Compartir',
+    and: 'y',
   },
   settings: {
     title: 'Ajustes', language: 'Idioma',
@@ -27,6 +28,22 @@ export const es = {
   },
   counts: {
     results: '{n} resultados', resultsOne: '1 resultado', collected: '{owned}/{total} coleccionadas', owned: '{n} en propiedad', ofFigs: 'de {total} minifiguras', figs: '{n} minifiguras', figsOne: '1 minifigura',
+  },
+  market: {
+    sellNowLabel: 'Vender ahora',
+    fastSaleAfterFees: 'venta rápida tras comisiones',
+    pctOfValue: '{pct}% del valor',
+    pctOfFairValue: '{pct}% del valor razonable',
+    confidentlyPriced: '{pct}% con precio fiable',
+    families: '{n} fuentes de mercado independientes',
+    familyOne: '1 fuente de mercado independiente',
+    sales: '{n} ventas verificadas',
+    saleOne: '1 venta verificada',
+    estimateUnlocks: 'La estimación de {list} se desbloqueará con más datos de ventas.',
+    estimatesUnlock: 'Las estimaciones de {list} se desbloquearán con más datos de ventas.',
+  },
+  time: {
+    unknown: 'desconocido', today: 'Hoy', yesterday: 'Ayer', daysAgo: 'hace {n} días',
   },
   me: {
     trophyShelf: 'Estantería de trofeos ({n}/6)',

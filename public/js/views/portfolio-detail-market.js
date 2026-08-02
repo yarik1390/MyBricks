@@ -6,6 +6,7 @@ import { I } from '../icons.js';
 import { amazonSlotHTML } from '../lib/amazon-affiliate.js';
 import { ebaySoldSummary } from '../lib/pure.js';
 import { escapeHtml, fmtMoney, fmtPct, fmtDateUpdated, trendBadgeHTML } from '../utils.js';
+import { t } from '../lib/i18n.js';
 
 function genericSourceLabel(s) {
   const id = String((s && s.id) || '');
@@ -127,6 +128,22 @@ function sourceTypeLabel(value) {
   return ({ sold: 'Verified sold data', modeled: 'Market guides (not live sales)', asking: 'Active asking data', estimate: 'Estimated only' })[value] || 'Market signal';
 }
 
+// Pricing flags arrive as enum keys (source_conflict). Rendering
+// String(flag).replaceAll('_',' ') produced "source conflict" out of thin air —
+// text that exists nowhere in the source, so the exact-match dictionary could
+// never see it and it stayed English while the card around it translated.
+// These labels are real strings, which makes them harvestable like any other.
+const FLAG_LABELS = {
+  source_conflict: 'Source conflict',
+  history_anomaly: 'History anomaly',
+  insufficient_sample: 'Insufficient sample',
+  legacy_estimate: 'Legacy estimate',
+  legacy_signal: 'Legacy signal',
+  stale_data: 'Stale data',
+  wide_range: 'Wide range',
+};
+const flagLabel = (flag) => FLAG_LABELS[flag] || String(flag).replaceAll('_', ' ');
+
 function conditionStateHTML(state, label) {
   if (!state) return '';
   const basis = Array.isArray(state.basis) ? state.basis : [];
@@ -149,7 +166,7 @@ function conditionStateHTML(state, label) {
         <div><dt>Independent families</dt><dd>${Number(state.independent_family_count || 0)}</dd></div>
         <div><dt>As of</dt><dd>${state.as_of ? escapeHtml(fmtDateUpdated(state.as_of)) : 'Pending'}</dd></div>
       </dl>
-      ${flags.length ? `<div class="pricing-flags">${flags.map((flag) => `<span>${escapeHtml(String(flag).replaceAll('_', ' '))}</span>`).join('')}</div>` : ''}
+      ${flags.length ? `<div class="pricing-flags">${flags.map((flag) => `<span>${escapeHtml(flagLabel(flag))}</span>`).join('')}</div>` : ''}
     </article>`;
 }
 
@@ -202,8 +219,8 @@ export function investmentPricingHTML(set) {
     rows.push(['Used &amp; complete', fmtMoney(d.usedValue), 'what a used, complete copy resells for']);
   }
   if (d.liquidation > 0) {
-    const pct = d.fairValue > 0 ? ` · ${Math.round((d.liquidation / d.fairValue) * 100)}% of value` : '';
-    rows.push(['Sell now', `${fmtMoney(d.liquidation)}`, `fast sale after fees${pct}`]);
+    const pct = d.fairValue > 0 ? ` · ${t('market.pctOfValue', { pct: Math.round((d.liquidation / d.fairValue) * 100) })}` : '';
+    rows.push([t('market.sellNowLabel'), `${fmtMoney(d.liquidation)}`, `${t('market.fastSaleAfterFees')}${pct}`]);
   }
   if (d.delivered > 0) {
     const merchant = d.acquisition.merchant ? escapeHtml(d.acquisition.merchant) : 'retail';
@@ -223,7 +240,7 @@ export function investmentPricingHTML(set) {
   if (!(d.partOutValue > 0)) missing.push('part-out');
   if (!(d.forecastReady && Number(d.forecast.base) > 0)) missing.push('forecast');
   const missingLine = missing.length
-    ? `<div class="more-price-note">${missing.join(', ').replace(/, ([^,]*)$/, ' and $1')} ${missing.length === 1 ? 'estimate' : 'estimates'} unlock as more sold data arrives.</div>`
+    ? `<div class="more-price-note">${missing.length === 1 ? t('market.estimateUnlocks', { list: missing[0] }) : t('market.estimatesUnlock', { list: missing.join(', ').replace(/, ([^,]*)$/, ` ${t('common.and')} $1`) })}</div>`
     : '';
 
   const rowsHTML = rows.map(([label, value, sub]) => `
@@ -302,7 +319,7 @@ export function investmentPricingDetailHTML(set) {
         <div>
           <div class="pricing-block-title"><span>2</span><div><h3>Sell now</h3><p>Fast-sale estimate after fees and a liquidity haircut.</p></div></div>
           <strong class="pricing-block-value">${liquidation > 0 ? fmtMoney(liquidation) : 'Not enough sold data yet'}</strong>
-          ${liquidation > 0 && fairValue > 0 ? `<small>${Math.round((liquidation / fairValue) * 100)}% of fair value</small>` : ''}
+          ${liquidation > 0 && fairValue > 0 ? `<small>${t('market.pctOfFairValue', { pct: Math.round((liquidation / fairValue) * 100) })}</small>` : ''}
         </div>
         <div>
           <div class="pricing-block-title"><span>3</span><div><h3>Buy now</h3><p>Current retail acquisition price, never part of resale value.</p></div></div>

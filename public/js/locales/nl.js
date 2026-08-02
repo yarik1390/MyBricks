@@ -7,6 +7,7 @@ export const nl = {
     loading: 'Laden…', search: 'Zoeken', all: 'Alle', none: 'Geen',
     yes: 'Ja', no: 'Nee', error: 'Er ging iets mis', offline: 'Je bent offline',
     seeAll: 'Alles bekijken', share: 'Delen',
+    and: 'en',
   },
   settings: {
     title: 'Instellingen', language: 'Taal',
@@ -27,6 +28,22 @@ export const nl = {
   },
   counts: {
     results: '{n} resultaten', resultsOne: '1 resultaat', collected: '{owned}/{total} verzameld', owned: '{n} in bezit', ofFigs: 'van {total} figuren', figs: '{n} figuren', figsOne: '1 figuur',
+  },
+  market: {
+    sellNowLabel: 'Nu verkopen',
+    fastSaleAfterFees: 'snelle verkoop na kosten',
+    pctOfValue: '{pct}% van de waarde',
+    pctOfFairValue: '{pct}% van de reële waarde',
+    confidentlyPriced: '{pct}% betrouwbaar geprijsd',
+    families: '{n} onafhankelijke marktbronnen',
+    familyOne: '1 onafhankelijke marktbron',
+    sales: '{n} geverifieerde verkopen',
+    saleOne: '1 geverifieerde verkoop',
+    estimateUnlocks: 'De schatting voor {list} komt beschikbaar bij meer verkoopdata.',
+    estimatesUnlock: 'De schattingen voor {list} komen beschikbaar bij meer verkoopdata.',
+  },
+  time: {
+    unknown: 'onbekend', today: 'Vandaag', yesterday: 'Gisteren', daysAgo: '{n} dagen geleden',
   },
   me: {
     trophyShelf: 'Trofeeplank ({n}/6)',

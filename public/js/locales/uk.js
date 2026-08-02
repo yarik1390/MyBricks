@@ -7,6 +7,7 @@ export const uk = {
     loading: 'Завантаження…', search: 'Пошук', all: 'Усі', none: 'Немає',
     yes: 'Так', no: 'Ні', error: 'Щось пішло не так', offline: 'Ви офлайн',
     seeAll: 'Показати все', share: 'Поділитися',
+    and: 'та',
   },
   settings: {
     title: 'Налаштування', language: 'Мова',
@@ -27,6 +28,22 @@ export const uk = {
   },
   counts: {
     results: '{n} результатів', resultsOne: '1 результат', collected: '{owned}/{total} зібрано', owned: '{n} у власності', ofFigs: 'з {total} фігурок', figs: '{n} фігурок', figsOne: '1 фігурка',
+  },
+  market: {
+    sellNowLabel: 'Продати зараз',
+    fastSaleAfterFees: 'швидкий продаж після комісій',
+    pctOfValue: '{pct}% від вартості',
+    pctOfFairValue: '{pct}% від справедливої вартості',
+    confidentlyPriced: '{pct}% оцінено впевнено',
+    families: '{n} незалежних ринкових джерел',
+    familyOne: '1 незалежне ринкове джерело',
+    sales: '{n} перевірених продажів',
+    saleOne: '1 перевірений продаж',
+    estimateUnlocks: 'Оцінка «{list}» з’явиться, коли надійде більше даних про продажі.',
+    estimatesUnlock: 'Оцінки «{list}» з’являться, коли надійде більше даних про продажі.',
+  },
+  time: {
+    unknown: 'невідомо', today: 'Сьогодні', yesterday: 'Учора', daysAgo: '{n} дн. тому',
   },
   me: {
     trophyShelf: 'Полиця трофеїв ({n}/6)',

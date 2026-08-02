@@ -122,7 +122,7 @@ const DO_NOT_TRANSLATE = new Set([
   // A LEGO theme name, not UI copy.
   'Modular Buildings',
   // Vendor, and an HTTP auth scheme that appears verbatim in a header.
-  'Supabase', 'Bearer',
+  'Supabase', 'Bearer', 'PUT',
   // Supporter tier names, shown as "PRO"/"Pro" and left English on purpose so
   // the paywall copy reads the same in every language.
   'PRO', 'Pro',
@@ -134,6 +134,7 @@ const DO_NOT_TRANSLATE = new Set([
 // scheme so the REJECT list's url rule misses it.
 const RENDERED_JUNK = [
   /^[a-z][a-z0-9_-]*$/,             // "gray", "used", "value_desc", "your-name"
+  /^[a-z]+([A-Z][a-z0-9]*)+$/,      // camelCase element ids: "signInRow"
   /^[a-z-]+=$/i,                    // "aria-live=", "data-set=" attribute stubs
   /\.\.\.$/,                        // "AIza...", "sk-..." credential placeholders
   /^[a-z]\.\w+$/i,                  // "i.annualized_roi", "x.slope_90d"
@@ -233,8 +234,12 @@ for (const root of ROOTS) {
     // Rule 1 cannot see these — it requires the span between > and < to contain
     // no `$`, which a hole always does — and they turned out to be a large
     // share of the visible untranslated text.
+    //    rendered=true: both branches sit inside a template hole between tags,
+    //    so they ARE painted text. Without it the symbol-led labels are dropped
+    //    — "+ Wishlist" and "✓ Wishlisted" stayed English for exactly that
+    //    reason, since a quoted fragment may not start on punctuation.
     for (const m of src.matchAll(/\?\s*(['"])([^'"`\n]{3,160})\1\s*:\s*(['"])([^'"`\n]{3,160})\3/g)) {
-      add(m[2], short); add(m[4], short);
+      add(m[2], short, true); add(m[4], short, true);
     }
     // 5. User-facing OBJECT-LITERAL properties. This codebase builds most lists
     //    declaratively — sort chips are { label: 'Newest' }, settings rows are

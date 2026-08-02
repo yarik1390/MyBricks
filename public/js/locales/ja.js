@@ -7,6 +7,7 @@ export const ja = {
     loading: '読み込み中…', search: '検索', all: 'すべて', none: 'なし',
     yes: 'はい', no: 'いいえ', error: '問題が発生しました', offline: 'オフラインです',
     seeAll: 'すべて表示', share: '共有',
+    and: 'と',
   },
   settings: {
     title: '設定', language: '言語',
@@ -27,6 +28,22 @@ export const ja = {
   },
   counts: {
     results: '{n} 件', resultsOne: '1 件', collected: '{owned}/{total} 収集済み', owned: '{n} 個所有', ofFigs: '全 {total} 体中', figs: '{n} 体', figsOne: '1 体',
+  },
+  market: {
+    sellNowLabel: '今すぐ売る',
+    fastSaleAfterFees: '手数料差引後の即売価格',
+    pctOfValue: '価値の {pct}%',
+    pctOfFairValue: '適正価値の {pct}%',
+    confidentlyPriced: '{pct}% が高信頼価格',
+    families: '{n} 件の独立した市場ソース',
+    familyOne: '1 件の独立した市場ソース',
+    sales: '{n} 件の検証済み成約',
+    saleOne: '1 件の検証済み成約',
+    estimateUnlocks: '{list}の推定値は成約データが増えると表示されます。',
+    estimatesUnlock: '{list}の推定値は成約データが増えると表示されます。',
+  },
+  time: {
+    unknown: '不明', today: '今日', yesterday: '昨日', daysAgo: '{n}日前',
   },
   me: {
     trophyShelf: 'トロフィー棚（{n}/6）',

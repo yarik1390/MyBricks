@@ -36,6 +36,7 @@ export const en = {
     offline: 'You are offline',
     seeAll: 'See all',
     share: 'Share',
+    and: 'and',
   },
   settings: {
     title: 'Settings',
@@ -102,6 +103,22 @@ export const en = {
     ofFigs: 'of {total} figs',
     figs: '{n} figs',
     figsOne: '1 fig',
+  },
+  market: {
+    sellNowLabel: 'Sell now',
+    fastSaleAfterFees: 'fast sale after fees',
+    pctOfValue: '{pct}% of value',
+    pctOfFairValue: '{pct}% of fair value',
+    confidentlyPriced: '{pct}% confidently priced',
+    families: '{n} independent market families',
+    familyOne: '1 independent market family',
+    sales: '{n} verified sales',
+    saleOne: '1 verified sale',
+    estimateUnlocks: '{list} estimate unlocks as more sold data arrives.',
+    estimatesUnlock: '{list} estimates unlock as more sold data arrives.',
+  },
+  time: {
+    unknown: 'unknown', today: 'Today', yesterday: 'Yesterday', daysAgo: '{n} days ago',
   },
   fees: {
     marketplace: 'Marketplace Fee ({pct}%)',
