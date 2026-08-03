@@ -1,5 +1,6 @@
 /** Chinese (Simplified) exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Language": "语言",
   "— a fast-sale estimate after marketplace fees and a liquidity haircut.": "— 扣除平台费用和流动性折价后的快速出售估算。",
   "— bear/base/bull scenarios, unlocked only after at least 180 days and 12 observations of real history.": "— 悲观/中性/乐观情景，只有在积累至少 180 天和 12 次真实历史观测后才会解锁。",
   "— the parts-and-minifigs value, shown only when piece coverage is high enough to be honest.": "— 零件与人仔的价值，仅在零件覆盖率足够高、可以如实呈现时才显示。",

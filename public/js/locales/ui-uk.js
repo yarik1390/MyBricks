@@ -1,5 +1,6 @@
 /** Ukrainian exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Language": "Мова",
   "— a fast-sale estimate after marketplace fees and a liquidity haircut.": "— оцінка швидкого продажу після комісій майданчика та знижки за ліквідність.",
   "— bear/base/bull scenarios, unlocked only after at least 180 days and 12 observations of real history.": "— песимістичний/базовий/оптимістичний сценарії, доступні лише після щонайменше 180 днів і 12 спостережень реальної історії.",
   "— the parts-and-minifigs value, shown only when piece coverage is high enough to be honest.": "— вартість деталей і мініфігурок, що показується лише тоді, коли покриття деталей достатньо високе, щоб бути чесним.",

@@ -1,5 +1,6 @@
 /** Japanese exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Language": "言語",
   "— a fast-sale estimate after marketplace fees and a liquidity haircut.": "— 手数料と流動性ディスカウントを差し引いた、即売時の想定価格です。",
   "— bear/base/bull scenarios, unlocked only after at least 180 days and 12 observations of real history.": "— 弱気・標準・強気のシナリオ。実際の履歴が180日以上かつ12件以上そろって初めて表示されます。",
   "— the parts-and-minifigs value, shown only when piece coverage is high enough to be honest.": "— パーツとミニフィグの合計価値。パーツの網羅率が十分に高く、正直に示せる場合のみ表示します。",

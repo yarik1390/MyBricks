@@ -1,5 +1,6 @@
 /** German exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Language": "Sprache",
   "— a fast-sale estimate after marketplace fees and a liquidity haircut.": "— eine Schnellverkaufsschätzung nach Marktplatzgebühren und einem Liquiditätsabschlag.",
   "— bear/base/bull scenarios, unlocked only after at least 180 days and 12 observations of real history.": "— Bear-/Base-/Bull-Szenarien, freigeschaltet erst nach mindestens 180 Tagen und 12 Beobachtungen echter Historie.",
   "— the parts-and-minifigs value, shown only when piece coverage is high enough to be honest.": "— der Wert aus Teilen und Minifiguren, nur angezeigt, wenn die Teileabdeckung hoch genug ist, um ehrlich zu sein.",

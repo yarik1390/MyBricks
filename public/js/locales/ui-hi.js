@@ -1,5 +1,6 @@
 /** Hindi exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Language": "भाषा",
   "— a fast-sale estimate after marketplace fees and a liquidity haircut.": "— मार्केटप्लेस शुल्क और तरलता कटौती के बाद तेज़ बिक्री का अनुमान।",
   "— bear/base/bull scenarios, unlocked only after at least 180 days and 12 observations of real history.": "— मंदी/आधार/तेजी परिदृश्य, जो कम से कम 180 दिनों और वास्तविक इतिहास के 12 अवलोकनों के बाद ही उपलब्ध होते हैं।",
   "— the parts-and-minifigs value, shown only when piece coverage is high enough to be honest.": "— पुर्ज़ों और मिनीफ़िगर का मूल्य, जो केवल तब दिखाया जाता है जब पुर्ज़ों का कवरेज ईमानदार होने लायक पर्याप्त हो।",

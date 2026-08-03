@@ -4887,6 +4887,12 @@
     ]
   },
   {
+    "text": "Language",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
     "text": "Large set, high collector appeal",
     "files": [
       "views/portfolio-detail.js"

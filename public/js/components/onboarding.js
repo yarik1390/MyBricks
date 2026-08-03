@@ -8,6 +8,7 @@ import { getThemePref, setThemePref, getSkinPref, setSkinPref, getModePref, setM
 import { api, isGuestMode } from '../api.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { route } from '../router.js';
+import { SUPPORTED, getLocale, setLocale, applyUiDictionary } from '../lib/i18n.js';
 
 const FLAG = 'bv_onboarded_v1';
 
@@ -244,6 +245,9 @@ function ensureSetupStyles() {
     .bv-skin.sel i{outline:2.5px solid var(--accent,#e23b3b);outline-offset:3px;}
     .bv-skin span{font-size:11.5px;color:var(--ink-soft);font-weight:600;}
     .bv-note{font-size:12.5px;color:var(--ink-soft);line-height:1.45;background:var(--surface-2,#f6f7f9);border-radius:12px;padding:11px 13px;}
+    .bv-langs{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
+    .bv-lang{padding:9px 14px;border:2px solid var(--line,#e5e7eb);border-radius:999px;background:var(--surface-2,#f6f7f9);color:inherit;font-size:13.5px;font-weight:600;cursor:pointer;}
+    .bv-lang.sel{border-color:var(--accent,#e23b3b);background:color-mix(in srgb,var(--accent,#e23b3b) 10%,transparent);}
     .bv-preview{margin:0 0 20px;}
     /* Uses the skin's own tokens (border weight, shadow, radius, surface, accent)
        so the card visibly takes on each skin — Retro's hard pixel shadow, Modular's
@@ -287,9 +291,26 @@ function heroHTML(icon, hue) {
 
 function stepBodyHTML(key) {
   if (key === 'welcome') {
+    // Language leads, because every screen after it depends on the answer. The
+    // default is the device locale, which is right for most people — but a
+    // phone set to a language the user does not read (a shared or second-hand
+    // device, a work profile) left them with no way to change it until they
+    // found Settings, in a language they could not read to get there.
+    // data-no-i18n: these are the names of the languages themselves, each
+    // written in its own language. Translating them would make the picker
+    // unreadable for the exact person who needs it — someone who cannot read
+    // the language the app currently happens to be in.
+    const active = getLocale();
+    const chips = SUPPORTED.map((l) =>
+      `<button type="button" class="bv-lang ${l.code === active ? 'sel' : ''}" data-lang="${l.code}"
+        lang="${l.code}" aria-pressed="${l.code === active}">${l.native}</button>`).join('');
     return `${heroHTML('box', 4)}
       <h3>Welcome to BricksVault</h3>
-      <p class="sub">Let's make it yours — a few quick choices so the app feels right from the first tap.</p>`;
+      <p class="sub">Let's make it yours — a few quick choices so the app feels right from the first tap.</p>
+      <div class="bv-field">
+        <div class="bv-field-lbl">Language</div>
+        <div class="bv-langs" id="suLangs" role="group" aria-label="Language" data-no-i18n>${chips}</div>
+      </div>`;
   }
   if (key === 'mode') {
     const m = getModePref();
@@ -391,7 +412,18 @@ function suApplyCurrency(val) {
 
 function suWireStep(key) {
   const body = suRoot.querySelector('.bv-setup-body');
-  if (key === 'mode') {
+  if (key === 'welcome') {
+    body.querySelectorAll('#suLangs .bv-lang').forEach(b => b.addEventListener('click', async () => {
+      haptic('light');
+      // remember:true — tapping a flag IS an explicit choice, and it has to
+      // survive the device staying on its own language.
+      await setLocale(b.dataset.lang);
+      // onLocaleChange already schedules this, but it is async and suRender()
+      // would otherwise repaint the wizard before the dictionary is loaded.
+      await applyUiDictionary().catch(() => {});
+      suRender();
+    }));
+  } else if (key === 'mode') {
     body.querySelectorAll('.bv-opt').forEach(b => b.addEventListener('click', () => {
       haptic('light');
       if (b.dataset.locked) {

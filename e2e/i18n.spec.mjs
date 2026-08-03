@@ -42,6 +42,32 @@ test.describe(() => {
   });
 });
 
+// The first-run wizard has to be escapable from a language you cannot read.
+// Device locale is the default and is right for most people, but someone on a
+// shared or second-hand phone was stuck: the only language control lived in
+// Settings, which they had to navigate to in a language they could not read.
+test('onboarding language picker switches the wizard live', async ({ page }) => {
+  await page.goto('/#/', { waitUntil: 'domcontentloaded' });
+  await page.evaluate(async () => {
+    const { showSetup } = await import('/js/components/onboarding.js');
+    showSetup();
+  });
+  // The device is de-DE (test.use at the top of this file), so the wizard opens
+  // in German — that is the situation being escaped from.
+  const welcome = page.locator('.bv-setup-body h3');
+  await expect(welcome).toHaveText('Willkommen bei BricksVault');
+
+  await page.locator('.bv-lang[data-lang="uk"]').click();
+  await expect(welcome).toHaveText('Ласкаво просимо в BricksVault');
+  // The language's own name stays in its own language, or the picker is
+  // unusable for the person who needs it.
+  await expect(page.locator('.bv-lang[data-lang="de"]')).toHaveText('Deutsch');
+  await expect(page.locator('.bv-lang[data-lang="uk"]')).toHaveClass(/sel/);
+
+  await page.locator('.bv-lang[data-lang="en"]').click();
+  await expect(welcome).toHaveText('Welcome to BricksVault');
+});
+
 // Non-Latin scripts and the newly added languages — a catalogue that parses is
 // not the same as one that reaches the screen.
 for (const [locale, code, vault, catalog] of [

@@ -1,5 +1,6 @@
 /** Dutch exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Language": "Taal",
   "— a fast-sale estimate after marketplace fees and a liquidity haircut.": "— een schatting voor snelle verkoop na marktplaatskosten en een liquiditeitskorting.",
   "— bear/base/bull scenarios, unlocked only after at least 180 days and 12 observations of real history.": "— bear-/base-/bullscenario’s, pas vrijgegeven na minstens 180 dagen en 12 waarnemingen van echte historie.",
   "— the parts-and-minifigs value, shown only when piece coverage is high enough to be honest.": "— de waarde van onderdelen en minifiguren, alleen getoond wanneer de onderdelendekking hoog genoeg is om eerlijk te zijn.",
