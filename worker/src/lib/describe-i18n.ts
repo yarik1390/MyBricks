@@ -46,7 +46,7 @@ export async function getCachedDescription(
 }
 
 export async function translateDescription(
-  env: Env, setNum: string, english: string, lang: string, apiKey: string,
+  env: Env, english: string, lang: string, apiKey: string,
   opts: { routeThroughGateway?: boolean } = {},
 ): Promise<string | null> {
   const language = LANGS[lang];

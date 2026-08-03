@@ -409,7 +409,7 @@ app.get('/:setnum/description', async (c) => {
   if (!apiKey) return c.json({ set_num: setNum, lang: 'en', description: english });
 
   const translated = await translateDescription(
-    c.env, setNum, english, lang, apiKey, { routeThroughGateway: !byok },
+    c.env, english, lang, apiKey, { routeThroughGateway: !byok },
   );
   if (!translated) return c.json({ set_num: setNum, lang: 'en', description: english });
 
