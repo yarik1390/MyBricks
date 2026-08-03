@@ -1,7 +1,7 @@
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML, investmentPricingDetailHTML } from './portfolio-detail-market.js';
 import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput, themeColor } from '../lib/pure.js';
-import { t } from '../lib/i18n.js';
+import { t, getLocale } from '../lib/i18n.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { shareContent } from '../lib/native-share.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue, isGuestMode } from '../api.js';
@@ -698,6 +698,25 @@ function wireInfoTab(set) {
   loadSetHistory(set.set_num);
   loadSetImages(set.set_num);
   hydrateAmazonSlots(document, state.me?.retail_market || 'FR');
+
+  // The set description is catalog DATA, not UI copy — a unique paragraph per
+  // set — so the exact-match dictionary can never carry it. Fetch a translation
+  // for the active language and swap it in after paint. Deliberately
+  // non-blocking and silent on failure: the English text is already on screen,
+  // and a set page must not wait on (or break because of) a model call.
+  (async () => {
+    const p = $("#aboutText");
+    if (!p) return;
+    const lang = getLocale();
+    if (!lang || lang === 'en') return;
+    try {
+      const r = await api(`/api/sets/${encodeURIComponent(set.set_num)}/description?lang=${encodeURIComponent(lang)}`);
+      const text = String(r?.description || '').trim();
+      // Only replace when the server actually returned the other language;
+      // it falls back to English whenever translation is unavailable.
+      if (text && r?.lang === lang && text !== p.textContent.trim()) p.textContent = text;
+    } catch { /* English stays — a missing translation is not worth an error */ }
+  })();
 
   const aboutBtn = $("#aboutToggle");
   aboutBtn?.addEventListener("click", () => {

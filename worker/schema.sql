@@ -901,3 +901,17 @@ CREATE TABLE IF NOT EXISTS set_contributions (
 );
 CREATE INDEX IF NOT EXISTS idx_set_contributions_status ON set_contributions(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_set_contributions_user ON set_contributions(user_id);
+
+-- Translated set descriptions. Descriptions are CATALOG DATA, not UI copy: a
+-- unique ~1,400-character paragraph per set, 9,681 sets, 13.3M characters. Bulk
+-- pre-translation into eight languages would be ~106M characters of model
+-- output for text most sets never have read. So they are translated ON VIEW and
+-- cached here forever (a description changes only if Brickset rewrites it).
+CREATE TABLE IF NOT EXISTS set_description_i18n (
+  set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
+  lang TEXT NOT NULL,
+  description TEXT NOT NULL,
+  source_hash TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (set_num, lang)
+);

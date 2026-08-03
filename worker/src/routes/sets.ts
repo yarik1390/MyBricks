@@ -24,6 +24,7 @@ import { isSearchIndexCorruption, rebuildSearchIndex } from '../lib/search-index
 import { checkLegoStock } from '../lib/lego-stock';
 import { fetchSetMinifigs } from '../lib/rebrickable';
 import type { Env, Variables } from '../types';
+import { isTranslatableLang, getCachedDescription, translateDescription, cacheDescription, hashSource } from '../lib/describe-i18n';
 import {
   AMAZON_ASSOCIATE_DISCLOSURE,
   AMAZON_PRICE_DISCLAIMER,
@@ -377,6 +378,46 @@ app.get('/:setnum/price-history', async (c) => {
     ORDER BY snapshot_date ASC LIMIT 400
   `).bind(setNum, condition).all();
   return c.json({ set_num: setNum, condition, currency: 'USD', history: results });
+});
+
+// Translated set description, generated on first view and cached forever.
+// Descriptions are catalog DATA (a unique ~1,400-char paragraph per set, 13.3M
+// characters across the catalogue), so they are deliberately NOT pre-translated
+// in bulk — only sets someone actually opens in a non-English language cost
+// anything. Any failure returns the English text rather than an error: a
+// missing translation is cosmetic, a broken set page is not.
+app.get('/:setnum/description', async (c) => {
+  const setNum = c.req.param('setnum');
+  const lang = String(c.req.query('lang') || '').toLowerCase();
+  const row = await c.env.DB.prepare(
+    `SELECT brickset_description AS d FROM lego_sets WHERE set_num = ?`,
+  ).bind(setNum).first<{ d: string | null }>();
+  const english = String(row?.d || '').trim();
+  if (!english) return c.json({ set_num: setNum, lang: 'en', description: '' });
+  if (!isTranslatableLang(lang)) {
+    return c.json({ set_num: setNum, lang: 'en', description: english });
+  }
+
+  const sourceHash = hashSource(english);
+  const cached = await getCachedDescription(c.env, setNum, lang, sourceHash);
+  if (cached) return c.json({ set_num: setNum, lang, description: cached, cached: true });
+
+  // BYOK first, exactly as the scan and advisor paths do, so a user with their
+  // own key never consumes the shared quota.
+  const byok = c.req.header('X-Gemini-Key');
+  const apiKey = byok || c.env.GEMINI_API_KEY;
+  if (!apiKey) return c.json({ set_num: setNum, lang: 'en', description: english });
+
+  const translated = await translateDescription(
+    c.env, setNum, english, lang, apiKey, { routeThroughGateway: !byok },
+  );
+  if (!translated) return c.json({ set_num: setNum, lang: 'en', description: english });
+
+  // Cache after responding — the user should not wait on the write.
+  c.executionCtx.waitUntil(
+    cacheDescription(c.env, setNum, lang, translated, sourceHash).catch(() => {}),
+  );
+  return c.json({ set_num: setNum, lang, description: translated });
 });
 
 app.get('/:setnum/offers', async (c) => {
