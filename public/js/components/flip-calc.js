@@ -38,7 +38,7 @@ export function flipCalcHTML(set, entry) {
 
   return `
     <div class="flip-calc-wrap" style="margin-top:12px;padding:12px;background:var(--surface-3);border:1.5px solid var(--line-soft);border-radius:var(--r-2);">
-      <div style="font-family:var(--mono);font-size:9px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:4px;">Flip Calculator ${I.money({w:12,h:12})}</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:4px;">Flip calculator ${I.money({w:12,h:12})}</div>
       <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;text-align:center;font-size:12px;">
         <div>
           <div style="color:var(--ink-mute);font-size:10px;">Gross</div>

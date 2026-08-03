@@ -24,7 +24,7 @@ export const de = {
     reliablePrice: 'Verlässlicher Preis', pricingDetails: 'Preisdetails', priceHistory: 'Preisverlauf',
     details: 'Details', estimated: 'Geschätzt', year: 'Jahr', theme: 'Thema',
     addToWishlist: 'Zur Wunschliste', inWishlist: 'Auf deiner Wunschliste',
-    addToVaultPrice: 'In den Tresor · {price}', priceHistoryDays: 'Preisverlauf · {days} Tage', priceHistoryShort: 'Preisverlauf · {days} T.', fromSources: 'Aus {n} Marktquellen', fromSourcesOne: 'Aus 1 Marktquelle', typicalRange: ' · typisch {low}–{high}', likelyRange: ' · wahrscheinlich {low}-{high}',
+    addToVaultPrice: 'In den Tresor · {price}', priceHistoryDays: 'Preisverlauf · {days} Tage', priceHistoryShort: 'Preisverlauf · {days} T.', fromSources: 'Aus {n} Marktquellen', fromSourcesOne: 'Aus 1 Marktquelle', typicalRange: ' · typisch {low}–{high}', likelyRange: ' · wahrscheinlich {low}-{high}', reviews: '{n} Rezensionen', reviewsOne: '1 Rezension', up: 'Plus {pct}%', down: 'Minus {pct}%',
   },
   counts: {
     results: '{n} Ergebnisse', resultsOne: '1 Ergebnis', collected: '{owned}/{total} gesammelt', owned: '{n} im Besitz', ofFigs: 'von {total} Figuren', figs: '{n} Figuren', figsOne: '1 Figur',
@@ -41,6 +41,16 @@ export const de = {
     saleOne: '1 bestätigter Verkauf',
     estimateUnlocks: 'Schätzung für {list} wird verfügbar, sobald mehr Verkaufsdaten vorliegen.',
     estimatesUnlock: 'Schätzungen für {list} werden verfügbar, sobald mehr Verkaufsdaten vorliegen.',
+  },
+  card: {
+    pieces: '{n} TLE',
+    perPiece: '{price}/Teil',
+    lots: '{n} Lose',
+    deal: 'DEAL {pct}',
+    strongBuy: 'TOP-KAUF {pct}',
+    forecast2y: '{price} 2 J.',
+    gamePieces: '{n} Teile',
+    gameRetail: 'UVP {price}',
   },
   time: {
     unknown: 'unbekannt', today: 'Heute', yesterday: 'Gestern', daysAgo: 'vor {n} Tagen',

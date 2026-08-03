@@ -944,6 +944,21 @@ ul.set-list > li { display: contents; }
   color: var(--ink-faint); text-transform: uppercase; text-align: center;
   padding: 0 6px;
 }
+/* RETIRED (top-left) and OWNED (top-right) are pinned to opposite corners of
+   the same box, so nothing stops them meeting in the middle. In English they
+   never do — "RETIRED" and "OWNED" are short. Translated they are not:
+   Ukrainian renders "ЗНЯТО З ВИРОБНИЦТВА" and "У ВЛАСНОСТІ", and the two
+   badges overlapped into an unreadable stack. Capping each at just under half
+   the width means they can never reach each other in ANY language, and
+   wrapping (rather than ellipsis) keeps the whole word readable. */
+.set-card-img .retired-tag,
+.set-card-img .owned-tag {
+  max-width: calc(50% - 10px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+  text-align: left;
+}
 .set-card-img .retired-tag {
   position: absolute; top: 8px; left: 8px;
   background: var(--ink); color: var(--bg);
@@ -961,6 +976,8 @@ ul.set-list > li { display: contents; }
   display: flex; align-items: center; gap: 3px;
   z-index: 2;
 }
+/* The check icon must not be squeezed to nothing by a long wrapped label. */
+.set-card-img .owned-tag svg { flex: 0 0 auto; }
 .set-card-img .owned-tag svg { width: 10px; height: 10px; }
 .set-card-body { padding: 10px 12px 12px; }
 .set-card-name {
@@ -994,6 +1011,10 @@ ul.set-list > li { display: contents; }
   font-family: var(--mono); font-size: 10px; color: var(--ink-mute);
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
+/* A flex item defaults to min-width:auto, so the trust badge refused to shrink
+   below its own text and pushed the $/pc badge off the card instead of
+   wrapping. "MARKET PRICE" fits; "РИНКОВА ЦІНА" did not. */
+.set-card-submeta > * { min-width: 0; }
 
 .coming-soon-wrap {
   margin: 0 0 16px;

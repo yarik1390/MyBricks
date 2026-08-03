@@ -24,7 +24,7 @@ export const hi = {
     reliablePrice: 'विश्वसनीय मूल्य', pricingDetails: 'मूल्य विवरण', priceHistory: 'मूल्य इतिहास',
     details: 'विवरण', estimated: 'अनुमानित', year: 'वर्ष', theme: 'थीम',
     addToWishlist: 'इच्छा-सूची में जोड़ें', inWishlist: 'इच्छा-सूची में है',
-    addToVaultPrice: 'वॉल्ट में जोड़ें · {price}', priceHistoryDays: 'कीमत इतिहास · {days} दिन', priceHistoryShort: 'कीमत इतिहास · {days} दि', fromSources: '{n} बाज़ार स्रोतों से', fromSourcesOne: '1 बाज़ार स्रोत से', typicalRange: ' · आमतौर पर {low}–{high}', likelyRange: ' · संभवतः {low}-{high}',
+    addToVaultPrice: 'वॉल्ट में जोड़ें · {price}', priceHistoryDays: 'कीमत इतिहास · {days} दिन', priceHistoryShort: 'कीमत इतिहास · {days} दि', fromSources: '{n} बाज़ार स्रोतों से', fromSourcesOne: '1 बाज़ार स्रोत से', typicalRange: ' · आमतौर पर {low}–{high}', likelyRange: ' · संभवतः {low}-{high}', reviews: '{n} समीक्षाएँ', reviewsOne: '1 समीक्षा', up: '{pct}% ऊपर', down: '{pct}% नीचे',
   },
   counts: {
     results: '{n} परिणाम', resultsOne: '1 परिणाम', collected: '{owned}/{total} एकत्रित', owned: '{n} स्वामित्व में', ofFigs: '{total} में से', figs: '{n} मिनीफ़िगर', figsOne: '1 मिनीफ़िगर',
@@ -41,6 +41,16 @@ export const hi = {
     saleOne: '1 सत्यापित बिक्री',
     estimateUnlocks: '{list} का अनुमान अधिक बिक्री डेटा आने पर उपलब्ध होगा।',
     estimatesUnlock: '{list} के अनुमान अधिक बिक्री डेटा आने पर उपलब्ध होंगे।',
+  },
+  card: {
+    pieces: '{n} पीस',
+    perPiece: '{price}/पीस',
+    lots: '{n} लॉट',
+    deal: 'डील {pct}',
+    strongBuy: 'बढ़िया सौदा {pct}',
+    forecast2y: '{price} 2 वर्ष',
+    gamePieces: '{n} पीस',
+    gameRetail: 'खुदरा {price}',
   },
   time: {
     unknown: 'अज्ञात', today: 'आज', yesterday: 'कल', daysAgo: '{n} दिन पहले',

@@ -2,6 +2,7 @@
 // bottom sheet, submits via the api() helper, toasts the result, and calls the
 // provided onDone() so the caller (the set-detail Community tab) can refresh.
 import { $, escapeHtml, toast, haptic } from '../utils.js';
+import { I } from '../icons.js';
 import { api, _authSession } from '../api.js';
 import { showSheet, hideSheet } from './sheet.js';
 
@@ -46,12 +47,24 @@ export function openReviewSheet(setNum, onDone) {
 export function openPhotoSheet(setNum, onDone) {
   showSheet(`
     <h2 class="u-serif-h" style="margin:0 4px 12px;">Add a photo</h2>
-    <input type="file" id="phFile" accept="image/jpeg,image/png,image/webp" class="field-input">
+    <!-- A bare <input type="file"> paints the BROWSER's own "Choose file /
+         No file chosen", which follows the browser locale rather than the app's
+         and cannot be styled or translated at all. Every other file picker in
+         the app already uses this label-wraps-hidden-input pattern; this sheet
+         was the one that did not. -->
+    <label class="csv-file-label">${I.upload()}<span>Choose a photo</span>
+      <input type="file" id="phFile" accept="image/jpeg,image/png,image/webp"></label>
+    <div id="phFileName" class="u-mute" style="font-size:11px;font-family:var(--mono);margin-top:6px;"></div>
     <input class="field-input" id="phCaption" placeholder="Caption (optional)" maxlength="200" style="margin-top:10px;" autocomplete="off">
     <button class="btn-primary" id="phSave" style="margin-top:14px;">Upload for review</button>
     <button class="btn-secondary" id="phCancel" style="margin-top:8px;">Cancel</button>
     <p class="u-mute" style="font-size:11px;text-align:center;margin-top:10px;">JPEG/PNG/WebP, max 4 MB. Photos appear once approved.</p>`);
   $("#phCancel").addEventListener("click", hideSheet);
+  // The native picker showed the chosen filename; the styled label has to say
+  // so itself or there is no feedback that a file was picked at all.
+  $("#phFile").addEventListener("change", (e) => {
+    $("#phFileName").textContent = e.target.files?.[0]?.name || "";
+  });
   $("#phSave").addEventListener("click", async () => {
     const file = $("#phFile").files?.[0];
     if (!file) { toast("Choose a photo first", "error"); return; }

@@ -24,7 +24,7 @@ export const ja = {
     reliablePrice: '信頼できる価格', pricingDetails: '価格の詳細', priceHistory: '価格推移',
     details: '詳細', estimated: '推定', year: '年', theme: 'テーマ',
     addToWishlist: 'ウィッシュリストに追加', inWishlist: 'ウィッシュリストに登録済み',
-    addToVaultPrice: 'ボールトに追加 · {price}', priceHistoryDays: '価格履歴 · {days}日間', priceHistoryShort: '価格履歴 · {days}日', fromSources: '{n} 件の市場ソースから', fromSourcesOne: '1 件の市場ソースから', typicalRange: ' · 通常 {low}–{high}', likelyRange: ' · 想定 {low}-{high}',
+    addToVaultPrice: 'ボールトに追加 · {price}', priceHistoryDays: '価格履歴 · {days}日間', priceHistoryShort: '価格履歴 · {days}日', fromSources: '{n} 件の市場ソースから', fromSourcesOne: '1 件の市場ソースから', typicalRange: ' · 通常 {low}–{high}', likelyRange: ' · 想定 {low}-{high}', reviews: 'レビュー{n}件', reviewsOne: 'レビュー1件', up: '{pct}% 上昇', down: '{pct}% 下落',
   },
   counts: {
     results: '{n} 件', resultsOne: '1 件', collected: '{owned}/{total} 収集済み', owned: '{n} 個所有', ofFigs: '全 {total} 体中', figs: '{n} 体', figsOne: '1 体',
@@ -41,6 +41,16 @@ export const ja = {
     saleOne: '1 件の検証済み成約',
     estimateUnlocks: '{list}の推定値は成約データが増えると表示されます。',
     estimatesUnlock: '{list}の推定値は成約データが増えると表示されます。',
+  },
+  card: {
+    pieces: '{n}ピース',
+    perPiece: '{price}/個',
+    lots: '{n} ロット',
+    deal: 'お得 {pct}',
+    strongBuy: '買い推奨 {pct}',
+    forecast2y: '{price} 2年',
+    gamePieces: '{n}ピース',
+    gameRetail: '定価 {price}',
   },
   time: {
     unknown: '不明', today: '今日', yesterday: '昨日', daysAgo: '{n}日前',

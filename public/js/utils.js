@@ -486,7 +486,9 @@ export const THEME_COLORS = {
 
 export function fmtShortDate(d) {
   try {
-    return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    // getLocale(), not "en-US": this feeds the price-chart scrub tooltip, which
+    // read "Jul 8" no matter what language the rest of the chart was in.
+    return new Date(d).toLocaleDateString(getLocale(), { month: "short", day: "numeric" });
   } catch { return ""; }
 }
 

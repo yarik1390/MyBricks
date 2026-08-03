@@ -23,7 +23,12 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, extname } from 'node:path';
 
-const ROOTS = ['public/js/views', 'public/js/components', 'public/js/lib'];
+// 'public/js' rather than only its subdirectories. The top level was never
+// scanned, and utils.js lives there — a 900-line file of shared helpers that
+// RENDER, including trendBadgeHTML() ("Rising"/"Falling") and the toast copy.
+// walk() recurses, so views/components/lib are still covered; SKIP_FILES keeps
+// locales/, i18n.js, morphdom and the tests out.
+const ROOTS = ['public/js'];
 // The app SHELL is not JavaScript. "Skip to content", the nav labels and the
 // offline banner live in index.html and were invisible to the first harvest.
 // methodology.html is a full page of product copy ("How we price LEGO sets"),
@@ -46,7 +51,9 @@ const WORKER_COPY = [
 // pure.js was skipped as "pure logic" — wrong. It returns user-facing COPY from
 // helpers like catalogFilterSummary() and valuationTrust() ("Market price",
 // "No filters active"), so its strings reach the screen like any other.
-const SKIP_FILES = /pure-core\.js$|morphdom\.js$|i18n\.js$|locales\/|__tests__\//;
+// icons.js is nothing but SVG path data — scanning it harvested a `d=` path as
+// if it were a sentence. It renders, but it renders no words.
+const SKIP_FILES = /pure-core\.js$|morphdom\.js$|i18n\.js$|icons\.js$|locales\/|__tests__\//;
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -133,6 +140,12 @@ const DO_NOT_TRANSLATE = new Set([
   'Modular Buildings',
   // Vendor, and an HTTP auth scheme that appears verbatim in a header.
   'Supabase', 'Bearer', 'PUT',
+  // HTTP plumbing that is quoted in api.js and never rendered.
+  'application/json', 'Authorization',
+  // Capacitor Haptics style constants passed to the native plugin. They are
+  // ALL-CAPS labels by shape, which is exactly what the rendered-label rule
+  // lets through, but translating one breaks the call.
+  'LIGHT', 'MEDIUM', 'HEAVY',
   // Supporter tier names, shown as "PRO"/"Pro" and left English on purpose so
   // the paywall copy reads the same in every language.
   'PRO', 'Pro',
@@ -246,10 +259,38 @@ const add = (s, file, rendered = false, htmlProse = false) => {
 
 for (const root of ROOTS) {
   for (const file of walk(root)) {
-    const src = readFileSync(file, 'utf8');
+    // COMMENTS ARE NOT COPY. The broad quoted-literal rule cannot tell a string
+    // in code from one quoted inside a comment, so a comment explaining that a
+    // date used to render as "Jul 8" put "Jul 8" in the source list — and then
+    // in eight dictionaries. Block comments and whole-line // comments are
+    // stripped; a trailing // is left alone because stripping it with a regex
+    // would eat the "//" inside any URL literal on that line.
+    const src = readFileSync(file, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/.*$/gm, '');
     const short = file.replace('public/js/', '');
     // 1. Text between tags inside template literals: >Some words<
     for (const m of src.matchAll(/>([^<>{}`$]{2,160})</g)) add(m[1], short, true);
+    // 1b. Text ADJACENT TO A TEMPLATE HOLE inside an element:
+    //       <button>${I.camera()} Upload photo</button>
+    //       <span>${I.trend()} Rising</span>
+    //       <summary>Flip calculator ${I.money()}</summary>
+    //     Rule 1 cannot see any of these: it requires the span between > and <
+    //     to contain no `$`, and an icon hole always does. But the BROWSER
+    //     splits the element around the hole, so " Upload photo" is its own text
+    //     node and the dictionary can match it exactly.
+    //     This is the icon+label button, the most common control in the app, and
+    //     it was invisible to every rule — "Upload photo", "In your vault",
+    //     "Rising" and "Falling" all rendered English with no key to blame.
+    for (const m of src.matchAll(/\}([^<>{}`$]{2,160})</g)) add(m[1], short, true);
+    for (const m of src.matchAll(/>([^<>{}`$]{2,160})\$\{/g)) add(m[1], short, true);
+    //     There is deliberately NO rule for a label closed by the backtick
+    //     rather than a tag (`${I.check()} In your vault`). It looks like the
+    //     same shape but it is not: EVERY template literal ending in an
+    //     expression matches it, so it harvested `body.innerHTML = header +`,
+    //     `list.className =` and dozens of other code tails. One real string is
+    //     not worth a rule whose false-positive rate is that high — the few
+    //     labels in that position are handled at the call site instead.
     // 2. Quoted strings passed to the obvious user-facing calls. These are as
     //    explicitly user-facing as rendered text, so they take rendered=true —
     //    otherwise the identifier reject eats every single-word one ("Alerts"),

@@ -24,7 +24,7 @@ export const es = {
     reliablePrice: 'Precio fiable', pricingDetails: 'Detalles del precio', priceHistory: 'Historial de precios',
     details: 'Detalles', estimated: 'Estimado', year: 'Año', theme: 'Tema',
     addToWishlist: 'Añadir a deseos', inWishlist: 'En tu lista de deseos',
-    addToVaultPrice: 'Añadir a la cámara · {price}', priceHistoryDays: 'Historial de precios · {days} días', priceHistoryShort: 'Historial de precios · {days} d', fromSources: 'De {n} fuentes de mercado', fromSourcesOne: 'De 1 fuente de mercado', typicalRange: ' · normalmente {low}–{high}', likelyRange: ' · probablemente {low}-{high}',
+    addToVaultPrice: 'Añadir a la cámara · {price}', priceHistoryDays: 'Historial de precios · {days} días', priceHistoryShort: 'Historial de precios · {days} d', fromSources: 'De {n} fuentes de mercado', fromSourcesOne: 'De 1 fuente de mercado', typicalRange: ' · normalmente {low}–{high}', likelyRange: ' · probablemente {low}-{high}', reviews: '{n} reseñas', reviewsOne: '1 reseña', up: 'Sube {pct}%', down: 'Baja {pct}%',
   },
   counts: {
     results: '{n} resultados', resultsOne: '1 resultado', collected: '{owned}/{total} coleccionadas', owned: '{n} en propiedad', ofFigs: 'de {total} minifiguras', figs: '{n} minifiguras', figsOne: '1 minifigura',
@@ -41,6 +41,16 @@ export const es = {
     saleOne: '1 venta verificada',
     estimateUnlocks: 'La estimación de {list} se desbloqueará con más datos de ventas.',
     estimatesUnlock: 'Las estimaciones de {list} se desbloquearán con más datos de ventas.',
+  },
+  card: {
+    pieces: '{n} PZS',
+    perPiece: '{price}/pieza',
+    lots: '{n} lotes',
+    deal: 'CHOLLO {pct}',
+    strongBuy: 'GRAN COMPRA {pct}',
+    forecast2y: '{price} 2 años',
+    gamePieces: '{n} piezas',
+    gameRetail: 'PVP {price}',
   },
   time: {
     unknown: 'desconocido', today: 'Hoy', yesterday: 'Ayer', daysAgo: 'hace {n} días',

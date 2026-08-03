@@ -24,7 +24,7 @@ export const uk = {
     reliablePrice: 'Надійна ціна', pricingDetails: 'Деталі ціни', priceHistory: 'Історія цін',
     details: 'Деталі', estimated: 'Оцінка', year: 'Рік', theme: 'Тема',
     addToWishlist: 'До списку бажань', inWishlist: 'У списку бажань',
-    addToVaultPrice: 'Додати до сховища · {price}', priceHistoryDays: 'Історія цін · {days} днів', priceHistoryShort: 'Історія цін · {days} дн.', fromSources: 'З {n} ринкових джерел', fromSourcesOne: 'З 1 ринкового джерела', typicalRange: ' · зазвичай {low}–{high}', likelyRange: ' · імовірно {low}-{high}',
+    addToVaultPrice: 'Додати до сховища · {price}', priceHistoryDays: 'Історія цін · {days} днів', priceHistoryShort: 'Історія цін · {days} дн.', fromSources: 'З {n} ринкових джерел', fromSourcesOne: 'З 1 ринкового джерела', typicalRange: ' · зазвичай {low}–{high}', likelyRange: ' · імовірно {low}-{high}', reviews: '{n} відгуків', reviewsOne: '1 відгук', up: 'Зростання {pct}%', down: 'Падіння {pct}%',
   },
   counts: {
     results: '{n} результатів', resultsOne: '1 результат', collected: '{owned}/{total} зібрано', owned: '{n} у власності', ofFigs: 'з {total} фігурок', figs: '{n} фігурок', figsOne: '1 фігурка',
@@ -41,6 +41,16 @@ export const uk = {
     saleOne: '1 перевірений продаж',
     estimateUnlocks: 'Оцінка «{list}» з’явиться, коли надійде більше даних про продажі.',
     estimatesUnlock: 'Оцінки «{list}» з’являться, коли надійде більше даних про продажі.',
+  },
+  card: {
+    pieces: '{n} ДЕТ',
+    perPiece: '{price}/дет',
+    lots: '{n} лотів',
+    deal: 'ЗНИЖКА {pct}',
+    strongBuy: 'ВИГІДНО {pct}',
+    forecast2y: '{price} 2 р.',
+    gamePieces: '{n} деталей',
+    gameRetail: 'ціна {price}',
   },
   time: {
     unknown: 'невідомо', today: 'Сьогодні', yesterday: 'Учора', daysAgo: '{n} дн. тому',

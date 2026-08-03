@@ -81,6 +81,22 @@ export const en = {
     fromSourcesOne: 'From 1 market source',
     typicalRange: ' · typically {low}–{high}',
     likelyRange: ' · likely {low}-{high}',
+    reviews: '{n} reviews',
+    reviewsOne: '1 review',
+    up: 'Up {pct}%',
+    down: 'Down {pct}%',
+  },
+  card: {
+    // Catalog / vault card chips. Every one carries a number, so the
+    // exact-match dictionary can never reach them.
+    pieces: '{n}PC',
+    perPiece: '{price}/pc',
+    lots: '{n} lots',
+    deal: 'DEAL {pct}',
+    strongBuy: 'STRONG BUY {pct}',
+    forecast2y: '{price} 2yr',
+    gamePieces: '{n} pcs',
+    gameRetail: 'retail {price}',
   },
   me: {
     trophyShelf: 'Trophy Shelf ({n}/6)',

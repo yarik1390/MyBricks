@@ -709,8 +709,8 @@ function sourceCueHTML(s) { return trustBadgeHTML(s, { compact: true }); }
 // for the grid image; otherwise an inline meta badge for the compact list.
 function dealTagHTML(s, { overlay = false } = {}) {
   if (s.deal_signal !== 'buy') return '';
-  const pct = s.deal_discount_pct ? ` -${Math.round(s.deal_discount_pct)}%` : '';
-  const txt = s.deal_strong ? `STRONG BUY${pct}` : `DEAL${pct}`;
+  const pct = s.deal_discount_pct ? `-${Math.round(s.deal_discount_pct)}%` : '';
+  const txt = s.deal_strong ? t('card.strongBuy', { pct }).trim() : t('card.deal', { pct }).trim();
   return overlay
     ? `<span class="deal-tag-overlay price-cue" style="position:absolute;bottom:8px;left:8px;background:var(--up);color:#fff;font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.04em;border-radius:4px;padding:2px 6px;z-index:2;">${txt}</span>`
     : `<span class="badge price-cue" style="background:var(--up);color:#fff;font-size:9px;font-weight:800;letter-spacing:.03em;border-radius:4px;padding:1px 5px;margin-left:4px;">${txt}</span>`;
@@ -721,7 +721,7 @@ function pppBadgeHTML(s) {
   const r = pricePerPiece(s);
   if (!r) return "";
   const color = r.delta <= -0.25 ? "var(--up)" : r.delta >= 0.25 ? "var(--down)" : "var(--ink-mute)";
-  return `<span class="ppp-badge" style="color:${color};">$${r.ppp.toFixed(2)}/pc</span>`;
+  return `<span class="ppp-badge" style="color:${color};">${t('card.perPiece', { price: `$${r.ppp.toFixed(2)}` })}</span>`;
 }
 
 // Owned if the API flagged it OR it's in the client-side owned set (kept fresh
@@ -765,7 +765,7 @@ function catalogCardHTML(s) {
             ${estMark(s)}${fmtMoney(dispVal)}
             ${s.trend ? trendBadgeHTML(s.trend) : ""}
           </div>
-          <div class="sl-delta" style="color:var(--ink-mute);">${s.pieces || 0}pc ${pppBadgeHTML(s)}</div>
+          <div class="sl-delta" style="color:var(--ink-mute);">${t('card.pieces', { n: s.pieces || 0 })} ${pppBadgeHTML(s)}</div>
         </div>
       </button>`;
   }
@@ -785,12 +785,12 @@ function catalogCardHTML(s) {
         <div class="set-card-meta">
           ${THEME_COLORS[s.theme] ? `<span class="theme-dot" style="background:${THEME_COLORS[s.theme]};"></span>` : ""}
           <span>${s.year || ""}</span>
-          <span>${s.pieces || 0}pc</span>
+          <span>${t('card.pieces', { n: s.pieces || 0 })}</span>
           ${s.minifigs > 0 ? `<span>${s.minifigs === 1 ? t("counts.figsOne") : t("counts.figs", { n: s.minifigs })}</span>` : ""}
           ${s.subtheme ? `<span>${escapeHtml(s.subtheme)}</span>` : ""}
         </div>
         <div class="set-card-value">${confDot}${estMark(s)}${fmtMoney(dispVal)}</div>
-        ${(sourceCueHTML(s) || pppBadgeHTML(s) || s.bl_new_qty || s.trend) ? `<div class="set-card-submeta">${sourceCueHTML(s)}${pppBadgeHTML(s)}${s.bl_new_qty ? `<span>${s.bl_new_qty} lots</span>` : ""}${s.trend ? trendBadgeHTML(s.trend) : ""}</div>` : ""}
+        ${(sourceCueHTML(s) || pppBadgeHTML(s) || s.bl_new_qty || s.trend) ? `<div class="set-card-submeta">${sourceCueHTML(s)}${pppBadgeHTML(s)}${s.bl_new_qty ? `<span>${t('card.lots', { n: s.bl_new_qty })}</span>` : ""}${s.trend ? trendBadgeHTML(s.trend) : ""}</div>` : ""}
       </div>
     </button>`;
 }

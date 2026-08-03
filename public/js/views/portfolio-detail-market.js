@@ -79,7 +79,7 @@ export function priceStripHTML(set, entry) {
   // Lot counts for BrickLink cells — show as confidence indicator
   const blNewQty = set.bl_new_qty;
   const blUsedQty = set.bl_used_qty;
-  const lotLabel = (qty, label) => qty ? `${label} <span style="font-size:9px;opacity:.6;">(${qty} lots)</span>` : label;
+  const lotLabel = (qty, label) => qty ? `${label} <span style="font-size:9px;opacity:.6;">(${t('card.lots', { n: qty })})</span>` : label;
 
   // Price ranges — show spread as volatility signal
   const blNewRange = (set.bl_new_min && set.bl_new_max)
@@ -398,7 +398,7 @@ export function marketConfidenceHTML(set) {
     const id = String(s.id || '');
     if (id.includes('ask')) return ` / ${count} listings`;
     if (id.includes('sold') || id.includes('ebay')) return ` / ${count} comps`;
-    if (id.includes('bricklink') || id.includes('brickowl')) return ` / ${count} lots`;
+    if (id.includes('bricklink') || id.includes('brickowl')) return ` / ${t('card.lots', { n: count })}`;
     return ` / ${count} samples`;
   };
   const sourceRows = sources.slice(0, 6).map(s => {

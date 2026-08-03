@@ -292,6 +292,37 @@ function confidenceChip(set) {
 
 // One-line key facts row: Pieces · Year · Minifigs · Retail. Replaces the old
 // 3-col stat grid and the duplicate pieces row in Set Facts.
+// Brickset's packaging enum, printed verbatim in the Details grid. It is DB
+// data, so nothing in the source ever contained the word "Box" and no harvest
+// could reach it — the row read "Упаковка Box" in Ukrainian. Naming the values
+// here turns them into ordinary UI strings the dictionary can translate.
+// Anything outside the enum falls through unchanged rather than being dropped.
+const PACKAGING_LABELS = {
+  'box': 'Box',
+  'polybag': 'Polybag',
+  'foil pack': 'Foil pack',
+  'tag': 'Tag',
+  'paper bag': 'Paper bag',
+  'none (loose parts)': 'None (loose parts)',
+  'blister pack': 'Blister pack',
+  'other': 'Other',
+  'bucket': 'Bucket',
+  'plastic box': 'Plastic box',
+  'tub': 'Tub',
+  'box with handle': 'Box with handle',
+  'plastic canister': 'Plastic canister',
+  'shrink-wrapped': 'Shrink-wrapped',
+  'zip-lock bag': 'Zip-lock bag',
+  'canister': 'Canister',
+  'box with backing card': 'Box with backing card',
+  'metal canister': 'Metal canister',
+  'wooden box': 'Wooden box',
+};
+function packagingLabel(v) {
+  const s = String(v || '').trim();
+  return PACKAGING_LABELS[s.toLowerCase()] || s;
+}
+
 function summaryFactsHTML(set) {
   const figs = set.set_minifigs?.length || set.minifigs || 0;
   const parts = [];
@@ -388,7 +419,9 @@ function infoTabHTML(set, entry, isWish) {
     const b = set.brickset || {};
     const ratingNum = b.rating ?? set.brickset_rating ?? 0;
     const reviewCount = b.reviewCount ?? set.brickset_review_count ?? 0;
-    const reviewsStr = reviewCount ? `${reviewCount} review${reviewCount > 1 ? 's' : ''}` : '';
+    const reviewsStr = reviewCount
+      ? (reviewCount === 1 ? t('detail.reviewsOne') : t('detail.reviews', { n: reviewCount }))
+      : '';
     const ageMin = b.ageMin ?? set.age_min;
     const ageMax = b.ageMax ?? set.age_max;
     const ageStr = ageMin ? (ageMax ? `${ageMin}–${ageMax}` : `${ageMin}+`) : '';
@@ -407,9 +440,9 @@ function infoTabHTML(set, entry, isWish) {
       ? `<span class="signal-hint" style="color:var(--green);font-size:10px;">High demand set</span>`
       : '';
     const growthBadge = (growthRate != null && !isSimpleMode())
-      ? `<div class="detail-kv span2"><span class="k" title="Change in market value over the past 12 months">Past year</span> <span class="v" style="color:${growthRate >= 0 ? 'var(--up)' : 'var(--down)'};">${growthRate >= 0 ? 'Up ' : 'Down '}${Math.abs(Number(growthRate)).toFixed(1)}%</span></div>`
+      ? `<div class="detail-kv span2"><span class="k" title="Change in market value over the past 12 months">Past year</span> <span class="v" style="color:${growthRate >= 0 ? 'var(--up)' : 'var(--down)'};">${growthRate >= 0 ? t('detail.up', { pct: Math.abs(Number(growthRate)).toFixed(1) }) : t('detail.down', { pct: Math.abs(Number(growthRate)).toFixed(1) })}</span></div>`
       : '';
-    const fmtMonthYear = (d) => { const t = d ? Date.parse(d) : NaN; return Number.isNaN(t) ? '' : new Date(t).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }); };
+    const fmtMonthYear = (d) => { const ts = d ? Date.parse(d) : NaN; return Number.isNaN(ts) ? '' : new Date(ts).toLocaleDateString(getLocale(), { month: 'short', year: 'numeric' }); };
     const launchStr = fmtMonthYear(set.launch_date);
     const exitStr = fmtMonthYear(set.exit_date);
     const launchBadge = launchStr
@@ -502,8 +535,8 @@ function infoTabHTML(set, entry, isWish) {
     const weightStr = dwt ? `${dwt} kg` : '';
     // Some sources return literal placeholders like "{Not specified}" — treat
     // those (and N/A / Unknown / brace-wrapped) as empty so they don't render.
-    const cleanFact = (v) => { const s = String(v ?? '').trim(); return /^\{.*\}$/.test(s) || /^(not specified|n\/?a|unknown|none|null|-)$/i.test(s) ? '' : s; };
-    const packaging = cleanFact(b3.packagingType || set.packaging_type || '');
+    const cleanFact = (v) => { const s = String(v ?? '').trim(); return /^\{.*\}$/.test(s) || /^:?(not specified|n\/?a|unknown|none|null|-|\/)$/i.test(s) ? '' : s; };
+    const packaging = packagingLabel(cleanFact(b3.packagingType || set.packaging_type || ''));
     const instrRaw = (b3.instructionsCount != null ? b3.instructionsCount : set.instructions_count);
     const instrStr = (instrRaw != null && Number(instrRaw) > 0) ? String(instrRaw) : '';
     // Pieces intentionally omitted here — it's already in the summary facts row.
@@ -942,7 +975,7 @@ function forecastTabHTML(set) {
           ? "Based on recent sales and long-term market trends."
           : `Based on theme rarity, piece count, retirement status, and market trends for similar ${escapeHtml(set.theme || "")} sets.`}
       </p>
-      ${set.be_growth_12m != null ? `<p style="margin:8px 0 0;font-size:12px;color:var(--ink-soft);">Past year: <strong style="color:${set.be_growth_12m >= 0 ? 'var(--up)' : 'var(--down)'};">${set.be_growth_12m >= 0 ? 'Up ' : 'Down '}${Math.abs(Number(set.be_growth_12m)).toFixed(1)}%</strong></p>` : ''}
+      ${set.be_growth_12m != null ? `<p style="margin:8px 0 0;font-size:12px;color:var(--ink-soft);">Past year: <strong style="color:${set.be_growth_12m >= 0 ? 'var(--up)' : 'var(--down)'};">${set.be_growth_12m >= 0 ? t('detail.up', { pct: Math.abs(Number(set.be_growth_12m)).toFixed(1) }) : t('detail.down', { pct: Math.abs(Number(set.be_growth_12m)).toFixed(1) })}</strong></p>` : ''}
       ${conflictNote}
     </div>
 

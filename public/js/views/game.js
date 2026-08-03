@@ -81,7 +81,7 @@ function roundHTML(round, idx, total) {
       </div>
       <div style="font-family:var(--serif);font-size:19px;font-weight:600;">${escapeHtml(round.name)}</div>
       <div style="font-size:12px;color:var(--ink-mute);margin:4px 0 12px;">
-        ${escapeHtml(round.theme || "")}${round.year ? ` · ${round.year}` : ""}${round.pieces ? ` · ${round.pieces} pcs` : ""}${round.retail_price ? ` · retail ${fmtMoney(round.retail_price, { cents: 0 })}` : ""}
+        ${escapeHtml(round.theme || "")}${round.year ? ` · ${round.year}` : ""}${round.pieces ? ` · ${t("card.gamePieces", { n: round.pieces })}` : ""}${round.retail_price ? ` · ${t("card.gameRetail", { price: fmtMoney(round.retail_price, { cents: 0 }) })}` : ""}
       </div>
       <div style="font-size:13px;font-weight:600;margin-bottom:8px;">What's it worth on the market today?</div>
       <div style="display:flex;gap:8px;justify-content:center;align-items:center;">

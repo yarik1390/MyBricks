@@ -24,7 +24,7 @@ export const zh = {
     reliablePrice: '可靠价格', pricingDetails: '价格详情', priceHistory: '价格走势',
     details: '详情', estimated: '估算', year: '年份', theme: '主题',
     addToWishlist: '加入心愿单', inWishlist: '已在心愿单',
-    addToVaultPrice: '加入收藏库 · {price}', priceHistoryDays: '价格历史 · {days} 天', priceHistoryShort: '价格历史 · {days}天', fromSources: '来自 {n} 个市场来源', fromSourcesOne: '来自 1 个市场来源', typicalRange: ' · 通常 {low}–{high}', likelyRange: ' · 可能 {low}-{high}',
+    addToVaultPrice: '加入收藏库 · {price}', priceHistoryDays: '价格历史 · {days} 天', priceHistoryShort: '价格历史 · {days}天', fromSources: '来自 {n} 个市场来源', fromSourcesOne: '来自 1 个市场来源', typicalRange: ' · 通常 {low}–{high}', likelyRange: ' · 可能 {low}-{high}', reviews: '{n} 条评价', reviewsOne: '1 条评价', up: '上涨 {pct}%', down: '下跌 {pct}%',
   },
   counts: {
     results: '{n} 个结果', resultsOne: '1 个结果', collected: '已收集 {owned}/{total}', owned: '拥有 {n}', ofFigs: '共 {total} 个人仔', figs: '{n} 个人仔', figsOne: '1 个人仔',
@@ -41,6 +41,16 @@ export const zh = {
     saleOne: '1 笔已验证成交',
     estimateUnlocks: '{list}估算将在获得更多成交数据后解锁。',
     estimatesUnlock: '{list}估算将在获得更多成交数据后解锁。',
+  },
+  card: {
+    pieces: '{n} 颗粒',
+    perPiece: '{price}/颗',
+    lots: '{n} 个批次',
+    deal: '优惠 {pct}',
+    strongBuy: '强力推荐 {pct}',
+    forecast2y: '{price} 2年',
+    gamePieces: '{n} 颗粒',
+    gameRetail: '零售价 {price}',
   },
   time: {
     unknown: '未知', today: '今天', yesterday: '昨天', daysAgo: '{n} 天前',

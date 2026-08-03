@@ -24,7 +24,7 @@ export const nl = {
     reliablePrice: 'Betrouwbare prijs', pricingDetails: 'Prijsdetails', priceHistory: 'Prijsgeschiedenis',
     details: 'Details', estimated: 'Geschat', year: 'Jaar', theme: 'Thema',
     addToWishlist: 'Aan verlanglijst', inWishlist: 'Op je verlanglijst',
-    addToVaultPrice: 'Aan kluis toevoegen · {price}', priceHistoryDays: 'Prijsgeschiedenis · {days} dagen', priceHistoryShort: 'Prijsgeschiedenis · {days} d', fromSources: 'Uit {n} marktbronnen', fromSourcesOne: 'Uit 1 marktbron', typicalRange: ' · doorgaans {low}–{high}', likelyRange: ' · waarschijnlijk {low}-{high}',
+    addToVaultPrice: 'Aan kluis toevoegen · {price}', priceHistoryDays: 'Prijsgeschiedenis · {days} dagen', priceHistoryShort: 'Prijsgeschiedenis · {days} d', fromSources: 'Uit {n} marktbronnen', fromSourcesOne: 'Uit 1 marktbron', typicalRange: ' · doorgaans {low}–{high}', likelyRange: ' · waarschijnlijk {low}-{high}', reviews: '{n} recensies', reviewsOne: '1 recensie', up: 'Stijging {pct}%', down: 'Daling {pct}%',
   },
   counts: {
     results: '{n} resultaten', resultsOne: '1 resultaat', collected: '{owned}/{total} verzameld', owned: '{n} in bezit', ofFigs: 'van {total} figuren', figs: '{n} figuren', figsOne: '1 figuur',
@@ -41,6 +41,16 @@ export const nl = {
     saleOne: '1 geverifieerde verkoop',
     estimateUnlocks: 'De schatting voor {list} komt beschikbaar bij meer verkoopdata.',
     estimatesUnlock: 'De schattingen voor {list} komen beschikbaar bij meer verkoopdata.',
+  },
+  card: {
+    pieces: '{n} STKS',
+    perPiece: '{price}/steen',
+    lots: '{n} kavels',
+    deal: 'DEAL {pct}',
+    strongBuy: 'TOPKOOP {pct}',
+    forecast2y: '{price} 2 jr',
+    gamePieces: '{n} stenen',
+    gameRetail: 'adviesprijs {price}',
   },
   time: {
     unknown: 'onbekend', today: 'Vandaag', yesterday: 'Gisteren', daysAgo: '{n} dagen geleden',
