@@ -255,15 +255,23 @@ export function translateDOM(root = document.body) {
     // between adjacent inline elements) is not silently changed.
     const lead = raw.match(/^\s*/)[0];
     const tail = raw.match(/\s*$/)[0];
-    node.nodeValue = lead + hit + tail;
+    const next = lead + hit + tail;
+    // NEVER write a value equal to what is already there. Some dictionary
+    // entries map a string to itself (brand names, strings a translator left
+    // as-is), and assigning nodeValue still queues a characterData record even
+    // when the text is unchanged. With characterData observed, that record
+    // would re-queue the same node forever.
+    if (next === raw) continue;
+    node.nodeValue = next;
     n++;
   }
   // User-visible attributes carry copy too.
   for (const attr of ['placeholder', 'aria-label', 'title']) {
     for (const el of root.querySelectorAll(`[${attr}]`)) {
       if (el.closest('[data-no-i18n]')) continue;
-      const hit = uiDict[el.getAttribute(attr).replace(/\s+/g, ' ').trim()];
-      if (hit) { el.setAttribute(attr, hit); n++; }
+      const current = el.getAttribute(attr);
+      const hit = uiDict[current.replace(/\s+/g, ' ').trim()];
+      if (hit && hit !== current) { el.setAttribute(attr, hit); n++; }
     }
   }
   return n;
@@ -295,10 +303,22 @@ const queued = [];
  * and sheets/toasts/drawers are injected outside the router entirely. Observing
  * the tree catches every path without threading a call through 31 files.
  *
- * Only ADDED subtrees are re-scanned, and the work is coalesced into one
- * animation frame, so a chatty render loop costs one pass rather than one per
- * mutation. Our own text writes mutate characterData, which is NOT observed —
- * that is what stops the observer retriggering itself.
+ * Added subtrees AND changed text are both re-scanned, and the work is coalesced
+ * into one animation frame, so a chatty render loop costs one pass rather than
+ * one per mutation.
+ *
+ * characterData has to be observed because mount() renders through morphdom,
+ * which PATCHES existing text nodes rather than replacing elements. A view that
+ * re-renders in place (the catalog after a filter change, a count that ticks)
+ * therefore produced no childList records at all, and its new English text sat
+ * untranslated until a full page reload rebuilt the tree — the reason strings
+ * "only translated after a refresh".
+ *
+ * Observing our own writes is safe because the pass is idempotent: a translated
+ * string is not itself a key, so the extra pass our writes schedule finds
+ * nothing and writes nothing, and the loop stops after one no-op. translateDOM
+ * additionally refuses to write a value identical to the current one, which is
+ * what keeps self-mapping dictionary entries from cycling forever.
  *
  * The coalescing QUEUES subtrees rather than replacing them. An earlier version
  * kept `roots` local to the callback and did cancelAnimationFrame + reschedule
@@ -316,6 +336,12 @@ export function startAutoTranslate() {
   observer = new MutationObserver((records) => {
     if (!uiDict) return;
     for (const rec of records) {
+      if (rec.type === 'characterData') {
+        // Re-walk from the parent, not the text node: a TreeWalker rooted at a
+        // text node visits nothing.
+        if (rec.target.parentElement) queued.push(rec.target.parentElement);
+        continue;
+      }
       for (const node of rec.addedNodes) {
         if (node.nodeType === 1) queued.push(node);
         else if (node.nodeType === 3 && node.parentElement) queued.push(node.parentElement);
@@ -332,5 +358,5 @@ export function startAutoTranslate() {
       }
     });
   });
-  observer.observe(document.body, { childList: true, subtree: true });
+  observer.observe(document.body, { childList: true, subtree: true, characterData: true });
 }

@@ -24,7 +24,7 @@ export const es = {
     reliablePrice: 'Precio fiable', pricingDetails: 'Detalles del precio', priceHistory: 'Historial de precios',
     details: 'Detalles', estimated: 'Estimado', year: 'Año', theme: 'Tema',
     addToWishlist: 'Añadir a deseos', inWishlist: 'En tu lista de deseos',
-    addToVaultPrice: 'Añadir a la cámara · {price}', priceHistoryDays: 'Historial de precios · {days} días', priceHistoryShort: 'Historial de precios · {days} d', fromSources: 'De {n} fuentes de mercado', fromSourcesOne: 'De 1 fuente de mercado', typicalRange: ' · normalmente {low}–{high}',
+    addToVaultPrice: 'Añadir a la cámara · {price}', priceHistoryDays: 'Historial de precios · {days} días', priceHistoryShort: 'Historial de precios · {days} d', fromSources: 'De {n} fuentes de mercado', fromSourcesOne: 'De 1 fuente de mercado', typicalRange: ' · normalmente {low}–{high}', likelyRange: ' · probablemente {low}-{high}',
   },
   counts: {
     results: '{n} resultados', resultsOne: '1 resultado', collected: '{owned}/{total} coleccionadas', owned: '{n} en propiedad', ofFigs: 'de {total} minifiguras', figs: '{n} minifiguras', figsOne: '1 minifigura',

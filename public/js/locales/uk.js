@@ -24,7 +24,7 @@ export const uk = {
     reliablePrice: 'Надійна ціна', pricingDetails: 'Деталі ціни', priceHistory: 'Історія цін',
     details: 'Деталі', estimated: 'Оцінка', year: 'Рік', theme: 'Тема',
     addToWishlist: 'До списку бажань', inWishlist: 'У списку бажань',
-    addToVaultPrice: 'Додати до сховища · {price}', priceHistoryDays: 'Історія цін · {days} днів', priceHistoryShort: 'Історія цін · {days} дн.', fromSources: 'З {n} ринкових джерел', fromSourcesOne: 'З 1 ринкового джерела', typicalRange: ' · зазвичай {low}–{high}',
+    addToVaultPrice: 'Додати до сховища · {price}', priceHistoryDays: 'Історія цін · {days} днів', priceHistoryShort: 'Історія цін · {days} дн.', fromSources: 'З {n} ринкових джерел', fromSourcesOne: 'З 1 ринкового джерела', typicalRange: ' · зазвичай {low}–{high}', likelyRange: ' · імовірно {low}-{high}',
   },
   counts: {
     results: '{n} результатів', resultsOne: '1 результат', collected: '{owned}/{total} зібрано', owned: '{n} у власності', ofFigs: 'з {total} фігурок', figs: '{n} фігурок', figsOne: '1 фігурка',

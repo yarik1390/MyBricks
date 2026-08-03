@@ -80,6 +80,7 @@ export const en = {
     fromSources: 'From {n} market sources',
     fromSourcesOne: 'From 1 market source',
     typicalRange: ' · typically {low}–{high}',
+    likelyRange: ' · likely {low}-{high}',
   },
   me: {
     trophyShelf: 'Trophy Shelf ({n}/6)',

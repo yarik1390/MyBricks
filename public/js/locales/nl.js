@@ -24,7 +24,7 @@ export const nl = {
     reliablePrice: 'Betrouwbare prijs', pricingDetails: 'Prijsdetails', priceHistory: 'Prijsgeschiedenis',
     details: 'Details', estimated: 'Geschat', year: 'Jaar', theme: 'Thema',
     addToWishlist: 'Aan verlanglijst', inWishlist: 'Op je verlanglijst',
-    addToVaultPrice: 'Aan kluis toevoegen · {price}', priceHistoryDays: 'Prijsgeschiedenis · {days} dagen', priceHistoryShort: 'Prijsgeschiedenis · {days} d', fromSources: 'Uit {n} marktbronnen', fromSourcesOne: 'Uit 1 marktbron', typicalRange: ' · doorgaans {low}–{high}',
+    addToVaultPrice: 'Aan kluis toevoegen · {price}', priceHistoryDays: 'Prijsgeschiedenis · {days} dagen', priceHistoryShort: 'Prijsgeschiedenis · {days} d', fromSources: 'Uit {n} marktbronnen', fromSourcesOne: 'Uit 1 marktbron', typicalRange: ' · doorgaans {low}–{high}', likelyRange: ' · waarschijnlijk {low}-{high}',
   },
   counts: {
     results: '{n} resultaten', resultsOne: '1 resultaat', collected: '{owned}/{total} verzameld', owned: '{n} in bezit', ofFigs: 'van {total} figuren', figs: '{n} figuren', figsOne: '1 figuur',

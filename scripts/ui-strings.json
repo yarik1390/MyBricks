@@ -6,21 +6,33 @@
     ]
   },
   {
+    "text": "— a fast-sale estimate after marketplace fees and a liquidity haircut.",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
+    "text": "— bear/base/bull scenarios, unlocked only after at least 180 days and 12 observations of real history.",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
     "text": "— in use",
     "files": [
-      "harvest-v8"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "— most accurate and works on any device. Choose “Prefer on-device” to run free, private Gemma / Gemini Nano locally",
     "files": [
-      "runtime-audit"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "— queued",
     "files": [
-      "harvest-v8"
+      "views/me-admin.js"
     ]
   },
   {
@@ -32,7 +44,31 @@
   {
     "text": "— select —",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "— the parts-and-minifigs value, shown only when piece coverage is high enough to be honest.",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
+    "text": "— today's real retail offer, never mixed into resale value.",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
+    "text": "— we think that's more useful than a guess.",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
+    "text": "— what it actually resells for, split by condition (new & sealed vs used & complete).",
+    "files": [
+      "methodology.html"
     ]
   },
   {
@@ -50,7 +86,25 @@
   {
     "text": "· shown in USD",
     "files": [
-      "harvest-v2"
+      "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "\"not enough verified data\"",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
+    "text": "(a re-release, a minifig-only lot, a similar set number). Every source record must pass an identity check before its price can touch a valuation. Unverified matches are quarantined, visible to us, and ignored by the math.",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
+    "text": "(for example, everything that ultimately observes eBay counts once), so agreement between \"two sources\" always means genuinely independent markets agreeing.",
+    "files": [
+      "methodology.html"
     ]
   },
   {
@@ -60,33 +114,39 @@
     ]
   },
   {
+    "text": "← Back to app",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
     "text": "← Back to Vault",
     "files": [
-      "runtime-audit"
+      "views/kids.js"
     ]
   },
   {
     "text": "+ the Gemma model for vision) or when you're offline. Cloud AI stays the default and the automatic fallback, so scanning always works.",
     "files": [
-      "harvest-v2"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "+ Wishlist",
     "files": [
-      "harvest-v8"
+      "views/catalog.js"
     ]
   },
   {
     "text": "+1 Qty",
     "files": [
-      "harvest-v2"
+      "components/scanner.js"
     ]
   },
   {
     "text": "✓ Already in your vault!",
     "files": [
-      "harvest-v2"
+      "views/catalog.js"
     ]
   },
   {
@@ -98,7 +158,7 @@
   {
     "text": "✓ Wishlisted",
     "files": [
-      "harvest-v8"
+      "views/catalog.js"
     ]
   },
   {
@@ -128,25 +188,25 @@
   {
     "text": "1 safe slice",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "1 set",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "10 sets in the vault!",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "100 sets! Elite collector 🏆",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -170,13 +230,13 @@
   {
     "text": "2 sets",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "2-year forecast",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -188,19 +248,19 @@
   {
     "text": "25 sets! Nice collection.",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "2h ago",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "3m ago",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
@@ -218,13 +278,13 @@
   {
     "text": "50 sets! Dedicated collector 🏅",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "5d ago",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
@@ -254,7 +314,7 @@
   {
     "text": "A bit old",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -278,19 +338,31 @@
   {
     "text": "A scraped price that disagrees with the set's corroborated value by more than 3× is rejected, not averaged in.",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "a set's value is a weighted median of",
     "files": [
-      "harvest-v6"
+      "methodology.html"
+    ]
+  },
+  {
+    "text": "A single \"value\" hides too much. Each set page separates:",
+    "files": [
+      "methodology.html"
     ]
   },
   {
     "text": "A Sunday summary: value change, top mover, wishlist hits.",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "A verified fair value is required before forecasting.",
+    "files": [
+      "worker:lib/valuation-v3.ts"
     ]
   },
   {
@@ -302,19 +374,19 @@
   {
     "text": "About This Set",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "ABOVE VALUE",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "above.",
     "files": [
-      "harvest-v2"
+      "views/me.js"
     ]
   },
   {
@@ -338,13 +410,13 @@
   {
     "text": "Action failed",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Active",
     "files": [
-      "harvest-v2+runtime"
+      "views/catalog.js"
     ]
   },
   {
@@ -356,7 +428,7 @@
   {
     "text": "Active - powers scans, advisor, listings, and valuation fallback on your Google quota",
     "files": [
-      "harvest-v4"
+      "views/me-integrations.js"
     ]
   },
   {
@@ -368,25 +440,26 @@
   {
     "text": "Active asking data",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Active only",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Activity",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js",
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Add",
     "files": [
-      "harvest-v2"
+      "views/me.js"
     ]
   },
   {
@@ -410,7 +483,7 @@
   {
     "text": "Add anyway",
     "files": [
-      "harvest-v4"
+      "components/scanner.js"
     ]
   },
   {
@@ -452,7 +525,7 @@
   {
     "text": "Add sets to your vault, then come back to see what you can build from their parts.",
     "files": [
-      "runtime-audit"
+      "views/build.js"
     ]
   },
   {
@@ -506,7 +579,7 @@
   {
     "text": "Add your first set from Catalog or Scan.",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js"
     ]
   },
   {
@@ -560,13 +633,14 @@
   {
     "text": "Admin",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Admin console",
     "files": [
-      "harvest-v2"
+      "views/me-admin.js",
+      "views/me.js"
     ]
   },
   {
@@ -590,7 +664,7 @@
   {
     "text": "Advisor",
     "files": [
-      "harvest-v2"
+      "components/advisor.js"
     ]
   },
   {
@@ -608,13 +682,13 @@
   {
     "text": "Ages",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Aggregated community set ratings shown on set pages.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -626,7 +700,8 @@
   {
     "text": "AI Advisor",
     "files": [
-      "components/advisor.js"
+      "components/advisor.js",
+      "components/onboarding.js"
     ]
   },
   {
@@ -651,13 +726,14 @@
   {
     "text": "AI estimate",
     "files": [
+      "lib/pure.js",
       "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "AI forecast",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -675,7 +751,7 @@
   {
     "text": "AI-estimated value, shown until a market source is available.",
     "files": [
-      "harvest-v4"
+      "lib/pure.js"
     ]
   },
   {
@@ -687,7 +763,7 @@
   {
     "text": "Alerts",
     "files": [
-      "harvest-v3"
+      "views/portfolio.js"
     ]
   },
   {
@@ -711,7 +787,9 @@
   {
     "text": "All",
     "files": [
-      "harvest-v2"
+      "views/catalog.js",
+      "views/me-admin.js",
+      "views/minifigs.js"
     ]
   },
   {
@@ -729,7 +807,7 @@
   {
     "text": "All configured providers",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -747,7 +825,7 @@
   {
     "text": "All six slots filled — flex earned.",
     "files": [
-      "harvest-v4"
+      "views/me.js"
     ]
   },
   {
@@ -771,13 +849,13 @@
   {
     "text": "almost at your target",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Already have an account?",
     "files": [
-      "harvest-v4"
+      "views/login.js"
     ]
   },
   {
@@ -813,13 +891,13 @@
   {
     "text": "Amazon Creators API",
     "files": [
-      "harvest-v6"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Analyzing image locally...",
     "files": [
-      "harvest-v6"
+      "lib/local-ai.js"
     ]
   },
   {
@@ -837,7 +915,7 @@
   {
     "text": "Android links",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -849,7 +927,9 @@
   {
     "text": "App",
     "files": [
-      "harvest-v6"
+      "lib/app-lock.js",
+      "lib/native-back.js",
+      "views/me.js"
     ]
   },
   {
@@ -873,7 +953,7 @@
   {
     "text": "App locked",
     "files": [
-      "harvest-v6"
+      "lib/app-lock.js"
     ]
   },
   {
@@ -885,7 +965,7 @@
   {
     "text": "Appearance",
     "files": [
-      "harvest-v2"
+      "views/me.js"
     ]
   },
   {
@@ -898,25 +978,25 @@
   {
     "text": "Appreciated",
     "files": [
-      "harvest-v5"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "APPRECIATED",
     "files": [
-      "harvest-v8"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Approve",
     "files": [
-      "harvest-v2"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Approved",
     "files": [
-      "harvest-v5"
+      "views/me-admin.js"
     ]
   },
   {
@@ -940,31 +1020,31 @@
   {
     "text": "Architect",
     "files": [
-      "harvest-v2+runtime"
+      "lib/kids-xp.js"
     ]
   },
   {
     "text": "Architecture",
     "files": [
-      "harvest-v6"
+      "views/catalog.js"
     ]
   },
   {
     "text": "are we on wifi?",
     "files": [
-      "harvest-v6"
+      "lib/native-net.js"
     ]
   },
   {
     "text": "are we truly offline?",
     "files": [
-      "harvest-v6"
+      "lib/native-net.js"
     ]
   },
   {
     "text": "As an Amazon Associate, Brickvault earns from qualifying purchases.",
     "files": [
-      "harvest-v6"
+      "lib/amazon-affiliate.js"
     ]
   },
   {
@@ -1006,7 +1086,7 @@
   {
     "text": "Ask what to buy, sell, or hold — anytime.",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js"
     ]
   },
   {
@@ -1024,13 +1104,13 @@
   {
     "text": "Asking data plus sold comps only when approved and reachable. No weak sold fallback.",
     "files": [
-      "harvest-v6"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Asking the master builder…",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
@@ -1042,37 +1122,38 @@
   {
     "text": "at your target price",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Australia",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
     "text": "Auth not configured",
     "files": [
-      "harvest-v4"
+      "views/login.js"
     ]
   },
   {
     "text": "Authentication and user identity.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Authentication canceled",
     "files": [
-      "harvest-v6"
+      "lib/native-biometric.js"
     ]
   },
   {
     "text": "Auto",
     "files": [
-      "harvest-v2+runtime"
+      "components/onboarding.js",
+      "views/me.js"
     ]
   },
   {
@@ -1084,19 +1165,19 @@
   {
     "text": "Auto-runs hourly (drain) + daily (full signal refresh); writes count against the D1 pricing ledger.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Auto-runs weekly (Sunday); CSV downloads are limited to once per 10 minutes. Needs the Legendary-tier token.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Available to pre-order",
     "files": [
-      "harvest-v6"
+      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -1108,7 +1189,11 @@
   {
     "text": "Back",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js",
+      "views/build.js",
+      "views/portfolio-detail.js",
+      "views/portfolio-social.js",
+      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -1132,49 +1217,50 @@
   {
     "text": "Back-order at LEGO.com",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Backfill barcodes",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Backup",
     "files": [
-      "harvest-v5"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Backups",
     "files": [
-      "harvest-v2"
+      "views/me-data.js"
     ]
   },
   {
     "text": "Backups unavailable right now.",
     "files": [
-      "harvest-v6"
+      "views/me-data.js"
     ]
   },
   {
     "text": "Badge",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "Badges",
     "files": [
-      "harvest-v2"
+      "index.html",
+      "views/kids.js"
     ]
   },
   {
     "text": "Barcode",
     "files": [
-      "harvest-v2"
+      "components/scanner.js"
     ]
   },
   {
@@ -1198,13 +1284,13 @@
   {
     "text": "Barcode backfill",
     "files": [
-      "harvest-v4"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Barcode backfill so sets can be scanned.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -1228,13 +1314,13 @@
   {
     "text": "Barcode pages plus asking-price refresh.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Barcodes are at least 8 digits — check the number under the bars",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
@@ -1246,13 +1332,13 @@
   {
     "text": "Based on recent market data, with a little disagreement.",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Based on recent sales and long-term market trends.",
     "files": [
-      "runtime-audit"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -1270,7 +1356,7 @@
   {
     "text": "Basis",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -1294,13 +1380,13 @@
   {
     "text": "Below MSRP",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Best buy with $200 budget?",
     "files": [
-      "runtime-audit"
+      "components/advisor.js"
     ]
   },
   {
@@ -1318,19 +1404,19 @@
   {
     "text": "Biometric authentication is not available on this device",
     "files": [
-      "harvest-v6"
+      "lib/native-biometric.js"
     ]
   },
   {
     "text": "Biometric authentication is unavailable. Update BricksVault and try again",
     "files": [
-      "harvest-v4"
+      "lib/native-biometric.js"
     ]
   },
   {
     "text": "Biometrics are temporarily locked. Use your device PIN or try again later",
     "files": [
-      "harvest-v6"
+      "lib/native-biometric.js"
     ]
   },
   {
@@ -1342,19 +1428,20 @@
   {
     "text": "Blended market estimate",
     "files": [
-      "harvest-v6"
+      "views/minifigs.js"
     ]
   },
   {
     "text": "Blended values",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Blocked",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js",
+      "views/me-integrations.js"
     ]
   },
   {
@@ -1384,7 +1471,7 @@
   {
     "text": "BrickInsights ratings",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -1396,7 +1483,7 @@
   {
     "text": "BrickLink coverage",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -1438,7 +1525,7 @@
   {
     "text": "BrickOwl source",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -1450,13 +1537,13 @@
   {
     "text": "Brickset / barcode",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Brickset / UPCitemdb",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -1526,15 +1613,21 @@
     ]
   },
   {
+    "text": "BricksVault collectors can log what they actually paid for a set and what it actually sold for. We aggregate those real transactions into a community price signal — published only when",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
     "text": "BricksVault export",
     "files": [
-      "harvest-v6"
+      "lib/native-file-export.js"
     ]
   },
   {
     "text": "BricksVault insurance report",
     "files": [
-      "harvest-v2"
+      "views/me-data.js"
     ]
   },
   {
@@ -1546,6 +1639,7 @@
   {
     "text": "BricksVault Pro",
     "files": [
+      "lib/revenuecat-native.js",
       "views/me.js"
     ]
   },
@@ -1558,13 +1652,13 @@
   {
     "text": "BricksVault Vault",
     "files": [
-      "harvest-v6"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "Bright Data sold scrape",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -1577,25 +1671,26 @@
   {
     "text": "Browser",
     "files": [
-      "harvest-v6"
+      "lib/amazon-affiliate.js",
+      "lib/native-auth.js"
     ]
   },
   {
     "text": "Build",
     "files": [
-      "harvest-v2"
+      "views/build.js"
     ]
   },
   {
     "text": "Build tools are unavailable",
     "files": [
-      "harvest-v2"
+      "views/build.js"
     ]
   },
   {
     "text": "Build tools need your synced collection and parts data. You can still browse the catalog or scan sets as a guest.",
     "files": [
-      "harvest-v2"
+      "views/build.js"
     ]
   },
   {
@@ -1607,7 +1702,7 @@
   {
     "text": "Buildable",
     "files": [
-      "harvest-v2"
+      "views/build.js"
     ]
   },
   {
@@ -1619,7 +1714,7 @@
   {
     "text": "Builder",
     "files": [
-      "harvest-v6"
+      "views/kids.js"
     ]
   },
   {
@@ -1631,19 +1726,19 @@
   {
     "text": "Built-in AI is not supported on this browser.",
     "files": [
-      "harvest-v6"
+      "lib/local-ai.js"
     ]
   },
   {
     "text": "Bulk Delete",
     "files": [
-      "harvest-v2"
+      "views/portfolio.js"
     ]
   },
   {
     "text": "Bulk Location",
     "files": [
-      "harvest-v2"
+      "views/portfolio.js"
     ]
   },
   {
@@ -1655,13 +1750,14 @@
   {
     "text": "BUY",
     "files": [
-      "harvest-v8"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Buy now",
     "files": [
       "lib/amazon-affiliate.js",
+      "methodology.html",
       "views/portfolio-detail-market.js"
     ]
   },
@@ -1674,25 +1770,25 @@
   {
     "text": "By value",
     "files": [
-      "harvest-v6"
+      "views/portfolio-wishlist.js"
     ]
   },
   {
     "text": "bytes START-END/TOTAL",
     "files": [
-      "harvest-v6"
+      "lib/local-ai.js"
     ]
   },
   {
     "text": "Camera is unavailable. Use Gallery or type a barcode.",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Camera not available — check permissions or try a different browser.",
     "files": [
-      "harvest-v4"
+      "components/scanner.js"
     ]
   },
   {
@@ -1716,13 +1812,18 @@
   {
     "text": "Canada",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
     "text": "Cancel",
     "files": [
-      "harvest-v2"
+      "components/contribute.js",
+      "components/scanner.js",
+      "components/sheet.js",
+      "views/me-integrations.js",
+      "views/portfolio-detail.js",
+      "views/portfolio.js"
     ]
   },
   {
@@ -1734,55 +1835,60 @@
   {
     "text": "Capture",
     "files": [
-      "harvest-v3"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Catalog",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js",
+      "index.html",
+      "views/catalog.js",
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Catalog data & images from",
     "files": [
-      "runtime-audit"
+      "views/me.js"
     ]
   },
   {
     "text": "Catalog import",
     "files": [
-      "harvest-v4"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Catalog imports, jobs, integration health",
     "files": [
-      "harvest-v2"
+      "views/me.js"
     ]
   },
   {
     "text": "Catalog Quality",
     "files": [
+      "views/me-admin-config.js",
       "views/me-admin.js"
     ]
   },
   {
     "text": "Catalog quality unavailable",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Catalog sets",
     "files": [
-      "harvest-v4"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Category",
     "files": [
-      "harvest-v2"
+      "views/catalog.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -1819,7 +1925,7 @@
   {
     "text": "Check eBay sold-comps access in the Services tab; do not fall back to active listings for sold value.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -1831,37 +1937,37 @@
   {
     "text": "Check out my LEGO collection on BricksVault!",
     "files": [
-      "harvest-v4"
+      "views/portfolio.js"
     ]
   },
   {
     "text": "Check provider credentials, scopes, and account access.",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Check Supabase URL, anon key, and JWT secret.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Check the D1 binding.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Check the latest failure and retry after provider status is healthy.",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Check the number and try again.",
     "files": [
-      "harvest-v6"
+      "views/catalog.js"
     ]
   },
   {
@@ -1873,7 +1979,7 @@
   {
     "text": "Checking the catalog and saved barcode data.",
     "files": [
-      "harvest-v4"
+      "components/scanner.js"
     ]
   },
   {
@@ -1921,7 +2027,7 @@
   {
     "text": "Clear",
     "files": [
-      "harvest-v2"
+      "views/me-integrations.js"
     ]
   },
   {
@@ -1947,7 +2053,10 @@
   {
     "text": "Close",
     "files": [
-      "harvest-v2"
+      "components/methodology.js",
+      "components/scanner.js",
+      "views/me.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -1965,7 +2074,7 @@
   {
     "text": "Closest to target",
     "files": [
-      "harvest-v6"
+      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -1995,7 +2104,7 @@
   {
     "text": "Cloudflare Worker runtime serving the API.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -2019,7 +2128,8 @@
   {
     "text": "Collector",
     "files": [
-      "harvest-v5"
+      "views/me-shared.js",
+      "views/me.js"
     ]
   },
   {
@@ -2032,7 +2142,8 @@
     "text": "Coming soon",
     "files": [
       "views/portfolio-detail-market.js",
-      "views/portfolio-detail.js"
+      "views/portfolio-detail.js",
+      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -2050,7 +2161,7 @@
   {
     "text": "Coming Soon to LEGO.com",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -2062,7 +2173,9 @@
   {
     "text": "Community",
     "files": [
-      "harvest-v2"
+      "views/me-contributions.js",
+      "views/portfolio-detail.js",
+      "views/portfolio-social.js"
     ]
   },
   {
@@ -2092,7 +2205,7 @@
   {
     "text": "Compatible",
     "files": [
-      "harvest-v2"
+      "views/me-integrations.js"
     ]
   },
   {
@@ -2104,31 +2217,32 @@
   {
     "text": "Completed",
     "files": [
-      "harvest-v2+runtime"
+      "lib/pure.js",
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Completeness",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Condition",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "CONDITION",
     "files": [
-      "harvest-v2"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Confidence you can see",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
@@ -2140,13 +2254,13 @@
   {
     "text": "Configured providers",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Configured service.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -2182,7 +2296,7 @@
   {
     "text": "Connected services",
     "files": [
-      "runtime-audit"
+      "views/me-integrations.js"
     ]
   },
   {
@@ -2194,25 +2308,25 @@
   {
     "text": "Connection needed",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Consider holding",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Consulting the brick oracle…",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Continue",
     "files": [
-      "harvest-v5"
+      "components/onboarding.js"
     ]
   },
   {
@@ -2224,7 +2338,7 @@
   {
     "text": "Continue valuation v3 shadow checks.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -2242,7 +2356,7 @@
   {
     "text": "Contribution queue unavailable",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -2254,7 +2368,9 @@
   {
     "text": "Contributions",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js",
+      "views/me-admin.js",
+      "views/me-contributions.js"
     ]
   },
   {
@@ -2266,13 +2382,14 @@
   {
     "text": "Copied — paste it wherever you need it.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Copy",
     "files": [
-      "harvest-v2"
+      "views/me-admin.js",
+      "views/me.js"
     ]
   },
   {
@@ -2296,13 +2413,14 @@
   {
     "text": "Copy your admin token:",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Core",
     "files": [
-      "harvest-v6"
+      "views/me-admin-config.js",
+      "views/me-admin.js"
     ]
   },
   {
@@ -2326,7 +2444,7 @@
   {
     "text": "Could not open secure sign-in",
     "files": [
-      "harvest-v6"
+      "views/login.js"
     ]
   },
   {
@@ -2338,85 +2456,85 @@
   {
     "text": "Could not submit",
     "files": [
-      "harvest-v6"
+      "components/contribute.js"
     ]
   },
   {
     "text": "Could not update retail market",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
     "text": "Could not update source match.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Could not upload",
     "files": [
-      "harvest-v6"
+      "components/contribute.js"
     ]
   },
   {
     "text": "could not verify",
     "files": [
-      "harvest-v7"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Could not withdraw",
     "files": [
-      "harvest-v6"
+      "views/me-contributions.js"
     ]
   },
   {
     "text": "Couldn't add that set",
     "files": [
-      "harvest-v7"
+      "views/catalog.js"
     ]
   },
   {
     "text": "Couldn't check that guess:",
     "files": [
-      "harvest-v3"
+      "views/game.js"
     ]
   },
   {
     "text": "Couldn't delete your account. Please try again.",
     "files": [
-      "harvest-v7"
+      "views/me.js"
     ]
   },
   {
     "text": "Couldn't delete:",
     "files": [
-      "harvest-v3"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Couldn't identify the set on-device. Try a clearer photo.",
     "files": [
-      "harvest-v7"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Couldn't identify the set. Try a clearer photo.",
     "files": [
-      "harvest-v7"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Couldn't load alternate builds",
     "files": [
-      "harvest-v3"
+      "views/build.js"
     ]
   },
   {
     "text": "Couldn't load buildable sets",
     "files": [
-      "harvest-v3"
+      "views/build.js"
     ]
   },
   {
@@ -2428,7 +2546,7 @@
   {
     "text": "Couldn't load collection:",
     "files": [
-      "harvest-v3"
+      "views/portfolio.js"
     ]
   },
   {
@@ -2446,7 +2564,7 @@
   {
     "text": "Couldn't load minifigs",
     "files": [
-      "harvest-v3"
+      "views/minifigs.js"
     ]
   },
   {
@@ -2458,79 +2576,81 @@
   {
     "text": "Couldn't load profile",
     "files": [
-      "harvest-v3"
+      "views/me.js",
+      "views/portfolio-social.js"
     ]
   },
   {
     "text": "Couldn't load the leaderboard",
     "files": [
-      "harvest-v7"
+      "views/portfolio-social.js"
     ]
   },
   {
     "text": "Couldn't load wishlist",
     "files": [
-      "harvest-v3"
+      "views/portfolio-wishlist.js"
     ]
   },
   {
     "text": "Couldn't look that up.",
     "files": [
-      "harvest-v7"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Couldn't match that barcode to a Collectible Minifigures series. Try the series number (e.g. 71045).",
     "files": [
-      "harvest-v7"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Couldn't open PIN setup. Try again.",
     "files": [
-      "harvest-v3"
+      "views/me.js"
     ]
   },
   {
     "text": "Couldn't restore — add it again from the catalog.",
     "files": [
-      "harvest-v3"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Couldn't save — try again",
     "files": [
-      "harvest-v3"
+      "components/scanner.js",
+      "views/minifigs.js"
     ]
   },
   {
     "text": "Couldn't save:",
     "files": [
-      "harvest-v3"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Couldn't set PIN. Try again.",
     "files": [
-      "harvest-v3"
+      "components/kids-pin.js"
     ]
   },
   {
     "text": "Couldn't upload:",
     "files": [
-      "harvest-v3"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Couldn't verify your identity",
     "files": [
-      "harvest-v7"
+      "lib/native-biometric.js"
     ]
   },
   {
     "text": "Counting the studs…",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
@@ -2542,7 +2662,7 @@
   {
     "text": "courtesy of Brickset.com",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -2554,7 +2674,7 @@
   {
     "text": "Creators API",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -2584,13 +2704,13 @@
   {
     "text": "CSV with all collector fields, market values & ROI.",
     "files": [
-      "harvest-v4"
+      "views/me-data.js"
     ]
   },
   {
     "text": "Currency",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js"
     ]
   },
   {
@@ -2608,7 +2728,7 @@
   {
     "text": "Current PIN incorrect or something went wrong.",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
@@ -2620,7 +2740,7 @@
   {
     "text": "Current slice",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -2632,7 +2752,7 @@
   {
     "text": "Current Value ($)",
     "files": [
-      "runtime-audit"
+      "views/catalog.js"
     ]
   },
   {
@@ -2650,13 +2770,13 @@
   {
     "text": "Daily cap",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Daily cap must be a positive integer or blank.",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
@@ -2668,31 +2788,33 @@
   {
     "text": "Daily provider quota controls how far this advances.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Dark",
     "files": [
-      "harvest-v2+runtime"
+      "components/onboarding.js",
+      "views/me.js"
     ]
   },
   {
     "text": "Data",
     "files": [
-      "harvest-v2+runtime"
+      "views/me-data.js",
+      "views/me.js"
     ]
   },
   {
     "text": "Data fix",
     "files": [
-      "harvest-v4"
+      "views/me-contributions.js"
     ]
   },
   {
     "text": "Data fixes",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -2711,13 +2833,13 @@
   {
     "text": "Deals",
     "files": [
-      "harvest-v2"
+      "views/catalog.js"
     ]
   },
   {
     "text": "Decent health, but room to improve on theme diversification or set completeness.",
     "files": [
-      "harvest-v6"
+      "components/advisor.js"
     ]
   },
   {
@@ -2729,19 +2851,23 @@
   {
     "text": "Degraded",
     "files": [
-      "harvest-v2+runtime"
+      "lib/pure.js",
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Delete",
     "files": [
-      "harvest-v2"
+      "views/me-integrations.js",
+      "views/portfolio.js"
     ]
   },
   {
     "text": "DELETE",
     "files": [
-      "harvest-v2"
+      "components/scanner.js",
+      "views/me.js",
+      "views/minifigs.js"
     ]
   },
   {
@@ -2753,13 +2879,13 @@
   {
     "text": "Delete All",
     "files": [
-      "harvest-v4"
+      "views/portfolio.js"
     ]
   },
   {
     "text": "Delete Gemma Model?",
     "files": [
-      "harvest-v2"
+      "views/me-integrations.js"
     ]
   },
   {
@@ -2801,25 +2927,27 @@
   {
     "text": "Description",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Details",
     "files": [
-      "harvest-v2"
+      "components/scanner.js",
+      "views/me-admin.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Dimensions",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Disable",
     "files": [
-      "harvest-v5"
+      "views/me-integrations.js"
     ]
   },
   {
@@ -2831,19 +2959,19 @@
   {
     "text": "Disabled",
     "files": [
-      "harvest-v5"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Disconnect",
     "files": [
-      "harvest-v2"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "Disconnect Google Sheets?",
     "files": [
-      "harvest-v2"
+      "views/me-integrations.js"
     ]
   },
   {
@@ -2879,37 +3007,40 @@
   {
     "text": "Dismiss",
     "files": [
-      "harvest-v2"
+      "views/portfolio.js"
     ]
   },
   {
     "text": "Display Name",
     "files": [
-      "harvest-v2"
+      "views/me.js"
     ]
   },
   {
     "text": "Done",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js",
+      "components/scanner.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Down",
     "files": [
-      "harvest-v5"
+      "views/portfolio-detail.js",
+      "views/portfolio.js"
     ]
   },
   {
     "text": "Download",
     "files": [
-      "harvest-v2"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "Download anyway",
     "files": [
-      "harvest-v4"
+      "views/me-integrations.js"
     ]
   },
   {
@@ -2921,13 +3052,13 @@
   {
     "text": "Download cancelled.",
     "files": [
-      "harvest-v6"
+      "lib/local-ai.js"
     ]
   },
   {
     "text": "Download stalled — connection may be idle. Tap Resume to continue.",
     "files": [
-      "harvest-v6"
+      "lib/local-ai.js"
     ]
   },
   {
@@ -2939,31 +3070,31 @@
   {
     "text": "Downloaded",
     "files": [
-      "harvest-v2"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "Downloading:",
     "files": [
-      "harvest-v2"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "Downloads the whole LEGO price guide, updates values + liquidity, and auto-verifies unique-UPC mappings.",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Dusting off the instructions…",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
     "text": "e.g. Closet A, Shelf 2",
     "files": [
-      "harvest-v4"
+      "views/portfolio.js"
     ]
   },
   {
@@ -2981,7 +3112,7 @@
   {
     "text": "eBay asking",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -2993,19 +3124,19 @@
   {
     "text": "eBay new sold",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "eBay sold",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "eBay sold comps",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -3023,13 +3154,13 @@
   {
     "text": "eBay used sold",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Edit Display Name",
     "files": [
-      "harvest-v2"
+      "views/me.js"
     ]
   },
   {
@@ -3047,13 +3178,13 @@
   {
     "text": "Email and password required.",
     "files": [
-      "harvest-v6"
+      "views/login.js"
     ]
   },
   {
     "text": "Enable",
     "files": [
-      "harvest-v2"
+      "views/me-integrations.js"
     ]
   },
   {
@@ -3071,7 +3202,7 @@
   {
     "text": "Enabled",
     "files": [
-      "harvest-v2"
+      "views/me-integrations.js"
     ]
   },
   {
@@ -3089,13 +3220,19 @@
   {
     "text": "Ensure Gemini Nano is enabled in Chrome settings.",
     "files": [
-      "harvest-v6"
+      "components/advisor.js"
     ]
   },
   {
     "text": "Enter",
     "files": [
-      "harvest-v2"
+      "components/advisor.js",
+      "components/scanner.js",
+      "components/sheet.js",
+      "views/game.js",
+      "views/login.js",
+      "views/me-admin.js",
+      "views/me.js"
     ]
   },
   {
@@ -3107,7 +3244,7 @@
   {
     "text": "Enter a set number such as 71043-1, or a barcode with at least 8 digits.",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
@@ -3125,7 +3262,7 @@
   {
     "text": "Enter a valid Supabase user UUID before changing supporter status.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -3210,13 +3347,18 @@
   {
     "text": "Error:",
     "files": [
-      "harvest-v3"
+      "components/scanner.js",
+      "views/me-integrations.js",
+      "views/me.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Escape",
     "files": [
-      "harvest-v6"
+      "components/lightbox.js",
+      "components/onboarding.js",
+      "components/sheet.js"
     ]
   },
   {
@@ -3240,7 +3382,7 @@
   {
     "text": "Estimate",
     "files": [
-      "harvest-v2+runtime"
+      "lib/pure.js"
     ]
   },
   {
@@ -3258,13 +3400,14 @@
   {
     "text": "Estimated",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail-market.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Estimated by AI because fresh market data was unavailable.",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -3276,13 +3419,13 @@
   {
     "text": "Estimated from set attributes until a market refresh completes.",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Estimated from set details",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -3307,7 +3450,7 @@
   {
     "text": "Estimated only",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -3325,13 +3468,13 @@
   {
     "text": "Estimated value ~$120",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Estimated value if sold as individual parts.",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -3343,13 +3486,13 @@
   {
     "text": "Every value carries its evidence: how many independent families, how many verified sales, the likely range, and when it was last checked.",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "Evidence is limited, stale, or conflicting — treat the range, not the headline, as the answer.",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
@@ -3361,13 +3504,13 @@
   {
     "text": "Excluded from every blend",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Exit",
     "files": [
-      "harvest-v2"
+      "views/kids.js"
     ]
   },
   {
@@ -3385,37 +3528,37 @@
   {
     "text": "Expire valuations",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Expire valuations so cron jobs reprice them? This can create a lot of follow-up work.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Expired values",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Explore",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js"
     ]
   },
   {
     "text": "Export",
     "files": [
-      "harvest-v2"
+      "views/me-data.js"
     ]
   },
   {
     "text": "Export & import your vault as CSV",
     "files": [
-      "runtime-audit"
+      "views/me.js"
     ]
   },
   {
@@ -3445,13 +3588,13 @@
   {
     "text": "Export failed",
     "files": [
-      "harvest-v6"
+      "views/me-data.js"
     ]
   },
   {
     "text": "Export failed:",
     "files": [
-      "harvest-v6"
+      "views/me-data.js"
     ]
   },
   {
@@ -3467,9 +3610,15 @@
     ]
   },
   {
+    "text": "External growth scenario rebased to the current verified fair value; not an independent valuation.",
+    "files": [
+      "worker:lib/valuation-v3.ts"
+    ]
+  },
+  {
     "text": "Extracted set number locally.",
     "files": [
-      "harvest-v4"
+      "lib/local-ai.js"
     ]
   },
   {
@@ -3481,13 +3630,14 @@
   {
     "text": "Facebook Marketplace",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Failed",
     "files": [
-      "harvest-v2+runtime"
+      "lib/pure.js",
+      "views/catalog.js"
     ]
   },
   {
@@ -3511,7 +3661,7 @@
   {
     "text": "Failed to delete",
     "files": [
-      "harvest-v6"
+      "views/portfolio.js"
     ]
   },
   {
@@ -3529,25 +3679,25 @@
   {
     "text": "Failed to load jobs",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Failed to load parts.",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Failed to load processes",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Failed to mark alert as read:",
     "files": [
-      "harvest-v6"
+      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -3565,19 +3715,21 @@
   {
     "text": "Failing",
     "files": [
-      "harvest-v5"
+      "lib/pure.js"
     ]
   },
   {
     "text": "FAIR PRICE",
     "files": [
-      "harvest-v2"
+      "components/scanner.js",
+      "views/portfolio-detail-market.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Fallback barcode lookup provider.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -3595,7 +3747,7 @@
   {
     "text": "Feasibility probe — can Bright Data reach StockX market data? Not a live valuation source yet.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -3619,13 +3771,13 @@
   {
     "text": "Filesystem",
     "files": [
-      "harvest-v6"
+      "lib/native-file-export.js"
     ]
   },
   {
     "text": "Fills in missing UPC barcodes so sets can be scanned.",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -3661,13 +3813,13 @@
   {
     "text": "Finding set...",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Finding the series...",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
@@ -3679,19 +3831,19 @@
   {
     "text": "Firebase returned an invalid device token",
     "files": [
-      "harvest-v6"
+      "lib/native-push.js"
     ]
   },
   {
     "text": "Firecrawl scraping",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "First Brick!",
     "files": [
-      "runtime-audit"
+      "lib/kids-xp.js"
     ]
   },
   {
@@ -3703,13 +3855,14 @@
   {
     "text": "Five numbers, five different jobs",
     "files": [
+      "methodology.html",
       "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "five or more independent collectors",
     "files": [
-      "harvest-v7"
+      "methodology.html"
     ]
   },
   {
@@ -3745,7 +3898,14 @@
   {
     "text": "Forecast",
     "files": [
-      "harvest-v2"
+      "methodology.html",
+      "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Forecasts unlock after 180 days and at least 12 fair-value observations.",
+    "files": [
+      "worker:lib/valuation-v3.ts"
     ]
   },
   {
@@ -3763,7 +3923,7 @@
   {
     "text": "Formula",
     "files": [
-      "harvest-v5"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -3775,13 +3935,13 @@
   {
     "text": "Formula fallback",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Formula or local estimate until market data is available.",
     "files": [
-      "harvest-v4"
+      "lib/pure.js"
     ]
   },
   {
@@ -3793,31 +3953,31 @@
   {
     "text": "France",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
     "text": "Fresh price from a market source.",
     "files": [
-      "harvest-v4"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Fresh value with corroborating market signals.",
     "files": [
-      "harvest-v4"
+      "lib/pure.js"
     ]
   },
   {
     "text": "From current listings (not yet sold)",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "From recent sales + market guide",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -3847,19 +4007,19 @@
   {
     "text": "Full investor view — market value, ROI and 2-year projections.",
     "files": [
-      "harvest-v6"
+      "components/onboarding.js"
     ]
   },
   {
     "text": "Gain",
     "files": [
-      "harvest-v2"
+      "views/me.js"
     ]
   },
   {
     "text": "Gallery",
     "files": [
-      "harvest-v2"
+      "components/scanner.js"
     ]
   },
   {
@@ -3883,7 +4043,7 @@
   {
     "text": "Gemini Nano is not supported and Gemma isn't downloaded. Falling back to Cloud AI.",
     "files": [
-      "harvest-v3"
+      "components/advisor.js"
     ]
   },
   {
@@ -3895,7 +4055,7 @@
   {
     "text": "Gemma model is not downloaded. Please download it in Settings.",
     "files": [
-      "harvest-v6"
+      "lib/local-ai.js"
     ]
   },
   {
@@ -3937,13 +4097,13 @@
   {
     "text": "German",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
     "text": "Germany",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
@@ -3967,7 +4127,7 @@
   {
     "text": "Gift",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -3991,7 +4151,7 @@
   {
     "text": "Gold ★",
     "files": [
-      "runtime-audit"
+      "views/me.js"
     ]
   },
   {
@@ -4003,6 +4163,7 @@
   {
     "text": "Good estimate",
     "files": [
+      "methodology.html",
       "views/portfolio-detail.js"
     ]
   },
@@ -4015,7 +4176,8 @@
   {
     "text": "Good time to sell",
     "files": [
-      "views/portfolio-detail-market.js"
+      "views/portfolio-detail-market.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -4027,7 +4189,7 @@
   {
     "text": "Google Gemini — server-side AI features.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -4045,7 +4207,7 @@
   {
     "text": "Google Sheets collection export and sync.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -4069,7 +4231,7 @@
   {
     "text": "Google Sheets, Discord, Brickset, push alerts, AI keys",
     "files": [
-      "runtime-audit"
+      "views/me.js"
     ]
   },
   {
@@ -4081,13 +4243,13 @@
   {
     "text": "GRAB IT",
     "files": [
-      "harvest-v2"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Grand Master",
     "files": [
-      "runtime-audit"
+      "lib/kids-xp.js"
     ]
   },
   {
@@ -4117,25 +4279,27 @@
   {
     "text": "GREAT DEAL",
     "files": [
-      "harvest-v4"
+      "components/scanner.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Gross",
     "files": [
-      "harvest-v2"
+      "components/flip-calc.js"
     ]
   },
   {
     "text": "Growth",
     "files": [
-      "harvest-v2+runtime"
+      "views/catalog.js",
+      "views/portfolio.js"
     ]
   },
   {
     "text": "Guess the market value, build your streak",
     "files": [
-      "runtime-audit"
+      "views/portfolio.js"
     ]
   },
   {
@@ -4201,13 +4365,21 @@
   {
     "text": "Hard error",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
+    ]
+  },
+  {
+    "text": "have contributed, always anonymized (only medians and ranges are ever stored), and outlier-trimmed like every other source. As the community grows, this becomes a sold-price source that no marketplace outage or scraper block can take away.",
+    "files": [
+      "methodology.html"
     ]
   },
   {
     "text": "High confidence",
     "files": [
-      "harvest-v2"
+      "lib/pure.js",
+      "views/me-admin.js",
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -4219,7 +4391,7 @@
   {
     "text": "High theme concentration or missing parts detected. Consider diversifying.",
     "files": [
-      "harvest-v6"
+      "components/advisor.js"
     ]
   },
   {
@@ -4231,19 +4403,19 @@
   {
     "text": "high/medium/low signal",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "History",
     "files": [
-      "harvest-v2"
+      "views/me-contributions.js"
     ]
   },
   {
     "text": "History anomaly",
     "files": [
-      "harvest-v8"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -4261,7 +4433,7 @@
   {
     "text": "Hold",
     "files": [
-      "harvest-v2+runtime"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -4279,13 +4451,13 @@
   {
     "text": "how do I sell this well?",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "How is my Star Wars collection doing?",
     "files": [
-      "runtime-audit"
+      "components/advisor.js"
     ]
   },
   {
@@ -4303,13 +4475,14 @@
   {
     "text": "How We Price — BricksVault",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "How we price LEGO sets",
     "files": [
-      "components/methodology.js"
+      "components/methodology.js",
+      "methodology.html"
     ]
   },
   {
@@ -4339,13 +4512,13 @@
   {
     "text": "Icons",
     "files": [
-      "harvest-v6"
+      "views/catalog.js"
     ]
   },
   {
     "text": "Identified Set",
     "files": [
-      "harvest-v4"
+      "lib/local-ai.js"
     ]
   },
   {
@@ -4357,25 +4530,25 @@
   {
     "text": "Identifying…",
     "files": [
-      "harvest-v2"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Identity before price",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "Identity, value, or forecast conflicts",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Image too large (max 20 MB) — skipped",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
@@ -4387,7 +4560,7 @@
   {
     "text": "Image viewer",
     "files": [
-      "harvest-v6"
+      "components/lightbox.js"
     ]
   },
   {
@@ -4399,13 +4572,13 @@
   {
     "text": "Import",
     "files": [
-      "harvest-v2"
+      "views/me-data.js"
     ]
   },
   {
     "text": "Import & export",
     "files": [
-      "runtime-audit"
+      "views/me-data.js"
     ]
   },
   {
@@ -4435,6 +4608,7 @@
   {
     "text": "Import file",
     "files": [
+      "lib/local-ai.js",
       "views/me-integrations.js"
     ]
   },
@@ -4453,43 +4627,43 @@
   {
     "text": "Import minifigs",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Import sets",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Import the minifig catalog now?",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Import the set catalog now? This is safe, but it can take a while.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Imports the full LEGO set catalog from Rebrickable.",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Imports the full minifigure catalog from Rebrickable.",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "In Stock at LEGO.com",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -4514,13 +4688,13 @@
   {
     "text": "Incorrect PIN.",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
     "text": "Incorrect PIN. Try again.",
     "files": [
-      "harvest-v6"
+      "views/kids.js"
     ]
   },
   {
@@ -4538,13 +4712,13 @@
   {
     "text": "Independent sources, counted honestly",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "Indexing parts",
     "files": [
-      "harvest-v2"
+      "views/build.js"
     ]
   },
   {
@@ -4556,7 +4730,7 @@
   {
     "text": "Initializing local engine...",
     "files": [
-      "harvest-v6"
+      "lib/local-ai.js"
     ]
   },
   {
@@ -4580,13 +4754,14 @@
   {
     "text": "Instructions",
     "files": [
-      "harvest-v2"
+      "views/build.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Insufficient sample",
     "files": [
-      "harvest-v8"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -4598,19 +4773,20 @@
   {
     "text": "Integrations",
     "files": [
-      "harvest-v2+runtime"
+      "views/me-integrations.js",
+      "views/me.js"
     ]
   },
   {
     "text": "Invalid model URL.",
     "files": [
-      "harvest-v6"
+      "lib/local-ai.js"
     ]
   },
   {
     "text": "Invested",
     "files": [
-      "harvest-v2"
+      "views/me.js"
     ]
   },
   {
@@ -4629,13 +4805,13 @@
   {
     "text": "is the Legendary CSV import healthy?",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Job",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -4653,19 +4829,19 @@
   {
     "text": "Junior Builder",
     "files": [
-      "runtime-audit"
+      "lib/kids-xp.js"
     ]
   },
   {
     "text": "Keep monitoring; retry a smaller batch if needed.",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Keep on building! 🧱",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -4683,19 +4859,19 @@
   {
     "text": "Key rejected — check it and try again",
     "files": [
-      "harvest-v4"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "Key works but its quota is exhausted",
     "files": [
-      "harvest-v4"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "Kids",
     "files": [
-      "harvest-v6"
+      "components/onboarding.js"
     ]
   },
   {
@@ -4713,7 +4889,7 @@
   {
     "text": "Large set, high collector appeal",
     "files": [
-      "runtime-audit"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -4731,7 +4907,8 @@
   {
     "text": "Leaderboard",
     "files": [
-      "harvest-v2"
+      "views/me.js",
+      "views/portfolio-social.js"
     ]
   },
   {
@@ -4743,7 +4920,7 @@
   {
     "text": "Legacy",
     "files": [
-      "harvest-v5"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -4761,19 +4938,19 @@
   {
     "text": "Legacy estimate",
     "files": [
-      "harvest-v8"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Legacy PriceCharting",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Legacy signal",
     "files": [
-      "harvest-v8"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -4791,13 +4968,13 @@
   {
     "text": "Legendary!",
     "files": [
-      "harvest-v2+runtime"
+      "lib/kids-xp.js"
     ]
   },
   {
     "text": "LEGO Ideas and CUUSOO",
     "files": [
-      "harvest-v6"
+      "views/catalog.js"
     ]
   },
   {
@@ -4809,31 +4986,32 @@
   {
     "text": "Level",
     "files": [
-      "harvest-v2"
+      "views/kids.js"
     ]
   },
   {
     "text": "Light",
     "files": [
-      "harvest-v2+runtime"
+      "components/onboarding.js",
+      "views/me.js"
     ]
   },
   {
     "text": "Likely soon",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Limit reached",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
     ]
   },
   {
     "text": "LIMIT REACHED",
     "files": [
-      "harvest-v4"
+      "components/scanner.js"
     ]
   },
   {
@@ -4876,13 +5054,13 @@
   {
     "text": "Listed below recent sold prices — good time to buy",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "little 2-year upside left",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
@@ -4894,13 +5072,13 @@
   {
     "text": "Live Amazon offers for the buy slot. KV-only (24h) per Associates terms; never a valuation input — weight stays 0.",
     "files": [
-      "harvest-v6"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Live barcode scanning isn't supported on this browser — type the digits instead",
     "files": [
-      "harvest-v7"
+      "components/scanner.js"
     ]
   },
   {
@@ -4960,13 +5138,15 @@
   {
     "text": "Loading…",
     "files": [
-      "harvest-v2"
+      "views/me-contributions.js",
+      "views/me-data.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Local AI",
     "files": [
-      "harvest-v4"
+      "components/scanner.js"
     ]
   },
   {
@@ -4984,7 +5164,7 @@
   {
     "text": "Local guest",
     "files": [
-      "harvest-v4"
+      "views/me.js"
     ]
   },
   {
@@ -5008,7 +5188,7 @@
   {
     "text": "Location",
     "files": [
-      "harvest-v2"
+      "views/portfolio.js"
     ]
   },
   {
@@ -5020,7 +5200,7 @@
   {
     "text": "login with fingerprint",
     "files": [
-      "harvest-v7"
+      "lib/native-biometric.js"
     ]
   },
   {
@@ -5045,7 +5225,7 @@
   {
     "text": "Looking up barcode...",
     "files": [
-      "harvest-v4"
+      "components/scanner.js"
     ]
   },
   {
@@ -5057,43 +5237,45 @@
   {
     "text": "Looking up catalog...",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Low confidence",
     "files": [
+      "lib/pure.js",
+      "views/portfolio-detail-market.js",
       "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Low confidence / Estimated",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "Low RAM detected",
     "files": [
-      "harvest-v2"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "Low-confidence values",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "LVL",
     "files": [
-      "harvest-v2"
+      "views/kids.js"
     ]
   },
   {
     "text": "Main",
     "files": [
-      "harvest-v5"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -5105,7 +5287,7 @@
   {
     "text": "Manage",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -5155,7 +5337,8 @@
   {
     "text": "Market",
     "files": [
-      "harvest-v2+runtime"
+      "views/portfolio-detail-market.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -5173,7 +5356,7 @@
   {
     "text": "Market guide",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -5185,19 +5368,19 @@
   {
     "text": "Market guides (not live sales)",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Market price",
     "files": [
-      "runtime-audit"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Market signal",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -5215,6 +5398,7 @@
   {
     "text": "Market value",
     "files": [
+      "methodology.html",
       "views/portfolio-detail-market.js"
     ]
   },
@@ -5228,31 +5412,31 @@
   {
     "text": "Market value & ROI columns in CSV export",
     "files": [
-      "runtime-audit"
+      "views/me.js"
     ]
   },
   {
     "text": "Marks current valuations stale so the pricing crons re-price every set.",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Marvel Super Heroes",
     "files": [
-      "harvest-v6"
+      "views/catalog.js"
     ]
   },
   {
     "text": "Master Builder",
     "files": [
-      "runtime-audit"
+      "lib/kids-xp.js"
     ]
   },
   {
     "text": "Master LEGO set and minifig catalog import.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -5270,13 +5454,13 @@
   {
     "text": "Matching the barcode against blind-box data.",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Matching the box art…",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
@@ -5288,25 +5472,26 @@
   {
     "text": "Max pieces",
     "files": [
-      "harvest-v6"
+      "views/catalog.js"
     ]
   },
   {
     "text": "Max value",
     "files": [
-      "harvest-v6"
+      "views/catalog.js"
     ]
   },
   {
     "text": "Max year",
     "files": [
-      "harvest-v6"
+      "views/catalog.js"
     ]
   },
   {
     "text": "Me",
     "files": [
-      "harvest-v2"
+      "components/advisor.js",
+      "index.html"
     ]
   },
   {
@@ -5318,7 +5503,7 @@
   {
     "text": "Medium confidence",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -5336,7 +5521,7 @@
   {
     "text": "Methodology content is missing",
     "files": [
-      "harvest-v6"
+      "components/methodology.js"
     ]
   },
   {
@@ -5348,25 +5533,26 @@
   {
     "text": "Min pieces",
     "files": [
-      "harvest-v6"
+      "views/catalog.js"
     ]
   },
   {
     "text": "Min value",
     "files": [
-      "harvest-v6"
+      "views/catalog.js"
     ]
   },
   {
     "text": "Min year",
     "files": [
-      "harvest-v6"
+      "views/catalog.js"
     ]
   },
   {
     "text": "Minifig",
     "files": [
-      "harvest-v6"
+      "views/minifigs.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -5384,13 +5570,13 @@
   {
     "text": "Minifig identity queue",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Minifig import",
     "files": [
-      "harvest-v4"
+      "views/me-admin.js"
     ]
   },
   {
@@ -5402,7 +5588,9 @@
   {
     "text": "Minifigs",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js",
+      "index.html",
+      "views/minifigs.js"
     ]
   },
   {
@@ -5414,31 +5602,31 @@
   {
     "text": "Minifigures",
     "files": [
-      "harvest-v2"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Missing barcode",
     "files": [
-      "harvest-v6"
+      "components/contribute.js"
     ]
   },
   {
     "text": "Missing MSRP",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Missing UPC",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Missing:",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -5450,25 +5638,26 @@
   {
     "text": "Model URL not found (HTTP 404) — check the URL.",
     "files": [
-      "harvest-v6"
+      "lib/local-ai.js"
     ]
   },
   {
     "text": "Models you can build from sets you own",
     "files": [
-      "runtime-audit"
+      "views/me.js"
     ]
   },
   {
     "text": "Modular",
     "files": [
-      "harvest-v2+runtime"
+      "components/onboarding.js",
+      "views/me.js"
     ]
   },
   {
     "text": "More",
     "files": [
-      "harvest-v2"
+      "views/me.js"
     ]
   },
   {
@@ -5486,13 +5675,20 @@
   {
     "text": "More…",
     "files": [
-      "harvest-v2"
+      "views/catalog.js",
+      "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "Most price guides show you one number and ask you to trust it. We'd rather show you how the number is made, what it's based on, and — when the evidence isn't good enough — say so instead of guessing.",
+    "files": [
+      "methodology.html"
     ]
   },
   {
     "text": "moving away from your target",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
     ]
   },
   {
@@ -5522,7 +5718,7 @@
   {
     "text": "My LEGO BricksVault",
     "files": [
-      "harvest-v2"
+      "views/portfolio.js"
     ]
   },
   {
@@ -5534,19 +5730,19 @@
   {
     "text": "Native alerts are waiting for the app's Firebase configuration.",
     "files": [
-      "harvest-v7"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "Native notifications are unavailable",
     "files": [
-      "harvest-v6"
+      "lib/native-push.js"
     ]
   },
   {
     "text": "Need N",
     "files": [
-      "harvest-v6"
+      "views/build.js"
     ]
   },
   {
@@ -5558,7 +5754,8 @@
   {
     "text": "Needs action",
     "files": [
-      "harvest-v6"
+      "lib/pure.js",
+      "views/me-admin.js"
     ]
   },
   {
@@ -5570,13 +5767,13 @@
   {
     "text": "Needs PRICESAPI_ENABLED=1 + keys; spends the daily pricesAPI budget.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Needs refresh",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -5596,13 +5793,13 @@
   {
     "text": "Network",
     "files": [
-      "harvest-v6"
+      "lib/native-net.js"
     ]
   },
   {
     "text": "New",
     "files": [
-      "harvest-v2"
+      "components/scanner.js"
     ]
   },
   {
@@ -5614,7 +5811,7 @@
   {
     "text": "New and sealed",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -5633,7 +5830,7 @@
   {
     "text": "New PINs don't match.",
     "files": [
-      "harvest-v7"
+      "views/me.js"
     ]
   },
   {
@@ -5651,13 +5848,14 @@
   {
     "text": "Newest",
     "files": [
-      "harvest-v2+runtime"
+      "views/catalog.js",
+      "views/minifigs.js"
     ]
   },
   {
     "text": "Next",
     "files": [
-      "harvest-v5"
+      "components/onboarding.js"
     ]
   },
   {
@@ -5675,13 +5873,14 @@
   {
     "text": "No action needed until this provider is used.",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "No action needed.",
     "files": [
-      "harvest-v6"
+      "lib/pure.js",
+      "views/me-admin.js"
     ]
   },
   {
@@ -5699,7 +5898,7 @@
   {
     "text": "No active session token found — sign in again.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -5717,7 +5916,7 @@
   {
     "text": "No current retail offer",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -5729,31 +5928,31 @@
   {
     "text": "No file selected.",
     "files": [
-      "harvest-v6"
+      "lib/local-ai.js"
     ]
   },
   {
     "text": "No filters active",
     "files": [
-      "runtime-audit"
+      "lib/pure.js"
     ]
   },
   {
     "text": "No five-year forecasts. Nobody can forecast LEGO prices five years out; pretending otherwise would poison your trust in every other number.",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "No invented numbers: a set without enough verified evidence says",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "No items processed",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -5765,7 +5964,7 @@
   {
     "text": "no match",
     "files": [
-      "harvest-v7"
+      "lib/pure.js"
     ]
   },
   {
@@ -5777,13 +5976,13 @@
   {
     "text": "No match found",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
     "text": "No matches yet",
     "files": [
-      "harvest-v4"
+      "views/build.js"
     ]
   },
   {
@@ -5813,13 +6012,13 @@
   {
     "text": "No minifigs match these filters.",
     "files": [
-      "runtime-audit"
+      "views/minifigs.js"
     ]
   },
   {
     "text": "No mixing retail offers into resale value.",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
@@ -5849,7 +6048,7 @@
   {
     "text": "No projection yet - it appears after at least 180 days and 12 history points.",
     "files": [
-      "runtime-audit"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -5879,7 +6078,7 @@
   {
     "text": "no sell trigger yet",
     "files": [
-      "harvest-v7"
+      "lib/pure.js"
     ]
   },
   {
@@ -5904,7 +6103,7 @@
   {
     "text": "No sets match these filters.",
     "files": [
-      "harvest-v4"
+      "views/catalog.js"
     ]
   },
   {
@@ -5940,7 +6139,7 @@
   {
     "text": "No snapshots yet — the first one is written next Sunday.",
     "files": [
-      "runtime-audit"
+      "views/me-data.js"
     ]
   },
   {
@@ -5964,13 +6163,13 @@
   {
     "text": "No target",
     "files": [
-      "runtime-audit"
+      "views/portfolio-wishlist.js"
     ]
   },
   {
     "text": "No telemetry yet",
     "files": [
-      "harvest-v4"
+      "views/me-admin.js"
     ]
   },
   {
@@ -5994,7 +6193,7 @@
   {
     "text": "No valid rows found — check set_num column exists",
     "files": [
-      "harvest-v6"
+      "views/me-data.js"
     ]
   },
   {
@@ -6006,7 +6205,7 @@
   {
     "text": "NONE",
     "files": [
-      "harvest-v8"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -6025,43 +6224,43 @@
   {
     "text": "Not available",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Not enough history yet",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Not enough memory to load the model. Try closing other apps or tabs.",
     "files": [
-      "harvest-v6"
+      "lib/local-ai.js"
     ]
   },
   {
     "text": "Not enough parts data yet",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Not enough sold data yet",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Not enough verified data",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Not found",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
     ]
   },
   {
@@ -6091,25 +6290,25 @@
   {
     "text": "not retired yet — the main gains come after retirement",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Not run yet",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Not supported",
     "files": [
-      "harvest-v6"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "Notes",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -6139,7 +6338,7 @@
   {
     "text": "Nothing to build yet",
     "files": [
-      "runtime-audit"
+      "views/build.js"
     ]
   },
   {
@@ -6169,37 +6368,39 @@
   {
     "text": "Notification registration failed",
     "files": [
-      "harvest-v6"
+      "lib/native-push.js"
     ]
   },
   {
     "text": "Notification registration timed out",
     "files": [
-      "harvest-v6"
+      "lib/native-push.js"
     ]
   },
   {
     "text": "Notifications",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js",
+      "views/portfolio.js"
     ]
   },
   {
     "text": "Now",
     "files": [
-      "harvest-v2"
+      "views/portfolio-wishlist.js",
+      "views/portfolio.js"
     ]
   },
   {
     "text": "Number",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "OAuth is ready",
     "files": [
-      "harvest-v6"
+      "views/me-integrations.js"
     ]
   },
   {
@@ -6211,7 +6412,8 @@
   {
     "text": "Off",
     "files": [
-      "harvest-v2+runtime"
+      "lib/pure.js",
+      "views/me-admin.js"
     ]
   },
   {
@@ -6223,49 +6425,49 @@
   {
     "text": "Old active sets",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Older eBay average",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Older price",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Older sets still marked active.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Older than 14 days",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "on any set page — corrections feed the same verification pipeline. ·",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "On back-order",
     "files": [
-      "harvest-v6"
+      "views/portfolio-wishlist.js"
     ]
   },
   {
     "text": "On-device AI couldn't identify it — trying cloud…",
     "files": [
-      "harvest-v3"
+      "components/scanner.js"
     ]
   },
   {
@@ -6277,7 +6479,7 @@
   {
     "text": "On-device AI requires WebGPU, which this browser/device does not support.",
     "files": [
-      "harvest-v6"
+      "lib/local-ai.js"
     ]
   },
   {
@@ -6319,7 +6521,7 @@
   {
     "text": "One ~2MB download",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -6331,13 +6533,13 @@
   {
     "text": "Only one weak market signal is available.",
     "files": [
-      "harvest-v4"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Open",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -6373,7 +6575,7 @@
   {
     "text": "OpenAI — server-side AI features.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -6385,13 +6587,13 @@
   {
     "text": "Opening scanner…",
     "files": [
-      "harvest-v4"
+      "components/scanner.js"
     ]
   },
   {
     "text": "OpenRouter — model routing for AI features.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -6409,25 +6611,25 @@
   {
     "text": "Optional Discord webhook alerts.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Optional marketplace signal and cross-check.",
     "files": [
-      "harvest-v6"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Optional retail offer signal; keep disabled unless keys and quota are ready.",
     "files": [
-      "harvest-v6"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Optional reviewer note for rejection:",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -6445,73 +6647,74 @@
   {
     "text": "Other metadata",
     "files": [
-      "harvest-v6"
+      "components/contribute.js"
     ]
   },
   {
     "text": "Out of Stock at LEGO.com",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Overnight value jumps of ±40% on any set are flagged and reviewed — automatically resolved only when the market genuinely confirms them.",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "Owned",
     "files": [
-      "harvest-v2"
+      "views/minifigs.js"
     ]
   },
   {
     "text": "OWNED",
     "files": [
-      "harvest-v2"
+      "views/catalog.js"
     ]
   },
   {
     "text": "Owned only",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Ownership",
     "files": [
-      "overlay-audit"
+      "views/minifigs.js"
     ]
   },
   {
     "text": "Packaging",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Paid",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Parsing BrickLink orders...",
     "files": [
-      "harvest-v6"
+      "views/me-data.js"
     ]
   },
   {
     "text": "Part out",
     "files": [
+      "methodology.html",
       "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Part-list error",
     "files": [
-      "harvest-v6"
+      "components/contribute.js"
     ]
   },
   {
@@ -6541,7 +6744,7 @@
   {
     "text": "Password",
     "files": [
-      "harvest-v3"
+      "views/login.js"
     ]
   },
   {
@@ -6565,13 +6768,14 @@
   {
     "text": "Pending",
     "files": [
-      "harvest-v5"
+      "views/portfolio-detail-market.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Pending refresh",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -6583,7 +6787,8 @@
   {
     "text": "Photo",
     "files": [
-      "harvest-v2"
+      "components/scanner.js",
+      "views/me-contributions.js"
     ]
   },
   {
@@ -6631,7 +6836,8 @@
   {
     "text": "Photos",
     "files": [
-      "harvest-v2"
+      "views/me-admin.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -6679,13 +6885,13 @@
   {
     "text": "Piece Count",
     "files": [
-      "runtime-audit"
+      "views/catalog.js"
     ]
   },
   {
     "text": "Pieces",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
@@ -6703,13 +6909,13 @@
   {
     "text": "PIN incorrect or something went wrong.",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
     "text": "PIN must be exactly 4 digits.",
     "files": [
-      "harvest-v6"
+      "components/kids-pin.js"
     ]
   },
   {
@@ -6721,13 +6927,13 @@
   {
     "text": "PINs don't match.",
     "files": [
-      "harvest-v7"
+      "components/kids-pin.js"
     ]
   },
   {
     "text": "PINs must be exactly 4 digits.",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
@@ -6751,7 +6957,8 @@
   {
     "text": "Please enter a 4-digit PIN.",
     "files": [
-      "harvest-v6"
+      "views/kids.js",
+      "views/me.js"
     ]
   },
   {
@@ -6763,43 +6970,46 @@
   {
     "text": "Point it at a box barcode — instant match.",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js"
     ]
   },
   {
     "text": "Poll heartbeat",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "pop in",
     "files": [
-      "harvest-v7"
+      "components/advisor.js"
     ]
   },
   {
     "text": "Populate",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js",
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Populate all safe sources",
     "files": [
+      "views/me-admin-config.js",
       "views/me-admin.js"
     ]
   },
   {
     "text": "Populate coverage",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js",
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Populate everything",
     "files": [
-      "harvest-v4"
+      "views/me-admin.js"
     ]
   },
   {
@@ -6823,7 +7033,7 @@
   {
     "text": "Possible",
     "files": [
-      "harvest-v5"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -6835,13 +7045,13 @@
   {
     "text": "Pre-order at LEGO.com",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Pre-release",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -6859,13 +7069,13 @@
   {
     "text": "Preferences",
     "files": [
-      "harvest-v2"
+      "views/me.js"
     ]
   },
   {
     "text": "Premium",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
@@ -6877,19 +7087,19 @@
   {
     "text": "Premium ★",
     "files": [
-      "runtime-audit"
+      "views/me.js"
     ]
   },
   {
     "text": "Preparing export...",
     "files": [
-      "harvest-v6"
+      "views/me-data.js"
     ]
   },
   {
     "text": "Preparing report…",
     "files": [
-      "harvest-v6"
+      "views/me-data.js"
     ]
   },
   {
@@ -6901,7 +7111,7 @@
   {
     "text": "Preview",
     "files": [
-      "harvest-v2"
+      "views/me-admin.js"
     ]
   },
   {
@@ -6937,13 +7147,13 @@
   {
     "text": "Price not announced",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Price target hit! 🎯",
     "files": [
-      "harvest-v4"
+      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -6955,7 +7165,7 @@
   {
     "text": "price trend has turned down",
     "files": [
-      "harvest-v7"
+      "lib/pure.js"
     ]
   },
   {
@@ -6967,37 +7177,38 @@
   {
     "text": "PriceCharting (stored data)",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "PriceCharting CSV",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "prices from independent markets — and if we don't have that, we tell you exactly what we have instead.",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "pricesAPI retail offers",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Pricing",
     "files": [
-      "harvest-v6"
+      "views/me-admin-config.js",
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Pricing anomaly",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -7046,13 +7257,13 @@
   {
     "text": "Primary collector-market pricing. Strong signal for new and used values.",
     "files": [
-      "harvest-v6"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Primary database — catalog, valuations, jobs, settings.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -7070,13 +7281,13 @@
   {
     "text": "Printable valuation of your vault — save as PDF for home insurance.",
     "files": [
-      "harvest-v4"
+      "views/me-data.js"
     ]
   },
   {
     "text": "Privacy",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
@@ -7088,7 +7299,7 @@
   {
     "text": "Private",
     "files": [
-      "harvest-v5"
+      "views/portfolio-social.js"
     ]
   },
   {
@@ -7100,13 +7311,15 @@
   {
     "text": "Product tour",
     "files": [
-      "harvest-v6"
+      "components/onboarding.js"
     ]
   },
   {
     "text": "Profile",
     "files": [
-      "harvest-v2"
+      "index.html",
+      "views/me.js",
+      "views/portfolio-social.js"
     ]
   },
   {
@@ -7118,7 +7331,7 @@
   {
     "text": "Profile not found or private",
     "files": [
-      "harvest-v4"
+      "views/portfolio-social.js"
     ]
   },
   {
@@ -7148,13 +7361,19 @@
   {
     "text": "Promotes mappings whose PC price agrees with an independent BrickLink/eBay sold value, then re-blends them.",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Provider blocked",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
+    ]
+  },
+  {
+    "text": "provider families",
+    "files": [
+      "methodology.html"
     ]
   },
   {
@@ -7190,7 +7409,7 @@
   {
     "text": "Purchase",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7202,7 +7421,7 @@
   {
     "text": "Purchase Date",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
@@ -7214,7 +7433,7 @@
   {
     "text": "Purchases",
     "files": [
-      "harvest-v6"
+      "lib/revenuecat-native.js"
     ]
   },
   {
@@ -7250,13 +7469,13 @@
   {
     "text": "Qty",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Quarantined matches",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -7268,31 +7487,31 @@
   {
     "text": "Questions or a price that looks wrong? Use",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "Quota limited",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Range",
     "files": [
-      "harvest-v6"
+      "lib/local-ai.js"
     ]
   },
   {
     "text": "Range pending",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Ranges",
     "files": [
-      "harvest-v2"
+      "views/catalog.js"
     ]
   },
   {
@@ -7310,13 +7529,13 @@
   {
     "text": "Rarest",
     "files": [
-      "harvest-v2+runtime"
+      "views/minifigs.js"
     ]
   },
   {
     "text": "Rarity",
     "files": [
-      "harvest-v2+runtime"
+      "views/minifigs.js"
     ]
   },
   {
@@ -7328,7 +7547,7 @@
   {
     "text": "Re-prices a small batch of sets from current market sources.",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -7340,19 +7559,20 @@
   {
     "text": "Ready",
     "files": [
-      "harvest-v2+runtime"
+      "lib/pure.js",
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Ready / no calls",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Real collector transactions",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
@@ -7370,13 +7590,13 @@
   {
     "text": "Rebuild the catalog search index now?",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Rebuilds the catalog search index if set search starts returning wrong results.",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -7388,7 +7608,8 @@
   {
     "text": "Recent",
     "files": [
-      "harvest-v2+runtime"
+      "views/portfolio-wishlist.js",
+      "views/portfolio.js"
     ]
   },
   {
@@ -7400,7 +7621,7 @@
   {
     "text": "Recent sale price",
     "files": [
-      "harvest-v6"
+      "components/contribute.js"
     ]
   },
   {
@@ -7412,7 +7633,7 @@
   {
     "text": "Recent sold evidence supports the number, but from fewer markets or with more spread.",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
@@ -7424,7 +7645,7 @@
   {
     "text": "Recommended",
     "files": [
-      "harvest-v2"
+      "views/me-admin.js"
     ]
   },
   {
@@ -7436,19 +7657,20 @@
   {
     "text": "Refresh",
     "files": [
-      "harvest-v2"
+      "views/me-admin.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Refresh days",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Refresh days must be a positive integer or blank.",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
@@ -7460,25 +7682,25 @@
   {
     "text": "Refresh PriceCharting (LEGO bulk)",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Refreshes live retailer offers + stock for a few sets — use to verify new keys.",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Reject",
     "files": [
-      "harvest-v2"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Rejected",
     "files": [
-      "harvest-v5"
+      "views/me-admin.js"
     ]
   },
   {
@@ -7490,31 +7712,32 @@
   {
     "text": "Release date pending",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Release Year",
     "files": [
-      "runtime-audit"
+      "views/catalog.js"
     ]
   },
   {
     "text": "Released",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Reliable price",
     "files": [
+      "methodology.html",
       "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Remove",
     "files": [
-      "harvest-v5"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7544,7 +7767,7 @@
   {
     "text": "Remove from vault?",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7574,7 +7797,7 @@
   {
     "text": "Removed",
     "files": [
-      "harvest-v5"
+      "components/scanner.js"
     ]
   },
   {
@@ -7586,7 +7809,7 @@
   {
     "text": "Removed from vault",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7604,13 +7827,13 @@
   {
     "text": "Repair search index",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Repeated safe slices",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -7640,13 +7863,13 @@
   {
     "text": "Report failed",
     "files": [
-      "harvest-v6"
+      "views/me-data.js"
     ]
   },
   {
     "text": "Report failed:",
     "files": [
-      "harvest-v6"
+      "views/me-data.js"
     ]
   },
   {
@@ -7670,7 +7893,7 @@
   {
     "text": "Resale",
     "files": [
-      "harvest-v2+runtime"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7682,7 +7905,7 @@
   {
     "text": "Resend",
     "files": [
-      "harvest-v5"
+      "views/me-admin.js"
     ]
   },
   {
@@ -7700,7 +7923,7 @@
   {
     "text": "Reset password",
     "files": [
-      "harvest-v2"
+      "views/login.js"
     ]
   },
   {
@@ -7712,13 +7935,14 @@
   {
     "text": "Response timed out",
     "files": [
-      "harvest-v6"
+      "components/advisor.js"
     ]
   },
   {
     "text": "Restore",
     "files": [
-      "harvest-v2"
+      "lib/revenuecat-native.js",
+      "views/me-data.js"
     ]
   },
   {
@@ -7736,25 +7960,26 @@
   {
     "text": "Restored to vault",
     "files": [
-      "views/portfolio-detail.js"
+      "views/portfolio-detail.js",
+      "views/portfolio.js"
     ]
   },
   {
     "text": "Resume (NN%)",
     "files": [
-      "harvest-v6"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "Resuming:",
     "files": [
-      "harvest-v8"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "Retail",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7784,19 +8009,22 @@
   {
     "text": "Retail sets still missing barcode data.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Retired",
     "files": [
-      "harvest-v2"
+      "views/catalog.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "RETIRED",
     "files": [
-      "runtime-audit"
+      "views/catalog.js",
+      "views/portfolio-detail.js",
+      "views/portfolio-social.js"
     ]
   },
   {
@@ -7808,7 +8036,7 @@
   {
     "text": "Retired only",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
@@ -7850,13 +8078,14 @@
   {
     "text": "Retiring",
     "files": [
-      "harvest-v2"
+      "views/catalog.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Retiring Soon",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7868,19 +8097,25 @@
   {
     "text": "Retro",
     "files": [
-      "harvest-v2+runtime"
+      "components/onboarding.js",
+      "views/me.js"
     ]
   },
   {
     "text": "Retry",
     "files": [
-      "harvest-v2"
+      "components/advisor.js",
+      "views/build.js",
+      "views/catalog.js",
+      "views/me-admin.js",
+      "views/me-data.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Retry failed:",
     "files": [
-      "harvest-v6"
+      "views/me-data.js"
     ]
   },
   {
@@ -7892,49 +8127,51 @@
   {
     "text": "Retry needed",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Retry with safe slice",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Retryable no-op",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Retrying sync…",
     "files": [
-      "harvest-v6"
+      "views/me-data.js"
     ]
   },
   {
     "text": "Revalue prices",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js",
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Review",
     "files": [
-      "harvest-v5"
+      "views/me-admin.js",
+      "views/me-contributions.js"
     ]
   },
   {
     "text": "Review 10,269 quarantined source matches",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Review provider diagnostics",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -7952,7 +8189,8 @@
   {
     "text": "Reviews",
     "files": [
-      "harvest-v2"
+      "views/me-admin.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7964,13 +8202,13 @@
   {
     "text": "Reviews, photos & data fixes you've submitted",
     "files": [
-      "runtime-audit"
+      "views/me.js"
     ]
   },
   {
     "text": "Revoke",
     "files": [
-      "harvest-v2"
+      "views/me-admin.js"
     ]
   },
   {
@@ -8000,49 +8238,49 @@
   {
     "text": "Roughly in line with the sealed value.",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Rows in the live catalog.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Rows missing retail price context.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Rows using weak or formula-heavy valuation.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Rows with persisted blended values.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Rummaging the parts bin…",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Run eBay-sold scrape",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Run next slice if coverage remains",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -8054,31 +8292,31 @@
   {
     "text": "Run Populate all safe sources (Populate tab) to refresh the latest provider coverage.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Run Populate all safe sources and check provider access in the Services tab before increasing source weights.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Run Populate all safe sources to advance the next safe slice.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Run Populate all safe sources, or the Barcode backfill job from the Activity tab.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Run pricesAPI now",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -8090,7 +8328,8 @@
   {
     "text": "Running",
     "files": [
-      "harvest-v2+runtime"
+      "lib/pure.js",
+      "views/me-admin.js"
     ]
   },
   {
@@ -8102,13 +8341,13 @@
   {
     "text": "Runs one safe slice of barcode + asking-price refresh.",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Runs safe slices across every configured source until done.",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -8138,19 +8377,19 @@
   {
     "text": "safe to retry",
     "files": [
-      "harvest-v7"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Sales",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Save",
     "files": [
-      "harvest-v2"
+      "views/me-integrations.js"
     ]
   },
   {
@@ -8162,7 +8401,7 @@
   {
     "text": "Save failed — retry",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -8186,7 +8425,7 @@
   {
     "text": "Saved offline",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
@@ -8198,7 +8437,8 @@
   {
     "text": "Scan",
     "files": [
-      "harvest-v2+runtime"
+      "components/onboarding.js",
+      "index.html"
     ]
   },
   {
@@ -8219,6 +8459,7 @@
   {
     "text": "Scan barcode",
     "files": [
+      "components/scanner.js",
       "views/catalog.js"
     ]
   },
@@ -8243,13 +8484,13 @@
   {
     "text": "Scan the blind bag or box barcode",
     "files": [
-      "harvest-v4"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Scanner success (14d)",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -8267,25 +8508,26 @@
   {
     "text": "Scrapes eBay sold comps now (Bright Data) — use to verify tokens/zone.",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Scraping",
     "files": [
-      "harvest-v6"
+      "views/me-admin-config.js",
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Scraping runtime for structured market enrichment.",
     "files": [
-      "harvest-v6"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Scraping/runtime provider for restricted market data.",
     "files": [
-      "harvest-v6"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -8297,13 +8539,16 @@
   {
     "text": "Search",
     "files": [
-      "harvest-v2"
+      "components/scanner.js",
+      "views/catalog.js",
+      "views/me-admin.js",
+      "views/portfolio.js"
     ]
   },
   {
     "text": "Search 27,000+ sets and add them to your vault.",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js"
     ]
   },
   {
@@ -8352,13 +8597,13 @@
   {
     "text": "Search…",
     "files": [
-      "harvest-v3"
+      "views/build.js"
     ]
   },
   {
     "text": "Searching 20,000 sets…",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
@@ -8370,7 +8615,7 @@
   {
     "text": "Seconds — set-based SQL, no external calls",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -8412,6 +8657,7 @@
   {
     "text": "Sell now",
     "files": [
+      "methodology.html",
       "views/portfolio-detail-market.js"
     ]
   },
@@ -8448,37 +8694,38 @@
   {
     "text": "Sellers are asking high — list near the recent sold price to sell fast",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Sells fast",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Sells slowly",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Send",
     "files": [
-      "harvest-v3"
+      "components/advisor.js"
     ]
   },
   {
     "text": "Send reset link",
     "files": [
-      "harvest-v4"
+      "views/login.js"
     ]
   },
   {
     "text": "Series",
     "files": [
-      "overlay-audit"
+      "components/scanner.js",
+      "views/minifigs.js"
     ]
   },
   {
@@ -8490,7 +8737,7 @@
   {
     "text": "Service health unavailable",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -8502,7 +8749,8 @@
   {
     "text": "Services",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js",
+      "views/me-admin.js"
     ]
   },
   {
@@ -8514,7 +8762,7 @@
   {
     "text": "set a parent PIN",
     "files": [
-      "harvest-v6"
+      "components/kids-pin.js"
     ]
   },
   {
@@ -8532,7 +8780,7 @@
   {
     "text": "Set Facts",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -8544,7 +8792,7 @@
   {
     "text": "Set isn't cached",
     "files": [
-      "harvest-v7"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -8556,25 +8804,25 @@
   {
     "text": "Set metadata, retail price, and barcode enrichment.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Set not found",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Set Number",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Set number matched in catalog.",
     "files": [
-      "harvest-v4"
+      "components/scanner.js"
     ]
   },
   {
@@ -8586,7 +8834,8 @@
   {
     "text": "Set photo",
     "files": [
-      "harvest-v6"
+      "components/lightbox.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -8598,25 +8847,25 @@
   {
     "text": "Set storage location for selected sets",
     "files": [
-      "harvest-v2"
+      "views/portfolio.js"
     ]
   },
   {
     "text": "Set up a device PIN, pattern, or password first",
     "files": [
-      "harvest-v6"
+      "lib/native-biometric.js"
     ]
   },
   {
     "text": "Set up BricksVault",
     "files": [
-      "harvest-v6"
+      "components/onboarding.js"
     ]
   },
   {
     "text": "Set up fingerprint or face unlock in Android settings first",
     "files": [
-      "harvest-v6"
+      "lib/native-biometric.js"
     ]
   },
   {
@@ -8628,19 +8877,20 @@
   {
     "text": "Set your currency, sync, and AI options here.",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js"
     ]
   },
   {
     "text": "Set-exclusive",
     "files": [
-      "harvest-v5"
+      "views/minifigs.js"
     ]
   },
   {
     "text": "Sets",
     "files": [
-      "harvest-v2"
+      "views/kids.js",
+      "views/portfolio-social.js"
     ]
   },
   {
@@ -8658,25 +8908,25 @@
   {
     "text": "Sets removed but nothing deleted",
     "files": [
-      "harvest-v6"
+      "views/portfolio.js"
     ]
   },
   {
     "text": "Sets with BrickLink market data.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Sets with validated new/sealed sold comps.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Sets with validated used sold comps.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -8700,43 +8950,47 @@
   {
     "text": "Setup needed",
     "files": [
-      "harvest-v2"
+      "lib/pure.js",
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "SETUP NEEDED",
     "files": [
-      "harvest-v4"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Several minutes",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Several recent sources agree on this price.",
     "files": [
-      "overlay-audit"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Share",
     "files": [
-      "harvest-v2"
+      "lib/native-file-export.js",
+      "lib/native-share.js",
+      "views/game.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Share BricksVault collection",
     "files": [
-      "harvest-v2"
+      "views/me-data.js"
     ]
   },
   {
     "text": "Share my BricksVault",
     "files": [
-      "harvest-v4"
+      "views/portfolio.js"
     ]
   },
   {
@@ -8772,7 +9026,8 @@
   {
     "text": "Sharing isn't available on this device",
     "files": [
-      "harvest-v3"
+      "views/portfolio-detail.js",
+      "views/portfolio.js"
     ]
   },
   {
@@ -8785,7 +9040,7 @@
   {
     "text": "Show less",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -8797,7 +9052,7 @@
   {
     "text": "Show newest 3",
     "files": [
-      "harvest-v4"
+      "views/me-admin.js"
     ]
   },
   {
@@ -8821,20 +9076,22 @@
   {
     "text": "showing 25 of 10,269",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Sign in",
     "files": [
       "components/scanner.js",
-      "views/build.js"
+      "views/build.js",
+      "views/login.js",
+      "views/me.js"
     ]
   },
   {
     "text": "Sign in before enabling notifications",
     "files": [
-      "harvest-v6"
+      "lib/native-push.js"
     ]
   },
   {
@@ -8858,7 +9115,7 @@
   {
     "text": "Sign in to build from your vault",
     "files": [
-      "harvest-v2"
+      "views/build.js"
     ]
   },
   {
@@ -8912,19 +9169,20 @@
   {
     "text": "Simple",
     "files": [
-      "harvest-v2+runtime"
+      "components/onboarding.js",
+      "views/me.js"
     ]
   },
   {
     "text": "Simple hides ROI charts & forecasts — just value & your sets.",
     "files": [
-      "runtime-audit"
+      "views/me.js"
     ]
   },
   {
     "text": "Skip",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js"
     ]
   },
   {
@@ -8936,13 +9194,13 @@
   {
     "text": "Small batch",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Snap & identify",
     "files": [
-      "runtime-audit"
+      "views/catalog.js"
     ]
   },
   {
@@ -8954,7 +9212,7 @@
   {
     "text": "Sold beats asking",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
@@ -8990,7 +9248,7 @@
   {
     "text": "Sold Out at LEGO.com",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -9000,9 +9258,15 @@
     ]
   },
   {
+    "text": "Sold prices are facts; asking prices are wishes. Sold data leads every valuation. Listing and modeled data may widen the likely range slightly, but they can never move a sold-based headline.",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
     "text": "Sole-source outliers (one marketplace, no corroboration) can't overwrite a value that history contradicts.",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
@@ -9014,7 +9278,7 @@
   {
     "text": "Some local items couldn't sync — retry from You → Data",
     "files": [
-      "harvest-v3"
+      "views/login.js"
     ]
   },
   {
@@ -9032,13 +9296,13 @@
   {
     "text": "Sort",
     "files": [
-      "harvest-v2"
+      "views/minifigs.js"
     ]
   },
   {
     "text": "Sorting the 1×1 plates…",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
@@ -9056,7 +9320,7 @@
   {
     "text": "Source conflict",
     "files": [
-      "harvest-v8"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -9074,7 +9338,7 @@
   {
     "text": "Spends Bright Data credits; runs synchronously and returns the result.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -9086,19 +9350,19 @@
   {
     "text": "Stale data",
     "files": [
-      "harvest-v8"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Stale states",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Stalled",
     "files": [
-      "harvest-v2+runtime"
+      "lib/pure.js"
     ]
   },
   {
@@ -9116,25 +9380,25 @@
   {
     "text": "Static asset + PWA hosting on Cloudflare Pages.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Steady demand",
     "files": [
-      "harvest-v2"
+      "lib/pure.js"
     ]
   },
   {
     "text": "StockX (probe)",
     "files": [
-      "harvest-v4"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "StockX lowest ask",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -9146,13 +9410,13 @@
   {
     "text": "Stopped",
     "files": [
-      "harvest-v2+runtime"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Stops only for hard errors; unavailable providers stay degraded.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -9170,13 +9434,13 @@
   {
     "text": "Storage locations updated",
     "files": [
-      "harvest-v4"
+      "views/portfolio.js"
     ]
   },
   {
     "text": "Store",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -9188,13 +9452,13 @@
   {
     "text": "Stored only; weight and jobs are off",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Story",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -9218,7 +9482,7 @@
   {
     "text": "Style",
     "files": [
-      "harvest-v2"
+      "views/me.js"
     ]
   },
   {
@@ -9230,13 +9494,14 @@
   {
     "text": "Subtheme",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Suggest a fix",
     "files": [
       "components/contribute.js",
+      "methodology.html",
       "views/portfolio-detail.js"
     ]
   },
@@ -9249,7 +9514,7 @@
   {
     "text": "Summoning the minifigs…",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
@@ -9267,13 +9532,13 @@
   {
     "text": "Supported",
     "files": [
-      "harvest-v2"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "Supporter enabled",
     "files": [
-      "harvest-v4"
+      "views/me-admin.js"
     ]
   },
   {
@@ -9285,7 +9550,7 @@
   {
     "text": "Supporter list unavailable",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -9297,25 +9562,25 @@
   {
     "text": "Swipe through to see where everything lives.",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js"
     ]
   },
   {
     "text": "Switched off — turn the source on if you want it used.",
     "files": [
-      "harvest-v4"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Sync",
     "files": [
-      "harvest-v6"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Sync failed:",
     "files": [
-      "harvest-v6"
+      "views/me-integrations.js"
     ]
   },
   {
@@ -9339,7 +9604,7 @@
   {
     "text": "Sync Started",
     "files": [
-      "harvest-v6"
+      "views/me-integrations.js"
     ]
   },
   {
@@ -9357,7 +9622,7 @@
   {
     "text": "Tab",
     "files": [
-      "harvest-v6"
+      "components/sheet.js"
     ]
   },
   {
@@ -9381,13 +9646,13 @@
   {
     "text": "tab.",
     "files": [
-      "harvest-v2"
+      "components/advisor.js"
     ]
   },
   {
     "text": "Tags:",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -9399,7 +9664,7 @@
   {
     "text": "Tap any set to see its full value history.",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js"
     ]
   },
   {
@@ -9429,7 +9694,7 @@
   {
     "text": "Target",
     "files": [
-      "harvest-v5"
+      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -9448,7 +9713,7 @@
   {
     "text": "Terms",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
@@ -9478,19 +9743,19 @@
   {
     "text": "Thanks for the support — you rock. 🧱",
     "files": [
-      "harvest-v4"
+      "views/me.js"
     ]
   },
   {
     "text": "That file is too small to be a model — expected the multi-GB .task/.litertlm weights.",
     "files": [
-      "harvest-v6"
+      "lib/local-ai.js"
     ]
   },
   {
     "text": "the climb has flattened",
     "files": [
-      "harvest-v7"
+      "lib/pure.js"
     ]
   },
   {
@@ -9514,37 +9779,38 @@
   {
     "text": "The most common price-guide error isn't a wrong price — it's the right price for the",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "The one-sentence version:",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "The rules behind every number in the app — no black box.",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "The sealed set is worth more than its individual parts.",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Theme",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js",
+      "views/me.js"
     ]
   },
   {
     "text": "THEME BREAKDOWN:",
     "files": [
-      "harvest-v6"
+      "components/advisor.js"
     ]
   },
   {
@@ -9556,6 +9822,7 @@
   {
     "text": "Theme group",
     "files": [
+      "views/catalog.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -9586,49 +9853,50 @@
   {
     "text": "This price hasn't refreshed in a while.",
     "files": [
-      "harvest-v7"
+      "lib/pure.js"
     ]
   },
   {
     "text": "This price is over 60 days old.",
     "files": [
-      "harvest-v4"
+      "lib/pure.js"
     ]
   },
   {
     "text": "This set will be removed from your vault.",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "This source is disabled.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "This stops auto-syncing. Your spreadsheet won't be deleted.",
     "files": [
-      "harvest-v7"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "This will remove the multi-GB model weights from your local browser storage.",
     "files": [
-      "harvest-v4"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "Time flies when you're building.",
     "files": [
-      "harvest-v7"
+      "views/portfolio.js"
     ]
   },
   {
     "text": "Timed out",
     "files": [
-      "components/scanner.js"
+      "components/scanner.js",
+      "lib/pure.js"
     ]
   },
   {
@@ -9640,7 +9908,7 @@
   {
     "text": "Title",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -9664,7 +9932,7 @@
   {
     "text": "to log each stage",
     "files": [
-      "harvest-v7"
+      "components/scanner.js"
     ]
   },
   {
@@ -9688,7 +9956,7 @@
   {
     "text": "Today",
     "files": [
-      "harvest-v2"
+      "views/me-admin.js"
     ]
   },
   {
@@ -9707,13 +9975,14 @@
   {
     "text": "Took too long — try again.",
     "files": [
-      "harvest-v4"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Tools",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js",
+      "views/me-admin.js"
     ]
   },
   {
@@ -9737,7 +10006,7 @@
   {
     "text": "TOP OWNED SETS:",
     "files": [
-      "harvest-v6"
+      "components/advisor.js"
     ]
   },
   {
@@ -9749,7 +10018,7 @@
   {
     "text": "Top public collections by value",
     "files": [
-      "runtime-audit"
+      "views/me.js"
     ]
   },
   {
@@ -9779,7 +10048,7 @@
   {
     "text": "Track minifigs separately from your sets.",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js"
     ]
   },
   {
@@ -9791,7 +10060,7 @@
   {
     "text": "Tracked with BricksVault",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
@@ -9815,19 +10084,19 @@
   {
     "text": "Trade",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Transactional email delivery.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Trending",
     "files": [
-      "harvest-v2+runtime"
+      "views/catalog.js"
     ]
   },
   {
@@ -9839,25 +10108,25 @@
   {
     "text": "Trophy Shelf complete! 🏆",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
     "text": "Trophy Shelf unlocked! 🏆",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
     "text": "Trust weight",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Try a different search term.",
     "files": [
-      "harvest-v4"
+      "views/build.js"
     ]
   },
   {
@@ -9869,31 +10138,38 @@
   {
     "text": "Turnstile failed to load",
     "files": [
-      "harvest-v6"
+      "components/scanner.js",
+      "views/login.js"
     ]
   },
   {
     "text": "Two feeds that watch the same marketplace are one source, not two. We collapse every signal into",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "Two or more independent families of fresh sold data agree within a tight band.",
     "files": [
-      "harvest-v6"
+      "methodology.html"
+    ]
+  },
+  {
+    "text": "Two-year bear/base/bull scenarios from at least 180 days and 12 daily fair-value observations.",
+    "files": [
+      "worker:lib/valuation-v3.ts"
     ]
   },
   {
     "text": "Type",
     "files": [
-      "harvest-v2"
+      "views/me.js"
     ]
   },
   {
     "text": "Type a barcode or LEGO set number first",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
@@ -9911,7 +10187,7 @@
   {
     "text": "Type the barcode or set number below",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
@@ -9923,49 +10199,50 @@
   {
     "text": "Underperformers",
     "files": [
-      "harvest-v2"
+      "views/portfolio.js"
     ]
   },
   {
     "text": "United Kingdom",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
     "text": "United States",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
     "text": "Unknown",
     "files": [
-      "harvest-v6"
+      "components/advisor.js",
+      "lib/pure.js"
     ]
   },
   {
     "text": "Unknown error",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Unknown Set",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Unlikely",
     "files": [
-      "harvest-v5"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Unlock",
     "files": [
-      "harvest-v2"
+      "lib/app-lock.js"
     ]
   },
   {
@@ -9977,7 +10254,8 @@
   {
     "text": "Unlock BricksVault",
     "files": [
-      "harvest-v6"
+      "lib/app-lock.js",
+      "lib/native-biometric.js"
     ]
   },
   {
@@ -9995,49 +10273,49 @@
   {
     "text": "Unlocks after 180 days and 12 recorded values.",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Unnamed supporter",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Unowned",
     "files": [
-      "overlay-audit"
+      "views/minifigs.js"
     ]
   },
   {
     "text": "Unowned only",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Unsupported",
     "files": [
-      "harvest-v2"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "Untitled build",
     "files": [
-      "harvest-v6"
+      "views/build.js"
     ]
   },
   {
     "text": "Untitled provider product",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Up",
     "files": [
-      "harvest-v5"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -10055,7 +10333,7 @@
   {
     "text": "Up to date",
     "files": [
-      "overlay-audit"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -10067,7 +10345,7 @@
   {
     "text": "Updating soon",
     "files": [
-      "overlay-audit"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -10079,7 +10357,7 @@
   {
     "text": "Upload",
     "files": [
-      "harvest-v2"
+      "views/me-admin.js"
     ]
   },
   {
@@ -10115,13 +10393,13 @@
   {
     "text": "Uploading & parsing...",
     "files": [
-      "harvest-v6"
+      "views/me-data.js"
     ]
   },
   {
     "text": "Use a set number like 71043-1, or a barcode with at least 8 digits",
     "files": [
-      "harvest-v6"
+      "components/scanner.js"
     ]
   },
   {
@@ -10133,7 +10411,7 @@
   {
     "text": "Use only when catalog import is incomplete.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -10157,13 +10435,14 @@
   {
     "text": "Use when minifig data is missing or stale.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Used",
     "files": [
-      "harvest-v2"
+      "components/contribute.js",
+      "components/scanner.js"
     ]
   },
   {
@@ -10181,13 +10460,13 @@
   {
     "text": "Used & complete",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "Used and complete",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -10199,13 +10478,13 @@
   {
     "text": "Useful historical and forecast signal when reachable.",
     "files": [
-      "harvest-v6"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "User bring-your-own AI key (stored client-side).",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -10217,19 +10496,20 @@
   {
     "text": "User search unavailable",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Users",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js",
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Uses the current daily source budgets.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -10241,7 +10521,7 @@
   {
     "text": "Valuation",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
@@ -10259,7 +10539,7 @@
   {
     "text": "Valuation sources",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -10271,7 +10551,11 @@
   {
     "text": "Value",
     "files": [
-      "harvest-v2+runtime"
+      "lib/pure.js",
+      "views/catalog.js",
+      "views/minifigs.js",
+      "views/portfolio-detail.js",
+      "views/portfolio.js"
     ]
   },
   {
@@ -10283,7 +10567,7 @@
   {
     "text": "Value $120",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -10301,13 +10585,13 @@
   {
     "text": "Values that need a refresh.",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Vault",
     "files": [
-      "harvest-v5"
+      "index.html"
     ]
   },
   {
@@ -10343,13 +10627,13 @@
   {
     "text": "Verified independent sold families",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Verified sold data",
     "files": [
-      "harvest-v4"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -10361,13 +10645,13 @@
   {
     "text": "verified, recent, sold",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
     "text": "Verify",
     "files": [
-      "harvest-v2"
+      "views/me-admin.js"
     ]
   },
   {
@@ -10379,19 +10663,19 @@
   {
     "text": "Verify PriceCharting mappings",
     "files": [
-      "harvest-v2"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "via BrickLink + eBay sold comps",
     "files": [
-      "harvest-v6"
+      "views/minifigs.js"
     ]
   },
   {
     "text": "via BrickLink price guide",
     "files": [
-      "harvest-v6"
+      "views/minifigs.js"
     ]
   },
   {
@@ -10433,7 +10717,8 @@
   {
     "text": "Vivid",
     "files": [
-      "harvest-v2+runtime"
+      "components/onboarding.js",
+      "views/me.js"
     ]
   },
   {
@@ -10445,25 +10730,25 @@
   {
     "text": "Wait for the daily quota to reset or reduce batch size.",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Waiting",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "WALK AWAY",
     "files": [
-      "harvest-v2"
+      "components/scanner.js"
     ]
   },
   {
     "text": "Watchdogs run every night",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
@@ -10475,31 +10760,31 @@
   {
     "text": "We're still indexing the part lists for your sets — check back shortly.",
     "files": [
-      "harvest-v7"
+      "views/build.js"
     ]
   },
   {
     "text": "Web links",
     "files": [
-      "harvest-v6"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Web-push notifications (VAPID).",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "Web-push signing keys.",
     "files": [
-      "harvest-v4"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "WebGPU is required for local scanning but isn't supported by this browser. Try Chrome on Android or desktop.",
     "files": [
-      "harvest-v3"
+      "views/me-integrations.js"
     ]
   },
   {
@@ -10523,13 +10808,13 @@
   {
     "text": "Weight",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Weight must be a non-negative number.",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
@@ -10541,19 +10826,20 @@
   {
     "text": "Welcome to BricksVault Pro! ⭐",
     "files": [
-      "harvest-v6"
+      "views/me.js"
     ]
   },
   {
     "text": "what a used, complete copy resells for",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
     "text": "What Can I Build?",
     "files": [
-      "runtime-audit"
+      "views/build.js",
+      "views/me.js"
     ]
   },
   {
@@ -10565,13 +10851,13 @@
   {
     "text": "what it does",
     "files": [
-      "harvest-v7"
+      "views/me-admin-config.js"
     ]
   },
   {
     "text": "What it means",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
@@ -10583,7 +10869,7 @@
   {
     "text": "What we won't do",
     "files": [
-      "harvest-v6"
+      "methodology.html"
     ]
   },
   {
@@ -10601,19 +10887,19 @@
   {
     "text": "when your device supports it",
     "files": [
-      "harvest-v7"
+      "views/me-integrations.js"
     ]
   },
   {
     "text": "Which of my sets might retire soon?",
     "files": [
-      "runtime-audit"
+      "components/advisor.js"
     ]
   },
   {
     "text": "Which sets should I sell this month?",
     "files": [
-      "runtime-audit"
+      "components/advisor.js"
     ]
   },
   {
@@ -10625,7 +10911,7 @@
   {
     "text": "Wide range",
     "files": [
-      "harvest-v8"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -10637,49 +10923,52 @@
   {
     "text": "Wishlist",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js",
+      "views/portfolio-wishlist.js",
+      "views/portfolio.js"
     ]
   },
   {
     "text": "Wishlisted",
     "files": [
-      "harvest-v5"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Withdraw",
     "files": [
-      "harvest-v2"
+      "views/me-contributions.js"
     ]
   },
   {
     "text": "Withdrawn",
     "files": [
-      "harvest-v3"
+      "views/me-contributions.js"
     ]
   },
   {
     "text": "Worker",
     "files": [
-      "harvest-v2"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Working",
     "files": [
-      "harvest-v5"
+      "lib/pure.js",
+      "views/me-admin.js"
     ]
   },
   {
     "text": "worth keeping an eye on",
     "files": [
-      "harvest-v7"
+      "lib/pure.js"
     ]
   },
   {
     "text": "Worth watching",
     "files": [
-      "harvest-v2"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -10698,25 +10987,32 @@
   {
     "text": "Wrong image",
     "files": [
-      "harvest-v6"
+      "components/contribute.js"
+    ]
+  },
+  {
+    "text": "wrong item",
+    "files": [
+      "methodology.html"
     ]
   },
   {
     "text": "Year",
     "files": [
-      "harvest-v6"
+      "lib/pure.js"
     ]
   },
   {
     "text": "You",
     "files": [
-      "harvest-v7"
+      "components/onboarding.js",
+      "views/portfolio-social.js"
     ]
   },
   {
     "text": "YOU",
     "files": [
-      "harvest-v2"
+      "views/portfolio-social.js"
     ]
   },
   {
@@ -10728,7 +11024,7 @@
   {
     "text": "You're a building superstar! 🌟",
     "files": [
-      "harvest-v7"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -10740,31 +11036,32 @@
   {
     "text": "You’re all set!",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js"
     ]
   },
   {
     "text": "You're offline — showing bundled data",
     "files": [
-      "harvest-v3"
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "You're offline — showing cached data",
     "files": [
-      "index.html"
+      "index.html",
+      "views/portfolio-detail.js"
     ]
   },
   {
     "text": "You're offline — try marking alerts read when connected.",
     "files": [
-      "harvest-v3"
+      "views/portfolio-wishlist.js"
     ]
   },
   {
     "text": "You're offline — wishlist isn't cached yet",
     "files": [
-      "harvest-v7"
+      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -10776,13 +11073,13 @@
   {
     "text": "You're offline and this device can't run on-device AI (no WebGPU).",
     "files": [
-      "harvest-v7"
+      "components/scanner.js"
     ]
   },
   {
     "text": "You're offline. Reconnect to identify by photo, or set up on-device AI in Settings.",
     "files": [
-      "harvest-v7"
+      "components/scanner.js"
     ]
   },
   {
@@ -10812,7 +11109,7 @@
   {
     "text": "Your collection rolls back to this snapshot. Sets added since stay; nothing is permanently deleted.",
     "files": [
-      "harvest-v4"
+      "views/me-data.js"
     ]
   },
   {
@@ -10824,13 +11121,14 @@
   {
     "text": "Your contributions",
     "files": [
-      "runtime-audit"
+      "views/me-contributions.js",
+      "views/me.js"
     ]
   },
   {
     "text": "Your first set! Welcome to BricksVault!",
     "files": [
-      "harvest-v6"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -10860,7 +11158,7 @@
   {
     "text": "Your profile just got a display case.",
     "files": [
-      "harvest-v4"
+      "views/me.js"
     ]
   },
   {
@@ -10903,7 +11201,7 @@
   {
     "text": "Your Vault",
     "files": [
-      "harvest-v2"
+      "components/onboarding.js"
     ]
   },
   {
@@ -10915,13 +11213,13 @@
   {
     "text": "Your vault is well-diversified and in excellent condition.",
     "files": [
-      "harvest-v6"
+      "components/advisor.js"
     ]
   },
   {
     "text": "Your wishlist is paying off.",
     "files": [
-      "harvest-v4"
+      "views/portfolio-wishlist.js"
     ]
   }
 ]

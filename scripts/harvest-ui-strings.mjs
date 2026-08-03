@@ -33,6 +33,16 @@ const ROOTS = ['public/js/views', 'public/js/components', 'public/js/lib'];
 // rather than a cosmetic one, and English is the safer default until a human
 // translates them.
 const HTML_FILES = ['public/index.html', 'public/methodology.html'];
+// Copy the WORKER generates and the frontend prints verbatim. Scanning
+// worker/src wholesale would drag in SQL, log lines and prompt text, so this is
+// a narrow allowlist of `<field>: '<sentence>'` literals from files that feed
+// the UI. Without it the forecast panel showed English sentences no frontend
+// harvest could ever reach ("Forecasts unlock after 180 days and at least 12
+// fair-value observations."), and adding them to the dictionaries by hand made
+// verify-ui-dicts.mjs report them as drift.
+const WORKER_COPY = [
+  { file: 'worker/src/lib/valuation-v3.ts', fields: ['methodology'] },
+];
 // pure.js was skipped as "pure logic" — wrong. It returns user-facing COPY from
 // helpers like catalogFilterSummary() and valuationTrust() ("Market price",
 // "No filters active"), so its strings reach the screen like any other.
@@ -151,9 +161,17 @@ const RENDERED_JUNK = [
  * "A–Z") are all legitimate UI there, and they are a large share of this app's
  * vocabulary — every settings row, sort chip and section heading.
  */
-function isProse(s, rendered = false) {
+// `rendered` = the string is known to reach the screen as its own text node.
+// `htmlProse` = it came from a static HTML page, where the copy is prose split
+// across inline tags rather than a self-contained label.
+function isProse(s, rendered = false, htmlProse = false) {
   const v = s.trim();
-  if (v.length < 2 || v.length > 160) return false;
+  // 400, not 160. The cap exists to drop long code-ish literals, but it also
+  // silently dropped every paragraph in methodology.html over 160 characters,
+  // so that sheet shipped with its headings translated and its body in English.
+  // Length is a weak signal for code anyway — the REJECT list below is what
+  // actually does that job.
+  if (v.length < 2 || v.length > 400) return false;
   if (!/[A-Za-z]{2}/.test(v)) return false;
   if (DO_NOT_TRANSLATE.has(v)) return false;
   if (rendered && RENDERED_JUNK.some((re) => re.test(v))) return false;
@@ -178,11 +196,25 @@ function isProse(s, rendered = false) {
   // Must READ as a complete label: start on a letter/digit, not mid-sentence.
   // Rendered labels may lead with a symbol ("+ Wishlist", "← Back"); a quoted
   // fragment from a split template literal may not.
-  if (!/^[A-Za-z0-9]/.test(v) && !(rendered && /^[+←→✓✕·—–]\s?\S/.test(v))) return false;
+  // Static page copy is a paragraph, not a label: it may legitimately open on
+  // an opening bracket or a quotation mark, because the DOM splits a sentence
+  // around every inline <em>/<strong> and hands us the middle of it.
+  const leadOk = htmlProse ? /^[A-Za-z0-9("'“‘]/.test(v) : /^[A-Za-z0-9]/.test(v);
+  if (!leadOk && !(rendered && /^[+←→✓✕·—–]\s?\S/.test(v))) return false;
   if (/[,;]$/.test(v)) return false;
-  if (/["\\]|\bnull\b|\bundefined\b/.test(v)) return false;
+  // The double-quote reject catches JS string literals with escaped quotes. In
+  // static HTML there are no JS escapes, so a quote is just punctuation, and
+  // rejecting it dropped sentences like: A single "value" hides too much.
+  // The backslash reject still applies everywhere — that one really is code.
+  if (/\\|\bnull\b|\bundefined\b/.test(v)) return false;
+  if (!htmlProse && /"/.test(v)) return false;
   if (rendered && /^[A-Z][A-Z\d\s&()/–—-]+$/.test(v)) return true;   // ALL-CAPS label
-  return !REJECT.some((re) => (typeof re === 'function' ? re(v) : re.test(v)));
+  // The class-list and CSS-selector rules exist to catch className/selector
+  // arguments in JS. A static HTML page has neither, and they were rejecting
+  // real <em> copy — "verified, recent, sold" and "provider families" both read
+  // as lowercase token lists. Everything else in REJECT still applies.
+  const rules = htmlProse ? REJECT.filter((r) => typeof r !== 'function') : REJECT;
+  return !rules.some((re) => (typeof re === 'function' ? re(v) : re.test(v)));
 }
 
 // Source templates carry HTML-ENCODED text ("Snap &amp; identify"), but the
@@ -202,12 +234,12 @@ for (const m of readFileSync('public/js/lib/pure.js', 'utf8')
   .matchAll(/^\s*"([^"]{2,40})":\s*\{\s*c:/gm)) DO_NOT_TRANSLATE.add(m[1]);
 
 const found = new Map(); // string -> Set(files)
-const add = (s, file, rendered = false) => {
+const add = (s, file, rendered = false, htmlProse = false) => {
   const v = decodeEntities(s).replace(/\s+/g, ' ').trim();
   // Decoding can reveal a tag, which means the span was never one text node —
   // the DOM splits it around the element and no single key can ever match.
   if (/<[a-z/]/i.test(v)) return;
-  if (!isProse(v, rendered)) return;
+  if (!isProse(v, rendered, htmlProse)) return;
   if (!found.has(v)) found.set(v, new Set());
   found.get(v).add(file);
 };
@@ -311,11 +343,31 @@ for (const file of HTML_FILES) {
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
   const short = file.replace('public/', '');
-  for (const m of src.matchAll(/>([^<>{}`$]{2,160})</g)) add(m[1], short);
+  // The upper bound is 400, not 160. A page of product copy is written in
+  // paragraphs, and every paragraph in methodology.html longer than 160
+  // characters was silently dropped — the sheet rendered with its intro
+  // translated and its body in English. 160 is a sane cap for a string ripped
+  // out of a JS template (anything longer is usually markup); it is nonsense
+  // for the text of a <p>.
+  // rendered=true: tag text in a static page IS a DOM text node, so the same
+  // allowances the rendered-JS rules get apply. Without it a list item's tail
+  // ("— what it actually resells for, …", one text node after </strong>) was
+  // rejected for starting on a dash, which is why methodology.html's numbered
+  // list showed translated bold lead-ins followed by English descriptions.
+  for (const m of src.matchAll(/>([^<>{}`$]{2,400})</g)) add(m[1], short, true, true);
   // `content` is deliberately NOT here: <meta content="width=device-width,…">
   // is a browser directive, and og:description is page metadata rather than
   // in-app UI. Both reached the source list before this.
   for (const m of src.matchAll(/(?:aria-label|placeholder|title)="([^"{}`$]{2,160})"/g)) add(m[1], short);
+}
+
+for (const { file, fields } of WORKER_COPY) {
+  const src = readFileSync(file, 'utf8');
+  const short = file.replace('worker/src/', 'worker:');
+  for (const field of fields) {
+    const re = new RegExp(`\\b${field}:\\s*'((?:[^'\\\\\`\\n]|\\\\.){3,400})'`, 'g');
+    for (const m of src.matchAll(re)) add(m[1], short);
+  }
 }
 
 const rows = [...found.entries()]

@@ -24,7 +24,7 @@ export const de = {
     reliablePrice: 'Verlässlicher Preis', pricingDetails: 'Preisdetails', priceHistory: 'Preisverlauf',
     details: 'Details', estimated: 'Geschätzt', year: 'Jahr', theme: 'Thema',
     addToWishlist: 'Zur Wunschliste', inWishlist: 'Auf deiner Wunschliste',
-    addToVaultPrice: 'In den Tresor · {price}', priceHistoryDays: 'Preisverlauf · {days} Tage', priceHistoryShort: 'Preisverlauf · {days} T.', fromSources: 'Aus {n} Marktquellen', fromSourcesOne: 'Aus 1 Marktquelle', typicalRange: ' · typisch {low}–{high}',
+    addToVaultPrice: 'In den Tresor · {price}', priceHistoryDays: 'Preisverlauf · {days} Tage', priceHistoryShort: 'Preisverlauf · {days} T.', fromSources: 'Aus {n} Marktquellen', fromSourcesOne: 'Aus 1 Marktquelle', typicalRange: ' · typisch {low}–{high}', likelyRange: ' · wahrscheinlich {low}-{high}',
   },
   counts: {
     results: '{n} Ergebnisse', resultsOne: '1 Ergebnis', collected: '{owned}/{total} gesammelt', owned: '{n} im Besitz', ofFigs: 'von {total} Figuren', figs: '{n} Figuren', figsOne: '1 Figur',

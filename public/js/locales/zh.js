@@ -24,7 +24,7 @@ export const zh = {
     reliablePrice: '可靠价格', pricingDetails: '价格详情', priceHistory: '价格走势',
     details: '详情', estimated: '估算', year: '年份', theme: '主题',
     addToWishlist: '加入心愿单', inWishlist: '已在心愿单',
-    addToVaultPrice: '加入收藏库 · {price}', priceHistoryDays: '价格历史 · {days} 天', priceHistoryShort: '价格历史 · {days}天', fromSources: '来自 {n} 个市场来源', fromSourcesOne: '来自 1 个市场来源', typicalRange: ' · 通常 {low}–{high}',
+    addToVaultPrice: '加入收藏库 · {price}', priceHistoryDays: '价格历史 · {days} 天', priceHistoryShort: '价格历史 · {days}天', fromSources: '来自 {n} 个市场来源', fromSourcesOne: '来自 1 个市场来源', typicalRange: ' · 通常 {low}–{high}', likelyRange: ' · 可能 {low}-{high}',
   },
   counts: {
     results: '{n} 个结果', resultsOne: '1 个结果', collected: '已收集 {owned}/{total}', owned: '拥有 {n}', ofFigs: '共 {total} 个人仔', figs: '{n} 个人仔', figsOne: '1 个人仔',

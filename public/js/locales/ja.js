@@ -24,7 +24,7 @@ export const ja = {
     reliablePrice: '信頼できる価格', pricingDetails: '価格の詳細', priceHistory: '価格推移',
     details: '詳細', estimated: '推定', year: '年', theme: 'テーマ',
     addToWishlist: 'ウィッシュリストに追加', inWishlist: 'ウィッシュリストに登録済み',
-    addToVaultPrice: 'ボールトに追加 · {price}', priceHistoryDays: '価格履歴 · {days}日間', priceHistoryShort: '価格履歴 · {days}日', fromSources: '{n} 件の市場ソースから', fromSourcesOne: '1 件の市場ソースから', typicalRange: ' · 通常 {low}–{high}',
+    addToVaultPrice: 'ボールトに追加 · {price}', priceHistoryDays: '価格履歴 · {days}日間', priceHistoryShort: '価格履歴 · {days}日', fromSources: '{n} 件の市場ソースから', fromSourcesOne: '1 件の市場ソースから', typicalRange: ' · 通常 {low}–{high}', likelyRange: ' · 想定 {low}-{high}',
   },
   counts: {
     results: '{n} 件', resultsOne: '1 件', collected: '{owned}/{total} 収集済み', owned: '{n} 個所有', ofFigs: '全 {total} 体中', figs: '{n} 体', figsOne: '1 体',

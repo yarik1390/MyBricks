@@ -24,7 +24,7 @@ export const hi = {
     reliablePrice: 'विश्वसनीय मूल्य', pricingDetails: 'मूल्य विवरण', priceHistory: 'मूल्य इतिहास',
     details: 'विवरण', estimated: 'अनुमानित', year: 'वर्ष', theme: 'थीम',
     addToWishlist: 'इच्छा-सूची में जोड़ें', inWishlist: 'इच्छा-सूची में है',
-    addToVaultPrice: 'वॉल्ट में जोड़ें · {price}', priceHistoryDays: 'कीमत इतिहास · {days} दिन', priceHistoryShort: 'कीमत इतिहास · {days} दि', fromSources: '{n} बाज़ार स्रोतों से', fromSourcesOne: '1 बाज़ार स्रोत से', typicalRange: ' · आमतौर पर {low}–{high}',
+    addToVaultPrice: 'वॉल्ट में जोड़ें · {price}', priceHistoryDays: 'कीमत इतिहास · {days} दिन', priceHistoryShort: 'कीमत इतिहास · {days} दि', fromSources: '{n} बाज़ार स्रोतों से', fromSourcesOne: '1 बाज़ार स्रोत से', typicalRange: ' · आमतौर पर {low}–{high}', likelyRange: ' · संभवतः {low}-{high}',
   },
   counts: {
     results: '{n} परिणाम', resultsOne: '1 परिणाम', collected: '{owned}/{total} एकत्रित', owned: '{n} स्वामित्व में', ofFigs: '{total} में से', figs: '{n} मिनीफ़िगर', figsOne: '1 मिनीफ़िगर',
