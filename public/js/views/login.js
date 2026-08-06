@@ -4,6 +4,7 @@ import { state } from '../state.js';
 import { go } from '../router.js';
 import { promptSheet } from '../components/sheet.js';
 import { authRedirectUrlForPlatform, buildSupabaseProviderAuthUrl, isNativeCapacitor, openNativeAuthUrl } from '../lib/native-auth.js';
+import { tPlural } from '../lib/i18n.js';
 
 // When auth can't run because _sbUrl is empty, distinguish "the API was
 // blocked/unreachable" (state.configError, set during boot) from a genuine
@@ -227,7 +228,7 @@ export function renderLogin() {
         }
         saveSession(session, { preserveGuestFigs: true });
         const migrated = await migrateGuestVault(guestSnapshot);
-        if (migrated.migrated) toast(`Synced ${migrated.migrated} local item${migrated.migrated === 1 ? "" : "s"}`, "success");
+        if (migrated.migrated) toast(tPlural('common.localItemsSynced', migrated.migrated), "success");
         if (migrated.errors?.length) {
           // Keep the snapshot so the user can retry from You → Data instead of
           // silently losing whichever local items didn't make it across.

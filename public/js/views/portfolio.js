@@ -8,7 +8,7 @@ import { showSheet, hideSheet, confirmSheet, promptSheet } from '../components/s
 import { trustBadgeHTML } from '../components/trust.js';
 import { skelPage, skelHero, skelCardList } from '../components/skeleton.js';
 import { getModePref } from '../theme.js';
-import { t } from '../lib/i18n.js';
+import { t, tPlural } from '../lib/i18n.js';
 
 
 /* ============================================================
@@ -25,7 +25,7 @@ export async function renderPortfolio() {
       state.portfolio = await api("/api/collection");
       bvIDB.set('portfolio', { data: state.portfolio, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
     } catch (e) {
-      toast("Couldn't load collection: " + e.message, "error");
+      toast(t('portfolio.collectionLoadFailed', { error: e.message || e }), "error");
       state.portfolio = { items: [], total_value: 0, total_paid: 0, count: 0 };
     }
     // History + wishlist are supplementary — fetch best-effort.
@@ -446,10 +446,10 @@ function paintPortfolio() {
     haptic("light");
     const shareUrl = `${publicOrigin()}/#/u/${encodeURIComponent(handle)}`;
     const outcome = await shareContent({
-      title: "My LEGO BricksVault",
-      text: "Check out my LEGO collection on BricksVault!",
+      title: t('share.portfolioTitle'),
+      text: t('share.portfolioText'),
       url: shareUrl,
-      dialogTitle: "Share my BricksVault",
+      dialogTitle: t('share.portfolioDialogTitle'),
     });
     if (outcome === 'unsupported') {
       try {
@@ -548,9 +548,9 @@ function checkAnniversaries(items) {
     const now = Number(displayValueOf(it)) || 0;
     const gain = paid > 0 && now > 0 ? now - paid : null;
     const quip = gain != null
-      ? (gain >= 0 ? `Bought for ${fmtMoney(paid)} — up ${fmtMoney(gain)} since.` : `Bought for ${fmtMoney(paid)}. Some sets are for love, not profit.`)
-      : "Time flies when you're building.";
-    setTimeout(() => celebrate(`${years} year${years > 1 ? "s" : ""} with ${it.name || it.set_num}! 🎂`, { quip, hue: themeHue(it.theme || "") }), 1200);
+      ? (gain >= 0 ? t('portfolio.anniversaryGain', { paid: fmtMoney(paid), gain: fmtMoney(gain) }) : t('portfolio.anniversaryNoGain', { paid: fmtMoney(paid) }))
+      : t('portfolio.anniversaryQuip');
+    setTimeout(() => celebrate(tPlural('portfolio.anniversaryCelebration', years, { set: it.name || it.set_num }), { quip, hue: themeHue(it.theme || "") }), 1200);
     break;
   }
 }
@@ -754,7 +754,7 @@ function showAlertsSheet(alerts) {
       ${spikeAlerts.map(a => spikeAlertCardHTML(a)).join("")}
       ${dropAlerts.map(a => `
         <div class="alert-card">
-          <div class="ah">${I.bell()}${t("alerts.priceDrop", { days: daysAgo(a.triggered_at) })}</div>
+          <div class="ah">${I.bell()}${tPlural('alerts.priceDrop', daysAgo(a.triggered_at))}</div>
           <div style="font-weight:600;">${escapeHtml(a.set_name)}</div>
           <div style="font-size:13px;margin-top:4px;">Now <strong>${fmtMoney(a.current_value)}</strong> ${t("alerts.targetWas", { price: fmtMoney(a.target_price) })}</div>
         </div>
@@ -820,14 +820,20 @@ function renderInsightsTab(items, pro) {
       ${slImgHTML(s.item)}
       <div class="signal-row-main">
         <div class="signal-row-name">${escapeHtml(s.item.name)}</div>
-        <div class="signal-row-sub">Resale ${hot ? "+" : "−"}${Math.abs(s.spread * 100).toFixed(0)}% vs ${s.item.bl_new_value ? "market" : "value"}${s.item.quantity > 1 ? ` · ×${s.item.quantity}` : ""}</div>
+        <div class="signal-row-sub">${t('portfolio.insightSignal', (() => {
+          const direction = hot ? '+' : '−';
+          const pct = Math.abs(s.spread * 100).toFixed(0);
+          const basis = s.item.bl_new_value ? t('portfolio.insightMarket') : t('portfolio.insightValue');
+          const quantity = s.item.quantity > 1 ? t('portfolio.insightQuantity', { count: s.item.quantity }) : '';
+          return { direction, pct, basis, quantity };
+        })())}</div>
       </div>
       <strong class="signal-row-gap" style="color:${hot ? "var(--up)" : "var(--bv-red)"};">${hot ? "+" : ""}${fmtMoney(s.gap)}</strong>
     </div>`;
   const signalsCard = (signals.hot.length || signals.cold.length) ? `
       <h2 class="section-title" style="margin-top:0;">Market Signals</h2>
       <div class="card signals-card" style="padding:12px 16px;margin-bottom:18px;">
-        ${signals.totalUpside > 0 ? `<div class="signals-headline">≈ ${fmtMoney(signals.totalUpside)} upside across ${signals.hot.length} set${signals.hot.length > 1 ? "s" : ""} if sold now</div>` : ""}
+        ${signals.totalUpside > 0 ? `<div class="signals-headline">${tPlural('portfolio.insightHeadline', signals.hot.length, { value: fmtMoney(signals.totalUpside) })}</div>` : ""}
         ${signals.hot.length ? `<div class="signals-group-label" style="color:var(--up);"><span aria-hidden="true">🔥</span> Sell signals — resale running hot</div>${signals.hot.slice(0, 3).map(s => signalRow(s, true)).join("")}` : ""}
         ${signals.cold.length ? `<div class="signals-group-label" style="color:var(--bv-red);"><span aria-hidden="true">❄️</span> Buy windows — resale below market</div>${signals.cold.slice(0, 3).map(s => signalRow(s, false)).join("")}` : ""}
       </div>` : "";
@@ -857,7 +863,7 @@ function renderInsightsTab(items, pro) {
             <div style="height:6px;background:var(--surface-3);border-radius:3px;overflow:hidden;"><div style="height:100%;width:${(share * 100).toFixed(1)}%;background:${THEME_COLORS[theme] || 'var(--accent)'};"></div></div>
           </div>`;
         }).join('')}
-        ${allocMap.size > alloc.length ? `<div style="font-size:11px;color:var(--ink-mute);margin-top:8px;">+${allocMap.size - alloc.length} more theme${allocMap.size - alloc.length > 1 ? 's' : ''}</div>` : ''}
+        ${allocMap.size > alloc.length ? `<div style="font-size:11px;color:var(--ink-mute);margin-top:8px;">${tPlural('portfolio.moreThemes', allocMap.size - alloc.length)}</div>` : ''}
       </div>` : '';
 
   // Part-out opportunities (E1): holdings worth materially more sold as parts
@@ -879,7 +885,7 @@ function renderInsightsTab(items, pro) {
           <div class="insight-set-row" data-set="${escapeHtml(it.set_num)}" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft);cursor:pointer;">
             <div style="min-width:0;margin-right:8px;">
               <div style="font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(it.name)}</div>
-              <div style="font-size:11px;color:var(--ink-mute);">Sealed ${fmtMoney(mv)} · ${isApprox ? '~' : ''}Parts ${fmtMoney(po)}${isApprox ? ' <span title="Estimate based on partial price coverage">ⓘ</span>' : ''}</div>
+              <div style="font-size:11px;color:var(--ink-mute);">${t('portfolio.sealedParts', { sealed: fmtMoney(mv), approximate: isApprox ? '~' : '', parts: fmtMoney(po) })}${isApprox ? ' <span title="Estimate based on partial price coverage">ⓘ</span>' : ''}</div>
             </div>
             <strong style="color:var(--up);font-family:var(--mono);white-space:nowrap;">+${(((po / mv) - 1) * 100).toFixed(0)}%</strong>
           </div>`;
@@ -1233,7 +1239,11 @@ export function refreshNavBadge() {
     }
     badge.style.display = "inline-flex";
     badge.textContent = total;
-    el.title = `Wishlist Alerts (${spikes} spikes, ${drops} price drops)`;
+    const alertTooltip = {
+      spikes: tPlural('portfolio.wishlistAlertSpikes', spikes),
+      drops: tPlural('portfolio.wishlistAlertDrops', drops),
+    };
+    el.title = t('portfolio.wishlistAlertsTooltip', alertTooltip);
   } else {
     if (badge) badge.style.display = "none";
     el.removeAttribute("title");
@@ -1328,7 +1338,7 @@ async function handleBulkLocation() {
   // Tear down selection UI BEFORE invalidating — exitSelectionMode repaints the
   // list and must read a valid state.portfolio, not the null invalidate leaves.
   toast(failed === 0 ? "Storage locations updated"
-    : `Updated ${results.length - failed} of ${results.length} — ${failed} failed, try those again`, failed ? "error" : "success");
+    : tPlural('portfolio.bulkLocationPartial', failed, { updated: results.length - failed, total: results.length, failed }), failed ? "error" : "success");
   exitSelectionMode();
   invalidatePortfolio();
   await renderPortfolio();
@@ -1362,7 +1372,7 @@ async function handleBulkDelete() {
   // Tear down selection UI BEFORE invalidating — exitSelectionMode repaints the
   // list and must read a valid state.portfolio, not the null invalidate leaves.
   if (failed > 0) {
-    toast(`Removed ${removed.length} of ${selectedItems.length} — ${failed} failed, try those again`, "error");
+    toast(tPlural('portfolio.bulkRemovePartial', failed, { removed: removed.length, total: selectedItems.length, failed }), "error");
   } else if (removed.length) {
     // Soft deletes make a bulk restore a straight re-POST of the kept payloads.
     const restorePayloads = removed.map(item => ({
@@ -1377,7 +1387,7 @@ async function handleBulkDelete() {
       state.catalog.items = [];
       invalidatePortfolio();
       await renderPortfolio();
-      toast(back === restorePayloads.length ? "Restored to vault" : `Restored ${back} of ${restorePayloads.length}`, back ? "success" : "error");
+      toast(back === restorePayloads.length ? "Restored to vault" : tPlural('portfolio.restoredCount', back, { restored: back, total: restorePayloads.length }), back ? "success" : "error");
     });
   }
   exitSelectionMode();

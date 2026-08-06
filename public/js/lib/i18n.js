@@ -41,6 +41,7 @@ const FALLBACK = 'en';
 const catalogues = { en };
 let active = FALLBACK;
 const listeners = new Set();
+let localeGeneration = 0;
 
 /**
  * Narrow a BCP-47 tag to a supported code: "de-AT" -> "de", "en-GB" -> "en".
@@ -118,6 +119,62 @@ export function t(key, vars) {
   return interpolate(hit, vars);
 }
 
+/** Format a kid reward while preserving optional localized level/badge copy. */
+export function kidsXpMessage(xp, { level, badge } = {}) {
+  const details = [
+    level ? t('common.kidsXpLevel', { level }) : '',
+    badge ? t('common.kidsXpBadge', { badge }) : '',
+  ].filter(Boolean).join('');
+  return t('common.kidsXp', { xp, details });
+}
+
+// Reward payloads carry stable slugs, rather than display copy. Centralizing
+// their presentation keeps XP toasts and celebrations consistent in every UI.
+const KIDS_BADGE_KEYS = {
+  first_brick: 'kids.badgeFirstBrick',
+  junior_builder: 'kids.badgeJuniorBuilder',
+  architect: 'kids.badgeArchitect',
+  master: 'kids.badgeMaster',
+  grand_master: 'kids.badgeGrandMaster',
+  legend: 'kids.badgeLegend',
+};
+
+export function kidsBadgeLabel(slug) {
+  const normalized = String(slug || '').trim().toLowerCase();
+  if (!normalized) return '';
+  const key = KIDS_BADGE_KEYS[normalized];
+  if (key) {
+    const localized = lookup(catalogues[active], key) ?? lookup(catalogues[FALLBACK], key);
+    if (localized) return localized.replace(/[!！]+$/u, '');
+  }
+  // A server can add a badge before a client update. Preserve a safe, readable
+  // fallback instead of exposing its implementation slug verbatim.
+  return normalized.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Translate a count-aware message. Locale plural categories are intentionally
+ * selected before lookup: Ukrainian needs one/few/many (1, 3, 5, 21), while
+ * English only uses one/other. Locales may share wording by repeating a form.
+ */
+export function tPlural(baseKey, count, vars = {}) {
+  const n = Number(count);
+  let category = 'other';
+  if (Number.isFinite(n)) {
+    try { category = new Intl.PluralRules(active).select(n); } catch { /* other is safe */ }
+  }
+  const suffix = category.charAt(0).toUpperCase() + category.slice(1);
+  const forms = [`${baseKey}${suffix}`, `${baseKey}Other`, `${baseKey}Many`, `${baseKey}One`];
+  // Prefer a locale's established base copy over an English plural fallback.
+  // That keeps a partially translated catalogue native while its forms land.
+  const key = forms.find((candidate) => lookup(catalogues[active], candidate) != null)
+    || (lookup(catalogues[active], baseKey) != null ? baseKey : '')
+    || forms.find((candidate) => lookup(catalogues[FALLBACK], candidate) != null)
+    || baseKey;
+  const resolvedCount = Number.isFinite(n) ? n : count;
+  return t(key, { ...vars, n: resolvedCount, count: vars.count ?? resolvedCount });
+}
+
 /** Subscribe to language changes; returns an unsubscribe. */
 export function onLocaleChange(fn) {
   listeners.add(fn);
@@ -144,15 +201,24 @@ async function loadCatalogue(code) {
  * language — the exact bug this flag exists to prevent).
  */
 export async function setLocale(code, { remember = true } = {}) {
+  const generation = ++localeGeneration;
   const next = normalizeLocale(code) || FALLBACK;
   if (next !== FALLBACK) await loadCatalogue(next);
+  // A slower, older module import must never overwrite a newer Settings pick.
+  // Its caller still resolves with the actual active locale, which makes rapid
+  // selection safe for both UI handlers and programmatic callers.
+  if (generation !== localeGeneration) return active;
   active = catalogues[next] ? next : FALLBACK;
   if (remember) {
     try { localStorage.setItem(STORAGE_KEY, active); } catch { /* storage disabled */ }
   }
   applyDocumentLocale();
+  // Settings re-renders immediately after this resolves. Await listeners so
+  // the exact dictionary for the new locale is installed before that render
+  // can add English nodes (and before callers inspect the visible shell).
   for (const fn of listeners) {
-    try { fn(active); } catch { /* a bad listener must not block the rest */ }
+    try { await fn(active); } catch { /* a bad listener must not block the rest */ }
+    if (generation !== localeGeneration) return active;
   }
   return active;
 }
@@ -210,6 +276,12 @@ export function intlLocale() {
 
 const uiDicts = {};   // code -> { english: translated }
 let uiDict = null;    // the active one, or null for English
+// A rendered node loses its English key after exact translation. Keep the
+// original source and the last value we wrote so uk -> de -> en can always
+// start from English rather than trying to translate an already-translated
+// string. WeakMaps make the bookkeeping disappear with detached DOM nodes.
+const textRenderState = new WeakMap();
+const attributeRenderState = new WeakMap();
 
 /** Elements whose text is data, not UI copy, or where rewriting is unsafe. */
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'CODE', 'PRE']);
@@ -232,7 +304,7 @@ async function loadUiDict(code) {
  * pass finds nothing to do.
  */
 export function translateDOM(root = document.body) {
-  if (!uiDict || !root) return 0;
+  if (!root) return 0;
   let n = 0;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
@@ -246,32 +318,46 @@ export function translateDOM(root = document.body) {
   const hits = [];
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const raw = node.nodeValue;
-    const key = raw.replace(/\s+/g, ' ').trim();
-    const hit = uiDict[key];
-    if (hit) hits.push([node, raw, hit]);
+    const previous = textRenderState.get(node);
+    // A different value is an application mutation, not one of our own
+    // translations. Adopt it as fresh English source before translating.
+    const source = !previous || raw !== previous.rendered ? raw : previous.source;
+    const key = source.replace(/\s+/g, ' ').trim();
+    const hit = uiDict?.[key];
+    hits.push([node, raw, source, hit]);
   }
-  for (const [node, raw, hit] of hits) {
+  for (const [node, raw, source, hit] of hits) {
     // Keep the original leading/trailing whitespace so inline layout (spacing
     // between adjacent inline elements) is not silently changed.
-    const lead = raw.match(/^\s*/)[0];
-    const tail = raw.match(/\s*$/)[0];
-    const next = lead + hit + tail;
+    const lead = source.match(/^\s*/)[0];
+    const tail = source.match(/\s*$/)[0];
+    const next = hit ? lead + hit + tail : source;
     // NEVER write a value equal to what is already there. Some dictionary
     // entries map a string to itself (brand names, strings a translator left
     // as-is), and assigning nodeValue still queues a characterData record even
     // when the text is unchanged. With characterData observed, that record
     // would re-queue the same node forever.
-    if (next === raw) continue;
-    node.nodeValue = next;
-    n++;
+    textRenderState.set(node, { source, rendered: next });
+    if (next !== raw) { node.nodeValue = next; n++; }
   }
-  // User-visible attributes carry copy too.
+  // User-visible attributes carry copy too. querySelectorAll() deliberately
+  // excludes its receiver, so include an element root explicitly: callers
+  // commonly translate a newly-mounted button/input before it has children.
   for (const attr of ['placeholder', 'aria-label', 'title']) {
-    for (const el of root.querySelectorAll(`[${attr}]`)) {
+    const elements = root.nodeType === 1 && root.hasAttribute(attr)
+      ? [root, ...root.querySelectorAll(`[${attr}]`)]
+      : root.querySelectorAll(`[${attr}]`);
+    for (const el of elements) {
       if (el.closest('[data-no-i18n]')) continue;
       const current = el.getAttribute(attr);
-      const hit = uiDict[current.replace(/\s+/g, ' ').trim()];
-      if (hit && hit !== current) { el.setAttribute(attr, hit); n++; }
+      const all = attributeRenderState.get(el) || {};
+      const previous = all[attr];
+      const source = !previous || current !== previous.rendered ? current : previous.source;
+      const hit = uiDict?.[source.replace(/\s+/g, ' ').trim()];
+      const next = hit || source;
+      all[attr] = { source, rendered: next };
+      attributeRenderState.set(el, all);
+      if (next !== current) { el.setAttribute(attr, next); n++; }
     }
   }
   return n;
@@ -279,8 +365,15 @@ export function translateDOM(root = document.body) {
 
 /** Load the active language's UI dictionary and apply it to what is on screen. */
 export async function applyUiDictionary() {
-  uiDict = await loadUiDict(active);
-  if (uiDict) translateDOM(document.body);
+  const requested = active;
+  const nextDict = await loadUiDict(requested);
+  // applyUiDictionary can be called by overlapping locale listeners. Only the
+  // dictionary belonging to the still-current language may commit.
+  if (requested !== active) return false;
+  uiDict = nextDict;
+  // Even English must run this pass: it restores sources retained in the
+  // WeakMaps after a non-English locale was active.
+  translateDOM(document.body);
   return !!uiDict;
 }
 
@@ -295,6 +388,21 @@ let pending = null;
 // outlive a single callback: a route render fires many batches inside one
 // frame, and anything collected in an earlier batch must still be translated.
 const queued = [];
+
+// Keep the smallest useful set of pending subtrees. A parent covers every
+// descendant, so retaining both only repeats a full walk; conversely, replacing
+// a parent with a child would drop siblings. This works across observer batches
+// as well as within one callback, which is essential for morphdom renders.
+function queueTranslationRoot(root) {
+  if (!root || !root.isConnected) return;
+  for (const existing of queued) {
+    if (existing === root || existing.contains(root)) return;
+  }
+  for (let i = queued.length - 1; i >= 0; i--) {
+    if (root.contains(queued[i])) queued.splice(i, 1);
+  }
+  queued.push(root);
+}
 
 /**
  * Keep the dictionary applied as the app re-renders.
@@ -339,12 +447,16 @@ export function startAutoTranslate() {
       if (rec.type === 'characterData') {
         // Re-walk from the parent, not the text node: a TreeWalker rooted at a
         // text node visits nothing.
-        if (rec.target.parentElement) queued.push(rec.target.parentElement);
+        if (rec.target.parentElement) queueTranslationRoot(rec.target.parentElement);
+        continue;
+      }
+      if (rec.type === 'attributes') {
+        queueTranslationRoot(rec.target);
         continue;
       }
       for (const node of rec.addedNodes) {
-        if (node.nodeType === 1) queued.push(node);
-        else if (node.nodeType === 3 && node.parentElement) queued.push(node.parentElement);
+        if (node.nodeType === 1) queueTranslationRoot(node);
+        else if (node.nodeType === 3 && node.parentElement) queueTranslationRoot(node.parentElement);
       }
     }
     if (!queued.length || pending) return;
@@ -358,5 +470,11 @@ export function startAutoTranslate() {
       }
     });
   });
-  observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+    attributes: true,
+    attributeFilter: ['placeholder', 'aria-label', 'title'],
+  });
 }

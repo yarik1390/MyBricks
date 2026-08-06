@@ -66,7 +66,18 @@ function handlers(calls) {
     const json = (body, status = 200) =>
       route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
-    if (p === '/api/config') return json({ supabase_url: 'https://stub.supabase.co', supabase_anon_key: 'stub-anon-key', patreon_url: 'https://www.patreon.com/c/BricksVault' });
+    // Match the real Worker shape: it always includes English
+    // `recommended_action` prose. The integrations UI must instead render its
+    // stable, localizable guidance from the configured/missing state.
+    if (p === '/api/config') return json({
+      supabase_url: 'https://stub.supabase.co', supabase_anon_key: 'stub-anon-key', patreon_url: 'https://www.patreon.com/c/BricksVault',
+      status: { google: false },
+      setup: { google: {
+        configured: false,
+        missing_secrets: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
+        recommended_action: 'Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET as GitHub Actions secrets; the deploy workflow uploads them to Worker secrets.',
+      } },
+    });
     if (p === '/api/rates') return json({ base: 'USD', rates: { USD: 1, EUR: 0.92, GBP: 0.79 } });
     // NO is_admin/is_public here on purpose: a smoke test asserts a non-admin is
     // bounced off /me/admin, so this profile must stay non-admin. The i18n audit
@@ -80,6 +91,11 @@ function handlers(calls) {
     if (p === '/api/wishlist' && m === 'POST') return json({ item: { id: 'w2', set_num: SET.set_num } });
     if (p.startsWith('/api/wishlist/') && m === 'DELETE') return json({ ok: true });
     if (p === '/api/themes') return json({ themes: [{ id: 1, name: 'Star Wars' }], theme_groups: [], categories: [] });
+    if (p === '/api/users/tester/profile') return json({
+      handle: 'tester', display_name: 'Test Collector', is_supporter: false,
+      approved_contributions: 0, showcase: [], expose_public_value: true,
+      collection_count: 1, collection_value: 850,
+    });
     if (p === '/api/upcoming') return json({ items: [] });
     if (p === '/api/sets/search') return json({ sets: [SET], total: 1, hasMore: false });
     if (p.startsWith('/api/sets/4000-1')) return json({ set: EST_SET, entry: null });

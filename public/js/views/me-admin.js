@@ -11,13 +11,17 @@ import {
   validateSourceTuningInput,
   formatRelativeTime,
   processRunBadge,
+  adminJobStartFeedback,
 } from '../lib/pure.js';
 import { go } from '../router.js';
 import { subpageTopbarHTML, loadMe } from './me-shared.js';
 import { skelPage, skelSettingRows } from '../components/skeleton.js';
+import { t, tPlural, getLocale } from '../lib/i18n.js';
 
 let activeAdminRunId = null;
 let activeAdminTool = null;
+const adminToolLabel = (type) => t(`admin.tools.${type}`);
+const maintenanceToolLabel = (type) => t(`admin.maintenanceTools.${type}`);
 let adminJobPollTimer = null;
 let populateEverythingAuto = false;
 let populateEverythingContinueTimer = null;
@@ -194,10 +198,9 @@ function populateSectionHTML() {
         <p class="admin-tool-desc">Upload BrickLink's Minifigures export (the tab-separated file) to map minifig IDs so BrickLink minifig prices resolve.</p>
         <small id="blMinifigUploadResult">Choose the exported Minifigures file (tab format).</small>
       </div>
-      <label class="btn-secondary admin-upload-btn">
+      <span class="csv-file-picker"><button type="button" class="btn-secondary admin-upload-btn csv-file-label" data-file-picker data-file-input="blMinifigFile">
         ${I.upload ? I.upload({ w: 16 }) : I.download({ w: 16 })}<span>Upload</span>
-        <input type="file" id="blMinifigFile" accept=".txt,.xml,.tsv,.csv,text/plain,text/xml,text/tab-separated-values" hidden>
-      </label>
+      </button><input type="file" id="blMinifigFile" accept=".txt,.xml,.tsv,.csv,text/plain,text/xml,text/tab-separated-values" tabindex="-1" aria-hidden="true"></span>
     </article>
     <article class="admin-tool-card">
       <div class="admin-tool-icon">${I.gear()}</div>
@@ -416,16 +419,17 @@ async function triggerSyncJob(type) {
   const btns = [...document.querySelectorAll(`[data-admin-tool="${type}"]`)];
   btns.forEach(b => { b.disabled = true; b.setAttribute('aria-busy', 'true'); });
   haptic('medium');
-  toast(`${cnf.label}: running…`, 'info');
+  const label = adminToolLabel(type);
+  toast(t('admin.syncJobRunning', { label }), 'info');
   try {
     const r = await api(cnf.url, { method: cnf.method, body: cnf.body });
     const summary = r.skipped
-      ? `skipped — ${r.skipped}`
-      : `processed ${r.processed ?? 0}, updated ${r.updated ?? 0}, rejected ${r.rejected ?? 0}`;
-    toast(`${cnf.label}: ${summary}`, (r.updated > 0 || r.skipped) ? 'success' : 'info');
+      ? tPlural('admin.syncJobSkipped', r.skipped)
+      : tPlural('admin.syncJobSummary', r.processed ?? 0, { processed: r.processed ?? 0, updated: r.updated ?? 0, rejected: r.rejected ?? 0 });
+    toast(t('admin.syncJobResult', { label, summary }), (r.updated > 0 || r.skipped) ? 'success' : 'info');
     await updateIntegrationsHealth();
   } catch (e) {
-    toast(`${cnf.label} failed: ${e.message || e}`, 'error');
+    toast(t('admin.syncJobFailed', { label, error: e.message || e }), 'error');
   } finally {
     btns.forEach(b => { b.disabled = false; b.setAttribute('aria-busy', 'false'); });
   }
@@ -445,15 +449,16 @@ async function triggerImport(type, { single = false } = {}) {
   setAdminJobButtons(type);
   try {
     const r = await api(cnf.url, { method: cnf.method, body: cnf.body });
-    activeAdminRunId = r.run_id || null;
-    activeAdminTool = type;
+    const feedback = adminJobStartFeedback(type, r, t, adminToolLabel(type));
+    activeAdminRunId = feedback.pollsRun ? r.run_id : null;
+    activeAdminTool = feedback.pollsRun ? type : null;
     if (type === 'everything' && r.done) populateEverythingAuto = false;
-    toast(r.message || `Job #${activeAdminRunId || ''} started`, 'success');
+    toast(feedback.message, 'success');
     await updateJobsStatus();
     loadActivity();
-    scheduleAdminJobPoll(1200);
+    if (feedback.pollsRun) scheduleAdminJobPoll(1200);
   } catch (e) {
-    toast('Job failed: ' + (e.message || e), 'error');
+    toast(t('admin.jobFailed', { error: e.message || e }), 'error');
     activeAdminRunId = null;
     activeAdminTool = null;
     populateEverythingAuto = false;
@@ -465,11 +470,11 @@ async function triggerMaintenance(type) {
   const tool = MAINTENANCE_TOOLS[type];
   if (!tool || !window.confirm(tool.confirm)) return;
   try {
-    const res = await api(tool.url, { method: tool.method });
-    toast(res.message || `${tool.label} complete`, 'success');
+    await api(tool.url, { method: tool.method });
+    toast(t('admin.maintenanceComplete', { label: maintenanceToolLabel(type) }), 'success');
     await updateIntegrationsHealth();
   } catch (e) {
-    toast(`${tool.label} failed: ${e.message || e}`, 'error');
+    toast(t('admin.maintenanceFailed', { label: maintenanceToolLabel(type), error: e.message || e }), 'error');
   }
 }
 
@@ -479,15 +484,19 @@ async function importBlMinifigCatalog(input) {
   const file = input?.files?.[0];
   const out = $('#blMinifigUploadResult');
   if (!file) return;
-  if (out) out.textContent = `Uploading ${file.name}…`;
+  if (out) out.textContent = t('admin.uploadingFile', { file: file.name });
   try {
     const text = await file.text();
     const r = await api('/api/admin/import-bricklink-minifigs', { method: 'POST', rawBody: text });
-    if (out) out.textContent = `Imported ${Number(r.inserted ?? 0).toLocaleString()} of ${Number(r.parsed ?? 0).toLocaleString()} minifigs. They map to prices as they're valued.`;
-    toast(`BrickLink minifig catalog: ${Number(r.inserted ?? 0).toLocaleString()} imported`, 'success');
+    const minifigImportSummary = {
+      inserted: tPlural('admin.minifigsImported', Number(r.inserted ?? 0)),
+      parsed: tPlural('admin.minifigsParsed', Number(r.parsed ?? 0)),
+    };
+    if (out) out.textContent = t('admin.importedMinifigs', minifigImportSummary);
+    toast(tPlural('admin.uploadSuccessToast', Number(r.inserted ?? 0)), 'success');
   } catch (e) {
-    if (out) out.textContent = `Failed: ${e.message || e}`;
-    toast(`Catalog upload failed: ${e.message || e}`, 'error');
+    if (out) out.textContent = t('admin.uploadFailed', { error: e.message || e });
+    toast(t('admin.uploadErrorToast', { error: e.message || e }), 'error');
   } finally {
     input.value = '';
   }
@@ -583,17 +592,17 @@ function renderProcesses() {
   const openGroups = new Set(Array.from(existing).filter(d => d.open).map(d => d.getAttribute('data-group')));
   c.innerHTML = `
     <div class="admin-activity-summary">
-      ${counts.running ? `<span class="admin-pill admin-pill--running">${counts.running} running</span>` : ''}
-      <span class="admin-pill admin-pill--ok">${counts.ok} healthy</span>
-      ${counts.failed ? `<span class="admin-pill admin-pill--danger">${counts.failed} failed</span>` : ''}
-      ${counts.idle ? `<span class="admin-pill admin-pill--idle">${counts.idle} not yet run</span>` : ''}
+      ${counts.running ? `<span class="admin-pill admin-pill--running">${escapeHtml(tPlural('admin.countRunning', counts.running))}</span>` : ''}
+      <span class="admin-pill admin-pill--ok">${escapeHtml(tPlural('admin.countHealthy', counts.ok))}</span>
+      ${counts.failed ? `<span class="admin-pill admin-pill--danger">${escapeHtml(tPlural('admin.countFailed', counts.failed))}</span>` : ''}
+      ${counts.idle ? `<span class="admin-pill admin-pill--idle">${escapeHtml(tPlural('admin.countNotRun', counts.idle))}</span>` : ''}
     </div>
     ${groups.map(g => {
       const items = byGroup.get(g);
       const gRunning = items.filter(p => p.status === 'running').length;
       const gFailed = items.filter(p => p.status === 'failed').length;
       const open = firstPaint ? (gRunning > 0 || gFailed > 0) : openGroups.has(g);
-      const meta = [gRunning ? `${gRunning} running` : '', gFailed ? `${gFailed} failed` : '']
+      const meta = [gRunning ? tPlural('admin.countRunning', gRunning) : '', gFailed ? tPlural('admin.countFailed', gFailed) : '']
         .filter(Boolean).join(' · ') || `${items.length}`;
       const metaTone = gFailed ? ' is-error' : gRunning ? ' is-running' : '';
       return `
@@ -620,7 +629,7 @@ const PROCESS_TRIGGER = {
 
 function processRowHTML(p) {
   const badge = processRunBadge(p);
-  const when = formatRelativeTime(p.finished_at || p.started_at);
+  const when = formatRelativeTime(p.finished_at || p.started_at, Date.now(), getLocale());
   const dur = p.duration_ms ? ` · ${(p.duration_ms / 1000).toFixed(1)}s` : '';
   const result = p.status === 'failed'
     ? `<span class="admin-process-result is-error">${escapeHtml(p.error || 'failed')}</span>`
@@ -637,7 +646,7 @@ function processRowHTML(p) {
       <p class="admin-process-desc">${escapeHtml(p.description)}</p>
       <div class="admin-process-meta">
         ${p.schedule ? `<span class="admin-process-sched">${escapeHtml(p.schedule)}</span>` : ''}
-        ${p.status === 'idle' ? '' : `<span>last run ${escapeHtml(when)}${dur}</span>`}
+        ${p.status === 'idle' ? '' : `<span>${escapeHtml(t('admin.lastRun', { when, duration: dur }))}</span>`}
         ${result}
       </div>
       ${canRun ? `<div class="admin-process-actions"><button type="button" class="btn-secondary admin-proc-run" data-process-run="${escapeHtml(p.name)}">${I.refresh({ w: 14 })}<span>Run now</span></button></div>` : ''}
@@ -700,7 +709,7 @@ function activeJobPanelHTML(run) {
       <div class="admin-active-job-head">
         <div>
           <div class="section-kicker">Running now</div>
-          <h3>Job #${escapeHtml(run.id)} - ${escapeHtml(jobTypeLabel(run.job_type))}</h3>
+          <h3>${escapeHtml(t('admin.jobId', { id: run.id }))} - ${escapeHtml(jobTypeLabel(run.job_type))}</h3>
         </div>
         <button class="btn-secondary" id="adminStopAutoRun">${I.close()}<span>Stop auto-run</span></button>
       </div>
@@ -725,7 +734,7 @@ function jobGroupHTML(group) {
   const state = group.state;
   const p = jobProgressSummary(run);
   const grouped = group.count > 1 && state.label === 'Completed';
-  const title = grouped ? `${group.count} completed safe slices` : `Job #${run.id}`;
+  const title = grouped ? tPlural('admin.completedSlices', group.count) : t('admin.jobId', { id: run.id });
   const details = jobDetails(run, state, p);
   const error = String(run.error || '');
   return `
@@ -746,12 +755,12 @@ function jobGroupHTML(group) {
 function jobDetails(run, state, progress) {
   const details = [];
   if (progress.countText) details.push(progress.countText);
-  if (run.sets_loaded) details.push(`${run.sets_loaded} filled`);
-  if (run.sets_skipped) details.push(`${run.sets_skipped} processed`);
-  if (run.figs_loaded) details.push(`${run.figs_loaded} figs`);
+  if (run.sets_loaded) details.push(tPlural('admin.filled', run.sets_loaded));
+  if (run.sets_skipped) details.push(tPlural('admin.processed', run.sets_skipped));
+  if (run.figs_loaded) details.push(tPlural('admin.figures', run.figs_loaded));
   if (state.retryable) details.push('safe to retry');
   if (state.needsAttention) details.push('check diagnostics');
-  return details.length ? details : ['No items processed'];
+  return details.length ? details : [t('admin.noItemsProcessed')];
 }
 
 async function updateIntegrationsHealth() {
@@ -873,11 +882,7 @@ function agoIso(ts) {
   if (!ts) return null;
   const then = Date.parse(String(ts));
   if (!Number.isFinite(then)) return null;
-  const mins = Math.round((Date.now() - then) / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
+  return formatRelativeTime(ts, Date.now(), getLocale());
 }
 
 // PriceCharting whole-catalog bulk-download status, surfaced right on the
@@ -1027,10 +1032,10 @@ function serviceCardHTML(svc, row, health, cfg, openSet) {
   const tuning = TUNABLE_SOURCES.has(key) ? (cfg[key] || null) : null;
   const isOpen = openSet.has(key);
   const facts = [
-    `Last OK: ${ago(row.last_ok_at)}`,
-    `Last fail: ${ago(row.last_fail_at)}`,
-    quota ? `Quota: ${quota.used}/${quota.cap}` : '',
-    quota ? `Remaining: ${quota.remaining ?? Math.max(0, quota.cap - quota.used)}` : '',
+    { label: 'Last OK:', value: ago(row.last_ok_at) },
+    { label: 'Last fail:', value: ago(row.last_fail_at) },
+    quota ? { label: 'Quota:', value: `${quota.used}/${quota.cap}` } : null,
+    quota ? { label: 'Remaining:', value: String(quota.remaining ?? Math.max(0, quota.cap - quota.used)) } : null,
   ].filter(Boolean);
   return `
     <details class="admin-service ${health.tone}" data-svc="${escapeHtml(key)}" ${isOpen ? 'open' : ''}>
@@ -1042,7 +1047,7 @@ function serviceCardHTML(svc, row, health, cfg, openSet) {
         <span class="badge ${badgeClass(health.tone)}">${escapeHtml(health.label)}</span>
       </summary>
       <div class="admin-service-body">
-        <div class="admin-service-facts">${facts.map(f => `<span>${escapeHtml(f)}</span>`).join('')}</div>
+        <div class="admin-service-facts">${facts.map(({ label, value }) => `<span><span>${escapeHtml(label)}</span> ${escapeHtml(value)}</span>`).join('')}</div>
         ${key === 'ebay' ? ebayStateHTML(health) : ''}
         ${key === 'brightdata' ? brightDataPoolHTML() : ''}
         ${key === 'firecrawl' ? firecrawlPoolHTML() : ''}
@@ -1130,12 +1135,12 @@ async function runServiceProbe(svc, btn) {
     const head = degraded ? 'Degraded' : r.ok ? 'OK' : r.status || 'error';
     if (box) {
       box.className = `admin-svc-test-result ${tone}`;
-      box.textContent = `${head} — ${r.detail || ''} (${r.ms}ms)`;
+      box.textContent = t('admin.serviceTestResult', { head, detail: r.detail || '', ms: r.ms });
     }
-    toast(`${providerLabel(svc)}: ${head}`, degraded ? 'info' : r.ok ? 'success' : r.status === 'unconfigured' ? 'info' : 'error');
+    toast(t('admin.providerStatus', { provider: providerLabel(svc), status: head }), degraded ? 'info' : r.ok ? 'success' : r.status === 'unconfigured' ? 'info' : 'error');
   } catch (e) {
-    if (box) { box.className = 'admin-svc-test-result danger'; box.textContent = `Failed: ${e.message || e}`; }
-    toast(`${providerLabel(svc)} test failed`, 'error');
+    if (box) { box.className = 'admin-svc-test-result danger'; box.textContent = t('admin.serviceTestFailed', { error: e.message || e }); }
+    toast(t('admin.providerTestFailed', { provider: providerLabel(svc) }), 'error');
   } finally {
     btn.disabled = false;
     btn.setAttribute('aria-busy', 'false');
@@ -1154,12 +1159,12 @@ async function toggleServiceFlag(flag, checked, input) {
     haptic('light');
     const eff = !!featureFlags.effective?.[flag];
     const suffix = checked && !eff ? ' (inactive — needs a key/token)' : '';
-    toast(`${FLAG_LABEL[flag] || flag}: ${checked ? 'enabled' : 'disabled'}${suffix}`, checked && !eff ? 'info' : 'success');
+    toast(t('admin.featureFlagStatus', { flag: FLAG_LABEL[flag] || flag, status: checked ? t('admin.enabled') : t('admin.disabled'), suffix }), checked && !eff ? 'info' : 'success');
     renderServices();
   } catch (e) {
     input.checked = !checked;
     input.disabled = false;
-    toast(`Could not update ${FLAG_LABEL[flag] || flag}: ${e.message || e}`, 'error');
+    toast(t('admin.featureFlagUpdateFailed', { flag: FLAG_LABEL[flag] || flag, error: e.message || e }), 'error');
   }
 }
 
@@ -1192,10 +1197,10 @@ async function saveServiceTuning(svc, btn) {
     const res = await api('/api/admin/source-config', { method: 'PUT', body: { config: validation.config } });
     sourceConfig = res.config || validation.config;
     haptic('light');
-    toast(`${providerLabel(svc)} saved.`, 'success');
+    toast(t('admin.providerSaved', { provider: providerLabel(svc) }), 'success');
     renderServices();
   } catch (e) {
-    toast(`Error saving ${providerLabel(svc)}: ${e.message || e}`, 'error');
+    toast(t('admin.providerSaveFailed', { provider: providerLabel(svc), error: e.message || e }), 'error');
   } finally {
     btn.disabled = false;
     btn.setAttribute('aria-busy', 'false');
@@ -1423,7 +1428,7 @@ function pricingAnomalyHTML(anomaly) {
   return `
     <article class="admin-pricing-anomaly ${escapeHtml(anomaly.severity || 'warning')}">
       <div><strong>${escapeHtml(anomaly.anomaly_type || 'Pricing anomaly')}</strong><span>${escapeHtml(anomaly.set_num || '')}${anomaly.condition ? ` · ${escapeHtml(anomaly.condition)}` : ''}</span></div>
-      <small>${escapeHtml(anomaly.source || 'valuation v3')} · last seen ${escapeHtml(formatRelativeTime(anomaly.last_seen_at))}</small>
+      <small>${escapeHtml(anomaly.source || 'valuation v3')} · ${escapeHtml(t('admin.lastSeen', { when: formatRelativeTime(anomaly.last_seen_at, Date.now(), getLocale()) }))}</small>
     </article>`;
 }
 
@@ -1465,7 +1470,7 @@ async function loadSourceTuning() {
     sourceConfig = data.config || {};
     renderServices();
   } catch (e) {
-    toast(`Could not load pricing config: ${e.message || e}`, 'error');
+    toast(t('admin.pricingConfigLoadFailed', { error: e.message || e }), 'error');
   }
 }
 
@@ -1495,7 +1500,7 @@ async function resetPricingDefaults(btn) {
     toast('Pricing sources reset to defaults.', 'success');
     renderServices();
   } catch (e) {
-    toast(`Reset failed: ${e.message || e}`, 'error');
+    toast(t('admin.resetFailed', { error: e.message || e }), 'error');
   } finally {
     btn.disabled = false;
     btn.setAttribute('aria-busy', 'false');
@@ -1728,7 +1733,7 @@ async function moderateContribution(btn) {
   try {
     const res = await api(`/api/admin/contributions/${encodeURIComponent(type)}/${encodeURIComponent(id)}`, { method: 'PATCH', body: { action, note: note || '' } });
     haptic('light');
-    toast(res.applied ? `${action === 'approve' ? 'Approved' : 'Rejected'} - ${res.applied}` : (action === 'approve' ? 'Approved' : 'Rejected'), 'success');
+    toast(tPlural('admin.contributionAction', Number(res.applied || 0), { action: action === 'approve' ? t('admin.approved') : t('admin.rejected') }), 'success');
     await loadContribQueue();
   } catch (e) {
     card.querySelectorAll('button').forEach(b => { b.disabled = false; });
@@ -1823,13 +1828,8 @@ function startedAt(ts) {
 
 function ago(ts) {
   if (!ts) return 'never';
-  const then = new Date(String(ts).replace(' ', 'T') + 'Z').getTime();
-  const mins = Math.round((Date.now() - then) / 60000);
-  if (!Number.isFinite(mins)) return 'unknown';
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
+  const relative = formatRelativeTime(ts, Date.now(), getLocale());
+  return relative === '—' ? 'unknown' : relative;
 }
 
 function elapsed(ts) {

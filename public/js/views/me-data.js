@@ -8,6 +8,7 @@ import { subpageTopbarHTML, loadMe } from './me-shared.js';
 import { state } from '../state.js';
 import { skelPage, skelSettingRows } from '../components/skeleton.js';
 import { exportBlob } from '../lib/native-file-export.js';
+import { t, tPlural } from '../lib/i18n.js';
 
 export async function renderMeData() {
   if (!state.me) $("#root").innerHTML = skelPage(skelSettingRows(3));
@@ -68,7 +69,7 @@ export async function renderMeData() {
             <div class="desc">Upload a CSV to add sets in bulk — works with Brickset and BrickEconomy exports too. Existing sets are skipped.</div>
           </div>
           <div class="csv-import-wrap">
-            <label class="csv-file-label">${I.upload()}<span>Choose CSV file</span><input type="file" id="csvFile" accept=".csv"></label>
+            <span class="csv-file-picker"><button type="button" class="csv-file-label" data-file-picker data-file-input="csvFile">${I.upload()}<span>Choose CSV file</span></button><input type="file" id="csvFile" accept=".csv" tabindex="-1" aria-hidden="true"></span>
             <span id="csvFileName"></span>
             <button class="btn-primary" id="csvImportBtn" style="display:none;">${I.plus()}<span>Import</span></button>
           </div>
@@ -80,7 +81,7 @@ export async function renderMeData() {
             <div class="desc">Export your BrickLink order history as CSV and upload it here to auto-add sets you've bought.</div>
           </div>
           <div class="csv-import-wrap">
-            <label class="csv-file-label">${I.upload()}<span>Choose BrickLink CSV</span><input type="file" id="blOrderFile" accept=".csv"></label>
+            <span class="csv-file-picker"><button type="button" class="csv-file-label" data-file-picker data-file-input="blOrderFile">${I.upload()}<span>Choose BrickLink CSV</span></button><input type="file" id="blOrderFile" accept=".csv" tabindex="-1" aria-hidden="true"></span>
             <span id="blOrderFileName"></span>
             <button class="btn-primary" id="blOrderImportBtn" style="display:none;">${I.plus()}<span>Import BrickLink Orders</span></button>
           </div>
@@ -93,7 +94,7 @@ export async function renderMeData() {
   $("#insuranceReportBtn")?.addEventListener("click", async () => {
     haptic("medium");
     const out = $("#insuranceResult");
-    if (out) out.textContent = "Preparing report…";
+    if (out) out.textContent = t('data.reportPreparing');
     try {
       const token = _authSession?.access_token;
       const res = await fetch((window.WORKER_BASE || "") + "/api/me/insurance-report", {
@@ -102,12 +103,12 @@ export async function renderMeData() {
       });
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || "Report failed");
       const blob = await res.blob();
-      const result = await exportBlob(blob, "bricksvault-insurance-report.html", { title: "BricksVault insurance report" });
+      const result = await exportBlob(blob, "bricksvault-insurance-report.html", { title: t('data.insuranceReportTitle') });
       if (out) out.textContent = result === "shared"
-        ? "Report ready — open it and print to PDF."
-        : "Report downloaded — open it and print to PDF.";
+        ? t('data.reportSharedReady')
+        : t('data.reportDownloadedReady');
     } catch (e) {
-      if (out) out.textContent = "Report failed: " + e.message;
+      if (out) out.textContent = t('data.reportFailed', { error: e.message || e });
     }
   });
 
@@ -119,7 +120,7 @@ export async function renderMeData() {
     try {
       const r = await api("/api/me/backups");
       const dates = r?.backups || [];
-      if (!dates.length) { list.textContent = "No snapshots yet — the first one is written next Sunday."; return; }
+      if (!dates.length) { list.textContent = t('data.noSnapshotsYet'); return; }
       list.innerHTML = dates.slice(0, 8).map((d) => `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line-soft);">
           <span style="font-family:var(--mono);font-size:12px;">${d}</span>
@@ -138,11 +139,11 @@ export async function renderMeData() {
         try {
           const res = await api(`/api/me/backups/${encodeURIComponent(date)}/restore`, { method: "POST" });
           invalidatePortfolio();
-          toast(`Restored ${res.restored} sets from ${date}`, "success");
-        } catch (err) { toast("Restore failed: " + err.message, "error"); }
+toast(tPlural('data.restoredFromBackup', res.restored, { date }), "success");
+        } catch (err) { toast(t('data.restoreFailed', { error: err.message || err }), "error"); }
         finally { setBtnLoading(e.target.closest("button"), false); }
       }));
-    } catch { list.textContent = "Backups unavailable right now."; }
+    } catch { list.textContent = t('data.backupsUnavailable'); }
   })();
 
   $("#retryGuestSyncBtn")?.addEventListener("click", async () => {
@@ -150,21 +151,21 @@ export async function renderMeData() {
     const out = $("#retryGuestSyncResult");
     const btn = $("#retryGuestSyncBtn");
     if (btn) { btn.disabled = true; btn.setAttribute("aria-busy", "true"); }
-    if (out) out.textContent = "Retrying sync…";
+    if (out) out.textContent = t('data.retryingSync');
     try {
       const snapshot = JSON.parse(localStorage.getItem("bv_failed_guest_migration") || "null");
       const { migrateGuestVault } = await import("../api.js");
       const migrated = await migrateGuestVault(snapshot || undefined);
       if (migrated.errors?.length) {
-        if (out) out.textContent = `Still ${migrated.errors.length} item${migrated.errors.length === 1 ? "" : "s"} failing: ${migrated.errors[0]}`;
+        if (out) out.textContent = tPlural('data.migrationStillFailing', migrated.errors.length, { error: migrated.errors[0] });
       } else {
         localStorage.removeItem("bv_failed_guest_migration");
         invalidatePortfolio();
-        if (out) out.textContent = `Done — ${migrated.migrated} item${migrated.migrated === 1 ? "" : "s"} synced.`;
-        toast("Guest vault synced", "success");
+        if (out) out.textContent = tPlural('data.migrationComplete', migrated.migrated);
+        toast(t('data.guestVaultSynced'), "success");
       }
     } catch (e) {
-      if (out) out.textContent = "Retry failed: " + e.message;
+      if (out) out.textContent = t('data.retryFailed', { error: e.message || e });
     } finally {
       if (btn) { btn.disabled = false; btn.removeAttribute("aria-busy"); }
     }
@@ -175,14 +176,14 @@ export async function renderMeData() {
     const _expBtn = document.getElementById("exportCsvBtn");
     const out = document.getElementById("exportResult");
     if (_expBtn) { _expBtn.disabled = true; _expBtn.setAttribute("aria-busy", "true"); }
-    if (out) out.textContent = "Preparing export...";
+    if (out) out.textContent = t('data.exportPreparing');
     try {
       if (guest) {
         const blob = guestCollectionCSVBlob();
-        const result = await exportBlob(blob, "brickvault-collection.csv", { title: "Share BricksVault collection" });
+        const result = await exportBlob(blob, "brickvault-collection.csv", { title: t('data.collectionExportTitle') });
         if (out) out.textContent = result === "shared"
-          ? "Your local guest export is ready to share or save."
-          : "Export downloaded from local guest data.";
+          ? t('data.guestExportShared')
+          : t('data.guestExportDownloaded');
         return;
       }
       const token = _authSession?.access_token;
@@ -192,13 +193,13 @@ export async function renderMeData() {
       });
       if (!res.ok) throw new Error("Export failed");
       const blob = await res.blob();
-      const result = await exportBlob(blob, "brickvault-collection.csv", { title: "Share BricksVault collection" });
+      const result = await exportBlob(blob, "brickvault-collection.csv", { title: t('data.collectionExportTitle') });
       if (out) out.textContent = result === "shared"
-        ? "Your synced export is ready to share or save."
-        : "Export downloaded from your synced vault.";
+        ? t('data.syncedExportShared')
+        : t('data.syncedExportDownloaded');
     } catch (e) {
-      if (out) out.textContent = "Export failed: " + e.message;
-      toast("Error exporting: " + e.message, "error");
+      if (out) out.textContent = t('data.exportFailed', { error: e.message || e });
+      toast(t('data.exportFailed', { error: e.message || e }), "error");
     } finally {
       if (_expBtn) { _expBtn.disabled = false; _expBtn.removeAttribute("aria-busy"); }
     }
@@ -238,21 +239,29 @@ export async function renderMeData() {
       setBtnLoading(importBtn, false);
       if (resultEl) resultEl.textContent = "";
       const ok = await confirmSheet({
-        title: `Import ${rows.length} set${rows.length === 1 ? '' : 's'}?`,
-        message: `Starting with: ${sample}${rows.length > 3 ? ` and ${rows.length - 3} more` : ''}. Existing sets are kept.`,
-        confirmLabel: "Import",
+        title: tPlural('data.csvImportConfirmTitle', rows.length),
+        message: tPlural('data.csvImportConfirmMessage', rows.length, {
+          sample,
+          more: rows.length > 3 ? tPlural('data.csvImportMore', rows.length - 3) : '',
+        }),
+        confirmLabel: t('data.importConfirm'),
       });
       if (!ok) return;
       setBtnLoading(importBtn, true);
       if (resultEl) resultEl.textContent = "Importing...";
 
       const r = await api("/api/collection/import", { method: "POST", body: { rows } });
-      if (resultEl) resultEl.textContent = `✓ ${r.imported} imported, ${r.skipped} skipped${r.errors?.length ? `, ${r.errors.length} errors` : ""}`;
+      const importSummary = {
+        imported: tPlural('data.importedCount', r.imported),
+        skipped: tPlural('data.skippedCount', r.skipped),
+        errors: tPlural('data.errorsCount', r.errors?.length || 0),
+      };
+      if (resultEl) resultEl.textContent = t('data.importResult', importSummary);
       invalidatePortfolio();
-      toast(`${r.imported} sets imported`, "success");
+      toast(tPlural('data.setsImported', r.imported), "success");
     } catch (e) {
-      if (resultEl) resultEl.textContent = "Error: " + e.message;
-      toast("Import failed: " + e.message, "error");
+      if (resultEl) resultEl.textContent = t('data.importFailed', { error: e.message || e });
+      toast(t('data.importFailed', { error: e.message || e }), "error");
     } finally {
       setBtnLoading(importBtn, false);
     }
@@ -284,12 +293,17 @@ export async function renderMeData() {
     try {
       const text = await file.text();
       const res = await api("/api/bricklink/import-csv", { method: "POST", body: { csv: text } });
-      if (resultEl) resultEl.textContent = `✓ ${res.added} sets added, ${res.skipped} skipped${res.errors?.length ? ` (first errors: ${res.errors.slice(0,3).join("; ")})` : ""}`;
+      const bricklinkSummary = {
+        added: tPlural('data.setsAddedCount', res.added),
+        skipped: tPlural('data.skippedCount', res.skipped),
+        errors: res.errors?.slice(0, 3).join('; ') || '',
+      };
+      if (resultEl) resultEl.textContent = t('data.bricklinkImportResult', bricklinkSummary);
       invalidatePortfolio();
-      toast(`${res.added} sets imported from BrickLink orders`, "success");
+      toast(tPlural('data.bricklinkSetsImported', res.added), "success");
     } catch (e) {
-      if (resultEl) resultEl.textContent = "Error: " + e.message;
-      toast("BrickLink import failed: " + e.message, "error");
+      if (resultEl) resultEl.textContent = t('data.bricklinkImportFailed', { error: e.message || e });
+      toast(t('data.bricklinkImportFailed', { error: e.message || e }), "error");
     } finally {
       setBtnLoading(blImportBtn, false);
     }

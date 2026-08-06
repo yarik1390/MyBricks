@@ -19,8 +19,9 @@
  * that are real UI ("Critics' score", "No active high-risk sets (score >= 70)").
  *
  * Usage: node scripts/harvest-ui-strings.mjs > /tmp/ui-strings.json
+ *        node scripts/harvest-ui-strings.mjs --write --prune-ui-dicts
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, extname } from 'node:path';
 
 // 'public/js' rather than only its subdirectories. The top level was never
@@ -48,18 +49,126 @@ const HTML_FILES = ['public/index.html', 'public/methodology.html'];
 const WORKER_COPY = [
   { file: 'worker/src/lib/valuation-v3.ts', fields: ['methodology'] },
 ];
+// Some safe UI labels are assembled around links, icons, or a one-value suffix.
+// Their eventual DOM text is still exact and stable, but no source regex can
+// honestly recover the fragment without also harvesting code. Keep this small,
+// evidence-driven list alongside the harvester instead of re-admitting broad
+// false-positive syntax rules.
+const RUNTIME_EXACT_STRINGS = [
+  'ALL ⭐', 'Insights ⭐', 'Value ↓', 'collection value', 'Common', 'Uncommon',
+  'Rare', 'Legendary', 'Rarity ↓', 'Sync resumes when you return.',
+  'Keep your spreadsheet "BricksVault Vault" in sync in the background.',
+  'Google Sheets is disabled until OAuth is configured.',
+  'Missing Worker secrets:', 'Add them as GitHub Actions secrets and redeploy to enable account linking.',
+  'Get a free key at', '- bypasses shared AI limits',
+  "(WebGPU) or you're offline; it falls back to Cloud automatically, so scanning always works.",
+  '— Model needs download. Run a query in the Advisor tab to trigger it.',
+  'Last OK:', 'Last fail:', 'never',
+  "Don't have an account?",
+  'Pick a category tab to see just those services. Tap any service for its status, usage, and controls — test it, flip capabilities on or off, and tune pricing, all without touching code.',
+  // These service-health states are selected before the markup renders them, so
+  // source-shape matching cannot prove which conditional branch reaches the
+  // text node. They are stable, visible labels verified by the runtime audit.
+  'sold comps blocked', 'sold comps available', 'sold comps not populated',
+  'asking data available', 'asking data not populated', 'No weak sold fallback',
+  // Text following an inline status span ends at a template literal rather
+  // than another tag; retain these exact user-visible Chrome AI states.
+  '— Ready for offline text advice.',
+  '— Requires Chrome on desktop/Android with Gemini Nano flags enabled.',
+  'Requires the model weights (~3GB) to run set photo scanning 100% on-device for free. Official Gemma weights are license-gated:',
+  ', then download with a Hugging Face token — or download the file in your browser and import it below.',
+  "CSV of everything you've entered.", 'adds current value, retail & ROI columns.',
+  'Printable valuation for home insurance. A', 'feature.',
+  'minifigs', 'BrickLink (new)',
+  'Market confidence: high',
+  // These labels are returned by view helper branches (rather than directly
+  // assigned to a node) and have been verified as live UI. Keep the exception
+  // list evidence-based; scanner timing tokens are intentionally NOT here.
+  'AI forecast', 'AT TARGET', 'BUY', 'Backup', 'APPRECIATED',
+  'Based on recent market data, with a little disagreement.',
+  'Based on recent sales and long-term market trends.', 'BrickLink market guide',
+  'Checking the catalog and saved barcode data.', 'Credentials ready; disabled',
+  'Enable app lock', 'Estimated by AI because fresh market data was unavailable.',
+  'Estimated from set attributes until a market refresh completes.', 'Estimated from set details',
+  'Finding every set in the photo — up to 30 seconds.', 'Formula',
+  'From current listings (not yet sold)', 'From recent sales + market guide',
+  'Granting supporter status...', 'Key rejected — check it and try again',
+  'Key works but its quota is exhausted', 'LIMIT REACHED', 'Legacy eBay', 'Likely soon',
+  'Limited recent data — treat this as a rough guide.', 'Main', 'Market forecast', 'NONE',
+  'No target', 'Notification permission was not granted', 'Older eBay average', 'Possible',
+  'Profile not found or private', 'Reading your shelf...', 'Resuming:',
+  'Revoking supporter status...', 'SETUP NEEDED', 'STRONG BUY', 'Set-exclusive',
+  'Several recent sources agree on this price.', 'Supporter granted.', 'Supporter revoked.',
+  'TIMED OUT', 'Took too long — try again.', 'Your wishlist is paying off.', 'eBay sold',
+  'grant supporter status to', '— in use', '— queued',
+  // Labels around markup-producing helpers were verified as independent nodes
+  // before the adjacent-hole rule was narrowed to icon markup. Keep this
+  // finite compatibility list; primitive-interpolation fragments belong in
+  // parameterized locale keys, never here.
+  'Active sets approaching retirement:', 'Bear', 'Candidate:',
+  'Contributor:', "Couldn't load today's game:", "Couldn't load your year:",
+  "Couldn't load:", 'Elapsed:', 'Enable On-Device AI', 'FIRECRAWL_KEY_CREDITS lists',
+  'Falling', 'Filters', 'First seen', 'Heartbeat:', 'In stock —', 'Insights',
+  'Key pool — drains in order:', 'Key pool — monthly spend:', 'LOOKUP',
+  'Local AI session failed.', 'Local Gemma error:', 'New sold', 'New sold comps are',
+  'Next:', 'No pending', 'Open eBay', 'Price checked', 'Provider:', 'Release',
+  'Retirement risk: High', 'Rising', 'Sealed', 'Sell', "Sorry, couldn't reach the advisor.",
+  'Submitted:', 'TOP FALLING', 'TOP RISING',
+  'Theme Concentration Warning', 'Try a different search or clear filters.',
+  'Used sold', 'Vault:', 'if sold now', 'is a grab', 'not yet run',
+  'other themes in your vault', 'skipped —', '· Figs',
+  '— Gemma is ready for local offline photo scanning!', '— under', '— you paid', '🔥 RISK',
+  'Price Drops',
+];
+// A runtime-only row is an exception, never a second string source. Every row
+// must either be discovered from source by the normal harvester or carry this
+// explicit category: a stable helper/conditional/inline-fragment output that
+// the browser audit exercises. The guard below makes undocumented additions
+// fail generation instead of silently inflating dictionary coverage.
+const RUNTIME_EXACT_EVIDENCE = new Map([
+  ['ALL ⭐', 'decorated catalog-filter branch'], ['Insights ⭐', 'decorated investor-tab branch'],
+  ['Value ↓', 'catalog sort-option helper'], ['Rarity ↓', 'minifig sort-option helper'],
+  ['Last OK:', 'admin service-facts helper'], ['Last fail:', 'admin service-facts helper'],
+  ['sold comps blocked', 'admin integration-health conditional'], ['sold comps available', 'admin integration-health conditional'],
+  ['sold comps not populated', 'admin integration-health conditional'], ['asking data available', 'admin integration-health conditional'],
+  ['asking data not populated', 'admin integration-health conditional'], ['No weak sold fallback', 'admin integration-health conditional'],
+  ['— Ready for offline text advice.', 'Chrome AI availability branch'], ['— Requires Chrome on desktop/Android with Gemini Nano flags enabled.', 'Chrome AI availability branch'],
+  ['AI forecast', 'forecast-method helper'], ['AT TARGET', 'buy-window helper'], ['BUY', 'buy-window helper'], ['APPRECIATED', 'portfolio trend helper'],
+  ['TIMED OUT', 'scanner timeout branch'], ['Took too long — try again.', 'scanner timeout branch'],
+  ['Set-exclusive', 'minifig scarcity branch'], ['Price Drops', 'alerts-sheet heading branch'],
+]);
+for (const text of [
+  'Common', 'Uncommon', 'Rare', 'Legendary', 'Sync resumes when you return.',
+  'Keep your spreadsheet "BricksVault Vault" in sync in the background.', 'Get a free key at', '- bypasses shared AI limits',
+  "(WebGPU) or you're offline; it falls back to Cloud automatically, so scanning always works.", '— Model needs download. Run a query in the Advisor tab to trigger it.', 'never', "Don't have an account?",
+  'Requires the model weights (~3GB) to run set photo scanning 100% on-device for free. Official Gemma weights are license-gated:', ', then download with a Hugging Face token — or download the file in your browser and import it below.',
+  "CSV of everything you've entered.", 'adds current value, retail & ROI columns.', 'Printable valuation for home insurance. A', 'feature.', 'minifigs', 'BrickLink (new)', 'Market confidence: high', 'Backup',
+  'Based on recent market data, with a little disagreement.', 'Based on recent sales and long-term market trends.', 'BrickLink market guide', 'Checking the catalog and saved barcode data.', 'Credentials ready; disabled', 'Enable app lock',
+  'Estimated by AI because fresh market data was unavailable.', 'Estimated from set attributes until a market refresh completes.', 'Estimated from set details', 'Finding every set in the photo — up to 30 seconds.', 'Formula', 'From current listings (not yet sold)', 'From recent sales + market guide',
+  'Granting supporter status...', 'Key rejected — check it and try again', 'Key works but its quota is exhausted', 'LIMIT REACHED', 'Legacy eBay', 'Likely soon', 'Limited recent data — treat this as a rough guide.', 'Main', 'Market forecast', 'NONE', 'No target', 'Notification permission was not granted', 'Older eBay average', 'Possible', 'Profile not found or private', 'Reading your shelf...', 'Resuming:', 'Revoking supporter status...', 'SETUP NEEDED', 'STRONG BUY', 'Several recent sources agree on this price.', 'Supporter granted.', 'Supporter revoked.', 'Your wishlist is paying off.', 'eBay sold', 'grant supporter status to', '— in use', '— queued',
+  'Active sets approaching retirement:', 'Bear', 'Candidate:', 'Contributor:', "Couldn't load today's game:", "Couldn't load your year:", "Couldn't load:", 'Elapsed:', 'FIRECRAWL_KEY_CREDITS lists', 'Filters', 'First seen', 'Heartbeat:', 'In stock —', 'Insights', 'Key pool — drains in order:', 'Key pool — monthly spend:', 'Local AI session failed.', 'Local Gemma error:', 'New sold', 'New sold comps are', 'Next:', 'No pending', 'Price checked', 'Provider:', 'Release', 'Retirement risk: High', 'Sealed', 'Sell', "Sorry, couldn't reach the advisor.", 'Submitted:', 'Try a different search or clear filters.', 'Used sold', 'Vault:', 'if sold now', 'is a grab', 'not yet run', 'other themes in your vault', 'skipped —', '· Figs', '— Gemma is ready for local offline photo scanning!', '— under', '— you paid', '🔥 RISK',
+]) RUNTIME_EXACT_EVIDENCE.set(text, 'assembled helper, conditional branch, or inline markup fragment covered by the runtime audit');
+if (new Set(RUNTIME_EXACT_STRINGS).size !== RUNTIME_EXACT_STRINGS.length) {
+  throw new Error('RUNTIME_EXACT_STRINGS contains duplicate entries');
+}
+for (const [text, reason] of RUNTIME_EXACT_EVIDENCE) {
+  if (!RUNTIME_EXACT_STRINGS.includes(text) || !String(reason).trim()) {
+    throw new Error(`Runtime exact evidence is stale or missing a reason: ${JSON.stringify(text)}`);
+  }
+}
 // pure.js was skipped as "pure logic" — wrong. It returns user-facing COPY from
 // helpers like catalogFilterSummary() and valuationTrust() ("Market price",
 // "No filters active"), so its strings reach the screen like any other.
 // icons.js is nothing but SVG path data — scanning it harvested a `d=` path as
 // if it were a sentence. It renders, but it renders no words.
 const SKIP_FILES = /pure-core\.js$|morphdom\.js$|i18n\.js$|icons\.js$|locales\/|__tests__\//;
+const sourcePath = (p) => p.replaceAll('\\', '/');
 
 function walk(dir, out = []) {
-  for (const name of readdirSync(dir)) {
+  for (const name of readdirSync(dir).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))) {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) walk(p, out);
-    else if (extname(p) === '.js' && !SKIP_FILES.test(p)) out.push(p);
+    else if (extname(p) === '.js' && !SKIP_FILES.test(sourcePath(p))) out.push(p);
   }
   return out;
 }
@@ -68,7 +177,9 @@ function walk(dir, out = []) {
 const REJECT = [
   /^[\s\d.,:;%+\-*/()[\]{}<>|&$#@!?"'`~^=_]*$/,   // punctuation / numbers only
   /^(https?:|\/|\.\/|#|data:|mailto:)/i,           // urls and paths
+  /^[a-z]+(?:\.[a-z][a-zA-Z]*)+$/,                  // i18n key, not copy
   /[{}]/,                                          // template holes / JSON
+  /^\+\s+\w+\.\w+;\s*\w+\.\w+\s*=/,       // tail between adjacent JS strings
   /^[A-Z_]{2,}$/,                                  // CONSTANT_CASE
   /\b(var|const|let|function|return|await|async)\b/,
   /^(px|em|rem|vh|vw|deg|ms|USD|EUR|GBP|CAD|AUD)$/i,
@@ -108,10 +219,12 @@ const REJECT = [
     return toks.length > 1 && toks.every((t) => TAGS.has(t));
   },
   // Inline CSS values: "opacity .18s ease", "transform .2s linear".
-  /\d*\.?\d+(s|ms|px|em|rem|vh|vw)\b/,
+  /\d*\.?\d+(px|em|rem|vh|vw)\b/,
   /\b(ease|ease-in|ease-out|linear|cubic-bezier|infinite|forwards|nowrap|inherit)\b/,
   // Pipe/tab-delimited data blobs, e.g. "Harry Potter|n".
   /[|\t]/,
+  /^text\//i,                                     // MIME type
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/,                 // email example/value
   /=device-width|initial-scale|user-scalable|charset=/i,   // <meta> directives
   // CONTRACTION REMNANTS. Scanning for quoted literals without a JS parser
   // mis-pairs an apostrophe inside a template literal with a later quote, so
@@ -139,13 +252,15 @@ const DO_NOT_TRANSLATE = new Set([
   // A LEGO theme name, not UI copy.
   'Modular Buildings',
   // Vendor, and an HTTP auth scheme that appears verbatim in a header.
-  'Supabase', 'Bearer', 'PUT',
+  'Supabase', 'Bearer', 'PUT', 'PATCH', 'POST',
   // HTTP plumbing that is quoted in api.js and never rendered.
   'application/json', 'Authorization',
   // Capacitor Haptics style constants passed to the native plugin. They are
   // ALL-CAPS labels by shape, which is exactly what the rendered-label rule
   // lets through, but translating one breaks the call.
   'LIGHT', 'MEDIUM', 'HEAVY',
+  // Internal pricing shorthand, never painted as a label.
+  'STP',
   // Supporter tier names, shown as "PRO"/"Pro" and left English on purpose so
   // the paywall copy reads the same in every language.
   'PRO', 'Pro',
@@ -156,10 +271,11 @@ const DO_NOT_TRANSLATE = new Set([
 // condition key echoed into markup), a dotted identifier, and a URL that has no
 // scheme so the REJECT list's url rule misses it.
 const RENDERED_JUNK = [
+  /^\+\s+err\.message;/,          // tail between adjacent JS strings
   /^[a-z][a-z0-9_-]*$/,             // "gray", "used", "value_desc", "your-name"
   /^[a-z]+([A-Z][a-z0-9]*)+$/,      // camelCase element ids: "signInRow"
   /^[a-z-]+=$/i,                    // "aria-live=", "data-set=" attribute stubs
-  /\.\.\.$/,                        // "AIza...", "sk-..." credential placeholders
+  /^(?:AIza|sk)-?[\w-]*\.\.\.$/,   // credential placeholders, not ordinary status ellipses
   /^[a-z]\.\w+$/i,                  // "i.annualized_roi", "x.slope_90d"
   /^[a-z][\w.-]*:\/\//i,            // "chrome://flags/…"
   /^[a-z0-9-]+(\.[a-z]{2,})+\//i,   // "aistudio.google.com/apikey"
@@ -213,7 +329,12 @@ function isProse(s, rendered = false, htmlProse = false) {
   // an opening bracket or a quotation mark, because the DOM splits a sentence
   // around every inline <em>/<strong> and hands us the middle of it.
   const leadOk = htmlProse ? /^[A-Za-z0-9("'“‘]/.test(v) : /^[A-Za-z0-9]/.test(v);
-  if (!leadOk && !(rendered && /^[+←→✓✕·—–]\s?\S/.test(v))) return false;
+  // Rendered controls can deliberately lead with the small visual vocabulary
+  // used by this app (including the brick icon on the XP action). Do not relax
+  // this for arbitrary quoted literals: that would re-admit code punctuation.
+  const renderedSymbolLead = /^[+←→✓✕·—–]\s?\S/.test(v)
+    || /^\p{Extended_Pictographic}\s?\S/u.test(v);
+  if (!leadOk && !(rendered && renderedSymbolLead)) return false;
   if (/[,;]$/.test(v)) return false;
   // The double-quote reject catches JS string literals with escaped quotes. In
   // static HTML there are no JS escapes, so a quote is just punctuation, and
@@ -226,7 +347,11 @@ function isProse(s, rendered = false, htmlProse = false) {
   // arguments in JS. A static HTML page has neither, and they were rejecting
   // real <em> copy — "verified, recent, sold" and "provider families" both read
   // as lowercase token lists. Everything else in REJECT still applies.
-  const rules = htmlProse ? REJECT.filter((r) => typeof r !== 'function') : REJECT;
+  // Between-tag text is actual rendered UI, so class-list/selector heuristics
+  // for arbitrary quoted literals must not discard lowercase labels such as
+  // "alternate models" or "needs key". Non-rendered literals keep the stricter
+  // protection against CSS and class names.
+  const rules = (htmlProse || rendered) ? REJECT.filter((r) => typeof r !== 'function') : REJECT;
   return !rules.some((re) => (typeof re === 'function' ? re(v) : re.test(v)));
 }
 
@@ -249,6 +374,10 @@ for (const m of readFileSync('public/js/lib/pure.js', 'utf8')
 const found = new Map(); // string -> Set(files)
 const add = (s, file, rendered = false, htmlProse = false) => {
   const v = decodeEntities(s).replace(/\s+/g, ' ').trim();
+  // These are quoted header examples in lib/pure.js comments. The scanner
+  // normally strips comments before extraction; keep the explicit exclusion as
+  // a defense-in-depth guard for malformed source that confuses quote tracking.
+  if (new Set(['Number', 'Paid', 'Purchase Date', 'Qty']).has(v)) return;
   // Decoding can reveal a tag, which means the span was never one text node —
   // the DOM splits it around the element and no single key can ever match.
   if (/<[a-z/]/i.test(v)) return;
@@ -256,6 +385,126 @@ const add = (s, file, rendered = false, htmlProse = false) => {
   if (!found.has(v)) found.set(v, new Set());
   found.get(v).add(file);
 };
+const addKnownRuntimeString = (s) => {
+  const v = decodeEntities(s).replace(/\s+/g, ' ').trim();
+  if (!found.has(v)) found.set(v, new Set());
+  found.get(v).add('runtime-exact');
+};
+
+// Strip comments with a small lexer instead of regexes. In particular, `/.../`
+// regex literals can contain `//`, and template holes can contain object args.
+// Both appeared in production source and made the old quote-only scanner lose
+// the rest of a file.
+function stripJsComments(src) {
+  let out = '';
+  let state = 'code';
+  let escaped = false;
+  let inClass = false;
+  let quoteEnd = '';
+  let previous = '';
+  const templateDepths = [];
+  const remembers = (ch) => { if (!/\s/.test(ch)) previous = ch; };
+  const regexMayStart = () => /[=(:,;!?&|\[{]/.test(previous) || !previous;
+  for (let i = 0; i < src.length; i += 1) {
+    const ch = src[i];
+    const next = src[i + 1];
+    if (state === 'line') {
+      if (ch === '\n') { out += ch; state = 'code'; }
+      continue;
+    }
+    if (state === 'block') {
+      if (ch === '*' && next === '/') { i += 1; state = 'code'; }
+      else if (ch === '\n') out += ch;
+      continue;
+    }
+    if (state === 'string' || state === 'template' || state === 'regex') {
+      out += ch;
+      if (escaped) { escaped = false; continue; }
+      if (ch === '\\') { escaped = true; continue; }
+      if (state === 'regex') {
+        if (ch === '[') inClass = true;
+        else if (ch === ']') inClass = false;
+        else if (ch === '/' && !inClass) state = 'code';
+      } else if (state === 'string' && ch === quoteEnd) {
+        state = 'code';
+      } else if (state === 'template') {
+        if (ch === '`') state = 'code';
+        else if (ch === '$' && next === '{') {
+          out += next; i += 1; templateDepths.push(0); state = 'code';
+        }
+      }
+      continue;
+    }
+    if (ch === '/' && next === '/') { state = 'line'; i += 1; continue; }
+    if (ch === '/' && next === '*') { state = 'block'; i += 1; continue; }
+    if (ch === '/' && regexMayStart()) { out += ch; state = 'regex'; inClass = false; continue; }
+    if (ch === '"' || ch === "'") { out += ch; quoteEnd = ch; state = 'string'; continue; }
+    if (ch === '`') { out += ch; state = 'template'; continue; }
+    out += ch;
+    if (templateDepths.length) {
+      if (ch === '{') templateDepths[templateDepths.length - 1] += 1;
+      else if (ch === '}') {
+        const depth = templateDepths.length - 1;
+        if (templateDepths[depth] === 0) { templateDepths.pop(); state = 'template'; }
+        else templateDepths[depth] -= 1;
+      }
+    }
+    remembers(ch);
+  }
+  return out;
+}
+
+function balancedTemplateHoles(src) {
+  const holes = [];
+  for (let start = src.indexOf('${'); start !== -1; start = src.indexOf('${', start + 2)) {
+    let depth = 1;
+    let quote = null;
+    let escaped = false;
+    for (let i = start + 2; i < src.length; i += 1) {
+      const ch = src[i];
+      if (quote) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === quote) quote = null;
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
+      if (ch === '{') depth += 1;
+      else if (ch === '}' && --depth === 0) {
+        holes.push({ start, end: i, expression: src.slice(start + 2, i) });
+        start = i;
+        break;
+      }
+    }
+  }
+  return holes;
+}
+
+function iconAdjacentText(src) {
+  const out = [];
+  for (const hole of balancedTemplateHoles(src)) {
+    if (!/^\s*I\./.test(hole.expression)) continue;
+    const left = src.lastIndexOf('>', hole.start) + 1;
+    const before = src.slice(left, hole.start);
+    const right = src.indexOf('<', hole.end + 1);
+    const after = right === -1 ? '' : src.slice(hole.end + 1, right);
+    if (/^[^<>{}`$]{2,400}$/.test(before)) out.push(before);
+    if (/^[^<>{}`$]{2,400}$/.test(after)) out.push(after);
+  }
+  return out;
+}
+
+function assertLexicalFixtures() {
+  const fixture = 'const route = /^https?:\\/\\/example\\.com\\/.+$/; // "Resume (NN%)"\nconst html = `<span>${I.alert({ w: 13, h: 13 })} Nested icon label</span>`;';
+  const stripped = stripJsComments(fixture);
+  if (!stripped.includes('/^https?:\\/\\/example\\.com\\/.+$/') || stripped.includes('Resume (NN%)')) {
+    throw new Error('Comment lexer fixture failed: regex URL was damaged or comment survived.');
+  }
+  if (!iconAdjacentText(stripped).includes(' Nested icon label')) {
+    throw new Error('Icon-hole fixture failed: nested I.* args lost adjacent label.');
+  }
+}
+assertLexicalFixtures();
 
 for (const root of ROOTS) {
   for (const file of walk(root)) {
@@ -265,12 +514,10 @@ for (const root of ROOTS) {
     // in eight dictionaries. Block comments and whole-line // comments are
     // stripped; a trailing // is left alone because stripping it with a regex
     // would eat the "//" inside any URL literal on that line.
-    const src = readFileSync(file, 'utf8')
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/^[ \t]*\/\/.*$/gm, '');
-    const short = file.replace('public/js/', '');
+    const src = stripJsComments(readFileSync(file, 'utf8'));
+    const short = sourcePath(file).replace('public/js/', '');
     // 1. Text between tags inside template literals: >Some words<
-    for (const m of src.matchAll(/>([^<>{}`$]{2,160})</g)) add(m[1], short, true);
+    for (const m of src.matchAll(/>([^<>{}`$]{2,400})</g)) add(m[1], short, true);
     // 1b. Text ADJACENT TO A TEMPLATE HOLE inside an element:
     //       <button>${I.camera()} Upload photo</button>
     //       <span>${I.trend()} Rising</span>
@@ -282,8 +529,10 @@ for (const root of ROOTS) {
     //     This is the icon+label button, the most common control in the app, and
     //     it was invisible to every rule — "Upload photo", "In your vault",
     //     "Rising" and "Falling" all rendered English with no key to blame.
-    for (const m of src.matchAll(/\}([^<>{}`$]{2,160})</g)) add(m[1], short, true);
-    for (const m of src.matchAll(/>([^<>{}`$]{2,160})\$\{/g)) add(m[1], short, true);
+    // Only icon markup splits a surrounding label into independently
+    // matchable text nodes. A primitive interpolation produces one combined
+    // node, so grammar-bearing templates must use t(key, vars) instead.
+    for (const text of iconAdjacentText(src)) add(text, short, true);
     //     There is deliberately NO rule for a label closed by the backtick
     //     rather than a tag (`${I.check()} In your vault`). It looks like the
     //     same shape but it is not: EVERY template literal ending in an
@@ -311,8 +560,47 @@ for (const root of ROOTS) {
     //    so they ARE painted text. Without it the symbol-led labels are dropped
     //    — "+ Wishlist" and "✓ Wishlisted" stayed English for exactly that
     //    reason, since a quoted fragment may not start on punctuation.
-    for (const m of src.matchAll(/\?\s*(['"])([^'"`\n]{3,160})\1\s*:\s*(['"])([^'"`\n]{3,160})\3/g)) {
+    for (const hole of src.matchAll(/>\s*\$\{([^{}]{0,800})\}\s*</g)) {
+      if (!hole[1].includes('?')) continue;
+      // Only a literal immediately selected by `?` or `:` is UI text here.
+      // Scanning every quote in the hole also harvested HTML attributes from a
+      // nested template branch (`class="btn-secondary …"`).
+      for (const q of hole[1].matchAll(/[?:]\s*(['"])([^'"`\n]{2,400})\1/g)) add(q[2], short, true);
+    }
+    // Nested conditional branches are common for compact status copy, e.g.
+    // `${earned ? '✓ Earned!' : needed === 1 ? ... : ...}`. The paired-branch
+    // rule above cannot see them because its first `:` belongs to another
+    // conditional. This stays constrained to expressions immediately inside a
+    // rendered element, rather than accepting arbitrary ternary literals.
+    for (const assignment of src.matchAll(/\b(?:textContent|innerText)\s*=\s*([^;\n]{0,800})/g)) {
+      // A quote after the assignment/ternary separator opens a UI literal. A
+      // bare quote can be the END of one literal and start a false span through
+      // subsequent code (`"Upload failed: " + err.message; … = "block"`).
+      for (const q of assignment[1].matchAll(/(?:^|[?:])\s*(['"])([^'"`\n]{2,400})\1/g)) add(q[2], short, true);
+    }
+    for (const m of src.matchAll(/\b(?:label|detail|message)\s*=\s*(['"])([^'"`\n]{2,400})\1/g)) add(m[2], short, true);
+    for (const m of src.matchAll(/\b(?:sheetLoading|showScanLoading|setSaveState)\s*\(\s*(['"])([^'"`\n]{2,400})\1/g)) add(m[2], short, true);
+    // Ternaries outside a text hole need a second source-shape gate. These
+    // cover return-value view helpers and DOM/toast assignments, while refusing
+    // arbitrary function arguments such as scanner telemetry's scanTime(...).
+    const ternaryIsUiBound = (index) => {
+      // Statements commonly put `textContent = condition` and its branches on
+      // separate lines. Start after the previous semicolon, not the previous
+      // newline, so the UI sink remains in scope; telemetry has no such sink.
+      const start = src.lastIndexOf(';', index) + 1;
+      const endAt = src.indexOf(';', index);
+      const statement = src.slice(start, endAt === -1 ? index + 800 : endAt + 1);
+      return /\b(?:textContent|innerText|innerHTML|toast|setAttribute|return|aria-label|placeholder|title)\b/.test(statement);
+    };
+    for (const m of src.matchAll(/\?\s*(['"])([^'"`\n]{2,400})\1\s*:\s*(['"])([^'"`\n]{2,400})\3/g)) {
+      if (!ternaryIsUiBound(m.index)) continue;
       add(m[2], short, true); add(m[4], short, true);
+    }
+    for (const m of src.matchAll(/\?\s*(['"])([^'"`\n]{2,400})\1/g)) {
+      if (ternaryIsUiBound(m.index)) add(m[2], short, true);
+    }
+    for (const m of src.matchAll(/:\s*(['"])([^'"`\n]{2,400})\1/g)) {
+      if (ternaryIsUiBound(m.index)) add(m[2], short, true);
     }
     // 5. User-facing OBJECT-LITERAL properties. This codebase builds most lists
     //    declaratively — sort chips are { label: 'Newest' }, settings rows are
@@ -334,13 +622,6 @@ for (const root of ROOTS) {
     for (const m of src.matchAll(/\b[A-Za-z_$][\w$]*\s*:\s*(['"])([^'"`\n]{3,160})\1/g)) {
       add(m[2], short);
     }
-    // 8. EITHER branch of a ternary, not both. Rule 4 requires two quoted
-    //    strings, so it misses the common shapes where one side is a template
-    //    literal or a call:
-    //      n === 1 ? 'Set-exclusive' : `Appears in ${n} sets`
-    //      liquidation > 0 ? fmtMoney(liquidation) : 'Not enough sold data yet'
-    for (const m of src.matchAll(/\?\s*(['"])([^'"`\n]{3,160})\1/g)) add(m[2], short);
-    for (const m of src.matchAll(/:\s*(['"])([^'"`\n]{3,160})\1/g)) add(m[2], short);
     // 6. Positional string arguments to the app's own row/section helpers, which
     //    render their arguments as the visible title and subtitle:
     //      linkRow("#/me/admin", "Admin console", "Catalog imports, jobs, ...")
@@ -411,9 +692,51 @@ for (const { file, fields } of WORKER_COPY) {
   }
 }
 
-const rows = [...found.entries()]
-  .map(([text, files]) => ({ text, files: [...files].sort() }))
-  .sort((a, b) => a.text.localeCompare(b.text));
+const undocumentedRuntimeStrings = [];
+for (const text of RUNTIME_EXACT_STRINGS) {
+  const value = decodeEntities(text).replace(/\s+/g, ' ').trim();
+  const evidence = RUNTIME_EXACT_EVIDENCE.get(text);
+  if (!found.has(value) && !evidence) {
+    undocumentedRuntimeStrings.push(text);
+  }
+  addKnownRuntimeString(text);
+}
+if (undocumentedRuntimeStrings.length) {
+  throw new Error(`Runtime exact strings lack source evidence or a justified branch category: ${undocumentedRuntimeStrings.map(JSON.stringify).join(', ')}`);
+}
 
-process.stdout.write(JSON.stringify(rows, null, 2));
-process.stderr.write(`harvested ${rows.length} strings from ${ROOTS.join(', ')}\n`);
+const rows = [...found.entries()]
+  .map(([text, files]) => ({ text, files: [...files].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)) }))
+  // Code-unit order is specified and independent of the host OS locale. The
+  // catalog is committed and verified in CI, so default-locale collation would
+  // otherwise make a Windows-generated source appear stale on Linux.
+  .sort((a, b) => (a.text < b.text ? -1 : a.text > b.text ? 1 : 0));
+
+const output = JSON.stringify(rows, null, 2);
+if (process.argv.includes('--write')) {
+  writeFileSync('scripts/ui-strings.json', `${output}\n`);
+  process.stderr.write(`wrote ${rows.length} strings to scripts/ui-strings.json\n`);
+  // The exact dictionaries mirror the harvested source. Semantic t()/tPlural()
+  // replacements deliberately remove their old literal English from that source,
+  // so let an explicit regeneration prune only now-dead exact keys. This is
+  // opt-in because adding new literals still needs translated values everywhere.
+  if (process.argv.includes('--prune-ui-dicts')) {
+    const source = new Set(rows.map((row) => row.text));
+    for (const file of readdirSync('public/js/locales').filter((name) => /^ui-[a-z]{2}\.js$/.test(name))) {
+      const path = join('public/js/locales', file);
+      const lines = readFileSync(path, 'utf8').split('\n');
+      let pruned = 0;
+      const next = lines.filter((line) => {
+        const match = line.match(/^\s*("(?:[^"\\]|\\.)*"):\s/);
+        if (!match || source.has(JSON.parse(match[1]))) return true;
+        pruned++;
+        return false;
+      });
+      writeFileSync(path, next.join('\n'));
+      process.stderr.write(`${file}: pruned ${pruned} dead exact keys\n`);
+    }
+  }
+} else {
+  process.stdout.write(output);
+  process.stderr.write(`harvested ${rows.length} strings from ${ROOTS.join(', ')}\n`);
+}

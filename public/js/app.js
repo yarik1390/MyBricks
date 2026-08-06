@@ -5,12 +5,22 @@ import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionUse
 import { I } from './icons.js';
 import { route } from './router.js';
 import { getThemePref, applyTheme, getModePref, applyMode } from './theme.js';
-import { initLocale, t as translate, onLocaleChange, applyUiDictionary, startAutoTranslate } from './lib/i18n.js';
+import { initLocale, t as translate, tPlural, onLocaleChange, applyUiDictionary, startAutoTranslate } from './lib/i18n.js';
 import { toggleAdvisor } from './components/advisor-lazy.js';
 import { openScan, closeScan, capturePhoto } from './components/scanner-lazy.js';
 import { installMethodologySheet } from './components/methodology.js';
 import { closeNativeAuthBrowser, getCapacitorPlugin, isNativeCapacitor, nativeOAuthCallbackFromWebBridge, oauthHashFromCallbackUrl } from './lib/native-auth.js';
 // onboarding (welcome carousel) is lazy-loaded at the end of boot (see below).
+
+// The visible button is the sole keyboard stop; its click forwards to a native
+// file input. The transparent input remains over it for direct pointer picking.
+document.addEventListener('click', (event) => {
+  const control = event.target instanceof Element
+    ? event.target.closest('.csv-file-label[data-file-picker]')
+    : null;
+  if (!control) return;
+  document.getElementById(control.dataset.fileInput || '')?.click();
+});
 
 // Setup gestures: swipe-back
 // An overlay (bottom sheet, scanner, app-lock) captures the gesture — swiping
@@ -164,7 +174,7 @@ async function consumeOAuthHash() {
         saveSession(oauthSess, { preserveGuestFigs: true });
         const migrated = await migrateGuestVault(guestSnapshot);
         try { sessionStorage.removeItem("bv_pending_guest_migration"); } catch {}
-        if (migrated.migrated) toast(`Synced ${migrated.migrated} local item${migrated.migrated === 1 ? "" : "s"}`, "success");
+        if (migrated.migrated) toast(tPlural('common.localItemsSynced', migrated.migrated), "success");
         if (migrated.errors?.length) {
           // Keep the snapshot so the user can retry from You → Data instead of
           // silently losing whichever local items didn't make it across.
@@ -270,7 +280,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // applied as the app re-renders. Non-fatal — no dictionary just means English.
   await applyUiDictionary().catch(() => {});
   startAutoTranslate();
-  onLocaleChange(() => { applyUiDictionary().catch(() => {}); });
+  onLocaleChange(() => applyUiDictionary());
   installMethodologySheet();
   // Native OAuth returns through the allow-listed Pages URL first, then this
   // one-time bridge immediately opens the app callback before Chrome persists a

@@ -2,7 +2,7 @@ import { $, $$, escapeHtml, haptic, toast, debounce, SEARCH_DEBOUNCE_MS, mount, 
 import { api, isGuestMode } from '../api.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
 import { I } from '../icons.js';
-import { t } from '../lib/i18n.js';
+import { tPlural } from '../lib/i18n.js';
 
 // "What Can I Build?" has two tabs:
 //  - Buildable sets: official sets you can build from the COMBINED parts of the
@@ -70,7 +70,7 @@ function setRow(b) {
   const sub = [b.theme, b.year].filter(Boolean).map((x) => escapeHtml(String(x))).join(' · ');
   const right = b.buildable
     ? `<span class="b-badge b-ok">Buildable</span>`
-    : `<span class="b-need">${t("build.needParts", { n: b.need })}</span>`;
+    : `<span class="b-need">${tPlural('build.needParts', b.need)}</span>`;
   return `<a class="b-row" href="#/set/${encodeURIComponent(String(b.set_num))}">
     ${img}
     <div class="b-meta">
@@ -112,7 +112,7 @@ function tiles() {
   }
   return `<div class="b-tiles">
     <div class="b-tile"><div class="b-n">${_alts.can_build}</div><div class="b-l">alternate models</div></div>
-    <div class="b-tile"><div class="b-n">${_alts.sets_with_alts}</div><div class="b-l">${t("build.ofOwnedSets", { n: _alts.owned_sets })}</div></div>
+    <div class="b-tile"><div class="b-n">${_alts.sets_with_alts}</div><div class="b-l">${tPlural('build.ofOwnedSets', _alts.owned_sets)}</div></div>
   </div>`;
 }
 
@@ -176,7 +176,7 @@ function pageHtml() {
     <p class="build-intro">${_mode === 'sets' ? 'Official sets you can build from owned parts, ranked by completion.' : 'Alternate models from sets you own, with instruction links.'}</p>
     ${tiles()}
     <input id="buildSearch" class="build-search" type="search" placeholder="Search…" value="${escapeHtml(_q)}">
-    ${(_mode === 'alts' && _alts.indexing) ? `<div class="b-indexing">${t("build.indexing", { n: _alts.indexing })}</div>` : ''}
+    ${(_mode === 'alts' && _alts.indexing) ? `<div class="b-indexing">${tPlural('build.indexing', _alts.indexing)}</div>` : ''}
     ${listHtml()}
   </div>`;
 }

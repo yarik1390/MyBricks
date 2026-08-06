@@ -84,20 +84,30 @@ export function classifyScanFailure(value) {
  * Activity feed. Handles SQLite's UTC "YYYY-MM-DD HH:MM:SS" (no zone) and ISO.
  * Returns "—" for missing/unparseable values.
  */
-export function formatRelativeTime(value, now = Date.now()) {
+export function formatRelativeTime(value, now = Date.now(), locale = 'en') {
   if (!value) return "—";
   let s = String(value);
   if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s)) s = s.replace(" ", "T") + "Z";
   const t = new Date(s).getTime();
   if (!Number.isFinite(t)) return "—";
   const sec = Math.max(0, Math.floor((now - t) / 1000));
-  if (sec < 10) return "just now";
-  if (sec < 60) return `${sec}s ago`;
+  if (locale === 'en') {
+    if (sec < 10) return "just now";
+    if (sec < 60) return `${sec}s ago`;
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    return `${Math.floor(hr / 24)}d ago`;
+  }
+  const relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto', style: 'short' });
+  if (sec < 10) return relative.format(0, 'second');
+  if (sec < 60) return relative.format(-sec, 'second');
   const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ago`;
+  if (min < 60) return relative.format(-min, 'minute');
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  return `${Math.floor(hr / 24)}d ago`;
+  if (hr < 24) return relative.format(-hr, 'hour');
+  return relative.format(-Math.floor(hr / 24), 'day');
 }
 
 /**
@@ -187,7 +197,8 @@ export function computeStoreVerdict(set = {}, storePrice) {
  *   purchasePrice (entry), currentValue, retired, forecast2y,
  *   trend ('rising'|'stable'|'falling'), slopePctPerWeek, salesVolume.
  * Returns null without a current value, otherwise
- *   { signal: 'sell'|'watch'|'hold', roiPct, upsidePct, reasons: string[] }.
+ *   { signal: 'sell'|'watch'|'hold', roiPct, upsidePct,
+ *     reasons: Array<{ id: string, vars: object }> }.
  * Deliberately conservative: 'sell' needs BOTH a healthy realized gain AND
  * evidence the run is ending (falling/flat trend or thin remaining upside).
  */
@@ -203,24 +214,34 @@ export function computeSellSignal({ purchasePrice, currentValue, retired, foreca
   const rising = trend === "rising" || (Number.isFinite(slope) && slope > 0.5);
   const liquidity = liquidityLabel(salesVolume);
 
+  const reason = (id, vars = {}) => ({ id, vars });
   const reasons = [];
-  if (roiPct != null && roiPct >= 5) reasons.push(`up ${fmtPct(roiPct / 100)} since you bought it`);
-  if (falling) reasons.push("price trend has turned down");
-  else if (!rising && roiPct != null && roiPct >= 30) reasons.push("the climb has flattened");
-  if (upsidePct != null && upsidePct <= 10) reasons.push("little 2-year upside left");
-  if (liquidity?.level === "fast") reasons.push("sells fast right now");
+  if (roiPct != null && roiPct >= 5) reasons.push(reason("gainSincePurchase", { roiPct }));
+  if (falling) reasons.push(reason("trendDown"));
+  else if (!rising && roiPct != null && roiPct >= 30) reasons.push(reason("climbFlattened"));
+  if (upsidePct != null && upsidePct <= 10) reasons.push(reason("littleUpside", { upsidePct }));
+  if (liquidity?.level === "fast") reasons.push(reason("sellsFast", { salesVolume: liquidity.volume }));
 
   if (roiPct != null && roiPct >= 30 && (falling || (!rising && upsidePct != null && upsidePct <= 10))) {
     return { signal: "sell", roiPct, upsidePct, reasons };
   }
   if (falling || (roiPct != null && roiPct >= 30 && upsidePct != null && upsidePct <= 20)) {
-    return { signal: "watch", roiPct, upsidePct, reasons: reasons.length ? reasons : ["worth keeping an eye on"] };
+    return { signal: "watch", roiPct, upsidePct, reasons: reasons.length ? reasons : [reason("watchClosely")] };
   }
   const holdReasons = [];
-  if (rising) holdReasons.push("still climbing");
-  if (upsidePct != null && upsidePct > 10) holdReasons.push(`forecast has ~${fmtPct(upsidePct / 100)} more upside`);
-  if (!retired) holdReasons.push("not retired yet — the main gains come after retirement");
-  return { signal: "hold", roiPct, upsidePct, reasons: holdReasons.length ? holdReasons : ["no sell trigger yet"] };
+  if (rising) holdReasons.push(reason("stillClimbing"));
+  if (upsidePct != null && upsidePct > 10) holdReasons.push(reason("forecastUpside", { upsidePct }));
+  if (!retired) holdReasons.push(reason("notRetired"));
+  return { signal: "hold", roiPct, upsidePct, reasons: holdReasons.length ? holdReasons : [reason("noSellTrigger")] };
+}
+
+/** Select the correct localized scan-result noun without rendering UI prose. */
+export function scanResultHeading(setsCount, minifigCount) {
+  const sets = Math.max(0, Number(setsCount) || 0);
+  const minifigs = Math.max(0, Number(minifigCount) || 0);
+  if (sets && minifigs) return { key: "mixedResultsFound", count: sets + minifigs };
+  if (sets) return { key: "setsFound", count: sets };
+  return { key: "minifigsFound", count: minifigs };
 }
 
 export function ebaySoldSummary(set = {}) {
@@ -400,25 +421,26 @@ export function manualScanTarget(value) {
 
 export function catalogFilterSummary(filter = {}) {
   const parts = [];
-  if (filter.catalogQ) parts.push(`Search "${filter.catalogQ}"`);
-  if (filter.catalogTheme && filter.catalogTheme !== "all") parts.push(filter.catalogTheme);
-  if (filter.catalogThemeGroup && filter.catalogThemeGroup !== "all") parts.push(filter.catalogThemeGroup);
-  if (filter.catalogCategory && filter.catalogCategory !== "all") parts.push(filter.catalogCategory);
-  if (filter.catalogRetired === "retired" || filter.catalogRetired === true) parts.push("Retired only");
-  else if (filter.catalogRetired === "active") parts.push("Active only");
+  if (filter.catalogQ) parts.push({ kind: "search", value: String(filter.catalogQ) });
+  if (filter.catalogTheme && filter.catalogTheme !== "all") parts.push({ kind: "value", value: String(filter.catalogTheme) });
+  if (filter.catalogThemeGroup && filter.catalogThemeGroup !== "all") parts.push({ kind: "value", value: String(filter.catalogThemeGroup) });
+  if (filter.catalogCategory && filter.catalogCategory !== "all") parts.push({ kind: "value", value: String(filter.catalogCategory) });
+  if (filter.catalogRetired === "retired" || filter.catalogRetired === true) parts.push({ kind: "status", value: "retired" });
+  else if (filter.catalogRetired === "active") parts.push({ kind: "status", value: "active" });
+  else if (filter.catalogRetired === "retiring") parts.push({ kind: "status", value: "retiring" });
+  if (filter.catalogDeal) parts.push({ kind: "deal" });
   const ranges = filter.catalogRanges || {};
-  const valueLabel = (value, unit = "") => unit === "$" ? `$${value}` : `${value}${unit}`;
-  const rangeLabel = (label, minKey, maxKey, unit = "") => {
+  const range = (field, minKey, maxKey) => {
     const min = ranges[minKey];
     const max = ranges[maxKey];
-    if (min !== "" && min != null && max !== "" && max != null) parts.push(`${label} ${valueLabel(min, unit)}-${valueLabel(max, unit)}`);
-    else if (min !== "" && min != null) parts.push(`${label} >= ${valueLabel(min, unit)}`);
-    else if (max !== "" && max != null) parts.push(`${label} <= ${valueLabel(max, unit)}`);
+    if (min !== "" && min != null && max !== "" && max != null) parts.push({ kind: "range", field, min, max });
+    else if (min !== "" && min != null) parts.push({ kind: "range", field, min });
+    else if (max !== "" && max != null) parts.push({ kind: "range", field, max });
   };
-  rangeLabel("Year", "min_year", "max_year");
-  rangeLabel("Pieces", "min_pieces", "max_pieces", "pc");
-  rangeLabel("Value", "min_value", "max_value", "$");
-  return parts.length ? `${parts.length} active: ${parts.join(" · ")}` : "No filters active";
+  range("year", "min_year", "max_year");
+  range("pieces", "min_pieces", "max_pieces");
+  range("value", "min_value", "max_value");
+  return { count: activeCatalogFilterCount(filter), parts };
 }
 
 export function activeCatalogFilterCount(filter = {}) {
@@ -436,15 +458,31 @@ export function activeCatalogFilterCount(filter = {}) {
 
 export function figFilterSummary(filter = {}) {
   const parts = [];
-  if (filter.figQ) parts.push(`Search "${filter.figQ}"`);
-  if (filter.figRarity && filter.figRarity !== "all") {
-    const rarity = String(filter.figRarity);
-    parts.push(`${rarity.charAt(0).toUpperCase()}${rarity.slice(1)} rarity`);
+  if (filter.figQ) parts.push({ kind: "search", value: String(filter.figQ) });
+  if (filter.figRarity && filter.figRarity !== "all") parts.push({ kind: "rarity", value: String(filter.figRarity) });
+  if (filter.figOwned === "owned") parts.push({ kind: "ownership", value: "owned" });
+  else if (filter.figOwned === "unowned") parts.push({ kind: "ownership", value: "unowned" });
+  if (filter.figSeries && filter.figSeries !== "all") parts.push({ kind: "series", value: String(filter.figSeries) });
+  return { count: activeFigFilterCount(filter), parts };
+}
+
+const ADMIN_BACKGROUND_STATUS_KEYS = {
+  pricechartingBulk: 'admin.pricechartingBulkAccepted',
+  pricechartingVerify: 'admin.pricechartingVerifyAccepted',
+  pricesapi: 'admin.pricesapiAccepted',
+};
+
+// Background endpoints can acknowledge work before a tracked import-run exists.
+// Return only message keys/variables so callers never render raw server prose.
+export function adminJobStartFeedback(type, response = {}, translate, label = '') {
+  if (response.run_id != null && response.run_id !== '') {
+    return { message: translate('admin.jobStarted', { id: response.run_id }), pollsRun: true };
   }
-  if (filter.figOwned === "owned") parts.push("Owned only");
-  else if (filter.figOwned === "unowned") parts.push("Unowned only");
-  if (filter.figSeries && filter.figSeries !== "all") parts.push(filter.figSeries);
-  return parts.length ? `${parts.length} active: ${parts.join(" · ")}` : "No filters active";
+  const statusKey = ADMIN_BACKGROUND_STATUS_KEYS[type];
+  if (statusKey && (response.status === 'running' || response.ok || response.message)) {
+    return { message: translate(statusKey), pollsRun: false };
+  }
+  return { message: translate('admin.jobAccepted', { label }), pollsRun: false };
 }
 
 export function activeFigFilterCount(filter = {}) {

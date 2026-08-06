@@ -8,7 +8,7 @@ import { getThemePref, setThemePref, getSkinPref, setSkinPref, getModePref, setM
 import { api, isGuestMode } from '../api.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { route } from '../router.js';
-import { SUPPORTED, getLocale, setLocale, applyUiDictionary } from '../lib/i18n.js';
+import { SUPPORTED, getLocale, setLocale, applyUiDictionary, translateDOM } from '../lib/i18n.js';
 
 const FLAG = 'bv_onboarded_v1';
 
@@ -303,13 +303,13 @@ function stepBodyHTML(key) {
     const active = getLocale();
     const chips = SUPPORTED.map((l) =>
       `<button type="button" class="bv-lang ${l.code === active ? 'sel' : ''}" data-lang="${l.code}"
-        lang="${l.code}" aria-pressed="${l.code === active}">${l.native}</button>`).join('');
+        lang="${l.code}" aria-pressed="${l.code === active}" data-no-i18n>${l.native}</button>`).join('');
     return `${heroHTML('box', 4)}
       <h3>Welcome to BricksVault</h3>
       <p class="sub">Let's make it yours — a few quick choices so the app feels right from the first tap.</p>
       <div class="bv-field">
         <div class="bv-field-lbl">Language</div>
-        <div class="bv-langs" id="suLangs" role="group" aria-label="Language" data-no-i18n>${chips}</div>
+        <div class="bv-langs" id="suLangs" role="group" aria-label="Language">${chips}</div>
       </div>`;
   }
   if (key === 'mode') {
@@ -420,8 +420,15 @@ function suWireStep(key) {
       await setLocale(b.dataset.lang);
       // onLocaleChange already schedules this, but it is async and suRender()
       // would otherwise repaint the wizard before the dictionary is loaded.
+      // Wait for the new dictionary before replacing the body. Otherwise the
+      // old locale can translate the freshly-rendered English nodes first,
+      // leaving no English key for the new locale to match.
       await applyUiDictionary().catch(() => {});
-      suRender();
+      suRender({ focusLanguage: b.dataset.lang });
+      // The setup body was just replaced, after the app-wide locale listener
+      // had its chance to paint. Translate this fresh subtree synchronously so
+      // its group label and controls never flash English.
+      translateDOM(suRoot);
     }));
   } else if (key === 'mode') {
     body.querySelectorAll('.bv-opt').forEach(b => b.addEventListener('click', () => {
@@ -467,7 +474,7 @@ function suWireStep(key) {
   }
 }
 
-function suRender() {
+function suRender({ focusLanguage = null } = {}) {
   if (!suRoot) return;
   const key = SETUP_STEPS[suIdx];
   suRoot.querySelector('.bv-setup-body').innerHTML = stepBodyHTML(key);
@@ -475,6 +482,10 @@ function suRender() {
   suRoot.querySelector('.bv-setup-skip').style.visibility = key === 'done' ? 'hidden' : 'visible';
   suWireStep(key);
   suRoot.querySelector('.bv-setup-body').scrollTop = 0;
+  if (focusLanguage) {
+    suRoot.querySelector(`#suLangs .bv-lang[data-lang="${focusLanguage}"]`)
+      ?.focus({ preventScroll: true });
+  }
 }
 
 function suGo(delta) {

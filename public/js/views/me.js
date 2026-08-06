@@ -5,7 +5,7 @@ import { I } from '../icons.js';
 import { promptSheet, showSheet, hideSheet } from '../components/sheet.js';
 import { go } from '../router.js';
 import { getThemePref, setThemePref, getSkinPref, setSkinPref, getModePref, setModePref } from '../theme.js';
-import { t, SUPPORTED, savedLocale, getLocale, setLocale, clearLocale } from '../lib/i18n.js';
+import { t, tPlural, SUPPORTED, savedLocale, getLocale, setLocale, clearLocale } from '../lib/i18n.js';
 
 // The picker shows each language in its OWN language — "German" is no help to
 // someone who only reads German.
@@ -57,7 +57,7 @@ export async function renderMe() {
   let trophyShelfHTML = '';
   if (!guest && me.handle && me.is_public) {
     trophyShelfHTML = `
-      <h2 class="section-title">${t("me.trophyShelf", { n: showcase.length })}</h2>
+      <h2 class="section-title">${tPlural('me.trophyShelf', showcase.length)}</h2>
       <div class="card" style="padding:14px 16px;margin-bottom:14px;">
         <div class="trophy-shelf scrollable" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px;">
           ${showcase.map(s => {
@@ -225,7 +225,7 @@ export async function renderMe() {
         ${!guest ? linkRow("#/me/contributions", "Your contributions", "Reviews, photos &amp; data fixes you've submitted") : ""}
         ${!guest ? `
         <div class="setting-row" id="wrappedRow" style="cursor:pointer;">
-          <div class="lbl-wrap"><div class="lbl">Brick Wrapped ${new Date().getFullYear()}</div><div class="desc">Your collector year in numbers — share it.</div></div>
+          <div class="lbl-wrap"><div class="lbl">${t('share.wrappedTitle', { year: new Date().getFullYear() })}</div><div class="desc">${t('share.wrappedDescription')}</div></div>
           ${I.chev()}
         </div>` : ""}
         ${me.is_admin ? linkRow("#/me/admin", "Admin console", "Catalog imports, jobs, integration health") : ""}
@@ -308,7 +308,7 @@ export async function renderMe() {
   $$("#skinSeg button").forEach(b => b.addEventListener("click", () => {
     const val = b.dataset.skinVal;
     if (!me.is_supporter && (val === "premium" || val === "gold")) {
-      toast("Unlock Premium &amp; Gold by supporting BricksVault ★", "info");
+      toast("Unlock Premium & Gold by supporting BricksVault ★", "info");
       return;
     }
     haptic("light");
@@ -502,7 +502,7 @@ export async function renderMe() {
       toggle.addEventListener("click", async () => {
         const turningOn = !appLockEnabled();
         const result = await verifyBiometricResult(turningOn ? "Enable app lock" : "Disable app lock");
-        if (!result.ok) { toast(`${result.message} - app lock unchanged`, "error"); return; }
+        if (!result.ok) { toast(t('settings.appLockUnchanged', { error: result.message }), "error"); return; }
         setAppLockEnabled(turningOn);
         paint();
         haptic("medium");
@@ -543,7 +543,9 @@ export async function renderMe() {
     const val = e.target.value;
     if (val === "auto") await clearLocale();
     else await setLocale(val);
-    renderMe();
+    // setLocale awaits the dictionary listener; rendering only after that
+    // boundary prevents an old locale from touching fresh Settings markup.
+    await renderMe();
   });
 
   $("#currencySelect")?.addEventListener("change", async (e) => {
@@ -555,7 +557,7 @@ export async function renderMe() {
       bvIDB.del('portfolio').catch(() => {});
       invalidatePortfolio();
       state.portfolioHistory = null;
-      toast("Currency updated to " + val, "success");
+      toast(t('settings.currencyUpdated', { currency: val }), "success");
       await renderMe();
     } catch {}
   });
@@ -581,7 +583,7 @@ export async function renderMe() {
       toast("Name updated", "success");
       await renderMe();
     } catch (e) {
-      toast("Error: " + e.message, "error");
+      toast(t('common.errorWithDetails', { error: e.message || e }), "error");
     }
   });
 
@@ -600,7 +602,7 @@ export async function renderMe() {
         toast("Removed from trophy shelf", "success");
         await renderMe();
       } catch (err) {
-        toast("Failed to update: " + err.message, "error");
+        toast(t('common.errorWithDetails', { error: err.message || err }), "error");
       }
     });
   });
@@ -620,7 +622,7 @@ export async function renderMe() {
       toast("Handle saved successfully", "success");
       await renderMe();
     } catch (err) {
-      toast("Error: " + err.message, "error");
+      toast(t('common.errorWithDetails', { error: err.message || err }), "error");
     }
   });
 
@@ -641,7 +643,7 @@ export async function renderMe() {
       isPublicState = !isPublicState;
       toggleEl.classList.toggle("on", isPublicState);
       toggleEl.setAttribute("aria-checked", isPublicState);
-      toast("Error: " + err.message, "error");
+      toast(t('common.errorWithDetails', { error: err.message || err }), "error");
     }
   });
 
@@ -660,7 +662,7 @@ export async function renderMe() {
       epvState = !epvState;
       epvEl.classList.toggle("on", epvState);
       epvEl.setAttribute("aria-checked", epvState);
-      toast("Error: " + err.message, "error");
+      toast(t('common.errorWithDetails', { error: err.message || err }), "error");
     }
   });
 
@@ -906,7 +908,7 @@ function showSearchableTrophyPicker(currentSetNums) {
           else toast("Added to trophy shelf", "success");
           await renderMe();
         } catch (err) {
-          toast("Error adding: " + err.message, "error");
+          toast(t('common.errorWithDetails', { error: err.message || err }), "error");
           btn.disabled = false;
           btn.textContent = "Add";
         }
@@ -924,15 +926,15 @@ function showSearchableTrophyPicker(currentSetNums) {
 // The collector's year in numbers, rendered as story stats + a shareable card.
 async function showWrappedSheet() {
   showSheet(`
-    <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 12px;">Brick Wrapped</div>
+    <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 12px;">${t('share.wrappedHeading')}</div>
     <div id="wrappedContent" style="text-align:center;padding:30px 0;color:var(--ink-mute);">
-      <div class="spinner" style="margin:0 auto 10px;"></div>Counting your bricks…
+      <div class="spinner" style="margin:0 auto 10px;"></div>${t('share.wrappedLoading')}
     </div>`);
   let w;
   try { w = await api("/api/me/wrapped"); }
   catch (e) {
     const el = $("#wrappedContent");
-    if (el) el.innerHTML = `<p style="color:var(--down);font-size:13px;">Couldn't load your year: ${escapeHtml(e.message)}</p>`;
+    if (el) el.innerHTML = `<p style="color:var(--down);font-size:13px;">${t('me.wrappedLoadFailed', { error: escapeHtml(e.message) })}</p>`;
     return;
   }
   const el = $("#wrappedContent");
@@ -947,24 +949,24 @@ async function showWrappedSheet() {
   el.style.padding = "";
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">
-      ${stat(w.sets_added, `set${w.sets_added === 1 ? "" : "s"} added`)}
-      ${stat(w.pieces_added >= 1000 ? (w.pieces_added / 1000).toFixed(1) + "k" : w.pieces_added, "pieces")}
-      ${stat(w.minifig_count, "minifigs")}
-      ${stat(fmtMoneyShort(w.invested), "invested")}
-      ${gain != null ? stat(`${gain >= 0 ? "+" : ""}${fmtMoneyShort(gain)}`, "value change") : stat("—", "value change")}
-      ${stat(w.sets_sold ? fmtMoneyShort(w.sale_total) : "—", w.sets_sold ? `${w.sets_sold} sold` : "sold")}
+      ${stat(w.sets_added, tPlural('share.wrappedSetsAdded', w.sets_added))}
+      ${stat(w.pieces_added >= 1000 ? (w.pieces_added / 1000).toFixed(1) + "k" : w.pieces_added, tPlural('share.wrappedPiecesAdded', w.pieces_added))}
+      ${stat(w.minifig_count, tPlural('share.wrappedMinifigs', w.minifig_count))}
+      ${stat(fmtMoneyShort(w.invested), t('share.wrappedInvested'))}
+      ${gain != null ? stat(`${gain >= 0 ? "+" : ""}${fmtMoneyShort(gain)}`, t('share.wrappedValueChange')) : stat("—", t('share.wrappedValueChange'))}
+      ${stat(w.sets_sold ? fmtMoneyShort(w.sale_total) : "—", w.sets_sold ? tPlural('share.wrappedSold', w.sets_sold) : t('share.wrappedSoldLabel'))}
     </div>
     ${w.best_performer ? `
       <div style="margin-top:12px;background:var(--surface-2);border:1.5px solid var(--line-soft);border-radius:var(--r-2);padding:12px 14px;font-size:13px;">
-        <div class="u-mono-label" style="margin-bottom:4px;">Best performer</div>
+        <div class="u-mono-label" style="margin-bottom:4px;">${t('share.wrappedBestLabel')}</div>
         <strong>${escapeHtml(w.best_performer.name)}</strong>
         ${w.best_performer.roi_pct != null ? `<span style="color:var(--up);font-weight:700;"> +${w.best_performer.roi_pct}%</span>` : ""}
       </div>` : ""}
     ${w.longest_held ? `
-      <div style="margin-top:8px;font-size:12px;color:var(--ink-mute);">Longest held: <strong>${escapeHtml(w.longest_held.name)}</strong> (since ${escapeHtml(String(w.longest_held.purchased_at).slice(0, 4))})</div>` : ""}
+      <div style="margin-top:8px;font-size:12px;color:var(--ink-mute);">${t('share.wrappedLongestHeld', { name: `<strong>${escapeHtml(w.longest_held.name)}</strong>`, year: escapeHtml(String(w.longest_held.purchased_at).slice(0, 4)) })}</div>` : ""}
     <div class="btn-row" style="margin-top:14px;">
-      <button class="btn-secondary" id="wrappedClose">Close</button>
-      <button class="btn-primary" id="wrappedShare">${I.share ? I.share() : ""}<span>Share my year</span></button>
+      <button class="btn-secondary" id="wrappedClose">${t('share.wrappedClose')}</button>
+      <button class="btn-primary" id="wrappedShare">${I.share ? I.share() : ""}<span>${t('share.wrappedShareYear')}</span></button>
     </div>`;
   $("#wrappedClose")?.addEventListener("click", hideSheet);
   $("#wrappedShare")?.addEventListener("click", async () => {
@@ -978,7 +980,7 @@ async function showWrappedSheet() {
         if (blob) {
           const file = new File([blob], `brick-wrapped-${w.year}.png`, { type: "image/png" });
           if (navigator.canShare({ files: [file] })) {
-            await navigator.share({ files: [file], title: `Brick Wrapped ${w.year}` });
+            await navigator.share({ files: [file], title: t('share.wrappedTitle', { year: w.year }) });
             return;
           }
         }
@@ -986,13 +988,13 @@ async function showWrappedSheet() {
     } catch (e) { if (e?.name === "AbortError") return; }
     const { shareContent } = await import("../lib/native-share.js");
     const lines = [
-      `🧱 My Brick Wrapped ${w.year}`,
-      `${w.sets_added} sets added · ${w.pieces_added} pieces`,
-      gain != null ? `Vault ${gain >= 0 ? "up" : "down"} ${fmtMoneyShort(Math.abs(gain))} this year` : null,
-      w.best_performer ? `Best performer: ${w.best_performer.name}${w.best_performer.roi_pct != null ? ` (+${w.best_performer.roi_pct}%)` : ""}` : null,
-      "Tracked with BricksVault",
+      t('share.wrappedSummaryTitle', { year: w.year }),
+      `${tPlural('share.wrappedSetsAdded', w.sets_added)} · ${tPlural('share.wrappedPiecesAdded', w.pieces_added)}`,
+      gain != null ? t('me.wrappedValueChange', { direction: t(gain >= 0 ? 'me.wrappedUp' : 'me.wrappedDown'), value: fmtMoneyShort(Math.abs(gain)) }) : null,
+      w.best_performer ? t('share.wrappedBest', { name: w.best_performer.name, roi: w.best_performer.roi_pct != null ? ` (+${w.best_performer.roi_pct}%)` : '' }) : null,
+      t('share.wrappedTracked'),
     ].filter(Boolean);
-    shareContent({ title: `Brick Wrapped ${w.year}`, text: lines.join("\n") });
+    shareContent({ title: t('share.wrappedTitle', { year: w.year }), text: lines.join("\n") });
   });
 }
 
@@ -1006,14 +1008,14 @@ function renderWrappedCard(w, gain) {
     x.fillStyle = "#F5F1E8"; x.fillRect(0, 0, 1080, 1080);
     x.fillStyle = "#26231d";
     x.font = "600 64px Georgia, serif";
-    x.fillText("Brick Wrapped", 80, 140);
+    x.fillText(t('share.wrappedTitle', { year: '' }).trim(), 80, 140);
     x.fillStyle = "#b9821f";
     x.fillText(String(w.year), 80, 220);
     const rows = [
-      [`${w.sets_added}`, "sets added"],
-      [`${w.pieces_added}`, "pieces"],
-      [gain != null ? `${gain >= 0 ? "+" : "−"}${fmtMoneyShort(Math.abs(gain))}` : "—", "vault value change"],
-      [w.best_performer ? w.best_performer.name.slice(0, 26) : "—", w.best_performer?.roi_pct != null ? `best performer · +${w.best_performer.roi_pct}%` : "best performer"],
+      [`${w.sets_added}`, tPlural('share.wrappedSetsAdded', w.sets_added)],
+      [`${w.pieces_added}`, tPlural('share.wrappedPiecesAdded', w.pieces_added)],
+      [gain != null ? `${gain >= 0 ? "+" : "−"}${fmtMoneyShort(Math.abs(gain))}` : "—", t('share.wrappedValueChange')],
+      [w.best_performer ? w.best_performer.name.slice(0, 26) : "—", w.best_performer?.roi_pct != null ? t('share.wrappedBestCanvasWithRoi', { roi: `+${w.best_performer.roi_pct}%` }) : t('share.wrappedBestCanvas')],
     ];
     let y = 380;
     for (const [big, small] of rows) {
@@ -1022,12 +1024,12 @@ function renderWrappedCard(w, gain) {
       x.fillText(String(big), 80, y);
       x.fillStyle = "#6b6455";
       x.font = "500 34px -apple-system, sans-serif";
-      x.fillText(String(small).toUpperCase(), 80, y + 48);
+      x.fillText(String(small), 80, y + 48);
       y += 170;
     }
     x.fillStyle = "#b9821f";
     x.font = "600 36px -apple-system, sans-serif";
-    x.fillText("BRICKSVAULT · STACK SOMETHING BEAUTIFUL", 80, 1020);
+    x.fillText(t('share.wrappedTagline'), 80, 1020);
     return c;
   } catch { return null; }
 }

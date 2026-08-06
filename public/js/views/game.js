@@ -2,7 +2,7 @@ import { $, haptic, escapeHtml, fmtMoney, toast, celebrate, getExchangeRate, CUR
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
-import { t } from '../lib/i18n.js';
+import { t, tPlural } from '../lib/i18n.js';
 
 // "Price It!" — the daily price game. Five real sets, guess the market value,
 // within ±20% counts. Everyone worldwide plays the same five (server picks
@@ -51,7 +51,7 @@ export async function renderGame() {
   let daily;
   try { daily = await api("/api/game/daily"); }
   catch (e) {
-    $("#gameBody").innerHTML = `<p style="color:var(--down);font-size:13px;text-align:center;padding:30px 0;">Couldn't load today's game: ${escapeHtml(e.message)}</p>`;
+    $("#gameBody").innerHTML = `<p style="color:var(--down);font-size:13px;text-align:center;padding:30px 0;">${t('game.loadFailed', { error: escapeHtml(e.message) })}</p>`;
     return;
   }
   if (!daily.rounds?.length) {
@@ -81,7 +81,7 @@ function roundHTML(round, idx, total) {
       </div>
       <div style="font-family:var(--serif);font-size:19px;font-weight:600;">${escapeHtml(round.name)}</div>
       <div style="font-size:12px;color:var(--ink-mute);margin:4px 0 12px;">
-        ${escapeHtml(round.theme || "")}${round.year ? ` · ${round.year}` : ""}${round.pieces ? ` · ${t("card.gamePieces", { n: round.pieces })}` : ""}${round.retail_price ? ` · ${t("card.gameRetail", { price: fmtMoney(round.retail_price, { cents: 0 }) })}` : ""}
+        ${escapeHtml(round.theme || "")}${round.year ? ` · ${round.year}` : ""}${round.pieces ? ` · ${tPlural('card.gamePieces', round.pieces)}` : ""}${round.retail_price ? ` · ${t("card.gameRetail", { price: fmtMoney(round.retail_price, { cents: 0 }) })}` : ""}
       </div>
       <div style="font-size:13px;font-weight:600;margin-bottom:8px;">What's it worth on the market today?</div>
       <div style="display:flex;gap:8px;justify-content:center;align-items:center;">
@@ -123,7 +123,7 @@ function playRound(daily, idx, results) {
     try {
       out = await api("/api/game/guess", { method: "POST", body: { set_num: round.set_num, guess: guessUsd } });
     } catch (e) {
-      toast("Couldn't check that guess: " + e.message, "error");
+      toast(t('game.checkGuessFailed', { error: e.message || e }), "error");
       locked = false;
       if (btn) btn.disabled = false;
       return;
@@ -133,7 +133,7 @@ function playRound(daily, idx, results) {
     if (reveal) {
       reveal.innerHTML = `
         <div style="padding:12px;border-radius:var(--r-2);background:${out.correct ? "var(--up)" : "var(--surface-2)"};color:${out.correct ? "#fff" : "var(--ink)"};">
-          <div style="font-weight:800;font-size:15px;">${out.correct ? "🎯 Nailed it!" : "Not quite"} — it's ${fmtMoney(out.actual)}</div>
+          <div style="font-weight:800;font-size:15px;">${t(out.correct ? 'game.revealCorrect' : 'game.revealIncorrect', { value: fmtMoney(out.actual) })}</div>
           <div style="font-size:12px;opacity:.9;margin-top:2px;">${t("game.pctOff", { pct: out.pct_off })}</div>
         </div>
         <button class="btn-primary" id="gameNext" style="margin-top:12px;width:100%;">${idx + 1 < daily.rounds.length ? "Next set" : "See my score"}</button>`;
@@ -154,7 +154,7 @@ function finish(daily, results) {
   saveJSON(RESULT_KEY, { day: daily.day, results });
   const streak = bumpStreak(daily.day);
   const score = results.filter(r => r.correct).length;
-  if (score >= 4) setTimeout(() => celebrate(`${score}/5 — market genius! 🎯`, { quip: `Streak: ${streak.streak} day${streak.streak === 1 ? "" : "s"}.`, hue: 45 }), 400);
+  if (score >= 4) setTimeout(() => celebrate(t('game.marketGenius', { score }), { quip: tPlural('game.streakQuip', streak.streak), hue: 45 }), 400);
   showSummary(daily, results);
 }
 
@@ -184,6 +184,6 @@ function showSummary(daily, results) {
     haptic("medium");
     const squares = daily.rounds.map(r => (results.find(x => x.set_num === r.set_num)?.correct ? "🟩" : "🟥")).join("");
     const { shareContent } = await import("../lib/native-share.js");
-    shareContent({ title: "Price It!", text: `🧱 Price It! ${daily.day}\n${squares} ${score}/5 · streak ${streak.streak}\nGuess LEGO market prices on BricksVault` });
+    shareContent({ title: t('share.gameTitle'), text: t('share.gameText', { day: daily.day, tiles: squares, score, streak: streak.streak }) });
   });
 }

@@ -9,7 +9,7 @@ import { amazonSlotHTML, hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
 // stay in portfolio.js (this is the only back-import; portfolio.js never imports
 // this module, so there is no cycle — the router lazy-loads each view).
 import { spikeAlertCardHTML, refreshNavBadge } from './portfolio.js';
-import { t } from '../lib/i18n.js';
+import { t, tPlural } from '../lib/i18n.js';
 
 /* ============================================================
    Wishlist screen
@@ -75,14 +75,14 @@ export async function renderWishlist() {
       <div class="topbar">
         <a href="#/" class="icon-btn" aria-label="Back" style="margin-top:2px;margin-right:8px;">${I.chevL()}</a>
         <div class="topbar-heading">
-          <div class="topbar-eyebrow">${state.wishlist.length === 1 ? t("wishlist.setsCountOne") : t("wishlist.setsCount", { n: state.wishlist.length })} · ${totalAlerts === 1 ? t("wishlist.alertsCountOne") : t("wishlist.alertsCount", { n: totalAlerts })}</div>
+          <div class="topbar-eyebrow">${tPlural('wishlist.setsCount', state.wishlist.length)} · ${tPlural('wishlist.alertsCount', totalAlerts)}</div>
           <h1 class="topbar-title">Wishlist</h1>
         </div>
       </div>
 
       ${totalAlerts > 0 ? `
         <div class="u-between u-mb-2">
-          <span class="u-mono-label">${totalAlerts} unread alert${totalAlerts !== 1 ? "s" : ""}</span>
+          <span class="u-mono-label">${tPlural('wishlist.unreadAlerts', totalAlerts)}</span>
           <button class="btn-secondary" id="wlMarkAllRead" style="padding:6px 12px;font-size:12px;width:auto;">Mark all read</button>
         </div>` : ""}
 
@@ -98,7 +98,7 @@ export async function renderWishlist() {
           ${dropAlerts.map(a => `
             <div class="alert-card">
               ${a.id ? `<button class="alert-dismiss" data-alert-id="${escapeHtml(String(a.id))}" aria-label="Mark this alert read" title="Mark read">✓</button>` : ""}
-              <div class="ah">${I.bell()}${t("alerts.priceDrop", { days: daysAgo(a.triggered_at) })}</div>
+              <div class="ah">${I.bell()}${tPlural('alerts.priceDrop', daysAgo(a.triggered_at))}</div>
               <div style="font-weight:600;">${escapeHtml(a.set_name)}</div>
               <div style="font-size:13px;margin-top:4px;">Now <strong>${fmtMoney(withDisplayValue(state.wishlist.find(w => w.set_num === a.set_num) || a).current_value)}</strong> ${t("alerts.targetWas", { price: fmtMoney(a.target_price) })}</div>
             </div>`).join("")}

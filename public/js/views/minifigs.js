@@ -1,16 +1,19 @@
 import { $, $$, haptic, escapeHtml, fmtMoney, toast, themeHue, debounce, bvIDB, SEARCH_DEBOUNCE_MS, mount, drawSparkline, fmtDateUpdated, thumbImg } from '../utils.js';
-import { t } from '../lib/i18n.js';
+import { t, tPlural } from '../lib/i18n.js';
 import { state } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
-import { activeFigFilterCount, figFilterSummary } from '../lib/pure.js';
 
-// Rarity reaches the DOM as the raw enum ('legendary') with CSS uppercasing it,
-// so the text node never matched the dictionary's capitalised 'Legendary'.
-// Capitalising here makes the badge translatable with no new keys.
-const capRarity = (r) => (r ? r.charAt(0).toUpperCase() + r.slice(1) : r);
+import { activeFigFilterCount } from '../lib/pure.js';
+import { figFilterSummaryText } from '../lib/filter-summary.js';
+
+const rarityLabel = (rarity) => {
+  const value = String(rarity || 'common').toLowerCase();
+  const suffix = value[0].toUpperCase() + value.slice(1);
+  return t(`minifigs.filterSummaryRarity${suffix}`);
+};
 
 let _blindGen = 0;
 let _seriesList = [];
@@ -128,15 +131,15 @@ export async function renderBlind() {
     <div class="page">
       <div class="topbar">
         <div class="topbar-heading">
-          <div class="topbar-eyebrow" id="blindCount">${t("counts.collected", { owned: ownedCount, total: b.total.toLocaleString() })}</div>
+          <div class="topbar-eyebrow" id="blindCount">${tPlural('counts.collected', ownedCount, { owned: ownedCount, total: b.total.toLocaleString() })}</div>
           <h1 class="topbar-title">Minifigs</h1>
         </div>
       </div>
 
       <div class="fig-stats-row">
         <div class="fig-stat-pill">
-          <div class="fig-stat-num" id="figStatCount">${t("counts.owned", { n: ownedCount })}</div>
-          <div class="fig-stat-lbl">${t("counts.ofFigs", { total: b.total.toLocaleString() })}</div>
+          <div class="fig-stat-num" id="figStatCount">${tPlural('counts.owned', ownedCount)}</div>
+          <div class="fig-stat-lbl">${tPlural('counts.ofFigs', b.total, { total: b.total.toLocaleString() })}</div>
         </div>
         <div class="fig-stat-pill">
           <div class="fig-stat-num" id="figStatValue">${fmtMoney(ownedValue, { cents: 0 })}</div>
@@ -162,9 +165,9 @@ export async function renderBlind() {
         <div class="filter-row" style="margin-top:2px;gap:6px;">
           <span class="filter-row-label">Sort</span>
           ${FIG_SORTS.map(o => `<button class="chip ${(f.figSort === o.asc || f.figSort === o.desc) ? 'active' : ''}" data-fig-sort-base="${o.base}">${figSortChipText(o, f.figSort)}</button>`).join('')}
-          <button class="chip ${activeFigFilterCount(f) ? 'active' : ''}" id="figFilterChip">${I.filter()}<span>Filters${activeFigFilterCount(f) ? " · " + activeFigFilterCount(f) : ""}</span></button>
+          <button class="chip ${activeFigFilterCount(f) ? 'active' : ''}" id="figFilterChip">${I.filter()}<span>${escapeHtml(activeFigFilterCount(f) ? tPlural('catalog.filtersWithCount', activeFigFilterCount(f)) : t('catalog.filters'))}</span></button>
         </div>
-        <div class="filter-summary" id="figFilterSummary">${escapeHtml(figFilterSummary(f))}</div>
+        <div class="filter-summary" id="figFilterSummary">${escapeHtml(figFilterSummaryText(f, t, tPlural))}</div>
       </div>
 
       <div class="mini-grid" id="miniGrid">
@@ -241,7 +244,7 @@ async function loadRareFinds() {
           </div>
           <div style="font-size:11px;font-weight:600;color:var(--ink);line-height:1.25;height:28px;overflow:hidden;">${escapeHtml(String(f.name || ''))}</div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:4px;">
-            <span class="mini-rarity-tag rarity-${r}" style="font-size:8px;padding:1px 5px;">${escapeHtml(capRarity(r))}</span>
+            <span class="mini-rarity-tag rarity-${r}" style="font-size:8px;padding:1px 5px;">${escapeHtml(rarityLabel(r))}</span>
             ${f.current_value ? `<span style="font-size:12px;font-weight:700;color:var(--ink);">${fmtMoney(f.current_value, { cents: 0 })}</span>` : ''}
           </div>
         </button>`;
@@ -307,13 +310,13 @@ function refreshMiniGrid() {
 
 function refreshFigFilterSummary() {
   const el = $('#figFilterSummary');
-  if (el) el.textContent = figFilterSummary(state.filter);
+  if (el) el.textContent = figFilterSummaryText(state.filter, t, tPlural);
   const chip = $('#figFilterChip');
   if (chip) {
     const n = activeFigFilterCount(state.filter);
     chip.classList.toggle('active', n > 0);
     const span = chip.querySelector('span');
-    if (span) span.textContent = `Filters${n ? " · " + n : ""}`;
+    if (span) span.textContent = n ? tPlural('catalog.filtersWithCount', n) : t('catalog.filters');
   }
 }
 
@@ -333,7 +336,9 @@ function miniGridHTML() {
     <div class="empty card" style="grid-column:1/-1;">
       <div class="empty-icon">${I.figure()}</div>
       <h3>No minifigs found</h3>
-      <p>${state.filter.figQ ? `Nothing matches "${escapeHtml(state.filter.figQ)}".` : "No minifigs match these filters."}</p>
+      <p>${escapeHtml(state.filter.figQ
+        ? t('minifigs.emptySearchResults', { query: state.filter.figQ })
+        : t('minifigs.emptyFilteredResults'))}</p>
       ${hasFilters ? `<button class="btn-secondary" id="figClearFilters" style="margin-top:12px;">Clear filters</button>` : ""}
     </div>`;
 }
@@ -397,9 +402,9 @@ function showFigFilterSheet() {
   showSheet(`
     <div class="sheet-title-row">
       <h2 class="u-serif-h" style="margin:0;">Minifig Filters</h2>
-      ${activeCount ? `<span class="trust-badge warn">${activeCount} active</span>` : `<span class="trust-badge neutral">None active</span>`}
+      ${activeCount ? `<span class="trust-badge warn">${tPlural('catalog.activeFilters', activeCount)}</span>` : `<span class="trust-badge neutral">None active</span>`}
     </div>
-    <div class="filter-active-line">${escapeHtml(figFilterSummary(f))}</div>
+    <div class="filter-active-line">${escapeHtml(figFilterSummaryText(f, t, tPlural))}</div>
     <div class="scrollable advanced-filter-sheet">
       ${chipGroup('Rarity', 'rarity', rarityOptions, f.figRarity || 'all')}
       ${chipGroup('Ownership', 'owned', ownedOptions, f.figOwned || 'all')}
@@ -458,16 +463,16 @@ function updateBlindCount() {
   const el = $("#blindCount");
   if (!el) return;
   const owned = state.blind.items.filter(f => state.ownedFigs.has(f.fig_num)).length;
-  el.textContent = t("counts.collected", { owned, total: state.blind.total.toLocaleString() });
+  el.textContent = tPlural('counts.collected', owned, { owned, total: state.blind.total.toLocaleString() });
 }
 
 function updateFigStats() {
   const ownedItems = state.blind.items.filter(f => state.ownedFigs.has(f.fig_num));
   const countEl = $("#figStatCount");
   const valueEl = $("#figStatValue");
-  if (countEl) countEl.textContent = `${ownedItems.length} owned`;
+  if (countEl) countEl.textContent = tPlural('minifigs.ownedCount', ownedItems.length);
   const totalEl = countEl?.nextElementSibling;
-  if (totalEl) totalEl.textContent = t("counts.ofFigs", { total: state.blind.total.toLocaleString() });
+  if (totalEl) totalEl.textContent = tPlural('counts.ofFigs', state.blind.total, { total: state.blind.total.toLocaleString() });
   if (valueEl) {
     const total = ownedItems.reduce((s, f) => s + (f.value ?? f.current_value ?? 0), 0);
     valueEl.textContent = fmtMoney(total, { cents: 0 });
@@ -493,7 +498,7 @@ function showFigDetail(f) {
   const rarity = f.rarity || 'common';
   const n = f.appears_in_sets ?? null;
   const scarcityTxt = (n != null && n > 0)
-    ? (n === 1 ? 'Set-exclusive' : `Appears in ${n} sets`)
+    ? (n === 1 ? t('minifigs.setExclusive') : tPlural('minifigs.appearsInSets', n))
     : null;
   const hue = f.hue ?? themeHue(f.series || f.fig_num);
   const hasImg = f.image_url;
@@ -510,7 +515,7 @@ function showFigDetail(f) {
           <div class="head"></div><div class="body"></div><div class="legs"></div>
         </div>
         ${hasImg ? `<img class="fig-photo" src="${escapeHtml(thumbImg(f.image_url))}" alt="${escapeHtml(f.name)}" loading="lazy" decoding="async">` : ''}
-        <span class="mini-rarity-tag rarity-${rarity}">${capRarity(rarity)}</span>
+        <span class="mini-rarity-tag rarity-${rarity}">${escapeHtml(rarityLabel(rarity))}</span>
       </div>
       <div class="fig-detail-body">
         <div class="fig-detail-series">${escapeHtml(f.series || 'Minifig')}</div>
@@ -522,15 +527,15 @@ function showFigDetail(f) {
         </div>
         <div class="fig-detail-source">${figSourceLabel(f.source)}${f.cached_at ? ` · ${escapeHtml(fmtDateUpdated(f.cached_at))}` : ''}</div>
         <div class="fig-spark-wrap" id="figSparkWrap" style="display:none;">
-          <div class="fig-spark-lbl">${t("detail.priceHistoryShort", { days: 90 })}</div>
+          <div class="fig-spark-lbl">${tPlural('detail.priceHistoryShort', 90)}</div>
           <div class="fig-spark" id="figSparkline" style="height:72px;"></div>
         </div>` : ''}
         ${(scarcityTxt || f.year || f.num_parts) ? `
         <div class="fig-detail-facts" style="display:flex;gap:14px;flex-wrap:wrap;margin:4px 0 12px;font-size:12.5px;color:var(--ink-mute);">
           ${scarcityTxt ? `<span>${scarcityTxt}</span>` : ''}
           ${f.year ? `<span>First seen ${f.year}</span>` : ''}
-          ${f.num_parts ? `<span>${f.num_parts} part${f.num_parts > 1 ? 's' : ''}</span>` : ''}
-          <span style="text-transform:capitalize;">${escapeHtml(rarity)} rarity</span>
+          ${f.num_parts ? `<span>${escapeHtml(tPlural('minifigs.parts', f.num_parts))}</span>` : ''}
+          <span>${escapeHtml(t('minifigs.filterSummaryRarity', { rarity: rarityLabel(rarity) }))}</span>
         </div>` : ''}
         <button class="btn-primary fig-own-btn${owned ? ' is-owned' : ''}" id="figOwnBtn">
           ${renderBtn(owned)}
@@ -573,7 +578,7 @@ function showFigDetail(f) {
       const el = $('#figSetsSection');
       if (!el || !sets.length) return;
       el.innerHTML = `
-        <div class="fig-detail-series" style="margin-bottom:8px;">Appears in ${sets.length} set${sets.length > 1 ? 's' : ''}</div>
+        <div class="fig-detail-series" style="margin-bottom:8px;">${escapeHtml(tPlural('minifigs.appearsInSets', sets.length))}</div>
         <div class="u-col" style="gap:8px;">
           ${sets.map((s) => `
             <button class="fig-set-row" data-set="${escapeHtml(String(s.set_num))}" style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:8px 10px;cursor:pointer;">
@@ -662,7 +667,7 @@ function miniCardHTML(f) {
   // Honest footer: a real market price when we have one, otherwise a true fact
   // (set-exclusivity / debut year) — never a fabricated rarity-constant price.
   const scarcityLabel = (n != null && n > 0)
-    ? (n === 1 ? 'Set-exclusive' : `In ${n} sets`)
+    ? (n === 1 ? t('minifigs.setExclusive') : tPlural('minifigs.inSets', n))
     : (f.year ? String(f.year) : '');
   const valHTML = realVal != null && realVal > 0
     ? `<div class="mini-value">${fmtMoney(realVal, { cents: 0 })}</div>`
@@ -676,7 +681,7 @@ function miniCardHTML(f) {
           <div class="legs"></div>
         </div>
         ${hasImg ? `<img class="fig-photo" src="${escapeHtml(thumbImg(f.image_url))}" alt="" loading="lazy" decoding="async">` : ""}
-        <span class="mini-rarity-tag rarity-${rarity}">${capRarity(rarity)}</span>
+        <span class="mini-rarity-tag rarity-${rarity}">${escapeHtml(rarityLabel(rarity))}</span>
       </div>
       <div class="mini-body">
         <div class="mini-name">${escapeHtml(f.name)}</div>

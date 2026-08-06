@@ -6,7 +6,7 @@
   "scripts": {
     "setup": "cmd /c \"npm --prefix worker install\"",
     "typecheck": "cmd /c \"npm --prefix worker run typecheck\"",
-    "test": "node --test public/js/__tests__/pure.test.js",
+    "test": "node scripts/check-ui-strings.mjs && node scripts/check-i18n-dynamic-sinks.mjs && node scripts/verify-ui-dicts.mjs && node --test public/js/__tests__/pure.test.js",
     "lint": "biome lint",
     "status": "git status",
     "a11y": "playwright test --config=a11y/playwright.config.mjs",

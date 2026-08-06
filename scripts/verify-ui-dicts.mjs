@@ -15,8 +15,22 @@ import { pathToFileURL } from 'node:url';
 
 const SRC = process.argv[2] || 'scripts/ui-strings.json';
 
-const source = JSON.parse(readFileSync(SRC, 'utf8')).map((r) => r.text);
+const sourceRows = JSON.parse(readFileSync(SRC, 'utf8'));
+const source = sourceRows.map((r) => r.text);
 const sourceSet = new Set(source);
+const runtimeExact = new Set(sourceRows
+  .filter((row) => row.files.includes('runtime-exact'))
+  .map((row) => row.text));
+
+// Keep this deliberately tiny: only a verified language-invariant brand or
+// protocol token belongs here, with a reason. Ordinary proper nouns and UI copy
+// must not use it to evade translation checks.
+const RUNTIME_EXACT_PASSTHROUGH = new Map([
+  ['fr', new Map([
+    ['Rare', 'French rarity tier has the same natural spelling.'],
+    ['Possible', 'French status label has the same natural spelling.'],
+  ])],
+]);
 
 const files = readdirSync('public/js/locales').filter((f) => /^ui-[a-z]{2}\.js$/.test(f));
 if (!files.length) {
@@ -37,6 +51,8 @@ for (const file of files.sort()) {
   // A value identical to its key is untranslated — legitimate for brand names,
   // but a large count means the translator passed text through wholesale.
   const passthrough = keys.filter((k) => dict[k] === k);
+  const runtimeExactPassthrough = keys.filter((k) => runtimeExact.has(k) && dict[k] === k
+    && !RUNTIME_EXACT_PASSTHROUGH.get(file.slice(3, 5))?.has(k));
   const empty = keys.filter((k) => !String(dict[k]).trim());
   // An HTML entity in a VALUE paints literally: translateDOM assigns to
   // node.nodeValue, which the browser does not decode, so "Me &gt; Integrations"
@@ -48,16 +64,18 @@ for (const file of files.sort()) {
   // renders as blank UI. Incompleteness is not: a missing key simply falls back
   // to English for that one string, which is a legitimate shipping state while a
   // language is still being translated. So only the former fails the check.
-  const broken = drifted.length || empty.length || entities.length;
+  const broken = drifted.length || empty.length || entities.length || runtimeExactPassthrough.length;
   if (broken) bad++;
   const pct = Math.round(((source.length - missing.length) / source.length) * 100);
   const tag = broken ? 'FAIL' : missing.length ? 'PART' : 'OK  ';
   console.log(`${tag} ${file.padEnd(10)} ${String(keys.length).padStart(4)} keys  ${String(pct).padStart(3)}%` +
     `  drifted:${drifted.length}  missing:${missing.length}  passthrough:${passthrough.length}  empty:${empty.length}` +
-    (entities.length ? `  ENTITIES:${entities.length}` : ''));
+    (entities.length ? `  ENTITIES:${entities.length}` : '') +
+    (runtimeExactPassthrough.length ? `  RUNTIME-EXACT-SELF-MAPS:${runtimeExactPassthrough.length}` : ''));
   for (const k of entities.slice(0, 3)) console.log(`       entity in value: ${JSON.stringify(String(dict[k]).slice(0, 60))}`);
   for (const k of drifted.slice(0, 3)) console.log(`       drifted key: ${JSON.stringify(k.slice(0, 60))}`);
   for (const k of missing.slice(0, 3)) console.log(`       missing key: ${JSON.stringify(k.slice(0, 60))}`);
+  for (const k of runtimeExactPassthrough.slice(0, 3)) console.log(`       untranslated runtime-exact key: ${JSON.stringify(k.slice(0, 60))}`);
 }
 
 process.exit(bad ? 1 : 0);

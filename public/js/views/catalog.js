@@ -1,5 +1,5 @@
 import { $, $$, haptic, escapeHtml, setHue, fmtMoney, trendBadgeHTML, THEME_COLORS, bvIDB, SEARCH_DEBOUNCE_MS, mount, toast, thumbImg } from '../utils.js';
-import { t } from '../lib/i18n.js';
+import { t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId, photoScanNeedsSetup } from '../api.js';
 import { getModePref } from '../theme.js';
@@ -7,7 +7,8 @@ import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { openScan, lookupScanInput } from '../components/scanner-lazy.js';
 import { trustBadgeHTML } from '../components/trust.js';
-import { activeCatalogFilterCount, catalogFilterSummary, pricePerPiece, estMark, displayValueOf, cleanFacetList } from '../lib/pure.js';
+import { activeCatalogFilterCount, pricePerPiece, estMark, displayValueOf, cleanFacetList } from '../lib/pure.js';
+import { catalogFilterSummaryText } from '../lib/filter-summary.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
 
 let _catalogGen = 0;
@@ -154,7 +155,7 @@ export async function loadCatalog({ reset = false } = {}) {
     if (results) {
       results.innerHTML = `<div class="empty card" style="margin-top:16px;">
         <h3>Couldn't load catalog</h3>
-        <p>${escapeHtml(e.message)}. Check your connection and try again.</p>
+        <p>${t('catalog.loadFailedDetail', { error: escapeHtml(e.message) })}</p>
         <button class="btn-secondary" id="catalogRetry" style="margin-top:12px;">Retry</button>
       </div>`;
       $("#catalogRetry")?.addEventListener("click", async () => { await loadCatalog({ reset: true }); refreshCatalogGrid(); });
@@ -230,12 +231,14 @@ function catalogResultsHTML() {
   const listClass = state.compactView ? "compact-list" : "grid";
   return `
     ${comingSoonSectionHTML()}
-    <div id="catalogCount" class="result-count">${c.total === 1 ? t("counts.resultsOne") : t("counts.results", { n: c.total.toLocaleString() })}</div>
+    <div id="catalogCount" class="result-count">${tPlural('counts.results', c.total)}</div>
     ${c.items.length === 0 ? `
       <div class="empty card">
         <div class="empty-icon">${I.search()}</div>
         <h3>No sets found</h3>
-        <p>${f.catalogQ ? `Nothing matches "${escapeHtml(f.catalogQ)}".` : "No sets match these filters."} Try a different search or clear filters.</p>
+        <p>${escapeHtml(f.catalogQ
+          ? t('catalog.emptySearchResults', { query: f.catalogQ })
+          : t('catalog.emptyFilteredResults'))}</p>
         ${!isCatalogDefault() ? `<button class="btn-secondary" id="catalogClearFilters" style="margin-top:12px;">Clear filters</button>` : ""}
       </div>` : `
       <div class="${listClass}" id="catalogGrid">
@@ -258,7 +261,7 @@ function refreshCatalogGrid() {
 
 function refreshCatalogSummary() {
   const el = $("#catalogFilterSummary");
-  if (el) el.textContent = catalogFilterSummary(state.filter);
+  if (el) el.textContent = catalogFilterSummaryText(state.filter, t, tPlural);
   // Keep the Filters chip badge/active state in sync (it lives outside the grid
   // that refreshCatalogGrid re-renders, so it otherwise goes stale after Apply/Clear).
   const chip = $("#filterChip");
@@ -266,7 +269,7 @@ function refreshCatalogSummary() {
     const n = activeCatalogFilterCount(state.filter);
     chip.classList.toggle("active", n > 0);
     const sp = chip.querySelector("span");
-    if (sp) sp.textContent = `Filters${n ? " · " + n : ""}`;
+    if (sp) sp.textContent = n ? tPlural('catalog.filtersWithCount', n) : t('catalog.filters');
   }
 }
 
@@ -388,9 +391,8 @@ function openKidsAddSheet(setNum, card) {
       hideSheet();
       if (result?.kids?.xp_gained > 0) {
         const { xp_gained, new_level, new_badges } = result.kids;
-        const badgePart = new_badges?.[0] ? ` · Badge: ${new_badges[0].replace(/_/g, " ")}! 🎉` : "";
-        const lvlPart = new_level ? ` Level ${new_level}!` : "";
-        toast(`+${xp_gained} XP!${lvlPart}${badgePart}`, "success");
+        const badge = new_badges?.[0] ? kidsBadgeLabel(new_badges[0]) : '';
+        toast(kidsXpMessage(xp_gained, { level: new_level, badge }), "success");
         state.me = null;
       } else {
         toast("Added to your vault!", "success");
@@ -455,10 +457,10 @@ function paintAdd() {
         ${[["all","All"],["active","Active"],["retired","Retired"],["retiring","Retiring"]].map(([k,l]) =>
           `<button class="chip ${(f.catalogRetired || "all") === k ? "active" : ""}" data-retired="${k}">${l}</button>`).join("")}
         <button class="chip ${f.catalogDeal ? "active" : ""}" id="dealChip" style="${f.catalogDeal ? "border-color:var(--up);color:var(--up);" : ""}"><span>Deals</span></button>
-        <button class="chip ${activeCatalogFilterCount(f) ? "active" : ""}" id="filterChip">${I.filter()}<span>Filters${activeCatalogFilterCount(f) ? " · " + activeCatalogFilterCount(f) : ""}</span></button>
+        <button class="chip ${activeCatalogFilterCount(f) ? "active" : ""}" id="filterChip">${I.filter()}<span>${escapeHtml(activeCatalogFilterCount(f) ? tPlural('catalog.filtersWithCount', activeCatalogFilterCount(f)) : t('catalog.filters'))}</span></button>
       </div>
 
-      <div class="filter-summary" id="catalogFilterSummary">${escapeHtml(catalogFilterSummary(f))}</div>
+      <div class="filter-summary" id="catalogFilterSummary">${escapeHtml(catalogFilterSummaryText(f, t, tPlural))}</div>
 
       <div id="catalogResults">${catalogResultsHTML()}</div>
     </div>`;
@@ -634,9 +636,9 @@ function showFilterSheet(onApply) {
   showSheet(`
     <div class="sheet-title-row">
       <h2 class="u-serif-h" style="margin:0;">Advanced Filters</h2>
-      ${activeCount ? `<span class="trust-badge warn">${activeCount} active</span>` : `<span class="trust-badge neutral">None active</span>`}
+      ${activeCount ? `<span class="trust-badge warn">${tPlural('catalog.activeFilters', activeCount)}</span>` : `<span class="trust-badge neutral">None active</span>`}
     </div>
-    <div class="filter-active-line">${escapeHtml(catalogFilterSummary(f))}</div>
+    <div class="filter-active-line">${escapeHtml(catalogFilterSummaryText(f, t, tPlural))}</div>
     <div class="scrollable advanced-filter-sheet">
       ${facetGroup("Theme group", "theme_group", state.themeGroups, f.catalogThemeGroup)}
       ${facetGroup("Category", "category", state.categories, f.catalogCategory)}
@@ -765,7 +767,7 @@ function catalogCardHTML(s) {
             ${estMark(s)}${fmtMoney(dispVal)}
             ${s.trend ? trendBadgeHTML(s.trend) : ""}
           </div>
-          <div class="sl-delta" style="color:var(--ink-mute);">${t('card.pieces', { n: s.pieces || 0 })} ${pppBadgeHTML(s)}</div>
+          <div class="sl-delta" style="color:var(--ink-mute);">${tPlural('card.pieces', s.pieces || 0)} ${pppBadgeHTML(s)}</div>
         </div>
       </button>`;
   }
@@ -785,12 +787,12 @@ function catalogCardHTML(s) {
         <div class="set-card-meta">
           ${THEME_COLORS[s.theme] ? `<span class="theme-dot" style="background:${THEME_COLORS[s.theme]};"></span>` : ""}
           <span>${s.year || ""}</span>
-          <span>${t('card.pieces', { n: s.pieces || 0 })}</span>
-          ${s.minifigs > 0 ? `<span>${s.minifigs === 1 ? t("counts.figsOne") : t("counts.figs", { n: s.minifigs })}</span>` : ""}
+          <span>${tPlural('card.pieces', s.pieces || 0)}</span>
+          ${s.minifigs > 0 ? `<span>${tPlural('counts.figs', s.minifigs)}</span>` : ""}
           ${s.subtheme ? `<span>${escapeHtml(s.subtheme)}</span>` : ""}
         </div>
         <div class="set-card-value">${confDot}${estMark(s)}${fmtMoney(dispVal)}</div>
-        ${(sourceCueHTML(s) || pppBadgeHTML(s) || s.bl_new_qty || s.trend) ? `<div class="set-card-submeta">${sourceCueHTML(s)}${pppBadgeHTML(s)}${s.bl_new_qty ? `<span>${t('card.lots', { n: s.bl_new_qty })}</span>` : ""}${s.trend ? trendBadgeHTML(s.trend) : ""}</div>` : ""}
+        ${(sourceCueHTML(s) || pppBadgeHTML(s) || s.bl_new_qty || s.trend) ? `<div class="set-card-submeta">${sourceCueHTML(s)}${pppBadgeHTML(s)}${s.bl_new_qty ? `<span>${tPlural('card.lots', s.bl_new_qty)}</span>` : ""}${s.trend ? trendBadgeHTML(s.trend) : ""}</div>` : ""}
       </div>
     </button>`;
 }

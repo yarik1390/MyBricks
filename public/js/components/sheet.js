@@ -1,6 +1,41 @@
 import { $, haptic, escapeHtml } from '../utils.js';
 
 let _sheetInvoker = null;
+let _sheetCloseCleanup = null;
+
+function finishSheetClose(sheet) {
+  if (!sheet?.classList.contains("closing")) return;
+  sheet.classList.remove("closing");
+  sheet.style.removeProperty("visibility");
+  sheet.style.transform = "";
+  sheet.style.transition = "";
+  _sheetCloseCleanup = null;
+}
+
+function scheduleSheetCloseCleanup(sheet) {
+  const finish = () => finishSheetClose(sheet);
+  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+  if (reducedMotion) {
+    const cleanup = () => finish();
+    _sheetCloseCleanup = cleanup;
+    queueMicrotask(() => {
+      if (_sheetCloseCleanup === cleanup) cleanup();
+    });
+    return;
+  }
+  const onEnd = (event) => {
+    if (event.target === sheet && event.propertyName === "transform") finish();
+  };
+  sheet.addEventListener("transitionend", onEnd, { once: true });
+  // A transform can be interrupted by a platform compositor; never leave a
+  // semantically hidden sheet visible if transitionend is skipped.
+  const timeout = setTimeout(finish, 340);
+  _sheetCloseCleanup = () => {
+    clearTimeout(timeout);
+    sheet.removeEventListener("transitionend", onEnd);
+    finish();
+  };
+}
 
 // Background scroll-lock. `overflow:hidden` on <body> does NOT reliably stop
 // touch scroll-chaining in mobile WebViews (the page behind the sheet still
@@ -55,10 +90,12 @@ function sheetKeyHandler(e) {
 export function showSheet(html) {
   const back = $("#sheetBackdrop");
   const sheet = $("#sheet");
+  if (_sheetCloseCleanup) _sheetCloseCleanup();
   _sheetInvoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   sheet.innerHTML = `<div class="sheet-handle"></div>` + html;
   back.classList.add("show");
   sheet.classList.add("show");
+  sheet.style.setProperty("visibility", "visible", "important");
   document.body.classList.add("sheet-open");
   lockBodyScroll();
   back.setAttribute("aria-hidden", "false");
@@ -96,9 +133,10 @@ export function hideSheet() {
   unlockBodyScroll();
   if (sheet) {
     sheet.classList.remove("show");
+    sheet.classList.add("closing");
     sheet.style.transform = "";
-    sheet.style.transition = "";
     sheet.setAttribute("aria-hidden", "true");
+    scheduleSheetCloseCleanup(sheet);
   }
   document.removeEventListener("keydown", sheetKeyHandler);
   // Restore focus to whatever opened the sheet (a11y: focus must not be lost).

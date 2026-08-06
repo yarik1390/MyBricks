@@ -1,7 +1,7 @@
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML, investmentPricingDetailHTML } from './portfolio-detail-market.js';
 import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput, themeColor } from '../lib/pure.js';
-import { t, getLocale } from '../lib/i18n.js';
+import { t, tPlural, getLocale, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { shareContent } from '../lib/native-share.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue, isGuestMode } from '../api.js';
@@ -246,9 +246,9 @@ async function shareSet(set) {
   const shareUrl = `${publicOrigin()}/#/set/${encodeURIComponent(set.set_num)}`;
   const outcome = await shareContent({
     title: set.name,
-    text: `Check out ${set.name} (${set.set_num}) on BricksVault!`,
+    text: t('share.setText', { name: set.name, setNum: set.set_num }),
     url: shareUrl,
-    dialogTitle: `Share ${set.name}`,
+    dialogTitle: t('share.setDialogTitle', { name: set.name }),
   });
   if (outcome === 'unsupported') {
     try {
@@ -350,13 +350,13 @@ function valueProvenanceHTML(set) {
     const range = lo > 0 && hi > 0
       ? t('detail.likelyRange', { low: fmtMoney(lo, { cents: 0 }), high: fmtMoney(hi, { cents: 0 }) })
       : '';
-    return `<div class="detail-summary-src">${families === 1 ? t('market.familyOne') : t('market.families', { n: families })} · ${sales === 1 ? t('market.saleOne') : t('market.sales', { n: sales })}${range} · <a href="/methodology.html" style="color:inherit;text-decoration:underline;">How we price</a></div>`;
+    return `<div class="detail-summary-src">${tPlural('market.families', families)} · ${tPlural('market.sales', sales)}${range} · <a href="/methodology.html" style="color:inherit;text-decoration:underline;">How we price</a></div>`;
   }
   if (Number(set.market_value) > 0) {
     const n = Array.isArray(set.market_value_basis) ? set.market_value_basis.length : 0;
     const lo = Number(set.market_value_low), hi = Number(set.market_value_high);
     const range = lo > 0 && hi > 0 && hi > lo ? t('detail.typicalRange', { low: fmtMoney(lo, { cents: 0 }), high: fmtMoney(hi, { cents: 0 }) }) : '';
-    return n > 0 ? `<div class="detail-summary-src">${n === 1 ? t('detail.fromSourcesOne') : t('detail.fromSources', { n })}${range}</div>` : '';
+    return n > 0 ? `<div class="detail-summary-src">${tPlural('detail.fromSources', n)}${range}</div>` : '';
   }
   if (estMark(set)) return `<div class="detail-summary-src">Estimate — no recent market sales for this set yet</div>`;
   return '';
@@ -420,7 +420,7 @@ function infoTabHTML(set, entry, isWish) {
     const ratingNum = b.rating ?? set.brickset_rating ?? 0;
     const reviewCount = b.reviewCount ?? set.brickset_review_count ?? 0;
     const reviewsStr = reviewCount
-      ? (reviewCount === 1 ? t('detail.reviewsOne') : t('detail.reviews', { n: reviewCount }))
+      ? tPlural('detail.reviews', reviewCount)
       : '';
     const ageMin = b.ageMin ?? set.age_min;
     const ageMax = b.ageMax ?? set.age_max;
@@ -601,8 +601,8 @@ function infoTabHTML(set, entry, isWish) {
   let pricingSummaryHtml = '';
   if (ebayPrice > 0 || ebayUsedPrice > 0) {
     const pricingTreatment = (retailPrice > 0 && ebayPrice > 0 && ebayPrice < retailPrice) ? 'STP' : (retailPrice > 0 && ebayPrice > retailPrice ? 'APPRECIATED' : 'NONE');
-    const newQty = ebaySold.newSampleCount ? ` / ${ebaySold.newSampleCount} sales` : '';
-    const usedQty = ebaySold.usedSampleCount ? ` / ${ebaySold.usedSampleCount} sales` : '';
+    const newQty = ebaySold.newSampleCount ? tPlural('market.salesSuffix', ebaySold.newSampleCount) : '';
+    const usedQty = ebaySold.usedSampleCount ? tPlural('market.salesSuffix', ebaySold.usedSampleCount) : '';
     pricingSummaryHtml = `
       <div class="detail-card pricing-summary-card">
         <div class="detail-card-title" style="justify-content:space-between;">
@@ -611,11 +611,11 @@ function infoTabHTML(set, entry, isWish) {
         </div>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
           <div>
-            <div style="font-size:10px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">New sold${newQty}</div>
+            <div style="font-size:10px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">${t('market.newSold')}${newQty}</div>
             <div style="font-size:18px; font-weight:600; color:var(--ink);">${ebayPrice > 0 ? fmtMoney(ebayPrice) : "Pending"}</div>
           </div>
           <div>
-            <div style="font-size:10px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">Used sold${usedQty}</div>
+            <div style="font-size:10px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">${t('market.usedSold')}${usedQty}</div>
             <div style="font-size:16px; font-weight:500; color:var(--ink-soft);">${ebayUsedPrice > 0 ? fmtMoney(ebayUsedPrice) : "Pending"}</div>
           </div>
         </div>
@@ -667,7 +667,7 @@ function infoTabHTML(set, entry, isWish) {
 
   const externalLinks = `
     <a class="bl-buy-link" href="${bricklinkBuyURL(set.set_num)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--ink-mute);text-decoration:underline;margin-top:14px;">
-      View on BrickLink ${I.extLink()}
+      ${t('market.viewOnBrickLink')} ${I.extLink()}
     </a>
     <a class="bl-buy-link" href="https://www.google.com/search?q=LEGO+${encodeURIComponent(set.set_num)}+building+instructions+PDF" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--ink-mute);text-decoration:underline;margin-top:8px;">
       Building instructions (PDF) ${I.extLink()}
@@ -708,7 +708,7 @@ function infoTabHTML(set, entry, isWish) {
     </template>`}
 
     <div class="detail-card">
-      <div class="detail-card-title">${I.tag()}${t("detail.priceHistoryDays", { days: 90 })}</div>
+      <div class="detail-card-title">${I.tag()}${tPlural('detail.priceHistoryDays', 90)}</div>
       <div class="spark-wrap" id="setSpark" style="height:60px;"></div>
       <div class="spark-legend" id="setSparkLegend"></div>
     </div>
@@ -879,13 +879,16 @@ function wireDetailActions(set, entry) {
       toast("Added to vault", "success");
       if (addResult?.kids?.xp_gained > 0) {
         const { xp_gained, new_level, new_badges } = addResult.kids;
-        setTimeout(() => toast(`+${xp_gained} XP!`, "success"), 500);
         // A new badge or level-up is a real win — give it the celebration popup
         // (kid-friendly copy). Routine XP stays a quick toast.
         const badge = new_badges?.[0];
+        const xpToast = badge
+          ? kidsXpMessage(xp_gained, { level: new_level, badge: kidsBadgeLabel(badge) })
+          : kidsXpMessage(xp_gained, { level: new_level });
+        setTimeout(() => toast(xpToast, "success"), 500);
         const kidHue = setHue(set);
-        if (badge) setTimeout(() => celebrate(`New badge: ${badge.replace(/_/g, " ")}! 🎉`, { quip: "You're a building superstar! 🌟", hue: kidHue }), 900);
-        else if (new_level) setTimeout(() => celebrate(`Level ${new_level} reached! 🎉`, { quip: "Keep on building! 🧱", hue: kidHue }), 900);
+        if (badge) setTimeout(() => celebrate(t('kids.badgeCelebration', { badge: kidsBadgeLabel(badge) }), { quip: t('kids.badgeQuip'), hue: kidHue }), 900);
+        else if (new_level) setTimeout(() => celebrate(t('kids.levelCelebration', { level: new_level }), { quip: t('kids.levelQuip'), hue: kidHue }), 900);
         state.me = null;
       }
       // Portfolio count/value milestones (skipped in Kids mode inside the helper).
@@ -898,7 +901,7 @@ function wireDetailActions(set, entry) {
       if (!navigator.onLine) {
         outboxEnqueue({ path: '/api/collection', method: 'POST', body: { set_num: set.set_num, quantity: 1, purchase_price: setDisplayValue(set) } });
         toast('Saved offline — will sync when connected', 'info');
-      } else { toast("Error: " + e.message, "error"); }
+      } else { toast(t('common.errorWithDetails', { error: e.message || e }), "error"); }
     } finally { state.pendingRequests.delete(set.set_num); }
   });
   $("#wishToggle")?.addEventListener("click", async () => {
@@ -940,11 +943,11 @@ function wireDetailActions(set, entry) {
             toast("Added to wishlist", "success");
             paintSetDetail(set, entry);
           } catch (err) {
-            toast("Error: " + err.message, "error");
+            toast(t('common.errorWithDetails', { error: err.message || err }), "error");
           }
         });
       }
-    } catch (e) { toast("Error: " + e.message, "error"); }
+    } catch (e) { toast(t('common.errorWithDetails', { error: e.message || e }), "error"); }
     finally { state.pendingRequests.delete(wishKey); }
   });
 }
@@ -1127,6 +1130,24 @@ function sellSignalFor(set, entry) {
   });
 }
 
+export function localizedSellReasons(reasons = []) {
+  return reasons.map(({ id, vars = {} }) => {
+    switch (id) {
+      case 'gainSincePurchase': return t('detail.sellReasonGainSincePurchase', { roi: fmtPct(vars.roiPct / 100) });
+      case 'trendDown': return t('detail.sellReasonTrendDown');
+      case 'climbFlattened': return t('detail.sellReasonClimbFlattened');
+      case 'littleUpside': return t('detail.sellReasonLittleUpside', { upside: fmtPct(vars.upsidePct / 100) });
+      case 'sellsFast': return tPlural('detail.sellReasonSellsFast', vars.salesVolume, { volume: vars.salesVolume });
+      case 'watchClosely': return t('detail.sellReasonWatchClosely');
+      case 'stillClimbing': return t('detail.sellReasonStillClimbing');
+      case 'forecastUpside': return t('detail.sellReasonForecastUpside', { upside: fmtPct(vars.upsidePct / 100) });
+      case 'notRetired': return t('detail.sellReasonNotRetired');
+      case 'noSellTrigger': return t('detail.sellReasonNoSellTrigger');
+      default: return t('detail.sellReasonNoSellTrigger');
+    }
+  });
+}
+
 function sellTimingHTML(set, entry) {
   // Investment-flavored read — hidden in simple and kids modes, like the rest
   // of the investor toolkit.
@@ -1144,7 +1165,7 @@ function sellTimingHTML(set, entry) {
         <span>Sell timing</span>
         <span class="badge" style="background:${look.color};color:#fff;">${look.label}</span>
       </div>
-      <div style="font-size:12px;color:var(--ink-mute);line-height:1.5;">${escapeHtml(s.reasons.join(" · "))}</div>
+      <div style="font-size:12px;color:var(--ink-mute);line-height:1.5;">${escapeHtml(localizedSellReasons(s.reasons).join(" · "))}</div>
     </div>`;
 }
 
@@ -1166,7 +1187,7 @@ async function wireStoryCard(_set, entry) {
       </div>`).join("");
     const auto = `
       <div style="font-size:11px;color:var(--ink-faint);">
-        ${entry.purchased_at ? `${I.check({ w: 12, h: 12 })} Acquired ${escapeHtml(String(entry.purchased_at).slice(0, 10))}${entry.acquisition_source ? ` · ${escapeHtml(entry.acquisition_source)}` : ""}` : `${I.check({ w: 12, h: 12 })} In your vault`}
+        ${entry.purchased_at ? `${I.check({ w: 12, h: 12 })} ${escapeHtml(t('detail.acquired', { date: String(entry.purchased_at).slice(0, 10), source: entry.acquisition_source ? ` · ${entry.acquisition_source}` : '' }))}` : `${I.check({ w: 12, h: 12 })} ${escapeHtml(t('detail.inVault'))}`}
       </div>`;
     timeline.innerHTML = (items || `<div style="font-size:12px;">No memories yet — the story starts with you.</div>`) + auto;
 
@@ -1178,7 +1199,7 @@ async function wireStoryCard(_set, entry) {
       try {
         await api(`/api/collection/story/${btn.dataset.storyDel}`, { method: "DELETE" });
         btn.closest(".story-item")?.remove();
-      } catch (e) { toast("Couldn't delete: " + e.message, "error"); }
+      } catch (e) { toast(t('common.errorWithDetails', { error: e.message || e }), "error"); }
     }));
   };
 
@@ -1200,7 +1221,7 @@ async function wireStoryCard(_set, entry) {
       if (input) input.value = "";
       toast("Memory saved", "success");
       load();
-    } catch (e) { toast("Couldn't save: " + e.message, "error"); }
+    } catch (e) { toast(t('common.errorWithDetails', { error: e.message || e }), "error"); }
   });
   $("#storyAddPhoto")?.addEventListener("click", () => $("#storyPhotoInput")?.click());
   $("#storyPhotoInput")?.addEventListener("change", async (e) => {
@@ -1223,7 +1244,7 @@ async function wireStoryCard(_set, entry) {
       if (input) input.value = "";
       toast("Photo added to the story", "success");
       load();
-    } catch (err) { toast("Couldn't upload: " + err.message, "error"); }
+    } catch (err) { toast(t('common.errorWithDetails', { error: err.message || err }), "error"); }
   });
 }
 
@@ -1287,7 +1308,7 @@ function wireManageTab(set, entry) {
       setSaveState("Saved ✓", "up");
     } catch (e) {
       setSaveState("Save failed — retry", "down");
-      toast("Save failed: " + e.message, "error");
+      toast(t('common.errorWithDetails', { error: e.message || e }), "error");
     }
   }
 
@@ -1331,7 +1352,7 @@ function wireManageTab(set, entry) {
         invalidatePortfolio();
         toast('Removed offline — will sync when connected', 'info');
         go("#/");
-      } else { toast("Error: " + e.message, "error"); }
+      } else { toast(t('common.errorWithDetails', { error: e.message || e }), "error"); }
     }
   });
   $("#mSold")?.addEventListener("click", () => showExitCopilotSheet(set, entry));
@@ -1365,8 +1386,9 @@ function wireManageTab(set, entry) {
       toast("Photo uploaded", "success");
       await paintSetDetail(set, { ...entry, custom_image_url: "/api/collection/" + entry.id + "/photo" });
     } catch (err) {
-      if (statusEl) { statusEl.textContent = "Upload failed: " + err.message; statusEl.style.display = "block"; }
-      toast("Upload failed: " + err.message, "error");
+      const message = t('detail.uploadFailed', { error: err.message || err });
+      if (statusEl) { statusEl.textContent = message; statusEl.style.display = "block"; }
+      toast(message, "error");
     }
   });
   $("#removePhotoBtn")?.addEventListener("click", async () => {
@@ -1381,7 +1403,7 @@ function wireManageTab(set, entry) {
       delete state.detail.cache[set.set_num];
       toast("Photo removed", "info");
       await paintSetDetail(set, { ...entry, custom_image_url: null });
-    } catch (err) { toast("Remove failed: " + err.message, "error"); }
+    } catch (err) { toast(t('detail.removeFailed', { error: err.message || err }), "error"); }
   });
 
   // Parts completeness
@@ -1407,7 +1429,7 @@ function wireManageTab(set, entry) {
       content.innerHTML = `
         <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
           <span style="font-size:22px;font-weight:700;color:${color};">${pctStr}</span>
-          <span style="color:var(--ink-mute);font-size:12px;">complete${total_missing > 0 ? ` · ${total_missing} parts missing` : " · all parts present"}</span>
+          <span style="color:var(--ink-mute);font-size:12px;">${t('detail.partsComplete')}${total_missing > 0 ? ` · ${escapeHtml(tPlural('detail.partsMissing', Number(total_missing)))}` : ` · ${t('detail.allPartsPresent')}`}</span>
         </div>
         <div style="color:var(--ink-mute);font-size:12px;line-height:1.45;margin-bottom:8px;">Based on the Rebrickable parts list and your saved missing-parts marks. Spares are ignored.</div>
         ${missingParts.length ? `
@@ -1575,7 +1597,7 @@ async function wireCommunityTab(set) {
 
   body.innerHTML = `
     ${ratingHTML}
-    ${pending ? `<div class="community-pending">⏳ You have ${pending} submission${pending === 1 ? "" : "s"} awaiting approval.</div>` : ""}
+${pending ? `<div class="community-pending">${escapeHtml(tPlural('community.pendingSubmission', pending))}</div>` : ""}
     ${photosHTML ? `<div class="cs-title">Photos</div>${photosHTML}` : ""}
     ${reviewsHTML ? `<div class="cs-title">Reviews</div>${reviewsHTML}` : ""}
     ${pricesHTML}
@@ -1638,7 +1660,7 @@ function showExitCopilotSheet(set, entry) {
     ${signal ? `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
         <span class="badge" style="background:${look.color};color:#fff;">${look.label}</span>
-        <span style="font-size:12px;color:var(--ink-mute);">${escapeHtml(signal.reasons.join(" · "))}</span>
+        <span style="font-size:12px;color:var(--ink-mute);">${escapeHtml(localizedSellReasons(signal.reasons).join(" · "))}</span>
       </div>` : ""}
     ${market ? `
       <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;background:var(--surface-2);border:1.5px solid var(--line-soft);border-radius:var(--r-2);padding:12px 14px;margin-bottom:12px;">
@@ -1669,9 +1691,9 @@ function showExitCopilotSheet(set, entry) {
       invalidatePortfolio();
       delete state.detail.cache[set.set_num];
       markSetOwned(set.set_num, false);
-      toast(`Sold for ${fmtMoney(price)} — removed from vault`, "success");
+      toast(t('portfolio.soldFor', { price: fmtMoney(price) }), "success");
       go("#/");
-    } catch (e) { toast("Error: " + e.message, "error"); }
+    } catch (e) { toast(t('common.errorWithDetails', { error: e.message || e }), "error"); }
   });
 }
 
@@ -1730,7 +1752,7 @@ async function showListingSheet(set, _entry) {
 function copyListingField(text, label) {
   if (navigator.clipboard?.writeText) {
     navigator.clipboard.writeText(text)
-      .then(() => toast(`${label} copied`, "success"))
+      .then(() => toast(t('common.copied', { label }), "success"))
       .catch(() => _fallbackCopy(text, label));
   } else {
     _fallbackCopy(text, label);
@@ -1741,7 +1763,7 @@ function _fallbackCopy(text, label) {
   const ta = document.createElement("textarea");
   ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
   document.body.appendChild(ta); ta.select();
-  try { document.execCommand("copy"); toast(`${label} copied`, "success"); } catch {}
+  try { document.execCommand("copy"); toast(t('common.copied', { label }), "success"); } catch {}
   document.body.removeChild(ta);
 }
 
@@ -1754,7 +1776,7 @@ async function openListingDraftSheet(setNum) {
     }
     await showListingSheet(cached.set, cached.entry);
   } catch (err) {
-    toast("Error loading set details: " + err.message, "error");
+    toast(t('common.errorWithDetails', { error: err.message || err }), "error");
   }
 }
 
@@ -1773,10 +1795,10 @@ function openAddWishlistSheet(set, onConfirm) {
     <div style="font-size:14px;color:var(--ink-mute);margin:0 4px 14px;">${escapeHtml(set.set_num)} — ${escapeHtml(set.name)}</div>
 
     <div class="field">
-      <label class="field-lbl">Target Price (${symbol})</label>
+      <label class="field-lbl">${escapeHtml(t('wishlist.targetPriceCurrency', { symbol }))}</label>
       <input type="number" step="0.01" id="wlTargetPrice" class="field-input" placeholder="0.00" autocomplete="off" value="${suggestedLocal > 0 ? suggestedLocal.toFixed(2) : ''}">
       <div id="wlSuggestedChip" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:4px 8px;background:var(--surface-3);border:1px solid var(--line);border-radius:12px;font-size:12px;cursor:pointer;color:var(--ink);">
-        ${I.sparkles({ w: 14 })} Suggested: ${symbol}${suggestedLocal.toFixed(2)}
+        ${I.sparkles({ w: 14 })} ${escapeHtml(t('wishlist.suggestedPrice', { price: `${symbol}${suggestedLocal.toFixed(2)}` }))}
       </div>
       <div style="font-size:11px;color:var(--ink-mute);margin-top:6px;line-height:1.4;">Leave empty to watch without price-drop alerts.</div>
     </div>

@@ -8,6 +8,7 @@ import { go } from '../router.js';
 import { subpageTopbarHTML, loadMe } from './me-shared.js';
 import { skelPage, skelSettingRows } from '../components/skeleton.js';
 import { disableNativePush, enableNativePush, nativePushEnabled, nativePushSupported } from '../lib/native-push.js';
+import { t, tPlural } from '../lib/i18n.js';
 
 export async function renderMeIntegrations() {
   // OAuth return from Google lands here with a query param.
@@ -32,8 +33,6 @@ export async function renderMeIntegrations() {
     ?? state.config?.status?.google
     ?? false;
   const googleMissing = Array.isArray(googleSetup.missing_secrets) ? googleSetup.missing_secrets : ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"];
-  const googleSetupMessage = googleSetup.recommended_action
-    || `Missing Worker secrets: ${googleMissing.join(", ")}. Add them as GitHub Actions secrets and redeploy to enable account linking.`;
   const savedGeminiKey = localStorage.getItem('bv_gemini_key') || '';
   const savedOpenAIKey = localStorage.getItem('bv_openai_key') || '';
   // Earlier builds shipped (and persisted) a dead model URL — drop it so the
@@ -72,7 +71,8 @@ export async function renderMeIntegrations() {
             </div>
           ` : !googleConfigured ? `
             <div class="u-wfull u-fs-sm u-mute" style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);background:var(--surface-2);padding:10px 12px;line-height:1.45;">
-              Google Sheets is disabled until OAuth is configured. ${escapeHtml(googleSetupMessage)}
+              <span>Google Sheets is disabled until OAuth is configured.</span>
+              <span>Missing Worker secrets:</span> ${escapeHtml(googleMissing.join(', '))}. <span>Add them as GitHub Actions secrets and redeploy to enable account linking.</span>
             </div>
           ` : guest ? `
             <div class="integration-ready-note">
@@ -228,7 +228,7 @@ export async function renderMeIntegrations() {
         toast("Failed to initiate sync session", "error");
       }
     } catch (e) {
-      toast("Error initiating sync: " + e.message, "error");
+      toast(t('common.errorWithDetails', { error: e.message || e }), "error");
     }
   });
 
@@ -242,7 +242,7 @@ export async function renderMeIntegrations() {
       toast("Sync started in the background", "success");
       btn.textContent = "Sync Started";
     } catch (e) {
-      toast("Error: " + e.message, "error");
+      toast(t('common.errorWithDetails', { error: e.message || e }), "error");
       btn.textContent = "Sync Now";
       btn.disabled = false;
     }
@@ -255,7 +255,7 @@ export async function renderMeIntegrations() {
       toast("Disconnected Google Sheets", "success");
       await renderMeIntegrations();
     } catch (e) {
-      toast("Error: " + e.message, "error");
+      toast(t('common.errorWithDetails', { error: e.message || e }), "error");
     }
   });
 
@@ -271,7 +271,7 @@ export async function renderMeIntegrations() {
       state.me = null;
       toast(val ? "Discord alerts enabled" : "Discord alerts cleared", "success");
       await renderMeIntegrations();
-    } catch (e) { toast("Error: " + e.message, "error"); }
+    } catch (e) { toast(t('common.errorWithDetails', { error: e.message || e }), "error"); }
   });
 
   $("#discordWebhookClear")?.addEventListener("click", async () => {
@@ -281,7 +281,7 @@ export async function renderMeIntegrations() {
       state.me = null;
       toast("Discord alerts cleared", "info");
       await renderMeIntegrations();
-    } catch (e) { toast("Error: " + e.message, "error"); }
+    } catch (e) { toast(t('common.errorWithDetails', { error: e.message || e }), "error"); }
   });
 
   // --- Brickset hooks ---
@@ -301,7 +301,7 @@ export async function renderMeIntegrations() {
       await renderMeIntegrations();
     } catch (e) {
       if (errEl) { errEl.textContent = e.message; errEl.style.display = "block"; }
-      toast("Brickset connect failed: " + e.message, "error");
+      toast(t('common.errorWithDetails', { error: e.message || e }), "error");
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = "Connect Brickset Account"; }
     }
@@ -314,7 +314,7 @@ export async function renderMeIntegrations() {
       state.me = null;
       toast("Brickset disconnected", "info");
       await renderMeIntegrations();
-    } catch (e) { toast("Error: " + e.message, "error"); }
+    } catch (e) { toast(t('common.errorWithDetails', { error: e.message || e }), "error"); }
   });
 
   $("#bricksetSyncBtn")?.addEventListener("click", async () => {
@@ -324,12 +324,12 @@ export async function renderMeIntegrations() {
     haptic("medium");
     try {
       const res = await api("/api/brickset/sync", { method: "POST" });
-      if (resultEl) resultEl.textContent = `Imported ${res.added} sets (${res.skipped} not in catalog, ${res.total} total on Brickset).`;
-      toast(`Brickset sync: ${res.added} sets added`, "success");
+      if (resultEl) resultEl.textContent = tPlural('integrations.bricksetSyncResult', res.added, { skipped: res.skipped, total: res.total });
+      toast(tPlural('integrations.bricksetSyncSuccess', res.added), "success");
       invalidatePortfolio();
     } catch (e) {
-      if (resultEl) resultEl.textContent = "Sync failed: " + e.message;
-      toast("Brickset sync failed: " + e.message, "error");
+      if (resultEl) resultEl.textContent = t('integrations.bricksetSyncFailed', { error: e.message || e });
+      toast(t('integrations.bricksetSyncFailed', { error: e.message || e }), "error");
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = "Sync Now"; }
     }
@@ -363,7 +363,7 @@ export async function renderMeIntegrations() {
             toast("Push notifications enabled", "success");
           }
         } catch (e) {
-          toast("Failed to update notifications: " + e.message, "error");
+          toast(t('common.errorWithDetails', { error: e.message || e }), "error");
         } finally {
           pushBtn.disabled = false;
         }
@@ -416,7 +416,7 @@ export async function renderMeIntegrations() {
         pushBtn.dataset.pushState = "enabled";
         haptic("medium");
         toast("Push notifications enabled", "success");
-      } catch (e) { toast("Failed to enable push: " + e.message, "error"); }
+      } catch (e) { toast(t('common.errorWithDetails', { error: e.message || e }), "error"); }
     });
   } else if (pushBtn) {
     pushBtn.textContent = "Not supported";
@@ -446,7 +446,7 @@ export async function renderMeIntegrations() {
       if (!val) {
         localStorage.removeItem(storageKey);
         state.me = null;
-        toast(`${label} key removed`, "success");
+        toast(t('integrations.keyRemoved', { label }), "success");
         renderMeIntegrations();
         return;
       }
@@ -455,10 +455,10 @@ export async function renderMeIntegrations() {
         await validateApiKey(provider, val);
         localStorage.setItem(storageKey, val);
         state.me = null;
-        toast(`${label} key verified and saved`, "success");
+        toast(t('integrations.keyVerified', { label }), "success");
         renderMeIntegrations();
       } catch (e) {
-        toast(`${label}: ${e.message}`, "error");
+        toast(t('common.errorWithDetails', { error: e.message || e }), "error");
       } finally {
         setBtnLoading(btn, false);
       }
@@ -507,10 +507,15 @@ export async function renderMeIntegrations() {
       const currentUrl = document.getElementById("gemmaModelUrlInput")?.value?.trim() || DEFAULT_MODEL_URL;
       const hasPartial = !!(meta && !meta.complete && meta.loadedBytes > 0 && meta.url === currentUrl);
       const resumePct = hasPartial && meta.totalBytes ? Math.round(meta.loadedBytes / meta.totalBytes * 100) : null;
-      descEl.innerHTML = gemmaDescDefault + (hasPartial && resumePct !== null
-        ? ` <span class="u-fs-xs" style="color:var(--bv-yellow);">Download interrupted at ${resumePct}% &#x2014; tap &#x201C;Resume&#x201D; to continue.</span>`
-        : '');
-      downloadBtn.textContent = hasPartial ? `Resume (${resumePct !== null ? resumePct + '%' : '…'})` : "Download";
+      descEl.innerHTML = gemmaDescDefault;
+      if (hasPartial && resumePct !== null) {
+        const resumeNote = document.createElement('span');
+        resumeNote.className = 'u-fs-xs';
+        resumeNote.style.color = 'var(--bv-yellow)';
+        resumeNote.textContent = t('downloads.interrupted', { pct: resumePct });
+        descEl.append(' ', resumeNote);
+      }
+      downloadBtn.textContent = hasPartial ? t('downloads.resume', { pct: resumePct !== null ? `${resumePct}%` : '…' }) : "Download";
       downloadBtn.style.display = "block";
       if (importBtn) importBtn.style.display = "block";
       // Show Delete when a partial file exists so user can wipe and start fresh.
@@ -622,7 +627,7 @@ export async function renderMeIntegrations() {
       toast("Gemma Vision Model imported successfully!", "success");
       await updateGemmaUi();
     } catch (err) {
-      toast(`Import failed: ${err.message}`, "error");
+      toast(t('common.errorWithDetails', { error: err.message || err }), "error");
     } finally {
       progress.done();
       try { await wakeLock?.release(); } catch {}

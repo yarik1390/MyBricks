@@ -1,6 +1,7 @@
 import { state, invalidatePortfolio } from './state.js';
 import { bvIDB, toast } from './utils.js';
 import { jwtSub, displayValueOf, isCredentialAuthFailure } from './lib/pure-core.js';
+import { tPlural } from './lib/i18n.js';
 
 export let _authSession = null;
 export let _sbUrl = "";
@@ -65,8 +66,8 @@ export async function drainOutbox() {
     }
     // Persist only the items still worth retrying (synced dropped by omission).
     try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(keep)); } catch {}
-    if (synced) { invalidatePortfolio(); toast(`${synced} offline action${synced > 1 ? 's' : ''} synced`, 'success'); }
-    if (dropped) toast(`${dropped} offline action${dropped > 1 ? 's' : ''} couldn't sync and ${dropped > 1 ? 'were' : 'was'} discarded`, 'error');
+    if (synced) { invalidatePortfolio(); toast(tPlural('common.offlineActionsSynced', synced), 'success'); }
+    if (dropped) toast(tPlural('common.offlineActionsDiscarded', dropped), 'error');
   } catch {}
 }
 

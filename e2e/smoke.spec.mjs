@@ -39,6 +39,25 @@ test('scan route waits for a method choice and accepts a manual set number', asy
   await expect(page.getByText('Millennium Falcon').first()).toBeVisible();
 });
 
+test('minifig-only scan response never reports zero sets', async ({ page }) => {
+  await page.goto('/#/pile', { waitUntil: 'domcontentloaded' });
+  await page.evaluate(async () => {
+    const result = document.createElement('div');
+    result.id = 'scanResult';
+    document.body.appendChild(result);
+    const { showScanResult } = await import('/js/components/scanner.js');
+    showScanResult({
+      identified: true,
+      confidence: 'high',
+      minifigs: [{ fig_num: 'sw0001', name: 'Test Minifig', image_url: null }],
+    });
+  });
+  const result = page.locator('#scanResult');
+  await expect(result).toContainText('1 minifig found');
+  await expect(result).not.toContainText('set found');
+  await expect(result).not.toContainText('0 sets found');
+});
+
 test('guest photo scan asks for setup before mounting the camera', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await page.addInitScript(() => {

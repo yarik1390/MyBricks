@@ -52,8 +52,8 @@ export function openPhotoSheet(setNum, onDone) {
          and cannot be styled or translated at all. Every other file picker in
          the app already uses this label-wraps-hidden-input pattern; this sheet
          was the one that did not. -->
-    <label class="csv-file-label">${I.upload()}<span>Choose a photo</span>
-      <input type="file" id="phFile" accept="image/jpeg,image/png,image/webp"></label>
+    <span class="csv-file-picker"><button type="button" class="csv-file-label" data-file-picker data-file-input="phFile">${I.upload()}<span>Choose a photo</span></button>
+      <input type="file" id="phFile" accept="image/jpeg,image/png,image/webp" tabindex="-1" aria-hidden="true"></span>
     <div id="phFileName" class="u-mute" style="font-size:11px;font-family:var(--mono);margin-top:6px;"></div>
     <input class="field-input" id="phCaption" placeholder="Caption (optional)" maxlength="200" style="margin-top:10px;" autocomplete="off">
     <button class="btn-primary" id="phSave" style="margin-top:14px;">Upload for review</button>

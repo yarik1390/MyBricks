@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import { I } from '../icons.js';
 import { isLocalAiSupported, createLocalAiSession, getLocalAiAvailability, checkGemma3Downloaded, runLocalTextInference } from '../lib/local-ai.js';
 import { displayValueOf } from '../lib/pure.js';
+import { tPlural } from '../lib/i18n.js';
 
 let _activeReader = null;
 export function cancelActiveStream() {
@@ -338,7 +339,7 @@ function localAnalystHTML() {
         }).join('')}
         ${themeSummaries.length > 4 ? `
           <div style="font-size:11px;color:var(--ink-mute);text-align:right;">
-            + ${themeSummaries.length - 4} other themes in your vault
+            ${tPlural('advisor.moreThemes', themeSummaries.length - 4)}
           </div>` : ''}
       </div>
     </div>
@@ -352,7 +353,7 @@ function localAnalystHTML() {
         </div>
         <div>
           <span style="color:var(--ink-mute);">Retired Sets:</span><br>
-          <strong style="color:var(--ink);">${retiredCount} of ${totalSets} sets</strong>
+          <strong style="color:var(--ink);">${tPlural('advisor.retiredSetsOfTotal', totalSets, { retired: retiredCount, total: totalSets })}</strong>
         </div>
       </div>
       

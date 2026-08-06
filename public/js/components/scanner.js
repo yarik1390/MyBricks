@@ -3,12 +3,12 @@ import { state, invalidatePortfolio } from '../state.js';
 import { api, outboxEnqueue, getSessionUserId, photoScanNeedsSetup } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from './sheet.js';
-import { computeDealScore as computeDealScorePure, computeStoreVerdict, marketValueForCondition, flipEconomics, classifyScanFailure, manualScanTarget } from '../lib/pure.js';
+import { computeDealScore as computeDealScorePure, computeStoreVerdict, marketValueForCondition, flipEconomics, classifyScanFailure, manualScanTarget, scanResultHeading } from '../lib/pure.js';
 import { checkGemma3Downloaded, runLocalVisionScan, isWebGpuAvailable } from '../lib/local-ai.js';
 import { flipCalcHTML } from './flip-calc.js';
 import { isNativeCapacitor } from '../lib/native-auth.js';
 import { amazonSlotHTML, hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
-import { t } from '../lib/i18n.js';
+import { t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 
 let _scanTrapRelease = null;
 let _scanPending = false;
@@ -425,17 +425,17 @@ function showManualBarcodeEntry() {
 
 async function sendManualSetLookup(setNum) {
   setScanPending(true);
-  showScanLoading("Finding set...", `Looking up ${setNum} in the catalog.`);
+  showScanLoading(t('scanner.findingSet'), t('scanner.lookingUpSet', { setNum }));
   try {
     const data = await api(`/api/sets/${encodeURIComponent(setNum)}`);
     const set = data?.set || data;
     if (set?.set_num) {
-      showScanResult({ identified: true, confidence: "high", reasoning: "Set number matched in catalog.", set });
+      showScanResult({ identified: true, confidence: "high", reasoning: t('scanner.setNumberMatched'), set });
     } else {
-      showScanResult({ identified: false, reasoning: `Set ${setNum} was not found in the catalog.` });
+      showScanResult({ identified: false, reasoning: t('scanner.setNotFound', { setNum }) });
     }
   } catch (e) {
-    showScanResult({ identified: false, reasoning: e.message || `Set ${setNum} was not found in the catalog.` });
+    showScanResult({ identified: false, reasoning: e.message || t('scanner.setNotFound', { setNum }) });
   } finally {
     setScanPending(false);
   }
@@ -675,7 +675,7 @@ async function sendScanToAPI(payload) {
         toast("On-device AI couldn't identify it — trying cloud…", "info");
       } catch (err) {
         if (!online) {
-          showScanResult({ identified: false, reasoning: `On-device AI failed and you're offline: ${err.message}` });
+          showScanResult({ identified: false, reasoning: t('scanner.localAiOfflineFailed', { error: err.message || err }) });
           done();
           return;
         }
@@ -705,10 +705,16 @@ async function sendScanToAPI(payload) {
     const res = await cloudScanIdentify(payload, ac.signal);
     showScanResult(res);
   } catch (e) {
+    const localizedMsg = ac.signal.aborted
+      ? t('scanner.timedOut')
+      : t('scanner.scanFailed', { error: e.message || e });
     const msg = ac.signal.aborted ? "Took too long — try again." : e.message;
+    const displayMsg = ac.signal.aborted ? localizedMsg : t('scanner.scanFailed', { error: msg || e });
     const hint = $("#scanHint");
-    if (hint) hint.textContent = ac.signal.aborted ? "Timed out" : "Error: " + e.message;
-    showScanResult({ identified: false, reasoning: msg });
+    if (hint) hint.textContent = ac.signal.aborted
+      ? t('scanner.timedOutShort')
+      : t('scanner.scanFailed', { error: e.message || e });
+    showScanResult({ identified: false, reasoning: displayMsg });
   } finally {
     clearTimeout(tid);
     done();
@@ -801,7 +807,7 @@ function showBlindBoxResult(res) {
   }));
 }
 
-function showScanResult(res) {
+export function showScanResult(res) {
   const el = $("#scanResult");
   if (!el) return;
   // Photo scans never reported success: scan_success was emitted only from
@@ -878,10 +884,22 @@ function showScanResult(res) {
     });
     return;
   }
+  const confidence = String(res.confidence || 'high').toLowerCase();
+  const confidenceLabel = t({ high: 'scanner.confidenceHigh', medium: 'scanner.confidenceMedium', low: 'scanner.confidenceLow' }[confidence] || 'scanner.confidenceUnknown');
+  const matchLabel = (value) => {
+    const level = String(value || '').toLowerCase();
+    return t({ high: 'scanner.matchHigh', medium: 'scanner.matchMedium', low: 'scanner.matchLow' }[level] || 'scanner.match');
+  };
+  const heading = scanResultHeading(sets.length, minifigs.length);
+  const headingLabel = heading.key === 'setsFound'
+    ? tPlural('scanner.setsFound', heading.count)
+    : heading.key === 'minifigsFound'
+      ? tPlural('scanner.minifigsFound', heading.count)
+      : tPlural('scanner.mixedResultsFound', heading.count);
   let headHTML = `
     <div class="scan-result-head">
-      <span class="badge">${I.check()}${sets.length > 1 ? `${sets.length} SETS FOUND` : "MATCH"}</span>
-      <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${escapeHtml(res.confidence || "high")} confidence</span>
+      <span class="badge">${I.check()}${headingLabel}</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${escapeHtml(confidenceLabel)}</span>
     </div>`;
   let listHTML = "";
   if (sets.length) {
@@ -905,7 +923,7 @@ function showScanResult(res) {
           </div>
           <div class="sx" style="margin-left:10px;flex:1;min-width:0;text-align:left;">
             <div class="sx-name" style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(set.name)}</div>
-            <div class="sx-meta" style="font-size:10px;color:var(--ink-mute);">${escapeHtml(set.theme||"")} · #${escapeHtml(set.set_num)}${sets.length > 1 && set.match_confidence && set.match_confidence !== "high" ? ` · <span style="color:${set.match_confidence === "low" ? "var(--down)" : "var(--accent)"};font-weight:700;">${escapeHtml(set.match_confidence)} match</span>` : ""}</div>
+            <div class="sx-meta" style="font-size:10px;color:var(--ink-mute);">${escapeHtml(set.theme||"")} · #${escapeHtml(set.set_num)}${sets.length > 1 && set.match_confidence && set.match_confidence !== "high" ? ` · <span style="color:${set.match_confidence === "low" ? "var(--down)" : "var(--accent)"};font-weight:700;">${escapeHtml(matchLabel(set.match_confidence))}</span>` : ""}</div>
             <div class="sx-val" style="font-weight:600;font-size:12px;color:var(--up);">${valLine}</div>
           </div>
         </div>`;
@@ -917,6 +935,21 @@ function showScanResult(res) {
     listHTML += `<div style="display:flex;flex-direction:column;gap:10px;margin:0 0 16px;max-height:40vh;overflow-y:auto;padding-right:4px;">`;
     minifigs.forEach((fig, idx) => {
       const hasImg = fig.image_url && !String(fig.image_url).startsWith("data:");
+      const minifigLabel = t("scanner.minifig");
+      const rarityKeys = {
+        common: "minifigs.filterSummaryRarityCommon",
+        uncommon: "minifigs.filterSummaryRarityUncommon",
+        rare: "minifigs.filterSummaryRarityRare",
+        legendary: "minifigs.filterSummaryRarityLegendary",
+      };
+      const minifigMetadata = fig.series
+        ? t("scanner.minifigWithSeries", { minifig: minifigLabel, series: String(fig.series) })
+        : fig.rarity
+          ? t("scanner.minifigWithRarity", {
+            minifig: minifigLabel,
+            rarity: t(rarityKeys[String(fig.rarity).toLowerCase()] || "scanner.rarityUnknown"),
+          })
+          : minifigLabel;
       listHTML += `
         <div class="scan-result-row" style="align-items:center;background:var(--surface-2);padding:8px;border-radius:var(--r-2);border:1.5px solid var(--line-soft);margin-bottom:6px;">
           <input type="checkbox" class="scan-fig-check" data-fignum="${escapeHtml(fig.fig_num)}" data-idx="${idx}" checked style="width:18px;height:18px;margin-right:10px;cursor:pointer;">
@@ -925,7 +958,7 @@ function showScanResult(res) {
           </div>
           <div class="sx" style="margin-left:10px;flex:1;min-width:0;text-align:left;">
             <div class="sx-name" style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(fig.name)}</div>
-            <div class="sx-meta" style="font-size:10px;color:var(--ink-mute);">minifig${fig.series ? " · " + escapeHtml(fig.series) : fig.rarity ? " · " + escapeHtml(fig.rarity) : ""}</div>
+            <div class="sx-meta" style="font-size:10px;color:var(--ink-mute);">${escapeHtml(minifigMetadata)}</div>
             ${fig.current_value != null ? `<div class="sx-val" style="font-weight:600;font-size:12px;color:var(--up);">${fmtMoney(fig.current_value)}</div>` : ""}
           </div>
         </div>`;
@@ -1009,9 +1042,9 @@ function showScanResult(res) {
       const names = duplicates.map(d => d.s?.name || d.setnum).join(', ');
       const { confirmSheet } = await import('./sheet.js');
       const ok = await confirmSheet({
-        title: `Already owned`,
-        message: `You already have ${names} in your vault. Add another copy?`,
-        confirmLabel: 'Add anyway',
+        title: t('scanner.duplicateConfirmTitle'),
+        message: t('scanner.duplicateConfirmMessage', { names }),
+        confirmLabel: t('scanner.duplicateConfirmAction'),
       });
       if (!ok) return;
     }
@@ -1039,7 +1072,7 @@ function showScanResult(res) {
           outboxEnqueue({ path: '/api/collection', method: 'POST', body });
           addedCount++;
         } else {
-          toast(`Failed to add ${targetSet.name}: ${e.message}`, "error");
+          toast(t('scanner.addItemFailed', { name: targetSet.name, error: e.message || e }), "error");
         }
       }
     }
@@ -1055,21 +1088,20 @@ function showScanResult(res) {
           outboxEnqueue({ path, method: 'PUT', body: { quantity: 1 } });
           addedCount++;
         } else {
-          toast(`Failed to add ${targetFig?.name || "minifig"}: ${e.message}`, "error");
+          toast(t('scanner.addItemFailed', { name: targetFig?.name || t('scanner.minifig'), error: e.message || e }), "error");
         }
       }
     }
     invalidatePortfolio(); state.catalog.items = [];
     closeScan();
     if (addedCount > 0) {
-      toast(navigator.onLine ? `Added ${addedCount} item${addedCount === 1 ? "" : "s"} to vault` : `Saved ${addedCount} offline — will sync`, "success");
+      toast(tPlural(navigator.onLine ? 'scanner.itemsAdded' : 'scanner.itemsSavedOffline', addedCount), "success");
     }
     // Kids mode: surface the XP reward and refresh state.me so the kids home
     // reflects the new XP/level/badge.
     if (kidsXp > 0) {
-      const badgePart = kidsBadge ? ` · Badge: ${kidsBadge.replace(/_/g, " ")}! 🎉` : "";
-      const lvlPart = kidsLevel ? ` Level ${kidsLevel}!` : "";
-      setTimeout(() => toast(`+${kidsXp} XP!${lvlPart}${badgePart}`, "success"), 500);
+      const badge = kidsBadge ? kidsBadgeLabel(kidsBadge) : '';
+      setTimeout(() => toast(kidsXpMessage(kidsXp, { level: kidsLevel, badge }), "success"), 500);
       state.me = null;
     }
     location.hash = "#/";
@@ -1144,7 +1176,7 @@ async function processBulkScanQueue(files) {
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    if (progressText) progressText.textContent = `Identifying ${i + 1} of ${files.length}...`;
+if (progressText) progressText.textContent = t('downloads.scanProgress', { current: i + 1, total: files.length });
     if (progressBar) progressBar.style.width = `${((i) / files.length) * 100}%`;
 
     let dataUrl = "";
@@ -1296,7 +1328,7 @@ function showBulkScanResults(results) {
   el.innerHTML = `
     <div class="scan-result-head">
       <span class="badge">${I.check()}BATCH RESULTS</span>
-      <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${results.filter(r => r.success).length} of ${results.length} matched</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${tPlural('scanner.bulkMatched', results.filter(r => r.success).length, { total: results.length })}</span>
     </div>
     ${rowsHTML}
     ${actionsHTML}
@@ -1333,7 +1365,7 @@ function showBulkScanResults(results) {
           outboxEnqueue({ path: "/api/collection/" + chk.dataset.ownedId, method: "PATCH", body: { quantity: parseInt(chk.dataset.ownedQty, 10) + 1 } });
         }
         invalidatePortfolio();
-        toast(`Saved ${adds.length + qtys.length} set${adds.length + qtys.length === 1 ? "" : "s"} offline — will sync when connected`, "info");
+        toast(tPlural('scanner.setsSavedOffline', adds.length + qtys.length), "info");
         closeScan();
         location.hash = "#/";
         return;
@@ -1361,12 +1393,12 @@ function showBulkScanResults(results) {
       const failed = results.filter(r => r.status === "rejected").length;
       invalidatePortfolio();
       if (failed === 0) toast("Vault updated", "success");
-      else toast(`Added ${results.length - failed} of ${results.length} — ${failed} failed, try those again`, "error");
+      else toast(tPlural('scanner.bulkPartial', failed, { added: results.length - failed, total: results.length, failed }), "error");
       closeScan();
       // Wait, renderPortfolio can be imported or we navigate
       location.hash = "#/";
     } catch (err) {
-      toast("Failed to add sets: " + err.message, "error");
+      toast(t('scanner.addSetsFailed', { error: err.message || err }), "error");
       setBtnLoading($("#bulkAddBtn"), false);
     }
   });

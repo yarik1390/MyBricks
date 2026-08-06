@@ -10,8 +10,9 @@ import {
   formatRelativeTime, processRunBadge, isEstimatedValue, estMark,
   displayValueOf, withDisplayValue, shouldUseKeyboardShell, classifyScanFailure, isCredentialAuthFailure, flipEconomics,
   cleanTagLabel, pluralize, manualScanTarget, cleanFacetList,
-  computeStoreVerdict, computeSellSignal,
+  computeStoreVerdict, computeSellSignal, scanResultHeading, adminJobStartFeedback,
 } from '../lib/pure.js';
+import { catalogFilterSummaryText, figFilterSummaryText } from '../lib/filter-summary.js';
 import { biometricAvailable, verifyBiometricResult } from '../lib/native-biometric.js';
 
 describe('native biometric bridge', () => {
@@ -435,8 +436,8 @@ describe('valuationTrust', () => {
 });
 
 describe('catalogFilterSummary', () => {
-  it('returns a quiet empty state when no filters are active', () => {
-    assert.equal(catalogFilterSummary({}), 'No filters active');
+  it('returns semantic data rather than assembled UI prose', () => {
+    assert.deepEqual(catalogFilterSummary({}), { count: 0, parts: [] });
   });
 
   it('summarizes search, theme, retired state, and ranges', () => {
@@ -446,7 +447,16 @@ describe('catalogFilterSummary', () => {
       catalogRetired: true,
       catalogRanges: { min_year: 2010, max_year: 2020, min_value: 100, max_value: 250 }
     });
-    assert.equal(summary, '5 active: Search "falcon" · Star Wars · Retired only · Year 2010-2020 · Value $100-$250');
+    assert.deepEqual(summary, {
+      count: 7,
+      parts: [
+        { kind: 'search', value: 'falcon' },
+        { kind: 'value', value: 'Star Wars' },
+        { kind: 'status', value: 'retired' },
+        { kind: 'range', field: 'year', min: 2010, max: 2020 },
+        { kind: 'range', field: 'value', min: 100, max: 250 },
+      ],
+    });
   });
 
   it('counts active catalog filters for badges', () => {
@@ -461,17 +471,25 @@ describe('catalogFilterSummary', () => {
 });
 
 describe('figFilterSummary', () => {
-  it('returns a quiet empty state when no minifig filters are active', () => {
-    assert.equal(figFilterSummary({ figRarity: 'all', figOwned: 'all', figSeries: 'all' }), 'No filters active');
+  it('returns semantic data rather than assembled UI prose', () => {
+    assert.deepEqual(figFilterSummary({ figRarity: 'all', figOwned: 'all', figSeries: 'all' }), { count: 0, parts: [] });
   });
 
   it('summarizes minifig search, rarity, ownership, and series', () => {
-    assert.equal(figFilterSummary({
+    assert.deepEqual(figFilterSummary({
       figQ: 'wolf',
       figRarity: 'rare',
       figOwned: 'unowned',
       figSeries: 'Collectible Minifigures',
-    }), '4 active: Search "wolf" · Rare rarity · Unowned only · Collectible Minifigures');
+    }), {
+      count: 4,
+      parts: [
+        { kind: 'search', value: 'wolf' },
+        { kind: 'rarity', value: 'rare' },
+        { kind: 'ownership', value: 'unowned' },
+        { kind: 'series', value: 'Collectible Minifigures' },
+      ],
+    });
   });
   it('counts active minifig filters for badges', () => {
     assert.equal(activeFigFilterCount({
@@ -813,6 +831,27 @@ describe('formatRelativeTime', () => {
     assert.equal(formatRelativeTime('2026-06-27 11:58:00', now), '2m ago');
     assert.equal(formatRelativeTime('2026-06-27T09:00:00Z', now), '3h ago');
     assert.equal(formatRelativeTime('2026-06-25 12:00:00', now), '2d ago');
+  });
+
+  it('uses Intl relative time for a supplied non-English locale', () => {
+    assert.match(formatRelativeTime('2026-06-27 11:58:00', now, 'uk'), /хв/);
+  });
+});
+
+describe('adminJobStartFeedback', () => {
+  it('uses a run id only when the endpoint actually returned one', () => {
+    const calls = [];
+    const translate = (key, vars = {}) => { calls.push({ key, vars }); return key; };
+    assert.deepEqual(adminJobStartFeedback('pricechartingBulk', { run_id: 42 }, translate), { message: 'admin.jobStarted', pollsRun: true });
+    assert.deepEqual(calls, [{ key: 'admin.jobStarted', vars: { id: 42 } }]);
+  });
+
+  it('maps a background endpoint response without run_id to a localized status, never its raw message', () => {
+    const calls = [];
+    const translate = (key, vars = {}) => { calls.push({ key, vars }); return key; };
+    const feedback = adminJobStartFeedback('pricesapi', { ok: true, status: 'running', message: 'pricesAPI refresh started in English' }, translate);
+    assert.deepEqual(feedback, { message: 'admin.pricesapiAccepted', pollsRun: false });
+    assert.deepEqual(calls, [{ key: 'admin.pricesapiAccepted', vars: {} }]);
   });
 });
 
@@ -1432,30 +1471,32 @@ describe('computeSellSignal', () => {
     const s = computeSellSignal({ purchasePrice: 100, currentValue: 150, trend: 'falling', retired: true });
     assert.equal(s.signal, 'sell');
     assert.ok(Math.abs(s.roiPct - 50) < 1e-9);
-    assert.ok(s.reasons.some(r => /turned down/.test(r)));
+    assert.ok(s.reasons.some(r => r.id === 'trendDown'));
+    assert.ok(s.reasons.every(r => typeof r.id === 'string' && r.vars && typeof r.vars === 'object'));
   });
 
   it('sell: big gain + flat trend + thin remaining upside', () => {
     const s = computeSellSignal({ purchasePrice: 100, currentValue: 140, trend: 'stable', forecast2y: 145, retired: true });
     assert.equal(s.signal, 'sell');
-    assert.ok(s.reasons.some(r => /upside/.test(r)));
+    assert.ok(s.reasons.some(r => r.id === 'littleUpside'));
   });
 
   it('hold: still rising with real forecast upside', () => {
     const s = computeSellSignal({ purchasePrice: 100, currentValue: 140, trend: 'rising', forecast2y: 200, retired: true });
     assert.equal(s.signal, 'hold');
-    assert.ok(s.reasons.some(r => /climbing/.test(r)));
+    assert.ok(s.reasons.some(r => r.id === 'stillClimbing'));
   });
 
   it('hold: not retired yet, modest gain', () => {
     const s = computeSellSignal({ purchasePrice: 100, currentValue: 110, trend: 'stable', retired: false });
     assert.equal(s.signal, 'hold');
-    assert.ok(s.reasons.some(r => /retired/.test(r)));
+    assert.ok(s.reasons.some(r => r.id === 'notRetired'));
   });
 
   it('watch: falling without a healthy gain', () => {
     const s = computeSellSignal({ purchasePrice: 100, currentValue: 105, trend: 'falling' });
     assert.equal(s.signal, 'watch');
+    assert.ok(s.reasons.some(r => r.id === 'trendDown'));
   });
 
   it('works without a purchase price (no ROI, trend-only)', () => {
@@ -1467,6 +1508,41 @@ describe('computeSellSignal', () => {
   it('slope stands in for the trend label', () => {
     const s = computeSellSignal({ purchasePrice: 100, currentValue: 150, slopePctPerWeek: -1.2 });
     assert.equal(s.signal, 'sell');
+  });
+
+  it('covers every stable sell-reason identifier with data-only variables', () => {
+    const signals = [
+      computeSellSignal({ purchasePrice: 100, currentValue: 140, trend: 'stable', forecast2y: 145, salesVolume: 30 }),
+      computeSellSignal({ purchasePrice: 100, currentValue: 105, trend: 'falling' }),
+      computeSellSignal({ purchasePrice: 100, currentValue: 140, trend: 'rising', forecast2y: 200, retired: false }),
+      computeSellSignal({ purchasePrice: 100, currentValue: 100, trend: 'stable', retired: true }),
+    ];
+    const ids = new Set(signals.flatMap((signal) => signal.reasons.map((reason) => reason.id)));
+    assert.deepEqual(ids, new Set([
+      'gainSincePurchase', 'trendDown', 'climbFlattened', 'littleUpside', 'sellsFast',
+      'stillClimbing', 'forecastUpside', 'notRetired', 'noSellTrigger',
+    ]));
+    for (const signal of signals) {
+      for (const reason of signal.reasons) {
+        assert.deepEqual(Object.keys(reason).sort(), ['id', 'vars']);
+        assert.ok(Object.values(reason.vars).every((value) => typeof value === 'number'));
+      }
+    }
+  });
+
+  it('keeps user-facing sell prose out of the pure helper', async () => {
+    const source = readFileSync(new URL('../lib/pure.js', import.meta.url), 'utf8');
+    const helper = source.slice(source.indexOf('export function computeSellSignal'), source.indexOf('export function scanResultHeading'));
+    assert.doesNotMatch(helper, /turned down|still climbing|forecast upside|not retired|sell trigger/i);
+    assert.match(helper, /reasons\.length \? reasons : \[reason\("watchClosely"\)\]/);
+  });
+});
+
+describe('scanResultHeading', () => {
+  it('distinguishes set-only, minifig-only, and mixed scan responses', () => {
+    assert.deepEqual(scanResultHeading(2, 0), { key: 'setsFound', count: 2 });
+    assert.deepEqual(scanResultHeading(0, 1), { key: 'minifigsFound', count: 1 });
+    assert.deepEqual(scanResultHeading(2, 3), { key: 'mixedResultsFound', count: 5 });
   });
 });
 
@@ -1529,7 +1605,8 @@ describe('themeColor', () => {
   });
 });
 
-import { normalizeLocale, pickDeviceLocale, lookup, interpolate, SUPPORTED } from '../lib/i18n.js';
+import { normalizeLocale, pickDeviceLocale, lookup, interpolate, SUPPORTED, setLocale, t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
+import { readFileSync } from 'node:fs';
 import { en } from '../locales/en.js';
 import { de } from '../locales/de.js';
 import { fr } from '../locales/fr.js';
@@ -1578,6 +1655,193 @@ describe('i18n', () => {
     assert.equal(interpolate('no vars', { a: 1 }), 'no vars');
   });
 
+  it('uses singular count messages and keeps localized Kids level/badge semantics', async () => {
+    await setLocale('en');
+    assert.equal(tPlural('common.offlineActionsSynced', 1), '1 offline action synced');
+    assert.equal(tPlural('scanner.itemsAdded', 1), 'Added 1 item to vault');
+    assert.equal(tPlural('scanner.setsSavedOffline', 2), 'Saved 2 sets offline — will sync when connected');
+    assert.equal(tPlural('scanner.minifigsFound', 1), '1 minifig found');
+    assert.equal(tPlural('scanner.mixedResultsFound', 3), '3 results found (sets and minifigs)');
+    assert.equal(kidsXpMessage(5, { level: 2, badge: 'Speed Builder' }), '+5 XP! Level 2! · Badge: Speed Builder! 🎉');
+  });
+
+  it('localizes known reward slugs and humanizes an unknown future slug', async () => {
+    await setLocale('de');
+    assert.equal(kidsBadgeLabel('grand_master'), 'Großmeister');
+    await setLocale('ja');
+    assert.equal(kidsBadgeLabel('first_brick'), 'はじめのブロック');
+    assert.equal(kidsBadgeLabel('future_builder'), 'Future Builder');
+    await setLocale('en');
+    for (const empty of ['', null, undefined]) assert.equal(kidsBadgeLabel(empty), '');
+    assert.equal(kidsXpMessage(5), '+5 XP!');
+    assert.equal(kidsXpMessage(5, { level: 2, badge: kidsBadgeLabel(null) }), '+5 XP! Level 2!');
+    assert.doesNotMatch(kidsXpMessage(5, { badge: kidsBadgeLabel(undefined) }), /kids\.badge|Badge:/);
+  });
+
+  it('uses singular grammar for live market, build, import, and minifig counts', async () => {
+    await setLocale('en');
+    assert.equal(tPlural('market.salesSuffix', 1), ' / 1 sale');
+    assert.equal(tPlural('card.lots', 1), '1 lot');
+    assert.equal(tPlural('build.needParts', 1), 'Need 1 more part');
+    assert.equal(tPlural('data.errorsCount', 1), '1 error');
+    assert.equal(tPlural('data.setsAddedCount', 1), '1 set added');
+    assert.equal(t('admin.importedMinifigs', {
+      inserted: tPlural('admin.minifigsImported', 1),
+      parsed: tPlural('admin.minifigsParsed', 1),
+    }), 'Imported 1 minifig of 1 minifig. They map to prices as they’re valued.');
+    await setLocale('uk');
+    assert.equal(tPlural('market.salesSuffix', 1), ' / 1 продаж');
+    assert.equal(tPlural('card.lots', 1), '1 лот');
+    assert.equal(tPlural('build.needParts', 1), 'Потрібна ще 1 деталь');
+    assert.equal(tPlural('data.errorsCount', 1), '1 помилка');
+    assert.equal(tPlural('data.setsAddedCount', 1), 'Додано 1 набір');
+    assert.equal(t('admin.importedMinifigs', {
+      inserted: tPlural('admin.minifigsImported', 1),
+      parsed: tPlural('admin.minifigsParsed', 1),
+    }), 'Імпортовано 1 мініфігурку з 1 мініфігурки. Їх буде зіставлено з цінами під час оцінювання.');
+    await setLocale('en');
+  });
+
+  it('keeps converted live count families grammatical in English and Ukrainian', async () => {
+    await setLocale('en');
+    assert.equal(tPlural('build.ofOwnedSets', 1), 'of 1 owned set');
+    assert.equal(tPlural('build.indexing', 1), 'Indexing 1 more set in the background…');
+    assert.equal(tPlural('kids.setsToGo', 1), '1 set to go');
+    assert.equal(tPlural('market.sales', 1), '1 verified sale');
+    assert.equal(tPlural('detail.reviews', 1), '1 review');
+    assert.equal(tPlural('counts.results', 1), '1 result');
+    assert.equal(tPlural('counts.figs', 1), '1 fig');
+    await setLocale('uk');
+    assert.equal(tPlural('counts.results', 1), '1 результат');
+    assert.equal(tPlural('counts.results', 2), '2 результати');
+    assert.equal(tPlural('counts.results', 5), '5 результатів');
+    assert.equal(tPlural('counts.results', 21), '21 результат');
+    assert.equal(tPlural('build.indexing', 2), 'У фоні індексуються ще 2 набори…');
+    assert.equal(tPlural('market.sales', 2), '2 перевірені продажі');
+    assert.equal(tPlural('detail.reviews', 2), '2 відгуки');
+    for (const family of ['build.ofOwnedSets', 'kids.setsToGo', 'market.families', 'market.sales', 'detail.fromSources', 'detail.reviews', 'wishlist.setsCount', 'wishlist.alertsCount', 'counts.figs']) {
+      for (const count of [1, 2, 5, 21]) assert.equal(typeof tPlural(family, count), 'string', `${family} ${count}`);
+    }
+    await setLocale('en');
+  });
+
+  it('uses final merged locale plural forms for pieces and scan matches', async () => {
+    const expected = {
+      en: ['1 pc', '2 pcs'], de: ['1 Teil', '2 Teile'], es: ['1 pieza', '2 piezas'],
+      fr: ['1 pièce', '2 pièces'], nl: ['1 onderdeel', '2 onderdelen'],
+    };
+    for (const [locale, [one, other]] of Object.entries(expected)) {
+      await setLocale(locale);
+      assert.equal(tPlural('card.pieces', 1), one, locale);
+      assert.equal(tPlural('card.pieces', 2), other, locale);
+      assert.doesNotMatch(tPlural('scanner.bulkMatched', 1, { total: 2 }), /\{(?:matched|n|total)\}/, locale);
+    }
+    await setLocale('uk');
+    assert.equal(tPlural('card.pieces', 1), '1 деталь');
+    assert.equal(tPlural('card.pieces', 2), '2 деталі');
+    assert.equal(tPlural('card.pieces', 5), '5 деталей');
+    assert.equal(tPlural('card.pieces', 21), '21 деталь');
+    await setLocale('en');
+  });
+
+  it('keeps the portfolio dynamic messages catalogued', () => {
+    assert.equal(en.portfolio.wishlistAlertsTooltip, 'Wishlist Alerts ({spikes}, {drops})');
+    assert.equal(en.portfolio.bulkLocationPartial, 'Updated {updated} of {total} — {failed} failed, try those again');
+  });
+
+  it('keeps production alert and Pro-insight template branches catalogued', () => {
+    const wishlist = readFileSync(new URL('../views/portfolio-wishlist.js', import.meta.url), 'utf8');
+    const portfolio = readFileSync(new URL('../views/portfolio.js', import.meta.url), 'utf8');
+    assert.match(wishlist, /tPlural\('wishlist\.unreadAlerts', totalAlerts\)/);
+    assert.doesNotMatch(wishlist, /\$\{totalAlerts\}\s*unread\s+alert/);
+    assert.match(portfolio, /t\('portfolio\.insightSignal'/);
+    assert.doesNotMatch(portfolio, /Resale\s+\$\{hot[^\n]*\$\{Math\.abs\(s\.spread/);
+  });
+
+  it('selects Ukrainian one/few/many count forms', async () => {
+    await setLocale('uk');
+    assert.equal(tPlural('wishlist.unreadAlerts', 1), '1 непрочитане сповіщення');
+    assert.equal(tPlural('wishlist.unreadAlerts', 2), '2 непрочитані сповіщення');
+    assert.equal(tPlural('wishlist.unreadAlerts', 5), '5 непрочитаних сповіщень');
+    assert.equal(tPlural('wishlist.unreadAlerts', 21), '21 непрочитане сповіщення');
+    await setLocale('en');
+  });
+
+  it('renders Ukrainian count families without malformed element, set, or sale nouns', async () => {
+    await setLocale('uk');
+    assert.equal(tPlural('scanner.minifigsFound', 1), 'Знайдено 1 мініфігурку');
+    assert.equal(tPlural('scanner.minifigsFound', 2), 'Знайдено 2 мініфігурки');
+    assert.equal(tPlural('scanner.minifigsFound', 5), 'Знайдено 5 мініфігурок');
+    assert.equal(tPlural('scanner.mixedResultsFound', 2), 'Знайдено 2 результати (набори й мініфігурки)');
+    assert.equal(t('detail.sellReasonTrendDown'), 'Ціновий тренд пішов униз');
+    assert.equal(tPlural('data.migrationStillFailing', 1, { error: 'X' }), 'Ще 1 елемент не вдалося перенести: X');
+    assert.equal(tPlural('data.migrationStillFailing', 2, { error: 'X' }), 'Ще 2 елементи не вдалося перенести: X');
+    assert.equal(tPlural('data.migrationStillFailing', 5, { error: 'X' }), 'Ще 5 елементів не вдалося перенести: X');
+    assert.equal(tPlural('data.migrationStillFailing', 21, { error: 'X' }), 'Ще 21 елемент не вдалося перенести: X');
+    assert.equal(tPlural('data.setsImported', 1), 'Імпортовано 1 набір');
+    assert.equal(tPlural('data.setsImported', 2), 'Імпортовано 2 набори');
+    assert.equal(tPlural('data.setsImported', 5), 'Імпортовано 5 наборів');
+    assert.equal(tPlural('data.setsImported', 21), 'Імпортовано 21 набір');
+    assert.equal(tPlural('detail.sellReasonSellsFast', 1, { volume: 1 }), '1 недавній продаж свідчить про швидкий продаж');
+    assert.equal(tPlural('detail.sellReasonSellsFast', 2, { volume: 2 }), '2 недавні продажі свідчать про швидкий продаж');
+    assert.equal(tPlural('detail.sellReasonSellsFast', 5, { volume: 5 }), '5 недавніх продажів свідчать про швидкий продаж');
+    assert.equal(tPlural('detail.sellReasonSellsFast', 21, { volume: 21 }), '21 недавній продаж свідчить про швидкий продаж');
+    assert.equal(tPlural('detail.sellReasonSellsFast', 31, { volume: 31 }), '31 недавній продаж свідчить про швидкий продаж');
+    assert.equal(tPlural('detail.sellReasonSellsFast', 32, { volume: 32 }), '32 недавні продажі свідчать про швидкий продаж');
+    await setLocale('en');
+  });
+
+  it('uses each Ukrainian plural category for every live tPlural family', async () => {
+    const families = [
+      'common.offlineActionsSynced', 'common.offlineActionsDiscarded', 'common.localItemsSynced',
+      'advisor.moreThemes', 'advisor.retiredSetsOfTotal', 'scanner.itemsAdded', 'scanner.itemsSavedOffline', 'scanner.setsSavedOffline', 'scanner.setsFound', 'scanner.minifigsFound', 'scanner.mixedResultsFound',
+      'catalog.activeFilters', 'catalog.filterSummaryActive', 'game.streakQuip',
+      'admin.countRunning', 'admin.countHealthy', 'admin.countFailed', 'admin.countNotRun', 'admin.completedSlices', 'admin.filled', 'admin.processed', 'admin.figures', 'admin.minifigsImported', 'admin.minifigsParsed',
+      'data.restoredFromBackup', 'data.migrationStillFailing', 'data.migrationComplete', 'data.setsImported', 'data.bricklinkSetsImported', 'data.csvImportConfirmTitle', 'data.importedCount', 'data.skippedCount', 'data.errorsCount', 'data.setsAddedCount', 'contributions.approved',
+      'integrations.bricksetSyncResult', 'integrations.bricksetSyncSuccess', 'minifigs.appearsInSets', 'minifigs.filterSummaryActive', 'minifigs.inSets', 'minifigs.parts',
+      'portfolio.anniversaryCelebration', 'portfolio.insightHeadline', 'portfolio.moreThemes', 'portfolio.wishlistAlertSpikes', 'portfolio.wishlistAlertDrops',
+      'wishlist.unreadAlerts', 'community.pendingSubmission', 'detail.partsMissing', 'detail.sellReasonSellsFast', 'market.salesSuffix', 'card.lots', 'build.needParts',
+      'time.daysAgo', 'scanner.bulkPartial', 'kids.setsToGo', 'kids.earned', 'market.families', 'market.sales', 'market.onlyForSale', 'market.askingSummary', 'market.askingSummaryWithSold',
+      'detail.fromSources', 'detail.reviews', 'detail.priceHistoryDays', 'detail.priceHistoryShort', 'alerts.priceDrop', 'portfolio.bulkLocationPartial', 'portfolio.bulkRemovePartial', 'portfolio.restoredCount',
+      'wishlist.setsCount', 'wishlist.alertsCount', 'admin.syncJobSkipped', 'admin.syncJobSummary', 'admin.uploadSuccessToast', 'admin.contributionAction', 'data.csvImportMore', 'data.csvImportConfirmMessage',
+      'me.trophyShelf', 'build.ofOwnedSets', 'build.indexing', 'counts.collected', 'counts.owned', 'counts.ofFigs', 'counts.results', 'counts.figs', 'minifigs.ownedCount', 'catalog.filtersWithCount',
+    ];
+    const suffix = { 1: 'One', 2: 'Few', 5: 'Many', 21: 'One' };
+    await setLocale('uk');
+    for (const family of families) {
+      for (const count of [1, 2, 5, 21]) {
+        const key = `${family}${suffix[count]}`;
+        const template = lookup(uk, key);
+        assert.equal(typeof template, 'string', `missing ${key}`);
+        const vars = { n: count, count, added: count, skipped: 0, total: count, date: 'today', value: '$42', set: 'Falcon', items: 'filters', spikes: 'spikes', drops: 'drops' };
+        assert.equal(tPlural(family, count, vars), interpolate(template, vars), `${family} at ${count}`);
+      }
+    }
+    await setLocale('en');
+  });
+
+  it('renders catalog and minifig summary data through localized templates', async () => {
+    await setLocale('uk');
+    assert.equal(
+      catalogFilterSummaryText({ catalogQ: 'falcon', catalogTheme: 'Star Wars', catalogRetired: 'retired' }, t, tPlural),
+      '3 активні: Пошук «falcon» · Star Wars · Лише зняті з виробництва',
+    );
+    assert.equal(
+      figFilterSummaryText({ figQ: 'wolf', figRarity: 'rare', figOwned: 'unowned' }, t, tPlural),
+      '3 активні: Пошук «wolf» · Рідкісність: Рідкісна · Лише не у власності',
+    );
+    await setLocale('en');
+  });
+
+  it('preserves existing Kids translations when celebration strings are merged', () => {
+    for (const [code, locale] of Object.entries(TRANSLATIONS)) {
+      for (const key of ['setsToGo', 'xpToLevel', 'pcs', 'earned']) {
+        assert.equal(typeof locale.kids?.[key], 'string', `${code}.kids.${key} was lost`);
+        assert.notEqual(locale.kids[key], en.kids[key], `${code}.kids.${key} fell back to English`);
+      }
+    }
+  });
+
   it('offers every supported language a catalogue, named in its own language', () => {
     const codes = SUPPORTED.map((l) => l.code);
     assert.deepEqual(codes, ['en', 'de', 'fr', 'es', 'nl', 'uk', 'zh', 'hi', 'ja']);
@@ -1592,9 +1856,10 @@ describe('i18n', () => {
     const flat = (o, p = '') => Object.entries(o).flatMap(([k, v]) =>
       typeof v === 'string' ? [`${p}${k}`] : flat(v, `${p}${k}.`));
     const source = new Set(flat(en));
+    const sourceKey = (key) => source.has(key) ? key : key.replace(/(?:Few|Many|Zero|Two)$/, 'Other');
     for (const [code, cat] of Object.entries(TRANSLATIONS)) {
       for (const key of flat(cat)) {
-        assert.ok(source.has(key), `${code}: "${key}" is not in the English source`);
+        assert.ok(source.has(sourceKey(key)), `${code}: "${key}" is not in the English source`);
       }
     }
   });
@@ -1604,9 +1869,10 @@ describe('i18n', () => {
       typeof v === 'string' ? [[`${p}${k}`, v]] : flat(v, `${p}${k}.`));
     const vars = (s) => (s.match(/\{(\w+)\}/g) || []).sort().join(',');
     const source = new Map(flat(en));
+    const sourceValue = (key) => source.get(key) ?? source.get(key.replace(/(?:Few|Many|Zero|Two)$/, 'Other'));
     for (const [code, cat] of Object.entries(TRANSLATIONS)) {
       for (const [key, str] of flat(cat)) {
-        assert.equal(vars(str), vars(source.get(key)),
+        assert.equal(vars(str), vars(sourceValue(key)),
           `${code}: "${key}" placeholders drifted from English`);
       }
     }

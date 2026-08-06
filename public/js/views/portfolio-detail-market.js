@@ -6,7 +6,7 @@ import { I } from '../icons.js';
 import { amazonSlotHTML } from '../lib/amazon-affiliate.js';
 import { ebaySoldSummary } from '../lib/pure.js';
 import { escapeHtml, fmtMoney, fmtPct, fmtDateUpdated, trendBadgeHTML } from '../utils.js';
-import { t } from '../lib/i18n.js';
+import { t, tPlural } from '../lib/i18n.js';
 
 function genericSourceLabel(s) {
   const id = String((s && s.id) || '');
@@ -79,7 +79,7 @@ export function priceStripHTML(set, entry) {
   // Lot counts for BrickLink cells — show as confidence indicator
   const blNewQty = set.bl_new_qty;
   const blUsedQty = set.bl_used_qty;
-  const lotLabel = (qty, label) => qty ? `${label} <span style="font-size:9px;opacity:.6;">(${t('card.lots', { n: qty })})</span>` : label;
+  const lotLabel = (qty, label) => qty ? `${label} <span style="font-size:9px;opacity:.6;">(${tPlural('card.lots', qty)})</span>` : label;
 
   // Price ranges — show spread as volatility signal
   const blNewRange = (set.bl_new_min && set.bl_new_max)
@@ -332,12 +332,12 @@ export function investmentPricingDetailHTML(set) {
         <div>
           <div class="pricing-block-title"><span>4</span><div><h3>Part out</h3><p>Value of parts and minifigures sold separately.</p></div></div>
           <strong class="pricing-block-value">${Number(partOut.value) > 0 ? fmtMoney(partOut.value) : 'Not enough parts data yet'}</strong>
-          ${Number(partOut.coverage) > 0 ? `<small>${Math.round(Number(partOut.coverage) * 100)}% parts coverage</small>` : ''}
+          ${Number(partOut.coverage) > 0 ? `<small>${t('market.partsCoverage', { pct: Math.round(Number(partOut.coverage) * 100) })}</small>` : ''}
         </div>
         <div>
           <div class="pricing-block-title"><span>5</span><div><h3>Forecast</h3><p>Scenario range based on the current fair value.</p></div></div>
           <strong class="pricing-block-value">${forecastReady && Number(forecast.base) > 0 ? fmtMoney(forecast.base) : 'Not enough history yet'}</strong>
-          ${forecastReady ? `<small>Bear ${fmtMoney(forecast.bear)} · Base ${fmtMoney(forecast.base)} · Bull ${fmtMoney(forecast.bull)}</small>` : `<small>${escapeHtml(forecast.methodology || 'Unlocks after 180 days and 12 recorded values.')}</small>`}
+          ${forecastReady ? `<small>${t('market.forecastScenarios', { bear: fmtMoney(forecast.bear), base: fmtMoney(forecast.base), bull: fmtMoney(forecast.bull) })}</small>` : `<small>${escapeHtml(forecast.methodology || 'Unlocks after 180 days and 12 recorded values.')}</small>`}
         </div>
       </div>
     </section>`;
@@ -398,7 +398,7 @@ export function marketConfidenceHTML(set) {
     const id = String(s.id || '');
     if (id.includes('ask')) return ` / ${count} listings`;
     if (id.includes('sold') || id.includes('ebay')) return ` / ${count} comps`;
-    if (id.includes('bricklink') || id.includes('brickowl')) return ` / ${t('card.lots', { n: count })}`;
+    if (id.includes('bricklink') || id.includes('brickowl')) return ` / ${tPlural('card.lots', count)}`;
     return ` / ${count} samples`;
   };
   const sourceRows = sources.slice(0, 6).map(s => {
@@ -445,8 +445,8 @@ export function marketSpreadHTML(set) {
   if (Math.abs(spread) < 0.10) return '';
   const hot = spread > 0;
   return `<div class="market-signal ${hot ? "signal-hot" : "signal-cold"}">
-    <span>${hot ? `Selling about ${fmtPct(Math.abs(spread))} above this value` : `Selling about ${fmtPct(Math.abs(spread))} below this value`}</span>
-    <span class="signal-hint">${hot ? "Good time to sell" : "Good time to buy"}</span>
+    <span>${t(hot ? 'market.sellingAbove' : 'market.sellingBelow', { pct: fmtPct(Math.abs(spread)) })}</span>
+    <span class="signal-hint">${t(hot ? 'market.goodTimeToSell' : 'market.goodTimeToBuy')}</span>
   </div>`;
 }
 
@@ -460,12 +460,14 @@ export function marketDepthHTML(set) {
   let hint = '';
   if (sold) {
     const askVsSold = (askValue - sold) / sold;
-    if (askQty <= 5) hint = `Only ${askQty} for sale right now`;
-    else if (askVsSold > 0.20) hint = 'Sellers are asking high — list near the recent sold price to sell fast';
-    else if (askVsSold < 0) hint = 'Listed below recent sold prices — good time to buy';
+    if (askQty <= 5) hint = tPlural('market.onlyForSale', askQty);
+    else if (askVsSold > 0.20) hint = t('market.askingHighHint');
+    else if (askVsSold < 0) hint = t('market.askingLowHint');
   }
   return `<div class="market-depth">
-    <span class="u-row u-gap-1">${I.box({w:13,h:13})} ${askQty} for sale now · asking ${fmtMoney(askValue)}${sold ? ` vs ${fmtMoney(sold)} recently sold` : ''}</span>
+    <span class="u-row u-gap-1">${I.box({w:13,h:13})} ${sold
+      ? tPlural('market.askingSummaryWithSold', askQty, { asking: fmtMoney(askValue), sold: fmtMoney(sold) })
+      : tPlural('market.askingSummary', askQty, { asking: fmtMoney(askValue) })}</span>
     ${hint ? `<span class="signal-hint">${escapeHtml(hint)}</span>` : ''}
   </div>`;
 }

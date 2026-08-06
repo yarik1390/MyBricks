@@ -23,7 +23,7 @@ function browserDownload(blob, fileName, win) {
  * downloads are unreliable inside a Capacitor WebView, so the native path
  * writes to the cache directory first. Web/PWA keeps the normal download.
  */
-export async function exportBlob(blob, fileName, { title = 'BricksVault export' } = {}, win) {
+export async function exportBlob(blob, fileName, { title } = {}, win) {
   const w = currentWindow(win);
   if (isNativeCapacitor(w)) {
     const Filesystem = getCapacitorPlugin('Filesystem', w);
@@ -38,7 +38,7 @@ export async function exportBlob(blob, fileName, { title = 'BricksVault export' 
         recursive: true,
       });
       const { uri } = await Filesystem.getUri({ path: fileName, directory: 'CACHE' });
-      await Share.share({ title, files: [uri], dialogTitle: title });
+      await Share.share({ title: title || fileName, files: [uri], dialogTitle: title || fileName });
       return 'shared';
     }
   }

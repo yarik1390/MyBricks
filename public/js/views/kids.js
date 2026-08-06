@@ -6,7 +6,7 @@ import { go } from '../router.js';
 import { setModePref, setSkinPref } from '../theme.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { BADGE_DEFS, levelForXp, xpForLevel } from '../lib/kids-xp.js';
-import { t } from '../lib/i18n.js';
+import { t, tPlural } from '../lib/i18n.js';
 
 function renderSetCardKids(set) {
   // Mirror the catalog card image structure so photos hydrate and size correctly:
@@ -24,7 +24,7 @@ function renderSetCardKids(set) {
       </div>
       <div class="set-card-body">
         <div class="set-card-name">${escapeHtml(set.name)}</div>
-        <div class="set-card-meta">${escapeHtml(set.theme || '')} · ${set.pieces ? t('kids.pcs', { n: set.pieces }) : ''}</div>
+        <div class="set-card-meta">${escapeHtml(set.theme || '')} · ${set.pieces ? tPlural('kids.pcs', set.pieces) : ''}</div>
       </div>
     </div>`;
 }
@@ -207,7 +207,7 @@ export async function renderKidsBadges() {
       <div class="badge-card ${earned ? 'earned' : 'locked'}">
         <div class="badge-emoji">${b.emoji}</div>
         <div class="badge-label">${escapeHtml(b.label)}</div>
-        <div class="badge-sub">${earned ? '✓ Earned!' : needed === 1 ? t('kids.setsToGoOne') : t('kids.setsToGo', { n: needed })}</div>
+        <div class="badge-sub">${earned ? '✓ Earned!' : tPlural('kids.setsToGo', needed)}</div>
       </div>`;
   }).join('');
 
@@ -217,7 +217,7 @@ export async function renderKidsBadges() {
     <div class="page">
       <div class="page-header" style="margin-bottom:20px">
         <h1 style="font-size:22px;font-weight:800">My Badges</h1>
-        <p style="color:var(--ink-mute);font-size:14px">${t('kids.earned', { n: earnedSlugs.size, total: BADGE_DEFS.length })}</p>
+        <p style="color:var(--ink-mute);font-size:14px">${tPlural('kids.earned', earnedSlugs.size, { total: BADGE_DEFS.length })}</p>
       </div>
       <div class="kids-badge-grid">${badgeCards}</div>
       <div style="margin-top:28px;text-align:center">

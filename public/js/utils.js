@@ -2,7 +2,7 @@ import { I } from './icons.js';
 import { state } from './state.js';
 import morphdom from './lib/morphdom.js';
 import { upsertDetailCache } from './lib/pure-core.js';
-import { t, getLocale } from './lib/i18n.js';
+import { t, tPlural, getLocale } from './lib/i18n.js';
 
 /* ---------- DOM helpers ---------- */
 export const $ = (s, r = document) => r.querySelector(s);
@@ -514,7 +514,7 @@ export function fmtDateUpdated(str) {
     return t("time.yesterday");
   } else if (diffDays < 7) {
     // "2 days ago" carries a number, so no exact-match key can ever reach it.
-    return t("time.daysAgo", { n: diffDays });
+    return tPlural('time.daysAgo', diffDays);
   }
   // Was pinned to en-US, which rendered "Nov 3, 2025" for every language.
   return d.toLocaleDateString(getLocale(), { month: "short", day: "numeric", year: "numeric" });

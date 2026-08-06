@@ -4,6 +4,7 @@ import { state } from '../state.js';
 import { go } from '../router.js';
 import { subpageTopbarHTML, loadMe } from './me-shared.js';
 import { skelPage, skelSettingRows } from '../components/skeleton.js';
+import { t, tPlural } from '../lib/i18n.js';
 
 const TYPE_LABEL = { review: "Review", photo: "Photo", data: "Data fix" };
 const STATUS_CLASS = { pending: "cs-pending", approved: "cs-approved", rejected: "cs-rejected" };
@@ -28,14 +29,14 @@ async function load() {
   try {
     data = await api("/api/contributions/mine");
   } catch (e) {
-    body.innerHTML = `<div class="u-mute" style="text-align:center;padding:24px 0;">Couldn't load: ${escapeHtml(e.message)}</div>`;
+    body.innerHTML = `<div class="u-mute" style="text-align:center;padding:24px 0;">${t('contributions.loadFailed', { error: escapeHtml(e.message) })}</div>`;
     return;
   }
   const subs = data.submissions || [];
   const header = `
     <div class="card" style="padding:14px 16px;margin-bottom:14px;text-align:center;">
       <div style="font-size:26px;font-weight:800;color:var(--accent);">${data.approved_count || 0}</div>
-      <div class="u-mute" style="font-size:13px;">approved contribution${data.approved_count === 1 ? "" : "s"}${data.approved_count >= 5 ? " · ⭐ Contributor" : ""}</div>
+      <div class="u-mute" style="font-size:13px;">${escapeHtml(tPlural('contributions.approved', data.approved_count || 0))}${data.approved_count >= 5 ? escapeHtml(t('contributions.contributorBadge')) : ""}</div>
     </div>`;
 
   if (!subs.length) {
