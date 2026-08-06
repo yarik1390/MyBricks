@@ -3686,15 +3686,6 @@ body[data-route="set-detail"] .advisor-fab {
   }
 }
 
-@media (max-width: 640px) {
-  body[data-route="vault"] #advisorFab,
-  body[data-route="catalog"] #advisorFab,
-  body[data-route="minifigs"] #advisorFab,
-  body[data-route="set-detail"] #advisorFab {
-    display: none !important;
-  }
-}
-
 /* UX Enhancements & Tasks styles */
 .set-list-card.compact, .set-card.compact {
   gap: 10px;
