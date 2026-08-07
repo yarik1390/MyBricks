@@ -75,6 +75,7 @@ export const nl = {
   },
   catalog: {
     title: 'Catalogus', searchPlaceholder: 'Zoek een set', results: '{count} sets',
+    sortValue: 'Waarde', sortGrowth: 'Groei', sortNewest: 'Nieuwste', sortTrending: 'Trending',
     noResults: 'Geen sets gevonden', filters: 'Filters', sort: 'Sorteren', clearFilters: 'Filters wissen',
   },
   vault: {

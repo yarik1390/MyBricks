@@ -75,6 +75,7 @@ export const hi = {
   },
   catalog: {
     title: 'कैटलॉग', searchPlaceholder: 'सेट खोजें', results: '{count} सेट',
+    sortValue: 'मूल्य', sortGrowth: 'वृद्धि', sortNewest: 'नवीनतम', sortTrending: 'ट्रेंडिंग',
     noResults: 'कोई सेट नहीं मिला', filters: 'फ़िल्टर', sort: 'क्रमबद्ध करें', clearFilters: 'फ़िल्टर हटाएँ',
   },
   vault: {

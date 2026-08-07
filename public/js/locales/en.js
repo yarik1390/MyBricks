@@ -177,6 +177,7 @@ export const en = {
     filters: 'Filters',
     filtersWithCount: 'Filters · {n}',
     sort: 'Sort',
+    sortValue: 'Value', sortGrowth: 'Growth', sortNewest: 'Newest', sortTrending: 'Trending',
     clearFilters: 'Clear filters',
   },
   game: { marketGenius: '{score}/5 — market genius! 🎯', streakQuipOne: 'Streak: {count} day.', streakQuipOther: 'Streak: {count} days.' },

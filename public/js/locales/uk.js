@@ -75,6 +75,7 @@ export const uk = {
   },
   catalog: {
     title: 'Каталог', searchPlaceholder: 'Знайти набір', results: '{count} наборів',
+    sortValue: 'Вартість', sortGrowth: 'Зростання', sortNewest: 'Найновіше', sortTrending: 'У тренді',
     noResults: 'Наборів не знайдено', filters: 'Фільтри', filtersWithCount: 'Фільтри · {n}', sort: 'Сортувати', clearFilters: 'Скинути фільтри',
   },
   community: {

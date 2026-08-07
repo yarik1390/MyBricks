@@ -75,6 +75,7 @@ export const ja = {
   },
   catalog: {
     title: 'カタログ', searchPlaceholder: 'セットを探す', results: '{count} セット',
+    sortValue: '価格', sortGrowth: '成長', sortNewest: '最新', sortTrending: 'トレンド',
     noResults: 'セットが見つかりません', filters: 'フィルター', sort: '並べ替え', clearFilters: 'フィルターを解除',
   },
   community: {

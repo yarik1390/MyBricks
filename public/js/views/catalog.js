@@ -55,15 +55,16 @@ function syncCatalogURL() {
 // directions; switching to a new sort uses its default direction. The backend
 // SORTS map accepts all eight keys.
 const CATALOG_SORTS = [
-  { base: "value",    asc: "value_asc", desc: "value_desc", def: "value_desc", label: "Value" },
-  { base: "roi",      asc: "roi_asc",   desc: "roi_desc",   def: "roi_desc",   label: "Growth" },
-  { base: "year",     asc: "year_asc",  desc: "year_desc",  def: "year_desc",  label: "Newest" },
+  { base: "value",    tKey: "catalog.sortValue",    asc: "value_asc", desc: "value_desc", def: "value_desc", label: "Value" },
+  { base: "roi",      tKey: "catalog.sortGrowth",   asc: "roi_asc",   desc: "roi_desc",   def: "roi_desc",   label: "Growth" },
+  { base: "year",     tKey: "catalog.sortNewest",   asc: "year_asc",  desc: "year_desc",  def: "year_desc",  label: "Newest" },
   { base: "name",     asc: "az",        desc: "za",          def: "az",          label: "A–Z" },
-  { base: "trending", asc: "trending",  desc: "trending",    def: "trending",    label: "Trending" },
+  { base: "trending", tKey: "catalog.sortTrending", asc: "trending", desc: "trending",  def: "trending",   label: "Trending" },
 ];
 const catalogSortChipText = (o, cur) => {
   const active = cur === o.asc || cur === o.desc;
-  return o.label + (active ? (cur === o.asc ? " ↑" : " ↓") : "");
+  const label = o.tKey ? t(o.tKey) : o.label;
+  return label + (active ? (cur === o.asc ? " ↑" : " ↓") : "");
 };
 
 export async function renderAdd() {

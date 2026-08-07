@@ -75,6 +75,7 @@ export const fr = {
   },
   catalog: {
     title: 'Catalogue', searchPlaceholder: 'Trouver un set', results: '{count} sets',
+    sortValue: 'Valeur', sortGrowth: 'Croissance', sortNewest: 'Plus récents', sortTrending: 'Tendance',
     noResults: 'Aucun set trouvé', filters: 'Filtres', sort: 'Trier', clearFilters: 'Effacer les filtres',
   },
   vault: {

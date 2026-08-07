@@ -75,6 +75,7 @@ export const zh = {
   },
   catalog: {
     title: '目录', searchPlaceholder: '查找套装', results: '{count} 个套装',
+    sortValue: '价值', sortGrowth: '增长', sortNewest: '最新', sortTrending: '热门',
     noResults: '未找到套装', filters: '筛选', sort: '排序', clearFilters: '清除筛选',
   },
   vault: {
