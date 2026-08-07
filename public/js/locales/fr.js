@@ -24,7 +24,7 @@ export const fr = {
     reliablePrice: 'Prix fiable', pricingDetails: 'Détails du prix', priceHistory: 'Historique des prix',
     details: 'Détails', estimated: 'Estimé', year: 'Année', theme: 'Thème',
     addToWishlist: 'Ajouter aux envies', inWishlist: 'Dans vos envies',
-    addToVaultPrice: 'Ajouter au coffre · {price}', priceHistoryDays: 'Historique des prix · {days} jours', priceHistoryShort: 'Historique des prix · {days} j', fromSources: 'De {n} sources de marché', fromSourcesOne: 'De 1 source de marché', typicalRange: ' · généralement {low}–{high}', likelyRange: ' · probablement {low}-{high}', reviews: '{n} avis', reviewsOne: '1 avis', up: 'Hausse {pct}%', down: 'Baisse {pct}%',
+    addToVaultPrice: 'Ajouter au coffre · {price}', priceHistoryDays: 'Historique des prix · {days} jours', priceHistoryShort: 'Historique des prix · {days} j', fromSources: 'De {n} sources de marché', fromSourcesOne: 'De 1 source de marché', typicalRange: ' · généralement {low}–{high}', likelyRange: ' · probablement {low}-{high}', tagsMore: '+{n} de plus', reviews: '{n} avis', reviewsOne: '1 avis', up: 'Hausse {pct}%', down: 'Baisse {pct}%',
   },
   counts: {
     results: '{n} résultats', resultsOne: '1 résultat', collected: '{owned}/{total} collectées', owned: '{n} en possession', ofFigs: 'sur {total} figurines', figs: '{n} figurines', figsOne: '1 figurine',
@@ -41,6 +41,8 @@ export const fr = {
     saleOne: '1 vente vérifiée',
     estimateUnlocks: 'L’estimation {list} se débloquera avec plus de données de ventes.',
     estimatesUnlock: 'Les estimations {list} se débloqueront avec plus de données de ventes.',
+    sellingAbove: 'Se vend environ {pct} au-dessus de cette valeur',
+    sellingBelow: 'Se vend environ {pct} en dessous de cette valeur',
   },
   card: {
     pieces: '{n} PCS',
@@ -51,6 +53,19 @@ export const fr = {
     forecast2y: '{price} 2 ans',
     gamePieces: '{n} pièces',
     gameRetail: 'prix public {price}',
+  },
+  deal: {
+    buyRetail: 'Disponible en magasin à environ {pct}% sous sa valeur de marché.',
+    buyResale: 'Se vend environ {pct}% sous sa valeur de marché.',
+    retiring: 'Bientôt retiré — fenêtre d’achat limitée.',
+    premiumRetail: 'Actuellement au-dessus de sa valeur de marché.',
+    premiumResale: 'Les prix demandés dépassent sa valeur de marché.',
+    fair: 'Au niveau de sa valeur de marché.',
+    labelBuy: 'ACHETER',
+    labelStrongBuy: 'TRÈS BON PLAN',
+    labelFair: 'PRIX JUSTE',
+    labelPremium: 'AU-DESSUS',
+    labelPct: '{label} · {pct}%',
   },
   time: {
     unknown: 'inconnu', today: 'Aujourd’hui', yesterday: 'Hier', daysAgo: 'il y a {n} jours',
@@ -159,4 +174,9 @@ Object.assign(fr.card, { gamePiecesOne: '{n} pièce', gamePiecesOther: '{n} piè
 Object.assign(fr.share ??= {}, {"gameTitle":"Price It!","gameText":"🧱 Price It! {day}\\n{tiles} {score}/5 · streak {streak}\\nGuess LEGO market prices on BricksVault","setText":"Check out {name} ({setNum}) on BricksVault!","setDialogTitle":"Share {name}","portfolioTitle":"My LEGO BricksVault","portfolioText":"Check out my LEGO collection on BricksVault!","portfolioDialogTitle":"Share my BricksVault","wrappedTitle":"Brick Wrapped {year}","wrappedBest":"Best performer: {name}{roi}","wrappedTracked":"Tracked with BricksVault","wrappedSetsAdded":"sets added","wrappedPiecesAdded":"pieces","wrappedValueChange":"vault value change","wrappedTagline":"BRICKSVAULT · STACK SOMETHING BEAUTIFUL"});
 Object.assign(fr.share, { gameTitle: 'Estimez le prix !', gameText: '🧱 Estimez le prix ! {day}\n{tiles} {score}/5 · série {streak}\nDevinez les prix du marché LEGO sur BricksVault', setText: 'Découvrez {name} ({setNum}) sur BricksVault !', setDialogTitle: 'Partager {name}', portfolioTitle: 'Mon BricksVault LEGO', portfolioText: 'Découvrez ma collection LEGO sur BricksVault !', portfolioDialogTitle: 'Partager mon BricksVault', wrappedTitle: 'Récap Brick {year}', wrappedBest: 'Meilleure performance : {name}{roi}', wrappedTracked: 'Suivi avec BricksVault', wrappedValueChange: 'évolution de la valeur du coffre', wrappedTagline: 'BRICKSVAULT · CONSTRUISEZ QUELQUE CHOSE DE BEAU', wrappedHeading: 'Récap Brick', wrappedDescription: 'Votre année de collectionneur en chiffres — partagez-la.', wrappedLoading: 'Comptage de vos briques…', wrappedSummaryTitle: '🧱 Mon récap Brick {year}', wrappedSetsAddedOne: '{count} set ajouté', wrappedSetsAddedOther: '{count} sets ajoutés', wrappedPiecesAddedOne: '{count} pièce', wrappedPiecesAddedOther: '{count} pièces', wrappedMinifigsOne: '{count} minifigurine', wrappedMinifigsOther: '{count} minifigurines', wrappedInvested: 'investi', wrappedSoldOne: '{count} set vendu', wrappedSoldOther: '{count} sets vendus', wrappedSoldLabel: 'vendu', wrappedBestLabel: 'Meilleure performance', wrappedBestCanvas: 'Meilleure performance', wrappedBestCanvasWithRoi: 'Meilleure performance · {roi}', wrappedLongestHeld: 'Détenu le plus longtemps : {name} (depuis {year})', wrappedClose: 'Fermer', wrappedShareYear: 'Partager mon année' });
 Object.assign(fr.data, { reportPreparing: 'Préparation du rapport…', insuranceReportTitle: 'Rapport d’assurance BricksVault', reportSharedReady: 'Rapport prêt — ouvrez-le et imprimez-le en PDF.', reportDownloadedReady: 'Rapport téléchargé — ouvrez-le et imprimez-le en PDF.', noSnapshotsYet: 'Aucune sauvegarde pour le moment — la première sera créée dimanche prochain.', backupsUnavailable: 'Les sauvegardes sont indisponibles pour le moment.', retryingSync: 'Nouvelle tentative de synchronisation…', guestVaultSynced: 'Coffre invité synchronisé', exportPreparing: 'Préparation de l’export…', collectionExportTitle: 'Partager la collection BricksVault', guestExportShared: 'Votre export invité local est prêt à être partagé ou enregistré.', guestExportDownloaded: 'Export téléchargé depuis les données invité locales.', syncedExportShared: 'Votre export synchronisé est prêt à être partagé ou enregistré.', syncedExportDownloaded: 'Export téléchargé depuis votre coffre synchronisé.' });
+// en.js declares `market` twice as an object literal, so the later one wins and
+// keys added to the earlier block are silently dropped. Assigning after the fact
+// lands on whichever object survived.
+Object.assign(fr.market, { comps: '{n} comparables', slashComps: ' / {n} comparables', usedValue: 'Occasion : {price}', updated: 'Mis à jour {date}', compsAboveMsrp: 'Les ventes neuves sont {amount} ({pct}) au-dessus du prix public.', compsBelowMsrp: 'Les ventes neuves sont {amount} ({pct}) en dessous du prix public.' });
+
 export default fr;

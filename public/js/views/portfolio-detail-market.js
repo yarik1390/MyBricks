@@ -53,12 +53,12 @@ export function priceStripHTML(set, entry) {
   const showAsk = !ebaySold.newValue && askValue;
   const label3 = showAsk ? "eBay asking" : ebaySold.legacy ? "Legacy eBay avg" : "eBay sold new";
   const val3 = ebaySold.newValue || askValue;
-  const soldSampleText = ebaySold.newSampleCount ? `${ebaySold.newSampleCount} comps` : null;
+  const soldSampleText = ebaySold.newSampleCount ? t('market.comps', { n: ebaySold.newSampleCount }) : null;
   const val3sub = showAsk
     ? (Number(set.ebay_ask_qty) > 0 ? `${set.ebay_ask_qty} listings` : null)
     : (ebaySold.usedValue
-      ? `${soldSampleText ? `${soldSampleText} / ` : ""}Used: ${fmtMoney(ebaySold.usedValue)}`
-      : soldSampleText || (showBlCross && set.used_value ? `Used: ${fmtMoney(set.used_value)}` : null));
+      ? `${soldSampleText ? `${soldSampleText} / ` : ""}${t('market.usedValue', { price: fmtMoney(ebaySold.usedValue) })}`
+      : soldSampleText || (showBlCross && set.used_value ? t('market.usedValue', { price: fmtMoney(set.used_value) }) : null));
 
   const hasEbaySold = ebaySold.newValue || ebaySold.usedValue;
   // Plain-language basis for the active valuation mix.
@@ -74,7 +74,7 @@ export function priceStripHTML(set, entry) {
   // Surface data staleness from the enrichment freshness field.
   const freshColor = set.freshness === 'expired' ? 'var(--down)' : set.freshness === 'stale' ? 'var(--bv-yellow)' : 'var(--ink-mute)';
   const freshNote = set.freshness === 'expired' ? ' · needs refresh' : set.freshness === 'stale' ? ' · over 2 months old' : '';
-  const lastUpdatedText = (updateDateStr ? `Updated ${updateDateStr}` : "Updating soon") + freshNote;
+  const lastUpdatedText = (updateDateStr ? t('market.updated', { date: updateDateStr }) : "Updating soon") + freshNote;
 
   // Lot counts for BrickLink cells — show as confidence indicator
   const blNewQty = set.bl_new_qty;
@@ -397,7 +397,7 @@ export function marketConfidenceHTML(set) {
     if (!count) return '';
     const id = String(s.id || '');
     if (id.includes('ask')) return ` / ${count} listings`;
-    if (id.includes('sold') || id.includes('ebay')) return ` / ${count} comps`;
+    if (id.includes('sold') || id.includes('ebay')) return t('market.slashComps', { n: count });
     if (id.includes('bricklink') || id.includes('brickowl')) return ` / ${tPlural('card.lots', count)}`;
     return ` / ${count} samples`;
   };
@@ -477,19 +477,39 @@ export function marketDepthHTML(set) {
 // produced server-side and is already source-anonymized (retail vs resale, no
 // provider names); we only choose the badge styling here.
 export function dealSignalHTML(set) {
+// Rebuilds the Worker's deal_reason sentence from the structured fields that
+// travel alongside it (computeDeal in worker/src/lib/market-sources.ts). Returns
+// null when an input is missing so the caller falls back to the raw English.
+function dealReason(signal, channel, pct, strong) {
+  const retail = channel === 'retail';
+  if (signal === 'buy') {
+    if (!Number.isFinite(pct)) return null;
+    const abs = Math.abs(pct);
+    const base = retail ? t('deal.buyRetail', { pct: abs }) : t('deal.buyResale', { pct: abs });
+    return strong ? `${base} ${t('deal.retiring')}` : base;
+  }
+  if (signal === 'premium') return retail ? t('deal.premiumRetail') : t('deal.premiumResale');
+  if (signal === 'fair') return t('deal.fair');
+  return null;
+}
+
   const confidence = String(set.valuation?.new?.confidence || set.market_value_confidence || '').toLowerCase();
   if (!confidence || confidence === 'low' || confidence === 'estimated') return '';
   const sig = set.deal_signal;
   if (sig !== 'buy' && sig !== 'fair' && sig !== 'premium') return '';
-  const reason = set.deal_reason || '';
   const strong = !!set.deal_strong;
-  const cfg = {
-    buy: { label: strong ? 'STRONG BUY' : 'BUY', color: 'var(--up)', bg: 'rgba(34,197,94,.10)' },
-    fair: { label: 'FAIR PRICE', color: 'var(--ink-soft)', bg: 'var(--surface-2)' },
-    premium: { label: 'ABOVE VALUE', color: 'var(--down)', bg: 'rgba(239,68,68,.10)' },
-  }[sig];
   const pct = Number(set.deal_discount_pct);
-  const pctStr = (sig !== 'fair' && Number.isFinite(pct) && Math.abs(pct) >= 1) ? ` · ${Math.abs(Math.round(pct))}%` : '';
+  // The Worker sends deal_reason as English prose with the percentage already
+  // baked in, so no dictionary key can ever match it. Every input it was built
+  // from travels alongside it, so rebuild the sentence here instead; fall back
+  // to the Worker's text only when a field is missing.
+  const reason = dealReason(sig, set.deal_available_channel, pct, strong) || set.deal_reason || '';
+  const cfg = {
+    buy: { label: strong ? t('deal.labelStrongBuy') : t('deal.labelBuy'), color: 'var(--up)', bg: 'rgba(34,197,94,.10)' },
+    fair: { label: t('deal.labelFair'), color: 'var(--ink-soft)', bg: 'var(--surface-2)' },
+    premium: { label: t('deal.labelPremium'), color: 'var(--down)', bg: 'rgba(239,68,68,.10)' },
+  }[sig];
+  const showPct = sig !== 'fair' && Number.isFinite(pct) && Math.abs(pct) >= 1;
   // Live buy destination: when the cheapest channel is an in-stock pricesAPI
   // retail offer, name where to buy it (naming a buy destination is allowed even
   // though valuation sources stay anonymized).
@@ -506,7 +526,7 @@ export function dealSignalHTML(set) {
           <div style="font-size:13px;color:var(--ink-soft);line-height:1.45;">${escapeHtml(reason)}</div>
           ${buyLine}
         </div>
-        <span style="flex-shrink:0;font-family:var(--mono);font-size:11px;font-weight:800;text-transform:uppercase;color:${cfg.color};border:1px solid ${cfg.color};border-radius:8px;padding:4px 10px;white-space:nowrap;">${cfg.label}${pctStr}</span>
+        <span style="flex-shrink:0;font-family:var(--mono);font-size:11px;font-weight:800;text-transform:uppercase;color:${cfg.color};border:1px solid ${cfg.color};border-radius:8px;padding:4px 10px;white-space:nowrap;">${showPct ? t('deal.labelPct', { label: cfg.label, pct: Math.abs(Math.round(pct)) }) : cfg.label}</span>
       </div>
     </div>`;
 }

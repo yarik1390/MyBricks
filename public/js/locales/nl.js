@@ -24,7 +24,7 @@ export const nl = {
     reliablePrice: 'Betrouwbare prijs', pricingDetails: 'Prijsdetails', priceHistory: 'Prijsgeschiedenis',
     details: 'Details', estimated: 'Geschat', year: 'Jaar', theme: 'Thema',
     addToWishlist: 'Aan verlanglijst', inWishlist: 'Op je verlanglijst',
-    addToVaultPrice: 'Aan kluis toevoegen · {price}', priceHistoryDays: 'Prijsgeschiedenis · {days} dagen', priceHistoryShort: 'Prijsgeschiedenis · {days} d', fromSources: 'Uit {n} marktbronnen', fromSourcesOne: 'Uit 1 marktbron', typicalRange: ' · doorgaans {low}–{high}', likelyRange: ' · waarschijnlijk {low}-{high}', reviews: '{n} recensies', reviewsOne: '1 recensie', up: 'Stijging {pct}%', down: 'Daling {pct}%',
+    addToVaultPrice: 'Aan kluis toevoegen · {price}', priceHistoryDays: 'Prijsgeschiedenis · {days} dagen', priceHistoryShort: 'Prijsgeschiedenis · {days} d', fromSources: 'Uit {n} marktbronnen', fromSourcesOne: 'Uit 1 marktbron', typicalRange: ' · doorgaans {low}–{high}', likelyRange: ' · waarschijnlijk {low}-{high}', tagsMore: '+{n} meer', reviews: '{n} recensies', reviewsOne: '1 recensie', up: 'Stijging {pct}%', down: 'Daling {pct}%',
   },
   counts: {
     results: '{n} resultaten', resultsOne: '1 resultaat', collected: '{owned}/{total} verzameld', owned: '{n} in bezit', ofFigs: 'van {total} figuren', figs: '{n} figuren', figsOne: '1 figuur',
@@ -41,6 +41,8 @@ export const nl = {
     saleOne: '1 geverifieerde verkoop',
     estimateUnlocks: 'De schatting voor {list} komt beschikbaar bij meer verkoopdata.',
     estimatesUnlock: 'De schattingen voor {list} komen beschikbaar bij meer verkoopdata.',
+    sellingAbove: 'Verkoopt ongeveer {pct} boven deze waarde',
+    sellingBelow: 'Verkoopt ongeveer {pct} onder deze waarde',
   },
   card: {
     pieces: '{n} STKS',
@@ -51,6 +53,19 @@ export const nl = {
     forecast2y: '{price} 2 jr',
     gamePieces: '{n} stenen',
     gameRetail: 'adviesprijs {price}',
+  },
+  deal: {
+    buyRetail: 'In de winkel verkrijgbaar voor ongeveer {pct}% onder de marktwaarde.',
+    buyResale: 'Verkoopt ongeveer {pct}% onder de marktwaarde.',
+    retiring: 'Binnenkort uit productie — beperkt koopmoment.',
+    premiumRetail: 'Momenteel boven de marktwaarde geprijsd.',
+    premiumResale: 'De vraagprijzen liggen boven de marktwaarde.',
+    fair: 'Geprijsd op de marktwaarde.',
+    labelBuy: 'KOPEN',
+    labelStrongBuy: 'TOPKOOP',
+    labelFair: 'EERLIJKE PRIJS',
+    labelPremium: 'BOVEN WAARDE',
+    labelPct: '{label} · {pct}%',
   },
   time: {
     unknown: 'onbekend', today: 'Vandaag', yesterday: 'Gisteren', daysAgo: '{n} dagen geleden',
@@ -159,4 +174,9 @@ Object.assign(nl.card, { gamePiecesOne: '{n} steen', gamePiecesOther: '{n} stene
 Object.assign(nl.share ??= {}, {"gameTitle":"Price It!","gameText":"🧱 Price It! {day}\\n{tiles} {score}/5 · streak {streak}\\nGuess LEGO market prices on BricksVault","setText":"Check out {name} ({setNum}) on BricksVault!","setDialogTitle":"Share {name}","portfolioTitle":"My LEGO BricksVault","portfolioText":"Check out my LEGO collection on BricksVault!","portfolioDialogTitle":"Share my BricksVault","wrappedTitle":"Brick Wrapped {year}","wrappedBest":"Best performer: {name}{roi}","wrappedTracked":"Tracked with BricksVault","wrappedSetsAdded":"sets added","wrappedPiecesAdded":"pieces","wrappedValueChange":"vault value change","wrappedTagline":"BRICKSVAULT · STACK SOMETHING BEAUTIFUL"});
 Object.assign(nl.share, { gameTitle: 'Prijs het!', gameText: '🧱 Prijs het! {day}\n{tiles} {score}/5 · reeks {streak}\nRaad LEGO-marktprijzen op BricksVault', setText: 'Bekijk {name} ({setNum}) op BricksVault!', setDialogTitle: 'Deel {name}', portfolioTitle: 'Mijn LEGO BricksVault', portfolioText: 'Bekijk mijn LEGO-collectie op BricksVault!', portfolioDialogTitle: 'Deel mijn BricksVault', wrappedTitle: 'Brick-jaaroverzicht {year}', wrappedBest: 'Beste prestatie: {name}{roi}', wrappedTracked: 'Bijgehouden met BricksVault', wrappedValueChange: 'waardeverandering van de kluis', wrappedTagline: 'BRICKSVAULT · BOUW IETS MOOIS', wrappedHeading: 'Brick-jaaroverzicht', wrappedDescription: 'Jouw verzamelaarsjaar in cijfers — deel het.', wrappedLoading: 'Je stenen worden geteld…', wrappedSummaryTitle: '🧱 Mijn Brick-jaaroverzicht {year}', wrappedSetsAddedOne: '{count} set toegevoegd', wrappedSetsAddedOther: '{count} sets toegevoegd', wrappedPiecesAddedOne: '{count} onderdeel', wrappedPiecesAddedOther: '{count} onderdelen', wrappedMinifigsOne: '{count} minifiguur', wrappedMinifigsOther: '{count} minifiguren', wrappedInvested: 'geïnvesteerd', wrappedSoldOne: '{count} set verkocht', wrappedSoldOther: '{count} sets verkocht', wrappedSoldLabel: 'verkocht', wrappedBestLabel: 'Beste prestatie', wrappedBestCanvas: 'Beste prestatie', wrappedBestCanvasWithRoi: 'Beste prestatie · {roi}', wrappedLongestHeld: 'Langst in bezit: {name} (sinds {year})', wrappedClose: 'Sluiten', wrappedShareYear: 'Deel mijn jaar' });
 Object.assign(nl.data, { reportPreparing: 'Rapport wordt voorbereid…', insuranceReportTitle: 'BricksVault-verzekeringsrapport', reportSharedReady: 'Rapport is klaar — open het en druk het af als PDF.', reportDownloadedReady: 'Rapport gedownload — open het en druk het af als PDF.', noSnapshotsYet: 'Nog geen momentopnamen — de eerste wordt volgende zondag gemaakt.', backupsUnavailable: 'Back-ups zijn nu niet beschikbaar.', retryingSync: 'Synchronisatie wordt opnieuw geprobeerd…', guestVaultSynced: 'Gastkluis gesynchroniseerd', exportPreparing: 'Export wordt voorbereid…', collectionExportTitle: 'Deel BricksVault-collectie', guestExportShared: 'Je lokale gastexport is klaar om te delen of op te slaan.', guestExportDownloaded: 'Export gedownload uit lokale gastgegevens.', syncedExportShared: 'Je gesynchroniseerde export is klaar om te delen of op te slaan.', syncedExportDownloaded: 'Export gedownload uit je gesynchroniseerde kluis.' });
+// en.js declares `market` twice as an object literal, so the later one wins and
+// keys added to the earlier block are silently dropped. Assigning after the fact
+// lands on whichever object survived.
+Object.assign(nl.market, { comps: '{n} vergelijkingen', slashComps: ' / {n} vergelijkingen', usedValue: 'Gebruikt: {price}', updated: 'Bijgewerkt {date}', compsAboveMsrp: 'Nieuwverkopen liggen {amount} ({pct}) boven de adviesprijs.', compsBelowMsrp: 'Nieuwverkopen liggen {amount} ({pct}) onder de adviesprijs.' });
+
 export default nl;

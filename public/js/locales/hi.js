@@ -24,7 +24,7 @@ export const hi = {
     reliablePrice: 'विश्वसनीय मूल्य', pricingDetails: 'मूल्य विवरण', priceHistory: 'मूल्य इतिहास',
     details: 'विवरण', estimated: 'अनुमानित', year: 'वर्ष', theme: 'थीम',
     addToWishlist: 'इच्छा-सूची में जोड़ें', inWishlist: 'इच्छा-सूची में है',
-    addToVaultPrice: 'वॉल्ट में जोड़ें · {price}', priceHistoryDays: 'कीमत इतिहास · {days} दिन', priceHistoryShort: 'कीमत इतिहास · {days} दि', fromSources: '{n} बाज़ार स्रोतों से', fromSourcesOne: '1 बाज़ार स्रोत से', typicalRange: ' · आमतौर पर {low}–{high}', likelyRange: ' · संभवतः {low}-{high}', reviews: '{n} समीक्षाएँ', reviewsOne: '1 समीक्षा', up: '{pct}% ऊपर', down: '{pct}% नीचे',
+    addToVaultPrice: 'वॉल्ट में जोड़ें · {price}', priceHistoryDays: 'कीमत इतिहास · {days} दिन', priceHistoryShort: 'कीमत इतिहास · {days} दि', fromSources: '{n} बाज़ार स्रोतों से', fromSourcesOne: '1 बाज़ार स्रोत से', typicalRange: ' · आमतौर पर {low}–{high}', likelyRange: ' · संभवतः {low}-{high}', tagsMore: '+{n} और', reviews: '{n} समीक्षाएँ', reviewsOne: '1 समीक्षा', up: '{pct}% ऊपर', down: '{pct}% नीचे',
   },
   counts: {
     results: '{n} परिणाम', resultsOne: '1 परिणाम', collected: '{owned}/{total} एकत्रित', owned: '{n} स्वामित्व में', ofFigs: '{total} में से', figs: '{n} मिनीफ़िगर', figsOne: '1 मिनीफ़िगर',
@@ -41,6 +41,8 @@ export const hi = {
     saleOne: '1 सत्यापित बिक्री',
     estimateUnlocks: '{list} का अनुमान अधिक बिक्री डेटा आने पर उपलब्ध होगा।',
     estimatesUnlock: '{list} के अनुमान अधिक बिक्री डेटा आने पर उपलब्ध होंगे।',
+    sellingAbove: 'इस मूल्य से लगभग {pct} ऊपर बिक रहा है',
+    sellingBelow: 'इस मूल्य से लगभग {pct} नीचे बिक रहा है',
   },
   card: {
     pieces: '{n} पीस',
@@ -51,6 +53,19 @@ export const hi = {
     forecast2y: '{price} 2 वर्ष',
     gamePieces: '{n} पीस',
     gameRetail: 'खुदरा {price}',
+  },
+  deal: {
+    buyRetail: 'खुदरा में बाज़ार मूल्य से लगभग {pct}% कम पर उपलब्ध।',
+    buyResale: 'बाज़ार मूल्य से लगभग {pct}% कम पर बिक रहा है।',
+    retiring: 'जल्द बंद हो रहा है — खरीद का सीमित अवसर।',
+    premiumRetail: 'फ़िलहाल बाज़ार मूल्य से ऊपर।',
+    premiumResale: 'माँगी गई कीमतें बाज़ार मूल्य से ऊपर हैं।',
+    fair: 'बाज़ार मूल्य के अनुरूप।',
+    labelBuy: 'खरीदें',
+    labelStrongBuy: 'बढ़िया सौदा',
+    labelFair: 'उचित कीमत',
+    labelPremium: 'मूल्य से ऊपर',
+    labelPct: '{label} · {pct}%',
   },
   time: {
     unknown: 'अज्ञात', today: 'आज', yesterday: 'कल', daysAgo: '{n} दिन पहले',
@@ -159,4 +174,9 @@ Object.assign(hi.card, { gamePiecesOne: '{n} पीस', gamePiecesOther: '{n} �
 Object.assign(hi.share ??= {}, {"gameTitle":"Price It!","gameText":"🧱 Price It! {day}\\n{tiles} {score}/5 · streak {streak}\\nGuess LEGO market prices on BricksVault","setText":"Check out {name} ({setNum}) on BricksVault!","setDialogTitle":"Share {name}","portfolioTitle":"My LEGO BricksVault","portfolioText":"Check out my LEGO collection on BricksVault!","portfolioDialogTitle":"Share my BricksVault","wrappedTitle":"Brick Wrapped {year}","wrappedBest":"Best performer: {name}{roi}","wrappedTracked":"Tracked with BricksVault","wrappedSetsAdded":"sets added","wrappedPiecesAdded":"pieces","wrappedValueChange":"vault value change","wrappedTagline":"BRICKSVAULT · STACK SOMETHING BEAUTIFUL"});
 Object.assign(hi.share, { gameTitle: 'कीमत लगाएँ!', gameText: '🧱 कीमत लगाएँ! {day}\n{tiles} {score}/5 · लगातार {streak}\nBricksVault पर LEGO बाज़ार कीमतों का अनुमान लगाएँ', setText: 'BricksVault पर {name} ({setNum}) देखें!', setDialogTitle: '{name} साझा करें', portfolioTitle: 'मेरा LEGO BricksVault', portfolioText: 'BricksVault पर मेरा LEGO संग्रह देखें!', portfolioDialogTitle: 'मेरा BricksVault साझा करें', wrappedTitle: 'Brick वर्ष-सार {year}', wrappedBest: 'सर्वश्रेष्ठ प्रदर्शन: {name}{roi}', wrappedTracked: 'BricksVault के साथ ट्रैक किया गया', wrappedValueChange: 'वॉल्ट मूल्य परिवर्तन', wrappedTagline: 'BRICKSVAULT · कुछ सुंदर बनाएँ', wrappedHeading: 'Brick वर्ष-सार', wrappedDescription: 'अंकों में आपका कलेक्टर वर्ष — इसे साझा करें।', wrappedLoading: 'आपकी ईंटें गिनी जा रही हैं…', wrappedSummaryTitle: '🧱 मेरा Brick वर्ष-सार {year}', wrappedSetsAddedOne: '{count} सेट जोड़ा गया', wrappedSetsAddedOther: '{count} सेट जोड़े गए', wrappedPiecesAddedOne: '{count} पीस', wrappedPiecesAddedOther: '{count} पीस', wrappedMinifigsOne: '{count} मिनीफ़िग', wrappedMinifigsOther: '{count} मिनीफ़िग', wrappedInvested: 'निवेशित', wrappedSoldOne: '{count} सेट बेचा गया', wrappedSoldOther: '{count} सेट बेचे गए', wrappedSoldLabel: 'बेचा गया', wrappedBestLabel: 'सर्वश्रेष्ठ प्रदर्शन', wrappedBestCanvas: 'सर्वश्रेष्ठ प्रदर्शन', wrappedBestCanvasWithRoi: 'सर्वश्रेष्ठ प्रदर्शन · {roi}', wrappedLongestHeld: 'सबसे लंबे समय तक रखा: {name} ({year} से)', wrappedClose: 'बंद करें', wrappedShareYear: 'मेरा वर्ष साझा करें' });
 Object.assign(hi.data, { reportPreparing: 'रिपोर्ट तैयार हो रही है…', insuranceReportTitle: 'BricksVault बीमा रिपोर्ट', reportSharedReady: 'रिपोर्ट तैयार है — खोलें और PDF में प्रिंट करें।', reportDownloadedReady: 'रिपोर्ट डाउनलोड हुई — खोलें और PDF में प्रिंट करें।', noSnapshotsYet: 'अभी कोई स्नैपशॉट नहीं — पहला अगले रविवार लिखा जाएगा।', backupsUnavailable: 'बैकअप अभी उपलब्ध नहीं हैं।', retryingSync: 'सिंक फिर से आज़माया जा रहा है…', guestVaultSynced: 'गेस्ट वॉल्ट सिंक हो गया', exportPreparing: 'निर्यात तैयार हो रहा है…', collectionExportTitle: 'BricksVault संग्रह साझा करें', guestExportShared: 'आपका स्थानीय गेस्ट निर्यात साझा या सहेजने के लिए तैयार है।', guestExportDownloaded: 'स्थानीय गेस्ट डेटा से निर्यात डाउनलोड हुआ।', syncedExportShared: 'आपका सिंक किया गया निर्यात साझा या सहेजने के लिए तैयार है।', syncedExportDownloaded: 'आपके सिंक किए गए वॉल्ट से निर्यात डाउनलोड हुआ।' });
+// en.js declares `market` twice as an object literal, so the later one wins and
+// keys added to the earlier block are silently dropped. Assigning after the fact
+// lands on whichever object survived.
+Object.assign(hi.market, { comps: '{n} तुलनीय बिक्रियाँ', slashComps: ' / {n} तुलनीय बिक्रियाँ', usedValue: 'इस्तेमाल किया हुआ: {price}', updated: '{date} को अपडेट किया गया', compsAboveMsrp: 'नए की बिक्री MSRP से {amount} ({pct}) ऊपर है।', compsBelowMsrp: 'नए की बिक्री MSRP से {amount} ({pct}) नीचे है।' });
+
 export default hi;

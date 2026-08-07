@@ -24,7 +24,7 @@ export const uk = {
     reliablePrice: 'Надійна ціна', pricingDetails: 'Деталі ціни', priceHistory: 'Історія цін',
     details: 'Деталі', estimated: 'Оцінка', year: 'Рік', theme: 'Тема',
     addToWishlist: 'До списку бажань', inWishlist: 'У списку бажань',
-    addToVaultPrice: 'Додати до сховища · {price}', priceHistoryDays: 'Історія цін · {days} днів', priceHistoryShort: 'Історія цін · {days} дн.', fromSources: 'З {n} ринкових джерел', fromSourcesOne: 'З 1 ринкового джерела', typicalRange: ' · зазвичай {low}–{high}', likelyRange: ' · імовірно {low}-{high}', reviews: '{n} відгуків', reviewsOne: '1 відгук', up: 'Зростання {pct}%', down: 'Падіння {pct}%',
+    addToVaultPrice: 'Додати до сховища · {price}', priceHistoryDays: 'Історія цін · {days} днів', priceHistoryShort: 'Історія цін · {days} дн.', fromSources: 'З {n} ринкових джерел', fromSourcesOne: 'З 1 ринкового джерела', typicalRange: ' · зазвичай {low}–{high}', likelyRange: ' · імовірно {low}-{high}', tagsMore: '+{n} ще', reviews: '{n} відгуків', reviewsOne: '1 відгук', up: 'Зростання {pct}%', down: 'Падіння {pct}%',
   },
   counts: {
     results: '{n} результатів', resultsOne: '1 результат', collected: '{owned}/{total} зібрано', owned: '{n} у власності', ofFigs: 'з {total} фігурок', figs: '{n} фігурок', figsOne: '1 фігурка',
@@ -41,6 +41,8 @@ export const uk = {
     saleOne: '1 перевірений продаж',
     estimateUnlocks: 'Оцінка «{list}» з’явиться, коли надійде більше даних про продажі.',
     estimatesUnlock: 'Оцінки «{list}» з’являться, коли надійде більше даних про продажі.',
+    sellingAbove: 'Продається приблизно на {pct} вище цієї вартості',
+    sellingBelow: 'Продається приблизно на {pct} нижче цієї вартості',
   },
   card: {
     pieces: '{n} ДЕТ',
@@ -51,6 +53,19 @@ export const uk = {
     forecast2y: '{price} 2 р.',
     gamePieces: '{n} деталей',
     gameRetail: 'ціна {price}',
+  },
+  deal: {
+    buyRetail: 'У роздрібу доступний приблизно на {pct}% нижче ринкової вартості.',
+    buyResale: 'Продається приблизно на {pct}% нижче ринкової вартості.',
+    retiring: 'Скоро знімуть з виробництва — обмежене вікно для купівлі.',
+    premiumRetail: 'Наразі оцінений вище ринкової вартості.',
+    premiumResale: 'Ціни пропозиції вищі за ринкову вартість.',
+    fair: 'Оцінений на рівні ринкової вартості.',
+    labelBuy: 'КУПИТИ',
+    labelStrongBuy: 'ВИГІДНО',
+    labelFair: 'СПРАВЕДЛИВА ЦІНА',
+    labelPremium: 'ВИЩЕ ВАРТОСТІ',
+    labelPct: '{label} · {pct}%',
   },
   time: {
     unknown: 'невідомо', today: 'Сьогодні', yesterday: 'Учора', daysAgo: '{n} дн. тому',
@@ -186,4 +201,9 @@ Object.assign(uk.card, { gamePiecesOne: '{n} деталь', gamePiecesFew: '{n} 
 Object.assign(uk.share ??= {}, {"gameTitle":"Price It!","gameText":"🧱 Price It! {day}\\n{tiles} {score}/5 · streak {streak}\\nGuess LEGO market prices on BricksVault","setText":"Check out {name} ({setNum}) on BricksVault!","setDialogTitle":"Share {name}","portfolioTitle":"My LEGO BricksVault","portfolioText":"Check out my LEGO collection on BricksVault!","portfolioDialogTitle":"Share my BricksVault","wrappedTitle":"Brick Wrapped {year}","wrappedBest":"Best performer: {name}{roi}","wrappedTracked":"Tracked with BricksVault","wrappedSetsAdded":"sets added","wrappedPiecesAdded":"pieces","wrappedValueChange":"vault value change","wrappedTagline":"BRICKSVAULT · STACK SOMETHING BEAUTIFUL"});
 Object.assign(uk.share, { gameTitle: 'Вгадай ціну!', gameText: '🧱 Вгадай ціну! {day}\n{tiles} {score}/5 · серія {streak}\nВгадуйте ринкові ціни LEGO у BricksVault', setText: 'Перегляньте {name} ({setNum}) у BricksVault!', setDialogTitle: 'Поділитися {name}', portfolioTitle: 'Мій LEGO BricksVault', portfolioText: 'Перегляньте мою колекцію LEGO у BricksVault!', portfolioDialogTitle: 'Поділитися моїм BricksVault', wrappedTitle: 'Підсумки Brick {year}', wrappedBest: 'Найкращий результат: {name}{roi}', wrappedTracked: 'Відстежено у BricksVault', wrappedValueChange: 'зміна вартості сховища', wrappedTagline: 'BRICKSVAULT · СТВОРЮЙТЕ ЩОСЬ ГАРНЕ', wrappedHeading: 'Підсумки Brick', wrappedDescription: 'Ваш рік колекціонера в цифрах — поділіться ним.', wrappedLoading: 'Рахуємо ваші цеглинки…', wrappedSummaryTitle: '🧱 Мої підсумки Brick {year}', wrappedSetsAddedOne: '{count} набір додано', wrappedSetsAddedFew: '{count} набори додано', wrappedSetsAddedMany: '{count} наборів додано', wrappedSetsAddedOther: '{count} набору додано', wrappedPiecesAddedOne: '{count} деталь', wrappedPiecesAddedFew: '{count} деталі', wrappedPiecesAddedMany: '{count} деталей', wrappedPiecesAddedOther: '{count} деталі', wrappedMinifigsOne: '{count} мініфігурка', wrappedMinifigsFew: '{count} мініфігурки', wrappedMinifigsMany: '{count} мініфігурок', wrappedMinifigsOther: '{count} мініфігурки', wrappedInvested: 'інвестовано', wrappedSoldOne: '{count} набір продано', wrappedSoldFew: '{count} набори продано', wrappedSoldMany: '{count} наборів продано', wrappedSoldOther: '{count} набору продано', wrappedSoldLabel: 'продано', wrappedBestLabel: 'Найкращий результат', wrappedBestCanvas: 'Найкращий результат', wrappedBestCanvasWithRoi: 'Найкращий результат · {roi}', wrappedLongestHeld: 'Найдовше у колекції: {name} (з {year})', wrappedClose: 'Закрити', wrappedShareYear: 'Поділитися моїм роком' });
 Object.assign(uk.data, { reportPreparing: 'Готуємо звіт…', insuranceReportTitle: 'Страховий звіт BricksVault', reportSharedReady: 'Звіт готовий — відкрийте та роздрукуйте його у PDF.', reportDownloadedReady: 'Звіт завантажено — відкрийте та роздрукуйте його у PDF.', noSnapshotsYet: 'Знімків ще немає — перший буде створено наступної неділі.', backupsUnavailable: 'Резервні копії зараз недоступні.', retryingSync: 'Повторна спроба синхронізації…', guestVaultSynced: 'Гостьове сховище синхронізовано', exportPreparing: 'Готуємо експорт…', collectionExportTitle: 'Поділитися колекцією BricksVault', guestExportShared: 'Локальний гостьовий експорт готовий до поширення або збереження.', guestExportDownloaded: 'Експорт завантажено з локальних гостьових даних.', syncedExportShared: 'Синхронізований експорт готовий до поширення або збереження.', syncedExportDownloaded: 'Експорт завантажено з вашого синхронізованого сховища.' });
+// en.js declares `market` twice as an object literal, so the later one wins and
+// keys added to the earlier block are silently dropped. Assigning after the fact
+// lands on whichever object survived.
+Object.assign(uk.market, { comps: '{n} порівнянь', slashComps: ' / {n} порівнянь', usedValue: 'Вживаний: {price}', updated: 'Оновлено {date}', compsAboveMsrp: 'Продажі нових на {amount} ({pct}) вище рекомендованої ціни.', compsBelowMsrp: 'Продажі нових на {amount} ({pct}) нижче рекомендованої ціни.' });
+
 export default uk;

@@ -99,6 +99,24 @@ export const en = {
     reviewsOne: '1 review',
     up: 'Up {pct}%',
     down: 'Down {pct}%',
+    tagsMore: '+{n} more',
+  },
+  deal: {
+    // The Worker computes deal_reason as English prose with the percentage
+    // baked in, so no dictionary key could ever match it. The client has every
+    // input it needs (deal_signal, deal_available_channel, deal_discount_pct,
+    // deal_strong), so it rebuilds the sentence here instead.
+    buyRetail: 'Available at retail about {pct}% below its market value.',
+    buyResale: 'Selling about {pct}% below its market value.',
+    retiring: 'Retiring soon — limited buying window.',
+    premiumRetail: 'Currently priced above its market value.',
+    premiumResale: 'Asking prices sit above its market value.',
+    fair: 'Priced in line with its market value.',
+    labelBuy: 'BUY',
+    labelStrongBuy: 'STRONG BUY',
+    labelFair: 'FAIR PRICE',
+    labelPremium: 'ABOVE VALUE',
+    labelPct: '{label} · {pct}%',
   },
   card: {
     // Catalog / vault card chips. Every one carries a number, so the
@@ -147,6 +165,10 @@ export const en = {
     saleOne: '1 verified sale',
     estimateUnlocks: '{list} estimate unlocks as more sold data arrives.',
     estimatesUnlock: '{list} estimates unlock as more sold data arrives.',
+    // Pricing-details sheet. Each carries a number, so the exact-match
+    // dictionary can never reach them.
+    sellingAbove: 'Selling about {pct} above this value',
+    sellingBelow: 'Selling about {pct} below this value',
   },
   time: {
     unknown: 'unknown', today: 'Today', yesterday: 'Yesterday', daysAgo: '{n} days ago',
@@ -421,4 +443,9 @@ Object.assign(en.card, { gamePiecesOne: '{n} pc', gamePiecesOther: '{n} pcs', pi
 Object.assign(en.share ??= {}, { gameTitle: 'Price It!', gameText: '🧱 Price It! {day}\n{tiles} {score}/5 · streak {streak}\nGuess LEGO market prices on BricksVault', setText: 'Check out {name} ({setNum}) on BricksVault!', setDialogTitle: 'Share {name}', portfolioTitle: 'My LEGO BricksVault', portfolioText: 'Check out my LEGO collection on BricksVault!', portfolioDialogTitle: 'Share my BricksVault', wrappedTitle: 'Brick Wrapped {year}', wrappedBest: 'Best performer: {name}{roi}', wrappedTracked: 'Tracked with BricksVault', wrappedSetsAdded: 'sets added', wrappedPiecesAdded: 'pieces', wrappedValueChange: 'vault value change', wrappedTagline: 'BRICKSVAULT · STACK SOMETHING BEAUTIFUL' });
 Object.assign(en.share, { wrappedHeading: 'Brick Wrapped', wrappedDescription: 'Your collector year in numbers — share it.', wrappedLoading: 'Counting your bricks…', wrappedSummaryTitle: '🧱 My Brick Wrapped {year}', wrappedSetsAddedOne: '{count} set added', wrappedSetsAddedOther: '{count} sets added', wrappedPiecesAddedOne: '{count} piece', wrappedPiecesAddedOther: '{count} pieces', wrappedMinifigsOne: '{count} minifig', wrappedMinifigsOther: '{count} minifigs', wrappedInvested: 'invested', wrappedSoldOne: '{count} set sold', wrappedSoldOther: '{count} sets sold', wrappedSoldLabel: 'sold', wrappedBestLabel: 'Best performer', wrappedBestCanvas: 'Best performer', wrappedBestCanvasWithRoi: 'Best performer · {roi}', wrappedLongestHeld: 'Longest held: {name} (since {year})', wrappedClose: 'Close', wrappedShareYear: 'Share my year' });
 Object.assign(en.data, { reportPreparing: 'Preparing report…', insuranceReportTitle: 'BricksVault insurance report', reportSharedReady: 'Report ready — open it and print to PDF.', reportDownloadedReady: 'Report downloaded — open it and print to PDF.', noSnapshotsYet: 'No snapshots yet — the first one is written next Sunday.', backupsUnavailable: 'Backups unavailable right now.', retryingSync: 'Retrying sync…', guestVaultSynced: 'Guest vault synced', exportPreparing: 'Preparing export…', collectionExportTitle: 'Share BricksVault collection', guestExportShared: 'Your local guest export is ready to share or save.', guestExportDownloaded: 'Export downloaded from local guest data.', syncedExportShared: 'Your synced export is ready to share or save.', syncedExportDownloaded: 'Export downloaded from your synced vault.' });
+// en.js declares `market` twice as an object literal, so the later one wins and
+// keys added to the earlier block are silently dropped. Assigning after the fact
+// lands on whichever object survived.
+Object.assign(en.market, { comps: '{n} comps', slashComps: ' / {n} comps', usedValue: 'Used: {price}', updated: 'Updated {date}', compsAboveMsrp: 'New sold comps are {amount} ({pct}) above MSRP.', compsBelowMsrp: 'New sold comps are {amount} ({pct}) below MSRP.' });
+
 export default en;

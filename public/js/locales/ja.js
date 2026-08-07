@@ -24,7 +24,7 @@ export const ja = {
     reliablePrice: '信頼できる価格', pricingDetails: '価格の詳細', priceHistory: '価格推移',
     details: '詳細', estimated: '推定', year: '年', theme: 'テーマ',
     addToWishlist: 'ウィッシュリストに追加', inWishlist: 'ウィッシュリストに登録済み',
-    addToVaultPrice: 'ボールトに追加 · {price}', priceHistoryDays: '価格履歴 · {days}日間', priceHistoryShort: '価格履歴 · {days}日', fromSources: '{n} 件の市場ソースから', fromSourcesOne: '1 件の市場ソースから', typicalRange: ' · 通常 {low}–{high}', likelyRange: ' · 想定 {low}-{high}', reviews: 'レビュー{n}件', reviewsOne: 'レビュー1件', up: '{pct}% 上昇', down: '{pct}% 下落',
+    addToVaultPrice: 'ボールトに追加 · {price}', priceHistoryDays: '価格履歴 · {days}日間', priceHistoryShort: '価格履歴 · {days}日', fromSources: '{n} 件の市場ソースから', fromSourcesOne: '1 件の市場ソースから', typicalRange: ' · 通常 {low}–{high}', likelyRange: ' · 想定 {low}-{high}', tagsMore: '他 {n} 件', reviews: 'レビュー{n}件', reviewsOne: 'レビュー1件', up: '{pct}% 上昇', down: '{pct}% 下落',
   },
   counts: {
     results: '{n} 件', resultsOne: '1 件', collected: '{owned}/{total} 収集済み', owned: '{n} 個所有', ofFigs: '全 {total} 体中', figs: '{n} 体', figsOne: '1 体',
@@ -41,6 +41,8 @@ export const ja = {
     saleOne: '1 件の検証済み成約',
     estimateUnlocks: '{list}の推定値は成約データが増えると表示されます。',
     estimatesUnlock: '{list}の推定値は成約データが増えると表示されます。',
+    sellingAbove: 'この価値より約 {pct} 高く売れています',
+    sellingBelow: 'この価値より約 {pct} 安く売れています',
   },
   card: {
     pieces: '{n}ピース',
@@ -51,6 +53,19 @@ export const ja = {
     forecast2y: '{price} 2年',
     gamePieces: '{n}ピース',
     gameRetail: '定価 {price}',
+  },
+  deal: {
+    buyRetail: '小売で市場価値より約 {pct}% 安く入手できます。',
+    buyResale: '市場価値より約 {pct}% 安く売れています。',
+    retiring: 'まもなく生産終了 — 購入できる期間は限られます。',
+    premiumRetail: '現在は市場価値より高い価格です。',
+    premiumResale: '出品価格が市場価値を上回っています。',
+    fair: '市場価値どおりの価格です。',
+    labelBuy: '買い',
+    labelStrongBuy: '買い推奨',
+    labelFair: '適正価格',
+    labelPremium: '価値超過',
+    labelPct: '{label} · {pct}%',
   },
   time: {
     unknown: '不明', today: '今日', yesterday: '昨日', daysAgo: '{n}日前',
@@ -164,4 +179,9 @@ Object.assign(ja.card, { gamePiecesOne: '{n}ピース', gamePiecesOther: '{n}ピ
 Object.assign(ja.share ??= {}, {"gameTitle":"Price It!","gameText":"🧱 Price It! {day}\\n{tiles} {score}/5 · streak {streak}\\nGuess LEGO market prices on BricksVault","setText":"Check out {name} ({setNum}) on BricksVault!","setDialogTitle":"Share {name}","portfolioTitle":"My LEGO BricksVault","portfolioText":"Check out my LEGO collection on BricksVault!","portfolioDialogTitle":"Share my BricksVault","wrappedTitle":"Brick Wrapped {year}","wrappedBest":"Best performer: {name}{roi}","wrappedTracked":"Tracked with BricksVault","wrappedSetsAdded":"sets added","wrappedPiecesAdded":"pieces","wrappedValueChange":"vault value change","wrappedTagline":"BRICKSVAULT · STACK SOMETHING BEAUTIFUL"});
 Object.assign(ja.share, { gameTitle: 'プライス・イット！', gameText: '🧱 プライス・イット！ {day}\n{tiles} {score}/5 · 連続 {streak}\nBricksVaultでLEGOの市場価格を当てよう', setText: 'BricksVaultで{name}（{setNum}）をチェック！', setDialogTitle: '{name}を共有', portfolioTitle: 'マイ LEGO BricksVault', portfolioText: 'BricksVaultで私のLEGOコレクションをチェック！', portfolioDialogTitle: 'マイBricksVaultを共有', wrappedTitle: 'ブリック年間まとめ {year}', wrappedBest: '最高の成果：{name}{roi}', wrappedTracked: 'BricksVaultで記録', wrappedValueChange: '保管庫の価値変動', wrappedTagline: 'BRICKSVAULT · 美しいものを組み立てよう', wrappedHeading: 'ブリック年間まとめ', wrappedDescription: '数字で振り返るあなたのコレクター年 — シェアしよう。', wrappedLoading: 'ブリックを数えています…', wrappedSummaryTitle: '🧱 私のブリック年間まとめ {year}', wrappedSetsAddedOne: '{count}セット追加', wrappedSetsAddedOther: '{count}セット追加', wrappedPiecesAddedOne: '{count}ピース', wrappedPiecesAddedOther: '{count}ピース', wrappedMinifigsOne: '{count}ミニフィグ', wrappedMinifigsOther: '{count}ミニフィグ', wrappedInvested: '投資額', wrappedSoldOne: '{count}セット売却', wrappedSoldOther: '{count}セット売却', wrappedSoldLabel: '売却', wrappedBestLabel: '最高の成果', wrappedBestCanvas: '最高の成果', wrappedBestCanvasWithRoi: '最高の成果 · {roi}', wrappedLongestHeld: '最も長く所有：{name}（{year}から）', wrappedClose: '閉じる', wrappedShareYear: '今年を共有' });
 Object.assign(ja.data, { reportPreparing: 'レポートを準備中…', insuranceReportTitle: 'BricksVault保険レポート', reportSharedReady: 'レポートの準備ができました。開いてPDFに印刷してください。', reportDownloadedReady: 'レポートをダウンロードしました。開いてPDFに印刷してください。', noSnapshotsYet: 'スナップショットはまだありません。最初のものは次の日曜日に作成されます。', backupsUnavailable: '現在バックアップを利用できません。', retryingSync: '同期を再試行中…', guestVaultSynced: 'ゲスト保管庫を同期しました', exportPreparing: 'エクスポートを準備中…', collectionExportTitle: 'BricksVaultコレクションを共有', guestExportShared: 'ローカルのゲストエクスポートを共有または保存できます。', guestExportDownloaded: 'ローカルのゲストデータからエクスポートをダウンロードしました。', syncedExportShared: '同期済みのエクスポートを共有または保存できます。', syncedExportDownloaded: '同期済みの保管庫からエクスポートをダウンロードしました。' });
+// en.js declares `market` twice as an object literal, so the later one wins and
+// keys added to the earlier block are silently dropped. Assigning after the fact
+// lands on whichever object survived.
+Object.assign(ja.market, { comps: '比較成約 {n} 件', slashComps: ' / 比較成約 {n} 件', usedValue: '中古: {price}', updated: '{date} 更新', compsAboveMsrp: '新品の成約は希望小売価格より {amount}（{pct}）高いです。', compsBelowMsrp: '新品の成約は希望小売価格より {amount}（{pct}）安いです。' });
+
 export default ja;

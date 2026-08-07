@@ -24,7 +24,7 @@ export const zh = {
     reliablePrice: '可靠价格', pricingDetails: '价格详情', priceHistory: '价格走势',
     details: '详情', estimated: '估算', year: '年份', theme: '主题',
     addToWishlist: '加入心愿单', inWishlist: '已在心愿单',
-    addToVaultPrice: '加入收藏库 · {price}', priceHistoryDays: '价格历史 · {days} 天', priceHistoryShort: '价格历史 · {days}天', fromSources: '来自 {n} 个市场来源', fromSourcesOne: '来自 1 个市场来源', typicalRange: ' · 通常 {low}–{high}', likelyRange: ' · 可能 {low}-{high}', reviews: '{n} 条评价', reviewsOne: '1 条评价', up: '上涨 {pct}%', down: '下跌 {pct}%',
+    addToVaultPrice: '加入收藏库 · {price}', priceHistoryDays: '价格历史 · {days} 天', priceHistoryShort: '价格历史 · {days}天', fromSources: '来自 {n} 个市场来源', fromSourcesOne: '来自 1 个市场来源', typicalRange: ' · 通常 {low}–{high}', likelyRange: ' · 可能 {low}-{high}', tagsMore: '还有 {n} 个', reviews: '{n} 条评价', reviewsOne: '1 条评价', up: '上涨 {pct}%', down: '下跌 {pct}%',
   },
   counts: {
     results: '{n} 个结果', resultsOne: '1 个结果', collected: '已收集 {owned}/{total}', owned: '拥有 {n}', ofFigs: '共 {total} 个人仔', figs: '{n} 个人仔', figsOne: '1 个人仔',
@@ -41,6 +41,8 @@ export const zh = {
     saleOne: '1 笔已验证成交',
     estimateUnlocks: '{list}估算将在获得更多成交数据后解锁。',
     estimatesUnlock: '{list}估算将在获得更多成交数据后解锁。',
+    sellingAbove: '成交价高于该价值约 {pct}',
+    sellingBelow: '成交价低于该价值约 {pct}',
   },
   card: {
     pieces: '{n} 颗粒',
@@ -51,6 +53,19 @@ export const zh = {
     forecast2y: '{price} 2年',
     gamePieces: '{n} 颗粒',
     gameRetail: '零售价 {price}',
+  },
+  deal: {
+    buyRetail: '零售渠道有货，比市场价约低 {pct}%。',
+    buyResale: '成交价比市场价约低 {pct}%。',
+    retiring: '即将停产 — 购入窗口有限。',
+    premiumRetail: '当前定价高于市场价。',
+    premiumResale: '要价高于市场价。',
+    fair: '定价与市场价持平。',
+    labelBuy: '买入',
+    labelStrongBuy: '强力推荐',
+    labelFair: '价格合理',
+    labelPremium: '高于价值',
+    labelPct: '{label} · {pct}%',
   },
   time: {
     unknown: '未知', today: '今天', yesterday: '昨天', daysAgo: '{n} 天前',
@@ -159,4 +174,9 @@ Object.assign(zh.card, { gamePiecesOne: '{n} 颗粒', gamePiecesOther: '{n} 颗�
 Object.assign(zh.share ??= {}, {"gameTitle":"Price It!","gameText":"🧱 Price It! {day}\\n{tiles} {score}/5 · streak {streak}\\nGuess LEGO market prices on BricksVault","setText":"Check out {name} ({setNum}) on BricksVault!","setDialogTitle":"Share {name}","portfolioTitle":"My LEGO BricksVault","portfolioText":"Check out my LEGO collection on BricksVault!","portfolioDialogTitle":"Share my BricksVault","wrappedTitle":"Brick Wrapped {year}","wrappedBest":"Best performer: {name}{roi}","wrappedTracked":"Tracked with BricksVault","wrappedSetsAdded":"sets added","wrappedPiecesAdded":"pieces","wrappedValueChange":"vault value change","wrappedTagline":"BRICKSVAULT · STACK SOMETHING BEAUTIFUL"});
 Object.assign(zh.share, { gameTitle: '猜价格！', gameText: '🧱 猜价格！{day}\n{tiles} {score}/5 · 连胜 {streak}\n在 BricksVault 猜猜 LEGO 市场价格', setText: '在 BricksVault 查看 {name}（{setNum}）！', setDialogTitle: '分享 {name}', portfolioTitle: '我的 LEGO BricksVault', portfolioText: '来看看我在 BricksVault 上的 LEGO 收藏！', portfolioDialogTitle: '分享我的 BricksVault', wrappedTitle: '积木年度回顾 {year}', wrappedBest: '最佳表现：{name}{roi}', wrappedTracked: '通过 BricksVault 跟踪', wrappedValueChange: '收藏库价值变化', wrappedTagline: 'BRICKSVAULT · 拼出美好', wrappedHeading: '积木年度回顾', wrappedDescription: '用数字回顾你的收藏年 — 分享它。', wrappedLoading: '正在清点你的积木…', wrappedSummaryTitle: '🧱 我的积木年度回顾 {year}', wrappedSetsAddedOne: '新增 {count} 套', wrappedSetsAddedOther: '新增 {count} 套', wrappedPiecesAddedOne: '{count} 块零件', wrappedPiecesAddedOther: '{count} 块零件', wrappedMinifigsOne: '{count} 个小人仔', wrappedMinifigsOther: '{count} 个小人仔', wrappedInvested: '已投入', wrappedSoldOne: '售出 {count} 套', wrappedSoldOther: '售出 {count} 套', wrappedSoldLabel: '已售出', wrappedBestLabel: '最佳表现', wrappedBestCanvas: '最佳表现', wrappedBestCanvasWithRoi: '最佳表现 · {roi}', wrappedLongestHeld: '持有最久：{name}（自 {year} 年）', wrappedClose: '关闭', wrappedShareYear: '分享我的年度' });
 Object.assign(zh.data, { reportPreparing: '正在准备报告…', insuranceReportTitle: 'BricksVault 保险报告', reportSharedReady: '报告已就绪 — 打开并打印为 PDF。', reportDownloadedReady: '报告已下载 — 打开并打印为 PDF。', noSnapshotsYet: '还没有快照 — 第一份将在下周日创建。', backupsUnavailable: '备份目前不可用。', retryingSync: '正在重试同步…', guestVaultSynced: '访客收藏库已同步', exportPreparing: '正在准备导出…', collectionExportTitle: '分享 BricksVault 收藏库', guestExportShared: '你的本地访客导出已可分享或保存。', guestExportDownloaded: '已从本地访客数据下载导出。', syncedExportShared: '你的同步导出已可分享或保存。', syncedExportDownloaded: '已从你的同步收藏库下载导出。' });
+// en.js declares `market` twice as an object literal, so the later one wins and
+// keys added to the earlier block are silently dropped. Assigning after the fact
+// lands on whichever object survived.
+Object.assign(zh.market, { comps: '{n} 笔可比成交', slashComps: ' / {n} 笔可比成交', usedValue: '二手：{price}', updated: '更新于 {date}', compsAboveMsrp: '全新成交价高于建议零售价 {amount}（{pct}）。', compsBelowMsrp: '全新成交价低于建议零售价 {amount}（{pct}）。' });
+
 export default zh;
