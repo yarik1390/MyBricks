@@ -33,7 +33,6 @@ export const ui = {
   "A scraped price that disagrees with the set's corroborated value by more than 3× is rejected, not averaged in.": "若抓取到的价格与该套装已验证的价值相差 3 倍以上，会被直接剔除，而不是纳入平均。",
   "A single \"value\" hides too much. Each set page separates:": "单一的「价值」掩盖了太多信息。每个套装页面都会分开呈现：",
   "A verified fair value is required before forecasting.": "预测前需要先有经过验证的合理价值。",
-  "ABOVE VALUE": "高于价值",
   "AFOL status: confirmed.": "AFOL 身份：已确认。",
   "AI & Local Insights": "AI 与本地洞察",
   "AI Advisor": "AI 顾问",

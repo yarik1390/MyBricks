@@ -179,4 +179,7 @@ Object.assign(zh.data, { reportPreparing: '正在准备报告…', insuranceRepo
 // lands on whichever object survived.
 Object.assign(zh.market, { comps: '{n} 笔可比成交', slashComps: ' / {n} 笔可比成交', usedValue: '二手：{price}', updated: '更新于 {date}', compsAboveMsrp: '全新成交价高于建议零售价 {amount}（{pct}）。', compsBelowMsrp: '全新成交价低于建议零售价 {amount}（{pct}）。' });
 
+Object.assign(zh.detail, { tagsMoreOne: '还有 {n} 个', tagsMoreOther: '还有 {n} 个' });
+Object.assign(zh.market, { compsOne: '{n} 笔可比成交', compsOther: '{n} 笔可比成交', slashCompsOne: ' / {n} 笔可比成交', slashCompsOther: ' / {n} 笔可比成交' });
+
 export default zh;

@@ -33,7 +33,6 @@ export const ui = {
   "A scraped price that disagrees with the set's corroborated value by more than 3× is rejected, not averaged in.": "जो स्क्रैप की गई कीमत सेट के पुष्ट मूल्य से 3× से अधिक भिन्न होती है, उसे औसत में शामिल नहीं किया जाता, बल्कि अस्वीकार कर दिया जाता है।",
   "A single \"value\" hides too much. Each set page separates:": "अकेला «मूल्य» बहुत कुछ छिपा देता है। हर सेट पृष्ठ इन्हें अलग करता है:",
   "A verified fair value is required before forecasting.": "पूर्वानुमान से पहले एक सत्यापित उचित मूल्य आवश्यक है।",
-  "ABOVE VALUE": "मूल्य से ऊपर",
   "AFOL status: confirmed.": "AFOL स्थिति: पुष्ट।",
   "AI & Local Insights": "AI और लोकल इनसाइट्स",
   "AI Advisor": "AI सलाहकार",

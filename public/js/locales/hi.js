@@ -179,4 +179,7 @@ Object.assign(hi.data, { reportPreparing: 'रिपोर्ट तैयार
 // lands on whichever object survived.
 Object.assign(hi.market, { comps: '{n} तुलनीय बिक्रियाँ', slashComps: ' / {n} तुलनीय बिक्रियाँ', usedValue: 'इस्तेमाल किया हुआ: {price}', updated: '{date} को अपडेट किया गया', compsAboveMsrp: 'नए की बिक्री MSRP से {amount} ({pct}) ऊपर है।', compsBelowMsrp: 'नए की बिक्री MSRP से {amount} ({pct}) नीचे है।' });
 
+Object.assign(hi.detail, { tagsMoreOne: '+{n} और', tagsMoreOther: '+{n} और' });
+Object.assign(hi.market, { compsOne: '{n} तुलनीय बिक्री', compsOther: '{n} तुलनीय बिक्रियाँ', slashCompsOne: ' / {n} तुलनीय बिक्री', slashCompsOther: ' / {n} तुलनीय बिक्रियाँ' });
+
 export default hi;

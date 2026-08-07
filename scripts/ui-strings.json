@@ -192,12 +192,6 @@
     ]
   },
   {
-    "text": "ABOVE VALUE",
-    "files": [
-      "views/portfolio-detail-market.js"
-    ]
-  },
-  {
     "text": "AFOL status: confirmed.",
     "files": [
       "utils.js"
@@ -3252,7 +3246,6 @@
     "text": "FAIR PRICE",
     "files": [
       "components/scanner.js",
-      "views/portfolio-detail-market.js",
       "views/portfolio-detail.js"
     ]
   },

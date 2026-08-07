@@ -33,7 +33,6 @@ export const ui = {
   "A scraped price that disagrees with the set's corroborated value by more than 3× is rejected, not averaged in.": "取得した価格がそのセットの裏付けのある評価額と3倍以上乖離している場合、平均に含めず却下します。",
   "A single \"value\" hides too much. Each set page separates:": "「価値」をひとつの数字にまとめると、多くが見えなくなります。各セットのページでは次を分けて表示します：",
   "A verified fair value is required before forecasting.": "予測には検証済みの適正価値が必要です。",
-  "ABOVE VALUE": "割高",
   "AFOL status: confirmed.": "AFOL ステータス: 確認済み。",
   "AI & Local Insights": "AI・ローカルインサイト",
   "AI Advisor": "AIアドバイザー",

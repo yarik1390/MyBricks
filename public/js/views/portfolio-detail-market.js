@@ -53,7 +53,7 @@ export function priceStripHTML(set, entry) {
   const showAsk = !ebaySold.newValue && askValue;
   const label3 = showAsk ? "eBay asking" : ebaySold.legacy ? "Legacy eBay avg" : "eBay sold new";
   const val3 = ebaySold.newValue || askValue;
-  const soldSampleText = ebaySold.newSampleCount ? t('market.comps', { n: ebaySold.newSampleCount }) : null;
+  const soldSampleText = ebaySold.newSampleCount ? tPlural('market.comps', ebaySold.newSampleCount) : null;
   const val3sub = showAsk
     ? (Number(set.ebay_ask_qty) > 0 ? `${set.ebay_ask_qty} listings` : null)
     : (ebaySold.usedValue
@@ -397,7 +397,7 @@ export function marketConfidenceHTML(set) {
     if (!count) return '';
     const id = String(s.id || '');
     if (id.includes('ask')) return ` / ${count} listings`;
-    if (id.includes('sold') || id.includes('ebay')) return t('market.slashComps', { n: count });
+    if (id.includes('sold') || id.includes('ebay')) return tPlural('market.slashComps', count);
     if (id.includes('bricklink') || id.includes('brickowl')) return ` / ${tPlural('card.lots', count)}`;
     return ` / ${count} samples`;
   };

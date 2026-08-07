@@ -179,4 +179,7 @@ Object.assign(es.data, { reportPreparing: 'Preparando informe…', insuranceRepo
 // lands on whichever object survived.
 Object.assign(es.market, { comps: '{n} comparables', slashComps: ' / {n} comparables', usedValue: 'Usado: {price}', updated: 'Actualizado {date}', compsAboveMsrp: 'Las ventas de nuevos están {amount} ({pct}) por encima del PVP.', compsBelowMsrp: 'Las ventas de nuevos están {amount} ({pct}) por debajo del PVP.' });
 
+Object.assign(es.detail, { tagsMoreOne: '+{n} más', tagsMoreOther: '+{n} más' });
+Object.assign(es.market, { compsOne: '{n} comparable', compsOther: '{n} comparables', slashCompsOne: ' / {n} comparable', slashCompsOther: ' / {n} comparables' });
+
 export default es;

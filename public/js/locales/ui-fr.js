@@ -33,7 +33,6 @@ export const ui = {
   "A scraped price that disagrees with the set's corroborated value by more than 3× is rejected, not averaged in.": "Un prix extrait qui diverge de plus de 3× par rapport à la valeur corroborée du set est rejeté, pas moyenné.",
   "A single \"value\" hides too much. Each set page separates:": "Une seule « valeur » cache trop de choses. Chaque page de set sépare :",
   "A verified fair value is required before forecasting.": "Une juste valeur vérifiée est requise avant toute prévision.",
-  "ABOVE VALUE": "AU-DESSUS DE LA VALEUR",
   "AFOL status: confirmed.": "Statut AFOL : confirmé.",
   "AI & Local Insights": "IA et analyses locales",
   "AI Advisor": "Assistant IA",

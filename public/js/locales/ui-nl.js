@@ -33,7 +33,6 @@ export const ui = {
   "A scraped price that disagrees with the set's corroborated value by more than 3× is rejected, not averaged in.": "Een gescrapete prijs die meer dan 3× afwijkt van de onderbouwde waarde van de set wordt verworpen, niet meegemiddeld.",
   "A single \"value\" hides too much. Each set page separates:": "Eén enkele „waarde” verbergt te veel. Elke setpagina scheidt:",
   "A verified fair value is required before forecasting.": "Een geverifieerde reële waarde is vereist voordat er een prognose mogelijk is.",
-  "ABOVE VALUE": "BOVEN WAARDE",
   "AFOL status: confirmed.": "AFOL-status: bevestigd.",
   "AI & Local Insights": "AI & lokale inzichten",
   "AI Advisor": "AI-adviseur",

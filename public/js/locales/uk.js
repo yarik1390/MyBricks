@@ -206,4 +206,7 @@ Object.assign(uk.data, { reportPreparing: 'Готуємо звіт…', insuranc
 // lands on whichever object survived.
 Object.assign(uk.market, { comps: '{n} порівнянь', slashComps: ' / {n} порівнянь', usedValue: 'Вживаний: {price}', updated: 'Оновлено {date}', compsAboveMsrp: 'Продажі нових на {amount} ({pct}) вище рекомендованої ціни.', compsBelowMsrp: 'Продажі нових на {amount} ({pct}) нижче рекомендованої ціни.' });
 
+Object.assign(uk.detail, { tagsMoreOne: '+{n} ще', tagsMoreFew: '+{n} ще', tagsMoreMany: '+{n} ще', tagsMoreOther: '+{n} ще' });
+Object.assign(uk.market, { compsOne: '{n} порівняння', compsFew: '{n} порівняння', compsMany: '{n} порівнянь', compsOther: '{n} порівняння', slashCompsOne: ' / {n} порівняння', slashCompsFew: ' / {n} порівняння', slashCompsMany: ' / {n} порівнянь', slashCompsOther: ' / {n} порівняння' });
+
 export default uk;

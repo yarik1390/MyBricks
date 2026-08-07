@@ -33,7 +33,6 @@ export const ui = {
   "A scraped price that disagrees with the set's corroborated value by more than 3× is rejected, not averaged in.": "Зібрана ціна, яка відхиляється від підтвердженої вартості набору більш ніж у 3×, відхиляється, а не додається до середнього.",
   "A single \"value\" hides too much. Each set page separates:": "Одне-єдине «значення» приховує забагато. Сторінка кожного набору розділяє:",
   "A verified fair value is required before forecasting.": "Перед прогнозуванням потрібна перевірена справедлива вартість.",
-  "ABOVE VALUE": "ВИЩЕ ВАРТОСТІ",
   "AFOL status: confirmed.": "Статус AFOL: підтверджено.",
   "AI & Local Insights": "ШІ й локальна аналітика",
   "AI Advisor": "ШІ-радник",

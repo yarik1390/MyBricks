@@ -462,7 +462,7 @@ function infoTabHTML(set, entry, isWish) {
     const visibleTags = tagsArr.slice(0, 10);
     const hiddenTagCount = Math.max(0, tagsArr.length - visibleTags.length);
     const tagsBadge = tagsArr.length
-      ? `<div class="detail-tag-row"><span class="detail-tag-label">Tags:</span> ${visibleTags.map(t => `<span class="detail-tag-chip">${escapeHtml(String(t))}</span>`).join('')}${hiddenTagCount ? `<span class="detail-tag-more">${t('detail.tagsMore', { n: hiddenTagCount })}</span>` : ''}</div>`
+      ? `<div class="detail-tag-row"><span class="detail-tag-label">Tags:</span> ${visibleTags.map(t => `<span class="detail-tag-chip">${escapeHtml(String(t))}</span>`).join('')}${hiddenTagCount ? `<span class="detail-tag-more">${tPlural('detail.tagsMore', hiddenTagCount)}</span>` : ''}</div>`
       : '';
 
     // Fine-grained LEGO.com status (pre-order/back-order/coming-soon/etc.) when
@@ -495,9 +495,7 @@ function infoTabHTML(set, entry, isWish) {
     // community stars above; links out to BrickInsights with attribution.
     const biRating = set.brickinsights_rating != null ? Math.round(Number(set.brickinsights_rating)) : null;
     const biReviewCount = Number(set.brickinsights_review_count) || 0;
-    const biReviewsStr = biReviewCount
-      ? (biReviewCount === 1 ? t('detail.reviewsOne') : t('detail.reviews', { n: biReviewCount }))
-      : '';
+    const biReviewsStr = biReviewCount ? tPlural('detail.reviews', biReviewCount) : '';
     const brickInsightsBadge = (biRating && biRating > 0)
       ? `<div class="detail-kv span2" style="display:flex;align-items:center;gap:8px;"><span class="k">Critics' score</span> <span class="v">${biRating}/100</span> <span style="color:var(--ink-mute);font-size:10px;">${biReviewsStr}</span>${set.brickinsights_url ? ` <a href="${escapeHtml(set.brickinsights_url)}" target="_blank" rel="noopener noreferrer" aria-label="View BrickInsights rating" style="color:var(--ink-faint);font-size:10px;">\u2197</a>` : ''}</div>`
       : '';
@@ -1444,7 +1442,7 @@ function wireManageTab(set, entry) {
                 <span style="font-family:var(--mono);color:var(--down);">×${p.missing_qty}</span>
               </div>
             `).join('')}
-            ${missingParts.length > 20 ? `<div style="color:var(--ink-mute);font-size:11px;">${t('detail.tagsMore', { n: missingParts.length - 20 })}</div>` : ''}
+            ${missingParts.length > 20 ? `<div style="color:var(--ink-mute);font-size:11px;">${tPlural('detail.tagsMore', missingParts.length - 20)}</div>` : ''}
           </div>
         ` : ''}
       `;

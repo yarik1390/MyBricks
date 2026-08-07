@@ -184,4 +184,7 @@ Object.assign(ja.data, { reportPreparing: 'レポートを準備中…', insuran
 // lands on whichever object survived.
 Object.assign(ja.market, { comps: '比較成約 {n} 件', slashComps: ' / 比較成約 {n} 件', usedValue: '中古: {price}', updated: '{date} 更新', compsAboveMsrp: '新品の成約は希望小売価格より {amount}（{pct}）高いです。', compsBelowMsrp: '新品の成約は希望小売価格より {amount}（{pct}）安いです。' });
 
+Object.assign(ja.detail, { tagsMoreOne: '他 {n} 件', tagsMoreOther: '他 {n} 件' });
+Object.assign(ja.market, { compsOne: '比較成約 {n} 件', compsOther: '比較成約 {n} 件', slashCompsOne: ' / 比較成約 {n} 件', slashCompsOther: ' / 比較成約 {n} 件' });
+
 export default ja;

@@ -185,4 +185,7 @@ Object.assign(de.data, { reportPreparing: 'Bericht wird vorbereitet…', insuran
 // lands on whichever object survived.
 Object.assign(de.market, { comps: '{n} Vergleiche', slashComps: ' / {n} Vergleiche', usedValue: 'Gebraucht: {price}', updated: 'Aktualisiert {date}', compsAboveMsrp: 'Neu-Verkäufe liegen {amount} ({pct}) über der UVP.', compsBelowMsrp: 'Neu-Verkäufe liegen {amount} ({pct}) unter der UVP.' });
 
+Object.assign(de.detail, { tagsMoreOne: '+{n} mehr', tagsMoreOther: '+{n} mehr' });
+Object.assign(de.market, { compsOne: '{n} Vergleich', compsOther: '{n} Vergleiche', slashCompsOne: ' / {n} Vergleich', slashCompsOther: ' / {n} Vergleiche' });
+
 export default de;
