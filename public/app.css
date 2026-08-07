@@ -5105,12 +5105,26 @@ body.sheet-open .selection-bar {
 }
 
 @media (min-width: 880px) {
-  #app {
+  /* Scoped to the Me-family routes on purpose: #app and .page are both
+     shared, global shell elements, and an earlier version of this rule set
+     them unconditionally — silently capping every route (Vault, Catalog,
+     Minifigs, set detail, all of them) to this page's narrower reading
+     width, because a bare #app{max-width} here (same specificity, later in
+     the file) wins over the wider desktop tiers meant for grid/list pages
+     (app.css ~3504, ~3585). Only Me/Admin/Integrations/Data actually want
+     this narrower, text-like column. */
+  body[data-route="me"] #app,
+  body[data-route="admin"] #app,
+  body[data-route="integrations"] #app,
+  body[data-route="data"] #app {
     max-width: 1120px;
     margin-inline: auto;
   }
 
-  .page:not(.login-view):not(.scan-view) {
+  body[data-route="me"] .page:not(.login-view):not(.scan-view),
+  body[data-route="admin"] .page:not(.login-view):not(.scan-view),
+  body[data-route="integrations"] .page:not(.login-view):not(.scan-view),
+  body[data-route="data"] .page:not(.login-view):not(.scan-view) {
     width: min(100%, 1040px);
     margin-inline: auto;
   }
@@ -6240,6 +6254,26 @@ body.keyboard-open .detail-page-container {
    separately at .set-list:not(.compact-list) (app.css ~4077). */
 @media (min-width: 1025px) {
   .page { max-width: 1100px; margin: 0 auto; }
+}
+
+/* Large / ultra-wide desktop monitors: #app tops out at 1400px
+   (app.css ~3585) and grid/list routes' .page tops out at 1100px (just
+   above) — fine on a laptop, but on a 1900px+ screen that leaves a huge
+   dead margin either side of the content, reading as a phone layout
+   dropped in the middle of a big canvas rather than a real desktop app.
+   Keep growing the content column (and the grids inside it) at two more
+   tiers instead of capping out at laptop width. Placed last on purpose so
+   it wins the #app/.page/.grid/.mini-grid cascade at these widths. */
+@media (min-width: 1600px) {
+  #app { max-width: 1650px; }
+  .page { max-width: 1500px; }
+  .grid, .mini-grid { grid-template-columns: repeat(7, 1fr) !important; }
+  .set-list:not(.compact-list) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (min-width: 1900px) {
+  #app { max-width: 1900px; }
+  .page { max-width: 1700px; }
+  .grid, .mini-grid { grid-template-columns: repeat(8, 1fr) !important; }
 }
 
 /* ============================================================
