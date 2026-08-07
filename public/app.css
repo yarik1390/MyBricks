@@ -2521,6 +2521,27 @@ body[data-route="set-detail"] #toast {
   border-top: 1px solid var(--border-soft-c);
 }
 
+/* Desktop: .sheet becomes a centered floating dialog instead of an
+   edge-to-edge bottom sheet — same idea as .advisor-drawer's desktop-first
+   card (app.css ~3638), just inverted (mobile stays the base/default here
+   since it's the primary surface). wireSheetDrag() only binds touch events,
+   so it's already inert at this width — no JS changes needed. */
+@media (min-width: 900px) {
+  .sheet {
+    top: 50%; left: 50%; right: auto; bottom: auto;
+    width: min(460px, calc(100vw - 64px));
+    border: var(--bw) solid var(--border-c);
+    border-radius: var(--r-3);
+    box-shadow: 6px 6px 0 var(--line), 0 16px 48px rgba(0, 0, 0, 0.2);
+    transform: translate(-50%, -50%) scale(0.96);
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.2s ease;
+  }
+  .sheet.show { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  .sheet.closing { transform: translate(-50%, -50%) scale(0.96); opacity: 0; }
+  .sheet-handle { display: none; }
+}
+
 /* ============================================================
    Alerts sheet
    ============================================================ */
@@ -2721,8 +2742,11 @@ body[data-route="set-detail"] #toast {
   .mini-grid { grid-template-columns: repeat(3, 1fr); }
 }
 @media (min-width: 900px) {
-  #app, #nav { max-width: 760px; margin-left: auto; margin-right: auto; }
-  #nav { left: 50%; right: auto; transform: translateX(-50%); }
+  /* #app/#nav max-width + #nav centering used to live here too, back when
+     #nav was a centered bottom pill at this breakpoint. #nav is now a fixed
+     left rail (app.css ~3469, later in the cascade, wins), and #app's real
+     desktop max-width is set there too — so only the grid column-count
+     rules are still live from this block. */
   .grid { grid-template-columns: repeat(4, 1fr); }
   .mini-grid { grid-template-columns: repeat(4, 1fr); }
 }
@@ -6196,25 +6220,15 @@ body.keyboard-open .detail-page-container {
   .grid, .mini-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
-/* Desktop: left-rail nav, wider content, 2-column Vault */
+/* Desktop: extra content width past the rail breakpoint. The 240px labeled
+   left rail itself is owned entirely by the "Adaptive Desktop Layouts"
+   @media(min-width:900px) block above (app.css ~3469) — this used to also
+   redefine #nav as an 84px icon-only rail, which (being later in the file,
+   equal specificity) silently overrode the 900px block at exactly this
+   breakpoint, so the rail got *narrower* as the viewport got *wider*. The
+   2-column Vault grid mentioned in the old comment here already lives
+   separately at .set-list:not(.compact-list) (app.css ~4077). */
 @media (min-width: 1025px) {
-  #nav {
-    flex-direction: column;
-    width: 84px;
-    height: 100vh;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: auto;
-    bottom: auto;
-    border-top: none;
-    border-right: var(--bw) solid var(--border-c);
-    padding-bottom: var(--safe-bottom);
-    overflow-y: auto;
-  }
-  body { padding-bottom: 0; padding-left: 84px; }
-  .nav-tab { flex-direction: column; min-width: 0; padding: 14px 0; }
-  .nav-tab .scan-orb { margin-top: 0; }
   .page { max-width: 1100px; margin: 0 auto; }
 }
 
