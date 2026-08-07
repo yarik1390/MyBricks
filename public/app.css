@@ -4114,6 +4114,16 @@ body.sheet-open .selection-bar {
   }
 }
 
+/* Past 1300px .page is capped at 1100px (app.css ~6201) so the 2-column grid
+   above just sits there with unused width forever — add a 3rd column of
+   row-cards instead. Placed after the 1050px block on purpose: both match at
+   >=1300px viewports, equal specificity, so source order decides the winner. */
+@media (min-width: 1300px) {
+  .set-list:not(.compact-list) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 480px) {
   .page {
     padding-left: 22px;
