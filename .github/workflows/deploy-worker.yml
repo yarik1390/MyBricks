@@ -341,6 +341,13 @@ jobs:
           [ -n "${{ secrets.VAPID_SUBJECT }}" ]            && put VAPID_SUBJECT            "${{ secrets.VAPID_SUBJECT }}"            || true
           [ -n "${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}" ] && put FIREBASE_SERVICE_ACCOUNT_JSON "${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}" || true
           [ -n "${{ secrets.FIRECRAWL_API_KEY }}" ]        && put FIRECRAWL_API_KEY        "${{ secrets.FIRECRAWL_API_KEY }}"        || true
+          # Comma-separated pool of additional Firecrawl keys, drained in order after
+          # FIRECRAWL_API_KEY (lib/firecrawl-keys.ts). Was previously set directly on
+          # the Worker via `wrangler secret put` outside this pipeline — meaning a
+          # from-scratch redeploy (new Cloudflare account, disaster recovery) would
+          # silently drop it. Mirrors the BRIGHTDATA_API_TOKENS pattern below; a no-op
+          # until a FIRECRAWL_API_KEYS GitHub secret is actually added.
+          [ -n "${{ secrets.FIRECRAWL_API_KEYS }}" ]       && put FIRECRAWL_API_KEYS       "${{ secrets.FIRECRAWL_API_KEYS }}"       || true
           # Bright Data Web Unlocker tokens (eBay sold-comp scraping). Single token
           # or a comma-separated pool; the worker reads either (types.ts).
           [ -n "${{ secrets.BRIGHTDATA_API_TOKEN }}" ]     && put BRIGHTDATA_API_TOKEN     "${{ secrets.BRIGHTDATA_API_TOKEN }}"     || true
