@@ -63,6 +63,31 @@ describe('source-config', () => {
     resetSourceWeightMultipliers();
   });
 
+  it('applySourceConfig scales blend influence for a fractional weight, not just on/off', async () => {
+    // Regression: a weight between 0 and 1 used to behave identically to 1 —
+    // effectiveSignals() only ever checked `weight > 0`, so admins dialing a
+    // source's trust down (e.g. StockX's own default of 0.6) had zero actual
+    // effect on the blend. This asserts a heavily downweighted-but-not-excluded
+    // source measurably loses influence instead of remaining full-strength.
+    const fresh = new Date().toISOString();
+    const row = { bl_new_value: 200, bl_new_qty: 5, bl_cached_at: fresh, ebay_new_value: 300, ebay_new_qty: 20, ebay_new_cached_at: fresh };
+    resetSourceWeightMultipliers();
+    const base = blendMarketValue(row).value!;
+
+    clearSourceConfigCache();
+    await saveSourceConfig(env as any, { ebay: { weight: 0.1 } });
+    clearSourceConfigCache();
+    await applySourceConfig(env as any);
+    const downweighted = blendMarketValue(row).value!;
+    resetSourceWeightMultipliers();
+
+    // Still present (not excluded like weight:0 above) but pulled toward
+    // BrickLink's 200 now that eBay barely counts, and strictly below the
+    // full-weight baseline.
+    expect(downweighted).toBeLessThan(base);
+    expect(downweighted).toBeCloseTo(200, 0);
+  });
+
   it('applySourceConfig drives the daily quota cap override', async () => {
     clearSourceConfigCache();
     await saveSourceConfig(env as any, { pricesapi: { dailyCap: 1 } });

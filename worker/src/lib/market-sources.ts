@@ -434,10 +434,21 @@ function sourceOwner(signal: PricingSignal): string {
 }
 
 function effectiveSignals(row: Record<string, unknown>, extraSignals: PricingSignal[] = []): PricingSignal[] {
-  return [...legacySignalsFor(row), ...extraSignals].filter((signal) => {
-    const multiplier = sourceWeightMultipliers[sourceOwner(signal)];
-    return multiplier == null || multiplier > 0;
-  });
+  return [...legacySignalsFor(row), ...extraSignals]
+    // weight 0 (or the enabled:false → 0 kill switch in applySourceConfig) is a
+    // hard exclusion, not just a very small weight — a weighted median with a
+    // near-zero-but-present point could still pick it in some distributions.
+    .filter((signal) => {
+      const multiplier = sourceWeightMultipliers[sourceOwner(signal)];
+      return multiplier == null || multiplier > 0;
+    })
+    // Anything above 0 is a genuine scaling factor, not just on/off — attach
+    // it so valuation-v3's weighting actually uses the configured trust level
+    // instead of treating every non-zero weight as equivalent to 1.
+    .map((signal) => {
+      const multiplier = sourceWeightMultipliers[sourceOwner(signal)];
+      return multiplier == null || multiplier === 1 ? signal : { ...signal, trust_multiplier: multiplier };
+    });
 }
 
 function computeV3State(

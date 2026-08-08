@@ -20,6 +20,13 @@ export interface PricingSignal {
   checked_at?: string | null;
   match_status: PricingMatchStatus;
   flags?: string[];
+  /** Admin-configured per-source trust scaling from the Source Tuning console
+   *  (1 = unchanged; e.g. 0.5 = half influence). Set by
+   *  market-sources.ts#effectiveSignals from the live source-config; absent
+   *  (defaults to 1) for signals that don't go through that path (tests,
+   *  golden fixtures). A source can already be excluded outright via weight
+   *  0/enabled:false — this only scales the ones that remain. */
+  trust_multiplier?: number;
 }
 
 export interface ValuationBasis {
@@ -30,6 +37,9 @@ export interface ValuationBasis {
   sample_count: number;
   fresh: boolean;
   identity_verified: boolean;
+  /** Representative trust multiplier for the family (see PricingSignal), used
+   *  to scale this family's influence in the cross-family fair-value blend. */
+  trust_multiplier: number;
 }
 
 export interface ValuationStateV3 {
@@ -116,7 +126,8 @@ function signalWeight(signal: PricingSignal, now: number): number {
   const sample = Math.max(1, Number(signal.sample_count || signal.sales_volume || 1));
   const sampleFactor = signal.signal_type === 'sold' ? 0.65 + Math.min(sample, 20) / 40 : 1;
   const freshness = ageDays(signal.checked_at, now) <= SOURCE_FRESH_DAYS ? 1 : 0.35;
-  return type * sampleFactor * freshness;
+  const trust = Number.isFinite(signal.trust_multiplier) ? Math.max(0, signal.trust_multiplier as number) : 1;
+  return type * sampleFactor * freshness * trust;
 }
 
 function collapseFamilies(signals: PricingSignal[], now: number): ValuationBasis[] {
@@ -142,6 +153,14 @@ function collapseFamilies(signals: PricingSignal[], now: number): ValuationBasis
         || ageDays(signal.source_observed_at || signal.checked_at, now) <= SOLD_OBSERVATION_DAYS;
       return checkedFresh && observedFresh;
     });
+    // Representative multiplier for the family. In the overwhelming common
+    // case every signal here shares one owner/source-config entry (a family
+    // only spans multiple admin-tunable owners in the rare cross-source
+    // corroboration case), so the first selected signal's value stands in for
+    // the family as a whole rather than averaging owners with different intent.
+    const trustMultiplier = Number.isFinite(selected[0]?.trust_multiplier)
+      ? Math.max(0, selected[0].trust_multiplier as number)
+      : 1;
     return {
       provider_family: providerFamily,
       sources: [...new Set(selected.map(s => s.source))],
@@ -150,6 +169,7 @@ function collapseFamilies(signals: PricingSignal[], now: number): ValuationBasis
       sample_count: sampleCount,
       fresh,
       identity_verified: selected.every(s => s.match_status === 'verified' || s.match_status === 'manual'),
+      trust_multiplier: trustMultiplier,
     };
   });
 }
@@ -227,7 +247,8 @@ export function valueSignalsV3(
   const fairValue = roundMoney(weightedMedian(headlineFamilies.map(family => ({
     value: family.value,
     weight: (family.signal_type === 'sold' ? 1 : family.signal_type === 'modeled' ? 0.65 : 0.25)
-      * (0.7 + Math.min(family.sample_count, 20) / 50),
+      * (0.7 + Math.min(family.sample_count, 20) / 50)
+      * family.trust_multiplier,
   }))));
   const soldValues = sold.map(f => f.value);
   const soldSampleCount = sold.reduce((sum, family) => sum + family.sample_count, 0);
