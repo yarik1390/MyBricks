@@ -182,4 +182,11 @@ Object.assign(nl.market, { comps: '{n} vergelijkingen', slashComps: ' / {n} verg
 Object.assign(nl.detail, { tagsMoreOne: '+{n} meer', tagsMoreOther: '+{n} meer' });
 Object.assign(nl.market, { compsOne: '{n} vergelijking', compsOther: '{n} vergelijkingen', slashCompsOne: ' / {n} vergelijking', slashCompsOther: ' / {n} vergelijkingen' });
 
+Object.assign(nl.settings, { appLockUnchanged: 'Appvergrendeling niet gewijzigd: {error}' });
+Object.assign(nl.game, { checkGuessFailed: 'De schatting kon niet worden gecontroleerd: {error}' });
+Object.assign(nl.alerts, { sellOpportunityOne: 'Verkoopkans · {n} dag geleden', sellOpportunityOther: 'Verkoopkans · {n} dagen geleden' });
+Object.assign(nl.detail, { minifigsCountOne: '{n} minifiguur', minifigsCountOther: '{n} minifiguren' });
+Object.assign(nl.market, { listingsOne: '{n} advertentie', listingsOther: '{n} advertenties', slashListingsOne: ' / {n} advertentie', slashListingsOther: ' / {n} advertenties', slashSamplesOne: ' / {n} steekproef', slashSamplesOther: ' / {n} steekproeven' });
+Object.assign(nl.scanner, { estimatedValue: '(~geschatte waarde)', marketGrabThreshold: 'Markt {market} — onder {price} is het een buitenkans{estimated}', underMarket: '{amount} onder de markt{estimated}', withinMarket: 'binnen {pct}% van de markt{estimated}', overMarket: '{amount} boven de markt{estimated}' });
+
 export default nl;

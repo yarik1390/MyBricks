@@ -17,6 +17,12 @@ interface PCPrice {
   'cib-price'?: number;
   'loose-price'?: number;
   'sales-volume'?: number;
+  status?: string;
+  error?: string;
+}
+
+function priceChartingNoData(data: { status?: string; error?: string }): boolean {
+  return data.status === 'error' && /not found|no product|no results?/i.test(String(data.error || ''));
 }
 
 export interface PriceChartingResult {
@@ -34,56 +40,55 @@ export interface PriceChartingResult {
   sales_volume: number | null;
 }
 
-// Fetch products matching the search query. Returns null on any network error.
+// Fetch products matching the search query. Verified no-data returns null;
+// provider/network failures throw so jobs do not negative-cache an outage.
 async function searchPriceCharting(
   query: string,
   token: string,
 ): Promise<PCProduct[] | null> {
-  try {
-    const resp = await fetch(
-      `${PC_BASE}/products?q=${encodeURIComponent(query)}&t=${token}`,
-      { signal: AbortSignal.timeout(10_000) },
-    );
-    if (!resp.ok) return null;
-    const data = (await resp.json()) as { status?: string; products?: PCProduct[] };
-    return data.products ?? null;
-  } catch {
-    return null;
-  }
+  const resp = await fetch(
+    `${PC_BASE}/products?q=${encodeURIComponent(query)}&t=${token}`,
+    { signal: AbortSignal.timeout(10_000) },
+  );
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`PriceCharting search failed: ${resp.status}`);
+  const data = (await resp.json()) as { status?: string; error?: string; products?: PCProduct[] };
+  if (priceChartingNoData(data)) return null;
+  if (data.status === 'error') throw new Error(data.error || 'PriceCharting search failed');
+  return data.products ?? null;
 }
 
 // Fetch price data for a known PriceCharting product ID.
 async function fetchPCPrice(pcId: string, token: string): Promise<PCPrice | null> {
-  try {
-    const resp = await fetch(
-      `${PC_BASE}/product?id=${encodeURIComponent(pcId)}&t=${token}`,
-      { signal: AbortSignal.timeout(10_000) },
-    );
-    if (!resp.ok) return null;
-    return (await resp.json()) as PCPrice;
-  } catch {
-    return null;
-  }
+  const resp = await fetch(
+    `${PC_BASE}/product?id=${encodeURIComponent(pcId)}&t=${token}`,
+    { signal: AbortSignal.timeout(10_000) },
+  );
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`PriceCharting product fetch failed: ${resp.status}`);
+  const data = (await resp.json()) as PCPrice;
+  if (priceChartingNoData(data)) return null;
+  if (data.status === 'error') throw new Error(data.error || 'PriceCharting product fetch failed');
+  return data;
 }
 
 // Fetch a product by UPC. Brickvault stores UPCs (Brickset backfill), so this is
 // the cleanest join: one call returns the id + all prices, skipping the search
 // discovery step entirely. Returns a LEGO product or null.
 async function fetchPCByUpc(upc: string, token: string): Promise<PCPrice | null> {
-  try {
-    const resp = await fetch(
-      `${PC_BASE}/product?upc=${encodeURIComponent(upc)}&t=${token}`,
-      { signal: AbortSignal.timeout(10_000) },
-    );
-    if (!resp.ok) return null;
-    const price = (await resp.json()) as PCPrice & { status?: string };
-    if (price.status === 'error' || !price.id) return null;
-    // Guard against a UPC collision with a non-LEGO product.
-    if (price['console-name'] && !price['console-name'].toLowerCase().includes('lego')) return null;
-    return price;
-  } catch {
-    return null;
-  }
+  const resp = await fetch(
+    `${PC_BASE}/product?upc=${encodeURIComponent(upc)}&t=${token}`,
+    { signal: AbortSignal.timeout(10_000) },
+  );
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`PriceCharting UPC fetch failed: ${resp.status}`);
+  const price = (await resp.json()) as PCPrice;
+  if (priceChartingNoData(price)) return null;
+  if (price.status === 'error') throw new Error(price.error || 'PriceCharting UPC fetch failed');
+  if (!price.id) return null;
+  // Guard against a UPC collision with a non-LEGO product.
+  if (price['console-name'] && !price['console-name'].toLowerCase().includes('lego')) return null;
+  return price;
 }
 
 // Map a raw PCPrice (pennies) into the normalized result, applying the shared
@@ -149,7 +154,8 @@ export function isExactPriceChartingMatch(setNum: string, setName: string, produ
  *   "loose-price" → item only, without box/manual (used corroborator)
  *   "sales-volume"→ yearly units sold (liquidity)
  *
- * Returns null when the set is not in PriceCharting's catalog or on any error.
+ * Returns null only when the set is not in PriceCharting's catalog. Provider
+ * and network failures throw so callers can keep the row immediately retryable.
  */
 export async function fetchPriceChartingData(
   setNum: string,

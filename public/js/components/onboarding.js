@@ -276,7 +276,7 @@ function ensureSetupStyles() {
     .bv-setup-dots i.on{background:var(--accent,#e23b3b);width:22px;border-radius:4px;}
     .bv-setup-nav{display:flex;gap:10px;}
     .bv-setup-btn{flex:1;border:2px solid var(--line);border-radius:14px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;background:var(--surface-2);color:inherit;}
-    .bv-setup-btn.primary{flex:2;background:var(--accent,#e23b3b);border-color:var(--accent,#e23b3b);color:#fff;}
+    .bv-setup-btn.primary{flex:2;background:var(--accent,#e23b3b);border-color:var(--accent,#e23b3b);color:#111;}
     .bv-setup-ghost{background:none;border:none;color:var(--ink-mute);font-size:13.5px;font-weight:600;cursor:pointer;padding:2px;}
   `;
   const el = document.createElement('style');

@@ -57,6 +57,12 @@ describe('fetchPriceChartingData (UPC + loose/sales)', () => {
     const r = await fetchPriceChartingData('10300-1', 'BTTF', null, e, '999');
     expect(r).toBeNull();
   });
+
+  it('throws on provider failure instead of reporting no-data', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('unavailable', { status: 503 })));
+    const e: any = { ...env, PRICECHARTING_TOKEN: 'tok' };
+    await expect(fetchPriceChartingData('10300-1', 'BTTF', '6910', e)).rejects.toThrow(/503/);
+  });
 });
 
 describe('runPriceChartingBulk', () => {

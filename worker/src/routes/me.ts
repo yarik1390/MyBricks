@@ -306,11 +306,33 @@ app.post('/kids-pin/set', async (c) => {
 // POST /api/me/kids-pin/verify — check PIN, returns { ok }
 app.post('/kids-pin/verify', async (c) => {
   const { pin } = await c.req.json<{ pin: string }>();
+  const userId = c.get('userId');
+  // A four-digit PIN has only 10,000 possibilities. Keep verification behind
+  // an atomic window so a stolen member session cannot brute-force the parent
+  // gate or turn PBKDF2 verification into an unbounded CPU endpoint.
+  const windowMs = 15 * 60 * 1000;
+  const windowStart = new Date(Math.floor(Date.now() / windowMs) * windowMs).toISOString();
+  const rate = await c.env.DB.prepare(`
+    INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+    VALUES (?, 'kids_pin_verify', ?, 1)
+    ON CONFLICT (user_id, endpoint, window_start)
+    DO UPDATE SET hit_count = rate_limits.hit_count + 1
+    RETURNING hit_count
+  `).bind(userId, windowStart).first<{ hit_count: number }>();
+  if ((rate?.hit_count || 0) > 10) {
+    return c.json({ error: 'Too many PIN attempts. Try again in 15 minutes.' }, 429);
+  }
   const row = await c.env.DB.prepare(
     'SELECT kids_pin_hash FROM user_prefs WHERE user_id=?'
-  ).bind(c.get('userId')).first<{ kids_pin_hash: string | null }>();
+  ).bind(userId).first<{ kids_pin_hash: string | null }>();
   if (!row?.kids_pin_hash) return c.json({ ok: false, error: 'no_pin' }, 400);
-  return c.json({ ok: await verifyPin(String(pin ?? ''), row.kids_pin_hash) });
+  const ok = await verifyPin(String(pin ?? ''), row.kids_pin_hash);
+  if (ok) {
+    await c.env.DB.prepare(
+      "DELETE FROM rate_limits WHERE user_id=? AND endpoint='kids_pin_verify'"
+    ).bind(userId).run().catch(() => {});
+  }
+  return c.json({ ok });
 });
 
 // DELETE /api/me/kids-pin — remove PIN (requires current_pin)

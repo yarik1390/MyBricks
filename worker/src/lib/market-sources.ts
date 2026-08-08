@@ -275,7 +275,9 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
 
 export function marketConfidence(row: Record<string, unknown>, sources = buildMarketSources(row)): MarketConfidence {
   const method = String(row.valuation_method || '');
-  const fresh = marketFreshness(row);
+  const primaryId = primaryValueSource(row);
+  const fresh = sources.find((source) => source.id === primaryId && source.value)?.freshness
+    ?? marketFreshness(row);
   if (fresh === 'missing') return 'estimated';
   if (method === 'formula_bulk' || method === 'local') return 'estimated';
   if (method === 'ai') return fresh === 'fresh' ? 'low' : 'estimated';
@@ -741,7 +743,13 @@ const PART_OUT_MIN_COVERAGE = 0.9;
 
 export function enrichSetRecord<T extends Record<string, unknown>>(row: T, history?: BlendHistory): T {
   const sources = buildMarketSources(row);
-  const freshness = marketFreshness(row);
+  // Per-source refresh jobs update their own timestamps without necessarily
+  // rewriting the legacy valuation_expires_at column. Trust the selected
+  // primary source's freshness first so a fresh BrickEconomy/BrickLink value
+  // is not mislabeled expired because an older aggregate deadline remained.
+  const primaryId = primaryValueSource(row);
+  const freshness = sources.find((source) => source.id === primaryId && source.value)?.freshness
+    ?? marketFreshness(row);
   const storedNew = row.__valuation_new as ValuationStateV3 | undefined;
   const storedUsed = row.__valuation_used as ValuationStateV3 | undefined;
   const newState = storedNew?.model_version === 'v3' ? storedNew : computeV3State(row, 'new_sealed', history);
@@ -798,7 +806,7 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
   return {
     ...publicRow,
     market_sources: sources,
-    primary_value_source: primaryValueSource(row),
+    primary_value_source: primaryId,
     confidence,
     freshness,
     valuation_explanation: valuationExplanation(row, confidence, freshness),
@@ -1144,8 +1152,9 @@ export async function recomputeBlendedValues(db: D1Database, setNums: string[]):
         const legacyResults = await db.batch(stmts);
         written += legacyResults.reduce((sum, result) => sum + Number(result.meta?.changes || 0), 0);
       }
-      // Keep each D1 batch under 100 statements. Change-only UPSERTs make the
-      // steady-state cost close to zero when the fair value has not moved.
+      // Keep batches modest so this job leaves ample room under the paid
+      // Worker's 1,000 D1-query invocation budget. Change-only UPSERTs make the
+      // steady-state write cost close to zero when the fair value has not moved.
       if (computed.length) {
         const newStates = computed.map(({ row, r, history }) => valuationStateStatement(db, row.set_num as string, r.newState, row, history));
         const usedStates = computed.map(({ row, r }) => valuationStateStatement(db, row.set_num as string, r.usedState, row));

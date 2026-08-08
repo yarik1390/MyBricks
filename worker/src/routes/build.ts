@@ -17,11 +17,18 @@ const SYNC_FETCH_CAP = 6;
 // Returns the number of sets still un-indexed after this pass.
 async function ensureAltsCached(env: Env, setNums: string[]): Promise<number> {
   if (!setNums.length) return 0;
-  const ph = setNums.map(() => '?').join(',');
-  const fetched = await env.DB.prepare(
-    `SELECT set_num FROM set_alts_fetched WHERE set_num IN (${ph})`,
-  ).bind(...setNums).all<{ set_num: string }>();
-  const done = new Set((fetched.results || []).map((r) => r.set_num));
+  // D1 allows at most 100 bound parameters per individual statement on every
+  // plan. A serious collector can own far more than that, so discover cached
+  // sets in bounded chunks rather than building one unbounded IN (...).
+  const done = new Set<string>();
+  for (let i = 0; i < setNums.length; i += 90) {
+    const chunk = setNums.slice(i, i + 90);
+    const ph = chunk.map(() => '?').join(',');
+    const fetched = await env.DB.prepare(
+      `SELECT set_num FROM set_alts_fetched WHERE set_num IN (${ph})`,
+    ).bind(...chunk).all<{ set_num: string }>();
+    for (const row of fetched.results || []) done.add(row.set_num);
+  }
   const pending = setNums.filter((s) => !done.has(s));
   if (!pending.length) return 0;
 
@@ -81,15 +88,17 @@ app.get('/', async (c) => {
     console.warn('[build] ensureAltsCached failed:', (e as Error).message);
   }
 
-  const ph = ownedSets.map(() => '?').join(',');
   const orderBy = sort === 'parts_desc'
     ? '(ab.num_parts IS NULL) ASC, ab.num_parts DESC, ab.name ASC'
     : sort === 'name_asc'
       ? 'ab.name ASC'
       : '(ab.num_parts IS NULL) ASC, ab.num_parts ASC, ab.name ASC';
 
-  const filters: string[] = [`ab.set_num IN (${ph})`];
-  const params: unknown[] = [...ownedSets];
+  const filters: string[] = [`ab.set_num IN (
+    SELECT set_num FROM user_collection
+    WHERE user_id = ? AND deleted_at IS NULL AND is_complete = 1
+  )`];
+  const params: unknown[] = [userId];
   if (q) { filters.push('LOWER(ab.name) LIKE LOWER(?)'); params.push(`%${q}%`); }
   const whereSQL = `WHERE ${filters.join(' AND ')}`;
 
@@ -112,8 +121,11 @@ app.get('/', async (c) => {
   const canRow = await c.env.DB.prepare(
     `SELECT CAST(COUNT(*) AS INTEGER) AS n,
             CAST(COUNT(DISTINCT set_num) AS INTEGER) AS sets
-     FROM set_alt_builds WHERE set_num IN (${ph})`,
-  ).bind(...ownedSets).first<{ n: number; sets: number }>();
+     FROM set_alt_builds WHERE set_num IN (
+       SELECT set_num FROM user_collection
+       WHERE user_id = ? AND deleted_at IS NULL AND is_complete = 1
+     )`,
+  ).bind(userId).first<{ n: number; sets: number }>();
 
   return c.json({
     builds: rows.results || [],
@@ -187,10 +199,14 @@ app.get('/sets', async (c) => {
     }
   }
 
-  const ph = ownedSets.map(() => '?').join(',');
   const cov = await c.env.DB.prepare(
-    `SELECT COUNT(DISTINCT set_num) AS n FROM set_parts WHERE set_num IN (${ph})`,
-  ).bind(...ownedSets).first<{ n: number }>();
+    `SELECT COUNT(DISTINCT sp.set_num) AS n
+     FROM set_parts sp
+     WHERE sp.set_num IN (
+       SELECT set_num FROM user_collection
+       WHERE user_id = ? AND deleted_at IS NULL AND is_complete = 1
+     )`,
+  ).bind(userId).first<{ n: number }>();
 
   // Pool = every part/color you own (owned set parts x owned quantity). For each
   // candidate set, have_total = sum(min(required, owned)); req_total = sum(required).
@@ -210,7 +226,10 @@ app.get('/sets', async (c) => {
               SUM(MIN(sp.quantity, COALESCE(p.have, 0))) AS have_total
        FROM set_parts sp
        LEFT JOIN pool p ON p.part_num = sp.part_num AND p.color_id = sp.color_id
-       WHERE sp.is_spare = 0 AND sp.set_num NOT IN (${ph})
+       WHERE sp.is_spare = 0 AND sp.set_num NOT IN (
+         SELECT set_num FROM user_collection
+         WHERE user_id = ? AND deleted_at IS NULL AND is_complete = 1
+       )
        GROUP BY sp.set_num
      )
      SELECT c.set_num, s.name, s.theme, s.year, s.pieces, s.image_url,
@@ -233,7 +252,7 @@ app.get('/sets', async (c) => {
      ORDER BY (c.have_total >= c.req_total) DESC, pct DESC, c.req_total DESC
      LIMIT ?`;
   const rows = await c.env.DB.prepare(sql)
-    .bind(userId, ...ownedSets, minParts, lim)
+    .bind(userId, userId, minParts, lim)
     .all<Record<string, unknown>>();
 
   const builds = (rows.results || []).map((r) => {

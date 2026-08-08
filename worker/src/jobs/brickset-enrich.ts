@@ -149,11 +149,8 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
     );
 
     if (!result) {
-      // firecrawlScrape already recorded this attempt's health (real ok/fail +
-      // error). Stamp enriched_at even on a miss so we don't hammer a 404 every run.
-      stmts.push(env.DB.prepare(
-        `UPDATE lego_sets SET brickset_enriched_at=datetime('now') WHERE set_num=?`,
-      ).bind(set_num));
+      // A null result is a provider/network failure, not verified no-data.
+      // Leave freshness untouched so the next run can retry after recovery.
       continue;
     }
 

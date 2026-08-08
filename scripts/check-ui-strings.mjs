@@ -11,8 +11,9 @@ if (harvested.status !== 0) {
   process.exit(harvested.status || 1);
 }
 
-const expected = readFileSync('scripts/ui-strings.json', 'utf8').trim();
-const actual = harvested.stdout.trim();
+const normalizeNewlines = (value) => value.replace(/\r\n?/g, '\n').trim();
+const expected = normalizeNewlines(readFileSync('scripts/ui-strings.json', 'utf8'));
+const actual = normalizeNewlines(harvested.stdout);
 if (actual !== expected) {
   let expectedCount = '?';
   let actualCount = '?';

@@ -187,4 +187,11 @@ Object.assign(ja.market, { comps: '比較成約 {n} 件', slashComps: ' / 比較
 Object.assign(ja.detail, { tagsMoreOne: '他 {n} 件', tagsMoreOther: '他 {n} 件' });
 Object.assign(ja.market, { compsOne: '比較成約 {n} 件', compsOther: '比較成約 {n} 件', slashCompsOne: ' / 比較成約 {n} 件', slashCompsOther: ' / 比較成約 {n} 件' });
 
+Object.assign(ja.settings, { appLockUnchanged: 'アプリロックは変更されませんでした: {error}' });
+Object.assign(ja.game, { checkGuessFailed: '予想を確認できませんでした: {error}' });
+Object.assign(ja.alerts, { sellOpportunityOne: '売却チャンス · {n}日前', sellOpportunityOther: '売却チャンス · {n}日前' });
+Object.assign(ja.detail, { minifigsCountOne: 'ミニフィグ{n}体', minifigsCountOther: 'ミニフィグ{n}体' });
+Object.assign(ja.market, { listingsOne: '{n}件の出品', listingsOther: '{n}件の出品', slashListingsOne: ' / {n}件の出品', slashListingsOther: ' / {n}件の出品', slashSamplesOne: ' / {n}件のサンプル', slashSamplesOther: ' / {n}件のサンプル' });
+Object.assign(ja.scanner, { estimatedValue: '(~推定価格)', marketGrabThreshold: '市場価格 {market} — {price}未満ならお買い得{estimated}', underMarket: '市場より{amount}安い{estimated}', withinMarket: '市場価格の{pct}%以内{estimated}', overMarket: '市場より{amount}高い{estimated}' });
+
 export default ja;

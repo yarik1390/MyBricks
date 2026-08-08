@@ -451,4 +451,11 @@ Object.assign(en.market, { comps: '{n} comps', slashComps: ' / {n} comps', usedV
 Object.assign(en.detail, { tagsMoreOne: '+{n} more', tagsMoreOther: '+{n} more' });
 Object.assign(en.market, { compsOne: '{n} comp', compsOther: '{n} comps', slashCompsOne: ' / {n} comp', slashCompsOther: ' / {n} comps' });
 
+Object.assign(en.settings, { appLockUnchanged: 'App lock unchanged: {error}' });
+Object.assign(en.game, { checkGuessFailed: 'Couldn\'t check that guess: {error}' });
+Object.assign(en.alerts, { sellOpportunityOne: 'Sell opportunity · {n} day ago', sellOpportunityOther: 'Sell opportunity · {n} days ago' });
+Object.assign(en.detail, { minifigsCountOne: '{n} minifig', minifigsCountOther: '{n} minifigs' });
+Object.assign(en.market, { listingsOne: '{n} listing', listingsOther: '{n} listings', slashListingsOne: ' / {n} listing', slashListingsOther: ' / {n} listings', slashSamplesOne: ' / {n} sample', slashSamplesOther: ' / {n} samples' });
+Object.assign(en.scanner, { estimatedValue: '(~estimated value)', marketGrabThreshold: 'Market {market} — under {price} is a grab{estimated}', underMarket: '{amount} under market{estimated}', withinMarket: 'within {pct}% of market{estimated}', overMarket: '{amount} over market{estimated}' });
+
 export default en;

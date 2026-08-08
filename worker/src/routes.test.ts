@@ -2110,6 +2110,19 @@ describe('Kids PIN and XP', () => {
     expect((await res.json<any>()).ok).toBe(false);
   });
 
+  it('rate-limits repeated kids PIN verification attempts', async () => {
+    const windowMs = 15 * 60 * 1000;
+    const windowStart = new Date(Math.floor(Date.now() / windowMs) * windowMs).toISOString();
+    await db.prepare(
+      "INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count) VALUES (?, 'kids_pin_verify', ?, 10)"
+    ).bind(userId, windowStart).run();
+
+    const res = await app.fetch(new Request('http://localhost/api/me/kids-pin/verify', {
+      method: 'POST', headers: auth(), body: JSON.stringify({ pin: '0000' }),
+    }), env);
+    expect(res.status).toBe(429);
+  });
+
   it('adds XP when a set is added and a kids PIN is set', async () => {
     await app.fetch(new Request('http://localhost/api/me/kids-pin/set', {
       method: 'POST', headers: auth(), body: JSON.stringify({ pin: '9999' }),

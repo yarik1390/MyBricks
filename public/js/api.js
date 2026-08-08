@@ -969,19 +969,28 @@ export async function api(path, opts = {}) {
   const timeoutMs = Number(opts.timeoutMs) || 15000;
   const fetchT = (u, i) => {
     const ac = new AbortController();
+    const callerSignal = i.signal;
+    const abortFromCaller = () => ac.abort(callerSignal?.reason);
+    if (callerSignal?.aborted) abortFromCaller();
+    else callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
     const t = setTimeout(() => ac.abort(), timeoutMs);
-    return fetch(u, { ...i, signal: ac.signal }).finally(() => clearTimeout(t));
+    return fetch(u, { ...i, signal: ac.signal }).finally(() => {
+      clearTimeout(t);
+      callerSignal?.removeEventListener('abort', abortFromCaller);
+    });
   };
   let r;
   try {
     r = await fetchT(_url, init);
   } catch (_e) {
+    if (opts.signal?.aborted) throw _e;
     if (!navigator.onLine && (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE")) {
       outboxEnqueue({ path, method: init.method, body: opts.body });
       toast("Saved offline — will sync when connected", "info");
       return init.method === "DELETE" ? null : { item: opts.body || {} };
     }
     await new Promise(res => setTimeout(res, 600));
+    if (opts.signal?.aborted) throw _e;
     try {
       r = await fetchT(_url, init);
     } catch (e2) {

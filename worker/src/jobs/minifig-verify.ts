@@ -43,11 +43,21 @@ export async function runMinifigVerify(env: Env, options: { limit?: number } = {
 
     await reserveQuota(env, { bricklink: candidates.length });
     const priced: Array<{ bl_id: string; value: number | null; lots: number }> = [];
+    let providerFailed = false;
     for (const cand of candidates) {
-      const px = await fetchMinifigPricing(cand.bl_id, env, { recordHealth: false }).catch(() => null);
+      let px = null;
+      try {
+        px = await fetchMinifigPricing(cand.bl_id, env, { recordHealth: false });
+      } catch {
+        providerFailed = true;
+      }
       priced.push({ bl_id: cand.bl_id, value: px?.value ?? null, lots: px?.lots ?? 0 });
       checked++;
     }
+
+    // A failed sibling could be the real identity. Do not decide the group or
+    // stamp its retry marker from an incomplete provider result set.
+    if (providerFailed) continue;
 
     const prior = Number(fig.current_value);
     const hasPrior = Number.isFinite(prior) && prior > 0;

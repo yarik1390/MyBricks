@@ -683,6 +683,18 @@ describe('blendMarketValue (valuation v2)', () => {
     expect(r.confidence).toBe('low');
   });
 
+  it('uses the selected source timestamp instead of an expired legacy deadline', () => {
+    const enriched = enrichSetRecord({
+      set_num: 'fresh-be-1',
+      valuation_method: 'brickeconomy',
+      current_value: 300,
+      be_cached_at: now,
+      valuation_expires_at: old,
+    }) as any;
+    expect(enriched.primary_value_source).toBe('brickeconomy');
+    expect(enriched.freshness).toBe('fresh');
+  });
+
   it('demotes confidence and widens the band when a thin value jumps off its history', () => {
     // One thin sold source at 300, but the trailing 90-day median sits at 100.
     const r = blendMarketValue(

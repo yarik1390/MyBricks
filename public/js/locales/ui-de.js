@@ -1855,6 +1855,13 @@ for (const key of ["Brickset connect failed:", "Error adding:", "Error loading s
 for (const key of ["Approved", "Couldn't check that guess:", "Couldn't delete:", "Couldn't save:", "Couldn't upload:", "Error:", "Rejected", "Save failed:"]) delete ui[key];
 for (const key of ["Keep on building! 🧱", "You're a building superstar! 🌟"]) delete ui[key];
 Object.assign(ui, { "⭐ BricksVault Pro": "⭐ BricksVault Pro", "⭐ Supporter": "⭐ Unterstützer", "📷 Add photo": "📷 Foto hinzufügen", "🔥 RISK": "🔥 RISIKO", "🛠 Suggest a fix": "🛠 Korrektur vorschlagen" });
+Object.assign(ui, {
+  "Reset Bright Data key pool": "Bright-Data-Schlüsselpool zurücksetzen",
+  "Reset Firecrawl key pool": "Firecrawl-Schlüsselpool zurücksetzen",
+  "Reset the Bright Data key pool?": "Den Bright-Data-Schlüsselpool zurücksetzen?",
+  "Reset the Firecrawl key pool? Only do this once you’ve confirmed the account actually has credits left — a real drained key will just 402 again and re-latch.": "Den Firecrawl-Schlüsselpool zurücksetzen? Tu dies erst, wenn du bestätigt hast, dass das Konto noch Guthaben hat — ein tatsächlich leeres Kontingent liefert erneut 402 und wird wieder gesperrt.",
+  "Un-latches every Bright Data token and zeros their monthly usage counters, instead of waiting for the next UTC-month rollover.": "Entsperrt alle Bright-Data-Token und setzt ihre monatlichen Nutzungszähler auf null, statt auf den nächsten UTC-Monatswechsel zu warten."
+});
 export default ui;
 
 // Superseded dynamic scanner loading copy lives in the message catalogue.

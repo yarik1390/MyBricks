@@ -134,6 +134,27 @@ describe('User contributions: submit / read / moderate', () => {
     expect(bundle.rating.avg).toBe(5);
   });
 
+  it('serves approved community content to guests while keeping mutations private', async () => {
+    await db.prepare(
+      "INSERT INTO set_reviews (user_id, set_num, rating, title, status) VALUES (?, '111-1', 5, 'Public review', 'approved')"
+    ).bind(userId).run();
+
+    const publicRes = await app.fetch(new Request('https://x/api/contributions/sets/111-1'), env);
+    expect(publicRes.status).toBe(200);
+    const bundle = await publicRes.json<any>();
+    expect(bundle.rating.count).toBe(1);
+    expect(bundle.reviews[0].title).toBe('Public review');
+    expect(bundle.mine).toEqual([]);
+
+    const privateRes = await app.fetch(new Request('https://x/api/contributions/mine'), env);
+    expect(privateRes.status).toBe(401);
+    const mutationRes = await app.fetch(new Request('https://x/api/contributions/reviews', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ set_num: '111-1', rating: 4 }),
+    }), env);
+    expect(mutationRes.status).toBe(401);
+  });
+
   it('never exposes raw user_id in public reviews', async () => {
     // Submit + approve a review, then confirm the public bundle omits user_id and
     // only surfaces a display name when the author's profile is public.

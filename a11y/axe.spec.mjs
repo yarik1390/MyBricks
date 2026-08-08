@@ -1,12 +1,10 @@
-// Report-only accessibility scan: axe-core over the guest-reachable routes of the
-// deployed app. Logs + writes a11y/axe-report.json but does NOT fail the build yet.
-// To make it blocking: uncomment the expect(...) below (and drop continue-on-error
-// in the workflow). See a11y/README.md.
+// Accessibility scan over guest-reachable routes. Serious and critical
+// violations fail the build; the JSON artifact preserves the full report.
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import fs from 'node:fs';
 
-const BASE = process.env.A11Y_BASE || 'https://brickvault-5ub.pages.dev';
+const BASE = process.env.A11Y_BASE || 'http://localhost:4322';
 const ROUTES = ['/', '/#/add', '/#/minifigs', '/#/build', '/#/me'];
 const report = [];
 
@@ -30,8 +28,7 @@ for (const route of ROUTES) {
     for (const v of results.violations) {
       console.log(`   - [${v.impact}] ${v.id}: ${v.help} (${v.nodes.length} node[s])`);
     }
-    // REPORT-ONLY. To enforce, uncomment:
-    // expect(serious, JSON.stringify(serious.map(v => v.id))).toEqual([]);
+    expect(serious, JSON.stringify(serious.map(v => v.id))).toEqual([]);
   });
 }
 

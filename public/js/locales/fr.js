@@ -182,4 +182,11 @@ Object.assign(fr.market, { comps: '{n} comparables', slashComps: ' / {n} compara
 Object.assign(fr.detail, { tagsMoreOne: '+{n} de plus', tagsMoreOther: '+{n} de plus' });
 Object.assign(fr.market, { compsOne: '{n} comparable', compsOther: '{n} comparables', slashCompsOne: ' / {n} comparable', slashCompsOther: ' / {n} comparables' });
 
+Object.assign(fr.settings, { appLockUnchanged: 'Verrouillage de l’app inchangé : {error}' });
+Object.assign(fr.game, { checkGuessFailed: 'Impossible de vérifier l’estimation : {error}' });
+Object.assign(fr.alerts, { sellOpportunityOne: 'Occasion de vendre · il y a {n} jour', sellOpportunityOther: 'Occasion de vendre · il y a {n} jours' });
+Object.assign(fr.detail, { minifigsCountOne: '{n} figurine', minifigsCountOther: '{n} figurines' });
+Object.assign(fr.market, { listingsOne: '{n} annonce', listingsOther: '{n} annonces', slashListingsOne: ' / {n} annonce', slashListingsOther: ' / {n} annonces', slashSamplesOne: ' / {n} échantillon', slashSamplesOther: ' / {n} échantillons' });
+Object.assign(fr.scanner, { estimatedValue: '(~valeur estimée)', marketGrabThreshold: 'Marché {market} — sous {price}, c’est une affaire{estimated}', underMarket: '{amount} sous le marché{estimated}', withinMarket: 'à {pct}% du marché{estimated}', overMarket: '{amount} au-dessus du marché{estimated}' });
+
 export default fr;

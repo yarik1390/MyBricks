@@ -91,6 +91,18 @@ describe('runBrickEconomyEnrich', () => {
     expect(row!.be_cached_at).toBeTruthy();     // but parked so it isn't re-scraped
   });
 
+  it('does not stamp a provider failure as no-data', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, be_cached_at) VALUES ('FAIL-1','Failure', 2015, NULL)`).run();
+    mockScrape.mockRejectedValue(new Error('Firecrawl unavailable'));
+
+    const r = await runBrickEconomyEnrich(withKey);
+
+    expect(r.processed).toBe(1);
+    expect(r.updated).toBe(0);
+    const row = await db.prepare(`SELECT be_cached_at FROM lego_sets WHERE set_num='FAIL-1'`).first<{ be_cached_at: string | null }>();
+    expect(row!.be_cached_at).toBeNull();
+  });
+
   // BrickEconomy is the widest price source in the app (15,154 sets) and 98.8%
   // of it had gone stale under a single 90-day gate. The gate is now split: sets
   // that HAVE data refresh weekly, sets BrickEconomy has nothing for stay on 90

@@ -69,4 +69,21 @@ describe('runMinifigVerify (price-agreement identity queue)', () => {
     const fig = await db.prepare(`SELECT bl_id FROM minifigs WHERE fig_num='fig-3'`).first<{ bl_id: string | null }>();
     expect(fig!.bl_id).toBeNull();
   });
+
+  it('leaves candidates immediately retryable after a provider failure', async () => {
+    await db.batch([
+      seedFig('fig-4', 50),
+      seedCandidate('fig-4', 'a'),
+      seedCandidate('fig-4', 'b'),
+    ]);
+    mockPricing.mockImplementation(async (blId: string) => {
+      if (blId === 'b') throw new Error('provider unavailable');
+      return { value: 55, lots: 4 } as any;
+    });
+
+    const r = await runMinifigVerify(env as any);
+    expect(r.verified).toBe(0);
+    const rows = await db.prepare(`SELECT status, checked_at FROM minifig_bl_candidates WHERE fig_num='fig-4'`).all<{ status: string; checked_at: string | null }>();
+    expect(rows.results.every((x) => x.status === 'pending' && x.checked_at == null)).toBe(true);
+  });
 });

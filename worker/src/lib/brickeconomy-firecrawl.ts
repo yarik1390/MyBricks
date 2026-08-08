@@ -101,7 +101,10 @@ export async function fetchBrickEconomyViaFirecrawl(
     },
     env,
   );
-  if (!result) return null;
+  // firecrawlScrape returns null for provider/network failures. Propagate that
+  // as an error so callers do not negative-cache an outage as a genuine page
+  // with no BrickEconomy data.
+  if (!result) throw new Error('BrickEconomy scrape failed');
 
   const d = result.data || {};
   const out: BrickEconomyScrape = {

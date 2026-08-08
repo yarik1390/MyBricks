@@ -65,13 +65,13 @@ describe('runBricksetEnrich', () => {
     expect(x.at).toBeTruthy();   // still enriched-stamped so we don't re-hammer it
   });
 
-  it('stamps enriched_at on a scrape miss', async () => {
+  it('does not stamp a provider scrape failure as enriched', async () => {
     await db.prepare(`INSERT INTO lego_sets (set_num, name, year, brickset_enriched_at) VALUES ('00000-1','Missing', 2015, NULL)`).run();
     mockScrape.mockResolvedValue(null as any);
     const r = await runBricksetEnrich(withKey);
     expect(r).toMatchObject({ processed: 1, updated: 0 });
     const x = await row('00000-1');
-    expect(x.at).toBeTruthy();
+    expect(x.at).toBeNull();
   });
 
   it('uses a cheap change-probe on refresh and skips the full extract when unchanged', async () => {

@@ -1,22 +1,26 @@
-# Accessibility checks (report-only)
+# Accessibility checks
 
-axe-core (via Playwright) + Lighthouse CI run against the deployed Pages site on
-each PR. They are **report-only** — findings are logged and uploaded, never block.
+axe-core (via Playwright) scans the checked-out frontend on each PR, while
+Lighthouse CI also runs its configured checks. Serious and critical axe
+findings block the job; Lighthouse findings remain informational.
 
 ## Run locally
-    npm i -D @playwright/test @axe-core/playwright @lhci/cli
+    npm ci
     npx playwright install --with-deps chromium
-    A11Y_BASE=https://brickvault-5ub.pages.dev npm run a11y
+    npm run a11y
     npm run lhci
+
+Set `A11Y_BASE=https://brickvault-5ub.pages.dev` to scan the deployed site
+instead of the checked-out frontend.
 
 ## Enable in CI
 Copy `a11y/github-workflow.yml` to `.github/workflows/a11y.yml` (the API
 integration can't write workflow files).
 
-## Make it blocking (after clearing the baseline)
-- axe: uncomment the `expect(...)` line in `a11y/axe.spec.mjs`.
-- Lighthouse: change `"warn"` to `"error"` in `a11y/lighthouserc.json`.
-- Workflow: remove `continue-on-error: true` from the axe/Lighthouse steps.
+## Tighten Lighthouse later
+
+Change `"warn"` to `"error"` in `a11y/lighthouserc.json` and remove its
+`continue-on-error` workflow setting after clearing that broader baseline.
 
 ## Auth-gated routes
 Coverage is the guest-reachable routes (vault, catalog, figs, build, You tab).

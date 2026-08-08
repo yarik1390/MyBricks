@@ -3794,9 +3794,15 @@ body[data-route="set-detail"] .advisor-fab {
 
 /* Onboarding empty state ghost cards */
 .ghost-card {
-  opacity: 0.65;
+  opacity: 1;
   background: var(--surface-2);
   border-style: dashed;
+}
+
+.ghost-card .sl-meta,
+.ghost-card .sl-meta span,
+.ghost-card .sl-delta {
+  color: var(--ink) !important;
 }
 
 /* Floating selection mode bar */

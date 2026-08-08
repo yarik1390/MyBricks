@@ -120,7 +120,7 @@ app.post('/sync', async (c) => {
          WHERE user_collection.deleted_at IS NOT NULL`
       ).bind(userId, setNum));
     }
-    // Batch the writes too (D1 batch limit is 100 statements/call).
+    // Keep write batches modest to leave headroom in the invocation query budget.
     for (let i = 0; i < inserts.length; i += 100) {
       const res = await c.env.DB.batch(inserts.slice(i, i + 100));
       for (const r of res) { if (((r.meta?.changes as number | undefined) ?? 0) > 0) added++; else skipped++; }

@@ -182,4 +182,11 @@ Object.assign(hi.market, { comps: '{n} तुलनीय बिक्रिय�
 Object.assign(hi.detail, { tagsMoreOne: '+{n} और', tagsMoreOther: '+{n} और' });
 Object.assign(hi.market, { compsOne: '{n} तुलनीय बिक्री', compsOther: '{n} तुलनीय बिक्रियाँ', slashCompsOne: ' / {n} तुलनीय बिक्री', slashCompsOther: ' / {n} तुलनीय बिक्रियाँ' });
 
+Object.assign(hi.settings, { appLockUnchanged: 'ऐप लॉक में बदलाव नहीं हुआ: {error}' });
+Object.assign(hi.game, { checkGuessFailed: 'अनुमान जाँचा नहीं जा सका: {error}' });
+Object.assign(hi.alerts, { sellOpportunityOne: 'बेचने का मौका · {n} दिन पहले', sellOpportunityOther: 'बेचने का मौका · {n} दिन पहले' });
+Object.assign(hi.detail, { minifigsCountOne: '{n} मिनीफिगर', minifigsCountOther: '{n} मिनीफिगर' });
+Object.assign(hi.market, { listingsOne: '{n} लिस्टिंग', listingsOther: '{n} लिस्टिंग', slashListingsOne: ' / {n} लिस्टिंग', slashListingsOther: ' / {n} लिस्टिंग', slashSamplesOne: ' / {n} नमूना', slashSamplesOther: ' / {n} नमूने' });
+Object.assign(hi.scanner, { estimatedValue: '(~अनुमानित मूल्य)', marketGrabThreshold: 'बाज़ार {market} — {price} से कम पर शानदार सौदा{estimated}', underMarket: 'बाज़ार से {amount} कम{estimated}', withinMarket: 'बाज़ार के {pct}% के भीतर{estimated}', overMarket: 'बाज़ार से {amount} अधिक{estimated}' });
+
 export default hi;

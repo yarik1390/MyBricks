@@ -328,7 +328,7 @@ function summaryFactsHTML(set) {
   const parts = [];
   if (set.pieces) parts.push(`<span class="f"><b>${Number(set.pieces).toLocaleString()}</b> ${t("detail.pieces")}</span>`);
   if (set.year) parts.push(`<span class="f"><b>${set.year}</b></span>`);
-  if (figs) parts.push(`<span class="f"><b>${figs}</b> minifig${figs === 1 ? '' : 's'}</span>`);
+  if (figs) parts.push(`<span class="f">${escapeHtml(tPlural('detail.minifigsCount', figs))}</span>`);
   // Unreleased sets: stored retail can be a formula placeholder; the
   // BrickEconomy RRP is authoritative until release.
   const retailShown = set.coming_soon

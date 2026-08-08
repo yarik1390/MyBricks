@@ -55,7 +55,7 @@ export function priceStripHTML(set, entry) {
   const val3 = ebaySold.newValue || askValue;
   const soldSampleText = ebaySold.newSampleCount ? tPlural('market.comps', ebaySold.newSampleCount) : null;
   const val3sub = showAsk
-    ? (Number(set.ebay_ask_qty) > 0 ? `${set.ebay_ask_qty} listings` : null)
+    ? (Number(set.ebay_ask_qty) > 0 ? tPlural('market.listings', Number(set.ebay_ask_qty)) : null)
     : (ebaySold.usedValue
       ? `${soldSampleText ? `${soldSampleText} / ` : ""}${t('market.usedValue', { price: fmtMoney(ebaySold.usedValue) })}`
       : soldSampleText || (showBlCross && set.used_value ? t('market.usedValue', { price: fmtMoney(set.used_value) }) : null));
@@ -396,10 +396,10 @@ export function marketConfidenceHTML(set) {
     const count = Number(s.sample_count || 0);
     if (!count) return '';
     const id = String(s.id || '');
-    if (id.includes('ask')) return ` / ${count} listings`;
+    if (id.includes('ask')) return tPlural('market.slashListings', count);
     if (id.includes('sold') || id.includes('ebay')) return tPlural('market.slashComps', count);
     if (id.includes('bricklink') || id.includes('brickowl')) return ` / ${tPlural('card.lots', count)}`;
-    return ` / ${count} samples`;
+    return tPlural('market.slashSamples', count);
   };
   const sourceRows = sources.slice(0, 6).map(s => {
     const rel = s.reliability

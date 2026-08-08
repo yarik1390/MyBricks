@@ -676,7 +676,7 @@ async function updateRetirementRiskBatch(env: Env): Promise<void> {
     `).bind(computeRetirementRisk(s), s.set_num)
   );
 
-  // Process in batches of 100 (D1 batch limit)
+  // Process in modest batches to leave headroom in the invocation query budget.
   for (let i = 0; i < stmts.length; i += 100) {
     await env.DB.batch(stmts.slice(i, i + 100));
   }

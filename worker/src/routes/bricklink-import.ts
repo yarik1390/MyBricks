@@ -106,7 +106,7 @@ app.post('/import-csv', async (c) => {
     for (const r of results) known.add(r.set_num);
   }
 
-  // Build inserts for known sets; batch the writes (D1 batch limit is 100/call).
+  // Build inserts for known sets; keep write batches modest for invocation headroom.
   const inserts: D1PreparedStatement[] = [];
   for (const row of parsed) {
     if (!known.has(row.setNum)) { skipped++; errors.push(`${row.setNum}: not in catalog`); continue; }

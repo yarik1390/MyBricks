@@ -206,7 +206,7 @@ export async function renderMe() {
         </div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">${escapeHtml(t("settings.currency"))}</div><div class="desc">${escapeHtml(t("settings.currencyDesc"))}</div></div>
-          <select id="currencySelect" style="font-family:var(--mono);font-weight:600;font-size:14px;border:none;background:transparent;color:var(--ink);cursor:pointer;outline:none;text-align-last:right;">
+          <select id="currencySelect" aria-label="${escapeHtml(t('settings.currency'))}" style="font-family:var(--mono);font-weight:600;font-size:14px;border:none;background:transparent;color:var(--ink);cursor:pointer;outline:none;text-align-last:right;">
             ${["USD","GBP","EUR","CAD","AUD"].map(cur => `<option value="${cur}" ${me.currency === cur ? "selected" : ""}>${cur}</option>`).join("")}
           </select>
         </div>

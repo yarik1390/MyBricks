@@ -1,13 +1,11 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { requireMember } from '../auth';
+import { optionalMember, requireMember } from '../auth';
 import type { Env, Variables } from '../types';
 
 type Ctx = Context<{ Bindings: Env; Variables: Variables }>;
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
-
-app.use('*', requireMember);
 
 // Daily submission cap across all contribution types. Supporters get 5×,
 // matching the scan/advisor BYOK-free tiers.
@@ -45,8 +43,8 @@ async function setExists(c: Ctx, setNum: string): Promise<boolean> {
 }
 
 // POST /api/contributions/reviews — submit/replace the caller's review for a set.
-app.post('/reviews', async (c) => {
-  const userId = c.get('userId');
+app.post('/reviews', requireMember, async (c) => {
+  const userId = c.get('userId')!;
   const body = await c.req.json<{ set_num?: string; rating?: number; title?: string; body?: string }>().catch(() => ({} as { set_num?: string; rating?: number; title?: string; body?: string }));
   const setNum = (body.set_num || '').trim();
   const rating = Number(body.rating);
@@ -70,9 +68,9 @@ app.post('/reviews', async (c) => {
 });
 
 // POST /api/contributions/photos/:setNum — multipart "photo" upload to R2.
-app.post('/photos/:setNum', async (c) => {
-  const userId = c.get('userId');
-  const setNum = c.req.param('setNum');
+app.post('/photos/:setNum', requireMember, async (c) => {
+  const userId = c.get('userId')!;
+  const setNum = c.req.param('setNum')!;
   if (!(await setExists(c, setNum))) return c.json({ error: 'Unknown set' }, 404);
   if (!c.env.PHOTO_BUCKET) return c.json({ error: 'Photo storage not configured' }, 503);
 
@@ -103,8 +101,8 @@ app.post('/photos/:setNum', async (c) => {
 });
 
 // POST /api/contributions/data — barcode/price/report submissions.
-app.post('/data', async (c) => {
-  const userId = c.get('userId');
+app.post('/data', requireMember, async (c) => {
+  const userId = c.get('userId')!;
   const body = await c.req.json<{ set_num?: string; kind?: string; payload?: any; note?: string }>().catch(() => ({} as { set_num?: string; kind?: string; payload?: any; note?: string }));
   const setNum = (body.set_num || '').trim();
   const kind = (body.kind || '').trim();
@@ -133,9 +131,9 @@ app.post('/data', async (c) => {
 });
 
 // GET /api/contributions/sets/:setNum — approved community content for a set.
-app.get('/sets/:setNum', async (c) => {
-  const userId = c.get('userId');
-  const setNum = c.req.param('setNum');
+app.get('/sets/:setNum', optionalMember, async (c) => {
+  const userId = c.get('userId') || '';
+  const setNum = c.req.param('setNum')!;
   const [agg, reviews, photos, prices, mine] = await Promise.all([
     c.env.DB.prepare(
       "SELECT AVG(rating) AS avg, COUNT(*) AS count FROM set_reviews WHERE set_num=? AND status='approved' AND deleted_at IS NULL"
@@ -178,9 +176,9 @@ app.get('/sets/:setNum', async (c) => {
 
 // GET /api/contributions/photos/file/:id — stream an approved photo (or the
 // owner's own pending one) from R2.
-app.get('/photos/file/:id', async (c) => {
-  const userId = c.get('userId');
-  const id = parseInt(c.req.param('id'), 10);
+app.get('/photos/file/:id', optionalMember, async (c) => {
+  const userId = c.get('userId') || '';
+  const id = parseInt(c.req.param('id') || '', 10);
   if (!id) return c.json({ error: 'Invalid id' }, 400);
   if (!c.env.PHOTO_BUCKET) return c.json({ error: 'Photo storage not configured' }, 503);
   const row = await c.env.DB.prepare(
@@ -197,8 +195,8 @@ app.get('/photos/file/:id', async (c) => {
 });
 
 // GET /api/contributions/mine — the caller's submissions + approved count.
-app.get('/mine', async (c) => {
-  const userId = c.get('userId');
+app.get('/mine', requireMember, async (c) => {
+  const userId = c.get('userId')!;
   const rows = await c.env.DB.prepare(
     "SELECT 'review' AS type, id, set_num, status, review_note, created_at, reviewed_at FROM set_reviews WHERE user_id=? AND deleted_at IS NULL " +
     "UNION ALL SELECT 'photo', id, set_num, status, review_note, created_at, reviewed_at FROM set_photos WHERE user_id=? AND deleted_at IS NULL " +
@@ -216,10 +214,10 @@ const TYPE_TABLE: Record<string, string> = {
 };
 
 // DELETE /api/contributions/:type/:id — withdraw the caller's own pending item.
-app.delete('/:type/:id', async (c) => {
-  const userId = c.get('userId');
-  const table = TYPE_TABLE[c.req.param('type')];
-  const id = parseInt(c.req.param('id'), 10);
+app.delete('/:type/:id', requireMember, async (c) => {
+  const userId = c.get('userId')!;
+  const table = TYPE_TABLE[c.req.param('type') || ''];
+  const id = parseInt(c.req.param('id') || '', 10);
   if (!table || !id) return c.json({ error: 'Invalid request' }, 400);
   const res = await c.env.DB.prepare(
     `UPDATE ${table} SET deleted_at=datetime('now') WHERE id=? AND user_id=? AND status='pending' AND deleted_at IS NULL`

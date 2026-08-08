@@ -24,6 +24,12 @@ export async function sendPushToUser(env: Env, userId: string, payload: string) 
 
 interface AlertPrefs { email: string | null; discord_webhook_url: string | null; notify_price_drops: number }
 
+// Workers Paid permits 1,000 D1 queries per invocation. The five alert legs
+// share one cron invocation and notification delivery performs additional D1
+// reads, so bound each leg to a conservative slice. Remaining rows are picked
+// up by the next daily run; dedupe/cooldown predicates keep progress monotonic.
+const ALERTS_PER_KIND = 60;
+
 // Batch-load notification prefs for many users in chunked IN(...) queries (one
 // query per 100 users) instead of one query per user inside the send loops.
 async function loadAlertPrefs(env: Env, userIds: string[]): Promise<Map<string, AlertPrefs>> {
@@ -70,7 +76,8 @@ export async function runWishlistAlerts(env: Env) {
         OR (ext.pa_in_stock = 1 AND ext.pa_lowest_offer IS NOT NULL AND ext.pa_lowest_offer <= w.target_price)
       )
       AND (w.alerted_at IS NULL OR w.alerted_at < datetime('now', '-7 days'))
-  `).all<{ id: number; user_id: string; set_num: string; target_price: number; set_name: string; current_value: number; image_url: string | null; pa_lowest_offer: number | null; pa_in_stock: number | null; pa_best_merchant: string | null }>();
+    LIMIT ?
+  `).bind(ALERTS_PER_KIND).all<{ id: number; user_id: string; set_num: string; target_price: number; set_name: string; current_value: number; image_url: string | null; pa_lowest_offer: number | null; pa_in_stock: number | null; pa_best_merchant: string | null }>();
 
   // The buyable price that triggered the alert: the lower of market value and the
   // live pricesAPI offer (when in stock). When the live offer is the cheaper one,
@@ -174,7 +181,8 @@ async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
       )
       AND uc.deleted_at IS NULL
       AND (uc.spike_alerted_at IS NULL OR uc.spike_alerted_at < datetime('now', '-30 days'))
-  `).all<{
+    LIMIT ?
+  `).bind(ALERTS_PER_KIND).all<{
     collection_id: number; user_id: string; set_num: string;
     purchase_price: number; set_name: string; current_value: number; image_url: string | null;
   }>();
@@ -253,7 +261,8 @@ async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
         WHERE wa.user_id = u.user_id AND wa.set_num = ls.set_num
           AND wa.alert_type = 'retiring' AND wa.triggered_at > datetime('now', '-30 days')
       )
-  `).all<{ user_id: string; set_num: string; set_name: string; current_value: number | null; image_url: string | null }>();
+    LIMIT ?
+  `).bind(ALERTS_PER_KIND).all<{ user_id: string; set_num: string; set_name: string; current_value: number | null; image_url: string | null }>();
 
   if (!results.length) return { fired: 0 };
 
@@ -318,7 +327,8 @@ async function runDealAlerts(env: Env): Promise<{ fired: number }> {
         WHERE wa.user_id = w.user_id AND wa.set_num = ls.set_num
           AND wa.alert_type = 'deal' AND wa.triggered_at > datetime('now', '-30 days')
       )
-  `).all<{ user_id: string; set_num: string; set_name: string; market_value: number | null; image_url: string | null; deal_discount_pct: number | null }>();
+    LIMIT ?
+  `).bind(ALERTS_PER_KIND).all<{ user_id: string; set_num: string; set_name: string; market_value: number | null; image_url: string | null; deal_discount_pct: number | null }>();
 
   if (!results.length) return { fired: 0 };
 
@@ -383,7 +393,8 @@ async function runPreorderAlerts(env: Env): Promise<{ fired: number }> {
         WHERE wa.user_id = w.user_id AND wa.set_num = ls.set_num
           AND wa.alert_type = 'preorder' AND wa.triggered_at > datetime('now', '-30 days')
       )
-  `).all<{ user_id: string; set_num: string; set_name: string; current_value: number | null; image_url: string | null; lego_availability: string }>();
+    LIMIT ?
+  `).bind(ALERTS_PER_KIND).all<{ user_id: string; set_num: string; set_name: string; current_value: number | null; image_url: string | null; lego_availability: string }>();
 
   if (!results.length) return { fired: 0 };
 

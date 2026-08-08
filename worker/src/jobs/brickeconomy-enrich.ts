@@ -133,19 +133,22 @@ export async function runBrickEconomyEnrich(
   const concurrency = Math.max(1, Math.min(options.concurrency ?? 5, 8));
   for (let i = 0; i < results.length; i += concurrency) {
     const batch = results.slice(i, i + concurrency);
-    const outs = await Promise.all(batch.map(async ({ set_num }) => ({
-      set_num,
-      scrape: await fetchBrickEconomyViaFirecrawl(set_num, env).catch(() => null),
-    })));
+    const outs = await Promise.all(batch.map(async ({ set_num }) => {
+      try {
+        return { set_num, scrape: await fetchBrickEconomyViaFirecrawl(set_num, env), failed: false };
+      } catch {
+        return { set_num, scrape: null, failed: true };
+      }
+    }));
 
-    for (const { set_num, scrape } of outs) {
+    for (const { set_num, scrape, failed } of outs) {
       processed++;
+      // Provider failures remain immediately retryable. Only a successful
+      // scrape with no usable values earns the 90-day negative-data stamp.
+      if (failed) continue;
       if (!scrape) {
-        // No usable BrickEconomy data for this set (a real scrape error or a
-        // clean empty/404 page). firecrawlScrape already recorded the attempt's
-        // health (real ok/fail + error); a clean empty page counts as an OK
-        // scrape there, not a failure. Just stamp be_cached_at so the set isn't
-        // re-scraped (and re-charged) every run.
+        // A successful scrape found no usable BrickEconomy data. Stamp the
+        // negative result so the set is not re-scraped every run.
         stmts.push(env.DB.prepare(
           `UPDATE lego_sets SET be_cached_at=datetime('now') WHERE set_num=?`,
         ).bind(set_num));

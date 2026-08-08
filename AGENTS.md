@@ -423,8 +423,10 @@ Both one-time bootstraps — PriceCharting per-set (`10,25,40,55`) and BrickEcon
   `{placeholders}` must match English exactly. Add a string to `en.js` FIRST.
 - **Hono sub-app per resource** in `routes/`; register specific paths before
   `:param` routes; prepared statements via `c.env.DB.prepare(...).bind(...)`.
-- **D1 limits:** ≤100 bound params/query, ≤100 KB/statement, batch ≤100
-  statements, 30s/query. Bulk writes are chunked (e.g. 90/ batch).
+- **D1 limits:** ≤100 bound params/query, ≤100 KB/statement, and 30s/query.
+  Cloudflare does not document a separate `DB.batch()` statement-count cap;
+  each statement counts as a D1 query, and Workers Paid permits 1,000 D1
+  queries per invocation. Bulk writes are still chunked to leave headroom.
 - **Quota + health:** wrap external calls so they spend `api_quota` and record
   `integration_health`; circuit-break on repeated failures.
 - **CORS** (`index.ts`) reflects any `*.pages.dev` + localhost origin; default

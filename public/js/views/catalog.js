@@ -204,7 +204,7 @@ function comingSoonSectionHTML() {
   return `
     <div class="coming-soon-wrap" style="margin-bottom:16px;">
       <h2 class="section-title" style="margin-top:0;">Coming Soon</h2>
-      <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;">
+      <div tabindex="0" role="region" aria-label="${escapeHtml(t('catalog.comingSoon'))}" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;">
         ${up.slice(0, 20).map((u) => {
           const onWishlist = wishlist.has(u.set_num);
           return `
@@ -213,7 +213,7 @@ function comingSoonSectionHTML() {
             <div style="font-size:10px;font-family:var(--mono);color:var(--ink-mute);margin-top:4px;">#${escapeHtml(String(u.set_num || "").replace(/-\d+$/, ""))}</div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:6px;">
               <span class="price-cue" style="font-size:13px;font-weight:700;color:var(--ink);">${u.price_usd ? fmtMoney(u.price_usd, { cents: 0 }) : ""}</span>
-              <span style="font-size:9px;font-family:var(--mono);font-weight:800;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:1px 5px;white-space:nowrap;">${escapeHtml(String(u.availability || "Soon"))}</span>
+              <span style="font-size:9px;font-family:var(--mono);font-weight:800;text-transform:uppercase;color:var(--ink);border:1px solid var(--ink-mute);background:var(--surface);border-radius:6px;padding:1px 5px;white-space:nowrap;">${escapeHtml(String(u.availability || "Soon"))}</span>
             </div>
             ${isLoggedIn ? `
             <button class="cs-wish-btn ${onWishlist ? 'cs-wish-btn--on' : ''}" data-cs-wish="${escapeHtml(String(u.set_num))}" data-cs-name="${escapeHtml(String(u.name || ''))}"

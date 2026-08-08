@@ -188,4 +188,11 @@ Object.assign(de.market, { comps: '{n} Vergleiche', slashComps: ' / {n} Vergleic
 Object.assign(de.detail, { tagsMoreOne: '+{n} mehr', tagsMoreOther: '+{n} mehr' });
 Object.assign(de.market, { compsOne: '{n} Vergleich', compsOther: '{n} Vergleiche', slashCompsOne: ' / {n} Vergleich', slashCompsOther: ' / {n} Vergleiche' });
 
+Object.assign(de.settings, { appLockUnchanged: 'App-Sperre unverändert: {error}' });
+Object.assign(de.game, { checkGuessFailed: 'Der Tipp konnte nicht geprüft werden: {error}' });
+Object.assign(de.alerts, { sellOpportunityOne: 'Verkaufschance · vor {n} Tag', sellOpportunityOther: 'Verkaufschance · vor {n} Tagen' });
+Object.assign(de.detail, { minifigsCountOne: '{n} Minifigur', minifigsCountOther: '{n} Minifiguren' });
+Object.assign(de.market, { listingsOne: '{n} Angebot', listingsOther: '{n} Angebote', slashListingsOne: ' / {n} Angebot', slashListingsOther: ' / {n} Angebote', slashSamplesOne: ' / {n} Stichprobe', slashSamplesOther: ' / {n} Stichproben' });
+Object.assign(de.scanner, { estimatedValue: '(~geschätzter Wert)', marketGrabThreshold: 'Marktwert {market} — unter {price} ist ein Schnäppchen{estimated}', underMarket: '{amount} unter Marktwert{estimated}', withinMarket: 'innerhalb von {pct}% des Marktwerts{estimated}', overMarket: '{amount} über Marktwert{estimated}' });
+
 export default de;

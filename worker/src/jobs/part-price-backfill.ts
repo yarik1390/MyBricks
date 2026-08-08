@@ -69,12 +69,14 @@ export async function runPartPriceBackfill(env: Env, options: { limit?: number }
       // Rebrickable color id -> BrickLink color id, so the price guide is
       // queried for the RIGHT color. null = no BrickLink equivalent -> skip.
       const blColor = await toBrickLinkColorId(env, r.color_id);
-      return {
-        r,
-        px: blColor == null ? null : await fetchPartPricing(r.part_num, blColor, env).catch(() => null),
-      };
+      if (blColor == null) return { r, px: null, failed: false };
+      try {
+        return { r, px: await fetchPartPricing(r.part_num, blColor, env), failed: false };
+      } catch {
+        return { r, px: null, failed: true };
+      }
     }));
-    for (const { r, px } of outs) {
+    for (const { r, px, failed } of outs) {
       processed++;
       if (px && px.price_new != null) {
         stmts.push(env.DB.prepare(
@@ -84,7 +86,7 @@ export async function runPartPriceBackfill(env: Env, options: { limit?: number }
              price_new=?3, qty_new=?4, cached_at=datetime('now')`,
         ).bind(r.part_num, r.color_id, px.price_new, px.qty_new));
         priced++;
-      } else {
+      } else if (!failed) {
         // Stamp cached_at even on a miss (no guide data / 404) so an unpriceable
         // part isn't re-fetched — and re-charged — every run.
         stmts.push(env.DB.prepare(

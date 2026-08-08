@@ -1,7 +1,7 @@
-# Accessibility checks (report-only). The API integration cannot write
+# Accessibility checks. The API integration cannot write
 # .github/workflows/, so copy THIS file to .github/workflows/a11y.yml yourself
-# (GitHub web UI "Add file", or a local commit). It never blocks a PR while the
-# axe/Lighthouse steps use continue-on-error. See a11y/README.md to enforce.
+# (GitHub web UI "Add file", or a local commit). Serious and critical axe
+# findings block the job; Lighthouse remains informational.
 name: a11y
 on:
   pull_request:
@@ -14,18 +14,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install a11y tools
-        run: npm i -D @playwright/test @axe-core/playwright @lhci/cli
+      - name: Install dependencies
+        run: npm ci
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: axe-core (report-only)
-        continue-on-error: true
-        env:
-          A11Y_BASE: https://brickvault-5ub.pages.dev
+      - name: axe-core
         run: npx playwright test --config=a11y/playwright.config.mjs
       - name: Lighthouse accessibility (report-only)
         continue-on-error: true
-        run: npx lhci autorun --config=a11y/lighthouserc.json
+        run: npx --yes @lhci/cli@0.15.1 autorun --config=a11y/lighthouserc.json
       - name: Upload axe report
         if: always()
         uses: actions/upload-artifact@v4

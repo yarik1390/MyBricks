@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 # Cancel a superseded a11y run so rapid pushes don't stack parallel Playwright +
-# Lighthouse installs (both report-only, so nothing is lost by cancelling).
+# Lighthouse installs.
 concurrency:
   group: a11y-${{ github.ref }}
   cancel-in-progress: true
@@ -17,8 +17,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install a11y tools
-        run: npm i -D @playwright/test @axe-core/playwright @lhci/cli
+      - name: Install dependencies
+        run: npm ci
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         with:
@@ -27,14 +27,11 @@ jobs:
           restore-keys: ${{ runner.os }}-playwright-
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: axe-core (report-only)
-        continue-on-error: true
-        env:
-          A11Y_BASE: https://brickvault-5ub.pages.dev
+      - name: axe-core
         run: npx playwright test --config=a11y/playwright.config.mjs
       - name: Lighthouse accessibility (report-only)
         continue-on-error: true
-        run: npx lhci autorun --config=a11y/lighthouserc.json
+        run: npx --yes @lhci/cli@0.15.1 autorun --config=a11y/lighthouserc.json
       - name: Upload axe report
         if: always()
         uses: actions/upload-artifact@v4

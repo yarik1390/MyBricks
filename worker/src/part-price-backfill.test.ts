@@ -65,6 +65,14 @@ describe('runPartPriceBackfill', () => {
     expect(row!.cached_at).toBeTruthy(); // parked so it isn't re-fetched every run
   });
 
+  it('does not stamp cached_at when BrickLink fails', async () => {
+    await seedPart();
+    mockPrice.mockRejectedValue(new Error('BrickLink unavailable'));
+    const r = await runPartPriceBackfill(withBl);
+    expect(r).toMatchObject({ processed: 1, priced: 0 });
+    expect(await price()).toBeNull();
+  });
+
   it('skips the BrickLink call for a color with no BrickLink equivalent', async () => {
     await seedPart('p2', 999);
     mockColor.mockResolvedValue(null as any); // no BL color mapping

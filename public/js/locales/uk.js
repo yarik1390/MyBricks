@@ -209,4 +209,11 @@ Object.assign(uk.market, { comps: '{n} порівнянь', slashComps: ' / {n} 
 Object.assign(uk.detail, { tagsMoreOne: '+{n} ще', tagsMoreFew: '+{n} ще', tagsMoreMany: '+{n} ще', tagsMoreOther: '+{n} ще' });
 Object.assign(uk.market, { compsOne: '{n} порівняння', compsFew: '{n} порівняння', compsMany: '{n} порівнянь', compsOther: '{n} порівняння', slashCompsOne: ' / {n} порівняння', slashCompsFew: ' / {n} порівняння', slashCompsMany: ' / {n} порівнянь', slashCompsOther: ' / {n} порівняння' });
 
+Object.assign(uk.settings, { appLockUnchanged: 'Блокування застосунку не змінено: {error}' });
+Object.assign(uk.game, { checkGuessFailed: 'Не вдалося перевірити оцінку: {error}' });
+Object.assign(uk.alerts, { sellOpportunityOne: 'Нагода продати · {n} день тому', sellOpportunityFew: 'Нагода продати · {n} дні тому', sellOpportunityMany: 'Нагода продати · {n} днів тому', sellOpportunityOther: 'Нагода продати · {n} дня тому' });
+Object.assign(uk.detail, { minifigsCountOne: '{n} мініфігурка', minifigsCountFew: '{n} мініфігурки', minifigsCountMany: '{n} мініфігурок', minifigsCountOther: '{n} мініфігурки' });
+Object.assign(uk.market, { listingsOne: '{n} оголошення', listingsFew: '{n} оголошення', listingsMany: '{n} оголошень', listingsOther: '{n} оголошення', slashListingsOne: ' / {n} оголошення', slashListingsFew: ' / {n} оголошення', slashListingsMany: ' / {n} оголошень', slashListingsOther: ' / {n} оголошення', slashSamplesOne: ' / {n} зразок', slashSamplesFew: ' / {n} зразки', slashSamplesMany: ' / {n} зразків', slashSamplesOther: ' / {n} зразка' });
+Object.assign(uk.scanner, { estimatedValue: '(~орієнтовна вартість)', marketGrabThreshold: 'Ринок {market} — нижче {price} це вигідна покупка{estimated}', underMarket: 'на {amount} нижче ринку{estimated}', withinMarket: 'у межах {pct}% від ринку{estimated}', overMarket: 'на {amount} вище ринку{estimated}' });
+
 export default uk;

@@ -10,12 +10,13 @@
     "lint": "biome lint",
     "status": "git status",
     "a11y": "playwright test --config=a11y/playwright.config.mjs",
-    "lhci": "lhci autorun --config=a11y/lighthouserc.json",
+    "lhci": "npx --yes @lhci/cli@0.15.1 autorun --config=a11y/lighthouserc.json",
     "e2e": "playwright test --config=e2e/playwright.config.mjs",
     "android:assetlinks": "node scripts/configure-assetlinks.mjs",
     "android:preflight": "node scripts/android-release-preflight.mjs"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@biomejs/biome": "^2.5.0",
     "@playwright/test": "^1.61.1"
   },

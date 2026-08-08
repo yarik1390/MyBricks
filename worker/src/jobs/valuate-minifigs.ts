@@ -129,9 +129,15 @@ export async function runValuateMinifigs(
     }
 
     // BrickLink sold price (only with a real BrickLink id).
-    const px = blId
-      ? await fetchMinifigPricing(blId, env, { recordHealth: false }).catch(() => null)
-      : null;
+    let px = null;
+    let brickLinkFailed = false;
+    if (blId) {
+      try {
+        px = await fetchMinifigPricing(blId, env, { recordHealth: false });
+      } catch {
+        brickLinkFailed = true;
+      }
+    }
     const blValue = px && px.value != null && px.value > 0 ? px.value : null;
     const blLots = px?.lots ?? 0;
 
@@ -199,6 +205,12 @@ export async function runValuateMinifigs(
     }
 
     if (value == null || value <= 0) {
+      // Do not cool the row after a provider failure; keep it eligible for the
+      // next run. A verified empty guide still receives the normal miss stamp.
+      if (brickLinkFailed) {
+        summary.missed++;
+        continue;
+      }
       // No market value from either source. STAMP THE ATTEMPT anyway: the
       // candidate query is stale-first on cached_at, so a fig left un-stamped
       // sorted straight back to the head of the next run — the queue ground on

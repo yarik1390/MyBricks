@@ -12,6 +12,8 @@ import { t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 
 let _scanTrapRelease = null;
 let _scanPending = false;
+let _scanController = null;
+let _scanGeneration = 0;
 
 // --- Per-scan latency instrumentation (opt-in) -----------------------------
 // Set localStorage bv_scan_debug='1' to log each stage's timing to the console,
@@ -118,6 +120,8 @@ export function openScan(mode = "barcode", { deferStart = false, shelf = false }
     return;
   }
 
+  invalidateScanSession();
+
   state.camera.mode = mode;
   // Shelf Snap: photo mode variant — one wide photo, every set on the shelf.
   state.camera.shelf = mode === "image" && !!shelf;
@@ -219,6 +223,7 @@ function showPhotoScanSetupSheet() {
 }
 
 export function closeScan() {
+  invalidateScanSession();
   stopCamera();
   _scanTrapRelease?.();
   _scanTrapRelease = null;
@@ -226,6 +231,21 @@ export function closeScan() {
   $("#scanOverlay").classList.remove("open", "native-handoff");
   $("#scanOverlay").innerHTML = "";
   _scanPending = false;
+}
+
+function invalidateScanSession() {
+  _scanGeneration += 1;
+  _scanController?.abort();
+  _scanController = null;
+  stopScanPhrases();
+  _scanPending = false;
+}
+
+function beginScanRequest() {
+  invalidateScanSession();
+  const controller = new AbortController();
+  _scanController = controller;
+  return { controller, generation: _scanGeneration };
 }
 
 export function stopCamera() {
@@ -604,6 +624,8 @@ async function cloudScanIdentify(payload, signal) {
 }
 
 async function sendScanToAPI(payload) {
+  const { controller, generation } = beginScanRequest();
+  const stale = () => generation !== _scanGeneration || controller.signal.aborted;
   _scanStartMs = performance.now();
   setScanPending(true);
   const el = $("#scanResult");
@@ -622,10 +644,12 @@ async function sendScanToAPI(payload) {
   // Playful rotating copy for the (slower) image/AI path; barcode is instant.
   if (payload.mode !== "barcode") startScanPhrases();
   const done = () => {
+    if (generation !== _scanGeneration) return;
     stopScanPhrases();
     scanTime('total');
     if (frame) frame.classList.remove("scan-pending");
     setScanPending(false);
+    if (_scanController === controller) _scanController = null;
   };
 
   const scanEngine = localStorage.getItem('bv_ai_engine') || 'cloud';
@@ -638,18 +662,22 @@ async function sendScanToAPI(payload) {
   if (payload.mode === 'image' && scanEngine === 'local') {
     const hasGpu = isWebGpuAvailable();
     const ready = hasGpu && await checkGemma3Downloaded();
+    if (stale()) return;
     if (ready) {
       try {
         const bitmap = await imageBitmapFromDataUrl(payload.image);
+        if (stale()) return;
         const _tLocal = performance.now();
         const localResult = await runLocalVisionScan(bitmap, (statusText) => {
           const hint = $("#scanHint");
           if (hint) hint.textContent = statusText;
         });
+        if (stale()) return;
         scanTime('on-device inference', _tLocal);
         if (localResult.identified) {
           const setNum = localResult.set_num;
-          let setResponse = await api(`/api/sets/${encodeURIComponent(setNum)}`).catch(() => null);
+          let setResponse = await api(`/api/sets/${encodeURIComponent(setNum)}`, { signal: controller.signal }).catch(() => null);
+          if (stale()) return;
           // Offline: the enrichment fetch fails, so pull value/details from the
           // set-detail cache when available instead of showing $0.
           if (!setResponse) {
@@ -674,6 +702,7 @@ async function sendScanToAPI(payload) {
         }
         toast("On-device AI couldn't identify it — trying cloud…", "info");
       } catch (err) {
+        if (stale()) return;
         if (!online) {
           showScanResult({ identified: false, reasoning: t('scanner.localAiOfflineFailed', { error: err.message || err }) });
           done();
@@ -699,19 +728,24 @@ async function sendScanToAPI(payload) {
     done();
     return;
   }
-  const ac = new AbortController();
-  const tid = setTimeout(() => ac.abort(), 30_000);
+  let timedOut = false;
+  const tid = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, 30_000);
   try {
-    const res = await cloudScanIdentify(payload, ac.signal);
+    const res = await cloudScanIdentify(payload, controller.signal);
+    if (stale()) return;
     showScanResult(res);
   } catch (e) {
-    const localizedMsg = ac.signal.aborted
+    if (generation !== _scanGeneration || (controller.signal.aborted && !timedOut)) return;
+    const localizedMsg = timedOut
       ? t('scanner.timedOut')
       : t('scanner.scanFailed', { error: e.message || e });
-    const msg = ac.signal.aborted ? "Took too long — try again." : e.message;
-    const displayMsg = ac.signal.aborted ? localizedMsg : t('scanner.scanFailed', { error: msg || e });
+    const msg = timedOut ? "Took too long — try again." : e.message;
+    const displayMsg = timedOut ? localizedMsg : t('scanner.scanFailed', { error: msg || e });
     const hint = $("#scanHint");
-    if (hint) hint.textContent = ac.signal.aborted
+    if (hint) hint.textContent = timedOut
       ? t('scanner.timedOutShort')
       : t('scanner.scanFailed', { error: e.message || e });
     showScanResult({ identified: false, reasoning: displayMsg });
@@ -778,7 +812,7 @@ function showBlindBoxResult(res) {
   el.innerHTML = `
     <div class="scan-result-head">
       <span class="badge">${I.check()} ${escapeHtml(res.series || "Series")}</span>
-      <span style="font-size:11px;color:var(--ink-mute);">${res.figs.length} figs</span>
+      <span style="font-size:11px;color:var(--ink-mute);">${escapeHtml(tPlural('counts.figs', res.figs.length))}</span>
     </div>
     <p style="font-size:12px;color:var(--ink-mute);margin:6px 0 10px;">Tap the minifig you pulled to add it to your collection.</p>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:44vh;overflow-y:auto;padding-right:2px;">${figsHTML}</div>
@@ -1153,6 +1187,8 @@ function scanOverlayHTML(mode, shelf = false) {
 }
 
 async function processBulkScanQueue(files) {
+  const { controller, generation } = beginScanRequest();
+  const stale = () => generation !== _scanGeneration || controller.signal.aborted;
   stopCamera();
   setScanPending(true);
 
@@ -1185,25 +1221,25 @@ if (progressText) progressText.textContent = t('downloads.scanProgress', { curre
       // crash the tab. Reject up front; the catch below records it as a skip.
       if (file && file.size > 20 * 1024 * 1024) throw new Error("Image too large (max 20 MB) — skipped");
       dataUrl = await readFileAsDataURL(file);
+      if (stale()) return;
       const resized = await resizeImage(dataUrl, 1024);
-
-      const geminiKey = localStorage.getItem('bv_gemini_key');
-      const openaiKey = localStorage.getItem('bv_openai_key');
-      const extraHeaders = {};
-      if (geminiKey) extraHeaders['X-Gemini-Key'] = geminiKey;
-      if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
+      if (stale()) return;
 
       let apiRes;
       const scanEngine = localStorage.getItem('bv_ai_engine') || 'cloud';
       const localReady = scanEngine === 'local' && isWebGpuAvailable() && await checkGemma3Downloaded();
-      const cloudScan = () => api("/api/scan/identify", { method: "POST", body: { mode: "image", image: resized }, headers: extraHeaders });
+      if (stale()) return;
+      const cloudScan = () => cloudScanIdentify({ mode: "image", image: resized }, controller.signal);
       if (localReady) {
         try {
           const bitmap = await imageBitmapFromDataUrl(resized);
+          if (stale()) return;
           const localResult = await runLocalVisionScan(bitmap);
+          if (stale()) return;
           if (localResult.identified) {
             const setNum = localResult.set_num;
-            let setResponse = await api(`/api/sets/${encodeURIComponent(setNum)}`).catch(() => null);
+            let setResponse = await api(`/api/sets/${encodeURIComponent(setNum)}`, { signal: controller.signal }).catch(() => null);
+            if (stale()) return;
             if (!setResponse) {
               const cached = await getCachedSetDetail(setNum, getSessionUserId());
               if (cached?.set) setResponse = { set: cached.set, entry: cached.entry };
@@ -1233,6 +1269,7 @@ if (progressText) progressText.textContent = t('downloads.scanProgress', { curre
         thumbnail: resized
       });
     } catch (err) {
+      if (stale()) return;
       results.push({
         success: false,
         error: err.message,
@@ -1245,6 +1282,8 @@ if (progressText) progressText.textContent = t('downloads.scanProgress', { curre
   if (progressText) progressText.textContent = "Done!";
 
   setTimeout(() => {
+    if (generation !== _scanGeneration) return;
+    if (_scanController === controller) _scanController = null;
     showBulkScanResults(results);
   }, 300);
 }
@@ -1409,19 +1448,19 @@ function showBulkScanResults(results) {
 function storeVerdictHTML(set, price) {
   const v = computeStoreVerdict(set, price);
   if (!v) return "";
-  const est = v.estimated ? ` <span style="font-weight:500;opacity:.8;">(~estimated value)</span>` : "";
+  const estimated = v.estimated ? ` ${t('scanner.estimatedValue')}` : "";
   if (v.verdict === "guide") {
-    return `<div style="font-size:12px;color:var(--ink-mute);margin-top:6px;">Market ${fmtMoney(v.market)} — under <strong style="color:var(--up);">${fmtMoney(v.grabUnder)}</strong> is a grab${est}</div>`;
+    return `<div style="font-size:12px;color:var(--ink-mute);margin-top:6px;">${escapeHtml(t('scanner.marketGrabThreshold', { market: fmtMoney(v.market), price: fmtMoney(v.grabUnder), estimated }))}</div>`;
   }
   const styles = {
-    grab: { bg: "var(--up)", label: "GRAB IT", sub: `${fmtMoney(Math.abs(v.deltaUsd))} under market${est}` },
-    fair: { bg: "var(--accent)", label: "FAIR PRICE", sub: `within ${Math.round(Math.abs(v.deltaPct) * 100)}% of market${est}` },
-    walk: { bg: "var(--down)", label: "WALK AWAY", sub: `${fmtMoney(Math.abs(v.deltaUsd))} over market${est}` },
+    grab: { bg: "var(--up)", label: "GRAB IT", sub: t('scanner.underMarket', { amount: fmtMoney(Math.abs(v.deltaUsd)), estimated }) },
+    fair: { bg: "var(--accent)", label: "FAIR PRICE", sub: t('scanner.withinMarket', { pct: Math.round(Math.abs(v.deltaPct) * 100), estimated }) },
+    walk: { bg: "var(--down)", label: "WALK AWAY", sub: t('scanner.overMarket', { amount: fmtMoney(Math.abs(v.deltaUsd)), estimated }) },
   }[v.verdict];
   return `
     <div class="store-verdict ${v.verdict}" style="display:flex;align-items:baseline;gap:10px;margin-top:8px;padding:10px 14px;border-radius:var(--r-2);background:${styles.bg};color:#fff;">
       <span style="font-family:var(--mono);font-weight:800;font-size:16px;letter-spacing:.05em;">${styles.label}</span>
-      <span style="font-size:12px;opacity:.95;">${styles.sub}</span>
+      <span style="font-size:12px;opacity:.95;">${escapeHtml(styles.sub)}</span>
     </div>`;
 }
 

@@ -121,6 +121,30 @@ test('native barcode cancellation returns to the method picker without a scanner
   await expect(page.locator('#pileScanBarcode')).toBeFocused();
 });
 
+test('API requests honor a caller abort signal without retrying', async ({ page }) => {
+  await page.route('**/api/cancel-test', async (route) => {
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+  });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+  const outcome = await page.evaluate(async () => {
+    const { api } = await import('/js/api.js');
+    const controller = new AbortController();
+    const started = performance.now();
+    setTimeout(() => controller.abort(), 25);
+    try {
+      await api('/api/cancel-test', { signal: controller.signal });
+      return { aborted: false, elapsed: performance.now() - started };
+    } catch (error) {
+      return { aborted: error?.name === 'AbortError', elapsed: performance.now() - started };
+    }
+  });
+
+  expect(outcome.aborted).toBe(true);
+  expect(outcome.elapsed).toBeLessThan(500);
+});
+
 test('compact catalog rows reflow long labels without horizontal clipping', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => localStorage.setItem('bv_compact_view', 'true'));

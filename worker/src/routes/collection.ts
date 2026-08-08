@@ -568,7 +568,7 @@ app.post('/import', async (c) => {
     if (!overwrite) ownedSets.add(key);
   }
 
-  // Batch write — D1 batch limit is 100 statements per call.
+  // Batch writes conservatively to leave headroom in the invocation query budget.
   for (let i = 0; i < stmts.length; i += 100) {
     await c.env.DB.batch(stmts.slice(i, i + 100));
   }

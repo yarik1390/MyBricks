@@ -182,4 +182,11 @@ Object.assign(zh.market, { comps: '{n} 笔可比成交', slashComps: ' / {n} 笔
 Object.assign(zh.detail, { tagsMoreOne: '还有 {n} 个', tagsMoreOther: '还有 {n} 个' });
 Object.assign(zh.market, { compsOne: '{n} 笔可比成交', compsOther: '{n} 笔可比成交', slashCompsOne: ' / {n} 笔可比成交', slashCompsOther: ' / {n} 笔可比成交' });
 
+Object.assign(zh.settings, { appLockUnchanged: '应用锁未更改：{error}' });
+Object.assign(zh.game, { checkGuessFailed: '无法核对估价：{error}' });
+Object.assign(zh.alerts, { sellOpportunityOne: '出售机会 · {n} 天前', sellOpportunityOther: '出售机会 · {n} 天前' });
+Object.assign(zh.detail, { minifigsCountOne: '{n} 个小人仔', minifigsCountOther: '{n} 个小人仔' });
+Object.assign(zh.market, { listingsOne: '{n} 条在售', listingsOther: '{n} 条在售', slashListingsOne: ' / {n} 条在售', slashListingsOther: ' / {n} 条在售', slashSamplesOne: ' / {n} 个样本', slashSamplesOther: ' / {n} 个样本' });
+Object.assign(zh.scanner, { estimatedValue: '(~估算价值)', marketGrabThreshold: '市场价 {market} — 低于 {price} 值得入手{estimated}', underMarket: '低于市场价 {amount}{estimated}', withinMarket: '与市场价相差 {pct}% 以内{estimated}', overMarket: '高于市场价 {amount}{estimated}' });
+
 export default zh;

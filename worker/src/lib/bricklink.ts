@@ -245,7 +245,8 @@ export async function fetchPartPricing(
       retries: options.retries,
       timeoutMs: options.timeoutMs,
     });
-    if (!resp.ok) return null;
+    if (resp.status === 404) return null;
+    if (!resp.ok) throw new Error(`BrickLink part guide failed: ${resp.status}`);
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
     if (body.meta?.code !== 200 || !body.data) return null;
     const d = body.data;
@@ -255,8 +256,8 @@ export async function fetchPartPricing(
     const result: PartPricing = { price_new: price, qty_new: qty };
     if (env.CACHE_KV) env.CACHE_KV.put(cacheKey, JSON.stringify(result), { expirationTtl: 7 * 86400 }).catch(() => {});
     return result;
-  } catch {
-    return null;
+  } catch (error) {
+    throw error;
   }
 }
 
@@ -285,14 +286,15 @@ export async function fetchMinifigPricing(
     const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
     }, { okStatuses: [404], record: options.recordHealth !== false });
-    if (!resp.ok) return null;
+    if (resp.status === 404) return { value: null, lots: 0 };
+    if (!resp.ok) throw new Error(`BrickLink minifig guide failed: ${resp.status}`);
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
     if (body.meta?.code !== 200 || !body.data) return null;
     const d = body.data;
     const value = parseFloat(String(d.qty_avg_price || d.avg_price || '')) || null;
     const lots = Number(d.unit_quantity ?? 0) || 0;
     return { value, lots };
-  } catch {
-    return null;
+  } catch (error) {
+    throw error;
   }
 }

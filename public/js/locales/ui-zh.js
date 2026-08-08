@@ -1854,6 +1854,13 @@ for (const key of ["Brickset connect failed:", "Error adding:", "Error loading s
 for (const key of ["Approved", "Couldn't check that guess:", "Couldn't delete:", "Couldn't save:", "Couldn't upload:", "Error:", "Rejected", "Save failed:"]) delete ui[key];
 for (const key of ["Keep on building! 🧱", "You're a building superstar! 🌟"]) delete ui[key];
 Object.assign(ui, { "⭐ BricksVault Pro": "⭐ BricksVault Pro", "⭐ Supporter": "⭐ 支持者", "📷 Add photo": "📷 添加照片", "🔥 RISK": "🔥 风险", "🛠 Suggest a fix": "🛠 建议修正" });
+Object.assign(ui, {
+  "Reset Bright Data key pool": "重置 Bright Data 密钥池",
+  "Reset Firecrawl key pool": "重置 Firecrawl 密钥池",
+  "Reset the Bright Data key pool?": "要重置 Bright Data 密钥池吗？",
+  "Reset the Firecrawl key pool? Only do this once you’ve confirmed the account actually has credits left — a real drained key will just 402 again and re-latch.": "要重置 Firecrawl 密钥池吗？仅在确认账户仍有额度后执行；真正耗尽的密钥会再次返回 402 并重新锁定。",
+  "Un-latches every Bright Data token and zeros their monthly usage counters, instead of waiting for the next UTC-month rollover.": "解除所有 Bright Data 令牌的锁定并将月度使用计数器清零，无需等待下一个 UTC 月份轮换。"
+});
 export default ui;
 
 // Superseded dynamic scanner loading copy lives in the message catalogue.

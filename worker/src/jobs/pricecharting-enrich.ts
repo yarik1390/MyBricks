@@ -95,14 +95,18 @@ export async function runPriceChartingEnrich(
     // Meter this batch's per-set API calls against the shared daily ledger so
     // PriceCharting usage is visible in admin diagnostics and a runaway is capped.
     if (!(await spendQuota(env, 'pricecharting', batch.length))) break;
-    const outs = await Promise.all(batch.map(async (set) => ({
-      set,
-      result: await fetchPriceChartingData(set.set_num, set.name, set.pc_id, env, set.upc).catch(() => null),
-    })));
+    const outs = await Promise.all(batch.map(async (set) => {
+      try {
+        return { set, result: await fetchPriceChartingData(set.set_num, set.name, set.pc_id, env, set.upc), failed: false };
+      } catch {
+        return { set, result: null, failed: true };
+      }
+    }));
 
-    for (const { set, result } of outs) {
+    for (const { set, result, failed } of outs) {
       processed++;
 
+      if (failed) continue;
       if (!result) {
         // A no-data response must not make an old observation look fresh — so
         // stamp the ATTEMPT marker instead of pc_cached_at. The set drops out of

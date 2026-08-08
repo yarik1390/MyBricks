@@ -697,7 +697,7 @@ function emptyVaultHTML() {
         </button>
       </div>
       
-      <div style="font-family:var(--mono);font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:0.1em;margin-top:8px;padding-left:4px;" aria-hidden="true">Demo Portfolio Preview</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--ink);text-transform:uppercase;letter-spacing:0.1em;margin-top:8px;padding-left:4px;" aria-hidden="true">Demo Portfolio Preview</div>
       
       <div class="set-list compact-list" aria-hidden="true" style="opacity:0.7;pointer-events:none;user-select:none;">
         <div class="set-list-card compact ghost-card" style="border-left: 4px solid var(--up);">
@@ -1066,7 +1066,7 @@ export function spikeAlertCardHTML(a, { dismiss = false } = {}) {
   return `
     <div class="alert-card spike-alert" data-set="${escapeHtml(a.set_num || "")}">
       ${dismiss && a.id ? `<button class="alert-dismiss" data-alert-id="${escapeHtml(String(a.id))}" aria-label="Mark this alert read" title="Mark read">✓</button>` : ""}
-      <div class="ah">${I.dollar()}Sell opportunity · ${daysAgo(a.triggered_at)}d ago</div>
+      <div class="ah">${I.dollar()}${escapeHtml(tPlural('alerts.sellOpportunity', daysAgo(a.triggered_at)))}</div>
       <div style="font-weight:600;">${escapeHtml(a.set_name || a.name || "")}</div>
       <div style="font-size:13px;margin-top:4px;">
         Now <strong>${fmtMoney(a.current_value)}</strong> — you paid ${fmtMoney(a.purchase_price || 0)}.
