@@ -2,6 +2,7 @@ import type { Env } from '../types';
 import { fetchSetPricing } from './bricklink';
 import { fetchEbayActiveListings } from './ebay';
 import { configuredKeys, pickKey } from './brightdata-keys';
+import { configuredFirecrawlKeys, isCreditExhaustion } from './firecrawl-keys';
 import { firecrawlEnabled } from './pricing-flags';
 import { fetchStockXViaFirecrawl } from './stockx';
 import { configuredKeys as pricesApiKeys } from './pricesapi-keys';
@@ -212,14 +213,37 @@ const PROBES: Record<string, Probe> = {
   },
 
   async firecrawl(env) {
-    const key = env.FIRECRAWL_API_KEY || (env.FIRECRAWL_API_KEYS?.split(',').map((k) => k.trim()).find(Boolean));
-    if (!key) return configured('no FIRECRAWL_API_KEY(S)');
-    const r = await http('POST', 'https://api.firecrawl.dev/v2/scrape', {
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: 'https://example.com', formats: ['markdown'] }),
-      timeoutMs: 25000,
-    });
-    return r.status === 200 ? ok('scrape OK (~1 credit)') : err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
+    const keys = configuredFirecrawlKeys(env);
+    if (!keys.length) return configured('no FIRECRAWL_API_KEY(S)');
+    // Test EVERY configured key, not just the first. Keys drain IN ORDER
+    // (lib/firecrawl-keys.ts) — FIRECRAWL_API_KEY is a one-time allotment spent
+    // first, so it's routinely the one sitting at zero while later pooled keys
+    // still have real balance. Testing only keys[0] (the old behavior) reported
+    // "insufficient credits" forever once that first allotment was gone, even
+    // right after confirming the account had 600k+ credits on a later key and
+    // resetting the exhausted-latch — the probe was just never asking key #2.
+    const results = await Promise.all(keys.map(async (key, i) => {
+      const r = await http('POST', 'https://api.firecrawl.dev/v2/scrape', {
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: 'https://example.com', formats: ['markdown'] }),
+        timeoutMs: 25000,
+      });
+      // Index + last-4 fingerprint so the admin can tell which key is actually
+      // dead (index 0 = FIRECRAWL_API_KEY, then the FIRECRAWL_API_KEYS comma
+      // list in order) — same convention as the brightdata probe below.
+      return { i, tail: key.slice(-4), status: r.status, text: r.text };
+    }));
+    const good = results.filter((r) => r.status === 200);
+    const bad = results.filter((r) => r.status !== 200);
+    if (good.length === keys.length) return ok(`all ${keys.length} key(s) OK (~1 credit each)`);
+    const badList = bad
+      .map((b) => `#${b.i} (…${b.tail}) HTTP ${b.status}: ${isCreditExhaustion(b.status ?? 0, String(b.text)) ? 'out of credits' : String(b.text).slice(0, 60)}`)
+      .join('; ');
+    const detail = `${good.length}/${keys.length} key(s) OK; ${bad.length} rejected → ${badList}`
+      + '. A drained one-time allotment is expected here and is not a problem by itself — pickFirecrawlKey() already skips it for real scrapes as long as a later key is OK.';
+    // Some keys work → the service is usable; flag as degraded, not down.
+    if (good.length > 0) return { ok: true, status: 'degraded', detail };
+    return err(detail);
   },
 
   async brickeconomy(env) {
