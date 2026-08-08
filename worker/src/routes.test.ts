@@ -596,6 +596,41 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       await db.prepare(`DROP TABLE brightdata_keys`).run();
     });
 
+    it('firecrawl-reset-pool clears the exhausted/drained latch on the key pool', async () => {
+      // Was handled in the /jobs/:job dispatch chain but missing from the
+      // JOB_LIMITS allowlist, so every call 400'd as "Unknown job" and never
+      // reached resetFirecrawlKeyPool() — this asserts the whole round trip.
+      await db.prepare(
+        `CREATE TABLE IF NOT EXISTS firecrawl_keys (
+           key_hash TEXT PRIMARY KEY, used INTEGER NOT NULL DEFAULT 0, cap INTEGER NOT NULL DEFAULT 0,
+           exhausted_at TEXT, last_used_at TEXT, updated_at TEXT
+         )`
+      ).run();
+      await db.prepare(`DELETE FROM firecrawl_keys`).run();
+      await db.prepare(
+        `INSERT INTO firecrawl_keys (key_hash, used, cap, exhausted_at)
+         VALUES ('fc-hash-a', 19000, 19000, datetime('now')),
+                ('fc-hash-b', 26500, 650000, datetime('now'))`
+      ).run();
+
+      const res = await app.fetch(new Request('http://localhost/api/admin/jobs/firecrawl-reset-pool', {
+        method: 'POST', headers: auth(adminToken),
+      }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.ok).toBe(true);
+      expect(data.reset).toBe(2);
+
+      const rows = await db.prepare(
+        `SELECT used, exhausted_at FROM firecrawl_keys ORDER BY key_hash`
+      ).all<any>();
+      for (const r of rows.results) {
+        expect(r.used).toBe(0);
+        expect(r.exhausted_at).toBeNull();
+      }
+      await db.prepare(`DROP TABLE firecrawl_keys`).run();
+    });
+
     it('ebay-sold-scrape admin job is dispatchable (skips cleanly when no scraper is configured)', async () => {
       delete (env as any).BRIGHTDATA_API_TOKEN;
       delete (env as any).BRIGHTDATA_API_TOKENS;

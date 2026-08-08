@@ -190,6 +190,8 @@ function populateSectionHTML() {
     <div class="admin-tool-grid">
       ${maintenanceCardHTML('expire')}
       ${maintenanceCardHTML('repair')}
+      ${maintenanceCardHTML('resetFirecrawlPool')}
+      ${maintenanceCardHTML('resetBrightDataPool')}
     </div>
     <article class="admin-tool-card admin-upload-card">
       <div class="admin-tool-icon">${I.download()}</div>

@@ -7469,6 +7469,18 @@
     ]
   },
   {
+    "text": "Reset Bright Data key pool",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Reset Firecrawl key pool",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "Reset all pricing sources (weight, daily cap, refresh, enabled) to defaults?",
     "files": [
       "views/me-admin.js"
@@ -7490,6 +7502,18 @@
     "text": "Reset pricing to defaults",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Reset the Bright Data key pool?",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Reset the Firecrawl key pool? Only do this once you’ve confirmed the account actually has credits left — a real drained key will just 402 again and re-latch.",
+    "files": [
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -9706,6 +9730,12 @@
     "text": "Type the barcode or set number below",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "Un-latches every Bright Data token and zeros their monthly usage counters, instead of waiting for the next UTC-month rollover.",
+    "files": [
+      "views/me-admin-config.js"
     ]
   },
   {

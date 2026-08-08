@@ -961,6 +961,9 @@ const JOB_LIMITS: Record<string, number> = {
   'brickinsights-ratings': 80,
   'recompute-blends': 100,
   'brightdata-reset-pool': 1,
+  // Was missing from this allowlist despite being handled below — every call
+  // 400'd as "Unknown job" and never reached resetFirecrawlKeyPool().
+  'firecrawl-reset-pool': 1,
   'ebay-sold-scrape': 20,
   'pricecharting-enrich': 25,
   // Conservative: each Firecrawl(enhanced) StockX render is ~20s, so a small

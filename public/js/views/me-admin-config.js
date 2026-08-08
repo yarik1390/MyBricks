@@ -145,6 +145,20 @@ export const MAINTENANCE_TOOLS = {
     desc: 'Rebuilds the catalog search index if set search starts returning wrong results.',
     confirm: 'Rebuild the catalog search index now?',
   },
+  resetFirecrawlPool: {
+    url: '/api/admin/jobs/firecrawl-reset-pool',
+    method: 'POST',
+    label: 'Reset Firecrawl key pool',
+    desc: 'Un-latches every Firecrawl key and zeros their credit counters. Use after a plan top-up, or to recover from a 402 that turned out to be transient (e.g. the account actually still has credits).',
+    confirm: 'Reset the Firecrawl key pool? Only do this once you’ve confirmed the account actually has credits left — a real drained key will just 402 again and re-latch.',
+  },
+  resetBrightDataPool: {
+    url: '/api/admin/jobs/brightdata-reset-pool',
+    method: 'POST',
+    label: 'Reset Bright Data key pool',
+    desc: 'Un-latches every Bright Data token and zeros their monthly usage counters, instead of waiting for the next UTC-month rollover.',
+    confirm: 'Reset the Bright Data key pool?',
+  },
 };
 
 export const SOURCE_META = {
