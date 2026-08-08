@@ -2535,7 +2535,13 @@ body[data-route="set-detail"] #toast {
     box-shadow: 6px 6px 0 var(--line), 0 16px 48px rgba(0, 0, 0, 0.2);
     transform: translate(-50%, -50%) scale(0.96);
     opacity: 0;
-    transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.2s ease;
+    /* No `visibility` here (unlike .advisor-drawer's version of this pattern):
+       sheet.js already forces visibility:visible!important synchronously on
+       open and clears it after the close transition ends — layering a CSS
+       visibility transition on top of that raced the inline override and
+       left the sheet computed as hidden right after opening (caught by
+       e2e/i18n.spec.mjs's photo-picker focus test). */
+    transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .sheet.show { transform: translate(-50%, -50%) scale(1); opacity: 1; }
   .sheet.closing { transform: translate(-50%, -50%) scale(0.96); opacity: 0; }
