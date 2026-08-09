@@ -91,19 +91,37 @@ export async function firecrawlScrape<T = unknown>(
   // would burn the second key's credits for the same failure.
   const attempted = new Set<string>();
   let picked = await pickFirecrawlKey(env);
+  // Small pools are common once earlier one-time allotments drain (observed
+  // live: 2 configured keys, key 0 permanently spent, key 1 the only real
+  // budget) — a 429 on the sole live key used to fail outright with "no
+  // Firecrawl key could serve the request" even though the key wasn't out of
+  // credits, just briefly over its own per-minute ceiling. One short
+  // backoff-and-retry on the SAME key covers that case without risking a
+  // runaway wall-clock time on a genuinely dead/blocked key (isRateLimited is
+  // specifically NOT the same signal as a hung/blocked request).
+  let sameKeyRetries = 0;
+  const MAX_SAME_KEY_RETRIES = 1;
+  const RATE_LIMIT_BACKOFF_MS = 1500;
   for (let attempt = 0; attempt < 3 && picked; attempt++) {
-    if (attempted.has(picked.hash)) break;   // pool didn't advance; don't loop
+    if (attempted.has(picked.hash) && sameKeyRetries === 0) break;   // pool didn't advance; don't loop
     attempted.add(picked.hash);
 
     const out = await scrapeOnce<T>(picked, body, opts, env, creditCost);
     if (out.kind === 'ok') return { data: out.data };
     if (out.kind === 'failed') return null;
-    // exhausted -> the key is now latched, so the normal head-of-pool pick
-    // advances by itself. rate_limited -> the key is still live and still first
-    // in the drain order, so step PAST it explicitly for this call only.
-    picked = out.kind === 'exhausted'
-      ? await pickFirecrawlKey(env)
-      : await pickNextFirecrawlKey(env, picked.index);
+    if (out.kind === 'exhausted') {
+      // The key is now latched, so the normal head-of-pool pick advances by itself.
+      picked = await pickFirecrawlKey(env);
+      continue;
+    }
+    // rate_limited: the key is still live and still first in the drain order,
+    // so step PAST it explicitly for this call only, when another key exists.
+    const next = await pickNextFirecrawlKey(env, picked.index);
+    if (next) { picked = next; continue; }
+    if (sameKeyRetries >= MAX_SAME_KEY_RETRIES) { picked = null; break; }
+    sameKeyRetries++;
+    await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_BACKOFF_MS * sameKeyRetries));
+    attempted.delete(picked.hash); // intentional same-key retry, not a stuck pool
   }
   if (!picked) {
     await recordIntegrationAttempt(env, 'firecrawl', false, 'no Firecrawl key could serve the request');

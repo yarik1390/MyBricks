@@ -128,12 +128,51 @@ describe('firecrawl key pool', () => {
       expect((await pickFirecrawlKey(pool))!.key).toBe('fc-small');
     });
 
-    it('gives up when the last key is also throttled', async () => {
-      const fetchSpy = vi.fn(async () => new Response('rate limited', { status: 429 }));
-      vi.stubGlobal('fetch', fetchSpy);
+    it('gives up when the last key is also throttled, after one same-key retry', async () => {
+      vi.useFakeTimers();
+      try {
+        const fetchSpy = vi.fn(async () => new Response('rate limited', { status: 429 }));
+        vi.stubGlobal('fetch', fetchSpy);
 
-      expect(await firecrawlScrape({ url: 'https://x.test', formats: ['markdown'] }, pool)).toBeNull();
-      expect(fetchSpy).toHaveBeenCalledTimes(2); // both keys tried, then stop
+        const out = firecrawlScrape({ url: 'https://x.test', formats: ['markdown'] }, pool);
+        // Only the LAST key gets the same-key backoff-and-retry (there's no
+        // fallback left to borrow instead); flush that single 1.5s delay.
+        await vi.advanceTimersByTimeAsync(1_500);
+
+        expect(await out).toBeNull();
+        expect(fetchSpy).toHaveBeenCalledTimes(3); // fc-small, fc-big, fc-big retry, then stop
+        expect((fetchSpy.mock.calls[2] as any)[1].headers.Authorization).toBe('Bearer fc-big');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('recovers on the same-key retry when the sole live key was only briefly throttled', async () => {
+      // Regression case for the live incident: 2 configured keys, key 0
+      // permanently exhausted, key 1 the only real budget — a 429 on key 1
+      // must not fail outright when key 1 itself would succeed moments later.
+      vi.useFakeTimers();
+      try {
+        await spend(await hashFirecrawlKey('fc-small'), 100, true).run(); // key 0 already retired
+        const fetchSpy = vi.fn()
+          .mockResolvedValueOnce(new Response('{"error":"Rate limit exceeded"}', { status: 429 }))
+          .mockResolvedValueOnce(new Response(okBody, { status: 200 }));
+        vi.stubGlobal('fetch', fetchSpy);
+
+        const out = firecrawlScrape<{ hit: number }>({ url: 'https://x.test', formats: ['markdown'] }, pool);
+        await vi.advanceTimersByTimeAsync(1_500);
+
+        expect((await out)?.data).toEqual({ hit: 1 });
+        expect(fetchSpy).toHaveBeenCalledTimes(2);
+        expect((fetchSpy.mock.calls[0][1] as any).headers.Authorization).toBe('Bearer fc-big');
+        expect((fetchSpy.mock.calls[1][1] as any).headers.Authorization).toBe('Bearer fc-big');
+        // Still not latched exhausted — it was throttled, not out of credits.
+        const row = await db.prepare(`SELECT exhausted_at FROM firecrawl_keys WHERE key_hash=?`)
+          .bind(await hashFirecrawlKey('fc-big')).first<{ exhausted_at: string | null }>();
+        expect(row!.exhausted_at).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('does NOT burn a second key on an ordinary failure', async () => {

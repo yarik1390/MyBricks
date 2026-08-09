@@ -76,7 +76,10 @@ async function brightDataCanary(
     includeNew: true,
     includeUsed: false,
     retries: 0,
-    timeoutMs: 20000,
+    // Matches the shortened main-path timeout (see brightdata.ts) — a probe
+    // that hasn't answered in ~10s isn't going to, and this one call is the
+    // entire cost of checking whether the breaker can reopen.
+    timeoutMs: 10000,
   }).catch((e): EbaySoldScrapeResult => ({
     status: 'error', new_value: null, new_count: 0, error: (e as Error)?.message,
   }));
