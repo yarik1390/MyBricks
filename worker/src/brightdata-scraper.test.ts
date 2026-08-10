@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { parseRows, scrapeEbayUrls, discoverEbayByKeyword, fetchSnapshot } from './lib/brightdata-scraper';
+import { parseRows, scrapeEbayUrls, discoverEbayByKeywords, fetchSnapshot } from './lib/brightdata-scraper';
 import { applyTestTables } from './test-schema';
 
 const db = (env as any).DB as D1Database;
@@ -77,17 +77,34 @@ describe('brightdata web scraper api', () => {
     });
   });
 
-  describe('discoverEbayByKeyword', () => {
+  describe('discoverEbayByKeywords', () => {
     it('asks for discovery so Bright Data runs the eBay search itself', async () => {
       const fetchSpy = vi.fn(async () => new Response('[{"title":"LEGO 75192"}]', { status: 200 }));
       vi.stubGlobal('fetch', fetchSpy);
 
-      await discoverEbayByKeyword(pool, 'LEGO 75192', { limitPerInput: 5 });
+      await discoverEbayByKeywords(pool, ['LEGO 75192'], { limitPerInput: 5 });
 
       const [url, init] = fetchSpy.mock.calls[0] as any;
       expect(url).toContain('type=discover_new');
-      expect(url).toContain('discover_by=keyword');
-      expect(JSON.parse(init.body)).toEqual({ input: [{ keyword: 'LEGO 75192' }], limit_per_input: 5 });
+      // PLURAL, in both places. The singular spelling is the natural guess and
+      // is wrong — this shape is from the account's own working sample call.
+      expect(url).toContain('discover_by=keywords');
+      expect(JSON.parse(init.body)).toEqual({ input: [{ keywords: 'LEGO 75192' }], limit_per_input: 5 });
+    });
+
+    it('batches many search terms into ONE request', async () => {
+      // The reason this matters: a whole scrape tick's worth of sets becomes a
+      // single call instead of one call per set.
+      const fetchSpy = vi.fn(async () => new Response('[]', { status: 200 }));
+      vi.stubGlobal('fetch', fetchSpy);
+
+      await discoverEbayByKeywords(pool, ['LEGO 75192', 'LEGO 10307'], {});
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(JSON.parse((fetchSpy.mock.calls[0] as any)[1].body)).toEqual({
+        input: [{ keywords: 'LEGO 75192' }, { keywords: 'LEGO 10307' }],
+        limit_per_input: null,
+      });
     });
   });
 

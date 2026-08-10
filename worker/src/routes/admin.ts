@@ -7,7 +7,7 @@ import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
 import { ebaySoldCompsEnabled, pricesapiEnabled, brickOwlEnabled, brickInsightsEnabled, brightDataSoldEnabled, firecrawlEnabled, stockxEnabled } from '../lib/pricing-flags';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
 import { submitAsyncUnlock, fetchAsyncResult, ebaySoldUrl } from '../lib/brightdata-async';
-import { scrapeEbayUrls, discoverEbayByKeyword, fetchSnapshot, fetchProgress } from '../lib/brightdata-scraper';
+import { scrapeEbayUrls, discoverEbayByKeywords, fetchSnapshot, fetchProgress } from '../lib/brightdata-scraper';
 import { analyzeEbaySoldHtml } from '../lib/brightdata';
 import { getQuotaUsage, spendQuota } from '../lib/api-quota';
 import { getAiUsageReport } from '../lib/ai-usage';
@@ -753,7 +753,7 @@ app.get('/activity', async (c) => {
 // Bright Data WEB SCRAPER API experiment (datasets/v3, eBay collector).
 //
 //   POST /api/admin/bd-scraper?mode=collect&url=<item url>[&sync=false]
-//   POST /api/admin/bd-scraper?mode=discover&keyword=LEGO+75192[&sync=false]
+//   POST /api/admin/bd-scraper?mode=discover&keywords=LEGO+75192[,more][&sync=false]
 //   POST /api/admin/bd-scraper?snapshot=<snapshot_id>     (collect a queued job)
 //   POST /api/admin/bd-scraper?progress=<snapshot_id>     (how far along it is)
 //
@@ -772,9 +772,17 @@ app.post('/bd-scraper', async (c) => {
 
   const sync = c.req.query('sync') !== 'false';
   const mode = c.req.query('mode') || 'discover';
+  // Comma-separated so the batching path (many search terms per call) is
+  // exercisable from the probe, not just the single-term case.
+  const keywords = (c.req.query('keywords') || 'LEGO 75192 Millennium Falcon')
+    .split(',').map((k) => k.trim()).filter(Boolean);
+  const limitRaw = Number(c.req.query('limit_per_input'));
   const out = mode === 'collect'
     ? await scrapeEbayUrls(c.env, [c.req.query('url') || 'https://www.ebay.com/itm/134042783029'], { sync })
-    : await discoverEbayByKeyword(c.env, c.req.query('keyword') || 'LEGO 75192 Millennium Falcon', { sync });
+    : await discoverEbayByKeywords(c.env, keywords, {
+        sync,
+        limitPerInput: Number.isFinite(limitRaw) && limitRaw > 0 ? Math.floor(limitRaw) : null,
+      });
 
   const rows = out.rows ?? [];
   return c.json({

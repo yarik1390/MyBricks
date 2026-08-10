@@ -119,21 +119,29 @@ export async function scrapeEbayUrls(
 }
 
 /**
- * Ask the collector to DISCOVER listings from a keyword — Bright Data runs the
- * eBay search on its side. This is the mode that matters: it is the only one
- * that does not require us to already hold item URLs.
+ * Ask the collector to DISCOVER listings from search terms — Bright Data runs
+ * the eBay search on its side. This is the mode that matters: it is the only
+ * one that does not require us to already hold item URLs.
+ *
+ * Note `keywords`, plural, in BOTH the query param and each input object. The
+ * singular spelling is a natural guess and is wrong; this shape comes from the
+ * account's own working sample call.
+ *
+ * Takes an ARRAY because the API accepts many search terms per request. That is
+ * a real efficiency win for us rather than a nicety: a whole scrape tick's worth
+ * of sets can go up as ONE call instead of one call per set.
  */
-export async function discoverEbayByKeyword(
+export async function discoverEbayByKeywords(
   env: Env,
-  keyword: string,
-  opts: { sync?: boolean; timeoutMs?: number; limitPerInput?: number } = {},
+  keywords: string[],
+  opts: { sync?: boolean; timeoutMs?: number; limitPerInput?: number | null } = {},
 ): Promise<ScraperCall> {
   const qs = `dataset_id=${encodeURIComponent(datasetId(env))}&notify=false&include_errors=true`
-    + '&type=discover_new&discover_by=keyword';
+    + '&type=discover_new&discover_by=keywords';
   const endpoint = `${opts.sync === false ? BD_TRIGGER : BD_SCRAPE}?${qs}`;
   const body = {
-    input: [{ keyword }],
-    limit_per_input: opts.limitPerInput ?? 20,
+    input: keywords.map((k) => ({ keywords: k })),
+    limit_per_input: opts.limitPerInput ?? null,
   };
   return interpret(await post(env, endpoint, body, opts.timeoutMs ?? 60_000));
 }
