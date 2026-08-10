@@ -1,0 +1,110 @@
+name: Diagnostic - Bright Data Web Scraper API
+
+# Temporary. Exercises the eBay collector (datasets/v3) in both modes to answer
+# two questions the docs cannot: does discover-by-keywords work on this dataset
+# (so Bright Data runs the eBay SEARCH we are blocked on), and do the returned
+# rows carry SOLD prices rather than only active asks. Manual dispatch only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      worker_url:
+        required: false
+        default: "https://brickvault-api.zhydenko.workers.dev"
+      keywords:
+        description: "Comma-separated search terms for discover mode"
+        required: false
+        default: "LEGO 75192 Millennium Falcon"
+      snapshot:
+        description: "Collect an existing snapshot_id instead of submitting"
+        required: false
+        default: ""
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      WORKER_URL: ${{ inputs.worker_url || 'https://brickvault-api.zhydenko.workers.dev' }}
+      KEYWORDS: ${{ inputs.keywords || 'LEGO 75192 Millennium Falcon' }}
+      SNAPSHOT: ${{ inputs.snapshot }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Mint admin token
+        env:
+          SUPABASE_JWT_SECRET_FOR_CI: ${{ secrets.SUPABASE_JWT_SECRET }}
+          ADMIN_USER_ID_FOR_CI: ${{ secrets.ADMIN_USER_ID }}
+        run: |
+          set -euo pipefail
+          ADMIN_JWT="$(node - <<'NODE'
+          const crypto = require('crypto');
+          const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+          const unsigned = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({
+            sub: process.env.ADMIN_USER_ID_FOR_CI,
+            role: 'authenticated',
+            exp: Math.floor(Date.now() / 1000) + 60 * 60,
+          })}`;
+          const sig = crypto.createHmac('sha256', process.env.SUPABASE_JWT_SECRET_FOR_CI)
+            .update(unsigned).digest('base64url');
+          process.stdout.write(`${unsigned}.${sig}`);
+          NODE
+          )"
+          echo "::add-mask::${ADMIN_JWT}"
+          echo "ADMIN_JWT=${ADMIN_JWT}" >> "$GITHUB_ENV"
+
+      - name: Collect an existing snapshot
+        if: ${{ inputs.snapshot != '' }}
+        run: |
+          set -euo pipefail
+          curl -s --max-time 90 -X POST "${WORKER_URL}/api/admin/bd-scraper?progress=${SNAPSHOT}" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" | jq .
+          curl -s --max-time 90 -X POST "${WORKER_URL}/api/admin/bd-scraper?snapshot=${SNAPSHOT}" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" > /tmp/snap.json
+          jq '{phase, state, status, error, row_count: (.rows | length)}' /tmp/snap.json
+          echo "--- first row keys ---"
+          jq -r '.rows[0] // {} | keys[]?' /tmp/snap.json | head -60
+          echo "--- first row ---"
+          jq '.rows[0] // null' /tmp/snap.json | head -80
+
+      - name: DISCOVER by keywords (the mode that matters)
+        if: ${{ inputs.snapshot == '' }}
+        run: |
+          set -euo pipefail
+          # Sync first: if it answers inside the window we learn the schema now.
+          curl -s --max-time 120 -X POST \
+            "${WORKER_URL}/api/admin/bd-scraper?mode=discover&keywords=$(jq -rn --arg k "${KEYWORDS}" '$k|@uri')&limit_per_input=10" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" > /tmp/discover.json
+          jq '{mode, sync, state, status, error, snapshot_id, row_count}' /tmp/discover.json
+          echo "--- first row keys (does this carry a SOLD price?) ---"
+          jq -r '.first_row_keys[]?' /tmp/discover.json
+          echo "--- first row ---"
+          jq '.first_row' /tmp/discover.json | head -80
+          echo "--- raw head (diagnostic if the shape surprised us) ---"
+          jq -r '.raw_head // "none"' /tmp/discover.json | head -20
+          echo "SNAP=$(jq -r '.snapshot_id // empty' /tmp/discover.json)" >> "$GITHUB_ENV"
+
+      - name: Poll the snapshot if discovery was queued
+        if: ${{ inputs.snapshot == '' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SNAP:-}" ]; then echo "Discovery answered synchronously; nothing queued."; exit 0; fi
+          echo "Discovery queued as ${SNAP}; polling for up to 8 minutes."
+          DEADLINE=$(( $(date +%s) + 480 ))
+          while [ "$(date +%s)" -lt "${DEADLINE}" ]; do
+            curl -s --max-time 90 -X POST "${WORKER_URL}/api/admin/bd-scraper?snapshot=${SNAP}" \
+              -H "Authorization: Bearer ${ADMIN_JWT}" > /tmp/snap.json
+            STATE="$(jq -r '.state // "unknown"' /tmp/snap.json)"
+            echo "$(date -u +%H:%M:%S)Z state=${STATE}"
+            if [ "${STATE}" = "ok" ]; then
+              echo "--- first row keys ---"
+              jq -r '.rows[0] // {} | keys[]?' /tmp/snap.json | head -60
+              echo "--- first row ---"
+              jq '.rows[0] // null' /tmp/snap.json | head -80
+              exit 0
+            fi
+            if [ "${STATE}" = "error" ]; then jq . /tmp/snap.json; exit 0; fi
+            sleep 20
+          done
+          echo "::warning::Snapshot ${SNAP} still running after 8 minutes; re-run this workflow with snapshot=${SNAP} to collect it."
