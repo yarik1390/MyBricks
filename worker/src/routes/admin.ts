@@ -7,6 +7,7 @@ import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
 import { ebaySoldCompsEnabled, pricesapiEnabled, brickOwlEnabled, brickInsightsEnabled, brightDataSoldEnabled, firecrawlEnabled, stockxEnabled } from '../lib/pricing-flags';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
 import { submitAsyncUnlock, fetchAsyncResult, ebaySoldUrl } from '../lib/brightdata-async';
+import { scrapeEbayUrls, discoverEbayByKeyword, fetchSnapshot, fetchProgress } from '../lib/brightdata-scraper';
 import { analyzeEbaySoldHtml } from '../lib/brightdata';
 import { getQuotaUsage, spendQuota } from '../lib/api-quota';
 import { getAiUsageReport } from '../lib/ai-usage';
@@ -747,6 +748,50 @@ app.get('/activity', async (c) => {
   });
   const recentFeed = recent.map((r) => ({ ...r, label: processInfo(r.name).label, group: processInfo(r.name).group }));
   return c.json({ processes, recent: recentFeed, group_order: GROUP_ORDER, generated_at: new Date().toISOString() });
+});
+
+// Bright Data WEB SCRAPER API experiment (datasets/v3, eBay collector).
+//
+//   POST /api/admin/bd-scraper?mode=collect&url=<item url>[&sync=false]
+//   POST /api/admin/bd-scraper?mode=discover&keyword=LEGO+75192[&sync=false]
+//   POST /api/admin/bd-scraper?snapshot=<snapshot_id>     (collect a queued job)
+//   POST /api/admin/bd-scraper?progress=<snapshot_id>     (how far along it is)
+//
+// The mode distinction is the whole question. `collect` needs item URLs we do
+// not have; `discover` makes Bright Data run the eBay SEARCH itself, which is
+// exactly the step that blocks the unlocker. Only discover removes our
+// dependency on scraping eBay search ourselves.
+//
+// Rows come back truncated on purpose: the point is to learn the SCHEMA (is
+// there a sold price? a sold date? a condition?), not to move data yet.
+app.post('/bd-scraper', async (c) => {
+  const snapshot = c.req.query('snapshot');
+  if (snapshot) return c.json({ phase: 'snapshot', ...(await fetchSnapshot(c.env, snapshot)) });
+  const progress = c.req.query('progress');
+  if (progress) return c.json({ phase: 'progress', snapshot_id: progress, progress: await fetchProgress(c.env, progress) });
+
+  const sync = c.req.query('sync') !== 'false';
+  const mode = c.req.query('mode') || 'discover';
+  const out = mode === 'collect'
+    ? await scrapeEbayUrls(c.env, [c.req.query('url') || 'https://www.ebay.com/itm/134042783029'], { sync })
+    : await discoverEbayByKeyword(c.env, c.req.query('keyword') || 'LEGO 75192 Millennium Falcon', { sync });
+
+  const rows = out.rows ?? [];
+  return c.json({
+    phase: 'submit',
+    mode,
+    sync,
+    state: out.state,
+    status: out.status,
+    error: out.error,
+    snapshot_id: out.snapshot_id,
+    row_count: rows.length,
+    // One row's keys answer "can this give us sold comps at all?" faster than
+    // any amount of documentation reading.
+    first_row_keys: rows.length ? Object.keys(rows[0] as Record<string, unknown>).slice(0, 60) : [],
+    first_row: rows.length ? rows[0] : null,
+    raw_head: out.raw_head,
+  });
 });
 
 // Bright Data ASYNC experiment. The sync unlocker cannot fetch eBay sold pages
