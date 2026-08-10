@@ -54,6 +54,18 @@ jobs:
           echo "::add-mask::${ADMIN_JWT}"
           echo "ADMIN_JWT=${ADMIN_JWT}" >> "$GITHUB_ENV"
 
+      - name: Final check on the old async unlocker job
+        run: |
+          set -euo pipefail
+          # Submitted 16:49Z, still pending at 16:59Z. Results are retained 48h,
+          # so this settles whether that lane is merely SLOW or never lands at
+          # all — which decides if it is a viable fallback should the Scraper API
+          # stay blocked on account activation.
+          curl -s --max-time 90 -X POST \
+            "${WORKER_URL}/api/admin/brightdata-async?id=s4w16t1786380565572r9abcfsdvo9k" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" \
+            | jq '{phase, state, status, bytes, error, analyzed}'
+
       - name: Collect an existing snapshot
         if: ${{ inputs.snapshot != '' }}
         run: |
