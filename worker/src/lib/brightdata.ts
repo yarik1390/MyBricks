@@ -190,17 +190,23 @@ export async function fetchEbaySoldViaBrightData(
       const picked = await pickKey(env);
       if (!picked) { lastErr = 'no live Bright Data token (monthly budget drained)'; break; }
       try {
-        // 12s, not 25s. Live production evidence (integration_health, checked
-        // 2026-08-09): Bright Data's real eBay-sold requests have been timing out
-        // on essentially every call for 17 straight days (last_ok_at stuck at
-        // 2026-07-23) — this looks like an eBay-side bot-detection interaction
-        // Bright Data's unlocker can't get past, not a transient blip, so a call
-        // that hasn't answered by ~10-12s is not going to. A healthy unlock
-        // returns in ~2s; the old 25s ceiling meant two conditions x two attempts
-        // could burn 100s per set doing nothing but waiting on a target that was
-        // never going to answer, starving the Firecrawl rescue of the wall-clock
-        // budget it needed within the same invocation. Failing fast doesn't fix
-        // the underlying provider/target issue, but it frees that budget back up.
+        // 12s, and MEASURED rather than argued. The admin brightdata probe
+        // (lib/service-tests.ts) was given a 90s ceiling on 2026-08-10 to settle
+        // whether eBay was refusing the unlock or merely answering slower than we
+        // waited — indistinguishable at any short timeout, opposite fixes. The
+        // eBay sold-search lane never answered at all ("took 90.0s, AbortError"),
+        // while the StockX probe — byte-identical unlock() call, same zone, same
+        // 6 tokens, only a different target — returned 735KB of real product
+        // markup in 11.7s.
+        //
+        // So the account, zone and token pool are healthy and the unlocker still
+        // clears hard targets; eBay specifically HANGS the request rather than
+        // serving a challenge or an error. Raising this timeout cannot help: a
+        // call silent at 90s is silent at 25s and at 60s (it was 60s when the
+        // lane died on 2026-07-23). Failing fast is the only thing left to win —
+        // it stops two conditions x two attempts burning ~100s per set on a
+        // socket that will never answer, and hands that wall-clock to the
+        // Firecrawl rescue instead.
         const { status, body } = await unlock(env, url, picked.key, options.timeoutMs ?? 12000);
         if (status === 401 || status === 402 || status === 403) {
           await recordKeyCall(env, picked, { exhausted: true });
