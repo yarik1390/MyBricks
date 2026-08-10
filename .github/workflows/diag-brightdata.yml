@@ -1,0 +1,61 @@
+name: Diagnostic - Bright Data eBay lane
+
+# Temporary. Runs the admin brightdata service probe, which (since the timing
+# change) waits up to 90s and reports elapsed time — enough to tell "eBay is
+# refusing the unlock" apart from "the unlocker is slower than the scrape path
+# waits". Manual dispatch only. Delete once the question is answered.
+
+on:
+  workflow_dispatch:
+    inputs:
+      worker_url:
+        description: "Production Worker URL"
+        required: false
+        default: "https://brickvault-api.zhydenko.workers.dev"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      WORKER_URL: ${{ inputs.worker_url || 'https://brickvault-api.zhydenko.workers.dev' }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Mint admin token
+        env:
+          SUPABASE_JWT_SECRET_FOR_CI: ${{ secrets.SUPABASE_JWT_SECRET }}
+          ADMIN_USER_ID_FOR_CI: ${{ secrets.ADMIN_USER_ID }}
+        run: |
+          set -euo pipefail
+          ADMIN_JWT="$(node - <<'NODE'
+          const crypto = require('crypto');
+          const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+          const unsigned = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({
+            sub: process.env.ADMIN_USER_ID_FOR_CI,
+            role: 'authenticated',
+            exp: Math.floor(Date.now() / 1000) + 30 * 60,
+          })}`;
+          const sig = crypto.createHmac('sha256', process.env.SUPABASE_JWT_SECRET_FOR_CI)
+            .update(unsigned).digest('base64url');
+          process.stdout.write(`${unsigned}.${sig}`);
+          NODE
+          )"
+          echo "::add-mask::${ADMIN_JWT}"
+          echo "ADMIN_JWT=${ADMIN_JWT}" >> "$GITHUB_ENV"
+
+      - name: Probe Bright Data (tokens + zone + real eBay lane, timed)
+        run: |
+          set -euo pipefail
+          curl -s --max-time 180 -X POST "${WORKER_URL}/api/admin/test/brightdata" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" | jq .
+
+      - name: Probe StockX via Bright Data (same unlocker, different target)
+        run: |
+          set -euo pipefail
+          # The control: identical unlock() call, non-eBay target. If this passes
+          # while the eBay lane fails, the account/zone/token are healthy and the
+          # problem is eBay-specific rather than Bright Data-wide.
+          curl -s --max-time 180 -X POST "${WORKER_URL}/api/admin/test/stockx" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" | jq .
