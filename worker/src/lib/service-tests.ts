@@ -130,6 +130,15 @@ const PROBES: Record<string, Probe> = {
       // week while this probe stayed green, because welcome.txt is not a
       // bot-protected target. Spend one more call on the REAL url so the admin
       // console can tell "your tokens are bad" from "eBay is blocking us".
+      // DELIBERATELY generous (90s) and timed. The scrape path runs on a short
+      // timeout because it has a whole batch to get through; this probe has one
+      // job, and the question it has to answer is the one a short timeout
+      // structurally cannot: is eBay REFUSING the unlock, or is the unlocker
+      // simply taking longer than the scrape path is willing to wait? Both look
+      // identical ("The operation was aborted") at 12-25s, and they have
+      // opposite fixes — raise the scrape timeout vs. leave the lane on
+      // Firecrawl. Reporting the elapsed time makes that difference legible.
+      const startedAt = Date.now();
       const ebay = await http('POST', 'https://api.brightdata.com/request', {
         headers: { Authorization: `Bearer ${keys[0]}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -139,14 +148,25 @@ const PROBES: Record<string, Probe> = {
           method: 'GET',
           country: 'US',
         }),
-        timeoutMs: 25000,
+        timeoutMs: 90000,
       });
+      const elapsedMs = Date.now() - startedAt;
+      const took = `took ${(elapsedMs / 1000).toFixed(1)}s`;
       const base = `all ${keys.length} key(s) OK on zone '${zone}'`;
+      // status null = our own AbortController fired, i.e. no answer within 90s.
+      if (ebay.status == null) {
+        return {
+          ok: true,
+          status: 'degraded',
+          detail: `${base}, but the eBay sold-search lane never answered (${took}, ${String(ebay.text).slice(0, 80)}).`
+            + ' Bright Data is not returning at ANY timeout we could afford in a scrape batch, so raising the scrape timeout would not help — the lane stays on Firecrawl.',
+        };
+      }
       if (ebay.status !== 200) {
         return {
           ok: true,
           status: 'degraded',
-          detail: `${base}, but the eBay sold-search lane failed: HTTP ${ebay.status} ${String(ebay.text).slice(0, 160)}`
+          detail: `${base}, but the eBay sold-search lane failed: HTTP ${ebay.status} (${took}) ${String(ebay.text).slice(0, 160)}`
             + '. The tokens are fine — eBay is refusing the unlock. eBay-sold runs on Firecrawl until a probe here comes back 200.',
         };
       }
@@ -155,11 +175,15 @@ const PROBES: Record<string, Probe> = {
         return {
           ok: true,
           status: 'degraded',
-          detail: `${base}; eBay returned HTTP 200 but ${looksBlocked ? 'a bot-check interstitial' : 'no parseable listing markup'} (${ebay.text.length} bytes).`
+          detail: `${base}; eBay returned HTTP 200 but ${looksBlocked ? 'a bot-check interstitial' : 'no parseable listing markup'} (${ebay.text.length} bytes, ${took}).`
             + ' The unlock is getting through to a challenge page, not the results — eBay-sold stays on Firecrawl.',
         };
       }
-      return ok(`${base}; eBay sold-search lane returns parseable results`);
+      // A 200 with real markup means the lane WORKS and only the scrape path's
+      // patience is in question: compare `took` against the timeout in
+      // lib/brightdata.ts (fetchEbaySoldViaBrightData) — if this is slower, the
+      // scrape is aborting a call that would have succeeded.
+      return ok(`${base}; eBay sold-search lane returns parseable results (${ebay.text.length} bytes, ${took})`);
     }
     const badList = bad
       .map((b) => `#${b.i} (…${b.tail}) HTTP ${b.status}: ${String(b.text).slice(0, 40)}`)

@@ -27,9 +27,12 @@ import { sourceEnabled } from '../lib/source-config';
  * instead of a KV neg-cache the candidate query couldn't see, so neither sweep can
  * wall itself or starve the other condition.
  */
-// Max sets per run when Firecrawl is the primary engine (5 concurrent × 8 waves
-// at ~30s ≈ 4 min, comfortably inside the 3-hourly tick).
-const FIRECRAWL_PRIMARY_MAX = 40;
+// Max sets per run when Firecrawl is the primary engine. Sized to WALL CLOCK,
+// not to appetite: the plan allows 2 concurrent scrapes at ~30s each, so 16 sets
+// ≈ 8 waves ≈ 4 min — the same budget the old 40/5-concurrent figure bought
+// before the concurrency cap below dropped 5 → 2. Raising this without raising
+// the plan's concurrency just makes a run that gets killed before it flushes.
+const FIRECRAWL_PRIMARY_MAX = 16;
 
 export interface EbaySoldScrapeRun {
   // Index signature: the admin /jobs/:job handler hands run summaries around as
@@ -245,7 +248,18 @@ export async function runEbaySoldScrape(
   // Leave one of the Worker's six outbound connection slots free for provider
   // bookkeeping and rescue traffic. Each Bright Data set performs its condition
   // requests sequentially, so this also bounds the whole invocation to five.
-  const concurrency = Math.max(1, Math.min(options.concurrency ?? 5, 5));
+  //
+  // FIRECRAWL PLAN LIMIT: the account allows only TWO concurrent scrapes. Going
+  // wider doesn't go faster — the surplus calls come straight back as 429s, and
+  // a 429 on the last live key is exactly the failure that surfaced live as "no
+  // Firecrawl key could serve the request". That applies whether Firecrawl is
+  // the primary engine or only the rescue, since a wave where Bright Data fails
+  // for every set fires one rescue per set in parallel.
+  const FIRECRAWL_MAX_CONCURRENCY = 2;
+  const requestedConcurrency = Math.max(1, Math.min(options.concurrency ?? 5, 5));
+  const concurrency = (useFirecrawl || fcRescue)
+    ? Math.min(requestedConcurrency, FIRECRAWL_MAX_CONCURRENCY)
+    : requestedConcurrency;
   let updated = 0;
   let newUpdated = 0;
   let usedUpdated = 0;
