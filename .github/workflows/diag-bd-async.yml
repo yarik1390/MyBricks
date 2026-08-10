@@ -15,6 +15,10 @@ on:
         description: "How long to poll for the result"
         required: false
         default: "10"
+      collect_id:
+        description: "Collect an EXISTING response_id instead of submitting a new job (results are retained 48h)"
+        required: false
+        default: ""
 
 jobs:
   async-probe:
@@ -49,7 +53,16 @@ jobs:
           echo "::add-mask::${ADMIN_JWT}"
           echo "ADMIN_JWT=${ADMIN_JWT}" >> "$GITHUB_ENV"
 
+      - name: Reuse an existing job id
+        if: ${{ inputs.collect_id != '' }}
+        run: |
+          set -euo pipefail
+          echo "Collecting existing response_id ${{ inputs.collect_id }} (no new submit)."
+          echo "SUBMIT_OK=true" >> "$GITHUB_ENV"
+          echo "RESPONSE_ID=${{ inputs.collect_id }}" >> "$GITHUB_ENV"
+
       - name: Submit async job
+        if: ${{ inputs.collect_id == '' }}
         run: |
           set -euo pipefail
           curl -s --max-time 60 -X POST "${WORKER_URL}/api/admin/brightdata-async" \
