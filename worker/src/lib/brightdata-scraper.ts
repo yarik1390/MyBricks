@@ -76,13 +76,31 @@ export function parseRows(text: string): unknown[] | null {
   }
 }
 
+/**
+ * The datasets API may need a DIFFERENT credential from the unlocker.
+ *
+ * BRIGHTDATA_API_TOKEN(S) are Web Unlocker zone tokens — proven good against
+ * zone 'web_unlocker1' (the probe reports all 6 OK, and StockX unlocks with
+ * them). Those same tokens get "HTTP 400: Customer is not active" from
+ * datasets/v3, which is an account/product-level refusal rather than anything
+ * about the request shape. A zone token being valid for its zone but not
+ * entitled to the Scraper API product is the obvious candidate, so allow an
+ * account-level key to be supplied separately instead of assuming one token
+ * type serves both products.
+ */
+function datasetKey(env: Env): string | null {
+  const k = (env.BRIGHTDATA_DATASET_API_KEY ?? '').trim();
+  return k || null;
+}
+
 async function post(
   env: Env,
   url: string,
   body: unknown,
   timeoutMs: number,
 ): Promise<{ status: number | null; text: string; error: string | null }> {
-  const picked = await pickKey(env);
+  const dedicated = datasetKey(env);
+  const picked = dedicated ? { key: dedicated, hash: '' } : await pickKey(env);
   if (!picked) return { status: null, text: '', error: 'no live Bright Data token' };
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -94,7 +112,12 @@ async function post(
       signal: ctrl.signal,
     });
     const text = await resp.text();
-    await recordKeyCall(env, picked, { exhausted: resp.status === 401 || resp.status === 402 });
+    // Only book spend against a POOLED key. A dedicated dataset key has no row
+    // in brightdata_keys, and inventing one would corrupt the unlocker's
+    // monthly budget accounting with calls billed on a different meter entirely.
+    if (!dedicated) {
+      await recordKeyCall(env, picked, { exhausted: resp.status === 401 || resp.status === 402 });
+    }
     return { status: resp.status, text, error: null };
   } catch (e) {
     return { status: null, text: '', error: (e as Error)?.message || String(e) };
@@ -171,7 +194,8 @@ function interpret(r: { status: number | null; text: string; error: string | nul
 
 /** Poll a queued snapshot. 'queued' means still running — not an error. */
 export async function fetchSnapshot(env: Env, snapshotId: string, timeoutMs = 30_000): Promise<ScraperCall> {
-  const picked = await pickKey(env);
+  const dedicated = datasetKey(env);
+  const picked = dedicated ? { key: dedicated, hash: '' } : await pickKey(env);
   if (!picked) return { state: 'error', rows: null, snapshot_id: snapshotId, status: null, error: 'no live Bright Data token', raw_head: null };
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -199,7 +223,8 @@ export async function fetchSnapshot(env: Env, snapshotId: string, timeoutMs = 30
 
 /** Progress of a queued snapshot (status/rows collected), for diagnostics. */
 export async function fetchProgress(env: Env, snapshotId: string, timeoutMs = 20_000): Promise<unknown> {
-  const picked = await pickKey(env);
+  const dedicated = datasetKey(env);
+  const picked = dedicated ? { key: dedicated, hash: '' } : await pickKey(env);
   if (!picked) return { error: 'no live Bright Data token' };
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
