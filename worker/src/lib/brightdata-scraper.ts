@@ -82,11 +82,19 @@ export function parseRows(text: string): unknown[] | null {
  * BRIGHTDATA_API_TOKEN(S) are Web Unlocker zone tokens — proven good against
  * zone 'web_unlocker1' (the probe reports all 6 OK, and StockX unlocks with
  * them). Those same tokens get "HTTP 400: Customer is not active" from
- * datasets/v3, which is an account/product-level refusal rather than anything
- * about the request shape. A zone token being valid for its zone but not
- * entitled to the Scraper API product is the obvious candidate, so allow an
- * account-level key to be supplied separately instead of assuming one token
- * type serves both products.
+ * datasets/v3.
+ *
+ * The official spec makes that status code informative: it documents 401 for
+ * "invalid or missing API key" and 400 for a bad request. We got 400, not 401
+ * — so the credential was RECOGNISED and the refusal is about the account's
+ * standing for this product, not about the key being unreadable. Which means a
+ * different key alone may not fix it; the Scraper API subscription itself has
+ * to be active on the account.
+ *
+ * Still worth supplying separately, because the spec sources the API key from
+ * ACCOUNT settings (brightdata.com/cp/setting/users), which is a different
+ * thing from a zone token, and a zone token could plausibly be recognised
+ * while carrying no datasets entitlement.
  */
 function datasetKey(env: Env): string | null {
   const k = (env.BRIGHTDATA_DATASET_API_KEY ?? '').trim();
@@ -157,13 +165,31 @@ export async function scrapeEbayUrls(
 export async function discoverEbayByKeywords(
   env: Env,
   keywords: string[],
-  opts: { sync?: boolean; timeoutMs?: number; limitPerInput?: number | null } = {},
+  opts: {
+    sync?: boolean;
+    timeoutMs?: number;
+    limitPerInput?: number | null;
+    /**
+     * SOURCES DISAGREE, so this is switchable rather than hard-coded.
+     * The account's own eBay sample uses `keywords` (plural) in both the query
+     * param and each input object; the general OpenAPI spec documents the enum
+     * as `keyword` (singular). discover_by is per-dataset, and the sample is
+     * specific to THIS collector, so plural is the default — but the singular
+     * is one query param away when we finally get past the account block,
+     * rather than a redeploy.
+     */
+    discoverBy?: string;
+  } = {},
 ): Promise<ScraperCall> {
+  const discoverBy = opts.discoverBy || 'keywords';
   const qs = `dataset_id=${encodeURIComponent(datasetId(env))}&notify=false&include_errors=true`
-    + '&type=discover_new&discover_by=keywords';
+    + `&type=discover_new&discover_by=${encodeURIComponent(discoverBy)}`;
   const endpoint = `${opts.sync === false ? BD_TRIGGER : BD_SCRAPE}?${qs}`;
+  // Input field name tracks the discover_by value — they are the same concept
+  // spelled the same way, and mixing them (keywords= with {keyword:…}) is the
+  // most likely way to get a confusing empty result rather than a clean error.
   const body = {
-    input: keywords.map((k) => ({ keywords: k })),
+    input: keywords.map((k) => ({ [discoverBy]: k })),
     limit_per_input: opts.limitPerInput ?? null,
   };
   return interpret(await post(env, endpoint, body, opts.timeoutMs ?? 60_000));

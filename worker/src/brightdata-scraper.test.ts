@@ -92,6 +92,23 @@ describe('brightdata web scraper api', () => {
       expect(JSON.parse(init.body)).toEqual({ input: [{ keywords: 'LEGO 75192' }], limit_per_input: 5 });
     });
 
+    it('keeps the input field name in step with discover_by', async () => {
+      // The general spec documents the singular `keyword` while the account's
+      // eBay sample uses plural. Whichever is right, the query param and the
+      // input key must agree — mismatching them is the likeliest route to a
+      // silently empty result instead of a clean error.
+      const fetchSpy = vi.fn(async () => new Response('[]', { status: 200 }));
+      vi.stubGlobal('fetch', fetchSpy);
+
+      await discoverEbayByKeywords(pool, ['LEGO 75192'], { discoverBy: 'keyword' });
+
+      const [url, init] = fetchSpy.mock.calls[0] as any;
+      // Anchored: a plain "contains" would also pass on discover_by=keywordS,
+      // which is the exact confusion this test exists to catch.
+      expect(url).toMatch(/discover_by=keyword$/);
+      expect(JSON.parse(init.body).input).toEqual([{ keyword: 'LEGO 75192' }]);
+    });
+
     it('batches many search terms into ONE request', async () => {
       // The reason this matters: a whole scrape tick's worth of sets becomes a
       // single call instead of one call per set.

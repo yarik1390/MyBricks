@@ -782,6 +782,9 @@ app.post('/bd-scraper', async (c) => {
     : await discoverEbayByKeywords(c.env, keywords, {
         sync,
         limitPerInput: Number.isFinite(limitRaw) && limitRaw > 0 ? Math.floor(limitRaw) : null,
+        // ?discover_by=keyword to try the spec's singular spelling if the
+        // account sample's plural turns out not to be what this dataset wants.
+        discoverBy: c.req.query('discover_by') || undefined,
       });
 
   const rows = out.rows ?? [];
