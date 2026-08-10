@@ -6,7 +6,9 @@ import { BARCODE_PAGE_SIZE } from '../lib/brickset';
 import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
 import { ebaySoldCompsEnabled, pricesapiEnabled, brickOwlEnabled, brickInsightsEnabled, brightDataSoldEnabled, firecrawlEnabled, stockxEnabled } from '../lib/pricing-flags';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
-import { getQuotaUsage } from '../lib/api-quota';
+import { submitAsyncUnlock, fetchAsyncResult, ebaySoldUrl } from '../lib/brightdata-async';
+import { analyzeEbaySoldHtml } from '../lib/brightdata';
+import { getQuotaUsage, spendQuota } from '../lib/api-quota';
 import { getAiUsageReport } from '../lib/ai-usage';
 import { rebuildSearchIndex } from '../lib/search-index';
 import { runLegoStockRefresh } from '../jobs/lego-stock-refresh';
@@ -745,6 +747,49 @@ app.get('/activity', async (c) => {
   });
   const recentFeed = recent.map((r) => ({ ...r, label: processInfo(r.name).label, group: processInfo(r.name).group }));
   return c.json({ processes, recent: recentFeed, group_order: GROUP_ORDER, generated_at: new Date().toISOString() });
+});
+
+// Bright Data ASYNC experiment. The sync unlocker cannot fetch eBay sold pages
+// at all (90s probe, no answer, while StockX returns in 12s on the same zone and
+// tokens), so this exercises the async submit/collect lane end to end before any
+// of it is wired into the scrape job.
+//
+//   POST /api/admin/brightdata-async            -> submit, returns response_id
+//   POST /api/admin/brightdata-async?id=<id>    -> collect that id
+//
+// Split across two calls on purpose: Bright Data documents async results as
+// typically ~5 minutes, which no single Worker request can sit and wait for.
+// That two-phase shape is also exactly how the real job would work (submit on
+// one 3-hourly tick, collect on the next, well inside the 48h retention).
+app.post('/brightdata-async', async (c) => {
+  const setNum = c.req.query('set') || '75192-1';
+  const setName = c.req.query('name') || 'Millennium Falcon';
+  const id = c.req.query('id');
+
+  if (id) {
+    const out = await fetchAsyncResult(c.env, id);
+    if (out.state !== 'ready' || !out.body) {
+      return c.json({ phase: 'collect', response_id: id, state: out.state, status: out.status, error: out.error });
+    }
+    // Reuse the sync lane's parser: if async returns the same markup, the
+    // existing analysis is already correct and only the transport changes.
+    const analyzed = analyzeEbaySoldHtml(out.body, setNum, setName);
+    return c.json({
+      phase: 'collect',
+      response_id: id,
+      state: 'ready',
+      bytes: out.body.length,
+      analyzed,
+      body_head: out.body.slice(0, 300),
+    });
+  }
+
+  if (!(await spendQuota(c.env, 'brightdata', 1))) {
+    return c.json({ phase: 'submit', error: 'brightdata daily quota spent' }, 429);
+  }
+  const url = ebaySoldUrl(setNum, setName, 1000);
+  const sub = await submitAsyncUnlock(c.env, url);
+  return c.json({ phase: 'submit', url, ...sub });
 });
 
 app.get('/integrations', async (c) => {
