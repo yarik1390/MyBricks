@@ -53,13 +53,14 @@ jobs:
         run: |
           set -euo pipefail
           curl -sf "${WORKER_URL}/api/admin/integrations" -H "Authorization: Bearer ${ADMIN_JWT}" > /tmp/before.json
-          echo "--- coverage ---"
-          jq '.coverage.sets | {total_sets, priceable_sets, priceable_with_source,
-                                sets_with_ebay, sets_with_ebay_new, sets_with_ebay_used,
-                                sets_with_bricklink_new, sets_with_bricklink_used}' /tmp/before.json
-          echo "--- ebay-sold fill rate (of priceable) ---"
-          jq -r '.coverage.sets | "ebay_new : \(.sets_with_ebay_new) / \(.priceable_sets) = \((.sets_with_ebay_new * 1000 / .priceable_sets | floor) / 10)%",
-                                  "ebay_used: \(.sets_with_ebay_used) / \(.priceable_sets) = \((.sets_with_ebay_used * 1000 / .priceable_sets | floor) / 10)%"' /tmp/before.json
+          echo "--- coverage (counts) ---"
+          jq '.coverage | {total_sets, sets_with_ebay, sets_with_ebay_new, sets_with_ebay_used,
+                           sets_with_bricklink_new, sets_with_bricklink_used}' /tmp/before.json
+          echo "--- coverage (precomputed %) ---"
+          jq '.coverage | {ebay_coverage_pct, ebay_new_coverage_pct, ebay_used_coverage_pct,
+                           bricklink_new_coverage_pct, bricklink_used_coverage_pct}' /tmp/before.json
+          echo "--- priceable lens (the honest denominator) ---"
+          jq '.coverage.priceable' /tmp/before.json
           echo "--- firecrawl health counters ---"
           jq '.integrations[] | select(.service=="firecrawl") | {ok_count, fail_count, last_error}' /tmp/before.json
           jq '.firecrawl.pool | {keys_configured, keys_live, active_key_index, pooled_remaining}' /tmp/before.json
@@ -85,4 +86,5 @@ jobs:
             | { ok_delta: ($af.ok_count - $bf.ok_count),
                 fail_delta: ($af.fail_count - $bf.fail_count) }'
           echo "--- coverage after ---"
-          jq '.coverage.sets | {sets_with_ebay_new, sets_with_ebay_used}' /tmp/after.json
+          jq '.coverage | {sets_with_ebay_new, sets_with_ebay_used,
+                           ebay_new_coverage_pct, ebay_used_coverage_pct}' /tmp/after.json
