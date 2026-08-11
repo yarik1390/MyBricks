@@ -1,0 +1,67 @@
+name: Diagnostic - eBay fill rate
+
+# Temporary. Reads eBay-sold coverage and the Firecrawl pool/health so progress
+# can be compared against the 2026-08-10 11:29Z baseline (ebay_new 3,979 / 14.2%,
+# ebay_used 2,269 / 8.1%). Read-only — runs no scrape. Manual dispatch only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      worker_url:
+        required: false
+        default: "https://brickvault-api.zhydenko.workers.dev"
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    env:
+      WORKER_URL: ${{ inputs.worker_url || 'https://brickvault-api.zhydenko.workers.dev' }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Mint admin token
+        env:
+          SUPABASE_JWT_SECRET_FOR_CI: ${{ secrets.SUPABASE_JWT_SECRET }}
+          ADMIN_USER_ID_FOR_CI: ${{ secrets.ADMIN_USER_ID }}
+        run: |
+          set -euo pipefail
+          ADMIN_JWT="$(node - <<'NODE'
+          const crypto = require('crypto');
+          const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+          const unsigned = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({
+            sub: process.env.ADMIN_USER_ID_FOR_CI,
+            role: 'authenticated',
+            exp: Math.floor(Date.now() / 1000) + 30 * 60,
+          })}`;
+          const sig = crypto.createHmac('sha256', process.env.SUPABASE_JWT_SECRET_FOR_CI)
+            .update(unsigned).digest('base64url');
+          process.stdout.write(`${unsigned}.${sig}`);
+          NODE
+          )"
+          echo "::add-mask::${ADMIN_JWT}"
+          echo "ADMIN_JWT=${ADMIN_JWT}" >> "$GITHUB_ENV"
+
+      - name: Coverage, Firecrawl health, and recent scrape runs
+        run: |
+          set -euo pipefail
+          curl -sf "${WORKER_URL}/api/admin/integrations" -H "Authorization: Bearer ${ADMIN_JWT}" > /tmp/i.json
+          echo "--- eBay-sold coverage (baseline 2026-08-10 11:29Z: new 3979/14.2%, used 2269/8.1%) ---"
+          jq '.coverage | {sets_with_ebay_new, sets_with_ebay_used,
+                           ebay_new_coverage_pct, ebay_used_coverage_pct}' /tmp/i.json
+          echo "--- priceable lens (baseline: 15049/18241 = 82.5%, 230 valuable with no source) ---"
+          jq '.coverage.priceable' /tmp/i.json
+          echo "--- firecrawl health + pool ---"
+          jq '.integrations[] | select(.service=="firecrawl")
+              | {status, last_ok_at, last_fail_at, last_error, ok_count, fail_count}' /tmp/i.json
+          jq '.firecrawl.pool | {keys_configured, keys_live, active_key_index, pooled_remaining}' /tmp/i.json
+          echo "--- brightdata should be ABSENT after removal ---"
+          jq '[.integrations[] | select(.service=="brightdata")] | length' /tmp/i.json
+
+      - name: Recent eBay-sold cron runs
+        run: |
+          set -euo pipefail
+          curl -sf "${WORKER_URL}/api/admin/activity" -H "Authorization: Bearer ${ADMIN_JWT}" \
+            | jq '[.recent[]? | select(.name | test("ebay-sold"))
+                   | {name, status, started_at, duration_ms, result}] | .[0:6]'
