@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { requireMember } from '../auth';
+import { appLink } from '../lib/app-url';
 import type { Env, Variables } from '../types';
 import { hashPin, verifyPin } from '../lib/kids-xp';
 import { holdingValueForRollout } from '../lib/market-sources';
@@ -429,7 +430,7 @@ app.get('/insurance-report', async (c) => {
   <footer>
     Values are USD market valuations computed by BricksVault from verified sold
     prices across independent marketplaces, with per-set confidence as shown.
-    Methodology: https://brickvault-5ub.pages.dev/methodology.html · This report
+    Methodology: ${appLink(c.env, '/methodology.html')} · This report
     reflects market conditions on the generation date and is provided for
     insurance documentation purposes; it is not a certified appraisal.
   </footer>

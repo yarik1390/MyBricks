@@ -1,4 +1,5 @@
 import type { Env } from '../types';
+import { appLink, appBaseUrl, appHost } from '../lib/app-url';
 import { sendAlertEmail, wishlistAlertEmailHTML } from '../lib/resend';
 import { sendDiscordAlert } from '../lib/discord';
 import { sendWebPush } from '../lib/webpush';
@@ -130,18 +131,19 @@ export async function runWishlistAlerts(env: Env) {
 
     for (const row of rows) {
       if (prefs.email && env.RESEND_API_KEY) {
-        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, row.target_price, row.current_value, 'drop');
+        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, row.target_price, row.current_value, 'drop', appBaseUrl(env));
         sendAlertEmail(prefs.email, `${row.set_name} hit your target price`, html, env).catch(() => {});
       }
       const at = row.buy_merchant ? ` at ${row.buy_merchant}` : '';
       if (prefs.discord_webhook_url) {
         const fmt = (n: number) => `$${n.toFixed(2)}`;
         sendDiscordAlert(prefs.discord_webhook_url, {
+          host: appHost(env),
           title: `Price target reached: ${row.set_name}`,
           description: `**${row.set_num}** is now available at **${fmt(row.current_value)}**${at}, at or below your target of ${fmt(row.target_price)}.`,
           color: 0x22c55e,
           imageUrl: row.image_url ?? undefined,
-          url: `https://brickvault-5ub.pages.dev#/set/${encodeURIComponent(row.set_num)}`,
+          url: appLink(env, `#/set/${encodeURIComponent(row.set_num)}`),
         }).catch(() => {});
       }
       sendPushToUser(env, row.user_id, JSON.stringify({
@@ -216,18 +218,19 @@ async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
     if (!prefs || !prefs.notify_price_drops) continue;
     for (const row of rows) {
       if (prefs.email && env.RESEND_API_KEY) {
-        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, row.purchase_price, row.current_value, 'spike');
+        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, row.purchase_price, row.current_value, 'spike', appBaseUrl(env));
         sendAlertEmail(prefs.email, `${row.set_name} is up +30% — spike alert`, html, env).catch(() => {});
       }
       if (prefs.discord_webhook_url) {
         const fmt = (n: number) => `$${n.toFixed(2)}`;
         const pct = ((row.current_value - row.purchase_price) / row.purchase_price * 100).toFixed(0);
         sendDiscordAlert(prefs.discord_webhook_url, {
+          host: appHost(env),
           title: `Value spike: ${row.set_name}`,
           description: `**${row.set_num}** spiked to **${fmt(row.current_value)}** (+${pct}% above your purchase price of ${fmt(row.purchase_price)}).`,
           color: 0xf97316,
           imageUrl: row.image_url ?? undefined,
-          url: `https://brickvault-5ub.pages.dev#/set/${encodeURIComponent(row.set_num)}`,
+          url: appLink(env, `#/set/${encodeURIComponent(row.set_num)}`),
         }).catch(() => {});
       }
       const pct2 = ((row.current_value - row.purchase_price) / row.purchase_price * 100).toFixed(0);
@@ -287,16 +290,17 @@ async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
     for (const row of rows) {
       const cv = Number(row.current_value) || 0;
       if (prefs.email && env.RESEND_API_KEY) {
-        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, 0, cv, 'retiring');
+        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, 0, cv, 'retiring', appBaseUrl(env));
         sendAlertEmail(prefs.email, `${row.set_name} is retiring soon`, html, env).catch(() => {});
       }
       if (prefs.discord_webhook_url) {
         sendDiscordAlert(prefs.discord_webhook_url, {
+          host: appHost(env),
           title: `Retiring soon: ${row.set_name}`,
           description: `**${row.set_num}** is now flagged as retiring soon${cv > 0 ? ` · current value $${cv.toFixed(2)}` : ''}. Production is ending — a good time to decide buy vs. hold.`,
           color: 0xef4444,
           imageUrl: row.image_url ?? undefined,
-          url: `https://brickvault-5ub.pages.dev#/set/${encodeURIComponent(row.set_num)}`,
+          url: appLink(env, `#/set/${encodeURIComponent(row.set_num)}`),
         }).catch(() => {});
       }
       sendPushToUser(env, row.user_id, JSON.stringify({
@@ -355,16 +359,17 @@ async function runDealAlerts(env: Env): Promise<{ fired: number }> {
       const pct = Number(row.deal_discount_pct);
       const pctStr = Number.isFinite(pct) && pct >= 1 ? `~${Math.round(pct)}% below market` : 'below market';
       if (prefs.email && env.RESEND_API_KEY) {
-        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, 0, mv, 'deal');
+        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, 0, mv, 'deal', appBaseUrl(env));
         sendAlertEmail(prefs.email, `Buy window: ${row.set_name}`, html, env).catch(() => {});
       }
       if (prefs.discord_webhook_url) {
         sendDiscordAlert(prefs.discord_webhook_url, {
+          host: appHost(env),
           title: `Buy window: ${row.set_name}`,
           description: `**${row.set_num}** from your wishlist is available ${pctStr}${mv > 0 ? ` (market value $${mv.toFixed(2)})` : ''}.`,
           color: 0x22c55e,
           imageUrl: row.image_url ?? undefined,
-          url: `https://brickvault-5ub.pages.dev#/set/${encodeURIComponent(row.set_num)}`,
+          url: appLink(env, `#/set/${encodeURIComponent(row.set_num)}`),
         }).catch(() => {});
       }
       sendPushToUser(env, row.user_id, JSON.stringify({
@@ -419,16 +424,17 @@ async function runPreorderAlerts(env: Env): Promise<{ fired: number }> {
     for (const row of rows) {
       const label = row.lego_availability === 'coming_soon' ? 'coming soon' : 'available to pre-order';
       if (prefs.email && env.RESEND_API_KEY) {
-        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, 0, Number(row.current_value) || 0, 'preorder');
+        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, 0, Number(row.current_value) || 0, 'preorder', appBaseUrl(env));
         sendAlertEmail(prefs.email, `${row.set_name} is ${label}`, html, env).catch(() => {});
       }
       if (prefs.discord_webhook_url) {
         sendDiscordAlert(prefs.discord_webhook_url, {
+          host: appHost(env),
           title: `Available soon: ${row.set_name}`,
           description: `**${row.set_num}** from your wishlist is now ${label}. Lock in launch-day availability before it sells out.`,
           color: 0x3b82f6,
           imageUrl: row.image_url ?? undefined,
-          url: `https://brickvault-5ub.pages.dev#/set/${encodeURIComponent(row.set_num)}`,
+          url: appLink(env, `#/set/${encodeURIComponent(row.set_num)}`),
         }).catch(() => {});
       }
       sendPushToUser(env, row.user_id, JSON.stringify({

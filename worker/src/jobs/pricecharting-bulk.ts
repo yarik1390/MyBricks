@@ -1,4 +1,5 @@
 import type { Env } from '../types';
+import { appBaseUrl } from '../lib/app-url';
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { isPlausibleMarketValue } from '../lib/valuation';
 import { recordIntegrationAttempt } from '../lib/integration-health';
@@ -151,7 +152,7 @@ export async function runPriceChartingBulkFetch(env: Env): Promise<BulkResult> {
   let text: string;
   try {
     const resp = await fetch(`${LEGO_CSV_URL}?t=${token}&category=lego-sets`, {
-      headers: { 'User-Agent': 'BrickvaultBot/1.0 (+https://brickvault-5ub.pages.dev)', Accept: 'text/csv,*/*' },
+      headers: { 'User-Agent': `BrickvaultBot/1.0 (+${appBaseUrl(env)})`, Accept: 'text/csv,*/*' },
       signal: AbortSignal.timeout(120_000),
     });
     if (!resp.ok) {

@@ -27,6 +27,11 @@ export interface Env {
   // is_supporter from Play/Apple purchase events. Authoritative entitlement source.
   REVENUECAT_WEBHOOK_AUTH?: string;
   ADMIN_USER_ID: string;
+  /** Canonical https origin for links the Worker generates (emails, push,
+   *  exports). Defaults to the original Cloudflare Pages origin; set this to
+   *  move new links to a custom domain. The legacy origin keeps working for
+   *  CORS either way — see lib/app-url.ts. */
+  APP_BASE_URL?: string;
   BRICKSET_API_KEY: string;
   BRICKOWL_API_KEY?: string;
   EBAY_APP_ID?: string;

@@ -64,27 +64,17 @@ import { amazonReadiness } from './lib/amazon';
 import { CLIENT_EVENTS, logClientEvent, mirrorClientMetric } from './lib/analytics';
 import { setPricingV3ReadPercent } from './lib/market-sources';
 
+import { appBaseUrl, isAllowedOrigin } from './lib/app-url';
 import type { Env, Variables } from './types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// Browser origins we reflect for CORS. Restricted to localhost (dev) and this
-// project's own Cloudflare Pages deployments: the production alias and its
-// preview deployments, which all live under the `brickvault-5ub.pages.dev`
-// subdomain. (The previous `*.pages.dev` check reflected EVERY Cloudflare Pages
-// tenant's origin — an over-broad CORS surface; tightened per the security
-// audit follow-up.)
-const PROD_ORIGIN = 'https://brickvault-5ub.pages.dev';
-const isAllowedOrigin = (origin: string): boolean =>
-  origin.startsWith('http://localhost:') ||
-  origin.startsWith('http://127.0.0.1:') ||
-  origin === 'https://localhost' ||
-  origin === 'capacitor://localhost' ||
-  origin === PROD_ORIGIN ||
-  origin.endsWith('.brickvault-5ub.pages.dev');
-
+// Origin policy lives in lib/app-url.ts so the allowlist and the links we
+// generate cannot drift apart. Both the legacy Pages origin and any configured
+// custom domain are accepted, so a domain move is a redirect rather than a
+// hard cutover that strands already-open tabs and installed PWAs.
 app.use('*', cors({
-  origin: (origin) => (origin && isAllowedOrigin(origin) ? origin : PROD_ORIGIN),
+  origin: (origin, c) => (origin && isAllowedOrigin(origin, c.env) ? origin : appBaseUrl(c.env)),
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'X-Gemini-Key', 'X-OpenAI-Key', 'X-Brickvault-Platform', 'cf-turnstile-token'],
 }));

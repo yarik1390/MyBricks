@@ -1,3 +1,4 @@
+import { LEGACY_APP_ORIGIN } from './app-url';
 import type { Env } from '../types';
 
 export async function sendAlertEmail(
@@ -33,6 +34,9 @@ export function wishlistAlertEmailHTML(
   targetPrice: number,
   currentValue: number,
   alertType: 'drop' | 'spike' | 'retiring' | 'deal' | 'preorder' = 'drop',
+  // Passed in rather than read from env so this stays a pure builder. Callers
+  // hand it appBaseUrl(env); the default keeps existing call sites correct.
+  baseUrl: string = LEGACY_APP_ORIGIN,
 ): string {
   const fmt = (n: number) => `$${n.toFixed(2)}`;
   const headline = alertType === 'spike'
@@ -58,7 +62,7 @@ export function wishlistAlertEmailHTML(
 <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:28px 32px;box-shadow:0 2px 8px rgba(0,0,0,.08);">
   <div style="font-size:22px;font-weight:700;color:#111;margin-bottom:16px;">${headline}</div>
   <p style="color:#444;line-height:1.6;margin:0 0 20px;">${body}</p>
-  <a href="https://brickvault-5ub.pages.dev" style="display:inline-block;background:#f97316;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:600;font-size:14px;">Open BricksVault</a>
-  <p style="color:#999;font-size:11px;margin-top:24px;">You're receiving this because alerts are enabled in your BricksVault settings. <a href="https://brickvault-5ub.pages.dev#/me" style="color:#999;">Manage alerts</a></p>
+  <a href="${baseUrl}" style="display:inline-block;background:#f97316;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:600;font-size:14px;">Open BricksVault</a>
+  <p style="color:#999;font-size:11px;margin-top:24px;">You're receiving this because alerts are enabled in your BricksVault settings. <a href="${baseUrl}#/me" style="color:#999;">Manage alerts</a></p>
 </div></body></html>`;
 }
