@@ -1,0 +1,96 @@
+name: Diagnostic - Bright Data pool rotation
+
+# Temporary. Verifies the two fixes in 2eea460: that a drained key latches on
+# its HTTP 400 "Customer is not active" instead of sitting at the head of the
+# drain order forever, and that the eBay-lane probe now asks the pool rather
+# than keys[0]. Prints the pool BEFORE and AFTER so the latch is visible.
+
+on:
+  workflow_dispatch:
+    inputs:
+      worker_url:
+        required: false
+        default: "https://brickvault-api.zhydenko.workers.dev"
+      reset_pool:
+        description: "Clear stale latches first so the pool is re-evaluated from scratch"
+        required: false
+        default: "true"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      WORKER_URL: ${{ inputs.worker_url || 'https://brickvault-api.zhydenko.workers.dev' }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Mint admin token
+        env:
+          SUPABASE_JWT_SECRET_FOR_CI: ${{ secrets.SUPABASE_JWT_SECRET }}
+          ADMIN_USER_ID_FOR_CI: ${{ secrets.ADMIN_USER_ID }}
+        run: |
+          set -euo pipefail
+          ADMIN_JWT="$(node - <<'NODE'
+          const crypto = require('crypto');
+          const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+          const unsigned = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({
+            sub: process.env.ADMIN_USER_ID_FOR_CI,
+            role: 'authenticated',
+            exp: Math.floor(Date.now() / 1000) + 60 * 60,
+          })}`;
+          const sig = crypto.createHmac('sha256', process.env.SUPABASE_JWT_SECRET_FOR_CI)
+            .update(unsigned).digest('base64url');
+          process.stdout.write(`${unsigned}.${sig}`);
+          NODE
+          )"
+          echo "::add-mask::${ADMIN_JWT}"
+          echo "ADMIN_JWT=${ADMIN_JWT}" >> "$GITHUB_ENV"
+
+      - name: Reset the key-pool latches
+        if: ${{ inputs.reset_pool != 'false' }}
+        run: |
+          set -euo pipefail
+          # Starts every key un-latched so the run re-derives the truth: the
+          # drained one should latch itself on its first 400, the funded ones
+          # should not. Without this we would just be reading yesterday's state.
+          curl -s --max-time 60 -X POST "${WORKER_URL}/api/admin/jobs/brightdata-reset-pool" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" | jq .
+
+      - name: Key pool BEFORE
+        run: |
+          set -euo pipefail
+          curl -sf "${WORKER_URL}/api/admin/integrations" -H "Authorization: Bearer ${ADMIN_JWT}" \
+            | jq '.brightdata.pool | {keys_configured, keys_live, active_key_index, pooled_remaining,
+                                      entries: [.entries[]? | {key_hash, used, exhausted, active}]}'
+
+      - name: Probe the eBay lane through the POOL (was hardcoded to keys[0])
+        run: |
+          set -euo pipefail
+          curl -s --max-time 180 -X POST "${WORKER_URL}/api/admin/test/brightdata" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" | jq .
+
+      - name: Key pool AFTER the probe (did the drained key latch?)
+        run: |
+          set -euo pipefail
+          curl -sf "${WORKER_URL}/api/admin/integrations" -H "Authorization: Bearer ${ADMIN_JWT}" \
+            | jq '.brightdata.pool | {keys_live, active_key_index,
+                                      entries: [.entries[]? | {key_hash, used, exhausted, active}]}'
+
+      - name: Real scrape slice — does the lane work on a funded token?
+        run: |
+          set -euo pipefail
+          # The question the probe cannot answer: with rotation actually working,
+          # does an eBay sold-search now come back? brightdata_canary in the
+          # result says whether the breaker's half-open probe recovered.
+          curl -s --max-time 600 -X POST \
+            "${WORKER_URL}/api/admin/jobs/ebay-sold-scrape?limit=6" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" | jq .
+
+      - name: Bright Data health AFTER
+        run: |
+          set -euo pipefail
+          curl -sf "${WORKER_URL}/api/admin/integrations" -H "Authorization: Bearer ${ADMIN_JWT}" \
+            | jq '.integrations[] | select(.service=="brightdata")
+                  | {status, last_ok_at, last_fail_at, last_error, ok_count, fail_count}'
