@@ -124,7 +124,13 @@ const PROBES: Record<string, Probe> = {
     }));
     const good = results.filter((r) => r.status === 200).length;
     const bad = results.filter((r) => r.status !== 200);
-    if (good === keys.length) {
+    // Gate on "at least one key works", NOT on "every key works". Requiring a
+    // clean sweep meant a single dud token silently suppressed the eBay-lane
+    // check entirely — the most important thing this probe reports — and the
+    // admin got a message about token hygiene instead of an answer about the
+    // lane. Observed live: one token 520s, so the lane result went missing
+    // exactly when we were trying to establish whether the lane had recovered.
+    if (good > 0) {
       // Tokens + zone being fine says nothing about the lane this integration
       // actually exists to serve. Bright Data 502'd every eBay sold-search for a
       // week while this probe stayed green, because welcome.txt is not a
@@ -161,7 +167,15 @@ const PROBES: Record<string, Probe> = {
       });
       const elapsedMs = Date.now() - startedAt;
       const took = `took ${(elapsedMs / 1000).toFixed(1)}s`;
-      const base = `all ${keys.length} key(s) OK on zone '${zone}'`;
+      // Report the real key tally rather than claiming a clean sweep: the lane
+      // verdict below is now produced even when some tokens are bad, so the
+      // preamble must not say "all N OK" when it isn't true.
+      const rejected = bad
+        .map((b) => `#${b.i} (…${b.tail}) HTTP ${b.status}`)
+        .join('; ');
+      const base = good === keys.length
+        ? `all ${keys.length} key(s) OK on zone '${zone}'`
+        : `${good}/${keys.length} key(s) OK on '${zone}' (rejected: ${rejected})`;
       // status null = our own AbortController fired, i.e. no answer within 90s.
       if (ebay.status == null) {
         return {
