@@ -197,7 +197,6 @@ export const ui = {
   "Box": "箱",
   "Box with backing card": "台紙付きの箱",
   "Box with handle": "取っ手付きの箱",
-  "Breaker open.": "ブレーカーが開いています。",
   "BrickEconomy values": "BrickEconomyの価値",
   "BrickInsights ratings": "BrickInsights評価",
   "BrickLink (new)": "BrickLink（新品）",
@@ -222,7 +221,6 @@ export const ui = {
   "Brickset password": "Bricksetのパスワード",
   "Brickset username": "Bricksetのユーザー名",
   "Brickset/UPC barcodes": "Brickset/UPCバーコード",
-  "Bright Data sold scrape": "Bright Dataの成約価格取得",
   "Browse catalog": "カタログを見る",
   "Browser": "ブラウザ",
   "Bucket": "バケツ",
@@ -539,7 +537,7 @@ export const ui = {
   "Falling": "下落",
   "Fast-sale estimate after fees and a liquidity haircut.": "手数料と流動性割引を考慮した即売り推定価格。",
   "Fastest and free for boxed sets": "箱入りセットなら最速・無料",
-  "Feasibility probe — can Bright Data reach StockX market data? Not a live valuation source yet.": "実現可能性チェック — Bright DataはStockXの市場データにアクセスできるか？ まだ実運用の評価ソースではありません。",
+  "Feasibility probe — can Firecrawl reach StockX market data? Not a live valuation source yet.": "実現可能性チェック — FirecrawlはStockXの市場データにアクセスできるか？ まだ実運用の評価ソースではありません。",
   "Fees & Ship": "手数料・送料",
   "Few/no minifigs — value driven by set alone": "ミニフィグが少ない/なし — 価値はセット単体で決まります",
   "Filesystem": "ファイルシステム",
@@ -1281,10 +1279,9 @@ export const ui = {
   "Scanner success (14d)": "スキャナー成功率（14日間）",
   "Scanning and the advisor use": "スキャンとアドバイザーが使用：",
   "Scenario range based on the current fair value.": "現在の適正価値に基づくシナリオ範囲。",
-  "Scrapes eBay sold comps now (Bright Data) — use to verify tokens/zone.": "eBay成約価格を今すぐ取得します（Bright Data）— トークン/ゾーンの確認に使用してください。",
+  "Scrapes eBay sold comps now (Firecrawl).": "eBay成約価格を今すぐ取得します（Firecrawl）.",
   "Scraping": "スクレイピング",
   "Scraping runtime for structured market enrichment.": "構造化された市場データ拡充のためのスクレイピング実行環境。",
-  "Scraping/runtime provider for restricted market data.": "制限された市場データ向けのスクレイピング／実行プロバイダー。",
   "Sealed": "未開封",
   "Sealed (MISB)": "未開封（MISB）",
   "Search": "検索",
@@ -1413,7 +1410,7 @@ export const ui = {
   "Source conflict": "ソースの不一致",
   "Source match rejected.": "ソース一致を却下しました。",
   "Source match verified.": "ソース一致を確認しました。",
-  "Spends Bright Data credits; runs synchronously and returns the result.": "Bright Dataのクレジットを消費します。同期的に実行され、結果を返します。",
+  "Spends Firecrawl credits; runs synchronously and returns the result.": "Firecrawlのクレジットを消費します。同期的に実行され、結果を返します。",
   "Spreadsheet ID:": "スプレッドシートID：",
   "Stale data": "古いデータ",
   "Stale states": "古い状態",
@@ -1831,7 +1828,6 @@ Object.assign(ui, {
   "Catalog coverage is measured against all catalog rows. Barcode coverage uses scannable retail sets where a UPC is expected. eBay sold coverage stays at zero when Marketplace Insights or sold-comps access is blocked.": "カタログの網羅率はすべてのカタログ行で測定します。バーコードの網羅率は、UPC が想定されるスキャン可能な小売セットを対象にします。Marketplace Insights または販売比較データへのアクセスが遮断されている場合、eBay 販売済みの網羅率はゼロのままです。",
   "Connecting…": "接続中…", "Copies your current bearer access token to the clipboard — handy for running admin API probes from a terminal or support session. Short-lived; logging out invalidates it.": "現在の Bearer アクセストークンをクリップボードにコピーします。ターミナルやサポートセッションで管理 API を確認する際に便利です。短時間で失効し、ログアウトすると無効になります。",
   "Deleting…": "削除中…", "Done!": "完了！", "Importing...": "インポート中…",
-  "No success in 24h, so the eBay-sold scrape has switched itself to Firecrawl. It goes back to Bright Data automatically on the first success — the key pool is untouched.": "24 時間成功しなかったため、eBay の販売済みデータ取得は Firecrawl に切り替わりました。最初の成功時に Bright Data へ自動的に戻り、キープールは変更されません。",
   "Saving…": "保存中…", "Short-term growth is negative, but the long-range forecast can still be positive when retirement timing, theme demand, or comparable older sets point upward. Treat this as a recovery scenario, not a current momentum signal.": "短期成長はマイナスですが、販売終了時期、テーマ需要、または比較可能な古いセットが上向きなら、長期予測はプラスのままの場合があります。これは現在の勢いではなく、回復シナリオとして扱ってください。",
   "Submitting…": "送信中…", "Syncing...": "同期中…", "Syncing…": "同期中…", "Testing…": "テスト中…", "Up": "上昇", "Uploading…": "アップロード中…", "Working…": "処理中…",
   "Your sets are saved on this device. Sign in before switching devices to sync your vault, publish a profile, unlock Trophy Shelf, and connect Google Sheets.": "セットはこの端末に保存されています。端末を切り替える前にログインすると、コレクションの同期、プロフィール公開、トロフィー棚の解除、Google Sheets の接続ができます。",
@@ -1855,11 +1851,8 @@ for (const key of ["Approved", "Couldn't check that guess:", "Couldn't delete:",
 for (const key of ["Keep on building! 🧱", "You're a building superstar! 🌟"]) delete ui[key];
 Object.assign(ui, { "⭐ BricksVault Pro": "⭐ BricksVault Pro", "⭐ Supporter": "⭐ サポーター", "📷 Add photo": "📷 写真を追加", "🔥 RISK": "🔥 リスク", "🛠 Suggest a fix": "🛠 修正を提案" });
 Object.assign(ui, {
-  "Reset Bright Data key pool": "Bright Data キープールをリセット",
   "Reset Firecrawl key pool": "Firecrawl キープールをリセット",
-  "Reset the Bright Data key pool?": "Bright Data キープールをリセットしますか？",
   "Reset the Firecrawl key pool? Only do this once you’ve confirmed the account actually has credits left — a real drained key will just 402 again and re-latch.": "Firecrawl キープールをリセットしますか？ アカウントにクレジットが残っていることを確認した場合だけ実行してください。実際に使い切ったキーは再び 402 となり、またロックされます。",
-  "Un-latches every Bright Data token and zeros their monthly usage counters, instead of waiting for the next UTC-month rollover.": "次の UTC 月替わりを待たず、すべての Bright Data トークンのロックを解除して月間使用量カウンターをゼロにします。"
 });
 export default ui;
 

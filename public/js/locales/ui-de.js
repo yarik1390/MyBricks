@@ -197,7 +197,6 @@ export const ui = {
   "Box": "Karton",
   "Box with backing card": "Karton mit Rückwandkarte",
   "Box with handle": "Karton mit Griff",
-  "Breaker open.": "Breaker offen.",
   "BrickEconomy values": "BrickEconomy-Werte",
   "BrickInsights ratings": "BrickInsights-Bewertungen",
   "BrickLink (new)": "BrickLink (neu)",
@@ -222,7 +221,6 @@ export const ui = {
   "Brickset password": "Brickset-Passwort",
   "Brickset username": "Brickset-Benutzername",
   "Brickset/UPC barcodes": "Brickset/UPC-Barcodes",
-  "Bright Data sold scrape": "Bright Data Verkaufs-Scrape",
   "Browse catalog": "Katalog durchsuchen",
   "Browser": "Browser",
   "Bucket": "Eimer",
@@ -539,7 +537,7 @@ export const ui = {
   "Falling": "Fallend",
   "Fast-sale estimate after fees and a liquidity haircut.": "Schnellverkaufsschätzung nach Gebühren und Liquiditätsabschlag.",
   "Fastest and free for boxed sets": "Am schnellsten und kostenlos für originalverpackte Sets",
-  "Feasibility probe — can Bright Data reach StockX market data? Not a live valuation source yet.": "Machbarkeitstest — kann Bright Data auf StockX-Marktdaten zugreifen? Noch keine Live-Bewertungsquelle.",
+  "Feasibility probe — can Firecrawl reach StockX market data? Not a live valuation source yet.": "Machbarkeitstest — kann Firecrawl auf StockX-Marktdaten zugreifen? Noch keine Live-Bewertungsquelle.",
   "Fees & Ship": "Gebühren & Versand",
   "Few/no minifigs — value driven by set alone": "Wenige/keine Minifiguren — Wert allein durch das Set bestimmt",
   "Filesystem": "Dateisystem",
@@ -1281,10 +1279,9 @@ export const ui = {
   "Scanner success (14d)": "Scanner-Erfolg (14 Tage)",
   "Scanning and the advisor use": "Scannen und der Berater nutzen",
   "Scenario range based on the current fair value.": "Szenariobereich basierend auf dem aktuellen fairen Wert.",
-  "Scrapes eBay sold comps now (Bright Data) — use to verify tokens/zone.": "Ruft jetzt eBay-Verkaufsvergleiche ab (Bright Data) — zum Prüfen von Tokens/Zone nutzen.",
+  "Scrapes eBay sold comps now (Firecrawl).": "Ruft jetzt eBay-Verkaufsvergleiche ab (Firecrawl).",
   "Scraping": "Scraping",
   "Scraping runtime for structured market enrichment.": "Scraping-Laufzeit für strukturierte Marktanreicherung.",
-  "Scraping/runtime provider for restricted market data.": "Scraping-/Laufzeit-Anbieter für eingeschränkte Marktdaten.",
   "Sealed": "Versiegelt",
   "Sealed (MISB)": "Versiegelt (MISB)",
   "Search": "Suchen",
@@ -1413,7 +1410,7 @@ export const ui = {
   "Source conflict": "Quellenkonflikt",
   "Source match rejected.": "Quellenübereinstimmung abgelehnt.",
   "Source match verified.": "Quellenübereinstimmung bestätigt.",
-  "Spends Bright Data credits; runs synchronously and returns the result.": "Verbraucht Bright-Data-Guthaben; läuft synchron und liefert das Ergebnis zurück.",
+  "Spends Firecrawl credits; runs synchronously and returns the result.": "Verbraucht Firecrawl-Guthaben; läuft synchron und liefert das Ergebnis zurück.",
   "Spreadsheet ID:": "Tabellen-ID:",
   "Stale data": "Veraltete Daten",
   "Stale states": "Veraltete Zustände",
@@ -1831,7 +1828,6 @@ Object.assign(ui, {
   "Catalog coverage is measured against all catalog rows. Barcode coverage uses scannable retail sets where a UPC is expected. eBay sold coverage stays at zero when Marketplace Insights or sold-comps access is blocked.": "Die Katalogabdeckung wird anhand aller Katalogzeilen gemessen. Die Barcodeabdeckung verwendet scanbare Einzelhandelssets, für die eine UPC erwartet wird. Die eBay-Verkaufsabdeckung bleibt bei null, wenn der Zugriff auf Marketplace Insights oder Verkaufsvergleiche blockiert ist.",
   "Connecting…": "Wird verbunden…", "Copies your current bearer access token to the clipboard — handy for running admin API probes from a terminal or support session. Short-lived; logging out invalidates it.": "Kopiert dein aktuelles Bearer-Zugriffstoken in die Zwischenablage — praktisch für Admin-API-Tests im Terminal oder Support. Es ist kurzlebig; beim Abmelden wird es ungültig.",
   "Deleting…": "Wird gelöscht…", "Done!": "Fertig!", "Importing...": "Wird importiert…",
-  "No success in 24h, so the eBay-sold scrape has switched itself to Firecrawl. It goes back to Bright Data automatically on the first success — the key pool is untouched.": "Seit 24 Stunden kein Erfolg: Der eBay-Verkaufsscrape hat zu Firecrawl gewechselt. Beim ersten Erfolg kehrt er automatisch zu Bright Data zurück — der Schlüsselpool bleibt unverändert.",
   "Saving…": "Wird gespeichert…", "Short-term growth is negative, but the long-range forecast can still be positive when retirement timing, theme demand, or comparable older sets point upward. Treat this as a recovery scenario, not a current momentum signal.": "Das kurzfristige Wachstum ist negativ, doch die Langfristprognose kann positiv bleiben, wenn Ruhestandstermin, Themennachfrage oder vergleichbare ältere Sets darauf hindeuten. Sieh dies als Erholungsszenario, nicht als aktuelles Momentum-Signal.",
   "Submitting…": "Wird gesendet…", "Syncing...": "Wird synchronisiert…", "Syncing…": "Wird synchronisiert…", "Testing…": "Wird getestet…", "Up": "Hoch", "Uploading…": "Wird hochgeladen…", "Working…": "Wird verarbeitet…",
   "Your sets are saved on this device. Sign in before switching devices to sync your vault, publish a profile, unlock Trophy Shelf, and connect Google Sheets.": "Deine Sets sind auf diesem Gerät gespeichert. Melde dich vor dem Gerätewechsel an, um deinen Tresor zu synchronisieren, ein Profil zu veröffentlichen, die Trophäenablage freizuschalten und Google Sheets zu verbinden.",
@@ -1856,11 +1852,8 @@ for (const key of ["Approved", "Couldn't check that guess:", "Couldn't delete:",
 for (const key of ["Keep on building! 🧱", "You're a building superstar! 🌟"]) delete ui[key];
 Object.assign(ui, { "⭐ BricksVault Pro": "⭐ BricksVault Pro", "⭐ Supporter": "⭐ Unterstützer", "📷 Add photo": "📷 Foto hinzufügen", "🔥 RISK": "🔥 RISIKO", "🛠 Suggest a fix": "🛠 Korrektur vorschlagen" });
 Object.assign(ui, {
-  "Reset Bright Data key pool": "Bright-Data-Schlüsselpool zurücksetzen",
   "Reset Firecrawl key pool": "Firecrawl-Schlüsselpool zurücksetzen",
-  "Reset the Bright Data key pool?": "Den Bright-Data-Schlüsselpool zurücksetzen?",
   "Reset the Firecrawl key pool? Only do this once you’ve confirmed the account actually has credits left — a real drained key will just 402 again and re-latch.": "Den Firecrawl-Schlüsselpool zurücksetzen? Tu dies erst, wenn du bestätigt hast, dass das Konto noch Guthaben hat — ein tatsächlich leeres Kontingent liefert erneut 402 und wird wieder gesperrt.",
-  "Un-latches every Bright Data token and zeros their monthly usage counters, instead of waiting for the next UTC-month rollover.": "Entsperrt alle Bright-Data-Token und setzt ihre monatlichen Nutzungszähler auf null, statt auf den nächsten UTC-Monatswechsel zu warten."
 });
 export default ui;
 

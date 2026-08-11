@@ -197,7 +197,6 @@ export const ui = {
   "Box": "盒装",
   "Box with backing card": "带背卡盒装",
   "Box with handle": "带提手盒装",
-  "Breaker open.": "熔断已触发。",
   "BrickEconomy values": "BrickEconomy 估值",
   "BrickInsights ratings": "BrickInsights 评分",
   "BrickLink (new)": "BrickLink（全新）",
@@ -222,7 +221,6 @@ export const ui = {
   "Brickset password": "Brickset 密码",
   "Brickset username": "Brickset 用户名",
   "Brickset/UPC barcodes": "Brickset/UPC 条形码",
-  "Bright Data sold scrape": "Bright Data 成交价抓取",
   "Browse catalog": "浏览目录",
   "Browser": "浏览器",
   "Bucket": "桶装",
@@ -539,7 +537,7 @@ export const ui = {
   "Falling": "下跌",
   "Fast-sale estimate after fees and a liquidity haircut.": "扣除手续费和流动性折价后的快速出手估价。",
   "Fastest and free for boxed sets": "对原盒套装来说最快且免费",
-  "Feasibility probe — can Bright Data reach StockX market data? Not a live valuation source yet.": "可行性探测——Bright Data 能否获取 StockX 市场数据？尚未作为实时估值数据源使用。",
+  "Feasibility probe — can Firecrawl reach StockX market data? Not a live valuation source yet.": "可行性探测——Firecrawl 能否获取 StockX 市场数据？尚未作为实时估值数据源使用。",
   "Fees & Ship": "手续费和运费",
   "Few/no minifigs — value driven by set alone": "人仔很少或没有——价值仅由套装本身决定",
   "Filesystem": "文件系统",
@@ -1281,10 +1279,9 @@ export const ui = {
   "Scanner success (14d)": "扫描成功率（14 天）",
   "Scanning and the advisor use": "扫描和顾问功能使用",
   "Scenario range based on the current fair value.": "基于当前公允价值的情景区间。",
-  "Scrapes eBay sold comps now (Bright Data) — use to verify tokens/zone.": "立即抓取 eBay 成交价对比（Bright Data）——用于验证令牌/区域。",
+  "Scrapes eBay sold comps now (Firecrawl).": "立即抓取 eBay 成交价对比（Firecrawl）.",
   "Scraping": "抓取",
   "Scraping runtime for structured market enrichment.": "用于结构化市场数据增强的抓取运行环境。",
-  "Scraping/runtime provider for restricted market data.": "用于受限市场数据的抓取／运行环境服务提供商。",
   "Sealed": "未拆封",
   "Sealed (MISB)": "未拆封（原盒全新 MISB）",
   "Search": "搜索",
@@ -1413,7 +1410,7 @@ export const ui = {
   "Source conflict": "来源冲突",
   "Source match rejected.": "来源匹配已被拒绝。",
   "Source match verified.": "来源匹配已验证。",
-  "Spends Bright Data credits; runs synchronously and returns the result.": "消耗 Bright Data 额度；同步运行并返回结果。",
+  "Spends Firecrawl credits; runs synchronously and returns the result.": "消耗 Firecrawl 额度；同步运行并返回结果。",
   "Spreadsheet ID:": "表格 ID：",
   "Stale data": "数据过时",
   "Stale states": "过期状态",
@@ -1831,7 +1828,6 @@ Object.assign(ui, {
   "Catalog coverage is measured against all catalog rows. Barcode coverage uses scannable retail sets where a UPC is expected. eBay sold coverage stays at zero when Marketplace Insights or sold-comps access is blocked.": "目录覆盖率按所有目录记录计算。条形码覆盖率使用预期具有 UPC 的可扫描零售套装。若 Marketplace Insights 或已售对比数据访问受阻，eBay 已售覆盖率将保持为零。",
   "Connecting…": "正在连接…", "Copies your current bearer access token to the clipboard — handy for running admin API probes from a terminal or support session. Short-lived; logging out invalidates it.": "将当前 Bearer 访问令牌复制到剪贴板，便于从终端或支持会话运行管理 API 探测。令牌有效期很短，退出登录后即失效。",
   "Deleting…": "正在删除…", "Done!": "完成！", "Importing...": "正在导入…",
-  "No success in 24h, so the eBay-sold scrape has switched itself to Firecrawl. It goes back to Bright Data automatically on the first success — the key pool is untouched.": "24 小时内未成功，因此 eBay 已售数据抓取已切换到 Firecrawl。首次成功后会自动切回 Bright Data，密钥池不会变动。",
   "Saving…": "正在保存…", "Short-term growth is negative, but the long-range forecast can still be positive when retirement timing, theme demand, or comparable older sets point upward. Treat this as a recovery scenario, not a current momentum signal.": "短期增长为负，但当停产时机、主题需求或可比的旧套装走势向上时，长期预测仍可能为正。请将其视为复苏情景，而非当前动能信号。",
   "Submitting…": "正在提交…", "Syncing...": "正在同步…", "Syncing…": "正在同步…", "Testing…": "正在测试…", "Up": "上升", "Uploading…": "正在上传…", "Working…": "正在处理…",
   "Your sets are saved on this device. Sign in before switching devices to sync your vault, publish a profile, unlock Trophy Shelf, and connect Google Sheets.": "你的套装保存在此设备上。更换设备前请登录，以同步收藏库、发布个人资料、解锁奖杯架并连接 Google Sheets。",
@@ -1855,11 +1851,8 @@ for (const key of ["Approved", "Couldn't check that guess:", "Couldn't delete:",
 for (const key of ["Keep on building! 🧱", "You're a building superstar! 🌟"]) delete ui[key];
 Object.assign(ui, { "⭐ BricksVault Pro": "⭐ BricksVault Pro", "⭐ Supporter": "⭐ 支持者", "📷 Add photo": "📷 添加照片", "🔥 RISK": "🔥 风险", "🛠 Suggest a fix": "🛠 建议修正" });
 Object.assign(ui, {
-  "Reset Bright Data key pool": "重置 Bright Data 密钥池",
   "Reset Firecrawl key pool": "重置 Firecrawl 密钥池",
-  "Reset the Bright Data key pool?": "要重置 Bright Data 密钥池吗？",
   "Reset the Firecrawl key pool? Only do this once you’ve confirmed the account actually has credits left — a real drained key will just 402 again and re-latch.": "要重置 Firecrawl 密钥池吗？仅在确认账户仍有额度后执行；真正耗尽的密钥会再次返回 402 并重新锁定。",
-  "Un-latches every Bright Data token and zeros their monthly usage counters, instead of waiting for the next UTC-month rollover.": "解除所有 Bright Data 令牌的锁定并将月度使用计数器清零，无需等待下一个 UTC 月份轮换。"
 });
 export default ui;
 

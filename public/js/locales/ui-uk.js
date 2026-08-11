@@ -197,7 +197,6 @@ export const ui = {
   "Box": "Коробка",
   "Box with backing card": "Коробка з картонною основою",
   "Box with handle": "Коробка з ручкою",
-  "Breaker open.": "Запобіжник розімкнено.",
   "BrickEconomy values": "Ціни BrickEconomy",
   "BrickInsights ratings": "Оцінки BrickInsights",
   "BrickLink (new)": "BrickLink (новий)",
@@ -222,7 +221,6 @@ export const ui = {
   "Brickset password": "Пароль Brickset",
   "Brickset username": "Ім'я користувача Brickset",
   "Brickset/UPC barcodes": "Штрихкоди Brickset/UPC",
-  "Bright Data sold scrape": "Bright Data — скрапінг проданих",
   "Browse catalog": "Переглянути каталог",
   "Browser": "Браузер",
   "Bucket": "Відро",
@@ -539,7 +537,7 @@ export const ui = {
   "Falling": "Падіння",
   "Fast-sale estimate after fees and a liquidity haircut.": "Оцінка швидкого продажу після комісій і знижки на ліквідність.",
   "Fastest and free for boxed sets": "Найшвидше і безкоштовно для наборів у коробці",
-  "Feasibility probe — can Bright Data reach StockX market data? Not a live valuation source yet.": "Перевірка можливості — чи може Bright Data отримати ринкові дані StockX? Ще не є активним джерелом оцінки.",
+  "Feasibility probe — can Firecrawl reach StockX market data? Not a live valuation source yet.": "Перевірка можливості — чи може Firecrawl отримати ринкові дані StockX? Ще не є активним джерелом оцінки.",
   "Fees & Ship": "Комісії та доставка",
   "Few/no minifigs — value driven by set alone": "Мало/немає мініфігурок — вартість визначається лише набором",
   "Filesystem": "Файлова система",
@@ -1281,10 +1279,9 @@ export const ui = {
   "Scanner success (14d)": "Успішність сканера (14 дн)",
   "Scanning and the advisor use": "Сканування й радник використовують",
   "Scenario range based on the current fair value.": "Діапазон сценарію на основі поточної справедливої вартості.",
-  "Scrapes eBay sold comps now (Bright Data) — use to verify tokens/zone.": "Збирає продані аналоги eBay зараз (Bright Data) — використовуйте для перевірки токенів/зони.",
+  "Scrapes eBay sold comps now (Firecrawl).": "Збирає продані аналоги eBay зараз (Firecrawl).",
   "Scraping": "Скрапінг",
   "Scraping runtime for structured market enrichment.": "Середовище скрапінгу для структурованого збагачення ринкових даних.",
-  "Scraping/runtime provider for restricted market data.": "Провайдер скрапінгу/середовища для обмежених ринкових даних.",
   "Sealed": "Запечатаний",
   "Sealed (MISB)": "Запечатане (MISB)",
   "Search": "Пошук",
@@ -1413,7 +1410,7 @@ export const ui = {
   "Source conflict": "Конфлікт джерел",
   "Source match rejected.": "Збіг джерела відхилено.",
   "Source match verified.": "Збіг джерела підтверджено.",
-  "Spends Bright Data credits; runs synchronously and returns the result.": "Витрачає кредити Bright Data; виконується синхронно й повертає результат.",
+  "Spends Firecrawl credits; runs synchronously and returns the result.": "Витрачає кредити Firecrawl; виконується синхронно й повертає результат.",
   "Spreadsheet ID:": "ID таблиці:",
   "Stale data": "Застарілі дані",
   "Stale states": "Застарілі стани",
@@ -1833,7 +1830,6 @@ ui["Copies your current bearer access token to the clipboard — handy for runni
 ui["Deleting…"] = "Видалення…";
 ui["Done!"] = "Готово!";
 ui["Importing..."] = "Імпортування…";
-ui["No success in 24h, so the eBay-sold scrape has switched itself to Firecrawl. It goes back to Bright Data automatically on the first success — the key pool is untouched."] = "За 24 годин не було успіху, тож збір проданих лотів eBay переключився на Firecrawl. Після першого успіху він автоматично повернеться до Bright Data — пул ключів не змінюється.";
 ui["Saving…"] = "Збереження…";
 ui["Short-term growth is negative, but the long-range forecast can still be positive when retirement timing, theme demand, or comparable older sets point upward. Treat this as a recovery scenario, not a current momentum signal."] = "Короткострокове зростання від’ємне, але довгостроковий прогноз може лишатися позитивним, якщо на нього вказують термін зняття з виробництва, попит на тему або схожі старі набори. Вважайте це сценарієм відновлення, а не сигналом поточного імпульсу.";
 ui["Submitting…"] = "Надсилання…";
@@ -1869,11 +1865,8 @@ for (const key of ["Approved", "Couldn't check that guess:", "Couldn't delete:",
 for (const key of ["Keep on building! 🧱", "You're a building superstar! 🌟"]) delete ui[key];
 Object.assign(ui, { "⭐ BricksVault Pro": "⭐ BricksVault Pro", "⭐ Supporter": "⭐ Підтримувач", "📷 Add photo": "📷 Додати фото", "🔥 RISK": "🔥 РИЗИК", "🛠 Suggest a fix": "🛠 Запропонувати виправлення" });
 Object.assign(ui, {
-  "Reset Bright Data key pool": "Скинути пул ключів Bright Data",
   "Reset Firecrawl key pool": "Скинути пул ключів Firecrawl",
-  "Reset the Bright Data key pool?": "Скинути пул ключів Bright Data?",
   "Reset the Firecrawl key pool? Only do this once you’ve confirmed the account actually has credits left — a real drained key will just 402 again and re-latch.": "Скинути пул ключів Firecrawl? Робіть це лише після підтвердження, що на обліковому записі ще є кредити — справді вичерпаний ключ знову поверне 402 і повторно заблокується.",
-  "Un-latches every Bright Data token and zeros their monthly usage counters, instead of waiting for the next UTC-month rollover.": "Розблоковує всі токени Bright Data й обнуляє їхні місячні лічильники використання, не чекаючи наступної зміни місяця за UTC."
 });
 export default ui;
 

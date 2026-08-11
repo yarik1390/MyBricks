@@ -197,7 +197,6 @@ export const ui = {
   "Box": "डिब्बा",
   "Box with backing card": "बैकिंग कार्ड वाला डिब्बा",
   "Box with handle": "हैंडल वाला डिब्बा",
-  "Breaker open.": "ब्रेकर खुला है।",
   "BrickEconomy values": "BrickEconomy मूल्य",
   "BrickInsights ratings": "BrickInsights रेटिंग",
   "BrickLink (new)": "BrickLink (नया)",
@@ -222,7 +221,6 @@ export const ui = {
   "Brickset password": "Brickset पासवर्ड",
   "Brickset username": "Brickset यूज़रनेम",
   "Brickset/UPC barcodes": "Brickset/UPC बारकोड",
-  "Bright Data sold scrape": "Bright Data बिक्री स्क्रेप",
   "Browse catalog": "कैटलॉग ब्राउज़ करें",
   "Browser": "ब्राउज़र",
   "Bucket": "बाल्टी",
@@ -539,7 +537,7 @@ export const ui = {
   "Falling": "गिरावट",
   "Fast-sale estimate after fees and a liquidity haircut.": "फ़ीस और लिक्विडिटी कटौती के बाद तुरंत-बिक्री का अनुमान।",
   "Fastest and free for boxed sets": "बॉक्स्ड सेट के लिए सबसे तेज़ और मुफ़्त",
-  "Feasibility probe — can Bright Data reach StockX market data? Not a live valuation source yet.": "व्यवहार्यता जाँच — क्या Bright Data StockX बाज़ार डेटा तक पहुँच सकता है? अभी लाइव वैल्यूएशन स्रोत नहीं है।",
+  "Feasibility probe — can Firecrawl reach StockX market data? Not a live valuation source yet.": "व्यवहार्यता जाँच — क्या Firecrawl StockX बाज़ार डेटा तक पहुँच सकता है? अभी लाइव वैल्यूएशन स्रोत नहीं है।",
   "Fees & Ship": "फ़ीस और शिपिंग",
   "Few/no minifigs — value driven by set alone": "कुछ/कोई मिनीफ़िगर नहीं — मूल्य केवल सेट से तय",
   "Filesystem": "फ़ाइलसिस्टम",
@@ -1281,10 +1279,9 @@ export const ui = {
   "Scanner success (14d)": "स्कैनर सफलता (14 दिन)",
   "Scanning and the advisor use": "स्कैनिंग और सलाहकार उपयोग करते हैं",
   "Scenario range based on the current fair value.": "मौजूदा उचित मूल्य पर आधारित परिदृश्य सीमा।",
-  "Scrapes eBay sold comps now (Bright Data) — use to verify tokens/zone.": "अभी eBay बिक्री तुलनाएँ स्क्रेप करता है (Bright Data) — टोकन/ज़ोन सत्यापित करने के लिए उपयोग करें।",
+  "Scrapes eBay sold comps now (Firecrawl).": "अभी eBay बिक्री तुलनाएँ स्क्रेप करता है (Firecrawl).",
   "Scraping": "स्क्रैपिंग",
   "Scraping runtime for structured market enrichment.": "संरचित बाज़ार एनरिचमेंट के लिए स्क्रैपिंग रनटाइम।",
-  "Scraping/runtime provider for restricted market data.": "प्रतिबंधित बाज़ार डेटा के लिए स्क्रैपिंग/रनटाइम प्रोवाइडर।",
   "Sealed": "सीलबंद",
   "Sealed (MISB)": "सील्ड (MISB)",
   "Search": "खोजें",
@@ -1413,7 +1410,7 @@ export const ui = {
   "Source conflict": "स्रोत टकराव",
   "Source match rejected.": "स्रोत मिलान अस्वीकृत।",
   "Source match verified.": "स्रोत मिलान सत्यापित।",
-  "Spends Bright Data credits; runs synchronously and returns the result.": "Bright Data क्रेडिट खर्च करता है; सिंक्रोनसली चलता है और परिणाम लौटाता है।",
+  "Spends Firecrawl credits; runs synchronously and returns the result.": "Firecrawl क्रेडिट खर्च करता है; सिंक्रोनसली चलता है और परिणाम लौटाता है।",
   "Spreadsheet ID:": "स्प्रेडशीट ID:",
   "Stale data": "पुराना डेटा",
   "Stale states": "पुराने स्टेट्स",
@@ -1831,7 +1828,6 @@ Object.assign(ui, {
   "Catalog coverage is measured against all catalog rows. Barcode coverage uses scannable retail sets where a UPC is expected. eBay sold coverage stays at zero when Marketplace Insights or sold-comps access is blocked.": "कैटलॉग कवरेज सभी कैटलॉग पंक्तियों से मापा जाता है। बारकोड कवरेज उन स्कैन किए जा सकने वाले रिटेल सेटों का उपयोग करता है जिनमें UPC अपेक्षित है। Marketplace Insights या बिके हुए तुलनात्मक डेटा का ऐक्सेस अवरुद्ध होने पर eBay बिके हुए कवरेज शून्य रहता है।",
   "Connecting…": "कनेक्ट हो रहा है…", "Copies your current bearer access token to the clipboard — handy for running admin API probes from a terminal or support session. Short-lived; logging out invalidates it.": "आपके वर्तमान Bearer ऐक्सेस टोकन को क्लिपबोर्ड पर कॉपी करता है, जो टर्मिनल या सहायता सत्र से एडमिन API जांच चलाने में उपयोगी है। यह कम समय के लिए मान्य है; साइन आउट करने पर अमान्य हो जाता है।",
   "Deleting…": "हटाया जा रहा है…", "Done!": "हो गया!", "Importing...": "इंपोर्ट हो रहा है…",
-  "No success in 24h, so the eBay-sold scrape has switched itself to Firecrawl. It goes back to Bright Data automatically on the first success — the key pool is untouched.": "24 घंटे में सफलता नहीं मिली, इसलिए eBay बिके हुए डेटा का स्क्रैप Firecrawl पर बदल गया है। पहली सफलता पर यह अपने आप Bright Data पर लौट जाएगा; कुंजी पूल में बदलाव नहीं होगा।",
   "Saving…": "सहेजा जा रहा है…", "Short-term growth is negative, but the long-range forecast can still be positive when retirement timing, theme demand, or comparable older sets point upward. Treat this as a recovery scenario, not a current momentum signal.": "अल्पकालिक वृद्धि नकारात्मक है, लेकिन रिटायरमेंट समय, थीम की मांग या समान पुराने सेट ऊपर की ओर संकेत दें तो दीर्घकालिक पूर्वानुमान फिर भी सकारात्मक हो सकता है। इसे सुधार की स्थिति मानें, मौजूदा गति का संकेत नहीं।",
   "Submitting…": "भेजा जा रहा है…", "Syncing...": "सिंक हो रहा है…", "Syncing…": "सिंक हो रहा है…", "Testing…": "जांच हो रही है…", "Up": "ऊपर", "Uploading…": "अपलोड हो रहा है…", "Working…": "प्रोसेस हो रहा है…",
   "Your sets are saved on this device. Sign in before switching devices to sync your vault, publish a profile, unlock Trophy Shelf, and connect Google Sheets.": "आपके सेट इस डिवाइस पर सहेजे गए हैं। डिवाइस बदलने से पहले साइन इन करें ताकि आपका संग्रह सिंक हो, प्रोफ़ाइल प्रकाशित हो, ट्रॉफी शेल्फ खुले और Google Sheets जुड़ सके।",
@@ -1855,11 +1851,8 @@ for (const key of ["Approved", "Couldn't check that guess:", "Couldn't delete:",
 for (const key of ["Keep on building! 🧱", "You're a building superstar! 🌟"]) delete ui[key];
 Object.assign(ui, { "⭐ BricksVault Pro": "⭐ BricksVault Pro", "⭐ Supporter": "⭐ समर्थक", "📷 Add photo": "📷 फ़ोटो जोड़ें", "🔥 RISK": "🔥 जोखिम", "🛠 Suggest a fix": "🛠 सुधार सुझाएँ" });
 Object.assign(ui, {
-  "Reset Bright Data key pool": "Bright Data कुंजी पूल रीसेट करें",
   "Reset Firecrawl key pool": "Firecrawl कुंजी पूल रीसेट करें",
-  "Reset the Bright Data key pool?": "Bright Data कुंजी पूल रीसेट करें?",
   "Reset the Firecrawl key pool? Only do this once you’ve confirmed the account actually has credits left — a real drained key will just 402 again and re-latch.": "Firecrawl कुंजी पूल रीसेट करें? यह तभी करें जब आपने पुष्टि कर ली हो कि खाते में क्रेडिट बचे हैं — वास्तव में खाली कुंजी फिर 402 देगी और दोबारा लॉक हो जाएगी।",
-  "Un-latches every Bright Data token and zeros their monthly usage counters, instead of waiting for the next UTC-month rollover.": "अगले UTC माह बदलाव की प्रतीक्षा करने के बजाय सभी Bright Data टोकन अनलॉक करता है और उनके मासिक उपयोग काउंटर शून्य करता है।"
 });
 export default ui;
 

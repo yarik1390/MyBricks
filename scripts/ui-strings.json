@@ -1201,12 +1201,6 @@
     ]
   },
   {
-    "text": "Breaker open.",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
     "text": "BrickEconomy values",
     "files": [
       "views/me-admin.js"
@@ -1349,12 +1343,6 @@
     "text": "Brickset/UPC barcodes",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Bright Data sold scrape",
-    "files": [
-      "views/me-admin-config.js"
     ]
   },
   {
@@ -3360,7 +3348,7 @@
     ]
   },
   {
-    "text": "Feasibility probe — can Bright Data reach StockX market data? Not a live valuation source yet.",
+    "text": "Feasibility probe — can Firecrawl reach StockX market data? Not a live valuation source yet.",
     "files": [
       "views/me-admin-config.js"
     ]
@@ -5750,12 +5738,6 @@
     ]
   },
   {
-    "text": "No success in 24h, so the eBay-sold scrape has switched itself to Firecrawl. It goes back to Bright Data automatically on the first success — the key pool is untouched.",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
     "text": "No sufficient verified sold evidence yet",
     "files": [
       "views/portfolio-detail.js"
@@ -7469,12 +7451,6 @@
     ]
   },
   {
-    "text": "Reset Bright Data key pool",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
     "text": "Reset Firecrawl key pool",
     "files": [
       "views/me-admin-config.js"
@@ -7502,12 +7478,6 @@
     "text": "Reset pricing to defaults",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Reset the Bright Data key pool?",
-    "files": [
-      "views/me-admin-config.js"
     ]
   },
   {
@@ -8055,7 +8025,7 @@
     ]
   },
   {
-    "text": "Scrapes eBay sold comps now (Bright Data) — use to verify tokens/zone.",
+    "text": "Scrapes eBay sold comps now (Firecrawl).",
     "files": [
       "views/me-admin-config.js"
     ]
@@ -8069,12 +8039,6 @@
   },
   {
     "text": "Scraping runtime for structured market enrichment.",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "Scraping/runtime provider for restricted market data.",
     "files": [
       "views/me-admin-config.js"
     ]
@@ -8881,7 +8845,7 @@
     ]
   },
   {
-    "text": "Spends Bright Data credits; runs synchronously and returns the result.",
+    "text": "Spends Firecrawl credits; runs synchronously and returns the result.",
     "files": [
       "views/me-admin-config.js"
     ]
@@ -9730,12 +9694,6 @@
     "text": "Type the barcode or set number below",
     "files": [
       "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Un-latches every Bright Data token and zeros their monthly usage counters, instead of waiting for the next UTC-month rollover.",
-    "files": [
-      "views/me-admin-config.js"
     ]
   },
   {
