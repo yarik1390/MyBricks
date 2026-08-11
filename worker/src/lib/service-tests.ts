@@ -138,9 +138,18 @@ const PROBES: Record<string, Probe> = {
       // identical ("The operation was aborted") at 12-25s, and they have
       // opposite fixes — raise the scrape timeout vs. leave the lane on
       // Firecrawl. Reporting the elapsed time makes that difference legible.
+      //
+      // Uses the POOL's key, not keys[0]. Hardcoding the first token made this
+      // probe answer a different question from the one the scrape path asks:
+      // the scrape rotates via pickKey and skips drained tokens, so with a spent
+      // keys[0] the probe reports the eBay lane broken while real scrapes are
+      // served fine by another token (and vice versa). That mismatch is exactly
+      // how "eBay blocks us but StockX works" looked true — StockX's probe uses
+      // pickKey. Same bug class as the Firecrawl probe that only ever tested key #0.
+      const laneKey = (await pickKey(env))?.key ?? keys[0];
       const startedAt = Date.now();
       const ebay = await http('POST', 'https://api.brightdata.com/request', {
-        headers: { Authorization: `Bearer ${keys[0]}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${laneKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           zone,
           url: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(`LEGO ${TEST_SET.replace(/-\d+$/, '')}`)}&LH_Sold=1&LH_Complete=1&_ipg=60`,

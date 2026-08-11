@@ -1,7 +1,7 @@
 import type { Env } from '../types';
 import { isValidLegoSetSaleTitle, summarizeSoldPrices } from './ebay';
 import { brightDataSoldEnabled } from './pricing-flags';
-import { pickKey, recordKeyCall } from './brightdata-keys';
+import { pickKey, recordKeyCall, isBrightDataExhaustion } from './brightdata-keys';
 
 // Bright Data Web Unlocker REST contract (verified): POST /request with a Bearer
 // token, body { zone, url, format:"raw", method, country }. format "raw" returns
@@ -208,7 +208,12 @@ export async function fetchEbaySoldViaBrightData(
         // socket that will never answer, and hands that wall-clock to the
         // Firecrawl rescue instead.
         const { status, body } = await unlock(env, url, picked.key, options.timeoutMs ?? 12000);
-        if (status === 401 || status === 402 || status === 403) {
+        // Includes the HTTP 400 "Customer is not active" case — a drained
+        // account reports itself with a status we would otherwise treat as a
+        // bad request and leave unlatched, which pins the dead key at the head
+        // of the drain order and starves the rest of the pool. See
+        // isBrightDataExhaustion.
+        if (isBrightDataExhaustion(status, body)) {
           await recordKeyCall(env, picked, { exhausted: true });
           lastErr = `Bright Data HTTP ${status}: ${body.slice(0, 200)}`;
           continue;

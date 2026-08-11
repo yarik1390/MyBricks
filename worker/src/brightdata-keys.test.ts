@@ -7,6 +7,7 @@ import {
   pickKey,
   recordKeyCall,
   getKeyPoolStatus,
+  isBrightDataExhaustion,
 } from './lib/brightdata-keys';
 
 const db = (env as any).DB as D1Database;
@@ -81,5 +82,39 @@ describe('bright data key pool', () => {
     const status = await getKeyPoolStatus(e);
     expect(status.keys_configured).toBe(3);
     expect(status.pooled_remaining).toBe(14700); // 3 × 4900 cap (safety margin under the 5000 free tier)
+  });
+});
+
+describe('isBrightDataExhaustion', () => {
+  it('treats the auth/payment statuses as a drained key', () => {
+    expect(isBrightDataExhaustion(401, '')).toBe(true);
+    expect(isBrightDataExhaustion(402, '')).toBe(true);
+    expect(isBrightDataExhaustion(403, '')).toBe(true);
+  });
+
+  it('catches the HTTP 400 "Customer is not active" a drained account returns', () => {
+    // The whole point. pickKey drains IN ORDER, so a spent key that is never
+    // latched sits at the head of the pool and is handed out on every call —
+    // the other tokens never get a turn however much budget they have left.
+    expect(isBrightDataExhaustion(400, 'Customer is not active')).toBe(true);
+  });
+
+  it('matches the other ways a drained account phrases it', () => {
+    expect(isBrightDataExhaustion(400, '{"error":"Not enough credits"}')).toBe(true);
+    expect(isBrightDataExhaustion(400, 'insufficient balance')).toBe(true);
+    expect(isBrightDataExhaustion(400, 'quota exceeded')).toBe(true);
+  });
+
+  it('does NOT retire a healthy key on an ordinary 400', () => {
+    // A malformed request is also a 400. Latching on the status alone would
+    // retire good tokens for our own bugs — worse than the problem being fixed.
+    expect(isBrightDataExhaustion(400, 'Invalid input format')).toBe(false);
+    expect(isBrightDataExhaustion(400, 'bad zone name')).toBe(false);
+  });
+
+  it('does NOT treat a target-side or server failure as a drained key', () => {
+    expect(isBrightDataExhaustion(500, 'upstream exploded')).toBe(false);
+    expect(isBrightDataExhaustion(502, 'target refused')).toBe(false);
+    expect(isBrightDataExhaustion(429, 'slow down')).toBe(false);
   });
 });

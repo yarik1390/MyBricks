@@ -25,6 +25,27 @@ export interface PickedKey {
   hash: string;
 }
 
+/**
+ * Does this response mean the KEY is out of budget, as opposed to the request
+ * being wrong?
+ *
+ * 401/402/403 are the obvious ones. The trap is that a drained Bright Data
+ * account answers "Customer is not active" with HTTP **400** — a status we
+ * otherwise read as "bad request" and therefore do NOT latch. Left unhandled
+ * that is self-inflicted starvation: pickKey drains IN ORDER, so a dead key at
+ * the head of the order is handed out again on every single call and the other
+ * tokens in the pool never get a turn, no matter how much budget they have.
+ *
+ * Deliberately matched on the message rather than on 400 alone, because a
+ * genuine malformed request is also a 400 and must NOT retire a healthy key.
+ */
+export function isBrightDataExhaustion(status: number, body: string): boolean {
+  if (status === 401 || status === 402 || status === 403) return true;
+  if (status !== 400) return false;
+  return /customer is not active|not enough (credits|balance)|insufficient (credits|funds|balance)|quota exceeded|no active plan/i
+    .test(body || '');
+}
+
 function monthKey(now = new Date()): string {
   return now.toISOString().slice(0, 7);
 }
