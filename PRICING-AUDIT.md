@@ -138,7 +138,7 @@ return, and it may already be permitted — check the plan before paying.
 2. **Raise BrickEconomy enrich from 40/day.** At 400/day the cycle drops from 379
    days to 38; at 800/day, to 19. Firecrawl headroom today is ~1,660 credits =
    332 extra sets/day, and the daily cap can be raised against the 650k balance.
-3. **Decide about Bright Data** — repair the account or drop it and give the
+3. ~~**Decide about Bright Data**~~ — RESOLVED 2026-08-11: dropped entirely. It could not reach eBay sold search by any route (sync unlocker no answer at 90s, async still pending after hours, Web Scraper API refused on account credits), while StockX unlocked fine on the same tokens. Firecrawl now owns the lane. Original text: repair the account or drop it and give the
    eBay-sold lane to Firecrawl permanently. Right now it is paid-for and idle.
 4. **Diagnose `pricecharting-enrich`'s `found 0`.**
 

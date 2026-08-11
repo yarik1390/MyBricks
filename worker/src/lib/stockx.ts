@@ -1,5 +1,4 @@
 import type { Env } from '../types';
-import { pickKey, recordKeyCall } from './brightdata-keys';
 import { firecrawlScrape } from './firecrawl';
 
 const SEARCH_URL = (setNum: string) =>
@@ -68,21 +67,6 @@ export interface StockXResult {
   error?: string | null;
 }
 
-async function unlock(env: Env, url: string, token: string, timeoutMs: number): Promise<{ status: number; body: string }> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const resp = await fetch(BD_ENDPOINT, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ zone: env.BRIGHTDATA_ZONE || DEFAULT_ZONE, url, format: 'raw', method: 'GET', country: 'US' }),
-      signal: ctrl.signal,
-    });
-    return { status: resp.status, body: await resp.text() };
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 /**
  * Parse StockX search HTML for a set's Lowest Ask. Finds the product tile whose
@@ -142,35 +126,3 @@ export function parseStockXSearch(html: string, setNum: string): { ask: number |
   return { ask: null, url };
 }
 
-/**
- * Fetch a set's StockX lowest ask via Bright Data Web Unlocker. Gated by the
- * caller (feature flag + source tuning). Marks a dead/credit-exhausted token so
- * the pool rotates. Never throws.
- */
-export async function fetchStockXMarket(
-  setNum: string,
-  _setName: string,
-  env: Env,
-  options: { timeoutMs?: number } = {},
-): Promise<StockXResult> {
-  const picked = await pickKey(env);
-  if (!picked) return { status: 'error', ask: null, url: null, error: 'no live Bright Data token (monthly budget drained)' };
-  const base = setNum.replace(/-\d+$/, '');
-  const url = `https://stockx.com/search?s=${encodeURIComponent(`lego ${base}`)}`;
-  try {
-    const { status, body } = await unlock(env, url, picked.key, options.timeoutMs ?? 55000);
-    if (status === 401 || status === 402 || status === 403) {
-      await recordKeyCall(env, picked, { exhausted: true });
-      return { status: 'error', ask: null, url: null, error: `Bright Data HTTP ${status}` };
-    }
-    await recordKeyCall(env, picked);
-    if (status !== 200 || !body || body.length < 50000) {
-      return { status: 'error', ask: null, url: null, error: `HTTP ${status} short body (${body ? body.length : 0})` };
-    }
-    const parsed = parseStockXSearch(body, setNum);
-    if (parsed.ask == null) return { status: 'no_data', ask: null, url: parsed.url };
-    return { status: 'ok', ask: parsed.ask, url: parsed.url };
-  } catch (e) {
-    return { status: 'error', ask: null, url: null, error: (e as Error)?.message || String(e) };
-  }
-}

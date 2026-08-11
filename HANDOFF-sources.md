@@ -48,7 +48,7 @@ they paste one from Admin → Services → "Copy admin token").
   was killing big parsing batches). Keep this.
 - **Comprehensive price-source audit** (findings below).
 - **eBay-sold Step 1**: un-stalled + Firecrawl fast-backfill (details below).
-- **eBay-sold Step 1.5/2**: condition-separated used comps plus hardened Bright Data
+- **eBay-sold Step 1.5/2**: condition-separated used comps plus hardened Firecrawl
   parsing are implemented; production coverage validation remains before cleanup.
 
 ## Audit findings (production D1, ~27.4k sets) — the roadmap
@@ -62,7 +62,6 @@ they paste one from Admin → Services → "Copy admin token").
 | StockX | 598 | New, blended |
 | eBay sold | was 302, **now growing** | Was stalled; Step 1 un-stalled it |
 | BrickOwl | **0** | ☠️ DEAD — 0 ok / 272 fail, HTTP 403 since ~June 13 |
-| Bright Data (engine) | — | Parser hardened for compact/JSON-wrapped bodies; live recovery rate pending |
 
 Note: Rebrickable's on-page "prices" are just BrickLink guide data we already ingest
 first-hand — **not worth scraping** (also 403s bots). Don't add it.
@@ -87,7 +86,6 @@ The eBay-sold scrape was frozen at 302 sets ("all candidates negative-cached"). 
   condition cannot hide a miss for the other.
 - Firecrawl can extract both conditions in one request, or apply eBay condition 1000/
   3000 when only one is due. Used evidence feeds the existing v3 `used_complete` signal.
-- Bright Data remains steady-state primary. It no longer rejects every response under
   50 KB; it unwraps JSON envelopes, detects actual block pages, recognizes explicit
   no-results pages, and parses each condition sequentially under the Worker socket cap.
 - Focused tests cover compact HTML, blocked pages, new/used separation, condition-only

@@ -39,14 +39,6 @@ export function brickInsightsEnabled(env: Env): boolean {
   return resolve('brickinsights', !flagOff(env.BRICKINSIGHTS_ENABLED));
 }
 
-// eBay SOLD comps via Bright Data Web Unlocker (scraping). PREREQUISITE: at least
-// one token in BRIGHTDATA_API_TOKEN or the comma-separated BRIGHTDATA_API_TOKENS
-// pool. On by default once a token exists; pause via BRIGHTDATA_SOLD_ENABLED=0 or override.
-export function brightDataSoldEnabled(env: Env): boolean {
-  const hasToken = !!env.BRIGHTDATA_API_TOKEN?.trim()
-    || !!env.BRIGHTDATA_API_TOKENS?.split(',').some((k) => k.trim());
-  return hasToken && resolve('brightdata_sold', !flagOff(env.BRIGHTDATA_SOLD_ENABLED));
-}
 
 // Firecrawl web scraping. PREREQUISITE: FIRECRAWL_API_KEY or FIRECRAWL_API_KEYS.
 // On by default once a key exists; pause via FIRECRAWL_ENABLED=0 or override.
@@ -64,15 +56,12 @@ export function pricesapiEnabled(env: Env): boolean {
   return hasPricesApiKey(env) && resolve('pricesapi', flagOn(env.PRICESAPI_ENABLED));
 }
 
-// StockX lowest-ask scrape (rendered). PREREQUISITE: a Firecrawl key (preferred —
-// large credit pool, bulk-friendly) OR a Bright Data token (fallback). OFF by
-// default — a fragile, slow scrape that must be validated before it feeds
-// valuations, so it needs an explicit opt-in (STOCKX_ENABLED=1 or the admin
-// `stockx` flag).
+// StockX lowest-ask scrape (rendered). PREREQUISITE: a Firecrawl key — the only
+// engine since the Bright Data unlocker was removed. OFF by default — a fragile,
+// slow scrape that must be validated before it feeds valuations, so it needs an
+// explicit opt-in (STOCKX_ENABLED=1 or the admin `stockx` flag).
 export function stockxEnabled(env: Env): boolean {
-  const hasBrightData = !!env.BRIGHTDATA_API_TOKEN?.trim()
-    || !!env.BRIGHTDATA_API_TOKENS?.split(',').some((k) => k.trim());
   const hasFirecrawl = !!env.FIRECRAWL_API_KEY
     || !!(env.FIRECRAWL_API_KEYS?.split(',').some((k) => k.trim()));
-  return (hasFirecrawl || hasBrightData) && resolve('stockx', flagOn(env.STOCKX_ENABLED));
+  return hasFirecrawl && resolve('stockx', flagOn(env.STOCKX_ENABLED));
 }

@@ -46,21 +46,14 @@ export interface Env {
   /** Firecrawl credits brickeconomy-enrich must leave for the day's other
    *  consumers (default 3000). It runs 48x a day and reaches the shared ledger
    *  first, so without a floor it can drain the ceiling before the evening
-   *  eBay-sold runs — the lane currently carrying for Bright Data. */
+   *  eBay-sold runs. */
   FIRECRAWL_RESERVE_CREDITS?: string;
   // Pricing-source kill switches (see lib/pricing-flags.ts). Default OFF;
   // set to "1" via wrangler [vars] to re-enable once provider access returns.
   EBAY_SOLD_COMPS_ENABLED?: string;
   BRICKOWL_ENABLED?: string;
   BRICKINSIGHTS_ENABLED?: string;
-  BRIGHTDATA_API_TOKEN?: string;
-  // Comma-separated additional Bright Data tokens, pooled + rotated by remaining
-  // monthly budget (free tier = 5000 credits/key/mo). See lib/brightdata-keys.ts.
-  BRIGHTDATA_API_TOKENS?: string;
-  BRIGHTDATA_ZONE?: string;
-  BRIGHTDATA_SOLD_ENABLED?: string;
-  // StockX lowest-ask scrape (rides the Bright Data pool). OFF unless
-  // STOCKX_ENABLED is truthy AND a Bright Data token is set.
+  // StockX lowest-ask scrape (Firecrawl). OFF unless STOCKX_ENABLED is truthy.
   STOCKX_ENABLED?: string;
   // UPCitemdb barcode source (2nd source after Brickset). Trial needs no key;
   // UPCITEMDB_USER_KEY switches to the higher-limit v1 endpoint. Default enabled.

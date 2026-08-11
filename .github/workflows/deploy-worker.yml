@@ -345,16 +345,13 @@ jobs:
           # FIRECRAWL_API_KEY (lib/firecrawl-keys.ts). Was previously set directly on
           # the Worker via `wrangler secret put` outside this pipeline — meaning a
           # from-scratch redeploy (new Cloudflare account, disaster recovery) would
-          # silently drop it. Mirrors the BRIGHTDATA_API_TOKENS pattern below; a no-op
+          # silently drop it. A no-op
           # until a FIRECRAWL_API_KEYS GitHub secret is actually added.
           [ -n "${{ secrets.FIRECRAWL_API_KEYS }}" ]       && put FIRECRAWL_API_KEYS       "${{ secrets.FIRECRAWL_API_KEYS }}"       || true
           # Bright Data Web Unlocker tokens (eBay sold-comp scraping). Single token
           # or a comma-separated pool; the worker reads either (types.ts).
-          [ -n "${{ secrets.BRIGHTDATA_API_TOKEN }}" ]     && put BRIGHTDATA_API_TOKEN     "${{ secrets.BRIGHTDATA_API_TOKEN }}"     || true
-          [ -n "${{ secrets.BRIGHTDATA_API_TOKENS }}" ]    && put BRIGHTDATA_API_TOKENS    "${{ secrets.BRIGHTDATA_API_TOKENS }}"    || true
           # Web Unlocker zone name. Code defaults to sdk_unlocker; set this secret
           # when the account's zone is named differently (e.g. web_unlocker1).
-          [ -n "${{ secrets.BRIGHTDATA_ZONE }}" ]          && put BRIGHTDATA_ZONE          "${{ secrets.BRIGHTDATA_ZONE }}"          || true
           # Patreon creator URL — drives the public Support card on the Me tab.
           [ -n "${{ secrets.PATREON_URL }}" ]              && put PATREON_URL              "${{ secrets.PATREON_URL }}"              || true
           # RevenueCat webhook shared secret — verifies POST /api/revenuecat/webhook,

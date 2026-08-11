@@ -2,7 +2,23 @@ import type { Env } from '../types';
 import { firecrawlScrape } from './firecrawl';
 import { firecrawlEnabled } from './pricing-flags';
 import { summarizeSoldPrices, isValidLegoSetSaleTitle } from './ebay';
-import type { EbaySoldScrapeResult } from './brightdata';
+/**
+ * Result shape for an eBay sold-comps scrape. Previously lived in lib/brightdata.ts
+ * and was imported from here; it moved when the Bright Data lane was removed,
+ * since Firecrawl is now the only engine that produces one.
+ */
+export interface EbaySoldScrapeResult {
+  status: 'ok' | 'partial' | 'no_data' | 'disabled' | 'error';
+  new_value: number | null;
+  new_count: number;
+  /** Most-recent sale date among the matched comps (YYYY-MM-DD), when captured. */
+  new_last_sold?: string | null;
+  used_value?: number | null;
+  used_count?: number;
+  /** Most-recent used-condition sale date (YYYY-MM-DD), when captured. */
+  used_last_sold?: string | null;
+  error?: string | null;
+}
 
 const LISTING_SCHEMA = {
   type: 'object',

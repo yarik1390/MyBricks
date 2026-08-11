@@ -122,10 +122,10 @@ export const ADMIN_JOB_TOOLS = {
     method: 'POST',
     body: {},
     label: 'Run eBay-sold scrape',
-    desc: 'Scrapes eBay sold comps now (Bright Data) — use to verify tokens/zone.',
-    source: 'Bright Data',
+    desc: 'Scrapes eBay sold comps now (Firecrawl).',
+    source: 'Firecrawl',
     duration: 'Up to ~60s for 5 sets',
-    quota: 'Spends Bright Data credits; runs synchronously and returns the result.',
+    quota: 'Spends Firecrawl credits; runs synchronously and returns the result.',
     icon: I.refresh({ w: 16 }),
   },
 };
@@ -152,13 +152,6 @@ export const MAINTENANCE_TOOLS = {
     desc: 'Un-latches every Firecrawl key and zeros their credit counters. Use after a plan top-up, or to recover from a 402 that turned out to be transient (e.g. the account actually still has credits).',
     confirm: 'Reset the Firecrawl key pool? Only do this once you’ve confirmed the account actually has credits left — a real drained key will just 402 again and re-latch.',
   },
-  resetBrightDataPool: {
-    url: '/api/admin/jobs/brightdata-reset-pool',
-    method: 'POST',
-    label: 'Reset Bright Data key pool',
-    desc: 'Un-latches every Bright Data token and zeros their monthly usage counters, instead of waiting for the next UTC-month rollover.',
-    confirm: 'Reset the Bright Data key pool?',
-  },
 };
 
 export const SOURCE_META = {
@@ -170,14 +163,13 @@ export const SOURCE_META = {
   pricesapi: ['pricesAPI.io', 'Optional retail offer signal; keep disabled unless keys and quota are ready.'],
   amazon: ['Amazon Creators API', 'Live Amazon offers for the buy slot. KV-only (24h) per Associates terms; never a valuation input — weight stays 0.'],
   firecrawl: ['Firecrawl', 'Scraping runtime for structured market enrichment.'],
-  brightdata: ['Bright Data', 'Scraping/runtime provider for restricted market data.'],
 };
 
 export const PROVIDER_GROUPS = [
   ['Core', ['d1', 'supabase', 'worker', 'pages']],
   ['Catalog', ['rebrickable', 'brickset', 'upc', 'upcitemdb']],
   ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'brickowl', 'pricecharting', 'pricesapi', 'amazon']],
-  ['Scraping', ['firecrawl', 'brightdata', 'stockx']],
+  ['Scraping', ['firecrawl', 'stockx']],
   ['AI', ['gemini', 'openai', 'openrouter', 'byok']],
   ['Notifications', ['resend', 'push', 'vapid', 'discord']],
   ['Sync', ['google']],
@@ -189,7 +181,6 @@ export const SERVICE_FLAG = {
   ebay: 'ebay_sold_comps',
   brickowl: 'brickowl',
   brickinsights: 'brickinsights',
-  brightdata: 'brightdata_sold',
   firecrawl: 'firecrawl',
   pricesapi: 'pricesapi',
   stockx: 'stockx',
@@ -199,7 +190,6 @@ export const FLAG_LABEL = {
   ebay_sold_comps: 'eBay sold comps',
   brickowl: 'BrickOwl source',
   brickinsights: 'BrickInsights ratings',
-  brightdata_sold: 'Bright Data sold scrape',
   firecrawl: 'Firecrawl scraping',
   pricesapi: 'pricesAPI retail offers',
   stockx: 'StockX lowest ask',
@@ -209,13 +199,13 @@ export const FLAG_LABEL = {
 // in worker/src/lib/service-tests.ts).
 export const TESTABLE = new Set([
   'd1', 'supabase', 'rebrickable', 'brickset', 'brickinsights', 'bricklink', 'ebay',
-  'brightdata', 'firecrawl', 'brickeconomy', 'pricecharting', 'pricesapi',
+  'firecrawl', 'brickeconomy', 'pricecharting', 'pricesapi',
   'openrouter', 'gemini', 'openai', 'resend', 'turnstile', 'patreon', 'push', 'stockx',
 ]);
 
 // Pricing sources with weight/cap/refresh tuning (worker DEFAULT_SOURCE_CONFIG).
 export const TUNABLE_SOURCES = new Set([
-  'bricklink', 'ebay', 'brickeconomy', 'brickowl', 'pricecharting', 'pricesapi', 'firecrawl', 'brightdata',
+  'bricklink', 'ebay', 'brickeconomy', 'brickowl', 'pricecharting', 'pricesapi', 'firecrawl',
 ]);
 
 // Short "what it does" copy for services not already described in SOURCE_META.
@@ -238,7 +228,7 @@ export const SERVICE_DESC = {
   vapid: 'Web-push signing keys.',
   discord: 'Optional Discord webhook alerts.',
   google: 'Google Sheets collection export and sync.',
-  stockx: 'Feasibility probe — can Bright Data reach StockX market data? Not a live valuation source yet.',
+  stockx: 'Feasibility probe — can Firecrawl reach StockX market data? Not a live valuation source yet.',
 };
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

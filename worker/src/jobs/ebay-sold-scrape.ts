@@ -1,16 +1,13 @@
 import type { Env } from '../types';
-import { fetchEbaySoldViaBrightData, type EbaySoldScrapeResult } from '../lib/brightdata';
-import { configuredKeys, pickKey } from '../lib/brightdata-keys';
-import { fetchEbaySoldViaFirecrawl } from '../lib/ebay-firecrawl';
-import { brightDataSoldEnabled, firecrawlEnabled } from '../lib/pricing-flags';
-import { quotaRemaining, reserveQuota, spendQuota } from '../lib/api-quota';
-import { recordIntegrationHealth, integrationRecentlyHealthy } from '../lib/integration-health';
+import { fetchEbaySoldViaFirecrawl, type EbaySoldScrapeResult } from '../lib/ebay-firecrawl';
+import { firecrawlEnabled } from '../lib/pricing-flags';
+import { quotaRemaining } from '../lib/api-quota';
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { recordPricingWrites } from '../lib/pricing-budget';
 import { sourceEnabled } from '../lib/source-config';
 
 /**
- * Corroborating-only eBay-sold scrape (Firecrawl or Bright Data).
+ * Corroborating-only eBay-sold scrape (Firecrawl).
  *
  * Only targets sets that ALREADY have a BrickLink (or BrickEconomy) value, and
  * only accepts a scraped median that is within 3x of that existing value. So the
@@ -20,12 +17,16 @@ import { sourceEnabled } from '../lib/source-config';
  * Writes condition-separated ebay_new_value and ebay_used_value observations so
  * the v3 blend can corroborate sealed and used values independently.
  *
- * PROVIDER: steady-state prefers Bright Data (its own budget) with a Firecrawl
- * rescue; `preferFirecrawl:true` (the fast-backfill lane) makes Firecrawl primary
- * to bypass Bright Data's ~70% eBay failure rate. ANTI-STALL: a miss stamps
- * condition-specific set_market_ext attempt markers (14-day cooldown, SQL-visible)
- * instead of a KV neg-cache the candidate query couldn't see, so neither sweep can
- * wall itself or starve the other condition.
+ * PROVIDER: Firecrawl, and only Firecrawl. Bright Data used to be primary here
+ * with a Firecrawl rescue behind a circuit breaker, but it could not reach eBay
+ * sold search at all — no answer at 90s synchronously, still pending after
+ * hours asynchronously, on a healthy token — so the breaker sat permanently
+ * open and every tick spent a call on a probe that never recovered. Removing it
+ * deletes the breaker, the half-open canary and the rescue path with it.
+ *
+ * ANTI-STALL: a miss stamps condition-specific set_market_ext attempt markers
+ * (14-day cooldown, SQL-visible) instead of a KV neg-cache the candidate query
+ * couldn't see, so neither sweep can wall itself or starve the other condition.
  */
 // Max sets per run when Firecrawl is the primary engine. Sized to WALL CLOCK,
 // not to appetite: the plan allows 2 concurrent scrapes at ~30s each, so 16 sets
@@ -45,57 +46,8 @@ export interface EbaySoldScrapeRun {
   skipped?: string;
   newUpdated?: number;
   usedUpdated?: number;
-  rescued?: number;
-  /** Which scraper actually ran this batch. */
-  engine?: 'firecrawl' | 'brightdata';
-  /** Present when Bright Data was configured but routed around as unhealthy. */
-  brightdata_breaker?: 'open';
-  /** Outcome of the half-open probe taken while the breaker is open. */
-  brightdata_canary?: 'ok' | 'fail' | 'skipped';
-}
-
-/**
- * HALF-OPEN PROBE. Bright Data is meant to be the primary eBay-sold scraper — it
- * has its own paid budget (6 keys x 5,000/month) and answers in ~2s against
- * Firecrawl's ~30s. The breaker routes around it when it stops succeeding, but a
- * breaker with no way back is just a permanent demotion: once Firecrawl carries
- * the lane, Bright Data is never called, so `last_ok_at` can never advance.
- *
- * Before this, the only thing that reopened it was `last_fail_at` itself ageing
- * out of the 24h window — which meant a full 40-set run got spent as the probe,
- * every day, forever, on a provider that had been dead for a week.
- *
- * So: one set, one condition, one call. Success re-stamps `last_ok_at` and the
- * NEXT run (3h later) is Bright Data-primary again; failure keeps the lane with
- * Firecrawl and costs a single credit to have asked.
- */
-async function brightDataCanary(
-  env: Env,
-  set: { set_num: string; name: string },
-): Promise<'ok' | 'fail' | 'skipped'> {
-  if (!(await pickKey(env))) return 'skipped';
-  if (!(await spendQuota(env, 'brightdata', 1))) return 'skipped';
-  const probe = await fetchEbaySoldViaBrightData(set.set_num, set.name, env, {
-    includeNew: true,
-    includeUsed: false,
-    retries: 0,
-    // Matches the shortened main-path timeout (see brightdata.ts) — a probe
-    // that hasn't answered in ~10s isn't going to, and this one call is the
-    // entire cost of checking whether the breaker can reopen.
-    timeoutMs: 10000,
-  }).catch((e): EbaySoldScrapeResult => ({
-    status: 'error', new_value: null, new_count: 0, error: (e as Error)?.message,
-  }));
-  // 'no_data' is a SUCCESSFUL unlock of a page with no matching comps — the
-  // provider worked. Only 'error' means Bright Data itself failed us.
-  const ok = probe.status === 'ok' || probe.status === 'partial' || probe.status === 'no_data';
-  await recordIntegrationHealth(env, 'brightdata', {
-    ok: ok ? 1 : 0,
-    fail: ok ? 0 : 1,
-    lastError: ok ? null : `half-open probe on ${set.set_num}: ${probe.error ?? 'unknown error'}`,
-  });
-  console.warn(`[ebay-sold-scrape] Bright Data half-open probe: ${ok ? 'RECOVERED' : 'still failing'}`);
-  return ok ? 'ok' : 'fail';
+  /** Which scraper ran this batch. Only Firecrawl remains. */
+  engine?: 'firecrawl';
 }
 
 export async function runEbaySoldScrape(
@@ -105,47 +57,10 @@ export async function runEbaySoldScrape(
   if (!(await sourceEnabled(env, 'ebay'))) {
     return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'ebay disabled in source tuning' };
   }
-  const canFirecrawl = firecrawlEnabled(env) && await sourceEnabled(env, 'firecrawl');
-  const configuredBrightData = brightDataSoldEnabled(env) && await sourceEnabled(env, 'brightdata');
-  // CIRCUIT BREAKER: Bright Data can be configured, funded and still totally
-  // broken — it 502'd every call for six days while its key pool reported ~1,800
-  // calls of headroom per key, so pickKey kept approving runs that wrote nothing
-  // and died on the rescue path. If it has not succeeded once in 24h, stop
-  // treating it as the primary and let Firecrawl carry the lane.
-  const brightDataHealthy = configuredBrightData ? await integrationRecentlyHealthy(env, 'brightdata', 24) : false;
-  const canBrightData = configuredBrightData && brightDataHealthy;
-  // preferFirecrawl (the fast-backfill lane) forces Firecrawl as the PRIMARY engine,
-  // bypassing Bright Data's ~70%-failure bottleneck to build coverage quickly.
-  // Steady-state (preferFirecrawl false): Bright Data is primary (its own dedicated
-  // 5000/key/mo budget) with a Firecrawl RESCUE on failure; falls all the way back to
-  // Firecrawl-primary only when no Bright Data token is configured.
-  const useFirecrawl = options.preferFirecrawl ? canFirecrawl : (!canBrightData && canFirecrawl);
-  const useBrightData = !useFirecrawl && canBrightData;
-  const fcRescue = useBrightData && canFirecrawl;
-  if (!useFirecrawl && !useBrightData) {
-    return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'neither firecrawl nor brightdata configured' };
+  if (!(firecrawlEnabled(env) && await sourceEnabled(env, 'firecrawl'))) {
+    return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'firecrawl not configured' };
   }
-  // Hardening: outside the backfill lane, Bright Data is the PREFERRED scraper. If we
-  // fell back to Firecrawl only because no Bright Data token reached the Worker — and
-  // it wasn't deliberately paused via BRIGHTDATA_SOLD_ENABLED — surface it on the admin
-  // integrations panel and in logs instead of silently degrading. (In preferFirecrawl
-  // mode the Firecrawl-primary path is intentional, so no warning.)
-  if (
-    useFirecrawl &&
-    !options.preferFirecrawl &&
-    configuredKeys(env).length === 0 &&
-    !/^(0|false|no|off)$/i.test(String(env.BRIGHTDATA_SOLD_ENABLED ?? ''))
-  ) {
-    const reason = 'Bright Data token not configured (BRIGHTDATA_API_TOKEN/BRIGHTDATA_API_TOKENS missing in Worker env); eBay-sold scrape is falling back to Firecrawl.';
-    console.warn(`[ebay-sold-scrape] ${reason}`);
-    await recordIntegrationHealth(env, 'brightdata', { ok: 0, fail: 1, lastError: reason });
-  }
-  // Breaker tripped (as opposed to "never configured") — say so in the logs and
-  // the run summary so a silent provider outage reads as a routing decision.
-  const brightDataTripped = configuredBrightData && !brightDataHealthy && useFirecrawl;
-  if (brightDataTripped) {
-    console.warn('[ebay-sold-scrape] Bright Data has not succeeded in 24h — running Firecrawl-primary.');
-  }
+
   const requestedLimit = Number(options.limit);
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
     ? Math.min(Math.floor(requestedLimit), 200)
@@ -153,24 +68,12 @@ export async function runEbaySoldScrape(
   // Firecrawl is metered by its own per-scrape guard (5cr/json extract) inside
   // firecrawlScrape, so size to remaining daily credits WITHOUT reserving — a
   // double reservation here would make the admin Firecrawl credits panel
-  // over-report. Bright Data has no in-scrape meter; it books AFTER the
-  // negative-cache filter below, so KV-skipped sets never debit the ledger.
-  let capLimit: number;
-  if (useFirecrawl) {
-    const remaining = await quotaRemaining(env, 'firecrawl');
-    if (remaining < 5) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
-    // A Firecrawl scrape is ~20-40s against Bright Data's ~2s, so the batch size
-    // tuned for Bright Data overruns the tick on this path — which is how runs
-    // ended up killed before they could flush. Cap the wave count instead.
-    capLimit = Math.min(limit, FIRECRAWL_PRIMARY_MAX, Math.floor(remaining / 5));
-  } else {
-    // Confirm a live (non-exhausted) key exists BEFORE any selection work, so a
-    // fully-exhausted/broken pool doesn't debit the api_quota ledger for a run
-    // that will make zero HTTP calls (which inflated the admin usage panel).
-    const live = await pickKey(env);
-    if (!live) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'brightdata: all keys exhausted this month' };
-    capLimit = limit;
-  }
+  // over-report.
+  const remaining = await quotaRemaining(env, 'firecrawl');
+  if (remaining < 5) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
+  // A Firecrawl scrape is ~20-40s, so cap the wave count to keep the run inside
+  // its tick — that is how runs used to get killed before they could flush.
+  const capLimit = Math.min(limit, FIRECRAWL_PRIMARY_MAX, Math.floor(remaining / 5));
 
   // New and used have independent success freshness and miss cooldowns. A miss
   // only stamps set_market_ext; it never stamps either blend-facing cached_at
@@ -218,59 +121,20 @@ export async function runEbaySoldScrape(
   }>();
   if (!candidates.length) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: undefined };
 
-  // Half-open probe, before the batch: if it recovers Bright Data the whole lane
-  // swings back to it on the next tick instead of waiting a day.
-  const canary = brightDataTripped ? await brightDataCanary(env, candidates[0]) : undefined;
+  const results = candidates;
+  const effLimit = candidates.length;
 
-  // Reserve Bright Data quota for what will ACTUALLY be scraped.
-  let results = candidates;
-  let effLimit = candidates.length;
-  if (!useFirecrawl) {
-    const plannedCalls = candidates.reduce((sum, set) => sum + Number(!!set.new_due) + Number(!!set.used_due), 0);
-    let callsLeft = (await reserveQuota(env, { brightdata: plannedCalls })).brightdata ?? 0;
-    if (callsLeft <= 0) return { processed: 0, updated: 0, rejected: 0, limit, skipped: 'brightdata quota spent' };
-    results = [];
-    for (const candidate of candidates) {
-      if (callsLeft <= 0) break;
-      const needed = Number(!!candidate.new_due) + Number(!!candidate.used_due);
-      if (needed <= callsLeft) {
-        results.push(candidate);
-        callsLeft -= needed;
-      } else {
-        // At the edge of the daily budget, prioritize the missing used market.
-        results.push({ ...candidate, new_due: candidate.used_due ? 0 : candidate.new_due, used_due: candidate.used_due ? 1 : 0 });
-        callsLeft--;
-      }
-    }
-    effLimit = results.length;
-  }
-
-  // Leave one of the Worker's six outbound connection slots free for provider
-  // bookkeeping and rescue traffic. Each Bright Data set performs its condition
-  // requests sequentially, so this also bounds the whole invocation to five.
-  //
   // FIRECRAWL PLAN LIMIT: the account allows only TWO concurrent scrapes. Going
   // wider doesn't go faster — the surplus calls come straight back as 429s, and
   // a 429 on the last live key is exactly the failure that surfaced live as "no
-  // Firecrawl key could serve the request". That applies whether Firecrawl is
-  // the primary engine or only the rescue, since a wave where Bright Data fails
-  // for every set fires one rescue per set in parallel.
+  // Firecrawl key could serve the request".
   const FIRECRAWL_MAX_CONCURRENCY = 2;
-  const requestedConcurrency = Math.max(1, Math.min(options.concurrency ?? 5, 5));
-  const concurrency = (useFirecrawl || fcRescue)
-    ? Math.min(requestedConcurrency, FIRECRAWL_MAX_CONCURRENCY)
-    : requestedConcurrency;
+  const concurrency = Math.max(1, Math.min(options.concurrency ?? 2, FIRECRAWL_MAX_CONCURRENCY));
   let updated = 0;
   let newUpdated = 0;
   let usedUpdated = 0;
   let processed = 0;
   let rejected = 0;
-  let rescued = 0;
-  // Per-run rescue budget: each rescue adds a Firecrawl scrape (~5 credits and
-  // ~20s to an already-failing wave), so cap it to keep the invocation inside
-  // its window; the SQL attempt cooldown means unrescued failures retry in 14 days.
-  let rescuesLeft = fcRescue ? 40 : 0;
-  const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
   const stmts: D1PreparedStatement[] = [];
   const touched: string[] = [];
 
@@ -289,24 +153,6 @@ export async function runEbaySoldScrape(
        ON CONFLICT(set_num) DO UPDATE SET ebay_used_attempted_at=datetime('now')`,
     ).bind(setNum));
 
-  // Bright Data health, persisted PER WAVE rather than once at the end. Firecrawl
-  // self-records inside firecrawlScrape, so only the Bright Data path needs this;
-  // writing it for Firecrawl too would double-count and clobber the real error.
-  //
-  // Per-wave and not per-run because the end-of-run write is unreachable exactly
-  // when it matters most: while Bright Data was 502-ing everything, every
-  // invocation was killed before this line, so `last_fail_at` froze six days in
-  // the past and the outage looked, to anything reading the table, like silence.
-  // The circuit breaker above reads that column — it can only route around a
-  // dead provider if the deaths are actually recorded.
-  const flushHealth = async () => {
-    if (useFirecrawl || (!health.ok && !health.fail)) return;
-    await recordIntegrationHealth(env, 'brightdata', { ...health });
-    health.ok = 0;
-    health.fail = 0;
-    health.lastError = undefined;
-  };
-
   // Incremental persistence: flush accumulated writes + re-blend as we go, so a
   // dying invocation (the "stale: invocation ended" cron_runs rows) keeps every
   // completed wave instead of losing the whole run's work.
@@ -323,11 +169,8 @@ export async function runEbaySoldScrape(
     const batch = results.slice(i, i + concurrency);
     const outs = await Promise.all(batch.map(async (set) => {
       const fetchOptions = { includeNew: !!set.new_due, includeUsed: !!set.used_due };
-      const fetcher = useFirecrawl
-        ? fetchEbaySoldViaFirecrawl(set.set_num, set.name, env, fetchOptions)
-        : fetchEbaySoldViaBrightData(set.set_num, set.name, env, fetchOptions);
-      const primary: EbaySoldScrapeResult = await fetcher
-        .catch((e): EbaySoldScrapeResult => ({
+      const r: EbaySoldScrapeResult = await fetchEbaySoldViaFirecrawl(set.set_num, set.name, env, fetchOptions)
+        .catch((e: unknown): EbaySoldScrapeResult => ({
           status: 'error',
           new_value: null,
           new_count: 0,
@@ -335,36 +178,10 @@ export async function runEbaySoldScrape(
           used_count: 0,
           error: (e as Error)?.message,
         }));
-      let r = primary;
-      if ((primary.status === 'error' || primary.status === 'partial') && rescuesLeft > 0) {
-        rescuesLeft--;
-        const fr = await fetchEbaySoldViaFirecrawl(set.set_num, set.name, env, fetchOptions).catch(() => null);
-        if (fr && (fr.status === 'ok' || fr.status === 'partial' || fr.status === 'no_data')) {
-          const newValue = primary.new_value ?? fr.new_value;
-          const usedValue = primary.used_value ?? fr.used_value;
-          r = {
-            ...primary,
-            status: newValue != null || usedValue != null ? 'ok' : fr.status,
-            new_value: newValue,
-            new_count: primary.new_value != null ? primary.new_count : fr.new_count,
-            new_last_sold: primary.new_value != null ? primary.new_last_sold : fr.new_last_sold,
-            used_value: usedValue,
-            used_count: primary.used_value != null ? primary.used_count : fr.used_count,
-            used_last_sold: primary.used_value != null ? primary.used_last_sold : fr.used_last_sold,
-            error: newValue != null || usedValue != null ? null : (fr.error ?? primary.error),
-          };
-        }
-      }
-      return { set, primary, r };
+      return { set, r };
     }));
-    for (const { set, primary, r } of outs) {
+    for (const { set, r } of outs) {
       processed++;
-      // Integration health tracks the PRIMARY provider's attempt — a rescue
-      // masking Bright Data's failure in the health panel would hide the very
-      // signal that says its keys/proxies are degrading.
-      if (primary.status === 'ok' || primary.status === 'no_data') health.ok++;
-      else { health.fail++; if (primary.error) health.lastError = primary.error; }
-      if (r !== primary) rescued++;
 
       const addAnomaly = (condition: 'new_sealed' | 'used_complete', observed: number, reference: number | null) => {
         const key = condition === 'new_sealed'
@@ -436,15 +253,11 @@ export async function runEbaySoldScrape(
       }
     }
     if (stmts.length >= 90) await flush();
-    await flushHealth();
   }
 
   await flush();
-  await flushHealth();
   return {
-    processed, updated, newUpdated, usedUpdated, rejected, rescued, limit: effLimit,
-    engine: useFirecrawl ? 'firecrawl' : 'brightdata',
-    ...(brightDataTripped ? { brightdata_breaker: 'open' as const } : {}),
-    ...(canary ? { brightdata_canary: canary } : {}),
+    processed, updated, newUpdated, usedUpdated, rejected, limit: effLimit,
+    engine: 'firecrawl',
   };
 }

@@ -505,15 +505,6 @@ export const TABLE_DDL: Record<string, string> = {
   PRIMARY KEY (service, day)
 )`,
 
-  brightdata_keys: `CREATE TABLE IF NOT EXISTS brightdata_keys (
-  key_hash TEXT PRIMARY KEY,
-  used INTEGER NOT NULL DEFAULT 0,
-  cap INTEGER NOT NULL DEFAULT 5000,
-  period_month TEXT,
-  exhausted_at TEXT,
-  last_used_at TEXT,
-  updated_at TEXT
-)`,
 
   app_settings: `CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,

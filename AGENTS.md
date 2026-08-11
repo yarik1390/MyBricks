@@ -114,7 +114,7 @@ Runtime notes:
 > bump) or offline route navigation to it will 404.
 
 Key `worker/src/lib` integrations: `bricklink`, `ebay`, `brickeconomy`,
-`brickset`, `brickowl-barcode`/`brickowl-pricing`, `brickinsights`, `brightdata`
+`brickset`, `brickowl-barcode`/`brickowl-pricing`, `brickinsights`
 (eBay-sold scraping), `rebrickable`, `upcitemdb`, `lego-stock`, `gemini`/`llm`,
 `valuation` (formula), `market-sources` (blend), `price-trend`,
 `retirement-risk`, `search-index` (FTS rebuilder), `api-quota`,
@@ -331,7 +331,7 @@ vitest failures when full logs require admin rights).
    must also be declared in that test fixture, and the search-index trigger
    assertion there must match the FTS column list.
 6. **Some secrets are dashboard-managed**, not in the workflow's upload list
-   (e.g. Bright Data / UPCitemdb keys) — don't assume every secret round-trips
+   (e.g. UPCitemdb keys) — don't assume every secret round-trips
    through CI.
 
 ### Safe-change checklist
@@ -358,7 +358,7 @@ dashboard); local dev uses `worker/.dev.vars` (see `.dev.vars.example`).
 **Pricing/catalog APIs:** `BRICKLINK_CONSUMER_KEY`, `BRICKLINK_CONSUMER_SECRET`,
 `BRICKLINK_TOKEN`, `BRICKLINK_TOKEN_SECRET`, `BRICKECONOMY_API_KEY`,
 `BRICKOWL_API_KEY`, `BRICKSET_API_KEY`, `REBRICKABLE_API_KEY`, `EBAY_APP_ID`,
-`EBAY_CLIENT_SECRET`. (Dashboard-managed extras seen in prod: a Bright Data
+`EBAY_CLIENT_SECRET`. (Dashboard-managed extras seen in prod: a
 token, a UPCitemdb key.)
 
 **AI:** `GEMINI_API_KEY`, `OPENAI_API_KEY` (+ non-secret `AI_GATEWAY_ID` var, and
@@ -380,7 +380,7 @@ exposes client-safe values.**
 | `15 * * * *` | formula-head revaluation + PriceCharting verify-drain + image pre-warm (R2) |
 | `25 * * * *`, `50 * * * *` | **BrickEconomy enrich** (Firecrawl, 60 sets/run) |
 | `30 * * * *` | UPCitemdb barcode backfill |
-| `0 0,3,6,9,12,15,18,21` | eBay-sold scrape (Bright Data primary, 8×/day; zone `web_unlocker1`) |
+| `0 0,3,6,9,12,15,18,21` | eBay-sold scrape (Firecrawl, 8×/day) |
 | `0 1`, `0 5` | minifig valuation (two slots) |
 | `0 2` | snapshot portfolios |
 | `0 3` | snapshot set values |
@@ -406,7 +406,6 @@ Both one-time bootstraps — PriceCharting per-set (`10,25,40,55`) and BrickEcon
 - **BrickLink no-data backoff:** a set whose sold guide returns <5 lots is stamped `set_market_ext.bl_nodata_at` and its BrickLink calls are skipped for **90 days** (`valuate-sets`), so the ~5k/day budget isn't spent re-querying dead sets. Cleared when a real price returns.
 - **BrickEconomy split cadence (2026-07-30):** sets that HAVE BrickEconomy data refresh on `BRICKECONOMY_REFRESH_DAYS` (default **7**); sets it has never carried stay on a fixed **90-day** gate. The refresh gate — not the cron cadence — is the Firecrawl-credit governor: raise it to cut the burn. At 7 days the whole 15,154-set covered catalog cycles weekly for ~10,800 credits/day.
 - **PriceCharting attempt marker:** `pc_cached_at` is success-only, so a miss stamps `set_market_ext.pc_attempted_at` (**30-day** cooldown) instead. Without it the same permanent misses re-filled every batch. Note also that `pricing_source_map` rows whose `source_item_id` starts `legacy:` are SYNTHETIC (minted by `pricecharting-verify` for price-agreement promotions) — never pass one to the PriceCharting product API.
-- **Bright Data breaker is half-open:** while the breaker routes eBay-sold to Firecrawl, each run still spends ONE Bright Data call as a probe. A success re-stamps `last_ok_at` and the next tick (3h) goes back to Bright Data-primary. Without the probe, Firecrawl-primary means Bright Data is never called and can never be shown to have recovered.
 
 ---
 
@@ -640,7 +639,7 @@ price-line layout fixes (price always fully visible on its own line), minifig
 silhouette placeholder hidden behind loaded photos.
 
 **Valuation/data sourcing (earlier):** multi-source blend (BrickLink +
-BrickEconomy + eBay ask + scraped eBay sold via Bright Data + BrickOwl), blend
+BrickEconomy + eBay ask + scraped eBay sold via Firecrawl + BrickOwl), blend
 confidence, BrickInsights ratings, persisted `blended_value`, admin coverage
 readout, per-user build cache, parts-based "what can I build."
 

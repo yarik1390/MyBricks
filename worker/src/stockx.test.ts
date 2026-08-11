@@ -51,7 +51,7 @@ describe('parseStockXSearch', () => {
   });
 
   // Firecrawl emits ABSOLUTE hrefs (https://stockx.com/...) and some carry a
-  // ?sponsored=true query — Bright Data gave relative paths. Parse both.
+  // ?sponsored=true query — some engines give relative paths. Parse both.
   const absTile = (slug: string, name: string, ask: string, q = '') =>
     `<a href="https://stockx.com/${slug}${q}">` +
     `<p data-testid="product-tile-title">${name}</p></div>` +

@@ -4,10 +4,8 @@ import { importSets, importFigs } from '../jobs/import-catalog';
 import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
 import { BARCODE_PAGE_SIZE } from '../lib/brickset';
 import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
-import { ebaySoldCompsEnabled, pricesapiEnabled, brickOwlEnabled, brickInsightsEnabled, brightDataSoldEnabled, firecrawlEnabled, stockxEnabled } from '../lib/pricing-flags';
+import { ebaySoldCompsEnabled, pricesapiEnabled, brickOwlEnabled, brickInsightsEnabled, firecrawlEnabled, stockxEnabled } from '../lib/pricing-flags';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
-import { submitAsyncUnlock, fetchAsyncResult, ebaySoldUrl } from '../lib/brightdata-async';
-import { analyzeEbaySoldHtml } from '../lib/brightdata';
 import { getQuotaUsage, spendQuota } from '../lib/api-quota';
 import { getAiUsageReport } from '../lib/ai-usage';
 import { rebuildSearchIndex } from '../lib/search-index';
@@ -16,14 +14,12 @@ import { runBricksetEnrich } from '../jobs/brickset-enrich';
 import { runBrickEconomyEnrich } from '../jobs/brickeconomy-enrich';
 import { runBrickInsightsBackfill } from '../jobs/brickinsights';
 import { runBlendRecomputeBackfill } from '../jobs/recompute-blends';
-import { resetKeyPool } from '../lib/brightdata-keys';
 import { runEbaySoldScrape } from '../jobs/ebay-sold-scrape';
 import { runPriceChartingEnrich } from '../jobs/pricecharting-enrich';
 import { runStockXEnrich } from '../jobs/stockx-enrich';
 import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricecharting-bulk';
 import { importBrickLinkMinifigs } from '../jobs/import-bricklink-minifigs';
 import { getKeyPoolStatus } from '../lib/pricesapi-keys';
-import { getKeyPoolStatus as getBrightDataPoolStatus } from '../lib/brightdata-keys';
 import { getFirecrawlKeyPoolStatus, resetFirecrawlKeyPool } from '../lib/firecrawl-keys';
 import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG, applySourceConfig } from '../lib/source-config';
 import { getFeatureFlags, saveFeatureFlags, applyFeatureFlags, FEATURE_FLAGS } from '../lib/feature-flags';
@@ -690,7 +686,6 @@ app.get('/feature-flags', async (c) => {
     ebay_sold_comps: ebaySoldCompsEnabled(c.env),
     brickowl: brickOwlEnabled(c.env),
     brickinsights: brickInsightsEnabled(c.env),
-    brightdata_sold: brightDataSoldEnabled(c.env),
     firecrawl: firecrawlEnabled(c.env),
     pricesapi: pricesapiEnabled(c.env),
     stockx: stockxEnabled(c.env),
@@ -707,7 +702,6 @@ app.put('/feature-flags', async (c) => {
     ebay_sold_comps: ebaySoldCompsEnabled(c.env),
     brickowl: brickOwlEnabled(c.env),
     brickinsights: brickInsightsEnabled(c.env),
-    brightdata_sold: brightDataSoldEnabled(c.env),
     firecrawl: firecrawlEnabled(c.env),
     pricesapi: pricesapiEnabled(c.env),
     stockx: stockxEnabled(c.env),
@@ -749,58 +743,14 @@ app.get('/activity', async (c) => {
   return c.json({ processes, recent: recentFeed, group_order: GROUP_ORDER, generated_at: new Date().toISOString() });
 });
 
-// Bright Data ASYNC experiment. The sync unlocker cannot fetch eBay sold pages
-// at all (90s probe, no answer, while StockX returns in 12s on the same zone and
-// tokens), so this exercises the async submit/collect lane end to end before any
-// of it is wired into the scrape job.
-//
-//   POST /api/admin/brightdata-async            -> submit, returns response_id
-//   POST /api/admin/brightdata-async?id=<id>    -> collect that id
-//
-// Split across two calls on purpose: Bright Data documents async results as
-// typically ~5 minutes, which no single Worker request can sit and wait for.
-// That two-phase shape is also exactly how the real job would work (submit on
-// one 3-hourly tick, collect on the next, well inside the 48h retention).
-app.post('/brightdata-async', async (c) => {
-  const setNum = c.req.query('set') || '75192-1';
-  const setName = c.req.query('name') || 'Millennium Falcon';
-  const id = c.req.query('id');
-
-  if (id) {
-    const out = await fetchAsyncResult(c.env, id);
-    if (out.state !== 'ready' || !out.body) {
-      return c.json({ phase: 'collect', response_id: id, state: out.state, status: out.status, error: out.error });
-    }
-    // Reuse the sync lane's parser: if async returns the same markup, the
-    // existing analysis is already correct and only the transport changes.
-    const analyzed = analyzeEbaySoldHtml(out.body, setNum, setName);
-    return c.json({
-      phase: 'collect',
-      response_id: id,
-      state: 'ready',
-      bytes: out.body.length,
-      analyzed,
-      body_head: out.body.slice(0, 300),
-    });
-  }
-
-  if (!(await spendQuota(c.env, 'brightdata', 1))) {
-    return c.json({ phase: 'submit', error: 'brightdata daily quota spent' }, 429);
-  }
-  const url = ebaySoldUrl(setNum, setName, 1000);
-  const sub = await submitAsyncUnlock(c.env, url);
-  return c.json({ phase: 'submit', url, ...sub });
-});
-
 app.get('/integrations', async (c) => {
-  const [integrations, coverage, quota, ai_usage, pricesapi_pool, market_ext, brightdata_pool, firecrawl_pool] = await Promise.all([
+  const [integrations, coverage, quota, ai_usage, pricesapi_pool, market_ext, firecrawl_pool] = await Promise.all([
     getIntegrationDiagnostics(c.env),
     getDataCoverage(c.env),
     getQuotaUsage(c.env),
     getAiUsageReport(c.env),
     getKeyPoolStatus(c.env),
     getMarketExtCoverage(c.env),
-    getBrightDataPoolStatus(c.env),
     getFirecrawlKeyPoolStatus(c.env),
   ]);
   const url = new URL(c.req.url);
@@ -815,10 +765,6 @@ app.get('/integrations', async (c) => {
     pricesapi: {
       pool: pricesapi_pool,
       daily: quota.find((q) => q.service === 'pricesapi') ?? null,
-    },
-    brightdata: {
-      pool: brightdata_pool,
-      daily: quota.find((q) => q.service === 'brightdata') ?? null,
     },
     pricecharting_ext: {
       ...market_ext,
@@ -1005,7 +951,6 @@ const JOB_LIMITS: Record<string, number> = {
   'brickeconomy-enrich': 5,
   'brickinsights-ratings': 80,
   'recompute-blends': 100,
-  'brightdata-reset-pool': 1,
   // Was missing from this allowlist despite being handled below — every call
   // 400'd as "Unknown job" and never reached resetFirecrawlKeyPool().
   'firecrawl-reset-pool': 1,
@@ -1055,9 +1000,6 @@ app.post('/jobs/:job', async (c) => {
       result = await runBrickInsightsBackfill(c.env, { limit });
     } else if (job === 'recompute-blends') {
       result = await runBlendRecomputeBackfill(c.env, { limit });
-    } else if (job === 'brightdata-reset-pool') {
-      // Clear the Bright Data key-pool drained/exhausted latch (no per-call limit).
-      result = await resetKeyPool(c.env);
     } else if (job === 'firecrawl-reset-pool') {
       // Un-latch Firecrawl keys + zero their credit counters — for after a plan
       // top-up, or to recover from a 402 that turned out to be transient.

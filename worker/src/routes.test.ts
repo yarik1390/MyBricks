@@ -526,26 +526,6 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(lo.brickinsights_rating).toBeNull();
     });
 
-    it('flags Bright Data on the integration-health panel when it falls back to Firecrawl with no token', async () => {
-      // No Bright Data token in the Worker env, Firecrawl present, not paused: the
-      // scrape must record a brightdata health warning instead of silently degrading.
-      // (The seed has no scrape candidates, so no network call is made.)
-      delete (env as any).BRIGHTDATA_API_TOKEN;
-      delete (env as any).BRIGHTDATA_API_TOKENS;
-      delete (env as any).BRIGHTDATA_SOLD_ENABLED;
-      (env as any).FIRECRAWL_API_KEY = 'test-firecrawl-key';
-      try {
-        await runEbaySoldScrape(env as any, { limit: 5 });
-        const row = await db.prepare(
-          `SELECT fail_count, last_error FROM integration_health WHERE service='brightdata'`
-        ).first<any>();
-        expect(row).toBeTruthy();
-        expect(row.fail_count).toBeGreaterThanOrEqual(1);
-        expect(String(row.last_error)).toMatch(/not configured/i);
-      } finally {
-        delete (env as any).FIRECRAWL_API_KEY;
-      }
-    });
 
     it('does not flag Bright Data when it is deliberately paused (BRIGHTDATA_SOLD_ENABLED=0)', async () => {
       delete (env as any).BRIGHTDATA_API_TOKEN;
@@ -564,37 +544,6 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       }
     });
 
-    it('brightdata-reset-pool clears the exhausted/drained latch on the key pool', async () => {
-      await db.prepare(
-        `CREATE TABLE IF NOT EXISTS brightdata_keys (
-           key_hash TEXT PRIMARY KEY, used INTEGER NOT NULL DEFAULT 0, cap INTEGER NOT NULL DEFAULT 5000,
-           period_month TEXT, exhausted_at TEXT, last_used_at TEXT, updated_at TEXT
-         )`
-      ).run();
-      await db.prepare(`DELETE FROM brightdata_keys`).run();
-      await db.prepare(
-        `INSERT INTO brightdata_keys (key_hash, used, cap, period_month, exhausted_at)
-         VALUES ('hash-a', 5000, 5000, strftime('%Y-%m','now'), datetime('now')),
-                ('hash-b', 4999, 5000, strftime('%Y-%m','now'), datetime('now'))`
-      ).run();
-
-      const res = await app.fetch(new Request('http://localhost/api/admin/jobs/brightdata-reset-pool', {
-        method: 'POST', headers: auth(adminToken),
-      }), env);
-      expect(res.status).toBe(200);
-      const data = await res.json<any>();
-      expect(data.ok).toBe(true);
-      expect(data.reset).toBe(2);
-
-      const rows = await db.prepare(
-        `SELECT used, exhausted_at FROM brightdata_keys ORDER BY key_hash`
-      ).all<any>();
-      for (const r of rows.results) {
-        expect(r.used).toBe(0);
-        expect(r.exhausted_at).toBeNull();
-      }
-      await db.prepare(`DROP TABLE brightdata_keys`).run();
-    });
 
     it('firecrawl-reset-pool clears the exhausted/drained latch on the key pool', async () => {
       // Was handled in the /jobs/:job dispatch chain but missing from the
@@ -632,8 +581,6 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
     });
 
     it('ebay-sold-scrape admin job is dispatchable (skips cleanly when no scraper is configured)', async () => {
-      delete (env as any).BRIGHTDATA_API_TOKEN;
-      delete (env as any).BRIGHTDATA_API_TOKENS;
       delete (env as any).FIRECRAWL_API_KEY;
       const res = await app.fetch(new Request('http://localhost/api/admin/jobs/ebay-sold-scrape?limit=3', {
         method: 'POST', headers: auth(adminToken),
@@ -642,7 +589,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const data = await res.json<any>();
       expect(data.ok).toBe(true);
       expect(data.job).toBe('ebay-sold-scrape');
-      expect(String(data.skipped || '')).toMatch(/neither/i);
+      expect(String(data.skipped || '')).toMatch(/firecrawl not configured/i);
     });
 
     it('per-service test probe: d1 passes and an unknown service 400s', async () => {

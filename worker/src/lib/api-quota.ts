@@ -27,11 +27,6 @@ export const QUOTA_CAPS: Record<string, number> = {
   // bulk CSV is a single download and is not counted here. Enrich runs ~40/day,
   // so this is generous headroom, not a throttle.
   pricecharting: 500,
-  // Daily pacing for the Bright Data eBay-sold scrape. The authoritative monthly
-  // limit is the per-token pool (brightdata_keys, 5000/token/mo, ~25k for 5 tokens).
-  // Set high to BURST through the initial backfill (~1200/day); the job self-tapers
-  // to the refresh rate afterward, so this cap is the burst ceiling, not steady use.
-  brightdata: 1200,
   upcitemdb: 96,
   // Firecrawl is metered in CREDITS, not scrape-count (1 = basic/markdown/product,
   // 5 = json LLM extract). Plan is a one-time ~300k allotment then ~1,000/month,
@@ -50,7 +45,7 @@ export const QUOTA_CAPS: Record<string, number> = {
   // Amazon Creators API searchItems calls (plus ~1 token mint/hour). The API is
   // free but eligibility-gated; this cap bounds a runaway day, not the plan.
   amazon: 300,
-  // StockX lowest-ask scrape (rides the Bright Data pool). Low daily cap: slow
+  // StockX lowest-ask scrape (Firecrawl). Low daily cap: slow
   // rendered calls, corroborating-only, OFF by default.
   stockx: 100,
 };

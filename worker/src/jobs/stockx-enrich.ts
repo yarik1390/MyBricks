@@ -1,6 +1,5 @@
 import type { Env } from '../types';
-import { fetchStockXMarket, fetchStockXViaFirecrawl } from '../lib/stockx';
-import { pickKey } from '../lib/brightdata-keys';
+import { fetchStockXViaFirecrawl } from '../lib/stockx';
 import { firecrawlEnabled, stockxEnabled } from '../lib/pricing-flags';
 import { quotaRemaining, reserveQuota } from '../lib/api-quota';
 import { recordIntegrationHealth } from '../lib/integration-health';
@@ -9,7 +8,7 @@ import { pricingWritesAllowed } from '../lib/pricing-budget';
 import { recomputeBlendedValues } from '../lib/market-sources';
 
 /**
- * StockX lowest-ask enrichment (Firecrawl-preferred, Bright Data fallback).
+ * StockX lowest-ask enrichment (Firecrawl).
  *
  * Populates set_market_ext.stockx_ask for sets that ALREADY have a BrickLink/
  * BrickEconomy value, accepting the scraped ask only when it's within 3x of that
@@ -21,8 +20,8 @@ import { recomputeBlendedValues } from '../lib/market-sources';
  * asking_only. On a new ask this job re-blends the touched set so it folds in.
  *
  * PROVIDER: prefers Firecrawl (enhanced proxy, ~5 credits/call) — its large credit
- * pool scales to a bulk backfill that Bright Data's small daily budget can't. Falls
- * back to Bright Data Web Unlocker only when no Firecrawl key is configured.
+ * pool scales to a bulk backfill. Firecrawl is the only engine since the Bright
+ * Data integration was removed.
  * Bounded, negative-cached, health-recorded; never throws. Runs only from the
  * background cron — never a synchronous request.
  */
@@ -42,29 +41,17 @@ export async function runStockXEnrich(
   const requestedLimit = Number(options.limit);
   const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? Math.min(Math.floor(requestedLimit), 60) : 20;
 
-  // Prefer Firecrawl: its large credit pool scales past Bright Data's small daily
-  // budget, making it the only viable engine for a bulk backfill. Fall back to
-  // Bright Data only when no Firecrawl key reached the Worker.
-  const useFirecrawl = firecrawlEnabled(env) && await sourceEnabled(env, 'firecrawl');
-
-  // Budget sizing differs by engine:
-  //  • Firecrawl self-meters credits inside firecrawlScrape (5cr/enhanced call), so
-  //    size to remaining daily credits WITHOUT reserving here — a double reservation
-  //    would make the admin Firecrawl credits panel over-report.
-  //  • Bright Data has no in-scrape meter; confirm a live key exists first (so an
-  //    exhausted pool never debits the stockx ledger), then reserve below.
-  let capLimit: number;
-  if (useFirecrawl) {
-    const remaining = await quotaRemaining(env, 'firecrawl');
-    if (remaining < 5) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
-    capLimit = Math.min(limit, Math.floor(remaining / 5));
-  } else {
-    const live = await pickKey(env);
-    if (!live) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'brightdata: all keys exhausted this month' };
-    const remaining = await quotaRemaining(env, 'stockx');
-    if (remaining <= 0) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'stockx daily cap reached' };
-    capLimit = Math.min(limit, remaining);
+  // Firecrawl is the only engine now; the Bright Data unlocker fallback went
+  // with the rest of that integration. Firecrawl self-meters credits inside
+  // firecrawlScrape (5cr/enhanced call), so size to remaining daily credits
+  // WITHOUT reserving here — a double reservation would make the admin
+  // Firecrawl credits panel over-report.
+  if (!(firecrawlEnabled(env) && await sourceEnabled(env, 'firecrawl'))) {
+    return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'firecrawl not configured' };
   }
+  const remaining = await quotaRemaining(env, 'firecrawl');
+  if (remaining < 5) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
+  const capLimit = Math.min(limit, Math.floor(remaining / 5));
 
   // Candidates: modern, DESIRABLE sets with a corroborating value and a stale/
   // absent StockX ask. StockX's LEGO market is recent-era and only carries sets
@@ -99,15 +86,9 @@ export async function runStockXEnrich(
   `).bind(capLimit).all<{ set_num: string; name: string; bl_new_value: number | null; current_value: number | null }>();
   if (!candidates.length) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: undefined };
 
-  // Firecrawl self-meters its credits per scrape, so nothing to reserve here — only
-  // the Bright Data path books the stockx ledger for what will actually be scraped.
-  let results = candidates;
-  let effLimit = candidates.length;
-  if (!useFirecrawl) {
-    effLimit = (await reserveQuota(env, { stockx: candidates.length })).stockx ?? 0;
-    if (effLimit <= 0) return { processed: 0, updated: 0, rejected: 0, limit, skipped: 'stockx quota spent' };
-    results = candidates.slice(0, effLimit);
-  }
+  // Firecrawl self-meters its credits per scrape, so nothing to reserve here.
+  const results = candidates;
+  const effLimit = candidates.length;
 
   const concurrency = Math.max(1, Math.min(options.concurrency ?? 3, 8));
   let processed = 0;
@@ -130,8 +111,8 @@ export async function runStockXEnrich(
     const batch = results.slice(i, i + concurrency);
     const outs = await Promise.all(batch.map(async (set) => ({
       set,
-      r: await (useFirecrawl ? fetchStockXViaFirecrawl(set.set_num, set.name, env) : fetchStockXMarket(set.set_num, set.name, env))
-        .catch((e) => ({ status: 'error' as const, ask: null, url: null, error: (e as Error)?.message })),
+      r: await fetchStockXViaFirecrawl(set.set_num, set.name, env)
+        .catch((e: unknown) => ({ status: 'error' as const, ask: null, url: null, error: (e as Error)?.message })),
     })));
     for (const { set, r } of outs) {
       processed++;

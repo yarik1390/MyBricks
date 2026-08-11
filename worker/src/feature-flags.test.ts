@@ -12,7 +12,6 @@ import {
 import {
   ebaySoldCompsEnabled,
   brickInsightsEnabled,
-  brightDataSoldEnabled,
   firecrawlEnabled,
   pricesapiEnabled,
 } from './lib/pricing-flags';
@@ -32,9 +31,6 @@ function baseEnv(extra: Record<string, unknown> = {}): any {
     EBAY_SOLD_COMPS_ENABLED: undefined,
     BRICKOWL_ENABLED: undefined,
     BRICKINSIGHTS_ENABLED: undefined,
-    BRIGHTDATA_SOLD_ENABLED: undefined,
-    BRIGHTDATA_API_TOKEN: undefined,
-    BRIGHTDATA_API_TOKENS: undefined,
     FIRECRAWL_ENABLED: undefined,
     FIRECRAWL_API_KEY: undefined,
     FIRECRAWL_API_KEYS: undefined,
@@ -63,14 +59,12 @@ describe('feature-flags', () => {
   });
 
   it('an override cannot bypass a missing-secret prerequisite', async () => {
-    await saveFeatureFlags(baseEnv(), { brightdata_sold: true, firecrawl: true, pricesapi: true });
+    await saveFeatureFlags(baseEnv(), { firecrawl: true, pricesapi: true });
     await applyFeatureFlags(baseEnv());
     // No token/keys -> still disabled despite the override.
-    expect(brightDataSoldEnabled(baseEnv())).toBe(false);
     expect(firecrawlEnabled(baseEnv())).toBe(false);
     expect(pricesapiEnabled(baseEnv())).toBe(false);
     // With the prerequisite present, the override takes effect.
-    expect(brightDataSoldEnabled(baseEnv({ BRIGHTDATA_API_TOKENS: 'tok' }))).toBe(true);
     expect(firecrawlEnabled(baseEnv({ FIRECRAWL_API_KEY: 'k' }))).toBe(true);
     expect(pricesapiEnabled(baseEnv({ PRICESAPI_API_KEY: 'k' }))).toBe(true);
   });
@@ -82,6 +76,6 @@ describe('feature-flags', () => {
     expect(stored.brickowl).toBe(true);
     expect('firecrawl' in stored).toBe(false); // string 'yes' rejected
     expect('bogus' in stored).toBe(false); // unknown flag rejected
-    expect(FEATURE_FLAGS).toContain('brightdata_sold');
+    expect(FEATURE_FLAGS).toContain('firecrawl');
   });
 });

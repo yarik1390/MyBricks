@@ -2,17 +2,13 @@
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
-import { fetchEbaySoldViaBrightData } from './lib/brightdata';
 import { fetchEbaySoldViaFirecrawl } from './lib/ebay-firecrawl';
 
-// The scrape job is exercised against a module-mocked Bright Data fetcher so
-// tests control per-set outcomes (ok / partial / no_data / error) without HTML
-// fixtures. pickKey/recordKeyCall live in brightdata-keys and stay real.
-vi.mock('./lib/brightdata', () => ({ fetchEbaySoldViaBrightData: vi.fn() }));
+// The scrape job is exercised against a module-mocked Firecrawl fetcher so tests
+// control per-set outcomes (ok / partial / no_data / error) without HTML
+// fixtures. Firecrawl is the only engine since the Bright Data lane was removed.
 vi.mock('./lib/ebay-firecrawl', () => ({ fetchEbaySoldViaFirecrawl: vi.fn() }));
-const mockFetcher = vi.mocked(fetchEbaySoldViaBrightData);
-const mockFcFetcher = vi.mocked(fetchEbaySoldViaFirecrawl);
-import { hashKey } from './lib/brightdata-keys';
+const mockFetcher = vi.mocked(fetchEbaySoldViaFirecrawl);
 import { applyTestTables } from './test-schema';
 
 const db = (env as any).DB as D1Database;
@@ -22,46 +18,25 @@ const month = new Date().toISOString().slice(0, 7);
 // Base env with every scraper source OFF; each test opts in explicitly.
 const bare = {
   ...env,
-  BRIGHTDATA_API_TOKEN: '',
-  BRIGHTDATA_API_TOKENS: '',
   FIRECRAWL_API_KEY: '',
   FIRECRAWL_API_KEYS: '',
 };
+/** Env with the only remaining engine switched on. */
+const live = { ...bare, FIRECRAWL_API_KEY: 'fc-test' };
 
-async function brightdataUsedToday(): Promise<number | null> {
-  const row = await db.prepare(`SELECT used FROM api_quota WHERE service='brightdata' AND day=?1`).bind(today).first<{ used: number }>();
-  return row ? Number(row.used) : null;
-}
 
 describe('runEbaySoldScrape', () => {
   beforeEach(async () => {
     vi.clearAllMocks(); // reset fetcher call history so cross-test calls don't leak
-    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'brightdata_keys', 'integration_health', 'pricing_write_ledger']);
+    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'integration_health', 'pricing_write_ledger']);
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('skips when neither Bright Data nor Firecrawl is configured', async () => {
+  it('skips when Firecrawl is not configured', async () => {
     const r = await runEbaySoldScrape(bare as any);
-    expect(r.skipped).toMatch(/neither firecrawl nor brightdata/);
+    expect(r.skipped).toMatch(/firecrawl not configured/);
   });
 
-  it('does NOT reserve daily quota when the Bright Data key pool is exhausted', async () => {
-    // A configured token, but its ledger row is latched exhausted for this month →
-    // pickKey() returns null. The reserve-after-live-key guard must skip BEFORE
-    // debiting the api_quota ledger (else the admin usage panel over-reports).
-    const hash = await hashKey('tkA');
-    await db.prepare(
-      `INSERT INTO brightdata_keys (key_hash, used, cap, period_month, exhausted_at) VALUES (?1, 0, 4900, ?2, datetime('now'))`,
-    ).bind(hash, month).run();
-    const fetchSpy = vi.fn();
-    vi.stubGlobal('fetch', fetchSpy);
-
-    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkA' } as any);
-
-    expect(r.skipped).toMatch(/all keys exhausted/);
-    expect(await brightdataUsedToday()).toBeNull(); // ledger never touched
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
 
   it('reserves NO quota when there are no eligible sets (reserve-after-filter)', async () => {
     // Live token but zero eligible sets: with reservation moved AFTER candidate
@@ -70,10 +45,9 @@ describe('runEbaySoldScrape', () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
 
-    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB' } as any, { limit: 20 });
+    const r = await runEbaySoldScrape({ ...live } as any, { limit: 20 });
 
     expect(r.processed).toBe(0);
-    expect(await brightdataUsedToday()).toBeNull(); // ledger never touched
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -90,7 +64,7 @@ describe('runEbaySoldScrape', () => {
     await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('ND-1','NoData Set', 100)`).run();
     mockFetcher.mockResolvedValue({ status: 'no_data', new_value: null, new_count: 0 } as any);
 
-    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB' } as any, { limit: 5 });
+    const r = await runEbaySoldScrape({ ...live } as any, { limit: 5 });
 
     expect(r.processed).toBe(1);
     expect(r.updated).toBe(0);
@@ -111,7 +85,7 @@ describe('runEbaySoldScrape', () => {
     await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('ER-1','Err Set', 100)`).run();
     mockFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'boom' } as any);
 
-    await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB' } as any, { limit: 5 });
+    await runEbaySoldScrape({ ...live } as any, { limit: 5 });
 
     expect(await attemptedAt('ER-1', 'new')).not.toBeNull();
     expect(await attemptedAt('ER-1', 'used')).not.toBeNull();
@@ -126,11 +100,10 @@ describe('runEbaySoldScrape', () => {
     ]);
     mockFetcher.mockResolvedValue({ status: 'ok', new_value: 110, new_count: 6 } as any);
 
-    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB' } as any, { limit: 10 });
+    const r = await runEbaySoldScrape({ ...live } as any, { limit: 10 });
 
     expect(r.processed).toBe(1); // only SK-2
     expect(r.updated).toBe(1);
-    expect(await brightdataUsedToday()).toBe(2); // one request per due condition
     const skipped = await db.prepare(`SELECT ebay_new_value FROM lego_sets WHERE set_num='SK-1'`).first<{ ebay_new_value: number | null }>();
     expect(skipped!.ebay_new_value).toBeNull();
     const scraped = await db.prepare(`SELECT ebay_new_value FROM lego_sets WHERE set_num='SK-2'`).first<{ ebay_new_value: number | null }>();
@@ -149,7 +122,7 @@ describe('runEbaySoldScrape', () => {
       error: 'new condition blocked',
     } as any);
 
-    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB' } as any, { limit: 5 });
+    const r = await runEbaySoldScrape({ ...live } as any, { limit: 5 });
 
     expect(r.updated).toBe(1);
     expect(r.newUpdated).toBe(0);
@@ -183,10 +156,9 @@ describe('runEbaySoldScrape', () => {
       used_count: 6,
     } as any);
 
-    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB' } as any, { limit: 5 });
+    const r = await runEbaySoldScrape({ ...live } as any, { limit: 5 });
 
     expect(r.usedUpdated).toBe(1);
-    expect(await brightdataUsedToday()).toBe(1);
     expect(mockFetcher).toHaveBeenCalledWith(
       'UD-1',
       'Used Due',
@@ -206,7 +178,7 @@ describe('runEbaySoldScrape', () => {
       error: 'used condition blocked',
     } as any);
 
-    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB' } as any, { limit: 5 });
+    const r = await runEbaySoldScrape({ ...live } as any, { limit: 5 });
 
     expect(r.newUpdated).toBe(1);
     expect(r.usedUpdated).toBe(0);
@@ -222,7 +194,7 @@ describe('runEbaySoldScrape', () => {
     await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('DV-1','Diverged', 100)`).run();
     mockFetcher.mockResolvedValue({ status: 'ok', new_value: 900, new_count: 4 } as any); // 9x the reference
 
-    const r = await runEbaySoldScrape({ ...bare, BRIGHTDATA_API_TOKENS: 'tkB' } as any, { limit: 5 });
+    const r = await runEbaySoldScrape({ ...live } as any, { limit: 5 });
 
     expect(r.rejected).toBe(1);
     expect(r.updated).toBe(0);
@@ -231,132 +203,10 @@ describe('runEbaySoldScrape', () => {
     expect(anomaly!.status).toBe('open');
   });
 
-  it('preferFirecrawl forces Firecrawl primary with no Bright Data token', async () => {
-    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('FB-1','FcBackfill', 100)`).run();
-    mockFcFetcher.mockResolvedValue({ status: 'ok', new_value: 108, new_count: 7 } as any);
-
-    const r = await runEbaySoldScrape({ ...bare, FIRECRAWL_API_KEY: 'fk' } as any, { limit: 5, preferFirecrawl: true });
-
-    expect(r.updated).toBe(1);
-    expect(mockFcFetcher).toHaveBeenCalled();
-    expect(mockFetcher).not.toHaveBeenCalled();             // Bright Data bypassed
-    const row = await db.prepare(`SELECT ebay_new_value FROM lego_sets WHERE set_num='FB-1'`).first<{ ebay_new_value: number | null }>();
-    expect(row!.ebay_new_value).toBe(108);
-  });
 
 
-  // --- Firecrawl rescue lane (Bright Data primary + FC configured) ---
-  const rescueEnv = { ...bare, BRIGHTDATA_API_TOKENS: 'tkB', FIRECRAWL_API_KEY: 'fk' };
 
-  it('rescues a Bright Data failure through Firecrawl and writes the value', async () => {
-    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('RS-1','Rescued', 100)`).run();
-    mockFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'blocked' } as any);
-    mockFcFetcher.mockResolvedValue({ status: 'ok', new_value: 120, new_count: 5 } as any);
 
-    const r = await runEbaySoldScrape({ ...rescueEnv } as any, { limit: 5 });
 
-    expect(r.rescued).toBe(1);
-    expect(r.updated).toBe(1);
-    expect(await attemptedAt('RS-1')).toBeNull();           // rescued success → no cooldown marker
-    const row = await db.prepare(`SELECT ebay_new_value FROM lego_sets WHERE set_num='RS-1'`).first<{ ebay_new_value: number | null }>();
-    expect(row!.ebay_new_value).toBe(120);
-  });
 
-  it('rescue returning no_data stamps the attempt marker', async () => {
-    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('RS-2','NoDataRescue', 100)`).run();
-    mockFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'blocked' } as any);
-    mockFcFetcher.mockResolvedValue({ status: 'no_data', new_value: null, new_count: 0 } as any);
-
-    const r = await runEbaySoldScrape({ ...rescueEnv } as any, { limit: 5 });
-
-    expect(r.rescued).toBe(1);
-    expect(await attemptedAt('RS-2')).not.toBeNull();
-  });
-
-  it('when the rescue also fails, the attempt marker is stamped', async () => {
-    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('RS-3','DoubleFail', 100)`).run();
-    mockFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'blocked' } as any);
-    mockFcFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'fc down' } as any);
-
-    const r = await runEbaySoldScrape({ ...rescueEnv } as any, { limit: 5 });
-
-    expect(r.rescued).toBe(0);
-    expect(await attemptedAt('RS-3')).not.toBeNull();
-  });
-
-  // Bright Data 502'd every call for six days while its key pool still reported
-  // budget, so pickKey kept approving runs that wrote nothing and were killed on
-  // the rescue path. The breaker routes around a provider that has stopped
-  // succeeding, rather than paying the failure tax on every set.
-  describe('Bright Data circuit breaker', () => {
-    const bothEnv = { ...bare, BRIGHTDATA_API_TOKENS: 'tkB', FIRECRAWL_API_KEY: 'fc-test' };
-    const seedHealth = (okAgo: string | null, failAgo: string | null) =>
-      db.prepare(
-        `INSERT INTO integration_health (service, last_ok_at, last_fail_at, ok_count, fail_count)
-         VALUES ('brightdata', ${okAgo ? `datetime('now', '${okAgo}')` : 'NULL'},
-                                ${failAgo ? `datetime('now', '${failAgo}')` : 'NULL'}, 10, 500)`,
-      ).run();
-
-    it('routes to Firecrawl when Bright Data has not succeeded in 24h', async () => {
-      await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('CB-1','Broken Provider', 100)`).run();
-      await seedHealth('-6 days', '-10 minutes');
-      mockFcFetcher.mockResolvedValue({ status: 'ok', new_value: 105, new_count: 4 } as any);
-      mockFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'HTTP 502' } as any);
-
-      const r = await runEbaySoldScrape(bothEnv as any, { limit: 5 });
-
-      expect(r.brightdata_breaker).toBe('open');
-      expect(r.engine).toBe('firecrawl');
-      // Exactly ONE Bright Data call: the half-open probe. The batch itself pays
-      // no failure tax — that was the whole point of the breaker.
-      expect(mockFetcher).toHaveBeenCalledTimes(1);
-      expect(r.brightdata_canary).toBe('fail');
-      expect(await brightdataUsedToday()).toBe(1);
-      expect(r.updated).toBe(1);
-    });
-
-    it('half-open probe success reopens the lane for the next run', async () => {
-      await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('CB-4','Recovering', 100)`).run();
-      await seedHealth('-6 days', '-10 minutes');
-      mockFcFetcher.mockResolvedValue({ status: 'ok', new_value: 105, new_count: 4 } as any);
-      mockFetcher.mockResolvedValue({ status: 'ok', new_value: 101, new_count: 3 } as any);
-
-      const first = await runEbaySoldScrape(bothEnv as any, { limit: 5 });
-      expect(first.engine).toBe('firecrawl');
-      expect(first.brightdata_canary).toBe('ok');
-
-      // The probe stamped last_ok_at, so the breaker is closed on the next tick
-      // — without it, Firecrawl-primary means Bright Data is never called again
-      // and last_ok_at can never advance.
-      const row = await db.prepare(`SELECT last_ok_at FROM integration_health WHERE service='brightdata'`)
-        .first<{ last_ok_at: string }>();
-      expect(row?.last_ok_at).toBeTruthy();
-
-      await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('CB-5','Recovered', 100)`).run();
-      const second = await runEbaySoldScrape(bothEnv as any, { limit: 5 });
-      expect(second.engine).toBe('brightdata');
-      expect(second.brightdata_breaker).toBeUndefined();
-    });
-
-    it('keeps Bright Data primary while it is still succeeding', async () => {
-      await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('CB-2','Healthy Provider', 100)`).run();
-      await seedHealth('-1 hour', '-10 minutes');
-      mockFetcher.mockResolvedValue({ status: 'ok', new_value: 108, new_count: 5 } as any);
-
-      const r = await runEbaySoldScrape(bothEnv as any, { limit: 5 });
-
-      expect(r.brightdata_breaker).toBeUndefined();
-      expect(r.engine).toBe('brightdata');
-      expect(mockFetcher).toHaveBeenCalled();
-    });
-
-    it('does not trip for a provider with no history (fresh deploy)', async () => {
-      await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('CB-3','Untried', 100)`).run();
-      mockFetcher.mockResolvedValue({ status: 'ok', new_value: 101, new_count: 5 } as any);
-
-      const r = await runEbaySoldScrape(bothEnv as any, { limit: 5 });
-
-      expect(r.engine).toBe('brightdata');
-    });
-  });
 });

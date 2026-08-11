@@ -191,7 +191,6 @@ function populateSectionHTML() {
       ${maintenanceCardHTML('expire')}
       ${maintenanceCardHTML('repair')}
       ${maintenanceCardHTML('resetFirecrawlPool')}
-      ${maintenanceCardHTML('resetBrightDataPool')}
     </div>
     <article class="admin-tool-card admin-upload-card">
       <div class="admin-tool-icon">${I.download()}</div>
@@ -413,7 +412,7 @@ function schedulePopulateEverythingContinue(delay = 1400) {
 
 // Run a synchronous admin job (returns its result inline rather than a tracked
 // run_id). Shows a running state on the button, then toasts the result summary
-// and refreshes the integrations panel so e.g. the Bright Data row updates.
+// and refreshes the integrations panel so e.g. the Firecrawl row updates.
 async function triggerSyncJob(type) {
   const cnf = ADMIN_JOB_TOOLS[type];
   if (!cnf) return;
@@ -778,7 +777,7 @@ async function updateIntegrationsHealth() {
   }
 }
 
-// Runtime capability flags (eBay sold comps, Bright Data sold, BrickInsights,
+// Runtime capability flags (eBay sold comps, BrickInsights,
 // Firecrawl, pricesAPI, BrickOwl). Feeds the per-service toggles in Services.
 async function loadFeatureFlags() {
   try {
@@ -810,38 +809,7 @@ function ebayStateHTML(health) {
   return `<div class="admin-ebay-state"><span>${escapeHtml(soldState)}</span><span>${escapeHtml(askingState)}</span><span>No weak sold fallback</span></div>`;
 }
 
-// Per-key Bright Data spend this month (each key is capped at 5000 credits/mo on
-// the free tier). Reads adminHealth.brightdata.pool from /api/admin/integrations.
-function brightDataPoolHTML() {
-  const pool = adminHealth?.brightdata?.pool;
-  if (!pool || !Array.isArray(pool.entries) || !pool.entries.length) return '';
-  const live = pool.keys_live ?? 0;
-  const configured = pool.keys_configured ?? pool.entries.length;
-  const remaining = Number(pool.pooled_remaining ?? 0);
-  const head = `${live}/${configured} keys live · ${remaining.toLocaleString()} credits left this month`;
-  const rows = pool.entries.map((e) => {
-    const used = Number(e.used || 0);
-    const cap = Number(e.cap || 5000);
-    const left = Number(e.remaining ?? Math.max(0, cap - used));
-    // A key latched as "exhausted" while barely used almost certainly failed
-    // auth (invalid/revoked token) rather than draining its budget — label it so
-    // it's clear the token should be dropped, not waited out.
-    const flag = e.exhausted ? (used < 100 ? ' (rejected — likely invalid token)' : ' (exhausted)') : '';
-    return `<div>…${escapeHtml(String(e.key_hash || '').slice(0, 8))} — ${used.toLocaleString()}/${cap.toLocaleString()} credits${escapeHtml(flag)} · ${left.toLocaleString()} left</div>`;
-  }).join('');
-  // The Worker opens a circuit breaker when Bright Data has not succeeded in 24h
-  // and routes eBay-sold to Firecrawl. Without saying so, the card reads as an
-  // unhandled outage and invites manual intervention that is already automatic.
-  const row = (adminHealth?.integrations || []).find((r) => String(r.service).toLowerCase() === 'brightdata');
-  const okAt = Date.parse(String(row?.last_ok_at || '').replace(' ', 'T') + 'Z');
-  const breakerOpen = !!row?.last_fail_at && (!Number.isFinite(okAt) || Date.now() - okAt > 24 * 3600 * 1000);
-  const breaker = breakerOpen
-    ? `<p class="admin-service-action"><strong>Breaker open.</strong> No success in 24h, so the eBay-sold scrape has switched itself to Firecrawl. It goes back to Bright Data automatically on the first success — the key pool is untouched.</p>`
-    : '';
-  return `<details class="admin-job-details" open><summary>Key pool — monthly spend: ${escapeHtml(head)}</summary><div class="admin-bd-pool">${rows}</div></details>${breaker}`;
-}
-
-// Firecrawl key pool. Unlike Bright Data's monthly pool these are one-time credit
+// Firecrawl key pool. These are one-time credit
 // balances drained IN ORDER, so the useful facts are which key is currently being
 // spent and how much is left in it. Reads adminHealth.firecrawl.pool.
 function firecrawlPoolHTML() {
@@ -1051,7 +1019,6 @@ function serviceCardHTML(svc, row, health, cfg, openSet) {
       <div class="admin-service-body">
         <div class="admin-service-facts">${facts.map(({ label, value }) => `<span><span>${escapeHtml(label)}</span> ${escapeHtml(value)}</span>`).join('')}</div>
         ${key === 'ebay' ? ebayStateHTML(health) : ''}
-        ${key === 'brightdata' ? brightDataPoolHTML() : ''}
         ${key === 'firecrawl' ? firecrawlPoolHTML() : ''}
         ${key === 'pricecharting' ? pcBulkStatusHTML() : ''}
         <p class="admin-service-action">${escapeHtml(health.action)}</p>
@@ -1760,7 +1727,6 @@ function providerLabel(service) {
     pricecharting: 'PriceCharting',
     pricesapi: 'pricesAPI.io',
     firecrawl: 'Firecrawl',
-    brightdata: 'Bright Data',
     ebay: 'eBay',
     rebrickable: 'Rebrickable',
     brickset: 'Brickset',

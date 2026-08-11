@@ -794,7 +794,7 @@ CREATE TABLE IF NOT EXISTS pricesapi_keys (
 
 -- Per-key monthly budget for the Bright Data Web Unlocker pool (eBay sold-comp
 -- scraping). Mirrors pricesapi_keys; free tier = 5000 credits/key/month.
--- Firecrawl key pool. Unlike brightdata_keys this is NOT monthly: the balances
+-- Firecrawl key pool. NOT monthly: the balances
 -- are one-time credit allotments, so `used` accumulates forever and a key is
 -- retired for good once Firecrawl answers 402. Keys are drained in configured
 -- order (see worker/src/lib/firecrawl-keys.ts), never spread across.
@@ -807,15 +807,6 @@ CREATE TABLE IF NOT EXISTS firecrawl_keys (
   updated_at TEXT
 );
 
-CREATE TABLE IF NOT EXISTS brightdata_keys (
-  key_hash TEXT PRIMARY KEY,
-  used INTEGER NOT NULL DEFAULT 0,
-  cap INTEGER NOT NULL DEFAULT 5000,
-  period_month TEXT,
-  exhausted_at TEXT,
-  last_used_at TEXT,
-  updated_at TEXT
-);
 
 -- Generic key/value settings store (JSON values). Backs the admin source-tuning
 -- console (key 'source_config'); read fail-open with code defaults so a bad or

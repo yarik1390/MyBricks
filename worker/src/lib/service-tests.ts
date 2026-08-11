@@ -1,7 +1,6 @@
 import type { Env } from '../types';
 import { fetchSetPricing } from './bricklink';
 import { fetchEbayActiveListings } from './ebay';
-import { configuredKeys, pickKey } from './brightdata-keys';
 import { configuredFirecrawlKeys, isCreditExhaustion } from './firecrawl-keys';
 import { firecrawlEnabled } from './pricing-flags';
 import { fetchStockXViaFirecrawl } from './stockx';
@@ -104,146 +103,6 @@ const PROBES: Record<string, Probe> = {
     } catch (e) { return err((e as Error).message); }
   },
 
-  async brightdata(env) {
-    const keys = configuredKeys(env);
-    if (!keys.length) return configured('no BRIGHTDATA_API_TOKEN(S)');
-    const zone = String(env.BRIGHTDATA_ZONE || 'web_unlocker1');
-    // Test EVERY configured token, not just the first. A single bad/rejected token
-    // must not make the whole service look down — real scraping rotates to a live
-    // key (that's why "Last OK" can be recent while a stale keys[0] 400s here).
-    const results = await Promise.all(keys.map(async (key, i) => {
-      const r = await http('POST', 'https://api.brightdata.com/request', {
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ zone, url: 'https://geo.brdtest.com/welcome.txt?product=unlocker&method=api', format: 'raw' }),
-        timeoutMs: 25000,
-      });
-      // Index + last-4 fingerprint so the admin can pinpoint WHICH token to drop
-      // (index 0 = BRIGHTDATA_API_TOKEN, then the BRIGHTDATA_API_TOKENS comma list
-      // in order). Only the last 4 chars are exposed — safe in an admin-only probe.
-      return { i, tail: key.slice(-4), status: r.status, text: r.text };
-    }));
-    const good = results.filter((r) => r.status === 200).length;
-    const bad = results.filter((r) => r.status !== 200);
-    // Gate on "at least one key works", NOT on "every key works". Requiring a
-    // clean sweep meant a single dud token silently suppressed the eBay-lane
-    // check entirely — the most important thing this probe reports — and the
-    // admin got a message about token hygiene instead of an answer about the
-    // lane. Observed live: one token 520s, so the lane result went missing
-    // exactly when we were trying to establish whether the lane had recovered.
-    if (good > 0) {
-      // Tokens + zone being fine says nothing about the lane this integration
-      // actually exists to serve. Bright Data 502'd every eBay sold-search for a
-      // week while this probe stayed green, because welcome.txt is not a
-      // bot-protected target. Spend one more call on the REAL url so the admin
-      // console can tell "your tokens are bad" from "eBay is blocking us".
-      // DELIBERATELY generous (90s) and timed. The scrape path runs on a short
-      // timeout because it has a whole batch to get through; this probe has one
-      // job, and the question it has to answer is the one a short timeout
-      // structurally cannot: is eBay REFUSING the unlock, or is the unlocker
-      // simply taking longer than the scrape path is willing to wait? Both look
-      // identical ("The operation was aborted") at 12-25s, and they have
-      // opposite fixes — raise the scrape timeout vs. leave the lane on
-      // Firecrawl. Reporting the elapsed time makes that difference legible.
-      //
-      // Uses the POOL's key, not keys[0]. Hardcoding the first token made this
-      // probe answer a different question from the one the scrape path asks:
-      // the scrape rotates via pickKey and skips drained tokens, so with a spent
-      // keys[0] the probe reports the eBay lane broken while real scrapes are
-      // served fine by another token (and vice versa). That mismatch is exactly
-      // how "eBay blocks us but StockX works" looked true — StockX's probe uses
-      // pickKey. Same bug class as the Firecrawl probe that only ever tested key #0.
-      const laneKey = (await pickKey(env))?.key ?? keys[0];
-      const startedAt = Date.now();
-      const ebay = await http('POST', 'https://api.brightdata.com/request', {
-        headers: { Authorization: `Bearer ${laneKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          zone,
-          url: `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(`LEGO ${TEST_SET.replace(/-\d+$/, '')}`)}&LH_Sold=1&LH_Complete=1&_ipg=60`,
-          format: 'raw',
-          method: 'GET',
-          country: 'US',
-        }),
-        timeoutMs: 90000,
-      });
-      const elapsedMs = Date.now() - startedAt;
-      const took = `took ${(elapsedMs / 1000).toFixed(1)}s`;
-      // Report the real key tally rather than claiming a clean sweep: the lane
-      // verdict below is now produced even when some tokens are bad, so the
-      // preamble must not say "all N OK" when it isn't true.
-      const rejected = bad
-        .map((b) => `#${b.i} (…${b.tail}) HTTP ${b.status}`)
-        .join('; ');
-      const base = good === keys.length
-        ? `all ${keys.length} key(s) OK on zone '${zone}'`
-        : `${good}/${keys.length} key(s) OK on '${zone}' (rejected: ${rejected})`;
-      // status null = our own AbortController fired, i.e. no answer within 90s.
-      if (ebay.status == null) {
-        return {
-          ok: true,
-          status: 'degraded',
-          detail: `${base}, but the eBay sold-search lane never answered (${took}, ${String(ebay.text).slice(0, 80)}).`
-            + ' Bright Data is not returning at ANY timeout we could afford in a scrape batch, so raising the scrape timeout would not help — the lane stays on Firecrawl.',
-        };
-      }
-      if (ebay.status !== 200) {
-        return {
-          ok: true,
-          status: 'degraded',
-          detail: `${base}, but the eBay sold-search lane failed: HTTP ${ebay.status} (${took}) ${String(ebay.text).slice(0, 160)}`
-            + '. The tokens are fine — eBay is refusing the unlock. eBay-sold runs on Firecrawl until a probe here comes back 200.',
-        };
-      }
-      const looksBlocked = /pardon our interruption|verify you are human|captcha|access denied/i.test(ebay.text);
-      if (looksBlocked || !/s-card__price|s-item__price/.test(ebay.text)) {
-        return {
-          ok: true,
-          status: 'degraded',
-          detail: `${base}; eBay returned HTTP 200 but ${looksBlocked ? 'a bot-check interstitial' : 'no parseable listing markup'} (${ebay.text.length} bytes, ${took}).`
-            + ' The unlock is getting through to a challenge page, not the results — eBay-sold stays on Firecrawl.',
-        };
-      }
-      // A 200 with real markup means the lane WORKS and only the scrape path's
-      // patience is in question: compare `took` against the timeout in
-      // lib/brightdata.ts (fetchEbaySoldViaBrightData) — if this is slower, the
-      // scrape is aborting a call that would have succeeded.
-      return ok(`${base}; eBay sold-search lane returns parseable results (${ebay.text.length} bytes, ${took})`);
-    }
-    const badList = bad
-      .map((b) => `#${b.i} (…${b.tail}) HTTP ${b.status}: ${String(b.text).slice(0, 40)}`)
-      .join('; ');
-    const detail = `${good}/${keys.length} key(s) OK on '${zone}'; ${keys.length - good} rejected → ${badList}`
-      + '. Remove the rejected token(s) from BRIGHTDATA_API_TOKENS (index 0 = BRIGHTDATA_API_TOKEN, then the comma list in order).';
-    // Some keys work → the service is usable; flag as degraded, not down.
-    if (good > 0) return { ok: true, status: 'degraded', detail };
-    return err(detail);
-  },
-
-  // Feasibility probe for a *potential* StockX sold/ask source. StockX blocks
-  // plain fetches (returns an error interstitial) and renders all prices
-  // client-side, so scraping it needs BrightData's unlocker/rendering. This probe
-  // spends ONE pooled BrightData call on a StockX search and reports whether the
-  // returned body is the real product markup (with a price) or a block page — the
-  // ground truth needed before building a parser and wiring it into valuations.
-  async stockx(env) {
-    const picked = await pickKey(env);
-    if (!picked) return configured('no live Bright Data token (StockX would ride the BrightData pool)');
-    const setNum = '10307'; // Eiffel Tower — a set StockX definitely lists.
-    const r = await http('POST', 'https://api.brightdata.com/request', {
-      headers: { Authorization: `Bearer ${picked.key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ zone: env.BRIGHTDATA_ZONE || 'web_unlocker1', url: `https://stockx.com/search?s=lego%20${setNum}`, format: 'raw', method: 'GET', country: 'US' }),
-      timeoutMs: 55000,
-    });
-    if (r.status !== 200) return err(`BrightData HTTP ${r.status}: ${String(r.text).slice(0, 60)}`);
-    const body = r.text || '';
-    const blocked = /<title>\s*Error\s*<\/title>|captcha|Access Denied|Just a moment|cf-challenge/i.test(body);
-    const hasProduct = /eiffel/i.test(body) || new RegExp(`set-${setNum}\\b`).test(body) || /lego-[a-z0-9-]+-set-\d/i.test(body);
-    const hasPrice = /Lowest Ask|lowestAsk|Last Sale|lastSale|"amount"\s*:/i.test(body);
-    if (hasProduct && hasPrice) return ok(`Web Unlocker rendered StockX — found product + price markup (${body.length}b). Parser validated; StockX enrichment available behind the stockx flag.`);
-    if (hasProduct) return { ok: true, status: 'degraded', detail: `Got StockX product markup but no price fields (${body.length}b) — needs the rendered variant (BrightData render/Scraping Browser).` };
-    if (blocked) return err(`StockX served a block/interstitial via Web Unlocker (${body.length}b) — plain unlocking is not enough; needs BrightData Scraping Browser (JS render).`);
-    return err(`Unexpected StockX body (${body.length}b): ${body.slice(0, 80)}`);
-  },
-
   // StockX via Firecrawl (ENHANCED proxy, mobile/anti-bot) — the PREFERRED engine
   // for the bulk backfill (large credit pool). Spends ~5 credits: renders the
   // Eiffel (10307) search and confirms the parser reads a Lowest Ask.
@@ -277,7 +136,7 @@ const PROBES: Record<string, Probe> = {
       });
       // Index + last-4 fingerprint so the admin can tell which key is actually
       // dead (index 0 = FIRECRAWL_API_KEY, then the FIRECRAWL_API_KEYS comma
-      // list in order) — same convention as the brightdata probe below.
+      // list in order).
       return { i, tail: key.slice(-4), status: r.status, text: r.text };
     }));
     const good = results.filter((r) => r.status === 200);
