@@ -58,10 +58,6 @@ export interface Env {
   // monthly budget (free tier = 5000 credits/key/mo). See lib/brightdata-keys.ts.
   BRIGHTDATA_API_TOKENS?: string;
   BRIGHTDATA_ZONE?: string;
-  /** Web Scraper API eBay collector id; defaults to EBAY_DATASET_ID in lib/brightdata-scraper.ts. */
-  BRIGHTDATA_EBAY_DATASET_ID?: string;
-  /** Account-level key for the Web Scraper API (datasets/v3); the unlocker zone tokens are not entitled to it. */
-  BRIGHTDATA_DATASET_API_KEY?: string;
   BRIGHTDATA_SOLD_ENABLED?: string;
   // StockX lowest-ask scrape (rides the Bright Data pool). OFF unless
   // STOCKX_ENABLED is truthy AND a Bright Data token is set.
