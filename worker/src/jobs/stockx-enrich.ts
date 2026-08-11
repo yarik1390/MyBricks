@@ -2,6 +2,7 @@ import type { Env } from '../types';
 import { fetchStockXViaFirecrawl } from '../lib/stockx';
 import { firecrawlEnabled, stockxEnabled } from '../lib/pricing-flags';
 import { quotaRemaining } from '../lib/api-quota';
+import { FIRECRAWL_MAX_CONCURRENCY } from '../lib/firecrawl';
 import { recordIntegrationHealth } from '../lib/integration-health';
 import { sourceEnabled } from '../lib/source-config';
 import { pricingWritesAllowed } from '../lib/pricing-budget';
@@ -90,7 +91,7 @@ export async function runStockXEnrich(
   const results = candidates;
   const effLimit = candidates.length;
 
-  const concurrency = Math.max(1, Math.min(options.concurrency ?? 3, 8));
+  const concurrency = Math.max(1, Math.min(options.concurrency ?? FIRECRAWL_MAX_CONCURRENCY, FIRECRAWL_MAX_CONCURRENCY));
   let processed = 0;
   let updated = 0;
   let rejected = 0;

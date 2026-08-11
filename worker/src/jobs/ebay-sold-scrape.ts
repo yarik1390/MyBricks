@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { fetchEbaySoldViaFirecrawl, type EbaySoldScrapeResult } from '../lib/ebay-firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
+import { FIRECRAWL_MAX_CONCURRENCY } from '../lib/firecrawl';
 import { quotaRemaining } from '../lib/api-quota';
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { recordPricingWrites } from '../lib/pricing-budget';
@@ -124,12 +125,9 @@ export async function runEbaySoldScrape(
   const results = candidates;
   const effLimit = candidates.length;
 
-  // FIRECRAWL PLAN LIMIT: the account allows only TWO concurrent scrapes. Going
-  // wider doesn't go faster — the surplus calls come straight back as 429s, and
-  // a 429 on the last live key is exactly the failure that surfaced live as "no
-  // Firecrawl key could serve the request".
-  const FIRECRAWL_MAX_CONCURRENCY = 2;
-  const concurrency = Math.max(1, Math.min(options.concurrency ?? 2, FIRECRAWL_MAX_CONCURRENCY));
+  // Plan concurrency is account-wide, so it comes from lib/firecrawl.ts rather
+  // than being restated here — a local copy is how the other jobs drifted.
+  const concurrency = Math.max(1, Math.min(options.concurrency ?? FIRECRAWL_MAX_CONCURRENCY, FIRECRAWL_MAX_CONCURRENCY));
   let updated = 0;
   let newUpdated = 0;
   let usedUpdated = 0;

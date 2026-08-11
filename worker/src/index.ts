@@ -483,7 +483,7 @@ export default {
       // freshly-cached rows aren't due again for 30 days, and no-data sets are also
       // stamped, so once the backfill is done daily volume drops to the refresh
       // rate (~eligible/30) on its own — well within the ~25k/mo token pool.
-      case '0 0,3,6,9,12,15,18,21 * * *': await run('ebay-sold-scrape', () => runEbaySoldScrape(env, { limit: 100, concurrency: 8 })); break;
+      case '0 0,3,6,9,12,15,18,21 * * *': await run('ebay-sold-scrape', () => runEbaySoldScrape(env, { limit: 16 })); break;
       // Phase-2 lean cadence (ongoing Firecrawl ~25k/mo budget): brickset is
       // mostly-static metadata (trimmed 50->30); LEGO stock is scoped to active
       // owned/wishlisted on a 14-day cycle inside the job (trimmed 100->40, it
@@ -515,7 +515,7 @@ export default {
       case '30 7 * * *': await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 })); break;
       case '30 16 * * *': await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 })); break;
       case '0 17 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
-      case '0 18 * * *': await run('stockx-enrich', () => runStockXEnrich(env, { limit: 20, concurrency: 3 })); break;
+      case '0 18 * * *': await run('stockx-enrich', () => runStockXEnrich(env, { limit: 20 })); break;
       case '0 19 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 22 * * *': await run('community-comps', () => runCommunityComps(env)); break;
       case '0 23 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;

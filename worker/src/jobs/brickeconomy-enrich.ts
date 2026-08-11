@@ -2,6 +2,7 @@ import type { Env } from '../types';
 import { fetchBrickEconomyViaFirecrawl } from '../lib/brickeconomy-firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 import { quotaRemaining } from '../lib/api-quota';
+import { FIRECRAWL_MAX_CONCURRENCY } from '../lib/firecrawl';
 import { sourceEnabled } from '../lib/source-config';
 
 /**
@@ -130,7 +131,7 @@ export async function runBrickEconomyEnrich(
   // the bootstrap drains thousands of sets across invocations without serializing
   // ~15s scrapes one-by-one. The per-scrape credit guard in firecrawlScrape is
   // the hard ceiling regardless of concurrency.
-  const concurrency = Math.max(1, Math.min(options.concurrency ?? 5, 8));
+  const concurrency = Math.max(1, Math.min(options.concurrency ?? FIRECRAWL_MAX_CONCURRENCY, FIRECRAWL_MAX_CONCURRENCY));
   for (let i = 0; i < results.length; i += concurrency) {
     const batch = results.slice(i, i + concurrency);
     const outs = await Promise.all(batch.map(async ({ set_num }) => {

@@ -218,6 +218,27 @@ describe('firecrawl key pool', () => {
     });
   });
 
+  describe('FIRECRAWL_KEY_CREDITS alignment', () => {
+    it('ignores the balance list when it is LONGER than the key list', async () => {
+      // The exact shape of removing a drained key without trimming its balance:
+      // one key left, two balances. Applying caps[0]=100 to the surviving 650k
+      // key would retire it within a hundred calls.
+      const misaligned = { ...pool, FIRECRAWL_API_KEY: '', FIRECRAWL_API_KEYS: 'fc-big',
+                           FIRECRAWL_KEY_CREDITS: '100,650000' } as any;
+      await spend(await hashFirecrawlKey('fc-big'), 150).run();
+      const picked = await pickFirecrawlKey(misaligned);
+      expect(picked).not.toBeNull();          // NOT retired by the stale 100
+      expect(picked!.key).toBe('fc-big');
+    });
+
+    it('still honours a SHORTER list, where later keys are simply unknown', async () => {
+      const partial = { ...pool, FIRECRAWL_KEY_CREDITS: '100' } as any;
+      await spend(await hashFirecrawlKey('fc-small'), 100).run();
+      const picked = await pickFirecrawlKey(partial);
+      expect(picked!.key).toBe('fc-big');      // key 0 retired at its known cap
+    });
+  });
+
   describe('admin surface', () => {
     it('reports which key is active and what is left', async () => {
       await spend(await hashFirecrawlKey('fc-small'), 100).run();

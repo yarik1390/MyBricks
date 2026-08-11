@@ -50,10 +50,26 @@ export function configuredFirecrawlKeys(env: Env): string[] {
  *  "unknown balance" — that key is then only ever retired by Firecrawl's own 402,
  *  which is the safe direction: we under-claim knowledge, never over-claim it. */
 export function configuredFirecrawlCaps(env: Env): Array<number | null> {
-  return (env.FIRECRAWL_KEY_CREDITS?.split(',') ?? []).map((raw) => {
+  const caps = (env.FIRECRAWL_KEY_CREDITS?.split(',') ?? []).map((raw) => {
     const n = Number(raw.trim());
     return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
   });
+  // MISALIGNMENT GUARD. More balances than keys means the two lists no longer
+  // line up — the way that happens in practice is removing a drained key from
+  // FIRECRAWL_API_KEY(S) without dropping its entry here. Positional alignment
+  // would then hand the departed key's balance to whichever key took its slot,
+  // so a healthy 650k key inherits a spent key's 100 and retires on its next
+  // few calls. A SHORTER list is fine and meaningful (later keys are simply
+  // "unknown"), so only the longer case is treated as untrustworthy.
+  const keys = configuredFirecrawlKeys(env);
+  if (keys.length && caps.length > keys.length) {
+    console.warn(
+      `[firecrawl-keys] FIRECRAWL_KEY_CREDITS lists ${caps.length} balances for ${keys.length} key(s)`
+      + ' — ignoring all of them rather than applying a misaligned cap. Trim the list to match the keys.',
+    );
+    return [];
+  }
+  return caps;
 }
 
 export async function hashFirecrawlKey(key: string): Promise<string> {

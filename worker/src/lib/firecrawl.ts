@@ -13,6 +13,20 @@ import {
 
 const FC_BASE = 'https://api.firecrawl.dev/v2';
 
+/**
+ * Concurrent scrapes the Firecrawl PLAN allows. Every job that scrapes must cap
+ * its wave at this — going wider does not go faster, the surplus calls come
+ * straight back as 429s, and a 429 on the last live key surfaces as "no
+ * Firecrawl key could serve the request".
+ *
+ * It lives here, next to the client, because it is a property of the ACCOUNT and
+ * not of any one job: the caps were previously set per job (eBay-sold 2,
+ * brickeconomy 5, StockX 3) with nothing keeping them honest, so fixing one lane
+ * left the others over-subscribing the same two connections. Raise this only
+ * when the plan itself is raised.
+ */
+export const FIRECRAWL_MAX_CONCURRENCY = 2;
+
 // Keys are drained IN ORDER by lib/firecrawl-keys.ts (not rotated at random as
 // they were before): the balances are one-time allotments of wildly different
 // sizes, so spreading load across them would strand a nearly-empty key forever.
