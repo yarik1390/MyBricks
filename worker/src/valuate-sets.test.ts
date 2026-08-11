@@ -15,7 +15,7 @@ const blCreds = {
 const noSources = {
   GEMINI_API_KEY: '', OPENAI_API_KEY: '', OPENROUTER_API_KEY: '',
   FIRECRAWL_API_KEY: '', FIRECRAWL_API_KEYS: '',
-  BRIGHTDATA_API_TOKEN: '', BRIGHTDATA_API_TOKENS: '', EBAY_APP_ID: '',
+  EBAY_APP_ID: '',
 };
 const OPTS = {
   scope: 'all' as const,

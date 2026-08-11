@@ -527,24 +527,6 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
     });
 
 
-    it('does not flag Bright Data when it is deliberately paused (BRIGHTDATA_SOLD_ENABLED=0)', async () => {
-      delete (env as any).BRIGHTDATA_API_TOKEN;
-      delete (env as any).BRIGHTDATA_API_TOKENS;
-      (env as any).BRIGHTDATA_SOLD_ENABLED = '0';
-      (env as any).FIRECRAWL_API_KEY = 'test-firecrawl-key';
-      try {
-        await runEbaySoldScrape(env as any, { limit: 5 });
-        const row = await db.prepare(
-          `SELECT 1 AS x FROM integration_health WHERE service='brightdata'`
-        ).first<any>();
-        expect(row).toBeNull();
-      } finally {
-        delete (env as any).FIRECRAWL_API_KEY;
-        delete (env as any).BRIGHTDATA_SOLD_ENABLED;
-      }
-    });
-
-
     it('firecrawl-reset-pool clears the exhausted/drained latch on the key pool', async () => {
       // Was handled in the /jobs/:job dispatch chain but missing from the
       // JOB_LIMITS allowlist, so every call 400'd as "Unknown job" and never
