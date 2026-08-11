@@ -1,7 +1,7 @@
 import type { Env } from '../types';
 import { fetchStockXViaFirecrawl } from '../lib/stockx';
 import { firecrawlEnabled, stockxEnabled } from '../lib/pricing-flags';
-import { quotaRemaining, reserveQuota } from '../lib/api-quota';
+import { quotaRemaining } from '../lib/api-quota';
 import { recordIntegrationHealth } from '../lib/integration-health';
 import { sourceEnabled } from '../lib/source-config';
 import { pricingWritesAllowed } from '../lib/pricing-budget';

@@ -56,8 +56,6 @@ export async function fetchStockXViaFirecrawl(
 // signal (like eBay active listings), never a primary sold value. Fails closed.
 // ---------------------------------------------------------------------------
 
-const BD_ENDPOINT = 'https://api.brightdata.com/request';
-const DEFAULT_ZONE = 'web_unlocker1';
 
 export interface StockXResult {
   status: 'ok' | 'no_data' | 'error';
