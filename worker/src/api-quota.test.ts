@@ -9,6 +9,7 @@ import {
   perSetCost,
   quotaDay,
   reserveQuota,
+  setQuotaCapOverrides,
   spendQuota,
   type PackProfile,
 } from './lib/api-quota';
@@ -28,6 +29,7 @@ const createTable = `
 `;
 
 beforeEach(async () => {
+  setQuotaCapOverrides({});
   await testEnv.DB.prepare('DROP TABLE IF EXISTS api_quota').run();
   await testEnv.DB.prepare(createTable).run();
 });
@@ -88,6 +90,13 @@ describe('reserveQuota', () => {
     expect(grants.ebay).toBe(10);
     expect((await readRow('bricklink'))?.used).toBe(24);
     expect((await readRow('ebay'))?.used).toBe(10);
+  });
+
+  it('honors an admin daily-cap override', async () => {
+    setQuotaCapOverrides({ apify: 7 });
+    const grants = await reserveQuota(testEnv, { apify: 20 });
+    expect(grants.apify).toBe(7);
+    expect(await readRow('apify')).toMatchObject({ used: 7, cap: 7 });
   });
 
   it('grants only what remains of an almost-spent budget', async () => {

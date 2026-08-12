@@ -34,6 +34,9 @@ export interface Env {
   APP_BASE_URL?: string;
   BRICKSET_API_KEY: string;
   BRICKOWL_API_KEY?: string;
+  // Apify eBay sold-comps actor. On by default once this secret is configured.
+  APIFY_API_TOKEN?: string;
+  APIFY_ENABLED?: string;
   EBAY_APP_ID?: string;
   EBAY_CLIENT_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;

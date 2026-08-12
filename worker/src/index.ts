@@ -51,6 +51,7 @@ import { runPriceChartingBulkFetch } from './jobs/pricecharting-bulk';
 import { importSets, importFigs } from './jobs/import-catalog';
 import { runBrickInsightsBackfill } from './jobs/brickinsights';
 import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
+import { runEbaySoldApifyScrape } from './jobs/ebay-sold-apify';
 import { runStockXEnrich } from './jobs/stockx-enrich';
 import { runUpcItemDbBackfill } from './jobs/upcitemdb-backfill';
 import { runLegoStockRefresh } from './jobs/lego-stock-refresh';
@@ -474,6 +475,7 @@ export default {
       // stamped, so once the backfill is done daily volume drops to the refresh
       // rate (~eligible/30) on its own — well within the ~25k/mo token pool.
       case '0 0,3,6,9,12,15,18,21 * * *': await run('ebay-sold-scrape', () => runEbaySoldScrape(env, { limit: 16 })); break;
+      case '30 21 * * SUN': await run('ebay-sold-apify', () => runEbaySoldApifyScrape(env, { limit: 20 })); break;
       // Phase-2 lean cadence (ongoing Firecrawl ~25k/mo budget): brickset is
       // mostly-static metadata (trimmed 50->30); LEGO stock is scoped to active
       // owned/wishlisted on a 14-day cycle inside the job (trimmed 100->40, it

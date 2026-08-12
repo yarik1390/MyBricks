@@ -9,3 +9,6 @@ test-results/
 playwright-report/
 android/app/google-services.json
 android/upload.jks
+
+# Hermes agent working files (plans, scratch)
+.hermes/

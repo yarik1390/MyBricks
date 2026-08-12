@@ -19,6 +19,9 @@ export const QUOTA_CAPS: Record<string, number> = {
   // reserved for organic on-demand revaluations and clock skew.
   bricklink: 4500,
   ebay: 4000,
+  // Apify eBay actor search chains. The weekly lane reserves one unit per set;
+  // keeping this modest also bounds paid actor/item spend if a cron is replayed.
+  apify: 30,
   brickeconomy: 80,
   brickset: 90,
   brickowl: 1500,
@@ -112,21 +115,24 @@ export async function reserveQuota(
 ): Promise<Record<string, number>> {
   const entries = Object.entries(wants).filter(([, n]) => Number.isFinite(n) && n > 0);
   const grants: Record<string, number> = {};
-  for (const [service, n] of entries) grants[service] = QUOTA_CAPS[service] ? 0 : n;
-  const budgeted = entries.filter(([service]) => QUOTA_CAPS[service]);
+  for (const [service, n] of entries) grants[service] = effectiveCap(service) ? 0 : n;
+  const budgeted = entries.flatMap(([service, n]) => {
+    const cap = effectiveCap(service);
+    return cap ? [[service, n, cap] as const] : [];
+  });
   if (!budgeted.length) return grants;
   const day = quotaDay();
   try {
-    await env.DB.batch(budgeted.map(([service]) => upsertRow(env, service, day, QUOTA_CAPS[service])));
+    await env.DB.batch(budgeted.map(([service, , cap]) => upsertRow(env, service, day, cap)));
     const placeholders = budgeted.map((_, i) => `?${i + 2}`).join(',');
     const { results } = await env.DB.prepare(
       `SELECT service, used, cap FROM api_quota WHERE day=?1 AND service IN (${placeholders})`
     ).bind(day, ...budgeted.map(([s]) => s)).all<{ service: string; used: number; cap: number }>();
     const rows = new Map(results.map(r => [r.service, r]));
     const updates: D1PreparedStatement[] = [];
-    for (const [service, want] of budgeted) {
+    for (const [service, want, configuredCap] of budgeted) {
       const row = rows.get(service);
-      const remaining = Math.max(0, (row?.cap ?? QUOTA_CAPS[service]) - (row?.used ?? 0));
+      const remaining = Math.max(0, (row?.cap ?? configuredCap) - (row?.used ?? 0));
       const grant = Math.min(want, remaining);
       grants[service] = grant;
       if (grant > 0) {

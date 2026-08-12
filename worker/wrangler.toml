@@ -51,6 +51,8 @@ crons = [
   "0 8 * * SUN",
   # Weekly per-user collection snapshots to R2 (self-serve restore in Settings).
   "0 5 * * SUN",
+  # Weekly batched Apify eBay sold-comps corroboration lane (20 sets/run).
+  "30 21 * * SUN",
   "0 9 * * *",
   "0 10 * * *",
   "0 11 * * *",

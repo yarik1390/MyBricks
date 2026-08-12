@@ -49,6 +49,12 @@ export function firecrawlEnabled(env: Env): boolean {
   return hasKey && resolve('firecrawl', !flagOff(env.FIRECRAWL_ENABLED));
 }
 
+// Apify eBay sold-comps actor. PREREQUISITE: APIFY_API_TOKEN. On by default once
+// configured; APIFY_ENABLED=0 is the migration-free emergency kill switch.
+export function apifyEnabled(env: Env): boolean {
+  return !!env.APIFY_API_TOKEN && !flagOff(env.APIFY_ENABLED);
+}
+
 // pricesAPI.io live retail/offers layer. PREREQUISITE: PRICESAPI_API_KEY or a
 // non-empty PRICESAPI_API_KEYS entry. OFF by default — needs an explicit opt-in
 // (PRICESAPI_ENABLED=1 or override), as each call is a precious ~30-90s cold request.

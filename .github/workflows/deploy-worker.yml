@@ -329,6 +329,7 @@ jobs:
           [ -n "${{ secrets.BRICKOWL_API_KEY }}" ]          && put BRICKOWL_API_KEY          "${{ secrets.BRICKOWL_API_KEY }}"          || true
           [ -n "${{ secrets.EBAY_APP_ID }}" ]              && put EBAY_APP_ID              "${{ secrets.EBAY_APP_ID }}"              || true
           [ -n "${{ secrets.EBAY_CLIENT_SECRET }}" ]       && put EBAY_CLIENT_SECRET       "${{ secrets.EBAY_CLIENT_SECRET }}"       || true
+          [ -n "${{ secrets.APIFY_API_TOKEN }}" ]          && put APIFY_API_TOKEN          "${{ secrets.APIFY_API_TOKEN }}"          || true
           [ -n "${{ secrets.BRICKECONOMY_API_KEY }}" ]     && put BRICKECONOMY_API_KEY     "${{ secrets.BRICKECONOMY_API_KEY }}"     || true
           [ -n "${{ secrets.GOOGLE_CLIENT_ID }}" ]         && put GOOGLE_CLIENT_ID         "${{ secrets.GOOGLE_CLIENT_ID }}"         || true
           [ -n "${{ secrets.GOOGLE_CLIENT_SECRET }}" ]     && put GOOGLE_CLIENT_SECRET     "${{ secrets.GOOGLE_CLIENT_SECRET }}"     || true
