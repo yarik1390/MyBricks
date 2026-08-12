@@ -64,7 +64,7 @@ redeploy Pages.
 ## 2. [ONCE] Create the app in Play Console
 1. Play Console → **Create app**. Name **BricksVault**, default language, **App**, **Free** (the app is free; the *subscription* is the paid part).
 2. Complete the **App content** section stubs Google requires before any release:
-   - **Privacy policy URL:** `https://brickvault-5ub.pages.dev/privacy.html`
+   - **Privacy policy URL:** `https://bricksvault.app/privacy.html`
    - **Data safety** form — answers drafted in `store/listing.md`.
    - **Content rating** questionnaire (IARC).
    - **Target audience**, **Ads** (declare none if true), **Government apps** (no).
@@ -126,7 +126,7 @@ Then in **RevenueCat → Integrations → Webhooks**:
 - **Authorization header:** the *same* value you put in `REVENUECAT_WEBHOOK_AUTH`.
 
 Push any commit (or re-run the deploy workflow) so CI rebuilds `env.js` with the
-key. Verify: open `https://brickvault-5ub.pages.dev/env.js` in a browser — you
+key. Verify: open `https://bricksvault.app/env.js` in a browser — you
 should see the `window.RC_PLAY_BILLING_KEY = 'goog_…'` line.
 
 > The Capacitor app bundles `public/`. The Android workflow injects the RevenueCat

@@ -10,7 +10,7 @@ findings block the job; Lighthouse findings remain informational.
     npm run a11y
     npm run lhci
 
-Set `A11Y_BASE=https://brickvault-5ub.pages.dev` to scan the deployed site
+Set `A11Y_BASE=https://bricksvault.app` to scan the deployed site
 instead of the checked-out frontend.
 
 ## Enable in CI

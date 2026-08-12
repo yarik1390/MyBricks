@@ -9,27 +9,26 @@ import type { Env } from '../types';
 // and any one of them missed is a dead link in somebody's inbox rather than a
 // build failure. Behind APP_BASE_URL it becomes a config change.
 //
-// The default is the Cloudflare Pages origin the app shipped on. Leaving it as
-// the fallback (rather than requiring the var) means nothing breaks if the var
-// is unset, and the legacy origin keeps working after a migration — which
-// matters because links already sent by email, and public profile links already
-// shared, point at it and cannot be recalled.
+// The default is the custom domain. APP_BASE_URL stays available as an override
+// (a staging domain, say) but should not be needed in production.
 // ---------------------------------------------------------------------------
 
-/** Origin the app originally shipped on. Kept working indefinitely. */
-export const LEGACY_APP_ORIGIN = 'https://brickvault-5ub.pages.dev';
-
-/** Cloudflare preview deployments all live under this host. */
-const PREVIEW_SUFFIX = '.brickvault-5ub.pages.dev';
+/** Canonical public domain. */
+export const DEFAULT_APP_ORIGIN = 'https://bricksvault.app';
 
 /**
- * Canonical origin for links we GENERATE (emails, push, exports). Set
- * APP_BASE_URL to move new links to a custom domain; old ones keep resolving
- * because the legacy origin stays in the CORS allowlist either way.
+ * The Cloudflare Pages origin. NOT legacy cruft: Pages always serves the project
+ * here whatever custom domain is attached, and preview deployments exist ONLY
+ * under this host — so it stays in the CORS allowlist as a live deployment
+ * surface, not for backwards compatibility.
  */
+export const PAGES_ORIGIN = 'https://brickvault-5ub.pages.dev';
+const PREVIEW_SUFFIX = '.brickvault-5ub.pages.dev';
+
+/** Canonical origin for links we GENERATE (emails, push, exports). */
 export function appBaseUrl(env: Env): string {
   const raw = (env.APP_BASE_URL ?? '').trim().replace(/\/+$/, '');
-  return /^https:\/\/[^\s/]+$/.test(raw) ? raw : LEGACY_APP_ORIGIN;
+  return /^https:\/\/[^\s/]+$/.test(raw) ? raw : DEFAULT_APP_ORIGIN;
 }
 
 /**
@@ -49,15 +48,13 @@ export function appHost(env: Env): string {
 }
 
 /**
- * Browser origins reflected for CORS: localhost/native shells, this project's
- * Pages deployments (production alias + previews) and the configured domain.
+ * Browser origins reflected for CORS: localhost/native shells, the canonical
+ * domain, and this project's Pages deployments (production alias + previews).
  *
- * BOTH the configured and the legacy origin are allowed at once, deliberately.
- * A migration that swapped one for the other would break every already-open tab
- * and every installed PWA still pointing at the old origin the moment it
- * deployed; allowing both makes the cutover a redirect rather than a hard
- * switch. (Still not `*.pages.dev` — that would reflect every Cloudflare Pages
- * tenant's origin, which the security audit called out.)
+ * The Pages origins are included because they are a real, permanent deployment
+ * surface — Cloudflare serves the project there regardless of custom domain, and
+ * previews live nowhere else. Still NOT `*.pages.dev`: that would reflect every
+ * Cloudflare tenant's origin, which the security audit called out.
  */
 export function isAllowedOrigin(origin: string, env: Env): boolean {
   return (
@@ -65,8 +62,8 @@ export function isAllowedOrigin(origin: string, env: Env): boolean {
     origin.startsWith('http://127.0.0.1:') ||
     origin === 'https://localhost' ||
     origin === 'capacitor://localhost' ||
-    origin === LEGACY_APP_ORIGIN ||
     origin === appBaseUrl(env) ||
+    origin === PAGES_ORIGIN ||
     origin.endsWith(PREVIEW_SUFFIX)
   );
 }

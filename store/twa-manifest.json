@@ -1,6 +1,6 @@
 {
   "packageId": "app.bricksvault",
-  "host": "brickvault-5ub.pages.dev",
+  "host": "bricksvault.app",
   "name": "BricksVault",
   "launcherName": "BricksVault",
   "display": "standalone",
@@ -12,9 +12,9 @@
   "navigationDividerColor": "#F5F1E8",
   "backgroundColor": "#F5F1E8",
   "startUrl": "/",
-  "iconUrl": "https://brickvault-5ub.pages.dev/icon-512.png",
-  "maskableIconUrl": "https://brickvault-5ub.pages.dev/icon-maskable-512.png",
-  "webManifestUrl": "https://brickvault-5ub.pages.dev/manifest.json",
+  "iconUrl": "https://bricksvault.app/icon-512.png",
+  "maskableIconUrl": "https://bricksvault.app/icon-maskable-512.png",
+  "webManifestUrl": "https://bricksvault.app/manifest.json",
   "fallbackType": "customtabs",
   "enableNotifications": true,
   "features": {},
@@ -31,5 +31,5 @@
   "appVersionCode": 1,
   "minSdkVersion": 21,
   "generatorApp": "bubblewrap-cli",
-  "_notes": "Generated as a starting point from public/manifest.json. The canonical way to produce/refresh this is `bubblewrap init --manifest https://brickvault-5ub.pages.dev/manifest.json`, which will also create the keystore and print the SHA-256 fingerprint you must paste into public/.well-known/assetlinks.json. If you move to a custom domain, update `host`, all *Url fields, and re-verify Digital Asset Links."
+  "_notes": "Generated as a starting point from public/manifest.json. The canonical way to produce/refresh this is `bubblewrap init --manifest https://bricksvault.app/manifest.json`, which will also create the keystore and print the SHA-256 fingerprint you must paste into public/.well-known/assetlinks.json. If you move to a custom domain, update `host`, all *Url fields, and re-verify Digital Asset Links."
 }

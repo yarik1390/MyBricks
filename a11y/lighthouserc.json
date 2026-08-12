@@ -2,8 +2,8 @@
   "ci": {
     "collect": {
       "url": [
-        "https://brickvault-5ub.pages.dev/",
-        "https://brickvault-5ub.pages.dev/#/build"
+        "https://bricksvault.app/",
+        "https://bricksvault.app/#/build"
       ],
       "numberOfRuns": 1,
       "settings": { "onlyCategories": ["accessibility"] }

@@ -1086,7 +1086,7 @@ describe('native auth helpers', () => {
       Capacitor: { isNativePlatform: () => false },
       location: { origin: 'https://localhost', pathname: '/app/' },
     };
-    assert.equal(authRedirectUrlForPlatform(nativeWin), 'https://brickvault-5ub.pages.dev/?native_oauth=1');
+    assert.equal(authRedirectUrlForPlatform(nativeWin), 'https://bricksvault.app/?native_oauth=1');
     assert.equal(authRedirectUrlForPlatform(webWin), 'https://localhost/app/');
   });
 
@@ -1116,15 +1116,15 @@ describe('native auth helpers', () => {
     );
     assert.equal(oauthHashFromCallbackUrl('app.bricksvault://wrong/callback#access_token=tok'), '');
     assert.equal(
-      oauthHashFromCallbackUrl('https://brickvault-5ub.pages.dev/#access_token=tok&refresh_token=ref'),
+      oauthHashFromCallbackUrl('https://bricksvault.app/#access_token=tok&refresh_token=ref'),
       '#access_token=tok&refresh_token=ref',
     );
     assert.equal(oauthHashFromCallbackUrl('https://example.com/#access_token=tok'), '');
     assert.equal(
-      nativeOAuthCallbackFromWebBridge('https://brickvault-5ub.pages.dev/?native_oauth=1#access_token=tok&refresh_token=ref'),
+      nativeOAuthCallbackFromWebBridge('https://bricksvault.app/?native_oauth=1#access_token=tok&refresh_token=ref'),
       'app.bricksvault://auth/callback#access_token=tok&refresh_token=ref',
     );
-    assert.equal(nativeOAuthCallbackFromWebBridge('https://brickvault-5ub.pages.dev/#access_token=tok'), '');
+    assert.equal(nativeOAuthCallbackFromWebBridge('https://bricksvault.app/#access_token=tok'), '');
   });
 });
 

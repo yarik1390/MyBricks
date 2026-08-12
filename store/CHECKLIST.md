@@ -25,7 +25,7 @@ account / Mac / decision · **[REVIEW]** drafted, review before publishing.
 - [ ] **[REVIEW]** `public/privacy.html` — confirm contact email (`support@brickvault.app` placeholder), owner name, and date.
 - [ ] **[REVIEW]** `public/terms.html` — confirm contact, governing-law section, date.
 - [x] **[DONE]** Both linked from the Me-tab footer.
-- [ ] **[YOU]** Host the privacy policy at a stable public URL (already will be `https://brickvault-5ub.pages.dev/privacy.html`) — you'll paste this into both store listings.
+- [ ] **[YOU]** Host the privacy policy at a stable public URL (already will be `https://bricksvault.app/privacy.html`) — you'll paste this into both store listings.
 - [ ] **[YOU]** Complete **Google Play Data Safety** and **Apple App Privacy** forms — answers drafted in `listing.md`.
 
 ## 3. Payments — Play Billing via RevenueCat (DECIDED)

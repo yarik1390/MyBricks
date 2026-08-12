@@ -1,4 +1,4 @@
-import { LEGACY_APP_ORIGIN } from './app-url';
+import { DEFAULT_APP_ORIGIN } from './app-url';
 export async function sendDiscordAlert(
   webhookUrl: string,
   opts: {
@@ -21,7 +21,7 @@ export async function sendDiscordAlert(
     if (opts.url) embed.url = opts.url;
     if (opts.imageUrl) embed.thumbnail = { url: opts.imageUrl };
     if (opts.fields?.length) embed.fields = opts.fields;
-    embed.footer = { text: `BricksVault · ${opts.host ?? LEGACY_APP_ORIGIN.replace(/^https:\/\//, '')}` };
+    embed.footer = { text: `BricksVault · ${opts.host ?? DEFAULT_APP_ORIGIN.replace(/^https:\/\//, '')}` };
 
     const resp = await fetch(webhookUrl, {
       method: 'POST',

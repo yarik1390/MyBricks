@@ -5,7 +5,7 @@ project on a new platform. Read this top-to-bottom once; it covers the stack,
 where everything lives, the data model, the API, how deploys work (and their
 sharp edges), and what changed recently.
 
-- **Live app (PWA):** https://brickvault-5ub.pages.dev
+- **Live app (PWA):** https://bricksvault.app
 - **Live API (Worker):** https://brickvault-api.zhydenko.workers.dev
 - **Repo:** `yarik1390/MyBricks` · working branch `claude/mybricks-lego-app-EdTPX`
 - **Cloudflare projects:** Pages project `brickvault`, Worker `brickvault-api`, D1 db `brickvault`
@@ -429,7 +429,7 @@ Both one-time bootstraps — PriceCharting per-set (`10,25,40,55`) and BrickEcon
 - **Quota + health:** wrap external calls so they spend `api_quota` and record
   `integration_health`; circuit-break on repeated failures.
 - **CORS** (`index.ts`) reflects any `*.pages.dev` + localhost origin; default
-  origin `https://brickvault-5ub.pages.dev`. Sets `X-Content-Type-Options`,
+  origin `https://bricksvault.app` (plus the Pages origin + previews). Sets `X-Content-Type-Options`,
   `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`.
 - **Cache-Control** (`index.ts`): anonymous GETs to
   `/api/{sets,themes,minifigs,rates,config}` return
@@ -590,9 +590,9 @@ chunked `IN (…)` lookups. Commits `c9f03008`, `ab613ee`, + a workflow PR.
 
 **Audit §12 follow-ups (v149)** — security + perf + code-split (commits
 `4c9f9cd`, `3d0a933`).
-- **Security:** CORS reflection scoped to this project's own Pages origins
-  (`brickvault-5ub.pages.dev` + `*.brickvault-5ub.pages.dev` previews) instead of
-  any `*.pages.dev` tenant (+ `index.test.ts` regression tests); the CSP is now
+- **Security:** CORS reflection scoped to the canonical domain plus this
+  project's own Pages origins (`brickvault-5ub.pages.dev` +
+  `*.brickvault-5ub.pages.dev` previews) instead of any `*.pages.dev` tenant (+ `index.test.ts` regression tests); the CSP is now
   delivered as an HTTP header in `public/_headers` (so `frame-ancestors` actually
   enforces), not just the `index.html` `<meta>`; removed the duplicate
   `Vary: Origin` token (`index.ts` sets `Vary: Authorization`, CORS appends `Origin`).
@@ -654,10 +654,11 @@ All seven items reported during the audit are **done**, in commits `4c9f9cd` and
    now also delivered as an HTTP response header in `public/_headers`, so
    `frame-ancestors 'none'` actually enforces (it's inert in a meta tag) and the
    policy applies before parse. Verified live (header present on the document).
-2. **Tighten CORS — done.** `index.ts` reflects only localhost and this project's
-   own Pages origins (`brickvault-5ub.pages.dev` + its
-   `*.brickvault-5ub.pages.dev` previews), not any `*.pages.dev` tenant.
-   Regression tests in `index.test.ts`.
+2. **Tighten CORS — done.** `index.ts` reflects only localhost, the canonical
+   domain (`bricksvault.app`) and this project's own Pages origins
+   (`brickvault-5ub.pages.dev` + its `*.brickvault-5ub.pages.dev` previews),
+   not any `*.pages.dev` tenant. The allowlist lives in `lib/app-url.ts`.
+   Regression tests in `index.test.ts` and `app-url.test.ts`.
 3. **Explicit column projections — done.** portfolio/build/minifigs already
    projected explicit columns; the last list-level `SELECT *`
    (`wishlist_alerts`, `routes/wishlist.ts`) now does too.

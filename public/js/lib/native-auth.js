@@ -1,6 +1,6 @@
 export const NATIVE_AUTH_CALLBACK_URL = 'app.bricksvault://auth/callback';
 export const NATIVE_AUTH_BRIDGE_PARAM = 'native_oauth';
-export const NATIVE_AUTH_APP_LINK_ORIGIN = 'https://brickvault-5ub.pages.dev';
+export const NATIVE_AUTH_APP_LINK_ORIGIN = 'https://bricksvault.app';
 
 function currentWindow(win) {
   if (win) return win;

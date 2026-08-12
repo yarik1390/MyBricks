@@ -1,4 +1,4 @@
-import { LEGACY_APP_ORIGIN } from './app-url';
+import { DEFAULT_APP_ORIGIN } from './app-url';
 import type { Env } from '../types';
 
 export async function sendAlertEmail(
@@ -36,7 +36,7 @@ export function wishlistAlertEmailHTML(
   alertType: 'drop' | 'spike' | 'retiring' | 'deal' | 'preorder' = 'drop',
   // Passed in rather than read from env so this stays a pure builder. Callers
   // hand it appBaseUrl(env); the default keeps existing call sites correct.
-  baseUrl: string = LEGACY_APP_ORIGIN,
+  baseUrl: string = DEFAULT_APP_ORIGIN,
 ): string {
   const fmt = (n: number) => `$${n.toFixed(2)}`;
   const headline = alertType === 'spike'

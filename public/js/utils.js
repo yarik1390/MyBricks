@@ -66,7 +66,7 @@ let _ratesUnavailable = false;
 // outward-facing URLs on the public site origin.
 export function publicOrigin() {
   const o = (typeof location !== "undefined" && location.origin) || "";
-  return /^https?:\/\/localhost|^capacitor:/.test(o) ? "https://brickvault-5ub.pages.dev" : o;
+  return /^https?:\/\/localhost|^capacitor:/.test(o) ? "https://bricksvault.app" : o;
 }
 
 export const ratesUnavailable = () => _ratesUnavailable;

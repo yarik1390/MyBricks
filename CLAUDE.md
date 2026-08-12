@@ -14,7 +14,7 @@ every push.
 
 Brickvault is a mobile-first PWA for LEGO collectors: log owned sets, track
 market value/ROI, get AI price forecasts, manage a wishlist with price-drop
-alerts, and share a public profile. Live: https://brickvault-5ub.pages.dev
+alerts, and share a public profile. Live: https://bricksvault.app
 
 ## Architecture
 

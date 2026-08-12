@@ -42,7 +42,7 @@ Catalog data & images from Rebrickable. Pricing from BrickLink, eBay, PriceChart
 - Play: primary **Lifestyle** or **Finance**; Apple: **Lifestyle** (secondary Finance).
 
 ## Privacy policy URL
-- `https://brickvault-5ub.pages.dev/privacy.html`
+- `https://bricksvault.app/privacy.html`
 
 ---
 

@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { WebView } from "react-native-webview";
 
-const BRICKVAULT_URL = "https://brickvault-5ub.pages.dev";
+const BRICKVAULT_URL = "https://bricksvault.app";
 
 export default function App() {
   const [canGoBack, setCanGoBack] = useState(false);

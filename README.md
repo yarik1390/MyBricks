@@ -3,7 +3,7 @@
 A mobile-first PWA where LEGO collectors log sets they own, track current market value, see ROI, get AI-powered price forecasts, and manage a wishlist with automatic price-drop alerts.
 
 ## Live App
-https://brickvault-5ub.pages.dev
+https://bricksvault.app
 
 ## Features
 - Portfolio tracking with sparkline charts and ROI

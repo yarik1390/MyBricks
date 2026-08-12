@@ -378,7 +378,7 @@ describe('BrickVault API Worker Tests', () => {
           new Request('http://localhost/api/config', { headers: { Origin: origin } }),
           env,
         );
-        expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://brickvault-5ub.pages.dev');
+        expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://bricksvault.app');
       }
     });
 
