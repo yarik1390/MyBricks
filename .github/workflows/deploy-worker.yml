@@ -362,6 +362,20 @@ jobs:
       - name: Inject Worker URL into Pages env.js
         run: |
           echo "window.WORKER_BASE = '${WORKER_URL}';" > public/env.js
+          # Keep the CSP's connect-src in step with the URL just deployed. The
+          # policy names the API host EXACTLY (it used to allow https://*.workers.dev,
+          # which permitted every Cloudflare Workers tenant and so allowed
+          # exfiltration to an attacker's own worker — the same over-broad pattern
+          # the security audit already fixed for *.pages.dev in CORS). Pinning it
+          # means a Worker URL change would otherwise silently break every API
+          # call, so substitute rather than trust the checked-in value to match.
+          for f in public/_headers public/index.html; do
+            sed -i -E "s#https://[a-z0-9-]+\\.[a-z0-9-]+\\.workers\\.dev#${WORKER_URL}#g" "$f"
+          done
+          if ! grep -q "connect-src[^;]*${WORKER_URL}" public/_headers; then
+            echo "::error::CSP connect-src does not name ${WORKER_URL} after substitution."
+            exit 1
+          fi
           # RevenueCat Google Play public SDK key (goog_…) for the Capacitor
           # Android build. It's a publishable client key, not a secret, but we
           # source it from a repo secret so it isn't hard-coded. Guarded: absent
