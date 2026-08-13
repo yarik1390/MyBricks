@@ -199,7 +199,7 @@ export const FLAG_LABEL = {
 // Services the worker /test/:service probe can check (mirrors TESTABLE_SERVICES
 // in worker/src/lib/service-tests.ts).
 export const TESTABLE = new Set([
-  'd1', 'supabase', 'rebrickable', 'brickset', 'brickinsights', 'bricklink', 'ebay',
+  'd1', 'supabase', 'rebrickable', 'brickset', 'brickinsights', 'brickowl', 'bricklink', 'ebay',
   'firecrawl', 'brickeconomy', 'pricecharting', 'pricesapi', 'brightdata',
   'openrouter', 'gemini', 'openai', 'resend', 'turnstile', 'patreon', 'push', 'stockx',
 ]);

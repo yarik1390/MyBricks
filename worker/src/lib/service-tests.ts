@@ -88,6 +88,36 @@ const PROBES: Record<string, Probe> = {
     return r.status === 200 ? ok('public API returned a rating') : err(`HTTP ${r.status}`);
   },
 
+  // Direct BrickOwl API check (lookup + price_data). Deliberately bypasses the
+  // brickOwlEnabled() flag so the probe answers "is the KEY valid and does it
+  // return prices" — enabling the source is a separate decision (flag flip).
+  async brickowl(env) {
+    if (!env.BRICKOWL_API_KEY) return configured('BRICKOWL_API_KEY not set');
+    const key = encodeURIComponent(String(env.BRICKOWL_API_KEY));
+    const lookup = await http('GET', `https://api.brickowl.com/v1/catalog/lookup?key=${key}&id=75192&type=set&id_type=brickset`);
+    if (lookup.status === 401 || lookup.status === 403) return err(`HTTP ${lookup.status}: key rejected — ${lookup.text.slice(0, 100)}`);
+    if (lookup.status === 404) return err('HTTP 404: test set 75192 not on BrickOwl');
+    if (lookup.status !== 200) return err(`HTTP ${lookup.status}: ${lookup.text.slice(0, 100)}`);
+    let boid: string | undefined;
+    try {
+      const j = JSON.parse(lookup.text) as Array<{ boid?: string }> | { boid?: string };
+      boid = (Array.isArray(j) ? j[0] : j)?.boid;
+    } catch { return err('lookup returned unparseable JSON'); }
+    if (!boid) return err('lookup OK but no boid in response');
+    const price = await http('GET', `https://api.brickowl.com/v1/catalog/price_data?key=${key}&boid=${encodeURIComponent(boid)}&currency=USD`);
+    if (price.status !== 200) return err(`price_data HTTP ${price.status}: ${price.text.slice(0, 100)}`);
+    try {
+      const j = JSON.parse(price.text) as { med_new?: number | string | null; med_used?: number | string | null; total_new?: number; total_used?: number };
+      const n = parseFloat(String(j.med_new ?? '')) || null;
+      const u = parseFloat(String(j.med_used ?? '')) || null;
+      if (n == null && u == null) return err('key valid but no median prices returned for 75192');
+      const lots = `${j.total_new ?? 0} new / ${j.total_used ?? 0} used lots`;
+      return ok(`key valid — 75192 boid ${boid}: new $${n ?? '—'}, used $${u ?? '—'} (${lots})`);
+    } catch {
+      return ok(`key valid — price_data returned ${price.text.length} chars (unparseable)`);
+    }
+  },
+
   async bricklink(env) {
     if (!env.BRICKLINK_CONSUMER_KEY) return configured('BRICKLINK_CONSUMER_KEY not set');
     try {
