@@ -21,6 +21,7 @@ import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricech
 import { importBrickLinkMinifigs } from '../jobs/import-bricklink-minifigs';
 import { getKeyPoolStatus } from '../lib/pricesapi-keys';
 import { getFirecrawlKeyPoolStatus, resetFirecrawlKeyPool } from '../lib/firecrawl-keys';
+import { getBrightDataKeyPoolStatus, resetBrightDataKeyPool } from '../lib/brightdata-keys';
 import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG, applySourceConfig } from '../lib/source-config';
 import { getFeatureFlags, saveFeatureFlags, applyFeatureFlags, FEATURE_FLAGS } from '../lib/feature-flags';
 import { runServiceTest, TESTABLE_SERVICES } from '../lib/service-tests';
@@ -744,7 +745,7 @@ app.get('/activity', async (c) => {
 });
 
 app.get('/integrations', async (c) => {
-  const [integrations, coverage, quota, ai_usage, pricesapi_pool, market_ext, firecrawl_pool] = await Promise.all([
+  const [integrations, coverage, quota, ai_usage, pricesapi_pool, market_ext, firecrawl_pool, brightdata_pool] = await Promise.all([
     getIntegrationDiagnostics(c.env),
     getDataCoverage(c.env),
     getQuotaUsage(c.env),
@@ -752,6 +753,7 @@ app.get('/integrations', async (c) => {
     getKeyPoolStatus(c.env),
     getMarketExtCoverage(c.env),
     getFirecrawlKeyPoolStatus(c.env),
+    getBrightDataKeyPoolStatus(c.env),
   ]);
   const url = new URL(c.req.url);
   return c.json({
@@ -760,6 +762,7 @@ app.get('/integrations', async (c) => {
     quota,
     ai_usage,
     firecrawl: { ...buildFirecrawlDiagnostics(c.env, quota, coverage), pool: firecrawl_pool },
+    brightdata: { pool: brightdata_pool },
     // Pricing v3 diagnostics: pricesAPI key-pool budget + PriceCharting extras
     // coverage + last bulk-import summary.
     pricesapi: {
@@ -954,6 +957,7 @@ const JOB_LIMITS: Record<string, number> = {
   // Was missing from this allowlist despite being handled below — every call
   // 400'd as "Unknown job" and never reached resetFirecrawlKeyPool().
   'firecrawl-reset-pool': 1,
+  'brightdata-reset-pool': 1,
   'ebay-sold-scrape': 20,
   'pricecharting-enrich': 25,
   // Conservative: each Firecrawl(enhanced) StockX render is ~20s, so a small
@@ -1004,6 +1008,11 @@ app.post('/jobs/:job', async (c) => {
       // Un-latch Firecrawl keys + zero their credit counters — for after a plan
       // top-up, or to recover from a 402 that turned out to be transient.
       result = await resetFirecrawlKeyPool(c.env);
+    } else if (job === 'brightdata-reset-pool') {
+      // Un-latch Bright Data tokens after a plan renewal/account fix. Only the
+      // exhaustion latch clears — monthly usage counters are preserved so an
+      // admin recovery cannot reopen paid capacity past the monthly cap.
+      result = await resetBrightDataKeyPool(c.env);
     } else if (job === 'ebay-sold-scrape') {
       // On-demand eBay-sold scrape (Bright Data / Firecrawl) for verification.
       result = await runEbaySoldScrape(c.env, { limit });

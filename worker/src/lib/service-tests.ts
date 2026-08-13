@@ -5,6 +5,7 @@ import { configuredFirecrawlKeys, isCreditExhaustion } from './firecrawl-keys';
 import { firecrawlEnabled } from './pricing-flags';
 import { fetchStockXViaFirecrawl } from './stockx';
 import { configuredKeys as pricesApiKeys } from './pricesapi-keys';
+import { configuredBrightDataTokens, brightDataEnabled } from './brightdata-keys';
 
 // ---------------------------------------------------------------------------
 // On-demand per-service health probes for the admin console. Each probe is
@@ -228,6 +229,17 @@ const PROBES: Record<string, Probe> = {
   },
   async push(env) {
     return env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY ? ok('VAPID keys configured') : configured('VAPID keys not set');
+  },
+  // Bright Data Web Unlocker: proves at least one live token and a real unlock
+  // round-trip on a lightweight target. Spends one token credit.
+  async brightdata(env) {
+    if (!brightDataEnabled(env)) return configured('Bright Data tokens not configured');
+    const { brightDataUnlock } = await import('./brightdata');
+    const html = await brightDataUnlock('https://example.com/', env, { timeoutMs: 15_000 });
+    if (html && /example/i.test(html.slice(0, 500))) {
+      return ok(`unlock OK (${configuredBrightDataTokens(env).length} token(s) configured)`);
+    }
+    return err('unlocker returned no usable page');
   },
 };
 

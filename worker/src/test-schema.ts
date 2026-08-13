@@ -217,6 +217,15 @@ export const TABLE_DDL: Record<string, string> = {
   last_used_at TEXT,
   updated_at TEXT
 )`,
+  brightdata_keys: `CREATE TABLE IF NOT EXISTS brightdata_keys (
+  key_hash TEXT PRIMARY KEY,
+  used INTEGER NOT NULL DEFAULT 0,
+  cap INTEGER NOT NULL DEFAULT 4900,
+  period_month TEXT,
+  exhausted_at TEXT,
+  last_used_at TEXT,
+  updated_at TEXT
+)`,
   bricklink_minifigs: `CREATE TABLE IF NOT EXISTS bricklink_minifigs (
   bl_id TEXT PRIMARY KEY,
   name TEXT,

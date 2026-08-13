@@ -1346,6 +1346,18 @@
     ]
   },
   {
+    "text": "Bright Data Web Unlocker",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Bright Data Web Unlocker — raw page transport for BrickEconomy, Brickset, and LEGO stock.",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "Browse catalog",
     "files": [
       "views/build.js",
@@ -7102,6 +7114,12 @@
     "text": "Rarity ↓",
     "files": [
       "runtime-exact"
+    ]
+  },
+  {
+    "text": "Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.",
+    "files": [
+      "views/me-admin-config.js"
     ]
   },
   {

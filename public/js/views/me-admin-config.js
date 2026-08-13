@@ -163,13 +163,14 @@ export const SOURCE_META = {
   pricesapi: ['pricesAPI.io', 'Optional retail offer signal; keep disabled unless keys and quota are ready.'],
   amazon: ['Amazon Creators API', 'Live Amazon offers for the buy slot. KV-only (24h) per Associates terms; never a valuation input — weight stays 0.'],
   firecrawl: ['Firecrawl', 'Scraping runtime for structured market enrichment.'],
+  brightdata: ['Bright Data Web Unlocker', 'Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.'],
 };
 
 export const PROVIDER_GROUPS = [
   ['Core', ['d1', 'supabase', 'worker', 'pages']],
   ['Catalog', ['rebrickable', 'brickset', 'upc', 'upcitemdb']],
   ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'brickowl', 'pricecharting', 'pricesapi', 'amazon']],
-  ['Scraping', ['firecrawl', 'stockx']],
+  ['Scraping', ['firecrawl', 'brightdata', 'stockx']],
   ['AI', ['gemini', 'openai', 'openrouter', 'byok']],
   ['Notifications', ['resend', 'push', 'vapid', 'discord']],
   ['Sync', ['google']],
@@ -199,13 +200,13 @@ export const FLAG_LABEL = {
 // in worker/src/lib/service-tests.ts).
 export const TESTABLE = new Set([
   'd1', 'supabase', 'rebrickable', 'brickset', 'brickinsights', 'bricklink', 'ebay',
-  'firecrawl', 'brickeconomy', 'pricecharting', 'pricesapi',
+  'firecrawl', 'brickeconomy', 'pricecharting', 'pricesapi', 'brightdata',
   'openrouter', 'gemini', 'openai', 'resend', 'turnstile', 'patreon', 'push', 'stockx',
 ]);
 
 // Pricing sources with weight/cap/refresh tuning (worker DEFAULT_SOURCE_CONFIG).
 export const TUNABLE_SOURCES = new Set([
-  'bricklink', 'ebay', 'brickeconomy', 'brickowl', 'pricecharting', 'pricesapi', 'firecrawl',
+  'bricklink', 'ebay', 'brickeconomy', 'brickowl', 'pricecharting', 'pricesapi', 'firecrawl', 'brightdata',
 ]);
 
 // Short "what it does" copy for services not already described in SOURCE_META.
@@ -216,6 +217,7 @@ export const SERVICE_DESC = {
   pages: 'Static asset + PWA hosting on Cloudflare Pages.',
   rebrickable: 'Master LEGO set and minifig catalog import.',
   brickset: 'Set metadata, retail price, and barcode enrichment.',
+  brightdata: 'Bright Data Web Unlocker — raw page transport for BrickEconomy, Brickset, and LEGO stock.',
   upc: 'Barcode backfill so sets can be scanned.',
   upcitemdb: 'Fallback barcode lookup provider.',
   brickinsights: 'Aggregated community set ratings shown on set pages.',

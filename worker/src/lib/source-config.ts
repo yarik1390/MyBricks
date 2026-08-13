@@ -25,7 +25,7 @@ export interface SourceTuning {
 
 export type SourceName =
   | 'bricklink' | 'ebay' | 'brickeconomy' | 'brickowl'
-  | 'pricecharting' | 'pricesapi' | 'firecrawl' | 'apify' | 'amazon' | 'stockx';
+  | 'pricecharting' | 'pricesapi' | 'firecrawl' | 'brightdata' | 'apify' | 'amazon' | 'stockx';
 
 export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   bricklink:     { enabled: true,  weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
@@ -40,6 +40,10 @@ export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   pricecharting: { enabled: true,  weight: 1.0,  dailyCap: 500,  refreshDays: 14 },
   pricesapi:     { enabled: false, weight: 1.0,  dailyCap: 60,   refreshDays: 7 },
   firecrawl:     { enabled: true,  weight: 1.0,  dailyCap: 2000, refreshDays: 14 },
+  // Bright Data Web Unlocker: raw-HTML transport (primary lane) for BrickEconomy,
+  // Brickset, and LEGO stock. The daily cap counts one request per unlocker call;
+  // the monthly safety ledger (brightdata_keys) is the real ceiling.
+  brightdata:    { enabled: true,  weight: 1.0,  dailyCap: 300,  refreshDays: 7 },
   // Alternate eBay sold-comps transport. It writes the existing eBay fields, so
   // weight is operational metadata rather than a separate blend contribution.
   apify:         { enabled: true,  weight: 1.0,  dailyCap: 30,   refreshDays: 30 },

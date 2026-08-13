@@ -46,6 +46,13 @@ export interface Env {
   BRICKLINK_TOKEN: string;
   BRICKLINK_TOKEN_SECRET: string;
   BRICKECONOMY_API_KEY?: string;
+  // Bright Data Web Unlocker token pool. Tokens are Worker secrets; only hashes
+  // and monthly call counts are persisted in D1. One unlock request = one credit.
+  BRIGHTDATA_API_TOKEN?: string;
+  BRIGHTDATA_API_TOKENS?: string;
+  BRIGHTDATA_ZONE?: string;
+  /** Optional lower test/operator cap; production is always clamped to <=4900. */
+  BRIGHTDATA_KEY_CAP?: string;
   /** Days before a set that HAS BrickEconomy data is re-scraped (default 7).
    *  This is the Firecrawl-credit governor for brickeconomy-enrich — raising it
    *  cuts the burn proportionally. Sets BrickEconomy has no data for ignore it

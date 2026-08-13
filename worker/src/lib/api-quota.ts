@@ -41,6 +41,10 @@ export const QUOTA_CAPS: Record<string, number> = {
   // ~1,400/day of steady enrich + minifig traffic. At 2,000 the two would have
   // contended and the loser would silently skip its run.
   firecrawl: 4000,
+  // Bright Data Web Unlocker daily request ceiling. Monthly per-key safety is
+  // the real meter (brightdata_keys); this bounds a runaway day on top of it.
+  // 6 keys × 5k/mo ≈ 1,000/day sustainable, so 300 is conservative headroom.
+  brightdata: 300,
   // pricesAPI.io daily ceiling. Each cold call is a precious unit against a
   // ~1000/month-per-key pooled budget, so keep the daily spend modest; the
   // per-key pool (pricesapi_keys) is the authoritative monthly meter.

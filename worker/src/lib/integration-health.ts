@@ -22,6 +22,7 @@ export type IntegrationName =
   | 'brickinsights'
   | 'upcitemdb'
   | 'firecrawl'
+  | 'brightdata'
   | 'pricecharting'
   | 'pricesapi'
   | 'amazon'
@@ -256,6 +257,15 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['BrickEconomy valuation + forecasts', 'lego.com stock/retirement checks', 'eBay sold comps (structured extraction)', 'Brickset page enrichment'],
     notes: 'Web-scraping engine (handles JS rendering + bot-protection). Now the BrickEconomy data source (replaces the paid API), plus lego.com stock, eBay sold comps, and Brickset enrichment. Metered in CREDITS: 1 per basic/product scrape, 5 per JSON LLM extract. Daily ceiling is env-tunable via FIRECRAWL_DAILY_CREDITS (default 2000/day).',
     recommended_action: 'Add FIRECRAWL_API_KEY as a Worker/Actions secret. Raise FIRECRAWL_DAILY_CREDITS temporarily for the one-time catalog bootstrap, then reset.',
+  },
+  brightdata: {
+    label: 'Bright Data Web Unlocker',
+    configured: (env) => !!env.BRIGHTDATA_API_TOKEN?.trim()
+      || !!env.BRIGHTDATA_API_TOKENS?.split(',').some((token) => token.trim()),
+    required_secrets: ['BRIGHTDATA_API_TOKENS'],
+    used_by: ['BrickEconomy valuation + forecasts', 'Brickset page enrichment', 'lego.com stock/retirement checks'],
+    notes: 'Primary raw-HTML lane with deterministic parsers. Tokens rotate by least monthly usage; D1 stores hashes only and caps each token at 4,900 calls/month. Firecrawl remains the rich fallback.',
+    recommended_action: 'Configure BRIGHTDATA_API_TOKENS as comma-separated Worker secrets and optionally BRIGHTDATA_ZONE.',
   },
   pricecharting: {
     label: 'PriceCharting',

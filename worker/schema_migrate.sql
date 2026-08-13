@@ -642,4 +642,16 @@ ALTER TABLE set_market_ext ADD COLUMN stockx_cached_at TEXT;
 ALTER TABLE set_market_ext ADD COLUMN ebay_sold_attempted_at TEXT;
 ALTER TABLE set_market_ext ADD COLUMN ebay_used_attempted_at TEXT;
 ALTER TABLE set_market_ext ADD COLUMN pc_attempted_at TEXT;
+
+-- Bright Data Web Unlocker monthly request-safety ledger (SHA-256 hashes only).
+CREATE TABLE IF NOT EXISTS brightdata_keys (
+  key_hash TEXT PRIMARY KEY,
+  used INTEGER NOT NULL DEFAULT 0,
+  cap INTEGER NOT NULL DEFAULT 4900,
+  period_month TEXT,
+  exhausted_at TEXT,
+  last_used_at TEXT,
+  updated_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS set_description_i18n (set_num TEXT NOT NULL, lang TEXT NOT NULL, description TEXT NOT NULL, source_hash TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (set_num, lang));

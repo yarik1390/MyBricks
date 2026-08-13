@@ -1,6 +1,9 @@
 import type { Env } from '../types';
 import { firecrawlScrape } from './firecrawl';
 import { firecrawlEnabled } from './pricing-flags';
+import { sourceEnabled } from './source-config';
+import { brightDataUnlock } from './brightdata';
+import { parseBrickEconomyHtml } from './brightdata-parsers';
 
 /**
  * BrickEconomy set valuation via Firecrawl structured extraction — a drop-in,
@@ -77,16 +80,27 @@ export function beDetailsFromRow(row: Record<string, unknown>): BrickEconomyScra
   return stripRetailEcho(out);
 }
 
-export async function fetchBrickEconomyViaFirecrawl(
+export async function fetchBrickEconomy(
   setNum: string,
   env: Env,
 ): Promise<BrickEconomyScrape | null> {
-  if (!firecrawlEnabled(env)) return null;
   const formatted = setNum.includes('-') ? setNum : `${setNum}-1`;
-  // BrickEconomy set pages live at /set/{setnum}/{slug}. The slug is purely
-  // decorative — the site resolves on the set number alone — but the bare
-  // /set/{setnum} path 404s, so append a placeholder "x" slug to land the page.
+  // BrickEconomy set pages live at /set/{setnum}/{slug}. The slug is decorative.
   const url = `https://www.brickeconomy.com/set/${encodeURIComponent(formatted)}/x`;
+
+  // Bright Data raw HTML is primary: deterministic parsing costs one monthly
+  // unlock credit instead of five Firecrawl credits. A parse/fetch miss falls
+  // through to Firecrawl's richer structured extraction. Both lanes honor the
+  // admin source-tuning kill switches (sourceEnabled) — disabling a provider
+  // in the console stops its use here too.
+  if (await sourceEnabled(env, 'brightdata')) {
+    const html = await brightDataUnlock(url, env, { timeoutMs: 25_000 });
+    if (html) {
+      const parsed = parseBrickEconomyHtml(html);
+      if (parsed) return stripRetailEcho(parsed);
+    }
+  }
+  if (!(await sourceEnabled(env, 'firecrawl')) || !firecrawlEnabled(env)) return null;
 
   const result = await firecrawlScrape<Partial<BrickEconomyScrape>>(
     {

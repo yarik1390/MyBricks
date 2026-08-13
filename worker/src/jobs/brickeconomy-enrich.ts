@@ -1,9 +1,10 @@
 import type { Env } from '../types';
-import { fetchBrickEconomyViaFirecrawl } from '../lib/brickeconomy-firecrawl';
+import { fetchBrickEconomy } from '../lib/brickeconomy-firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 import { quotaRemaining } from '../lib/api-quota';
 import { FIRECRAWL_MAX_CONCURRENCY } from '../lib/firecrawl';
 import { sourceEnabled } from '../lib/source-config';
+import { brightDataEnabled } from '../lib/brightdata-keys';
 
 /**
  * Populate BrickEconomy valuation data via Firecrawl structured extraction — a
@@ -30,11 +31,10 @@ export async function runBrickEconomyEnrich(
   if (!(await sourceEnabled(env, 'brickeconomy'))) {
     return { processed: 0, updated: 0, limit: 0, skipped: 'brickeconomy disabled in source tuning' };
   }
-  if (!(await sourceEnabled(env, 'firecrawl'))) {
-    return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl disabled in source tuning' };
-  }
-  if (!firecrawlEnabled(env)) {
-    return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl disabled or no key' };
+  const hasBrightData = (await sourceEnabled(env, 'brightdata')) && brightDataEnabled(env);
+  const hasFirecrawl = await sourceEnabled(env, 'firecrawl') && firecrawlEnabled(env);
+  if (!hasBrightData && !hasFirecrawl) {
+    return { processed: 0, updated: 0, limit: 0, skipped: 'Bright Data and Firecrawl disabled or unconfigured' };
   }
 
   const requestedLimit = Number(options.limit);
@@ -65,13 +65,16 @@ export async function runBrickEconomyEnrich(
   const reserve = Math.max(0, Number(env.FIRECRAWL_RESERVE_CREDITS ?? 3000) || 0);
   const remaining = await quotaRemaining(env, 'firecrawl');
   const spendable = Number.isFinite(remaining) ? remaining - reserve : remaining;
-  if (spendable < 5) {
+  if (!hasBrightData && spendable < 5) {
     return {
       processed: 0, updated: 0, limit: 0,
       skipped: `firecrawl budget floor reached (${remaining} left, ${reserve} reserved for other jobs)`,
     };
   }
-  const effLimit = Math.min(limit, Math.floor(spendable / 5));
+  // Bright Data requests use their own monthly per-key ledger, so Firecrawl's
+  // daily balance must not suppress primary-lane work. Its client remains the
+  // hard fallback guard if a raw fetch or deterministic parse fails.
+  const effLimit = hasBrightData ? limit : Math.min(limit, Math.floor(spendable / 5));
 
   // Select by FRESHNESS (never-scraped or >90d stale), NOT by "be_value_new IS
   // NULL". A scrape that yields no usable value still stamps be_cached_at (see
@@ -136,7 +139,7 @@ export async function runBrickEconomyEnrich(
     const batch = results.slice(i, i + concurrency);
     const outs = await Promise.all(batch.map(async ({ set_num }) => {
       try {
-        return { set_num, scrape: await fetchBrickEconomyViaFirecrawl(set_num, env), failed: false };
+        return { set_num, scrape: await fetchBrickEconomy(set_num, env), failed: false };
       } catch {
         return { set_num, scrape: null, failed: true };
       }

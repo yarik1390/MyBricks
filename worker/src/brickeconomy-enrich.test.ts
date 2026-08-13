@@ -5,13 +5,13 @@ import { applyTestTables } from './test-schema';
 
 // Mock the Firecrawl scrape so the job logic (sparse update, miss-stamping,
 // counts) is tested without any real Firecrawl HTTP / credit spend.
-vi.mock('./lib/brickeconomy-firecrawl', () => ({ fetchBrickEconomyViaFirecrawl: vi.fn() }));
-import { fetchBrickEconomyViaFirecrawl } from './lib/brickeconomy-firecrawl';
+vi.mock('./lib/brickeconomy-firecrawl', () => ({ fetchBrickEconomy: vi.fn() }));
+import { fetchBrickEconomy } from './lib/brickeconomy-firecrawl';
 import { runBrickEconomyEnrich } from './jobs/brickeconomy-enrich';
 import { QUOTA_CAPS } from './lib/api-quota';
 
 const db = (env as any).DB as D1Database;
-const mockScrape = vi.mocked(fetchBrickEconomyViaFirecrawl);
+const mockScrape = vi.mocked(fetchBrickEconomy);
 const today = new Date().toISOString().slice(0, 10);
 const withKey = { ...env, FIRECRAWL_API_KEY: 'fc-key', FIRECRAWL_DAILY_CREDITS: '' } as any;
 
@@ -23,7 +23,7 @@ describe('runBrickEconomyEnrich', () => {
 
   it('skips when Firecrawl is not configured', async () => {
     const r = await runBrickEconomyEnrich({ ...env, FIRECRAWL_API_KEY: '', FIRECRAWL_API_KEYS: '' } as any);
-    expect(r.skipped).toMatch(/firecrawl disabled or no key/);
+    expect(r.skipped).toMatch(/Bright Data and Firecrawl disabled or unconfigured/);
     expect(mockScrape).not.toHaveBeenCalled();
   });
 

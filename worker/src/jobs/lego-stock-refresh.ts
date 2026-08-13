@@ -2,6 +2,8 @@ import type { Env } from '../types';
 import { checkLegoStock } from '../lib/lego-stock';
 import { quotaRemaining } from '../lib/api-quota';
 import { firecrawlEnabled } from '../lib/pricing-flags';
+import { sourceEnabled } from '../lib/source-config';
+import { brightDataEnabled } from '../lib/brightdata-keys';
 
 /**
  * Proactively refresh LEGO.com stock + retirement status. Phase-2 lean scope:
@@ -15,8 +17,10 @@ import { firecrawlEnabled } from '../lib/pricing-flags';
  * and (when Firecrawl returns a price) retail_price if the fetched value differs.
  */
 export async function runLegoStockRefresh(env: Env, options: { limit?: number } = {}) {
-  if (!firecrawlEnabled(env)) {
-    return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl disabled or no key' };
+  const hasBrightData = (await sourceEnabled(env, 'brightdata')) && brightDataEnabled(env);
+  const hasFirecrawl = (await sourceEnabled(env, 'firecrawl')) && firecrawlEnabled(env);
+  if (!hasBrightData && !hasFirecrawl) {
+    return { processed: 0, updated: 0, limit: 0, skipped: 'Bright Data and Firecrawl disabled or unconfigured' };
   }
 
   const requestedLimit = Number(options.limit);
@@ -29,8 +33,8 @@ export async function runLegoStockRefresh(env: Env, options: { limit?: number } 
   // front here would double-count against that guard and make the admin Firecrawl
   // credits panel over-report.
   const remaining = await quotaRemaining(env, 'firecrawl');
-  if (remaining < 5) return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
-  const effLimit = Math.min(limit, Math.floor(remaining / 5));
+  if (!hasBrightData && remaining < 5) return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
+  const effLimit = hasBrightData ? limit : Math.min(limit, Math.floor(remaining / 5));
 
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num

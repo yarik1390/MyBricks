@@ -1,7 +1,11 @@
 import type { Env } from '../types';
 import { firecrawlScrape } from '../lib/firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
+import { sourceEnabled } from '../lib/source-config';
 import { quotaRemaining } from '../lib/api-quota';
+import { brightDataUnlock } from '../lib/brightdata';
+import { brightDataEnabled } from '../lib/brightdata-keys';
+import { parseBricksetHtml, type BricksetScrape } from '../lib/brightdata-parsers';
 
 const BRICKSET_SCHEMA = {
   type: 'object',
@@ -55,8 +59,10 @@ const plausibleDate = (v: unknown): string | null => {
  * owned/wishlisted sets ahead of the general catalog.
  */
 export async function runBricksetEnrich(env: Env, options: { limit?: number } = {}) {
-  if (!firecrawlEnabled(env)) {
-    return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl disabled or no key' };
+  const hasBrightData = (await sourceEnabled(env, 'brightdata')) && brightDataEnabled(env);
+  const hasFirecrawl = (await sourceEnabled(env, 'firecrawl')) && firecrawlEnabled(env);
+  if (!hasBrightData && !hasFirecrawl) {
+    return { processed: 0, updated: 0, limit: 0, skipped: 'Bright Data and Firecrawl disabled or unconfigured' };
   }
 
   const requestedLimit = Number(options.limit);
@@ -67,8 +73,8 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
   // Size to remaining daily credits WITHOUT reserving — the per-scrape guard in
   // firecrawlScrape is the sole real-credit meter (worst-case 5cr/json divisor).
   const remaining = await quotaRemaining(env, 'firecrawl');
-  if (remaining < 5) return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
-  const effLimit = Math.min(limit, Math.floor(remaining / 5));
+  if (!hasBrightData && remaining < 5) return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
+  const effLimit = hasBrightData ? limit : Math.min(limit, Math.floor(remaining / 5));
 
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num, ls.year, ls.brickset_enriched_at
@@ -103,7 +109,7 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
     // extract directly; changed/new/removed/probe-failure all fall through to a
     // full extract. (Only applied here — BrickEconomy values, LEGO stock and eBay
     // listings change between scrapes, so a probe there would just add cost.)
-    if (brickset_enriched_at) {
+    if (!hasBrightData && hasFirecrawl && brickset_enriched_at) {
       const probe = await firecrawlScrape<{ changeTracking?: { changeStatus?: string } }>(
         { url, formats: ['markdown', 'changeTracking'], timeoutMs: 20_000 },
         env,
@@ -117,7 +123,13 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
       }
     }
 
-    const result = await firecrawlScrape<{
+    let data: BricksetScrape | null = null;
+    if (hasBrightData) {
+      const html = await brightDataUnlock(url, env, { timeoutMs: 20_000 });
+      if (html) data = parseBricksetHtml(html);
+    }
+
+    const result = (data || !hasFirecrawl) ? null : await firecrawlScrape<{
       msrp_usd?: number | null;
       launch_date?: string | null;
       exit_date?: string | null;
@@ -148,13 +160,13 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
       env,
     );
 
-    if (!result) {
+    if (!data && !result) {
       // A null result is a provider/network failure, not verified no-data.
       // Leave freshness untouched so the next run can retry after recovery.
       continue;
     }
 
-    const d = result.data;
+    const d = data ?? result!.data;
 
     // Build a sparse SET clause — only write non-null values to preserve any
     // existing data from the Brickset API path.

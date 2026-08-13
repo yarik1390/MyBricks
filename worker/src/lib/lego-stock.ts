@@ -2,6 +2,9 @@ import type { Env } from '../types';
 import { fetchWithRetry } from './http';
 import { firecrawlScrape } from './firecrawl';
 import { firecrawlEnabled } from './pricing-flags';
+import { sourceEnabled } from './source-config';
+import { brightDataUnlock } from './brightdata';
+import { parseLegoStockHtml } from './brightdata-parsers';
 
 export interface LegoStockResult {
   in_stock: boolean | null;
@@ -118,7 +121,19 @@ async function checkLegoStockFallback(setNum: string): Promise<LegoStockResult |
  * leave the set unchecked.
  */
 export async function checkLegoStock(setNum: string, env?: Env): Promise<LegoStockResult | null> {
-  if (env && firecrawlEnabled(env)) {
+  // Both lanes honor the admin source-tuning kill switches: disabling a
+  // provider in the console stops its use here (not just in the job selector).
+  if (env && (await sourceEnabled(env, 'brightdata'))) {
+    const num = setNum.replace(/-\d+$/, '');
+    const html = await brightDataUnlock(`https://www.lego.com/en-us/product/${num}`, env, { timeoutMs: 25_000 });
+    if (html) {
+      // Pass the numeric set id so the parser scopes JSON-LD/state to THIS
+      // product — recommendation blocks for other sets must never be persisted.
+      const parsed = parseLegoStockHtml(html, num);
+      if (parsed) return parsed;
+    }
+  }
+  if (env && (await sourceEnabled(env, 'firecrawl')) && firecrawlEnabled(env)) {
     const viaFirecrawl = await checkLegoStockViaFirecrawl(setNum, env);
     if (viaFirecrawl) return viaFirecrawl;
     // Firecrawl returned null (runtime failure / credit ceiling) — try the free
