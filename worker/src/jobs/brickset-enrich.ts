@@ -6,6 +6,7 @@ import { quotaRemaining } from '../lib/api-quota';
 import { brightDataUnlock } from '../lib/brightdata';
 import { brightDataEnabled } from '../lib/brightdata-keys';
 import { parseBricksetHtml, type BricksetScrape } from '../lib/brightdata-parsers';
+import { scrapingAntEnabled, scrapingAntFetchHtml } from '../lib/scrapingant';
 
 const BRICKSET_SCHEMA = {
   type: 'object',
@@ -59,10 +60,11 @@ const plausibleDate = (v: unknown): string | null => {
  * owned/wishlisted sets ahead of the general catalog.
  */
 export async function runBricksetEnrich(env: Env, options: { limit?: number } = {}) {
+  const hasScrapingAnt = (await sourceEnabled(env, 'scrapingant')) && scrapingAntEnabled(env);
   const hasBrightData = (await sourceEnabled(env, 'brightdata')) && brightDataEnabled(env);
   const hasFirecrawl = (await sourceEnabled(env, 'firecrawl')) && firecrawlEnabled(env);
-  if (!hasBrightData && !hasFirecrawl) {
-    return { processed: 0, updated: 0, limit: 0, skipped: 'Bright Data and Firecrawl disabled or unconfigured' };
+  if (!hasScrapingAnt && !hasBrightData && !hasFirecrawl) {
+    return { processed: 0, updated: 0, limit: 0, skipped: 'ScrapingAnt, Bright Data, and Firecrawl disabled or unconfigured' };
   }
 
   const requestedLimit = Number(options.limit);
@@ -73,8 +75,8 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
   // Size to remaining daily credits WITHOUT reserving — the per-scrape guard in
   // firecrawlScrape is the sole real-credit meter (worst-case 5cr/json divisor).
   const remaining = await quotaRemaining(env, 'firecrawl');
-  if (!hasBrightData && remaining < 5) return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
-  const effLimit = hasBrightData ? limit : Math.min(limit, Math.floor(remaining / 5));
+  if (!hasScrapingAnt && !hasBrightData && remaining < 5) return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
+  const effLimit = (hasScrapingAnt || hasBrightData) ? limit : Math.min(limit, Math.floor(remaining / 5));
 
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num, ls.year, ls.brickset_enriched_at
@@ -109,7 +111,7 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
     // extract directly; changed/new/removed/probe-failure all fall through to a
     // full extract. (Only applied here — BrickEconomy values, LEGO stock and eBay
     // listings change between scrapes, so a probe there would just add cost.)
-    if (!hasBrightData && hasFirecrawl && brickset_enriched_at) {
+    if (!hasScrapingAnt && !hasBrightData && hasFirecrawl && brickset_enriched_at) {
       const probe = await firecrawlScrape<{ changeTracking?: { changeStatus?: string } }>(
         { url, formats: ['markdown', 'changeTracking'], timeoutMs: 20_000 },
         env,
@@ -124,7 +126,11 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
     }
 
     let data: BricksetScrape | null = null;
-    if (hasBrightData) {
+    if (hasScrapingAnt) {
+      const html = await scrapingAntFetchHtml(url, env, { timeoutMs: 20_000 });
+      if (html) data = parseBricksetHtml(html);
+    }
+    if (!data && hasBrightData) {
       const html = await brightDataUnlock(url, env, { timeoutMs: 20_000 });
       if (html) data = parseBricksetHtml(html);
     }

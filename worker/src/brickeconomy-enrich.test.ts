@@ -23,7 +23,7 @@ describe('runBrickEconomyEnrich', () => {
 
   it('skips when Firecrawl is not configured', async () => {
     const r = await runBrickEconomyEnrich({ ...env, FIRECRAWL_API_KEY: '', FIRECRAWL_API_KEYS: '' } as any);
-    expect(r.skipped).toMatch(/Bright Data and Firecrawl disabled or unconfigured/);
+    expect(r.skipped).toMatch(/ScrapingAnt, Bright Data, and Firecrawl disabled or unconfigured/);
     expect(mockScrape).not.toHaveBeenCalled();
   });
 

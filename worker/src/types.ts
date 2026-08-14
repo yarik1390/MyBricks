@@ -46,6 +46,13 @@ export interface Env {
   BRICKLINK_TOKEN: string;
   BRICKLINK_TOKEN_SECRET: string;
   BRICKECONOMY_API_KEY?: string;
+  // ScrapingAnt raw-HTML transport for plain Brickset, BrickEconomy, and LEGO
+  // product pages. Keys are Worker secrets; only hashes and monthly call counts
+  // are persisted in D1. The plural secret is a comma-separated rotation pool.
+  SCRAPINGANT_API_KEY?: string;
+  SCRAPINGANT_API_KEYS?: string;
+  /** Optional lower test/operator cap; production is always clamped to <=9800. */
+  SCRAPINGANT_KEY_CAP?: string;
   // Bright Data Web Unlocker token pool. Tokens are Worker secrets; only hashes
   // and monthly call counts are persisted in D1. One unlock request = one credit.
   BRIGHTDATA_API_TOKEN?: string;

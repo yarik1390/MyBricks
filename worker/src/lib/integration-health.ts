@@ -22,6 +22,7 @@ export type IntegrationName =
   | 'brickinsights'
   | 'upcitemdb'
   | 'firecrawl'
+  | 'scrapingant'
   | 'brightdata'
   | 'pricecharting'
   | 'pricesapi'
@@ -257,6 +258,14 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['BrickEconomy valuation + forecasts', 'lego.com stock/retirement checks', 'eBay sold comps (structured extraction)', 'Brickset page enrichment'],
     notes: 'Web-scraping engine (handles JS rendering + bot-protection). Now the BrickEconomy data source (replaces the paid API), plus lego.com stock, eBay sold comps, and Brickset enrichment. Metered in CREDITS: 1 per basic/product scrape, 5 per JSON LLM extract. Daily ceiling is env-tunable via FIRECRAWL_DAILY_CREDITS (default 2000/day).',
     recommended_action: 'Add FIRECRAWL_API_KEY as a Worker/Actions secret. Raise FIRECRAWL_DAILY_CREDITS temporarily for the one-time catalog bootstrap, then reset.',
+  },
+  scrapingant: {
+    label: 'ScrapingAnt',
+    configured: (env) => !!env.SCRAPINGANT_API_KEY?.trim(),
+    required_secrets: ['SCRAPINGANT_API_KEY'],
+    used_by: ['BrickEconomy valuation + forecasts', 'Brickset page enrichment', 'lego.com stock/retirement checks'],
+    notes: 'First-choice raw-HTML lane for plain pages only. The client enforces browser=false, datacenter proxying, bounded timeouts, and a fail-closed 250-credit daily cap. It is never used for eBay.',
+    recommended_action: 'Add SCRAPINGANT_API_KEY as a Cloudflare Worker secret. Keep the source daily cap at or below 250 for the free 10k-credit monthly plan.',
   },
   brightdata: {
     label: 'Bright Data Web Unlocker',

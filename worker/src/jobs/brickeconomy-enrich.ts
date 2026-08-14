@@ -5,6 +5,7 @@ import { quotaRemaining } from '../lib/api-quota';
 import { FIRECRAWL_MAX_CONCURRENCY } from '../lib/firecrawl';
 import { sourceEnabled } from '../lib/source-config';
 import { brightDataEnabled } from '../lib/brightdata-keys';
+import { scrapingAntEnabled } from '../lib/scrapingant';
 
 /**
  * Populate BrickEconomy valuation data via Firecrawl structured extraction — a
@@ -31,10 +32,11 @@ export async function runBrickEconomyEnrich(
   if (!(await sourceEnabled(env, 'brickeconomy'))) {
     return { processed: 0, updated: 0, limit: 0, skipped: 'brickeconomy disabled in source tuning' };
   }
+  const hasScrapingAnt = (await sourceEnabled(env, 'scrapingant')) && scrapingAntEnabled(env);
   const hasBrightData = (await sourceEnabled(env, 'brightdata')) && brightDataEnabled(env);
   const hasFirecrawl = await sourceEnabled(env, 'firecrawl') && firecrawlEnabled(env);
-  if (!hasBrightData && !hasFirecrawl) {
-    return { processed: 0, updated: 0, limit: 0, skipped: 'Bright Data and Firecrawl disabled or unconfigured' };
+  if (!hasScrapingAnt && !hasBrightData && !hasFirecrawl) {
+    return { processed: 0, updated: 0, limit: 0, skipped: 'ScrapingAnt, Bright Data, and Firecrawl disabled or unconfigured' };
   }
 
   const requestedLimit = Number(options.limit);
@@ -65,7 +67,7 @@ export async function runBrickEconomyEnrich(
   const reserve = Math.max(0, Number(env.FIRECRAWL_RESERVE_CREDITS ?? 3000) || 0);
   const remaining = await quotaRemaining(env, 'firecrawl');
   const spendable = Number.isFinite(remaining) ? remaining - reserve : remaining;
-  if (!hasBrightData && spendable < 5) {
+  if (!hasScrapingAnt && !hasBrightData && spendable < 5) {
     return {
       processed: 0, updated: 0, limit: 0,
       skipped: `firecrawl budget floor reached (${remaining} left, ${reserve} reserved for other jobs)`,
@@ -74,7 +76,7 @@ export async function runBrickEconomyEnrich(
   // Bright Data requests use their own monthly per-key ledger, so Firecrawl's
   // daily balance must not suppress primary-lane work. Its client remains the
   // hard fallback guard if a raw fetch or deterministic parse fails.
-  const effLimit = hasBrightData ? limit : Math.min(limit, Math.floor(spendable / 5));
+  const effLimit = (hasScrapingAnt || hasBrightData) ? limit : Math.min(limit, Math.floor(spendable / 5));
 
   // Select by FRESHNESS (never-scraped or >90d stale), NOT by "be_value_new IS
   // NULL". A scrape that yields no usable value still stamps be_cached_at (see

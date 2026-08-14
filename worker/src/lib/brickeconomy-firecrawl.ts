@@ -4,6 +4,7 @@ import { firecrawlEnabled } from './pricing-flags';
 import { sourceEnabled } from './source-config';
 import { brightDataUnlock } from './brightdata';
 import { parseBrickEconomyHtml } from './brightdata-parsers';
+import { scrapingAntFetchHtml } from './scrapingant';
 
 /**
  * BrickEconomy set valuation via Firecrawl structured extraction — a drop-in,
@@ -88,11 +89,19 @@ export async function fetchBrickEconomy(
   // BrickEconomy set pages live at /set/{setnum}/{slug}. The slug is decorative.
   const url = `https://www.brickeconomy.com/set/${encodeURIComponent(formatted)}/x`;
 
-  // Bright Data raw HTML is primary: deterministic parsing costs one monthly
-  // unlock credit instead of five Firecrawl credits. A parse/fetch miss falls
-  // through to Firecrawl's richer structured extraction. Both lanes honor the
+  // ScrapingAnt raw HTML is first choice, then Bright Data: deterministic parsing
+  // costs one credit instead of five Firecrawl credits. A parse/fetch miss falls
+  // through to the next provider and then Firecrawl's structured extraction.
+  // Every lane honors the
   // admin source-tuning kill switches (sourceEnabled) — disabling a provider
   // in the console stops its use here too.
+  if (await sourceEnabled(env, 'scrapingant')) {
+    const html = await scrapingAntFetchHtml(url, env, { timeoutMs: 25_000 });
+    if (html) {
+      const parsed = parseBrickEconomyHtml(html);
+      if (parsed) return stripRetailEcho(parsed);
+    }
+  }
   if (await sourceEnabled(env, 'brightdata')) {
     const html = await brightDataUnlock(url, env, { timeoutMs: 25_000 });
     if (html) {

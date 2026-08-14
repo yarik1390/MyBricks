@@ -41,6 +41,10 @@ export const QUOTA_CAPS: Record<string, number> = {
   // ~1,400/day of steady enrich + minifig traffic. At 2,000 the two would have
   // contended and the loser would silently skip its run.
   firecrawl: 4000,
+  // ScrapingAnt free plan is 10,000 credits/month. These plain, non-browser
+  // datacenter requests cost 1 credit in live validation; 250/day leaves a
+  // conservative monthly margin and bounds a runaway cron.
+  scrapingant: 250,
   // Bright Data Web Unlocker daily request ceiling. Monthly per-key safety is
   // the real meter (brightdata_keys); this bounds a runaway day on top of it.
   // 6 keys × 5k/mo ≈ 1,000/day sustainable, so 300 is conservative headroom.
@@ -84,7 +88,12 @@ const upsertRow = (env: Env, service: string, day: string, cap: number) =>
 // Spend `n` units of a service's daily budget in one D1 batch
 // (insert-if-missing + guarded increment). Returns false when exhausted.
 // Services without a configured cap are never gated.
-export async function spendQuota(env: Env, service: string, n = 1): Promise<boolean> {
+async function spendQuotaInternal(
+  env: Env,
+  service: string,
+  n: number,
+  failClosed: boolean,
+): Promise<boolean> {
   let cap = effectiveCap(service);
   // Firecrawl's daily credit ceiling is env-tunable (lift it for the one-time
   // bootstrap, keep it low for normal ops) without a code change.
@@ -103,9 +112,20 @@ export async function spendQuota(env: Env, service: string, n = 1): Promise<bool
     ]);
     return ((results[1]?.meta.changes as number | undefined) ?? 0) > 0;
   } catch (e) {
-    console.warn(`[quota] spend(${service}) failed open:`, (e as Error).message);
-    return true;
+    console.warn(`[quota] spend(${service}) failed ${failClosed ? 'closed' : 'open'}:`, (e as Error).message);
+    return !failClosed;
   }
+}
+
+export async function spendQuota(env: Env, service: string, n = 1): Promise<boolean> {
+  return spendQuotaInternal(env, service, n, false);
+}
+
+/** Claim metered provider budget, refusing the outbound call if D1 accounting
+ * is unavailable. Use for providers whose free-plan ceiling must never be
+ * bypassed by a bookkeeping outage. */
+export async function spendQuotaFailClosed(env: Env, service: string, n = 1): Promise<boolean> {
+  return spendQuotaInternal(env, service, n, true);
 }
 
 // Reserve budget for a whole batch run in at most three D1 round-trips no

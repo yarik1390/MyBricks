@@ -806,6 +806,19 @@ CREATE TABLE IF NOT EXISTS brightdata_keys (
   updated_at TEXT
 );
 
+-- Per-key monthly credit safety cap for the ScrapingAnt rotation pool. Raw API
+-- keys are never persisted: key_hash is SHA-256. Counters and exhaustion reset
+-- when a key is first reserved in a new UTC month.
+CREATE TABLE IF NOT EXISTS scrapingant_keys (
+  key_hash TEXT PRIMARY KEY,
+  used INTEGER NOT NULL DEFAULT 0,
+  cap INTEGER NOT NULL DEFAULT 9800,
+  period_month TEXT,
+  exhausted_at TEXT,
+  last_used_at TEXT,
+  updated_at TEXT
+);
+
 -- Firecrawl key pool. NOT monthly: the balances are one-time credit allotments,
 -- so `used` accumulates forever and a key is retired once Firecrawl answers 402.
 CREATE TABLE IF NOT EXISTS firecrawl_keys (

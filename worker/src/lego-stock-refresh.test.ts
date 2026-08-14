@@ -31,7 +31,7 @@ describe('runLegoStockRefresh', () => {
 
   it('skips when Firecrawl is disabled', async () => {
     const r = await runLegoStockRefresh({ ...env, FIRECRAWL_API_KEY: '', FIRECRAWL_API_KEYS: '' } as any);
-    expect(r.skipped).toMatch(/Bright Data and Firecrawl disabled or unconfigured/);
+    expect(r.skipped).toMatch(/ScrapingAnt, Bright Data, and Firecrawl disabled or unconfigured/);
   });
 
   it('skips when the daily Firecrawl ceiling is reached', async () => {

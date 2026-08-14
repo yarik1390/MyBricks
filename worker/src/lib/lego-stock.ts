@@ -5,6 +5,7 @@ import { firecrawlEnabled } from './pricing-flags';
 import { sourceEnabled } from './source-config';
 import { brightDataUnlock } from './brightdata';
 import { parseLegoStockHtml } from './brightdata-parsers';
+import { scrapingAntFetchHtml } from './scrapingant';
 
 export interface LegoStockResult {
   in_stock: boolean | null;
@@ -123,8 +124,15 @@ async function checkLegoStockFallback(setNum: string): Promise<LegoStockResult |
 export async function checkLegoStock(setNum: string, env?: Env): Promise<LegoStockResult | null> {
   // Both lanes honor the admin source-tuning kill switches: disabling a
   // provider in the console stops its use here (not just in the job selector).
+  const num = setNum.replace(/-\d+$/, '');
+  if (env && (await sourceEnabled(env, 'scrapingant'))) {
+    const html = await scrapingAntFetchHtml(`https://www.lego.com/en-us/product/${num}`, env, { timeoutMs: 25_000 });
+    if (html) {
+      const parsed = parseLegoStockHtml(html, num);
+      if (parsed) return parsed;
+    }
+  }
   if (env && (await sourceEnabled(env, 'brightdata'))) {
-    const num = setNum.replace(/-\d+$/, '');
     const html = await brightDataUnlock(`https://www.lego.com/en-us/product/${num}`, env, { timeoutMs: 25_000 });
     if (html) {
       // Pass the numeric set id so the parser scopes JSON-LD/state to THIS
