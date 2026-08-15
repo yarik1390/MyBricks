@@ -1,5 +1,5 @@
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg } from '../utils.js';
-import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML, investmentPricingDetailHTML } from './portfolio-detail-market.js';
+import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML, investmentPricingDetailHTML, soldEvidenceHTML } from './portfolio-detail-market.js';
 import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput, themeColor } from '../lib/pure.js';
 import { t, tPlural, getLocale, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
@@ -700,6 +700,7 @@ function infoTabHTML(set, entry, isWish) {
             ${dealSignalHTML(set)}
             ${priceStripHTML(set, entry)}
             ${marketSpreadHTML(set)}
+            ${soldEvidenceHTML(set)}
             ${marketDepthHTML(set)}
             ${partOutHTML(set)}
             ${pricingSummaryHtml}

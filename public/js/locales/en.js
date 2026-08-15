@@ -169,6 +169,19 @@ export const en = {
     // dictionary can never reach them.
     sellingAbove: 'Selling about {pct} above this value',
     sellingBelow: 'Selling about {pct} below this value',
+    // Sold-evidence card. {sales} and {markets} carry full pluralised
+    // phrases, so the headline itself is count-agnostic.
+    soldEvidenceHeadline: 'Based on {sales} from {markets}.',
+    soldEvidenceFallback: 'No recent verified sales — the estimate relies on asking prices or market guides.',
+    soldEvidenceTitle: 'Sold evidence',
+    soldEvidenceNewSealed: 'New & sealed',
+    soldEvidenceUsedComplete: 'Used & complete',
+    soldEvidenceFresh: 'Recent',
+    soldEvidenceOlder: 'Older',
+    soldEvidenceSalesOne: '1 verified sale',
+    soldEvidenceSalesOther: '{n} verified sales',
+    soldEvidenceMarketplacesOne: '1 marketplace',
+    soldEvidenceMarketplacesOther: '{n} marketplaces',
   },
   time: {
     unknown: 'unknown', today: 'Today', yesterday: 'Yesterday', daysAgo: '{n} days ago',
@@ -203,7 +216,6 @@ export const en = {
     clearFilters: 'Clear filters',
   },
   game: { marketGenius: '{score}/5 — market genius! 🎯', streakQuipOne: 'Streak: {count} day.', streakQuipOther: 'Streak: {count} days.' },
-  market: { sellingAbove: 'Selling about {pct} above this value', sellingBelow: 'Selling about {pct} below this value' },
   community: {
     pendingSubmissionOne: '⏳ You have {n} submission awaiting approval.',
     pendingSubmissionFew: '⏳ You have {n} submissions awaiting approval.',

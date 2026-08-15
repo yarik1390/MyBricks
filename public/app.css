@@ -6707,6 +6707,22 @@ body.lightbox-open { overflow: hidden; }
 .pricing-details-sheet-head .icon-btn,
 .methodology-sheet-head .icon-btn { flex: 0 0 44px; }
 .pricing-details-sheet .investment-pricing { margin-top: 4px; }
+.sold-evidence-card .pricing-block-title { display: flex; align-items: center; gap: 6px; }
+.sold-evidence-fam-title { font-size: 12px; margin: 10px 0 4px; }
+.sold-evidence-row {
+  display: grid;
+  grid-template-columns: auto minmax(94px, 1fr) auto minmax(86px, auto);
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.sold-evidence-row strong { text-align: right; }
+.sold-evidence-row .sold-evidence-note { text-align: right; }
+@media (max-width: 390px) {
+  .sold-evidence-row { grid-template-columns: auto 1fr auto; gap: 6px 8px; }
+  .sold-evidence-row .sold-evidence-note { grid-column: 2 / -1; text-align: right; }
+}
 .pricing-details-sheet .detail-card:last-child,
 .pricing-details-sheet-body > :last-child { margin-bottom: 4px; }
 .methodology-sheet { font-size: 14px; line-height: 1.55; color: var(--ink); }

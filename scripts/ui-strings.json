@@ -5039,6 +5039,12 @@
     ]
   },
   {
+    "text": "Marketplace",
+    "files": [
+      "lib/sold-evidence.js"
+    ]
+  },
+  {
     "text": "Marks current valuations stale so the pricing crons re-price every set.",
     "files": [
       "views/me-admin-config.js"

@@ -7,6 +7,8 @@ import { amazonSlotHTML } from '../lib/amazon-affiliate.js';
 import { ebaySoldSummary } from '../lib/pure.js';
 import { escapeHtml, fmtMoney, fmtPct, fmtDateUpdated, trendBadgeHTML } from '../utils.js';
 import { t, tPlural } from '../lib/i18n.js';
+import { deriveSoldEvidence, soldEvidenceHTML as soldEvidenceHTMLImpl } from '../lib/sold-evidence.js';
+export { deriveSoldEvidence };
 
 function genericSourceLabel(s) {
   const id = String((s && s.id) || '');
@@ -172,6 +174,14 @@ function conditionStateHTML(state, label) {
 
 function announcedRetailPrice(set) {
   return Number(set.upcoming_price) || Number(set.be_retail) || Number(set.retail_price) || 0;
+}
+
+// Sold-evidence card — pure derivation + HTML builder live in lib/sold-evidence.js
+// so the node tests can import them without pulling in the app's state/currency
+// graph. Re-exported here wired to the app's real money formatter.
+export function soldEvidenceHTML(set) {
+  // reuse the local money formatter from this module's established imports
+  return soldEvidenceHTMLImpl(set, fmtMoney);
 }
 
 // Derive the five valuation numbers (with legacy fallbacks) once, so the

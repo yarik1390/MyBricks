@@ -14,6 +14,91 @@ import {
 } from '../lib/pure.js';
 import { catalogFilterSummaryText, figFilterSummaryText } from '../lib/filter-summary.js';
 import { biometricAvailable, verifyBiometricResult } from '../lib/native-biometric.js';
+import { deriveSoldEvidence, soldEvidenceHTML } from '../lib/sold-evidence.js';
+
+describe('sold evidence pricing card', () => {
+  const basis = (overrides = {}) => ({
+    provider_family: 'ebay_market',
+    sources: ['ebay_sold'],
+    signal_type: 'sold',
+    value: 120,
+    sample_count: 4,
+    fresh: true,
+    identity_verified: true,
+    trust_multiplier: 1,
+    ...overrides,
+  });
+
+  it('combines conditions and counts independent marketplace families', () => {
+    const result = deriveSoldEvidence({ valuation: {
+      new: { basis: [basis(), basis({ provider_family: 'bricklink', value: 110, sample_count: 3 })] },
+      used: { basis: [basis({ provider_family: 'bricklink', value: 75, sample_count: 2 })] },
+    } });
+
+    assert.equal(result.sampleCount, 9);
+    assert.equal(result.familyCount, 2);
+    assert.deepEqual(result.families.map((family) => family.providerFamily), ['ebay_market', 'bricklink']);
+    assert.deepEqual(result.families[1].conditions.map((condition) => condition.condition), ['new_sealed', 'used_complete']);
+  });
+
+  it('takes condition from the parent valuation state, not from basis fields', () => {
+    const result = deriveSoldEvidence({ valuation: {
+      used: { basis: [basis({ condition: 'new_sealed', value: 72, sample_count: 2 })] },
+    } });
+
+    assert.equal(result.families[0].conditions[0].condition, 'used_complete');
+  });
+
+  it('deduplicates repeated family-condition basis without inventing sales', () => {
+    const result = deriveSoldEvidence({ valuation: { new: { basis: [
+      basis({ sources: ['pricecharting'], value: 130, sample_count: 6 }),
+      basis({ sources: ['ebay_sold'], value: 120, sample_count: 4 }),
+    ] } } });
+
+    assert.equal(result.sampleCount, 6);
+    assert.equal(result.familyCount, 1);
+    assert.equal(result.families[0].conditions[0].value, 130);
+  });
+
+  it('excludes asking, unverified, and invalid-value basis entries', () => {
+    const result = deriveSoldEvidence({ valuation: { new: { basis: [
+      basis({ signal_type: 'asking', sample_count: 50 }),
+      basis({ provider_family: 'bricklink', identity_verified: false }),
+      basis({ provider_family: 'pricecharting', identity_verified: undefined }),
+      basis({ provider_family: 'brickowl', value: 0 }),
+    ] } } });
+
+    assert.equal(result.sampleCount, 0);
+    assert.equal(result.familyCount, 0);
+    assert.deepEqual(result.families, []);
+  });
+
+  it('renders an honest no-data fallback', () => {
+    const html = soldEvidenceHTML({ valuation: { new: { basis: [basis({ signal_type: 'asking' })] } } });
+    assert.match(html, /No recent verified sales/);
+    assert.match(html, /asking prices or market guides/);
+  });
+
+  it('labels fresh and older evidence', () => {
+    const html = soldEvidenceHTML({ valuation: { new: { basis: [
+      basis(),
+      basis({ provider_family: 'bricklink', fresh: false }),
+    ] } } });
+    assert.match(html, />Recent</);
+    assert.match(html, />Older</);
+  });
+
+  it('pluralizes sales and marketplaces in the headline', () => {
+    const singular = soldEvidenceHTML({ valuation: { new: { basis: [basis({ sample_count: 1 })] } } });
+    assert.match(singular, /Based on 1 verified sale from 1 marketplace/);
+
+    const plural = soldEvidenceHTML({ valuation: { new: { basis: [
+      basis({ sample_count: 4 }),
+      basis({ provider_family: 'bricklink', sample_count: 3 }),
+    ] } } });
+    assert.match(plural, /Based on 7 verified sales from 2 marketplaces/);
+  });
+});
 
 describe('native biometric bridge', () => {
   it('uses Capacitor native internalAuthenticate and permits device credentials', async () => {
