@@ -210,3 +210,4 @@ Object.assign(zh.market, { listingsOne: '{n} 条在售', listingsOther: '{n} 条
 Object.assign(zh.scanner, { estimatedValue: '(~估算价值)', marketGrabThreshold: '市场价 {market} — 低于 {price} 值得入手{estimated}', underMarket: '低于市场价 {amount}{estimated}', withinMarket: '与市场价相差 {pct}% 以内{estimated}', overMarket: '高于市场价 {amount}{estimated}' });
 
 export default zh;
+Object.assign(zh.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

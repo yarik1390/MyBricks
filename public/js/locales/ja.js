@@ -215,3 +215,4 @@ Object.assign(ja.market, { listingsOne: '{n}件の出品', listingsOther: '{n}�
 Object.assign(ja.scanner, { estimatedValue: '(~推定価格)', marketGrabThreshold: '市場価格 {market} — {price}未満ならお買い得{estimated}', underMarket: '市場より{amount}安い{estimated}', withinMarket: '市場価格の{pct}%以内{estimated}', overMarket: '市場より{amount}高い{estimated}' });
 
 export default ja;
+Object.assign(ja.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

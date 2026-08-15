@@ -1,6 +1,6 @@
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML, investmentPricingDetailHTML, soldEvidenceHTML } from './portfolio-detail-market.js';
-import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput, themeColor } from '../lib/pure.js';
+import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput, themeColor, priceMovementSummary } from '../lib/pure.js';
 import { t, tPlural, getLocale, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { shareContent } from '../lib/native-share.js';
@@ -710,6 +710,7 @@ function infoTabHTML(set, entry, isWish) {
 
     <div class="detail-card">
       <div class="detail-card-title">${I.tag()}${tPlural('detail.priceHistoryDays', 90)}</div>
+      <p class="spark-movement" id="setMovementSummary" hidden></p>
       <div class="spark-wrap" id="setSpark" style="height:60px;"></div>
       <div class="spark-legend" id="setSparkLegend"></div>
     </div>
@@ -1959,6 +1960,16 @@ async function loadSetHistory(setNum) {
     const res = await api("/api/sets/" + encodeURIComponent(setNum) + "/history?days=90");
     const hist = res.history || [];
     if (hist.length >= 2) {
+      const movement = priceMovementSummary(hist);
+      const movementEl = $("#setMovementSummary");
+      if (movement && movementEl) {
+        const baseKey = movement.direction === 'up' ? 'detail.movementUp' : 'detail.movementDown';
+        const driverKey = movement.driver
+          ? `detail.movement${movement.driver === 'resale' ? 'Resale' : 'Market'}${movement.direction === 'up' ? 'Up' : 'Down'}`
+          : null;
+        movementEl.textContent = t(baseKey, { pct: movement.pct, days: movement.days }) + (driverKey ? t(driverKey) : '');
+        movementEl.hidden = false;
+      }
       const up = Number(hist[hist.length - 1].current_value) >= Number(hist[0].current_value);
       const hasPts = (key) => hist.filter(h => Number(h?.[key]) > 0).length >= 2;
       const series = [

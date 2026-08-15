@@ -11,11 +11,59 @@ import {
   displayValueOf, withDisplayValue, shouldUseKeyboardShell, classifyScanFailure, isCredentialAuthFailure, flipEconomics,
   cleanTagLabel, pluralize, manualScanTarget, cleanFacetList,
   computeStoreVerdict, computeSellSignal, scanResultHeading, adminJobStartFeedback,
+  priceMovementSummary,
 } from '../lib/pure.js';
 import { catalogFilterSummaryText, figFilterSummaryText } from '../lib/filter-summary.js';
 import { biometricAvailable, verifyBiometricResult } from '../lib/native-biometric.js';
 import { deriveSoldEvidence, soldEvidenceHTML } from '../lib/sold-evidence.js';
 import { derivePartOutDecision, partOutDecisionHTML } from '../lib/part-out-decision.js';
+
+describe('price movement summary', () => {
+  const row = (snapshot_date, current_value, ebay_value = null, bl_value = null) => ({
+    snapshot_date, current_value, ebay_value, bl_value,
+  });
+
+  it('reports a rise and matching resale evidence', () => {
+    assert.deepEqual(priceMovementSummary([
+      row('2026-05-01', 100, 90, 110),
+      row('2026-05-31', 120, 108, 111),
+    ]), { direction: 'up', pct: 20, days: 30, driver: 'resale' });
+  });
+
+  it('reports a fall and matching market-guide evidence', () => {
+    assert.deepEqual(priceMovementSummary([
+      row('2026-05-01', 200, 100, 210),
+      row('2026-05-21', 160, 102, 168),
+    ]), { direction: 'down', pct: 20, days: 20, driver: 'market' });
+  });
+
+  it('chooses the corroborating source closest to the displayed movement', () => {
+    assert.equal(priceMovementSummary([
+      row('2026-05-01', 100, 100, 100),
+      row('2026-05-11', 120, 119, 110),
+    ]).driver, 'resale');
+  });
+
+  it('uses resale as the deterministic tie-break', () => {
+    assert.equal(priceMovementSummary([
+      row('2026-05-01', 100, 100, 100),
+      row('2026-05-11', 120, 115, 125),
+    ]).driver, 'resale');
+  });
+
+  it('ignores sub-threshold moves and invalid history', () => {
+    assert.equal(priceMovementSummary([
+      row('2026-05-01', 100), row('2026-05-31', 104.99),
+    ]), null);
+    assert.equal(priceMovementSummary([
+      row('bad-date', 100), row('also-bad', 120),
+    ]), null);
+    assert.equal(priceMovementSummary([
+      row('2026-05-01', 0), row('2026-05-31', null),
+    ]), null);
+    assert.equal(priceMovementSummary([row('2026-05-01', 100)]), null);
+  });
+});
 
 describe('part-out decision pricing card', () => {
   it('recommends parting out when parts are worth at least 15% more', () => {

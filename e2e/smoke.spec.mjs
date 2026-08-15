@@ -160,8 +160,17 @@ test('compact catalog rows reflow long labels without horizontal clipping', asyn
 });
 
 test('set detail renders with the action bar', async ({ page }) => {
+  await page.route('**/api/sets/75192-1/history?days=90', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ history: [
+      { snapshot_date: '2026-05-01', current_value: 700, ebay_value: 680, bl_value: 710 },
+      { snapshot_date: '2026-07-30', current_value: 850, ebay_value: 825, bl_value: 715 },
+    ], days: 90 }),
+  }));
   await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
   await expect(page.getByText('Millennium Falcon').first()).toBeVisible();
+  await expect(page.locator('#setMovementSummary')).toBeVisible();
+  await expect(page.locator('#setMovementSummary')).toHaveText('Up 21% over 90 days · resale comps also rose');
   await expect(page.locator('#wishToggle')).toBeVisible();
   await expect(page.locator('#addBtn')).toBeVisible();
 });

@@ -210,3 +210,4 @@ Object.assign(hi.market, { listingsOne: '{n} लिस्टिंग', listings
 Object.assign(hi.scanner, { estimatedValue: '(~अनुमानित मूल्य)', marketGrabThreshold: 'बाज़ार {market} — {price} से कम पर शानदार सौदा{estimated}', underMarket: 'बाज़ार से {amount} कम{estimated}', withinMarket: 'बाज़ार के {pct}% के भीतर{estimated}', overMarket: 'बाज़ार से {amount} अधिक{estimated}' });
 
 export default hi;
+Object.assign(hi.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

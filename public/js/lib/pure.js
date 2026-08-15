@@ -18,6 +18,45 @@ export function fmtPct(n) {
   return (n >= 0 ? "+" : "") + (n * 100).toFixed(1) + "%";
 }
 
+/**
+ * Summarize a meaningful displayed-value move and any correlated market signal.
+ * Source movement is corroborating context, not a causal claim.
+ */
+export function priceMovementSummary(history) {
+  if (!Array.isArray(history)) return null;
+  const validRows = history.filter(row => Number(row?.current_value) > 0);
+  if (validRows.length < 2) return null;
+
+  const first = validRows[0];
+  const last = validRows[validRows.length - 1];
+  const startMs = Date.parse(String(first.snapshot_date || ''));
+  const endMs = Date.parse(String(last.snapshot_date || ''));
+  const days = Math.round((endMs - startMs) / 86_400_000);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || days < 1) return null;
+
+  const movementPct = ((Number(last.current_value) - Number(first.current_value)) / Number(first.current_value)) * 100;
+  if (!Number.isFinite(movementPct) || Math.abs(movementPct) < 5) return null;
+  const direction = movementPct > 0 ? 'up' : 'down';
+
+  const sourceMove = key => {
+    const points = history.filter(row => Number(row?.[key]) > 0);
+    if (points.length < 2) return null;
+    const pct = ((Number(points[points.length - 1][key]) - Number(points[0][key])) / Number(points[0][key])) * 100;
+    if (!Number.isFinite(pct) || Math.abs(pct) < 5 || (pct > 0 ? 'up' : 'down') !== direction) return null;
+    return pct;
+  };
+
+  const resalePct = sourceMove('ebay_value');
+  const marketPct = sourceMove('bl_value');
+  let driver = null;
+  if (resalePct != null && marketPct != null) {
+    driver = Math.abs(resalePct - movementPct) <= Math.abs(marketPct - movementPct) ? 'resale' : 'market';
+  } else if (resalePct != null) driver = 'resale';
+  else if (marketPct != null) driver = 'market';
+
+  return { direction, pct: Math.round(Math.abs(movementPct)), days, driver };
+}
+
 /** Brickset tag strings arrive as "Label|t" ("Harry Potter|n") — the suffix is
  *  scraper metadata, never meant for display. Strip it and trim. */
 export function cleanTagLabel(tag) {

@@ -336,6 +336,12 @@ body.offline .offline-banner { display: block; }
   font-family: var(--mono); font-size: 9px; color: var(--ink-mute);
 }
 .spark-legend:empty { display: none; }
+.spark-movement {
+  margin: -2px 0 9px;
+  color: var(--ink-mute);
+  font-size: 12px;
+  line-height: 1.4;
+}
 .spark-key { display: inline-flex; align-items: center; gap: 4px; }
 .spark-scrub {
   position: absolute; pointer-events: none;

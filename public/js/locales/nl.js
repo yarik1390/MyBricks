@@ -210,3 +210,4 @@ Object.assign(nl.market, { listingsOne: '{n} advertentie', listingsOther: '{n} a
 Object.assign(nl.scanner, { estimatedValue: '(~geschatte waarde)', marketGrabThreshold: 'Markt {market} — onder {price} is het een buitenkans{estimated}', underMarket: '{amount} onder de markt{estimated}', withinMarket: 'binnen {pct}% van de markt{estimated}', overMarket: '{amount} boven de markt{estimated}' });
 
 export default nl;
+Object.assign(nl.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

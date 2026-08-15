@@ -241,3 +241,4 @@ Object.assign(uk.market, { listingsOne: '{n} оголошення', listingsFew:
 Object.assign(uk.scanner, { estimatedValue: '(~орієнтовна вартість)', marketGrabThreshold: 'Ринок {market} — нижче {price} це вигідна покупка{estimated}', underMarket: 'на {amount} нижче ринку{estimated}', withinMarket: 'у межах {pct}% від ринку{estimated}', overMarket: 'на {amount} вище ринку{estimated}' });
 
 export default uk;
+Object.assign(uk.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
