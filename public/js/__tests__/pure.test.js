@@ -2147,3 +2147,70 @@ describe('wishlist target alerts', () => {
     assert.equal(wishlistAlertCount(null), 0);
   });
 });
+
+
+describe('canonical set market metadata', () => {
+  let pure;
+  before(async () => { pure = await import('../lib/pure.js'); });
+
+  it('normalizes condition labels and valuation trust from one canonical row', () => {
+    const row = {
+      set_num: '10276-1',
+      condition: 'new',
+      quantity: 2,
+      blended_value: 180,
+      blended_confidence: 'high',
+      primary_value_source: 'bricklink',
+      market_sources: [{ source: 'bricklink', fresh: true }],
+    };
+    assert.deepEqual(pure.canonicalSetMarketMeta(row), {
+      setNum: '10276-1',
+      value: 180,
+      condition: 'sealed',
+      quantity: 2,
+      trust: 'high',
+    });
+  });
+
+  it('merges fresher canonical market fields without overwriting ownership fields', () => {
+    const owned = {
+      id: 9,
+      set_num: '10276-1',
+      condition: 'used',
+      quantity: 3,
+      current_value: 120,
+      valuation_method: 'formula_bulk',
+    };
+    const fresh = {
+      set_num: '10276-1',
+      blended_value: 180,
+      blended_confidence: 'high',
+      primary_value_source: 'bricklink',
+      market_sources: [{ source: 'bricklink', fresh: true }],
+    };
+    const merged = pure.mergeCanonicalSetMarketData([owned], [fresh]);
+    assert.equal(merged[0].id, 9);
+    assert.equal(merged[0].condition, 'used');
+    assert.equal(merged[0].quantity, 3);
+    assert.equal(merged[0].blended_value, 180);
+    assert.equal(merged[0].current_value, 120);
+    assert.equal(merged[0].blended_confidence, 'high');
+    assert.equal(merged[0].valuation_method, 'formula_bulk');
+  });
+
+  it('keeps ownership rows unchanged when no fresh set row matches', () => {
+    const owned = [{ id: 9, set_num: '10276-1', current_value: 120 }];
+    assert.deepEqual(pure.mergeCanonicalSetMarketData(owned, []), owned);
+  });
+
+
+  it('does not overwrite ownership facts with catalog fields', () => {
+    const owned = [{ id: 9, set_num: '10276-1', condition: 'used', quantity: 3, price_paid: 99 }];
+    const fresh = [{ set_num: '10276-1', condition: 'new', quantity: 1, price_paid: 1, blended_value: 180 }];
+    const [merged] = pure.mergeCanonicalSetMarketData(owned, fresh);
+    assert.equal(merged.condition, 'used');
+    assert.equal(merged.quantity, 3);
+    assert.equal(merged.price_paid, 99);
+    assert.equal(merged.blended_value, 180);
+  });
+});

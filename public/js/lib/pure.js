@@ -1129,3 +1129,44 @@ export function wishlistAlertCount(items) {
   if (!Array.isArray(items)) return 0;
   return items.reduce((n, w) => n + (isWishlistAlerting(w) ? 1 : 0), 0);
 }
+
+
+const CANONICAL_MARKET_FIELDS = Object.freeze([
+  'blended_value', 'blended_confidence', 'primary_value_source',
+  'market_sources', 'market_value_note',
+  'value_updated_at', 'retirement_date', 'retirement_confidence',
+]);
+
+/** Normalize collection/catalog set badges through one shared path. */
+export function canonicalSetMarketMeta(row = {}) {
+  const condition = String(row.condition || 'new').toLowerCase() === 'used'
+    ? 'used'
+    : 'sealed';
+  const quantity = Math.max(1, Number.parseInt(row.quantity, 10) || 1);
+  return {
+    setNum: String(row.set_num || row.setNum || ''),
+    value: displayValueOf(row),
+    condition,
+    quantity,
+    trust: valuationTrust(row).tier,
+  };
+}
+
+/** Merge only canonical market facts; never overwrite ownership facts. */
+export function mergeCanonicalSetMarketData(ownedRows, freshRows) {
+  if (!Array.isArray(ownedRows) || !Array.isArray(freshRows) || freshRows.length === 0) {
+    return Array.isArray(ownedRows) ? ownedRows : [];
+  }
+  const freshBySet = new Map(freshRows
+    .filter((row) => row && (row.set_num || row.setNum))
+    .map((row) => [String(row.set_num || row.setNum), row]));
+  return ownedRows.map((owned) => {
+    const fresh = freshBySet.get(String(owned?.set_num || owned?.setNum || ''));
+    if (!fresh) return owned;
+    const market = {};
+    for (const key of CANONICAL_MARKET_FIELDS) {
+      if (fresh[key] !== undefined && fresh[key] !== null) market[key] = fresh[key];
+    }
+    return { ...owned, ...market };
+  });
+}

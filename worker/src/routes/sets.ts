@@ -112,10 +112,15 @@ async function repairSearchIndexOnce(db: D1Database) {
 app.get('/search', (c) => edgeCached(c, 120, () => searchHandler(c)));
 
 const searchHandler = async (c: Context<{ Bindings: Env; Variables: Variables }>) => {
-  const q = c.req.query('q') || '';
-  const theme = c.req.query('theme') || '';
-  const retired = c.req.query('retired') || '';
-  const sort = c.req.query('sort') || 'value_desc';
+  const q = (c.req.query('q') || '').trim();
+  const theme = (c.req.query('theme') || '').trim();
+  const requestedSetNums = (c.req.query('set_nums') || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .slice(0, 100);
+  const year = c.req.query('year') || '';
+  const sort = c.req.query('sort') || 'name';
   const lim = Math.min(parseInt(c.req.query('limit') || '24', 10), 100);
   const offset = Math.max(parseInt(c.req.query('offset') || '0', 10), 0);
   const orderBy = SORTS[sort] || SORTS.value_desc;

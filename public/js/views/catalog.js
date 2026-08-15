@@ -758,7 +758,7 @@ function catalogCardHTML(s) {
             <span class="sl-setnum">${escapeHtml(s.set_num)}</span>
             <span class="dot"></span>
             <span class="sl-theme">${escapeHtml(s.theme || "")}</span>
-            ${owned ? `<span class="badge badge--up" style="margin-left:4px;">OWNED</span>` : ""}
+            ${ownedMeta ? `<span class="badge badge--up" style="margin-left:4px;">OWNED · ${escapeHTML(ownedMeta.condition.toUpperCase())}${ownedMeta.quantity > 1 ? ` ×${ownedMeta.quantity}` : ''}</span>` : ""}
             ${dealTagHTML(s)}
             ${sourceCueHTML(s)}
           </div>
