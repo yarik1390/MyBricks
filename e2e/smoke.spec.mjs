@@ -330,7 +330,10 @@ test('Pixel-sized long set title and pricing sheet remain readable', async ({ pa
   expect(await title.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   await page.locator('#pricingDetailsBtn').click();
   const cards = page.locator('.pricing-condition-card');
-  await expect(cards).toHaveCount(2);
+  // Investment pricing + sold evidence + market confidence. The stub's empty
+  // basis makes the sold-evidence card render its honest no-evidence note.
+  await expect(cards).toHaveCount(3);
+  await expect(page.locator('.sold-evidence-note')).toHaveText(/No recent verified sales/);
   const stacked = await cards.evaluateAll((els) => {
     const first = els[0].getBoundingClientRect();
     const second = els[1].getBoundingClientRect();
