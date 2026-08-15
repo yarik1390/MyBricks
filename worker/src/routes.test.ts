@@ -164,7 +164,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       )`,
       `CREATE TABLE user_wishlist (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL,
-        target_price REAL, notes TEXT, added_at TEXT DEFAULT CURRENT_TIMESTAMP, alerted_at TEXT,
+        target_price REAL, notes TEXT, added_at TEXT DEFAULT CURRENT_TIMESTAMP, alerted_at TEXT, acknowledged_at TEXT,
         UNIQUE(user_id, set_num)
       )`,
       `CREATE TABLE wishlist_alerts (

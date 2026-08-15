@@ -322,6 +322,8 @@ export const en = {
     targetPrice: 'Target price',
     priceDropAlert: 'Alert me on a price drop',
     remove: 'Remove from wishlist',
+    ackAlert: 'Dismiss price target alert',
+    alertAcked: 'Alert dismissed',
     setsCount: '{n} sets',
     setsCountOne: '1 set',
     alertsCount: '{n} alerts',

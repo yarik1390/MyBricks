@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   escapeHtml, fmtPct, clamp, themeHue, bricklinkBuyURL,
@@ -2097,5 +2097,53 @@ describe('i18n coverage', () => {
 
   it('has a non-trivial source catalogue', () => {
     assert.ok(SOURCE.length >= 70, `only ${SOURCE.length} keys — did en.js get truncated?`);
+  });
+});
+
+
+describe('wishlist target alerts', () => {
+  let pure;
+  before(async () => { pure = await import('../lib/pure.js'); });
+
+  it('isWishlistAlerting: hit + unacknowledged -> true', () => {
+    const { isWishlistAlerting } = pure;
+    assert.equal(isWishlistAlerting({ target_price: 100, current_value: 105 }), true);
+    assert.equal(isWishlistAlerting({ target_price: 100, current_value: 100 }), true);
+  });
+
+  it('isWishlistAlerting: below target -> false', () => {
+    const { isWishlistAlerting } = pure;
+    assert.equal(isWishlistAlerting({ target_price: 100, current_value: 99.99 }), false);
+  });
+
+  it('isWishlistAlerting: dismissed (acknowledged_at set) -> false', () => {
+    const { isWishlistAlerting } = pure;
+    assert.equal(
+      isWishlistAlerting({ target_price: 100, current_value: 150, acknowledged_at: '2026-08-15T00:00:00Z' }),
+      false
+    );
+  });
+
+  it('isWishlistAlerting: missing/invalid values -> false (no crash)', () => {
+    const { isWishlistAlerting } = pure;
+    assert.equal(isWishlistAlerting(null), false);
+    assert.equal(isWishlistAlerting(undefined), false);
+    assert.equal(isWishlistAlerting({}), false);
+    assert.equal(isWishlistAlerting({ target_price: null, current_value: 50 }), false);
+    assert.equal(isWishlistAlerting({ target_price: 'abc', current_value: 50 }), false);
+  });
+
+  it('wishlistAlertCount counts only alerting rows', () => {
+    const { wishlistAlertCount } = pure;
+    const items = [
+      { target_price: 100, current_value: 120 },
+      { target_price: 100, current_value: 80 },
+      { target_price: 100, current_value: 120, acknowledged_at: '2026-08-15T00:00:00Z' },
+      { target_price: 100 },
+      null,
+    ];
+    assert.equal(wishlistAlertCount(items), 1);
+    assert.equal(wishlistAlertCount([]), 0);
+    assert.equal(wishlistAlertCount(null), 0);
   });
 });

@@ -1108,3 +1108,24 @@ export function themeColor(theme) {
   const h = themeHue(theme || "");
   return { c: `hsl(${h} 42% 38%)`, d: `hsl(${h} 44% 28%)` };
 }
+
+/**
+ * Whether a wishlist row is currently "alerting": its current value has
+ * reached/exceeded the user's target price AND the user has not dismissed
+ * the alert (acknowledged_at).
+ * Pure, defensive: any missing value means "not alerting".
+ */
+export function isWishlistAlerting(w) {
+  if (!w) return false;
+  if (w.target_price == null || w.current_value == null) return false;
+  const target = Number(w.target_price);
+  const value = Number(w.current_value);
+  if (!Number.isFinite(target) || !Number.isFinite(value)) return false;
+  return value >= target && !w.acknowledged_at;
+}
+
+/** Count of wishlist rows currently alerting (see isWishlistAlerting). */
+export function wishlistAlertCount(items) {
+  if (!Array.isArray(items)) return 0;
+  return items.reduce((n, w) => n + (isWishlistAlerting(w) ? 1 : 0), 0);
+}

@@ -280,7 +280,8 @@
   {
     "text": "AT TARGET",
     "files": [
-      "runtime-exact"
+      "runtime-exact",
+      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -2247,6 +2248,12 @@
     ]
   },
   {
+    "text": "Couldn't dismiss the alert — try again when online.",
+    "files": [
+      "views/portfolio-wishlist.js"
+    ]
+  },
+  {
     "text": "Couldn't identify the set on-device. Try a clearer photo.",
     "files": [
       "components/scanner.js"
@@ -3266,6 +3273,12 @@
     "files": [
       "lib/pure.js",
       "views/catalog.js"
+    ]
+  },
+  {
+    "text": "Failed to acknowledge wishlist alert",
+    "files": [
+      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -5770,7 +5783,8 @@
   {
     "text": "No target",
     "files": [
-      "runtime-exact"
+      "runtime-exact",
+      "views/portfolio-wishlist.js"
     ]
   },
   {

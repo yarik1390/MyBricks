@@ -131,6 +131,7 @@ zh.admin = { uploadingFile: '正在上传 {file}…', importedMinifigs: '已导�
 zh.downloads = { interrupted: '下载在 {pct}% 时中断 — 点击“继续”以继续。', resume: '继续（{pct}）', scanProgress: '正在识别 {total} 个中的第 {current} 个…' };
 Object.assign(zh.detail, { acquired: '购入于 {date}{source}' });
 Object.assign(zh.wishlist, { targetPriceCurrency: '目标价格（{symbol}）', suggestedPrice: '建议：{price}' });
+Object.assign(zh.wishlist, { ackAlert: '关闭目标价格提醒', alertAcked: '提醒已关闭' });
 zh.minifigs = { appearsInSetsOne: '出现于 {n} 个套装', appearsInSetsFew: '出现于 {n} 个套装', appearsInSetsMany: '出现于 {n} 个套装', appearsInSetsOther: '出现于 {n} 个套装' };
 Object.assign(zh.admin, { syncJobRunning: '{label}：正在运行…', syncJobSkipped: '已跳过 — {n}', syncJobSummary: '已处理 {processed}，已更新 {updated}，已拒绝 {rejected}', syncJobResult: '{label}：{summary}', syncJobFailed: '{label} 失败：{error}', uploadSuccessToast: 'BrickLink 人仔目录：已导入 {inserted}', uploadErrorToast: '目录上传失败：{error}', countRunning: '{n} 个正在运行', countHealthy: '{n} 个正常', countFailed: '{n} 个失败', countNotRun: '{n} 个尚未运行', completedSlices: '已完成 {n} 个安全步骤', jobId: '任务 #{id}', filled: '已填充 {n}', processed: '已处理 {n}', figures: '{n} 个人仔', noItemsProcessed: '未处理任何项目' });
 Object.assign(zh.admin, { jobStarted: '任务 #{id} 已启动', jobFailed: '任务失败：{error}', maintenanceComplete: '{label} 已完成', maintenanceFailed: '{label} 失败：{error}', lastSeen: '上次发现于 {when}' });

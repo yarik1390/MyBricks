@@ -506,6 +506,7 @@ CREATE TABLE IF NOT EXISTS user_wishlist (
   notes TEXT,
   added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   alerted_at DATETIME,
+  acknowledged_at DATETIME,
   UNIQUE(user_id, set_num)
 );
 

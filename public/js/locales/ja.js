@@ -136,6 +136,7 @@ ja.admin = { uploadingFile: '{file} をアップロード中…', importedMinifi
 ja.downloads = { interrupted: 'ダウンロードは {pct}% で中断されました。続けるには「再開」をタップしてください。', resume: '再開（{pct}）', scanProgress: '{total} 件中 {current} 件を識別中…' };
 Object.assign(ja.detail, { acquired: '{date} に取得{source}' });
 Object.assign(ja.wishlist, { targetPriceCurrency: '目標価格（{symbol}）', suggestedPrice: '提案: {price}' });
+Object.assign(ja.wishlist, { ackAlert: '目標価格アラートを閉じる', alertAcked: 'アラートを閉じました' });
 ja.minifigs = { appearsInSetsOne: '{n} セットに登場', appearsInSetsFew: '{n} セットに登場', appearsInSetsMany: '{n} セットに登場', appearsInSetsOther: '{n} セットに登場' };
 Object.assign(ja.admin, { syncJobRunning: '{label}: 実行中…', syncJobSkipped: 'スキップ — {n}', syncJobSummary: '{processed} 件処理、{updated} 件更新、{rejected} 件拒否', syncJobResult: '{label}: {summary}', syncJobFailed: '{label} に失敗: {error}', uploadSuccessToast: 'BrickLink ミニフィグカタログ: {inserted} 件をインポート', uploadErrorToast: 'カタログのアップロードに失敗: {error}', countRunning: '{n} 件実行中', countHealthy: '{n} 件正常', countFailed: '{n} 件失敗', countNotRun: '{n} 件未実行', completedSlices: '{n} 件の安全な処理を完了', jobId: 'ジョブ #{id}', filled: '{n} 件入力済み', processed: '{n} 件処理済み', figures: '{n} ミニフィグ', noItemsProcessed: '処理済みの項目はありません' });
 Object.assign(ja.admin, { jobStarted: 'ジョブ #{id} を開始', jobFailed: 'ジョブ失敗: {error}', maintenanceComplete: '{label} 完了', maintenanceFailed: '{label} に失敗: {error}', lastSeen: '最終確認: {when}' });

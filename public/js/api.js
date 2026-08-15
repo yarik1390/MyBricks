@@ -884,6 +884,18 @@ async function guestApi(path, opts = {}, streamMode = false) {
     if (method === 'DELETE') return { handled: true, value: guestDeleteCollection(collectionMatch[1]) };
   }
 
+  if (method === 'POST' && pathname.endsWith('/acknowledge-alert')) {
+    const m = pathname.match(/^\/api\/wishlist\/([^/]+)\/acknowledge-alert$/);
+    if (m) {
+      const items = readGuestWishlist();
+      const item = items.find((x) => String(x.id) === m[1]);
+      if (!item) return { handled: true, value: null };
+      item.acknowledged_at = new Date().toISOString();
+      writeGuestWishlist(items);
+      return { handled: true, value: { ok: true, id: Number(m[1]) } };
+    }
+  }
+
   if (pathname === '/api/wishlist') {
     if (method === 'GET') return { handled: true, value: guestWishlistPayload() };
     if (method === 'POST') return { handled: true, value: await guestAddWishlist(body) };

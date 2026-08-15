@@ -144,6 +144,22 @@ export async function renderWishlist() {
     renderWishlist();
   });
 
+  // Per-row target-alert dismiss (the ✓ next to AT TARGET) — persists via acknowledged_at.
+  $$(".wish-ack").forEach(btn => btn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    haptic("light");
+    const id = btn.dataset.ackId;
+    if (!id) return;
+    try {
+      await api(`/api/wishlist/${id}/acknowledge-alert`, { method: "POST" });
+      toast(t("wishlist.alertAcked"));
+      renderWishlist();
+    } catch (err) {
+      console.error("Failed to acknowledge wishlist alert", err);
+      toast("Couldn't dismiss the alert — try again when online.");
+    }
+  }));
+
   // Per-alert dismiss (the ✓ on each alert card) — mark just that one read.
   $$(".alert-dismiss").forEach(btn => btn.addEventListener("click", async (e) => {
     e.stopPropagation();
@@ -201,7 +217,7 @@ function wishlistCardHTML(w) {
         </div>
         <div class="gap-row">
           <span style="color:var(--ink-mute);">${t("wishlist.nowPrice", { price: fmtMoney(w.current_value, { cents: 0 }) })}</span>
-          <span style="color:${hit ? "var(--up)" : "var(--ink)"};font-weight:700;">${gap == null ? "No target" : hit ? "AT TARGET" : "Target " + fmtMoney(w.target_price, { cents: 0 })}</span>
+          <span style="color:${hit ? "var(--up)" : "var(--ink)"};font-weight:700;">${gap == null ? "No target" : hit ? "AT TARGET" : "Target " + fmtMoney(w.target_price, { cents: 0 })}</span>${hit && !w.acknowledged_at ? `<button type="button" class="wish-ack" data-ack-id="${w.id}" aria-label="${t("wishlist.ackAlert")}" title="${t("wishlist.ackAlert")}">✓</button>` : ""}
         </div>
         <div class="progress${hit ? " over" : ""}"><div style="width:${progress}%;"></div></div>
         ${buyWindowHTML(w)}

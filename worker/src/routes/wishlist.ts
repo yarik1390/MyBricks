@@ -13,7 +13,7 @@ app.get('/', async (c) => {
   const userId = c.get('userId');
   const [wl, alerts, hist] = await Promise.all([
     c.env.DB.prepare(`
-      SELECT w.id, w.set_num, w.target_price, w.notes, w.added_at, w.alerted_at,
+      SELECT w.id, w.set_num, w.target_price, w.notes, w.added_at, w.alerted_at, w.acknowledged_at,
         s.name, s.theme, s.year, s.image_url, s.current_value, s.forecast_2y,
         s.retail_price, s.retired, s.retirement_risk_score, s.ebay_value,
         s.ebay_new_value, s.ebay_used_value, s.ebay_new_qty, s.ebay_used_qty,
@@ -144,6 +144,17 @@ app.post('/:id', async (c) => {
     `UPDATE wishlist_alerts SET read_at=datetime('now') WHERE id=? AND user_id=?`
   ).bind(id, userId).run();
   return c.json({ ok: true });
+});
+
+app.post('/:id/acknowledge-alert', async (c) => {
+  const userId = c.get('userId');
+  const id = parseInt(c.req.param('id'), 10);
+  if (!id) return c.json({ error: 'Invalid id' }, 400);
+  const res = await c.env.DB.prepare(
+    'UPDATE user_wishlist SET acknowledged_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?'
+  ).bind(id, userId).run();
+  if (res.meta.changes === 0) return c.json({ error: 'Not found' }, 404);
+  return c.json({ ok: true, id });
 });
 
 export { app as wishlistRoute };
