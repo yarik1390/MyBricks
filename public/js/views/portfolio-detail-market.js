@@ -8,6 +8,7 @@ import { ebaySoldSummary } from '../lib/pure.js';
 import { escapeHtml, fmtMoney, fmtPct, fmtDateUpdated, trendBadgeHTML } from '../utils.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { deriveSoldEvidence, soldEvidenceHTML as soldEvidenceHTMLImpl } from '../lib/sold-evidence.js';
+import { partOutDecisionHTML } from '../lib/part-out-decision.js';
 export { deriveSoldEvidence };
 
 function genericSourceLabel(s) {
@@ -549,6 +550,8 @@ function dealReason(signal, channel, pct, strong) {
 export function partOutHTML(set) {
   const po = Number(set.valuation?.part_out?.value || set.part_out_value);
   if (!Number.isFinite(po) || po <= 0) return '';
+  const decisionHTML = partOutDecisionHTML(set, fmtMoney);
+  if (decisionHTML) return decisionHTML;
   const mv = Number(set.market_value) || Number(set.current_value) || 0;
   let note = 'Estimated value if sold as individual parts.';
   if (mv > 0) {

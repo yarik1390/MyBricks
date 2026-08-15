@@ -15,6 +15,71 @@ import {
 import { catalogFilterSummaryText, figFilterSummaryText } from '../lib/filter-summary.js';
 import { biometricAvailable, verifyBiometricResult } from '../lib/native-biometric.js';
 import { deriveSoldEvidence, soldEvidenceHTML } from '../lib/sold-evidence.js';
+import { derivePartOutDecision, partOutDecisionHTML } from '../lib/part-out-decision.js';
+
+describe('part-out decision pricing card', () => {
+  it('recommends parting out when parts are worth at least 15% more', () => {
+    const result = derivePartOutDecision({
+      market_value: 100,
+      valuation: { part_out: { value: 120, coverage: 0.8 } },
+    });
+
+    assert.equal(result.verdict, 'partout');
+    assert.ok(Math.abs(result.deltaPct - 0.2) < Number.EPSILON);
+    assert.equal(result.coverage, 0.8);
+  });
+
+  it('recommends selling sealed when parts are worth at least 15% less', () => {
+    const result = derivePartOutDecision({ market_value: 100, part_out_value: 80 });
+    assert.equal(result.verdict, 'sealed');
+  });
+
+  it('calls values in between the thresholds about the same', () => {
+    const result = derivePartOutDecision({ market_value: 100, part_out_value: 100 });
+    assert.equal(result.verdict, 'same');
+  });
+
+  it('includes the exact 1.15 and 0.85 ratios in the outer verdicts', () => {
+    assert.equal(derivePartOutDecision({ market_value: 100, part_out_value: 115 }).verdict, 'partout');
+    assert.equal(derivePartOutDecision({ market_value: 100, part_out_value: 85 }).verdict, 'sealed');
+  });
+
+  it('returns null without positive part-out and whole-set values', () => {
+    assert.equal(derivePartOutDecision({ market_value: 100 }), null);
+    assert.equal(derivePartOutDecision({ market_value: 100, part_out_value: 0 }), null);
+    assert.equal(derivePartOutDecision({ part_out_value: 120 }), null);
+  });
+
+  it('renders the verdict, both values, and positive delta', () => {
+    const html = partOutDecisionHTML(
+      { market_value: 100, valuation: { part_out: { value: 120 } } },
+      (value) => `USD ${Number(value).toFixed(2)}`,
+    );
+
+    assert.match(html, /Parting out pays more/);
+    assert.match(html, /USD 100\.00/);
+    assert.match(html, /USD 120\.00/);
+    assert.match(html, /\+20\.0% more than the sealed value/);
+  });
+
+  it('returns empty HTML when a decision cannot be derived', () => {
+    assert.equal(partOutDecisionHTML({ part_out_value: 120 }), '');
+  });
+
+  it('shows coverage only when it is positive', () => {
+    const withCoverage = partOutDecisionHTML({
+      market_value: 100,
+      valuation: { part_out: { value: 120, coverage: 0.75 } },
+    });
+    const withoutCoverage = partOutDecisionHTML({
+      market_value: 100,
+      valuation: { part_out: { value: 120, coverage: 0 } },
+    });
+
+    assert.match(withCoverage, /75\.0% of parts priced/);
+    assert.doesNotMatch(withoutCoverage, /of parts priced/);
+  });
+});
 
 describe('sold evidence pricing card', () => {
   const basis = (overrides = {}) => ({

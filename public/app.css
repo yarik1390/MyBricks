@@ -6723,6 +6723,41 @@ body.lightbox-open { overflow: hidden; }
   .sold-evidence-row { grid-template-columns: auto 1fr auto; gap: 6px 8px; }
   .sold-evidence-row .sold-evidence-note { grid-column: 2 / -1; text-align: right; }
 }
+.part-out-decision-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.part-out-decision-head .detail-card-title { margin: 0; }
+.part-out-decision-glyph {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 800;
+}
+.part-out-decision-comparison {
+  display: grid;
+  gap: 8px;
+}
+.part-out-decision-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 12px;
+}
+.part-out-decision-row span { color: var(--ink-soft); font-size: 13px; }
+.part-out-decision-row strong { text-align: right; font-size: 16px; }
+.part-out-decision-note,
+.part-out-decision-coverage { margin: 10px 0 0; font-size: 12px; line-height: 1.45; }
+.part-out-decision-note { color: var(--ink-soft); }
+.part-out-decision-coverage { color: var(--ink-mute); }
 .pricing-details-sheet .detail-card:last-child,
 .pricing-details-sheet-body > :last-child { margin-bottom: 4px; }
 .methodology-sheet { font-size: 14px; line-height: 1.55; color: var(--ink); }

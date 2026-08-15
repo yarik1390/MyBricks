@@ -182,6 +182,16 @@ export const en = {
     soldEvidenceSalesOther: '{n} verified sales',
     soldEvidenceMarketplacesOne: '1 marketplace',
     soldEvidenceMarketplacesOther: '{n} marketplaces',
+    // Part-out versus whole-set comparison.
+    partOutVerdictPartout: 'Parting out pays more',
+    partOutVerdictSealed: 'Sell it sealed',
+    partOutVerdictSame: 'About the same',
+    partOutSellSealed: 'Sell sealed',
+    partOutSellParts: 'Part out',
+    partOutDeltaPartout: '{pct} more than the sealed value',
+    partOutDeltaSealed: 'sealed value is {pct} higher',
+    partOutClose: 'values are close',
+    partOutCoverage: '{pct} of parts priced',
   },
   time: {
     unknown: 'unknown', today: 'Today', yesterday: 'Yesterday', daysAgo: '{n} days ago',
