@@ -114,11 +114,6 @@ app.get('/search', (c) => edgeCached(c, 120, () => searchHandler(c)));
 const searchHandler = async (c: Context<{ Bindings: Env; Variables: Variables }>) => {
   const q = (c.req.query('q') || '').trim();
   const theme = (c.req.query('theme') || '').trim();
-  const requestedSetNums = (c.req.query('set_nums') || '')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .slice(0, 100);
   const year = c.req.query('year') || '';
   const sort = c.req.query('sort') || 'name';
   const lim = Math.min(parseInt(c.req.query('limit') || '24', 10), 100);
