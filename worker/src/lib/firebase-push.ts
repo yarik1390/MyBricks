@@ -48,7 +48,7 @@ export function firebasePushConfigured(env: Env): boolean {
   return parseServiceAccount(env.FIREBASE_SERVICE_ACCOUNT_JSON) !== null;
 }
 
-function privateKeyBytes(pem: string): Uint8Array {
+function privateKeyBytes(pem: string): Uint8Array<ArrayBuffer> {
   const body = pem
     .replace(/-----BEGIN PRIVATE KEY-----/g, '')
     .replace(/-----END PRIVATE KEY-----/g, '')

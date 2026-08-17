@@ -22,7 +22,7 @@ const JWKS_KV_KEY = 'auth:jwks:v1';
 // publishes (a handful).
 const _cryptoKeys = new Map<string, CryptoKey>();
 
-function b64urlDecode(s: string): Uint8Array {
+function b64urlDecode(s: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 }
 

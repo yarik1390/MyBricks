@@ -41,7 +41,7 @@ app.get('/', async (c) => {
   const rawW = Number(c.req.query('w'));
   const width = Number.isFinite(rawW) && rawW >= 64 && rawW <= 1024 ? Math.round(rawW) : 0;
 
-  const cache = caches.default;
+  const cache = (caches as unknown as { default: Cache }).default;
 
   // 1) Cloudflare edge cache — fastest, shared across users. The request URL
   //    includes ?w=, so thumbnails and full images cache under distinct keys.

@@ -139,14 +139,31 @@ function repaintSetList() {
   
   portfolioOffset = 20;
   const firstPage = items.slice(0, portfolioOffset);
-  list.innerHTML = firstPage.map(setListCardHTML).join("") + `
+  const SLICE = 8;
+  const tail = `
     <div id="portfolioSentinel" style="height: 20px; display: flex; align-items: center; justify-content: center; margin-top: 10px;">
       ${items.length > portfolioOffset ? `<div class="spinner"></div>` : ''}
     </div>
   `;
-  
-  wirePortfolioCards();
-  setupPortfolioSentinel(items);
+  // Progressive mount: first 8 cards paint immediately, the rest in
+  // requestAnimationFrame slices — the vault render never blocks the main
+  // thread in one ~300ms task (cuts TBT, LCP paints earlier). Slices abort
+  // if the list was replaced mid-flight (navigation/re-render).
+  const mountSlice = (start) => {
+    if (!list.isConnected) return;
+    const chunk = firstPage.slice(start, start + SLICE).map(setListCardHTML).join("");
+    if (start === 0) list.innerHTML = chunk;
+    else list.insertAdjacentHTML("beforeend", chunk);
+    const next = start + SLICE;
+    if (next < firstPage.length) {
+      requestAnimationFrame(() => mountSlice(next));
+    } else {
+      list.insertAdjacentHTML("beforeend", tail);
+      wirePortfolioCards();
+      setupPortfolioSentinel(items);
+    }
+  };
+  mountSlice(0);
 }
 
 function wirePortfolioCards() {

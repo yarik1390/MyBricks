@@ -11,12 +11,12 @@ function b64url(buf: ArrayBuffer | Uint8Array): string {
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-function b64urlDecode(s: string): Uint8Array {
+function b64urlDecode(s: string): Uint8Array<ArrayBuffer> {
   const padded = s.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '=');
   return Uint8Array.from(atob(padded), c => c.charCodeAt(0));
 }
 
-function concat(...arrays: Uint8Array[]): Uint8Array {
+function concat(...arrays: Uint8Array[]): Uint8Array<ArrayBuffer> {
   const out = new Uint8Array(arrays.reduce((n, a) => n + a.length, 0));
   let offset = 0;
   for (const a of arrays) { out.set(a, offset); offset += a.length; }
@@ -39,8 +39,8 @@ async function hkdf(
   info: Uint8Array,
   length: number,
 ): Promise<Uint8Array> {
-  const saltKey = await crypto.subtle.importKey('raw', salt, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const prk = new Uint8Array(await crypto.subtle.sign('HMAC', saltKey, ikm));
+  const saltKey = await crypto.subtle.importKey('raw', salt as BufferSource, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const prk = new Uint8Array(await crypto.subtle.sign('HMAC', saltKey, ikm as BufferSource));
   const prkKey = await crypto.subtle.importKey('raw', prk, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return hkdfExpand(prkKey, info, length);
 }
@@ -131,7 +131,7 @@ export async function sendWebPush(
   const cek = await hkdf(salt, prkKey, cekInfo, 16);
   const nonce = await hkdf(salt, prkKey, nonceInfo, 12);
 
-  const cekKey = await crypto.subtle.importKey('raw', cek, { name: 'AES-GCM' }, false, ['encrypt']);
+  const cekKey = await crypto.subtle.importKey('raw', cek as BufferSource, { name: 'AES-GCM' }, false, ['encrypt']);
   const plaintext = enc.encode(payload);
   // RFC 8291: pad to multiple of 2, add one 0x02 padding delimiter byte
   const paddedContent = new Uint8Array(plaintext.length + 1);
@@ -139,7 +139,7 @@ export async function sendWebPush(
   paddedContent[plaintext.length] = 0x02;
 
   const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv: nonce, tagLength: 128 },
+    { name: 'AES-GCM', iv: nonce as BufferSource, tagLength: 128 },
     cekKey,
     paddedContent,
   ));
