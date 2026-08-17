@@ -512,12 +512,22 @@ Newest first. (Service-worker `VERSION` in parentheses where relevant.)
   which had permitted every Cloudflare Workers tenant. The deploy step that
   writes `env.js` now rewrites the same URL into `public/_headers` and the
   `index.html` meta and FAILS the deploy if they disagree.
-- **Bright Data removed entirely** (~1,900 lines). It could not reach eBay sold
-  search by any route — sync unlocker no answer at 90s, async still pending after
-  hours, Web Scraper API refused on account credits — while StockX unlocked fine
-  on the same zone and tokens, so the account was healthy and the lane was not.
-  Removing it deleted the circuit breaker, the half-open canary, the rescue path
-  and the key pool with it. `ebay-sold-scrape` is now single-engine.
+- **Bright Data removed from the eBay-sold lane**, then RESTORED in a different
+  role by parallel work (`f5cd93b`) — read this carefully, the two are not the
+  same thing:
+  - What was removed and stays removed: Bright Data as the eBay sold-search
+    *engine*, with its circuit breaker, half-open canary and Firecrawl rescue.
+    It could not reach eBay sold search by any route — sync unlocker no answer at
+    90s, async still pending after hours, Web Scraper API refused on account
+    credits — while StockX unlocked fine on the same zone and tokens. The account
+    was healthy; that one lane was not. `ebay-sold-scrape` is Firecrawl-only.
+  - What came back: Bright Data as a raw-HTML *transport* for other scrapers
+    (`brickeconomy-firecrawl.ts`, `ebay-firecrawl.ts`, `lego-stock.ts`) with a
+    rotating monthly token pool. Different job, different failure surface. Do not
+    re-point it at eBay sold search without re-testing that lane specifically.
+  - Also added in parallel: a ScrapingAnt raw-HTML lane (`a195ba6`) and a
+    separate Apify eBay-sold job (`jobs/ebay-sold-apify.ts`). There are now
+    several sold-comp paths; check which is actually scheduled before assuming.
 - **Firecrawl concurrency unified** at the plan limit (see Gotchas). StockX moved
   to Firecrawl-only; it was already Firecrawl-preferred with an unused fallback.
 
