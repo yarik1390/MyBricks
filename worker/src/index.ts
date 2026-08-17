@@ -108,7 +108,9 @@ app.use('*', async (c, next) => {
   if (publicCacheableGet) {
     c.header('Cache-Control', 'public, max-age=120, s-maxage=300, stale-while-revalidate=600');
     c.header('Vary', 'Authorization');
-  } else {
+  } else if (!c.res.headers.get('Cache-Control')) {
+    // Routes that set their own cacheability (e.g. /api/img serves
+    // immutable product images) keep it; everything else stays no-store.
     c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     c.header('Pragma', 'no-cache');
     c.header('Expires', '0');
