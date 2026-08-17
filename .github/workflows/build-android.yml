@@ -190,3 +190,21 @@ jobs:
             android/app/build/outputs/native-debug-symbols/release/native-debug-symbols.zip
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload to Google Play (Internal testing)
+        # Auto-uploads the signed bundle to the Play Console internal track.
+        # One-time setup (Play Console → Setup → API access): create a
+        # service account with "Releases" access to the app, download its
+        # JSON key, and save it as the GitHub secret
+        # GOOGLE_PLAY_SERVICE_ACCOUNT_JSON. Without that secret this step
+        # is skipped (the bundle is still delivered as an artifact + the
+        # aab-delivery branch).
+        if: ${{ inputs.build_type == 'release' && steps.keystore.outputs.signed == 'true' && secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJson: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: app.bricksvault
+          releaseFiles: android/app/build/outputs/bundle/release/*.aab
+          mappingFile: android/app/build/outputs/mapping/release/mapping.txt
+          track: internal
+          releaseStatus: completed
