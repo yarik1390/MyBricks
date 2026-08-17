@@ -355,6 +355,12 @@ dashboard); local dev uses `worker/.dev.vars` (see `.dev.vars.example`).
 **Auth/identity:** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_JWT_SECRET`
 (HS256 verify; ES256/RS256 fall back to the project JWKS), `ADMIN_USER_ID`.
 
+**Public URL:** `APP_BASE_URL` — canonical https origin for links the Worker
+generates (emails, push deep links, exports). Optional; defaults to
+`https://bricksvault.app`. Validated as a bare https origin and otherwise
+ignored, because a malformed value would ship broken links in email that cannot
+be recalled. See `worker/src/lib/app-url.ts`.
+
 **Pricing/catalog APIs:** `BRICKLINK_CONSUMER_KEY`, `BRICKLINK_CONSUMER_SECRET`,
 `BRICKLINK_TOKEN`, `BRICKLINK_TOKEN_SECRET`, `BRICKECONOMY_API_KEY`,
 `BRICKOWL_API_KEY`, `BRICKSET_API_KEY`, `REBRICKABLE_API_KEY`, `EBAY_APP_ID`,
@@ -463,12 +469,65 @@ Both one-time bootstraps — PriceCharting per-set (`10,25,40,55`) and BrickEcon
   "space on the right"). Fixed; don't remove it.
 - **MCP/transport flakiness** in the build environment is common; retries usually
   succeed — not an app bug.
+- **Firecrawl plan concurrency is 2, account-wide.** `FIRECRAWL_MAX_CONCURRENCY`
+  in `lib/firecrawl.ts` is the single source of truth; every scraping job must
+  cap its wave at it. Going wider does not go faster — surplus calls return 429,
+  and a 429 on the last live key surfaces as `no Firecrawl key could serve the
+  request`. This was a real, measured bug: three jobs each carried their own
+  number (2 / 5 / 8-max) and `brickeconomy-enrich` ran 49x/day at 5, generating
+  most of the failure count while starving the eBay-sold lane.
+- **`FIRECRAWL_KEY_CREDITS` is POSITIONALLY aligned** with the key list
+  (`FIRECRAWL_API_KEY` first, then the `FIRECRAWL_API_KEYS` list). Removing a
+  drained key without dropping its balance entry hands that balance to whichever
+  key takes the slot. `configuredFirecrawlCaps` now ignores the list entirely
+  when it is LONGER than the key list, but keep them in step anyway.
+- **Run EVERY CI gate locally before pushing, not a subset.** The deploy runs
+  five: root `npm test` (UI-string catalog + i18n dynamic sinks + dictionary
+  verify + frontend tests), `npx biome lint`, a frontend `checkJs` pass over
+  `public/js/lib/pure-core.js`, `cd worker && npx tsc --noEmit`, and
+  `cd worker && npx vitest run`. Two consecutive deploys failed here because
+  only the worker suite was run — `tsc` does not flag unused imports (biome
+  does), and `scripts/ui-strings.json` is a checked-in harvest that goes stale
+  whenever a UI string changes (`node scripts/harvest-ui-strings.mjs --write`).
+- **OAuth redirect is Supabase-side config.** The web client sends
+  `redirect_to = window.location.origin`, which is correct. GoTrue rejects a
+  `redirect_to` absent from the dashboard allowlist and *silently* falls back to
+  the project Site URL — so "login sends me to the wrong domain" is almost never
+  a code bug. Fix in Authentication -> URL Configuration.
 
 ---
 
 ## 11. Recent-changes changelog
 
 Newest first. (Service-worker `VERSION` in parentheses where relevant.)
+
+**Domain move + scraping consolidation (2026-08-11, v413)**
+- **Canonical domain is now `https://bricksvault.app`.** The origin used to be
+  pasted into ten files; it now lives only in `worker/src/lib/app-url.ts`
+  (`appBaseUrl` / `appLink` / `appHost` / `isAllowedOrigin`), overridable via
+  `APP_BASE_URL`. The Cloudflare Pages origin stays in the CORS allowlist — it
+  is NOT legacy: Pages serves the project there regardless of custom domain and
+  preview deployments exist only under that host. Still never `*.pages.dev`.
+- **CSP `connect-src` pinned to the API host** instead of `https://*.workers.dev`,
+  which had permitted every Cloudflare Workers tenant. The deploy step that
+  writes `env.js` now rewrites the same URL into `public/_headers` and the
+  `index.html` meta and FAILS the deploy if they disagree.
+- **Bright Data removed entirely** (~1,900 lines). It could not reach eBay sold
+  search by any route — sync unlocker no answer at 90s, async still pending after
+  hours, Web Scraper API refused on account credits — while StockX unlocked fine
+  on the same zone and tokens, so the account was healthy and the lane was not.
+  Removing it deleted the circuit breaker, the half-open canary, the rescue path
+  and the key pool with it. `ebay-sold-scrape` is now single-engine.
+- **Firecrawl concurrency unified** at the plan limit (see Gotchas). StockX moved
+  to Firecrawl-only; it was already Firecrawl-preferred with an unused fallback.
+
+**Measured state at the time of that change** (re-measure before trusting):
+- eBay-sold coverage: `ebay_new` 3,981 (14.2%), `ebay_used` 2,271 (8.1%)
+- Priceable lens: 15,050 / 18,241 = 82.5% with at least one source; only 230
+  *valuable* sets have none. eBay-sold is a thin corroborating layer over a
+  healthy base, not load-bearing.
+- Fill rate before the concurrency fix was ~+4 sets/day — effectively stalled.
+  The fix landed 2026-08-11 13:47Z; its effect was not yet measured.
 
 **Full-sweep audit remediation (2026-07, v267)** — a 3-track independent audit
 (UX journeys, backend security/reliability, perf/PWA) surfaced ~60 findings;
