@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import app from './index';
+import { apiErrorHandler, app } from './index';
 
 declare module 'cloudflare:test' {
   interface ProvidedEnv {
@@ -342,6 +342,28 @@ describe('BrickVault API Worker Tests', () => {
           env,
         );
         expect(res.headers.get('Access-Control-Allow-Origin')).toBe(origin);
+      }
+    });
+
+    it('sets CORS headers on unhandled error responses', async () => {
+      const original = console.error;
+      console.error = () => {};
+      try {
+        const responseHeaders = new Headers();
+        const res = await apiErrorHandler(
+          new Error('boom'),
+          {
+            env,
+            req: { header: (name: string) => name === 'Origin' ? 'http://localhost:3000' : undefined },
+            header: (name: string, value: string) => responseHeaders.set(name, value),
+            json: (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: responseHeaders }),
+          } as any,
+        );
+        expect(res.status).toBe(500);
+        expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:3000');
+        await expect(res.json()).resolves.toEqual({ error: 'Internal Server Error' });
+      } finally {
+        console.error = original;
       }
     });
 

@@ -23,7 +23,7 @@ import { rewriteImages } from './lib/img-proxy';
 import { runImagePrewarm } from './jobs/image-prewarm';
 import { runUpcomingRefresh } from './jobs/upcoming-refresh';
 import { upcomingRoute } from './routes/upcoming';
-import type { MiddlewareHandler } from 'hono';
+import type { ErrorHandler, MiddlewareHandler } from 'hono';
 import { pushRoute } from './routes/push';
 import { firebasePushConfigured } from './lib/firebase-push';
 import { bricklinkImportRoute } from './routes/bricklink-import';
@@ -68,7 +68,7 @@ import { setPricingV3ReadPercent } from './lib/market-sources';
 import { appBaseUrl, isAllowedOrigin } from './lib/app-url';
 import type { Env, Variables } from './types';
 
-const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+export const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Origin policy lives in lib/app-url.ts so the allowlist and the links we
 // generate cannot drift apart. Both the legacy Pages origin and any configured
@@ -79,6 +79,17 @@ app.use('*', cors({
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'X-Gemini-Key', 'X-OpenAI-Key', 'X-Brickvault-Platform', 'cf-turnstile-token'],
 }));
+
+// Hono's CORS middleware adds response headers after `next()`. An unhandled
+// route error skips that return path, so repeat the origin policy here to make
+// error responses readable by approved browser/native clients as well.
+export const apiErrorHandler: ErrorHandler<{ Bindings: Env; Variables: Variables }> = (err, c) => {
+  console.error(err);
+  const origin = c.req.header('Origin');
+  c.header('Access-Control-Allow-Origin', origin && isAllowedOrigin(origin, c.env) ? origin : appBaseUrl(c.env));
+  return c.json({ error: 'Internal Server Error' }, 500);
+};
+app.onError(apiErrorHandler);
 
 app.use('*', async (c, next) => {
   setPricingV3ReadPercent(c.env.PRICING_V3_READ_PERCENT);
