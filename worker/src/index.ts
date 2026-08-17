@@ -86,8 +86,10 @@ app.use('*', cors({
 export const apiErrorHandler: ErrorHandler<{ Bindings: Env; Variables: Variables }> = (err, c) => {
   console.error(err);
   const origin = c.req.header('Origin');
-  c.header('Access-Control-Allow-Origin', origin && isAllowedOrigin(origin, c.env) ? origin : appBaseUrl(c.env));
-  return c.json({ error: 'Internal Server Error' }, 500);
+  if (origin && isAllowedOrigin(origin, c.env)) {
+    c.header('Access-Control-Allow-Origin', origin);
+  }
+  return c.json({ error: 'Internal server error' }, 500);
 };
 app.onError(apiErrorHandler);
 

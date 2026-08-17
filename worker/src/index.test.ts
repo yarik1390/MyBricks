@@ -361,7 +361,28 @@ describe('BrickVault API Worker Tests', () => {
         );
         expect(res.status).toBe(500);
         expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:3000');
-        await expect(res.json()).resolves.toEqual({ error: 'Internal Server Error' });
+        await expect(res.json()).resolves.toEqual({ error: 'Internal server error' });
+      } finally {
+        console.error = original;
+      }
+    });
+
+    it('does not set Access-Control-Allow-Origin on error responses for a rejected origin', async () => {
+      const original = console.error;
+      console.error = () => {};
+      try {
+        const responseHeaders = new Headers();
+        const res = await apiErrorHandler(
+          new Error('boom'),
+          {
+            env,
+            req: { header: (name: string) => name === 'Origin' ? 'https://evil.example.com' : undefined },
+            header: (name: string, value: string) => responseHeaders.set(name, value),
+            json: (body: unknown, status: number) => new Response(JSON.stringify(body), { status, headers: responseHeaders }),
+          } as any,
+        );
+        expect(res.status).toBe(500);
+        expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull();
       } finally {
         console.error = original;
       }
