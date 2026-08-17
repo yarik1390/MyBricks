@@ -27,6 +27,8 @@ export async function sendDiscordAlert(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ embeds: [embed] }),
+      // No retries: duplicate Discord alerts are noise, not signal.
+      signal: AbortSignal.timeout(8000),
     });
     return resp.ok;
   } catch {

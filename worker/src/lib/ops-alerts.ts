@@ -104,6 +104,7 @@ async function postOpsAlert(env: Env, alerts: OpsAlert[]): Promise<boolean> {
       // Discord caps a message at 2000 characters and drops the whole payload
       // if exceeded — truncate rather than lose the alert entirely.
       body: JSON.stringify({ content: `⚠️ **Brickvault ops** — ${alerts.length} issue(s)\n${lines.join('\n')}`.slice(0, 1900) }),
+      signal: AbortSignal.timeout(8000),
     });
     return res.ok;
   } catch (e) {

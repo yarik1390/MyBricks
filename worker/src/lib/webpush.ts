@@ -152,18 +152,26 @@ export async function sendWebPush(
   const header891 = concat(salt, rsBytes, new Uint8Array([senderPub.length]), senderPub);
   const body = concat(header891, ciphertext);
 
-  const res = await fetch(sub.endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/octet-stream',
-      'Content-Encoding': 'aes128gcm',
-      'TTL': '86400',
-      'Authorization': `vapid t=${jwt},k=${vapidPublicKeyHeader}`,
-    },
-    body,
-  });
+  // Bounded push attempt: a stalled endpoint must not hang the alerts job.
+  // Failures surface as `false` (matching the boolean contract) — no retry,
+  // because a duplicate push notification is worse than a dropped one.
+  try {
+    const res = await fetch(sub.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'Content-Encoding': 'aes128gcm',
+        'TTL': '86400',
+        'Authorization': `vapid t=${jwt},k=${vapidPublicKeyHeader}`,
+      },
+      body,
+      signal: AbortSignal.timeout(8000),
+    });
 
-  return res.ok || res.status === 201;
+    return res.ok || res.status === 201;
+  } catch {
+    return false;
+  }
 }
 
 export async function generateVapidKeys(): Promise<{ publicKey: string; privateKey: string }> {

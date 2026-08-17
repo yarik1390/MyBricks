@@ -94,6 +94,9 @@ async function getAccessToken(account: FirebaseServiceAccount): Promise<string> 
       grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
       assertion,
     }),
+    // Bounded: a stalled Google OAuth must not hang the push job; the existing
+    // throw contract is preserved (caller records integration health).
+    signal: AbortSignal.timeout(8000),
   });
   if (!response.ok) throw new Error(`Firebase OAuth failed (${response.status})`);
   const result = await response.json<{ access_token?: string; expires_in?: number }>();
@@ -166,6 +169,8 @@ export async function sendNativePushToUser(env: Env, userId: string, payloadJson
               android: { priority: 'high' },
             },
           }),
+          // Bounded per-message send; a stalled FCM call must not hang the batch.
+          signal: AbortSignal.timeout(8000),
         },
       );
       if (response.ok) {

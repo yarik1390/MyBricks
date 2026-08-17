@@ -21,6 +21,8 @@ export async function sendAlertEmail(
         subject,
         html,
       }),
+      // No retries: a duplicate alert email is worse than a dropped one.
+      signal: AbortSignal.timeout(8000),
     });
     return resp.ok;
   } catch {

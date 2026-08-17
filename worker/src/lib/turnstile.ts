@@ -31,6 +31,9 @@ export async function verifyTurnstileToken(
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body,
+      // Bounded: a stalled siteverify must fail open like any network error,
+      // not hang the scan path.
+      signal: AbortSignal.timeout(8000),
     });
     if (!resp.ok) {
       console.warn('[turnstile] siteverify HTTP', resp.status, '— failing open');
