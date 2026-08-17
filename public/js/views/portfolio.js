@@ -352,7 +352,7 @@ function paintPortfolio() {
               .map(([k,l]) => `<button class="chip ${state.filter.sort === k ? "active" : ""}" data-sort="${k}">${l}</button>`).join("")}
           </div>
           <div class="set-list ${state.compactView ? 'compact-list' : ''}" id="setList">
-            ${items.length === 0 ? emptyVaultHTML() : items.map(setListCardHTML).join("")}
+            ${items.length === 0 ? emptyVaultHTML() : ""}
           </div>
         ` : `
           <div id="insightsPanelContent">
@@ -362,8 +362,8 @@ function paintPortfolio() {
       </div>
     </div>`;
 
-  // Restore the pre-repaint scroll offset (see note at the top of this fn).
-  if (scrollYBefore > 0) window.scrollTo(0, scrollYBefore);
+  // Scroll restore moved below into the deferred render: the list must exist
+  // with its full height first, or the restore clamps to the hero-only page.
 
   // Day-one vaults have snapshots but no movement yet — a bare flat line
   // reads as "broken chart". Say what's actually happening.
@@ -513,6 +513,14 @@ function paintPortfolio() {
     $("#vaultMoreAlerts")?.addEventListener("click", () => { hideSheet(); showAlertsSheet(state.wishlistAlerts); });
   });
   
+  // Initial card fill deferred one frame so the shell (hero + tabs) paints
+  // first; repaintSetList renders cards in progressive rAF slices and wires
+  // them + the sentinel itself.
+  requestAnimationFrame(() => {
+    repaintSetList();
+    if (scrollYBefore > 0) window.scrollTo(0, scrollYBefore);
+  });
+
   if (state.portfolioTab === "items") {
     wirePortfolioCards();
     setupPortfolioSentinel(items);
