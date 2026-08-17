@@ -57,13 +57,28 @@ export function appHost(env: Env): string {
  * Cloudflare tenant's origin, which the security audit called out.
  */
 export function isAllowedOrigin(origin: string, env: Env): boolean {
-  return (
+  if (
     origin.startsWith('http://localhost:') ||
     origin.startsWith('http://127.0.0.1:') ||
     origin === 'https://localhost' ||
     origin === 'capacitor://localhost' ||
     origin === appBaseUrl(env) ||
-    origin === PAGES_ORIGIN ||
-    origin.endsWith(PREVIEW_SUFFIX)
-  );
+    origin === PAGES_ORIGIN
+  ) {
+    return true;
+  }
+  // Preview deployments under our Pages host: require HTTPS, no userinfo, no
+  // path, and at least one real label before the suffix (a bare
+  // `https://brickvault-5ub.pages.dev` is already handled by the exact match
+  // above). Nested labels are intentionally allowed — Cloudflare names some
+  // preview deployments with extra subdomain labels.
+  try {
+    const u = new URL(origin);
+    if (u.protocol !== 'https:') return false;
+    if (u.username || u.password) return false;
+    if (u.pathname && u.pathname !== '/') return false;
+    return u.hostname.endsWith(PREVIEW_SUFFIX) && u.hostname !== PREVIEW_SUFFIX.slice(1);
+  } catch {
+    return false;
+  }
 }

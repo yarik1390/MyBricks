@@ -69,5 +69,24 @@ describe('app-url', () => {
       expect(isAllowedOrigin('https://notbricksvault.app', env)).toBe(false);
       expect(isAllowedOrigin('https://evil-brickvault-5ub.pages.dev', env)).toBe(false);
     });
+
+    it('requires https for preview deployments', () => {
+      const env = {} as any;
+      expect(isAllowedOrigin('http://abc123.brickvault-5ub.pages.dev', env)).toBe(false);
+      expect(isAllowedOrigin('ws://abc123.brickvault-5ub.pages.dev', env)).toBe(false);
+    });
+
+    it('accepts nested preview labels but not a bare suffix host', () => {
+      const env = {} as any;
+      expect(isAllowedOrigin('https://foo.bar.brickvault-5ub.pages.dev', env)).toBe(true);
+      expect(isAllowedOrigin('https://brickvault-5ub.pages.dev', env)).toBe(true); // exact PAGES_ORIGIN match
+    });
+
+    it('rejects preview origins with userinfo, path or invalid shape', () => {
+      const env = {} as any;
+      expect(isAllowedOrigin('https://evil@abc123.brickvault-5ub.pages.dev', env)).toBe(false);
+      expect(isAllowedOrigin('https://abc123.brickvault-5ub.pages.dev/admin', env)).toBe(false);
+      expect(isAllowedOrigin('not-an-origin', env)).toBe(false);
+    });
   });
 });
