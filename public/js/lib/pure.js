@@ -3,6 +3,11 @@
 // doesn't parse this whole module; re-exported here so every existing
 // `from '../lib/pure.js'` import keeps working.
 export { jwtSub, displayValueOf, withDisplayValue, shouldUseKeyboardShell, nextOfflineBannerState, upsertDetailCache, isCredentialAuthFailure } from './pure-core.js';
+// A re-export does NOT bind the name in this module's scope, so anything USED
+// here (not merely forwarded) needs a real import as well. canonicalSetMarketMeta
+// called displayValueOf and threw "displayValueOf is not defined" at runtime,
+// in the browser as well as in tests.
+import { displayValueOf } from './pure-core.js';
 
 /**
  * Pure, stateless helper functions with no DOM, state, or network dependencies.
@@ -1148,7 +1153,13 @@ export function canonicalSetMarketMeta(row = {}) {
     value: displayValueOf(row),
     condition,
     quantity,
-    trust: valuationTrust(row).tier,
+    // valuationTrust returns { tone, label, detail, confidence, freshness,
+    // source } — there is no `tier`, so reading one silently yielded undefined.
+    // It also reads `confidence`, while the canonical blended row carries
+    // `blended_confidence`, so hand it the explicit value when present.
+    trust: valuationTrust(
+      row.confidence ? row : { ...row, confidence: row.blended_confidence || row.confidence },
+    ).confidence,
   };
 }
 

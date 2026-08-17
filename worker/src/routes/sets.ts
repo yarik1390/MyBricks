@@ -114,7 +114,6 @@ app.get('/search', (c) => edgeCached(c, 120, () => searchHandler(c)));
 const searchHandler = async (c: Context<{ Bindings: Env; Variables: Variables }>) => {
   const q = (c.req.query('q') || '').trim();
   const theme = (c.req.query('theme') || '').trim();
-  const year = c.req.query('year') || '';
   const sort = c.req.query('sort') || 'name';
   const lim = Math.min(parseInt(c.req.query('limit') || '24', 10), 100);
   const offset = Math.max(parseInt(c.req.query('offset') || '0', 10), 0);
@@ -178,6 +177,7 @@ const searchHandler = async (c: Context<{ Bindings: Env; Variables: Variables }>
   if (themeGroup) addFilter(`s.theme_group = ?`, themeGroup);
   const category = c.req.query('category') || '';
   if (category) addFilter(`s.category = ?`, category);
+  const retired = c.req.query('retired') || '';
   if (retired === '1' || retired === 'true') addFilter(`s.retired = 1`);
   else if (retired === '0' || retired === 'false') addFilter(`s.retired = 0`);
   // Retiring-soon: still-active sets the official flag OR the risk model marks as
