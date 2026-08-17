@@ -707,7 +707,7 @@ function emptyVaultHTML() {
             <div class="sl-meta" style="text-align:left;"><span>90d Trend</span><span class="stale-dot" style="display:inline-block;width:6px;height:6px;background:var(--bv-yellow);border-radius:50%;margin-left:4px;"></span></div>
           </div>
           <div class="sl-right-compact">
-            <div class="sl-value ghost-blur">$99.99</div>
+            <div class="sl-value">$99.99</div>
             <div class="sl-delta up">+25.4%</div>
           </div>
         </div>
@@ -719,7 +719,7 @@ function emptyVaultHTML() {
             <div class="sl-meta" style="text-align:left;"><span>90d Trend</span></div>
           </div>
           <div class="sl-right-compact">
-            <div class="sl-value ghost-blur">$849.99</div>
+            <div class="sl-value">$849.99</div>
             <div class="sl-delta up">+12.1%</div>
           </div>
         </div>
@@ -731,7 +731,7 @@ function emptyVaultHTML() {
             <div class="sl-meta" style="text-align:left;"><span>90d Trend</span></div>
           </div>
           <div class="sl-right-compact">
-            <div class="sl-value ghost-blur">$399.99</div>
+            <div class="sl-value">$399.99</div>
             <div class="sl-delta up">+8.7%</div>
           </div>
         </div>

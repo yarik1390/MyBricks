@@ -3868,12 +3868,6 @@ body.sheet-open .selection-bar {
   padding-bottom: 4px !important;
   margin-bottom: -6px !important;
 }
-.ghost-blur {
-  filter: blur(4px);
-  user-select: none;
-  opacity: 0.6;
-}
-
 /* ============================================================
    UI/UX polish pass
    ============================================================ */

@@ -167,7 +167,7 @@ function paintSetDetail(set, entry) {
           <div class="detail-hero-overlay"></div>
           <div class="detail-img${hasImg ? " has-photo" : ""}">
             ${hasImg ? "" : `<div class="brick-art" style="--brick-color:oklch(0.72 0.13 ${h});">${escapeHtml(set.set_num)}</div>`}
-            ${hasImg ? `<img class="set-photo" src="${escapeHtml(displayImg)}" alt="${escapeHtml(set.name)}">` : ""}
+            ${hasImg ? `<img class="set-photo" fetchpriority="high" src="${escapeHtml(displayImg)}" alt="${escapeHtml(set.name)}">` : ""}
           </div>
           ${hasImg ? `<div class="detail-setnum" style="--set-accent:${escapeHtml(themeColor(set.theme).c)};">${escapeHtml(set.set_num)}</div>` : ""}
         </div>
