@@ -82,7 +82,11 @@ async function verifyJWT(token: string, env: Env): Promise<{ sub?: string; email
     return { error: 'undecodable token' };
   }
 
-  if (payload.exp && payload.exp < Date.now() / 1000) return { error: 'expired token' };
+  const nowSeconds = Date.now() / 1000;
+  if (payload.exp && payload.exp < nowSeconds) return { error: 'expired token' };
+  // RFC 7519 nbf: reject only a PRESENT, finite nbf in the future beyond 60s of
+  // clock skew. Absent nbf (common for Supabase sessions) always passes.
+  if (payload.nbf && typeof payload.nbf === 'number' && Number.isFinite(payload.nbf) && payload.nbf > nowSeconds + 60) return { error: 'token not active yet' };
   if (payload.role !== 'authenticated') return { error: 'not an authenticated role' };
   // Defence-in-depth beyond the signature: reject a token minted for a different
   // audience. Lenient — only reject a PRESENT, wrong `aud` so tokens lacking the

@@ -38,6 +38,56 @@ async function createMockJWT(userId: string, secret: string): Promise<string> {
   return `${unsigned}.${sigB64}`;
 }
 
+describe('JWT nbf (not-before) validation', () => {
+  const JWT_SECRET = 'test-secret-at-least-32-chars-long-and-super-secure';
+
+  async function mint(claims: Record<string, unknown>): Promise<string> {
+    const header = { alg: 'HS256', typ: 'JWT' };
+    const payload = { sub: 'nbf-user', role: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600, ...claims };
+    const b64url = (json: any) => btoa(JSON.stringify(json)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const unsigned = `${b64url(header)}.${b64url(payload)}`;
+    const key = await crypto.subtle.importKey(
+      'raw', new TextEncoder().encode(JWT_SECRET),
+      { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+    );
+    const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(unsigned));
+    const sigB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+      .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    return `${unsigned}.${sigB64}`;
+  }
+
+  beforeEach(async () => {
+    (env as any).SUPABASE_JWT_SECRET = JWT_SECRET;
+    (env as any).SUPABASE_URL = 'https://supabase.mock.io';
+    (env as any).SUPABASE_ANON_KEY = 'supabase-anon-key-mock';
+    (env as any).ADMIN_USER_ID = 'admin-user';
+  });
+
+  it('accepts a token with no nbf claim (Supabase default sessions)', async () => {
+    const t = await mint({});
+    const res = await app.fetch(new Request('https://example.com/api/me', { headers: { Authorization: `Bearer ${t}` } }), env as any);
+    expect(res.status).not.toBe(401);
+  });
+
+  it('rejects a token whose nbf is more than 60s in the future', async () => {
+    const t = await mint({ nbf: Math.floor(Date.now() / 1000) + 300 });
+    const res = await app.fetch(new Request('https://example.com/api/me', { headers: { Authorization: `Bearer ${t}` } }), env as any);
+    expect(res.status).toBe(401);
+  });
+
+  it('allows a token whose nbf is within clock skew (30s)', async () => {
+    const t = await mint({ nbf: Math.floor(Date.now() / 1000) + 30 });
+    const res = await app.fetch(new Request('https://example.com/api/me', { headers: { Authorization: `Bearer ${t}` } }), env as any);
+    expect(res.status).not.toBe(401);
+  });
+
+  it('allows a token whose nbf is in the past', async () => {
+    const t = await mint({ nbf: Math.floor(Date.now() / 1000) - 300 });
+    const res = await app.fetch(new Request('https://example.com/api/me', { headers: { Authorization: `Bearer ${t}` } }), env as any);
+    expect(res.status).not.toBe(401);
+  });
+});
+
 describe('Route coverage: me / wishlist / profile / collection', () => {
   const JWT_SECRET = 'test-secret-at-least-32-chars-long-and-super-secure';
   const userId = 'route-user-1';
