@@ -386,7 +386,8 @@ exposes client-safe values.**
 | `15 * * * *` | formula-head revaluation + PriceCharting verify-drain + image pre-warm (R2) |
 | `25 * * * *`, `50 * * * *` | **BrickEconomy enrich** (Firecrawl, 60 sets/run) |
 | `30 * * * *` | UPCitemdb barcode backfill |
-| `0 0,3,6,9,12,15,18,21` | eBay-sold scrape (Firecrawl, 8×/day) |
+| `0 0,3,6,9,12,15,18,21` | eBay-sold scrape (Firecrawl, 8×/day, 16 sets/run) |
+| `30 21 * * SUN` | eBay-sold **Apify** batch (weekly, 20 sets — a SECOND sold-comp lane) |
 | `0 1`, `0 5` | minifig valuation (two slots) |
 | `0 2` | snapshot portfolios |
 | `0 3` | snapshot set values |
@@ -526,8 +527,11 @@ Newest first. (Service-worker `VERSION` in parentheses where relevant.)
     rotating monthly token pool. Different job, different failure surface. Do not
     re-point it at eBay sold search without re-testing that lane specifically.
   - Also added in parallel: a ScrapingAnt raw-HTML lane (`a195ba6`) and a
-    separate Apify eBay-sold job (`jobs/ebay-sold-apify.ts`). There are now
-    several sold-comp paths; check which is actually scheduled before assuming.
+    separate Apify eBay-sold job (`jobs/ebay-sold-apify.ts`). BOTH sold lanes
+    are scheduled and they are not alternatives — `ebay-sold-scrape` runs
+    Firecrawl 8x/day at 16 sets, `ebay-sold-apify` runs weekly (Sun 21:30) at
+    20 sets. They write the same columns, so when judging coverage movement,
+    attribute it to the right lane before concluding anything about either.
 - **Firecrawl concurrency unified** at the plan limit (see Gotchas). StockX moved
   to Firecrawl-only; it was already Firecrawl-preferred with an unused fallback.
 
