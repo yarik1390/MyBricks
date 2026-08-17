@@ -46,7 +46,14 @@ app.get('/', async (c) => {
   // 1) Cloudflare edge cache — fastest, shared across users. The request URL
   //    includes ?w=, so thumbnails and full images cache under distinct keys.
   const hit = await cache.match(c.req.raw).catch(() => undefined);
-  if (hit) return hit;
+  if (hit) {
+    // Responses served from the Cache API arrive with the edge's
+    // no-store override; re-assert cacheability so the browser/SW
+    // can actually cache product images (repeat views hit local).
+    const h = new Headers(hit.headers);
+    h.set('Cache-Control', IMMUTABLE);
+    return new Response(hit.body, { status: hit.status, statusText: hit.statusText, headers: h });
+  }
 
   const baseKey = await imageR2Key(src);
   const key = width ? `${baseKey}@w${width}` : baseKey;
