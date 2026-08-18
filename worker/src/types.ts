@@ -3,6 +3,8 @@ export interface AnalyticsEngineDataset {
 }
 
 export interface Env {
+  /** Deployment environment label; tests use `test`. */
+  ENVIRONMENT?: string;
   DB: D1Database;
   CACHE_KV?: KVNamespace;
   ANALYTICS?: AnalyticsEngineDataset;
