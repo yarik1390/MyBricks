@@ -19,6 +19,8 @@ const month = new Date().toISOString().slice(0, 7);
 // Base env with every scraper source OFF; each test opts in explicitly.
 const bare = {
   ...env,
+  ENVIRONMENT: 'test',
+  EBAY_SOURCE_AUTHORIZED_FOR_TESTS: '1',
   FIRECRAWL_API_KEY: '',
   FIRECRAWL_API_KEYS: '',
 };
@@ -31,7 +33,7 @@ describe('runEbaySoldScrape', () => {
     vi.clearAllMocks(); // reset fetcher call history so cross-test calls don't leak
     await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'integration_health', 'pricing_write_ledger', 'app_settings']);
     clearSourceConfigCache();
-    await saveSourceConfig(env as any, { ebay: { enabled: true } });
+    await saveSourceConfig(bare as any, { ebay: { enabled: true } });
     clearSourceConfigCache();
   });
   afterEach(() => vi.unstubAllGlobals());

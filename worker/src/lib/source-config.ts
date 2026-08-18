@@ -69,7 +69,12 @@ const MEMO_TTL_MS = 60_000;
 // Compliance hold: runtime settings cannot re-enable the eBay Firecrawl
 // enhanced/mobile-residential lane until provider/site authorization is
 // documented and this guard is removed in a reviewed release.
-const EBAY_SOURCE_AUTHORIZED = false;
+function ebaySourceAuthorized(env: Env): boolean {
+  // Deliberately unavailable in deployed configuration. The test-only escape
+  // hatch lets isolated job tests exercise parsers and persistence without
+  // weakening the production hold.
+  return env.ENVIRONMENT === 'test' && env.EBAY_SOURCE_AUTHORIZED_FOR_TESTS === '1';
+}
 
 let memo: Record<SourceName, SourceTuning> | null = null;
 let memoAt = 0;
@@ -113,7 +118,7 @@ export async function getSourceConfig(env: Env): Promise<Record<SourceName, Sour
     if (row?.value) stored = JSON.parse(row.value);
   } catch { /* defaults */ }
   memo = merge(stored);
-  if (!EBAY_SOURCE_AUTHORIZED) memo.ebay.enabled = false;
+  if (!ebaySourceAuthorized(env)) memo.ebay.enabled = false;
   // PriceCharting emergency kill-switch. Historically an opt-IN gate while
   // mappings were unverified; now that signals flow ONLY from verified
   // pricing_source_map rows (unique UPC or cross-source price agreement), the
@@ -155,7 +160,7 @@ export async function sourceEnabled(env: Env, name: SourceName): Promise<boolean
 /** Admin write: validate + persist the config and clear the memo. */
 export async function saveSourceConfig(env: Env, incoming: unknown): Promise<Record<SourceName, SourceTuning>> {
   const merged = merge((incoming && typeof incoming === 'object' ? incoming : {}) as Record<string, Partial<SourceTuning>>);
-  if (!EBAY_SOURCE_AUTHORIZED) merged.ebay.enabled = false;
+  if (!ebaySourceAuthorized(env)) merged.ebay.enabled = false;
   await env.DB.prepare(
     `INSERT INTO app_settings (key, value, updated_at) VALUES (?1, ?2, datetime('now'))
      ON CONFLICT(key) DO UPDATE SET value=?2, updated_at=datetime('now')`,

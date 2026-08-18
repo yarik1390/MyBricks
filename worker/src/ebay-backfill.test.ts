@@ -27,7 +27,12 @@ describe('runEbayBackfill (Marketplace Insights sold comps)', () => {
   });
 
   it('skips while the eBay circuit breaker is open, without reserving quota', async () => {
-    const enabled = { ...env, EBAY_SOLD_COMPS_ENABLED: '1' } as any;
+    const enabled = {
+      ...env,
+      ENVIRONMENT: 'test',
+      EBAY_SOURCE_AUTHORIZED_FOR_TESTS: '1',
+      EBAY_SOLD_COMPS_ENABLED: '1',
+    } as any;
     await saveSourceConfig(enabled, { ebay: { enabled: true } });
     clearSourceConfigCache();
     await setIntegrationBlock(enabled, 'ebay', 6); // access-denied breaker active
@@ -37,7 +42,12 @@ describe('runEbayBackfill (Marketplace Insights sold comps)', () => {
   });
 
   it('runs cleanly with nothing to backfill when enabled and unblocked', async () => {
-    const enabled = { ...env, EBAY_SOLD_COMPS_ENABLED: '1' } as any;
+    const enabled = {
+      ...env,
+      ENVIRONMENT: 'test',
+      EBAY_SOURCE_AUTHORIZED_FOR_TESTS: '1',
+      EBAY_SOLD_COMPS_ENABLED: '1',
+    } as any;
     await saveSourceConfig(enabled, { ebay: { enabled: true } });
     clearSourceConfigCache();
     const r = await runEbayBackfill(enabled);

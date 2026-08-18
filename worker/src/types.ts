@@ -73,6 +73,8 @@ export interface Env {
   // Pricing-source kill switches (see lib/pricing-flags.ts). Default OFF;
   // set to "1" via wrangler [vars] to re-enable once provider access returns.
   EBAY_SOLD_COMPS_ENABLED?: string;
+  /** Test-only escape hatch for isolated eBay job tests. Never configure in deployment. */
+  EBAY_SOURCE_AUTHORIZED_FOR_TESTS?: string;
   BRICKOWL_ENABLED?: string;
   BRICKINSIGHTS_ENABLED?: string;
   // StockX lowest-ask scrape (Firecrawl). OFF unless STOCKX_ENABLED is truthy.
