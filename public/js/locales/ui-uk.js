@@ -1782,7 +1782,16 @@ export const ui = {
   "← Back to Vault": "← Назад до сховища",
   "← Back to app": "← Назад до застосунку",
   "✓ Already in your vault!": "✓ Уже у вашому сховищі!",
-  "✓ Wishlisted": "✓ У списку бажань"
+  "✓ Wishlisted": "✓ У списку бажань",
+  "Bright Data Web Unlocker": "Bright Data Web Unlocker",
+  "Bright Data Web Unlocker — raw page transport for BrickEconomy, Brickset, and LEGO stock.": "Bright Data Web Unlocker — транспорт необроблених сторінок для BrickEconomy, Brickset і наявності LEGO.",
+  "Couldn't dismiss the alert — try again when online.": "Не вдалося закрити сповіщення — спробуйте ще раз онлайн.",
+  "Failed to acknowledge wishlist alert": "Не вдалося підтвердити сповіщення списку бажань",
+  "Fresh price from a market source": "Свіжа ціна з ринкового джерела",
+  "Marketplace": "Маркетплейс",
+  "Pro options are available from Settings.": "Опції Pro доступні в Налаштуваннях.",
+  "Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.": "Транспорт необробленого HTML використовується першим для збору BrickEconomy, Brickset і наявності LEGO; місячний пул токенів.",
+  "Store unavailable — you can continue setup and try again later.": "Магазин недоступний — ви можете продовжити налаштування та спробувати пізніше.",
 };
 ui["BrickLink (new)"] = "BrickLink (нове)";
 ui["Market confidence: high"] = "Ринкова довіра: висока";

@@ -1782,7 +1782,16 @@ export const ui = {
   "← Back to Vault": "← 返回收藏库",
   "← Back to app": "← 返回应用",
   "✓ Already in your vault!": "✓ 已在你的收藏库中！",
-  "✓ Wishlisted": "✓ 已加入心愿单"
+  "✓ Wishlisted": "✓ 已加入心愿单",
+  "Bright Data Web Unlocker": "Bright Data Web Unlocker",
+  "Bright Data Web Unlocker — raw page transport for BrickEconomy, Brickset, and LEGO stock.": "Bright Data Web Unlocker — 用于 BrickEconomy、Brickset 和 LEGO 库存的原始页面传输。",
+  "Couldn't dismiss the alert — try again when online.": "无法关闭提醒——请在联网后重试。",
+  "Failed to acknowledge wishlist alert": "无法确认心愿单提醒",
+  "Fresh price from a market source": "来自市场来源的最新价格",
+  "Marketplace": "市场",
+  "Pro options are available from Settings.": "Pro 选项可在“设置”中找到。",
+  "Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.": "抓取 BrickEconomy、Brickset 和 LEGO 库存时优先使用的原始 HTML 传输；按月令牌池。",
+  "Store unavailable — you can continue setup and try again later.": "商店不可用——你可以继续设置，稍后再试。",
 };
 ui["BrickLink (new)"] = "BrickLink（全新）";
 ui["Market confidence: high"] = "市场置信度：高";

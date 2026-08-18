@@ -1782,7 +1782,16 @@ export const ui = {
   "← Back to Vault": "← Volver a la colección",
   "← Back to app": "← Volver a la app",
   "✓ Already in your vault!": "✓ ¡Ya está en tu colección!",
-  "✓ Wishlisted": "✓ En la lista"
+  "✓ Wishlisted": "✓ En la lista",
+  "Bright Data Web Unlocker": "Bright Data Web Unlocker",
+  "Bright Data Web Unlocker — raw page transport for BrickEconomy, Brickset, and LEGO stock.": "Bright Data Web Unlocker: transporte de páginas sin procesar para BrickEconomy, Brickset y stock de LEGO.",
+  "Couldn't dismiss the alert — try again when online.": "No se pudo descartar la alerta: inténtalo de nuevo con conexión.",
+  "Failed to acknowledge wishlist alert": "No se pudo confirmar la alerta de la lista de deseos",
+  "Fresh price from a market source": "Precio reciente de una fuente de mercado",
+  "Marketplace": "Mercado",
+  "Pro options are available from Settings.": "Las opciones Pro están disponibles en Ajustes.",
+  "Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.": "Transporte HTML sin procesar usado primero para extraer BrickEconomy, Brickset y stock de LEGO; grupo de tokens mensual.",
+  "Store unavailable — you can continue setup and try again later.": "Tienda no disponible: puedes continuar la configuración e intentarlo más tarde.",
 };
 ui["BrickLink (new)"] = "BrickLink (nuevo)";
 ui["Market confidence: high"] = "Confianza del mercado: alta";

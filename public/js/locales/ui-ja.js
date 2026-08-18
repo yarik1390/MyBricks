@@ -1782,7 +1782,16 @@ export const ui = {
   "← Back to Vault": "← コレクションに戻る",
   "← Back to app": "← アプリに戻る",
   "✓ Already in your vault!": "✓ すでにコレクションにあります！",
-  "✓ Wishlisted": "✓ ウィッシュリスト済み"
+  "✓ Wishlisted": "✓ ウィッシュリスト済み",
+  "Bright Data Web Unlocker": "Bright Data Web Unlocker",
+  "Bright Data Web Unlocker — raw page transport for BrickEconomy, Brickset, and LEGO stock.": "Bright Data Web Unlocker — BrickEconomy、Brickset、LEGO 在庫の生ページ取得用トランスポート。",
+  "Couldn't dismiss the alert — try again when online.": "通知を閉じられませんでした。オンライン時に再試行してください。",
+  "Failed to acknowledge wishlist alert": "ウィッシュリストの通知を確認できませんでした",
+  "Fresh price from a market source": "市場ソースからの最新価格",
+  "Marketplace": "マーケットプレイス",
+  "Pro options are available from Settings.": "Pro のオプションは設定から利用できます。",
+  "Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.": "BrickEconomy、Brickset、LEGO 在庫の取得に最初に使う生 HTML トランスポート。月次トークンプール。",
+  "Store unavailable — you can continue setup and try again later.": "ストアを利用できません。設定を続けて、後でもう一度お試しください。",
 };
 ui["BrickLink (new)"] = "BrickLink（新品）";
 ui["Market confidence: high"] = "市場信頼度：高";

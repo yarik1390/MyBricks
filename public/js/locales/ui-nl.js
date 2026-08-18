@@ -1782,7 +1782,16 @@ export const ui = {
   "← Back to Vault": "← Terug naar kluis",
   "← Back to app": "← Terug naar de app",
   "✓ Already in your vault!": "✓ Al in je kluis!",
-  "✓ Wishlisted": "✓ Op verlanglijst"
+  "✓ Wishlisted": "✓ Op verlanglijst",
+  "Bright Data Web Unlocker": "Bright Data Web Unlocker",
+  "Bright Data Web Unlocker — raw page transport for BrickEconomy, Brickset, and LEGO stock.": "Bright Data Web Unlocker — ruw paginatransport voor BrickEconomy, Brickset en LEGO-voorraad.",
+  "Couldn't dismiss the alert — try again when online.": "Melding kon niet worden gesloten — probeer het opnieuw wanneer je online bent.",
+  "Failed to acknowledge wishlist alert": "Bevestigen van verlanglijstmelding is mislukt",
+  "Fresh price from a market source": "Actuele prijs uit een marktbron",
+  "Marketplace": "Marktplaats",
+  "Pro options are available from Settings.": "Pro-opties vind je in Instellingen.",
+  "Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.": "Ruwe-HTML-transport wordt eerst gebruikt voor BrickEconomy-, Brickset- en LEGO-voorraadscrapes; maandelijkse tokenpool.",
+  "Store unavailable — you can continue setup and try again later.": "Store niet beschikbaar — je kunt de installatie voortzetten en het later opnieuw proberen.",
 };
 ui["BrickLink (new)"] = "BrickLink (nieuw)";
 ui["Market confidence: high"] = "Marktvertrouwen: hoog";
