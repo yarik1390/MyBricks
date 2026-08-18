@@ -191,6 +191,22 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Check Play Console credentials
+        id: play_creds
+        # `secrets` is NOT a valid context in a step-level `if:` — using it there
+        # makes GitHub reject the ENTIRE workflow at parse time (zero jobs, run
+        # marked failed with no logs), which silently blocked every Android build.
+        # Resolve the secret into a plain output here and branch on that instead.
+        env:
+          PLAY_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -n "$PLAY_JSON" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON not set — skipping Play upload."
+          fi
+
       - name: Upload to Google Play (Internal testing)
         # Auto-uploads the signed bundle to the Play Console internal track.
         # One-time setup (Play Console → Setup → API access): create a
@@ -199,7 +215,7 @@ jobs:
         # GOOGLE_PLAY_SERVICE_ACCOUNT_JSON. Without that secret this step
         # is skipped (the bundle is still delivered as an artifact + the
         # aab-delivery branch).
-        if: ${{ inputs.build_type == 'release' && steps.keystore.outputs.signed == 'true' && secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        if: ${{ inputs.build_type == 'release' && steps.keystore.outputs.signed == 'true' && steps.play_creds.outputs.configured == 'true' }}
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJson: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
