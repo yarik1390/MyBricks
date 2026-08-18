@@ -1425,7 +1425,7 @@ export const ui = {
   "Storage locations updated": "Opslaglocaties bijgewerkt",
   "Store": "Winkel",
   "Store unavailable — try again": "Winkel niet beschikbaar — probeer opnieuw",
-  "Stored only; weight and jobs are off": "Alleen opgeslagen; gewicht en taken staan uit",
+  "Legacy pc_* rows; only verified mappings reach a blend": "Verouderde pc_*-rijen; alleen geverifieerde koppelingen tellen mee in een mix",
   "Story": "Verhaal",
   "Story unavailable right now.": "Verhaal momenteel niet beschikbaar.",
   "Story, details, anything…": "Verhaal, details, wat dan ook…",

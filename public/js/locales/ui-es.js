@@ -1425,7 +1425,7 @@ export const ui = {
   "Storage locations updated": "Ubicaciones de almacenamiento actualizadas",
   "Store": "Tienda",
   "Store unavailable — try again": "Tienda no disponible — inténtalo de nuevo",
-  "Stored only; weight and jobs are off": "Solo almacenado; el peso y los trabajos están desactivados",
+  "Legacy pc_* rows; only verified mappings reach a blend": "Filas pc_* heredadas; solo las asignaciones verificadas entran en una combinación",
   "Story": "Historia",
   "Story unavailable right now.": "Historia no disponible en este momento.",
   "Story, details, anything…": "Historia, detalles, lo que quieras…",

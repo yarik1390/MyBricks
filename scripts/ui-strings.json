@@ -4634,6 +4634,12 @@
     ]
   },
   {
+    "text": "Legacy pc_* rows; only verified mappings reach a blend",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Legacy signal",
     "files": [
       "views/portfolio-detail-market.js"
@@ -9050,12 +9056,6 @@
     "text": "Store unavailable — try again",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Stored only; weight and jobs are off",
-    "files": [
-      "views/me-admin.js"
     ]
   },
   {

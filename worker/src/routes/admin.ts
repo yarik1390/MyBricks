@@ -802,6 +802,16 @@ app.get('/pricing/quality', async (c) => {
   const quarantined = (mappings.results || []).filter((row: any) => row.status === 'quarantined')
     .reduce((sum: number, row: any) => sum + Number(row.count || 0), 0);
   const openAnomalies = (anomalies.results || []).reduce((sum: number, row: any) => sum + Number(row.count || 0), 0);
+  // Quarantined mappings are INERT by design, not a review backlog. Signals
+  // materialize only from verified/manual rows (jobs/pricecharting-verify.ts),
+  // and jobs/pricecharting-bulk.ts deliberately re-creates the low-confidence
+  // candidates on every daily run (legacy pc_id @ 0.2, base-number @ 0.1) as an
+  // audit trail. The residue that cross-source price agreement can never
+  // promote -- sets with no independent comp, or a disagreeing one -- is
+  // permanent, so pinning it as "the next action" points the panel at a task
+  // nobody can finish. Recommend review only when the source is actually gated
+  // off and the quarantine is genuinely the blocker.
+  const priceChartingEnabled = (await getSourceConfig(c.env)).pricecharting.enabled;
   return c.json({
     model_version: 'v3-shadow',
     states: states.results || [],
@@ -812,10 +822,11 @@ app.get('/pricing/quality', async (c) => {
     legacy_pricecharting_rows: Number((legacyPc as any)?.count || 0),
     minifig_identity_queue: (figQueue as any).results || [],
     scanner_slo: (scanMetrics as any).results || [],
-    recommended_action: quarantined > 0
-      ? `Review ${quarantined} quarantined source matches before enabling PriceCharting.`
-      : openAnomalies > 0
-        ? `Resolve ${openAnomalies} open pricing anomalies.`
+    pricecharting_enabled: priceChartingEnabled,
+    recommended_action: openAnomalies > 0
+      ? `Resolve ${openAnomalies} open pricing anomalies.`
+      : !priceChartingEnabled && quarantined > 0
+        ? `Review ${quarantined} quarantined source matches before enabling PriceCharting.`
         : 'Continue the v3 shadow rollout and compare fair values with legacy headlines.',
   });
 });

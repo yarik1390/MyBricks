@@ -1425,7 +1425,7 @@ export const ui = {
   "Storage locations updated": "存放位置已更新",
   "Store": "商店",
   "Store unavailable — try again": "商店不可用——请重试",
-  "Stored only; weight and jobs are off": "仅存储；权重与任务均已关闭",
+  "Legacy pc_* rows; only verified mappings reach a blend": "旧版 pc_* 记录；仅经过验证的映射会参与综合估值",
   "Story": "故事",
   "Story unavailable right now.": "故事暂时不可用。",
   "Story, details, anything…": "故事、细节，任何内容…",

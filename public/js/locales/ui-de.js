@@ -1425,7 +1425,7 @@ export const ui = {
   "Storage locations updated": "Lagerorte aktualisiert",
   "Store": "Laden",
   "Store unavailable — try again": "Shop nicht verfügbar — versuch es erneut",
-  "Stored only; weight and jobs are off": "Nur gespeichert; Gewichtung und Jobs sind aus",
+  "Legacy pc_* rows; only verified mappings reach a blend": "Legacy-pc_*-Zeilen; nur verifizierte Zuordnungen fließen in eine Mischung ein",
   "Story": "Geschichte",
   "Story unavailable right now.": "Geschichte gerade nicht verfügbar.",
   "Story, details, anything…": "Geschichte, Details, was auch immer…",

@@ -1425,7 +1425,7 @@ export const ui = {
   "Storage locations updated": "भंडारण स्थान अपडेट हो गए",
   "Store": "स्टोर",
   "Store unavailable — try again": "स्टोर अनुपलब्ध — फिर कोशिश करें",
-  "Stored only; weight and jobs are off": "केवल संग्रहीत; भार और जॉब बंद हैं",
+  "Legacy pc_* rows; only verified mappings reach a blend": "लेगेसी pc_* पंक्तियाँ; केवल सत्यापित मैपिंग ही किसी मिश्रण में जाती हैं",
   "Story": "कहानी",
   "Story unavailable right now.": "कहानी अभी उपलब्ध नहीं है।",
   "Story, details, anything…": "कहानी, विवरण, कुछ भी…",

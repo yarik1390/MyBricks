@@ -1425,7 +1425,7 @@ export const ui = {
   "Storage locations updated": "保管場所を更新しました",
   "Store": "ストア",
   "Store unavailable — try again": "ストアを利用できません — もう一度お試しください",
-  "Stored only; weight and jobs are off": "保存のみ。重みとジョブはオフです",
+  "Legacy pc_* rows; only verified mappings reach a blend": "レガシー pc_* 行。ブレンドに入るのは検証済みマッピングのみ",
   "Story": "ストーリー",
   "Story unavailable right now.": "現在、ストーリーを利用できません。",
   "Story, details, anything…": "ストーリー、詳細、何でも…",

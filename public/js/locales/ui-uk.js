@@ -1425,7 +1425,7 @@ export const ui = {
   "Storage locations updated": "Місця зберігання оновлено",
   "Store": "Магазин",
   "Store unavailable — try again": "Магазин недоступний — спробуйте ще раз",
-  "Stored only; weight and jobs are off": "Лише зберігання; вага та завдання вимкнено",
+  "Legacy pc_* rows; only verified mappings reach a blend": "Застарілі рядки pc_*; у змішування потрапляють лише підтверджені зіставлення",
   "Story": "Історія",
   "Story unavailable right now.": "Історія наразі недоступна.",
   "Story, details, anything…": "Історія, деталі, будь-що…",

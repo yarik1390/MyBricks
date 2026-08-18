@@ -1323,7 +1323,7 @@ function renderPricingCenter() {
       ${pricingMetricHTML('Stale states', formatCount(stale), 'Older than 14 days', stale ? 'warn' : 'ok')}
       ${pricingMetricHTML('Open anomalies', formatCount(totalAnomalies), 'Identity, value, or forecast conflicts', totalAnomalies ? 'danger' : 'ok')}
       ${pricingMetricHTML('Quarantined matches', formatCount(totalQuarantined), 'Excluded from every blend', totalQuarantined ? 'warn' : 'ok')}
-      ${pricingMetricHTML('Legacy PriceCharting', formatCount(quality.legacy_pricecharting_rows || 0), 'Stored only; weight and jobs are off', 'neutral')}
+      ${pricingMetricHTML('Legacy PriceCharting', formatCount(quality.legacy_pricecharting_rows || 0), 'Legacy pc_* rows; only verified mappings reach a blend', 'neutral')}
       ${(() => {
         // The ≥95% target is a BARCODE target — a clean decode should almost
         // always resolve. Photo identification is inherently lossier, so pooling
