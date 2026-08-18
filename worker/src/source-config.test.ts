@@ -33,6 +33,22 @@ describe('source-config', () => {
     expect(await sourceEnabled(env as any, 'ebay')).toBe(false);
   });
 
+  it('does not allow a stored override to re-enable the held eBay lane', async () => {
+    await (env as any).DB.prepare(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ('source_config', ?1, datetime('now'))`,
+    ).bind(JSON.stringify({ ebay: { enabled: true } })).run();
+    clearSourceConfigCache();
+    const cfg = await getSourceConfig(env as any);
+    expect(cfg.ebay.enabled).toBe(false);
+  });
+
+  it('does not persist an admin attempt to re-enable the held eBay lane', async () => {
+    const cfg = await saveSourceConfig(env as any, { ebay: { enabled: true } });
+    expect(cfg.ebay.enabled).toBe(false);
+    clearSourceConfigCache();
+    expect((await getSourceConfig(env as any)).ebay.enabled).toBe(false);
+  });
+
   it('deep-merges + clamps stored overrides over defaults', async () => {
     clearSourceConfigCache();
     await saveSourceConfig(env as any, { pricesapi: { enabled: true, weight: 99 }, bricklink: { dailyCap: 1000 } });
