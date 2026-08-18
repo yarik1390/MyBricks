@@ -22,7 +22,7 @@ describe('runEbayBackfill (Marketplace Insights sold comps)', () => {
 
   it('skips when eBay sold comps are disabled (default)', async () => {
     const r = await runEbayBackfill({ ...env, EBAY_SOLD_COMPS_ENABLED: '' } as any);
-    expect(r.skipped).toMatch(/ebay sold comps disabled/);
+    expect(r.skipped).toMatch(/ebay disabled in source tuning|ebay sold comps disabled/);
     expect(await ebayUsedToday()).toBeNull(); // never reserved
   });
 
