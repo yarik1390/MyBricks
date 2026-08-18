@@ -215,7 +215,10 @@ jobs:
         # GOOGLE_PLAY_SERVICE_ACCOUNT_JSON. Without that secret this step
         # is skipped (the bundle is still delivered as an artifact + the
         # aab-delivery branch).
-        if: ${{ inputs.build_type == 'release' && steps.keystore.outputs.signed == 'true' && steps.play_creds.outputs.configured == 'true' }}
+        # NOTE: the only release-producing choice is `bundle` (the input options
+        # are bundle|apk-debug) — an earlier `== 'release'` here could never be
+        # true, so this step would have stayed dead even after the parse fix.
+        if: ${{ inputs.build_type == 'bundle' && steps.keystore.outputs.signed == 'true' && steps.play_creds.outputs.configured == 'true' }}
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJson: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
