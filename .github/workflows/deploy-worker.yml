@@ -471,6 +471,11 @@ jobs:
           curl -sf "${WORKER_URL}/api/admin/import-status" \
             -H "Authorization: Bearer ${ADMIN_JWT}" \
             | jq -e '.runs | type == "array"' >/dev/null
+          # Compliance gate: the enhanced/mobile-residential eBay scrape lane
+          # must remain disabled until provider/site authorization is recorded.
+          curl -sf "${WORKER_URL}/api/admin/source-config" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" \
+            | jq -e '.config.ebay.enabled == false' >/dev/null
 
       # Population is opt-in: dispatch with populate=true. It used to fire on
       # EVERY workflow_dispatch (so every push_secrets run re-populated), and
