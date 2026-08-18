@@ -419,6 +419,40 @@ export function isEstimatedValue(set = {}) {
 // "~" for estimated values, "" for market-derived ones — prepend to fmtMoney.
 export const estMark = (set) => (isEstimatedValue(set) ? "~" : "");
 
+// One vocabulary for the confidence badge on every set surface. Catalog cards
+// used valuationTrust() ("Market price") while detail used its own wording
+// ("Good estimate") for the same medium-confidence row.
+export function valuationConfidencePresentation(set = {}) {
+  if (set.coming_soon) {
+    return { label: "Coming soon", tone: "ok", detail: "Not released yet — showing the announced retail price" };
+  }
+  const v3 = set.valuation?.read_enabled && set.valuation?.new ? set.valuation.new : null;
+  const method = set.valuation_method;
+  // Mirror valuationTrust's defaulting when the API sends no explicit
+  // confidence: a lone BrickEconomy scrape stays "low" so it can never be
+  // presented as a corroborated market price.
+  const confidence = String(
+    v3?.confidence || set.market_value_confidence || set.confidence
+    || (method === "brickeconomy" ? "low" : "")
+  ).toLowerCase();
+  if (method === "ai") {
+    return { label: "Estimated", tone: "low", detail: "Estimated by AI because fresh market data wasn't available" };
+  }
+  if (method === "formula_bulk" || method === "local") {
+    return { label: "Rough estimate", tone: "low", detail: "Estimated from the set's attributes until a market refresh runs" };
+  }
+  if (confidence === "high") {
+    return { label: "Reliable price", tone: "good", detail: "Multiple fresh market sources agree on this price" };
+  }
+  if (confidence === "medium") {
+    return { label: "Good estimate", tone: "ok", detail: "Based on recent market data with limited corroboration" };
+  }
+  if (confidence === "low") {
+    return { label: "Rough estimate", tone: "low", detail: "Limited recent market data — treat as a rough guide" };
+  }
+  return { label: "Market price", tone: "ok", detail: "Fresh price from a market source" };
+}
+
 export function valuationTrust(set = {}) {
   const freshness = set.freshness || (set.cached_at && Date.now() - new Date(set.cached_at).getTime() > 60 * 86400000 ? "stale" : "fresh");
   // Without an explicit confidence from the API, only sold-comp methods may

@@ -2,7 +2,7 @@ import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   escapeHtml, fmtPct, clamp, themeHue, bricklinkBuyURL,
-  computeDealScore, valuationTrust, catalogFilterSummary, classifyJobRun,
+  computeDealScore, valuationTrust, valuationConfidencePresentation, catalogFilterSummary, classifyJobRun,
   annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition,
   jobProgressSummary, computeSpreadSignals, buyWindow, pricePerPiece, isStalledJobRun,
   parseCSVTable, parseCollectionCSV, sanitizeMoneyInput, activeCatalogFilterCount, activeFigFilterCount, figFilterSummary,
@@ -630,6 +630,37 @@ describe('valuationTrust', () => {
     const trust = valuationTrust({ valuation_method: 'ai', confidence: 'medium', freshness: 'fresh' });
     assert.equal(trust.tone, 'warn');
     assert.equal(trust.label, 'AI estimate');
+  });
+});
+
+describe('valuationConfidencePresentation', () => {
+  it('gives the catalog card and the set page the SAME label for one row', () => {
+    // Regression: the card badge said "Market price" while the detail chip said
+    // "Good estimate" for the identical medium-confidence set.
+    const set = { valuation_method: 'market', confidence: 'medium', freshness: 'fresh' };
+    assert.equal(valuationConfidencePresentation(set).label, 'Good estimate');
+  });
+
+  it('labels high confidence as a reliable price', () => {
+    assert.equal(valuationConfidencePresentation({ confidence: 'high' }).label, 'Reliable price');
+  });
+
+  it('labels formula and AI values as estimates, never a market price', () => {
+    assert.equal(valuationConfidencePresentation({ valuation_method: 'formula_bulk' }).label, 'Rough estimate');
+    assert.equal(valuationConfidencePresentation({ valuation_method: 'ai', confidence: 'medium' }).label, 'Estimated');
+  });
+
+  it('keeps an uncorroborated BrickEconomy row out of the market-price wording', () => {
+    assert.equal(valuationConfidencePresentation({ valuation_method: 'brickeconomy' }).label, 'Rough estimate');
+  });
+
+  it('prefers the v3 valuation confidence when the read path is enabled', () => {
+    const set = { valuation: { read_enabled: true, new: { confidence: 'high' } }, confidence: 'low' };
+    assert.equal(valuationConfidencePresentation(set).label, 'Reliable price');
+  });
+
+  it('shows coming-soon sets as announced retail, not an estimate', () => {
+    assert.equal(valuationConfidencePresentation({ coming_soon: 1 }).label, 'Coming soon');
   });
 });
 

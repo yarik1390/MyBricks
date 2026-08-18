@@ -1078,7 +1078,7 @@
   {
     "text": "Based on recent market data with limited corroboration",
     "files": [
-      "views/portfolio-detail.js"
+      "lib/pure.js"
     ]
   },
   {
@@ -1894,8 +1894,8 @@
   {
     "text": "Coming soon",
     "files": [
+      "lib/pure.js",
       "views/portfolio-detail-market.js",
-      "views/portfolio-detail.js",
       "views/portfolio-wishlist.js"
     ]
   },
@@ -3046,6 +3046,7 @@
   {
     "text": "Estimated",
     "files": [
+      "lib/pure.js",
       "views/portfolio-detail-market.js",
       "views/portfolio-detail.js"
     ]
@@ -3072,7 +3073,7 @@
   {
     "text": "Estimated by AI because fresh market data wasn't available",
     "files": [
-      "views/portfolio-detail.js"
+      "lib/pure.js"
     ]
   },
   {
@@ -3090,7 +3091,7 @@
   {
     "text": "Estimated from the set's attributes until a market refresh runs",
     "files": [
-      "views/portfolio-detail.js"
+      "lib/pure.js"
     ]
   },
   {
@@ -3580,6 +3581,12 @@
     ]
   },
   {
+    "text": "Fresh price from a market source",
+    "files": [
+      "lib/pure.js"
+    ]
+  },
+  {
     "text": "Fresh price from a market source.",
     "files": [
       "lib/pure.js"
@@ -3793,8 +3800,8 @@
   {
     "text": "Good estimate",
     "files": [
-      "methodology.html",
-      "views/portfolio-detail.js"
+      "lib/pure.js",
+      "methodology.html"
     ]
   },
   {
@@ -4671,13 +4678,7 @@
   {
     "text": "Limited recent market data — treat as a rough guide",
     "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Limited, stale, or conflicting market evidence",
-    "files": [
-      "views/portfolio-detail.js"
+      "lib/pure.js"
     ]
   },
   {
@@ -4886,8 +4887,7 @@
     "text": "Low confidence",
     "files": [
       "lib/pure.js",
-      "views/portfolio-detail-market.js",
-      "views/portfolio-detail.js"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -5331,15 +5331,9 @@
     ]
   },
   {
-    "text": "Multiple fresh independent sold markets agree on this price",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Multiple fresh market sources agree on this price",
     "files": [
-      "views/portfolio-detail.js"
+      "lib/pure.js"
     ]
   },
   {
@@ -5769,12 +5763,6 @@
     ]
   },
   {
-    "text": "No sufficient verified sold evidence yet",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "No supporters yet.",
     "files": [
       "views/me-admin.js"
@@ -5895,7 +5883,7 @@
   {
     "text": "Not released yet — showing the announced retail price",
     "files": [
-      "views/portfolio-detail.js"
+      "lib/pure.js"
     ]
   },
   {
@@ -6886,6 +6874,12 @@
     ]
   },
   {
+    "text": "Pro options are available from Settings.",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
     "text": "Processing queue...",
     "files": [
       "components/scanner.js"
@@ -7210,12 +7204,6 @@
     ]
   },
   {
-    "text": "Recent market evidence supports this price",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Recent sale price",
     "files": [
       "components/contribute.js"
@@ -7328,8 +7316,8 @@
   {
     "text": "Reliable price",
     "files": [
-      "methodology.html",
-      "views/portfolio-detail.js"
+      "lib/pure.js",
+      "methodology.html"
     ]
   },
   {
@@ -7787,7 +7775,7 @@
   {
     "text": "Rough estimate",
     "files": [
-      "views/portfolio-detail.js"
+      "lib/pure.js"
     ]
   },
   {
@@ -8994,6 +8982,12 @@
     "text": "Store unavailable — try again",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Store unavailable — you can continue setup and try again later.",
+    "files": [
+      "components/onboarding.js"
     ]
   },
   {
@@ -10365,6 +10359,7 @@
   {
     "text": "Welcome to BricksVault Pro! ⭐",
     "files": [
+      "components/onboarding.js",
       "views/me.js"
     ]
   },

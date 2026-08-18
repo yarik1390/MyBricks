@@ -56,6 +56,10 @@ export const state = {
 export function invalidatePortfolio() {
   state.portfolio = null;
   state.me = null;
+  // Any collection mutation invalidates the once-per-session ownership snapshot.
+  // The next catalog visit must reconcile it with the authoritative collection,
+  // otherwise a deleted set can retain an Android-cached OWNED badge.
+  state.ownedSetNumsLoaded = false;
   state._revalToken = (state._revalToken || 0) + 1;
   bvIDB.del('portfolio').catch(() => {});
 }

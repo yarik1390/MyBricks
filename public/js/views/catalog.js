@@ -338,6 +338,10 @@ async function ensureOwnedSetNums() {
   if (state.ownedSetNumsLoaded) return;
   try {
     const r = await api("/api/collection");
+    // The collection response is authoritative. Replacing (rather than only
+    // adding to) this Set removes stale OWNED markers after a delete performed
+    // from another view/device or while the catalog was cached on Android.
+    state.ownedSetNums.clear();
     for (const i of (r?.items || [])) state.ownedSetNums.add(i.set_num);
     state.ownedSetNumsLoaded = true;
   } catch { /* non-fatal: owned badges just won't show until next load */ }
@@ -386,11 +390,11 @@ function openKidsAddSheet(setNum, card) {
     haptic("medium");
     try {
       const result = await api("/api/collection", { method: "POST", body: { set_num: setNum, quantity: 1 } });
+      invalidatePortfolio();
       state.ownedSetNums.add(setNum);
       markCardOwned(card);
-      invalidatePortfolio();
       hideSheet();
-      if (result?.kids?.xp_gained > 0) {
+      if (getModePref() === "kids" && result?.kids?.xp_gained > 0) {
         const { xp_gained, new_level, new_badges } = result.kids;
         const badge = new_badges?.[0] ? kidsBadgeLabel(new_badges[0]) : '';
         toast(kidsXpMessage(xp_gained, { level: new_level, badge }), "success");

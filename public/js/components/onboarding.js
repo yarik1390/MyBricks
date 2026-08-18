@@ -9,6 +9,7 @@ import { api, isGuestMode } from '../api.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { route } from '../router.js';
 import { SUPPORTED, getLocale, setLocale, applyUiDictionary, translateDOM } from '../lib/i18n.js';
+import { isNativeBilling, presentProPaywall } from '../lib/revenuecat-native.js';
 
 const FLAG = 'bv_onboarded_v1';
 
@@ -215,6 +216,37 @@ const SETUP_SKINS = [
 const SETUP_CURRENCIES = ['USD', 'GBP', 'EUR', 'CAD', 'AUD'];
 
 let suRoot = null, suTrap = null, suIdx = 0;
+let suScrollY = 0, suPageStyles = null;
+
+// Android WebView can chain touch-scroll through a fixed overlay to the page
+// behind it. Freeze the page for the setup wizard and restore it exactly on exit.
+function suLockPage() {
+  if (suPageStyles) return;
+  suScrollY = window.scrollY || 0;
+  suPageStyles = {
+    htmlOverflow: document.documentElement.style.overflow,
+    bodyOverflow: document.body.style.overflow,
+    bodyPosition: document.body.style.position,
+    bodyTop: document.body.style.top,
+    bodyWidth: document.body.style.width,
+  };
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
+  document.body.style.position = 'fixed';
+  document.body.style.top = `-${suScrollY}px`;
+  document.body.style.width = '100%';
+}
+
+function suUnlockPage() {
+  if (!suPageStyles) return;
+  document.documentElement.style.overflow = suPageStyles.htmlOverflow;
+  document.body.style.overflow = suPageStyles.bodyOverflow;
+  document.body.style.position = suPageStyles.bodyPosition;
+  document.body.style.top = suPageStyles.bodyTop;
+  document.body.style.width = suPageStyles.bodyWidth;
+  suPageStyles = null;
+  window.scrollTo(0, suScrollY);
+}
 
 function ensureSetupStyles() {
   if (document.getElementById('bv-setup-style')) return;
@@ -223,7 +255,8 @@ function ensureSetupStyles() {
     @keyframes bvsufade{from{opacity:0}to{opacity:1}}
     .bv-setup-top{display:flex;justify-content:flex-end;padding:12px 16px 0;min-height:20px;}
     .bv-setup-skip{background:none;border:none;color:var(--ink-mute,#8b91a0);font-size:14px;font-weight:600;cursor:pointer;padding:6px 8px;}
-    .bv-setup-body{flex:1;overflow-y:auto;padding:18px 24px;display:flex;flex-direction:column;justify-content:safe center;width:min(100%,520px);margin:0 auto;box-sizing:border-box;}
+    .bv-setup-body{flex:1;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:18px 24px;display:flex;flex-direction:column;justify-content:safe center;width:min(100%,520px);margin:0 auto;box-sizing:border-box;}
+    .bv-setup-body::-webkit-scrollbar{display:none;}
     .bv-setup-hero{width:92px;height:92px;border-radius:24px;display:flex;align-items:center;justify-content:center;margin:6px auto 20px;color:#fff;box-shadow:0 14px 34px -12px rgba(0,0,0,.35);}
     .bv-setup-hero svg{width:42px;height:42px;}
     .bv-setup-body h3{margin:0 0 8px;text-align:center;font-family:var(--serif,inherit);font-size:23px;font-weight:800;letter-spacing:-.01em;}
@@ -498,10 +531,10 @@ function suFinish(dest) {
   document.removeEventListener('keydown', suKey);
   suTrap?.(); suTrap = null;
   suRoot?.remove(); suRoot = null;
+  suUnlockPage();
   // Re-render so mode/currency changes take effect on the live view underneath.
   try {
     if (dest === 'tour') route();
-    else if (dest === 'support') location.hash = '#/me';
     else if (dest === 'add') location.hash = '#/add';
     else if (getModePref() === 'kids') {
       location.hash = '#/kids';
@@ -539,6 +572,7 @@ export function showSetup() {
       <div class="bv-setup-top"><button class="bv-setup-skip" data-act="skip">Skip</button></div>
       <div class="bv-setup-body"></div>
       <div class="bv-setup-foot"></div>`;
+    suLockPage();
     suRoot.addEventListener('click', (e) => {
       const act = e.target?.closest('[data-act]')?.dataset?.act;
       if (!act) return;
@@ -548,7 +582,25 @@ export function showSetup() {
       else if (act === 'next') suGo(1);
       else if (act === 'add') suFinish('add');
       else if (act === 'explore') suFinish(null);
-      else if (act === 'support') suFinish('support');
+      else if (act === 'support') {
+        // Keep onboarding open and incomplete while the native store paywall is
+        // presented. The old flow removed the wizard, marked it complete and
+        // routed away before the user could see plans or finish setup.
+        if (!isNativeBilling()) {
+          toast('Pro options are available from Settings.', 'info');
+          return;
+        }
+        const button = e.target.closest('[data-act="support"]');
+        if (button) button.disabled = true;
+        presentProPaywall().then((result) => {
+          if (result?.active) {
+            state.me = null;
+            toast('Welcome to BricksVault Pro! ⭐', 'success');
+          } else if (!result?.ok && result?.reason !== 'cancelled') {
+            toast('Store unavailable — you can continue setup and try again later.', 'error');
+          }
+        }).finally(() => { if (button?.isConnected) button.disabled = false; });
+      }
       else if (act === 'tour') suFinish('tour');
     });
     document.body.appendChild(suRoot);
@@ -559,6 +611,7 @@ export function showSetup() {
   } catch {
     suRoot?.remove();
     suRoot = null;
+    suUnlockPage();
   }
 }
 

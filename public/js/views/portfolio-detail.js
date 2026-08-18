@@ -1,6 +1,6 @@
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML, investmentPricingDetailHTML, soldEvidenceHTML } from './portfolio-detail-market.js';
-import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput, themeColor, priceMovementSummary } from '../lib/pure.js';
+import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput, themeColor, priceMovementSummary, valuationConfidencePresentation } from '../lib/pure.js';
 import { t, tPlural, getLocale, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { shareContent } from '../lib/native-share.js';
@@ -270,24 +270,13 @@ function setDisplayValue(set) {
   return (set.valuation?.read_enabled && Number(set.valuation?.new?.fair_value)) || displayValueOf(set);
 }
 
-// Plain-language confidence chip (no "high/medium/low signal" jargon).
+// Plain-language confidence chip next to the headline price. Shares its
+// vocabulary with the catalog card badge (components/trust.js) via
+// valuationConfidencePresentation, so one set can no longer read "Market price"
+// in the catalog and "Good estimate" on its own page.
 function confidenceChip(set) {
-  // Not released yet: the headline is the announced retail, not a market estimate.
-  if (set.coming_soon) return `<span class="detail-chip detail-chip--ok" title="Not released yet — showing the announced retail price">Coming soon</span>`;
-  const conf = String((set.valuation?.read_enabled && set.valuation?.new?.confidence) || set.market_value_confidence || set.confidence || '').toLowerCase();
-  const method = set.valuation_method;
-  if (set.valuation?.read_enabled && set.valuation?.new) {
-    if (conf === 'high') return `<span class="detail-chip detail-chip--good" title="Multiple fresh independent sold markets agree on this price">Reliable price</span>`;
-    if (conf === 'medium') return `<span class="detail-chip detail-chip--ok" title="Recent market evidence supports this price">Good estimate</span>`;
-    if (conf === 'low') return `<span class="detail-chip detail-chip--low" title="Limited, stale, or conflicting market evidence">Low confidence</span>`;
-    return `<span class="detail-chip detail-chip--low" title="No sufficient verified sold evidence yet">Estimated</span>`;
-  }
-  if (method === 'ai') return `<span class="detail-chip detail-chip--low" title="Estimated by AI because fresh market data wasn't available">Estimated</span>`;
-  if (method === 'formula_bulk') return `<span class="detail-chip detail-chip--low" title="Estimated from the set's attributes until a market refresh runs">Rough estimate</span>`;
-  if (conf === 'high') return `<span class="detail-chip detail-chip--good" title="Multiple fresh market sources agree on this price">Reliable price</span>`;
-  if (conf === 'medium') return `<span class="detail-chip detail-chip--ok" title="Based on recent market data with limited corroboration">Good estimate</span>`;
-  if (conf === 'low') return `<span class="detail-chip detail-chip--low" title="Limited recent market data — treat as a rough guide">Rough estimate</span>`;
-  return '';
+  const display = valuationConfidencePresentation(set);
+  return `<span class="detail-chip detail-chip--${display.tone}" title="${escapeHtml(display.detail)}">${escapeHtml(display.label)}</span>`;
 }
 
 // One-line key facts row: Pieces · Year · Minifigs · Retail. Replaces the old
@@ -879,7 +868,7 @@ function wireDetailActions(set, entry) {
       const addResult = await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: displayVal } });
       invalidatePortfolio(); state.catalog.items = []; markSetOwned(set.set_num, true);
       toast("Added to vault", "success");
-      if (addResult?.kids?.xp_gained > 0) {
+      if (isKidsMode() && addResult?.kids?.xp_gained > 0) {
         const { xp_gained, new_level, new_badges } = addResult.kids;
         // A new badge or level-up is a real win — give it the celebration popup
         // (kid-friendly copy). Routine XP stays a quick toast.

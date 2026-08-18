@@ -9,6 +9,7 @@ import { flipCalcHTML } from './flip-calc.js';
 import { isNativeCapacitor } from '../lib/native-auth.js';
 import { amazonSlotHTML, hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
 import { t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
+import { getModePref } from '../theme.js';
 
 let _scanTrapRelease = null;
 let _scanPending = false;
@@ -1133,7 +1134,7 @@ export function showScanResult(res) {
     }
     // Kids mode: surface the XP reward and refresh state.me so the kids home
     // reflects the new XP/level/badge.
-    if (kidsXp > 0) {
+    if (getModePref() === "kids" && kidsXp > 0) {
       const badge = kidsBadge ? kidsBadgeLabel(kidsBadge) : '';
       setTimeout(() => toast(kidsXpMessage(kidsXp, { level: kidsLevel, badge }), "success"), 500);
       state.me = null;
