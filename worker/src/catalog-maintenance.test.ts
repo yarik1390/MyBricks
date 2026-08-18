@@ -37,7 +37,7 @@ describe('catalog-maintenance', () => {
 
   it('records a completed import_run even when the eBay sub-job is disabled', async () => {
     const r: any = await runDailyEbayMaintenance(e, 2);
-    expect(r.skipped).toMatch(/ebay sold comps disabled/);
+    expect(r.skipped).toMatch(/ebay disabled in source tuning|ebay sold comps disabled/);
     const run = await db.prepare(`SELECT status, job_type FROM import_runs ORDER BY id DESC LIMIT 1`).first<{ status: string; job_type: string }>();
     expect(run!.status).toBe('completed');
     expect(run!.job_type).toBe('daily');

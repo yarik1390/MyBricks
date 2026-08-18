@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { runEbayBackfill, runEbayAskBackfill } from './jobs/valuate-sets';
 import { setIntegrationBlock } from './lib/integration-health';
+import { clearSourceConfigCache, saveSourceConfig } from './lib/source-config';
 import { applyTestTables } from './test-schema';
 
 const db = (env as any).DB as D1Database;
@@ -15,7 +16,8 @@ async function ebayUsedToday(): Promise<number | null> {
 
 describe('runEbayBackfill (Marketplace Insights sold comps)', () => {
   beforeEach(async () => {
-    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist', 'api_quota', 'integration_health']);
+    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist', 'api_quota', 'integration_health', 'app_settings']);
+    clearSourceConfigCache();
   });
 
   it('skips when eBay sold comps are disabled (default)', async () => {
@@ -26,6 +28,8 @@ describe('runEbayBackfill (Marketplace Insights sold comps)', () => {
 
   it('skips while the eBay circuit breaker is open, without reserving quota', async () => {
     const enabled = { ...env, EBAY_SOLD_COMPS_ENABLED: '1' } as any;
+    await saveSourceConfig(enabled, { ebay: { enabled: true } });
+    clearSourceConfigCache();
     await setIntegrationBlock(enabled, 'ebay', 6); // access-denied breaker active
     const r = await runEbayBackfill(enabled);
     expect(r.skipped).toMatch(/ebay access blocked/);
@@ -33,7 +37,10 @@ describe('runEbayBackfill (Marketplace Insights sold comps)', () => {
   });
 
   it('runs cleanly with nothing to backfill when enabled and unblocked', async () => {
-    const r = await runEbayBackfill({ ...env, EBAY_SOLD_COMPS_ENABLED: '1' } as any);
+    const enabled = { ...env, EBAY_SOLD_COMPS_ENABLED: '1' } as any;
+    await saveSourceConfig(enabled, { ebay: { enabled: true } });
+    clearSourceConfigCache();
+    const r = await runEbayBackfill(enabled);
     expect(r.skipped).toBeUndefined();
     expect(r.processed).toBe(0); // empty catalog → no eligible sets
   });
