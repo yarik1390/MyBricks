@@ -621,7 +621,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const data = await res.json<any>();
       expect(data.ok).toBe(true);
       expect(data.job).toBe('ebay-sold-scrape');
-      expect(String(data.skipped || '')).toMatch(/firecrawl not configured/i);
+      expect(String(data.skipped || '')).toMatch(/ebay disabled in source tuning|firecrawl not configured/i);
     });
 
     it('per-service test probe: d1 passes and an unknown service 400s', async () => {

@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
 import { fetchEbaySoldViaFirecrawl } from './lib/ebay-firecrawl';
+import { clearSourceConfigCache, saveSourceConfig } from './lib/source-config';
 
 // The scrape job is exercised against a module-mocked Firecrawl fetcher so tests
 // control per-set outcomes (ok / partial / no_data / error) without HTML
@@ -28,7 +29,10 @@ const live = { ...bare, FIRECRAWL_API_KEY: 'fc-test' };
 describe('runEbaySoldScrape', () => {
   beforeEach(async () => {
     vi.clearAllMocks(); // reset fetcher call history so cross-test calls don't leak
-    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'integration_health', 'pricing_write_ledger']);
+    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'integration_health', 'pricing_write_ledger', 'app_settings']);
+    clearSourceConfigCache();
+    await saveSourceConfig(env as any, { ebay: { enabled: true } });
+    clearSourceConfigCache();
   });
   afterEach(() => vi.unstubAllGlobals());
 

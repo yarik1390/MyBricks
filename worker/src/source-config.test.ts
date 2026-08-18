@@ -27,6 +27,12 @@ describe('source-config', () => {
     expect(cfg).toEqual(DEFAULT_SOURCE_CONFIG);
   });
 
+  it('keeps the eBay scrape source disabled until explicitly authorized', async () => {
+    const cfg = await getSourceConfig(env as any);
+    expect(cfg.ebay.enabled).toBe(false);
+    expect(await sourceEnabled(env as any, 'ebay')).toBe(false);
+  });
+
   it('deep-merges + clamps stored overrides over defaults', async () => {
     clearSourceConfigCache();
     await saveSourceConfig(env as any, { pricesapi: { enabled: true, weight: 99 }, bricklink: { dailyCap: 1000 } });

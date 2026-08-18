@@ -29,7 +29,10 @@ export type SourceName =
 
 export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   bricklink:     { enabled: true,  weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
-  ebay:          { enabled: true,  weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
+  // Disabled by default until use of the Firecrawl enhanced/mobile-residential
+  // lane against eBay sold-search has documented provider/site authorization.
+  // Operators may only re-enable this via reviewed production source config.
+  ebay:          { enabled: false, weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
   brickeconomy:  { enabled: true,  weight: 1.0,  dailyCap: 80,   refreshDays: 14 },
   brickowl:      { enabled: true,  weight: 1.0,  dailyCap: 1500, refreshDays: 14 },
   // Verified-mappings-only: signals flow solely through pricing_source_map rows
