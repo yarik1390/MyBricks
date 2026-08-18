@@ -107,7 +107,11 @@ export function getExchangeRate(targetCurrency) {
 
 export function fmtMoney(n, opts = {}) {
   if (n == null || isNaN(n)) return "—";
-  const userCurrency = state.me?.currency || "USD";
+  // A collection mutation invalidates state.me while the current view repaints.
+  // Preserve the guest's persisted preference instead of flashing back to USD.
+  let persistedCurrency = null;
+  try { persistedCurrency = JSON.parse(localStorage.getItem('bv_guest_prefs') || '{}')?.currency || localStorage.getItem('bv_currency'); } catch {}
+  const userCurrency = state.me?.currency || persistedCurrency || "USD";
   const rate = getExchangeRate(userCurrency);
   const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
   const converted = n * rate;
@@ -119,7 +123,9 @@ export function fmtMoney(n, opts = {}) {
 
 export function fmtMoneyShort(n) {
   if (n == null || isNaN(n)) return "—";
-  const userCurrency = state.me?.currency || "USD";
+  let persistedCurrency = null;
+  try { persistedCurrency = JSON.parse(localStorage.getItem('bv_guest_prefs') || '{}')?.currency || localStorage.getItem('bv_currency'); } catch {}
+  const userCurrency = state.me?.currency || persistedCurrency || "USD";
   const rate = getExchangeRate(userCurrency);
   const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
   const converted = n * rate;
@@ -251,10 +257,16 @@ export function undoToast(msg, onUndo) {
     el.classList.remove("show");
     setTimeout(_renderNextToast, 180);
   };
-  el.querySelector(".toast-undo-btn").addEventListener("click", () => {
+  el.querySelector(".toast-undo-btn").addEventListener("click", async () => {
     const run = !done;
     finish();
-    if (run) { try { onUndo(); } catch { /* undo is best-effort */ } }
+    if (run) {
+      try { await onUndo(); }
+      catch (e) {
+        console.error("Undo failed", e);
+        toast("Undo failed — please try again", "error");
+      }
+    }
   });
   toastTimer = setTimeout(finish, 5000);
 }

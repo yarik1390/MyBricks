@@ -168,6 +168,11 @@ export function startOnboarding() {
       else if (act === 'skip') finish();
     });
     document.body.appendChild(root);
+    // Paint valid content before focus trapping or yielding to a frame. If a
+    // deferred callback is throttled (notably when replayed from Settings), an
+    // empty full-screen overlay would otherwise block the whole app.
+    render();
+    if (!root?.querySelector('.bv-tour-card button')) throw new Error('Tour controls failed to render');
     document.addEventListener('keydown', onKey);
     _tourTrapRelease = activateFocusTrap(root);
     onResize = () => render();

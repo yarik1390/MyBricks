@@ -9,6 +9,7 @@ import { trustBadgeHTML } from '../components/trust.js';
 import { skelPage, skelHero, skelCardList } from '../components/skeleton.js';
 import { getModePref } from '../theme.js';
 import { t, tPlural } from '../lib/i18n.js';
+import { isNativeBilling } from '../lib/revenuecat-native.js';
 
 
 /* ============================================================
@@ -513,13 +514,12 @@ function paintPortfolio() {
     $("#vaultMoreAlerts")?.addEventListener("click", () => { hideSheet(); showAlertsSheet(state.wishlistAlerts); });
   });
   
-  // Initial card fill deferred one frame so the shell (hero + tabs) paints
-  // first; repaintSetList renders cards in progressive rAF slices and wires
-  // them + the sentinel itself.
-  requestAnimationFrame(() => {
-    repaintSetList();
-    if (scrollYBefore > 0) window.scrollTo(0, scrollYBefore);
-  });
+  // Mount the first card slice synchronously. Deferring the *first* call left a
+  // data-populated vault visually blank when a guest added their first set and
+  // the browser throttled/dropped the scheduled frame. repaintSetList already
+  // defers subsequent slices, so the shell still stays responsive.
+  repaintSetList();
+  if (scrollYBefore > 0) requestAnimationFrame(() => window.scrollTo(0, scrollYBefore));
 
   if (state.portfolioTab === "items") {
     wirePortfolioCards();
@@ -982,7 +982,29 @@ function wireInsightsTab() {
   });
   $("#insightsUpgradeBtn")?.addEventListener("click", () => {
     haptic("light");
-    location.hash = "#/me";
+    // A guest web profile intentionally has no billing card, so routing there
+    // made "See Pro options" look like a no-op. Keep native/account management
+    // on Profile, but give web guests an explicit, dismissible fallback.
+    if (isNativeBilling()) {
+      location.hash = "#/me";
+      return;
+    }
+    const signedIn = !!getSessionUserId();
+    const patreonUrl = state.config?.patreon_url;
+    showSheet(`
+      <h2 class="u-serif-h">BricksVault Pro</h2>
+      <p style="color:var(--ink-mute);line-height:1.5;margin:8px 0 14px;">Sign in to keep Pro access linked to your vault. Tracking your collection stays free.</p>
+      <ul class="support-perks" style="margin-bottom:16px;">
+        <li>Investor signals, movers, and retirement radar</li>
+        <li>Full 1-year portfolio history</li>
+        <li>Market value and ROI export columns</li>
+      </ul>
+      ${patreonUrl ? `<a class="btn-primary" href="${escapeHtml(patreonUrl)}" target="_blank" rel="noopener noreferrer" style="display:flex;justify-content:center;">See web support options</a>` : ''}
+      <button class="btn-secondary" id="proSignInBtn" style="width:100%;margin-top:10px;">${signedIn ? 'Open Pro settings' : 'Sign in or create an account'}</button>
+      <button class="btn-ghost" id="proOptionsClose" style="width:100%;margin-top:8px;">Not now</button>
+    `);
+    $("#proSignInBtn")?.addEventListener("click", () => { hideSheet(); location.hash = signedIn ? "#/me" : "#/login"; });
+    $("#proOptionsClose")?.addEventListener("click", hideSheet);
   });
 }
 

@@ -1271,7 +1271,8 @@
     "text": "BricksVault Pro",
     "files": [
       "lib/revenuecat-native.js",
-      "views/me.js"
+      "views/me.js",
+      "views/portfolio.js"
     ]
   },
   {
@@ -4424,6 +4425,12 @@
     ]
   },
   {
+    "text": "Investor signals, movers, and retirement radar",
+    "files": [
+      "views/portfolio.js"
+    ]
+  },
+  {
     "text": "JPEG/PNG/WebP, max 4 MB. Photos appear once approved.",
     "files": [
       "components/contribute.js"
@@ -5049,6 +5056,12 @@
     "text": "Market value & ROI columns in CSV export",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Market value and ROI export columns",
+    "files": [
+      "views/portfolio.js"
     ]
   },
   {
@@ -5877,7 +5890,8 @@
   {
     "text": "Not now",
     "files": [
-      "views/catalog.js"
+      "views/catalog.js",
+      "views/portfolio.js"
     ]
   },
   {
@@ -6120,6 +6134,12 @@
     "text": "Open",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Open Pro settings",
+    "files": [
+      "views/portfolio.js"
     ]
   },
   {
@@ -8188,6 +8208,12 @@
     ]
   },
   {
+    "text": "See web support options",
+    "files": [
+      "views/portfolio.js"
+    ]
+  },
+  {
     "text": "Select sets",
     "files": [
       "views/portfolio.js"
@@ -8629,6 +8655,12 @@
     ]
   },
   {
+    "text": "Sign in or create an account",
+    "files": [
+      "views/portfolio.js"
+    ]
+  },
+  {
     "text": "Sign in to build from your vault",
     "files": [
       "views/build.js"
@@ -8644,6 +8676,12 @@
     "text": "Sign in to create a public profile",
     "files": [
       "api.js"
+    ]
+  },
+  {
+    "text": "Sign in to keep Pro access linked to your vault. Tracking your collection stays free.",
+    "files": [
+      "views/portfolio.js"
     ]
   },
   {
@@ -9596,6 +9634,12 @@
     ]
   },
   {
+    "text": "Tour controls failed to render",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
     "text": "Track minifigs separately from your sets.",
     "files": [
       "components/onboarding.js"
@@ -9754,6 +9798,18 @@
   },
   {
     "text": "Undo",
+    "files": [
+      "utils.js"
+    ]
+  },
+  {
+    "text": "Undo failed",
+    "files": [
+      "utils.js"
+    ]
+  },
+  {
+    "text": "Undo failed — please try again",
     "files": [
       "utils.js"
     ]

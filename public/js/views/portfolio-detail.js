@@ -821,6 +821,9 @@ function wireDetailActions(set, entry) {
           try {
             await api("/api/collection", { method: "POST", body: restore });
             invalidatePortfolio(); state.catalog.items = []; markSetOwned(set.set_num, true);
+            // Reload the profile before repainting so currency/mode context is
+            // coherent with the restored guest collection.
+            state.me = await api("/api/me");
             const r2 = await api("/api/sets/" + encodeURIComponent(set.set_num));
             state.detail.cache[set.set_num] = { set: r2.set || r2, entry: r2.entry || null, ts: Date.now() };
             paintSetDetail(r2.set || r2, r2.entry || null);
