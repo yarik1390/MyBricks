@@ -1,5 +1,5 @@
 import { $, $$, escapeHtml, haptic, toast, debounce, SEARCH_DEBOUNCE_MS, mount, emptyState } from '../utils.js';
-import { api, isGuestMode } from '../api.js';
+import { api, getSessionUserId, isGuestMode } from '../api.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
 import { I } from '../icons.js';
 import { tPlural } from '../lib/i18n.js';
@@ -14,7 +14,32 @@ let _mode = 'sets';   // 'sets' | 'alts'
 let _q = '';
 const _sets = { loaded: false, loading: false, error: "", authRequired: false, builds: [], can_build: 0, near: 0, owned_sets: 0, parts_sets: 0 };
 const _alts = { loaded: false, loading: false, error: "", authRequired: false, builds: [], can_build: 0, sets_with_alts: 0, owned_sets: 0, indexing: 0 };
+let _cacheIdentity = getSessionUserId();
+let _cacheGeneration = 0;
 
+function resetStore(store) {
+  store.loaded = false;
+  store.loading = false;
+  store.error = "";
+  store.authRequired = false;
+  store.builds = [];
+  store.can_build = 0;
+  store.owned_sets = 0;
+  if ('near' in store) store.near = 0;
+  if ('parts_sets' in store) store.parts_sets = 0;
+  if ('sets_with_alts' in store) store.sets_with_alts = 0;
+  if ('indexing' in store) store.indexing = 0;
+}
+
+function resetForIdentityChange() {
+  const identity = getSessionUserId();
+  if (identity === _cacheIdentity) return;
+  _cacheIdentity = identity;
+  _cacheGeneration++;
+  resetStore(_sets);
+  resetStore(_alts);
+  _q = '';
+}
 
 async function loadSets() {
   if (_sets.loading) return;
@@ -26,9 +51,12 @@ async function loadSets() {
     _sets.loaded = true;
     return;
   }
+  const generation = _cacheGeneration;
+  const identity = getSessionUserId();
   _sets.loading = true;
   try {
     const r = await api('/api/build/sets?limit=120');
+    if (generation !== _cacheGeneration || identity !== getSessionUserId()) return;
     _sets.error = "";
     _sets.authRequired = false;
     _sets.builds = (r && r.builds) || [];
@@ -38,6 +66,7 @@ async function loadSets() {
     _sets.parts_sets = (r && r.parts_sets) || 0;
     _sets.loaded = true;
   } catch (e) {
+    if (generation !== _cacheGeneration || identity !== getSessionUserId()) return;
     _sets.error = e?.message || "Couldn't load buildable sets";
     // Build needs a synced (authed) collection. Guests — and any 401 ("Unauthorized:
     // no token") — get the friendly sign-in prompt, not a raw error + dead Retry.
@@ -45,7 +74,7 @@ async function loadSets() {
     _sets.loaded = true;
     if (!_sets.authRequired) toast("Couldn't load buildable sets", 'error');
   }
-  finally { _sets.loading = false; }
+  finally { if (generation === _cacheGeneration) _sets.loading = false; }
 }
 
 async function loadAlts() {
@@ -56,9 +85,12 @@ async function loadAlts() {
     _alts.loaded = true;
     return;
   }
+  const generation = _cacheGeneration;
+  const identity = getSessionUserId();
   _alts.loading = true;
   try {
     const r = await api('/api/build?limit=300');
+    if (generation !== _cacheGeneration || identity !== getSessionUserId()) return;
     _alts.error = "";
     _alts.authRequired = false;
     _alts.builds = (r && r.builds) || [];
@@ -68,12 +100,13 @@ async function loadAlts() {
     _alts.indexing = (r && r.indexing) || 0;
     _alts.loaded = true;
   } catch (e) {
+    if (generation !== _cacheGeneration || identity !== getSessionUserId()) return;
     _alts.error = e?.message || "Couldn't load alternate builds";
     _alts.authRequired = isGuestMode() || /unauthorized|no token|sign in|sync this feature|session expired/i.test(_alts.error);
     _alts.loaded = true;
     if (!_alts.authRequired) toast("Couldn't load alternate builds", 'error');
   }
-  finally { _alts.loading = false; }
+  finally { if (generation === _cacheGeneration) _alts.loading = false; }
 }
 
 function setRow(b) {
@@ -195,9 +228,14 @@ function pageHtml() {
   </div>`;
 }
 
-function rerender() { mount($('#root'), pageHtml()); wire(); }
+function rerender() {
+  resetForIdentityChange();
+  mount($('#root'), pageHtml());
+  wire();
+}
 
 async function ensureLoaded() {
+  resetForIdentityChange();
   if (_mode === 'sets' && !_sets.loaded) await loadSets();
   if (_mode === 'alts' && !_alts.loaded) await loadAlts();
 }

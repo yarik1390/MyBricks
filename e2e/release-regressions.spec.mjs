@@ -45,6 +45,59 @@ test('guest Build gate does not call account-scoped build APIs', async ({ page }
   expect(protectedBuildRequests).toEqual([]);
 });
 
+test('Build clears account-scoped state across guest and user identity transitions', async ({ page }) => {
+  const responseByUser = new Map([
+    ['e2e-test-user', 'User A private build'],
+    ['e2e-test-user-b', 'User B private build'],
+  ]);
+  const buildCalls = [];
+  await page.route('**/api/build/sets?*', async route => {
+    const authorization = await route.request().headerValue('authorization') || '';
+    const payload = authorization.split('.')[1];
+    const userId = payload ? JSON.parse(Buffer.from(payload, 'base64url')).sub : '';
+    buildCalls.push(userId);
+    const name = responseByUser.get(userId) || 'Unexpected user build';
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        builds: [{ set_num: `${userId}-1`, name, pct: 100, buildable: true, need: 0 }],
+        can_build: 1,
+        near: 0,
+        owned_sets: 1,
+        parts_sets: 1,
+      }),
+    });
+  });
+
+  await page.goto('/#/build', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('User A private build')).toBeVisible();
+
+  await page.evaluate(async () => {
+    const { saveSession } = await import('/js/api.js');
+    saveSession(null);
+    location.hash = '#/me';
+  });
+  await expect(page).toHaveURL(/#\/me$/);
+  await page.evaluate(() => { location.hash = '#/build'; });
+  await expect(page.getByText('Sign in to build from your vault')).toBeVisible();
+  await expect(page.getByText('User A private build')).toHaveCount(0);
+
+  await page.evaluate(async () => {
+    const b64url = value => btoa(JSON.stringify(value)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+    const token = `${b64url({ alg: 'none' })}.${b64url({ sub: 'e2e-test-user-b' })}.sig`;
+    const { saveSession } = await import('/js/api.js');
+    saveSession({ access_token: token, refresh_token: 'b-refresh' });
+    location.hash = '#/me';
+  });
+  await expect(page).toHaveURL(/#\/me$/);
+  await page.evaluate(() => { location.hash = '#/build'; });
+  await expect(page.getByText('User B private build')).toBeVisible();
+  await expect(page.getByText('Sign in to build from your vault')).toHaveCount(0);
+  await expect(page.getByText('User A private build')).toHaveCount(0);
+  expect(buildCalls).toEqual(['e2e-test-user', 'e2e-test-user-b']);
+});
+
 test('replayed app tour paints controls synchronously and remains dismissible', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('bv_onboarded_v1', '1');
