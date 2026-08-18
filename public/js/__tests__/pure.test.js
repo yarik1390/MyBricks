@@ -1302,6 +1302,13 @@ describe('routeMetaFor', () => {
     assert.equal(routeMetaFor('/').fab, true);
     assert.equal(routeMetaFor('/build').fab, true);
   });
+
+  it('classifies unrecognized hashes as unknown rather than Vault', async () => {
+    const { routeMetaFor } = await import('../route-meta.js');
+    const unknown = routeMetaFor('/no-such-route');
+    assert.equal(unknown.key, 'unknown');
+    assert.equal(unknown.nav, null);
+  });
 });
 
 describe('native auth helpers', () => {

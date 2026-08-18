@@ -23,6 +23,28 @@ test('fresh guest add renders the saved set in the vault immediately', async ({ 
   await expect(page.locator('#setList')).toContainText('Galaxy Explorer');
 });
 
+test('unknown hash renders an explicit recovery page without masquerading as Vault', async ({ page }) => {
+  await setGuestSession(page);
+  await page.goto('/#/no-such-route', { waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(/#\/no-such-route$/);
+  await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Go to Vault' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Browse Catalog' })).toBeVisible();
+  await expect(page.locator('body')).toHaveAttribute('data-route', 'unknown');
+});
+
+test('guest Build gate does not call account-scoped build APIs', async ({ page }) => {
+  await setGuestSession(page);
+  const protectedBuildRequests = [];
+  page.on('request', request => {
+    if (/\/api\/build(?:\/sets)?(?:\?|$)/.test(request.url())) protectedBuildRequests.push(request.url());
+  });
+  await page.goto('/#/build', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('Sign in to build from your vault')).toBeVisible();
+  await page.waitForTimeout(250);
+  expect(protectedBuildRequests).toEqual([]);
+});
+
 test('replayed app tour paints controls synchronously and remains dismissible', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('bv_onboarded_v1', '1');

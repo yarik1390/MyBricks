@@ -123,8 +123,20 @@ async function _routeImpl() {
     } else if (hash === "/kids/badges") {
       await (await import('./views/kids.js')).renderKidsBadges();
     } else {
-      location.hash = "#/";
-      throw { __redirect: true };
+      const root = $("#root");
+      if (root) root.innerHTML = `
+        <main class="page" aria-labelledby="notFoundTitle">
+          <section class="empty-state card" role="status">
+            <div class="empty-icon" aria-hidden="true">🧱</div>
+            <h1 id="notFoundTitle">Page not found</h1>
+            <p>The link may be outdated or mistyped.</p>
+            <div class="empty-actions">
+              <a class="btn btn-primary" href="#/">Go to Vault</a>
+              <a class="btn btn-secondary" href="#/add">Browse Catalog</a>
+            </div>
+          </section>
+        </main>`;
+      document.title = "Page not found · BricksVault";
     }
   };
 

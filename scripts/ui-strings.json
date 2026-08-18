@@ -1360,6 +1360,12 @@
     ]
   },
   {
+    "text": "Browse Catalog",
+    "files": [
+      "router.js"
+    ]
+  },
+  {
     "text": "Browse catalog",
     "files": [
       "views/build.js",
@@ -3778,6 +3784,12 @@
     "text": "Go to",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Go to Vault",
+    "files": [
+      "router.js"
     ]
   },
   {
@@ -6315,6 +6327,18 @@
     "text": "Packaging",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Page not found",
+    "files": [
+      "router.js"
+    ]
+  },
+  {
+    "text": "Page not found · BricksVault",
+    "files": [
+      "router.js"
     ]
   },
   {
@@ -9386,6 +9410,12 @@
     "text": "The expected price at launch. This is not a secondary-market valuation.",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "The link may be outdated or mistyped.",
+    "files": [
+      "router.js"
     ]
   },
   {

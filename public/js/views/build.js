@@ -18,6 +18,14 @@ const _alts = { loaded: false, loading: false, error: "", authRequired: false, b
 
 async function loadSets() {
   if (_sets.loading) return;
+  // Build data is account-scoped. Do not knowingly send a protected request
+  // for guests only to convert the expected 401 into the sign-in state.
+  if (isGuestMode()) {
+    _sets.error = "";
+    _sets.authRequired = true;
+    _sets.loaded = true;
+    return;
+  }
   _sets.loading = true;
   try {
     const r = await api('/api/build/sets?limit=120');
@@ -42,6 +50,12 @@ async function loadSets() {
 
 async function loadAlts() {
   if (_alts.loading) return;
+  if (isGuestMode()) {
+    _alts.error = "";
+    _alts.authRequired = true;
+    _alts.loaded = true;
+    return;
+  }
   _alts.loading = true;
   try {
     const r = await api('/api/build?limit=300');
