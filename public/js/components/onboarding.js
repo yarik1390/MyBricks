@@ -9,7 +9,7 @@ import { api, isGuestMode } from '../api.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { route } from '../router.js';
 import { SUPPORTED, getLocale, setLocale, applyUiDictionary, translateDOM } from '../lib/i18n.js';
-import { isNativeBilling, presentProPaywall } from '../lib/revenuecat-native.js';
+import { isNativeBilling, proPurchaseReady, presentProPaywall } from '../lib/revenuecat-native.js';
 
 const FLAG = 'bv_onboarded_v1';
 
@@ -311,6 +311,8 @@ function ensureSetupStyles() {
     .bv-setup-btn{flex:1;border:2px solid var(--line);border-radius:14px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;background:var(--surface-2);color:inherit;}
     .bv-setup-btn.primary{flex:2;background:var(--accent,#e23b3b);border-color:var(--accent,#e23b3b);color:#111;}
     .bv-setup-ghost{background:none;border:none;color:var(--ink-mute);font-size:13.5px;font-weight:600;cursor:pointer;padding:2px;}
+    .bv-setup-ghost[aria-busy="true"]{opacity:.6;cursor:wait;}
+    .bv-setup-note{min-height:1.2em;margin:7px 0 0;color:var(--ink-mute);font-size:12.5px;line-height:1.35;text-align:center;}
   `;
   const el = document.createElement('style');
   el.id = 'bv-setup-style';
@@ -427,7 +429,7 @@ function stepFootHTML(key) {
         ${suIdx > 0 ? '<button class="bv-setup-btn" data-act="back">Back</button>' : ''}
         <button class="bv-setup-btn primary" data-act="next">${key === 'welcome' ? "Let's go" : 'Continue'}</button>
       </div>
-      ${key === 'support' ? '<button class="bv-setup-ghost" data-act="support">See Pro options →</button>' : ''}`;
+      ${key === 'support' ? '<button class="bv-setup-ghost" data-act="support">See Pro options →</button><p class="bv-setup-note" data-su-note role="status" aria-live="polite"></p>' : ''}`;
   }
   return `<div class="bv-setup-dots">${dots}</div>${nav}`;
 }
@@ -505,6 +507,11 @@ function suWireStep(key) {
       haptic('medium');
     });
   }
+}
+
+function suNote(message) {
+  const note = suRoot?.querySelector('[data-su-note]');
+  if (note) note.textContent = message || '';
 }
 
 function suRender({ focusLanguage = null } = {}) {
@@ -586,20 +593,32 @@ export function showSetup() {
         // Keep onboarding open and incomplete while the native store paywall is
         // presented. The old flow removed the wizard, marked it complete and
         // routed away before the user could see plans or finish setup.
+        //
+        // Feedback MUST render inside the wizard: #toast sits at z-index 120 and
+        // this overlay at 10000, so a toast fired here is painted BEHIND an
+        // opaque full-screen panel — the user sees the button do nothing, then
+        // gets an out-of-context error the moment onboarding closes.
+        const button = e.target.closest('[data-act="support"]');
         if (!isNativeBilling()) {
-          toast('Pro options are available from Settings.', 'info');
+          suNote('Pro options are available from Settings once setup is done.');
           return;
         }
-        const button = e.target.closest('[data-act="support"]');
-        if (button) button.disabled = true;
+        if (!proPurchaseReady()) {
+          suNote('The store is not ready. You can continue setup and try again from Settings.');
+          return;
+        }
+        if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
+        suNote('');
         presentProPaywall().then((result) => {
           if (result?.active) {
             state.me = null;
-            toast('Welcome to BricksVault Pro! ⭐', 'success');
+            suNote('Pro unlocked — thank you! ⭐');
           } else if (!result?.ok && result?.reason !== 'cancelled') {
-            toast('Store unavailable — you can continue setup and try again later.', 'error');
+            suNote("The store didn't open. You can continue setup and try again from Settings.");
           }
-        }).finally(() => { if (button?.isConnected) button.disabled = false; });
+        }).finally(() => {
+          if (button?.isConnected) { button.disabled = false; button.removeAttribute('aria-busy'); }
+        });
       }
       else if (act === 'tour') suFinish('tour');
     });

@@ -1789,9 +1789,11 @@ export const ui = {
   "Failed to acknowledge wishlist alert": "ウィッシュリストの通知を確認できませんでした",
   "Fresh price from a market source": "市場ソースからの最新価格",
   "Marketplace": "マーケットプレイス",
-  "Pro options are available from Settings.": "Pro のオプションは設定から利用できます。",
   "Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.": "BrickEconomy、Brickset、LEGO 在庫の取得に最初に使う生 HTML トランスポート。月次トークンプール。",
-  "Store unavailable — you can continue setup and try again later.": "ストアを利用できません。設定を続けて、後でもう一度お試しください。",
+  "Pro options are available from Settings once setup is done.": "セットアップ完了後、設定から Pro オプションを利用できます。",
+  "Pro unlocked — thank you! ⭐": "Pro が有効になりました。ありがとうございます！⭐",
+  "The store didn't open. You can continue setup and try again from Settings.": "ストアを開けませんでした。セットアップを続け、設定からもう一度お試しください。",
+  "The store is not ready. You can continue setup and try again from Settings.": "ストアの準備ができていません。セットアップを続け、設定からもう一度お試しください。",
 };
 ui["BrickLink (new)"] = "BrickLink（新品）";
 ui["Market confidence: high"] = "市場信頼度：高";

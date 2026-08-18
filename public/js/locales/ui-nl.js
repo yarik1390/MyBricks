@@ -1789,9 +1789,11 @@ export const ui = {
   "Failed to acknowledge wishlist alert": "Bevestigen van verlanglijstmelding is mislukt",
   "Fresh price from a market source": "Actuele prijs uit een marktbron",
   "Marketplace": "Marktplaats",
-  "Pro options are available from Settings.": "Pro-opties vind je in Instellingen.",
   "Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.": "Ruwe-HTML-transport wordt eerst gebruikt voor BrickEconomy-, Brickset- en LEGO-voorraadscrapes; maandelijkse tokenpool.",
-  "Store unavailable — you can continue setup and try again later.": "Store niet beschikbaar — je kunt de installatie voortzetten en het later opnieuw proberen.",
+  "Pro options are available from Settings once setup is done.": "Na de installatie vind je de Pro-opties in Instellingen.",
+  "Pro unlocked — thank you! ⭐": "Pro ontgrendeld — bedankt! ⭐",
+  "The store didn't open. You can continue setup and try again from Settings.": "De Store ging niet open. Je kunt de installatie voortzetten en het opnieuw proberen vanuit Instellingen.",
+  "The store is not ready. You can continue setup and try again from Settings.": "De Store is nog niet klaar. Je kunt de installatie voortzetten en het opnieuw proberen vanuit Instellingen.",
 };
 ui["BrickLink (new)"] = "BrickLink (nieuw)";
 ui["Market confidence: high"] = "Marktvertrouwen: hoog";

@@ -6874,7 +6874,13 @@
     ]
   },
   {
-    "text": "Pro options are available from Settings.",
+    "text": "Pro options are available from Settings once setup is done.",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
+    "text": "Pro unlocked — thank you! ⭐",
     "files": [
       "components/onboarding.js"
     ]
@@ -8985,12 +8991,6 @@
     ]
   },
   {
-    "text": "Store unavailable — you can continue setup and try again later.",
-    "files": [
-      "components/onboarding.js"
-    ]
-  },
-  {
     "text": "Stored only; weight and jobs are off",
     "files": [
       "views/me-admin.js"
@@ -9372,6 +9372,18 @@
     "text": "The sealed set is worth more than its individual parts.",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "The store didn't open. You can continue setup and try again from Settings.",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
+    "text": "The store is not ready. You can continue setup and try again from Settings.",
+    "files": [
+      "components/onboarding.js"
     ]
   },
   {
@@ -10359,7 +10371,6 @@
   {
     "text": "Welcome to BricksVault Pro! ⭐",
     "files": [
-      "components/onboarding.js",
       "views/me.js"
     ]
   },

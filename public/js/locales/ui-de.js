@@ -1789,9 +1789,11 @@ export const ui = {
   "Failed to acknowledge wishlist alert": "Wunschlisten-Hinweis konnte nicht bestätigt werden",
   "Fresh price from a market source": "Aktueller Preis aus einer Marktquelle",
   "Marketplace": "Marktplatz",
-  "Pro options are available from Settings.": "Pro-Optionen findest du in den Einstellungen.",
   "Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.": "Roh-HTML-Transport, zuerst genutzt für BrickEconomy-, Brickset- und LEGO-Lagerbestand-Abrufe; monatlicher Token-Pool.",
-  "Store unavailable — you can continue setup and try again later.": "Store nicht erreichbar — du kannst die Einrichtung fortsetzen und es später erneut versuchen.",
+  "Pro options are available from Settings once setup is done.": "Nach der Einrichtung findest du die Pro-Optionen in den Einstellungen.",
+  "Pro unlocked — thank you! ⭐": "Pro freigeschaltet — vielen Dank! ⭐",
+  "The store didn't open. You can continue setup and try again from Settings.": "Der Store wurde nicht geöffnet. Du kannst die Einrichtung fortsetzen und es in den Einstellungen erneut versuchen.",
+  "The store is not ready. You can continue setup and try again from Settings.": "Der Store ist noch nicht bereit. Du kannst die Einrichtung fortsetzen und es in den Einstellungen erneut versuchen.",
 };
 ui["BrickLink (new)"] = "BrickLink (neu)";
 ui["Market confidence: high"] = "Marktvertrauen: hoch";

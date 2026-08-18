@@ -1789,9 +1789,11 @@ export const ui = {
   "Failed to acknowledge wishlist alert": "विशलिस्ट अलर्ट स्वीकार नहीं किया जा सका",
   "Fresh price from a market source": "किसी मार्केट स्रोत से ताज़ा कीमत",
   "Marketplace": "मार्केटप्लेस",
-  "Pro options are available from Settings.": "प्रो विकल्प सेटिंग्स में उपलब्ध हैं।",
   "Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.": "BrickEconomy, Brickset और LEGO स्टॉक स्क्रैप के लिए पहले रॉ-HTML ट्रांसपोर्ट उपयोग होता है; मासिक टोकन पूल।",
-  "Store unavailable — you can continue setup and try again later.": "स्टोर उपलब्ध नहीं — आप सेटअप जारी रख सकते हैं और बाद में फिर कोशिश करें।",
+  "Pro options are available from Settings once setup is done.": "सेटअप पूरा होने के बाद प्रो विकल्प सेटिंग्स में उपलब्ध होंगे।",
+  "Pro unlocked — thank you! ⭐": "प्रो अनलॉक हो गया — धन्यवाद! ⭐",
+  "The store didn't open. You can continue setup and try again from Settings.": "स्टोर नहीं खुला। आप सेटअप जारी रख सकते हैं और सेटिंग्स से फिर कोशिश कर सकते हैं।",
+  "The store is not ready. You can continue setup and try again from Settings.": "स्टोर अभी तैयार नहीं है। आप सेटअप जारी रख सकते हैं और सेटिंग्स से फिर कोशिश कर सकते हैं।",
 };
 ui["BrickLink (new)"] = "BrickLink (नया)";
 ui["Market confidence: high"] = "बाज़ार भरोसा: उच्च";

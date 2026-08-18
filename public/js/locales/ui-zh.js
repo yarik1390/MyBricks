@@ -1789,9 +1789,11 @@ export const ui = {
   "Failed to acknowledge wishlist alert": "无法确认心愿单提醒",
   "Fresh price from a market source": "来自市场来源的最新价格",
   "Marketplace": "市场",
-  "Pro options are available from Settings.": "Pro 选项可在“设置”中找到。",
   "Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.": "抓取 BrickEconomy、Brickset 和 LEGO 库存时优先使用的原始 HTML 传输；按月令牌池。",
-  "Store unavailable — you can continue setup and try again later.": "商店不可用——你可以继续设置，稍后再试。",
+  "Pro options are available from Settings once setup is done.": "完成设置后，可在“设置”中找到 Pro 选项。",
+  "Pro unlocked — thank you! ⭐": "Pro 已解锁——谢谢！⭐",
+  "The store didn't open. You can continue setup and try again from Settings.": "商店未能打开。你可以继续设置，稍后从“设置”中重试。",
+  "The store is not ready. You can continue setup and try again from Settings.": "商店尚未就绪。你可以继续设置，稍后从“设置”中重试。",
 };
 ui["BrickLink (new)"] = "BrickLink（全新）";
 ui["Market confidence: high"] = "市场置信度：高";

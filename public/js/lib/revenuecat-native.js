@@ -21,6 +21,7 @@ const PURCHASES_PLUGIN = 'Purchases';
 const UI_PLUGIN = 'RevenueCatUI';
 
 let _configured = false;
+let _identifiedUserId = null;
 
 export function isNativeBilling() {
   try {
@@ -33,21 +34,37 @@ function plugin(name) {
   catch { return null; }
 }
 
-// Configure once, keyed to the signed-in Supabase user so the entitlement follows
-// the account (purchasing is gated behind login). Returns the Purchases plugin or null.
+// Can a purchase actually be started right now? RevenueCat supports an
+// anonymous app user during first-run; once Supabase sign-in happens configure()
+// identifies that same customer via logIn(), preserving the purchase.
+export function proPurchaseReady() {
+  if (!isNativeBilling()) return false;
+  try {
+    return !!(plugin(PURCHASES_PLUGIN) && plugin(UI_PLUGIN)
+      && window.RC_PLAY_BILLING_KEY);
+  } catch { return false; }
+}
+
+// Configure once. During guest onboarding RevenueCat creates an anonymous app
+// user; after Supabase sign-in we identify it with logIn(), which aliases the
+// anonymous purchase to that account. Requiring a user ID here made the first-
+// run Pro button impossible to use by definition.
 async function configure() {
   if (!isNativeBilling()) return null;
   const Purchases = plugin(PURCHASES_PLUGIN);
   const apiKey = window.RC_PLAY_BILLING_KEY;   // goog_… key, set in env.js
   const userId = getSessionUserId();
-  if (!Purchases || !apiKey || !userId) return null;
+  if (!Purchases || !apiKey) return null;
   try {
     if (!_configured) {
-      await Purchases.configure({ apiKey, appUserID: userId });
+      await Purchases.configure(userId ? { apiKey, appUserID: userId } : { apiKey });
       _configured = true;
-    } else {
-      // Keep the RC identity in sync if the signed-in user changed.
-      await Purchases.logIn?.({ appUserID: userId }).catch?.(() => {});
+      _identifiedUserId = userId || null;
+    } else if (userId && userId !== _identifiedUserId) {
+      // RevenueCat aliases an anonymous customer to the signed-in ID so a
+      // purchase made during onboarding follows the account.
+      await Purchases.logIn?.({ appUserID: userId });
+      _identifiedUserId = userId;
     }
     return Purchases;
   } catch (e) { console.error('[rc-native] configure', e); return null; }
