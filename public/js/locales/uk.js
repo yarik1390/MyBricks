@@ -245,5 +245,7 @@ Object.assign(uk.admin, { llmUnavailable: 'Маршрутизація LLM нед
 
 Object.assign(uk.admin, { llmModelPlaceholder: "провайдер/модель, напр. openai/gpt-5.6-luna" });
 
+Object.assign(uk.admin, { llmReload: "Перезавантажити", llmChooseModel: "Оберіть модель", llmCustomModel: "Власний ID моделі…", llmSpentOf: "Витрачено {spent} із {budget}", llmLivePoolShort: "безкоштовний пул", llmUnsaved: "Незбережені зміни", llmModelsOther: "Інші", llmWorkload_scan: "Сканування фото", llmWorkload_advisor: "ШІ-радник", llmWorkload_valuation: "Оцінка", llmWorkload_listing: "Чернетки оголошень" });
+
 export default uk;
 Object.assign(uk.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

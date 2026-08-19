@@ -220,5 +220,7 @@ Object.assign(de.admin, { llmUnavailable: 'LLM-Routing nicht verfügbar', llmMer
 
 Object.assign(de.admin, { llmModelPlaceholder: "Anbieter/Modell, z. B. openai/gpt-5.6-luna" });
 
+Object.assign(de.admin, { llmReload: "Neu laden", llmChooseModel: "Modell wählen", llmCustomModel: "Eigene Modell-ID …", llmSpentOf: "{spent} von {budget} ausgegeben", llmLivePoolShort: "Gratis-Pool", llmUnsaved: "Nicht gespeicherte Änderungen", llmModelsOther: "Andere", llmWorkload_scan: "Foto-Scan", llmWorkload_advisor: "KI-Berater", llmWorkload_valuation: "Bewertung", llmWorkload_listing: "Angebotsentwürfe" });
+
 export default de;
 Object.assign(de.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

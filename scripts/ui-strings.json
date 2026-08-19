@@ -5200,6 +5200,12 @@
     ]
   },
   {
+    "text": "Merge",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Metal canister",
     "files": [
       "views/portfolio-detail.js"

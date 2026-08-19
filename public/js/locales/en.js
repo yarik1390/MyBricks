@@ -513,4 +513,6 @@ Object.assign(en.admin, {
 
 Object.assign(en.admin, { llmModelPlaceholder: "provider/model, e.g. openai/gpt-5.6-luna" });
 
+Object.assign(en.admin, { llmReload: "Reload", llmChooseModel: "Choose a model", llmCustomModel: "Custom model ID…", llmSpentOf: "{spent} spent of {budget}", llmLivePoolShort: "free pool", llmUnsaved: "Unsaved changes", llmModelsOther: "Other", llmWorkload_scan: "Photo scan", llmWorkload_advisor: "AI advisor", llmWorkload_valuation: "Valuation", llmWorkload_listing: "Listing drafts" });
+
 export default en;

@@ -214,5 +214,7 @@ Object.assign(fr.admin, { llmUnavailable: 'Routage LLM indisponible', llmMergeBa
 
 Object.assign(fr.admin, { llmModelPlaceholder: "fournisseur/modèle, ex. openai/gpt-5.6-luna" });
 
+Object.assign(fr.admin, { llmReload: "Recharger", llmChooseModel: "Choisir un modèle", llmCustomModel: "ID de modèle personnalisé…", llmSpentOf: "{spent} dépensés sur {budget}", llmLivePoolShort: "pool gratuit", llmUnsaved: "Modifications non enregistrées", llmModelsOther: "Autres", llmWorkload_scan: "Scan photo", llmWorkload_advisor: "Conseiller IA", llmWorkload_valuation: "Estimation", llmWorkload_listing: "Brouillons d’annonce" });
+
 export default fr;
 Object.assign(fr.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

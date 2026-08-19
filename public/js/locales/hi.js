@@ -214,5 +214,7 @@ Object.assign(hi.admin, { llmUnavailable: 'LLM रूटिंग उपलब�
 
 Object.assign(hi.admin, { llmModelPlaceholder: "प्रदाता/मॉडल, जैसे openai/gpt-5.6-luna" });
 
+Object.assign(hi.admin, { llmReload: "फिर से लोड करें", llmChooseModel: "मॉडल चुनें", llmCustomModel: "कस्टम मॉडल ID…", llmSpentOf: "{budget} में से {spent} खर्च", llmLivePoolShort: "मुफ़्त पूल", llmUnsaved: "असहेजे बदलाव", llmModelsOther: "अन्य", llmWorkload_scan: "फ़ोटो स्कैन", llmWorkload_advisor: "AI सलाहकार", llmWorkload_valuation: "मूल्यांकन", llmWorkload_listing: "लिस्टिंग ड्राफ़्ट" });
+
 export default hi;
 Object.assign(hi.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

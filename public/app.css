@@ -6868,44 +6868,87 @@ body[data-route="set-detail"] .detail-page-container[data-detail-tab="manage"] {
 }
 
 /* ── LLM routing console ──────────────────────────────────────────────────
-   The cascade editor is a numbered, reorderable list per workload. Order IS
-   the semantics here (first provider that answers wins), so the step number
-   is a first-class element rather than decoration. */
-.llm-balance { border: 2px solid var(--line); border-radius: var(--r-2); padding: 12px 14px; margin-bottom: 16px; }
+   Order IS the semantics here (first provider that answers wins), so the step
+   number is a first-class element. The first build stacked every control in a
+   tall card, which on a phone turned four workloads into a very long scroll —
+   this one keeps each step to a two-row block with a real dropdown. */
+.llm-balance { border: 2px solid var(--line); border-radius: var(--r-2); padding: 12px 14px; margin-bottom: 18px; }
 .llm-balance.warn { border-color: var(--warn, #b8860b); }
 .llm-balance.danger { border-color: var(--down, #c0392b); }
-.llm-balance-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.llm-balance-figure { font-family: var(--mono, monospace); font-weight: 700; }
-.llm-balance-bar { height: 8px; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin: 8px 0 6px; }
+.llm-balance-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.llm-balance-label { font-weight: 700; }
+.llm-balance-figure { font-family: var(--mono, monospace); font-weight: 700; font-size: 1.25rem; }
+.llm-balance-bar { height: 8px; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin: 10px 0 8px; background: var(--bg, transparent); }
 .llm-balance-bar > span { display: block; height: 100%; background: var(--accent, #ffd700); }
 .llm-balance.warn .llm-balance-bar > span { background: var(--warn, #b8860b); }
 .llm-balance.danger .llm-balance-bar > span { background: var(--down, #c0392b); }
-.llm-balance small { color: var(--muted); }
+.llm-balance-foot { display: flex; flex-direction: column; gap: 2px; }
+.llm-balance-foot small { color: var(--muted); }
+.llm-balance-note { font-size: 0.75rem; }
 
-.llm-workload + .llm-workload { margin-top: 18px; }
-.llm-workload-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.llm-workload-head h3 { margin: 0; font-size: 1rem; text-transform: capitalize; }
-.llm-steps { list-style: none; margin: 8px 0 4px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.llm-step {
-  display: grid; align-items: center; gap: 8px;
-  grid-template-columns: 28px minmax(72px, auto) minmax(0, 1fr) auto;
-  border: 2px solid var(--line); border-radius: var(--r-1, 10px); padding: 6px 8px;
-}
-/* A disabled or keyless step still has to be READABLE — it is the thing the
-   operator is deciding about — so dim it without dropping below contrast. */
-.llm-step.is-off { opacity: 0.65; }
+.llm-workload { border: 2px solid var(--line); border-radius: var(--r-2); padding: 10px 12px; margin-bottom: 12px; }
+.llm-workload-head { display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 700; }
+.llm-workload-head::-webkit-details-marker { display: none; }
+.llm-workload-head::after { content: '▾'; margin-left: auto; color: var(--muted); transition: transform 0.15s; }
+.llm-workload[open] > .llm-workload-head::after { transform: rotate(180deg); }
+.llm-workload-name { font-size: 1rem; }
+.llm-workload-count { font-family: var(--mono, monospace); font-size: 0.8rem; color: var(--muted); font-weight: 400; }
+
+.llm-steps { list-style: none; margin: 10px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.llm-step { border: 2px solid var(--line); border-radius: var(--r-1, 10px); padding: 8px; }
+/* A disabled or keyless step is the thing being decided about, so it stays
+   readable — dimmed, never below contrast. */
+.llm-step.is-off { opacity: 0.6; }
 .llm-step.is-unconfigured { border-style: dashed; }
-.llm-step-order { font-family: var(--mono, monospace); font-weight: 700; text-align: center; color: var(--muted); }
-.llm-step-provider { font-weight: 700; text-transform: capitalize; }
-.llm-step-model { min-width: 0; width: 100%; }
-.llm-step-warn { grid-column: 1 / -1; font-size: 0.8rem; color: var(--down, #c0392b); }
-.llm-step-actions { display: flex; gap: 4px; }
-.llm-effective { display: block; color: var(--muted); overflow-wrap: anywhere; }
-.llm-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+.llm-step-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.llm-step-order {
+  flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--line); color: var(--bg, #fff);
+  font-family: var(--mono, monospace); font-size: 0.75rem; font-weight: 700;
+}
+.llm-step-provider { font-weight: 700; }
+.llm-step-warn { font-size: 0.72rem; color: var(--down, #c0392b); white-space: nowrap; }
+.llm-step-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+/* 40px targets: these were bare ↑/↓/On text before, unhittable on a phone. */
+.llm-icon, .llm-switch {
+  min-width: 40px; min-height: 40px; padding: 0 8px;
+  border: 2px solid var(--line); border-radius: var(--r-1, 10px);
+  background: transparent; color: inherit; font: inherit; cursor: pointer;
+  display: grid; place-items: center;
+}
+.llm-icon[disabled] { opacity: 0.3; cursor: default; }
+.llm-switch { font-size: 0.78rem; font-weight: 700; }
+.llm-switch.is-on { background: var(--accent, #ffd700); }
+.llm-step-model { width: 100%; }
+.llm-step-custom { width: 100%; margin-top: 6px; font-family: var(--mono, monospace); font-size: 0.85rem; }
 
-/* Below ~560px the four-column step row cannot hold a model dropdown at a
-   usable width, so the select takes its own line. */
-@media (max-width: 560px) {
-  .llm-step { grid-template-columns: 28px minmax(0, 1fr) auto; }
-  .llm-step-model { grid-column: 1 / -1; }
+.llm-effective { margin-top: 10px; }
+.llm-effective-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.llm-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 4px; }
+.llm-chip {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; font-size: 0.75rem;
+}
+.llm-chip code { font-family: var(--mono, monospace); font-size: 0.72rem; color: var(--muted); }
+.llm-chip-arrow { color: var(--muted); font-size: 0.75rem; }
+.llm-reset { margin-top: 10px; }
+
+.llm-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+/* The save bar only exists while there are unsaved edits, and sticks to the
+   bottom so a long cascade never hides it. */
+.llm-savebar {
+  position: sticky; bottom: 8px; z-index: 2; margin-top: 14px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border: 2px solid var(--line); border-radius: var(--r-2);
+  background: var(--card, #fff); padding: 10px 12px;
+  box-shadow: 4px 4px 0 var(--line);
+}
+.llm-savebar span { font-size: 0.85rem; font-weight: 700; }
+
+@media (min-width: 700px) {
+  /* Wide enough for the dropdown to share the header row. */
+  .llm-step { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 10px; align-items: center; }
+  .llm-step-head { margin-bottom: 0; }
+  .llm-step-custom { grid-column: 1 / -1; margin-top: 0; }
 }

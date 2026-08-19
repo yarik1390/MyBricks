@@ -300,8 +300,12 @@ function wireAdminShell() {
   // which covers both ways an id gets set. Re-rendering on every keystroke
   // would steal focus mid-type, so 'input' is deliberately not bound.
   llmEl?.addEventListener('change', (event) => {
-    const sel = event.target.closest('[data-llm-model]');
-    if (sel) setLlmStepModel(sel.getAttribute('data-llm-workload'), Number(sel.getAttribute('data-llm-index')), sel.value.trim());
+    const sel = event.target.closest('[data-llm-select]');
+    if (sel) return selectLlmStepModel(sel.getAttribute('data-llm-workload'), Number(sel.getAttribute('data-llm-index')), sel.value);
+    // Custom text field: 'change' fires on blur, which is when the typed id is
+    // final. Binding 'input' would re-render mid-keystroke and steal focus.
+    const free = event.target.closest('[data-llm-model]');
+    if (free) setLlmStepModel(free.getAttribute('data-llm-workload'), Number(free.getAttribute('data-llm-index')), free.value.trim());
   });
   const pricingEl = document.getElementById('pricingCenterContainer');
   pricingEl?.addEventListener('click', (event) => {
@@ -1268,6 +1272,14 @@ function recommendedQualityAction(cards) {
 // ---------------------------------------------------------------------------
 let llmData = null;
 let llmDirty = false;
+// Steps whose model is being typed by hand. Keyed "workload:index" so a custom
+// id survives re-render without the <select> snapping back to a listed option.
+const llmCustom = new Set();
+
+const LLM_PROVIDER_LABEL = {
+  gemini: 'Gemini', merge: 'Merge', openrouter: 'OpenRouter', openai: 'OpenAI',
+};
+const LLM_CUSTOM = '__custom__';
 
 async function loadLlmRouting() {
   const container = $('#llmRoutingContainer');
@@ -1280,59 +1292,78 @@ async function loadLlmRouting() {
     ]);
     llmData = { ...routing, status };
     llmDirty = false;
+    llmCustom.clear();
     renderLlmRouting();
   } catch (error) {
     container.innerHTML = `
       <div class="admin-status-panel error">
         <strong>${escapeHtml(t('admin.llmUnavailable'))}</strong>
         <span>${escapeHtml(error?.message || String(error))}</span>
-        <button type="button" class="btn-secondary" data-llm-retry>${I.refresh({ w: 16 })}<span>${escapeHtml(t('common.retry'))}</span></button>
+        <button type="button" class="btn-secondary" data-llm-retry>${I.refresh({ w: 16 })}<span>${escapeHtml(t('admin.llmReload'))}</span></button>
       </div>`;
   } finally {
     container.removeAttribute('aria-busy');
   }
 }
 
-// Model ids offered for a provider. OpenRouter's blank option is the live free
-// pool, which is why it is listed first there and nowhere else.
-function llmModelOptions(provider) {
+// Model ids offered for a provider, grouped by their `provider/` prefix so the
+// dropdown is scannable instead of one flat 40-item list.
+function llmModelGroups(provider) {
   const m = llmData?.models || {};
-  if (provider === 'merge') return m.merge || [];
-  if (provider === 'openrouter') return [...(m.openrouter_vision || []), ...(m.openrouter_text || [])];
-  if (provider === 'gemini') return m.gemini || [];
-  if (provider === 'openai') return m.openai || [];
-  return [];
+  const flat = provider === 'merge' ? (m.merge || [])
+    : provider === 'openrouter' ? [...(m.openrouter_vision || []), ...(m.openrouter_text || [])]
+    : provider === 'gemini' ? (m.gemini || [])
+    : provider === 'openai' ? (m.openai || []) : [];
+  const groups = new Map();
+  for (const id of [...new Set(flat)]) {
+    const vendor = id.includes('/') ? id.slice(0, id.indexOf('/')) : t('admin.llmModelsOther');
+    if (!groups.has(vendor)) groups.set(vendor, []);
+    groups.get(vendor).push(id);
+  }
+  return groups;
 }
 
 function llmStepHTML(workload, step, index, total, configured) {
-  const options = llmModelOptions(step.provider);
-  // Merge serves no model catalog on this plan, so a fixed <select> would leave
-  // its route uneditable. Use a free-text input backed by a datalist instead:
-  // suggestions where we have them, an arbitrary id where we do not. A stored
-  // model that has vanished from the suggestions still round-trips unchanged,
-  // so saving can never silently rewrite the route to something else.
-  const listId = `llm-models-${workload}-${index}`;
+  const key = `${workload}:${index}`;
+  const groups = llmModelGroups(step.provider);
+  const listed = [...groups.values()].flat();
+  const isCustom = llmCustom.has(key) || (!!step.model && !listed.includes(step.model));
+  const label = LLM_PROVIDER_LABEL[step.provider] || step.provider;
+
+  // A dropdown is the primary control; "Custom…" reveals a text field so an id
+  // the catalogue does not know is still reachable. Merge serves no catalogue
+  // on this plan, so that escape hatch is not optional.
   const opts = [
     step.provider === 'openrouter'
-      ? `<option value="">${escapeHtml(t('admin.llmLivePool'))}</option>`
-      : '',
-    ...options.map(id => `<option value="${escapeHtml(id)}"></option>`),
+      ? `<option value=""${!step.model && !isCustom ? ' selected' : ''}>${escapeHtml(t('admin.llmLivePool'))}</option>`
+      : `<option value=""${!step.model && !isCustom ? ' selected' : ''} disabled>${escapeHtml(t('admin.llmChooseModel'))}</option>`,
+    ...[...groups.entries()].map(([vendor, ids]) =>
+      `<optgroup label="${escapeHtml(vendor)}">${ids.map(id =>
+        `<option value="${escapeHtml(id)}"${!isCustom && id === step.model ? ' selected' : ''}>${escapeHtml(id.includes('/') ? id.slice(id.indexOf('/') + 1) : id)}</option>`
+      ).join('')}</optgroup>`),
+    `<option value="${LLM_CUSTOM}"${isCustom ? ' selected' : ''}>${escapeHtml(t('admin.llmCustomModel'))}</option>`,
   ].join('');
+
   return `
     <li class="llm-step${step.enabled ? '' : ' is-off'}${configured ? '' : ' is-unconfigured'}">
-      <span class="llm-step-order">${index + 1}</span>
-      <span class="llm-step-provider">${escapeHtml(step.provider)}</span>
-      <input class="input llm-step-model" list="${listId}" value="${escapeHtml(step.model)}"
-             placeholder="${escapeHtml(step.provider === 'openrouter' ? t('admin.llmLivePool') : t('admin.llmModelPlaceholder'))}"
-             autocomplete="off" spellcheck="false"
-             data-llm-model data-llm-workload="${workload}" data-llm-index="${index}">
-      <datalist id="${listId}">${opts}</datalist>
-      ${configured ? '' : `<span class="llm-step-warn" title="${escapeHtml(t('admin.llmNoKeyHint'))}">${escapeHtml(t('admin.llmNoKey'))}</span>`}
-      <span class="llm-step-actions">
-        <button type="button" class="btn-icon" data-llm-move="up" data-llm-workload="${workload}" data-llm-index="${index}" ${index === 0 ? 'disabled' : ''} aria-label="${escapeHtml(t('admin.llmMoveUp'))}">↑</button>
-        <button type="button" class="btn-icon" data-llm-move="down" data-llm-workload="${workload}" data-llm-index="${index}" ${index === total - 1 ? 'disabled' : ''} aria-label="${escapeHtml(t('admin.llmMoveDown'))}">↓</button>
-        <button type="button" class="btn-icon" data-llm-toggle data-llm-workload="${workload}" data-llm-index="${index}" aria-pressed="${step.enabled ? 'true' : 'false'}">${step.enabled ? escapeHtml(t('admin.llmOn')) : escapeHtml(t('admin.llmOff'))}</button>
-      </span>
+      <div class="llm-step-head">
+        <span class="llm-step-order" aria-hidden="true">${index + 1}</span>
+        <span class="llm-step-provider">${escapeHtml(label)}</span>
+        ${configured ? '' : `<span class="llm-step-warn" title="${escapeHtml(t('admin.llmNoKeyHint'))}">${escapeHtml(t('admin.llmNoKey'))}</span>`}
+        <span class="llm-step-actions">
+          <button type="button" class="llm-icon" data-llm-move="up" data-llm-workload="${workload}" data-llm-index="${index}" ${index === 0 ? 'disabled' : ''} aria-label="${escapeHtml(t('admin.llmMoveUp'))}">↑</button>
+          <button type="button" class="llm-icon" data-llm-move="down" data-llm-workload="${workload}" data-llm-index="${index}" ${index === total - 1 ? 'disabled' : ''} aria-label="${escapeHtml(t('admin.llmMoveDown'))}">↓</button>
+          <button type="button" class="llm-switch${step.enabled ? ' is-on' : ''}" data-llm-toggle data-llm-workload="${workload}" data-llm-index="${index}" role="switch" aria-checked="${step.enabled ? 'true' : 'false'}">
+            <span>${step.enabled ? escapeHtml(t('admin.llmOn')) : escapeHtml(t('admin.llmOff'))}</span>
+          </button>
+        </span>
+      </div>
+      <select class="input llm-step-model" data-llm-select data-llm-workload="${workload}" data-llm-index="${index}"
+              aria-label="${escapeHtml(t('admin.llmChooseModel'))}">${opts}</select>
+      ${isCustom ? `
+      <input class="input llm-step-custom" value="${escapeHtml(step.model)}" autocomplete="off" spellcheck="false"
+             placeholder="${escapeHtml(t('admin.llmModelPlaceholder'))}"
+             data-llm-model data-llm-workload="${workload}" data-llm-index="${index}">` : ''}
     </li>`;
 }
 
@@ -1342,46 +1373,74 @@ function renderLlmRouting() {
   const configuredBy = Object.fromEntries((llmData.providers || []).map(p => [p.name, p.configured]));
   const merge = llmData.status?.merge || {};
   const tone = merge.status === 'over' ? 'danger' : merge.status === 'warn' ? 'warn' : 'ok';
+  const pct = Math.min(100, Math.max(0, Number(merge.pct) || 0));
 
+  // The bar fills with SPEND, so an untouched allowance reads as an empty bar
+  // rather than a full one that looks broken. The headline states both numbers
+  // so "remaining" and "spent" can never be read the wrong way round.
   const balance = `
     <div class="llm-balance ${tone}">
       <div class="llm-balance-head">
-        <strong>${escapeHtml(t('admin.llmMergeBalance'))}</strong>
-        <span class="llm-balance-figure">${fmtMoney(merge.remaining_usd || 0)} / ${fmtMoney(merge.budget_usd || 0)}</span>
+        <span class="llm-balance-label">${escapeHtml(t('admin.llmMergeBalance'))}</span>
+        <span class="llm-balance-figure">${fmtMoney(merge.remaining_usd || 0)}</span>
       </div>
-      <div class="llm-balance-bar"><span style="width:${Math.min(100, Number(merge.pct) || 0)}%"></span></div>
-      <small>${escapeHtml(t('admin.llmMeteredNote'))}</small>
+      <div class="llm-balance-bar" role="img" aria-label="${escapeHtml(t('admin.llmSpentOf', { spent: fmtMoney(merge.spent_usd || 0), budget: fmtMoney(merge.budget_usd || 0) }))}">
+        <span style="width:${pct}%"></span>
+      </div>
+      <div class="llm-balance-foot">
+        <small>${escapeHtml(t('admin.llmSpentOf', { spent: fmtMoney(merge.spent_usd || 0), budget: fmtMoney(merge.budget_usd || 0) }))}</small>
+        <small class="llm-balance-note">${escapeHtml(t('admin.llmMeteredNote'))}</small>
+      </div>
     </div>`;
 
   const workloads = (llmData.workloads || []).map((workload) => {
     const steps = llmData.routes?.[workload] || [];
     const live = (llmData.effective?.[workload] || [])
-      .map(s => s.model ? `${s.provider}:${s.model}` : `${s.provider}:pool`).join(' → ');
+      .map(s => `<span class="llm-chip">${escapeHtml(LLM_PROVIDER_LABEL[s.provider] || s.provider)}${s.model ? `<code>${escapeHtml(s.model.includes('/') ? s.model.slice(s.model.indexOf('/') + 1) : s.model)}</code>` : `<code>${escapeHtml(t('admin.llmLivePoolShort'))}</code>`}</span>`)
+      .join('<span class="llm-chip-arrow" aria-hidden="true">→</span>');
     return `
-      <div class="llm-workload">
-        <div class="llm-workload-head">
-          <h3>${escapeHtml(workload)}</h3>
-          <button type="button" class="btn-secondary btn-sm" data-llm-reset="${workload}">${escapeHtml(t('admin.llmReset'))}</button>
-        </div>
+      <details class="llm-workload" open>
+        <summary class="llm-workload-head">
+          <span class="llm-workload-name">${escapeHtml(t(`admin.llmWorkload_${workload}`))}</span>
+          <span class="llm-workload-count">${steps.filter(s => s.enabled).length}/${steps.length}</span>
+        </summary>
         <ol class="llm-steps">
           ${steps.map((step, i) => llmStepHTML(workload, step, i, steps.length, configuredBy[step.provider] !== false)).join('')}
         </ol>
-        <small class="llm-effective">${escapeHtml(t('admin.llmEffective'))}: ${live ? escapeHtml(live) : escapeHtml(t('admin.llmEffectiveNone'))}</small>
-      </div>`;
+        <div class="llm-effective">
+          <span class="llm-effective-label">${escapeHtml(t('admin.llmEffective'))}</span>
+          <div class="llm-chips">${live || `<em>${escapeHtml(t('admin.llmEffectiveNone'))}</em>`}</div>
+        </div>
+        <button type="button" class="btn-secondary btn-sm llm-reset" data-llm-reset="${workload}">${escapeHtml(t('admin.llmReset'))}</button>
+      </details>`;
   }).join('');
 
   container.innerHTML = `
     ${balance}
     <div class="llm-workloads">${workloads}</div>
     <div class="llm-actions">
-      <button type="button" class="btn-primary" data-llm-save ${llmDirty ? '' : 'disabled'}>${escapeHtml(t('admin.llmSave'))}</button>
       <button type="button" class="btn-secondary" data-llm-refresh-models>${escapeHtml(t('admin.llmRefreshModels'))}</button>
-      <button type="button" class="btn-secondary" data-llm-retry>${escapeHtml(t('common.retry'))}</button>
-    </div>`;
+      <button type="button" class="btn-secondary" data-llm-retry>${escapeHtml(t('admin.llmReload'))}</button>
+    </div>
+    ${llmDirty ? `
+    <div class="llm-savebar" role="status">
+      <span>${escapeHtml(t('admin.llmUnsaved'))}</span>
+      <button type="button" class="btn-primary" data-llm-save>${escapeHtml(t('admin.llmSave'))}</button>
+    </div>` : ''}`;
 }
 
 function llmSteps(workload) {
   return llmData?.routes?.[workload] || [];
+}
+
+// Reordering shifts indices, so any "typing a custom id" markers must move with
+// their step or the wrong row would show a text box after a swap.
+function llmRemapCustom(workload, from, to) {
+  const a = `${workload}:${from}`, b = `${workload}:${to}`;
+  const hadA = llmCustom.has(a), hadB = llmCustom.has(b);
+  llmCustom.delete(a); llmCustom.delete(b);
+  if (hadA) llmCustom.add(b);
+  if (hadB) llmCustom.add(a);
 }
 
 function moveLlmStep(workload, index, dir) {
@@ -1389,6 +1448,7 @@ function moveLlmStep(workload, index, dir) {
   const target = dir === 'up' ? index - 1 : index + 1;
   if (target < 0 || target >= steps.length) return;
   [steps[index], steps[target]] = [steps[target], steps[index]];
+  llmRemapCustom(workload, index, target);
   llmDirty = true;
   renderLlmRouting();
 }
@@ -1401,17 +1461,38 @@ function toggleLlmStep(workload, index) {
   renderLlmRouting();
 }
 
+function selectLlmStepModel(workload, index, value) {
+  const step = llmSteps(workload)[index];
+  if (!step) return;
+  const key = `${workload}:${index}`;
+  if (value === LLM_CUSTOM) {
+    // Keep whatever id was there as the starting point for editing.
+    llmCustom.add(key);
+    renderLlmRouting();
+    $(`.llm-step-custom[data-llm-workload="${workload}"][data-llm-index="${index}"]`)?.focus();
+    return;
+  }
+  llmCustom.delete(key);
+  step.model = value;
+  llmDirty = true;
+  renderLlmRouting();
+}
+
 function setLlmStepModel(workload, index, model) {
   const step = llmSteps(workload)[index];
   if (!step) return;
   step.model = model;
   llmDirty = true;
-  renderLlmRouting();
+  // Deliberately no re-render: this fires on blur of the custom field, and
+  // re-rendering would tear the field out from under a click on Save.
+  const bar = document.querySelector('.llm-savebar');
+  if (!bar) renderLlmRouting();
 }
 
 function resetLlmWorkload(workload) {
   if (!llmData?.defaults?.[workload]) return;
   llmData.routes[workload] = llmData.defaults[workload].map(s => ({ ...s }));
+  [...llmCustom].filter(k => k.startsWith(`${workload}:`)).forEach(k => llmCustom.delete(k));
   llmDirty = true;
   renderLlmRouting();
 }
@@ -1423,8 +1504,6 @@ async function saveLlmRouting() {
     llmData.routes = res.routes || llmData.routes;
     llmDirty = false;
     toast(t('admin.llmSaved'), 'success');
-    // Re-read so the "what runs now" line reflects server-side validation
-    // rather than the edit we optimistically rendered.
     await loadLlmRouting();
   } catch (error) {
     toast(error?.message || t('admin.llmSaveFailed'), 'error');
@@ -1440,6 +1519,7 @@ async function refreshMergeModels() {
     toast(error?.message || t('admin.llmModelsFailed'), 'error');
   }
 }
+
 
 async function loadPricingCenter() {
   const container = $('#pricingCenterContainer');
