@@ -289,8 +289,38 @@ const PROBES: Record<string, Probe> = {
     return err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
   },
 
+  // Real secret health, not just "is a variable set".
+  //
+  // The old probe only checked TURNSTILE_SITE_KEY and reported ok, which is
+  // worthless for the failure that actually happens: the site key is fine and
+  // the SECRET belongs to a different or deleted widget, so every browser
+  // token verifies as invalid and photo scanning 403s.
+  //
+  // siteverify separates the two by error code, so a deliberately bogus token
+  // tests the secret alone:
+  //   invalid-input-response -> secret is good; it rejected our fake token
+  //   invalid-input-secret   -> the secret matches no widget
   async turnstile(env) {
-    return env.TURNSTILE_SITE_KEY ? ok('site key configured') : configured('TURNSTILE_SITE_KEY not set');
+    if (!env.TURNSTILE_SITE_KEY) return configured('TURNSTILE_SITE_KEY not set');
+    if (!env.TURNSTILE_SECRET_KEY) {
+      // Site key without a secret is a valid, deliberate state: the server-side
+      // gate is skipped entirely, so scanning works and no token is demanded.
+      return ok('site key set, no secret — bot check is disabled');
+    }
+    const r = await http('POST', 'https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ secret: env.TURNSTILE_SECRET_KEY, response: 'probe-not-a-real-token' }).toString(),
+    });
+    if (r.status !== 200) return err(`siteverify HTTP ${r.status}`);
+    try {
+      const j = JSON.parse(r.text) as { success?: boolean; 'error-codes'?: string[] };
+      const codes = j['error-codes'] || [];
+      if (codes.includes('invalid-input-secret')) {
+        return err('TURNSTILE_SECRET_KEY matches no widget — it is likely from a different or deleted widget than the site key /api/config serves. Photo scanning on the web will 403 until they are from the SAME widget.');
+      }
+      if (codes.includes('invalid-input-response')) return ok('secret matches a live widget (test token correctly rejected)');
+      return err(`unexpected siteverify reply: success=${j.success} codes=${codes.join(',') || 'none'}`);
+    } catch { return err(`unparseable siteverify reply: ${r.text.slice(0, 100)}`); }
   },
   async patreon(env) {
     return env.PATREON_URL ? ok(`configured (${String(env.PATREON_URL).slice(0, 60)})`) : configured('PATREON_URL not set');
