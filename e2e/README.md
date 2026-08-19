@@ -32,10 +32,12 @@ The config starts `serve.mjs` on port 4321 automatically (override with `PORT`).
 - The service worker is blocked in the config so its caching can't cause cross-test races.
 
 ## CI
-See `smoke-workflow.yml` in this folder — copy it to `.github/workflows/e2e-smoke.yml`
-and commit it (the GitHub App lacks the `workflows` permission, so it can't be pushed
-automatically). It installs Chromium and runs the suite on PRs and on pushes to the
-default branch.
+[`.github/workflows/e2e-smoke.yml`](../.github/workflows/e2e-smoke.yml) installs
+Chromium and runs the suite on PRs and on pushes to `main`. (This folder used to
+carry a `smoke-workflow.yml` template to copy from, back when the GitHub App
+lacked the `workflows` permission. The real workflow has since moved ahead of it
+— concurrency cancellation, cached Playwright browsers — so the template was
+removed rather than left to be copied over a better file.)
 
 ## Adding tests
 Import `{ test, expect }` from `./fixtures.mjs` (not `@playwright/test`) so your test
