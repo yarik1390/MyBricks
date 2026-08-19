@@ -212,5 +212,7 @@ Object.assign(hi.scanner, { estimatedValue: '(~अनुमानित मू�
 
 Object.assign(hi.admin, { llmUnavailable: 'LLM रूटिंग उपलब्ध नहीं', llmMergeBalance: 'इस माह शेष Merge क्रेडिट', llmMeteredNote: 'हर कॉल पर Merge द्वारा बताई गई लागत से गणना — आधिकारिक आँकड़ा उसका डैशबोर्ड है।', llmEffective: 'अभी चलता है', llmEffectiveNone: 'कोई कॉन्फ़िगर प्रदाता नहीं', llmLivePool: 'लाइव मुफ़्त पूल (स्वतः)', llmNoKey: 'कोई कुंजी नहीं', llmNoKeyHint: 'इस प्रदाता की कोई API कुंजी सेट नहीं है, इसलिए यह चरण रनटाइम पर छोड़ा जाता है।', llmMoveUp: 'चरण पहले ले जाएँ', llmMoveDown: 'चरण बाद में ले जाएँ', llmOn: 'चालू', llmOff: 'बंद', llmReset: 'डिफ़ॉल्ट पर लौटाएँ', llmSave: 'रूटिंग सहेजें', llmSaved: 'LLM रूटिंग सहेजी गई', llmSaveFailed: 'LLM रूटिंग सहेजी नहीं जा सकी', llmRefreshModels: 'Merge मॉडल ताज़ा करें', llmModelsRefreshedOne: '{n} Merge मॉडल ताज़ा किया', llmModelsRefreshedOther: '{n} Merge मॉडल ताज़ा किए', llmModelsFailed: 'Merge मॉडल कैटलॉग ताज़ा नहीं हो सका' });
 
+Object.assign(hi.admin, { llmModelPlaceholder: "प्रदाता/मॉडल, जैसे openai/gpt-5.6-luna" });
+
 export default hi;
 Object.assign(hi.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

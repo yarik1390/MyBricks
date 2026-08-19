@@ -296,9 +296,12 @@ function wireAdminShell() {
     const toggle = event.target.closest('[data-llm-toggle]');
     if (toggle) return toggleLlmStep(toggle.getAttribute('data-llm-workload'), Number(toggle.getAttribute('data-llm-index')));
   });
+  // 'change' fires on blur for a text input and on pick for a datalist entry,
+  // which covers both ways an id gets set. Re-rendering on every keystroke
+  // would steal focus mid-type, so 'input' is deliberately not bound.
   llmEl?.addEventListener('change', (event) => {
     const sel = event.target.closest('[data-llm-model]');
-    if (sel) setLlmStepModel(sel.getAttribute('data-llm-workload'), Number(sel.getAttribute('data-llm-index')), sel.value);
+    if (sel) setLlmStepModel(sel.getAttribute('data-llm-workload'), Number(sel.getAttribute('data-llm-index')), sel.value.trim());
   });
   const pricingEl = document.getElementById('pricingCenterContainer');
   pricingEl?.addEventListener('click', (event) => {
@@ -1303,21 +1306,27 @@ function llmModelOptions(provider) {
 
 function llmStepHTML(workload, step, index, total, configured) {
   const options = llmModelOptions(step.provider);
-  // A stored model that has vanished from the catalog must stay selectable, or
-  // saving would silently rewrite the route to something else.
-  const known = step.model && options.includes(step.model);
+  // Merge serves no model catalog on this plan, so a fixed <select> would leave
+  // its route uneditable. Use a free-text input backed by a datalist instead:
+  // suggestions where we have them, an arbitrary id where we do not. A stored
+  // model that has vanished from the suggestions still round-trips unchanged,
+  // so saving can never silently rewrite the route to something else.
+  const listId = `llm-models-${workload}-${index}`;
   const opts = [
     step.provider === 'openrouter'
-      ? `<option value=""${step.model ? '' : ' selected'}>${escapeHtml(t('admin.llmLivePool'))}</option>`
+      ? `<option value="">${escapeHtml(t('admin.llmLivePool'))}</option>`
       : '',
-    !known && step.model ? `<option value="${escapeHtml(step.model)}" selected>${escapeHtml(step.model)}</option>` : '',
-    ...options.map(id => `<option value="${escapeHtml(id)}"${id === step.model ? ' selected' : ''}>${escapeHtml(id)}</option>`),
+    ...options.map(id => `<option value="${escapeHtml(id)}"></option>`),
   ].join('');
   return `
     <li class="llm-step${step.enabled ? '' : ' is-off'}${configured ? '' : ' is-unconfigured'}">
       <span class="llm-step-order">${index + 1}</span>
       <span class="llm-step-provider">${escapeHtml(step.provider)}</span>
-      <select class="input llm-step-model" data-llm-model data-llm-workload="${workload}" data-llm-index="${index}">${opts}</select>
+      <input class="input llm-step-model" list="${listId}" value="${escapeHtml(step.model)}"
+             placeholder="${escapeHtml(step.provider === 'openrouter' ? t('admin.llmLivePool') : t('admin.llmModelPlaceholder'))}"
+             autocomplete="off" spellcheck="false"
+             data-llm-model data-llm-workload="${workload}" data-llm-index="${index}">
+      <datalist id="${listId}">${opts}</datalist>
       ${configured ? '' : `<span class="llm-step-warn" title="${escapeHtml(t('admin.llmNoKeyHint'))}">${escapeHtml(t('admin.llmNoKey'))}</span>`}
       <span class="llm-step-actions">
         <button type="button" class="btn-icon" data-llm-move="up" data-llm-workload="${workload}" data-llm-index="${index}" ${index === 0 ? 'disabled' : ''} aria-label="${escapeHtml(t('admin.llmMoveUp'))}">↑</button>

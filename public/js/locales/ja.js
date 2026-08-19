@@ -217,5 +217,7 @@ Object.assign(ja.scanner, { estimatedValue: '(~推定価格)', marketGrabThresho
 
 Object.assign(ja.admin, { llmUnavailable: 'LLM ルーティングを利用できません', llmMergeBalance: '今月の Merge 残高', llmMeteredNote: 'Merge が各呼び出しで返すコストから算出しています。正式な数値は Merge のダッシュボードです。', llmEffective: '現在の実行順', llmEffectiveNone: '設定済みプロバイダなし', llmLivePool: '最新の無料プール（自動更新）', llmNoKey: 'キーなし', llmNoKeyHint: 'このプロバイダは API キーが未設定のため、実行時にスキップされます。', llmMoveUp: 'ステップを前へ', llmMoveDown: 'ステップを後ろへ', llmOn: 'オン', llmOff: 'オフ', llmReset: '既定値に戻す', llmSave: 'ルーティングを保存', llmSaved: 'LLM ルーティングを保存しました', llmSaveFailed: 'LLM ルーティングを保存できませんでした', llmRefreshModels: 'Merge モデルを更新', llmModelsRefreshedOne: 'Merge モデルを {n} 件更新しました', llmModelsRefreshedOther: 'Merge モデルを {n} 件更新しました', llmModelsFailed: 'Merge モデルカタログを更新できませんでした' });
 
+Object.assign(ja.admin, { llmModelPlaceholder: "プロバイダ/モデル（例: openai/gpt-5.6-luna）" });
+
 export default ja;
 Object.assign(ja.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

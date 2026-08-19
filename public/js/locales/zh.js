@@ -212,5 +212,7 @@ Object.assign(zh.scanner, { estimatedValue: '(~估算价值)', marketGrabThresho
 
 Object.assign(zh.admin, { llmUnavailable: 'LLM 路由不可用', llmMergeBalance: '本月剩余 Merge 额度', llmMeteredNote: '根据 Merge 每次调用返回的费用统计，最终以 Merge 控制台为准。', llmEffective: '当前执行', llmEffectiveNone: '没有已配置的提供方', llmLivePool: '实时免费模型池（自动更新）', llmNoKey: '无密钥', llmNoKeyHint: '该提供方未配置 API 密钥，运行时会跳过此步骤。', llmMoveUp: '上移一步', llmMoveDown: '下移一步', llmOn: '开', llmOff: '关', llmReset: '恢复默认', llmSave: '保存路由', llmSaved: '已保存 LLM 路由', llmSaveFailed: '无法保存 LLM 路由', llmRefreshModels: '刷新 Merge 模型', llmModelsRefreshedOne: '已刷新 {n} 个 Merge 模型', llmModelsRefreshedOther: '已刷新 {n} 个 Merge 模型', llmModelsFailed: '无法刷新 Merge 模型目录' });
 
+Object.assign(zh.admin, { llmModelPlaceholder: "提供方/模型，例如 openai/gpt-5.6-luna" });
+
 export default zh;
 Object.assign(zh.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

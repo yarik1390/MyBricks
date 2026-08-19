@@ -511,4 +511,6 @@ Object.assign(en.admin, {
   llmModelsFailed: 'Could not refresh the Merge model catalog',
 });
 
+Object.assign(en.admin, { llmModelPlaceholder: "provider/model, e.g. openai/gpt-5.6-luna" });
+
 export default en;

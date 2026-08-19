@@ -212,5 +212,7 @@ Object.assign(nl.scanner, { estimatedValue: '(~geschatte waarde)', marketGrabThr
 
 Object.assign(nl.admin, { llmUnavailable: 'LLM-routering niet beschikbaar', llmMergeBalance: 'Resterend Merge-tegoed deze maand', llmMeteredNote: 'Berekend uit de kosten die Merge per aanroep meldt — het Merge-dashboard is leidend.', llmEffective: 'Draait nu', llmEffectiveNone: 'geen geconfigureerde provider', llmLivePool: 'Actuele gratis pool (automatisch)', llmNoKey: 'geen sleutel', llmNoKeyHint: 'Deze provider heeft geen API-sleutel, dus de stap wordt tijdens uitvoering overgeslagen.', llmMoveUp: 'Stap eerder', llmMoveDown: 'Stap later', llmOn: 'Aan', llmOff: 'Uit', llmReset: 'Terug naar standaard', llmSave: 'Routering opslaan', llmSaved: 'LLM-routering opgeslagen', llmSaveFailed: 'Kon LLM-routering niet opslaan', llmRefreshModels: 'Merge-modellen vernieuwen', llmModelsRefreshedOne: '{n} Merge-model vernieuwd', llmModelsRefreshedOther: '{n} Merge-modellen vernieuwd', llmModelsFailed: 'Kon de Merge-modelcatalogus niet vernieuwen' });
 
+Object.assign(nl.admin, { llmModelPlaceholder: "provider/model, bijv. openai/gpt-5.6-luna" });
+
 export default nl;
 Object.assign(nl.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

@@ -79,6 +79,36 @@ export function mergeReportedCostUsd(usage: unknown): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+/**
+ * Curated model ids known to work through Merge, used to seed the console's
+ * picker.
+ *
+ * This exists because `/v1/models` is NOT available (verified against a live
+ * key: it answers the same 401 every `/v1/*` path does, and a real catalog
+ * refresh returns nothing). Without a seed the picker would be empty and the
+ * route would be uneditable, which defeats the point of the console.
+ *
+ * Merge ids use the same `provider/model` convention as OpenRouter, so the
+ * console additionally offers OpenRouter's live catalog as candidates. This
+ * list is the hand-verified core; treat any id as a suggestion, not a
+ * guarantee — the console lets an operator type an arbitrary id, and the
+ * service probe is how you confirm one works.
+ */
+export const MERGE_KNOWN_MODELS: string[] = [
+  // GPT-5.6 family. Luna is ~85% of flagship quality and multimodal; after the
+  // 2026-07-30 price cut it is $0.20/$1.20 per M — dearer than gpt-4o-mini
+  // ($0.15/$0.60) but close enough that quality usually wins on these
+  // small-output workloads.
+  'openai/gpt-5.6-luna',
+  'openai/gpt-5.6-terra',
+  'openai/gpt-5.6-sol',
+  'openai/gpt-4o-mini',
+  'openai/gpt-4o',
+  'anthropic/claude-sonnet-4-20250514',
+  'google/gemini-2.5-flash',
+  'google/gemini-2.5-flash-lite',
+];
+
 export interface MergeModel {
   id: string;
   provider?: string;

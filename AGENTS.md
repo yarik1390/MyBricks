@@ -549,6 +549,12 @@ Newest first. (Service-worker `VERSION` in parentheses where relevant.)
   in `me-admin.js`. The daily `model-refresh` cron now also caches Merge's
   catalog to KV (`ai:merge-models`) — best-effort, never fails the OpenRouter
   refresh the live cascades depend on.
+- **`/v1/models` does NOT work on this Merge plan** — verified against a live
+  key: a real catalog refresh returns nothing (and `/v1/*` answers 401 for every
+  path, so absence can't be probed). The console's Merge picker is therefore a
+  FREE-TEXT input backed by a datalist seeded from `MERGE_KNOWN_MODELS` plus
+  OpenRouter's live catalog (same `provider/model` id convention). None of it is
+  a whitelist: type any id, then confirm it with the Merge service probe.
 
 **Single-branch repo + public-facing cleanup (2026-08-19, v429)**
 - **`main` is now the only development branch.** The working branch

@@ -6,6 +6,7 @@ import { firecrawlEnabled } from './pricing-flags';
 import { fetchStockXViaFirecrawl } from './stockx';
 import { configuredKeys as pricesApiKeys } from './pricesapi-keys';
 import { configuredBrightDataTokens, brightDataEnabled } from './brightdata-keys';
+import { recordAiUsage } from './ai-usage';
 
 // ---------------------------------------------------------------------------
 // On-demand per-service health probes for the admin console. Each probe is
@@ -103,8 +104,17 @@ const PROBES: Record<string, Probe> = {
     if (r.status === 401 || r.status === 403) return err(`HTTP ${r.status} — key rejected`);
     if (r.status !== 200) return err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
     try {
-      const j = JSON.parse(r.text) as { model?: string; usage?: { cost?: number; total_tokens?: number } };
+      const j = JSON.parse(r.text) as {
+        model?: string;
+        usage?: { cost?: number; prompt_tokens?: number; completion_tokens?: number };
+      };
       const cost = j.usage?.cost;
+      // The probe spends real money, so it must land in the ledger like any
+      // other call. Leaving it out would make the meter quietly under-report
+      // by one call per deploy — small, but the meter's whole value is that it
+      // accounts for everything.
+      await recordAiUsage(env, 'merge', j.model ?? 'openai/gpt-4o-mini', j.usage ?? null, cost ?? null)
+        .catch(() => undefined);
       return typeof cost === 'number'
         ? ok(`completion ok via ${j.model ?? 'gpt-4o-mini'}; reported cost $${cost.toFixed(6)}`)
         : err('completion ok but usage.cost is missing — the budget meter would under-report spend');

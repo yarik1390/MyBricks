@@ -212,5 +212,7 @@ Object.assign(fr.scanner, { estimatedValue: '(~valeur estimée)', marketGrabThre
 
 Object.assign(fr.admin, { llmUnavailable: 'Routage LLM indisponible', llmMergeBalance: 'Crédit Merge restant ce mois-ci', llmMeteredNote: 'Calculé à partir du coût que Merge renvoie à chaque appel — son tableau de bord fait foi.', llmEffective: 'Exécuté maintenant', llmEffectiveNone: 'aucun fournisseur configuré', llmLivePool: 'Pool gratuit en direct (auto)', llmNoKey: 'pas de clé', llmNoKeyHint: 'Ce fournisseur n\'a pas de clé API configurée ; l\'étape est ignorée à l\'exécution.', llmMoveUp: 'Déplacer l\'étape avant', llmMoveDown: 'Déplacer l\'étape après', llmOn: 'Activé', llmOff: 'Désactivé', llmReset: 'Rétablir les valeurs par défaut', llmSave: 'Enregistrer le routage', llmSaved: 'Routage LLM enregistré', llmSaveFailed: 'Impossible d\'enregistrer le routage LLM', llmRefreshModels: 'Actualiser les modèles Merge', llmModelsRefreshedOne: '{n} modèle Merge actualisé', llmModelsRefreshedOther: '{n} modèles Merge actualisés', llmModelsFailed: 'Impossible d\'actualiser le catalogue de modèles Merge' });
 
+Object.assign(fr.admin, { llmModelPlaceholder: "fournisseur/modèle, ex. openai/gpt-5.6-luna" });
+
 export default fr;
 Object.assign(fr.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

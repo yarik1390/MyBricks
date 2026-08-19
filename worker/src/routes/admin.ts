@@ -24,7 +24,7 @@ import { getFirecrawlKeyPoolStatus, resetFirecrawlKeyPool } from '../lib/firecra
 import { getBrightDataKeyPoolStatus, resetBrightDataKeyPool } from '../lib/brightdata-keys';
 import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG, applySourceConfig } from '../lib/source-config';
 import { getLlmRoutes, saveLlmRoutes, resolveRoute, providerConfigured, DEFAULT_LLM_ROUTES, LLM_PROVIDERS, LLM_WORKLOADS } from '../lib/llm-routing';
-import { mergeMonthlyBudgetUsd, mergeEnabled, fetchMergeModels } from '../lib/merge-gateway';
+import { mergeMonthlyBudgetUsd, mergeEnabled, fetchMergeModels, MERGE_KNOWN_MODELS } from '../lib/merge-gateway';
 import { monthlyAiSpend } from '../lib/ai-usage';
 import { getOpenRouterPools, MODELS } from '../lib/llm';
 import { MERGE_MODELS_KV_KEY } from '../jobs/model-refresh';
@@ -729,7 +729,14 @@ app.get('/llm-routing', async (c) => {
       supports_live_pool: p === 'openrouter',
     })),
     models: {
-      merge: mergeModels,
+      // Merge serves no usable /v1/models on this plan, so the picker is the
+      // union of: whatever a catalog refresh did manage to cache, the curated
+      // known-good ids, and OpenRouter's live catalog (Merge shares its
+      // `provider/model` id convention, so those are plausible candidates).
+      // The console also accepts a typed id — none of this is a whitelist.
+      merge: [...new Set([...mergeModels, ...MERGE_KNOWN_MODELS, ...orPools.vision, ...orPools.text])],
+      merge_curated: MERGE_KNOWN_MODELS,
+      merge_catalog_available: mergeModels.length > 0,
       merge_checked_at: mergeCatalogAt,
       openrouter_vision: orPools.vision,
       openrouter_text: orPools.text,
