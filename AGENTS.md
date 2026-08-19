@@ -533,9 +533,13 @@ Newest first. (Service-worker `VERSION` in parentheses where relevant.)
   probed. `monthlyAiSpend()` sums reported cost per month against
   `MERGE_MONTHLY_BUDGET_USD` (default 10). Set a matching HARD budget in the
   Merge dashboard — that is the enforcement; the meter is early warning.
-- **Secret management is split, deliberately.** `MERGE_GATEWAY_API_KEY` and
-  `MERGE_MONTHLY_BUDGET_USD` are GitHub secrets uploaded by the deploy
-  workflow's `push_secrets` run. `OPENROUTER_API_KEY` is set DIRECTLY as a
+- **Secret management is split, deliberately.** `MERGE_GATEWAY_API_KEY` is a
+  GitHub secret uploaded by the deploy workflow's `push_secrets` run.
+  `MERGE_MONTHLY_BUDGET_USD` is a plain `[vars]` entry in `wrangler.toml` — it
+  is not sensitive, and as a secret GitHub masked it to `$***` in deploy logs.
+  **Never set it in the Cloudflare dashboard instead:** `wrangler deploy` sends
+  the full binding list, so any var absent from `wrangler.toml` is REMOVED on
+  the next deploy. Secrets are the exception and survive. `OPENROUTER_API_KEY` is set DIRECTLY as a
   Cloudflare Worker secret and is NOT in GitHub — the workflow lists it behind a
   `-n` guard so a push_secrets run cannot clobber it, but that line is a no-op
   today. Do not read a name's presence in the workflow as proof of where the key

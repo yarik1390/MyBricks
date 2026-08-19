@@ -336,8 +336,10 @@ jobs:
           [ -n "${{ secrets.GEMINI_API_KEY }}" ]           && put GEMINI_API_KEY           "${{ secrets.GEMINI_API_KEY }}"           || true
           # Merge Gateway: second LLM gateway alongside OpenRouter. Optional —
           # every workload's route skips an unkeyed provider at runtime.
+          # The monthly allowance is NOT here: it is a plain [vars] entry in
+          # wrangler.toml. As a secret it was masked to `$***` in deploy logs,
+          # and a secret would shadow the var if both existed.
           [ -n "${{ secrets.MERGE_GATEWAY_API_KEY }}" ]    && put MERGE_GATEWAY_API_KEY    "${{ secrets.MERGE_GATEWAY_API_KEY }}"    || true
-          [ -n "${{ secrets.MERGE_MONTHLY_BUDGET_USD }}" ] && put MERGE_MONTHLY_BUDGET_USD "${{ secrets.MERGE_MONTHLY_BUDGET_USD }}" || true
           # NOTE: OPENROUTER_API_KEY is currently set DIRECTLY as a Cloudflare
           # Worker secret, not here. The -n guard makes this line a no-op while
           # the GitHub secret is unset, so a push_secrets run cannot clobber the

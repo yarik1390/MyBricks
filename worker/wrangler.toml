@@ -110,6 +110,16 @@ crons = [
 # when AI_GATEWAY_ACCOUNT_ID is also present (uploaded as a secret in CI), so this
 # stays dormant until the gateway is provisioned + the account id is wired.
 AI_GATEWAY_ID = "brickvault"
+# Monthly Merge Gateway allowance the admin console meters spend against.
+#
+# It lives HERE, not as a secret and not as a dashboard var, for two reasons.
+# It is not sensitive, and as a secret GitHub masked it out of deploy logs as
+# `$***`, which made the allowance reading unreadable. More importantly a
+# plaintext var set in the Cloudflare dashboard does NOT survive: `wrangler
+# deploy` sends the full binding list, so any var missing from this file is
+# REMOVED on the next deploy (secrets are the exception and are preserved).
+# Change the allowance by editing this line.
+MERGE_MONTHLY_BUDGET_USD = "10"
 # Firecrawl daily credit ceiling — steady-state. Lift it temporarily (and restore
 # it right after) for a one-time bulk backfill; the StockX sweep ran at 15000 and
 # the eBay-sold new+used sweep at 50000, together burning ~82k credits over four

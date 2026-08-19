@@ -105,6 +105,10 @@ export interface Env {
   // derived from the real per-call `usage.cost` it returns, accumulated in the
   // ai_usage ledger. Set a matching HARD budget in the Merge dashboard as the
   // authoritative backstop — that one answers with HTTP 402.
+  //
+  // Configured as a plain [vars] entry in wrangler.toml, NOT a secret and NOT
+  // in the Cloudflare dashboard: `wrangler deploy` sends the full binding list,
+  // so a var missing from wrangler.toml is REMOVED on the next deploy.
   MERGE_MONTHLY_BUDGET_USD?: string;
   // Cloudflare Turnstile (optional bot protection for the shared-key photo scan).
   // SITE key is public (sent to the browser via /api/config); SECRET key is
