@@ -83,6 +83,34 @@ const PROBES: Record<string, Probe> = {
     } catch { return err(`HTTP ${r.status}: ${r.text.slice(0, 100)}`); }
   },
 
+  // Merge Gateway: a REAL round trip, not a reachability ping. It sends the
+  // cheapest possible completion through the same OpenAI-compatible surface the
+  // cascades use, then reports whether `usage.cost` came back — because that
+  // field is what the whole budget meter is derived from, and a silently
+  // missing cost would leave the console reading $0.00 spent forever.
+  async merge(env) {
+    const key = (env.MERGE_GATEWAY_API_KEY ?? '').trim();
+    if (!key) return configured('MERGE_GATEWAY_API_KEY not set');
+    const r = await http('POST', 'https://api-gateway.merge.dev/v1/openai/chat/completions', {
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'openai/gpt-4o-mini',
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'ping' }],
+      }),
+    });
+    if (r.status === 402) return err('HTTP 402 — the monthly allowance or a hard budget is exhausted');
+    if (r.status === 401 || r.status === 403) return err(`HTTP ${r.status} — key rejected`);
+    if (r.status !== 200) return err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
+    try {
+      const j = JSON.parse(r.text) as { model?: string; usage?: { cost?: number; total_tokens?: number } };
+      const cost = j.usage?.cost;
+      return typeof cost === 'number'
+        ? ok(`completion ok via ${j.model ?? 'gpt-4o-mini'}; reported cost $${cost.toFixed(6)}`)
+        : err('completion ok but usage.cost is missing — the budget meter would under-report spend');
+    } catch { return err(`unparseable response: ${r.text.slice(0, 100)}`); }
+  },
+
   async brickinsights() {
     const r = await http('GET', `https://brickinsights.com/api/sets/${TEST_SET}`, { headers: { Accept: 'application/json' } });
     return r.status === 200 ? ok('public API returned a rating') : err(`HTTP ${r.status}`);

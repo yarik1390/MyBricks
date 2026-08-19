@@ -334,6 +334,11 @@ jobs:
           [ -n "${{ secrets.GOOGLE_CLIENT_ID }}" ]         && put GOOGLE_CLIENT_ID         "${{ secrets.GOOGLE_CLIENT_ID }}"         || true
           [ -n "${{ secrets.GOOGLE_CLIENT_SECRET }}" ]     && put GOOGLE_CLIENT_SECRET     "${{ secrets.GOOGLE_CLIENT_SECRET }}"     || true
           [ -n "${{ secrets.GEMINI_API_KEY }}" ]           && put GEMINI_API_KEY           "${{ secrets.GEMINI_API_KEY }}"           || true
+          # Merge Gateway: second LLM gateway alongside OpenRouter. Optional —
+          # every workload's route skips an unkeyed provider at runtime.
+          [ -n "${{ secrets.MERGE_GATEWAY_API_KEY }}" ]    && put MERGE_GATEWAY_API_KEY    "${{ secrets.MERGE_GATEWAY_API_KEY }}"    || true
+          [ -n "${{ secrets.MERGE_MONTHLY_BUDGET_USD }}" ] && put MERGE_MONTHLY_BUDGET_USD "${{ secrets.MERGE_MONTHLY_BUDGET_USD }}" || true
+          [ -n "${{ secrets.OPENROUTER_API_KEY }}" ]       && put OPENROUTER_API_KEY       "${{ secrets.OPENROUTER_API_KEY }}"       || true
           put AI_GATEWAY_ACCOUNT_ID    "${CLOUDFLARE_ACCOUNT_ID}"
           [ -n "${{ secrets.AI_GATEWAY_TOKEN }}" ]         && put AI_GATEWAY_TOKEN         "${{ secrets.AI_GATEWAY_TOKEN }}"         || true
           [ -n "${{ secrets.RESEND_API_KEY }}" ]           && put RESEND_API_KEY           "${{ secrets.RESEND_API_KEY }}"           || true
@@ -476,6 +481,18 @@ jobs:
           curl -sf "${WORKER_URL}/api/admin/source-config" \
             -H "Authorization: Bearer ${ADMIN_JWT}" \
             | jq -e '.config.ebay.enabled == false' >/dev/null
+          # LLM routing must resolve to a real path for every workload. An empty
+          # effective list means every step named a provider with no key, which
+          # silently disables that workload's AI rather than failing loudly.
+          curl -sf "${WORKER_URL}/api/admin/llm-routing" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" \
+            | jq -e '[.effective[] | length] | min > 0' >/dev/null
+          # Merge: report configured state and month-to-date spend so the deploy
+          # log carries the allowance reading. Never fails the deploy — Merge is
+          # optional and every route skips an unkeyed provider.
+          curl -s "${WORKER_URL}/api/admin/llm-status" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" \
+            | jq -r '"Merge: configured=\(.merge.configured) spent=$\(.merge.spent_usd) of $\(.merge.budget_usd) (\(.merge.calls) calls)"' || true
 
       # Population is opt-in: dispatch with populate=true. It used to fire on
       # EVERY workflow_dispatch (so every push_secrets run re-populated), and
