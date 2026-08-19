@@ -10,6 +10,7 @@ export const ADMIN_SECTIONS = [
   ['adminJobs', 'Activity'],
   ['adminQuality', 'Catalog Quality'],
   ['adminPricing', 'Pricing'],
+  ['adminLlm', 'LLM Routing'],
   ['adminUsers', 'Users'],
   ['adminContrib', 'Contributions'],
   ['adminTools', 'Tools'],

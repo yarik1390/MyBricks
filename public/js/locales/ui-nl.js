@@ -1794,6 +1794,9 @@ export const ui = {
   "Pro unlocked — thank you! ⭐": "Pro ontgrendeld — bedankt! ⭐",
   "The store didn't open. You can continue setup and try again from Settings.": "De Store ging niet open. Je kunt de installatie voortzetten en het opnieuw proberen vanuit Instellingen.",
   "The store is not ready. You can continue setup and try again from Settings.": "De Store is nog niet klaar. Je kunt de installatie voortzetten en het opnieuw proberen vanuit Instellingen.",
+  "LLM Routing": "LLM-routering",
+  "Loading LLM routing...": "LLM-routering laden…",
+  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.": "Bepaal de volgorde van providers die elke AI-taak probeert. Stappen lopen van boven naar beneden; de eerste die antwoordt wint. Gratis niveaus horen boven het Merge-tegoed, en de betaalde terugval als laatste.",
 };
 ui["BrickLink (new)"] = "BrickLink (nieuw)";
 ui["Market confidence: high"] = "Marktvertrouwen: hoog";

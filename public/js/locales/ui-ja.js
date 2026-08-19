@@ -1794,6 +1794,9 @@ export const ui = {
   "Pro unlocked — thank you! ⭐": "Pro が有効になりました。ありがとうございます！⭐",
   "The store didn't open. You can continue setup and try again from Settings.": "ストアを開けませんでした。セットアップを続け、設定からもう一度お試しください。",
   "The store is not ready. You can continue setup and try again from Settings.": "ストアの準備ができていません。セットアップを続け、設定からもう一度お試しください。",
+  "LLM Routing": "LLM ルーティング",
+  "Loading LLM routing...": "LLM ルーティングを読み込み中…",
+  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.": "各 AI ワークロードが試すプロバイダの順序を決めます。ステップは上から下へ実行され、最初に応答したものが採用されます。無料枠は Merge 残高より上に、従量課金のバックストップは最後に置いてください。",
 };
 ui["BrickLink (new)"] = "BrickLink（新品）";
 ui["Market confidence: high"] = "市場信頼度：高";

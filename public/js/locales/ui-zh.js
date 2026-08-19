@@ -1794,6 +1794,9 @@ export const ui = {
   "Pro unlocked — thank you! ⭐": "Pro 已解锁——谢谢！⭐",
   "The store didn't open. You can continue setup and try again from Settings.": "商店未能打开。你可以继续设置，稍后从“设置”中重试。",
   "The store is not ready. You can continue setup and try again from Settings.": "商店尚未就绪。你可以继续设置，稍后从“设置”中重试。",
+  "LLM Routing": "LLM 路由",
+  "Loading LLM routing...": "正在加载 LLM 路由…",
+  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.": "为每个 AI 工作负载设置提供方的尝试顺序。步骤自上而下执行，第一个作出响应的胜出。免费层级应排在 Merge 额度之上，按量计费的兜底放在最后。",
 };
 ui["BrickLink (new)"] = "BrickLink（全新）";
 ui["Market confidence: high"] = "市场置信度：高";

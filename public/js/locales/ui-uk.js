@@ -1794,6 +1794,9 @@ export const ui = {
   "Pro unlocked — thank you! ⭐": "Pro розблоковано — дякуємо! ⭐",
   "The store didn't open. You can continue setup and try again from Settings.": "Магазин не відкрився. Ви можете продовжити налаштування та спробувати ще раз у Налаштуваннях.",
   "The store is not ready. You can continue setup and try again from Settings.": "Магазин ще не готовий. Ви можете продовжити налаштування та спробувати ще раз у Налаштуваннях.",
+  "LLM Routing": "Маршрутизація LLM",
+  "Loading LLM routing...": "Завантаження маршрутизації LLM…",
+  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.": "Задайте порядок провайдерів, які пробує кожне завдання ШІ. Кроки виконуються згори вниз; перемагає перший, що відповів. Безкоштовні рівні мають бути вище кредиту Merge, а платний резерв — останнім.",
 };
 ui["BrickLink (new)"] = "BrickLink (нове)";
 ui["Market confidence: high"] = "Ринкова довіра: висока";

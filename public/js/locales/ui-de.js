@@ -1794,6 +1794,9 @@ export const ui = {
   "Pro unlocked — thank you! ⭐": "Pro freigeschaltet — vielen Dank! ⭐",
   "The store didn't open. You can continue setup and try again from Settings.": "Der Store wurde nicht geöffnet. Du kannst die Einrichtung fortsetzen und es in den Einstellungen erneut versuchen.",
   "The store is not ready. You can continue setup and try again from Settings.": "Der Store ist noch nicht bereit. Du kannst die Einrichtung fortsetzen und es in den Einstellungen erneut versuchen.",
+  "LLM Routing": "LLM-Routing",
+  "Loading LLM routing...": "LLM-Routing wird geladen …",
+  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.": "Lege die Reihenfolge der Anbieter je KI-Aufgabe fest. Schritte laufen von oben nach unten; der erste, der antwortet, gewinnt. Kostenlose Stufen gehören über das Merge-Guthaben, der abgerechnete Rückfall ganz nach unten.",
 };
 ui["BrickLink (new)"] = "BrickLink (neu)";
 ui["Market confidence: high"] = "Marktvertrauen: hoch";

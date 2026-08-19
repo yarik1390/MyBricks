@@ -1794,6 +1794,9 @@ export const ui = {
   "Pro unlocked — thank you! ⭐": "प्रो अनलॉक हो गया — धन्यवाद! ⭐",
   "The store didn't open. You can continue setup and try again from Settings.": "स्टोर नहीं खुला। आप सेटअप जारी रख सकते हैं और सेटिंग्स से फिर कोशिश कर सकते हैं।",
   "The store is not ready. You can continue setup and try again from Settings.": "स्टोर अभी तैयार नहीं है। आप सेटअप जारी रख सकते हैं और सेटिंग्स से फिर कोशिश कर सकते हैं।",
+  "LLM Routing": "LLM रूटिंग",
+  "Loading LLM routing...": "LLM रूटिंग लोड हो रही है…",
+  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.": "तय करें कि हर AI कार्य किन प्रदाताओं को किस क्रम में आज़माए। चरण ऊपर से नीचे चलते हैं; जो पहले उत्तर दे वही चुना जाता है। मुफ़्त स्तर Merge क्रेडिट से ऊपर रखें, और मीटर वाला विकल्प सबसे अंत में।",
 };
 ui["BrickLink (new)"] = "BrickLink (नया)";
 ui["Market confidence: high"] = "बाज़ार भरोसा: उच्च";
