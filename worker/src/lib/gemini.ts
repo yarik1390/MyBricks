@@ -13,7 +13,10 @@ export async function callGeminiScan(
   // routeThroughGateway: true only for SERVER-key callers (the keyless scan
   // cascade). BYOK callers leave it false to hit Google directly.
   // prompt: overrides the default single-set instruction (e.g. SHELF_SCAN_PROMPT).
-  opts: { routeThroughGateway?: boolean; prompt?: string } = {},
+  // timeoutMs/model: the keyless cascade runs on a deadline and its route step
+  // names the model, so both must be overridable. Defaults keep BYOK callers —
+  // which have no cascade behind them — on the old generous behaviour.
+  opts: { routeThroughGateway?: boolean; prompt?: string; timeoutMs?: number; model?: string } = {},
 ): Promise<{
   sets?: Array<{ set_num: string | null; name: string; theme?: string | null; year?: number | null; confidence: string; reasoning: string }>;
   minifigs?: Array<{ name: string; theme?: string | null; confidence: string; reasoning: string }>;
@@ -38,7 +41,7 @@ export async function callGeminiScan(
     const resp = await fetcher(
       // Server-key cascade routes through the gateway when configured; BYOK scans
       // call Google directly (don't proxy the user's key/image through our gateway).
-      geminiUrl(MODELS.scan, { env, routeThroughGateway: opts.routeThroughGateway }),
+      geminiUrl(opts.model || MODELS.scan, { env, routeThroughGateway: opts.routeThroughGateway }),
       {
         method: 'POST',
         headers: {
@@ -49,7 +52,12 @@ export async function callGeminiScan(
         body: JSON.stringify(body),
       },
       // Vision calls with a base64 image take longer; give them headroom.
-      { timeoutMs: 30000, retries: 1 },
+      //
+      // When a caller passes a deadline it gets ONE attempt: inside the cascade
+      // the retry is the next step, and retrying here instead doubled the worst
+      // case to 60s against a client that gives up at 30 — which is what made
+      // scans time out rather than fall through.
+      { timeoutMs: opts.timeoutMs ?? 30000, retries: opts.timeoutMs ? 0 : 1 },
     );
     if (!resp.ok) {
       console.warn('[gemini] API error:', resp.status, await resp.text().catch(() => ''));

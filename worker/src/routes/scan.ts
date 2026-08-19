@@ -52,6 +52,20 @@ function openAIIdentificationMessage(error: unknown): string {
   return 'AI identification failed. Try another photo, barcode scan, or catalog search.';
 }
 
+// Time budget for the whole shared cascade.
+//
+// The client aborts at 30s (scanner.js), so the server must give up first and
+// return something useful rather than be cut off mid-flight. The cascade can be
+// five steps long and an OpenRouter step expands to the whole live free pool,
+// so without a deadline a slow tier alone can outlast the client — which is
+// exactly what "Took too long" was.
+const SCAN_BUDGET_MS = 24_000;
+// Per-model ceiling. Generous enough for a cold vision call, short enough that
+// two failures still leave room for a third step.
+const STEP_TIMEOUT_MS = 9_000;
+// Do not start another model unless there is realistically time to finish it.
+const MIN_STEP_MS = 3_500;
+
 // Describe LEGO set(s) in an image via any OpenAI-compatible client (OpenRouter
 // free vision models or OpenAI gpt-4o-mini). Returns AI-described sets + usage.
 async function openaiVisionDescribe(
@@ -59,6 +73,7 @@ async function openaiVisionDescribe(
   model: string,
   image: string,
   opts: ScanPromptOpts = {},
+  timeoutMs = STEP_TIMEOUT_MS,
 ): Promise<{ sets: DescribedSet[]; minifigs: DescribedMinifig[]; usage?: { prompt_tokens?: number; completion_tokens?: number }; rawUsage?: unknown }> {
   const messages: Parameters<typeof client.chat.completions.create>[0]['messages'] = [
     { role: 'system', content: opts.prompt || SCAN_SYSTEM_PROMPT },
@@ -67,12 +82,14 @@ async function openaiVisionDescribe(
       { type: 'text', text: 'Identify the LEGO set(s) and minifigure(s) in this image.' },
     ] },
   ];
+  // A step that never returns is worse than a step that fails: the caller has a
+  // hard deadline, and one hung provider would spend the entire budget.
   const completion = await client.chat.completions.create({
     model,
     max_tokens: opts.maxTokens || 700,
     response_format: { type: 'json_object' },
     messages,
-  });
+  }, { timeout: timeoutMs });
   const text = completion.choices[0]?.message?.content;
   let sets: DescribedSet[] = [];
   let minifigs: DescribedMinifig[] = [];
@@ -105,11 +122,24 @@ async function describeSharedScan(env: Env, image: string, opts: ScanPromptOpts 
   const steps = await resolveRoute(env, 'scan');
   let lastOpenAiError: unknown = null;
 
+  // Deadline, not just per-call timeouts: the point is that the CASCADE finishes
+  // before the client gives up, however many steps it happens to contain.
+  const deadline = Date.now() + SCAN_BUDGET_MS;
+  const msLeft = () => deadline - Date.now();
+
   for (const step of steps) {
+    if (msLeft() < MIN_STEP_MS) {
+      console.warn(`[scan] budget spent — skipping remaining steps from ${step.provider}`);
+      break;
+    }
     // Gemini speaks its own REST shape, not the OpenAI one — separate client.
     if (step.provider === 'gemini') {
       try {
-        const r = await callGeminiScan(image, env.GEMINI_API_KEY ?? '', env, { routeThroughGateway: true, prompt: opts.prompt });
+        const r = await callGeminiScan(image, env.GEMINI_API_KEY ?? '', env, {
+          routeThroughGateway: true, prompt: opts.prompt,
+          model: step.model,
+          timeoutMs: Math.min(STEP_TIMEOUT_MS, msLeft()),
+        });
         await recordAiUsage(env, 'gemini', step.model, null);
         await recordIntegrationAttempt(env, 'gemini', true);
         if (r?.sets?.length || r?.minifigs?.length) {
@@ -126,8 +156,16 @@ async function describeSharedScan(env: Env, image: string, opts: ScanPromptOpts 
     const { client, models } = await openAiCompatibleStep(env, step, meta);
     if (!client) continue;
     for (const model of models) {
+      // An `openrouter` pool step is MANY models; the budget has to be checked
+      // per model, not per step, or one slow pool eats the whole request.
+      if (msLeft() < MIN_STEP_MS) {
+        console.warn(`[scan] budget spent inside ${step.provider} — stopping at ${model}`);
+        break;
+      }
       try {
-        const { sets, minifigs, usage, rawUsage } = await openaiVisionDescribe(client, model, image, opts);
+        const { sets, minifigs, usage, rawUsage } = await openaiVisionDescribe(
+          client, model, image, opts, Math.min(STEP_TIMEOUT_MS, msLeft()),
+        );
         // Merge reports what the call actually cost; everyone else is estimated.
         const cost = step.provider === 'merge' ? mergeReportedCostUsd(rawUsage) : null;
         await recordAiUsage(env, step.provider, model, usage, cost);
