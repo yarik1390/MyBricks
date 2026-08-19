@@ -544,6 +544,10 @@ Newest first. (Service-worker `VERSION` in parentheses where relevant.)
   `-n` guard so a push_secrets run cannot clobber it, but that line is a no-op
   today. Do not read a name's presence in the workflow as proof of where the key
   lives; check `wrangler secret list`.
+- **Model choice uses the app's bottom SHEET, not a `<select>`.** A native
+  select renders as an Android system spinner outside the page and did not work
+  reliably on device. `openLlmModelSheet()` reuses `components/sheet.js`, so it
+  inherits drag-to-dismiss, backdrop and Escape like every other picker.
 - Admin API: `GET/PUT /api/admin/llm-routing`, `GET /api/admin/llm-status`,
   `POST /api/admin/llm-routing/refresh-models`. Console section "LLM Routing"
   in `me-admin.js`. The daily `model-refresh` cron now also caches Merge's

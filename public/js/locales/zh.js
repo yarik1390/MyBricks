@@ -216,5 +216,7 @@ Object.assign(zh.admin, { llmModelPlaceholder: "提供方/模型，例如 openai
 
 Object.assign(zh.admin, { llmReload: "重新加载", llmChooseModel: "选择模型", llmCustomModel: "自定义模型 ID…", llmSpentOf: "已用 {spent}，共 {budget}", llmLivePoolShort: "免费池", llmUnsaved: "有未保存的更改", llmModelsOther: "其他", llmWorkload_scan: "照片扫描", llmWorkload_advisor: "AI 顾问", llmWorkload_valuation: "估值", llmWorkload_listing: "listing 草稿" });
 
+Object.assign(zh.admin, { llmLivePoolHint: "每日自动从 OpenRouter 更新" });
+
 export default zh;
 Object.assign(zh.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

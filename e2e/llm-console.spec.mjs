@@ -88,10 +88,12 @@ test('LLM routing console is reachable and its controls render', async ({ page }
   // The allowance meter states both numbers so "remaining" cannot be misread.
   await expect(section.getByText('$7.50')).toBeVisible();
 
-  // Model choice must be a real dropdown, not a bare text box.
-  const firstSelect = section.locator('select.llm-step-model').first();
-  await expect(firstSelect).toBeVisible();
-  await expect(firstSelect).toHaveValue('gemini-2.5-flash');
+  // Model choice is a button that opens the app's bottom sheet — a native
+  // <select> renders as an Android system spinner outside the page and did not
+  // work reliably on device.
+  const firstPick = section.locator('.llm-model-btn').first();
+  await expect(firstPick).toBeVisible();
+  await expect(firstPick).toContainText('gemini-2.5-flash');
 
   // Every workload gets its own cascade.
   await expect(section.locator('.llm-workload')).toHaveCount(4);
@@ -101,17 +103,22 @@ test('LLM routing console is reachable and its controls render', async ({ page }
   await expect(section.locator('.llm-step.is-unconfigured').first()).toBeVisible();
 });
 
-test('choosing Custom reveals a free-text model field', async ({ page }) => {
+test('the model picker opens a sheet and applies a choice', async ({ page }) => {
   await stubAdmin(page);
   await page.goto('/#/me/admin');
   await page.locator('[data-admin-section-link="adminLlm"]').click();
 
   const section = page.locator('#adminLlm');
-  await expect(section.locator('.llm-step-custom')).toHaveCount(0);
-  await section.locator('select.llm-step-model').first().selectOption('__custom__');
-  // Merge serves no catalogue on this plan, so an arbitrary id must stay
-  // reachable or its route could never be changed.
-  await expect(section.locator('.llm-step-custom').first()).toBeVisible();
+  await section.locator('.llm-model-btn').first().click();
+  const list = page.locator('.llm-pick-list');
+  await expect(list).toBeVisible();
+  // Merge serves no catalogue on this plan, so the custom escape hatch has to
+  // be present or its route could never be changed at all.
+  await expect(list.getByText('Custom model ID…')).toBeVisible();
+
+  await list.locator('[data-pick-value="gemini-3.6-flash"]').click();
+  await expect(section.locator('.llm-model-btn').first()).toContainText('gemini-3.6-flash');
+  await expect(section.locator('.llm-savebar')).toBeVisible();
 });
 
 test('editing the order surfaces a save bar', async ({ page }) => {

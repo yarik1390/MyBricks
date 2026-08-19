@@ -22,10 +22,14 @@ import type { Env } from '../types';
 // it stays on Flash; text/JSON tasks use the cheaper Flash-Lite. All migrated
 // off the deprecated gemini-2.0-flash.
 export const MODELS = {
-  scan: 'gemini-2.5-flash',
-  advisor: 'gemini-2.5-flash-lite',
-  valuation: 'gemini-2.5-flash-lite',
-  listing: 'gemini-2.5-flash-lite',
+  // Gemini ids track what the Google AI Studio FREE tier serves — the same key
+  // these steps already use, so moving off the 2.5 generation costs nothing.
+  // Flash-Lite stops at 3.5 on purpose: the workhorse moved to 3.6, the cheap
+  // tier did not, and there is no 3.6 Lite.
+  scan: 'gemini-3.6-flash',
+  advisor: 'gemini-3.5-flash-lite',
+  valuation: 'gemini-3.5-flash-lite',
+  listing: 'gemini-3.5-flash-lite',
   openaiFallback: 'gpt-4o-mini',
   // OpenRouter cheap valuation fallback. Resilience model: try an ORDERED POOL of
   // capable FREE models (each verified to currently exist on OpenRouter), falling

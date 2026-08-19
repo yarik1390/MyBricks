@@ -6920,8 +6920,34 @@ body[data-route="set-detail"] .detail-page-container[data-detail-tab="manage"] {
 .llm-icon[disabled] { opacity: 0.3; cursor: default; }
 .llm-switch { font-size: 0.78rem; font-weight: 700; }
 .llm-switch.is-on { background: var(--accent, #ffd700); }
-.llm-step-model { width: 100%; }
-.llm-step-custom { width: 100%; margin-top: 6px; font-family: var(--mono, monospace); font-size: 0.85rem; }
+.llm-model-btn {
+  width: 100%; min-height: 44px; padding: 8px 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  border: 2px solid var(--line); border-radius: var(--r-1, 10px);
+  background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.llm-model-name { font-family: var(--mono, monospace); font-size: 0.85rem; overflow-wrap: anywhere; }
+.llm-model-name.is-empty { color: var(--muted); font-family: inherit; }
+.llm-model-caret { color: var(--muted); flex: 0 0 auto; }
+
+/* Picker sheet rows */
+.llm-pick-list { display: flex; flex-direction: column; max-height: 60vh; overflow-y: auto; }
+.llm-pick-group {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--muted); padding: 12px 4px 4px;
+}
+.llm-pick-row {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px;
+  min-height: 52px; padding: 8px 10px; width: 100%; text-align: left;
+  border: 0; border-bottom: 1px solid var(--line); background: transparent;
+  color: inherit; font: inherit; cursor: pointer;
+}
+.llm-pick-row.is-selected { background: var(--accent-soft, rgba(255, 215, 0, 0.18)); }
+.llm-pick-main { grid-column: 1; grid-row: 1; font-weight: 700; }
+.llm-pick-sub { grid-column: 1; grid-row: 2; font-family: var(--mono, monospace); font-size: 0.72rem; color: var(--muted); overflow-wrap: anywhere; }
+/* Pin the tick to its own column: on auto-placement it took the first cell and
+   pushed the model name across the row. */
+.llm-pick-tick { grid-column: 2; grid-row: 1 / span 2; font-weight: 700; }
 
 .llm-effective { margin-top: 10px; }
 .llm-effective-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
@@ -6950,5 +6976,4 @@ body[data-route="set-detail"] .detail-page-container[data-detail-tab="manage"] {
   /* Wide enough for the dropdown to share the header row. */
   .llm-step { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 10px; align-items: center; }
   .llm-step-head { margin-bottom: 0; }
-  .llm-step-custom { grid-column: 1 / -1; margin-top: 0; }
 }

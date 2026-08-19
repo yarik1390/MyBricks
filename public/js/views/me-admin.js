@@ -295,18 +295,13 @@ function wireAdminShell() {
     if (move) return moveLlmStep(move.getAttribute('data-llm-workload'), Number(move.getAttribute('data-llm-index')), move.getAttribute('data-llm-move'));
     const toggle = event.target.closest('[data-llm-toggle]');
     if (toggle) return toggleLlmStep(toggle.getAttribute('data-llm-workload'), Number(toggle.getAttribute('data-llm-index')));
+    const pick = event.target.closest('[data-llm-pick]');
+    if (pick) return openLlmModelSheet(pick.getAttribute('data-llm-workload'), Number(pick.getAttribute('data-llm-index')));
   });
   // 'change' fires on blur for a text input and on pick for a datalist entry,
   // which covers both ways an id gets set. Re-rendering on every keystroke
   // would steal focus mid-type, so 'input' is deliberately not bound.
-  llmEl?.addEventListener('change', (event) => {
-    const sel = event.target.closest('[data-llm-select]');
-    if (sel) return selectLlmStepModel(sel.getAttribute('data-llm-workload'), Number(sel.getAttribute('data-llm-index')), sel.value);
-    // Custom text field: 'change' fires on blur, which is when the typed id is
-    // final. Binding 'input' would re-render mid-keystroke and steal focus.
-    const free = event.target.closest('[data-llm-model]');
-    if (free) setLlmStepModel(free.getAttribute('data-llm-workload'), Number(free.getAttribute('data-llm-index')), free.value.trim());
-  });
+
   const pricingEl = document.getElementById('pricingCenterContainer');
   pricingEl?.addEventListener('click', (event) => {
     const action = event.target.closest('[data-pricing-match-action]');
@@ -1272,10 +1267,6 @@ function recommendedQualityAction(cards) {
 // ---------------------------------------------------------------------------
 let llmData = null;
 let llmDirty = false;
-// Steps whose model is being typed by hand. Keyed "workload:index" so a custom
-// id survives re-render without the <select> snapping back to a listed option.
-const llmCustom = new Set();
-
 const LLM_PROVIDER_LABEL = {
   gemini: 'Gemini', merge: 'Merge', openrouter: 'OpenRouter', openai: 'OpenAI',
 };
@@ -1292,7 +1283,6 @@ async function loadLlmRouting() {
     ]);
     llmData = { ...routing, status };
     llmDirty = false;
-    llmCustom.clear();
     renderLlmRouting();
   } catch (error) {
     container.innerHTML = `
@@ -1324,26 +1314,10 @@ function llmModelGroups(provider) {
 }
 
 function llmStepHTML(workload, step, index, total, configured) {
-  const key = `${workload}:${index}`;
-  const groups = llmModelGroups(step.provider);
-  const listed = [...groups.values()].flat();
-  const isCustom = llmCustom.has(key) || (!!step.model && !listed.includes(step.model));
   const label = LLM_PROVIDER_LABEL[step.provider] || step.provider;
-
-  // A dropdown is the primary control; "Custom…" reveals a text field so an id
-  // the catalogue does not know is still reachable. Merge serves no catalogue
-  // on this plan, so that escape hatch is not optional.
-  const opts = [
-    step.provider === 'openrouter'
-      ? `<option value=""${!step.model && !isCustom ? ' selected' : ''}>${escapeHtml(t('admin.llmLivePool'))}</option>`
-      : `<option value=""${!step.model && !isCustom ? ' selected' : ''} disabled>${escapeHtml(t('admin.llmChooseModel'))}</option>`,
-    ...[...groups.entries()].map(([vendor, ids]) =>
-      `<optgroup label="${escapeHtml(vendor)}">${ids.map(id =>
-        `<option value="${escapeHtml(id)}"${!isCustom && id === step.model ? ' selected' : ''}>${escapeHtml(id.includes('/') ? id.slice(id.indexOf('/') + 1) : id)}</option>`
-      ).join('')}</optgroup>`),
-    `<option value="${LLM_CUSTOM}"${isCustom ? ' selected' : ''}>${escapeHtml(t('admin.llmCustomModel'))}</option>`,
-  ].join('');
-
+  const shown = step.model
+    ? (step.model.includes('/') ? step.model.slice(step.model.indexOf('/') + 1) : step.model)
+    : t(step.provider === 'openrouter' ? 'admin.llmLivePool' : 'admin.llmChooseModel');
   return `
     <li class="llm-step${step.enabled ? '' : ' is-off'}${configured ? '' : ' is-unconfigured'}">
       <div class="llm-step-head">
@@ -1358,13 +1332,71 @@ function llmStepHTML(workload, step, index, total, configured) {
           </button>
         </span>
       </div>
-      <select class="input llm-step-model" data-llm-select data-llm-workload="${workload}" data-llm-index="${index}"
-              aria-label="${escapeHtml(t('admin.llmChooseModel'))}">${opts}</select>
-      ${isCustom ? `
-      <input class="input llm-step-custom" value="${escapeHtml(step.model)}" autocomplete="off" spellcheck="false"
-             placeholder="${escapeHtml(t('admin.llmModelPlaceholder'))}"
-             data-llm-model data-llm-workload="${workload}" data-llm-index="${index}">` : ''}
+      <button type="button" class="llm-model-btn" data-llm-pick data-llm-workload="${workload}" data-llm-index="${index}"
+              aria-label="${escapeHtml(t('admin.llmChooseModel'))}">
+        <span class="llm-model-name${step.model ? '' : ' is-empty'}">${escapeHtml(shown)}</span>
+        <span class="llm-model-caret" aria-hidden="true">▾</span>
+      </button>
     </li>`;
+}
+
+// Model choice opens the app's bottom sheet rather than a <select>. A native
+// select on Android renders as a system spinner that sits outside the page and
+// proved unreliable here; the sheet is the pattern every other picker in this
+// app already uses, so it gets drag-to-dismiss, backdrop and Escape for free.
+async function openLlmModelSheet(workload, index) {
+  const step = llmSteps(workload)[index];
+  if (!step || !llmData) return;
+  const { showSheet, hideSheet } = await import('../components/sheet.js');
+  const groups = llmModelGroups(step.provider);
+  const label = LLM_PROVIDER_LABEL[step.provider] || step.provider;
+
+  const row = (value, title, sub, selected) => `
+    <button type="button" class="llm-pick-row${selected ? ' is-selected' : ''}" data-pick-value="${escapeHtml(value)}">
+      <span class="llm-pick-main">${escapeHtml(title)}</span>
+      ${sub ? `<span class="llm-pick-sub">${escapeHtml(sub)}</span>` : ''}
+      ${selected ? `<span class="llm-pick-tick" aria-hidden="true">✓</span>` : ''}
+    </button>`;
+
+  const body = [
+    step.provider === 'openrouter'
+      ? row('', t('admin.llmLivePool'), t('admin.llmLivePoolHint'), !step.model)
+      : '',
+    ...[...groups.entries()].map(([vendor, ids]) => `
+      <div class="llm-pick-group">${escapeHtml(vendor)}</div>
+      ${ids.map(id => row(id, id.includes('/') ? id.slice(id.indexOf('/') + 1) : id, id, id === step.model)).join('')}`),
+    `<div class="llm-pick-group">${escapeHtml(t('admin.llmModelsOther'))}</div>`,
+    row(LLM_CUSTOM, t('admin.llmCustomModel'), '', false),
+  ].join('');
+
+  showSheet(`
+    <h2 class="u-serif-h" style="margin:0 4px 4px">${escapeHtml(label)}</h2>
+    <p style="color:var(--ink-mute);margin:0 4px 12px;font-size:14px">${escapeHtml(t('admin.llmChooseModel'))}</p>
+    <div class="llm-pick-list">${body}</div>`);
+
+  document.querySelector('.llm-pick-list')?.addEventListener('click', async (event) => {
+    const btn = event.target.closest('[data-pick-value]');
+    if (!btn) return;
+    const value = btn.getAttribute('data-pick-value');
+    hideSheet();
+    if (value === LLM_CUSTOM) {
+      const { promptSheet } = await import('../components/sheet.js');
+      const typed = await promptSheet({
+        title: t('admin.llmCustomModel'),
+        label: t('admin.llmModelPlaceholder'),
+        value: step.model || '',
+        placeholder: 'provider/model',
+      });
+      if (typed == null) return;
+      const id = String(typed).trim();
+      if (!id) return;
+      step.model = id;
+    } else {
+      step.model = value;
+    }
+    llmDirty = true;
+    renderLlmRouting();
+  }, { once: false });
 }
 
 function renderLlmRouting() {
@@ -1433,22 +1465,12 @@ function llmSteps(workload) {
   return llmData?.routes?.[workload] || [];
 }
 
-// Reordering shifts indices, so any "typing a custom id" markers must move with
-// their step or the wrong row would show a text box after a swap.
-function llmRemapCustom(workload, from, to) {
-  const a = `${workload}:${from}`, b = `${workload}:${to}`;
-  const hadA = llmCustom.has(a), hadB = llmCustom.has(b);
-  llmCustom.delete(a); llmCustom.delete(b);
-  if (hadA) llmCustom.add(b);
-  if (hadB) llmCustom.add(a);
-}
 
 function moveLlmStep(workload, index, dir) {
   const steps = llmSteps(workload);
   const target = dir === 'up' ? index - 1 : index + 1;
   if (target < 0 || target >= steps.length) return;
   [steps[index], steps[target]] = [steps[target], steps[index]];
-  llmRemapCustom(workload, index, target);
   llmDirty = true;
   renderLlmRouting();
 }
@@ -1461,38 +1483,11 @@ function toggleLlmStep(workload, index) {
   renderLlmRouting();
 }
 
-function selectLlmStepModel(workload, index, value) {
-  const step = llmSteps(workload)[index];
-  if (!step) return;
-  const key = `${workload}:${index}`;
-  if (value === LLM_CUSTOM) {
-    // Keep whatever id was there as the starting point for editing.
-    llmCustom.add(key);
-    renderLlmRouting();
-    $(`.llm-step-custom[data-llm-workload="${workload}"][data-llm-index="${index}"]`)?.focus();
-    return;
-  }
-  llmCustom.delete(key);
-  step.model = value;
-  llmDirty = true;
-  renderLlmRouting();
-}
 
-function setLlmStepModel(workload, index, model) {
-  const step = llmSteps(workload)[index];
-  if (!step) return;
-  step.model = model;
-  llmDirty = true;
-  // Deliberately no re-render: this fires on blur of the custom field, and
-  // re-rendering would tear the field out from under a click on Save.
-  const bar = document.querySelector('.llm-savebar');
-  if (!bar) renderLlmRouting();
-}
 
 function resetLlmWorkload(workload) {
   if (!llmData?.defaults?.[workload]) return;
   llmData.routes[workload] = llmData.defaults[workload].map(s => ({ ...s }));
-  [...llmCustom].filter(k => k.startsWith(`${workload}:`)).forEach(k => llmCustom.delete(k));
   llmDirty = true;
   renderLlmRouting();
 }
