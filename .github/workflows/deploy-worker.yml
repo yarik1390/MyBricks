@@ -493,6 +493,17 @@ jobs:
           curl -s "${WORKER_URL}/api/admin/llm-status" \
             -H "Authorization: Bearer ${ADMIN_JWT}" \
             | jq -r '"Merge: configured=\(.merge.configured) spent=$\(.merge.spent_usd) of $\(.merge.budget_usd) (\(.merge.calls) calls)"' || true
+          # End-to-end Merge canary: a REAL one-token completion through the same
+          # OpenAI-compatible surface the cascades use. This is the only check
+          # that proves the key works AND that `usage.cost` comes back — the
+          # field the entire budget meter is derived from. It costs a fraction
+          # of a cent against the monthly allowance, which is worth paying to
+          # catch a dead key or a silently missing cost field at deploy time
+          # rather than from a console reading $0.00 forever. Non-fatal: Merge
+          # is optional and every route skips a provider that cannot answer.
+          curl -s -X POST "${WORKER_URL}/api/admin/test/merge" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" \
+            | jq -r '"Merge probe: \(.status // "unknown") — \(.detail // "no detail")"' || true
 
       # Population is opt-in: dispatch with populate=true. It used to fire on
       # EVERY workflow_dispatch (so every push_secrets run re-populated), and
