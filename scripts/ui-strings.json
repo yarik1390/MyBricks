@@ -1862,6 +1862,12 @@
     ]
   },
   {
+    "text": "Cloudflare bot check on keyless web photo scans. Site key and secret must come from the SAME widget, or every scan is rejected.",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "Cohort Performance by Purchase Year",
     "files": [
       "views/portfolio.js"
@@ -5206,6 +5212,12 @@
     ]
   },
   {
+    "text": "Merge Gateway — second multi-provider LLM gateway, billed against a fixed monthly allowance and reporting real per-call cost.",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "Metal canister",
     "files": [
       "views/portfolio-detail.js"
@@ -8245,6 +8257,12 @@
     ]
   },
   {
+    "text": "Security",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "See Pro options",
     "files": [
       "views/portfolio.js"
@@ -9155,6 +9173,12 @@
     "text": "Support BricksVault",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Support link shown on the Me tab.",
+    "files": [
+      "views/me-admin-config.js"
     ]
   },
   {

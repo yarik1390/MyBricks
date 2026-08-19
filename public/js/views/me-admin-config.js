@@ -170,11 +170,12 @@ export const SOURCE_META = {
 export const PROVIDER_GROUPS = [
   ['Core', ['d1', 'supabase', 'worker', 'pages']],
   ['Catalog', ['rebrickable', 'brickset', 'upc', 'upcitemdb']],
-  ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'brickowl', 'pricecharting', 'pricesapi', 'amazon']],
+  ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'brickowl', 'pricecharting', 'pricesapi', 'brickinsights', 'amazon']],
   ['Scraping', ['firecrawl', 'brightdata', 'stockx']],
-  ['AI', ['gemini', 'openai', 'openrouter', 'byok']],
+  ['AI', ['gemini', 'openai', 'openrouter', 'merge', 'byok']],
   ['Notifications', ['resend', 'push', 'vapid', 'discord']],
-  ['Sync', ['google']],
+  ['Sync', ['google', 'patreon']],
+  ['Security', ['turnstile']],
 ];
 
 // Service key -> runtime feature flag (an env-default override you can flip from
@@ -199,10 +200,14 @@ export const FLAG_LABEL = {
 
 // Services the worker /test/:service probe can check (mirrors TESTABLE_SERVICES
 // in worker/src/lib/service-tests.ts).
+// Services with a live probe behind the Test button. Every entry here MUST also
+// appear in PROVIDER_GROUPS above, or the row is never rendered and the probe is
+// unreachable — turnstile and merge both sat in this set for a while with no row
+// to click. A test in pure.test.js now enforces the pairing.
 export const TESTABLE = new Set([
   'd1', 'supabase', 'rebrickable', 'brickset', 'brickinsights', 'brickowl', 'bricklink', 'ebay',
   'firecrawl', 'brickeconomy', 'pricecharting', 'pricesapi', 'brightdata',
-  'openrouter', 'gemini', 'openai', 'resend', 'turnstile', 'patreon', 'push', 'stockx',
+  'openrouter', 'gemini', 'openai', 'merge', 'resend', 'turnstile', 'patreon', 'push', 'stockx',
 ]);
 
 // Pricing sources with weight/cap/refresh tuning (worker DEFAULT_SOURCE_CONFIG).
@@ -222,6 +227,9 @@ export const SERVICE_DESC = {
   upc: 'Barcode backfill so sets can be scanned.',
   upcitemdb: 'Fallback barcode lookup provider.',
   brickinsights: 'Aggregated community set ratings shown on set pages.',
+  turnstile: 'Cloudflare bot check on keyless web photo scans. Site key and secret must come from the SAME widget, or every scan is rejected.',
+  merge: 'Merge Gateway — second multi-provider LLM gateway, billed against a fixed monthly allowance and reporting real per-call cost.',
+  patreon: 'Support link shown on the Me tab.',
   gemini: 'Google Gemini — server-side AI features.',
   openai: 'OpenAI — server-side AI features.',
   openrouter: 'OpenRouter — model routing for AI features.',

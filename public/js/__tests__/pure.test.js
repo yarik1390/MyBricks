@@ -317,6 +317,19 @@ describe('pluralize', () => {
   });
 });
 
+// Every service with a live probe must have a row to click it from. Both
+// `turnstile` and `merge` sat in TESTABLE with no PROVIDER_GROUPS entry, so the
+// probe existed, passed its own tests, and was unreachable in the console — the
+// same shape of bug as an admin section with no tab.
+describe('admin console service wiring', () => {
+  it('renders a row for every testable service', async () => {
+    const { TESTABLE, PROVIDER_GROUPS } = await import('../views/me-admin-config.js');
+    const rendered = new Set(PROVIDER_GROUPS.flatMap(([, keys]) => keys));
+    const orphans = [...TESTABLE].filter((key) => !rendered.has(key));
+    assert.deepEqual(orphans, [], `testable services with no console row: ${orphans.join(', ')}`);
+  });
+});
+
 describe('cleanFacetList', () => {
   it('drops junk placeholder values from real catalog facets', () => {
     const input = ['Star Wars', ':null', 'null', 'N/A', 'Unknown', 'Random', '{t.b.a.}', 'Technic', 'undefined', 'none', '-', '???'];
