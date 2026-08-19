@@ -742,6 +742,13 @@ async function sendScanToAPI(payload) {
   try {
     const res = await cloudScanIdentify(payload, controller.signal);
     if (stale()) return;
+    // Server-side step timings, when the scan did not match. Logged rather than
+    // shown: it is operator detail, but without it a slow scan is unfalsifiable
+    // from the outside.
+    if (res?.diag) {
+      const steps = (res.diag.timings || []).map(t => `${t.provider}/${t.model} ${t.ms}ms ${t.outcome}`).join(' | ');
+      console.warn(`[scan] ${res.diag.total_ms}ms total, image ${res.diag.image_kb}KB :: ${steps || 'no steps ran'}`);
+    }
     showScanResult(res);
   } catch (e) {
     if (generation !== _scanGeneration || (controller.signal.aborted && !timedOut)) return;

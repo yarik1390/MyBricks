@@ -59,12 +59,22 @@ function openAIIdentificationMessage(error: unknown): string {
 // five steps long and an OpenRouter step expands to the whole live free pool,
 // so without a deadline a slow tier alone can outlast the client — which is
 // exactly what "Took too long" was.
-const SCAN_BUDGET_MS = 24_000;
-// Per-model ceiling. Generous enough for a cold vision call, short enough that
-// two failures still leave room for a third step.
-const STEP_TIMEOUT_MS = 9_000;
+// 24s was still too generous, because the two clocks do not start together:
+// the client's 30s begins at UPLOAD, while this budget begins after the body is
+// parsed. A phone pushing a ~200KB image over mobile data can spend several
+// seconds before the cascade starts, so upload + 24s + catalog matching still
+// overran 30s and the client aborted — showing a bare "Took too long" instead
+// of the server's own explanation.
+//
+// 14s leaves real headroom on both sides. The trade is fewer attempts per scan,
+// which is the right trade: a fast wrong answer the user can retry beats a slow
+// timeout that tells them nothing.
+const SCAN_BUDGET_MS = 14_000;
+// Per-model ceiling. A cold vision call that has not answered in 7s is not
+// about to; better to spend the remaining budget on the next provider.
+const STEP_TIMEOUT_MS = 7_000;
 // Do not start another model unless there is realistically time to finish it.
-const MIN_STEP_MS = 3_500;
+const MIN_STEP_MS = 3_000;
 
 // Describe LEGO set(s) in an image via any OpenAI-compatible client (OpenRouter
 // free vision models or OpenAI gpt-4o-mini). Returns AI-described sets + usage.
@@ -117,7 +127,14 @@ async function openaiVisionDescribe(
  * free-vision pool (refreshed daily into KV by the model-refresh cron), so that
  * position stays current without anyone editing the route.
  */
-async function describeSharedScan(env: Env, image: string, opts: ScanPromptOpts = {}): Promise<{ sets: DescribedSet[]; minifigs: DescribedMinifig[]; model: string } | { error: string }> {
+interface StepTiming { provider: string; model: string; ms: number; outcome: string }
+
+async function describeSharedScan(
+  env: Env,
+  image: string,
+  opts: ScanPromptOpts = {},
+  timings: StepTiming[] = [],
+): Promise<{ sets: DescribedSet[]; minifigs: DescribedMinifig[]; model: string } | { error: string }> {
   const meta = { ...gatewayHeaders(env), ...gatewayMetadataHeader({ workload: 'scan-shared' }) };
   const steps = await resolveRoute(env, 'scan');
   let lastOpenAiError: unknown = null;
@@ -134,6 +151,7 @@ async function describeSharedScan(env: Env, image: string, opts: ScanPromptOpts 
     }
     // Gemini speaks its own REST shape, not the OpenAI one — separate client.
     if (step.provider === 'gemini') {
+      const t0 = Date.now();
       try {
         const r = await callGeminiScan(image, env.GEMINI_API_KEY ?? '', env, {
           routeThroughGateway: true, prompt: opts.prompt,
@@ -142,11 +160,14 @@ async function describeSharedScan(env: Env, image: string, opts: ScanPromptOpts 
         });
         await recordAiUsage(env, 'gemini', step.model, null);
         await recordIntegrationAttempt(env, 'gemini', true);
-        if (r?.sets?.length || r?.minifigs?.length) {
+        const hit = !!(r?.sets?.length || r?.minifigs?.length);
+        timings.push({ provider: 'gemini', model: step.model, ms: Date.now() - t0, outcome: hit ? 'match' : 'empty' });
+        if (hit) {
           return { sets: (r.sets ?? []) as DescribedSet[], minifigs: (r.minifigs ?? []) as DescribedMinifig[], model: step.model };
         }
       } catch (e) {
         await recordIntegrationAttempt(env, 'gemini', false, e);
+        timings.push({ provider: 'gemini', model: step.model, ms: Date.now() - t0, outcome: `error: ${(e as Error).message.slice(0, 60)}` });
         console.warn('[scan] Gemini step failed:', (e as Error).message);
       }
       continue;
@@ -162,6 +183,7 @@ async function describeSharedScan(env: Env, image: string, opts: ScanPromptOpts 
         console.warn(`[scan] budget spent inside ${step.provider} — stopping at ${model}`);
         break;
       }
+      const t0 = Date.now();
       try {
         const { sets, minifigs, usage, rawUsage } = await openaiVisionDescribe(
           client, model, image, opts, Math.min(STEP_TIMEOUT_MS, msLeft()),
@@ -169,11 +191,14 @@ async function describeSharedScan(env: Env, image: string, opts: ScanPromptOpts 
         // Merge reports what the call actually cost; everyone else is estimated.
         const cost = step.provider === 'merge' ? mergeReportedCostUsd(rawUsage) : null;
         await recordAiUsage(env, step.provider, model, usage, cost);
-        if (sets.length || minifigs.length) {
+        const hit = sets.length > 0 || minifigs.length > 0;
+        timings.push({ provider: step.provider, model, ms: Date.now() - t0, outcome: hit ? 'match' : 'empty' });
+        if (hit) {
           await recordIntegrationAttempt(env, step.provider, true);
           return { sets, minifigs, model };
         }
       } catch (e) {
+        timings.push({ provider: step.provider, model, ms: Date.now() - t0, outcome: `error: ${(e as Error).message.slice(0, 60)}` });
         if (step.provider === 'openai') lastOpenAiError = e;
         // A hard budget or a rejected key takes the whole provider out for this
         // request — no point walking its remaining models.
@@ -332,9 +357,20 @@ app.post('/identify', async (c) => {
     }
   }
 
-  const desc = await describeSharedScan(c.env, image, promptOpts);
-  if ('error' in desc) return c.json({ identified: false, reasoning: desc.error });
-  if (!desc.sets.length && !desc.minifigs.length) return c.json({ identified: false, reasoning: NOT_FOUND });
+  // Per-step timings ride along on every non-match reply. Until now a failed
+  // scan said only "no match" or was cut off by the client, so there was no way
+  // to tell a provider that answered "nothing here" from one that burned the
+  // whole budget — the difference between a photo problem and a routing problem.
+  const timings: StepTiming[] = [];
+  const started = Date.now();
+  const desc = await describeSharedScan(c.env, image, promptOpts, timings);
+  const diag = {
+    timings,
+    total_ms: Date.now() - started,
+    image_kb: Math.round(image.length / 1024),
+  };
+  if ('error' in desc) return c.json({ identified: false, reasoning: desc.error, diag });
+  if (!desc.sets.length && !desc.minifigs.length) return c.json({ identified: false, reasoning: NOT_FOUND, diag });
   return respondMatched(desc.sets, desc.minifigs, desc.model);
 });
 
