@@ -740,7 +740,14 @@ app.get('/llm-routing', async (c) => {
       merge_checked_at: mergeCatalogAt,
       openrouter_vision: orPools.vision,
       openrouter_text: orPools.text,
-      gemini: [MODELS.scan, MODELS.advisor],
+      // Suggestions, not a whitelist — the field takes any id. The 3.x ids are
+      // offered because the Google AI Studio FREE tier (the key this step uses)
+      // now serves them, so moving off the 2.5 defaults is a quality gain at no
+      // cost. Flash-Lite deliberately stops at 3.5: there is no 3.6 Lite.
+      gemini: [
+        'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite',
+        MODELS.scan, MODELS.advisor,
+      ],
       openai: [MODELS.openaiFallback],
     },
   });
