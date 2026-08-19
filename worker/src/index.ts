@@ -77,7 +77,7 @@ export const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 app.use('*', cors({
   origin: (origin, c) => (origin && isAllowedOrigin(origin, c.env) ? origin : appBaseUrl(c.env)),
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Gemini-Key', 'X-OpenAI-Key', 'X-Brickvault-Platform', 'cf-turnstile-token'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Gemini-Key', 'X-OpenAI-Key', 'X-Brickvault-Platform', 'cf-turnstile-token', 'X-Turnstile-Reason'],
 }));
 
 // Hono's CORS middleware adds response headers after `next()`. An unhandled

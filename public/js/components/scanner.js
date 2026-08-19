@@ -617,6 +617,11 @@ async function cloudScanIdentify(payload, signal) {
     // only retry the transient outcomes.
     if (!token && /timeout|empty|error/.test(_tsReason)) token = await getTurnstileToken();
     if (token) extraHeaders['cf-turnstile-token'] = token;
+    // Report WHY no token was produced. Without this the server sees only an
+    // absent header and cannot tell a blocked script from a hostname the
+    // Turnstile widget does not allow — which is the failure that survives
+    // every "refresh and try again".
+    else if (_tsReason) extraHeaders['X-Turnstile-Reason'] = _tsReason;
   }
   const _t = performance.now();
   const res = await api("/api/scan/identify", { method: "POST", body: payload, signal, headers: extraHeaders });

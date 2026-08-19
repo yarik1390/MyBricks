@@ -243,13 +243,27 @@ app.post('/identify', async (c) => {
   // JWT and remains capped to the same daily quota.
   const authenticatedAndroid = c.req.header('X-Brickvault-Platform')?.toLowerCase() === 'android' && !!userId;
   if (c.env.TURNSTILE_SECRET_KEY && !authenticatedAndroid) {
+    const token = c.req.header('cf-turnstile-token');
     const verified = await verifyTurnstileToken(
-      c.req.header('cf-turnstile-token'),
+      token,
       c.env.TURNSTILE_SECRET_KEY,
       c.req.header('cf-connecting-ip'),
     );
     if (!verified) {
-      return c.json({ error: 'Could not verify the request. Refresh and try again, or add your own Gemini/OpenAI key for unlimited scanning.' }, 403);
+      // Distinguish "the browser never produced a token" from "the token was
+      // rejected". They have completely different causes and the old shared
+      // message pointed at neither: the usual reason for a missing token is
+      // that the widget's allowed-hostname list has not caught up with the
+      // site's current domain, which no amount of refreshing fixes. The client
+      // reports why it gave up in X-Turnstile-Reason (see scanner.js).
+      const reason = (c.req.header('X-Turnstile-Reason') || '').slice(0, 40);
+      console.warn(`[scan] turnstile blocked: token=${token ? 'present-rejected' : 'absent'} reason=${reason || 'n/a'}`);
+      return c.json({
+        error: token
+          ? 'Bot check failed. Refresh and try again, or add your own Gemini/OpenAI key for unlimited scanning.'
+          : 'Bot check could not run in this browser. Sign in on the app, or add your own Gemini/OpenAI key in Me > Integrations to scan without it.',
+        turnstile: token ? 'rejected' : 'absent',
+      }, 403);
     }
   }
 
