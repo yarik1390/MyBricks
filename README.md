@@ -4,7 +4,7 @@
 
 # BricksVault
 
-**A mobile-first PWA that treats a LEGO collection like an investment portfolio.**
+**A mobile-first PWA and native Android app that treat a LEGO collection like an investment portfolio.**
 
 Log the sets you own, see live market value and ROI, get AI price forecasts,
 scan barcodes to identify sets, and track a wishlist with price-drop alerts.
@@ -50,8 +50,9 @@ wishlist price-drop alerts (push + email) · per-source confidence and freshness
 grading
 
 **Platform** · installable PWA with offline support and a mutation outbox ·
-native Android build via Capacitor · 9 languages (en, de, es, fr, hi, ja, nl,
-uk, zh) · light/dark themes · kids mode · portfolio-aware AI advisor chat
+native Android app via Capacitor ([details](#android)) · 9 languages (en, de,
+es, fr, hi, ja, nl, uk, zh) · light/dark themes · kids mode · portfolio-aware
+AI advisor chat
 
 ## Stack
 
@@ -109,6 +110,38 @@ npx playwright test --config=e2e/playwright.config.mjs
 Every push runs five gates in CI — root tests, Biome, a strict `checkJs` pass
 over the shared pure helpers, Worker typecheck, and Worker vitest. Run all five
 locally before pushing; each has caught a deploy that the others let through.
+
+## Android
+
+The same `public/` bundle ships as a native Android app through **Capacitor** —
+the shell and all guest features work offline from first launch, with no network
+round-trip needed to open the app.
+
+| | |
+|---|---|
+| App id | `app.bricksvault` (matches `capacitor.config.json`, `build.gradle`, `assetlinks.json`) |
+| Current | `1.0.47` (versionCode 48) |
+| SDK | min 24, compile/target 36 |
+| Native plugins | MLKit barcode scanning, biometric unlock, push (FCM), filesystem, share, haptics, network |
+| Billing | RevenueCat — entitlements arrive via the webhook, not the client |
+
+Building is a workflow dispatch, not a push:
+[`build-android.yml`](.github/workflows/build-android.yml) runs on a plain
+Ubuntu runner (no Android Studio), builds `bundle` or `apk-debug`, signs with
+the upload keystore from repo secrets, and force-pushes the signed `.aab` plus
+its ProGuard mapping to the **`aab-delivery`** branch. That branch is a release
+artifact channel, not stale work — don't delete it.
+
+Deep links are wired at deploy time: the "Configure Android App Links" step runs
+[`scripts/configure-assetlinks.mjs`](scripts/configure-assetlinks.mjs) so
+`assetlinks.json` on the live origin carries the signing certificate
+fingerprint. Before cutting a release, `npm run android:preflight` checks the
+app id, version, and store metadata line up.
+
+```bash
+npx cap sync android      # required after ANY public/ asset change
+npm run android:preflight
+```
 
 ## Deploying
 
