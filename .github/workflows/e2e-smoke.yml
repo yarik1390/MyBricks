@@ -2,7 +2,7 @@ name: e2e-smoke
 on:
   pull_request:
   push:
-    branches: [claude/mybricks-lego-app-EdTPX]
+    branches: [main]
   workflow_dispatch:
 
 # Cancel a running smoke suite when a newer commit supersedes it, so a burst of

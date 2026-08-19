@@ -6,7 +6,7 @@
 > is the short quick-start; `AGENTS.md` is the comprehensive reference.
 
 Guidance for AI agents working in this repo. Read this before making changes.
-Multiple agents work on the same branch (`claude/mybricks-lego-app-EdTPX`) in
+Multiple agents work on the same branch (`main`, the only development branch) in
 parallel — keep changes small, commit in logical chunks, and `git pull` before
 every push.
 
@@ -141,7 +141,7 @@ the install is skipped and the guarded hook simply no-ops.
 
 ## Working in parallel (important)
 
-- `git pull origin claude/mybricks-lego-app-EdTPX` before each push.
+- `git pull origin main` before each push.
 - Prefer **new files** over edits to shared hotspots (`index.ts`,
   `public/js/views/portfolio.js`, `app.css`) to minimize conflicts.
 - Commit in small, self-contained chunks with descriptive messages.

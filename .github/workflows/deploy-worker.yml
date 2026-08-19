@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - claude/mybricks-lego-app-EdTPX
     paths:
       - 'worker/**'
       - 'public/**'
@@ -301,13 +300,14 @@ jobs:
           echo "WORKER_URL=${WORKER_URL}" >> "$GITHUB_ENV"
 
       # Secrets persist across deploys, so re-uploading ~30 of them on EVERY
-      # push (each `secret put` re-deploys the Worker!) was pure time sink —
-      # roughly a minute per deploy. Both branches deploy the same Worker, so
-      # dev pushes reuse the secrets main already uploaded. Runs on main pushes
-      # and on manual dispatch with push_secrets=true (use that after rotating
-      # or adding a secret).
+      # push (each `secret put` re-deploys the Worker!) is a pure time sink —
+      # roughly a minute per deploy. This used to run on main pushes because a
+      # separate dev branch carried the day-to-day traffic; now that main IS the
+      # working branch, that gate would fire on every commit. Manual dispatch
+      # only: run the workflow with push_secrets=true after rotating or adding
+      # a secret.
       - name: Upload Worker secrets
-        if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.push_secrets == 'true')
+        if: github.event_name == 'workflow_dispatch' && inputs.push_secrets == 'true'
         working-directory: worker
         run: |
           set -euo pipefail

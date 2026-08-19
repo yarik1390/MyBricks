@@ -7,7 +7,7 @@ name: e2e-smoke
 on:
   pull_request:
   push:
-    branches: [claude/mybricks-lego-app-EdTPX]
+    branches: [main]
   workflow_dispatch:
 jobs:
   smoke:

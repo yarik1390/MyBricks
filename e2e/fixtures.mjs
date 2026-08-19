@@ -90,7 +90,12 @@ function handlers(calls) {
     if (p === '/api/wishlist' && m === 'GET') return json({ wishlist: [{ id: 'w1', set_num: SET.set_num, name: SET.name }], unread_alerts: 0 });
     if (p === '/api/wishlist' && m === 'POST') return json({ item: { id: 'w2', set_num: SET.set_num } });
     if (p.startsWith('/api/wishlist/') && m === 'DELETE') return json({ ok: true });
-    if (p === '/api/themes') return json({ themes: [{ id: 1, name: 'Star Wars' }], theme_groups: [], categories: [] });
+    // Shape must match worker/src/routes/themes.ts: FLAT STRING ARRAYS, not
+    // objects. The fixture used to return [{ id, name }], which cleanFacetList
+    // silently drops (it skips non-strings) — so the catalog rendered zero theme
+    // chips under test, and before that guard existed it rendered a chip reading
+    // "[object Object]", which is what the committed store screenshots captured.
+    if (p === '/api/themes') return json({ themes: ['Star Wars'], theme_groups: ['Licensed'], categories: ['Sets'] });
     if (p === '/api/users/tester/profile') return json({
       handle: 'tester', display_name: 'Test Collector', is_supporter: false,
       approved_contributions: 0, showcase: [], expose_public_value: true,

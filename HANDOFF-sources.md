@@ -5,8 +5,8 @@ D1 + Pages LEGO-collector app. Read `AGENTS.md` and `CLAUDE.md` first — they h
 full architecture, conventions, and hard constraints. This file is the delta: what
 was just done, what's live right now, and what's left.
 
-Work happens on branch **`claude/mybricks-lego-app-EdTPX`** (all recent commits are
-there). `git pull` before every push. Do NOT open a PR unless asked.
+Work happens on branch **`main`** (the only development branch). `git pull` before
+every push. Do NOT open a PR unless asked.
 
 ---
 
@@ -173,7 +173,7 @@ node --test public/js/__tests__/pure.test.js   # from repo ROOT — frontend pur
 cd <repo-root> && node_modules/.bin/biome lint worker/src/<file>
 ```
 
-**Deploy:** push to `claude/mybricks-lego-app-EdTPX` → `.github/workflows/deploy-worker.yml`
+**Deploy:** push to `main` → `.github/workflows/deploy-worker.yml`
 auto-deploys (runs `schema.sql`, then each `schema_migrate.sql` ALTER independently with
 `|| true`, then the "Validate schema before deploy" `SELECT … LIMIT 0` probes, then Worker
 + Pages). ~5–6 min lag. Check status via the GitHub MCP `actions_list`/`actions_get`.

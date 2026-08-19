@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "setup": "cmd /c \"npm --prefix worker install\"",
-    "typecheck": "cmd /c \"npm --prefix worker run typecheck\"",
+    "setup": "npm --prefix worker install",
+    "typecheck": "npm --prefix worker run typecheck",
     "test": "node scripts/check-ui-strings.mjs && node scripts/check-i18n-dynamic-sinks.mjs && node scripts/verify-ui-dicts.mjs && node --test public/js/__tests__/pure.test.js",
     "lint": "biome lint",
     "status": "git status",

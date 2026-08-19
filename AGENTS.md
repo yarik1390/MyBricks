@@ -7,7 +7,7 @@ sharp edges), and what changed recently.
 
 - **Live app (PWA):** https://bricksvault.app
 - **Live API (Worker):** https://brickvault-api.zhydenko.workers.dev
-- **Repo:** `yarik1390/MyBricks` · working branch `claude/mybricks-lego-app-EdTPX`
+- **Repo:** `yarik1390/MyBricks` · working branch `main` (the only development branch)
 - **Cloudflare projects:** Pages project `brickvault`, Worker `brickvault-api`, D1 db `brickvault`
 
 ---
@@ -193,8 +193,8 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
 - Baseline for most rows is **`formula_bulk`** (`lib/valuation.ts`): a pieces ×
   year × theme × retired heuristic.
 - Real signals come from multiple sources: **BrickLink** (workhorse),
-  **BrickEconomy**, **eBay ask** (Browse API), **eBay sold** (scraped via Bright
-  Data), **BrickOwl**, plus **BrickInsights**/Brickset **ratings** (quality, not
+  **BrickEconomy**, **eBay ask** (Browse API), **eBay sold** (Firecrawl, plus a
+  weekly Apify lane), **BrickOwl**, plus **BrickInsights**/Brickset **ratings** (quality, not
   price).
 - `lib/market-sources.ts → enrichSetRecord(row)` is the **read-side** blender: it
   builds `market_sources`, `confidence`, `freshness`, `primary_value_source`,
@@ -268,7 +268,7 @@ Behavioral notes:
   on `VERSION`). Static assets are network-first; **`/api/` requests are
   deliberately bypassed** (`if (url.pathname.startsWith('/api/')) return;`) so the
   SW never serves stale data. An "Update ready" prompt appears on new SW.
-  **Current version: `v149`.**
+  **Current version: `v429`.**
 - **Themes/skins:** attribute-based — `:root[data-theme="dark"]` and
   `:root[data-skin="premium"]` (default skin "retro": parchment + pixel
   shadows). `theme-init.js` applies them pre-paint to avoid flashes.
@@ -502,6 +502,42 @@ Both one-time bootstraps — PriceCharting per-set (`10,25,40,55`) and BrickEcon
 
 Newest first. (Service-worker `VERSION` in parentheses where relevant.)
 
+**Single-branch repo + public-facing cleanup (2026-08-19, v429)**
+- **`main` is now the only development branch.** The working branch
+  `claude/mybricks-lego-app-EdTPX` was renamed to `main`, and the fully-merged
+  `claude/app-error-continuation-9p48as` was deleted. `aab-delivery` STAYS —
+  it is not stale work, it is the artifact channel `build-android.yml` force-
+  pushes signed Play bundles to (see its "Pushed signed bundle to branch
+  'aab-delivery'" step). Do not delete it.
+- **The secrets-upload gate had to change with the rename.** It ran on
+  `github.ref == 'refs/heads/main'` on the assumption that main was the quiet
+  release branch and a separate dev branch carried daily traffic. With one
+  branch that condition fires on every commit, and each of the ~30 `secret put`
+  calls re-deploys the Worker (~1 min/deploy). It is now **manual dispatch
+  only**: run the workflow with `push_secrets=true` after rotating a secret.
+- **`/api/themes` e2e fixture did not match the API contract.**
+  `e2e/fixtures.mjs` returned `themes: [{ id, name }]` where
+  `worker/src/routes/themes.ts` returns flat string arrays. `cleanFacetList`
+  skips non-strings, so under test the catalog rendered ZERO theme chips; before
+  that guard existed it rendered a chip reading `[object Object]` — which is
+  what the committed PWA/Play screenshots had captured. Fixture fixed and all
+  seven screenshots regenerated. Not a production bug: the live API has always
+  returned strings.
+- **Root `npm run setup` / `npm run typecheck` were Windows-only** (wrapped in
+  `cmd /c`) and failed on Linux/macOS. Now plain `npm --prefix worker …`.
+- **Admin pricing panel no longer recommends an un-finishable review.** The
+  "Recommended next action" was pinned to "Review N quarantined source matches
+  before enabling PriceCharting". PriceCharting is already enabled, quarantined
+  mappings are inert by design (signals materialize only from verified/manual
+  rows), and `pricecharting-bulk` deliberately RE-CREATES the low-confidence
+  candidates every daily run as an audit trail. The residue that price agreement
+  can never promote is permanent, so the counter sits at its floor. The
+  quarantine line now only fires when the source is genuinely gated off;
+  `pricecharting_enabled` is exposed on `/api/admin/pricing/quality`.
+- **README rewritten** as a public landing page (it still claimed 20,000 sets,
+  6 crons, 17 routes). Licensing position is stated explicitly: no license, all
+  rights reserved.
+
 **Domain move + scraping consolidation (2026-08-11, v413)**
 - **Canonical domain is now `https://bricksvault.app`.** The origin used to be
   pasted into ten files; it now lives only in `worker/src/lib/app-url.ts`
@@ -721,7 +757,8 @@ readout, per-user build cache, parts-based "what can I build."
 ## 12. Audit follow-ups — status
 
 All seven items reported during the audit are **done**, in commits `4c9f9cd` and
-`3d0a933` on `claude/mybricks-lego-app-EdTPX` (kept here for traceability):
+`3d0a933` on the working branch, then named `claude/mybricks-lego-app-EdTPX` (kept
+here for traceability):
 
 1. **CSP — done.** A strict CSP already shipped as an `index.html` `<meta>`; it's
    now also delivered as an HTTP response header in `public/_headers`, so
