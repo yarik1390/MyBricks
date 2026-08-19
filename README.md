@@ -1,110 +1,140 @@
-# MyBricks — LEGO Portfolio Tracker
+<div align="center">
 
-A mobile-first PWA where LEGO collectors log sets they own, track current market value, see ROI, get AI-powered price forecasts, and manage a wishlist with automatic price-drop alerts.
+<img src="assets/logo.svg" alt="BricksVault" width="88">
 
-## Live App
-https://bricksvault.app
+# BricksVault
+
+**A mobile-first PWA that treats a LEGO collection like an investment portfolio.**
+
+Log the sets you own, see live market value and ROI, get AI price forecasts,
+scan barcodes to identify sets, and track a wishlist with price-drop alerts.
+
+[**bricksvault.app**](https://bricksvault.app)
+
+[![Deploy](https://github.com/yarik1390/MyBricks/actions/workflows/deploy-worker.yml/badge.svg)](https://github.com/yarik1390/MyBricks/actions/workflows/deploy-worker.yml)
+[![e2e](https://github.com/yarik1390/MyBricks/actions/workflows/e2e-smoke.yml/badge.svg)](https://github.com/yarik1390/MyBricks/actions/workflows/e2e-smoke.yml)
+[![a11y](https://github.com/yarik1390/MyBricks/actions/workflows/a11y.yml/badge.svg)](https://github.com/yarik1390/MyBricks/actions/workflows/a11y.yml)
+
+<img src="public/screenshots/vault-narrow.png" alt="The Vault — portfolio value, ROI, and set list" width="320">
+
+</div>
+
+---
+
+## What it is
+
+Most collection trackers are inventory lists. BricksVault is a **valuation
+engine** with a collection tracker attached: every set carries a blended market
+value assembled from several independent price sources, a confidence grade, and
+a plain-English explanation of where the number came from.
+
+Sign-in is optional — guests get the full app with local-only data (IndexedDB +
+localStorage) and never touch the API. Signing in with Supabase syncs a real
+account across devices.
+
+**Scale:** ~27,000 sets and ~17,000 minifigs in D1, kept fresh by 34 cron triggers.
 
 ## Features
-- Portfolio tracking with sparkline charts and ROI
-- AI-powered price valuation (Gemini + multi-source)
-- Camera barcode scanner + AI photo identification
-- Wishlist with automatic price-drop alerts
-- Full Rebrickable catalog integration (~20,000 sets)
-- Blind bag minifig tracker
-- Multi-currency support (USD/GBP/EUR/CAD/AUD)
-- Public profile + Trophy Shelf sharing
-- CSV import/export + Google Sheets sync
-- PWA with offline support & background sync
+
+**Portfolio** · value + ROI with sparkline history · per-set price trends ·
+storage locations, conditions, quantities · CSV import/export · Google Sheets
+sync · weekly digest email · public profile with a Trophy Shelf
+
+**Discovery** · full Rebrickable catalog with FTS search, theme/year/retired
+filters · camera barcode scanner · AI photo identification · deal signals ·
+retirement-risk radar · "what can I build" from owned parts · minifig tracker
+
+**Pricing** · blended valuations from BrickLink, BrickEconomy, eBay (ask +
+sold), PriceCharting, BrickOwl and community comps · AI 2y/5y forecasts ·
+wishlist price-drop alerts (push + email) · per-source confidence and freshness
+grading
+
+**Platform** · installable PWA with offline support and a mutation outbox ·
+native Android build via Capacitor · 9 languages (en, de, es, fr, hi, ja, nl,
+uk, zh) · light/dark themes · kids mode · portfolio-aware AI advisor chat
 
 ## Stack
-- **Worker:** Cloudflare Workers (TypeScript, Hono framework)
-- **Database:** Cloudflare D1 (SQLite)
-- **Auth:** Supabase (email/password + OAuth, JWT verification)
-- **AI:** Google Gemini (photo ID, valuations, advisor)
-- **Pricing:** BrickLink, BrickEconomy, eBay Browse API, formula-based valuation
-- **Frontend:** Vanilla JS SPA, hash routing, no framework
-- **Hosting:** Cloudflare Pages (static assets) + Cloudflare Workers (API)
-- **CI/CD:** GitHub Actions (auto-deploy on push)
-- **Design:** LEGO-inspired — cream palette, hard offset box shadows, Fraunces serif + Geist sans + IBM Plex Mono
 
-## Architecture
+| Layer | Choice |
+|---|---|
+| API | Cloudflare **Workers** — TypeScript, [Hono](https://hono.dev) |
+| Database | Cloudflare **D1** (SQLite) + **KV** cache + **R2** photos |
+| Analytics | Cloudflare **Analytics Engine** |
+| Auth | **Supabase** JWT (HS256), verified in the Worker |
+| Frontend | **Vanilla JS** SPA — ES modules, hash routing, `morphdom` diffing, no framework |
+| Hosting | Cloudflare **Pages** (static) + Workers (API) |
+| AI | Gemini + OpenAI, server keys or user BYOK, via Cloudflare AI Gateway |
+| Mobile | **Capacitor** (Android), RevenueCat billing |
+| CI/CD | GitHub Actions — auto-deploy on push |
 
-### Database (D1 SQLite)
-- `lego_sets` — full LEGO catalog with AI valuations, BrickLink/eBay/BrickEconomy prices
-- `lego_themes` — theme hierarchy for catalog filters
-- `user_collection` — per-user set tracking with soft delete, storage location, condition
-- `portfolio_snapshots` — daily portfolio value history
-- `set_value_history` — daily per-set price history for trend analysis
-- `user_wishlist` + `wishlist_alerts` — wishlist with price-drop notifications
-- `minifigs` + `user_minifigs` — blind bag / minifig tracker
-- `user_prefs` — display name, handle, currency, public profile, Google Sheets sync
-- `rate_limits` — per-user per-endpoint rate limiting
+The frontend is deliberately framework-free: template-literal HTML mounted with
+`morphdom`, event delegation, and a hand-rolled router. It ships as plain ES
+modules with no build step.
 
-### API Routes (Cloudflare Worker)
-| Route | Description |
-|-------|-------------|
-| `GET/POST /api/collection` | Collection CRUD |
-| `GET/PATCH/DELETE /api/collection/:id` | Item management |
-| `GET /api/collection/export` | CSV export |
-| `GET /api/collection/history` | Portfolio value history |
-| `POST /api/collection/import` | Bulk CSV import |
-| `GET /api/sets/search` | Catalog search (local + Rebrickable) |
-| `GET /api/sets/:setnum` | Set detail with auto-cache + live pricing |
-| `POST /api/scan/identify` | Barcode or AI photo identification |
-| `GET/POST /api/wishlist` | Wishlist management |
-| `DELETE /api/wishlist/:id` | Remove wishlist item |
-| `GET/PATCH /api/me` | User profile and stats |
-| `GET /api/themes` | Theme list for filters |
-| `GET/POST /api/minifigs` | Minifig catalog & user collection |
-| `GET/POST /api/advisor` | AI advisor (streaming) |
-| `GET /api/users/:handle` | Public profile |
-| `GET/POST /api/google/*` | Google Sheets OAuth & sync |
+## Repository map
 
-### Background Jobs (Cron Triggers)
-| Schedule (UTC) | Job |
-|----------------|-----|
-| Every hour | `valuate-sets` — refresh market valuations |
-| Daily 2 AM | `snapshot-portfolios` — daily portfolio snapshots |
-| Daily 3 AM | `snapshot-set-values` — daily per-set price snapshots |
-| Daily 4 AM | `db-hygiene` + `daily-catalog-maintenance` — DB cleanup & catalog upkeep; on Sundays this slot also runs the full Rebrickable catalog import (sets + minifigs) |
-| Daily 5 AM | `valuate-minifigs` — refresh minifig valuations |
-| Daily 8 AM | `wishlist-alerts` — check for price-drop alerts |
-
-Cron strings live in `worker/wrangler.toml` and must exactly match the `scheduled()` switch in `worker/src/index.ts`.
-
-### Frontend Pages
-1. **Portfolio** (`/`) — hero sparkline, set list, ROI badges, search, filter, long-press actions, bulk selection
-2. **Catalog** (`/add`) — scan CTA, search, theme/year/retired/value filters, grid layout
-3. **Set Detail** (`/set/:num`) — hero image, Info/Forecast/Manage tabs, qty stepper, eBay listing generator
-4. **Wishlist** (`/wishlist`) — price-drop alerts, target price, forecast badges
-5. **Profile** (`/me`) — display name, handle, currency selector, public profile, Google Sheets, CSV import/export, Trophy Shelf
-6. **Minifigs** (`/minifigs`) — minifig grid with rarity-colored cards
-7. **Public Profile** (`/u/:handle`) — shared portfolio view with Trophy Shelf
-8. **AI Advisor** — floating drawer with streaming chat, portfolio-aware
+```
+public/           # the SPA — served by Cloudflare Pages
+  js/views/       # one module per page (portfolio, catalog, minifigs, me, …)
+  js/components/  # advisor drawer, scanner, sheets, onboarding
+  js/locales/     # 9 languages × 2 dictionary layers
+  sw.js           # versioned service worker (bump VERSION on asset changes)
+worker/           # the API
+  src/routes/     # one Hono sub-app per resource (24 mounted groups)
+  src/jobs/       # 35 cron handlers — valuations, scrapes, imports, snapshots
+  src/lib/        # external integrations + pure helpers
+  schema.sql      # authoritative D1 schema
+  wrangler.toml   # bindings, vars, cron triggers
+android/          # Capacitor shell
+e2e/ a11y/ load/  # Playwright e2e, axe accessibility, k6 load tests
+```
 
 ## Development
 
-### Prerequisites
-- Node.js 22+
-- Cloudflare account with Workers & D1 enabled
-- Supabase project (for auth)
-
-### Local Development
 ```bash
+# Worker (API)
 cd worker
-npm install
-cp .dev.vars.example .dev.vars   # fill in secrets
-npx wrangler dev
+npm ci
+npm run typecheck        # tsc --noEmit
+npx vitest run           # 693 tests, 60 files (runs in workerd)
+npx wrangler dev         # needs .dev.vars — see .dev.vars.example
+
+# Frontend (from repo root)
+npm ci
+npm test                 # UI-string catalog + i18n checks + 263 unit tests
+npx biome lint
+npx playwright test --config=e2e/playwright.config.mjs
 ```
 
-### Deployment
-Push to the `claude/mybricks-lego-app-EdTPX` branch (the repo's default branch). GitHub Actions will:
-1. Install dependencies
-2. Create/find the D1 database
-3. Apply schema + migrations
-4. Upload secrets
-5. Deploy the Worker
-6. Deploy Pages (static frontend with Worker URL injected)
+Every push runs five gates in CI — root tests, Biome, a strict `checkJs` pass
+over the shared pure helpers, Worker typecheck, and Worker vitest. Run all five
+locally before pushing; each has caught a deploy that the others let through.
 
-See [`.github/workflows/deploy-worker.yml`](.github/workflows/deploy-worker.yml) for the full CI/CD pipeline.
+## Deploying
+
+Pushing to the default branch triggers
+[`deploy-worker.yml`](.github/workflows/deploy-worker.yml), which applies the D1
+schema and migrations, uploads secrets, deploys the Worker, then deploys Pages
+with the Worker URL injected into `env.js`.
+
+Two constraints that have broken deploys before, both documented in
+[`CLAUDE.md`](./CLAUDE.md):
+
+- **D1 rejects `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.** New columns go in
+  *both* `worker/schema.sql` and `worker/schema_migrate.sql`.
+- **Cron strings need day names, not `0` for Sunday.** `0 4 * * SUN`, never
+  `0 4 * * 0`.
+
+## Documentation
+
+| Doc | Contents |
+|---|---|
+| [`AGENTS.md`](./AGENTS.md) | Full engineering handoff — architecture, data model, API surface, deploy pipeline, gotchas, changelog |
+| [`CLAUDE.md`](./CLAUDE.md) | Quick-start conventions for AI agents working in the repo |
+| [`PRICING-AUDIT.md`](./PRICING-AUDIT.md) | How the valuation blend works and why |
+| [`HANDOFF-sources.md`](./HANDOFF-sources.md) | Per-source pricing integration notes |
+
+## License
+
+No license — **all rights reserved**. The source is public to read, but not
+licensed for reuse, redistribution, or derivative works.
