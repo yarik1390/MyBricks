@@ -5,13 +5,22 @@ import { buildAdvisorContext } from '../lib/advisor-context';
 import { fetchTracked } from '../lib/http';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { logEvent } from '../lib/analytics';
-import { MODELS, geminiUrl, openAIServerBaseURL, gatewayHeaders } from '../lib/llm';
+import { MODELS, geminiUrl, gatewayHeaders, gatewayMetadataHeader } from '../lib/llm';
+import { resolveRoute, type LlmProvider } from '../lib/llm-routing';
+import { openAiCompatibleStep } from '../lib/llm-clients';
+import { isMergeBudgetExhausted, mergeReportedCostUsd } from '../lib/merge-gateway';
+import { recordAiUsage } from '../lib/ai-usage';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Free-tier server-key limit; bypassed entirely when the user supplies their own Gemini key.
 const ADVISOR_DAILY_LIMIT = 10;
+
+/** Route-step provider -> the label the user-facing error names. */
+function providerLabelFor(provider: LlmProvider): 'gemini' | 'openai' {
+  return provider === 'gemini' ? 'gemini' : 'openai';
+}
 
 function providerUserMessage(provider: 'gemini' | 'openai', error: unknown): string {
   const message = error instanceof Error ? error.message : String(error || '');
@@ -31,6 +40,59 @@ function providerUserMessage(provider: 'gemini' | 'openai', error: unknown): str
     return `${label} is temporarily unavailable. Try again in a moment.`;
   }
   return `The advisor could not get an AI response from ${label}.`;
+}
+
+/**
+ * Stream one Gemini turn into the SSE writer. Returns whether any text was
+ * emitted — the caller uses that to decide if it may still fall through to the
+ * next provider (see the cascade in the route below).
+ *
+ * Server-key calls go through the Cloudflare AI Gateway; BYOK calls do not and
+ * keep their own inline path, so a user's key never transits our gateway.
+ */
+async function streamGeminiAdvisor(
+  env: Env,
+  model: string,
+  systemPrompt: string,
+  q: string,
+  send: (obj: Record<string, unknown>) => Promise<void>,
+): Promise<boolean> {
+  const resp = await fetchTracked(
+    env,
+    'gemini',
+    geminiUrl(model, { env, method: 'streamGenerateContent', query: '?alt=sse', routeThroughGateway: true }),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY ?? '' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: 'user', parts: [{ text: q }] }],
+        generationConfig: { maxOutputTokens: 512 },
+      }),
+    },
+  );
+  if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`);
+  const reader = resp.body.getReader();
+  const tdec = new TextDecoder();
+  let buf = '';
+  let emitted = false;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += tdec.decode(value, { stream: true });
+    const parts = buf.split('\n');
+    buf = parts.pop() ?? '';
+    for (const line of parts) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const parsed = JSON.parse(line.slice(6)) as Record<string, unknown>;
+        const candidates = parsed['candidates'] as { content?: { parts?: { text?: string }[] } }[] | undefined;
+        const text = candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+        if (text) { emitted = true; await send({ text }); }
+      } catch {}
+    }
+  }
+  return emitted;
 }
 
 app.use('*', requireMember);
@@ -125,13 +187,9 @@ ${context}`;
             } catch {}
           }
         }
-      } else {
-        const openai = new OpenAI({
-          apiKey: openaiKey || c.env.OPENAI_API_KEY,
-          // Server-key calls route through the gateway; BYOK OpenAI stays direct.
-          baseURL: openaiKey ? undefined : openAIServerBaseURL(c.env),
-          defaultHeaders: openaiKey ? undefined : gatewayHeaders(c.env),
-        });
+      } else if (openaiKey) {
+        // BYOK OpenAI: the user's own key, direct, no cascade and no gateway.
+        const openai = new OpenAI({ apiKey: openaiKey });
         const stream = await openai.chat.completions.create({
           model: MODELS.openaiFallback,
           max_tokens: 512,
@@ -146,6 +204,72 @@ ${context}`;
           if (text) await send({ text });
         }
         await recordIntegrationAttempt(c.env, 'openai', true);
+      } else {
+        // SERVER-key cascade, ordered by the admin-tunable advisor route.
+        //
+        // One constraint shapes this loop: once a step has emitted a token to
+        // the client we are committed to it. The bytes are already on the wire,
+        // so falling through to another provider would splice two different
+        // answers into one reply. A step may therefore only be retried if it
+        // failed BEFORE producing text — `emitted` is what enforces that.
+        const meta = { ...gatewayHeaders(c.env), ...gatewayMetadataHeader({ workload: 'advisor' }) };
+        const steps = await resolveRoute(c.env, 'advisor');
+        let emitted = false;
+        let lastError: unknown = null;
+        let lastProvider: LlmProvider = 'openai';
+
+        for (const step of steps) {
+          lastProvider = step.provider;
+          try {
+            if (step.provider === 'gemini') {
+              emitted = await streamGeminiAdvisor(c.env, step.model, systemPrompt, q, send);
+            } else {
+              const { client, models } = await openAiCompatibleStep(c.env, step, meta, 'text');
+              if (!client) continue;
+              for (const model of models) {
+                const stream = await client.chat.completions.create({
+                  model,
+                  max_tokens: 512,
+                  stream: true,
+                  stream_options: { include_usage: true },
+                  messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: q },
+                  ],
+                });
+                let usage: unknown = null;
+                for await (const chunk of stream) {
+                  const text = chunk.choices[0]?.delta?.content ?? '';
+                  if (text) { emitted = true; await send({ text }); }
+                  if ((chunk as { usage?: unknown }).usage) usage = (chunk as { usage?: unknown }).usage;
+                }
+                const cost = step.provider === 'merge' ? mergeReportedCostUsd(usage) : null;
+                await recordAiUsage(
+                  c.env, step.provider, model,
+                  usage as { prompt_tokens?: number; completion_tokens?: number } | null,
+                  cost,
+                );
+                if (emitted) break;
+              }
+            }
+            if (emitted) {
+              await recordIntegrationAttempt(c.env, step.provider, true);
+              break;
+            }
+          } catch (e) {
+            lastError = e;
+            await recordIntegrationAttempt(c.env, step.provider, false, e);
+            if (emitted) break; // committed — cannot splice a second answer in
+            const status = Number((e as { status?: unknown })?.status ?? 0);
+            if (step.provider === 'merge' && isMergeBudgetExhausted(status)) {
+              console.warn(`[advisor] Merge out of budget/key (HTTP ${status}) — skipping provider`);
+            }
+          }
+        }
+
+        if (!emitted) {
+          await send({ error: providerUserMessage(providerLabelFor(lastProvider), lastError ?? 'no provider produced a reply') });
+        }
       }
       await send({ done: true });
     } catch (e) {

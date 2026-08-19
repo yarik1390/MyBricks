@@ -5,7 +5,10 @@ import { callGeminiScan } from '../lib/gemini';
 import { enrichSetRecord } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { logEvent } from '../lib/analytics';
-import { MODELS, getOpenRouterPools, openAIServerBaseURL, openRouterBaseURL, gatewayHeaders, gatewayMetadataHeader, SCAN_SYSTEM_PROMPT, SHELF_SCAN_PROMPT } from '../lib/llm';
+import { MODELS, openAIServerBaseURL, gatewayHeaders, gatewayMetadataHeader, SCAN_SYSTEM_PROMPT, SHELF_SCAN_PROMPT } from '../lib/llm';
+import { resolveRoute } from '../lib/llm-routing';
+import { openAiCompatibleStep } from '../lib/llm-clients';
+import { isMergeBudgetExhausted, mergeReportedCostUsd } from '../lib/merge-gateway';
 import { recordAiUsage } from '../lib/ai-usage';
 import { verifyTurnstileToken } from '../lib/turnstile';
 import { matchSetsToCatalog, matchMinifigsToCatalog, type DescribedSet, type DescribedMinifig } from '../lib/scan-match';
@@ -56,7 +59,7 @@ async function openaiVisionDescribe(
   model: string,
   image: string,
   opts: ScanPromptOpts = {},
-): Promise<{ sets: DescribedSet[]; minifigs: DescribedMinifig[]; usage?: { prompt_tokens?: number; completion_tokens?: number } }> {
+): Promise<{ sets: DescribedSet[]; minifigs: DescribedMinifig[]; usage?: { prompt_tokens?: number; completion_tokens?: number }; rawUsage?: unknown }> {
   const messages: Parameters<typeof client.chat.completions.create>[0]['messages'] = [
     { role: 'system', content: opts.prompt || SCAN_SYSTEM_PROMPT },
     { role: 'user', content: [
@@ -80,66 +83,78 @@ async function openaiVisionDescribe(
       minifigs = Array.isArray(parsed?.minifigs) ? parsed.minifigs : [];
     } catch { /* model returned prose instead of JSON — treat as no result */ }
   }
-  return { sets, minifigs, usage: completion.usage };
+  return { sets, minifigs, usage: completion.usage, rawUsage: completion.usage };
 }
 
-// Cost-tiered vision cascade for the SHARED (keyless) scan: server Gemini on the
-// free tier first, then OpenRouter free vision models, then the paid gpt-4o-mini
-// backstop. Records each call in the ai_usage ledger + integration health.
+/**
+ * Vision cascade for the SHARED (keyless) scan, driven by the admin-tunable
+ * route in `lib/llm-routing.ts` rather than a hardcoded if-chain.
+ *
+ * Each step names a provider + model and is tried in order; a step that errors,
+ * or returns 200 with nothing usable, falls through to the next. "200 but
+ * empty" deliberately counts as a miss — a provider that answers with no sets
+ * has not identified anything, and treating it as success would strand the scan
+ * on the cheapest tier.
+ *
+ * The `openrouter` step with an empty model id expands in place to the live
+ * free-vision pool (refreshed daily into KV by the model-refresh cron), so that
+ * position stays current without anyone editing the route.
+ */
 async function describeSharedScan(env: Env, image: string, opts: ScanPromptOpts = {}): Promise<{ sets: DescribedSet[]; minifigs: DescribedMinifig[]; model: string } | { error: string }> {
   const meta = { ...gatewayHeaders(env), ...gatewayMetadataHeader({ workload: 'scan-shared' }) };
+  const steps = await resolveRoute(env, 'scan');
+  let lastOpenAiError: unknown = null;
 
-  // 1. Server Gemini (free tier) — routed through the gateway when configured.
-  if (env.GEMINI_API_KEY) {
-    try {
-      const r = await callGeminiScan(image, env.GEMINI_API_KEY, env, { routeThroughGateway: true, prompt: opts.prompt });
-      await recordAiUsage(env, 'gemini', MODELS.scan, null);
-      await recordIntegrationAttempt(env, 'gemini', true);
-      if (r?.sets?.length || r?.minifigs?.length) {
-        return { sets: (r.sets ?? []) as DescribedSet[], minifigs: (r.minifigs ?? []) as DescribedMinifig[], model: MODELS.scan };
-      }
-    } catch (e) {
-      await recordIntegrationAttempt(env, 'gemini', false, e);
-      console.warn('[scan] server Gemini failed:', (e as Error).message);
-    }
-  }
-
-  // 2. OpenRouter: free vision models first, then the cheap paid tier (still
-  //    ~2.6× cheaper than the gpt-4o-mini backstop below).
-  if (env.OPENROUTER_API_KEY) {
-    const orc = new OpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: openRouterBaseURL(env), defaultHeaders: meta });
-    // Live-validated free pool (daily model-refresh cron), curated as fallback.
-    const { vision: visionPool } = await getOpenRouterPools(env);
-    for (const model of [...visionPool, MODELS.scanOpenrouterPaid]) {
+  for (const step of steps) {
+    // Gemini speaks its own REST shape, not the OpenAI one — separate client.
+    if (step.provider === 'gemini') {
       try {
-        const { sets, minifigs, usage } = await openaiVisionDescribe(orc, model, image, opts);
-        await recordAiUsage(env, 'openrouter', model, usage);
+        const r = await callGeminiScan(image, env.GEMINI_API_KEY ?? '', env, { routeThroughGateway: true, prompt: opts.prompt });
+        await recordAiUsage(env, 'gemini', step.model, null);
+        await recordIntegrationAttempt(env, 'gemini', true);
+        if (r?.sets?.length || r?.minifigs?.length) {
+          return { sets: (r.sets ?? []) as DescribedSet[], minifigs: (r.minifigs ?? []) as DescribedMinifig[], model: step.model };
+        }
+      } catch (e) {
+        await recordIntegrationAttempt(env, 'gemini', false, e);
+        console.warn('[scan] Gemini step failed:', (e as Error).message);
+      }
+      continue;
+    }
+
+    // Everything else is OpenAI-compatible; only the baseURL and key differ.
+    const { client, models } = await openAiCompatibleStep(env, step, meta);
+    if (!client) continue;
+    for (const model of models) {
+      try {
+        const { sets, minifigs, usage, rawUsage } = await openaiVisionDescribe(client, model, image, opts);
+        // Merge reports what the call actually cost; everyone else is estimated.
+        const cost = step.provider === 'merge' ? mergeReportedCostUsd(rawUsage) : null;
+        await recordAiUsage(env, step.provider, model, usage, cost);
         if (sets.length || minifigs.length) {
-          await recordIntegrationAttempt(env, 'openrouter', true);
+          await recordIntegrationAttempt(env, step.provider, true);
           return { sets, minifigs, model };
         }
       } catch (e) {
-        console.warn(`[scan] OpenRouter ${model} failed:`, (e as Error).message);
+        if (step.provider === 'openai') lastOpenAiError = e;
+        // A hard budget or a rejected key takes the whole provider out for this
+        // request — no point walking its remaining models.
+        const status = Number((e as { status?: unknown })?.status ?? 0);
+        if (step.provider === 'merge' && isMergeBudgetExhausted(status)) {
+          await recordIntegrationAttempt(env, 'merge', false, `HTTP ${status} (budget or key exhausted)`);
+          console.warn(`[scan] Merge out of budget/key (HTTP ${status}) — skipping provider`);
+          break;
+        }
+        console.warn(`[scan] ${step.provider} ${model} failed:`, (e as Error).message);
       }
     }
   }
 
-  // 3. Paid backstop: server OpenAI gpt-4o-mini.
-  if (env.OPENAI_API_KEY) {
-    const oac = new OpenAI({ apiKey: env.OPENAI_API_KEY, baseURL: openAIServerBaseURL(env), defaultHeaders: meta });
-    try {
-      const { sets, minifigs, usage } = await openaiVisionDescribe(oac, MODELS.openaiFallback, image, opts);
-      await recordAiUsage(env, 'openai', MODELS.openaiFallback, usage);
-      await recordIntegrationAttempt(env, 'openai', true);
-      return { sets, minifigs, model: MODELS.openaiFallback };
-    } catch (e) {
-      await recordIntegrationAttempt(env, 'openai', false, e);
-      console.warn('[scan] OpenAI fallback failed:', (e as Error).message);
-      return { error: openAIIdentificationMessage(e) };
-    }
+  if (lastOpenAiError) {
+    await recordIntegrationAttempt(env, 'openai', false, lastOpenAiError);
+    return { error: openAIIdentificationMessage(lastOpenAiError) };
   }
-
-  return { error: 'AI identification is temporarily unavailable. Try a barcode scan, or add your own Gemini/OpenAI key.' };
+  return { error: 'No AI provider is configured for photo identification.' };
 }
 
 app.use('*', optionalMember);

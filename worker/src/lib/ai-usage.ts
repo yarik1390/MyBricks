@@ -61,7 +61,19 @@ export interface AiUsageEntry {
 export function createAiUsageAccumulator() {
   const map = new Map<string, AiUsageEntry>();
   return {
-    record(provider: string, model: string, usage?: OpenAIUsageLike | null): void {
+    /**
+     * @param reportedCostUsd real billed cost when the provider returns one
+     *        (Merge Gateway does, as `usage.cost`). Pass null/undefined to fall
+     *        back to the AI_PRICES estimate. Measured beats modelled: the price
+     *        table drifts the moment a provider re-prices, and the Merge budget
+     *        meter has to be right or it under-reports exactly when it matters.
+     */
+    record(
+      provider: string,
+      model: string,
+      usage?: OpenAIUsageLike | null,
+      reportedCostUsd?: number | null,
+    ): void {
       const inTokens = Math.max(0, Math.round(usage?.prompt_tokens ?? 0));
       const outTokens = Math.max(0, Math.round(usage?.completion_tokens ?? 0));
       const key = `${provider}::${model}`;
@@ -69,7 +81,9 @@ export function createAiUsageAccumulator() {
       cur.calls += 1;
       cur.inTokens += inTokens;
       cur.outTokens += outTokens;
-      cur.costUsd += estimateCostUsd(model, inTokens, outTokens);
+      cur.costUsd += typeof reportedCostUsd === 'number' && Number.isFinite(reportedCostUsd) && reportedCostUsd >= 0
+        ? reportedCostUsd
+        : estimateCostUsd(model, inTokens, outTokens);
       map.set(key, cur);
     },
     entries(): AiUsageEntry[] { return [...map.values()]; },
@@ -123,10 +137,42 @@ export async function recordAiUsage(
   provider: string,
   model: string,
   usage?: OpenAIUsageLike | null,
+  reportedCostUsd?: number | null,
 ): Promise<void> {
   const acc = createAiUsageAccumulator();
-  acc.record(provider, model, usage);
+  acc.record(provider, model, usage, reportedCostUsd);
   await flushAiUsage(env, acc.entries());
+}
+
+/**
+ * Month-to-date spend for one provider, in USD, from the ai_usage ledger.
+ *
+ * This is how "remaining Merge balance" is answered: Merge exposes spend only
+ * in its dashboard, so we sum what it told us each call actually cost. Fails
+ * open to zero spend — a ledger outage must not read as "budget exhausted" and
+ * strand the cascade on the paid backstop.
+ */
+export async function monthlyAiSpend(
+  env: Env,
+  provider: string,
+  now = new Date(),
+): Promise<{ month: string; spent_usd: number; calls: number }> {
+  const month = now.toISOString().slice(0, 7);
+  try {
+    await ensureAiUsageTable(env);
+    const row = await env.DB.prepare(
+      `SELECT COALESCE(SUM(cost_usd), 0) AS spent, COALESCE(SUM(calls), 0) AS calls
+       FROM ai_usage WHERE provider = ?1 AND substr(day, 1, 7) = ?2`,
+    ).bind(provider, month).first<{ spent: number; calls: number }>();
+    return {
+      month,
+      spent_usd: Math.round(Number(row?.spent ?? 0) * 1e6) / 1e6,
+      calls: Number(row?.calls ?? 0),
+    };
+  } catch (e) {
+    console.warn('[ai-usage] monthly spend read failed open:', (e as Error).message);
+    return { month, spent_usd: 0, calls: 0 };
+  }
 }
 
 export interface AiSpendStatus {

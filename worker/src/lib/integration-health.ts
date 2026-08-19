@@ -18,6 +18,7 @@ export type IntegrationName =
   | 'firebase'
   | 'openai'
   | 'openrouter'
+  | 'merge'
   | 'rebrickable'
   | 'brickinsights'
   | 'upcitemdb'
@@ -218,6 +219,14 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['valuation fallback'],
     notes: 'Cheap valuation fallback routed through the AI Gateway: a free model first, then cheap paid (DeepSeek), then gpt-4o-mini. Valuation only — public set metadata, no user data.',
     recommended_action: 'Add OPENROUTER_API_KEY (and the AI Gateway) to enable the free-first, low-cost valuation fallback.',
+  },
+  merge: {
+    label: 'Merge Gateway',
+    configured: (env) => !!(env.MERGE_GATEWAY_API_KEY ?? '').trim(),
+    required_secrets: ['MERGE_GATEWAY_API_KEY'],
+    used_by: ['scan', 'advisor', 'valuation', 'listing'],
+    notes: 'Second multi-provider LLM gateway alongside OpenRouter, OpenAI-compatible at /v1/openai. Billed against a fixed monthly allowance and reports real per-call cost (usage.cost), so its spend in the ai_usage ledger is measured rather than estimated. Where each workload tries it is admin-tunable under LLM routing.',
+    recommended_action: 'Add MERGE_GATEWAY_API_KEY (mg_...) from gateway.merge.dev, then set a HARD budget there so an exhausted allowance answers 402 instead of overspending.',
   },
   rebrickable: {
     label: 'Rebrickable',
