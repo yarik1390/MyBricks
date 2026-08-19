@@ -533,6 +533,13 @@ Newest first. (Service-worker `VERSION` in parentheses where relevant.)
   probed. `monthlyAiSpend()` sums reported cost per month against
   `MERGE_MONTHLY_BUDGET_USD` (default 10). Set a matching HARD budget in the
   Merge dashboard — that is the enforcement; the meter is early warning.
+- **Secret management is split, deliberately.** `MERGE_GATEWAY_API_KEY` and
+  `MERGE_MONTHLY_BUDGET_USD` are GitHub secrets uploaded by the deploy
+  workflow's `push_secrets` run. `OPENROUTER_API_KEY` is set DIRECTLY as a
+  Cloudflare Worker secret and is NOT in GitHub — the workflow lists it behind a
+  `-n` guard so a push_secrets run cannot clobber it, but that line is a no-op
+  today. Do not read a name's presence in the workflow as proof of where the key
+  lives; check `wrangler secret list`.
 - Admin API: `GET/PUT /api/admin/llm-routing`, `GET /api/admin/llm-status`,
   `POST /api/admin/llm-routing/refresh-models`. Console section "LLM Routing"
   in `me-admin.js`. The daily `model-refresh` cron now also caches Merge's

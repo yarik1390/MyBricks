@@ -338,6 +338,11 @@ jobs:
           # every workload's route skips an unkeyed provider at runtime.
           [ -n "${{ secrets.MERGE_GATEWAY_API_KEY }}" ]    && put MERGE_GATEWAY_API_KEY    "${{ secrets.MERGE_GATEWAY_API_KEY }}"    || true
           [ -n "${{ secrets.MERGE_MONTHLY_BUDGET_USD }}" ] && put MERGE_MONTHLY_BUDGET_USD "${{ secrets.MERGE_MONTHLY_BUDGET_USD }}" || true
+          # NOTE: OPENROUTER_API_KEY is currently set DIRECTLY as a Cloudflare
+          # Worker secret, not here. The -n guard makes this line a no-op while
+          # the GitHub secret is unset, so a push_secrets run cannot clobber the
+          # Cloudflare-side value. It is listed so key management CAN move here
+          # later; do not read its presence as proof the key lives in GitHub.
           [ -n "${{ secrets.OPENROUTER_API_KEY }}" ]       && put OPENROUTER_API_KEY       "${{ secrets.OPENROUTER_API_KEY }}"       || true
           put AI_GATEWAY_ACCOUNT_ID    "${CLOUDFLARE_ACCOUNT_ID}"
           [ -n "${{ secrets.AI_GATEWAY_TOKEN }}" ]         && put AI_GATEWAY_TOKEN         "${{ secrets.AI_GATEWAY_TOKEN }}"         || true
