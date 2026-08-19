@@ -105,8 +105,16 @@ export const MERGE_KNOWN_MODELS: string[] = [
   'openai/gpt-4o-mini',
   'openai/gpt-4o',
   'anthropic/claude-sonnet-4-20250514',
-  'google/gemini-2.5-flash',
-  'google/gemini-2.5-flash-lite',
+  'google/gemini-3.6-flash',
+  'google/gemini-3.5-flash-lite',
+  // Frontier/mid tiers, listed so they can be TRIED, not because they suit
+  // these workloads. Scan is structured JSON off one image and the advisor is
+  // a 512-token summary; none of that needs frontier reasoning, and at 3-25x
+  // Luna's rate they burn the monthly allowance for capability the tasks do
+  // not exercise. Reach for them only if Luna measurably mis-identifies sets.
+  'z-ai/glm-5.2',
+  'meta/muse-spark',
+  'x-ai/grok-4.5',
 ];
 
 export interface MergeModel {
