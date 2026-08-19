@@ -502,6 +502,43 @@ Both one-time bootstraps — PriceCharting per-set (`10,25,40,55`) and BrickEcon
 
 Newest first. (Service-worker `VERSION` in parentheses where relevant.)
 
+**Merge Gateway + admin-tunable LLM routing (2026-08-19, v430)**
+- **Merge Gateway runs in parallel with OpenRouter.** OpenAI-compatible at
+  `https://api-gateway.merge.dev/v1/openai`, key `mg_...` in
+  `MERGE_GATEWAY_API_KEY`, so it reuses the same `new OpenAI({ baseURL })`
+  client. `lib/merge-gateway.ts`.
+- **`lib/llm-routing.ts` replaces four hardcoded cascades.** Per-workload
+  (`scan`/`advisor`/`valuation`/`listing`) ORDERED list of provider+model steps
+  in `app_settings['llm_routing']`. Same shape/failure model as
+  `source-config.ts`: memoized per isolate, fail-open to `DEFAULT_LLM_ROUTES`.
+  Steps naming an unknown provider are DROPPED, not repaired — an uncallable
+  step is a silent dead stop in the cascade. An `openrouter` step with an EMPTY
+  model expands to the live free pool from KV; that is the only provider where
+  an empty model is meaningful.
+- **Two Merge properties the routing layer depends on:** it returns REAL
+  per-call cost as `usage.cost` (so Merge spend in `ai_usage` is measured, not
+  modelled from `AI_PRICES`), and a hard budget answers **HTTP 402** —
+  `isMergeBudgetExhausted` treats 401/402/403 as "skip this provider" and
+  deliberately does NOT include 429/5xx, which are transient.
+- **Advisor no longer goes straight to paid.** It previously used
+  `gpt-4o-mini` for every signed-in user without their own key even with a
+  server Gemini key present; the default route now leads with server Gemini
+  over the SSE path that already existed for BYOK. BYOK is untouched on both
+  routes — a user's key still never transits our gateway.
+- **Advisor cascade constraint:** once a step emits a token the response is
+  committed, so a step may only be retried if it failed BEFORE producing text
+  (`emitted` guards this). Otherwise two providers' answers splice together.
+- **No balance API.** Merge publishes spend only in its dashboard, and its
+  `/v1/*` returns 401 for every path (auth before routing) so absence cannot be
+  probed. `monthlyAiSpend()` sums reported cost per month against
+  `MERGE_MONTHLY_BUDGET_USD` (default 10). Set a matching HARD budget in the
+  Merge dashboard — that is the enforcement; the meter is early warning.
+- Admin API: `GET/PUT /api/admin/llm-routing`, `GET /api/admin/llm-status`,
+  `POST /api/admin/llm-routing/refresh-models`. Console section "LLM Routing"
+  in `me-admin.js`. The daily `model-refresh` cron now also caches Merge's
+  catalog to KV (`ai:merge-models`) — best-effort, never fails the OpenRouter
+  refresh the live cascades depend on.
+
 **Single-branch repo + public-facing cleanup (2026-08-19, v429)**
 - **`main` is now the only development branch.** The working branch
   `claude/mybricks-lego-app-EdTPX` was renamed to `main`, and the fully-merged

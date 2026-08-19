@@ -6866,3 +6866,46 @@ body[data-route="set-detail"] .detail-page-container[data-detail-tab="manage"] {
   .scan-method-copy small { font-size: 11px; }
   .photo-scan-setup .btn-row { flex-direction: column; }
 }
+
+/* ── LLM routing console ──────────────────────────────────────────────────
+   The cascade editor is a numbered, reorderable list per workload. Order IS
+   the semantics here (first provider that answers wins), so the step number
+   is a first-class element rather than decoration. */
+.llm-balance { border: 2px solid var(--line); border-radius: var(--r-2); padding: 12px 14px; margin-bottom: 16px; }
+.llm-balance.warn { border-color: var(--warn, #b8860b); }
+.llm-balance.danger { border-color: var(--down, #c0392b); }
+.llm-balance-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.llm-balance-figure { font-family: var(--mono, monospace); font-weight: 700; }
+.llm-balance-bar { height: 8px; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin: 8px 0 6px; }
+.llm-balance-bar > span { display: block; height: 100%; background: var(--accent, #ffd700); }
+.llm-balance.warn .llm-balance-bar > span { background: var(--warn, #b8860b); }
+.llm-balance.danger .llm-balance-bar > span { background: var(--down, #c0392b); }
+.llm-balance small { color: var(--muted); }
+
+.llm-workload + .llm-workload { margin-top: 18px; }
+.llm-workload-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.llm-workload-head h3 { margin: 0; font-size: 1rem; text-transform: capitalize; }
+.llm-steps { list-style: none; margin: 8px 0 4px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.llm-step {
+  display: grid; align-items: center; gap: 8px;
+  grid-template-columns: 28px minmax(72px, auto) minmax(0, 1fr) auto;
+  border: 2px solid var(--line); border-radius: var(--r-1, 10px); padding: 6px 8px;
+}
+/* A disabled or keyless step still has to be READABLE — it is the thing the
+   operator is deciding about — so dim it without dropping below contrast. */
+.llm-step.is-off { opacity: 0.65; }
+.llm-step.is-unconfigured { border-style: dashed; }
+.llm-step-order { font-family: var(--mono, monospace); font-weight: 700; text-align: center; color: var(--muted); }
+.llm-step-provider { font-weight: 700; text-transform: capitalize; }
+.llm-step-model { min-width: 0; width: 100%; }
+.llm-step-warn { grid-column: 1 / -1; font-size: 0.8rem; color: var(--down, #c0392b); }
+.llm-step-actions { display: flex; gap: 4px; }
+.llm-effective { display: block; color: var(--muted); overflow-wrap: anywhere; }
+.llm-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+
+/* Below ~560px the four-column step row cannot hold a model dropdown at a
+   usable width, so the select takes its own line. */
+@media (max-width: 560px) {
+  .llm-step { grid-template-columns: 28px minmax(0, 1fr) auto; }
+  .llm-step-model { grid-column: 1 / -1; }
+}

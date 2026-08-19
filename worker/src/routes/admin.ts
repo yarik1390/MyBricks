@@ -23,6 +23,11 @@ import { getKeyPoolStatus } from '../lib/pricesapi-keys';
 import { getFirecrawlKeyPoolStatus, resetFirecrawlKeyPool } from '../lib/firecrawl-keys';
 import { getBrightDataKeyPoolStatus, resetBrightDataKeyPool } from '../lib/brightdata-keys';
 import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG, applySourceConfig } from '../lib/source-config';
+import { getLlmRoutes, saveLlmRoutes, resolveRoute, providerConfigured, DEFAULT_LLM_ROUTES, LLM_PROVIDERS, LLM_WORKLOADS } from '../lib/llm-routing';
+import { mergeMonthlyBudgetUsd, mergeEnabled, fetchMergeModels } from '../lib/merge-gateway';
+import { monthlyAiSpend } from '../lib/ai-usage';
+import { getOpenRouterPools, MODELS } from '../lib/llm';
+import { MERGE_MODELS_KV_KEY } from '../jobs/model-refresh';
 import { getFeatureFlags, saveFeatureFlags, applyFeatureFlags, FEATURE_FLAGS } from '../lib/feature-flags';
 import { runServiceTest, TESTABLE_SERVICES } from '../lib/service-tests';
 import { getRecentRuns, recordCronStart, recordCronFinish, summarizeResult } from '../lib/cron-runs';
@@ -674,6 +679,129 @@ app.put('/source-config', async (c) => {
   if (!body || typeof body !== 'object') return c.json({ error: 'Expected a JSON object of source settings.' }, 400);
   const config = await saveSourceConfig(c.env, (body as { config?: unknown }).config ?? body);
   return c.json({ ok: true, config });
+});
+
+// ---------------------------------------------------------------------------
+// LLM routing console. One screen answers the four operational questions:
+// which provider each workload actually uses, what is still on the menu, how
+// much of the Merge allowance is left, and what would run right now.
+// ---------------------------------------------------------------------------
+
+// GET /api/admin/llm-routing — the routing table plus everything the editor
+// needs to render: defaults to reset to, the model ids each provider currently
+// offers, and which providers actually have a key.
+app.get('/llm-routing', async (c) => {
+  const [routes, orPools] = await Promise.all([
+    getLlmRoutes(c.env),
+    getOpenRouterPools(c.env).catch(() => ({ vision: [] as string[], text: [] as string[] })),
+  ]);
+
+  // Merge's catalog is refreshed daily into KV by model-refresh; read the blob
+  // rather than calling Merge on every console load.
+  let mergeModels: string[] = [];
+  let mergeCatalogAt: string | null = null;
+  try {
+    const raw = await c.env.CACHE_KV?.get(MERGE_MODELS_KV_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { models?: { id?: string }[]; checkedAt?: string };
+      mergeModels = (parsed.models ?? []).map((m) => String(m?.id ?? '')).filter(Boolean);
+      mergeCatalogAt = parsed.checkedAt ?? null;
+    }
+  } catch { /* last known good is optional */ }
+
+  // "What would run right now" — resolveRoute applies the same enabled/keyed
+  // filtering the live cascades do, so the console shows the effective path
+  // rather than the stored intent.
+  const effective: Record<string, { provider: string; model: string }[]> = {};
+  for (const w of LLM_WORKLOADS) {
+    effective[w] = (await resolveRoute(c.env, w)).map((s) => ({ provider: s.provider, model: s.model }));
+  }
+
+  return c.json({
+    routes,
+    defaults: DEFAULT_LLM_ROUTES,
+    effective,
+    workloads: LLM_WORKLOADS,
+    providers: LLM_PROVIDERS.map((p) => ({
+      name: p,
+      configured: providerConfigured(c.env, p),
+      // An empty model is only a valid "live pool" marker on OpenRouter.
+      supports_live_pool: p === 'openrouter',
+    })),
+    models: {
+      merge: mergeModels,
+      merge_checked_at: mergeCatalogAt,
+      openrouter_vision: orPools.vision,
+      openrouter_text: orPools.text,
+      gemini: [MODELS.scan, MODELS.advisor],
+      openai: [MODELS.openaiFallback],
+    },
+  });
+});
+
+// PUT /api/admin/llm-routing — persist an edited routing table. Validation and
+// coercion live in saveLlmRoutes so the API and any other writer share them.
+app.put('/llm-routing', async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object') return c.json({ error: 'Expected a JSON object of workload routes.' }, 400);
+  const routes = await saveLlmRoutes(c.env, (body as { routes?: unknown }).routes ?? body);
+  return c.json({ ok: true, routes });
+});
+
+// GET /api/admin/llm-status — Merge allowance meter + per-provider spend.
+//
+// Merge has no balance API (spend is dashboard-only), so "remaining" is derived
+// from the real per-call cost Merge reports, accumulated in ai_usage. Treat the
+// HARD budget configured in the Merge dashboard as the authoritative ceiling —
+// this meter is the early-warning, not the enforcement.
+app.get('/llm-status', async (c) => {
+  const budget = mergeMonthlyBudgetUsd(c.env);
+  const [merge, openrouter, openai, gemini] = await Promise.all([
+    monthlyAiSpend(c.env, 'merge'),
+    monthlyAiSpend(c.env, 'openrouter'),
+    monthlyAiSpend(c.env, 'openai'),
+    monthlyAiSpend(c.env, 'gemini'),
+  ]);
+  const remaining = Math.max(0, budget - merge.spent_usd);
+  const pct = budget > 0 ? Math.min(100, (merge.spent_usd / budget) * 100) : 0;
+  return c.json({
+    merge: {
+      configured: mergeEnabled(c.env),
+      month: merge.month,
+      budget_usd: budget,
+      spent_usd: merge.spent_usd,
+      remaining_usd: Math.round(remaining * 1e6) / 1e6,
+      pct: Math.round(pct * 10) / 10,
+      calls: merge.calls,
+      status: pct >= 100 ? 'over' : pct >= 80 ? 'warn' : 'ok',
+      // Spend is metered from reported cost, not read from Merge.
+      source: 'metered_locally',
+      dashboard_url: 'https://gateway.merge.dev/usage-spend/overview',
+    },
+    spend_by_provider: [
+      { provider: 'merge', ...merge },
+      { provider: 'openrouter', ...openrouter },
+      { provider: 'openai', ...openai },
+      { provider: 'gemini', ...gemini },
+    ],
+  });
+});
+
+// POST /api/admin/llm-routing/refresh-models — pull Merge's catalog on demand
+// instead of waiting for the daily model-refresh cron.
+app.post('/llm-routing/refresh-models', async (c) => {
+  const models = await fetchMergeModels(c.env);
+  if (!models?.length) {
+    return c.json({
+      ok: false,
+      error: 'Merge returned no model catalog. The /v1/models endpoint is undocumented and may not exist on this plan — the previously cached list is unchanged.',
+    }, 502);
+  }
+  await c.env.CACHE_KV?.put(
+    MERGE_MODELS_KV_KEY,
+    JSON.stringify({ models, checkedAt: new Date().toISOString() }),
+  );
+  return c.json({ ok: true, count: models.length, models: models.map((m) => m.id) });
 });
 
 // Runtime feature flags: enable/disable capabilities (eBay sold comps, Bright

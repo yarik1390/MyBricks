@@ -1,4 +1,4 @@
-import { $, haptic, escapeHtml, toast } from '../utils.js';
+import { $, haptic, escapeHtml, toast, fmtMoney } from '../utils.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
@@ -88,6 +88,12 @@ export async function renderMeAdmin() {
         <div id="pricingCenterContainer" class="admin-pricing-center" aria-live="polite">Loading pricing controls...</div>
       </section>
 
+      <section class="admin-section" id="adminLlm">
+        <h2 class="section-title">LLM Routing</h2>
+        <p class="admin-section-intro">Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.</p>
+        <div id="llmRoutingContainer" class="admin-panel" aria-live="polite">Loading LLM routing...</div>
+      </section>
+
       <section class="admin-section" id="adminUsers">
         <h2 class="section-title">Users</h2>
         <div class="admin-panel admin-user-panel">
@@ -166,6 +172,7 @@ export async function renderMeAdmin() {
   loadContribQueue();
   loadSupporters();
   loadPricingCenter();
+  loadLlmRouting();
 }
 
 function populateSectionHTML() {
@@ -276,6 +283,22 @@ function wireAdminShell() {
   processesEl?.addEventListener('click', (e) => {
     const runBtn = e.target.closest('[data-process-run]');
     if (runBtn) runProcess(runBtn.getAttribute('data-process-run'), runBtn);
+  });
+  const llmEl = document.getElementById('llmRoutingContainer');
+  llmEl?.addEventListener('click', (event) => {
+    if (event.target.closest('[data-llm-retry]')) return loadLlmRouting();
+    if (event.target.closest('[data-llm-save]')) return saveLlmRouting();
+    if (event.target.closest('[data-llm-refresh-models]')) return refreshMergeModels();
+    const reset = event.target.closest('[data-llm-reset]');
+    if (reset) return resetLlmWorkload(reset.getAttribute('data-llm-reset'));
+    const move = event.target.closest('[data-llm-move]');
+    if (move) return moveLlmStep(move.getAttribute('data-llm-workload'), Number(move.getAttribute('data-llm-index')), move.getAttribute('data-llm-move'));
+    const toggle = event.target.closest('[data-llm-toggle]');
+    if (toggle) return toggleLlmStep(toggle.getAttribute('data-llm-workload'), Number(toggle.getAttribute('data-llm-index')));
+  });
+  llmEl?.addEventListener('change', (event) => {
+    const sel = event.target.closest('[data-llm-model]');
+    if (sel) setLlmStepModel(sel.getAttribute('data-llm-workload'), Number(sel.getAttribute('data-llm-index')), sel.value);
   });
   const pricingEl = document.getElementById('pricingCenterContainer');
   pricingEl?.addEventListener('click', (event) => {
@@ -1234,6 +1257,179 @@ function recommendedQualityAction(cards) {
   if (priority.label === 'Low-confidence values') return 'Run Populate all safe sources and check provider access in the Services tab before increasing source weights.';
   if (priority.label.startsWith('eBay')) return 'Check eBay sold-comps access in the Services tab; do not fall back to active listings for sold value.';
   return 'Run Populate all safe sources to advance the next safe slice.';
+}
+
+// ---------------------------------------------------------------------------
+// LLM routing console. Edits are held locally and written in one PUT on Save,
+// so reordering a cascade never leaves a half-applied route live.
+// ---------------------------------------------------------------------------
+let llmData = null;
+let llmDirty = false;
+
+async function loadLlmRouting() {
+  const container = $('#llmRoutingContainer');
+  if (!container) return;
+  container.setAttribute('aria-busy', 'true');
+  try {
+    const [routing, status] = await Promise.all([
+      api('/api/admin/llm-routing'),
+      api('/api/admin/llm-status'),
+    ]);
+    llmData = { ...routing, status };
+    llmDirty = false;
+    renderLlmRouting();
+  } catch (error) {
+    container.innerHTML = `
+      <div class="admin-status-panel error">
+        <strong>${escapeHtml(t('admin.llmUnavailable'))}</strong>
+        <span>${escapeHtml(error?.message || String(error))}</span>
+        <button type="button" class="btn-secondary" data-llm-retry>${I.refresh({ w: 16 })}<span>${escapeHtml(t('common.retry'))}</span></button>
+      </div>`;
+  } finally {
+    container.removeAttribute('aria-busy');
+  }
+}
+
+// Model ids offered for a provider. OpenRouter's blank option is the live free
+// pool, which is why it is listed first there and nowhere else.
+function llmModelOptions(provider) {
+  const m = llmData?.models || {};
+  if (provider === 'merge') return m.merge || [];
+  if (provider === 'openrouter') return [...(m.openrouter_vision || []), ...(m.openrouter_text || [])];
+  if (provider === 'gemini') return m.gemini || [];
+  if (provider === 'openai') return m.openai || [];
+  return [];
+}
+
+function llmStepHTML(workload, step, index, total, configured) {
+  const options = llmModelOptions(step.provider);
+  // A stored model that has vanished from the catalog must stay selectable, or
+  // saving would silently rewrite the route to something else.
+  const known = step.model && options.includes(step.model);
+  const opts = [
+    step.provider === 'openrouter'
+      ? `<option value=""${step.model ? '' : ' selected'}>${escapeHtml(t('admin.llmLivePool'))}</option>`
+      : '',
+    !known && step.model ? `<option value="${escapeHtml(step.model)}" selected>${escapeHtml(step.model)}</option>` : '',
+    ...options.map(id => `<option value="${escapeHtml(id)}"${id === step.model ? ' selected' : ''}>${escapeHtml(id)}</option>`),
+  ].join('');
+  return `
+    <li class="llm-step${step.enabled ? '' : ' is-off'}${configured ? '' : ' is-unconfigured'}">
+      <span class="llm-step-order">${index + 1}</span>
+      <span class="llm-step-provider">${escapeHtml(step.provider)}</span>
+      <select class="input llm-step-model" data-llm-model data-llm-workload="${workload}" data-llm-index="${index}">${opts}</select>
+      ${configured ? '' : `<span class="llm-step-warn" title="${escapeHtml(t('admin.llmNoKeyHint'))}">${escapeHtml(t('admin.llmNoKey'))}</span>`}
+      <span class="llm-step-actions">
+        <button type="button" class="btn-icon" data-llm-move="up" data-llm-workload="${workload}" data-llm-index="${index}" ${index === 0 ? 'disabled' : ''} aria-label="${escapeHtml(t('admin.llmMoveUp'))}">↑</button>
+        <button type="button" class="btn-icon" data-llm-move="down" data-llm-workload="${workload}" data-llm-index="${index}" ${index === total - 1 ? 'disabled' : ''} aria-label="${escapeHtml(t('admin.llmMoveDown'))}">↓</button>
+        <button type="button" class="btn-icon" data-llm-toggle data-llm-workload="${workload}" data-llm-index="${index}" aria-pressed="${step.enabled ? 'true' : 'false'}">${step.enabled ? escapeHtml(t('admin.llmOn')) : escapeHtml(t('admin.llmOff'))}</button>
+      </span>
+    </li>`;
+}
+
+function renderLlmRouting() {
+  const container = $('#llmRoutingContainer');
+  if (!container || !llmData) return;
+  const configuredBy = Object.fromEntries((llmData.providers || []).map(p => [p.name, p.configured]));
+  const merge = llmData.status?.merge || {};
+  const tone = merge.status === 'over' ? 'danger' : merge.status === 'warn' ? 'warn' : 'ok';
+
+  const balance = `
+    <div class="llm-balance ${tone}">
+      <div class="llm-balance-head">
+        <strong>${escapeHtml(t('admin.llmMergeBalance'))}</strong>
+        <span class="llm-balance-figure">${fmtMoney(merge.remaining_usd || 0)} / ${fmtMoney(merge.budget_usd || 0)}</span>
+      </div>
+      <div class="llm-balance-bar"><span style="width:${Math.min(100, Number(merge.pct) || 0)}%"></span></div>
+      <small>${escapeHtml(t('admin.llmMeteredNote'))}</small>
+    </div>`;
+
+  const workloads = (llmData.workloads || []).map((workload) => {
+    const steps = llmData.routes?.[workload] || [];
+    const live = (llmData.effective?.[workload] || [])
+      .map(s => s.model ? `${s.provider}:${s.model}` : `${s.provider}:pool`).join(' → ');
+    return `
+      <div class="llm-workload">
+        <div class="llm-workload-head">
+          <h3>${escapeHtml(workload)}</h3>
+          <button type="button" class="btn-secondary btn-sm" data-llm-reset="${workload}">${escapeHtml(t('admin.llmReset'))}</button>
+        </div>
+        <ol class="llm-steps">
+          ${steps.map((step, i) => llmStepHTML(workload, step, i, steps.length, configuredBy[step.provider] !== false)).join('')}
+        </ol>
+        <small class="llm-effective">${escapeHtml(t('admin.llmEffective'))}: ${live ? escapeHtml(live) : escapeHtml(t('admin.llmEffectiveNone'))}</small>
+      </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    ${balance}
+    <div class="llm-workloads">${workloads}</div>
+    <div class="llm-actions">
+      <button type="button" class="btn-primary" data-llm-save ${llmDirty ? '' : 'disabled'}>${escapeHtml(t('admin.llmSave'))}</button>
+      <button type="button" class="btn-secondary" data-llm-refresh-models>${escapeHtml(t('admin.llmRefreshModels'))}</button>
+      <button type="button" class="btn-secondary" data-llm-retry>${escapeHtml(t('common.retry'))}</button>
+    </div>`;
+}
+
+function llmSteps(workload) {
+  return llmData?.routes?.[workload] || [];
+}
+
+function moveLlmStep(workload, index, dir) {
+  const steps = llmSteps(workload);
+  const target = dir === 'up' ? index - 1 : index + 1;
+  if (target < 0 || target >= steps.length) return;
+  [steps[index], steps[target]] = [steps[target], steps[index]];
+  llmDirty = true;
+  renderLlmRouting();
+}
+
+function toggleLlmStep(workload, index) {
+  const step = llmSteps(workload)[index];
+  if (!step) return;
+  step.enabled = !step.enabled;
+  llmDirty = true;
+  renderLlmRouting();
+}
+
+function setLlmStepModel(workload, index, model) {
+  const step = llmSteps(workload)[index];
+  if (!step) return;
+  step.model = model;
+  llmDirty = true;
+  renderLlmRouting();
+}
+
+function resetLlmWorkload(workload) {
+  if (!llmData?.defaults?.[workload]) return;
+  llmData.routes[workload] = llmData.defaults[workload].map(s => ({ ...s }));
+  llmDirty = true;
+  renderLlmRouting();
+}
+
+async function saveLlmRouting() {
+  if (!llmData) return;
+  try {
+    const res = await api('/api/admin/llm-routing', { method: 'PUT', body: { routes: llmData.routes } });
+    llmData.routes = res.routes || llmData.routes;
+    llmDirty = false;
+    toast(t('admin.llmSaved'), 'success');
+    // Re-read so the "what runs now" line reflects server-side validation
+    // rather than the edit we optimistically rendered.
+    await loadLlmRouting();
+  } catch (error) {
+    toast(error?.message || t('admin.llmSaveFailed'), 'error');
+  }
+}
+
+async function refreshMergeModels() {
+  try {
+    const res = await api('/api/admin/llm-routing/refresh-models', { method: 'POST' });
+    toast(tPlural('admin.llmModelsRefreshed', res.count || 0), 'success');
+    await loadLlmRouting();
+  } catch (error) {
+    toast(error?.message || t('admin.llmModelsFailed'), 'error');
+  }
 }
 
 async function loadPricingCenter() {

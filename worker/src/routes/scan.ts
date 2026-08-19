@@ -5,7 +5,7 @@ import { callGeminiScan } from '../lib/gemini';
 import { enrichSetRecord } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { logEvent } from '../lib/analytics';
-import { MODELS, openAIServerBaseURL, gatewayHeaders, gatewayMetadataHeader, SCAN_SYSTEM_PROMPT, SHELF_SCAN_PROMPT } from '../lib/llm';
+import { MODELS, gatewayHeaders, gatewayMetadataHeader, SCAN_SYSTEM_PROMPT, SHELF_SCAN_PROMPT } from '../lib/llm';
 import { resolveRoute } from '../lib/llm-routing';
 import { openAiCompatibleStep } from '../lib/llm-clients';
 import { isMergeBudgetExhausted, mergeReportedCostUsd } from '../lib/merge-gateway';

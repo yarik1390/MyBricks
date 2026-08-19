@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { MODELS } from '../lib/llm';
+import { fetchMergeModels } from '../lib/merge-gateway';
 
 /**
  * Daily OpenRouter free-model refresh — keeps the AI cascades on FREE models
@@ -22,6 +23,8 @@ import { MODELS } from '../lib/llm';
  */
 
 export const OR_POOLS_KV_KEY = 'ai:or-free-pools';
+/** Merge's model catalog, so the admin console's model picker stays current. */
+export const MERGE_MODELS_KV_KEY = 'ai:merge-models';
 
 export interface OrFreePools {
   vision: string[];
@@ -99,10 +102,31 @@ export async function runModelRefresh(env: Env) {
 
   const pools: OrFreePools = { ...buildPools(models), checkedAt: new Date().toISOString() };
   await env.CACHE_KV.put(OR_POOLS_KV_KEY, JSON.stringify(pools));
+
+  // Merge's catalog rides the same daily slot so the admin console's model
+  // picker never offers an id Merge has dropped. Strictly best-effort: the
+  // endpoint is undocumented, and a failure here must not fail the OpenRouter
+  // refresh above, which is the one the live cascades depend on. On failure the
+  // previous KV blob is left in place as last known good.
+  let mergeModels = 0;
+  try {
+    const merge = await fetchMergeModels(env);
+    if (merge?.length) {
+      await env.CACHE_KV.put(
+        MERGE_MODELS_KV_KEY,
+        JSON.stringify({ models: merge, checkedAt: new Date().toISOString() }),
+      );
+      mergeModels = merge.length;
+    }
+  } catch (e) {
+    console.warn('[model-refresh] Merge catalog refresh failed (non-fatal):', (e as Error).message);
+  }
+
   return {
     vision: pools.vision,
     text: pools.text,
     missingCurated: pools.missingCurated,
     catalogSize: models.length,
+    mergeModels,
   };
 }

@@ -488,4 +488,27 @@ Object.assign(en.detail, { minifigsCountOne: '{n} minifig', minifigsCountOther: 
 Object.assign(en.market, { listingsOne: '{n} listing', listingsOther: '{n} listings', slashListingsOne: ' / {n} listing', slashListingsOther: ' / {n} listings', slashSamplesOne: ' / {n} sample', slashSamplesOther: ' / {n} samples' });
 Object.assign(en.scanner, { estimatedValue: '(~estimated value)', marketGrabThreshold: 'Market {market} — under {price} is a grab{estimated}', underMarket: '{amount} under market{estimated}', withinMarket: 'within {pct}% of market{estimated}', overMarket: '{amount} over market{estimated}' });
 
+Object.assign(en.admin, {
+  llmUnavailable: 'LLM routing unavailable',
+  llmMergeBalance: 'Merge allowance remaining this month',
+  llmMeteredNote: 'Metered from the cost Merge reports on each call — its dashboard is the authoritative figure.',
+  llmEffective: 'Runs now',
+  llmEffectiveNone: 'no configured provider',
+  llmLivePool: 'Live free pool (auto-updated)',
+  llmNoKey: 'no key',
+  llmNoKeyHint: 'This provider has no API key configured, so the step is skipped at runtime.',
+  llmMoveUp: 'Move step earlier',
+  llmMoveDown: 'Move step later',
+  llmOn: 'On',
+  llmOff: 'Off',
+  llmReset: 'Reset to default',
+  llmSave: 'Save routing',
+  llmSaved: 'LLM routing saved',
+  llmSaveFailed: 'Could not save LLM routing',
+  llmRefreshModels: 'Refresh Merge models',
+  llmModelsRefreshedOne: 'Refreshed {n} Merge model',
+  llmModelsRefreshedOther: 'Refreshed {n} Merge models',
+  llmModelsFailed: 'Could not refresh the Merge model catalog',
+});
+
 export default en;

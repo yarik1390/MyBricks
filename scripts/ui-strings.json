@@ -4539,6 +4539,12 @@
     ]
   },
   {
+    "text": "LLM Routing",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "LOOKUP",
     "files": [
       "components/scanner.js",
@@ -4741,6 +4747,12 @@
     "text": "Live barcode scanning isn't supported on this browser — type the digits instead",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "Loading LLM routing...",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -6261,6 +6273,12 @@
     "text": "Optional: use your own OpenAI key for scans, advisor, and listing drafts",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
