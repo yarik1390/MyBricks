@@ -511,6 +511,13 @@ jobs:
           curl -s -X POST "${WORKER_URL}/api/admin/test/merge" \
             -H "Authorization: Bearer ${ADMIN_JWT}" \
             | jq -r '"Merge probe: \(.status // "unknown") — \(.detail // "no detail")"' || true
+          # Refresh Merge's model catalog and report what it actually serves.
+          # /v1/models is undocumented, so this doubles as the standing check
+          # that the console's model picker has real data behind it rather than
+          # a silently empty list. Free (no completion) and non-fatal.
+          curl -s -X POST "${WORKER_URL}/api/admin/llm-routing/refresh-models" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" \
+            | jq -r 'if .ok then "Merge catalog: \(.count) models; gpt-5.6=\([.models[] | select(test("gpt-5\\.6"))] | join(",") // "none")" else "Merge catalog: \(.error)" end' || true
 
       # Population is opt-in: dispatch with populate=true. It used to fire on
       # EVERY workflow_dispatch (so every push_secrets run re-populated), and
