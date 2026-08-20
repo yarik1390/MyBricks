@@ -47,18 +47,23 @@ export interface RouteStep {
  * Ordering principle, free -> allowance -> metered:
  *   gemini free tier  ->  openrouter free pool  ->  merge  ->  paid fallbacks
  *
- * The Merge steps name gpt-5.6-luna rather than gpt-4o-mini. Luna is dearer per
- * token ($0.20/$1.20 vs $0.15/$0.60) but multimodal and far more capable, and
- * these workloads are output-light — a 512-token advisor reply is a $0.0003
- * difference. Better identification also costs less overall by escalating the
- * cascade less often.
+ * The Merge steps name gpt-4o-mini, NOT gpt-5.6-luna. Luna looked like the
+ * better buy on paper — multimodal, ~85% of flagship quality, $0.20/$1.20 — but
+ * a measured scan on 2026-08-20 recorded:
+ *
+ *     merge/openai/gpt-5.6-luna: 7000ms -> error: Request timed out
+ *
+ * exactly the per-model ceiling, meaning it never answered at all. gpt-4o-mini
+ * is the id the Merge service probe actually exercises and passes. Paper specs
+ * are not evidence; move this only after a scan-diagnose run shows the new id
+ * returning inside the budget.
  */
 export const DEFAULT_LLM_ROUTES: Record<LlmWorkload, RouteStep[]> = {
   // Vision. Merge step must name a multimodal model.
   scan: [
     { provider: 'gemini', model: MODELS.scan, enabled: true },
     { provider: 'openrouter', model: '', enabled: true },
-    { provider: 'merge', model: 'openai/gpt-5.6-luna', enabled: true },
+    { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
     { provider: 'openrouter', model: MODELS.scanOpenrouterPaid, enabled: true },
     { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
@@ -67,19 +72,19 @@ export const DEFAULT_LLM_ROUTES: Record<LlmWorkload, RouteStep[]> = {
   // signed-in user without their own key.
   advisor: [
     { provider: 'gemini', model: MODELS.advisor, enabled: true },
-    { provider: 'merge', model: 'openai/gpt-5.6-luna', enabled: true },
+    { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
     { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
   valuation: [
     { provider: 'gemini', model: MODELS.valuation, enabled: true },
     { provider: 'openrouter', model: '', enabled: true },
-    { provider: 'merge', model: 'openai/gpt-5.6-luna', enabled: true },
+    { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
     { provider: 'openrouter', model: MODELS.openrouterPaid, enabled: true },
     { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
   listing: [
     { provider: 'gemini', model: MODELS.listing, enabled: true },
-    { provider: 'merge', model: 'openai/gpt-5.6-luna', enabled: true },
+    { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
     { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
 };
