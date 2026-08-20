@@ -11108,6 +11108,12 @@
     ]
   },
   {
+    "text": "no steps ran",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
     "text": "none recorded yet — the weekly LEGO price-guide download hasn’t run (or isn’t tracked). Trigger it from Activity → Pricing → “PriceCharting (bulk CSV)”.",
     "files": [
       "views/me-admin.js"
