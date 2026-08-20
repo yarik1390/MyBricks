@@ -29,6 +29,28 @@ export function ftsPrefixQuery(value: string): string {
     .join(' ');
 }
 
+function normalizeMatchText(value: unknown): string {
+  return value == null
+    ? ''
+    : String(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function rankCatalogMatch(row: Record<string, unknown>, cand: DescribedSet): number {
+  const rowName = normalizeMatchText(row.name);
+  const wantedName = normalizeMatchText(cand.name);
+  const rowTheme = normalizeMatchText(row.theme);
+  const wantedTheme = normalizeMatchText(cand.theme);
+  const rowYear = Number(row.year);
+  const wantedYear = Number(cand.year);
+
+  let score = 0;
+  if (wantedName && rowName === wantedName) score += 100;
+  else if (wantedName && rowName.startsWith(`${wantedName} `)) score += 30;
+  if (wantedTheme && rowTheme === wantedTheme) score += 20;
+  if (Number.isFinite(wantedYear) && rowYear === wantedYear) score += 10;
+  return score;
+}
+
 // Resolve AI-described sets to catalog rows. Strategy:
 //   1. Exact set number (and its "-1" variant) in one batched query.
 //   2. Fall back to the FTS search index by the described name — this is what
@@ -64,15 +86,22 @@ export async function matchSetsToCatalog(env: Env, described: DescribedSet[]): P
     const n = norm(cand.set_num);
     let row: Record<string, unknown> | null = n ? (byNum.get(n) ?? byNum.get(`${n}-1`) ?? null) : null;
 
-    // 2. FTS fallback by the described name.
+    // 2. FTS fallback by the described name. BM25 alone can rank an accessory
+    // such as "Millennium Falcon Bag Tag" above the actual Millennium Falcon.
+    // Pull a small candidate window, then prefer exact name/theme/year evidence.
     if (!row && norm(cand.name)) {
       const q = ftsPrefixQuery(norm(cand.name));
       if (q) {
         try {
-          row = await env.DB.prepare(
-            `SELECT s.* FROM lego_sets s JOIN lego_sets_fts f ON s.rowid = f.rowid
-             WHERE f.lego_sets_fts MATCH ? ORDER BY f.rank LIMIT 1`,
-          ).bind(q).first<Record<string, unknown>>();
+          const { results } = await env.DB.prepare(
+            `SELECT s.*, f.rank AS _scan_fts_rank
+             FROM lego_sets s JOIN lego_sets_fts f ON s.rowid = f.rowid
+             WHERE f.lego_sets_fts MATCH ? ORDER BY f.rank LIMIT 12`,
+          ).bind(q).all<Record<string, unknown>>();
+          row = results
+            .map((candidate, index) => ({ candidate, index, score: rankCatalogMatch(candidate, cand) }))
+            .sort((a, b) => b.score - a.score || a.index - b.index)[0]?.candidate ?? null;
+          if (row) delete row._scan_fts_rank;
         } catch (e) {
           console.warn('[scan-match] FTS lookup failed:', (e as Error).message);
         }
