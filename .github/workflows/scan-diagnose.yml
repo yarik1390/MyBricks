@@ -77,11 +77,19 @@ jobs:
           set -euo pipefail
           curl -sSL --max-time 30 "${IMAGE_URL}" -o /tmp/set.jpg
           echo "source image: $(stat -c%s /tmp/set.jpg) bytes"
-          # The app downscales to a 1024px JPEG before upload, so match that or
-          # the measurement is of a payload the app never sends.
+          # The app uploads a 1024px JPEG at q0.85, not the original. Measuring
+          # the raw CDN file would exaggerate upload time and mismeasure the
+          # very thing under investigation.
+          sudo apt-get install -y imagemagick >/dev/null 2>&1 || true
+          if command -v convert >/dev/null; then
+            convert /tmp/set.jpg -resize '1024x1024>' -quality 85 /tmp/scan.jpg
+          else
+            cp /tmp/set.jpg /tmp/scan.jpg
+          fi
+          echo "upload image: $(stat -c%s /tmp/scan.jpg) bytes"
           node - <<'NODE'
           const fs = require('fs');
-          const b64 = fs.readFileSync('/tmp/set.jpg').toString('base64');
+          const b64 = fs.readFileSync('/tmp/scan.jpg').toString('base64');
           const dataUrl = `data:image/jpeg;base64,${b64}`;
           if (dataUrl.length > 2_000_000) {
             console.error(`::error::image is ${dataUrl.length} chars; the route caps at 2,000,000`);
@@ -90,6 +98,20 @@ jobs:
           fs.writeFileSync('/tmp/body.json', JSON.stringify({ mode: process.env.MODE || 'image', image: dataUrl }));
           console.log(`payload: ${Math.round(dataUrl.length / 1024)} KB base64`);
           NODE
+
+      - name: What the route actually resolves to
+        env:
+          WORKER_URL: ${{ inputs.worker_url }}
+        run: |
+          set -euo pipefail
+          curl -s "${WORKER_URL}/api/admin/llm-routing" -H "Authorization: Bearer ${ADMIN_JWT}" -o /tmp/route.json || true
+          node -e '
+            const r = JSON.parse(require("fs").readFileSync("/tmp/route.json", "utf8"));
+            console.log("providers:", (r.providers || []).map(p => `${p.name}=${p.configured ? "keyed" : "NO KEY"}`).join("  "));
+            for (const [w, steps] of Object.entries(r.effective || {})) {
+              console.log(`effective ${w}: ${steps.length ? steps.map(s => `${s.provider}/${s.model || "pool"}`).join(" -> ") : "*** EMPTY — this workload has no usable provider ***"}`);
+            }
+          ' || { echo "could not read routing:"; head -c 400 /tmp/route.json; }
 
       - name: Scan, and report where the time went
         env:
@@ -114,10 +136,13 @@ jobs:
             console.log("identified:", r.identified, "| model:", r.model || "-");
             if (r.error) console.log("error:", r.error);
             if (r.reasoning) console.log("reasoning:", String(r.reasoning).slice(0, 200));
-            if (r.sets?.length) console.log("matched:", r.sets.map(s => `${s.set_num} ${s.name}`).join(", "));
+            if (r.sets && r.sets.length) console.log("matched:", r.sets.map(s => `${s.set_num} ${s.name}`).join(", "));
             const d = r.diag;
-            if (!d) return console.log("NO diag — the deployed Worker predates the instrumentation.");
-            console.log(`server total: ${d.total_ms}ms | image ${d.image_kb}KB`);
-            for (const t of d.timings || []) console.log(`  ${t.provider}/${t.model}: ${t.ms}ms -> ${t.outcome}`);
-            if (!(d.timings || []).length) console.log("  no steps ran — every route step was disabled or unkeyed");
+            if (!d) {
+              console.log("NO diag — the deployed Worker predates the instrumentation.");
+            } else {
+              console.log(`server total: ${d.total_ms}ms | image ${d.image_kb}KB`);
+              for (const t of d.timings || []) console.log(`  ${t.provider}/${t.model}: ${t.ms}ms -> ${t.outcome}`);
+              if (!(d.timings || []).length) console.log("  no steps ran — every route step was disabled or unkeyed");
+            }
           ' || { echo "unparseable response:"; head -c 600 /tmp/resp.json; }
