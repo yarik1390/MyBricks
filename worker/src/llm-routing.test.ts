@@ -73,15 +73,50 @@ describe('llm-routing', () => {
     expect(routes.scan).toEqual(DEFAULT_LLM_ROUTES.scan);
   });
 
-  it('replaces a stored scan cascade containing production-proven dead models', async () => {
+  it('removes active retired scan models while preserving valid admin policy', async () => {
+    await db.prepare(`INSERT INTO app_settings (key, value) VALUES ('llm_routing', ?)`)
+      .bind(JSON.stringify({
+        scan: [
+          { provider: 'openai', model: 'gpt-4o-mini', enabled: false },
+          { provider: 'merge', model: 'openai/gpt-5.6-luna', enabled: true },
+          { provider: 'openrouter', model: '', enabled: true },
+          { provider: 'gemini', model: 'gemini-3.6-flash', enabled: true },
+          { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
+        ],
+      })).run();
+
+    const routes = await getLlmRoutes(env as any);
+    expect(routes.scan).toEqual([
+      { provider: 'openai', model: 'gpt-4o-mini', enabled: false },
+      { provider: 'openrouter', model: '', enabled: true },
+      { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
+    ]);
+  });
+
+  it('preserves disabled retired scan entries as explicit admin policy', async () => {
+    await db.prepare(`INSERT INTO app_settings (key, value) VALUES ('llm_routing', ?)`)
+      .bind(JSON.stringify({
+        scan: [
+          { provider: 'gemini', model: 'gemini-3.6-flash', enabled: false },
+          { provider: 'openrouter', model: '', enabled: true },
+          { provider: 'openai', model: 'gpt-4o-mini', enabled: false },
+        ],
+      })).run();
+
+    const routes = await getLlmRoutes(env as any);
+    expect(routes.scan).toEqual([
+      { provider: 'gemini', model: 'gemini-3.6-flash', enabled: false },
+      { provider: 'openrouter', model: '', enabled: true },
+      { provider: 'openai', model: 'gpt-4o-mini', enabled: false },
+    ]);
+  });
+
+  it('uses scan defaults only when removing retired active models leaves no route', async () => {
     await db.prepare(`INSERT INTO app_settings (key, value) VALUES ('llm_routing', ?)`)
       .bind(JSON.stringify({
         scan: [
           { provider: 'merge', model: 'openai/gpt-5.6-luna', enabled: true },
           { provider: 'gemini', model: 'gemini-3.6-flash', enabled: true },
-          { provider: 'openrouter', model: '', enabled: true },
-          { provider: 'openrouter', model: 'mistralai/mistral-small-3.2-24b-instruct', enabled: true },
-          { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
         ],
       })).run();
 

@@ -124,29 +124,28 @@ function mergeSteps(name: LlmWorkload, stored: unknown): RouteStep[] {
 const RETIRED_SCAN_MODELS = new Set([
   // Production scan-diagnose runs showed these consume the full per-step budget
   // without returning a usable identification. Stored admin routing outlives
-  // code-default changes, so explicitly retire the measured-dead ids here.
+  // code-default changes, so active occurrences are filtered at read time.
   'merge:openai/gpt-5.6-luna',
   'gemini:gemini-3.6-flash',
 ]);
 
-function containsRetiredScanModel(stored: unknown): boolean {
-  if (!Array.isArray(stored)) return false;
-  return stored.some((raw) => {
-    if (!raw || typeof raw !== 'object') return false;
-    const { provider, model } = raw as Record<string, unknown>;
-    return typeof provider === 'string'
-      && typeof model === 'string'
-      && RETIRED_SCAN_MODELS.has(`${provider}:${model.trim()}`);
+function removeActiveRetiredScanModels(stored: unknown): unknown {
+  if (!Array.isArray(stored)) return stored;
+  return stored.filter((raw) => {
+    if (!raw || typeof raw !== 'object') return true;
+    const { provider, model, enabled } = raw as Record<string, unknown>;
+    if (enabled === false || typeof provider !== 'string' || typeof model !== 'string') return true;
+    return !RETIRED_SCAN_MODELS.has(`${provider}:${model.trim()}`);
   });
 }
 
 function mergeAll(stored: Record<string, unknown> | null): Record<LlmWorkload, RouteStep[]> {
   const out = {} as Record<LlmWorkload, RouteStep[]>;
   for (const name of LLM_WORKLOADS) {
-    const saved = stored?.[name];
-    out[name] = name === 'scan' && containsRetiredScanModel(saved)
-      ? DEFAULT_LLM_ROUTES.scan.map((s) => ({ ...s }))
-      : mergeSteps(name, saved);
+    const saved = name === 'scan'
+      ? removeActiveRetiredScanModels(stored?.[name])
+      : stored?.[name];
+    out[name] = mergeSteps(name, saved);
   }
   return out;
 }
