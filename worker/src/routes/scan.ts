@@ -217,7 +217,17 @@ async function describeSharedScan(
     await recordIntegrationAttempt(env, 'openai', false, lastOpenAiError);
     return { error: openAIIdentificationMessage(lastOpenAiError) };
   }
-  return { error: 'No AI provider is configured for photo identification.' };
+  // Two very different endings shared one message, and it cost hours of
+  // misdiagnosis: "no provider is configured" was returned BOTH when the route
+  // resolved to nothing AND when every step ran and came back empty. The second
+  // case looks identical from outside while being the opposite problem, so a
+  // 24s exhausted cascade read as a missing API key.
+  if (!steps.length) {
+    return { error: 'No AI provider is configured for photo identification.' };
+  }
+  return {
+    error: `Tried ${timings.length || steps.length} AI provider${(timings.length || steps.length) === 1 ? '' : 's'} without a confident match. Try a clearer photo, or scan the barcode.`,
+  };
 }
 
 app.use('*', optionalMember);
