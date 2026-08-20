@@ -121,9 +121,33 @@ function mergeSteps(name: LlmWorkload, stored: unknown): RouteStep[] {
   return out.length ? out : DEFAULT_LLM_ROUTES[name].map((s) => ({ ...s }));
 }
 
+const RETIRED_SCAN_MODELS = new Set([
+  // Production scan-diagnose runs showed these consume the full per-step budget
+  // without returning a usable identification. Stored admin routing outlives
+  // code-default changes, so explicitly retire the measured-dead ids here.
+  'merge:openai/gpt-5.6-luna',
+  'gemini:gemini-3.6-flash',
+]);
+
+function containsRetiredScanModel(stored: unknown): boolean {
+  if (!Array.isArray(stored)) return false;
+  return stored.some((raw) => {
+    if (!raw || typeof raw !== 'object') return false;
+    const { provider, model } = raw as Record<string, unknown>;
+    return typeof provider === 'string'
+      && typeof model === 'string'
+      && RETIRED_SCAN_MODELS.has(`${provider}:${model.trim()}`);
+  });
+}
+
 function mergeAll(stored: Record<string, unknown> | null): Record<LlmWorkload, RouteStep[]> {
   const out = {} as Record<LlmWorkload, RouteStep[]>;
-  for (const name of LLM_WORKLOADS) out[name] = mergeSteps(name, stored?.[name]);
+  for (const name of LLM_WORKLOADS) {
+    const saved = stored?.[name];
+    out[name] = name === 'scan' && containsRetiredScanModel(saved)
+      ? DEFAULT_LLM_ROUTES.scan.map((s) => ({ ...s }))
+      : mergeSteps(name, saved);
+  }
   return out;
 }
 
