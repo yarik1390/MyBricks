@@ -5,6 +5,17 @@ import { mergeBaseURL } from './merge-gateway';
 import type { RouteStep } from './llm-routing';
 
 /**
+ * The OpenAI SDK retries twice by DEFAULT, so every client here was silently
+ * making up to three attempts per model. That turned a 7s per-model ceiling
+ * into ~21s and is why a measured scan took 35s against a 24s budget: the
+ * budget bounded each ATTEMPT, not the call.
+ *
+ * Zero is right inside a cascade — the next step IS the retry, and it is a
+ * different provider, which is a better bet than the same one again.
+ */
+const RETRIES = 0;
+
+/**
  * Turn one route step into a ready OpenAI-compatible client plus the ordered
  * model ids to try on it.
  *
@@ -31,12 +42,12 @@ export async function openAiCompatibleStep(
       // Merge is billed against a fixed monthly allowance and is not fronted by
       // the Cloudflare AI Gateway — it is a gateway itself, and double-proxying
       // would hide the per-call `usage.cost` we meter the budget from.
-      return { client: new OpenAI({ apiKey, baseURL: mergeBaseURL() }), models: [step.model] };
+      return { client: new OpenAI({ apiKey, baseURL: mergeBaseURL(), maxRetries: RETRIES }), models: [step.model] };
     }
     case 'openrouter': {
       const apiKey = env.OPENROUTER_API_KEY;
       if (!apiKey) return { client: null, models: [] };
-      const client = new OpenAI({ apiKey, baseURL: openRouterBaseURL(env), defaultHeaders: headers });
+      const client = new OpenAI({ apiKey, baseURL: openRouterBaseURL(env), defaultHeaders: headers, maxRetries: RETRIES });
       if (step.model) return { client, models: [step.model] };
       const pools = await getOpenRouterPools(env);
       return { client, models: kind === 'vision' ? pools.vision : pools.text };
@@ -45,7 +56,7 @@ export async function openAiCompatibleStep(
       const apiKey = env.OPENAI_API_KEY;
       if (!apiKey || !step.model) return { client: null, models: [] };
       return {
-        client: new OpenAI({ apiKey, baseURL: openAIServerBaseURL(env), defaultHeaders: headers }),
+        client: new OpenAI({ apiKey, baseURL: openAIServerBaseURL(env), defaultHeaders: headers, maxRetries: RETRIES }),
         models: [step.model],
       };
     }

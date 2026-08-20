@@ -26,10 +26,15 @@ export const MODELS = {
   // these steps already use, so moving off the 2.5 generation costs nothing.
   // Flash-Lite stops at 3.5 on purpose: the workhorse moved to 3.6, the cheap
   // tier did not, and there is no 3.6 Lite.
-  scan: 'gemini-3.6-flash',
-  advisor: 'gemini-3.5-flash-lite',
-  valuation: 'gemini-3.5-flash-lite',
-  listing: 'gemini-3.5-flash-lite',
+  // Measured 2026-08-20: with 3.6-flash here, a clean UCS Millennium Falcon
+  // photo produced NOTHING at step 1 and was identified at step 2 by a free
+  // OpenRouter model. 2.5-flash is the id known to work on this key. Do not
+  // move this forward again without a scan-diagnose run proving the new id
+  // actually answers.
+  scan: 'gemini-2.5-flash',
+  advisor: 'gemini-2.5-flash-lite',
+  valuation: 'gemini-2.5-flash-lite',
+  listing: 'gemini-2.5-flash-lite',
   openaiFallback: 'gpt-4o-mini',
   // OpenRouter cheap valuation fallback. Resilience model: try an ORDERED POOL of
   // capable FREE models (each verified to currently exist on OpenRouter), falling
