@@ -129,8 +129,25 @@ const RETIRED_SCAN_MODELS = new Set([
   'gemini:gemini-3.6-flash',
 ]);
 
+function isStaleProductionScanCascade(stored: unknown): boolean {
+  if (!Array.isArray(stored)) return false;
+  const normalized = mergeSteps('scan', stored);
+  const stale = [
+    'merge:openai/gpt-5.6-luna:true',
+    'gemini:gemini-3.6-flash:true',
+    'openrouter::true',
+    'openrouter:mistralai/mistral-small-3.2-24b-instruct:true',
+    'openai:gpt-4o-mini:true',
+  ];
+  return normalized.length === stale.length && normalized.every((step, index) =>
+    `${step.provider}:${step.model}:${step.enabled}` === stale[index]);
+}
+
 function removeActiveRetiredScanModels(stored: unknown): unknown {
   if (!Array.isArray(stored)) return stored;
+  if (isStaleProductionScanCascade(stored)) {
+    return DEFAULT_LLM_ROUTES.scan.map((step) => ({ ...step }));
+  }
   return stored.filter((raw) => {
     if (!raw || typeof raw !== 'object') return true;
     const { provider, model, enabled } = raw as Record<string, unknown>;

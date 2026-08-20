@@ -73,6 +73,22 @@ describe('llm-routing', () => {
     expect(routes.scan).toEqual(DEFAULT_LLM_ROUTES.scan);
   });
 
+  it('replaces the exact stale production scan cascade with current defaults', async () => {
+    await db.prepare(`INSERT INTO app_settings (key, value) VALUES ('llm_routing', ?)`)
+      .bind(JSON.stringify({
+        scan: [
+          { provider: 'merge', model: 'openai/gpt-5.6-luna', enabled: true },
+          { provider: 'gemini', model: 'gemini-3.6-flash', enabled: true },
+          { provider: 'openrouter', model: '', enabled: true },
+          { provider: 'openrouter', model: 'mistralai/mistral-small-3.2-24b-instruct', enabled: true },
+          { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
+        ],
+      })).run();
+
+    const routes = await getLlmRoutes(env as any);
+    expect(routes.scan).toEqual(DEFAULT_LLM_ROUTES.scan);
+  });
+
   it('removes active retired scan models while preserving valid admin policy', async () => {
     await db.prepare(`INSERT INTO app_settings (key, value) VALUES ('llm_routing', ?)`)
       .bind(JSON.stringify({
