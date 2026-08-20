@@ -1,0 +1,123 @@
+name: Diagnose photo scan
+
+# Drives a REAL photo scan against production and prints the per-step timings.
+#
+# This exists because "scanning is slow" was diagnosed three times from
+# plausibility rather than measurement, and every guess was wrong. The timings
+# live in the scan response (`diag`), but reading them otherwise means attaching
+# a desktop debugger to a phone's WebView — so they were effectively
+# unreachable. Dispatch-only: it spends real provider budget, so it must never
+# run on a push.
+#
+# It sends X-Brickvault-Platform: android with a real admin JWT, which is the
+# documented way an authenticated native client skips Turnstile. That keeps this
+# measuring the AI cascade rather than the bot check.
+
+on:
+  workflow_dispatch:
+    inputs:
+      worker_url:
+        description: "Worker URL to test"
+        required: false
+        default: "https://brickvault-api.zhydenko.workers.dev"
+      image_url:
+        description: "Image to identify (a real LEGO set photo)"
+        required: false
+        default: "https://cdn.rebrickable.com/media/sets/75192-1.jpg"
+      mode:
+        description: "image (one set) or shelf (many)"
+        required: false
+        default: "image"
+        type: choice
+        options: [image, shelf]
+
+concurrency:
+  group: scan-diagnose
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Mint an admin token
+        env:
+          SUPABASE_JWT_SECRET_FOR_CI: ${{ secrets.SUPABASE_JWT_SECRET }}
+          ADMIN_USER_ID_FOR_CI: ${{ secrets.ADMIN_USER_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_JWT_SECRET_FOR_CI}" ] || [ -z "${ADMIN_USER_ID_FOR_CI}" ]; then
+            echo "::error::SUPABASE_JWT_SECRET and ADMIN_USER_ID are required."; exit 1
+          fi
+          ADMIN_JWT="$(node - <<'NODE'
+          const crypto = require('crypto');
+          const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+          const unsigned = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({
+            sub: process.env.ADMIN_USER_ID_FOR_CI,
+            role: 'authenticated',
+            exp: Math.floor(Date.now() / 1000) + 900,
+          })}`;
+          const sig = crypto.createHmac('sha256', process.env.SUPABASE_JWT_SECRET_FOR_CI)
+            .update(unsigned).digest('base64url');
+          process.stdout.write(`${unsigned}.${sig}`);
+          NODE
+          )"
+          echo "::add-mask::${ADMIN_JWT}"
+          echo "ADMIN_JWT=${ADMIN_JWT}" >> "$GITHUB_ENV"
+
+      - name: Build the request body from a real set photo
+        env:
+          IMAGE_URL: ${{ inputs.image_url }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          curl -sSL --max-time 30 "${IMAGE_URL}" -o /tmp/set.jpg
+          echo "source image: $(stat -c%s /tmp/set.jpg) bytes"
+          # The app downscales to a 1024px JPEG before upload, so match that or
+          # the measurement is of a payload the app never sends.
+          node - <<'NODE'
+          const fs = require('fs');
+          const b64 = fs.readFileSync('/tmp/set.jpg').toString('base64');
+          const dataUrl = `data:image/jpeg;base64,${b64}`;
+          if (dataUrl.length > 2_000_000) {
+            console.error(`::error::image is ${dataUrl.length} chars; the route caps at 2,000,000`);
+            process.exit(1);
+          }
+          fs.writeFileSync('/tmp/body.json', JSON.stringify({ mode: process.env.MODE || 'image', image: dataUrl }));
+          console.log(`payload: ${Math.round(dataUrl.length / 1024)} KB base64`);
+          NODE
+
+      - name: Scan, and report where the time went
+        env:
+          WORKER_URL: ${{ inputs.worker_url }}
+        run: |
+          set -euo pipefail
+          echo "--- POST /api/scan/identify ---"
+          # -w gives wall-clock from the CALLER's side, which includes upload —
+          # the half the server's own timings cannot see, and the half that made
+          # a 24s server budget still overrun a 30s client abort.
+          HTTP=$(curl -s -o /tmp/resp.json -w '%{http_code} total=%{time_total}s upload=%{time_starttransfer}s' \
+            --max-time 60 \
+            -X POST "${WORKER_URL}/api/scan/identify" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" \
+            -H "Content-Type: application/json" \
+            -H "X-Brickvault-Platform: android" \
+            --data-binary @/tmp/body.json) || true
+          echo "curl: ${HTTP}"
+          echo "--- response ---"
+          node -e '
+            const r = JSON.parse(require("fs").readFileSync("/tmp/resp.json", "utf8"));
+            console.log("identified:", r.identified, "| model:", r.model || "-");
+            if (r.error) console.log("error:", r.error);
+            if (r.reasoning) console.log("reasoning:", String(r.reasoning).slice(0, 200));
+            if (r.sets?.length) console.log("matched:", r.sets.map(s => `${s.set_num} ${s.name}`).join(", "));
+            const d = r.diag;
+            if (!d) return console.log("NO diag — the deployed Worker predates the instrumentation.");
+            console.log(`server total: ${d.total_ms}ms | image ${d.image_kb}KB`);
+            for (const t of d.timings || []) console.log(`  ${t.provider}/${t.model}: ${t.ms}ms -> ${t.outcome}`);
+            if (!(d.timings || []).length) console.log("  no steps ran — every route step was disabled or unkeyed");
+          ' || { echo "unparseable response:"; head -c 600 /tmp/resp.json; }
