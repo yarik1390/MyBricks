@@ -40,8 +40,9 @@ jobs:
           set -euo pipefail
           node -e '
             const u = new URL(process.env.IMAGE_URL);
-            if (u.protocol !== "https:" || u.hostname !== "cdn.rebrickable.com") {
-              throw new Error("image_url must be a public cdn.rebrickable.com HTTPS image");
+            if (u.protocol !== "https:" || u.hostname !== "cdn.rebrickable.com" ||
+                (!u.pathname.startsWith("/media/sets/") && !u.pathname.startsWith("/static/img/"))) {
+              throw new Error("image_url must be an allowlisted public cdn.rebrickable.com HTTPS image");
             }
           '
           curl --fail --silent --show-error --location --max-time 30 \
