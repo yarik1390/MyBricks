@@ -82,6 +82,7 @@ jobs:
             '"sets":[{"set_num":string|null,"name":string,"theme":string|null,"year":number|null,' +
             '"confidence":"high"|"medium"|"low"|"none","reasoning":string}],"minifigs":[]}. Do not guess.';
 
+          (async () => {
           const results = [];
           for (let repetition = 1; repetition <= repetitions; repetition++) {
             const controller = new AbortController();
@@ -122,4 +123,5 @@ jobs:
           }
           console.log(JSON.stringify({ expected_set: expected || null, results }, null, 2));
           if (results.some((r) => r.status !== 200)) process.exitCode = 1;
+          })().catch((error) => { console.error(error); process.exitCode = 1; });
           NODE
