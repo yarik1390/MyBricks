@@ -70,26 +70,6 @@ function scanQuotaBuckets(isSupporter: boolean, now = new Date()): ScanQuotaBuck
   ];
 }
 
-async function reserveScanQuotaBucket(
-  db: D1Database,
-  userId: string,
-  bucket: ScanQuotaBucket,
-  units: number,
-): Promise<boolean> {
-  // The limit is enforced inside the upsert rather than by a separate read, so
-  // concurrent scans cannot both observe room and push the bucket over its cap.
-  const row = await db.prepare(`
-    INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(user_id, endpoint, window_start) DO UPDATE
-      SET hit_count = rate_limits.hit_count + excluded.hit_count
-      WHERE rate_limits.hit_count + excluded.hit_count <= ?
-    RETURNING hit_count
-  `).bind(userId, bucket.endpoint, bucket.windowStart, units, bucket.limit)
-    .first<{ hit_count: number }>();
-  return !!row;
-}
-
 async function consumeSharedScanQuota(
   db: D1Database,
   userId: string,
@@ -97,26 +77,48 @@ async function consumeSharedScanQuota(
   units: number,
 ): Promise<{ allowed: true } | { allowed: false; label: string }> {
   const buckets = scanQuotaBuckets(isSupporter);
-  const reserved: ScanQuotaBucket[] = [];
+  const quotaValues = buckets.map(() => '(?, ?, ?)').join(', ');
+  const quotaParams = buckets.flatMap(bucket => [bucket.endpoint, bucket.windowStart, bucket.limit]);
 
-  // Reserve the daily bucket first. If a later bucket is full, release earlier
-  // reservations so rejected requests never consume quota. Counts are fungible,
-  // so this remains correct if another request reserves units before the release.
-  for (const bucket of [...buckets].reverse()) {
-    if (await reserveScanQuotaBucket(db, userId, bucket, units)) {
-      reserved.push(bucket);
-      continue;
+  // Check every bucket and increment every bucket in one SQLite statement. A
+  // blocked SELECT yields zero rows, while an allowed SELECT feeds all rows to
+  // the upsert. SQLite statement atomicity prevents partial hourly/daily charges
+  // and serializes competing writes without a compensating decrement.
+  const result = await db.prepare(`
+    WITH quota(endpoint, window_start, quota_limit) AS (
+      VALUES ${quotaValues}
+    )
+    INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+    SELECT ?, q.endpoint, q.window_start, ?
+    FROM quota q
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM quota candidate
+      LEFT JOIN rate_limits current
+        ON current.user_id = ?
+       AND current.endpoint = candidate.endpoint
+       AND current.window_start = candidate.window_start
+      WHERE COALESCE(current.hit_count, 0) + ? > candidate.quota_limit
+    )
+    ON CONFLICT(user_id, endpoint, window_start) DO UPDATE
+      SET hit_count = rate_limits.hit_count + excluded.hit_count
+    RETURNING endpoint, hit_count
+  `).bind(...quotaParams, userId, units, userId, units)
+    .all<{ endpoint: string; hit_count: number }>();
+
+  if (result.results.length === buckets.length) return { allowed: true };
+
+  // The all-or-none statement made no writes. Read only to select the most
+  // useful limit label; counts cannot decrease within these fixed UTC windows.
+  for (const bucket of buckets) {
+    const row = await db.prepare(
+      'SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint=? AND window_start=?',
+    ).bind(userId, bucket.endpoint, bucket.windowStart).first<{ hit_count: number }>();
+    if (Number(row?.hit_count ?? 0) + units > bucket.limit) {
+      return { allowed: false, label: bucket.label };
     }
-    if (reserved.length) {
-      await db.batch(reserved.map(r => db.prepare(`
-        UPDATE rate_limits
-        SET hit_count = MAX(0, hit_count - ?)
-        WHERE user_id=? AND endpoint=? AND window_start=?
-      `).bind(units, userId, r.endpoint, r.windowStart)));
-    }
-    return { allowed: false, label: bucket.label };
   }
-  return { allowed: true };
+  throw new Error('Scan quota reservation returned an incomplete result');
 }
 
 // Shelf Snap returns up to this many sets from one photo. Also sizes the

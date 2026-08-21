@@ -854,6 +854,30 @@ describe('BrickVault API Worker Tests', () => {
       expect(row?.hit_count).toBe(20);
     });
 
+    it('charges a successful Shelf Snap exactly three units', async () => {
+      const windowStart = new Date();
+      windowStart.setUTCHours(0, 0, 0, 0);
+      const ws = windowStart.toISOString();
+      await db.prepare(`
+        INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+        VALUES (?, 'scan_image', ?, 17)
+      `).bind(testUserId, ws).run();
+
+      const allowed = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'shelf', image: 'data:image/png;base64,mock' }),
+        }),
+        env,
+      );
+      expect(allowed.status).toBe(200);
+      const row = await db.prepare(
+        `SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint='scan_image' AND window_start=?`,
+      ).bind(testUserId, ws).first<{ hit_count: number }>();
+      expect(row?.hit_count).toBe(20);
+    });
+
     it('charges Shelf Snap three units and does not consume units when it would exceed the free cap', async () => {
       const windowStart = new Date();
       windowStart.setUTCHours(0, 0, 0, 0);
@@ -935,6 +959,41 @@ describe('BrickVault API Worker Tests', () => {
       expect(Object.fromEntries(counts.results.map(r => [r.endpoint, r.hit_count]))).toEqual({
         scan_image: 10,
         scan_image_supporter_daily: 198,
+      });
+    });
+
+    it('atomically admits only one concurrent supporter Shelf Snap when one fits', async () => {
+      await db.prepare(`INSERT INTO user_prefs (user_id, is_supporter) VALUES (?, 1)`).bind(testUserId).run();
+      const now = new Date();
+      const hourStart = new Date(now);
+      hourStart.setUTCMinutes(0, 0, 0);
+      const dayStart = new Date(now);
+      dayStart.setUTCHours(0, 0, 0, 0);
+      await db.batch([
+        db.prepare(`INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count) VALUES (?, 'scan_image', ?, 37)`)
+          .bind(testUserId, hourStart.toISOString()),
+        db.prepare(`INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count) VALUES (?, 'scan_image_supporter_daily', ?, 100)`)
+          .bind(testUserId, dayStart.toISOString()),
+      ]);
+
+      const request = () => app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'shelf', image: 'data:image/png;base64,mock' }),
+        }),
+        env,
+      );
+      const responses = await Promise.all([request(), request()]);
+      expect(responses.map(response => response.status).sort()).toEqual([200, 429]);
+
+      const counts = await db.prepare(`
+        SELECT endpoint, hit_count FROM rate_limits
+        WHERE user_id=? AND endpoint IN ('scan_image', 'scan_image_supporter_daily')
+      `).bind(testUserId).all<{ endpoint: string; hit_count: number }>();
+      expect(Object.fromEntries(counts.results.map(r => [r.endpoint, r.hit_count]))).toEqual({
+        scan_image: 40,
+        scan_image_supporter_daily: 103,
       });
     });
   });
