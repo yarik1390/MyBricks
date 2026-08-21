@@ -37,8 +37,11 @@ vi.mock('openai', () => {
                 ],
                 minifigs: [],
               })
+            : promptText.includes('data:image/x-non-lego')
+            ? JSON.stringify({ sets: [], minifigs: [] })
             : JSON.stringify({
-                sets: [{ set_num: '75192', name: 'Millennium Falcon', confidence: 'high', reasoning: 'Visual match' }]
+                sets: [{ set_num: '75192', name: 'Millennium Falcon', confidence: 'high', reasoning: 'Visual match' }],
+                minifigs: [],
               });
           return Promise.resolve({ choices: [{ message: { content } }] });
         })
@@ -667,6 +670,30 @@ describe('BrickVault API Worker Tests', () => {
       // its own key (enrichSetRecord overwrites `confidence` with PRICING
       // confidence); the shelf checklist UI shows it per row.
       expect(data.sets.find(s => s.set_num === '10497')?.match_confidence).toBe('medium');
+    });
+
+    it('returns friendly copy promptly when a scan is definitely not LEGO', async () => {
+      const started = Date.now();
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-OpenAI-Key': 'user-provided-key',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ mode: 'image', image: 'data:image/x-non-lego;base64,mock' }),
+        }),
+        env,
+      );
+
+      expect(res.status).toBe(200);
+      expect(Date.now() - started).toBeLessThan(1_000);
+      await expect(res.json()).resolves.toMatchObject({
+        identified: false,
+        reason: 'not_lego',
+        reasoning: "Plot twist: that doesn't look like a LEGO set. Try pointing me at some bricks!",
+      });
     });
 
     it('rejects unknown scan modes', async () => {

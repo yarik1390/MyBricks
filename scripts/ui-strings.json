@@ -5888,6 +5888,13 @@
     ]
   },
   {
+    "text": "Not LEGO",
+    "files": [
+      "components/scanner.js",
+      "lib/pure.js"
+    ]
+  },
+  {
     "text": "Not available",
     "files": [
       "views/portfolio-detail-market.js"

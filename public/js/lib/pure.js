@@ -114,11 +114,14 @@ export function classifyScanFailure(value) {
   if (/sign in|add your own|api key|not configured|provider unavailable|setup/i.test(message)) {
     return { kind: "setup", label: "Setup needed", retryable: false };
   }
+  if (/offline|network|fetch/i.test(message)) {
+    return { kind: "offline", label: "Connection needed", retryable: true };
+  }
   if (/timed? out|took too long|abort/i.test(message)) {
     return { kind: "timeout", label: "Timed out", retryable: true };
   }
-  if (/offline|network|fetch/i.test(message)) {
-    return { kind: "offline", label: "Connection needed", retryable: true };
+  if (/not (?:a )?lego|doesn.t look like (?:a )?lego|pointing me at some bricks/i.test(message)) {
+    return { kind: "notlego", label: "Not LEGO", retryable: true };
   }
   return { kind: "nomatch", label: "Not found", retryable: true };
 }

@@ -82,6 +82,7 @@ const SCAN_BUDGET_MS = 14_000;
 const STEP_TIMEOUT_MS = 7_000;
 // Do not start another model unless there is realistically time to finish it.
 const MIN_STEP_MS = 3_000;
+const NOT_LEGO_REASON = "Plot twist: that doesn't look like a LEGO set. Try pointing me at some bricks!";
 
 /**
  * Economy Luna is measured as cheap but too slow/inaccurate for the synchronous
@@ -126,7 +127,13 @@ async function openaiVisionDescribe(
   image: string,
   opts: ScanPromptOpts = {},
   timeoutMs = STEP_TIMEOUT_MS,
-): Promise<{ sets: DescribedSet[]; minifigs: DescribedMinifig[]; usage?: { prompt_tokens?: number; completion_tokens?: number }; rawUsage?: unknown }> {
+): Promise<{
+  sets: DescribedSet[];
+  minifigs: DescribedMinifig[];
+  parsed: boolean;
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
+  rawUsage?: unknown;
+}> {
   const messages: Parameters<typeof client.chat.completions.create>[0]['messages'] = [
     { role: 'system', content: opts.prompt || SCAN_SYSTEM_PROMPT },
     { role: 'user', content: [
@@ -145,14 +152,18 @@ async function openaiVisionDescribe(
   const text = completion.choices[0]?.message?.content;
   let sets: DescribedSet[] = [];
   let minifigs: DescribedMinifig[] = [];
+  let parsed = false;
   if (text) {
     try {
-      const parsed = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as { sets?: DescribedSet[]; minifigs?: DescribedMinifig[] };
-      sets = Array.isArray(parsed?.sets) ? parsed.sets : [];
-      minifigs = Array.isArray(parsed?.minifigs) ? parsed.minifigs : [];
-    } catch { /* model returned prose instead of JSON — treat as no result */ }
+      const payload = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as { sets?: DescribedSet[]; minifigs?: DescribedMinifig[] };
+      if (Array.isArray(payload?.sets) && Array.isArray(payload?.minifigs)) {
+        sets = payload.sets;
+        minifigs = payload.minifigs;
+        parsed = true;
+      }
+    } catch { /* malformed model output — let the provider cascade continue */ }
   }
-  return { sets, minifigs, usage: completion.usage, rawUsage: completion.usage };
+  return { sets, minifigs, parsed, usage: completion.usage, rawUsage: completion.usage };
 }
 
 /**
@@ -207,6 +218,10 @@ async function describeSharedScan(
         if (hit) {
           return { sets: (r.sets ?? []) as DescribedSet[], minifigs: (r.minifigs ?? []) as DescribedMinifig[], model: step.model };
         }
+        // An empty, successfully parsed response is a definitive classification,
+        // not a provider failure. Falling through made non-LEGO photos spend the
+        // whole cascade budget and eventually outrun the client timeout.
+        if (r) return { sets: [], minifigs: [], model: step.model };
       } catch (e) {
         await recordIntegrationAttempt(env, 'gemini', false, e);
         timings.push({ provider: 'gemini', model: step.model, ms: Date.now() - t0, outcome: `error: ${(e as Error).message.slice(0, 60)}` });
@@ -227,7 +242,7 @@ async function describeSharedScan(
       }
       const t0 = Date.now();
       try {
-        const { sets, minifigs, usage, rawUsage } = await openaiVisionDescribe(
+        const { sets, minifigs, parsed, usage, rawUsage } = await openaiVisionDescribe(
           client, model, image, opts, Math.min(STEP_TIMEOUT_MS, msLeft()),
         );
         // Merge reports what the call actually cost; everyone else is estimated.
@@ -239,6 +254,11 @@ async function describeSharedScan(
           await recordIntegrationAttempt(env, step.provider, true);
           return { sets, minifigs, model };
         }
+        if (parsed) {
+          await recordIntegrationAttempt(env, step.provider, true);
+          return { sets: [], minifigs: [], model };
+        }
+        await recordIntegrationAttempt(env, step.provider, false, 'Malformed scan response');
       } catch (e) {
         timings.push({ provider: step.provider, model, ms: Date.now() - t0, outcome: `error: ${(e as Error).message.slice(0, 60)}` });
         if (step.provider === 'openai') lastOpenAiError = e;
@@ -333,7 +353,10 @@ app.post('/identify', async (c) => {
     catch (e) { console.warn('[scan] BYOK Gemini failed:', (e as Error).message); }
     const sets = res?.sets ?? [];
     const minifigs = res?.minifigs ?? [];
-    if (!sets.length && !minifigs.length) return c.json({ identified: false, reasoning: NOT_FOUND });
+    if (res && !sets.length && !minifigs.length) {
+      return c.json({ identified: false, reason: 'not_lego', reasoning: NOT_LEGO_REASON });
+    }
+    if (!res) return c.json({ identified: false, reasoning: NOT_FOUND });
     return respondMatched(sets as DescribedSet[], minifigs as DescribedMinifig[], MODELS.scan);
   }
 
@@ -344,11 +367,18 @@ app.post('/identify', async (c) => {
 
   // 2. BYOK OpenAI — the user's own key, called directly.
   if (openaiKey) {
-    const client = new OpenAI({ apiKey: openaiKey });
-    let described: { sets: DescribedSet[]; minifigs: DescribedMinifig[] } = { sets: [], minifigs: [] };
+    const client = new OpenAI({ apiKey: openaiKey, maxRetries: 0 });
+    let described: Awaited<ReturnType<typeof openaiVisionDescribe>> = {
+      sets: [], minifigs: [], parsed: false,
+    };
     try { described = await openaiVisionDescribe(client, MODELS.openaiFallback, image, promptOpts); }
     catch (e) { return c.json({ identified: false, reasoning: openAIIdentificationMessage(e) }); }
-    if (!described.sets.length && !described.minifigs.length) return c.json({ identified: false, reasoning: NOT_FOUND });
+    if (!described.parsed) {
+      return c.json({ identified: false, reasoning: 'The AI returned an unreadable response. Please try again.' });
+    }
+    if (!described.sets.length && !described.minifigs.length) {
+      return c.json({ identified: false, reason: 'not_lego', reasoning: NOT_LEGO_REASON });
+    }
     return respondMatched(described.sets, described.minifigs, MODELS.openaiFallback);
   }
 
@@ -425,7 +455,9 @@ app.post('/identify', async (c) => {
     image_kb: Math.round(image.length / 1024),
   };
   if ('error' in desc) return c.json({ identified: false, reasoning: desc.error, diag });
-  if (!desc.sets.length && !desc.minifigs.length) return c.json({ identified: false, reasoning: NOT_FOUND, diag });
+  if (!desc.sets.length && !desc.minifigs.length) {
+    return c.json({ identified: false, reason: 'not_lego', reasoning: NOT_LEGO_REASON, diag });
+  }
   return respondMatched(desc.sets, desc.minifigs, desc.model);
 });
 

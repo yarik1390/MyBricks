@@ -872,10 +872,12 @@ export function showScanResult(res) {
     const reason = res.reasoning || "Couldn't identify the set. Try a clearer photo.";
     const noKey = !localStorage.getItem("bv_gemini_key") && !localStorage.getItem("bv_openai_key");
     const needsAccount = photoScanNeedsSetup();
-    const failure = classifyScanFailure(reason);
+    const failure = res.reason === 'not_lego'
+      ? { kind: 'notlego', label: 'Not LEGO', retryable: true }
+      : classifyScanFailure(reason);
     const rateLimited = failure.kind === "limit";
     const setupNeeded = failure.kind === "setup";
-    const badgeLabel = setupNeeded ? "SETUP NEEDED" : rateLimited ? "LIMIT REACHED" : failure.kind === "timeout" ? "TIMED OUT" : "NO MATCH";
+    const badgeLabel = setupNeeded ? "SETUP NEEDED" : rateLimited ? "LIMIT REACHED" : failure.kind === "timeout" ? "TIMED OUT" : failure.kind === "notlego" ? "NOT LEGO" : "NO MATCH";
     const badgeIcon = setupNeeded ? I.gear() : rateLimited ? I.alert() : I.close();
     const headLabel = failure.label;
     // Rate-limited: say WHEN it resets instead of offering a retry that will

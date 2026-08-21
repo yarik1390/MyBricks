@@ -547,6 +547,19 @@ describe('scanner failure states', () => {
     assert.equal(classifyScanFailure('Quota exceeded (HTTP 429)').kind, 'limit');
     assert.equal(classifyScanFailure("Couldn't identify the set").kind, 'nomatch');
   });
+
+  it('presents an explicit non-LEGO response distinctly from infrastructure failures', () => {
+    assert.deepEqual(classifyScanFailure("Plot twist: that doesn't look like a LEGO set. Try pointing me at some bricks!"), {
+      kind: 'notlego',
+      label: 'Not LEGO',
+      retryable: true,
+    });
+  });
+
+  it('keeps genuine timeout and offline failures distinct from non-LEGO results', () => {
+    assert.equal(classifyScanFailure('The scan timed out.').kind, 'timeout');
+    assert.equal(classifyScanFailure('Network offline.').kind, 'offline');
+  });
 });
 
 describe('authentication failure classification', () => {
