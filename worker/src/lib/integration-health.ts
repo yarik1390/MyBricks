@@ -19,6 +19,7 @@ export type IntegrationName =
   | 'openai'
   | 'openrouter'
   | 'merge'
+  | 'pateway'
   | 'rebrickable'
   | 'brickinsights'
   | 'upcitemdb'
@@ -227,6 +228,14 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['scan', 'advisor', 'valuation', 'listing'],
     notes: 'Second multi-provider LLM gateway alongside OpenRouter, OpenAI-compatible at /v1/openai. Billed against a fixed monthly allowance and reports real per-call cost (usage.cost), so its spend in the ai_usage ledger is measured rather than estimated. Where each workload tries it is admin-tunable under LLM routing.',
     recommended_action: 'Add MERGE_GATEWAY_API_KEY (mg_...) from gateway.merge.dev, then set a HARD budget there so an exhausted allowance answers 402 instead of overspending.',
+  },
+  pateway: {
+    label: 'Pateway Economy',
+    configured: (env) => !!(env.PATEWAY_ECONOMY_API_KEY ?? '').trim(),
+    required_secrets: ['PATEWAY_ECONOMY_API_KEY'],
+    used_by: ['background single-set scan verification'],
+    notes: 'Economy-key-bound GPT-5.6 Luna verification runs after the scan response. It records agreement telemetry only and never changes the synchronous result.',
+    recommended_action: 'Add a rotated Economy-mode PATEWAY_ECONOMY_API_KEY Worker secret. Do not use a Default-mode key or add Pateway to the synchronous cascade.',
   },
   rebrickable: {
     label: 'Rebrickable',

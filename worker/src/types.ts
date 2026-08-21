@@ -100,6 +100,10 @@ export interface Env {
   // OpenAI-compatible, so it reuses the same client with a different baseURL.
   // Where each workload tries it is admin-tunable — see lib/llm-routing.ts.
   MERGE_GATEWAY_API_KEY?: string;
+  // Pateway Economy key, bound to Economy Mode in Pateway's control plane.
+  // Used only for post-response scan verification; it is never in the
+  // synchronous identification cascade and must remain a Worker secret.
+  PATEWAY_ECONOMY_API_KEY?: string;
   // Monthly USD allowance the admin console meters Merge spend against
   // (default 10). Merge publishes no balance API, so remaining credit is
   // derived from the real per-call `usage.cost` it returns, accumulated in the

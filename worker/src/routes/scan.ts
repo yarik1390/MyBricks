@@ -9,6 +9,13 @@ import { MODELS, gatewayHeaders, gatewayMetadataHeader, SCAN_SYSTEM_PROMPT, SHEL
 import { resolveRoute } from '../lib/llm-routing';
 import { openAiCompatibleStep } from '../lib/llm-clients';
 import { isMergeBudgetExhausted, mergeReportedCostUsd } from '../lib/merge-gateway';
+import {
+  callPatewayEconomyScan,
+  estimatePatewayEconomyCostUsd,
+  normalizePatewaySetNumber,
+  patewaySetAgreement,
+  shouldVerifyWithPatewayEconomy,
+} from '../lib/pateway';
 import { recordAiUsage } from '../lib/ai-usage';
 import { verifyTurnstileToken } from '../lib/turnstile';
 import { matchSetsToCatalog, matchMinifigsToCatalog, type DescribedSet, type DescribedMinifig } from '../lib/scan-match';
@@ -75,6 +82,41 @@ const SCAN_BUDGET_MS = 14_000;
 const STEP_TIMEOUT_MS = 7_000;
 // Do not start another model unless there is realistically time to finish it.
 const MIN_STEP_MS = 3_000;
+
+/**
+ * Economy Luna is measured as cheap but too slow/inaccurate for the synchronous
+ * cascade. Verify a completed single-set scan in the background instead. The
+ * result is telemetry only: it never mutates or replaces the response already
+ * sent to the user, and there is intentionally no retry of a timed-out request.
+ */
+async function verifyScanWithPatewayEconomy(
+  env: Env,
+  image: string,
+  matchedSets: Record<string, unknown>[],
+): Promise<void> {
+  const key = env.PATEWAY_ECONOMY_API_KEY?.trim();
+  const expected = normalizePatewaySetNumber(matchedSets[0]?.set_num);
+  if (!key || !expected || matchedSets.length !== 1) return;
+  try {
+    const result = await callPatewayEconomyScan(image, key);
+    const usage = result.usage
+      ? { prompt_tokens: result.usage.input_tokens, completion_tokens: result.usage.output_tokens }
+      : null;
+    await recordAiUsage(env, 'pateway-economy', result.model, usage, estimatePatewayEconomyCostUsd(result.usage));
+    const observed = normalizePatewaySetNumber(result.sets.find((set) => (set.confidence ?? 'none') !== 'none')?.set_num);
+    const agrees = await patewaySetAgreement(env, expected, result.sets);
+    await recordIntegrationAttempt(
+      env,
+      'pateway',
+      agrees,
+      agrees ? undefined : `scan verification mismatch: expected ${expected}, got ${observed || 'no set'}`,
+    );
+    console.info(`[scan] Pateway Economy verification ${agrees ? 'agreed' : 'mismatched'} for ${expected}`);
+  } catch (error) {
+    await recordIntegrationAttempt(env, 'pateway', false, error);
+    console.warn('[scan] Pateway Economy background verification failed:', (error as Error).message);
+  }
+}
 
 // Describe LEGO set(s) in an image via any OpenAI-compatible client (OpenRouter
 // free vision models or OpenAI gpt-4o-mini). Returns AI-described sets + usage.
@@ -278,6 +320,9 @@ app.post('/identify', async (c) => {
     if (!setMatch.sets.length && !figMatch.minifigs.length) return c.json({ identified: false, reasoning: NOT_FOUND });
     const firstId = String((setMatch.sets[0] as Record<string, unknown>)?.set_num || (figMatch.minifigs[0] as Record<string, unknown>)?.fig_num || '');
     logEvent(c.env, 'scan_used', userId, { setNum: firstId });
+    if (shouldVerifyWithPatewayEconomy(shelfMode, setMatch.sets, c.env.PATEWAY_ECONOMY_API_KEY)) {
+      c.executionCtx.waitUntil(verifyScanWithPatewayEconomy(c.env, image, setMatch.sets));
+    }
     return c.json({ identified: true, sets: setMatch.sets, minifigs: figMatch.minifigs, confidence: setMatch.topConfidence, reasoning: setMatch.reasoning, model });
   };
 
