@@ -93,7 +93,7 @@ jobs:
                 method: 'POST', signal: controller.signal,
                 headers: { authorization: `Bearer ${process.env.DEEPSEEK_KEY}`, 'content-type': 'application/json' },
                 body: JSON.stringify({
-                  model, max_tokens: 700, response_format: { type: 'json_object' },
+                  model, max_tokens: 1400, thinking: { type: 'disabled' }, response_format: { type: 'json_object' },
                   messages: [{ role: 'user', content: [
                     { type: 'text', text: prompt },
                     { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${image}` } },
@@ -101,7 +101,9 @@ jobs:
                 }),
               });
               const body = await response.json().catch(() => ({}));
-              const content = String(body?.choices?.[0]?.message?.content ?? '');
+              const message = body?.choices?.[0]?.message || {};
+              const content = String(message.content ?? '');
+              const reasoning = String(message.reasoning_content ?? '');
               let parsed = null;
               try { parsed = JSON.parse(content.replace(/```json?\n?|```/g, '').trim()); } catch {}
               const setNumber = String(parsed?.sets?.[0]?.set_num ?? '');
@@ -112,6 +114,9 @@ jobs:
                 image_class: parsed?.image_class ?? null, identified: Boolean(setNumber),
                 exact: Boolean(expected && base === expected), set_number: setNumber || null,
                 prompt_tokens: usage.prompt_tokens ?? null, completion_tokens: usage.completion_tokens ?? null,
+                finish_reason: body?.choices?.[0]?.finish_reason ?? null,
+                content_chars: content.length, reasoning_chars: reasoning.length,
+                content_preview: content.slice(0, 240) || null,
                 error: response.ok ? null : String(body?.error?.message ?? 'request failed').slice(0, 160),
               });
             } catch (error) {
