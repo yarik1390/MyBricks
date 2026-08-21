@@ -17,7 +17,7 @@ permissions:
 
 env:
   DEEPSEEK_API_URL: https://api.deepseek.com/chat/completions
-  MERGE_API_URL: https://api.merge.dev/api/v1/chat/completions
+  MERGE_API_URL: https://api.merge.dev/api/v1/ai/chat/completions
 
 jobs:
   benchmark:
@@ -101,16 +101,20 @@ jobs:
             };
             if (model.provider === 'deepseek') body.thinking = { type: 'disabled' };
             let response, parsedBody;
-            try {
-              const timeoutMs = model.provider === 'deepseek' ? 7000 : 10000;
-              response = await fetch(model.url, {
-                method: 'POST', signal: AbortSignal.timeout(timeoutMs),
-                headers: { Authorization: `Bearer ${model.key}`, 'Content-Type': 'application/json', ...(model.provider === 'merge' ? { 'X-Project-ID': 'bricksvault-vision-suite' } : {}) },
-                body: JSON.stringify(body),
-              });
-              parsedBody = await response.json().catch(() => ({}));
-            } catch (e) {
-              return { fixture: fixture.id, kind: fixture.kind, expected: fixture.expected, model: model.id, rep, status: 0, ms: Date.now()-started, valid_json: false, exact: false, correct_class: false, error: e?.name || 'request_error' };
+            const timeoutMs = model.provider === 'deepseek' ? 7000 : 10000;
+            for (let attempt=1; attempt<=2; attempt++) {
+              try {
+                response = await fetch(model.url, {
+                  method: 'POST', signal: AbortSignal.timeout(timeoutMs),
+                  headers: { Authorization: `Bearer ${model.key}`, 'Content-Type': 'application/json', ...(model.provider === 'merge' ? { 'X-Project-ID': 'bricksvault-vision-suite' } : {}) },
+                  body: JSON.stringify(body),
+                });
+                parsedBody = await response.json().catch(() => ({}));
+                if (response.ok || response.status < 500 || attempt === 2) break;
+              } catch (e) {
+                if (attempt === 2) return { fixture: fixture.id, kind: fixture.kind, expected: fixture.expected, model: model.id, rep, status: 0, ms: Date.now()-started, valid_json: false, exact: false, correct_class: false, error: e?.name || 'request_error' };
+              }
+              await new Promise(resolve => setTimeout(resolve, 500));
             }
             const content = String(parsedBody?.choices?.[0]?.message?.content ?? '');
             let parsed = null;
