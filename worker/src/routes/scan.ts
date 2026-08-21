@@ -25,10 +25,99 @@ import type { Env, Variables } from '../types';
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Shared server-key scan limits; bypassed when the user supplies their own
-// Gemini/OpenAI key (BYOK). Free users get a daily cap; supporters keep a higher
-// hourly burst window.
-const SCAN_DAILY_LIMIT = 20;        // free tier: 20 AI photo scans per day
-const SCAN_HOURLY_LIMIT = 20;       // supporter burst window (× multiplier below)
+// Gemini/OpenAI key (BYOK). Quotas are measured in units so the larger Shelf
+// Snap request can be charged more accurately than a single-set photo.
+const FREE_SCAN_DAILY_LIMIT = 20;
+const SUPPORTER_SCAN_HOURLY_LIMIT = 40;
+const SUPPORTER_SCAN_DAILY_LIMIT = 200;
+const SINGLE_SCAN_UNITS = 1;
+const SHELF_SCAN_UNITS = 3;
+
+type ScanQuotaBucket = {
+  endpoint: string;
+  windowStart: string;
+  limit: number;
+  label: string;
+};
+
+function scanQuotaBuckets(isSupporter: boolean, now = new Date()): ScanQuotaBucket[] {
+  const dayStart = new Date(now);
+  dayStart.setUTCHours(0, 0, 0, 0);
+  if (!isSupporter) {
+    return [{
+      endpoint: 'scan_image',
+      windowStart: dayStart.toISOString(),
+      limit: FREE_SCAN_DAILY_LIMIT,
+      label: `${FREE_SCAN_DAILY_LIMIT} scan units per day`,
+    }];
+  }
+
+  const hourStart = new Date(now);
+  hourStart.setUTCMinutes(0, 0, 0);
+  return [
+    {
+      endpoint: 'scan_image',
+      windowStart: hourStart.toISOString(),
+      limit: SUPPORTER_SCAN_HOURLY_LIMIT,
+      label: `${SUPPORTER_SCAN_HOURLY_LIMIT} scan units per hour`,
+    },
+    {
+      endpoint: 'scan_image_supporter_daily',
+      windowStart: dayStart.toISOString(),
+      limit: SUPPORTER_SCAN_DAILY_LIMIT,
+      label: `${SUPPORTER_SCAN_DAILY_LIMIT} scan units per day`,
+    },
+  ];
+}
+
+async function reserveScanQuotaBucket(
+  db: D1Database,
+  userId: string,
+  bucket: ScanQuotaBucket,
+  units: number,
+): Promise<boolean> {
+  // The limit is enforced inside the upsert rather than by a separate read, so
+  // concurrent scans cannot both observe room and push the bucket over its cap.
+  const row = await db.prepare(`
+    INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(user_id, endpoint, window_start) DO UPDATE
+      SET hit_count = rate_limits.hit_count + excluded.hit_count
+      WHERE rate_limits.hit_count + excluded.hit_count <= ?
+    RETURNING hit_count
+  `).bind(userId, bucket.endpoint, bucket.windowStart, units, bucket.limit)
+    .first<{ hit_count: number }>();
+  return !!row;
+}
+
+async function consumeSharedScanQuota(
+  db: D1Database,
+  userId: string,
+  isSupporter: boolean,
+  units: number,
+): Promise<{ allowed: true } | { allowed: false; label: string }> {
+  const buckets = scanQuotaBuckets(isSupporter);
+  const reserved: ScanQuotaBucket[] = [];
+
+  // Reserve the daily bucket first. If a later bucket is full, release earlier
+  // reservations so rejected requests never consume quota. Counts are fungible,
+  // so this remains correct if another request reserves units before the release.
+  for (const bucket of [...buckets].reverse()) {
+    if (await reserveScanQuotaBucket(db, userId, bucket, units)) {
+      reserved.push(bucket);
+      continue;
+    }
+    if (reserved.length) {
+      await db.batch(reserved.map(r => db.prepare(`
+        UPDATE rate_limits
+        SET hit_count = MAX(0, hit_count - ?)
+        WHERE user_id=? AND endpoint=? AND window_start=?
+      `).bind(units, userId, r.endpoint, r.windowStart)));
+    }
+    return { allowed: false, label: bucket.label };
+  }
+  return { allowed: true };
+}
 
 // Shelf Snap returns up to this many sets from one photo. Also sizes the
 // completion budget: ~25 sets × ~70 tokens of JSON each fits well inside 2400.
@@ -456,28 +545,19 @@ app.post('/identify', async (c) => {
 
   {
     // Per-user cap on the shared server quota (BYOK above bypasses this entirely).
-    // Free tier: 20 scans PER DAY (UTC-day bucket). Supporters keep a higher
-    // HOURLY burst window so paid users aren't newly restricted.
+    // One normal photo costs one unit; Shelf Snap costs three. Free accounts
+    // use one daily bucket. Supporters must fit both hourly and daily buckets.
     const pref = await c.env.DB.prepare(
       'SELECT is_supporter FROM user_prefs WHERE user_id=?'
     ).bind(userId).first<{ is_supporter: number }>();
-    const isSupporter = !!pref?.is_supporter;
-    const limit = isSupporter ? SCAN_HOURLY_LIMIT * 5 : SCAN_DAILY_LIMIT;
-    const period = isSupporter ? 'hour' : 'day';
-    const windowStart = new Date();
-    if (isSupporter) windowStart.setMinutes(0, 0, 0);   // top of the hour
-    else windowStart.setUTCHours(0, 0, 0, 0);           // start of the UTC day
-    const ws = windowStart.toISOString();
-    // Atomic increment+read (RETURNING) — closes the read-after-write race where
-    // two concurrent scans could both slip past the cap.
-    const rl = await c.env.DB.prepare(`
-      INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
-      VALUES (?, 'scan_image', ?, 1)
-      ON CONFLICT (user_id, endpoint, window_start) DO UPDATE SET hit_count = rate_limits.hit_count + 1
-      RETURNING hit_count
-    `).bind(userId, ws).first<{ hit_count: number }>();
-    if ((rl?.hit_count || 0) > limit) {
-      return c.json({ error: `Rate limit: ${limit} photo scans per ${period}. Add your own Gemini/OpenAI key for unlimited scanning.` }, 429);
+    const isSupporter = pref?.is_supporter === 1;
+    const units = shelfMode ? SHELF_SCAN_UNITS : SINGLE_SCAN_UNITS;
+    const quota = await consumeSharedScanQuota(c.env.DB, userId, isSupporter, units);
+    if (!quota.allowed) {
+      const charge = units === 1 ? '' : ` Shelf Snap uses ${units} scan units.`;
+      return c.json({
+        error: `Rate limit: ${quota.label}.${charge} Add your own Gemini/OpenAI key for unlimited scanning.`,
+      }, 429);
     }
   }
 

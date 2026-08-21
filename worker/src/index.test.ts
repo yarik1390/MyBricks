@@ -785,12 +785,12 @@ describe('BrickVault API Worker Tests', () => {
 
       expect(res.status).toBe(429);
       const data = await res.json<{ error: string }>();
-      expect(data.error).toContain('Rate limit: 20 photo scans per day');
+      expect(data.error).toContain('Rate limit: 20 scan units per day');
     });
 
     it('allows the 20th shared photo scan and blocks the 21st', async () => {
-      // Free tier: 20 scans per UTC day. Seed today's bucket at 19 so the next
-      // scan is the 20th (allowed) and the one after is the 21st (blocked).
+      // Free tier: 20 units per UTC day. Seed today's bucket at 19 so the next
+      // single-photo scan is the 20th unit (allowed) and the one after is blocked.
       const windowStart = new Date();
       windowStart.setUTCHours(0, 0, 0, 0);
       const ws = windowStart.toISOString();
@@ -826,6 +826,116 @@ describe('BrickVault API Worker Tests', () => {
         env
       );
       expect(second.status).toBe(429);
+    });
+
+    it('does not charge barcode scans against the shared AI quota', async () => {
+      const windowStart = new Date();
+      windowStart.setUTCHours(0, 0, 0, 0);
+      const ws = windowStart.toISOString();
+      await db.prepare(`
+        INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+        VALUES (?, 'scan_image', ?, 20)
+      `).bind(testUserId, ws).run();
+      await db.prepare(`UPDATE lego_sets SET upc='0673419280310' WHERE set_num='75192'`).run();
+
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'barcode', barcode: '0673419280310' }),
+        }),
+        env,
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ identified: true });
+      const row = await db.prepare(
+        `SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint='scan_image' AND window_start=?`,
+      ).bind(testUserId, ws).first<{ hit_count: number }>();
+      expect(row?.hit_count).toBe(20);
+    });
+
+    it('charges Shelf Snap three units and does not consume units when it would exceed the free cap', async () => {
+      const windowStart = new Date();
+      windowStart.setUTCHours(0, 0, 0, 0);
+      const ws = windowStart.toISOString();
+      await db.prepare(`
+        INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+        VALUES (?, 'scan_image', ?, 18)
+      `).bind(testUserId, ws).run();
+
+      const blocked = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'shelf', image: 'data:image/png;base64,mock' }),
+        }),
+        env,
+      );
+      expect(blocked.status).toBe(429);
+      expect(await blocked.json()).toMatchObject({
+        error: expect.stringContaining('3 scan units'),
+      });
+      const row = await db.prepare(
+        `SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint='scan_image' AND window_start=?`,
+      ).bind(testUserId, ws).first<{ hit_count: number }>();
+      expect(row?.hit_count).toBe(18);
+    });
+
+    it('gives supporters a 40-unit hourly burst and a 200-unit daily ceiling', async () => {
+      await db.prepare(`INSERT INTO user_prefs (user_id, is_supporter) VALUES (?, 1)`).bind(testUserId).run();
+      const now = new Date();
+      const hourStart = new Date(now);
+      hourStart.setUTCMinutes(0, 0, 0);
+      const dayStart = new Date(now);
+      dayStart.setUTCHours(0, 0, 0, 0);
+
+      await db.batch([
+        db.prepare(`INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count) VALUES (?, 'scan_image', ?, 38)`)
+          .bind(testUserId, hourStart.toISOString()),
+        db.prepare(`INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count) VALUES (?, 'scan_image_supporter_daily', ?, 100)`)
+          .bind(testUserId, dayStart.toISOString()),
+      ]);
+
+      const hourlyBlocked = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'shelf', image: 'data:image/png;base64,mock' }),
+        }),
+        env,
+      );
+      expect(hourlyBlocked.status).toBe(429);
+      expect(await hourlyBlocked.json()).toMatchObject({ error: expect.stringContaining('40 scan units per hour') });
+      const afterHourlyBlock = await db.prepare(`
+        SELECT hit_count FROM rate_limits
+        WHERE user_id=? AND endpoint='scan_image_supporter_daily' AND window_start=?
+      `).bind(testUserId, dayStart.toISOString()).first<{ hit_count: number }>();
+      expect(afterHourlyBlock?.hit_count).toBe(100);
+
+      await db.prepare(`UPDATE rate_limits SET hit_count=10 WHERE user_id=? AND endpoint='scan_image'`)
+        .bind(testUserId).run();
+      await db.prepare(`UPDATE rate_limits SET hit_count=198 WHERE user_id=? AND endpoint='scan_image_supporter_daily'`)
+        .bind(testUserId).run();
+
+      const dailyBlocked = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'shelf', image: 'data:image/png;base64,mock' }),
+        }),
+        env,
+      );
+      expect(dailyBlocked.status).toBe(429);
+      expect(await dailyBlocked.json()).toMatchObject({ error: expect.stringContaining('200 scan units per day') });
+
+      const counts = await db.prepare(`
+        SELECT endpoint, hit_count FROM rate_limits
+        WHERE user_id=? AND endpoint IN ('scan_image', 'scan_image_supporter_daily')
+      `).bind(testUserId).all<{ endpoint: string; hit_count: number }>();
+      expect(Object.fromEntries(counts.results.map(r => [r.endpoint, r.hit_count]))).toEqual({
+        scan_image: 10,
+        scan_image_supporter_daily: 198,
+      });
     });
   });
 
