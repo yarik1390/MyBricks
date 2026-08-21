@@ -1,0 +1,160 @@
+name: DeepSeek vs Gemini vision suite
+
+on:
+  workflow_dispatch:
+    inputs:
+      repetitions:
+        description: "Repetitions per fixture and model (1-2)"
+        required: false
+        default: "1"
+      max_cost_usd:
+        description: "Hard projected benchmark cost ceiling"
+        required: false
+        default: "0.25"
+
+permissions:
+  contents: read
+
+env:
+  DEEPSEEK_API_URL: https://api.deepseek.com/chat/completions
+  MERGE_API_URL: https://api.merge.dev/api/v1/chat/completions
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      MERGE_GATEWAY_API_KEY: ${{ secrets.MERGE_GATEWAY_API_KEY }}
+      REPETITIONS: ${{ inputs.repetitions }}
+      MAX_COST_USD: ${{ inputs.max_cost_usd }}
+    steps:
+      - name: Benchmark blinded fixture suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DEEPSEEK_API_KEY" || { echo "DEEPSEEK_API_KEY is missing" >&2; exit 1; }
+          test -n "$MERGE_GATEWAY_API_KEY" || { echo "MERGE_GATEWAY_API_KEY is missing" >&2; exit 1; }
+          cat > /tmp/benchmark.mjs <<'NODE'
+          import { writeFile } from 'node:fs/promises';
+
+          const fixtures = [
+            { id: 'f01', expected: '75192', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/75192-1.jpg' },
+            { id: 'f02', expected: '10307', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/10307-1.jpg' },
+            { id: 'f03', expected: '21348', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/21348-1.jpg' },
+            { id: 'f04', expected: '21019', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/21019-1.jpg' },
+            { id: 'f05', expected: '7153', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/7153-1.jpg' },
+            { id: 'f06', expected: '10300', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/10300-1.jpg' },
+            { id: 'f07', expected: '42115', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/42115-1.jpg' },
+            { id: 'f08', expected: '10281', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/10281-1.jpg' },
+            { id: 'f09', expected: '76419', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/76419-1.jpg' },
+            { id: 'f10', expected: '43222', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/43222-1.jpg' },
+            { id: 'f11', expected: '10295', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/10295-1.jpg' },
+            { id: 'f12', expected: '10316', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/10316-1.jpg' },
+            { id: 'f13', expected: '10302', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/10302-1.jpg' },
+            { id: 'f14', expected: '75367', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/75367-1.jpg' },
+            { id: 'f15', expected: '76269', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/76269-1.jpg' },
+            { id: 'f16', expected: '', kind: 'not_lego', url: 'https://cdn.rebrickable.com/static/img/title.png' },
+            { id: 'f17', expected: '', kind: 'not_lego', url: 'https://cdn.rebrickable.com/static/img/logo.png' },
+          ];
+          const models = [
+            { id: 'deepseek-v4-flash-vision-exp', provider: 'deepseek', url: process.env.DEEPSEEK_API_URL, key: process.env.DEEPSEEK_API_KEY },
+            { id: 'google/gemini-3.5-flash-lite', provider: 'merge', url: process.env.MERGE_API_URL, key: process.env.MERGE_GATEWAY_API_KEY },
+          ];
+          const prompt = 'Inspect the image. Decide whether LEGO is visible. Return only JSON with image_class (lego, not_lego, or uncertain), sets (array), and minifigs (array). For each set use set_num, set_name, theme, year, confidence. If a printed set number is visible, copy only its digits. If no number is visible, identify only when confident. Never infer from URL or filename.';
+          const reps = Math.max(1, Math.min(2, Number(process.env.REPETITIONS || 1)));
+          const ceiling = Number(process.env.MAX_COST_USD || 0.25);
+          if (!Number.isFinite(ceiling) || ceiling <= 0 || ceiling > 1) throw new Error('max_cost_usd must be >0 and <=1');
+          const projected = fixtures.length * reps * 0.005;
+          if (projected > ceiling) throw new Error(`Projected cost ceiling exceeded: $${projected.toFixed(4)} > $${ceiling.toFixed(4)}`);
+          const base = s => String(s || '').trim().replace(/-\d+$/, '');
+          const median = a => { const x=[...a].sort((p,q)=>p-q); return x.length ? x[Math.floor(x.length/2)] : null; };
+          const p95 = a => { const x=[...a].sort((p,q)=>p-q); return x.length ? x[Math.min(x.length-1, Math.ceil(x.length*.95)-1)] : null; };
+          async function dataUrl(url) {
+            const u = new URL(url);
+            if (u.protocol !== 'https:' || u.hostname !== 'cdn.rebrickable.com') throw new Error('fixture host rejected');
+            const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+            if (!r.ok) throw new Error(`fixture HTTP ${r.status}`);
+            const type = r.headers.get('content-type') || 'image/jpeg';
+            const bytes = Buffer.from(await r.arrayBuffer());
+            if (bytes.length > 5_000_000) throw new Error('fixture too large');
+            return `data:${type};base64,${bytes.toString('base64')}`;
+          }
+          async function call(model, fixture, image, rep) {
+            const started = Date.now();
+            const body = {
+              model: model.id,
+              max_tokens: 700,
+              response_format: { type: 'json_object' },
+              messages: [{ role: 'user', content: [
+                { type: 'text', text: prompt },
+                { type: 'image_url', image_url: { url: image, detail: 'low' } },
+              ] }],
+            };
+            if (model.provider === 'deepseek') body.thinking = { type: 'disabled' };
+            let response, parsedBody;
+            try {
+              response = await fetch(model.url, {
+                method: 'POST', signal: AbortSignal.timeout(7000),
+                headers: { Authorization: `Bearer ${model.key}`, 'Content-Type': 'application/json', ...(model.provider === 'merge' ? { 'X-Project-ID': 'bricksvault-vision-suite' } : {}) },
+                body: JSON.stringify(body),
+              });
+              parsedBody = await response.json().catch(() => ({}));
+            } catch (e) {
+              return { fixture: fixture.id, kind: fixture.kind, expected: fixture.expected, model: model.id, rep, status: 0, ms: Date.now()-started, valid_json: false, exact: false, correct_class: false, error: e?.name || 'request_error' };
+            }
+            const content = String(parsedBody?.choices?.[0]?.message?.content ?? '');
+            let parsed = null;
+            try { parsed = JSON.parse(content.replace(/```json?\n?|```/g, '').trim()); } catch {}
+            const numbers = Array.isArray(parsed?.sets) ? parsed.sets.map(s => base(s?.set_num)).filter(Boolean) : [];
+            const imageClass = String(parsed?.image_class || '');
+            const exact = fixture.kind === 'lego' ? numbers.includes(fixture.expected) : imageClass === 'not_lego' && numbers.length === 0;
+            const correctClass = fixture.kind === 'lego' ? imageClass === 'lego' : imageClass === 'not_lego';
+            const usage = parsedBody?.usage || {};
+            const cost = Number(parsedBody?.usage?.cost ?? parsedBody?.cost ?? 0) || null;
+            return {
+              fixture: fixture.id, kind: fixture.kind, expected: fixture.expected, model: model.id, rep,
+              status: response.status, ms: Date.now()-started, valid_json: !!parsed,
+              image_class: imageClass || null, set_numbers: numbers, exact, correct_class: correctClass,
+              prompt_tokens: usage.prompt_tokens ?? null, completion_tokens: usage.completion_tokens ?? null,
+              reported_cost_usd: cost, error: response.ok ? null : String(parsedBody?.error?.message || 'request_failed').slice(0,200),
+            };
+          }
+          const images = new Map();
+          for (const f of fixtures) images.set(f.id, await dataUrl(f.url));
+          const rows = [];
+          for (let rep=1; rep<=reps; rep++) {
+            const order = rep % 2 ? models : [...models].reverse();
+            for (const fixture of fixtures) for (const model of order) {
+              const row = await call(model, fixture, images.get(fixture.id), rep);
+              rows.push(row);
+              console.log(JSON.stringify(row));
+            }
+          }
+          const summary = models.map(m => {
+            const r=rows.filter(x=>x.model===m.id), ok=r.filter(x=>x.status>=200&&x.status<300), times=ok.map(x=>x.ms);
+            const lego=r.filter(x=>x.kind==='lego'), negative=r.filter(x=>x.kind==='not_lego');
+            const costs=r.map(x=>x.reported_cost_usd).filter(x=>Number.isFinite(x));
+            return { model:m.id, calls:r.length, http_ok:ok.length, valid_json:r.filter(x=>x.valid_json).length,
+              lego_exact:`${lego.filter(x=>x.exact).length}/${lego.length}`, negative_correct:`${negative.filter(x=>x.exact).length}/${negative.length}`,
+              overall_correct:`${r.filter(x=>x.exact).length}/${r.length}`, median_ms:median(times), p95_ms:p95(times), avg_reported_cost_usd: costs.length ? costs.reduce((a,b)=>a+b,0)/costs.length : null };
+          });
+          const report={ generated_at:new Date().toISOString(), fixture_count:fixtures.length, repetitions:reps, prompt_blinded:true, rows, summary };
+          await writeFile('deepseek-gemini-vision-suite.json', JSON.stringify(report,null,2));
+          let md='# DeepSeek vs Gemini vision suite\n\n| Model | HTTP | JSON | LEGO exact | Negative correct | Overall | Median | p95 | Avg reported cost |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|\n';
+          for (const s of summary) md += `| ${s.model} | ${s.http_ok}/${s.calls} | ${s.valid_json}/${s.calls} | ${s.lego_exact} | ${s.negative_correct} | ${s.overall_correct} | ${s.median_ms} ms | ${s.p95_ms} ms | ${s.avg_reported_cost_usd ?? 'n/a'} |\n`;
+          await writeFile('deepseek-gemini-vision-suite.md', md);
+          console.log(JSON.stringify({summary},null,2));
+          NODE
+          node /tmp/benchmark.mjs
+
+      - name: Upload benchmark artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deepseek-gemini-vision-suite
+          path: |
+            deepseek-gemini-vision-suite.json
+            deepseek-gemini-vision-suite.md
+          retention-days: 30
+          if-no-files-found: error
