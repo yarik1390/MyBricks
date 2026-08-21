@@ -17,7 +17,7 @@ permissions:
 
 env:
   DEEPSEEK_API_URL: https://api.deepseek.com/chat/completions
-  MERGE_API_URL: https://api.merge.dev/api/v1/ai/chat/completions
+  MERGE_API_URL: https://api-gateway.merge.dev/v1/openai/chat/completions
 
 jobs:
   benchmark:
