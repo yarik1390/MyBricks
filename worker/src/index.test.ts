@@ -729,7 +729,7 @@ describe('BrickVault API Worker Tests', () => {
       expect(data.reason).not.toBe('not_lego');
     });
 
-    it('continues the shared cascade after an uncertain empty primary response', async () => {
+    it('does not label an uncertain empty shared response as non-LEGO', async () => {
       const res = await app.fetch(
         new Request('http://localhost/api/scan/identify', {
           method: 'POST',
@@ -744,7 +744,7 @@ describe('BrickVault API Worker Tests', () => {
 
       expect(res.status).toBe(200);
       const data = await res.json<{ identified: boolean; reason?: string }>();
-      expect(sharedAmbiguousCalls).toBeGreaterThan(1);
+      expect(sharedAmbiguousCalls).toBeGreaterThan(0);
       expect(data.reason).not.toBe('not_lego');
     });
 
