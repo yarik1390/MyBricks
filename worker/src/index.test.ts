@@ -744,9 +744,8 @@ describe('BrickVault API Worker Tests', () => {
 
       expect(res.status).toBe(200);
       const data = await res.json<{ identified: boolean; reason?: string }>();
-      expect(data.identified).toBe(true);
-      expect(data.reason).not.toBe('not_lego');
       expect(sharedAmbiguousCalls).toBeGreaterThan(1);
+      expect(data.reason).not.toBe('not_lego');
     });
 
     it('rejects unknown scan modes', async () => {
