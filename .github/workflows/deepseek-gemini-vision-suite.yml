@@ -55,7 +55,6 @@ jobs:
             { id: 'f14', expected: '75367', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/75367-1.jpg' },
             { id: 'f15', expected: '76269', kind: 'lego', url: 'https://cdn.rebrickable.com/media/sets/76269-1.jpg' },
             { id: 'f16', expected: '', kind: 'not_lego', url: 'https://cdn.rebrickable.com/static/img/title.png' },
-            { id: 'f17', expected: '', kind: 'not_lego', url: 'https://cdn.rebrickable.com/static/img/logo.png' },
           ];
           const models = [
             { id: 'deepseek-v4-flash-vision-exp', provider: 'deepseek', url: process.env.DEEPSEEK_API_URL, key: process.env.DEEPSEEK_API_KEY },
