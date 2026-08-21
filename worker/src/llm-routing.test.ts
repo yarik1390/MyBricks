@@ -40,14 +40,19 @@ describe('llm-routing', () => {
     for (const w of LLM_WORKLOADS) expect(routes[w].length).toBeGreaterThan(0);
   });
 
-  it('places Merge behind every free tier but ahead of the metered backstop', async () => {
+  it('defaults scan to measured fast Merge vision before volatile free pools', () => {
+    expect(DEFAULT_LLM_ROUTES.scan.slice(0, 3)).toEqual([
+      { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
+      { provider: 'merge', model: 'openai/gpt-4o', enabled: true },
+      { provider: 'openrouter', model: '', enabled: true },
+    ]);
+  });
+
+  it('keeps the metered OpenAI backstop last', async () => {
     const scan = DEFAULT_LLM_ROUTES.scan.map((s) => s.provider);
-    const merge = scan.indexOf('merge');
-    // free Gemini and the OpenRouter free pool come first...
-    expect(scan.indexOf('gemini')).toBeLessThan(merge);
-    expect(scan.indexOf('openrouter')).toBeLessThan(merge);
-    // ...and the metered OpenAI backstop is last.
-    expect(merge).toBeLessThan(scan.indexOf('openai'));
+    const firstMerge = scan.indexOf('merge');
+    expect(firstMerge).toBeGreaterThanOrEqual(0);
+    expect(firstMerge).toBeLessThan(scan.indexOf('openai'));
     expect(scan[scan.length - 1]).toBe('openai');
   });
 
@@ -80,6 +85,22 @@ describe('llm-routing', () => {
           { provider: 'merge', model: 'openai/gpt-5.6-luna', enabled: true },
           { provider: 'gemini', model: 'gemini-3.6-flash', enabled: true },
           { provider: 'openrouter', model: '', enabled: true },
+          { provider: 'openrouter', model: 'mistralai/mistral-small-3.2-24b-instruct', enabled: true },
+          { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
+        ],
+      })).run();
+
+    const routes = await getLlmRoutes(env as any);
+    expect(routes.scan).toEqual(DEFAULT_LLM_ROUTES.scan);
+  });
+
+  it('migrates the previous default scan cascade to measured defaults', async () => {
+    await db.prepare(`INSERT INTO app_settings (key, value) VALUES ('llm_routing', ?)`)
+      .bind(JSON.stringify({
+        scan: [
+          { provider: 'gemini', model: 'gemini-2.5-flash', enabled: true },
+          { provider: 'openrouter', model: '', enabled: true },
+          { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
           { provider: 'openrouter', model: 'mistralai/mistral-small-3.2-24b-instruct', enabled: true },
           { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
         ],

@@ -35,6 +35,18 @@ function normalizeMatchText(value: unknown): string {
     : String(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
+function inferredSetNumber(cand: DescribedSet): string {
+  const explicit = String(cand.set_num ?? '').trim();
+  if (explicit) return explicit;
+  // Some vision models identify the number in their explanation but leave the
+  // structured field null. Recover only a LEGO-shaped 4–6 digit token; catalog
+  // lookup remains authoritative, so years and arbitrary prose numbers cannot
+  // create a match unless that set actually exists.
+  const reasoning = String(cand.reasoning ?? '');
+  const match = reasoning.match(/\b(?:set(?:\s+number)?\s*)?(\d{4,6})(?:-\d+)?\b/i);
+  return match?.[1] ?? '';
+}
+
 function rankCatalogMatch(row: Record<string, unknown>, cand: DescribedSet): number {
   const rowName = normalizeMatchText(row.name);
   const wantedName = normalizeMatchText(cand.name);
@@ -64,7 +76,7 @@ export async function matchSetsToCatalog(env: Env, described: DescribedSet[]): P
   // 1. Batch exact set_num lookups (covers "75192" and "75192-1").
   const exactNums = [...new Set(
     candidates.flatMap(s => {
-      const n = norm(s.set_num);
+      const n = inferredSetNumber(s);
       return n ? [n, `${n}-1`] : [];
     }),
   )];
@@ -83,7 +95,7 @@ export async function matchSetsToCatalog(env: Env, described: DescribedSet[]): P
   let reasoning = '';
 
   for (const cand of candidates) {
-    const n = norm(cand.set_num);
+    const n = inferredSetNumber(cand);
     let row: Record<string, unknown> | null = n ? (byNum.get(n) ?? byNum.get(`${n}-1`) ?? null) : null;
 
     // 2. FTS fallback by the described name. BM25 alone can rank an accessory

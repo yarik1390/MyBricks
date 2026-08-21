@@ -1,26 +1,34 @@
 name: Benchmark Merge scan models
 
 # Directly compares Merge-hosted vision models with the same resized production
-# scan image and compact JSON prompt. Dispatch-only because it spends allowance.
+# scan image and JSON contract. Dispatch-only because it spends allowance.
+# The expected answer is used only by the scorer; it is never sent to the model.
 on:
   workflow_dispatch:
     inputs:
       image_url:
-        description: "LEGO set image"
+        description: "Public cdn.rebrickable.com LEGO set image"
         required: false
         default: "https://cdn.rebrickable.com/media/sets/75192-1.jpg"
       expected_set:
-        description: "Expected base set number"
+        description: "Expected base set number (scorer only)"
         required: false
         default: "75192"
       models:
-        description: "Comma-separated Merge model ids"
+        description: "Up to 3 allowlisted, comma-separated Merge model ids"
         required: false
-        default: "openai/gpt-4o-mini,openai/gpt-4o,google/gemini-3.6-flash,google/gemini-3.5-flash-lite,openai/gpt-5.6-luna"
+        default: "openai/gpt-4o-mini,mistral/ministral-8b-2512,openai/gpt-5.6-luna"
       repetitions:
-        description: "Calls per model"
+        description: "Calls per model (1-2; at most 6 total calls)"
         required: false
-        default: "2"
+        default: "1"
+      max_cost_usd:
+        description: "Stop before the next call once reported spend reaches this cap"
+        required: false
+        default: "0.10"
+
+permissions:
+  contents: read
 
 concurrency:
   group: merge-scan-benchmark
@@ -29,24 +37,35 @@ concurrency:
 jobs:
   benchmark:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Build production-sized image
         env:
           IMAGE_URL: ${{ inputs.image_url }}
         run: |
           set -euo pipefail
-          curl -sSL --max-time 30 "${IMAGE_URL}" -o /tmp/set.jpg
+          node -e '
+            const u = new URL(process.env.IMAGE_URL);
+            if (u.protocol !== "https:" || u.hostname !== "cdn.rebrickable.com") {
+              throw new Error("image_url must be a public cdn.rebrickable.com HTTPS image");
+            }
+          '
+          curl --fail --silent --show-error --location --max-time 30 \
+            --proto '=https' --proto-redir '=https' --max-filesize 5000000 \
+            "${IMAGE_URL}" -o /tmp/set.jpg
           sudo apt-get install -y imagemagick >/dev/null 2>&1 || true
           if command -v convert >/dev/null; then
-            convert /tmp/set.jpg -resize '1024x1024>' -quality 85 /tmp/set-small.jpg
+            convert -limit memory 128MiB -limit map 256MiB /tmp/set.jpg \
+              -resize '1024x1024>' -quality 85 /tmp/set-small.jpg
           else
             cp /tmp/set.jpg /tmp/set-small.jpg
           fi
+          test "$(stat -c%s /tmp/set-small.jpg)" -le 1500000
           base64 -w0 /tmp/set-small.jpg > /tmp/set.b64
           echo "image: $(stat -c%s /tmp/set-small.jpg) bytes"
 
@@ -56,6 +75,7 @@ jobs:
           MODELS: ${{ inputs.models }}
           EXPECTED_SET: ${{ inputs.expected_set }}
           REPETITIONS: ${{ inputs.repetitions }}
+          MAX_COST_USD: ${{ inputs.max_cost_usd }}
         run: |
           set -euo pipefail
           if [ -z "${MERGE_KEY}" ]; then
@@ -65,24 +85,54 @@ jobs:
           const fs = require('fs');
           const image = fs.readFileSync('/tmp/set.b64', 'utf8').trim();
           const models = process.env.MODELS.split(',').map((m) => m.trim()).filter(Boolean);
-          const repetitions = Math.max(1, Math.min(5, Number(process.env.REPETITIONS) || 1));
+          const allowedModels = new Set([
+            'amazon/nova-lite',
+            'google/gemini-2.5-flash-lite',
+            'mistral/ministral-8b-2512',
+            'mistral/mistral-small-2603',
+            'openai/gpt-4o-mini',
+            'openai/gpt-5-nano',
+            'openai/gpt-5.6-luna',
+          ]);
+          const repetitions = Number(process.env.REPETITIONS);
+          const maxCostUsd = Number(process.env.MAX_COST_USD);
           const expected = String(process.env.EXPECTED_SET || '').replace(/-\d+$/, '');
-          const prompt = `Identify the LEGO set in this image. Return ONLY compact JSON in this shape: {"sets":[{"set_number":"75192-1","name":"Millennium Falcon","theme":"Star Wars","year":2017,"confidence":0.99}],"minifigs":[]}. Use null when unknown. Do not guess.`;
+
+          if (!models.length || models.length > 3 || models.some((m) => !allowedModels.has(m))) {
+            throw new Error(`models must contain 1-3 allowlisted ids; allowed: ${[...allowedModels].join(', ')}`);
+          }
+          if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 2 || models.length * repetitions > 6) {
+            throw new Error('repetitions must be 1-2 and total calls must not exceed 6');
+          }
+          if (!Number.isFinite(maxCostUsd) || maxCostUsd <= 0 || maxCostUsd > 0.25) {
+            throw new Error('max_cost_usd must be greater than 0 and at most 0.25');
+          }
+
+          // Keep the task/shape aligned with SCAN_SYSTEM_PROMPT, but never put
+          // the expected set number, name, theme, or year into model-visible text.
+          const prompt = 'You are a LEGO product-identification expert. Identify the LEGO set shown in the image. ' +
+            'Return ONLY raw JSON (no markdown fences) in this shape: ' +
+            '{"sets":[{"set_num":string|null,"name":string,"theme":string|null,"year":number|null,' +
+            '"confidence":"high"|"medium"|"low"|"none","reasoning":string}],"minifigs":[]}. ' +
+            'Use an empty sets array and confidence "none" when unsure. Do not guess.';
 
           const run = async (model, repetition) => {
             const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 10000);
+            const timer = setTimeout(() => controller.abort(), 7000);
             const started = Date.now();
             try {
               const response = await fetch('https://api-gateway.merge.dev/v1/openai/chat/completions', {
                 method: 'POST', signal: controller.signal,
                 headers: { authorization: `Bearer ${process.env.MERGE_KEY}`, 'content-type': 'application/json' },
                 body: JSON.stringify({
-                  model, max_tokens: 300, response_format: { type: 'json_object' },
-                  messages: [{ role: 'user', content: [
-                    { type: 'text', text: prompt },
-                    { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${image}` } },
-                  ] }],
+                  model, max_tokens: 700, response_format: { type: 'json_object' },
+                  messages: [
+                    { role: 'system', content: prompt },
+                    { role: 'user', content: [
+                      { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${image}` } },
+                      { type: 'text', text: 'Identify the LEGO set in this image.' },
+                    ] },
+                  ],
                 }),
               });
               const body = await response.json().catch(() => ({}));
@@ -90,7 +140,7 @@ jobs:
               let setNumber = '';
               try {
                 const parsed = JSON.parse(content.replace(/```json?\n?|```/g, '').trim());
-                setNumber = String(parsed?.sets?.[0]?.set_number ?? '');
+                setNumber = String(parsed?.sets?.[0]?.set_num ?? '');
               } catch {}
               const base = setNumber.replace(/-\d+$/, '');
               const cost = Number(body?.usage?.cost);
@@ -101,26 +151,42 @@ jobs:
                 error: response.ok ? null : String(body?.error?.message ?? 'provider error').slice(0, 120),
               };
             } catch (error) {
-              return { model, repetition, status: 0, ms: Date.now() - started, identified: false, exact: false, set_number: null, cost_usd: null, error: error.name === 'AbortError' ? 'timeout' : String(error.message).slice(0, 120) };
+              return {
+                model, repetition, status: 0, ms: Date.now() - started,
+                identified: false, exact: false, set_number: null, cost_usd: null,
+                error: error.name === 'AbortError' ? 'timeout' : String(error.message).slice(0, 120),
+              };
             } finally { clearTimeout(timer); }
           };
 
           (async () => {
             const rows = [];
+            let reportedSpend = 0;
+            let stoppedForBudget = false;
             for (const model of models) {
               for (let repetition = 1; repetition <= repetitions; repetition++) {
+                if (reportedSpend >= maxCostUsd) { stoppedForBudget = true; break; }
                 const row = await run(model, repetition);
                 rows.push(row);
+                if (Number.isFinite(row.cost_usd)) reportedSpend += row.cost_usd;
                 console.log(JSON.stringify(row));
               }
+              if (stoppedForBudget) break;
             }
             console.log('--- summary ---');
+            console.log(JSON.stringify({ max_cost_usd: maxCostUsd, reported_spend_usd: reportedSpend, stopped_for_budget: stoppedForBudget }));
             for (const model of models) {
               const r = rows.filter((x) => x.model === model);
+              if (!r.length) continue;
               const sorted = r.map((x) => x.ms).sort((a, b) => a - b);
               const avg = Math.round(r.reduce((a, x) => a + x.ms, 0) / r.length);
               const costs = r.map((x) => x.cost_usd).filter(Number.isFinite);
-              console.log(JSON.stringify({ model, calls: r.length, exact: r.filter((x) => x.exact).length, identified: r.filter((x) => x.identified).length, avg_ms: avg, max_ms: sorted.at(-1), avg_cost_usd: costs.length ? costs.reduce((a, x) => a + x, 0) / costs.length : null }));
+              console.log(JSON.stringify({
+                model, calls: r.length, exact: r.filter((x) => x.exact).length,
+                identified: r.filter((x) => x.identified).length, avg_ms: avg,
+                max_ms: sorted.at(-1),
+                avg_cost_usd: costs.length ? costs.reduce((a, x) => a + x, 0) / costs.length : null,
+              }));
             }
           })().catch((error) => { console.error(error); process.exit(1); });
           NODE

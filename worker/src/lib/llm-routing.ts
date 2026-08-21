@@ -39,32 +39,22 @@ export interface RouteStep {
 }
 
 /**
- * Defaults reproduce the previously-hardcoded cascades, with Merge inserted
- * ahead of the paid tiers — it bills against a fixed monthly allowance, so
- * spending it is strictly better than reaching the metered OpenAI backstop,
- * while still sitting behind anything free.
+ * Default scan ordering is based on live image benchmarks, not paper pricing.
+ * The free-first cascade was unreliable in production: Gemini could consume 7s
+ * with an empty response and OpenRouter free models then 429, starving every
+ * useful fallback. Merge Flash-Lite identified all three benchmark sets in
+ * 0.86–1.40s at about $0.00045/call; Merge gpt-4o is the accuracy fallback.
+ * Volatile free pools remain after those bounded, measured providers.
  *
- * Ordering principle, free -> allowance -> metered:
- *   gemini free tier  ->  openrouter free pool  ->  merge  ->  paid fallbacks
- *
- * The Merge steps name gpt-4o-mini, NOT gpt-5.6-luna. Luna looked like the
- * better buy on paper — multimodal, ~85% of flagship quality, $0.20/$1.20 — but
- * a measured scan on 2026-08-20 recorded:
- *
- *     merge/openai/gpt-5.6-luna: 7000ms -> error: Request timed out
- *
- * exactly the per-model ceiling, meaning it never answered at all. gpt-4o-mini
- * is the id the Merge service probe actually exercises and passes. Paper specs
- * are not evidence; move this only after a scan-diagnose run shows the new id
- * returning inside the budget.
+ * gpt-5.6-luna remains retired for scanning: repeated calls returned no usable
+ * structured identification. Re-benchmark before changing these ids or order.
  */
 export const DEFAULT_LLM_ROUTES: Record<LlmWorkload, RouteStep[]> = {
-  // Vision. Merge step must name a multimodal model.
+  // Vision. Fast measured primary -> accurate measured fallback -> best effort.
   scan: [
-    { provider: 'gemini', model: MODELS.scan, enabled: true },
+    { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
+    { provider: 'merge', model: 'openai/gpt-4o', enabled: true },
     { provider: 'openrouter', model: '', enabled: true },
-    { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
-    { provider: 'openrouter', model: MODELS.scanOpenrouterPaid, enabled: true },
     { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
   // Streaming chat. Server Gemini leads: the SSE path already exists for BYOK,
@@ -129,23 +119,33 @@ const RETIRED_SCAN_MODELS = new Set([
   'gemini:gemini-3.6-flash',
 ]);
 
-function isStaleProductionScanCascade(stored: unknown): boolean {
-  if (!Array.isArray(stored)) return false;
+function staleProductionScanGeneration(stored: unknown): number {
+  if (!Array.isArray(stored)) return 0;
   const normalized = mergeSteps('scan', stored);
-  const stale = [
-    'merge:openai/gpt-5.6-luna:true',
-    'gemini:gemini-3.6-flash:true',
-    'openrouter::true',
-    'openrouter:mistralai/mistral-small-3.2-24b-instruct:true',
-    'openai:gpt-4o-mini:true',
+  const generations = [
+    [
+      'merge:openai/gpt-5.6-luna:true',
+      'gemini:gemini-3.6-flash:true',
+      'openrouter::true',
+      'openrouter:mistralai/mistral-small-3.2-24b-instruct:true',
+      'openai:gpt-4o-mini:true',
+    ],
+    [
+      'gemini:gemini-2.5-flash:true',
+      'openrouter::true',
+      'merge:openai/gpt-4o-mini:true',
+      'openrouter:mistralai/mistral-small-3.2-24b-instruct:true',
+      'openai:gpt-4o-mini:true',
+    ],
   ];
-  return normalized.length === stale.length && normalized.every((step, index) =>
-    `${step.provider}:${step.model}:${step.enabled}` === stale[index]);
+  return generations.findIndex((stale) =>
+    normalized.length === stale.length && normalized.every((step, index) =>
+      `${step.provider}:${step.model}:${step.enabled}` === stale[index])) + 1;
 }
 
 function removeActiveRetiredScanModels(stored: unknown): unknown {
   if (!Array.isArray(stored)) return stored;
-  if (isStaleProductionScanCascade(stored)) {
+  if (staleProductionScanGeneration(stored) > 0) {
     return DEFAULT_LLM_ROUTES.scan.map((step) => ({ ...step }));
   }
   return stored.filter((raw) => {

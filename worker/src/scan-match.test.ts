@@ -39,4 +39,22 @@ describe('scan catalog matching', () => {
 
     expect(result.sets[0]?.set_num).toBe('75192-1');
   });
+
+  it('extracts an explicit set number from model reasoning before fuzzy name matching', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, theme) VALUES
+      ('4488-1', 'Millennium Falcon', 2003, 'Star Wars')`).run();
+    await db.prepare(`INSERT INTO lego_sets_fts(rowid, set_num, name, theme)
+      SELECT rowid, set_num, name, theme FROM lego_sets WHERE set_num = '4488-1'`).run();
+
+    const result = await matchSetsToCatalog(env as any, [{
+      set_num: null,
+      name: 'Millennium Falcon',
+      theme: 'Star Wars',
+      year: null,
+      confidence: 'high',
+      reasoning: 'This is the Ultimate Collector Series Millennium Falcon set 75192.',
+    }]);
+
+    expect(result.sets[0]?.set_num).toBe('75192-1');
+  });
 });
