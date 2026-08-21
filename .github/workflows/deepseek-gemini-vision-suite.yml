@@ -94,8 +94,9 @@ jobs:
             if (model.provider === 'deepseek') body.thinking = { type: 'disabled' };
             let response, parsedBody;
             try {
+              const timeoutMs = model.provider === 'deepseek' ? 7000 : 10000;
               response = await fetch(model.url, {
-                method: 'POST', signal: AbortSignal.timeout(7000),
+                method: 'POST', signal: AbortSignal.timeout(timeoutMs),
                 headers: { Authorization: `Bearer ${model.key}`, 'Content-Type': 'application/json', ...(model.provider === 'merge' ? { 'X-Project-ID': 'bricksvault-vision-suite' } : {}) },
                 body: JSON.stringify(body),
               });
@@ -111,7 +112,10 @@ jobs:
             const exact = fixture.kind === 'lego' ? numbers.includes(fixture.expected) : imageClass === 'not_lego' && numbers.length === 0;
             const correctClass = fixture.kind === 'lego' ? imageClass === 'lego' : imageClass === 'not_lego';
             const usage = parsedBody?.usage || {};
-            const cost = Number(parsedBody?.usage?.cost ?? parsedBody?.cost ?? 0) || null;
+            let cost = Number(parsedBody?.usage?.cost ?? parsedBody?.cost ?? 0) || null;
+            if (model.provider === 'deepseek' && usage.prompt_tokens != null && usage.completion_tokens != null) {
+              cost = (Number(usage.prompt_tokens) * 0.22 + Number(usage.completion_tokens) * 0.66) / 1_000_000;
+            }
             return {
               fixture: fixture.id, kind: fixture.kind, expected: fixture.expected, model: model.id, rep,
               status: response.status, ms: Date.now()-started, valid_json: !!parsed,
