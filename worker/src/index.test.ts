@@ -9,6 +9,8 @@ declare module 'cloudflare:test' {
   }
 }
 
+let sharedAmbiguousCalls = 0;
+
 // Mock openai module completely
 vi.mock('openai', () => {
   class MockOpenAI {
@@ -19,6 +21,7 @@ vi.mock('openai', () => {
           const promptText = typeof userMessage === 'string' ? userMessage : JSON.stringify(userMessage || '');
           const systemMessage = args?.messages?.find((m: any) => m.role === 'system')?.content;
           const systemText = typeof systemMessage === 'string' ? systemMessage : '';
+          if (promptText.includes('data:image/x-shared-primary-empty')) sharedAmbiguousCalls += 1;
           const content = promptText.includes('Generate an eBay listing')
             ? JSON.stringify({
                 title: 'LEGO 75192 Millennium Falcon - Star Wars UCS',
@@ -30,6 +33,7 @@ vi.mock('openai', () => {
             // (must be dropped by matching, not returned).
             : systemText.includes('COLLECTION on a shelf')
             ? JSON.stringify({
+                image_class: 'lego',
                 sets: [
                   { set_num: '75192', name: 'Millennium Falcon', confidence: 'high', reasoning: 'UCS dish visible' },
                   { set_num: '10497', name: 'Galaxy Explorer', confidence: 'medium', reasoning: 'Classic space colors' },
@@ -38,8 +42,13 @@ vi.mock('openai', () => {
                 minifigs: [],
               })
             : promptText.includes('data:image/x-non-lego')
-            ? JSON.stringify({ sets: [], minifigs: [] })
+            ? JSON.stringify({ image_class: 'not_lego', sets: [], minifigs: [] })
+            : promptText.includes('data:image/x-shared-primary-empty') && sharedAmbiguousCalls === 1
+            ? JSON.stringify({ image_class: 'uncertain', sets: [], minifigs: [] })
+            : promptText.includes('data:image/x-ambiguous-empty')
+            ? JSON.stringify({ image_class: 'uncertain', sets: [], minifigs: [] })
             : JSON.stringify({
+                image_class: 'lego',
                 sets: [{ set_num: '75192', name: 'Millennium Falcon', confidence: 'high', reasoning: 'Visual match' }],
                 minifigs: [],
               });
@@ -95,6 +104,7 @@ describe('BrickVault API Worker Tests', () => {
   let db: D1Database;
 
   beforeEach(async () => {
+    sharedAmbiguousCalls = 0;
     // Inject secrets/configs into env
     (env as any).SUPABASE_JWT_SECRET = JWT_SECRET;
     (env as any).SUPABASE_URL = 'https://supabase.mock.io';
@@ -694,6 +704,49 @@ describe('BrickVault API Worker Tests', () => {
         reason: 'not_lego',
         reasoning: "Plot twist: that doesn't look like a LEGO set. Try pointing me at some bricks!",
       });
+    });
+
+    it('does not classify an ambiguous empty response as not LEGO', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-OpenAI-Key': 'user-provided-key',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ mode: 'image', image: 'data:image/x-ambiguous-empty;base64,mock' }),
+        }),
+        env,
+      );
+
+      expect(res.status).toBe(200);
+      const data = await res.json<{ identified: boolean; reasoning: string; reason?: string }>();
+      expect(data).toMatchObject({
+        identified: false,
+        reasoning: 'The AI could not confidently classify this photo. Please try a clearer image.',
+      });
+      expect(data.reason).not.toBe('not_lego');
+    });
+
+    it('continues the shared cascade after an uncertain empty primary response', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ mode: 'image', image: 'data:image/x-shared-primary-empty;base64,mock' }),
+        }),
+        env,
+      );
+
+      expect(res.status).toBe(200);
+      const data = await res.json<{ identified: boolean; reason?: string }>();
+      expect(data.identified).toBe(true);
+      expect(data.reason).not.toBe('not_lego');
+      expect(sharedAmbiguousCalls).toBeGreaterThan(1);
     });
 
     it('rejects unknown scan modes', async () => {

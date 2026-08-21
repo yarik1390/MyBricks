@@ -20,6 +20,7 @@ export async function callGeminiScan(
 ): Promise<{
   sets?: Array<{ set_num: string | null; name: string; theme?: string | null; year?: number | null; confidence: string; reasoning: string }>;
   minifigs?: Array<{ name: string; theme?: string | null; confidence: string; reasoning: string }>;
+  image_class?: 'lego' | 'not_lego' | 'uncertain';
 } | null> {
   const match = imageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
   if (!match) return null;
