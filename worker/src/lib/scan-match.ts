@@ -43,7 +43,7 @@ function inferredSetNumber(cand: DescribedSet): string {
   // lookup remains authoritative, so years and arbitrary prose numbers cannot
   // create a match unless that set actually exists.
   const reasoning = String(cand.reasoning ?? '');
-  const match = reasoning.match(/\b(?:set(?:\s+number)?\s*)?(\d{4,6})(?:-\d+)?\b/i);
+  const match = reasoning.match(/\bset(?:\s+number)?(?:\s*(?:is|#|:))?\s+(\d{4,6})(?:-\d+)?\b/i);
   return match?.[1] ?? '';
 }
 

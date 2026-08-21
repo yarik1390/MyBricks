@@ -88,8 +88,10 @@ jobs:
           const allowedModels = new Set([
             'amazon/nova-lite',
             'google/gemini-2.5-flash-lite',
+            'google/gemini-3.5-flash-lite',
             'mistral/ministral-8b-2512',
             'mistral/mistral-small-2603',
+            'openai/gpt-4o',
             'openai/gpt-4o-mini',
             'openai/gpt-5-nano',
             'openai/gpt-5.6-luna',

@@ -57,4 +57,22 @@ describe('scan catalog matching', () => {
 
     expect(result.sets[0]?.set_num).toBe('75192-1');
   });
+
+  it('does not mistake a release year for an exact set number', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, theme) VALUES
+      ('2017-1', 'Choo Choo Train', 1987, 'Duplo')`).run();
+    await db.prepare(`INSERT INTO lego_sets_fts(rowid, set_num, name, theme)
+      SELECT rowid, set_num, name, theme FROM lego_sets WHERE set_num = '2017-1'`).run();
+
+    const result = await matchSetsToCatalog(env as any, [{
+      set_num: null,
+      name: 'Millennium Falcon',
+      theme: 'Star Wars',
+      year: 2017,
+      confidence: 'high',
+      reasoning: 'Released in 2017, this appears to be the Millennium Falcon.',
+    }]);
+
+    expect(result.sets[0]?.set_num).toBe('75192-1');
+  });
 });
