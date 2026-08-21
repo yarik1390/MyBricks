@@ -1,0 +1,125 @@
+name: Benchmark DeepSeek vision
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_url:
+        description: "Public cdn.rebrickable.com LEGO set image"
+        required: false
+        default: "https://cdn.rebrickable.com/media/sets/75192-1.jpg"
+      expected_set:
+        description: "Expected base set number (scorer only; blank for non-LEGO)"
+        required: false
+        default: "75192"
+      repetitions:
+        description: "Calls (1-2)"
+        required: false
+        default: "1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deepseek-vision-benchmark
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build production-sized image
+        env:
+          IMAGE_URL: ${{ inputs.image_url }}
+        run: |
+          set -euo pipefail
+          node -e '
+            const u = new URL(process.env.IMAGE_URL);
+            if (u.protocol !== "https:" || u.hostname !== "cdn.rebrickable.com") {
+              throw new Error("image_url must be a public cdn.rebrickable.com HTTPS image");
+            }
+          '
+          curl --fail --silent --show-error --location --max-time 30 \
+            --proto '=https' --proto-redir '=https' --max-filesize 5000000 \
+            "${IMAGE_URL}" -o /tmp/set.jpg
+          sudo apt-get install -y imagemagick >/dev/null 2>&1 || true
+          if command -v convert >/dev/null; then
+            convert -limit memory 128MiB -limit map 256MiB /tmp/set.jpg \
+              -resize '1024x1024>' -quality 85 /tmp/set-small.jpg
+          else
+            cp /tmp/set.jpg /tmp/set-small.jpg
+          fi
+          test "$(stat -c%s /tmp/set-small.jpg)" -le 1500000
+          base64 -w0 /tmp/set-small.jpg > /tmp/set.b64
+          echo "image: $(stat -c%s /tmp/set-small.jpg) bytes"
+
+      - name: Benchmark DeepSeek vision
+        env:
+          DEEPSEEK_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          EXPECTED_SET: ${{ inputs.expected_set }}
+          REPETITIONS: ${{ inputs.repetitions }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DEEPSEEK_KEY}" ]; then
+            echo "::error::DEEPSEEK_API_KEY is required."; exit 1
+          fi
+          node - <<'NODE'
+          const fs = require('fs');
+          const image = fs.readFileSync('/tmp/set.b64', 'utf8').trim();
+          const repetitions = Number(process.env.REPETITIONS);
+          const expected = String(process.env.EXPECTED_SET || '').replace(/-\d+$/, '');
+          if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 2) {
+            throw new Error('repetitions must be 1-2');
+          }
+          const model = 'deepseek-v4-flash-vision-exp';
+          const prompt = 'First classify the image as lego, not_lego, or uncertain. Identify LEGO sets only when visible. ' +
+            'Return ONLY raw JSON: {"image_class":"lego"|"not_lego"|"uncertain",' +
+            '"sets":[{"set_num":string|null,"name":string,"theme":string|null,"year":number|null,' +
+            '"confidence":"high"|"medium"|"low"|"none","reasoning":string}],"minifigs":[]}. Do not guess.';
+
+          const results = [];
+          for (let repetition = 1; repetition <= repetitions; repetition++) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 15000);
+            const started = Date.now();
+            try {
+              const response = await fetch('https://api.deepseek.com/chat/completions', {
+                method: 'POST', signal: controller.signal,
+                headers: { authorization: `Bearer ${process.env.DEEPSEEK_KEY}`, 'content-type': 'application/json' },
+                body: JSON.stringify({
+                  model, max_tokens: 700, response_format: { type: 'json_object' },
+                  messages: [{ role: 'user', content: [
+                    { type: 'text', text: prompt },
+                    { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${image}` } },
+                  ] }],
+                }),
+              });
+              const body = await response.json().catch(() => ({}));
+              const content = String(body?.choices?.[0]?.message?.content ?? '');
+              let parsed = null;
+              try { parsed = JSON.parse(content.replace(/```json?\n?|```/g, '').trim()); } catch {}
+              const setNumber = String(parsed?.sets?.[0]?.set_num ?? '');
+              const base = setNumber.replace(/-\d+$/, '');
+              const usage = body?.usage || {};
+              results.push({
+                model, repetition, status: response.status, ms: Date.now() - started,
+                image_class: parsed?.image_class ?? null, identified: Boolean(setNumber),
+                exact: Boolean(expected && base === expected), set_number: setNumber || null,
+                prompt_tokens: usage.prompt_tokens ?? null, completion_tokens: usage.completion_tokens ?? null,
+                error: response.ok ? null : String(body?.error?.message ?? 'request failed').slice(0, 160),
+              });
+            } catch (error) {
+              results.push({ model, repetition, status: 0, ms: Date.now() - started,
+                image_class: null, identified: false, exact: false, set_number: null,
+                prompt_tokens: null, completion_tokens: null,
+                error: error?.name === 'AbortError' ? 'timeout' : String(error?.message || error).slice(0, 160) });
+            } finally { clearTimeout(timer); }
+          }
+          console.log(JSON.stringify({ expected_set: expected || null, results }, null, 2));
+          if (results.some((r) => r.status !== 200)) process.exitCode = 1;
+          NODE
