@@ -10,6 +10,7 @@ import { isNativeCapacitor } from '../lib/native-auth.js';
 import { amazonSlotHTML, hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
 import { t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { getModePref } from '../theme.js';
+import { getProviderCredential } from '../lib/provider-credentials.js';
 
 let _scanTrapRelease = null;
 let _scanPending = false;
@@ -600,9 +601,14 @@ async function getTurnstileToken() {
 }
 
 async function cloudScanIdentify(payload, signal) {
-  const geminiKey = localStorage.getItem('bv_gemini_key');
-  const openaiKey = localStorage.getItem('bv_openai_key');
+  const geminiKey = getProviderCredential('gemini');
+  const openaiKey = getProviderCredential('openai');
   const extraHeaders = {};
+  // One logical scan keeps one key even if a future transport layer retries it.
+  // The Worker persists the completed result and charges shared quota once.
+  const idempotencyKey = globalThis.crypto?.randomUUID?.()
+    || `scan-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  extraHeaders['Idempotency-Key'] = idempotencyKey;
   if (geminiKey) extraHeaders['X-Gemini-Key'] = geminiKey;
   if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
   // Shared server-key image scans (no BYOK key) carry a Turnstile token for bot
@@ -624,7 +630,15 @@ async function cloudScanIdentify(payload, signal) {
     else if (_tsReason) extraHeaders['X-Turnstile-Reason'] = _tsReason;
   }
   const _t = performance.now();
-  const res = await api("/api/scan/identify", { method: "POST", body: payload, signal, headers: extraHeaders });
+  const res = await api("/api/scan/identify", {
+    method: "POST",
+    body: payload,
+    signal,
+    headers: extraHeaders,
+    // Do not replay a paid/quota-consuming operation after an ambiguous network
+    // failure. The idempotency key makes explicit user retries safe server-side.
+    retry: false,
+  });
   scanTime(payload.mode === 'barcode' ? 'barcode lookup' : 'cloud identify round-trip', _t);
   return res;
 }
@@ -677,7 +691,7 @@ async function sendScanToAPI(payload) {
         const localResult = await runLocalVisionScan(bitmap, (statusText) => {
           const hint = $("#scanHint");
           if (hint) hint.textContent = statusText;
-        });
+        }, { signal: controller.signal, timeoutMs: 15_000 });
         if (stale()) return;
         scanTime('on-device inference', _tLocal);
         if (localResult.identified) {

@@ -1,5 +1,62 @@
 -- Additive migrations for databases created before v2.
 -- Run with error suppression (|| true) — duplicate column errors are expected on re-deploys.
+
+-- Safe to run repeatedly. Used to make paid/quota-consuming scans idempotent.
+CREATE TABLE IF NOT EXISTS scan_requests (
+  user_id TEXT NOT NULL,
+  request_key TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'processing',
+  response_json TEXT,
+  quota_state TEXT NOT NULL DEFAULT 'none',
+  quota_units INTEGER NOT NULL DEFAULT 0,
+  quota_buckets_json TEXT,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, request_key)
+);
+CREATE INDEX IF NOT EXISTS idx_scan_requests_updated ON scan_requests(updated_at);
+
+CREATE TABLE IF NOT EXISTS scan_quota_reservations (
+  user_id TEXT NOT NULL,
+  request_key TEXT NOT NULL,
+  endpoint TEXT NOT NULL,
+  window_start TEXT NOT NULL,
+  units INTEGER NOT NULL,
+  state TEXT NOT NULL DEFAULT 'reserved',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, request_key, endpoint, window_start)
+);
+CREATE INDEX IF NOT EXISTS idx_scan_quota_reservation_state
+  ON scan_quota_reservations(state, updated_at);
+
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  request_id TEXT NOT NULL,
+  actor_user_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target_type TEXT,
+  target_id TEXT,
+  before_json TEXT,
+  after_json TEXT,
+  outcome TEXT NOT NULL,
+  error_code TEXT,
+  source_ip_hash TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_time ON admin_audit_log(occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_actor ON admin_audit_log(actor_user_id, occurred_at DESC);
+CREATE TABLE IF NOT EXISTS admin_operation_claims (
+  operation_key TEXT NOT NULL,
+  action TEXT NOT NULL,
+  actor_user_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'running',
+  result_json TEXT,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (actor_user_id, action, operation_key)
+);
+
 ALTER TABLE lego_sets ADD COLUMN ebay_value REAL;
 ALTER TABLE lego_sets ADD COLUMN ebay_cached_at TEXT;
 ALTER TABLE lego_sets ADD COLUMN ebay_new_value REAL;

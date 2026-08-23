@@ -7,6 +7,21 @@ dist/
 .dev.vars
 test-results/
 playwright-report/
+.lighthouseci/
+a11y/axe-report.json
+
+# Local audit evidence and release artifacts
+a11y-audit/
+audit_runs/
+brickvault_audit/
+chrome/
+desktop-guest-audit/
+evidence_mobile_audit/
+live_audit/
+review_runs/
+BricksVault-*-release.aab
+BricksVault-*-mapping.txt.gz
+
 android/app/google-services.json
 android/upload.jks
 

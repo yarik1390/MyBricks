@@ -19,6 +19,16 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
   const stmts = [
     // Hourly/daily windows — anything older than 48h can never match a live window.
     env.DB.prepare(`DELETE FROM rate_limits WHERE window_start < datetime('now', '-48 hours')`),
+    // Idempotency ledgers are short-lived operational state. Failed/abandoned
+    // processing records become retryable once their quota lease is stale.
+    // A killed invocation cannot finalize its lease; expire it promptly so a
+    // provider outage does not strand a user's hourly/daily allowance.
+    env.DB.prepare(`DELETE FROM scan_quota_reservations WHERE state='reserved' AND updated_at < datetime('now', '-30 minutes')`),
+    env.DB.prepare(`DELETE FROM scan_quota_reservations WHERE updated_at < datetime('now', '-48 hours')`),
+    env.DB.prepare(`DELETE FROM scan_requests WHERE updated_at < datetime('now', '-48 hours')`),
+    // Admin operation keys protect retries only for the lifetime of a job. Keep
+    // enough history to absorb delayed client retries without growing forever.
+    env.DB.prepare(`DELETE FROM admin_operation_claims WHERE updated_at < datetime('now', '-7 days')`),
     // OAuth nonces expire in minutes; keep a day of slack for clock skew, then purge.
     env.DB.prepare(`DELETE FROM oauth_sessions WHERE expires_at < unixepoch() - 86400`),
     env.DB.prepare(`DELETE FROM oauth_states WHERE expires_at < unixepoch() - 86400`),
@@ -32,7 +42,16 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
   ];
 
   const results = await env.DB.batch(stmts);
-  const tables = ['rate_limits', 'oauth_sessions', 'oauth_states', 'import_runs'];
+  const tables = [
+    'rate_limits',
+    'stale_scan_quota_reservations',
+    'scan_quota_reservations',
+    'scan_requests',
+    'admin_operation_claims',
+    'oauth_sessions',
+    'oauth_states',
+    'import_runs',
+  ];
   const deleted: Record<string, number> = {};
   results.forEach((r, i) => { deleted[tables[i]] = r.meta?.changes ?? 0; });
 

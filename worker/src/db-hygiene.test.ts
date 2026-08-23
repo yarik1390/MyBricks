@@ -9,7 +9,9 @@ const db = (env as any).DB as D1Database;
 describe('runDbHygiene', () => {
   beforeEach(async () => {
     await applyTestTables(db, [
-      'lego_sets', 'rate_limits', 'oauth_sessions', 'oauth_states', 'import_runs', 'cron_runs',
+      'lego_sets', 'rate_limits', 'scan_requests', 'scan_quota_reservations',
+      'admin_operation_claims',
+      'oauth_sessions', 'oauth_states', 'import_runs', 'cron_runs',
     ]);
   });
 
@@ -27,12 +29,21 @@ describe('runDbHygiene', () => {
       db.prepare(`INSERT INTO oauth_states (state, user_id, expires_at) VALUES ('s1', 'u', unixepoch() - 200000)`),
       db.prepare(`INSERT INTO oauth_states (state, user_id, expires_at) VALUES ('s2', 'u', unixepoch() + 200000)`),
     ]);
+    await db.batch([
+      db.prepare(`INSERT INTO admin_operation_claims
+        (operation_key, action, actor_user_id, updated_at)
+        VALUES ('stale-operation-key', 'import-rebrickable', 'u', datetime('now','-8 days'))`),
+      db.prepare(`INSERT INTO admin_operation_claims
+        (operation_key, action, actor_user_id, updated_at)
+        VALUES ('fresh-operation-key', 'import-rebrickable', 'u', datetime('now','-1 day'))`),
+    ]);
 
     const r = await runDbHygiene(env as any);
 
     expect(r.deleted.rate_limits).toBe(1);
     expect(r.deleted.oauth_sessions).toBe(1);
     expect(r.deleted.oauth_states).toBe(1);
+    expect(r.deleted.admin_operation_claims).toBe(1);
     const rl = await db.prepare(`SELECT COUNT(*) AS n FROM rate_limits`).first<{ n: number }>();
     expect(rl!.n).toBe(1); // the live window survives
   });

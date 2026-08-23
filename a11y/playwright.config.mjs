@@ -11,7 +11,11 @@ export default defineConfig({
   retries: 1,
   workers: 1,
   reporter: 'list',
-  use: { headless: true, baseURL: `http://localhost:${PORT}` },
+  use: {
+    headless: true,
+    baseURL: `http://localhost:${PORT}`,
+    ...(process.env.PW_CHROMIUM_PATH ? { launchOptions: { executablePath: process.env.PW_CHROMIUM_PATH } } : {}),
+  },
   projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
   webServer: process.env.A11Y_BASE ? undefined : {
     command: 'node e2e/serve.mjs',

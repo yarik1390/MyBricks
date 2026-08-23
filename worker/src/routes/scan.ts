@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import OpenAI from 'openai';
 import { optionalMember } from '../auth';
-import { callGeminiScan } from '../lib/gemini';
+import { callGeminiScan, callGeminiScanOutcome } from '../lib/gemini';
 import { enrichSetRecord } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { logEvent } from '../lib/analytics';
@@ -73,52 +73,50 @@ function scanQuotaBuckets(isSupporter: boolean, now = new Date()): ScanQuotaBuck
 async function consumeSharedScanQuota(
   db: D1Database,
   userId: string,
+  requestKey: string,
   isSupporter: boolean,
   units: number,
 ): Promise<{ allowed: true } | { allowed: false; label: string }> {
   const buckets = scanQuotaBuckets(isSupporter);
-  const quotaValues = buckets.map(() => '(?, ?, ?)').join(', ');
-  const quotaParams = buckets.flatMap(bucket => [bucket.endpoint, bucket.windowStart, bucket.limit]);
-
-  // Check every bucket and increment every bucket in one SQLite statement. A
-  // blocked SELECT yields zero rows, while an allowed SELECT feeds all rows to
-  // the upsert. SQLite statement atomicity prevents partial hourly/daily charges
-  // and serializes competing writes without a compensating decrement.
-  const result = await db.prepare(`
-    WITH quota(endpoint, window_start, quota_limit) AS (
-      VALUES ${quotaValues}
-    )
-    INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
-    SELECT ?, q.endpoint, q.window_start, ?
-    FROM quota q
-    WHERE NOT EXISTS (
-      SELECT 1
-      FROM quota candidate
-      LEFT JOIN rate_limits current
-        ON current.user_id = ?
-       AND current.endpoint = candidate.endpoint
-       AND current.window_start = candidate.window_start
-      WHERE COALESCE(current.hit_count, 0) + ? > candidate.quota_limit
-    )
-    ON CONFLICT(user_id, endpoint, window_start) DO UPDATE
-      SET hit_count = rate_limits.hit_count + excluded.hit_count
-    RETURNING endpoint, hit_count
-  `).bind(...quotaParams, userId, units, userId, units)
-    .all<{ endpoint: string; hit_count: number }>();
-
-  if (result.results.length === buckets.length) return { allowed: true };
-
-  // The all-or-none statement made no writes. Read only to select the most
-  // useful limit label; counts cannot decrease within these fixed UTC windows.
+  // D1 exposes transactions only through single statements/batches. Reserve
+  // each bucket with an atomic conditional insert, then compensate if a later
+  // bucket blocks. The reservation ledger (rather than a decrementing counter)
+  // makes that compensation idempotent and prevents undercount races.
+  const inserted: Array<(typeof buckets)[number]> = [];
   for (const bucket of buckets) {
-    const row = await db.prepare(
-      'SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint=? AND window_start=?',
-    ).bind(userId, bucket.endpoint, bucket.windowStart).first<{ hit_count: number }>();
-    if (Number(row?.hit_count ?? 0) + units > bucket.limit) {
-      return { allowed: false, label: bucket.label };
+    const result = await db.prepare(`
+      INSERT INTO scan_quota_reservations
+        (user_id, request_key, endpoint, window_start, units, state)
+      SELECT ?, ?, ?, ?, ?, 'reserved'
+      WHERE
+        COALESCE((SELECT hit_count FROM rate_limits
+          WHERE user_id=? AND endpoint=? AND window_start=?), 0)
+        + COALESCE((SELECT SUM(units) FROM scan_quota_reservations
+          WHERE user_id=? AND endpoint=? AND window_start=?
+            AND state IN ('reserved', 'consumed')), 0)
+        + ? <= ?
+      ON CONFLICT(user_id, request_key, endpoint, window_start) DO NOTHING
+      RETURNING endpoint
+    `).bind(
+      userId, requestKey, bucket.endpoint, bucket.windowStart, units,
+      userId, bucket.endpoint, bucket.windowStart,
+      userId, bucket.endpoint, bucket.windowStart,
+      units, bucket.limit,
+    ).first<{ endpoint: string }>();
+    if (result) {
+      inserted.push(bucket);
+      continue;
     }
+    if (inserted.length > 0) {
+      await db.batch(inserted.map((reserved) => db.prepare(`
+        UPDATE scan_quota_reservations
+        SET state='released', updated_at=CURRENT_TIMESTAMP
+        WHERE user_id=? AND request_key=? AND endpoint=? AND window_start=? AND state='reserved'
+      `).bind(userId, requestKey, reserved.endpoint, reserved.windowStart)));
+    }
+    return { allowed: false, label: bucket.label };
   }
-  throw new Error('Scan quota reservation returned an incomplete result');
+  return { allowed: true };
 }
 
 // Shelf Snap returns up to this many sets from one photo. Also sizes the
@@ -287,6 +285,7 @@ async function describeSharedScan(
   image: string,
   opts: ScanPromptOpts = {},
   timings: StepTiming[] = [],
+  routeDeadline = Date.now() + SCAN_BUDGET_MS,
 ): Promise<{
   sets: DescribedSet[];
   minifigs: DescribedMinifig[];
@@ -301,8 +300,7 @@ async function describeSharedScan(
 
   // Deadline, not just per-call timeouts: the point is that the CASCADE finishes
   // before the client gives up, however many steps it happens to contain.
-  const deadline = Date.now() + SCAN_BUDGET_MS;
-  const msLeft = () => deadline - Date.now();
+  const msLeft = () => routeDeadline - Date.now();
 
   for (const step of steps) {
     if (msLeft() < MIN_STEP_MS) {
@@ -313,15 +311,21 @@ async function describeSharedScan(
     if (step.provider === 'gemini') {
       const t0 = Date.now();
       try {
-        const r = await callGeminiScan(image, env.GEMINI_API_KEY ?? '', env, {
+        const outcome = await callGeminiScanOutcome(image, env.GEMINI_API_KEY ?? '', env, {
           routeThroughGateway: true, prompt: opts.prompt,
           model: step.model,
           timeoutMs: Math.min(STEP_TIMEOUT_MS, msLeft()),
         });
         await recordAiUsage(env, 'gemini', step.model, null);
+        if (!outcome.ok) {
+          await recordIntegrationAttempt(env, 'gemini', false, outcome.message);
+          timings.push({ provider: 'gemini', model: step.model, ms: Date.now() - t0, outcome: outcome.kind });
+          continue;
+        }
+        const r = outcome.value;
         await recordIntegrationAttempt(env, 'gemini', true);
-        const hit = !!(r?.sets?.length || r?.minifigs?.length);
-        timings.push({ provider: 'gemini', model: step.model, ms: Date.now() - t0, outcome: hit ? 'match' : 'empty' });
+        const hit = outcome.kind === 'match';
+        timings.push({ provider: 'gemini', model: step.model, ms: Date.now() - t0, outcome: outcome.kind });
         if (hit) {
           return { sets: (r.sets ?? []) as DescribedSet[], minifigs: (r.minifigs ?? []) as DescribedMinifig[], model: step.model };
         }
@@ -416,6 +420,9 @@ async function describeSharedScan(
 app.use('*', optionalMember);
 
 app.post('/identify', async (c) => {
+  // One deadline covers validation, anti-abuse/quota work, provider calls, and
+  // catalog matching. Provider steps receive only the time still available.
+  const routeDeadline = Date.now() + SCAN_BUDGET_MS;
   const userId = c.get('userId') || '';
   const body = await c.req.json<{ mode?: string; image?: string; barcode?: string }>();
   const { mode, image, barcode } = body;
@@ -449,6 +456,63 @@ app.post('/identify', async (c) => {
 
   const geminiKey = c.req.header('X-Gemini-Key');
   const openaiKey = c.req.header('X-OpenAI-Key');
+  const requestKey = (c.req.header('Idempotency-Key') || '').trim();
+  if (requestKey && !/^[A-Za-z0-9._:-]{16,128}$/.test(requestKey)) {
+    return c.json({ error: 'Invalid Idempotency-Key.' }, 400);
+  }
+  let sharedRequestClaimed = false;
+  // Legacy/API clients without a replay key still need a unique quota lease;
+  // first-party clients always supply Idempotency-Key and receive replay safety.
+  const quotaRequestKey = requestKey || crypto.randomUUID();
+  let sharedQuotaReserved = false;
+  let sharedQuotaSettled = false;
+
+  const releaseReservedQuota = async () => {
+    if (!sharedQuotaReserved || sharedQuotaSettled) return;
+    await c.env.DB.prepare(`
+      UPDATE scan_quota_reservations
+      SET state='released', updated_at=CURRENT_TIMESTAMP
+      WHERE user_id=? AND request_key=? AND state='reserved'
+    `).bind(userId, quotaRequestKey).run();
+    if (sharedRequestClaimed) {
+      await c.env.DB.prepare(`
+        UPDATE scan_requests
+        SET quota_state='released', updated_at=CURRENT_TIMESTAMP
+        WHERE user_id=? AND request_key=? AND quota_state='reserved'
+      `).bind(userId, requestKey).run();
+    }
+    sharedQuotaSettled = true;
+  };
+
+  const consumeReservedQuota = async () => {
+    if (!sharedQuotaReserved || sharedQuotaSettled) return;
+    await c.env.DB.prepare(`
+      UPDATE scan_quota_reservations
+      SET state='consumed', updated_at=CURRENT_TIMESTAMP
+      WHERE user_id=? AND request_key=? AND state='reserved'
+    `).bind(userId, quotaRequestKey).run();
+    if (sharedRequestClaimed) {
+      await c.env.DB.prepare(`
+        UPDATE scan_requests
+        SET quota_state='consumed', updated_at=CURRENT_TIMESTAMP
+        WHERE user_id=? AND request_key=? AND quota_state='reserved'
+      `).bind(userId, requestKey).run();
+    }
+    sharedQuotaSettled = true;
+  };
+
+  const finalizeShared = async (payload: Record<string, unknown>, status: 200 | 202 | 400 | 409 | 413 | 429 | 500 | 503 = 200) => {
+    if (status >= 500) await releaseReservedQuota();
+    else await consumeReservedQuota();
+    if (sharedRequestClaimed) {
+      await c.env.DB.prepare(`
+        UPDATE scan_requests
+        SET status='completed', response_json=?, updated_at=CURRENT_TIMESTAMP
+        WHERE user_id=? AND request_key=?
+      `).bind(JSON.stringify({ payload, status }), userId, requestKey).run();
+    }
+    return c.json(payload, status);
+  };
 
   const NOT_FOUND = shelfMode
     ? "Couldn't identify any sets on that shelf. Try a closer, well-lit photo — a few sets at a time works best."
@@ -456,15 +520,18 @@ app.post('/identify', async (c) => {
   // Match AI-described sets to the catalog (exact number, then FTS name search)
   // and shape the response. Shared by every provider path below.
   const respondMatched = async (describedSets: DescribedSet[], describedMinifigs: DescribedMinifig[], model: string) => {
+    if (Date.now() >= routeDeadline - 250) {
+      return finalizeShared({ identified: false, reason: 'provider_timeout', reasoning: 'The scanner ran out of time. Please try again.' }, 503);
+    }
     const setMatch = await matchSetsToCatalog(c.env, describedSets.slice(0, SHELF_MAX_SETS));
     const figMatch = await matchMinifigsToCatalog(c.env, describedMinifigs);
-    if (!setMatch.sets.length && !figMatch.minifigs.length) return c.json({ identified: false, reasoning: NOT_FOUND });
+    if (!setMatch.sets.length && !figMatch.minifigs.length) return finalizeShared({ identified: false, reasoning: NOT_FOUND });
     const firstId = String((setMatch.sets[0] as Record<string, unknown>)?.set_num || (figMatch.minifigs[0] as Record<string, unknown>)?.fig_num || '');
     logEvent(c.env, 'scan_used', userId, { setNum: firstId });
     if (shouldVerifyWithPatewayEconomy(shelfMode, setMatch.sets, c.env.PATEWAY_ECONOMY_API_KEY)) {
       c.executionCtx.waitUntil(verifyScanWithPatewayEconomy(c.env, image, setMatch.sets));
     }
-    return c.json({ identified: true, sets: setMatch.sets, minifigs: figMatch.minifigs, confidence: setMatch.topConfidence, reasoning: setMatch.reasoning, model });
+    return finalizeShared({ identified: true, sets: setMatch.sets, minifigs: figMatch.minifigs, confidence: setMatch.topConfidence, reasoning: setMatch.reasoning, model });
   };
 
   // 1. BYOK Gemini — the user's own key, called directly on their quota.
@@ -545,6 +612,30 @@ app.post('/identify', async (c) => {
     }
   }
 
+  // Claim the logical shared scan before quota or provider work. Replays of a
+  // completed request get the stored response; concurrent duplicates do no work.
+  if (requestKey) {
+    const inserted = await c.env.DB.prepare(`
+      INSERT OR IGNORE INTO scan_requests (user_id, request_key, status)
+      VALUES (?, ?, 'processing')
+    `).bind(userId, requestKey).run();
+    if ((inserted.meta.changes ?? 0) === 0) {
+      const prior = await c.env.DB.prepare(`
+        SELECT status, response_json FROM scan_requests
+        WHERE user_id=? AND request_key=?
+      `).bind(userId, requestKey).first<{ status: string; response_json: string | null }>();
+      if (prior?.status === 'completed' && prior.response_json) {
+        try {
+          const saved = JSON.parse(prior.response_json) as { payload: Record<string, unknown>; status: 200 | 202 | 400 | 409 | 413 | 429 | 500 | 503 };
+          return c.json(saved.payload, saved.status);
+        } catch { /* malformed records fail closed below */ }
+      }
+      c.header('Retry-After', '2');
+      return c.json({ error: 'This scan is already being processed.', reason: 'in_progress' }, 409);
+    }
+    sharedRequestClaimed = true;
+  }
+
   {
     // Per-user cap on the shared server quota (BYOK above bypasses this entirely).
     // One normal photo costs one unit; Shelf Snap costs three. Free accounts
@@ -554,12 +645,25 @@ app.post('/identify', async (c) => {
     ).bind(userId).first<{ is_supporter: number }>();
     const isSupporter = pref?.is_supporter === 1;
     const units = shelfMode ? SHELF_SCAN_UNITS : SINGLE_SCAN_UNITS;
-    const quota = await consumeSharedScanQuota(c.env.DB, userId, isSupporter, units);
+    const quota = await consumeSharedScanQuota(c.env.DB, userId, quotaRequestKey, isSupporter, units);
     if (!quota.allowed) {
       const charge = units === 1 ? '' : ` Shelf Snap uses ${units} scan units.`;
-      return c.json({
+      return finalizeShared({
         error: `Rate limit: ${quota.label}.${charge} Add your own Gemini/OpenAI key for unlimited scanning.`,
       }, 429);
+    }
+    sharedQuotaReserved = true;
+    if (sharedRequestClaimed) {
+      await c.env.DB.prepare(`
+        UPDATE scan_requests
+        SET quota_state='reserved', quota_units=?, quota_buckets_json=?, updated_at=CURRENT_TIMESTAMP
+        WHERE user_id=? AND request_key=?
+      `).bind(
+        units,
+        JSON.stringify(scanQuotaBuckets(isSupporter).map((bucket) => ({ endpoint: bucket.endpoint, windowStart: bucket.windowStart }))),
+        userId,
+        requestKey,
+      ).run();
     }
   }
 
@@ -569,15 +673,21 @@ app.post('/identify', async (c) => {
   // whole budget — the difference between a photo problem and a routing problem.
   const timings: StepTiming[] = [];
   const started = Date.now();
-  const desc = await describeSharedScan(c.env, image, promptOpts, timings);
+  let desc: Awaited<ReturnType<typeof describeSharedScan>>;
+  try {
+    desc = await describeSharedScan(c.env, image, promptOpts, timings, routeDeadline);
+  } catch (error) {
+    await releaseReservedQuota();
+    throw error;
+  }
   const diag = {
     timings,
     total_ms: Date.now() - started,
     image_kb: Math.round(image.length / 1024),
   };
-  if ('error' in desc) return c.json({ identified: false, reasoning: desc.error, diag });
+  if ('error' in desc) return finalizeShared({ identified: false, reason: 'provider_unavailable', reasoning: desc.error, diag }, 503);
   if (desc.classification === 'not_lego' && !desc.sets.length && !desc.minifigs.length) {
-    return c.json({ identified: false, reason: 'not_lego', reasoning: NOT_LEGO_REASON, diag });
+    return finalizeShared({ identified: false, reason: 'not_lego', reasoning: NOT_LEGO_REASON, diag });
   }
   return respondMatched(desc.sets, desc.minifigs, desc.model);
 });

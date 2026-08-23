@@ -17,6 +17,42 @@ const CHECKPOINT_INTERVAL = 256 * 1024 * 1024;
 let FilesetResolver = null;
 let LlmInference = null;
 let activeInferenceInstance = null;
+let inferenceGeneration = 0;
+const LOCAL_AI_TIMEOUT_MS = 15_000;
+
+function disposeInference(instance = activeInferenceInstance) {
+  inferenceGeneration += 1;
+  try { instance?.close?.(); } catch {}
+  if (activeInferenceInstance === instance) activeInferenceInstance = null;
+}
+
+async function withInferenceDeadline(work, timeoutMs = LOCAL_AI_TIMEOUT_MS, signal) {
+  const generation = inferenceGeneration;
+  let timer;
+  let abortListener;
+  const failure = new Promise((_, reject) => {
+    const abort = (message, code) => {
+      disposeInference();
+      reject(Object.assign(new Error(message), { code }));
+    };
+    timer = setTimeout(() => abort('On-device AI timed out.', 'LOCAL_AI_TIMEOUT'), timeoutMs);
+    if (signal) {
+      abortListener = () => abort('On-device AI was cancelled.', 'LOCAL_AI_CANCELLED');
+      if (signal.aborted) abortListener();
+      else signal.addEventListener('abort', abortListener, { once: true });
+    }
+  });
+  try {
+    const result = await Promise.race([work(), failure]);
+    if (generation !== inferenceGeneration) {
+      throw Object.assign(new Error('On-device AI result expired.'), { code: 'LOCAL_AI_CANCELLED' });
+    }
+    return result;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', abortListener);
+  }
+}
 
 // --- Download metadata helpers (localStorage, sync) ---
 function getDlMeta() {
@@ -340,10 +376,7 @@ export async function deleteGemma3Model() {
   } catch {}
   clearDlMeta();
   bvIDB.del(CACHE_KEY).catch(() => {});
-  if (activeInferenceInstance) {
-    activeInferenceInstance.close();
-    activeInferenceInstance = null;
-  }
+  if (activeInferenceInstance) disposeInference(activeInferenceInstance);
 }
 
 /** Load the cached model from OPFS and initialize the MediaPipe LlmInference task. */
@@ -392,12 +425,14 @@ async function getInferenceInstance() {
  * `onPartial(text)` is called with the cumulative text so far during streaming.
  * Returns the final response string.
  */
-export async function runLocalTextInference(textPrompt, onPartial) {
-  const llm = await getInferenceInstance();
-  if (onPartial) {
-    return llm.generateResponse(textPrompt, (partial) => { onPartial(partial); });
-  }
-  return llm.generateResponse(textPrompt);
+export async function runLocalTextInference(textPrompt, onPartial, opts = {}) {
+  return withInferenceDeadline(async () => {
+    const llm = await getInferenceInstance();
+    if (onPartial) {
+      return llm.generateResponse(textPrompt, (partial) => { onPartial(partial); });
+    }
+    return llm.generateResponse(textPrompt);
+  }, opts.timeoutMs, opts.signal);
 }
 
 /**
@@ -405,11 +440,12 @@ export async function runLocalTextInference(textPrompt, onPartial) {
  * @param {HTMLCanvasElement|HTMLImageElement|ImageBitmap} imageElement
  * @param {function} onStatus - callback for status updates
  */
-export async function runLocalVisionScan(imageElement, onStatus) {
-  if (onStatus) onStatus('Initializing local engine...');
-  const llm = await getInferenceInstance();
+export async function runLocalVisionScan(imageElement, onStatus, opts = {}) {
+  return withInferenceDeadline(async () => {
+    if (onStatus) onStatus('Initializing local engine...');
+    const llm = await getInferenceInstance();
 
-  if (onStatus) onStatus('Analyzing image locally...');
+    if (onStatus) onStatus('Analyzing image locally...');
   // tasks-genai multimodal prompt: array of string / {imageSource} parts.
   // Keep the requested output TERSE: on-device latency is dominated by the number
   // of tokens generated, so we drop the free-text "reasoning" field (the biggest
@@ -442,4 +478,5 @@ export async function runLocalVisionScan(imageElement, onStatus) {
     }
     throw new Error(`Failed to parse local AI response: ${response}`);
   }
+  }, opts.timeoutMs, opts.signal);
 }

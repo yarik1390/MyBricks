@@ -9,6 +9,7 @@ import { subpageTopbarHTML, loadMe } from './me-shared.js';
 import { skelPage, skelSettingRows } from '../components/skeleton.js';
 import { disableNativePush, enableNativePush, nativePushEnabled, nativePushSupported } from '../lib/native-push.js';
 import { t, tPlural } from '../lib/i18n.js';
+import { getProviderCredential, hasPersistentProviderCredential, setProviderCredential } from '../lib/provider-credentials.js';
 
 export async function renderMeIntegrations() {
   // OAuth return from Google lands here with a query param.
@@ -33,8 +34,8 @@ export async function renderMeIntegrations() {
     ?? state.config?.status?.google
     ?? false;
   const googleMissing = Array.isArray(googleSetup.missing_secrets) ? googleSetup.missing_secrets : ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"];
-  const savedGeminiKey = localStorage.getItem('bv_gemini_key') || '';
-  const savedOpenAIKey = localStorage.getItem('bv_openai_key') || '';
+  const savedGeminiKey = getProviderCredential('gemini');
+  const savedOpenAIKey = getProviderCredential('openai');
   // Earlier builds shipped (and persisted) a dead model URL — drop it so the
   // input falls back to the working default.
   if ((localStorage.getItem('bv_gemma_model_url') || '').includes('jardpound')) {
@@ -438,13 +439,13 @@ export async function renderMeIntegrations() {
     }
   };
 
-  const wireKeySave = (btnSel, inputSel, storageKey, provider, label) => {
+  const wireKeySave = (btnSel, inputSel, provider, label) => {
     $(btnSel)?.addEventListener("click", async () => {
       haptic("medium");
       const btn = $(btnSel);
       const val = $(inputSel).value.trim();
       if (!val) {
-        localStorage.removeItem(storageKey);
+        setProviderCredential(provider, '');
         state.me = null;
         toast(t('integrations.keyRemoved', { label }), "success");
         renderMeIntegrations();
@@ -453,7 +454,9 @@ export async function renderMeIntegrations() {
       setBtnLoading(btn, true);
       try {
         await validateApiKey(provider, val);
-        localStorage.setItem(storageKey, val);
+        // New keys are session-only by default. Existing remembered keys remain
+        // remembered so upgrades never silently delete user credentials.
+        setProviderCredential(provider, val, hasPersistentProviderCredential(provider));
         state.me = null;
         toast(t('integrations.keyVerified', { label }), "success");
         renderMeIntegrations();
@@ -464,8 +467,8 @@ export async function renderMeIntegrations() {
       }
     });
   };
-  wireKeySave("#saveGeminiKey", "#geminiKeyInput", "bv_gemini_key", "gemini", "Gemini");
-  wireKeySave("#saveOpenAIKey", "#openaiKeyInput", "bv_openai_key", "openai", "OpenAI");
+  wireKeySave("#saveGeminiKey", "#geminiKeyInput", "gemini", "Gemini");
+  wireKeySave("#saveOpenAIKey", "#openaiKeyInput", "openai", "OpenAI");
 
   // --- Check On-Device Prompt API availability ---
   const checkChromeAi = async () => {

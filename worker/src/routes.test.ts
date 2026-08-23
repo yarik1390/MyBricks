@@ -133,6 +133,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       'DROP TABLE IF EXISTS minifig_value_history',
       'DROP TABLE IF EXISTS lego_sets_fts',
       'DROP TABLE IF EXISTS rate_limits',
+      'DROP TABLE IF EXISTS admin_audit_log',
+      'DROP TABLE IF EXISTS admin_operation_claims',
       'DROP TABLE IF EXISTS oauth_sessions',
       'DROP TABLE IF EXISTS oauth_states',
       'DROP TABLE IF EXISTS user_minifigs',
@@ -289,6 +291,18 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       `CREATE TABLE rate_limits (
         user_id TEXT NOT NULL, endpoint TEXT NOT NULL, window_start TEXT NOT NULL,
         hit_count INTEGER DEFAULT 0, PRIMARY KEY (user_id, endpoint, window_start)
+      )`,
+      `CREATE TABLE admin_audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, occurred_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        request_id TEXT NOT NULL, actor_user_id TEXT NOT NULL, action TEXT NOT NULL,
+        target_type TEXT, target_id TEXT, before_json TEXT, after_json TEXT,
+        outcome TEXT NOT NULL, error_code TEXT, source_ip_hash TEXT
+      )`,
+      `CREATE TABLE admin_operation_claims (
+        operation_key TEXT NOT NULL, action TEXT NOT NULL, actor_user_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'running', result_json TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (actor_user_id, action, operation_key)
       )`,
       `CREATE TABLE oauth_sessions (code TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL)`,
       `CREATE TABLE oauth_states (state TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL)`,
@@ -1876,6 +1890,8 @@ describe('DB hygiene job', () => {
     const db = (env as any).DB as D1Database;
     const sqls = [
       'DROP TABLE IF EXISTS rate_limits',
+      'DROP TABLE IF EXISTS scan_quota_reservations',
+      'DROP TABLE IF EXISTS scan_requests',
       'DROP TABLE IF EXISTS oauth_sessions',
       'DROP TABLE IF EXISTS oauth_states',
       'DROP TABLE IF EXISTS import_runs',
@@ -1887,6 +1903,18 @@ describe('DB hygiene job', () => {
       `CREATE TABLE rate_limits (
         user_id TEXT NOT NULL, endpoint TEXT NOT NULL, window_start TEXT NOT NULL,
         hit_count INTEGER DEFAULT 0, PRIMARY KEY (user_id, endpoint, window_start)
+      )`,
+      `CREATE TABLE scan_requests (
+        user_id TEXT NOT NULL, request_key TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'processing',
+        response_json TEXT, quota_state TEXT NOT NULL DEFAULT 'none', quota_units INTEGER NOT NULL DEFAULT 0,
+        quota_buckets_json TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, request_key)
+      )`,
+      `CREATE TABLE scan_quota_reservations (
+        user_id TEXT NOT NULL, request_key TEXT NOT NULL, endpoint TEXT NOT NULL,
+        window_start TEXT NOT NULL, units INTEGER NOT NULL, state TEXT NOT NULL DEFAULT 'reserved',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, request_key, endpoint, window_start)
       )`,
       `CREATE TABLE oauth_sessions (code TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL)`,
       `CREATE TABLE oauth_states (state TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL)`,

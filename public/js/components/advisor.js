@@ -5,6 +5,7 @@ import { I } from '../icons.js';
 import { isLocalAiSupported, createLocalAiSession, getLocalAiAvailability, checkGemma3Downloaded, runLocalTextInference } from '../lib/local-ai.js';
 import { displayValueOf } from '../lib/pure.js';
 import { tPlural } from '../lib/i18n.js';
+import { getProviderCredential } from '../lib/provider-credentials.js';
 
 let _activeReader = null;
 export function cancelActiveStream() {
@@ -48,7 +49,7 @@ export async function toggleAdvisor() {
 }
 
 export async function renderAdvisorDrawer() {
-  const savedGeminiKey = localStorage.getItem('bv_gemini_key') || '';
+  const savedGeminiKey = getProviderCredential('gemini');
   
   if (!state.portfolio) {
     try {
@@ -519,8 +520,8 @@ async function sendAdvisorMessage(q) {
   let reader = null;
   let rafId = null;
   try {
-    const geminiKey = localStorage.getItem('bv_gemini_key');
-    const openaiKey = localStorage.getItem('bv_openai_key');
+    const geminiKey = getProviderCredential('gemini');
+    const openaiKey = getProviderCredential('openai');
     const extraHeaders = {};
     if (geminiKey) extraHeaders['X-Gemini-Key'] = geminiKey;
     else if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
@@ -623,7 +624,7 @@ async function sendAdvisorMessage(q) {
     aiBubble.querySelector(".chat-typing")?.remove();
     aiBubble.classList.add("error");
     const errMsg = err.message || "";
-    const noKey = !localStorage.getItem('bv_gemini_key') && !localStorage.getItem('bv_openai_key');
+    const noKey = !getProviderCredential('gemini') && !getProviderCredential('openai');
     const rateLimited = /rate.?limit|api key|unlimited|quota|too many|429/i.test(errMsg);
     // On a shared-quota rate-limit, a personal free Gemini key removes the cap.
     const keyCta = (noKey && rateLimited) ? `
