@@ -110,6 +110,8 @@ crons = [
 # when AI_GATEWAY_ACCOUNT_ID is also present (uploaded as a secret in CI), so this
 # stays dormant until the gateway is provisioned + the account id is wired.
 AI_GATEWAY_ID = "brickvault"
+# OMNIROUTE_API_KEY is a Worker secret. The hosted endpoint is pinned in code;
+# OMNIROUTE_BASE_URL is only needed for a self-hosted/staging override.
 # Monthly Merge Gateway allowance the admin console meters spend against.
 #
 # It lives HERE, not as a secret and not as a dashboard var, for two reasons.

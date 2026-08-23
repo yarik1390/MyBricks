@@ -1286,7 +1286,7 @@ function recommendedQualityAction(cards) {
 let llmData = null;
 let llmDirty = false;
 const LLM_PROVIDER_LABEL = {
-  gemini: 'Gemini', merge: 'Merge', openrouter: 'OpenRouter', openai: 'OpenAI',
+  gemini: 'Gemini', omniroute: 'OmniRoute', merge: 'Merge', openrouter: 'OpenRouter', openai: 'OpenAI',
 };
 const LLM_CUSTOM = '__custom__';
 
@@ -1319,6 +1319,7 @@ async function loadLlmRouting() {
 function llmModelGroups(provider) {
   const m = llmData?.models || {};
   const flat = provider === 'merge' ? (m.merge || [])
+    : provider === 'omniroute' ? (m.omniroute || [])
     : provider === 'openrouter' ? [...(m.openrouter_vision || []), ...(m.openrouter_text || [])]
     : provider === 'gemini' ? (m.gemini || [])
     : provider === 'openai' ? (m.openai || []) : [];

@@ -100,6 +100,11 @@ export interface Env {
   // OpenAI-compatible, so it reuses the same client with a different baseURL.
   // Where each workload tries it is admin-tunable — see lib/llm-routing.ts.
   MERGE_GATEWAY_API_KEY?: string;
+  // OmniRoute OpenAI-compatible gateway. Its subscription-backed Antigravity
+  // Gemini route is the shared scan primary; the key must be a Worker secret.
+  OMNIROUTE_API_KEY?: string;
+  // Optional non-secret override for self-hosted/staging OmniRoute instances.
+  OMNIROUTE_BASE_URL?: string;
   // Pateway Economy key, bound to Economy Mode in Pateway's control plane.
   // Used only for post-response scan verification; it is never in the
   // synchronous identification cascade and must remain a Worker secret.

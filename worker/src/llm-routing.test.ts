@@ -28,7 +28,7 @@ async function freshSchema() {
 const withKeys = (extra: Record<string, string> = {}) => ({
   ...(env as any),
   GEMINI_API_KEY: 'g', OPENROUTER_API_KEY: 'or', OPENAI_API_KEY: 'oa',
-  MERGE_GATEWAY_API_KEY: 'mg_test', ...extra,
+  OMNIROUTE_API_KEY: 'omni', MERGE_GATEWAY_API_KEY: 'mg_test', ...extra,
 });
 
 describe('llm-routing', () => {
@@ -40,17 +40,18 @@ describe('llm-routing', () => {
     for (const w of LLM_WORKLOADS) expect(routes[w].length).toBeGreaterThan(0);
   });
 
-  it('defaults scan to measured fast Merge vision before volatile free pools', () => {
+  it('defaults scan to pinned OmniRoute vision, then independent Merge fallbacks', () => {
     expect(DEFAULT_LLM_ROUTES.scan.slice(0, 3)).toEqual([
+      { provider: 'omniroute', model: 'antigravity/gemini-3.5-flash-low', enabled: true },
       { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
       { provider: 'merge', model: 'openai/gpt-4o', enabled: true },
-      { provider: 'openrouter', model: '', enabled: true },
     ]);
   });
 
   it('keeps the metered OpenAI backstop last', async () => {
     const scan = DEFAULT_LLM_ROUTES.scan.map((s) => s.provider);
     const firstMerge = scan.indexOf('merge');
+    expect(scan[0]).toBe('omniroute');
     expect(firstMerge).toBeGreaterThanOrEqual(0);
     expect(firstMerge).toBeLessThan(scan.indexOf('openai'));
     expect(scan[scan.length - 1]).toBe('openai');

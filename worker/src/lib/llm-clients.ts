@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import type { Env } from '../types';
 import { getOpenRouterPools, openAIServerBaseURL, openRouterBaseURL } from './llm';
 import { mergeBaseURL } from './merge-gateway';
+import { omniRouteClient } from './omniroute';
 import type { RouteStep } from './llm-routing';
 
 /**
@@ -19,7 +20,7 @@ const RETRIES = 0;
  * Turn one route step into a ready OpenAI-compatible client plus the ordered
  * model ids to try on it.
  *
- * Three of the four providers (merge, openrouter, openai) speak the OpenAI wire
+ * Four providers (omniroute, merge, openrouter, openai) speak the OpenAI wire
  * format, so they differ only by base URL and key — which is the whole reason
  * Merge was cheap to add. Gemini is NOT included here: it has its own REST
  * shape and its callers handle it separately.
@@ -36,6 +37,11 @@ export async function openAiCompatibleStep(
   kind: 'vision' | 'text' = 'vision',
 ): Promise<{ client: OpenAI | null; models: string[] }> {
   switch (step.provider) {
+    case 'omniroute': {
+      const client = omniRouteClient(env);
+      if (!client || !step.model) return { client: null, models: [] };
+      return { client, models: [step.model] };
+    }
     case 'merge': {
       const apiKey = (env.MERGE_GATEWAY_API_KEY ?? '').trim();
       if (!apiKey || !step.model) return { client: null, models: [] };

@@ -37,9 +37,9 @@ vi.mock('openai', () => {
             ? JSON.stringify({
                 image_class: 'lego',
                 sets: [
-                  { set_num: '75192', name: 'Millennium Falcon', confidence: 'high', reasoning: 'UCS dish visible' },
-                  { set_num: '10497', name: 'Galaxy Explorer', confidence: 'medium', reasoning: 'Classic space colors' },
-                  { set_num: '55555', name: 'Not A Real Set', confidence: 'low', reasoning: 'Partial view' },
+                  { set_num: '75192', name: 'Millennium Falcon', theme: 'Star Wars', year: 2017, confidence: 'high', reasoning: 'UCS dish visible' },
+                  { set_num: '10497', name: 'Galaxy Explorer', theme: 'Icons', year: 2022, confidence: 'medium', reasoning: 'Classic space colors' },
+                  { set_num: '55555', name: 'Not A Real Set', theme: null, year: null, confidence: 'low', reasoning: 'Partial view' },
                 ],
                 minifigs: [],
               })
@@ -51,7 +51,7 @@ vi.mock('openai', () => {
             ? JSON.stringify({ image_class: 'uncertain', sets: [], minifigs: [] })
             : JSON.stringify({
                 image_class: 'lego',
-                sets: [{ set_num: '75192', name: 'Millennium Falcon', confidence: 'high', reasoning: 'Visual match' }],
+                sets: [{ set_num: '75192', name: 'Millennium Falcon', theme: 'Star Wars', year: 2017, confidence: 'high', reasoning: 'Visual match' }],
                 minifigs: [],
               });
           return Promise.resolve({ choices: [{ message: { content } }] });

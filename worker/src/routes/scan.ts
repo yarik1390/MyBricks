@@ -225,7 +225,7 @@ async function verifyScanWithPatewayEconomy(
 
 // Describe LEGO set(s) in an image via any OpenAI-compatible client (OpenRouter
 // free vision models or OpenAI gpt-4o-mini). Returns AI-described sets + usage.
-async function openaiVisionDescribe(
+export async function openaiVisionDescribe(
   client: OpenAI,
   model: string,
   image: string,
@@ -251,6 +251,8 @@ async function openaiVisionDescribe(
   const completion = await client.chat.completions.create({
     model,
     max_tokens: opts.maxTokens || 700,
+    stream: false,
+    temperature: 0,
     response_format: { type: 'json_object' },
     messages,
   }, { timeout: timeoutMs });
@@ -261,22 +263,55 @@ async function openaiVisionDescribe(
   let imageClass: 'lego' | 'not_lego' | 'uncertain' = 'uncertain';
   if (text) {
     try {
-      const payload = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as {
-        image_class?: unknown;
-        sets?: DescribedSet[];
-        minifigs?: DescribedMinifig[];
-      };
-      if (Array.isArray(payload?.sets) && Array.isArray(payload?.minifigs)) {
+      // Some Gemini-compatible routes ignore response_format and add one outer
+      // Markdown fence. Accept exactly that wrapper, never arbitrary prose.
+      const normalized = text.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i, '$1').trim();
+      const payload: unknown = JSON.parse(normalized);
+      if (validScanPayload(payload)) {
         sets = payload.sets;
         minifigs = payload.minifigs;
-        if (payload.image_class === 'lego' || payload.image_class === 'not_lego' || payload.image_class === 'uncertain') {
-          imageClass = payload.image_class;
-        }
+        imageClass = payload.image_class;
         parsed = true;
       }
     } catch { /* malformed model output — let the provider cascade continue */ }
   }
   return { sets, minifigs, imageClass, parsed, usage: completion.usage, rawUsage: completion.usage };
+}
+
+const CONFIDENCE_VALUES = new Set(['high', 'medium', 'low', 'none']);
+
+function nullableString(value: unknown): boolean {
+  return value === null || typeof value === 'string';
+}
+
+function validScanPayload(payload: unknown): payload is {
+  image_class: 'lego' | 'not_lego' | 'uncertain';
+  sets: DescribedSet[];
+  minifigs: DescribedMinifig[];
+} {
+  if (!payload || typeof payload !== 'object') return false;
+  const row = payload as Record<string, unknown>;
+  if (!['lego', 'not_lego', 'uncertain'].includes(String(row.image_class))) return false;
+  if (!Array.isArray(row.sets) || !Array.isArray(row.minifigs)) return false;
+  const validSet = (item: unknown) => {
+    if (!item || typeof item !== 'object') return false;
+    const set = item as Record<string, unknown>;
+    return nullableString(set.set_num)
+      && typeof set.name === 'string'
+      && nullableString(set.theme)
+      && (set.year === null || (typeof set.year === 'number' && Number.isInteger(set.year)))
+      && CONFIDENCE_VALUES.has(String(set.confidence))
+      && typeof set.reasoning === 'string';
+  };
+  const validMinifig = (item: unknown) => {
+    if (!item || typeof item !== 'object') return false;
+    const fig = item as Record<string, unknown>;
+    return typeof fig.name === 'string'
+      && nullableString(fig.theme)
+      && CONFIDENCE_VALUES.has(String(fig.confidence))
+      && typeof fig.reasoning === 'string';
+  };
+  return row.sets.every(validSet) && row.minifigs.every(validMinifig);
 }
 
 /**

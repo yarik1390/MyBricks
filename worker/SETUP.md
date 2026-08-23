@@ -27,6 +27,7 @@ npx wrangler secret put GOOGLE_CLIENT_SECRET # optional; Google Sheets sync
 npx wrangler secret put EBAY_APP_ID          # optional; eBay production App ID / Client ID
 npx wrangler secret put EBAY_CLIENT_SECRET   # optional; matching production Cert ID / Client Secret
 npx wrangler secret put GEMINI_API_KEY       # optional; server-side Gemini valuation fallback
+npx wrangler secret put OMNIROUTE_API_KEY    # optional; primary shared photo-scan route
 npx wrangler secret put RESEND_API_KEY       # optional; email wishlist alerts
 npx wrangler secret put VAPID_PUBLIC_KEY     # optional; browser push alerts
 npx wrangler secret put VAPID_PRIVATE_KEY    # optional; browser push alerts

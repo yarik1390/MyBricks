@@ -18,8 +18,8 @@ import { MODELS } from './llm';
 // ---------------------------------------------------------------------------
 
 /** Providers a route step can name. */
-export type LlmProvider = 'gemini' | 'merge' | 'openrouter' | 'openai';
-export const LLM_PROVIDERS: LlmProvider[] = ['gemini', 'merge', 'openrouter', 'openai'];
+export type LlmProvider = 'gemini' | 'omniroute' | 'merge' | 'openrouter' | 'openai';
+export const LLM_PROVIDERS: LlmProvider[] = ['gemini', 'omniroute', 'merge', 'openrouter', 'openai'];
 
 /** Workloads that resolve their cascade through this config. */
 export type LlmWorkload = 'scan' | 'advisor' | 'valuation' | 'listing';
@@ -52,6 +52,7 @@ export interface RouteStep {
 export const DEFAULT_LLM_ROUTES: Record<LlmWorkload, RouteStep[]> = {
   // Vision. Fast measured primary -> accurate measured fallback -> best effort.
   scan: [
+    { provider: 'omniroute', model: 'antigravity/gemini-3.5-flash-low', enabled: true },
     { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
     { provider: 'merge', model: 'openai/gpt-4o', enabled: true },
     { provider: 'openrouter', model: '', enabled: true },
@@ -124,6 +125,12 @@ function staleProductionScanGeneration(stored: unknown): number {
   const normalized = mergeSteps('scan', stored);
   const generations = [
     [
+      'merge:google/gemini-3.5-flash-lite:true',
+      'merge:openai/gpt-4o:true',
+      'openrouter::true',
+      'openai:gpt-4o-mini:true',
+    ],
+    [
       'merge:openai/gpt-5.6-luna:true',
       'gemini:gemini-3.6-flash:true',
       'openrouter::true',
@@ -194,6 +201,7 @@ export async function resolveRoute(env: Env, workload: LlmWorkload): Promise<Rou
 export function providerConfigured(env: Env, provider: LlmProvider): boolean {
   switch (provider) {
     case 'gemini': return !!env.GEMINI_API_KEY;
+    case 'omniroute': return !!(env.OMNIROUTE_API_KEY ?? '').trim();
     case 'merge': return !!(env.MERGE_GATEWAY_API_KEY ?? '').trim();
     case 'openrouter': return !!env.OPENROUTER_API_KEY;
     case 'openai': return !!env.OPENAI_API_KEY;

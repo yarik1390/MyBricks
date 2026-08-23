@@ -18,6 +18,7 @@ export type IntegrationName =
   | 'firebase'
   | 'openai'
   | 'openrouter'
+  | 'omniroute'
   | 'merge'
   | 'pateway'
   | 'rebrickable'
@@ -220,6 +221,14 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['valuation fallback'],
     notes: 'Cheap valuation fallback routed through the AI Gateway: a free model first, then cheap paid (DeepSeek), then gpt-4o-mini. Valuation only — public set metadata, no user data.',
     recommended_action: 'Add OPENROUTER_API_KEY (and the AI Gateway) to enable the free-first, low-cost valuation fallback.',
+  },
+  omniroute: {
+    label: 'OmniRoute',
+    configured: (env) => !!(env.OMNIROUTE_API_KEY ?? '').trim(),
+    required_secrets: ['OMNIROUTE_API_KEY'],
+    used_by: ['scan primary'],
+    notes: 'Subscription-backed OpenAI-compatible gateway. Scans pin the benchmarked Antigravity Gemini route, bypass response caching, and reject silent provider/model changes.',
+    recommended_action: 'Add OMNIROUTE_API_KEY as a Worker secret and monitor Google subscription quotas and cooldowns.',
   },
   merge: {
     label: 'Merge Gateway',
