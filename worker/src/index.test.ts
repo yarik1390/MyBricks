@@ -10,6 +10,7 @@ declare module 'cloudflare:test' {
 }
 
 let sharedAmbiguousCalls = 0;
+let scanProviderCalls = 0;
 
 // Mock openai module completely
 vi.mock('openai', () => {
@@ -22,6 +23,7 @@ vi.mock('openai', () => {
           const systemMessage = args?.messages?.find((m: any) => m.role === 'system')?.content;
           const systemText = typeof systemMessage === 'string' ? systemMessage : '';
           if (promptText.includes('data:image/x-shared-primary-empty')) sharedAmbiguousCalls += 1;
+          if (promptText.includes('data:image/x-idempotency')) scanProviderCalls += 1;
           const content = promptText.includes('Generate an eBay listing')
             ? JSON.stringify({
                 title: 'LEGO 75192 Millennium Falcon - Star Wars UCS',
@@ -124,6 +126,10 @@ describe('BrickVault API Worker Tests', () => {
       'DROP TABLE IF EXISTS set_market_ext',
       'DROP TABLE IF EXISTS set_valuation_state',
       'DROP TABLE IF EXISTS rate_limits',
+      'DROP TABLE IF EXISTS scan_quota_reservations',
+      'DROP TABLE IF EXISTS scan_requests',
+      'DROP TABLE IF EXISTS admin_audit_log',
+      'DROP TABLE IF EXISTS admin_operation_claims',
       'DROP TABLE IF EXISTS user_wishlist',
       'DROP TABLE IF EXISTS user_minifigs',
       'DROP TABLE IF EXISTS kids_badges',
@@ -284,6 +290,59 @@ describe('BrickVault API Worker Tests', () => {
         PRIMARY KEY (user_id, endpoint, window_start)
       )`,
 
+      `CREATE TABLE scan_requests (
+        user_id TEXT NOT NULL,
+        request_key TEXT NOT NULL,
+        request_fingerprint TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'processing',
+        response_json TEXT,
+        quota_state TEXT NOT NULL DEFAULT 'none',
+        quota_units INTEGER NOT NULL DEFAULT 0,
+        quota_buckets_json TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, request_key)
+      )`,
+
+      `CREATE TABLE scan_quota_reservations (
+        user_id TEXT NOT NULL,
+        request_key TEXT NOT NULL,
+        endpoint TEXT NOT NULL,
+        window_start TEXT NOT NULL,
+        units INTEGER NOT NULL,
+        state TEXT NOT NULL DEFAULT 'reserved',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, request_key, endpoint, window_start)
+      )`,
+
+      `CREATE TABLE admin_audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        occurred_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        request_id TEXT NOT NULL,
+        actor_user_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        target_type TEXT,
+        target_id TEXT,
+        before_json TEXT,
+        after_json TEXT,
+        outcome TEXT NOT NULL,
+        error_code TEXT,
+        source_ip_hash TEXT
+      )`,
+
+      `CREATE TABLE admin_operation_claims (
+        operation_key TEXT NOT NULL,
+        action TEXT NOT NULL,
+        actor_user_id TEXT NOT NULL,
+        request_fingerprint TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'running',
+        result_json TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (actor_user_id, action, operation_key)
+      )`,
+
       `CREATE TABLE user_wishlist (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id TEXT NOT NULL,
@@ -408,7 +467,7 @@ describe('BrickVault API Worker Tests', () => {
     // When the front-end starts sending a NEW header, add it to BOTH index.ts's
     // allowHeaders AND this list.
     it('allow-lists every header the front-end sends (CORS preflight)', async () => {
-      const REQUIRED_HEADERS = ['Content-Type', 'Authorization', 'X-Gemini-Key', 'X-OpenAI-Key', 'cf-turnstile-token'];
+      const REQUIRED_HEADERS = ['Content-Type', 'Authorization', 'X-Gemini-Key', 'X-OpenAI-Key', 'Idempotency-Key', 'X-Request-Id', 'cf-turnstile-token'];
       const res = await app.fetch(
         new Request('http://localhost/api/scan/identify', {
           method: 'OPTIONS',
@@ -742,9 +801,10 @@ describe('BrickVault API Worker Tests', () => {
         env,
       );
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(503);
       const data = await res.json<{ identified: boolean; reason?: string }>();
       expect(sharedAmbiguousCalls).toBeGreaterThan(0);
+      expect(data.reason).toBe('provider_unavailable');
       expect(data.reason).not.toBe('not_lego');
     });
 
@@ -872,10 +932,13 @@ describe('BrickVault API Worker Tests', () => {
         env,
       );
       expect(allowed.status).toBe(200);
-      const row = await db.prepare(
-        `SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint='scan_image' AND window_start=?`,
-      ).bind(testUserId, ws).first<{ hit_count: number }>();
-      expect(row?.hit_count).toBe(20);
+      const quota = await db.prepare(`
+        SELECT COALESCE((SELECT hit_count FROM rate_limits
+          WHERE user_id=? AND endpoint='scan_image' AND window_start=?), 0)
+          + COALESCE((SELECT SUM(units) FROM scan_quota_reservations
+            WHERE user_id=? AND endpoint='scan_image' AND window_start=? AND state='consumed'), 0) AS used
+      `).bind(testUserId, ws, testUserId, ws).first<{ used: number }>();
+      expect(quota?.used).toBe(20);
     });
 
     it('charges Shelf Snap three units and does not consume units when it would exceed the free cap', async () => {
@@ -988,10 +1051,14 @@ describe('BrickVault API Worker Tests', () => {
       expect(responses.map(response => response.status).sort()).toEqual([200, 429]);
 
       const counts = await db.prepare(`
-        SELECT endpoint, hit_count FROM rate_limits
-        WHERE user_id=? AND endpoint IN ('scan_image', 'scan_image_supporter_daily')
-      `).bind(testUserId).all<{ endpoint: string; hit_count: number }>();
-      expect(Object.fromEntries(counts.results.map(r => [r.endpoint, r.hit_count]))).toEqual({
+        SELECT baseline.endpoint,
+          baseline.hit_count + COALESCE((SELECT SUM(units) FROM scan_quota_reservations r
+            WHERE r.user_id=baseline.user_id AND r.endpoint=baseline.endpoint
+              AND r.window_start=baseline.window_start AND r.state='consumed'), 0) AS used
+        FROM rate_limits baseline
+        WHERE baseline.user_id=? AND baseline.endpoint IN ('scan_image', 'scan_image_supporter_daily')
+      `).bind(testUserId).all<{ endpoint: string; used: number }>();
+      expect(Object.fromEntries(counts.results.map(r => [r.endpoint, r.used]))).toEqual({
         scan_image: 40,
         scan_image_supporter_daily: 103,
       });
@@ -1318,6 +1385,126 @@ describe('BrickVault API Worker Tests', () => {
       const data = await res.json<{ identified: boolean; model: string }>();
       expect(data.identified).toBe(true);
       expect(data.model).toContain('gpt-4o');
+    });
+
+    it('replays a completed shared scan without charging quota or invoking a provider twice', async () => {
+      const requestKey = 'scan-replay-test-0001';
+      scanProviderCalls = 0;
+      const makeRequest = () => new Request('http://localhost/api/scan/identify', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Idempotency-Key': requestKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mode: 'image', image: 'data:image/x-idempotency;base64,mock' }),
+      });
+
+      const first = await app.fetch(makeRequest(), env);
+      const second = await app.fetch(makeRequest(), env);
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      const firstData = await first.json<{ identified: boolean; model: string }>();
+      const secondData = await second.json<{ identified: boolean; model: string }>();
+      expect(secondData.identified).toBe(firstData.identified);
+      expect(secondData.model).toBe(firstData.model);
+      expect(scanProviderCalls).toBe(1);
+      const ledger = await db.prepare(
+        `SELECT status, response_json, quota_state FROM scan_requests WHERE user_id = ? AND request_key = ?`,
+      ).bind(testUserId, requestKey).first<{ status: string; response_json: string; quota_state: string }>();
+      expect(ledger?.status).toBe('completed');
+      expect(ledger?.quota_state).toBe('consumed');
+      expect(JSON.parse(ledger?.response_json || '{}').status).toBe(200);
+      const quotaRows = await db.prepare(`
+        SELECT state, COUNT(*) AS count
+        FROM scan_quota_reservations
+        WHERE user_id=? AND request_key=?
+        GROUP BY state
+      `).bind(testUserId, requestKey).all<{ state: string; count: number }>();
+      expect(quotaRows.results).toEqual([{ state: 'consumed', count: 1 }]);
+    });
+
+    it('rejects reuse of a shared scan key for a different payload', async () => {
+      const requestKey = 'scan-fingerprint-test-0001';
+      const makeRequest = (image: string) => new Request('http://localhost/api/scan/identify', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Idempotency-Key': requestKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mode: 'image', image }),
+      });
+
+      expect((await app.fetch(makeRequest('data:image/x-a;base64,mock'), env)).status).toBe(200);
+      const prior = await db.prepare(
+        `SELECT response_json FROM scan_requests WHERE user_id=? AND request_key=?`,
+      ).bind(testUserId, requestKey).first<{ response_json: string }>();
+      expect(prior?.response_json).toBeTruthy();
+      const conflict = await app.fetch(makeRequest('data:image/x-b;base64,mock'), env);
+      expect(conflict.status).toBe(409);
+      expect(await conflict.json()).toMatchObject({ reason: 'key_conflict' });
+    });
+
+    it('reclaims an abandoned shared scan claim with no live quota lease', async () => {
+      const requestKey = 'scan-stale-claim-test-0001';
+      const image = 'data:image/x-stale-claim;base64,mock';
+      const input = new TextEncoder().encode(JSON.stringify({ mode: 'image', image }));
+      const digest = await crypto.subtle.digest('SHA-256', input);
+      const fingerprint = Array.from(new Uint8Array(digest))
+        .map(byte => byte.toString(16).padStart(2, '0'))
+        .join('');
+      await db.prepare(`
+        INSERT INTO scan_requests
+          (user_id, request_key, request_fingerprint, status, quota_state, updated_at)
+        VALUES (?, ?, ?, 'processing', 'none', datetime('now', '-31 minutes'))
+      `).bind(testUserId, requestKey, fingerprint).run();
+
+      const response = await app.fetch(new Request('http://localhost/api/scan/identify', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Idempotency-Key': requestKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mode: 'image', image }),
+      }), env);
+
+      expect(response.status).toBe(200);
+      const row = await db.prepare(`
+        SELECT status, quota_state, response_json
+        FROM scan_requests WHERE user_id=? AND request_key=?
+      `).bind(testUserId, requestKey).first<{
+        status: string;
+        quota_state: string;
+        response_json: string | null;
+      }>();
+      expect(row?.status).toBe('completed');
+      expect(row?.quota_state).toBe('consumed');
+      expect(row?.response_json).toBeTruthy();
+    });
+
+    it('reclaims stale shared quota reservations during admission', async () => {
+      await db.prepare(`
+        INSERT INTO scan_quota_reservations
+          (user_id, request_key, endpoint, window_start, units, state, updated_at)
+        VALUES (?, 'abandoned-scan-key', 'scan-image-hourly', strftime('%Y-%m-%dT%H:00:00Z','now'), 8, 'reserved', datetime('now', '-31 minutes'))
+      `).bind(testUserId).run();
+
+      const response = await app.fetch(new Request('http://localhost/api/scan/identify', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Idempotency-Key': 'stale-admission-test-0001',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mode: 'image', image: 'data:image/x-stale;base64,mock' }),
+      }), env);
+      expect(response.status).toBe(200);
+      const stale = await db.prepare(`
+        SELECT state FROM scan_quota_reservations WHERE user_id=? AND request_key='abandoned-scan-key'
+      `).bind(testUserId).first<{ state: string }>();
+      expect(stale?.state).toBe('released');
     });
 
     it('returns identified:false via Gemini when set not in catalog', async () => {

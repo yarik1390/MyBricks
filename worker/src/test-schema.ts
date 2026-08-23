@@ -346,6 +346,59 @@ export const TABLE_DDL: Record<string, string> = {
   PRIMARY KEY (user_id, endpoint, window_start)
 )`,
 
+  scan_requests: `CREATE TABLE IF NOT EXISTS scan_requests (
+  user_id TEXT NOT NULL,
+  request_key TEXT NOT NULL,
+  request_fingerprint TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'processing',
+  response_json TEXT,
+  quota_state TEXT NOT NULL DEFAULT 'none',
+  quota_units INTEGER NOT NULL DEFAULT 0,
+  quota_buckets_json TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, request_key)
+)`,
+
+  scan_quota_reservations: `CREATE TABLE IF NOT EXISTS scan_quota_reservations (
+  user_id TEXT NOT NULL,
+  request_key TEXT NOT NULL,
+  endpoint TEXT NOT NULL,
+  window_start TEXT NOT NULL,
+  units INTEGER NOT NULL,
+  state TEXT NOT NULL DEFAULT 'reserved',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, request_key, endpoint, window_start)
+)`,
+
+  admin_audit_log: `CREATE TABLE IF NOT EXISTS admin_audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  request_id TEXT NOT NULL,
+  actor_user_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target_type TEXT,
+  target_id TEXT,
+  before_json TEXT,
+  after_json TEXT,
+  outcome TEXT NOT NULL,
+  error_code TEXT,
+  source_ip_hash TEXT
+)`,
+
+  admin_operation_claims: `CREATE TABLE IF NOT EXISTS admin_operation_claims (
+  operation_key TEXT NOT NULL,
+  action TEXT NOT NULL,
+  actor_user_id TEXT NOT NULL,
+  request_fingerprint TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'running',
+  result_json TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (actor_user_id, action, operation_key)
+)`,
+
   user_prefs: `CREATE TABLE IF NOT EXISTS user_prefs (
   user_id TEXT PRIMARY KEY,
   handle TEXT,

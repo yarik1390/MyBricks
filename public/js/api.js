@@ -2,6 +2,7 @@ import { state, invalidatePortfolio } from './state.js';
 import { bvIDB, toast } from './utils.js';
 import { jwtSub, displayValueOf, isCredentialAuthFailure } from './lib/pure-core.js';
 import { tPlural } from './lib/i18n.js';
+import { getProviderCredential } from './lib/provider-credentials.js';
 
 export let _authSession = null;
 export let _sbUrl = "";
@@ -20,7 +21,7 @@ export function getSessionUserId() {
 export function photoScanNeedsSetup() {
   try {
     if (getSessionUserId()) return false;
-    return !localStorage.getItem('bv_gemini_key') && !localStorage.getItem('bv_openai_key');
+    return !getProviderCredential('gemini') && !getProviderCredential('openai');
   } catch {
     return true;
   }
@@ -28,6 +29,11 @@ export function photoScanNeedsSetup() {
 
 /* ---------- Offline outbox (queue mutations for replay when back online) ---------- */
 export const OUTBOX_KEY = 'bv_outbox';
+
+const OUTBOX_REPLAY_HEADERS = new Set(['idempotency-key', 'x-request-id']);
+function outboxReplayHeaders(headers = {}) {
+  return Object.fromEntries(Object.entries(headers).filter(([name]) => OUTBOX_REPLAY_HEADERS.has(name.toLowerCase())));
+}
 
 export function outboxEnqueue(item) {
   try {
@@ -54,7 +60,11 @@ export async function drainOutbox() {
     const keep = [];
     for (const item of q) {
       try {
-        await api(item.path, { method: item.method, ...(item.body ? { body: item.body } : {}) });
+        await api(item.path, {
+          method: item.method,
+          ...(item.body ? { body: item.body } : {}),
+          ...(item.headers ? { headers: item.headers } : {}),
+        });
         synced++;
       } catch {
         // Cap retries so a permanently-failing item (e.g. server-side validation
@@ -521,8 +531,8 @@ function guestMe() {
 }
 
 async function fetchGuestPublicJSON(path, opts = {}) {
-  const geminiKey = localStorage.getItem('bv_gemini_key');
-  const openaiKey = localStorage.getItem('bv_openai_key');
+  const geminiKey = getProviderCredential('gemini');
+  const openaiKey = getProviderCredential('openai');
   const init = {
     method: opts.method || 'GET',
     headers: {
@@ -968,8 +978,8 @@ export async function api(path, opts = {}) {
     const guest = await guestApi(path, opts, streamMode);
     if (guest.handled) return guest.value;
   }
-  const geminiKey = localStorage.getItem('bv_gemini_key');
-  const openaiKey = localStorage.getItem('bv_openai_key');
+  const geminiKey = getProviderCredential('gemini');
+  const openaiKey = getProviderCredential('openai');
   const platform = globalThis.window?.Capacitor?.isNativePlatform?.() ? 'android' : 'web';
   // rawBody sends a plain-text body verbatim (e.g. a tab-separated upload) — the
   // server reads it via req.text(); JSON.stringify would escape tabs and break it.
@@ -990,6 +1000,7 @@ export async function api(path, opts = {}) {
   delete init.stream;
   delete init.rawBody;
   delete init.timeoutMs;
+  delete init.retry;
   const _url = (window.WORKER_BASE || '') + path;
   // Abort a hung request after 15s so the UI never waits forever on a stuck
   // Worker response. Slow endpoints (live scrape probes) can pass a longer
@@ -1007,16 +1018,21 @@ export async function api(path, opts = {}) {
       callerSignal?.removeEventListener('abort', abortFromCaller);
     });
   };
+  const retryNetworkFailure = opts.retry !== false;
   let r;
   try {
     r = await fetchT(_url, init);
   } catch (_e) {
     if (opts.signal?.aborted) throw _e;
     if (!navigator.onLine && (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE")) {
-      outboxEnqueue({ path, method: init.method, body: opts.body });
+      outboxEnqueue({ path, method: init.method, body: opts.body, headers: outboxReplayHeaders(opts.headers) });
       toast("Saved offline — will sync when connected", "info");
       return init.method === "DELETE" ? null : { item: opts.body || {} };
     }
+    // Mutations with side effects must opt into retries only when the endpoint
+    // has an idempotency contract. A timed-out fetch can still be executing on
+    // the Worker, so blindly replaying it can duplicate quota/cost/state.
+    if (!retryNetworkFailure) throw _e;
     await new Promise(res => setTimeout(res, 600));
     if (opts.signal?.aborted) throw _e;
     try {
@@ -1028,7 +1044,7 @@ export async function api(path, opts = {}) {
       // failure (timeout/DNS/5xx-at-network-level) is a real error and must
       // surface to the caller — never masked as a fake success.
       if (!navigator.onLine && (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE")) {
-        outboxEnqueue({ path, method: init.method, body: opts.body });
+        outboxEnqueue({ path, method: init.method, body: opts.body, headers: outboxReplayHeaders(opts.headers) });
         toast("Saved offline — will sync when connected", "info");
         return init.method === "DELETE" ? null : { item: opts.body || {} };
       }

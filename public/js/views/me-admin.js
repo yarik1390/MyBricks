@@ -20,6 +20,17 @@ import { t, tPlural, getLocale } from '../lib/i18n.js';
 
 let activeAdminRunId = null;
 let activeAdminTool = null;
+const adminOperationKeys = new Map();
+
+function adminOperationKey(type) {
+  let key = adminOperationKeys.get(type);
+  if (!key) {
+    key = crypto.randomUUID();
+    adminOperationKeys.set(type, key);
+  }
+  return key;
+}
+
 const adminToolLabel = (type) => t(`admin.tools.${type}`);
 const maintenanceToolLabel = (type) => t(`admin.maintenanceTools.${type}`);
 let adminJobPollTimer = null;
@@ -474,12 +485,19 @@ async function triggerImport(type, { single = false } = {}) {
   haptic('medium');
   setAdminJobButtons(type);
   try {
-    const r = await api(cnf.url, { method: cnf.method, body: cnf.body });
+    const r = await api(cnf.url, {
+      method: cnf.method,
+      body: cnf.body,
+      headers: cnf.url === '/api/admin/import-rebrickable'
+        ? { 'Idempotency-Key': adminOperationKey(type) }
+        : undefined,
+    });
     const feedback = adminJobStartFeedback(type, r, t, adminToolLabel(type));
     activeAdminRunId = feedback.pollsRun ? r.run_id : null;
     activeAdminTool = feedback.pollsRun ? type : null;
     if (type === 'everything' && r.done) populateEverythingAuto = false;
     toast(feedback.message, 'success');
+    adminOperationKeys.delete(type);
     await updateJobsStatus();
     loadActivity();
     if (feedback.pollsRun) scheduleAdminJobPoll(1200);

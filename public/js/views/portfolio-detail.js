@@ -14,6 +14,7 @@ import { openReviewSheet, openPhotoSheet, openDataFixSheet } from '../components
 import { refreshNavBadge } from './portfolio.js';
 import { getModePref } from '../theme.js';
 import { hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
+import { getProviderCredential } from '../lib/provider-credentials.js';
 
 // Simple mode hides the forecast (price-projection) tab. Helper centralizes the
 // check and the available-tabs list so every tab build stays consistent.
@@ -1702,8 +1703,8 @@ async function showListingSheet(set, _entry) {
     </div>`);
 
   try {
-    const geminiKey = localStorage.getItem('bv_gemini_key');
-    const openaiKey = localStorage.getItem('bv_openai_key');
+    const geminiKey = getProviderCredential('gemini');
+    const openaiKey = getProviderCredential('openai');
     const extraHeaders = {};
     if (geminiKey) extraHeaders['X-Gemini-Key'] = geminiKey;
     else if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;

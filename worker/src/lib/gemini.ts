@@ -2,11 +2,26 @@ import type { Env } from '../types';
 import { fetchTracked, fetchWithRetry } from './http';
 import { MODELS, geminiUrl, gatewayHeaders, SCAN_SYSTEM_PROMPT } from './llm';
 
+export type GeminiScanPayload = {
+  sets?: Array<{ set_num: string | null; name: string; theme?: string | null; year?: number | null; confidence: string; reasoning: string }>;
+  minifigs?: Array<{ name: string; theme?: string | null; confidence: string; reasoning: string }>;
+  image_class?: 'lego' | 'not_lego' | 'uncertain';
+};
+
+export type GeminiScanOutcome =
+  | { ok: true; kind: 'match' | 'empty' | 'not_lego'; value: GeminiScanPayload }
+  | { ok: false; kind: 'invalid_image' | 'timeout' | 'http_error' | 'parse_error' | 'empty_response' | 'network_error'; message: string; status?: number };
+
+function failureKind(error: unknown): 'timeout' | 'network_error' {
+  const message = error instanceof Error ? error.message : String(error);
+  return /abort|timeout|timed out/i.test(message) ? 'timeout' : 'network_error';
+}
+
 // Calls Gemini (MODELS.scan) with a user-supplied Gemini API key (free from Google
 // AI Studio: https://aistudio.google.com/apikey). The free tier gives ~1500
 // requests/day, so scans run on the user's own quota — not the server's OpenAI
 // key — and don't count against the shared rate limit.
-export async function callGeminiScan(
+export async function callGeminiScanOutcome(
   imageDataUrl: string,
   apiKey: string,
   env?: Env,
@@ -17,13 +32,9 @@ export async function callGeminiScan(
   // names the model, so both must be overridable. Defaults keep BYOK callers —
   // which have no cascade behind them — on the old generous behaviour.
   opts: { routeThroughGateway?: boolean; prompt?: string; timeoutMs?: number; model?: string } = {},
-): Promise<{
-  sets?: Array<{ set_num: string | null; name: string; theme?: string | null; year?: number | null; confidence: string; reasoning: string }>;
-  minifigs?: Array<{ name: string; theme?: string | null; confidence: string; reasoning: string }>;
-  image_class?: 'lego' | 'not_lego' | 'uncertain';
-} | null> {
+): Promise<GeminiScanOutcome> {
   const match = imageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
-  if (!match) return null;
+  if (!match) return { ok: false, kind: 'invalid_image', message: 'Image must be a base64 data URL.' };
   const [, mimeType, b64data] = match;
 
   const body = {
@@ -61,19 +72,43 @@ export async function callGeminiScan(
       { timeoutMs: opts.timeoutMs ?? 30000, retries: opts.timeoutMs ? 0 : 1 },
     );
     if (!resp.ok) {
-      console.warn('[gemini] API error:', resp.status, await resp.text().catch(() => ''));
-      return null;
+      const detail = await resp.text().catch(() => '');
+      console.warn('[gemini] API error:', resp.status, detail);
+      return { ok: false, kind: 'http_error', status: resp.status, message: `Gemini returned HTTP ${resp.status}.` };
     }
     const data = await resp.json() as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
     };
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-    if (!text) return null;
-    return JSON.parse(text.replace(/```json?\n?|```/g, '').trim());
+    if (!text) return { ok: false, kind: 'empty_response', message: 'Gemini returned no response text.' };
+    try {
+      const value = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as GeminiScanPayload;
+      const hasMatch = !!(value.sets?.length || value.minifigs?.length);
+      return {
+        ok: true,
+        kind: hasMatch ? 'match' : (value.image_class === 'not_lego' ? 'not_lego' : 'empty'),
+        value,
+      };
+    } catch (error) {
+      console.warn('[gemini] parse error:', (error as Error).message);
+      return { ok: false, kind: 'parse_error', message: 'Gemini returned invalid JSON.' };
+    }
   } catch (e) {
-    console.warn('[gemini] parse error:', (e as Error).message);
-    return null;
+    const kind = failureKind(e);
+    console.warn(`[gemini] ${kind}:`, (e as Error).message);
+    return { ok: false, kind, message: kind === 'timeout' ? 'Gemini timed out.' : 'Gemini request failed.' };
   }
+}
+
+/** Backwards-compatible payload-only wrapper for non-diagnostic callers. */
+export async function callGeminiScan(
+  imageDataUrl: string,
+  apiKey: string,
+  env?: Env,
+  opts: { routeThroughGateway?: boolean; prompt?: string; timeoutMs?: number; model?: string } = {},
+): Promise<GeminiScanPayload | null> {
+  const outcome = await callGeminiScanOutcome(imageDataUrl, apiKey, env, opts);
+  return outcome.ok ? outcome.value : null;
 }
 
 export async function callGeminiValuation(

@@ -6,11 +6,11 @@
   "scripts": {
     "setup": "npm --prefix worker install",
     "typecheck": "npm --prefix worker run typecheck",
-    "test": "node scripts/check-ui-strings.mjs && node scripts/check-i18n-dynamic-sinks.mjs && node scripts/verify-ui-dicts.mjs && node --test public/js/__tests__/pure.test.js",
+    "test": "node scripts/check-ui-strings.mjs && node scripts/check-i18n-dynamic-sinks.mjs && node scripts/verify-ui-dicts.mjs && node scripts/run-ui-tests.mjs",
     "lint": "biome lint",
     "status": "git status",
     "a11y": "playwright test --config=a11y/playwright.config.mjs",
-    "lhci": "npx --yes @lhci/cli@0.15.1 autorun --config=a11y/lighthouserc.json",
+    "lhci": "npx --yes @lhci/cli@0.15.1 autorun --config=a11y/lighthouserc.cjs",
     "e2e": "playwright test --config=e2e/playwright.config.mjs",
     "android:assetlinks": "node scripts/configure-assetlinks.mjs",
     "android:preflight": "node scripts/android-release-preflight.mjs"

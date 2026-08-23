@@ -6133,15 +6133,39 @@
     ]
   },
   {
+    "text": "On-device AI result expired.",
+    "files": [
+      "lib/local-ai.js"
+    ]
+  },
+  {
     "text": "On-device AI runs free and private in your browser — used for the advisor and photo scanning",
     "files": [
       "views/me-integrations.js"
     ]
   },
   {
+    "text": "On-device AI timed out while waiting for the previous request.",
+    "files": [
+      "lib/local-ai.js"
+    ]
+  },
+  {
+    "text": "On-device AI timed out.",
+    "files": [
+      "lib/local-ai.js"
+    ]
+  },
+  {
     "text": "On-device AI unavailable — using cloud scan.",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "On-device AI was cancelled.",
+    "files": [
+      "lib/local-ai.js"
     ]
   },
   {

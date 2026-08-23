@@ -10,11 +10,13 @@ import { isNativeCapacitor } from '../lib/native-auth.js';
 import { amazonSlotHTML, hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
 import { t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { getModePref } from '../theme.js';
+import { getProviderCredential } from '../lib/provider-credentials.js';
 
 let _scanTrapRelease = null;
 let _scanPending = false;
 let _scanController = null;
 let _scanGeneration = 0;
+let _lastRetryableScan = null;
 
 // --- Per-scan latency instrumentation (opt-in) -----------------------------
 // Set localStorage bv_scan_debug='1' to log each stage's timing to the console,
@@ -599,10 +601,11 @@ async function getTurnstileToken() {
   }
 }
 
-async function cloudScanIdentify(payload, signal) {
-  const geminiKey = localStorage.getItem('bv_gemini_key');
-  const openaiKey = localStorage.getItem('bv_openai_key');
+async function cloudScanIdentify(payload, signal, idempotencyKey) {
+  const geminiKey = getProviderCredential('gemini');
+  const openaiKey = getProviderCredential('openai');
   const extraHeaders = {};
+  extraHeaders['Idempotency-Key'] = idempotencyKey;
   if (geminiKey) extraHeaders['X-Gemini-Key'] = geminiKey;
   if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
   // Shared server-key image scans (no BYOK key) carry a Turnstile token for bot
@@ -624,13 +627,28 @@ async function cloudScanIdentify(payload, signal) {
     else if (_tsReason) extraHeaders['X-Turnstile-Reason'] = _tsReason;
   }
   const _t = performance.now();
-  const res = await api("/api/scan/identify", { method: "POST", body: payload, signal, headers: extraHeaders });
+  const res = await api("/api/scan/identify", {
+    method: "POST",
+    body: payload,
+    signal,
+    headers: extraHeaders,
+    // Do not replay a paid/quota-consuming operation after an ambiguous network
+    // failure. The idempotency key makes explicit user retries safe server-side.
+    retry: false,
+  });
   scanTime(payload.mode === 'barcode' ? 'barcode lookup' : 'cloud identify round-trip', _t);
   return res;
 }
 
 async function sendScanToAPI(payload) {
   const { controller, generation } = beginScanRequest();
+  // The key belongs to the user-visible scan attempt, not a lower-level fetch.
+  // Reusing it across explicit retry UI prevents duplicate provider cost/quota.
+  const idempotencyKey = payload.idempotencyKey
+    || globalThis.crypto?.randomUUID?.()
+    || `scan-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  payload = { ...payload, idempotencyKey };
+  _lastRetryableScan = payload;
   const stale = () => generation !== _scanGeneration || controller.signal.aborted;
   _scanStartMs = performance.now();
   setScanPending(true);
@@ -677,7 +695,7 @@ async function sendScanToAPI(payload) {
         const localResult = await runLocalVisionScan(bitmap, (statusText) => {
           const hint = $("#scanHint");
           if (hint) hint.textContent = statusText;
-        });
+        }, { signal: controller.signal, timeoutMs: 15_000 });
         if (stale()) return;
         scanTime('on-device inference', _tLocal);
         if (localResult.identified) {
@@ -740,7 +758,8 @@ async function sendScanToAPI(payload) {
     controller.abort();
   }, 30_000);
   try {
-    const res = await cloudScanIdentify(payload, controller.signal);
+    const { idempotencyKey: _retryKey, ...requestPayload } = payload;
+    const res = await cloudScanIdentify(requestPayload, controller.signal, idempotencyKey);
     if (stale()) return;
     // Server-side step timings, when the scan did not match. Logged rather than
     // shown: it is operator detail, but without it a slow scan is unfalsifiable
@@ -913,7 +932,14 @@ export function showScanResult(res) {
       ${nudge}
       ${setupNeeded ? setupActions
         : `<button class="btn-secondary" id="scanRetry">${rateLimited ? "Close" : "Try again"}</button>`}`;
-    $("#scanRetry")?.addEventListener("click", () => clearScanResult({ restartBarcode: true }));
+    $("#scanRetry")?.addEventListener("click", () => {
+      if (!rateLimited && _lastRetryableScan) {
+        clearScanResult();
+        void sendScanToAPI(_lastRetryableScan);
+      } else {
+        clearScanResult({ restartBarcode: true });
+      }
+    });
     $("#scanSignIn")?.addEventListener("click", () => { location.hash = "#/login"; });
     $("#scanSetup")?.addEventListener("click", () => { location.hash = "#/me/integrations"; });
     return;

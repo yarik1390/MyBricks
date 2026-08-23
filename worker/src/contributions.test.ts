@@ -57,12 +57,27 @@ describe('User contributions: submit / read / moderate', () => {
       'DROP TABLE IF EXISTS set_reviews',
       'DROP TABLE IF EXISTS set_photos',
       'DROP TABLE IF EXISTS set_contributions',
+      'DROP TABLE IF EXISTS admin_audit_log',
       `CREATE TABLE lego_sets (set_num TEXT PRIMARY KEY, name TEXT NOT NULL, upc TEXT)`,
       `CREATE TABLE user_prefs (user_id TEXT PRIMARY KEY, is_supporter INTEGER DEFAULT 0, is_public INTEGER DEFAULT 0, display_name TEXT)`,
       `CREATE TABLE rate_limits (user_id TEXT NOT NULL, endpoint TEXT NOT NULL, window_start DATETIME NOT NULL, hit_count INTEGER DEFAULT 0, PRIMARY KEY (user_id, endpoint, window_start))`,
       `CREATE TABLE set_reviews (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL, rating INTEGER NOT NULL, title TEXT, body TEXT, status TEXT NOT NULL DEFAULT 'pending', reviewer_id TEXT, review_note TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, reviewed_at DATETIME, deleted_at DATETIME)`,
       `CREATE TABLE set_photos (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL, r2_key TEXT NOT NULL, caption TEXT, status TEXT NOT NULL DEFAULT 'pending', reviewer_id TEXT, review_note TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, reviewed_at DATETIME, deleted_at DATETIME)`,
       `CREATE TABLE set_contributions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, note TEXT, status TEXT NOT NULL DEFAULT 'pending', reviewer_id TEXT, review_note TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, reviewed_at DATETIME, deleted_at DATETIME)`,
+      `CREATE TABLE admin_audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        request_id TEXT NOT NULL,
+        actor_user_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        target_type TEXT,
+        target_id TEXT,
+        before_json TEXT,
+        after_json TEXT,
+        outcome TEXT NOT NULL,
+        error_code TEXT,
+        source_ip_hash TEXT
+      )`,
     ];
     for (const s of sqls) await db.prepare(s).run();
     await db.prepare(`INSERT INTO lego_sets (set_num, name, upc) VALUES ('111-1', 'Test Set', NULL)`).run();

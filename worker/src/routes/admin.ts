@@ -37,6 +37,7 @@ import { PROCESS_REGISTRY, GROUP_ORDER, processInfo } from '../lib/process-regis
 import { getPricingWriteBudget } from '../lib/pricing-budget';
 import { amazonReadiness } from '../lib/amazon';
 import { holdingValueForRollout } from '../lib/market-sources';
+import { auditAdminMutation, claimAdminOperation, settleAdminOperation } from '../lib/admin-audit';
 import type { Env, Variables } from '../types';
 
 import { createImportRun, updateImportRunProgress, completeImportRun, failImportRun, expireStaleImportRuns, getActiveImportRun, getDataCoverage, getPopulationSnapshot, populationDone, populationRemainingNote, getMarketExtCoverage, buildFirecrawlDiagnostics, IMPORT_RUN_FIELDS } from './admin-helpers';
@@ -44,17 +45,22 @@ import { createImportRun, updateImportRunProgress, completeImportRun, failImport
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 app.use('*', requireAdmin);
+app.use('*', auditAdminMutation);
 
 
 app.post('/import-rebrickable', async (c) => {
+  const duplicate = await claimAdminOperation(c, 'import-rebrickable');
+  if (duplicate) return duplicate;
   const body = await c.req.json<{ dataset?: string }>().catch(() => ({ dataset: undefined }));
   const dataset = body.dataset ?? 'sets';
   if (!['sets', 'figs', 'all'].includes(dataset)) {
+    await settleAdminOperation(c, 'import-rebrickable', 'failed');
     return c.json({ error: "dataset must be 'sets', 'figs', or 'all'" }, 400);
   }
 
   const active = await getActiveImportRun(c.env);
   if (active) {
+    await settleAdminOperation(c, 'import-rebrickable', 'failed');
     return c.json({ error: 'An import is already running.', run_id: active.id, started_at: active.started_at }, 409);
   }
 
@@ -108,7 +114,9 @@ app.post('/import-rebrickable', async (c) => {
     })()
   );
 
-  return c.json({ ok: true, status: 'running', run_id: runId });
+  const response = { ok: true, status: 'running', run_id: runId };
+  await settleAdminOperation(c, 'import-rebrickable', 'completed', response);
+  return c.json(response);
 });
 
 // Optional PriceCharting bulk CSV import (Legendary tier). Accepts the raw CSV

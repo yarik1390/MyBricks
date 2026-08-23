@@ -5,9 +5,14 @@ import { I } from '../icons.js';
 import { isLocalAiSupported, createLocalAiSession, getLocalAiAvailability, checkGemma3Downloaded, runLocalTextInference } from '../lib/local-ai.js';
 import { displayValueOf } from '../lib/pure.js';
 import { tPlural } from '../lib/i18n.js';
+import { getProviderCredential } from '../lib/provider-credentials.js';
+import { runCancellableAdvisorInference } from '../lib/advisor-local-ai.js';
 
 let _activeReader = null;
+let _activeStreamController = null;
 export function cancelActiveStream() {
+  _activeStreamController?.abort();
+  _activeStreamController = null;
   if (_activeReader) { _activeReader.cancel().catch(() => {}); _activeReader = null; }
 }
 
@@ -48,7 +53,7 @@ export async function toggleAdvisor() {
 }
 
 export async function renderAdvisorDrawer() {
-  const savedGeminiKey = localStorage.getItem('bv_gemini_key') || '';
+  const savedGeminiKey = getProviderCredential('gemini');
   
   if (!state.portfolio) {
     try {
@@ -473,11 +478,20 @@ async function sendAdvisorMessage(q) {
         const truncCtx = context.length > 3000 ? context.slice(0, 3000) + "\n[…truncated]" : context;
         const fullPrompt = `You are a LEGO investment advisor. Collection:\n${truncCtx}\n\nQuestion: ${q}\nAnswer (be brief and specific):`;
         let fullText = "";
-        const finalText = await runLocalTextInference(fullPrompt, (partial) => {
-          fullText = partial;
-          aiBubble.innerHTML = parseMarkdown(fullText);
-          hist.scrollTop = hist.scrollHeight;
+        const finalText = await runCancellableAdvisorInference({
+          prompt: fullPrompt,
+          runInference: runLocalTextInference,
+          onPartial: partial => {
+            fullText = partial;
+            aiBubble.innerHTML = parseMarkdown(fullText);
+            hist.scrollTop = hist.scrollHeight;
+          },
+          setActiveController: controller => { _activeStreamController = controller; },
+          clearActiveController: controller => {
+            if (_activeStreamController === controller) _activeStreamController = null;
+          },
         });
+        if (finalText == null) return;
         fullText = finalText || fullText;
         aiBubble.innerHTML = parseMarkdown(fullText);
         if (fullText) saveChatMessage("ai", fullText);
@@ -518,9 +532,13 @@ async function sendAdvisorMessage(q) {
   let streamTimeout = null;
   let reader = null;
   let rafId = null;
+  let ac = null;
   try {
-    const geminiKey = localStorage.getItem('bv_gemini_key');
-    const openaiKey = localStorage.getItem('bv_openai_key');
+    ac = new AbortController();
+    _activeStreamController = ac;
+    streamTimeout = setTimeout(() => ac.abort(), 60000);
+    const geminiKey = getProviderCredential('gemini');
+    const openaiKey = getProviderCredential('openai');
     const extraHeaders = {};
     if (geminiKey) extraHeaders['X-Gemini-Key'] = geminiKey;
     else if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
@@ -529,10 +547,10 @@ async function sendAdvisorMessage(q) {
       body: { q },
       headers: extraHeaders,
       stream: true,
+      signal: ac.signal,
+      timeoutMs: 60_000,
     });
 
-    const ac = new AbortController();
-    streamTimeout = setTimeout(() => ac.abort(), 60000);
     reader = resp.body.getReader();
     _activeReader = reader;
     const dec = new TextDecoder();
@@ -623,7 +641,7 @@ async function sendAdvisorMessage(q) {
     aiBubble.querySelector(".chat-typing")?.remove();
     aiBubble.classList.add("error");
     const errMsg = err.message || "";
-    const noKey = !localStorage.getItem('bv_gemini_key') && !localStorage.getItem('bv_openai_key');
+    const noKey = !getProviderCredential('gemini') && !getProviderCredential('openai');
     const rateLimited = /rate.?limit|api key|unlimited|quota|too many|429/i.test(errMsg);
     // On a shared-quota rate-limit, a personal free Gemini key removes the cap.
     const keyCta = (noKey && rateLimited) ? `
@@ -650,6 +668,7 @@ async function sendAdvisorMessage(q) {
     // the reader open otherwise, leaking the connection.
     try { await reader?.cancel(); } catch {}
     if (_activeReader === reader) _activeReader = null;
+    if (_activeStreamController === ac) _activeStreamController = null;
   }
 
   hist.scrollTop = hist.scrollHeight;
