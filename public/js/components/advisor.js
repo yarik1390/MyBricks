@@ -6,6 +6,7 @@ import { isLocalAiSupported, createLocalAiSession, getLocalAiAvailability, check
 import { displayValueOf } from '../lib/pure.js';
 import { tPlural } from '../lib/i18n.js';
 import { getProviderCredential } from '../lib/provider-credentials.js';
+import { runCancellableAdvisorInference } from '../lib/advisor-local-ai.js';
 
 let _activeReader = null;
 let _activeStreamController = null;
@@ -477,11 +478,20 @@ async function sendAdvisorMessage(q) {
         const truncCtx = context.length > 3000 ? context.slice(0, 3000) + "\n[…truncated]" : context;
         const fullPrompt = `You are a LEGO investment advisor. Collection:\n${truncCtx}\n\nQuestion: ${q}\nAnswer (be brief and specific):`;
         let fullText = "";
-        const finalText = await runLocalTextInference(fullPrompt, (partial) => {
-          fullText = partial;
-          aiBubble.innerHTML = parseMarkdown(fullText);
-          hist.scrollTop = hist.scrollHeight;
+        const finalText = await runCancellableAdvisorInference({
+          prompt: fullPrompt,
+          runInference: runLocalTextInference,
+          onPartial: partial => {
+            fullText = partial;
+            aiBubble.innerHTML = parseMarkdown(fullText);
+            hist.scrollTop = hist.scrollHeight;
+          },
+          setActiveController: controller => { _activeStreamController = controller; },
+          clearActiveController: controller => {
+            if (_activeStreamController === controller) _activeStreamController = null;
+          },
         });
+        if (finalText == null) return;
         fullText = finalText || fullText;
         aiBubble.innerHTML = parseMarkdown(fullText);
         if (fullText) saveChatMessage("ai", fullText);

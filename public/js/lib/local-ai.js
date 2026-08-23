@@ -66,10 +66,26 @@ async function withInferenceDeadline(work, timeoutMs = LOCAL_AI_TIMEOUT_MS, sign
   // out one generation closes that generation's instance, waits for its work to
   // settle, and only then lets a later generation create/use the replacement.
   const previousJob = activeInferenceJob;
-  await waitForInferenceGate(previousJob, timeoutMs, signal);
   let releaseJob;
-  const jobDone = new Promise(resolve => { releaseJob = resolve; });
+  const ownJob = new Promise(resolve => { releaseJob = resolve; });
+  // Reserve this request's position before the first await. The published tail
+  // includes every earlier request, so an aborted middle waiter cannot let a
+  // later request overtake work that is still running.
+  const jobDone = (async () => {
+    try { await previousJob; } catch {}
+    await ownJob;
+  })();
   activeInferenceJob = jobDone;
+  void jobDone.then(() => {
+    if (activeInferenceJob === jobDone) activeInferenceJob = null;
+  });
+
+  try {
+    await waitForInferenceGate(previousJob, timeoutMs, signal);
+  } catch (error) {
+    releaseJob();
+    throw error;
+  }
 
   const generation = inferenceGeneration;
   let instance = null;

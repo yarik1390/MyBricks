@@ -22,7 +22,7 @@ jobs:
         run: npx playwright test --config=a11y/playwright.config.mjs
       - name: Lighthouse accessibility (report-only)
         continue-on-error: true
-        run: npx --yes @lhci/cli@0.15.1 autorun --config=a11y/lighthouserc.cjs
+        run: LHCI_NO_SANDBOX=1 npx --yes @lhci/cli@0.15.1 autorun --config=a11y/lighthouserc.cjs
       - name: Upload axe report
         if: always()
         uses: actions/upload-artifact@v4

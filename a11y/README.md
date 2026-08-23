@@ -10,8 +10,9 @@ findings block the job; Lighthouse findings remain informational.
     npm run a11y
     npm run lhci
 
-Set `A11Y_BASE=https://bricksvault.app` to scan the deployed site
-instead of the checked-out frontend.
+Lighthouse starts the repository's local static server on port 4322 by default,
+so local and PR results measure the checked-out candidate. Set
+`A11Y_BASE=https://bricksvault.app` to scan the deployed site instead.
 
 ## Enable in CI
 Copy `a11y/github-workflow.yml` to `.github/workflows/a11y.yml` (the API

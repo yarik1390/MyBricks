@@ -1,15 +1,21 @@
 const sandboxFlags = process.env.LHCI_NO_SANDBOX === '1'
   ? '--no-sandbox --disable-setuid-sandbox'
   : '';
+const baseUrl = String(process.env.A11Y_BASE || 'http://localhost:4322').replace(/\/$/, '');
 
 module.exports = {
   ci: {
     collect: {
       url: [
-        'https://bricksvault.app/',
-        'https://bricksvault.app/#/build',
-        'https://bricksvault.app/#/set/75192-1',
+        `${baseUrl}/`,
+        `${baseUrl}/#/build`,
+        `${baseUrl}/#/set/75192-1`,
       ],
+      ...(process.env.A11Y_BASE ? {} : {
+        startServerCommand: 'node -e "process.env.PORT=\'4322\'; import(\'./e2e/serve.mjs\')"',
+        startServerReadyPattern: 'http://localhost:4322',
+        startServerReadyTimeout: 30000,
+      }),
       numberOfRuns: 3,
       settings: {
         onlyCategories: ['accessibility', 'performance'],
