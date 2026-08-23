@@ -414,7 +414,7 @@ function showManualBarcodeEntry() {
       const target = manualScanTarget(raw);
       if (target.kind === "set") await sendManualSetLookup(target.value);
       else if (target.kind === "barcode") routeScannedCode(target.value);
-      else hint.textContent = "Use a set number like 71043-1, or a barcode with at least 8 digits";
+      else hint.textContent = "Use a set number like 71043-1, or a longer barcode";
     };
     $("#manualBarcodeGo")?.addEventListener("click", submit);
     $("#manualBarcodeInput")?.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
@@ -467,7 +467,7 @@ async function sendManualSetLookup(setNum) {
 export async function lookupScanInput(value) {
   const target = manualScanTarget(value);
   if (target.kind === "invalid") {
-    throw new Error("Enter a set number such as 71043-1, or a barcode with at least 8 digits.");
+    throw new Error("Enter a set number like 71043-1 or a longer barcode.");
   }
   if (target.kind === "set") {
     location.hash = `#/set/${encodeURIComponent(target.value)}`;

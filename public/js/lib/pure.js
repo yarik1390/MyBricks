@@ -41,6 +41,12 @@ export function priceMovementSummary(history) {
 
   const movementPct = ((Number(last.current_value) - Number(first.current_value)) / Number(first.current_value)) * 100;
   if (!Number.isFinite(movementPct) || Math.abs(movementPct) < 5) return null;
+  // A baseline backfill (value jumped from a stale formula estimate to real
+  // market data) can produce absurd headline percentages — "Up 5317%" — that
+  // erode trust even when the confidence badge already says ROUGH ESTIMATE.
+  // Cap what we're willing to advertise as a "move": anything beyond ±200%
+  // over the window is almost always a data-arrival artifact, not demand.
+  if (Math.abs(movementPct) > 200) return null;
   const direction = movementPct > 0 ? 'up' : 'down';
 
   const sourceMove = key => {

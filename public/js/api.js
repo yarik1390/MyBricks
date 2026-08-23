@@ -475,6 +475,21 @@ function recordGuestSnapshot(totalValue, totalPaid, setCount) {
   } catch {}
 }
 
+// A brand-new guest vault shows "trend appears after the next daily snapshot"
+// for up to 24h because the sparkline needs two points. Seed a same-day
+// baseline (zero value) right before the first set lands so the chart renders
+// immediately: day 1 = 0, today = real value. Older entries stay immutable.
+function seedGuestHistoryBaseline() {
+  try {
+    const existing = readLocalJSON(GUEST_HISTORY_KEY, []).filter(s => s && s.snapshot_date);
+    if (existing.length > 0) return;
+    const today = new Date().toISOString().slice(0, 10);
+    writeLocalJSON(GUEST_HISTORY_KEY, [
+      { snapshot_date: today, total_value: 0, total_paid: 0, set_count: 0 },
+    ]);
+  } catch {}
+}
+
 function guestHistoryPayload(path) {
   const url = new URL(path, location.origin);
   const days = Math.min(parseInt(url.searchParams.get('days') || '90', 10) || 90, 365);
@@ -591,6 +606,7 @@ async function guestAddCollection(body = {}) {
   const items = readGuestCollection();
   const idx = items.findIndex(item => sameSetNum(item.set_num, setNum));
   const existing = idx >= 0 ? items[idx] : null;
+  if (!existing && items.length === 0) seedGuestHistoryBaseline();
   const set = await guestHydrateSet(setNum);
   const item = normalizeCollectionItem({
     ...pickSetFields(set),

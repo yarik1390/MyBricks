@@ -25,5 +25,11 @@ BricksVault-*-mapping.txt.gz
 android/app/google-services.json
 android/upload.jks
 
+# Build artifacts — CI uploads these as workflow artifacts / release assets;
+# committing them (23MB aab, 485k-line mapping) bloats the repo forever.
+*.aab
+mapping.txt
+mapping.txt.gz
+
 # Hermes agent working files (plans, scratch)
 .hermes/
