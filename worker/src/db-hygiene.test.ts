@@ -31,11 +31,11 @@ describe('runDbHygiene', () => {
     ]);
     await db.batch([
       db.prepare(`INSERT INTO admin_operation_claims
-        (operation_key, action, actor_user_id, updated_at)
-        VALUES ('stale-operation-key', 'import-rebrickable', 'u', datetime('now','-8 days'))`),
+        (operation_key, action, actor_user_id, request_fingerprint, updated_at)
+        VALUES ('stale-operation-key', 'import-rebrickable', 'u', 'stale-fingerprint', datetime('now','-8 days'))`),
       db.prepare(`INSERT INTO admin_operation_claims
-        (operation_key, action, actor_user_id, updated_at)
-        VALUES ('fresh-operation-key', 'import-rebrickable', 'u', datetime('now','-1 day'))`),
+        (operation_key, action, actor_user_id, request_fingerprint, updated_at)
+        VALUES ('fresh-operation-key', 'import-rebrickable', 'u', 'fresh-fingerprint', datetime('now','-1 day'))`),
     ]);
 
     const r = await runDbHygiene(env as any);

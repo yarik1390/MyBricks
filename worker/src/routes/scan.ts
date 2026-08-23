@@ -40,6 +40,14 @@ type ScanQuotaBucket = {
   label: string;
 };
 
+async function scanRequestFingerprint(mode: 'image' | 'shelf', image: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(JSON.stringify({ mode, image })),
+  );
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 function scanQuotaBuckets(isSupporter: boolean, now = new Date()): ScanQuotaBucket[] {
   const dayStart = new Date(now);
   dayStart.setUTCHours(0, 0, 0, 0);
@@ -76,8 +84,15 @@ async function consumeSharedScanQuota(
   requestKey: string,
   isSupporter: boolean,
   units: number,
-): Promise<{ allowed: true } | { allowed: false; label: string }> {
+): Promise<{ allowed: true; buckets: ScanQuotaBucket[] } | { allowed: false; label: string }> {
   const buckets = scanQuotaBuckets(isSupporter);
+  // Reclaim abandoned leases at admission so a killed invocation cannot hold
+  // allowance until the daily hygiene cron.
+  await db.prepare(`
+    UPDATE scan_quota_reservations
+    SET state='released', updated_at=CURRENT_TIMESTAMP
+    WHERE state='reserved' AND updated_at < datetime('now', '-30 minutes')
+  `).run();
   // D1 exposes transactions only through single statements/batches. Reserve
   // each bucket with an atomic conditional insert, then compensate if a later
   // bucket blocks. The reservation ledger (rather than a decrementing counter)
@@ -116,7 +131,7 @@ async function consumeSharedScanQuota(
     }
     return { allowed: false, label: bucket.label };
   }
-  return { allowed: true };
+  return { allowed: true, buckets };
 }
 
 // Shelf Snap returns up to this many sets from one photo. Also sizes the
@@ -464,52 +479,59 @@ app.post('/identify', async (c) => {
   // Legacy/API clients without a replay key still need a unique quota lease;
   // first-party clients always supply Idempotency-Key and receive replay safety.
   const quotaRequestKey = requestKey || crypto.randomUUID();
+  const requestFingerprint = await scanRequestFingerprint(shelfMode ? 'shelf' : 'image', image);
   let sharedQuotaReserved = false;
   let sharedQuotaSettled = false;
 
-  const releaseReservedQuota = async () => {
+  const settleReservedQuota = async (
+    quotaState: 'consumed' | 'released',
+    terminal?: { payload: Record<string, unknown>; status: number },
+  ) => {
     if (!sharedQuotaReserved || sharedQuotaSettled) return;
-    await c.env.DB.prepare(`
+    const statements = [c.env.DB.prepare(`
       UPDATE scan_quota_reservations
-      SET state='released', updated_at=CURRENT_TIMESTAMP
+      SET state=?, updated_at=CURRENT_TIMESTAMP
       WHERE user_id=? AND request_key=? AND state='reserved'
-    `).bind(userId, quotaRequestKey).run();
+    `).bind(quotaState, userId, quotaRequestKey)];
     if (sharedRequestClaimed) {
-      await c.env.DB.prepare(`
+      statements.push(c.env.DB.prepare(`
         UPDATE scan_requests
-        SET quota_state='released', updated_at=CURRENT_TIMESTAMP
+        SET quota_state=?,
+            status=CASE WHEN ? IS NULL THEN status ELSE 'completed' END,
+            response_json=COALESCE(?, response_json),
+            updated_at=CURRENT_TIMESTAMP
         WHERE user_id=? AND request_key=? AND quota_state='reserved'
-      `).bind(userId, requestKey).run();
+      `).bind(
+        quotaState,
+        terminal ? 'terminal' : null,
+        terminal ? JSON.stringify(terminal) : null,
+        userId,
+        requestKey,
+      ));
     }
-    sharedQuotaSettled = true;
-  };
-
-  const consumeReservedQuota = async () => {
-    if (!sharedQuotaReserved || sharedQuotaSettled) return;
-    await c.env.DB.prepare(`
-      UPDATE scan_quota_reservations
-      SET state='consumed', updated_at=CURRENT_TIMESTAMP
-      WHERE user_id=? AND request_key=? AND state='reserved'
-    `).bind(userId, quotaRequestKey).run();
-    if (sharedRequestClaimed) {
-      await c.env.DB.prepare(`
-        UPDATE scan_requests
-        SET quota_state='consumed', updated_at=CURRENT_TIMESTAMP
-        WHERE user_id=? AND request_key=? AND quota_state='reserved'
-      `).bind(userId, requestKey).run();
+    const results = await c.env.DB.batch(statements);
+    if ((results[0]?.meta.changes ?? 0) < 1) {
+      throw new Error('Scan quota settlement lost its reservation lease.');
+    }
+    if (sharedRequestClaimed && (results[1]?.meta.changes ?? 0) !== 1) {
+      throw new Error('Scan request settlement lost its processing lease.');
     }
     sharedQuotaSettled = true;
   };
 
   const finalizeShared = async (payload: Record<string, unknown>, status: 200 | 202 | 400 | 409 | 413 | 429 | 500 | 503 = 200) => {
-    if (status >= 500) await releaseReservedQuota();
-    else await consumeReservedQuota();
-    if (sharedRequestClaimed) {
-      await c.env.DB.prepare(`
-        UPDATE scan_requests
-        SET status='completed', response_json=?, updated_at=CURRENT_TIMESTAMP
-        WHERE user_id=? AND request_key=?
-      `).bind(JSON.stringify({ payload, status }), userId, requestKey).run();
+    const terminal = { payload, status };
+    if (status >= 500) await settleReservedQuota('released', terminal);
+    else await settleReservedQuota('consumed', terminal);
+    // A denial has no reservation to settle but is still terminal/replayable.
+    if (sharedRequestClaimed && !sharedQuotaReserved) {
+      const finalized = await c.env.DB.prepare(`
+      UPDATE scan_requests SET status='completed', response_json=?, updated_at=CURRENT_TIMESTAMP
+      WHERE user_id=? AND request_key=? AND status='processing'
+    `).bind(JSON.stringify(terminal), userId, requestKey).run();
+      if ((finalized.meta.changes ?? 0) !== 1) {
+        throw new Error('Scan request completion lost its processing lease.');
+      }
     }
     return c.json(payload, status);
   };
@@ -616,22 +638,43 @@ app.post('/identify', async (c) => {
   // completed request get the stored response; concurrent duplicates do no work.
   if (requestKey) {
     const inserted = await c.env.DB.prepare(`
-      INSERT OR IGNORE INTO scan_requests (user_id, request_key, status)
-      VALUES (?, ?, 'processing')
-    `).bind(userId, requestKey).run();
+      INSERT OR IGNORE INTO scan_requests (user_id, request_key, request_fingerprint, status)
+      VALUES (?, ?, ?, 'processing')
+    `).bind(userId, requestKey, requestFingerprint).run();
     if ((inserted.meta.changes ?? 0) === 0) {
       const prior = await c.env.DB.prepare(`
-        SELECT status, response_json FROM scan_requests
+        SELECT request_fingerprint, status, response_json, quota_state FROM scan_requests
         WHERE user_id=? AND request_key=?
-      `).bind(userId, requestKey).first<{ status: string; response_json: string | null }>();
+      `).bind(userId, requestKey).first<{
+        request_fingerprint: string;
+        status: string;
+        response_json: string | null;
+        quota_state: string;
+      }>();
+      if (prior && prior.request_fingerprint !== requestFingerprint) {
+        return c.json({ error: 'Idempotency-Key was already used for a different scan.', reason: 'key_conflict' }, 409);
+      }
       if (prior?.status === 'completed' && prior.response_json) {
         try {
           const saved = JSON.parse(prior.response_json) as { payload: Record<string, unknown>; status: 200 | 202 | 400 | 409 | 413 | 429 | 500 | 503 };
           return c.json(saved.payload, saved.status);
         } catch { /* malformed records fail closed below */ }
       }
-      c.header('Retry-After', '2');
-      return c.json({ error: 'This scan is already being processed.', reason: 'in_progress' }, 409);
+      // A Worker can be terminated after claiming a request but before writing a
+      // terminal response. Reclaim only old claims with no live quota lease;
+      // active or reserved work remains protected from duplicate provider calls.
+      const reclaimed = prior?.status === 'processing' && prior.quota_state !== 'reserved'
+        ? await c.env.DB.prepare(`
+          UPDATE scan_requests
+          SET request_fingerprint=?, quota_state='none', updated_at=CURRENT_TIMESTAMP
+          WHERE user_id=? AND request_key=? AND status='processing'
+            AND quota_state!='reserved' AND updated_at < datetime('now', '-30 minutes')
+        `).bind(requestFingerprint, userId, requestKey).run()
+        : null;
+      if ((reclaimed?.meta.changes ?? 0) !== 1) {
+        c.header('Retry-After', '2');
+        return c.json({ error: 'This scan is already being processed.', reason: 'in_progress' }, 409);
+      }
     }
     sharedRequestClaimed = true;
   }
@@ -677,7 +720,7 @@ app.post('/identify', async (c) => {
   try {
     desc = await describeSharedScan(c.env, image, promptOpts, timings, routeDeadline);
   } catch (error) {
-    await releaseReservedQuota();
+    await settleReservedQuota('released');
     throw error;
   }
   const diag = {

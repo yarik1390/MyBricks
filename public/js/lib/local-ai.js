@@ -18,7 +18,42 @@ let FilesetResolver = null;
 let LlmInference = null;
 let activeInferenceInstance = null;
 let inferenceGeneration = 0;
+let activeInferenceJob = null;
+let inferenceInstanceLoader = getInferenceInstance;
 const LOCAL_AI_TIMEOUT_MS = 15_000;
+const LOCAL_AI_CLEANUP_GRACE_MS = 1_000;
+
+export const __localAiTestHooks = {
+  withInferenceDeadline,
+  setInstanceLoader(loader) { inferenceInstanceLoader = loader; },
+  reset() {
+    activeInferenceInstance = null;
+    inferenceGeneration = 0;
+    activeInferenceJob = null;
+    inferenceInstanceLoader = getInferenceInstance;
+  },
+};
+
+async function waitForInferenceGate(job, timeoutMs, signal) {
+  if (!job) return;
+  let timer;
+  let abortListener;
+  const failure = new Promise((_, reject) => {
+    const abort = (message, code) => reject(Object.assign(new Error(message), { code }));
+    timer = setTimeout(() => abort('On-device AI timed out while waiting for the previous request.', 'LOCAL_AI_TIMEOUT'), timeoutMs);
+    if (signal) {
+      abortListener = () => abort('On-device AI was cancelled.', 'LOCAL_AI_CANCELLED');
+      if (signal.aborted) abortListener();
+      else signal.addEventListener('abort', abortListener, { once: true });
+    }
+  });
+  try {
+    await Promise.race([job, failure]);
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', abortListener);
+  }
+}
 
 function disposeInference(instance = activeInferenceInstance) {
   inferenceGeneration += 1;
@@ -27,12 +62,26 @@ function disposeInference(instance = activeInferenceInstance) {
 }
 
 async function withInferenceDeadline(work, timeoutMs = LOCAL_AI_TIMEOUT_MS, signal) {
+  // MediaPipe's inference object is not safely concurrent. Cancelling or timing
+  // out one generation closes that generation's instance, waits for its work to
+  // settle, and only then lets a later generation create/use the replacement.
+  const previousJob = activeInferenceJob;
+  await waitForInferenceGate(previousJob, timeoutMs, signal);
+  let releaseJob;
+  const jobDone = new Promise(resolve => { releaseJob = resolve; });
+  activeInferenceJob = jobDone;
+
   const generation = inferenceGeneration;
+  let instance = null;
   let timer;
   let abortListener;
+  let workPromise;
+  let cancelled = false;
   const failure = new Promise((_, reject) => {
     const abort = (message, code) => {
-      disposeInference();
+      if (cancelled) return;
+      cancelled = true;
+      disposeInference(instance);
       reject(Object.assign(new Error(message), { code }));
     };
     timer = setTimeout(() => abort('On-device AI timed out.', 'LOCAL_AI_TIMEOUT'), timeoutMs);
@@ -43,7 +92,15 @@ async function withInferenceDeadline(work, timeoutMs = LOCAL_AI_TIMEOUT_MS, sign
     }
   });
   try {
-    const result = await Promise.race([work(), failure]);
+    workPromise = Promise.resolve().then(async () => {
+      instance = await inferenceInstanceLoader();
+      if (cancelled) {
+        disposeInference(instance);
+        throw Object.assign(new Error('On-device AI was cancelled.'), { code: 'LOCAL_AI_CANCELLED' });
+      }
+      return work(instance);
+    });
+    const result = await Promise.race([workPromise, failure]);
     if (generation !== inferenceGeneration) {
       throw Object.assign(new Error('On-device AI result expired.'), { code: 'LOCAL_AI_CANCELLED' });
     }
@@ -51,6 +108,24 @@ async function withInferenceDeadline(work, timeoutMs = LOCAL_AI_TIMEOUT_MS, sign
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', abortListener);
+    if (cancelled && workPromise) {
+      // Reject the caller promptly, but keep the single-flight gate closed until
+      // the losing MediaPipe work settles or a bounded cleanup grace expires.
+      // The old instance has already been closed and its generation invalidated,
+      // so the grace prevents a permanently hung native promise from wedging all
+      // later inference while still avoiding immediate replacement concurrency.
+      const cleanup = Promise.race([
+        workPromise.catch(() => {}),
+        new Promise(resolve => setTimeout(resolve, LOCAL_AI_CLEANUP_GRACE_MS)),
+      ]);
+      void cleanup.finally(() => {
+        releaseJob();
+        if (activeInferenceJob === jobDone) activeInferenceJob = null;
+      });
+    } else {
+      releaseJob();
+      if (activeInferenceJob === jobDone) activeInferenceJob = null;
+    }
   }
 }
 
@@ -426,8 +501,7 @@ async function getInferenceInstance() {
  * Returns the final response string.
  */
 export async function runLocalTextInference(textPrompt, onPartial, opts = {}) {
-  return withInferenceDeadline(async () => {
-    const llm = await getInferenceInstance();
+  return withInferenceDeadline(async (llm) => {
     if (onPartial) {
       return llm.generateResponse(textPrompt, (partial) => { onPartial(partial); });
     }
@@ -441,9 +515,8 @@ export async function runLocalTextInference(textPrompt, onPartial, opts = {}) {
  * @param {function} onStatus - callback for status updates
  */
 export async function runLocalVisionScan(imageElement, onStatus, opts = {}) {
-  return withInferenceDeadline(async () => {
+  return withInferenceDeadline(async (llm) => {
     if (onStatus) onStatus('Initializing local engine...');
-    const llm = await getInferenceInstance();
 
     if (onStatus) onStatus('Analyzing image locally...');
   // tasks-genai multimodal prompt: array of string / {imageSource} parts.

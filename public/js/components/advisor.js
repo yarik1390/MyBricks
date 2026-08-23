@@ -8,7 +8,10 @@ import { tPlural } from '../lib/i18n.js';
 import { getProviderCredential } from '../lib/provider-credentials.js';
 
 let _activeReader = null;
+let _activeStreamController = null;
 export function cancelActiveStream() {
+  _activeStreamController?.abort();
+  _activeStreamController = null;
   if (_activeReader) { _activeReader.cancel().catch(() => {}); _activeReader = null; }
 }
 
@@ -519,7 +522,11 @@ async function sendAdvisorMessage(q) {
   let streamTimeout = null;
   let reader = null;
   let rafId = null;
+  let ac = null;
   try {
+    ac = new AbortController();
+    _activeStreamController = ac;
+    streamTimeout = setTimeout(() => ac.abort(), 60000);
     const geminiKey = getProviderCredential('gemini');
     const openaiKey = getProviderCredential('openai');
     const extraHeaders = {};
@@ -530,10 +537,10 @@ async function sendAdvisorMessage(q) {
       body: { q },
       headers: extraHeaders,
       stream: true,
+      signal: ac.signal,
+      timeoutMs: 60_000,
     });
 
-    const ac = new AbortController();
-    streamTimeout = setTimeout(() => ac.abort(), 60000);
     reader = resp.body.getReader();
     _activeReader = reader;
     const dec = new TextDecoder();
@@ -651,6 +658,7 @@ async function sendAdvisorMessage(q) {
     // the reader open otherwise, leaking the connection.
     try { await reader?.cancel(); } catch {}
     if (_activeReader === reader) _activeReader = null;
+    if (_activeStreamController === ac) _activeStreamController = null;
   }
 
   hist.scrollTop = hist.scrollHeight;

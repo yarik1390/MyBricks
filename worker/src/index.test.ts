@@ -293,6 +293,7 @@ describe('BrickVault API Worker Tests', () => {
       `CREATE TABLE scan_requests (
         user_id TEXT NOT NULL,
         request_key TEXT NOT NULL,
+        request_fingerprint TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'processing',
         response_json TEXT,
         quota_state TEXT NOT NULL DEFAULT 'none',
@@ -334,6 +335,7 @@ describe('BrickVault API Worker Tests', () => {
         operation_key TEXT NOT NULL,
         action TEXT NOT NULL,
         actor_user_id TEXT NOT NULL,
+        request_fingerprint TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'running',
         result_json TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -1420,6 +1422,89 @@ describe('BrickVault API Worker Tests', () => {
         GROUP BY state
       `).bind(testUserId, requestKey).all<{ state: string; count: number }>();
       expect(quotaRows.results).toEqual([{ state: 'consumed', count: 1 }]);
+    });
+
+    it('rejects reuse of a shared scan key for a different payload', async () => {
+      const requestKey = 'scan-fingerprint-test-0001';
+      const makeRequest = (image: string) => new Request('http://localhost/api/scan/identify', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Idempotency-Key': requestKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mode: 'image', image }),
+      });
+
+      expect((await app.fetch(makeRequest('data:image/x-a;base64,mock'), env)).status).toBe(200);
+      const prior = await db.prepare(
+        `SELECT response_json FROM scan_requests WHERE user_id=? AND request_key=?`,
+      ).bind(testUserId, requestKey).first<{ response_json: string }>();
+      expect(prior?.response_json).toBeTruthy();
+      const conflict = await app.fetch(makeRequest('data:image/x-b;base64,mock'), env);
+      expect(conflict.status).toBe(409);
+      expect(await conflict.json()).toMatchObject({ reason: 'key_conflict' });
+    });
+
+    it('reclaims an abandoned shared scan claim with no live quota lease', async () => {
+      const requestKey = 'scan-stale-claim-test-0001';
+      const image = 'data:image/x-stale-claim;base64,mock';
+      const input = new TextEncoder().encode(JSON.stringify({ mode: 'image', image }));
+      const digest = await crypto.subtle.digest('SHA-256', input);
+      const fingerprint = Array.from(new Uint8Array(digest))
+        .map(byte => byte.toString(16).padStart(2, '0'))
+        .join('');
+      await db.prepare(`
+        INSERT INTO scan_requests
+          (user_id, request_key, request_fingerprint, status, quota_state, updated_at)
+        VALUES (?, ?, ?, 'processing', 'none', datetime('now', '-31 minutes'))
+      `).bind(testUserId, requestKey, fingerprint).run();
+
+      const response = await app.fetch(new Request('http://localhost/api/scan/identify', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Idempotency-Key': requestKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mode: 'image', image }),
+      }), env);
+
+      expect(response.status).toBe(200);
+      const row = await db.prepare(`
+        SELECT status, quota_state, response_json
+        FROM scan_requests WHERE user_id=? AND request_key=?
+      `).bind(testUserId, requestKey).first<{
+        status: string;
+        quota_state: string;
+        response_json: string | null;
+      }>();
+      expect(row?.status).toBe('completed');
+      expect(row?.quota_state).toBe('consumed');
+      expect(row?.response_json).toBeTruthy();
+    });
+
+    it('reclaims stale shared quota reservations during admission', async () => {
+      await db.prepare(`
+        INSERT INTO scan_quota_reservations
+          (user_id, request_key, endpoint, window_start, units, state, updated_at)
+        VALUES (?, 'abandoned-scan-key', 'scan-image-hourly', strftime('%Y-%m-%dT%H:00:00Z','now'), 8, 'reserved', datetime('now', '-31 minutes'))
+      `).bind(testUserId).run();
+
+      const response = await app.fetch(new Request('http://localhost/api/scan/identify', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Idempotency-Key': 'stale-admission-test-0001',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mode: 'image', image: 'data:image/x-stale;base64,mock' }),
+      }), env);
+      expect(response.status).toBe(200);
+      const stale = await db.prepare(`
+        SELECT state FROM scan_quota_reservations WHERE user_id=? AND request_key='abandoned-scan-key'
+      `).bind(testUserId).first<{ state: string }>();
+      expect(stale?.state).toBe('released');
     });
 
     it('returns identified:false via Gemini when set not in catalog', async () => {

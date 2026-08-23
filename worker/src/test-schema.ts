@@ -349,6 +349,7 @@ export const TABLE_DDL: Record<string, string> = {
   scan_requests: `CREATE TABLE IF NOT EXISTS scan_requests (
   user_id TEXT NOT NULL,
   request_key TEXT NOT NULL,
+  request_fingerprint TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'processing',
   response_json TEXT,
   quota_state TEXT NOT NULL DEFAULT 'none',
@@ -390,6 +391,7 @@ export const TABLE_DDL: Record<string, string> = {
   operation_key TEXT NOT NULL,
   action TEXT NOT NULL,
   actor_user_id TEXT NOT NULL,
+  request_fingerprint TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'running',
   result_json TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

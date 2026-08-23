@@ -23,7 +23,7 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
     // processing records become retryable once their quota lease is stale.
     // A killed invocation cannot finalize its lease; expire it promptly so a
     // provider outage does not strand a user's hourly/daily allowance.
-    env.DB.prepare(`DELETE FROM scan_quota_reservations WHERE state='reserved' AND updated_at < datetime('now', '-30 minutes')`),
+    env.DB.prepare(`UPDATE scan_quota_reservations SET state='released', updated_at=CURRENT_TIMESTAMP WHERE state='reserved' AND updated_at < datetime('now', '-30 minutes')`),
     env.DB.prepare(`DELETE FROM scan_quota_reservations WHERE updated_at < datetime('now', '-48 hours')`),
     env.DB.prepare(`DELETE FROM scan_requests WHERE updated_at < datetime('now', '-48 hours')`),
     // Admin operation keys protect retries only for the lifetime of a job. Keep

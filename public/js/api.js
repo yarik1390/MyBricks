@@ -30,6 +30,11 @@ export function photoScanNeedsSetup() {
 /* ---------- Offline outbox (queue mutations for replay when back online) ---------- */
 export const OUTBOX_KEY = 'bv_outbox';
 
+const OUTBOX_REPLAY_HEADERS = new Set(['idempotency-key', 'x-request-id']);
+function outboxReplayHeaders(headers = {}) {
+  return Object.fromEntries(Object.entries(headers).filter(([name]) => OUTBOX_REPLAY_HEADERS.has(name.toLowerCase())));
+}
+
 export function outboxEnqueue(item) {
   try {
     const q = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]');
@@ -55,7 +60,11 @@ export async function drainOutbox() {
     const keep = [];
     for (const item of q) {
       try {
-        await api(item.path, { method: item.method, ...(item.body ? { body: item.body } : {}) });
+        await api(item.path, {
+          method: item.method,
+          ...(item.body ? { body: item.body } : {}),
+          ...(item.headers ? { headers: item.headers } : {}),
+        });
         synced++;
       } catch {
         // Cap retries so a permanently-failing item (e.g. server-side validation
@@ -1000,7 +1009,7 @@ export async function api(path, opts = {}) {
   } catch (_e) {
     if (opts.signal?.aborted) throw _e;
     if (!navigator.onLine && (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE")) {
-      outboxEnqueue({ path, method: init.method, body: opts.body });
+      outboxEnqueue({ path, method: init.method, body: opts.body, headers: outboxReplayHeaders(opts.headers) });
       toast("Saved offline — will sync when connected", "info");
       return init.method === "DELETE" ? null : { item: opts.body || {} };
     }
@@ -1019,7 +1028,7 @@ export async function api(path, opts = {}) {
       // failure (timeout/DNS/5xx-at-network-level) is a real error and must
       // surface to the caller — never masked as a fake success.
       if (!navigator.onLine && (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE")) {
-        outboxEnqueue({ path, method: init.method, body: opts.body });
+        outboxEnqueue({ path, method: init.method, body: opts.body, headers: outboxReplayHeaders(opts.headers) });
         toast("Saved offline — will sync when connected", "info");
         return init.method === "DELETE" ? null : { item: opts.body || {} };
       }

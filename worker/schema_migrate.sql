@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS scan_requests (
   PRIMARY KEY (user_id, request_key)
 );
 CREATE INDEX IF NOT EXISTS idx_scan_requests_updated ON scan_requests(updated_at);
+ALTER TABLE scan_requests ADD COLUMN request_fingerprint TEXT NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS scan_quota_reservations (
   user_id TEXT NOT NULL,
@@ -56,6 +57,7 @@ CREATE TABLE IF NOT EXISTS admin_operation_claims (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (actor_user_id, action, operation_key)
 );
+ALTER TABLE admin_operation_claims ADD COLUMN request_fingerprint TEXT NOT NULL DEFAULT '';
 
 ALTER TABLE lego_sets ADD COLUMN ebay_value REAL;
 ALTER TABLE lego_sets ADD COLUMN ebay_cached_at TEXT;

@@ -458,6 +458,7 @@ CREATE TABLE IF NOT EXISTS rate_limits (
 CREATE TABLE IF NOT EXISTS scan_requests (
   user_id TEXT NOT NULL,
   request_key TEXT NOT NULL,
+  request_fingerprint TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'processing',
   response_json TEXT,
   quota_state TEXT NOT NULL DEFAULT 'none',
@@ -505,6 +506,7 @@ CREATE TABLE IF NOT EXISTS admin_operation_claims (
   operation_key TEXT NOT NULL,
   action TEXT NOT NULL,
   actor_user_id TEXT NOT NULL,
+  request_fingerprint TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'running',
   result_json TEXT,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

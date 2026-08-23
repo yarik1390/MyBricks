@@ -19,8 +19,10 @@ integration can't write workflow files).
 
 ## Tighten Lighthouse later
 
-Change `"warn"` to `"error"` in `a11y/lighthouserc.json` and remove its
+Change `"warn"` to `"error"` in `a11y/lighthouserc.cjs` and remove its
 `continue-on-error` workflow setting after clearing that broader baseline.
+The config keeps Chrome sandboxing enabled by default; restricted runners can
+set `LHCI_NO_SANDBOX=1` to opt into the sandbox workaround.
 
 ## Auth-gated routes
 Coverage is the guest-reachable routes (vault, catalog, figs, build, You tab).
