@@ -2945,7 +2945,7 @@
     ]
   },
   {
-    "text": "Enter a set number such as 71043-1, or a barcode with at least 8 digits.",
+    "text": "Enter a set number like 71043-1 or a longer barcode.",
     "files": [
       "components/scanner.js"
     ]
@@ -10114,7 +10114,7 @@
     ]
   },
   {
-    "text": "Use a set number like 71043-1, or a barcode with at least 8 digits",
+    "text": "Use a set number like 71043-1, or a longer barcode",
     "files": [
       "components/scanner.js"
     ]

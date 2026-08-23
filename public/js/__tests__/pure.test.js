@@ -63,6 +63,20 @@ describe('price movement summary', () => {
     ]), null);
     assert.equal(priceMovementSummary([row('2026-05-01', 100)]), null);
   });
+
+  it('suppresses backfill-artifact jumps beyond ±200% (rough-estimate headline guard)', () => {
+    // Value "jumped" from a stale ~$258 formula baseline to real market data.
+    assert.equal(priceMovementSummary([
+      row('2026-06-01', 258), row('2026-07-30', 13945),
+    ]), null);
+    // Just over the cap is also suppressed; a legit large-but-plausible move stays.
+    assert.equal(priceMovementSummary([
+      row('2026-06-01', 100), row('2026-07-01', 305),
+    ]), null);
+    assert.deepEqual(priceMovementSummary([
+      row('2026-06-01', 100, 100, 100), row('2026-07-01', 290, 290, 295),
+    ]).direction, 'up');
+  });
 });
 
 describe('part-out decision pricing card', () => {

@@ -45,6 +45,38 @@ function setupGestures() {
   });
 }
 
+// Hide the advisor FAB while scrolling down, reveal on scroll-up. The FAB used
+// to float permanently over content (e.g. the More Prices badge on set detail);
+// this keeps it reachable without it covering what the user is reading.
+function setupFabScrollAwareness() {
+  const fab = document.getElementById("advisorFab");
+  if (!fab) return;
+  let lastY = window.scrollY;
+  let ticking = false;
+  const update = () => {
+    ticking = false;
+    const y = window.scrollY;
+    const dy = y - lastY;
+    // Only react to meaningful movement — tiny jitter (momentum, rubber-band)
+    // must not flap the button. Never hide near the top or while an overlay
+    // owns the screen (the sheet-open rule already hides it there).
+    if (Math.abs(dy) > 12) {
+      fab.classList.toggle("fab-hidden", dy > 0 && y > 120);
+      lastY = y;
+    } else if (y < 120) {
+      fab.classList.remove("fab-hidden");
+    }
+  };
+  document.addEventListener("scroll", () => {
+    if (!ticking) { ticking = true; requestAnimationFrame(update); }
+  }, { passive: true });
+  // A route change repaints from the top — always bring the FAB back.
+  window.addEventListener("hashchange", () => {
+    lastY = window.scrollY;
+    fab.classList.remove("fab-hidden");
+  });
+}
+
 // Hydrate from IndexedDB
 async function hydrateFromIDB() {
   const MAX_AGE = 604_800_000; // 7 days — show last-known data offline; online stale-while-revalidate keeps it fresh
@@ -471,6 +503,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.addEventListener("bv:api-fail", () => { refreshOfflineState(); });
 
   setupGestures();
+  setupFabScrollAwareness();
   setupImageHydration();
   setupKeyboardAwareShell();
 

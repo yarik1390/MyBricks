@@ -598,8 +598,12 @@ function heroValueHTML(n) {
   const rate = getExchangeRate(userCurrency);
   const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
   const converted = n * rate;
-  const whole = Math.floor(Math.abs(converted)).toLocaleString("en-US");
-  const cents = Math.abs(converted % 1 * 100 | 0).toString().padStart(2, "0");
+  // Round (not truncate) cents so the hero total matches fmtMoney-rendered
+  // card values and the INVESTED line for the same sum — truncation once made
+  // the header show .47 while every other surface showed .48.
+  const rounded = Math.round(Math.abs(converted) * 100) / 100;
+  const whole = Math.floor(rounded).toLocaleString("en-US");
+  const cents = Math.round((rounded - Math.floor(rounded)) * 100).toString().padStart(2, "0");
   const sign = converted < 0 ? "-" : "";
   return `${sign}${symbol}${whole}<span class="cents">.${cents}</span>`;
 }

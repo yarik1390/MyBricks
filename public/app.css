@@ -3655,6 +3655,14 @@ body.scan-active .advisor-fab {
 body[data-route="set-detail"] .advisor-fab {
   bottom: calc(var(--bottom-nav-clear) + 84px);
 }
+/* Scroll-aware hide: the page adds .fab-hidden while scrolling down so the FAB
+   never floats over content the user is reading (e.g. More Prices badges on
+   set detail). Scrolling up brings it straight back. */
+.advisor-fab.fab-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(16px) scale(0.96);
+}
 .advisor-fab:hover {
   transform: scale(1.08) translateY(-2px);
   box-shadow: 4px 6px 0 var(--line), 0 12px 28px rgba(0, 0, 0, 0.2);

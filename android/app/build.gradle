@@ -58,6 +58,25 @@ repositories {
     }
 }
 
+// The native app serves public/ from the APK bundle. A stale copy ships old JS
+// silently — this once left the bundle a month behind main. Sync before every
+// build so gradle can never package assets that don't match public/.
+tasks.register('capSync') {
+    doLast {
+        // cap sync must run from the repo root (package.json + capacitor.config.json
+        // live there), and gradle's exec env doesn't reliably carry the shell's
+        // npx shim on Windows — so invoke node + the local CLI binary directly.
+        def repoRoot = file('../../')
+        exec {
+            workingDir repoRoot
+            def nodeExe = System.getenv("NODE_EXE") ?: "node"
+            def capBin = new File(repoRoot, "node_modules/@capacitor/cli/bin/capacitor")
+            commandLine nodeExe, capBin.absolutePath, "sync", "android"
+        }
+    }
+}
+preBuild.dependsOn capSync
+
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
