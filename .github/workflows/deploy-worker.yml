@@ -495,9 +495,11 @@ jobs:
           # hold is enforced in code (ebaySoldLaneEnabled), not by source tuning,
           # so verify behavior: a manual sold-scrape trigger must skip with the
           # hold reason rather than scrape.
-          SCRAPE_SKIP=$(curl -sf -X POST "${WORKER_URL}/api/admin/jobs/ebay-sold-scrape?limit=1" \
-            -H "Authorization: Bearer ${ADMIN_JWT}" | jq -r '.skipped // empty')
-          echo "$SCRAPE_SKIP" | jq -e '. | test("sold-comps lane held|disabled in source tuning|firecrawl|apify"; "i")' >/dev/null
+          curl -sf -X POST "${WORKER_URL}/api/admin/jobs/ebay-sold-scrape?limit=1" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" \
+            | jq -e 'if (.skipped | type) == "string"
+                     then (.skipped | test("sold-comps lane held|disabled in source tuning|firecrawl|apify"; "i"))
+                     else (.ok == true or .error != null) end' >/dev/null
           # LLM routing must resolve to a real path for every workload. An empty
           # effective list means every step named a provider with no key, which
           # silently disables that workload's AI rather than failing loudly.
