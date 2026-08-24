@@ -18,6 +18,8 @@ import { runEbaySoldScrape } from '../jobs/ebay-sold-scrape';
 import { runPriceChartingEnrich } from '../jobs/pricecharting-enrich';
 import { runStockXEnrich } from '../jobs/stockx-enrich';
 import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricecharting-bulk';
+import { runMinifigVerify } from '../jobs/minifig-verify';
+import { runCommunityComps } from '../jobs/community-comps';
 import { importBrickLinkMinifigs } from '../jobs/import-bricklink-minifigs';
 import { getKeyPoolStatus } from '../lib/pricesapi-keys';
 import { getFirecrawlKeyPoolStatus, resetFirecrawlKeyPool } from '../lib/firecrawl-keys';
@@ -1030,14 +1032,42 @@ app.get('/pricing/v3-preview', async (c) => {
 app.get('/pricing/anomalies', async (c) => {
   const status = String(c.req.query('status') || 'open');
   const limit = Math.min(200, Math.max(1, Number(c.req.query('limit') || 100)));
-  const { results } = await c.env.DB.prepare(`
-    SELECT anomaly_key, set_num, condition, source, anomaly_type, severity,
-           detail_json, status, first_seen_at, last_seen_at, resolved_at
-    FROM pricing_anomalies WHERE status=? ORDER BY
-      CASE severity WHEN 'critical' THEN 0 WHEN 'error' THEN 1 ELSE 2 END,
-      last_seen_at DESC LIMIT ?
-  `).bind(status, limit).all();
-  return c.json({ anomalies: results || [] });
+  const [listRes, totalsRes] = await Promise.all([
+    c.env.DB.prepare(`
+      SELECT anomaly_key, set_num, condition, source, anomaly_type, severity,
+             detail_json, status, first_seen_at, last_seen_at, resolved_at
+      FROM pricing_anomalies WHERE status=? ORDER BY
+        CASE severity WHEN 'critical' THEN 0 WHEN 'error' THEN 1 ELSE 2 END,
+        last_seen_at DESC LIMIT ?
+    `).bind(status, limit).all(),
+    c.env.DB.prepare(
+      `SELECT status, COUNT(*) AS count FROM pricing_anomalies GROUP BY status`,
+    ).all(),
+  ]);
+  const totals: Record<string, number> = { open: 0, resolved: 0, ignored: 0 };
+  for (const row of totalsRes.results || []) {
+    const r = row as any;
+    if (r?.status in totals) totals[r.status] = Number(r.count) || 0;
+    else if (r?.status) totals[String(r.status)] = Number(r.count) || 0;
+  }
+  return c.json({ anomalies: listRes.results || [], totals });
+});
+
+// Manual anomaly triage: resolve (fixed / no longer applies) or ignore
+// (acknowledged noise). The panel used to render open rows read-only.
+app.post('/pricing/anomalies/:key/resolve', async (c) => {
+  const key = c.req.param('key');
+  const body = await c.req.json().catch(() => ({}) as any);
+  const action = String(body?.action || 'resolve');
+  if (!['resolve', 'ignore'].includes(action)) {
+    return c.json({ error: "action must be 'resolve' or 'ignore'" }, 400);
+  }
+  const res = await c.env.DB.prepare(
+    `UPDATE pricing_anomalies SET status=?1, resolved_at=datetime('now') WHERE anomaly_key=?2 AND status='open'`,
+  ).bind(action === 'ignore' ? 'ignored' : 'resolved', key).run();
+  const changed = Number(res.meta?.changes || 0);
+  if (!changed) return c.json({ error: 'anomaly not found or already closed' }, 404);
+  return c.json({ ok: true, anomaly_key: key, status: action === 'ignore' ? 'ignored' : 'resolved' });
 });
 
 app.get('/pricing/source-matches', async (c) => {
@@ -1127,6 +1157,12 @@ const JOB_LIMITS: Record<string, number> = {
   // default keeps a manual trigger inside the Worker request window. Advance the
   // backfill with ?limit= (the job self-caps at 60).
   'stockx-enrich': 8,
+  // Registry-visible jobs that previously had no Run button because they were
+  // missing from this allowlist entirely.
+  'minifig-verify': 40,
+  'community-comps': 1,
+  'pricecharting-bulk-fetch': 1,
+  'pricecharting-verify-drain': 400,
 };
 
 // Hard ceiling on an admin-triggered job's per-call limit, so a manual override
@@ -1186,6 +1222,17 @@ app.post('/jobs/:job', async (c) => {
       // On-demand StockX lowest-ask enrich (Firecrawl-preferred) for verification
       // + backfill advancement. Low concurrency: slow renders, self-metered credits.
       result = await runStockXEnrich(c.env, { limit, concurrency: 3 });
+    } else if (job === 'minifig-verify') {
+      // Minifig identity verification by price agreement (daily 16:00 cron).
+      result = await runMinifigVerify(c.env, { limit });
+    } else if (job === 'community-comps') {
+      // First-party community comps publish (nightly 22:00 cron).
+      result = await runCommunityComps(c.env);
+    } else if (job === 'pricecharting-bulk-fetch') {
+      // Daily PriceCharting bulk CSV download (04:30 cron). Heavy single fetch —
+      // no limit override applies; the job self-paces.
+      const bulk = await runPriceChartingBulkFetch(c.env);
+      result = { ...bulk };
     } else {
       return c.json({ error: 'Not implemented' }, 501);
     }

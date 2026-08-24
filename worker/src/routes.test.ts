@@ -635,7 +635,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const data = await res.json<any>();
       expect(data.ok).toBe(true);
       expect(data.job).toBe('ebay-sold-scrape');
-      expect(String(data.skipped || '')).toMatch(/ebay disabled in source tuning|firecrawl not configured/i);
+      expect(String(data.skipped || '')).toMatch(/ebay disabled in source tuning|sold-comps lane held|firecrawl not configured/i);
     });
 
     it('per-service test probe: d1 passes and an unknown service 400s', async () => {
@@ -652,6 +652,14 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         method: 'POST', headers: auth(adminToken),
       }), env);
       expect(bad.status).toBe(400);
+
+      // Legacy console id 'stockx' aliases to the renamed 'stockx_firecrawl' probe.
+      const aliased = await app.fetch(new Request('http://localhost/api/admin/test/stockx', {
+        method: 'POST', headers: auth(adminToken),
+      }), env);
+      expect(aliased.status).toBe(200);
+      const ad = await aliased.json<any>();
+      expect(ad.service).toBe('stockx_firecrawl');
     });
   });
 

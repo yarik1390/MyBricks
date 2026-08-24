@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { fetchTracked } from './http';
 import { ebaySoldCompsEnabled } from './pricing-flags';
+import { ebaySoldLaneEnabled, sourceEnabled } from './source-config';
 
 const EBAY_SCOPE_MARKETPLACE_INSIGHTS = 'https://api.ebay.com/oauth/api_scope/buy.marketplace.insights';
 const EBAY_MARKETPLACE_ID = 'EBAY_US';
@@ -254,7 +255,13 @@ export async function fetchEbaySoldPrices(
   options: { recordHealth?: boolean } = {},
 ): Promise<EbaySoldPrices> {
   void setName;
-  if (!ebaySoldCompsEnabled(env)) {
+  // Compliance hold first: until the scraped/MI sold lane is authorized, every
+  // caller (crons AND user-facing set-detail refreshes) gets the benign
+  // unconfigured result — no external call, no health failure recorded. This
+  // used to be gated only by the feature flag, which let on-demand set-page
+  // refreshes bypass the hold and pollute eBay health with pending-approval
+  // errors (the console then showed "Failing" while /test/ebay passed).
+  if (!ebaySoldLaneEnabled(env) || !ebaySoldCompsEnabled(env)) {
     return {
       source: 'marketplace_insights',
       status: 'unconfigured',
@@ -381,6 +388,9 @@ export async function fetchEbayActiveListings(
 ): Promise<EbayActiveListings | null> {
   void setName;
   if (!hasConfiguredEbaySecrets(env)) return null;
+  // Honor the master eBay source switch on every path (crons already gate this;
+  // user-facing set-detail refreshes used to bypass it).
+  if (!(await sourceEnabled(env, 'ebay'))) return null;
 
   let token: string | null = null;
   try {

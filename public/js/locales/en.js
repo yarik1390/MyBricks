@@ -284,6 +284,9 @@ export const en = {
     maintenanceComplete: '{label} complete',
     maintenanceFailed: '{label} failed: {error}',
     lastSeen: 'last seen {when}',
+    anomalyResolved: 'Anomaly resolved.',
+    anomalyIgnored: 'Anomaly ignored.',
+    anomalyResolveFailed: 'Could not update anomaly.',
     tools: {
       sets: 'Import sets', figs: 'Import minifigs', upc: 'Backfill barcodes',
       populate: 'Populate coverage', revalue: 'Revalue prices', everything: 'Populate all safe sources',

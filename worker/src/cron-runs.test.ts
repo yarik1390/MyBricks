@@ -24,6 +24,16 @@ describe('summarizeResult', () => {
   it('includes non-zero alert counts', () => {
     expect(summarizeResult({ fired: 3, spikes: 2, deals: 0 })).toBe('fired 3 · spikes 2');
   });
+  it('summarizes job-specific keys (minifigs, community comps, movers, snapshots)', () => {
+    // valuate-minifigs used to render a BLANK card: its keys weren't in the schema.
+    expect(summarizeResult({ figs: 40, priced: 31, bl_matched: 12, parked: 4 }))
+      .toBe('figs 40 · priced 31');
+    expect(summarizeResult({ figs: 25, verified: 6, checked: 25 })).toBe('figs 25 · verified 6 · checked 25');
+    expect(summarizeResult({ published: 14, pruned: 3, candidates: 20 })).toBe('published 14 · cands 20 · pruned 3');
+    expect(summarizeResult({ flagged: 5, resolved: 9 })).toBe('flagged 5 · resolved 9');
+    expect(summarizeResult({ snapshotted: 1200, v3Snapshotted: 900, figSnapshotted: 300, pruned: 45 }))
+      .toBe('snapshotted 1200 · v3 snapshotted 900 · fig snapshotted 300 · pruned 45');
+  });
   it('returns null for nothing useful', () => {
     expect(summarizeResult(undefined)).toBeNull();
     expect(summarizeResult({})).toBeNull();

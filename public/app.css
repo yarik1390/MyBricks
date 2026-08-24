@@ -6024,6 +6024,12 @@ body.keyboard-open .detail-page-container {
   font-size: 13px;
   line-height: 1.45;
 }
+.admin-gate-note {
+  margin: 0;
+  color: var(--ink-mute);
+  font-size: 12px;
+  line-height: 1.5;
+}
 .admin-service-test {
   display: grid;
   gap: 8px;

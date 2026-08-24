@@ -36,6 +36,20 @@ export function summarizeResult(res: unknown): string | null {
   add('discovered', 'found');
   add('processed', 'processed');
   add('rows', 'rows');
+  // Job-specific keys that predate the generic schema. Without these the
+  // Activity card shows nothing even though the job ran (e.g. minifig jobs).
+  add('figs', 'figs');            // valuate-minifigs / minifig-verify
+  add('verified', 'verified');    // minifig-verify, community-comps-adjacent
+  add('priced', 'priced');        // valuate-minifigs
+  add('published', 'published');  // community-comps
+  add('candidates', 'cands');     // community-comps / pricecharting candidates
+  add('flagged', 'flagged');      // pricing-movers anomaly detection
+  add('resolved', 'resolved');    // anomaly auto-resolution
+  add('snapshotted', 'snapshotted'); // snapshot-set-values
+  add('v3Snapshotted', 'v3 snapshotted');
+  add('figSnapshotted', 'fig snapshotted');
+  add('pruned', 'pruned');
+  add('checked', 'checked');      // minifig-verify
   // Common nested alert counts from wishlist-alerts.
   for (const k of ['spikes', 'retiring', 'deals', 'preorders']) {
     const v = r[k];

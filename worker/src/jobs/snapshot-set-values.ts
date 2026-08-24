@@ -200,7 +200,37 @@ export async function detectValueMovers(env: Env) {
       )
   `).bind(MOVER_UP, MOVER_DOWN).run().catch(() => null);
 
-  const resolvedCount = Number(resolved?.meta?.changes || 0);
+  // value_divergence rows used to have NO resolver: once the eBay-sold lane's
+  // attempt cooldown stopped re-evaluating a set, its open row sat forever and
+  // the panel's "Resolve N anomalies" recommendation could never reach zero.
+  // Resolve when the divergence no longer holds: the eBay signal now agrees
+  // with the reference (within the same 3x band the writer accepts), or the
+  // set's blend has since earned high confidence (a corroborated value wins).
+  const divergencesResolved = await env.DB.prepare(`
+    UPDATE pricing_anomalies SET status='resolved', resolved_at=datetime('now')
+    WHERE anomaly_type='value_divergence' AND status='open'
+      AND (
+        set_num IN (SELECT set_num FROM lego_sets WHERE blended_confidence = 'high')
+        OR NOT EXISTS (
+          SELECT 1 FROM lego_sets ls
+          WHERE ls.set_num = pricing_anomalies.set_num
+            AND json_extract(pricing_anomalies.detail_json, '$.observed') IS NOT NULL
+            AND COALESCE(
+              CASE WHEN pricing_anomalies.condition = 'used_complete'
+                   THEN COALESCE(NULLIF(ls.bl_used_value, 0), NULLIF(ls.current_value, 0))
+                   ELSE COALESCE(ls.bl_new_value, NULLIF(ls.blended_value, 0), NULLIF(ls.current_value, 0))
+              END, 0) > 0
+            AND json_extract(pricing_anomalies.detail_json, '$.observed') <
+                (CASE WHEN pricing_anomalies.condition = 'used_complete'
+                      THEN COALESCE(NULLIF(ls.bl_used_value, 0), NULLIF(ls.current_value, 0))
+                      ELSE COALESCE(ls.bl_new_value, NULLIF(ls.blended_value, 0), NULLIF(ls.current_value, 0))
+                 END) / 3
+          )
+      )
+  `).run().catch(() => null);
+
+  const resolvedCount = Number(resolved?.meta?.changes || 0)
+    + Number(divergencesResolved?.meta?.changes || 0);
   await recordPricingWrites(env.DB, 'pricing-movers', movers.length + resolvedCount);
   return { flagged: movers.length, resolved: resolvedCount };
 }

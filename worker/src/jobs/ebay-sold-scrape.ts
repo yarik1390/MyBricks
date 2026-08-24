@@ -5,7 +5,7 @@ import { FIRECRAWL_MAX_CONCURRENCY } from '../lib/firecrawl';
 import { quotaRemaining } from '../lib/api-quota';
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { recordPricingWrites } from '../lib/pricing-budget';
-import { sourceEnabled } from '../lib/source-config';
+import { ebaySoldLaneEnabled, sourceEnabled } from '../lib/source-config';
 
 /**
  * Corroborating-only eBay-sold scrape (Firecrawl).
@@ -57,6 +57,11 @@ export async function runEbaySoldScrape(
 ): Promise<EbaySoldScrapeRun> {
   if (!(await sourceEnabled(env, 'ebay'))) {
     return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'ebay disabled in source tuning' };
+  }
+  // Compliance hold: scraping eBay sold-search stays blocked until provider
+  // authorization is documented — independent of the master eBay switch.
+  if (!ebaySoldLaneEnabled(env)) {
+    return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'ebay sold-comps lane held pending provider authorization' };
   }
   if (!(firecrawlEnabled(env) && await sourceEnabled(env, 'firecrawl'))) {
     return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'firecrawl not configured' };

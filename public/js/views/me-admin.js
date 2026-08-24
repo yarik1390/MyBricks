@@ -317,6 +317,8 @@ function wireAdminShell() {
   pricingEl?.addEventListener('click', (event) => {
     const action = event.target.closest('[data-pricing-match-action]');
     if (action) reviewPricingMatch(action);
+    const anomalyAction = event.target.closest('[data-anomaly-action]');
+    if (anomalyAction) resolvePricingAnomaly(anomalyAction);
     if (event.target.closest('[data-pricing-retry]')) loadPricingCenter();
   });
   document.querySelectorAll('[data-contrib-tab]').forEach(btn => {
@@ -852,6 +854,14 @@ function ebayStateHTML(health) {
   return `<div class="admin-ebay-state"><span>${escapeHtml(soldState)}</span><span>${escapeHtml(askingState)}</span><span>No weak sold fallback</span></div>`;
 }
 
+// Explain the two independent eBay gates so the Services toggle isn't misread:
+// the source switch governs the sanctioned Browse ASK lane; the scraped
+// sold-comps lane (Firecrawl/Apify) is held by a separate compliance guard that
+// no admin setting can lift.
+function ebayGateNoteHTML() {
+  return `<p class="admin-gate-note">Two gates: this switch controls the eBay <strong>ask</strong> lane only. The scraped <strong>sold-comps</strong> lane stays held pending provider authorization regardless of this setting.</p>`;
+}
+
 // Firecrawl key pool. These are one-time credit
 // balances drained IN ORDER, so the useful facts are which key is currently being
 // spent and how much is left in it. Reads adminHealth.firecrawl.pool.
@@ -1062,6 +1072,7 @@ function serviceCardHTML(svc, row, health, cfg, openSet) {
       <div class="admin-service-body">
         <div class="admin-service-facts">${facts.map(({ label, value }) => `<span><span>${escapeHtml(label)}</span> ${escapeHtml(value)}</span>`).join('')}</div>
         ${key === 'ebay' ? ebayStateHTML(health) : ''}
+        ${key === 'ebay' ? ebayGateNoteHTML() : ''}
         ${key === 'firecrawl' ? firecrawlPoolHTML() : ''}
         ${key === 'pricecharting' ? pcBulkStatusHTML() : ''}
         <p class="admin-service-action">${escapeHtml(health.action)}</p>
@@ -1603,7 +1614,9 @@ function renderPricingCenter() {
     .filter((row) => row.status === 'quarantined')
     .reduce((sum, row) => sum + Number(row.count || 0), 0) || matchRows.length;
   const totalAnomalies = (quality.anomalies || [])
-    .reduce((sum, row) => sum + Number(row.count || 0), 0) || anomalyRows.length;
+    .reduce((sum, row) => sum + Number(row.count || 0), 0)
+    // Prefer the exact status totals the anomalies endpoint now returns.
+    || (anomalies.totals?.open != null ? Number(anomalies.totals.open) : anomalyRows.length);
   // "showing 25 of 10,269" for a queue header.
   const subsetLabel = (shown, total) =>
     total > shown ? `${formatCount(shown)} of ${formatCount(total)}` : formatCount(total);
@@ -1693,11 +1706,47 @@ function pricingMatchHTML(match) {
 }
 
 function pricingAnomalyHTML(anomaly) {
+  // Surface the numeric evidence (observed vs reference) from detail_json so an
+  // admin can triage without opening the DB — previously only type/set/when.
+  let evidence = '';
+  try {
+    const d = JSON.parse(anomaly.detail_json || '{}');
+    const parts = [];
+    if (d.observed != null) parts.push(`observed ${formatCount(Math.round(Number(d.observed) * 100) / 100)}`);
+    if (d.reference != null) parts.push(`reference ${formatCount(Math.round(Number(d.reference) * 100) / 100)}`);
+    if (d.ratio != null) parts.push(`${Number(d.ratio).toFixed(2)}×`);
+    if (parts.length) evidence = `<span class="u-mono-label">${escapeHtml(parts.join(' · '))}</span>`;
+  } catch { /* unparseable detail — render without evidence */ }
   return `
     <article class="admin-pricing-anomaly ${escapeHtml(anomaly.severity || 'warning')}">
       <div><strong>${escapeHtml(anomaly.anomaly_type || 'Pricing anomaly')}</strong><span>${escapeHtml(anomaly.set_num || '')}${anomaly.condition ? ` · ${escapeHtml(anomaly.condition)}` : ''}</span></div>
       <small>${escapeHtml(anomaly.source || 'valuation v3')} · ${escapeHtml(t('admin.lastSeen', { when: formatRelativeTime(anomaly.last_seen_at, Date.now(), getLocale()) }))}</small>
+      ${evidence}
+      <div class="admin-pricing-review-actions">
+        <button type="button" class="btn-secondary" data-anomaly-action="resolve" data-anomaly-key="${escapeHtml(anomaly.anomaly_key || '')}">Resolve</button>
+        <button type="button" class="btn-secondary" data-anomaly-action="ignore" data-anomaly-key="${escapeHtml(anomaly.anomaly_key || '')}">Ignore</button>
+      </div>
     </article>`;
+}
+
+async function resolvePricingAnomaly(button) {
+  const action = button.dataset.anomalyAction;
+  const key = button.dataset.anomalyKey;
+  if (!key) return;
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  try {
+    await api(`/api/admin/pricing/anomalies/${encodeURIComponent(key)}/resolve`, {
+      method: 'POST',
+      body: { action },
+    });
+    toast(action === 'ignore' ? t('admin.anomalyIgnored') : t('admin.anomalyResolved'), 'success');
+    await loadPricingCenter();
+  } catch (error) {
+    toast(error?.message || t('admin.anomalyResolveFailed'), 'error');
+    button.disabled = false;
+    button.setAttribute('aria-busy', 'false');
+  }
 }
 
 async function reviewPricingMatch(button) {

@@ -29,10 +29,11 @@ export type SourceName =
 
 export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   bricklink:     { enabled: true,  weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
-  // Disabled by default until use of the Firecrawl enhanced/mobile-residential
-  // lane against eBay sold-search has documented provider/site authorization.
-  // Operators may only re-enable this via reviewed production source config.
-  ebay:          { enabled: false, weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
+  // Master eBay switch: the sanctioned Browse basic-scope ASK lane runs under
+  // this flag. The *scraped* sold-comps lane (Firecrawl/Apify against eBay
+  // sold-search) carries its own separate compliance hold — see
+  // ebaySoldLaneAuthorized below — so enabling eBay here never reopens scraping.
+  ebay:          { enabled: true,  weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
   brickeconomy:  { enabled: true,  weight: 1.0,  dailyCap: 80,   refreshDays: 14 },
   brickowl:      { enabled: true,  weight: 1.0,  dailyCap: 1500, refreshDays: 14 },
   // Verified-mappings-only: signals flow solely through pricing_source_map rows
@@ -66,14 +67,23 @@ export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
 
 const SETTINGS_KEY = 'source_config';
 const MEMO_TTL_MS = 60_000;
-// Compliance hold: runtime settings cannot re-enable the eBay Firecrawl
-// enhanced/mobile-residential lane until provider/site authorization is
-// documented and this guard is removed in a reviewed release.
-function ebaySourceAuthorized(env: Env): boolean {
+// Compliance hold: SCOPED TO THE SOLD-COMPS LANE ONLY. Runtime settings cannot
+// re-enable scraping eBay sold-search (Firecrawl enhanced/mobile-residential,
+// or the Apify actor) until provider/site authorization is documented and this
+// guard is removed in a reviewed release. The Browse basic-scope ASK lane is
+// sanctioned (documented public API, works on any keyset) and is governed by
+// plain source tuning (`ebay.enabled`) instead.
+function ebaySoldLaneAuthorized(env: Env): boolean {
   // Deliberately unavailable in deployed configuration. The test-only escape
   // hatch lets isolated job tests exercise parsers and persistence without
   // weakening the production hold.
   return env.ENVIRONMENT === 'test' && env.EBAY_SOURCE_AUTHORIZED_FOR_TESTS === '1';
+}
+
+/** Is the eBay *scraped* sold-comps lane allowed? Independent of ask tuning:
+ *  false in production until the compliance hold above is lifted. */
+export function ebaySoldLaneEnabled(env: Env): boolean {
+  return ebaySoldLaneAuthorized(env);
 }
 
 let memo: Record<SourceName, SourceTuning> | null = null;
@@ -118,7 +128,6 @@ export async function getSourceConfig(env: Env): Promise<Record<SourceName, Sour
     if (row?.value) stored = JSON.parse(row.value);
   } catch { /* defaults */ }
   memo = merge(stored);
-  if (!ebaySourceAuthorized(env)) memo.ebay.enabled = false;
   // PriceCharting emergency kill-switch. Historically an opt-IN gate while
   // mappings were unverified; now that signals flow ONLY from verified
   // pricing_source_map rows (unique UPC or cross-source price agreement), the
@@ -160,7 +169,6 @@ export async function sourceEnabled(env: Env, name: SourceName): Promise<boolean
 /** Admin write: validate + persist the config and clear the memo. */
 export async function saveSourceConfig(env: Env, incoming: unknown): Promise<Record<SourceName, SourceTuning>> {
   const merged = merge((incoming && typeof incoming === 'object' ? incoming : {}) as Record<string, Partial<SourceTuning>>);
-  if (!ebaySourceAuthorized(env)) merged.ebay.enabled = false;
   await env.DB.prepare(
     `INSERT INTO app_settings (key, value, updated_at) VALUES (?1, ?2, datetime('now'))
      ON CONFLICT(key) DO UPDATE SET value=?2, updated_at=datetime('now')`,

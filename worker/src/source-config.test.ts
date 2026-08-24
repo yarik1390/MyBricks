@@ -27,26 +27,37 @@ describe('source-config', () => {
     expect(cfg).toEqual(DEFAULT_SOURCE_CONFIG);
   });
 
-  it('keeps the eBay scrape source disabled until explicitly authorized', async () => {
+  it('keeps the eBay sold-comps lane held while the ask lane follows tuning', async () => {
+    // Master eBay switch is ON by default (Browse ask lane is sanctioned);
+    // the scraped sold lane stays held regardless of any setting.
     const cfg = await getSourceConfig(env as any);
-    expect(cfg.ebay.enabled).toBe(false);
-    expect(await sourceEnabled(env as any, 'ebay')).toBe(false);
+    expect(cfg.ebay.enabled).toBe(true);
+    expect(await sourceEnabled(env as any, 'ebay')).toBe(true);
   });
 
-  it('does not allow a stored override to re-enable the held eBay lane', async () => {
+  it('ebaySoldLaneEnabled is false in production-like envs and true only in tests with the escape hatch', async () => {
+    const { ebaySoldLaneEnabled } = await import('./lib/source-config');
+    expect(ebaySoldLaneEnabled(env as any)).toBe(false); // cloudflare:test env has no test escape hatch vars
+    const prod = { ENVIRONMENT: 'production', EBAY_SOURCE_AUTHORIZED_FOR_TESTS: '1' };
+    expect(ebaySoldLaneEnabled(prod as any)).toBe(false);
+    const test = { ENVIRONMENT: 'test', EBAY_SOURCE_AUTHORIZED_FOR_TESTS: '1' };
+    expect(ebaySoldLaneEnabled(test as any)).toBe(true);
+  });
+
+  it('a stored override can now enable the eBay ask source (only the sold lane is held)', async () => {
     await (env as any).DB.prepare(
       `INSERT INTO app_settings (key, value, updated_at) VALUES ('source_config', ?1, datetime('now'))`,
-    ).bind(JSON.stringify({ ebay: { enabled: true } })).run();
+    ).bind(JSON.stringify({ ebay: { enabled: false } })).run();
     clearSourceConfigCache();
     const cfg = await getSourceConfig(env as any);
     expect(cfg.ebay.enabled).toBe(false);
   });
 
-  it('does not persist an admin attempt to re-enable the held eBay lane', async () => {
+  it('persists an admin eBay enable decision for the ask lane', async () => {
     const cfg = await saveSourceConfig(env as any, { ebay: { enabled: true } });
-    expect(cfg.ebay.enabled).toBe(false);
+    expect(cfg.ebay.enabled).toBe(true);
     clearSourceConfigCache();
-    expect((await getSourceConfig(env as any)).ebay.enabled).toBe(false);
+    expect((await getSourceConfig(env as any)).ebay.enabled).toBe(true);
   });
 
   it('deep-merges + clamps stored overrides over defaults', async () => {

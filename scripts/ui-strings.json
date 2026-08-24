@@ -4172,6 +4172,12 @@
     ]
   },
   {
+    "text": "Ignore",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Image too large (max 20 MB) — skipped",
     "files": [
       "components/scanner.js"
@@ -7637,6 +7643,12 @@
     ]
   },
   {
+    "text": "Resolve",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Response timed out",
     "files": [
       "components/advisor.js"
@@ -9853,6 +9865,12 @@
     ]
   },
   {
+    "text": "Two gates: this switch controls the eBay",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Two or more independent families of fresh sold data agree within a tight band.",
     "files": [
       "methodology.html"
@@ -11100,6 +11118,18 @@
     "text": "is a grab",
     "files": [
       "runtime-exact"
+    ]
+  },
+  {
+    "text": "lane only. The scraped",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "lane stays held pending provider authorization regardless of this setting.",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {

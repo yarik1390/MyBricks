@@ -343,15 +343,23 @@ const PROBES: Record<string, Probe> = {
 
 export const TESTABLE_SERVICES = Object.keys(PROBES);
 
+/** Friendly aliases for probe names that were renamed server-side after the
+ *  admin console shipped its Test buttons (e.g. 'stockx' -> 'stockx_firecrawl').
+ *  Keeps the frontend's stable service ids working. */
+const SERVICE_ALIASES: Record<string, string> = {
+  stockx: 'stockx_firecrawl',
+};
+
 /** Run a single service's probe. Unknown service -> null. Always resolves. */
 export async function runServiceTest(env: Env, service: string): Promise<ServiceTestResult | null> {
-  const probe = PROBES[service];
+  const probe = PROBES[SERVICE_ALIASES[service] ?? service];
   if (!probe) return null;
   const t0 = Date.now();
   try {
     const r = await probe(env);
-    return { service, ...r, ms: Date.now() - t0 };
+    // Report the RESOLVED service id so the console shows which probe ran.
+    return { service: SERVICE_ALIASES[service] ?? service, ...r, ms: Date.now() - t0 };
   } catch (e) {
-    return { service, ok: false, status: 'error', detail: (e as Error).message, ms: Date.now() - t0 };
+    return { service: SERVICE_ALIASES[service] ?? service, ok: false, status: 'error', detail: (e as Error).message, ms: Date.now() - t0 };
   }
 }

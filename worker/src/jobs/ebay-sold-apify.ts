@@ -4,7 +4,7 @@ import { apifyEnabled } from '../lib/pricing-flags';
 import { reserveQuota } from '../lib/api-quota';
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { recordPricingWrites } from '../lib/pricing-budget';
-import { sourceEnabled } from '../lib/source-config';
+import { ebaySoldLaneEnabled, sourceEnabled } from '../lib/source-config';
 
 const APIFY_MAX_SETS_PER_RUN = 20;
 
@@ -31,6 +31,10 @@ export async function runEbaySoldApifyScrape(
 ): Promise<EbaySoldApifyRun> {
   if (!(await sourceEnabled(env, 'ebay'))) {
     return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'ebay disabled in source tuning' };
+  }
+  // Compliance hold: the Apify sold-comps actor is part of the same held lane.
+  if (!ebaySoldLaneEnabled(env)) {
+    return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'ebay sold-comps lane held pending provider authorization' };
   }
   if (!(apifyEnabled(env) && await sourceEnabled(env, 'apify'))) {
     return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'apify not configured' };
