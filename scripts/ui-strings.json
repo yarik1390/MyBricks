@@ -1300,7 +1300,7 @@
     ]
   },
   {
-    "text": "Brickset / UPCitemdb",
+    "text": "Brickset / BrickOwl",
     "files": [
       "views/me-admin-config.js"
     ]
@@ -3359,12 +3359,6 @@
     "text": "Failing",
     "files": [
       "lib/pure.js"
-    ]
-  },
-  {
-    "text": "Fallback barcode lookup provider.",
-    "files": [
-      "views/me-admin-config.js"
     ]
   },
   {
@@ -5453,12 +5447,6 @@
     ]
   },
   {
-    "text": "Needs PRICESAPI_ENABLED=1 + keys; spends the daily pricesAPI budget.",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
     "text": "Needs access",
     "files": [
       "lib/pure.js"
@@ -6297,12 +6285,6 @@
   },
   {
     "text": "Optional marketplace signal and cross-check.",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "Optional retail offer signal; keep disabled unless keys and quota are ready.",
     "files": [
       "views/me-admin-config.js"
     ]
@@ -7402,12 +7384,6 @@
     ]
   },
   {
-    "text": "Refreshes live retailer offers + stock for a few sets — use to verify new keys.",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
     "text": "Reject",
     "files": [
       "views/me-admin.js"
@@ -7990,12 +7966,6 @@
     "text": "Run now",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Run pricesAPI now",
-    "files": [
-      "views/me-admin-config.js"
     ]
   },
   {
@@ -9664,7 +9634,7 @@
     ]
   },
   {
-    "text": "To run one job on its own — catalog imports, PriceCharting bulk, pricesAPI, or the eBay sold-comps scrape — use its",
+    "text": "To run one job on its own — catalog imports, PriceCharting bulk, or the eBay sold-comps scrape — use its",
     "files": [
       "views/me-admin.js"
     ]
@@ -10060,12 +10030,6 @@
   },
   {
     "text": "Up to ~60s for 5 sets",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "Up to ~90s per set",
     "files": [
       "views/me-admin-config.js"
     ]
@@ -11214,12 +11178,6 @@
     "text": "prices from independent markets — and if we don't have that, we tell you exactly what we have instead.",
     "files": [
       "methodology.html"
-    ]
-  },
-  {
-    "text": "pricesAPI retail offers",
-    "files": [
-      "views/me-admin-config.js"
     ]
   },
   {

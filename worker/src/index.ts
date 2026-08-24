@@ -53,11 +53,9 @@ import { runBrickInsightsBackfill } from './jobs/brickinsights';
 import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
 import { runEbaySoldApifyScrape } from './jobs/ebay-sold-apify';
 import { runStockXEnrich } from './jobs/stockx-enrich';
-import { runUpcItemDbBackfill } from './jobs/upcitemdb-backfill';
 import { runLegoStockRefresh } from './jobs/lego-stock-refresh';
 import { runBricksetEnrich } from './jobs/brickset-enrich';
 import { runBrickEconomyEnrich } from './jobs/brickeconomy-enrich';
-import { runPricesApiRetail } from './jobs/pricesapi-retail';
 import { runBlendRecomputeBackfill } from './jobs/recompute-blends';
 import { applySourceConfig } from './lib/source-config';
 import { recordCronStart, recordCronFinish, summarizeResult, isCronRunning } from './lib/cron-runs';
@@ -424,10 +422,6 @@ export default {
       case '0 8 * * *': await run('wishlist-alerts', () => runWishlistAlerts(env)); break;
       case '0 8 * * SUN': await run('weekly-digest', () => runWeeklyDigest(env)); break;
       case '0 5 * * SUN': await run('collection-backups', () => runCollectionBackups(env)); break;
-      // Small UPCitemdb barcode trickle hourly (a few spaced searches/run) — a
-      // 2nd barcode source for missing modern retail sets, gentle on the trial's
-      // per-window rate limit. Auto-scales if UPCITEMDB_USER_KEY is set.
-      case '30 * * * *': await run('upcitemdb-backfill', () => runUpcItemDbBackfill(env, { limit: 4 })); break;
       // Formula-head value converter, hourly at :15 — converts the high-value
       // formula ESTIMATE head (>= $50, value-first, not tried in 3d) to real
       // BrickLink/BE market values using idle BrickLink budget. No AI fallback
@@ -497,7 +491,7 @@ export default {
       // self-tapers); brickeconomy refreshes/new-sets stay at 40. Ongoing value
       // freshness rides on the free APIs (BrickLink/eBay/BrickOwl), not Firecrawl.
       case '0 9 * * *': await run('brickset-enrich', () => runBricksetEnrich(env, { limit: 30 })); break;
-      case '0 10 * * *': await run('lego-stock-refresh', () => runLegoStockRefresh(env, { limit: 40 })); break;
+      case '0 10 * * *': await run('lego-stock-refresh', () => runLegoStockRefresh(env, { limit: 200 })); break;
       case '0 11 * * *': await run('brickeconomy-enrich', () => runBrickEconomyEnrich(env, { limit: 60 })); break;
       // Part-out (E1): trickle the shared part_prices cache from BrickLink's NEW
       // price guide, most-shared parts first. Budget-gated (reserveQuota shares
@@ -521,11 +515,8 @@ export default {
       // with eligible credentials (>= 10 qualifying sales / 30 days).
       case '30 7 * * *': await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 })); break;
       case '30 16 * * *': await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 })); break;
-      case '0 17 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 18 * * *': await run('stockx-enrich', () => runStockXEnrich(env, { limit: 20 })); break;
-      case '0 19 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       case '0 22 * * *': await run('community-comps', () => runCommunityComps(env)); break;
-      case '0 23 * * *': await run('pricesapi-retail', () => runPricesApiRetail(env, { limit: 6 })); break;
       // AI gap-fill: high-value formula sets that NO market source can price get a
       // free Gemini estimate (tries market first, AI only on a full miss). Small
       // limit + 3-day formula-head cooldown keep it well under the free tier; the

@@ -57,11 +57,11 @@ describe('cron run tracking', () => {
   });
 
   it('records a failure with the error message', async () => {
-    const id = await recordCronStart(env as any, 'pricesapi-retail');
-    await recordCronFinish(env as any, id, 'pricesapi-retail', { ok: false, error: 'boom' });
+    const id = await recordCronStart(env as any, 'test-job-x');
+    await recordCronFinish(env as any, id, 'test-job-x', { ok: false, error: 'boom' });
     const { latest } = await getRecentRuns(env as any);
-    expect(latest['pricesapi-retail'].status).toBe('failed');
-    expect(latest['pricesapi-retail'].error).toBe('boom');
+    expect(latest['test-job-x'].status).toBe('failed');
+    expect(latest['test-job-x'].error).toBe('boom');
   });
 
   it('prunes history to the last 5 runs per process', async () => {

@@ -13,7 +13,6 @@ import {
   ebaySoldCompsEnabled,
   brickInsightsEnabled,
   firecrawlEnabled,
-  pricesapiEnabled,
 } from './lib/pricing-flags';
 
 const db = (env as any).DB as D1Database;
@@ -59,14 +58,12 @@ describe('feature-flags', () => {
   });
 
   it('an override cannot bypass a missing-secret prerequisite', async () => {
-    await saveFeatureFlags(baseEnv(), { firecrawl: true, pricesapi: true });
+    await saveFeatureFlags(baseEnv(), { firecrawl: true });
     await applyFeatureFlags(baseEnv());
-    // No token/keys -> still disabled despite the override.
+    // No token -> still disabled despite the override.
     expect(firecrawlEnabled(baseEnv())).toBe(false);
-    expect(pricesapiEnabled(baseEnv())).toBe(false);
     // With the prerequisite present, the override takes effect.
     expect(firecrawlEnabled(baseEnv({ FIRECRAWL_API_KEY: 'k' }))).toBe(true);
-    expect(pricesapiEnabled(baseEnv({ PRICESAPI_API_KEY: 'k' }))).toBe(true);
   });
 
   it('ignores non-boolean / unknown values and round-trips through the DB', async () => {

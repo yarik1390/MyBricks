@@ -62,11 +62,11 @@ describe('source-config', () => {
 
   it('deep-merges + clamps stored overrides over defaults', async () => {
     clearSourceConfigCache();
-    await saveSourceConfig(env as any, { pricesapi: { enabled: true, weight: 99 }, bricklink: { dailyCap: 1000 } });
+    await saveSourceConfig(env as any, { pricecharting: { enabled: true, weight: 99 }, bricklink: { dailyCap: 1000 } });
     clearSourceConfigCache();
     const cfg = await getSourceConfig(env as any);
-    expect(cfg.pricesapi.enabled).toBe(true);
-    expect(cfg.pricesapi.weight).toBe(3);          // clamped to max 3
+    expect(cfg.pricecharting.enabled).toBe(true);
+    expect(cfg.pricecharting.weight).toBe(3);      // clamped to max 3
     expect(cfg.bricklink.dailyCap).toBe(1000);
     expect(cfg.ebay).toEqual(DEFAULT_SOURCE_CONFIG.ebay); // untouched
   });
@@ -123,10 +123,10 @@ describe('source-config', () => {
 
   it('applySourceConfig drives the daily quota cap override', async () => {
     clearSourceConfigCache();
-    await saveSourceConfig(env as any, { pricesapi: { dailyCap: 1 } });
+    await saveSourceConfig(env as any, { pricecharting: { dailyCap: 1 } });
     clearSourceConfigCache();
     await applySourceConfig(env as any);
-    expect(await spendQuota(env as any, 'pricesapi', 1)).toBe(true);   // 1st within cap
-    expect(await spendQuota(env as any, 'pricesapi', 1)).toBe(false);  // 2nd exceeds cap=1
+    expect(await spendQuota(env as any, 'pricecharting', 1)).toBe(true);   // 1st within cap
+    expect(await spendQuota(env as any, 'pricecharting', 1)).toBe(false);  // 2nd exceeds cap=1
   });
 });

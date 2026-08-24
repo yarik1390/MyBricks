@@ -204,7 +204,7 @@ function populateSectionHTML() {
       </div>
       <button class="btn-primary admin-primary-action" data-admin-tool="everything">${I.refresh()}<span>Run safe slice</span></button>
     </div>
-    <p class="admin-section-note">To run one job on its own — catalog imports, PriceCharting bulk, pricesAPI, or the eBay sold-comps scrape — use its <strong>Run now</strong> button on the Activity tab, where you can also watch it finish.</p>
+    <p class="admin-section-note">To run one job on its own — catalog imports, PriceCharting bulk, or the eBay sold-comps scrape — use its <strong>Run now</strong> button on the Activity tab, where you can also watch it finish.</p>
     <div class="admin-tool-grid">
       ${maintenanceCardHTML('expire')}
       ${maintenanceCardHTML('repair')}
@@ -667,9 +667,7 @@ function renderProcesses() {
 const PROCESS_TRIGGER = {
   'weekly-import-sets': 'sets',
   'weekly-import-figs': 'figs',
-  'upcitemdb-backfill': 'upc',
   'pricecharting-bulk': 'pricechartingBulk',
-  'pricesapi-retail': 'pricesapi',
   'ebay-sold-scrape': 'ebaySold',
 };
 
@@ -823,7 +821,7 @@ async function updateIntegrationsHealth() {
 }
 
 // Runtime capability flags (eBay sold comps, BrickInsights,
-// Firecrawl, pricesAPI, BrickOwl). Feeds the per-service toggles in Services.
+// Firecrawl, BrickOwl). Feeds the per-service toggles in Services.
 async function loadFeatureFlags() {
   try {
     featureFlags = await api('/api/admin/feature-flags');
@@ -2068,12 +2066,10 @@ function providerLabel(service) {
   const labels = {
     d1: 'D1',
     supabase: 'Supabase',
-    upcitemdb: 'UPCitemdb',
     bricklink: 'BrickLink',
     brickeconomy: 'BrickEconomy',
     brickowl: 'BrickOwl',
     pricecharting: 'PriceCharting',
-    pricesapi: 'pricesAPI.io',
     firecrawl: 'Firecrawl',
     ebay: 'eBay',
     rebrickable: 'Rebrickable',

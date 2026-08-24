@@ -4,7 +4,6 @@ import { fetchEbayActiveListings } from './ebay';
 import { configuredFirecrawlKeys, isCreditExhaustion } from './firecrawl-keys';
 import { firecrawlEnabled } from './pricing-flags';
 import { fetchStockXViaFirecrawl } from './stockx';
-import { configuredKeys as pricesApiKeys } from './pricesapi-keys';
 import { configuredBrightDataTokens, brightDataEnabled } from './brightdata-keys';
 import { recordAiUsage } from './ai-usage';
 
@@ -244,13 +243,6 @@ const PROBES: Record<string, Probe> = {
       }
       return err(j['error-message'] || `unexpected response: ${r.text.slice(0, 80)}`);
     } catch { return err(`HTTP ${r.status}: ${r.text.slice(0, 100)}`); }
-  },
-
-  async pricesapi(env) {
-    const keys = pricesApiKeys(env);
-    if (!keys.length) return configured('no key (set PRICE_API_KEYS or PRICESAPI_API_KEYS)');
-    // Live pricesAPI calls are 30-90s each — don't spend one on a health check.
-    return ok(`${keys.length} key(s) present (a live call takes ~30-90s; use Populate → Run pricesAPI to spend one)`);
   },
 
   async openrouter() {

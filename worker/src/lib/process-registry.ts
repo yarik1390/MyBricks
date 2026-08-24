@@ -24,7 +24,7 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   'pricecharting-bulk-fetch': { label: 'PriceCharting (bulk fetch)', description: 'Daily bulk download of the PriceCharting LEGO guide (~2 MB CSV) refreshing ~13k catalog rows — no metered quota.', schedule: 'Daily 04:30 UTC', group: 'Pricing' },
   'pricecharting-verify': { label: 'PriceCharting verify', description: 'Settles price-agreement promotions for quarantined source matches (unique UPC or cross-source agreement) and refreshes their signals.', schedule: 'Daily 04:00 UTC', group: 'Pricing' },
   'pricecharting-verify-drain': { label: 'PriceCharting verify (drain)', description: 'Hourly drain of the pending price-agreement verification queue (no new signal writes).', schedule: 'Hourly (:15)', group: 'Pricing' },
-  'pricesapi-retail': { label: 'pricesAPI live retail', description: 'Live retailer offers + stock across major stores — feeds the deal signal, in-stock truth and wishlist alerts.', schedule: 'Daily 17:00, 19:00 & 23:00 UTC', group: 'Pricing' },
+  // (pricesAPI live-retail lane removed 2026-08; LEGO.com stock-refresh covers retail/stock truth.)
   'brickeconomy-enrich': { label: 'BrickEconomy values', description: 'Scrapes BrickEconomy modeled values and 2y/5y forecasts (via Firecrawl).', schedule: 'Daily 11:00 UTC', group: 'Pricing' },
   'ebay-sold-scrape': { label: 'eBay sold comps', description: 'Scrapes eBay realized sold prices (Bright Data primary, Firecrawl rescue) as a high-confidence sold source. Bursts the backfill, then self-tapers to a 30-day refresh.', schedule: '8×/day (every 3h)', group: 'Pricing' },
   'ebay-sold-apify': { label: 'eBay sold comps (Apify)', description: 'Weekly second sold-comps lane via the Apify eBay actor (20 sets/run). Writes the same columns as the scrape lane; currently held pending provider authorization.', schedule: 'Weekly Sun 21:30 UTC', group: 'Pricing' },
@@ -47,8 +47,9 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   // --- Enrichment ---
   'brickset-enrich': { label: 'Brickset metadata', description: 'Adds Brickset details — MSRP, launch/exit dates, ratings, barcodes.', schedule: 'Daily 09:00 UTC', group: 'Enrichment' },
   'brickinsights-ratings': { label: 'Review ratings', description: 'Fetches aggregated community review scores (BrickInsights).', schedule: 'Daily 06:00 UTC', group: 'Enrichment' },
-  'lego-stock-refresh': { label: 'LEGO.com stock', description: 'Checks LEGO.com availability and retiring-soon status.', schedule: 'Daily 10:00 UTC', group: 'Enrichment' },
-  'upcitemdb-backfill': { label: 'Barcode backfill', description: 'Fills missing UPC/barcodes from UPCitemdb (2nd source after Brickset).', schedule: 'Hourly (:30)', group: 'Enrichment' },
+  'lego-stock-refresh': { label: 'LEGO.com stock & retail price', description: 'Scrapes LEGO.com availability, retiring-soon status and current retail price — the authoritative retail/stock-truth lane since pricesAPI was removed. Owned/wishlisted sets first, then the active catalog.', schedule: 'Daily 10:00 UTC', group: 'Enrichment' },
+  // (Barcode coverage: Brickset bulk barcodes primary + BrickOwl fallback; the
+  // UPCitemdb trickle lane was removed 2026-08 — provider quota-dead since July.)
   'part-price-backfill': { label: 'Part prices', description: 'Caches individual part prices used to compute part-out values.', schedule: 'Daily 12:00 UTC', group: 'Enrichment' },
   'part-out-compute': { label: 'Part-out value', description: 'Computes each set’s sum-of-parts (part-out) floor value.', schedule: 'Daily 13:00 UTC', group: 'Enrichment' },
 

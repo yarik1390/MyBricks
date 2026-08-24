@@ -47,7 +47,7 @@ export const ADMIN_JOB_TOOLS = {
     body: {},
     label: 'Backfill barcodes',
     desc: 'Fills in missing UPC barcodes so sets can be scanned.',
-    source: 'Brickset / UPCitemdb',
+    source: 'Brickset / BrickOwl',
     duration: '1 safe slice',
     quota: 'Daily provider quota controls how far this advances.',
     icon: I.barcode(),
@@ -107,17 +107,6 @@ export const ADMIN_JOB_TOOLS = {
     quota: 'Auto-runs hourly (drain) + daily (full signal refresh); writes count against the D1 pricing ledger.',
     icon: I.refresh({ w: 16 }),
   },
-  pricesapi: {
-    url: '/api/admin/run-pricesapi',
-    method: 'POST',
-    body: { limit: 3 },
-    label: 'Run pricesAPI now',
-    desc: 'Refreshes live retailer offers + stock for a few sets — use to verify new keys.',
-    source: 'pricesAPI.io',
-    duration: 'Up to ~90s per set',
-    quota: 'Needs PRICESAPI_ENABLED=1 + keys; spends the daily pricesAPI budget.',
-    icon: I.refresh({ w: 16 }),
-  },
   ebaySold: {
     url: '/api/admin/jobs/ebay-sold-scrape?limit=5',
     method: 'POST',
@@ -161,7 +150,6 @@ export const SOURCE_META = {
   brickeconomy: ['BrickEconomy', 'Useful historical and forecast signal when reachable.'],
   brickowl: ['BrickOwl', 'Optional marketplace signal and cross-check.'],
   pricecharting: ['PriceCharting', 'eBay closed-auction sold comps (Marketplace Insights replacement). Verified mappings only — unique UPC or cross-source price agreement; the rest stay quarantined.'],
-  pricesapi: ['pricesAPI.io', 'Optional retail offer signal; keep disabled unless keys and quota are ready.'],
   amazon: ['Amazon Creators API', 'Live Amazon offers for the buy slot. KV-only (24h) per Associates terms; never a valuation input — weight stays 0.'],
   firecrawl: ['Firecrawl', 'Scraping runtime for structured market enrichment.'],
   brightdata: ['Bright Data Web Unlocker', 'Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.'],
@@ -169,8 +157,8 @@ export const SOURCE_META = {
 
 export const PROVIDER_GROUPS = [
   ['Core', ['d1', 'supabase', 'worker', 'pages']],
-  ['Catalog', ['rebrickable', 'brickset', 'upc', 'upcitemdb']],
-  ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'brickowl', 'pricecharting', 'pricesapi', 'brickinsights', 'amazon']],
+  ['Catalog', ['rebrickable', 'brickset', 'upc']],
+  ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'brickowl', 'pricecharting', 'brickinsights', 'amazon']],
   ['Scraping', ['firecrawl', 'brightdata', 'stockx']],
   ['AI', ['gemini', 'openai', 'openrouter', 'merge', 'byok']],
   ['Notifications', ['resend', 'push', 'vapid', 'discord']],
@@ -185,7 +173,6 @@ export const SERVICE_FLAG = {
   brickowl: 'brickowl',
   brickinsights: 'brickinsights',
   firecrawl: 'firecrawl',
-  pricesapi: 'pricesapi',
   stockx: 'stockx',
 };
 
@@ -194,7 +181,6 @@ export const FLAG_LABEL = {
   brickowl: 'BrickOwl source',
   brickinsights: 'BrickInsights ratings',
   firecrawl: 'Firecrawl scraping',
-  pricesapi: 'pricesAPI retail offers',
   stockx: 'StockX lowest ask',
 };
 
@@ -206,13 +192,13 @@ export const FLAG_LABEL = {
 // to click. A test in pure.test.js now enforces the pairing.
 export const TESTABLE = new Set([
   'd1', 'supabase', 'rebrickable', 'brickset', 'brickinsights', 'brickowl', 'bricklink', 'ebay',
-  'firecrawl', 'brickeconomy', 'pricecharting', 'pricesapi', 'brightdata',
+  'firecrawl', 'brickeconomy', 'pricecharting', 'brightdata',
   'openrouter', 'gemini', 'openai', 'merge', 'resend', 'turnstile', 'patreon', 'push', 'stockx',
 ]);
 
 // Pricing sources with weight/cap/refresh tuning (worker DEFAULT_SOURCE_CONFIG).
 export const TUNABLE_SOURCES = new Set([
-  'bricklink', 'ebay', 'brickeconomy', 'brickowl', 'pricecharting', 'pricesapi', 'firecrawl', 'brightdata',
+  'bricklink', 'ebay', 'brickeconomy', 'brickowl', 'pricecharting', 'firecrawl', 'brightdata',
 ]);
 
 // Short "what it does" copy for services not already described in SOURCE_META.
@@ -225,7 +211,6 @@ export const SERVICE_DESC = {
   brickset: 'Set metadata, retail price, and barcode enrichment.',
   brightdata: 'Bright Data Web Unlocker — raw page transport for BrickEconomy, Brickset, and LEGO stock.',
   upc: 'Barcode backfill so sets can be scanned.',
-  upcitemdb: 'Fallback barcode lookup provider.',
   brickinsights: 'Aggregated community set ratings shown on set pages.',
   turnstile: 'Cloudflare bot check on keyless web photo scans. Site key and secret must come from the SAME widget, or every scan is rejected.',
   merge: 'Merge Gateway — second multi-provider LLM gateway, billed against a fixed monthly allowance and reporting real per-call cost.',

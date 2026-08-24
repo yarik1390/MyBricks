@@ -213,7 +213,7 @@ export const ui = {
   "BricksVault Vault": "BricksVault Vault",
   "BricksVault collectors can log what they actually paid for a set and what it actually sold for. We aggregate those real transactions into a community price signal — published only when": "BricksVault 的收藏者可以记录自己实际为一套套装支付的价格，以及实际卖出的价格。我们把这些真实交易汇总成社区价格信号 — 只有当",
   "BricksVault is locked": "BricksVault 已锁定",
-  "Brickset / UPCitemdb": "Brickset / UPCitemdb",
+  "Brickset / BrickOwl": "Brickset / BrickOwl",
   "Brickset / barcode": "Brickset / 条形码",
   "Brickset Collection Sync": "Brickset 收藏同步",
   "Brickset account connected": "Brickset 账户已连接",
@@ -533,7 +533,6 @@ export const ui = {
   "Failed to load user profile": "无法加载用户资料",
   "Failed to mark alert as read:": "将提醒标记为已读失败：",
   "Failing": "失败中",
-  "Fallback barcode lookup provider.": "条形码查询的兜底服务提供商。",
   "Falling": "下跌",
   "Fast-sale estimate after fees and a liquidity haircut.": "扣除手续费和流动性折价后的快速出手估价。",
   "Fastest and free for boxed sets": "对原盒套装来说最快且免费",
@@ -850,7 +849,6 @@ export const ui = {
   "Name updated": "名称已更新",
   "Native alerts are waiting for the app's Firebase configuration.": "原生提醒正在等待应用的 Firebase 配置完成。",
   "Native notifications are unavailable": "原生通知不可用",
-  "Needs PRICESAPI_ENABLED=1 + keys; spends the daily pricesAPI budget.": "需要 PRICESAPI_ENABLED=1 及密钥；消耗每日 pricesAPI 预算。",
   "Needs access": "需要访问权限",
   "Needs action": "需要处理",
   "Needs refresh": "需要刷新",
@@ -983,7 +981,6 @@ export const ui = {
   "Optimization Guide On Device Model": "Optimization Guide On Device Model",
   "Optional Discord webhook alerts.": "可选的 Discord Webhook 提醒。",
   "Optional marketplace signal and cross-check.": "可选的市场信号与交叉核验来源。",
-  "Optional retail offer signal; keep disabled unless keys and quota are ready.": "可选的零售报价信号；在密钥和额度就绪前请保持禁用。",
   "Optional reviewer note for rejection:": "驳回时的可选审核备注：",
   "Optional setup": "可选设置",
   "Optional — tweak later in Settings.": "可选——之后可在设置中调整。",
@@ -1154,7 +1151,6 @@ export const ui = {
   "Refresh days": "刷新间隔（天）",
   "Refresh days must be a positive integer or blank.": "刷新间隔（天）必须为正整数，或留空。",
   "Refresh parts": "刷新零件",
-  "Refreshes live retailer offers + stock for a few sets — use to verify new keys.": "刷新少量套装的实时零售报价和库存——用于验证新密钥。",
   "Reject": "拒绝",
   "Relaunch Chrome, then go to": "重启 Chrome，然后访问",
   "Release": "发行",
@@ -1245,7 +1241,6 @@ export const ui = {
   "Run eBay-sold scrape": "运行 eBay 成交价抓取",
   "Run next slice if coverage remains": "若覆盖率仍有余量，则运行下一批次",
   "Run now": "立即运行",
-  "Run pricesAPI now": "立即运行 pricesAPI",
   "Run safe slice": "运行安全批次",
   "Running": "运行中",
   "Running now": "正在运行",
@@ -1503,7 +1498,6 @@ export const ui = {
   "Title": "标题",
   "Title (optional)": "标题（可选）",
   "To enable in Google Chrome (Desktop or Android):": "在 Google Chrome（桌面版或 Android 版）中启用：",
-  "To run one job on its own — catalog imports, PriceCharting bulk, pricesAPI, or the eBay sold-comps scrape — use its": "如需单独运行某个任务——目录导入、PriceCharting 批量导入、pricesAPI 或 eBay 成交价抓取——请使用其",
   "Today": "今天",
   "Today's game isn't ready yet — check back soon.": "今日游戏尚未准备好——请稍后再来查看。",
   "Toggle Layout": "切换布局",
@@ -1740,7 +1734,6 @@ export const ui = {
   "on any set page — corrections feed the same verification pipeline. ·": "在任意套装页面均可提交——所有修正都会进入同一验证流程。·",
   "other themes in your vault": "你收藏库中的其他主题",
   "prices from independent markets — and if we don't have that, we tell you exactly what we have instead.": "来自独立市场的价格——如果没有，我们会如实告知目前掌握的是什么。",
-  "pricesAPI retail offers": "pricesAPI 零售报价",
   "provider families": "供应商系列",
   "revoke supporter status from": "撤销赞助者身份，对象为",
   "safe to retry": "可安全重试",
@@ -1819,7 +1812,6 @@ ui["Loading queue..."] = "正在加载队列…";
 ui["Processing queue..."] = "正在处理队列…";
 ui["Searching..."] = "正在搜索…";
 ui["Up to ~60s for 5 sets"] = "5 套套装最长约 60 秒";
-ui["Up to ~90s per set"] = "每套套装最长约 90 秒";
 ui["alternate models"] = "备选拼法";
 ui["asking data available"] = "报价数据可用";
 ui["needs key"] = "需要密钥";

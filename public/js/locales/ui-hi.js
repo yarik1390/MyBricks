@@ -213,7 +213,7 @@ export const ui = {
   "BricksVault Vault": "BricksVault संग्रह",
   "BricksVault collectors can log what they actually paid for a set and what it actually sold for. We aggregate those real transactions into a community price signal — published only when": "BricksVault के संग्राहक दर्ज कर सकते हैं कि उन्होंने किसी सेट के लिए वास्तव में कितना चुकाया और वह वास्तव में कितने में बिका। हम इन वास्तविक लेनदेन को एक सामुदायिक मूल्य संकेत में जोड़ते हैं — जो तभी प्रकाशित होता है जब",
   "BricksVault is locked": "BricksVault लॉक है",
-  "Brickset / UPCitemdb": "Brickset / UPCitemdb",
+  "Brickset / BrickOwl": "Brickset / BrickOwl",
   "Brickset / barcode": "Brickset / बारकोड",
   "Brickset Collection Sync": "Brickset संग्रह सिंक",
   "Brickset account connected": "Brickset खाता कनेक्ट हो गया",
@@ -533,7 +533,6 @@ export const ui = {
   "Failed to load user profile": "प्रोफ़ाइल लोड नहीं हो सकी",
   "Failed to mark alert as read:": "अलर्ट को पढ़ा हुआ चिह्नित करने में विफल:",
   "Failing": "विफल हो रहा",
-  "Fallback barcode lookup provider.": "फ़ॉलबैक बारकोड लुकअप प्रोवाइडर।",
   "Falling": "गिरावट",
   "Fast-sale estimate after fees and a liquidity haircut.": "फ़ीस और लिक्विडिटी कटौती के बाद तुरंत-बिक्री का अनुमान।",
   "Fastest and free for boxed sets": "बॉक्स्ड सेट के लिए सबसे तेज़ और मुफ़्त",
@@ -850,7 +849,6 @@ export const ui = {
   "Name updated": "नाम अपडेट हो गया",
   "Native alerts are waiting for the app's Firebase configuration.": "नेटिव अलर्ट ऐप के Firebase कॉन्फ़िगरेशन का इंतज़ार कर रहे हैं।",
   "Native notifications are unavailable": "नेटिव सूचनाएँ उपलब्ध नहीं हैं",
-  "Needs PRICESAPI_ENABLED=1 + keys; spends the daily pricesAPI budget.": "PRICESAPI_ENABLED=1 + कुंजियाँ चाहिए; दैनिक pricesAPI बजट खर्च करता है।",
   "Needs access": "एक्सेस चाहिए",
   "Needs action": "कार्रवाई आवश्यक",
   "Needs refresh": "रीफ़्रेश चाहिए",
@@ -983,7 +981,6 @@ export const ui = {
   "Optimization Guide On Device Model": "ऑप्टिमाइज़ेशन गाइड ऑन-डिवाइस मॉडल",
   "Optional Discord webhook alerts.": "वैकल्पिक Discord वेबहुक अलर्ट।",
   "Optional marketplace signal and cross-check.": "वैकल्पिक बाज़ार संकेत और क्रॉस-चेक।",
-  "Optional retail offer signal; keep disabled unless keys and quota are ready.": "वैकल्पिक खुदरा ऑफ़र संकेत; जब तक कुंजियाँ और कोटा तैयार न हों, इसे अक्षम रखें।",
   "Optional reviewer note for rejection:": "अस्वीकृति के लिए वैकल्पिक समीक्षक नोट:",
   "Optional setup": "वैकल्पिक सेटअप",
   "Optional — tweak later in Settings.": "वैकल्पिक — बाद में सेटिंग्स में बदलें।",
@@ -1154,7 +1151,6 @@ export const ui = {
   "Refresh days": "रीफ़्रेश दिन",
   "Refresh days must be a positive integer or blank.": "रीफ़्रेश दिन एक धनात्मक पूर्णांक या खाली होने चाहिए।",
   "Refresh parts": "पार्ट्स रीफ़्रेश करें",
-  "Refreshes live retailer offers + stock for a few sets — use to verify new keys.": "कुछ सेट के लिए लाइव रिटेलर ऑफ़र + स्टॉक रीफ़्रेश करता है — नई कुंजियाँ सत्यापित करने के लिए उपयोग करें।",
   "Reject": "अस्वीकार करें",
   "Relaunch Chrome, then go to": "Chrome फिर से खोलें, फिर यहाँ जाएँ",
   "Release": "रिलीज़",
@@ -1245,7 +1241,6 @@ export const ui = {
   "Run eBay-sold scrape": "eBay-बिक्री स्क्रेप चलाएँ",
   "Run next slice if coverage remains": "कवरेज बाकी हो तो अगला स्लाइस चलाएँ",
   "Run now": "अभी चलाएँ",
-  "Run pricesAPI now": "pricesAPI अभी चलाएँ",
   "Run safe slice": "सुरक्षित स्लाइस चलाएँ",
   "Running": "चल रहा है",
   "Running now": "अभी चल रहा है",
@@ -1503,7 +1498,6 @@ export const ui = {
   "Title": "शीर्षक",
   "Title (optional)": "शीर्षक (वैकल्पिक)",
   "To enable in Google Chrome (Desktop or Android):": "Google Chrome (डेस्कटॉप या Android) में सक्षम करने के लिए:",
-  "To run one job on its own — catalog imports, PriceCharting bulk, pricesAPI, or the eBay sold-comps scrape — use its": "किसी एक जॉब को अकेले चलाने के लिए — कैटलॉग इम्पोर्ट, PriceCharting बल्क, pricesAPI, या eBay बिक्री-तुलना स्क्रेप — इसका उपयोग करें",
   "Today": "आज",
   "Today's game isn't ready yet — check back soon.": "आज का गेम अभी तैयार नहीं है — जल्द फिर देखें।",
   "Toggle Layout": "लेआउट टॉगल करें",
@@ -1740,7 +1734,6 @@ export const ui = {
   "on any set page — corrections feed the same verification pipeline. ·": "किसी भी सेट पेज पर — सुधार उसी सत्यापन पाइपलाइन में जाते हैं। ·",
   "other themes in your vault": "आपके वॉल्ट के अन्य थीम",
   "prices from independent markets — and if we don't have that, we tell you exactly what we have instead.": "स्वतंत्र बाज़ारों की कीमतें — और अगर वह न हो, तो हम आपको बताते हैं कि हमारे पास वास्तव में क्या है।",
-  "pricesAPI retail offers": "pricesAPI खुदरा ऑफ़र",
   "provider families": "प्रदाता समूह",
   "revoke supporter status from": "सपोर्टर स्टेटस वापस लें",
   "safe to retry": "दोबारा कोशिश करना सुरक्षित",
@@ -1819,7 +1812,6 @@ ui["Loading queue..."] = "कतार लोड हो रही है...";
 ui["Processing queue..."] = "कतार प्रोसेस हो रही है...";
 ui["Searching..."] = "खोजा जा रहा है...";
 ui["Up to ~60s for 5 sets"] = "5 सेट के लिए ~60 सेकंड तक";
-ui["Up to ~90s per set"] = "प्रति सेट ~90 सेकंड तक";
 ui["alternate models"] = "वैकल्पिक मॉडल";
 ui["asking data available"] = "माँग मूल्य डेटा उपलब्ध";
 ui["needs key"] = "कुंजी चाहिए";

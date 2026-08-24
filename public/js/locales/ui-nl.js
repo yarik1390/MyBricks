@@ -213,7 +213,7 @@ export const ui = {
   "BricksVault Vault": "BricksVault-kluis",
   "BricksVault collectors can log what they actually paid for a set and what it actually sold for. We aggregate those real transactions into a community price signal — published only when": "BricksVault-verzamelaars kunnen vastleggen wat ze daadwerkelijk voor een set betaalden en waarvoor die daadwerkelijk is verkocht. We bundelen die echte transacties tot een communityprijssignaal — pas gepubliceerd wanneer",
   "BricksVault is locked": "BricksVault is vergrendeld",
-  "Brickset / UPCitemdb": "Brickset / UPCitemdb",
+  "Brickset / BrickOwl": "Brickset / BrickOwl",
   "Brickset / barcode": "Brickset / streepjescode",
   "Brickset Collection Sync": "Brickset-collectiesynchronisatie",
   "Brickset account connected": "Brickset-account gekoppeld",
@@ -533,7 +533,6 @@ export const ui = {
   "Failed to load user profile": "Kon profiel niet laden",
   "Failed to mark alert as read:": "Markeren van waarschuwing als gelezen mislukt:",
   "Failing": "Werkt niet",
-  "Fallback barcode lookup provider.": "Terugval-provider voor barcode opzoeken.",
   "Falling": "Dalend",
   "Fast-sale estimate after fees and a liquidity haircut.": "Schatting bij snelle verkoop na kosten en een liquiditeitskorting.",
   "Fastest and free for boxed sets": "Snelst en gratis voor sets in doos",
@@ -850,7 +849,6 @@ export const ui = {
   "Name updated": "Naam bijgewerkt",
   "Native alerts are waiting for the app's Firebase configuration.": "Native waarschuwingen wachten op de Firebase-configuratie van de app.",
   "Native notifications are unavailable": "Native meldingen zijn niet beschikbaar",
-  "Needs PRICESAPI_ENABLED=1 + keys; spends the daily pricesAPI budget.": "Vereist PRICESAPI_ENABLED=1 + sleutels; verbruikt het dagelijkse pricesAPI-budget.",
   "Needs access": "Toegang nodig",
   "Needs action": "Actie vereist",
   "Needs refresh": "Verversing nodig",
@@ -983,7 +981,6 @@ export const ui = {
   "Optimization Guide On Device Model": "Optimization Guide On Device Model",
   "Optional Discord webhook alerts.": "Optionele Discord-webhookmeldingen.",
   "Optional marketplace signal and cross-check.": "Optioneel marktplaatssignaal en kruiscontrole.",
-  "Optional retail offer signal; keep disabled unless keys and quota are ready.": "Optioneel signaal voor winkelaanbiedingen; laat uitgeschakeld tenzij sleutels en quota gereed zijn.",
   "Optional reviewer note for rejection:": "Optionele beoordelaarsnotitie voor afwijzing:",
   "Optional setup": "Optionele instelling",
   "Optional — tweak later in Settings.": "Optioneel — later aan te passen in Instellingen.",
@@ -1154,7 +1151,6 @@ export const ui = {
   "Refresh days": "Verversingsdagen",
   "Refresh days must be a positive integer or blank.": "Verversingsdagen moet een positief geheel getal of leeg zijn.",
   "Refresh parts": "Onderdelen vernieuwen",
-  "Refreshes live retailer offers + stock for a few sets — use to verify new keys.": "Vernieuwt live retaileraanbiedingen + voorraad voor enkele sets — gebruik dit om nieuwe sleutels te verifiëren.",
   "Reject": "Afwijzen",
   "Relaunch Chrome, then go to": "Herstart Chrome en ga vervolgens naar",
   "Release": "Release",
@@ -1245,7 +1241,6 @@ export const ui = {
   "Run eBay-sold scrape": "eBay-verkoop-scrape uitvoeren",
   "Run next slice if coverage remains": "Voer volgend segment uit als er dekking overblijft",
   "Run now": "Nu uitvoeren",
-  "Run pricesAPI now": "pricesAPI nu uitvoeren",
   "Run safe slice": "Veilig deel uitvoeren",
   "Running": "Bezig",
   "Running now": "Wordt nu uitgevoerd",
@@ -1503,7 +1498,6 @@ export const ui = {
   "Title": "Titel",
   "Title (optional)": "Titel (optioneel)",
   "To enable in Google Chrome (Desktop or Android):": "Inschakelen in Google Chrome (desktop of Android):",
-  "To run one job on its own — catalog imports, PriceCharting bulk, pricesAPI, or the eBay sold-comps scrape — use its": "Om één taak apart uit te voeren — catalogusimports, PriceCharting-bulk, pricesAPI of de eBay-verkoopvergelijkingen-scrape — gebruik de bijbehorende",
   "Today": "Vandaag",
   "Today's game isn't ready yet — check back soon.": "Het spel van vandaag is nog niet klaar — kom binnenkort terug.",
   "Toggle Layout": "Indeling wisselen",
@@ -1740,7 +1734,6 @@ export const ui = {
   "on any set page — corrections feed the same verification pipeline. ·": "op elke setpagina — correcties voeden dezelfde verificatiepijplijn. ·",
   "other themes in your vault": "andere thema’s in je kluis",
   "prices from independent markets — and if we don't have that, we tell you exactly what we have instead.": "prijzen van onafhankelijke markten — en als we dat niet hebben, vertellen we je precies wat we in plaats daarvan wel hebben.",
-  "pricesAPI retail offers": "pricesAPI-winkelaanbiedingen",
   "provider families": "aanbiederfamilies",
   "revoke supporter status from": "supporterstatus intrekken van",
   "safe to retry": "veilig opnieuw te proberen",
@@ -1819,7 +1812,6 @@ ui["Loading queue..."] = "Wachtrij laden…";
 ui["Processing queue..."] = "Wachtrij wordt verwerkt...";
 ui["Searching..."] = "Zoeken...";
 ui["Up to ~60s for 5 sets"] = "Tot ~60s voor 5 sets";
-ui["Up to ~90s per set"] = "Tot ~90s per set";
 ui["alternate models"] = "alternatieve modellen";
 ui["asking data available"] = "vraagprijsgegevens beschikbaar";
 ui["needs key"] = "sleutel nodig";

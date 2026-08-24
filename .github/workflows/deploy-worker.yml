@@ -346,7 +346,6 @@ jobs:
           [ -n "${{ secrets.MERGE_GATEWAY_API_KEY }}" ]    && put MERGE_GATEWAY_API_KEY    "${{ secrets.MERGE_GATEWAY_API_KEY }}"    || true
           # Economy-mode key only. Pateway runs as post-response scan telemetry;
           # it is deliberately not part of the synchronous routing cascade.
-          [ -n "${{ secrets.PATEWAY_ECONOMY_API_KEY }}" ]  && put PATEWAY_ECONOMY_API_KEY  "${{ secrets.PATEWAY_ECONOMY_API_KEY }}"  || true
           # NOTE: OPENROUTER_API_KEY is currently set DIRECTLY as a Cloudflare
           # Worker secret, not here. The -n guard makes this line a no-op while
           # the GitHub secret is unset, so a push_secrets run cannot clobber the

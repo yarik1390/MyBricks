@@ -77,22 +77,16 @@ crons = [
   # Minifig identity verification: price-agreement settling of ambiguous
   # Rebrickable->BrickLink name matches (minifig_bl_candidates queue).
   "0 16 * * *",
-  # pricesAPI.io live-retail refresh (deal signal / stock truth / wishlist alerts).
-  # Small + sequential: cold calls run 30–90s and the free tier is 6/min per key.
-  "0 17 * * *",
   # StockX lowest-ask enrichment (Bright Data, rendered). OFF by default (the
   # stockx flag / STOCKX_ENABLED) — a no-op until enabled, then a bounded
   # corroborating-only scrape.
   "0 18 * * *",
-  "0 19 * * *",
   "0 20 * * *",
   # First-party community comps: nightly anonymized purchase/sale aggregates
   # (k>=5 contributors) into community_comps AND verified pricing_signals, so
   # the 'community' family joins the blend as soon as data exists.
   "0 22 * * *",
-  "0 23 * * *",
   "15 * * * *",
-  "30 * * * *",
   # Hourly BrickLink-staleness refresh. BrickLink age (not data availability) is what
   # caps blend confidence: of the sets with two independent sold families, 100% meet
   # the sample bar and 78% agree within 1.4x, but only ~19% had BOTH sources fresh.

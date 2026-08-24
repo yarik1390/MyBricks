@@ -805,7 +805,7 @@ describe('classifyJobRun', () => {
   });
 
   it('separates quota limits from hard job errors', () => {
-    const job = classifyJobRun({ status: 'error', error: 'UPCitemdb EXCEED_LIMIT HTTP 429' });
+    const job = classifyJobRun({ status: 'error', error: 'Provider EXCEED_LIMIT HTTP 429' });
     assert.equal(job.label, 'Quota limited');
     assert.equal(job.needsAttention, false);
     assert.equal(job.retryable, true);
@@ -822,11 +822,11 @@ describe('classifyJobRun', () => {
 describe('admin helper classification', () => {
   it('classifies provider quota states as expected limits', () => {
     const provider = classifyProviderHealth({
-      service: 'upcitemdb',
+      service: 'brickinsights',
       configured: true,
       status: 'down',
       last_fail_at: '2026-06-10 10:00:00',
-      last_error: 'EXCEED_LIMIT HTTP 429',
+      last_error: 'HTTP 429 rate limited',
     });
     assert.equal(provider.label, 'Quota limited');
     assert.equal(provider.quotaLimited, true);
@@ -1115,13 +1115,6 @@ describe('adminJobStartFeedback', () => {
     assert.deepEqual(calls, [{ key: 'admin.jobStarted', vars: { id: 42 } }]);
   });
 
-  it('maps a background endpoint response without run_id to a localized status, never its raw message', () => {
-    const calls = [];
-    const translate = (key, vars = {}) => { calls.push({ key, vars }); return key; };
-    const feedback = adminJobStartFeedback('pricesapi', { ok: true, status: 'running', message: 'pricesAPI refresh started in English' }, translate);
-    assert.deepEqual(feedback, { message: 'admin.pricesapiAccepted', pollsRun: false });
-    assert.deepEqual(calls, [{ key: 'admin.pricesapiAccepted', vars: {} }]);
-  });
 });
 
 describe('processRunBadge', () => {

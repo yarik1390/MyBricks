@@ -81,10 +81,6 @@ export interface Env {
   BRICKINSIGHTS_ENABLED?: string;
   // StockX lowest-ask scrape (Firecrawl). OFF unless STOCKX_ENABLED is truthy.
   STOCKX_ENABLED?: string;
-  // UPCitemdb barcode source (2nd source after Brickset). Trial needs no key;
-  // UPCITEMDB_USER_KEY switches to the higher-limit v1 endpoint. Default enabled.
-  UPCITEMDB_USER_KEY?: string;
-  UPCITEMDB_ENABLED?: string;
   GEMINI_API_KEY?: string;
   // Cloudflare AI Gateway (optional). When account + gateway id are set, SERVER-key
   // AI calls route through the gateway for caching, analytics, rate/spend limits.
@@ -108,7 +104,6 @@ export interface Env {
   // Pateway Economy key, bound to Economy Mode in Pateway's control plane.
   // Used only for post-response scan verification; it is never in the
   // synchronous identification cascade and must remain a Worker secret.
-  PATEWAY_ECONOMY_API_KEY?: string;
   // Monthly USD allowance the admin console meters Merge spend against
   // (default 10). Merge publishes no balance API, so remaining credit is
   // derived from the real per-call `usage.cost` it returns, accumulated in the
@@ -167,21 +162,6 @@ export interface Env {
   // Second lock protecting the PriceCharting quarantine. Admin source tuning
   // cannot re-enable its jobs until identity review is explicitly approved.
   PRICECHARTING_VERIFIED_ENABLED?: string;
-  // pricesAPI.io — live retail + marketplace offers across major retailers
-  // (https://api.pricesapi.io/api/v1/products/search). Synchronous cold calls
-  // take 30–90s so it is cron-only. Free tier = 1000 calls/month, 6/min PER KEY,
-  // so multiple comma-separated keys in PRICESAPI_API_KEYS are pooled (see
-  // lib/pricesapi-keys.ts). OFF unless PRICESAPI_ENABLED is truthy AND a key is set.
-  PRICESAPI_API_KEY?: string;
-  PRICESAPI_API_KEYS?: string;
-  // Accepted aliases for the pricesAPI key(s) — some deployments name the secret
-  // PRICE_API_KEY / PRICE_API_KEYS. Treated identically to PRICESAPI_API_KEY(S).
-  PRICE_API_KEY?: string;
-  PRICE_API_KEYS?: string;
-  PRICESAPI_ENABLED?: string;
-  // ISO country/market code for pricesAPI lookups (default "us"; us/gb/au/de/nl
-  // have the deepest retailer coverage).
-  PRICESAPI_MARKET?: string;
   // Amazon Associates link-only is the default integration. Creators API is
   // separately gated and its product content must remain in KV for <24 hours.
   AMAZON_PARTNER_TAG_FR_WEB?: string;

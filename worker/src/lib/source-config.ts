@@ -25,7 +25,7 @@ export interface SourceTuning {
 
 export type SourceName =
   | 'bricklink' | 'ebay' | 'brickeconomy' | 'brickowl'
-  | 'pricecharting' | 'pricesapi' | 'firecrawl' | 'scrapingant' | 'brightdata' | 'apify' | 'amazon' | 'stockx';
+  | 'pricecharting' | 'firecrawl' | 'scrapingant' | 'brightdata' | 'apify' | 'amazon' | 'stockx';
 
 export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   bricklink:     { enabled: true,  weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
@@ -42,7 +42,6 @@ export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   // collapses into the ebay_market family, so it corroborates BrickLink without
   // double-counting as an extra independent family alongside real eBay comps.
   pricecharting: { enabled: true,  weight: 1.0,  dailyCap: 500,  refreshDays: 14 },
-  pricesapi:     { enabled: false, weight: 1.0,  dailyCap: 60,   refreshDays: 7 },
   firecrawl:     { enabled: true,  weight: 1.0,  dailyCap: 2000, refreshDays: 14 },
   // ScrapingAnt free plan: first-choice raw HTML for the three plain sources.
   // browser=false + datacenter is enforced by the client; one request is one

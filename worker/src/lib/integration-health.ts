@@ -1,5 +1,4 @@
 import type { Env } from '../types';
-import { hasPricesApiKey } from './pricesapi-keys';
 
 // Services whose configuration and recent outcomes are visible in the admin
 // diagnostics panel. The stored table is intentionally aggregate-only.
@@ -20,15 +19,12 @@ export type IntegrationName =
   | 'openrouter'
   | 'omniroute'
   | 'merge'
-  | 'pateway'
   | 'rebrickable'
   | 'brickinsights'
-  | 'upcitemdb'
   | 'firecrawl'
   | 'scrapingant'
   | 'brightdata'
   | 'pricecharting'
-  | 'pricesapi'
   | 'amazon'
   | 'stockx';
 
@@ -238,14 +234,6 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     notes: 'Second multi-provider LLM gateway alongside OpenRouter, OpenAI-compatible at /v1/openai. Billed against a fixed monthly allowance and reports real per-call cost (usage.cost), so its spend in the ai_usage ledger is measured rather than estimated. Where each workload tries it is admin-tunable under LLM routing.',
     recommended_action: 'Add MERGE_GATEWAY_API_KEY (mg_...) from gateway.merge.dev, then set a HARD budget there so an exhausted allowance answers 402 instead of overspending.',
   },
-  pateway: {
-    label: 'Pateway Economy',
-    configured: (env) => !!(env.PATEWAY_ECONOMY_API_KEY ?? '').trim(),
-    required_secrets: ['PATEWAY_ECONOMY_API_KEY'],
-    used_by: ['background single-set scan verification'],
-    notes: 'Economy-key-bound GPT-5.6 Luna verification runs after the scan response. It records agreement telemetry only and never changes the synchronous result.',
-    recommended_action: 'Add a rotated Economy-mode PATEWAY_ECONOMY_API_KEY Worker secret. Do not use a Default-mode key or add Pateway to the synchronous cascade.',
-  },
   rebrickable: {
     label: 'Rebrickable',
     configured: (env) => !!env.REBRICKABLE_API_KEY,
@@ -269,14 +257,6 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['StockX lowest-ask (scraped, corroborating new-condition signal)'],
     notes: 'Rendered Firecrawl (enhanced proxy) scrape of StockX search for a set\'s lowest ask — a corroborating ceiling, never a sold comp. OFF by default (STOCKX_ENABLED=1 or the admin stockx flag); a slow ~30-45s call, so it runs only from the background cron.',
     recommended_action: 'Validate via the admin StockX probe, then set STOCKX_ENABLED=1 (or flip the stockx flag) to start the enrichment cron.',
-  },
-  upcitemdb: {
-    label: 'UPCitemdb (barcodes)',
-    configured: (env) => !/^(0|false|no|off)$/i.test(String(env.UPCITEMDB_ENABLED ?? '1')),
-    required_secrets: [],
-    used_by: ['Barcode/UPC backfill (2nd source after Brickset)'],
-    notes: 'Keyword search -> validated LEGO barcode (GS1 prefix + set number in title). A small cron trickles missing modern retail sets. Trial is rate-limited (~100/day + per-window throttle).',
-    recommended_action: 'Trial active (no key needed). Add UPCITEMDB_USER_KEY for the higher-limit v1 endpoint.',
   },
   firecrawl: {
     label: 'Firecrawl',
@@ -311,14 +291,9 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     notes: 'Aggregated eBay closed-auction comps (sealed/complete/loose + yearly sales volume) — the sold-comp replacement for eBay\'s retired Marketplace Insights API. VERIFIED-ONLY: signals flow solely from pricing_source_map rows proven by unique UPC (weekly bulk CSV) or cross-source price agreement (daily pricecharting-verify); unverified mappings stay quarantined. Collapses into the ebay_market family. The bulk CSV needs the Legendary tier (PRICECHARTING_PRO).',
     recommended_action: 'Add PRICECHARTING_TOKEN as a Worker secret; set PRICECHARTING_PRO=1 on the Legendary tier so the weekly bulk CSV refreshes the whole catalog in one download.',
   },
-  pricesapi: {
-    label: 'pricesAPI.io',
-    configured: (env) => hasPricesApiKey(env) && /^(1|true|yes|on)$/i.test(String(env.PRICESAPI_ENABLED ?? '')),
-    required_secrets: ['PRICESAPI_API_KEYS'],
-    used_by: ['deal signal (cheapest channel)', 'in-stock truth', 'wishlist price-drop alerts'],
-    notes: 'Live retail + marketplace offers across major retailers (47 markets). NOT a value anchor — feeds the deal/buy signal and stock truth. Synchronous cold calls take 30–90s so it runs cron-only. Free tier = 1000 calls/month, 6/min PER KEY; comma-separated keys are pooled with per-key monthly budgets (pricesapi_keys table).',
-    recommended_action: 'Add one or more keys to PRICESAPI_API_KEYS (comma-separated) and set PRICESAPI_ENABLED=1. Add more keys to grow the pooled monthly budget.',
-  },
+  // pricesAPI.io was removed 2026-08 (key lapsed, provider 5xx); retail/stock
+  // truth now comes from the LEGO.com stock-refresh lane. Historical pa_* rows
+  // in set_market_ext remain readable as fading deal-signal history.
   amazon: {
     label: 'Amazon Creators API',
     configured: (env) => !!(env.AMAZON_CREATORS_PUBLIC_KEY && env.AMAZON_CREATORS_PRIVATE_KEY

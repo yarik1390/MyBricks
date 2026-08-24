@@ -521,8 +521,8 @@ function dealReason(signal, channel, pct, strong) {
     premium: { label: t('deal.labelPremium'), color: 'var(--down)', bg: 'rgba(239,68,68,.10)' },
   }[sig];
   const showPct = sig !== 'fair' && Number.isFinite(pct) && Math.abs(pct) >= 1;
-  // Live buy destination: when the cheapest channel is an in-stock pricesAPI
-  // retail offer, name where to buy it (naming a buy destination is allowed even
+  // Live buy destination: when the cheapest channel is an in-stock retail
+  // offer (historical pricesAPI data or LEGO.com stock), name where to buy it (naming a buy destination is allowed even
   // though valuation sources stay anonymized).
   const merchant = set.deal_available_merchant;
   const buyPrice = Number(set.deal_available_price);

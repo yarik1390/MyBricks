@@ -38,19 +38,30 @@ export async function runLegoStockRefresh(env: Env, options: { limit?: number } 
   if (!hasScrapingAnt && !hasBrightData && remaining < 5) return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
   const effLimit = (hasScrapingAnt || hasBrightData) ? limit : Math.min(limit, Math.floor(remaining / 5));
 
+  // Owned/wishlisted sets first; when that pool runs dry, keep going catalog-wide
+  // over active retail sets. This makes the lane the authoritative retail-price +
+  // stock-truth source after pricesAPI was removed (2026-08) instead of only a
+  // per-user checker.
   const { results } = await env.DB.prepare(`
-    SELECT ls.set_num
-    FROM lego_sets ls
-    WHERE ls.retired = 0
-      AND (ls.lego_checked_at IS NULL OR ls.lego_checked_at < datetime('now', '-14 days'))
-      AND (
-        EXISTS (SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL)
-        OR EXISTS (SELECT 1 FROM user_wishlist uw WHERE uw.set_num = ls.set_num)
-      )
-    ORDER BY
-      CASE WHEN ls.lego_checked_at IS NULL THEN 0 ELSE 1 END,
-      COALESCE(ls.lego_retiring_soon, 0) DESC,
-      COALESCE(ls.lego_checked_at, '2000-01-01') ASC
+    SELECT set_num FROM (
+      SELECT ls.set_num, COALESCE(ls.lego_retiring_soon, 0) AS prio
+      FROM lego_sets ls
+      WHERE ls.retired = 0
+        AND (ls.lego_checked_at IS NULL OR ls.lego_checked_at < datetime('now', '-14 days'))
+        AND (
+          EXISTS (SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL)
+          OR EXISTS (SELECT 1 FROM user_wishlist uw WHERE uw.set_num = ls.set_num)
+        )
+      UNION ALL
+      SELECT ls2.set_num, 0 AS prio
+      FROM lego_sets ls2
+      WHERE ls2.retired = 0
+        AND (ls2.lego_checked_at IS NULL OR ls2.lego_checked_at < datetime('now', '-90 days'))
+        AND ls2.retail_price IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM user_collection uc2 WHERE uc2.set_num = ls2.set_num AND uc2.deleted_at IS NULL)
+        AND NOT EXISTS (SELECT 1 FROM user_wishlist uw2 WHERE uw2.set_num = ls2.set_num)
+    )
+    ORDER BY prio DESC, set_num
     LIMIT ?
   `).bind(effLimit).all<{ set_num: string }>();
 

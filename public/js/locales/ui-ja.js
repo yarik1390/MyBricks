@@ -213,7 +213,7 @@ export const ui = {
   "BricksVault Vault": "BricksVaultコレクション",
   "BricksVault collectors can log what they actually paid for a set and what it actually sold for. We aggregate those real transactions into a community price signal — published only when": "BricksVaultのコレクターは、セットに実際に支払った金額と実際に売れた金額を記録できます。こうした実取引をコミュニティの価格シグナルとして集計し、公開するのは",
   "BricksVault is locked": "BricksVaultはロックされています",
-  "Brickset / UPCitemdb": "Brickset / UPCitemdb",
+  "Brickset / BrickOwl": "Brickset / BrickOwl",
   "Brickset / barcode": "Brickset / バーコード",
   "Brickset Collection Sync": "Bricksetコレクション同期",
   "Brickset account connected": "Bricksetアカウントを連携しました",
@@ -533,7 +533,6 @@ export const ui = {
   "Failed to load user profile": "プロフィールを読み込めませんでした",
   "Failed to mark alert as read:": "アラートを既読にできませんでした：",
   "Failing": "失敗",
-  "Fallback barcode lookup provider.": "フォールバックのバーコード検索プロバイダー。",
   "Falling": "下落",
   "Fast-sale estimate after fees and a liquidity haircut.": "手数料と流動性割引を考慮した即売り推定価格。",
   "Fastest and free for boxed sets": "箱入りセットなら最速・無料",
@@ -850,7 +849,6 @@ export const ui = {
   "Name updated": "名前を更新しました",
   "Native alerts are waiting for the app's Firebase configuration.": "ネイティブアラートはアプリのFirebase設定待ちです。",
   "Native notifications are unavailable": "ネイティブ通知は利用できません",
-  "Needs PRICESAPI_ENABLED=1 + keys; spends the daily pricesAPI budget.": "PRICESAPI_ENABLED=1とキーが必要です。1日あたりのpricesAPI予算を消費します。",
   "Needs access": "アクセスが必要",
   "Needs action": "対応が必要",
   "Needs refresh": "更新が必要",
@@ -983,7 +981,6 @@ export const ui = {
   "Optimization Guide On Device Model": "最適化ガイド：デバイス上モデル",
   "Optional Discord webhook alerts.": "任意のDiscord webhook通知。",
   "Optional marketplace signal and cross-check.": "任意のマーケットプレイスシグナルとクロスチェック。",
-  "Optional retail offer signal; keep disabled unless keys and quota are ready.": "任意の定価オファーシグナルです。キーとクォータが準備できるまで無効のままにしてください。",
   "Optional reviewer note for rejection:": "却下理由の任意のレビューアメモ：",
   "Optional setup": "任意の設定",
   "Optional — tweak later in Settings.": "任意 — 後で設定から調整できます。",
@@ -1154,7 +1151,6 @@ export const ui = {
   "Refresh days": "更新間隔（日）",
   "Refresh days must be a positive integer or blank.": "更新間隔（日）は正の整数、または空欄にしてください。",
   "Refresh parts": "パーツを更新",
-  "Refreshes live retailer offers + stock for a few sets — use to verify new keys.": "いくつかのセットについて、店頭価格と在庫状況をリアルタイムで更新します — 新しいキーの確認に使用してください。",
   "Reject": "却下",
   "Relaunch Chrome, then go to": "Chromeを再起動してから次へ移動：",
   "Release": "発売",
@@ -1245,7 +1241,6 @@ export const ui = {
   "Run eBay-sold scrape": "eBay成約価格の取得を実行",
   "Run next slice if coverage remains": "カバレッジが残っていれば次のスライスを実行",
   "Run now": "今すぐ実行",
-  "Run pricesAPI now": "pricesAPIを今すぐ実行",
   "Run safe slice": "安全なスライスを実行",
   "Running": "実行中",
   "Running now": "実行中",
@@ -1503,7 +1498,6 @@ export const ui = {
   "Title": "タイトル",
   "Title (optional)": "タイトル（任意）",
   "To enable in Google Chrome (Desktop or Android):": "Google Chrome（デスクトップまたはAndroid）で有効にするには：",
-  "To run one job on its own — catalog imports, PriceCharting bulk, pricesAPI, or the eBay sold-comps scrape — use its": "1つのジョブだけを実行するには — カタログインポート、PriceCharting一括取得、pricesAPI、またはeBay成約価格の取得 — 次を使用してください：",
   "Today": "今日",
   "Today's game isn't ready yet — check back soon.": "本日のゲームはまだ準備中です — またすぐにご確認ください。",
   "Toggle Layout": "レイアウトを切り替え",
@@ -1740,7 +1734,6 @@ export const ui = {
   "on any set page — corrections feed the same verification pipeline. ·": "任意のセットページで — 修正情報は同じ検証パイプラインに送られます。·",
   "other themes in your vault": "ボールト内の他のテーマ",
   "prices from independent markets — and if we don't have that, we tell you exactly what we have instead.": "独立した市場からの価格。それが無ければ、代わりに実際に持っているものを正直にお伝えします。",
-  "pricesAPI retail offers": "pricesAPIの店頭価格情報",
   "provider families": "プロバイダーファミリー",
   "revoke supporter status from": "サポーターステータスを取り消し：",
   "safe to retry": "安全に再試行できます",
@@ -1819,7 +1812,6 @@ ui["Loading queue..."] = "キューを読み込み中...";
 ui["Processing queue..."] = "キューを処理中...";
 ui["Searching..."] = "検索中...";
 ui["Up to ~60s for 5 sets"] = "5セットで最大約60秒";
-ui["Up to ~90s per set"] = "1セットあたり最大約90秒";
 ui["alternate models"] = "代替モデル";
 ui["asking data available"] = "出品価格データあり";
 ui["needs key"] = "キーが必要";

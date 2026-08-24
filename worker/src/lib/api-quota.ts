@@ -30,7 +30,6 @@ export const QUOTA_CAPS: Record<string, number> = {
   // bulk CSV is a single download and is not counted here. Enrich runs ~40/day,
   // so this is generous headroom, not a throttle.
   pricecharting: 500,
-  upcitemdb: 96,
   // Firecrawl is metered in CREDITS, not scrape-count (1 = basic/markdown/product,
   // 5 = json LLM extract). Plan is a one-time ~300k allotment then ~1,000/month,
   // so this is a per-DAY credit ceiling that guards against a runaway day. Raise
@@ -51,8 +50,6 @@ export const QUOTA_CAPS: Record<string, number> = {
   brightdata: 300,
   // pricesAPI.io daily ceiling. Each cold call is a precious unit against a
   // ~1000/month-per-key pooled budget, so keep the daily spend modest; the
-  // per-key pool (pricesapi_keys) is the authoritative monthly meter.
-  pricesapi: 60,
   // Amazon Creators API searchItems calls (plus ~1 token mint/hour). The API is
   // free but eligibility-gated; this cap bounds a runaway day, not the plan.
   amazon: 300,

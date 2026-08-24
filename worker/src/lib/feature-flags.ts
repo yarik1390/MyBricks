@@ -18,7 +18,6 @@ export type FeatureFlag =
   | 'brickowl'
   | 'brickinsights'
   | 'firecrawl'
-  | 'pricesapi'
   | 'stockx';
 
 export const FEATURE_FLAGS: FeatureFlag[] = [
@@ -26,7 +25,6 @@ export const FEATURE_FLAGS: FeatureFlag[] = [
   'brickowl',
   'brickinsights',
   'firecrawl',
-  'pricesapi',
   'stockx',
 ];
 

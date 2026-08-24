@@ -213,7 +213,7 @@ export const ui = {
   "BricksVault Vault": "Сховище BricksVault",
   "BricksVault collectors can log what they actually paid for a set and what it actually sold for. We aggregate those real transactions into a community price signal — published only when": "Колекціонери BricksVault можуть записувати, скільки насправді заплатили за набір і за скільки його насправді продали. Ми агрегуємо ці реальні операції у ціновий сигнал спільноти — він публікується лише тоді, коли",
   "BricksVault is locked": "BricksVault заблоковано",
-  "Brickset / UPCitemdb": "Brickset / UPCitemdb",
+  "Brickset / BrickOwl": "Brickset / BrickOwl",
   "Brickset / barcode": "Brickset / штрихкод",
   "Brickset Collection Sync": "Синхронізація колекції Brickset",
   "Brickset account connected": "Обліковий запис Brickset підключено",
@@ -533,7 +533,6 @@ export const ui = {
   "Failed to load user profile": "Не вдалося завантажити профіль",
   "Failed to mark alert as read:": "Не вдалося позначити сповіщення як прочитане:",
   "Failing": "Не працює",
-  "Fallback barcode lookup provider.": "Резервний провайдер пошуку за штрихкодом.",
   "Falling": "Падіння",
   "Fast-sale estimate after fees and a liquidity haircut.": "Оцінка швидкого продажу після комісій і знижки на ліквідність.",
   "Fastest and free for boxed sets": "Найшвидше і безкоштовно для наборів у коробці",
@@ -850,7 +849,6 @@ export const ui = {
   "Name updated": "Ім'я оновлено",
   "Native alerts are waiting for the app's Firebase configuration.": "Нативні сповіщення очікують на конфігурацію Firebase для застосунку.",
   "Native notifications are unavailable": "Нативні сповіщення недоступні",
-  "Needs PRICESAPI_ENABLED=1 + keys; spends the daily pricesAPI budget.": "Потребує PRICESAPI_ENABLED=1 + ключів; витрачає денний бюджет pricesAPI.",
   "Needs access": "Потрібен доступ",
   "Needs action": "Потребує дії",
   "Needs refresh": "Потребує оновлення",
@@ -983,7 +981,6 @@ export const ui = {
   "Optimization Guide On Device Model": "Модель посібника з оптимізації на пристрої",
   "Optional Discord webhook alerts.": "Необов'язкові сповіщення через вебхук Discord.",
   "Optional marketplace signal and cross-check.": "Необов'язковий сигнал майданчика та перехресна перевірка.",
-  "Optional retail offer signal; keep disabled unless keys and quota are ready.": "Необов'язковий сигнал роздрібної пропозиції; тримайте вимкненим, доки не готові ключі й квота.",
   "Optional reviewer note for rejection:": "Необов'язкова примітка рецензента для відхилення:",
   "Optional setup": "Необов'язкове налаштування",
   "Optional — tweak later in Settings.": "Необов'язково — можна змінити пізніше в налаштуваннях.",
@@ -1154,7 +1151,6 @@ export const ui = {
   "Refresh days": "Дні оновлення",
   "Refresh days must be a positive integer or blank.": "Дні оновлення мають бути додатним цілим числом або порожніми.",
   "Refresh parts": "Оновити деталі",
-  "Refreshes live retailer offers + stock for a few sets — use to verify new keys.": "Оновлює актуальні пропозиції та наявність у роздрібних продавців для кількох наборів — використовуйте для перевірки нових ключів.",
   "Reject": "Відхилити",
   "Relaunch Chrome, then go to": "Перезапустіть Chrome, потім перейдіть до",
   "Release": "Вихід",
@@ -1245,7 +1241,6 @@ export const ui = {
   "Run eBay-sold scrape": "Запустити збір проданих eBay",
   "Run next slice if coverage remains": "Запустити наступну частину, якщо покриття лишається неповним",
   "Run now": "Запустити зараз",
-  "Run pricesAPI now": "Запустити pricesAPI зараз",
   "Run safe slice": "Запустити безпечну частину",
   "Running": "Виконується",
   "Running now": "Виконується зараз",
@@ -1503,7 +1498,6 @@ export const ui = {
   "Title": "Назва",
   "Title (optional)": "Назва (необов'язково)",
   "To enable in Google Chrome (Desktop or Android):": "Щоб увімкнути в Google Chrome (комп'ютер або Android):",
-  "To run one job on its own — catalog imports, PriceCharting bulk, pricesAPI, or the eBay sold-comps scrape — use its": "Щоб запустити одне завдання окремо — імпорт каталогу, масовий PriceCharting, pricesAPI або збір проданих аналогів eBay — скористайтеся його",
   "Today": "Сьогодні",
   "Today's game isn't ready yet — check back soon.": "Сьогоднішня гра ще не готова — перевірте пізніше.",
   "Toggle Layout": "Перемкнути макет",
@@ -1740,7 +1734,6 @@ export const ui = {
   "on any set page — corrections feed the same verification pipeline. ·": "на будь-якій сторінці набору — виправлення надходять до того самого конвеєра перевірки. ·",
   "other themes in your vault": "інші теми у вашому сховищі",
   "prices from independent markets — and if we don't have that, we tell you exactly what we have instead.": "ціни з незалежних ринків — а якщо цього немає, ми точно кажемо, що є натомість.",
-  "pricesAPI retail offers": "Роздрібні пропозиції pricesAPI",
   "provider families": "родини провайдерів",
   "revoke supporter status from": "скасувати статус прихильника у",
   "safe to retry": "безпечно повторити",
@@ -1819,7 +1812,6 @@ ui["Loading queue..."] = "Завантаження черги...";
 ui["Processing queue..."] = "Обробка черги...";
 ui["Searching..."] = "Пошук...";
 ui["Up to ~60s for 5 sets"] = "До ~60 с для 5 наборів";
-ui["Up to ~90s per set"] = "До ~90 с на набір";
 ui["alternate models"] = "альтернативні моделі";
 ui["asking data available"] = "дані запитуваних цін доступні";
 ui["needs key"] = "потрібен ключ";

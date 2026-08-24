@@ -213,7 +213,7 @@ export const ui = {
   "BricksVault Vault": "BricksVault Vault",
   "BricksVault collectors can log what they actually paid for a set and what it actually sold for. We aggregate those real transactions into a community price signal — published only when": "BricksVault-Sammler können eintragen, was sie tatsächlich für ein Set bezahlt haben und wofür es tatsächlich verkauft wurde. Wir aggregieren diese echten Transaktionen zu einem Community-Preissignal — veröffentlicht erst, wenn",
   "BricksVault is locked": "BricksVault ist gesperrt",
-  "Brickset / UPCitemdb": "Brickset / UPCitemdb",
+  "Brickset / BrickOwl": "Brickset / BrickOwl",
   "Brickset / barcode": "Brickset / Barcode",
   "Brickset Collection Sync": "Brickset-Sammlungsabgleich",
   "Brickset account connected": "Brickset-Konto verbunden",
@@ -533,7 +533,6 @@ export const ui = {
   "Failed to load user profile": "Profil konnte nicht geladen werden",
   "Failed to mark alert as read:": "Benachrichtigung konnte nicht als gelesen markiert werden:",
   "Failing": "Fehlerhaft",
-  "Fallback barcode lookup provider.": "Fallback-Anbieter für die Barcode-Suche.",
   "Falling": "Fallend",
   "Fast-sale estimate after fees and a liquidity haircut.": "Schnellverkaufsschätzung nach Gebühren und Liquiditätsabschlag.",
   "Fastest and free for boxed sets": "Am schnellsten und kostenlos für originalverpackte Sets",
@@ -850,7 +849,6 @@ export const ui = {
   "Name updated": "Name aktualisiert",
   "Native alerts are waiting for the app's Firebase configuration.": "Native Hinweise warten auf die Firebase-Konfiguration der App.",
   "Native notifications are unavailable": "Native Benachrichtigungen sind nicht verfügbar",
-  "Needs PRICESAPI_ENABLED=1 + keys; spends the daily pricesAPI budget.": "Erfordert PRICESAPI_ENABLED=1 + Schlüssel; verbraucht das tägliche pricesAPI-Budget.",
   "Needs access": "Zugriff erforderlich",
   "Needs action": "Erfordert Handlung",
   "Needs refresh": "Aktualisierung nötig",
@@ -983,7 +981,6 @@ export const ui = {
   "Optimization Guide On Device Model": "Optimization Guide On Device Model",
   "Optional Discord webhook alerts.": "Optionale Discord-Webhook-Benachrichtigungen.",
   "Optional marketplace signal and cross-check.": "Optionales Marktplatzsignal und Gegenprüfung.",
-  "Optional retail offer signal; keep disabled unless keys and quota are ready.": "Optionales Handelsangebot-Signal; deaktiviert lassen, bis Schlüssel und Kontingent bereit sind.",
   "Optional reviewer note for rejection:": "Optionale Prüfnotiz für die Ablehnung:",
   "Optional setup": "Optionale Einrichtung",
   "Optional — tweak later in Settings.": "Optional — später in den Einstellungen anpassbar.",
@@ -1154,7 +1151,6 @@ export const ui = {
   "Refresh days": "Aktualisierungstage",
   "Refresh days must be a positive integer or blank.": "Aktualisierungstage müssen eine positive Ganzzahl oder leer sein.",
   "Refresh parts": "Teile aktualisieren",
-  "Refreshes live retailer offers + stock for a few sets — use to verify new keys.": "Aktualisiert Live-Händlerangebote + Lagerbestand für einige Sets — zum Prüfen neuer Schlüssel nutzen.",
   "Reject": "Ablehnen",
   "Relaunch Chrome, then go to": "Starte Chrome neu und gehe dann zu",
   "Release": "Erscheinung",
@@ -1245,7 +1241,6 @@ export const ui = {
   "Run eBay-sold scrape": "eBay-Verkaufs-Scraping ausführen",
   "Run next slice if coverage remains": "Nächsten Abschnitt ausführen, falls Abdeckung fehlt",
   "Run now": "Jetzt ausführen",
-  "Run pricesAPI now": "pricesAPI jetzt ausführen",
   "Run safe slice": "Sicheren Abschnitt ausführen",
   "Running": "Läuft",
   "Running now": "Läuft gerade",
@@ -1503,7 +1498,6 @@ export const ui = {
   "Title": "Titel",
   "Title (optional)": "Titel (optional)",
   "To enable in Google Chrome (Desktop or Android):": "So aktivierst du es in Google Chrome (Desktop oder Android):",
-  "To run one job on its own — catalog imports, PriceCharting bulk, pricesAPI, or the eBay sold-comps scrape — use its": "Um einen einzelnen Job auszuführen — Katalogimporte, PriceCharting-Bulk, pricesAPI oder das eBay-Verkaufsvergleich-Scraping — nutze dessen",
   "Today": "Heute",
   "Today's game isn't ready yet — check back soon.": "Das heutige Spiel ist noch nicht bereit — schau bald wieder vorbei.",
   "Toggle Layout": "Layout umschalten",
@@ -1740,7 +1734,6 @@ export const ui = {
   "on any set page — corrections feed the same verification pipeline. ·": "auf jeder Set-Seite — Korrekturen fließen in dieselbe Verifizierungs-Pipeline. ·",
   "other themes in your vault": "andere Themen in deinem Tresor",
   "prices from independent markets — and if we don't have that, we tell you exactly what we have instead.": "Preise aus unabhängigen Märkten — und wenn wir das nicht haben, sagen wir dir genau, was wir stattdessen haben.",
-  "pricesAPI retail offers": "pricesAPI-Einzelhandelsangebote",
   "provider families": "Anbieterfamilien",
   "revoke supporter status from": "Unterstützerstatus entziehen von",
   "safe to retry": "sicher wiederholbar",
@@ -1819,7 +1812,6 @@ ui["Loading queue..."] = "Warteschlange wird geladen…";
 ui["Processing queue..."] = "Warteschlange wird verarbeitet…";
 ui["Searching..."] = "Wird gesucht…";
 ui["Up to ~60s for 5 sets"] = "Bis zu ~60s für 5 Sets";
-ui["Up to ~90s per set"] = "Bis zu ~90s pro Set";
 ui["alternate models"] = "alternative Modelle";
 ui["asking data available"] = "Angebotsdaten verfügbar";
 ui["needs key"] = "benötigt Schlüssel";

@@ -4,7 +4,7 @@ import { importSets, importFigs } from '../jobs/import-catalog';
 import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
 import { BARCODE_PAGE_SIZE } from '../lib/brickset';
 import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
-import { ebaySoldCompsEnabled, pricesapiEnabled, brickOwlEnabled, brickInsightsEnabled, firecrawlEnabled, stockxEnabled } from '../lib/pricing-flags';
+import { ebaySoldCompsEnabled, brickOwlEnabled, brickInsightsEnabled, firecrawlEnabled, stockxEnabled } from '../lib/pricing-flags';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
 import { getQuotaUsage } from '../lib/api-quota';
 import { getAiUsageReport } from '../lib/ai-usage';
@@ -21,7 +21,6 @@ import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricech
 import { runMinifigVerify } from '../jobs/minifig-verify';
 import { runCommunityComps } from '../jobs/community-comps';
 import { importBrickLinkMinifigs } from '../jobs/import-bricklink-minifigs';
-import { getKeyPoolStatus } from '../lib/pricesapi-keys';
 import { getFirecrawlKeyPoolStatus, resetFirecrawlKeyPool } from '../lib/firecrawl-keys';
 import { getBrightDataKeyPoolStatus, resetBrightDataKeyPool } from '../lib/brightdata-keys';
 import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG, applySourceConfig } from '../lib/source-config';
@@ -34,7 +33,6 @@ import { MERGE_MODELS_KV_KEY } from '../jobs/model-refresh';
 import { getFeatureFlags, saveFeatureFlags, applyFeatureFlags, FEATURE_FLAGS } from '../lib/feature-flags';
 import { runServiceTest, TESTABLE_SERVICES } from '../lib/service-tests';
 import { getRecentRuns, recordCronStart, recordCronFinish, summarizeResult } from '../lib/cron-runs';
-import { runPricesApiRetail } from '../jobs/pricesapi-retail';
 import { runPriceChartingVerify } from '../jobs/pricecharting-verify';
 import { PROCESS_REGISTRY, GROUP_ORDER, processInfo } from '../lib/process-registry';
 import { getPricingWriteBudget } from '../lib/pricing-budget';
@@ -180,30 +178,6 @@ app.post('/pricecharting-bulk-fetch', async (c) => {
 
 // On-demand pricesAPI.io live-retail refresh — same path as the daily cron, but
 // triggered manually so freshly-added keys can be verified without waiting for
-// 17:00 UTC. pricesAPI cold calls run 30–90s each, so this runs in the background
-// (a synchronous request would time out) and is recorded into cron_runs so the
-// Activity feed shows it go Running → OK/Failed with a summary.
-app.post('/run-pricesapi', async (c) => {
-  if (!pricesapiEnabled(c.env)) {
-    return c.json({ error: 'pricesAPI is not enabled. Set PRICESAPI_API_KEYS (one or more keys) and PRICESAPI_ENABLED=1.' }, 400);
-  }
-  const body = await c.req.json<{ limit?: number }>().catch(() => ({} as { limit?: number }));
-  const requested = Number(body.limit);
-  const limit = Number.isFinite(requested) && requested > 0 ? Math.min(Math.floor(requested), 10) : 3;
-
-  c.executionCtx.waitUntil((async () => {
-    const startedMs = Date.now();
-    const runId = await recordCronStart(c.env, 'pricesapi-retail').catch(() => null);
-    try {
-      const res = await runPricesApiRetail(c.env, { limit });
-      await recordCronFinish(c.env, runId, 'pricesapi-retail', { ok: true, summary: summarizeResult(res), durationMs: Date.now() - startedMs }).catch(() => {});
-    } catch (e) {
-      await recordCronFinish(c.env, runId, 'pricesapi-retail', { ok: false, error: (e as Error).message, durationMs: Date.now() - startedMs }).catch(() => {});
-    }
-  })());
-
-  return c.json({ ok: true, status: 'running', limit, message: 'pricesAPI refresh started — watch the Activity tab for the result (cold calls take up to ~90s each).' });
-});
 
 // On-demand PriceCharting agreement-verification — same path as the hourly
 // drain / daily cron, triggered manually so the promotion backlog can be
@@ -842,7 +816,6 @@ app.get('/feature-flags', async (c) => {
     brickowl: brickOwlEnabled(c.env),
     brickinsights: brickInsightsEnabled(c.env),
     firecrawl: firecrawlEnabled(c.env),
-    pricesapi: pricesapiEnabled(c.env),
     stockx: stockxEnabled(c.env),
   };
   return c.json({ flags: FEATURE_FLAGS, overrides, effective });
@@ -858,7 +831,6 @@ app.put('/feature-flags', async (c) => {
     brickowl: brickOwlEnabled(c.env),
     brickinsights: brickInsightsEnabled(c.env),
     firecrawl: firecrawlEnabled(c.env),
-    pricesapi: pricesapiEnabled(c.env),
     stockx: stockxEnabled(c.env),
   };
   return c.json({ ok: true, overrides, effective });
@@ -899,12 +871,11 @@ app.get('/activity', async (c) => {
 });
 
 app.get('/integrations', async (c) => {
-  const [integrations, coverage, quota, ai_usage, pricesapi_pool, market_ext, firecrawl_pool, brightdata_pool] = await Promise.all([
+  const [integrations, coverage, quota, ai_usage, market_ext, firecrawl_pool, brightdata_pool] = await Promise.all([
     getIntegrationDiagnostics(c.env),
     getDataCoverage(c.env),
     getQuotaUsage(c.env),
     getAiUsageReport(c.env),
-    getKeyPoolStatus(c.env),
     getMarketExtCoverage(c.env),
     getFirecrawlKeyPoolStatus(c.env),
     getBrightDataKeyPoolStatus(c.env),
@@ -917,12 +888,7 @@ app.get('/integrations', async (c) => {
     ai_usage,
     firecrawl: { ...buildFirecrawlDiagnostics(c.env, quota, coverage), pool: firecrawl_pool },
     brightdata: { pool: brightdata_pool },
-    // Pricing v3 diagnostics: pricesAPI key-pool budget + PriceCharting extras
-    // coverage + last bulk-import summary.
-    pricesapi: {
-      pool: pricesapi_pool,
-      daily: quota.find((q) => q.service === 'pricesapi') ?? null,
-    },
+    // Pricing v3 diagnostics: PriceCharting extras coverage + last bulk summary.
     pricecharting_ext: {
       ...market_ext,
       last_bulk: market_ext.last_bulk,

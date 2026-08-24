@@ -1,6 +1,5 @@
 import type { Env } from '../types';
 import { flagOverride, type FeatureFlag } from './feature-flags';
-import { hasPricesApiKey } from './pricesapi-keys';
 
 // Central capability switches for pricing/scraping sources. Each resolves in two
 // layers:
@@ -53,13 +52,6 @@ export function firecrawlEnabled(env: Env): boolean {
 // configured; APIFY_ENABLED=0 is the migration-free emergency kill switch.
 export function apifyEnabled(env: Env): boolean {
   return !!env.APIFY_API_TOKEN && !flagOff(env.APIFY_ENABLED);
-}
-
-// pricesAPI.io live retail/offers layer. PREREQUISITE: PRICESAPI_API_KEY or a
-// non-empty PRICESAPI_API_KEYS entry. OFF by default — needs an explicit opt-in
-// (PRICESAPI_ENABLED=1 or override), as each call is a precious ~30-90s cold request.
-export function pricesapiEnabled(env: Env): boolean {
-  return hasPricesApiKey(env) && resolve('pricesapi', flagOn(env.PRICESAPI_ENABLED));
 }
 
 // StockX lowest-ask scrape (rendered). PREREQUISITE: a Firecrawl key — the only
