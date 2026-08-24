@@ -176,9 +176,6 @@ app.post('/pricecharting-bulk-fetch', async (c) => {
   return c.json({ ok: true, status: 'running', message: 'LEGO price-guide download started — results appear in diagnostics shortly.' });
 });
 
-// On-demand pricesAPI.io live-retail refresh — same path as the daily cron, but
-// triggered manually so freshly-added keys can be verified without waiting for
-
 // On-demand PriceCharting agreement-verification — same path as the hourly
 // drain / daily cron, triggered manually so the promotion backlog can be
 // cleared immediately instead of waiting for the next slot. Set-based SQL, so
@@ -805,7 +802,7 @@ app.post('/llm-routing/refresh-models', async (c) => {
 });
 
 // Runtime feature flags: enable/disable capabilities (eBay sold comps, Bright
-// Data sold, BrickInsights, Firecrawl, pricesAPI, BrickOwl) with no redeploy.
+// Data sold, BrickInsights, Firecrawl, BrickOwl) with no redeploy.
 // GET returns the flag list, the raw stored overrides, and the resolved effective
 // state (override-or-env, with the required-secret prerequisite applied).
 app.get('/feature-flags', async (c) => {
@@ -1090,7 +1087,7 @@ app.patch('/pricing/source-matches', async (c) => {
 
 app.get('/pricing/budget', async (c) => c.json(await getPricingWriteBudget(c.env.DB)));
 
-// set_market_ext coverage (pricesAPI pa_* + PriceCharting loose/sales-volume)
+// set_market_ext coverage (legacy pricesAPI pa_* + PriceCharting loose/sales-volume)
 // plus the last bulk-import summary, for the pricing diagnostics panel. Fails
 // open to zeros so the admin endpoint never errors on a fresh DB.
 
