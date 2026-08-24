@@ -490,11 +490,14 @@ jobs:
           curl -sf "${WORKER_URL}/api/admin/import-status" \
             -H "Authorization: Bearer ${ADMIN_JWT}" \
             | jq -e '.runs | type == "array"' >/dev/null
-          # Compliance gate: the enhanced/mobile-residential eBay scrape lane
-          # must remain disabled until provider/site authorization is recorded.
-          curl -sf "${WORKER_URL}/api/admin/source-config" \
-            -H "Authorization: Bearer ${ADMIN_JWT}" \
-            | jq -e '.config.ebay.enabled == false' >/dev/null
+          # Compliance gate: the scraped eBay sold-comps lane (Firecrawl/Apify)
+          # must stay held until provider/site authorization is recorded. The
+          # hold is enforced in code (ebaySoldLaneEnabled), not by source tuning,
+          # so verify behavior: a manual sold-scrape trigger must skip with the
+          # hold reason rather than scrape.
+          SCRAPE_SKIP=$(curl -sf -X POST "${WORKER_URL}/api/admin/jobs/ebay-sold-scrape?limit=1" \
+            -H "Authorization: Bearer ${ADMIN_JWT}" | jq -r '.skipped // empty')
+          echo "$SCRAPE_SKIP" | jq -e '. | test("sold-comps lane held|disabled in source tuning|firecrawl|apify"; "i")' >/dev/null
           # LLM routing must resolve to a real path for every workload. An empty
           # effective list means every step named a provider with no key, which
           # silently disables that workload's AI rather than failing loudly.
