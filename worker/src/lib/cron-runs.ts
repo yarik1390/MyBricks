@@ -50,6 +50,10 @@ export function summarizeResult(res: unknown): string | null {
   add('figSnapshotted', 'fig snapshotted');
   add('pruned', 'pruned');
   add('checked', 'checked');      // minifig-verify
+  add('promoted', 'promoted');    // pricecharting-verify
+  add('signals', 'signals');      // pricecharting-verify
+  add('reblended', 'reblended');  // pricecharting-verify
+  add('recomputed', 'recomputed'); // pricing-v3-shadow (blend recompute)
   // Common nested alert counts from wishlist-alerts.
   for (const k of ['spikes', 'retiring', 'deals', 'preorders']) {
     const v = r[k];
