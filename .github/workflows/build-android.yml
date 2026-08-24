@@ -14,8 +14,9 @@ name: Build Android (.aab)
 #        ANDROID_KEYSTORE_PASSWORD ← the -storepass you chose
 #        ANDROID_KEY_ALIAS         ← "upload" (or your alias)
 #        ANDROID_KEY_PASSWORD      ← key password (often same as store password)
-#   3. Dispatch this workflow → download the .aab artifact → upload to Play
-#      Console (internal testing first).
+#   3. Dispatch this workflow (or just push a change under public/ or android/)
+#      → signed bundle lands on the 'aab-delivery' branch and auto-uploads to
+#      the Play INTERNAL track once GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is set.
 #
 # Without the keystore secrets the build still runs but produces an UNSIGNED
 # bundle (marked in the artifact name) — Play will not accept it; useful only
@@ -24,6 +25,16 @@ name: Build Android (.aab)
 # NOTE: manual dispatch requires this file to exist on the DEFAULT branch.
 
 on:
+  push:
+    branches: [main]
+    # Auto-build a new signed bundle (+ Play upload once GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
+    # is set) whenever the app payload changes: bundled web assets or native config.
+    paths:
+      - "public/**"
+      - "android/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/build-android.yml"
   workflow_dispatch:
     inputs:
       runner:
@@ -47,7 +58,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ${{ inputs.runner }}
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 30
     permissions:
       contents: write
@@ -133,7 +144,7 @@ jobs:
             echo "::error::A signed Play bundle requires ANDROID_GOOGLE_SERVICES_JSON_BASE64 so native push is functional."
             exit 1
           fi
-          if [ "${{ inputs.build_type }}" = "apk-debug" ]; then
+          if [ "${{ inputs.build_type || 'bundle' }}" = "apk-debug" ]; then
             ./gradlew assembleDebug --no-daemon
           else
             ./gradlew bundleRelease --no-daemon
@@ -143,7 +154,7 @@ jobs:
         run: grep -E 'versionCode|versionName' android/app/build.gradle | sed 's/^ *//'
 
       - name: Verify signature (signed bundles only)
-        if: steps.keystore.outputs.signed == 'true' && inputs.build_type != 'apk-debug'
+        if: steps.keystore.outputs.signed == 'true' && (inputs.build_type || 'bundle') != 'apk-debug'
         run: |
           AAB=$(ls android/app/build/outputs/bundle/release/*.aab | head -1)
           echo "== jarsigner -verify =="
@@ -156,7 +167,7 @@ jobs:
         # binaries (needs the Claude GitHub App), but it CAN git-fetch. So mirror
         # the signed bundle + mapping to a throwaway, force-updated branch it can
         # fetch and attach. Safe to delete after pickup.
-        if: steps.keystore.outputs.signed == 'true' && inputs.build_type != 'apk-debug'
+        if: steps.keystore.outputs.signed == 'true' && (inputs.build_type || 'bundle') != 'apk-debug'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -182,7 +193,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bricksvault-${{ inputs.build_type == 'apk-debug' && 'debug-apk' || (steps.keystore.outputs.signed == 'true' && 'release-aab' || 'UNSIGNED-aab') }}
+          name: bricksvault-${{ (inputs.build_type || 'bundle') == 'apk-debug' && 'debug-apk' || (steps.keystore.outputs.signed == 'true' && 'release-aab' || 'UNSIGNED-aab') }}
           path: |
             android/app/build/outputs/bundle/release/*.aab
             android/app/build/outputs/apk/debug/*.apk
@@ -218,7 +229,7 @@ jobs:
         # NOTE: the only release-producing choice is `bundle` (the input options
         # are bundle|apk-debug) — an earlier `== 'release'` here could never be
         # true, so this step would have stayed dead even after the parse fix.
-        if: ${{ inputs.build_type == 'bundle' && steps.keystore.outputs.signed == 'true' && steps.play_creds.outputs.configured == 'true' }}
+        if: ${{ (inputs.build_type || 'bundle') == 'bundle' && steps.keystore.outputs.signed == 'true' && steps.play_creds.outputs.configured == 'true' }}
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJson: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
