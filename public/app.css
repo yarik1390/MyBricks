@@ -1432,6 +1432,34 @@ ul.set-list > li { display: contents; }
   margin-bottom: 8px;
   display: flex; align-items: center; gap: 6px;
 }
+/* Minifig strip on set detail (portfolio-detail.js) */
+.fig-strip {
+  display: flex; flex-wrap: wrap; gap: 10px;
+}
+.fig-strip-item {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; max-width: 100%;
+}
+.fig-strip-item img {
+  width: 36px; height: 36px; object-fit: contain;
+  border-radius: 4px; background: var(--surface-2); flex-shrink: 0;
+}
+/* Silhouette placeholder: rows with no image URL, or whose URL is dead. */
+.fig-ph {
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px; background: var(--surface-2);
+  color: var(--ink-mute);
+}
+.fig-strip-meta { min-width: 0; }
+.fig-strip-name {
+  color: var(--ink-soft); font-size: 12px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px;
+}
+.fig-strip-name span { color: var(--ink-mute); }
+.fig-strip-num {
+  color: var(--ink-mute); font-size: 10px; font-family: var(--mono);
+}
 /* 2-column key/value grid (Details card) */
 .detail-kv-grid {
   display: grid; grid-template-columns: repeat(2, 1fr);

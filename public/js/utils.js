@@ -703,8 +703,11 @@ export function installImageFallback(win = window) {
         img.src = cdn;
         return;
       }
-      // Stage 3: give up — hide the <img> so the brick-tile placeholder shows.
+      // Stage 3: give up — mark the <img> dead and hide it. Views that render
+      // their own placeholder behind the img (fig strip, grid brick-tiles)
+      // key off .img-dead / the hide to show it; bare imgs just disappear.
       img.dataset.imgFb = "failed";
+      img.classList.add("img-dead");
       img.style.display = "none";
     },
     true,

@@ -76,7 +76,17 @@ app.get('/', async (c) => {
   }
 
   // 3) First request: fetch from the source, store in R2, edge-cache, serve.
-  //    Any failure → redirect to the source so the image still loads.
+  //    Any failure → redirect to the source so the image still loads. The one
+  //    exception is a DEFINITIVE upstream miss (404/410): the file does not
+  //    exist at the source (Rebrickable has no photo for some rare/exclusive
+  //    figs), so redirecting just hands the client another failure and every
+  //    later view repeats the round-trip. Serve a transparent 1×1 GIF instead —
+  //    callers render a real silhouette placeholder behind/instead of it.
+  const PLACEHOLDER_GIF = 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+  const placeholderResponse = () => new Response(
+    (() => { const bin = atob(PLACEHOLDER_GIF); const buf = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i); return buf; })(),
+    { headers: { 'Content-Type': 'image/gif', 'Cache-Control': IMMUTABLE } },
+  );
   let upstream: Response;
   try {
     // Best-effort resize via Cloudflare Image Resizing; the cf.image directive
@@ -90,7 +100,7 @@ app.get('/', async (c) => {
   } catch {
     return redirectToOrigin();
   }
-  if (!upstream.ok) return redirectToOrigin();
+  if (!upstream.ok) return upstream.status === 404 || upstream.status === 410 ? placeholderResponse() : redirectToOrigin();
   const contentType = upstream.headers.get('content-type') || 'image/jpeg';
   if (!contentType.startsWith('image/') || !upstream.body) return redirectToOrigin();
 

@@ -642,13 +642,15 @@ function infoTabHTML(set, entry, isWish) {
   const minifigsCard = set.set_minifigs?.length ? `
       <div class="detail-card">
         <div class="detail-card-title">Minifigs in this set</div>
-        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+        <div class="fig-strip">
           ${set.set_minifigs.map(f => `
-            <div style="display:flex;align-items:center;gap:8px;font-size:12px;max-width:100%;" title="${escapeHtml(f.fig_name || f.fig_num)}">
-              ${f.fig_img_url ? `<img src="${escapeHtml(f.fig_img_url)}" alt="${escapeHtml(f.fig_name || '')}" style="width:36px;height:36px;object-fit:contain;border-radius:4px;background:var(--surface-2);flex-shrink:0;">` : `<div style="width:36px;height:36px;background:var(--surface-2);border-radius:4px;flex-shrink:0;"></div>`}
-              <div style="min-width:0;">
-                <div style="color:var(--ink-soft);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:130px;">${escapeHtml(f.fig_name || 'Minifig')}${f.quantity > 1 ? ` <span style="color:var(--ink-mute);">×${f.quantity}</span>` : ''}</div>
-                <div style="color:var(--ink-mute);font-size:10px;font-family:var(--mono);">${escapeHtml(f.fig_num)}</div>
+            <div class="fig-strip-item" title="${escapeHtml(f.fig_name || f.fig_num)}">
+              ${f.fig_img_url
+                ? `<img src="${escapeHtml(proxyImg(f.fig_img_url))}" alt="${escapeHtml(f.fig_name || '')}" loading="lazy" decoding="async" data-fig-ph>`
+                : `<div class="fig-ph">${I.figure({ w: 20, h: 20 })}</div>`}
+              <div class="fig-strip-meta">
+                <div class="fig-strip-name">${escapeHtml(f.fig_name || 'Minifig')}${f.quantity > 1 ? ` <span>×${f.quantity}</span>` : ''}</div>
+                <div class="fig-strip-num">${escapeHtml(f.fig_num)}</div>
               </div>
             </div>
           `).join('')}
@@ -744,6 +746,18 @@ function wireInfoTab(set) {
       if (text && r?.lang === lang && text !== p.textContent.trim()) p.textContent = text;
     } catch { /* English stays — a missing translation is not worth an error */ }
   })();
+
+  // Minifig strip: a dead fig photo (Rebrickable has no file for some rare /
+  // exclusive figs) swaps to the same silhouette placeholder used when a row
+  // has no image URL at all — no broken-image icon, no empty gap.
+  $$(".fig-strip-item img[data-fig-ph]").forEach(img => img.addEventListener("error", () => {
+    const item = img.closest(".fig-strip-item");
+    if (!item || item.querySelector(".fig-ph")) return;
+    const ph = document.createElement("div");
+    ph.className = "fig-ph";
+    ph.innerHTML = I.figure({ w: 20, h: 20 });
+    img.replaceWith(ph);
+  }));
 
   const aboutBtn = $("#aboutToggle");
   aboutBtn?.addEventListener("click", () => {
