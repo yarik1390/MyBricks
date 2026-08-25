@@ -11,6 +11,7 @@ import { runSyncProcess } from './google-sync';
 // source) — persisted unbounded before, letting a client store multi-MB blobs.
 const FREE_TEXT_MAX = 500;
 import { awardXpForAdd } from '../lib/kids-xp';
+import { scheduleBuildCacheRecompute } from '../lib/build-matcher';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -340,6 +341,9 @@ app.post('/', async (c) => {
   logEvent(c.env, 'set_added', userId, { setNum: set_num });
   const kidsResult = await awardXpForAdd(c.env.DB, userId);
   c.executionCtx.waitUntil(triggerGoogleSync(userId, c));
+  // Pre-warm the "What can I build?" cache for the NEW collection state so the
+  // next Build visit is instant instead of a guaranteed-cold multi-second scan.
+  scheduleBuildCacheRecompute(c.env, userId, c.executionCtx);
   return c.json({ item, kids: kidsResult.xp_gained > 0 ? kidsResult : undefined }, 201);
 });
 
@@ -457,6 +461,7 @@ app.post('/sell', async (c) => {
   `).bind(sold_price, sold_at, userId, set_num).run();
   if (!res.meta.changes) return c.json({ error: 'Set not in your vault' }, 404);
   logEvent(c.env, 'set_sold', userId, { setNum: set_num });
+  scheduleBuildCacheRecompute(c.env, userId, c.executionCtx);
   return c.json({ ok: true, set_num, sold_price, sold_at });
 });
 
@@ -577,6 +582,7 @@ app.post('/import', async (c) => {
   const allDuplicates = imported === 0 && skipped === rows.length;
   if (imported > 0) {
     c.executionCtx.waitUntil(triggerGoogleSync(userId, c));
+    scheduleBuildCacheRecompute(c.env, userId, c.executionCtx);
   }
   return c.json({ imported, skipped, errors: errors.slice(0, 20), allDuplicates });
 });
@@ -672,6 +678,7 @@ app.patch('/:id', async (c) => {
     'SELECT * FROM user_collection WHERE id=? AND user_id=? AND deleted_at IS NULL'
   ).bind(id, userId).first<Record<string, unknown>>();
   c.executionCtx.waitUntil(triggerGoogleSync(userId, c));
+  scheduleBuildCacheRecompute(c.env, userId, c.executionCtx);
   return c.json({ item: item ? { ...item, is_complete: !!item.is_complete } : null });
 });
 
@@ -690,6 +697,7 @@ app.delete('/:id', async (c) => {
     `UPDATE user_collection SET deleted_at=datetime('now') WHERE id=? AND user_id=?`
   ).bind(id, userId).run();
   logEvent(c.env, 'set_removed', userId);
+  scheduleBuildCacheRecompute(c.env, userId, c.executionCtx);
   c.executionCtx.waitUntil(triggerGoogleSync(userId, c));
   return c.body(null, 204);
 });
