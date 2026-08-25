@@ -1862,8 +1862,10 @@ ul.set-list > li { display: contents; }
 }
 .mini-img.photo-loaded .fig-avatar,
 .fig-detail-hero.photo-loaded .fig-avatar { display: none; }
-.mini-img:not(.photo-loaded) .fig-photo,
-.fig-detail-hero:not(.photo-loaded) .fig-photo { display: none; }
+/* NOTE: never hide .fig-photo pre-load here — these are loading="lazy", and a
+   display:none lazy image never intersects the viewport, so its load event
+   (and .photo-loaded) would never fire. An unloaded <img> paints nothing,
+   so the avatar simply shows through until the photo arrives. */
 /* The old block-figure placeholder stays for any surface not yet migrated. */
 
 /* --- Fig detail sheet --- */
