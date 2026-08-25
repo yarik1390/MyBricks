@@ -213,7 +213,7 @@ key. See `store/README.md` → *Apple App Store* and `store/CHECKLIST.md` §6.
 | Paywall shows but purchase fails | Product not **Active** in Play, tester account not in **License testing**, or the app's `versionCode` was never uploaded to a track (Play needs an uploaded build to enable billing). |
 | Plugin not found at runtime | Plugin registration name mismatch — re-check `Purchases`/`RevenueCatUI` against the installed plugin and the two constants in `revenuecat-native.js`; re-run `npx cap sync android`. |
 | Purchase succeeds but `is_supporter` stays false | Webhook not firing — check the RevenueCat webhook URL + that its Authorization value equals the `REVENUECAT_WEBHOOK_AUTH` Worker secret. |
-| "You need to use a different version code" | Bump `versionCode` in `android/app/build.gradle`; every upload must be strictly higher. |
+| "You need to use a different version code" | Should not happen: `versionCode` auto-derives from the git commit count (floored at the last code Play has seen) in `android/app/build.gradle`. If Play still rejects, raise the `def floor = …` literal to the rejected value + 1. |
 
 ## What you do NOT need
 - No native rewrite — the Capacitor shell reuses the existing PWA.

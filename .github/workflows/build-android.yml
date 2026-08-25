@@ -64,6 +64,11 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        # Full history: versionCode = git rev-list --count HEAD (see
+        # android/app/build.gradle). A shallow clone (depth=1) would count 1 and
+        # silently fall back to the build.gradle floor.
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -150,8 +155,11 @@ jobs:
             ./gradlew bundleRelease --no-daemon
           fi
 
-      - name: Report version (bump build.gradle before each Play upload)
-        run: grep -E 'versionCode|versionName' android/app/build.gradle | sed 's/^ *//'
+      - name: Report version (versionCode = commit count, floored at 56)
+        run: |
+          COUNT=$(git rev-list --count HEAD)
+          echo "commit count: $COUNT -> effective versionCode: $(( COUNT < 56 ? 56 : COUNT ))"
+          grep -E 'versionName' android/app/build.gradle | sed 's/^ *//'
 
       - name: Verify signature (signed bundles only)
         if: steps.keystore.outputs.signed == 'true' && (inputs.build_type || 'bundle') != 'apk-debug'

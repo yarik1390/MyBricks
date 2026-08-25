@@ -1,5 +1,23 @@
 apply plugin: 'com.android.application'
 
+// versionCode auto-derives from the git commit count: monotonic and unique per
+// push, so push-triggered builds can never collide on Play (each successful
+// upload consumes its code; Play only rejects exact duplicates). The literal
+// below is a FLOOR — the last code Play has actually seen — so shallow clones,
+// zip downloads, or no-git environments never regress below it.
+def derivedVersionCode = { ->
+    def floor = 56
+    try {
+        def out = providers.exec {
+            workingDir = rootDir.parentFile   // repo root (this file lives in android/app)
+            commandLine 'git', 'rev-list', '--count', 'HEAD'
+        }.standardOutput.asText.get().trim()
+        return Math.max(floor, Integer.parseInt(out))
+    } catch (Exception ignored) {
+        return floor
+    }
+}()
+
 android {
     namespace = "app.bricksvault"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,10 +25,8 @@ android {
         applicationId "app.bricksvault"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // Single source of truth for the native app version. Bump BOTH on every
-        // Play upload: versionCode is monotonically increasing (Play rejects
-        // duplicates); versionName is the user-visible string.
-        versionCode 56
+        // See derivedVersionCode above — do not reintroduce a hand-bumped literal.
+        versionCode derivedVersionCode
         versionName "1.0.55"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

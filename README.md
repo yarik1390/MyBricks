@@ -120,7 +120,7 @@ round-trip needed to open the app.
 | | |
 |---|---|
 | App id | `app.bricksvault` (matches `capacitor.config.json`, `build.gradle`, `assetlinks.json`) |
-| Current | `1.0.47` (versionCode 48) |
+| Current | `1.0.55` (versionCode = commit count, floored at 56 — auto-derived, never hand-bumped) |
 | SDK | min 24, compile/target 36 |
 | Native plugins | MLKit barcode scanning, biometric unlock, push (FCM), filesystem, share, haptics, network |
 | Billing | RevenueCat — entitlements arrive via the webhook, not the client |
