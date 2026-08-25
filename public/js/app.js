@@ -117,6 +117,13 @@ function setupImageHydration() {
   document.addEventListener("load", (e) => {
     const img = e.target;
     if (img instanceof HTMLImageElement && (img.classList.contains("set-photo") || img.classList.contains("fig-photo"))) {
+      // A 1×1 (or 0×0) "photo" is the Worker image-proxy's definitive-miss
+      // placeholder GIF — treat it as dead so the mystery-minifig avatar /
+      // brick-tile underneath stays visible instead of an empty frame.
+      if ((img.naturalWidth || 0) <= 2) {
+        img.remove();
+        return;
+      }
       img.parentElement?.classList.add("photo-loaded");
     }
   }, true);

@@ -2413,6 +2413,12 @@
     ]
   },
   {
+    "text": "Courier New",
+    "files": [
+      "lib/fig-avatar.js"
+    ]
+  },
+  {
     "text": "Create account",
     "files": [
       "views/login.js"
@@ -11329,6 +11335,12 @@
     "text": "wrong item",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "xMidYMid meet",
+    "files": [
+      "lib/fig-avatar.js"
     ]
   },
   {

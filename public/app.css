@@ -1444,13 +1444,15 @@ ul.set-list > li { display: contents; }
   width: 36px; height: 36px; object-fit: contain;
   border-radius: 4px; background: var(--surface-2); flex-shrink: 0;
 }
-/* Silhouette placeholder: rows with no image URL, or whose URL is dead. */
+/* Placeholder: rows with no image URL, or whose URL is dead — shows the
+   fig's mystery-minifig avatar (lib/fig-avatar.js), sized to the strip. */
 .fig-ph {
   width: 36px; height: 36px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   border-radius: 4px; background: var(--surface-2);
   color: var(--ink-mute);
 }
+.fig-ph .fig-avatar { width: 34px; height: 34px; }
 .fig-strip-meta { min-width: 0; }
 .fig-strip-name {
   color: var(--ink-soft); font-size: 12px;
@@ -1846,6 +1848,23 @@ ul.set-list > li { display: contents; }
   flex-shrink: 0;
 }
 .mini-owned-badge svg { width: 12px; height: 12px; stroke-width: 2.5; }
+
+/* --- Mystery-minifig placeholder avatar (lib/fig-avatar.js) --- */
+/* Rendered UNDER every fig photo; CSS reveals it only when the photo is
+   absent/dead. Deterministic per fig — same fig always "is" the same
+   character. */
+.fig-avatar { width: 64px; height: 92px; display: block; }
+.mini-img .fig-avatar,
+.fig-detail-hero .fig-avatar {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: contain;
+}
+.mini-img.photo-loaded .fig-avatar,
+.fig-detail-hero.photo-loaded .fig-avatar { display: none; }
+.mini-img:not(.photo-loaded) .fig-photo,
+.fig-detail-hero:not(.photo-loaded) .fig-photo { display: none; }
+/* The old block-figure placeholder stays for any surface not yet migrated. */
 
 /* --- Fig detail sheet --- */
 .fig-detail {

@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, fmtMoney, toast, themeHue, debounce, bvIDB, SEARCH_DEBOUNCE_MS, mount, drawSparkline, fmtDateUpdated, thumbImg } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoney, toast, debounce, bvIDB, SEARCH_DEBOUNCE_MS, mount, drawSparkline, fmtDateUpdated, thumbImg } from '../utils.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { state } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
@@ -8,6 +8,7 @@ import { skelPage, skelCardList } from '../components/skeleton.js';
 
 import { activeFigFilterCount } from '../lib/pure.js';
 import { figFilterSummaryText } from '../lib/filter-summary.js';
+import { figAvatarSVG } from '../lib/fig-avatar.js';
 
 const rarityLabel = (rarity) => {
   const value = String(rarity || 'common').toLowerCase();
@@ -240,7 +241,7 @@ async function loadRareFinds() {
         const r = f.rarity || 'rare';
         return `<button class="rare-find-card" data-fig="${escapeHtml(String(f.fig_num))}" style="flex:0 0 auto;width:120px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:10px;text-align:center;cursor:pointer;">
           <div style="height:72px;display:flex;align-items:center;justify-content:center;margin-bottom:6px;">
-            ${f.image_url ? `<img src="${escapeHtml(thumbImg(String(f.image_url)))}" alt="" loading="lazy" decoding="async" style="max-width:100%;max-height:72px;object-fit:contain;">` : `<div style="width:48px;height:64px;background:var(--surface-3);border-radius:6px;"></div>`}
+            ${f.image_url ? `<img src="${escapeHtml(thumbImg(String(f.image_url)))}" alt="" loading="lazy" decoding="async" style="max-width:100%;max-height:72px;object-fit:contain;">` : figAvatarSVG(String(f.fig_num), String(f.name || ''))}
           </div>
           <div style="font-size:11px;font-weight:600;color:var(--ink);line-height:1.25;height:28px;overflow:hidden;">${escapeHtml(String(f.name || ''))}</div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:4px;">
@@ -500,7 +501,6 @@ function showFigDetail(f) {
   const scarcityTxt = (n != null && n > 0)
     ? (n === 1 ? t('minifigs.setExclusive') : tPlural('minifigs.appearsInSets', n))
     : null;
-  const hue = f.hue ?? themeHue(f.series || f.fig_num);
   const hasImg = f.image_url;
   const rbUrl = `https://rebrickable.com/minifigs/${encodeURIComponent(f.fig_num)}/`;
 
@@ -511,9 +511,7 @@ function showFigDetail(f) {
   showSheet(`
     <div class="fig-detail">
       <div class="fig-detail-hero${hasImg ? ' has-photo' : ''}">
-        <div class="mini-figure" style="--fig-color:oklch(0.6 0.18 ${hue});--fig-color2:oklch(0.4 0.08 ${(hue + 180) % 360});">
-          <div class="head"></div><div class="body"></div><div class="legs"></div>
-        </div>
+        ${figAvatarSVG(String(f.fig_num), String(f.name || ''))}
         ${hasImg ? `<img class="fig-photo" src="${escapeHtml(thumbImg(f.image_url))}" alt="${escapeHtml(f.name)}" loading="lazy" decoding="async">` : ''}
         <span class="mini-rarity-tag rarity-${rarity}">${escapeHtml(rarityLabel(rarity))}</span>
       </div>
@@ -582,7 +580,7 @@ function showFigDetail(f) {
         <div class="u-col" style="gap:8px;">
           ${sets.map((s) => `
             <button class="fig-set-row" data-set="${escapeHtml(String(s.set_num))}" style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:8px 10px;cursor:pointer;">
-              ${s.image_url ? `<img src="${escapeHtml(thumbImg(String(s.image_url)))}" alt="" loading="lazy" decoding="async" style="width:40px;height:40px;object-fit:contain;background:var(--surface-3);border-radius:6px;flex:0 0 auto;">` : `<div style="width:40px;height:40px;background:var(--surface-3);border-radius:6px;flex:0 0 auto;"></div>`}
+              ${s.image_url ? `<img src="${escapeHtml(thumbImg(String(s.image_url)))}" alt="" loading="lazy" decoding="async" style="width:40px;height:40px;object-fit:contain;background:var(--surface-3);border-radius:6px;flex:0 0 auto;">` : figAvatarSVG(String(s.fig_num || s.set_num), String(s.name || ''))}
               <div style="flex:1;min-width:0;">
                 <div style="font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(String(s.name || s.set_num))}</div>
                 <div style="font-size:11px;color:var(--ink-mute);font-family:var(--mono);">#${escapeHtml(String(s.set_num).replace(/-\d+$/, ''))}${s.year ? ` · ${s.year}` : ''}</div>
@@ -659,7 +657,6 @@ function isFigFilterDefault() {
 
 function miniCardHTML(f) {
   const owned = state.ownedFigs.has(f.fig_num);
-  const hue = f.hue ?? themeHue(f.series || f.fig_num);
   const hasImg = f.image_url;
   const realVal = f.current_value ?? null;
   const rarity = f.rarity || "common";
@@ -675,11 +672,7 @@ function miniCardHTML(f) {
   return `
     <button class="mini-card rarity-${rarity}" data-fig="${escapeHtml(f.fig_num)}" aria-label="${escapeHtml(f.name)}">
       <div class="mini-img${hasImg ? " has-photo" : ""}">
-        <div class="mini-figure" style="--fig-color:oklch(0.6 0.18 ${hue});--fig-color2:oklch(0.4 0.08 ${(hue+180)%360});">
-          <div class="head"></div>
-          <div class="body"></div>
-          <div class="legs"></div>
-        </div>
+        ${figAvatarSVG(String(f.fig_num), String(f.name || ''))}
         ${hasImg ? `<img class="fig-photo" src="${escapeHtml(thumbImg(f.image_url))}" alt="" loading="lazy" decoding="async">` : ""}
         <span class="mini-rarity-tag rarity-${rarity}">${escapeHtml(rarityLabel(rarity))}</span>
       </div>

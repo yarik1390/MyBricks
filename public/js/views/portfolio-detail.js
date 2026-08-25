@@ -2,6 +2,7 @@ import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, c
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML, investmentPricingDetailHTML, soldEvidenceHTML } from './portfolio-detail-market.js';
 import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput, themeColor, priceMovementSummary, valuationConfidencePresentation } from '../lib/pure.js';
 import { t, tPlural, getLocale, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
+import { figAvatarSVG } from '../lib/fig-avatar.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { shareContent } from '../lib/native-share.js';
 import { api, getSessionUserId, _authSession, outboxEnqueue, isGuestMode } from '../api.js';
@@ -646,8 +647,8 @@ function infoTabHTML(set, entry, isWish) {
           ${set.set_minifigs.map(f => `
             <div class="fig-strip-item" title="${escapeHtml(f.fig_name || f.fig_num)}">
               ${f.fig_img_url
-                ? `<img src="${escapeHtml(proxyImg(f.fig_img_url))}" alt="${escapeHtml(f.fig_name || '')}" loading="lazy" decoding="async" data-fig-ph>`
-                : `<div class="fig-ph">${I.figure({ w: 20, h: 20 })}</div>`}
+                ? `<img src="${escapeHtml(proxyImg(f.fig_img_url))}" alt="${escapeHtml(f.fig_name || '')}" loading="lazy" decoding="async" data-fig-ph data-fig-name="${escapeHtml(f.fig_name || '')}">`
+                : `<div class="fig-ph">${figAvatarSVG(String(f.fig_num), String(f.fig_name || ''))}</div>`}
               <div class="fig-strip-meta">
                 <div class="fig-strip-name">${escapeHtml(f.fig_name || 'Minifig')}${f.quantity > 1 ? ` <span>×${f.quantity}</span>` : ''}</div>
                 <div class="fig-strip-num">${escapeHtml(f.fig_num)}</div>
@@ -748,22 +749,25 @@ function wireInfoTab(set) {
   })();
 
   // Minifig strip: a dead fig photo (Rebrickable has no file for some rare /
-  // exclusive figs) swaps to the same silhouette placeholder used when a row
-  // has no image URL at all — no broken-image icon, no empty gap. The /api/img
-  // proxy answers definitive upstream 404s with a transparent 1×1 GIF, which
-  // LOADS fine — so also treat a 1×1 natural size as "no real photo".
+  // exclusive figs) swaps to the fig's mystery-minifig avatar — same
+  // character everywhere that fig appears, no broken-image icon, no empty
+  // gap. The /api/img proxy answers definitive upstream 404s with a
+  // transparent 1×1 GIF, which LOADS fine — so also treat a 1×1 natural
+  // size as "no real photo".
   $$(".fig-strip-item img[data-fig-ph]").forEach(img => {
     const toPlaceholder = () => {
       const item = img.closest(".fig-strip-item");
       if (!item || item.querySelector(".fig-ph")) return;
       const ph = document.createElement("div");
       ph.className = "fig-ph";
-      ph.innerHTML = I.figure({ w: 20, h: 20 });
+      const seed = img.dataset.figPh || item.getAttribute("data-fig") || "";
+      const label = img.dataset.figName || item.getAttribute("aria-label") || "";
+      ph.innerHTML = figAvatarSVG(seed, String(label));
       img.replaceWith(ph);
     };
     img.addEventListener("error", toPlaceholder);
     img.addEventListener("load", () => {
-      if (img.naturalWidth === 1 && img.naturalHeight === 1) toPlaceholder();
+      if (img.naturalWidth <= 2) toPlaceholder();
     });
   });
 
