@@ -256,7 +256,7 @@ body.offline .offline-banner { display: block; }
   flex-shrink: 0;
   color: var(--ink);
 }
-.icon-btn:active { transform: scale(0.92); }
+.icon-btn:active { transform: scale(0.96); }
 .icon-btn .dot {
   position: absolute; top: -3px; right: -3px;
   width: 16px; height: 16px; border-radius: 50%;
@@ -384,12 +384,12 @@ body.offline .offline-banner { display: block; }
   border: var(--bw-thin) solid var(--border-soft-c);
 }
 .range-pills button {
-  flex: 1; padding: 7px 4px;
+  flex: 1; min-height: 40px; padding: 7px 4px;
   font-family: var(--mono); font-size: 11px; font-weight: 600;
   letter-spacing: 0.08em;
   color: var(--ink-mute);
   border-radius: var(--r-full);
-  transition: all var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 .range-pills button.active { background: var(--ink); color: var(--bg); }
 
@@ -417,10 +417,12 @@ body.offline .offline-banner { display: block; }
   border-radius: var(--r-full);
   font-size: 13px; font-weight: 500;
   box-shadow: var(--shadow-1);
-  transition: all var(--dur-fast) var(--ease);
+  transition: transform var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
   white-space: nowrap;
 }
-.chip:active { transform: scale(0.95); }
 .chip svg { width: 14px; height: 14px; }
 .chip.active { background: var(--bv-yellow); color: #1C1C1E; }
 .chip:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--line); }
@@ -476,7 +478,10 @@ body.offline .offline-banner { display: block; }
   background: var(--up-pale);
 }
 .trust-badge.warn {
-  color: #8A6500;
+  /* AA-checked against its own yellow-tint background on white AND cream
+     surfaces: 7.2:1 / 6.5:1 (the previous #8A6500 sat at 4.49:1 on the
+     cream card tint — under the 4.5:1 floor for 9px uppercase text). */
+  color: #6B4E00;
   background: rgba(255, 215, 0, 0.18);
 }
 :root[data-theme="dark"] .trust-badge.warn,
@@ -711,7 +716,7 @@ ul.set-list > li { display: contents; }
   transition: transform var(--dur-fast) var(--ease);
 }
 .nav-tab.scan-tab .scan-orb svg { width: 22px; height: 22px; }
-.nav-tab.scan-tab:active .scan-orb { transform: scale(0.94); }
+.nav-tab.scan-tab:active .scan-orb { transform: scale(0.96); }
 .nav-tab.scan-tab.active::before { display: none; }
 
 /* ============================================================
@@ -1350,7 +1355,7 @@ ul.set-list > li { display: contents; }
   font-size: 13px; font-weight: 600;
   color: var(--ink-mute);
   border-radius: var(--r-full);
-  transition: all var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 .detail-tabs button.active { background: var(--ink); color: var(--bg); }
 .detail-tab-panel { padding: 18px 22px 8px; }
@@ -1403,7 +1408,7 @@ ul.set-list > li { display: contents; }
   display: flex; align-items: center; justify-content: center;
   transition: transform var(--dur-fast) var(--ease);
 }
-.qty-btn:active { transform: scale(0.9); }
+.qty-btn:active { transform: scale(0.96); }
 .qty-num {
   font-family: var(--mono); font-weight: 600;
   font-size: 17px; min-width: 30px; text-align: center;
@@ -1849,6 +1854,7 @@ ul.set-list > li { display: contents; }
 .fig-detail-name {
   font-family: var(--serif); font-size: 20px; font-weight: 500;
   line-height: 1.15; letter-spacing: -0.01em;
+  text-wrap: balance;
 }
 .fig-detail-value {
   display: flex; flex-direction: column; gap: 2px;
@@ -2050,7 +2056,7 @@ ul.set-list > li { display: contents; }
   font-size: 14px; font-weight: 500;
   z-index: 120;
   transform: translateY(20px); opacity: 0; pointer-events: none;
-  transition: all var(--dur) var(--ease);
+  transition: transform var(--dur) var(--ease), opacity var(--dur) var(--ease);
   box-shadow: 4px 4px 0 var(--line-soft);
   display: flex; align-items: center; gap: 10px;
 }
@@ -2947,7 +2953,9 @@ select:focus-visible {
   border: var(--bw) solid var(--border-c); border-radius: var(--r-full);
   font-size: 13px; font-weight: 500; cursor: pointer;
   background: var(--surface); box-shadow: var(--shadow-1); color: inherit;
-  transition: all var(--dur-fast) var(--ease);
+  transition: transform var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
 }
 .csv-file-label:active { transform: translate(1px, 1px); box-shadow: none; }
 .csv-file-label:focus-visible,
@@ -3365,7 +3373,7 @@ select:focus-visible {
   display: flex; align-items: center; justify-content: center;
   transition: transform .15s var(--ease), opacity .15s;
 }
-.chat-send-btn:active { transform: scale(0.9); }
+.chat-send-btn:active { transform: scale(0.96); }
 .chat-send-btn svg { width: 18px; height: 18px; }
 
 /* Gemini key card inside suggestions */
@@ -4183,6 +4191,14 @@ body.sheet-open .selection-bar {
     width: 39px;
     height: 39px;
   }
+  /* Visual shrinks but the tap target must not: a transparent pseudo-element
+     restores a ≥45×45 hit area. .icon-btn is position:relative, and the dot
+     badge already overflows the same way, so nothing is clipped. */
+  .icon-btn::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+  }
 
   .icon-btn svg {
     width: 19px;
@@ -4317,12 +4333,19 @@ body.sheet-open .selection-bar {
   }
 
   .topbar-actions {
-    gap: 5px;
+    gap: 6px;
   }
 
   .icon-btn {
     width: 36px;
     height: 36px;
+  }
+  /* Densest breakpoint: extend the hit area to the 40×40 dense minimum.
+     -2px keeps adjacent extended areas clear of the 5px topbar gap. */
+  .icon-btn::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
   }
 
   .nav-tab {
@@ -4499,7 +4522,7 @@ body.sheet-open .selection-bar {
    so they are not re-injected into #root on every render. */
 .build-view{padding:0 5% 96px;max-width:680px;margin:0 auto}
 .build-header{display:flex;align-items:center;gap:8px;padding:14px 0 2px}
-.build-header h1{font-size:1.4rem;margin:0}
+.build-header h1{font-size:1.4rem;margin:0;text-wrap:balance}
 .build-view .icon-btn{cursor:pointer}
 .build-intro{opacity:.68;font-size:.83rem;line-height:1.45;margin:.5rem 0 1rem}
 .b-tabs{display:flex;gap:8px;margin:6px 0 4px}
@@ -5261,7 +5284,7 @@ body.keyboard-open .detail-page-container {
   outline: 0;
 }
 
-.admin-segments-sticky button:active { transform: scale(0.95); }
+.admin-segments-sticky button:active { transform: scale(0.96); }
 
 /* Tactile press feedback on the main tap targets */
 .admin-service-summary:active,
