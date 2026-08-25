@@ -393,7 +393,9 @@ exposes client-safe values.**
 | `0 3` | snapshot set values |
 | `0 4` | db-hygiene + daily catalog maintenance + PriceCharting verify (+ Sundays: weekly set/fig import) |
 | `30 4` | **PriceCharting bulk CSV — DAILY** (one ~2 MB download refreshes 13,145 rows; no metered quota) |
+| `30 5` | alternate-builds index sweep (Rebrickable, ≤120 owned sets/run) |
 | `0 6` | BrickInsights ratings backfill |
+| `30 7` | Amazon offers refresh (KV-only, 24h TTL; no-op until `AMAZON_CREATORS_ENABLED=1`) |
 | `0 8` | wishlist price-drop alerts |
 | `0 9` | Brickset enrich (Firecrawl) |
 | `0 10` | LEGO.com stock refresh (Firecrawl) |
@@ -403,7 +405,7 @@ exposes client-safe values.**
 | `0 14` | **PriceCharting per-set enrich** |
 | `0 15` | upcoming / coming-soon refresh (Firecrawl) |
 | `0 16` | minifig identity verification (price-agreement settling) |
-| `0 17`, `0 19`, `0 23` | pricesAPI live-retail (three slots) |
+| `30 16` | Amazon offers refresh (second slot) |
 | `0 18` | StockX lowest-ask enrich (off unless `STOCKX_ENABLED=1`) |
 | `0 20` | AI gap-fill (free Gemini/OpenRouter) |
 | `0 22` | community comps |
