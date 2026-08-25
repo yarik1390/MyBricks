@@ -749,15 +749,23 @@ function wireInfoTab(set) {
 
   // Minifig strip: a dead fig photo (Rebrickable has no file for some rare /
   // exclusive figs) swaps to the same silhouette placeholder used when a row
-  // has no image URL at all — no broken-image icon, no empty gap.
-  $$(".fig-strip-item img[data-fig-ph]").forEach(img => img.addEventListener("error", () => {
-    const item = img.closest(".fig-strip-item");
-    if (!item || item.querySelector(".fig-ph")) return;
-    const ph = document.createElement("div");
-    ph.className = "fig-ph";
-    ph.innerHTML = I.figure({ w: 20, h: 20 });
-    img.replaceWith(ph);
-  }));
+  // has no image URL at all — no broken-image icon, no empty gap. The /api/img
+  // proxy answers definitive upstream 404s with a transparent 1×1 GIF, which
+  // LOADS fine — so also treat a 1×1 natural size as "no real photo".
+  $$(".fig-strip-item img[data-fig-ph]").forEach(img => {
+    const toPlaceholder = () => {
+      const item = img.closest(".fig-strip-item");
+      if (!item || item.querySelector(".fig-ph")) return;
+      const ph = document.createElement("div");
+      ph.className = "fig-ph";
+      ph.innerHTML = I.figure({ w: 20, h: 20 });
+      img.replaceWith(ph);
+    };
+    img.addEventListener("error", toPlaceholder);
+    img.addEventListener("load", () => {
+      if (img.naturalWidth === 1 && img.naturalHeight === 1) toPlaceholder();
+    });
+  });
 
   const aboutBtn = $("#aboutToggle");
   aboutBtn?.addEventListener("click", () => {
