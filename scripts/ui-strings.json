@@ -4361,6 +4361,12 @@
     ]
   },
   {
+    "text": "Indexing your sets",
+    "files": [
+      "views/build.js"
+    ]
+  },
+  {
     "text": "Ineligible / not configured",
     "files": [
       "views/me-admin.js"

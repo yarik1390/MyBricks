@@ -199,6 +199,11 @@ function listHtml() {
     if (_mode === 'sets' && _sets.loaded && !_sets.parts_sets) {
       return emptyState({ icon: I.layers(), title: 'Indexing parts', body: "We're still indexing the part lists for your sets — check back shortly." });
     }
+    if (_mode === 'alts' && _alts.loaded && (_alts.indexing > 0 || (_alts.owned_sets && !_alts.sets_with_alts))) {
+      // Alternates are indexed lazily (a few sets per visit + nightly backfill).
+      // An empty list usually means "not indexed yet", not "no MOCs exist".
+      return emptyState({ icon: I.layers(), title: 'Indexing your sets', body: 'We\u2019re looking up alternate builds for the sets in your vault \u2014 this fills in automatically. Check back soon.' });
+    }
     return emptyState({ icon: I.search(), title: _q ? `No matches for "${escapeHtml(_q)}"` : 'No matches yet', body: _q ? 'Try a different search term.' : '' });
   }
   return `<div class="b-list">${items.map(_mode === 'sets' ? setRow : altRow).join('')}</div>`;

@@ -18,6 +18,7 @@ import { runEbaySoldScrape } from '../jobs/ebay-sold-scrape';
 import { runPriceChartingEnrich } from '../jobs/pricecharting-enrich';
 import { runStockXEnrich } from '../jobs/stockx-enrich';
 import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricecharting-bulk';
+import { indexMissingAlts } from '../lib/build-alts';
 import { runMinifigVerify } from '../jobs/minifig-verify';
 import { runCommunityComps } from '../jobs/community-comps';
 import { importBrickLinkMinifigs } from '../jobs/import-bricklink-minifigs';
@@ -1126,6 +1127,7 @@ const JOB_LIMITS: Record<string, number> = {
   'community-comps': 1,
   'pricecharting-bulk-fetch': 1,
   'pricecharting-verify-drain': 400,
+  'build-alts-index': 40,
 };
 
 // Hard ceiling on an admin-triggered job's per-call limit, so a manual override
@@ -1196,6 +1198,11 @@ app.post('/jobs/:job', async (c) => {
       // no limit override applies; the job self-paces.
       const bulk = await runPriceChartingBulkFetch(c.env);
       result = { ...bulk };
+    } else if (job === 'build-alts-index') {
+      // Alternate-builds indexer (05:30 cron). ?limit= advances the backfill
+      // faster than the default 40 sets per call.
+      const r = await indexMissingAlts(c.env, { limit });
+      result = { ...r };
     } else {
       return c.json({ error: 'Not implemented' }, 501);
     }

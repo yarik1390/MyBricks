@@ -1,63 +1,12 @@
 import { Hono } from 'hono';
 import { requireMember } from '../auth';
-import { fetchSetAlternates } from '../lib/rebrickable';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 app.use('*', requireMember);
 
-// Cap how many not-yet-indexed owned sets we fetch alternates for synchronously
-// on a cold load, to stay within the Worker subrequest budget. The rest get
-// indexed on subsequent calls; the response reports how many remain.
-const SYNC_FETCH_CAP = 6;
-
-// Ensure set_alt_builds is populated for the given sets. Sets we've never
-// fetched are pulled from Rebrickable (capped), cached, and marked fetched.
-// Returns the number of sets still un-indexed after this pass.
-async function ensureAltsCached(env: Env, setNums: string[]): Promise<number> {
-  if (!setNums.length) return 0;
-  // D1 allows at most 100 bound parameters per individual statement on every
-  // plan. A serious collector can own far more than that, so discover cached
-  // sets in bounded chunks rather than building one unbounded IN (...).
-  const done = new Set<string>();
-  for (let i = 0; i < setNums.length; i += 90) {
-    const chunk = setNums.slice(i, i + 90);
-    const ph = chunk.map(() => '?').join(',');
-    const fetched = await env.DB.prepare(
-      `SELECT set_num FROM set_alts_fetched WHERE set_num IN (${ph})`,
-    ).bind(...chunk).all<{ set_num: string }>();
-    for (const row of fetched.results || []) done.add(row.set_num);
-  }
-  const pending = setNums.filter((s) => !done.has(s));
-  if (!pending.length) return 0;
-
-  const toFetch = pending.slice(0, SYNC_FETCH_CAP);
-  for (const setNum of toFetch) {
-    const alts = await fetchSetAlternates(setNum, env);
-    if (alts === null) continue; // missing key / hard failure — retry next time
-    const stmts: D1PreparedStatement[] = alts.map((a) => env.DB.prepare(
-      `INSERT INTO set_alt_builds
-         (set_num,moc_num,name,num_parts,year,designer,moc_img_url,moc_url,cached_at)
-       VALUES (?,?,?,?,?,?,?,?,datetime('now'))
-       ON CONFLICT(set_num,moc_num) DO UPDATE SET
-         name=excluded.name, num_parts=excluded.num_parts, year=excluded.year,
-         designer=excluded.designer, moc_img_url=excluded.moc_img_url,
-         moc_url=excluded.moc_url, cached_at=datetime('now')`,
-    ).bind(setNum, a.moc_num, a.name, a.num_parts, a.year, a.designer,
-           a.moc_img_url, a.moc_url));
-    stmts.push(env.DB.prepare(
-      `INSERT INTO set_alts_fetched (set_num,fetched_at,alt_count)
-       VALUES (?,datetime('now'),?)
-       ON CONFLICT(set_num) DO UPDATE SET
-         fetched_at=datetime('now'), alt_count=excluded.alt_count`,
-    ).bind(setNum, alts.length));
-    for (let i = 0; i < stmts.length; i += 100) {
-      await env.DB.batch(stmts.slice(i, i + 100));
-    }
-  }
-  return Math.max(0, pending.length - toFetch.length);
-}
+import { ensureAltsCached } from '../lib/build-alts';
 
 // GET /api/build — models the user can build from the sets they already own.
 // Each owned COMPLETE set contributes its Rebrickable alternate builds (MOCs

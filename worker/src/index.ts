@@ -21,6 +21,7 @@ import { contributionsRoute } from './routes/contributions';
 import { imgRoute } from './routes/img';
 import { rewriteImages } from './lib/img-proxy';
 import { runImagePrewarm } from './jobs/image-prewarm';
+import { indexMissingAlts } from './lib/build-alts';
 import { runUpcomingRefresh } from './jobs/upcoming-refresh';
 import { upcomingRoute } from './routes/upcoming';
 import type { ErrorHandler, MiddlewareHandler } from 'hono';
@@ -478,6 +479,7 @@ export default {
       case '0 1 * * *': await run('valuate-minifigs', () => runValuateMinifigs(env, { limit: 200 })); break;
       case '0 5 * * *': await run('valuate-minifigs', () => runValuateMinifigs(env, { limit: 200 })); break;
       case '0 6 * * *': await run('brickinsights-ratings', () => runBrickInsightsBackfill(env, { limit: 80 })); break;
+      case '30 5 * * *': await run('build-alts-index', () => indexMissingAlts(env, { limit: 120 })); break;
       // eBay sold comps via Bright Data — 8 runs/day (every 3h) at up to 150 each
       // (~1200/day) to BURST through the never-scraped sets fast. It self-tapers:
       // freshly-cached rows aren't due again for 30 days, and no-data sets are also
