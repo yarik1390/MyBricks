@@ -1586,6 +1586,12 @@
     ]
   },
   {
+    "text": "Captured photo",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
     "text": "Catalog",
     "files": [
       "components/onboarding.js",

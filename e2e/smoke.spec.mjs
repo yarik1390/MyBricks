@@ -39,18 +39,48 @@ test('scan route waits for a method choice and accepts a manual set number', asy
   await expect(page.getByText('Millennium Falcon').first()).toBeVisible();
 });
 
-test('photo capture releases the live camera before recognition', async ({ page }) => {
+test('photo capture freezes the still and Try again starts a fresh camera', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  const trackStopped = await page.evaluate(async () => {
+  const outcome = await page.evaluate(async () => {
     const scanner = await import('/js/components/scanner.js');
     const { state } = await import('/js/state.js');
-    let stopped = false;
-    const track = { stop: () => { stopped = true; } };
-    state.camera.stream = { getTracks: () => [track] };
-    scanner.finishPhotoCapture('data:image/jpeg;base64,AA==');
-    return stopped && state.camera.stream === null && state.camera.scanning === false;
+    const dataUrl = 'data:image/jpeg;base64,AA==';
+    const streams = [];
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: async () => {
+          const stream = { getTracks: () => [{ stop: () => { stream.stopped = true; } }] };
+          streams.push(stream);
+          return stream;
+        },
+      },
+    });
+    scanner.openScan('image', { deferStart: true });
+    await scanner.startCamera();
+    const capturedStream = streams[0];
+    scanner.finishPhotoCapture(dataUrl);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const preview = document.querySelector('#scanPhotoPreview');
+    const frozeStill = preview?.src === dataUrl
+      && preview.hidden === false
+      && document.querySelector('.scan-video-wrap')?.classList.contains('has-captured-photo');
+    scanner.showScanResult({ identified: false, reasoning: "Couldn't identify the set." });
+    document.querySelector('#scanRetry')?.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    return {
+      stopped: capturedStream?.stopped === true && capturedStream !== state.camera.stream,
+      frozeStill,
+      requestedFreshStream: streams.length === 2,
+      previewCleared: preview?.hidden === true && !preview?.hasAttribute('src'),
+    };
   });
-  expect(trackStopped).toBe(true);
+  expect(outcome).toEqual({
+    stopped: true,
+    frozeStill: true,
+    requestedFreshStream: true,
+    previewCleared: true,
+  });
 });
 
 test('minifig-only scan response never reports zero sets', async ({ page }) => {

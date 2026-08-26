@@ -69,3 +69,20 @@ for (const { name, args } of CASES) {
       .toBeGreaterThanOrEqual(toggle.y + toggle.height);
   });
 }
+
+test('captured photo remains visible while live video is hidden', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.locator('body').evaluate((body) => {
+    body.innerHTML = `
+      <div class="scan-video-wrap has-captured-photo" style="height:844px;">
+        <video class="scan-video"></video>
+        <img class="scan-photo-preview" alt="Captured photo"
+             src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==">
+      </div>`;
+  });
+  const video = page.locator('.scan-video');
+  const preview = page.locator('.scan-photo-preview');
+  await expect(video).toHaveCSS('opacity', '0');
+  await expect(preview).toBeVisible();
+  await expect(preview).toHaveCSS('object-fit', 'cover');
+});

@@ -83,17 +83,25 @@ function setScanPending(on) {
   if (gallery) gallery.disabled = _scanPending;
 }
 
-function clearScanResult({ restartBarcode = false } = {}) {
+function clearScanResult({ restartCamera = false } = {}) {
   const el = $("#scanResult");
   if (el) {
     el.classList.remove("show", "loading");
     el.innerHTML = "";
   }
-  document.querySelector(".scan-video-wrap")?.classList.remove("has-result");
+  const wrap = document.querySelector(".scan-video-wrap");
+  wrap?.classList.remove("has-result", "has-captured-photo");
+  const preview = $("#scanPhotoPreview");
+  if (preview) {
+    preview.removeAttribute("src");
+    preview.hidden = true;
+  }
   setScanPending(false);
   const hint = $("#scanHint");
   if (hint) hint.textContent = state.camera.mode === "barcode" ? "Align barcode within the frame" : "Frame the set and tap to identify";
-  if (restartBarcode && state.camera.mode === "barcode" && state.camera.detector) {
+  if (restartCamera && state.camera.mode === "image") {
+    void startCamera();
+  } else if (restartCamera && state.camera.mode === "barcode" && state.camera.detector) {
     state.camera.scanning = true;
     clearInterval(state.camera.timer);
     state.camera.timer = setInterval(scanBarcode, 400);
@@ -503,6 +511,12 @@ export function finishPhotoCapture(dataUrl) {
   // Recognition uses this still frame. Release the live stream before starting
   // the request so moving the phone afterwards cannot change the submitted scan
   // and the camera is not kept active behind the result card.
+  const preview = $("#scanPhotoPreview");
+  if (preview) {
+    preview.src = dataUrl;
+    preview.hidden = false;
+  }
+  document.querySelector(".scan-video-wrap")?.classList.add("has-captured-photo");
   stopCamera();
   const frame = document.querySelector(".scan-frame");
   if (frame) frame.classList.add("scan-pending");
@@ -652,8 +666,9 @@ async function cloudScanIdentify(payload, signal, idempotencyKey) {
 
 async function sendScanToAPI(payload) {
   const { controller, generation } = beginScanRequest();
-  // The key belongs to the user-visible scan attempt, not a lower-level fetch.
-  // Reusing it across explicit retry UI prevents duplicate provider cost/quota.
+  // The key belongs to one captured-photo submission and its lower-level
+  // request replay. A user-visible "Try again" now returns to the camera, so the
+  // next photo gets a fresh key instead of replaying this payload.
   const idempotencyKey = payload.idempotencyKey
     || globalThis.crypto?.randomUUID?.()
     || `scan-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -943,12 +958,8 @@ export function showScanResult(res) {
       ${setupNeeded ? setupActions
         : `<button class="btn-secondary" id="scanRetry">${rateLimited ? "Close" : "Try again"}</button>`}`;
     $("#scanRetry")?.addEventListener("click", () => {
-      if (!rateLimited && _lastRetryableScan) {
-        clearScanResult();
-        void sendScanToAPI(_lastRetryableScan);
-      } else {
-        clearScanResult({ restartBarcode: true });
-      }
+      if (rateLimited) closeScan();
+      else clearScanResult({ restartCamera: true });
     });
     $("#scanSignIn")?.addEventListener("click", () => { location.hash = "#/login"; });
     $("#scanSetup")?.addEventListener("click", () => { location.hash = "#/me/integrations"; });
@@ -965,7 +976,7 @@ export function showScanResult(res) {
       <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">Matches weren't found in the local catalog.</p>
       <button class="btn-secondary" id="scanRetry">Try again</button>`;
     $("#scanRetry")?.addEventListener("click", () => {
-      clearScanResult({ restartBarcode: true });
+      clearScanResult({ restartCamera: true });
     });
     return;
   }
@@ -1202,6 +1213,7 @@ function scanOverlayHTML(mode, shelf = false) {
   return `
     <div class="scan-video-wrap${nativeBarcode ? " native-scan" : ""}">
       <video class="scan-video" id="scanVideo" autoplay playsinline muted></video>
+      <img class="scan-photo-preview" id="scanPhotoPreview" alt="Captured photo" hidden>
       <div class="scan-top" style="justify-content: space-between;">
         <button id="scanCloseBtn" aria-label="Close">${I.close()}</button>
         <div class="scan-mode-toggle" role="group" aria-label="Scan mode" style="display: flex; align-items: center;">
