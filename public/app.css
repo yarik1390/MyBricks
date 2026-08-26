@@ -2339,6 +2339,12 @@ body[data-route="set-detail"] #toast {
 }
 .scan-video-wrap.scan-busy .scan-bottom { opacity: 0.55; pointer-events: none; }
 .scan-video-wrap.has-result { --scan-result-space: clamp(148px, 28vh, 210px); }
+.scan-video-wrap.has-result .scan-video,
+.scan-video-wrap.has-result .scan-frame,
+.scan-video-wrap.has-result .scan-top-stack {
+  opacity: 0;
+  pointer-events: none;
+}
 .scan-video-wrap.has-result .scan-bottom { opacity: 0; pointer-events: none; }
 /* The result card repeats the status message — hide the hint so a tall card
    (e.g. the rate-limit error with its tip box) doesn't overlap the same text. */

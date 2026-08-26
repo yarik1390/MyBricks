@@ -36,6 +36,24 @@ const CASES = [
   { name: 'Ukrainian', args: ['Штрихкод', 'Фото', 'Один набір', 'Уся полиця'] },
 ];
 
+test('photo result hides the inactive camera chrome', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.locator('body').evaluate((body) => {
+    body.innerHTML = `
+      <div class="scan-video-wrap has-result" style="position:relative;height:844px;">
+        <video class="scan-video"></video>
+        <div class="scan-top-stack">One set / Whole shelf</div>
+        <div class="scan-frame"></div>
+        <div class="scan-result show">Set found</div>
+      </div>`;
+  });
+
+  for (const selector of ['.scan-video', '.scan-frame', '.scan-top-stack']) {
+    await expect(page.locator(selector)).toHaveCSS('opacity', '0');
+  }
+  await expect(page.locator('.scan-result')).toBeVisible();
+});
+
 for (const { name, args } of CASES) {
   test(`scanner top controls do not overlap (${name})`, async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });

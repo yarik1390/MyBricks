@@ -499,6 +499,16 @@ async function scanBarcode() {
   } catch {}
 }
 
+export function finishPhotoCapture(dataUrl) {
+  // Recognition uses this still frame. Release the live stream before starting
+  // the request so moving the phone afterwards cannot change the submitted scan
+  // and the camera is not kept active behind the result card.
+  stopCamera();
+  const frame = document.querySelector(".scan-frame");
+  if (frame) frame.classList.add("scan-pending");
+  return sendScanToAPI({ mode: state.camera.shelf ? "shelf" : "image", image: dataUrl });
+}
+
 export async function capturePhoto() {
   if (_scanPending) return;
   const btn = $("#scanCapture");
@@ -522,7 +532,7 @@ export async function capturePhoto() {
   canvas.width = w * scale; canvas.height = h * scale;
   canvas.getContext("2d").drawImage(vid, 0, 0, canvas.width, canvas.height);
   const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-  sendScanToAPI({ mode: state.camera.shelf ? "shelf" : "image", image: dataUrl });
+  finishPhotoCapture(dataUrl);
 }
 
 // data: URL -> ImageBitmap, the canonical input MediaPipe accepts (avoids
@@ -994,7 +1004,7 @@ export function showScanResult(res) {
           <input type="checkbox" class="scan-select-check" data-setnum="${escapeHtml(set.set_num)}" data-idx="${idx}" checked style="width:18px;height:18px;margin-right:10px;cursor:pointer;">
           <div class="si${hasImg ? " has-photo" : ""}" style="width:48px;height:48px;border-radius:var(--r-1);background:linear-gradient(135deg, var(--surface-2), var(--surface-3));flex-shrink:0;position:relative;">
             <div class="brick-tile" style="--h:${h};width:100%;height:100%;border-radius:var(--r-1);"></div>
-            ${hasImg ? `<img src="${escapeHtml(set.image_url)}" alt="" style="position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);object-fit:contain;mix-blend-mode:multiply;">` : ""}
+            ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="" style="position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);object-fit:contain;mix-blend-mode:multiply;">` : ""}
           </div>
           <div class="sx" style="margin-left:10px;flex:1;min-width:0;text-align:left;">
             <div class="sx-name" style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(set.name)}</div>
@@ -1029,7 +1039,7 @@ export function showScanResult(res) {
         <div class="scan-result-row" style="align-items:center;background:var(--surface-2);padding:8px;border-radius:var(--r-2);border:1.5px solid var(--line-soft);margin-bottom:6px;">
           <input type="checkbox" class="scan-fig-check" data-fignum="${escapeHtml(fig.fig_num)}" data-idx="${idx}" checked style="width:18px;height:18px;margin-right:10px;cursor:pointer;">
           <div class="si${hasImg ? " has-photo" : ""}" style="width:48px;height:48px;border-radius:var(--r-1);background:linear-gradient(135deg, var(--surface-2), var(--surface-3));flex-shrink:0;position:relative;">
-            ${hasImg ? `<img src="${escapeHtml(fig.image_url)}" alt="" style="position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);object-fit:contain;">` : ""}
+            ${hasImg ? `<img class="fig-photo" src="${escapeHtml(fig.image_url)}" alt="" style="position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);object-fit:contain;">` : ""}
           </div>
           <div class="sx" style="margin-left:10px;flex:1;min-width:0;text-align:left;">
             <div class="sx-name" style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(fig.name)}</div>

@@ -39,6 +39,20 @@ test('scan route waits for a method choice and accepts a manual set number', asy
   await expect(page.getByText('Millennium Falcon').first()).toBeVisible();
 });
 
+test('photo capture releases the live camera before recognition', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  const trackStopped = await page.evaluate(async () => {
+    const scanner = await import('/js/components/scanner.js');
+    const { state } = await import('/js/state.js');
+    let stopped = false;
+    const track = { stop: () => { stopped = true; } };
+    state.camera.stream = { getTracks: () => [track] };
+    scanner.finishPhotoCapture('data:image/jpeg;base64,AA==');
+    return stopped && state.camera.stream === null && state.camera.scanning === false;
+  });
+  expect(trackStopped).toBe(true);
+});
+
 test('minifig-only scan response never reports zero sets', async ({ page }) => {
   await page.goto('/#/pile', { waitUntil: 'domcontentloaded' });
   await page.evaluate(async () => {
