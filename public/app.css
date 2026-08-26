@@ -73,6 +73,14 @@
     --shadow-2: 3px 3px 0 var(--line-soft);
     --shadow-3: 4px 4px 0 var(--line-soft);
     --shadow-4: 5px 5px 0 var(--line-soft);
+    /* AA text tokens: the light greens/reds sit at ~2.8–3.1:1 on dark surfaces
+       (verified across every dark card/skin surface). Dark gets brighter
+       up/down TEXT colors instead; the few white-on-color consumers (#toast,
+       .cs-approved/.cs-rejected) are pinned to the base hexes so their white
+       text keeps ≥5:1. Worst case for these on any dark surface: 6.07:1 /
+       5.74:1. */
+    --up: #45C77E;
+    --down: #FF8A80;
     --up-pale: #103823;
     --down-pale: #3A1817;
     --up-soft: #1A4A30;
@@ -2110,8 +2118,11 @@ ul.set-list > li { display: contents; }
   display: flex; align-items: center; gap: 10px;
 }
 #toast.show { transform: translateY(0); opacity: 1; pointer-events: auto; }
-#toast.success { background: var(--up); color: #fff; }
-#toast.error { background: var(--down); color: #fff; }
+/* White-on-color consumers: these keep the base (light-scheme) hexes even in
+   dark mode — the dark --up/--down text tokens are too light to carry white
+   text (2.2:1 vs the 5:1+ these have now). */
+#toast.success { background: #1A7F4B; color: #fff; }
+#toast.error { background: #C0392B; color: #fff; }
 #toast .t-icon { flex-shrink: 0; }
 #toast .t-icon svg { width: 18px; height: 18px; }
 /* Undo button inside the 5s undo toast — big enough to actually tap. */
@@ -4628,7 +4639,7 @@ body.sheet-open .selection-bar {
   --line-soft: #4A3E2A;     /* warm brown hairline */
   --ink: #F4EAD3;           /* warm cream (~14:1 on --bg) */
   --ink-soft: #E2D6BA;
-  --ink-mute: #BBAA88;      /* warm tan (~7:1 on --bg) */
+  --ink-mute: #CDBD9C;      /* warm tan — AA on every warm-dark surface (was BBAA88 ≈ 2.9:1 on card tints) */
   --ink-faint: #9A8A6A;     /* warm faint (~5:1 on --bg, passes AA) */
   /* signature pixel shadow as a warm cream glow, not a black punch */
   --shadow-1: 2px 2px 0 rgba(232, 220, 192, 0.16);
@@ -4711,8 +4722,9 @@ body.sheet-open .selection-bar {
 .contrib-mine-row { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: var(--bw-thin) solid var(--border-soft-c); }
 .contrib-status { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; text-transform: capitalize; flex: 0 0 auto; }
 .cs-pending { background: var(--surface-3); color: var(--ink-mute); }
-.cs-approved { background: var(--up); color: #fff; }
-.cs-rejected { background: var(--down); color: #fff; }
+/* Same white-on-color pinning as #toast (dark text tokens are light-only). */
+.cs-approved { background: #1A7F4B; color: #fff; }
+.cs-rejected { background: #C0392B; color: #fff; }
 
 /* ============================================================
    UI improvement pass: shared shells, filters, admin, profile
@@ -7063,3 +7075,29 @@ body[data-route="set-detail"] .detail-page-container[data-detail-tab="manage"] {
   .llm-step { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 10px; align-items: center; }
   .llm-step-head { margin-bottom: 0; }
 }
+
+/* ============================================================
+   P3 tap targets (WCAG 2.5.8): inline links/buttons that render
+   ~14-17px tall get an invisible padded hit area via ::before.
+   Visible text size, color and layout are untouched — the pseudo
+   element only extends the clickable region. 44px ≈ iOS HIG
+   minimum; AA 2.5.8 floor is 24px.
+   ============================================================ */
+.detail-summary-src a,
+#aboutToggle,
+.me-footer-links a,
+.app-credits > a {
+  position: relative;
+}
+.detail-summary-src a::before,
+#aboutToggle::before,
+.me-footer-links a::before,
+.app-credits > a::before {
+  content: "";
+  position: absolute;
+  inset: -15px -10px;
+}
+/* Me-page footer: real class hooks instead of inline styles. */
+.me-footer-links a { color: var(--ink-mute); text-decoration: underline; }
+.me-footer-links .dot { color: var(--ink-faint); margin: 0 8px; }
+

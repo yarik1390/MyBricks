@@ -18,8 +18,8 @@
   --r-1: 12px; --r-2: 18px; --r-3: 24px;
   --ink: #29220F;
   --ink-soft: #4A4022;
-  --ink-mute: #94886A;
-  --ink-faint: #B6AB89;
+  --ink-mute: #6F6448;      /* AA on all gold-light surfaces (was 94886A ≈ 2.95:1 on card tints) */
+  --ink-faint: #8C8062;     /* was B6AB89 ≈ 1.9:1 — now ≥3:1 (AA large-text floor) */
   --accent: #C9A227;
   --accent-fg: #2A2008;
   --bv-yellow: #C9A227;
@@ -45,7 +45,7 @@
   --border-soft-c: #2A2416;
   --ink: #F4ECD8;
   --ink-soft: #D8CBA8;
-  --ink-mute: #A2966F;
+  --ink-mute: #A2966F;      /* dark: ≥4.9:1 on all gold-dark surfaces (verified) */
   --accent: #E5C158;
   --accent-fg: #2A2008;
   --bv-yellow: #E5C158;

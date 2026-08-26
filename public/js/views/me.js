@@ -251,12 +251,12 @@ export async function renderMe() {
       <div class="u-mono-label u-fs-2xs u-faint" id="appVersionLine" style="text-align:center;margin-top:24px;">
         BRICKSVAULT · STACK SOMETHING BEAUTIFUL
       </div>
-      <div style="text-align:center;margin-top:16px;font-size:12px;">
-        <a href="/methodology.html" style="color:var(--ink-mute);text-decoration:underline;">How We Price</a>
-        <span style="color:var(--ink-faint);">·</span>
-        <a href="/privacy.html" style="color:var(--ink-mute);text-decoration:underline;">Privacy Policy</a>
-        <span style="color:var(--ink-mute);margin:0 8px;">·</span>
-        <a href="/terms.html" style="color:var(--ink-mute);text-decoration:underline;">Terms of Service</a>
+      <div class="me-footer-links" style="text-align:center;margin-top:16px;font-size:12px;">
+        <a href="/methodology.html">How We Price</a>
+        <span class="dot">·</span>
+        <a href="/privacy.html">Privacy Policy</a>
+        <span class="dot">·</span>
+        <a href="/terms.html">Terms of Service</a>
       </div>
       <div class="app-credits" style="text-align:center;margin-top:10px;font-size:11px;line-height:1.5;color:var(--ink-mute);">
         Catalog data &amp; images from <a href="https://rebrickable.com/" target="_blank" rel="noopener noreferrer" style="color:var(--ink-soft);text-decoration:underline;">Rebrickable</a>.

@@ -17,8 +17,8 @@
   --surface-3: #FFE9BE;
   --ink: #17181C;
   --ink-soft: #34363E;
-  --ink-mute: #7A715C;
-  --ink-faint: #A99C82;
+  --ink-mute: #6B6350;      /* AA (≥5:1) on all kids surfaces (was 7A715C ≈ 4.1:1 on tints) */
+  --ink-faint: #8A7F66;     /* was A99C82 ≈ 2.3:1 — now ≥3.3:1 on light AND dark surfaces */
   --line: #17181C;
   --border-c: #17181C;
   --border-soft-c: #E7DCC2;
