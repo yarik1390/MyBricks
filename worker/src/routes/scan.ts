@@ -10,6 +10,7 @@ import { resolveRoute } from '../lib/llm-routing';
 import { openAiCompatibleStep } from '../lib/llm-clients';
 import { isMergeBudgetExhausted, mergeReportedCostUsd } from '../lib/merge-gateway';
 import { recordAiUsage } from '../lib/ai-usage';
+import { identifySetWithBrickognize } from '../lib/brickognize';
 import { verifyTurnstileToken } from '../lib/turnstile';
 import { matchSetsToCatalog, matchMinifigsToCatalog, type DescribedSet, type DescribedMinifig } from '../lib/scan-match';
 import { CATALOG_COLS, MARKET_EXT_JOIN } from './sets';
@@ -592,8 +593,9 @@ app.post('/identify', async (c) => {
     return respondMatched(described.sets, described.minifigs, MODELS.openaiFallback);
   }
 
-  // 3. SHARED keyless path: Turnstile (opt-in) + per-user rate limit + the
-  //    cost-tiered vision cascade (Gemini free -> OpenRouter free -> gpt-4o-mini).
+  // 3. SHARED keyless path: Turnstile (opt-in) + per-user rate limit +
+  //    Brickognize first (unless emergency-disabled), then the admin-tuned AI
+  //    cascade. GLM is not added here or to the route defaults.
   // Turnstile tokens are bound to web hostnames and cannot be minted reliably
   // by the bundled Capacitor WebView (`https://localhost`). Authenticated
   // Android scans remain cost-bounded by the per-user quota below. The platform
@@ -707,6 +709,64 @@ app.post('/identify', async (c) => {
   // whole budget — the difference between a photo problem and a routing problem.
   const timings: StepTiming[] = [];
   const started = Date.now();
+
+  // Brickognize is the first recognizer for ordinary shared single-set photos.
+  // Shelf Snap needs multi-object recognition, and BYOK calls promise to use the
+  // member's selected provider. Acceptance requires score + result-margin gates
+  // in lib/brickognize and an exact local catalog mapping. Every other outcome
+  // falls through to the existing non-GLM AI cascade.
+  if (!shelfMode && !geminiKey && !openaiKey && c.env.BRICKOGNIZE_ENABLED !== '0') {
+    const t0 = Date.now();
+    // Preserve enough of the 14s request budget for at least one AI fallback.
+    const brickognizeBudget = Math.min(3_000, routeDeadline - Date.now() - MIN_STEP_MS);
+    if (brickognizeBudget >= 250) {
+      const brickognize = await identifySetWithBrickognize(c.env, image, {
+        timeoutMs: brickognizeBudget,
+        signal: c.req.raw.signal,
+      });
+      timings.push({
+        provider: 'brickognize',
+      model: 'sets-v1',
+      ms: Date.now() - t0,
+      outcome: brickognize.kind === 'accepted'
+        ? (brickognize.cached ? 'accepted_cache' : 'accepted')
+        : brickognize.reason,
+    });
+    if (brickognize.kind === 'accepted') {
+      const bareId = brickognize.top.id.replace(/-\d+$/, '');
+      const canonicalId = /-\d+$/.test(brickognize.top.id) ? brickognize.top.id : `${brickognize.top.id}-1`;
+      const exact = await c.env.DB.prepare(
+        `SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN}
+         WHERE s.set_num IN (?, ?, ?)
+         ORDER BY CASE s.set_num WHEN ? THEN 0 WHEN ? THEN 1 ELSE 2 END
+         LIMIT 1`,
+      ).bind(brickognize.top.id, canonicalId, bareId, brickognize.top.id, canonicalId).first<Record<string, unknown>>();
+      if (exact) {
+        const set = enrichSetRecord({ ...exact, retired: !!exact.retired });
+        logEvent(c.env, 'scan_used', userId, { setNum: String(exact.set_num || '') });
+        return finalizeShared({
+          identified: true,
+          sets: [{
+            ...set,
+            match_confidence: 'high',
+            match_reasoning: `Brickognize exact catalog match (${brickognize.top.id}, ${(brickognize.top.score * 100).toFixed(1)}%).`,
+          }],
+          minifigs: [],
+          confidence: 'high',
+          reasoning: `Brickognize matched ${brickognize.top.name}.`,
+          model: 'brickognize/sets-v1',
+          diag: {
+            timings,
+            total_ms: Date.now() - started,
+            image_kb: Math.round(image.length / 1024),
+          },
+        });
+      }
+      timings[timings.length - 1].outcome = 'unmapped';
+    }
+    }
+  }
+
   let desc: Awaited<ReturnType<typeof describeSharedScan>>;
   try {
     desc = await describeSharedScan(c.env, image, promptOpts, timings, routeDeadline);

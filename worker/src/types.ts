@@ -36,6 +36,8 @@ export interface Env {
   APP_BASE_URL?: string;
   BRICKSET_API_KEY: string;
   BRICKOWL_API_KEY?: string;
+  /** Set to "0" for an emergency rollback; enabled for ordinary shared scans by default. */
+  BRICKOGNIZE_ENABLED?: string;
   // Apify eBay sold-comps actor. On by default once this secret is configured.
   APIFY_API_TOKEN?: string;
   APIFY_ENABLED?: string;

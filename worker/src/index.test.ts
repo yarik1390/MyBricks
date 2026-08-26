@@ -11,6 +11,8 @@ declare module 'cloudflare:test' {
 
 let sharedAmbiguousCalls = 0;
 let scanProviderCalls = 0;
+let brickognizeFallbackAiCalls = 0;
+let brickognizeAcceptedAiCalls = 0;
 
 // Mock openai module completely
 vi.mock('openai', () => {
@@ -24,6 +26,8 @@ vi.mock('openai', () => {
           const systemText = typeof systemMessage === 'string' ? systemMessage : '';
           if (promptText.includes('data:image/x-shared-primary-empty')) sharedAmbiguousCalls += 1;
           if (promptText.includes('data:image/x-idempotency')) scanProviderCalls += 1;
+          if (promptText.includes('YnJpY2tvZ25pemUtcm91dGUtZmFsbGJhY2s=')) brickognizeFallbackAiCalls += 1;
+          if (promptText.includes('YnJpY2tvZ25pemUtcm91dGUtYWNjZXB0ZWQ=')) brickognizeAcceptedAiCalls += 1;
           const content = promptText.includes('Generate an eBay listing')
             ? JSON.stringify({
                 title: 'LEGO 75192 Millennium Falcon - Star Wars UCS',
@@ -107,6 +111,8 @@ describe('BrickVault API Worker Tests', () => {
 
   beforeEach(async () => {
     sharedAmbiguousCalls = 0;
+    brickognizeFallbackAiCalls = 0;
+    brickognizeAcceptedAiCalls = 0;
     // Inject secrets/configs into env
     (env as any).SUPABASE_JWT_SECRET = JWT_SECRET;
     (env as any).SUPABASE_URL = 'https://supabase.mock.io';
@@ -114,6 +120,9 @@ describe('BrickVault API Worker Tests', () => {
     (env as any).GOOGLE_CLIENT_ID = 'google-client-id-mock';
     (env as any).GOOGLE_CLIENT_SECRET = 'google-client-secret-mock';
     (env as any).OPENAI_API_KEY = 'openai-api-key-mock';
+    // Route-level Brickognize tests opt in explicitly. Keeping the rest of this
+    // broad suite isolated avoids accidental calls to the public recognition API.
+    (env as any).BRICKOGNIZE_ENABLED = '0';
 
     token = await createMockJWT(testUserId, JWT_SECRET);
     db = (env as any).DB;
@@ -1364,6 +1373,100 @@ describe('BrickVault API Worker Tests', () => {
         expect(data.identified).toBe(true);
       } finally {
         (env as any).TURNSTILE_SECRET_KEY = previous;
+      }
+    });
+
+    it('accepts a catalog-mapped Brickognize result after quota reservation and replays it without AI', async () => {
+      const previousFetch = globalThis.fetch;
+      (env as any).BRICKOGNIZE_ENABLED = '1';
+      const requestKey = 'brickognize-route-accepted-0001';
+      let brickognizeCalls = 0;
+      globalThis.fetch = vi.fn().mockImplementation((url: RequestInfo | URL) => {
+        if (url.toString().includes('api.brickognize.com')) {
+          brickognizeCalls += 1;
+          return Promise.resolve(new Response(JSON.stringify({
+            items: [
+              { id: '75192', name: 'Millennium Falcon', type: 'set', score: 0.96 },
+              { id: '75257', name: 'Millennium Falcon', type: 'set', score: 0.40 },
+            ],
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+        }
+        return previousFetch(url);
+      });
+
+      const makeRequest = () => new Request('http://localhost/api/scan/identify', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Idempotency-Key': requestKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mode: 'image', image: 'data:image/png;base64,YnJpY2tvZ25pemUtcm91dGUtYWNjZXB0ZWQ=' }),
+      });
+
+      try {
+        const first = await app.fetch(makeRequest(), env);
+        const second = await app.fetch(makeRequest(), env);
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(200);
+        const data = await first.json<{ identified: boolean; model: string; sets: Array<{ set_num: string }>; diag?: { timings: unknown[] } }>();
+        expect(data.identified).toBe(true);
+        expect(data.model).toBe('brickognize/sets-v1');
+        expect(data.sets[0]?.set_num).toBe('75192');
+        expect(data.diag?.timings).toHaveLength(1);
+        expect(brickognizeCalls).toBe(1);
+        expect(brickognizeAcceptedAiCalls).toBe(0);
+
+        const ledger = await db.prepare(
+          `SELECT status, quota_state FROM scan_requests WHERE user_id=? AND request_key=?`,
+        ).bind(testUserId, requestKey).first<{ status: string; quota_state: string }>();
+        expect(ledger).toEqual({ status: 'completed', quota_state: 'consumed' });
+        const reservations = await db.prepare(`
+          SELECT state, COUNT(*) AS count FROM scan_quota_reservations
+          WHERE user_id=? AND request_key=? GROUP BY state
+        `).bind(testUserId, requestKey).all<{ state: string; count: number }>();
+        expect(reservations.results).toEqual([{ state: 'consumed', count: 1 }]);
+      } finally {
+        globalThis.fetch = previousFetch;
+        (env as any).BRICKOGNIZE_ENABLED = '0';
+      }
+    });
+
+    it('falls back to AI when Brickognize is ambiguous', async () => {
+      const previousFetch = globalThis.fetch;
+      (env as any).BRICKOGNIZE_ENABLED = '1';
+      let brickognizeCalls = 0;
+      globalThis.fetch = vi.fn().mockImplementation((url: RequestInfo | URL) => {
+        if (url.toString().includes('api.brickognize.com')) {
+          brickognizeCalls += 1;
+          return Promise.resolve(new Response(JSON.stringify({
+            items: [
+              { id: '75192', name: 'Millennium Falcon', type: 'set', score: 0.84 },
+              { id: '75257', name: 'Millennium Falcon', type: 'set', score: 0.80 },
+            ],
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+        }
+        return previousFetch(url);
+      });
+
+      try {
+        const res = await app.fetch(
+          new Request('http://localhost/api/scan/identify', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'image', image: 'data:image/png;base64,YnJpY2tvZ25pemUtcm91dGUtZmFsbGJhY2s=' }),
+          }),
+          env,
+        );
+        expect(res.status).toBe(200);
+        const data = await res.json<{ identified: boolean; model: string }>();
+        expect(data.identified).toBe(true);
+        expect(data.model).not.toContain('brickognize');
+        expect(brickognizeCalls).toBe(1);
+        expect(brickognizeFallbackAiCalls).toBe(1);
+      } finally {
+        globalThis.fetch = previousFetch;
+        (env as any).BRICKOGNIZE_ENABLED = '0';
       }
     });
 

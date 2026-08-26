@@ -101,6 +101,7 @@ crons = [
 
 [vars]
 # Non-secret vars go here
+BRICKOGNIZE_ENABLED = "1"
 # Cloudflare AI Gateway id (the gateway NAME). Non-secret. Routing only activates
 # when AI_GATEWAY_ACCOUNT_ID is also present (uploaded as a secret in CI), so this
 # stays dormant until the gateway is provisioned + the account id is wired.
