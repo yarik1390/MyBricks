@@ -2,15 +2,22 @@
 // Single source of truth so the proxy's SSRF guard (routes/img.ts) and the
 // response rewriter (the API middleware) agree on exactly which hosts proxy.
 
-// ToS-scoped to Rebrickable's image CDN ONLY. Rebrickable explicitly permits
-// caching Set / Part / Minifig images (they even recommend it over hotlinking).
-// Brickset (box-scan attribution required) and BrickLink-sourced minifig images
-// (restrictive) are deliberately NOT cached — those stay hotlinked exactly as
-// before, so we take on no new republishing obligation. MOC images, though also
-// on this CDN, are excluded at the field level (see IMG_KEYS) — Rebrickable
-// prohibits using MOC images for any purpose.
+// Rebrickable explicitly permits caching Set / Part / Minifig images (they even
+// recommend it over hotlinking). MOC images, though also on this CDN, are
+// excluded at the field level (see IMG_KEYS) — Rebrickable prohibits using MOC
+// images for any purpose.
+//
+// images.brickset.com joined 2026-08: Brickset's CDN rejects BROWSER image
+// loads outright (verified live 2026-08-26 — every <img> fails in ~30ms while
+// the same URL returns 200 to a server-side fetch), so hotlinking produced a
+// dead photo gallery: thumbnails collapsed to 2px until each errored and the
+// Photos card silently dropped itself. Serving through /api/img keeps the
+// gallery functional; the required attribution is already rendered directly
+// under the gallery ("Images courtesy of Brickset" link, portfolio-detail.js),
+// and stays attached wherever these images appear.
 export const ALLOWED_IMG_HOSTS = new Set<string>([
   'cdn.rebrickable.com',
+  'images.brickset.com',
 ]);
 
 // Stable R2 object key for a source image URL. Normalizes via URL.toString()
