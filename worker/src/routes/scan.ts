@@ -11,6 +11,7 @@ import { openAiCompatibleStep } from '../lib/llm-clients';
 import { isMergeBudgetExhausted, mergeReportedCostUsd } from '../lib/merge-gateway';
 import { recordAiUsage } from '../lib/ai-usage';
 import { identifySetWithBrickognize } from '../lib/brickognize';
+import { identifySetWithClip, clipTimingOutcome, CLIP_MODEL } from '../lib/scan-clip';
 import { parseOcrSetNumbers, resolveOcrSetNum } from '../lib/scan-ocr';
 import { verifyTurnstileToken } from '../lib/turnstile';
 import { matchSetsToCatalog, matchMinifigsToCatalog, type DescribedSet, type DescribedMinifig } from '../lib/scan-match';
@@ -616,6 +617,17 @@ app.post('/identify', async (c) => {
     `SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN} WHERE s.set_num=?`,
   ).bind(setNum).first<Record<string, unknown>>();
 
+  const loadExactCatalogSet = async (setNum: string) => {
+    const bareId = setNum.replace(/-\d+$/, '');
+    const canonicalId = /-\d+$/.test(setNum) ? setNum : `${setNum}-1`;
+    return c.env.DB.prepare(
+      `SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN}
+       WHERE s.set_num IN (?, ?, ?)
+       ORDER BY CASE s.set_num WHEN ? THEN 0 WHEN ? THEN 1 ELSE 2 END
+       LIMIT 1`,
+    ).bind(setNum, canonicalId, bareId, setNum, canonicalId).first<Record<string, unknown>>();
+  };
+
   const respondOcrHit = async (
     hit: { setNum: string; token: string },
     timings: StepTiming[],
@@ -633,15 +645,75 @@ app.post('/identify', async (c) => {
     return viaShared ? finalizeShared(payload) : c.json(payload);
   };
 
+  const respondClipHit = async (
+    setNum: string,
+    score: number,
+    viaShared: boolean,
+  ) => {
+    const exact = await loadExactCatalogSet(setNum);
+    if (!exact) {
+      const last = timings[timings.length - 1];
+      if (last?.provider === 'clip') last.outcome = 'unmapped';
+      return null;
+    }
+    const set = enrichSetRecord({ ...exact, retired: !!exact.retired });
+    logEvent(c.env, 'scan_used', userId, { setNum: String(exact.set_num || '') });
+    const payload = {
+      identified: true as const,
+      sets: [{
+        ...set,
+        match_confidence: 'high',
+        match_reasoning: `CLIP visual match (${setNum}, ${(score * 100).toFixed(1)}%).`,
+      }],
+      minifigs: [] as unknown[],
+      confidence: 'high' as const,
+      reasoning: `CLIP matched ${String(exact.name || setNum)}.`,
+      model: `clip/${CLIP_MODEL}`,
+      diag: {
+        timings,
+        total_ms: Date.now() - started,
+        image_kb: Math.round((image || '').length / 1024),
+      },
+    };
+    return viaShared ? finalizeShared(payload) : c.json(payload);
+  };
+
+  // OCR then CLIP: $0 owned identifiers. Empty/ambiguous/unmapped/unconfigured
+  // fall through. Shelf Snap stays on the multi-object AI path.
+  const tryOwnedIdentifies = async (viaShared: boolean) => {
+    if (shelfMode) return null;
+    const ocrHit = await tryOcrCatalogHit(c.env.DB, ocrCandidates, timings);
+    if (ocrHit) {
+      const responded = await respondOcrHit(ocrHit, timings, started, viaShared);
+      if (responded) return responded;
+    }
+    const clipBudget = Math.min(2_500, routeDeadline - Date.now() - MIN_STEP_MS);
+    if (clipBudget < 250) return null;
+    const t0 = Date.now();
+    const clip = await identifySetWithClip(c.env, image || '', {
+      timeoutMs: clipBudget,
+      signal: c.req.raw.signal,
+    });
+    if (clip.kind === 'fallback' && (clip.reason === 'disabled' || clip.reason === 'unconfigured')) {
+      return null;
+    }
+    timings.push({
+      provider: 'clip',
+      model: CLIP_MODEL,
+      ms: Date.now() - t0,
+      outcome: clipTimingOutcome(clip),
+    });
+    if (clip.kind === 'accepted') {
+      const responded = await respondClipHit(clip.top.setNum, clip.top.score, viaShared);
+      if (responded) return responded;
+    }
+    return null;
+  };
+
   // 1. BYOK Gemini — the user's own key, called directly on their quota.
   if (geminiKey) {
-    if (!shelfMode) {
-      const ocrHit = await tryOcrCatalogHit(c.env.DB, ocrCandidates, timings);
-      if (ocrHit) {
-        const responded = await respondOcrHit(ocrHit, timings, started, false);
-        if (responded) return responded;
-      }
-    }
+    const owned = await tryOwnedIdentifies(false);
+    if (owned) return owned;
     let res: Awaited<ReturnType<typeof callGeminiScan>> = null;
     try { res = await callGeminiScan(image, geminiKey, c.env, { prompt: promptOpts.prompt }); }
     catch (e) {
@@ -667,13 +739,8 @@ app.post('/identify', async (c) => {
 
   // 2. BYOK OpenAI — the user's own key, called directly.
   if (openaiKey) {
-    if (!shelfMode) {
-      const ocrHit = await tryOcrCatalogHit(c.env.DB, ocrCandidates, timings);
-      if (ocrHit) {
-        const responded = await respondOcrHit(ocrHit, timings, started, false);
-        if (responded) return responded;
-      }
-    }
+    const owned = await tryOwnedIdentifies(false);
+    if (owned) return owned;
     const client = new OpenAI({ apiKey: openaiKey, maxRetries: 0 });
     let described: Awaited<ReturnType<typeof openaiVisionDescribe>> = {
       sets: [], minifigs: [], imageClass: 'uncertain', parsed: false,
@@ -802,14 +869,11 @@ app.post('/identify', async (c) => {
     }
   }
 
-  // OCR-first: a clearly printed set number that exists in D1 is a $0 exact
-  // hit. Empty, unmapped, or ambiguous OCR falls through to Brickognize then AI.
-  if (!shelfMode) {
-    const ocrHit = await tryOcrCatalogHit(c.env.DB, ocrCandidates, timings);
-    if (ocrHit) {
-      const responded = await respondOcrHit(ocrHit, timings, started, true);
-      if (responded) return responded;
-    }
+  // OCR then CLIP: printed set numbers and owned visual NN both short-circuit
+  // Brickognize / the paid cascade. Empty, unmapped, or ambiguous fall through.
+  {
+    const owned = await tryOwnedIdentifies(true);
+    if (owned) return owned;
   }
 
   // Brickognize is the next recognizer for ordinary shared single-set photos.

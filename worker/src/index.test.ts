@@ -1516,6 +1516,71 @@ describe('BrickVault API Worker Tests', () => {
       }
     });
 
+    it('accepts a unique CLIP visual match after OCR miss and skips Brickognize', async () => {
+      const previousFetch = globalThis.fetch;
+      const previousClip = (env as any).SET_CLIP;
+      const previousEmbed = (env as any).CLIP_EMBED;
+      (env as any).BRICKOGNIZE_ENABLED = '1';
+      (env as any).CLIP_ENABLED = '1';
+      let brickognizeCalls = 0;
+      const vector = Array.from({ length: 512 }, (_, i) => (i === 0 ? 1 : 0));
+      (env as any).CLIP_EMBED = {
+        fetch: async () => new Response(JSON.stringify({ vector, dim: 512, model: 'mobileclip-s2' }), {
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      };
+      (env as any).SET_CLIP = {
+        query: async () => ({
+          matches: [
+            { id: 'clip:v1:75192:official', score: 0.91, metadata: { set_num: '75192', view: 'official' } },
+            { id: 'clip:v1:75257-1:official', score: 0.40, metadata: { set_num: '75257-1', view: 'official' } },
+          ],
+        }),
+        upsert: async () => ({ mutationId: 'test' }),
+      };
+      globalThis.fetch = vi.fn().mockImplementation((url: RequestInfo | URL) => {
+        if (url.toString().includes('api.brickognize.com')) {
+          brickognizeCalls += 1;
+          return Promise.resolve(new Response('should-not-run', { status: 500 }));
+        }
+        return previousFetch(url);
+      });
+
+      try {
+        const res = await app.fetch(
+          new Request('http://localhost/api/scan/identify', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode: 'image',
+              image: 'data:image/jpeg;base64,Y2xpcC1yb3V0ZS1hY2NlcHRlZC1oaXQ=',
+            }),
+          }),
+          env,
+        );
+        expect(res.status).toBe(200);
+        const data = await res.json<{
+          identified: boolean;
+          model: string;
+          reasoning: string;
+          sets: Array<{ set_num: string }>;
+          diag?: { timings: Array<{ provider: string; outcome: string }> };
+        }>();
+        expect(data.identified).toBe(true);
+        expect(data.model).toBe('clip/mobileclip-s2');
+        expect(data.sets[0]?.set_num).toBe('75192');
+        expect(data.reasoning).toContain('CLIP matched');
+        expect(data.diag?.timings?.some((step) => step.provider === 'clip' && step.outcome === 'accepted')).toBe(true);
+        expect(brickognizeCalls).toBe(0);
+        expect(brickognizeAcceptedAiCalls).toBe(0);
+      } finally {
+        globalThis.fetch = previousFetch;
+        (env as any).BRICKOGNIZE_ENABLED = '0';
+        (env as any).SET_CLIP = previousClip;
+        (env as any).CLIP_EMBED = previousEmbed;
+      }
+    });
+
     it('falls through to AI when OCR candidates are unmapped', async () => {
       const res = await app.fetch(
         new Request('http://localhost/api/scan/identify', {

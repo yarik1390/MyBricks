@@ -33,10 +33,12 @@ alerts, and share a public profile. Live: https://bricksvault.app
 - `routes/` — one Hono sub-app per resource (`collection`, `sets`, `wishlist`,
   `me`, `themes`, `minifigs`, `scan`, `admin`, `advisor`, `profile`, `google-sync`)
 - `jobs/` — cron job handlers (`valuate-sets`, `snapshot-portfolios`,
-  `snapshot-set-values`, `wishlist-alerts`, `import-catalog`, `backfill-upc`)
+  `snapshot-set-values`, `wishlist-alerts`, `import-catalog`, `backfill-upc`,
+  `clip-index`)
 - `lib/` — external integrations + pure helpers (`bricklink`, `ebay`,
   `brickeconomy`, `brickset`, `brickowl-barcode`, `gemini`, `valuation`,
-  `price-trend`, `retirement-risk`, `advisor-context`)
+  `price-trend`, `retirement-risk`, `advisor-context`, `scan-ocr`, `scan-clip`,
+  `brickognize`)
 
 ### Frontend layout (`public/js`)
 - `app.js` — bootstrap + router wiring (loaded as `type="module"`)

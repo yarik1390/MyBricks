@@ -29,6 +29,26 @@ dataset = "brickvault_events"
 binding = "PHOTO_BUCKET"
 bucket_name = "brickvault-photos"
 
+# Visual set-ID index: MobileCLIP-S2 embeddings, 512-d cosine.
+# Workers AI has NO image-embedding models — do not add an [[ai]] CLIP bind.
+# Create once (required before the first production deploy of this binding):
+#   npx wrangler vectorize create brickvault-set-clip --dimensions=512 --metric=cosine
+[[vectorize]]
+binding = "SET_CLIP"
+index_name = "brickvault-set-clip"
+
+# Cloudflare Container embedder (MobileCLIP-S2 ONNX). NOT enabled in this
+# deploy: CI/dry-run has no published container image, and wrangler would fail
+# the Worker until one exists. Production query path uses CLIP_EMBED (Fetcher)
+# or CLIP_EMBED_URL (Worker secret). Image + server live in containers/clip-embed/.
+# When ready:
+#   [[containers]]
+#   class_name = "ClipEmbedContainer"
+#   image = "../containers/clip-embed/Dockerfile"
+#   instance_type = "standard-2"
+#   max_instances = 1
+
+
 # Workers PAID plan allows up to 250 cron triggers. The daily maintenance that was
 # packed into a single 04:00 invocation is split into dedicated slots so each heavy
 # job runs in its own invocation (own subrequest budget + failure isolation):
@@ -78,6 +98,9 @@ crons = [
   # Minifig identity verification: price-agreement settling of ambiguous
   # Rebrickable->BrickLink name matches (minifig_bl_candidates queue).
   "0 16 * * *",
+  # CLIP/Vectorize catalog embed. No-op until SET_CLIP + CLIP_EMBED/_URL.
+  # Incremental only — bootstrap the ~27k official images with scripts/clip-index.mjs.
+  "30 17 * * *",
   # StockX lowest-ask enrichment (Bright Data, rendered). OFF by default (the
   # stockx flag / STOCKX_ENABLED) — a no-op until enabled, then a bounded
   # corroborating-only scrape.
@@ -102,6 +125,9 @@ crons = [
 [vars]
 # Non-secret vars go here
 BRICKOGNIZE_ENABLED = "1"
+# Owned CLIP/Vectorize visual ID (after OCR, before Brickognize). Requires
+# SET_CLIP + CLIP_EMBED or CLIP_EMBED_URL; otherwise the step is skipped.
+CLIP_ENABLED = "1"
 # Cloudflare AI Gateway id (the gateway NAME). Non-secret. Routing only activates
 # when AI_GATEWAY_ACCOUNT_ID is also present (uploaded as a secret in CI), so this
 # stays dormant until the gateway is provisioned + the account id is wired.

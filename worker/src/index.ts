@@ -21,6 +21,7 @@ import { contributionsRoute } from './routes/contributions';
 import { imgRoute } from './routes/img';
 import { rewriteImages } from './lib/img-proxy';
 import { runImagePrewarm } from './jobs/image-prewarm';
+import { runClipIndex } from './jobs/clip-index';
 import { indexMissingAlts } from './lib/build-alts';
 import { runUpcomingRefresh } from './jobs/upcoming-refresh';
 import { upcomingRoute } from './routes/upcoming';
@@ -509,6 +510,7 @@ export default {
       case '0 14 * * *': await run('pricecharting-enrich', () => runPriceChartingEnrich(env, { limit: 100, concurrency: 5 })); break;
       case '0 15 * * *': await run('upcoming-refresh', () => runUpcomingRefresh(env)); break;
       case '0 16 * * *': await run('minifig-verify', () => runMinifigVerify(env)); break;
+      case '30 17 * * *': await run('clip-index', () => runClipIndex(env, { limit: 40 })); break;
       // pricesAPI live-retail runs in 3 daily slots (~18 sets/day) now that the
       // key pool spreads the monthly budget; cold calls are 30–90s so each slot
       // stays small. The job prioritizes owned/wishlisted sets first.

@@ -9,6 +9,18 @@ export interface Env {
   CACHE_KV?: KVNamespace;
   ANALYTICS?: AnalyticsEngineDataset;
   PHOTO_BUCKET?: R2Bucket;
+  /** 512-d cosine Vectorize index of official catalog set images (MobileCLIP-S2). */
+  SET_CLIP?: Vectorize;
+  /**
+   * Owned CLIP image embedder. Workers AI has no CLIP/image embedding models —
+   * do not bind @cf/openai/clip. Production is a Cloudflare Container running
+   * MobileCLIP-S2 ONNX, exposed as a Fetcher (service/container) or as
+   * CLIP_EMBED_URL. See docs/clip-set-index.md.
+   */
+  CLIP_EMBED?: Fetcher;
+  CLIP_EMBED_URL?: string;
+  /** Set to "0" to skip the CLIP/Vectorize scan step; enabled by default. */
+  CLIP_ENABLED?: string;
   OPENAI_API_KEY: string;
   REBRICKABLE_API_KEY: string;
   SUPABASE_URL: string;
