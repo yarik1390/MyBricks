@@ -37,6 +37,7 @@ Scale: D1 holds **~27,074 sets** and **~16,960 minifigs**.
 | Database | **Cloudflare D1** (SQLite), single binding `DB` |
 | Cache KV | Cloudflare **KV**, binding `CACHE_KV` |
 | Object store | Cloudflare **R2**, binding `PHOTO_BUCKET` (collection photos) |
+| Vector search | Cloudflare **Vectorize**, binding `SET_CLIP` (`brickvault-set-clip`, 512-d cosine) |
 | Analytics | Cloudflare **Analytics Engine**, binding `ANALYTICS` |
 | Auth | **Supabase** JWT — verified in `worker/src/auth.ts` |
 | Frontend | **Vanilla JS SPA**, hash routing, **no framework** (`public/js`) ES modules |
@@ -223,7 +224,7 @@ Mutations use `requireMember`; everything under `/api/admin` uses `requireAdmin`
 | `/api/sets` | GET `/search`, GET `/:setnum`, GET `/:setnum/images`, GET `/:setnum/parts`, PATCH `/:setnum/parts/:partNumColor`, GET `/:setnum/history`, POST `/:setnum/listing-draft`, POST `/:setnum/revalue` |
 | `/api/themes` | GET `/` (theme groups + categories + facets) |
 | `/api/minifigs` | GET `/`, GET `/series`, GET `/blindbox`, PUT/DELETE `/:fignum` |
-| `/api/scan` | POST `/identify` (barcode/photo → set) |
+| `/api/scan` | POST `/identify` (barcode/photo → set; OCR → CLIP/Vectorize → Brickognize → VLM. Shelf Snap skips CLIP) |
 | `/api/build` | GET `/` (alternate builds), GET `/sets` (buildable-from-owned) |
 | `/api/advisor` | POST `/` (AI chat; streaming) |
 | `/api/users` | GET `/leaderboard`, GET `/:handle/profile`, POST `/:handle/showcase`, GET `/check-handle/:handle` |
@@ -376,8 +377,10 @@ supply their own via `X-Gemini-Key` / `X-OpenAI-Key` request headers.
 `GOOGLE_CLIENT_SECRET` (Sheets sync).
 
 **Bindings (wrangler.toml):** `DB` (D1), `CACHE_KV` (KV), `PHOTO_BUCKET` (R2),
-`ANALYTICS` (Analytics Engine). **Never log secret values; `/api/config` only
-exposes client-safe values.**
+`ANALYTICS` (Analytics Engine), `SET_CLIP` (Vectorize). Optional `CLIP_EMBED`
+Fetcher or `CLIP_EMBED_URL` secret for the owned MobileCLIP-S2 container —
+Workers AI has no image-embedding models. See [`docs/clip-set-index.md`](./docs/clip-set-index.md).
+**Never log secret values; `/api/config` only exposes client-safe values.**
 
 ### Cron schedule (`wrangler.toml [triggers]` → `index.ts` `scheduled()` switch)
 | Cron (UTC) | Job(s) |
@@ -406,6 +409,7 @@ exposes client-safe values.**
 | `0 15` | upcoming / coming-soon refresh (Firecrawl) |
 | `0 16` | minifig identity verification (price-agreement settling) |
 | `30 16` | Amazon offers refresh (second slot) |
+| `30 17` | CLIP/Vectorize catalog embed (no-op until `SET_CLIP` + embedder) |
 | `0 18` | StockX lowest-ask enrich (off unless `STOCKX_ENABLED=1`) |
 | `0 20` | AI gap-fill (free Gemini/OpenRouter) |
 | `0 22` | community comps |
@@ -503,6 +507,19 @@ Both one-time bootstraps — PriceCharting per-set (`10,25,40,55`) and BrickEcon
 ## 11. Recent-changes changelog
 
 Newest first. (Service-worker `VERSION` in parentheses where relevant.)
+
+**CLIP/Vectorize visual set-ID (2026-08-27)** — Slice 2 of the cheap Brickognize
+replacement. After OCR misses, `POST /api/scan/identify` embeds the photo with
+an owned MobileCLIP-S2 encoder (Cloudflare Container / `CLIP_EMBED_URL` — **not**
+Workers AI, which has no image embeddings) and nearest-neighbor searches
+Vectorize (`SET_CLIP`, 512-d cosine). Unique hits use Brickognize's accept/margin
+gates (score ≥ 0.75 and ≥ 0.10 vs the next *set* after collapse-by-`set_num`)
+and skip Brickognize + the paid VLM cascade. Index is official Rebrickable /
+stored Brickset catalog URLs only (1–3 views; no BrickLink, no MOCs, no pixel
+republish). Incremental job `clip-index` + `scripts/clip-index.mjs` bootstrap.
+Container bindings are documented but not live in wrangler until the image is
+published. Full write-up: [`docs/clip-set-index.md`](./docs/clip-set-index.md).
+Built-set photos will lag Brickognize until user-confirmed photos are indexed.
 
 **Merge Gateway + admin-tunable LLM routing (2026-08-19, v430)**
 - **Merge Gateway runs in parallel with OpenRouter.** OpenAI-compatible at

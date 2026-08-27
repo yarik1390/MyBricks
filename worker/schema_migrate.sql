@@ -691,4 +691,16 @@ CREATE TABLE IF NOT EXISTS scrapingant_keys (
 
 CREATE TABLE IF NOT EXISTS set_description_i18n (set_num TEXT NOT NULL, lang TEXT NOT NULL, description TEXT NOT NULL, source_hash TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (set_num, lang));
 
+CREATE TABLE IF NOT EXISTS set_clip_index (
+  vector_id TEXT PRIMARY KEY,
+  set_num TEXT NOT NULL,
+  view TEXT NOT NULL,
+  image_url TEXT NOT NULL,
+  model TEXT NOT NULL,
+  dim INTEGER NOT NULL,
+  indexed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_set_clip_index_set ON set_clip_index(set_num);
+CREATE INDEX IF NOT EXISTS idx_set_clip_index_view ON set_clip_index(view, indexed_at);
+
 ALTER TABLE user_wishlist ADD COLUMN acknowledged_at DATETIME;

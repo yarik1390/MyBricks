@@ -62,6 +62,7 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   'weekly-import-sets': { label: 'Import sets', description: 'Weekly Rebrickable catalog import for LEGO sets.', schedule: 'Weekly Sun 04:00 UTC', group: 'Catalog' },
   'weekly-import-figs': { label: 'Import minifigs', description: 'Weekly Rebrickable catalog import for minifigures.', schedule: 'Weekly Sun 04:00 UTC', group: 'Catalog' },
   'upcoming-refresh': { label: 'Upcoming sets', description: 'Scrapes upcoming / coming-soon LEGO sets for the release feed.', schedule: 'Daily 15:00 UTC', group: 'Catalog' },
+  'clip-index': { label: 'CLIP set-image index', description: 'Embeds official Rebrickable/Brickset catalog images (MobileCLIP-S2) into Vectorize. Incremental; bootstrap with scripts/clip-index.mjs. No-op until the embedder is bound.', schedule: 'Daily 17:30 UTC', group: 'Catalog' },
 
   // --- Maintenance ---
   'db-hygiene': { label: 'Database hygiene', description: 'Cleans up stale rows, expired sessions and orphaned data.', schedule: 'Daily 04:00 UTC', group: 'Maintenance' },

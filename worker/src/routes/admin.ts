@@ -19,6 +19,7 @@ import { runPriceChartingEnrich } from '../jobs/pricecharting-enrich';
 import { runStockXEnrich } from '../jobs/stockx-enrich';
 import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricecharting-bulk';
 import { indexMissingAlts } from '../lib/build-alts';
+import { runClipIndex } from '../jobs/clip-index';
 import { runMinifigVerify } from '../jobs/minifig-verify';
 import { runCommunityComps } from '../jobs/community-comps';
 import { importBrickLinkMinifigs } from '../jobs/import-bricklink-minifigs';
@@ -1128,6 +1129,7 @@ const JOB_LIMITS: Record<string, number> = {
   'pricecharting-bulk-fetch': 1,
   'pricecharting-verify-drain': 400,
   'build-alts-index': 40,
+  'clip-index': 40,
 };
 
 // Hard ceiling on an admin-triggered job's per-call limit, so a manual override
@@ -1202,6 +1204,10 @@ app.post('/jobs/:job', async (c) => {
       // Alternate-builds indexer (05:30 cron). ?limit= advances the backfill
       // faster than the default 40 sets per call.
       const r = await indexMissingAlts(c.env, { limit });
+      result = { ...r };
+    } else if (job === 'clip-index') {
+      // CLIP/Vectorize official-image embed. No-op until SET_CLIP + CLIP_EMBED.
+      const r = await runClipIndex(c.env, { limit });
       result = { ...r };
     } else {
       return c.json({ error: 'Not implemented' }, 501);

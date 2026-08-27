@@ -991,3 +991,19 @@ CREATE TABLE IF NOT EXISTS set_description_i18n (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (set_num, lang)
 );
+
+-- CLIP/Vectorize visual set-ID index bookkeeping. Vectors live in Vectorize
+-- (`brickvault-set-clip`, 512-d cosine); this table records which official
+-- catalog images have been embedded so the incremental indexer can skip them.
+-- Pixels are never stored — only the catalog URL already on lego_sets.
+CREATE TABLE IF NOT EXISTS set_clip_index (
+  vector_id TEXT PRIMARY KEY,
+  set_num TEXT NOT NULL,
+  view TEXT NOT NULL,
+  image_url TEXT NOT NULL,
+  model TEXT NOT NULL,
+  dim INTEGER NOT NULL,
+  indexed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_set_clip_index_set ON set_clip_index(set_num);
+CREATE INDEX IF NOT EXISTS idx_set_clip_index_view ON set_clip_index(view, indexed_at);
