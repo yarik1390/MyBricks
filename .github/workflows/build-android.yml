@@ -61,10 +61,6 @@ jobs:
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 30
     env:
-      # Prefixing the repository-monotonic run number with "10" keeps every
-      # generated integer above historical commit-count codes without relying
-      # on unsupported arithmetic in GitHub Actions expressions.
-      ANDROID_VERSION_CODE: ${{ format('10{0}', github.run_number) }}
       ANDROID_APP_LINK_SHA256: ${{ secrets.ANDROID_APP_LINK_SHA256 }}
     permissions:
       contents: write
@@ -75,6 +71,10 @@ jobs:
         # silently fall back to the build.gradle floor.
         with:
           fetch-depth: 0
+
+      - name: Set monotonic Android version code
+        # Shell arithmetic is supported here; GitHub expressions do not support +.
+        run: echo "ANDROID_VERSION_CODE=$((100000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v4
         with:
@@ -128,6 +128,9 @@ jobs:
           else
             echo "::warning::ANDROID_GOOGLE_SERVICES_JSON_BASE64 is missing; native push will be unavailable."
           fi
+
+      - name: Configure verified Android App Link
+        run: npm run android:assetlinks
 
       - name: Refresh the bundled offline seed catalog
         # Regenerate public/data/seed-catalog.json from the live catalog so the
