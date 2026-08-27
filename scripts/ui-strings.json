@@ -5390,6 +5390,30 @@
     ]
   },
   {
+    "text": "Minifigure",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "Minifigure rarity filters",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "Minifigure series filters",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "Minifigure sort controls",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
     "text": "Minifigures",
     "files": [
       "components/scanner.js"
@@ -7316,6 +7340,12 @@
   },
   {
     "text": "Rare finds in your vault",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "Rare minifigures in your vault",
     "files": [
       "views/minifigs.js"
     ]

@@ -9,6 +9,7 @@ import { skelPage, skelCardList } from '../components/skeleton.js';
 import { activeFigFilterCount } from '../lib/pure.js';
 import { figFilterSummaryText } from '../lib/filter-summary.js';
 import { figAvatarSVG } from '../lib/fig-avatar.js';
+import { wireHorizontalRail } from '../lib/horizontal-rail.js';
 
 const rarityLabel = (rarity) => {
   const value = String(rarity || 'common').toLowerCase();
@@ -155,15 +156,15 @@ export async function renderBlind() {
           <span class="s-icon">${I.search()}</span>
           <input class="search-input" id="figSearch" name="minifig_search" type="search" aria-label="Search minifigures" placeholder="Search minifigs…" autocomplete="off" value="${escapeHtml(f.figQ)}">
         </div>
-        <div class="filter-row">
+        <div class="filter-row horizontal-rail" aria-label="Minifigure rarity filters">
           <button class="chip ${f.figRarity === 'all' ? 'active' : ''}" data-fig-rarity="all">All</button>
           ${rarities.map(r => `<button class="chip ${f.figRarity === r ? 'active' : ''} rarity-chip-${r}" data-fig-rarity="${r}">${r.charAt(0).toUpperCase() + r.slice(1)}</button>`).join('')}
           <button class="chip fig-owned-chip ${f.figOwned !== 'all' ? 'active' : ''}" id="figOwnedChip">${ownedChipLabel}</button>
         </div>
-        <div class="filter-row" id="figSeriesChips" style="margin-top:-2px;margin-bottom:4px;">
+        <div class="filter-row horizontal-rail" id="figSeriesChips" aria-label="Minifigure series filters" style="margin-top:-2px;margin-bottom:4px;">
           ${seriesChipsHTML(f)}
         </div>
-        <div class="filter-row" style="margin-top:2px;gap:6px;">
+        <div class="filter-row horizontal-rail" aria-label="Minifigure sort controls" style="margin-top:2px;gap:6px;">
           <span class="filter-row-label">Sort</span>
           ${FIG_SORTS.map(o => `<button class="chip ${(f.figSort === o.asc || f.figSort === o.desc) ? 'active' : ''}" data-fig-sort-base="${o.base}">${figSortChipText(o, f.figSort)}</button>`).join('')}
           <button class="chip ${activeFigFilterCount(f) ? 'active' : ''}" id="figFilterChip">${I.filter()}<span>${escapeHtml(activeFigFilterCount(f) ? tPlural('catalog.filtersWithCount', activeFigFilterCount(f)) : t('catalog.filters'))}</span></button>
@@ -223,6 +224,7 @@ export async function renderBlind() {
 
   wireMiniCards();
   mountBlindSentinel();
+  document.querySelectorAll('.fig-filter-bar .horizontal-rail').forEach(wireHorizontalRail);
   loadRareFinds();
 }
 
@@ -236,21 +238,23 @@ async function loadRareFinds() {
   if (!el || !figs.length) return;
   el.innerHTML = `
     <h2 class="section-title" style="margin-top:0;">Rare finds in your vault</h2>
-    <div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:6px;margin-bottom:14px;-webkit-overflow-scrolling:touch;">
+    <div class="rare-finds-rail horizontal-rail" aria-label="Rare minifigures in your vault">
       ${figs.map((f) => {
         const r = f.rarity || 'rare';
-        return `<button class="rare-find-card" data-fig="${escapeHtml(String(f.fig_num))}" style="flex:0 0 auto;width:120px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:10px;text-align:center;cursor:pointer;">
-          <div style="height:72px;display:flex;align-items:center;justify-content:center;margin-bottom:6px;">
+        const spokenLabel = `${String(f.name || 'Minifigure')}, ${rarityLabel(r)}${f.current_value ? `, ${fmtMoney(f.current_value, { cents: 0 })}` : ''}`;
+        return `<button class="rare-find-card" data-fig="${escapeHtml(String(f.fig_num))}" aria-label="${escapeHtml(spokenLabel)}">
+          <div class="rare-find-image">
             ${f.image_url ? `<img src="${escapeHtml(thumbImg(String(f.image_url)))}" alt="" loading="lazy" decoding="async" style="max-width:100%;max-height:72px;object-fit:contain;">` : figAvatarSVG(String(f.fig_num), String(f.name || ''))}
           </div>
-          <div style="font-size:11px;font-weight:600;color:var(--ink);line-height:1.25;height:28px;overflow:hidden;">${escapeHtml(String(f.name || ''))}</div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:4px;">
-            <span class="mini-rarity-tag rarity-${r}" style="font-size:8px;padding:1px 5px;">${escapeHtml(rarityLabel(r))}</span>
-            ${f.current_value ? `<span style="font-size:12px;font-weight:700;color:var(--ink);">${fmtMoney(f.current_value, { cents: 0 })}</span>` : ''}
+          <div class="rare-find-name">${escapeHtml(String(f.name || ''))}</div>
+          <div class="rare-find-meta">
+            <span class="mini-rarity-tag rarity-${r}">${escapeHtml(rarityLabel(r))}</span>
+            ${f.current_value ? `<span class="rare-find-value">${fmtMoney(f.current_value, { cents: 0 })}</span>` : ''}
           </div>
         </button>`;
       }).join('')}
     </div>`;
+  wireHorizontalRail(el.querySelector('.rare-finds-rail'));
   el.querySelectorAll('.rare-find-card').forEach((btn) => btn.addEventListener('click', () => {
     const fig = figs.find((x) => String(x.fig_num) === btn.dataset.fig);
     if (fig) { haptic('light'); showFigDetail(fig); }

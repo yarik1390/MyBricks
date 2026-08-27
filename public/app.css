@@ -1834,8 +1834,55 @@ ul.set-list > li { display: contents; }
 .fig-stat-num { font-size: 18px; line-height: 1.1; margin-top: 0; }
 .fig-stat-lbl { margin-top: 3px; }
 
-/* --- Filter bar --- */
+/* --- Filter bar and rare-find rail --- */
 .fig-filter-bar { margin-bottom: 14px; }
+.rare-finds-rail {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 4px 8px;
+  margin: -2px -4px 14px;
+  scroll-padding-inline: 4px;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+}
+.rare-finds-rail::-webkit-scrollbar { display: none; }
+.rare-find-card {
+  flex: 0 0 120px;
+  min-height: 160px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-2);
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+}
+.rare-find-image {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+.rare-find-name {
+  min-height: 2.75em;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.rare-find-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  gap: 4px;
+}
+.rare-find-meta .mini-rarity-tag { font-size: 9px; padding: 2px 5px; }
+.rare-find-value { color: var(--ink); font-size: 12px; font-weight: 700; }
 
 /* --- Grid --- */
 .mini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
