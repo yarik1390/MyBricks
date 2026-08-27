@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, fmtPct, setHue, bvIDB, celebrate, celebrateChime, soundEnabled, advisorEnabled, publicOrigin } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, setHue, bvIDB, celebrate, celebrateChime, soundEnabled, advisorEnabled, publicOrigin } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, sbSignOut, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
@@ -114,10 +114,10 @@ export async function renderMe() {
         <div class="summary-cell"><div class="lbl">Sets owned</div><div class="val">${c.set_count || 0}</div></div>
         <div class="summary-cell"><div class="lbl">Total value</div><div class="val">${fmtMoneyShort(c.total_value || 0)}</div></div>
         <div class="summary-cell"><div class="lbl">Invested</div><div class="val">${fmtMoneyShort(c.total_paid || 0)}</div></div>
-        <div class="summary-cell">
-          <div class="lbl">Gain</div>
-          <div class="val" style="color:${gain >= 0 ? "var(--up)" : "var(--down)"};">${fmtMoneyShort(gain)}</div>
-          <div class="delta ${gain >= 0 ? "up" : "down"}" style="margin-top:6px;"><span class="arrow" aria-hidden="true">${gain >= 0 ? "▲" : "▼"}</span>${fmtPct(Math.abs(gainPct))}</div>
+        <div class="summary-cell portfolio-change ${gain >= 0 ? "is-gain" : "is-loss"}" data-testid="portfolio-change">
+          <div class="lbl">${gain >= 0 ? "Gain" : "Loss"}</div>
+          <div class="val">${gain >= 0 ? "+" : "-"}${fmtMoneyShort(Math.abs(gain))}</div>
+          <div class="delta ${gain >= 0 ? "up" : "down"}" style="margin-top:6px;"><span class="arrow" aria-hidden="true">${gain >= 0 ? "▲" : "▼"}</span>${gain >= 0 ? "+" : "-"}${(Math.abs(gainPct) * 100).toFixed(1)}%</div>
         </div>
       </div>
 
@@ -141,7 +141,8 @@ export async function renderMe() {
         <aside class="profile-side">
 
       <h2 class="section-title">Preferences</h2>
-      <div>
+      <div class="profile-settings-group">
+        <h3 class="profile-settings-heading">Appearance &amp; view</h3>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Appearance</div><div class="desc">Match your device or pick a side.</div></div>
           <div class="theme-seg" id="themeSeg" role="group" aria-label="Theme">
@@ -177,6 +178,7 @@ export async function renderMe() {
           </div>
           ${I.chev()}
         </div>` : ""}
+        <h3 class="profile-settings-heading">Notifications</h3>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Price-drop alerts</div><div class="desc">Alert when wishlisted sets hit your target.</div></div>
           <button class="toggle ${me.notify_price_drops ? "on" : ""}" id="notifyToggle" role="switch" aria-label="Price-drop alerts" aria-checked="${!!me.notify_price_drops}"></button>
@@ -185,6 +187,7 @@ export async function renderMe() {
           <div class="lbl-wrap"><div class="lbl">Weekly vault digest</div><div class="desc">A Sunday summary: value change, top mover, wishlist hits.</div></div>
           <button class="toggle ${me.notify_weekly_digest ? "on" : ""}" id="digestToggle" role="switch" aria-label="Weekly vault digest" aria-checked="${!!me.notify_weekly_digest}"></button>
         </div>
+        <h3 class="profile-settings-heading">App experience</h3>
         <div class="setting-row" id="appLockRow" style="display:none;">
           <div class="lbl-wrap"><div class="lbl">App lock</div><div class="desc">Require your fingerprint (or device PIN) to open BricksVault.</div></div>
           <button class="toggle" id="appLockToggle" role="switch" aria-label="App lock" aria-checked="false"></button>

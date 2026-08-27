@@ -227,7 +227,7 @@ function pageHtml() {
     </div>
     <p class="build-intro">${_mode === 'sets' ? 'Official sets you can build from owned parts, ranked by completion.' : 'Alternate models from sets you own, with instruction links.'}</p>
     ${tiles()}
-    <input id="buildSearch" class="build-search" type="search" placeholder="Search…" value="${escapeHtml(_q)}">
+    <input id="buildSearch" name="build_search" class="build-search" type="search" aria-label="Search buildable sets" placeholder="Search…" autocomplete="off" value="${escapeHtml(_q)}">
     ${(_mode === 'alts' && _alts.indexing) ? `<div class="b-indexing">${tPlural('build.indexing', _alts.indexing)}</div>` : ''}
     ${listHtml()}
   </div>`;

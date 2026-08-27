@@ -711,11 +711,23 @@
     ]
   },
   {
+    "text": "Any price",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
     "text": "App",
     "files": [
       "app.js",
       "lib/app-lock.js",
       "lib/native-back.js",
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "App experience",
+    "files": [
       "views/me.js"
     ]
   },
@@ -751,6 +763,12 @@
   },
   {
     "text": "Appearance",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "Appearance & view",
     "files": [
       "views/me.js"
     ]
@@ -808,6 +826,12 @@
     "text": "As of",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Ascending",
+    "files": [
+      "views/catalog.js"
     ]
   },
   {
@@ -911,6 +935,18 @@
     "text": "Auto-runs weekly (Sunday); CSV downloads are limited to once per 10 minutes. Needs the Legendary-tier token.",
     "files": [
       "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Availability",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "Available",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -1606,6 +1642,12 @@
     "files": [
       "views/me-admin-config.js",
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Catalog controls",
+    "files": [
+      "views/catalog.js"
     ]
   },
   {
@@ -2579,6 +2621,12 @@
     ]
   },
   {
+    "text": "Deals only",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
     "text": "Decent health, but room to improve on theme diversification or set completeness.",
     "files": [
       "components/advisor.js"
@@ -2649,6 +2697,12 @@
     "text": "Demo Portfolio Preview",
     "files": [
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "Descending",
+    "files": [
+      "views/catalog.js"
     ]
   },
   {
@@ -4940,6 +4994,12 @@
     ]
   },
   {
+    "text": "Loss",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
     "text": "Low RAM detected",
     "files": [
       "views/me-integrations.js"
@@ -6056,6 +6116,7 @@
     "text": "Notifications",
     "files": [
       "views/me-admin-config.js",
+      "views/me.js",
       "views/portfolio.js"
     ]
   },
@@ -6572,8 +6633,7 @@
   {
     "text": "Pick a category tab to see just those services. Tap any service for its status, usage, and controls — test it, flip capabilities on or off, and tune pricing, all without touching code.",
     "files": [
-      "runtime-exact",
-      "views/me-admin.js"
+      "runtime-exact"
     ]
   },
   {
@@ -6689,6 +6749,12 @@
     "text": "Polybag",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Popular themes",
+    "files": [
+      "views/catalog.js"
     ]
   },
   {
@@ -7661,6 +7727,12 @@
     ]
   },
   {
+    "text": "Restore snapshot",
+    "files": [
+      "views/me-data.js"
+    ]
+  },
+  {
     "text": "Restored to vault",
     "files": [
       "views/portfolio-detail.js",
@@ -8221,6 +8293,12 @@
     ]
   },
   {
+    "text": "Search buildable sets",
+    "files": [
+      "views/build.js"
+    ]
+  },
+  {
     "text": "Search catalog",
     "files": [
       "views/portfolio-detail.js"
@@ -8239,9 +8317,21 @@
     ]
   },
   {
+    "text": "Search minifigures",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
     "text": "Search series…",
     "files": [
       "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "Search sets",
+    "files": [
+      "views/catalog.js"
     ]
   },
   {
@@ -8979,7 +9069,14 @@
   {
     "text": "Sort",
     "files": [
+      "views/catalog.js",
       "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "Sort catalog",
+    "files": [
+      "views/catalog.js"
     ]
   },
   {
@@ -9056,6 +9153,12 @@
   },
   {
     "text": "Start a run from the Populate tab — live progress shows here.",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Start with services that need action, or choose a category. Each row gives the current state first; expand it only when you need diagnostics or controls.",
     "files": [
       "views/me-admin.js"
     ]
@@ -9672,7 +9775,6 @@
   {
     "text": "Toggle Layout",
     "files": [
-      "views/catalog.js",
       "views/portfolio.js"
     ]
   },
@@ -10396,6 +10498,12 @@
     ]
   },
   {
+    "text": "View",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
     "text": "View BrickInsights rating",
     "files": [
       "views/portfolio-detail.js"
@@ -10405,6 +10513,18 @@
     "text": "View all →",
     "files": [
       "views/kids.js"
+    ]
+  },
+  {
+    "text": "View as grid",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "View as list",
+    "files": [
+      "views/catalog.js"
     ]
   },
   {

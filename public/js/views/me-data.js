@@ -16,7 +16,7 @@ export async function renderMeData() {
   const guest = isGuestMode();
 
   $("#root").innerHTML = `
-    <div class="page">
+    <div class="page data-page">
       ${subpageTopbarHTML("Import & export", "Data")}
 
       <div class="data-grid">
@@ -122,16 +122,16 @@ export async function renderMeData() {
       const dates = r?.backups || [];
       if (!dates.length) { list.textContent = t('data.noSnapshotsYet'); return; }
       list.innerHTML = dates.slice(0, 8).map((d) => `
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line-soft);">
+        <div class="backup-row">
           <span style="font-family:var(--mono);font-size:12px;">${d}</span>
-          <button class="btn-secondary backup-restore" data-date="${d}" style="width:auto;padding:6px 12px;font-size:12px;">Restore</button>
+          <button class="btn-secondary backup-restore" data-date="${d}" aria-label="Restore snapshot from ${d}">Restore</button>
         </div>`).join("");
       list.querySelectorAll(".backup-restore").forEach((btn) => btn.addEventListener("click", async (e) => {
         const date = e.currentTarget.dataset.date;
         const ok = await confirmSheet({
           title: `Restore ${date}?`,
           message: "Your collection rolls back to this snapshot. Sets added since stay; nothing is permanently deleted.",
-          confirmLabel: "Restore",
+          confirmLabel: "Restore snapshot",
         });
         if (!ok) return;
         haptic("heavy");

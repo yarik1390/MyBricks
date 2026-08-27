@@ -153,7 +153,7 @@ export async function renderBlind() {
       <div class="fig-filter-bar">
         <div class="search-wrap open" style="margin-bottom:10px;">
           <span class="s-icon">${I.search()}</span>
-          <input class="search-input" id="figSearch" placeholder="Search minifigs…" autocomplete="off" value="${escapeHtml(f.figQ)}">
+          <input class="search-input" id="figSearch" name="minifig_search" type="search" aria-label="Search minifigures" placeholder="Search minifigs…" autocomplete="off" value="${escapeHtml(f.figQ)}">
         </div>
         <div class="filter-row">
           <button class="chip ${f.figRarity === 'all' ? 'active' : ''}" data-fig-rarity="all">All</button>

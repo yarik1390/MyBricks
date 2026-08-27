@@ -44,7 +44,7 @@ export async function renderMeIntegrations() {
   const gemmaDescDefault = `Requires the model weights (~3GB) to run set photo scanning 100% on-device for free. Official Gemma weights are license-gated: <a href="${MODEL_LICENSE_PAGE}" target="_blank" rel="noopener" style="color:var(--bv-red);font-weight:600;text-decoration:underline;">accept the license</a>, then download with a Hugging Face token — or download the file in your browser and import it below.`;
 
   $("#root").innerHTML = `
-    <div class="page">
+    <div class="page integrations-page">
       ${subpageTopbarHTML("Connected services", "Integrations")}
 
       <h2 class="section-title">Google Sheets Sync</h2>
@@ -95,10 +95,10 @@ export async function renderMeIntegrations() {
       <div>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
           <div class="lbl-wrap"><div class="lbl">Discord webhook</div><div class="desc">Post price-drop and spike alerts to a Discord channel.</div></div>
-          <div class="u-row u-wfull">
-            <input id="discordWebhook" type="url" placeholder="https://discord.com/api/webhooks/…" value="${me.discord_webhook_url ? escapeHtml(me.discord_webhook_url) : ""}" class="u-flex1 u-fs-sm" style="font-family:var(--mono);border:1px solid var(--border-c);border-radius:var(--r-1);padding:6px 10px;background:var(--surface-2);color:var(--ink);outline:none;" autocomplete="off" spellcheck="false" />
-            <button id="discordWebhookSave" class="btn-secondary u-fs-sm" style="padding:6px 12px;white-space:nowrap;">Save</button>
-            ${me.discord_webhook_url ? `<button id="discordWebhookClear" class="btn-secondary u-fs-sm" style="padding:6px 12px;color:var(--down);">Clear</button>` : ""}
+          <div class="u-row u-wfull integration-inline-actions">
+            <input id="discordWebhook" type="url" placeholder="https://discord.com/api/webhooks/…" value="${me.discord_webhook_url ? escapeHtml(me.discord_webhook_url) : ""}" class="u-flex1 u-fs-sm integration-control" style="font-family:var(--mono);border:1px solid var(--border-c);border-radius:var(--r-1);background:var(--surface-2);color:var(--ink);outline:none;" autocomplete="off" spellcheck="false" />
+            <button id="discordWebhookSave" class="btn-secondary u-fs-sm integration-action">Save</button>
+            ${me.discord_webhook_url ? `<button id="discordWebhookClear" class="btn-secondary u-fs-sm integration-action integration-action-danger">Clear</button>` : ""}
           </div>
         </div>
       </div>
@@ -107,7 +107,7 @@ export async function renderMeIntegrations() {
       <div>
         <div class="setting-row">
           <div class="lbl-wrap"><div class="lbl">Push notifications</div><div class="desc" id="pushNotifDesc">Receive price alerts on your device even when the app is closed.</div></div>
-          <button class="btn-secondary u-fs-sm" id="pushNotifBtn" style="padding:6px 12px;" data-push-state="unknown">Enable</button>
+          <button class="btn-secondary u-fs-sm integration-action" id="pushNotifBtn" data-push-state="unknown">Enable</button>
         </div>
       </div>
 
@@ -132,9 +132,9 @@ export async function renderMeIntegrations() {
             </div>
           ` : `
             <div class="u-col u-wfull">
-              <input id="bricksetUsername" type="text" placeholder="Brickset username" autocomplete="username" class="u-wfull u-fs-base" style="border:1px solid var(--border-c);border-radius:var(--r-1);padding:8px 10px;background:var(--surface-2);color:var(--ink);outline:none;box-sizing:border-box;" />
-              <input id="bricksetPassword" type="password" placeholder="Brickset password" autocomplete="current-password" class="u-wfull u-fs-base" style="border:1px solid var(--border-c);border-radius:var(--r-1);padding:8px 10px;background:var(--surface-2);color:var(--ink);outline:none;box-sizing:border-box;" />
-              <button id="bricksetConnectBtn" class="btn-primary u-wfull" style="font-size:13px;padding:10px 14px;">Connect Brickset Account</button>
+              <input id="bricksetUsername" type="text" placeholder="Brickset username" autocomplete="username" class="u-wfull u-fs-base integration-control" style="border:1px solid var(--border-c);border-radius:var(--r-1);background:var(--surface-2);color:var(--ink);outline:none;box-sizing:border-box;" />
+              <input id="bricksetPassword" type="password" placeholder="Brickset password" autocomplete="current-password" class="u-wfull u-fs-base integration-control" style="border:1px solid var(--border-c);border-radius:var(--r-1);background:var(--surface-2);color:var(--ink);outline:none;box-sizing:border-box;" />
+              <button id="bricksetConnectBtn" class="btn-primary u-wfull integration-action" style="font-size:13px;">Connect Brickset Account</button>
               <div id="bricksetConnectError" class="u-fs-xs u-down" style="display:none;"></div>
             </div>
           `}

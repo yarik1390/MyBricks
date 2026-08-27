@@ -128,6 +128,7 @@ const RUNTIME_EXACT_STRINGS = [
 const RUNTIME_EXACT_EVIDENCE = new Map([
   ['ALL ⭐', 'decorated catalog-filter branch'], ['Insights ⭐', 'decorated investor-tab branch'],
   ['Value ↓', 'catalog sort-option helper'], ['Rarity ↓', 'minifig sort-option helper'],
+  ['Pick a category tab to see just those services. Tap any service for its status, usage, and controls — test it, flip capabilities on or off, and tune pricing, all without touching code.', 'admin service-navigation introduction'],
   ['Last OK:', 'admin service-facts helper'], ['Last fail:', 'admin service-facts helper'],
   ['sold comps blocked', 'admin integration-health conditional'], ['sold comps available', 'admin integration-health conditional'],
   ['sold comps not populated', 'admin integration-health conditional'], ['asking data available', 'admin integration-health conditional'],

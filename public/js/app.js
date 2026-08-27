@@ -283,15 +283,14 @@ function showUpdatePrompt(worker) {
   const bar = document.createElement("div");
   bar.id = "swUpdateBar";
   bar.setAttribute("role", "status");
-  // Anchored to the TOP (below the status bar) so it never collides with the
-  // bottom nav or a page's sticky bottom sort/filter chips.
-  bar.style.cssText = "position:fixed;left:50%;transform:translateX(-50%);top:calc(12px + var(--safe-top, 0px));z-index:1200;display:flex;align-items:center;gap:12px;background:var(--ink,#1C1C1E);color:var(--bg,#fff);padding:10px 14px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.28);font-size:14px;max-width:92vw;";
+  // Sit above the bottom navigation rather than covering page-level header actions.
+  bar.className = "sw-update-toast";
   const msg = document.createElement("span");
   msg.textContent = "Update ready";
   const btn = document.createElement("button");
   btn.type = "button";
   btn.textContent = "Refresh";
-  btn.style.cssText = "min-height:36px;background:var(--accent,#FFD700);color:#1C1C1E;border:none;border-radius:8px;padding:6px 14px;font-weight:700;cursor:pointer;";
+  btn.className = "sw-update-action";
   btn.addEventListener("click", () => {
     navigator.serviceWorker.addEventListener("controllerchange", () => location.reload(), { once: true });
     try { worker.postMessage("SKIP_WAITING"); } catch {}

@@ -66,6 +66,10 @@ const catalogSortChipText = (o, cur) => {
   const label = o.tKey ? t(o.tKey) : o.label;
   return label + (active ? (cur === o.asc ? " ↑" : " ↓") : "");
 };
+const activeCatalogSortLabel = (cur) => {
+  const option = CATALOG_SORTS.find(o => cur === o.asc || cur === o.desc) || CATALOG_SORTS[0];
+  return catalogSortChipText(option, cur);
+};
 
 export async function renderAdd() {
   readCatalogURLParams();
@@ -440,29 +444,31 @@ function paintAdd() {
         </div>
         <div class="topbar-actions" style="margin-left:auto;">
           <button class="icon-btn" id="catalogSearchToggle" aria-label="Search" aria-expanded="${f.catalogQ ? "true" : "false"}">${I.search()}</button>
-          <button class="icon-btn" id="catalogLayoutToggle" aria-label="Toggle Layout">${state.compactView ? I.grid() : I.list()}</button>
         </div>
       </div>
 
       <div class="search-wrap${f.catalogQ ? " open" : ""}" style="margin-bottom:14px;">
         <span class="s-icon">${I.search()}</span>
-        <input class="search-input" id="catalogSearch" placeholder="Search sets, themes, tags…" autocomplete="off" value="${escapeHtml(f.catalogQ)}">
+        <input class="search-input" id="catalogSearch" name="catalog_search" type="search" aria-label="Search sets" placeholder="Search sets, themes, tags…" autocomplete="off" value="${escapeHtml(f.catalogQ)}">
       </div>
 
-      <div class="filter-row">
+      <div class="filter-row catalog-theme-row" aria-label="Popular themes">
         <button class="chip ${f.catalogTheme === "all" ? "active" : ""}" data-cat-theme="all">All themes</button>
         ${state.themes.length > 8 && f.catalogTheme !== "all" && !popularThemes(state.themes, quickThemeCount()).includes(f.catalogTheme) ? `<button class="chip active" data-cat-theme="${escapeHtml(f.catalogTheme)}">${escapeHtml(f.catalogTheme)}</button>` : ""}
         ${popularThemes(state.themes, quickThemeCount()).map(t => `<button class="chip ${f.catalogTheme === t ? "active" : ""}" data-cat-theme="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join("")}
         ${state.themes.length > 8 ? `<button class="chip" id="moreThemesChip">${I.filter()}<span>More…</span></button>` : ""}
       </div>
 
-      <div class="filter-row" style="margin-top:-4px;">
-        ${CATALOG_SORTS
-          .map(o => `<button class="chip ${(f.catalogSort === o.asc || f.catalogSort === o.desc) ? "active" : ""}" data-csort-base="${o.base}">${catalogSortChipText(o, f.catalogSort)}</button>`).join("")}
-        ${[["all","All"],["active","Active"],["retired","Retired"],["retiring","Retiring"]].map(([k,l]) =>
-          `<button class="chip ${(f.catalogRetired || "all") === k ? "active" : ""}" data-retired="${k}">${l}</button>`).join("")}
-        <button class="chip ${f.catalogDeal ? "active" : ""}" id="dealChip" style="${f.catalogDeal ? "border-color:var(--up);color:var(--up);" : ""}"><span>Deals</span></button>
-        <button class="chip ${activeCatalogFilterCount(f) ? "active" : ""}" id="filterChip">${I.filter()}<span>${escapeHtml(activeCatalogFilterCount(f) ? tPlural('catalog.filtersWithCount', activeCatalogFilterCount(f)) : t('catalog.filters'))}</span></button>
+      <div class="catalog-primary-toolbar" aria-label="Catalog controls">
+        <button class="catalog-toolbar-action ${activeCatalogFilterCount(f) ? "active" : ""}" id="filterChip" type="button">
+          ${I.filter()}<span>${escapeHtml(activeCatalogFilterCount(f) ? tPlural('catalog.filtersWithCount', activeCatalogFilterCount(f)) : t('catalog.filters'))}</span>
+        </button>
+        <button class="catalog-toolbar-action" id="catalogSortBtn" type="button">
+          <span>Sort</span><small>${escapeHtml(activeCatalogSortLabel(f.catalogSort))}</small>
+        </button>
+        <button class="catalog-toolbar-action" id="catalogLayoutToggle" type="button" aria-label="View: ${state.compactView ? 'list' : 'grid'}">
+          ${state.compactView ? I.list() : I.grid()}<span>View</span>
+        </button>
       </div>
 
       <div class="filter-summary" id="catalogFilterSummary">${escapeHtml(catalogFilterSummaryText(f, t, tPlural))}</div>
@@ -507,7 +513,10 @@ function paintAdd() {
     localStorage.setItem("bv_compact_view", state.compactView);
     haptic("light");
     const toggleBtn = $("#catalogLayoutToggle");
-    if (toggleBtn) toggleBtn.innerHTML = state.compactView ? I.grid() : I.list();
+    if (toggleBtn) {
+      toggleBtn.innerHTML = `${state.compactView ? I.list() : I.grid()}<span>View</span>`;
+      toggleBtn.setAttribute("aria-label", state.compactView ? "View as list" : "View as grid");
+    }
     refreshCatalogGrid();
   });
 
@@ -517,39 +526,25 @@ function paintAdd() {
     refreshCatalogSummary();
     reloadGrid();
   }));
-  $$("[data-csort-base]").forEach(b => b.addEventListener("click", () => {
+  const wireSortButtons = (root = document) => root.querySelectorAll("[data-csort-base]").forEach(b => b.addEventListener("click", () => {
     const o = CATALOG_SORTS.find(s => s.base === b.dataset.csortBase);
     if (!o) return;
     const cur = state.filter.catalogSort;
-    // Same sort active → flip direction; new sort → its default direction.
     state.filter.catalogSort = cur === o.desc ? o.asc : cur === o.asc ? o.desc : o.def;
     haptic("light");
-    $$("[data-csort-base]").forEach(x => {
-      const xo = CATALOG_SORTS.find(s => s.base === x.dataset.csortBase);
-      if (!xo) return;
-      x.classList.toggle("active", state.filter.catalogSort === xo.asc || state.filter.catalogSort === xo.desc);
-      x.textContent = catalogSortChipText(xo, state.filter.catalogSort);
-    });
-    reloadGrid();
+    hideSheet();
+    loadCatalog({ reset: true }).then(() => paintAdd());
   }));
-  $$("[data-retired]").forEach(b => b.addEventListener("click", () => {
-    state.filter.catalogRetired = b.dataset.retired; haptic("light");
-    $$("[data-retired]").forEach(x => x.classList.toggle("active", x.dataset.retired === state.filter.catalogRetired));
-    refreshCatalogSummary();
-    reloadGrid();
-  }));
-  $("#dealChip")?.addEventListener("click", () => {
-    state.filter.catalogDeal = !state.filter.catalogDeal;
-    haptic("light");
-    const chip = $("#dealChip");
-    if (chip) {
-      chip.classList.toggle("active", state.filter.catalogDeal);
-      chip.style.cssText = state.filter.catalogDeal ? "border-color:var(--up);color:var(--up);" : "";
-    }
-    refreshCatalogSummary();
-    reloadGrid();
-  });
+
   $("#filterChip")?.addEventListener("click", () => showFilterSheet(reloadGrid));
+  $("#catalogSortBtn")?.addEventListener("click", () => {
+    showSheet(`
+      <div class="sheet-title-row"><h2 class="u-serif-h" style="margin:0;">Sort catalog</h2></div>
+      <div class="sheet-option-list" role="list">
+        ${CATALOG_SORTS.map(o => `<button class="sheet-option ${(f.catalogSort === o.asc || f.catalogSort === o.desc) ? "active" : ""}" type="button" data-csort-base="${o.base}"><span>${escapeHtml(o.tKey ? t(o.tKey) : o.label)}</span><small>${f.catalogSort === o.asc ? "Ascending" : f.catalogSort === o.desc ? "Descending" : ""}</small></button>`).join("")}
+      </div>`);
+    wireSortButtons(document.querySelector(".sheet"));
+  });
 
   // Searchable picker for the full theme list (the row shows only 8 quick chips).
   $("#moreThemesChip")?.addEventListener("click", () => {
@@ -645,6 +640,19 @@ function showFilterSheet(onApply) {
     </div>
     <div class="filter-active-line">${escapeHtml(catalogFilterSummaryText(f, t, tPlural))}</div>
     <div class="scrollable advanced-filter-sheet">
+      <section class="filter-sheet-section">
+        <div class="field-lbl">Availability</div>
+        <div class="sheet-chip-grid sheet-facet" data-facet="retired">
+          ${[["all","All"],["active","Active"],["retired","Retired"],["retiring","Retiring"]].map(([k,l]) => `<button class="chip ${(f.catalogRetired || "all") === k ? "active" : ""}" data-fval="${k}">${l}</button>`).join("")}
+        </div>
+      </section>
+      <section class="filter-sheet-section">
+        <div class="field-lbl">Deals</div>
+        <div class="sheet-chip-grid sheet-facet" data-facet="deal">
+          <button class="chip ${!f.catalogDeal ? "active" : ""}" data-fval="off">Any price</button>
+          <button class="chip ${f.catalogDeal ? "active" : ""}" data-fval="on">Deals only</button>
+        </div>
+      </section>
       ${facetGroup("Theme group", "theme_group", state.themeGroups, f.catalogThemeGroup)}
       ${facetGroup("Category", "category", state.categories, f.catalogCategory)}
       <section class="filter-sheet-section">
@@ -670,6 +678,8 @@ function showFilterSheet(onApply) {
     Object.keys(r).forEach(k => r[k] = "");
     state.filter.catalogThemeGroup = "all";
     state.filter.catalogCategory = "all";
+    state.filter.catalogRetired = "all";
+    state.filter.catalogDeal = false;
     hideSheet();
     onApply();
   });
@@ -681,6 +691,8 @@ function showFilterSheet(onApply) {
     });
     state.filter.catalogThemeGroup = readFacet("theme_group");
     state.filter.catalogCategory = readFacet("category");
+    state.filter.catalogRetired = readFacet("retired");
+    state.filter.catalogDeal = readFacet("deal") === "on";
     hideSheet();
     onApply();
   });
@@ -838,7 +850,7 @@ export function renderPile() {
         <form class="scan-manual-lookup" id="pileManualForm" novalidate>
           <label for="pileManualInput">Set number or barcode</label>
           <div class="scan-manual-lookup-row">
-            <input id="pileManualInput" type="text" inputmode="search" autocomplete="off" spellcheck="false" placeholder="71043-1 or UPC">
+            <input id="pileManualInput" name="set_identifier" type="text" inputmode="search" autocomplete="off" spellcheck="false" placeholder="71043-1 or UPC">
             <button id="pileManualSubmit" type="submit" aria-label="Look up set">${I.search({ w: 19, h: 19 })}<span>Look up</span></button>
           </div>
           <p class="scan-manual-error" id="pileManualError" role="status" aria-live="polite"></p>

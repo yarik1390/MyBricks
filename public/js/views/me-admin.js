@@ -69,7 +69,7 @@ export async function renderMeAdmin() {
 
       <section class="admin-section" id="adminServices">
         <h2 class="section-title">Services</h2>
-        <p class="admin-section-intro">Pick a category tab to see just those services. Tap any service for its status, usage, and controls — test it, flip capabilities on or off, and tune pricing, all without touching code.</p>
+        <p class="admin-section-intro">Start with services that need action, or choose a category. Each row gives the current state first; expand it only when you need diagnostics or controls.</p>
         <div class="admin-service-filters" role="tablist" aria-label="Service categories">
           ${serviceTabs().map(([id, label]) => serviceTabButtonHTML(id, label)).join('')}
         </div>
@@ -1058,6 +1058,13 @@ function serviceCardHTML(svc, row, health, cfg, openSet) {
     quota ? { label: 'Quota:', value: `${quota.used}/${quota.cap}` } : null,
     quota ? { label: 'Remaining:', value: String(quota.remaining ?? Math.max(0, quota.cap - quota.used)) } : null,
   ].filter(Boolean);
+  const healthDescription = health.tone === 'danger'
+    ? 'Unavailable'
+    : health.tone === 'warn'
+      ? 'Needs attention'
+      : health.tone === 'neutral'
+        ? 'Not configured'
+        : 'Available';
   return `
     <details class="admin-service ${health.tone}" data-svc="${escapeHtml(key)}" ${isOpen ? 'open' : ''}>
       <summary class="admin-service-summary">
@@ -1065,7 +1072,10 @@ function serviceCardHTML(svc, row, health, cfg, openSet) {
           <strong>${escapeHtml(providerLabel(key))}</strong>
           <small>${escapeHtml(serviceDescription(key))}</small>
         </span>
-        <span class="badge ${badgeClass(health.tone)}">${escapeHtml(health.label)}</span>
+        <span class="admin-service-state">
+          <span class="badge ${badgeClass(health.tone)}">${escapeHtml(health.label)}</span>
+          <small>${healthDescription}</small>
+        </span>
       </summary>
       <div class="admin-service-body">
         <div class="admin-service-facts">${facts.map(({ label, value }) => `<span><span>${escapeHtml(label)}</span> ${escapeHtml(value)}</span>`).join('')}</div>
