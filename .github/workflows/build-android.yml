@@ -61,10 +61,10 @@ jobs:
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 30
     env:
-      # Repository run numbers are monotonic and survive rebases/squashes. The
-      # 100000 + a repository-monotonic run number stays above all historical
-      # commit-count codes and remains stable across rebases/squashes.
-      ANDROID_VERSION_CODE: ${{ 100000 + github.run_number }}
+      # Prefixing the repository-monotonic run number with "10" keeps every
+      # generated integer above historical commit-count codes without relying
+      # on unsupported arithmetic in GitHub Actions expressions.
+      ANDROID_VERSION_CODE: ${{ format('10{0}', github.run_number) }}
       ANDROID_APP_LINK_SHA256: ${{ secrets.ANDROID_APP_LINK_SHA256 }}
     permissions:
       contents: write
