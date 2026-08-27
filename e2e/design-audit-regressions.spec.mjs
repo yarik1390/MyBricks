@@ -12,7 +12,10 @@ test.describe('design audit regressions', () => {
     await expect(toolbar).toBeVisible();
     await expect(toolbar.getByRole('button', { name: /^Filters/ })).toBeVisible();
     await expect(toolbar.getByRole('button', { name: /^Sort/ })).toBeVisible();
-    await expect(toolbar.getByRole('button', { name: /^View/ })).toBeVisible();
+    const layoutToggle = toolbar.getByRole('button', { name: 'View as list' });
+    await expect(layoutToggle).toHaveAttribute('aria-pressed', 'false');
+    await layoutToggle.click();
+    await expect(toolbar.getByRole('button', { name: 'View as grid' })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('[data-csort-base]')).toHaveCount(0);
     await expect(page.locator('[data-retired]')).toHaveCount(0);
 
@@ -64,6 +67,55 @@ test.describe('design audit regressions', () => {
       return !text && !button.getAttribute('aria-label') && !button.getAttribute('title');
     }).length);
     expect(unnamed).toBe(0);
+  });
+
+  test('admin tablists support roving focus and arrow-key activation', async ({ page }) => {
+    await page.route('**/api/me', route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ display_name: 'Admin', handle: 'admin', currency: 'USD', is_admin: true, notify_price_drops: true, portfolio_stats: {} }),
+    }));
+    await page.goto('/#/me/admin', { waitUntil: 'domcontentloaded' });
+
+    const sections = page.getByRole('tablist', { name: 'Admin sections' });
+    const services = sections.getByRole('tab', { name: 'Services' });
+    const populate = sections.getByRole('tab', { name: 'Populate' });
+    await services.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(populate).toBeFocused();
+    await expect(populate).toHaveAttribute('aria-selected', 'true');
+    await expect(services).toHaveAttribute('tabindex', '-1');
+
+    await services.click();
+    const categories = page.getByRole('tablist', { name: 'Service categories' });
+    const needsAction = categories.getByRole('tab', { name: 'Needs action' });
+    await needsAction.focus();
+    await page.keyboard.press('ArrowRight');
+    const nextCategory = categories.getByRole('tab').nth(1);
+    await expect(nextCategory).toBeFocused();
+    await expect(nextCategory).toHaveAttribute('aria-selected', 'true');
+    await expect(needsAction).toHaveAttribute('tabindex', '-1');
+  });
+
+  test('update toast stays above mobile navigation and keeps a 44px action', async ({ page }) => {
+    await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
+    await page.evaluate(() => {
+      const bar = document.createElement('div');
+      bar.id = 'swUpdateBar';
+      bar.className = 'sw-update-toast';
+      bar.setAttribute('role', 'status');
+      bar.innerHTML = '<span>Update ready</span><button class="sw-update-action">Refresh</button>';
+      document.body.appendChild(bar);
+    });
+
+    const toast = page.locator('#swUpdateBar');
+    const nav = page.locator('#nav');
+    const action = toast.getByRole('button', { name: 'Refresh' });
+    await expect(toast).toBeVisible();
+    const [toastBox, navBox, actionBox] = await Promise.all([toast.boundingBox(), nav.boundingBox(), action.boundingBox()]);
+    expect(toastBox.y + toastBox.height).toBeLessThanOrEqual(navBox.y - 10);
+    expect(actionBox.width).toBeGreaterThanOrEqual(44);
+    expect(actionBox.height).toBeGreaterThanOrEqual(44);
   });
 
   test('data restore uses a full-size action and an explicit confirmation sheet', async ({ page }) => {

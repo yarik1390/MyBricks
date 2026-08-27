@@ -64,7 +64,7 @@ export async function renderMeAdmin() {
     <div class="page admin-page admin-dashboard-page">
       ${subpageTopbarHTML('Admin console', 'Admin')}
       <nav class="admin-segments admin-segments-sticky" role="tablist" aria-label="Admin sections">
-        ${ADMIN_SECTIONS.map(([id, label], i) => `<button type="button" role="tab" aria-selected="${i === 0}" aria-controls="${id}" class="${i === 0 ? 'active' : ''}" data-admin-section-link="${id}">${escapeHtml(label)}</button>`).join('')}
+        ${ADMIN_SECTIONS.map(([id, label], i) => `<button type="button" id="${id}Tab" role="tab" aria-selected="${i === 0}" aria-controls="${id}" tabindex="${i === 0 ? '0' : '-1'}" class="${i === 0 ? 'active' : ''}" data-admin-section-link="${id}">${escapeHtml(label)}</button>`).join('')}
       </nav>
 
       <section class="admin-section" id="adminServices">
@@ -246,15 +246,40 @@ function maintenanceCardHTML(key) {
     </article>`;
 }
 
+function wireTablistKeyboard(tablist, selector, activate) {
+  if (!tablist) return;
+  tablist.addEventListener('keydown', e => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    const tabs = [...tablist.querySelectorAll(selector)];
+    const current = tabs.indexOf(document.activeElement);
+    if (current < 0 || !tabs.length) return;
+    e.preventDefault();
+    const next = e.key === 'Home' ? 0
+      : e.key === 'End' ? tabs.length - 1
+        : (current + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    activate(tabs[next]);
+  });
+}
+
 function wireAdminShell() {
-  document.querySelectorAll('.admin-section').forEach(s => s.setAttribute('role', 'tabpanel'));
-  document.querySelectorAll('[data-admin-section-link]').forEach(btn => {
+  document.querySelectorAll('.admin-section').forEach(s => {
+    s.setAttribute('role', 'tabpanel');
+    s.setAttribute('aria-labelledby', `${s.id}Tab`);
+  });
+  const sectionTabs = document.querySelectorAll('[data-admin-section-link]');
+  sectionTabs.forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-admin-section-link');
       if (!id || !document.getElementById(id)) return;
       haptic('light');
       activateAdminSection(id);
     });
+  });
+  wireTablistKeyboard(document.querySelector('.admin-segments-sticky'), '[data-admin-section-link]', btn => {
+    const id = btn.getAttribute('data-admin-section-link');
+    if (!id) return;
+    activateAdminSection(id);
+    btn.focus();
   });
   document.querySelectorAll('[data-admin-tool]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -268,13 +293,8 @@ function wireAdminShell() {
   document.querySelectorAll('[data-maint-tool]').forEach(btn => {
     btn.addEventListener('click', () => triggerMaintenance(btn.getAttribute('data-maint-tool')));
   });
-  document.querySelectorAll('[data-service-tab]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      serviceTab = btn.getAttribute('data-service-tab') || 'attention';
-      renderServiceFilters();
-      renderServices();
-    });
-  });
+  const serviceFilters = document.querySelector('.admin-service-filters');
+  if (serviceFilters) wireServiceFilterButtons(serviceFilters);
   const servicesEl = document.getElementById('servicesContainer');
   if (servicesEl) {
     servicesEl.addEventListener('click', (e) => {
@@ -391,6 +411,7 @@ function activateAdminSection(id) {
     const on = b.getAttribute('data-admin-section-link') === id;
     b.classList.toggle('active', on);
     b.setAttribute('aria-selected', on ? 'true' : 'false');
+    b.setAttribute('tabindex', on ? '0' : '-1');
     if (on) activeBtn = b;
   });
   const nav = document.querySelector('.admin-segments-sticky');
@@ -946,20 +967,36 @@ function serviceTabs() {
 
 function serviceTabButtonHTML(id, label) {
   const active = serviceTab === id;
-  return `<button class="chip ${active ? 'active' : ''}" data-service-tab="${escapeHtml(id)}" role="tab" aria-selected="${active}">${escapeHtml(label)}</button>`;
+  const tabId = `serviceTab${String(id).replace(/[^a-z0-9]+/gi, '')}`;
+  return `<button id="${escapeHtml(tabId)}" class="chip ${active ? 'active' : ''}" data-service-tab="${escapeHtml(id)}" role="tab" aria-selected="${active}" aria-controls="servicesContainer" tabindex="${active ? '0' : '-1'}">${escapeHtml(label)}</button>`;
+}
+
+function activateServiceTab(btn, { focus = false } = {}) {
+  const nextTab = btn?.getAttribute('data-service-tab') || 'attention';
+  serviceTab = nextTab;
+  renderServiceFilters();
+  renderServices();
+  if (focus) document.querySelector(`[data-service-tab="${CSS.escape(nextTab)}"]`)?.focus();
+}
+
+function wireServiceFilterButtons(wrap) {
+  wrap.querySelectorAll('[data-service-tab]').forEach(btn => {
+    btn.addEventListener('click', () => activateServiceTab(btn));
+  });
+  wireTablistKeyboard(wrap, '[data-service-tab]', btn => activateServiceTab(btn, { focus: true }));
 }
 
 function renderServiceFilters() {
   const wrap = document.querySelector('.admin-service-filters');
   if (!wrap) return;
   wrap.innerHTML = serviceTabs().map(([id, label]) => serviceTabButtonHTML(id, label)).join('');
-  wrap.querySelectorAll('[data-service-tab]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      serviceTab = btn.getAttribute('data-service-tab') || 'attention';
-      renderServiceFilters();
-      renderServices();
-    });
-  });
+  const panel = document.getElementById('servicesContainer');
+  const active = wrap.querySelector('[data-service-tab][aria-selected="true"]');
+  if (panel) {
+    panel.setAttribute('role', 'tabpanel');
+    if (active?.id) panel.setAttribute('aria-labelledby', active.id);
+  }
+  wireServiceFilterButtons(wrap);
 }
 
 function serviceDescription(service) {

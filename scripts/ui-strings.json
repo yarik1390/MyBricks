@@ -2975,6 +2975,12 @@
     ]
   },
   {
+    "text": "End",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Ensure Gemini Nano is enabled in Chrome settings.",
     "files": [
       "components/advisor.js"
@@ -4120,6 +4126,12 @@
     "text": "Hold",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Home",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {

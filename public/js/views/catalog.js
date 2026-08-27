@@ -466,7 +466,7 @@ function paintAdd() {
         <button class="catalog-toolbar-action" id="catalogSortBtn" type="button">
           <span>Sort</span><small>${escapeHtml(activeCatalogSortLabel(f.catalogSort))}</small>
         </button>
-        <button class="catalog-toolbar-action" id="catalogLayoutToggle" type="button" aria-label="View: ${state.compactView ? 'list' : 'grid'}">
+        <button class="catalog-toolbar-action" id="catalogLayoutToggle" type="button" aria-label="View as ${state.compactView ? 'grid' : 'list'}" aria-pressed="${state.compactView}">
           ${state.compactView ? I.list() : I.grid()}<span>View</span>
         </button>
       </div>
@@ -515,7 +515,8 @@ function paintAdd() {
     const toggleBtn = $("#catalogLayoutToggle");
     if (toggleBtn) {
       toggleBtn.innerHTML = `${state.compactView ? I.list() : I.grid()}<span>View</span>`;
-      toggleBtn.setAttribute("aria-label", state.compactView ? "View as list" : "View as grid");
+      toggleBtn.setAttribute("aria-label", state.compactView ? "View as grid" : "View as list");
+      toggleBtn.setAttribute("aria-pressed", String(state.compactView));
     }
     refreshCatalogGrid();
   });
