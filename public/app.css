@@ -2303,6 +2303,9 @@ body[data-route="set-detail"] #toast {
   flex-direction: column;
 }
 #scanOverlay.open { display: flex; animation: fadeIn 0.2s; }
+/* The installed app's native ML Kit Activity owns the barcode preview. Keep the
+   WebView scanner sheet out of the way while Android presents that Activity. */
+#scanOverlay.native-handoff { display: none; }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .scan-video-wrap {

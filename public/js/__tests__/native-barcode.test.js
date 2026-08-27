@@ -14,51 +14,41 @@ function nativeWindow(plugin) {
 }
 
 describe('native branded barcode scanning', () => {
-  it('uses the embedded scanner API rather than the generic Google UI', async () => {
-    let usedGenericScan = false;
-    let listener;
-    const plugin = {
-      scan: async () => { usedGenericScan = true; return { barcodes: [] }; },
+  it('requires the generic native scanner API used by the installed app', async () => {
+    const embeddedOnly = {
+      isSupported: async () => ({ supported: true }),
       startScan: async () => {},
-      stopScan: async () => {},
-      addListener: async (event, fn) => {
-        if (event === 'barcodeScanned') listener = fn;
-        return { remove: async () => {} };
-      },
-      checkPermissions: async () => ({ camera: 'granted' }),
+      addListener: async () => ({ remove: async () => {} }),
     };
-    globalThis.document = { body: { classList: { add() {}, remove() {} } } };
-    const pending = scanBarcodeNative(nativeWindow(plugin));
-    await new Promise(resolve => setTimeout(resolve, 0));
-    listener({ barcode: { rawValue: '5702017419690' } });
-    assert.equal(await pending, '5702017419690');
-    assert.equal(usedGenericScan, false);
+    const generic = {
+      isSupported: async () => ({ supported: true }),
+      scan: async () => ({ barcodes: [] }),
+    };
+    const { nativeBarcodeSupported } = await import('../lib/native-barcode.js');
+    assert.equal(await nativeBarcodeSupported(nativeWindow(embeddedOnly)), false);
+    assert.equal(await nativeBarcodeSupported(nativeWindow(generic)), true);
   });
 
-  it('cancels a pending scan and restores the WebView', async () => {
-    let stopped = 0;
-    let listener;
-    const classes = new Set();
+  it('uses the generic native scanner Activity and returns its barcode', async () => {
+    let usedGenericScan = false;
+    let startedEmbeddedScan = false;
     const plugin = {
-      startScan: async () => {},
-      stopScan: async () => { stopped += 1; },
-      addListener: async (event, fn) => {
-        if (event === 'barcodeScanned') listener = fn;
-        return { remove: async () => {} };
+      scan: async () => {
+        usedGenericScan = true;
+        return { barcodes: [{ rawValue: '5702017419690' }] };
       },
-      checkPermissions: async () => ({ camera: 'granted' }),
+      startScan: async () => { startedEmbeddedScan = true; },
     };
-    const win = nativeWindow(plugin);
-    win.document = { body: { classList: {
-      add: value => classes.add(value),
-      remove: value => classes.delete(value),
-    } } };
-    const pending = scanBarcodeNative(win);
-    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(await scanBarcodeNative(nativeWindow(plugin)), '5702017419690');
+    assert.equal(usedGenericScan, true);
+    assert.equal(startedEmbeddedScan, false);
+  });
+
+  it('treats native scanner cancellation as a null result', async () => {
+    const plugin = {
+      scan: async () => ({ barcodes: [] }),
+    };
+    assert.equal(await scanBarcodeNative(nativeWindow(plugin)), null);
     await cancelBarcodeNative();
-    assert.equal(await pending, null);
-    assert.equal(stopped, 1);
-    assert.equal(classes.has('native-barcode-active'), false);
-    assert.equal(typeof listener, 'function');
   });
 });
