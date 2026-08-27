@@ -162,7 +162,7 @@ for (const [text, reason] of RUNTIME_EXACT_EVIDENCE) {
 // "No filters active"), so its strings reach the screen like any other.
 // icons.js is nothing but SVG path data — scanning it harvested a `d=` path as
 // if it were a sentence. It renders, but it renders no words.
-const SKIP_FILES = /pure-core\.js$|morphdom\.js$|i18n\.js$|icons\.js$|locales\/|__tests__\//;
+const SKIP_FILES = /pure-core\.js$|morphdom\.js$|i18n\.js$|icons\.js$|locales\/|vendor\/|__tests__\//;
 const sourcePath = (p) => p.replaceAll('\\', '/');
 
 function walk(dir, out = []) {

@@ -6,6 +6,7 @@
       "public/js/**/*.js",
       "worker/src/**/*.ts",
       "!public/js/lib/morphdom.js",
+      "!public/js/vendor/**",
       "!**/*.test.ts",
       "!public/js/__tests__/**",
       "!public/js/__harness__/**"

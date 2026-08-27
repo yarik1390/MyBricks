@@ -108,6 +108,18 @@
     ]
   },
   {
+    "text": "3D preview is unavailable on this device. The set photo remains available above.",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "3D viewer controls",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "50 sets! Dedicated collector 🏅",
     "files": [
       "views/portfolio-detail.js"
@@ -974,6 +986,12 @@
     ]
   },
   {
+    "text": "BRICK STUDY",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "BRICKSVAULT · STACK SOMETHING BEAUTIFUL",
     "files": [
       "views/me.js"
@@ -1466,6 +1484,12 @@
   },
   {
     "text": "Building instructions (PDF)",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Building preview…",
     "files": [
       "views/portfolio-detail.js"
     ]
@@ -2896,6 +2920,12 @@
     ]
   },
   {
+    "text": "Drag",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Dusting off the instructions…",
     "files": [
       "components/scanner.js"
@@ -3811,6 +3841,12 @@
     ]
   },
   {
+    "text": "Generated on your device from set metadata. Its size and colors are decorative; it does not reproduce the real set. Model files are not downloaded or redistributed.",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Generating listing…",
     "files": [
       "views/portfolio-detail.js"
@@ -4620,6 +4656,13 @@
     "text": "LEGO Ideas and CUUSOO",
     "files": [
       "views/catalog.js"
+    ]
+  },
+  {
+    "text": "LEGO set",
+    "files": [
+      "components/set-3d-viewer.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -6721,6 +6764,12 @@
     ]
   },
   {
+    "text": "Pinch",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Plastic box",
     "files": [
       "views/portfolio-detail.js"
@@ -7742,6 +7791,12 @@
     "text": "Reset the Firecrawl key pool? Only do this once you’ve confirmed the account actually has credits left — a real drained key will just 402 again and re-latch.",
     "files": [
       "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Reset view",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -10542,7 +10597,8 @@
   {
     "text": "View",
     "files": [
-      "views/catalog.js"
+      "views/catalog.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -10555,6 +10611,12 @@
     "text": "View all →",
     "files": [
       "views/kids.js"
+    ]
+  },
+  {
+    "text": "View an illustrative 3D preview",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -11464,9 +11526,21 @@
     ]
   },
   {
+    "text": "to rotate ·",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "to use the advisor offline.",
     "files": [
       "components/advisor.js"
+    ]
+  },
+  {
+    "text": "to zoom",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {

@@ -126,6 +126,7 @@ export function hideSheet() {
   const sheet = $("#sheet");
   const backdrop = $("#sheetBackdrop");
   if (!backdrop || !backdrop.classList.contains("show")) return;
+  sheet?.dispatchEvent(new CustomEvent("sheet:closing"));
   backdrop.classList.remove("show");
   backdrop.setAttribute("aria-hidden", "true");
   backdrop.removeEventListener("touchmove", blockBackdropTouch, { passive: false });
