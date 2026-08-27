@@ -60,6 +60,12 @@ jobs:
   build:
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 30
+    env:
+      # Repository run numbers are monotonic and survive rebases/squashes. The
+      # 100000 + a repository-monotonic run number stays above all historical
+      # commit-count codes and remains stable across rebases/squashes.
+      ANDROID_VERSION_CODE: ${{ 100000 + github.run_number }}
+      ANDROID_APP_LINK_SHA256: ${{ secrets.ANDROID_APP_LINK_SHA256 }}
     permissions:
       contents: write
     steps:
@@ -86,6 +92,27 @@ jobs:
       - name: Install workspace deps (Capacitor CLI + platform)
         run: npm ci
 
+      - name: Validate signed-release credentials early
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          present=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            [ -n "${!name:-}" ] && present=$((present + 1))
+          done
+          if [ "$present" -ne 0 ] && [ "$present" -ne 4 ]; then
+            echo "::error::Android signing is partially configured; all four keystore secrets are required."
+            exit 1
+          fi
+          if [ "$present" -eq 4 ] && [ -z "${ANDROID_APP_LINK_SHA256:-}" ]; then
+            echo "::error::ANDROID_APP_LINK_SHA256 is required for a signed release."
+            exit 1
+          fi
+
       - name: Prepare bundled native configuration
         env:
           RC_PLAY_BILLING_KEY: ${{ secrets.RC_PLAY_BILLING_KEY }}
@@ -111,10 +138,22 @@ jobs:
       - name: Sync web assets + plugins into the Android project
         run: npx cap sync android
 
-      - name: Restore the upload keystore (if configured)
+      - name: Verify bundled web parity
+        run: |
+          set -euo pipefail
+          # Capacitor generates these two compatibility shims in the destination;
+          # every source-owned asset must otherwise be byte-for-byte identical.
+          diff -qr \
+            --exclude='cordova.js' \
+            --exclude='cordova_plugins.js' \
+            public android/app/src/main/assets/public
+
+      - name: Restore and verify the upload keystore (if configured)
         id: keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           if [ -n "${ANDROID_KEYSTORE_BASE64}" ]; then
             # Sanitize common paste mistakes: an accidental "NAME=" prefix from
@@ -133,10 +172,24 @@ jobs:
             fi
             echo "signed=true" >> "$GITHUB_OUTPUT"
             echo "Keystore restored ($(stat -c%s android/upload.jks) bytes) — building a SIGNED bundle."
+            keytool -list \
+              -keystore android/upload.jks \
+              -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+              -alias "$ANDROID_KEY_ALIAS" >/dev/null
           else
             echo "signed=false" >> "$GITHUB_OUTPUT"
             echo "::warning::No ANDROID_KEYSTORE_BASE64 secret — building UNSIGNED (compile check only; Play will reject it)."
           fi
+
+      - name: Android release preflight
+        if: steps.keystore.outputs.signed == 'true'
+        env:
+          ANDROID_KEYSTORE_PATH: android/upload.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          RC_PLAY_BILLING_KEY: ${{ secrets.RC_PLAY_BILLING_KEY }}
+        run: npm run android:preflight
 
       - name: Build
         working-directory: android
@@ -155,10 +208,9 @@ jobs:
             ./gradlew bundleRelease --no-daemon
           fi
 
-      - name: Report version (versionCode = commit count, floored at 56)
+      - name: Report version
         run: |
-          COUNT=$(git rev-list --count HEAD)
-          echo "commit count: $COUNT -> effective versionCode: $(( COUNT < 56 ? 56 : COUNT ))"
+          echo "effective versionCode: $ANDROID_VERSION_CODE"
           grep -E 'versionName' android/app/build.gradle | sed 's/^ *//'
 
       - name: Verify signature (signed bundles only)

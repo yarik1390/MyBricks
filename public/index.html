@@ -18,6 +18,16 @@
 <meta property="og:description" content="Track, value, and forecast your brick collection.">
 <meta property="og:image" content="/icon-512.png">
 <meta name="twitter:card" content="summary">
+<script>
+// Native App Lock privacy curtain. This executes before styles, preload hints,
+// and the module boot graph so persisted portfolio content cannot paint while
+// biometric capability is still being checked. The web/PWA path is unchanged.
+try {
+  if (window.Capacitor?.isNativePlatform?.() && localStorage.getItem('bv_app_lock') === '1') {
+    document.documentElement.classList.add('app-lock-pending');
+  }
+} catch {}
+</script>
 <meta name="twitter:title" content="BricksVault — Portfolio Tracker">
 <meta name="twitter:description" content="Track, value, and forecast your brick collection.">
 <meta name="twitter:image" content="/icon-512.png">

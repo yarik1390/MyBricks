@@ -1,7 +1,9 @@
 package app.bricksvault;
 
 import android.graphics.Color;
+import android.content.Context;
 import android.view.Window;
+import android.view.WindowManager;
 
 import androidx.core.view.WindowInsetsControllerCompat;
 
@@ -17,6 +19,25 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  */
 @CapacitorPlugin(name = "SystemBars")
 public class SystemBarsPlugin extends Plugin {
+    static final String PRIVACY_PREFS = "bv_privacy";
+    static final String KEY_APP_LOCK = "app_lock";
+
+    @PluginMethod
+    public void setPrivacyProtection(PluginCall call) {
+        boolean enabled = Boolean.TRUE.equals(call.getBoolean("enabled", false));
+        Context context = getContext();
+        context.getSharedPreferences(PRIVACY_PREFS, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_APP_LOCK, enabled).apply();
+        getActivity().runOnUiThread(() -> {
+            Window window = getActivity().getWindow();
+            if (enabled) {
+                window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+            } else {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+            }
+            call.resolve();
+        });
+    }
 
     @PluginMethod
     public void setStyle(PluginCall call) {

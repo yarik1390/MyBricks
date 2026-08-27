@@ -1,15 +1,20 @@
 apply plugin: 'com.android.application'
 
-// versionCode auto-derives from the git commit count: monotonic and unique per
-// push, so push-triggered builds can never collide on Play (each successful
-// upload consumes its code; Play only rejects exact duplicates). The literal
-// below is a FLOOR — the last code Play has actually seen — so shallow clones,
-// zip downloads, or no-git environments never regress below it.
+// A release workflow may provide an immutable code chosen by GitHub's monotonic
+// run number. Local builds fall back to max(git count, floor). Keep the floor at
+// or above the highest code already accepted by Play; unlike a raw commit count,
+// it cannot regress after a squash/rebase or in a shallow/no-git checkout.
 def derivedVersionCode = { ->
-    def floor = 56
+    def floor = 1140
+    def provided = System.getenv('ANDROID_VERSION_CODE')
+    if (provided) {
+        def parsed = Integer.parseInt(provided)
+        if (parsed < floor) throw new GradleException("ANDROID_VERSION_CODE must be >= ${floor}")
+        return parsed
+    }
     try {
         def out = providers.exec {
-            workingDir = rootDir.parentFile   // repo root (this file lives in android/app)
+            workingDir = rootDir.parentFile
             commandLine 'git', 'rev-list', '--count', 'HEAD'
         }.standardOutput.asText.get().trim()
         return Math.max(floor, Integer.parseInt(out))
@@ -74,24 +79,22 @@ repositories {
     }
 }
 
-// The native app serves public/ from the APK bundle. A stale copy ships old JS
-// silently — this once left the bundle a month behind main. Sync before every
-// build so gradle can never package assets that don't match public/.
-tasks.register('capSync') {
+// The native app serves public/ from the APK bundle. Copy web assets before
+// every build, but do not run the full `cap sync` inside Gradle: that command
+// mutates included plugin projects after Gradle has configured their task graph
+// and can delete intermediates that parallel metadata checks still need.
+tasks.register('capCopy') {
     doLast {
-        // cap sync must run from the repo root (package.json + capacitor.config.json
-        // live there), and gradle's exec env doesn't reliably carry the shell's
-        // npx shim on Windows — so invoke node + the local CLI binary directly.
         def repoRoot = file('../../')
         exec {
             workingDir repoRoot
             def nodeExe = System.getenv("NODE_EXE") ?: "node"
             def capBin = new File(repoRoot, "node_modules/@capacitor/cli/bin/capacitor")
-            commandLine nodeExe, capBin.absolutePath, "sync", "android"
+            commandLine nodeExe, capBin.absolutePath, "copy", "android"
         }
     }
 }
-preBuild.dependsOn capSync
+preBuild.dependsOn capCopy
 
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')

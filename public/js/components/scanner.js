@@ -236,6 +236,11 @@ function showPhotoScanSetupSheet() {
 export function closeScan() {
   invalidateScanSession();
   stopCamera();
+  // The native CameraX preview lives behind the WebView; stop it explicitly
+  // when Close, Android Back, or routing dismisses this sheet.
+  void import("../lib/native-barcode.js")
+    .then(({ cancelBarcodeNative }) => cancelBarcodeNative())
+    .catch(() => {});
   _scanTrapRelease?.();
   _scanTrapRelease = null;
   document.body.classList.remove("scan-active");
@@ -326,10 +331,9 @@ export async function startCamera() {
   }
 }
 
-// Native ML Kit barcode flow (installed app). Launches the full-screen native
-// scanner and routes the result through the same lookup path as the web
-// detector. Cancelling returns to the Scan route's method picker. No
-// getUserMedia loop — ML Kit owns the camera.
+// Native ML Kit barcode flow (installed app). CameraX renders behind the
+// transparent center of our own scanner sheet, so controls and instructions
+// retain Bricksvault styling and accessibility semantics.
 async function runNativeBarcodeScan() {
   // Release any getUserMedia stream first (e.g. after switching from Photo
   // mode) so ML Kit's scanner can acquire the camera — otherwise scan() fails
@@ -338,14 +342,8 @@ async function runNativeBarcodeScan() {
   $("#nativeRescanBtn")?.remove();
   document.querySelector(".scan-video-wrap")?.classList.add("native-scan");
   const hint = $("#scanHint");
-  if (hint) hint.textContent = "Opening scanner…";
+  if (hint) hint.textContent = "Align barcode within the frame";
   const overlay = $("#scanOverlay");
-  // Once control passes to ML Kit, reveal the route's method picker underneath.
-  // Android can take a moment to settle the cancelled scan promise after Back;
-  // keeping this WebView overlay hidden prevents the redundant scanner flash.
-  overlay?.classList.add("native-handoff");
-  _scanTrapRelease?.();
-  _scanTrapRelease = null;
   // Give the OS a moment to fully release the camera before ML Kit grabs it.
   await new Promise((r) => setTimeout(r, 200));
   let code = null;
@@ -356,17 +354,16 @@ async function runNativeBarcodeScan() {
   // The overlay may have been dismissed (back button / swipe) mid-scan.
   if (!overlay?.classList.contains("open")) return;
   if (code) {
-    overlay.classList.remove("native-handoff");
-    _scanTrapRelease = activateFocusTrap(overlay, closeScan);
     haptic("medium");
     if (hint) hint.textContent = state.camera.mode === "blindbox" ? "Finding the series…" : "Looking up barcode…";
     routeScannedCode(code);
     return;
   }
-  // Cancellation is navigation, not an error state. Return to the Scan route's
-  // method picker instead of revealing a second, redundant scanner screen.
-  closeScan();
-  requestAnimationFrame(() => $("#pileScanBarcode")?.focus());
+  // Permission denial or native failure keeps the branded sheet available and
+  // offers an accessible manual path instead of flashing a generic screen.
+  if (hint) hint.textContent = "Type the barcode or set number below";
+  ensureNativeRescanButton();
+  showManualBarcodeEntry();
 }
 
 function ensureNativeRescanButton() {

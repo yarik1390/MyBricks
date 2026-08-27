@@ -14,6 +14,7 @@ import { skelPage, skelStatGrid, skelSettingRows } from '../components/skeleton.
 import { startOnboarding } from '../components/onboarding.js';
 import { isNativeBilling, presentProPaywall, restorePurchases, presentCustomerCenter } from '../lib/revenuecat-native.js';
 import { getCapacitorPlugin } from '../lib/native-auth.js';
+import { clearVaultWidget } from '../lib/native-widget.js';
 
 export async function renderMe() {
   // Legacy Stripe return: detect a Checkout success redirect (?supported=1) before
@@ -692,6 +693,7 @@ export async function renderMe() {
 
   $("#signOutRow")?.addEventListener("click", async () => {
     haptic("medium");
+    await clearVaultWidget();
     await sbSignOut();
     await clearLocalSessionState();
     go("#/");
@@ -726,6 +728,7 @@ export async function renderMe() {
       if (btn) { btn.disabled = true; btn.textContent = "Deleting…"; }
       try {
         await api("/api/me", { method: "DELETE", body: { confirm: "DELETE" } });
+        await clearVaultWidget();
         await sbSignOut();
         await clearLocalSessionState();
         hideSheet();

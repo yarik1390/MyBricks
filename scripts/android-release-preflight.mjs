@@ -20,13 +20,20 @@ if (!process.env.RC_PLAY_BILLING_KEY) warnings.push('RC_PLAY_BILLING_KEY is unse
 
 const versionName = gradle.match(/versionName\s+"([^"]+)"/)?.[1];
 if (!versionName) errors.push('Could not read Android versionName.');
-// versionCode is derived at build time: max(git commit count, floor) — see
-// derivedVersionCode in android/app/build.gradle. Guard both halves here.
+// CI supplies a repository-monotonic run-number code; local builds fall back
+// to max(git commit count, the persisted Play floor).
 const versionFloor = Number(gradle.match(/def floor = (\d+)/)?.[1]);
-const hasDerivation = /rev-list/.test(gradle)
+const hasDerivation = /ANDROID_VERSION_CODE/.test(gradle)
+  && /rev-list/.test(gradle)
   && /versionCode\s+derivedVersionCode/.test(gradle);
 if (!hasDerivation || !Number.isInteger(versionFloor)) {
-  errors.push('versionCode must stay auto-derived: derivedVersionCode = max(commit count, def floor = <last uploaded>).');
+  errors.push('versionCode must use ANDROID_VERSION_CODE in CI and max(commit count, persisted floor) locally.');
+}
+const suppliedVersionCode = process.env.ANDROID_VERSION_CODE
+  ? Number(process.env.ANDROID_VERSION_CODE) : null;
+if (suppliedVersionCode !== null
+  && (!Number.isSafeInteger(suppliedVersionCode) || suppliedVersionCode < versionFloor)) {
+  errors.push(`ANDROID_VERSION_CODE must be an integer >= ${versionFloor}.`);
 }
 
 const fingerprint = String(process.env.ANDROID_APP_LINK_SHA256 || '').trim().toUpperCase();
@@ -38,7 +45,7 @@ if (!fingerprint) {
   if (!configured) errors.push('Run npm run android:assetlinks before release; the Play signing fingerprint is not published.');
 }
 
-console.log(`Android release ${versionName || '?'} (versionCode = max(commit count, ${Number.isInteger(versionFloor) ? versionFloor : '?'}) = derived at build time)`);
+console.log(`Android release ${versionName || '?'} (versionCode = ${suppliedVersionCode ?? `max(commit count, ${Number.isInteger(versionFloor) ? versionFloor : '?'})`})`);
 for (const warning of warnings) console.warn(`WARN: ${warning}`);
 if (errors.length) {
   for (const error of errors) console.error(`ERROR: ${error}`);

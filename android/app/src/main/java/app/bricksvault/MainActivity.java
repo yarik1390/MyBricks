@@ -4,6 +4,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.view.View;
+import android.view.WindowManager;
 
 import androidx.core.splashscreen.SplashScreen;
 
@@ -19,6 +20,12 @@ public class MainActivity extends BridgeActivity {
         // through the SystemBars plugin as soon as the web theme resolves.
         registerPlugin(SystemBarsPlugin.class);
         registerPlugin(WidgetBridgePlugin.class);
+        boolean appLockEnabled = getSharedPreferences(
+                SystemBarsPlugin.PRIVACY_PREFS, MODE_PRIVATE)
+                .getBoolean(SystemBarsPlugin.KEY_APP_LOCK, false);
+        if (appLockEnabled) {
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        }
         getWindow().setStatusBarColor(Color.parseColor("#F5F1E8"));
         getWindow().setNavigationBarColor(Color.parseColor("#FFFFFF"));
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);

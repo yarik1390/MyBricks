@@ -4,8 +4,9 @@
 // or lost device. Web build: no-op.
 import { getCapacitorPlugin, isNativeCapacitor } from './native-auth.js';
 import { biometricAvailable, verifyBiometric } from './native-biometric.js';
+import { APP_LOCK_ENABLED_KEY } from './app-lock-boot.js';
 
-const ENABLED_KEY = 'bv_app_lock';
+const ENABLED_KEY = APP_LOCK_ENABLED_KEY;
 const RELOCK_AFTER_MS = 15_000; // re-lock only after a real backgrounding, not a quick app-switch
 
 let _wired = false;
@@ -17,6 +18,9 @@ export function appLockEnabled() {
 }
 export function setAppLockEnabled(on) {
   try { localStorage.setItem(ENABLED_KEY, on ? '1' : '0'); } catch { /* storage unavailable */ }
+  try {
+    getCapacitorPlugin('SystemBars')?.setPrivacyProtection?.({ enabled: !!on }).catch(() => {});
+  } catch { /* native privacy persistence is best-effort on web */ }
 }
 
 function overlay() {
@@ -48,6 +52,11 @@ function showLock() {
 function hideLock() {
   document.getElementById('appLock')?.classList.remove('show');
   document.body.classList.remove('app-locked');
+  document.documentElement.classList.remove('app-lock-pending');
+}
+
+function releaseBootPrivacyLock() {
+  document.documentElement.classList.remove('app-lock-pending');
 }
 
 async function promptUnlock() {
@@ -72,8 +81,26 @@ export function lockAndPrompt() {
 // Called from app boot. If enabled + available, lock immediately and wire the
 // background/resume re-lock. Safe to call on web / when disabled (no-op).
 export async function initAppLock(win) {
-  if (_wired || !isNativeCapacitor(win) || !appLockEnabled()) return;
-  if (!(await biometricAvailable(win))) return; // sensor removed/disabled — don't strand the user
+  const appLockOn = (() => {
+    try {
+      return win?.localStorage?.getItem?.(ENABLED_KEY) === '1';
+    } catch {
+      return appLockEnabled();
+    }
+  })();
+  try {
+    await getCapacitorPlugin('SystemBars', win)?.setPrivacyProtection?.({ enabled: appLockOn });
+  } catch { /* native privacy persistence must not strand boot */ }
+  if (_wired || !isNativeCapacitor(win) || !appLockOn) {
+    releaseBootPrivacyLock();
+    return;
+  }
+  if (!(await biometricAvailable(win))) {
+    // Sensor removed/disabled — don't strand the user behind the pre-render
+    // privacy curtain. The native shell still protects Recents while enabled.
+    releaseBootPrivacyLock();
+    return;
+  }
   _wired = true;
 
   lockAndPrompt();
@@ -88,4 +115,10 @@ export async function initAppLock(win) {
     }
     _bgAt = 0;
   });
+}
+
+export function resetAppLockForTests() {
+  _wired = false;
+  _verifying = false;
+  _bgAt = 0;
 }

@@ -10,6 +10,7 @@ import { trustBadgeHTML } from '../components/trust.js';
 import { activeCatalogFilterCount, pricePerPiece, estMark, displayValueOf, cleanFacetList } from '../lib/pure.js';
 import { catalogFilterSummaryText } from '../lib/filter-summary.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
+import { wireHorizontalRail } from '../lib/horizontal-rail.js';
 
 let _catalogGen = 0;
 
@@ -452,7 +453,7 @@ function paintAdd() {
         <input class="search-input" id="catalogSearch" name="catalog_search" type="search" aria-label="Search sets" placeholder="Search sets, themes, tags…" autocomplete="off" value="${escapeHtml(f.catalogQ)}">
       </div>
 
-      <div class="filter-row catalog-theme-row" aria-label="Popular themes">
+      <div class="filter-row catalog-theme-row horizontal-rail" aria-label="Popular themes">
         <button class="chip ${f.catalogTheme === "all" ? "active" : ""}" data-cat-theme="all">All themes</button>
         ${state.themes.length > 8 && f.catalogTheme !== "all" && !popularThemes(state.themes, quickThemeCount()).includes(f.catalogTheme) ? `<button class="chip active" data-cat-theme="${escapeHtml(f.catalogTheme)}">${escapeHtml(f.catalogTheme)}</button>` : ""}
         ${popularThemes(state.themes, quickThemeCount()).map(t => `<button class="chip ${f.catalogTheme === t ? "active" : ""}" data-cat-theme="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join("")}
@@ -527,6 +528,7 @@ function paintAdd() {
     refreshCatalogSummary();
     reloadGrid();
   }));
+  wireHorizontalRail(document.querySelector('.catalog-theme-row'));
   const wireSortButtons = (root = document) => root.querySelectorAll("[data-csort-base]").forEach(b => b.addEventListener("click", () => {
     const o = CATALOG_SORTS.find(s => s.base === b.dataset.csortBase);
     if (!o) return;

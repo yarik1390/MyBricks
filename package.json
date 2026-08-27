@@ -6,7 +6,7 @@
   "scripts": {
     "setup": "npm --prefix worker install",
     "typecheck": "npm --prefix worker run typecheck",
-    "test": "node scripts/check-ui-strings.mjs && node scripts/check-i18n-dynamic-sinks.mjs && node scripts/verify-ui-dicts.mjs && node scripts/run-ui-tests.mjs",
+    "test": "node scripts/check-ui-strings.mjs && node scripts/check-i18n-dynamic-sinks.mjs && node scripts/verify-ui-dicts.mjs && node --test scripts/__tests__/*.test.js && node scripts/run-ui-tests.mjs",
     "lint": "biome lint",
     "status": "git status",
     "a11y": "playwright test --config=a11y/playwright.config.mjs",

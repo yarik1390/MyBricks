@@ -1,6 +1,16 @@
 /* ============================================================
    BricksVault — design tokens
    ============================================================ */
+/* Fail closed during native biometric App Lock initialization. The class is
+   applied in <head> before authenticated content can paint. */
+html.app-lock-pending,
+html.app-lock-pending body {
+  background: #F5F1E8;
+}
+html.app-lock-pending body {
+  visibility: hidden;
+}
+
 :root {
   color-scheme: light;
   --bg: #F5F1E8;
@@ -415,6 +425,27 @@ body.offline .offline-banner { display: block; }
   touch-action: pan-x pan-y;
 }
 .filter-row::-webkit-scrollbar { display: none; }
+.filter-row .chip {
+  flex: 0 0 auto;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+/* Edge fades make horizontally clipped controls discoverable without adding
+   permanent chrome. JavaScript removes each fade at its corresponding end. */
+.horizontal-rail {
+  --rail-fade-size: 28px;
+  mask-image: linear-gradient(90deg, #000 0, #000 100%);
+}
+.horizontal-rail.can-scroll-left {
+  mask-image: linear-gradient(90deg, transparent 0, #000 var(--rail-fade-size), #000 100%);
+}
+.horizontal-rail.can-scroll-right {
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - var(--rail-fade-size)), transparent 100%);
+}
+.horizontal-rail.can-scroll-left.can-scroll-right {
+  mask-image: linear-gradient(90deg, transparent 0, #000 var(--rail-fade-size), #000 calc(100% - var(--rail-fade-size)), transparent 100%);
+}
 
 .catalog-primary-toolbar {
   display: grid;
@@ -2225,7 +2256,7 @@ body[data-route="set-detail"] #toast {
   flex-direction: column;
 }
 #scanOverlay.open { display: flex; animation: fadeIn 0.2s; }
-#scanOverlay.open.native-handoff { display: none; animation: none; }
+
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .scan-video-wrap {
   position: relative; flex: 1; overflow: hidden;
@@ -2348,12 +2379,18 @@ body[data-route="set-detail"] #toast {
   line-height: 1.45;
   z-index: 3;
 }
-/* Native ML Kit barcode mode: no getUserMedia preview (ML Kit's own full-screen
-   scanner owns the camera), so present the frame as a scanner backdrop and hide
-   the empty capture button. */
+/* CameraX is mounted natively behind the WebView. Only the preview area becomes
+   transparent; Bricksvault's frame, instructions and controls stay visible. */
 .scan-video-wrap.native-scan .scan-video { display: none; }
-.scan-video-wrap.native-scan { background: #0c0c0f; }
+.scan-video-wrap.native-scan { background: transparent; }
+.scan-video-wrap.native-scan::before { background: transparent; }
 .scan-video-wrap.native-scan .scan-capture-btn { display: none; }
+body.native-barcode-active,
+body.native-barcode-active #app,
+body.native-barcode-active #scanOverlay,
+body.native-barcode-active .scan-video-wrap {
+  background-color: transparent !important;
+}
 .scan-native-loading {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   z-index: 2;

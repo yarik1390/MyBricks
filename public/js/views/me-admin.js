@@ -17,6 +17,7 @@ import { go } from '../router.js';
 import { subpageTopbarHTML, loadMe } from './me-shared.js';
 import { skelPage, skelSettingRows } from '../components/skeleton.js';
 import { t, tPlural, getLocale } from '../lib/i18n.js';
+import { wireHorizontalRail } from '../lib/horizontal-rail.js';
 
 let activeAdminRunId = null;
 let activeAdminTool = null;
@@ -262,6 +263,8 @@ function wireTablistKeyboard(tablist, selector, activate) {
 }
 
 function wireAdminShell() {
+  wireHorizontalRail(document.querySelector('.admin-segments-sticky'));
+  wireHorizontalRail(document.querySelector('.admin-service-filters'));
   document.querySelectorAll('.admin-section').forEach(s => {
     s.setAttribute('role', 'tabpanel');
     s.setAttribute('aria-labelledby', `${s.id}Tab`);
@@ -405,7 +408,13 @@ function syncAdminNavOffset() {
 // reveal the active chip in the horizontal strip), and reset scroll to the top
 // — so switching tabs feels like a native segmented view instead of a long scroll.
 function activateAdminSection(id) {
-  document.querySelectorAll('.admin-section').forEach(s => s.classList.toggle('is-active', s.id === id));
+  document.querySelectorAll('.admin-section').forEach(s => {
+    const active = s.id === id;
+    s.classList.toggle('is-active', active);
+    s.hidden = !active;
+    s.toggleAttribute('inert', !active);
+    s.setAttribute('aria-hidden', active ? 'false' : 'true');
+  });
   let activeBtn = null;
   document.querySelectorAll('[data-admin-section-link]').forEach(b => {
     const on = b.getAttribute('data-admin-section-link') === id;

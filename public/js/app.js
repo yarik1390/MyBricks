@@ -310,6 +310,23 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 document.addEventListener("DOMContentLoaded", async () => {
+  if (isNativeCapacitor()) {
+    document.body.classList.add('is-native');
+    // CSS-positioned skip links help keyboard users on the PWA, but Android
+    // WebView exposes this offscreen link as a zero-sized TalkBack node.
+    const skipLink = document.querySelector('.skip-link');
+    skipLink?.setAttribute('aria-hidden', 'true');
+    skipLink?.setAttribute('tabindex', '-1');
+  }
+  // Await native App Lock before session restoration or initial routing. The
+  // head script has already hidden the body when the lock is enabled.
+  const appLockReady = import('./lib/app-lock.js')
+    .then(({ initAppLock }) => initAppLock(window))
+    .catch((e) => {
+      document.documentElement.classList.remove('app-lock-pending');
+      console.warn('[app-lock] init failed:', e?.message || e);
+    });
+
   // Resolve the language BEFORE anything renders, so the UI never paints in
   // English and then flips. Non-fatal: a failure here leaves the bundled
   // English catalogue active rather than blocking boot.
@@ -329,9 +346,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  // Biometric app-lock: if enabled, cover the app and require a fingerprint
-  // before anything is visible. Native + opt-in only; no-op otherwise.
-  import('./lib/app-lock.js').then(({ initAppLock }) => initAppLock(window)).catch(() => {});
+  await appLockReady;
 
   // Grid thumbnails route through img.bricksvault.app; if that host fails to
   // load an <img> on a device, transparently fall back to the Worker proxy so
