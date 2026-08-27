@@ -1470,6 +1470,148 @@ describe('BrickVault API Worker Tests', () => {
       }
     });
 
+    it('accepts a unique OCR catalog hit before Brickognize', async () => {
+      const previousFetch = globalThis.fetch;
+      (env as any).BRICKOGNIZE_ENABLED = '1';
+      let brickognizeCalls = 0;
+      globalThis.fetch = vi.fn().mockImplementation((url: RequestInfo | URL) => {
+        if (url.toString().includes('api.brickognize.com')) {
+          brickognizeCalls += 1;
+          return Promise.resolve(new Response('should-not-run', { status: 500 }));
+        }
+        return previousFetch(url);
+      });
+
+      try {
+        const res = await app.fetch(
+          new Request('http://localhost/api/scan/identify', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode: 'image',
+              image: 'data:image/png;base64,b2NyLWV4YWN0LWNhdGFsb2ctaGl0',
+              ocr_candidates: ['75192-1'],
+            }),
+          }),
+          env,
+        );
+        expect(res.status).toBe(200);
+        const data = await res.json<{
+          identified: boolean;
+          model: string;
+          reasoning: string;
+          sets: Array<{ set_num: string }>;
+          diag?: { timings: Array<{ provider: string; outcome: string }> };
+        }>();
+        expect(data.identified).toBe(true);
+        expect(data.model).toBe('ocr/set-number');
+        expect(data.sets[0]?.set_num).toBe('75192');
+        expect(data.reasoning).toContain('OCR read set number 75192-1');
+        expect(data.diag?.timings?.[0]).toMatchObject({ provider: 'ocr', outcome: 'accepted' });
+        expect(brickognizeCalls).toBe(0);
+        expect(brickognizeAcceptedAiCalls).toBe(0);
+      } finally {
+        globalThis.fetch = previousFetch;
+        (env as any).BRICKOGNIZE_ENABLED = '0';
+      }
+    });
+
+    it('falls through to AI when OCR candidates are unmapped', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'image',
+            image: 'data:image/png;base64,mock',
+            ocr_candidates: ['88888'],
+          }),
+        }),
+        env,
+      );
+      expect(res.status).toBe(200);
+      const data = await res.json<{
+        identified: boolean;
+        model: string;
+        diag?: { timings: Array<{ provider: string; outcome: string }> };
+      }>();
+      expect(data.identified).toBe(true);
+      expect(data.model).not.toContain('ocr');
+      expect(data.diag?.timings?.[0]).toMatchObject({ provider: 'ocr', outcome: 'unmapped' });
+    });
+
+    it('falls through when OCR candidates map to different catalog sets', async () => {
+      await db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price)
+        VALUES ('75313-1', 'AT-AT', 'Star Wars', 2021, 1267, 159.99, 159.99)`).run();
+      const previousFetch = globalThis.fetch;
+      (env as any).BRICKOGNIZE_ENABLED = '1';
+      let brickognizeCalls = 0;
+      globalThis.fetch = vi.fn().mockImplementation((url: RequestInfo | URL) => {
+        if (url.toString().includes('api.brickognize.com')) {
+          brickognizeCalls += 1;
+          return Promise.resolve(new Response(JSON.stringify({
+            items: [
+              { id: '75192', name: 'Millennium Falcon', type: 'set', score: 0.84 },
+              { id: '75257', name: 'Millennium Falcon', type: 'set', score: 0.80 },
+            ],
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+        }
+        return previousFetch(url);
+      });
+
+      try {
+        const res = await app.fetch(
+          new Request('http://localhost/api/scan/identify', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode: 'image',
+              image: 'data:image/png;base64,b2NyLWFtYmlndW91cy1mYWxsLWJhY2s=',
+              ocr_candidates: ['75192', '75313-1'],
+            }),
+          }),
+          env,
+        );
+        expect(res.status).toBe(200);
+        const data = await res.json<{
+          identified: boolean;
+          model: string;
+          diag?: { timings: Array<{ provider: string; outcome: string }> };
+        }>();
+        expect(data.identified).toBe(true);
+        expect(data.model).not.toContain('ocr');
+        expect(data.diag?.timings?.some((step) => step.provider === 'ocr' && step.outcome === 'ambiguous')).toBe(true);
+        expect(brickognizeCalls).toBe(1);
+      } finally {
+        globalThis.fetch = previousFetch;
+        (env as any).BRICKOGNIZE_ENABLED = '0';
+      }
+    });
+
+    it('short-circuits BYOK OpenAI when OCR uniquely matches the catalog', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'X-OpenAI-Key': 'user-provided-key',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            mode: 'image',
+            image: 'data:image/png;base64,mock',
+            ocr_candidates: ['Set 75192'],
+          }),
+        }),
+        env,
+      );
+      expect(res.status).toBe(200);
+      const data = await res.json<{ identified: boolean; model: string; reasoning: string }>();
+      expect(data.identified).toBe(true);
+      expect(data.model).toBe('ocr/set-number');
+      expect(data.reasoning).toContain('OCR read set number 75192');
+    });
+
     it('uses BYOK OpenAI key and returns matched set', async () => {
       // 75192 already seeded by beforeEach; OpenAI module is fully mocked to return it
       const res = await app.fetch(

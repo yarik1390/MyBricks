@@ -11,6 +11,7 @@ import { openAiCompatibleStep } from '../lib/llm-clients';
 import { isMergeBudgetExhausted, mergeReportedCostUsd } from '../lib/merge-gateway';
 import { recordAiUsage } from '../lib/ai-usage';
 import { identifySetWithBrickognize } from '../lib/brickognize';
+import { parseOcrSetNumbers, resolveOcrSetNum } from '../lib/scan-ocr';
 import { verifyTurnstileToken } from '../lib/turnstile';
 import { matchSetsToCatalog, matchMinifigsToCatalog, type DescribedSet, type DescribedMinifig } from '../lib/scan-match';
 import { CATALOG_COLS, MARKET_EXT_JOIN } from './sets';
@@ -290,6 +291,52 @@ function validScanPayload(payload: unknown): payload is {
  */
 interface StepTiming { provider: string; model: string; ms: number; outcome: string }
 
+async function tryOcrCatalogHit(
+  db: D1Database,
+  ocrInput: unknown,
+  timings: StepTiming[],
+): Promise<{ setNum: string; token: string } | null> {
+  const tokens = parseOcrSetNumbers(ocrInput);
+  if (!tokens.length) return null;
+  const t0 = Date.now();
+  const result = await resolveOcrSetNum(db, tokens);
+  timings.push({
+    provider: 'ocr',
+    model: 'set-number',
+    ms: Date.now() - t0,
+    outcome: result.kind,
+  });
+  if (result.kind !== 'accepted') return null;
+  return { setNum: result.setNum, token: result.token };
+}
+
+function ocrHitPayload(
+  exact: Record<string, unknown>,
+  token: string,
+  timings: StepTiming[],
+  started: number,
+  image: string,
+) {
+  const set = enrichSetRecord({ ...exact, retired: !!exact.retired });
+  return {
+    identified: true as const,
+    sets: [{
+      ...set,
+      match_confidence: 'high',
+      match_reasoning: `OCR read set number ${token}.`,
+    }],
+    minifigs: [] as unknown[],
+    confidence: 'high' as const,
+    reasoning: `OCR read set number ${token}.`,
+    model: 'ocr/set-number',
+    diag: {
+      timings,
+      total_ms: Date.now() - started,
+      image_kb: Math.round(image.length / 1024),
+    },
+  };
+}
+
 async function describeSharedScan(
   env: Env,
   image: string,
@@ -434,8 +481,8 @@ app.post('/identify', async (c) => {
   // catalog matching. Provider steps receive only the time still available.
   const routeDeadline = Date.now() + SCAN_BUDGET_MS;
   const userId = c.get('userId') || '';
-  const body = await c.req.json<{ mode?: string; image?: string; barcode?: string }>();
-  const { mode, image, barcode } = body;
+  const body = await c.req.json<{ mode?: string; image?: string; barcode?: string; ocr_candidates?: unknown }>();
+  const { mode, image, barcode, ocr_candidates: ocrCandidates } = body;
 
   if (mode === 'barcode') {
     if (!barcode) return c.json({ error: 'barcode required' }, 400);
@@ -458,6 +505,9 @@ app.post('/identify', async (c) => {
   if (mode !== 'image' && mode !== 'shelf') return c.json({ error: 'mode must be image, shelf or barcode' }, 400);
   if (!image) return c.json({ error: 'image required' }, 400);
   if (image.length > 2_000_000) return c.json({ error: 'Image too large (max ~1.5 MB)' }, 413);
+
+  const timings: StepTiming[] = [];
+  const started = Date.now();
 
   // Shelf Snap: same pipeline, exhaustive prompt + a completion budget sized
   // for up to SHELF_MAX_SETS sets instead of one.
@@ -545,11 +595,53 @@ app.post('/identify', async (c) => {
     if (!setMatch.sets.length && !figMatch.minifigs.length) return finalizeShared({ identified: false, reasoning: NOT_FOUND });
     const firstId = String((setMatch.sets[0] as Record<string, unknown>)?.set_num || (figMatch.minifigs[0] as Record<string, unknown>)?.fig_num || '');
     logEvent(c.env, 'scan_used', userId, { setNum: firstId });
-    return finalizeShared({ identified: true, sets: setMatch.sets, minifigs: figMatch.minifigs, confidence: setMatch.topConfidence, reasoning: setMatch.reasoning, model });
+    return finalizeShared({
+      identified: true,
+      sets: setMatch.sets,
+      minifigs: figMatch.minifigs,
+      confidence: setMatch.topConfidence,
+      reasoning: setMatch.reasoning,
+      model,
+      ...(timings.length ? {
+        diag: {
+          timings,
+          total_ms: Date.now() - started,
+          image_kb: Math.round(image.length / 1024),
+        },
+      } : {}),
+    });
+  };
+
+  const loadOcrCatalogRow = async (setNum: string) => c.env.DB.prepare(
+    `SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN} WHERE s.set_num=?`,
+  ).bind(setNum).first<Record<string, unknown>>();
+
+  const respondOcrHit = async (
+    hit: { setNum: string; token: string },
+    timings: StepTiming[],
+    started: number,
+    viaShared: boolean,
+  ) => {
+    const exact = await loadOcrCatalogRow(hit.setNum);
+    if (!exact) {
+      const last = timings[timings.length - 1];
+      if (last?.provider === 'ocr') last.outcome = 'unmapped';
+      return null;
+    }
+    logEvent(c.env, 'scan_used', userId, { setNum: String(exact.set_num || '') });
+    const payload = ocrHitPayload(exact, hit.token, timings, started, image || '');
+    return viaShared ? finalizeShared(payload) : c.json(payload);
   };
 
   // 1. BYOK Gemini — the user's own key, called directly on their quota.
   if (geminiKey) {
+    if (!shelfMode) {
+      const ocrHit = await tryOcrCatalogHit(c.env.DB, ocrCandidates, timings);
+      if (ocrHit) {
+        const responded = await respondOcrHit(ocrHit, timings, started, false);
+        if (responded) return responded;
+      }
+    }
     let res: Awaited<ReturnType<typeof callGeminiScan>> = null;
     try { res = await callGeminiScan(image, geminiKey, c.env, { prompt: promptOpts.prompt }); }
     catch (e) {
@@ -575,6 +667,13 @@ app.post('/identify', async (c) => {
 
   // 2. BYOK OpenAI — the user's own key, called directly.
   if (openaiKey) {
+    if (!shelfMode) {
+      const ocrHit = await tryOcrCatalogHit(c.env.DB, ocrCandidates, timings);
+      if (ocrHit) {
+        const responded = await respondOcrHit(ocrHit, timings, started, false);
+        if (responded) return responded;
+      }
+    }
     const client = new OpenAI({ apiKey: openaiKey, maxRetries: 0 });
     let described: Awaited<ReturnType<typeof openaiVisionDescribe>> = {
       sets: [], minifigs: [], imageClass: 'uncertain', parsed: false,
@@ -703,14 +802,17 @@ app.post('/identify', async (c) => {
     }
   }
 
-  // Per-step timings ride along on every non-match reply. Until now a failed
-  // scan said only "no match" or was cut off by the client, so there was no way
-  // to tell a provider that answered "nothing here" from one that burned the
-  // whole budget — the difference between a photo problem and a routing problem.
-  const timings: StepTiming[] = [];
-  const started = Date.now();
+  // OCR-first: a clearly printed set number that exists in D1 is a $0 exact
+  // hit. Empty, unmapped, or ambiguous OCR falls through to Brickognize then AI.
+  if (!shelfMode) {
+    const ocrHit = await tryOcrCatalogHit(c.env.DB, ocrCandidates, timings);
+    if (ocrHit) {
+      const responded = await respondOcrHit(ocrHit, timings, started, true);
+      if (responded) return responded;
+    }
+  }
 
-  // Brickognize is the first recognizer for ordinary shared single-set photos.
+  // Brickognize is the next recognizer for ordinary shared single-set photos.
   // Shelf Snap needs multi-object recognition, and BYOK calls promise to use the
   // member's selected provider. Acceptance requires score + result-margin gates
   // in lib/brickognize and an exact local catalog mapping. Every other outcome

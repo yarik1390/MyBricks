@@ -7,6 +7,7 @@ import { computeDealScore as computeDealScorePure, computeStoreVerdict, marketVa
 import { checkGemma3Downloaded, runLocalVisionScan, isWebGpuAvailable } from '../lib/local-ai.js';
 import { flipCalcHTML } from './flip-calc.js';
 import { isNativeCapacitor } from '../lib/native-auth.js';
+import { collectOcrCandidates } from '../lib/scan-ocr.js';
 import { amazonSlotHTML, hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
 import { t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { getModePref } from '../theme.js';
@@ -704,11 +705,24 @@ async function sendScanToAPI(payload) {
   const scanEngine = localStorage.getItem('bv_ai_engine') || 'cloud';
   const online = navigator.onLine;
 
+  if (payload.mode === 'image' && payload.image && !payload.ocr_candidates) {
+    const _tOcr = performance.now();
+    try {
+      const candidates = await collectOcrCandidates(payload.image);
+      if (stale()) return;
+      if (candidates.length) payload = { ...payload, ocr_candidates: candidates };
+      scanTime('ocr candidates', _tOcr);
+    } catch { /* OCR is best-effort; Brickognize / AI still run */ }
+  }
+  const hasOcrCandidates = Array.isArray(payload.ocr_candidates) && payload.ocr_candidates.length > 0;
+
   // On-device (Gemma) vision is best-effort: only attempt it when the user
   // prefers local, it's an image scan, and the device can actually run it
-  // (WebGPU + model downloaded). The cloud path is the primary, more-accurate
+  // (WebGPU + model downloaded). A printed set number from OCR is cheaper and
+  // more reliable than local vision, so skip Gemma when we already have
+  // candidates and can reach D1. The cloud path is the primary, more-accurate
   // route and the fallback whenever local can't run or can't identify.
-  if (payload.mode === 'image' && scanEngine === 'local') {
+  if (payload.mode === 'image' && scanEngine === 'local' && !(hasOcrCandidates && online)) {
     const hasGpu = isWebGpuAvailable();
     const ready = hasGpu && await checkGemma3Downloaded();
     if (stale()) return;
@@ -1292,8 +1306,17 @@ if (progressText) progressText.textContent = t('downloads.scanProgress', { curre
       const scanEngine = localStorage.getItem('bv_ai_engine') || 'cloud';
       const localReady = scanEngine === 'local' && isWebGpuAvailable() && await checkGemma3Downloaded();
       if (stale()) return;
-      const cloudScan = () => cloudScanIdentify({ mode: "image", image: resized }, controller.signal);
-      if (localReady) {
+      let ocrCandidates = [];
+      try {
+        ocrCandidates = await collectOcrCandidates(resized);
+        if (stale()) return;
+      } catch { /* OCR is best-effort */ }
+      const cloudScan = () => cloudScanIdentify({
+        mode: "image",
+        image: resized,
+        ...(ocrCandidates.length ? { ocr_candidates: ocrCandidates } : {}),
+      }, controller.signal);
+      if (localReady && !ocrCandidates.length) {
         try {
           const bitmap = await imageBitmapFromDataUrl(resized);
           if (stale()) return;

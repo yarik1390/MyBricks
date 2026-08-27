@@ -68,11 +68,11 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
-        <!-- Pre-download the ML Kit barcode scanner module at install time so
+        <!-- Pre-download ML Kit barcode + Latin OCR modules at install time so
              the first native scan doesn't wait on a Play Services download. -->
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
-            android:value="barcode_ui" />
+            android:value="barcode_ui,ocr" />
     </application>
 
     <!-- Permissions -->

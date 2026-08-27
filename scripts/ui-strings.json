@@ -11608,6 +11608,12 @@
     ]
   },
   {
+    "text": "★ Write a review",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "✓ Already in your vault!",
     "files": [
       "views/catalog.js"

@@ -14,7 +14,7 @@
   "formatter": { "enabled": false },
   "assist": { "enabled": false },
   "javascript": {
-    "globals": ["BarcodeDetector"]
+    "globals": ["BarcodeDetector", "TextDetector"]
   },
   "linter": {
     "enabled": true,
