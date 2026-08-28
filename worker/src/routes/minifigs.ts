@@ -69,7 +69,7 @@ app.get('/', async (c) => {
     orderBy = `ORDER BY (m.appears_in_sets IS NULL OR m.appears_in_sets = 0) ASC, m.appears_in_sets DESC, m.name ASC`;
   }
 
-  const [pageRes, countRes] = await Promise.all([
+  const [pageRes, countRes, aggregateRes] = await Promise.all([
     c.env.DB.prepare(
       `SELECT m.fig_num, m.name, m.series, m.rarity, m.image_url, m.added_at, m.source,
               m.current_value, m.ebay_value, m.cached_at, m.year, m.num_parts, m.appears_in_sets,
@@ -86,6 +86,16 @@ app.get('/', async (c) => {
        LEFT JOIN user_minifigs um ON um.fig_num = m.fig_num AND um.user_id = ?
        ${countWhereSQL}`
     ).bind(...countParams).first<{ total: number }>(),
+    userId
+      ? c.env.DB.prepare(
+          `SELECT
+             CAST(COALESCE(SUM(um.quantity), 0) AS INTEGER) AS owned_count,
+             COALESCE(SUM(COALESCE(m.current_value, ${rarityFallbackExpr}) * um.quantity), 0) AS owned_value
+           FROM user_minifigs um
+           JOIN minifigs m ON m.fig_num = um.fig_num
+           WHERE um.user_id = ? AND um.quantity > 0`
+        ).bind(userId).first<{ owned_count: number; owned_value: number }>()
+      : Promise.resolve({ owned_count: 0, owned_value: 0 }),
   ]);
 
   const total = countRes?.total ?? 0;
@@ -116,6 +126,10 @@ app.get('/', async (c) => {
     minifigs: results,
     total,
     hasMore: offset + results.length < total,
+    aggregates: {
+      owned_count: Number(aggregateRes?.owned_count) || 0,
+      owned_value: Number(aggregateRes?.owned_value) || 0,
+    },
   });
 });
 

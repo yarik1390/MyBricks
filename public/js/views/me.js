@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, setHue, bvIDB, celebrate, celebrateChime, soundEnabled, advisorEnabled, publicOrigin } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, setHue, bvIDB, celebrate, celebrateChime, soundEnabled, advisorEnabled, publicOrigin, setBtnLoading } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, sbSignOut, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
@@ -191,8 +191,8 @@ export async function renderMe() {
           <button class="toggle ${me.notify_price_drops ? "on" : ""}" id="notifyToggle" role="switch" aria-label="Price-drop alerts" aria-checked="${!!me.notify_price_drops}"></button>
         </div>
         <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Weekly vault digest</div><div class="desc">A Sunday summary: value change, top mover, wishlist hits.</div></div>
-          <button class="toggle ${me.notify_weekly_digest ? "on" : ""}" id="digestToggle" role="switch" aria-label="Weekly vault digest" aria-checked="${!!me.notify_weekly_digest}"></button>
+          <div class="lbl-wrap"><div class="lbl">Weekly vault digest</div><div class="desc">${guest ? "Sign in to get the Sunday email summary." : "A Sunday summary: value change, top mover, wishlist hits."}</div></div>
+          <button class="toggle ${me.notify_weekly_digest ? "on" : ""}" id="digestToggle" role="switch" aria-label="Weekly vault digest" aria-checked="${!!me.notify_weekly_digest}" ${guest ? 'disabled aria-disabled="true"' : ''}></button>
         </div>
         <h3 class="profile-settings-heading">App experience</h3>
         <div class="setting-row" id="appLockRow" style="display:none;">
@@ -467,27 +467,39 @@ export async function renderMe() {
   });
   $("#rcManageBtn")?.addEventListener("click", () => { haptic("light"); presentCustomerCenter(); });
 
-  let notifyOn = me.notify_price_drops;
-  $("#notifyToggle")?.addEventListener("click", async (e) => {
-    notifyOn = !notifyOn;
-    e.currentTarget.classList.toggle("on", notifyOn);
-    e.currentTarget.setAttribute("aria-checked", notifyOn);
-    haptic("medium");
-    try { await api("/api/me", { method: "PATCH", body: { notify_price_drops: notifyOn } }); state.me = null; }
-    catch {}
-    toast(notifyOn ? "Alerts on" : "Alerts paused", "info");
-  });
+  // Shared save flow for member notification toggles: disable while saving,
+  // optimistically flip the switch, roll back + surface the error on failure
+  // (same honesty rules as the public-profile toggles below).
+  const wirePrefToggle = (id, field, onMsg, offMsg) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    let on = !!me[field];
+    el.addEventListener("click", async () => {
+      if (el.disabled) return;
+      on = !on;
+      el.classList.toggle("on", on);
+      el.setAttribute("aria-checked", on);
+      setBtnLoading(el, true);
+      haptic("medium");
+      try {
+        await api("/api/me", { method: "PATCH", body: { [field]: on } });
+        state.me = null;
+        toast(on ? onMsg : offMsg, "info");
+      } catch (err) {
+        on = !on;
+        el.classList.toggle("on", on);
+        el.setAttribute("aria-checked", on);
+        toast(t('common.errorWithDetails', { error: err.message || err }), "error");
+      } finally {
+        setBtnLoading(el, false);
+      }
+    });
+  };
 
-  let digestOn = !!me.notify_weekly_digest;
-  $("#digestToggle")?.addEventListener("click", async (e) => {
-    digestOn = !digestOn;
-    e.currentTarget.classList.toggle("on", digestOn);
-    e.currentTarget.setAttribute("aria-checked", digestOn);
-    haptic("medium");
-    try { await api("/api/me", { method: "PATCH", body: { notify_weekly_digest: digestOn } }); state.me = null; }
-    catch {}
-    toast(digestOn ? "Weekly digest on — first one this Sunday" : "Weekly digest off", "info");
-  });
+  if (!guest) {
+    wirePrefToggle("notifyToggle", "notify_price_drops", "Alerts on", "Alerts paused");
+    wirePrefToggle("digestToggle", "notify_weekly_digest", "Weekly digest on — first one this Sunday", "Weekly digest off");
+  }
 
   // App lock (biometric) — native only, revealed once biometrics are confirmed
   // available. Enabling/disabling both require a successful verify so only the

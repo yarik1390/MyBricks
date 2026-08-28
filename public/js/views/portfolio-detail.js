@@ -152,6 +152,9 @@ function paintSetDetail(set, entry) {
   // Simple mode has no forecast tab — don't let a deep link (/set/x/forecast)
   // strand the panel on a hidden tab.
   if (isSimpleMode() && state.detail.tab === "forecast") state.detail.tab = "info";
+  // Unknown tabs (and manage for unowned sets) must fall back to info instead
+  // of painting an empty panel or a manage pane that cannot be saved.
+  if (!detailTabs(owned).includes(state.detail.tab)) state.detail.tab = "info";
   const h = setHue(set);
   const displayImg = proxyImg(set.image_url);
   const hasImg = displayImg && !displayImg.startsWith("data:");
@@ -191,7 +194,7 @@ function paintSetDetail(set, entry) {
         <div class="detail-tabs" id="detailTabs" role="tablist" aria-label="Set detail sections">
           ${detailTabs(owned).map(tab =>
             // NB: the map param is `tab`, not `t` — `t` is the translator.
-            `<button id="tab-${tab}" data-tab="${tab}" role="tab" aria-selected="${state.detail.tab === tab}" aria-controls="panel-${tab}" class="${state.detail.tab === tab ? "active" : ""}">${escapeHtml(tabLabel(tab))}</button>`
+            `<button id="tab-${tab}" data-tab="${tab}" role="tab" tabindex="${state.detail.tab === tab ? "0" : "-1"}" aria-selected="${state.detail.tab === tab}" aria-controls="panel-${tab}" class="${state.detail.tab === tab ? "active" : ""}">${escapeHtml(tabLabel(tab))}</button>`
           ).join("")}
         </div>
         <div class="detail-tab-panel" id="panel-${state.detail.tab}" role="tabpanel" aria-labelledby="tab-${state.detail.tab}">
@@ -1044,16 +1047,16 @@ function manageTabHTML(set, entry) {
     <fieldset class="form-group manage-group">
       <legend class="u-mono-label u-mb-1">Purchase</legend>
       <div class="field">
-        <div class="field-lbl">Purchase price</div>
-        <input id="mPrice" type="number" step="0.01" value="${moneyInputValue(entry.purchase_price)}" placeholder="0.00" inputmode="decimal">
+        <label class="field-lbl" for="mPrice">Purchase price</label>
+        <input id="mPrice" type="number" step="0.01" value="${moneyInputValue(entry.purchase_price)}" placeholder="0.00" inputmode="decimal" autocomplete="off">
         <div class="field-err" id="mPriceErr"></div>
       </div>
       <div class="field">
-        <div class="field-lbl">Purchase date</div>
+        <label class="field-lbl" for="mDate">Purchase date</label>
         <input id="mDate" type="date" value="${entry.purchased_at ? entry.purchased_at.slice(0,10) : ""}">
       </div>
       <div class="field">
-        <div class="field-lbl">Acquisition source</div>
+        <label class="field-lbl" for="mAcquisition">Acquisition source</label>
         <select id="mAcquisition">
           <option value="" ${!entry.acquisition_source ? "selected" : ""}>— select —</option>
           ${["Store","BrickLink","eBay","Facebook Marketplace","Trade","Gift","Other"].map(s =>
@@ -1065,7 +1068,7 @@ function manageTabHTML(set, entry) {
     <fieldset class="form-group manage-group">
       <legend class="u-mono-label u-mb-1">Condition</legend>
       <div class="field">
-        <div class="field-lbl">Condition</div>
+        <label class="field-lbl" for="mCondition">Condition</label>
         <select id="mCondition">
           <option value="sealed" ${entry.condition === "sealed" ? "selected" : ""}>Sealed (MISB)</option>
           <option value="new" ${entry.condition === "new" ? "selected" : ""}>New, opened</option>
@@ -1079,20 +1082,20 @@ function manageTabHTML(set, entry) {
           <label><input type="checkbox" id="mComplete" ${entry.is_complete !== false ? "checked" : ""}>Complete / all pieces present</label>
         </div>
         <div class="missing-pieces-wrap" id="missingWrap" style="${entry.is_complete === false ? "" : "display:none;"}">
+          <label for="mMissing" style="font-size:13px;color:var(--ink-mute);">pieces missing</label>
           <input type="number" id="mMissing" min="0" value="${entry.missing_pieces || 0}" placeholder="0">
-          <span style="font-size:13px;color:var(--ink-mute);">pieces missing</span>
         </div>
       </div>
     </fieldset>
     <fieldset class="form-group manage-group">
       <legend class="u-mono-label u-mb-1">Storage &amp; notes</legend>
       <div class="field">
-        <div class="field-lbl">Storage location</div>
+        <label class="field-lbl" for="mStorage">Storage location</label>
         <input id="mStorage" type="text" value="${escapeHtml(entry.storage_location || "")}" placeholder="e.g. Display shelf A3, Attic box 2" list="storageLocations">
         <datalist id="storageLocations"></datalist>
       </div>
       <div class="field">
-        <div class="field-lbl">Notes</div>
+        <label class="field-lbl" for="mNotes">Notes</label>
         <textarea id="mNotes" placeholder="Story, details, anything…">${escapeHtml(entry.notes || "")}</textarea>
       </div>
     </fieldset>
@@ -1514,6 +1517,26 @@ function ensureDetailDelegation() {
       if (tb) { haptic("light"); switchDetailTab(tb.dataset.tab, _detailCtx.set, _detailCtx.entry); }
     } catch (err) { console.warn("[detail-delegation]", err); }
   });
+  // Keyboard activation of the tabs (arrow/home/end) — delegated once so
+  // morphdom-repainted tab rows keep working without re-wiring.
+  root.addEventListener("keydown", (e) => {
+    try {
+      if (!_detailCtx || !e.target.closest || !e.target.closest("#detailTabs")) return;
+      const list = [...document.querySelectorAll("#detailTabs button[role='tab']")];
+      if (!list.length) return;
+      const cur = list.findIndex(b => b.dataset.tab === state.detail.tab);
+      let next = -1;
+      if (e.key === "ArrowRight") next = (cur + 1) % list.length;
+      else if (e.key === "ArrowLeft") next = (cur - 1 + list.length) % list.length;
+      else if (e.key === "Home") next = 0;
+      else if (e.key === "End") next = list.length - 1;
+      else return;
+      e.preventDefault();
+      const target = list[next];
+      target.focus();
+      switchDetailTab(target.dataset.tab, _detailCtx.set, _detailCtx.entry);
+    } catch (err) { console.warn("[detail-delegation]", err); }
+  });
 }
 
 function switchDetailTab(tab, set, entry) {
@@ -1523,7 +1546,11 @@ function switchDetailTab(tab, set, entry) {
     const on = x.dataset.tab === tab;
     x.classList.toggle("active", on);
     x.setAttribute("aria-selected", on ? "true" : "false");
+    x.setAttribute("tabindex", on ? "0" : "-1");
   });
+  // Keep the URL in sync with the active tab without re-running the router
+  // (replaceState, so back/forward history still holds the set itself).
+  history.replaceState(null, "", `#/set/${encodeURIComponent(set.set_num)}/${tab}`);
   const panel = $(".detail-tab-panel");
   if (!panel) return;
   panel.id = `panel-${tab}`;

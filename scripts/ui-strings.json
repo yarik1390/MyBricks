@@ -2989,7 +2989,8 @@
   {
     "text": "End",
     "files": [
-      "views/me-admin.js"
+      "views/me-admin.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -4149,7 +4150,8 @@
   {
     "text": "Home",
     "files": [
-      "views/me-admin.js"
+      "views/me-admin.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -8961,6 +8963,12 @@
     "text": "Sign in to create a public profile",
     "files": [
       "api.js"
+    ]
+  },
+  {
+    "text": "Sign in to get the Sunday email summary.",
+    "files": [
+      "views/me.js"
     ]
   },
   {

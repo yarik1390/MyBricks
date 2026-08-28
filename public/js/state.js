@@ -15,7 +15,7 @@ export const state = {
   // Set of set_nums the user owns — powers the catalog "OWNED" badge (any mode).
   ownedSetNums: new Set(),
   ownedSetNumsLoaded: false,
-  blind: { items: [], total: 0, offset: 0, hasMore: false, loading: false, ownedCount: 0, pageSize: 30 },
+  blind: { items: [], total: 0, offset: 0, hasMore: false, loading: false, ownedCount: 0, ownedValue: 0, pageSize: 30 },
   themes: [], themeGroups: [], categories: [], themesLoadedAt: 0,
   me: null,
   compactView: (() => {

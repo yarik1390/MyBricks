@@ -1369,6 +1369,22 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.total).toBe(1);
     });
 
+    it('returns authoritative owned aggregates independent of filters and pagination', async () => {
+      await seedFigs();
+      await db.batch([
+        db.prepare(`INSERT INTO user_minifigs (user_id, fig_num, quantity) VALUES (?, 'sw0001', 2)`).bind(userId),
+        db.prepare(`INSERT INTO user_minifigs (user_id, fig_num, quantity) VALUES (?, 'cty001', 3)`).bind(userId),
+      ]);
+
+      const res = await app.fetch(new Request('http://localhost/api/minifigs?series=Star%20Wars&limit=1', { headers: auth() }), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.minifigs).toHaveLength(1);
+      // sw0001: legendary, 120 × 2 = 240; cty001: uncommon with NULL value
+      // falls back to the rarity floor (7.50) × 3 = 22.5 → 262.5 total.
+      expect(data.aggregates).toEqual({ owned_count: 5, owned_value: 262.5 });
+    });
+
     it('marks a fig owned, filters by ownership, then removes it', async () => {
       await seedFigs();
       const put = await app.fetch(new Request('http://localhost/api/minifigs/sw0001', {

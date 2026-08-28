@@ -18,6 +18,7 @@ const rarityLabel = (rarity) => {
 };
 
 let _blindGen = 0;
+let _figDetailGen = 0;
 let _seriesList = [];
 
 // Bi-directional minifig sort options. Each click toggles direction; switching
@@ -124,8 +125,8 @@ export async function renderBlind() {
   }
   const b = state.blind;
   const f = state.filter;
-  const ownedCount = b.items.filter(fig => state.ownedFigs.has(fig.fig_num)).length;
-  const ownedValue = b.items.filter(fig => state.ownedFigs.has(fig.fig_num)).reduce((s, fig) => s + (fig.value ?? fig.current_value ?? 0), 0);
+  const ownedCount = b.ownedCount || 0;
+  const ownedValue = b.ownedValue || 0;
   const activeFilterCount = activeFigFilterCount(f);
 
   $("#root").innerHTML = `
@@ -261,6 +262,15 @@ export async function loadBlind({ reset = false } = {}) {
     saveFigs();
     b.items = reset ? fresh : b.items.concat(fresh);
     b.total = res.total ?? b.items.length;
+    if (getSessionUserId() && res.aggregates) {
+      b.ownedCount = Number(res.aggregates.owned_count) || 0;
+      b.ownedValue = Number(res.aggregates.owned_value) || 0;
+    } else {
+      // Guest mode's complete local collection is authoritative, not this result page.
+      b.ownedCount = state.ownedFigs.size;
+      const details = (() => { try { return JSON.parse(localStorage.getItem('bv_guest_fig_details') || '{}'); } catch { return {}; } })();
+      b.ownedValue = [...state.ownedFigs].reduce((sum, num) => sum + (Number(details[num]?.current_value ?? details[num]?.value) || 0), 0);
+    }
     b.offset = b.items.length;
     b.hasMore = !!res.hasMore;
     return fresh;
@@ -370,7 +380,7 @@ function showFigFilterSheet() {
   const activeCount = activeFigFilterCount(f);
   const rarityOptions = ['all', 'common', 'uncommon', 'rare', 'legendary'];
   const ownedOptions = [['all', 'All'], ['owned', 'Owned'], ['unowned', 'Unowned']];
-  const sortOptions = FIG_SORTS.map(o => [o.def, o.label]);
+  const sortOptions = FIG_SORTS.flatMap(o => [[o.asc, `${o.label} ↑`], [o.desc, `${o.label} ↓`]]);
   const chipGroup = (label, id, values, current) => `
     <section class="filter-sheet-section">
       <div class="field-lbl">${escapeHtml(label)}</div>
@@ -457,20 +467,19 @@ function wireMiniCards() {
 function updateBlindCount() {
   const el = $("#blindCount");
   if (!el) return;
-  const owned = state.blind.items.filter(f => state.ownedFigs.has(f.fig_num)).length;
+  const owned = state.blind.ownedCount || 0;
   el.textContent = tPlural('counts.collected', owned, { owned, total: state.blind.total.toLocaleString() });
 }
 
 function updateFigStats() {
-  const ownedItems = state.blind.items.filter(f => state.ownedFigs.has(f.fig_num));
+  const { ownedCount = 0, ownedValue = 0 } = state.blind;
   const countEl = $("#figStatCount");
   const valueEl = $("#figStatValue");
-  if (countEl) countEl.textContent = tPlural('minifigs.ownedCount', ownedItems.length);
+  if (countEl) countEl.textContent = tPlural('minifigs.ownedCount', ownedCount);
   const totalEl = countEl?.nextElementSibling;
   if (totalEl) totalEl.textContent = tPlural('counts.ofFigs', state.blind.total, { total: state.blind.total.toLocaleString() });
   if (valueEl) {
-    const total = ownedItems.reduce((s, f) => s + (f.value ?? f.current_value ?? 0), 0);
-    valueEl.textContent = fmtMoney(total, { cents: 0 });
+    valueEl.textContent = fmtMoney(ownedValue, { cents: 0 });
   }
 }
 
@@ -488,6 +497,8 @@ function figSourceLabel(source) {
 }
 
 function showFigDetail(f) {
+  const detailGen = ++_figDetailGen;
+  const detailFigNum = f.fig_num;
   const owned = state.ownedFigs.has(f.fig_num);
   const realVal = f.current_value ?? null;
   const rarity = f.rarity || 'common';
@@ -545,6 +556,7 @@ function showFigDetail(f) {
     (async () => {
       try {
         const r = await api('/api/minifigs/' + encodeURIComponent(f.fig_num) + '/history?days=90');
+        if (detailGen !== _figDetailGen || detailFigNum !== f.fig_num) return;
         const hist = (r && r.history) || [];
         if (hist.length < 2) return;
         const wrap = $('#figSparkWrap');
@@ -566,6 +578,7 @@ function showFigDetail(f) {
   (async () => {
     try {
       const r = await api('/api/minifigs/' + encodeURIComponent(f.fig_num) + '/sets');
+      if (detailGen !== _figDetailGen || detailFigNum !== f.fig_num) return;
       const sets = (r && r.sets) || [];
       const el = $('#figSetsSection');
       if (!el || !sets.length) return;
@@ -606,6 +619,16 @@ function showFigDetail(f) {
     updateFigStats();
     try {
       await api('/api/minifigs/' + encodeURIComponent(f.fig_num), { method: nowOwned ? 'PUT' : 'DELETE' });
+      if (state.filter.figOwned !== "all") {
+        await loadBlind({ reset: true });
+        refreshMiniGrid();
+      } else {
+        const delta = nowOwned ? 1 : -1;
+        state.blind.ownedCount = Math.max(0, (state.blind.ownedCount || 0) + delta);
+        state.blind.ownedValue = Math.max(0, (state.blind.ownedValue || 0) + delta * (Number(f.current_value ?? f.value) || 0));
+      }
+      updateBlindCount();
+      updateFigStats();
     } catch {
       if (nowOwned) state.ownedFigs.delete(f.fig_num); else state.ownedFigs.add(f.fig_num);
       f.owned_qty = nowOwned ? 0 : 1;
