@@ -1,12 +1,13 @@
 package app.bricksvault;
 
-import android.graphics.Color;
+import android.content.res.Configuration;
 import android.os.Bundle;
 import android.os.SystemClock;
-import android.view.View;
 import android.view.WindowManager;
 
+import androidx.core.content.ContextCompat;
 import androidx.core.splashscreen.SplashScreen;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -16,8 +17,8 @@ public class MainActivity extends BridgeActivity {
         final long splashStartedAt = SystemClock.uptimeMillis();
         SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
 
-        // Light defaults matching the light shell; theme.js re-syncs both bars
-        // through the SystemBars plugin as soon as the web theme resolves.
+        // Match the resource-selected splash immediately, before the WebView can
+        // resolve its theme. SystemBarsPlugin re-syncs after the web theme loads.
         registerPlugin(SystemBarsPlugin.class);
         registerPlugin(WidgetBridgePlugin.class);
         boolean appLockEnabled = getSharedPreferences(
@@ -26,9 +27,16 @@ public class MainActivity extends BridgeActivity {
         if (appLockEnabled) {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         }
-        getWindow().setStatusBarColor(Color.parseColor("#F5F1E8"));
-        getWindow().setNavigationBarColor(Color.parseColor("#FFFFFF"));
-        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+        boolean isNightMode = (getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        int launchColor = ContextCompat.getColor(this, R.color.brickvault_splash_background);
+        getWindow().getDecorView().setBackgroundColor(launchColor);
+        getWindow().setStatusBarColor(launchColor);
+        getWindow().setNavigationBarColor(launchColor);
+        WindowInsetsControllerCompat insetsController = new WindowInsetsControllerCompat(
+                getWindow(), getWindow().getDecorView());
+        insetsController.setAppearanceLightStatusBars(!isNightMode);
+        insetsController.setAppearanceLightNavigationBars(!isNightMode);
         super.onCreate(savedInstanceState);
 
         // Keep the branded launch screen until the bundled WebView is ready,

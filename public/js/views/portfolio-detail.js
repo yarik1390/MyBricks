@@ -16,7 +16,6 @@ import { refreshNavBadge } from './portfolio.js';
 import { getModePref } from '../theme.js';
 import { hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
 import { getProviderCredential } from '../lib/provider-credentials.js';
-import { createSet3dViewerLifecycle } from '../components/set-3d-viewer-lifecycle.js';
 
 // Simple mode hides the forecast (price-projection) tab. Helper centralizes the
 // check and the available-tabs list so every tab build stays consistent.
@@ -164,7 +163,6 @@ function paintSetDetail(set, entry) {
       <div class="detail-hero-col">
         <div class="detail-hero${hasImg ? " has-photo" : ""}">
           <button class="detail-back" id="detailBack" aria-label="Back">${I.chevL()}</button>
-          <button class="detail-3d-launch" id="detail3dBtn" title="View an illustrative 3D preview" aria-label="View an illustrative 3D preview of ${escapeHtml(set.name || set.set_num)}"><span aria-hidden="true">3D</span><span class="detail-3d-launch-label">View</span></button>
           ${hasImg
             ? `<div class="detail-hero-bg" style="background-image:url('${escapeHtml(displayImg)}')"></div>`
             : `<div class="detail-hero-bg placeholder" style="--brick-hue:linear-gradient(135deg, oklch(0.72 0.13 ${h}), oklch(0.55 0.13 ${h}));"></div>`}
@@ -1501,67 +1499,14 @@ function ensureDetailDelegation() {
   const root = document.getElementById("root");
   if (!root) return;
   _detailDelegated = true;
-  root.addEventListener("click", async (e) => {
+  root.addEventListener("click", (e) => {
     try {
       if (!_detailCtx) return;
       if (e.target.closest("#detailBack")) { if (history.length > 1) history.back(); else location.hash = "#/"; return; }
-      if (e.target.closest("#detail3dBtn")) { await openSet3dSheet(_detailCtx.set); return; }
       if (e.target.closest("#shareBtn")) { shareSet(_detailCtx.set); return; }
       const tb = e.target.closest("#detailTabs button");
       if (tb) { haptic("light"); switchDetailTab(tb.dataset.tab, _detailCtx.set, _detailCtx.entry); }
     } catch (err) { console.warn("[detail-delegation]", err); }
-  });
-}
-
-async function openSet3dSheet(set) {
-  const setNum = String(set.set_num || '').trim();
-  const setName = String(set.name || setNum || 'LEGO set').trim();
-  const copy = {
-    title: `3D preview of ${setName}`,
-    description: `Interactive block-scale preview for set ${setNum}. This is an illustrative preview, not the official LEGO building model.`,
-  };
-  showSheet(`
-    <section class="set-3d-sheet" aria-labelledby="set3dTitle" aria-describedby="set3dDescription">
-      <div class="set-3d-heading">
-        <div>
-          <span class="set-3d-kicker">BRICK STUDY</span>
-          <h2 id="set3dTitle">${escapeHtml(set.name || set.set_num)}</h2>
-        </div>
-        <span class="set-3d-setnum">${escapeHtml(set.set_num)}</span>
-      </div>
-      <p id="set3dDescription" class="set-3d-description">${escapeHtml(copy.description)}</p>
-      <div class="set-3d-stage" id="set3dStage">
-        <canvas data-set-3d-canvas role="img" aria-label="${escapeHtml(copy.title)}"></canvas>
-        <div class="set-3d-loading" id="set3dLoading" role="status">Building preview…</div>
-      </div>
-      <div class="set-3d-controls" aria-label="3D viewer controls">
-        <p><strong>Drag</strong> to rotate · <strong>Pinch</strong> to zoom</p>
-        <button class="btn-secondary" id="set3dReset" type="button" disabled>Reset view</button>
-      </div>
-      <p class="set-3d-note">Generated on your device from set metadata. Its size and colors are decorative; it does not reproduce the real set. Model files are not downloaded or redistributed.</p>
-    </section>
-  `);
-
-  const stage = $("#set3dStage");
-  const loading = $("#set3dLoading");
-  const reset = $("#set3dReset");
-  const sheet = stage?.closest('.sheet');
-  if (!stage || !sheet) return;
-  await createSet3dViewerLifecycle(sheet, async () => {
-    const { mountSet3dViewer } = await import('../components/set-3d-viewer.js');
-    return mountSet3dViewer(stage, set);
-  }, viewer => {
-    loading?.remove();
-    if (reset) {
-      reset.disabled = false;
-      reset.addEventListener('click', () => { haptic('light'); viewer.reset(); });
-    }
-  }, err => {
-    console.warn('[set-3d-viewer]', err);
-    if (loading) {
-      loading.className = 'set-3d-loading is-error';
-      loading.textContent = '3D preview is unavailable on this device. The set photo remains available above.';
-    }
   });
 }
 

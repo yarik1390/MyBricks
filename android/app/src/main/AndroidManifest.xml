@@ -41,7 +41,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
-                    android:host="brickvault-5ub.pages.dev" />
+                    android:host="bricksvault.app" />
             </intent-filter>
 
         </activity>

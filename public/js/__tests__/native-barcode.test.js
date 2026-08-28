@@ -44,11 +44,30 @@ describe('native branded barcode scanning', () => {
     assert.equal(startedEmbeddedScan, false);
   });
 
-  it('treats native scanner cancellation as a null result', async () => {
+  it('treats an empty native scanner result as user cancellation', async () => {
     const plugin = {
       scan: async () => ({ barcodes: [] }),
     };
     assert.equal(await scanBarcodeNative(nativeWindow(plugin)), null);
     await cancelBarcodeNative();
+  });
+
+  it('treats an explicit native cancellation rejection as cancellation', async () => {
+    const plugin = {
+      scan: async () => {
+        const error = new Error('Scan canceled by user');
+        error.code = 'SCAN_CANCELED';
+        throw error;
+      },
+    };
+    assert.equal(await scanBarcodeNative(nativeWindow(plugin)), null);
+  });
+
+  it('preserves operational scanner failures for the UI to recover from', async () => {
+    const cause = new Error('Camera service unavailable');
+    const plugin = {
+      scan: async () => { throw cause; },
+    };
+    await assert.rejects(() => scanBarcodeNative(nativeWindow(plugin)), cause);
   });
 });

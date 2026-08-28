@@ -19,13 +19,20 @@ export async function nativeBarcodeSupported(win) {
   }
 }
 
+function isScannerCancellation(error) {
+  const code = String(error?.code || '').toLowerCase();
+  const message = String(error?.message || error || '').toLowerCase();
+  return code.includes('cancel') || message.includes('cancelled') || message.includes('canceled');
+}
+
 // Launch the native full-screen scanner. Resolves to the first barcode's raw
-// value, or null when the user cancels / the scanner is unavailable. The native
+// value, or null when the user cancels / returns no result. Operational failures
+// reject so the scanner UI can offer recovery instead of looking like a cancel.
 // Activity owns its preview surface, avoiding CameraX-behind-WebView failures on
 // edge-to-edge Android releases.
 export async function scanBarcodeNative(win) {
   const BS = getCapacitorPlugin('BarcodeScanner', win);
-  if (!BS?.scan) return null;
+  if (!BS?.scan) throw new Error('Native barcode scanner is unavailable');
   try {
     if (BS.isGoogleBarcodeScannerModuleAvailable && BS.installGoogleBarcodeScannerModule) {
       try {
@@ -36,8 +43,9 @@ export async function scanBarcodeNative(win) {
     const { barcodes } = await BS.scan({ formats: FORMATS });
     const value = barcodes?.[0]?.rawValue ?? barcodes?.[0]?.displayValue;
     return typeof value === 'string' && value ? value : null;
-  } catch {
-    return null;
+  } catch (error) {
+    if (isScannerCancellation(error)) return null;
+    throw error;
   }
 }
 

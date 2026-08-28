@@ -39,7 +39,7 @@ function syncCatalogURL() {
   const p = new URLSearchParams();
   if (f.catalogQ) p.set('q', f.catalogQ);
   if (f.catalogTheme && f.catalogTheme !== 'all') p.set('theme', f.catalogTheme);
-  if (f.catalogSort && f.catalogSort !== 'value_desc') p.set('sort', f.catalogSort);
+  if (f.catalogSort && f.catalogSort !== 'year_desc') p.set('sort', f.catalogSort);
   if (f.catalogRetired && f.catalogRetired !== 'all') p.set('retired', f.catalogRetired);
   if (f.catalogDeal) p.set('deal', '1');
   if (f.catalogThemeGroup && f.catalogThemeGroup !== 'all') p.set('theme_group', f.catalogThemeGroup);
@@ -606,6 +606,7 @@ function clearCatalogFilters() {
   f.catalogCategory = "all";
   f.catalogRetired = "all";
   f.catalogYear = "all";
+  f.catalogSort = "year_desc";
   f.catalogDeal = false;
   Object.keys(f.catalogRanges || {}).forEach(k => f.catalogRanges[k] = "");
   haptic("light");

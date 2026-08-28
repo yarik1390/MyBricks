@@ -348,10 +348,11 @@ async function runNativeBarcodeScan() {
   // Give the OS a moment to fully release the camera before ML Kit grabs it.
   await new Promise((r) => setTimeout(r, 200));
   let code = null;
+  let scanError = null;
   try {
     const { scanBarcodeNative } = await import("../lib/native-barcode.js");
     code = await scanBarcodeNative(window);
-  } catch { code = null; }
+  } catch (error) { scanError = error; }
   // The overlay may have been dismissed (back button / swipe) mid-scan.
   if (!overlay?.classList.contains("open")) return;
   if (code) {
@@ -362,8 +363,17 @@ async function runNativeBarcodeScan() {
     routeScannedCode(code);
     return;
   }
-  // Cancellation or native failure returns to the method picker. Keep the
-  // barcode choice focused so keyboard and screen-reader users can retry.
+  if (scanError) {
+    overlay.classList.remove("native-handoff");
+    _scanTrapRelease = activateFocusTrap(overlay, closeScan);
+    if (hint) hint.textContent = "Scanner couldn't start. Try again or enter the barcode or set number manually.";
+    ensureNativeRescanButton();
+    showManualBarcodeEntry();
+    $("#manualBarcodeInput")?.focus();
+    return;
+  }
+  // User cancellation returns to the method picker. Keep the barcode choice
+  // focused so keyboard and screen-reader users can retry.
   closeScan({ restoreFocus: false });
   $("#pileScanBarcode")?.focus();
 }
@@ -1234,7 +1244,7 @@ function scanOverlayHTML(mode, shelf = false) {
             <button type="button" class="scan-shelf-opt" data-shelf="1" aria-pressed="${shelf ? "true" : "false"}" style="border:none;background:${shelf ? "var(--accent)" : "transparent"};color:${shelf ? "#fff" : "#fff9"};font-size:12px;font-weight:700;padding:7px 14px;cursor:pointer;white-space:nowrap;">Whole shelf</button>
           </div>
         </div>` : ""}
-      <div class="scan-hint" id="scanHint">${nativeBarcode ? "Opening scanner…" : mode === "blindbox" ? "Scan the blind bag or box barcode" : mode === "barcode" ? "Align barcode within the frame" : shelf ? "Fit the whole shelf in frame — good light helps" : "Frame the set and tap to identify"}</div>
+      <div class="scan-hint" id="scanHint" role="status" aria-live="polite">${nativeBarcode ? "Opening scanner…" : mode === "blindbox" ? "Scan the blind bag or box barcode" : mode === "barcode" ? "Align barcode within the frame" : shelf ? "Fit the whole shelf in frame — good light helps" : "Frame the set and tap to identify"}</div>
       ${mode === "image" ? `
         <div class="scan-bottom">
           <button class="btn-secondary scan-gallery-btn" id="scanGalleryBtn">

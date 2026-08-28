@@ -108,18 +108,6 @@
     ]
   },
   {
-    "text": "3D preview is unavailable on this device. The set photo remains available above.",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "3D viewer controls",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "50 sets! Dedicated collector 🏅",
     "files": [
       "views/portfolio-detail.js"
@@ -986,12 +974,6 @@
     ]
   },
   {
-    "text": "BRICK STUDY",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "BRICKSVAULT · STACK SOMETHING BEAUTIFUL",
     "files": [
       "views/me.js"
@@ -1484,12 +1466,6 @@
   },
   {
     "text": "Building instructions (PDF)",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Building preview…",
     "files": [
       "views/portfolio-detail.js"
     ]
@@ -2920,12 +2896,6 @@
     ]
   },
   {
-    "text": "Drag",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Dusting off the instructions…",
     "files": [
       "components/scanner.js"
@@ -3841,12 +3811,6 @@
     ]
   },
   {
-    "text": "Generated on your device from set metadata. Its size and colors are decorative; it does not reproduce the real set. Model files are not downloaded or redistributed.",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Generating listing…",
     "files": [
       "views/portfolio-detail.js"
@@ -4094,6 +4058,12 @@
     "text": "Handle: 3-30 chars, letters, numbers, hyphens only",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Haptics",
+    "files": [
+      "utils.js"
     ]
   },
   {
@@ -4656,13 +4626,6 @@
     "text": "LEGO Ideas and CUUSOO",
     "files": [
       "views/catalog.js"
-    ]
-  },
-  {
-    "text": "LEGO set",
-    "files": [
-      "components/set-3d-viewer.js",
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -5595,6 +5558,12 @@
     "text": "Native alerts are waiting for the app's Firebase configuration.",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Native barcode scanner is unavailable",
+    "files": [
+      "lib/native-barcode.js"
     ]
   },
   {
@@ -6764,12 +6733,6 @@
     ]
   },
   {
-    "text": "Pinch",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Plastic box",
     "files": [
       "views/portfolio-detail.js"
@@ -7794,12 +7757,6 @@
     ]
   },
   {
-    "text": "Reset view",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Resolve",
     "files": [
       "views/me-admin.js"
@@ -8285,7 +8242,8 @@
       "views/build.js",
       "views/catalog.js",
       "views/portfolio-detail.js",
-      "views/portfolio-wishlist.js"
+      "views/portfolio-wishlist.js",
+      "views/portfolio.js"
     ]
   },
   {
@@ -8321,6 +8279,12 @@
   },
   {
     "text": "Scan the blind bag or box barcode",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
+    "text": "Scanner couldn't start. Try again or enter the barcode or set number manually.",
     "files": [
       "components/scanner.js"
     ]
@@ -8934,12 +8898,6 @@
     ]
   },
   {
-    "text": "Sign in for Shelf Snap",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Sign in or add an AI key first",
     "files": [
       "views/catalog.js"
@@ -9070,12 +9028,6 @@
     "text": "Snap & identify",
     "files": [
       "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Snap your shelf — add everything at once",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -10597,8 +10549,7 @@
   {
     "text": "View",
     "files": [
-      "views/catalog.js",
-      "views/portfolio-detail.js"
+      "views/catalog.js"
     ]
   },
   {
@@ -10611,12 +10562,6 @@
     "text": "View all →",
     "files": [
       "views/kids.js"
-    ]
-  },
-  {
-    "text": "View an illustrative 3D preview",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -11526,21 +11471,9 @@
     ]
   },
   {
-    "text": "to rotate ·",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "to use the advisor offline.",
     "files": [
       "components/advisor.js"
-    ]
-  },
-  {
-    "text": "to zoom",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {

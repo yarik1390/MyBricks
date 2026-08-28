@@ -353,7 +353,7 @@ function clearFigFilters() {
   state.filter.figRarity = "all";
   state.filter.figOwned = "all";
   state.filter.figSeries = "all";
-  state.filter.figSort = "rarity_desc";
+  state.filter.figSort = "year_desc";
   haptic("light");
   loadBlind({ reset: true }).then(() => {
     if (location.hash === '#/minifigs' && $('#miniGrid')) {
@@ -414,7 +414,7 @@ function showFigFilterSheet() {
       ${chipGroup('Rarity', 'rarity', rarityOptions, f.figRarity || 'all')}
       ${chipGroup('Ownership', 'owned', ownedOptions, f.figOwned || 'all')}
       ${chipGroup('Series', 'series', seriesValues, f.figSeries || 'all')}
-      ${chipGroup('Sort', 'sort', sortOptions, f.figSort || 'rarity_desc')}
+      ${chipGroup('Sort', 'sort', sortOptions, f.figSort || 'year_desc')}
     </div>
     <div class="btn-row sheet-sticky-actions">
       <button class="btn-secondary" id="figFilterClear">Clear all</button>

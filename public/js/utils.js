@@ -202,7 +202,9 @@ export function haptic(t) {
   // utils dependency-free; falls back to vibrate on the web / when unavailable.
   try {
     const cap = window.Capacitor;
-    const Haptics = cap?.isNativePlatform?.() ? cap.Plugins?.Haptics : null;
+    const Haptics = cap?.isNativePlatform?.()
+      ? cap.registerPlugin?.("Haptics") || cap.Plugins?.Haptics
+      : null;
     if (Haptics?.impact) {
       const style = t === "heavy" ? "HEAVY" : t === "medium" ? "MEDIUM" : "LIGHT";
       Haptics.impact({ style }); // fire-and-forget
