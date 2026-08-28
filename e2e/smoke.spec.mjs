@@ -660,7 +660,9 @@ test('kids mode without a PIN exits freely (no PIN trap)', async ({ page }) => {
   const exit = page.locator('#exitKidsBtn');
   await exit.waitFor();
   await exit.click();
-  // No PIN configured → no PIN sheet, straight back to the vault.
+  // No PIN configured → mode persistence changes before routing, so the Kids
+  // route guard cannot bounce the parent back into Kids Mode.
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('bv_mode'))).toBe('pro');
   await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/');
   await expect(page.locator('#exitPinInput')).toHaveCount(0);
 });
