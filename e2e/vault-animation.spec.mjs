@@ -2,24 +2,35 @@ import { expect, test } from './fixtures.mjs';
 
 test.use({ viewport: { width: 390, height: 844 } });
 
-test('Vault hero value animation keeps its layout box vertically stable', async ({ page }) => {
-  await page.goto('/#/', { waitUntil: 'domcontentloaded' });
+const spread = (samples, key) => Math.max(...samples.map((sample) => sample[key])) - Math.min(...samples.map((sample) => sample[key]));
+
+test('Vault hero value animation pins its final width until interpolation finishes', async ({ page }) => {
+  // Enter through another route so the constrained row CSS is present before
+  // Vault's first 0 → total animation begins.
+  await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
+  await page.addStyleTag({ content: '.hero > .u-row { width: 260px; }' });
+  await page.evaluate(() => { location.hash = '#/'; });
 
   const value = page.locator('#heroValue');
   await expect(value).toBeVisible();
 
   const samples = await page.evaluate(async () => {
     const el = document.querySelector('#heroValue');
-    if (!el) throw new Error('hero value not rendered');
+    const row = el?.parentElement;
+    if (!el || !row) throw new Error('hero value row not rendered');
 
     const frames = [];
     const start = performance.now();
     while (performance.now() - start < 900) {
-      const rect = el.getBoundingClientRect();
-      const hero = el.closest('.hero');
+      const valueRect = el.getBoundingClientRect();
+      const rowRect = row.getBoundingClientRect();
+      const deltaRect = row.querySelector('.delta')?.getBoundingClientRect();
       frames.push({
-        relativeTop: rect.top - (hero?.getBoundingClientRect().top ?? 0),
-        height: rect.height,
+        relativeTop: valueRect.top - rowRect.top,
+        height: valueRect.height,
+        rowHeight: rowRect.height,
+        deltaRelativeTop: deltaRect ? deltaRect.top - rowRect.top : null,
+        minWidth: getComputedStyle(el).minWidth,
         text: el.textContent,
         fontsLoaded: document.fonts.status === 'loaded',
       });
@@ -28,11 +39,15 @@ test('Vault hero value animation keeps its layout box vertically stable', async 
     return frames.filter(({ fontsLoaded }) => fontsLoaded);
   });
 
-  const topSpread = Math.max(...samples.map(({ relativeTop }) => relativeTop)) - Math.min(...samples.map(({ relativeTop }) => relativeTop));
-  const heightSpread = Math.max(...samples.map(({ height }) => height)) - Math.min(...samples.map(({ height }) => height));
-
-  expect(topSpread).toBeLessThan(0.5);
-  expect(heightSpread).toBeLessThan(0.5);
+  expect(samples.length).toBeGreaterThan(1);
+  expect(samples.every(({ deltaRelativeTop }) => deltaRelativeTop != null)).toBe(true);
+  const animatedSamples = samples.filter(({ minWidth }) => minWidth !== 'auto' && Number.parseFloat(minWidth) > 0);
+  expect(animatedSamples.length).toBeGreaterThan(1);
+  expect(spread(animatedSamples, 'relativeTop')).toBeLessThan(0.5);
+  expect(spread(animatedSamples, 'height')).toBeLessThan(0.5);
+  expect(spread(animatedSamples, 'rowHeight')).toBeLessThan(0.5);
+  expect(spread(animatedSamples, 'deltaRelativeTop')).toBeLessThan(0.5);
+  expect(samples.at(-1)?.minWidth).toBe('auto');
 });
 
 test('Vault hero value retains the final accessible amount while its digits animate', async ({ page }) => {
@@ -44,9 +59,11 @@ test('Vault hero value retains the final accessible amount while its digits anim
   await expect(value).toContainText('$850.00');
 });
 
-test('reduced motion renders the final Vault value without intermediate animation', async ({ page }) => {
+test('reduced motion renders the final Vault hero value without interpolation', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/#/', { waitUntil: 'domcontentloaded' });
 
-  await expect(page.locator('#heroValue')).toHaveText('$850.00');
+  const value = page.locator('#heroValue');
+  await expect(value).toContainText('$850.00');
+  await expect(value).toHaveCSS('min-width', 'auto');
 });
