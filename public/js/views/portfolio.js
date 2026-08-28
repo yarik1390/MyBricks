@@ -319,7 +319,7 @@ function paintPortfolio() {
       <div class="card hero" data-trend="${gain > 0 ? "up" : gain < 0 ? "down" : "flat"}">
         <div class="hero-eyebrow"><span class="pulse"></span>Vault · LIVE</div>
         <div class="u-row" style="flex-wrap:wrap;column-gap:12px;">
-          <div class="hero-value" id="heroValue">${heroValueHTML(totalVal)}</div>
+          <div class="hero-value" id="heroValue" aria-label="${escapeHtml(fmtMoney(totalVal))}" aria-live="off">${heroValueHTML(totalVal)}</div>
           <span class="delta ${gain >= 0 ? "up" : "down"}" role="img" aria-label="${gain >= 0 ? 'Up' : 'Down'} ${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(gainPct)})"><span class="arrow" aria-hidden="true">${gain >= 0 ? "▲" : "▼"}</span>${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(gainPct)})</span>
         </div>
         <div class="hero-meta u-mono-label" style="letter-spacing:0.06em;">
@@ -610,11 +610,21 @@ function heroValueHTML(n) {
 }
 
 let _lastHeroValue = 0;
+let _heroAnimationFrame = 0;
 
 function animateHeroValue(target) {
   const el = $("#heroValue");
   if (!el || target == null || isNaN(target) || target <= 0) return;
-  if (prefersReducedMotion()) { el.innerHTML = heroValueHTML(target); _lastHeroValue = target; return; }
+  cancelAnimationFrame(_heroAnimationFrame);
+  // Keep the final amount in the accessibility tree while the visible digits
+  // interpolate. Screen readers should not announce dozens of frame updates.
+  el.setAttribute("aria-label", fmtMoney(target));
+  el.setAttribute("aria-live", "off");
+  if (prefersReducedMotion()) { el.style.removeProperty("min-width"); el.innerHTML = heroValueHTML(target); _lastHeroValue = target; return; }
+  // The template initially contains the final value. Preserve that exact width
+  // while counting from the previous total so the neighbouring delta pill
+  // cannot re-wrap and vertically recenter the amount mid-animation.
+  el.style.minWidth = `${el.getBoundingClientRect().width}px`;
   const dur = 750;
   const start = performance.now();
   const from = _lastHeroValue;
@@ -623,9 +633,10 @@ function animateHeroValue(target) {
     const t = Math.min(1, (now - start) / dur);
     const eased = 1 - Math.pow(1 - t, 3);
     el.innerHTML = heroValueHTML(from + (target - from) * eased);
-    if (t < 1) requestAnimationFrame(tick);
+    if (t < 1) _heroAnimationFrame = requestAnimationFrame(tick);
+    else { _heroAnimationFrame = 0; el.style.removeProperty("min-width"); }
   };
-  requestAnimationFrame(tick);
+  _heroAnimationFrame = requestAnimationFrame(tick);
 }
 
 function sourceCueHTML(item) { return trustBadgeHTML(item, { compact: true }); }
