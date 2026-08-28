@@ -58,10 +58,10 @@ describe('late-review set-detail regressions', () => {
     assert.match(switchBody, /setAttribute\("tabindex", on \? "0" : "-1"\)/);
   });
 
-  it('falls back to info for unknown tabs and validates manage to ownership', () => {
+  it('falls back to info for unknown or unavailable tabs, including manage for unowned sets', () => {
     const paintBody = extractBody(detailJs, 'paintSetDetail');
+    assert.match(detailJs, /const tabs = owned \? \["info", "forecast", "community", "manage"\] : \["info", "forecast", "community"\]/);
     assert.match(paintBody, /detailTabs\(owned\)\.includes\(state\.detail\.tab\)/);
-    assert.match(paintBody, /detailTabs\(owned\)\.includes\("manage"\)/);
   });
 
   it('synchronizes a click-selected tab into the hash route', () => {
