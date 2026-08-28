@@ -131,7 +131,7 @@ export async function renderKidsHome() {
       state.me = null;
       go('#/');
     };
-    if (isGuestMode() || state.me?.is_guest === true || state.me?.has_kids_pin === false) {
+    if (isGuestMode() || state.me?.has_kids_pin === false) {
       freeExit();
       return;
     }

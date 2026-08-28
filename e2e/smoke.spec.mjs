@@ -643,18 +643,17 @@ test('Pro pitch on the Me page leads with the investor toolkit', async ({ page }
 // ---------------------------------------------------------------------------
 
 test('kids mode without a PIN exits freely (no PIN trap)', async ({ page }) => {
-  await page.route('**/api/me', (route) => route.fulfill({
-    status: 200, contentType: 'application/json',
-    body: JSON.stringify({ display_name: 'Parent', handle: 'parent', currency: 'USD', is_guest: false, has_kids_pin: false, notify_price_drops: true, portfolio_stats: {} }),
-  }));
   await page.addInitScript(() => localStorage.setItem('bv_mode', 'kids'));
-  // Load the app (state.me populates via /api/me on the me-dependent views);
-  // prime state.me by visiting the vault first, then enter kids.
+  // Prime the exact signed-in/no-PIN state under test directly. A later
+  // page.route override loses to the shared fixture's earlier catch-all route,
+  // which caused this test to exercise an unknown PIN state instead.
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.evaluate(async () => {
-    const { api } = await import('/js/api.js');
     const { state } = await import('/js/state.js');
-    state.me = await api('/api/me');
+    state.me = {
+      display_name: 'Parent', handle: 'parent', currency: 'USD', is_guest: false,
+      has_kids_pin: false, notify_price_drops: true, portfolio_stats: {},
+    };
     location.hash = '#/kids';
   });
   const exit = page.locator('#exitKidsBtn');
