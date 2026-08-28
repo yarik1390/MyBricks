@@ -1,6 +1,13 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { createSet3dViewerLifecycle } from '../components/set-3d-viewer-lifecycle.js';
 import { setViewerCopy, supportsSet3dViewer, viewerQuality } from '../components/set-3d-viewer.js';
+
+function deferred() {
+  let resolve;
+  const promise = new Promise(resolvePromise => { resolve = resolvePromise; });
+  return { promise, resolve };
+}
 
 describe('set 3D viewer capability and presentation', () => {
   it('only advertises the viewer when a WebGL context can be created', () => {
@@ -46,5 +53,39 @@ describe('set 3D viewer capability and presentation', () => {
     assert.match(copy.title, /3D preview of Medieval Castle/);
     assert.match(copy.description, /illustrative preview/);
     assert.match(copy.description, /not the official LEGO building model/);
+  });
+});
+
+describe('set 3D viewer sheet lifecycle', () => {
+  it('disposes a viewer that finishes mounting after the sheet closes', async () => {
+    const sheet = new EventTarget();
+    const mount = deferred();
+    let disposed = 0;
+    let ready = 0;
+    const pending = createSet3dViewerLifecycle(sheet, () => mount.promise, () => { ready += 1; });
+
+    sheet.dispatchEvent(new Event('sheet:closing'));
+    mount.resolve({ dispose: () => { disposed += 1; } });
+    await pending;
+
+    assert.equal(disposed, 1);
+    assert.equal(ready, 0);
+  });
+
+  it('disposes a mounted viewer exactly once on normal close', async () => {
+    const sheet = new EventTarget();
+    let disposed = 0;
+    let ready = 0;
+    await createSet3dViewerLifecycle(
+      sheet,
+      async () => ({ dispose: () => { disposed += 1; } }),
+      () => { ready += 1; },
+    );
+
+    sheet.dispatchEvent(new Event('sheet:closing'));
+    sheet.dispatchEvent(new Event('sheet:closing'));
+
+    assert.equal(ready, 1);
+    assert.equal(disposed, 1);
   });
 });

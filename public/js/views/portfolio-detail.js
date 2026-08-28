@@ -16,6 +16,7 @@ import { refreshNavBadge } from './portfolio.js';
 import { getModePref } from '../theme.js';
 import { hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
 import { getProviderCredential } from '../lib/provider-credentials.js';
+import { createSet3dViewerLifecycle } from '../components/set-3d-viewer-lifecycle.js';
 
 // Simple mode hides the forecast (price-projection) tab. Helper centralizes the
 // check and the available-tabs list so every tab build stays consistent.
@@ -1544,24 +1545,24 @@ async function openSet3dSheet(set) {
   const stage = $("#set3dStage");
   const loading = $("#set3dLoading");
   const reset = $("#set3dReset");
-  if (!stage) return;
-  let viewer = null;
-  try {
+  const sheet = stage?.closest('.sheet');
+  if (!stage || !sheet) return;
+  await createSet3dViewerLifecycle(sheet, async () => {
     const { mountSet3dViewer } = await import('../components/set-3d-viewer.js');
-    viewer = await mountSet3dViewer(stage, set);
+    return mountSet3dViewer(stage, set);
+  }, viewer => {
     loading?.remove();
     if (reset) {
       reset.disabled = false;
-      reset.addEventListener('click', () => { haptic('light'); viewer?.reset(); });
+      reset.addEventListener('click', () => { haptic('light'); viewer.reset(); });
     }
-    stage.closest('.sheet')?.addEventListener('sheet:closing', () => viewer?.dispose(), { once: true });
-  } catch (err) {
+  }, err => {
     console.warn('[set-3d-viewer]', err);
     if (loading) {
       loading.className = 'set-3d-loading is-error';
       loading.textContent = '3D preview is unavailable on this device. The set photo remains available above.';
     }
-  }
+  });
 }
 
 function switchDetailTab(tab, set, entry) {
