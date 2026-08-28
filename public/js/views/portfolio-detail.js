@@ -182,13 +182,19 @@ function paintSetDetail(set, entry) {
           </div>
           <button class="detail-share-btn icon-btn" id="shareBtn" aria-label="Share">${I.share()}</button>
         </div>
+        <div class="detail-identity-bar detail-identity-block" aria-label="Set identity">
+          <span>${escapeHtml(set.set_num)}</span>
+          ${set.year ? `<span>${escapeHtml(String(set.year))}</span>` : ''}
+          ${set.pieces ? `<span>${escapeHtml(Number(set.pieces).toLocaleString())} pieces</span>` : ''}
+          ${set.minifigs ? `<span>${escapeHtml(String(set.minifigs))} minifigs</span>` : ''}
+        </div>
         <div class="detail-tabs" id="detailTabs" role="tablist" aria-label="Set detail sections">
           ${detailTabs(owned).map(tab =>
             // NB: the map param is `tab`, not `t` — `t` is the translator.
-            `<button data-tab="${tab}" role="tab" aria-selected="${state.detail.tab === tab}" aria-controls="tabPanels" class="${state.detail.tab === tab ? "active" : ""}">${escapeHtml(tabLabel(tab))}</button>`
+            `<button id="tab-${tab}" data-tab="${tab}" role="tab" aria-selected="${state.detail.tab === tab}" aria-controls="panel-${tab}" class="${state.detail.tab === tab ? "active" : ""}">${escapeHtml(tabLabel(tab))}</button>`
           ).join("")}
         </div>
-        <div class="detail-tab-panel" id="tabPanels" role="tabpanel">
+        <div class="detail-tab-panel" id="panel-${state.detail.tab}" role="tabpanel" aria-labelledby="tab-${state.detail.tab}">
           ${state.detail.tab === "info" ? infoTabHTML(set, entry, isWish) :
             state.detail.tab === "forecast" ? forecastTabHTML(set) :
             state.detail.tab === "community" ? communityTabHTML(set) :
@@ -361,7 +367,7 @@ function detailSummaryHTML(set) {
   const est = !(set.valuation?.read_enabled && Number(set.valuation?.new?.fair_value) > 0) && !!estMark(set);
   const chip = isSimpleMode() ? '' : confidenceChip(set);
   return `
-    <div class="detail-summary">
+    <div class="detail-summary detail-market-summary" aria-label="Market value summary">
       <div class="detail-summary-top">
         <div style="min-width:0;">
           <div class="detail-summary-lbl">${est ? 'Estimated value' : 'Value'}</div>
@@ -1518,8 +1524,10 @@ function switchDetailTab(tab, set, entry) {
     x.classList.toggle("active", on);
     x.setAttribute("aria-selected", on ? "true" : "false");
   });
-  const panel = $("#tabPanels");
+  const panel = $(".detail-tab-panel");
   if (!panel) return;
+  panel.id = `panel-${tab}`;
+  panel.setAttribute("aria-labelledby", `tab-${tab}`);
   mount(panel, tab === "info" ? infoTabHTML(set, entry, isWish)
     : tab === "forecast" ? forecastTabHTML(set)
     : tab === "community" ? communityTabHTML(set)

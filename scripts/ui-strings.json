@@ -1935,6 +1935,18 @@
     ]
   },
   {
+    "text": "Collector command center",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "Collector profile overview",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
     "text": "Color style",
     "files": [
       "components/onboarding.js"
@@ -4969,6 +4981,12 @@
     ]
   },
   {
+    "text": "Local-only vault",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
     "text": "Location",
     "files": [
       "views/portfolio.js"
@@ -5198,6 +5216,12 @@
     ]
   },
   {
+    "text": "Market value summary",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Marketplace",
     "files": [
       "lib/sold-evidence.js"
@@ -5402,19 +5426,7 @@
     ]
   },
   {
-    "text": "Minifigure rarity filters",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
-    "text": "Minifigure series filters",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
-    "text": "Minifigure sort controls",
+    "text": "Minifigure collection summary",
     "files": [
       "views/minifigs.js"
     ]
@@ -6845,6 +6857,12 @@
     ]
   },
   {
+    "text": "Portfolio summary",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
     "text": "Portfolio views",
     "files": [
       "views/portfolio.js"
@@ -7112,6 +7130,12 @@
     ]
   },
   {
+    "text": "Private profile",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
     "text": "Pro options are available from Settings once setup is done.",
     "files": [
       "components/onboarding.js"
@@ -7141,6 +7165,12 @@
       "index.html",
       "views/me.js",
       "views/portfolio-social.js"
+    ]
+  },
+  {
+    "text": "Profile and app settings",
+    "files": [
+      "views/me.js"
     ]
   },
   {
@@ -8634,6 +8664,12 @@
     ]
   },
   {
+    "text": "Set identity",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Set isn't cached",
     "files": [
       "views/portfolio-detail.js"
@@ -9126,6 +9162,12 @@
     "text": "Sort catalog",
     "files": [
       "views/catalog.js"
+    ]
+  },
+  {
+    "text": "Sort minifigures",
+    "files": [
+      "views/minifigs.js"
     ]
   },
   {

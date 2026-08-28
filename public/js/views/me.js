@@ -102,6 +102,12 @@ export async function renderMe() {
         </div>
       </div>
 
+      <div class="profile-command-center profile-identity-card" aria-label="Collector profile overview">
+        <span class="profile-command-kicker">Collector command center</span>
+        <strong>${escapeHtml(me.display_name || "Collector")}</strong>
+        <span>${guest ? "Local-only vault" : me.handle ? `@${escapeHtml(me.handle)}` : "Private profile"} · ${c.set_count || 0} ${(c.set_count || 0) === 1 ? "set" : "sets"} tracked</span>
+      </div>
+
       <div class="profile-head">
         <div class="avatar">${(me.display_name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}</div>
         <div class="u-flex1">
@@ -111,7 +117,7 @@ export async function renderMe() {
         <button class="profile-pencil" aria-label="Edit name" id="editName">${I.pencil()}</button>
       </div>
 
-      <div class="summary-grid">
+      <div class="summary-grid profile-summary" aria-label="Portfolio summary">
         <div class="summary-cell"><div class="lbl">Sets owned</div><div class="val">${c.set_count || 0}</div></div>
         <div class="summary-cell"><div class="lbl">Total value</div><div class="val">${fmtMoneyShort(c.total_value || 0)}</div></div>
         <div class="summary-cell"><div class="lbl">Invested</div><div class="val">${fmtMoneyShort(c.total_paid || 0)}</div></div>
@@ -139,9 +145,9 @@ export async function renderMe() {
           ${trophyShelfHTML}
           ${!guest ? supportCardHTML(me, state.config?.patreon_url) : ''}
         </section>
-        <aside class="profile-side">
+        <aside class="profile-side profile-settings-nav" aria-label="Profile and app settings">
 
-      <h2 class="section-title">Preferences</h2>
+      <h2 class="section-title profile-settings-heading" id="profileSettingsHeading">Preferences</h2>
       <div class="profile-settings-group">
         <h3 class="profile-settings-heading">Appearance &amp; view</h3>
         <div class="setting-row">

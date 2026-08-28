@@ -126,8 +126,7 @@ export async function renderBlind() {
   const f = state.filter;
   const ownedCount = b.items.filter(fig => state.ownedFigs.has(fig.fig_num)).length;
   const ownedValue = b.items.filter(fig => state.ownedFigs.has(fig.fig_num)).reduce((s, fig) => s + (fig.value ?? fig.current_value ?? 0), 0);
-  const rarities = ['common','uncommon','rare','legendary'];
-  const ownedChipLabel = f.figOwned === 'owned' ? 'Owned' : f.figOwned === 'unowned' ? 'Unowned' : 'All';
+  const activeFilterCount = activeFigFilterCount(f);
 
   $("#root").innerHTML = `
     <div class="page">
@@ -138,40 +137,41 @@ export async function renderBlind() {
         </div>
       </div>
 
-      <div class="fig-stats-row">
-        <div class="fig-stat-pill">
-          <div class="fig-stat-num" id="figStatCount">${tPlural('counts.owned', ownedCount)}</div>
-          <div class="fig-stat-lbl">${tPlural('counts.ofFigs', b.total, { total: b.total.toLocaleString() })}</div>
+      <section class="fig-collection-overview" aria-label="Minifigure collection summary">
+        <div class="fig-stats-row">
+          <div class="fig-stat-pill">
+            <div class="fig-stat-num" id="figStatCount">${tPlural('counts.owned', ownedCount)}</div>
+            <div class="fig-stat-lbl">${tPlural('counts.ofFigs', b.total, { total: b.total.toLocaleString() })}</div>
+          </div>
+          <div class="fig-stat-pill">
+            <div class="fig-stat-num" id="figStatValue">${fmtMoney(ownedValue, { cents: 0 })}</div>
+            <div class="fig-stat-lbl">collection value</div>
+          </div>
         </div>
-        <div class="fig-stat-pill">
-          <div class="fig-stat-num" id="figStatValue">${fmtMoney(ownedValue, { cents: 0 })}</div>
-          <div class="fig-stat-lbl">collection value</div>
-        </div>
-      </div>
+      </section>
 
       <div id="rareFindsSection"></div>
 
-      <div class="fig-filter-bar">
-        <div class="search-wrap open" style="margin-bottom:10px;">
-          <span class="s-icon">${I.search()}</span>
-          <input class="search-input" id="figSearch" name="minifig_search" type="search" aria-label="Search minifigures" placeholder="Search minifigs…" autocomplete="off" value="${escapeHtml(f.figQ)}">
+      <div class="fig-filter-bar fig-catalog-toolbar">
+        <div class="fig-catalog-actions">
+          <div class="search-wrap open">
+            <span class="s-icon">${I.search()}</span>
+            <input class="search-input" id="figSearch" name="minifig_search" type="search" aria-label="Search minifigures" aria-describedby="figResultsMeta" placeholder="Search minifigs…" autocomplete="off" value="${escapeHtml(f.figQ)}">
+          </div>
+          <button class="btn-secondary fig-filter-trigger ${activeFilterCount ? 'active' : ''}" id="figFilterChip" aria-haspopup="dialog" aria-controls="sheet" aria-expanded="false">
+            ${I.filter()}<span>${escapeHtml(activeFilterCount ? tPlural('catalog.filtersWithCount', activeFilterCount) : t('catalog.filters'))}</span>
+          </button>
         </div>
-        <div class="filter-row horizontal-rail" aria-label="Minifigure rarity filters">
-          <button class="chip ${f.figRarity === 'all' ? 'active' : ''}" data-fig-rarity="all">All</button>
-          ${rarities.map(r => `<button class="chip ${f.figRarity === r ? 'active' : ''} rarity-chip-${r}" data-fig-rarity="${r}">${r.charAt(0).toUpperCase() + r.slice(1)}</button>`).join('')}
-          <button class="chip fig-owned-chip ${f.figOwned !== 'all' ? 'active' : ''}" id="figOwnedChip">${ownedChipLabel}</button>
-        </div>
-        <div class="filter-row horizontal-rail" id="figSeriesChips" aria-label="Minifigure series filters" style="margin-top:-2px;margin-bottom:4px;">
-          ${seriesChipsHTML(f)}
-        </div>
-        <div class="filter-row horizontal-rail" aria-label="Minifigure sort controls" style="margin-top:2px;gap:6px;">
-          <span class="filter-row-label">Sort</span>
-          ${FIG_SORTS.map(o => `<button class="chip ${(f.figSort === o.asc || f.figSort === o.desc) ? 'active' : ''}" data-fig-sort-base="${o.base}">${figSortChipText(o, f.figSort)}</button>`).join('')}
-          <button class="chip ${activeFigFilterCount(f) ? 'active' : ''}" id="figFilterChip">${I.filter()}<span>${escapeHtml(activeFigFilterCount(f) ? tPlural('catalog.filtersWithCount', activeFigFilterCount(f)) : t('catalog.filters'))}</span></button>
+        <div class="fig-sort-toolbar">
+          <span class="fig-sort-label">Sort</span>
+          <div class="filter-row horizontal-rail fig-sort-row" aria-label="Sort minifigures">
+            ${FIG_SORTS.map(o => `<button class="chip ${(f.figSort === o.asc || f.figSort === o.desc) ? 'active' : ''}" data-fig-sort-base="${o.base}">${figSortChipText(o, f.figSort)}</button>`).join('')}
+          </div>
         </div>
         <div class="filter-summary" id="figFilterSummary">${escapeHtml(figFilterSummaryText(f, t, tPlural))}</div>
       </div>
 
+      <div class="catalog-meta" id="figResultsMeta" role="status" aria-live="polite">${tPlural('counts.results', b.total)}</div>
       <div class="mini-grid" id="miniGrid">
         ${miniGridHTML()}
       </div>
@@ -182,21 +182,6 @@ export async function renderBlind() {
 
   const figSearchInput = $("#figSearch");
   figSearchInput?.addEventListener("input", (e) => { state.filter.figQ = e.target.value; debouncedFigSearch(); });
-
-  $$("[data-fig-rarity]").forEach(btn => btn.addEventListener("click", () => {
-    state.filter.figRarity = btn.dataset.figRarity; haptic("light");
-    $$("[data-fig-rarity]").forEach(x => x.classList.toggle("active", x.dataset.figRarity === state.filter.figRarity));
-    loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) { refreshMiniGrid(); refreshMiniStats(); } }).catch(() => {});
-  }));
-
-  const ownedCycle = { all: 'owned', owned: 'unowned', unowned: 'all' };
-  $("#figOwnedChip")?.addEventListener("click", () => {
-    state.filter.figOwned = ownedCycle[state.filter.figOwned] || 'all'; haptic("light");
-    const labels = { all: 'All', owned: 'Owned', unowned: 'Unowned' };
-    const chip = $("#figOwnedChip");
-    if (chip) { chip.textContent = labels[state.filter.figOwned]; chip.classList.toggle("active", state.filter.figOwned !== 'all'); }
-    loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) { refreshMiniGrid(); refreshMiniStats(); } }).catch(() => {});
-  });
 
   $$("[data-fig-sort-base]").forEach(btn => btn.addEventListener("click", () => {
     const o = FIG_SORTS.find(s => s.base === btn.dataset.figSortBase);
@@ -379,6 +364,8 @@ function clearFigFilters() {
 }
 
 function showFigFilterSheet() {
+  const trigger = $("#figFilterChip");
+  trigger?.setAttribute("aria-expanded", "true");
   const f = state.filter;
   const activeCount = activeFigFilterCount(f);
   const rarityOptions = ['all', 'common', 'uncommon', 'rare', 'legendary'];
@@ -420,6 +407,9 @@ function showFigFilterSheet() {
       <button class="btn-secondary" id="figFilterClear">Clear all</button>
       <button class="btn-primary" id="figFilterApply">Apply filters</button>
     </div>`);
+  $("#sheet")?.addEventListener("sheet:closing", () => {
+    trigger?.setAttribute("aria-expanded", "false");
+  }, { once: true });
 
   $$("[data-fig-facet]").forEach(group => group.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-fval]");

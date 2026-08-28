@@ -219,6 +219,36 @@ test('set detail renders with the action bar', async ({ page }) => {
   await expect(page.locator('#addBtn')).toBeVisible();
 });
 
+test('optimized collector pages keep mobile hierarchy and accessible controls', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await page.goto('/#/minifigs', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.fig-collection-overview')).toHaveAttribute('aria-label', 'Minifigure collection summary');
+  await expect(page.locator('.fig-catalog-toolbar')).toBeVisible();
+  await expect(page.locator('#figSearch')).toHaveAttribute('aria-describedby', 'figResultsMeta');
+  await expect(page.locator('#figFilterChip')).toHaveAttribute('aria-expanded', 'false');
+  await page.locator('#figFilterChip').click();
+  await expect(page.locator('#figFilterChip')).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#sheet')).toHaveClass(/show/);
+  await page.keyboard.press('Escape');
+
+  await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.detail-identity-block')).toBeVisible();
+  await expect(page.locator('.detail-market-summary')).toHaveAttribute('aria-label', 'Market value summary');
+  await expect(page.locator('.detail-tabs')).toHaveAttribute('aria-label', 'Set detail sections');
+  await expect(page.locator('#tab-info')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#panel-info')).toHaveAttribute('aria-labelledby', 'tab-info');
+
+  await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.profile-identity-card')).toBeVisible();
+  await expect(page.locator('.profile-summary')).toHaveAttribute('aria-label', 'Portfolio summary');
+  await expect(page.locator('.profile-settings-nav')).toHaveAttribute('aria-label', 'Profile and app settings');
+  await expect(page.locator('.profile-settings-heading').first()).toBeVisible();
+
+  const noHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+  expect(noHorizontalOverflow).toBe(true);
+});
+
 test('pricing details opens as a bottom sheet and keeps the set page mounted', async ({ page }) => {
   await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
   await page.locator('#pricingDetailsBtn').click();
