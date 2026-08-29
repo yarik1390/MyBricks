@@ -1,5 +1,7 @@
 /** Ukrainian exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Setup progress": "Хід налаштування",
+  "Tour progress": "Хід огляду",
   "Good time to sell": "Гарний час для продажу",
   "\"not enough verified data\"": "«недостатньо перевірених даних»",
   "(WebGPU) or you're offline; it falls back to Cloud automatically, so scanning always works.": "(WebGPU) або офлайн; воно автоматично повертається до хмари, тому сканування завжди працює.",
@@ -1090,7 +1092,6 @@ export const ui = {
   "Privacy": "Приватність",
   "Privacy Policy": "Політика конфіденційності",
   "Private": "Приватний",
-  "Product tour": "Огляд продукту",
   "Profile": "Профіль",
   "Profile not found": "Профіль не знайдено",
   "Profile not found or private": "Профіль не знайдено або він приватний",
@@ -1323,7 +1324,6 @@ export const ui = {
   "Set number or barcode": "Номер набору або штрихкод",
   "Set photo": "Фото набору",
   "Set storage location for selected sets": "Встановити місце зберігання для обраних наборів",
-  "Set up BricksVault": "Налаштувати BricksVault",
   "Set up a device PIN, pattern, or password first": "Спочатку налаштуйте PIN пристрою, графічний ключ або пароль",
   "Set up fingerprint or face unlock in Android settings first": "Спочатку налаштуйте розблокування за відбитком пальця або обличчям у налаштуваннях Android",
   "Set up photo scanning": "Налаштувати сканування фото",
@@ -1659,7 +1659,6 @@ export const ui = {
   "YOU": "Я",
   "You": "Я",
   "You can change this anytime in Settings.": "Ви можете змінити це будь-коли в налаштуваннях.",
-  "You're all set!": "Усе готово!",
   "You're offline and no local AI is available. Download the Gemma model in": "Ви офлайн, і локальний ШІ недоступний. Завантажте модель Gemma в",
   "You're offline and this device can't run on-device AI (no WebGPU).": "Ви офлайн, і цей пристрій не може запустити локальний ШІ (немає WebGPU).",
   "You're offline — showing bundled data": "Ви офлайн — показано вбудовані дані",

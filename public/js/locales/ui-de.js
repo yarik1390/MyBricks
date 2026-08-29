@@ -1,5 +1,7 @@
 /** German exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Setup progress": "Einrichtungsfortschritt",
+  "Tour progress": "Tourfortschritt",
   "Good time to sell": "Guter Zeitpunkt zum Verkaufen",
   "\"not enough verified data\"": "„nicht genügend verifizierte Daten“",
   "(WebGPU) or you're offline; it falls back to Cloud automatically, so scanning always works.": "(WebGPU) oder du offline bist; es greift automatisch auf die Cloud zurück, sodass das Scannen immer funktioniert.",
@@ -1090,7 +1092,6 @@ export const ui = {
   "Privacy": "Datenschutz",
   "Privacy Policy": "Datenschutzerklärung",
   "Private": "Privat",
-  "Product tour": "Produkttour",
   "Profile": "Profil",
   "Profile not found": "Profil nicht gefunden",
   "Profile not found or private": "Profil nicht gefunden oder privat",
@@ -1323,7 +1324,6 @@ export const ui = {
   "Set number or barcode": "Set-Nummer oder Barcode",
   "Set photo": "Set-Foto",
   "Set storage location for selected sets": "Lagerort für ausgewählte Sets festlegen",
-  "Set up BricksVault": "BricksVault einrichten",
   "Set up a device PIN, pattern, or password first": "Richte zuerst eine Geräte-PIN, ein Muster oder ein Passwort ein",
   "Set up fingerprint or face unlock in Android settings first": "Richte zuerst Fingerabdruck- oder Gesichtsentsperrung in den Android-Einstellungen ein",
   "Set up photo scanning": "Foto-Scannen einrichten",
@@ -1659,7 +1659,6 @@ export const ui = {
   "YOU": "DU",
   "You": "Du",
   "You can change this anytime in Settings.": "Du kannst das jederzeit in den Einstellungen ändern.",
-  "You're all set!": "Du bist startklar!",
   "You're offline and no local AI is available. Download the Gemma model in": "Du bist offline und keine lokale KI ist verfügbar. Lade das Gemma-Modell herunter in",
   "You're offline and this device can't run on-device AI (no WebGPU).": "Du bist offline und dieses Gerät kann keine On-Device-KI ausführen (kein WebGPU).",
   "You're offline — showing bundled data": "Du bist offline — zeige mitgelieferte Daten",

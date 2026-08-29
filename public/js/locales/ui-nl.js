@@ -1,5 +1,7 @@
 /** Dutch exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Setup progress": "Voortgang van installatie",
+  "Tour progress": "Voortgang van rondleiding",
   "Good time to sell": "Goed moment om te verkopen",
   "\"not enough verified data\"": "„niet genoeg geverifieerde gegevens”",
   "(WebGPU) or you're offline; it falls back to Cloud automatically, so scanning always works.": "(WebGPU) of je bent offline; het valt automatisch terug op Cloud, dus scannen werkt altijd.",
@@ -1090,7 +1092,6 @@ export const ui = {
   "Privacy": "Privacy",
   "Privacy Policy": "Privacybeleid",
   "Private": "Privé",
-  "Product tour": "Producttour",
   "Profile": "Profiel",
   "Profile not found": "Profiel niet gevonden",
   "Profile not found or private": "Profiel niet gevonden of privé",
@@ -1323,7 +1324,6 @@ export const ui = {
   "Set number or barcode": "Setnummer of barcode",
   "Set photo": "Setfoto",
   "Set storage location for selected sets": "Stel opslaglocatie in voor geselecteerde sets",
-  "Set up BricksVault": "BricksVault instellen",
   "Set up a device PIN, pattern, or password first": "Stel eerst een apparaatpincode, patroon of wachtwoord in",
   "Set up fingerprint or face unlock in Android settings first": "Stel eerst vingerafdruk- of gezichtsontgrendeling in bij de Android-instellingen",
   "Set up photo scanning": "Foto-scannen instellen",
@@ -1659,7 +1659,6 @@ export const ui = {
   "YOU": "IK",
   "You": "Jij",
   "You can change this anytime in Settings.": "Je kunt dit altijd wijzigen in Instellingen.",
-  "You're all set!": "Je bent helemaal klaar!",
   "You're offline and no local AI is available. Download the Gemma model in": "Je bent offline en er is geen lokale AI beschikbaar. Download het Gemma-model via",
   "You're offline and this device can't run on-device AI (no WebGPU).": "Je bent offline en dit apparaat kan geen on-device AI draaien (geen WebGPU).",
   "You're offline — showing bundled data": "Je bent offline — gebundelde gegevens worden getoond",

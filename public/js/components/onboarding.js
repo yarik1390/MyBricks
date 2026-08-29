@@ -47,10 +47,12 @@ function ensureStyles() {
     .bv-tour-dots i{width:6px;height:6px;border-radius:50%;background:var(--line,#d6d9e0);transition:background .2s;}
     .bv-tour-dots i.on{background:var(--accent,#e23b3b);}
     .bv-tour-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
-    .bv-tour-skip{background:none;border:none;color:var(--ink-mute,#8b91a0);font-size:13px;cursor:pointer;padding:6px 2px;}
+    .bv-tour-skip{background:none;border:none;color:var(--ink-mute,#8b91a0);font-size:13px;cursor:pointer;padding:8px;min-width:44px;min-height:44px;}
     .bv-tour-nav{display:flex;gap:8px;}
-    .bv-tour-btn{border:1px solid var(--line,#e5e7eb);background:var(--surface-2,#f6f7f9);color:var(--ink,#16181d);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;}
+    .bv-tour-btn{border:1px solid var(--line,#e5e7eb);background:var(--surface-2,#f6f7f9);color:var(--ink,#16181d);border-radius:10px;padding:8px 14px;min-height:44px;font-size:13px;font-weight:600;cursor:pointer;}
     .bv-tour-btn.primary{background:var(--accent,#e23b3b);border-color:var(--accent,#e23b3b);color:#fff;}
+    .bv-tour button:focus-visible{outline:3px solid var(--accent,#e23b3b);outline-offset:3px;}
+    @media (prefers-reduced-motion: reduce){.bv-tour-spot{transition:none;}}
   `;
   const el = document.createElement('style');
   el.id = 'bv-tour-style';
@@ -108,8 +110,8 @@ function render() {
   const isLast = idx === STEPS.length - 1;
   const dots = STEPS.map((_, i) => `<i class="${i === idx ? 'on' : ''}"></i>`).join('');
   card.innerHTML = `
-    <div class="bv-tour-dots">${dots}</div>
-    <h4>${step.title}</h4>
+    <div class="bv-tour-dots" role="progressbar" aria-label="Tour progress" aria-valuemin="1" aria-valuemax="${STEPS.length}" aria-valuenow="${idx + 1}">${dots}</div>
+    <h4 id="bv-tour-title">${step.title}</h4>
     <p>${step.body}</p>
     <div class="bv-tour-row">
       <button class="bv-tour-skip" data-act="skip">${isLast ? '' : 'Skip'}</button>
@@ -157,7 +159,7 @@ export function startOnboarding() {
     // welcome carousel. release() (in finish) restores focus to the invoker.
     root.setAttribute('role', 'dialog');
     root.setAttribute('aria-modal', 'true');
-    root.setAttribute('aria-label', 'Product tour');
+    root.setAttribute('aria-labelledby', 'bv-tour-title');
     root.innerHTML = `<div class="bv-tour-spot"></div><div class="bv-tour-card"></div>`;
     root.addEventListener('click', (e) => {
       const act = e.target?.dataset?.act;
@@ -259,7 +261,7 @@ function ensureSetupStyles() {
     .bv-setup{position:fixed;inset:0;z-index:10000;background:var(--surface,#fff);color:var(--ink,#16181d);display:flex;flex-direction:column;animation:bvsufade .3s ease;}
     @keyframes bvsufade{from{opacity:0}to{opacity:1}}
     .bv-setup-top{display:flex;justify-content:flex-end;padding:12px 16px 0;min-height:20px;}
-    .bv-setup-skip{background:none;border:none;color:var(--ink-mute,#8b91a0);font-size:14px;font-weight:600;cursor:pointer;padding:12px 16px;}
+    .bv-setup-skip{background:none;border:none;color:var(--ink-mute,#8b91a0);font-size:14px;font-weight:600;cursor:pointer;padding:12px 16px;min-height:44px;}
     .bv-setup-body{flex:1;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:18px 24px;display:flex;flex-direction:column;justify-content:safe center;width:min(100%,520px);margin:0 auto;box-sizing:border-box;}
     .bv-setup-body::-webkit-scrollbar{display:none;}
     .bv-setup-hero{width:92px;height:92px;border-radius:24px;display:flex;align-items:center;justify-content:center;margin:6px auto 20px;color:#fff;box-shadow:0 14px 34px -12px rgba(0,0,0,.35);}
@@ -284,7 +286,7 @@ function ensureSetupStyles() {
     .bv-skin span{font-size:11.5px;color:var(--ink-soft);font-weight:600;}
     .bv-note{font-size:12.5px;color:var(--ink-soft);line-height:1.45;background:var(--surface-2,#f6f7f9);border-radius:12px;padding:11px 13px;}
     .bv-langs{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
-    .bv-lang{padding:9px 14px;border:2px solid var(--line,#e5e7eb);border-radius:999px;background:var(--surface-2,#f6f7f9);color:inherit;font-size:13.5px;font-weight:600;cursor:pointer;}
+    .bv-lang{padding:9px 14px;min-height:44px;border:2px solid var(--line,#e5e7eb);border-radius:999px;background:var(--surface-2,#f6f7f9);color:inherit;font-size:13.5px;font-weight:600;cursor:pointer;}
     .bv-lang.sel{border-color:var(--accent,#e23b3b);background:color-mix(in srgb,var(--accent,#e23b3b) 10%,transparent);}
     .bv-preview{margin:0 0 20px;}
     /* Uses the skin's own tokens (border weight, shadow, radius, surface, accent)
@@ -303,21 +305,24 @@ function ensureSetupStyles() {
     .bv-row.first{border-top:none;}
     .bv-row-lbl b{display:block;font-size:14.5px;font-weight:700;}
     .bv-row-lbl span{font-size:12px;color:var(--ink-soft);}
-    .bv-sel{font-family:var(--mono,monospace);font-weight:700;font-size:14px;border:2px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--surface-2);color:inherit;cursor:pointer;}
-    .bv-tgl{width:48px;height:28px;border-radius:999px;border:2px solid var(--line);background:var(--surface-2);position:relative;cursor:pointer;flex-shrink:0;transition:background .2s,border-color .2s;}
-    .bv-tgl::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--ink-mute);transition:transform .2s,background .2s;}
-    .bv-tgl.on{background:var(--accent);border-color:var(--accent);}
+    .bv-sel{font-family:var(--mono,monospace);font-weight:700;font-size:14px;border:2px solid var(--line);border-radius:10px;padding:8px 10px;min-height:44px;background:var(--surface-2);color:inherit;cursor:pointer;}
+    .bv-tgl{width:52px;height:44px;border:0;background:transparent;position:relative;cursor:pointer;flex-shrink:0;}
+    .bv-tgl::before{content:"";position:absolute;inset:8px 2px;border:2px solid var(--line);border-radius:999px;background:var(--surface-2);transition:background .2s,border-color .2s;}
+    .bv-tgl::after{content:"";position:absolute;top:12px;left:6px;width:20px;height:20px;border-radius:50%;background:var(--ink-mute);transition:transform .2s,background .2s;}
+    .bv-tgl.on::before{background:var(--accent);border-color:var(--accent);}
     .bv-tgl.on::after{transform:translateX(20px);background:#fff;}
     .bv-setup-foot{padding:14px 24px calc(18px + var(--safe-bottom, 0px));display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--line-soft,#eee);}
     .bv-setup-dots{display:flex;gap:7px;justify-content:center;}
     .bv-setup-dots i{width:7px;height:7px;border-radius:50%;background:var(--line,#d6d9e0);transition:background .25s,width .25s,border-radius .25s;}
     .bv-setup-dots i.on{background:var(--accent,#e23b3b);width:22px;border-radius:4px;}
     .bv-setup-nav{display:flex;gap:10px;}
-    .bv-setup-btn{flex:1;border:2px solid var(--line);border-radius:14px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;background:var(--surface-2);color:inherit;}
+    .bv-setup-btn{flex:1;border:2px solid var(--line);border-radius:14px;padding:14px;min-height:44px;font-size:15px;font-weight:700;cursor:pointer;background:var(--surface-2);color:inherit;}
     .bv-setup-btn.primary{flex:2;background:var(--accent,#e23b3b);border-color:var(--accent,#e23b3b);color:#111;}
-    .bv-setup-ghost{background:none;border:none;color:var(--ink-mute);font-size:13.5px;font-weight:600;cursor:pointer;padding:2px;}
+    .bv-setup-ghost{background:none;border:none;color:var(--ink-mute);font-size:13.5px;font-weight:600;cursor:pointer;padding:10px;min-height:44px;}
     .bv-setup-ghost[aria-busy="true"]{opacity:.6;cursor:wait;}
     .bv-setup-note{min-height:1.2em;margin:7px 0 0;color:var(--ink-mute);font-size:12.5px;line-height:1.35;text-align:center;}
+    .bv-setup button:focus-visible,.bv-setup select:focus-visible{outline:3px solid var(--accent,#e23b3b);outline-offset:3px;}
+    @media (prefers-reduced-motion: reduce){.bv-setup{animation:none;}.bv-opt,.bv-preview-card,.bv-tgl::before,.bv-tgl::after,.bv-setup-dots i{transition:none;}}
   `;
   const el = document.createElement('style');
   el.id = 'bv-setup-style';
@@ -345,8 +350,9 @@ function stepBodyHTML(key) {
       `<button type="button" class="bv-lang ${l.code === active ? 'sel' : ''}" data-lang="${l.code}"
         lang="${l.code}" aria-pressed="${l.code === active}" data-no-i18n>${l.native}</button>`).join('');
     return `${heroHTML('box', 4)}
-      <h3>Welcome to BricksVault</h3>
+      <h3 id="bv-setup-title">Welcome to BricksVault</h3>
       <p class="sub">Let's make it yours — a few quick choices so the app feels right from the first tap.</p>
+      <div class="bv-note">Start privately on this device — sign in later if you want to sync.</div>
       <div class="bv-field">
         <div class="bv-field-lbl">Language</div>
         <div class="bv-langs" id="suLangs" role="group" aria-label="Language">${chips}</div>
@@ -360,10 +366,10 @@ function stepBodyHTML(key) {
     const kidsLocked = isGuestMode();
     const opt = (id, emoji, title, desc, locked = false) =>
       `<button class="bv-opt ${m === id ? 'sel' : ''}${locked ? ' bv-opt-locked' : ''}" data-mode="${id}" ${locked ? 'data-locked="1" style="opacity:.55;"' : ''}><div class="bv-opt-emoji">${emoji}</div><div class="bv-opt-txt"><b>${title}</b><span>${desc}</span></div></button>`;
-    return `<h3>How will you use it?</h3>
+    return `<h3 id="bv-setup-title">How will you use it?</h3>
       <p class="sub">You can change this anytime in Settings.</p>
       <div class="bv-opts">
-        ${opt('pro', '📈', 'Pro', 'Full investor view — market value, ROI and 2-year projections.')}
+        ${opt('pro', '📈', 'Investor', 'Full investor view — market value, ROI and 2-year projections.')}
         ${opt('simple', '✨', 'Simple', 'Just your sets and what they\'re worth. No jargon.')}
         ${opt('kids', '🧒', 'Kids', kidsLocked ? 'Sign in first — a parent PIN keeps kids from exiting.' : 'Playful, price-free mode with XP and badges.', kidsLocked)}
       </div>`;
@@ -375,7 +381,7 @@ function stepBodyHTML(key) {
     const sk = getSkinPref();
     const skins = SETUP_SKINS.map(s =>
       `<button class="bv-skin ${sk === s.id ? 'sel' : ''}" data-skin="${s.id}"><i style="${s.css}"></i><span>${s.label}</span></button>`).join('');
-    return `<h3>Pick your look</h3>
+    return `<h3 id="bv-setup-title">Pick your look</h3>
       <p class="sub">Preview updates instantly.</p>
       <div class="bv-preview"><div class="bv-preview-card"><div class="bv-preview-brick"></div><div class="bv-preview-txt"><b>Cloud City</b><span>10123 · Star Wars</span></div><div class="bv-preview-val">$8,716</div></div></div>
       <div class="bv-field"><div class="bv-field-lbl">Theme</div><div class="bv-seg" id="suTheme">${seg}</div></div>
@@ -386,7 +392,7 @@ function stepBodyHTML(key) {
   if (key === 'extras') {
     const cur = (state.me && state.me.currency) || localStorage.getItem('bv_currency') || 'USD';
     const opts = SETUP_CURRENCIES.map(c => `<option value="${c}" ${c === cur ? 'selected' : ''}>${c}</option>`).join('');
-    return `<h3>A few extras</h3>
+    return `<h3 id="bv-setup-title">A few extras</h3>
       <p class="sub">Optional — tweak later in Settings.</p>
       <div class="bv-row first">
         <div class="bv-row-lbl"><b>Currency</b><span>Show values in your local currency.</span></div>
@@ -403,20 +409,21 @@ function stepBodyHTML(key) {
   }
   if (key === 'support') {
     return `${heroHTML('sparkles', 45)}
-      <h3>BricksVault Pro ⭐</h3>
+      <h3 id="bv-setup-title">BricksVault Pro ⭐</h3>
       <p class="sub">Tracking your vault is free, forever. Pro unlocks the investor toolkit — and keeps BricksVault independent and ad-free.</p>
       <ul class="bv-perks">
         <li>Investor insights: sell/buy signals, top movers, retirement radar</li>
         <li>Full 1-year portfolio history &amp; ROI export</li>
-        <li>5× scan and revaluation limits</li>
         <li>Premium &amp; Gold ★ skins + ⭐ profile badge</li>
+        <li>5× scan and revaluation limits</li>
       </ul>
       <div class="bv-note">No pressure — everything you need stays free. You can go Pro anytime from Settings.</div>`;
   }
   // done
   return `${heroHTML('sparkles', 36)}
-    <h3>You're all set!</h3>
-    <p class="sub">Your app is ready. Add your first set to see it valued — or explore around.</p>`;
+    <h3 id="bv-setup-title">Your vault is ready</h3>
+    <p class="sub">Your app is ready. Add your first set to see it valued — or explore around.</p>
+    <div class="bv-note">Start privately on this device — sign in later if you want to sync.</div>`;
 }
 
 function stepFootHTML(key) {
@@ -434,9 +441,9 @@ function stepFootHTML(key) {
         ${suIdx > 0 ? '<button class="bv-setup-btn" data-act="back">Back</button>' : ''}
         <button class="bv-setup-btn primary" data-act="next">${key === 'welcome' ? "Let's go" : 'Continue'}</button>
       </div>
-      ${key === 'support' ? '<button class="bv-setup-ghost" data-act="support">See Pro options →</button><p class="bv-setup-note" data-su-note role="status" aria-live="polite"></p>' : ''}`;
+      ${key === 'support' ? `${isNativeBilling() ? '<button class="bv-setup-ghost" data-act="support">See Pro options →</button>' : ''}<p class="bv-setup-note" data-su-note role="status" aria-live="polite"></p>` : ''}`;
   }
-  return `<div class="bv-setup-dots">${dots}</div>${nav}`;
+  return `<div class="bv-setup-dots" role="progressbar" aria-label="Setup progress" aria-valuemin="1" aria-valuemax="${SETUP_STEPS.length}" aria-valuenow="${suIdx + 1}">${dots}</div>${nav}`;
 }
 
 function suApplyCurrency(val) {
@@ -579,7 +586,7 @@ export function showSetup() {
     suRoot.className = 'bv-setup';
     suRoot.setAttribute('role', 'dialog');
     suRoot.setAttribute('aria-modal', 'true');
-    suRoot.setAttribute('aria-label', 'Set up BricksVault');
+    suRoot.setAttribute('aria-labelledby', 'bv-setup-title');
     suRoot.innerHTML = `
       <div class="bv-setup-top"><button class="bv-setup-skip" data-act="skip">Skip</button></div>
       <div class="bv-setup-body"></div>

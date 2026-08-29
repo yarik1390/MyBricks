@@ -1,5 +1,7 @@
 /** Hindi exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Setup progress": "सेटअप की प्रगति",
+  "Tour progress": "टूर की प्रगति",
   "Good time to sell": "बेचने का अच्छा समय",
   "\"not enough verified data\"": "«पर्याप्त सत्यापित डेटा नहीं»",
   "(WebGPU) or you're offline; it falls back to Cloud automatically, so scanning always works.": "(WebGPU) या आप ऑफ़लाइन हैं; यह अपने आप क्लाउड पर फ़ॉलबैक हो जाता है, इसलिए स्कैनिंग हमेशा काम करती है।",
@@ -1090,7 +1092,6 @@ export const ui = {
   "Privacy": "गोपनीयता",
   "Privacy Policy": "गोपनीयता नीति",
   "Private": "निजी",
-  "Product tour": "प्रोडक्ट टूर",
   "Profile": "प्रोफ़ाइल",
   "Profile not found": "प्रोफ़ाइल नहीं मिली",
   "Profile not found or private": "प्रोफ़ाइल नहीं मिली या निजी है",
@@ -1323,7 +1324,6 @@ export const ui = {
   "Set number or barcode": "सेट नंबर या बारकोड",
   "Set photo": "सेट फ़ोटो",
   "Set storage location for selected sets": "चयनित सेट के लिए स्टोरेज स्थान सेट करें",
-  "Set up BricksVault": "BricksVault सेट करें",
   "Set up a device PIN, pattern, or password first": "पहले डिवाइस PIN, पैटर्न, या पासवर्ड सेट करें",
   "Set up fingerprint or face unlock in Android settings first": "पहले Android सेटिंग्स में फ़िंगरप्रिंट या फेस अनलॉक सेट करें",
   "Set up photo scanning": "फ़ोटो स्कैनिंग सेट करें",
@@ -1659,7 +1659,6 @@ export const ui = {
   "YOU": "मैं",
   "You": "मैं",
   "You can change this anytime in Settings.": "आप इसे कभी भी सेटिंग्स में बदल सकते हैं।",
-  "You're all set!": "आप तैयार हैं!",
   "You're offline and no local AI is available. Download the Gemma model in": "आप ऑफ़लाइन हैं और कोई लोकल AI उपलब्ध नहीं है। यहाँ Gemma मॉडल डाउनलोड करें",
   "You're offline and this device can't run on-device AI (no WebGPU).": "आप ऑफ़लाइन हैं और यह डिवाइस डिवाइस-पर AI नहीं चला सकता (कोई WebGPU नहीं)।",
   "You're offline — showing bundled data": "आप ऑफ़लाइन हैं — बंडल किया गया डेटा दिखाया जा रहा है",

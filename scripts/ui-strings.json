@@ -4593,6 +4593,12 @@
     ]
   },
   {
+    "text": "Investor",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
     "text": "Investor insights — a Pro toolkit",
     "files": [
       "views/portfolio.js"
@@ -7252,12 +7258,6 @@
     ]
   },
   {
-    "text": "Product tour",
-    "files": [
-      "components/onboarding.js"
-    ]
-  },
-  {
     "text": "Profile",
     "files": [
       "index.html",
@@ -8829,12 +8829,6 @@
     ]
   },
   {
-    "text": "Set up BricksVault",
-    "files": [
-      "components/onboarding.js"
-    ]
-  },
-  {
     "text": "Set up a device PIN, pattern, or password first",
     "files": [
       "lib/native-biometric.js"
@@ -8918,6 +8912,12 @@
     "files": [
       "lib/pure.js",
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Setup progress",
+    "files": [
+      "components/onboarding.js"
     ]
   },
   {
@@ -9392,6 +9392,12 @@
     "text": "Start a run from the Populate tab — live progress shows here.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Start privately on this device — sign in later if you want to sync.",
+    "files": [
+      "components/onboarding.js"
     ]
   },
   {
@@ -10090,6 +10096,12 @@
   },
   {
     "text": "Tour controls failed to render",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
+    "text": "Tour progress",
     "files": [
       "components/onboarding.js"
     ]
@@ -11097,12 +11109,6 @@
     ]
   },
   {
-    "text": "You're all set!",
-    "files": [
-      "components/onboarding.js"
-    ]
-  },
-  {
     "text": "You're offline and no local AI is available. Download the Gemma model in",
     "files": [
       "components/advisor.js"
@@ -11259,6 +11265,12 @@
     "text": "Your trend appears after the next daily valuation snapshot.",
     "files": [
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "Your vault is ready",
+    "files": [
+      "components/onboarding.js"
     ]
   },
   {

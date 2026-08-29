@@ -1,5 +1,7 @@
 /** Chinese (Simplified) exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Setup progress": "设置进度",
+  "Tour progress": "导览进度",
   "Good time to sell": "适合卖出",
   "\"not enough verified data\"": "「已验证数据不足」",
   "(WebGPU) or you're offline; it falls back to Cloud automatically, so scanning always works.": "（WebGPU）或处于离线状态时，会自动回退至云端，因此扫描始终可用。",
@@ -1090,7 +1092,6 @@ export const ui = {
   "Privacy": "隐私",
   "Privacy Policy": "隐私政策",
   "Private": "私密",
-  "Product tour": "产品导览",
   "Profile": "个人主页",
   "Profile not found": "未找到该主页",
   "Profile not found or private": "未找到该主页或该主页为私密",
@@ -1323,7 +1324,6 @@ export const ui = {
   "Set number or barcode": "套装编号或条形码",
   "Set photo": "套装照片",
   "Set storage location for selected sets": "为所选套装设置存放位置",
-  "Set up BricksVault": "设置 BricksVault",
   "Set up a device PIN, pattern, or password first": "请先设置设备 PIN、图案或密码",
   "Set up fingerprint or face unlock in Android settings first": "请先在 Android 设置中启用指纹或面容解锁",
   "Set up photo scanning": "设置照片扫描",
@@ -1659,7 +1659,6 @@ export const ui = {
   "YOU": "你",
   "You": "你",
   "You can change this anytime in Settings.": "你可以随时在设置中更改。",
-  "You're all set!": "一切就绪！",
   "You're offline and no local AI is available. Download the Gemma model in": "你已离线，且没有可用的本地 AI。请在",
   "You're offline and this device can't run on-device AI (no WebGPU).": "你已离线，且此设备无法运行设备端 AI（不支持 WebGPU）。",
   "You're offline — showing bundled data": "你已离线——正显示内置数据",

@@ -1,5 +1,7 @@
 /** Japanese exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Setup progress": "セットアップの進行状況",
+  "Tour progress": "ツアーの進行状況",
   "Good time to sell": "売り時",
   "\"not enough verified data\"": "「検証済みデータが不足」",
   "(WebGPU) or you're offline; it falls back to Cloud automatically, so scanning always works.": "（WebGPU）が使えない場合やオフラインの場合は自動的にクラウドにフォールバックするため、スキャンは常に機能します。",
@@ -1090,7 +1092,6 @@ export const ui = {
   "Privacy": "プライバシー",
   "Privacy Policy": "プライバシーポリシー",
   "Private": "非公開",
-  "Product tour": "プロダクトツアー",
   "Profile": "プロフィール",
   "Profile not found": "プロフィールが見つかりません",
   "Profile not found or private": "プロフィールが見つからないか、非公開です",
@@ -1323,7 +1324,6 @@ export const ui = {
   "Set number or barcode": "セット番号またはバーコード",
   "Set photo": "セットの写真",
   "Set storage location for selected sets": "選択したセットの保管場所を設定",
-  "Set up BricksVault": "BricksVaultを設定",
   "Set up a device PIN, pattern, or password first": "先に端末のPIN、パターン、またはパスワードを設定してください",
   "Set up fingerprint or face unlock in Android settings first": "先にAndroidの設定で指紋認証または顔認証を設定してください",
   "Set up photo scanning": "写真スキャンを設定",
@@ -1659,7 +1659,6 @@ export const ui = {
   "YOU": "あなた",
   "You": "あなた",
   "You can change this anytime in Settings.": "これはいつでも設定から変更できます。",
-  "You're all set!": "準備完了です！",
   "You're offline and no local AI is available. Download the Gemma model in": "オフラインで、ローカルAIも利用できません。次でGemmaモデルをダウンロードしてください：",
   "You're offline and this device can't run on-device AI (no WebGPU).": "オフラインで、この端末ではデバイス上AIを実行できません（WebGPU非対応）。",
   "You're offline — showing bundled data": "オフラインです — 同梱データを表示しています",

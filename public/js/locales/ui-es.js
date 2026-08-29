@@ -1,5 +1,7 @@
 /** Spanish exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Setup progress": "Progreso de configuración",
+  "Tour progress": "Progreso del recorrido",
   "Good time to sell": "Buen momento para vender",
   "\"not enough verified data\"": "«datos verificados insuficientes»",
   "(WebGPU) or you're offline; it falls back to Cloud automatically, so scanning always works.": "(WebGPU) o estás sin conexión; recurre automáticamente a la nube, así que el escaneo siempre funciona.",
@@ -1090,7 +1092,6 @@ export const ui = {
   "Privacy": "Privacidad",
   "Privacy Policy": "Política de privacidad",
   "Private": "Privado",
-  "Product tour": "Recorrido del producto",
   "Profile": "Perfil",
   "Profile not found": "Perfil no encontrado",
   "Profile not found or private": "Perfil no encontrado o privado",
@@ -1323,7 +1324,6 @@ export const ui = {
   "Set number or barcode": "Número de set o código de barras",
   "Set photo": "Foto del set",
   "Set storage location for selected sets": "Establece la ubicación de almacenamiento de los sets seleccionados",
-  "Set up BricksVault": "Configura BricksVault",
   "Set up a device PIN, pattern, or password first": "Configura primero un PIN, patrón o contraseña del dispositivo",
   "Set up fingerprint or face unlock in Android settings first": "Configura primero el desbloqueo por huella o rostro en los ajustes de Android",
   "Set up photo scanning": "Configurar el escaneo por foto",
@@ -1659,7 +1659,6 @@ export const ui = {
   "YOU": "TÚ",
   "You": "Tú",
   "You can change this anytime in Settings.": "Puedes cambiar esto en cualquier momento en Ajustes.",
-  "You're all set!": "¡Ya está todo listo!",
   "You're offline and no local AI is available. Download the Gemma model in": "Estás sin conexión y no hay IA local disponible. Descarga el modelo Gemma en",
   "You're offline and this device can't run on-device AI (no WebGPU).": "Estás sin conexión y este dispositivo no puede ejecutar IA local (sin WebGPU).",
   "You're offline — showing bundled data": "Estás sin conexión — mostrando datos incluidos",

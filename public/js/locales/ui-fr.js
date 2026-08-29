@@ -1,5 +1,7 @@
 /** French exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Setup progress": "Progression de la configuration",
+  "Tour progress": "Progression de la visite",
   "Good time to sell": "Bon moment pour vendre",
   "\"not enough verified data\"": "« données vérifiées insuffisantes »",
   "(WebGPU) or you're offline; it falls back to Cloud automatically, so scanning always works.": "(WebGPU) ou que vous êtes hors ligne ; il bascule alors automatiquement sur le cloud, donc le scan fonctionne toujours.",
@@ -1090,7 +1092,6 @@ export const ui = {
   "Privacy": "Confidentialité",
   "Privacy Policy": "Politique de confidentialité",
   "Private": "Privé",
-  "Product tour": "Visite du produit",
   "Profile": "Profil",
   "Profile not found": "Profil introuvable",
   "Profile not found or private": "Profil introuvable ou privé",
@@ -1323,7 +1324,6 @@ export const ui = {
   "Set number or barcode": "Numéro de set ou code-barres",
   "Set photo": "Photo du set",
   "Set storage location for selected sets": "Définir l'emplacement de stockage des sets sélectionnés",
-  "Set up BricksVault": "Configurer BricksVault",
   "Set up a device PIN, pattern, or password first": "Configurez d'abord un code, schéma ou mot de passe sur l'appareil",
   "Set up fingerprint or face unlock in Android settings first": "Configurez d'abord le déverrouillage par empreinte ou reconnaissance faciale dans les réglages Android",
   "Set up photo scanning": "Configurer le scan photo",
@@ -1659,7 +1659,6 @@ export const ui = {
   "YOU": "VOUS",
   "You": "Vous",
   "You can change this anytime in Settings.": "Vous pouvez modifier cela à tout moment dans les Réglages.",
-  "You're all set!": "Tout est prêt !",
   "You're offline and no local AI is available. Download the Gemma model in": "Vous êtes hors ligne et aucune IA locale n'est disponible. Téléchargez le modèle Gemma dans",
   "You're offline and this device can't run on-device AI (no WebGPU).": "Vous êtes hors ligne et cet appareil ne peut pas exécuter l’IA locale (pas de WebGPU).",
   "You're offline — showing bundled data": "Vous êtes hors ligne — affichage des données intégrées",
