@@ -22,6 +22,13 @@ describe('How we price UI upgrade', () => {
     assert.match(methodology, /main > h2:nth-of-type\(9\) \+ ul \{[\s\S]*grid-template-columns:repeat\(3/);
   });
 
+  it('defines every standalone visual token used by the redesign', () => {
+    const rootTokens = methodology.match(/:root \{([^}]*)\}/)?.[1] ?? '';
+    for (const token of ['--surface', '--shadow', '--accent-soft']) {
+      assert.match(rootTokens, new RegExp(`${token}:`), `${token} must be defined in methodology.html`);
+    }
+  });
+
   it('keeps the confidence table semantic and overflow-safe', () => {
     assert.match(methodology, /main > h2:nth-of-type\(6\) \+ table \{[\s\S]*overflow-x:auto/);
     assert.match(methodology, /<th>Badge<\/th>/);
@@ -53,6 +60,6 @@ describe('How we price UI upgrade', () => {
   });
 
   it('bumps the service worker after public HTML and CSS changes', () => {
-    assert.match(serviceWorker, /const VERSION = "v469"/);
+    assert.match(serviceWorker, /const VERSION = "v470"/);
   });
 });
