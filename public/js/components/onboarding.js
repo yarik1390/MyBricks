@@ -526,7 +526,7 @@ function suNote(message) {
   if (note) note.textContent = message || '';
 }
 
-function suRender({ focusLanguage = null } = {}) {
+function suRender({ focusLanguage = null, focusStep = false } = {}) {
   if (!suRoot) return;
   const key = SETUP_STEPS[suIdx];
   suRoot.querySelector('.bv-setup-body').innerHTML = stepBodyHTML(key);
@@ -537,12 +537,16 @@ function suRender({ focusLanguage = null } = {}) {
   if (focusLanguage) {
     suRoot.querySelector(`#suLangs .bv-lang[data-lang="${focusLanguage}"]`)
       ?.focus({ preventScroll: true });
+  } else if (focusStep) {
+    const title = suRoot.querySelector('#bv-setup-title');
+    title?.setAttribute('tabindex', '-1');
+    title?.focus({ preventScroll: true });
   }
 }
 
 function suGo(delta) {
   suIdx = Math.max(0, Math.min(SETUP_STEPS.length - 1, suIdx + delta));
-  suRender();
+  suRender({ focusStep: true });
 }
 
 function suFinish(dest) {

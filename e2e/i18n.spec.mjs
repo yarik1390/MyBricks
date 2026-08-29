@@ -66,6 +66,17 @@ test('onboarding language picker switches the wizard live', async ({ page }) => 
   await expect(page.locator('.bv-lang[data-lang="uk"]')).toHaveClass(/sel/);
   await expect(page.locator('.bv-lang[data-lang="uk"]')).toBeFocused();
 
+  // Every step replacement destroys the activated footer button. Focus must
+  // move into the new step instead of falling back to <body> outside the
+  // dialog's useful reading order.
+  await page.locator('.bv-setup [data-act="next"]').click();
+  const modeTitle = page.locator('#bv-setup-title');
+  await expect(modeTitle).toHaveText('Як ви це використовуватимете?');
+  await expect(modeTitle).toBeFocused();
+  await page.locator('.bv-setup [data-act="back"]').click();
+  await expect(page.locator('#bv-setup-title')).toHaveText('Ласкаво просимо в BricksVault');
+  await expect(page.locator('#bv-setup-title')).toBeFocused();
+
   await page.locator('.bv-lang[data-lang="en"]').click();
   await expect(welcome).toHaveText('Welcome to BricksVault');
 });

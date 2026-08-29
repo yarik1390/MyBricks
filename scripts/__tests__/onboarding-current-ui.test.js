@@ -29,6 +29,12 @@ describe('current first-run onboarding', () => {
     assert.equal((onboarding.match(/<h3 id="bv-setup-title">/g) || []).length, 6);
   });
 
+  it('moves focus into each newly rendered setup step', () => {
+    assert.match(onboarding, /function suRender\(\{ focusLanguage = null, focusStep = false \} = \{\}\)/);
+    assert.match(onboarding, /else if \(focusStep\) \{[\s\S]*?#bv-setup-title[\s\S]*?focus\(\{ preventScroll: true \}\)/);
+    assert.match(onboarding, /suRender\(\{ focusStep: true \}\)/);
+  });
+
   it('uses resilient touch targets, visible keyboard focus, and reduced-motion fallbacks', () => {
     assert.match(onboarding, /\.bv-tour-skip\{[^}]*min-height:44px/);
     assert.match(onboarding, /\.bv-tour-btn\{[^}]*min-height:44px/);
@@ -46,6 +52,6 @@ describe('current first-run onboarding', () => {
   });
 
   it('bumps the static cache for the onboarding update', () => {
-    assert.match(serviceWorker, /const VERSION = "v471"/);
+    assert.match(serviceWorker, /const VERSION = "v472"/);
   });
 });
