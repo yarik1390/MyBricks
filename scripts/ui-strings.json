@@ -1477,6 +1477,12 @@
     ]
   },
   {
+    "text": "Built together",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Built-in AI is not supported on this browser.",
     "files": [
       "lib/local-ai.js"
@@ -1725,6 +1731,12 @@
     ]
   },
   {
+    "text": "Changes save automatically",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Check Supabase URL, anon key, and JWT secret.",
     "files": [
       "views/me-admin.js"
@@ -1947,6 +1959,12 @@
     ]
   },
   {
+    "text": "Collector rating",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Color style",
     "files": [
       "components/onboarding.js"
@@ -1984,6 +2002,18 @@
       "views/me-contributions.js",
       "views/portfolio-detail.js",
       "views/portfolio-social.js"
+    ]
+  },
+  {
+    "text": "Community contributions",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Community record",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -2709,6 +2739,12 @@
     "text": "Delete my account",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Deletes this holding from your vault after confirmation.",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -4600,6 +4636,12 @@
     ]
   },
   {
+    "text": "Keep the details that make this copy yours. Changes save automatically as you update each field.",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Keep your spreadsheet \"BricksVault Vault\" in sync in the background.",
     "files": [
       "runtime-exact"
@@ -5098,6 +5140,12 @@
     ]
   },
   {
+    "text": "Make this set easy to find and add private context for later.",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Manage",
     "files": [
       "views/portfolio-detail.js"
@@ -5107,6 +5155,12 @@
     "text": "Manage subscription",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Manage this set",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -5785,7 +5839,7 @@
   {
     "text": "No community content yet. Add the first review, photo, or fix above.",
     "files": [
-      "views/portfolio-detail.js"
+      "runtime-exact"
     ]
   },
   {
@@ -5929,7 +5983,7 @@
   {
     "text": "No ratings yet — be the first.",
     "files": [
-      "views/portfolio-detail.js"
+      "runtime-exact"
     ]
   },
   {
@@ -7564,6 +7618,12 @@
     ]
   },
   {
+    "text": "Record what you paid and where this set joined your collection.",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Refresh",
     "files": [
       "app.js",
@@ -7756,6 +7816,12 @@
     "text": "Replay the quick guided walkthrough.",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Report a data issue or a community sale.",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -8549,6 +8615,12 @@
     ]
   },
   {
+    "text": "See what collectors are sharing about this set, or add useful evidence for the next builder.",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Select sets",
     "files": [
       "views/portfolio.js"
@@ -8888,6 +8960,18 @@
     ]
   },
   {
+    "text": "Share the first review or photo, or suggest a correction for the set data.",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Share your build and ownership experience.",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Shared scan limit reached",
     "files": [
       "components/scanner.js"
@@ -8935,6 +9019,12 @@
     "text": "Show the floating assistant button for price help.",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Show the set, box, or display in the real world.",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -9302,6 +9392,12 @@
     "text": "Start a run from the Populate tab — live progress shows here.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Start this set’s community record",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -10005,6 +10101,12 @@
     ]
   },
   {
+    "text": "Track the copy’s condition and whether any pieces are missing.",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Tracking has begun — your curve builds with each daily snapshot",
     "files": [
       "views/portfolio.js"
@@ -10056,6 +10158,12 @@
     "text": "Trophy Shelf unlocked! 🏆",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Trust note:",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -10590,6 +10698,12 @@
     "text": "Vault actions",
     "files": [
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "Vault record",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -11468,6 +11582,12 @@
     ]
   },
   {
+    "text": "out of 5",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "pieces missing",
     "files": [
       "views/portfolio-detail.js"
@@ -11789,7 +11909,7 @@
   {
     "text": "📷 Add photo",
     "files": [
-      "views/portfolio-detail.js"
+      "runtime-exact"
     ]
   },
   {
@@ -11801,7 +11921,7 @@
   {
     "text": "🛠 Suggest a fix",
     "files": [
-      "views/portfolio-detail.js"
+      "runtime-exact"
     ]
   },
   {

@@ -1040,65 +1040,80 @@ function forecastTabHTML(set) {
 function manageTabHTML(set, entry) {
   if (!entry) return `<p style="color:var(--ink-mute);">Not in your vault.</p>`;
   return `
-    <div class="manage-save-bar">
-      <span class="u-mono-label">Set details</span>
-      <span id="manageSaveState" class="badge badge--neutral" aria-live="polite" style="visibility:hidden;">Saved ✓</span>
-    </div>
-    <fieldset class="form-group manage-group">
-      <legend class="u-mono-label u-mb-1">Purchase</legend>
-      <div class="field">
-        <label class="field-lbl" for="mPrice">Purchase price</label>
-        <input id="mPrice" type="number" step="0.01" value="${moneyInputValue(entry.purchase_price)}" placeholder="0.00" inputmode="decimal" autocomplete="off">
-        <div class="field-err" id="mPriceErr"></div>
+    <div class="manage-tab">
+      <header class="manage-intro">
+        <div class="manage-eyebrow">Vault record</div>
+        <h2>Manage this set</h2>
+        <p>Keep the details that make this copy yours. Changes save automatically as you update each field.</p>
+      </header>
+      <div class="manage-save-bar">
+        <span class="manage-save-copy"><strong>Set details</strong><small>Changes save automatically</small></span>
+        <span id="manageSaveState" class="badge badge--neutral" aria-live="polite" style="visibility:hidden;">Saved ✓</span>
       </div>
-      <div class="field">
-        <label class="field-lbl" for="mDate">Purchase date</label>
-        <input id="mDate" type="date" value="${entry.purchased_at ? entry.purchased_at.slice(0,10) : ""}">
-      </div>
-      <div class="field">
-        <label class="field-lbl" for="mAcquisition">Acquisition source</label>
-        <select id="mAcquisition">
-          <option value="" ${!entry.acquisition_source ? "selected" : ""}>— select —</option>
-          ${["Store","BrickLink","eBay","Facebook Marketplace","Trade","Gift","Other"].map(s =>
-            `<option value="${s}" ${entry.acquisition_source === s ? "selected" : ""}>${s}</option>`
-          ).join("")}
-        </select>
-      </div>
-    </fieldset>
-    <fieldset class="form-group manage-group">
-      <legend class="u-mono-label u-mb-1">Condition</legend>
-      <div class="field">
-        <label class="field-lbl" for="mCondition">Condition</label>
-        <select id="mCondition">
-          <option value="sealed" ${entry.condition === "sealed" ? "selected" : ""}>Sealed (MISB)</option>
-          <option value="new" ${entry.condition === "new" ? "selected" : ""}>New, opened</option>
-          <option value="used_good" ${entry.condition === "used_good" ? "selected" : ""}>Used — good</option>
-          <option value="used_acceptable" ${entry.condition === "used_acceptable" ? "selected" : ""}>Used — acceptable</option>
-        </select>
-      </div>
-      <div class="field">
-        <div class="field-lbl">Completeness</div>
-        <div class="completeness-row">
-          <label><input type="checkbox" id="mComplete" ${entry.is_complete !== false ? "checked" : ""}>Complete / all pieces present</label>
+      <fieldset class="form-group manage-group">
+        <legend>Purchase</legend>
+        <p class="manage-group-description">Record what you paid and where this set joined your collection.</p>
+        <div class="manage-field-grid">
+          <div class="field">
+            <label class="field-lbl" for="mPrice">Purchase price</label>
+            <input id="mPrice" type="number" step="0.01" value="${moneyInputValue(entry.purchase_price)}" placeholder="0.00" inputmode="decimal" autocomplete="off">
+            <div class="field-err" id="mPriceErr"></div>
+          </div>
+          <div class="field">
+            <label class="field-lbl" for="mDate">Purchase date</label>
+            <input id="mDate" type="date" value="${entry.purchased_at ? entry.purchased_at.slice(0,10) : ""}">
+          </div>
+          <div class="field">
+            <label class="field-lbl" for="mAcquisition">Acquisition source</label>
+            <select id="mAcquisition">
+              <option value="" ${!entry.acquisition_source ? "selected" : ""}>— select —</option>
+              ${["Store","BrickLink","eBay","Facebook Marketplace","Trade","Gift","Other"].map(s =>
+                `<option value="${s}" ${entry.acquisition_source === s ? "selected" : ""}>${s}</option>`
+              ).join("")}
+            </select>
+          </div>
         </div>
-        <div class="missing-pieces-wrap" id="missingWrap" style="${entry.is_complete === false ? "" : "display:none;"}">
-          <label for="mMissing" style="font-size:13px;color:var(--ink-mute);">pieces missing</label>
-          <input type="number" id="mMissing" min="0" value="${entry.missing_pieces || 0}" placeholder="0">
+      </fieldset>
+      <fieldset class="form-group manage-group">
+        <legend>Condition</legend>
+        <p class="manage-group-description">Track the copy’s condition and whether any pieces are missing.</p>
+        <div class="manage-field-grid">
+          <div class="field">
+            <label class="field-lbl" for="mCondition">Condition</label>
+            <select id="mCondition">
+              <option value="sealed" ${entry.condition === "sealed" ? "selected" : ""}>Sealed (MISB)</option>
+              <option value="new" ${entry.condition === "new" ? "selected" : ""}>New, opened</option>
+              <option value="used_good" ${entry.condition === "used_good" ? "selected" : ""}>Used — good</option>
+              <option value="used_acceptable" ${entry.condition === "used_acceptable" ? "selected" : ""}>Used — acceptable</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-lbl">Completeness</div>
+            <div class="completeness-row">
+              <label><input type="checkbox" id="mComplete" ${entry.is_complete !== false ? "checked" : ""}>Complete / all pieces present</label>
+            </div>
+            <div class="missing-pieces-wrap" id="missingWrap" style="${entry.is_complete === false ? "" : "display:none;"}">
+              <label for="mMissing" style="font-size:13px;color:var(--ink-mute);">pieces missing</label>
+              <input type="number" id="mMissing" min="0" value="${entry.missing_pieces || 0}" placeholder="0">
+            </div>
+          </div>
         </div>
-      </div>
-    </fieldset>
-    <fieldset class="form-group manage-group">
-      <legend class="u-mono-label u-mb-1">Storage &amp; notes</legend>
-      <div class="field">
-        <label class="field-lbl" for="mStorage">Storage location</label>
-        <input id="mStorage" type="text" value="${escapeHtml(entry.storage_location || "")}" placeholder="e.g. Display shelf A3, Attic box 2" list="storageLocations">
-        <datalist id="storageLocations"></datalist>
-      </div>
-      <div class="field">
-        <label class="field-lbl" for="mNotes">Notes</label>
-        <textarea id="mNotes" placeholder="Story, details, anything…">${escapeHtml(entry.notes || "")}</textarea>
-      </div>
-    </fieldset>
+      </fieldset>
+      <fieldset class="form-group manage-group">
+        <legend>Storage &amp; notes</legend>
+        <p class="manage-group-description">Make this set easy to find and add private context for later.</p>
+        <div class="manage-field-grid">
+          <div class="field">
+            <label class="field-lbl" for="mStorage">Storage location</label>
+            <input id="mStorage" type="text" value="${escapeHtml(entry.storage_location || "")}" placeholder="e.g. Display shelf A3, Attic box 2" list="storageLocations">
+            <datalist id="storageLocations"></datalist>
+          </div>
+          <div class="field">
+            <label class="field-lbl" for="mNotes">Notes</label>
+            <textarea id="mNotes" placeholder="Story, details, anything…">${escapeHtml(entry.notes || "")}</textarea>
+          </div>
+        </div>
+      </fieldset>
     <details class="card" style="padding:12px 16px;margin-bottom:14px;" ${entry.purchase_price ? "open" : ""}>
       <summary class="u-mono-label" style="cursor:pointer;list-style-position:inside;">Flip calculator</summary>
       <div id="mFlipCalcContainer">${flipCalcHTML(set, entry)}</div>
@@ -1141,9 +1156,18 @@ function manageTabHTML(set, entry) {
       </div>
     </div>`}
       ${sellTimingHTML(set, entry)}
-      <button class="btn-secondary" id="mSold" style="margin-top:14px;">${I.tag()}<span>Sell this set…</span></button>
-      <button class="btn-danger" id="mRemove" style="margin-top:8px;">${I.trash()}<span>Remove from vault</span></button>
-      <button class="btn-secondary" id="mListSale" style="margin-top:8px;">${I.tag()}<span>List for Sale</span></button>`;
+      <div class="manage-sale-actions">
+        <button class="btn-secondary" id="mSold">${I.tag()}<span>Sell this set…</span></button>
+        <button class="btn-secondary" id="mListSale">${I.tag()}<span>List for Sale</span></button>
+      </div>
+      <section class="manage-danger-zone" aria-labelledby="manageDangerTitle">
+        <div>
+          <h3 id="manageDangerTitle">Remove from vault</h3>
+          <p>Deletes this holding from your vault after confirmation.</p>
+        </div>
+        <button class="btn-danger" id="mRemove">${I.trash()}<span>Remove from vault</span></button>
+      </section>
+    </div>`;
 }
 
 // Sell-timing read for this holding: conservative 'sell' | 'watch' | 'hold'
@@ -1541,6 +1565,8 @@ function ensureDetailDelegation() {
 
 function switchDetailTab(tab, set, entry) {
   state.detail.tab = tab;
+  const page = $(".detail-page-container");
+  if (page) page.dataset.detailTab = tab;
   const isWish = state.wishlist.some(w => w.set_num === set.set_num);
   $$("#detailTabs button").forEach(x => {
     const on = x.dataset.tab === tab;
@@ -1571,18 +1597,33 @@ function communityTabHTML(set) {
   const guest = isGuestMode();
   return `
     <div class="tab-section community-tab" data-set="${escapeHtml(set.set_num)}">
-      <div class="community-actions">
-        <button class="btn-secondary contrib-act" data-act="review">★ Write a review</button>
-        <button class="btn-secondary contrib-act" data-act="photo">📷 Add photo</button>
-        <button class="btn-secondary contrib-act" data-act="fix">🛠 Suggest a fix</button>
+      <header class="community-intro">
+        <div class="community-eyebrow">Built together</div>
+        <h2>Community record</h2>
+        <p>See what collectors are sharing about this set, or add useful evidence for the next builder.</p>
+      </header>
+      <div class="community-actions" aria-label="Community contributions">
+        <button class="btn-secondary contrib-act" data-act="review">
+          <span class="community-action-label">Write a review</span>
+          <span class="community-action-copy">Share your build and ownership experience.</span>
+        </button>
+        <button class="btn-secondary contrib-act" data-act="photo">
+          <span class="community-action-label">Add photo</span>
+          <span class="community-action-copy">Show the set, box, or display in the real world.</span>
+        </button>
+        <button class="btn-secondary contrib-act" data-act="fix">
+          <span class="community-action-label">Suggest a fix</span>
+          <span class="community-action-copy">Report a data issue or a community sale.</span>
+        </button>
       </div>
-      <div class="community-mode-note ${guest ? "guest" : "member"}">
-        ${guest
+      <div class="community-mode-note ${guest ? "guest" : "member"}" role="note">
+        <span class="community-trust-mark" aria-hidden="true"></span>
+        <span><span class="u-sr-only">Trust note: </span>${guest
           ? "Guest mode can browse community content. Sign in before contributing so your review, photo, or fix can be reviewed and credited."
-          : "Contributions are reviewed before becoming public, keeping shared set data trustworthy."}
+          : "Contributions are reviewed before becoming public, keeping shared set data trustworthy."}</span>
       </div>
       <div id="communityBody" class="community-body">
-        <div class="u-mute" style="text-align:center;padding:24px 0;">Loading community content…</div>
+        <div class="community-loading" role="status">Loading community content…</div>
       </div>
     </div>`;
 }
@@ -1595,9 +1636,9 @@ function starRow(n) {
 async function wireCommunityTab(set) {
   const refresh = () => wireCommunityTab(set);
   const labels = {
-    review: `${I.star({w:16})}<span>Write a review</span>`,
-    photo: `${I.camera({w:16})}<span>Add photo</span>`,
-    fix: `${I.pencil({w:16})}<span>Suggest a fix</span>`,
+    review: `${I.star({w:16})}<span class="community-action-text"><span class="community-action-label">Write a review</span><span class="community-action-copy">Share your build and ownership experience.</span></span>`,
+    photo: `${I.camera({w:16})}<span class="community-action-text"><span class="community-action-label">Add photo</span><span class="community-action-copy">Show the set, box, or display in the real world.</span></span>`,
+    fix: `${I.pencil({w:16})}<span class="community-action-text"><span class="community-action-label">Suggest a fix</span><span class="community-action-copy">Report a data issue or a community sale.</span></span>`,
   };
   $$(".community-tab .contrib-act").forEach(b => {
     if (labels[b.dataset.act] && !b.querySelector("svg")) b.innerHTML = labels[b.dataset.act];
@@ -1626,38 +1667,71 @@ async function wireCommunityTab(set) {
   if (!location.hash.includes(set.set_num) || state.detail.tab !== "community") return;
 
   const pending = (data.mine || []).filter(m => m.status === "pending").length;
+  const reviews = data.reviews || [];
+  const photos = data.photos || [];
+  const prices = data.prices || [];
+  const hasApprovedContent = Boolean(data.rating?.count || reviews.length || photos.length || prices.length);
+
   const ratingHTML = data.rating?.count
-    ? `<div class="community-rating">${starRow(data.rating.avg)} <b>${data.rating.avg.toFixed(1)}</b> <span class="u-mute">· ${data.rating.count} review${data.rating.count === 1 ? "" : "s"}</span></div>`
-    : `<div class="u-mute community-rating">No ratings yet — be the first.</div>`;
-
-  const reviewsHTML = (data.reviews || []).length
-    ? data.reviews.map(r => `
-        <div class="community-review">
-          <div class="cr-head">${starRow(r.rating)}${r.title ? `<b>${escapeHtml(r.title)}</b>` : ""}</div>
-          ${r.body ? `<div class="cr-body">${escapeHtml(r.body)}</div>` : ""}
-          <div class="cr-meta u-mute">${r.author ? `${escapeHtml(r.author)} · ` : ""}${fmtDateUpdated(r.created_at)}</div>
-        </div>`).join("")
+    ? `<section class="community-section community-rating-section" aria-labelledby="communityRatingTitle">
+        <div class="community-section-head">
+          <h3 id="communityRatingTitle">Collector rating</h3>
+          <span class="community-section-count">${data.rating.count} review${data.rating.count === 1 ? "" : "s"}</span>
+        </div>
+        <div class="community-rating">${starRow(data.rating.avg)} <strong class="community-rating-value">${data.rating.avg.toFixed(1)}</strong><span class="u-mute">out of 5</span></div>
+      </section>`
     : "";
 
-  const photosHTML = (data.photos || []).length
-    ? `<div class="bs-gallery community-gallery no-tab-swipe">${data.photos.map(p =>
-        `<figure class="community-photo"><img loading="lazy" src="${(window.WORKER_BASE || "") + p.url}" alt="${escapeHtml(p.caption || set.name)}">${p.caption ? `<figcaption>${escapeHtml(p.caption)}</figcaption>` : ""}</figure>`
-      ).join("")}</div>`
+  const reviewsHTML = reviews.length
+    ? `<section class="community-section" aria-labelledby="communityReviewsTitle">
+        <div class="community-section-head">
+          <h3 id="communityReviewsTitle">Reviews</h3>
+          <span class="community-section-count">${reviews.length}</span>
+        </div>
+        ${reviews.map(r => `
+          <article class="community-review">
+            <div class="cr-head">${starRow(r.rating)}${r.title ? `<b>${escapeHtml(r.title)}</b>` : ""}</div>
+            ${r.body ? `<div class="cr-body">${escapeHtml(r.body)}</div>` : ""}
+            <div class="cr-meta u-mute">${r.author ? `${escapeHtml(r.author)} · ` : ""}${fmtDateUpdated(r.created_at)}</div>
+          </article>`).join("")}
+      </section>`
     : "";
 
-  const pricesHTML = (data.prices || []).length
-    ? `<div class="community-prices"><div class="cs-title">Community-reported sales</div>${data.prices.map(p =>
-        `<div class="cp-row"><span>${fmtMoney(p.price)} <span class="u-mute">(${escapeHtml(p.condition || "new")})</span></span><span class="u-mute">${fmtDateUpdated(p.at)}</span></div>`
-      ).join("")}</div>`
+  const photosHTML = photos.length
+    ? `<section class="community-section" aria-labelledby="communityPhotosTitle">
+        <div class="community-section-head">
+          <h3 id="communityPhotosTitle">Photos</h3>
+          <span class="community-section-count">${photos.length}</span>
+        </div>
+        <div class="bs-gallery community-gallery no-tab-swipe">${photos.map(p =>
+          `<figure class="community-photo"><img loading="lazy" src="${(window.WORKER_BASE || "") + p.url}" alt="${escapeHtml(p.caption || set.name)}">${p.caption ? `<figcaption>${escapeHtml(p.caption)}</figcaption>` : ""}</figure>`
+        ).join("")}</div>
+      </section>`
+    : "";
+
+  const pricesHTML = prices.length
+    ? `<section class="community-section community-prices" aria-labelledby="communityPricesTitle">
+        <div class="community-section-head">
+          <h3 id="communityPricesTitle">Community-reported sales</h3>
+          <span class="community-section-count">${prices.length}</span>
+        </div>
+        ${prices.map(p =>
+          `<div class="cp-row"><span>${fmtMoney(p.price)} <span class="u-mute">(${escapeHtml(p.condition || "new")})</span></span><span class="u-mute">${fmtDateUpdated(p.at)}</span></div>`
+        ).join("")}
+      </section>`
     : "";
 
   body.innerHTML = `
+    ${pending ? `<div class="community-pending">${escapeHtml(tPlural('community.pendingSubmission', pending))}</div>` : ""}
     ${ratingHTML}
-${pending ? `<div class="community-pending">${escapeHtml(tPlural('community.pendingSubmission', pending))}</div>` : ""}
-    ${photosHTML ? `<div class="cs-title">Photos</div>${photosHTML}` : ""}
-    ${reviewsHTML ? `<div class="cs-title">Reviews</div>${reviewsHTML}` : ""}
+    ${photosHTML}
+    ${reviewsHTML}
     ${pricesHTML}
-    ${!reviewsHTML && !photosHTML && !pricesHTML ? `<div class="u-mute" style="text-align:center;padding:18px 0;">No community content yet. Add the first review, photo, or fix above.</div>` : ""}`;
+    ${!hasApprovedContent ? `<div class="community-empty">
+      <div class="community-empty-mark" aria-hidden="true"></div>
+      <h3>Start this set’s community record</h3>
+      <p>Share the first review or photo, or suggest a correction for the set data.</p>
+    </div>` : ""}`;
 }
 
 function setupTabSwipe(set, entry) {

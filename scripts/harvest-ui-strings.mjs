@@ -123,6 +123,10 @@ const RUNTIME_EXACT_STRINGS = [
   'other themes in your vault', 'skipped —', '· Figs',
   '— Gemma is ready for local offline photo scanning!', '— under', '— you paid', '🔥 RISK',
   'Price Drops',
+  // Community action/empty labels include emoji or are replaced as a complete
+  // async fragment. Keep them exact so existing locale keys remain live.
+  'No community content yet. Add the first review, photo, or fix above.',
+  'No ratings yet — be the first.', '📷 Add photo', '🛠 Suggest a fix',
 ];
 // A runtime-only row is an exception, never a second string source. Every row
 // must either be discovered from source by the normal harvester or carry this
@@ -132,6 +136,10 @@ const RUNTIME_EXACT_STRINGS = [
 const RUNTIME_EXACT_EVIDENCE = new Map([
   ['ALL ⭐', 'decorated catalog-filter branch'], ['Insights ⭐', 'decorated investor-tab branch'],
   ['Value ↓', 'catalog sort-option helper'], ['Rarity ↓', 'minifig sort-option helper'],
+  ['No community content yet. Add the first review, photo, or fix above.', 'community empty-state compatibility copy'],
+  ['No ratings yet — be the first.', 'community rating empty-state compatibility copy'],
+  ['📷 Add photo', 'community contribution action label'],
+  ['🛠 Suggest a fix', 'community contribution action label'],
   ['Pick a category tab to see just those services. Tap any service for its status, usage, and controls — test it, flip capabilities on or off, and tune pricing, all without touching code.', 'admin service-navigation introduction'],
   ['Last OK:', 'admin service-facts helper'], ['Last fail:', 'admin service-facts helper'],
   ['sold comps blocked', 'admin integration-health conditional'], ['sold comps available', 'admin integration-health conditional'],
