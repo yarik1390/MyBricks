@@ -356,8 +356,8 @@ export function investmentPricingDetailHTML(set) {
         </article>
         <article class="pricing-block pricing-decision-card">
           <div class="pricing-block-title"><span>5</span><div><h3>Forecast</h3><p>Scenario range based on the current fair value.</p></div></div>
-          <strong class="pricing-block-value">${forecastReady && Number(forecast.p50_2y) > 0 ? fmtMoney(forecast.p50_2y) : 'Not ready'}</strong>
-          <small>${forecastReady ? `${fmtMoney(forecast.p10_2y)} - ${fmtMoney(forecast.p90_2y)} in 2 years` : `Need ${Number(forecast.min_observations) || 12} observations across ${Number(forecast.min_age_days) || 180} days`}</small>
+          <strong class="pricing-block-value">${forecastReady && Number(forecast.base) > 0 ? fmtMoney(forecast.base) : 'Not enough history yet'}</strong>
+          <small>${forecastReady && Number(forecast.bear) > 0 && Number(forecast.bull) > 0 ? `${fmtMoney(forecast.bear)} - ${fmtMoney(forecast.bull)} in 2 years` : escapeHtml(forecast.methodology || 'Unlocks after 180 days and 12 recorded values.')}</small>
         </article>
       </div>
     </section>`;

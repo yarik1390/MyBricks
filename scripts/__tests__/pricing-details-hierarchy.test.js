@@ -51,6 +51,13 @@ describe('pricing details hierarchy', () => {
     assert.doesNotMatch(glance, /:\s*0\s*\}/);
   });
 
+  it('renders the ready forecast from the API base scenario and preserves the history gate', () => {
+    assert.match(marketSource, /forecastReady: forecast\.status === 'ready' \|\| forecast\.status === 'external'/);
+    assert.match(pricingDetail, /forecastReady && Number\(forecast\.base\) > 0 \? fmtMoney\(forecast\.base\) : 'Not enough history yet'/);
+    assert.doesNotMatch(pricingDetail, /forecast\.p50_2y/);
+    assert.match(pricingDetail, /forecast\.methodology \|\| 'Unlocks after 180 days and 12 recorded values\.'/);
+  });
+
   it('defines the responsive visual contract and bumps the service worker', () => {
     assert.match(appStyles, /\.pricing-glance\s*\{/);
     assert.match(appStyles, /\.pricing-glance-value[^}]*font-variant-numeric:\s*tabular-nums/s);

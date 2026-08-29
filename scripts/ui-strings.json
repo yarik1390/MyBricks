@@ -6066,7 +6066,8 @@
   {
     "text": "Not enough history yet",
     "files": [
-      "runtime-exact"
+      "runtime-exact",
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -6111,12 +6112,6 @@
     "files": [
       "views/catalog.js",
       "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Not ready",
-    "files": [
-      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -10267,7 +10262,8 @@
   {
     "text": "Unlocks after 180 days and 12 recorded values.",
     "files": [
-      "runtime-exact"
+      "runtime-exact",
+      "views/portfolio-detail-market.js"
     ]
   },
   {
