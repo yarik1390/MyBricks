@@ -7468,12 +7468,20 @@ body.lightbox-open { overflow: hidden; }
 .pricing-details-sheet .detail-card:last-child,
 .pricing-details-sheet-body > :last-child { margin-bottom: 4px; }
 .methodology-sheet { font-size: 14px; line-height: 1.55; color: var(--ink); }
+.methodology-sheet { counter-reset: methodology-section; }
 .methodology-sheet > h1 { display: none; }
-.methodology-sheet h2 { margin: 26px 0 8px; font: 600 19px/1.2 var(--serif); }
+.methodology-sheet h2 { display:grid; grid-template-columns:32px minmax(0,1fr); gap:10px; align-items:center; margin:26px 0 10px; font:600 19px/1.2 var(--serif); counter-increment:methodology-section; }
+.methodology-sheet h2::before { display:grid; width:32px; height:32px; place-items:center; content:counter(methodology-section, decimal-leading-zero); color:var(--ink); background:var(--accent); border:2px solid var(--ink); box-shadow:2px 2px 0 var(--ink); font:800 11px/1 var(--mono); }
 .methodology-sheet p { margin: 0 0 14px; }
 .methodology-sheet ul,
 .methodology-sheet ol { margin: 0 0 16px; padding-left: 22px; }
 .methodology-sheet li { margin: 6px 0; }
+.methodology-sheet h2:first-of-type + ol { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; padding:0; list-style:none; }
+.methodology-sheet h2:first-of-type + ol li { min-width:0; margin:0; padding:12px; background:var(--surface); border:1px solid var(--line-soft); border-top:4px solid var(--accent); }
+.methodology-sheet h2:nth-of-type(n+2):nth-of-type(-n+5) + p { padding:14px; background:var(--surface); border:1px solid var(--line-soft); }
+.methodology-sheet h2:nth-of-type(6) + table { display:block; width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.methodology-sheet h2:last-of-type + ul { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; padding:0; list-style:none; }
+.methodology-sheet h2:last-of-type + ul li { margin:0; padding:12px; background:var(--surface); border:1px solid var(--line-soft); }
 .methodology-sheet .updated { margin: 0 0 14px; color: var(--ink-mute); }
 .methodology-sheet .callout { margin: 16px 0; padding: 14px; background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r-2); }
 .methodology-sheet table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -7481,6 +7489,10 @@ body.lightbox-open { overflow: hidden; }
 .methodology-sheet td { padding: 8px 6px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line-soft); }
 .methodology-sheet footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--line-soft); color: var(--ink-mute); }
 .methodology-sheet-loading { min-height: 140px; display: grid; place-items: center; color: var(--ink-mute); }
+@media (max-width: 430px) {
+  .methodology-sheet h2:first-of-type + ol,
+  .methodology-sheet h2:last-of-type + ul { grid-template-columns: 1fr; }
+}
 
 /* The later generic .page rule must not shrink the set-detail clearance. */
 body[data-route="set-detail"] .detail-page-container {
