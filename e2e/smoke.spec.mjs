@@ -416,6 +416,13 @@ test('Pixel-sized long set title and pricing sheet remain readable', async ({ pa
   // Investment pricing + sold evidence + market confidence. The stub's empty
   // basis makes the sold-evidence card render its honest no-evidence note.
   await expect(cards).toHaveCount(3);
+  const summary = page.locator('.pricing-glance[aria-label="Pricing summary"]');
+  await expect(summary).toBeVisible();
+  await expect(summary).toContainText('New market');
+  await expect(summary).toContainText('$3,052.80');
+  await expect(summary).toContainText('Used');
+  await expect(summary).toContainText('$341.13');
+  await expect(summary).not.toContainText('Buy now');
   await expect(page.locator('.sold-evidence-note')).toHaveText(/No recent verified sales/);
   const stacked = await cards.evaluateAll((els) => {
     const first = els[0].getBoundingClientRect();

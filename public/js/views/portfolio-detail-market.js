@@ -161,15 +161,19 @@ function conditionStateHTML(state, label) {
         <span>${escapeHtml(label)}</span>
         <span class="pricing-confidence pricing-confidence--${escapeHtml(state.confidence || 'estimated')}">${escapeHtml(confidenceLabel(state.confidence))}</span>
       </div>
-      <strong class="pricing-condition-value">${Number(state.fair_value) > 0 ? fmtMoney(state.fair_value) : 'Not enough verified data'}</strong>
-      <span class="pricing-condition-range">${escapeHtml(range)}</span>
-      <dl class="pricing-metrics">
+      <div class="pricing-condition-values">
+        <strong class="pricing-condition-value">${Number(state.fair_value) > 0 ? fmtMoney(state.fair_value) : 'Not enough verified data'}</strong>
+        <dl class="pricing-condition-range">
+          <div><dt>Typical range</dt><dd>${escapeHtml(range)}</dd></div>
+        </dl>
+      </div>
+      <dl class="pricing-condition-metrics">
         <div><dt>Basis</dt><dd>${escapeHtml(sourceTypeLabel(primaryType))}</dd></div>
         <div><dt>Sales</dt><dd>${Number(state.sample_count || 0).toLocaleString()}</dd></div>
         <div><dt>Independent families</dt><dd>${Number(state.independent_family_count || 0)}</dd></div>
         <div><dt>As of</dt><dd>${state.as_of ? escapeHtml(fmtDateUpdated(state.as_of)) : 'Pending'}</dd></div>
       </dl>
-      ${flags.length ? `<div class="pricing-flags">${flags.map((flag) => `<span>${escapeHtml(flagLabel(flag))}</span>`).join('')}</div>` : ''}
+      ${flags.length ? `<div class="pricing-warning-row"><span class="u-sr-only">Data note:</span>${flags.map((flag) => `<span>${escapeHtml(flagLabel(flag))}</span>`).join('')}</div>` : ''}
     </article>`;
 }
 
@@ -306,17 +310,25 @@ export function investmentPricingDetailHTML(set) {
       </section>`;
   }
   const d = deriveV3States(set);
-  const { newState, usedState, acquisition, partOut, forecast, fairValue, liquidation, delivered, forecastReady } = d;
+  const { newState, usedState, acquisition, partOut, forecast, fairValue, liquidation, delivered, usedValue, partOutValue, forecastReady } = d;
   if (!newState && !usedState) return '';
   return `
     <section class="investment-pricing" aria-labelledby="investmentPricingTitle">
       <div class="investment-pricing-head">
         <div>
           <span class="u-mono-label">Full breakdown</span>
-          <h2 id="investmentPricingTitle">Five numbers, five different jobs</h2>
+          <h2 id="investmentPricingTitle">Compare the ways this set is valued</h2>
+          <p>Resale, quick-sale, part-out, and forecast values use different evidence.</p>
         </div>
         <span class="pricing-model-badge">${escapeHtml(d.valuation.model_version || 'legacy')}</span>
       </div>
+
+      <section class="pricing-glance" aria-label="Pricing summary">
+        ${fairValue > 0 ? `<article class="pricing-glance-item"><span>New market</span><strong class="pricing-glance-value">${fmtMoney(fairValue)}</strong><small>Typical sealed resale value</small></article>` : ''}
+        ${usedValue > 0 ? `<article class="pricing-glance-item"><span>Used</span><strong class="pricing-glance-value">${fmtMoney(usedValue)}</strong><small>Complete used-set resale value</small></article>` : ''}
+        ${liquidation > 0 ? `<article class="pricing-glance-item"><span>Sell now</span><strong class="pricing-glance-value">${fmtMoney(liquidation)}</strong><small>Faster sale after fees</small></article>` : ''}
+        ${partOutValue > 0 ? `<article class="pricing-glance-item"><span>Part out</span><strong class="pricing-glance-value">${fmtMoney(partOutValue)}</strong><small>Parts and minifigs sold separately</small></article>` : ''}
+      </section>
 
       <div class="pricing-block">
         <div class="pricing-block-title"><span>1</span><div><h3>Market value</h3><p>Expected resale value, separated by condition.</p></div></div>
@@ -326,30 +338,27 @@ export function investmentPricingDetailHTML(set) {
         </div>
       </div>
 
-      <div class="pricing-block pricing-block--split">
-        <div>
+      <div class="pricing-decision-grid">
+        <article class="pricing-block pricing-decision-card">
           <div class="pricing-block-title"><span>2</span><div><h3>Sell now</h3><p>Fast-sale estimate after fees and a liquidity haircut.</p></div></div>
           <strong class="pricing-block-value">${liquidation > 0 ? fmtMoney(liquidation) : 'Not enough sold data yet'}</strong>
           ${liquidation > 0 && fairValue > 0 ? `<small>${t('market.pctOfFairValue', { pct: Math.round((liquidation / fairValue) * 100) })}</small>` : ''}
-        </div>
-        <div>
+        </article>
+        <article class="pricing-block pricing-decision-card">
           <div class="pricing-block-title"><span>3</span><div><h3>Buy now</h3><p>Current retail acquisition price, never part of resale value.</p></div></div>
           <strong class="pricing-block-value">${delivered > 0 ? escapeHtml(localMoney(delivered, acquisition.currency || 'USD')) : 'No current retail offer'}</strong>
           ${acquisition.merchant ? `<small>${escapeHtml(acquisition.merchant)}${acquisition.checked_at ? ` · ${escapeHtml(fmtDateUpdated(acquisition.checked_at))}` : ''}</small>` : ''}
-        </div>
-      </div>
-
-      <div class="pricing-block pricing-block--split">
-        <div>
+        </article>
+        <article class="pricing-block pricing-decision-card">
           <div class="pricing-block-title"><span>4</span><div><h3>Part out</h3><p>Value of parts and minifigures sold separately.</p></div></div>
           <strong class="pricing-block-value">${Number(partOut.value) > 0 ? fmtMoney(partOut.value) : 'Not enough parts data yet'}</strong>
           ${Number(partOut.coverage) > 0 ? `<small>${t('market.partsCoverage', { pct: Math.round(Number(partOut.coverage) * 100) })}</small>` : ''}
-        </div>
-        <div>
+        </article>
+        <article class="pricing-block pricing-decision-card">
           <div class="pricing-block-title"><span>5</span><div><h3>Forecast</h3><p>Scenario range based on the current fair value.</p></div></div>
-          <strong class="pricing-block-value">${forecastReady && Number(forecast.base) > 0 ? fmtMoney(forecast.base) : 'Not enough history yet'}</strong>
-          ${forecastReady ? `<small>${t('market.forecastScenarios', { bear: fmtMoney(forecast.bear), base: fmtMoney(forecast.base), bull: fmtMoney(forecast.bull) })}</small>` : `<small>${escapeHtml(forecast.methodology || 'Unlocks after 180 days and 12 recorded values.')}</small>`}
-        </div>
+          <strong class="pricing-block-value">${forecastReady && Number(forecast.p50_2y) > 0 ? fmtMoney(forecast.p50_2y) : 'Not ready'}</strong>
+          <small>${forecastReady ? `${fmtMoney(forecast.p10_2y)} - ${fmtMoney(forecast.p90_2y)} in 2 years` : `Need ${Number(forecast.min_observations) || 12} observations across ${Number(forecast.min_age_days) || 180} days`}</small>
+        </article>
       </div>
     </section>`;
 }

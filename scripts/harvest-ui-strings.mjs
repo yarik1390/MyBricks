@@ -65,6 +65,10 @@ const RUNTIME_EXACT_STRINGS = [
   '— Model needs download. Run a query in the Advisor tab to trigger it.',
   'Last OK:', 'Last fail:', 'never',
   "Don't have an account?",
+  // conditionStateHTML() and the forecast gate select these strings before
+  // interpolation, so the rendered copy is exact even though AST harvesting
+  // cannot tie each branch literal to its eventual text node.
+  'Not enough history yet', 'Unlocks after 180 days and 12 recorded values.',
   'Pick a category tab to see just those services. Tap any service for its status, usage, and controls — test it, flip capabilities on or off, and tune pricing, all without touching code.',
   // These service-health states are selected before the markup renders them, so
   // source-shape matching cannot prove which conditional branch reaches the
@@ -137,6 +141,8 @@ const RUNTIME_EXACT_EVIDENCE = new Map([
   ['AI forecast', 'forecast-method helper'], ['AT TARGET', 'buy-window helper'], ['BUY', 'buy-window helper'], ['APPRECIATED', 'portfolio trend helper'],
   ['TIMED OUT', 'scanner timeout branch'], ['Took too long — try again.', 'scanner timeout branch'],
   ['Set-exclusive', 'minifig scarcity branch'], ['Price Drops', 'alerts-sheet heading branch'],
+  ['Not enough history yet', 'pricing forecast gate branch'],
+  ['Unlocks after 180 days and 12 recorded values.', 'pricing forecast gate branch'],
 ]);
 for (const text of [
   'Common', 'Uncommon', 'Rare', 'Legendary', 'Sync resumes when you return.',

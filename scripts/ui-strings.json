@@ -1999,6 +1999,12 @@
     ]
   },
   {
+    "text": "Compare the ways this set is valued",
+    "files": [
+      "views/portfolio-detail-market.js"
+    ]
+  },
+  {
     "text": "Compare your LEGO portfolio growth (solid",
     "files": [
       "views/portfolio.js"
@@ -2020,6 +2026,12 @@
     "text": "Complete / all pieces present",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Complete used-set resale value",
+    "files": [
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -2611,6 +2623,12 @@
     "text": "Data fixes",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Data note:",
+    "files": [
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -3460,6 +3478,12 @@
     ]
   },
   {
+    "text": "Faster sale after fees",
+    "files": [
+      "views/portfolio-detail-market.js"
+    ]
+  },
+  {
     "text": "Fastest and free for boxed sets",
     "files": [
       "views/catalog.js"
@@ -3570,8 +3594,7 @@
   {
     "text": "Five numbers, five different jobs",
     "files": [
-      "methodology.html",
-      "views/portfolio-detail-market.js"
+      "methodology.html"
     ]
   },
   {
@@ -5662,6 +5685,12 @@
     ]
   },
   {
+    "text": "New market",
+    "files": [
+      "views/portfolio-detail-market.js"
+    ]
+  },
+  {
     "text": "New sets every day at midnight UTC. Values are BricksVault market prices.",
     "files": [
       "views/game.js"
@@ -6037,7 +6066,7 @@
   {
     "text": "Not enough history yet",
     "files": [
-      "views/portfolio-detail-market.js"
+      "runtime-exact"
     ]
   },
   {
@@ -6082,6 +6111,12 @@
     "files": [
       "views/catalog.js",
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "Not ready",
+    "files": [
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -6582,6 +6617,12 @@
     ]
   },
   {
+    "text": "Parts and minifigs sold separately",
+    "files": [
+      "views/portfolio-detail-market.js"
+    ]
+  },
+  {
     "text": "Parts completeness",
     "files": [
       "views/portfolio-detail.js"
@@ -7075,6 +7116,12 @@
     "text": "Pricing sources reset to defaults.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Pricing summary",
+    "files": [
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -7742,6 +7789,12 @@
   },
   {
     "text": "Resale pricing, used value, sell-now estimates, and forecasts begin only after verified market evidence arrives.",
+    "files": [
+      "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Resale, quick-sale, part-out, and forecast values use different evidence.",
     "files": [
       "views/portfolio-detail-market.js"
     ]
@@ -10102,6 +10155,18 @@
     ]
   },
   {
+    "text": "Typical range",
+    "files": [
+      "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Typical sealed resale value",
+    "files": [
+      "views/portfolio-detail-market.js"
+    ]
+  },
+  {
     "text": "Uncommon",
     "files": [
       "runtime-exact"
@@ -10202,7 +10267,7 @@
   {
     "text": "Unlocks after 180 days and 12 recorded values.",
     "files": [
-      "views/portfolio-detail-market.js"
+      "runtime-exact"
     ]
   },
   {
@@ -10372,7 +10437,8 @@
     "text": "Used",
     "files": [
       "components/contribute.js",
-      "components/scanner.js"
+      "components/scanner.js",
+      "views/portfolio-detail-market.js"
     ]
   },
   {
