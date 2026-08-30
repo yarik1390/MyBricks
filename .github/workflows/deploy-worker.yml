@@ -313,6 +313,8 @@ jobs:
       - name: Upload Worker secrets
         if: github.event_name == 'workflow_dispatch' && inputs.push_secrets == 'true'
         working-directory: worker
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
         run: |
           set -euo pipefail
           put() { printf '%s' "$2" | npx wrangler secret put "$1"; }
@@ -358,7 +360,11 @@ jobs:
           [ -n "${{ secrets.VAPID_PUBLIC_KEY }}" ]         && put VAPID_PUBLIC_KEY         "${{ secrets.VAPID_PUBLIC_KEY }}"         || true
           [ -n "${{ secrets.VAPID_PRIVATE_KEY }}" ]        && put VAPID_PRIVATE_KEY        "${{ secrets.VAPID_PRIVATE_KEY }}"        || true
           [ -n "${{ secrets.VAPID_SUBJECT }}" ]            && put VAPID_SUBJECT            "${{ secrets.VAPID_SUBJECT }}"            || true
-          [ -n "${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}" ] && put FIREBASE_SERVICE_ACCOUNT_JSON "${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}" || true
+          # The Firebase credential is multiline JSON. Keep it out of the shell
+          # source so quotes/backslashes survive exactly; only test presence here.
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            put FIREBASE_SERVICE_ACCOUNT_JSON "$FIREBASE_SERVICE_ACCOUNT_JSON"
+          fi
           [ -n "${{ secrets.FIRECRAWL_API_KEY }}" ]        && put FIRECRAWL_API_KEY        "${{ secrets.FIRECRAWL_API_KEY }}"        || true
           # Comma-separated pool of additional Firecrawl keys, drained in order after
           # FIRECRAWL_API_KEY (lib/firecrawl-keys.ts). Was previously set directly on

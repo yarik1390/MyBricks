@@ -91,6 +91,9 @@ export function showSheet(html) {
   const back = $("#sheetBackdrop");
   const sheet = $("#sheet");
   if (_sheetCloseCleanup) _sheetCloseCleanup();
+  // Labels belong to each sheet instance. Clear a previous sheet's explicit
+  // title before rendering content that may not set one.
+  sheet.removeAttribute("aria-labelledby");
   _sheetInvoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   sheet.innerHTML = `<div class="sheet-handle"></div>` + html;
   back.classList.add("show");
@@ -137,6 +140,7 @@ export function hideSheet() {
     sheet.classList.add("closing");
     sheet.style.transform = "";
     sheet.setAttribute("aria-hidden", "true");
+    sheet.removeAttribute("aria-labelledby");
     scheduleSheetCloseCleanup(sheet);
   }
   document.removeEventListener("keydown", sheetKeyHandler);

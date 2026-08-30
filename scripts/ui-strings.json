@@ -6898,6 +6898,18 @@
     ]
   },
   {
+    "text": "Policy content is unavailable",
+    "files": [
+      "components/legal-sheet.js"
+    ]
+  },
+  {
+    "text": "Policy content unavailable. Check your connection and try again.",
+    "files": [
+      "components/legal-sheet.js"
+    ]
+  },
+  {
     "text": "Poll heartbeat",
     "files": [
       "views/me-admin.js"
@@ -7224,6 +7236,7 @@
   {
     "text": "Privacy Policy",
     "files": [
+      "components/legal-sheet.js",
       "views/me.js"
     ]
   },
@@ -8066,6 +8079,7 @@
     "text": "Retry",
     "files": [
       "components/advisor.js",
+      "components/legal-sheet.js",
       "router.js",
       "views/build.js",
       "views/catalog.js",
@@ -9781,6 +9795,7 @@
   {
     "text": "Terms of Service",
     "files": [
+      "components/legal-sheet.js",
       "views/me.js"
     ]
   },

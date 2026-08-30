@@ -2735,6 +2735,55 @@ body.native-barcode-active .scan-video-wrap {
 .sheet-action:last-child { border-bottom: 0; }
 .sheet-action.danger { color: var(--down); }
 .sheet-action svg { width: 22px; height: 22px; }
+.legal-sheet-link {
+  color: inherit;
+  font: inherit;
+  min-height: 44px;
+  padding: 8px 2px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.legal-sheet-scroll {
+  max-height: min(68vh, 680px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 4px 12px;
+  scrollbar-gutter: stable;
+}
+.legal-sheet-scroll > .updated {
+  margin: 0 0 18px;
+  color: var(--ink-mute);
+  font: 700 11px/1.4 var(--mono);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.legal-sheet-scroll h2 {
+  margin: 22px 0 8px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-soft-c);
+  font: 800 17px/1.2 var(--serif);
+}
+.legal-sheet-scroll h2:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.legal-sheet-scroll p,
+.legal-sheet-scroll li { color: var(--ink-soft); line-height: 1.62; }
+.legal-sheet-scroll p { margin: 0 0 10px; }
+.legal-sheet-scroll ul { margin: 0; padding-left: 20px; }
+.legal-sheet-scroll li + li { margin-top: 7px; }
+.legal-sheet-scroll a { color: var(--accent-ink); text-decoration: underline; }
+.legal-sheet-callout {
+  margin-top: 14px;
+  padding: 13px 14px;
+  border: 1px solid var(--border-c);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+.legal-sheet-full { margin-top: 24px !important; text-align: center; }
 .sheet-title-row {
   display: flex;
   align-items: center;

@@ -15,6 +15,7 @@ import { startOnboarding } from '../components/onboarding.js';
 import { isNativeBilling, presentProPaywall, restorePurchases, presentCustomerCenter } from '../lib/revenuecat-native.js';
 import { getCapacitorPlugin } from '../lib/native-auth.js';
 import { clearVaultWidget } from '../lib/native-widget.js';
+import { openLegalSheet } from '../components/legal-sheet.js';
 
 export async function renderMe() {
   // Legacy Stripe return: detect a Checkout success redirect (?supported=1) before
@@ -264,9 +265,9 @@ export async function renderMe() {
       <div class="me-footer-links" style="text-align:center;margin-top:16px;font-size:12px;">
         <a href="/methodology.html">How We Price</a>
         <span class="dot">·</span>
-        <a href="/privacy.html">Privacy Policy</a>
+        <button type="button" class="legal-sheet-link" data-legal-sheet="privacy">Privacy Policy</button>
         <span class="dot">·</span>
-        <a href="/terms.html">Terms of Service</a>
+        <button type="button" class="legal-sheet-link" data-legal-sheet="terms">Terms of Service</button>
       </div>
       <div class="app-credits" style="text-align:center;margin-top:10px;font-size:11px;line-height:1.5;color:var(--ink-mute);">
         Catalog data &amp; images from <a href="https://rebrickable.com/" target="_blank" rel="noopener noreferrer" style="color:var(--ink-soft);text-decoration:underline;">Rebrickable</a>.
@@ -283,6 +284,9 @@ export async function renderMe() {
 
   $("#replayTourRow")?.addEventListener("click", () => { haptic("light"); startOnboarding(); });
   $("#wrappedRow")?.addEventListener("click", () => { haptic("medium"); showWrappedSheet(); });
+  $$("[data-legal-sheet]").forEach(link => link.addEventListener("click", () => {
+    openLegalSheet(link.dataset.legalSheet);
+  }));
 
   $("#installBtn")?.addEventListener("click", async () => {
     const dp = state.pwa.deferredPrompt;
