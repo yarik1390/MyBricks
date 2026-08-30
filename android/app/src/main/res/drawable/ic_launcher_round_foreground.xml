@@ -4,16 +4,21 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Warm halo: restrained inside Android's adaptive-icon safe zone. -->
     <path
-        android:fillColor="#FFD700"
-        android:pathData="M54,0A54,54 0,1 1,54,108A54,54 0,1 1,54,0" />
+        android:fillColor="#F3C846"
+        android:pathData="M54,16A38,38 0,1 1,54,92A38,38 0,1 1,54,16" />
     <path
-        android:fillColor="#292929"
-        android:pathData="M26,19h56a7,7 0,0 1,7 7v56a7,7 0,0 1,-7 7h-56a7,7 0,0 1,-7 -7v-56a7,7 0,0 1,7 -7z" />
+        android:fillColor="#1C1C1E"
+        android:pathData="M54,22L82,34V54C82,72 70,84 54,90C38,84 26,72 26,54V34Z" />
     <path
-        android:fillColor="#FFD700"
-        android:pathData="M29,24h50a5,5 0,0 1,5 5v50a5,5 0,0 1,-5 5h-50a5,5 0,0 1,-5 -5v-50a5,5 0,0 1,5 -5z" />
+        android:fillColor="#FFF4BD"
+        android:pathData="M54,29L75,38V54C75,67 67,77 54,83C41,77 33,67 33,54V38Z" />
+    <!-- Two studs and a brick slot make the vault distinctly Brickvault. -->
     <path
-        android:fillColor="#292929"
-        android:pathData="M38,39a6,6 0,1 0,12 0a6,6 0,1 0,-12 0M58,39a6,6 0,1 0,12 0a6,6 0,1 0,-12 0M36,58h36a5,5 0,0 1,5 5v7a5,5 0,0 1,-5 5h-36a5,5 0,0 1,-5 -5v-7a5,5 0,0 1,5 -5z" />
+        android:fillColor="#1C1C1E"
+        android:pathData="M40,44A6,6 0,1 1,52,44A6,6 0,1 1,40,44M56,44A6,6 0,1 1,68,44A6,6 0,1 1,56,44M39,58h30a4,4 0,0 1,4 4v7a4,4 0,0 1,-4 4h-30a4,4 0,0 1,-4 -4v-7a4,4 0,0 1,4 -4z" />
+    <path
+        android:fillColor="#F3C846"
+        android:pathData="M43,63h22a2,2 0,0 1,2 2v1a2,2 0,0 1,-2 2h-22a2,2 0,0 1,-2 -2v-1a2,2 0,0 1,2 -2z" />
 </vector>
