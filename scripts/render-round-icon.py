@@ -1,57 +1,54 @@
 #!/usr/bin/env python3
-"""Render Brickvault's pre-Android-8 round launcher icons."""
+"""Build Android's circular launcher assets from the GPT Image 2 master."""
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
-RESOURCE_ROOT = Path(__file__).resolve().parents[1] / "android/app/src/main/res"
-DENSITY_SIZES = {
-    "ldpi": 36,
-    "mdpi": 48,
-    "hdpi": 72,
-    "xhdpi": 96,
-    "xxhdpi": 144,
-    "xxxhdpi": 192,
-}
-CANVAS = 768
+ROOT = Path(__file__).resolve().parents[1]
+MASTER = ROOT / "android/app/src/main/icon-round-gpt-image-2.png"
+RESOURCE_ROOT = ROOT / "android/app/src/main/res"
+DENSITIES = {"ldpi": 36, "mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
+YELLOW = (255, 215, 0, 255)  # #FFD700 from public/icon.svg
+CHARCOAL = (28, 28, 30, 255)  # #1C1C1E from public/icon.svg
 
 
-def render_master() -> Image.Image:
-    image = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
+def clean_master() -> Image.Image:
+    """Normalize the generated raster to the original icon's two-color brand."""
+    source = Image.open(MASTER).convert("RGB")
+    side = min(source.size)
+    left = (source.width - side) // 2
+    top = (source.height - side) // 2
+    source = source.crop((left, top, left + side, top + side)).resize((1024, 1024), Image.Resampling.LANCZOS)
 
-    # Round badge with a restrained charcoal rim.
-    draw.ellipse((12, 12, 756, 756), fill="#1C1C1E")
-    draw.ellipse((26, 26, 742, 742), fill="#F3C846")
+    # GPT Image 2 preserves the geometry well but introduces faint texture.
+    # A luminance split restores the square icon's exact flat two-color system.
+    gray = ImageOps.grayscale(source)
+    yellow_region = gray.point([0] * 105 + [255] * 151)
+    yellow_region = yellow_region.filter(ImageFilter.MedianFilter(3))
 
-    # Vault shield and warm inset panel.
-    draw.polygon(
-        [(384, 146), (582, 230), (582, 377), (582, 508), (498, 606), (384, 652),
-         (270, 606), (186, 508), (186, 377), (186, 230)],
-        fill="#1C1C1E",
-    )
-    draw.polygon(
-        [(384, 198), (532, 261), (532, 377), (532, 470), (472, 542), (384, 584),
-         (296, 542), (236, 470), (236, 377), (236, 261)],
-        fill="#FFF4BD",
-    )
+    cleaned = Image.new("RGBA", source.size, CHARCOAL)
+    cleaned.paste(YELLOW, mask=yellow_region)
 
-    # Twin LEGO studs and a vault/brick slot.
-    for center_x in (328, 440):
-        draw.ellipse((center_x - 40, 294, center_x + 40, 374), fill="#1C1C1E")
-    draw.rounded_rectangle((270, 410, 498, 526), radius=30, fill="#1C1C1E")
-    draw.rounded_rectangle((309, 448, 459, 486), radius=14, fill="#F3C846")
-    return image
+    # Enforce a mathematically circular silhouette and transparent legacy corners.
+    circle = Image.new("L", source.size, 0)
+    ImageDraw.Draw(circle).ellipse((20, 20, 1003, 1003), fill=255)
+    cleaned.putalpha(circle)
+    return cleaned
 
 
-def main() -> None:
-    master = render_master()
-    for density, size in DENSITY_SIZES.items():
+def render() -> None:
+    cleaned = clean_master()
+    for density, size in DENSITIES.items():
         output = RESOURCE_ROOT / f"mipmap-{density}" / "ic_launcher_round.png"
-        master.resize((size, size), Image.Resampling.LANCZOS).save(output, optimize=True)
-        print(f"wrote {output.relative_to(RESOURCE_ROOT.parents[4])} ({size}x{size})")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        cleaned.resize((size, size), Image.Resampling.LANCZOS).save(output, optimize=True)
+        print(output.relative_to(ROOT))
+
+    preview = ROOT / "android/app/src/main/icon-round-preview.png"
+    cleaned.save(preview, optimize=True)
+    print(preview.relative_to(ROOT))
 
 
 if __name__ == "__main__":
-    main()
+    render()

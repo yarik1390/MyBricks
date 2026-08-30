@@ -4,21 +4,13 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Warm halo: restrained inside Android's adaptive-icon safe zone. -->
+    <!-- Circular counterpart of public/icon.svg, kept inside the adaptive safe zone. -->
     <path
-        android:fillColor="#F3C846"
-        android:pathData="M54,16A38,38 0,1 1,54,92A38,38 0,1 1,54,16" />
-    <path
-        android:fillColor="#1C1C1E"
-        android:pathData="M54,22L82,34V54C82,72 70,84 54,90C38,84 26,72 26,54V34Z" />
-    <path
-        android:fillColor="#FFF4BD"
-        android:pathData="M54,29L75,38V54C75,67 67,77 54,83C41,77 33,67 33,54V38Z" />
-    <!-- Two studs and a brick slot make the vault distinctly Brickvault. -->
+        android:fillColor="#FFD700"
+        android:pathData="M54,18A36,36 0,1 1,54,90A36,36 0,1 1,54,18" />
+    <!-- Inset frame, twin studs and lower slot preserve the square icon's identity. -->
     <path
         android:fillColor="#1C1C1E"
-        android:pathData="M40,44A6,6 0,1 1,52,44A6,6 0,1 1,40,44M56,44A6,6 0,1 1,68,44A6,6 0,1 1,56,44M39,58h30a4,4 0,0 1,4 4v7a4,4 0,0 1,-4 4h-30a4,4 0,0 1,-4 -4v-7a4,4 0,0 1,4 -4z" />
-    <path
-        android:fillColor="#F3C846"
-        android:pathData="M43,63h22a2,2 0,0 1,2 2v1a2,2 0,0 1,-2 2h-22a2,2 0,0 1,-2 -2v-1a2,2 0,0 1,2 -2z" />
+        android:fillType="evenOdd"
+        android:pathData="M27,27h54a9,9 0,0 1,9 9v36a9,9 0,0 1,-9 9h-54a9,9 0,0 1,-9 -9v-36a9,9 0,0 1,9 -9zM33,33h42a9,9 0,0 1,9 9v24a9,9 0,0 1,-9 9h-42a9,9 0,0 1,-9 -9v-24a9,9 0,0 1,9 -9zM36,47A9,9 0,1 1,54,47A9,9 0,1 1,36,47M54,47A9,9 0,1 1,72,47A9,9 0,1 1,54,47M37,61h34a4,4 0,0 1,4 4v5a4,4 0,0 1,-4 4h-34a4,4 0,0 1,-4 -4v-5a4,4 0,0 1,4 -4z" />
 </vector>
