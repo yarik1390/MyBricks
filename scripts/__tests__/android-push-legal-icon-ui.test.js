@@ -10,9 +10,8 @@ const styles = readFileSync(new URL('../../public/app.css', import.meta.url), 'u
 const sw = readFileSync(new URL('../../public/sw.js', import.meta.url), 'utf8');
 const deploy = readFileSync(new URL('../../.github/workflows/deploy-worker.yml', import.meta.url), 'utf8');
 const roundAdaptive = readFileSync(new URL('../../android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml', import.meta.url), 'utf8');
-const roundForeground = readFileSync(new URL('../../android/app/src/main/res/drawable/ic_launcher_round_foreground.xml', import.meta.url), 'utf8');
 const roundMonochrome = readFileSync(new URL('../../android/app/src/main/res/drawable/ic_launcher_round_monochrome.xml', import.meta.url), 'utf8');
-const roundRenderer = readFileSync(new URL('../render-round-icon.py', import.meta.url), 'utf8');
+const iconRenderer = readFileSync(new URL('../render-brick-icons.py', import.meta.url), 'utf8');
 
 const densityPx = { ldpi: 36, mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
 function pngSize(path) {
@@ -92,27 +91,19 @@ describe('Android push, legal sheets, and launcher icon', () => {
     assert.doesNotMatch(legal, /Open full policy in a browser/);
     assert.match(sheet, /sheet\.removeAttribute\("aria-labelledby"\)/);
     assert.match(styles, /\.legal-sheet-link[\s\S]*?min-height:\s*44px/);
-    assert.match(sw, /const VERSION = "v474"/);
+    assert.match(sw, /const VERSION = "v475"/);
     assert.match(sw, /'\/js\/components\/legal-sheet\.js'/);
   });
 
-  it('uses the user-approved robot artwork for legacy, adaptive, and themed round icons', () => {
-    assert.ok(readFileSync(new URL('../../android/app/src/main/icon-round-approved.jpg', import.meta.url)).length > 60_000);
+  it('uses the approved orange brick artwork for legacy, adaptive, and themed round icons', () => {
+    assert.ok(readFileSync(new URL('../../assets/brand/icon-brick-primary.jpg', import.meta.url)).length > 60_000);
     assert.deepEqual(pngSize('../../android/app/src/main/icon-round-preview.png'), [1024, 1024]);
-    assert.match(roundRenderer, /icon-round-approved\.jpg/);
-    assert.match(roundRenderer, /preserve its artwork without redesigning it/);
-    assert.match(roundAdaptive, /@drawable\/ic_launcher_round_foreground/);
+    assert.match(iconRenderer, /icon-brick-primary\.jpg/);
+    assert.match(iconRenderer, /adaptive safe zone/);
+    assert.match(roundAdaptive, /@mipmap\/ic_launcher_foreground/);
+    assert.match(roundAdaptive, /@mipmap\/ic_launcher_background/);
     assert.match(roundAdaptive, /@drawable\/ic_launcher_round_monochrome/);
-    assert.match(roundAdaptive, /@color\/ic_launcher_background/);
-    assert.match(roundForeground, /android:fillColor="#FED700"/);
-    assert.match(roundForeground, /android:fillColor="#1C1C1E"/);
-    assert.match(roundForeground, /M54,2\.1A51\.9,51\.9/);
-    assert.match(roundForeground, /M27,17\.5h54a9,9/);
-    assert.match(roundForeground, /M32\.5,44\.5A9\.45,9\.45/);
-    assert.doesNotMatch(roundForeground, /L82,34V54/);
     assert.match(roundMonochrome, /android:fillColor="#000000"/);
-    assert.match(roundMonochrome, /M27,17\.5h54a9,9/);
-    assert.match(roundMonochrome, /M32\.5,44\.5A9\.45,9\.45/);
     for (const [density, size] of Object.entries(densityPx)) {
       const path = `../../android/app/src/main/res/mipmap-${density}/ic_launcher_round.png`;
       assert.deepEqual(pngSize(path), [size, size]);

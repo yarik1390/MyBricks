@@ -52,6 +52,6 @@ describe('current first-run onboarding', () => {
   });
 
   it('bumps the static cache for the onboarding update', () => {
-    assert.match(serviceWorker, /const VERSION = "v474"/);
+    assert.match(serviceWorker, /const VERSION = "v475"/);
   });
 });
