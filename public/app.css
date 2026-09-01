@@ -66,7 +66,7 @@ html.app-lock-pending body {
   --bottom-nav-clear: calc(var(--nav-h) + var(--safe-bottom));
 }
 
-:root[data-theme="dark"] {
+:root[data-theme="dark"]:not([data-skin="kids"]) {
   --accent-text: #FFD700;
   --bg: #16161C;
     --bg-deep: #0F0F14;
@@ -336,8 +336,8 @@ body.offline .offline-banner { display: block; }
   font-weight: 600; font-variant-numeric: tabular-nums;
   font-size: 12px;
 }
-.delta.up { background: var(--up-pale); color: var(--up); }
-.delta.down { background: var(--down-pale); color: var(--down); }
+.delta.up { background: var(--up-pale); color: var(--up-text, var(--up)); }
+.delta.down { background: var(--down-pale); color: var(--down-text, var(--down)); }
 .delta .arrow { font-size: 11px; }
 
 .spark-wrap {
@@ -574,7 +574,7 @@ body.offline .offline-banner { display: block; }
   font-size: 9px;
 }
 .trust-badge.ok {
-  color: var(--up);
+  color: var(--up-text, var(--up));
   background: var(--up-pale);
 }
 .trust-badge.warn {
@@ -752,8 +752,8 @@ ul.set-list > li { display: contents; }
   display: inline-flex; align-items: center; gap: 2px;
   padding: 2px 6px; border-radius: var(--r-full);
 }
-.sl-delta.up { background: var(--up-pale); color: var(--up); }
-.sl-delta.down { background: var(--down-pale); color: var(--down); }
+.sl-delta.up { background: var(--up-pale); color: var(--up-text, var(--up)); }
+.sl-delta.down { background: var(--down-pale); color: var(--down-text, var(--down)); }
 .sl-delta.flat { color: var(--ink-mute); }
 
 /* ============================================================
@@ -1663,7 +1663,7 @@ ul.set-list > li { display: contents; }
 .btn-primary {
   width: 100%;
   padding: 14px;
-  background: var(--bv-red); color: #fff;
+  background: var(--bv-red); color: var(--red-fg, #fff);
   border: var(--bw) solid var(--border-c);
   border-radius: var(--r-3);
   font-weight: 600; font-size: 15px;
@@ -2112,7 +2112,7 @@ ul.set-list > li { display: contents; }
   box-shadow: 2px 2px 0 var(--line);
   display: flex; align-items: center; justify-content: center;
   font-family: var(--serif); font-size: 24px; font-weight: 600;
-  color: var(--line);
+  color: var(--yellow-fg, var(--line));
   flex-shrink: 0;
 }
 .profile-name {
@@ -3422,7 +3422,7 @@ select:focus-visible {
   box-shadow: var(--shadow-3);
   padding: 16px;
   margin: 4px 0 8px;
-  color: var(--line);
+  color: var(--yellow-fg, var(--line));
   transition: transform var(--dur-fast) var(--ease);
 }
 .install-card:active { transform: translate(2px, 2px); box-shadow: var(--shadow-1); }
@@ -3733,7 +3733,7 @@ select:focus-visible {
   background: oklch(0.25 0.05 80); color: oklch(0.8 0.1 80); border-color: oklch(0.45 0.1 80);
 }
 
-:root[data-theme="dark"] { color-scheme: dark; }
+:root[data-theme="dark"]:not([data-skin="kids"]) { color-scheme: dark; }
 
 /* ============================================================
    Adaptive Desktop Layouts & Side-by-Side detail view
@@ -4187,7 +4187,7 @@ body.sheet-open .selection-bar {
   --shadow-soft: 0 12px 26px rgba(28, 28, 30, 0.08);
 }
 
-:root[data-theme="dark"] {
+:root[data-theme="dark"]:not([data-skin="kids"]) {
   --surface-warm: #27231A;
   --surface-cool: #1B2533;
   --shadow-soft: 0 14px 30px rgba(0, 0, 0, 0.28);
@@ -4689,7 +4689,7 @@ body.sheet-open .selection-bar {
   /* contrast fix: previous --ink-faint #97A0B0 on cream ≈ 2.5:1 (fails AA) */
   --ink-faint: #6B7484;
 }
-:root[data-theme="dark"] {
+:root[data-theme="dark"]:not([data-skin="kids"]) {
   --ink-faint: #8A93A5; /* was #5E6878 ≈ 2.1:1 */
   --warn: #F0B429; --warn-pale: #3A2E10;
   --violet: #A78BFA;
@@ -4859,10 +4859,10 @@ body.sheet-open .selection-bar {
    Keeps the parchment personality after dark instead of the generic
    slate inversion: dark kraft-brown surfaces, warm cream text, brass
    hairlines, and the signature pixel shadow rendered as a soft warm GLOW
-   rather than a black punch. Scoped with :not([data-skin="premium"]) so
-   the premium dark skin keeps its cool neutral palette untouched.
+   rather than a black punch. Scoped to the default skin (which has no
+   data-skin attribute) so named skins keep their own palettes untouched.
    ============================================================ */
-:root[data-theme="dark"]:not([data-skin="premium"]) {
+:root[data-theme="dark"]:not([data-skin]) {
   --bg: #1E1811;
   --bg-deep: #15100A;
   --surface: #271F16;

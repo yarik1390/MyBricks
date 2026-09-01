@@ -10,6 +10,7 @@
    in the UI is enforced in the VIEWS, not here.
    ============================================================ */
 :root[data-skin="kids"] {
+  color-scheme: light;
   --bg: #FFF7E6;
   --bg-deep: #FFEFD0;
   --surface: #FFFFFF;
@@ -27,12 +28,18 @@
   --r-1: 14px; --r-2: 20px; --r-3: 26px; --r-full: 9999px;
   /* playful primary palette */
   --accent: #2D7DF6;
+  --accent-fg: #FFFFFF;
+  --accent-text: #245EAB;
   --bv-yellow: #FFC93C;
   --bv-yellow-dark: #E9B11F;
-  --bv-red: #FF5A4D;
-  --bv-red-dark: #E8463A;
-  --up: #28C76F;       --up-pale: #E4F8EE;  --up-soft: #BFEFD4;
-  --down: #FF5A4D;     --down-pale: #FFE7E4; --down-soft: #FFC9C3;
+  --yellow-fg: #17181C;
+  --bv-red: #C9362C;
+  --bv-red-dark: #A82820;
+  --red-fg: #FFFFFF;
+  --up: #187A45;       --up-pale: #E4F8EE;  --up-soft: #BFEFD4;
+  --down: #B83229;     --down-pale: #FFE7E4; --down-soft: #FFC9C3;
+  --up-text: #187A45;
+  --down-text: #B83229;
   /* rounded, friendly type everywhere (requires Baloo 2 — see index.html note) */
   --sans: 'Baloo 2', system-ui, sans-serif;
   --serif: 'Baloo 2', system-ui, sans-serif;
