@@ -5,6 +5,7 @@ import { firecrawlEnabled } from '../lib/pricing-flags';
 import { sourceEnabled } from '../lib/source-config';
 import { brightDataEnabled } from '../lib/brightdata-keys';
 import { scrapingAntEnabled } from '../lib/scrapingant';
+import { FIRECRAWL_MAX_CONCURRENCY } from '../lib/firecrawl';
 
 /**
  * Proactively refresh LEGO.com stock + retirement status. Phase-2 lean scope:
@@ -71,34 +72,44 @@ export async function runLegoStockRefresh(env: Env, options: { limit?: number } 
   let updated = 0;
   const stmts: D1PreparedStatement[] = [];
 
-  for (const { set_num } of results) {
-    processed++;
-    const stock = await checkLegoStock(set_num, env).catch(() => null);
-    if (stock === null) {
-      // Leave lego_checked_at untouched — retry next run.
-      continue;
-    }
-    const inStockVal = stock.in_stock === null ? null : (stock.in_stock ? 1 : 0);
-    const retiringSoonVal = stock.retiring_soon ? 1 : 0;
+  // A catalog-wide limit of 200 cannot run serially within a scheduled Worker
+  // invocation. Use the account-wide Firecrawl concurrency ceiling because any
+  // ScrapingAnt/Bright Data miss can fall through to Firecrawl.
+  for (let i = 0; i < results.length; i += FIRECRAWL_MAX_CONCURRENCY) {
+    const batch = results.slice(i, i + FIRECRAWL_MAX_CONCURRENCY);
+    const outs = await Promise.all(batch.map(async ({ set_num }) => ({
+      set_num,
+      stock: await checkLegoStock(set_num, env).catch(() => null),
+    })));
 
-    // Persist the fine-grained availability status the scrape already returns
-    // (in_stock | out_of_stock | pre_order | back_order | coming_soon | sold_out
-    // | retiring) — previously fetched then dropped. COALESCE keeps the prior
-    // value when a scrape doesn't surface a status.
-    const availabilityVal = stock.availability ?? null;
-    if (stock.retail_price_usd != null && stock.retail_price_usd > 0) {
-      stmts.push(env.DB.prepare(
-        `UPDATE lego_sets SET lego_in_stock=?, lego_retiring_soon=?, lego_checked_at=datetime('now'),
-         lego_availability=COALESCE(?, lego_availability),
-         retail_price=COALESCE(?, retail_price) WHERE set_num=?`,
-      ).bind(inStockVal, retiringSoonVal, availabilityVal, stock.retail_price_usd, set_num));
-    } else {
-      stmts.push(env.DB.prepare(
-        `UPDATE lego_sets SET lego_in_stock=?, lego_retiring_soon=?, lego_checked_at=datetime('now'),
-         lego_availability=COALESCE(?, lego_availability) WHERE set_num=?`,
-      ).bind(inStockVal, retiringSoonVal, availabilityVal, set_num));
+    for (const { set_num, stock } of outs) {
+      processed++;
+      if (stock === null) {
+        // Leave lego_checked_at untouched — retry next run.
+        continue;
+      }
+      const inStockVal = stock.in_stock === null ? null : (stock.in_stock ? 1 : 0);
+      const retiringSoonVal = stock.retiring_soon ? 1 : 0;
+
+      // Persist the fine-grained availability status the scrape already returns
+      // (in_stock | out_of_stock | pre_order | back_order | coming_soon | sold_out
+      // | retiring) — previously fetched then dropped. COALESCE keeps the prior
+      // value when a scrape doesn't surface a status.
+      const availabilityVal = stock.availability ?? null;
+      if (stock.retail_price_usd != null && stock.retail_price_usd > 0) {
+        stmts.push(env.DB.prepare(
+          `UPDATE lego_sets SET lego_in_stock=?, lego_retiring_soon=?, lego_checked_at=datetime('now'),
+           lego_availability=COALESCE(?, lego_availability),
+           retail_price=COALESCE(?, retail_price) WHERE set_num=?`,
+        ).bind(inStockVal, retiringSoonVal, availabilityVal, stock.retail_price_usd, set_num));
+      } else {
+        stmts.push(env.DB.prepare(
+          `UPDATE lego_sets SET lego_in_stock=?, lego_retiring_soon=?, lego_checked_at=datetime('now'),
+           lego_availability=COALESCE(?, lego_availability) WHERE set_num=?`,
+        ).bind(inStockVal, retiringSoonVal, availabilityVal, set_num));
+      }
+      updated++;
     }
-    updated++;
   }
 
   for (let i = 0; i < stmts.length; i += 90) {

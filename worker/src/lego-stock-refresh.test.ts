@@ -66,4 +66,23 @@ describe('runLegoStockRefresh', () => {
     expect(r).toMatchObject({ processed: 1, updated: 0 });
     expect((await checkedAt('X-1')).c).toBeNull(); // retried next run
   });
+
+  it('checks stock in bounded concurrent waves instead of serially', async () => {
+    await seedOwnedActive('X-1');
+    await seedOwnedActive('Y-1');
+    let active = 0;
+    let maxActive = 0;
+    mockStock.mockImplementation(async () => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      active--;
+      return null as any;
+    });
+
+    const r = await runLegoStockRefresh(withKey, { limit: 2 });
+
+    expect(r).toMatchObject({ processed: 2, updated: 0 });
+    expect(maxActive).toBe(2);
+  });
 });
