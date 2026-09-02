@@ -226,7 +226,7 @@ Object.assign(ja.admin, { tools: { sets: 'セットをインポート', figs: '�
 
 Object.assign(ja.portfolio, { exploreBrick3d: '3Dで見る', exploreBrick3dLabel: 'BricksVaultのブロックを3Dで見る', loadingBrick3d: '3Dを読み込み中…' });
 
-Object.assign(ja.portfolio, { stackVault: '保管庫を積もう', stackVaultLabel: '3Dで「保管庫を積もう」をプレイ', stackVaultInstructions: 'ブロックがそろったらタップ、クリック、またはスペースキーを押してください。15秒で6個積みます。', stackVaultProgress: '{target}個中{placed}個を積みました。残り{seconds}秒。', stackVaultMiss: 'ミス — 次のブロックをそろえてもう一度。', stackVaultWon: '保管庫が完成！最初のセットを追加して本物にしましょう。', stackVaultLost: '時間切れです。最初のセットを追加して本物の保管庫を始めましょう。' });
+Object.assign(ja.portfolio, { crackVault: 'Brickvaultを開けよう', crackVaultLabel: '3Dで「Brickvaultを開けよう」をプレイ', crackVaultInstructions: '光るスタッドを見て、同じ順番で押してください。3つのロックを解除しましょう。', crackVaultWatch: '組み合わせを見てください…', crackVaultRepeat: 'あなたの番です — 組み合わせを再現してください。', crackVaultProgress: 'ロック{round}/{total}。', crackVaultWrong: '惜しい — もう一度組み合わせを見てください。', crackVaultUnlocked: '保管庫が開きました！最初のセットを追加して本物にしましょう。', crackVaultStud: '保管庫スタッド {number}', crackVaultReward: 'ミステリーセットを解除', crackVaultReplay: 'もう一度' });
 
 export default ja;
 Object.assign(ja.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

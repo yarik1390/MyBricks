@@ -2545,6 +2545,12 @@
     ]
   },
   {
+    "text": "Crack the Vault requires non-empty sequences using studs 0–3",
+    "files": [
+      "components/empty-vault-brick-3d.js"
+    ]
+  },
+  {
     "text": "Create account",
     "files": [
       "views/login.js"
@@ -3081,7 +3087,6 @@
     "text": "Enter",
     "files": [
       "components/advisor.js",
-      "components/empty-vault-brick-3d.js",
       "components/scanner.js",
       "components/sheet.js",
       "views/game.js",
@@ -5548,12 +5553,6 @@
     ]
   },
   {
-    "text": "Missed — line up the next brick and try again.",
-    "files": [
-      "components/empty-vault-brick-3d.js"
-    ]
-  },
-  {
     "text": "Missing MSRP",
     "files": [
       "views/me-admin.js"
@@ -5641,12 +5640,6 @@
     ]
   },
   {
-    "text": "Motion is reduced on this device",
-    "files": [
-      "components/empty-vault-brick-3d.js"
-    ]
-  },
-  {
     "text": "Multiple fresh market sources agree on this price",
     "files": [
       "lib/pure.js"
@@ -5662,6 +5655,12 @@
     "text": "My Collection",
     "files": [
       "views/kids.js"
+    ]
+  },
+  {
+    "text": "Mystery set unlocked",
+    "files": [
+      "components/empty-vault-brick-3d.js"
     ]
   },
   {
@@ -6209,6 +6208,12 @@
     "files": [
       "views/catalog.js",
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "Not quite — watch this combination again.",
+    "files": [
+      "components/empty-vault-brick-3d.js"
     ]
   },
   {
@@ -7848,6 +7853,12 @@
     "text": "Repeated safe slices",
     "files": [
       "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Replay",
+    "files": [
+      "components/empty-vault-brick-3d.js"
     ]
   },
   {
@@ -9805,12 +9816,6 @@
     ]
   },
   {
-    "text": "Tap, click, or press Space when the brick lines up. Stack 6 in 15 seconds.",
-    "files": [
-      "components/empty-vault-brick-3d.js"
-    ]
-  },
-  {
     "text": "Target",
     "files": [
       "views/portfolio-wishlist.js"
@@ -10041,12 +10046,6 @@
     "text": "Timed out",
     "files": [
       "lib/pure.js"
-    ]
-  },
-  {
-    "text": "Time’s up. Add your first set and start the real vault.",
-    "files": [
-      "components/empty-vault-brick-3d.js"
     ]
   },
   {
@@ -10777,6 +10776,12 @@
     ]
   },
   {
+    "text": "Vault cracked! Add your first set to make it real.",
+    "files": [
+      "components/empty-vault-brick-3d.js"
+    ]
+  },
+  {
     "text": "Vault record",
     "files": [
       "views/portfolio-detail.js"
@@ -10786,12 +10791,6 @@
     "text": "Vault snapshots",
     "files": [
       "views/me-data.js"
-    ]
-  },
-  {
-    "text": "Vault stacked! Add your first set to make it real.",
-    "files": [
-      "components/empty-vault-brick-3d.js"
     ]
   },
   {
@@ -10925,6 +10924,18 @@
     "text": "Waiting",
     "files": [
       "lib/pure.js"
+    ]
+  },
+  {
+    "text": "Watch the combination…",
+    "files": [
+      "components/empty-vault-brick-3d.js"
+    ]
+  },
+  {
+    "text": "Watch the studs, then repeat the combination. Crack all 3 rounds.",
+    "files": [
+      "components/empty-vault-brick-3d.js"
     ]
   },
   {
@@ -11335,6 +11346,12 @@
     "text": "Your trend appears after the next daily valuation snapshot.",
     "files": [
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "Your turn — repeat the combination.",
+    "files": [
+      "components/empty-vault-brick-3d.js"
     ]
   },
   {

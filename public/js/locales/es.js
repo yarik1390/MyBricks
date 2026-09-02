@@ -221,7 +221,7 @@ Object.assign(es.admin, { tools: { sets: 'Importar sets', figs: 'Importar minifi
 
 Object.assign(es.portfolio, { exploreBrick3d: 'Explorar en 3D', exploreBrick3dLabel: 'Explorar el ladrillo de BricksVault en 3D', loadingBrick3d: 'Cargando 3D…' });
 
-Object.assign(es.portfolio, { stackVault: 'Apila la bóveda', stackVaultLabel: 'Jugar a Apila la bóveda en 3D', stackVaultInstructions: 'Toca, haz clic o pulsa Espacio cuando el ladrillo esté alineado. Apila 6 en 15 segundos.', stackVaultProgress: '{placed} de {target} ladrillos apilados. Quedan {seconds} segundos.', stackVaultMiss: 'Fallaste: alinea el siguiente ladrillo e inténtalo de nuevo.', stackVaultWon: '¡Bóveda apilada! Añade tu primer set para hacerla real.', stackVaultLost: 'Se acabó el tiempo. Añade tu primer set y empieza la bóveda real.' });
+Object.assign(es.portfolio, { crackVault: 'Abre Brickvault', crackVaultLabel: 'Jugar a Abre Brickvault en 3D', crackVaultInstructions: 'Mira los studs iluminados y repite la combinación. Abre las 3 cerraduras.', crackVaultWatch: 'Mira la combinación…', crackVaultRepeat: 'Tu turno: repite la combinación.', crackVaultProgress: 'Cerradura {round} de {total}.', crackVaultWrong: 'Casi: mira de nuevo la combinación.', crackVaultUnlocked: '¡Bóveda abierta! Añade tu primer set para hacerla real.', crackVaultStud: 'Stud de la bóveda {number}', crackVaultReward: 'Set misterioso desbloqueado', crackVaultReplay: 'Repetir' });
 
 export default es;
 Object.assign(es.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

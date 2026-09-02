@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { describe, it } from 'node:test';
-import { createStackVaultRules } from '../../public/js/components/empty-vault-brick-3d.js';
+import { createCrackVaultRules } from '../../public/js/components/empty-vault-brick-3d.js';
 
 const root = new URL('../../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), 'utf8');
@@ -19,19 +19,24 @@ function emptyVaultTemplate() {
   return match[1];
 }
 
-describe('Stack the Vault mini-game', () => {
-  it('uses deterministic bounded rules with a single terminal outcome', () => {
-    const rules = createStackVaultRules({ durationMs: 15_000, target: 6 });
-    assert.deepEqual(rules.snapshot(), { placed: 0, target: 6, remainingMs: 15_000, outcome: null });
-    assert.equal(rules.place(0.49, 1_000).accepted, true);
-    assert.equal(rules.place(0.19, 2_000).accepted, false);
-    for (let i = 1; i < 6; i += 1) rules.place(0.8, 2_000 + i);
-    assert.equal(rules.snapshot().outcome, 'won');
-    assert.equal(rules.place(1, 3_000).accepted, false, 'a completed attempt cannot accept more input');
+describe('Crack the Brickvault mini-game', () => {
+  it('runs three deterministic memory rounds and retries mistakes without ending the attempt', () => {
+    const sequences = [[0, 2], [3, 1, 0], [1, 3, 2, 0]];
+    const rules = createCrackVaultRules({ sequences });
+    assert.deepEqual(rules.snapshot(), { round: 0, totalRounds: 3, phase: 'presenting', expectedIndex: 0, outcome: null });
+    assert.equal(rules.press(0).accepted, false, 'input stays locked during sequence playback');
 
-    const paused = createStackVaultRules({ durationMs: 15_000, target: 6 });
-    assert.equal(paused.tick(14_999).outcome, null, 'active time just under the limit remains playable');
-    assert.equal(paused.tick(15_001).outcome, 'lost', 'only accumulated active time ends the attempt');
+    rules.ready();
+    assert.equal(rules.press(0).correct, true);
+    assert.equal(rules.press(1).correct, false, 'a wrong stud provides feedback');
+    assert.deepEqual(rules.snapshot(), { round: 0, totalRounds: 3, phase: 'presenting', expectedIndex: 0, outcome: null });
+
+    for (const sequence of sequences) {
+      rules.ready();
+      for (const stud of sequence) assert.equal(rules.press(stud).correct, true);
+    }
+    assert.equal(rules.snapshot().outcome, 'unlocked');
+    assert.equal(rules.press(0).accepted, false, 'an unlocked vault cannot accept more input');
   });
 
   it('keeps the static empty state and explicitly activates the lazy game', () => {
@@ -39,30 +44,30 @@ describe('Stack the Vault mini-game', () => {
     assert.match(template, /class="empty-vault-brick-stage"/);
     assert.match(template, /brand-brick-transparent\.png/);
     assert.match(template, /class="empty-vault-brick-3d-trigger"/);
-    assert.match(template, /t\('portfolio\.stackVault'\)/);
-    assert.match(template, /t\('portfolio\.stackVaultLabel'\)/);
+    assert.match(template, /t\('portfolio\.crackVault'\)/);
+    assert.match(template, /t\('portfolio\.crackVaultLabel'\)/);
     assert.match(template, /href="#\/add"/);
     assert.match(template, /href="#\/pile"/);
     assert.match(portfolio, /import\(['"]\.\.\/components\/empty-vault-brick-3d\.js['"]\)/);
     assert.doesNotMatch(portfolio, /from ['"].*three/i, 'the Vault route must not eagerly import Three.js');
     assert.match(portfolio, /dataset\.emptyVault3dError/);
-    assert.match(portfolio, /classList\.remove\(['"]is-stack-vault-active['"]\)/);
+    assert.match(portfolio, /classList\.remove\(['"]is-crack-vault-active['"]\)/);
     assert.match(portfolio, /empty-vault-brick-fallback['"]\)\?\.removeAttribute\(['"]hidden['"]\)/);
     assert.match(portfolio, /hideEmptyVaultBrick3d/);
   });
 
-  it('implements one 15-second, six-brick keyboard/touch attempt', () => {
-    assert.match(scene, /GAME_DURATION_MS = 15_000/);
-    assert.match(scene, /STACK_TARGET = 6/);
-    assert.match(scene, /canvas\.addEventListener\(['"]pointerdown['"]/);
-    assert.match(scene, /event\.key === ['"]Enter['"] \|\| event\.key === ['"] ['"]/);
-    assert.match(scene, /canvas\.setAttribute\(['"]role['"], ['"]application['"]\)/);
-    assert.match(scene, /labels\.miss/);
-    assert.match(scene, /classList\.add\(['"]is-miss['"]\)/);
-    assert.match(scene, /outcome = ['"]won['"]/);
-    assert.match(scene, /outcome = ['"]lost['"]/);
-    assert.doesNotMatch(scene, /addEventListener\(['"]pointermove['"]/, 'stacking must not conflict with scrolling gestures');
-    assert.doesNotMatch(scene, /setInterval/, 'the attempt must use one bounded render loop');
+  it('uses four accessible HTML stud controls and bounded 3D presentation', () => {
+    assert.match(scene, /crack-vault-studs/);
+    assert.match(scene, /document\.createElement\(['"]button['"]\)/);
+    assert.match(scene, /aria-label/);
+    assert.match(scene, /ArrowLeft|ArrowRight/);
+    assert.match(scene, /labels\.wrong/);
+    assert.match(scene, /crack-vault-reward/);
+    assert.match(scene, /labels\.replay/);
+    assert.match(scene, /outcome = ['"]unlocked['"]/);
+    assert.doesNotMatch(scene, /canvas\.addEventListener\(['"]pointerdown['"]/, 'game input belongs to accessible HTML controls');
+    assert.doesNotMatch(scene, /addEventListener\(['"]pointermove['"]/, 'memory input must not conflict with scrolling gestures');
+    assert.doesNotMatch(scene, /setInterval/, 'presentation must use bounded timers and animations');
   });
 
   it('pauses offscreen/hidden and fully disposes when its mount leaves the DOM', () => {
@@ -71,31 +76,41 @@ describe('Stack the Vault mini-game', () => {
     assert.match(scene, /MutationObserver/);
     assert.match(scene, /if \(!stage\.isConnected\) controller\.destroy\(\)/);
     assert.match(scene, /cancelAnimationFrame/);
+    assert.match(scene, /waitUntilVisible/);
+    assert.match(scene, /waitVisibleDuration/);
+    assert.match(scene, /remaining\s*-=\s*Math\.max\(0, performance\.now\(\) - startedAt\)/, 'sequence waits must count visible time only');
+    assert.doesNotMatch(scene, /while \([^\n]+document\.hidden[^\n]+\) await wait\(/, 'hidden state must not poll timers');
+    assert.match(scene, /unlockElapsed\s*\+=\s*Math\.max\(0, now - unlockLastFrame\)/, 'unlock animation must resume from visible elapsed time');
+    assert.doesNotMatch(scene, /\(now - started\) \/ 700/, 'unlock animation must not jump after a hidden interval');
     assert.match(scene, /renderer\.dispose\(\)/);
     assert.match(scene, /geometry\?\.dispose/);
     assert.match(scene, /material\?\.dispose/);
     assert.doesNotMatch(scene, /WEBGL_lose_context/);
   });
 
-  it('uses localized instructions/outcomes with English fallback copy', () => {
-    for (const key of ['stackVault', 'stackVaultLabel', 'stackVaultInstructions', 'stackVaultWon', 'stackVaultLost', 'stackVaultProgress', 'stackVaultMiss']) {
+  it('uses localized instructions, rounds, feedback, and unlocked copy', () => {
+    const keys = ['crackVault', 'crackVaultLabel', 'crackVaultInstructions', 'crackVaultWatch', 'crackVaultRepeat', 'crackVaultProgress', 'crackVaultWrong', 'crackVaultUnlocked', 'crackVaultStud', 'crackVaultReward', 'crackVaultReplay'];
+    for (const key of keys) {
       assert.match(en, new RegExp(`${key}:`));
-      assert.match(portfolio, new RegExp(`t\\('portfolio\\.${key}'\\)`));
+      assert.match(portfolio, new RegExp(`t\\('portfolio\\.${key}'`));
     }
     assert.match(portfolio, /startEmptyVaultBrick3D\(stage, \{/);
     for (const source of localeSources) {
-      for (const key of ['stackVault', 'stackVaultLabel', 'stackVaultInstructions', 'stackVaultWon', 'stackVaultLost', 'stackVaultProgress', 'stackVaultMiss']) {
-        assert.match(source, new RegExp(`${key}:`));
-      }
+      for (const key of keys) assert.match(source, new RegExp(`${key}:`));
     }
-    assert.doesNotMatch(portfolio, /Drag to rotate|tap to snap/, 'obsolete passive-brick instructions must be removed');
+    assert.doesNotMatch(portfolio, /stackVault|Stack the Vault|Drag to rotate|tap to snap/);
+    assert.doesNotMatch(portfolio, /window\.matchMedia\('\(prefers-reduced-motion: reduce\)'\)\.matches\s*\|\|/, 'reduced motion must not hide the explicit game trigger');
   });
 
   it('is touch friendly, contained, outcome-visible, and reduced-motion safe', () => {
-    assert.match(css, /\.empty-vault-brick-stage\.is-stack-vault-active/);
-    assert.match(css, /\.empty-vault-brick-canvas[\s\S]*?touch-action:\s*manipulation/);
-    assert.match(css, /data-stack-vault-outcome/);
-    assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.empty-vault-brick-3d-trigger[\s\S]*?display:\s*none/);
+    assert.match(css, /\.empty-vault-brick-stage\.is-crack-vault-active/);
+    assert.match(css, /\.crack-vault-stud[\s\S]*?min-width:\s*44px/);
+    assert.match(css, /\.crack-vault-stud[\s\S]*?min-height:\s*44px/);
+    assert.match(css, /data-crack-vault-outcome/);
+    assert.match(scene, /const reducedMotion = window\.matchMedia/);
+    assert.doesNotMatch(scene, /if \(window\.matchMedia\('\(prefers-reduced-motion: reduce\)'\)\.matches\) return \{ ok: false/);
+    assert.match(scene, /if \(reducedMotion\) \{[\s\S]*?hinge\.rotation\.y/);
+    assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.crack-vault-reward[\s\S]*?animation:\s*none/);
   });
 
   it('ships Three.js locally and covers all game assets in the service worker', () => {
@@ -104,7 +119,7 @@ describe('Stack the Vault mini-game', () => {
     assert.ok(statSync(vendor).size > 300_000);
     assert.match(scene, /import\(['"]\.\.\/vendor\/three-0\.185\.1\.min\.js['"]\)/);
     assert.match(sw, /['"]\/js\/components\/empty-vault-brick-3d\.js['"]/);
-    assert.match(sw, /const VERSION = ['"]v480['"]/);
+    assert.match(sw, /const VERSION = ['"]v481['"]/);
     assert.match(sw, /three-0\.185\.1\.min\.js/);
     assert.ok(
       sw.includes("'/js/vendor/three-0.185.1.min.js'") ||

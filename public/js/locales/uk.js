@@ -252,7 +252,7 @@ Object.assign(uk.admin, { tools: { sets: 'Імпортувати набори', 
 
 Object.assign(uk.portfolio, { exploreBrick3d: 'Переглянути у 3D', exploreBrick3dLabel: 'Переглянути цеглинку BricksVault у 3D', loadingBrick3d: 'Завантаження 3D…' });
 
-Object.assign(uk.portfolio, { stackVault: 'Склади сховище', stackVaultLabel: 'Грати в «Склади сховище» у 3D', stackVaultInstructions: 'Торкніться, клацніть або натисніть пробіл, коли цеглинка вирівняється. Складіть 6 за 15 секунд.', stackVaultProgress: 'Складено {placed} із {target} цеглинок. Залишилося {seconds} с.', stackVaultMiss: 'Промах — вирівняйте наступну цеглинку й спробуйте ще раз.', stackVaultWon: 'Сховище складено! Додайте перший набір, щоб зробити його справжнім.', stackVaultLost: 'Час вийшов. Додайте перший набір і почніть справжнє сховище.' });
+Object.assign(uk.portfolio, { crackVault: 'Відкрий Brickvault', crackVaultLabel: 'Грати у «Відкрий Brickvault» у 3D', crackVaultInstructions: 'Стежте за підсвіченими шипами й повторіть комбінацію. Відкрийте всі 3 замки.', crackVaultWatch: 'Запам’ятайте комбінацію…', crackVaultRepeat: 'Ваша черга — повторіть комбінацію.', crackVaultProgress: 'Замок {round} із {total}.', crackVaultWrong: 'Не зовсім — перегляньте комбінацію ще раз.', crackVaultUnlocked: 'Сховище відкрито! Додайте перший набір, щоб зробити його справжнім.', crackVaultStud: 'Шип сховища {number}', crackVaultReward: 'Таємничий набір відкрито', crackVaultReplay: 'Ще раз' });
 
 export default uk;
 Object.assign(uk.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });

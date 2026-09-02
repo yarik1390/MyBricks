@@ -221,7 +221,7 @@ Object.assign(nl.admin, { tools: { sets: 'Sets importeren', figs: 'Minifiguren i
 
 Object.assign(nl.portfolio, { exploreBrick3d: 'Bekijk in 3D', exploreBrick3dLabel: 'Bekijk de BricksVault-steen in 3D', loadingBrick3d: '3D laden…' });
 
-Object.assign(nl.portfolio, { stackVault: 'Stapel de kluis', stackVaultLabel: 'Speel Stapel de kluis in 3D', stackVaultInstructions: 'Tik, klik of druk op Spatie wanneer de steen goed staat. Stapel er 6 in 15 seconden.', stackVaultProgress: '{placed} van {target} stenen gestapeld. Nog {seconds} seconden.', stackVaultMiss: 'Mis — lijn de volgende steen uit en probeer opnieuw.', stackVaultWon: 'Kluis gestapeld! Voeg je eerste set toe om hem echt te maken.', stackVaultLost: 'De tijd is om. Voeg je eerste set toe en begin de echte kluis.' });
+Object.assign(nl.portfolio, { crackVault: 'Kraak de Brickvault', crackVaultLabel: 'Speel Kraak de Brickvault in 3D', crackVaultInstructions: 'Bekijk de oplichtende noppen en herhaal de combinatie. Kraak alle 3 sloten.', crackVaultWatch: 'Bekijk de combinatie…', crackVaultRepeat: 'Jouw beurt — herhaal de combinatie.', crackVaultProgress: 'Slot {round} van {total}.', crackVaultWrong: 'Net niet — bekijk de combinatie opnieuw.', crackVaultUnlocked: 'Kluis gekraakt! Voeg je eerste set toe om hem echt te maken.', crackVaultStud: 'Kluisnop {number}', crackVaultReward: 'Mysterieset ontgrendeld', crackVaultReplay: 'Opnieuw' });
 
 export default nl;
 Object.assign(nl.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
