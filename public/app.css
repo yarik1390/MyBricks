@@ -247,19 +247,12 @@ body.offline .offline-banner { display: block; }
 .brand { display: flex; align-items: center; gap: 9px; }
 .brand-mark {
   width: 30px; height: 30px; border-radius: 7px;
-  background: var(--bv-yellow);
   border: var(--bw) solid var(--border-c);
-  position: relative;
   box-shadow: 2px 2px 0 var(--line);
   flex-shrink: 0;
+  object-fit: cover;
+  display: block;
 }
-.brand-mark::before, .brand-mark::after {
-  content: ""; position: absolute; width: 7px; height: 7px;
-  border-radius: 50%; background: var(--line);
-  top: 5px;
-}
-.brand-mark::before { left: 5px; }
-.brand-mark::after  { right: 5px; }
 .brand-name {
   font-family: var(--serif); font-weight: 600;
   font-size: 22px; letter-spacing: -0.02em;

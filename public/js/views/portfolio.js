@@ -291,7 +291,7 @@ function paintPortfolio() {
     <div class="page">
       <div class="topbar">
         <div class="brand">
-          <div class="brand-mark"></div>
+          <img class="brand-mark" src="/icon-192.png" alt="" width="30" height="30" aria-hidden="true">
           <h1 class="brand-name">BricksVault</h1>
         </div>
         <div class="topbar-actions">

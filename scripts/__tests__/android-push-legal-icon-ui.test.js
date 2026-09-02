@@ -91,7 +91,7 @@ describe('Android push, legal sheets, and launcher icon', () => {
     assert.doesNotMatch(legal, /Open full policy in a browser/);
     assert.match(sheet, /sheet\.removeAttribute\("aria-labelledby"\)/);
     assert.match(styles, /\.legal-sheet-link[\s\S]*?min-height:\s*44px/);
-    assert.match(sw, /const VERSION = "v475"/);
+    assert.match(sw, /const VERSION = "v476"/);
     assert.match(sw, /'\/js\/components\/legal-sheet\.js'/);
   });
 

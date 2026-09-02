@@ -60,6 +60,6 @@ describe('dark theme contracts', () => {
   });
 
   it('bumps the static cache for the theme asset change', () => {
-    assert.match(serviceWorker, /const VERSION = "v475";/);
+    assert.match(serviceWorker, /const VERSION = "v476";/);
   });
 });
