@@ -378,6 +378,9 @@ export const en = {
   },
   portfolio: {
     collectionLoadFailed: 'Couldn’t load collection: {error}',
+    exploreBrick3d: 'Explore in 3D',
+    exploreBrick3dLabel: 'Explore the BricksVault brick in 3D',
+    loadingBrick3d: 'Loading 3D…',
     bulkRemovePartial: 'Removed {removed} of {total} — {failed} failed, try those again',
     restoredCount: 'Restored {restored} of {total}',
     soldFor: 'Sold for {price} — removed from vault',

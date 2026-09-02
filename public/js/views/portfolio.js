@@ -128,6 +128,7 @@ function repaintSetList() {
   
   if (items.length === 0) {
     list.innerHTML = emptyVaultHTML();
+    wireEmptyVaultBrick3D();
     if (state._portfolioObserver) {
       state._portfolioObserver.disconnect();
       state._portfolioObserver = null;
@@ -384,6 +385,7 @@ function paintPortfolio() {
   }, 40);
   
   animateHeroValue(totalVal);
+  wireEmptyVaultBrick3D();
   // Mirror the fresh totals to the Android home-screen widget (no-op on web).
   import('../lib/native-widget.js').then(m => m.updateVaultWidget({
     value: fmtMoney(totalVal, { cents: 0 }),
@@ -711,11 +713,49 @@ function setListCardHTML(item) {
     </button>`;
 }
 
+function wireEmptyVaultBrick3D() {
+  const trigger = document.querySelector('.empty-vault-brick-3d-trigger');
+  const stage = document.querySelector('.empty-vault-brick-stage');
+  if (!trigger || !stage || trigger.dataset.wired === 'true') return;
+  const hideEmptyVaultBrick3d =
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+    (Number(navigator.deviceMemory || 0) > 0 && Number(navigator.deviceMemory) <= 2);
+  if (hideEmptyVaultBrick3d) {
+    trigger.hidden = true;
+    return;
+  }
+  trigger.dataset.wired = 'true';
+  const activationLabel = trigger.textContent;
+  trigger.addEventListener('click', async () => {
+    const status = stage.querySelector('.empty-vault-brick-3d-status');
+    trigger.disabled = true;
+    trigger.textContent = t('portfolio.loadingBrick3d');
+    try {
+      const { startEmptyVaultBrick3D } = await import('../components/empty-vault-brick-3d.js');
+      const controller = await startEmptyVaultBrick3D(stage);
+      if (controller) {
+        trigger.hidden = true;
+        if (status) status.textContent = 'Interactive 3D brick. Drag to rotate or tap to snap.';
+      }
+    } catch (error) {
+      stage.dataset.emptyVault3dError = 'true';
+      if (status) status.textContent = error instanceof Error ? error.message : '3D is unavailable right now';
+    } finally {
+      trigger.disabled = false;
+      trigger.textContent = activationLabel;
+    }
+  });
+}
+
 function emptyVaultHTML() {
   return `
     <div class="onboarding-empty" style="display:flex;flex-direction:column;gap:16px;margin: 16px 0;">
       <div class="empty-cta-card" style="background:linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);border:2.5px dashed var(--line);border-radius:var(--r-3);padding:24px 20px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;box-shadow:var(--shadow-1);">
-        <div class="u-center" style="color:var(--ink-mute);">${I.box({w:36,h:36})}</div>
+        <div class="empty-vault-brick-stage">
+          <img class="empty-vault-brick-fallback" src="/brand-brick-transparent.png" alt="" width="144" height="144" aria-hidden="true">
+          <button type="button" class="empty-vault-brick-3d-trigger" aria-label="${t('portfolio.exploreBrick3dLabel')}">${t('portfolio.exploreBrick3d')}</button>
+          <p class="empty-vault-brick-3d-status" role="status" aria-live="polite"></p>
+        </div>
         <h2 style="font-family:var(--font-heading);font-weight:600;font-size:18px;margin:0;">Start Your Brick Vault</h2>
         <p style="font-size:13px;color:var(--ink-mute);margin:0;line-height:1.4;max-width:280px;">Scan barcode boxes, search the catalog, and track your retirement values and ROI in real time.</p>
         <a href="#/add" class="btn-primary" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--r-2);font-weight:600;margin-top:8px;text-decoration:none;">

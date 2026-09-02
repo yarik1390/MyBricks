@@ -108,6 +108,24 @@
     ]
   },
   {
+    "text": "3D is unavailable in this browser",
+    "files": [
+      "components/empty-vault-brick-3d.js"
+    ]
+  },
+  {
+    "text": "3D is unavailable on low-memory devices",
+    "files": [
+      "components/empty-vault-brick-3d.js"
+    ]
+  },
+  {
+    "text": "3D is unavailable right now",
+    "files": [
+      "views/portfolio.js"
+    ]
+  },
+  {
     "text": "50 sets! Dedicated collector 🏅",
     "files": [
       "views/portfolio-detail.js"
@@ -141,6 +159,12 @@
     "text": "90d Trend",
     "files": [
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "A 3D stage is required",
+    "files": [
+      "components/empty-vault-brick-3d.js"
     ]
   },
   {
@@ -3057,6 +3081,7 @@
     "text": "Enter",
     "files": [
       "components/advisor.js",
+      "components/empty-vault-brick-3d.js",
       "components/scanner.js",
       "components/sheet.js",
       "views/game.js",
@@ -4581,6 +4606,18 @@
     ]
   },
   {
+    "text": "Interactive 3D brick. Drag to rotate or press Enter to snap.",
+    "files": [
+      "components/empty-vault-brick-3d.js"
+    ]
+  },
+  {
+    "text": "Interactive 3D brick. Drag to rotate or tap to snap.",
+    "files": [
+      "views/portfolio.js"
+    ]
+  },
+  {
     "text": "Invalid model URL.",
     "files": [
       "lib/local-ai.js"
@@ -5607,6 +5644,12 @@
     "text": "Most price guides show you one number and ask you to trust it. We'd rather show you how the number is made, what it's based on, and — when the evidence isn't good enough — say so instead of guessing.",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "Motion is reduced on this device",
+    "files": [
+      "components/empty-vault-brick-3d.js"
     ]
   },
   {

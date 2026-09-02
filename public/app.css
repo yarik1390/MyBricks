@@ -255,6 +255,82 @@ body.offline .offline-banner { display: block; }
   font-family: var(--serif); font-weight: 600;
   font-size: 22px; letter-spacing: -0.02em;
 }
+
+/* Optional 3D brand moment in the empty Vault. The static transparent brick is
+   always the first render; WebGL replaces it only after explicit activation. */
+.empty-vault-brick-stage {
+  position: relative;
+  width: min(180px, 52vw);
+  aspect-ratio: 1.32;
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+}
+.empty-vault-brick-fallback {
+  width: 132px;
+  height: 132px;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 10px rgba(112, 54, 17, 0.18));
+}
+.empty-vault-brick-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+.empty-vault-brick-canvas.is-dragging { cursor: grabbing; }
+.empty-vault-brick-canvas:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+.empty-vault-brick-3d-trigger {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  min-height: 44px;
+  padding: 0 13px;
+  border: var(--bw) solid var(--border-c);
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  color: var(--ink);
+  box-shadow: var(--shadow-1);
+  font: 700 10px/1 var(--mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  backdrop-filter: blur(8px);
+}
+.empty-vault-brick-3d-trigger:active { transform: translateY(1px); }
+.empty-vault-brick-3d-trigger:disabled { cursor: wait; opacity: 0.72; }
+.empty-vault-brick-3d-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.empty-vault-brick-stage[data-empty-vault-3d-error="true"] .empty-vault-brick-3d-status {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  color: var(--ink-mute);
+  font: 10px/1.35 var(--mono);
+}
+@media (prefers-reduced-motion: reduce) {
+  .empty-vault-brick-stage { transform: none; }
+  .empty-vault-brick-3d-trigger { display: none; }
+}
+
 .icon-btn {
   width: 44px; height: 44px; border-radius: var(--r-full);
   display: inline-flex; align-items: center; justify-content: center;
