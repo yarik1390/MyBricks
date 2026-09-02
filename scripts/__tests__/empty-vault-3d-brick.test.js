@@ -50,8 +50,26 @@ describe('opt-in empty Vault 3D brick', () => {
     assert.match(scene, /renderer\.dispose\(\)/);
     assert.match(scene, /requestAnimationFrame/);
     assert.match(scene, /needsAnotherFrame/);
+    assert.match(scene, /if \(dragging \|\| snapping \|\| revealing \|\| needsAnotherFrame\)/);
     assert.doesNotMatch(scene, /rotation\.y \+= velocityX \+/, 'the scene must not spin continuously when idle');
     assert.match(scene, /cancelAnimationFrame/);
+  });
+
+  it('plays one bounded CSS invitation before activation and honors reduced motion', () => {
+    assert.match(css, /@keyframes empty-vault-brick-invite/);
+    assert.match(css, /@keyframes empty-vault-brick-shadow-invite/);
+    assert.match(css, /\.empty-vault-brick-fallback\s*\{[\s\S]*?animation:\s*empty-vault-brick-invite[\s\S]*?\s1\s+both/);
+    assert.match(css, /\.empty-vault-brick-stage::after\s*\{[\s\S]*?animation:\s*empty-vault-brick-shadow-invite[\s\S]*?\s1\s+both/);
+    assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.empty-vault-brick-fallback,[\s\S]*?\.empty-vault-brick-stage::after[\s\S]*?animation:\s*none/);
+  });
+
+  it('automatically performs one bounded reveal after 3D activation', () => {
+    assert.match(scene, /const revealStartedAt = performance\.now\(\)/);
+    assert.match(scene, /const REVEAL_DURATION_MS = 700/);
+    assert.match(scene, /let revealing = true/);
+    assert.match(scene, /if \(revealing\)/);
+    assert.match(scene, /revealing = progress < 1/);
+    assert.match(scene, /if \(dragging \|\| snapping \|\| revealing \|\| needsAnotherFrame\)/);
   });
 
   it('keeps controls touch-sized and exposes reduced-motion behavior', () => {
@@ -73,6 +91,6 @@ describe('opt-in empty Vault 3D brick', () => {
     assert.match(read('public/js/vendor/THREE-LICENSE.txt'), /MIT License/);
     assert.doesNotMatch(sw, /['"]\/js\/vendor\/three-0\.185\.1\.min\.js['"]/, 'Three.js must not inflate the install cache');
     assert.doesNotMatch(sw, /['"]\/js\/vendor\/three\.core\.min\.js['"]/, 'the Three.js core chunk must also stay out of the install cache');
-    assert.match(sw, /const VERSION = "v478"/);
+    assert.match(sw, /const VERSION = "v479"/);
   });
 });

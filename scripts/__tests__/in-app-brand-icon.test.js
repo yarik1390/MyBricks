@@ -41,7 +41,7 @@ describe('in-app Brickvault brand icon', () => {
   });
 
   it('bumps the static cache for the changed in-app module and artwork', () => {
-    assert.match(sw, /const VERSION = "v478";/);
+    assert.match(sw, /const VERSION = "v479";/);
     assert.match(sw, /'\/js\/views\/portfolio\.js'/);
     assert.match(sw, /'\/brand-brick-transparent\.png'/);
   });

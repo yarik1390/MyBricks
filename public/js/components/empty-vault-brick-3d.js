@@ -2,6 +2,7 @@
 // stays dependency-free until the user explicitly asks for 3D; the heavy Three.js
 // module is imported only after capability and accessibility checks pass.
 let activeScene = null;
+const REVEAL_DURATION_MS = 700;
 
 function canUseInteractive3D() {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -94,6 +95,22 @@ export async function startEmptyVaultBrick3D(stage) {
   let velocityX = 0;
   let velocityY = 0;
   let snapStart = 0;
+  const revealStartedAt = performance.now();
+  let revealing = true;
+  const revealFrom = {
+    rotationX: 0.46,
+    rotationY: -0.82,
+    positionY: 0.28,
+    scale: 0.84,
+  };
+  const revealTo = {
+    rotationX: brick.rotation.x,
+    rotationY: brick.rotation.y,
+    positionY: brick.position.y,
+  };
+  brick.rotation.set(revealFrom.rotationX, revealFrom.rotationY, 0.08);
+  brick.position.y = revealFrom.positionY;
+  brick.scale.setScalar(revealFrom.scale);
 
   const resize = () => {
     const rect = stage.getBoundingClientRect();
@@ -107,6 +124,17 @@ export async function startEmptyVaultBrick3D(stage) {
   const render = (now = performance.now()) => {
     raf = 0;
     if (!visible || document.hidden || !stage.isConnected) return;
+    if (revealing) {
+      const progress = Math.min(1, (now - revealStartedAt) / REVEAL_DURATION_MS);
+      const eased = 1 - (1 - progress) ** 3;
+      brick.rotation.x = THREE.MathUtils.lerp(revealFrom.rotationX, revealTo.rotationX, eased);
+      brick.rotation.y = THREE.MathUtils.lerp(revealFrom.rotationY, revealTo.rotationY, eased);
+      brick.rotation.z = THREE.MathUtils.lerp(0.08, 0, eased);
+      brick.position.y = THREE.MathUtils.lerp(revealFrom.positionY, revealTo.positionY, eased);
+      const scale = THREE.MathUtils.lerp(revealFrom.scale, 1, eased);
+      brick.scale.setScalar(scale);
+      revealing = progress < 1;
+    }
     if (!dragging) {
       velocityX *= 0.9;
       velocityY *= 0.9;
@@ -119,8 +147,9 @@ export async function startEmptyVaultBrick3D(stage) {
       if (progress >= 1) snapStart = 0;
     }
     renderer.render(scene, camera);
-    const needsAnotherFrame = dragging || snapStart > 0 || Math.abs(velocityX) > 0.0005 || Math.abs(velocityY) > 0.0005;
-    if (needsAnotherFrame) raf = requestAnimationFrame(render);
+    const snapping = snapStart > 0;
+    const needsAnotherFrame = Math.abs(velocityX) > 0.0005 || Math.abs(velocityY) > 0.0005;
+    if (dragging || snapping || revealing || needsAnotherFrame) raf = requestAnimationFrame(render);
   };
 
   const requestRender = () => {
@@ -128,6 +157,7 @@ export async function startEmptyVaultBrick3D(stage) {
   };
 
   const onPointerDown = (event) => {
+    revealing = false;
     dragging = true;
     lastX = event.clientX;
     lastY = event.clientY;
@@ -153,6 +183,7 @@ export async function startEmptyVaultBrick3D(stage) {
     canvas.classList.remove('is-dragging');
   };
   const snapBrick = () => {
+    revealing = false;
     snapStart = performance.now();
     requestRender();
   };

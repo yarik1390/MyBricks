@@ -60,6 +60,6 @@ describe('How we price UI upgrade', () => {
   });
 
   it('bumps the service worker after public HTML and CSS changes', () => {
-    assert.match(serviceWorker, /const VERSION = "v478"/);
+    assert.match(serviceWorker, /const VERSION = "v479"/);
   });
 });

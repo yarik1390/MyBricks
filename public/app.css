@@ -266,11 +266,36 @@ body.offline .offline-banner { display: block; }
   place-items: center;
   isolation: isolate;
 }
+.empty-vault-brick-stage::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  width: 96px;
+  height: 16px;
+  bottom: 17px;
+  border-radius: 50%;
+  background: rgba(112, 54, 17, 0.16);
+  filter: blur(6px);
+  transform-origin: center;
+  animation: empty-vault-brick-shadow-invite 900ms 280ms cubic-bezier(0.22, 1, 0.36, 1) 1 both;
+}
 .empty-vault-brick-fallback {
   width: 132px;
   height: 132px;
   object-fit: contain;
   filter: drop-shadow(0 12px 10px rgba(112, 54, 17, 0.18));
+  transform-origin: 50% 72%;
+  animation: empty-vault-brick-invite 900ms 280ms cubic-bezier(0.22, 1, 0.36, 1) 1 both;
+}
+@keyframes empty-vault-brick-invite {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  42% { transform: translateY(-6px) rotate(-2.5deg); }
+  68% { transform: translateY(-2px) rotate(1deg); }
+}
+@keyframes empty-vault-brick-shadow-invite {
+  0%, 100% { opacity: 0.72; transform: scaleX(1); }
+  42% { opacity: 0.38; transform: scaleX(0.82); }
+  68% { opacity: 0.58; transform: scaleX(0.94); }
 }
 .empty-vault-brick-canvas {
   position: absolute;
@@ -327,6 +352,10 @@ body.offline .offline-banner { display: block; }
   font: 10px/1.35 var(--mono);
 }
 @media (prefers-reduced-motion: reduce) {
+  .empty-vault-brick-fallback,
+  .empty-vault-brick-stage::after {
+    animation: none;
+  }
   .empty-vault-brick-stage { transform: none; }
   .empty-vault-brick-3d-trigger { display: none; }
 }
