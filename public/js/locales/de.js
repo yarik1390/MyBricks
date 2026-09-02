@@ -227,6 +227,8 @@ Object.assign(de.admin, { tools: { sets: 'Sets importieren', figs: 'Minifiguren 
 
 Object.assign(de.portfolio, { exploreBrick3d: 'In 3D ansehen', exploreBrick3dLabel: 'Den BricksVault-Stein in 3D ansehen', loadingBrick3d: '3D wird geladen…' });
 
+Object.assign(de.portfolio, { stackVault: 'Stack the Vault', stackVaultLabel: 'Stack the Vault in 3D spielen', stackVaultInstructions: 'Tippe, klicke oder drücke die Leertaste, wenn der Stein ausgerichtet ist. Staple 6 in 15 Sekunden.', stackVaultProgress: '{placed} von {target} Steinen gestapelt. Noch {seconds} Sekunden.', stackVaultMiss: 'Daneben — richte den nächsten Stein aus und versuche es erneut.', stackVaultWon: 'Vault gestapelt! Füge dein erstes Set hinzu, um ihn echt zu machen.', stackVaultLost: 'Die Zeit ist um. Füge dein erstes Set hinzu und starte den echten Vault.' });
+
 export default de;
 Object.assign(de.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 

@@ -221,6 +221,8 @@ Object.assign(fr.admin, { tools: { sets: 'Importer les sets', figs: 'Importer le
 
 Object.assign(fr.portfolio, { exploreBrick3d: 'Explorer en 3D', exploreBrick3dLabel: 'Explorer la brique BricksVault en 3D', loadingBrick3d: 'Chargement de la 3D…' });
 
+Object.assign(fr.portfolio, { stackVault: 'Empiler le coffre', stackVaultLabel: 'Jouer à Empiler le coffre en 3D', stackVaultInstructions: 'Touchez, cliquez ou appuyez sur Espace quand la brique est alignée. Empilez-en 6 en 15 secondes.', stackVaultProgress: '{placed} briques sur {target} empilées. {seconds} secondes restantes.', stackVaultMiss: 'Raté — alignez la prochaine brique et réessayez.', stackVaultWon: 'Coffre empilé ! Ajoutez votre premier set pour le rendre réel.', stackVaultLost: 'Temps écoulé. Ajoutez votre premier set et commencez le vrai coffre.' });
+
 export default fr;
 Object.assign(fr.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 

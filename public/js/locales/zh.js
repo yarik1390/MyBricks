@@ -221,6 +221,8 @@ Object.assign(zh.admin, { tools: { sets: '导入套装', figs: '导入人仔', u
 
 Object.assign(zh.portfolio, { exploreBrick3d: '用 3D 查看', exploreBrick3dLabel: '用 3D 查看 BricksVault 积木', loadingBrick3d: '正在加载 3D…' });
 
+Object.assign(zh.portfolio, { stackVault: '堆叠宝库', stackVaultLabel: '玩 3D 堆叠宝库', stackVaultInstructions: '积木对齐时点按、单击或按空格键。在 15 秒内堆叠 6 块。', stackVaultProgress: '已堆叠 {placed}/{target} 块积木。还剩 {seconds} 秒。', stackVaultMiss: '没对准——对齐下一块积木后再试。', stackVaultWon: '宝库堆好了！添加你的第一套积木，让它成为现实。', stackVaultLost: '时间到。添加你的第一套积木，开始真正的宝库。' });
+
 export default zh;
 Object.assign(zh.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 

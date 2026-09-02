@@ -226,6 +226,8 @@ Object.assign(ja.admin, { tools: { sets: 'セットをインポート', figs: '�
 
 Object.assign(ja.portfolio, { exploreBrick3d: '3Dで見る', exploreBrick3dLabel: 'BricksVaultのブロックを3Dで見る', loadingBrick3d: '3Dを読み込み中…' });
 
+Object.assign(ja.portfolio, { stackVault: '保管庫を積もう', stackVaultLabel: '3Dで「保管庫を積もう」をプレイ', stackVaultInstructions: 'ブロックがそろったらタップ、クリック、またはスペースキーを押してください。15秒で6個積みます。', stackVaultProgress: '{target}個中{placed}個を積みました。残り{seconds}秒。', stackVaultMiss: 'ミス — 次のブロックをそろえてもう一度。', stackVaultWon: '保管庫が完成！最初のセットを追加して本物にしましょう。', stackVaultLost: '時間切れです。最初のセットを追加して本物の保管庫を始めましょう。' });
+
 export default ja;
 Object.assign(ja.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 

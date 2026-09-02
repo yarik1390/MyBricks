@@ -3,6 +3,7 @@ import { requireMember } from '../auth';
 import { enrichSetRecord } from '../lib/market-sources';
 import { weeklySlopeUSD } from '../lib/price-trend';
 import type { Env, Variables } from '../types';
+import { attachCatalogValuationState, MARKET_EXT_JOIN, WISHLIST_COLS } from './sets-sql';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -11,21 +12,12 @@ app.use('*', requireMember);
 // GET /api/wishlist
 app.get('/', async (c) => {
   const userId = c.get('userId');
-  const [wl, alerts, hist] = await Promise.all([
+  const [wl, alerts, hist, upcoming] = await Promise.all([
     c.env.DB.prepare(`
-      SELECT w.id, w.set_num, w.target_price, w.notes, w.added_at, w.alerted_at, w.acknowledged_at,
-        s.name, s.theme, s.year, s.image_url, s.current_value, s.forecast_2y,
-        s.retail_price, s.retired, s.retirement_risk_score, s.ebay_value,
-        s.ebay_new_value, s.ebay_used_value, s.ebay_new_qty, s.ebay_used_qty,
-        s.ebay_new_cached_at, s.ebay_used_cached_at, s.ebay_cached_at,
-        s.used_value, s.bl_new_value, s.bl_new_qty,
-        s.bl_used_qty, s.bl_cached_at, s.be_cached_at,
-        s.valuation_method, s.valuation_expires_at, s.cached_at,
-        s.lego_availability, s.lego_retiring_soon, s.be_retail,
-        u.price_usd AS upcoming_price, u.availability AS upcoming_availability
+      SELECT ${WISHLIST_COLS}
       FROM user_wishlist w
       JOIN lego_sets s ON s.set_num = w.set_num
-      LEFT JOIN upcoming_sets u ON u.set_num = w.set_num
+      ${MARKET_EXT_JOIN}
       WHERE w.user_id = ?
       ORDER BY w.added_at DESC
     `).bind(userId).all(),
@@ -43,6 +35,11 @@ app.get('/', async (c) => {
         AND snapshot_date >= DATE('now', '-30 days')
       ORDER BY set_num, snapshot_date ASC
     `).bind(userId).all<{ set_num: string; snapshot_date: string; current_value: number }>(),
+    c.env.DB.prepare(`
+      SELECT set_num, price_usd, availability
+      FROM upcoming_sets
+      WHERE set_num IN (SELECT set_num FROM user_wishlist WHERE user_id = ?)
+    `).bind(userId).all<{ set_num: string; price_usd: number | null; availability: string | null }>(),
   ]);
 
   // Per-set 30-day slope (USD/week) so the client can show "buy window" hints
@@ -58,21 +55,23 @@ app.get('/', async (c) => {
     const slope = weeklySlopeUSD(pts);
     if (slope != null) trendWeekly[setNum] = Math.round(slope * 100) / 100;
   }
+  const upcomingBySet = new Map((upcoming.results || []).map(row => [row.set_num, row]));
 
   return c.json({
     wishlist: (wl.results || []).map(r => {
       const row = r as Record<string, unknown>;
-      const comingSoon = row.upcoming_availability != null;
-      const announcedPrice = [row.upcoming_price, row.retail_price, row.be_retail]
+      const upcomingSet = upcomingBySet.get(String(row.set_num));
+      const comingSoon = upcomingSet?.availability != null;
+      const announcedPrice = [upcomingSet?.price_usd, row.retail_price, row.be_retail]
         .map(Number)
         .find(value => Number.isFinite(value) && value > 0) ?? null;
-      const enriched: Record<string, unknown> = enrichSetRecord({
+      const enriched: Record<string, unknown> = enrichSetRecord(attachCatalogValuationState({
         ...row,
         retired: !!row.retired,
         trend_weekly: trendWeekly[row.set_num as string] ?? null,
-      });
+      }));
       if (!comingSoon) return enriched;
-      const availability = /pre/i.test(String(row.upcoming_availability)) ? 'pre_order' : 'coming_soon';
+      const availability = /pre/i.test(String(upcomingSet?.availability)) ? 'pre_order' : 'coming_soon';
       return {
         ...enriched,
         coming_soon: true,

@@ -131,7 +131,7 @@ describe('set-detail Manage UI hierarchy', () => {
 
 describe('set-detail UI static asset contract', () => {
   it('bumps the service worker cache after JS and CSS changes', () => {
-    assert.match(serviceWorker, /const VERSION = "v479"/);
+    assert.match(serviceWorker, /const VERSION = "v480"/);
     assert.match(serviceWorker, /'\/app\.css'/);
     assert.match(serviceWorker, /'\/js\/views\/portfolio-detail\.js'/);
   });

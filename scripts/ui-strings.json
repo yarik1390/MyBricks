@@ -4606,18 +4606,6 @@
     ]
   },
   {
-    "text": "Interactive 3D brick. Drag to rotate or press Enter to snap.",
-    "files": [
-      "components/empty-vault-brick-3d.js"
-    ]
-  },
-  {
-    "text": "Interactive 3D brick. Drag to rotate or tap to snap.",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Invalid model URL.",
     "files": [
       "lib/local-ai.js"
@@ -5557,6 +5545,12 @@
     "text": "Minifigures",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "Missed — line up the next brick and try again.",
+    "files": [
+      "components/empty-vault-brick-3d.js"
     ]
   },
   {
@@ -9811,6 +9805,12 @@
     ]
   },
   {
+    "text": "Tap, click, or press Space when the brick lines up. Stack 6 in 15 seconds.",
+    "files": [
+      "components/empty-vault-brick-3d.js"
+    ]
+  },
+  {
     "text": "Target",
     "files": [
       "views/portfolio-wishlist.js"
@@ -10041,6 +10041,12 @@
     "text": "Timed out",
     "files": [
       "lib/pure.js"
+    ]
+  },
+  {
+    "text": "Time’s up. Add your first set and start the real vault.",
+    "files": [
+      "components/empty-vault-brick-3d.js"
     ]
   },
   {
@@ -10780,6 +10786,12 @@
     "text": "Vault snapshots",
     "files": [
       "views/me-data.js"
+    ]
+  },
+  {
+    "text": "Vault stacked! Add your first set to make it real.",
+    "files": [
+      "components/empty-vault-brick-3d.js"
     ]
   },
   {

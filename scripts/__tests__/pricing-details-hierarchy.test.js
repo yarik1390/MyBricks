@@ -65,6 +65,6 @@ describe('pricing details hierarchy', () => {
     assert.match(appStyles, /\.pricing-decision-card::before[^}]*background:\s*var\(--accent\)/s);
     assert.match(appStyles, /\.pricing-condition-metrics[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/s);
     assert.match(appStyles, /@media\s*\(max-width:\s*430px\)[\s\S]*?\.pricing-decision-grid[^}]*grid-template-columns:\s*1fr/s);
-    assert.match(serviceWorker, /const VERSION = "v479"/);
+    assert.match(serviceWorker, /const VERSION = "v480"/);
   });
 });

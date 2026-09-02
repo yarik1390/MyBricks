@@ -221,6 +221,8 @@ Object.assign(hi.admin, { tools: { sets: 'सेट आयात करें', 
 
 Object.assign(hi.portfolio, { exploreBrick3d: '3D में देखें', exploreBrick3dLabel: 'BricksVault ब्रिक को 3D में देखें', loadingBrick3d: '3D लोड हो रहा है…' });
 
+Object.assign(hi.portfolio, { stackVault: 'वॉल्ट सजाएँ', stackVaultLabel: '3D में वॉल्ट सजाएँ खेलें', stackVaultInstructions: 'ईंट सीध में आने पर टैप, क्लिक या स्पेस दबाएँ। 15 सेकंड में 6 ईंटें सजाएँ।', stackVaultProgress: '{target} में से {placed} ईंटें सजीं। {seconds} सेकंड बाकी।', stackVaultMiss: 'चूक गए — अगली ईंट को सीध में लाकर फिर कोशिश करें।', stackVaultWon: 'वॉल्ट सज गया! इसे असली बनाने के लिए अपना पहला सेट जोड़ें।', stackVaultLost: 'समय खत्म। अपना पहला सेट जोड़ें और असली वॉल्ट शुरू करें।' });
+
 export default hi;
 Object.assign(hi.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 

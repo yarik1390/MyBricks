@@ -732,13 +732,18 @@ function wireEmptyVaultBrick3D() {
     trigger.textContent = t('portfolio.loadingBrick3d');
     try {
       const { startEmptyVaultBrick3D } = await import('../components/empty-vault-brick-3d.js');
-      const controller = await startEmptyVaultBrick3D(stage);
-      if (controller) {
-        trigger.hidden = true;
-        if (status) status.textContent = 'Interactive 3D brick. Drag to rotate or tap to snap.';
-      }
+      const controller = await startEmptyVaultBrick3D(stage, {
+        play: t('portfolio.stackVaultInstructions'),
+        won: t('portfolio.stackVaultWon'),
+        lost: t('portfolio.stackVaultLost'),
+        progress: t('portfolio.stackVaultProgress'),
+        miss: t('portfolio.stackVaultMiss'),
+      });
+      if (controller) trigger.hidden = true;
     } catch (error) {
       stage.dataset.emptyVault3dError = 'true';
+      stage.classList.remove('is-stack-vault-active');
+      stage.querySelector('.empty-vault-brick-fallback')?.removeAttribute('hidden');
       if (status) status.textContent = error instanceof Error ? error.message : '3D is unavailable right now';
     } finally {
       trigger.disabled = false;
@@ -753,8 +758,8 @@ function emptyVaultHTML() {
       <div class="empty-cta-card" style="background:linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);border:2.5px dashed var(--line);border-radius:var(--r-3);padding:24px 20px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;box-shadow:var(--shadow-1);">
         <div class="empty-vault-brick-stage">
           <img class="empty-vault-brick-fallback" src="/brand-brick-transparent.png" alt="" width="144" height="144" aria-hidden="true">
-          <button type="button" class="empty-vault-brick-3d-trigger" aria-label="${t('portfolio.exploreBrick3dLabel')}">${t('portfolio.exploreBrick3d')}</button>
-          <p class="empty-vault-brick-3d-status" role="status" aria-live="polite"></p>
+          <button type="button" class="empty-vault-brick-3d-trigger" aria-label="${t('portfolio.stackVaultLabel')}">${t('portfolio.stackVault')}</button>
+          <p class="empty-vault-brick-3d-status" role="status" aria-live="polite">${t('portfolio.stackVaultInstructions')}</p>
         </div>
         <h2 style="font-family:var(--font-heading);font-weight:600;font-size:18px;margin:0;">Start Your Brick Vault</h2>
         <p style="font-size:13px;color:var(--ink-mute);margin:0;line-height:1.4;max-width:280px;">Scan barcode boxes, search the catalog, and track your retirement values and ROI in real time.</p>

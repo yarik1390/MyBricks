@@ -1,8 +1,38 @@
-// Optional, interaction-gated 3D brand moment for the empty Vault. This module
-// stays dependency-free until the user explicitly asks for 3D; the heavy Three.js
-// module is imported only after capability and accessibility checks pass.
+// One interaction-gated attempt at Stack the Vault. Three.js stays behind the
+// explicit start button; importing this module alone is dependency-free.
 let activeScene = null;
-const REVEAL_DURATION_MS = 700;
+const GAME_DURATION_MS = 15_000;
+const STACK_TARGET = 6;
+const MIN_OVERLAP = 0.42;
+
+export function createStackVaultRules({ durationMs = GAME_DURATION_MS, target = STACK_TARGET } = {}) {
+  let placed = 0;
+  let outcome = null;
+  let remainingMs = durationMs;
+
+  const updateTime = (elapsedMs) => {
+    remainingMs = Math.max(0, durationMs - elapsedMs);
+    if (!outcome && remainingMs === 0) outcome = 'lost';
+  };
+
+  return {
+    place(overlap, now = performance.now()) {
+      if (outcome) return { accepted: false, placed, outcome };
+      updateTime(now);
+      if (outcome || overlap < MIN_OVERLAP) return { accepted: false, placed, outcome };
+      placed += 1;
+      if (placed >= target) outcome = 'won';
+      return { accepted: true, placed, outcome };
+    },
+    tick(now = performance.now()) {
+      if (!outcome) updateTime(now);
+      return this.snapshot();
+    },
+    snapshot() {
+      return { placed, target, remainingMs, outcome };
+    },
+  };
+}
 
 function canUseInteractive3D() {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -18,7 +48,7 @@ function canUseInteractive3D() {
   return { ok: true, reason: '' };
 }
 
-export async function startEmptyVaultBrick3D(stage) {
+export async function startEmptyVaultBrick3D(stage, copy = {}) {
   if (!(stage instanceof HTMLElement)) throw new TypeError('A 3D stage is required');
   activeScene?.destroy();
 
@@ -28,14 +58,22 @@ export async function startEmptyVaultBrick3D(stage) {
   const THREE = await import('../vendor/three-0.185.1.min.js');
   if (!stage.isConnected) return null;
 
+  const labels = {
+    play: copy.play || 'Tap, click, or press Space when the brick lines up. Stack 6 in 15 seconds.',
+    won: copy.won || 'Vault stacked! Add your first set to make it real.',
+    lost: copy.lost || 'Time’s up. Add your first set and start the real vault.',
+    progress: copy.progress || '{placed} of {target} bricks stacked. {seconds} seconds left.',
+    miss: copy.miss || 'Missed — line up the next brick and try again.',
+  };
   const canvas = document.createElement('canvas');
   canvas.className = 'empty-vault-brick-canvas';
   canvas.tabIndex = 0;
-  canvas.setAttribute('role', 'button');
-  canvas.setAttribute('aria-label', 'Interactive 3D brick. Drag to rotate or press Enter to snap.');
+  canvas.setAttribute('role', 'application');
+  canvas.setAttribute('aria-label', labels.play);
 
   const fallback = stage.querySelector('.empty-vault-brick-fallback');
   const trigger = stage.querySelector('.empty-vault-brick-3d-trigger');
+  const status = stage.querySelector('.empty-vault-brick-3d-status');
   stage.prepend(canvas);
 
   let renderer;
@@ -50,67 +88,68 @@ export async function startEmptyVaultBrick3D(stage) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 30);
-  camera.position.set(5.2, 3.8, 6.2);
-  camera.lookAt(0, 0.1, 0);
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 30);
+  camera.position.set(5.3, 4.1, 7.4);
+  camera.lookAt(0, 1.35, 0);
 
-  const brick = new THREE.Group();
-  brick.rotation.set(-0.15, -0.55, 0.06);
-  scene.add(brick);
-
+  const brickGeometry = new THREE.BoxGeometry(2.5, 0.55, 1.4);
+  const studGeometry = new THREE.CylinderGeometry(0.22, 0.24, 0.16, 20);
   const orange = new THREE.MeshStandardMaterial({ color: 0xf47a1f, roughness: 0.34, metalness: 0.02 });
-  const darkOrange = new THREE.MeshStandardMaterial({ color: 0xb83f0a, roughness: 0.45, metalness: 0.01 });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(3.55, 1.12, 2.15, 2, 1, 2), orange);
-  body.position.y = 0.15;
-  brick.add(body);
+  const gold = new THREE.MeshStandardMaterial({ color: 0xffb428, roughness: 0.38, metalness: 0.02 });
+  const meshes = [];
 
-  const studGeometry = new THREE.CylinderGeometry(0.35, 0.38, 0.24, 32);
-  for (const x of [-1.28, -0.43, 0.43, 1.28]) {
-    for (const z of [-0.62, 0.62]) {
-      const stud = new THREE.Mesh(studGeometry, orange);
-      stud.position.set(x, 0.83, z);
-      brick.add(stud);
+  function makeBrick(material = orange) {
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(brickGeometry, material);
+    group.add(body);
+    for (const x of [-0.88, -0.29, 0.29, 0.88]) {
+      for (const z of [-0.4, 0.4]) {
+        const stud = new THREE.Mesh(studGeometry, material);
+        stud.position.set(x, 0.35, z);
+        group.add(stud);
+      }
     }
+    scene.add(group);
+    meshes.push(group);
+    return group;
   }
 
-  // A narrow darker underside gives the simple procedural brick more depth
-  // without fetching a model or texture.
-  const underside = new THREE.Mesh(new THREE.BoxGeometry(3.28, 0.12, 1.88), darkOrange);
-  underside.position.y = -0.47;
-  brick.add(underside);
+  const base = makeBrick(gold);
+  base.position.y = -0.6;
 
-  scene.add(new THREE.HemisphereLight(0xfff4dd, 0x6b341b, 2.1));
-  const key = new THREE.DirectionalLight(0xffffff, 3.4);
+  scene.add(new THREE.HemisphereLight(0xfff4dd, 0x6b341b, 2.2));
+  const key = new THREE.DirectionalLight(0xffffff, 3.2);
   key.position.set(-3, 6, 5);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0xffb15c, 1.7);
-  rim.position.set(5, 2, -4);
-  scene.add(rim);
 
+  const game = createStackVaultRules();
+  const controller = { destroy };
+  let movingBrick = makeBrick();
+  movingBrick.position.y = 0;
   let raf = 0;
   let visible = true;
-  let dragging = false;
-  let lastX = 0;
-  let lastY = 0;
-  let velocityX = 0;
-  let velocityY = 0;
-  let snapStart = 0;
-  const revealStartedAt = performance.now();
-  let revealing = true;
-  const revealFrom = {
-    rotationX: 0.46,
-    rotationY: -0.82,
-    positionY: 0.28,
-    scale: 0.84,
-  };
-  const revealTo = {
-    rotationX: brick.rotation.x,
-    rotationY: brick.rotation.y,
-    positionY: brick.position.y,
-  };
-  brick.rotation.set(revealFrom.rotationX, revealFrom.rotationY, 0.08);
-  brick.position.y = revealFrom.positionY;
-  brick.scale.setScalar(revealFrom.scale);
+  let destroyed = false;
+  let activeElapsedMs = 0;
+  let activeSince = null;
+  let lastAnnouncedSecond = -1;
+  let direction = 1;
+  let lastFrame = 0;
+
+  function gameTime(now) {
+    return activeElapsedMs + (activeSince === null ? 0 : now - activeSince);
+  }
+
+  function pauseClock(now = performance.now()) {
+    if (activeSince === null) return;
+    activeElapsedMs += now - activeSince;
+    activeSince = null;
+  }
+
+  function resumeClock(now = performance.now()) {
+    if (activeSince !== null) return;
+    activeSince = now;
+    lastFrame = now;
+  }
 
   const resize = () => {
     const rect = stage.getBoundingClientRect();
@@ -121,116 +160,116 @@ export async function startEmptyVaultBrick3D(stage) {
     camera.updateProjectionMatrix();
   };
 
-  const render = (now = performance.now()) => {
-    raf = 0;
-    if (!visible || document.hidden || !stage.isConnected) return;
-    if (revealing) {
-      const progress = Math.min(1, (now - revealStartedAt) / REVEAL_DURATION_MS);
-      const eased = 1 - (1 - progress) ** 3;
-      brick.rotation.x = THREE.MathUtils.lerp(revealFrom.rotationX, revealTo.rotationX, eased);
-      brick.rotation.y = THREE.MathUtils.lerp(revealFrom.rotationY, revealTo.rotationY, eased);
-      brick.rotation.z = THREE.MathUtils.lerp(0.08, 0, eased);
-      brick.position.y = THREE.MathUtils.lerp(revealFrom.positionY, revealTo.positionY, eased);
-      const scale = THREE.MathUtils.lerp(revealFrom.scale, 1, eased);
-      brick.scale.setScalar(scale);
-      revealing = progress < 1;
-    }
-    if (!dragging) {
-      velocityX *= 0.9;
-      velocityY *= 0.9;
-      brick.rotation.y += velocityX;
-      brick.rotation.x = THREE.MathUtils.clamp(brick.rotation.x + velocityY, -0.65, 0.45);
-    }
-    if (snapStart) {
-      const progress = Math.min(1, (now - snapStart) / 520);
-      brick.position.y = -Math.sin(progress * Math.PI) * 0.16;
-      if (progress >= 1) snapStart = 0;
-    }
-    renderer.render(scene, camera);
-    const snapping = snapStart > 0;
-    const needsAnotherFrame = Math.abs(velocityX) > 0.0005 || Math.abs(velocityY) > 0.0005;
-    if (dragging || snapping || revealing || needsAnotherFrame) raf = requestAnimationFrame(render);
-  };
+  function announce(snapshot, force = false) {
+    if (!status) return;
+    const seconds = Math.ceil(snapshot.remainingMs / 1000);
+    if (!force && seconds === lastAnnouncedSecond) return;
+    lastAnnouncedSecond = seconds;
+    status.textContent = labels.progress
+      .replace('{placed}', snapshot.placed)
+      .replace('{target}', snapshot.target)
+      .replace('{seconds}', seconds);
+  }
 
-  const requestRender = () => {
-    if (!raf && visible && !document.hidden && stage.isConnected) raf = requestAnimationFrame(render);
-  };
+  function finish(outcome) {
+    canvas.dataset.outcome = outcome;
+    canvas.setAttribute('aria-label', outcome === 'won' ? labels.won : labels.lost);
+    if (status) status.textContent = outcome === 'won' ? labels.won : labels.lost;
+    stage.dataset.stackVaultOutcome = outcome;
+    stage.classList.add('is-stack-vault-finished');
+    cancelAnimationFrame(raf);
+    raf = 0;
+  }
+
+  function render(now = performance.now()) {
+    raf = 0;
+    if (destroyed || !visible || document.hidden || !stage.isConnected) return;
+    const elapsed = gameTime(now);
+    const delta = Math.min(34, Math.max(0, now - lastFrame));
+    lastFrame = now;
+    movingBrick.position.x += direction * delta * 0.0035;
+    if (Math.abs(movingBrick.position.x) >= 2.25) {
+      movingBrick.position.x = Math.sign(movingBrick.position.x) * 2.25;
+      direction *= -1;
+    }
+    const snapshot = game.tick(elapsed);
+    announce(snapshot);
+    renderer.render(scene, camera);
+    if (snapshot.outcome) finish(snapshot.outcome);
+    else raf = requestAnimationFrame(render);
+  }
+
+  function placeBrick() {
+    const snapshot = game.snapshot();
+    if (snapshot.outcome || destroyed) return;
+    const previous = meshes[snapshot.placed];
+    const overlap = Math.max(0, 1 - Math.abs(movingBrick.position.x - previous.position.x) / 2.5);
+    const result = game.place(overlap, gameTime(performance.now()));
+    if (!result.accepted) {
+      direction *= -1;
+      canvas.classList.remove('is-miss');
+      requestAnimationFrame(() => canvas.classList.add('is-miss'));
+      if (status) status.textContent = labels.miss;
+      return;
+    }
+    movingBrick.position.y = (result.placed - 1) * 0.56;
+    if (result.outcome) {
+      renderer.render(scene, camera);
+      finish(result.outcome);
+      return;
+    }
+    const next = makeBrick(result.placed === STACK_TARGET - 1 ? gold : orange);
+    next.position.set(-2.25 * direction, result.placed * 0.56, 0);
+    movingBrick = next;
+    direction *= -1;
+    announce(game.snapshot(), true);
+  }
 
   const onPointerDown = (event) => {
-    revealing = false;
-    dragging = true;
-    lastX = event.clientX;
-    lastY = event.clientY;
-    velocityX = 0;
-    velocityY = 0;
-    canvas.setPointerCapture?.(event.pointerId);
-    canvas.classList.add('is-dragging');
-    requestRender();
-  };
-  const onPointerMove = (event) => {
-    if (!dragging) return;
-    const dx = event.clientX - lastX;
-    const dy = event.clientY - lastY;
-    lastX = event.clientX;
-    lastY = event.clientY;
-    velocityX = dx * 0.008;
-    velocityY = dy * 0.006;
-    brick.rotation.y += velocityX;
-    brick.rotation.x = THREE.MathUtils.clamp(brick.rotation.x + velocityY, -0.65, 0.45);
-  };
-  const onPointerUp = () => {
-    dragging = false;
-    canvas.classList.remove('is-dragging');
-  };
-  const snapBrick = () => {
-    revealing = false;
-    snapStart = performance.now();
-    requestRender();
-  };
-  const onTap = () => {
-    if (Math.abs(velocityX) < 0.015 && Math.abs(velocityY) < 0.015) snapBrick();
+    event.preventDefault();
+    placeBrick();
   };
   const onKeyDown = (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      snapBrick();
+      placeBrick();
     }
   };
-  const onVisibility = () => requestRender();
-
-  canvas.addEventListener('pointerdown', onPointerDown);
-  canvas.addEventListener('pointermove', onPointerMove);
-  canvas.addEventListener('pointerup', onPointerUp);
-  canvas.addEventListener('pointercancel', onPointerUp);
-  canvas.addEventListener('click', onTap);
-  canvas.addEventListener('keydown', onKeyDown);
-  document.addEventListener('visibilitychange', onVisibility);
-
-  const resizeObserver = new ResizeObserver(resize);
-  resizeObserver.observe(stage);
-  const intersectionObserver = new IntersectionObserver(([entry]) => {
-    visible = Boolean(entry?.isIntersecting);
-    if (!visible && raf) {
+  const onVisibility = () => {
+    if (document.hidden) {
+      pauseClock();
       cancelAnimationFrame(raf);
       raf = 0;
+    } else if (visible) {
+      resumeClock();
+      if (!game.snapshot().outcome && !raf) raf = requestAnimationFrame(render);
     }
-    requestRender();
+  };
+  const observer = new IntersectionObserver(([entry]) => {
+    visible = entry.isIntersecting;
+    if (!visible) {
+      pauseClock();
+      cancelAnimationFrame(raf);
+      raf = 0;
+    } else if (!document.hidden) {
+      resumeClock();
+      if (!game.snapshot().outcome && !raf) raf = requestAnimationFrame(render);
+    }
   }, { threshold: 0.05 });
-  intersectionObserver.observe(stage);
 
-  let mountObserver = null;
-  const destroy = () => {
-    if (raf) cancelAnimationFrame(raf);
-    raf = 0;
-    resizeObserver.disconnect();
-    intersectionObserver.disconnect();
-    mountObserver?.disconnect();
+  const mountObserver = new MutationObserver(() => {
+    if (!stage.isConnected) controller.destroy();
+  });
+
+  function destroy() {
+    if (destroyed) return;
+    destroyed = true;
+    cancelAnimationFrame(raf);
+    observer.disconnect();
+    mountObserver.disconnect();
+    window.removeEventListener('resize', resize);
     document.removeEventListener('visibilitychange', onVisibility);
     canvas.removeEventListener('pointerdown', onPointerDown);
-    canvas.removeEventListener('pointermove', onPointerMove);
-    canvas.removeEventListener('pointerup', onPointerUp);
-    canvas.removeEventListener('pointercancel', onPointerUp);
-    canvas.removeEventListener('click', onTap);
     canvas.removeEventListener('keydown', onKeyDown);
     scene.traverse((object) => {
       object.geometry?.dispose?.();
@@ -238,27 +277,23 @@ export async function startEmptyVaultBrick3D(stage) {
       else object.material?.dispose?.();
     });
     renderer.dispose();
-    renderer.forceContextLoss?.();
     canvas.remove();
-    fallback?.removeAttribute('hidden');
-    trigger?.removeAttribute('hidden');
-    stage.classList.remove('is-3d');
-    if (activeScene?.destroy === destroy) activeScene = null;
-  };
+    if (activeScene === controller) activeScene = null;
+  }
 
-  activeScene = { destroy };
+  canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('keydown', onKeyDown);
+  window.addEventListener('resize', resize, { passive: true });
+  document.addEventListener('visibilitychange', onVisibility);
+  observer.observe(stage);
+  mountObserver.observe(document.body, { childList: true, subtree: true });
   resize();
+  stage.classList.add('is-stack-vault-active');
   fallback?.setAttribute('hidden', '');
-  trigger?.setAttribute('hidden', '');
-  stage.classList.add('is-3d');
-  requestRender();
-
-  // Route renders replace #root wholesale. Observe only while mounted so GPU
-  // resources are released as soon as this stage leaves the document.
-  mountObserver = new MutationObserver(() => {
-    if (!stage.isConnected) destroy();
-  });
-  mountObserver.observe(document.getElementById('root') || document.body, { childList: true, subtree: true });
-
-  return activeScene;
+  if (trigger) trigger.hidden = true;
+  resumeClock();
+  raf = requestAnimationFrame(render);
+  activeScene = controller;
+  canvas.focus({ preventScroll: true });
+  return controller;
 }

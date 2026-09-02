@@ -139,6 +139,8 @@ describe('BrickVault API Worker Tests', () => {
       'DROP TABLE IF EXISTS scan_requests',
       'DROP TABLE IF EXISTS admin_audit_log',
       'DROP TABLE IF EXISTS admin_operation_claims',
+      'DROP TABLE IF EXISTS wishlist_alerts',
+      'DROP TABLE IF EXISTS upcoming_sets',
       'DROP TABLE IF EXISTS user_wishlist',
       'DROP TABLE IF EXISTS user_minifigs',
       'DROP TABLE IF EXISTS kids_badges',
@@ -360,7 +362,29 @@ describe('BrickVault API Worker Tests', () => {
         notes TEXT,
         added_at TEXT DEFAULT CURRENT_TIMESTAMP,
         alerted_at TEXT,
+        acknowledged_at TEXT,
         UNIQUE(user_id, set_num)
+      )`,
+
+      `CREATE TABLE wishlist_alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        set_num TEXT NOT NULL,
+        set_name TEXT,
+        target_price REAL,
+        current_value REAL,
+        triggered_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        read_at TEXT,
+        alert_type TEXT DEFAULT 'drop'
+      )`,
+
+      `CREATE TABLE upcoming_sets (
+        set_num TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        price_usd REAL,
+        availability TEXT,
+        first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        scraped_at TEXT
       )`,
 
       `CREATE TABLE user_minifigs (
@@ -1151,6 +1175,36 @@ describe('BrickVault API Worker Tests', () => {
       );
       expect(res.status).toBe(400);
       expect((await res.json<{ error: string }>()).error).toContain('Target price must be a number');
+    });
+
+    it('returns the same canonical sealed value from wishlist and set detail', async () => {
+      (env as any).PRICING_V3_READ_PERCENT = '100';
+      await db.batch([
+        db.prepare(`INSERT INTO user_wishlist (user_id, set_num, target_price, notes)
+          VALUES (?, '75192', 700, 'keep target separate')`).bind(testUserId),
+        db.prepare(`INSERT INTO set_valuation_state
+          (set_num, condition, fair_value, low, high, liquidation_value, confidence,
+           confidence_score, sample_count, independent_family_count, basis_json,
+           flags_json, forecast_json, as_of, model_version)
+          VALUES ('75192', 'new_sealed', 912.34, 880, 940, 730, 'high',
+                  91, 12, 3, '[]', '[]', NULL, '2026-09-01', 'v3')`),
+      ]);
+
+      const headers = { Authorization: `Bearer ${token}` };
+      const [wishlistRes, detailRes] = await Promise.all([
+        app.fetch(new Request('http://localhost/api/wishlist', { headers }), env),
+        app.fetch(new Request('http://localhost/api/sets/75192', { headers }), env),
+      ]);
+
+      expect(wishlistRes.status).toBe(200);
+      expect(detailRes.status).toBe(200);
+      const wishlistBody = await wishlistRes.json<{ wishlist: Array<Record<string, any>> }>();
+      const detailBody = await detailRes.json<{ set: Record<string, any> }>();
+      const item = wishlistBody.wishlist[0];
+      expect(item.valuation.read_enabled).toBe(true);
+      expect(item.valuation.new.fair_value).toBe(detailBody.set.valuation.new.fair_value);
+      expect(item.market_value).toBe(detailBody.set.market_value);
+      expect(item.target_price).toBe(700);
     });
   });
 

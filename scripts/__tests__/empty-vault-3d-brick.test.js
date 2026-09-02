@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { describe, it } from 'node:test';
+import { createStackVaultRules } from '../../public/js/components/empty-vault-brick-3d.js';
 
 const root = new URL('../../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), 'utf8');
@@ -8,6 +9,8 @@ const read = (path) => readFileSync(new URL(path, root), 'utf8');
 const portfolio = read('public/js/views/portfolio.js');
 const scene = read('public/js/components/empty-vault-brick-3d.js');
 const css = read('public/app.css');
+const en = read('public/js/locales/en.js');
+const localeSources = ['de', 'es', 'fr', 'hi', 'ja', 'nl', 'uk', 'zh'].map((locale) => read(`public/js/locales/${locale}.js`));
 const sw = read('public/sw.js');
 
 function emptyVaultTemplate() {
@@ -16,81 +19,97 @@ function emptyVaultTemplate() {
   return match[1];
 }
 
-describe('opt-in empty Vault 3D brick', () => {
-  it('starts as an accessible static image and offers explicit 3D activation', () => {
+describe('Stack the Vault mini-game', () => {
+  it('uses deterministic bounded rules with a single terminal outcome', () => {
+    const rules = createStackVaultRules({ durationMs: 15_000, target: 6 });
+    assert.deepEqual(rules.snapshot(), { placed: 0, target: 6, remainingMs: 15_000, outcome: null });
+    assert.equal(rules.place(0.49, 1_000).accepted, true);
+    assert.equal(rules.place(0.19, 2_000).accepted, false);
+    for (let i = 1; i < 6; i += 1) rules.place(0.8, 2_000 + i);
+    assert.equal(rules.snapshot().outcome, 'won');
+    assert.equal(rules.place(1, 3_000).accepted, false, 'a completed attempt cannot accept more input');
+
+    const paused = createStackVaultRules({ durationMs: 15_000, target: 6 });
+    assert.equal(paused.tick(14_999).outcome, null, 'active time just under the limit remains playable');
+    assert.equal(paused.tick(15_001).outcome, 'lost', 'only accumulated active time ends the attempt');
+  });
+
+  it('keeps the static empty state and explicitly activates the lazy game', () => {
     const template = emptyVaultTemplate();
     assert.match(template, /class="empty-vault-brick-stage"/);
     assert.match(template, /brand-brick-transparent\.png/);
     assert.match(template, /class="empty-vault-brick-3d-trigger"/);
-    assert.match(template, /t\('portfolio\.exploreBrick3d'\)/);
-    assert.match(template, /t\('portfolio\.exploreBrick3dLabel'\)/);
+    assert.match(template, /t\('portfolio\.stackVault'\)/);
+    assert.match(template, /t\('portfolio\.stackVaultLabel'\)/);
+    assert.match(template, /href="#\/add"/);
+    assert.match(template, /href="#\/pile"/);
+    assert.match(portfolio, /import\(['"]\.\.\/components\/empty-vault-brick-3d\.js['"]\)/);
     assert.doesNotMatch(portfolio, /from ['"].*three/i, 'the Vault route must not eagerly import Three.js');
+    assert.match(portfolio, /dataset\.emptyVault3dError/);
+    assert.match(portfolio, /classList\.remove\(['"]is-stack-vault-active['"]\)/);
+    assert.match(portfolio, /empty-vault-brick-fallback['"]\)\?\.removeAttribute\(['"]hidden['"]\)/);
+    assert.match(portfolio, /hideEmptyVaultBrick3d/);
   });
 
-  it('loads the scene only after activation and preserves a fallback on failure', () => {
-    assert.match(portfolio, /import\(['"]\.\.\/components\/empty-vault-brick-3d\.js['"]\)/);
-    assert.match(portfolio, /dataset\.emptyVault3dError/);
-    assert.match(portfolio, /if \(controller\) \{[\s\S]*?trigger\.hidden = true;/);
-    assert.match(portfolio, /hideEmptyVaultBrick3d/);
-    assert.match(portfolio, /list\.innerHTML = emptyVaultHTML\(\);\n\s+wireEmptyVaultBrick3D\(\);\n\s+if \(state\._portfolioObserver\)/);
-    assert.match(portfolio, /matchMedia\(['"]\(prefers-reduced-motion: reduce\)['"]\)/);
-    assert.match(scene, /canvas\.remove\(\);[\s\S]*?throw error;/);
-    assert.match(scene, /canvas\.tabIndex = 0/);
-    assert.match(scene, /canvas\.setAttribute\(['"]role['"], ['"]button['"]\)/);
-    assert.match(scene, /keydown/);
+  it('implements one 15-second, six-brick keyboard/touch attempt', () => {
+    assert.match(scene, /GAME_DURATION_MS = 15_000/);
+    assert.match(scene, /STACK_TARGET = 6/);
+    assert.match(scene, /canvas\.addEventListener\(['"]pointerdown['"]/);
     assert.match(scene, /event\.key === ['"]Enter['"] \|\| event\.key === ['"] ['"]/);
-    assert.match(scene, /import\(['"]\.\.\/vendor\/three-0\.185\.1\.min\.js['"]\)/);
-    assert.match(scene, /prefers-reduced-motion: reduce/);
-    assert.match(scene, /deviceMemory/);
-    assert.match(scene, /WebGLRenderingContext/);
-    assert.doesNotMatch(scene, /WEBGL_lose_context/, 'capability detection must not destabilize the renderer context');
-    assert.match(scene, /WebGLRenderer/);
+    assert.match(scene, /canvas\.setAttribute\(['"]role['"], ['"]application['"]\)/);
+    assert.match(scene, /labels\.miss/);
+    assert.match(scene, /classList\.add\(['"]is-miss['"]\)/);
+    assert.match(scene, /outcome = ['"]won['"]/);
+    assert.match(scene, /outcome = ['"]lost['"]/);
+    assert.doesNotMatch(scene, /addEventListener\(['"]pointermove['"]/, 'stacking must not conflict with scrolling gestures');
+    assert.doesNotMatch(scene, /setInterval/, 'the attempt must use one bounded render loop');
+  });
+
+  it('pauses offscreen/hidden and fully disposes when its mount leaves the DOM', () => {
     assert.match(scene, /IntersectionObserver/);
     assert.match(scene, /visibilitychange/);
-    assert.match(scene, /renderer\.dispose\(\)/);
-    assert.match(scene, /requestAnimationFrame/);
-    assert.match(scene, /needsAnotherFrame/);
-    assert.match(scene, /if \(dragging \|\| snapping \|\| revealing \|\| needsAnotherFrame\)/);
-    assert.doesNotMatch(scene, /rotation\.y \+= velocityX \+/, 'the scene must not spin continuously when idle');
+    assert.match(scene, /MutationObserver/);
+    assert.match(scene, /if \(!stage\.isConnected\) controller\.destroy\(\)/);
     assert.match(scene, /cancelAnimationFrame/);
+    assert.match(scene, /renderer\.dispose\(\)/);
+    assert.match(scene, /geometry\?\.dispose/);
+    assert.match(scene, /material\?\.dispose/);
+    assert.doesNotMatch(scene, /WEBGL_lose_context/);
   });
 
-  it('plays one bounded CSS invitation before activation and honors reduced motion', () => {
-    assert.match(css, /@keyframes empty-vault-brick-invite/);
-    assert.match(css, /@keyframes empty-vault-brick-shadow-invite/);
-    assert.match(css, /\.empty-vault-brick-fallback\s*\{[\s\S]*?animation:\s*empty-vault-brick-invite[\s\S]*?\s1\s+both/);
-    assert.match(css, /\.empty-vault-brick-stage::after\s*\{[\s\S]*?animation:\s*empty-vault-brick-shadow-invite[\s\S]*?\s1\s+both/);
-    assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.empty-vault-brick-fallback,[\s\S]*?\.empty-vault-brick-stage::after[\s\S]*?animation:\s*none/);
+  it('uses localized instructions/outcomes with English fallback copy', () => {
+    for (const key of ['stackVault', 'stackVaultLabel', 'stackVaultInstructions', 'stackVaultWon', 'stackVaultLost', 'stackVaultProgress', 'stackVaultMiss']) {
+      assert.match(en, new RegExp(`${key}:`));
+      assert.match(portfolio, new RegExp(`t\\('portfolio\\.${key}'\\)`));
+    }
+    assert.match(portfolio, /startEmptyVaultBrick3D\(stage, \{/);
+    for (const source of localeSources) {
+      for (const key of ['stackVault', 'stackVaultLabel', 'stackVaultInstructions', 'stackVaultWon', 'stackVaultLost', 'stackVaultProgress', 'stackVaultMiss']) {
+        assert.match(source, new RegExp(`${key}:`));
+      }
+    }
+    assert.doesNotMatch(portfolio, /Drag to rotate|tap to snap/, 'obsolete passive-brick instructions must be removed');
   });
 
-  it('automatically performs one bounded reveal after 3D activation', () => {
-    assert.match(scene, /const revealStartedAt = performance\.now\(\)/);
-    assert.match(scene, /const REVEAL_DURATION_MS = 700/);
-    assert.match(scene, /let revealing = true/);
-    assert.match(scene, /if \(revealing\)/);
-    assert.match(scene, /revealing = progress < 1/);
-    assert.match(scene, /if \(dragging \|\| snapping \|\| revealing \|\| needsAnotherFrame\)/);
+  it('is touch friendly, contained, outcome-visible, and reduced-motion safe', () => {
+    assert.match(css, /\.empty-vault-brick-stage\.is-stack-vault-active/);
+    assert.match(css, /\.empty-vault-brick-canvas[\s\S]*?touch-action:\s*manipulation/);
+    assert.match(css, /data-stack-vault-outcome/);
+    assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.empty-vault-brick-3d-trigger[\s\S]*?display:\s*none/);
   });
 
-  it('keeps controls touch-sized and exposes reduced-motion behavior', () => {
-    assert.match(css, /\.empty-vault-brick-canvas[\s\S]*?touch-action:\s*none/);
-    assert.match(css, /\.empty-vault-brick-canvas:focus-visible[\s\S]*?outline:/);
-    assert.match(css, /\.empty-vault-brick-3d-trigger[\s\S]*?min-height:\s*44px/);
-    assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.empty-vault-brick-stage/);
-  });
-
-  it('vendors a bounded licensed Three.js module without precaching it', () => {
-    const modulePath = new URL('public/js/vendor/three-0.185.1.min.js', root);
-    const corePath = new URL('public/js/vendor/three.core.min.js', root);
-    const licensePath = new URL('public/js/vendor/THREE-LICENSE.txt', root);
-    assert.equal(existsSync(modulePath), true);
-    assert.equal(existsSync(corePath), true, 'Three.js module imports its sibling core module');
-    assert.equal(existsSync(licensePath), true);
-    const totalBytes = statSync(modulePath).size + statSync(corePath).size;
-    assert.ok(totalBytes < 800_000, 'the complete on-demand Three.js payload must stay bounded');
-    assert.match(read('public/js/vendor/THREE-LICENSE.txt'), /MIT License/);
-    assert.doesNotMatch(sw, /['"]\/js\/vendor\/three-0\.185\.1\.min\.js['"]/, 'Three.js must not inflate the install cache');
-    assert.doesNotMatch(sw, /['"]\/js\/vendor\/three\.core\.min\.js['"]/, 'the Three.js core chunk must also stay out of the install cache');
-    assert.match(sw, /const VERSION = "v479"/);
+  it('ships Three.js locally and covers all game assets in the service worker', () => {
+    const vendor = new URL('public/js/vendor/three-0.185.1.min.js', root);
+    assert.equal(existsSync(vendor), true);
+    assert.ok(statSync(vendor).size > 300_000);
+    assert.match(scene, /import\(['"]\.\.\/vendor\/three-0\.185\.1\.min\.js['"]\)/);
+    assert.match(sw, /['"]\/js\/components\/empty-vault-brick-3d\.js['"]/);
+    assert.match(sw, /const VERSION = ['"]v480['"]/);
+    assert.match(sw, /three-0\.185\.1\.min\.js/);
+    assert.ok(
+      sw.includes("'/js/vendor/three-0.185.1.min.js'") ||
+      (/const STATIC_PREFIX\s*=\s*['"]\/js['"]/.test(sw) && /\$\{STATIC_PREFIX\}\/vendor\/three-0\.185\.1\.min\.js/.test(sw)),
+      'the local Three.js module must be represented in STATIC_ASSETS',
+    );
   });
 });

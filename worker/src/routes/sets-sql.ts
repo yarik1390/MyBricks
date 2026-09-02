@@ -74,6 +74,15 @@ export const CATALOG_COLS =
   'svu.independent_family_count AS v3_used_families, svu.basis_json AS v3_used_basis, ' +
   'svu.flags_json AS v3_used_flags, svu.as_of AS v3_used_as_of';
 
+// Wishlist cards need the exact same pricing inputs and persisted v3 states as
+// catalog cards, but also carry user-owned metadata. Keep this as a mechanical
+// alias of CATALOG_COLS rather than maintaining another blend projection that
+// can drift. D1 permits at most 100 result columns: CATALOG_COLS is 94 and the
+// six wishlist columns below bring this projection to exactly 100.
+export const WISHLIST_COLS =
+  'w.id, w.target_price, w.notes, w.added_at, w.alerted_at, w.acknowledged_at, ' +
+  CATALOG_COLS;
+
 // LEFT JOIN that brings the set_market_ext side-table columns into a flat row so
 // enrichSetRecord (deal signal / liquidity / used loose) sees them. Used by both
 // the catalog projection above and the SELECT * detail read.

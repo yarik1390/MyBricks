@@ -297,16 +297,47 @@ body.offline .offline-banner { display: block; }
   42% { opacity: 0.38; transform: scaleX(0.82); }
   68% { opacity: 0.58; transform: scaleX(0.94); }
 }
+.empty-vault-brick-stage.is-stack-vault-active {
+  width: min(260px, 72vw);
+  aspect-ratio: 1.45;
+  margin-bottom: 34px;
+}
 .empty-vault-brick-canvas {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   display: block;
-  cursor: grab;
-  touch-action: none;
+  cursor: pointer;
+  touch-action: manipulation;
 }
-.empty-vault-brick-canvas.is-dragging { cursor: grabbing; }
+.empty-vault-brick-canvas.is-miss {
+  animation: empty-vault-stack-miss 180ms ease-out;
+}
+@keyframes empty-vault-stack-miss {
+  40% { transform: translateX(-4px); filter: saturate(0.5); }
+  75% { transform: translateX(3px); }
+}
+.empty-vault-brick-stage.is-stack-vault-active .empty-vault-brick-3d-status {
+  position: absolute;
+  width: 100%;
+  height: auto;
+  left: 0;
+  top: 100%;
+  padding-top: 8px;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  color: var(--ink-mute);
+  font: 10px/1.35 var(--mono);
+}
+.empty-vault-brick-stage[data-stack-vault-outcome] .empty-vault-brick-3d-status {
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.45;
+  font-weight: 800;
+}
 .empty-vault-brick-canvas:focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 3px;
