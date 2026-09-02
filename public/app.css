@@ -246,11 +246,9 @@ body.offline .offline-banner { display: block; }
 }
 .brand { display: flex; align-items: center; gap: 9px; }
 .brand-mark {
-  width: 30px; height: 30px; border-radius: 7px;
-  border: var(--bw) solid var(--border-c);
-  box-shadow: 2px 2px 0 var(--line);
+  width: 36px; height: 36px;
   flex-shrink: 0;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
 }
 .brand-name {

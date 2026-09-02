@@ -49,7 +49,7 @@ describe('orange brick icon package', () => {
       ['/icon-512.png', 'any'],
       ['/icon-maskable-512.png', 'maskable'],
     ]);
-    assert.match(serviceWorker, /const VERSION = "v476";/);
+    assert.match(serviceWorker, /const VERSION = "v477";/);
     assert.match(serviceWorker, /icon: '\/icon-192\.png'/);
     assert.match(serviceWorker, /badge: '\/icon-192\.png'/);
     for (const asset of ['/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png', '/icon-glow-512.png']) {

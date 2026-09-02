@@ -103,6 +103,19 @@ def adaptive_foreground(subject: Image.Image, size: int) -> Image.Image:
     return canvas
 
 
+def transparent_brand_mark(subject: Image.Image, size: int = 192) -> Image.Image:
+    """Render the 3D brick alone for use inside the app chrome."""
+    scale = min(size * 0.92 / subject.width, size * 0.92 / subject.height)
+    artwork = subject.resize(
+        (round(subject.width * scale), round(subject.height * scale)),
+        Image.Resampling.LANCZOS,
+    )
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    offset = ((size - artwork.width) // 2, (size - artwork.height) // 2)
+    canvas.alpha_composite(artwork, offset)
+    return canvas
+
+
 def splash(primary: Image.Image, glow: Image.Image, size: int = 2732) -> Image.Image:
     background = seamless_background(size).convert("RGBA")
 
@@ -145,6 +158,7 @@ def main() -> None:
     save_rgb(place_subject(primary, 512, 0.62), PUBLIC / "icon-maskable-512.png")
     save_rgb(place_subject(primary, 180, 0.70), PUBLIC / "apple-touch-icon.png")
     save_rgb(place_subject(glow, 512, 0.70), PUBLIC / "icon-glow-512.png")
+    save_rgba(transparent_brand_mark(primary), PUBLIC / "brand-brick-transparent.png")
     save_rgb(splash(primary, glow), RES / "drawable/splash.png")
 
     for density, size in DENSITY_PX.items():
