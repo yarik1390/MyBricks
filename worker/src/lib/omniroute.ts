@@ -6,8 +6,9 @@ import type { Env } from '../types';
  * OmniRoute gateway: id b46bdc30-228e-4fac-aa85-a2d27517178a). Calling this
  * alias routes through the combo's priority chain — today: Antigravity
  * gemini-3.7-flash-low first (subscription allowance, $0 marginal cost; live
- * hard-image benchmark 5/5), then OpenRouter google/gemini-3.5-flash-lite
- * (5/5, ~1.5s median, ~$0.0007/scan). Reordering the combo's legs in
+ * hard-image benchmark 5/5), then Merge Gemini 3.5 Flash-Lite (5/5 on the same
+ * suite), then OpenRouter Gemini 3.5 Flash-Lite (5/5, ~1.5s median,
+ * ~$0.0007/scan). Reordering the combo's legs in
  * the OmniRoute dashboard re-prices recognition without a Brickvault deploy.
  */
 export const OMNIROUTE_SCAN_COMBO = 'brickvault-scan-vision';
