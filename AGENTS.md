@@ -507,7 +507,7 @@ Newest first. (Service-worker `VERSION` in parentheses where relevant.)
 **OmniRoute scan-vision combo (2026-09-03, no SW bump — worker-only)**
 - **Brickvault scanning now routes its AI fallback through a dedicated OmniRoute
   combo, `brickvault-scan-vision`** (OmniRoute gateway id
-  `0fa72514-0c44-4333-8cb1-0cc117f4a575`), replacing the pinned
+  `b46bdc30-228e-4fac-aa85-a2d27517178a`), replacing the pinned
   `antigravity/gemini-3.5-flash-low` model, which Google deprecated upstream
   (it returns "Gemini 3.5 Flash is no longer available"). The dead pin burned
   the first cascade position on every scan before Merge answered.
@@ -515,7 +515,7 @@ Newest first. (Service-worker `VERSION` in parentheses where relevant.)
   (5 built-set photos without visible set numbers, labels verified visually)
   scored OpenRouter `google/gemini-3.5-flash-lite` **5/5 correct**, median
   ~1.7s, ~$0.0007/scan at observed ~1.3k tokens. The Antigravity subscription
-  lane (`gemini-3.5-flash-lite`) is leg 2 — $0 marginal cost inside the
+  lane (`gemini-3.7-flash-low`) is leg 2 — $0 marginal cost inside the
   subscription, but it was 403/429 rate-limited during the benchmark and must
   NOT lead until healthy. `llama-4-maverick` was rejected (2/5, confident wrong
   near-miss numbers) and `gemini-3.8-flash` rejected (parse failures, ~5s).

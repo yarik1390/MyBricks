@@ -3,10 +3,10 @@ import type { Env } from '../types';
 
 /**
  * Dedicated OmniRoute combo for Brickvault scan recognition (created in the
- * OmniRoute gateway: id 0fa72514-0c44-4333-8cb1-0cc117f4a575). Calling this
+ * OmniRoute gateway: id b46bdc30-228e-4fac-aa85-a2d27517178a). Calling this
  * alias routes through the combo's priority chain — today: OpenRouter
  * google/gemini-3.5-flash-lite (live hard-image benchmark 5/5, ~1.8s,
- * ~$0.0007/scan), then the Antigravity subscription lane (free-limit, $0
+ * ~$0.0007/scan), then the Antigravity Gemini 3.7 subscription lane ($0
  * marginal cost) as a bonus when it is healthy. Reordering the combo's legs in
  * the OmniRoute dashboard re-prices recognition without a Brickvault deploy.
  */
