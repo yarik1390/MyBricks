@@ -1,9 +1,16 @@
 import OpenAI from 'openai';
 import type { Env } from '../types';
 
-export const OMNIROUTE_SCAN_MODEL = 'antigravity/gemini-3.5-flash-low';
-export const OMNIROUTE_ROUTE_PROVIDER = 'antigravity';
-export const OMNIROUTE_ROUTE_MODEL = 'gemini-3.5-flash-low';
+/**
+ * Dedicated OmniRoute combo for Brickvault scan recognition (created in the
+ * OmniRoute gateway: id 0fa72514-0c44-4333-8cb1-0cc117f4a575). Calling this
+ * alias routes through the combo's priority chain — today: OpenRouter
+ * google/gemini-3.5-flash-lite (live hard-image benchmark 5/5, ~1.8s,
+ * ~$0.0007/scan), then the Antigravity subscription lane (free-limit, $0
+ * marginal cost) as a bonus when it is healthy. Reordering the combo's legs in
+ * the OmniRoute dashboard re-prices recognition without a Brickvault deploy.
+ */
+export const OMNIROUTE_SCAN_COMBO = 'brickvault-scan-vision';
 const DEFAULT_BASE_URL = 'https://omniroute-production-5920.up.railway.app/v1';
 const RETRIES = 0;
 
@@ -39,15 +46,17 @@ export function omniRouteClient(env: Env): OpenAI | null {
 }
 
 /**
- * OmniRoute can route one model id to many accounts/providers. Scan accuracy was
- * established specifically for the Antigravity Gemini route, so a silent route
- * change is a failed attempt and must fall through to the next provider.
+ * OmniRoute combo legs vary (OpenRouter anchor or Antigravity subscription
+ * lane), so the old single-route pin no longer applies. What must still hold
+ * is that a REAL upstream leg answered: provider+model headers must be present
+ * and the response must not be an OmniRoute cache hit. Recognition accuracy is
+ * gated downstream by the catalog matcher, not by these headers.
  */
 export function assertOmniRouteHeaders(headers: Headers): void {
   const provider = (headers.get('x-omniroute-provider') ?? '').trim().toLowerCase();
   const model = (headers.get('x-omniroute-model') ?? '').trim().toLowerCase();
   const cacheHit = (headers.get('x-omniroute-cache-hit') ?? '').trim().toLowerCase();
-  if (provider !== OMNIROUTE_ROUTE_PROVIDER || model !== OMNIROUTE_ROUTE_MODEL) {
+  if (!provider || !model) {
     throw new Error(`OmniRoute route mismatch (${provider || 'missing'}/${model || 'missing'})`);
   }
   if (cacheHit !== 'false') {

@@ -504,6 +504,33 @@ Both one-time bootstraps — PriceCharting per-set (`10,25,40,55`) and BrickEcon
 
 Newest first. (Service-worker `VERSION` in parentheses where relevant.)
 
+**OmniRoute scan-vision combo (2026-09-03, no SW bump — worker-only)**
+- **Brickvault scanning now routes its AI fallback through a dedicated OmniRoute
+  combo, `brickvault-scan-vision`** (OmniRoute gateway id
+  `0fa72514-0c44-4333-8cb1-0cc117f4a575`), replacing the pinned
+  `antigravity/gemini-3.5-flash-low` model, which Google deprecated upstream
+  (it returns "Gemini 3.5 Flash is no longer available"). The dead pin burned
+  the first cascade position on every scan before Merge answered.
+- **Combo legs (measured, not paper pricing):** live hard-image benchmark
+  (5 built-set photos without visible set numbers, labels verified visually)
+  scored OpenRouter `google/gemini-3.5-flash-lite` **5/5 correct**, median
+  ~1.7s, ~$0.0007/scan at observed ~1.3k tokens. The Antigravity subscription
+  lane (`gemini-3.5-flash-lite`) is leg 2 — $0 marginal cost inside the
+  subscription, but it was 403/429 rate-limited during the benchmark and must
+  NOT lead until healthy. `llama-4-maverick` was rejected (2/5, confident wrong
+  near-miss numbers) and `gemini-3.8-flash` rejected (parse failures, ~5s).
+  Combo ordering is tunable in the OmniRoute dashboard without a deploy — when
+  the subscription lane is healthy, move it to slot 1 to burn included limits.
+- **`assertOmniRouteHeaders` relaxed:** it no longer pins one provider/model
+  (combo legs legitimately vary); it now rejects only missing provider/model
+  headers and cache hits. Accuracy remains gated by the catalog matcher.
+- **Retirement covers stored configs:** `omniroute:antigravity/gemini-3.5-flash-low`
+  joined `RETIRED_SCAN_MODELS`, so any stored admin scan route containing the
+  dead model is filtered at read time; the stale stored production generation
+  keeps auto-replacing to code defaults. Default scan route is now
+  `omniroute (combo) → Merge flash-lite → Merge gpt-4o → OpenRouter pool →
+  OpenAI gpt-4o-mini`. Admin LLM picker (`routes/admin.ts`) exposes the combo.
+
 **Merge Gateway + admin-tunable LLM routing (2026-08-19, v430)**
 - **Merge Gateway runs in parallel with OpenRouter.** OpenAI-compatible at
   `https://api-gateway.merge.dev/v1/openai`, key `mg_...` in

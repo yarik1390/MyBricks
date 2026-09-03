@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { MODELS } from './llm';
+import { OMNIROUTE_SCAN_COMBO } from './omniroute';
 
 // ---------------------------------------------------------------------------
 // Admin-tunable LLM routing. One DB-backed row (app_settings['llm_routing'])
@@ -52,7 +53,7 @@ export interface RouteStep {
 export const DEFAULT_LLM_ROUTES: Record<LlmWorkload, RouteStep[]> = {
   // Vision. Fast measured primary -> accurate measured fallback -> best effort.
   scan: [
-    { provider: 'omniroute', model: 'antigravity/gemini-3.5-flash-low', enabled: true },
+    { provider: 'omniroute', model: OMNIROUTE_SCAN_COMBO, enabled: true },
     { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
     { provider: 'merge', model: 'openai/gpt-4o', enabled: true },
     { provider: 'openrouter', model: '', enabled: true },
@@ -118,6 +119,9 @@ const RETIRED_SCAN_MODELS = new Set([
   // code-default changes, so active occurrences are filtered at read time.
   'merge:openai/gpt-5.6-luna',
   'gemini:gemini-3.6-flash',
+  // The pinned Antigravity model was deprecated upstream ("Gemini 3.5 Flash is
+  // no longer available"); superseded by the brickvault-scan-vision combo.
+  'omniroute:antigravity/gemini-3.5-flash-low',
 ]);
 
 function staleProductionScanGeneration(stored: unknown): number {

@@ -40,9 +40,9 @@ describe('llm-routing', () => {
     for (const w of LLM_WORKLOADS) expect(routes[w].length).toBeGreaterThan(0);
   });
 
-  it('defaults scan to pinned OmniRoute vision, then independent Merge fallbacks', () => {
+  it('defaults scan to the dedicated OmniRoute scan-vision combo, then independent Merge fallbacks', () => {
     expect(DEFAULT_LLM_ROUTES.scan.slice(0, 3)).toEqual([
-      { provider: 'omniroute', model: 'antigravity/gemini-3.5-flash-low', enabled: true },
+      { provider: 'omniroute', model: 'brickvault-scan-vision', enabled: true },
       { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
       { provider: 'merge', model: 'openai/gpt-4o', enabled: true },
     ]);
@@ -128,6 +128,23 @@ describe('llm-routing', () => {
       { provider: 'openai', model: 'gpt-4o-mini', enabled: false },
       { provider: 'openrouter', model: '', enabled: true },
       { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
+    ]);
+  });
+
+  it('retires the dead pinned OmniRoute scan model while preserving the rest of admin policy', async () => {
+    await db.prepare(`INSERT INTO app_settings (key, value) VALUES ('llm_routing', ?)`)
+      .bind(JSON.stringify({
+        scan: [
+          { provider: 'omniroute', model: 'antigravity/gemini-3.5-flash-low', enabled: true },
+          { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
+          { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
+        ],
+      })).run();
+
+    const routes = await getLlmRoutes(env as any);
+    expect(routes.scan).toEqual([
+      { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
+      { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
     ]);
   });
 

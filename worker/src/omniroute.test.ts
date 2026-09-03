@@ -4,7 +4,7 @@ import {
   assertOmniRouteHeaders,
   omniRouteBaseURL,
   omniRouteClient,
-  OMNIROUTE_SCAN_MODEL,
+  OMNIROUTE_SCAN_COMBO,
 } from './lib/omniroute';
 import { openAiCompatibleStep } from './lib/llm-clients';
 import { openaiVisionDescribe } from './routes/scan';
@@ -16,8 +16,8 @@ const env = (extra: Record<string, string> = {}) => ({
 }) as any;
 
 const goodHeaders = () => new Headers({
-  'x-omniroute-provider': 'antigravity',
-  'x-omniroute-model': 'gemini-3.5-flash-low',
+  'x-omniroute-provider': 'openrouter',
+  'x-omniroute-model': 'google/gemini-3.5-flash-lite',
   'x-omniroute-cache-hit': 'false',
 });
 
@@ -25,7 +25,7 @@ const validBody = JSON.stringify({
   id: 'chatcmpl-test',
   object: 'chat.completion',
   created: 1,
-  model: 'gemini-3.5-flash-low',
+  model: 'google/gemini-3.5-flash-lite',
   choices: [{
     index: 0,
     finish_reason: 'stop',
@@ -47,7 +47,7 @@ const validBody = JSON.stringify({
 afterEach(() => vi.unstubAllGlobals());
 
 describe('OmniRoute scan route', () => {
-  it('pins the benchmarked model, disables cache, and performs no SDK retries', async () => {
+  it('routes the scan step through the dedicated scan-vision combo, disables cache, and performs no SDK retries', async () => {
     const requests: Request[] = [];
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       requests.push(new Request(input, init));
@@ -55,9 +55,9 @@ describe('OmniRoute scan route', () => {
     }));
 
     const step = await openAiCompatibleStep(env(), {
-      provider: 'omniroute', model: OMNIROUTE_SCAN_MODEL, enabled: true,
+      provider: 'omniroute', model: OMNIROUTE_SCAN_COMBO, enabled: true,
     }, {});
-    expect(step.models).toEqual([OMNIROUTE_SCAN_MODEL]);
+    expect(step.models).toEqual([OMNIROUTE_SCAN_COMBO]);
     const result = await openaiVisionDescribe(step.client!, step.models[0], 'data:image/jpeg;base64,AA==', {}, 1_000);
 
     expect(result.parsed).toBe(true);
@@ -65,18 +65,31 @@ describe('OmniRoute scan route', () => {
     expect(requests).toHaveLength(1);
     expect(requests[0].headers.get('x-omniroute-no-cache')).toBe('true');
     const sent = await requests[0].clone().json() as Record<string, unknown>;
-    expect(sent.model).toBe(OMNIROUTE_SCAN_MODEL);
+    expect(sent.model).toBe(OMNIROUTE_SCAN_COMBO);
     expect(sent.stream).toBe(false);
     expect(sent.temperature).toBe(0);
   });
 
   it.each([
-    ['wrong provider', { 'x-omniroute-provider': 'other', 'x-omniroute-model': 'gemini-3.5-flash-low', 'x-omniroute-cache-hit': 'false' }],
-    ['wrong model', { 'x-omniroute-provider': 'antigravity', 'x-omniroute-model': 'other', 'x-omniroute-cache-hit': 'false' }],
-    ['cache hit', { 'x-omniroute-provider': 'antigravity', 'x-omniroute-model': 'gemini-3.5-flash-low', 'x-omniroute-cache-hit': 'true' }],
+    ['missing provider header', { 'x-omniroute-model': 'google/gemini-3.5-flash-lite', 'x-omniroute-cache-hit': 'false' }],
+    ['missing model header', { 'x-omniroute-provider': 'openrouter', 'x-omniroute-cache-hit': 'false' }],
+    ['cache hit', { 'x-omniroute-provider': 'openrouter', 'x-omniroute-model': 'google/gemini-3.5-flash-lite', 'x-omniroute-cache-hit': 'true' }],
     ['missing headers', {}],
-  ])('rejects %s instead of silently accepting another route', (_name, values) => {
+  ])('rejects %s instead of silently accepting a synthetic answer', (_name, values) => {
     expect(() => assertOmniRouteHeaders(new Headers(values))).toThrow(/OmniRoute/);
+  });
+
+  it('accepts any measured combo leg: OpenRouter anchor or Antigravity subscription lane', () => {
+    expect(() => assertOmniRouteHeaders(new Headers({
+      'x-omniroute-provider': 'openrouter',
+      'x-omniroute-model': 'google/gemini-3.5-flash-lite',
+      'x-omniroute-cache-hit': 'false',
+    }))).not.toThrow();
+    expect(() => assertOmniRouteHeaders(new Headers({
+      'x-omniroute-provider': 'antigravity',
+      'x-omniroute-model': 'gemini-3.5-flash-lite',
+      'x-omniroute-cache-hit': 'false',
+    }))).not.toThrow();
   });
 
   it('rejects an insecure remote endpoint override', () => {
@@ -89,7 +102,7 @@ describe('OmniRoute scan route', () => {
     }));
     vi.stubGlobal('fetch', fetchMock);
     const client = omniRouteClient(env())!;
-    await expect(openaiVisionDescribe(client, OMNIROUTE_SCAN_MODEL, 'data:image/jpeg;base64,AA==', {}, 1_000)).rejects.toMatchObject({ status: 429 });
+    await expect(openaiVisionDescribe(client, OMNIROUTE_SCAN_COMBO, 'data:image/jpeg;base64,AA==', {}, 1_000)).rejects.toMatchObject({ status: 429 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -103,7 +116,7 @@ describe('OmniRoute scan route', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(malformed), {
       status: 200, headers: { ...Object.fromEntries(goodHeaders()), 'content-type': 'application/json' },
     })));
-    const result = await openaiVisionDescribe(omniRouteClient(env())!, OMNIROUTE_SCAN_MODEL, 'data:image/jpeg;base64,AA==', {}, 1_000);
+    const result = await openaiVisionDescribe(omniRouteClient(env())!, OMNIROUTE_SCAN_COMBO, 'data:image/jpeg;base64,AA==', {}, 1_000);
     expect(result).toMatchObject({ parsed: false, sets: [], minifigs: [], imageClass: 'uncertain' });
   });
 
@@ -113,7 +126,7 @@ describe('OmniRoute scan route', () => {
     }));
     vi.stubGlobal('fetch', fetchMock);
     await expect(openaiVisionDescribe(
-      omniRouteClient(env())!, OMNIROUTE_SCAN_MODEL, 'data:image/jpeg;base64,AA==', {}, 20,
+      omniRouteClient(env())!, OMNIROUTE_SCAN_COMBO, 'data:image/jpeg;base64,AA==', {}, 20,
     )).rejects.toThrow();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
