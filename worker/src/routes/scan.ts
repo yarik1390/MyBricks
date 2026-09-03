@@ -193,7 +193,6 @@ export async function openaiVisionDescribe(
     stream: false,
     temperature: 0,
     response_format: { type: 'json_object' },
-    tools: [],
     tool_choice: 'none',
     messages,
   }, { timeout: timeoutMs });
