@@ -7,6 +7,7 @@ import { computeDealScore as computeDealScorePure, computeStoreVerdict, marketVa
 import { checkGemma3Downloaded, runLocalVisionScan, isWebGpuAvailable } from '../lib/local-ai.js';
 import { flipCalcHTML } from './flip-calc.js';
 import { isNativeCapacitor } from '../lib/native-auth.js';
+import { collectOcrCandidates } from '../lib/scan-ocr.js';
 import { amazonSlotHTML, hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
 import { t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { getModePref } from '../theme.js';
@@ -713,10 +714,25 @@ async function sendScanToAPI(payload) {
   const scanEngine = localStorage.getItem('bv_ai_engine') || 'cloud';
   const online = navigator.onLine;
 
+  // OCR runs against the captured still on the device. Only bounded, explicit
+  // set-number candidates leave the phone; failures are silent and preserve the
+  // current Brickognize/AI route. Shelf Snap remains cloud multi-object vision.
+  if (payload.mode === 'image' && payload.image && !payload.ocr_candidates) {
+    const ocrStarted = performance.now();
+    try {
+      const candidates = await collectOcrCandidates(payload.image);
+      if (stale()) return;
+      if (candidates.length) payload = { ...payload, ocr_candidates: candidates };
+      scanTime('OCR', ocrStarted);
+    } catch { /* best-effort local optimization */ }
+  }
+
   // On-device (Gemma) vision is best-effort: only attempt it when the user
   // prefers local, it's an image scan, and the device can actually run it
   // (WebGPU + model downloaded). The cloud path is the primary, more-accurate
-  // route and the fallback whenever local can't run or can't identify.
+  // route and the fallback whenever local can't run or can't identify. OCR
+  // candidates never suppress this path — a label must not override an explicit
+  // on-device/privacy preference; they ride along for the cloud fallback only.
   if (payload.mode === 'image' && scanEngine === 'local') {
     const hasGpu = isWebGpuAvailable();
     const ready = hasGpu && await checkGemma3Downloaded();

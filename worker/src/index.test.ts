@@ -1398,6 +1398,92 @@ describe('BrickVault API Worker Tests', () => {
       }
     });
 
+    it('accepts one exact local OCR catalog match and skips Brickognize/AI', async () => {
+      const previousFetch = globalThis.fetch;
+      let brickognizeCalls = 0;
+      (env as any).BRICKOGNIZE_ENABLED = 'true';
+      (env as any).BRICKOGNIZE_URL = 'https://brickognize.local/predict';
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).includes('brickognize.local')) {
+          brickognizeCalls += 1;
+          return new Response(JSON.stringify({ items: [] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        return previousFetch(input, init);
+      }) as typeof fetch;
+      try {
+        const res = await app.fetch(
+          new Request('http://localhost/api/scan/identify', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Idempotency-Key': 'local-ocr-accepted-0001',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              mode: 'image',
+              image: 'data:image/x-local-ocr;base64,mock',
+              ocr_candidates: ['75192'], // exactly what collectOcrCandidates() emits
+            }),
+          }),
+          env,
+        );
+        expect(res.status).toBe(200);
+        const data = await res.json<{
+          identified: boolean;
+          model: string;
+          source: string;
+          sets: Array<{ set_num: string }>;
+          local_recognition?: { outcome: string; method: string; set_num: string };
+          timings?: Array<{ provider: string; outcome: string }>;
+        }>();
+        expect(data.identified).toBe(true);
+        expect(data.model).toBe('ocr/set-number');
+        expect(data.source).toBe('local-ocr');
+        expect(data.sets[0]?.set_num).toBe('75192');
+        expect(data.local_recognition).toEqual({ outcome: 'identified', method: 'ocr', set_num: '75192' });
+        expect(data.timings?.[0]).toMatchObject({ provider: 'local-ocr', outcome: 'accepted' });
+        expect(brickognizeCalls).toBe(0);
+        expect(brickognizeAcceptedAiCalls).toBe(0);
+      } finally {
+        globalThis.fetch = previousFetch;
+      }
+    });
+
+    it('falls through when local OCR candidates map to multiple catalog sets', async () => {
+      const previousFetch = globalThis.fetch;
+      const previousTurnstile = (env as any).TURNSTILE_SECRET_KEY;
+      await db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price)
+        VALUES ('75192-1', 'Millennium Falcon Variant', 'Star Wars', 2017, 7541, 849.99, 799.99)`).run();
+      (env as any).TURNSTILE_SECRET_KEY = undefined;
+      (env as any).BRICKOGNIZE_ENABLED = 'true';
+      try {
+        const res = await app.fetch(
+          new Request('http://localhost/api/scan/identify', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode: 'image',
+              image: 'data:image/x-brickognize-route-fallback;base64,YnJpY2tvZ25pemUtcm91dGUtZmFsbGJhY2s=',
+              ocr_candidates: ['75192'], // real client token; both catalog variants present
+            }),
+          }),
+          env,
+        );
+        expect(res.status).toBe(200);
+        const data = await res.json<{ source?: string; model?: string }>();
+        expect(data.source).not.toBe('local-ocr');
+        expect(data.model).not.toBe('ocr/set-number');
+        expect(brickognizeFallbackAiCalls).toBeGreaterThan(0);
+      } finally {
+        globalThis.fetch = previousFetch;
+        (env as any).TURNSTILE_SECRET_KEY = previousTurnstile;
+        await db.prepare("DELETE FROM lego_sets WHERE set_num='75192-1'").run();
+      }
+    });
+
     it('accepts a catalog-mapped Brickognize result after quota reservation and replays it without AI', async () => {
       const previousFetch = globalThis.fetch;
       (env as any).BRICKOGNIZE_ENABLED = '1';

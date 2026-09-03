@@ -11,6 +11,7 @@ import { openAiCompatibleStep } from '../lib/llm-clients';
 import { isMergeBudgetExhausted, mergeReportedCostUsd } from '../lib/merge-gateway';
 import { recordAiUsage } from '../lib/ai-usage';
 import { identifySetWithBrickognize } from '../lib/brickognize';
+import { parseOcrSetNumbers, resolveOcrSetNum } from '../lib/scan-ocr';
 import { verifyTurnstileToken } from '../lib/turnstile';
 import { matchSetsToCatalog, matchMinifigsToCatalog, type DescribedSet, type DescribedMinifig } from '../lib/scan-match';
 import { CATALOG_COLS, MARKET_EXT_JOIN } from './sets';
@@ -412,7 +413,7 @@ app.post('/identify', async (c) => {
   // catalog matching. Provider steps receive only the time still available.
   const routeDeadline = Date.now() + SCAN_BUDGET_MS;
   const userId = c.get('userId') || '';
-  const body = await c.req.json<{ mode?: string; image?: string; barcode?: string }>();
+  const body = await c.req.json<{ mode?: string; image?: string; barcode?: string; ocr_candidates?: unknown }>();
   const { mode, image, barcode } = body;
 
   if (mode === 'barcode') {
@@ -683,6 +684,40 @@ app.post('/identify', async (c) => {
   // whole budget — the difference between a photo problem and a routing problem.
   const timings: StepTiming[] = [];
   const started = Date.now();
+
+  // Text extraction happened locally on the captured still. Resolve only one
+  // exact catalog identity; malformed, unmapped, or ambiguous candidates leave
+  // production behavior unchanged and fall through to Brickognize then AI.
+  if (!shelfMode && body.ocr_candidates != null) {
+    const t0 = Date.now();
+    const ocr = await resolveOcrSetNum(c.env.DB, parseOcrSetNumbers(body.ocr_candidates));
+    timings.push({
+      provider: 'local-ocr',
+      model: 'set-number',
+      ms: Date.now() - t0,
+      outcome: ocr.kind,
+    });
+    if (ocr.kind === 'accepted') {
+      const exact = await c.env.DB.prepare(
+        `SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN} WHERE s.set_num=? LIMIT 1`,
+      ).bind(ocr.setNum).first<Record<string, unknown>>();
+      if (exact) {
+        const set = enrichSetRecord({ ...exact, retired: !!exact.retired });
+        logEvent(c.env, 'scan_used', userId, { setNum: ocr.setNum });
+        return finalizeShared({
+          identified: true,
+          sets: [set],
+          minifigs: [],
+          confidence: 'high',
+          reasoning: 'On-device text recognition found an exact catalog match.',
+          model: 'ocr/set-number',
+          source: 'local-ocr',
+          local_recognition: { outcome: 'identified', method: 'ocr', set_num: ocr.setNum },
+          timings,
+        });
+      }
+    }
+  }
 
   // Brickognize is the first recognizer for ordinary shared single-set photos.
   // Shelf Snap needs multi-object recognition, and BYOK calls promise to use the

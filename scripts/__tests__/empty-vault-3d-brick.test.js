@@ -119,7 +119,7 @@ describe('Crack the Brickvault mini-game', () => {
     assert.ok(statSync(vendor).size > 300_000);
     assert.match(scene, /import\(['"]\.\.\/vendor\/three-0\.185\.1\.min\.js['"]\)/);
     assert.match(sw, /['"]\/js\/components\/empty-vault-brick-3d\.js['"]/);
-    assert.match(sw, /const VERSION = ['"]v481['"]/);
+    assert.match(sw, /const VERSION = ['"]v482['"]/);
     assert.match(sw, /three-0\.185\.1\.min\.js/);
     assert.ok(
       sw.includes("'/js/vendor/three-0.185.1.min.js'") ||

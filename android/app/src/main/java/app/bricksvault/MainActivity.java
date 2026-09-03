@@ -20,6 +20,7 @@ public class MainActivity extends BridgeActivity {
         // Match the resource-selected splash immediately, before the WebView can
         // resolve its theme. SystemBarsPlugin re-syncs after the web theme loads.
         registerPlugin(SystemBarsPlugin.class);
+        registerPlugin(TextOcrPlugin.class);
         registerPlugin(WidgetBridgePlugin.class);
         boolean appLockEnabled = getSharedPreferences(
                 SystemBarsPlugin.PRIVACY_PREFS, MODE_PRIVATE)
