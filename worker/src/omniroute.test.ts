@@ -68,6 +68,8 @@ describe('OmniRoute scan route', () => {
     expect(sent.model).toBe(OMNIROUTE_SCAN_COMBO);
     expect(sent.stream).toBe(false);
     expect(sent.temperature).toBe(0);
+    expect(sent.tools).toEqual([]);
+    expect(sent.tool_choice).toBe('none');
   });
 
   it.each([
