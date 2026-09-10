@@ -73,7 +73,10 @@ describe('Partner page + footer credits', () => {
   it('ships a public data-partners page naming PriceCharting as the sole partner', () => {
     assert.match(dataPartners, /Confirmed data partner/);
     assert.match(dataPartners, /PriceCharting/);
-    assert.match(dataPartners, /named source<\/strong>, not a partner/);
+    assert.doesNotMatch(dataPartners, /BrickLink/);
+    assert.doesNotMatch(dataPartners, /BrickEconomy/);
+    assert.doesNotMatch(dataPartners, /BrickOwl/);
+    assert.doesNotMatch(dataPartners, /Brickset/);
     // no logos
     assert.doesNotMatch(dataPartners, /<img/);
   });
@@ -89,7 +92,7 @@ describe('Partner page + footer credits', () => {
   it('registers the page and module in the service worker with a version bump', () => {
     assert.match(serviceWorker, /'\/data-partners\.html'/);
     assert.match(serviceWorker, /'\/js\/lib\/partner-attribution\.js'/);
-    assert.match(serviceWorker, /const VERSION = "v483"/);
+    assert.match(serviceWorker, /const VERSION = "v484"/);
   });
 });
 
