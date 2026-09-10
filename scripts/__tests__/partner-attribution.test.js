@@ -109,7 +109,7 @@ describe('Honest value + history wording', () => {
 
   it('uses estimated-not-realized wording on the portfolio hero with a source link', () => {
     assert.match(portfolioView, /estimatedNotRealized/);
-    assert.match(portfolioView, /data-partners\.html/);
+    assert.match(portfolioView, /data-legal-sheet="partners"/);
     assert.match(enLocale, /estimatedNotRealized: 'Estimated value — not realized proceeds'/);
   });
 
