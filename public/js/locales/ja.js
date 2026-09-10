@@ -228,6 +228,10 @@ Object.assign(ja.portfolio, { exploreBrick3d: '3Dで見る', exploreBrick3dLabel
 
 Object.assign(ja.portfolio, { crackVault: 'Brickvaultを開けよう', crackVaultLabel: '3Dで「Brickvaultを開けよう」をプレイ', crackVaultInstructions: '光るスタッドを見て、同じ順番で押してください。3つのロックを解除しましょう。', crackVaultWatch: '組み合わせを見てください…', crackVaultRepeat: 'あなたの番です — 組み合わせを再現してください。', crackVaultProgress: 'ロック{round}/{total}。', crackVaultWrong: '惜しい — もう一度組み合わせを見てください。', crackVaultUnlocked: '保管庫が開きました！最初のセットを追加して本物にしましょう。', crackVaultStud: '保管庫スタッド {number}', crackVaultReward: 'ミステリーセットを解除', crackVaultReplay: 'もう一度' });
 
+// Partner attribution and estimated-value wording.
+Object.assign(ja.market, {"pcAttributionNew": "新品状態の評価にPriceChartingを使用", "pcAttributionUsed": "中古状態の評価にPriceChartingを使用", "pcAttributionHomepage": " — データ提供元のホームページ：pricecharting.com", "estimatedNotRealized": "推定価値 — 実際の売却収入ではありません", "historySnapshotNote": "各提供元の生データではなく、統合評価額の日次スナップショット", "sourcesGeneric": "データ提供元とパートナー"});
+Object.assign(ja.detail, {"historyValue": "価値", "historyMarket": "市場", "historyResale": "再販", "estimateNoSales": "推定値 — このセットの最近の市場取引はまだありません"});
+
 export default ja;
 Object.assign(ja.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 

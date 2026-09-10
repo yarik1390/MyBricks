@@ -223,6 +223,10 @@ Object.assign(zh.portfolio, { exploreBrick3d: '用 3D 查看', exploreBrick3dLab
 
 Object.assign(zh.portfolio, { crackVault: '破解 Brickvault', crackVaultLabel: '玩 3D 破解 Brickvault', crackVaultInstructions: '记住发光颗粒的顺序，然后重复组合。破解全部 3 道锁。', crackVaultWatch: '请看组合…', crackVaultRepeat: '轮到你了——重复组合。', crackVaultProgress: '第 {round}/{total} 道锁。', crackVaultWrong: '差一点——再看一次组合。', crackVaultUnlocked: '宝库已破解！添加你的第一套积木，让它成为现实。', crackVaultStud: '宝库颗粒 {number}', crackVaultReward: '神秘套装已解锁', crackVaultReplay: '再玩一次' });
 
+// Partner attribution and estimated-value wording.
+Object.assign(zh.market, {"pcAttributionNew": "全新状态估值参考 PriceCharting", "pcAttributionUsed": "二手状态估值参考 PriceCharting", "pcAttributionHomepage": " — 数据来源主页：pricecharting.com", "estimatedNotRealized": "估算价值 — 非实际销售收入", "historySnapshotNote": "每日综合估值快照，非各来源的原始数据", "sourcesGeneric": "数据来源与合作伙伴"});
+Object.assign(zh.detail, {"historyValue": "价值", "historyMarket": "市场", "historyResale": "转售", "estimateNoSales": "估算 — 此套装暂无近期市场成交记录"});
+
 export default zh;
 Object.assign(zh.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 

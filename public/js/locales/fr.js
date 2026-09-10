@@ -223,6 +223,22 @@ Object.assign(fr.portfolio, { exploreBrick3d: 'Explorer en 3D', exploreBrick3dLa
 
 Object.assign(fr.portfolio, { crackVault: 'Ouvrir Brickvault', crackVaultLabel: 'Jouer à Ouvrir Brickvault en 3D', crackVaultInstructions: 'Observe les tenons lumineux, puis répète la combinaison. Ouvre les 3 serrures.', crackVaultWatch: 'Observe la combinaison…', crackVaultRepeat: 'À toi — répète la combinaison.', crackVaultProgress: 'Serrure {round} sur {total}.', crackVaultWrong: 'Pas tout à fait — observe encore la combinaison.', crackVaultUnlocked: 'Coffre ouvert ! Ajoute ton premier set pour le rendre réel.', crackVaultStud: 'Tenon du coffre {number}', crackVaultReward: 'Set mystère débloqué', crackVaultReplay: 'Rejouer' });
 
+// Version partenaires — attribution PriceCharting + formulation honnête de la valeur.
+Object.assign(fr.market, {
+  pcAttributionNew: 'État neuf évalué avec PriceCharting',
+  pcAttributionUsed: "État d'occasion évalué avec PriceCharting",
+  pcAttributionHomepage: " — page d'accueil de la source : pricecharting.com",
+  estimatedNotRealized: 'Valeur estimée — pas un produit encaissé',
+  historySnapshotNote: 'Instantanés quotidiens du mélange, pas des flux bruts par source',
+  sourcesGeneric: 'Sources de données & partenaires',
+});
+Object.assign(fr.detail, {
+  historyValue: 'Valeur',
+  historyMarket: 'Marché',
+  historyResale: 'Revente',
+  estimateNoSales: 'Estimation — aucune vente de marché récente pour ce set',
+});
+
 export default fr;
 Object.assign(fr.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 

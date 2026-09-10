@@ -10,6 +10,16 @@ import { skelPage, skelHero, skelCardList } from '../components/skeleton.js';
 import { getModePref } from '../theme.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { isNativeBilling } from '../lib/revenuecat-native.js';
+import { pricechartingSourceLinkLabel } from '../lib/partner-attribution.js';
+
+// Concise portfolio source credit: PriceCharting is named only when it
+// contributes to the blended portfolio; otherwise a generic source link.
+function portfolioSourceLinkLabel(portfolio) {
+  const basis = Array.isArray(portfolio?.market_value_basis)
+    ? portfolio.market_value_basis
+    : (Array.isArray(portfolio?.pricing_basis) ? portfolio.pricing_basis : null);
+  return pricechartingSourceLinkLabel(basis) || t('market.sourcesGeneric');
+}
 
 
 /* ============================================================
@@ -328,6 +338,8 @@ function paintPortfolio() {
           ${p.fig_count > 0 ? `<span style="cursor:help;" title="Minifig collection value tracked separately">· Figs ${p.fig_count} (${fmtMoney(p.fig_value || 0)})</span>` : ""}
           ${p.pricing_confidence?.priced ? `<span style="cursor:help;" title="Share of your sets priced from corroborated, fresh market data (high or medium confidence) rather than a thin or estimated value">· ${t('market.confidentlyPriced', { pct: p.pricing_confidence.pct })}</span>` : ""}
           ${ratesUnavailable() && (state.me?.currency || "USD") !== "USD" ? `<span style="color:var(--bv-yellow);cursor:help;" title="Exchange rates couldn't be loaded — values are shown in USD until they refresh">· shown in USD</span>` : ""}
+          <span title="Portfolio values are market estimates from daily valuation snapshots — what a patient sale might bring, not money in hand.">${t('market.estimatedNotRealized')}</span>
+          <a href="/data-partners.html" style="color:inherit;text-decoration:underline;">· ${portfolioSourceLinkLabel(p)}</a>
         </div>
         <div class="spark-wrap" id="heroChart">${clipped.length < 2 ? `
           <div class="spark-empty">Your trend appears after the next daily valuation snapshot.</div>` : ""}</div>

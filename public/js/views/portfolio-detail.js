@@ -2,6 +2,7 @@ import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, c
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML, investmentPricingDetailHTML, soldEvidenceHTML } from './portfolio-detail-market.js';
 import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput, themeColor, priceMovementSummary, valuationConfidencePresentation } from '../lib/pure.js';
 import { t, tPlural, getLocale, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
+import { pricechartingAttributionHTML } from '../lib/partner-attribution.js';
 import { figAvatarSVG } from '../lib/fig-avatar.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { shareContent } from '../lib/native-share.js';
@@ -350,16 +351,24 @@ function valueProvenanceHTML(set) {
     const range = lo > 0 && hi > 0
       ? t('detail.likelyRange', { low: fmtMoney(lo, { cents: 0 }), high: fmtMoney(hi, { cents: 0 }) })
       : '';
-    return `<div class="detail-summary-src">${tPlural('market.families', families)} · ${tPlural('market.sales', sales)}${range} · <a href="/methodology.html" style="color:inherit;text-decoration:underline;">How we price</a></div>`;
+    return `<div class="detail-summary-src">${tPlural('market.families', families)} · ${tPlural('market.sales', sales)}${range} · <a href="/methodology.html" style="color:inherit;text-decoration:underline;">How we price</a>${pcCreditHTML(set)}</div>`;
   }
   if (Number(set.market_value) > 0) {
     const n = Array.isArray(set.market_value_basis) ? set.market_value_basis.length : 0;
     const lo = Number(set.market_value_low), hi = Number(set.market_value_high);
     const range = lo > 0 && hi > 0 && hi > lo ? t('detail.typicalRange', { low: fmtMoney(lo, { cents: 0 }), high: fmtMoney(hi, { cents: 0 }) }) : '';
-    return n > 0 ? `<div class="detail-summary-src">${tPlural('detail.fromSources', n)}${range}</div>` : '';
+    return n > 0 ? `<div class="detail-summary-src">${tPlural('detail.fromSources', n)}${range}${pcCreditHTML(set)}</div>` : '';
   }
-  if (estMark(set)) return `<div class="detail-summary-src">Estimate — no recent market sales for this set yet</div>`;
+  if (estMark(set)) return `<div class="detail-summary-src">${t('detail.estimateNoSales')}${pcCreditHTML(set)}</div>`;
   return '';
+}
+
+// PriceCharting partner credit — renders only when PC actually contributes to
+// the valuation basis. Verified numeric id → direct product link; otherwise a
+// clearly-labeled homepage fallback. Guest-safe: renders '' without fields.
+function pcCreditHTML(set) {
+  const attribution = pricechartingAttributionHTML(set);
+  return attribution ? ` · <span class="pc-credit">${attribution}</span>` : '';
 }
 
 // Compact summary header: the value + a plain-language confidence chip + key
@@ -2101,16 +2110,16 @@ async function loadSetHistory(setNum) {
       const up = Number(hist[hist.length - 1].current_value) >= Number(hist[0].current_value);
       const hasPts = (key) => hist.filter(h => Number(h?.[key]) > 0).length >= 2;
       const series = [
-        { key: "bl_value", color: "var(--ink-mute)", dash: "2 3", label: "Market" },
-        { key: "ebay_value", color: "var(--bv-yellow-dark)", dash: "5 4", label: "Resale" },
+        { key: "bl_value", color: "var(--ink-mute)", dash: "2 3", label: t('detail.historyMarket') },
+        { key: "ebay_value", color: "var(--bv-yellow-dark)", dash: "5 4", label: t('detail.historyResale') },
       ].filter(s => hasPts(s.key));
       drawSparkline(el, hist, { up, series });
       const legendEl = $("#setSparkLegend");
       if (legendEl) {
         legendEl.innerHTML = series.length
-          ? [{ color: up ? "var(--up)" : "var(--down)", dash: "", label: "Value" }, ...series]
+          ? [{ color: up ? "var(--up)" : "var(--down)", dash: "", label: t('detail.historyValue') }, ...series]
               .map(s => `<span class="spark-key"><svg width="14" height="4" viewBox="0 0 14 4"><line x1="0" y1="2" x2="14" y2="2" stroke="${s.color}" stroke-width="2"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/></svg>${s.label}</span>`)
-              .join("")
+              .join("") + `<span class="spark-key spark-note-snap">${t('market.historySnapshotNote')}</span>`
           : "";
       }
     } else {

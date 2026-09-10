@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="index,follow">
+<title>Data Sources &amp; Partners — BricksVault</title>
+<meta name="description" content="Which market-data providers BricksVault uses, what each contributes, and which one is a confirmed partner: PriceCharting.">
+<style>
+  :root { --bg:#F5F1E8; --surface:#fffdf7; --ink:#26231d; --ink-mute:#6b6455; --line:#e3ddcf; --accent:#b9821f; --accent-soft:#f3e4c4; --shadow:0 3px 0 rgba(38,35,29,.12); }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.65; font-size:16px; }
+  .wrap { max-width:720px; margin:0 auto; padding:20px 22px 80px; }
+  a { color:var(--accent); }
+  a:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+  .top { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:28px; padding-bottom:16px; border-bottom:1px solid var(--line); }
+  .brand { font-family:Georgia,"Times New Roman",serif; font-size:22px; font-weight:600; }
+  .back { display:inline-flex; min-height:44px; align-items:center; padding:0 8px; color:#8a5a00; font-size:13px; text-decoration:none; }
+  h1 { font-family:Georgia,"Times New Roman",serif; font-size:30px; font-weight:600; margin:0 0 6px; }
+  h2 { font-family:Georgia,"Times New Roman",serif; font-size:20px; font-weight:600; margin:34px 0 10px; }
+  .updated { color:var(--ink-mute); font-size:13px; margin-bottom:8px; }
+  p, li { color:var(--ink); }
+  ul { padding-left:20px; }
+  li { margin:6px 0; }
+  .muted { color:var(--ink-mute); font-size:14px; }
+  .callout { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; box-shadow:var(--shadow); margin:18px 0; }
+  .partner-card { background:var(--accent-soft); border:1px solid var(--accent); border-radius:12px; padding:16px 18px; margin:16px 0; box-shadow:var(--shadow); }
+  .partner-badge { display:inline-block; font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#8a5a00; border:1px solid var(--accent); border-radius:999px; padding:2px 10px; margin-bottom:8px; }
+  table { width:100%; border-collapse:collapse; margin:12px 0 20px; font-size:15px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { font-size:13px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-mute); }
+  .role { display:inline-block; padding:1px 8px; border-radius:999px; border:1px solid var(--line); background:var(--surface); font-size:12px; white-space:nowrap; }
+  @media (max-width:600px) {
+    .wrap { padding:16px 16px 60px; }
+    table { display:block; overflow-x:auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">BricksVault</div>
+    <a class="back" id="backToApp" href="/#/">← Back to app</a>
+  </div>
+  <main id="dataPartnersContent">
+    <h1>Data sources &amp; partners</h1>
+    <p class="updated">Where BricksVault's market data comes from — and what each provider actually does.</p>
+
+    <div class="partner-card">
+      <span class="partner-badge">Confirmed data partner</span>
+      <h2 style="margin:0 0 6px;">PriceCharting</h2>
+      <p>PriceCharting is our confirmed market-data partner. Its verified sold-price history helps
+      anchor values where identities are verified, and its yearly sales volume powers the
+      liquidity badge ("sells fast / sells slow").</p>
+      <p class="muted">We link to PriceCharting product pages only through a verified numeric
+      mapping for that exact set. When no verified mapping exists, we link the
+      <a href="https://www.pricecharting.com" target="_blank" rel="noopener noreferrer">PriceCharting homepage</a>
+      and label it as the source homepage — never as a product page.</p>
+    </div>
+
+    <h2>Sources, and the role each plays</h2>
+    <p>Every other provider below is a <strong>named source</strong>, not a partner. Each plays a
+    different role in the valuation; no single source sets a value alone.</p>
+    <table>
+      <thead>
+        <tr><th>Source</th><th>Role</th><th>What it contributes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>BrickLink</td><td><span class="role">Sold</span></td><td>Guide values for new and used sets — a primary sold-condition signal.</td></tr>
+        <tr><td>eBay</td><td><span class="role">Sold</span> <span class="role">Asking</span></td><td>Realized sold comps and, as a weaker fallback, live asking prices.</td></tr>
+        <tr><td>BrickOwl</td><td><span class="role">Asking</span></td><td>New and used marketplace asking prices as a corroborating signal.</td></tr>
+        <tr><td>BrickEconomy</td><td><span class="role">Modeled</span></td><td>Modeled values and growth forecasts for sets with enough history.</td></tr>
+        <tr><td>Brickset</td><td><span class="role">Reference</span></td><td>Ratings, review counts, MSRP, launch/exit dates and set facts — quality and catalog data, not prices.</td></tr>
+        <tr><td>Rebrickable</td><td><span class="role">Reference</span></td><td>The base LEGO catalog, images and parts relationships.</td></tr>
+        <tr><td>PriceCharting</td><td><span class="role">Sold</span></td><td>Verified sold prices (via verified identity mappings) and yearly sales volume. The one confirmed partner.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>How credit works.</strong> A source is named on a set only when its verified data
+      actually contributed to that set's valuation. If PriceCharting contributed, the set page
+      shows a "valued with PriceCharting" credit with a direct link; otherwise nothing is claimed.
+      Independent markets are counted honestly — everything that ultimately observes eBay counts
+      once, so PriceCharting and eBay never masquerade as two independent confirmations.
+    </div>
+
+    <h2>Freshness</h2>
+    <p>Sources are refreshed on their own schedules and carry their own timestamps. Values shown
+    are <strong>estimates from daily blend snapshots</strong> — what a patient sale might bring,
+    not money in hand. See <a href="/methodology.html">How we price</a> for the full method:
+    identity checks, independent families, confidence tiers and honest gaps.</p>
+
+    <p class="muted">LEGO® is a trademark of the LEGO Group, which does not sponsor or endorse
+    BricksVault. All provider names and links are for attribution and reference only; no provider
+    logo is used.</p>
+  </main>
+</div>
+</body>
+</html>

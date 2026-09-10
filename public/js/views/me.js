@@ -265,13 +265,15 @@ export async function renderMe() {
       <div class="me-footer-links" style="text-align:center;margin-top:16px;font-size:12px;">
         <a href="/methodology.html">How We Price</a>
         <span class="dot">·</span>
+        <a href="/data-partners.html">Data sources &amp; partners</a>
+        <span class="dot">·</span>
         <button type="button" class="legal-sheet-link" data-legal-sheet="privacy">Privacy Policy</button>
         <span class="dot">·</span>
         <button type="button" class="legal-sheet-link" data-legal-sheet="terms">Terms of Service</button>
       </div>
       <div class="app-credits" style="text-align:center;margin-top:10px;font-size:11px;line-height:1.5;color:var(--ink-mute);">
         Catalog data &amp; images from <a href="https://rebrickable.com/" target="_blank" rel="noopener noreferrer" style="color:var(--ink-soft);text-decoration:underline;">Rebrickable</a>.
-        Pricing from BrickLink, eBay, PriceCharting &amp; Brickset. LEGO® is a trademark of the LEGO Group, which does not sponsor or endorse this app.
+        Market data partner: PriceCharting. Sources: BrickLink, eBay, BrickOwl, BrickEconomy &amp; Brickset. LEGO® is a trademark of the LEGO Group, which does not sponsor or endorse this app.
       </div>
     </div>`;
 

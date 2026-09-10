@@ -3,6 +3,7 @@
 // Extracted from portfolio-detail.js; stateless (set-in, HTML-out), so they carry
 // no module state. The main view imports the six the info tab renders.
 import { I } from '../icons.js';
+import { pricechartingAttributionHTML } from '../lib/partner-attribution.js';
 import { amazonSlotHTML } from '../lib/amazon-affiliate.js';
 import { ebaySoldSummary } from '../lib/pure.js';
 import { escapeHtml, fmtMoney, fmtPct, fmtDateUpdated, trendBadgeHTML } from '../utils.js';
@@ -333,8 +334,8 @@ export function investmentPricingDetailHTML(set) {
       <div class="pricing-block">
         <div class="pricing-block-title"><span>1</span><div><h3>Market value</h3><p>Expected resale value, separated by condition.</p></div></div>
         <div class="pricing-condition-grid">
-          ${conditionStateHTML(newState, 'New and sealed')}
-          ${conditionStateHTML(usedState, 'Used and complete')}
+          <div>${conditionStateHTML(newState, 'New and sealed')}${fairValue > 0 ? pricechartingAttributionHTML(set) : ''}</div>
+          <div>${conditionStateHTML(usedState, 'Used and complete')}${usedValue > 0 ? pricechartingAttributionHTML(set, { conditionBasis: 'used' }) : ''}</div>
         </div>
       </div>
 

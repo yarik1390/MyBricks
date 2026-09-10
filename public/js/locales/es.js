@@ -223,6 +223,10 @@ Object.assign(es.portfolio, { exploreBrick3d: 'Explorar en 3D', exploreBrick3dLa
 
 Object.assign(es.portfolio, { crackVault: 'Abre Brickvault', crackVaultLabel: 'Jugar a Abre Brickvault en 3D', crackVaultInstructions: 'Mira los studs iluminados y repite la combinación. Abre las 3 cerraduras.', crackVaultWatch: 'Mira la combinación…', crackVaultRepeat: 'Tu turno: repite la combinación.', crackVaultProgress: 'Cerradura {round} de {total}.', crackVaultWrong: 'Casi: mira de nuevo la combinación.', crackVaultUnlocked: '¡Bóveda abierta! Añade tu primer set para hacerla real.', crackVaultStud: 'Stud de la bóveda {number}', crackVaultReward: 'Set misterioso desbloqueado', crackVaultReplay: 'Repetir' });
 
+// Partner attribution and estimated-value wording.
+Object.assign(es.market, {"pcAttributionNew": "Estado nuevo valorado con PriceCharting", "pcAttributionUsed": "Estado usado valorado con PriceCharting", "pcAttributionHomepage": " — página de la fuente: pricecharting.com", "estimatedNotRealized": "Valor estimado — no son ingresos realizados", "historySnapshotNote": "Instantáneas diarias del valor combinado, no datos brutos de fuentes individuales", "sourcesGeneric": "Fuentes de datos y socios"});
+Object.assign(es.detail, {"historyValue": "Valor", "historyMarket": "Mercado", "historyResale": "Reventa", "estimateNoSales": "Estimación — aún no hay ventas recientes de este set"});
+
 export default es;
 Object.assign(es.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 

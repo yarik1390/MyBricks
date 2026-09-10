@@ -895,6 +895,12 @@
     ]
   },
   {
+    "text": "Asking (new/used)",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
     "text": "Asking data plus sold comps only when approved and reachable. No weak sold fallback.",
     "files": [
       "views/me-admin-config.js"
@@ -1366,6 +1372,12 @@
     ]
   },
   {
+    "text": "Brickset / Rebrickable",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
     "text": "Brickset / barcode",
     "files": [
       "views/me-admin.js"
@@ -1522,6 +1534,12 @@
     "text": "Bulk Location",
     "files": [
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "Bulk history + on-demand verify, timestamped",
+    "files": [
+      "methodology.html"
     ]
   },
   {
@@ -1714,6 +1732,12 @@
     "text": "Catalog sets",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Catalog-wide sweeps",
+    "files": [
+      "methodology.html"
     ]
   },
   {
@@ -2692,6 +2716,13 @@
     ]
   },
   {
+    "text": "Data sources & partners",
+    "files": [
+      "methodology.html",
+      "views/me.js"
+    ]
+  },
+  {
     "text": "Deal Score Breakdown",
     "files": [
       "components/scanner.js",
@@ -2998,6 +3029,12 @@
     ]
   },
   {
+    "text": "Each provider plays a different role. Sold data leads; modeled and asking data only widen ranges; reference data never touches prices.",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
     "text": "Edit Display Name",
     "files": [
       "views/me.js"
@@ -3220,12 +3257,6 @@
     ]
   },
   {
-    "text": "Estimate — no recent market sales for this set yet",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Estimated",
     "files": [
       "lib/pure.js",
@@ -3302,6 +3333,12 @@
   },
   {
     "text": "Every value carries its evidence: how many independent families, how many verified sales, the likely range, and when it was last checked.",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
+    "text": "Every value shown is an estimate from daily blend snapshots — not realized proceeds. Which provider is a partner (and what a \"source\" is):",
     "files": [
       "methodology.html"
     ]
@@ -5596,6 +5633,12 @@
     ]
   },
   {
+    "text": "Modeled values · growth",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
     "text": "Models you can build from sets you own",
     "files": [
       "views/me.js"
@@ -6376,6 +6419,12 @@
     ]
   },
   {
+    "text": "On refresh, timestamped",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
     "text": "On-Device Offline AI",
     "files": [
       "views/me-integrations.js"
@@ -6769,6 +6818,12 @@
     ]
   },
   {
+    "text": "Per-set refresh, timestamped on the set",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
     "text": "Permanently erase your account and all data.",
     "files": [
       "views/me.js"
@@ -7012,6 +7067,12 @@
     "text": "Portfolio summary",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Portfolio values are market estimates from daily valuation snapshots — what a patient sale might bring, not money in hand.",
+    "files": [
+      "views/portfolio.js"
     ]
   },
   {
@@ -7679,6 +7740,12 @@
     ]
   },
   {
+    "text": "Reference (ratings, MSRP, catalog)",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
     "text": "Refresh",
     "files": [
       "app.js",
@@ -7708,6 +7775,12 @@
     "text": "Refresh parts",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Refresh window",
+    "files": [
+      "methodology.html"
     ]
   },
   {
@@ -7901,12 +7974,6 @@
     "text": "Requires the model weights (~3GB) to run set photo scanning 100% on-device for free. Official Gemma weights are license-gated:",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Resale",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -8228,6 +8295,12 @@
     "files": [
       "runtime-exact",
       "utils.js"
+    ]
+  },
+  {
+    "text": "Role",
+    "files": [
+      "methodology.html"
     ]
   },
   {
@@ -9281,6 +9354,12 @@
     ]
   },
   {
+    "text": "Sold (verified mappings) · liquidity",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
     "text": "Sold Out at LEGO.com",
     "files": [
       "views/portfolio-detail.js"
@@ -9299,9 +9378,21 @@
     ]
   },
   {
+    "text": "Sold comps · asking fallback",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
     "text": "Sold data",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Sold guide values",
+    "files": [
+      "methodology.html"
     ]
   },
   {
@@ -9312,6 +9403,12 @@
   },
   {
     "text": "Sold prices are facts; asking prices are wishes. Sold data leads every valuation. Listing and modeled data may widen the likely range slightly, but they can never move a sold-based headline.",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
+    "text": "Sold: scraped/weekly · asking: ~daily",
     "files": [
       "methodology.html"
     ]
@@ -9397,6 +9494,12 @@
     ]
   },
   {
+    "text": "Source",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
     "text": "Source conflict",
     "files": [
       "views/portfolio-detail-market.js"
@@ -9412,6 +9515,12 @@
     "text": "Source match verified.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Sources, roles and freshness",
+    "files": [
+      "methodology.html"
     ]
   },
   {

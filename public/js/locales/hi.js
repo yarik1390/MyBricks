@@ -223,6 +223,10 @@ Object.assign(hi.portfolio, { exploreBrick3d: '3D में देखें', ex
 
 Object.assign(hi.portfolio, { crackVault: 'Brickvault खोलें', crackVaultLabel: '3D में Brickvault खोलें खेलें', crackVaultInstructions: 'चमकते स्टड देखें, फिर क्रम दोहराएँ। सभी 3 ताले खोलें।', crackVaultWatch: 'क्रम ध्यान से देखें…', crackVaultRepeat: 'अब आपकी बारी — क्रम दोहराएँ।', crackVaultProgress: 'ताला {round} / {total}।', crackVaultWrong: 'लगभग — क्रम फिर से देखें।', crackVaultUnlocked: 'वॉल्ट खुल गया! इसे असली बनाने के लिए अपना पहला सेट जोड़ें।', crackVaultStud: 'वॉल्ट स्टड {number}', crackVaultReward: 'रहस्यमय सेट अनलॉक हुआ', crackVaultReplay: 'फिर खेलें' });
 
+// Partner attribution and estimated-value wording.
+Object.assign(hi.market, {"pcAttributionNew": "नई स्थिति का मूल्यांकन PriceCharting से", "pcAttributionUsed": "इस्तेमाल की गई स्थिति का मूल्यांकन PriceCharting से", "pcAttributionHomepage": " — स्रोत का मुख्य पृष्ठ: pricecharting.com", "estimatedNotRealized": "अनुमानित मूल्य — वास्तविक बिक्री आय नहीं", "historySnapshotNote": "दैनिक संयुक्त मूल्य के स्नैपशॉट, अलग-अलग स्रोतों का कच्चा डेटा नहीं", "sourcesGeneric": "डेटा स्रोत और साझेदार"});
+Object.assign(hi.detail, {"historyValue": "मूल्य", "historyMarket": "बाज़ार", "historyResale": "पुनर्विक्रय", "estimateNoSales": "अनुमान — इस सेट की हाल की बाज़ार बिक्री अभी उपलब्ध नहीं"});
+
 export default hi;
 Object.assign(hi.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 

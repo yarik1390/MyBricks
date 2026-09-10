@@ -254,6 +254,10 @@ Object.assign(uk.portfolio, { exploreBrick3d: 'Переглянути у 3D', ex
 
 Object.assign(uk.portfolio, { crackVault: 'Відкрий Brickvault', crackVaultLabel: 'Грати у «Відкрий Brickvault» у 3D', crackVaultInstructions: 'Стежте за підсвіченими шипами й повторіть комбінацію. Відкрийте всі 3 замки.', crackVaultWatch: 'Запам’ятайте комбінацію…', crackVaultRepeat: 'Ваша черга — повторіть комбінацію.', crackVaultProgress: 'Замок {round} із {total}.', crackVaultWrong: 'Не зовсім — перегляньте комбінацію ще раз.', crackVaultUnlocked: 'Сховище відкрито! Додайте перший набір, щоб зробити його справжнім.', crackVaultStud: 'Шип сховища {number}', crackVaultReward: 'Таємничий набір відкрито', crackVaultReplay: 'Ще раз' });
 
+// Partner attribution and estimated-value wording.
+Object.assign(uk.market, {"pcAttributionNew": "Оцінка нового стану за даними PriceCharting", "pcAttributionUsed": "Оцінка вживаного стану за даними PriceCharting", "pcAttributionHomepage": " — головна сторінка джерела: pricecharting.com", "estimatedNotRealized": "Орієнтовна вартість — не фактичний дохід", "historySnapshotNote": "Щоденні знімки зведеної вартості, а не необроблені дані окремих джерел", "sourcesGeneric": "Джерела даних і партнери"});
+Object.assign(uk.detail, {"historyValue": "Вартість", "historyMarket": "Ринок", "historyResale": "Перепродаж", "estimateNoSales": "Оцінка — нещодавніх ринкових продажів цього набору ще немає"});
+
 export default uk;
 Object.assign(uk.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 

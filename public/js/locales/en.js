@@ -534,4 +534,21 @@ Object.assign(en.admin, { llmReload: "Reload", llmChooseModel: "Choose a model",
 
 Object.assign(en.admin, { llmLivePoolHint: "Auto-updated daily from OpenRouter" });
 
+// Partner release — PriceCharting attribution + honest value wording (English source).
+Object.assign(en.market, {
+  pcAttributionNew: 'New condition valued with PriceCharting',
+  pcAttributionUsed: 'Used condition valued with PriceCharting',
+  pcAttributionHomepage: ' — source homepage: pricecharting.com',
+  estimatedNotRealized: 'Estimated value — not realized proceeds',
+  historySnapshotNote: 'Daily blend snapshots, not raw per-source feeds',
+  sourcesGeneric: 'Data sources & partners',
+});
+
+Object.assign(en.detail, {
+  historyValue: 'Value',
+  historyMarket: 'Market',
+  historyResale: 'Resale',
+  estimateNoSales: 'Estimate — no recent market sales for this set yet',
+});
+
 export default en;

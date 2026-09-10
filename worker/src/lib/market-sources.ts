@@ -813,6 +813,7 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
   delete publicRow.__valuation_used;
   delete publicRow.__valuation_forecast;
   delete publicRow.__retail_offer;
+  delete publicRow.__pricecharting_item_id;
   for (const key of Object.keys(publicRow)) if (key.startsWith('v3_')) delete publicRow[key];
   return {
     ...publicRow,
@@ -877,6 +878,17 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
     // Liquidity (PriceCharting yearly units sold). Additive, read-side; the UI
     // turns this into a "sells fast / slow" badge (Phase 3).
     sales_volume: (() => { const v = Number(row.pc_sales_volume); return Number.isFinite(v) && v > 0 ? Math.round(v) : null; })(),
+    // Partner attribution (additive, read-side — never persisted, no pricing
+    // impact). `pricecharting_contributes` is true only when some persisted
+    // valuation basis entry lists a pricecharting* source, i.e. PriceCharting
+    // actually contributed to the shown fair value. `pricecharting_item_id` is
+    // ONLY the verified/manual numeric id from pricing_source_map (merged into
+    // the detail row by sets.ts) — never a legacy:* id, never a guessed slug.
+    pricecharting_contributes: (newState.basis.some(family =>
+      family.sources.some(source => /^pricecharting(?:_|$)/.test(String(source))))) ||
+      (usedState.basis.some(family =>
+        family.sources.some(source => /^pricecharting(?:_|$)/.test(String(source))))),
+    pricecharting_item_id: typeof row.__pricecharting_item_id === 'string' && /^\d+$/.test(row.__pricecharting_item_id) ? row.__pricecharting_item_id : null,
   } as unknown as T;
 }
 

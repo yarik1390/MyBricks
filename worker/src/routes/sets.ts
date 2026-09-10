@@ -573,7 +573,7 @@ async function buildSharedSetDetail(
     // on each other, so they go out in one wave; the retail offer follows in a
     // second, smaller one because it needs the market.
     const setNum = set.set_num as string;
-    const [extRes, valuationRows, upcoming, setMinifigsRes, trend, valueHistory] = await Promise.all([
+    const [extRes, valuationRows, upcoming, setMinifigsRes, trend, valueHistory, pcMapRes] = await Promise.all([
       c.env.DB.prepare(
         'SELECT pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count, pa_market, stockx_ask, stockx_cached_at FROM set_market_ext WHERE set_num=?'
       ).bind(setNum).first<Record<string, unknown>>().catch(() => null),
@@ -591,10 +591,28 @@ async function buildSharedSetDetail(
         .catch(() => ({ results: [] as Array<{ fig_num: string; quantity: number; fig_name: string; fig_img_url: string | null }> })),
       getCachedPriceTrend(setNum, c.env),
       recentValueMedian(c.env.DB, setNum).catch(() => undefined),
+      // Verified PriceCharting identity, for partner attribution. Only a
+      // verified/manual mapping with a numeric source_item_id may ever become
+      // a direct product link (/game/<id> 301s to the canonical slug page);
+      // legacy:* ids are quarantined history and never link out. One cheap
+      // keyed SELECT merged into the existing wave — no migration needed.
+      c.env.DB.prepare(
+        `SELECT source_item_id FROM pricing_source_map
+         WHERE set_num=? AND source='pricecharting'
+           AND status IN ('verified','manual')
+           AND source_item_id NOT LIKE 'legacy:%'
+           AND source_item_id GLOB '[0-9]*'
+           AND source_item_id NOT GLOB '*[^0-9]*'
+         ORDER BY CASE status WHEN 'verified' THEN 0 ELSE 1 END, updated_at DESC
+         LIMIT 1`
+      ).bind(setNum).first<{ source_item_id: string }>().catch(() => null),
     ]);
 
     const ext = extRes;
     if (ext) set = { ...set, ...ext };
+    // Verified PriceCharting identity rides on the row as a private field the
+    // enricher promotes to the public additive field (market-sources.ts).
+    if (pcMapRes?.source_item_id) set.__pricecharting_item_id = pcMapRes.source_item_id;
     const setMinifigs = setMinifigsRes.results ?? [];
     // Wave 2. Both of these need the user's market and nothing else, so they go
     // together — the Amazon lookup used to wait on the retail offer it is only

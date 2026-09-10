@@ -109,6 +109,22 @@
   valuation. Listing and modeled data may widen the likely range slightly, but
   they can never move a sold-based headline.</p>
 
+  <h2>Sources, roles and freshness</h2>
+  <p>Each provider plays a different role. Sold data leads; modeled and asking
+  data only widen ranges; reference data never touches prices.</p>
+  <table>
+    <tr><th>Source</th><th>Role</th><th>Refresh window</th></tr>
+    <tr><td>BrickLink</td><td>Sold guide values</td><td>Per-set refresh, timestamped on the set</td></tr>
+    <tr><td>eBay</td><td>Sold comps · asking fallback</td><td>Sold: scraped/weekly · asking: ~daily</td></tr>
+    <tr><td>PriceCharting</td><td>Sold (verified mappings) · liquidity</td><td>Bulk history + on-demand verify, timestamped</td></tr>
+    <tr><td>BrickOwl</td><td>Asking (new/used)</td><td>On refresh, timestamped</td></tr>
+    <tr><td>BrickEconomy</td><td>Modeled values · growth</td><td>On refresh, timestamped</td></tr>
+    <tr><td>Brickset / Rebrickable</td><td>Reference (ratings, MSRP, catalog)</td><td>Catalog-wide sweeps</td></tr>
+  </table>
+  <p class="muted">Every value shown is an estimate from daily blend snapshots —
+  not realized proceeds. Which provider is a partner (and what a "source" is):
+  <a href="/data-partners.html">Data sources &amp; partners</a>.</p>
+
   <h2>Confidence you can see</h2>
   <table>
     <tr><th>Badge</th><th>What it means</th></tr>

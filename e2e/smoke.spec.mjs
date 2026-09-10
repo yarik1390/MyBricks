@@ -284,7 +284,8 @@ test('Pixel-sized set detail clears the sticky action bar and uses a compact her
     const hero = document.querySelector('.detail-hero').getBoundingClientRect();
     return { panelBottom: panel.bottom, actionTop: action.top, heroHeight: hero.height };
   });
-  expect(layout.panelBottom).toBeLessThanOrEqual(layout.actionTop - 16);
+  // DOMRect float rounding can differ by ~0.00003px; retain the 16px gap.
+  expect(layout.panelBottom).toBeLessThanOrEqual(layout.actionTop - 16 + 0.001);
   expect(layout.heroHeight).toBeLessThanOrEqual(248);
 });
 

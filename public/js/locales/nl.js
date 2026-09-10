@@ -223,6 +223,10 @@ Object.assign(nl.portfolio, { exploreBrick3d: 'Bekijk in 3D', exploreBrick3dLabe
 
 Object.assign(nl.portfolio, { crackVault: 'Kraak de Brickvault', crackVaultLabel: 'Speel Kraak de Brickvault in 3D', crackVaultInstructions: 'Bekijk de oplichtende noppen en herhaal de combinatie. Kraak alle 3 sloten.', crackVaultWatch: 'Bekijk de combinatie…', crackVaultRepeat: 'Jouw beurt — herhaal de combinatie.', crackVaultProgress: 'Slot {round} van {total}.', crackVaultWrong: 'Net niet — bekijk de combinatie opnieuw.', crackVaultUnlocked: 'Kluis gekraakt! Voeg je eerste set toe om hem echt te maken.', crackVaultStud: 'Kluisnop {number}', crackVaultReward: 'Mysterieset ontgrendeld', crackVaultReplay: 'Opnieuw' });
 
+// Partner attribution and estimated-value wording.
+Object.assign(nl.market, {"pcAttributionNew": "Nieuwstaat gewaardeerd met PriceCharting", "pcAttributionUsed": "Gebruikte staat gewaardeerd met PriceCharting", "pcAttributionHomepage": " — bronhomepage: pricecharting.com", "estimatedNotRealized": "Geschatte waarde — geen gerealiseerde opbrengst", "historySnapshotNote": "Dagelijkse momentopnamen van de gecombineerde waarde, geen ruwe brongegevens", "sourcesGeneric": "Databronnen en partners"});
+Object.assign(nl.detail, {"historyValue": "Waarde", "historyMarket": "Markt", "historyResale": "Doorverkoop", "estimateNoSales": "Schatting — nog geen recente marktverkopen voor deze set"});
+
 export default nl;
 Object.assign(nl.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 
