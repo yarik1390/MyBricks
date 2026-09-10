@@ -82,7 +82,7 @@ describe('Partner page + footer credits', () => {
   });
 
   it('links the page from the Me footer and methodology, with only PriceCharting as partner', () => {
-    assert.match(meView, /\/data-partners\.html/);
+    assert.match(meView, /data-legal-sheet="partners"/);
     assert.match(meView, /Market data partner: PriceCharting\. Sources: BrickLink, eBay, BrickOwl, BrickEconomy &amp; Brickset/);
     assert.doesNotMatch(meView, /Pricing from BrickLink, eBay, PriceCharting/);
     assert.match(methodology, /\/data-partners\.html/);

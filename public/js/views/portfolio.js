@@ -5,6 +5,7 @@ import { api, getSessionUserId } from '../api.js';
 import { shareContent } from '../lib/native-share.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet, confirmSheet, promptSheet } from '../components/sheet.js';
+import { openLegalSheet } from '../components/legal-sheet.js';
 import { trustBadgeHTML } from '../components/trust.js';
 import { skelPage, skelHero, skelCardList } from '../components/skeleton.js';
 import { getModePref } from '../theme.js';
@@ -339,7 +340,7 @@ function paintPortfolio() {
           ${p.pricing_confidence?.priced ? `<span style="cursor:help;" title="Share of your sets priced from corroborated, fresh market data (high or medium confidence) rather than a thin or estimated value">· ${t('market.confidentlyPriced', { pct: p.pricing_confidence.pct })}</span>` : ""}
           ${ratesUnavailable() && (state.me?.currency || "USD") !== "USD" ? `<span style="color:var(--bv-yellow);cursor:help;" title="Exchange rates couldn't be loaded — values are shown in USD until they refresh">· shown in USD</span>` : ""}
           <span title="Portfolio values are market estimates from daily valuation snapshots — what a patient sale might bring, not money in hand.">${t('market.estimatedNotRealized')}</span>
-          <a href="/data-partners.html" style="color:inherit;text-decoration:underline;">· ${portfolioSourceLinkLabel(p)}</a>
+          <button type="button" class="legal-sheet-link hero-partner-link" data-legal-sheet="partners" style="color:inherit;text-decoration:underline;background:none;border:none;padding:0;font:inherit;cursor:pointer;">· ${portfolioSourceLinkLabel(p)}</button>
         </div>
         <div class="spark-wrap" id="heroChart">${clipped.length < 2 ? `
           <div class="spark-empty">Your trend appears after the next daily valuation snapshot.</div>` : ""}</div>
@@ -515,6 +516,9 @@ function paintPortfolio() {
   });
 
   $("#alertsBtn")?.addEventListener("click", () => showAlertsSheet(state.wishlistAlerts));
+  $$("[data-legal-sheet]").forEach(link => link.addEventListener("click", () => {
+    openLegalSheet(link.dataset.legalSheet);
+  }));
   $("#vaultMoreBtn")?.addEventListener("click", () => {
     haptic("light");
     showSheet(`

@@ -265,7 +265,7 @@ export async function renderMe() {
       <div class="me-footer-links" style="text-align:center;margin-top:16px;font-size:12px;">
         <a href="/methodology.html">How We Price</a>
         <span class="dot">·</span>
-        <a href="/data-partners.html">Data sources &amp; partners</a>
+        <button type="button" class="legal-sheet-link" data-legal-sheet="partners">Data sources &amp; partners</button>
         <span class="dot">·</span>
         <button type="button" class="legal-sheet-link" data-legal-sheet="privacy">Privacy Policy</button>
         <span class="dot">·</span>

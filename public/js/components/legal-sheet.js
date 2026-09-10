@@ -3,6 +3,7 @@ import { hideSheet, showSheet } from './sheet.js';
 const LEGAL_DOCUMENTS = {
   privacy: { title: 'Privacy Policy', url: '/privacy.html' },
   terms: { title: 'Terms of Service', url: '/terms.html' },
+  partners: { title: 'Data Partners', url: '/data-partners.html' },
 };
 
 function titleRow(doc, titleId) {

@@ -2698,6 +2698,12 @@
     ]
   },
   {
+    "text": "Data Partners",
+    "files": [
+      "components/legal-sheet.js"
+    ]
+  },
+  {
     "text": "Data fix",
     "files": [
       "views/me-contributions.js"
