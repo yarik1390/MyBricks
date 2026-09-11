@@ -24,7 +24,7 @@ describe('admin usability controls', () => {
     assert.match(adminView, /data-admin-section-jump="adminOverview" data-scroll-target="adminActivityHeading"/);
     assert.match(adminView, /data-admin-section-jump="adminPricing" data-open-subtab="pricingPopulatePanel"/);
     assert.match(adminView, /function jumpToAdminSection\(btn\)/);
-    assert.match(adminView, /function activateAdminSubtab\(btn\)/);
+    assert.match(adminView, /function activateAdminSubtab\(btn(?:,|\))/);
     assert.match(adminView, /localized === key \? \(ADMIN_JOB_TOOLS\[type\]\?\.label \|\| type\)/);
   });
 

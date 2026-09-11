@@ -5,11 +5,23 @@
 import { I } from '../icons.js';
 
 export const ADMIN_SECTIONS = [
-  ['adminOverview', 'Overview'],
-  ['adminPricing', 'Pricing'],
-  ['adminLlm', 'AI & Routing'],
-  ['adminGovernance', 'Governance'],
+  ['adminOverview', 'Overview', 'overview'],
+  ['adminPricing', 'Pricing', 'pricing'],
+  ['adminLlm', 'AI & Routing', 'ai'],
+  ['adminGovernance', 'Governance', 'governance'],
 ];
+
+export const ADMIN_SUBVIEWS = {
+  pricing: {
+    center: 'pricingCenterPanel',
+    populate: 'pricingPopulatePanel',
+  },
+  governance: {
+    contributions: 'govContributionsPanel',
+    users: 'govUsersPanel',
+    maintenance: 'govMaintenancePanel',
+  },
+};
 
 export const ADMIN_JOB_TOOLS = {
   sets: {

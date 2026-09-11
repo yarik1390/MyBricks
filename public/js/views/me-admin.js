@@ -2,7 +2,7 @@ import { $, haptic, escapeHtml, toast, fmtMoney } from '../utils.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
-import { ADMIN_SECTIONS, ADMIN_JOB_TOOLS, MAINTENANCE_TOOLS, SOURCE_META, PROVIDER_GROUPS, SERVICE_FLAG, FLAG_LABEL, TESTABLE, TUNABLE_SOURCES, SERVICE_DESC, UUID_RE } from './me-admin-config.js';
+import { ADMIN_SECTIONS, ADMIN_SUBVIEWS, ADMIN_JOB_TOOLS, MAINTENANCE_TOOLS, SOURCE_META, PROVIDER_GROUPS, SERVICE_FLAG, FLAG_LABEL, TESTABLE, TUNABLE_SOURCES, SERVICE_DESC, UUID_RE } from './me-admin-config.js';
 import {
   classifyJobRun,
   jobProgressSummary,
@@ -59,6 +59,53 @@ let pricingCenterData = null;
 // the mobile view short — one category on screen at a time.
 let serviceTab = 'attention';
 
+const ADMIN_ROUTE = '#/me/admin';
+const ADMIN_HUBS = new Map(ADMIN_SECTIONS.map(([id, , slug]) => [slug, id]));
+const ADMIN_HUB_SLUGS = new Map(ADMIN_SECTIONS.map(([id, , slug]) => [id, slug]));
+const ADMIN_DEFAULT_SUBVIEW = { pricing: 'center', governance: 'contributions' };
+
+function readAdminNavigation() {
+  const query = location.hash.split('?')[1] || '';
+  const params = new URLSearchParams(query);
+  const requestedHub = params.get('hub');
+  const hub = ADMIN_HUBS.has(requestedHub) ? requestedHub : 'overview';
+  const requestedView = params.get('view');
+  const views = ADMIN_SUBVIEWS[hub];
+  const view = views && Object.hasOwn(views, requestedView)
+    ? requestedView
+    : ADMIN_DEFAULT_SUBVIEW[hub] || null;
+  return { hub, view };
+}
+
+function adminNavigationHash(hub, view = null) {
+  if (hub === 'overview') return ADMIN_ROUTE;
+  const params = new URLSearchParams({ hub });
+  if (view && view !== ADMIN_DEFAULT_SUBVIEW[hub]) params.set('view', view);
+  return `${ADMIN_ROUTE}?${params}`;
+}
+
+function writeAdminNavigation(hub, view = null, { replace = false } = {}) {
+  const hash = adminNavigationHash(hub, view);
+  if (location.hash === hash) return;
+  history[replace ? 'replaceState' : 'pushState'](null, '', hash);
+}
+
+function restoreAdminNavigation({ canonicalize = true } = {}) {
+  if (!isAdminRoute()) return;
+  const { hub, view } = readAdminNavigation();
+  const sectionId = ADMIN_HUBS.get(hub);
+  activateAdminSection(sectionId, { updateUrl: false });
+  const targetId = view && ADMIN_SUBVIEWS[hub]?.[view];
+  if (targetId) {
+    activateAdminSubtab(document.querySelector(`[data-target="${CSS.escape(targetId)}"]`), { updateUrl: false });
+  }
+  if (canonicalize) writeAdminNavigation(hub, view, { replace: true });
+}
+
+function isAdminRoute() {
+  return location.hash.split('?')[0] === ADMIN_ROUTE;
+}
+
 
 export async function renderMeAdmin() {
   if (!state.me) $('#root').innerHTML = skelPage(skelSettingRows(6));
@@ -69,7 +116,7 @@ export async function renderMeAdmin() {
     <div class="page admin-page admin-dashboard-page">
       ${subpageTopbarHTML('Admin console', 'Admin')}
       <nav class="admin-segments admin-segments-sticky" role="tablist" aria-label="Admin sections">
-        ${ADMIN_SECTIONS.map(([id, label], i) => `<button type="button" id="${id}Tab" role="tab" aria-selected="${i === 0}" aria-controls="${id}" tabindex="${i === 0 ? '0' : '-1'}" class="${i === 0 ? 'active' : ''}" data-admin-section-link="${id}">${escapeHtml(label)}</button>`).join('')}
+        ${ADMIN_SECTIONS.map(([id, label, slug], i) => `<button type="button" id="${id}Tab" role="tab" aria-selected="${i === 0}" aria-controls="${id}" tabindex="${i === 0 ? '0' : '-1'}" class="${i === 0 ? 'active' : ''}" data-admin-section-link="${id}" data-admin-hub="${slug}">${escapeHtml(label)}</button>`).join('')}
       </nav>
 
       <section class="admin-section" id="adminOverview">
@@ -269,7 +316,7 @@ function wireTablistKeyboard(tablist, selector, activate) {
   });
 }
 
-function activateAdminSubtab(btn) {
+function activateAdminSubtab(btn, { updateUrl = true } = {}) {
   const group = btn?.getAttribute('data-admin-subtab');
   const targetId = btn?.getAttribute('data-target');
   if (!group || !targetId) return;
@@ -278,6 +325,7 @@ function activateAdminSubtab(btn) {
     const isActive = b === btn;
     b.classList.toggle('active', isActive);
     b.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    b.setAttribute('tabindex', isActive ? '0' : '-1');
   });
   const parentSection = btn.closest('.admin-section');
   if (parentSection) {
@@ -286,6 +334,11 @@ function activateAdminSubtab(btn) {
       panel.hidden = !isTarget;
       panel.classList.toggle('active', isTarget);
     });
+  }
+  if (updateUrl) {
+    const hub = ADMIN_HUB_SLUGS.get(parentSection?.id);
+    const view = hub && Object.entries(ADMIN_SUBVIEWS[hub] || {}).find(([, id]) => id === targetId)?.[0];
+    if (hub) writeAdminNavigation(hub, view);
   }
 }
 
@@ -325,8 +378,13 @@ function wireAdminShell() {
     btn.addEventListener('click', () => jumpToAdminSection(btn));
   });
   document.querySelectorAll('[data-admin-subtab]').forEach(btn => {
+    btn.setAttribute('aria-selected', btn.classList.contains('active') ? 'true' : 'false');
+    btn.setAttribute('tabindex', btn.classList.contains('active') ? '0' : '-1');
     btn.addEventListener('click', () => activateAdminSubtab(btn));
   });
+  window.removeEventListener('popstate', restoreAdminNavigation);
+  window.addEventListener('popstate', restoreAdminNavigation);
+  restoreAdminNavigation();
   document.querySelectorAll('[data-admin-tool]').forEach(btn => {
     btn.addEventListener('click', () => {
       const tool = btn.getAttribute('data-admin-tool');
@@ -439,7 +497,6 @@ function wireAdminShell() {
   requestAnimationFrame(syncAdminNavOffset);
   window.removeEventListener('resize', syncAdminNavOffset);
   window.addEventListener('resize', syncAdminNavOffset);
-  activateAdminSection(ADMIN_SECTIONS[0][0]);
 }
 
 // Measure the sticky tab-nav's height into a CSS var so the Services category
@@ -455,7 +512,7 @@ function syncAdminNavOffset() {
 // Tab view: show only the active section, sync the sticky nav (highlight +
 // reveal the active chip in the horizontal strip), and reset scroll to the top
 // — so switching tabs feels like a native segmented view instead of a long scroll.
-function activateAdminSection(id, { scrollTarget = null } = {}) {
+function activateAdminSection(id, { scrollTarget = null, updateUrl = true } = {}) {
   document.querySelectorAll('.admin-section').forEach(s => {
     const active = s.id === id;
     s.classList.toggle('is-active', active);
@@ -485,6 +542,16 @@ function activateAdminSection(id, { scrollTarget = null } = {}) {
   } else {
     window.scrollTo({ top: 0, behavior: 'auto' });
   }
+  if (updateUrl) {
+    const hub = ADMIN_HUB_SLUGS.get(id);
+    if (hub) {
+      const view = ADMIN_DEFAULT_SUBVIEW[hub] || null;
+      const panelId = ADMIN_SUBVIEWS[hub]?.[view];
+      const defaultTab = panelId && document.querySelector(`[data-target="${panelId}"][data-admin-subtab]`);
+      if (defaultTab) activateAdminSubtab(defaultTab, { updateUrl: false });
+      writeAdminNavigation(hub, view);
+    }
+  }
 }
 
 function contribTabButtonHTML(id, label) {
@@ -512,7 +579,7 @@ function setAdminJobButtons(runningType = null) {
 
 function scheduleAdminJobPoll(delay = 2500) {
   if (adminJobPollTimer) clearTimeout(adminJobPollTimer);
-  if (location.hash !== '#/me/admin') return;
+  if (!isAdminRoute()) return;
   adminJobPollTimer = setTimeout(() => {
     adminJobPollTimer = null;
     updateJobsStatus();
@@ -525,7 +592,7 @@ function isPopulateEverythingComplete(run = {}) {
 
 function schedulePopulateEverythingContinue(delay = 1400) {
   if (populateEverythingContinueTimer) clearTimeout(populateEverythingContinueTimer);
-  if (!populateEverythingAuto || location.hash !== '#/me/admin') return;
+  if (!populateEverythingAuto || !isAdminRoute()) return;
   populateEverythingContinueTimer = setTimeout(() => {
     populateEverythingContinueTimer = null;
     if (populateEverythingAuto && !activeAdminRunId) triggerImport('everything');
@@ -650,7 +717,7 @@ async function updateJobsStatus() {
     setAdminJobButtons(activeAdminTool || (runningRun ? 'active' : null));
     renderJobs(container);
 
-    if (runningRun && location.hash === '#/me/admin') {
+    if (runningRun && isAdminRoute()) {
       scheduleAdminJobPoll(2500);
     } else if (adminJobPollTimer) {
       clearTimeout(adminJobPollTimer);
@@ -678,7 +745,7 @@ async function updateJobsStatus() {
 }
 
 async function loadActivity() {
-  if (location.hash !== '#/me/admin') return;
+  if (!isAdminRoute()) return;
   try {
     activityData = await api('/api/admin/activity');
     renderProcesses();
@@ -695,7 +762,7 @@ async function loadActivity() {
 
 function scheduleActivityPoll() {
   if (activityPollTimer) { clearTimeout(activityPollTimer); activityPollTimer = null; }
-  if (location.hash !== '#/me/admin') return;
+  if (!isAdminRoute()) return;
   const anyRunning = (activityData?.processes || []).some(p => p.status === 'running') || !!activeAdminRunId;
   const delay = document.hidden ? 30000 : (anyRunning ? 3000 : 8000);
   activityPollTimer = setTimeout(loadActivity, delay);
