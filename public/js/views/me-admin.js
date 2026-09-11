@@ -18,6 +18,7 @@ import { subpageTopbarHTML, loadMe } from './me-shared.js';
 import { skelPage, skelSettingRows } from '../components/skeleton.js';
 import { t, tPlural, getLocale } from '../lib/i18n.js';
 import { wireHorizontalRail } from '../lib/horizontal-rail.js';
+import { buildAdminIssues } from '../lib/admin-issues.js';
 
 let activeAdminRunId = null;
 let activeAdminTool = null;
@@ -122,6 +123,7 @@ export async function renderMeAdmin() {
       <section class="admin-section" id="adminOverview">
         <h2 class="section-title">Overview & Services</h2>
         <p class="admin-section-intro">Operational triage and background activity. Start with services that need action, or choose a category.</p>
+        <div id="adminIssuesContainer" class="admin-panel" aria-live="polite">Loading issue evidence...</div>
         <div class="admin-service-filters" role="tablist" aria-label="Service categories">
           ${serviceTabs().map(([id, label]) => serviceTabButtonHTML(id, label)).join('')}
         </div>
@@ -964,12 +966,76 @@ function jobDetails(run, state, progress) {
   return details.length ? details : [t('admin.noItemsProcessed')];
 }
 
+function adminIssuesText(key, fallback, vars = {}) {
+  const value = t(key, vars);
+  return value === key ? fallback : value;
+}
+
+function adminIssueKindLabel(kind) {
+  const labels = {
+    access: adminIssuesText('admin.issues.kindAccess', 'Access'),
+    error: adminIssuesText('admin.issues.kindError', 'Error'),
+    degraded: adminIssuesText('admin.issues.kindDegraded', 'Degraded'),
+    stale: adminIssuesText('admin.issues.kindStale', 'Stale evidence'),
+    unknown: adminIssuesText('admin.issues.kindUnknown', 'Unknown'),
+  };
+  return labels[kind] || labels.unknown;
+}
+
+function renderAdminIssues() {
+  const container = $('#adminIssuesContainer');
+  if (!container) return;
+  const effectiveFlags = featureFlags?.effective || {};
+  const issues = buildAdminIssues({
+    diagnostics: Array.isArray(adminHealth?.integrations) ? adminHealth.integrations : null,
+    featureFlags: effectiveFlags,
+    sourceConfig,
+  });
+
+  if (!issues.length) {
+    container.innerHTML = `
+      <div class="admin-supporters-head">
+        <div>
+          <strong>${escapeHtml(adminIssuesText('admin.issues.title', 'Issues'))}</strong>
+          <span>${escapeHtml(adminIssuesText('admin.issues.none', 'No current issues found in the available evidence.'))}</span>
+        </div>
+      </div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="admin-supporters-head">
+      <div>
+        <strong>${escapeHtml(adminIssuesText('admin.issues.title', 'Issues'))}</strong>
+        <span>${escapeHtml(adminIssuesText('admin.issues.intro', 'Evidence-backed service issues. Links only navigate to the relevant controls.'))}</span>
+      </div>
+      <span class="badge">${issues.length}</span>
+    </div>
+    <div class="admin-supporter-list">
+      ${issues.map((issue) => {
+        const checked = issue.evidenceAt
+          ? adminIssuesText('admin.issues.evidenceAt', `Evidence ${formatRelativeTime(issue.evidenceAt)}`, { time: formatRelativeTime(issue.evidenceAt) })
+          : adminIssuesText('admin.issues.noEvidence', 'No evidence timestamp');
+        return `<article class="admin-supporter-row">
+          <div>
+            <strong>${escapeHtml(issue.title)}</strong>
+            <span><span class="badge badge--${escapeHtml(issue.severity)}">${escapeHtml(adminIssueKindLabel(issue.kind))}</span> ${escapeHtml(issue.detail)} · ${escapeHtml(checked)}</span>
+          </div>
+          <a class="btn-secondary" href="${escapeHtml(issue.href)}">${escapeHtml(issue.label)}</a>
+        </article>`;
+      }).join('')}
+    </div>`;
+}
+
 async function updateIntegrationsHealth() {
   try {
     adminHealth = await api('/api/admin/integrations');
+    renderAdminIssues();
     renderServices();
     renderCatalogQuality();
   } catch (err) {
+    adminHealth = null;
+    renderAdminIssues();
     const quality = $('#qualityContainer');
     const services = $('#servicesContainer');
     if (services) services.innerHTML = errorPanelHTML('Service health unavailable', err.message || String(err));
@@ -985,6 +1051,7 @@ async function loadFeatureFlags() {
   } catch (e) {
     featureFlags = { flags: [], overrides: {}, effective: {}, error: e.message || String(e) };
   }
+  renderAdminIssues();
   renderServices();
 }
 
@@ -1421,6 +1488,7 @@ async function saveServiceTuning(svc, btn) {
     sourceConfig = res.config || validation.config;
     haptic('light');
     toast(t('admin.providerSaved', { provider: providerLabel(svc) }), 'success');
+    renderAdminIssues();
     renderServices();
   } catch (e) {
     toast(t('admin.providerSaveFailed', { provider: providerLabel(svc), error: e.message || e }), 'error');
@@ -1985,6 +2053,7 @@ async function loadSourceTuning() {
     const data = await api('/api/admin/source-config');
     sourceDefaults = data.defaults || {};
     sourceConfig = data.config || {};
+    renderAdminIssues();
     renderServices();
   } catch (e) {
     toast(t('admin.pricingConfigLoadFailed', { error: e.message || e }), 'error');
@@ -2015,6 +2084,7 @@ async function resetPricingDefaults(btn) {
     sourceConfig = res.config || sourceDefaults;
     haptic('light');
     toast('Pricing sources reset to defaults.', 'success');
+    renderAdminIssues();
     renderServices();
   } catch (e) {
     toast(t('admin.resetFailed', { error: e.message || e }), 'error');

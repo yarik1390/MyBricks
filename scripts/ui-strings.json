@@ -198,6 +198,18 @@
     ]
   },
   {
+    "text": "A recent health check failed.",
+    "files": [
+      "lib/admin-issues.js"
+    ]
+  },
+  {
+    "text": "A recent health check reported reduced service.",
+    "files": [
+      "lib/admin-issues.js"
+    ]
+  },
+  {
     "text": "A scraped price that disagrees with the set's corroborated value by more than 3× is rejected, not averaged in.",
     "files": [
       "methodology.html"
@@ -318,6 +330,12 @@
     "text": "About this set",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Access",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -2782,7 +2800,8 @@
   {
     "text": "Degraded",
     "files": [
-      "lib/pure.js"
+      "lib/pure.js",
+      "views/me-admin.js"
     ]
   },
   {
@@ -3244,6 +3263,12 @@
     ]
   },
   {
+    "text": "Error",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Escape",
     "files": [
       "components/lightbox.js",
@@ -3383,6 +3408,12 @@
   },
   {
     "text": "Evidence stale",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Evidence-backed service issues. Links only navigate to the relevant controls.",
     "files": [
       "views/me-admin.js"
     ]
@@ -4741,6 +4772,12 @@
     ]
   },
   {
+    "text": "Issues",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "JPEG/PNG/WebP, max 4 MB. Photos appear once approved.",
     "files": [
       "components/contribute.js"
@@ -5067,6 +5104,12 @@
   },
   {
     "text": "Loading coverage...",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Loading issue evidence...",
     "files": [
       "views/me-admin.js"
     ]
@@ -5995,6 +6038,18 @@
     ]
   },
   {
+    "text": "No current health evidence is available.",
+    "files": [
+      "lib/admin-issues.js"
+    ]
+  },
+  {
+    "text": "No current issues found in the available evidence.",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "No current retail offer",
     "files": [
       "views/portfolio-detail-market.js"
@@ -6004,6 +6059,12 @@
     "text": "No data available",
     "files": [
       "components/advisor.js"
+    ]
+  },
+  {
+    "text": "No evidence timestamp",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -6766,6 +6827,12 @@
     "text": "Overview & Services",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Overview could not confirm current service health.",
+    "files": [
+      "lib/admin-issues.js"
     ]
   },
   {
@@ -8097,6 +8164,12 @@
     ]
   },
   {
+    "text": "Required configuration is not available.",
+    "files": [
+      "lib/admin-issues.js"
+    ]
+  },
+  {
     "text": "Requires the model weights (~3GB) to run set photo scanning 100% on-device for free. Official Gemma weights are license-gated:",
     "files": [
       "runtime-exact"
@@ -8368,9 +8441,39 @@
     ]
   },
   {
+    "text": "Review AI routing",
+    "files": [
+      "lib/admin-issues.js"
+    ]
+  },
+  {
+    "text": "Review catalog sources",
+    "files": [
+      "lib/admin-issues.js"
+    ]
+  },
+  {
+    "text": "Review pricing services",
+    "files": [
+      "lib/admin-issues.js"
+    ]
+  },
+  {
     "text": "Review provider diagnostics",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Review service settings",
+    "files": [
+      "lib/admin-issues.js"
+    ]
+  },
+  {
+    "text": "Review services",
+    "files": [
+      "lib/admin-issues.js"
     ]
   },
   {
@@ -8965,6 +9068,18 @@
     "text": "Service categories",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Service diagnostics",
+    "files": [
+      "lib/admin-issues.js"
+    ]
+  },
+  {
+    "text": "Service evidence is unavailable",
+    "files": [
+      "lib/admin-issues.js"
     ]
   },
   {
@@ -9667,6 +9782,12 @@
     ]
   },
   {
+    "text": "Stale evidence",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Stale states",
     "files": [
       "views/me-admin.js"
@@ -10148,6 +10269,12 @@
     ]
   },
   {
+    "text": "The last observation is too old to confirm current health.",
+    "files": [
+      "lib/admin-issues.js"
+    ]
+  },
+  {
     "text": "The link may be outdated or mistyped.",
     "files": [
       "router.js"
@@ -10623,7 +10750,8 @@
     "text": "Unknown",
     "files": [
       "components/advisor.js",
-      "lib/pure.js"
+      "lib/pure.js",
+      "views/me-admin.js"
     ]
   },
   {
