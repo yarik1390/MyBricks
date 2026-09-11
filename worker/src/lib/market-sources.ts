@@ -429,6 +429,7 @@ function sourceOwner(signal: PricingSignal): string {
   if (signal.source.startsWith('brickeconomy')) return 'brickeconomy';
   if (signal.source.startsWith('brickowl')) return 'brickowl';
   if (signal.source.startsWith('pricecharting')) return 'pricecharting';
+  if (signal.source.startsWith('brickpicker')) return 'brickpicker';
   if (signal.source.startsWith('stockx')) return 'stockx';
   return signal.source;
 }

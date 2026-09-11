@@ -228,6 +228,12 @@
     ]
   },
   {
+    "text": "AI & Routing",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "AI Advisor",
     "files": [
       "components/advisor.js",
@@ -366,13 +372,6 @@
     "text": "Active — value tied to retail",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Activity",
-    "files": [
-      "views/me-admin-config.js",
-      "views/me-admin.js"
     ]
   },
   {
@@ -1056,6 +1055,12 @@
     ]
   },
   {
+    "text": "Background Activity & Jobs",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Backup",
     "files": [
       "runtime-exact"
@@ -1331,6 +1336,12 @@
     "text": "BrickOwl used",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "BrickPicker enrich",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -1683,13 +1694,6 @@
       "route-meta.js",
       "views/catalog.js",
       "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "Catalog Quality",
-    "files": [
-      "views/me-admin-config.js",
-      "views/me-admin.js"
     ]
   },
   {
@@ -2059,6 +2063,12 @@
     ]
   },
   {
+    "text": "Community moderation queue, supporter account permissions, and system maintenance utilities.",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Community record",
     "files": [
       "views/portfolio-detail.js"
@@ -2272,7 +2282,6 @@
   {
     "text": "Contributions",
     "files": [
-      "views/me-admin-config.js",
       "views/me-admin.js",
       "views/me-contributions.js"
     ]
@@ -2291,6 +2300,12 @@
   },
   {
     "text": "Copied — paste it wherever you need it.",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Copies your active session JWT to the clipboard for API debugging.",
     "files": [
       "views/me-admin.js"
     ]
@@ -2324,6 +2339,12 @@
     "text": "Copy title",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Copy token",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -3121,6 +3142,12 @@
     ]
   },
   {
+    "text": "Enriches owned/wishlisted and priority sets with BrickPicker modeled estimates.",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "Ensure Gemini Nano is enabled in Chrome settings.",
     "files": [
       "components/advisor.js"
@@ -3332,7 +3359,7 @@
     ]
   },
   {
-    "text": "Every background process and admin job, updated live while this page is open. Each row shows what it does, when it last ran, and the result.",
+    "text": "Every background process and admin job, updated live while this page is open.",
     "files": [
       "views/me-admin.js"
     ]
@@ -4102,6 +4129,24 @@
     ]
   },
   {
+    "text": "Governance",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Governance & Operations",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Governance subtabs",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Grand Master",
     "files": [
       "lib/kids-xp.js"
@@ -4795,7 +4840,6 @@
   {
     "text": "LLM Routing",
     "files": [
-      "views/me-admin-config.js",
       "views/me-admin.js"
     ]
   },
@@ -5639,6 +5683,12 @@
     ]
   },
   {
+    "text": "Modeled new and used set guides from eBay market data. Demand-first scheduled enrichment; 1,000 calls/day hard cap.",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "Modeled values · growth",
     "files": [
       "methodology.html"
@@ -5686,6 +5736,12 @@
     "text": "Most price guides show you one number and ask you to trust it. We'd rather show you how the number is made, what it's based on, and — when the evidence isn't good enough — say so instead of guessing.",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "Multi-source valuation pipeline, catalog coverage, quarantined matches, and batch population tools.",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -6600,6 +6656,12 @@
     ]
   },
   {
+    "text": "Operational triage and background activity. Start with services that need action, or choose a category.",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Optimization Guide On Device Model",
     "files": [
       "views/me-integrations.js"
@@ -6663,6 +6725,18 @@
     "text": "Overnight value jumps of ±40% on any set are flagged and reviewed — automatically resolved only when the market genuinely confirms them.",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "Overview",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Overview & Services",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -6946,6 +7020,12 @@
     ]
   },
   {
+    "text": "Pipeline & Pricing",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Plastic box",
     "files": [
       "views/portfolio-detail.js"
@@ -7031,9 +7111,8 @@
     ]
   },
   {
-    "text": "Populate",
+    "text": "Populate & Batch",
     "files": [
-      "views/me-admin-config.js",
       "views/me-admin.js"
     ]
   },
@@ -7252,7 +7331,7 @@
     ]
   },
   {
-    "text": "Pricing Center",
+    "text": "Pricing Center & Quality",
     "files": [
       "views/me-admin.js"
     ]
@@ -7290,6 +7369,12 @@
   },
   {
     "text": "Pricing sources reset to defaults.",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Pricing subtabs",
     "files": [
       "views/me-admin.js"
     ]
@@ -8260,12 +8345,6 @@
     ]
   },
   {
-    "text": "Review valuation v3 coverage, identity quarantine, anomalies, provider eligibility, and D1 write pressure before enabling a source.",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
     "text": "Reviews",
     "files": [
       "views/me-admin.js",
@@ -8355,6 +8434,12 @@
     "text": "Rummaging the parts bin…",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "Run BrickPicker enrich",
+    "files": [
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -8863,13 +8948,6 @@
     "text": "Service worker not available",
     "files": [
       "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "Services",
-    "files": [
-      "views/me-admin-config.js",
-      "views/me-admin.js"
     ]
   },
   {
@@ -9530,6 +9608,12 @@
     ]
   },
   {
+    "text": "Spends BrickPicker API quota (1,000/day hard limit).",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "Spends Firecrawl credits; runs synchronously and returns the result.",
     "files": [
       "views/me-admin-config.js"
@@ -9581,12 +9665,6 @@
     "text": "Start this set’s community record",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Start with services that need action, or choose a category. Each row gives the current state first; expand it only when you need diagnostics or controls.",
-    "files": [
-      "views/me-admin.js"
     ]
   },
   {
@@ -9841,6 +9919,12 @@
     "text": "Syncing…",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "System Maintenance",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -10209,13 +10293,6 @@
     "text": "Took too long — try again.",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Tools",
-    "files": [
-      "views/me-admin-config.js",
-      "views/me-admin.js"
     ]
   },
   {
@@ -10607,6 +10684,12 @@
     ]
   },
   {
+    "text": "Up to ~10s for 10 sets",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "Up to ~60s for 5 sets",
     "files": [
       "views/me-admin-config.js"
@@ -10796,9 +10879,8 @@
     ]
   },
   {
-    "text": "Users",
+    "text": "Users & Supporters",
     "files": [
-      "views/me-admin-config.js",
       "views/me-admin.js"
     ]
   },

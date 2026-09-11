@@ -68,36 +68,34 @@ export async function renderMeAdmin() {
         ${ADMIN_SECTIONS.map(([id, label], i) => `<button type="button" id="${id}Tab" role="tab" aria-selected="${i === 0}" aria-controls="${id}" tabindex="${i === 0 ? '0' : '-1'}" class="${i === 0 ? 'active' : ''}" data-admin-section-link="${id}">${escapeHtml(label)}</button>`).join('')}
       </nav>
 
-      <section class="admin-section" id="adminServices">
-        <h2 class="section-title">Services</h2>
-        <p class="admin-section-intro">Start with services that need action, or choose a category. Each row gives the current state first; expand it only when you need diagnostics or controls.</p>
+      <section class="admin-section" id="adminOverview">
+        <h2 class="section-title">Overview & Services</h2>
+        <p class="admin-section-intro">Operational triage and background activity. Start with services that need action, or choose a category.</p>
         <div class="admin-service-filters" role="tablist" aria-label="Service categories">
           ${serviceTabs().map(([id, label]) => serviceTabButtonHTML(id, label)).join('')}
         </div>
         <div id="servicesContainer" class="admin-service-wrap" aria-live="polite">Loading services...</div>
-      </section>
 
-      <section class="admin-section" id="adminPopulate">
-        <h2 class="section-title">Populate</h2>
-        ${populateSectionHTML()}
-      </section>
-
-      <section class="admin-section" id="adminJobs">
-        <h2 class="section-title">Activity</h2>
-        <p class="admin-section-intro">Every background process and admin job, updated live while this page is open. Each row shows what it does, when it last ran, and the result.</p>
+        <h3 class="section-subtitle" style="margin-top: 24px; font-size: 14px; font-weight: 700;">Background Activity & Jobs</h3>
+        <p class="admin-section-intro">Every background process and admin job, updated live while this page is open.</p>
         <div id="jobsStatusContainer" class="admin-panel" aria-live="polite">Loading jobs...</div>
         <div id="processesContainer" class="admin-process-wrap" aria-live="polite">Loading processes...</div>
       </section>
 
-      <section class="admin-section" id="adminQuality">
-        <h2 class="section-title">Catalog Quality</h2>
-        <div id="qualityContainer" class="admin-panel">Loading coverage...</div>
-      </section>
-
       <section class="admin-section" id="adminPricing">
-        <h2 class="section-title">Pricing Center</h2>
-        <p class="admin-section-intro">Review valuation v3 coverage, identity quarantine, anomalies, provider eligibility, and D1 write pressure before enabling a source.</p>
-        <div id="pricingCenterContainer" class="admin-pricing-center" aria-live="polite">Loading pricing controls...</div>
+        <h2 class="section-title">Pipeline & Pricing</h2>
+        <p class="admin-section-intro">Multi-source valuation pipeline, catalog coverage, quarantined matches, and batch population tools.</p>
+        <div class="admin-subtabs" role="tablist" aria-label="Pricing subtabs">
+          <button type="button" class="chip active" data-admin-subtab="pricing" data-target="pricingCenterPanel">Pricing Center & Quality</button>
+          <button type="button" class="chip" data-admin-subtab="pricing" data-target="pricingPopulatePanel">Populate & Batch</button>
+        </div>
+        <div id="pricingCenterPanel" class="admin-subtab-panel active">
+          <div id="qualityContainer" class="admin-panel" style="margin-bottom: 16px;">Loading coverage...</div>
+          <div id="pricingCenterContainer" class="admin-pricing-center" aria-live="polite">Loading pricing controls...</div>
+        </div>
+        <div id="pricingPopulatePanel" class="admin-subtab-panel" hidden>
+          ${populateSectionHTML()}
+        </div>
       </section>
 
       <section class="admin-section" id="adminLlm">
@@ -106,70 +104,98 @@ export async function renderMeAdmin() {
         <div id="llmRoutingContainer" class="admin-panel" aria-live="polite">Loading LLM routing...</div>
       </section>
 
-      <section class="admin-section" id="adminUsers">
-        <h2 class="section-title">Users</h2>
-        <div class="admin-panel admin-user-panel">
-          <label class="admin-field">
-            <span>User ID</span>
-            <input id="supporterUserIdInput" class="input" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false">
-            <small>Paste the Supabase user UUID. This changes supporter status for exactly that account.</small>
-          </label>
-          <div class="admin-user-actions">
-            <button class="btn-primary" id="grantSupporterBtn">${I.star()}<span>Grant supporter</span></button>
-            <button class="btn-secondary" id="revokeSupporterBtn">${I.minus()}<span>Revoke</span></button>
+      <section class="admin-section" id="adminGovernance">
+        <h2 class="section-title">Governance & Operations</h2>
+        <p class="admin-section-intro">Community moderation queue, supporter account permissions, and system maintenance utilities.</p>
+        <div class="admin-subtabs" role="tablist" aria-label="Governance subtabs">
+          <button type="button" class="chip active" data-admin-subtab="gov" data-target="govContribPanel">Contributions <span id="contribCount" class="contrib-count"></span></button>
+          <button type="button" class="chip" data-admin-subtab="gov" data-target="govUsersPanel">Users & Supporters</button>
+          <button type="button" class="chip" data-admin-subtab="gov" data-target="govToolsPanel">System Maintenance</button>
+        </div>
+        <div id="govContribPanel" class="admin-subtab-panel active">
+          <div class="admin-panel">
+            <div class="admin-contrib-tabs" role="tablist" aria-label="Contribution type">
+              ${contribTabButtonHTML('all', 'All')}
+              ${contribTabButtonHTML('review', 'Reviews')}
+              ${contribTabButtonHTML('photo', 'Photos')}
+              ${contribTabButtonHTML('data', 'Data fixes')}
+            </div>
+            <div id="contribQueue">Loading queue...</div>
           </div>
-          <div class="admin-user-search">
+        </div>
+        <div id="govUsersPanel" class="admin-subtab-panel" hidden>
+          <div class="admin-panel admin-user-panel">
             <label class="admin-field">
-              <span>Find a user</span>
-              <input id="adminUserSearchInput" class="input" placeholder="Handle, email, or user ID" autocomplete="off">
-              <small>Search helps confirm the UUID before changing supporter status.</small>
+              <span>User ID</span>
+              <input id="supporterUserIdInput" class="input" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false">
+              <small>Paste the Supabase user UUID. This changes supporter status for exactly that account.</small>
             </label>
-            <button class="btn-secondary" id="adminUserSearchBtn">${I.search()}<span>Search</span></button>
+            <div class="admin-user-actions">
+              <button class="btn-primary" id="grantSupporterBtn">${I.star()}<span>Grant supporter</span></button>
+              <button class="btn-secondary" id="revokeSupporterBtn">${I.minus()}<span>Revoke</span></button>
+            </div>
+            <div class="admin-user-search">
+              <label class="admin-field">
+                <span>Find a user</span>
+                <input id="adminUserSearchInput" class="input" placeholder="Handle, email, or user ID" autocomplete="off">
+                <small>Search helps confirm the UUID before changing supporter status.</small>
+              </label>
+              <button class="btn-secondary" id="adminUserSearchBtn">${I.search()}<span>Search</span></button>
+            </div>
+            <div id="adminUserSearchResults" class="admin-search-results"></div>
+            <div id="supporterResult" class="admin-status-panel" hidden></div>
+            <div class="admin-supporters">
+              <div class="admin-supporters-head">
+                <div>
+                  <strong>Current supporters</strong>
+                  <span>Live accounts with supporter access enabled.</span>
+                </div>
+                <button class="btn-secondary" id="refreshSupportersBtn">${I.refresh({ w: 16 })}<span>Refresh</span></button>
+              </div>
+              <div id="supportersList" class="admin-supporter-list">Loading supporters...</div>
+            </div>
           </div>
-          <div id="adminUserSearchResults" class="admin-search-results"></div>
-          <div id="supporterResult" class="admin-status-panel" hidden></div>
-          <div class="admin-supporters">
+        </div>
+        <div id="govToolsPanel" class="admin-subtab-panel" hidden>
+          <div class="admin-panel">
             <div class="admin-supporters-head">
               <div>
-                <strong>Current supporters</strong>
-                <span>Live accounts with supporter access enabled.</span>
+                <strong>Onboarding wizard</strong>
+                <span>Replay the first-run setup (mode, appearance, extras, Pro) to review it.</span>
               </div>
-              <button class="btn-secondary" id="refreshSupportersBtn">${I.refresh({ w: 16 })}<span>Refresh</span></button>
+              <button class="btn-secondary" id="previewSetupBtn">${I.sparkles({ w: 16 })}<span>Preview</span></button>
             </div>
-            <div id="supportersList" class="admin-supporter-list">Loading supporters...</div>
-          </div>
-        </div>
-      </section>
-
-      <section class="admin-section" id="adminContrib">
-        <h2 class="section-title">Contributions <span id="contribCount" class="contrib-count"></span></h2>
-        <div class="admin-panel">
-          <div class="admin-contrib-tabs" role="tablist" aria-label="Contribution type">
-            ${contribTabButtonHTML('all', 'All')}
-            ${contribTabButtonHTML('review', 'Reviews')}
-            ${contribTabButtonHTML('photo', 'Photos')}
-            ${contribTabButtonHTML('data', 'Data fixes')}
-          </div>
-          <div id="contribQueue">Loading queue...</div>
-        </div>
-      </section>
-
-      <section class="admin-section" id="adminTools">
-        <h2 class="section-title">Tools</h2>
-        <div class="admin-panel">
-          <div class="admin-supporters-head">
-            <div>
-              <strong>Onboarding wizard</strong>
-              <span>Replay the first-run setup (mode, appearance, extras, Pro) to review it.</span>
+            <div class="admin-supporters-head" style="margin-top:10px;">
+              <div>
+                <strong>Guided tour</strong>
+                <span>Replay the coach-mark tour that spotlights the nav.</span>
+              </div>
+              <button class="btn-secondary" id="previewTourBtn">${I.info({ w: 16 })}<span>Preview</span></button>
             </div>
-            <button class="btn-secondary" id="previewSetupBtn">${I.sparkles({ w: 16 })}<span>Preview</span></button>
-          </div>
-          <div class="admin-supporters-head" style="margin-top:10px;">
-            <div>
-              <strong>Guided tour</strong>
-              <span>Replay the coach-mark tour that spotlights the nav.</span>
+            <div class="admin-tool-grid" style="margin-top:16px;">
+              ${maintenanceCardHTML('expire')}
+              ${maintenanceCardHTML('repair')}
+              ${maintenanceCardHTML('resetFirecrawlPool')}
             </div>
-            <button class="btn-secondary" id="previewTourBtn">${I.info({ w: 16 })}<span>Preview</span></button>
+            <article class="admin-tool-card admin-upload-card">
+              <div class="admin-tool-icon">${I.download()}</div>
+              <div>
+                <h3>Import BrickLink minifig catalog</h3>
+                <p class="admin-tool-desc">Upload BrickLink's Minifigures export (the tab-separated file) to map minifig IDs so BrickLink minifig prices resolve.</p>
+                <small id="blMinifigUploadResult">Choose the exported Minifigures file (tab format).</small>
+              </div>
+              <span class="csv-file-picker"><button type="button" class="btn-secondary admin-upload-btn csv-file-label" data-file-picker data-file-input="blMinifigFile">
+                ${I.upload ? I.upload({ w: 16 }) : I.download({ w: 16 })}<span>Upload</span>
+              </button><input type="file" id="blMinifigFile" accept=".txt,.xml,.tsv,.csv,text/plain,text/xml,text/tab-separated-values" tabindex="-1" aria-hidden="true"></span>
+            </article>
+            <article class="admin-tool-card">
+              <div class="admin-tool-icon">${I.gear()}</div>
+              <div>
+                <h3>Copy admin token</h3>
+                <p class="admin-tool-desc">Copies your active session JWT to the clipboard for API debugging.</p>
+              </div>
+              <button type="button" class="btn-secondary" id="copyAdminTokenBtn">${I.copy ? I.copy({ w: 16 }) : I.check({ w: 16 })}<span>Copy token</span></button>
+            </article>
           </div>
         </div>
       </section>
@@ -265,6 +291,7 @@ function wireTablistKeyboard(tablist, selector, activate) {
 function wireAdminShell() {
   wireHorizontalRail(document.querySelector('.admin-segments-sticky'));
   wireHorizontalRail(document.querySelector('.admin-service-filters'));
+  document.querySelectorAll('.admin-subtabs').forEach(rail => wireHorizontalRail(rail));
   document.querySelectorAll('.admin-section').forEach(s => {
     s.setAttribute('role', 'tabpanel');
     s.setAttribute('aria-labelledby', `${s.id}Tab`);
@@ -283,6 +310,27 @@ function wireAdminShell() {
     if (!id) return;
     activateAdminSection(id);
     btn.focus();
+  });
+  document.querySelectorAll('[data-admin-subtab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const group = btn.getAttribute('data-admin-subtab');
+      const targetId = btn.getAttribute('data-target');
+      if (!group || !targetId) return;
+      haptic('light');
+      document.querySelectorAll(`[data-admin-subtab="${group}"]`).forEach(b => {
+        const isActive = b === btn;
+        b.classList.toggle('active', isActive);
+        b.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      });
+      const parentSection = btn.closest('.admin-section');
+      if (parentSection) {
+        parentSection.querySelectorAll('.admin-subtab-panel').forEach(panel => {
+          const isTarget = panel.id === targetId;
+          panel.hidden = !isTarget;
+          panel.classList.toggle('active', isTarget);
+        });
+      }
+    });
   });
   document.querySelectorAll('[data-admin-tool]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2126,6 +2174,7 @@ function providerLabel(service) {
     brickeconomy: 'BrickEconomy',
     brickowl: 'BrickOwl',
     pricecharting: 'PriceCharting',
+    brickpicker: 'BrickPicker',
     firecrawl: 'Firecrawl',
     ebay: 'eBay',
     rebrickable: 'Rebrickable',
@@ -2148,6 +2197,7 @@ function jobTypeLabel(type = '') {
     barcode_backfill: 'Barcode backfill',
     populate_coverage: 'Populate coverage',
     valuation: 'Revalue prices',
+    brickpicker_enrich: 'BrickPicker enrich',
     populate_everything: 'Populate everything',
   };
   return labels[type] || String(type || 'Job').replace(/_/g, ' ');

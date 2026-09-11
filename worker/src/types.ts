@@ -35,6 +35,8 @@ export interface Env {
    *  CORS either way — see lib/app-url.ts. */
   APP_BASE_URL?: string;
   BRICKSET_API_KEY: string;
+  /** BrickPicker US/USD modeled set guide batch API. Secret; source defaults off. */
+  BRICKPICKER_API_KEY?: string;
   BRICKOWL_API_KEY?: string;
   /** Set to "0" for an emergency rollback; enabled for ordinary shared scans by default. */
   BRICKOGNIZE_ENABLED?: string;

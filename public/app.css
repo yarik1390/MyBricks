@@ -5545,6 +5545,26 @@ body.sheet-open .selection-bar {
   color: var(--line);
 }
 
+.admin-subtabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.admin-subtabs::-webkit-scrollbar {
+  display: none;
+}
+
+.admin-subtab-panel {
+  display: block;
+}
+
+.admin-subtab-panel[hidden] {
+  display: none !important;
+}
+
 .admin-job-summary,
 .admin-job-row {
   border-color: var(--border-soft-c);

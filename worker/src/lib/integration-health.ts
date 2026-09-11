@@ -25,6 +25,7 @@ export type IntegrationName =
   | 'scrapingant'
   | 'brightdata'
   | 'pricecharting'
+  | 'brickpicker'
   | 'amazon'
   | 'stockx';
 
@@ -282,6 +283,14 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['BrickEconomy valuation + forecasts', 'Brickset page enrichment', 'lego.com stock/retirement checks'],
     notes: 'Primary raw-HTML lane with deterministic parsers. Tokens rotate by least monthly usage; D1 stores hashes only and caps each token at 4,900 calls/month. Firecrawl remains the rich fallback.',
     recommended_action: 'Configure BRIGHTDATA_API_TOKENS as comma-separated Worker secrets and optionally BRIGHTDATA_ZONE.',
+  },
+  brickpicker: {
+    label: 'BrickPicker',
+    configured: (env) => !!env.BRICKPICKER_API_KEY?.trim(),
+    required_secrets: ['BRICKPICKER_API_KEY'],
+    used_by: ['scheduled set valuation (new/used modeled guides)'],
+    notes: 'Bounded batch API for US/USD modeled estimates. Scheduled demand-first only; never fetched on page view. Correlated with eBay-derived guides in the ebay_market family and contributes no invented sales/sample counts.',
+    recommended_action: 'Add BRICKPICKER_API_KEY as a Worker secret, validate shadow health, then explicitly enable BrickPicker under source tuning.',
   },
   pricecharting: {
     label: 'PriceCharting',

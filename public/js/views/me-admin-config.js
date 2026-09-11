@@ -5,15 +5,10 @@
 import { I } from '../icons.js';
 
 export const ADMIN_SECTIONS = [
-  ['adminServices', 'Services'],
-  ['adminPopulate', 'Populate'],
-  ['adminJobs', 'Activity'],
-  ['adminQuality', 'Catalog Quality'],
+  ['adminOverview', 'Overview'],
   ['adminPricing', 'Pricing'],
-  ['adminLlm', 'LLM Routing'],
-  ['adminUsers', 'Users'],
-  ['adminContrib', 'Contributions'],
-  ['adminTools', 'Tools'],
+  ['adminLlm', 'AI & Routing'],
+  ['adminGovernance', 'Governance'],
 ];
 
 export const ADMIN_JOB_TOOLS = {
@@ -118,6 +113,17 @@ export const ADMIN_JOB_TOOLS = {
     quota: 'Spends Firecrawl credits; runs synchronously and returns the result.',
     icon: I.refresh({ w: 16 }),
   },
+  brickpicker: {
+    url: '/api/admin/jobs/brickpicker-enrich?limit=10',
+    method: 'POST',
+    body: {},
+    label: 'Run BrickPicker enrich',
+    desc: 'Enriches owned/wishlisted and priority sets with BrickPicker modeled estimates.',
+    source: 'BrickPicker',
+    duration: 'Up to ~10s for 10 sets',
+    quota: 'Spends BrickPicker API quota (1,000/day hard limit).',
+    icon: I.refresh({ w: 16 }),
+  },
 };
 
 export const MAINTENANCE_TOOLS = {
@@ -150,6 +156,7 @@ export const SOURCE_META = {
   brickeconomy: ['BrickEconomy', 'Useful historical and forecast signal when reachable.'],
   brickowl: ['BrickOwl', 'Optional marketplace signal and cross-check.'],
   pricecharting: ['PriceCharting', 'eBay closed-auction sold comps (Marketplace Insights replacement). Verified mappings only — unique UPC or cross-source price agreement; the rest stay quarantined.'],
+  brickpicker: ['BrickPicker', 'Modeled new and used set guides from eBay market data. Demand-first scheduled enrichment; 1,000 calls/day hard cap.'],
   amazon: ['Amazon Creators API', 'Live Amazon offers for the buy slot. KV-only (24h) per Associates terms; never a valuation input — weight stays 0.'],
   firecrawl: ['Firecrawl', 'Scraping runtime for structured market enrichment.'],
   brightdata: ['Bright Data Web Unlocker', 'Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.'],
@@ -158,7 +165,7 @@ export const SOURCE_META = {
 export const PROVIDER_GROUPS = [
   ['Core', ['d1', 'supabase', 'worker', 'pages']],
   ['Catalog', ['rebrickable', 'brickset', 'upc']],
-  ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'brickowl', 'pricecharting', 'brickinsights', 'amazon']],
+  ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'brickowl', 'pricecharting', 'brickpicker', 'brickinsights', 'amazon']],
   ['Scraping', ['firecrawl', 'brightdata', 'stockx']],
   ['AI', ['gemini', 'openai', 'openrouter', 'merge', 'byok']],
   ['Notifications', ['resend', 'push', 'vapid', 'discord']],
@@ -198,7 +205,7 @@ export const TESTABLE = new Set([
 
 // Pricing sources with weight/cap/refresh tuning (worker DEFAULT_SOURCE_CONFIG).
 export const TUNABLE_SOURCES = new Set([
-  'bricklink', 'ebay', 'brickeconomy', 'brickowl', 'pricecharting', 'firecrawl', 'brightdata',
+  'bricklink', 'ebay', 'brickeconomy', 'brickowl', 'pricecharting', 'brickpicker', 'firecrawl', 'brightdata',
 ]);
 
 // Short "what it does" copy for services not already described in SOURCE_META.
