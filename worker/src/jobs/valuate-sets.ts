@@ -20,7 +20,7 @@ import { valuationExpiryModifier, isPlausibleMarketValue, independentRetailAncho
 import { computeRetirementRisk } from '../lib/retirement-risk';
 import { runValuateMinifigs } from './valuate-minifigs';
 import { sourceEnabled } from '../lib/source-config';
-import { selectDueSets, blBackedOffAt } from './valuate-select';
+import { selectDueSets, blBackedOffAt, type ValuationQuotaGrants } from './valuate-select';
 import {
   clearIntegrationBlock,
   isIntegrationBlocked,
@@ -124,15 +124,27 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   const brickeconomyEnabled = await sourceEnabled(env, 'brickeconomy');
   const brickowlEnabled = await sourceEnabled(env, 'brickowl');
   const includeSupplemental = options.includeSupplemental === true;
-  const includeEbay = options.includeEbay === true && await sourceEnabled(env, 'ebay');
+  const bricklinkConfigured = bricklinkEnabled && !!env.BRICKLINK_CONSUMER_KEY;
+  const brickowlConfigured = brickowlEnabled && !!env.BRICKOWL_API_KEY;
+  const includeEbay = options.includeEbay === true && await sourceEnabled(env, 'ebay')
+    && !!env.EBAY_APP_ID && !!env.EBAY_CLIENT_SECRET;
   // Sold comps need the restricted Marketplace Insights scope; ask-only
   // callers (the recurring cron) skip them so a non-approved keyset never
   // burns calls or trips the breaker. Defaults to includeEbay (back-compat).
   const includeEbaySold = (options.includeEbaySold ?? includeEbay) && ebaySoldCompsEnabled(env);
   const includeAiFallback = options.includeAiFallback !== false;
-  const { results, limit } = await selectDueSets(env, {
-    scope, options, includeSupplemental, includeEbay, includeEbaySold, includeAiFallback,
+  const { results, limit, grants } = await selectDueSets(env, {
+    scope, options, includeSupplemental,
+    includeBrickLink: bricklinkConfigured,
+    includeBrickOwl: brickowlConfigured,
+    includeEbay, includeEbaySold, includeAiFallback,
   });
+  const quotaRemaining: ValuationQuotaGrants = { ...grants };
+  const takeQuota = (service: keyof ValuationQuotaGrants, units = 1): boolean => {
+    if (units <= 0 || quotaRemaining[service] < units) return false;
+    quotaRemaining[service] -= units;
+    return true;
+  };
 
   const openai = env.OPENAI_API_KEY
     ? new OpenAI({
@@ -181,6 +193,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       // never forces a paid call.
       const { text: freePool } = await getOpenRouterPools(env);
       for (const model of freePool) {
+        if (!takeQuota('openrouter')) break;
         try {
           const completion = await ask(openrouter, model);
           aiUsage.record('openrouter', model, completion.usage);
@@ -191,7 +204,9 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
           console.warn(`[valuate] ${s.set_num}: OpenRouter free model ${model} failed (${(e as Error).message}) — trying next`);
         }
       }
-      // Every free model missed — escalate to the cheap paid backstop.
+      // Every free model missed — escalate to the cheap paid backstop when its
+      // separately reserved call unit remains.
+      if (!takeQuota('openrouter')) return null;
       try {
         const completion = await ask(openrouter, MODELS.openrouterPaid);
         aiUsage.record('openrouter', MODELS.openrouterPaid, completion.usage);
@@ -200,7 +215,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         return v;
       } catch (e) { tallyFail('openrouter', e); return null; }
     }
-    if (openai) {
+    if (openai && takeQuota('openai')) {
       try {
         const completion = await ask(openai, MODELS.openaiFallback);
         aiUsage.record('openai', MODELS.openaiFallback, completion.usage);
@@ -277,10 +292,42 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     const blBackedOff = blBackedOffAt(set.bl_nodata_at);
     const wantUsed = !!set.retired;
     let blAttempted = false;
+    let blNewAttempted = false;
+    let blUsedAttempted = false;
     // Set when the BrickLink NEW-sold fetch THROWS (a transient/credential
     // outage, not genuine no-data). Gates the bl_nodata_at stamp below so a
     // source blip never triggers a 90-day skip on a set that may have data.
     let blErrored = false;
+    const loadBrickLinkNew = async (): Promise<typeof blPricing> => {
+      if (blNewAttempted || !takeQuota('bricklink')) return blPricing;
+      blNewAttempted = true;
+      blAttempted = true;
+      blPricing = await fetchSetPricing(set.set_num, env, sourceOptions)
+        .catch((err) => { tallyFail('bricklink', err); blErrored = true; return null; });
+      if (blPricing) tallyOk('bricklink');
+      return blPricing;
+    };
+    const loadBrickLinkUsed = async (): Promise<typeof usedPricing> => {
+      if (blUsedAttempted || !takeQuota('bricklink')) return usedPricing;
+      blUsedAttempted = true;
+      usedPricing = await fetchUsedPricing(set.set_num, env, sourceOptions)
+        .catch((err) => { tallyFail('bricklink', err); return null; });
+      if (usedPricing) tallyOk('bricklink');
+      return usedPricing;
+    };
+    let ebaySoldAttempted = false;
+    const loadEbaySold = async (): Promise<typeof ebayPrices> => {
+      if (ebaySoldAttempted || ebayBlocked || !takeQuota('ebay', 2)) return ebayPrices;
+      ebaySoldAttempted = true;
+      ebayPrices = await fetchEbaySoldPrices(set.set_num, set.name, env, sourceOptions)
+        .catch(async (err) => {
+          tallyFail('ebay', err);
+          if (isEbayAccessError((err as Error)?.message || String(err))) await markEbayBlocked();
+          return null;
+        });
+      await tallyEbayResult(ebayPrices);
+      return ebayPrices;
+    };
 
     // BrickEconomy values come from the be_* staging columns populated by the
     // brickeconomy-enrich Firecrawl cron — no hot-path API call (the ~$1,000/mo
@@ -307,53 +354,21 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       }
     }
 
-    if (includeSupplemental && bricklinkEnabled && !blBackedOff) {
-      blAttempted = true;
-      blPricing = await fetchSetPricing(set.set_num, env, sourceOptions)
-        .catch((err) => { tallyFail('bricklink', err); blErrored = true; return null; });
-      if (blPricing) tallyOk('bricklink');
-      if (!usedPricing && wantUsed) {
-        usedPricing = await fetchUsedPricing(set.set_num, env, sourceOptions)
-          .catch((err) => { tallyFail('bricklink', err); return null; });
-        if (usedPricing) tallyOk('bricklink');
-      }
+    if (includeSupplemental && bricklinkConfigured && !blBackedOff) {
+      blPricing = await loadBrickLinkNew();
+      if (!usedPricing && wantUsed) usedPricing = await loadBrickLinkUsed();
     }
 
-    if (includeEbay && includeEbaySold && !ebayBlocked) {
-      ebayPrices = await fetchEbaySoldPrices(set.set_num, set.name, env, sourceOptions)
-        .catch(async (err) => {
-          tallyFail('ebay', err);
-          if (isEbayAccessError((err as Error)?.message || String(err))) await markEbayBlocked();
-          return null;
-        });
-      await tallyEbayResult(ebayPrices);
-    }
+    if (includeEbay && includeEbaySold) ebayPrices = await loadEbaySold();
 
     if (!pricing) {
       // BrickEconomy not configured or returned no data — use BrickLink as primary
       // (still honoring the no-data backoff + retired-only used-guide savers).
-      if (bricklinkEnabled && !blBackedOff) {
-        if (!blPricing) {
-          blAttempted = true;
-          blPricing = await fetchSetPricing(set.set_num, env, sourceOptions)
-            .catch((err) => { tallyFail('bricklink', err); blErrored = true; return null; });
-          if (blPricing) tallyOk('bricklink');
-        }
-        if (!usedPricing && wantUsed) {
-          usedPricing = await fetchUsedPricing(set.set_num, env, sourceOptions)
-            .catch((err) => { tallyFail('bricklink', err); return null; });
-          if (usedPricing) tallyOk('bricklink');
-        }
+      if (bricklinkConfigured && !blBackedOff) {
+        if (!blPricing) blPricing = await loadBrickLinkNew();
+        if (!usedPricing && wantUsed) usedPricing = await loadBrickLinkUsed();
       }
-      if (includeEbay && includeEbaySold && !ebayBlocked && ebayPrices === null) {
-        ebayPrices = await fetchEbaySoldPrices(set.set_num, set.name, env, sourceOptions)
-          .catch(async (err) => {
-            tallyFail('ebay', err);
-            if (isEbayAccessError((err as Error)?.message || String(err))) await markEbayBlocked();
-            return null;
-          });
-        await tallyEbayResult(ebayPrices);
-      }
+      if (includeEbay && includeEbaySold && ebayPrices === null) ebayPrices = await loadEbaySold();
       pricing = blPricing;
       valMethod = 'market';
     }
@@ -372,7 +387,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     // prioritized (owned/wishlisted) sets only. The Browse API needs only the
     // basic OAuth scope, so a Marketplace Insights block must not starve it —
     // it runs regardless of ebayBlocked, with its own run-local access flag.
-    if (includeEbay && !browseDenied && set.ask_stale) {
+    if (includeEbay && !browseDenied && set.ask_stale && takeQuota('ebay')) {
       const listings = await fetchEbayActiveListings(set.set_num, set.name, env, sourceOptions)
         .catch((err) => { tallyFail('ebay', err); return null; });
       if (listings && !listings.error) tallyOk('ebay');
@@ -424,7 +439,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     // be_cached_at (doing so would make the enrich cron treat the set as freshly
     // scraped and skip it).
     // BrickOwl as 4th supplemental pricing source
-    if (includeSupplemental && brickowlEnabled) {
+    if (includeSupplemental && brickowlConfigured && takeQuota('brickowl', 2)) {
       const boPricing = await fetchBrickOwlPricing(set.set_num, env, sourceOptions)
         .catch((err) => { tallyFail('brickowl', err); return null; });
       if (boPricing) {
@@ -529,7 +544,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     }
 
     // Fall back to Gemini (cheaper) then GPT-4o-mini
-    if (env.GEMINI_API_KEY) {
+    if (env.GEMINI_API_KEY && takeQuota('gemini')) {
       try {
         const gemVals = await callGeminiValuation(set.set_num as string, set.name, env.GEMINI_API_KEY, env, { routeThroughGateway: true });
         // Count the completed server Gemini call (free tier → $0 billable cost).

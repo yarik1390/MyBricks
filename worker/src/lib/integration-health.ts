@@ -520,14 +520,16 @@ export async function getIntegrationDiagnostics(env: Env): Promise<IntegrationDi
     const row = byService.get(service);
     const missing = missingSecrets(env, def.required_secrets);
     let status: IntegrationStatus = 'unconfigured';
-    if (configured && (service === 'd1' || service === 'supabase')) {
-      status = 'ok';
-    } else if (configured) {
-      status = row ? classifyHealth(row) : 'unknown';
+    const observedAt = row ? Math.max(Date.parse(row.last_ok_at || '') || 0, Date.parse(row.last_fail_at || '') || 0) : 0;
+    const fresh = observedAt > 0 && Date.now() - observedAt <= 48 * 60 * 60 * 1000;
+    if (configured) {
+      // Configuration presence is not a connectivity check. Old observations
+      // remain visible as history, but cannot certify current health.
+      status = row && fresh ? classifyHealth(row) : 'unknown';
     }
     const degraded = status === 'degraded';
-    const reachable = !configured ? false : (service === 'd1' || service === 'supabase') ? true : row ? status !== 'down' : null;
-    const latestAccessIssue = !!(configured && row && isCredentialOrAccessIssue(row.last_error));
+    const reachable = status === 'ok' ? true : status === 'down' ? false : null;
+    const latestAccessIssue = !!(configured && fresh && row && status !== 'ok' && isCredentialOrAccessIssue(row.last_error));
     const ebayKeyIssue = service === 'ebay' && latestAccessIssue && /OAuth|invalid[_ -]?client/i.test(row?.last_error || '');
     const ebayInsightsIssue = service === 'ebay' && latestAccessIssue && !ebayKeyIssue;
     const recommendedAction = ebayKeyIssue

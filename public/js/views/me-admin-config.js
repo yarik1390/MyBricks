@@ -113,6 +113,17 @@ export const ADMIN_JOB_TOOLS = {
     quota: 'Spends Firecrawl credits; runs synchronously and returns the result.',
     icon: I.refresh({ w: 16 }),
   },
+  pricecharting: {
+    url: '/api/admin/jobs/pricecharting-enrich?limit=10',
+    method: 'POST',
+    body: {},
+    label: 'Run PriceCharting enrich',
+    desc: 'Refreshes a bounded batch of sets that already have verified PriceCharting mappings.',
+    source: 'PriceCharting',
+    duration: 'Up to ~60s for 10 sets',
+    quota: 'Spends PriceCharting API quota; verified mappings only.',
+    icon: I.refresh({ w: 16 }),
+  },
   brickpicker: {
     url: '/api/admin/jobs/brickpicker-enrich?limit=10',
     method: 'POST',

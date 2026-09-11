@@ -52,6 +52,19 @@ export function blBackedOffAt(v: string | null | undefined): boolean {
   return Number.isFinite(ts) && ts > Date.now() - 90 * 86400000;
 }
 
+export interface ValuationQuotaGrants {
+  bricklink: number;
+  brickowl: number;
+  ebay: number;
+  gemini: number;
+  openrouter: number;
+  openai: number;
+}
+
+// model-refresh can publish at most three curated survivors plus three
+// discovered text models. Reserve one more unit for the paid backstop.
+export const OPENROUTER_CALLS_PER_SET = 7;
+
 export interface SelectDueSetsConfig {
   scope: 'owned' | 'all';
   options: {
@@ -60,6 +73,8 @@ export interface SelectDueSetsConfig {
     minValue?: number; subrequestBudget?: number; onProgress?: unknown;
   };
   includeSupplemental: boolean;
+  includeBrickLink?: boolean;
+  includeBrickOwl?: boolean;
   includeEbay: boolean;
   includeEbaySold: boolean;
   includeAiFallback: boolean;
@@ -72,8 +87,12 @@ export interface SelectDueSetsConfig {
 export async function selectDueSets(
   env: Env,
   cfg: SelectDueSetsConfig,
-): Promise<{ results: DueSetRow[]; limit: number }> {
-  const { scope, options, includeSupplemental, includeEbay, includeEbaySold, includeAiFallback } = cfg;
+): Promise<{ results: DueSetRow[]; limit: number; grants: ValuationQuotaGrants }> {
+  const {
+    scope, options, includeSupplemental, includeEbay, includeEbaySold, includeAiFallback,
+  } = cfg;
+  const includeBrickLink = cfg.includeBrickLink !== false;
+  const includeBrickOwl = cfg.includeBrickOwl ?? brickOwlEnabled(env);
 
   const requestedLimit = Number(options.limit);
   // Default raised from the old hand-tuned 4: the invocation packer below is
@@ -189,25 +208,39 @@ export async function selectDueSets(
     LIMIT ?
   `).bind(limit).all<DueSetRow>();
 
-  // Reserve today's external-API budget for this batch up front (2-3 D1
-  // round-trips total) for accounting/visibility; these budgets are far above
-  // any single run. BrickEconomy is no longer reserved here — its values come
-  // from the be_* columns (Firecrawl-populated by brickeconomy-enrich), not a
-  // per-set API call, so the ~$1,000/mo BrickEconomy API is off the hot path.
-  // BrickLink is reserved to match the two budget savers below: backed-off sets
-  // cost 0, and only retired sets pay for the USED guide (modern sets skip it),
-  // so the ledger reflects real spend instead of a flat 2/set over-count.
-  const blReserve = results.reduce(
+  // Reserve provider-call units for this batch and return the exact atomic grants
+  // to the execution loop. A reservation is the sole charge for these paths:
+  // the provider helpers must not spendQuota again or they would double-charge.
+  //
+  // Multiplicity:
+  //   BrickLink NEW=1, retired USED=1; BrickOwl lookup+price=2;
+  //   eBay sold NEW+USED=2 and stale ask=1; Gemini/OpenAI=1 logical call;
+  //   OpenRouter <=6 free attempts + 1 paid backstop per set.
+  const blReserve = includeBrickLink ? results.reduce(
     (n, s) => (blBackedOffAt(s.bl_nodata_at) ? n : n + (s.retired ? 2 : 1)),
     0,
-  );
-  await reserveQuota(env, {
+  ) : 0;
+  const rawGrants = await reserveQuota(env, {
     bricklink: blReserve,
-    // BrickOwl makes TWO calls per set (catalog/lookup + catalog/price_data), so
-    // reserve 2/set — the flat results.length under-counted its usage by half.
-    brickowl: (includeSupplemental && brickOwlEnabled(env)) ? results.length * 2 : 0,
-    ebay: includeEbay ? results.length * (includeEbaySold ? 2 : 1) : 0,
+    brickowl: (includeSupplemental && includeBrickOwl) ? results.length * 2 : 0,
+    ebay: includeEbay
+      ? results.reduce((n, s) => n + (includeEbaySold ? 2 : 0) + (s.ask_stale ? 1 : 0), 0)
+      : 0,
+    // AI quota service names are intentionally unbudgeted by default today, so
+    // reserveQuota passes these through without a D1 row. If an operator/code cap
+    // is introduced, these same returned grants immediately become hard gates.
+    gemini: includeAiFallback && !!env.GEMINI_API_KEY ? results.length : 0,
+    openrouter: includeAiFallback && !!env.OPENROUTER_API_KEY ? results.length * OPENROUTER_CALLS_PER_SET : 0,
+    openai: includeAiFallback && !env.OPENROUTER_API_KEY && !!env.OPENAI_API_KEY ? results.length : 0,
   });
+  const grants: ValuationQuotaGrants = {
+    bricklink: rawGrants.bricklink ?? 0,
+    brickowl: rawGrants.brickowl ?? 0,
+    ebay: rawGrants.ebay ?? 0,
+    gemini: rawGrants.gemini ?? 0,
+    openrouter: rawGrants.openrouter ?? 0,
+    openai: rawGrants.openai ?? 0,
+  };
 
-  return { results, limit };
+  return { results, limit, grants };
 }

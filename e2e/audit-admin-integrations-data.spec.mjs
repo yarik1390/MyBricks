@@ -19,16 +19,17 @@ test('admin audit: section navigation is progressive and service rows meet the t
   await page.goto('/#/me/admin', { waitUntil: 'domcontentloaded' });
 
   await expect(page.locator('.admin-section.is-active')).toHaveCount(1);
-  await expect(page.locator('#adminServices')).toBeVisible();
-  await page.locator('[data-admin-section-link="adminUsers"]').click();
-  await expect(page.locator('#adminUsers')).toBeVisible();
-  await expect(page.locator('#adminServices')).toBeHidden();
+  await expect(page.locator('#adminOverview')).toBeVisible();
+  await page.locator('[data-admin-section-link="adminGovernance"]').click();
+  await page.locator('[data-target="govUsersPanel"]').click();
+  await expect(page.locator('#govUsersPanel')).toBeVisible();
+  await expect(page.locator('#adminOverview')).toBeHidden();
 
   const navTargets = await page.locator('[data-admin-section-link]').evaluateAll((els) =>
     els.map((el) => el.getBoundingClientRect().height));
   expect(Math.min(...navTargets)).toBeGreaterThanOrEqual(44);
 
-  await page.locator('[data-admin-section-link="adminServices"]').click();
+  await page.locator('[data-admin-section-link="adminOverview"]').click();
   const serviceSummary = page.locator('.admin-service-summary').first();
   if (await serviceSummary.count()) {
     expect((await serviceSummary.boundingBox()).height).toBeGreaterThanOrEqual(44);

@@ -60,9 +60,11 @@ export async function runValuateMinifigs(
     LIMIT ?
   `).bind(limit).all<{ fig_num: string; name: string; appears_in_sets: number | null; bl_id: string | null; year: number | null; current_value: number | null; priority: number }>();
 
-  // Account the BrickLink spend in the daily ledger (advisory — minifig
-  // batches are far below the 4,000/day budget, but visibility matters).
-  await reserveQuota(env, { bricklink: results.length });
+  // Claim one BrickLink call per queued fig up front. The returned grant is the
+  // hard processing ceiling: accounting failure/exhaustion must not leak calls,
+  // and rows outside a partial grant must remain immediately eligible.
+  const grants = await reserveQuota(env, { bricklink: results.length });
+  const grantedResults = results.slice(0, Math.min(results.length, grants.bricklink ?? 0));
 
   // Multi-source (G1b): only worth an eBay scrape (5 Firecrawl credits) for
   // figs valuable enough that a second source matters — cheap commons don't.
@@ -83,7 +85,7 @@ export async function runValuateMinifigs(
 
   const summary: ValuateMinifigsSummary = { figs: results.length, priced: 0, bl_matched: 0, parked: 0, ebay: 0, missed: 0 };
   let ebaySpent = 0;
-  for (const fig of results) {
+  for (const fig of grantedResults) {
     // Resolve the BrickLink id lazily: Rebrickable fig-numbers aren't valid on
     // BrickLink, so we match this fig's normalized name (+year) against the
     // uploaded BrickLink catalog and cache the id on the row. Candidates are

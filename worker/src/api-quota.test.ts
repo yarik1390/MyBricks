@@ -117,6 +117,19 @@ describe('reserveQuota', () => {
     expect(grants.brickeconomy).toBe(0);
   });
 
+  it('does not overgrant concurrent reservations', async () => {
+    setQuotaCapOverrides({ bricklink: 10 });
+
+    const reservations = await Promise.all(
+      Array.from({ length: 8 }, () => reserveQuota(testEnv, { bricklink: 3 })),
+    );
+    const granted = reservations.reduce((sum, reservation) => sum + reservation.bricklink, 0);
+
+    expect(granted).toBe(10);
+    expect(reservations.every(({ bricklink }) => bricklink >= 0 && bricklink <= 3)).toBe(true);
+    expect(await readRow('bricklink')).toMatchObject({ used: 10, cap: 10 });
+  });
+
   it('passes unbudgeted services through and ignores non-positive wants', async () => {
     const grants = await reserveQuota(testEnv, { gemini: 7, bricklink: 0 });
     expect(grants.gemini).toBe(7);
@@ -124,10 +137,10 @@ describe('reserveQuota', () => {
     expect(await readRow('gemini')).toBeNull();
   });
 
-  it('fails open with full grants when the ledger table is unavailable', async () => {
+  it('fails closed for capped services when quota accounting is unavailable', async () => {
     await testEnv.DB.prepare('DROP TABLE api_quota').run();
-    const grants = await reserveQuota(testEnv, { brickeconomy: 12 });
-    expect(grants.brickeconomy).toBe(12);
+    const grants = await reserveQuota(testEnv, { bricklink: 11, ebay: 6, gemini: 4 });
+    expect(grants).toEqual({ bricklink: 0, ebay: 0, gemini: 4 });
   });
 });
 

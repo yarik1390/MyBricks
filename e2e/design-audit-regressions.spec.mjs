@@ -78,8 +78,8 @@ test.describe('design audit regressions', () => {
     await page.goto('/#/me/admin', { waitUntil: 'domcontentloaded' });
 
     const sections = page.getByRole('tablist', { name: 'Admin sections' });
-    const services = sections.getByRole('tab', { name: 'Services' });
-    const populate = sections.getByRole('tab', { name: 'Populate' });
+    const services = sections.getByRole('tab', { name: 'Overview' });
+    const populate = sections.getByRole('tab', { name: 'Pricing' });
     await services.focus();
     await page.keyboard.press('ArrowRight');
     await expect(populate).toBeFocused();

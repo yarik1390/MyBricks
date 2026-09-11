@@ -532,12 +532,12 @@ test('admin console renders its sections for an admin user', async ({ page }) =>
   await expect(page.locator('.admin-dashboard-page')).toBeVisible();
   await expect(page.locator('.admin-segments')).toBeVisible();
   // The segment nav (always visible) exposes the section tabs.
-  await expect(page.locator('[data-admin-section-link="adminPopulate"]')).toBeVisible();
-  await expect(page.locator('[data-admin-section-link="adminUsers"]')).toBeVisible();
+  await expect(page.locator('[data-admin-section-link="adminPricing"]')).toBeVisible();
+  await expect(page.locator('[data-admin-section-link="adminGovernance"]')).toBeVisible();
 
   // Segment tabs are wired synchronously (wireAdminShell) — clicking one
   // activates it without any network.
-  const usersTab = page.locator('[data-admin-section-link="adminUsers"]');
+  const usersTab = page.locator('[data-admin-section-link="adminGovernance"]');
   await usersTab.click();
   await expect(usersTab).toHaveAttribute('aria-selected', 'true');
 });

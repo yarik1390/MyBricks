@@ -271,7 +271,6 @@ export const ui = {
   "Change in market value over the past 12 months": "Зміна ринкової вартості за останні 12 місяців",
   "Check Supabase URL, anon key, and JWT secret.": "Перевірте URL Supabase, анонімний ключ і секрет JWT.",
   "Check current price": "Перевірити поточну ціну",
-  "Check eBay sold-comps access in the Services tab; do not fall back to active listings for sold value.": "Перевірте доступ до проданих аналогів eBay у вкладці «Сервіси»; не використовуйте активні оголошення як резерв для вартості продажу.",
   "Check for update": "Перевірити оновлення",
   "Check provider credentials, scopes, and account access.": "Перевірте облікові дані провайдера, дозволи та доступ до облікового запису.",
   "Check the D1 binding.": "Перевірте прив'язку D1.",
@@ -1227,10 +1226,7 @@ export const ui = {
   "Rows using weak or formula-heavy valuation.": "Рядки зі слабкою або переважно формульною оцінкою.",
   "Rows with persisted blended values.": "Рядки зі збереженими змішаними значеннями.",
   "Rummaging the parts bin…": "Порпаємося в коробці з деталями…",
-  "Run Populate all safe sources (Populate tab) to refresh the latest provider coverage.": "Запустіть «Заповнити всі безпечні джерела» (вкладка «Заповнення»), щоб оновити останнє покриття провайдерів.",
-  "Run Populate all safe sources and check provider access in the Services tab before increasing source weights.": "Запустіть «Заповнити всі безпечні джерела» та перевірте доступ провайдерів у вкладці «Сервіси», перш ніж збільшувати ваги джерел.",
   "Run Populate all safe sources to advance the next safe slice.": "Запустіть «Заповнити всі безпечні джерела», щоб перейти до наступної безпечної частини.",
-  "Run Populate all safe sources, or the Barcode backfill job from the Activity tab.": "Запустіть «Заповнити всі безпечні джерела» або завдання донабору штрихкодів у вкладці «Активність».",
   "Run eBay-sold scrape": "Запустити збір проданих eBay",
   "Run next slice if coverage remains": "Запустити наступну частину, якщо покриття лишається неповним",
   "Run now": "Запустити зараз",
@@ -1396,7 +1392,6 @@ export const ui = {
   "Stale states": "Застарілі стани",
   "Stalled": "Застрягло",
   "Start Your Brick Vault": "Почніть своє сховище цеглинок",
-  "Start a run from the Populate tab — live progress shows here.": "Запустіть з вкладки «Заповнення» — прогрес у реальному часі показано тут.",
   "Static asset + PWA hosting on Cloudflare Pages.": "Хостинг статичних файлів і PWA на Cloudflare Pages.",
   "Steady demand": "Стабільний попит",
   "StockX (probe)": "StockX (перевірка)",
@@ -1449,7 +1444,6 @@ export const ui = {
   "Tap sets to select them for bulk actions": "Торкніться наборів, щоб обрати їх для масових дій",
   "Tap the heart on any set to watch it. We'll alert you when the price hits your target.": "Торкніться сердечка на будь-якому наборі, щоб стежити за ним. Ми сповістимо вас, коли ціна досягне бажаної.",
   "Tap the minifig you pulled to add it to your collection.": "Торкніться витягнутої мініфігурки, щоб додати її до колекції.",
-  "Tap to copy your access token.": "Торкніться, щоб скопіювати токен доступу.",
   "Target": "Ціль",
   "Tax / VAT": "Податок / ПДВ",
   "Tell us what's wrong with the current image.": "Розкажіть, що не так з поточним зображенням.",
@@ -1557,7 +1551,6 @@ export const ui = {
   "Upload your own photo for this set.": "Завантажте власне фото для цього набору.",
   "Uploading & parsing...": "Завантаження та аналіз...",
   "Use ID": "Використати ID",
-  "Use Populate all safe sources to start a controlled data pass.": "Скористайтеся «Заповнити всі безпечні джерела», щоб запустити контрольований прохід даних.",
   "Use a set number like 71043-1, or a longer barcode": "Використайте номер набору на кшталт 71043-1 або штрихкод із щонайменше 8 цифр",
   "Use only when catalog import is incomplete.": "Використовуйте лише якщо імпорт каталогу неповний.",
   "Use the box barcode, take a photo, or type the number.": "Скористайтеся штрихкодом коробки, зробіть фото або введіть номер.",
@@ -1690,7 +1683,6 @@ export const ui = {
   "asking data not populated": "дані запитуваних цін не заповнені",
   "at your target price": "за цільовою ціною",
   "below for the full evidence and sources.": "нижче для повних доказів і джерел.",
-  "button on the Activity tab, where you can also watch it finish.": "на вкладці «Активність», де також можна побачити завершення.",
   "collection value": "вартість колекції",
   "display_name max 40 chars": "display_name — максимум 40 символів",
   "e.g. Closet A, Shelf 2": "напр. Шафа A, Полиця 2",
@@ -1714,7 +1706,6 @@ export const ui = {
   "minifigs": "мініфігурки",
   "missing set_num": "відсутній set_num",
   "moving away from your target": "віддаляється від цільової ціни",
-  "none recorded yet — the weekly LEGO price-guide download hasn’t run (or isn’t tracked). Trigger it from Activity → Pricing → “PriceCharting (bulk CSV)”.": "поки нічого не зафіксовано — щотижневе завантаження прайс-гайду LEGO ще не запускалося (або не відстежується). Запустіть його з Активність → Ціноутворення → «PriceCharting (масовий CSV)».",
   "not yet run": "ще не виконувалось",
   "of your total portfolio value. Consider spreading acquisitions across other high-performing themes to reduce risk.": "вашої загальної вартості портфеля. Розгляньте розподіл придбань між іншими успішними темами, щоб знизити ризик.",
   "on any set page — corrections feed the same verification pipeline. ·": "на будь-якій сторінці набору — виправлення надходять до того самого конвеєра перевірки. ·",
@@ -1814,7 +1805,6 @@ ui["last run"] = "останній запуск";
 ui["— Ready for offline text advice."] = "— Готово до офлайн-порад.";
 ui["Catalog coverage is measured against all catalog rows. Barcode coverage uses scannable retail sets where a UPC is expected. eBay sold coverage stays at zero when Marketplace Insights or sold-comps access is blocked."] = "Покриття каталогу вимірюється за всіма рядками каталогу. Покриття штрихкодами використовує придатні до сканування роздрібні набори, для яких очікується UPC. Покриття проданих лотів eBay лишається нульовим, коли доступ до Marketplace Insights або проданих аналогів заблоковано.";
 ui["Connecting…"] = "Підключення…";
-ui["Copies your current bearer access token to the clipboard — handy for running admin API probes from a terminal or support session. Short-lived; logging out invalidates it."] = "Копіює ваш поточний токен доступу в буфер обміну — зручно для перевірок адмін-API з термінала або сеансу підтримки. Токен короткочасний; вихід робить його недійсним.";
 ui["Deleting…"] = "Видалення…";
 ui["Done!"] = "Готово!";
 ui["Importing..."] = "Імпортування…";

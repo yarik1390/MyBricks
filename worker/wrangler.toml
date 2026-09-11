@@ -78,6 +78,8 @@ crons = [
   # Minifig identity verification: price-agreement settling of ambiguous
   # Rebrickable->BrickLink name matches (minifig_bl_candidates queue).
   "0 16 * * *",
+  # BrickPicker demand-first enrichment (bounded; source remains opt-in).
+  "0 17 * * *",
   # StockX lowest-ask enrichment (Bright Data, rendered). OFF by default (the
   # stockx flag / STOCKX_ENABLED) — a no-op until enabled, then a bounded
   # corroborating-only scrape.

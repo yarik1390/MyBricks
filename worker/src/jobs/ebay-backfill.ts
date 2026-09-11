@@ -51,13 +51,17 @@ export async function runEbayBackfill(env: Env, options: { limit?: number } = {}
     LIMIT ?
   `).bind(limit).all<{ set_num: string; name: string }>();
 
-  // Account the eBay spend in the daily ledger (advisory at backfill sizes).
-  await reserveQuota(env, { ebay: results.length });
+  // Marketplace Insights performs two condition calls (new + used) per set.
+  // Only complete two-unit grants may start an item; any odd remainder stays
+  // conservatively unused rather than making an unaccounted condition call.
+  const grants = await reserveQuota(env, { ebay: results.length * 2 });
+  const grantedCount = Math.min(results.length, Math.floor((grants.ebay ?? 0) / 2));
+  const grantedResults = results.slice(0, grantedCount);
 
   let updated = 0;
   let processed = 0;
   const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
-  for (const set of results) {
+  for (const set of grantedResults) {
     processed++;
     const prices = await fetchEbaySoldPrices(set.set_num, set.name, env, { recordHealth: false })
       .catch((err) => {
@@ -118,15 +122,17 @@ export async function runEbayAskBackfill(env: Env, options: { limit?: number } =
   `).bind(limit).all<{ set_num: string; name: string }>();
   if (!results.length) return { processed: 0, updated: 0, limit };
 
-  // Advisory ledger entry (eBay budget is far above any ask batch).
-  await reserveQuota(env, { ebay: results.length });
+  // Browse performs one provider call per set. Respect the exact grant so a
+  // ledger outage/exhaustion makes zero calls and a partial grant is a hard cap.
+  const grants = await reserveQuota(env, { ebay: results.length });
+  const grantedResults = results.slice(0, Math.min(results.length, grants.ebay ?? 0));
 
   let updated = 0;
   let processed = 0;
   let browseDenied = false;
   const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
   const stmts: D1PreparedStatement[] = [];
-  for (const set of results) {
+  for (const set of grantedResults) {
     if (browseDenied) break;
     processed++;
     const listings = await fetchEbayActiveListings(set.set_num, set.name, env, { recordHealth: false })
@@ -144,7 +150,7 @@ export async function runEbayAskBackfill(env: Env, options: { limit?: number } =
   if (stmts.length) await env.DB.batch(stmts);
   await recordIntegrationHealth(env, 'ebay', health);
   // Refresh the persisted blend so newly-collected ask prices feed blended_value.
-  await recomputeBlendedValues(env.DB, results.map(r => r.set_num));
+  await recomputeBlendedValues(env.DB, grantedResults.map(r => r.set_num));
 
   return { processed, updated, limit };
 }

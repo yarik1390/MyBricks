@@ -1801,7 +1801,7 @@
     ]
   },
   {
-    "text": "Check eBay sold-comps access in the Services tab; do not fall back to active listings for sold value.",
+    "text": "Check eBay sold-comps access under Overview → Pricing; do not fall back to active listings for sold value.",
     "files": [
       "views/me-admin.js"
     ]
@@ -2311,15 +2311,8 @@
     ]
   },
   {
-    "text": "Copies your current bearer access token to the clipboard — handy for running admin API probes from a terminal or support session. Short-lived; logging out invalidates it.",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
     "text": "Copy",
     "files": [
-      "views/me-admin.js",
       "views/me.js"
     ]
   },
@@ -3389,6 +3382,12 @@
     ]
   },
   {
+    "text": "Evidence stale",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Exchange rates couldn't be loaded — values are shown in USD until they refresh",
     "files": [
       "views/portfolio.js"
@@ -4028,6 +4027,12 @@
     "text": "Go to",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Go to Background Activity & Jobs",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -6595,6 +6600,30 @@
     ]
   },
   {
+    "text": "Open Populate & Batch",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Open Pricing → Populate & Batch and run Populate all safe sources to refresh provider coverage.",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Open Pricing → Populate & Batch for Populate all safe sources, or run Barcode backfill in Background Activity & Jobs.",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Open Pricing → Populate & Batch to start a controlled data pass.",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Open Pro settings",
     "files": [
       "views/portfolio.js"
@@ -7875,6 +7904,12 @@
     ]
   },
   {
+    "text": "Refreshes a bounded batch of sets that already have verified PriceCharting mappings.",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "Reject",
     "files": [
       "views/me-admin.js"
@@ -8443,13 +8478,7 @@
     ]
   },
   {
-    "text": "Run Populate all safe sources (Populate tab) to refresh the latest provider coverage.",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Run Populate all safe sources and check provider access in the Services tab before increasing source weights.",
+    "text": "Run Populate all safe sources and check provider access under Overview → Pricing before increasing source weights.",
     "files": [
       "views/me-admin.js"
     ]
@@ -8461,9 +8490,9 @@
     ]
   },
   {
-    "text": "Run Populate all safe sources, or the Barcode backfill job from the Activity tab.",
+    "text": "Run PriceCharting enrich",
     "files": [
-      "views/me-admin.js"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -9620,6 +9649,12 @@
     ]
   },
   {
+    "text": "Spends PriceCharting API quota; verified mappings only.",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "Spreadsheet ID:",
     "files": [
       "views/me-integrations.js"
@@ -9650,7 +9685,7 @@
     ]
   },
   {
-    "text": "Start a run from the Populate tab — live progress shows here.",
+    "text": "Start a safe batch from Pricing → Populate & Batch, or use Run now below for one process. Live progress appears here.",
     "files": [
       "views/me-admin.js"
     ]
@@ -10009,12 +10044,6 @@
     ]
   },
   {
-    "text": "Tap to copy your access token.",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
     "text": "Target",
     "files": [
       "views/portfolio-wishlist.js"
@@ -10104,6 +10133,18 @@
     "text": "The expected price at launch. This is not a secondary-market valuation.",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "The last observation is too old to certify current health. Check the latest background process before acting.",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "The last observation is too old to certify current health. Run Test for fresh evidence.",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -10690,6 +10731,12 @@
     ]
   },
   {
+    "text": "Up to ~60s for 10 sets",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "Up to ~60s for 5 sets",
     "files": [
       "views/me-admin-config.js"
@@ -10770,12 +10817,6 @@
   },
   {
     "text": "Use ID",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Use Populate all safe sources to start a controlled data pass.",
     "files": [
       "views/me-admin.js"
     ]
@@ -11673,7 +11714,7 @@
     ]
   },
   {
-    "text": "button on the Activity tab, where you can also watch it finish.",
+    "text": "button in Background Activity & Jobs.",
     "files": [
       "views/me-admin.js"
     ]
@@ -11848,7 +11889,7 @@
     ]
   },
   {
-    "text": "none recorded yet — the weekly LEGO price-guide download hasn’t run (or isn’t tracked). Trigger it from Activity → Pricing → “PriceCharting (bulk CSV)”.",
+    "text": "none recorded yet — the weekly LEGO price-guide download hasn’t run (or isn’t tracked). Use",
     "files": [
       "views/me-admin.js"
     ]
@@ -11869,6 +11910,12 @@
     "text": "on any set page — corrections feed the same verification pipeline. ·",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "on “PriceCharting (bulk fetch)” in Background Activity & Jobs.",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {

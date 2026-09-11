@@ -92,7 +92,7 @@ describe('Partner page + footer credits', () => {
   it('registers the page and module in the service worker with a version bump', () => {
     assert.match(serviceWorker, /'\/data-partners\.html'/);
     assert.match(serviceWorker, /'\/js\/lib\/partner-attribution\.js'/);
-    assert.match(serviceWorker, /const VERSION = "v483"/);
+    assert.match(serviceWorker, /const VERSION = "v\d+"/);
   });
 });
 

@@ -221,7 +221,7 @@ test.describe(() => {
       return route.fallback();
     });
     await page.goto('/#/me/admin', { waitUntil: 'domcontentloaded' });
-    await page.locator('[data-admin-section-link="adminJobs"]').evaluate((button) => button.click());
+    await page.locator('[data-admin-section-link="adminOverview"]').evaluate((button) => button.click());
     await expect(page.locator('.admin-process-meta')).toContainText('останній запуск');
     await expect(page.locator('.admin-process-meta')).toContainText('хв');
   });
@@ -235,7 +235,8 @@ test.describe(() => {
 
     await page.route('**/api/admin/populate-everything', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ run_id: 42, done: true }) }));
     await page.goto('/#/me/admin', { waitUntil: 'domcontentloaded' });
-    await page.locator('[data-admin-section-link="adminPopulate"]').click();
+    await page.locator('[data-admin-section-link="adminPricing"]').click();
+    await page.locator('[data-target="pricingPopulatePanel"]').click();
     await page.locator('[data-admin-tool="everything"]').click();
     await expect(page.locator('#toast')).toContainText('Завдання #42 запущено');
   });
@@ -366,7 +367,8 @@ test.describe(() => {
       return route.fallback();
     });
     await page.goto('/#/me/admin', { waitUntil: 'commit' });
-    await page.locator('[data-admin-section-link="adminPopulate"]').evaluate((button) => button.click());
+    await page.locator('[data-admin-section-link="adminGovernance"]').evaluate((button) => button.click());
+    await page.locator('[data-target="govToolsPanel"]').click();
     const control = page.locator('[data-file-input="blMinifigFile"]');
     const input = page.locator('#blMinifigFile');
     await expect(control).toBeVisible();

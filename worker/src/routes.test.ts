@@ -1317,7 +1317,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const data = await res.json<any>();
       const ebay = data.integrations.find((row: any) => row.service === 'ebay');
       expect(ebay.status).toBe('degraded');
-      expect(ebay.reachable).toBe(true);
+      // Access refusal does not establish that the configured capability works.
+      expect(ebay.reachable).toBeNull();
       expect(ebay.recommended_action).toContain('Marketplace Insights');
     });
 

@@ -41,10 +41,13 @@ export async function runMinifigVerify(env: Env, options: { limit?: number } = {
     ).bind(fig.fig_num).all<{ bl_id: string }>();
     if (!candidates.length) continue;
 
-    await reserveQuota(env, { bricklink: candidates.length });
+    const grants = await reserveQuota(env, { bricklink: candidates.length });
+    const grantedCandidates = candidates.slice(0, Math.min(candidates.length, grants.bricklink ?? 0));
     const priced: Array<{ bl_id: string; value: number | null; lots: number }> = [];
-    let providerFailed = false;
-    for (const cand of candidates) {
+    // A partial grant is an incomplete identity group just like a provider
+    // failure: spend only the granted calls and leave every candidate retryable.
+    let providerFailed = grantedCandidates.length < candidates.length;
+    for (const cand of grantedCandidates) {
       let px = null;
       try {
         px = await fetchMinifigPricing(cand.bl_id, env, { recordHealth: false });

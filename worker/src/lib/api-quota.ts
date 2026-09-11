@@ -8,7 +8,9 @@ import type { Env } from '../types';
 //   BrickLink 5,000/day · eBay 5,000/day · BrickEconomy 100/day (hard) ·
 //   Brickset 100/day · BrickOwl 600/min (we self-impose a daily budget).
 // The ledger lives in the api_quota D1 table keyed by (service, UTC day).
-// Every helper FAILS OPEN: pricing must never stop because bookkeeping broke.
+// Quota consumption policy depends on the helper: spendQuota fails open for
+// best-effort pricing, spendQuotaFailClosed and capped reserveQuota accounting
+// fail closed, and unknown/unbudgeted providers remain unlimited.
 // ---------------------------------------------------------------------------
 
 export const QUOTA_CAPS: Record<string, number> = {
@@ -128,52 +130,70 @@ export async function spendQuotaFailClosed(env: Env, service: string, n = 1): Pr
   return spendQuotaInternal(env, service, n, true);
 }
 
-// Reserve budget for a whole batch run in at most three D1 round-trips no
-// matter how many services are involved (cron runs must stay subrequest-lean).
-// Each service is granted min(requested, remaining-today); unknown services
-// are granted in full. Reservations are deliberately pessimistic — a set that
-// resolves cheaper than reserved simply leaves a little budget unused.
+// Reserve budget for a whole batch run. Capped services use an optimistic
+// compare-and-swap so each returned grant is exactly the amount atomically
+// added to the ledger. Accounting failures fail closed for capped providers;
+// services without a configured cap remain unlimited and never touch D1.
 export async function reserveQuota(
   env: Env,
   wants: Record<string, number>,
 ): Promise<Record<string, number>> {
-  const entries = Object.entries(wants).filter(([, n]) => Number.isFinite(n) && n > 0);
   const grants: Record<string, number> = {};
-  for (const [service, n] of entries) grants[service] = effectiveCap(service) ? 0 : n;
-  const budgeted = entries.flatMap(([service, n]) => {
-    const cap = effectiveCap(service);
-    return cap ? [[service, n, cap] as const] : [];
-  });
-  if (!budgeted.length) return grants;
+  const capped: Array<{ service: string; want: number; cap: number }> = [];
   const day = quotaDay();
-  try {
-    await env.DB.batch(budgeted.map(([service, , cap]) => upsertRow(env, service, day, cap)));
-    const placeholders = budgeted.map((_, i) => `?${i + 2}`).join(',');
-    const { results } = await env.DB.prepare(
-      `SELECT service, used, cap FROM api_quota WHERE day=?1 AND service IN (${placeholders})`
-    ).bind(day, ...budgeted.map(([s]) => s)).all<{ service: string; used: number; cap: number }>();
-    const rows = new Map(results.map(r => [r.service, r]));
-    const updates: D1PreparedStatement[] = [];
-    for (const [service, want, configuredCap] of budgeted) {
-      const row = rows.get(service);
-      const remaining = Math.max(0, (row?.cap ?? configuredCap) - (row?.used ?? 0));
-      const grant = Math.min(want, remaining);
-      grants[service] = grant;
-      if (grant > 0) {
-        updates.push(env.DB.prepare(
-          // Clamp at cap so a concurrent reserver can never push the ledger past
-          // the provider cap (grant was computed from a prior read — see note above).
-          "UPDATE api_quota SET used = MIN(cap, used + ?3), updated_at = datetime('now') WHERE service=?1 AND day=?2"
-        ).bind(service, day, grant));
-      }
+
+  for (const [service, rawWant] of Object.entries(wants)) {
+    if (!Number.isFinite(rawWant)) continue;
+    const want = Math.max(0, Math.floor(rawWant));
+    if (want <= 0) continue;
+
+    let cap = effectiveCap(service);
+    if (service === 'firecrawl') {
+      const override = Number(env.FIRECRAWL_DAILY_CREDITS);
+      if (Number.isFinite(override) && override > 0) cap = override;
     }
-    if (updates.length) await env.DB.batch(updates);
-    return grants;
-  } catch (e) {
-    console.warn('[quota] reserve failed open:', (e as Error).message);
-    for (const [service, n] of budgeted) grants[service] = n;
-    return grants;
+
+    if (!cap) {
+      grants[service] = want;
+      continue;
+    }
+
+    grants[service] = 0;
+    capped.push({ service, want, cap });
   }
+
+  if (!capped.length) return grants;
+
+  try {
+    await env.DB.batch(capped.map(({ service, cap }) => upsertRow(env, service, day, cap)));
+
+    await Promise.all(capped.map(async ({ service, want }) => {
+      // SQLite serializes writers. The used-value predicate turns the read plus
+      // update into a CAS: a competing reservation can only make this attempt
+      // affect zero rows, in which case we re-read rather than overgrant.
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const row = await env.DB.prepare(
+          'SELECT used, cap FROM api_quota WHERE service=?1 AND day=?2'
+        ).bind(service, day).first<{ used: number; cap: number }>();
+        if (!row) return;
+
+        const grant = Math.min(want, Math.max(0, row.cap - row.used));
+        if (grant <= 0) return;
+
+        const result = await env.DB.prepare(
+          "UPDATE api_quota SET used = used + ?4, updated_at = datetime('now') WHERE service=?1 AND day=?2 AND used=?3 AND used + ?4 <= cap"
+        ).bind(service, day, row.used, grant).run();
+        if (((result.meta.changes as number | undefined) ?? 0) > 0) {
+          grants[service] = grant;
+          return;
+        }
+      }
+    }));
+  } catch (e) {
+    console.warn('[quota] reserve failed closed for capped services:', (e as Error).message);
+  }
+
+  return grants;
 }
 
 export interface QuotaUsageRow { service: string; used: number; cap: number; remaining: number }

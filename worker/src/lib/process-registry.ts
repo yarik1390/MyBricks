@@ -19,7 +19,8 @@ export const GROUP_ORDER: ProcessGroup[] = [
 
 export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   // --- Pricing ---
-  'pricecharting-enrich': { label: 'PriceCharting (per-set)', description: 'Per-set PriceCharting lookup — sealed, complete, loose (used) values and sales-volume (liquidity).', schedule: 'Daily 16:00 UTC', group: 'Pricing' },
+  'pricecharting-enrich': { label: 'PriceCharting (per-set)', description: 'Per-set PriceCharting lookup — sealed, complete, loose (used) values and sales-volume (liquidity).', schedule: 'Daily 14:00 UTC', group: 'Pricing' },
+  'brickpicker-enrich': { label: 'BrickPicker enrich', description: 'Bounded demand-first modeled price refresh; respects source enablement, quota and miss cooldowns.', schedule: 'Daily 17:00 UTC', group: 'Pricing' },
   'pricecharting-bulk': { label: 'PriceCharting (bulk CSV)', description: 'Downloads the whole LEGO price guide (~13k sets) in one CSV and updates values + liquidity. Manual upload path; the scheduled cron records as “PriceCharting (bulk fetch)”.', schedule: 'Manual', group: 'Pricing' },
   'pricecharting-bulk-fetch': { label: 'PriceCharting (bulk fetch)', description: 'Daily bulk download of the PriceCharting LEGO guide (~2 MB CSV) refreshing ~13k catalog rows — no metered quota.', schedule: 'Daily 04:30 UTC', group: 'Pricing' },
   'pricecharting-verify': { label: 'PriceCharting verify', description: 'Settles price-agreement promotions for quarantined source matches (unique UPC or cross-source agreement) and refreshes their signals.', schedule: 'Daily 04:00 UTC', group: 'Pricing' },

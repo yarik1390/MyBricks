@@ -32,7 +32,11 @@ function adminOperationKey(type) {
   return key;
 }
 
-const adminToolLabel = (type) => t(`admin.tools.${type}`);
+const adminToolLabel = (type) => {
+  const key = `admin.tools.${type}`;
+  const localized = t(key);
+  return localized === key ? (ADMIN_JOB_TOOLS[type]?.label || type) : localized;
+};
 const maintenanceToolLabel = (type) => t(`admin.maintenanceTools.${type}`);
 let adminJobPollTimer = null;
 let populateEverythingAuto = false;
@@ -76,7 +80,7 @@ export async function renderMeAdmin() {
         </div>
         <div id="servicesContainer" class="admin-service-wrap" aria-live="polite">Loading services...</div>
 
-        <h3 class="section-subtitle" style="margin-top: 24px; font-size: 14px; font-weight: 700;">Background Activity & Jobs</h3>
+        <h3 class="section-subtitle" id="adminActivityHeading" tabindex="-1" style="margin-top: 24px; font-size: 14px; font-weight: 700;">Background Activity & Jobs</h3>
         <p class="admin-section-intro">Every background process and admin job, updated live while this page is open.</p>
         <div id="jobsStatusContainer" class="admin-panel" aria-live="polite">Loading jobs...</div>
         <div id="processesContainer" class="admin-process-wrap" aria-live="polite">Loading processes...</div>
@@ -231,32 +235,9 @@ function populateSectionHTML() {
       </div>
       <button class="btn-primary admin-primary-action" data-admin-tool="everything">${I.refresh()}<span>Run safe slice</span></button>
     </div>
-    <p class="admin-section-note">To run one job on its own — catalog imports, PriceCharting bulk, or the eBay sold-comps scrape — use its <strong>Run now</strong> button on the Activity tab, where you can also watch it finish.</p>
-    <div class="admin-tool-grid">
-      ${maintenanceCardHTML('expire')}
-      ${maintenanceCardHTML('repair')}
-      ${maintenanceCardHTML('resetFirecrawlPool')}
-    </div>
-    <article class="admin-tool-card admin-upload-card">
-      <div class="admin-tool-icon">${I.download()}</div>
-      <div>
-        <h3>Import BrickLink minifig catalog</h3>
-        <p class="admin-tool-desc">Upload BrickLink's Minifigures export (the tab-separated file) to map minifig IDs so BrickLink minifig prices resolve.</p>
-        <small id="blMinifigUploadResult">Choose the exported Minifigures file (tab format).</small>
-      </div>
-      <span class="csv-file-picker"><button type="button" class="btn-secondary admin-upload-btn csv-file-label" data-file-picker data-file-input="blMinifigFile">
-        ${I.upload ? I.upload({ w: 16 }) : I.download({ w: 16 })}<span>Upload</span>
-      </button><input type="file" id="blMinifigFile" accept=".txt,.xml,.tsv,.csv,text/plain,text/xml,text/tab-separated-values" tabindex="-1" aria-hidden="true"></span>
-    </article>
-    <article class="admin-tool-card">
-      <div class="admin-tool-icon">${I.gear()}</div>
-      <div>
-        <h3>Copy admin token</h3>
-        <p class="admin-tool-desc">Copies your current bearer access token to the clipboard — handy for running admin API probes from a terminal or support session. Short-lived; logging out invalidates it.</p>
-        <small id="copyAdminTokenResult">Tap to copy your access token.</small>
-      </div>
-      <button class="btn-secondary" id="copyAdminTokenBtn" type="button">${I.download({ w: 16 })}<span>Copy</span></button>
-    </article>`;
+    <p class="admin-section-note">To run one job on its own — catalog imports, PriceCharting bulk, or the eBay sold-comps scrape — use its <strong>Run now</strong> button in Background Activity & Jobs.</p>
+    <button type="button" class="btn-secondary" data-admin-section-jump="adminOverview" data-scroll-target="adminActivityHeading">Go to Background Activity & Jobs</button>
+`;
 }
 
 function maintenanceCardHTML(key) {
@@ -288,6 +269,35 @@ function wireTablistKeyboard(tablist, selector, activate) {
   });
 }
 
+function activateAdminSubtab(btn) {
+  const group = btn?.getAttribute('data-admin-subtab');
+  const targetId = btn?.getAttribute('data-target');
+  if (!group || !targetId) return;
+  haptic('light');
+  document.querySelectorAll(`[data-admin-subtab="${group}"]`).forEach(b => {
+    const isActive = b === btn;
+    b.classList.toggle('active', isActive);
+    b.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+  const parentSection = btn.closest('.admin-section');
+  if (parentSection) {
+    parentSection.querySelectorAll('.admin-subtab-panel').forEach(panel => {
+      const isTarget = panel.id === targetId;
+      panel.hidden = !isTarget;
+      panel.classList.toggle('active', isTarget);
+    });
+  }
+}
+
+function jumpToAdminSection(btn) {
+  const id = btn?.getAttribute('data-admin-section-jump');
+  if (!id || !document.getElementById(id)) return;
+  haptic('light');
+  activateAdminSection(id, { scrollTarget: btn.getAttribute('data-scroll-target') });
+  const subtabId = btn.getAttribute('data-open-subtab');
+  if (subtabId) activateAdminSubtab(document.querySelector(`[data-target="${CSS.escape(subtabId)}"]`));
+}
+
 function wireAdminShell() {
   wireHorizontalRail(document.querySelector('.admin-segments-sticky'));
   wireHorizontalRail(document.querySelector('.admin-service-filters'));
@@ -311,32 +321,17 @@ function wireAdminShell() {
     activateAdminSection(id);
     btn.focus();
   });
+  document.querySelectorAll('[data-admin-section-jump]').forEach(btn => {
+    btn.addEventListener('click', () => jumpToAdminSection(btn));
+  });
   document.querySelectorAll('[data-admin-subtab]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const group = btn.getAttribute('data-admin-subtab');
-      const targetId = btn.getAttribute('data-target');
-      if (!group || !targetId) return;
-      haptic('light');
-      document.querySelectorAll(`[data-admin-subtab="${group}"]`).forEach(b => {
-        const isActive = b === btn;
-        b.classList.toggle('active', isActive);
-        b.setAttribute('aria-selected', isActive ? 'true' : 'false');
-      });
-      const parentSection = btn.closest('.admin-section');
-      if (parentSection) {
-        parentSection.querySelectorAll('.admin-subtab-panel').forEach(panel => {
-          const isTarget = panel.id === targetId;
-          panel.hidden = !isTarget;
-          panel.classList.toggle('active', isTarget);
-        });
-      }
-    });
+    btn.addEventListener('click', () => activateAdminSubtab(btn));
   });
   document.querySelectorAll('[data-admin-tool]').forEach(btn => {
     btn.addEventListener('click', () => {
       const tool = btn.getAttribute('data-admin-tool');
       // Synchronous jobs return their result inline (no run_id / progress polling).
-      if (tool === 'ebaySold') return triggerSyncJob(tool);
+      if (['ebaySold', 'pricecharting', 'brickpicker'].includes(tool)) return triggerSyncJob(tool);
       triggerImport(tool);
     });
   });
@@ -361,6 +356,11 @@ function wireAdminShell() {
       if (flagInput) toggleServiceFlag(flagInput.getAttribute('data-svc-flag'), flagInput.checked, flagInput);
     });
   }
+  const jobsContainer = document.getElementById('jobsStatusContainer');
+  jobsContainer?.addEventListener('click', (e) => {
+    const jumpBtn = e.target.closest('[data-admin-section-jump]');
+    if (jumpBtn) jumpToAdminSection(jumpBtn);
+  });
   const processesEl = document.getElementById('processesContainer');
   processesEl?.addEventListener('click', (e) => {
     const runBtn = e.target.closest('[data-process-run]');
@@ -455,7 +455,7 @@ function syncAdminNavOffset() {
 // Tab view: show only the active section, sync the sticky nav (highlight +
 // reveal the active chip in the horizontal strip), and reset scroll to the top
 // — so switching tabs feels like a native segmented view instead of a long scroll.
-function activateAdminSection(id) {
+function activateAdminSection(id, { scrollTarget = null } = {}) {
   document.querySelectorAll('.admin-section').forEach(s => {
     const active = s.id === id;
     s.classList.toggle('is-active', active);
@@ -478,7 +478,13 @@ function activateAdminSection(id) {
     const delta = (btnRect.left + btnRect.width / 2) - (navRect.left + navRect.width / 2);
     if (Math.abs(delta) > 1) nav.scrollBy({ left: delta, behavior: 'smooth' });
   }
-  window.scrollTo({ top: 0, behavior: 'auto' });
+  if (scrollTarget) {
+    const target = document.getElementById(scrollTarget);
+    target?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    target?.focus({ preventScroll: true });
+  } else {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }
 }
 
 function contribTabButtonHTML(id, label) {
@@ -746,6 +752,11 @@ const PROCESS_TRIGGER = {
   'weekly-import-sets': 'sets',
   'weekly-import-figs': 'figs',
   'pricecharting-bulk': 'pricechartingBulk',
+  'pricecharting-bulk-fetch': 'pricechartingBulk',
+  'pricecharting-verify': 'pricechartingVerify',
+  'pricecharting-verify-drain': 'pricechartingVerify',
+  'pricecharting-enrich': 'pricecharting',
+  'brickpicker-enrich': 'brickpicker',
   'ebay-sold-scrape': 'ebaySold',
 };
 
@@ -787,7 +798,7 @@ function runProcess(name, btn) {
     return;
   }
   if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
-  if (tool === 'ebaySold') {
+  if (['ebaySold', 'pricecharting', 'brickpicker'].includes(tool)) {
     triggerSyncJob(tool).finally(() => loadActivity());
   } else {
     triggerImport(tool);
@@ -796,13 +807,14 @@ function runProcess(name, btn) {
 
 function renderJobs(container) {
   if (!adminRuns.length) {
-    container.innerHTML = `<div class="admin-empty-state">${I.info()}<strong>No jobs have run yet.</strong><span>Use Populate all safe sources to start a controlled data pass.</span></div>`;
+    container.innerHTML = `<div class="admin-empty-state">${I.info()}<strong>No jobs have run yet.</strong><span>Open Pricing → Populate & Batch to start a controlled data pass.</span><button type="button" class="btn-secondary" data-admin-section-jump="adminPricing" data-open-subtab="pricingPopulatePanel">Open Populate & Batch</button></div>`;
     return;
   }
   const running = adminRuns.find(run => classifyJobRun(run).label === 'Running');
   const activeHTML = running ? activeJobPanelHTML(running) : `
     <div class="admin-job-idle">
-      <div><strong>No active job</strong><span>Start a run from the Populate tab — live progress shows here.</span></div>
+      <div><strong>No active job</strong><span>Start a safe batch from Pricing → Populate & Batch, or use Run now below for one process. Live progress appears here.</span></div>
+      <button type="button" class="btn-secondary" data-admin-section-jump="adminPricing" data-open-subtab="pricingPopulatePanel">Open Populate & Batch</button>
     </div>`;
   const groups = groupAdminJobRuns(adminRuns);
   const visible = showAllJobs ? groups : groups.slice(0, 3);
@@ -986,12 +998,12 @@ function agoIso(ts) {
 
 // PriceCharting whole-catalog bulk-download status, surfaced right on the
 // PriceCharting service card so "is the Legendary CSV import healthy?" is
-// self-serve (no digging through the Activity tab). Reads
+// self-serve without opening Background Activity & Jobs. Reads
 // adminHealth.pricecharting_ext.last_bulk from /api/admin/integrations.
 function pcBulkStatusHTML() {
   const lb = adminHealth?.pricecharting_ext?.last_bulk;
   if (!lb || typeof lb !== 'object') {
-    return `<p class="admin-service-action"><strong>Last bulk import:</strong> none recorded yet — the weekly LEGO price-guide download hasn’t run (or isn’t tracked). Trigger it from Activity → Pricing → “PriceCharting (bulk CSV)”.</p>`;
+    return `<p class="admin-service-action"><strong>Last bulk import:</strong> none recorded yet — the weekly LEGO price-guide download hasn’t run (or isn’t tracked). Use <strong>Run now</strong> on “PriceCharting (bulk fetch)” in Background Activity & Jobs.</p>`;
   }
   const when = agoIso(lb.finished_at);
   // A skip/failure is the important case to surface — usually a non-Legendary
@@ -1079,6 +1091,23 @@ function serviceRow(service, rows) {
   };
 }
 
+function displayedProviderHealth(row, intended) {
+  const health = classifyProviderHealth({ ...row, disabled: !intended });
+  const hasRecordedEvidence = !!(row.last_ok_at || row.last_fail_at);
+  if (String(row.status || '').toLowerCase() !== 'unknown' || !hasRecordedEvidence || !intended) return health;
+  const service = String(row.service || row.name || '').toLowerCase();
+  return {
+    ...health,
+    tone: 'neutral',
+    label: 'Evidence stale',
+    ready: false,
+    actionable: false,
+    action: TESTABLE.has(service)
+      ? 'The last observation is too old to certify current health. Run Test for fresh evidence.'
+      : 'The last observation is too old to certify current health. Check the latest background process before acting.',
+  };
+}
+
 function renderServices() {
   const container = $('#servicesContainer');
   if (!container) return;
@@ -1100,7 +1129,7 @@ function renderServices() {
           ? !!featureFlags.overrides[flag]
           : !!featureFlags.effective?.[flag])
       : true;
-    return { svc, row, health: classifyProviderHealth({ ...row, disabled: !intended }) };
+    return { svc, row, health: displayedProviderHealth(row, intended) };
   };
   const renderCard = (c) => serviceCardHTML(c.svc, c.row, c.health, cfg, openSet);
 
@@ -1152,13 +1181,15 @@ function serviceCardHTML(svc, row, health, cfg, openSet) {
     quota ? { label: 'Quota:', value: `${quota.used}/${quota.cap}` } : null,
     quota ? { label: 'Remaining:', value: String(quota.remaining ?? Math.max(0, quota.cap - quota.used)) } : null,
   ].filter(Boolean);
-  const healthDescription = health.tone === 'danger'
-    ? 'Unavailable'
-    : health.tone === 'warn'
-      ? 'Needs attention'
-      : health.tone === 'neutral'
-        ? 'Not configured'
-        : 'Available';
+  const healthDescription = health.label === 'Evidence stale'
+    ? 'Fresh check needed'
+    : health.tone === 'danger'
+      ? 'Unavailable'
+      : health.tone === 'warn'
+        ? 'Needs attention'
+        : health.tone === 'neutral'
+          ? 'Not configured'
+          : 'Available';
   return `
     <details class="admin-service ${health.tone}" data-svc="${escapeHtml(key)}" ${isOpen ? 'open' : ''}>
       <summary class="admin-service-summary">
@@ -1385,10 +1416,10 @@ function recommendedQualityAction(cards) {
   const priority = cards
     .filter(c => ['Missing UPC', 'Low-confidence values', 'Expired values', 'eBay new sold', 'eBay used sold'].includes(c.label))
     .sort((a, b) => b.pct - a.pct)[0];
-  if (!priority) return 'Run Populate all safe sources (Populate tab) to refresh the latest provider coverage.';
-  if (priority.label === 'Missing UPC') return 'Run Populate all safe sources, or the Barcode backfill job from the Activity tab.';
-  if (priority.label === 'Low-confidence values') return 'Run Populate all safe sources and check provider access in the Services tab before increasing source weights.';
-  if (priority.label.startsWith('eBay')) return 'Check eBay sold-comps access in the Services tab; do not fall back to active listings for sold value.';
+  if (!priority) return 'Open Pricing → Populate & Batch and run Populate all safe sources to refresh provider coverage.';
+  if (priority.label === 'Missing UPC') return 'Open Pricing → Populate & Batch for Populate all safe sources, or run Barcode backfill in Background Activity & Jobs.';
+  if (priority.label === 'Low-confidence values') return 'Run Populate all safe sources and check provider access under Overview → Pricing before increasing source weights.';
+  if (priority.label.startsWith('eBay')) return 'Check eBay sold-comps access under Overview → Pricing; do not fall back to active listings for sold value.';
   return 'Run Populate all safe sources to advance the next safe slice.';
 }
 
