@@ -200,34 +200,50 @@ export async function detectValueMovers(env: Env) {
       )
   `).bind(MOVER_UP, MOVER_DOWN).run().catch(() => null);
 
-  // value_divergence rows used to have NO resolver: once the eBay-sold lane's
-  // attempt cooldown stopped re-evaluating a set, its open row sat forever and
-  // the panel's "Resolve N anomalies" recommendation could never reach zero.
-  // Resolve when the divergence no longer holds: the eBay signal now agrees
-  // with the reference (within the same 3x band the writer accepts), or the
-  // set's blend has since earned high confidence (a corroborated value wins).
+  // Reconcile only generator-shaped eBay-sold divergences whose stored numeric
+  // observation now falls inside the same inclusive 3x band used by both sold
+  // lanes. The live reference hierarchy deliberately matches their nullish
+  // fallback order; invalid evidence, missing sets/references, and true lower or
+  // upper divergences remain open for investigation.
   const divergencesResolved = await env.DB.prepare(`
-    UPDATE pricing_anomalies SET status='resolved', resolved_at=datetime('now')
-    WHERE anomaly_type='value_divergence' AND status='open'
-      AND (
-        set_num IN (SELECT set_num FROM lego_sets WHERE blended_confidence = 'high')
-        OR NOT EXISTS (
-          SELECT 1 FROM lego_sets ls
-          WHERE ls.set_num = pricing_anomalies.set_num
-            AND json_extract(pricing_anomalies.detail_json, '$.observed') IS NOT NULL
-            AND COALESCE(
-              CASE WHEN pricing_anomalies.condition = 'used_complete'
-                   THEN COALESCE(NULLIF(ls.bl_used_value, 0), NULLIF(ls.current_value, 0))
-                   ELSE COALESCE(ls.bl_new_value, NULLIF(ls.blended_value, 0), NULLIF(ls.current_value, 0))
-              END, 0) > 0
-            AND json_extract(pricing_anomalies.detail_json, '$.observed') <
-                (CASE WHEN pricing_anomalies.condition = 'used_complete'
-                      THEN COALESCE(NULLIF(ls.bl_used_value, 0), NULLIF(ls.current_value, 0))
-                      ELSE COALESCE(ls.bl_new_value, NULLIF(ls.blended_value, 0), NULLIF(ls.current_value, 0))
-                 END) / 3
-          )
-      )
-  `).run().catch(() => null);
+    WITH divergence_evidence AS (
+      SELECT
+        a.anomaly_key,
+        CASE
+          WHEN json_valid(a.detail_json) THEN
+            CASE
+              WHEN json_type(a.detail_json, '$.observed') IN ('integer', 'real')
+              THEN CAST(json_extract(a.detail_json, '$.observed') AS REAL)
+            END
+        END AS observed,
+        CASE
+          WHEN a.condition = 'used_complete'
+          THEN COALESCE(ls.used_value, ls.bl_new_value, ls.current_value)
+          ELSE COALESCE(ls.bl_new_value, ls.current_value)
+        END AS reference
+      FROM pricing_anomalies a
+      JOIN lego_sets ls ON ls.set_num = a.set_num
+      WHERE a.anomaly_type = 'value_divergence'
+        AND a.status = 'open'
+        AND a.source = 'ebay_sold'
+        AND (
+          (a.condition = 'new_sealed'
+            AND a.anomaly_key = 'ebay_sold:' || a.set_num || ':value_divergence')
+          OR
+          (a.condition = 'used_complete'
+            AND a.anomaly_key = 'ebay_sold_used:' || a.set_num || ':value_divergence')
+        )
+    )
+    UPDATE pricing_anomalies
+    SET status='resolved', resolved_at=datetime('now')
+    WHERE anomaly_key IN (
+      SELECT anomaly_key
+      FROM divergence_evidence
+      WHERE observed > 0
+        AND reference > 0
+        AND observed BETWEEN reference / 3.0 AND reference * 3.0
+    )
+  `).run();
 
   const resolvedCount = Number(resolved?.meta?.changes || 0)
     + Number(divergencesResolved?.meta?.changes || 0);
