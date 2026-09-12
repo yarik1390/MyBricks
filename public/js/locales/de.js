@@ -289,3 +289,14 @@ Object.assign(de.minifigs, {
   loadHoldingFailed: 'Bestand konnte nicht geladen werden: {error}', saveFailed: 'Bestand konnte nicht gespeichert werden: {error}', removeFailed: 'Bestand konnte nicht entfernt werden: {error}', saveUnconfirmed: 'Das Speichern konnte nicht bestätigt werden', accountChanged: 'Das Konto wurde während des Exports gewechselt',
   errorQuantity: 'Gib eine ganze Anzahl von 1 bis 9999 ein.', errorCondition: 'Wähle einen gültigen Zustand.', errorPurchase_price: 'Gib einen nicht negativen Betrag ein oder lasse das Feld leer.', errorPurchased_at: 'Gib ein gültiges Datum ein.', errorNotes: 'Notizen dürfen höchstens 2000 Zeichen lang sein.',
 });
+
+de.room = {
+  title: 'Sammlungsraum', description: 'Deine Sets, als Bilder auf thematisch sortierten Regalen präsentiert.',
+  open: '3D-Raum öffnen', close: '3D-Raum schließen', loading: 'Dein Raum wird geöffnet…',
+  unavailable: '3D ist nicht verfügbar. Du kannst deine Regale unten weiterhin durchsuchen.',
+  hint: 'Ziehe nach links oder rechts, um dich umzusehen. Wähle ein Set aus, um seine Details zu öffnen.',
+  theme: 'Thema', allThemes: 'Alle Themen', otherTheme: 'Andere Sets', shelves: 'Regale',
+  countOne: '{count} verschiedenes Set', countOther: '{count} verschiedene Sets', page: 'Seite {page} von {total}', previous: 'Vorherige Regale', next: 'Nächste Regale',
+  left: 'Nach links schauen', right: 'Nach rechts schauen', closer: 'Vergrößern', farther: 'Verkleinern', reset: 'Ansicht zurücksetzen',
+  empty: 'Füge deinem Tresor Sets hinzu, um deinen Raum zu füllen.',
+};

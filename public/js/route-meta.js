@@ -1,4 +1,5 @@
 const ROUTES = [
+  { match: (hash) => hash === "/room", key: "collection-room", nav: "/", title: "Collection room", fab: false },
   { match: (hash) => hash === "/collections", key: "collections", nav: "/", title: "Collections", fab: false },
   { match: (hash) => hash === "/" || hash === "", key: "vault", nav: "/", title: "Vault", fab: true },
   { match: (hash) => hash === "/add", key: "catalog", nav: "/add", title: "Catalog", fab: true },

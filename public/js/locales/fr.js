@@ -283,3 +283,14 @@ Object.assign(fr.minifigs, {
   loadHoldingFailed: 'Impossible de charger la figurine : {error}', saveFailed: 'Impossible d’enregistrer la figurine : {error}', removeFailed: 'Impossible de retirer la figurine : {error}', saveUnconfirmed: 'L’enregistrement n’a pas pu être confirmé', accountChanged: 'Le compte a changé pendant l’export',
   errorQuantity: 'Saisissez une quantité entière de 1 à 9999.', errorCondition: 'Choisissez un état valide.', errorPurchase_price: 'Saisissez un montant positif ou nul, ou laissez le champ vide.', errorPurchased_at: 'Saisissez une date valide.', errorNotes: 'Les notes sont limitées à 2000 caractères.',
 });
+
+fr.room = {
+  title: 'Salle de collection', description: 'Vos sets, présentés en images sur des étagères thématiques.',
+  open: 'Ouvrir la salle 3D', close: 'Fermer la salle 3D', loading: 'Ouverture de votre salle…',
+  unavailable: 'La 3D n’est pas disponible. Vous pouvez toujours parcourir vos étagères ci-dessous.',
+  hint: 'Faites glisser vers la gauche ou la droite pour regarder autour de vous. Sélectionnez un set pour ouvrir ses détails.',
+  theme: 'Thème', allThemes: 'Tous les thèmes', otherTheme: 'Autres sets', shelves: 'Étagères',
+  countOne: '{count} set distinct', countOther: '{count} sets distincts', countMany: '{count} sets distincts', page: 'Page {page} sur {total}', previous: 'Étagères précédentes', next: 'Étagères suivantes',
+  left: 'Regarder à gauche', right: 'Regarder à droite', closer: 'Zoom avant', farther: 'Zoom arrière', reset: 'Réinitialiser la vue',
+  empty: 'Ajoutez des sets à votre coffre pour remplir votre salle.',
+};

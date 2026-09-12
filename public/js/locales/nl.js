@@ -271,3 +271,14 @@ Object.assign(nl.minifigs, {
   loadHoldingFailed: 'Minifiguur kon niet worden geladen: {error}', saveFailed: 'Minifiguur kon niet worden opgeslagen: {error}', removeFailed: 'Minifiguur kon niet worden verwijderd: {error}', saveUnconfirmed: 'Opslaan kon niet worden bevestigd', accountChanged: 'Account gewijzigd tijdens export',
   errorQuantity: 'Voer een geheel aantal van 1 tot 9999 in.', errorCondition: 'Kies een geldige staat.', errorPurchase_price: 'Voer een niet-negatief bedrag in of laat dit leeg.', errorPurchased_at: 'Voer een geldige datum in.', errorNotes: 'Notities mogen maximaal 2000 tekens bevatten.',
 });
+
+nl.room = {
+  title: 'Collectiekamer', description: 'Je sets, als afbeeldingen weergegeven op planken per thema.',
+  open: '3D-kamer openen', close: '3D-kamer sluiten', loading: 'Je kamer wordt geopend…',
+  unavailable: '3D is niet beschikbaar. Je kunt hieronder nog steeds door je planken bladeren.',
+  hint: 'Sleep naar links of rechts om rond te kijken. Selecteer een set om de details te openen.',
+  theme: 'Thema', allThemes: 'Alle thema’s', otherTheme: 'Andere sets', shelves: 'Planken',
+  countOne: '{count} unieke set', countOther: '{count} unieke sets', page: 'Pagina {page} van {total}', previous: 'Vorige planken', next: 'Volgende planken',
+  left: 'Naar links kijken', right: 'Naar rechts kijken', closer: 'Inzoomen', farther: 'Uitzoomen', reset: 'Weergave herstellen',
+  empty: 'Voeg sets toe aan je kluis om je kamer te vullen.',
+};

@@ -8225,6 +8225,32 @@ body[data-route="set-detail"] .detail-page-container[data-detail-tab="manage"] {
 .me-footer-links a { color: var(--ink-mute); text-decoration: underline; }
 .me-footer-links .dot { color: var(--ink-faint); margin: 0 8px; }
 
+.room-page { max-width:1100px; margin-inline:auto; }
+.room-toolbar, .room-controls, .room-pagination { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.room-toolbar select { flex:1; min-width:0; max-width:100%; padding:12px; font:inherit; color:var(--ink); background:var(--surface); border:1px solid var(--line); border-radius:10px; }
+.room-page button, .room-page select { min-height:44px; }
+.room-toolbar button, .room-controls button, .room-pagination button { width:auto; margin:0; }
+.room-stage { height:clamp(320px, 54vw, 580px); width:100%; overflow:hidden; border:1px solid var(--line); border-radius:18px; background:#171c29; }
+.room-stage canvas { display:block; width:100%; height:100%; touch-action:pan-y; cursor:grab; }
+.room-stage canvas:active { cursor:grabbing; }
+.room-controls { margin:12px 0 20px; }
+.room-controls[hidden], .room-stage[hidden] { display:none; }
+.room-shelves-title { margin-top:24px !important; }
+.room-shelf { padding:16px; margin:14px 0; }
+.room-shelf h3 { margin:0 0 12px; overflow-wrap:anywhere; }
+.room-shelf ul { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; list-style:none; padding:0; margin:0; }
+.room-set { display:flex; flex-direction:column; gap:6px; height:100%; color:var(--ink); text-decoration:none; overflow-wrap:anywhere; }
+.room-set img { width:100%; height:120px; object-fit:contain; background:#fcfaf5; border-radius:10px; }
+.room-set small { opacity:.7; }
+.room-page a:focus-visible, .room-page button:focus-visible, .room-page select:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+.room-pagination { justify-content:space-between; margin:20px 0; }
+.room-pagination button { white-space:normal; max-width:38%; }
+@media (max-width:520px) {
+  .room-shelf ul { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .room-toolbar button { width:100%; }
+  .room-pagination { gap:6px; font-size:13px; }
+  .room-controls button { flex:1 1 auto; }
+}
 .collection-entry { display:flex; align-items:center; gap:10px; padding:14px 16px; margin-bottom:14px; border:1px solid var(--line); border-radius:14px; color:var(--ink); text-decoration:none; min-height:48px; }
 .collection-entry span { flex:1; }
 .collection-entry svg { width:20px; height:20px; flex-shrink:0; }

@@ -271,3 +271,14 @@ Object.assign(zh.minifigs, {
   loadHoldingFailed: '无法加载持有记录：{error}', saveFailed: '无法保存持有记录：{error}', removeFailed: '无法移除持有记录：{error}', saveUnconfirmed: '无法确认是否已保存', accountChanged: '导出期间账户发生变化',
   errorQuantity: '请输入 1 到 9999 之间的整数。', errorCondition: '请选择有效的品相。', errorPurchase_price: '请输入非负金额，或留空。', errorPurchased_at: '请输入有效日期。', errorNotes: '备注最多可输入 2000 个字符。',
 });
+
+zh.room = {
+  title: '收藏室', description: '你的套装将按主题陈列在架子上，并以图片展示。',
+  open: '打开 3D 收藏室', close: '关闭 3D 收藏室', loading: '正在打开你的收藏室…',
+  unavailable: '3D 功能不可用。你仍可在下方浏览陈列架。',
+  hint: '向左或向右拖动以环顾四周。选择一个套装即可打开详情。',
+  theme: '主题', allThemes: '所有主题', otherTheme: '其他套装', shelves: '陈列架',
+  countOne: '{count} 款不同套装', countOther: '{count} 款不同套装', page: '第 {page} 页，共 {total} 页', previous: '上一组陈列架', next: '下一组陈列架',
+  left: '向左看', right: '向右看', closer: '放大', farther: '缩小', reset: '重置视图',
+  empty: '将套装添加到收藏库，填满你的收藏室。',
+};

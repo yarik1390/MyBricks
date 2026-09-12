@@ -276,3 +276,14 @@ Object.assign(ja.minifigs, {
   loadHoldingFailed: 'ミニフィギュアを読み込めませんでした：{error}', saveFailed: 'ミニフィギュアを保存できませんでした：{error}', removeFailed: 'ミニフィギュアを削除できませんでした：{error}', saveUnconfirmed: '保存を確認できませんでした', accountChanged: 'エクスポート中にアカウントが変更されました',
   errorQuantity: '1から9999までの整数を入力してください。', errorCondition: '有効な状態を選択してください。', errorPurchase_price: '0以上の金額を入力するか、空欄にしてください。', errorPurchased_at: '実在する日付を入力してください。', errorNotes: 'メモは2000文字以内で入力してください。',
 });
+
+ja.room = {
+  title: 'コレクションルーム', description: 'テーマ別の棚に、セットを画像で展示します。',
+  open: '3Dルームを開く', close: '3Dルームを閉じる', loading: 'ルームを開いています…',
+  unavailable: '3Dを利用できません。下の棚から引き続き閲覧できます。',
+  hint: '左右にドラッグして見回せます。セットを選択すると詳細が開きます。',
+  theme: 'テーマ', allThemes: 'すべてのテーマ', otherTheme: 'その他のセット', shelves: '棚',
+  countOne: '{count}種類のセット', countOther: '{count}種類のセット', page: 'ページ {page}/{total}', previous: '前の棚', next: '次の棚',
+  left: '左を見る', right: '右を見る', closer: 'ズームイン', farther: 'ズームアウト', reset: '表示をリセット',
+  empty: 'セットを保管庫に追加して、ルームをいっぱいにしましょう。',
+};

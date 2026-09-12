@@ -593,3 +593,14 @@ Object.assign(en.minifigs, {
     loadHoldingFailed: 'Couldn’t load holding: {error}', saveFailed: 'Couldn’t save holding: {error}', removeFailed: 'Couldn’t remove holding: {error}', saveUnconfirmed: 'The save could not be confirmed', accountChanged: 'Account changed during export',
     errorQuantity: 'Enter a whole quantity from 1 to 9999.', errorCondition: 'Choose a valid condition.', errorPurchase_price: 'Enter a non-negative amount or leave it blank.', errorPurchased_at: 'Enter a real date.', errorNotes: 'Notes can be at most 2000 characters.',
 });
+
+en.room = {
+  title: 'Collection room', description: 'Your sets, displayed as images on theme shelves.',
+  open: 'Open 3D room', close: 'Close 3D room', loading: 'Opening your room...',
+  unavailable: '3D is unavailable. You can still browse your shelves below.',
+  hint: 'Drag left or right to look around. Select a set to open its details.',
+  theme: 'Theme', allThemes: 'All themes', otherTheme: 'Other sets', shelves: 'Shelves',
+  countOne: '{count} distinct set', countOther: '{count} distinct sets', page: 'Page {page} of {total}', previous: 'Previous shelves', next: 'Next shelves',
+  left: 'Look left', right: 'Look right', closer: 'Zoom in', farther: 'Zoom out', reset: 'Reset view',
+  empty: 'Add sets to your vault to fill your room.',
+};

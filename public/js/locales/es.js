@@ -271,3 +271,14 @@ Object.assign(es.minifigs, {
   loadHoldingFailed: 'No se pudo cargar la minifigura: {error}', saveFailed: 'No se pudo guardar la minifigura: {error}', removeFailed: 'No se pudo quitar la minifigura: {error}', saveUnconfirmed: 'No se pudo confirmar el guardado', accountChanged: 'La cuenta cambió durante la exportación',
   errorQuantity: 'Introduce una cantidad entera de 1 a 9999.', errorCondition: 'Elige un estado válido.', errorPurchase_price: 'Introduce un importe no negativo o déjalo en blanco.', errorPurchased_at: 'Introduce una fecha válida.', errorNotes: 'Las notas pueden tener hasta 2000 caracteres.',
 });
+
+es.room = {
+  title: 'Sala de la colección', description: 'Tus sets, mostrados como imágenes en estantes temáticos.',
+  open: 'Abrir sala 3D', close: 'Cerrar sala 3D', loading: 'Abriendo tu sala…',
+  unavailable: 'El modo 3D no está disponible. Aun así, puedes explorar tus estantes abajo.',
+  hint: 'Arrastra a la izquierda o a la derecha para mirar alrededor. Selecciona un set para abrir sus detalles.',
+  theme: 'Tema', allThemes: 'Todos los temas', otherTheme: 'Otros sets', shelves: 'Estantes',
+  countOne: '{count} set distinto', countOther: '{count} sets distintos', countMany: '{count} sets distintos', page: 'Página {page} de {total}', previous: 'Estantes anteriores', next: 'Estantes siguientes',
+  left: 'Mirar a la izquierda', right: 'Mirar a la derecha', closer: 'Acercar', farther: 'Alejar', reset: 'Restablecer vista',
+  empty: 'Añade sets a tu bóveda para llenar la sala.',
+};

@@ -1705,6 +1705,12 @@
     ]
   },
   {
+    "text": "Canvas unavailable",
+    "files": [
+      "components/collection-room-scene.js"
+    ]
+  },
+  {
     "text": "Caption (optional)",
     "files": [
       "components/contribute.js"
@@ -2019,6 +2025,12 @@
     "text": "Cohort Performance by Purchase Year",
     "files": [
       "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "Collection room",
+    "files": [
+      "route-meta.js"
     ]
   },
   {
@@ -5313,6 +5325,12 @@
     "text": "Low confidence / Estimated",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "Low memory",
+    "files": [
+      "components/collection-room-scene.js"
     ]
   },
   {

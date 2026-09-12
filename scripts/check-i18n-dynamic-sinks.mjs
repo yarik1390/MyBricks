@@ -46,6 +46,7 @@ const files = (() => {
 // Exceptions are deliberately restricted to invariant units and genuine
 // ratio/progress values. Count-dependent nouns and verbs must use tPlural().
 const COUNT_NEUTRAL_T_KEYS = new Map([
+  ['room.page', 'ratio/progress'],
   ['downloads.scanProgress', 'ratio/progress'],
   ['game.roundOf', 'ratio/progress'],
   ['kids.xp', 'invariant-unit'],
@@ -53,6 +54,7 @@ const COUNT_NEUTRAL_T_KEYS = new Map([
   ['portfolio.insightQuantity', 'invariant-symbol'],
 ]);
 const APPROVED_COUNT_NEUTRAL_KEYS = new Set([
+  'room.page',
   'downloads.scanProgress', 'game.roundOf', 'kids.xp', 'kids.xpToLevel',
   'portfolio.insightQuantity',
 ]);
