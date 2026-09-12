@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { optionalMember, requireMember } from '../auth';
 import { fetchMinifigDetail } from '../lib/rebrickable';
 import { logEvent } from '../lib/analytics';
+import { minifigCsvField, parseMinifigHoldingBody } from '../lib/minifig-holding';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -207,6 +208,32 @@ app.get('/rare-finds', async (c) => {
   return c.json({ figs: results || [] });
 });
 
+// GET /api/minifigs/export — private, owner-scoped loose-minifigure holdings.
+// Keep this static route above /:fignum so "export" is never treated as a fig id.
+app.get('/export', requireMember, async (c) => {
+  const userId = c.get('userId');
+  const { results } = await c.env.DB.prepare(`
+    SELECT m.fig_num, m.name, m.series, um.quantity, um.condition,
+           um.purchase_price AS purchase_price_usd, um.purchased_at, um.notes
+    FROM user_minifigs um
+    JOIN minifigs m ON m.fig_num = um.fig_num
+    WHERE um.user_id = ?
+    ORDER BY m.name COLLATE NOCASE ASC, m.fig_num ASC
+  `).bind(userId).all<Record<string, unknown>>();
+  const fields = ['fig_num', 'name', 'series', 'quantity', 'condition', 'purchase_price_usd', 'purchased_at', 'notes'];
+  const csv = [
+    fields.join(','),
+    ...results.map((row) => fields.map((field) => minifigCsvField(row[field])).join(',')),
+  ].join('\r\n');
+  return new Response(csv, {
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="brickvault-minifigs.csv"',
+      'Cache-Control': 'private, no-store',
+    },
+  });
+});
+
 // GET /api/minifigs/:fignum/sets — the sets a minifig appears in (turns the
 // fig detail into a navigable hub). Public. image_url is proxied by the global
 // image-rewrite middleware. Newest first.
@@ -261,27 +288,61 @@ app.get('/:fignum', async (c) => {
   const priced = fig.current_value != null && Number(fig.current_value) > 0;
   const value = priced ? Number(fig.current_value) : (rarityFallback[String(fig.rarity)] ?? 3.5);
 
+  const holding = userId ? await c.env.DB.prepare(`SELECT quantity, condition, purchase_price, purchased_at, notes FROM user_minifigs WHERE user_id=? AND fig_num=?`).bind(userId, figNum).first() : null;
+  if (userId) c.header('Cache-Control', 'private, no-store');
   return c.json({
+    holding,
     minifig: { ...fig, value, value_is_estimate: !priced },
   });
 });
 
-// PUT /api/minifigs/:fignum — mark owned
+// PUT /api/minifigs/:fignum — create or partially update an owned holding.
 app.put('/:fignum', requireMember, async (c) => {
   const userId = c.get('userId');
   const figNum = c.req.param('fignum');
-  const exists = await c.env.DB.prepare('SELECT 1 FROM minifigs WHERE fig_num=?').bind(figNum).first();
-  if (!exists) return c.json({ error: 'Minifig not found' }, 404);
+  let body;
+  try {
+    body = parseMinifigHoldingBody(await c.req.text());
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 400);
+  }
 
-  const body = await c.req.json<{ quantity?: number }>().catch(() => ({ quantity: undefined }));
-  const qty = Math.max(1, parseInt(String(body.quantity ?? 1), 10) || 1);
-  await c.env.DB.prepare(`
-    INSERT INTO user_minifigs (user_id, fig_num, quantity)
-    VALUES (?, ?, ?)
-    ON CONFLICT (user_id, fig_num) DO UPDATE SET quantity = EXCLUDED.quantity
-  `).bind(userId, figNum, qty).run();
+  const supplied = (key: keyof typeof body) => Object.hasOwn(body, key);
+  const holding = await c.env.DB.prepare(`
+    INSERT INTO user_minifigs
+      (user_id, fig_num, quantity, condition, purchase_price, purchased_at, notes)
+    SELECT ?, ?, ?, ?, ?, ?, ?
+    FROM minifigs WHERE fig_num = ?
+    ON CONFLICT (user_id, fig_num) DO UPDATE SET
+      quantity = CASE WHEN ? THEN excluded.quantity ELSE user_minifigs.quantity END,
+      condition = CASE WHEN ? THEN excluded.condition ELSE user_minifigs.condition END,
+      purchase_price = CASE WHEN ? THEN excluded.purchase_price ELSE user_minifigs.purchase_price END,
+      purchased_at = CASE WHEN ? THEN excluded.purchased_at ELSE user_minifigs.purchased_at END,
+      notes = CASE WHEN ? THEN excluded.notes ELSE user_minifigs.notes END
+    RETURNING quantity, condition, purchase_price, purchased_at, notes
+  `).bind(
+    userId, figNum,
+    body.quantity ?? 1,
+    body.condition ?? 'unknown',
+    body.purchase_price ?? null,
+    body.purchased_at ?? null,
+    body.notes ?? null,
+    figNum,
+    supplied('quantity') ? 1 : 0,
+    supplied('condition') ? 1 : 0,
+    supplied('purchase_price') ? 1 : 0,
+    supplied('purchased_at') ? 1 : 0,
+    supplied('notes') ? 1 : 0,
+  ).first<{
+    quantity: number;
+    condition: string;
+    purchase_price: number | null;
+    purchased_at: string | null;
+    notes: string | null;
+  }>();
+  if (!holding) return c.json({ error: 'Minifig not found' }, 404);
   logEvent(c.env, 'minifig_owned', userId, { figNum });
-  return c.json({ ok: true, fig_num: figNum, quantity: qty });
+  return c.json({ ok: true, fig_num: figNum, quantity: holding.quantity, holding });
 });
 
 // DELETE /api/minifigs/:fignum

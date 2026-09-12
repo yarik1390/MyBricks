@@ -480,8 +480,21 @@ export const TABLE_DDL: Record<string, string> = {
   user_id TEXT NOT NULL,
   fig_num TEXT NOT NULL,
   quantity INTEGER DEFAULT 1,
+  condition TEXT NOT NULL DEFAULT 'unknown' CHECK(condition IN ('unknown','new','used_good','used_acceptable')),
+  purchase_price REAL CHECK(purchase_price IS NULL OR (purchase_price >= 0 AND purchase_price <= 1.7976931348623157e308)),
+  purchased_at DATE,
+  notes TEXT CHECK(notes IS NULL OR length(notes) <= 2000),
   added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, fig_num)
+)`,
+
+  user_subcollections: `CREATE TABLE IF NOT EXISTS user_subcollections (
+  user_id TEXT NOT NULL, id TEXT NOT NULL,
+  name TEXT NOT NULL CHECK(length(trim(name)) BETWEEN 1 AND 80),
+  set_nums TEXT NOT NULL CHECK(json_valid(set_nums) AND json_type(set_nums)='array'),
+  revision INTEGER NOT NULL CHECK(revision >= 1 AND revision <= 9007199254740991),
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, id)
 )`,
   set_minifigs: `CREATE TABLE IF NOT EXISTS set_minifigs (
   set_num TEXT NOT NULL REFERENCES lego_sets(set_num),

@@ -777,7 +777,6 @@ export const ui = {
   "Manage subscription": "सब्सक्रिप्शन प्रबंधित करें",
   "Many minifigs — strong parts-out potential": "कई मिनीफ़िगर — पार्ट-आउट की मज़बूत संभावना",
   "Mark all read": "सभी पढ़े हुए चिह्नित करें",
-  "Mark as owned": "स्वामित्व में चिह्नित करें",
   "Mark read": "पढ़ा हुआ चिह्नित करें",
   "Mark sold": "बिका हुआ चिह्नित करें",
   "Mark this alert read": "यह अलर्ट पढ़ा हुआ चिह्नित करें",

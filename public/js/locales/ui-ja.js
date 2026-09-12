@@ -777,7 +777,6 @@ export const ui = {
   "Manage subscription": "サブスクリプションを管理",
   "Many minifigs — strong parts-out potential": "ミニフィグが多い — パーツ売りの可能性が高い",
   "Mark all read": "すべて既読にする",
-  "Mark as owned": "所有済みにする",
   "Mark read": "既読にする",
   "Mark sold": "売却済みにする",
   "Mark this alert read": "このアラートを既読にする",

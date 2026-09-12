@@ -1,5 +1,34 @@
 /** Dutch. Missing keys fall back to English (see lib/i18n.js). */
 export const nl = {
+  collections: {
+    title: 'Collecties en inzichten', back: 'Terug naar de kluis',
+    description: 'Orden je sets in lijsten met een naam en houd je collectiegegevens actueel.',
+    loading: 'Collecties laden…', insights: 'Inzicht in je collectie', lists: 'Je deelcollecties',
+    distinct: '{count} verschillende sets in bezit', missingCost: 'Aankoopkosten ontbreken: {count}',
+    missingDate: 'Aankoopdatum ontbreekt: {count}', completeHoldings: 'Als compleet gemarkeerd: {count}',
+    incompleteHoldings: 'Onvolledige registraties: {count}',
+    distinctOne: '{count} unieke set in bezit', distinctOther: '{count} verschillende sets in bezit',
+    missingCostOne: 'Aankoopkosten ontbreken: {count}', missingCostOther: 'Aankoopkosten ontbreken: {count}',
+    missingDateOne: 'Aankoopdatum ontbreekt: {count}', missingDateOther: 'Aankoopdatum ontbreekt: {count}',
+    completeHoldingsOne: 'Als compleet gemarkeerd: {count}', completeHoldingsOther: 'Als compleet gemarkeerd: {count}',
+    incompleteHoldingsOne: 'Onvolledige registratie: {count}', incompleteHoldingsOther: 'Onvolledige registraties: {count}',
+    progressOne: '{owned} van {total} set in bezit', progressOther: '{owned} van {total} sets in bezit',
+    recordsHint: 'De aantallen gaan over bezitsregistraties. Geregistreerde kosten van nul gelden als bekend. Open een set om de registraties bij te werken.',
+    create: 'Nieuwe deelcollectie', edit: 'Deelcollectie bewerken', export: 'Lijsten exporteren',
+    name: 'Naam', targets: 'Setnummers', targetsHint: 'Eén setnummer per regel of gescheiden door komma’s. Maximaal 200 sets per lijst en 50 lijsten. Voeg gewenste sets toe om je voortgang te volgen.',
+    chooseOwned: 'Een set uit je kluis toevoegen', chooseSet: 'Kies een set…',
+    addOwned: 'Al je sets toevoegen', empty: 'Maak je eerste lijst, bijvoorbeeld voor een displayplank of een serie die je compleet wilt maken.',
+    progress: '{owned} van {total} sets in bezit', completed: 'Compleet', noTargets: 'Voeg sets toe om je voortgang te volgen.',
+    showSets: 'Sets bekijken', wanted: 'Niet in bezit', owned: 'In bezit',
+    guestStorage: 'Gastlijsten blijven op dit apparaat en worden bij het inloggen niet automatisch overgezet. Exporteer een kopie om ze te bewaren.',
+    accountStorage: 'Lijsten zijn privé voor je account. Exporteer een kopie: kluisback-ups bevatten momenteel je bezit, maar niet deze lijsten.',
+    failed: 'Je lijsten konden niet worden geladen of opgeslagen. Controleer je verbinding of apparaatopslag en probeer het opnieuw.',
+    conflict: 'Deze lijst is elders gewijzigd. Je concept staat nog hier; kopieer het en laad opnieuw voordat je weer opslaat.',
+    invalid: 'Voer een naam (maximaal 80 tekens) en geldige setnummers (maximaal 200) in.',
+    retry: 'Opnieuw proberen', stale: 'Collectie niet beschikbaar. De voortgang gebruikt het laatst geladen bezit en kan verouderd zijn.',
+    pending: 'Sommige wijzigingen in de kluis wachten op synchronisatie. De voortgang gebruikt bevestigd bezit.',
+    deleteHint: 'Deze lijst verwijderen? Je sets blijven in je kluis.', confirmDelete: 'Lijst verwijderen',
+  },
   nav: { vault: 'Kluis', catalog: 'Catalogus', scan: 'Scannen', minifigs: 'Minifiguren', me: 'Ik', badges: 'Badges' },
   common: {
     cancel: 'Annuleren', save: 'Opslaan', close: 'Sluiten', retry: 'Opnieuw',
@@ -230,3 +259,15 @@ Object.assign(nl.detail, {"historyValue": "Waarde", "historyMarket": "Markt", "h
 export default nl;
 Object.assign(nl.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 
+
+Object.assign(nl.minifigs, {
+  exportCsv: 'CSV exporteren', exportTitle: 'Export van minifiguurbezit', exportReady: 'Minifiguren-CSV is klaar', exportFailed: 'Minifiguren konden niet worden geëxporteerd: {error}',
+  addHolding: 'Losse minifiguur toevoegen', editHolding: 'Losse minifiguur bewerken', looseOnly: 'Wordt apart bijgehouden van minifiguren die bij je sets horen.',
+  quantity: 'Aantal', condition: 'Staat', purchasePrice: 'Aankoopprijs per stuk ({symbol})', purchasedAt: 'Aankoopdatum', notes: 'Privénotities',
+  conditionUnknown: 'Onbekend', conditionNew: 'Nieuw', conditionUsedGood: 'Gebruikt — goed', conditionUsedAcceptable: 'Gebruikt — acceptabel',
+  unknownIfBlank: 'Onbekend indien leeg', notesPlaceholder: 'Waar je hem vond, herkenbare details…', addToVault: 'Aan kluis toevoegen',
+  removeHolding: 'Uit kluis verwijderen', removeAction: 'Verwijderen', removeConfirm: 'Deze losse minifiguur en de privégegevens verwijderen?',
+  saved: 'Minifiguur opgeslagen', removed: 'Minifiguur verwijderd', loadingHolding: 'Minifiguur laden',
+  loadHoldingFailed: 'Minifiguur kon niet worden geladen: {error}', saveFailed: 'Minifiguur kon niet worden opgeslagen: {error}', removeFailed: 'Minifiguur kon niet worden verwijderd: {error}', saveUnconfirmed: 'Opslaan kon niet worden bevestigd', accountChanged: 'Account gewijzigd tijdens export',
+  errorQuantity: 'Voer een geheel aantal van 1 tot 9999 in.', errorCondition: 'Kies een geldige staat.', errorPurchase_price: 'Voer een niet-negatief bedrag in of laat dit leeg.', errorPurchased_at: 'Voer een geldige datum in.', errorNotes: 'Notities mogen maximaal 2000 tekens bevatten.',
+});

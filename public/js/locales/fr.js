@@ -1,5 +1,34 @@
 /** French. Missing keys fall back to English (see lib/i18n.js). */
 export const fr = {
+  collections: {
+    title: 'Collections et analyses', back: 'Retour au coffre',
+    description: 'Classez vos sets dans des listes nommées et tenez les données de votre collection à jour.',
+    loading: 'Chargement des collections…', insights: 'Analyse de votre collection', lists: 'Vos sous-collections',
+    distinct: '{count} sets distincts possédés', missingCost: 'Coût d’achat manquant : {count}',
+    missingDate: 'Date d’achat manquante : {count}', completeHoldings: 'Marqués comme complets : {count}',
+    incompleteHoldings: 'Fiches incomplètes : {count}',
+    distinctOne: '{count} set distinct possédé', distinctOther: '{count} sets distincts possédés', distinctMany: '{count} sets distincts possédés',
+    missingCostOne: 'Coût d’achat manquant : {count}', missingCostOther: 'Coût d’achat manquant : {count}', missingCostMany: 'Coût d’achat manquant : {count}',
+    missingDateOne: 'Date d’achat manquante : {count}', missingDateOther: 'Date d’achat manquante : {count}', missingDateMany: 'Date d’achat manquante : {count}',
+    completeHoldingsOne: 'Marqué comme complet : {count}', completeHoldingsOther: 'Marqués comme complets : {count}', completeHoldingsMany: 'Marqués comme complets : {count}',
+    incompleteHoldingsOne: 'Fiche incomplète : {count}', incompleteHoldingsOther: 'Fiches incomplètes : {count}', incompleteHoldingsMany: 'Fiches incomplètes : {count}',
+    progressOne: '{owned} set possédé sur {total}', progressOther: '{owned} sets possédés sur {total}', progressMany: '{owned} sets possédés sur {total}',
+    recordsHint: 'Les nombres se rapportent aux fiches de possession. Un coût enregistré de zéro est considéré comme renseigné. Ouvrez un set pour mettre à jour ses fiches.',
+    create: 'Nouvelle sous-collection', edit: 'Modifier la sous-collection', export: 'Exporter les listes',
+    name: 'Nom', targets: 'Numéros des sets', targetsHint: 'Un numéro de set par ligne ou séparé par des virgules. Jusqu’à 200 sets par liste et 50 listes. Incluez les sets recherchés pour suivre votre progression.',
+    chooseOwned: 'Ajouter un set de votre coffre', chooseSet: 'Choisissez un set…',
+    addOwned: 'Ajouter tous vos sets', empty: 'Créez votre première liste, par exemple pour une étagère ou une série à compléter.',
+    progress: '{owned} sets possédés sur {total}', completed: 'Complète', noTargets: 'Ajoutez des sets pour commencer à suivre votre progression.',
+    showSets: 'Voir les sets', wanted: 'Non possédé', owned: 'Possédé',
+    guestStorage: 'Les listes d’invité restent sur cet appareil et ne sont pas transférées automatiquement à la connexion. Exportez-en une copie pour les conserver.',
+    accountStorage: 'Les listes sont privées dans votre compte. Exportez-en une copie : les sauvegardes du coffre couvrent actuellement vos possessions, pas ces listes.',
+    failed: 'Impossible de charger ou d’enregistrer vos listes. Vérifiez votre connexion ou le stockage de l’appareil, puis réessayez.',
+    conflict: 'Cette liste a été modifiée ailleurs. Votre brouillon est toujours ici ; copiez-le, puis rechargez avant d’enregistrer à nouveau.',
+    invalid: 'Saisissez un nom (80 caractères maximum) et des numéros de set valides (200 maximum).',
+    retry: 'Réessayer', stale: 'Collection indisponible. La progression utilise les dernières possessions chargées et peut ne plus être à jour.',
+    pending: 'Certaines modifications du coffre attendent d’être synchronisées. La progression utilise les possessions confirmées.',
+    deleteHint: 'Supprimer cette liste ? Vos sets resteront dans votre coffre.', confirmDelete: 'Supprimer la liste',
+  },
   nav: { vault: 'Coffre', catalog: 'Catalogue', scan: 'Scanner', minifigs: 'Figurines', me: 'Moi', badges: 'Badges' },
   common: {
     cancel: 'Annuler', save: 'Enregistrer', close: 'Fermer', retry: 'Réessayer',
@@ -242,3 +271,15 @@ Object.assign(fr.detail, {
 export default fr;
 Object.assign(fr.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 
+
+Object.assign(fr.minifigs, {
+  exportCsv: 'Exporter en CSV', exportTitle: 'Export des figurines possédées', exportReady: 'CSV des figurines prêt', exportFailed: 'Impossible d’exporter les figurines : {error}',
+  addHolding: 'Ajouter une figurine libre', editHolding: 'Modifier la figurine libre', looseOnly: 'Suivie séparément des figurines incluses dans vos sets.',
+  quantity: 'Quantité', condition: 'État', purchasePrice: 'Prix d’achat unitaire ({symbol})', purchasedAt: 'Date d’achat', notes: 'Notes privées',
+  conditionUnknown: 'Inconnu', conditionNew: 'Neuf', conditionUsedGood: 'Occasion — bon état', conditionUsedAcceptable: 'Occasion — état acceptable',
+  unknownIfBlank: 'Inconnu si vide', notesPlaceholder: 'Lieu de découverte, signes distinctifs…', addToVault: 'Ajouter au coffre',
+  removeHolding: 'Retirer du coffre', removeAction: 'Retirer', removeConfirm: 'Retirer cette figurine libre et ses informations privées ?',
+  saved: 'Figurine enregistrée', removed: 'Figurine retirée', loadingHolding: 'Chargement de la figurine',
+  loadHoldingFailed: 'Impossible de charger la figurine : {error}', saveFailed: 'Impossible d’enregistrer la figurine : {error}', removeFailed: 'Impossible de retirer la figurine : {error}', saveUnconfirmed: 'L’enregistrement n’a pas pu être confirmé', accountChanged: 'Le compte a changé pendant l’export',
+  errorQuantity: 'Saisissez une quantité entière de 1 à 9999.', errorCondition: 'Choisissez un état valide.', errorPurchase_price: 'Saisissez un montant positif ou nul, ou laissez le champ vide.', errorPurchased_at: 'Saisissez une date valide.', errorNotes: 'Les notes sont limitées à 2000 caractères.',
+});

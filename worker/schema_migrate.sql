@@ -150,6 +150,10 @@ CREATE TABLE IF NOT EXISTS user_minifigs (
   user_id TEXT NOT NULL,
   fig_num TEXT NOT NULL REFERENCES minifigs(fig_num),
   quantity INTEGER DEFAULT 1,
+  condition TEXT NOT NULL DEFAULT 'unknown' CHECK(condition IN ('unknown','new','used_good','used_acceptable')),
+  purchase_price REAL CHECK(purchase_price IS NULL OR (purchase_price >= 0 AND purchase_price <= 1.7976931348623157e308)),
+  purchased_at DATE,
+  notes TEXT CHECK(notes IS NULL OR length(notes) <= 2000),
   added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, fig_num)
 );
@@ -692,3 +696,10 @@ CREATE TABLE IF NOT EXISTS scrapingant_keys (
 CREATE TABLE IF NOT EXISTS set_description_i18n (set_num TEXT NOT NULL, lang TEXT NOT NULL, description TEXT NOT NULL, source_hash TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (set_num, lang));
 
 ALTER TABLE user_wishlist ADD COLUMN acknowledged_at DATETIME;
+
+ALTER TABLE user_minifigs ADD COLUMN condition TEXT NOT NULL DEFAULT 'unknown' CHECK(condition IN ('unknown','new','used_good','used_acceptable'));
+ALTER TABLE user_minifigs ADD COLUMN purchase_price REAL CHECK(purchase_price IS NULL OR (purchase_price >= 0 AND purchase_price <= 1.7976931348623157e308));
+ALTER TABLE user_minifigs ADD COLUMN purchased_at DATE;
+ALTER TABLE user_minifigs ADD COLUMN notes TEXT CHECK(notes IS NULL OR length(notes) <= 2000);
+CREATE TABLE IF NOT EXISTS user_subcollections (user_id TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL CHECK(length(trim(name)) BETWEEN 1 AND 80), set_nums TEXT NOT NULL CHECK(json_valid(set_nums) AND json_type(set_nums)='array'), revision INTEGER NOT NULL CHECK(revision >= 1 AND revision <= 9007199254740991), updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (user_id, id));
+CREATE INDEX IF NOT EXISTS idx_user_subcollections_updated ON user_subcollections(user_id, updated_at DESC, id);

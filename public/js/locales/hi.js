@@ -1,5 +1,34 @@
 /** Hindi. Missing keys fall back to English (see lib/i18n.js). */
 export const hi = {
+  collections: {
+    title: 'संग्रह और जानकारी', back: 'संग्रह पर वापस जाएँ',
+    description: 'अपने सेट को नाम वाली सूचियों में व्यवस्थित करें और संग्रह के रिकॉर्ड अपडेट रखें।',
+    loading: 'संग्रह लोड हो रहे हैं…', insights: 'आपके संग्रह की जानकारी', lists: 'आपके उप-संग्रह',
+    distinct: 'आपके पास {count} अलग सेट हैं', missingCost: 'खरीद लागत नहीं है: {count}',
+    missingDate: 'खरीद की तारीख नहीं है: {count}', completeHoldings: 'पूर्ण चिह्नित: {count}',
+    incompleteHoldings: 'अधूरे रिकॉर्ड: {count}',
+    distinctOne: 'आपके पास {count} अलग सेट है', distinctOther: 'आपके पास {count} अलग सेट हैं',
+    missingCostOne: 'खरीद लागत नहीं है: {count}', missingCostOther: 'खरीद लागत नहीं है: {count}',
+    missingDateOne: 'खरीद की तारीख नहीं है: {count}', missingDateOther: 'खरीद की तारीख नहीं है: {count}',
+    completeHoldingsOne: 'पूर्ण चिह्नित: {count}', completeHoldingsOther: 'पूर्ण चिह्नित: {count}',
+    incompleteHoldingsOne: 'अधूरा रिकॉर्ड: {count}', incompleteHoldingsOther: 'अधूरे रिकॉर्ड: {count}',
+    progressOne: '{total} में से {owned} सेट आपके पास है', progressOther: '{total} में से {owned} सेट आपके पास हैं',
+    recordsHint: 'गिनती होल्डिंग रिकॉर्ड की है। दर्ज की गई शून्य लागत को ज्ञात माना जाता है। रिकॉर्ड अपडेट करने के लिए सेट खोलें।',
+    create: 'नया उप-संग्रह', edit: 'उप-संग्रह संपादित करें', export: 'सूचियाँ एक्सपोर्ट करें',
+    name: 'नाम', targets: 'सेट नंबर', targetsHint: 'हर लाइन में एक सेट नंबर लिखें या कॉमा से अलग करें। एक सूची में अधिकतम 200 सेट और कुल 50 सूचियाँ। प्रगति देखने के लिए मनचाहे सेट भी शामिल करें।',
+    chooseOwned: 'अपने संग्रह से सेट जोड़ें', chooseSet: 'सेट चुनें…',
+    addOwned: 'अपने सभी सेट जोड़ें', empty: 'अपनी पहली सूची बनाएँ, जैसे डिस्प्ले शेल्फ या पूरी करने वाली सीरीज़।',
+    progress: '{total} में से {owned} सेट आपके पास हैं', completed: 'पूरा', noTargets: 'प्रगति देखने के लिए सेट जोड़ें।',
+    showSets: 'सेट देखें', wanted: 'आपके पास नहीं', owned: 'आपके पास है',
+    guestStorage: 'अतिथि सूचियाँ इस डिवाइस पर रहती हैं और साइन इन करने पर अपने-आप ट्रांसफ़र नहीं होतीं। उन्हें रखने के लिए एक कॉपी एक्सपोर्ट करें।',
+    accountStorage: 'सूचियाँ आपके खाते में निजी हैं। एक कॉपी एक्सपोर्ट करें: फ़िलहाल संग्रह बैकअप में होल्डिंग शामिल हैं, ये सूचियाँ नहीं।',
+    failed: 'आपकी सूचियाँ लोड या सेव नहीं हो सकीं। कनेक्शन या डिवाइस स्टोरेज जाँचें और फिर कोशिश करें।',
+    conflict: 'यह सूची कहीं और बदली गई है। आपका ड्राफ़्ट अभी यहाँ है; उसे कॉपी करें, फिर दोबारा सेव करने से पहले रीलोड करें।',
+    invalid: 'नाम (अधिकतम 80 अक्षर) और मान्य सेट नंबर (अधिकतम 200) दर्ज करें।',
+    retry: 'फिर कोशिश करें', stale: 'संग्रह उपलब्ध नहीं है। प्रगति पिछली बार लोड किए गए होल्डिंग पर आधारित है और पुरानी हो सकती है।',
+    pending: 'संग्रह के कुछ बदलाव सिंक होने बाकी हैं। प्रगति पुष्टि किए गए होल्डिंग पर आधारित है।',
+    deleteHint: 'यह सूची हटाएँ? आपके सेट संग्रह में रहेंगे।', confirmDelete: 'सूची हटाएँ',
+  },
   nav: { vault: 'संग्रह', catalog: 'कैटलॉग', scan: 'स्कैन', minifigs: 'मिनीफ़िगर', me: 'मैं', badges: 'बैज' },
   common: {
     cancel: 'रद्द करें', save: 'सहेजें', close: 'बंद करें', retry: 'फिर कोशिश करें',
@@ -230,3 +259,15 @@ Object.assign(hi.detail, {"historyValue": "मूल्य", "historyMarket": "�
 export default hi;
 Object.assign(hi.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 
+
+Object.assign(hi.minifigs, {
+  exportCsv: 'CSV निर्यात करें', exportTitle: 'मिनीफ़िगर संग्रह निर्यात', exportReady: 'मिनीफ़िगर CSV तैयार है', exportFailed: 'मिनीफ़िगर निर्यात नहीं हो सके: {error}',
+  addHolding: 'अलग मिनीफ़िगर जोड़ें', editHolding: 'अलग मिनीफ़िगर संपादित करें', looseOnly: 'आपके सेट में शामिल मिनीफ़िगर से अलग दर्ज किया जाता है।',
+  quantity: 'मात्रा', condition: 'स्थिति', purchasePrice: 'प्रति इकाई खरीद मूल्य ({symbol})', purchasedAt: 'खरीद की तारीख', notes: 'निजी नोट्स',
+  conditionUnknown: 'अज्ञात', conditionNew: 'नया', conditionUsedGood: 'इस्तेमाल किया हुआ — अच्छी स्थिति', conditionUsedAcceptable: 'इस्तेमाल किया हुआ — स्वीकार्य स्थिति',
+  unknownIfBlank: 'खाली रहने पर अज्ञात', notesPlaceholder: 'कहाँ मिला, पहचान के विवरण…', addToVault: 'वॉल्ट में जोड़ें',
+  removeHolding: 'वॉल्ट से हटाएँ', removeAction: 'हटाएँ', removeConfirm: 'इस अलग मिनीफ़िगर और उसके निजी विवरण को हटाएँ?',
+  saved: 'मिनीफ़िगर संग्रह सहेजा गया', removed: 'मिनीफ़िगर संग्रह हटाया गया', loadingHolding: 'मिनीफ़िगर संग्रह लोड हो रहा है',
+  loadHoldingFailed: 'मिनीफ़िगर संग्रह लोड नहीं हो सका: {error}', saveFailed: 'मिनीफ़िगर संग्रह सहेजा नहीं जा सका: {error}', removeFailed: 'मिनीफ़िगर संग्रह हटाया नहीं जा सका: {error}', saveUnconfirmed: 'सहेजने की पुष्टि नहीं हो सकी', accountChanged: 'निर्यात के दौरान खाता बदल गया',
+  errorQuantity: '1 से 9999 तक की पूर्ण संख्या दर्ज करें।', errorCondition: 'कोई मान्य स्थिति चुनें।', errorPurchase_price: 'शून्य या अधिक राशि दर्ज करें, या खाली छोड़ें।', errorPurchased_at: 'कोई वास्तविक तारीख दर्ज करें।', errorNotes: 'नोट्स अधिकतम 2000 वर्ण के हो सकते हैं।',
+});

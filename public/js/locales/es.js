@@ -1,5 +1,34 @@
 /** Spanish. Missing keys fall back to English (see lib/i18n.js). */
 export const es = {
+  collections: {
+    title: 'Colecciones y análisis', back: 'Volver a la colección',
+    description: 'Organiza tus sets en listas con nombre y mantén actualizados los datos de tu colección.',
+    loading: 'Cargando colecciones…', insights: 'Datos de tu colección', lists: 'Tus subcolecciones',
+    distinct: '{count} sets distintos en propiedad', missingCost: 'Falta el coste de compra: {count}',
+    missingDate: 'Falta la fecha de compra: {count}', completeHoldings: 'Marcados como completos: {count}',
+    incompleteHoldings: 'Registros incompletos: {count}',
+    distinctOne: '{count} set distinto en propiedad', distinctOther: '{count} sets distintos en propiedad', distinctMany: '{count} sets distintos en propiedad',
+    missingCostOne: 'Falta el coste de compra: {count}', missingCostOther: 'Falta el coste de compra: {count}', missingCostMany: 'Falta el coste de compra: {count}',
+    missingDateOne: 'Falta la fecha de compra: {count}', missingDateOther: 'Falta la fecha de compra: {count}', missingDateMany: 'Falta la fecha de compra: {count}',
+    completeHoldingsOne: 'Marcado como completo: {count}', completeHoldingsOther: 'Marcados como completos: {count}', completeHoldingsMany: 'Marcados como completos: {count}',
+    incompleteHoldingsOne: 'Registro incompleto: {count}', incompleteHoldingsOther: 'Registros incompletos: {count}', incompleteHoldingsMany: 'Registros incompletos: {count}',
+    progressOne: 'Tienes {owned} de {total} set', progressOther: 'Tienes {owned} de {total} sets', progressMany: 'Tienes {owned} de {total} sets',
+    recordsHint: 'Los recuentos se refieren a registros de posesión. Un coste registrado de cero se considera conocido. Abre un set para actualizar sus registros.',
+    create: 'Nueva subcolección', edit: 'Editar subcolección', export: 'Exportar listas',
+    name: 'Nombre', targets: 'Números de set', targetsHint: 'Un número de set por línea o separado por comas. Hasta 200 sets por lista y 50 listas. Incluye los sets que quieres para seguir el progreso.',
+    chooseOwned: 'Añadir un set de tu colección', chooseSet: 'Elige un set…',
+    addOwned: 'Añadir todos tus sets', empty: 'Crea tu primera lista, por ejemplo, para una estantería o una serie que quieras completar.',
+    progress: 'Tienes {owned} de {total} sets', completed: 'Completa', noTargets: 'Añade sets para empezar a seguir el progreso.',
+    showSets: 'Ver sets', wanted: 'No lo tienes', owned: 'En propiedad',
+    guestStorage: 'Las listas de invitado permanecen en este dispositivo y no se transfieren automáticamente al iniciar sesión. Exporta una copia para conservarlas.',
+    accountStorage: 'Las listas son privadas para tu cuenta. Exporta una copia: las copias de seguridad de la colección incluyen tus posesiones, pero no estas listas.',
+    failed: 'No se pudieron cargar o guardar tus listas. Comprueba la conexión o el almacenamiento del dispositivo e inténtalo de nuevo.',
+    conflict: 'Esta lista se modificó en otro lugar. Tu borrador sigue aquí; cópialo y vuelve a cargar antes de guardarlo de nuevo.',
+    invalid: 'Introduce un nombre (hasta 80 caracteres) y números de set válidos (hasta 200).',
+    retry: 'Intentarlo de nuevo', stale: 'La colección no está disponible. El progreso usa las posesiones cargadas por última vez y puede estar desactualizado.',
+    pending: 'Algunos cambios de la colección están pendientes de sincronización. El progreso usa posesiones confirmadas.',
+    deleteHint: '¿Quieres eliminar esta lista? Tus sets seguirán en tu colección.', confirmDelete: 'Eliminar lista',
+  },
   nav: { vault: 'Colección', catalog: 'Catálogo', scan: 'Escanear', minifigs: 'Minifiguras', me: 'Yo', badges: 'Insignias' },
   common: {
     cancel: 'Cancelar', save: 'Guardar', close: 'Cerrar', retry: 'Reintentar',
@@ -230,3 +259,15 @@ Object.assign(es.detail, {"historyValue": "Valor", "historyMarket": "Mercado", "
 export default es;
 Object.assign(es.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 
+
+Object.assign(es.minifigs, {
+  exportCsv: 'Exportar CSV', exportTitle: 'Exportación de minifiguras en propiedad', exportReady: 'CSV de minifiguras listo', exportFailed: 'No se pudieron exportar las minifiguras: {error}',
+  addHolding: 'Añadir minifigura suelta', editHolding: 'Editar minifigura suelta', looseOnly: 'Se registra por separado de las minifiguras incluidas en tus sets.',
+  quantity: 'Cantidad', condition: 'Estado', purchasePrice: 'Precio de compra por unidad ({symbol})', purchasedAt: 'Fecha de compra', notes: 'Notas privadas',
+  conditionUnknown: 'Desconocido', conditionNew: 'Nuevo', conditionUsedGood: 'Usado — buen estado', conditionUsedAcceptable: 'Usado — estado aceptable',
+  unknownIfBlank: 'Desconocido si se deja en blanco', notesPlaceholder: 'Dónde la encontraste, detalles identificativos…', addToVault: 'Añadir a la bóveda',
+  removeHolding: 'Quitar de la bóveda', removeAction: 'Quitar', removeConfirm: '¿Quitar esta minifigura suelta y sus datos privados?',
+  saved: 'Minifigura guardada', removed: 'Minifigura eliminada', loadingHolding: 'Cargando minifigura',
+  loadHoldingFailed: 'No se pudo cargar la minifigura: {error}', saveFailed: 'No se pudo guardar la minifigura: {error}', removeFailed: 'No se pudo quitar la minifigura: {error}', saveUnconfirmed: 'No se pudo confirmar el guardado', accountChanged: 'La cuenta cambió durante la exportación',
+  errorQuantity: 'Introduce una cantidad entera de 1 a 9999.', errorCondition: 'Elige un estado válido.', errorPurchase_price: 'Introduce un importe no negativo o déjalo en blanco.', errorPurchased_at: 'Introduce una fecha válida.', errorNotes: 'Las notas pueden tener hasta 2000 caracteres.',
+});

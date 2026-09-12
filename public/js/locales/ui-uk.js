@@ -777,7 +777,6 @@ export const ui = {
   "Manage subscription": "Керувати підпискою",
   "Many minifigs — strong parts-out potential": "Багато мініфігурок — сильний потенціал розбору на деталі",
   "Mark all read": "Позначити все як прочитане",
-  "Mark as owned": "Позначити як наявний",
   "Mark read": "Позначити прочитаним",
   "Mark sold": "Позначити проданим",
   "Mark this alert read": "Позначити це сповіщення прочитаним",

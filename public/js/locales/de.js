@@ -1,5 +1,34 @@
 /** German. Missing keys fall back to English (see lib/i18n.js). */
 export const de = {
+  collections: {
+    title: 'Sammlungen & Einblicke', back: 'Zurück zum Tresor',
+    description: 'Ordne deine Sets in benannten Listen und halte deine Sammlungsdaten aktuell.',
+    loading: 'Sammlungen werden geladen…', insights: 'Einblicke in deine Sammlung', lists: 'Deine Teilsammlungen',
+    distinct: '{count} verschiedene Sets im Besitz', missingCost: 'Fehlender Kaufpreis: {count}',
+    missingDate: 'Fehlendes Kaufdatum: {count}', completeHoldings: 'Als vollständig markiert: {count}',
+    incompleteHoldings: 'Unvollständige Einträge: {count}',
+    distinctOne: '{count} verschiedenes Set im Besitz', distinctOther: '{count} verschiedene Sets im Besitz',
+    missingCostOne: 'Fehlender Kaufpreis: {count}', missingCostOther: 'Fehlender Kaufpreis: {count}',
+    missingDateOne: 'Fehlendes Kaufdatum: {count}', missingDateOther: 'Fehlendes Kaufdatum: {count}',
+    completeHoldingsOne: 'Als vollständig markiert: {count}', completeHoldingsOther: 'Als vollständig markiert: {count}',
+    incompleteHoldingsOne: 'Unvollständiger Eintrag: {count}', incompleteHoldingsOther: 'Unvollständige Einträge: {count}',
+    progressOne: '{owned} von {total} Set im Besitz', progressOther: '{owned} von {total} Sets im Besitz',
+    recordsHint: 'Die Zahlen beziehen sich auf Besitz-Einträge. Ein erfasster Kaufpreis von null gilt als bekannt. Öffne ein Set, um seine Einträge zu aktualisieren.',
+    create: 'Neue Teilsammlung', edit: 'Teilsammlung bearbeiten', export: 'Listen exportieren',
+    name: 'Name', targets: 'Setnummern', targetsHint: 'Eine Setnummer pro Zeile oder durch Kommas getrennt. Maximal 200 Sets pro Liste und 50 Listen. Nimm gewünschte Sets auf, um den Fortschritt zu verfolgen.',
+    chooseOwned: 'Set aus deinem Tresor hinzufügen', chooseSet: 'Set auswählen…',
+    addOwned: 'Alle eigenen Sets hinzufügen', empty: 'Erstelle deine erste Liste, zum Beispiel für ein Ausstellungsregal oder eine Serie, die du vervollständigen möchtest.',
+    progress: '{owned} von {total} Sets im Besitz', completed: 'Vollständig', noTargets: 'Füge Sets hinzu, um den Fortschritt zu verfolgen.',
+    showSets: 'Sets anzeigen', wanted: 'Nicht im Besitz', owned: 'Im Besitz',
+    guestStorage: 'Gastlisten bleiben auf diesem Gerät und werden beim Anmelden nicht automatisch übertragen. Exportiere eine Kopie, um sie zu behalten.',
+    accountStorage: 'Listen sind für dein Konto privat. Exportiere eine Kopie: Tresor-Sicherungen umfassen derzeit deine Bestände, nicht diese Listen.',
+    failed: 'Deine Listen konnten nicht geladen oder gespeichert werden. Prüfe deine Verbindung oder den Gerätespeicher und versuche es erneut.',
+    conflict: 'Diese Liste wurde anderswo geändert. Dein Entwurf ist noch hier; kopiere ihn und lade dann neu, bevor du erneut speicherst.',
+    invalid: 'Gib einen Namen (bis zu 80 Zeichen) und gültige Setnummern (bis zu 200) ein.',
+    retry: 'Erneut versuchen', stale: 'Sammlung nicht verfügbar. Der Fortschritt basiert auf den zuletzt geladenen Beständen und kann veraltet sein.',
+    pending: 'Einige Tresoränderungen warten auf die Synchronisierung. Der Fortschritt basiert auf bestätigten Beständen.',
+    deleteHint: 'Diese Liste entfernen? Deine Sets bleiben im Tresor.', confirmDelete: 'Liste entfernen',
+  },
   nav: { vault: 'Tresor', catalog: 'Katalog', scan: 'Scannen', minifigs: 'Minifiguren', me: 'Ich', badges: 'Abzeichen' },
   common: {
     cancel: 'Abbrechen', save: 'Speichern', close: 'Schließen', retry: 'Erneut versuchen',
@@ -248,3 +277,15 @@ Object.assign(de.detail, {
 export default de;
 Object.assign(de.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 
+
+Object.assign(de.minifigs, {
+  exportCsv: 'CSV exportieren', exportTitle: 'Export der Minifigurenbestände', exportReady: 'Minifiguren-CSV ist bereit', exportFailed: 'Minifiguren konnten nicht exportiert werden: {error}',
+  addHolding: 'Lose Minifigur hinzufügen', editHolding: 'Lose Minifigur bearbeiten', looseOnly: 'Wird getrennt von Minifiguren erfasst, die in deinen Sets enthalten sind.',
+  quantity: 'Anzahl', condition: 'Zustand', purchasePrice: 'Kaufpreis pro Stück ({symbol})', purchasedAt: 'Kaufdatum', notes: 'Private Notizen',
+  conditionUnknown: 'Unbekannt', conditionNew: 'Neu', conditionUsedGood: 'Gebraucht — gut', conditionUsedAcceptable: 'Gebraucht — akzeptabel',
+  unknownIfBlank: 'Leer lassen, wenn unbekannt', notesPlaceholder: 'Fundort, Erkennungsmerkmale …', addToVault: 'Zum Tresor hinzufügen',
+  removeHolding: 'Aus dem Tresor entfernen', removeAction: 'Entfernen', removeConfirm: 'Diesen losen Minifigurenbestand und seine privaten Angaben entfernen?',
+  saved: 'Minifigurenbestand gespeichert', removed: 'Minifigurenbestand entfernt', loadingHolding: 'Bestand wird geladen',
+  loadHoldingFailed: 'Bestand konnte nicht geladen werden: {error}', saveFailed: 'Bestand konnte nicht gespeichert werden: {error}', removeFailed: 'Bestand konnte nicht entfernt werden: {error}', saveUnconfirmed: 'Das Speichern konnte nicht bestätigt werden', accountChanged: 'Das Konto wurde während des Exports gewechselt',
+  errorQuantity: 'Gib eine ganze Anzahl von 1 bis 9999 ein.', errorCondition: 'Wähle einen gültigen Zustand.', errorPurchase_price: 'Gib einen nicht negativen Betrag ein oder lasse das Feld leer.', errorPurchased_at: 'Gib ein gültiges Datum ein.', errorNotes: 'Notizen dürfen höchstens 2000 Zeichen lang sein.',
+});

@@ -5,26 +5,24 @@ test.use({ viewport: { width: 390, height: 844 } });
 const spread = (samples, key) => Math.max(...samples.map((sample) => sample[key])) - Math.min(...samples.map((sample) => sample[key]));
 
 test('Vault hero value animation pins its final width until interpolation finishes', async ({ page }) => {
-  // Enter through another route so the constrained row CSS is present before
-  // Vault's first 0 → total animation begins.
+  // Font readiness was previously checked only after the first route had
+  // already started its 750ms interpolation. On a cold renderer that left one
+  // (or zero) eligible samples, even though the animation itself was correct.
+  // Prepare fonts, the constrained row, and the sampler before changing route.
   await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => document.fonts.ready);
   await page.addStyleTag({ content: '.hero > .u-row { width: 260px; }' });
-  await page.evaluate(() => { location.hash = '#/'; });
-
-  const value = page.locator('#heroValue');
-  await expect(value).toBeVisible();
-
-  const samples = await page.evaluate(async () => {
-    const el = document.querySelector('#heroValue');
-    const row = el?.parentElement;
-    if (!el || !row) throw new Error('hero value row not rendered');
-
+  await page.evaluate(() => {
     const frames = [];
-    const start = performance.now();
-    while (performance.now() - start < 900) {
+    let sampling = false;
+    const sample = () => {
+      const el = document.querySelector('#heroValue');
+      const row = el?.parentElement;
+      if (!el || !row) return;
       const valueRect = el.getBoundingClientRect();
       const rowRect = row.getBoundingClientRect();
-      const deltaRect = row.querySelector('.delta')?.getBoundingClientRect();
+      const delta = row.querySelector('.delta');
+      const deltaRect = delta && getComputedStyle(delta).display !== 'none' ? delta.getBoundingClientRect() : null;
       frames.push({
         relativeTop: valueRect.top - rowRect.top,
         height: valueRect.height,
@@ -34,10 +32,27 @@ test('Vault hero value animation pins its final width until interpolation finish
         text: el.textContent,
         fontsLoaded: document.fonts.status === 'loaded',
       });
-      await new Promise(requestAnimationFrame);
-    }
-    return frames.filter(({ fontsLoaded }) => fontsLoaded);
+    };
+    const observer = new MutationObserver((mutations) => {
+      if (sampling || !mutations.some(({ target }) => target.id === 'heroValue' && target.style.minWidth)) return;
+      sampling = true;
+      const deadline = performance.now() + 900;
+      const tick = () => {
+        sample();
+        if (performance.now() < deadline) requestAnimationFrame(tick);
+        else { observer.disconnect(); window.__vaultAnimationFrames = frames; }
+      };
+      requestAnimationFrame(tick);
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'], subtree: true });
+    window.__vaultAnimationFrames = null;
   });
+  await page.evaluate(() => { location.hash = '#/'; });
+
+  const value = page.locator('#heroValue');
+  await expect(value).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__vaultAnimationFrames?.length ?? 0)).toBeGreaterThan(1);
+  const samples = await page.evaluate(() => window.__vaultAnimationFrames.filter(({ fontsLoaded }) => fontsLoaded));
 
   expect(samples.length).toBeGreaterThan(1);
   expect(samples.every(({ deltaRelativeTop }) => deltaRelativeTop != null)).toBe(true);

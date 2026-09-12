@@ -1,5 +1,34 @@
 /** Chinese (Simplified). Missing keys fall back to English (see lib/i18n.js). */
 export const zh = {
+  collections: {
+    title: '收藏分类与分析', back: '返回收藏库',
+    description: '将套装整理到命名列表中，并及时更新收藏记录。',
+    loading: '正在加载收藏分类…', insights: '收藏分析', lists: '你的子收藏',
+    distinct: '拥有 {count} 款不同套装', missingCost: '缺少购买成本：{count}',
+    missingDate: '缺少购买日期：{count}', completeHoldings: '已标记完整：{count}',
+    incompleteHoldings: '记录不完整：{count}',
+    distinctOne: '拥有 {count} 款不同套装', distinctOther: '拥有 {count} 款不同套装',
+    missingCostOne: '缺少购买成本：{count}', missingCostOther: '缺少购买成本：{count}',
+    missingDateOne: '缺少购买日期：{count}', missingDateOther: '缺少购买日期：{count}',
+    completeHoldingsOne: '已标记完整：{count}', completeHoldingsOther: '已标记完整：{count}',
+    incompleteHoldingsOne: '记录不完整：{count}', incompleteHoldingsOther: '记录不完整：{count}',
+    progressOne: '已拥有 {total} 款中的 {owned} 款', progressOther: '已拥有 {total} 款中的 {owned} 款',
+    recordsHint: '数量按持有记录计算。购买成本记录为零也视为已知。打开套装即可更新记录。',
+    create: '新建子收藏', edit: '编辑子收藏', export: '导出列表',
+    name: '名称', targets: '套装编号', targetsHint: '每行输入一个套装编号，也可用逗号分隔。每个列表最多 200 款套装，共可创建 50 个列表。加入想要的套装即可跟踪完成进度。',
+    chooseOwned: '从收藏库添加套装', chooseSet: '选择套装…',
+    addOwned: '添加拥有的所有套装', empty: '创建第一个列表，例如展示架上的套装或想要集齐的系列。',
+    progress: '已拥有 {total} 款中的 {owned} 款', completed: '已完成', noTargets: '添加套装即可开始跟踪进度。',
+    showSets: '查看套装', wanted: '尚未拥有', owned: '已拥有',
+    guestStorage: '访客列表仅保存在此设备上，登录后不会自动转移。请导出副本以便保留。',
+    accountStorage: '列表仅对你的账户可见。请导出副本：收藏库备份目前包含持有记录，但不包含这些列表。',
+    failed: '无法加载或保存列表。请检查网络连接或设备存储空间，然后重试。',
+    conflict: '此列表已在其他位置更改。你的草稿仍在这里；请先复制草稿并重新加载，再次保存。',
+    invalid: '请输入名称（最多 80 个字符）和有效的套装编号（最多 200 个）。',
+    retry: '重试', stale: '收藏数据暂不可用。进度使用上次加载的持有记录，可能不是最新数据。',
+    pending: '收藏库的部分更改正在等待同步。进度使用已确认的持有记录。',
+    deleteHint: '要移除此列表吗？你拥有的套装仍会保留在收藏库中。', confirmDelete: '移除列表',
+  },
   nav: { vault: '收藏库', catalog: '目录', scan: '扫描', minifigs: '人仔', me: '我的', badges: '徽章' },
   common: {
     cancel: '取消', save: '保存', close: '关闭', retry: '重试',
@@ -230,3 +259,15 @@ Object.assign(zh.detail, {"historyValue": "价值", "historyMarket": "市场", "
 export default zh;
 Object.assign(zh.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 
+
+Object.assign(zh.minifigs, {
+  exportCsv: '导出 CSV', exportTitle: '人仔持有记录导出', exportReady: '人仔 CSV 已就绪', exportFailed: '无法导出人仔：{error}',
+  addHolding: '添加散装人仔', editHolding: '编辑散装人仔', looseOnly: '与套装内含的人仔分开记录。',
+  quantity: '数量', condition: '品相', purchasePrice: '单个人仔购入价（{symbol}）', purchasedAt: '购买日期', notes: '私人备注',
+  conditionUnknown: '未知', conditionNew: '全新', conditionUsedGood: '二手 — 良好', conditionUsedAcceptable: '二手 — 尚可',
+  unknownIfBlank: '留空表示未知', notesPlaceholder: '发现地点、识别细节…', addToVault: '添加到收藏库',
+  removeHolding: '从收藏库移除', removeAction: '移除', removeConfirm: '移除这个散装人仔及其私人信息？',
+  saved: '人仔持有记录已保存', removed: '人仔持有记录已移除', loadingHolding: '正在加载持有记录',
+  loadHoldingFailed: '无法加载持有记录：{error}', saveFailed: '无法保存持有记录：{error}', removeFailed: '无法移除持有记录：{error}', saveUnconfirmed: '无法确认是否已保存', accountChanged: '导出期间账户发生变化',
+  errorQuantity: '请输入 1 到 9999 之间的整数。', errorCondition: '请选择有效的品相。', errorPurchase_price: '请输入非负金额，或留空。', errorPurchased_at: '请输入有效日期。', errorNotes: '备注最多可输入 2000 个字符。',
+});

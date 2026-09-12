@@ -1,7 +1,7 @@
-import { $, $$, haptic, escapeHtml, fmtMoney, toast, debounce, bvIDB, SEARCH_DEBOUNCE_MS, mount, drawSparkline, fmtDateUpdated, thumbImg } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoney, toast, debounce, bvIDB, SEARCH_DEBOUNCE_MS, mount, drawSparkline, fmtDateUpdated, thumbImg, capturedMoneyContext, CURRENCY_SYMBOLS, setBtnLoading } from '../utils.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { state } from '../state.js';
-import { api, getSessionUserId } from '../api.js';
+import { api, getSessionUserId, getSessionOwnerSnapshot } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
@@ -10,6 +10,9 @@ import { activeFigFilterCount } from '../lib/pure.js';
 import { figFilterSummaryText } from '../lib/filter-summary.js';
 import { figAvatarSVG } from '../lib/fig-avatar.js';
 import { wireHorizontalRail } from '../lib/horizontal-rail.js';
+import { confirmedMinifigHoldingResponse, parseMinifigHoldingForm, normalizeMinifigHolding } from '../lib/minifig-holding.js';
+import { usdMoneyInputValue } from '../lib/money-input.js';
+import { exportBlob } from '../lib/native-file-export.js';
 
 const rarityLabel = (rarity) => {
   const value = String(rarity || 'common').toLowerCase();
@@ -136,6 +139,7 @@ export async function renderBlind() {
           <div class="topbar-eyebrow" id="blindCount">${tPlural('counts.collected', ownedCount, { owned: ownedCount, total: b.total.toLocaleString() })}</div>
           <h1 class="topbar-title">Minifigs</h1>
         </div>
+        <button class="btn-secondary" id="figExportBtn">${I.download ? I.download() : ''}<span>${escapeHtml(t('minifigs.exportCsv'))}</span></button>
       </div>
 
       <section class="fig-collection-overview" aria-label="Minifigure collection summary">
@@ -201,6 +205,7 @@ export async function renderBlind() {
   }));
 
   $("#figFilterChip")?.addEventListener("click", () => showFigFilterSheet());
+  $("#figExportBtn")?.addEventListener("click", exportMinifigHoldings);
 
   // Series filter: top series as quick chips, the rest behind a "More…" picker.
   // The facet list loads async; re-render the chip row once it arrives.
@@ -267,9 +272,9 @@ export async function loadBlind({ reset = false } = {}) {
       b.ownedValue = Number(res.aggregates.owned_value) || 0;
     } else {
       // Guest mode's complete local collection is authoritative, not this result page.
-      b.ownedCount = state.ownedFigs.size;
       const details = (() => { try { return JSON.parse(localStorage.getItem('bv_guest_fig_details') || '{}'); } catch { return {}; } })();
-      b.ownedValue = [...state.ownedFigs].reduce((sum, num) => sum + (Number(details[num]?.current_value ?? details[num]?.value) || 0), 0);
+      b.ownedCount = [...state.ownedFigs].reduce((sum, num) => sum + (normalizeMinifigHolding(details[num]?.holding)?.quantity || 1), 0);
+      b.ownedValue = [...state.ownedFigs].reduce((sum, num) => sum + (Number(details[num]?.current_value ?? details[num]?.value) || 0) * (normalizeMinifigHolding(details[num]?.holding)?.quantity || 1), 0);
     }
     b.offset = b.items.length;
     b.hasMore = !!res.hasMore;
@@ -496,10 +501,178 @@ function figSourceLabel(source) {
   return 'Blended market estimate';
 }
 
+async function exportMinifigHoldings() {
+  const btn = $('#figExportBtn');
+  if (btn?.disabled) return;
+  const ownerSnapshot = getSessionOwnerSnapshot();
+  setBtnLoading(btn, true);
+  try {
+    const blob = await api('/api/minifigs/export', { responseType: 'blob' });
+    if (ownerSnapshot.generation !== getSessionOwnerSnapshot().generation) throw new Error(t('minifigs.accountChanged'));
+    await exportBlob(blob, 'brickvault-minifigures.csv', { title: t('minifigs.exportTitle') });
+    toast(t('minifigs.exportReady'), 'success');
+  } catch (error) {
+    toast(t('minifigs.exportFailed', { error: error?.message || error }), 'error');
+  } finally {
+    setBtnLoading(btn, false);
+  }
+}
+
+function holdingFormHTML(holding, moneyContext) {
+  const saved = normalizeMinifigHolding(holding);
+  const condition = saved?.condition || 'unknown';
+  const currency = moneyContext.currency;
+  const symbol = CURRENCY_SYMBOLS[currency] || currency;
+  return `
+    <section class="detail-card" aria-labelledby="figHoldingTitle" style="margin-top:14px;">
+      <div class="detail-card-title" id="figHoldingTitle">${escapeHtml(saved ? t('minifigs.editHolding') : t('minifigs.addHolding'))}</div>
+      <p style="font-size:12.5px;color:var(--ink-mute);margin:0 0 12px;">${escapeHtml(t('minifigs.looseOnly'))}</p>
+      <div class="manage-field-grid">
+        <div class="field">
+          <label class="field-lbl" for="figQuantity">${escapeHtml(t('minifigs.quantity'))}</label>
+          <input id="figQuantity" type="number" inputmode="numeric" min="1" max="9999" step="1" value="${saved?.quantity || 1}">
+        </div>
+        <div class="field">
+          <label class="field-lbl" for="figCondition">${escapeHtml(t('minifigs.condition'))}</label>
+          <select id="figCondition">
+            <option value="unknown" ${condition === 'unknown' ? 'selected' : ''}>${escapeHtml(t('minifigs.conditionUnknown'))}</option>
+            <option value="new" ${condition === 'new' ? 'selected' : ''}>${escapeHtml(t('minifigs.conditionNew'))}</option>
+            <option value="used_good" ${condition === 'used_good' ? 'selected' : ''}>${escapeHtml(t('minifigs.conditionUsedGood'))}</option>
+            <option value="used_acceptable" ${condition === 'used_acceptable' ? 'selected' : ''}>${escapeHtml(t('minifigs.conditionUsedAcceptable'))}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-lbl" for="figPurchasePrice">${escapeHtml(t('minifigs.purchasePrice', { currency, symbol }))}</label>
+          <input id="figPurchasePrice" type="text" inputmode="decimal" autocomplete="off" value="${escapeHtml(usdMoneyInputValue(saved?.purchase_price, moneyContext))}" placeholder="${escapeHtml(t('minifigs.unknownIfBlank'))}">
+        </div>
+        <div class="field">
+          <label class="field-lbl" for="figPurchasedAt">${escapeHtml(t('minifigs.purchasedAt'))}</label>
+          <input id="figPurchasedAt" type="date" value="${escapeHtml(saved?.purchased_at || '')}">
+        </div>
+        <div class="field" style="grid-column:1/-1;">
+          <label class="field-lbl" for="figNotes">${escapeHtml(t('minifigs.notes'))}</label>
+          <textarea id="figNotes" maxlength="2000" placeholder="${escapeHtml(t('minifigs.notesPlaceholder'))}">${escapeHtml(saved?.notes || '')}</textarea>
+        </div>
+      </div>
+      <div id="figHoldingError" role="alert" style="min-height:18px;color:var(--down);font-size:12px;margin-top:6px;"></div>
+      <button class="btn-primary" id="figSaveHolding">${escapeHtml(saved ? t('common.save') : t('minifigs.addToVault'))}</button>
+      ${saved ? `<div id="figRemoveActions" style="margin-top:10px;"><button class="btn-secondary" id="figRemoveHolding">${escapeHtml(t('minifigs.removeHolding'))}</button></div>` : ''}
+    </section>`;
+}
+
+function updateFigHoldingState(f, previous, next) {
+  const oldQuantity = previous?.quantity || 0;
+  const newQuantity = next?.quantity || 0;
+  if (next) state.ownedFigs.add(f.fig_num); else state.ownedFigs.delete(f.fig_num);
+  f.owned_qty = newQuantity;
+  saveFigs();
+  const card = $(`.mini-card[data-fig="${CSS.escape(f.fig_num)}"]`);
+  if (card) card.outerHTML = miniCardHTML(f);
+  state.blind.ownedCount = Math.max(0, (state.blind.ownedCount || 0) + newQuantity - oldQuantity);
+  state.blind.ownedValue = Math.max(0, (state.blind.ownedValue || 0) + (newQuantity - oldQuantity) * (Number(f.current_value ?? f.value) || 0));
+  refreshMiniStats();
+  if (state.filter.figOwned !== 'all' && !previous !== !next) {
+    loadBlind({ reset: true }).then(() => {
+      if (location.hash === '#/minifigs') { refreshMiniGrid(); refreshMiniStats(); }
+    }).catch(() => {});
+  }
+}
+
+function wireHoldingForm(f, initialHolding, detailGen, ownerSnapshot, moneyContext) {
+  let holding = normalizeMinifigHolding(initialHolding);
+  let priceChanged = false;
+  let saving = false;
+  const live = () => detailGen === _figDetailGen
+    && ownerSnapshot.generation === getSessionOwnerSnapshot().generation
+    && $('#figSaveHolding');
+  const priceInput = $('#figPurchasePrice');
+  const setBusy = (on, loadingButton) => {
+    $('#figHoldingContainer')?.querySelectorAll('input, select, textarea, button').forEach(control => { control.disabled = on; });
+    setBtnLoading(loadingButton, on);
+  };
+  priceInput?.addEventListener('input', () => { priceChanged = true; });
+  $('#figSaveHolding')?.addEventListener('click', async () => {
+    if (saving || !live()) return;
+    const result = parseMinifigHoldingForm({
+      quantity: $('#figQuantity')?.value,
+      condition: $('#figCondition')?.value,
+      purchase_price: priceInput?.value,
+      purchased_at: $('#figPurchasedAt')?.value,
+      notes: $('#figNotes')?.value,
+    }, moneyContext, { priceChanged: !holding || priceChanged });
+    const error = $('#figHoldingError');
+    if (!result.valid) {
+      if (error) error.textContent = t(`minifigs.error${result.field[0].toUpperCase()}${result.field.slice(1)}`);
+      $(`#fig${result.field === 'purchase_price' ? 'PurchasePrice' : result.field === 'purchased_at' ? 'PurchasedAt' : result.field[0].toUpperCase() + result.field.slice(1)}`)?.focus();
+      return;
+    }
+    if (error) error.textContent = '';
+    saving = true;
+    const button = $('#figSaveHolding');
+    setBusy(true, button);
+    try {
+      const response = await api(`/api/minifigs/${encodeURIComponent(f.fig_num)}`, { method: 'PUT', body: result.payload, retry: false, offlineQueue: false });
+      if (!live()) return;
+      const saved = confirmedMinifigHoldingResponse(response, f.fig_num);
+      if (!saved) throw new Error(t('minifigs.saveUnconfirmed'));
+      updateFigHoldingState(f, holding, saved);
+      holding = saved;
+      toast(t('minifigs.saved'), 'success');
+      const container = $('#figHoldingContainer');
+      if (container) {
+        container.innerHTML = holdingFormHTML(holding, moneyContext);
+        wireHoldingForm(f, holding, detailGen, ownerSnapshot, moneyContext);
+      }
+    } catch (cause) {
+      if (live() && error) error.textContent = t('minifigs.saveFailed', { error: cause?.message || cause });
+    } finally {
+      saving = false;
+      if (live()) setBusy(false, $('#figSaveHolding'));
+    }
+  });
+
+  const wireRemoveButton = () => $('#figRemoveHolding')?.addEventListener('click', () => {
+    if (!live() || saving) return;
+    const actions = $('#figRemoveActions');
+    if (!actions) return;
+    actions.innerHTML = `<p style="font-size:12.5px;color:var(--ink-mute);margin:0 0 8px;">${escapeHtml(t('minifigs.removeConfirm'))}</p><div class="btn-row"><button class="btn-danger" id="figConfirmRemove">${escapeHtml(t('minifigs.removeAction'))}</button><button class="btn-secondary" id="figCancelRemove">${escapeHtml(t('common.cancel'))}</button></div>`;
+    $('#figCancelRemove')?.addEventListener('click', () => {
+      actions.innerHTML = `<button class="btn-secondary" id="figRemoveHolding">${escapeHtml(t('minifigs.removeHolding'))}</button>`;
+      wireRemoveButton();
+    }, { once: true });
+    $('#figConfirmRemove')?.addEventListener('click', async () => {
+      if (saving || !live()) return;
+      saving = true;
+      const remove = $('#figConfirmRemove');
+      setBusy(true, remove);
+      try {
+        await api(`/api/minifigs/${encodeURIComponent(f.fig_num)}`, { method: 'DELETE', retry: false, offlineQueue: false });
+        if (!live()) return;
+        updateFigHoldingState(f, holding, null);
+        holding = null;
+        toast(t('minifigs.removed'), 'success');
+        const container = $('#figHoldingContainer');
+        if (container) {
+          container.innerHTML = holdingFormHTML(null, moneyContext);
+          wireHoldingForm(f, null, detailGen, ownerSnapshot, moneyContext);
+        }
+      } catch (cause) {
+        if (live()) {
+          setBusy(false, remove);
+          const error = $('#figHoldingError');
+          if (error) error.textContent = t('minifigs.removeFailed', { error: cause?.message || cause });
+        }
+      } finally { saving = false; }
+    });
+  }, { once: true });
+  wireRemoveButton();
+}
+
 function showFigDetail(f) {
   const detailGen = ++_figDetailGen;
   const detailFigNum = f.fig_num;
-  const owned = state.ownedFigs.has(f.fig_num);
+  const ownerSnapshot = getSessionOwnerSnapshot();
+  const moneyContext = capturedMoneyContext();
   const realVal = f.current_value ?? null;
   const rarity = f.rarity || 'common';
   const n = f.appears_in_sets ?? null;
@@ -508,10 +681,6 @@ function showFigDetail(f) {
     : null;
   const hasImg = f.image_url;
   const rbUrl = `https://rebrickable.com/minifigs/${encodeURIComponent(f.fig_num)}/`;
-
-  const renderBtn = (isOwned) => isOwned
-    ? `${I.check()}<span>Owned</span>`
-    : `<span>Mark as owned</span>`;
 
   showSheet(`
     <div class="fig-detail">
@@ -540,15 +709,32 @@ function showFigDetail(f) {
           ${f.num_parts ? `<span>${escapeHtml(tPlural('minifigs.parts', f.num_parts))}</span>` : ''}
           <span>${escapeHtml(t('minifigs.filterSummaryRarity', { rarity: rarityLabel(rarity) }))}</span>
         </div>` : ''}
-        <button class="btn-primary fig-own-btn${owned ? ' is-owned' : ''}" id="figOwnBtn">
-          ${renderBtn(owned)}
-        </button>
+        <div id="figHoldingContainer" aria-live="polite"><div class="spinner" aria-label="${escapeHtml(t('minifigs.loadingHolding'))}"></div></div>
         <a class="fig-detail-link" href="${rbUrl}" target="_blank" rel="noopener noreferrer">
           ${I.extLink()}<span>View on Rebrickable</span>
         </a>
         <div id="figSetsSection" style="margin-top:16px;"></div>
       </div>
     </div>`);
+
+  (async () => {
+    try {
+      const response = await api('/api/minifigs/' + encodeURIComponent(f.fig_num));
+      if (detailGen !== _figDetailGen || ownerSnapshot.generation !== getSessionOwnerSnapshot().generation) return;
+      const holding = normalizeMinifigHolding(response?.holding);
+      if (response?.minifig) Object.assign(f, response.minifig);
+      const container = $('#figHoldingContainer');
+      if (!container) return;
+      container.innerHTML = holdingFormHTML(holding, moneyContext);
+      wireHoldingForm(f, holding, detailGen, ownerSnapshot, moneyContext);
+    } catch (cause) {
+      if (detailGen !== _figDetailGen || ownerSnapshot.generation !== getSessionOwnerSnapshot().generation) return;
+      const container = $('#figHoldingContainer');
+      if (!container) return;
+      container.innerHTML = `<div role="alert" style="color:var(--down);font-size:13px;margin-bottom:10px;">${escapeHtml(t('minifigs.loadHoldingFailed', { error: cause?.message || cause }))}</div><button class="btn-secondary" id="figRetryHolding">${escapeHtml(t('common.retry'))}</button>`;
+      $('#figRetryHolding')?.addEventListener('click', () => showFigDetail(f), { once: true });
+    }
+  })();
 
   // Lazily load the 90-day price history and draw the trend sparkline (mirrors
   // the set detail chart). Only shown once we have ≥2 snapshots.
@@ -602,49 +788,6 @@ function showFigDetail(f) {
     } catch { /* non-fatal — the section just stays empty */ }
   })();
 
-  $('#figOwnBtn')?.addEventListener('click', async () => {
-    const nowOwned = !state.ownedFigs.has(f.fig_num);
-    if (nowOwned) state.ownedFigs.add(f.fig_num); else state.ownedFigs.delete(f.fig_num);
-    f.owned_qty = nowOwned ? 1 : 0;
-    saveFigs();
-    haptic('medium');
-    const btn = $('#figOwnBtn');
-    if (btn) {
-      btn.innerHTML = renderBtn(nowOwned);
-      btn.classList.toggle('is-owned', nowOwned);
-    }
-    const card = $(`.mini-card[data-fig="${CSS.escape(f.fig_num)}"]`);
-    if (card) card.outerHTML = miniCardHTML(f);
-    updateBlindCount();
-    updateFigStats();
-    try {
-      await api('/api/minifigs/' + encodeURIComponent(f.fig_num), { method: nowOwned ? 'PUT' : 'DELETE' });
-      if (state.filter.figOwned !== "all") {
-        await loadBlind({ reset: true });
-        refreshMiniGrid();
-      } else {
-        const delta = nowOwned ? 1 : -1;
-        state.blind.ownedCount = Math.max(0, (state.blind.ownedCount || 0) + delta);
-        state.blind.ownedValue = Math.max(0, (state.blind.ownedValue || 0) + delta * (Number(f.current_value ?? f.value) || 0));
-      }
-      updateBlindCount();
-      updateFigStats();
-    } catch {
-      if (nowOwned) state.ownedFigs.delete(f.fig_num); else state.ownedFigs.add(f.fig_num);
-      f.owned_qty = nowOwned ? 0 : 1;
-      saveFigs();
-      const recard = $(`.mini-card[data-fig="${CSS.escape(f.fig_num)}"]`);
-      if (recard) recard.outerHTML = miniCardHTML(f);
-      const sheetBtn = $('#figOwnBtn');
-      if (sheetBtn) {
-        sheetBtn.innerHTML = renderBtn(!nowOwned);
-        sheetBtn.classList.toggle('is-owned', !nowOwned);
-      }
-      updateBlindCount();
-      updateFigStats();
-      toast("Couldn't save — try again", 'error');
-    }
-  });
 }
 
 function mountBlindSentinel() {

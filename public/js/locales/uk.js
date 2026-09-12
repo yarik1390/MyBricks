@@ -1,5 +1,34 @@
 /** Ukrainian. Missing keys fall back to English (see lib/i18n.js). */
 export const uk = {
+  collections: {
+    title: 'Колекції та аналітика', back: 'Назад до сховища',
+    description: 'Упорядковуйте набори в іменовані списки й підтримуйте дані колекції актуальними.',
+    loading: 'Завантаження колекцій…', insights: 'Аналітика колекції', lists: 'Ваші підколекції',
+    distinct: 'Різних наборів у власності: {count}', missingCost: 'Немає вартості придбання: {count}',
+    missingDate: 'Немає дати придбання: {count}', completeHoldings: 'Позначено повними: {count}',
+    incompleteHoldings: 'Неповні записи: {count}',
+    distinctOne: 'У власності {count} окремий набір', distinctFew: 'У власності {count} різні набори', distinctMany: 'У власності {count} різних наборів', distinctOther: 'У власності {count} різних наборів',
+    missingCostOne: 'Немає вартості придбання: {count}', missingCostFew: 'Немає вартості придбання: {count}', missingCostMany: 'Немає вартості придбання: {count}', missingCostOther: 'Немає вартості придбання: {count}',
+    missingDateOne: 'Немає дати придбання: {count}', missingDateFew: 'Немає дати придбання: {count}', missingDateMany: 'Немає дати придбання: {count}', missingDateOther: 'Немає дати придбання: {count}',
+    completeHoldingsOne: 'Позначено повним: {count}', completeHoldingsFew: 'Позначено повними: {count}', completeHoldingsMany: 'Позначено повними: {count}', completeHoldingsOther: 'Позначено повними: {count}',
+    incompleteHoldingsOne: 'Неповний запис: {count}', incompleteHoldingsFew: 'Неповні записи: {count}', incompleteHoldingsMany: 'Неповних записів: {count}', incompleteHoldingsOther: 'Неповних записів: {count}',
+    progressOne: 'У власності {owned} із {total} набору', progressFew: 'У власності {owned} із {total} наборів', progressMany: 'У власності {owned} із {total} наборів', progressOther: 'У власності {owned} із {total} наборів',
+    recordsHint: 'Підрахунки стосуються записів про володіння. Записана нульова вартість вважається відомою. Відкрийте набір, щоб оновити його записи.',
+    create: 'Нова підколекція', edit: 'Редагувати підколекцію', export: 'Експортувати списки',
+    name: 'Назва', targets: 'Номери наборів', targetsHint: 'Один номер набору в рядку або номери через коми. До 200 наборів у списку та 50 списків. Додайте бажані набори, щоб відстежувати прогрес.',
+    chooseOwned: 'Додати набір зі сховища', chooseSet: 'Виберіть набір…',
+    addOwned: 'Додати всі свої набори', empty: 'Створіть перший список, наприклад для полиці або серії, яку хочете зібрати повністю.',
+    progress: 'У власності {owned} із {total} наборів', completed: 'Повна', noTargets: 'Додайте набори, щоб почати відстежувати прогрес.',
+    showSets: 'Переглянути набори', wanted: 'Немає у власності', owned: 'У власності',
+    guestStorage: 'Гостьові списки залишаються на цьому пристрої й не переносяться автоматично після входу. Експортуйте копію, щоб зберегти їх.',
+    accountStorage: 'Списки приватні для вашого облікового запису. Експортуйте копію: резервні копії сховища зараз охоплюють володіння, але не ці списки.',
+    failed: 'Не вдалося завантажити або зберегти списки. Перевірте з’єднання чи сховище пристрою та спробуйте ще раз.',
+    conflict: 'Цей список змінено в іншому місці. Чернетка все ще тут; скопіюйте її, а потім перезавантажте сторінку перед повторним збереженням.',
+    invalid: 'Введіть назву (до 80 символів) і дійсні номери наборів (до 200).',
+    retry: 'Спробувати ще раз', stale: 'Колекція недоступна. Для прогресу використано останні завантажені дані про володіння, які можуть бути застарілими.',
+    pending: 'Деякі зміни у сховищі очікують синхронізації. Для прогресу використано підтверджені дані про володіння.',
+    deleteHint: 'Видалити цей список? Ваші набори залишаться у сховищі.', confirmDelete: 'Видалити список',
+  },
   nav: { vault: 'Сховище', catalog: 'Каталог', scan: 'Сканувати', minifigs: 'Мініфігурки', me: 'Я', badges: 'Значки' },
   common: {
     cancel: 'Скасувати', save: 'Зберегти', close: 'Закрити', retry: 'Спробувати ще',
@@ -261,3 +290,15 @@ Object.assign(uk.detail, {"historyValue": "Вартість", "historyMarket": "
 export default uk;
 Object.assign(uk.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 
+
+Object.assign(uk.minifigs, {
+  exportCsv: 'Експортувати CSV', exportTitle: 'Експорт окремих мініфігурок', exportReady: 'CSV мініфігурок готовий', exportFailed: 'Не вдалося експортувати мініфігурки: {error}',
+  addHolding: 'Додати окрему мініфігурку', editHolding: 'Редагувати окрему мініфігурку', looseOnly: 'Обліковується окремо від мініфігурок у ваших наборах.',
+  quantity: 'Кількість', condition: 'Стан', purchasePrice: 'Ціна придбання за одиницю ({symbol})', purchasedAt: 'Дата придбання', notes: 'Приватні нотатки',
+  conditionUnknown: 'Невідомо', conditionNew: 'Нова', conditionUsedGood: 'Вживана — добрий стан', conditionUsedAcceptable: 'Вживана — прийнятний стан',
+  unknownIfBlank: 'Невідомо, якщо порожньо', notesPlaceholder: 'Де ви її знайшли, особливі ознаки…', addToVault: 'Додати до сховища',
+  removeHolding: 'Видалити зі сховища', removeAction: 'Видалити', removeConfirm: 'Видалити цю окрему мініфігурку та її приватні дані?',
+  saved: 'Мініфігурку збережено', removed: 'Мініфігурку видалено', loadingHolding: 'Завантаження мініфігурки',
+  loadHoldingFailed: 'Не вдалося завантажити мініфігурку: {error}', saveFailed: 'Не вдалося зберегти мініфігурку: {error}', removeFailed: 'Не вдалося видалити мініфігурку: {error}', saveUnconfirmed: 'Не вдалося підтвердити збереження', accountChanged: 'Обліковий запис змінився під час експорту',
+  errorQuantity: 'Введіть цілу кількість від 1 до 9999.', errorCondition: 'Виберіть допустимий стан.', errorPurchase_price: 'Введіть невід’ємну суму або залиште поле порожнім.', errorPurchased_at: 'Введіть дійсну дату.', errorNotes: 'Нотатки можуть містити не більше 2000 символів.',
+});

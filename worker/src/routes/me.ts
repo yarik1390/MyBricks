@@ -199,6 +199,7 @@ app.patch('/', async (c) => {
 export const USER_SCOPED_TABLES = [
   'user_collection',
   'user_minifigs',
+  'user_subcollections',
   'user_wishlist',
   'wishlist_alerts',
   'user_missing_parts',

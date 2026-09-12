@@ -307,6 +307,19 @@ CREATE TABLE IF NOT EXISTS user_collection (
   UNIQUE(user_id, set_num)
 );
 
+-- Owner-private named lists of canonical set identities. Client-generated IDs
+-- are owner-scoped, so the same UUID may safely exist in separate accounts.
+CREATE TABLE IF NOT EXISTS user_subcollections (
+  user_id TEXT NOT NULL,
+  id TEXT NOT NULL,
+  name TEXT NOT NULL CHECK(length(trim(name)) BETWEEN 1 AND 80),
+  set_nums TEXT NOT NULL CHECK(json_valid(set_nums) AND json_type(set_nums)='array'),
+  revision INTEGER NOT NULL CHECK(revision >= 1 AND revision <= 9007199254740991),
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_subcollections_updated ON user_subcollections(user_id, updated_at DESC, id);
+
 -- First-party community comps: anonymized aggregates of what collectors
 -- actually paid/sold for, per set + condition bucket. Written nightly by the
 -- community-comps job (k>=5 distinct contributors, outlier-trimmed). Read-side
@@ -424,6 +437,10 @@ CREATE TABLE IF NOT EXISTS user_minifigs (
   user_id TEXT NOT NULL,
   fig_num TEXT NOT NULL REFERENCES minifigs(fig_num),
   quantity INTEGER DEFAULT 1,
+  condition TEXT NOT NULL DEFAULT 'unknown' CHECK(condition IN ('unknown','new','used_good','used_acceptable')),
+  purchase_price REAL CHECK(purchase_price IS NULL OR (purchase_price >= 0 AND purchase_price <= 1.7976931348623157e308)),
+  purchased_at DATE,
+  notes TEXT CHECK(notes IS NULL OR length(notes) <= 2000),
   added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, fig_num)
 );

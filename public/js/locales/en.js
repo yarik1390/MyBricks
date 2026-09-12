@@ -9,6 +9,35 @@
  * Keys are dotted and grouped by surface. Placeholders are {braced}.
  */
 export const en = {
+  collections: {
+    title: 'Collections & insights', back: 'Back to vault',
+    description: 'Organize your sets into named lists and keep your collection records up to date.',
+    loading: 'Loading collections…', insights: 'Collector insights', lists: 'Your subcollections',
+    distinct: '{count} distinct sets owned', missingCost: 'Missing purchase cost: {count}',
+    missingDate: 'Missing purchase date: {count}', completeHoldings: 'Marked complete: {count}',
+    incompleteHoldings: 'Incomplete holdings: {count}',
+    distinctOne: '{count} distinct set owned', distinctOther: '{count} distinct sets owned',
+    missingCostOne: 'Missing purchase cost: {count}', missingCostOther: 'Missing purchase cost: {count}',
+    missingDateOne: 'Missing purchase date: {count}', missingDateOther: 'Missing purchase date: {count}',
+    completeHoldingsOne: 'Marked complete: {count}', completeHoldingsOther: 'Marked complete: {count}',
+    incompleteHoldingsOne: 'Incomplete holdings: {count}', incompleteHoldingsOther: 'Incomplete holdings: {count}',
+    progressOne: '{owned} of {total} set owned', progressOther: '{owned} of {total} sets owned',
+    recordsHint: 'Counts refer to holding records. A recorded cost of zero counts as known. Open a set to update its records.',
+    create: 'New subcollection', edit: 'Edit subcollection', export: 'Export lists',
+    name: 'Name', targets: 'Set numbers', targetsHint: 'One set number per line, or separated by commas. Up to 200 sets per list and 50 lists. Include wanted sets to track completion.',
+    chooseOwned: 'Add a set from your vault', chooseSet: 'Choose a set…',
+    addOwned: 'Add all owned sets', empty: 'Create your first list, such as a display shelf or a series to complete.',
+    progress: '{owned} of {total} sets owned', completed: 'Complete', noTargets: 'Add sets to start tracking progress.',
+    showSets: 'View sets', wanted: 'Not owned', owned: 'Owned',
+    guestStorage: 'Guest lists stay on this device and do not transfer automatically on sign-in. Export a copy to keep them.',
+    accountStorage: 'Lists are private to your account. Export a copy: vault backups currently cover holdings, not these lists.',
+    failed: 'Could not load or save your lists. Check your connection or device storage and try again.',
+    conflict: 'This list changed elsewhere. Your draft is still here; copy it, then reload before saving again.',
+    invalid: 'Enter a name (up to 80 characters) and valid set numbers (up to 200).',
+    retry: 'Try again', stale: 'Collection unavailable. Progress uses the last loaded holdings and may be out of date.',
+    pending: 'Some vault changes are waiting to sync. Progress uses confirmed holdings.',
+    deleteHint: 'Remove this list? Your owned sets will stay in your vault.', confirmDelete: 'Remove list',
+  },
   nav: {
     vault: 'Vault',
     catalog: 'Catalog',
@@ -552,3 +581,15 @@ Object.assign(en.detail, {
 });
 
 export default en;
+
+Object.assign(en.minifigs, {
+    exportCsv: 'Export CSV', exportTitle: 'Minifigure holdings export', exportReady: 'Minifigure CSV ready', exportFailed: 'Couldn’t export minifigures: {error}',
+    addHolding: 'Add loose minifigure', editHolding: 'Edit loose minifigure', looseOnly: 'Tracked separately from minifigures included in your sets.',
+    quantity: 'Quantity', condition: 'Condition', purchasePrice: 'Per-unit purchase price ({symbol})', purchasedAt: 'Purchase date', notes: 'Private notes',
+    conditionUnknown: 'Unknown', conditionNew: 'New', conditionUsedGood: 'Used — good', conditionUsedAcceptable: 'Used — acceptable',
+    unknownIfBlank: 'Unknown if blank', notesPlaceholder: 'Where you found it, identifying details…', addToVault: 'Add to vault',
+    removeHolding: 'Remove from vault', removeAction: 'Remove', removeConfirm: 'Remove this loose minifigure holding and its private details?',
+    saved: 'Minifigure holding saved', removed: 'Minifigure holding removed', loadingHolding: 'Loading holding',
+    loadHoldingFailed: 'Couldn’t load holding: {error}', saveFailed: 'Couldn’t save holding: {error}', removeFailed: 'Couldn’t remove holding: {error}', saveUnconfirmed: 'The save could not be confirmed', accountChanged: 'Account changed during export',
+    errorQuantity: 'Enter a whole quantity from 1 to 9999.', errorCondition: 'Choose a valid condition.', errorPurchase_price: 'Enter a non-negative amount or leave it blank.', errorPurchased_at: 'Enter a real date.', errorNotes: 'Notes can be at most 2000 characters.',
+});

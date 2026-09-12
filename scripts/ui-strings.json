@@ -339,6 +339,24 @@
     ]
   },
   {
+    "text": "Account changed during guest migration",
+    "files": [
+      "api.js"
+    ]
+  },
+  {
+    "text": "Account changed during outbox replay",
+    "files": [
+      "api.js"
+    ]
+  },
+  {
+    "text": "Account changed during request",
+    "files": [
+      "api.js"
+    ]
+  },
+  {
     "text": "Account created ✓",
     "files": [
       "views/login.js"
@@ -2010,6 +2028,12 @@
     ]
   },
   {
+    "text": "Collections",
+    "files": [
+      "route-meta.js"
+    ]
+  },
+  {
     "text": "Collector",
     "files": [
       "views/me-shared.js",
@@ -2566,8 +2590,7 @@
   {
     "text": "Couldn't save — try again",
     "files": [
-      "components/scanner.js",
-      "views/minifigs.js"
+      "components/scanner.js"
     ]
   },
   {
@@ -5344,12 +5367,6 @@
     "text": "Mark all read",
     "files": [
       "views/portfolio-wishlist.js"
-    ]
-  },
-  {
-    "text": "Mark as owned",
-    "files": [
-      "views/minifigs.js"
     ]
   },
   {
@@ -12080,6 +12097,18 @@
     "text": "provider/model",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "quantity must be an integer from 1 to 9999",
+    "files": [
+      "lib/minifig-holding.js"
+    ]
+  },
+  {
+    "text": "required value=",
+    "files": [
+      "views/subcollections.js"
     ]
   },
   {

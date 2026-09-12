@@ -3,6 +3,7 @@ import { state } from './state.js';
 import morphdom from './lib/morphdom.js';
 import { upsertDetailCache } from './lib/pure-core.js';
 import { t, tPlural, getLocale } from './lib/i18n.js';
+import { resolveMoneyInputContext } from './lib/money-input.js';
 
 /* ---------- DOM helpers ---------- */
 export const $ = (s, r = document) => r.querySelector(s);
@@ -103,6 +104,14 @@ export async function fetchExchangeRates() {
 
 export function getExchangeRate(targetCurrency) {
   return exchangeRates[targetCurrency] || 1;
+}
+
+// Money inputs write USD, so a missing non-USD rate must fall back to a
+// USD-labelled value instead of treating the display formatter's 1:1 as real.
+export function capturedMoneyContext(me = state.me) {
+  let persistedCurrency = null;
+  try { persistedCurrency = JSON.parse(localStorage.getItem('bv_guest_prefs') || '{}')?.currency || localStorage.getItem('bv_currency'); } catch {}
+  return resolveMoneyInputContext(me?.currency || persistedCurrency || 'USD', exchangeRates, Object.keys(CURRENCY_SYMBOLS));
 }
 
 export function fmtMoney(n, opts = {}) {

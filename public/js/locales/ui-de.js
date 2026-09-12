@@ -777,7 +777,6 @@ export const ui = {
   "Manage subscription": "Abo verwalten",
   "Many minifigs — strong parts-out potential": "Viele Minifiguren — starkes Einzelteil-Verkaufspotenzial",
   "Mark all read": "Alle als gelesen markieren",
-  "Mark as owned": "Als im Besitz markieren",
   "Mark read": "Als gelesen markieren",
   "Mark sold": "Als verkauft markieren",
   "Mark this alert read": "Diese Benachrichtigung als gelesen markieren",

@@ -777,7 +777,6 @@ export const ui = {
   "Manage subscription": "管理订阅",
   "Many minifigs — strong parts-out potential": "人仔很多——拆件出售潜力大",
   "Mark all read": "全部标记为已读",
-  "Mark as owned": "标记为已拥有",
   "Mark read": "标记为已读",
   "Mark sold": "标记为已售",
   "Mark this alert read": "将此提醒标记为已读",

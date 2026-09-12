@@ -1,13 +1,15 @@
 import { state, invalidatePortfolio } from './state.js';
 import { bvIDB, toast } from './utils.js';
 import { jwtSub, displayValueOf, isCredentialAuthFailure } from './lib/pure-core.js';
-import { tPlural } from './lib/i18n.js';
+import { t, tPlural } from './lib/i18n.js';
 import { getProviderCredential } from './lib/provider-credentials.js';
+import { confirmedMinifigHoldingResponse, mergeMinifigHolding, minifigHoldingsCSV, normalizeMinifigHolding } from './lib/minifig-holding.js';
 
 export let _authSession = null;
 export let _sbUrl = "";
 export let _sbAnonKey = "";
 export let _swipeAc = null;
+let _authSessionGeneration = 0;
 
 export function setSupabaseConfig(url, anonKey) {
   _sbUrl = url;
@@ -16,6 +18,23 @@ export function setSupabaseConfig(url, anonKey) {
 
 export function getSessionUserId() {
   return jwtSub(_authSession?.access_token);
+}
+
+// UI-local freshness metadata. It prevents a response started for one account
+// from updating a minifigure form after the account changes in the same tab.
+export function getSessionOwnerSnapshot() {
+  return { userId: getSessionUserId() || null, generation: _authSessionGeneration };
+}
+
+function installAuthSession(session) {
+  const oldUid = getSessionUserId() || null;
+  _authSession = session;
+  const newUid = getSessionUserId() || null;
+  if (newUid !== oldUid) {
+    _authSessionGeneration++;
+    try { window.dispatchEvent(new Event('bv:owner-changed')); } catch {}
+  }
+  return { oldUid, newUid, changed: newUid !== oldUid };
 }
 
 export function photoScanNeedsSetup() {
@@ -53,20 +72,33 @@ export function outboxDequeue(id) {
 const OUTBOX_MAX_TRIES = 5;
 
 export async function drainOutbox() {
+  const drainOwner = getSessionOwnerSnapshot();
+  const assertDrainOwner = () => {
+    const current = getSessionOwnerSnapshot();
+    if (current.userId !== drainOwner.userId || current.generation !== drainOwner.generation) {
+      throw Object.assign(new Error('Account changed during outbox replay'), { code: 'OUTBOX_OWNER_CHANGED' });
+    }
+  };
   try {
+    assertDrainOwner();
     const q = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]');
     if (!q.length) return;
     let synced = 0, dropped = 0;
     const keep = [];
     for (const item of q) {
+      assertDrainOwner();
       try {
         await api(item.path, {
           method: item.method,
           ...(item.body ? { body: item.body } : {}),
           ...(item.headers ? { headers: item.headers } : {}),
+          offlineQueue: false,
         });
+        assertDrainOwner();
         synced++;
-      } catch {
+      } catch (error) {
+        if (error?.code === 'OUTBOX_OWNER_CHANGED') throw error;
+        assertDrainOwner();
         // Cap retries so a permanently-failing item (e.g. server-side validation
         // drift) is dropped + surfaced instead of retried forever every reconnect.
         const tries = (item.tries || 0) + 1;
@@ -75,32 +107,31 @@ export async function drainOutbox() {
       }
     }
     // Persist only the items still worth retrying (synced dropped by omission).
+    assertDrainOwner();
     try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(keep)); } catch {}
+    assertDrainOwner();
     if (synced) { invalidatePortfolio(); toast(tPlural('common.offlineActionsSynced', synced), 'success'); }
     if (dropped) toast(tPlural('common.offlineActionsDiscarded', dropped), 'error');
   } catch {}
 }
 
 export function loadSession() {
+  let s = null;
   try {
-    const s = JSON.parse(localStorage.getItem("bv_session") || "null");
-    _authSession = s;
-    return s;
-  } catch {
-    return null;
-  }
+    s = JSON.parse(localStorage.getItem("bv_session") || "null");
+  } catch {}
+  installAuthSession(s);
+  return s;
 }
 
 export function saveSession(s, opts = {}) {
-  const oldUid = getSessionUserId();
   try {
     if (s) localStorage.setItem("bv_session", JSON.stringify(s));
     else localStorage.removeItem("bv_session");
   } catch {}
-  _authSession = s;
-  const newUid = getSessionUserId();
+  const { changed } = installAuthSession(s);
 
-  if (newUid !== oldUid) {
+  if (changed) {
     state.portfolio = null;
     state.me = null;
     state.catalog.items = [];
@@ -276,11 +307,48 @@ function writeGuestWishlist(items) {
 }
 
 function readGuestFigDetails() {
-  return readLocalJSON(GUEST_FIG_DETAILS_KEY, {});
+  const details = readLocalJSON(GUEST_FIG_DETAILS_KEY, {});
+  if (!details || typeof details !== 'object' || Array.isArray(details)) return {};
+  return Object.fromEntries(Object.entries(details).map(([key, fig]) => {
+    const value = fig && typeof fig === 'object' && !Array.isArray(fig) ? fig : { fig_num: key };
+    const rawHolding = Object.hasOwn(value, 'holding') ? value.holding : (state.ownedFigs.has(key) ? value : null);
+    const holding = normalizeMinifigHolding(rawHolding);
+    return [key, holding ? { ...value, holding, quantity: holding.quantity, owned_qty: holding.quantity } : value];
+  }));
 }
 
 function writeGuestFigDetails(details) {
-  writeLocalJSON(GUEST_FIG_DETAILS_KEY, details);
+  writeLocalJSON(GUEST_FIG_DETAILS_KEY, projectGuestFigDetails(details));
+}
+
+function projectGuestFigDetails(details) {
+  return Object.fromEntries(Object.entries(details).map(([key, fig]) => {
+    const value = fig && typeof fig === 'object' && !Array.isArray(fig) ? fig : { fig_num: key };
+    const rawHolding = Object.hasOwn(value, 'holding') ? value.holding : (state.ownedFigs.has(key) ? value : null);
+    const holding = normalizeMinifigHolding(rawHolding);
+    return [key, holding ? { ...value, holding, quantity: holding.quantity, owned_qty: holding.quantity } : value];
+  }));
+}
+
+function writeGuestFigDetailsStrict(details) {
+  localStorage.setItem(GUEST_FIG_DETAILS_KEY, JSON.stringify(projectGuestFigDetails(details)));
+}
+
+function persistGuestFigHoldingMutation(details, ownedFigs) {
+  const previousDetails = localStorage.getItem(GUEST_FIG_DETAILS_KEY);
+  const previousOwned = localStorage.getItem('bv_figs');
+  try {
+    writeGuestFigDetailsStrict(details);
+    localStorage.setItem('bv_figs', JSON.stringify([...ownedFigs]));
+  } catch (error) {
+    try {
+      if (previousDetails == null) localStorage.removeItem(GUEST_FIG_DETAILS_KEY);
+      else localStorage.setItem(GUEST_FIG_DETAILS_KEY, previousDetails);
+      if (previousOwned == null) localStorage.removeItem('bv_figs');
+      else localStorage.setItem('bv_figs', previousOwned);
+    } catch {}
+    throw error;
+  }
 }
 
 function rememberGuestFigDetails(figs = []) {
@@ -288,14 +356,13 @@ function rememberGuestFigDetails(figs = []) {
   let changed = false;
   for (const fig of figs) {
     if (!fig?.fig_num) continue;
-    details[fig.fig_num] = fig;
+    const existing = details[fig.fig_num];
+    details[fig.fig_num] = existing?.holding
+      ? { ...fig, holding: existing.holding, quantity: existing.holding.quantity, owned_qty: existing.holding.quantity }
+      : fig;
     changed = true;
   }
   if (changed) writeGuestFigDetails(details);
-}
-
-function persistOwnedFigs() {
-  try { localStorage.setItem("bv_figs", JSON.stringify([...state.ownedFigs])); } catch {}
 }
 
 export function snapshotGuestVault() {
@@ -303,6 +370,7 @@ export function snapshotGuestVault() {
     collection: readGuestCollection(),
     wishlist: readGuestWishlist(),
     ownedFigs: readLocalJSON("bv_figs", []),
+    figDetails: readGuestFigDetails(),
     prefs: readLocalJSON(GUEST_PREFS_KEY, {}),
   };
 }
@@ -312,6 +380,7 @@ function guestSnapshotHasData(snapshot = {}) {
     snapshot.collection?.length ||
     snapshot.wishlist?.length ||
     snapshot.ownedFigs?.length ||
+    Object.values(snapshot.figDetails || {}).some(fig => normalizeMinifigHolding(fig?.holding)) ||
     Object.keys(snapshot.prefs || {}).length
   );
 }
@@ -329,21 +398,32 @@ function clearGuestVault() {
 
 export async function migrateGuestVault(snapshot = snapshotGuestVault()) {
   if (!_authSession?.access_token || !guestSnapshotHasData(snapshot)) return { migrated: 0, errors: [] };
+  const migrationOwner = getSessionOwnerSnapshot();
+  const assertMigrationOwner = () => {
+    const current = getSessionOwnerSnapshot();
+    if (current.userId !== migrationOwner.userId || current.generation !== migrationOwner.generation) {
+      throw Object.assign(new Error('Account changed during guest migration'), { code: 'OUTBOX_OWNER_CHANGED' });
+    }
+  };
   const result = { migrated: 0, errors: [], collection: null, wishlist: 0, minifigs: 0 };
 
   if (snapshot.collection?.length) {
+    assertMigrationOwner();
     try {
       result.collection = await api("/api/collection/import", {
         method: "POST",
         body: { rows: snapshot.collection, overwrite: false },
       });
+      assertMigrationOwner();
       result.migrated += Number(result.collection?.imported || 0);
     } catch (e) {
+      if (e?.code === 'OUTBOX_OWNER_CHANGED') throw e;
       result.errors.push(`Collection: ${e.message}`);
     }
   }
 
   for (const item of snapshot.wishlist || []) {
+    assertMigrationOwner();
     const setNum = String(item?.set_num || "").trim();
     if (!setNum) continue;
     try {
@@ -355,23 +435,44 @@ export async function migrateGuestVault(snapshot = snapshotGuestVault()) {
           notes: item.notes || null,
         },
       });
+      assertMigrationOwner();
       result.wishlist++;
       result.migrated++;
     } catch (e) {
+      if (e?.code === 'OUTBOX_OWNER_CHANGED') throw e;
       result.errors.push(`Wishlist ${setNum}: ${e.message}`);
     }
   }
 
-  const figNums = [...new Set((snapshot.ownedFigs || []).map(v => String(v || "").trim()).filter(Boolean))];
+  const figDetails = snapshot.figDetails && typeof snapshot.figDetails === 'object' ? snapshot.figDetails : {};
+  const figNums = [...new Set([
+    ...(snapshot.ownedFigs || []),
+    ...Object.keys(figDetails).filter(key => normalizeMinifigHolding(figDetails[key]?.holding)),
+  ].map(v => String(v || "").trim()).filter(Boolean))];
   for (const figNum of figNums) {
+    assertMigrationOwner();
     try {
-      await api(`/api/minifigs/${encodeURIComponent(figNum)}`, {
+      const holding = normalizeMinifigHolding(figDetails[figNum]?.holding) || {
+        quantity: 1, condition: 'unknown', purchase_price: null, purchased_at: null, notes: null,
+      };
+      const existing = await api(`/api/minifigs/${encodeURIComponent(figNum)}`);
+      assertMigrationOwner();
+      if (existing?.holding) {
+        result.errors.push(`Minifig ${figNum}: already exists in this account; local details were kept for manual reconciliation`);
+        continue;
+      }
+      const saved = await api(`/api/minifigs/${encodeURIComponent(figNum)}`, {
         method: "PUT",
-        body: { quantity: 1 },
+        body: holding,
+        retry: false,
+        offlineQueue: false,
       });
+      assertMigrationOwner();
+      if (!confirmedMinifigHoldingResponse(saved, figNum)) throw new Error(t('minifigs.saveUnconfirmed'));
       result.minifigs++;
       result.migrated++;
     } catch (e) {
+      if (e?.code === 'OUTBOX_OWNER_CHANGED') throw e;
       result.errors.push(`Minifig ${figNum}: ${e.message}`);
     }
   }
@@ -382,13 +483,17 @@ export async function migrateGuestVault(snapshot = snapshotGuestVault()) {
   if (prefs.currency) prefPatch.currency = prefs.currency;
   if (prefs.notify_price_drops !== undefined) prefPatch.notify_price_drops = !!prefs.notify_price_drops;
   if (Object.keys(prefPatch).length) {
+    assertMigrationOwner();
     try {
       await api("/api/me", { method: "PATCH", body: prefPatch });
+      assertMigrationOwner();
     } catch (e) {
+      if (e?.code === 'OUTBOX_OWNER_CHANGED') throw e;
       result.errors.push(`Preferences: ${e.message}`);
     }
   }
 
+  assertMigrationOwner();
   if (!result.errors.length) clearGuestVault();
   if (result.migrated) invalidatePortfolio();
   return result;
@@ -439,9 +544,10 @@ function guestCollectionPayload() {
   const minifigCount = items.reduce((s, r) => s + (Number(r.minifigs) || 0) * Number(r.quantity || 1), 0);
   const figDetails = readGuestFigDetails();
   const ownedFigNums = [...state.ownedFigs];
+  const figCount = ownedFigNums.reduce((sum, num) => sum + (normalizeMinifigHolding(figDetails[num]?.holding)?.quantity || 1), 0);
   const figValue = ownedFigNums.reduce((s, num) => {
     const fig = figDetails[num];
-    return s + (Number(fig?.current_value ?? fig?.value) || 0);
+    return s + (Number(fig?.current_value ?? fig?.value) || 0) * (normalizeMinifigHolding(fig?.holding)?.quantity || 1);
   }, 0);
   recordGuestSnapshot(totalValue, totalPaid, items.length);
   return {
@@ -451,7 +557,7 @@ function guestCollectionPayload() {
     count: items.length,
     minifig_count: minifigCount,
     fig_value: figValue,
-    fig_count: ownedFigNums.length,
+    fig_count: figCount,
     total_value_with_figs: totalValue + figValue,
   };
 }
@@ -800,13 +906,13 @@ async function guestMinifigs(path) {
   const details = readGuestFigDetails();
   if (ownedFilter === 'yes') {
     const owned = [...state.ownedFigs].map(num => details[num]).filter(Boolean);
-    const page = owned.slice(offset, offset + limit).map(fig => ({ ...fig, owned_qty: 1 }));
+    const page = owned.slice(offset, offset + limit).map(fig => ({ ...fig, owned_qty: normalizeMinifigHolding(fig.holding)?.quantity || 1 }));
     return { minifigs: page, total: owned.length, hasMore: offset + page.length < owned.length };
   }
   const publicUrl = new URL(path, location.origin);
   publicUrl.searchParams.delete('owned');
   const data = await fetchGuestPublicJSON(publicUrl.pathname + publicUrl.search);
-  let figs = (data.minifigs || []).map(fig => ({ ...fig, owned_qty: state.ownedFigs.has(fig.fig_num) ? 1 : 0 }));
+  let figs = (data.minifigs || []).map(fig => ({ ...fig, owned_qty: state.ownedFigs.has(fig.fig_num) ? (normalizeMinifigHolding(details[fig.fig_num]?.holding)?.quantity || 1) : 0 }));
   rememberGuestFigDetails(figs);
   if (ownedFilter === 'no') figs = figs.filter(fig => !state.ownedFigs.has(fig.fig_num));
   return { ...data, minifigs: figs, total: ownedFilter === 'no' ? Math.max(0, (data.total || figs.length) - state.ownedFigs.size) : data.total };
@@ -938,19 +1044,47 @@ async function guestApi(path, opts = {}, streamMode = false) {
   if (pathname === '/api/minifigs' && method === 'GET') {
     return { handled: true, value: await guestMinifigs(path) };
   }
-  const figMatch = pathname.match(/^\/api\/minifigs\/(.+)$/);
+  if (pathname === '/api/minifigs/export' && method === 'GET') {
+    const details = readGuestFigDetails();
+    const rows = [...state.ownedFigs].map(figNum => details[figNum]).filter(fig => fig?.holding);
+    return { handled: true, value: new Blob([minifigHoldingsCSV(rows)], { type: 'text/csv' }) };
+  }
+  const figMatch = pathname.match(/^\/api\/minifigs\/([^/]+)$/);
   if (figMatch) {
     const figNum = decodeURIComponent(figMatch[1]);
-    if (method === 'PUT') {
-      state.ownedFigs.add(figNum);
-      const fig = state.blind.items.find(f => f.fig_num === figNum);
-      if (fig) rememberGuestFigDetails([{ ...fig, owned_qty: 1 }]);
-      persistOwnedFigs();
-      return { handled: true, value: { ok: true, fig_num: figNum, quantity: 1 } };
+    const isFigDetail = !['series', 'rare-finds', 'export'].includes(figNum);
+    if (method === 'GET' && isFigDetail) {
+      const details = readGuestFigDetails();
+      let fig = details[figNum] || state.blind.items.find(item => item.fig_num === figNum) || null;
+      if (!fig) {
+        const data = await fetchGuestPublicJSON(path);
+        fig = data?.minifig || data || null;
+        if (fig?.fig_num) rememberGuestFigDetails([fig]);
+      }
+      const holding = state.ownedFigs.has(figNum) ? normalizeMinifigHolding(readGuestFigDetails()[figNum]?.holding) : null;
+      return { handled: true, value: { minifig: fig ? { ...fig, owned_qty: holding?.quantity || 0 } : null, holding } };
     }
-    if (method === 'DELETE') {
+    if (method === 'PUT' && isFigDetail) {
+      const details = readGuestFigDetails();
+      const fig = details[figNum] || state.blind.items.find(f => f.fig_num === figNum) || { fig_num: figNum };
+      const holding = mergeMinifigHolding(details[figNum]?.holding, body);
+      details[figNum] = { ...fig, quantity: holding.quantity, owned_qty: holding.quantity, holding };
+      const nextOwned = new Set(state.ownedFigs);
+      nextOwned.add(figNum);
+      persistGuestFigHoldingMutation(details, nextOwned);
+      state.ownedFigs.add(figNum);
+      return { handled: true, value: { ok: true, fig_num: figNum, quantity: holding.quantity, holding } };
+    }
+    if (method === 'DELETE' && isFigDetail) {
+      const details = readGuestFigDetails();
+      if (details[figNum]) {
+        const { holding: _holding, quantity: _quantity, owned_qty: _ownedQty, ...catalog } = details[figNum];
+        details[figNum] = { ...catalog, holding: null };
+      }
+      const nextOwned = new Set(state.ownedFigs);
+      nextOwned.delete(figNum);
+      persistGuestFigHoldingMutation(details, nextOwned);
       state.ownedFigs.delete(figNum);
-      persistOwnedFigs();
       return { handled: true, value: null };
     }
   }
@@ -973,10 +1107,17 @@ async function guestApi(path, opts = {}, streamMode = false) {
 /* ---------- API ---------- */
 export async function api(path, opts = {}) {
   const token = _authSession?.access_token;
+  const requestOwner = getSessionOwnerSnapshot();
+  const requestRefreshToken = _authSession?.refresh_token;
+  const ownerChanged = () => Object.assign(new Error('Account changed during request'), { code: 'OUTBOX_OWNER_CHANGED' });
+  const assertRequestOwner = () => {
+    const current = getSessionOwnerSnapshot();
+    if (current.userId !== requestOwner.userId || current.generation !== requestOwner.generation) throw ownerChanged();
+  };
   const streamMode = opts.stream === true;
   if (!token) {
     const guest = await guestApi(path, opts, streamMode);
-    if (guest.handled) return guest.value;
+    if (guest.handled) { assertRequestOwner(); return guest.value; }
   }
   const geminiKey = getProviderCredential('gemini');
   const openaiKey = getProviderCredential('openai');
@@ -1001,6 +1142,8 @@ export async function api(path, opts = {}) {
   delete init.rawBody;
   delete init.timeoutMs;
   delete init.retry;
+  delete init.responseType;
+  delete init.offlineQueue;
   const _url = (window.WORKER_BASE || '') + path;
   // Abort a hung request after 15s so the UI never waits forever on a stuck
   // Worker response. Slow endpoints (live scrape probes) can pass a longer
@@ -1024,7 +1167,8 @@ export async function api(path, opts = {}) {
     r = await fetchT(_url, init);
   } catch (_e) {
     if (opts.signal?.aborted) throw _e;
-    if (!navigator.onLine && (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE")) {
+    if (opts.offlineQueue !== false && !navigator.onLine && (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE")) {
+      assertRequestOwner();
       outboxEnqueue({ path, method: init.method, body: opts.body, headers: outboxReplayHeaders(opts.headers) });
       toast("Saved offline — will sync when connected", "info");
       return init.method === "DELETE" ? null : { item: opts.body || {} };
@@ -1032,9 +1176,10 @@ export async function api(path, opts = {}) {
     // Mutations with side effects must opt into retries only when the endpoint
     // has an idempotency contract. A timed-out fetch can still be executing on
     // the Worker, so blindly replaying it can duplicate quota/cost/state.
-    if (!retryNetworkFailure) throw _e;
+    if (!retryNetworkFailure) { assertRequestOwner(); throw _e; }
     await new Promise(res => setTimeout(res, 600));
     if (opts.signal?.aborted) throw _e;
+    assertRequestOwner();
     try {
       r = await fetchT(_url, init);
     } catch (e2) {
@@ -1043,7 +1188,8 @@ export async function api(path, opts = {}) {
       // Only queue-and-fake-success when genuinely OFFLINE. When online, a double
       // failure (timeout/DNS/5xx-at-network-level) is a real error and must
       // surface to the caller — never masked as a fake success.
-      if (!navigator.onLine && (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE")) {
+      if (opts.offlineQueue !== false && !navigator.onLine && (init.method === "POST" || init.method === "PATCH" || init.method === "DELETE")) {
+        assertRequestOwner();
         outboxEnqueue({ path, method: init.method, body: opts.body, headers: outboxReplayHeaders(opts.headers) });
         toast("Saved offline — will sync when connected", "info");
         return init.method === "DELETE" ? null : { item: opts.body || {} };
@@ -1055,6 +1201,7 @@ export async function api(path, opts = {}) {
   // Any HTTP response means the server is reachable — clear a stale offline
   // banner immediately (the one-shot manifest probe can race/stick at boot).
   try { window.dispatchEvent(new Event("bv:api-ok")); } catch { /* non-browser ctx */ }
+  assertRequestOwner();
 
   if (r.status === 401) {
     let unauthorized = {};
@@ -1068,13 +1215,20 @@ export async function api(path, opts = {}) {
       throw new Error(unauthorizedMessage || 'This feature needs additional setup');
     }
 
-    if (credentialFailure && _authSession?.refresh_token) {
+    if (credentialFailure && requestRefreshToken) {
       try {
-        const fresh = await sbRefresh(_authSession.refresh_token);
+        assertRequestOwner();
+        const fresh = await sbRefresh(requestRefreshToken);
+        assertRequestOwner();
+        if (jwtSub(fresh?.access_token) !== requestOwner.userId) throw ownerChanged();
         saveSession(fresh);
+        assertRequestOwner();
         init.headers["Authorization"] = `Bearer ${fresh.access_token}`;
         r = await fetchT(_url, init);
-      } catch {
+        assertRequestOwner();
+      } catch (error) {
+        if (error?.code === 'OUTBOX_OWNER_CHANGED') throw error;
+        assertRequestOwner();
         saveSession(null);
         location.hash = "#/login";
         throw new Error("Session expired — please sign in again");
@@ -1090,9 +1244,11 @@ export async function api(path, opts = {}) {
   if (!r.ok) {
     let msg = r.statusText;
     try { const b = await r.json(); msg = b.error || msg; if (b.reason) msg += ': ' + b.reason; } catch {}
-    throw new Error(msg);
+    throw Object.assign(new Error(msg), { status: r.status });
   }
+  assertRequestOwner();
   if (r.status === 204) return null;
   if (streamMode) return r;
+  if (opts.responseType === 'blob') return r.blob();
   return r.json();
 }

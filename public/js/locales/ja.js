@@ -1,5 +1,34 @@
 /** Japanese. Missing keys fall back to English (see lib/i18n.js). */
 export const ja = {
+  collections: {
+    title: 'コレクションと分析', back: 'コレクションに戻る',
+    description: 'セットを名前付きリストに整理し、コレクション記録を最新に保てます。',
+    loading: 'コレクションを読み込み中…', insights: 'コレクション分析', lists: 'サブコレクション',
+    distinct: '所有しているセットは{count}種類', missingCost: '購入費用未入力：{count}',
+    missingDate: '購入日未入力：{count}', completeHoldings: '完了として記録：{count}',
+    incompleteHoldings: '未完了の保有記録：{count}',
+    distinctOne: '所有しているセットは{count}種類', distinctOther: '所有しているセットは{count}種類',
+    missingCostOne: '購入費用未入力：{count}', missingCostOther: '購入費用未入力：{count}',
+    missingDateOne: '購入日未入力：{count}', missingDateOther: '購入日未入力：{count}',
+    completeHoldingsOne: '完了として記録：{count}', completeHoldingsOther: '完了として記録：{count}',
+    incompleteHoldingsOne: '未完了の保有記録：{count}', incompleteHoldingsOther: '未完了の保有記録：{count}',
+    progressOne: '{total}セット中{owned}セットを所有', progressOther: '{total}セット中{owned}セットを所有',
+    recordsHint: '件数は保有記録を基準にしています。購入費用が0と記録されている場合は入力済みとして扱います。セットを開いて記録を更新できます。',
+    create: 'サブコレクションを作成', edit: 'サブコレクションを編集', export: 'リストをエクスポート',
+    name: '名前', targets: 'セット番号', targetsHint: 'セット番号を1行に1件、またはカンマ区切りで入力します。1リスト200セット、最大50リストまで。欲しいセットも追加すると進捗を確認できます。',
+    chooseOwned: 'コレクションからセットを追加', chooseSet: 'セットを選択…',
+    addOwned: '所有セットをすべて追加', empty: 'ディスプレイ棚やコンプリートしたいシリーズなど、最初のリストを作成しましょう。',
+    progress: '{total}セット中{owned}セットを所有', completed: '完了', noTargets: 'セットを追加すると進捗を確認できます。',
+    showSets: 'セットを表示', wanted: '未所有', owned: '所有済み',
+    guestStorage: 'ゲストのリストはこの端末に保存され、サインインしても自動で移行されません。残すにはコピーをエクスポートしてください。',
+    accountStorage: 'リストはアカウント内で非公開です。コピーをエクスポートしてください。現在、コレクションのバックアップには保有記録が含まれますが、これらのリストは含まれません。',
+    failed: 'リストを読み込むか保存できませんでした。接続または端末のストレージを確認して、もう一度お試しください。',
+    conflict: 'このリストは別の場所で変更されました。下書きはここに残っています。コピーしてから再読み込みし、保存し直してください。',
+    invalid: '名前（80文字以内）と有効なセット番号（200件以内）を入力してください。',
+    retry: '再試行', stale: 'コレクションを利用できません。進捗には最後に読み込んだ保有記録が使われるため、最新でない可能性があります。',
+    pending: 'コレクションへの変更の一部は同期待ちです。進捗には確認済みの保有記録が使われます。',
+    deleteHint: 'このリストを削除しますか？所有セットはコレクションに残ります。', confirmDelete: 'リストを削除',
+  },
   nav: { vault: 'コレクション', catalog: 'カタログ', scan: 'スキャン', minifigs: 'ミニフィグ', me: 'マイページ', badges: 'バッジ' },
   common: {
     cancel: 'キャンセル', save: '保存', close: '閉じる', retry: '再試行',
@@ -235,3 +264,15 @@ Object.assign(ja.detail, {"historyValue": "価値", "historyMarket": "市場", "
 export default ja;
 Object.assign(ja.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
 
+
+Object.assign(ja.minifigs, {
+  exportCsv: 'CSVをエクスポート', exportTitle: 'ミニフィギュア所蔵データのエクスポート', exportReady: 'ミニフィギュアCSVの準備ができました', exportFailed: 'ミニフィギュアをエクスポートできませんでした：{error}',
+  addHolding: '単体のミニフィギュアを追加', editHolding: '単体のミニフィギュアを編集', looseOnly: 'セットに含まれるミニフィギュアとは別に記録されます。',
+  quantity: '数量', condition: '状態', purchasePrice: '1体あたりの購入価格（{symbol}）', purchasedAt: '購入日', notes: '非公開メモ',
+  conditionUnknown: '不明', conditionNew: '新品', conditionUsedGood: '中古 — 良好', conditionUsedAcceptable: '中古 — 可',
+  unknownIfBlank: '空欄の場合は不明', notesPlaceholder: '入手場所、識別情報など…', addToVault: '保管庫に追加',
+  removeHolding: '保管庫から削除', removeAction: '削除', removeConfirm: 'この単体ミニフィギュアと非公開情報を削除しますか？',
+  saved: 'ミニフィギュアを保存しました', removed: 'ミニフィギュアを削除しました', loadingHolding: 'ミニフィギュアを読み込み中',
+  loadHoldingFailed: 'ミニフィギュアを読み込めませんでした：{error}', saveFailed: 'ミニフィギュアを保存できませんでした：{error}', removeFailed: 'ミニフィギュアを削除できませんでした：{error}', saveUnconfirmed: '保存を確認できませんでした', accountChanged: 'エクスポート中にアカウントが変更されました',
+  errorQuantity: '1から9999までの整数を入力してください。', errorCondition: '有効な状態を選択してください。', errorPurchase_price: '0以上の金額を入力するか、空欄にしてください。', errorPurchased_at: '実在する日付を入力してください。', errorNotes: 'メモは2000文字以内で入力してください。',
+});

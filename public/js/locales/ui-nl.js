@@ -777,7 +777,6 @@ export const ui = {
   "Manage subscription": "Abonnement beheren",
   "Many minifigs — strong parts-out potential": "Veel minifiguren — sterk potentieel om als onderdelen te verkopen",
   "Mark all read": "Alles als gelezen markeren",
-  "Mark as owned": "Markeren als in bezit",
   "Mark read": "Als gelezen markeren",
   "Mark sold": "Markeren als verkocht",
   "Mark this alert read": "Deze waarschuwing als gelezen markeren",

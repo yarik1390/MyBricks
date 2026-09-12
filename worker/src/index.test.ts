@@ -392,6 +392,10 @@ describe('BrickVault API Worker Tests', () => {
         user_id TEXT NOT NULL,
         fig_num TEXT NOT NULL,
         quantity INTEGER DEFAULT 1,
+        condition TEXT NOT NULL DEFAULT 'unknown' CHECK(condition IN ('unknown','new','used_good','used_acceptable')),
+        purchase_price REAL CHECK(purchase_price IS NULL OR (purchase_price >= 0 AND purchase_price <= 1.7976931348623157e308)),
+        purchased_at DATE,
+        notes TEXT CHECK(notes IS NULL OR length(notes) <= 2000),
         added_at TEXT DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, fig_num)
       )`,
