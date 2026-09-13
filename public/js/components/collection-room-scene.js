@@ -411,14 +411,17 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     const x = center ? 0 : ((clientX - bounds.left) / Math.max(1, bounds.width)) * 2 - 1;
     const y = center ? 0 : -((clientY - bounds.top) / Math.max(1, bounds.height)) * 2 + 1;
     const targets = [...pickTargets];
-    const aimOffsets = center ? [[0, 0]] : [[0, 0], [-0.018, 0], [0.018, 0], [0, -0.018], [0, 0.018]];
-    let selected = null;
+    const toleranceX = 12 / Math.max(1, bounds.width);
+    const toleranceY = 12 / Math.max(1, bounds.height);
+    const aimOffsets = [[0, 0], [-toleranceX, 0], [toleranceX, 0], [0, -toleranceY], [0, toleranceY]];
     for (const [offsetX, offsetY] of aimOffsets) {
       raycaster.setFromCamera(new THREE.Vector2(x + offsetX, y + offsetY), camera);
-      const hit = raycaster.intersectObjects(targets, false).find(entry => entry.object.userData.setNum);
-      if (hit && (!selected || hit.distance < selected.distance)) selected = hit;
+      const hit = raycaster.intersectObjects(targets, false)[0];
+      if (hit?.object.userData.setNum) {
+        onSelect(hit.object.userData.setNum);
+        return;
+      }
     }
-    if (selected?.object.userData.setNum) onSelect(selected.object.userData.setNum);
   }
 
   function updateJoystick(event) {

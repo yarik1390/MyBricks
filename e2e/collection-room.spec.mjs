@@ -1,5 +1,9 @@
 import { test, expect } from './fixtures.mjs';
 
+// CI uses software WebGL: creation/disposal of multiple rooms can exceed the
+// default 30-second whole-test budget while each interaction remains correct.
+test.setTimeout(process.env.CI ? 120000 : 30000);
+
 const holdings = Array.from({ length: 90 }, (_, i) => ({ set_num: `${1000 + i}-1`, name: `Display set ${i}`, theme: i < 60 ? 'Space' : 'City', quantity: 1, image_url: '/brand-brick-transparent.png' }));
 async function stubRoom(page, rows = holdings) {
   await page.route('**/api/collection', route => route.fulfill({ json: { items: rows, count: rows.length } }));
@@ -91,7 +95,10 @@ test('captured mouse selects a box and releases for its detail panel', async ({ 
   await page.goto('/#/room');
   await ready(page);
   await findSet(page, '1000-1');
-  await page.locator('#roomMouse').click();
+  const bounds = await page.locator('#roomStage').boundingBox();
+  await page.mouse.move(bounds.width / 2, bounds.height / 2);
+  await page.locator('#roomMouse').focus();
+  await page.keyboard.press('Enter');
   await expect.poll(() => page.evaluate(() => document.pointerLockElement?.tagName)).toBe('CANVAS');
   await page.mouse.down();
   await page.mouse.up();
@@ -99,6 +106,31 @@ test('captured mouse selects a box and releases for its detail panel', async ({ 
   await expect.poll(() => page.evaluate(() => document.pointerLockElement)).toBe(null);
   await page.locator('#roomSheetClose').click();
   await expect(page.locator('#sheet')).not.toHaveClass(/show/);
+});
+
+test('a box beyond the previous selection reach opens without approaching it', async ({ page }) => {
+  await page.route('**/room-selection-test', route => route.fulfill({ contentType: 'text/html', body: '<html><body style="margin:0"><div id="stage" style="width:100vw;height:100vh"></div><output id="selected"></output></body></html>' }));
+  await page.goto('/room-selection-test');
+  const distance = await page.evaluate(async () => {
+    const { createCollectionRoom } = await import('/js/components/collection-room-scene.js');
+    const { createRoomLayout, ROOM_LAYOUT } = await import('/js/lib/collection-room.js');
+    const catalog = Array.from({ length: 72 }, (_, i) => ({ set_num: `${i + 1}-1`, name: `Set ${i + 1}`, theme: 'Space', image_url: '' }));
+    const layout = createRoomLayout(catalog);
+    const box = layout.boxes[48];
+    const x = 0, z = 0.85;
+    const dx = box.x + ROOM_LAYOUT.boxDepth / 2 - x;
+    const dz = box.z - z;
+    const horizontal = Math.hypot(dx, dz);
+    await createCollectionRoom(document.querySelector('#stage'), catalog, {
+      initialPose: { x, z, yaw: Math.atan2(dx, dz), pitch: Math.atan2(box.y - ROOM_LAYOUT.eyeHeight, horizontal) },
+      onSelect: number => { document.querySelector('#selected').textContent = number; },
+    });
+    return horizontal;
+  });
+  expect(distance).toBeGreaterThan(14);
+  const bounds = await page.locator('#stage').boundingBox();
+  await page.mouse.click(bounds.width / 2, bounds.height / 2);
+  await expect(page.locator('#selected')).toHaveText('49-1');
 });
 
 test('mobile joystick and look accept simultaneous touches without scrolling', async ({ browser }) => {
