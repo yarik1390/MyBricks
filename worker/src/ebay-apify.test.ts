@@ -65,6 +65,10 @@ describe('fetchEbaySoldViaApifyBatch', () => {
     expect(result['75313-1']).toMatchObject({
       status: 'ok', new_value: 1500, new_count: 3, new_last_sold: '2026-08-03',
     });
+    expect(result['75313-1'].evidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({ item_id: '1', source_url: null, price_usd: 1300, condition: 'new_sealed' }),
+      expect.objectContaining({ item_id: 'malformed', title: null, price_usd: null, rejection_reason: 'missing_title_or_price' }),
+    ]));
     expect(result['75192-1']).toMatchObject({
       status: 'ok', new_value: 800, new_count: 3, new_last_sold: '2026-08-03',
     });

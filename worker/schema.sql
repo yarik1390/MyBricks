@@ -262,6 +262,29 @@ CREATE TABLE IF NOT EXISTS pricing_anomalies (
 );
 CREATE INDEX IF NOT EXISTS idx_pricing_anomalies_open ON pricing_anomalies(status, severity, last_seen_at);
 
+-- Bounded immutable audit trail for public eBay sold-listing metadata. The jobs
+-- retain at most 12 compact rows per set/run and prune observations after 180 days;
+-- no raw HTML/page payload or private buyer/seller data is stored.
+CREATE TABLE IF NOT EXISTS ebay_sold_observations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
+  engine TEXT NOT NULL CHECK(engine IN ('firecrawl','apify')),
+  observed_at TEXT NOT NULL,
+  condition TEXT NOT NULL CHECK(condition IN ('new_sealed','used_complete','unknown')),
+  source_url TEXT,
+  item_id TEXT,
+  title TEXT,
+  price_usd REAL,
+  sold_date TEXT,
+  reference_value REAL,
+  reference_provenance TEXT NOT NULL,
+  reference_freshness TEXT NOT NULL CHECK(reference_freshness IN ('fresh','stale','missing')),
+  decision TEXT NOT NULL CHECK(decision IN ('accepted','rejected','review_needed','no_data','error')),
+  rejection_reason TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ebay_sold_observations_set ON ebay_sold_observations(set_num, observed_at);
+CREATE INDEX IF NOT EXISTS idx_ebay_sold_observations_retention ON ebay_sold_observations(observed_at);
+
 CREATE TABLE IF NOT EXISTS amazon_product_map (
   set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
   market TEXT NOT NULL,

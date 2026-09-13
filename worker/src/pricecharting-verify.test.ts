@@ -1,12 +1,12 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { runPriceChartingVerify } from './jobs/pricecharting-verify';
 import { applyTestTables } from './test-schema';
 
 const db = (env as any).DB as D1Database;
 
-describe('runPriceChartingVerify (price-agreement promotion)', () => {
+describe('runPriceChartingVerify (identity-first)', () => {
   beforeEach(async () => {
     await applyTestTables(db, [
       'lego_sets', 'set_market_ext', 'pricing_source_map', 'pricing_signals',
@@ -14,99 +14,49 @@ describe('runPriceChartingVerify (price-agreement promotion)', () => {
     ]);
   });
 
-  it('verifies agreeing mappings, leaves disagreeing and uncorroborated ones quarantined', async () => {
+  it('never promotes from price coincidence or copied legacy identity fields', async () => {
     await db.batch([
-      // PC $105 vs BrickLink $100 sold (12 lots) — agreement, promote.
-      db.prepare(`INSERT INTO lego_sets (set_num, name, pc_id, pc_new_value, pc_complete_value, pc_cached_at, bl_new_value, bl_new_qty) VALUES ('AGREE-1','Agreeing set','pc123', 105, 80, datetime('now'), 100, 12)`),
-      db.prepare(`INSERT INTO set_market_ext (set_num, pc_loose_value, pc_sales_volume) VALUES ('AGREE-1', 55, 40)`),
-      // PC $900 vs BrickLink $100 — a wrong-item mapping; must stay out.
-      db.prepare(`INSERT INTO lego_sets (set_num, name, pc_id, pc_new_value, bl_new_value) VALUES ('WRONG-1','Mismatched set','pc999', 900, 100)`),
-      // PC value but no independent comp — nothing to agree with; stays out.
-      db.prepare(`INSERT INTO lego_sets (set_num, name, pc_new_value) VALUES ('LONE-1','Uncorroborated set', 250)`),
-      // Agreement via the eBay sold column (no BrickLink), and no pc_id —
-      // the synthetic legacy item id path.
-      db.prepare(`INSERT INTO lego_sets (set_num, name, pc_new_value, ebay_new_value, pc_cached_at) VALUES ('EBAY-1','Ebay-corroborated set', 60, 50, datetime('now'))`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, pc_id, upc, pc_new_value, pc_complete_value, bl_new_value, used_value) VALUES ('10300-1','Time Machine','pc123','0673419340373',105,80,100,80)`),
+      db.prepare(`INSERT INTO pricing_source_map (source, source_item_id, set_num, source_title, upc, variant_key, match_method, match_confidence, status) VALUES ('pricecharting','pc123','10300-1','Time Machine','0673419340373','10300-1','legacy_pc_id',0.2,'quarantined')`),
     ]);
 
-    const r = await runPriceChartingVerify(env as any);
+    const result = await runPriceChartingVerify(env as any);
+    expect(result.promoted).toBe(0);
+    expect(result.signals).toBe(0);
+    const mapping = await db.prepare(`SELECT status, match_method FROM pricing_source_map WHERE source_item_id='pc123'`).first<any>();
+    expect(mapping).toEqual({ status: 'quarantined', match_method: 'legacy_pc_id' });
+  });
 
-    expect(r.skipped).toBeUndefined();
-    expect(r.promoted).toBe(2);
-    const mapRows = await db.prepare(`SELECT set_num, source_item_id, match_method, status FROM pricing_source_map ORDER BY set_num`).all<{ set_num: string; source_item_id: string; match_method: string; status: string }>();
-    expect(mapRows.results).toEqual([
-      { set_num: 'AGREE-1', source_item_id: 'pc123', match_method: 'price_agreement', status: 'verified' },
-      { set_num: 'EBAY-1', source_item_id: 'legacy:EBAY-1', match_method: 'price_agreement', status: 'verified' },
+  it('preserves manual and rejected decisions and refreshes known-good mappings', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO lego_sets (set_num, name, pc_id, pc_new_value) VALUES ('MAN-1','Manual','manual-provider',110)`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, pc_id, pc_new_value) VALUES ('REJ-1','Rejected','rejected-provider',120)`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, pc_id, pc_new_value) VALUES ('GOOD-1','Verified','real-provider-id',130)`),
+      db.prepare(`INSERT INTO pricing_source_map (source, source_item_id, set_num, match_method, match_confidence, status) VALUES ('pricecharting','manual-provider','MAN-1','manual',1,'manual')`),
+      db.prepare(`INSERT INTO pricing_source_map (source, source_item_id, set_num, match_method, match_confidence, status) VALUES ('pricecharting','rejected-provider','REJ-1','manual',1,'rejected')`),
+      db.prepare(`INSERT INTO pricing_source_map (source, source_item_id, set_num, match_method, match_confidence, status) VALUES ('pricecharting','real-provider-id','GOOD-1','upc',1,'verified')`),
     ]);
 
-    // Signals materialized for verified mappings only — all three conditions
-    // for AGREE-1 (new/complete from lego_sets, loose from set_market_ext).
-    const sig = await db.prepare(`SELECT set_num, condition, value, sales_volume, match_status FROM pricing_signals ORDER BY set_num, condition`).all<Record<string, unknown>>();
-    expect(sig.results).toEqual([
-      { set_num: 'AGREE-1', condition: 'loose', value: 55, sales_volume: 40, match_status: 'verified' },
-      { set_num: 'AGREE-1', condition: 'new_sealed', value: 105, sales_volume: 40, match_status: 'verified' },
-      { set_num: 'AGREE-1', condition: 'used_complete', value: 80, sales_volume: 40, match_status: 'verified' },
-      { set_num: 'EBAY-1', condition: 'new_sealed', value: 60, sales_volume: null, match_status: 'verified' },
+    const result = await runPriceChartingVerify(env as any);
+    expect(result.promoted).toBe(0);
+    const maps = await db.prepare(`SELECT source_item_id, status, match_method FROM pricing_source_map ORDER BY source_item_id`).all<any>();
+    expect(maps.results).toEqual([
+      { source_item_id: 'manual-provider', status: 'manual', match_method: 'manual' },
+      { source_item_id: 'real-provider-id', status: 'verified', match_method: 'upc' },
+      { source_item_id: 'rejected-provider', status: 'rejected', match_method: 'manual' },
+    ]);
+    const signals = await db.prepare(`SELECT source_item_id, set_num, value FROM pricing_signals ORDER BY source_item_id`).all<any>();
+    expect(signals.results).toEqual([
+      { source_item_id: 'manual-provider', set_num: 'MAN-1', value: 110 },
+      { source_item_id: 'real-provider-id', set_num: 'GOOD-1', value: 130 },
     ]);
   });
 
-  it('promotes on used-condition agreement (PC complete vs used comp) with no new comp', async () => {
-    await db.batch([
-      // PC complete $80 agrees with BrickLink used_value $75; there is NO
-      // new-condition comp, so only the used axis can confirm identity.
-      db.prepare(`INSERT INTO lego_sets (set_num, name, pc_id, pc_complete_value, pc_cached_at, used_value) VALUES ('USED-1','Used-corroborated set','pcU', 80, datetime('now'), 75)`),
-      // PC complete $500 vs used_value $75 — disagreement; a wrong-item mapping,
-      // stays quarantined.
-      db.prepare(`INSERT INTO lego_sets (set_num, name, pc_id, pc_complete_value, used_value) VALUES ('USEDBAD-1','Wrong item','pcB', 500, 75)`),
-    ]);
-
-    const r = await runPriceChartingVerify(env as any);
-    expect(r.skipped).toBeUndefined();
-    expect(r.promoted).toBe(1);
-    const mapRows = await db.prepare(`SELECT set_num, status, match_method FROM pricing_source_map ORDER BY set_num`).all<{ set_num: string; status: string; match_method: string }>();
-    expect(mapRows.results).toEqual([
-      { set_num: 'USED-1', status: 'verified', match_method: 'price_agreement' },
-    ]);
-    // The used_complete signal is materialized from pc_complete_value.
-    const sig = await db.prepare(`SELECT set_num, condition, value FROM pricing_signals ORDER BY set_num, condition`).all<Record<string, unknown>>();
-    expect(sig.results).toEqual([
-      { set_num: 'USED-1', condition: 'used_complete', value: 80 },
-    ]);
-  });
-
-  it('is idempotent — a second run promotes nothing new and rewrites no signals', async () => {
-    await db.batch([
-      db.prepare(`INSERT INTO lego_sets (set_num, name, pc_id, pc_new_value, bl_new_value) VALUES ('AGREE-2','Set','pcA', 110, 100)`),
-    ]);
-    const first = await runPriceChartingVerify(env as any);
-    expect(first.promoted).toBe(1);
-    const second = await runPriceChartingVerify(env as any);
-    expect(second.promoted).toBe(0);
-    expect(second.signals).toBe(0); // change-only upsert: unchanged prices write nothing
-  });
-
-  it('drain mode still materializes signals for what it promotes', async () => {
-    await db.batch([
-      db.prepare(`INSERT INTO lego_sets (set_num, name, pc_id, pc_new_value, bl_new_value) VALUES ('DRAIN-1','Set','pcD', 110, 100)`),
-    ]);
-    const r = await runPriceChartingVerify(env as any, { limit: 400, refreshSignals: false });
-    expect(r.promoted).toBe(1);
-    const sig = await db.prepare(`SELECT COUNT(*) AS n FROM pricing_signals WHERE set_num='DRAIN-1'`).first<{ n: number }>();
-    expect(sig!.n).toBe(1);
-    // Drained: the next drain-mode run skips the signal sweep entirely.
-    const idle = await runPriceChartingVerify(env as any, { limit: 400, refreshSignals: false });
-    expect(idle.promoted).toBe(0);
-    expect(idle.signals).toBe(0);
-  });
-
-  it('never demotes a manually verified mapping', async () => {
-    await db.batch([
-      db.prepare(`INSERT INTO lego_sets (set_num, name, pc_id, pc_new_value, bl_new_value) VALUES ('MAN-1','Set','pcM', 110, 100)`),
-      db.prepare(`INSERT INTO pricing_source_map (source, source_item_id, set_num, match_method, match_confidence, status) VALUES ('pricecharting','pcM','MAN-1','manual',1.0,'manual')`),
-    ]);
-    const r = await runPriceChartingVerify(env as any);
-    expect(r.promoted).toBe(0); // already verified/manual — not a candidate
-    const row = await db.prepare(`SELECT status, match_method FROM pricing_source_map WHERE source_item_id='pcM'`).first<{ status: string; match_method: string }>();
-    expect(row!.status).toBe('manual');
-    expect(row!.match_method).toBe('manual');
+  it('does not synthesize a provider ID for legacy rows', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, pc_new_value, bl_new_value) VALUES ('NOID-1','No provider identity',100,100)`).run();
+    const result = await runPriceChartingVerify(env as any, { refreshSignals: false });
+    expect(result).toMatchObject({ promoted: 0, signals: 0, reblended: 0 });
+    const count = await db.prepare(`SELECT COUNT(*) AS n FROM pricing_source_map`).first<{ n: number }>();
+    expect(count!.n).toBe(0);
   });
 });

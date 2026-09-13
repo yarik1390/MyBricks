@@ -73,7 +73,7 @@ describe('runPriceChartingBulk', () => {
     await db.prepare('DROP TABLE IF EXISTS pricing_source_map').run();
     await db.prepare('DROP TABLE IF EXISTS pricing_signals').run();
     await db.prepare(`CREATE TABLE lego_sets (
-      set_num TEXT PRIMARY KEY, name TEXT, upc TEXT, pc_id TEXT,
+      set_num TEXT PRIMARY KEY, name TEXT, upc TEXT, category TEXT, pc_id TEXT,
       pc_new_value REAL, pc_complete_value REAL, pc_cached_at TEXT,
       blended_value REAL, current_value REAL
     )`).run();

@@ -45,8 +45,10 @@ function parseLine(line: string): string[] {
 interface BulkRow {
   pcId: string | null;
   upc: string | null;
+  providerCategory: string;
   productTitle: string;
   setBase: string | null; // e.g. "10300" parsed from product-name
+  explicitSetNum: string | null; // full provider token, e.g. "75188-2"
   newValue: number | null;
   completeValue: number | null;
   looseValue: number | null;
@@ -68,7 +70,7 @@ export function parsePriceChartingCsv(text: string): BulkRow[] {
   if (!lines.length) return [];
   const headers = parseLine(lines[0]).map((h) => h.trim().toLowerCase());
   const idx = (name: string) => headers.indexOf(name);
-  const iId = idx('id'), iUpc = idx('upc'), iName = idx('product-name');
+  const iId = idx('id'), iUpc = idx('upc'), iName = idx('product-name'), iCategory = idx('console-name');
   const iNew = idx('new-price'), iCib = idx('cib-price'), iLoose = idx('loose-price'), iVol = idx('sales-volume');
 
   const rows: BulkRow[] = [];
@@ -77,15 +79,21 @@ export function parsePriceChartingCsv(text: string): BulkRow[] {
     if (!line.trim()) continue;
     const v = parseLine(line);
     const name = iName >= 0 ? v[iName] ?? '' : '';
-    // LEGO product-names embed the set number as "…#4620"; prefer that, else a
-    // bare 4–6 digit run.
-    const setMatch = name.match(/#(\d{3,7})/) || name.match(/\b(\d{4,6})\b/);
+    // A full token is independent provider identity. A bare base is retained
+    // only as a review hint: quantities such as "3-in-1" must not become a
+    // variant token, so require at least three digits before the hyphen.
+    const fullMatch = name.match(/(?:^|[^0-9])#?(\d{3,7}-\d+)(?![0-9-])/i);
+    const baseMatch = name.match(/#(\d{3,7})(?![0-9-])/) || name.match(/\b(\d{4,6})\b/);
+    const explicitSetNum = fullMatch ? fullMatch[1] : null;
+    const setBase = explicitSetNum?.replace(/-\d+$/, '') ?? (baseMatch ? baseMatch[1] : null);
     const vol = Number(iVol >= 0 ? v[iVol] : undefined);
     rows.push({
       pcId: iId >= 0 && v[iId] ? v[iId] : null,
       upc: iUpc >= 0 && v[iUpc] ? v[iUpc] : null,
+      providerCategory: iCategory >= 0 ? v[iCategory] ?? '' : '',
       productTitle: name,
-      setBase: setMatch ? setMatch[1] : null,
+      setBase,
+      explicitSetNum,
       newValue: gate(money(iNew >= 0 ? v[iNew] : undefined)),
       completeValue: gate(money(iCib >= 0 ? v[iCib] : undefined)),
       looseValue: gate(money(iLoose >= 0 ? v[iLoose] : undefined)),
@@ -189,29 +197,27 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   // avoids D1's 100-bound-parameters-per-query limit (a 150-row chunk with three
   // IN(...) lists bound up to ~450 params and threw before any write — the reason
   // earlier runs left no trace) and keeps the whole import subrequest-lean.
+  await env.DB.prepare(`DROP TABLE IF EXISTS ${STAGE}`).run();
   await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS ${STAGE} (
-      pcid TEXT, upc TEXT, title TEXT, setbase TEXT, setnum TEXT,
+    `CREATE TABLE ${STAGE} (
+      pcid TEXT, upc TEXT, provider_category TEXT, title TEXT, setbase TEXT, setnum TEXT,
       newv REAL, cibv REAL, loosev REAL, salesvol INTEGER
     )`,
   ).run();
-  await env.DB.prepare(`DELETE FROM ${STAGE}`).run();
 
-  // Bulk-insert via multi-row statements (16 rows × 6 cols = 96 binds, under the
-  // 100/statement limit), 80 statements per D1 batch (1 subrequest each).
-  const PER_STMT = 11;
-  const placeholders = Array.from({ length: PER_STMT }, () => '(?,?,?,?,?,?,?,?,?)').join(',');
+  // Bulk-insert under D1's 100-bind limit.
+  const PER_STMT = 10;
+  const placeholders = Array.from({ length: PER_STMT }, () => '(?,?,?,?,?,?,?,?,?,?)').join(',');
   let batch: D1PreparedStatement[] = [];
   for (let i = 0; i < rows.length; i += PER_STMT) {
     const slice = rows.slice(i, i + PER_STMT);
-    const ph = slice.length === PER_STMT ? placeholders : slice.map(() => '(?,?,?,?,?,?,?,?,?)').join(',');
+    const ph = slice.length === PER_STMT ? placeholders : slice.map(() => '(?,?,?,?,?,?,?,?,?,?)').join(',');
     const binds: unknown[] = [];
     for (const r of slice) {
-      // `setnum` intentionally stays NULL. The former base-number -> "-1"
-      // shortcut caused variant collisions (for example Finch Dallow #75188).
-      binds.push(r.pcId, r.upc, r.productTitle, r.setBase, null, r.newValue, r.completeValue, r.looseValue, r.salesVolume);
+      binds.push(r.pcId, r.upc, r.providerCategory, r.productTitle, r.setBase, r.explicitSetNum,
+        r.newValue, r.completeValue, r.looseValue, r.salesVolume);
     }
-    batch.push(env.DB.prepare(`INSERT INTO ${STAGE} (pcid,upc,title,setbase,setnum,newv,cibv,loosev,salesvol) VALUES ${ph}`).bind(...binds));
+    batch.push(env.DB.prepare(`INSERT INTO ${STAGE} (pcid,upc,provider_category,title,setbase,setnum,newv,cibv,loosev,salesvol) VALUES ${ph}`).bind(...binds));
     if (batch.length >= 80) { await env.DB.batch(batch); batch = []; }
   }
   if (batch.length) await env.DB.batch(batch);
@@ -219,39 +225,11 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS ${STAGE}_pcid ON ${STAGE}(pcid)`).run();
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS ${STAGE}_upc ON ${STAGE}(upc)`).run();
 
-  // Resolve matches by set_num first (exact "<base>-1"), then by UPC. COALESCE so
-  // a present value wins and we never overwrite existing data with NULL.
-  const newUpdate = (joinOn: string) => env.DB.prepare(
-    `UPDATE lego_sets AS ls SET
-       pc_new_value = COALESCE(s.newv, ls.pc_new_value),
-       pc_complete_value = COALESCE(s.cibv, ls.pc_complete_value),
-       pc_cached_at = datetime('now')
-     FROM ${STAGE} s WHERE ${joinOn} AND (s.newv IS NOT NULL OR s.cibv IS NOT NULL)`,
-  );
-  // COALESCE so a present value wins and NULL never clobbers existing data; the
-  // trailing WHERE skips the write entirely when neither column actually changes
-  // (IS NOT = null-safe inequality). Most rows are unchanged run-to-run, so this
-  // turns a full-table rewrite into a write only for genuinely-moved prices —
-  // set_market_ext has no freshness timestamp, so skipping no-ops has no downside.
-  const extInsert = (joinOn: string) => env.DB.prepare(
-    `INSERT INTO set_market_ext (set_num, pc_loose_value, pc_sales_volume)
-       SELECT ls.set_num, s.loosev, s.salesvol FROM ${STAGE} s JOIN lego_sets ls ON ${joinOn}
-       WHERE s.loosev IS NOT NULL OR s.salesvol IS NOT NULL
-     ON CONFLICT(set_num) DO UPDATE SET
-       pc_loose_value = COALESCE(excluded.pc_loose_value, set_market_ext.pc_loose_value),
-       pc_sales_volume = COALESCE(excluded.pc_sales_volume, set_market_ext.pc_sales_volume)
-     WHERE COALESCE(excluded.pc_loose_value, set_market_ext.pc_loose_value) IS NOT set_market_ext.pc_loose_value
-        OR COALESCE(excluded.pc_sales_volume, set_market_ext.pc_sales_volume) IS NOT set_market_ext.pc_sales_volume`,
-  );
-  const BY_SETNUM = 's.setnum = ls.set_num';
-  const BY_UPC = "s.upc = ls.upc AND s.upc IS NOT NULL AND s.upc <> '' AND NOT EXISTS (SELECT 1 FROM lego_sets dup WHERE dup.upc=s.upc AND dup.set_num<>ls.set_num)";
-  await env.DB.batch([newUpdate(BY_SETNUM), newUpdate(BY_UPC), extInsert(BY_SETNUM), extInsert(BY_UPC)]);
-
-  const matchedRow = await env.DB.prepare(
-    `SELECT COUNT(DISTINCT ls.set_num) AS n FROM ${STAGE} s
-       JOIN lego_sets ls ON (s.setnum = ls.set_num) OR (s.upc = ls.upc AND s.upc <> '')`,
-  ).first<{ n: number }>().catch(() => ({ n: 0 }));
-  const matched = Number(matchedRow?.n ?? 0);
+  const CATEGORY_COMPATIBLE = `(ls.category IS NULL OR ls.category='' OR lower(ls.category)='normal'
+    OR lower(s.provider_category) LIKE ('%' || lower(ls.category) || '%'))`;
+  const BY_SAFE_UPC = `s.upc = ls.upc AND s.upc IS NOT NULL AND s.upc <> ''
+    AND NOT EXISTS (SELECT 1 FROM lego_sets dup WHERE dup.upc=s.upc AND dup.set_num<>ls.set_num)
+    AND (s.setnum IS NULL OR s.setnum=ls.set_num) AND ${CATEGORY_COMPATIBLE}`;
 
   // Preserve every old pc_id as a review candidate, never as verified evidence.
   await env.DB.prepare(`
@@ -265,8 +243,29 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     ON CONFLICT(source, source_item_id) DO NOTHING
   `).run();
 
-  // Unique UPC is the only automatic bulk verification path. Full title and
-  // variant are retained for admin review and regression diagnostics.
+  // Identity proof paths. A provider full token wins over UPC when present;
+  // UPC is valid only when unique and not contradicted by that explicit token.
+  await env.DB.prepare(`
+    INSERT INTO pricing_source_map (
+      source, source_item_id, set_num, source_title, upc, variant_key,
+      match_method, match_confidence, status, verified_at, updated_at
+    )
+    SELECT 'pricecharting', s.pcid, ls.set_num, s.title, s.upc, ls.set_num,
+           CASE WHEN ${CATEGORY_COMPATIBLE} THEN 'set_token' ELSE 'set_token_conflict' END,
+           CASE WHEN ${CATEGORY_COMPATIBLE} THEN 1.0 ELSE 0.1 END,
+           CASE WHEN ${CATEGORY_COMPATIBLE} THEN 'verified' ELSE 'quarantined' END,
+           CASE WHEN ${CATEGORY_COMPATIBLE} THEN datetime('now') ELSE NULL END,
+           datetime('now')
+    FROM ${STAGE} s JOIN lego_sets ls ON ls.set_num=s.setnum
+    WHERE s.pcid IS NOT NULL
+    ON CONFLICT(source, source_item_id) DO UPDATE SET
+      set_num=excluded.set_num, source_title=excluded.source_title,
+      upc=excluded.upc, variant_key=excluded.variant_key,
+      match_method=excluded.match_method, match_confidence=excluded.match_confidence,
+      status=excluded.status, verified_at=excluded.verified_at, updated_at=datetime('now')
+    WHERE pricing_source_map.status NOT IN ('verified','manual','rejected')
+  `).run();
+
   await env.DB.prepare(`
     INSERT INTO pricing_source_map (
       source, source_item_id, set_num, source_title, upc, variant_key,
@@ -274,18 +273,18 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     )
     SELECT 'pricecharting', s.pcid, ls.set_num, s.title, s.upc, ls.set_num,
            'upc', 1.0, 'verified', datetime('now'), datetime('now')
-    FROM ${STAGE} s JOIN lego_sets ls ON ls.upc=s.upc
-    WHERE s.pcid IS NOT NULL AND s.upc IS NOT NULL AND s.upc <> ''
-      AND NOT EXISTS (SELECT 1 FROM lego_sets dup WHERE dup.upc=s.upc AND dup.set_num<>ls.set_num)
+    FROM ${STAGE} s JOIN lego_sets ls ON ${BY_SAFE_UPC}
+    WHERE s.pcid IS NOT NULL
     ON CONFLICT(source, source_item_id) DO UPDATE SET
       set_num=excluded.set_num, source_title=excluded.source_title,
       upc=excluded.upc, variant_key=excluded.variant_key,
       match_method='upc', match_confidence=1.0, status='verified',
       verified_at=datetime('now'), updated_at=datetime('now')
+    WHERE pricing_source_map.status NOT IN ('verified','manual','rejected')
   `).run();
 
-  // Base-number candidates are quarantine-only. Even an apparent "-1" match is
-  // never applied automatically because promotions and named variants reuse it.
+  // Base-only candidates remain quarantine-only. Never overwrite an existing
+  // manual/rejected/verified review decision.
   await env.DB.prepare(`
     INSERT INTO pricing_source_map (
       source, source_item_id, set_num, source_title, upc, variant_key,
@@ -296,13 +295,22 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     FROM ${STAGE} s
     LEFT JOIN lego_sets candidate ON candidate.set_num=(s.setbase || '-1')
     LEFT JOIN pricing_source_map pm ON pm.source='pricecharting' AND pm.source_item_id=s.pcid
-    WHERE s.pcid IS NOT NULL AND pm.source_item_id IS NULL
+    WHERE s.pcid IS NOT NULL AND s.setnum IS NULL AND pm.source_item_id IS NULL
     ON CONFLICT(source, source_item_id) DO NOTHING
   `).run();
 
+  const matchedRow = await env.DB.prepare(`
+    SELECT COUNT(DISTINCT s.pcid) AS n FROM ${STAGE} s
+    JOIN pricing_source_map pm ON pm.source='pricecharting' AND pm.source_item_id=s.pcid
+      AND pm.status IN ('verified','manual')
+  `).first<{ n: number }>().catch(() => ({ n: 0 }));
+  const matched = Number(matchedRow?.n ?? 0);
+
+  const OBSERVATION_IDENTITY_COMPATIBLE = `(s.setnum IS NULL OR s.setnum=pm.set_num)`;
   const VERIFIED_JOIN = `${STAGE} s JOIN pricing_source_map pm
     ON pm.source='pricecharting' AND pm.source_item_id=s.pcid
    AND pm.status IN ('verified','manual')
+   AND ${OBSERVATION_IDENTITY_COMPATIBLE}
     JOIN lego_sets ls ON ls.set_num=pm.set_num`;
 
   // Manual mappings can exist without a UPC. Dual-write the legacy columns for
@@ -315,6 +323,7 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     FROM ${STAGE} s JOIN pricing_source_map pm
       ON pm.source='pricecharting' AND pm.source_item_id=s.pcid
      AND pm.status IN ('verified','manual')
+     AND (s.setnum IS NULL OR s.setnum=pm.set_num)
     WHERE pm.set_num=ls.set_num AND (s.newv IS NOT NULL OR s.cibv IS NOT NULL)
       AND (ls.pc_new_value IS NOT COALESCE(s.newv, ls.pc_new_value)
         OR ls.pc_complete_value IS NOT COALESCE(s.cibv, ls.pc_complete_value)
@@ -357,14 +366,20 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     signalInsert('loose', 'loosev'),
   ]);
 
+  const touchedSets = await env.DB.prepare(
+    `SELECT DISTINCT ls.set_num FROM ${VERIFIED_JOIN}`,
+  ).all<{ set_num: string }>();
+  const touched = new Set(touchedSets.results.map((row) => row.set_num));
+
   // Recompute the persisted blend for OWNED + WISHLISTED sets only (user-facing
   // priority, bounded). Everything else surfaces live on read and catches up on
-  // the next daily valuation pass.
+  // the next daily valuation pass. Conflicting staged observations are excluded
+  // from touched sets by the same identity gate as every write above.
   try {
     const { results } = await env.DB.prepare(
       `SELECT set_num FROM user_collection WHERE deleted_at IS NULL UNION SELECT set_num FROM user_wishlist`,
     ).all<{ set_num: string }>();
-    const priority = results.map((r) => r.set_num);
+    const priority = results.map((r) => r.set_num).filter((setNum) => touched.has(setNum));
     if (priority.length) await recomputeBlendedValues(env.DB, priority);
   } catch (e) {
     console.warn('[pc-bulk] priority recompute failed:', (e as Error).message);
@@ -376,6 +391,6 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     rows: rows.length,
     matched,
     unmatched: rows.length - matched,
-    updated: matched,
+    updated: touched.size,
   });
 }

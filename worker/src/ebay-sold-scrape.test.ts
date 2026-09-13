@@ -31,7 +31,7 @@ const live = { ...bare, FIRECRAWL_API_KEY: 'fc-test' };
 describe('runEbaySoldScrape', () => {
   beforeEach(async () => {
     vi.clearAllMocks(); // reset fetcher call history so cross-test calls don't leak
-    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'integration_health', 'pricing_write_ledger', 'app_settings']);
+    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'integration_health', 'pricing_write_ledger', 'app_settings', 'pricing_anomalies', 'ebay_sold_observations']);
     clearSourceConfigCache();
     await saveSourceConfig(bare as any, { ebay: { enabled: true } });
     clearSourceConfigCache();
@@ -84,7 +84,7 @@ describe('runEbaySoldScrape', () => {
       SELECT rows_written FROM pricing_write_ledger
       WHERE day=date('now') AND job='ebay-sold-scrape'
     `).first<{ rows_written: number }>();
-    expect(Number(ledger?.rows_written)).toBe(2);
+    expect(Number(ledger?.rows_written)).toBe(4); // 2 cooldown markers + 2 immutable no-data observations
   });
 
   it('provider error stamps the attempt marker', async () => {
@@ -99,8 +99,8 @@ describe('runEbaySoldScrape', () => {
 
   it('a recently-attempted set is excluded and quota books only the scraped count', async () => {
     await db.batch([
-      db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('SK-1','Skipped', 100)`),
-      db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('SK-2','Scraped', 100)`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value, bl_cached_at) VALUES ('SK-1','Skipped', 100, datetime('now'))`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value, bl_cached_at) VALUES ('SK-2','Scraped', 100, datetime('now'))`),
       // SK-1 was attempted just now → inside the 14-day cooldown → excluded.
       db.prepare(`INSERT INTO set_market_ext (set_num, ebay_sold_attempted_at, ebay_used_attempted_at) VALUES ('SK-1', datetime('now'), datetime('now'))`),
     ]);
@@ -117,7 +117,7 @@ describe('runEbaySoldScrape', () => {
   });
 
   it('persists used sold comps independently when new comps are absent', async () => {
-    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value, used_value) VALUES ('US-1','Used Market', 120, 80)`).run();
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value, bl_used_qty, used_value, bl_cached_at) VALUES ('US-1','Used Market', 120, 8, 80, datetime('now'))`).run();
     mockFetcher.mockResolvedValue({
       status: 'partial',
       new_value: null,
@@ -151,8 +151,8 @@ describe('runEbaySoldScrape', () => {
   it('requests and reserves only the stale condition', async () => {
     await db.prepare(`
       INSERT INTO lego_sets (
-        set_num, name, bl_new_value, used_value, ebay_new_value, ebay_new_cached_at
-      ) VALUES ('UD-1','Used Due', 120, 80, 125, datetime('now'))
+        set_num, name, bl_new_value, bl_used_qty, used_value, bl_cached_at, ebay_new_value, ebay_new_cached_at
+      ) VALUES ('UD-1','Used Due', 120, 8, 80, datetime('now'), 125, datetime('now'))
     `).run();
     mockFetcher.mockResolvedValue({
       status: 'ok',
@@ -174,7 +174,7 @@ describe('runEbaySoldScrape', () => {
   });
 
   it('does not let a new-condition success hide a used-condition miss', async () => {
-    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('NS-1','New Only', 100)`).run();
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value, bl_cached_at) VALUES ('NS-1','New Only', 100, datetime('now'))`).run();
     mockFetcher.mockResolvedValue({
       status: 'partial',
       new_value: 105,
@@ -195,9 +195,42 @@ describe('runEbaySoldScrape', () => {
     expect(row.ebay_used_cached_at).toBeNull();
   });
 
+  it('retains rejected listing evidence and weak references never enter the blend', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value, bl_cached_at) VALUES ('AUD-1','Trusted Reject', 100, datetime('now'))`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value, bl_cached_at) VALUES ('AUD-2','Stale Review', 100, '2026-01-01T00:00:00Z')`),
+    ]);
+    mockFetcher
+      .mockResolvedValueOnce({ status: 'ok', new_value: 301, new_count: 1, observed_at: '2026-09-13T05:00:00Z', evidence: [{ source_url: 'https://www.ebay.com/itm/abc', item_id: 'abc', title: 'LEGO AUD-1', price_usd: 301, condition: 'new_sealed', sold_date: null, rejection_reason: null }] } as any)
+      .mockResolvedValueOnce({ status: 'ok', new_value: 110, new_count: 1, observed_at: '2026-09-13T05:01:00Z', evidence: [{ source_url: null, item_id: null, title: 'Formula listing', price_usd: 110, condition: 'new_sealed', sold_date: null, rejection_reason: null }] } as any);
+
+    const r = await runEbaySoldScrape({ ...live } as any, { limit: 5, concurrency: 1 });
+    expect(r.rejected).toBe(2);
+    const values = await db.prepare(`SELECT set_num, ebay_new_value FROM lego_sets WHERE set_num LIKE 'AUD-%' ORDER BY set_num`).all<any>();
+    expect(values.results.map((row) => row.ebay_new_value)).toEqual([null, null]);
+    const observations = await db.prepare(`SELECT set_num, engine, source_url, item_id, reference_provenance, reference_freshness, decision, rejection_reason FROM ebay_sold_observations WHERE condition='new_sealed' AND price_usd IS NOT NULL ORDER BY set_num`).all<any>();
+    expect(observations.results[0]).toMatchObject({ set_num: 'AUD-1', engine: 'firecrawl', item_id: 'abc', decision: 'rejected', rejection_reason: 'outside_trusted_3x_band' });
+    expect(observations.results[1]).toMatchObject({ set_num: 'AUD-2', source_url: null, item_id: null, reference_provenance: 'bricklink_new', reference_freshness: 'stale', decision: 'review_needed', rejection_reason: 'stale_reference' });
+  });
+
+  it('retains immutable attempts across retries and caps listing rows', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value, bl_cached_at) VALUES ('LOG-1','Audit Log', 100, datetime('now'))`).run();
+    const evidence = Array.from({ length: 20 }, (_, i) => ({ source_url: null, item_id: String(i), title: `LEGO LOG-1 ${i}`, price_usd: 100 + i, condition: 'new_sealed', sold_date: null, rejection_reason: null }));
+    mockFetcher.mockResolvedValue({ status: 'ok', new_value: 110, new_count: 20, observed_at: '2026-09-13T05:10:00Z', evidence } as any);
+    await runEbaySoldScrape({ ...live } as any, { limit: 1 });
+    await db.prepare(`UPDATE lego_sets SET ebay_new_cached_at=NULL WHERE set_num='LOG-1'`).run();
+    await db.prepare(`UPDATE set_market_ext SET ebay_sold_attempted_at=datetime('now','-20 days') WHERE set_num='LOG-1'`).run();
+    mockFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, observed_at: '2026-09-13T05:20:00Z', error: 'retry failed' } as any);
+    await runEbaySoldScrape({ ...live } as any, { limit: 1 });
+
+    const count = await db.prepare(`SELECT COUNT(*) AS n FROM ebay_sold_observations WHERE set_num='LOG-1' AND condition='new_sealed'`).first<{ n: number }>();
+    expect(Number(count?.n)).toBe(13);
+    const retry = await db.prepare(`SELECT decision, rejection_reason FROM ebay_sold_observations WHERE set_num='LOG-1' ORDER BY id DESC LIMIT 1`).first<any>();
+    expect(retry).toMatchObject({ decision: 'error', rejection_reason: 'retry failed' });
+  });
+
   it('3x-divergence rejection writes the anomaly row AND stamps the attempt', async () => {
-    await applyTestTables(db, ['pricing_anomalies']);
-    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('DV-1','Diverged', 100)`).run();
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value, bl_cached_at) VALUES ('DV-1','Diverged', 100, datetime('now'))`).run();
     mockFetcher.mockResolvedValue({ status: 'ok', new_value: 900, new_count: 4 } as any); // 9x the reference
 
     const r = await runEbaySoldScrape({ ...live } as any, { limit: 5 });

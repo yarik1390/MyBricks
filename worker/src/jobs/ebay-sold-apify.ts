@@ -5,6 +5,14 @@ import { reserveQuota } from '../lib/api-quota';
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { recordPricingWrites } from '../lib/pricing-budget';
 import { ebaySoldLaneEnabled, sourceEnabled } from '../lib/source-config';
+import {
+  assessSoldObservation,
+  observationStatements,
+  pruneObservationStatement,
+  selectEbaySoldReference,
+  type EbaySoldAssessment,
+  type EbaySoldReference,
+} from '../lib/ebay-sold-observations';
 
 const APIFY_MAX_SETS_PER_RUN = 20;
 
@@ -22,8 +30,8 @@ export interface EbaySoldApifyRun {
 
 /**
  * Weekly corroborating eBay sold-comps lane backed by one batched Apify actor run.
- * It deliberately writes the existing eBay observation columns and attempt markers,
- * so no schema migration or new blend family is needed.
+ * It writes condition values only after the shared provenance/freshness gate and
+ * appends compact public listing evidence to the bounded audit table.
  */
 export async function runEbaySoldApifyScrape(
   env: Env,
@@ -46,7 +54,9 @@ export async function runEbaySoldApifyScrape(
     : APIFY_MAX_SETS_PER_RUN;
 
   const { results: candidates } = await env.DB.prepare(`
-    SELECT ls.set_num, ls.bl_new_value, ls.used_value, ls.current_value,
+    SELECT ls.set_num, ls.bl_new_value, ls.bl_used_qty, ls.used_value,
+      ls.be_value_new, ls.be_value_used, ls.bl_cached_at, ls.be_cached_at,
+      ls.current_value, ls.cached_at, ls.valuation_method,
       1 AS new_due,
       0 AS used_due
     FROM lego_sets ls
@@ -65,8 +75,15 @@ export async function runEbaySoldApifyScrape(
   `).bind(limit).all<{
     set_num: string;
     bl_new_value: number | null;
+    bl_used_qty: number | null;
     used_value: number | null;
+    be_value_new: number | null;
+    be_value_used: number | null;
+    bl_cached_at: string | null;
+    be_cached_at: string | null;
     current_value: number | null;
+    cached_at: string | null;
+    valuation_method: string | null;
     new_due: number;
     used_due: number;
   }>();
@@ -115,7 +132,12 @@ export async function runEbaySoldApifyScrape(
       error: 'Apify batch omitted set result',
     };
 
-    const addAnomaly = (condition: 'new_sealed' | 'used_complete', observed: number, reference: number | null) => {
+    const addAnomaly = (
+      condition: 'new_sealed' | 'used_complete',
+      observed: number,
+      reference: EbaySoldReference,
+      assessment: EbaySoldAssessment,
+    ) => {
       const key = condition === 'new_sealed'
         ? `ebay_sold:${set.set_num}:value_divergence`
         : `ebay_sold_used:${set.set_num}:value_divergence`;
@@ -123,42 +145,70 @@ export async function runEbaySoldApifyScrape(
         INSERT INTO pricing_anomalies (
           anomaly_key, set_num, condition, source, anomaly_type, severity,
           detail_json, status, first_seen_at, last_seen_at
-        ) VALUES (?1, ?2, ?3, 'ebay_sold', 'value_divergence', 'warning', ?4, 'open', datetime('now'), datetime('now'))
+        ) VALUES (?1, ?2, ?3, 'ebay_sold', ?4, 'warning', ?5, 'open', datetime('now'), datetime('now'))
         ON CONFLICT(anomaly_key) DO UPDATE SET
           detail_json=excluded.detail_json, status='open', last_seen_at=datetime('now'), resolved_at=NULL
-      `).bind(key, set.set_num, condition, JSON.stringify({ observed, reference, engine: 'apify' })));
+      `).bind(
+        key, set.set_num, condition,
+        assessment.decision === 'review_needed' ? 'reference_review' : 'value_divergence',
+        JSON.stringify({
+          observed,
+          reference: reference.value,
+          reference_provenance: reference.provenance,
+          reference_freshness: reference.freshness,
+          decision: assessment.decision,
+          rejection_reason: assessment.rejectionReason,
+          engine: 'apify',
+        }),
+      ));
+    };
+
+    const recordCondition = (
+      condition: 'new_sealed' | 'used_complete',
+      observed: number | null,
+      assessment: EbaySoldAssessment,
+      reference: EbaySoldReference,
+    ) => {
+      stmts.push(...observationStatements(env.DB, {
+        setNum: set.set_num,
+        engine: 'apify',
+        observedAt: result.observed_at || new Date().toISOString(),
+        evidence: result.evidence || [],
+        condition,
+        assessment,
+        reference,
+      }));
+      if (observed != null && assessment.decision !== 'accepted') addAnomaly(condition, observed, reference, assessment);
     };
 
     let acceptedNew: number | null = null;
     let acceptedUsed: number | null = null;
     if (set.new_due) {
-      if (result.new_value != null) {
-        const reference = set.bl_new_value ?? set.current_value ?? null;
-        if (reference == null || (result.new_value >= reference / 3 && result.new_value <= reference * 3)) {
-          acceptedNew = result.new_value;
-          newUpdated++;
-        } else {
-          rejected++;
-          stampNewAttempt(set.set_num);
-          addAnomaly('new_sealed', result.new_value, reference);
-        }
+      const reference = selectEbaySoldReference(set as unknown as Record<string, unknown>, 'new_sealed');
+      const assessment: EbaySoldAssessment = result.new_value != null
+        ? assessSoldObservation(result.new_value, reference)
+        : { decision: result.status === 'error' ? 'error' : 'no_data', rejectionReason: result.error || (result.status === 'error' ? 'provider_error' : 'no_matching_listings') };
+      recordCondition('new_sealed', result.new_value, assessment, reference);
+      if (result.new_value != null && assessment.decision === 'accepted') {
+        acceptedNew = result.new_value;
+        newUpdated++;
       } else {
+        if (result.new_value != null) rejected++;
         stampNewAttempt(set.set_num);
       }
     }
 
     if (set.used_due) {
-      if (result.used_value != null) {
-        const reference = set.used_value ?? set.bl_new_value ?? set.current_value ?? null;
-        if (reference == null || (result.used_value >= reference / 3 && result.used_value <= reference * 3)) {
-          acceptedUsed = result.used_value;
-          usedUpdated++;
-        } else {
-          rejected++;
-          stampUsedAttempt(set.set_num);
-          addAnomaly('used_complete', result.used_value, reference);
-        }
+      const reference = selectEbaySoldReference(set as unknown as Record<string, unknown>, 'used_complete');
+      const assessment: EbaySoldAssessment = result.used_value != null
+        ? assessSoldObservation(result.used_value, reference)
+        : { decision: result.status === 'error' ? 'error' : 'no_data', rejectionReason: result.error || (result.status === 'error' ? 'provider_error' : 'no_matching_listings') };
+      recordCondition('used_complete', result.used_value ?? null, assessment, reference);
+      if (result.used_value != null && assessment.decision === 'accepted') {
+        acceptedUsed = result.used_value;
+        usedUpdated++;
       } else {
+        if (result.used_value != null) rejected++;
         stampUsedAttempt(set.set_num);
       }
     }
@@ -187,6 +237,8 @@ export async function runEbaySoldApifyScrape(
 
   for (let i = 0; i < stmts.length; i += 90) await env.DB.batch(stmts.slice(i, i + 90));
   await recordPricingWrites(env.DB, 'ebay-sold-apify', stmts.length);
+  const pruneResult = await pruneObservationStatement(env.DB).run();
+  await recordPricingWrites(env.DB, 'ebay-sold-apify', pruneResult.meta.changes || 0);
   if (touched.length) await recomputeBlendedValues(env.DB, touched);
 
   return {

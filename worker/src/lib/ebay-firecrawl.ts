@@ -2,6 +2,7 @@ import type { Env } from '../types';
 import { firecrawlScrape } from './firecrawl';
 import { firecrawlEnabled } from './pricing-flags';
 import { summarizeSoldPrices, isValidLegoSetSaleTitle } from './ebay';
+import { boundedEvidence, type EbaySoldListingEvidence } from './ebay-sold-observations';
 /**
  * Result shape for an eBay sold-comps scrape. Previously lived in lib/brightdata.ts
  * and was imported from here; it moved when the Bright Data lane was removed,
@@ -17,6 +18,10 @@ export interface EbaySoldScrapeResult {
   used_count?: number;
   /** Most-recent used-condition sale date (YYYY-MM-DD), when captured. */
   used_last_sold?: string | null;
+  /** Bounded public listing metadata retained for audit; never raw page content. */
+  evidence?: EbaySoldListingEvidence[];
+  /** Engine completion time, distinct from any source sold date. */
+  observed_at?: string;
   error?: string | null;
 }
 
@@ -32,6 +37,8 @@ const LISTING_SCHEMA = {
           price_usd: { type: 'number' },
           condition: { type: 'string' },
           sold_date: { type: 'string', description: 'Date the item sold, in YYYY-MM-DD format' },
+          source_url: { type: 'string', description: 'Public eBay item URL when present on the listing' },
+          item_id: { type: 'string', description: 'eBay item identifier when explicitly present' },
         },
       },
     },
@@ -73,7 +80,15 @@ export async function fetchEbaySoldViaFirecrawl(
   const conditionFilter = includeNew === includeUsed ? '' : `&LH_ItemCondition=${includeNew ? 1000 : 3000}`;
   const url = `https://www.ebay.com/sch/i.html?_nkw=${q}&LH_Sold=1&LH_Complete=1${conditionFilter}&_ipg=60`;
 
-  const result = await firecrawlScrape<{ listings?: Array<{ title: string; price_usd: number; condition: string; sold_date?: string }> }>(
+  type FirecrawlListing = {
+    title?: string;
+    price_usd?: number;
+    condition?: string;
+    sold_date?: string;
+    source_url?: string;
+    item_id?: string;
+  };
+  const result = await firecrawlScrape<{ listings?: FirecrawlListing[] }>(
     {
       url,
       formats: ['json'],
@@ -92,8 +107,9 @@ export async function fetchEbaySoldViaFirecrawl(
 
   if (!result) return { status: 'error', new_value: null, new_count: 0, error: 'Firecrawl returned null' };
 
-  const matched = (result.data?.listings ?? []).filter(l => isValidLegoSetSaleTitle(l.title, setNum));
-  const bucket = (listing: { title: string; condition: string }): 'new' | 'used' | null => {
+  const rawListings = result.data?.listings ?? [];
+  const matched = rawListings.filter((listing) => isValidLegoSetSaleTitle(listing.title || '', setNum));
+  const bucket = (listing: FirecrawlListing): 'new' | 'used' | null => {
     if (includeNew && !includeUsed) return 'new';
     if (includeUsed && !includeNew) return 'used';
     const condition = `${listing.condition || ''} ${listing.title || ''}`.toLowerCase();
@@ -103,16 +119,36 @@ export async function fetchEbaySoldViaFirecrawl(
   };
   const newListings = includeNew ? matched.filter((listing) => bucket(listing) === 'new') : [];
   const usedListings = includeUsed ? matched.filter((listing) => bucket(listing) === 'used') : [];
-  const summarize = (listings: typeof matched) => summarizeSoldPrices(
-    listings.map(l => l.price_usd).filter(p => Number.isFinite(p) && p > 0),
+  const summarize = (listings: FirecrawlListing[]) => summarizeSoldPrices(
+    listings.map(l => Number(l.price_usd)).filter(p => Number.isFinite(p) && p > 0),
   );
   const newSummary = summarize(newListings);
   const usedSummary = summarize(usedListings);
+  const observedAt = new Date().toISOString();
+  const evidence = boundedEvidence(rawListings.map((listing): EbaySoldListingEvidence => {
+    const listingBucket = bucket(listing);
+    const validTitle = isValidLegoSetSaleTitle(listing.title || '', setNum);
+    const price = Number(listing.price_usd);
+    return {
+      source_url: listing.source_url || null,
+      item_id: listing.item_id || null,
+      title: listing.title || null,
+      price_usd: Number.isFinite(price) && price > 0 ? price : null,
+      condition: listingBucket === 'new' ? 'new_sealed' : listingBucket === 'used' ? 'used_complete' : 'unknown',
+      sold_date: normalizeSoldDate(listing.sold_date),
+      rejection_reason: !listing.title || !(Number.isFinite(price) && price > 0)
+        ? 'missing_title_or_price'
+        : !validTitle ? 'title_mismatch' : !listingBucket ? 'unknown_condition' : null,
+    };
+  }));
   if (newSummary.value == null && usedSummary.value == null) {
-    return { status: 'no_data', new_value: null, new_count: 0, used_value: null, used_count: 0 };
+    return {
+      status: 'no_data', new_value: null, new_count: 0, used_value: null, used_count: 0,
+      observed_at: observedAt, evidence,
+    };
   }
 
-  const latestDate = (listings: typeof matched): string | null => {
+  const latestDate = (listings: FirecrawlListing[]): string | null => {
     let latest: string | null = null;
     for (const listing of listings) {
       const date = normalizeSoldDate(listing.sold_date);
@@ -129,6 +165,8 @@ export async function fetchEbaySoldViaFirecrawl(
     used_value: usedSummary.value,
     used_count: usedSummary.sample_count,
     used_last_sold: latestDate(usedListings),
+    observed_at: observedAt,
+    evidence,
   };
 }
 
