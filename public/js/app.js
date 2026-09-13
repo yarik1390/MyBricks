@@ -23,11 +23,12 @@ document.addEventListener('click', (event) => {
 });
 
 // Setup gestures: swipe-back
-// An overlay (bottom sheet, scanner, app-lock) captures the gesture — swiping
-// near an overlay edge must never navigate the page underneath.
+// Overlays and the walkable room own touch gestures. Looking around from the
+// room's left edge must never trigger swipe-back navigation.
 function overlayOpen() {
   const b = document.body.classList;
   return b.contains("sheet-open") || b.contains("scan-active") || b.contains("app-locked")
+    || document.body.dataset.route === "collection-room"
     || $("#scanOverlay")?.classList.contains("open");
 }
 function setupGestures() {
