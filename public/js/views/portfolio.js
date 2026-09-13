@@ -672,7 +672,11 @@ function animateHeroValue(target) {
   const from = _lastHeroValue;
   _lastHeroValue = target;
   const tick = (now) => {
-    const t = Math.min(1, (now - start) / dur);
+    // A callback queued during an active frame can receive that frame's start
+    // timestamp, which is slightly earlier than performance.now() above. Clamp
+    // both ends so the first value cannot extrapolate below `from`, grow wider
+    // than the pinned target, and briefly wrap the neighbouring delta pill.
+    const t = Math.max(0, Math.min(1, (now - start) / dur));
     const eased = 1 - Math.pow(1 - t, 3);
     el.innerHTML = heroValueHTML(from + (target - from) * eased);
     if (t < 1) _heroAnimationFrame = requestAnimationFrame(tick);

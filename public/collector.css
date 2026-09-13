@@ -6,6 +6,7 @@
   --shadow-3: 0 6px 24px #171b2014;
   --shadow-4: 0 8px 32px #171b2018;
   --nav-h: 80px;
+  --nav-height: 80px;
 }
 :root:not([data-skin]), :root[data-skin="retro"] {
   --bg: #f7f5ee; --bg-deep: #eeece3; --surface: #fff;

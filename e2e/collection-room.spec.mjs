@@ -16,14 +16,20 @@ async function walk(page, key, ms = 400) {
   await page.waitForTimeout(ms);
   await page.keyboard.up(key);
 }
+async function expectSheetClosed(page) {
+  await expect(page.locator('#sheet')).toHaveAttribute('aria-hidden', 'true');
+  await expect(page.locator('#sheetBackdrop')).toHaveAttribute('aria-hidden', 'true');
+}
 async function findSet(page, number) {
   await page.locator('#roomFind').click();
   await page.locator('#roomSearch').fill(number);
   await page.locator(`[data-room-set="${number}"]`).click();
-  await expect(page.locator('#sheet')).not.toHaveClass(/show/);
+  await expectSheetClosed(page);
+  await expect(page.locator('#roomStage')).toBeFocused();
 }
 
 test('Vault enters fullscreen directly; walking, mouse looking, collision and exit work', async ({ page }) => {
+  test.slow();
   const requests = [];
   page.on('request', req => requests.push(new URL(req.url()).pathname));
   await stubRoom(page);
@@ -64,6 +70,7 @@ test('Vault enters fullscreen directly; walking, mouse looking, collision and ex
 });
 
 test('find reaches distant sets with bounded rendering and detail sheets preserve the room', async ({ page }) => {
+  test.slow();
   await stubRoom(page, Array.from({ length: 1200 }, (_, i) => ({ ...holdings[0], set_num: `${2000 + i}-1`, name: `Set ${i}`, theme: `Theme ${Math.floor(i / 100)}` })));
   await page.goto('/#/room');
   await ready(page);
@@ -72,7 +79,7 @@ test('find reaches distant sets with bounded rendering and detail sheets preserv
   expect(await page.locator('#roomStage').evaluate(el => Number(el.dataset.residentBoxes))).toBeLessThanOrEqual(100);
   // teleport aims the selected box at the center so ray selection is real.
   const bounds = await page.locator('#roomStage').boundingBox();
-  await page.mouse.click(bounds.width / 2, bounds.height / 2);
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
   await expect(page.locator('#roomSheetTitle')).toHaveText('Set 1199');
   await page.keyboard.down('w');
   await page.waitForTimeout(200);
@@ -90,22 +97,46 @@ test('find reaches distant sets with bounded rendering and detail sheets preserv
   expect(await pose(page)).toEqual(located);
 });
 
-test('captured mouse selects a box and releases for its detail panel', async ({ page }) => {
+test('captured mouse acquires pointer lock and releases on Escape', async ({ page }) => {
+  test.slow();
   await stubRoom(page);
   await page.goto('/#/room');
   await ready(page);
   await findSet(page, '1000-1');
-  const bounds = await page.locator('#roomStage').boundingBox();
-  await page.mouse.move(bounds.width / 2, bounds.height / 2);
+  const canvas = page.locator('#roomStage canvas');
+  const bounds = await canvas.boundingBox();
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.locator('#roomMouse').evaluate(button => {
+    window.__roomPointerLockProbe = { activationAtClick: null, errors: 0 };
+    button.addEventListener('click', () => {
+      window.__roomPointerLockProbe.activationAtClick = navigator.userActivation.isActive;
+    }, { capture: true, once: true });
+    document.addEventListener('pointerlockerror', () => {
+      window.__roomPointerLockProbe.errors += 1;
+    }, { once: true });
+  });
   await page.locator('#roomMouse').focus();
   await page.keyboard.press('Enter');
-  await expect.poll(() => page.evaluate(() => document.pointerLockElement?.tagName)).toBe('CANVAS');
-  await page.mouse.down();
-  await page.mouse.up();
-  await expect(page.locator('#roomSheetTitle')).toHaveText('Display set 0');
+  await expect.poll(() => page.evaluate(() => ({
+    activationAtClick: window.__roomPointerLockProbe.activationAtClick,
+    errors: window.__roomPointerLockProbe.errors,
+    lock: document.pointerLockElement?.tagName || null,
+  }))).toEqual({ activationAtClick: true, errors: 0, lock: 'CANVAS' });
+  await page.keyboard.press('Escape');
   await expect.poll(() => page.evaluate(() => document.pointerLockElement)).toBe(null);
+});
+
+test('centered canvas selection opens the teleported box detail panel', async ({ page }) => {
+  await stubRoom(page);
+  await page.goto('/#/room');
+  await ready(page);
+  await findSet(page, '1000-1');
+  const canvas = page.locator('#roomStage canvas');
+  const bounds = await canvas.boundingBox();
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await expect(page.locator('#roomSheetTitle')).toHaveText('Display set 0');
   await page.locator('#roomSheetClose').click();
-  await expect(page.locator('#sheet')).not.toHaveClass(/show/);
+  await expectSheetClosed(page);
 });
 
 test('a box beyond the previous selection reach opens without approaching it', async ({ page }) => {
@@ -213,10 +244,11 @@ test('guest fallback retains searchable holdings; context loss and owner changes
     saveSession({ access_token: `x.${btoa(JSON.stringify({ sub: 'new-owner' }))}.x` });
   });
   await expect(page.locator('#collectionRoomPage')).toHaveCount(0);
-  await expect(page.locator('#sheet')).not.toHaveClass(/show/);
+  await expectSheetClosed(page);
 });
 
 test('context loss offers fallback and delayed loading cannot repaint after navigation', async ({ page }) => {
+  test.slow();
   await stubRoom(page);
   await page.goto('/#/room');
   await ready(page);
@@ -225,7 +257,8 @@ test('context loss offers fallback and delayed loading cannot repaint after navi
   await expect(page.locator('#roomStage canvas')).toHaveCount(0);
   await page.locator('#roomRetry3D').click();
   await ready(page);
-  await page.evaluate(async () => { const { go } = await import('/js/router.js'); go('#/'); });
+  await page.evaluate(() => { location.hash = '#/'; });
+  await expect(page).toHaveURL(/#\/$/);
   await expect(page.locator('#collectionRoomPage')).toHaveCount(0);
   await expect(page.locator('#nav')).toBeVisible();
 });
@@ -276,7 +309,7 @@ test('Android back closes room panels first, then leaves the room', async ({ pag
   });
   await page.locator('#roomHelp').click();
   await page.evaluate(() => window.__roomBack({ canGoBack: false }));
-  await expect(page.locator('#sheet')).not.toHaveClass(/show/);
+  await expectSheetClosed(page);
   await ready(page);
   await page.evaluate(() => window.__roomBack({ canGoBack: false }));
   await expect(page).toHaveURL(/#\/$/);

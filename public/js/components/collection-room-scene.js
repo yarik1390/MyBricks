@@ -83,6 +83,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   let joystickVector = { forward: 0, strafe: 0 };
   let drag = null;
   let destroyed = false;
+  let contextLost = false;
   let unavailableNotified = false;
   let manuallyPaused = false;
   let frame = 0;
@@ -461,7 +462,9 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       for (const geometry of sharedGeometries) geometry.dispose();
       for (const meshMaterial of sharedMaterials) meshMaterial.dispose();
       renderer.dispose();
-      renderer.forceContextLoss();
+      // Calling forceContextLoss() from inside a real context-lost callback can
+      // deadlock Chromium's GPU process. The context is already gone there.
+      if (!contextLost) renderer.forceContextLoss();
       if (joystick) joystick.style.touchAction = previousJoystickTouchAction;
       if (knob) knob.style.transform = '';
       canvas.remove();
@@ -497,6 +500,10 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   try {
     if (joystick) joystick.style.touchAction = 'none';
     window.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && document.pointerLockElement === canvas) {
+        document.exitPointerLock?.();
+        return;
+      }
       if (!active() || isTypingTarget(event.target) || !['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) return;
       event.preventDefault();
       keys.add(event.code);
@@ -507,8 +514,10 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       if (!hasMovement()) cancelFrame();
     }, { signal: abort.signal });
     window.addEventListener('blur', resetInputs, { signal: abort.signal });
+    let skipFirstPointerLockMove = false;
     document.addEventListener('pointerlockchange', () => {
       if (document.pointerLockElement !== canvas) resetInputs();
+      else skipFirstPointerLockMove = true;
     }, { signal: abort.signal });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) resetInputs();
@@ -517,7 +526,13 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     // corresponding pointer events. Handle the completed click while still
     // locked, before releasing the cursor to show the details panel.
     document.addEventListener('mousemove', event => {
-      if (document.pointerLockElement === canvas && active()) look(event.movementX, event.movementY);
+      if (document.pointerLockElement === canvas && active()) {
+        if (skipFirstPointerLockMove) {
+          skipFirstPointerLockMove = false;
+          return;
+        }
+        look(event.movementX, event.movementY);
+      }
     }, { signal: abort.signal });
     // Locked mouse input is completed at mouseup. Chromium on Linux may
     // retarget the later click to an overlay after the detail sheet unlocks
@@ -543,7 +558,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       if (!active() || drag || event.button !== 0 || document.pointerLockElement === canvas) return;
       event.preventDefault();
       drag = { id: event.pointerId, moved: false, x: event.clientX, y: event.clientY };
-      canvas.setPointerCapture(event.pointerId);
+      try { canvas.setPointerCapture(event.pointerId); } catch {}
     }, { signal: abort.signal });
     canvas.addEventListener('pointermove', event => {
       if (!drag || drag.id !== event.pointerId || document.pointerLockElement === canvas) return;
@@ -583,6 +598,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     joystick?.addEventListener('pointercancel', releaseJoystick, { signal: abort.signal });
     canvas.addEventListener('webglcontextlost', event => {
       event.preventDefault();
+      contextLost = true;
       if (!unavailableNotified) {
         unavailableNotified = true;
         controller.destroy();

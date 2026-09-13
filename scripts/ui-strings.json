@@ -3270,6 +3270,7 @@
   {
     "text": "Escape",
     "files": [
+      "components/collection-room-scene.js",
       "components/lightbox.js",
       "components/onboarding.js",
       "components/sheet.js",

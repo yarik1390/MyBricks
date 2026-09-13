@@ -96,16 +96,21 @@ export async function renderCollectionRoom() {
     if (!current()) return;
     const themes = [...new Set(catalog.map(item => item.theme))];
     modal(`<h2 id="roomSheetTitle">${t(find ? 'room.find' : 'room.accessibleList')}</h2><label for="roomSearch">${t('room.search')}</label><input class="input" id="roomSearch" type="search" autocomplete="off"><label for="roomTheme">${t('room.theme')}</label><select id="roomTheme"><option value="all">${t('room.allThemes')}</option>${themes.map((theme, index) => `<option value="${index}">${escapeHtml(theme || t('room.otherTheme'))}</option>`).join('')}</select><p id="roomResults" role="status"></p><ul class="showroom-results" id="roomSetList"></ul><button class="btn-secondary" id="roomMore">${t('room.more')}</button>`, $(find ? '#roomFind' : '#roomList'));
+    const search = $('#roomSearch');
+    const theme = $('#roomTheme');
+    const results = $('#roomResults');
+    const setList = $('#roomSetList');
+    const more = $('#roomMore');
     let limit = 40;
     $('#roomSearch').value = state.filter.q || '';
     function filter() {
-      const query = $('#roomSearch').value.trim().toLocaleLowerCase();
-      const selected = $('#roomTheme').value;
+      const query = search.value.trim().toLocaleLowerCase();
+      const selected = theme.value;
       const rows = catalog.filter(item => (selected === 'all' || item.theme === themes[Number(selected)]) && `${item.name} ${item.set_num} ${item.theme}`.toLocaleLowerCase().includes(query));
-      $('#roomSetList').innerHTML = rows.slice(0, limit).map(item => `<li><button type="button" data-room-set="${escapeHtml(item.set_num)}"><img src="${imageUrl(item)}" alt="" loading="lazy" width="64" height="54"><span>${escapeHtml(item.name)}<small>${escapeHtml(item.set_num)} · ${escapeHtml(themeName(item))}</small></span></button></li>`).join('');
-      $('#roomResults').textContent = tPlural('room.count', rows.length, { count: rows.length });
-      $('#roomMore').hidden = limit >= rows.length;
-      $('#roomSetList').querySelectorAll('[data-room-set]').forEach(button => button.addEventListener('click', () => {
+      setList.innerHTML = rows.slice(0, limit).map(item => `<li><button type="button" data-room-set="${escapeHtml(item.set_num)}"><img src="${imageUrl(item)}" alt="" loading="lazy" width="64" height="54"><span>${escapeHtml(item.name)}<small>${escapeHtml(item.set_num)} · ${escapeHtml(themeName(item))}</small></span></button></li>`).join('');
+      results.textContent = tPlural('room.count', rows.length, { count: rows.length });
+      more.hidden = limit >= rows.length;
+      setList.querySelectorAll('[data-room-set]').forEach(button => button.addEventListener('click', () => {
         if (find && activeRoom) {
           const selectedSet = button.dataset.roomSet;
           hideSheet();
@@ -114,9 +119,9 @@ export async function renderCollectionRoom() {
         } else details(button.dataset.roomSet);
       }));
     }
-    $('#roomSearch').addEventListener('input', () => { state.filter.q = $('#roomSearch').value; limit = 40; filter(); });
-    $('#roomTheme').addEventListener('change', () => { limit = 40; filter(); });
-    $('#roomMore').addEventListener('click', () => { limit += 40; filter(); });
+    search.addEventListener('input', () => { state.filter.q = search.value; limit = 40; filter(); });
+    theme.addEventListener('change', () => { limit = 40; filter(); });
+    more.addEventListener('click', () => { limit += 40; filter(); });
     filter();
   }
   $('#roomFind').addEventListener('click', () => browse(true));
@@ -153,5 +158,7 @@ export async function renderCollectionRoom() {
     stage.dataset.roomState = 'ready';
     status.textContent = catalog.length ? t('room.walkHint') : t('room.empty');
     if (!roomSheet) stage.focus({ preventScroll: true });
-  } catch { unavailable(); }
+  } catch (error) {
+    unavailable();
+  }
 }
