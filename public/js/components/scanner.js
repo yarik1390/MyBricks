@@ -923,6 +923,20 @@ function showBlindBoxResult(res) {
   }));
 }
 
+function collectorScanContext(setNum) {
+  // This is a cached hint; never imply absence when a vault has not loaded.
+  const owned = state.portfolio?.items?.some(item => item.set_num === setNum);
+  const wanted = state.wishlist?.find(item => item.set_num === setNum);
+  const labels = [];
+  if (owned) labels.push(t('collector.owned'));
+  if (wanted) {
+    labels.push(t('collector.wanted'));
+    if (Number.isFinite(wanted.target_price) && wanted.target_price > 0) labels.push(t('collector.target', { price: fmtMoney(wanted.target_price) }));
+  }
+  labels.push(t(owned || wanted ? 'collector.cachedOwnership' : 'collector.ownershipUnknown'));
+  return `<p class="collector-store-status">${labels.map(escapeHtml).join(' · ')}</p>`;
+}
+
 export function showScanResult(res) {
   const el = $("#scanResult");
   if (!el) return;
@@ -1045,6 +1059,7 @@ export function showScanResult(res) {
           <div class="sx" style="margin-left:10px;flex:1;min-width:0;text-align:left;">
             <div class="sx-name" style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(set.name)}</div>
             <div class="sx-meta" style="font-size:10px;color:var(--ink-mute);">${escapeHtml(set.theme||"")} · #${escapeHtml(set.set_num)}${sets.length > 1 && set.match_confidence && set.match_confidence !== "high" ? ` · <span style="color:${set.match_confidence === "low" ? "var(--down)" : "var(--accent)"};font-weight:700;">${escapeHtml(matchLabel(set.match_confidence))}</span>` : ""}</div>
+            ${collectorScanContext(set.set_num)}
             <div class="sx-val" style="font-weight:600;font-size:12px;color:var(--up);">${valLine}</div>
           </div>
         </div>`;
@@ -1112,7 +1127,8 @@ export function showScanResult(res) {
       <button class="btn-secondary" id="scanDetails" ${sets.length !== 1 ? 'disabled style="opacity:0.5;"' : ""}>Details</button>
       <button class="btn-primary" id="scanAdd">${I.plus()}<span>Add selected</span></button>
     </div>`;
-  el.innerHTML = headHTML + listHTML + dealHTML + actionsHTML;
+  el.innerHTML = headHTML + listHTML + dealHTML + actionsHTML + `<button type="button" class="btn-secondary" id="collectorNextScan">${t('collector.nextScan')}</button>`;
+  $('#collectorNextScan').addEventListener('click', () => clearScanResult({ restartCamera: true }));
   hydrateAmazonSlots(el, state.me?.retail_market || 'FR');
 
   // Condition selection drives the stored condition + the value the set is added at.

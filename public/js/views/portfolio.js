@@ -1,3 +1,4 @@
+import { vaultNavigation, vaultViewSwitch, collectorTools, collectionSaveStatus, loadPinnedCollections } from '../components/collector-shell.js';
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, ratesUnavailable, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone, publicOrigin, celebrate } from '../utils.js';
 import { marketValueForCondition, computeSpreadSignals, estMark, displayValueOf } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
@@ -138,7 +139,13 @@ function repaintSetList() {
   const items = sortedPortfolioItems();
   
   if (items.length === 0) {
-    list.innerHTML = emptyVaultHTML();
+    list.innerHTML = state.portfolio?.items?.length
+      ? `<div class="collector-no-results"><p>${t('collector.noResults')}</p><button class="btn-secondary" id="clearVaultSearch">${t('collector.clearSearch')}</button></div>`
+      : emptyVaultHTML();
+    // Keep focus in search until activation: collapsing the mobile keyboard
+    // during pointerdown can move this button before pointerup arrives.
+    $('#clearVaultSearch')?.addEventListener('pointerdown', event => event.preventDefault());
+    $('#clearVaultSearch')?.addEventListener('click', () => { state.filter.q = ''; if ($('#portfolioSearch')) $('#portfolioSearch').value = ''; repaintSetList(); });
     wireEmptyVaultBrick3D();
     if (state._portfolioObserver) {
       state._portfolioObserver.disconnect();
@@ -300,7 +307,7 @@ function paintPortfolio() {
   const clipped = hist.slice(-Math.min(days + 1, hist.length));
 
   $("#root").innerHTML = `
-    <div class="page">
+    <div class="page collector-vault">
       <div class="topbar">
         <div class="brand">
           <img class="brand-mark" src="/brand-brick-transparent.png" alt="" width="36" height="36" aria-hidden="true">
@@ -322,14 +329,18 @@ function paintPortfolio() {
           <button class="icon-btn vault-overflow" id="vaultMoreBtn" aria-label="More vault actions">${I.more()}</button>
         </div>
       </div>
-      <a class="collection-entry" href="#/room">${I.grid()}<span>${t('room.enter')}</span>${I.chev()}</a>
-      <a class="collection-entry" href="#/collections">${I.grid()}<span>${t('collections.title')}</span>${I.chev()}</a>
+      <header class="collector-heading"><div><h2>${t('collector.title')}</h2><p>${isEmptyVault ? t('collector.subtitle') : tPlural('collector.owned', p.items.length)}</p></div></header>
+      ${vaultViewSwitch()}
+      ${vaultNavigation()}
+      ${collectionSaveStatus()}
+      <div id="collectorPinned"></div>
       ${isEmptyVault ? emptyVaultHTML() : `
-      <div class="search-wrap${state.filter.q ? " open" : ""}" id="searchWrap">
+      <div class="search-wrap open" id="searchWrap">
         <span class="s-icon">${I.search()}</span>
-        <input class="search-input" id="portfolioSearch" placeholder="Search your vault…" autocomplete="off" value="${escapeHtml(state.filter.q)}">
+        <input class="search-input" id="portfolioSearch" aria-label="${t('collector.search')}" placeholder="${t('collector.search')}" autocomplete="off" value="${escapeHtml(state.filter.q)}">
       </div>
 
+      <details class="collector-market"><summary>${I.chart ? I.chart() : I.info()}<span>${t('collector.insights')}</span>${I.chev()}</summary>
       <div class="card hero" data-trend="${gain > 0 ? "up" : gain < 0 ? "down" : "flat"}">
         <div class="hero-eyebrow"><span class="pulse"></span>Vault · LIVE</div>
         <div class="u-row" style="flex-wrap:wrap;column-gap:12px;">
@@ -354,7 +365,8 @@ function paintPortfolio() {
         </div>
       </div>
 
-      ${gameTeaserHTML()}
+      </details>
+      ${collectorTools()}
 
       ${p.items.length > 0 ? `
         <div class="portfolio-tabs" role="tablist" aria-label="Portfolio views">
@@ -400,6 +412,7 @@ function paintPortfolio() {
   }, 40);
   
   animateHeroValue(totalVal);
+  loadPinnedCollections();
   wireEmptyVaultBrick3D();
   // Mirror the fresh totals to the Android home-screen widget (no-op on web).
   import('../lib/native-widget.js').then(m => m.updateVaultWidget({
@@ -500,9 +513,8 @@ function paintPortfolio() {
 
   $("#searchToggle")?.addEventListener("click", () => {
     const w = $("#searchWrap");
-    w.classList.toggle("open");
-    if (w.classList.contains("open")) $("#portfolioSearch")?.focus();
-    else { state.filter.q = ""; repaintSetList(); }
+    w?.classList.add("open");
+    $("#portfolioSearch")?.focus();
   });
 
   let portfolioSearchTimer = null;
@@ -529,6 +541,7 @@ function paintPortfolio() {
       ${(state.portfolio?.items?.length) ? `<button class="sheet-action" id="vaultMoreSelect">${I.check()}<span>Select sets</span></button>` : ""}
       <a class="sheet-action" href="#/wishlist" id="vaultMoreWishlist">${I.heart()}<span>Wishlist${state.wishlist.length ? ` (${state.wishlist.length})` : ""}</span></a>
       <button class="sheet-action" id="vaultMoreAlerts">${I.bell()}<span>Alerts${alertsCount ? ` (${alertsCount})` : ""}</span></button>
+      ${gameTeaserHTML()}
     `);
     $("#vaultMoreShare")?.addEventListener("click", () => { hideSheet(); $("#portfolioShareBtn")?.click(); });
     $("#vaultMoreSelect")?.addEventListener("click", () => { hideSheet(); $("#selectToggle")?.click(); });
@@ -782,8 +795,8 @@ function emptyVaultHTML() {
           <button type="button" class="empty-vault-brick-3d-trigger" aria-label="${t('portfolio.crackVaultLabel')}">${t('portfolio.crackVault')}</button>
           <p class="empty-vault-brick-3d-status" role="status" aria-live="polite">${t('portfolio.crackVaultInstructions')}</p>
         </div>
-        <h2 style="font-family:var(--font-heading);font-weight:600;font-size:18px;margin:0;">Start Your Brick Vault</h2>
-        <p style="font-size:13px;color:var(--ink-mute);margin:0;line-height:1.4;max-width:280px;">Scan barcode boxes, search the catalog, and track your retirement values and ROI in real time.</p>
+        <h2 style="font-family:var(--font-heading);font-weight:600;font-size:18px;margin:0;">${t('collector.emptyTitle')}</h2>
+        <p style="font-size:13px;color:var(--ink-mute);margin:0;line-height:1.4;max-width:280px;">${t('collector.emptyHint')}</p>
         <a href="#/add" class="btn-primary" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--r-2);font-weight:600;margin-top:8px;text-decoration:none;">
           <span>Add your first set</span> ${I.arrowR({w:14, h:14})}
         </a>
@@ -792,45 +805,6 @@ function emptyVaultHTML() {
         </a>
       </div>
       
-      <div style="font-family:var(--mono);font-size:10px;color:var(--ink);text-transform:uppercase;letter-spacing:0.1em;margin-top:8px;padding-left:4px;" aria-hidden="true">Demo Portfolio Preview</div>
-      
-      <div class="set-list compact-list" aria-hidden="true" style="opacity:0.7;pointer-events:none;user-select:none;">
-        <div class="set-list-card compact ghost-card" style="border-left: 4px solid var(--up);">
-          <div class="sl-img"><div class="brick-tile" style="--h:210;width:100%;height:100%;border-radius:var(--r-1);"></div></div>
-          <div class="sl-body" style="flex:1;min-width:0;">
-            <div class="sl-name" style="text-align:left;">10497 Galaxy Explorer</div>
-            <div class="sl-meta" style="text-align:left;"><span>90d Trend</span><span class="stale-dot" style="display:inline-block;width:6px;height:6px;background:var(--bv-yellow);border-radius:50%;margin-left:4px;"></span></div>
-          </div>
-          <div class="sl-right-compact">
-            <div class="sl-value">$99.99</div>
-            <div class="sl-delta up">+25.4%</div>
-          </div>
-        </div>
-        
-        <div class="set-list-card compact ghost-card" style="border-left: 4px solid var(--bv-yellow);">
-          <div class="sl-img"><div class="brick-tile" style="--h:340;width:100%;height:100%;border-radius:var(--r-1);"></div></div>
-          <div class="sl-body" style="flex:1;min-width:0;">
-            <div class="sl-name" style="text-align:left;">75192 Millennium Falcon</div>
-            <div class="sl-meta" style="text-align:left;"><span>90d Trend</span></div>
-          </div>
-          <div class="sl-right-compact">
-            <div class="sl-value">$849.99</div>
-            <div class="sl-delta up">+12.1%</div>
-          </div>
-        </div>
-        
-        <div class="set-list-card compact ghost-card" style="border-left: 4px solid var(--ink-mute);">
-          <div class="sl-img"><div class="brick-tile" style="--h:45;width:100%;height:100%;border-radius:var(--r-1);"></div></div>
-          <div class="sl-body" style="flex:1;min-width:0;">
-            <div class="sl-name" style="text-align:left;">10305 Lion Knights' Castle</div>
-            <div class="sl-meta" style="text-align:left;"><span>90d Trend</span></div>
-          </div>
-          <div class="sl-right-compact">
-            <div class="sl-value">$399.99</div>
-            <div class="sl-delta up">+8.7%</div>
-          </div>
-        </div>
-      </div>
     </div>`;
 }
 

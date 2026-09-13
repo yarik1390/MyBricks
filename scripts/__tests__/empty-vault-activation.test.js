@@ -25,13 +25,14 @@ describe('empty guest Vault activation hierarchy', () => {
     assert.ok(filterRow > emptyBranch, 'sort controls must live only in the populated branch');
   });
 
-  it('orders Add, guest-safe Scan, then Demo Portfolio without Shelf Snap', () => {
+  it('orders Add before guest-safe Scan without financial demo clutter', () => {
     const template = emptyVaultTemplate();
     const add = template.indexOf('href="#/add"');
     const scan = template.indexOf('href="#/pile"');
     const demo = template.indexOf('Demo Portfolio Preview');
 
-    assert.ok(add >= 0 && scan > add && demo > scan, 'activation actions and demo must follow the intended hierarchy');
+    assert.ok(add >= 0 && scan > add, 'activation actions must follow the intended hierarchy');
+    assert.equal(demo, -1, 'the collector introduction must not present example financial holdings');
     assert.match(template, /Add your first set/);
     assert.match(template, /Scan a set/);
     assert.doesNotMatch(template, /Shelf Snap|shelfSnapBtn|photoScanNeedsSetup/);

@@ -3,7 +3,7 @@ test.use({ locale: 'de-DE' });
 test('device locale drives the UI language', async ({ page }) => {
   await page.goto('/#/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#nav .nav-tab[data-route="/"] .nav-label')).toHaveText('Tresor');
-  await expect(page.locator('#nav .nav-tab[data-route="/add"] .nav-label')).toHaveText('Katalog');
+  await expect(page.locator('#nav .nav-tab[data-route="/add"] .nav-label')).toHaveText('Entdecken');
   expect(await page.evaluate(() => document.documentElement.lang)).toBe('de');
 });
 
@@ -423,9 +423,9 @@ test.describe(() => {
 // not the same as one that reaches the screen.
 for (const [locale, code, vault, catalog] of [
   ['uk-UA', 'uk', 'Сховище', 'Каталог'],
-  ['zh-CN', 'zh', '收藏库', '目录'],
-  ['ja-JP', 'ja', 'コレクション', 'カタログ'],
-  ['hi-IN', 'hi', 'संग्रह', 'कैटलॉग'],
+  ['zh-CN', 'zh', '收藏库', '发现'],
+  ['ja-JP', 'ja', 'コレクション', '見つける'],
+  ['hi-IN', 'hi', 'संग्रह', 'खोजें'],
 ]) {
   test.describe(() => {
     test.use({ locale });

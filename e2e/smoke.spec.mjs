@@ -20,7 +20,7 @@ test('portfolio renders the collection', async ({ page }) => {
 
 test('catalog ("Find a set") renders search results', async ({ page }) => {
   await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('h1.topbar-title')).toHaveText('Find a set');
+  await expect(page.locator('h1.topbar-title')).toHaveText('Discover');
   await expect(page.locator('#catalogGrid')).toBeVisible();
   await expect(page.locator('#catalogCount')).toContainText('1 result');
 });
@@ -638,6 +638,7 @@ test('free user sees the Insights teaser instead of the toolkit', async ({ page 
 
 test('free user: 1Y range pill is locked and explains itself instead of lying', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.locator('.collector-market > summary').click();
   const pill = page.locator('#rangePills button[data-r="1Y"]');
   await expect(pill).toContainText('⭐');
   await pill.click();
@@ -778,5 +779,5 @@ test('catalog and detail show the SAME value for a blended-only set', async ({ p
 test('web share target lands as a catalog search', async ({ page }) => {
   await page.goto('/?text=75192', { waitUntil: 'domcontentloaded' });
   await expect.poll(() => page.evaluate(() => location.hash)).toContain('#/add?q=75192');
-  await expect(page.locator('h1.topbar-title')).toHaveText('Find a set');
+  await expect(page.locator('h1.topbar-title')).toHaveText('Discover');
 });

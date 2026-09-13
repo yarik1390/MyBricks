@@ -58,6 +58,7 @@ try {
 <!-- Only the ACTIVE skin is loaded — theme-init sets this href — instead of five
      render-blocking skin sheets. Placed AFTER app.css so its rules win the cascade. -->
 <link rel="stylesheet" id="bvSkin">
+<link rel="stylesheet" href="/collector.css">
 <!-- Sets the saved theme + active skin pre-paint AND loads Google Fonts
      non-render-blocking. Runs after app.css so it can target #bvSkin; still
      synchronous in <head>, so the theme is applied before first paint (no flash).
@@ -96,13 +97,13 @@ try {
     <span class="nav-icon"></span>
     <span class="nav-label">Catalog</span>
   </a>
-  <a href="#/pile" class="nav-tab scan-tab" data-route="/pile" aria-label="Scan">
+  <a href="#/pile" class="nav-tab scan-tab kids-only" data-route="/pile" aria-label="Scan">
     <div class="scan-orb"></div>
     <span class="nav-label">Scan</span>
   </a>
-  <a href="#/minifigs" class="nav-tab" data-route="/minifigs" aria-label="Minifigs">
+  <a href="#/wishlist" class="nav-tab adult-only" data-route="/wishlist" aria-label="Wishlist">
     <span class="nav-icon"></span>
-    <span class="nav-label">Minifigs</span>
+    <span class="nav-label">Wishlist</span>
   </a>
   <div class="nav-spacer" aria-hidden="true"></div>
   <a href="#/kids/badges" class="nav-tab kids-only" data-route="/kids/badges" aria-label="Badges">

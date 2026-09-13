@@ -1314,8 +1314,8 @@ describe('sanitizeMoneyInput', () => {
 describe('routeMetaFor', () => {
   it('assigns child routes to their owning bottom-nav section', async () => {
     const { routeMetaFor } = await import('../route-meta.js');
-    assert.equal(routeMetaFor('/build').nav, '/');
-    assert.equal(routeMetaFor('/wishlist').nav, '/');
+    assert.equal(routeMetaFor('/build').nav, '/add');
+    assert.equal(routeMetaFor('/wishlist').nav, '/wishlist');
     // Set detail is reachable from Vault, Catalog and Minifigs alike, so no
     // bottom-nav tab should light up there.
     assert.equal(routeMetaFor('/set/10300-1').nav, null);

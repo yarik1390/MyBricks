@@ -4,9 +4,9 @@ const ROUTES = [
   { match: (hash) => hash === "/" || hash === "", key: "vault", nav: "/", title: "Vault", fab: true },
   { match: (hash) => hash === "/add", key: "catalog", nav: "/add", title: "Catalog", fab: true },
   { match: (hash) => hash === "/pile", key: "scan", nav: "/pile", title: "Scan a set", fullscreen: true, fab: false },
-  { match: (hash) => hash === "/minifigs", key: "minifigs", nav: "/minifigs", title: "Minifigs", fab: true },
-  { match: (hash) => hash === "/build", key: "build", nav: "/", title: "Build", fab: true },
-  { match: (hash) => hash === "/wishlist", key: "wishlist", nav: "/", title: "Wishlist", fab: true },
+  { match: (hash) => hash === "/minifigs", key: "minifigs", nav: "/", title: "Minifigs", fab: true },
+  { match: (hash) => hash === "/build", key: "build", nav: "/add", title: "Build", fab: true },
+  { match: (hash) => hash === "/wishlist", key: "wishlist", nav: "/wishlist", title: "Wishlist", fab: true },
   // Price game shows real market values — like all pricing surfaces, it stays
   // out of Kids Mode (not in KIDS_ALLOWED).
   { match: (hash) => hash === "/game", key: "game", nav: "/", title: "Price It!", fab: false },

@@ -1,3 +1,4 @@
+import { collectorTools } from '../components/collector-shell.js';
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg } from '../utils.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML, investmentPricingDetailHTML, soldEvidenceHTML } from './portfolio-detail-market.js';
 import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput, themeColor, priceMovementSummary, valuationConfidencePresentation } from '../lib/pure.js';
@@ -695,6 +696,9 @@ function infoTabHTML(set, entry, isWish) {
     </div>` : '';
 
   return `
+    ${owned ? `<a class="collector-passport" href="#/set/${encodeURIComponent(set.set_num)}/manage"><span>${t('collector.passport')}</span><p>${t('collector.passportHint')}</p><strong>${t('collector.editEntry')} ${I.chev()}</strong></a>` : ''}
+    ${collectorTools()}
+    <details class="collector-market"><summary>${t('collector.money')}${I.chev()}</summary>
     ${detailSummaryHTML(set)}
     ${isSimpleMode() || isKidsMode() || !set.valuation?.read_enabled ? '' : investmentPricingHTML(set)}
     ${isSimpleMode() ? '' : `
@@ -726,6 +730,7 @@ function infoTabHTML(set, entry, isWish) {
       <div class="spark-legend" id="setSparkLegend"></div>
     </div>
 
+    </details>
     ${(bricksetHtml.trim() || setFactsHtml.trim()) ? `
       <div class="detail-card">
         <div class="detail-card-title">Details</div>
@@ -1153,7 +1158,7 @@ function manageTabHTML(set, entry) {
 
     ${isGuestMode() ? "" : `
     <div class="detail-card" id="storyCard">
-      <div class="detail-card-title">Story</div>
+      <div class="detail-card-title">${t('collector.passport')}</div><p class="collector-hint">${t('collector.passportHint')}</p>
       <div id="storyTimeline" style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--ink-mute);">Loading…</div>
       <div class="field" style="margin-top:10px;">
         <input id="storyInput" type="text" maxlength="1000" placeholder="Add a memory — a gift, a build day, a great find…">

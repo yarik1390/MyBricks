@@ -1,3 +1,4 @@
+import { discoverNavigation } from '../components/collector-shell.js';
 import { $, $$, haptic, escapeHtml, setHue, fmtMoney, trendBadgeHTML, THEME_COLORS, bvIDB, SEARCH_DEBOUNCE_MS, mount, toast, thumbImg } from '../utils.js';
 import { t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { state, invalidatePortfolio } from '../state.js';
@@ -441,16 +442,17 @@ function paintAdd() {
       <div class="topbar">
         <div class="topbar-heading">
           <div class="topbar-eyebrow">Catalog</div>
-          <h1 class="topbar-title">Find a set</h1>
+          <h1 class="topbar-title">${t('collector.discover')}</h1>
         </div>
         <div class="topbar-actions" style="margin-left:auto;">
           <button class="icon-btn" id="catalogSearchToggle" aria-label="Search" aria-expanded="${f.catalogQ ? "true" : "false"}">${I.search()}</button>
         </div>
       </div>
 
-      <div class="search-wrap${f.catalogQ ? " open" : ""}" style="margin-bottom:14px;">
+      ${discoverNavigation()}
+      <div class="search-wrap open" style="margin-bottom:14px;">
         <span class="s-icon">${I.search()}</span>
-        <input class="search-input" id="catalogSearch" name="catalog_search" type="search" aria-label="Search sets" placeholder="Search sets, themes, tags…" autocomplete="off" value="${escapeHtml(f.catalogQ)}">
+        <input class="search-input" id="catalogSearch" name="catalog_search" type="search" aria-label="Search sets" placeholder="${t('collector.catalogSearch')}" autocomplete="off" value="${escapeHtml(f.catalogQ)}">
       </div>
 
       <div class="filter-row catalog-theme-row horizontal-rail" aria-label="Popular themes">
@@ -482,7 +484,7 @@ function paintAdd() {
   $("#catalogSearchToggle")?.addEventListener("click", (e) => {
     const wrap = document.querySelector(".search-wrap");
     if (!wrap) return;
-    const open = wrap.classList.toggle("open");
+    const open = true; wrap.classList.add("open");
     e.currentTarget.setAttribute("aria-expanded", String(open));
     if (open) { $("#catalogSearch")?.focus(); }
     else if (!state.filter.catalogQ) { /* stays closed */ }

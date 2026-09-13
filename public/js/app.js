@@ -409,13 +409,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Nav labels come from the active language. The markup ships English so the
   // shell is readable before this runs (and if i18n ever fails to load).
-  const navKeys = { "/": "vault", "/add": "catalog", "/pile": "scan", "/minifigs": "minifigs", "/kids/badges": "badges", "/me": "me" };
+  const navKeys = { "/": "vault", "/add": "catalog", "/pile": "scan", "/minifigs": "minifigs", "/kids/badges": "badges", "/me": "me", "/wishlist": "wishlist" };
   const paintNavLabels = () => {
     $$("#nav .nav-tab").forEach(tab => {
       const key = navKeys[tab.dataset.route];
       if (!key) return;
       const label = tab.querySelector(".nav-label");
-      const text = translate(`nav.${key}`);
+      const collectorKey = { '/add': 'discover', '/me': 'profile', '/wishlist': 'wishlist' }[tab.dataset.route];
+      const text = collectorKey ? translate(`collector.${collectorKey}`) : translate(`nav.${key}`);
       if (label) label.textContent = text;
       tab.setAttribute("aria-label", text);
     });
@@ -424,7 +425,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   onLocaleChange(paintNavLabels);
 
   // Wire nav icons using icon library
-  const icons = { "/": I.home, "/add": I.search, "/minifigs": I.figure, "/kids/badges": I.star, "/me": I.user };
+  const icons = { "/": I.home, "/add": I.search, "/minifigs": I.figure, "/kids/badges": I.star, "/me": I.user, "/wishlist": I.heart };
   $$("#nav .nav-tab").forEach(t => {
     const r = t.dataset.route;
     const iconFn = icons[r];

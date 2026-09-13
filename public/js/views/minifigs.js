@@ -1,3 +1,4 @@
+import { vaultNavigation, discoverNavigation } from '../components/collector-shell.js';
 import { $, $$, haptic, escapeHtml, fmtMoney, toast, debounce, bvIDB, SEARCH_DEBOUNCE_MS, mount, drawSparkline, fmtDateUpdated, thumbImg, capturedMoneyContext, CURRENCY_SYMBOLS, setBtnLoading } from '../utils.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { state } from '../state.js';
@@ -112,6 +113,10 @@ function wireSeriesChips() {
 }
 
 export async function renderBlind() {
+  const requestedOwned = new URLSearchParams(location.hash.split('?')[1] || '').get('owned');
+  const requestedFilter = requestedOwned === '1' ? 'owned' : requestedOwned === '0' ? 'all' : null;
+  if (requestedFilter && state.filter.figOwned !== requestedFilter) { state.filter.figOwned = requestedFilter; state.blind.items = []; }
+
   if (!state.blind.items.length) {
     $("#root").innerHTML = skelPage(skelCardList(6));
     await loadBlind({ reset: true });
@@ -142,6 +147,7 @@ export async function renderBlind() {
         <button class="btn-secondary" id="figExportBtn">${I.download ? I.download() : ''}<span>${escapeHtml(t('minifigs.exportCsv'))}</span></button>
       </div>
 
+${location.hash.includes('owned=0') ? discoverNavigation('minifigs') : vaultNavigation('minifigs')}
       <section class="fig-collection-overview" aria-label="Minifigure collection summary">
         <div class="fig-stats-row">
           <div class="fig-stat-pill">

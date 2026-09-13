@@ -9,6 +9,26 @@
  * Keys are dotted and grouped by surface. Placeholders are {braced}.
  */
 export const en = {
+  collector: {
+    title: 'Your Vault', subtitle: 'A home for every brick.', grid: 'Grid', room: '3D Room', view: 'Collection view',
+    sets: 'Sets', minifigures: 'Minifigures', collections: 'Collections', collectionTabs: 'Your collection',
+    discover: 'Discover', profile: 'Profile', wishlist: 'Wishlist', add: 'Add',
+    addTitle: 'Add to your collection', addHint: 'Scan a box or find a set you love.',
+    scan: 'Scan a set', searchCatalog: 'Search catalog', manual: 'Enter set number', setNumber: 'Set number', findSet: 'Find set',
+    search: 'Search your collection', catalogSearch: 'Search name or set number',
+    buildIdeas: 'Build ideas', advisor: 'Ask your advisor', insights: 'Collection insights',
+    ownedOne: '{count} set in your vault', ownedOther: '{count} sets in your vault',
+    emptyTitle: 'Your collection starts here', emptyHint: 'Add your first set, then explore your collection in your own 3D room.',
+    noResults: 'No sets match your search', clearSearch: 'Clear search',
+    pin: 'Pin collection', unpin: 'Unpin collection', pinned: 'Pinned on this device',
+    preferenceFailed: 'Could not save this preference on your device.',
+    passport: 'Collection Passport', passportHint: 'The story behind your set. Photos, memories, and the day you found it.',
+    editEntry: 'Edit collection entry', viewPassport: 'Open Collection Passport',
+    owned: 'In your vault', wanted: 'On your wishlist', target: 'Your target: {price}',
+    ownershipUnknown: 'Open details to check your collection.', cachedOwnership: 'Using your last loaded collection.',
+    savePending: 'Changes waiting to sync', saveFailed: 'Some changes need attention',
+    nextScan: 'Scan another', money: 'Value and market insights',
+  },
   collections: {
     title: 'Collections & insights', back: 'Back to vault',
     description: 'Organize your sets into named lists and keep your collection records up to date.',

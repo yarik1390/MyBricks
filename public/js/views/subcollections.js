@@ -1,3 +1,6 @@
+import { vaultNavigation, setPinnedCollection } from '../components/collector-shell.js';
+import { readCollectorPreferences } from '../lib/collector-preferences.js';
+import { getSessionUserId } from '../api.js';
 import { $, escapeHtml } from '../utils.js';
 import { api, getSessionOwnerSnapshot, isGuestMode } from '../api.js';
 import { state } from '../state.js';
@@ -40,14 +43,15 @@ export async function renderSubcollections() {
       <p>${escapeHtml(tPlural('collections.progress', progress.total, { owned: progress.owned, total: progress.total }))}${progress.complete ? ` · ${t('collections.completed')}` : ''}</p>
       <progress max="${progress.total || 1}" value="${progress.owned}" aria-label="${escapeHtml(tPlural('collections.progress', progress.total, { owned: progress.owned, total: progress.total }))}"></progress>
       ${!progress.total ? `<p>${t('collections.noTargets')}</p>` : `<details><summary>${t('collections.showSets')}</summary>${list.set_nums.map(num => `<a class="collection-set-link" href="#/set/${encodeURIComponent(num)}"><span>${escapeHtml(names.get(num) || num)}</span><small>${progress.missing.includes(num) ? t('collections.wanted') : t('collections.owned')}</small></a>`).join('')}</details>`}
-      <div class="collection-actions"><button class="btn-secondary" data-edit="${escapeHtml(list.id)}">${t('common.edit')}</button></div>
+      <div class="collection-actions"><button class="btn-secondary" data-pin="${escapeHtml(list.id)}" aria-pressed="${readCollectorPreferences(getSessionUserId()).pins.includes(list.id)}">${t(readCollectorPreferences(getSessionUserId()).pins.includes(list.id) ? 'collector.unpin' : 'collector.pin')}</button><button class="btn-secondary" data-edit="${escapeHtml(list.id)}">${t('common.edit')}</button></div>
     </article>`;
   };
   function paint() {
     if (!current()) return;
     $('#root').innerHTML = `<main class="page collections-page" id="subcollectionsPage">
       <a class="collection-back" href="#/">${t('collections.back')}</a>
-      <h1>${t('collections.title')}</h1><p>${t('collections.description')}</p>
+      ${vaultNavigation('collections')}
+      <h1>${t('collector.collections')}</h1><p>${t('collections.description')}</p>
       ${!holdingsFresh ? `<p role="status" class="collection-notice">${t('collections.stale')}</p>` : ''}
       ${state.pendingCollectionOperationList?.length ? `<p role="status" class="collection-notice">${t('collections.pending')}</p>` : ''}
       <section class="card collection-card" aria-labelledby="collectorInsightsTitle">
@@ -69,6 +73,9 @@ export async function renderSubcollections() {
       <div id="collectionEditor"></div>
       <div id="collectionLists">${lists === null ? `<p role="alert">${t('collections.failed')}</p><button class="btn-secondary" id="collectionRetry">${t('collections.retry')}</button>` : lists.length ? lists.map(listHTML).join('') : `<p>${t('collections.empty')}</p>`}</div>
     </main>`;
+    document.querySelectorAll('[data-pin]').forEach(button => button.addEventListener('click', () => {
+      if (setPinnedCollection(button.dataset.pin, button.getAttribute('aria-pressed') !== 'true')) paint();
+    }));
     $('#collectionCreate').addEventListener('click', () => { if (!busy()) edit(null); });
     $('#collectionRetry')?.addEventListener('click', () => renderSubcollections());
     document.querySelectorAll('[data-edit]').forEach(button => button.addEventListener('click', () => {

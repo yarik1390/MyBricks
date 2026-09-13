@@ -28,9 +28,9 @@ test('Vault enters fullscreen directly; walking, mouse looking, collision and ex
   page.on('request', req => requests.push(new URL(req.url()).pathname));
   await stubRoom(page);
   await page.goto('/#/');
-  await expect(page.getByRole('link', { name: 'Enter collection room' })).toBeVisible();
+  await expect(page.getByRole('link', { name: '3D Room', exact: true })).toBeVisible();
   expect(requests.some(p => /collection-room-scene|three-0/.test(p))).toBe(false);
-  await page.getByRole('link', { name: 'Enter collection room' }).click();
+  await page.getByRole('link', { name: '3D Room', exact: true }).click();
   await ready(page);
   await expect(page.locator('#nav')).toBeHidden();
   const before = await pose(page);
@@ -58,7 +58,7 @@ test('Vault enters fullscreen directly; walking, mouse looking, collision and ex
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await page.locator('#roomReset').click();
   await page.screenshot({ path: 'audit/showroom-desktop.png' });
-  await page.getByRole('link', { name: 'Exit room' }).click();
+  await page.getByRole('link', { name: 'Grid', exact: true }).click();
   await expect(page.locator('#roomStage')).toHaveCount(0);
   await expect(page.locator('#nav')).toBeVisible();
 });
@@ -168,8 +168,8 @@ test('mobile joystick and look accept simultaneous touches without scrolling', a
   expect(await pose(page)).toEqual(after);
   expect(await page.evaluate(() => scrollY === 0 && document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   // Enter from the Vault so an accidental edge-swipe has a real route to exit to.
-  await page.getByRole('link', { name: 'Exit room' }).click();
-  await page.getByRole('link', { name: 'Enter collection room' }).click();
+  await page.getByRole('link', { name: 'Grid', exact: true }).click();
+  await page.getByRole('link', { name: '3D Room', exact: true }).click();
   await ready(page);
   const beforeEdgeLook = await pose(page);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 24, y: 420, id: 1 }] });
@@ -181,7 +181,7 @@ test('mobile joystick and look accept simultaneous touches without scrolling', a
   await page.screenshot({ path: 'audit/showroom-mobile.png' });
   await page.setViewportSize({ width: 844, height: 390 });
   await expect(page.locator('#roomJoystick')).toBeVisible();
-  await page.getByRole('link', { name: 'Exit room' }).click();
+  await page.getByRole('link', { name: 'Grid', exact: true }).click();
   await expect(page).toHaveURL(/#\/$/);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`http://localhost:${process.env.PORT || 4321}/#/add`);
@@ -254,10 +254,10 @@ test('empty showroom remains enterable and cached holdings are labelled after re
   await ready(page);
   await expect(page.locator('#roomStatus')).toContainText('Add sets');
   await walk(page, 'w');
-  await page.getByRole('link', { name: 'Exit room' }).click();
+  await page.getByRole('link', { name: 'Grid', exact: true }).click();
   await page.evaluate(async rows => { const { state } = await import('/js/state.js'); state.portfolio = { items: rows }; }, holdings);
   await page.route('**/api/collection', route => route.fulfill({ status: 503, json: { error: 'offline' } }));
-  await page.getByRole('link', { name: 'Enter collection room' }).click();
+  await page.getByRole('link', { name: '3D Room', exact: true }).click();
   await ready(page);
   await expect(page.locator('.showroom-notices p')).toHaveCount(2);
   await page.locator('#roomList').click();

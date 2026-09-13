@@ -1,3 +1,4 @@
+import { syncCollectorChrome, rememberCollectorScroll, restoreCollectorScroll } from './components/collector-shell.js';
 import { $, $$, prefersReducedMotion, advisorEnabled, track } from './utils.js';
 import { state } from './state.js';
 import { api } from './api.js';
@@ -31,6 +32,7 @@ export async function route() {
 }
 
 async function _routeImpl() {
+  rememberCollectorScroll();
   hideSheet();
   closeScan();
   cancelActiveStream();
@@ -39,6 +41,7 @@ async function _routeImpl() {
   let hash = (location.hash.replace("#", "") || "/").split("?")[0];
   if (hash === "/blind") { location.hash = "#/minifigs"; return; }
   const meta = routeMetaFor(hash);
+  if (meta.key === 'minifigs' && new URLSearchParams(location.hash.split('?')[1] || '').get('owned') === '0') meta.nav = '/add';
   document.body.dataset.route = meta.key;
   $("#advisorDrawer")?.classList.remove("open");
   document.body.classList.remove("advisor-open");
@@ -53,6 +56,8 @@ async function _routeImpl() {
   $$("#nav .nav-tab").forEach(t => {
     t.classList.toggle("active", t.dataset.route === meta.nav);
   });
+
+  syncCollectorChrome(meta);
 
   // Login is optional; guests can use the app with local-only data.
   if (hash === "/login") {
@@ -163,7 +168,8 @@ async function _routeImpl() {
   // that renders with the nav visible must restore it.
   if (!location.hash.startsWith("#/login")) document.body.classList.remove("nav-hidden");
   track("route_view", routeMetaFor(hash).key, 0.1);
-  window.scrollTo({ top: 0, behavior: "instant" });
+  syncCollectorChrome(meta);
+  restoreCollectorScroll(hash);
 }
 
 // Navigate + render deterministically. Unlike assigning `location.hash`

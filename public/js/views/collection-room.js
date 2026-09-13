@@ -1,3 +1,4 @@
+import { vaultViewSwitch } from '../components/collector-shell.js';
 import { $, escapeHtml, thumbImg } from '../utils.js';
 import { api, getSessionOwnerSnapshot } from '../api.js';
 import { state } from '../state.js';
@@ -55,7 +56,7 @@ export async function renderCollectionRoom() {
   const initialPose = rememberedPose?.owner.userId === owner.userId && rememberedPose.owner.generation === owner.generation ? rememberedPose.pose : undefined;
   $('#root').innerHTML = `<main id="collectionRoomPage" class="showroom" aria-label="${escapeHtml(t('room.title'))}">
     <div id="roomStage" class="showroom-stage" tabindex="0" aria-label="${escapeHtml(t('room.walkInstructions'))}" data-room-state="loading"></div>
-    <header class="showroom-bar"><a href="#/" class="showroom-exit">${t('room.exit')}</a><div class="showroom-heading"><h1>${t('room.title')}</h1><span>${escapeHtml(tPlural('room.count', catalog.length, { count: catalog.length }))}</span></div>
+    <header class="showroom-bar">${vaultViewSwitch('room')}<div class="showroom-heading"><h1>${t('room.title')}</h1><span>${escapeHtml(tPlural('room.count', catalog.length, { count: catalog.length }))}</span></div>
       <button type="button" id="roomFind">${t('room.find')}</button><button type="button" id="roomList">${t('room.accessibleList')}</button></header>
     <div class="showroom-notices"><p id="roomStatus" role="status" aria-live="polite">${t('room.loading')}</p>${stale ? `<p>${t('collections.stale')}</p>` : ''}${state.pendingCollectionOperationList?.length ? `<p>${t('collections.pending')}</p>` : ''}</div>
     <div class="showroom-crosshair" aria-hidden="true"></div>
@@ -96,6 +97,7 @@ export async function renderCollectionRoom() {
     const themes = [...new Set(catalog.map(item => item.theme))];
     modal(`<h2 id="roomSheetTitle">${t(find ? 'room.find' : 'room.accessibleList')}</h2><label for="roomSearch">${t('room.search')}</label><input class="input" id="roomSearch" type="search" autocomplete="off"><label for="roomTheme">${t('room.theme')}</label><select id="roomTheme"><option value="all">${t('room.allThemes')}</option>${themes.map((theme, index) => `<option value="${index}">${escapeHtml(theme || t('room.otherTheme'))}</option>`).join('')}</select><p id="roomResults" role="status"></p><ul class="showroom-results" id="roomSetList"></ul><button class="btn-secondary" id="roomMore">${t('room.more')}</button>`, $(find ? '#roomFind' : '#roomList'));
     let limit = 40;
+    $('#roomSearch').value = state.filter.q || '';
     function filter() {
       const query = $('#roomSearch').value.trim().toLocaleLowerCase();
       const selected = $('#roomTheme').value;
@@ -112,7 +114,7 @@ export async function renderCollectionRoom() {
         } else details(button.dataset.roomSet);
       }));
     }
-    $('#roomSearch').addEventListener('input', () => { limit = 40; filter(); });
+    $('#roomSearch').addEventListener('input', () => { state.filter.q = $('#roomSearch').value; limit = 40; filter(); });
     $('#roomTheme').addEventListener('change', () => { limit = 40; filter(); });
     $('#roomMore').addEventListener('click', () => { limit += 40; filter(); });
     filter();

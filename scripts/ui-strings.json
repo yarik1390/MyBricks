@@ -78,18 +78,6 @@
     ]
   },
   {
-    "text": "10305 Lion Knights' Castle",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "10497 Galaxy Explorer",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "2-year forecast",
     "files": [
       "views/portfolio-detail-market.js"
@@ -147,18 +135,6 @@
     "text": "71043-1 or UPC",
     "files": [
       "views/catalog.js"
-    ]
-  },
-  {
-    "text": "75192 Millennium Falcon",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "90d Trend",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -2889,12 +2865,6 @@
     ]
   },
   {
-    "text": "Demo Portfolio Preview",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Descending",
     "files": [
       "views/catalog.js"
@@ -3718,12 +3688,6 @@
     "text": "Filters",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Find a set",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -5687,7 +5651,6 @@
     "text": "Minifigs",
     "files": [
       "components/onboarding.js",
-      "index.html",
       "route-meta.js",
       "views/minifigs.js"
     ]
@@ -8799,12 +8762,6 @@
     ]
   },
   {
-    "text": "Scan barcode boxes, search the catalog, and track your retirement values and ROI in real time.",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Scan method",
     "files": [
       "views/catalog.js"
@@ -8935,12 +8892,6 @@
     ]
   },
   {
-    "text": "Search sets, themes, tags…",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Search themes…",
     "files": [
       "views/catalog.js"
@@ -8949,8 +8900,7 @@
   {
     "text": "Search your vault…",
     "files": [
-      "views/me.js",
-      "views/portfolio.js"
+      "views/me.js"
     ]
   },
   {
@@ -9835,12 +9785,6 @@
     ]
   },
   {
-    "text": "Start Your Brick Vault",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Start a safe batch from Pricing → Populate & Batch, or use Run now below for one process. Live progress appears here.",
     "files": [
       "views/me-admin.js"
@@ -9928,12 +9872,6 @@
     "text": "Store unavailable — try again",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Story",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -11498,6 +11436,7 @@
   {
     "text": "Wishlist",
     "files": [
+      "index.html",
       "route-meta.js",
       "views/portfolio-detail.js",
       "views/portfolio-wishlist.js",
@@ -12121,6 +12060,12 @@
     "text": "quantity must be an integer from 1 to 9999",
     "files": [
       "lib/minifig-holding.js"
+    ]
+  },
+  {
+    "text": "required autocomplete=",
+    "files": [
+      "components/collector-shell.js"
     ]
   },
   {
