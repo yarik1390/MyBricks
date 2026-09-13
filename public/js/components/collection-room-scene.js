@@ -66,7 +66,9 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   scene.fog = new THREE.Fog(0x2a211b, 22, 42);
   const camera = new THREE.PerspectiveCamera(58, 1, 0.08, 46);
   const raycaster = new THREE.Raycaster();
-  raycaster.far = 14;
+  // Keep boxes selectable from the aisle and from the room entrance. The
+  // visible card remains the target; this only avoids forcing a close approach.
+  raycaster.far = 30;
   const abort = new AbortController();
   const residentBoxes = new Map();
   const residentSegments = new Map();
@@ -408,9 +410,15 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     const bounds = canvas.getBoundingClientRect();
     const x = center ? 0 : ((clientX - bounds.left) / Math.max(1, bounds.width)) * 2 - 1;
     const y = center ? 0 : -((clientY - bounds.top) / Math.max(1, bounds.height)) * 2 + 1;
-    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
-    const hit = raycaster.intersectObjects([...pickTargets], false)[0];
-    if (hit?.object.userData.setNum) onSelect(hit.object.userData.setNum);
+    const targets = [...pickTargets];
+    const aimOffsets = center ? [[0, 0]] : [[0, 0], [-0.018, 0], [0.018, 0], [0, -0.018], [0, 0.018]];
+    let selected = null;
+    for (const [offsetX, offsetY] of aimOffsets) {
+      raycaster.setFromCamera(new THREE.Vector2(x + offsetX, y + offsetY), camera);
+      const hit = raycaster.intersectObjects(targets, false).find(entry => entry.object.userData.setNum);
+      if (hit && (!selected || hit.distance < selected.distance)) selected = hit;
+    }
+    if (selected?.object.userData.setNum) onSelect(selected.object.userData.setNum);
   }
 
   function updateJoystick(event) {
