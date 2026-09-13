@@ -158,7 +158,7 @@ export async function renderCollectionRoom() {
     stage.dataset.roomState = 'ready';
     status.textContent = catalog.length ? t('room.walkHint') : t('room.empty');
     if (!roomSheet) stage.focus({ preventScroll: true });
-  } catch (error) {
+  } catch {
     unavailable();
   }
 }
