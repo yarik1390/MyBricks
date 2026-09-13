@@ -519,11 +519,25 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     document.addEventListener('mousemove', event => {
       if (document.pointerLockElement === canvas && active()) look(event.movementX, event.movementY);
     }, { signal: abort.signal });
-    document.addEventListener('click', event => {
+    // Locked mouse input is completed at mouseup. Chromium on Linux may
+    // retarget the later click to an overlay after the detail sheet unlocks
+    // the cursor, so consume that trailing click before it reaches controls.
+    let consumedLockedRelease = false;
+    document.addEventListener('mouseup', event => {
       if (document.pointerLockElement !== canvas || event.button !== 0) return;
       event.preventDefault();
       event.stopImmediatePropagation();
+      consumedLockedRelease = true;
+      requestAnimationFrame(() => { consumedLockedRelease = false; });
       pick(0, 0, true);
+    }, { capture: true, signal: abort.signal });
+    document.addEventListener('click', event => {
+      if (event.button !== 0 || (!consumedLockedRelease && document.pointerLockElement !== canvas)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      // Do not select twice on platforms that send both mouseup and click.
+      if (!consumedLockedRelease) pick(0, 0, true);
+      consumedLockedRelease = false;
     }, { capture: true, signal: abort.signal });
     canvas.addEventListener('pointerdown', event => {
       if (!active() || drag || event.button !== 0 || document.pointerLockElement === canvas) return;

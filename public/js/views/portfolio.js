@@ -412,6 +412,9 @@ function paintPortfolio() {
   }, 40);
   
   animateHeroValue(totalVal);
+  $('.collector-market')?.addEventListener('toggle', event => {
+    if (event.currentTarget.open) { animateHeroValue(totalVal); drawHeroChart(clipped); }
+  });
   loadPinnedCollections();
   wireEmptyVaultBrick3D();
   // Mirror the fresh totals to the Android home-screen widget (no-op on web).
@@ -519,11 +522,12 @@ function paintPortfolio() {
 
   let portfolioSearchTimer = null;
   $("#portfolioSearch")?.addEventListener("input", (e) => {
-    const q = e.target.value;
+    const input = e.target;
+    state.filter.q = input.value;
     showSearchSpinner("#searchWrap", true);
     clearTimeout(portfolioSearchTimer);
     portfolioSearchTimer = setTimeout(() => {
-      state.filter.q = q;
+      if (!input.isConnected) return;
       repaintSetList();
       showSearchSpinner("#searchWrap", false);
     }, SEARCH_DEBOUNCE_MS);
@@ -653,6 +657,11 @@ function animateHeroValue(target) {
   // interpolate. Screen readers should not announce dozens of frame updates.
   el.setAttribute("aria-label", fmtMoney(target));
   el.setAttribute("aria-live", "off");
+  if (el.closest('details') && !el.closest('details').open) {
+    el.style.removeProperty('min-width');
+    el.innerHTML = heroValueHTML(target);
+    return;
+  }
   if (prefersReducedMotion()) { el.style.removeProperty("min-width"); el.innerHTML = heroValueHTML(target); _lastHeroValue = target; return; }
   // The template initially contains the final value. Preserve that exact width
   // while counting from the previous total so the neighbouring delta pill

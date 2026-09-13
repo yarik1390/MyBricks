@@ -50,6 +50,7 @@ test('Vault hero value animation pins its final width until interpolation finish
   await page.evaluate(() => { location.hash = '#/'; });
 
   const value = page.locator('#heroValue');
+  await page.locator('.collector-market > summary').click();
   await expect(value).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__vaultAnimationFrames?.length ?? 0)).toBeGreaterThan(1);
   const samples = await page.evaluate(() => window.__vaultAnimationFrames.filter(({ fontsLoaded }) => fontsLoaded));

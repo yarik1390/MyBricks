@@ -27,7 +27,7 @@ async function stubLists(page, rows = []) {
 test('named lists save, deduplicate, link missing records, export, retain failed drafts, and delete only the list', async ({ page }) => {
   const server = await stubLists(page);
   await page.goto('/#/');
-  await page.getByRole('link', { name: 'Collections & insights' }).click();
+  await page.getByRole('link', { name: 'Collections', exact: true }).click();
   await expect(page.getByText('Missing purchase cost: 1', { exact: true })).toBeVisible();
   await page.getByText('Missing purchase cost: 1', { exact: true }).click();
   await expect(page.locator('.collection-insights a').first()).toHaveAttribute('href', '#/set/456-1');

@@ -213,6 +213,7 @@ test('set detail renders with the action bar', async ({ page }) => {
   }));
   await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
   await expect(page.getByText('Millennium Falcon').first()).toBeVisible();
+  await page.locator('.collector-market > summary').click();
   await expect(page.locator('#setMovementSummary')).toBeVisible();
   await expect(page.locator('#setMovementSummary')).toHaveText('Up 21% over 90 days · resale comps also rose');
   await expect(page.locator('#wishToggle')).toBeVisible();
@@ -251,6 +252,7 @@ test('optimized collector pages keep mobile hierarchy and accessible controls', 
 
 test('pricing details opens as a bottom sheet and keeps the set page mounted', async ({ page }) => {
   await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
+  await page.locator('.collector-market > summary').click();
   await page.locator('#pricingDetailsBtn').click();
   await expect(page.locator('#sheet')).toHaveClass(/show/);
   await expect(page.locator('#pricingDetailsSheetTitle')).toHaveText('Pricing details');
@@ -359,7 +361,7 @@ test('Pixel-sized set detail ends close to the action bar and frames the photo i
   expect(layout.heroColMarginTop).toBe('0px');
 });
 
-test('Pixel-sized vault card reserves enough room for a four-digit price', async ({ page, stub }) => {
+test('Pixel-sized vault shows an uncluttered gallery and readable compact prices', async ({ page, stub }) => {
   await page.setViewportSize({ width: 412, height: 915 });
   const item = {
     id: 7, quantity: 1, purchase_price: 4121.46, ...stub.SET,
@@ -373,7 +375,9 @@ test('Pixel-sized vault card reserves enough room for a four-digit price', async
   }));
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-  const layout = await page.locator('.set-list-card:not(.compact)').first().evaluate((card) => {
+  await expect(page.locator('.set-list-card:not(.compact) .sl-right')).toBeHidden();
+  await page.locator('#layoutToggle').click();
+  const layout = await page.locator('.set-list-card.compact').first().evaluate((card) => {
     const name = card.querySelector('.sl-name').getBoundingClientRect();
     const value = card.querySelector('.sl-value');
     const valueRect = value.getBoundingClientRect();
@@ -412,6 +416,7 @@ test('Pixel-sized long set title and pricing sheet remain readable', async ({ pa
   const title = page.locator('.detail-title');
   await expect(title).toHaveClass(/is-very-long/);
   expect(await title.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  await page.locator('.collector-market > summary').click();
   await page.locator('#pricingDetailsBtn').click();
   const cards = page.locator('.pricing-condition-card');
   // Investment pricing + sold evidence + market confidence. The stub's empty
@@ -457,6 +462,7 @@ test('upcoming sets show announced retail instead of stale market estimates', as
   await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.detail-summary-facts')).toContainText('Retail $299.99');
   await expect(page.locator('.detail-summary-facts')).not.toContainText('Retail $849.99');
+  await page.locator('.collector-market > summary').click();
   await page.locator('#pricingDetailsBtn').click();
 
   const sheet = page.locator('.pricing-details-sheet-body');

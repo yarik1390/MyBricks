@@ -143,6 +143,7 @@ body:not(.collector-ui) #nav .adult-only { display: none; }
 .collector-ui .showroom-bar .vault-view-switch a[aria-current] { background: #d7e8dd; color: #16241b; }
 .collector-ui .showroom-bar { flex-wrap: wrap; gap: 8px; }
 .collector-ui .scan-cond-opt { color: var(--ink) !important; }
+.collector-ui .scan-video-wrap { --scan-top-ctl: 58px; }
 .collector-store-status { font-size: 12px; line-height: 1.5; color: var(--ink-mute); margin-top: 6px; }
 .collector-ui .sw-update-toast { bottom: calc(var(--bottom-nav-clear) + 90px); max-width: calc(100vw - 32px); border-radius: 18px; }
 @media (min-width: 700px) {
