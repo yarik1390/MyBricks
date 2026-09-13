@@ -178,6 +178,17 @@ export const TABLE_DDL: Record<string, string> = {
   PRIMARY KEY (set_num, market, observed_at)
 )`,
 
+  ebay_sold_observations: `CREATE TABLE IF NOT EXISTS ebay_sold_observations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, set_num TEXT NOT NULL,
+  engine TEXT NOT NULL CHECK(engine IN ('firecrawl','apify')), observed_at TEXT NOT NULL,
+  condition TEXT NOT NULL CHECK(condition IN ('new_sealed','used_complete','unknown')),
+  source_url TEXT, item_id TEXT, title TEXT, price_usd REAL, sold_date TEXT,
+  reference_value REAL, reference_provenance TEXT NOT NULL,
+  reference_freshness TEXT NOT NULL CHECK(reference_freshness IN ('fresh','stale','missing')),
+  decision TEXT NOT NULL CHECK(decision IN ('accepted','rejected','review_needed','no_data','error')),
+  rejection_reason TEXT
+)`,
+
   pricing_anomalies: `CREATE TABLE IF NOT EXISTS pricing_anomalies (
   anomaly_key TEXT PRIMARY KEY, set_num TEXT, condition TEXT, source TEXT,
   anomaly_type TEXT NOT NULL, severity TEXT NOT NULL DEFAULT 'warning', detail_json TEXT,

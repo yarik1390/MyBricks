@@ -34,6 +34,16 @@ describe('fetchEbaySoldViaFirecrawl', () => {
       used_count: 3,
       used_last_sold: '2026-07-17',
     });
+    expect(result.observed_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(result.evidence).toHaveLength(6);
+    expect(result.evidence?.[0]).toMatchObject({
+      source_url: null,
+      item_id: null,
+      title: 'LEGO 75192 Millennium Falcon new sealed',
+      price_usd: 800,
+      condition: 'new_sealed',
+      sold_date: '2026-07-18',
+    });
     expect(mockScrape.mock.calls[0][0].url).not.toContain('LH_ItemCondition');
   });
 

@@ -2,6 +2,7 @@ import type { Env } from '../types';
 import { fetchWithRetry } from './http';
 import { isValidLegoSetSaleTitle, summarizeSoldPrices } from './ebay';
 import type { EbaySoldScrapeResult } from './ebay-firecrawl';
+import { boundedEvidence, type EbaySoldListingEvidence } from './ebay-sold-observations';
 
 const APIFY_BASE = 'https://api.apify.com/v2';
 const ACTOR_ID = 'memo23~ebay-search-scraper-ppe';
@@ -20,6 +21,9 @@ interface ApifyRunData {
 
 interface ApifyListingRow {
   type?: string;
+  itemId?: string;
+  itemUrl?: string;
+  url?: string;
   title?: string;
   priceValue?: number | string;
   currency?: string;
@@ -96,7 +100,7 @@ async function pollRun(runId: string, headers: HeadersInit): Promise<ApifyRunDat
 }
 
 /**
- * Fetch a migration-free, corroborating batch of new-condition eBay sold comps.
+ * Fetch a bounded, auditable batch of new-condition eBay sold comps.
  * One Apify actor run carries one condition-filtered eBay search chain per set.
  */
 export async function fetchEbaySoldViaApifyBatch(
@@ -175,25 +179,40 @@ export async function fetchEbaySoldViaApifyBatch(
     }
 
     const chainSet = new Map(uniqueSetNums.map((setNum) => [setNum, [] as Array<{ price: number; soldDate: string | null }>]));
+    const chainEvidence = new Map(uniqueSetNums.map((setNum) => [setNum, [] as EbaySoldListingEvidence[]]));
     let listingIndex = 0;
     for (const summary of summaries) {
       const count = Math.min(Math.max(summary.count, 0), listingRows.length - listingIndex);
       for (let i = 0; i < count; i++) {
         const listing = listingRows[listingIndex + i];
-        if (typeof listing?.title !== 'string') continue;
-        if (listing.sold === false || String(listing.currency || 'USD').toUpperCase() !== 'USD') continue;
-        const price = Number(listing.priceValue);
-        if (!Number.isFinite(price) || price <= 0) continue;
-        if (isValidLegoSetSaleTitle(listing.title, summary.setNum)) {
-          chainSet.get(summary.setNum)?.push({ price, soldDate: normalizeSoldDate(listing.soldDate) });
+        const price = Number(listing?.priceValue);
+        const validPrice = Number.isFinite(price) && price > 0;
+        const validTitle = typeof listing?.title === 'string' && isValidLegoSetSaleTitle(listing.title, summary.setNum);
+        const sold = listing?.sold !== false;
+        const usd = String(listing?.currency || 'USD').toUpperCase() === 'USD';
+        const soldDate = normalizeSoldDate(listing?.soldDate);
+        chainEvidence.get(summary.setNum)?.push({
+          source_url: typeof listing?.itemUrl === 'string' ? listing.itemUrl : typeof listing?.url === 'string' ? listing.url : null,
+          item_id: typeof listing?.itemId === 'string' ? listing.itemId : null,
+          title: typeof listing?.title === 'string' ? listing.title : null,
+          price_usd: validPrice && usd ? price : null,
+          condition: 'new_sealed',
+          sold_date: soldDate,
+          rejection_reason: !listing?.title || !validPrice ? 'missing_title_or_price'
+            : !sold ? 'not_sold' : !usd ? 'non_usd' : !validTitle ? 'title_mismatch' : null,
+        });
+        if (sold && usd && validPrice && validTitle) {
+          chainSet.get(summary.setNum)?.push({ price, soldDate });
         }
       }
       listingIndex += count;
     }
 
     const output: Record<string, EbaySoldScrapeResult> = {};
+    const observedAt = new Date().toISOString();
     for (const setNum of uniqueSetNums) {
       const setMatches = chainSet.get(setNum) || [];
+      const evidence = boundedEvidence(chainEvidence.get(setNum) || []);
       const summary = summarizeSoldPrices(setMatches.map((match) => match.price));
       const dates = setMatches.map((match) => match.soldDate).filter((date): date is string => !!date);
       if (summary.value == null) {
@@ -201,6 +220,8 @@ export async function fetchEbaySoldViaApifyBatch(
           ...emptyResult('no_data'),
           new_count: summary.sample_count,
           new_last_sold: dates.length ? dates.reduce((a, b) => (a > b ? a : b)) : null,
+          observed_at: observedAt,
+          evidence,
         };
       } else {
         output[setNum] = {
@@ -211,6 +232,8 @@ export async function fetchEbaySoldViaApifyBatch(
           used_value: null,
           used_count: 0,
           used_last_sold: null,
+          observed_at: observedAt,
+          evidence,
         };
       }
     }

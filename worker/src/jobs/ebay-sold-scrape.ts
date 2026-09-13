@@ -6,6 +6,15 @@ import { quotaRemaining } from '../lib/api-quota';
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { recordPricingWrites } from '../lib/pricing-budget';
 import { ebaySoldLaneEnabled, sourceEnabled } from '../lib/source-config';
+import {
+  assessSoldObservation,
+  observationStatements,
+  pruneObservationStatement,
+  selectEbaySoldReference,
+  type EbaySoldAssessment,
+  type EbaySoldCondition,
+  type EbaySoldReference,
+} from '../lib/ebay-sold-observations';
 
 /**
  * Corroborating-only eBay-sold scrape (Firecrawl).
@@ -86,7 +95,9 @@ export async function runEbaySoldScrape(
   // column. This lets one scrape fill the much broader used market without an
   // absent condition masquerading as fresh evidence.
   const { results: candidates } = await env.DB.prepare(`
-    SELECT ls.set_num, ls.name, ls.bl_new_value, ls.used_value, ls.current_value,
+    SELECT ls.set_num, ls.name, ls.bl_new_value, ls.bl_used_qty, ls.used_value,
+      ls.be_value_new, ls.be_value_used, ls.bl_cached_at, ls.be_cached_at,
+      ls.current_value, ls.cached_at, ls.valuation_method,
       CASE WHEN (ls.ebay_new_cached_at IS NULL OR ls.ebay_new_cached_at < datetime('now', '-30 days'))
         AND (ext.ebay_sold_attempted_at IS NULL OR ext.ebay_sold_attempted_at < datetime('now', '-14 days'))
         THEN 1 ELSE 0 END AS new_due,
@@ -120,8 +131,15 @@ export async function runEbaySoldScrape(
     set_num: string;
     name: string;
     bl_new_value: number | null;
+    bl_used_qty: number | null;
     used_value: number | null;
+    be_value_new: number | null;
+    be_value_used: number | null;
+    bl_cached_at: string | null;
+    be_cached_at: string | null;
     current_value: number | null;
+    cached_at: string | null;
+    valuation_method: string | null;
     new_due: number;
     used_due: number;
   }>();
@@ -186,7 +204,12 @@ export async function runEbaySoldScrape(
     for (const { set, r } of outs) {
       processed++;
 
-      const addAnomaly = (condition: 'new_sealed' | 'used_complete', observed: number, reference: number | null) => {
+      const addAnomaly = (
+        condition: 'new_sealed' | 'used_complete',
+        observed: number,
+        reference: EbaySoldReference,
+        assessment: EbaySoldAssessment,
+      ) => {
         const key = condition === 'new_sealed'
           ? `ebay_sold:${set.set_num}:value_divergence`
           : `ebay_sold_used:${set.set_num}:value_divergence`;
@@ -194,42 +217,72 @@ export async function runEbaySoldScrape(
           INSERT INTO pricing_anomalies (
             anomaly_key, set_num, condition, source, anomaly_type, severity,
             detail_json, status, first_seen_at, last_seen_at
-          ) VALUES (?1, ?2, ?3, 'ebay_sold', 'value_divergence', 'warning', ?4, 'open', datetime('now'), datetime('now'))
+          ) VALUES (?1, ?2, ?3, 'ebay_sold', ?4, 'warning', ?5, 'open', datetime('now'), datetime('now'))
           ON CONFLICT(anomaly_key) DO UPDATE SET
             detail_json=excluded.detail_json, status='open', last_seen_at=datetime('now'), resolved_at=NULL
-        `).bind(key, set.set_num, condition, JSON.stringify({ observed, reference })));
+        `).bind(
+          key, set.set_num, condition,
+          assessment.decision === 'review_needed' ? 'reference_review' : 'value_divergence',
+          JSON.stringify({
+            observed,
+            reference: reference.value,
+            reference_provenance: reference.provenance,
+            reference_freshness: reference.freshness,
+            decision: assessment.decision,
+            rejection_reason: assessment.rejectionReason,
+            engine: 'firecrawl',
+          }),
+        ));
+      };
+
+      const recordCondition = (
+        condition: Exclude<EbaySoldCondition, 'unknown'>,
+        observed: number | null,
+        assessment: EbaySoldAssessment,
+        reference: EbaySoldReference,
+      ) => {
+        stmts.push(...observationStatements(env.DB, {
+          setNum: set.set_num,
+          engine: 'firecrawl',
+          observedAt: r.observed_at || new Date().toISOString(),
+          evidence: (r.evidence || []).filter((row) =>
+            row.condition === condition || (row.condition === 'unknown' && (condition === 'new_sealed' || !set.new_due)),
+          ),
+          condition,
+          assessment,
+          reference,
+        }));
+        if (observed != null && assessment.decision !== 'accepted') addAnomaly(condition, observed, reference, assessment);
       };
 
       let acceptedNew: number | null = null;
       let acceptedUsed: number | null = null;
       if (set.new_due) {
-        if (r.new_value != null) {
-          const ref = set.bl_new_value ?? set.current_value ?? null;
-          if (ref == null || (r.new_value >= ref / 3 && r.new_value <= ref * 3)) {
-            acceptedNew = r.new_value;
-            newUpdated++;
-          } else {
-            rejected++;
-            stampNewAttempt(set.set_num);
-            addAnomaly('new_sealed', r.new_value, ref);
-          }
+        const reference = selectEbaySoldReference(set as unknown as Record<string, unknown>, 'new_sealed');
+        const assessment: EbaySoldAssessment = r.new_value != null
+          ? assessSoldObservation(r.new_value, reference)
+          : { decision: r.status === 'error' ? 'error' : 'no_data', rejectionReason: r.error || (r.status === 'error' ? 'provider_error' : 'no_matching_listings') };
+        recordCondition('new_sealed', r.new_value, assessment, reference);
+        if (r.new_value != null && assessment.decision === 'accepted') {
+          acceptedNew = r.new_value;
+          newUpdated++;
         } else {
+          if (r.new_value != null) rejected++;
           stampNewAttempt(set.set_num);
         }
       }
 
       if (set.used_due) {
-        if (r.used_value != null) {
-          const ref = set.used_value ?? set.bl_new_value ?? set.current_value ?? null;
-          if (ref == null || (r.used_value >= ref / 3 && r.used_value <= ref * 3)) {
-            acceptedUsed = r.used_value;
-            usedUpdated++;
-          } else {
-            rejected++;
-            stampUsedAttempt(set.set_num);
-            addAnomaly('used_complete', r.used_value, ref);
-          }
+        const reference = selectEbaySoldReference(set as unknown as Record<string, unknown>, 'used_complete');
+        const assessment: EbaySoldAssessment = r.used_value != null
+          ? assessSoldObservation(r.used_value, reference)
+          : { decision: r.status === 'error' ? 'error' : 'no_data', rejectionReason: r.error || (r.status === 'error' ? 'provider_error' : 'no_matching_listings') };
+        recordCondition('used_complete', r.used_value ?? null, assessment, reference);
+        if (r.used_value != null && assessment.decision === 'accepted') {
+          acceptedUsed = r.used_value;
+          usedUpdated++;
         } else {
+          if (r.used_value != null) rejected++;
           stampUsedAttempt(set.set_num);
         }
       }
@@ -259,6 +312,9 @@ export async function runEbaySoldScrape(
   }
 
   await flush();
+  const prune = pruneObservationStatement(env.DB);
+  const pruneResult = await prune.run();
+  await recordPricingWrites(env.DB, 'ebay-sold-scrape', pruneResult.meta.changes || 0);
   return {
     processed, updated, newUpdated, usedUpdated, rejected, limit: effLimit,
     engine: 'firecrawl',

@@ -1,38 +1,16 @@
 import type { Env } from '../types';
-import { recomputeBlendedValues } from '../lib/market-sources';
 import { pricingWritesAllowed, recordPricingWrites } from '../lib/pricing-budget';
 import { sourceEnabled } from '../lib/source-config';
 
 /**
- * Promote quarantined PriceCharting mappings to VERIFIED by cross-source price
- * agreement, then materialize their pricing_signals so the v3 blend can use
- * them as sold comps.
+ * Materialize PriceCharting signals only for mappings whose identity was already
+ * verified by provider evidence or deliberate manual review.
  *
- * Why this exists: PriceCharting aggregates closed eBay auctions — exactly the
- * sold-comp signal eBay's retired Marketplace Insights API used to provide —
- * but its product mappings were quarantined wholesale because base-number
- * matching mis-mapped variants (e.g. 75188 vs the Finch Dallow 75188-2). The
- * bulk import auto-verifies only unique-UPC matches. This job adds the second
- * safe path: when PriceCharting's price independently AGREES (within 0.6–1.67x)
- * with a BrickLink or eBay sold value for the same set, two independent sources
- * concur on the same market level — a wrong-item mapping essentially can't do
- * that, so the mapping identity is confirmed. Agreement is checked on EITHER
- * axis — PC-new vs a new-condition comp (BrickLink/eBay new) OR PC-complete vs a
- * used-condition comp (BrickLink `used_value`/eBay used) — so a set with only
- * used comps still gets promoted. A wrong item won't agree on either axis.
- *
- * Idempotent + bounded: promotions upsert by (source, source_item_id); signal
- * rows upsert change-only by (set_num, source, condition). Disagreeing or
- * uncorroborated mappings stay quarantined (visible in diagnostics, excluded
- * from headlines) until the weekly UPC bulk pass or a manual review verifies
- * them. NOTE: signals carry sales_volume as their sample size — thin-volume
- * (<3/yr) rows stay out of the fair-value headline via the blend's sample gate.
+ * This job intentionally performs no promotion. Price agreement is valuation
+ * corroboration, not item identity, and legacy lego_sets title/UPC copies are
+ * not independent evidence. Existing verified mappings are retained and
+ * refreshed; quarantined and rejected mappings remain untouched.
  */
-
-// Agreement band: sealed PC vs an independent sold comp for the same set.
-// Wide enough for marketplace spread, far too narrow for a wrong item.
-const BAND_LOW = 0.6;
-const BAND_HIGH = 1.67;
 
 export async function runPriceChartingVerify(
   env: Env,
@@ -56,63 +34,13 @@ export async function runPriceChartingVerify(
   if (!(await pricingWritesAllowed(env.DB))) {
     return { promoted: 0, signals: 0, reblended: 0, skipped: 'D1 pricing write budget paused non-critical jobs' };
   }
-  const limit = Math.min(Math.max(Number(options.limit) || 800, 1), 2500);
+  // Kept for scheduler/API compatibility; verification is now identity-only
+  // and this job never promotes candidates.
+  void Math.min(Math.max(Number(options.limit) || 800, 1), 2500);
 
   try {
-    // Candidates: legacy pc_new_value rows whose mapping is not yet verified and
-    // where an independent sold comp agrees. Collected first so we know exactly
-    // which sets to re-blend after promotion.
-    const { results: candidates } = await env.DB.prepare(`
-      SELECT ls.set_num, COALESCE(NULLIF(ls.pc_id, ''), 'legacy:' || ls.set_num) AS item_id,
-             ls.name, ls.upc
-      FROM lego_sets ls
-      WHERE (
-          -- new-condition agreement: PC-new vs BrickLink/eBay new
-          (ls.pc_new_value IS NOT NULL
-            AND COALESCE(ls.bl_new_value, ls.ebay_new_value) IS NOT NULL
-            AND ls.pc_new_value >= ${BAND_LOW} * COALESCE(ls.bl_new_value, ls.ebay_new_value)
-            AND ls.pc_new_value <= ${BAND_HIGH} * COALESCE(ls.bl_new_value, ls.ebay_new_value))
-          OR
-          -- used-condition agreement: PC-complete vs BrickLink used_value / eBay used
-          (ls.pc_complete_value IS NOT NULL
-            AND COALESCE(ls.used_value, ls.ebay_used_value) IS NOT NULL
-            AND ls.pc_complete_value >= ${BAND_LOW} * COALESCE(ls.used_value, ls.ebay_used_value)
-            AND ls.pc_complete_value <= ${BAND_HIGH} * COALESCE(ls.used_value, ls.ebay_used_value))
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM pricing_source_map pm
-          WHERE pm.source = 'pricecharting'
-            AND pm.set_num = ls.set_num
-            AND pm.status IN ('verified', 'manual')
-        )
-      LIMIT ?
-    `).bind(limit).all<{ set_num: string; item_id: string; name: string | null; upc: string | null }>();
-
-    let promoted = 0;
-    if (candidates.length) {
-      const stmts = candidates.map((c) => env.DB.prepare(`
-        INSERT INTO pricing_source_map (
-          source, source_item_id, set_num, source_title, upc, variant_key,
-          match_method, match_confidence, status, verified_at, updated_at
-        ) VALUES ('pricecharting', ?1, ?2, ?3, ?4, ?2, 'price_agreement', 0.85, 'verified', datetime('now'), datetime('now'))
-        ON CONFLICT(source, source_item_id) DO UPDATE SET
-          set_num=excluded.set_num, match_method='price_agreement',
-          match_confidence=0.85, status='verified',
-          verified_at=datetime('now'), updated_at=datetime('now')
-        WHERE pricing_source_map.status NOT IN ('verified', 'manual')
-      `).bind(c.item_id, c.set_num, c.name, c.upc));
-      for (let i = 0; i < stmts.length; i += 90) {
-        const batchResults = await env.DB.batch(stmts.slice(i, i + 90));
-        promoted += batchResults.reduce((sum, r) => sum + Number(r.meta?.changes || 0), 0);
-      }
-    }
-
-    // Materialize signals for EVERY verified/manual PriceCharting mapping from
-    // the legacy pc_* columns (covers this run's promotions AND any verified
-    // mapping whose prices moved since the last pass). Change-only upserts.
-    // Skipped entirely on drain-mode runs that promoted nothing, so the hourly
-    // slot costs one empty SELECT once the backlog is gone.
-    const wantSignals = promoted > 0 || options.refreshSignals !== false;
+    const promoted = 0;
+    const wantSignals = options.refreshSignals !== false;
     const signalUpsert = (condition: string, valueExpr: string, joinExt: boolean) => env.DB.prepare(`
       INSERT INTO pricing_signals (
         set_num, source, source_item_id, provider_family, condition, signal_type,
@@ -147,16 +75,13 @@ export async function runPriceChartingVerify(
       signals = signalResults.reduce((sum, r) => sum + Number(r.meta?.changes || 0), 0);
     }
 
-    // Re-blend the sets whose mappings were promoted this run so blended_value
-    // and confidence pick up the new corroborating family immediately.
-    let reblended = 0;
-    if (candidates.length) {
-      reblended = await recomputeBlendedValues(env.DB, candidates.map((c) => c.set_num));
-    }
+    // This job never changes mapping identity, so no reblend is needed beyond
+    // the signal upserts themselves.
+    const reblended = 0;
 
-    await recordPricingWrites(env.DB, 'pricecharting-verify', promoted + signals + reblended);
-    if (promoted || signals) {
-      console.log(`[pc-verify] promoted ${promoted} mappings by price agreement, ${signals} signal rows, re-blended ${reblended}`);
+    await recordPricingWrites(env.DB, 'pricecharting-verify', signals);
+    if (signals) {
+      console.log(`[pc-verify] refreshed ${signals} signal rows`);
     }
     return { promoted, signals, reblended };
   } catch (e) {
