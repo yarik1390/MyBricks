@@ -282,3 +282,17 @@ zh.room = {
   left: '向左看', right: '向右看', closer: '放大', farther: '缩小', reset: '重置视图',
   empty: '将套装添加到收藏库，填满你的收藏室。',
 };
+
+Object.assign(zh.room, {
+  enter: '进入收藏室', exit: '退出收藏室', find: '查找套装或主题', accessibleList: '无障碍列表',
+  loading: '正在打开你的展厅…', resetPosition: '重置位置', captureMouse: '启用鼠标控制', controls: '操作说明',
+  walkHint: '漫步浏览你的收藏。选择一个套装盒即可查看。',
+  walkInstructions: '使用 WASD 或方向键行走。拖动以环顾四周。点击套装盒可查看详情。',
+  touchInstructions: '在触摸屏上，使用左侧摇杆移动，并在其他区域拖动以环顾四周。轻触套装盒即可查看。',
+  escapeInstructions: '启用鼠标控制后可连续转动视角。按 Escape 可释放鼠标或关闭已打开的面板。',
+  joystick: '移动摇杆', backToRoom: '返回收藏室', fullDetails: '打开完整详情',
+  copiesOne: '{quantity} 套已收藏', copiesOther: '{quantity} 套已收藏', search: '搜索套装', more: '显示更多套装',
+  arrived: '你已到达所选陈列架。选择一个套装盒即可查看。', mouseUnavailable: '无法启用鼠标控制。请拖动以环顾四周。',
+  unavailable: '此设备无法使用 3D 展厅。你仍可通过无障碍列表查看收藏。',
+  listHint: '在列表中浏览套装并打开详情。', retry3D: '重试 3D', empty: '你的展厅已准备就绪。将套装添加到收藏库以摆满陈列架。',
+});

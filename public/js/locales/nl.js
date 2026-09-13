@@ -282,3 +282,17 @@ nl.room = {
   left: 'Naar links kijken', right: 'Naar rechts kijken', closer: 'Inzoomen', farther: 'Uitzoomen', reset: 'Weergave herstellen',
   empty: 'Voeg sets toe aan je kluis om je kamer te vullen.',
 };
+
+Object.assign(nl.room, {
+  enter: 'Collectiekamer binnengaan', exit: 'Kamer verlaten', find: 'Een set of thema zoeken', accessibleList: 'Toegankelijke lijst',
+  loading: 'Je showroom wordt geopend…', resetPosition: 'Positie herstellen', captureMouse: 'Muisbesturing activeren', controls: 'Besturing',
+  walkHint: 'Loop door je collectie. Selecteer een doos om die te bekijken.',
+  walkInstructions: 'Gebruik WASD of de pijltjestoetsen om te lopen. Sleep om rond te kijken. Klik op een doos om de details te bekijken.',
+  touchInstructions: 'Gebruik op touchscreens de linker joystick om te bewegen en sleep ergens anders om rond te kijken. Tik op een doos om die te bekijken.',
+  escapeInstructions: 'Met muisbesturing kun je continu rondkijken. Met Escape geef je de muis vrij of sluit je het geopende paneel.',
+  joystick: 'Bewegingsjoystick', backToRoom: 'Terug naar de kamer', fullDetails: 'Alle details openen',
+  copiesOne: '{quantity} exemplaar in bezit', copiesOther: '{quantity} exemplaren in bezit', search: 'Sets zoeken', more: 'Meer sets tonen',
+  arrived: 'Je bent bij de geselecteerde plank. Selecteer een doos om die te bekijken.', mouseUnavailable: 'Muisbesturing is niet beschikbaar. Sleep om rond te kijken.',
+  unavailable: 'De 3D-showroom is niet beschikbaar op dit apparaat. Je collectie blijft beschikbaar in de toegankelijke lijst.',
+  listHint: 'Bekijk je sets in de lijst en open hun details.', retry3D: '3D opnieuw proberen', empty: 'Je showroom is klaar. Voeg sets toe aan je kluis om de planken te vullen.',
+});

@@ -287,3 +287,17 @@ ja.room = {
   left: '左を見る', right: '右を見る', closer: 'ズームイン', farther: 'ズームアウト', reset: '表示をリセット',
   empty: 'セットを保管庫に追加して、ルームをいっぱいにしましょう。',
 };
+
+Object.assign(ja.room, {
+  enter: 'コレクションルームに入る', exit: 'ルームを出る', find: 'セットやテーマを検索', accessibleList: 'アクセシブルリスト',
+  loading: 'ショールームを開いています…', resetPosition: '位置をリセット', captureMouse: 'マウスをキャプチャ', controls: '操作方法',
+  walkHint: 'コレクションの中を歩き回れます。箱を選択すると確認できます。',
+  walkInstructions: 'WASDキーまたは矢印キーで移動します。ドラッグして周囲を見回します。箱をクリックすると詳細を確認できます。',
+  touchInstructions: 'タッチスクリーンでは、左のジョイスティックで移動し、それ以外の場所をドラッグして周囲を見回します。箱をタップすると確認できます。',
+  escapeInstructions: 'マウスをキャプチャすると、マウスで連続して周囲を見回せます。Escapeキーを押すとマウスが解放されるか、開いているパネルが閉じます。',
+  joystick: '移動用ジョイスティック', backToRoom: 'ルームに戻る', fullDetails: '詳細をすべて開く',
+  copiesOne: '{quantity}個所有', copiesOther: '{quantity}個所有', search: 'セットを検索', more: 'さらにセットを表示',
+  arrived: '選択した棚に到着しました。箱を選択すると確認できます。', mouseUnavailable: 'マウスキャプチャを利用できません。ドラッグして周囲を見回してください。',
+  unavailable: 'この端末では3Dショールームを利用できません。コレクションはアクセシブルリストで引き続き確認できます。',
+  listHint: 'リストからセットを探し、詳細を開けます。', retry3D: '3Dを再試行', empty: 'ショールームの準備ができました。保管庫にセットを追加して棚をいっぱいにしましょう。',
+});

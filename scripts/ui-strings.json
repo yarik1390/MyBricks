@@ -1705,12 +1705,6 @@
     ]
   },
   {
-    "text": "Canvas unavailable",
-    "files": [
-      "components/collection-room-scene.js"
-    ]
-  },
-  {
     "text": "Caption (optional)",
     "files": [
       "components/contribute.js"
@@ -7209,6 +7203,12 @@
     "text": "Point it at a box barcode — instant match.",
     "files": [
       "components/onboarding.js"
+    ]
+  },
+  {
+    "text": "Pointer capture unavailable",
+    "files": [
+      "components/collection-room-scene.js"
     ]
   },
   {

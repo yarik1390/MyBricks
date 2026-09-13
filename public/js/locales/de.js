@@ -300,3 +300,17 @@ de.room = {
   left: 'Nach links schauen', right: 'Nach rechts schauen', closer: 'Vergrößern', farther: 'Verkleinern', reset: 'Ansicht zurücksetzen',
   empty: 'Füge deinem Tresor Sets hinzu, um deinen Raum zu füllen.',
 };
+
+Object.assign(de.room, {
+  enter: 'Sammlungsraum betreten', exit: 'Raum verlassen', find: 'Ein Set oder Thema suchen', accessibleList: 'Barrierefreie Liste',
+  loading: 'Dein Ausstellungsraum wird geöffnet…', resetPosition: 'Position zurücksetzen', captureMouse: 'Maussteuerung aktivieren', controls: 'Steuerung',
+  walkHint: 'Laufe durch deine Sammlung. Wähle eine Box aus, um sie anzusehen.',
+  walkInstructions: 'Gehe mit WASD oder den Pfeiltasten. Ziehe, um dich umzusehen. Klicke auf eine Box, um ihre Details zu sehen.',
+  touchInstructions: 'Auf Touchscreens bewegst du dich mit dem linken Joystick. Ziehe an einer anderen Stelle, um dich umzusehen. Tippe auf eine Box, um sie anzusehen.',
+  escapeInstructions: 'Die Maussteuerung ermöglicht kontinuierliches Umschauen mit der Maus. Escape gibt die Maus frei oder schließt das geöffnete Fenster.',
+  joystick: 'Bewegungs-Joystick', backToRoom: 'Zurück zum Raum', fullDetails: 'Alle Details öffnen',
+  copiesOne: '{quantity} Exemplar im Besitz', copiesOther: '{quantity} Exemplare im Besitz', search: 'Sets durchsuchen', more: 'Weitere Sets anzeigen',
+  arrived: 'Du bist am ausgewählten Regal. Wähle eine Box aus, um sie anzusehen.', mouseUnavailable: 'Die Maussteuerung ist nicht verfügbar. Ziehe, um dich umzusehen.',
+  unavailable: 'Der 3D-Ausstellungsraum ist auf diesem Gerät nicht verfügbar. Deine Sammlung ist weiterhin in der barrierefreien Liste verfügbar.',
+  listHint: 'Durchsuche deine Sets in der Liste und öffne ihre Details.', retry3D: '3D erneut versuchen', empty: 'Dein Ausstellungsraum ist bereit. Füge deinem Tresor Sets hinzu, um die Regale zu füllen.',
+});

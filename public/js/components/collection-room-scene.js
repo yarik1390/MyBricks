@@ -1,200 +1,584 @@
-// Importing the route never loads Three.js. This module and the existing vendor
-// bundle are requested only after the collector presses Open 3D room.
-export async function createCollectionRoom(stage, shelves, { isCurrent, onSelect, onUnavailable }) {
+import {
+  ROOM_LAYOUT,
+  ROOM_RESIDENT_BOX_LIMIT,
+  ROOM_TEXTURE_LIMIT,
+  createRoomLayout,
+  moveRoomPose,
+  normalizeRoomPose,
+  roomPoseForSet,
+  selectRoomResidents,
+} from '../lib/collection-room.js';
+
+const IMAGE_TEXTURE_LIMIT = ROOM_TEXTURE_LIMIT;
+const LOOK_SPEED = 0.0032;
+const RESIDENT_SEGMENT_RADIUS = 4;
+
+function themeColor(theme) {
+  let hash = 2166136261;
+  for (const character of String(theme)) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
+  const colors = [0x9a5b4b, 0x446b62, 0x556a8a, 0x8a6a43, 0x6e597c, 0x7a6847];
+  return colors[Math.abs(hash) % colors.length];
+}
+
+function shorten(context, value, width) {
+  let text = String(value || '');
+  if (context.measureText(text).width <= width) return text;
+  while (text.length && context.measureText(`${text}…`).width > width) text = text.slice(0, -1);
+  return `${text}…`;
+}
+
+function isTypingTarget(target) {
+  return target instanceof Element && (target.matches('input, textarea, select') || target.isContentEditable);
+}
+
+export async function createCollectionRoom(stage, catalog, options = {}) {
   if (Number(navigator.deviceMemory || 0) > 0 && navigator.deviceMemory <= 2) throw new Error('Low memory');
   const THREE = await import('../vendor/three-0.185.1.min.js');
-  if (!stage.isConnected || !isCurrent()) return null;
+  const isCurrent = typeof options.isCurrent === 'function' ? options.isCurrent : () => true;
+  const onSelect = typeof options.onSelect === 'function' ? options.onSelect : () => {};
+  const onUnavailable = typeof options.onUnavailable === 'function' ? options.onUnavailable : () => {};
+  if (!stage?.isConnected || !isCurrent()) return null;
+
+  const layout = createRoomLayout(catalog);
   const canvas = document.createElement('canvas');
   canvas.setAttribute('aria-hidden', 'true');
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
+  canvas.style.display = 'block';
+  canvas.style.height = '100%';
+  canvas.style.touchAction = 'none';
+  canvas.style.width = '100%';
+
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true, canvas, powerPreference: 'low-power' });
+  } catch (error) {
+    canvas.remove();
+    throw error;
+  }
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.setClearColor(0x171c29);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.12;
+  renderer.setClearColor(0x2a211b);
   stage.append(canvas);
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(43, 1, 0.1, 60);
-  scene.add(new THREE.HemisphereLight(0xfff5df, 0x27344b, 2.4));
-  const light = new THREE.DirectionalLight(0xffffff, 2);
-  light.position.set(1, 8, 7);
-  scene.add(light);
-  const textures = [];
-  const images = [];
-  const selectable = [];
-  let destroyed = false;
-  let angle = 0;
-  let zoom = 1;
-  const abort = new AbortController();
-  const wall = new THREE.MeshStandardMaterial({ color: 0x293347, roughness: 0.94 });
-  const wood = new THREE.MeshStandardMaterial({ color: 0xb68950, roughness: 0.78 });
-  const floor = new THREE.MeshStandardMaterial({ color: 0x665343, roughness: 0.9 });
-  const box = (width, height, depth, x, y, z, material) => {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
-    mesh.position.set(x, y, z);
-    scene.add(mesh);
-    return mesh;
-  };
-  box(10.4, 7.2, 0.15, 0, 3.6, -0.65, wall);
-  box(0.15, 7.2, 4.5, -5.2, 3.6, 1.55, wall);
-  box(0.15, 7.2, 4.5, 5.2, 3.6, 1.55, wall);
-  box(10.5, 0.15, 5.2, 0, -0.2, 1.8, floor);
 
-  const render = () => {
-    if (destroyed || document.hidden || !stage.isConnected || !isCurrent()) return;
-    const aspect = camera.aspect;
-    const distance = Math.max(11.5, 7.7 / Math.max(0.25, aspect)) * zoom;
-    camera.position.set(Math.sin(angle) * distance, 4.1, Math.cos(angle) * distance);
-    camera.lookAt(0, 3.3, 0);
-    renderer.render(scene, camera);
-  };
-  const textCanvas = (width, height) => {
-    const element = document.createElement('canvas');
-    element.width = width;
-    element.height = height;
-    const context = element.getContext('2d');
-    if (!context) throw new Error('Canvas unavailable');
-    return { element, context };
-  };
-  const shorten = (context, text, width) => {
-    let value = String(text);
-    if (context.measureText(value).width <= width) return value;
-    while (value.length && context.measureText(`${value}...`).width > width) value = value.slice(0, -1);
-    return `${value}...`;
-  };
-  const texturedPlane = (element, width, height, x, y, z) => {
-    const texture = new THREE.CanvasTexture(element);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    textures.push(texture);
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({ map: texture }));
-    mesh.position.set(x, y, z);
-    scene.add(mesh);
-    return { mesh, texture };
-  };
-  const resize = () => {
-    if (destroyed) return;
-    const width = Math.max(1, stage.clientWidth);
-    const height = Math.max(1, stage.clientHeight);
-    renderer.setSize(width, height, false);
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-    render();
-  };
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x2a211b);
+  scene.fog = new THREE.Fog(0x2a211b, 22, 42);
+  const camera = new THREE.PerspectiveCamera(58, 1, 0.08, 46);
+  const raycaster = new THREE.Raycaster();
+  raycaster.far = 14;
+  const abort = new AbortController();
+  const residentBoxes = new Map();
+  const residentSegments = new Map();
+  const pickTargets = new Set();
+  const sharedGeometries = new Set();
+  const sharedMaterials = new Set();
+  const keys = new Set();
+  const joystick = options.joystick instanceof Element ? options.joystick : null;
+  const knob = joystick?.querySelector('.showroom-stick-knob') || null;
+  const previousJoystickTouchAction = joystick?.style.touchAction || '';
+  let joystickPointer = null;
+  let joystickVector = { forward: 0, strafe: 0 };
+  let drag = null;
+  let destroyed = false;
+  let unavailableNotified = false;
+  let manuallyPaused = false;
+  let frame = 0;
+  let lastFrameTime = 0;
+  let residentSegment = -1;
   let resizeObserver;
   let removalObserver;
+  let pose = normalizeRoomPose(layout, options.initialPose);
+
+  const material = parameters => {
+    const value = new THREE.MeshStandardMaterial(parameters);
+    sharedMaterials.add(value);
+    return value;
+  };
+  const plaster = material({ color: 0xd7c7ae, roughness: 0.96 });
+  const ceiling = material({ color: 0xeadfcb, roughness: 0.98 });
+  const floor = material({ color: 0x6f4f36, metalness: 0.02, roughness: 0.88 });
+  const aisle = material({ color: 0x8d7157, roughness: 0.94 });
+  const wood = material({ color: 0x70462c, roughness: 0.82 });
+  const darkWood = material({ color: 0x422a1c, roughness: 0.9 });
+  const boxSide = material({ color: 0xd2c7b5, roughness: 0.78 });
+  const boxFront = material({ color: 0xf2ede4, roughness: 0.82 });
+  const accentMaterials = new Map();
+  const boxGeometry = new THREE.BoxGeometry(ROOM_LAYOUT.boxDepth, ROOM_LAYOUT.boxHeight, ROOM_LAYOUT.boxWidth);
+  sharedGeometries.add(boxGeometry);
+
+  scene.add(new THREE.HemisphereLight(0xffefd2, 0x33261d, 2.15));
+  const keyLight = new THREE.DirectionalLight(0xffe4b5, 1.85);
+  keyLight.position.set(-3, 5.6, 4);
+  scene.add(keyLight);
+  const warmLight = new THREE.PointLight(0xffb65c, 3.4, 19, 1.8);
+  warmLight.position.set(0, 4.7, pose.z + 1);
+  scene.add(warmLight);
+
+  function accent(theme) {
+    const color = themeColor(theme);
+    if (!accentMaterials.has(color)) accentMaterials.set(color, material({ color, roughness: 0.78 }));
+    return accentMaterials.get(color);
+  }
+
+  function meshBox(group, size, position, meshMaterial, selectable = false) {
+    const geometry = new THREE.BoxGeometry(...size);
+    const mesh = new THREE.Mesh(geometry, meshMaterial);
+    mesh.position.set(...position);
+    group.add(mesh);
+    if (selectable) pickTargets.add(mesh);
+    return mesh;
+  }
+
+  function disposeGroup(group) {
+    group.traverse(object => {
+      pickTargets.delete(object);
+      if (object.geometry && !sharedGeometries.has(object.geometry)) object.geometry.dispose();
+      if (object.userData.themeSign) {
+        object.material.map.dispose();
+        object.material.dispose();
+      }
+    });
+    group.removeFromParent();
+  }
+
+  function addSegment(index) {
+    const start = index * ROOM_LAYOUT.segmentLength;
+    const center = start + ROOM_LAYOUT.segmentLength / 2;
+    const group = new THREE.Group();
+    group.userData.segment = index;
+    scene.add(group);
+    meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, 0.16, ROOM_LAYOUT.segmentLength], [0, -0.08, center], floor, true);
+    meshBox(group, [ROOM_LAYOUT.aisleHalfWidth * 1.65, 0.018, ROOM_LAYOUT.segmentLength - 0.2], [0, 0.012, center], aisle, true);
+    meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, 0.16, ROOM_LAYOUT.segmentLength], [0, ROOM_LAYOUT.ceilingHeight, center], ceiling, true);
+    meshBox(group, [0.18, ROOM_LAYOUT.ceilingHeight, ROOM_LAYOUT.segmentLength], [-ROOM_LAYOUT.roomHalfWidth, ROOM_LAYOUT.ceilingHeight / 2, center], plaster, true);
+    meshBox(group, [0.18, ROOM_LAYOUT.ceilingHeight, ROOM_LAYOUT.segmentLength], [ROOM_LAYOUT.roomHalfWidth, ROOM_LAYOUT.ceilingHeight / 2, center], plaster, true);
+
+    for (const shelf of layout.shelves.filter(entry => entry.segmentIndex === index)) {
+      const side = shelf.side;
+      const shelfX = side * 4.48;
+      const shelfMaterial = accent(shelf.theme);
+      meshBox(group, [0.18, 5.22, ROOM_LAYOUT.segmentLength - 0.34], [side * 4.9, 2.61, center], darkWood, true);
+      for (const y of [0.35, 1.67, 3.25, 4.83]) {
+        meshBox(group, [1.25, 0.13, ROOM_LAYOUT.segmentLength - 0.34], [shelfX, y, center], wood, true);
+      }
+      for (const z of [start + 0.18, start + ROOM_LAYOUT.segmentLength - 0.18]) {
+        meshBox(group, [1.16, 4.62, 0.12], [shelfX, 2.59, z], darkWood, true);
+      }
+      meshBox(group, [1.18, 0.36, ROOM_LAYOUT.segmentLength - 0.5], [shelfX, 5.08, center], shelfMaterial, true);
+      const signCanvas = document.createElement('canvas');
+      signCanvas.width = 1024;
+      signCanvas.height = 80;
+      const context = signCanvas.getContext('2d');
+      if (context) {
+        context.fillStyle = '#fff7e9';
+        context.font = '600 48px system-ui, sans-serif';
+        context.textAlign = 'center';
+        context.fillText(shorten(context, shelf.theme, 960), 512, 57);
+        const texture = new THREE.CanvasTexture(signCanvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        const sign = new THREE.Mesh(new THREE.PlaneGeometry(6.3, 0.46), new THREE.MeshBasicMaterial({ map: texture, transparent: true }));
+        sign.position.set(side * 3.88, 5.08, center);
+        sign.rotation.y = -side * Math.PI / 2;
+        sign.userData.themeSign = true;
+        group.add(sign);
+      }
+    }
+    if (index === 0) meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, ROOM_LAYOUT.ceilingHeight, 0.18], [0, ROOM_LAYOUT.ceilingHeight / 2, 0], plaster, true);
+    if (index === layout.segmentCount - 1) {
+      meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, ROOM_LAYOUT.ceilingHeight, 0.18], [0, ROOM_LAYOUT.ceilingHeight / 2, layout.bounds.maxZ], plaster, true);
+    }
+    residentSegments.set(index, group);
+  }
+
+  function removeBox(record) {
+    if (record.image) {
+      record.image.onload = null;
+      record.image.onerror = null;
+      record.image.removeAttribute('src');
+    }
+    record.texture?.dispose();
+    record.frontMaterial?.dispose();
+    pickTargets.delete(record.body);
+    record.body.removeFromParent();
+  }
+
+  function drawCard(record, image = null) {
+    const { box, context, canvas: card } = record;
+    context.fillStyle = '#f7f2e9';
+    context.fillRect(0, 0, card.width, card.height);
+    if (image?.naturalWidth && image?.naturalHeight) {
+      const scale = Math.min(470 / image.naturalWidth, 330 / image.naturalHeight);
+      const width = image.naturalWidth * scale;
+      const height = image.naturalHeight * scale;
+      context.drawImage(image, (512 - width) / 2, 8 + (330 - height) / 2, width, height);
+    } else {
+      context.fillStyle = '#dfd4c3';
+      context.fillRect(35, 35, 442, 270);
+      context.fillStyle = '#9b6044';
+      for (let column = 0; column < 4; column++) context.fillRect(118 + column * 71, 105 + (column % 2) * 42, 55, 55);
+    }
+    context.fillStyle = '#30261f';
+    context.font = '700 30px system-ui, sans-serif';
+    context.textAlign = 'left';
+    context.fillText(shorten(context, box.name, 470), 21, 374);
+    context.font = '600 22px system-ui, sans-serif';
+    context.fillStyle = '#6d5140';
+    const facts = [box.set_num, box.year].filter(Boolean).join('  ·  ');
+    context.fillText(shorten(context, facts, 470), 21, 407);
+    record.texture.needsUpdate = true;
+  }
+
+  function addTexture(record) {
+    if (record.texture) return;
+    const card = document.createElement('canvas');
+    card.width = 512;
+    card.height = 432;
+    const context = card.getContext('2d');
+    if (!context) return;
+    const texture = new THREE.CanvasTexture(card);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const frontMaterial = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.72 });
+    record.canvas = card;
+    record.context = context;
+    record.frontMaterial = frontMaterial;
+    record.texture = texture;
+    record.body.material[record.frontIndex] = frontMaterial;
+    drawCard(record);
+    if (record.box.image_url) {
+      const image = new Image();
+      record.image = image;
+      image.crossOrigin = 'anonymous';
+      image.onload = () => {
+        if (destroyed || residentBoxes.get(record.box.index) !== record) return;
+        drawCard(record, image);
+        renderNow();
+      };
+      image.onerror = () => {};
+      image.src = record.box.image_url;
+    }
+  }
+
+  function removeTexture(record) {
+    if (!record.texture) return;
+    if (record.image) {
+      record.image.onload = null;
+      record.image.onerror = null;
+      record.image.removeAttribute('src');
+    }
+    record.image = null;
+    record.texture.dispose();
+    record.frontMaterial.dispose();
+    record.texture = null;
+    record.frontMaterial = null;
+    record.canvas = null;
+    record.context = null;
+    record.body.material[record.frontIndex] = boxFront;
+  }
+
+  function addBox(box) {
+    const frontIndex = box.side < 0 ? 0 : 1;
+    const materials = [boxSide, boxSide, boxSide, boxSide, boxSide, boxSide];
+    materials[frontIndex] = boxFront;
+    const body = new THREE.Mesh(boxGeometry, materials);
+    body.position.set(box.x, box.y, box.z);
+    body.userData.setNum = box.set_num;
+    scene.add(body);
+    pickTargets.add(body);
+    const record = { body, box, frontIndex, frontMaterial: null, image: null, texture: null };
+    residentBoxes.set(box.index, record);
+    return record;
+  }
+
+  function reconcileResidents(force = false) {
+    const segment = Math.max(0, Math.min(layout.segmentCount - 1, Math.floor(pose.z / ROOM_LAYOUT.segmentLength)));
+    if (!force && segment === residentSegment) return;
+    residentSegment = segment;
+    const selectionPose = { ...pose, x: 0, z: (segment + 0.5) * ROOM_LAYOUT.segmentLength };
+    const selected = selectRoomResidents(layout, selectionPose, ROOM_RESIDENT_BOX_LIMIT);
+    const desired = new Set(selected.map(box => box.index));
+    for (const [index, record] of residentBoxes) {
+      if (!desired.has(index)) {
+        removeBox(record);
+        residentBoxes.delete(index);
+      }
+    }
+    for (const box of selected) if (!residentBoxes.has(box.index)) addBox(box);
+    const textured = new Set(selected.slice(0, IMAGE_TEXTURE_LIMIT).map(box => box.index));
+    for (const [index, record] of residentBoxes) {
+      if (textured.has(index)) addTexture(record);
+      else removeTexture(record);
+    }
+
+    const minimumSegment = Math.max(0, segment - RESIDENT_SEGMENT_RADIUS);
+    const maximumSegment = Math.min(layout.segmentCount - 1, segment + RESIDENT_SEGMENT_RADIUS);
+    for (const [index, group] of residentSegments) {
+      if (index < minimumSegment || index > maximumSegment) {
+        disposeGroup(group);
+        residentSegments.delete(index);
+      }
+    }
+    for (let index = minimumSegment; index <= maximumSegment; index++) {
+      if (!residentSegments.has(index)) addSegment(index);
+    }
+    stage.dataset.residentBoxes = String(residentBoxes.size);
+  }
+
+  function active() {
+    if (destroyed) return false;
+    if (!stage.isConnected || !isCurrent()) {
+      controller.destroy();
+      return false;
+    }
+    return !manuallyPaused && !document.hidden;
+  }
+
+  function updateCamera() {
+    const horizontal = Math.cos(pose.pitch);
+    camera.position.set(pose.x, ROOM_LAYOUT.eyeHeight, pose.z);
+    camera.lookAt(
+      pose.x + Math.sin(pose.yaw) * horizontal,
+      ROOM_LAYOUT.eyeHeight + Math.sin(pose.pitch),
+      pose.z + Math.cos(pose.yaw) * horizontal,
+    );
+    warmLight.position.set(pose.x * 0.2, 4.7, pose.z + 1.5);
+    stage.dataset.cameraX = pose.x.toFixed(3);
+    stage.dataset.cameraZ = pose.z.toFixed(3);
+    stage.dataset.cameraYaw = pose.yaw.toFixed(5);
+    stage.dataset.cameraPitch = pose.pitch.toFixed(5);
+  }
+
+  function renderNow() {
+    if (!active()) return;
+    reconcileResidents();
+    updateCamera();
+    renderer.render(scene, camera);
+  }
+
+  function keyInput() {
+    const forward = Number(keys.has('KeyW') || keys.has('ArrowUp')) - Number(keys.has('KeyS') || keys.has('ArrowDown'));
+    const strafe = Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft'));
+    return { forward: forward + joystickVector.forward, strafe: strafe + joystickVector.strafe };
+  }
+
+  function hasMovement() {
+    const input = keyInput();
+    return Math.abs(input.forward) > 0.01 || Math.abs(input.strafe) > 0.01;
+  }
+
+  function cancelFrame() {
+    if (frame) cancelAnimationFrame(frame);
+    frame = 0;
+    lastFrameTime = 0;
+  }
+
+  function movementFrame(time) {
+    frame = 0;
+    if (!active() || !hasMovement()) {
+      lastFrameTime = 0;
+      return;
+    }
+    if (lastFrameTime) pose = moveRoomPose(layout, pose, keyInput(), (time - lastFrameTime) / 1000);
+    lastFrameTime = time;
+    renderNow();
+    frame = requestAnimationFrame(movementFrame);
+  }
+
+  function beginMovement() {
+    if (active() && hasMovement() && !frame) frame = requestAnimationFrame(movementFrame);
+  }
+
+  function resetInputs() {
+    keys.clear();
+    joystickPointer = null;
+    joystickVector = { forward: 0, strafe: 0 };
+    drag = null;
+    if (knob) knob.style.transform = 'translate3d(0, 0, 0)';
+    cancelFrame();
+  }
+
+  function look(dx, dy) {
+    pose.yaw = Math.atan2(Math.sin(pose.yaw - dx * LOOK_SPEED), Math.cos(pose.yaw - dx * LOOK_SPEED));
+    pose.pitch = Math.max(-Math.PI * 0.44, Math.min(Math.PI * 0.44, pose.pitch - dy * LOOK_SPEED));
+    renderNow();
+  }
+
+  function pick(clientX, clientY, center = false) {
+    if (!active()) return;
+    const bounds = canvas.getBoundingClientRect();
+    const x = center ? 0 : ((clientX - bounds.left) / Math.max(1, bounds.width)) * 2 - 1;
+    const y = center ? 0 : -((clientY - bounds.top) / Math.max(1, bounds.height)) * 2 + 1;
+    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+    const hit = raycaster.intersectObjects([...pickTargets], false)[0];
+    if (hit?.object.userData.setNum) onSelect(hit.object.userData.setNum);
+  }
+
+  function updateJoystick(event) {
+    if (!joystick) return;
+    const bounds = joystick.getBoundingClientRect();
+    const radius = Math.max(1, Math.min(bounds.width, bounds.height) / 2 - 22);
+    let dx = event.clientX - (bounds.left + bounds.width / 2);
+    let dy = event.clientY - (bounds.top + bounds.height / 2);
+    const distance = Math.hypot(dx, dy);
+    if (distance > radius) {
+      dx = dx / distance * radius;
+      dy = dy / distance * radius;
+    }
+    joystickVector = { forward: -dy / radius, strafe: dx / radius };
+    if (knob) knob.style.transform = `translate3d(${dx.toFixed(1)}px, ${dy.toFixed(1)}px, 0)`;
+    beginMovement();
+  }
+
   const controller = {
-    move(action) {
-      if (destroyed) return;
-      if (action === 'left') angle = Math.max(-0.5, angle - 0.12);
-      if (action === 'right') angle = Math.min(0.5, angle + 0.12);
-      if (action === 'closer') zoom = Math.max(0.75, zoom - 0.12);
-      if (action === 'farther') zoom = Math.min(1.45, zoom + 0.12);
-      if (action === 'reset') { angle = 0; zoom = 1; }
-      render();
+    async capturePointer() {
+      if (!active()) return;
+      if (!canvas.requestPointerLock) throw new Error('Pointer capture unavailable');
+      await canvas.requestPointerLock();
     },
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      resetInputs();
       abort.abort();
       resizeObserver?.disconnect();
       removalObserver?.disconnect();
-      for (const image of images) { image.onload = null; image.onerror = null; image.removeAttribute('src'); }
-      for (const texture of textures) texture.dispose();
-      const materials = new Set();
-      scene.traverse(object => {
-        object.geometry?.dispose();
-        if (object.material) materials.add(object.material);
-      });
-      for (const material of materials) material.dispose();
+      if (document.pointerLockElement === canvas) document.exitPointerLock?.();
+      for (const record of residentBoxes.values()) removeBox(record);
+      residentBoxes.clear();
+      for (const group of residentSegments.values()) disposeGroup(group);
+      residentSegments.clear();
+      for (const geometry of sharedGeometries) geometry.dispose();
+      for (const meshMaterial of sharedMaterials) meshMaterial.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
+      if (joystick) joystick.style.touchAction = previousJoystickTouchAction;
+      if (knob) knob.style.transform = '';
       canvas.remove();
     },
+    getPose() {
+      return { pitch: pose.pitch, x: pose.x, yaw: pose.yaw, z: pose.z };
+    },
+    reset() {
+      if (destroyed) return;
+      resetInputs();
+      pose = { ...layout.spawn };
+      reconcileResidents(true);
+      renderNow();
+    },
+    setPaused(value) {
+      manuallyPaused = Boolean(value);
+      resetInputs();
+      if (manuallyPaused && document.pointerLockElement === canvas) document.exitPointerLock?.();
+      if (!manuallyPaused) renderNow();
+    },
+    teleportToSet(setNum) {
+      if (destroyed) return false;
+      const destination = roomPoseForSet(layout, setNum);
+      if (!destination) return false;
+      resetInputs();
+      pose = destination;
+      reconcileResidents(true);
+      renderNow();
+      return true;
+    },
   };
+
   try {
-    shelves.forEach((shelf, row) => {
-      const y = 5.5 - row * 2.05;
-      box(9.7, 0.14, 1.2, 0, y - 0.92, 0, wood);
-      const label = textCanvas(1024, 64);
-      label.context.fillStyle = '#b68950';
-      label.context.fillRect(0, 0, 1024, 64);
-      label.context.fillStyle = '#201c17';
-      label.context.font = 'bold 30px sans-serif';
-      label.context.fillText(shorten(label.context, shelf.theme, 960), 24, 44);
-      texturedPlane(label.element, 9.7, 0.3, 0, y - 1, 0.62);
-      shelf.items.forEach((item, column) => {
-        const x = -3.6 + column * 2.4;
-        box(2.23, 1.76, 0.13, x, y, -0.1, wood);
-        const card = textCanvas(512, 400);
-        const ctx = card.context;
-        ctx.fillStyle = '#fcfaf5';
-        ctx.fillRect(0, 0, 512, 400);
-        ctx.fillStyle = '#364154';
-        ctx.font = 'bold 38px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(shorten(ctx, item.set_num, 450), 256, 160);
-        ctx.font = 'bold 25px sans-serif';
-        ctx.fillText(shorten(ctx, item.name, 474), 256, 345);
-        ctx.font = '22px sans-serif';
-        const identityAndQuantity = `${item.set_num}  \u00d7 ${item.quantity}`;
-        ctx.fillText(identityAndQuantity, 256, 380);
-        const { mesh, texture } = texturedPlane(card.element, 2.16, 1.69, x, y, -0.025);
-        mesh.userData.setNum = item.set_num;
-        selectable.push(mesh);
-        if (item.image_url) {
-          const image = new Image();
-          images.push(image);
-          image.crossOrigin = 'anonymous';
-          image.onload = () => {
-            if (destroyed || !isCurrent() || !image.naturalWidth || !image.naturalHeight) return;
-            const scale = Math.min(460 / image.naturalWidth, 286 / image.naturalHeight);
-            ctx.fillStyle = '#fcfaf5';
-            ctx.fillRect(0, 0, 512, 310);
-            ctx.drawImage(image, (512 - image.naturalWidth * scale) / 2, 10 + (286 - image.naturalHeight * scale) / 2, image.naturalWidth * scale, image.naturalHeight * scale);
-            texture.needsUpdate = true;
-            render();
-          };
-          image.onerror = () => { /* The readable set-number card remains. */ };
-          image.src = item.image_url;
-        }
-      });
-    });
-    const raycaster = new THREE.Raycaster();
-    let drag = null;
+    if (joystick) joystick.style.touchAction = 'none';
+    window.addEventListener('keydown', event => {
+      if (!active() || isTypingTarget(event.target) || !['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) return;
+      event.preventDefault();
+      keys.add(event.code);
+      beginMovement();
+    }, { signal: abort.signal });
+    window.addEventListener('keyup', event => {
+      if (!keys.delete(event.code)) return;
+      if (!hasMovement()) cancelFrame();
+    }, { signal: abort.signal });
+    window.addEventListener('blur', resetInputs, { signal: abort.signal });
+    document.addEventListener('pointerlockchange', () => {
+      if (document.pointerLockElement !== canvas) resetInputs();
+    }, { signal: abort.signal });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) resetInputs();
+    }, { signal: abort.signal });
+    document.addEventListener('pointermove', event => {
+      if (document.pointerLockElement === canvas && active()) look(event.movementX, event.movementY);
+    }, { signal: abort.signal });
     canvas.addEventListener('pointerdown', event => {
-      if (!event.isPrimary || event.button !== 0) return;
-      drag = { id: event.pointerId, x: event.clientX, y: event.clientY, angle, moved: false };
+      if (!active() || drag || event.button !== 0) return;
+      event.preventDefault();
+      drag = { id: event.pointerId, moved: false, x: event.clientX, y: event.clientY };
       canvas.setPointerCapture(event.pointerId);
     }, { signal: abort.signal });
     canvas.addEventListener('pointermove', event => {
-      if (!drag || drag.id !== event.pointerId) return;
+      if (!drag || drag.id !== event.pointerId || document.pointerLockElement === canvas) return;
       const dx = event.clientX - drag.x;
-      drag.moved ||= Math.hypot(dx, event.clientY - drag.y) > 6;
-      angle = Math.max(-0.5, Math.min(0.5, drag.angle + dx / 450));
-      render();
+      const dy = event.clientY - drag.y;
+      if (Math.hypot(dx, dy) > 2) drag.moved = true;
+      drag.x = event.clientX;
+      drag.y = event.clientY;
+      look(dx, dy);
     }, { signal: abort.signal });
     canvas.addEventListener('pointerup', event => {
       if (!drag || drag.id !== event.pointerId) return;
       const click = !drag.moved;
       drag = null;
-      if (!click) return;
-      const bounds = canvas.getBoundingClientRect();
-      raycaster.setFromCamera(new THREE.Vector2((event.clientX - bounds.left) / bounds.width * 2 - 1, -(event.clientY - bounds.top) / bounds.height * 2 + 1), camera);
-      const hit = raycaster.intersectObjects(selectable)[0];
-      if (hit) onSelect(hit.object.userData.setNum);
+      if (click) pick(event.clientX, event.clientY, document.pointerLockElement === canvas);
     }, { signal: abort.signal });
     canvas.addEventListener('pointercancel', () => { drag = null; }, { signal: abort.signal });
+    canvas.addEventListener('dblclick', () => { void controller.capturePointer().catch(() => {}); }, { signal: abort.signal });
+    joystick?.addEventListener('pointerdown', event => {
+      if (!active() || joystickPointer !== null || event.button !== 0) return;
+      event.preventDefault();
+      joystickPointer = event.pointerId;
+      joystick.setPointerCapture(event.pointerId);
+      updateJoystick(event);
+    }, { signal: abort.signal });
+    joystick?.addEventListener('pointermove', event => {
+      if (joystickPointer === event.pointerId) updateJoystick(event);
+    }, { signal: abort.signal });
+    const releaseJoystick = event => {
+      if (joystickPointer !== event.pointerId) return;
+      joystickPointer = null;
+      joystickVector = { forward: 0, strafe: 0 };
+      if (knob) knob.style.transform = 'translate3d(0, 0, 0)';
+      if (!hasMovement()) cancelFrame();
+    };
+    joystick?.addEventListener('pointerup', releaseJoystick, { signal: abort.signal });
+    joystick?.addEventListener('pointercancel', releaseJoystick, { signal: abort.signal });
     canvas.addEventListener('webglcontextlost', event => {
       event.preventDefault();
-      controller.destroy();
-      onUnavailable();
+      if (!unavailableNotified) {
+        unavailableNotified = true;
+        controller.destroy();
+        onUnavailable();
+      }
     }, { signal: abort.signal });
-    document.addEventListener('visibilitychange', render, { signal: abort.signal });
-    resizeObserver = new ResizeObserver(resize);
-    resizeObserver.observe(stage);
-    removalObserver = new MutationObserver(() => {
-      if (!stage.isConnected || !isCurrent()) controller.destroy();
+    const checkRoute = () => {
+      if (!destroyed && (!stage.isConnected || !isCurrent())) controller.destroy();
+    };
+    window.addEventListener('hashchange', checkRoute, { signal: abort.signal });
+    window.addEventListener('popstate', checkRoute, { signal: abort.signal });
+    window.addEventListener('pagehide', () => controller.destroy(), { signal: abort.signal });
+    resizeObserver = new ResizeObserver(() => {
+      if (destroyed) return;
+      const width = Math.max(1, stage.clientWidth);
+      const height = Math.max(1, stage.clientHeight);
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderNow();
     });
+    resizeObserver.observe(stage);
+    removalObserver = new MutationObserver(checkRoute);
     removalObserver.observe(document.body, { childList: true, subtree: true });
-    resize();
+    reconcileResidents(true);
+    updateCamera();
+    renderer.setSize(Math.max(1, stage.clientWidth), Math.max(1, stage.clientHeight), false);
+    camera.aspect = Math.max(1, stage.clientWidth) / Math.max(1, stage.clientHeight);
+    camera.updateProjectionMatrix();
+    renderer.render(scene, camera);
     return controller;
   } catch (error) {
     controller.destroy();

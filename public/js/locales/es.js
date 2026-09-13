@@ -282,3 +282,17 @@ es.room = {
   left: 'Mirar a la izquierda', right: 'Mirar a la derecha', closer: 'Acercar', farther: 'Alejar', reset: 'Restablecer vista',
   empty: 'Añade sets a tu bóveda para llenar la sala.',
 };
+
+Object.assign(es.room, {
+  enter: 'Entrar en la sala de la colección', exit: 'Salir de la sala', find: 'Buscar un set o tema', accessibleList: 'Lista accesible',
+  loading: 'Abriendo tu sala de exposición…', resetPosition: 'Restablecer posición', captureMouse: 'Activar control con ratón', controls: 'Controles',
+  walkHint: 'Recorre tu colección. Selecciona una caja para examinarla.',
+  walkInstructions: 'Usa WASD o las flechas para caminar. Arrastra para mirar alrededor. Haz clic en una caja para ver sus detalles.',
+  touchInstructions: 'En pantallas táctiles, muévete con el joystick izquierdo y arrastra en otra zona para mirar alrededor. Toca una caja para examinarla.',
+  escapeInstructions: 'Al activar el control con ratón, puedes mirar continuamente. Escape libera el ratón o cierra el panel abierto.',
+  joystick: 'Joystick de movimiento', backToRoom: 'Volver a la sala', fullDetails: 'Abrir todos los detalles',
+  copiesOne: 'Tienes {quantity} copia', copiesMany: 'Tienes {quantity} copias', copiesOther: 'Tienes {quantity} copias', search: 'Buscar sets', more: 'Mostrar más sets',
+  arrived: 'Has llegado al estante seleccionado. Selecciona una caja para examinarla.', mouseUnavailable: 'El control con ratón no está disponible. Arrastra para mirar alrededor.',
+  unavailable: 'La sala de exposición 3D no está disponible en este dispositivo. Tu colección sigue disponible en la lista accesible.',
+  listHint: 'Explora tus sets en la lista y abre sus detalles.', retry3D: 'Reintentar 3D', empty: 'Tu sala de exposición está lista. Añade sets a tu bóveda para llenar los estantes.',
+});

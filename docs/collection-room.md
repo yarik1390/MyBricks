@@ -1,50 +1,53 @@
-# Collection room
+# Walkable collection showroom
 
-Open **Collection room** from the vault, then **Open 3D room** to display set
-images in a room with shelves grouped by theme. The scene and existing Three.js
-module load only after that button is pressed. The service worker precaches
-the modules for offline navigation; importing or executing the renderer stays
-interaction-gated.
+Use **Enter collection room** in the Vault to enter a full-screen first-person
+showroom directly. The renderer initializes only when the room opens; the
+service worker still caches its existing modules for offline navigation.
+This revision replaces the fixed shelf viewer shipped in c165836.
 
-Drag horizontally or use the look/zoom/reset buttons. Selecting an image opens
-the set details. The standard shelf links remain available for keyboard and
-screen-reader navigation, and when graphics are unavailable. There is no
-automatic animation, including with reduced motion enabled.
+Walk with WASD or arrow keys and drag to look around. **Capture mouse** enables
+continuous mouse look; Escape releases it. On mobile, use the left joystick
+while dragging elsewhere to look. Movement has no head bobbing or automatic
+camera tours. Opening a panel, hiding the app, or losing focus stops movement.
 
-The room shows distinct, active owned set identities and combines their copy
-counts. Deleted holdings, zero quantities, and provisional additions are
-excluded. Each theme has its own shelves, with four images per shelf and three
-shelves per page. Filters and pagination keep every set reachable without
-loading an entire large collection into the graphics context. Missing images
-retain a readable set-number card in the scene.
+Theme shelves hold solid display boxes with existing set images on the fronts
+and neutral sides. Dimensions are illustrative. One box represents a distinct
+active set; quantities appear in its details. Deleted, zero-quantity, and
+provisional new holdings are excluded. Walls and furniture block walking.
 
-Guest holdings use the existing device storage path. A failed collection read
-can use the existing in-memory collection cache with a stale-data notice;
-without a cache, the page offers a retry. No new backend, private-data storage,
-model downloads, or database migration is introduced. Notes, costs, and account
-identifiers are excluded from scene data. Owner changes clear the view and
-invalidate late responses. Closing, changing shelves, navigation, and context
-loss dispose images, textures, geometry, observers, and the renderer.
+Select a box to open its details without leaving the room. The panel shows the
+image, title, identity, theme, and copy count. **Open full details** navigates to
+the existing set page; returning preserves the camera for the same account.
+**Find a set or theme** searches all holdings and moves to a clear position at
+the selected shelf. **Accessible list** offers searchable keyboard-accessible
+details, including on devices where graphics are unavailable.
 
-This is an image display room. Detailed set models, building instructions,
-custom furniture, and room editing remain later work. Cached asset changes
-use SW v502. This release contains no database changes.
+The showroom layout extends with the collection. Only nearby geometry and
+textures remain loaded, keeping graphics work bounded. Guest collections use
+existing device storage. Cached collection reads carry a stale-data notice.
+There are no new backend endpoints, database changes, or persistent room data.
+Account changes discard the camera, clear private room content, close room
+panels, and reject late responses. Navigation releases graphics and controls.
 
-Verification covers bounded shelf grouping, distinct quantities, private-field
-exclusion and image URL handling with unit tests. Hermetic Playwright tests use
-mocked APIs and actual local WebGL to cover opt-in loading, filters, pagination,
-mobile layout, guest storage, low-memory fallback, graphics context loss,
-account changes including delayed A–B–A reads, and selecting a scene image to
-open details. Screenshots use fixture images, not a real collector's holdings.
+This release uses service-worker asset version v503.
+Detailed assembled models, avatars, room editing, multiplayer, and
+building animations remain outside this feature.
 
-The implementation passed 361 frontend tests in the original working checkout,
-49 room/organizer/navigation browser checks, and seven focused room checks.
-Fresh independent Sol/high feature review returned `ship` with no material
-findings or proof gaps.
+## Verification
 
-Release preparation against main at 307db9a passed all 342 frontend tests plus
-script and translation gates, root lint, Worker TypeScript, frontend core
-checkJs, all 792 Worker tests, and the complete 128-test browser suite. Existing
-Stripe sourcemap warnings and three runtime internal-error messages were
-emitted by the passing Worker suite. Desktop and 390px mobile screenshots were
-inspected. Physical-device GPU coverage remains outside these browser checks.
+Acceptance covers first-person movement/collisions, deterministic large-room
+layout and bounded resources, real box selection, panel pause/resume, returning
+from details, simultaneous mobile joystick/look, focus loss, guest fallback,
+context loss/retry, cached reads, owner transitions, and route cleanup. Browser
+tests use isolated collection fixtures and local WebGL; no live holdings are
+modified. Physical-device graphics performance requires separate device testing.
+
+Local validation passed 346 frontend tests, the translation/string gates, lint,
+Worker TypeScript and frontend core checkJs. The full 129-test browser suite
+passed, followed by all nine room tests after the final input corrections,
+including actual Chromium pointer capture and release into a detail panel.
+Desktop and 390px touch screenshots were inspected using fixture images.
+Independent Sol review cleared the change after the theme-material cache was
+bounded to six palette colors. The distant-shelf browser check and renderer
+lint passed again after that correction.
+The complete Worker test suite passed during deployment preparation.

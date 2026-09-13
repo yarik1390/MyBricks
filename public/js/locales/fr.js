@@ -294,3 +294,17 @@ fr.room = {
   left: 'Regarder à gauche', right: 'Regarder à droite', closer: 'Zoom avant', farther: 'Zoom arrière', reset: 'Réinitialiser la vue',
   empty: 'Ajoutez des sets à votre coffre pour remplir votre salle.',
 };
+
+Object.assign(fr.room, {
+  enter: 'Entrer dans la salle de collection', exit: 'Quitter la salle', find: 'Rechercher un set ou un thème', accessibleList: 'Liste accessible',
+  loading: 'Ouverture de votre salle d’exposition…', resetPosition: 'Réinitialiser la position', captureMouse: 'Capturer la souris', controls: 'Commandes',
+  walkHint: 'Parcourez votre collection. Sélectionnez une boîte pour l’examiner.',
+  walkInstructions: 'Utilisez les touches WASD ou les flèches pour vous déplacer. Faites glisser pour regarder autour de vous. Cliquez sur une boîte pour voir ses détails.',
+  touchInstructions: 'Sur écran tactile, déplacez-vous avec le joystick gauche et faites glisser ailleurs pour regarder autour de vous. Touchez une boîte pour l’examiner.',
+  escapeInstructions: 'La capture de la souris permet de regarder autour de vous en continu. La touche Échap libère la souris ou ferme le panneau ouvert.',
+  joystick: 'Joystick de déplacement', backToRoom: 'Retour à la salle', fullDetails: 'Ouvrir tous les détails',
+  copiesOne: '{quantity} exemplaire possédé', copiesMany: '{quantity} exemplaires possédés', copiesOther: '{quantity} exemplaires possédés', search: 'Rechercher des sets', more: 'Afficher plus de sets',
+  arrived: 'Vous êtes devant l’étagère sélectionnée. Sélectionnez une boîte pour l’examiner.', mouseUnavailable: 'La capture de la souris n’est pas disponible. Faites glisser pour regarder autour de vous.',
+  unavailable: 'La salle d’exposition 3D n’est pas disponible sur cet appareil. Votre collection reste accessible dans la liste.',
+  listHint: 'Parcourez vos sets dans la liste et ouvrez leurs détails.', retry3D: 'Réessayer en 3D', empty: 'Votre salle d’exposition est prête. Ajoutez des sets à votre coffre pour remplir les étagères.',
+});

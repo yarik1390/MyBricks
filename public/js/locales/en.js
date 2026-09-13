@@ -604,3 +604,16 @@ en.room = {
   left: 'Look left', right: 'Look right', closer: 'Zoom in', farther: 'Zoom out', reset: 'Reset view',
   empty: 'Add sets to your vault to fill your room.',
 };
+Object.assign(en.room, {
+  enter: 'Enter collection room', exit: 'Exit room', find: 'Find a set or theme', accessibleList: 'Accessible list',
+  loading: 'Opening your showroom...', resetPosition: 'Reset position', captureMouse: 'Capture mouse', controls: 'Controls',
+  walkHint: 'Walk through your collection. Select a box to inspect it.',
+  walkInstructions: 'Use WASD or arrow keys to walk. Drag to look around. Click a box to see its details.',
+  touchInstructions: 'On touch screens, move with the left joystick and drag elsewhere to look. Tap a box to inspect it.',
+  escapeInstructions: 'Capture mouse enables continuous mouse look. Escape releases the mouse or closes the open panel.',
+  joystick: 'Movement joystick', backToRoom: 'Back to room', fullDetails: 'Open full details',
+  copiesOne: '{quantity} copy owned', copiesOther: '{quantity} copies owned', search: 'Search sets', more: 'Show more sets',
+  arrived: 'You are at the selected shelf. Select a box to inspect it.', mouseUnavailable: 'Mouse capture is unavailable. Drag to look around.',
+  unavailable: 'The 3D showroom is unavailable on this device. Your collection is still available in the accessible list.',
+  listHint: 'Browse your sets and open their details using the list.', retry3D: 'Retry 3D', empty: 'Your showroom is ready. Add sets to your vault to fill the shelves.',
+});

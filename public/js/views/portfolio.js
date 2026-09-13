@@ -322,7 +322,7 @@ function paintPortfolio() {
           <button class="icon-btn vault-overflow" id="vaultMoreBtn" aria-label="More vault actions">${I.more()}</button>
         </div>
       </div>
-      <a class="collection-entry" href="#/room">${I.grid()}<span>${t('room.title')}</span>${I.chev()}</a>
+      <a class="collection-entry" href="#/room">${I.grid()}<span>${t('room.enter')}</span>${I.chev()}</a>
       <a class="collection-entry" href="#/collections">${I.grid()}<span>${t('collections.title')}</span>${I.chev()}</a>
       ${isEmptyVault ? emptyVaultHTML() : `
       <div class="search-wrap${state.filter.q ? " open" : ""}" id="searchWrap">
