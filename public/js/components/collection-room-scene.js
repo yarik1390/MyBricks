@@ -513,11 +513,20 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) resetInputs();
     }, { signal: abort.signal });
-    document.addEventListener('pointermove', event => {
+    // Pointer lock guarantees mouse events; some platforms do not dispatch the
+    // corresponding pointer events. Handle the completed click while still
+    // locked, before releasing the cursor to show the details panel.
+    document.addEventListener('mousemove', event => {
       if (document.pointerLockElement === canvas && active()) look(event.movementX, event.movementY);
     }, { signal: abort.signal });
+    document.addEventListener('click', event => {
+      if (document.pointerLockElement !== canvas || event.button !== 0) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      pick(0, 0, true);
+    }, { capture: true, signal: abort.signal });
     canvas.addEventListener('pointerdown', event => {
-      if (!active() || drag || event.button !== 0) return;
+      if (!active() || drag || event.button !== 0 || document.pointerLockElement === canvas) return;
       event.preventDefault();
       drag = { id: event.pointerId, moved: false, x: event.clientX, y: event.clientY };
       canvas.setPointerCapture(event.pointerId);
