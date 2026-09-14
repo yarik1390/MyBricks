@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = "v512";
+const VERSION = "v513";
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 // Cross-origin product images live in their own UNVERSIONED, bounded cache:
@@ -149,7 +149,9 @@ self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(STATIC_CACHE).then(c => Promise.all(
       STATIC_ASSETS.map(url =>
-        c.add(url).catch(err => console.warn('[sw] precache skipped', url, err && err.message))
+        // A new Cache Storage name does not invalidate the browser's HTTP cache.
+        // Fetch this release even when the previous files have hours of max-age left.
+        c.add(new Request(url, { cache: 'reload' })).catch(err => console.warn('[sw] precache skipped', url, err && err.message))
       )
     ))
   );
