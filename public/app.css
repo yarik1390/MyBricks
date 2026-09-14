@@ -8237,14 +8237,15 @@ body[data-route="collection-room"] #nav { display:none !important; }
 .showroom-stage { position:absolute; inset:0; outline:none; }
 .showroom-stage canvas { display:block; width:100%; height:100%; touch-action:none; }
 .showroom-stage:focus-visible { outline:2px solid #f4c579; outline-offset:-4px; }
-.showroom-bar { position:absolute; inset:0 0 auto; display:flex; gap:12px; align-items:center; padding:calc(12px + env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) 12px max(18px,env(safe-area-inset-left)); background:linear-gradient(#20180fe8,#20180f9c); border-bottom:1px solid #ffffff26; }
-.showroom button, .showroom-exit { color:#fff7e9; background:#29211cdd; border:1px solid #ecd8ba66; border-radius:10px; min-height:44px; padding:10px 14px; font:inherit; font-size:14px; font-weight:600; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
+.showroom-chrome-top { position:absolute; inset:0 0 auto; z-index:35; display:flex; flex-direction:column; align-items:center; pointer-events:none; }
+.showroom-bar { position:relative; width:100%; pointer-events:auto; display:flex; gap:12px; align-items:center; padding:calc(12px + env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) 12px max(18px,env(safe-area-inset-left)); background:linear-gradient(#20180fe8,#20180f9c); border-bottom:1px solid #ffffff26; }
+.showroom button, .showroom-exit { color:#fff7e9; background:#29211cdd; border:1px solid #ecd8ba66; border-radius:10px; min-height:48px; min-width:48px; padding:10px 14px; font:inherit; font-size:14px; font-weight:600; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:6px; }
 .showroom button:hover, .showroom-exit:hover { background:#55412d; }
 .showroom a:focus-visible, .showroom button:focus-visible { outline:3px solid #f4c579; outline-offset:3px; }
 .showroom-heading { flex:1; min-width:0; }
-.showroom-heading h1 { font-size:20px; line-height:1.2; margin:0 0 4px; color:inherit; }
+.showroom-heading h1 { font-size:clamp(15px, 4vw, 20px); line-height:1.2; margin:0 0 4px; color:inherit; }
 .showroom-heading span { font-size:12px; color:#e5d6c0; }
-.showroom-notices { position:absolute; top:calc(90px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%); width:max-content; max-width:calc(100% - 32px); text-align:center; pointer-events:none; }
+.showroom-notices { position:relative; top:auto; left:auto; transform:none; margin-top:8px; width:max-content; max-width:calc(100% - 32px); text-align:center; pointer-events:none; }
 .showroom-notices p { margin:0 0 6px; background:#20180fcb; padding:8px 14px; border-radius:8px; font-size:13px; line-height:1.4; }
 .showroom-crosshair { position:absolute; left:50%; top:50%; width:6px; height:6px; margin:-3px; background:#fff; border:1px solid #36291a; border-radius:50%; pointer-events:none; }
 .showroom-controls { position:absolute; bottom:calc(18px + env(safe-area-inset-bottom)); right:max(18px, env(safe-area-inset-right)); display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; max-width:calc(100% - 36px); }
@@ -8266,8 +8267,8 @@ body[data-route="collection-room"] #nav { display:none !important; }
 .showroom-results small { display:block; opacity:.7; margin-top:4px; }
 .showroom-detail-image { display:block; max-width:100%; width:280px; height:190px; object-fit:contain; margin:0 auto; background:#faf6ec; border-radius:12px; }
 .showroom-sheet .btn-primary { text-decoration:none; text-align:center; display:block; margin:14px 0; }
-@media (pointer:coarse) { .showroom-stick { display:block; } #roomMouse { display:none; } .showroom-controls { max-width:calc(100% - 156px); } }
-@media (max-width:600px) { .showroom-bar { flex-wrap:wrap; gap:8px; padding-inline:12px; } .showroom-heading { flex-basis:55%; } .showroom-heading h1 { font-size:17px; } .showroom-bar button { flex:1; } .showroom-notices { top:calc(142px + env(safe-area-inset-top)); } .showroom-controls button { font-size:12px; padding:8px 10px; } }
+@media (pointer:coarse), (hover:none) { .showroom-stick { display:block; } #roomMouse { display:none !important; } .showroom-controls { max-width:calc(100% - 156px); } }
+@media (max-width:600px) { .showroom-bar { flex-wrap:wrap; gap:8px; padding-inline:12px; } .showroom-heading { flex-basis:55%; } .showroom-heading h1 { font-size:clamp(14px, 4vw, 17px); } .showroom-bar button { flex:1; min-height:48px; } .showroom-controls button { font-size:12px; padding:8px 10px; min-height:48px; } }
 .collection-entry span { flex:1; }
 .collection-entry svg { width:20px; height:20px; flex-shrink:0; }
 .collections-page h1 { font-size:28px; margin:16px 0 8px; }

@@ -24,7 +24,10 @@ window.addEventListener('bv:owner-changed', () => {
   if ($('#collectionRoomPage')) $('#root').replaceChildren();
 });
 window.addEventListener('hashchange', () => {
-  if (!inRoom()) { generation++; releaseRoom(); }
+  if (!inRoom()) {
+    generation++;
+    releaseRoom();
+  }
 });
 // go() can use pushState instead of hashchange; release on root removal too.
 new MutationObserver(() => {
@@ -39,14 +42,14 @@ export async function renderCollectionRoom() {
     const now = getSessionOwnerSnapshot();
     return version === generation && now.userId === owner.userId && now.generation === owner.generation && inRoom();
   };
-  $('#root').innerHTML = `<main id="collectionRoomPage" class="showroom"><a class="showroom-exit" href="#/">${t('room.exit')}</a><p class="showroom-loading" role="status">${t('room.loading')}</p></main>`;
+  $('#root').innerHTML = `<main id="collectionRoomPage" class="showroom"><a class="showroom-exit" data-vault-view="grid" href="#/">${t('room.exit')}</a><p class="showroom-loading" role="status">${t('room.loading')}</p></main>`;
   let data;
   let stale = false;
   try { data = await api('/api/collection'); }
   catch { data = state.portfolio; stale = true; }
   if (!current()) return;
   if (!data || !Array.isArray(data.items)) {
-    $('#root').innerHTML = `<main class="showroom showroom-fallback" id="collectionRoomPage"><a href="#/">${t('room.exit')}</a><h1>${t('room.title')}</h1><p role="alert">${t('collections.failed')}</p><button class="btn-secondary" id="roomRetry">${t('collections.retry')}</button></main>`;
+    $('#root').innerHTML = `<main class="showroom showroom-fallback" id="collectionRoomPage"><a class="showroom-exit" data-vault-view="grid" href="#/">${t('room.exit')}</a><h1>${t('room.title')}</h1><p role="alert">${t('collections.failed')}</p><button class="btn-secondary" id="roomRetry">${t('collections.retry')}</button></main>`;
     $('#roomRetry').addEventListener('click', renderCollectionRoom);
     return;
   }
@@ -56,9 +59,11 @@ export async function renderCollectionRoom() {
   const initialPose = rememberedPose?.owner.userId === owner.userId && rememberedPose.owner.generation === owner.generation ? rememberedPose.pose : undefined;
   $('#root').innerHTML = `<main id="collectionRoomPage" class="showroom" aria-label="${escapeHtml(t('room.title'))}">
     <div id="roomStage" class="showroom-stage" tabindex="0" aria-label="${escapeHtml(t('room.walkInstructions'))}" data-room-state="loading"></div>
-    <header class="showroom-bar">${vaultViewSwitch('room')}<div class="showroom-heading"><h1>${t('room.title')}</h1><span>${escapeHtml(tPlural('room.count', catalog.length, { count: catalog.length }))}</span></div>
-      <button type="button" id="roomFind">${t('room.find')}</button><button type="button" id="roomList">${t('room.accessibleList')}</button></header>
-    <div class="showroom-notices"><p id="roomStatus" role="status" aria-live="polite">${t('room.loading')}</p>${stale ? `<p>${t('collections.stale')}</p>` : ''}${state.pendingCollectionOperationList?.length ? `<p>${t('collections.pending')}</p>` : ''}</div>
+    <div class="showroom-chrome-top">
+      <header class="showroom-bar">${vaultViewSwitch('room')}<div class="showroom-heading"><h1>${t('room.title')}</h1><span>${escapeHtml(tPlural('room.count', catalog.length, { count: catalog.length }))}</span></div>
+        <button type="button" id="roomFind">${t('room.find')}</button><button type="button" id="roomList">${t('room.accessibleList')}</button></header>
+      <div class="showroom-notices"><p id="roomStatus" role="status" aria-live="polite">${t('room.loading')}</p>${stale ? `<p>${t('collections.stale')}</p>` : ''}${state.pendingCollectionOperationList?.length ? `<p>${t('collections.pending')}</p>` : ''}</div>
+    </div>
     <div class="showroom-crosshair" aria-hidden="true"></div>
     <div id="roomJoystick" class="showroom-stick" role="group" aria-label="${escapeHtml(t('room.joystick'))}"><span class="showroom-stick-knob"></span></div>
     <footer class="showroom-controls"><button type="button" id="roomReset">${t('room.resetPosition')}</button><button type="button" id="roomMouse">${t('room.captureMouse')}</button><button type="button" id="roomHelp">${t('room.controls')}</button></footer>

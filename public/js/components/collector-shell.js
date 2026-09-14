@@ -55,9 +55,7 @@ export function installCollectorShell() {
     const view = target?.closest('[data-vault-view]')?.dataset.vaultView;
     if (view) writeCollectorPreferences(getSessionUserId(), { view });
     const home = target?.closest('#nav [data-route="/"]');
-    if (home && getModePref() !== 'kids' && readCollectorPreferences(getSessionUserId()).view === 'room') {
-      event.preventDefault(); location.hash = '#/room';
-    }
+    if (home) writeCollectorPreferences(getSessionUserId(), { view: 'grid' });
   });
 }
 
@@ -70,7 +68,11 @@ export function syncCollectorChrome(meta) {
     add = document.createElement('button');
     add.id = 'collectorAdd'; add.className = 'collector-add'; add.type = 'button';
     add.setAttribute('data-collector-add', '');
-    document.body.appendChild(add);
+    const nav = $('#nav');
+    const catalogTab = nav?.querySelector('[data-route="/add"]');
+    if (catalogTab?.nextSibling) catalogTab.parentNode.insertBefore(add, catalogTab.nextSibling);
+    else if (nav) nav.appendChild(add);
+    else document.body.appendChild(add);
   }
   add.innerHTML = `${I.plus()}<span>${t('collector.add')}</span>`;
   add.hidden = kids || !['vault', 'catalog', 'minifigs', 'wishlist', 'collections'].includes(meta.key);

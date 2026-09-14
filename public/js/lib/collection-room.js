@@ -139,7 +139,15 @@ export function createRoomLayout(catalog = []) {
     minX: -ROOM_LAYOUT.roomHalfWidth,
     minZ: 0,
   });
-  const spawn = Object.freeze({ pitch: 0.08, x: 0, yaw: -0.2, z: 0.85 });
+  // Face the first actual display, including collections with a single set.
+  // Looking down the empty aisle leaves the first shelf outside a phone's FOV.
+  const firstBox = boxes[0];
+  const spawnZ = 1.2;
+  const spawn = Object.freeze({
+    x: 0, z: spawnZ,
+    yaw: firstBox ? Math.atan2(firstBox.x, firstBox.z - spawnZ) : 0,
+    pitch: firstBox ? Math.atan2(firstBox.y - ROOM_LAYOUT.eyeHeight, Math.hypot(firstBox.x, firstBox.z - spawnZ)) : 0,
+  });
   return { bounds, boxes, colliders, segmentCount, setIndex, shelves, spawn };
 }
 

@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures.mjs';
 
-// A catalog card pins RETIRED to the top-left of its image and OWNED to the
-// top-right. Nothing stopped them meeting in the middle — in English they never
+// A catalog card pins RETIRED and OWNED over its image. Nothing stopped them
+// meeting in the middle — in English they never
 // do, because both words are short. Translated they are not: Ukrainian renders
 // "ЗНЯТО З ВИРОБНИЦТВА" and "У ВЛАСНОСТІ", and the two badges drew on top of
 // each other.
@@ -48,8 +48,11 @@ for (const { name, args } of CASES) {
     expect(retired, 'retired badge should render').toBeTruthy();
     expect(owned, 'owned badge should render').toBeTruthy();
 
-    expect(retired.x + retired.width, `${name}: RETIRED runs into OWNED`)
-      .toBeLessThanOrEqual(owned.x);
+    // Collector cards separate the labels vertically; legacy skins can keep
+    // them side by side. Both layouts must leave the full labels unobstructed.
+    const overlap = retired.x < owned.x + owned.width && owned.x < retired.x + retired.width
+      && retired.y < owned.y + owned.height && owned.y < retired.y + retired.height;
+    expect(overlap, `${name}: RETIRED runs into OWNED`).toBe(false);
 
     // Neither badge, nor the submeta row, may spill outside the card.
     const card = await page.locator('.set-card').boundingBox();

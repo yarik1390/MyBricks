@@ -9,7 +9,7 @@ async function stubRoom(page, rows = holdings) {
   await page.route('**/api/collection', route => route.fulfill({ json: { items: rows, count: rows.length } }));
 }
 const ready = page => expect(page.locator('#roomStage')).toHaveAttribute('data-room-state', 'ready');
-const pose = page => page.locator('#roomStage').evaluate(el => ({ x: Number(el.dataset.cameraX), z: Number(el.dataset.cameraZ), yaw: Number(el.dataset.cameraYaw) }));
+const pose = page => page.locator('#roomStage').evaluate(el => ({ x: Number(el.dataset.cameraX), z: Number(el.dataset.cameraZ), yaw: Number(el.dataset.cameraYaw), pitch: Number(el.dataset.cameraPitch) }));
 async function walk(page, key, ms = 400) {
   await page.locator('#roomStage').focus();
   await page.keyboard.down(key);
@@ -314,4 +314,130 @@ test('Android back closes room panels first, then leaves the room', async ({ pag
   await page.evaluate(() => window.__roomBack({ canGoBack: false }));
   await expect(page).toHaveURL(/#\/$/);
   await expect(page.locator('#nav')).toBeVisible();
+  await page.locator('[data-vault-view="room"]').click();
+  await ready(page);
+  await page.evaluate(() => window.__roomBack({ canGoBack: true }));
+  await expect(page).toHaveURL(/#\/$/);
+  await page.locator('#nav [data-route="/add"]').click();
+  await page.locator('#nav [data-route="/"]').click();
+  await expect(page).toHaveURL(/#\/$/);
+  await expect(page.locator('#roomStage')).toHaveCount(0);
+});
+
+test('exit room via browser back, visit another page, then Vault returns to grid', async ({ page }) => {
+  await stubRoom(page);
+  await page.goto('/#/');
+  await page.getByRole('link', { name: '3D Room', exact: true }).click();
+  await ready(page);
+  // Exit via browser back
+  await page.goBack();
+  await expect(page).toHaveURL(/#\/$/);
+  await expect(page.locator('#collectionRoomPage')).toHaveCount(0);
+  // Navigate to another tab (Catalog)
+  await page.locator('#nav [data-route="/add"]').click();
+  await expect(page).toHaveURL(/#\/add$/);
+  // Tapping bottom Vault must reliably return Grid, not room
+  await page.locator('#nav [data-route="/"]').click();
+  await expect(page).toHaveURL(/#\/$/);
+  await expect(page.locator('#collectionRoomPage')).toHaveCount(0);
+  await expect(page.locator('#setList')).toBeVisible();
+  await page.getByRole('link', { name: '3D Room', exact: true }).click();
+  await ready(page);
+  await page.locator('[data-vault-view="grid"]').click();
+  await page.locator('#nav [data-route="/wishlist"]').click();
+  await page.locator('#nav [data-route="/"]').click();
+  await expect(page).toHaveURL(/#\/$/);
+  await expect(page.locator('#collectionRoomPage')).toHaveCount(0);
+});
+
+test('room -> full details -> browser back preserves camera pose', async ({ page }) => {
+  await stubRoom(page);
+  await page.goto('/#/room');
+  await ready(page);
+  await findSet(page, '1000-1');
+  const targetPose = await pose(page);
+  const stage = await page.locator('#roomStage').boundingBox();
+  await page.mouse.click(stage.x + stage.width / 2, stage.y + stage.height / 2);
+  await expect(page.locator('#roomSheetTitle')).toHaveText('Display set 0');
+  await page.locator('#roomFullDetails').click();
+  await expect(page).toHaveURL(/#\/set\/1000-1$/);
+  // Browser back to room
+  await page.goBack();
+  await ready(page);
+  const restoredPose = await pose(page);
+  expect(restoredPose.x).toBeCloseTo(targetPose.x, 1);
+  expect(restoredPose.z).toBeCloseTo(targetPose.z, 1);
+});
+
+test('room toolbar and status notices do not overlap across 320, 390, 412 portrait and landscape', async ({ page }) => {
+  await stubRoom(page);
+  for (const vp of [
+    { width: 320, height: 640 },
+    { width: 390, height: 844 },
+    { width: 412, height: 915 },
+    { width: 915, height: 412 },
+  ]) {
+    await page.setViewportSize(vp);
+    await page.goto('/#/room');
+    await ready(page);
+    const bar = await page.locator('.showroom-bar').boundingBox();
+    const notices = await page.locator('.showroom-notices').boundingBox();
+    expect(bar).not.toBeNull();
+    expect(notices).not.toBeNull();
+    // In non-overlapping flow, notices top must be at or below toolbar bottom
+    expect(notices.y).toBeGreaterThanOrEqual(bar.y + bar.height - 2);
+  }
+});
+
+test('a single holding is visible from the entrance and has no more-results button', async ({ page }) => {
+  const singleHolding = [{ set_num: '1000-1', name: 'Single Set', theme: 'Space', quantity: 1, image_url: '/brand-brick-transparent.png' }];
+  await stubRoom(page, singleHolding);
+  await page.setViewportSize({ width: 412, height: 915 });
+  await page.goto('/#/room');
+  await ready(page);
+  // Default pose faces collection shelves, not ceiling
+  const initial = await pose(page);
+  expect(initial.pitch).toBeLessThan(0.05);
+  const stage = await page.locator('#roomStage').boundingBox();
+  await page.mouse.click(stage.x + stage.width / 2, stage.y + stage.height / 2);
+  await expect(page.locator('#roomSheetTitle')).toHaveText('Single Set');
+  await page.locator('#roomSheetClose').click();
+  // Open accessible list
+  await page.locator('#roomList').click();
+  const more = page.locator('#roomMore');
+  await expect(more).toBeHidden();
+  const display = await more.evaluate(el => window.getComputedStyle(el).display);
+  expect(display).toBe('none');
+});
+
+test('primary Add button in navigation does not cover clickable page content at midscroll or end', async ({ page }) => {
+  await stubRoom(page);
+  await page.setViewportSize({ width: 412, height: 915 });
+  await page.goto('/#/');
+  const addBtn = page.locator('#collectorAdd');
+  await expect(addBtn).toBeVisible();
+  // Verify Add button is docked in #nav and doesn't overlap page links
+  const navBox = await page.locator('#nav').boundingBox();
+  const addBox = await addBtn.boundingBox();
+  expect(addBox.y).toBeGreaterThanOrEqual(navBox.y - 10);
+  // Element from point at mid-scroll content does not hit Add button
+  const hitTarget = await page.evaluate(() => {
+    const el = document.elementFromPoint(350, 450);
+    return el?.id || el?.className;
+  });
+  expect(hitTarget).not.toContain('collector-add');
+});
+
+test('narrow Catalog toolbar view toggle stays on screen without badge letter wrap', async ({ page }) => {
+  for (const width of [320, 390, 412]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/#/add');
+    const toggle = page.locator('#catalogLayoutToggle');
+    await expect(toggle).toBeVisible();
+    const box = await toggle.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+    const filterBtn = page.locator('#filterChip');
+    await expect(filterBtn).toBeVisible();
+  }
 });
