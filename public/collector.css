@@ -53,7 +53,6 @@ body.collector-ui { font-size: 16px; }
 .collector-vault { display: flex; flex-direction: column; }
 .collector-vault > .collector-market, .collector-vault > .collector-tools { order: 2; }
 .collector-ui .search-input::placeholder { color: var(--ink-mute); opacity: 1; }
-.collector-ui .portfolio-tab.active { color: var(--ink); }
 .collector-heading h2 { font-size: clamp(30px,8vw,38px); line-height: 1.1; margin: 0 0 8px; font-weight: 700; }
 .collector-heading p,.collector-hint { color: var(--ink-mute); font-size: 14px; line-height: 1.6; margin: 6px 0 16px; }
 .vault-view-switch { display: flex; background: var(--surface-2); border-radius: 999px; padding: 5px; gap: 4px; margin-bottom: 20px; }
@@ -77,7 +76,7 @@ body.collector-ui { font-size: 16px; }
 .collector-tools svg:last-child { margin-left: auto; }
 .collector-ui .portfolio-tabs { margin: 16px 0 12px; border: 0; gap: 8px; }
 .collector-ui .portfolio-tab { font: 600 14px var(--sans); border: 0; border-radius: 24px; padding: 8px 18px; }
-.collector-ui .portfolio-tab.active { background: var(--surface-3); color: var(--ink); box-shadow: none; }
+.collector-ui .portfolio-tab.active { background: var(--surface-3); color: var(--ink) !important; box-shadow: none; }
 .collector-vault #setList:not(.compact-list) { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px 12px; }
 .collector-vault .set-list-card:not(.compact) { flex-direction: column; gap: 10px; padding: 0 0 12px; border: 0 !important; background: transparent; border-radius: 18px; overflow: visible; }
 .collector-vault .set-list-card:not(.compact) .sl-img { width: 100%; height: auto; aspect-ratio: 1.12; border-radius: 20px; background: #fff; border: 0; }

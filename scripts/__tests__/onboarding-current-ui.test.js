@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
+import { en } from '../../public/js/locales/en.js';
 
 const onboarding = readFileSync(new URL('../../public/js/components/onboarding.js', import.meta.url), 'utf8');
 const serviceWorker = readFileSync(new URL('../../public/sw.js', import.meta.url), 'utf8');
 
 describe('current first-run onboarding', () => {
   it('separates the investor display mode from the paid Pro entitlement', () => {
-    assert.match(onboarding, /'Investor', 'Full investor view — market value, ROI and 2-year projections\.'/);
+    assert.equal(en.setup.investor, 'Investor');
+    assert.match(onboarding, /t\('setup.investor'\)/);
+    assert.match(onboarding, /Full investor view — market value, ROI and 2-year projections\./);
     assert.doesNotMatch(onboarding, /opt\('pro', '📈', 'Pro'/);
     assert.match(onboarding, /<h3 id="bv-setup-title">BricksVault Pro ⭐<\/h3>/);
   });
@@ -16,7 +19,8 @@ describe('current first-run onboarding', () => {
     assert.match(onboarding, /Swipe through to see where everything lives\./);
     assert.match(onboarding, /Search 27,000\+ sets and add them to your vault\./);
     assert.match(onboarding, /Point it at a box barcode — instant match\./);
-    assert.match(onboarding, /Start privately on this device — sign in later if you want to sync\./);
+    assert.equal(en.setup.privacy, 'Start privately on this device — sign in later if you want to sync.');
+    assert.match(onboarding, /t\('setup.privacy'\)/);
   });
 
   it('exposes meaningful progress and labels for both dialogs', () => {

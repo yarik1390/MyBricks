@@ -617,15 +617,19 @@ function clearCatalogFilters() {
 
 function showFilterSheet(onApply) {
   const r = state.filter.catalogRanges;
-  const rangeField = (label, minKey, maxKey, ph1, ph2) => `
+  const rangeField = (label, minKey, maxKey, ph1, ph2) => {
+    const accessibleLabel = t({ min_year: 'catalog.releaseYear', min_pieces: 'catalog.pieces', min_value: 'catalog.currentValue' }[minKey]);
+    return `
     <div class="field" style="margin-bottom:14px;">
       <div class="field-lbl">${label}</div>
       <div class="range-inputs">
-        <input type="number" inputmode="numeric" id="f_${minKey}" value="${r[minKey]}" placeholder="${ph1}">
+        <input type="number" inputmode="numeric" id="f_${minKey}" value="${r[minKey]}" placeholder="${ph1}" aria-label="${escapeHtml(accessibleLabel)} — ${escapeHtml(t('catalog.minimum'))}" aria-describedby="f_${minKey}_error">
         <span class="range-dash">–</span>
-        <input type="number" inputmode="numeric" id="f_${maxKey}" value="${r[maxKey]}" placeholder="${ph2}">
+        <input type="number" inputmode="numeric" id="f_${maxKey}" value="${r[maxKey]}" placeholder="${ph2}" aria-label="${escapeHtml(accessibleLabel)} — ${escapeHtml(t('catalog.maximum'))}" aria-describedby="f_${minKey}_error">
       </div>
+      <p id="f_${minKey}_error" class="field-error" role="alert" hidden></p>
     </div>`;
+  };
   const f = state.filter;
   const activeCount = activeCatalogFilterCount(f);
   const facetGroup = (label, key, opts, cur) => {
@@ -691,6 +695,22 @@ function showFilterSheet(onApply) {
   });
 
   $("#filterApply").addEventListener("click", () => {
+    let firstInvalid = null;
+    for (const [minKey, maxKey] of [['min_year', 'max_year'], ['min_pieces', 'max_pieces'], ['min_value', 'max_value']]) {
+      const min = document.getElementById(`f_${minKey}`);
+      const max = document.getElementById(`f_${maxKey}`);
+      const error = document.getElementById(`f_${minKey}_error`);
+      const invalid = min.value !== '' && max.value !== '' && Number(min.value) > Number(max.value);
+      min.setAttribute('aria-invalid', String(invalid));
+      max.setAttribute('aria-invalid', String(invalid));
+      error.textContent = invalid ? t('catalog.rangeOrderError') : '';
+      error.hidden = !invalid;
+      if (invalid && !firstInvalid) firstInvalid = min;
+    }
+    if (firstInvalid) {
+      firstInvalid.focus();
+      return;
+    }
     Object.keys(r).forEach(k => {
       const el = document.getElementById("f_" + k);
       if (el) r[k] = el.value !== "" ? parseFloat(el.value) : "";

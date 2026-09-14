@@ -1,5 +1,10 @@
 /** German. Missing keys fall back to English (see lib/i18n.js). */
 export const de = {
+  setup: {
+    privacy: 'Starte privat auf diesem Gerät — melde dich später an, wenn du deine Daten synchronisieren möchtest.',
+    letsGo: 'Los geht’s', investor: 'Investor',
+    simpleDescription: 'Nur deine Sets und ihr Wert. Ohne Fachbegriffe.',
+  },
   collector: {
   "title": "Dein Tresor",
   "subtitle": "Ein Zuhause für jeden Stein.",
@@ -188,6 +193,8 @@ export const de = {
     needParts: 'Noch {n} Teile nötig', ofOwnedSets: 'von {n} Sets im Besitz', indexing: 'Indexiere {n} weitere Set(s) im Hintergrund…',
   },
   catalog: {
+    releaseYear: 'Erscheinungsjahr', pieces: 'Teileanzahl', currentValue: 'Aktueller Wert ($)',
+    minimum: 'Minimum', maximum: 'Maximum', rangeOrderError: 'Das Minimum muss kleiner oder gleich dem Maximum sein.',
     title: 'Katalog', searchPlaceholder: 'Set suchen', results: '{count} Sets',
     sortValue: 'Wert', sortGrowth: 'Wachstum', sortNewest: 'Neueste', sortTrending: 'Im Trend',
     noResults: 'Keine Sets gefunden', filters: 'Filter', sort: 'Sortieren', clearFilters: 'Filter zurücksetzen',

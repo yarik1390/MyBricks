@@ -917,8 +917,7 @@ function wireDetailActions(set, entry) {
     haptic("heavy");
     setBtnLoading(e.currentTarget, true);
     try {
-      const displayVal = setDisplayValue(set);
-      const addResult = await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1, purchase_price: displayVal } });
+      const addResult = await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1 } });
       invalidatePortfolio(); state.catalog.items = []; markSetOwned(set.set_num, true);
       toast("Added to vault", "success");
       if (isKidsMode() && addResult?.kids?.xp_gained > 0) {
@@ -943,7 +942,7 @@ function wireDetailActions(set, entry) {
     } catch (e) {
       setBtnLoading($("#addBtn"), false);
       if (!navigator.onLine) {
-        outboxEnqueue({ path: '/api/collection', method: 'POST', body: { set_num: set.set_num, quantity: 1, purchase_price: setDisplayValue(set) } });
+        outboxEnqueue({ path: '/api/collection', method: 'POST', body: { set_num: set.set_num, quantity: 1 } });
         toast('Saved offline — will sync when connected', 'info');
       } else { toast(t('common.errorWithDetails', { error: e.message || e }), "error"); }
     } finally { state.pendingRequests.delete(set.set_num); }

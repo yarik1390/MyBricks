@@ -1,5 +1,10 @@
 /** Spanish. Missing keys fall back to English (see lib/i18n.js). */
 export const es = {
+  setup: {
+    privacy: 'Empieza de forma privada en este dispositivo — inicia sesión más tarde si quieres sincronizar tus datos.',
+    letsGo: 'Empezar', investor: 'Inversor',
+    simpleDescription: 'Solo tus sets y su valor. Sin tecnicismos.',
+  },
   collector: {
   "title": "Tu bóveda",
   "subtitle": "Un hogar para cada pieza.",
@@ -188,6 +193,8 @@ export const es = {
     needParts: 'Faltan {n} piezas', ofOwnedSets: 'de {n} sets en propiedad', indexing: 'Indexando {n} set(s) más en segundo plano…',
   },
   catalog: {
+    releaseYear: 'Año de lanzamiento', pieces: 'Número de piezas', currentValue: 'Valor actual ($)',
+    minimum: 'Mínimo', maximum: 'Máximo', rangeOrderError: 'El mínimo debe ser menor o igual que el máximo.',
     title: 'Catálogo', searchPlaceholder: 'Buscar un set', results: '{count} sets',
     sortValue: 'Valor', sortGrowth: 'Crecimiento', sortNewest: 'Más recientes', sortTrending: 'En tendencia',
     noResults: 'No se encontraron sets', filters: 'Filtros', sort: 'Ordenar', clearFilters: 'Borrar filtros',

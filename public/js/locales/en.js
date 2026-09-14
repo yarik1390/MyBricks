@@ -9,6 +9,12 @@
  * Keys are dotted and grouped by surface. Placeholders are {braced}.
  */
 export const en = {
+  setup: {
+    privacy: 'Start privately on this device — sign in later if you want to sync.',
+    letsGo: "Let's go",
+    investor: 'Investor',
+    simpleDescription: "Just your sets and what they're worth. No jargon.",
+  },
   collector: {
     title: 'Your Vault', subtitle: 'A home for every brick.', grid: 'Grid', room: '3D Room', view: 'Collection view',
     sets: 'Sets', minifigures: 'Minifigures', collections: 'Collections', collectionTabs: 'Your collection',
@@ -270,6 +276,9 @@ export const en = {
     indexing: 'Indexing {n} more set(s) in the background…',
   },
   catalog: {
+    releaseYear: 'Release Year', pieces: 'Piece Count', currentValue: 'Current Value ($)',
+    minimum: 'Minimum', maximum: 'Maximum',
+    rangeOrderError: 'Minimum must be less than or equal to maximum.',
     title: 'Catalog',
     searchPlaceholder: 'Find a set',
     results: '{count} sets',

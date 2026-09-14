@@ -1,5 +1,10 @@
 /** Chinese (Simplified). Missing keys fall back to English (see lib/i18n.js). */
 export const zh = {
+  setup: {
+    privacy: '先在此设备上私密使用，之后可登录以同步数据。',
+    letsGo: '开始吧', investor: '投资者',
+    simpleDescription: '只看你的套装及其价值，没有复杂术语。',
+  },
   collector: {
   "title": "你的宝库",
   "subtitle": "每块积木都有归属。",
@@ -188,6 +193,8 @@ export const zh = {
     needParts: '还需要 {n} 个零件', ofOwnedSets: '共 {n} 个已拥有的套装', indexing: '正在后台索引另外 {n} 个套装…',
   },
   catalog: {
+    releaseYear: '发行年份', pieces: '零件数量', currentValue: '当前价值（美元）',
+    minimum: '最小值', maximum: '最大值', rangeOrderError: '最小值必须小于或等于最大值。',
     title: '目录', searchPlaceholder: '查找套装', results: '{count} 个套装',
     sortValue: '价值', sortGrowth: '增长', sortNewest: '最新', sortTrending: '热门',
     noResults: '未找到套装', filters: '筛选', sort: '排序', clearFilters: '清除筛选',

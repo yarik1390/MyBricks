@@ -1,5 +1,10 @@
 /** French. Missing keys fall back to English (see lib/i18n.js). */
 export const fr = {
+  setup: {
+    privacy: 'Commencez en privé sur cet appareil — connectez-vous plus tard pour synchroniser vos données.',
+    letsGo: 'C’est parti', investor: 'Investisseur',
+    simpleDescription: 'Vos sets et leur valeur, tout simplement. Sans jargon.',
+  },
   collector: {
   "title": "Votre coffre",
   "subtitle": "Une place pour chaque brique.",
@@ -188,6 +193,8 @@ export const fr = {
     needParts: 'Il manque {n} pièces', ofOwnedSets: 'sur {n} sets possédés', indexing: 'Indexation de {n} set(s) supplémentaire(s) en arrière-plan…',
   },
   catalog: {
+    releaseYear: 'Année de sortie', pieces: 'Nombre de pièces', currentValue: 'Valeur actuelle ($)',
+    minimum: 'Minimum', maximum: 'Maximum', rangeOrderError: 'Le minimum doit être inférieur ou égal au maximum.',
     title: 'Catalogue', searchPlaceholder: 'Trouver un set', results: '{count} sets',
     sortValue: 'Valeur', sortGrowth: 'Croissance', sortNewest: 'Plus récents', sortTrending: 'Tendance',
     noResults: 'Aucun set trouvé', filters: 'Filtres', sort: 'Trier', clearFilters: 'Effacer les filtres',

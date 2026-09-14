@@ -1,5 +1,10 @@
 /** Hindi. Missing keys fall back to English (see lib/i18n.js). */
 export const hi = {
+  setup: {
+    privacy: 'इस डिवाइस पर निजी रूप से शुरू करें — डेटा सिंक करना चाहें तो बाद में साइन इन करें।',
+    letsGo: 'शुरू करें', investor: 'निवेशक',
+    simpleDescription: 'सिर्फ आपके सेट और उनकी कीमत। कोई जटिल शब्द नहीं।',
+  },
   collector: {
   "title": "आपका वॉल्ट",
   "subtitle": "हर ब्रिक का अपना घर।",
@@ -188,6 +193,8 @@ export const hi = {
     needParts: '{n} और पुर्जे चाहिए', ofOwnedSets: '{n} स्वामित्व वाले सेट में से', indexing: 'पृष्ठभूमि में {n} और सेट अनुक्रमित हो रहे हैं…',
   },
   catalog: {
+    releaseYear: 'रिलीज़ वर्ष', pieces: 'टुकड़ों की संख्या', currentValue: 'वर्तमान मूल्य ($)',
+    minimum: 'न्यूनतम', maximum: 'अधिकतम', rangeOrderError: 'न्यूनतम मान अधिकतम मान से कम या उसके बराबर होना चाहिए।',
     title: 'कैटलॉग', searchPlaceholder: 'सेट खोजें', results: '{count} सेट',
     sortValue: 'मूल्य', sortGrowth: 'वृद्धि', sortNewest: 'नवीनतम', sortTrending: 'ट्रेंडिंग',
     noResults: 'कोई सेट नहीं मिला', filters: 'फ़िल्टर', sort: 'क्रमबद्ध करें', clearFilters: 'फ़िल्टर हटाएँ',

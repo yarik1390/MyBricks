@@ -1,5 +1,11 @@
 /** Ukrainian. Missing keys fall back to English (see lib/i18n.js). */
 export const uk = {
+  setup: {
+    privacy: 'Почніть приватно на цьому пристрої — увійдіть пізніше, якщо хочете синхронізувати дані.',
+    letsGo: 'Почнімо',
+    investor: 'Інвестор',
+    simpleDescription: 'Лише ваші набори та їхня вартість. Без складних термінів.',
+  },
   collector: {
     title: 'Ваше сховище', subtitle: 'Дім для кожної цеглинки.', grid: 'Сітка', room: '3D-кімната', view: 'Вигляд колекції',
     sets: 'Набори', minifigures: 'Мініфігурки', collections: 'Колекції', collectionTabs: 'Ваша колекція',
@@ -157,6 +163,9 @@ export const uk = {
     needParts: 'Потрібно ще {n} деталей', ofOwnedSets: 'з {n} наборів у власності', indexing: 'Індексуємо ще {n} набір(ів) у фоні…',
   },
   catalog: {
+    releaseYear: 'Рік випуску', pieces: 'Кількість деталей', currentValue: 'Поточна вартість ($)',
+    minimum: 'Мінімум', maximum: 'Максимум',
+    rangeOrderError: 'Мінімум має бути меншим або дорівнювати максимуму.',
     title: 'Каталог', searchPlaceholder: 'Знайти набір', results: '{count} наборів',
     sortValue: 'Вартість', sortGrowth: 'Зростання', sortNewest: 'Найновіше', sortTrending: 'У тренді',
     noResults: 'Наборів не знайдено', filters: 'Фільтри', filtersWithCount: 'Фільтри · {n}', sort: 'Сортувати', clearFilters: 'Скинути фільтри',

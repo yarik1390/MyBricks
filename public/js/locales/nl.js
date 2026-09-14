@@ -1,5 +1,10 @@
 /** Dutch. Missing keys fall back to English (see lib/i18n.js). */
 export const nl = {
+  setup: {
+    privacy: 'Begin privé op dit apparaat — meld je later aan als je je gegevens wilt synchroniseren.',
+    letsGo: 'Aan de slag', investor: 'Investeerder',
+    simpleDescription: 'Alleen je sets en hun waarde. Zonder vakjargon.',
+  },
   collector: {
   "title": "Jouw kluis",
   "subtitle": "Een thuis voor elke steen.",
@@ -188,6 +193,8 @@ export const nl = {
     needParts: 'Nog {n} onderdelen nodig', ofOwnedSets: 'van {n} sets in bezit', indexing: '{n} extra set(s) worden op de achtergrond geïndexeerd…',
   },
   catalog: {
+    releaseYear: 'Jaar van uitgave', pieces: 'Aantal onderdelen', currentValue: 'Huidige waarde ($)',
+    minimum: 'Minimum', maximum: 'Maximum', rangeOrderError: 'Het minimum moet kleiner dan of gelijk aan het maximum zijn.',
     title: 'Catalogus', searchPlaceholder: 'Zoek een set', results: '{count} sets',
     sortValue: 'Waarde', sortGrowth: 'Groei', sortNewest: 'Nieuwste', sortTrending: 'Trending',
     noResults: 'Geen sets gevonden', filters: 'Filters', sort: 'Sorteren', clearFilters: 'Filters wissen',

@@ -4741,12 +4741,6 @@
     ]
   },
   {
-    "text": "Investor",
-    "files": [
-      "components/onboarding.js"
-    ]
-  },
-  {
     "text": "Investor insights — a Pro toolkit",
     "files": [
       "views/portfolio.js"
@@ -9789,12 +9783,6 @@
     "text": "Start a safe batch from Pricing → Populate & Batch, or use Run now below for one process. Live progress appears here.",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Start privately on this device — sign in later if you want to sync.",
-    "files": [
-      "components/onboarding.js"
     ]
   },
   {

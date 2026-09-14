@@ -1,5 +1,10 @@
 /** Japanese. Missing keys fall back to English (see lib/i18n.js). */
 export const ja = {
+  setup: {
+    privacy: 'まずはこの端末だけで利用できます。データを同期したい場合は、後からログインしてください。',
+    letsGo: '始めましょう', investor: '投資家',
+    simpleDescription: 'セットとその価値をシンプルに表示。専門用語はありません。',
+  },
   collector: {
   "title": "あなたの保管庫",
   "subtitle": "すべてのブロックに居場所を。",
@@ -188,6 +193,8 @@ export const ja = {
     needParts: 'あと {n} 個のパーツが必要', ofOwnedSets: '所有セット {n} 件中', indexing: 'バックグラウンドでさらに {n} セットをインデックス中…',
   },
   catalog: {
+    releaseYear: '発売年', pieces: 'ピース数', currentValue: '現在の価値（米ドル）',
+    minimum: '最小値', maximum: '最大値', rangeOrderError: '最小値は最大値以下にしてください。',
     title: 'カタログ', searchPlaceholder: 'セットを探す', results: '{count} セット',
     sortValue: '価格', sortGrowth: '成長', sortNewest: '最新', sortTrending: 'トレンド',
     noResults: 'セットが見つかりません', filters: 'フィルター', sort: '並べ替え', clearFilters: 'フィルターを解除',

@@ -139,7 +139,7 @@ export async function renderBlind() {
 
   $("#root").innerHTML = `
     <div class="page">
-      <div class="topbar">
+      <div class="topbar minifigs-topbar">
         <div class="topbar-heading">
           <div class="topbar-eyebrow" id="blindCount">${tPlural('counts.collected', ownedCount, { owned: ownedCount, total: b.total.toLocaleString() })}</div>
           <h1 class="topbar-title">Minifigs</h1>

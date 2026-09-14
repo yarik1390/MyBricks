@@ -2,13 +2,13 @@
 // nav targets with a tooltip card. Shows once (localStorage flag); replayable
 // from the You tab via startOnboarding(). Fully self-contained — if anything
 // throws it never breaks app boot (maybeStartOnboarding swallows errors).
-import { haptic, toast, activateFocusTrap, soundEnabled, advisorEnabled, celebrateChime, bvIDB } from '../utils.js';
+import { haptic, toast, activateFocusTrap, soundEnabled, advisorEnabled, celebrateChime, bvIDB, escapeHtml } from '../utils.js';
 import { I } from '../icons.js';
 import { getThemePref, setThemePref, getSkinPref, setSkinPref, getModePref, setModePref } from '../theme.js';
 import { api, isGuestMode } from '../api.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { route } from '../router.js';
-import { SUPPORTED, getLocale, setLocale, applyUiDictionary, translateDOM } from '../lib/i18n.js';
+import { SUPPORTED, getLocale, setLocale, applyUiDictionary, translateDOM, t } from '../lib/i18n.js';
 import { isNativeBilling, proPurchaseReady, presentProPaywall } from '../lib/revenuecat-native.js';
 
 const FLAG = 'bv_onboarded_v1';
@@ -352,7 +352,7 @@ function stepBodyHTML(key) {
     return `${heroHTML('box', 4)}
       <h3 id="bv-setup-title">Welcome to BricksVault</h3>
       <p class="sub">Let's make it yours — a few quick choices so the app feels right from the first tap.</p>
-      <div class="bv-note">Start privately on this device — sign in later if you want to sync.</div>
+      <div class="bv-note">${escapeHtml(t('setup.privacy'))}</div>
       <div class="bv-field">
         <div class="bv-field-lbl">Language</div>
         <div class="bv-langs" id="suLangs" role="group" aria-label="Language">${chips}</div>
@@ -360,6 +360,7 @@ function stepBodyHTML(key) {
   }
   if (key === 'mode') {
     const m = getModePref();
+    const investorDescription = 'Full investor view — market value, ROI and 2-year projections.';
     // Kids Mode needs a signed-in account: the parent PIN that locks it is
     // stored server-side, and a guest who entered Kids would have no PIN and
     // no account to manage it from.
@@ -369,8 +370,8 @@ function stepBodyHTML(key) {
     return `<h3 id="bv-setup-title">How will you use it?</h3>
       <p class="sub">You can change this anytime in Settings.</p>
       <div class="bv-opts">
-        ${opt('pro', '📈', 'Investor', 'Full investor view — market value, ROI and 2-year projections.')}
-        ${opt('simple', '✨', 'Simple', 'Just your sets and what they\'re worth. No jargon.')}
+        ${opt('pro', '📈', escapeHtml(t('setup.investor')), investorDescription)}
+        ${opt('simple', '✨', 'Simple', escapeHtml(t('setup.simpleDescription')))}
         ${opt('kids', '🧒', 'Kids', kidsLocked ? 'Sign in first — a parent PIN keeps kids from exiting.' : 'Playful, price-free mode with XP and badges.', kidsLocked)}
       </div>`;
   }
@@ -423,7 +424,7 @@ function stepBodyHTML(key) {
   return `${heroHTML('sparkles', 36)}
     <h3 id="bv-setup-title">Your vault is ready</h3>
     <p class="sub">Your app is ready. Add your first set to see it valued — or explore around.</p>
-    <div class="bv-note">Start privately on this device — sign in later if you want to sync.</div>`;
+    <div class="bv-note">${escapeHtml(t('setup.privacy'))}</div>`;
 }
 
 function stepFootHTML(key) {
@@ -439,7 +440,7 @@ function stepFootHTML(key) {
   } else {
     nav = `<div class="bv-setup-nav">
         ${suIdx > 0 ? '<button class="bv-setup-btn" data-act="back">Back</button>' : ''}
-        <button class="bv-setup-btn primary" data-act="next">${key === 'welcome' ? "Let's go" : 'Continue'}</button>
+        <button class="bv-setup-btn primary" data-act="next">${key === 'welcome' ? escapeHtml(t('setup.letsGo')) : 'Continue'}</button>
       </div>
       ${key === 'support' ? `${isNativeBilling() ? '<button class="bv-setup-ghost" data-act="support">See Pro options →</button>' : ''}<p class="bv-setup-note" data-su-note role="status" aria-live="polite"></p>` : ''}`;
   }

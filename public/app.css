@@ -5331,6 +5331,10 @@ body.sheet-open .selection-bar {
   flex: 1;
 }
 
+.minifigs-topbar { flex-wrap: wrap; }
+.minifigs-topbar .topbar-heading { flex: 1 1 200px; }
+.minifigs-topbar #figExportBtn { width: auto; max-width: 100%; flex: 0 1 auto; }
+
 .topbar-eyebrow {
   font-family: var(--mono);
   font-size: 10px;
