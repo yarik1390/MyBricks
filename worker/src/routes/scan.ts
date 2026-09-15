@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import OpenAI from 'openai';
-import { optionalMember } from '../auth';
+import { optionalMember, requireAdmin } from '../auth';
 import { callGeminiScan, callGeminiScanOutcome } from '../lib/gemini';
 import { enrichSetRecord } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
@@ -12,6 +12,7 @@ import { isMergeBudgetExhausted, mergeReportedCostUsd } from '../lib/merge-gatew
 import { recordAiUsage } from '../lib/ai-usage';
 import { identifySetWithBrickognize } from '../lib/brickognize';
 import { parseOcrSetNumbers, resolveOcrSetNum } from '../lib/scan-ocr';
+import { callRecognitionValidation } from '../lib/recognition-client';
 import { verifyTurnstileToken } from '../lib/turnstile';
 import { matchSetsToCatalog, matchMinifigsToCatalog, type DescribedSet, type DescribedMinifig } from '../lib/scan-match';
 import { CATALOG_COLS, MARKET_EXT_JOIN } from './sets';
@@ -408,6 +409,16 @@ async function describeSharedScan(
 }
 
 app.use('*', optionalMember);
+
+// Admin-only deployment-validation endpoint. It proves the authenticated
+// Worker -> Access -> Tunnel -> Core01 path without making recognition a hard
+// dependency of the public app or pretending the placeholder is a real model.
+// No user data or image leaves Cloudflare.
+app.get('/backend-health', requireAdmin, async (c) => {
+  const result = await callRecognitionValidation(c.env);
+  if (!result.ok) return c.json({ available: false, reason: result.reason }, result.reason === 'not_configured' ? 501 : 503);
+  return c.json({ available: true, service: result.service, version: result.version });
+});
 
 app.post('/identify', async (c) => {
   // One deadline covers validation, anti-abuse/quota work, provider calls, and

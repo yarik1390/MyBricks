@@ -2515,3 +2515,45 @@ describe('RevenueCat webhook', () => {
     expect((await post('INITIAL_PURCHASE')).status).toBe(503);
   });
 });
+
+describe('Core01 recognition validation route', () => {
+  it('requires admin auth before probing the private backend', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn() as unknown as typeof fetch;
+    try {
+      const response = await app.fetch(new Request('https://example.com/api/scan/backend-health'), env as any);
+      expect(response.status).toBe(401);
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('lets an admin probe the optional private backend', async () => {
+    const jwtSecret = 'test-secret-key-that-is-at-least-32-bytes-long';
+    (env as any).SUPABASE_JWT_SECRET = jwtSecret;
+    (env as any).SUPABASE_URL = 'https://supabase.mock.io';
+    (env as any).SUPABASE_ANON_KEY = 'supabase-anon-key-mock';
+    (env as any).ADMIN_USER_ID = 'admin-user';
+    (env as any).RECOGNITION_API_URL = 'https://recognition-api.bricksvault.app';
+    (env as any).CF_ACCESS_CLIENT_ID = 'client-id';
+    (env as any).CF_ACCESS_CLIENT_SECRET = 'client-secret';
+    (env as any).RECOGNITION_ORIGIN_TOKEN = 'origin-token';
+    const token = await createMockJWT('admin-user', jwtSecret);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({
+      service: 'recognition-validation', version: 'validation-1.0.0',
+    }), { status: 200, headers: { 'content-type': 'application/json' } })) as unknown as typeof fetch;
+    try {
+      const response = await app.fetch(new Request('https://example.com/api/scan/backend-health', {
+        headers: { Authorization: `Bearer ${token}` },
+      }), env as any);
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        available: true, service: 'recognition-validation', version: 'validation-1.0.0',
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});

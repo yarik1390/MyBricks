@@ -100,6 +100,12 @@ export interface Env {
   // OpenAI-compatible, so it reuses the same client with a different baseURL.
   // Where each workload tries it is admin-tunable — see lib/llm-routing.ts.
   MERGE_GATEWAY_API_KEY?: string;
+  // Optional Core01 recognition backend. All four bindings must be present;
+  // otherwise calls fail closed as an unavailable optional capability.
+  RECOGNITION_API_URL?: string;
+  CF_ACCESS_CLIENT_ID?: string;
+  CF_ACCESS_CLIENT_SECRET?: string;
+  RECOGNITION_ORIGIN_TOKEN?: string;
   // OmniRoute OpenAI-compatible gateway. Its subscription-backed Antigravity
   // Gemini route is the shared scan primary; the key must be a Worker secret.
   OMNIROUTE_API_KEY?: string;
