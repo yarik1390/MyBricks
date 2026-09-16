@@ -24,10 +24,13 @@ test('collector navigation, permanent search, manual add, and room entry', async
   await page.locator('#nav [data-route="/add"]').click();
   await expect(page.locator('#catalogSearch')).toBeVisible();
   await expect(page.locator('#nav [aria-current="page"]')).toHaveAttribute('data-route', '/add');
-  await expect(page.locator('.set-card')).toBeVisible();
-  await page.screenshot({ path: 'audit/collector-discover-mobile.png' });
+  await expect(page.locator('#collectorAdd')).toBeVisible();
+  await page.locator('#nav [data-route="/me"]').click();
+  await expect(page.locator('#nav [aria-current="page"]')).toHaveAttribute('data-route', '/me');
+  await expect(page.locator('#collectorAdd')).toBeVisible();
   await page.locator('#nav [data-route="/"]').click();
   await expect(page.locator('#setList .set-list-card')).toBeVisible();
+  await expect(page.locator('#collectorAdd')).toBeVisible();
   await page.screenshot({ path: 'audit/collector-vault-mobile.png' });
   await page.locator('[data-vault-view="room"]').click();
   await expect(page.locator('#roomStage')).toBeAttached();

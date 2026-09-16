@@ -75,7 +75,7 @@ export function syncCollectorChrome(meta) {
     else document.body.appendChild(add);
   }
   add.innerHTML = `${I.plus()}<span>${t('collector.add')}</span>`;
-  add.hidden = kids || !['vault', 'catalog', 'minifigs', 'wishlist', 'collections'].includes(meta.key);
+  add.hidden = kids || meta.fullscreen || !meta.nav;
   // The advisor remains available contextually; only one floating primary action.
   if (!kids && $('#advisorFab')) $('#advisorFab').style.display = 'none';
   document.querySelectorAll('#nav .nav-tab').forEach(link => {
