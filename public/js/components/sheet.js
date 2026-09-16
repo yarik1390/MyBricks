@@ -67,6 +67,20 @@ function blockBackdropTouch(e) { e.preventDefault(); }
 
 const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
+// Focus the title rather than an input: opening a sheet should not summon
+// the mobile keyboard before the user chooses to edit a field.
+function focusSheetContent(sheet) {
+  sheet.removeAttribute("aria-labelledby");
+  const heading = sheet.querySelector('h1, h2, h3');
+  if (heading) {
+    if (!heading.id) heading.id = 'sheet-content-title';
+    sheet.setAttribute('aria-labelledby', heading.id);
+    heading.tabIndex = -1;
+  }
+  sheet.tabIndex = -1;
+  (heading || sheet).focus({ preventScroll: true });
+}
+
 function sheetKeyHandler(e) {
   if (e.key === "Escape") { hideSheet(); return; }
   // Focus trap: keep Tab cycling within the open sheet.
@@ -74,10 +88,14 @@ function sheetKeyHandler(e) {
     const sheet = $("#sheet");
     if (!sheet || !sheet.classList.contains("show")) return;
     const focusables = [...sheet.querySelectorAll(FOCUSABLE)].filter(el => !el.disabled && el.offsetParent !== null);
-    if (!focusables.length) return;
+    if (!focusables.length) {
+      e.preventDefault(); sheet.focus({ preventScroll: true }); return;
+    }
     const first = focusables[0];
     const last = focusables[focusables.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
+    if (!focusables.includes(document.activeElement)) {
+      e.preventDefault(); (e.shiftKey ? last : first).focus();
+    } else if (e.shiftKey && document.activeElement === first) {
       e.preventDefault(); last.focus();
     } else if (!e.shiftKey && document.activeElement === last) {
       e.preventDefault(); first.focus();
@@ -94,13 +112,14 @@ export function showSheet(html) {
   // Labels belong to each sheet instance. Clear a previous sheet's explicit
   // title before rendering content that may not set one.
   sheet.removeAttribute("aria-labelledby");
-  _sheetInvoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const replacing = sheet.classList.contains("show");
+  if (!replacing) _sheetInvoker = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   sheet.innerHTML = `<div class="sheet-handle"></div>` + html;
   back.classList.add("show");
   sheet.classList.add("show");
   sheet.style.setProperty("visibility", "visible", "important");
   document.body.classList.add("sheet-open");
-  lockBodyScroll();
+  if (!replacing) lockBodyScroll();
   back.setAttribute("aria-hidden", "false");
   sheet.setAttribute("aria-hidden", "false");
   // Announce the sheet as a modal dialog so screen readers scope to it (it
@@ -112,6 +131,7 @@ export function showSheet(html) {
   back.addEventListener("touchmove", blockBackdropTouch, { passive: false });
   document.addEventListener("keydown", sheetKeyHandler);
   wireSheetDrag(sheet);
+  focusSheetContent(sheet);
 }
 
 /** Swap the open sheet's content for a shimmer while async work runs. */
@@ -123,6 +143,7 @@ export function sheetLoading(label = "Working…") {
     <div class="skel line" style="width:80%;margin:0 4px 10px;"></div>
     <div class="skel line" style="width:60%;margin:0 4px 10px;"></div>
     <div class="skel" style="height:44px;margin:8px 4px 0;"></div>`;
+  focusSheetContent(sheet);
 }
 
 export function hideSheet() {
@@ -145,8 +166,13 @@ export function hideSheet() {
   }
   document.removeEventListener("keydown", sheetKeyHandler);
   // Restore focus to whatever opened the sheet (a11y: focus must not be lost).
+  // Move away from an editable field first so the mobile keyboard shell
+  // releases its hidden navigation before restoring the external trigger.
+  if (sheet?.contains(document.activeElement)) {
+    sheet.focus({ preventScroll: true });
+  }
   if (_sheetInvoker && document.contains(_sheetInvoker)) {
-    try { _sheetInvoker.focus(); } catch {}
+    try { _sheetInvoker.focus({ preventScroll: true }); } catch {}
   }
   _sheetInvoker = null;
   haptic("light");
