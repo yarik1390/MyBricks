@@ -125,15 +125,21 @@ export async function renderCollectionRoom() {
       rotate(event.key === 'ArrowLeft' ? -20 : 20);
     });
     let pointer = null;
-    turntable.addEventListener('pointerdown', event => { pointer = event.clientX; turntable.setPointerCapture?.(event.pointerId); });
-    turntable.addEventListener('pointermove', event => {
-      if (pointer == null || !(event.buttons & 1)) return;
-      const delta = event.clientX - pointer;
-      if (Math.abs(delta) < 3) return;
+    turntable.addEventListener('pointerdown', event => {
       pointer = event.clientX;
-      rotate(delta * 0.55);
+      try { turntable.setPointerCapture?.(event.pointerId); } catch {}
     });
-    turntable.addEventListener('pointerup', () => { pointer = null; });
+    turntable.addEventListener('pointermove', event => {
+      if (pointer == null) return;
+      if (event.pointerType !== 'touch' && !(event.buttons & 1)) return;
+      const delta = event.clientX - pointer;
+      if (Math.abs(delta) < 2) return;
+      pointer = event.clientX;
+      rotate(delta * 0.65);
+    });
+    const releaseTurntable = () => { pointer = null; };
+    turntable.addEventListener('pointerup', releaseTurntable);
+    turntable.addEventListener('pointercancel', releaseTurntable);
     $('#roomFullDetails').addEventListener('click', () => {
       if (activeRoom) rememberedPose = { owner, pose: activeRoom.getPose() };
       hideSheet();

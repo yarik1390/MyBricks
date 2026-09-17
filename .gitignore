@@ -11,6 +11,8 @@ playwright-report/
 a11y/axe-report.json
 
 # Local audit evidence and release artifacts
+artifacts/
+audit/
 a11y-audit/
 audit_runs/
 brickvault_audit/

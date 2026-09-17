@@ -8273,15 +8273,18 @@ body[data-route="collection-room"] #nav { display:none !important; }
 .showroom-inspect { text-align:center; }
 .showroom-inspect h2 { margin:0; }
 .showroom-inspect-kicker { margin:5px 0 10px; color:var(--ink-mute); font-size:12px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
-.showroom-inspect-turntable { position:relative; display:grid; place-items:center; min-height:250px; margin:8px 0; border-radius:18px; overflow:hidden; perspective:900px; touch-action:none; cursor:grab; background:radial-gradient(ellipse at 50% 72%,#c5b89a 0 18%,transparent 43%),linear-gradient(155deg,#172126,#303b40); }
+.showroom-inspect-turntable { position:relative; display:grid; place-items:center; min-height:260px; margin:8px 0; border-radius:18px; overflow:hidden; perspective:1000px; touch-action:none; cursor:grab; background:radial-gradient(ellipse at 50% 78%,rgba(197,184,154,0.3) 0,transparent 52%),linear-gradient(160deg,#151c20,#283238); box-shadow:inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 24px rgba(0,0,0,0.3); }
+.showroom-inspect-turntable::after { content:''; position:absolute; bottom:20px; width:min(52vw,240px); height:22px; border-radius:50%; background:radial-gradient(ellipse at center,rgba(0,0,0,0.6) 0%,rgba(0,0,0,0) 72%); pointer-events:none; }
 .showroom-inspect-turntable:active { cursor:grabbing; }
 .showroom-inspect-turntable:focus-visible { outline:3px solid #a36a00; outline-offset:2px; }
-.showroom-inspect-box { --inspect-turn:0deg; --inspect-depth:52px; --inspect-width:min(62vw,330px); --inspect-height:calc(var(--inspect-width) / 1.5); position:relative; width:var(--inspect-width); height:var(--inspect-height); transform-style:preserve-3d; transform:rotateX(-7deg) rotateY(var(--inspect-turn)); transition:transform .15s ease-out; /* Filters flatten preserve-3d and expose the front at rear angles. */ }
-.showroom-inspect-face { position:absolute; display:block; box-sizing:border-box; border:1px solid #8e7148; backface-visibility:hidden; background-color:#c5a879; background-image:linear-gradient(135deg,#d5bd94,#b28e5f); }
+.showroom-inspect-box { --inspect-turn:0deg; --inspect-depth:min(20vw,74px); --inspect-width:min(62vw,320px); --inspect-height:calc(var(--inspect-width) / 1.45); position:relative; width:var(--inspect-width); height:var(--inspect-height); transform-style:preserve-3d; transform:rotateX(-8deg) rotateY(var(--inspect-turn)); transition:transform .15s ease-out; animation:inspectBoxPickup .3s cubic-bezier(.16,1,.3,1); }
+@keyframes inspectBoxPickup { from { transform:translateY(32px) scale(0.9) rotateX(-16deg) rotateY(var(--inspect-turn)); opacity:.7; } to { transform:translateY(0) scale(1) rotateX(-8deg) rotateY(var(--inspect-turn)); opacity:1; } }
+@media (prefers-reduced-motion: reduce) { .showroom-inspect-box { animation:none; } }
+.showroom-inspect-face { position:absolute; display:block; box-sizing:border-box; border:1px solid #7a5e38; backface-visibility:hidden; background-color:#bc9e70; background-image:linear-gradient(135deg,#cbb288,#a88556); box-shadow:inset 0 0 0 1px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.15); }
 .showroom-inspect-front, .showroom-inspect-back { inset:0; }
-.showroom-inspect-front { transform:translateZ(calc(var(--inspect-depth) / 2)); background:#eee5d7; border-width:2px; }
-.showroom-inspect-front img { display:block; width:100%; height:100%; object-fit:contain; padding:12px; box-sizing:border-box; }
-.showroom-inspect-back { transform:rotateY(180deg) translateZ(calc(var(--inspect-depth) / 2)); background-image:repeating-linear-gradient(90deg,#b18d5f 0 2px,#c8a979 2px 8px); }
+.showroom-inspect-front { transform:translateZ(calc(var(--inspect-depth) / 2)); background:#fbf8f2; border:2px solid #6b512c; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.4), 0 1px 3px rgba(0,0,0,0.2); }
+.showroom-inspect-front img { display:block; width:100%; height:100%; object-fit:contain; padding:10px; box-sizing:border-box; }
+.showroom-inspect-back { transform:rotateY(180deg) translateZ(calc(var(--inspect-depth) / 2)); background-color:#b59668; background-image:repeating-linear-gradient(90deg,rgba(0,0,0,0.04) 0 2px,transparent 2px 7px),linear-gradient(135deg,#c4ab82,#a48052); }
 .showroom-inspect-left, .showroom-inspect-right { top:0; left:50%; width:var(--inspect-depth); height:100%; margin-left:calc(var(--inspect-depth) / -2); }
 .showroom-inspect-left { transform:rotateY(-90deg) translateZ(calc(var(--inspect-width) / 2)); }
 .showroom-inspect-right { transform:rotateY(90deg) translateZ(calc(var(--inspect-width) / 2)); }

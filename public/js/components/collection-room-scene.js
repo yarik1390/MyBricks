@@ -98,18 +98,35 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   let removalObserver;
   let pose = normalizeRoomPose(layout, options.initialPose);
   let inspecting = false;
+  let activePickup = null;
+
+  const textureLoader = new THREE.TextureLoader();
+  const loadVaultTexture = (url, repeatX = 1, repeatY = 1) => {
+    try {
+      const tex = textureLoader.load(url, () => { if (!inspecting && !manuallyPaused) renderNow(); });
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(repeatX, repeatY);
+      return tex;
+    } catch {
+      return null;
+    }
+  };
+  const steelTexture = loadVaultTexture('/img/vault-steel.webp', 2, 4);
+  const floorTexture = loadVaultTexture('/img/vault-floor.webp', 3, 10);
+  const doorTexture = loadVaultTexture('/img/vault-door.webp', 1, 1);
 
   const material = parameters => {
     const value = new THREE.MeshStandardMaterial(parameters);
     sharedMaterials.add(value);
     return value;
   };
-  const wallSteel = material({ color: 0x4b555c, metalness: 0.66, roughness: 0.48 });
-  const ceiling = material({ color: 0x69737a, metalness: 0.5, roughness: 0.55 });
-  const floor = material({ color: 0x20272b, metalness: 0.32, roughness: 0.7 });
-  const aisle = material({ color: 0x323b40, metalness: 0.22, roughness: 0.82 });
-  const shelfSteel = material({ color: 0x30383d, metalness: 0.72, roughness: 0.42 });
-  const shelfEdge = material({ color: 0x161b1e, metalness: 0.78, roughness: 0.34 });
+  const wallSteel = material({ color: 0x444d53, map: steelTexture, metalness: 0.72, roughness: 0.44 });
+  const ceiling = material({ color: 0x566066, map: steelTexture, metalness: 0.55, roughness: 0.52 });
+  const floor = material({ color: 0x22282c, map: floorTexture, metalness: 0.3, roughness: 0.65 });
+  const aisle = material({ color: 0x323a40, map: floorTexture, metalness: 0.26, roughness: 0.72 });
+  const shelfSteel = material({ color: 0x2c3338, map: steelTexture, metalness: 0.78, roughness: 0.38 });
+  const shelfEdge = material({ color: 0x161b1e, metalness: 0.82, roughness: 0.3 });
   // Product photos only cover the front. Every other face stays intentionally
   // neutral so the room never invents official package artwork.
   const boxSide = material({ color: 0xc2aa84, roughness: 0.93 });
@@ -203,13 +220,40 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     }
     if (index === 0) {
       meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, ROOM_LAYOUT.ceilingHeight, 0.18], [0, ROOM_LAYOUT.ceilingHeight / 2, 0], wallSteel, true);
-      const door = new THREE.Mesh(new THREE.CylinderGeometry(2.12, 2.12, 0.26, 32), shelfSteel);
+      // Heavy outer vault frame ring
+      const frameOuter = new THREE.Mesh(new THREE.CylinderGeometry(2.36, 2.36, 0.32, 32), shelfEdge);
+      frameOuter.rotation.x = Math.PI / 2;
+      frameOuter.position.set(0, 2.64, 0.16);
+      group.add(frameOuter);
+
+      // Main circular vault door with textured face
+      const doorMaterials = [shelfSteel, material({ map: doorTexture, color: 0xdde4e8, metalness: 0.72, roughness: 0.38 }), shelfSteel];
+      const door = new THREE.Mesh(new THREE.CylinderGeometry(2.14, 2.14, 0.26, 32), doorMaterials);
       door.rotation.x = Math.PI / 2;
       door.position.set(0, 2.64, 0.18);
       group.add(door);
-      meshBox(group, [3.0, 0.16, 0.16], [0, 2.64, 0.06], shelfEdge, true);
-      meshBox(group, [0.16, 3.0, 0.16], [0, 2.64, 0.06], shelfEdge, true);
-      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.34, 24), shelfEdge);
+
+      // Left cylindrical heavy hinges
+      const hingeTop = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.52, 16), shelfEdge);
+      hingeTop.position.set(-2.02, 3.4, 0.2);
+      group.add(hingeTop);
+      const hingeBottom = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.52, 16), shelfEdge);
+      hingeBottom.position.set(-2.02, 1.88, 0.2);
+      group.add(hingeBottom);
+
+      // Radial locking bolts extending into frame
+      for (let a = 0; a < 6; a++) {
+        const angle = (a * Math.PI) / 3;
+        const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.44, 12), shelfEdge);
+        bolt.rotation.z = angle;
+        bolt.position.set(Math.cos(angle) * 2.06, 2.64 + Math.sin(angle) * 2.06, 0.18);
+        group.add(bolt);
+      }
+
+      // Central locking wheel spokes and heavy hub
+      meshBox(group, [1.8, 0.08, 0.12], [0, 2.64, 0.05], shelfEdge, true);
+      meshBox(group, [0.08, 1.8, 0.12], [0, 2.64, 0.05], shelfEdge, true);
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.3, 24), shelfEdge);
       hub.rotation.x = Math.PI / 2;
       hub.position.set(0, 2.64, -0.02);
       group.add(hub);
@@ -440,6 +484,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
 
   function resumeAfterModal() {
     if (destroyed) return;
+    restoreBoxPickup();
     textureLoadPaused = false;
     manuallyPaused = false;
     resetInputs();
@@ -517,25 +562,98 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     renderNow();
   }
 
+  function animateBoxPickup(mesh) {
+    if (activePickup?.mesh) restoreBoxPickup();
+    activePickup = {
+      mesh,
+      origY: mesh.position.y,
+      origRotX: mesh.rotation.x
+    };
+    mesh.position.y += 0.22;
+    mesh.rotation.x -= 0.1;
+    renderNow();
+  }
+
+  function restoreBoxPickup() {
+    if (activePickup?.mesh) {
+      activePickup.mesh.position.y = activePickup.origY;
+      activePickup.mesh.rotation.x = activePickup.origRotX;
+      activePickup = null;
+      renderNow();
+    }
+  }
+
   function pick(clientX, clientY, center = false) {
     if (!active()) return;
     const bounds = canvas.getBoundingClientRect();
     const x = center ? 0 : ((clientX - bounds.left) / Math.max(1, bounds.width)) * 2 - 1;
     const y = center ? 0 : -((clientY - bounds.top) / Math.max(1, bounds.height)) * 2 + 1;
     const targets = [...pickTargets];
-    const toleranceX = 12 / Math.max(1, bounds.width);
-    const toleranceY = 12 / Math.max(1, bounds.height);
-    const aimOffsets = [[0, 0], [-toleranceX, 0], [toleranceX, 0], [0, -toleranceY], [0, toleranceY]];
-    for (const [offsetX, offsetY] of aimOffsets) {
-      raycaster.setFromCamera(new THREE.Vector2(x + offsetX, y + offsetY), camera);
-      const hit = raycaster.intersectObjects(targets, false)[0];
-      if (hit?.object.userData.setNum) {
-        resetInputs();
-        inspecting = true;
-        if (document.pointerLockElement === canvas) document.exitPointerLock?.();
-        onSelect(hit.object.userData.setNum);
-        return;
+
+    let selectedSetNum = null;
+    let selectedMesh = null;
+
+    // 1. Direct raycast
+    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+    const directHit = raycaster.intersectObjects(targets, false)[0];
+    if (directHit?.object.userData.setNum) {
+      selectedSetNum = directHit.object.userData.setNum;
+      selectedMesh = directHit.object;
+    }
+
+    // 2. Multi-ring search if direct miss (forgiving touch target)
+    if (!selectedSetNum) {
+      const ringPixels = [14, 28, 44];
+      for (const px of ringPixels) {
+        const tolX = px / Math.max(1, bounds.width);
+        const tolY = px / Math.max(1, bounds.height);
+        const offsets = [
+          [-tolX, 0], [tolX, 0], [0, -tolY], [0, tolY],
+          [-tolX * 0.7, -tolY * 0.7], [tolX * 0.7, -tolY * 0.7],
+          [-tolX * 0.7, tolY * 0.7], [tolX * 0.7, -tolY * 0.7]
+        ];
+        for (const [offsetX, offsetY] of offsets) {
+          raycaster.setFromCamera(new THREE.Vector2(x + offsetX, y + offsetY), camera);
+          const hit = raycaster.intersectObjects(targets, false)[0];
+          if (hit?.object.userData.setNum) {
+            selectedSetNum = hit.object.userData.setNum;
+            selectedMesh = hit.object;
+            break;
+          }
+        }
+        if (selectedSetNum) break;
       }
+    }
+
+    // 3. Screen-space proximity fallback for mobile touch
+    if (!selectedSetNum && residentBoxes.size > 0 && !center) {
+      let closestDist = 52; // generous 52px touch radius
+      const v = new THREE.Vector3();
+      for (const record of residentBoxes.values()) {
+        const body = record.body;
+        if (!body.userData.setNum) continue;
+        v.setFromMatrixPosition(body.matrixWorld);
+        v.project(camera);
+        if (v.z > 0 && v.z < 1) {
+          const sx = ((v.x + 1) / 2) * bounds.width + bounds.left;
+          const sy = ((-v.y + 1) / 2) * bounds.height + bounds.top;
+          const dist = Math.hypot(clientX - sx, clientY - sy);
+          if (dist < closestDist) {
+            closestDist = dist;
+            selectedSetNum = body.userData.setNum;
+            selectedMesh = body;
+          }
+        }
+      }
+    }
+
+    if (selectedSetNum) {
+      if (selectedMesh) animateBoxPickup(selectedMesh);
+      resetInputs();
+      inspecting = true;
+      if (document.pointerLockElement === canvas) document.exitPointerLock?.();
+      onSelect(selectedSetNum);
+      return;
     }
   }
 
@@ -564,6 +682,10 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      restoreBoxPickup();
+      steelTexture?.dispose();
+      floorTexture?.dispose();
+      doorTexture?.dispose();
       if (textureRenderTimer) clearTimeout(textureRenderTimer);
       textureRenderTimer = 0;
       resetInputs();
@@ -602,7 +724,10 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       manuallyPaused = inspecting;
       resetInputs();
       if (inspecting && document.pointerLockElement === canvas) document.exitPointerLock?.();
-      if (!inspecting) renderNow();
+      if (!inspecting) {
+        restoreBoxPickup();
+        renderNow();
+      }
     },
     rotateInspection(delta) {
       if (!inspecting || !Number.isFinite(delta)) return;
@@ -694,23 +819,41 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     canvas.addEventListener('pointerdown', event => {
       if (!active() || drag || event.button !== 0 || document.pointerLockElement === canvas) return;
       event.preventDefault();
-      drag = { id: event.pointerId, moved: false, x: event.clientX, y: event.clientY };
+      drag = {
+        id: event.pointerId,
+        moved: false,
+        startX: event.clientX,
+        startY: event.clientY,
+        x: event.clientX,
+        y: event.clientY,
+        startTime: performance.now(),
+        pointerType: event.pointerType || 'mouse'
+      };
       try { canvas.setPointerCapture(event.pointerId); } catch {}
     }, { signal: abort.signal });
     canvas.addEventListener('pointermove', event => {
       if (!drag || drag.id !== event.pointerId || document.pointerLockElement === canvas) return;
-      const dx = event.clientX - drag.x;
-      const dy = event.clientY - drag.y;
-      if (Math.hypot(dx, dy) > 2) drag.moved = true;
-      drag.x = event.clientX;
-      drag.y = event.clientY;
-      look(dx, dy);
+      const totalDist = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+      const threshold = drag.pointerType === 'touch' ? 10 : 3;
+      if (totalDist > threshold) drag.moved = true;
+      if (drag.moved) {
+        const dx = event.clientX - drag.x;
+        const dy = event.clientY - drag.y;
+        drag.x = event.clientX;
+        drag.y = event.clientY;
+        look(dx, dy);
+      }
     }, { signal: abort.signal });
     canvas.addEventListener('pointerup', event => {
       if (!drag || drag.id !== event.pointerId) return;
-      const click = !drag.moved;
+      const totalDist = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+      const duration = performance.now() - drag.startTime;
+      const isTouchTap = drag.pointerType === 'touch' && totalDist < 16 && duration < 500;
+      const isClick = !drag.moved || isTouchTap;
+      const clickX = event.clientX;
+      const clickY = event.clientY;
       drag = null;
-      if (click) pick(event.clientX, event.clientY, document.pointerLockElement === canvas);
+      if (isClick) pick(clickX, clickY, document.pointerLockElement === canvas);
     }, { signal: abort.signal });
     canvas.addEventListener('pointercancel', () => { drag = null; }, { signal: abort.signal });
     canvas.addEventListener('dblclick', () => { void controller.capturePointer().catch(() => {}); }, { signal: abort.signal });
