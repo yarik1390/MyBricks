@@ -9,6 +9,7 @@ async function stubRoom(page, rows = holdings) {
   await page.route('**/api/collection', route => route.fulfill({ json: { items: rows, count: rows.length } }));
 }
 const ready = page => expect(page.locator('#roomStage')).toHaveAttribute('data-room-state', 'ready');
+const doorOpen = page => expect(page.locator('#roomStage')).toHaveAttribute('data-door-state', 'open', { timeout: 30000 });
 const pose = page => page.locator('#roomStage').evaluate(el => ({ x: Number(el.dataset.cameraX), z: Number(el.dataset.cameraZ), yaw: Number(el.dataset.cameraYaw), pitch: Number(el.dataset.cameraPitch) }));
 async function walk(page, key, ms = 400) {
   await page.locator('#roomStage').focus();
@@ -37,6 +38,51 @@ async function findSet(page, number) {
   })).toEqual({ sheet: 'true', backdrop: 'true', focused: 'roomStage', centerTarget: 'CANVAS' });
 }
 
+test('native door intro is time-based, visible, finite, and preserves navigation pose', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__doorProgressSamples = [];
+    new MutationObserver(() => {
+      const value = Number(document.querySelector('#roomStage')?.dataset.doorProgress);
+      if (Number.isFinite(value)) window.__doorProgressSamples.push(value);
+    }).observe(document, { attributes: true, attributeFilter: ['data-door-progress'], childList: true, subtree: true });
+  });
+  await stubRoom(page);
+  await page.goto('/#/room');
+  const stage = page.locator('#roomStage');
+  await expect(stage).toHaveAttribute('data-door-animation', 'native-three-time', { timeout: 30000 });
+  await ready(page);
+  const savedPose = await pose(page);
+  await doorOpen(page);
+  await expect(stage).toHaveAttribute('data-door-progress', '1.000');
+  const progressSamples = await page.evaluate(() => window.__doorProgressSamples);
+  expect(progressSamples.some(value => value > 0 && value < 1)).toBe(true);
+  expect(progressSamples.at(-1)).toBe(1);
+  for (let index = 1; index < progressSamples.length; index++) {
+    expect(progressSamples[index]).toBeGreaterThanOrEqual(progressSamples[index - 1]);
+  }
+  const afterIntro = await pose(page);
+  expect(afterIntro.x).toBe(savedPose.x);
+  expect(afterIntro.z).toBe(savedPose.z);
+  expect(afterIntro.yaw).toBeCloseTo(savedPose.yaw, 4);
+  expect(afterIntro.pitch).toBeCloseTo(savedPose.pitch, 4);
+
+  // Reset is a separate lifecycle boundary: it must preserve the completed
+  // native door state rather than remounting or replaying the intro.
+  await page.locator('#roomReset').click();
+  await expect(stage).toHaveAttribute('data-door-state', 'open');
+  await expect(stage).toHaveAttribute('data-door-progress', '1.000');
+  expect(await pose(page)).toEqual(savedPose);
+});
+
+test('reduced motion opens the native vault door immediately', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await stubRoom(page);
+  await page.goto('/#/room');
+  await ready(page);
+  await doorOpen(page);
+  await expect(page.locator('#roomStage')).toHaveAttribute('data-door-progress', '1.000');
+});
+
 test('Vault enters fullscreen directly; walking, mouse looking, collision and exit work', async ({ page }) => {
   test.slow();
   const requests = [];
@@ -47,6 +93,8 @@ test('Vault enters fullscreen directly; walking, mouse looking, collision and ex
   expect(requests.some(p => /collection-room-scene|three-0/.test(p))).toBe(false);
   await page.getByRole('link', { name: '3D Room', exact: true }).click();
   await ready(page);
+  await page.locator('#roomReset').click();
+  await doorOpen(page);
   await expect(page.locator('#nav')).toBeHidden();
   const before = await pose(page);
   await walk(page, 'w');
@@ -248,6 +296,8 @@ test('mobile joystick and look accept simultaneous touches without scrolling', a
   await page.getByRole('link', { name: 'Grid', exact: true }).click();
   await page.getByRole('link', { name: '3D Room', exact: true }).click();
   await ready(page);
+  await page.locator('#roomReset').click();
+  await doorOpen(page);
   const beforeEdgeLook = await pose(page);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 24, y: 420, id: 1 }] });
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 150, y: 420, id: 1 }] });

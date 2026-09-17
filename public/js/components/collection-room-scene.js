@@ -9,9 +9,18 @@ import {
   selectRoomResidents,
 } from '../lib/collection-room.js';
 
+const DOOR_INTRO_DURATION_MS = 2800;
+const DOOR_INTRO_MAX_FRAME_STEP = 0.2;
+// Swing toward the vestibule, away from the room spawn/navigation path.
+const DOOR_OPEN_ANGLE = Math.PI * 0.5;
 const IMAGE_TEXTURE_LIMIT = ROOM_TEXTURE_LIMIT;
 const LOOK_SPEED = 0.0032;
 const RESIDENT_SEGMENT_RADIUS = 4;
+
+function smoothstep(value) {
+  const clamped = Math.max(0, Math.min(1, value));
+  return clamped * clamped * (3 - 2 * clamped);
+}
 
 function themeColor(theme) {
   let hash = 2166136261;
@@ -58,13 +67,13 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.12;
-  renderer.setClearColor(0x11161a);
+  renderer.toneMappingExposure = 1.38;
+  renderer.setClearColor(0x1b2227);
   stage.append(canvas);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x11161a);
-  scene.fog = new THREE.Fog(0x11161a, 24, 46);
+  scene.background = new THREE.Color(0x1b2227);
+  scene.fog = new THREE.Fog(0x1b2227, 30, 52);
   const camera = new THREE.PerspectiveCamera(58, 1, 0.08, 46);
   const raycaster = new THREE.Raycaster();
   // Keep boxes selectable from the aisle and from the room entrance. The
@@ -93,17 +102,27 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   let manuallyPaused = false;
   let frame = 0;
   let lastFrameTime = 0;
+  let introFrame = 0;
+  let introStartedAt = 0;
+  let introProgress = 1;
+  let doorPivot = null;
+  let doorWheel = null;
   let residentSegment = -1;
   let resizeObserver;
   let removalObserver;
   let pose = normalizeRoomPose(layout, options.initialPose);
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+  const shouldPlayDoorIntro = !options.initialPose && !reducedMotion;
+  introProgress = shouldPlayDoorIntro ? 0 : 1;
   let inspecting = false;
   let activePickup = null;
 
   const textureLoader = new THREE.TextureLoader();
   const loadVaultTexture = (url, repeatX = 1, repeatY = 1) => {
     try {
-      const tex = textureLoader.load(url, () => { if (!inspecting && !manuallyPaused) renderNow(); });
+      const tex = textureLoader.load(url, () => {
+        if (!inspecting && !manuallyPaused && introProgress >= 1) renderNow();
+      });
       tex.wrapS = THREE.RepeatWrapping;
       tex.wrapT = THREE.RepeatWrapping;
       tex.repeat.set(repeatX, repeatY);
@@ -121,12 +140,12 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     sharedMaterials.add(value);
     return value;
   };
-  const wallSteel = material({ color: 0x444d53, map: steelTexture, metalness: 0.72, roughness: 0.44 });
-  const ceiling = material({ color: 0x566066, map: steelTexture, metalness: 0.55, roughness: 0.52 });
-  const floor = material({ color: 0x22282c, map: floorTexture, metalness: 0.3, roughness: 0.65 });
-  const aisle = material({ color: 0x323a40, map: floorTexture, metalness: 0.26, roughness: 0.72 });
-  const shelfSteel = material({ color: 0x2c3338, map: steelTexture, metalness: 0.78, roughness: 0.38 });
-  const shelfEdge = material({ color: 0x161b1e, metalness: 0.82, roughness: 0.3 });
+  const wallSteel = material({ color: 0x66737a, map: steelTexture, metalness: 0.64, roughness: 0.5 });
+  const ceiling = material({ color: 0x737f85, map: steelTexture, metalness: 0.48, roughness: 0.58 });
+  const floor = material({ color: 0x5c666b, map: floorTexture, metalness: 0.2, roughness: 0.72 });
+  const aisle = material({ color: 0x78838a, map: floorTexture, metalness: 0.16, roughness: 0.78 });
+  const shelfSteel = material({ color: 0x5c686e, map: steelTexture, metalness: 0.62, roughness: 0.48 });
+  const shelfEdge = material({ color: 0x3e474c, metalness: 0.66, roughness: 0.42 });
   // Product photos only cover the front. Every other face stays intentionally
   // neutral so the room never invents official package artwork.
   const boxSide = material({ color: 0xc2aa84, roughness: 0.93 });
@@ -135,13 +154,16 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   const boxGeometry = new THREE.BoxGeometry(ROOM_LAYOUT.boxDepth, ROOM_LAYOUT.boxHeight, ROOM_LAYOUT.boxWidth);
   sharedGeometries.add(boxGeometry);
 
-  scene.add(new THREE.HemisphereLight(0xcbe0eb, 0x111518, 1.32));
-  const keyLight = new THREE.DirectionalLight(0xe8f4fa, 2.05);
+  scene.add(new THREE.HemisphereLight(0xe6f4fa, 0x343b3e, 2.15));
+  const keyLight = new THREE.DirectionalLight(0xf2f8fb, 2.65);
   keyLight.position.set(-3, 5.8, 4);
   scene.add(keyLight);
-  const warmLight = new THREE.PointLight(0xffd69b, 2.5, 18, 1.9);
+  const warmLight = new THREE.PointLight(0xffd9a6, 4.2, 24, 1.45);
   warmLight.position.set(0, 4.7, pose.z + 1);
   scene.add(warmLight);
+  const aisleLight = new THREE.PointLight(0xd9efff, 3.2, 22, 1.55);
+  aisleLight.position.set(0, 3.2, pose.z + 6);
+  scene.add(aisleLight);
 
   function accent(theme) {
     const color = themeColor(theme);
@@ -219,21 +241,27 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       }
     }
     if (index === 0) {
-      meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, ROOM_LAYOUT.ceilingHeight, 0.18], [0, ROOM_LAYOUT.ceilingHeight / 2, 0], wallSteel, true);
-      // Heavy outer vault frame ring
-      const frameOuter = new THREE.Mesh(new THREE.CylinderGeometry(2.36, 2.36, 0.32, 32), shelfEdge);
-      frameOuter.rotation.x = Math.PI / 2;
+      // Leave a real aperture behind the moving leaf; the former solid wall
+      // meant an "open" door could never reveal or admit the room.
+      meshBox(group, [3.1, ROOM_LAYOUT.ceilingHeight, 0.18], [-3.7, ROOM_LAYOUT.ceilingHeight / 2, 0], wallSteel, true);
+      meshBox(group, [3.1, ROOM_LAYOUT.ceilingHeight, 0.18], [3.7, ROOM_LAYOUT.ceilingHeight / 2, 0], wallSteel, true);
+      meshBox(group, [4.3, 0.85, 0.18], [0, ROOM_LAYOUT.ceilingHeight - 0.425, 0], wallSteel, true);
+      // An open torus reads as a frame without occluding the doorway.
+      const frameOuter = new THREE.Mesh(new THREE.TorusGeometry(2.38, 0.22, 12, 40), shelfEdge);
       frameOuter.position.set(0, 2.64, 0.16);
       group.add(frameOuter);
 
-      // Main circular vault door with textured face
-      const doorMaterials = [shelfSteel, material({ map: doorTexture, color: 0xdde4e8, metalness: 0.72, roughness: 0.38 }), shelfSteel];
+      // The door pivots as one native Three.js assembly around its left hinge.
+      doorPivot = new THREE.Group();
+      doorPivot.position.set(-2.02, 2.64, 0.18);
+      group.add(doorPivot);
+      const doorMaterials = [shelfSteel, material({ map: doorTexture, color: 0xdde4e8, metalness: 0.46, roughness: 0.48 }), shelfSteel];
       const door = new THREE.Mesh(new THREE.CylinderGeometry(2.14, 2.14, 0.26, 32), doorMaterials);
       door.rotation.x = Math.PI / 2;
-      door.position.set(0, 2.64, 0.18);
-      group.add(door);
+      door.position.x = 2.02;
+      doorPivot.add(door);
 
-      // Left cylindrical heavy hinges
+      // Heavy hinges stay fixed to the frame.
       const hingeTop = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.52, 16), shelfEdge);
       hingeTop.position.set(-2.02, 3.4, 0.2);
       group.add(hingeTop);
@@ -241,22 +269,26 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       hingeBottom.position.set(-2.02, 1.88, 0.2);
       group.add(hingeBottom);
 
-      // Radial locking bolts extending into frame
+      // Radial locking bolts stay attached to the moving door leaf.
       for (let a = 0; a < 6; a++) {
         const angle = (a * Math.PI) / 3;
         const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.44, 12), shelfEdge);
         bolt.rotation.z = angle;
-        bolt.position.set(Math.cos(angle) * 2.06, 2.64 + Math.sin(angle) * 2.06, 0.18);
-        group.add(bolt);
+        bolt.position.set(2.02 + Math.cos(angle) * 2.06, Math.sin(angle) * 2.06, -0.13);
+        doorPivot.add(bolt);
       }
 
-      // Central locking wheel spokes and heavy hub
-      meshBox(group, [1.8, 0.08, 0.12], [0, 2.64, 0.05], shelfEdge, true);
-      meshBox(group, [0.08, 1.8, 0.12], [0, 2.64, 0.05], shelfEdge, true);
+      // Central locking wheel follows the door leaf during the opening.
+      doorWheel = new THREE.Group();
+      doorWheel.position.x = 2.02;
+      doorPivot.add(doorWheel);
+      meshBox(doorWheel, [1.8, 0.08, 0.12], [0, 0, -0.13], shelfEdge, true);
+      meshBox(doorWheel, [0.08, 1.8, 0.12], [0, 0, -0.13], shelfEdge, true);
       const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.3, 24), shelfEdge);
       hub.rotation.x = Math.PI / 2;
-      hub.position.set(0, 2.64, -0.02);
-      group.add(hub);
+      hub.position.z = -0.2;
+      doorWheel.add(hub);
+      doorPivot.rotation.y = DOOR_OPEN_ANGLE * introProgress;
     }
     if (index === layout.segmentCount - 1) {
       meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, ROOM_LAYOUT.ceilingHeight, 0.18], [0, ROOM_LAYOUT.ceilingHeight / 2, layout.bounds.maxZ], wallSteel, true);
@@ -351,9 +383,9 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   }
 
   function requestTextureRender() {
-    // Image completions can arrive as separate tasks. Debounce their texture
-    // uploads so a cached image burst still produces one trailing idle frame.
-    if (destroyed || textureLoadPaused || hasMovement()) return;
+    // Image completions can arrive as separate tasks. Keep their GPU uploads out
+    // of the intro, then debounce them into one trailing idle render afterward.
+    if (destroyed || textureLoadPaused || introProgress < 1 || hasMovement()) return;
     if (textureRenderTimer) clearTimeout(textureRenderTimer);
     textureRenderTimer = window.setTimeout(() => {
       textureRenderTimer = 0;
@@ -364,7 +396,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   function scheduleTextureLoads(records) {
     pendingTextureLoads.clear();
     for (const record of records) if (!record.texture) pendingTextureLoads.add(record.box.index);
-    if (textureLoadScheduled || textureLoadPaused || hasMovement() || !pendingTextureLoads.size) return;
+    if (textureLoadScheduled || textureLoadPaused || introProgress < 1 || hasMovement() || !pendingTextureLoads.size) return;
     textureLoadScheduled = true;
     const pump = deadline => {
       // Build cards in bounded idle slices. Rendering each card individually
@@ -462,20 +494,85 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       pose.z + Math.cos(pose.yaw) * horizontal,
     );
     warmLight.position.set(pose.x * 0.2, 4.7, pose.z + 1.5);
+    aisleLight.position.set(pose.x * 0.12, 3.2, pose.z + 6);
     stage.dataset.cameraX = pose.x.toFixed(3);
     stage.dataset.cameraZ = pose.z.toFixed(3);
     stage.dataset.cameraYaw = pose.yaw.toFixed(5);
     stage.dataset.cameraPitch = pose.pitch.toFixed(5);
   }
 
+  function scheduleCurrentResidentTextures() {
+    const selected = selectRoomResidents(layout, pose, IMAGE_TEXTURE_LIMIT);
+    scheduleTextureLoads(selected.map(box => residentBoxes.get(box.index)).filter(Boolean));
+  }
+
   function renderNow() {
     if (!active()) return;
     reconcileResidents();
-    updateCamera();
+    if (introProgress >= 1) updateCamera();
     renderer.render(scene, camera);
   }
 
+  function updateDoorIntro(progress) {
+    introProgress = Math.max(0, Math.min(1, progress));
+    const eased = smoothstep(introProgress);
+    if (doorPivot) doorPivot.rotation.y = DOOR_OPEN_ANGLE * eased;
+    if (doorWheel) doorWheel.rotation.z = -Math.PI * 1.35 * Math.min(1, introProgress / 0.42);
+    stage.dataset.doorAnimation = 'native-three-time';
+    stage.dataset.doorProgress = introProgress.toFixed(3);
+    stage.dataset.doorAngle = (DOOR_OPEN_ANGLE * eased).toFixed(5);
+    stage.dataset.doorState = introProgress >= 1 ? 'open' : 'opening';
+  }
+
+  function cancelDoorIntro({ finish = false } = {}) {
+    if (introFrame) cancelAnimationFrame(introFrame);
+    introFrame = 0;
+    introStartedAt = 0;
+    if (finish && introProgress < 1) {
+      updateDoorIntro(1);
+      scheduleCurrentResidentTextures();
+      if (!document.hidden && !manuallyPaused && !destroyed) renderNow();
+    }
+  }
+
+  function doorIntroFrame(time) {
+    introFrame = 0;
+    if (!active()) return;
+    if (!introStartedAt) introStartedAt = time;
+    const elapsedProgress = Math.max(0, Math.min(1, (time - introStartedAt) / DOOR_INTRO_DURATION_MS));
+    // Cap each rendered step so a long software-WebGL frame still advances
+    // through genuine door poses rather than jumping from closed to open.
+    updateDoorIntro(Math.min(elapsedProgress, introProgress + DOOR_INTRO_MAX_FRAME_STEP));
+
+    // The saved navigation pose is untouched: only the rendered camera takes a
+    // restrained glance back at the entrance while the door visibly opens.
+    const reveal = Math.min(1, introProgress / 0.2);
+    const returnToPose = smoothstep(Math.max(0, (introProgress - 0.62) / 0.38));
+    const introYaw = Math.PI;
+    const yaw = introYaw + Math.atan2(Math.sin(pose.yaw - introYaw), Math.cos(pose.yaw - introYaw)) * returnToPose;
+    const pitch = -0.02 * (1 - returnToPose);
+    camera.position.set(pose.x, ROOM_LAYOUT.eyeHeight, pose.z + 0.06 * reveal);
+    camera.lookAt(
+      camera.position.x + Math.sin(yaw) * Math.cos(pitch),
+      ROOM_LAYOUT.eyeHeight + Math.sin(pitch),
+      camera.position.z + Math.cos(yaw) * Math.cos(pitch),
+    );
+    renderer.render(scene, camera);
+    if (introProgress < 1) {
+      introFrame = requestAnimationFrame(doorIntroFrame);
+    } else {
+      updateCamera();
+      scheduleCurrentResidentTextures();
+    }
+  }
+
+  function startDoorIntro() {
+    updateDoorIntro(shouldPlayDoorIntro ? 0 : 1);
+    if (shouldPlayDoorIntro && !document.hidden && !manuallyPaused) introFrame = requestAnimationFrame(doorIntroFrame);
+  }
+
   function beginModalTransition() {
+    cancelDoorIntro({ finish: true });
     textureLoadPaused = true;
     pendingTextureLoads.clear();
     if (textureRenderTimer) clearTimeout(textureRenderTimer);
@@ -534,6 +631,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   }
 
   function beginMovement() {
+    cancelDoorIntro({ finish: true });
     if (!active() || !hasMovement() || frame) return;
     if (textureRenderTimer) clearTimeout(textureRenderTimer);
     textureRenderTimer = 0;
@@ -557,6 +655,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   }
 
   function look(dx, dy) {
+    cancelDoorIntro({ finish: true });
     pose.yaw = Math.atan2(Math.sin(pose.yaw - dx * LOOK_SPEED), Math.cos(pose.yaw - dx * LOOK_SPEED));
     pose.pitch = Math.max(-Math.PI * 0.44, Math.min(Math.PI * 0.44, pose.pitch - dy * LOOK_SPEED));
     renderNow();
@@ -585,6 +684,12 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
 
   function pick(clientX, clientY, center = false) {
     if (!active()) return;
+    // A click during the entrance reveal should use the navigation camera the
+    // user is about to control, not the intro-only camera transform left by the
+    // latest animation frame. Finishing first also renders that same matrix, so
+    // selection and the visible post-click scene cannot disagree.
+    cancelDoorIntro({ finish: true });
+    updateCamera();
     const bounds = canvas.getBoundingClientRect();
     const x = center ? 0 : ((clientX - bounds.left) / Math.max(1, bounds.width)) * 2 - 1;
     const y = center ? 0 : -((clientY - bounds.top) / Math.max(1, bounds.height)) * 2 + 1;
@@ -682,6 +787,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      cancelDoorIntro();
       restoreBoxPickup();
       steelTexture?.dispose();
       floorTexture?.dispose();
@@ -712,6 +818,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     },
     reset() {
       if (destroyed) return;
+      cancelDoorIntro({ finish: true });
       resetInputs();
       pose = { ...layout.spawn };
       reconcileResidents(true);
@@ -737,6 +844,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     resumeAfterModal,
     setPaused(value, { render = true } = {}) {
       manuallyPaused = Boolean(value);
+      if (manuallyPaused) cancelDoorIntro({ finish: true });
       resetInputs();
       if (manuallyPaused && document.pointerLockElement === canvas) document.exitPointerLock?.();
       if (!manuallyPaused && render) renderNow();
@@ -782,7 +890,10 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       else skipFirstPointerLockMove = true;
     }, { signal: abort.signal });
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) resetInputs();
+      if (document.hidden) {
+        cancelDoorIntro({ finish: true });
+        resetInputs();
+      }
     }, { signal: abort.signal });
     // Pointer lock guarantees mouse events; some platforms do not dispatch the
     // corresponding pointer events. Handle the completed click while still
@@ -903,12 +1014,13 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     resizeObserver.observe(stage);
     removalObserver = new MutationObserver(checkRoute);
     removalObserver.observe(document.body, { childList: true, subtree: true });
-    reconcileResidents(true);
+    reconcileResidents(true, !shouldPlayDoorIntro);
     updateCamera();
     renderer.setSize(Math.max(1, stage.clientWidth), Math.max(1, stage.clientHeight), false);
     camera.aspect = Math.max(1, stage.clientWidth) / Math.max(1, stage.clientHeight);
     camera.updateProjectionMatrix();
     renderer.render(scene, camera);
+    startDoorIntro();
     return controller;
   } catch (error) {
     controller.destroy();
