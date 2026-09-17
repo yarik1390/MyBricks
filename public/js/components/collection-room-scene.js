@@ -9,8 +9,12 @@ import {
   selectRoomResidents,
 } from '../lib/collection-room.js';
 
-const DOOR_INTRO_DURATION_MS = 2800;
-const DOOR_INTRO_MAX_FRAME_STEP = 0.2;
+const DOOR_INTRO_DURATION_MS = 3600;
+const DOOR_INTRO_MAX_FRAME_STEP = 0.12;
+const PICKUP_DURATION_MS = 480;
+const PICKUP_RETURN_DURATION_MS = 360;
+const PICKUP_VIEW_DISTANCE = 2.2;
+const PICKUP_VIEW_SCALE = 0.72;
 // Swing toward the vestibule, away from the room spawn/navigation path.
 const DOOR_OPEN_ANGLE = Math.PI * 0.5;
 const IMAGE_TEXTURE_LIMIT = ROOM_TEXTURE_LIMIT;
@@ -105,6 +109,8 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   let introFrame = 0;
   let introStartedAt = 0;
   let introProgress = 1;
+  let pickupFrame = 0;
+  let pickupStartedAt = 0;
   let doorPivot = null;
   let doorWheel = null;
   let residentSegment = -1;
@@ -148,11 +154,14 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   const shelfEdge = material({ color: 0x3e474c, metalness: 0.66, roughness: 0.42 });
   // Product photos only cover the front. Every other face stays intentionally
   // neutral so the room never invents official package artwork.
-  const boxSide = material({ color: 0xc2aa84, roughness: 0.93 });
+  const boxSide = material({ color: 0xb79d77, roughness: 0.9 });
   const boxFront = material({ color: 0xeee5d7, roughness: 0.86 });
+  const boxEdge = material({ color: 0x765f43, roughness: 0.96 });
   const accentMaterials = new Map();
   const boxGeometry = new THREE.BoxGeometry(ROOM_LAYOUT.boxDepth, ROOM_LAYOUT.boxHeight, ROOM_LAYOUT.boxWidth);
+  const boxEdgeGeometry = new THREE.EdgesGeometry(boxGeometry);
   sharedGeometries.add(boxGeometry);
+  sharedGeometries.add(boxEdgeGeometry);
 
   scene.add(new THREE.HemisphereLight(0xe6f4fa, 0x343b3e, 2.15));
   const keyLight = new THREE.DirectionalLight(0xf2f8fb, 2.65);
@@ -241,6 +250,12 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       }
     }
     if (index === 0) {
+      // A short vestibule gives the camera a real outside/threshold volume. It
+      // is only resident with segment zero and adds no ongoing render cost.
+      meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, 0.16, 3.8], [0, -0.08, -1.9], floor, true);
+      meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, 0.16, 3.8], [0, ROOM_LAYOUT.ceilingHeight, -1.9], ceiling, true);
+      meshBox(group, [0.18, ROOM_LAYOUT.ceilingHeight, 3.8], [-ROOM_LAYOUT.roomHalfWidth, ROOM_LAYOUT.ceilingHeight / 2, -1.9], wallSteel, true);
+      meshBox(group, [0.18, ROOM_LAYOUT.ceilingHeight, 3.8], [ROOM_LAYOUT.roomHalfWidth, ROOM_LAYOUT.ceilingHeight / 2, -1.9], wallSteel, true);
       // Leave a real aperture behind the moving leaf; the former solid wall
       // meant an "open" door could never reveal or admit the room.
       meshBox(group, [3.1, ROOM_LAYOUT.ceilingHeight, 0.18], [-3.7, ROOM_LAYOUT.ceilingHeight / 2, 0], wallSteel, true);
@@ -288,7 +303,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       hub.rotation.x = Math.PI / 2;
       hub.position.z = -0.2;
       doorWheel.add(hub);
-      doorPivot.rotation.y = DOOR_OPEN_ANGLE * introProgress;
+      doorPivot.rotation.y = DOOR_OPEN_ANGLE * smoothstep(introProgress);
     }
     if (index === layout.segmentCount - 1) {
       meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, ROOM_LAYOUT.ceilingHeight, 0.18], [0, ROOM_LAYOUT.ceilingHeight / 2, layout.bounds.maxZ], wallSteel, true);
@@ -436,6 +451,11 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     const body = new THREE.Mesh(boxGeometry, materials);
     body.position.set(box.x, box.y, box.z);
     body.userData.setNum = box.set_num;
+    const edges = new THREE.LineSegments(boxEdgeGeometry, boxEdge);
+    // Pull the seam fractionally off the faces to avoid z-fighting while
+    // retaining the coated-cardboard thickness cue on neutral package sides.
+    edges.scale.setScalar(1.006);
+    body.add(edges);
     scene.add(body);
     pickTargets.add(body);
     const record = { body, box, frontIndex, frontMaterial: null, image: null, texture: null };
@@ -541,22 +561,25 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     if (!introStartedAt) introStartedAt = time;
     const elapsedProgress = Math.max(0, Math.min(1, (time - introStartedAt) / DOOR_INTRO_DURATION_MS));
     // Cap each rendered step so a long software-WebGL frame still advances
-    // through genuine door poses rather than jumping from closed to open.
+    // through genuine door and camera poses rather than jumping to completion.
     updateDoorIntro(Math.min(elapsedProgress, introProgress + DOOR_INTRO_MAX_FRAME_STEP));
 
-    // The saved navigation pose is untouched: only the rendered camera takes a
-    // restrained glance back at the entrance while the door visibly opens.
-    const reveal = Math.min(1, introProgress / 0.2);
-    const returnToPose = smoothstep(Math.max(0, (introProgress - 0.62) / 0.38));
-    const introYaw = Math.PI;
-    const yaw = introYaw + Math.atan2(Math.sin(pose.yaw - introYaw), Math.cos(pose.yaw - introYaw)) * returnToPose;
-    const pitch = -0.02 * (1 - returnToPose);
-    camera.position.set(pose.x, ROOM_LAYOUT.eyeHeight, pose.z + 0.06 * reveal);
+    // Start in the secure vestibule with the closed leaf filling the view. The
+    // camera approaches while the lock turns, crosses the threshold only after
+    // the door clears it, then settles at the unchanged navigation spawn.
+    const approach = smoothstep(Math.min(1, introProgress / 0.46));
+    const enter = smoothstep(Math.max(0, (introProgress - 0.42) / 0.58));
+    const introZ = -3.15 + approach * 1.75 + enter * (pose.z + 1.4);
+    const introPitch = 0.055 * (1 - enter) + pose.pitch * enter;
+    camera.position.set(pose.x, ROOM_LAYOUT.eyeHeight, introZ);
     camera.lookAt(
-      camera.position.x + Math.sin(yaw) * Math.cos(pitch),
-      ROOM_LAYOUT.eyeHeight + Math.sin(pitch),
-      camera.position.z + Math.cos(yaw) * Math.cos(pitch),
+      camera.position.x + Math.sin(pose.yaw) * Math.cos(introPitch),
+      ROOM_LAYOUT.eyeHeight + Math.sin(introPitch),
+      camera.position.z + Math.cos(pose.yaw) * Math.cos(introPitch),
     );
+    camera.updateMatrixWorld();
+    stage.dataset.introCameraZ = introZ.toFixed(3);
+    stage.dataset.introThreshold = introZ >= 0 ? 'inside' : 'outside';
     renderer.render(scene, camera);
     if (introProgress < 1) {
       introFrame = requestAnimationFrame(doorIntroFrame);
@@ -581,17 +604,20 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
 
   function resumeAfterModal() {
     if (destroyed) return;
-    restoreBoxPickup();
     textureLoadPaused = false;
     manuallyPaused = false;
     resetInputs();
-    if (document.hidden) return;
-    reconcileResidents(false, false);
-    updateCamera();
-    renderer.render(scene, camera);
-    const segment = Math.max(0, Math.min(layout.segmentCount - 1, Math.floor(pose.z / ROOM_LAYOUT.segmentLength)));
-    const selected = selectRoomResidents(layout, { ...pose, x: 0, z: (segment + 0.5) * ROOM_LAYOUT.segmentLength }, IMAGE_TEXTURE_LIMIT);
-    scheduleTextureLoads(selected.map(box => residentBoxes.get(box.index)).filter(Boolean));
+    const resumeScene = () => {
+      if (document.hidden || destroyed) return;
+      reconcileResidents(false, false);
+      updateCamera();
+      renderer.render(scene, camera);
+      const segment = Math.max(0, Math.min(layout.segmentCount - 1, Math.floor(pose.z / ROOM_LAYOUT.segmentLength)));
+      const selected = selectRoomResidents(layout, { ...pose, x: 0, z: (segment + 0.5) * ROOM_LAYOUT.segmentLength }, IMAGE_TEXTURE_LIMIT);
+      scheduleTextureLoads(selected.map(box => residentBoxes.get(box.index)).filter(Boolean));
+    };
+    if (restoreBoxPickup({ onComplete: resumeScene })) return;
+    resumeScene();
   }
 
   function keyInput() {
@@ -661,25 +687,108 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     renderNow();
   }
 
-  function animateBoxPickup(mesh) {
-    if (activePickup?.mesh) restoreBoxPickup();
-    activePickup = {
-      mesh,
-      origY: mesh.position.y,
-      origRotX: mesh.rotation.x
-    };
-    mesh.position.y += 0.22;
-    mesh.rotation.x -= 0.1;
-    renderNow();
+  function cancelPickupFrame() {
+    if (pickupFrame) cancelAnimationFrame(pickupFrame);
+    pickupFrame = 0;
+    pickupStartedAt = 0;
   }
 
-  function restoreBoxPickup() {
-    if (activePickup?.mesh) {
-      activePickup.mesh.position.y = activePickup.origY;
-      activePickup.mesh.rotation.x = activePickup.origRotX;
+  function pickupAnimationFrame(time) {
+    pickupFrame = 0;
+    if (!activePickup || destroyed || document.hidden) return;
+    if (!pickupStartedAt) pickupStartedAt = time;
+    const duration = activePickup.returning ? PICKUP_RETURN_DURATION_MS : PICKUP_DURATION_MS;
+    const progress = Math.min(1, Math.max(0, (time - pickupStartedAt) / duration));
+    const eased = smoothstep(progress);
+    const amount = activePickup.returning ? 1 - eased : eased;
+    const { mesh, origX, origY, origZ, origRotX, origRotY, origScaleX, origScaleY, origScaleZ, viewX, viewY, viewZ, viewRotY } = activePickup;
+    mesh.position.set(
+      origX + (viewX - origX) * amount,
+      origY + (viewY - origY) * amount,
+      origZ + (viewZ - origZ) * amount,
+    );
+    mesh.rotation.x = origRotX - 0.08 * amount;
+    mesh.rotation.y = origRotY + (viewRotY - origRotY) * amount;
+    const scale = 1 + (PICKUP_VIEW_SCALE - 1) * amount;
+    mesh.scale.set(origScaleX * scale, origScaleY * scale, origScaleZ * scale);
+    stage.dataset.pickupProgress = amount.toFixed(3);
+    stage.dataset.pickupTransform = [mesh.position.x, mesh.position.y, mesh.position.z, mesh.rotation.x]
+      .map(value => value.toFixed(5))
+      .join(',');
+    stage.dataset.pickupState = activePickup.returning ? 'returning' : progress >= 1 ? 'held' : 'lifting';
+    renderer.render(scene, camera);
+    if (progress < 1) pickupFrame = requestAnimationFrame(pickupAnimationFrame);
+    else if (activePickup.returning) {
+      const onComplete = activePickup.onReturnComplete;
       activePickup = null;
-      renderNow();
+      stage.dataset.pickupState = 'idle';
+      delete stage.dataset.pickupSet;
+      onComplete?.();
+    } else {
+      // Do not interrupt the physical action with an unrelated sheet. The DOM
+      // inspector remains the accessible detailed view after the lift settles.
+      activePickup.onSettled();
     }
+  }
+
+  function animateBoxPickup(mesh, onSettled) {
+    restoreBoxPickup({ immediate: true });
+    const forwardX = Math.sin(pose.yaw);
+    const forwardZ = Math.cos(pose.yaw);
+    const viewX = pose.x + forwardX * PICKUP_VIEW_DISTANCE;
+    const viewZ = pose.z + forwardZ * PICKUP_VIEW_DISTANCE;
+    const viewY = ROOM_LAYOUT.eyeHeight - 0.22;
+    activePickup = {
+      mesh,
+      onSettled,
+      origX: mesh.position.x,
+      origY: mesh.position.y,
+      origZ: mesh.position.z,
+      origRotX: mesh.rotation.x,
+      origRotY: mesh.rotation.y,
+      origScaleX: mesh.scale.x,
+      origScaleY: mesh.scale.y,
+      origScaleZ: mesh.scale.z,
+      viewX,
+      viewY,
+      viewZ,
+      viewRotY: Math.atan2(pose.x - viewX, pose.z - viewZ),
+      returning: false,
+    };
+    stage.dataset.pickupOrigin = [activePickup.origX, activePickup.origY, activePickup.origZ, activePickup.origRotX]
+      .map(value => value.toFixed(5))
+      .join(',');
+    stage.dataset.pickupSet = mesh.userData.setNum;
+    stage.dataset.pickupState = 'lifting';
+    stage.dataset.pickupProgress = '0.000';
+    pickupStartedAt = 0;
+    pickupFrame = requestAnimationFrame(pickupAnimationFrame);
+  }
+
+  function restoreBoxPickup({ immediate = false, onComplete } = {}) {
+    if (!activePickup?.mesh) return false;
+    cancelPickupFrame();
+    if (immediate || reducedMotion) {
+      activePickup.mesh.position.set(activePickup.origX, activePickup.origY, activePickup.origZ);
+      activePickup.mesh.rotation.x = activePickup.origRotX;
+      activePickup.mesh.rotation.y = activePickup.origRotY;
+      activePickup.mesh.scale.set(activePickup.origScaleX, activePickup.origScaleY, activePickup.origScaleZ);
+      stage.dataset.pickupTransform = stage.dataset.pickupOrigin;
+      activePickup = null;
+      stage.dataset.pickupState = 'idle';
+      stage.dataset.pickupProgress = '0.000';
+      delete stage.dataset.pickupSet;
+      renderNow();
+      onComplete?.();
+      return false;
+    }
+    activePickup.returning = true;
+    activePickup.onReturnComplete = onComplete;
+    stage.dataset.pickupState = 'returning';
+    stage.dataset.pickupProgress = '0.999';
+    pickupStartedAt = performance.now();
+    pickupFrame = requestAnimationFrame(pickupAnimationFrame);
+    return true;
   }
 
   function pick(clientX, clientY, center = false) {
@@ -753,11 +862,12 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     }
 
     if (selectedSetNum) {
-      if (selectedMesh) animateBoxPickup(selectedMesh);
       resetInputs();
       inspecting = true;
       if (document.pointerLockElement === canvas) document.exitPointerLock?.();
-      onSelect(selectedSetNum);
+      const settle = () => onSelect(selectedSetNum);
+      if (selectedMesh && !reducedMotion) animateBoxPickup(selectedMesh, settle);
+      else settle();
       return;
     }
   }
@@ -788,7 +898,12 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       if (destroyed) return;
       destroyed = true;
       cancelDoorIntro();
-      restoreBoxPickup();
+      cancelPickupFrame();
+      if (activePickup?.mesh) {
+        activePickup.mesh.position.set(activePickup.origX, activePickup.origY, activePickup.origZ);
+        activePickup.mesh.rotation.x = activePickup.origRotX;
+        activePickup = null;
+      }
       steelTexture?.dispose();
       floorTexture?.dispose();
       doorTexture?.dispose();
@@ -892,6 +1007,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         cancelDoorIntro({ finish: true });
+        restoreBoxPickup({ immediate: true });
         resetInputs();
       }
     }, { signal: abort.signal });

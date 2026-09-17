@@ -12,6 +12,14 @@ import {
   selectRoomResidents,
 } from '../lib/collection-room.js';
 
+test('room geometry keeps cartons proportional to shelf bays and standing eye height', () => {
+  assert.equal(ROOM_LAYOUT.boxHeight, 0.72);
+  assert.equal(ROOM_LAYOUT.eyeHeight, 1.68);
+  assert.ok(ROOM_LAYOUT.boxHeight < ROOM_LAYOUT.eyeHeight / 2);
+  const layout = createRoomLayout([{ set_num: '100-1', name: 'Scale check', theme: 'City', quantity: 1 }]);
+  assert.ok(Math.abs(layout.boxes[0].y - 0.79) < 1e-9);
+});
+
 test('room catalog groups active identities and keeps only safe display facts', () => {
   const rows = collectionRoomCatalog([
     {

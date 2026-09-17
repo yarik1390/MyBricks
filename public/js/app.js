@@ -34,16 +34,34 @@ function overlayOpen() {
 function setupGestures() {
   // swipe-back from left edge (disabled while an overlay owns the gesture, so
   // dragging a sheet near the edge can't navigate back underneath it).
-  let edgeSx = 0;
+  let edgeTouch = null;
   document.addEventListener("touchstart", e => {
-    if (e.touches[0].clientX < 44 && !overlayOpen()) edgeSx = e.touches[0].clientX;
-    else edgeSx = 0;
+    const touch = e.touches[0];
+    edgeTouch = e.touches.length === 1 && touch.clientX < 44 && !overlayOpen()
+      ? { id: touch.identifier, x: touch.clientX, y: touch.clientY }
+      : null;
   }, { passive: true });
-  document.addEventListener("touchend", e => {
-    if (edgeSx > 0 && !overlayOpen() && e.changedTouches[0].clientX - edgeSx > 60) {
-      if (history.length > 1) history.back();
+  document.addEventListener("touchmove", e => {
+    if (!edgeTouch) return;
+    const touch = Array.from(e.touches).find(t => t.identifier === edgeTouch.id);
+    if (e.touches.length !== 1 || !touch || overlayOpen()
+      || Math.abs(touch.clientY - edgeTouch.y) > Math.max(12, Math.abs(touch.clientX - edgeTouch.x))) {
+      edgeTouch = null;
+    } else if (touch.clientX - edgeTouch.x > 12 && e.cancelable) {
+      // Claim only a recognized horizontal swipe, never a tap or vertical drag.
+      e.preventDefault();
     }
-  });
+  }, { passive: false });
+  document.addEventListener("touchcancel", () => { edgeTouch = null; }, { passive: true });
+  document.addEventListener("touchend", e => {
+    const start = edgeTouch;
+    edgeTouch = null;
+    if (!start || e.touches.length || overlayOpen()) return;
+    const touch = Array.from(e.changedTouches).find(t => t.identifier === start.id);
+    if (!touch) return;
+    const dx = touch.clientX - start.x;
+    if (dx > 60 && dx > Math.abs(touch.clientY - start.y) && history.length > 1) history.back();
+  }, { passive: true });
 }
 
 // Hide the advisor FAB while scrolling down, reveal on scroll-up. The FAB used

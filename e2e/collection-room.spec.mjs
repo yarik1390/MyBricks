@@ -41,10 +41,14 @@ async function findSet(page, number) {
 test('native door intro is time-based, visible, finite, and preserves navigation pose', async ({ page }) => {
   await page.addInitScript(() => {
     window.__doorProgressSamples = [];
+    window.__introCameraSamples = [];
     new MutationObserver(() => {
-      const value = Number(document.querySelector('#roomStage')?.dataset.doorProgress);
+      const stage = document.querySelector('#roomStage');
+      const value = Number(stage?.dataset.doorProgress);
       if (Number.isFinite(value)) window.__doorProgressSamples.push(value);
-    }).observe(document, { attributes: true, attributeFilter: ['data-door-progress'], childList: true, subtree: true });
+      const cameraZ = Number(stage?.dataset.introCameraZ);
+      if (Number.isFinite(cameraZ)) window.__introCameraSamples.push({ cameraZ, threshold: stage.dataset.introThreshold });
+    }).observe(document, { attributes: true, attributeFilter: ['data-door-progress', 'data-intro-camera-z'], childList: true, subtree: true });
   });
   await stubRoom(page);
   await page.goto('/#/room');
@@ -59,6 +63,12 @@ test('native door intro is time-based, visible, finite, and preserves navigation
   expect(progressSamples.at(-1)).toBe(1);
   for (let index = 1; index < progressSamples.length; index++) {
     expect(progressSamples[index]).toBeGreaterThanOrEqual(progressSamples[index - 1]);
+  }
+  const renderedCameraSamples = await page.evaluate(() => window.__introCameraSamples);
+  expect(renderedCameraSamples.some(sample => sample.cameraZ < 0 && sample.threshold === 'outside')).toBe(true);
+  expect(renderedCameraSamples.some(sample => sample.cameraZ > 0 && sample.threshold === 'inside')).toBe(true);
+  for (let index = 1; index < renderedCameraSamples.length; index++) {
+    expect(renderedCameraSamples[index].cameraZ).toBeGreaterThanOrEqual(renderedCameraSamples[index - 1].cameraZ - 0.001);
   }
   const afterIntro = await pose(page);
   expect(afterIntro.x).toBe(savedPose.x);
@@ -137,6 +147,11 @@ test('find reaches distant sets with bounded rendering and detail sheets preserv
   // teleport aims the selected box at the center so ray selection is real.
   const bounds = await page.locator('#roomStage').boundingBox();
   await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  const stage = page.locator('#roomStage');
+  await expect(stage).toHaveAttribute('data-pickup-state', 'lifting');
+  await expect.poll(async () => Number(await stage.getAttribute('data-pickup-progress'))).toBeGreaterThan(0);
+  await expect(stage).toHaveAttribute('data-pickup-state', 'held');
+  await expect(stage).toHaveAttribute('data-pickup-progress', '1.000');
   await expect(page.locator('#roomSheetTitle')).toHaveText('Set 1199');
   await expect(page.locator('#roomTurntable')).toHaveAttribute('aria-label', 'Rotatable box representation for Set 1199');
   const inspectBox = page.locator('#roomInspectBox');
@@ -164,9 +179,28 @@ test('find reaches distant sets with bounded rendering and detail sheets preserv
   await page.waitForTimeout(200);
   await page.keyboard.up('w');
   expect(await pose(page)).toEqual(inspectingPose);
+  const originalTransform = await stage.getAttribute('data-pickup-origin');
+  await stage.evaluate(el => {
+    window.__pickupReturnSamples = [];
+    const sample = () => window.__pickupReturnSamples.push({
+      state: el.dataset.pickupState,
+      progress: Number(el.dataset.pickupProgress),
+      transform: el.dataset.pickupTransform,
+    });
+    sample();
+    new MutationObserver(sample).observe(el, {
+      attributes: true,
+      attributeFilter: ['data-pickup-state', 'data-pickup-progress', 'data-pickup-transform'],
+    });
+  });
   await page.keyboard.press('Escape');
+  await expect.poll(() => page.evaluate(() => window.__pickupReturnSamples
+    .some(({ state, progress }) => state === 'returning' && progress > 0 && progress < 1))).toBeTruthy();
   await expectSheetClosed(page);
-  await expect(page.locator('#roomStage')).toBeFocused();
+  await expect(stage).toHaveAttribute('data-pickup-state', 'idle');
+  await expect(stage).toHaveAttribute('data-pickup-progress', '0.000');
+  await expect(stage).toHaveAttribute('data-pickup-transform', originalTransform);
+  await expect(stage).toBeFocused();
   expect(await pose(page)).toEqual(located);
   await page.locator('#roomList').click();
   await page.locator('#roomSearch').fill('3199-1');

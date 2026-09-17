@@ -2,12 +2,14 @@ import { canonicalSetNum } from './subcollections.js';
 
 export const ROOM_LAYOUT = Object.freeze({
   aisleHalfWidth: 3.75,
-  boxDepth: 0.34,
-  boxHeight: 1.22,
+  // Display cartons are scaled against the 1.32–1.58 m shelf spacing below;
+  // they are not person-height blocks. Depth remains visible from the aisle.
+  boxDepth: 0.32,
+  boxHeight: 0.72,
   boxWidth: 1.36,
   boxesPerShelf: 12,
   ceilingHeight: 6.2,
-  eyeHeight: 1.65,
+  eyeHeight: 1.68,
   movementSpeed: 4.2,
   playerRadius: 0.32,
   roomHalfWidth: 5.25,
@@ -113,7 +115,10 @@ export function createRoomLayout(catalog = []) {
           shelfIndex,
           side,
           x: side * ROOM_LAYOUT.shelfCenterX,
-          y: 1.02 + row * 1.58,
+          // Centers sit on the structural shelf decks at 0.35/1.67/3.25 m,
+          // with a small clearance. This keeps cartons grounded and leaves
+          // believable air above them instead of filling each bay wall-to-wall.
+          y: 0.35 + ROOM_LAYOUT.boxHeight / 2 + 0.08 + row * 1.58,
           z: centerZ + (column - 1.5) * 1.55,
         };
         setIndex.set(item.set_num, box.index);
