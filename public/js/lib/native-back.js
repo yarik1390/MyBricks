@@ -36,7 +36,8 @@ export function initNativeBack(win) {
       return;
     }
 
-    // 3. Bottom sheet (confirm / prompt / detail sheets).
+    // 3. Bottom sheet (confirm / prompt / detail sheets). Vault inspection is
+    // represented by this sheet, so Back returns the held box before routing.
     if (document.body.classList.contains('sheet-open')) { hideSheet(); return; }
 
     // 4. Camera / scanner overlay.

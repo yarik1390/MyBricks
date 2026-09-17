@@ -351,5 +351,7 @@ Object.assign(zh.room, {
   copiesOne: '{quantity} 套已收藏', copiesOther: '{quantity} 套已收藏', search: '搜索套装', more: '显示更多套装',
   arrived: '你已到达所选陈列架。选择一个套装盒即可查看。', mouseUnavailable: '无法启用鼠标控制。请拖动以环顾四周。',
   unavailable: '此设备无法使用 3D 展厅。你仍可通过无障碍列表查看收藏。',
+  inspecting: '查看套装盒', inspectLabel: '{name} 的可旋转套装盒模型', rotateHint: '拖动套装盒、使用方向键或旋转按钮即可转动。由于只有目录图片，侧面采用纯色显示。',
+  rotateControls: '套装盒旋转控制', rotateLeft: '向左旋转套装盒', rotateRight: '向右旋转套装盒', setNumber: '套装编号', owned: '已收藏',
   listHint: '在列表中浏览套装并打开详情。', retry3D: '重试 3D', empty: '你的展厅已准备就绪。将套装添加到收藏库以摆满陈列架。',
 });

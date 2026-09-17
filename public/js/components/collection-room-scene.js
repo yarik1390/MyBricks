@@ -37,6 +37,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   const isCurrent = typeof options.isCurrent === 'function' ? options.isCurrent : () => true;
   const onSelect = typeof options.onSelect === 'function' ? options.onSelect : () => {};
   const onUnavailable = typeof options.onUnavailable === 'function' ? options.onUnavailable : () => {};
+  const onInspectionRotate = typeof options.onInspectionRotate === 'function' ? options.onInspectionRotate : () => {};
   if (!stage?.isConnected || !isCurrent()) return null;
 
   const layout = createRoomLayout(catalog);
@@ -58,12 +59,12 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.12;
-  renderer.setClearColor(0x2a211b);
+  renderer.setClearColor(0x11161a);
   stage.append(canvas);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x2a211b);
-  scene.fog = new THREE.Fog(0x2a211b, 22, 42);
+  scene.background = new THREE.Color(0x11161a);
+  scene.fog = new THREE.Fog(0x11161a, 24, 46);
   const camera = new THREE.PerspectiveCamera(58, 1, 0.08, 46);
   const raycaster = new THREE.Raycaster();
   // Keep boxes selectable from the aisle and from the room entrance. The
@@ -82,6 +83,10 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   let joystickPointer = null;
   let joystickVector = { forward: 0, strafe: 0 };
   let drag = null;
+  const pendingTextureLoads = new Set();
+  let textureLoadScheduled = false;
+  let textureRenderTimer = 0;
+  let textureLoadPaused = false;
   let destroyed = false;
   let contextLost = false;
   let unavailableNotified = false;
@@ -92,29 +97,32 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   let resizeObserver;
   let removalObserver;
   let pose = normalizeRoomPose(layout, options.initialPose);
+  let inspecting = false;
 
   const material = parameters => {
     const value = new THREE.MeshStandardMaterial(parameters);
     sharedMaterials.add(value);
     return value;
   };
-  const plaster = material({ color: 0xd7c7ae, roughness: 0.96 });
-  const ceiling = material({ color: 0xeadfcb, roughness: 0.98 });
-  const floor = material({ color: 0x6f4f36, metalness: 0.02, roughness: 0.88 });
-  const aisle = material({ color: 0x8d7157, roughness: 0.94 });
-  const wood = material({ color: 0x70462c, roughness: 0.82 });
-  const darkWood = material({ color: 0x422a1c, roughness: 0.9 });
-  const boxSide = material({ color: 0xd2c7b5, roughness: 0.78 });
-  const boxFront = material({ color: 0xf2ede4, roughness: 0.82 });
+  const wallSteel = material({ color: 0x4b555c, metalness: 0.66, roughness: 0.48 });
+  const ceiling = material({ color: 0x69737a, metalness: 0.5, roughness: 0.55 });
+  const floor = material({ color: 0x20272b, metalness: 0.32, roughness: 0.7 });
+  const aisle = material({ color: 0x323b40, metalness: 0.22, roughness: 0.82 });
+  const shelfSteel = material({ color: 0x30383d, metalness: 0.72, roughness: 0.42 });
+  const shelfEdge = material({ color: 0x161b1e, metalness: 0.78, roughness: 0.34 });
+  // Product photos only cover the front. Every other face stays intentionally
+  // neutral so the room never invents official package artwork.
+  const boxSide = material({ color: 0xc2aa84, roughness: 0.93 });
+  const boxFront = material({ color: 0xeee5d7, roughness: 0.86 });
   const accentMaterials = new Map();
   const boxGeometry = new THREE.BoxGeometry(ROOM_LAYOUT.boxDepth, ROOM_LAYOUT.boxHeight, ROOM_LAYOUT.boxWidth);
   sharedGeometries.add(boxGeometry);
 
-  scene.add(new THREE.HemisphereLight(0xffefd2, 0x33261d, 2.15));
-  const keyLight = new THREE.DirectionalLight(0xffe4b5, 1.85);
-  keyLight.position.set(-3, 5.6, 4);
+  scene.add(new THREE.HemisphereLight(0xcbe0eb, 0x111518, 1.32));
+  const keyLight = new THREE.DirectionalLight(0xe8f4fa, 2.05);
+  keyLight.position.set(-3, 5.8, 4);
   scene.add(keyLight);
-  const warmLight = new THREE.PointLight(0xffb65c, 3.4, 19, 1.8);
+  const warmLight = new THREE.PointLight(0xffd69b, 2.5, 18, 1.9);
   warmLight.position.set(0, 4.7, pose.z + 1);
   scene.add(warmLight);
 
@@ -154,19 +162,25 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, 0.16, ROOM_LAYOUT.segmentLength], [0, -0.08, center], floor, true);
     meshBox(group, [ROOM_LAYOUT.aisleHalfWidth * 1.65, 0.018, ROOM_LAYOUT.segmentLength - 0.2], [0, 0.012, center], aisle, true);
     meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, 0.16, ROOM_LAYOUT.segmentLength], [0, ROOM_LAYOUT.ceilingHeight, center], ceiling, true);
-    meshBox(group, [0.18, ROOM_LAYOUT.ceilingHeight, ROOM_LAYOUT.segmentLength], [-ROOM_LAYOUT.roomHalfWidth, ROOM_LAYOUT.ceilingHeight / 2, center], plaster, true);
-    meshBox(group, [0.18, ROOM_LAYOUT.ceilingHeight, ROOM_LAYOUT.segmentLength], [ROOM_LAYOUT.roomHalfWidth, ROOM_LAYOUT.ceilingHeight / 2, center], plaster, true);
+    meshBox(group, [0.18, ROOM_LAYOUT.ceilingHeight, ROOM_LAYOUT.segmentLength], [-ROOM_LAYOUT.roomHalfWidth, ROOM_LAYOUT.ceilingHeight / 2, center], wallSteel, true);
+    meshBox(group, [0.18, ROOM_LAYOUT.ceilingHeight, ROOM_LAYOUT.segmentLength], [ROOM_LAYOUT.roomHalfWidth, ROOM_LAYOUT.ceilingHeight / 2, center], wallSteel, true);
+    // Shallow ribs and floor rails make each steel bay read at walking speed
+    // without extra textures, shadows, or a continuous render loop.
+    for (const z of [start + 0.08, start + ROOM_LAYOUT.segmentLength - 0.08]) {
+      meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2 - 0.24, 0.055, 0.055], [0, 0.04, z], shelfEdge, true);
+      meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2 - 0.24, 0.045, 0.045], [0, ROOM_LAYOUT.ceilingHeight - 0.04, z], shelfEdge, true);
+    }
 
     for (const shelf of layout.shelves.filter(entry => entry.segmentIndex === index)) {
       const side = shelf.side;
       const shelfX = side * 4.48;
       const shelfMaterial = accent(shelf.theme);
-      meshBox(group, [0.18, 5.22, ROOM_LAYOUT.segmentLength - 0.34], [side * 4.9, 2.61, center], darkWood, true);
+      meshBox(group, [0.18, 5.22, ROOM_LAYOUT.segmentLength - 0.34], [side * 4.9, 2.61, center], shelfEdge, true);
       for (const y of [0.35, 1.67, 3.25, 4.83]) {
-        meshBox(group, [1.25, 0.13, ROOM_LAYOUT.segmentLength - 0.34], [shelfX, y, center], wood, true);
+        meshBox(group, [1.25, 0.13, ROOM_LAYOUT.segmentLength - 0.34], [shelfX, y, center], shelfSteel, true);
       }
       for (const z of [start + 0.18, start + ROOM_LAYOUT.segmentLength - 0.18]) {
-        meshBox(group, [1.16, 4.62, 0.12], [shelfX, 2.59, z], darkWood, true);
+        meshBox(group, [1.16, 4.62, 0.12], [shelfX, 2.59, z], shelfEdge, true);
       }
       meshBox(group, [1.18, 0.36, ROOM_LAYOUT.segmentLength - 0.5], [shelfX, 5.08, center], shelfMaterial, true);
       const signCanvas = document.createElement('canvas');
@@ -187,9 +201,21 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
         group.add(sign);
       }
     }
-    if (index === 0) meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, ROOM_LAYOUT.ceilingHeight, 0.18], [0, ROOM_LAYOUT.ceilingHeight / 2, 0], plaster, true);
+    if (index === 0) {
+      meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, ROOM_LAYOUT.ceilingHeight, 0.18], [0, ROOM_LAYOUT.ceilingHeight / 2, 0], wallSteel, true);
+      const door = new THREE.Mesh(new THREE.CylinderGeometry(2.12, 2.12, 0.26, 32), shelfSteel);
+      door.rotation.x = Math.PI / 2;
+      door.position.set(0, 2.64, 0.18);
+      group.add(door);
+      meshBox(group, [3.0, 0.16, 0.16], [0, 2.64, 0.06], shelfEdge, true);
+      meshBox(group, [0.16, 3.0, 0.16], [0, 2.64, 0.06], shelfEdge, true);
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.34, 24), shelfEdge);
+      hub.rotation.x = Math.PI / 2;
+      hub.position.set(0, 2.64, -0.02);
+      group.add(hub);
+    }
     if (index === layout.segmentCount - 1) {
-      meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, ROOM_LAYOUT.ceilingHeight, 0.18], [0, ROOM_LAYOUT.ceilingHeight / 2, layout.bounds.maxZ], plaster, true);
+      meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, ROOM_LAYOUT.ceilingHeight, 0.18], [0, ROOM_LAYOUT.ceilingHeight / 2, layout.bounds.maxZ], wallSteel, true);
     }
     residentSegments.set(index, group);
   }
@@ -255,7 +281,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       image.onload = () => {
         if (destroyed || residentBoxes.get(record.box.index) !== record) return;
         drawCard(record, image);
-        renderNow();
+        requestTextureRender();
       };
       image.onerror = () => {};
       image.src = record.box.image_url;
@@ -276,7 +302,55 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     record.frontMaterial = null;
     record.canvas = null;
     record.context = null;
+    pendingTextureLoads.delete(record.box.index);
     record.body.material[record.frontIndex] = boxFront;
+  }
+
+  function requestTextureRender() {
+    // Image completions can arrive as separate tasks. Debounce their texture
+    // uploads so a cached image burst still produces one trailing idle frame.
+    if (destroyed || textureLoadPaused || hasMovement()) return;
+    if (textureRenderTimer) clearTimeout(textureRenderTimer);
+    textureRenderTimer = window.setTimeout(() => {
+      textureRenderTimer = 0;
+      if (!destroyed && !textureLoadPaused && !hasMovement()) renderNow();
+    }, 50);
+  }
+
+  function scheduleTextureLoads(records) {
+    pendingTextureLoads.clear();
+    for (const record of records) if (!record.texture) pendingTextureLoads.add(record.box.index);
+    if (textureLoadScheduled || textureLoadPaused || hasMovement() || !pendingTextureLoads.size) return;
+    textureLoadScheduled = true;
+    const pump = deadline => {
+      // Build cards in bounded idle slices. Rendering each card individually
+      // uploaded the whole scene 60 times and delayed input by several seconds
+      // under software WebGL. A single deferred render uploads the completed
+      // batch while yielding whenever input begins.
+      if (destroyed || textureLoadPaused || hasMovement() || !active()) {
+        textureLoadScheduled = false;
+        return;
+      }
+      const started = performance.now();
+      do {
+        const next = pendingTextureLoads.values().next().value;
+        if (next === undefined) break;
+        pendingTextureLoads.delete(next);
+        const record = residentBoxes.get(next);
+        if (record) addTexture(record);
+      } while (pendingTextureLoads.size && performance.now() - started < 4 && (!deadline || deadline.timeRemaining() > 1));
+      if (pendingTextureLoads.size) scheduleIdle(pump);
+      else {
+        textureLoadScheduled = false;
+        requestTextureRender();
+      }
+    };
+    scheduleIdle(pump);
+  }
+
+  function scheduleIdle(callback) {
+    if ('requestIdleCallback' in window) window.requestIdleCallback(callback, { timeout: 100 });
+    else window.setTimeout(() => callback(null), 0);
   }
 
   function addBox(box) {
@@ -293,7 +367,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     return record;
   }
 
-  function reconcileResidents(force = false) {
+  function reconcileResidents(force = false, includeTextures = true) {
     const segment = Math.max(0, Math.min(layout.segmentCount - 1, Math.floor(pose.z / ROOM_LAYOUT.segmentLength)));
     if (!force && segment === residentSegment) return;
     residentSegment = segment;
@@ -307,11 +381,10 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       }
     }
     for (const box of selected) if (!residentBoxes.has(box.index)) addBox(box);
-    const textured = new Set(selected.slice(0, IMAGE_TEXTURE_LIMIT).map(box => box.index));
-    for (const [index, record] of residentBoxes) {
-      if (textured.has(index)) addTexture(record);
-      else removeTexture(record);
-    }
+    const textured = includeTextures ? selected.slice(0, IMAGE_TEXTURE_LIMIT).map(box => residentBoxes.get(box.index)).filter(Boolean) : [];
+    const texturedIndexes = new Set(textured.map(record => record.box.index));
+    for (const [index, record] of residentBoxes) if (!texturedIndexes.has(index)) removeTexture(record);
+    if (includeTextures) scheduleTextureLoads(textured);
 
     const minimumSegment = Math.max(0, segment - RESIDENT_SEGMENT_RADIUS);
     const maximumSegment = Math.min(layout.segmentCount - 1, segment + RESIDENT_SEGMENT_RADIUS);
@@ -358,6 +431,27 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     renderer.render(scene, camera);
   }
 
+  function beginModalTransition() {
+    textureLoadPaused = true;
+    pendingTextureLoads.clear();
+    if (textureRenderTimer) clearTimeout(textureRenderTimer);
+    textureRenderTimer = 0;
+  }
+
+  function resumeAfterModal() {
+    if (destroyed) return;
+    textureLoadPaused = false;
+    manuallyPaused = false;
+    resetInputs();
+    if (document.hidden) return;
+    reconcileResidents(false, false);
+    updateCamera();
+    renderer.render(scene, camera);
+    const segment = Math.max(0, Math.min(layout.segmentCount - 1, Math.floor(pose.z / ROOM_LAYOUT.segmentLength)));
+    const selected = selectRoomResidents(layout, { ...pose, x: 0, z: (segment + 0.5) * ROOM_LAYOUT.segmentLength }, IMAGE_TEXTURE_LIMIT);
+    scheduleTextureLoads(selected.map(box => residentBoxes.get(box.index)).filter(Boolean));
+  }
+
   function keyInput() {
     const forward = Number(keys.has('KeyW') || keys.has('ArrowUp')) - Number(keys.has('KeyS') || keys.has('ArrowDown'));
     const strafe = Number(keys.has('KeyD') || keys.has('ArrowRight')) - Number(keys.has('KeyA') || keys.has('ArrowLeft'));
@@ -381,17 +475,34 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       lastFrameTime = 0;
       return;
     }
-    if (lastFrameTime) pose = moveRoomPose(layout, pose, keyInput(), (time - lastFrameTime) / 1000);
+    pose = moveRoomPose(layout, pose, keyInput(), (time - lastFrameTime) / 1000);
     lastFrameTime = time;
     renderNow();
     frame = requestAnimationFrame(movementFrame);
   }
 
+  function flushMovement(time = performance.now()) {
+    if (!lastFrameTime || !active() || !hasMovement()) return;
+    pose = moveRoomPose(layout, pose, keyInput(), (time - lastFrameTime) / 1000);
+    lastFrameTime = time;
+    renderNow();
+  }
+
   function beginMovement() {
-    if (active() && hasMovement() && !frame) frame = requestAnimationFrame(movementFrame);
+    if (!active() || !hasMovement() || frame) return;
+    if (textureRenderTimer) clearTimeout(textureRenderTimer);
+    textureRenderTimer = 0;
+    // Starting from rest otherwise spends the first RAF only establishing a
+    // timestamp. Commit one bounded step immediately, then retain the event
+    // timestamp so keyup can flush elapsed input if rendering delays every RAF.
+    pose = moveRoomPose(layout, pose, keyInput(), 1 / 60);
+    lastFrameTime = performance.now();
+    renderNow();
+    frame = requestAnimationFrame(movementFrame);
   }
 
   function resetInputs() {
+    flushMovement();
     keys.clear();
     joystickPointer = null;
     joystickVector = { forward: 0, strafe: 0 };
@@ -419,6 +530,9 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       raycaster.setFromCamera(new THREE.Vector2(x + offsetX, y + offsetY), camera);
       const hit = raycaster.intersectObjects(targets, false)[0];
       if (hit?.object.userData.setNum) {
+        resetInputs();
+        inspecting = true;
+        if (document.pointerLockElement === canvas) document.exitPointerLock?.();
         onSelect(hit.object.userData.setNum);
         return;
       }
@@ -450,6 +564,8 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     destroy() {
       if (destroyed) return;
       destroyed = true;
+      if (textureRenderTimer) clearTimeout(textureRenderTimer);
+      textureRenderTimer = 0;
       resetInputs();
       abort.abort();
       resizeObserver?.disconnect();
@@ -479,11 +595,26 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       reconcileResidents(true);
       renderNow();
     },
-    setPaused(value) {
+    setInspecting(value) {
+      const next = Boolean(value);
+      if (inspecting === next) return;
+      inspecting = next;
+      manuallyPaused = inspecting;
+      resetInputs();
+      if (inspecting && document.pointerLockElement === canvas) document.exitPointerLock?.();
+      if (!inspecting) renderNow();
+    },
+    rotateInspection(delta) {
+      if (!inspecting || !Number.isFinite(delta)) return;
+      onInspectionRotate(delta);
+    },
+    beginModalTransition,
+    resumeAfterModal,
+    setPaused(value, { render = true } = {}) {
       manuallyPaused = Boolean(value);
       resetInputs();
       if (manuallyPaused && document.pointerLockElement === canvas) document.exitPointerLock?.();
-      if (!manuallyPaused) renderNow();
+      if (!manuallyPaused && render) renderNow();
     },
     teleportToSet(setNum) {
       if (destroyed) return false;
@@ -491,8 +622,12 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       if (!destination) return false;
       resetInputs();
       pose = destination;
-      reconcileResidents(true);
-      renderNow();
+      // A search result may be hundreds of bays away. Rebuilding and uploading
+      // the resident window synchronously inside the sheet's click task can
+      // starve assistive-state/focus updates in software WebGL. Commit the pose
+      // immediately and let the sheet-close resume render reconcile the bay.
+      residentSegment = -1;
+      updateCamera();
       return true;
     },
   };
@@ -510,7 +645,9 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       beginMovement();
     }, { signal: abort.signal });
     window.addEventListener('keyup', event => {
-      if (!keys.delete(event.code)) return;
+      if (!keys.has(event.code)) return;
+      flushMovement();
+      keys.delete(event.code);
       if (!hasMovement()) cancelFrame();
     }, { signal: abort.signal });
     window.addEventListener('blur', resetInputs, { signal: abort.signal });

@@ -8270,7 +8270,34 @@ body[data-route="collection-room"] #nav { display:none !important; }
 .showroom-results span { min-width:0; overflow-wrap:anywhere; }
 .showroom-results small { display:block; opacity:.7; margin-top:4px; }
 .showroom-detail-image { display:block; max-width:100%; width:280px; height:190px; object-fit:contain; margin:0 auto; background:#faf6ec; border-radius:12px; }
+.showroom-inspect { text-align:center; }
+.showroom-inspect h2 { margin:0; }
+.showroom-inspect-kicker { margin:5px 0 10px; color:var(--ink-mute); font-size:12px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+.showroom-inspect-turntable { position:relative; display:grid; place-items:center; min-height:250px; margin:8px 0; border-radius:18px; overflow:hidden; perspective:900px; touch-action:none; cursor:grab; background:radial-gradient(ellipse at 50% 72%,#c5b89a 0 18%,transparent 43%),linear-gradient(155deg,#172126,#303b40); }
+.showroom-inspect-turntable:active { cursor:grabbing; }
+.showroom-inspect-turntable:focus-visible { outline:3px solid #a36a00; outline-offset:2px; }
+.showroom-inspect-box { --inspect-turn:0deg; --inspect-depth:52px; --inspect-width:min(62vw,330px); --inspect-height:calc(var(--inspect-width) / 1.5); position:relative; width:var(--inspect-width); height:var(--inspect-height); transform-style:preserve-3d; transform:rotateX(-7deg) rotateY(var(--inspect-turn)); transition:transform .15s ease-out; /* Filters flatten preserve-3d and expose the front at rear angles. */ }
+.showroom-inspect-face { position:absolute; display:block; box-sizing:border-box; border:1px solid #8e7148; backface-visibility:hidden; background-color:#c5a879; background-image:linear-gradient(135deg,#d5bd94,#b28e5f); }
+.showroom-inspect-front, .showroom-inspect-back { inset:0; }
+.showroom-inspect-front { transform:translateZ(calc(var(--inspect-depth) / 2)); background:#eee5d7; border-width:2px; }
+.showroom-inspect-front img { display:block; width:100%; height:100%; object-fit:contain; padding:12px; box-sizing:border-box; }
+.showroom-inspect-back { transform:rotateY(180deg) translateZ(calc(var(--inspect-depth) / 2)); background-image:repeating-linear-gradient(90deg,#b18d5f 0 2px,#c8a979 2px 8px); }
+.showroom-inspect-left, .showroom-inspect-right { top:0; left:50%; width:var(--inspect-depth); height:100%; margin-left:calc(var(--inspect-depth) / -2); }
+.showroom-inspect-left { transform:rotateY(-90deg) translateZ(calc(var(--inspect-width) / 2)); }
+.showroom-inspect-right { transform:rotateY(90deg) translateZ(calc(var(--inspect-width) / 2)); }
+.showroom-inspect-top, .showroom-inspect-bottom { left:0; top:50%; width:100%; height:var(--inspect-depth); margin-top:calc(var(--inspect-depth) / -2); }
+.showroom-inspect-top { transform:rotateX(90deg) translateZ(calc(var(--inspect-height) / 2)); }
+.showroom-inspect-bottom { transform:rotateX(-90deg) translateZ(calc(var(--inspect-height) / 2)); background:#a48155; }
+.showroom-inspect-help { margin:8px auto; max-width:38rem; color:var(--ink-mute); font-size:13px; line-height:1.45; }
+.showroom-inspect-rotate { display:flex; justify-content:center; gap:12px; margin:8px 0 14px; }
+.showroom-inspect-rotate button { color:var(--ink); background:var(--surface); border-color:var(--line); font-size:22px; }
+.showroom-inspect-facts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:14px 0; text-align:left; }
+.showroom-inspect-facts div { min-width:0; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--surface-2); }
+.showroom-inspect-facts dt { color:var(--ink-mute); font-size:11px; font-weight:700; text-transform:uppercase; }
+.showroom-inspect-facts dd { margin:4px 0 0; overflow-wrap:anywhere; font-weight:750; }
+.showroom-sheet #roomSheetClose { width:100%; margin-top:12px; color:var(--ink); background:var(--surface); border-color:var(--line); }
 .showroom-sheet .btn-primary { text-decoration:none; text-align:center; display:block; margin:14px 0; }
+@media (prefers-reduced-motion:reduce) { .showroom-inspect-box { transition:none; } }
 @media (pointer:coarse), (hover:none) { .showroom-stick { display:block; } #roomMouse { display:none !important; } .showroom-controls { max-width:calc(100% - 156px); } }
 @media (max-width:600px) { .showroom-bar { flex-wrap:wrap; gap:8px; padding-inline:12px; } .showroom-heading { flex-basis:55%; } .showroom-heading h1 { font-size:clamp(14px, 4vw, 17px); } .showroom-bar button { flex:1; min-height:48px; } .showroom-controls button { font-size:12px; padding:8px 10px; min-height:48px; } }
 .collection-entry span { flex:1; }

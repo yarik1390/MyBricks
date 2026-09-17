@@ -351,5 +351,7 @@ Object.assign(es.room, {
   copiesOne: 'Tienes {quantity} copia', copiesMany: 'Tienes {quantity} copias', copiesOther: 'Tienes {quantity} copias', search: 'Buscar sets', more: 'Mostrar más sets',
   arrived: 'Has llegado al estante seleccionado. Selecciona una caja para examinarla.', mouseUnavailable: 'El control con ratón no está disponible. Arrastra para mirar alrededor.',
   unavailable: 'La sala de exposición 3D no está disponible en este dispositivo. Tu colección sigue disponible en la lista accesible.',
+  inspecting: 'Inspección de la caja', inspectLabel: 'Representación giratoria de la caja de {name}', rotateHint: 'Arrastra la caja, usa las teclas de flecha o los botones de giro. Los lados son neutros porque solo se conoce la imagen del catálogo.',
+  rotateControls: 'Controles de giro de la caja', rotateLeft: 'Girar la caja a la izquierda', rotateRight: 'Girar la caja a la derecha', setNumber: 'Número del set', owned: 'En propiedad',
   listHint: 'Explora tus sets en la lista y abre sus detalles.', retry3D: 'Reintentar 3D', empty: 'Tu sala de exposición está lista. Añade sets a tu bóveda para llenar los estantes.',
 });

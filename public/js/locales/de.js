@@ -369,5 +369,7 @@ Object.assign(de.room, {
   copiesOne: '{quantity} Exemplar im Besitz', copiesOther: '{quantity} Exemplare im Besitz', search: 'Sets durchsuchen', more: 'Weitere Sets anzeigen',
   arrived: 'Du bist am ausgewählten Regal. Wähle eine Box aus, um sie anzusehen.', mouseUnavailable: 'Die Maussteuerung ist nicht verfügbar. Ziehe, um dich umzusehen.',
   unavailable: 'Der 3D-Ausstellungsraum ist auf diesem Gerät nicht verfügbar. Deine Sammlung ist weiterhin in der barrierefreien Liste verfügbar.',
+  inspecting: 'Box-Inspektion', inspectLabel: 'Drehbare Darstellung der Box von {name}', rotateHint: 'Ziehe die Box, verwende die Pfeiltasten oder die Drehtasten. Die Seiten sind neutral, da nur das Katalogbild bekannt ist.',
+  rotateControls: 'Steuerung zum Drehen der Box', rotateLeft: 'Box nach links drehen', rotateRight: 'Box nach rechts drehen', setNumber: 'Setnummer', owned: 'Im Besitz',
   listHint: 'Durchsuche deine Sets in der Liste und öffne ihre Details.', retry3D: '3D erneut versuchen', empty: 'Dein Ausstellungsraum ist bereit. Füge deinem Tresor Sets hinzu, um die Regale zu füllen.',
 });

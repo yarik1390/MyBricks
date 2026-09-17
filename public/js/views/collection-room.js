@@ -74,6 +74,7 @@ export async function renderCollectionRoom() {
   const imageUrl = item => escapeHtml(item.image_url ? thumbImg(item.image_url, 400) : '/brand-brick-transparent.png');
   function modal(html, invoker) {
     if (!current()) return;
+    activeRoom?.beginModalTransition();
     activeRoom?.setPaused(true);
     invoker?.focus({ preventScroll: true });
     showSheet(`<div class="showroom-sheet">${html}<button type="button" class="btn-secondary" id="roomSheetClose">${t('room.backToRoom')}</button></div>`);
@@ -81,7 +82,19 @@ export async function renderCollectionRoom() {
     $('#sheet').setAttribute('aria-labelledby', 'roomSheetTitle');
     $('#sheet').addEventListener('sheet:closing', () => {
       roomSheet = false;
-      if (current()) { activeRoom?.setPaused(false); stage.focus({ preventScroll: true }); }
+      activeRoom?.setInspecting(false);
+      if (current()) {
+        // Reconcile the destination after the sheet has completed its close and
+        // focus handoff. Scheduling on the next frame keeps the click task and
+        // accessibility tree responsive even under software WebGL.
+        // Restore the room after showSheet's generic focus restoration has run,
+        // but before deferred WebGL drawing can monopolize the main thread.
+        queueMicrotask(() => {
+          if (!current() || roomSheet) return;
+          stage.focus({ preventScroll: true });
+          activeRoom?.resumeAfterModal();
+        });
+      }
     }, { once: true });
     $('#roomSheetClose').addEventListener('click', hideSheet);
     $('#sheet').querySelector('input, button, a')?.focus({ preventScroll: true });
@@ -90,15 +103,50 @@ export async function renderCollectionRoom() {
     if (!current()) return;
     const item = catalog.find(row => row.set_num === setNum);
     if (!item) return;
-    if (roomSheet) hideSheet();
-    modal(`<h2 id="roomSheetTitle">${escapeHtml(item.name)}</h2><img class="showroom-detail-image" src="${imageUrl(item)}" alt=""><p>${escapeHtml(item.set_num)} · ${escapeHtml(themeName(item))}</p><p>${escapeHtml(tPlural('room.copies', item.quantity, { quantity: item.quantity }))}</p><a class="btn-primary" id="roomFullDetails" href="#/set/${encodeURIComponent(item.set_num)}">${t('room.fullDetails')}</a>`, stage);
+    if (roomSheet) {
+      roomSheet = false;
+      activeRoom?.setInspecting(false);
+      hideSheet();
+    }
+    modal(`<section class="showroom-inspect" aria-describedby="roomInspectHelp"><h2 id="roomSheetTitle">${escapeHtml(item.name)}</h2><p class="showroom-inspect-kicker">${t('room.inspecting')}</p><div class="showroom-inspect-turntable" id="roomTurntable" tabindex="0" role="img" aria-label="${escapeHtml(t('room.inspectLabel', { name: item.name }))}"><div class="showroom-inspect-box" id="roomInspectBox"><div class="showroom-inspect-face showroom-inspect-front"><img src="${imageUrl(item)}" alt=""></div><span class="showroom-inspect-face showroom-inspect-back" aria-hidden="true"></span><span class="showroom-inspect-face showroom-inspect-left" aria-hidden="true"></span><span class="showroom-inspect-face showroom-inspect-right" aria-hidden="true"></span><span class="showroom-inspect-face showroom-inspect-top" aria-hidden="true"></span><span class="showroom-inspect-face showroom-inspect-bottom" aria-hidden="true"></span></div></div><p id="roomInspectHelp" class="showroom-inspect-help">${t('room.rotateHint')}</p><div class="showroom-inspect-rotate" aria-label="${escapeHtml(t('room.rotateControls'))}"><button type="button" id="roomRotateLeft" aria-label="${escapeHtml(t('room.rotateLeft'))}">↶</button><button type="button" id="roomRotateRight" aria-label="${escapeHtml(t('room.rotateRight'))}">↷</button></div><dl class="showroom-inspect-facts"><div><dt>${t('room.setNumber')}</dt><dd>${escapeHtml(item.set_num)}</dd></div><div><dt>${t('room.theme')}</dt><dd>${escapeHtml(themeName(item))}</dd></div><div><dt>${t('room.owned')}</dt><dd>${escapeHtml(tPlural('room.copies', item.quantity, { quantity: item.quantity }))}</dd></div></dl><a class="btn-primary" id="roomFullDetails" href="#/set/${encodeURIComponent(item.set_num)}">${t('room.fullDetails')}</a></section>`, stage);
+    let rotation = 0;
+    const turntable = $('#roomTurntable');
+    const box = $('#roomInspectBox');
+    const rotate = amount => {
+      rotation = (rotation + amount) % 360;
+      box.style.setProperty('--inspect-turn', `${rotation}deg`);
+      activeRoom?.rotateInspection(amount);
+    };
+    $('#roomRotateLeft').addEventListener('click', () => rotate(-20));
+    $('#roomRotateRight').addEventListener('click', () => rotate(20));
+    turntable.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      event.preventDefault();
+      rotate(event.key === 'ArrowLeft' ? -20 : 20);
+    });
+    let pointer = null;
+    turntable.addEventListener('pointerdown', event => { pointer = event.clientX; turntable.setPointerCapture?.(event.pointerId); });
+    turntable.addEventListener('pointermove', event => {
+      if (pointer == null || !(event.buttons & 1)) return;
+      const delta = event.clientX - pointer;
+      if (Math.abs(delta) < 3) return;
+      pointer = event.clientX;
+      rotate(delta * 0.55);
+    });
+    turntable.addEventListener('pointerup', () => { pointer = null; });
     $('#roomFullDetails').addEventListener('click', () => {
       if (activeRoom) rememberedPose = { owner, pose: activeRoom.getPose() };
       hideSheet();
     });
+    activeRoom?.setInspecting(true);
   }
   function browse(find = false) {
     if (!current()) return;
+    if (roomSheet) {
+      roomSheet = false;
+      activeRoom?.setInspecting(false);
+      hideSheet();
+    }
     const themes = [...new Set(catalog.map(item => item.theme))];
     modal(`<h2 id="roomSheetTitle">${t(find ? 'room.find' : 'room.accessibleList')}</h2><label for="roomSearch">${t('room.search')}</label><input class="input" id="roomSearch" type="search" autocomplete="off"><label for="roomTheme">${t('room.theme')}</label><select id="roomTheme"><option value="all">${t('room.allThemes')}</option>${themes.map((theme, index) => `<option value="${index}">${escapeHtml(theme || t('room.otherTheme'))}</option>`).join('')}</select><p id="roomResults" role="status"></p><ul class="showroom-results" id="roomSetList"></ul><button class="btn-secondary" id="roomMore">${t('room.more')}</button>`, $(find ? '#roomFind' : '#roomList'));
     const search = $('#roomSearch');
@@ -118,9 +166,12 @@ export async function renderCollectionRoom() {
       setList.querySelectorAll('[data-room-set]').forEach(button => button.addEventListener('click', () => {
         if (find && activeRoom) {
           const selectedSet = button.dataset.roomSet;
+          // Move the camera while the room is paused, then close the sheet. Its
+          // closing handler resumes and renders once at the destination instead
+          // of rendering the old pose before an immediate second WebGL render.
+          const arrived = activeRoom.teleportToSet(selectedSet);
           hideSheet();
-          if (activeRoom?.teleportToSet(selectedSet)) status.textContent = t('room.arrived');
-          stage.focus({ preventScroll: true });
+          if (arrived) status.textContent = t('room.arrived');
         } else details(button.dataset.roomSet);
       }));
     }
@@ -132,9 +183,14 @@ export async function renderCollectionRoom() {
   $('#roomFind').addEventListener('click', () => browse(true));
   $('#roomList').addEventListener('click', () => browse());
   $('#roomReset').addEventListener('click', () => { activeRoom?.reset(); stage.focus({ preventScroll: true }); });
-  $('#roomMouse').addEventListener('click', async () => {
-    try { await activeRoom?.capturePointer(); }
-    catch { if (current()) status.textContent = t('room.mouseUnavailable'); }
+  $('#roomMouse').addEventListener('click', () => {
+    // requestPointerLock must run in the synchronous user-activation task.
+    // Observing its optional promise here is unnecessary and can make engines
+    // treat an awaited capture as detached from the activating click.
+    try {
+      const capture = activeRoom?.capturePointer();
+      capture?.catch?.(() => { if (current()) status.textContent = t('room.mouseUnavailable'); });
+    } catch { if (current()) status.textContent = t('room.mouseUnavailable'); }
   });
   $('#roomHelp').addEventListener('click', () => modal(`<h2 id="roomSheetTitle">${t('room.controls')}</h2><p>${t('room.walkInstructions')}</p><p>${t('room.touchInstructions')}</p><p>${t('room.escapeInstructions')}</p>`, $('#roomHelp')));
   const unavailable = () => {

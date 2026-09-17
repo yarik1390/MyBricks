@@ -644,5 +644,7 @@ Object.assign(en.room, {
   copiesOne: '{quantity} copy owned', copiesOther: '{quantity} copies owned', search: 'Search sets', more: 'Show more sets',
   arrived: 'You are at the selected shelf. Select a box to inspect it.', mouseUnavailable: 'Mouse capture is unavailable. Drag to look around.',
   unavailable: 'The 3D showroom is unavailable on this device. Your collection is still available in the accessible list.',
+  inspecting: 'Box inspection', inspectLabel: 'Rotatable box representation for {name}', rotateHint: 'Drag the box, use the arrow keys, or use the rotate buttons. Sides are neutral because only the catalog artwork is known.',
+  rotateControls: 'Box rotation controls', rotateLeft: 'Rotate box left', rotateRight: 'Rotate box right', setNumber: 'Set number', owned: 'Owned',
   listHint: 'Browse your sets and open their details using the list.', retry3D: 'Retry 3D', empty: 'Your showroom is ready. Add sets to your vault to fill the shelves.',
 });

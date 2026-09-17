@@ -24,8 +24,17 @@ async function findSet(page, number) {
   await page.locator('#roomFind').click();
   await page.locator('#roomSearch').fill(number);
   await page.locator(`[data-room-set="${number}"]`).click();
-  await expectSheetClosed(page);
-  await expect(page.locator('#roomStage')).toBeFocused();
+  await expect.poll(() => page.evaluate(() => {
+    const stage = document.querySelector('#roomStage');
+    const bounds = stage?.getBoundingClientRect();
+    const hit = bounds && document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+    return {
+      sheet: document.querySelector('#sheet')?.getAttribute('aria-hidden'),
+      backdrop: document.querySelector('#sheetBackdrop')?.getAttribute('aria-hidden'),
+      focused: document.activeElement?.id,
+      centerTarget: hit?.tagName,
+    };
+  })).toEqual({ sheet: 'true', backdrop: 'true', focused: 'roomStage', centerTarget: 'CANVAS' });
 }
 
 test('Vault enters fullscreen directly; walking, mouse looking, collision and exit work', async ({ page }) => {
@@ -81,20 +90,45 @@ test('find reaches distant sets with bounded rendering and detail sheets preserv
   const bounds = await page.locator('#roomStage').boundingBox();
   await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
   await expect(page.locator('#roomSheetTitle')).toHaveText('Set 1199');
+  await expect(page.locator('#roomTurntable')).toHaveAttribute('aria-label', 'Rotatable box representation for Set 1199');
+  const inspectBox = page.locator('#roomInspectBox');
+  await expect.poll(() => inspectBox.evaluate(el => {
+    const style = getComputedStyle(el);
+    return { filter: style.filter, transformStyle: style.transformStyle };
+  })).toEqual({ filter: 'none', transformStyle: 'preserve-3d' });
+  const faceAtCenter = () => page.locator('#roomTurntable').evaluate(el => {
+    const bounds = el.getBoundingClientRect();
+    return document.elementsFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2)
+      .find(node => node.classList?.contains('showroom-inspect-face'))?.className || '';
+  });
+  await expect.poll(faceAtCenter).toContain('showroom-inspect-front');
+  await inspectBox.evaluate(el => el.style.setProperty('--inspect-turn', '180deg'));
+  await expect.poll(faceAtCenter).toContain('showroom-inspect-back');
+  await inspectBox.evaluate(el => el.style.setProperty('--inspect-turn', '0deg'));
+  await page.locator('#roomTurntable').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(inspectBox).toHaveAttribute('style', /20deg/);
+  await page.getByRole('button', { name: 'Rotate box left' }).click();
+  await expect(inspectBox).toHaveAttribute('style', /0deg/);
+  await expect(page.locator('#roomInspectHelp')).toContainText('Sides are neutral');
+  const inspectingPose = await pose(page);
   await page.keyboard.down('w');
   await page.waitForTimeout(200);
   await page.keyboard.up('w');
-  expect(await pose(page)).toEqual(located);
-  await page.locator('#roomSheetClose').click();
+  expect(await pose(page)).toEqual(inspectingPose);
+  await page.keyboard.press('Escape');
+  await expectSheetClosed(page);
+  await expect(page.locator('#roomStage')).toBeFocused();
   expect(await pose(page)).toEqual(located);
   await page.locator('#roomList').click();
   await page.locator('#roomSearch').fill('3199-1');
   await page.locator('[data-room-set="3199-1"]').click();
   await page.locator('#roomFullDetails').click();
   await expect(page).toHaveURL(/#\/set\/3199-1/);
+  const remembered = located;
   await page.goBack();
   await ready(page);
-  expect(await pose(page)).toEqual(located);
+  expect(await pose(page)).toEqual(remembered);
 });
 
 test('captured mouse acquires pointer lock and releases on Escape', async ({ page }) => {
@@ -117,11 +151,23 @@ test('captured mouse acquires pointer lock and releases on Escape', async ({ pag
   });
   await page.locator('#roomMouse').focus();
   await page.keyboard.press('Enter');
-  await expect.poll(() => page.evaluate(() => ({
-    activationAtClick: window.__roomPointerLockProbe.activationAtClick,
-    errors: window.__roomPointerLockProbe.errors,
-    lock: document.pointerLockElement?.tagName || null,
-  }))).toEqual({ activationAtClick: true, errors: 0, lock: 'CANVAS' });
+  try {
+    await expect.poll(() => page.evaluate(() => ({
+      activationAtClick: window.__roomPointerLockProbe.activationAtClick,
+      errors: window.__roomPointerLockProbe.errors,
+      lock: document.pointerLockElement?.tagName || null,
+    }))).toEqual({ activationAtClick: true, errors: 0, lock: 'CANVAS' });
+  } catch (error) {
+    console.error('Pointer-lock diagnostic', await page.evaluate(() => ({
+      ...window.__roomPointerLockProbe,
+      lock: document.pointerLockElement?.tagName || null,
+      focused: document.activeElement?.id,
+      status: document.querySelector('#roomStatus')?.textContent,
+      visibility: document.visibilityState,
+      hasFocus: document.hasFocus(),
+    })));
+    throw error;
+  }
   await page.keyboard.press('Escape');
   await expect.poll(() => page.evaluate(() => document.pointerLockElement)).toBe(null);
 });

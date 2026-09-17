@@ -351,5 +351,7 @@ Object.assign(nl.room, {
   copiesOne: '{quantity} exemplaar in bezit', copiesOther: '{quantity} exemplaren in bezit', search: 'Sets zoeken', more: 'Meer sets tonen',
   arrived: 'Je bent bij de geselecteerde plank. Selecteer een doos om die te bekijken.', mouseUnavailable: 'Muisbesturing is niet beschikbaar. Sleep om rond te kijken.',
   unavailable: 'De 3D-showroom is niet beschikbaar op dit apparaat. Je collectie blijft beschikbaar in de toegankelijke lijst.',
+  inspecting: 'Doos bekijken', inspectLabel: 'Draaibare weergave van de doos van {name}', rotateHint: 'Sleep de doos, gebruik de pijltjestoetsen of de draaiknoppen. De zijkanten zijn neutraal omdat alleen de catalogusafbeelding bekend is.',
+  rotateControls: 'Draaibediening voor de doos', rotateLeft: 'Doos naar links draaien', rotateRight: 'Doos naar rechts draaien', setNumber: 'Setnummer', owned: 'In bezit',
   listHint: 'Bekijk je sets in de lijst en open hun details.', retry3D: '3D opnieuw proberen', empty: 'Je showroom is klaar. Voeg sets toe aan je kluis om de planken te vullen.',
 });

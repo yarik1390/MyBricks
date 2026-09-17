@@ -363,5 +363,7 @@ Object.assign(fr.room, {
   copiesOne: '{quantity} exemplaire possédé', copiesMany: '{quantity} exemplaires possédés', copiesOther: '{quantity} exemplaires possédés', search: 'Rechercher des sets', more: 'Afficher plus de sets',
   arrived: 'Vous êtes devant l’étagère sélectionnée. Sélectionnez une boîte pour l’examiner.', mouseUnavailable: 'La capture de la souris n’est pas disponible. Faites glisser pour regarder autour de vous.',
   unavailable: 'La salle d’exposition 3D n’est pas disponible sur cet appareil. Votre collection reste accessible dans la liste.',
+  inspecting: 'Inspection de la boîte', inspectLabel: 'Représentation rotative de la boîte de {name}', rotateHint: 'Faites pivoter la boîte en la faisant glisser, avec les touches fléchées ou avec les boutons de rotation. Les côtés sont neutres, car seule l’image du catalogue est disponible.',
+  rotateControls: 'Commandes de rotation de la boîte', rotateLeft: 'Faire pivoter la boîte vers la gauche', rotateRight: 'Faire pivoter la boîte vers la droite', setNumber: 'Numéro du set', owned: 'Possédé',
   listHint: 'Parcourez vos sets dans la liste et ouvrez leurs détails.', retry3D: 'Réessayer en 3D', empty: 'Votre salle d’exposition est prête. Ajoutez des sets à votre coffre pour remplir les étagères.',
 });
