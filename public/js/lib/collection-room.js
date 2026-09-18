@@ -63,7 +63,7 @@ function measuredDimensions(value) {
   }
 }
 
-function displayCartonDimensions(item) {
+export function displayCartonDimensions(item) {
   const measured = measuredDimensions(item.brickset_dimensions);
   let aspectWidth;
   let aspectHeight;
@@ -117,16 +117,45 @@ export function resolveBoxImageUrl(row) {
     try {
       const urls = typeof row.brickset_image_urls === 'string' ? JSON.parse(row.brickset_image_urls) : row.brickset_image_urls;
       if (Array.isArray(urls)) {
-        const match = urls.find(u => typeof u === 'string' && /(box_front|boxprod|box1|_box\b|_Box\b)/i.test(u));
+        const match = urls.find(u => typeof u === 'string' && /(box_front|boxfront|_front\b)/i.test(u));
         if (match) return roomImageUrl(match);
       }
     } catch {}
   }
   const setNum = canonicalSetNum(row.set_num);
   if (setNum) {
+    if (['10179-1', '4000020-1'].includes(setNum)) {
+      return `https://images.brickset.com/sets/images/${setNum}.jpg`;
+    }
+    if (row.brickset_image_urls) {
+      try {
+        const urls = typeof row.brickset_image_urls === 'string' ? JSON.parse(row.brickset_image_urls) : row.brickset_image_urls;
+        if (Array.isArray(urls)) {
+          const match = urls.find(u => typeof u === 'string' && /(box1|boxprod|_box\b|_Box\b)/i.test(u));
+          if (match) return roomImageUrl(match);
+        }
+      } catch {}
+    }
     return `https://img.bricklink.com/ItemImage/ON/0/${setNum}.png`;
   }
   return roomImageUrl(row.image_url);
+}
+
+export function resolveBoxBackImageUrl(row) {
+  if (!row) return '';
+  if (typeof row.box_back_url === 'string' && row.box_back_url) {
+    return roomImageUrl(row.box_back_url);
+  }
+  if (row.brickset_image_urls) {
+    try {
+      const urls = typeof row.brickset_image_urls === 'string' ? JSON.parse(row.brickset_image_urls) : row.brickset_image_urls;
+      if (Array.isArray(urls)) {
+        const match = urls.find(u => typeof u === 'string' && /(box_back|_back\b|Back[A-Z]|box5)/i.test(u));
+        if (match) return roomImageUrl(match);
+      }
+    } catch {}
+  }
+  return '';
 }
 
 export function collectionRoomCatalog(holdings = []) {
@@ -153,6 +182,8 @@ export function collectionRoomCatalog(holdings = []) {
     };
     const dimensions = measuredDimensions(row.brickset_dimensions);
     if (dimensions) item.brickset_dimensions = dimensions;
+    const backUrl = resolveBoxBackImageUrl(row);
+    if (backUrl) item.box_back_url = backUrl;
     const year = optionalInteger(row.year, 1932, 2200);
     const pieces = optionalInteger(row.pieces ?? row.num_parts, 0, 1_000_000);
     if (year !== null) item.year = year;

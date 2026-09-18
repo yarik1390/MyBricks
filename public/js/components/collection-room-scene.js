@@ -323,64 +323,108 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     record.body.removeFromParent();
   }
 
+  function drawLegoSquare(ctx, x, y, size) {
+    ctx.fillStyle = '#d11013';
+    ctx.fillRect(x, y, size, size);
+    ctx.fillStyle = '#ffcf00';
+    ctx.fillRect(x + 2, y + 2, size - 4, size - 4);
+    ctx.fillStyle = '#d11013';
+    ctx.fillRect(x + 4, y + 4, size - 8, size - 8);
+    // Draw LEGO classic 4-stud yellow dots representation
+    const rad = Math.max(2, (size - 16) / 5);
+    const midX = x + size / 2;
+    const midY = y + size / 2;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(midX - rad * 1.5, midY - rad * 1.5, rad, 0, Math.PI * 2);
+    ctx.arc(midX + rad * 1.5, midY - rad * 1.5, rad, 0, Math.PI * 2);
+    ctx.arc(midX - rad * 1.5, midY + rad * 1.5, rad, 0, Math.PI * 2);
+    ctx.arc(midX + rad * 1.5, midY + rad * 1.5, rad, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   function drawCard(record, image = null, isBoxImage = false) {
     const { box, context, canvas: card } = record;
     const w = card.width;
     const h = card.height;
 
     // Dark sleek LEGO packaging base
-    context.fillStyle = '#16181b';
+    context.fillStyle = '#14171a';
     context.fillRect(0, 0, w, h);
 
     if (image?.naturalWidth && image?.naturalHeight) {
-      if (isBoxImage) {
-        // Authentic box packaging image: fills the carton face cleanly!
-        const boxAspect = box.boxWidth / box.boxHeight;
-        const imgAspect = image.naturalWidth / image.naturalHeight;
-        if (Math.abs(boxAspect - imgAspect) / boxAspect < 0.15) {
-          // Close aspect: fill edge-to-edge
-          context.drawImage(image, 0, 0, w, h);
-        } else if (imgAspect > boxAspect) {
-          // Wider image: center vertically with dark packaging letterbox
-          const drawH = Math.round(w / imgAspect);
-          const offsetY = Math.round((h - drawH) / 2);
-          context.drawImage(image, 0, offsetY, w, drawH);
-        } else {
-          // Taller image: center horizontally with dark packaging pillarbox
-          const drawW = Math.round(h * imgAspect);
-          const offsetX = Math.round((w - drawW) / 2);
-          context.drawImage(image, offsetX, 0, drawW, h);
-        }
+      const isFlatBox = isBoxImage && (
+        /box_front|10179-1\.jpg|4000020-1\.jpg/i.test(box.box_image_url || '') ||
+        !/ItemImage\/ON\/0/i.test(box.box_image_url || '')
+      );
+
+      if (isFlatBox) {
+        context.drawImage(image, 0, 0, w, h);
       } else {
-        // Fallback: product/model build photo on a stylish LEGO-style carton layout
-        const scale = Math.min((w - 48) / image.naturalWidth, (h - 100) / image.naturalHeight);
-        const imgW = image.naturalWidth * scale;
-        const imgH = image.naturalHeight * scale;
-        const imgX = (w - imgW) / 2;
-        const imgY = 24 + (h - 100 - imgH) / 2;
+        // Authentic LEGO Collector Edition packaging design
+        const grad = context.createRadialGradient(w / 2, h * 0.46, 30, w / 2, h * 0.46, Math.max(w, h) * 0.65);
+        grad.addColorStop(0, '#262c34');
+        grad.addColorStop(1, '#121417');
+        context.fillStyle = grad;
+        context.fillRect(0, 0, w, h);
+
+        const padX = 24;
+        const padTop = 36;
+        const padBot = 72;
+        const availW = w - padX * 2;
+        const availH = h - padTop - padBot;
+        const scale = Math.min(availW / image.naturalWidth, availH / image.naturalHeight);
+        const imgW = Math.round(image.naturalWidth * scale);
+        const imgH = Math.round(image.naturalHeight * scale);
+        const imgX = Math.round((w - imgW) / 2);
+        const imgY = Math.round(padTop + (availH - imgH) / 2);
+
         context.drawImage(image, imgX, imgY, imgW, imgH);
 
-        // Sleek dark lower badge with set metadata
-        context.fillStyle = '#212529';
-        context.fillRect(0, h - 72, w, 72);
-        context.fillStyle = '#f0f3f6';
-        context.font = '700 24px system-ui, sans-serif';
+        // Official LEGO logo emblem in top-left corner
+        drawLegoSquare(context, 16, 16, 40);
+
+        // Theme badge in top-right corner
+        if (box.theme) {
+          context.fillStyle = 'rgba(255, 255, 255, 0.08)';
+          context.fillRect(w - 140, 16, 124, 26);
+          context.fillStyle = '#e5e7eb';
+          context.font = '700 11px system-ui, sans-serif';
+          context.textAlign = 'right';
+          context.textBaseline = 'middle';
+          context.fillText(shorten(context, box.theme.toUpperCase(), 112), w - 24, 29);
+        }
+
+        // Lower metadata panel
+        context.fillStyle = 'rgba(14, 17, 20, 0.94)';
+        context.fillRect(0, h - 68, w, 68);
+        context.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        context.fillRect(0, h - 68, w, 1);
+
+        context.fillStyle = '#f9fafb';
+        context.font = '700 20px system-ui, sans-serif';
         context.textAlign = 'left';
-        context.fillText(shorten(context, box.name, w - 40), 20, h - 38);
-        context.font = '600 18px system-ui, sans-serif';
+        context.textBaseline = 'alphabetic';
+        context.fillText(shorten(context, box.name, w - 32), 16, h - 38);
+
+        context.font = '600 14px system-ui, sans-serif';
         context.fillStyle = '#9ca3af';
-        const facts = [box.set_num, box.year ? String(box.year) : ''].filter(Boolean).join('  ·  ');
-        context.fillText(shorten(context, facts, w - 40), 20, h - 14);
+        const facts = [box.set_num, box.year ? String(box.year) : '', box.pieces ? `${box.pieces} pcs` : ''].filter(Boolean).join('  ·  ');
+        context.fillText(shorten(context, facts, w - 32), 16, h - 16);
       }
     } else {
-      context.fillStyle = '#22262a';
-      context.fillRect(20, 20, w - 40, h - 40);
-      context.fillStyle = '#9ca3af';
-      context.font = '600 24px system-ui, sans-serif';
+      context.fillStyle = '#1c2025';
+      context.fillRect(16, 16, w - 32, h - 32);
+      drawLegoSquare(context, 32, 32, 40);
+
+      context.fillStyle = '#e5e7eb';
+      context.font = '600 22px system-ui, sans-serif';
       context.textAlign = 'center';
-      context.fillText(shorten(context, box.name, w - 60), w / 2, h / 2);
-      context.font = '500 18px system-ui, sans-serif';
-      context.fillText(box.set_num, w / 2, h / 2 + 32);
+      context.textBaseline = 'alphabetic';
+      context.fillText(shorten(context, box.name, w - 64), w / 2, h / 2 + 10);
+      context.font = '500 16px system-ui, sans-serif';
+      context.fillStyle = '#9ca3af';
+      context.fillText(box.set_num, w / 2, h / 2 + 38);
     }
     record.texture.needsUpdate = true;
   }
@@ -388,8 +432,13 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   function addTexture(record) {
     if (record.texture) return;
     const card = document.createElement('canvas');
-    card.width = 512;
-    card.height = 512;
+    const boxAspect = (record.box.boxWidth && record.box.boxHeight)
+      ? (record.box.boxWidth / record.box.boxHeight)
+      : 1.35;
+    const cardW = 512;
+    const cardH = Math.max(256, Math.min(1024, Math.round(cardW / boxAspect)));
+    card.width = cardW;
+    card.height = cardH;
     const context = card.getContext('2d');
     if (!context) return;
     const texture = new THREE.CanvasTexture(card);
