@@ -5,18 +5,17 @@ const STALL_TIMEOUT_MS = 2200;
 const HARD_TIMEOUT_MS = 8500;
 const FADE_MS = 360;
 
-function connectionIsConstrained(connection = navigator.connection || navigator.webkitConnection) {
+function isConnectionConstrained(connection = navigator.connection || navigator.webkitConnection) {
   if (!connection) return false;
-  return connection.saveData === true || /(^|-)2g$/.test(String(connection.effectiveType || ''));
+  return Boolean(
+    connection.saveData === true ||
+    (typeof connection.effectiveType === 'string' && /(?:slow-2g|2g)/i.test(connection.effectiveType))
+  );
 }
 
-export function shouldUseRoomVideoIntro({ initialPose, connection, reducedMotion } = {}) {
+export function shouldUseRoomVideoIntro({ _initialPose, connection, reducedMotion } = {}) {
   const reduce = reducedMotion ?? window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
-  const connectionIsConstrained = Boolean(
-    connection?.saveData === true ||
-    (typeof connection?.effectiveType === 'string' && /(?:slow-2g|2g)/i.test(connection.effectiveType))
-  );
-  return !reduce && !connectionIsConstrained;
+  return !reduce && !isConnectionConstrained(connection);
 }
 
 export function startRoomVideoIntro(stage, options = {}) {

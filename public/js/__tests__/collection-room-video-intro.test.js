@@ -19,7 +19,7 @@ test('video intro uses local muted inline media with bounded fallback and comple
 });
 
 test('video eligibility respects reduced motion, save-data and slow networks', () => {
-  assert.match(source, /!reduce && !connectionIsConstrained/);
+  assert.match(source, /!reduce && !isConnectionConstrained/);
   assert.match(source, /connection\.saveData === true/);
   assert.match(source, /2g/);
   assert.match(view, /doorIntroMode: useVideoIntro \? 'deferred' : 'native'/);
