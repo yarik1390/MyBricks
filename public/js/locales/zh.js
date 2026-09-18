@@ -341,7 +341,7 @@ zh.room = {
 };
 
 Object.assign(zh.room, {
-  enter: '进入收藏室', exit: '退出收藏室', find: '查找套装或主题', accessibleList: '无障碍列表',
+  enter: '进入收藏室', exit: '退出收藏室', find: '查找套装或主题', accessibleList: '无障碍列表', skipIntro: '跳过片头',
   loading: '正在打开你的展厅…', resetPosition: '重置位置', captureMouse: '启用鼠标控制', controls: '操作说明',
   walkHint: '漫步浏览你的收藏。选择一个套装盒即可查看。',
   walkInstructions: '使用 WASD 或方向键行走。拖动以环顾四周。点击套装盒可查看详情。',

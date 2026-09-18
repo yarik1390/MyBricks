@@ -85,6 +85,7 @@ app.get('/', async (c) => {
       uc.notes, uc.added_at, uc.purchased_at, uc.last_modified,
       uc.storage_location, uc.acquisition_source, uc.is_complete, uc.missing_pieces, uc.custom_image_url,
       s.name, s.theme, s.year, s.pieces, s.minifigs,
+      s.brickset_dimensions, s.packaging_type,
       s.retail_price, s.current_value, s.forecast_2y, s.forecast_5y,
       s.image_url, s.retired, s.retirement_risk_score, s.used_value, s.ebay_value,
       s.ebay_new_value, s.ebay_used_value, s.ebay_new_qty, s.ebay_used_qty,
@@ -371,6 +372,7 @@ app.get('/export', async (c) => {
       uc.purchased_at, uc.storage_location, uc.acquisition_source,
       uc.is_complete, uc.missing_pieces, uc.notes, uc.added_at,
       s.name, s.theme, s.year, s.pieces, s.minifigs,
+      s.brickset_dimensions, s.packaging_type,
       s.retail_price, s.current_value
     FROM user_collection uc
     JOIN lego_sets s ON s.set_num = uc.set_num

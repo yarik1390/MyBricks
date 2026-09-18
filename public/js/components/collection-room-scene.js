@@ -118,7 +118,9 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   let removalObserver;
   let pose = normalizeRoomPose(layout, options.initialPose);
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
-  const shouldPlayDoorIntro = !options.initialPose && !reducedMotion;
+  const doorIntroMode = options.doorIntroMode || 'native';
+  const shouldPlayDoorIntro = !options.initialPose && !reducedMotion && doorIntroMode !== 'none';
+  const deferDoorIntro = shouldPlayDoorIntro && doorIntroMode === 'deferred';
   introProgress = shouldPlayDoorIntro ? 0 : 1;
   let inspecting = false;
   let activePickup = null;
@@ -158,7 +160,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   const boxFront = material({ color: 0xeee5d7, roughness: 0.86 });
   const boxEdge = material({ color: 0x765f43, roughness: 0.96 });
   const accentMaterials = new Map();
-  const boxGeometry = new THREE.BoxGeometry(ROOM_LAYOUT.boxDepth, ROOM_LAYOUT.boxHeight, ROOM_LAYOUT.boxWidth);
+  const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
   const boxEdgeGeometry = new THREE.EdgesGeometry(boxGeometry);
   sharedGeometries.add(boxGeometry);
   sharedGeometries.add(boxEdgeGeometry);
@@ -250,12 +252,11 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       }
     }
     if (index === 0) {
-      // A short vestibule gives the camera a real outside/threshold volume. It
-      // is only resident with segment zero and adds no ongoing render cost.
-      meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, 0.16, 3.8], [0, -0.08, -1.9], floor, true);
-      meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, 0.16, 3.8], [0, ROOM_LAYOUT.ceilingHeight, -1.9], ceiling, true);
-      meshBox(group, [0.18, ROOM_LAYOUT.ceilingHeight, 3.8], [-ROOM_LAYOUT.roomHalfWidth, ROOM_LAYOUT.ceilingHeight / 2, -1.9], wallSteel, true);
-      meshBox(group, [0.18, ROOM_LAYOUT.ceilingHeight, 3.8], [ROOM_LAYOUT.roomHalfWidth, ROOM_LAYOUT.ceilingHeight / 2, -1.9], wallSteel, true);
+      const vestibuleDepth = 14;
+      meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, 0.16, vestibuleDepth], [0, -0.08, -vestibuleDepth / 2], floor, true);
+      meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2, 0.16, vestibuleDepth], [0, ROOM_LAYOUT.ceilingHeight, -vestibuleDepth / 2], ceiling, true);
+      meshBox(group, [0.18, ROOM_LAYOUT.ceilingHeight, vestibuleDepth], [-ROOM_LAYOUT.roomHalfWidth, ROOM_LAYOUT.ceilingHeight / 2, -vestibuleDepth / 2], wallSteel, true);
+      meshBox(group, [0.18, ROOM_LAYOUT.ceilingHeight, vestibuleDepth], [ROOM_LAYOUT.roomHalfWidth, ROOM_LAYOUT.ceilingHeight / 2, -vestibuleDepth / 2], wallSteel, true);
       // Leave a real aperture behind the moving leaf; the former solid wall
       // meant an "open" door could never reveal or admit the room.
       meshBox(group, [3.1, ROOM_LAYOUT.ceilingHeight, 0.18], [-3.7, ROOM_LAYOUT.ceilingHeight / 2, 0], wallSteel, true);
@@ -450,7 +451,9 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     materials[frontIndex] = boxFront;
     const body = new THREE.Mesh(boxGeometry, materials);
     body.position.set(box.x, box.y, box.z);
+    body.scale.set(box.boxDepth, box.boxHeight, box.boxWidth);
     body.userData.setNum = box.set_num;
+    body.userData.dimensionBasis = box.dimensionBasis;
     const edges = new THREE.LineSegments(boxEdgeGeometry, boxEdge);
     // Pull the seam fractionally off the faces to avoid z-fighting while
     // retaining the coated-cardboard thickness cue on neutral package sides.
@@ -535,9 +538,13 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
 
   function updateDoorIntro(progress) {
     introProgress = Math.max(0, Math.min(1, progress));
-    const eased = smoothstep(introProgress);
+    // Finish the leaf's full sweep before the camera approaches it. This keeps
+    // the entrance readable as a door opening, rather than a panel crossing
+    // directly in front of the viewer on narrow portrait canvases.
+    const doorProgress = Math.min(1, introProgress / 0.68);
+    const eased = smoothstep(doorProgress);
     if (doorPivot) doorPivot.rotation.y = DOOR_OPEN_ANGLE * eased;
-    if (doorWheel) doorWheel.rotation.z = -Math.PI * 1.35 * Math.min(1, introProgress / 0.42);
+    if (doorWheel) doorWheel.rotation.z = -Math.PI * 1.35 * Math.min(1, introProgress / 0.36);
     stage.dataset.doorAnimation = 'native-three-time';
     stage.dataset.doorProgress = introProgress.toFixed(3);
     stage.dataset.doorAngle = (DOOR_OPEN_ANGLE * eased).toFixed(5);
@@ -555,6 +562,47 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     }
   }
 
+  function introDoorCameraZ() {
+    // Fit the entire door plus the leaf's swept width inside the *actual*
+    // canvas aspect. Portrait phones need much more distance than desktop: the
+    // open leaf reaches about 2.3 m left of the ring and must retain real wall
+    // around it rather than merely touching the viewport edge.
+    const verticalFov = THREE.MathUtils.degToRad(camera.fov);
+    const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * camera.aspect);
+    const halfSweptWidth = 4.9;
+    const halfFramedHeight = 3.35;
+    const safeHalfWidth = Math.tan(horizontalFov / 2) * 0.9;
+    const safeHalfHeight = Math.tan(verticalFov / 2) * 0.9;
+    return -Math.max(7.2, halfSweptWidth / safeHalfWidth, halfFramedHeight / safeHalfHeight);
+  }
+
+  function applyIntroCamera(progress) {
+    const startZ = introDoorCameraZ();
+    // Hold the wide exterior establishing view until the leaf has completed
+    // its sweep. Then approach the clear aperture; only the final beat crosses
+    // the threshold and blends into the user's saved/navigation camera.
+    const approach = smoothstep(Math.max(0, (progress - 0.7) / 0.2));
+    const enter = smoothstep(Math.max(0, (progress - 0.9) / 0.1));
+    const introZ = startZ + approach * (-1.6 - startZ) + enter * (pose.z + 1.6);
+    const introPitch = pose.pitch * enter;
+    const centerY = 2.64 - 0.18 * (1 - enter);
+    camera.position.set(0, centerY, introZ);
+    camera.lookAt(
+      Math.sin(pose.yaw) * Math.cos(introPitch) * enter,
+      centerY + Math.sin(introPitch) * enter,
+      camera.position.z + Math.cos(pose.yaw) * Math.cos(introPitch),
+    );
+    camera.updateMatrixWorld();
+    stage.dataset.introCameraZ = introZ.toFixed(3);
+    stage.dataset.introThreshold = introZ >= 0 ? 'inside' : 'outside';
+    // Expose the unchanged navigation pose without ever rendering it before the
+    // intro camera. Movement/lifecycle tests and controls read these values.
+    stage.dataset.cameraX = pose.x.toFixed(3);
+    stage.dataset.cameraZ = pose.z.toFixed(3);
+    stage.dataset.cameraYaw = pose.yaw.toFixed(5);
+    stage.dataset.cameraPitch = pose.pitch.toFixed(5);
+  }
+
   function doorIntroFrame(time) {
     introFrame = 0;
     if (!active()) return;
@@ -564,22 +612,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     // through genuine door and camera poses rather than jumping to completion.
     updateDoorIntro(Math.min(elapsedProgress, introProgress + DOOR_INTRO_MAX_FRAME_STEP));
 
-    // Start in the secure vestibule with the closed leaf filling the view. The
-    // camera approaches while the lock turns, crosses the threshold only after
-    // the door clears it, then settles at the unchanged navigation spawn.
-    const approach = smoothstep(Math.min(1, introProgress / 0.46));
-    const enter = smoothstep(Math.max(0, (introProgress - 0.42) / 0.58));
-    const introZ = -3.15 + approach * 1.75 + enter * (pose.z + 1.4);
-    const introPitch = 0.055 * (1 - enter) + pose.pitch * enter;
-    camera.position.set(pose.x, ROOM_LAYOUT.eyeHeight, introZ);
-    camera.lookAt(
-      camera.position.x + Math.sin(pose.yaw) * Math.cos(introPitch),
-      ROOM_LAYOUT.eyeHeight + Math.sin(introPitch),
-      camera.position.z + Math.cos(pose.yaw) * Math.cos(introPitch),
-    );
-    camera.updateMatrixWorld();
-    stage.dataset.introCameraZ = introZ.toFixed(3);
-    stage.dataset.introThreshold = introZ >= 0 ? 'inside' : 'outside';
+    applyIntroCamera(introProgress);
     renderer.render(scene, camera);
     if (introProgress < 1) {
       introFrame = requestAnimationFrame(doorIntroFrame);
@@ -591,7 +624,21 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
 
   function startDoorIntro() {
     updateDoorIntro(shouldPlayDoorIntro ? 0 : 1);
-    if (shouldPlayDoorIntro && !document.hidden && !manuallyPaused) introFrame = requestAnimationFrame(doorIntroFrame);
+    if (shouldPlayDoorIntro && !deferDoorIntro && !document.hidden && !manuallyPaused) introFrame = requestAnimationFrame(doorIntroFrame);
+  }
+
+  function finishDoorIntro() {
+    cancelDoorIntro({ finish: true });
+    reconcileResidents(false, false);
+    renderNow();
+    scheduleCurrentResidentTextures();
+  }
+
+  function playDoorIntro() {
+    if (destroyed || !shouldPlayDoorIntro || introFrame || introProgress >= 1) return false;
+    introStartedAt = 0;
+    if (!document.hidden && !manuallyPaused) introFrame = requestAnimationFrame(doorIntroFrame);
+    return true;
   }
 
   function beginModalTransition() {
@@ -902,6 +949,8 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       if (activePickup?.mesh) {
         activePickup.mesh.position.set(activePickup.origX, activePickup.origY, activePickup.origZ);
         activePickup.mesh.rotation.x = activePickup.origRotX;
+        activePickup.mesh.rotation.y = activePickup.origRotY;
+        activePickup.mesh.scale.set(activePickup.origScaleX, activePickup.origScaleY, activePickup.origScaleZ);
         activePickup = null;
       }
       steelTexture?.dispose();
@@ -931,6 +980,8 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     getPose() {
       return { pitch: pose.pitch, x: pose.x, yaw: pose.yaw, z: pose.z };
     },
+    finishDoorIntro,
+    playDoorIntro,
     reset() {
       if (destroyed) return;
       cancelDoorIntro({ finish: true });
@@ -1125,16 +1176,20 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
-      renderNow();
+      if (introProgress < 1) {
+        applyIntroCamera(introProgress);
+        renderer.render(scene, camera);
+      } else renderNow();
     });
     resizeObserver.observe(stage);
     removalObserver = new MutationObserver(checkRoute);
     removalObserver.observe(document.body, { childList: true, subtree: true });
     reconcileResidents(true, !shouldPlayDoorIntro);
-    updateCamera();
     renderer.setSize(Math.max(1, stage.clientWidth), Math.max(1, stage.clientHeight), false);
     camera.aspect = Math.max(1, stage.clientWidth) / Math.max(1, stage.clientHeight);
     camera.updateProjectionMatrix();
+    if (shouldPlayDoorIntro) applyIntroCamera(0);
+    else updateCamera();
     renderer.render(scene, camera);
     startDoorIntro();
     return controller;

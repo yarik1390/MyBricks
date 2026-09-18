@@ -4,9 +4,19 @@ import { test, expect } from './fixtures.mjs';
 // default 30-second whole-test budget while each interaction remains correct.
 test.setTimeout(process.env.CI ? 120000 : 30000);
 
-const holdings = Array.from({ length: 90 }, (_, i) => ({ set_num: `${1000 + i}-1`, name: `Display set ${i}`, theme: i < 60 ? 'Space' : 'City', quantity: 1, image_url: '/brand-brick-transparent.png' }));
-async function stubRoom(page, rows = holdings) {
+const holdings = Array.from({ length: 90 }, (_, i) => ({
+  set_num: `${1000 + i}-1`,
+  name: `Display set ${i}`,
+  theme: i < 60 ? 'Space' : 'City',
+  quantity: 1,
+  image_url: '/brand-brick-transparent.png',
+  pieces: i % 4 === 0 ? 90 : i % 4 === 1 ? 420 : i % 4 === 2 ? 1100 : 2400,
+  packaging_type: 'Box',
+  ...(i === 0 ? { brickset_dimensions: JSON.stringify({ width: 58, height: 37, depth: 8.7 }) } : {}),
+}));
+async function stubRoom(page, rows = holdings, { videoUnavailable = true } = {}) {
   await page.route('**/api/collection', route => route.fulfill({ json: { items: rows, count: rows.length } }));
+  if (videoUnavailable) await page.route('**/video/vault-door-intro.mp4', route => route.abort('failed'));
 }
 const ready = page => expect(page.locator('#roomStage')).toHaveAttribute('data-room-state', 'ready');
 const doorOpen = page => expect(page.locator('#roomStage')).toHaveAttribute('data-door-state', 'open', { timeout: 30000 });
@@ -299,6 +309,7 @@ test('mobile joystick and look accept simultaneous touches without scrolling', a
   await page.route('**/*', route => {
     const u = new URL(route.request().url());
     if (u.pathname === '/api/collection') return route.fulfill({ json: { items: holdings } });
+    if (u.pathname === '/video/vault-door-intro.mp4') return route.abort('failed');
     if (u.pathname.startsWith('/api/')) return route.fulfill({ json: u.pathname === '/api/me' ? { is_guest: true, currency: 'USD' } : {} });
     if (u.hostname === 'localhost') return route.continue();
     return route.abort();

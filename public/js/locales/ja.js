@@ -346,7 +346,7 @@ ja.room = {
 };
 
 Object.assign(ja.room, {
-  enter: 'コレクションルームに入る', exit: 'ルームを出る', find: 'セットやテーマを検索', accessibleList: 'アクセシブルリスト',
+  enter: 'コレクションルームに入る', exit: 'ルームを出る', find: 'セットやテーマを検索', accessibleList: 'アクセシブルリスト', skipIntro: 'イントロをスキップ',
   loading: 'ショールームを開いています…', resetPosition: '位置をリセット', captureMouse: 'マウスをキャプチャ', controls: '操作方法',
   walkHint: 'コレクションの中を歩き回れます。箱を選択すると確認できます。',
   walkInstructions: 'WASDキーまたは矢印キーで移動します。ドラッグして周囲を見回します。箱をクリックすると詳細を確認できます。',

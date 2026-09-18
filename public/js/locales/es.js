@@ -341,7 +341,7 @@ es.room = {
 };
 
 Object.assign(es.room, {
-  enter: 'Entrar en la sala de la colección', exit: 'Salir de la sala', find: 'Buscar un set o tema', accessibleList: 'Lista accesible',
+  enter: 'Entrar en la sala de la colección', exit: 'Salir de la sala', find: 'Buscar un set o tema', accessibleList: 'Lista accesible', skipIntro: 'Saltar introducción',
   loading: 'Abriendo tu sala de exposición…', resetPosition: 'Restablecer posición', captureMouse: 'Activar control con ratón', controls: 'Controles',
   walkHint: 'Recorre tu colección. Selecciona una caja para examinarla.',
   walkInstructions: 'Usa WASD o las flechas para caminar. Arrastra para mirar alrededor. Haz clic en una caja para ver sus detalles.',

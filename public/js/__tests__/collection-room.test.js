@@ -13,11 +13,9 @@ import {
 } from '../lib/collection-room.js';
 
 test('room geometry keeps cartons proportional to shelf bays and standing eye height', () => {
-  assert.equal(ROOM_LAYOUT.boxHeight, 0.72);
-  assert.equal(ROOM_LAYOUT.eyeHeight, 1.68);
-  assert.ok(ROOM_LAYOUT.boxHeight < ROOM_LAYOUT.eyeHeight / 2);
+  assert.ok(ROOM_LAYOUT.boxHeight < ROOM_LAYOUT.eyeHeight);
   const layout = createRoomLayout([{ set_num: '100-1', name: 'Scale check', theme: 'City', quantity: 1 }]);
-  assert.ok(Math.abs(layout.boxes[0].y - 0.79) < 1e-9);
+  assert.ok(Math.abs(layout.boxes[0].y - (0.43 + layout.boxes[0].boxHeight / 2)) < 1e-9);
 });
 
 test('room catalog groups active identities and keeps only safe display facts', () => {
@@ -35,7 +33,7 @@ test('room catalog groups active identities and keeps only safe display facts', 
     null,
   ]);
   assert.deepEqual(rows, [{
-    set_num: '123-1', quantity: 3, name: '<ship>', theme: 'Space', image_url: '', year: 2024, pieces: 810,
+    set_num: '123-1', quantity: 3, name: '<ship>', theme: 'Space', image_url: '', packaging_type: '', year: 2024, pieces: 810,
   }]);
   assert.equal(JSON.stringify(rows).includes('private'), false);
   assert.equal(JSON.stringify(rows).includes('owner'), false);
@@ -48,6 +46,32 @@ test('image URLs exclude active schemes, credentials and ambiguous relative URLs
   ]) assert.equal(roomImageUrl(value), '');
   assert.equal(roomImageUrl('/brand-brick-transparent.png'), '/brand-brick-transparent.png');
   assert.equal(roomImageUrl('https://cdn.example/image.png'), 'https://cdn.example/image.png');
+});
+
+test('layout uses measured packaging dimensions and deterministic bounded estimates', () => {
+  const catalog = collectionRoomCatalog([
+    { set_num: '1-1', name: 'Wide measured', theme: 'City', pieces: 900, packaging_type: 'Box', brickset_dimensions: JSON.stringify({ width: 58, height: 37, depth: 8.7 }) },
+    { set_num: '2-1', name: 'Small estimate', theme: 'City', pieces: 90, packaging_type: 'Box' },
+    { set_num: '3-1', name: 'Large estimate', theme: 'City', pieces: 2200, packaging_type: 'Box' },
+  ]);
+  const layout = createRoomLayout(catalog);
+  const measured = layout.boxes.find(box => box.set_num === '1-1');
+  const small = layout.boxes.find(box => box.set_num === '2-1');
+  const large = layout.boxes.find(box => box.set_num === '3-1');
+  assert.equal(measured.dimensionBasis, 'measured');
+  assert.equal(small.dimensionBasis, 'estimated');
+  assert.equal(large.dimensionBasis, 'estimated');
+  assert.ok(measured.boxWidth > measured.boxHeight * 1.5);
+  assert.notDeepEqual(
+    [small.boxWidth, small.boxHeight, small.boxDepth],
+    [large.boxWidth, large.boxHeight, large.boxDepth],
+  );
+  for (const box of layout.boxes) {
+    assert.ok(box.boxWidth <= ROOM_LAYOUT.boxWidth + 1e-9);
+    assert.ok(box.boxHeight <= ROOM_LAYOUT.boxHeight + 1e-9);
+    assert.ok(box.boxDepth <= ROOM_LAYOUT.boxDepth + 1e-9);
+    assert.ok(Math.abs((box.y - box.boxHeight / 2) - 0.43) < 1e-9);
+  }
 });
 
 test('layout is deterministic, theme-grouped and keeps thousands of sets reachable', () => {

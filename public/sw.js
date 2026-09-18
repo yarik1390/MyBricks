@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = "v520";
+const VERSION = "v522";
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 // Cross-origin product images live in their own UNVERSIONED, bounded cache:
@@ -258,6 +258,10 @@ self.addEventListener('fetch', e => {
     e.respondWith(cacheFirst(request, IMG_CACHE));
     return;
   }
+
+  // The room intro movie is intentionally fetched only after entering #/room.
+  // Do not precache it during SW install or pull a large video onto unrelated pages.
+  if (url.origin === self.location.origin && url.pathname === '/video/vault-door-intro.mp4') return;
 
   // Navigations get the precached app shell as a last resort, so an offline
   // deep link / first visit shows the app instead of a browser error page.

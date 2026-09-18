@@ -9534,6 +9534,7 @@
   {
     "text": "Skip",
     "files": [
+      "components/collection-room-video-intro.js",
       "components/onboarding.js"
     ]
   },

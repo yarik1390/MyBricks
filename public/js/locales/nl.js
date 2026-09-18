@@ -341,7 +341,7 @@ nl.room = {
 };
 
 Object.assign(nl.room, {
-  enter: 'Collectiekamer binnengaan', exit: 'Kamer verlaten', find: 'Een set of thema zoeken', accessibleList: 'Toegankelijke lijst',
+  enter: 'Collectiekamer binnengaan', exit: 'Kamer verlaten', find: 'Een set of thema zoeken', accessibleList: 'Toegankelijke lijst', skipIntro: 'Intro overslaan',
   loading: 'Je showroom wordt geopend…', resetPosition: 'Positie herstellen', captureMouse: 'Muisbesturing activeren', controls: 'Besturing',
   walkHint: 'Loop door je collectie. Selecteer een doos om die te bekijken.',
   walkInstructions: 'Gebruik WASD of de pijltjestoetsen om te lopen. Sleep om rond te kijken. Klik op een doos om de details te bekijken.',

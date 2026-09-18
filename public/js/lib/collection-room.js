@@ -4,9 +4,11 @@ export const ROOM_LAYOUT = Object.freeze({
   aisleHalfWidth: 3.75,
   // Display cartons are scaled against the 1.32–1.58 m shelf spacing below;
   // they are not person-height blocks. Depth remains visible from the aisle.
-  boxDepth: 0.32,
-  boxHeight: 0.72,
-  boxWidth: 1.36,
+  // Maximum display-carton envelope. Individual cartons derive bounded
+  // dimensions from measured Brickset packaging data or catalog facts.
+  boxDepth: 0.42,
+  boxHeight: 0.86,
+  boxWidth: 1.42,
   boxesPerShelf: 12,
   ceilingHeight: 6.2,
   eyeHeight: 1.68,
@@ -42,6 +44,70 @@ function optionalInteger(value, minimum, maximum) {
   return Number.isSafeInteger(number) && number >= minimum && number <= maximum ? number : null;
 }
 
+function dimensionNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function measuredDimensions(value) {
+  try {
+    const dimensions = typeof value === 'string' ? JSON.parse(value) : value;
+    if (!dimensions || typeof dimensions !== 'object') return null;
+    const width = dimensionNumber(dimensions.width);
+    const height = dimensionNumber(dimensions.height);
+    const depth = dimensionNumber(dimensions.depth);
+    if (!width || !height || !depth) return null;
+    return { width, height, depth };
+  } catch {
+    return null;
+  }
+}
+
+function displayCartonDimensions(item) {
+  const measured = measuredDimensions(item.brickset_dimensions);
+  let aspectWidth;
+  let aspectHeight;
+  let aspectDepth;
+  let basis;
+  if (measured) {
+    aspectWidth = measured.width;
+    aspectHeight = measured.height;
+    aspectDepth = measured.depth;
+    basis = 'measured';
+  } else {
+    // Catalog product imagery is not treated as a package scan. When physical
+    // measurements are absent, piece count and packaging type only choose one
+    // of a few bounded, deterministic display silhouettes.
+    const pieces = optionalInteger(item.pieces ?? item.num_parts, 0, 1_000_000) ?? 0;
+    const packaging = String(item.packaging_type || '').trim().toLowerCase();
+    if (/polybag|foil|paper bag|plastic bag/.test(packaging)) {
+      [aspectWidth, aspectHeight, aspectDepth] = [1.0, 1.18, 0.14];
+    } else if (/tin|canister|tub/.test(packaging)) {
+      [aspectWidth, aspectHeight, aspectDepth] = [0.9, 1.0, 0.66];
+    } else if (pieces > 1800) {
+      [aspectWidth, aspectHeight, aspectDepth] = [1.8, 0.86, 0.48];
+    } else if (pieces > 750) {
+      [aspectWidth, aspectHeight, aspectDepth] = [1.55, 0.88, 0.4];
+    } else if (pieces > 250) {
+      [aspectWidth, aspectHeight, aspectDepth] = [1.32, 0.9, 0.34];
+    } else {
+      [aspectWidth, aspectHeight, aspectDepth] = [0.92, 1.0, 0.28];
+    }
+    basis = 'estimated';
+  }
+  const scale = Math.min(
+    ROOM_LAYOUT.boxWidth / aspectWidth,
+    ROOM_LAYOUT.boxHeight / aspectHeight,
+    ROOM_LAYOUT.boxDepth / aspectDepth,
+  );
+  return {
+    boxWidth: aspectWidth * scale,
+    boxHeight: aspectHeight * scale,
+    boxDepth: aspectDepth * scale,
+    dimensionBasis: basis,
+  };
+}
+
 export function collectionRoomCatalog(holdings = []) {
   const distinct = new Map();
   for (const row of Array.isArray(holdings) ? holdings : []) {
@@ -60,8 +126,11 @@ export function collectionRoomCatalog(holdings = []) {
       name: typeof row.name === 'string' && row.name.trim() ? row.name.trim() : setNum,
       theme: typeof row.theme === 'string' ? row.theme.trim() : '',
       image_url: roomImageUrl(row.image_url),
+      packaging_type: typeof row.packaging_type === 'string' ? row.packaging_type.trim() : '',
       quantity,
     };
+    const dimensions = measuredDimensions(row.brickset_dimensions);
+    if (dimensions) item.brickset_dimensions = dimensions;
     const year = optionalInteger(row.year, 1932, 2200);
     const pieces = optionalInteger(row.pieces ?? row.num_parts, 0, 1_000_000);
     if (year !== null) item.year = year;
@@ -108,8 +177,10 @@ export function createRoomLayout(catalog = []) {
         const column = slot % 4;
         const row = Math.floor(slot / 4);
         const item = source[itemIndex];
+        const dimensions = displayCartonDimensions(item);
         const box = {
           ...item,
+          ...dimensions,
           index: boxes.length,
           row,
           shelfIndex,
@@ -118,7 +189,7 @@ export function createRoomLayout(catalog = []) {
           // Centers sit on the structural shelf decks at 0.35/1.67/3.25 m,
           // with a small clearance. This keeps cartons grounded and leaves
           // believable air above them instead of filling each bay wall-to-wall.
-          y: 0.35 + ROOM_LAYOUT.boxHeight / 2 + 0.08 + row * 1.58,
+          y: 0.35 + dimensions.boxHeight / 2 + 0.08 + row * 1.58,
           z: centerZ + (column - 1.5) * 1.55,
         };
         setIndex.set(item.set_num, box.index);

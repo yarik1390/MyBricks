@@ -634,7 +634,7 @@ en.room = {
   empty: 'Add sets to your vault to fill your room.',
 };
 Object.assign(en.room, {
-  enter: 'Enter collection room', exit: 'Exit room', find: 'Find a set or theme', accessibleList: 'Accessible list',
+  enter: 'Enter collection room', exit: 'Exit room', find: 'Find a set or theme', accessibleList: 'Accessible list', skipIntro: 'Skip intro',
   loading: 'Opening your showroom...', resetPosition: 'Reset position', captureMouse: 'Capture mouse', controls: 'Controls',
   walkHint: 'Walk through your collection. Select a box to inspect it.',
   walkInstructions: 'Use WASD or arrow keys to walk. Drag to look around. Click a box to see its details.',

@@ -359,7 +359,7 @@ de.room = {
 };
 
 Object.assign(de.room, {
-  enter: 'Sammlungsraum betreten', exit: 'Raum verlassen', find: 'Ein Set oder Thema suchen', accessibleList: 'Barrierefreie Liste',
+  enter: 'Sammlungsraum betreten', exit: 'Raum verlassen', find: 'Ein Set oder Thema suchen', accessibleList: 'Barrierefreie Liste', skipIntro: 'Intro überspringen',
   loading: 'Dein Ausstellungsraum wird geöffnet…', resetPosition: 'Position zurücksetzen', captureMouse: 'Maussteuerung aktivieren', controls: 'Steuerung',
   walkHint: 'Laufe durch deine Sammlung. Wähle eine Box aus, um sie anzusehen.',
   walkInstructions: 'Gehe mit WASD oder den Pfeiltasten. Ziehe, um dich umzusehen. Klicke auf eine Box, um ihre Details zu sehen.',

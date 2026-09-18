@@ -1,5 +1,5 @@
 import { vaultViewSwitch } from '../components/collector-shell.js';
-import { $, escapeHtml, thumbImg } from '../utils.js';
+import { $, escapeHtml, thumbImg, proxyImg } from '../utils.js';
 import { api, getSessionOwnerSnapshot } from '../api.js';
 import { state } from '../state.js';
 import { t, tPlural } from '../lib/i18n.js';
@@ -8,10 +8,13 @@ import { showSheet, hideSheet } from '../components/sheet.js';
 
 let generation = 0;
 let activeRoom = null;
+let activeIntro = null;
 let rememberedPose = null;
 let roomSheet = false;
 const inRoom = () => location.hash.split('?')[0] === '#/room';
 function releaseRoom(remember = true) {
+  activeIntro?.destroy();
+  activeIntro = null;
   if (remember && activeRoom) rememberedPose = { owner: getSessionOwnerSnapshot(), pose: activeRoom.getPose() };
   activeRoom?.destroy();
   activeRoom = null;
@@ -53,7 +56,7 @@ export async function renderCollectionRoom() {
     $('#roomRetry').addEventListener('click', renderCollectionRoom);
     return;
   }
-  const catalog = collectionRoomCatalog(data.items);
+  const catalog = collectionRoomCatalog(data.items).map(item => ({ ...item, image_url: proxyImg(item.image_url) }));
   const themeName = item => item.theme || t('room.otherTheme');
   let failed = false;
   const initialPose = rememberedPose?.owner.userId === owner.userId && rememberedPose.owner.generation === owner.generation ? rememberedPose.pose : undefined;
@@ -213,10 +216,13 @@ export async function renderCollectionRoom() {
   };
   try {
     const { createCollectionRoom } = await import('../components/collection-room-scene.js');
+    const { shouldUseRoomVideoIntro, startRoomVideoIntro } = await import('../components/collection-room-video-intro.js');
     if (!current() || !stage.isConnected) return;
+    const useVideoIntro = shouldUseRoomVideoIntro({ initialPose });
     const controller = await createCollectionRoom(stage, catalog.map(item => ({ ...item, theme: themeName(item), image_url: item.image_url ? thumbImg(item.image_url, 400) : '' })), {
       isCurrent: () => current() && stage.isConnected,
       onSelect: details, onUnavailable: unavailable, joystick: $('#roomJoystick'), initialPose,
+      doorIntroMode: useVideoIntro ? 'deferred' : 'native',
     });
     if (!current() || !stage.isConnected || failed) { controller?.destroy(); return; }
     if (!controller) { unavailable(); return; }
@@ -224,7 +230,22 @@ export async function renderCollectionRoom() {
     controller.setPaused(roomSheet);
     stage.dataset.roomState = 'ready';
     status.textContent = catalog.length ? t('room.walkHint') : t('room.empty');
-    if (!roomSheet) stage.focus({ preventScroll: true });
+    if (useVideoIntro && !roomSheet) {
+      activeIntro = startRoomVideoIntro(stage, {
+        isCurrent: () => current() && stage.isConnected && activeRoom === controller,
+        skipLabel: t('room.skipIntro'),
+        onComplete: () => {
+          activeIntro = null;
+          controller.finishDoorIntro();
+          if (current() && !roomSheet) stage.focus({ preventScroll: true });
+        },
+        onFallback: () => {
+          activeIntro = null;
+          controller.playDoorIntro();
+        },
+      });
+    }
+    if (!activeIntro && !roomSheet) stage.focus({ preventScroll: true });
   } catch {
     unavailable();
   }
