@@ -1073,8 +1073,8 @@ describe('image proxy rewrite (media reliability)', () => {
     expect(out.moc_img_url).toBe('https://cdn.rebrickable.com/media/mocs/x.jpg'); // unchanged — not cached
   });
 
-  it('does not proxy non-allowlisted hosts (BrickLink stays hotlinked)', () => {
-    expect(proxyImageUrl('https://img.bricklink.com/x.jpg', O)).toBe('https://img.bricklink.com/x.jpg');
+  it('does not proxy non-allowlisted hosts (unsupported hosts stay hotlinked)', () => {
+    expect(proxyImageUrl('https://untrusted-host.example.com/x.jpg', O)).toBe('https://untrusted-host.example.com/x.jpg');
   });
 });
 

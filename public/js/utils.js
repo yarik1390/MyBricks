@@ -637,7 +637,12 @@ export function brickTile(set) {
 // covers GUEST-mode data (localStorage snapshots hold raw CDN URLs). Any other
 // host passes through untouched — the allowlist matches the worker's.
 export function proxyImg(url) {
-  if (typeof url === "string" && url.startsWith("https://cdn.rebrickable.com/")) {
+  if (
+    typeof url === "string" &&
+    (url.startsWith("https://cdn.rebrickable.com/") ||
+      url.startsWith("https://images.brickset.com/") ||
+      url.startsWith("https://img.bricklink.com/"))
+  ) {
     return `${window.WORKER_BASE || ""}/api/img?u=${encodeURIComponent(url)}`;
   }
   return url;

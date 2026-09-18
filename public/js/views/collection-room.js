@@ -29,7 +29,7 @@ window.addEventListener('bv:owner-changed', () => {
 window.addEventListener('hashchange', () => {
   if (!inRoom()) {
     generation++;
-    releaseRoom();
+    releaseRoom(false);
   }
 });
 // go() can use pushState instead of hashchange; release on root removal too.
@@ -56,7 +56,11 @@ export async function renderCollectionRoom() {
     $('#roomRetry').addEventListener('click', renderCollectionRoom);
     return;
   }
-  const catalog = collectionRoomCatalog(data.items).map(item => ({ ...item, image_url: proxyImg(item.image_url) }));
+  const catalog = collectionRoomCatalog(data.items).map(item => ({
+    ...item,
+    image_url: proxyImg(item.image_url),
+    box_image_url: proxyImg(item.box_image_url),
+  }));
   const themeName = item => item.theme || t('room.otherTheme');
   let failed = false;
   const initialPose = rememberedPose?.owner.userId === owner.userId && rememberedPose.owner.generation === owner.generation ? rememberedPose.pose : undefined;
@@ -74,7 +78,7 @@ export async function renderCollectionRoom() {
   </main>`;
   const stage = $('#roomStage');
   const status = $('#roomStatus');
-  const imageUrl = item => escapeHtml(item.image_url ? thumbImg(item.image_url, 400) : '/brand-brick-transparent.png');
+  const imageUrl = item => escapeHtml(item.box_image_url ? thumbImg(item.box_image_url, 400) : (item.image_url ? thumbImg(item.image_url, 400) : '/brand-brick-transparent.png'));
   function modal(html, invoker, { preservePickup = false } = {}) {
     if (!current()) return;
     if (!preservePickup) activeRoom?.beginModalTransition();
@@ -218,8 +222,13 @@ export async function renderCollectionRoom() {
     const { createCollectionRoom } = await import('../components/collection-room-scene.js');
     const { shouldUseRoomVideoIntro, startRoomVideoIntro } = await import('../components/collection-room-video-intro.js');
     if (!current() || !stage.isConnected) return;
-    const useVideoIntro = shouldUseRoomVideoIntro({ initialPose });
-    const controller = await createCollectionRoom(stage, catalog.map(item => ({ ...item, theme: themeName(item), image_url: item.image_url ? thumbImg(item.image_url, 400) : '' })), {
+    const useVideoIntro = shouldUseRoomVideoIntro();
+    const controller = await createCollectionRoom(stage, catalog.map(item => ({
+      ...item,
+      theme: themeName(item),
+      image_url: item.image_url ? thumbImg(item.image_url, 400) : '',
+      box_image_url: item.box_image_url ? proxyImg(item.box_image_url) : '',
+    })), {
       isCurrent: () => current() && stage.isConnected,
       onSelect: details, onUnavailable: unavailable, joystick: $('#roomJoystick'), initialPose,
       doorIntroMode: useVideoIntro ? 'deferred' : 'native',

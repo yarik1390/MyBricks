@@ -108,6 +108,27 @@ function displayCartonDimensions(item) {
   };
 }
 
+export function resolveBoxImageUrl(row) {
+  if (!row) return '';
+  if (typeof row.box_image_url === 'string' && row.box_image_url) {
+    return roomImageUrl(row.box_image_url);
+  }
+  if (row.brickset_image_urls) {
+    try {
+      const urls = typeof row.brickset_image_urls === 'string' ? JSON.parse(row.brickset_image_urls) : row.brickset_image_urls;
+      if (Array.isArray(urls)) {
+        const match = urls.find(u => typeof u === 'string' && /(box_front|boxprod|box1|_box\b|_Box\b)/i.test(u));
+        if (match) return roomImageUrl(match);
+      }
+    } catch {}
+  }
+  const setNum = canonicalSetNum(row.set_num);
+  if (setNum) {
+    return `https://img.bricklink.com/ItemImage/ON/0/${setNum}.png`;
+  }
+  return roomImageUrl(row.image_url);
+}
+
 export function collectionRoomCatalog(holdings = []) {
   const distinct = new Map();
   for (const row of Array.isArray(holdings) ? holdings : []) {
@@ -126,6 +147,7 @@ export function collectionRoomCatalog(holdings = []) {
       name: typeof row.name === 'string' && row.name.trim() ? row.name.trim() : setNum,
       theme: typeof row.theme === 'string' ? row.theme.trim() : '',
       image_url: roomImageUrl(row.image_url),
+      box_image_url: resolveBoxImageUrl(row),
       packaging_type: typeof row.packaging_type === 'string' ? row.packaging_type.trim() : '',
       quantity,
     };

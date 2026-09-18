@@ -11,7 +11,7 @@ test('room scene keeps physical surfaces and mobile aisle lighting readable', ()
   assert.match(source, /const floor = material\(\{ color: 0x5c666b/);
   assert.match(source, /const shelfSteel = material\(\{ color: 0x5c686e/);
   assert.match(source, /new THREE\.CanvasTexture\(card\)/);
-  assert.match(source, /const frontMaterial = new THREE\.MeshStandardMaterial\(\{ map: texture, roughness: 0\.72 \}\)/);
+  assert.match(source, /const frontMaterial = new THREE\.MeshStandardMaterial\(\{[\s\S]*?map: texture,[\s\S]*?roughness: 0\.28/);
 });
 
 test('room entry uses a finite native door animation without changing the saved pose', () => {
@@ -65,7 +65,7 @@ test('box pickup is finite, eased, and returns before normal room control resume
 });
 
 test('procedural cartons have neutral sides, readable thickness, and shared edge geometry', () => {
-  assert.match(source, /const boxSide = material\(\{ color: 0xb79d77, roughness: 0\.9 \}\)/);
+  assert.match(source, /const boxSide = material\(\{ color: 0x1e2226, roughness: 0\.52, metalness: 0\.08 \}\)/);
   assert.match(source, /const boxEdgeGeometry = new THREE\.EdgesGeometry\(boxGeometry\)/);
   assert.match(source, /const edges = new THREE\.LineSegments\(boxEdgeGeometry, boxEdge\)/);
   assert.match(source, /edges\.scale\.setScalar\(1\.006\)/);

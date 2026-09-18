@@ -33,7 +33,7 @@ test('room catalog groups active identities and keeps only safe display facts', 
     null,
   ]);
   assert.deepEqual(rows, [{
-    set_num: '123-1', quantity: 3, name: '<ship>', theme: 'Space', image_url: '', packaging_type: '', year: 2024, pieces: 810,
+    set_num: '123-1', quantity: 3, name: '<ship>', theme: 'Space', image_url: '', box_image_url: 'https://img.bricklink.com/ItemImage/ON/0/123-1.png', packaging_type: '', year: 2024, pieces: 810,
   }]);
   assert.equal(JSON.stringify(rows).includes('private'), false);
   assert.equal(JSON.stringify(rows).includes('owner'), false);

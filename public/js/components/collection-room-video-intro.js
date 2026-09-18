@@ -12,7 +12,11 @@ function connectionIsConstrained(connection = navigator.connection || navigator.
 
 export function shouldUseRoomVideoIntro({ initialPose, connection, reducedMotion } = {}) {
   const reduce = reducedMotion ?? window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
-  return !initialPose && !reduce && !connectionIsConstrained(connection);
+  const connectionIsConstrained = Boolean(
+    connection?.saveData === true ||
+    (typeof connection?.effectiveType === 'string' && /(?:slow-2g|2g)/i.test(connection.effectiveType))
+  );
+  return !reduce && !connectionIsConstrained;
 }
 
 export function startRoomVideoIntro(stage, options = {}) {

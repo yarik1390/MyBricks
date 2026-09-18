@@ -120,6 +120,20 @@ body {
      the app ships its own pull-to-refresh gesture (see setupGestures). */
   overscroll-behavior-y: contain;
 }
+/* Top status-bar scrim: prevents scrolled content from colliding with system status bar */
+.status-bar-scrim {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--safe-top);
+  background: var(--bg);
+  opacity: 0.94;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 99;
+  pointer-events: none;
+}
 /* Login (and other nav-less views): don't reserve space for the hidden nav. */
 body.nav-hidden { padding-bottom: var(--safe-bottom); }
 body.sheet-open,
@@ -968,8 +982,12 @@ ul.set-list > li { display: contents; }
 .sl-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: 0.6; flex-shrink: 0; }
 .sl-right {
   display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between;
-  padding: 2px 0 2px 4px; flex: 0 1 108px;
-  min-width: 0;
+  padding: 2px 0 2px 4px; flex: 0 0 auto;
+  min-width: 90px; max-width: 142px;
+}
+.sl-right-sub {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 4px; flex-wrap: wrap;
 }
 .sl-value {
   font-family: var(--val-font); font-weight: 500;

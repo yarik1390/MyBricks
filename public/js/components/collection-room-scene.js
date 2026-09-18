@@ -154,11 +154,10 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   const aisle = material({ color: 0x78838a, map: floorTexture, metalness: 0.16, roughness: 0.78 });
   const shelfSteel = material({ color: 0x5c686e, map: steelTexture, metalness: 0.62, roughness: 0.48 });
   const shelfEdge = material({ color: 0x3e474c, metalness: 0.66, roughness: 0.42 });
-  // Product photos only cover the front. Every other face stays intentionally
-  // neutral so the room never invents official package artwork.
-  const boxSide = material({ color: 0xb79d77, roughness: 0.9 });
-  const boxFront = material({ color: 0xeee5d7, roughness: 0.86 });
-  const boxEdge = material({ color: 0x765f43, roughness: 0.96 });
+  // Authentic coated packaging: sleek printed dark edges with subtle satin sheen
+  const boxSide = material({ color: 0x1e2226, roughness: 0.52, metalness: 0.08 });
+  const boxFront = material({ color: 0x16181b, roughness: 0.32, metalness: 0.06 });
+  const boxEdge = material({ color: 0x111315, roughness: 0.6 });
   const accentMaterials = new Map();
   const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
   const boxEdgeGeometry = new THREE.EdgesGeometry(boxGeometry);
@@ -324,29 +323,65 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     record.body.removeFromParent();
   }
 
-  function drawCard(record, image = null) {
+  function drawCard(record, image = null, isBoxImage = false) {
     const { box, context, canvas: card } = record;
-    context.fillStyle = '#f7f2e9';
-    context.fillRect(0, 0, card.width, card.height);
+    const w = card.width;
+    const h = card.height;
+
+    // Dark sleek LEGO packaging base
+    context.fillStyle = '#16181b';
+    context.fillRect(0, 0, w, h);
+
     if (image?.naturalWidth && image?.naturalHeight) {
-      const scale = Math.min(470 / image.naturalWidth, 330 / image.naturalHeight);
-      const width = image.naturalWidth * scale;
-      const height = image.naturalHeight * scale;
-      context.drawImage(image, (512 - width) / 2, 8 + (330 - height) / 2, width, height);
+      if (isBoxImage) {
+        // Authentic box packaging image: fills the carton face cleanly!
+        const boxAspect = box.boxWidth / box.boxHeight;
+        const imgAspect = image.naturalWidth / image.naturalHeight;
+        if (Math.abs(boxAspect - imgAspect) / boxAspect < 0.15) {
+          // Close aspect: fill edge-to-edge
+          context.drawImage(image, 0, 0, w, h);
+        } else if (imgAspect > boxAspect) {
+          // Wider image: center vertically with dark packaging letterbox
+          const drawH = Math.round(w / imgAspect);
+          const offsetY = Math.round((h - drawH) / 2);
+          context.drawImage(image, 0, offsetY, w, drawH);
+        } else {
+          // Taller image: center horizontally with dark packaging pillarbox
+          const drawW = Math.round(h * imgAspect);
+          const offsetX = Math.round((w - drawW) / 2);
+          context.drawImage(image, offsetX, 0, drawW, h);
+        }
+      } else {
+        // Fallback: product/model build photo on a stylish LEGO-style carton layout
+        const scale = Math.min((w - 48) / image.naturalWidth, (h - 100) / image.naturalHeight);
+        const imgW = image.naturalWidth * scale;
+        const imgH = image.naturalHeight * scale;
+        const imgX = (w - imgW) / 2;
+        const imgY = 24 + (h - 100 - imgH) / 2;
+        context.drawImage(image, imgX, imgY, imgW, imgH);
+
+        // Sleek dark lower badge with set metadata
+        context.fillStyle = '#212529';
+        context.fillRect(0, h - 72, w, 72);
+        context.fillStyle = '#f0f3f6';
+        context.font = '700 24px system-ui, sans-serif';
+        context.textAlign = 'left';
+        context.fillText(shorten(context, box.name, w - 40), 20, h - 38);
+        context.font = '600 18px system-ui, sans-serif';
+        context.fillStyle = '#9ca3af';
+        const facts = [box.set_num, box.year ? String(box.year) : ''].filter(Boolean).join('  ·  ');
+        context.fillText(shorten(context, facts, w - 40), 20, h - 14);
+      }
     } else {
-      context.fillStyle = '#dfd4c3';
-      context.fillRect(35, 35, 442, 270);
-      context.fillStyle = '#9b6044';
-      for (let column = 0; column < 4; column++) context.fillRect(118 + column * 71, 105 + (column % 2) * 42, 55, 55);
+      context.fillStyle = '#22262a';
+      context.fillRect(20, 20, w - 40, h - 40);
+      context.fillStyle = '#9ca3af';
+      context.font = '600 24px system-ui, sans-serif';
+      context.textAlign = 'center';
+      context.fillText(shorten(context, box.name, w - 60), w / 2, h / 2);
+      context.font = '500 18px system-ui, sans-serif';
+      context.fillText(box.set_num, w / 2, h / 2 + 32);
     }
-    context.fillStyle = '#30261f';
-    context.font = '700 30px system-ui, sans-serif';
-    context.textAlign = 'left';
-    context.fillText(shorten(context, box.name, 470), 21, 374);
-    context.font = '600 22px system-ui, sans-serif';
-    context.fillStyle = '#6d5140';
-    const facts = [box.set_num, box.year].filter(Boolean).join('  ·  ');
-    context.fillText(shorten(context, facts, 470), 21, 407);
     record.texture.needsUpdate = true;
   }
 
@@ -354,29 +389,50 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     if (record.texture) return;
     const card = document.createElement('canvas');
     card.width = 512;
-    card.height = 432;
+    card.height = 512;
     const context = card.getContext('2d');
     if (!context) return;
     const texture = new THREE.CanvasTexture(card);
     texture.colorSpace = THREE.SRGBColorSpace;
-    const frontMaterial = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.72 });
+    const frontMaterial = new THREE.MeshStandardMaterial({
+      map: texture,
+      roughness: 0.28,
+      metalness: 0.06,
+    });
     record.canvas = card;
     record.context = context;
     record.frontMaterial = frontMaterial;
     record.texture = texture;
     record.body.material[record.frontIndex] = frontMaterial;
     drawCard(record);
-    if (record.box.image_url) {
+
+    const boxUrl = record.box.box_image_url;
+    const modelUrl = record.box.image_url;
+    const primaryUrl = boxUrl || modelUrl;
+
+    if (primaryUrl) {
       const image = new Image();
       record.image = image;
       image.crossOrigin = 'anonymous';
       image.onload = () => {
         if (destroyed || residentBoxes.get(record.box.index) !== record) return;
-        drawCard(record, image);
+        drawCard(record, image, Boolean(boxUrl));
         requestTextureRender();
       };
-      image.onerror = () => {};
-      image.src = record.box.image_url;
+      image.onerror = () => {
+        if (boxUrl && modelUrl && boxUrl !== modelUrl) {
+          const fallback = new Image();
+          record.image = fallback;
+          fallback.crossOrigin = 'anonymous';
+          fallback.onload = () => {
+            if (destroyed || residentBoxes.get(record.box.index) !== record) return;
+            drawCard(record, fallback, false);
+            requestTextureRender();
+          };
+          fallback.src = modelUrl;
+        }
+      };
+      image.src = primaryUrl;
     }
   }
 

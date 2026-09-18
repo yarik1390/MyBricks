@@ -18,6 +18,7 @@
 export const ALLOWED_IMG_HOSTS = new Set<string>([
   'cdn.rebrickable.com',
   'images.brickset.com',
+  'img.bricklink.com',
 ]);
 
 // Stable R2 object key for a source image URL. Normalizes via URL.toString()
