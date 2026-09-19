@@ -119,6 +119,127 @@ function bricksetImageUrls(value) {
   }
 }
 
+const CALIBRATED_FRONT_QUADS = Object.freeze({
+  '76419-1': [[0.1464, 0.4326], [0.7536, 0.213], [0.8609, 0.6304], [0.2609, 0.8587]],
+  '75258-1': [[0.0986, 0.1831], [0.7884, 0.0901], [0.9043, 0.8023], [0.213, 0.9012]],
+  '10179-1': [[0.0449, 0.0508], [0.9551, 0.0938], [0.9551, 0.9414], [0.0449, 0.8945]],
+  '4000020-1': [[0.0493, 0.0615], [0.9493, 0.0615], [0.9493, 0.9345], [0.0493, 0.9345]],
+});
+
+export function getBoxFrontQuad(setNum) {
+  const key = canonicalSetNum(setNum);
+  return CALIBRATED_FRONT_QUADS[key] || null;
+}
+
+export function solveLinear8x8(A, B) {
+  const n = 8;
+  const M = A.map((row, i) => [...row, B[i]]);
+  for (let i = 0; i < n; i++) {
+    let maxRow = i;
+    for (let r = i + 1; r < n; r++) {
+      if (Math.abs(M[r][i]) > Math.abs(M[maxRow][i])) maxRow = r;
+    }
+    const temp = M[i];
+    M[i] = M[maxRow];
+    M[maxRow] = temp;
+    const pivot = M[i][i];
+    if (Math.abs(pivot) < 1e-10) continue;
+    for (let j = i; j <= n; j++) M[i][j] /= pivot;
+    for (let r = 0; r < n; r++) {
+      if (r !== i) {
+        const factor = M[r][i];
+        for (let j = i; j <= n; j++) M[r][j] -= factor * M[i][j];
+      }
+    }
+  }
+  return M.map(row => row[n]);
+}
+
+export function unwarpQuadToCanvas(srcImage, normQuad, targetCanvas) {
+  if (!srcImage || !targetCanvas || !Array.isArray(normQuad) || normQuad.length !== 4) return false;
+  const srcW = srcImage.naturalWidth || srcImage.width;
+  const srcH = srcImage.naturalHeight || srcImage.height;
+  const dstW = targetCanvas.width;
+  const dstH = targetCanvas.height;
+  if (!srcW || !srcH || !dstW || !dstH) return false;
+
+  const offscreen = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+  if (!offscreen) return false;
+  offscreen.width = srcW;
+  offscreen.height = srcH;
+  const offCtx = offscreen.getContext('2d', { willReadFrequently: true });
+  if (!offCtx) return false;
+  offCtx.drawImage(srcImage, 0, 0);
+
+  let srcImageData;
+  try {
+    srcImageData = offCtx.getImageData(0, 0, srcW, srcH);
+  } catch {
+    return false;
+  }
+  const srcPixels = srcImageData.data;
+
+  const srcQuad = normQuad.map(([nx, ny]) => [nx * srcW, ny * srcH]);
+  const dstQuad = [[0, 0], [dstW, 0], [dstW, dstH], [0, dstH]];
+
+  const A = [];
+  const B = [];
+  for (let i = 0; i < 4; i++) {
+    const [x, y] = dstQuad[i];
+    const [u, v] = srcQuad[i];
+    A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]);
+    B.push(u);
+    A.push([0, 0, 0, x, y, 1, -v * x, -v * y]);
+    B.push(v);
+  }
+
+  const coeffs = solveLinear8x8(A, B);
+  const [c0, c1, c2, c3, c4, c5, c6, c7] = coeffs;
+
+  const targetCtx = targetCanvas.getContext('2d');
+  if (!targetCtx) return false;
+  const targetImageData = targetCtx.createImageData(dstW, dstH);
+  const dstPixels = targetImageData.data;
+
+  for (let dy = 0; dy < dstH; dy++) {
+    const dyOffset = dy * dstW * 4;
+    for (let dx = 0; dx < dstW; dx++) {
+      const denom = c6 * dx + c7 * dy + 1;
+      if (Math.abs(denom) < 1e-10) continue;
+      const su = (c0 * dx + c1 * dy + c2) / denom;
+      const sv = (c3 * dx + c4 * dy + c5) / denom;
+
+      const u0 = Math.floor(su);
+      const v0 = Math.floor(sv);
+      const u1 = u0 + 1;
+      const v1 = v0 + 1;
+
+      if (u0 >= 0 && u1 < srcW && v0 >= 0 && v1 < srcH) {
+        const fu = su - u0;
+        const fv = sv - v0;
+        const w00 = (1 - fu) * (1 - fv);
+        const w10 = fu * (1 - fv);
+        const w01 = (1 - fu) * fv;
+        const w11 = fu * fv;
+
+        const idx00 = (v0 * srcW + u0) * 4;
+        const idx10 = (v0 * srcW + u1) * 4;
+        const idx01 = (v1 * srcW + u0) * 4;
+        const idx11 = (v1 * srcW + u1) * 4;
+
+        const outIdx = dyOffset + dx * 4;
+        dstPixels[outIdx]     = w00 * srcPixels[idx00]     + w10 * srcPixels[idx10]     + w01 * srcPixels[idx01]     + w11 * srcPixels[idx11];
+        dstPixels[outIdx + 1] = w00 * srcPixels[idx00 + 1] + w10 * srcPixels[idx10 + 1] + w01 * srcPixels[idx01 + 1] + w11 * srcPixels[idx11 + 1];
+        dstPixels[outIdx + 2] = w00 * srcPixels[idx00 + 2] + w10 * srcPixels[idx10 + 2] + w01 * srcPixels[idx01 + 2] + w11 * srcPixels[idx11 + 2];
+        dstPixels[outIdx + 3] = 255;
+      }
+    }
+  }
+
+  targetCtx.putImageData(targetImageData, 0, 0);
+  return true;
+}
+
 export function classifyBoxArtworkUrl(value, { packaging = true } = {}) {
   const url = roomImageUrl(value);
   if (!url) return '';

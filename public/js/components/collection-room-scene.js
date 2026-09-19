@@ -4,10 +4,12 @@ import {
   ROOM_TEXTURE_LIMIT,
   boxArtworkPresentation,
   createRoomLayout,
+  getBoxFrontQuad,
   moveRoomPose,
   normalizeRoomPose,
   roomPoseForSet,
   selectRoomResidents,
+  unwarpQuadToCanvas,
 } from '../lib/collection-room.js';
 
 const DOOR_INTRO_DURATION_MS = 3600;
@@ -334,24 +336,31 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     context.fillRect(0, 0, w, h);
 
     if (image?.naturalWidth && image?.naturalHeight) {
-      const artwork = boxArtworkPresentation(box);
+      const quad = getBoxFrontQuad(box.set_num);
+      let unwarped = false;
+      if (quad) {
+        unwarped = unwarpQuadToCanvas(image, quad, card);
+      }
 
-      if (artwork.kind === 'flat-package-face') {
-        const scale = Math.min(w / image.naturalWidth, h / image.naturalHeight);
-        const imgW = Math.round(image.naturalWidth * scale);
-        const imgH = Math.round(image.naturalHeight * scale);
-        context.drawImage(image, Math.round((w - imgW) / 2), Math.round((h - imgH) / 2), imgW, imgH);
-      } else {
-        // Preserve catalog photography as photography. Without validated source
-        // corners, do not stretch an angled package or product image into a
-        // purported flat box face, and do not invent branded package artwork.
-        const pad = 18;
-        const scale = Math.min((w - pad * 2) / image.naturalWidth, (h - pad * 2) / image.naturalHeight);
-        const imgW = Math.round(image.naturalWidth * scale);
-        const imgH = Math.round(image.naturalHeight * scale);
-        const imgX = Math.round((w - imgW) / 2);
-        const imgY = Math.round((h - imgH) / 2);
-        context.drawImage(image, imgX, imgY, imgW, imgH);
+      if (!unwarped) {
+        const artwork = boxArtworkPresentation(box);
+        if (artwork.kind === 'flat-package-face') {
+          const scale = Math.min(w / image.naturalWidth, h / image.naturalHeight);
+          const imgW = Math.round(image.naturalWidth * scale);
+          const imgH = Math.round(image.naturalHeight * scale);
+          context.drawImage(image, Math.round((w - imgW) / 2), Math.round((h - imgH) / 2), imgW, imgH);
+        } else {
+          // Preserve catalog photography as photography. Without validated source
+          // corners, do not stretch an angled package or product image into a
+          // purported flat box face, and do not invent branded package artwork.
+          const pad = 18;
+          const scale = Math.min((w - pad * 2) / image.naturalWidth, (h - pad * 2) / image.naturalHeight);
+          const imgW = Math.round(image.naturalWidth * scale);
+          const imgH = Math.round(image.naturalHeight * scale);
+          const imgX = Math.round((w - imgW) / 2);
+          const imgY = Math.round((h - imgH) / 2);
+          context.drawImage(image, imgX, imgY, imgW, imgH);
+        }
       }
     } else {
       context.fillStyle = '#1c2025';

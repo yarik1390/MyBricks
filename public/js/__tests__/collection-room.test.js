@@ -12,6 +12,9 @@ import {
   roomImageUrl,
   roomPoseForSet,
   selectRoomResidents,
+  getBoxFrontQuad,
+  solveLinear8x8,
+  unwarpQuadToCanvas,
 } from '../lib/collection-room.js';
 
 test('room geometry keeps cartons proportional to shelf bays and standing eye height', () => {
@@ -90,6 +93,36 @@ test('shelf and inspect share the catalog artwork classification and contain map
   });
 });
 
+test('homography unwarping solves linear systems and exposes calibrated packaging quads', () => {
+  assert.ok(getBoxFrontQuad('76419-1'));
+  assert.ok(getBoxFrontQuad('75258-1'));
+  assert.ok(getBoxFrontQuad('10179-1'));
+  assert.ok(getBoxFrontQuad('4000020-1'));
+  assert.equal(getBoxFrontQuad('99999-1'), null);
+
+  // Identity mapping check on 8x8 linear system:
+  // mapping [0,0]->[0,0], [1,0]->[1,0], [1,1]->[1,1], [0,1]->[0,1]
+  const pts = [[0, 0], [1, 0], [1, 1], [0, 1]];
+  const A = [];
+  const B = [];
+  for (let i = 0; i < 4; i++) {
+    const [x, y] = pts[i];
+    const [u, v] = pts[i];
+    A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]);
+    B.push(u);
+    A.push([0, 0, 0, x, y, 1, -v * x, -v * y]);
+    B.push(v);
+  }
+  const coeffs = solveLinear8x8(A, B);
+  assert.equal(coeffs.length, 8);
+  assert.ok(Math.abs(coeffs[0] - 1) < 1e-4); // c0 ≈ 1
+  assert.ok(Math.abs(coeffs[4] - 1) < 1e-4); // c4 ≈ 1
+  assert.ok(Math.abs(coeffs[2]) < 1e-4);      // c2 ≈ 0
+  assert.ok(Math.abs(coeffs[5]) < 1e-4);      // c5 ≈ 0
+
+  // Gracefully handles non-canvas environment or invalid inputs
+  assert.equal(unwarpQuadToCanvas(null, null, null), false);
+});
 test('image URLs exclude active schemes, credentials and ambiguous relative URLs', () => {
   for (const value of [
     'javascript:alert(1)', 'data:image/svg+xml,x', '//external/image', '/\\external/image',

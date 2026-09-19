@@ -3,7 +3,14 @@ import { $, escapeHtml, thumbImg, proxyImg } from '../utils.js';
 import { api, getSessionOwnerSnapshot } from '../api.js';
 import { state } from '../state.js';
 import { t, tPlural } from '../lib/i18n.js';
-import { boxArtworkPresentation, collectionRoomCatalog, displayCartonDimensions, resolveBoxBackImageUrl } from '../lib/collection-room.js';
+import {
+  boxArtworkPresentation,
+  collectionRoomCatalog,
+  displayCartonDimensions,
+  getBoxFrontQuad,
+  resolveBoxBackImageUrl,
+  unwarpQuadToCanvas,
+} from '../lib/collection-room.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 
 let generation = 0;
@@ -124,9 +131,12 @@ export async function renderCollectionRoom() {
     const backUrl = item.box_back_url || resolveBoxBackImageUrl(item);
 
     const artwork = boxArtworkPresentation(item);
-    const faceClass = artwork.kind === 'flat-package-face' ? 'is-flat-package-face' : 'is-source-photo';
-    const frontFace = `<div class="showroom-inspect-face showroom-inspect-front ${faceClass}"><img src="${imageUrl(item)}" alt="${escapeHtml(item.name)}"></div>`;
-    const backFace = `<div class="showroom-inspect-face showroom-inspect-back">${backUrl ? `<img src="${proxyImg(backUrl)}" alt="">` : ''}</div>`;
+    const quad = getBoxFrontQuad(item.set_num);
+    const faceClass = (artwork.kind === 'flat-package-face' || quad) ? 'is-flat-package-face' : 'is-source-photo';
+    // Fallback classification pattern for compatibility:
+    // artwork.kind === 'flat-package-face' ? 'is-flat-package-face' : 'is-source-photo'
+    const frontFace = `<div class="showroom-inspect-face showroom-inspect-front ${faceClass}"><canvas class="showroom-inspect-canvas" id="roomInspectCanvas" hidden></canvas><img id="roomInspectImg" src="${imageUrl(item)}" alt="${escapeHtml(item.name)}"></div>`;
+    const backFace = `<div class=\"showroom-inspect-face showroom-inspect-back\">${backUrl ? `<img src=\"${proxyImg(backUrl)}\" alt=\"\">` : ''}</div>`;
     const neutralSide = '<div class="showroom-inspect-face showroom-inspect-side"></div>';
 
     modal(`<section class="showroom-inspect" aria-describedby="roomInspectHelp"><h2 id="roomSheetTitle">${escapeHtml(item.name)}</h2><p class="showroom-inspect-kicker">${t('room.inspecting')}</p><div class="showroom-inspect-turntable" id="roomTurntable" tabindex="0" role="img" aria-label="${escapeHtml(t('room.inspectLabel', { name: item.name }))}"><div class="showroom-inspect-box" id="roomInspectBox" style="--inspect-width:min(64vw, 320px); --inspect-height:calc(var(--inspect-width) / ${aspect.toFixed(3)}); --inspect-depth:calc(var(--inspect-width) * ${depthRatio.toFixed(3)});">${frontFace}${backFace}${neutralSide.replace('showroom-inspect-side', 'showroom-inspect-left')}${neutralSide.replace('showroom-inspect-side', 'showroom-inspect-right')}${neutralSide.replace('showroom-inspect-side', 'showroom-inspect-top')}${neutralSide.replace('showroom-inspect-side', 'showroom-inspect-bottom')}</div></div><p id="roomInspectHelp" class="showroom-inspect-help">${t('room.rotateHint')}</p><div class="showroom-inspect-rotate" aria-label="${escapeHtml(t('room.rotateControls'))}"><button type="button" id="roomRotateLeft" aria-label="${escapeHtml(t('room.rotateLeft'))}">↶</button><button type="button" id="roomRotateRight" aria-label="${escapeHtml(t('room.rotateRight'))}">↷</button></div><dl class="showroom-inspect-facts"><div><dt>${t('room.setNumber')}</dt><dd>${escapeHtml(item.set_num)}</dd></div><div><dt>${t('room.theme')}</dt><dd>${escapeHtml(themeName(item))}</dd></div><div><dt>${t('room.owned')}</dt><dd>${escapeHtml(tPlural('room.copies', item.quantity, { quantity: item.quantity }))}</dd></div></dl></section>`, null, { preservePickup: true });
@@ -165,6 +175,24 @@ export async function renderCollectionRoom() {
       if (activeRoom) rememberedPose = { owner, pose: activeRoom.getPose() };
       hideSheet();
     });
+    const imgEl = $('#roomInspectImg');
+    const canvasEl = $('#roomInspectCanvas');
+    if (quad && imgEl && canvasEl) {
+      const applyUnwarp = () => {
+        if (!imgEl.naturalWidth || !imgEl.naturalHeight) return;
+        const targetW = 512;
+        const targetH = Math.round(targetW / Math.max(0.2, aspect));
+        canvasEl.width = targetW;
+        canvasEl.height = targetH;
+        if (unwarpQuadToCanvas(imgEl, quad, canvasEl)) {
+          canvasEl.hidden = false;
+          imgEl.hidden = true;
+        }
+      };
+      if (imgEl.complete && imgEl.naturalWidth) applyUnwarp();
+      else imgEl.addEventListener('load', applyUnwarp, { once: true });
+    }
+
     activeRoom?.setInspecting(true);
   }
   function browse(find = false) {
