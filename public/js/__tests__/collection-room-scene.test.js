@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../components/collection-room-scene.js', import.meta.url), 'utf8');
+const viewSource = readFileSync(new URL('../views/collection-room.js', import.meta.url), 'utf8');
 
 test('room scene keeps physical surfaces and mobile aisle lighting readable', () => {
   assert.match(source, /toneMappingExposure = 1\.38/);
@@ -12,6 +13,19 @@ test('room scene keeps physical surfaces and mobile aisle lighting readable', ()
   assert.match(source, /const shelfSteel = material\(\{ color: 0x5c686e/);
   assert.match(source, /new THREE\.CanvasTexture\(card\)/);
   assert.match(source, /const frontMaterial = new THREE\.MeshStandardMaterial\(\{[\s\S]*?map: texture,[\s\S]*?roughness: 0\.28/);
+});
+
+test('room scene shares box artwork classification and preserves source photography', () => {
+  assert.match(source, /boxArtworkPresentation/);
+  assert.match(source, /artwork\.kind === 'flat-package-face'/);
+  assert.match(source, /Math\.min\(\(w - pad \* 2\) \/ image\.naturalWidth, \(h - pad \* 2\) \/ image\.naturalHeight\)/);
+  assert.doesNotMatch(source, /!\/ItemImage\\\/ON\\\/0/);
+  assert.doesNotMatch(source, /Authentic LEGO Collector Edition packaging design/);
+  assert.doesNotMatch(source, /Official LEGO logo emblem/);
+  assert.doesNotMatch(source, /drawLegoSquare/);
+  assert.match(viewSource, /const artwork = boxArtworkPresentation\(item\)/);
+  assert.match(viewSource, /artwork\.kind === 'flat-package-face' \? 'is-flat-package-face' : 'is-source-photo'/);
+  assert.doesNotMatch(viewSource, /Official Licensed Product|LEGO System A\/S|inspect-lego-badge/);
 });
 
 test('room entry uses a finite native door animation without changing the saved pose', () => {

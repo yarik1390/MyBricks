@@ -4862,12 +4862,6 @@
     ]
   },
   {
-    "text": "LEGO System A/S · DK-7190 Billund",
-    "files": [
-      "views/collection-room.js"
-    ]
-  },
-  {
     "text": "LIMIT REACHED",
     "files": [
       "runtime-exact"
@@ -6498,12 +6492,6 @@
     ]
   },
   {
-    "text": "Official Licensed Product",
-    "files": [
-      "views/collection-room.js"
-    ]
-  },
-  {
     "text": "Official sets you can build from owned parts, ranked by completion.",
     "files": [
       "views/build.js"
@@ -6844,12 +6832,6 @@
     "text": "Ownership",
     "files": [
       "views/minifigs.js"
-    ]
-  },
-  {
-    "text": "PIECES",
-    "files": [
-      "views/collection-room.js"
     ]
   },
   {
@@ -8680,12 +8662,6 @@
     "text": "S&P 500 comparison + allocation by theme",
     "files": [
       "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "SET",
-    "files": [
-      "views/collection-room.js"
     ]
   },
   {
@@ -11522,12 +11498,6 @@
     "text": "Wrong image",
     "files": [
       "components/contribute.js"
-    ]
-  },
-  {
-    "text": "YEAR",
-    "files": [
-      "views/collection-room.js"
     ]
   },
   {

@@ -108,37 +108,65 @@ export function displayCartonDimensions(item) {
   };
 }
 
-export function resolveBoxImageUrl(row) {
-  if (!row) return '';
-  if (typeof row.box_image_url === 'string' && row.box_image_url) {
-    return roomImageUrl(row.box_image_url);
+const BOX_ARTWORK_KINDS = new Set(['flat-package-face', 'package-photo', 'product-image', 'composite']);
+
+function bricksetImageUrls(value) {
+  try {
+    const urls = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(urls) ? urls.map(roomImageUrl).filter(Boolean) : [];
+  } catch {
+    return [];
   }
-  if (row.brickset_image_urls) {
-    try {
-      const urls = typeof row.brickset_image_urls === 'string' ? JSON.parse(row.brickset_image_urls) : row.brickset_image_urls;
-      if (Array.isArray(urls)) {
-        const match = urls.find(u => typeof u === 'string' && /(box_front|boxfront|_front\b)/i.test(u));
-        if (match) return roomImageUrl(match);
-      }
-    } catch {}
+}
+
+export function classifyBoxArtworkUrl(value, { packaging = true } = {}) {
+  const url = roomImageUrl(value);
+  if (!url) return '';
+  if (/boxprod/i.test(url)) return 'composite';
+  if (!packaging) return 'product-image';
+  if (/(?:box[_-]?front|boxfront|[_-]front)(?:[._-]|$)/i.test(url)) return 'flat-package-face';
+  // BrickLink ON and Brickset box photographs are useful packaging evidence,
+  // but they are commonly angled. They must not be stretched or described as
+  // a normalized front face without source-provided corner metadata.
+  return 'package-photo';
+}
+
+export function boxArtworkPresentation(row, { useProductFallback = true } = {}) {
+  if (!row) return { url: '', kind: '', fit: 'contain' };
+  const boxUrl = roomImageUrl(row.box_image_url);
+  const declaredKind = BOX_ARTWORK_KINDS.has(row.box_image_kind) ? row.box_image_kind : '';
+  const classifiedKind = classifyBoxArtworkUrl(boxUrl);
+  if (boxUrl && classifiedKind !== 'composite' && declaredKind !== 'composite') {
+    return { url: boxUrl, kind: declaredKind || classifiedKind, fit: 'contain' };
   }
+  const productUrl = useProductFallback ? roomImageUrl(row.image_url) : '';
+  return { url: productUrl, kind: productUrl ? 'product-image' : '', fit: 'contain' };
+}
+
+export function resolveBoxArtwork(row) {
+  if (!row) return { url: '', kind: '' };
+  const explicitUrl = roomImageUrl(row.box_image_url);
+  const explicitKind = classifyBoxArtworkUrl(explicitUrl);
+  if (explicitUrl && explicitKind !== 'composite') return { url: explicitUrl, kind: explicitKind };
+
+  const additional = bricksetImageUrls(row.brickset_image_urls);
+  const flatFace = additional.find(url => classifyBoxArtworkUrl(url) === 'flat-package-face');
+  if (flatFace) return { url: flatFace, kind: 'flat-package-face' };
+
+  // boxprod assets are composites (typically a model render plus a small box),
+  // not package faces. Prefer an actual box photograph, otherwise use the
+  // existing BrickLink packaging photo fallback.
+  const boxPhoto = additional.find(url => classifyBoxArtworkUrl(url) === 'package-photo' && /(?:box1|[_-]box(?:[._-]|$))/i.test(url));
+  if (boxPhoto) return { url: boxPhoto, kind: 'package-photo' };
+
   const setNum = canonicalSetNum(row.set_num);
-  if (setNum) {
-    if (['10179-1', '4000020-1'].includes(setNum)) {
-      return `https://images.brickset.com/sets/images/${setNum}.jpg`;
-    }
-    if (row.brickset_image_urls) {
-      try {
-        const urls = typeof row.brickset_image_urls === 'string' ? JSON.parse(row.brickset_image_urls) : row.brickset_image_urls;
-        if (Array.isArray(urls)) {
-          const match = urls.find(u => typeof u === 'string' && /(box1|boxprod|_box\b|_Box\b)/i.test(u));
-          if (match) return roomImageUrl(match);
-        }
-      } catch {}
-    }
-    return `https://img.bricklink.com/ItemImage/ON/0/${setNum}.png`;
-  }
-  return roomImageUrl(row.image_url);
+  if (setNum) return { url: `https://img.bricklink.com/ItemImage/ON/0/${setNum}.png`, kind: 'package-photo' };
+  const productUrl = roomImageUrl(row.image_url);
+  return { url: productUrl, kind: productUrl ? 'product-image' : '' };
+}
+
+export function resolveBoxImageUrl(row) {
+  return resolveBoxArtwork(row).url;
 }
 
 export function resolveBoxBackImageUrl(row) {
@@ -171,12 +199,14 @@ export function collectionRoomCatalog(holdings = []) {
       if (Number.isSafeInteger(combinedQuantity)) existing.quantity = combinedQuantity;
       continue;
     }
+    const artwork = resolveBoxArtwork(row);
     const item = {
       set_num: setNum,
       name: typeof row.name === 'string' && row.name.trim() ? row.name.trim() : setNum,
       theme: typeof row.theme === 'string' ? row.theme.trim() : '',
       image_url: roomImageUrl(row.image_url),
-      box_image_url: resolveBoxImageUrl(row),
+      box_image_url: artwork.url,
+      box_image_kind: artwork.kind,
       packaging_type: typeof row.packaging_type === 'string' ? row.packaging_type.trim() : '',
       quantity,
     };

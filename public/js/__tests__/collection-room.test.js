@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ROOM_LAYOUT,
+  boxArtworkPresentation,
+  classifyBoxArtworkUrl,
   collectionRoomCatalog,
   createRoomLayout,
   isRoomPoseWalkable,
@@ -33,10 +35,59 @@ test('room catalog groups active identities and keeps only safe display facts', 
     null,
   ]);
   assert.deepEqual(rows, [{
-    set_num: '123-1', quantity: 3, name: '<ship>', theme: 'Space', image_url: '', box_image_url: 'https://img.bricklink.com/ItemImage/ON/0/123-1.png', packaging_type: '', year: 2024, pieces: 810,
+    set_num: '123-1', quantity: 3, name: '<ship>', theme: 'Space', image_url: '', box_image_url: 'https://img.bricklink.com/ItemImage/ON/0/123-1.png', box_image_kind: 'package-photo', packaging_type: '', year: 2024, pieces: 810,
   }]);
   assert.equal(JSON.stringify(rows).includes('private'), false);
   assert.equal(JSON.stringify(rows).includes('owner'), false);
+});
+
+test('box artwork rejects boxprod composites and classifies only explicit front assets as flat', () => {
+  const row = collectionRoomCatalog([{
+    set_num: '72537-1',
+    name: 'Composite regression',
+    quantity: 1,
+    image_url: 'https://images.example/72537-model.png',
+    brickset_image_urls: JSON.stringify([
+      'https://images.brickset.com/sets/AdditionalImages/72537-1/72537_boxprod_v39.jpg',
+      'https://images.brickset.com/sets/AdditionalImages/72537-1/72537_box1_na.jpg',
+    ]),
+  }])[0];
+  assert.equal(row.box_image_url, 'https://images.brickset.com/sets/AdditionalImages/72537-1/72537_box1_na.jpg');
+  assert.equal(row.box_image_kind, 'package-photo');
+  assert.equal(classifyBoxArtworkUrl('https://images.example/72537_boxprod_v39.jpg'), 'composite');
+  assert.equal(classifyBoxArtworkUrl('https://images.example/72537_box_front.jpg'), 'flat-package-face');
+  assert.equal(classifyBoxArtworkUrl('https://images.example/not-bricklink.jpg'), 'package-photo');
+});
+
+test('shelf and inspect share the catalog artwork classification and contain mapping', () => {
+  const [item] = collectionRoomCatalog([{
+    set_num: '21061-1',
+    name: 'Angled carton',
+    quantity: 1,
+    image_url: 'https://images.example/model.png',
+  }]);
+  assert.deepEqual(boxArtworkPresentation(item), {
+    url: 'https://img.bricklink.com/ItemImage/ON/0/21061-1.png',
+    kind: 'package-photo',
+    fit: 'contain',
+  });
+  assert.deepEqual(boxArtworkPresentation({
+    box_image_url: 'https://images.example/composite_boxprod.jpg',
+    image_url: 'https://images.example/model.png',
+  }), {
+    url: 'https://images.example/model.png',
+    kind: 'product-image',
+    fit: 'contain',
+  });
+  assert.deepEqual(boxArtworkPresentation({
+    box_image_url: 'https://images.example/unlabelled.jpg',
+    box_image_kind: 'composite',
+    image_url: 'https://images.example/model.png',
+  }), {
+    url: 'https://images.example/model.png',
+    kind: 'product-image',
+    fit: 'contain',
+  });
 });
 
 test('image URLs exclude active schemes, credentials and ambiguous relative URLs', () => {
