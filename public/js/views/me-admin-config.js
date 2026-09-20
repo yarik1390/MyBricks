@@ -147,6 +147,17 @@ export const ADMIN_JOB_TOOLS = {
     quota: 'Spends BrickPicker API quota (1,000/day hard limit).',
     icon: I.refresh({ w: 16 }),
   },
+  pricechartingLinks: {
+    url: '/api/admin/jobs/pricecharting-link-backfill?limit=50',
+    method: 'POST',
+    body: {},
+    label: 'Resolve PriceCharting links',
+    desc: 'Finds the real PriceCharting product id for sets stuck on a synthetic legacy mapping, so attribution can render the direct product link the licence is conditioned on.',
+    source: 'PriceCharting',
+    duration: 'Up to ~60s for 50 sets',
+    quota: 'Spends PriceCharting API quota (500/day cap); a daily 14:00 cron drains 150 sets on its own.',
+    icon: I.refresh({ w: 16 }),
+  },
 };
 
 export const MAINTENANCE_TOOLS = {

@@ -5,6 +5,7 @@ import app from './index';
 import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
 import { USER_SCOPED_TABLES } from './routes/me';
 import { recomputeBlendedValues } from './lib/market-sources';
+import { applyTestTables } from './test-schema';
 
 declare module 'cloudflare:test' {
   interface ProvidedEnv {
@@ -2473,6 +2474,9 @@ describe('RevenueCat webhook', () => {
       brickset_user_hash TEXT, is_supporter INTEGER DEFAULT 0, supporter_since TEXT,
       stripe_customer_id TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`).run();
+    // Partner revenue meter (lib/partner-revenue.ts) writes here on every event.
+    await db.prepare('DROP TABLE IF EXISTS partner_revenue_events').run();
+    await applyTestTables(db, ['partner_revenue_events']);
   });
 
   const post = (evType: string, auth: string | null = AUTH) =>
@@ -2513,6 +2517,20 @@ describe('RevenueCat webhook', () => {
   it('503s when the webhook secret is not configured', async () => {
     delete (env as any).REVENUECAT_WEBHOOK_AUTH;
     expect((await post('INITIAL_PURCHASE')).status).toBe(503);
+  });
+
+  it('records the purchase amount for the commercial-agreement meter', async () => {
+    const res = await app.fetch(new Request('http://localhost/api/revenuecat/webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: AUTH },
+      body: JSON.stringify({
+        event: { type: 'INITIAL_PURCHASE', app_user_id: uid, id: 'evt-1', product_id: 'supporter_monthly', price: 4.99, currency: 'USD' },
+      }),
+    }), env);
+    expect(res.status).toBe(200);
+    const row = await db.prepare('SELECT event_id, amount, currency, product_id FROM partner_revenue_events')
+      .first<{ event_id: string; amount: number; currency: string; product_id: string }>();
+    expect(row).toMatchObject({ event_id: 'evt-1', amount: 4.99, currency: 'USD', product_id: 'supporter_monthly' });
   });
 });
 

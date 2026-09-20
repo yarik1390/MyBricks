@@ -607,6 +607,17 @@ export const TABLE_DDL: Record<string, string> = {
   updated_at TEXT
 )`,
 
+  partner_revenue_events: `CREATE TABLE IF NOT EXISTS partner_revenue_events (
+  event_id TEXT PRIMARY KEY,
+  user_id TEXT,
+  event_type TEXT NOT NULL,
+  product_id TEXT,
+  amount REAL,
+  currency TEXT,
+  event_at TEXT,
+  recorded_at TEXT DEFAULT CURRENT_TIMESTAMP
+)`,
+
   cron_runs: `CREATE TABLE IF NOT EXISTS cron_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,

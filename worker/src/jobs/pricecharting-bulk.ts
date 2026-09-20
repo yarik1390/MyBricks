@@ -12,9 +12,14 @@ import { sourceEnabled } from '../lib/source-config';
 //   • runPriceChartingBulkFetch — downloads the LEGO-sets price guide directly
 //     from PriceCharting (…/price-guide/download-custom?t=TOKEN&category=lego-sets).
 //     One ~2 MB request covers the whole LEGO catalog (~13k sets) vs thousands of
-//     per-set API calls. Driven by a weekly (Sunday) cron + an admin button. A
-//     full-catalog re-stage + upsert is heavy on D1 rows-written, so it runs
-//     weekly (not daily) and skips unchanged prices (change-only upsert below).
+//     per-set API calls. Driven by the DAILY 04:30 cron + an admin button (this
+//     comment said "weekly (Sunday)" long after the schedule changed; the trigger
+//     in wrangler.toml/index.ts is authoritative). A full-catalog re-stage +
+//     upsert is heavy on D1 rows-written, so unchanged prices are skipped by the
+//     change-only upsert below — which is why a re-confirmed but unchanged price
+//     keeps its original source_observed_at and must not be read as "stale data".
+//     Freshness for these rows is better judged by whether the set is reachable
+//     by the verified join at all (see docs/pricing-partner-compliance.md §3).
 //   • runPriceChartingBulk — same parser for an admin-UPLOADED CSV (PRICECHARTING_PRO).
 //
 // The per-set /api/product path (jobs/pricecharting-enrich.ts) stays as the

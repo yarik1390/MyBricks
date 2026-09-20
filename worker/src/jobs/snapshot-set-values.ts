@@ -23,11 +23,15 @@ const HISTORY_RETENTION_DAYS = 400;
  * prunes ancient rows so the table stays bounded.
  */
 export async function runSnapshotSetValues(env: Env) {
+  // BrickLink's permission covers display of its guide content for at most 24
+  // hours and does not extend to historical retention. bl_value used to carry
+  // the RAW guide figure forever (400-day retention), so it is no longer
+  // written — the column stays for schema compatibility but receives NULL.
   const result = await env.DB.prepare(`
     INSERT INTO set_value_history (set_num, snapshot_date, current_value, ebay_value, bl_value)
     SELECT s.set_num, DATE('now'),
            COALESCE(NULLIF(s.blended_value, 0), s.current_value),
-           COALESCE(s.ebay_new_value, s.ebay_value), s.bl_new_value
+           COALESCE(s.ebay_new_value, s.ebay_value), NULL
     FROM lego_sets s
     WHERE COALESCE(NULLIF(s.blended_value, 0), s.current_value) IS NOT NULL
       AND s.set_num IN (
@@ -46,7 +50,7 @@ export async function runSnapshotSetValues(env: Env) {
     ON CONFLICT (set_num, snapshot_date)
       DO UPDATE SET current_value = EXCLUDED.current_value,
         ebay_value = EXCLUDED.ebay_value,
-        bl_value = EXCLUDED.bl_value
+        bl_value = NULL
   `).bind(CATALOG_SNAPSHOT_TOP_N).run();
 
   let v3Snapshotted = 0;
@@ -118,7 +122,29 @@ export async function runSnapshotSetValues(env: Env) {
     console.warn('[snapshot] history prune failed:', (e as Error).message);
   }
 
-  return { snapshotted: result.meta.changes ?? 0, v3Snapshotted, figSnapshotted, pruned };
+  // One-time compliance purge: rows written before the change above still hold
+  // raw BrickLink guide figures. Guarded by app_settings so it runs once
+  // instead of scanning the table on every nightly snapshot.
+  let purgedGuideRows = 0;
+  try {
+    const marker = await env.DB.prepare(
+      `SELECT value FROM app_settings WHERE key = 'pricing_bl_history_purged'`,
+    ).first<{ value: string }>().catch(() => null);
+    if (marker?.value !== 'done') {
+      const upd = await env.DB.prepare(
+        `UPDATE set_value_history SET bl_value = NULL WHERE bl_value IS NOT NULL`,
+      ).run();
+      purgedGuideRows = (upd.meta.changes as number | undefined) ?? 0;
+      await env.DB.prepare(
+        `INSERT INTO app_settings (key, value, updated_at) VALUES ('pricing_bl_history_purged', 'done', datetime('now'))
+         ON CONFLICT(key) DO UPDATE SET value = 'done', updated_at = datetime('now')`,
+      ).run().catch(() => {});
+    }
+  } catch (e) {
+    console.warn('[snapshot] bricklink history purge failed:', (e as Error).message);
+  }
+
+  return { snapshotted: result.meta.changes ?? 0, v3Snapshotted, figSnapshotted, pruned, purgedGuideRows };
 }
 
 // Day-over-day movers: after the 03:00 snapshot, flag sets whose displayed

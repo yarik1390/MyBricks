@@ -25,8 +25,9 @@ import { spendQuota } from '../lib/api-quota';
  */
 export async function runPriceChartingEnrich(
   env: Env,
-  options: { limit?: number; concurrency?: number } = {},
+  options: { limit?: number; concurrency?: number; linkBackfill?: boolean } = {},
 ): Promise<{ processed: number; updated: number; discovered: number; limit: number; skipped?: string }> {
+  const linkBackfill = options.linkBackfill === true;
   if (!env.PRICECHARTING_TOKEN) {
     return { processed: 0, updated: 0, discovered: 0, limit: 0, skipped: 'PRICECHARTING_TOKEN not set' };
   }
@@ -51,7 +52,27 @@ export async function runPriceChartingEnrich(
   // pc_cached_at those sets stayed pinned to the head of this queue and the job
   // burned 100 calls a day re-asking about ids that cannot exist ("found 0").
   // Treat them as "no id" so discovery by UPC/search can find the real one.
-  const { results } = await env.DB.prepare(`
+  //
+  // Those sets nonetheless carry a pc_cached_at already (the legacy path stamped
+  // it), so the ordinary value-ordered refresh queue never reaches them: they are
+  // the low-value tail behind thousands of fresher, higher-value rows, and 4,937
+  // were still unresolved while 5,222 had never even been attempted. Resolution is
+  // an ATTRIBUTION debt, not a refresh — PriceCharting's permission is conditioned
+  // on a direct product link, which cannot be rendered without a real id — so it
+  // gets its own queue rather than competing on value.
+  const { results } = await env.DB.prepare(linkBackfill ? `
+    SELECT ls.set_num, ls.name, NULL AS pc_id, ls.upc
+    FROM pricing_source_map pm
+    JOIN lego_sets ls ON ls.set_num = pm.set_num
+    LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
+    WHERE pm.source='pricecharting' AND pm.status IN ('verified','manual')
+      AND pm.source_item_id LIKE 'legacy:%'
+      AND ls.pc_id IS NULL
+      AND ls.year >= 2000
+      AND (ext.pc_attempted_at IS NULL OR ext.pc_attempted_at < datetime('now', '-30 days'))
+    ORDER BY COALESCE(NULLIF(ls.blended_value, 0), ls.current_value, 0) DESC, ls.set_num ASC
+    LIMIT ?
+  ` : `
     SELECT ls.set_num, ls.name, pm.source_item_id AS pc_id, ls.upc
     FROM lego_sets ls
     LEFT JOIN pricing_source_map pm

@@ -596,23 +596,33 @@ async function buildSharedSetDetail(
       // a direct product link (/game/<id> 301s to the canonical slug page);
       // legacy:* ids are quarantined history and never link out. One cheap
       // keyed SELECT merged into the existing wave — no migration needed.
+      //
+      // Fallback to lego_sets.pc_id: the enrich job DISCOVERS the real product
+      // id and deletes the synthetic legacy mapping, but a set can also carry a
+      // numeric pc_id with no mapping row left behind. PriceCharting's permission
+      // is conditioned on the direct product link, so a link we already know must
+      // not be dropped for want of a mapping row.
       c.env.DB.prepare(
-        `SELECT source_item_id FROM pricing_source_map
-         WHERE set_num=? AND source='pricecharting'
-           AND status IN ('verified','manual')
-           AND source_item_id NOT LIKE 'legacy:%'
-           AND source_item_id GLOB '[0-9]*'
-           AND source_item_id NOT GLOB '*[^0-9]*'
-         ORDER BY CASE status WHEN 'verified' THEN 0 ELSE 1 END, updated_at DESC
-         LIMIT 1`
-      ).bind(setNum).first<{ source_item_id: string }>().catch(() => null),
+        `SELECT id FROM (
+           SELECT source_item_id AS id, 0 AS pref, updated_at AS ts FROM pricing_source_map
+            WHERE set_num=?1 AND source='pricecharting'
+              AND status IN ('verified','manual')
+              AND source_item_id NOT LIKE 'legacy:%'
+              AND source_item_id GLOB '[0-9]*'
+              AND source_item_id NOT GLOB '*[^0-9]*'
+           UNION ALL
+           SELECT pc_id AS id, 1 AS pref, NULL AS ts FROM lego_sets
+            WHERE set_num=?1 AND pc_id IS NOT NULL
+              AND pc_id GLOB '[0-9]*' AND pc_id NOT GLOB '*[^0-9]*'
+         ) ORDER BY pref, ts DESC LIMIT 1`
+      ).bind(setNum).first<{ id: string }>().catch(() => null),
     ]);
 
     const ext = extRes;
     if (ext) set = { ...set, ...ext };
     // Verified PriceCharting identity rides on the row as a private field the
     // enricher promotes to the public additive field (market-sources.ts).
-    if (pcMapRes?.source_item_id) set.__pricecharting_item_id = pcMapRes.source_item_id;
+    if (pcMapRes?.id) set.__pricecharting_item_id = pcMapRes.id;
     const setMinifigs = setMinifigsRes.results ?? [];
     // Wave 2. Both of these need the user's market and nothing else, so they go
     // together — the Amazon lookup used to wait on the retail offer it is only

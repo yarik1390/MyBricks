@@ -62,6 +62,10 @@ crons = [
   # PriceCharting per-set enrich: verified-mapping identity + sold comps for the
   # highest-value uncovered sets (self-guarded: token gate + 500/day spend cap).
   "0 14 * * *",
+  # PriceCharting link backfill: own slot, because the pricing cron-contract test
+  # asserts the literal `case '0 14 * * *': await run('pricecharting-enrich'` form
+  # and the dispatcher's first statement in a slot must stay greppable.
+  "45 14 * * *",
   "0 15 * * *",
   # BrickEconomy refresh, two extra slots an hour. BrickEconomy is the widest
   # price source in the app (15,154 sets) and 98.8% of it had gone stale on a

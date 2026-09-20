@@ -825,6 +825,7 @@ const PROCESS_TRIGGER = {
   'pricecharting-verify': 'pricechartingVerify',
   'pricecharting-verify-drain': 'pricechartingVerify',
   'pricecharting-enrich': 'pricecharting',
+  'pricecharting-link-backfill': 'pricechartingLinks',
   'brickpicker-enrich': 'brickpicker',
   'ebay-sold-scrape': 'ebaySold',
 };
@@ -867,7 +868,7 @@ function runProcess(name, btn) {
     return;
   }
   if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
-  if (['ebaySold', 'pricecharting', 'brickpicker'].includes(tool)) {
+  if (['ebaySold', 'pricecharting', 'brickpicker', 'pricechartingLinks'].includes(tool)) {
     triggerSyncJob(tool).finally(() => loadActivity());
   } else {
     triggerImport(tool);
@@ -1819,13 +1820,14 @@ async function loadPricingCenter() {
   if (!container) return;
   container.setAttribute('aria-busy', 'true');
   try {
-    const [quality, budget, anomalies, matches] = await Promise.all([
+    const [quality, budget, anomalies, matches, backtest] = await Promise.all([
       api('/api/admin/pricing/quality'),
       api('/api/admin/pricing/budget'),
       api('/api/admin/pricing/anomalies?status=open&limit=25'),
       api('/api/admin/pricing/source-matches?status=quarantined&limit=25'),
+      api('/api/admin/pricing/backtest').catch(() => null),
     ]);
-    pricingCenterData = { quality, budget, anomalies, matches };
+    pricingCenterData = { quality, budget, anomalies, matches, backtest };
     renderPricingCenter();
   } catch (error) {
     container.innerHTML = `
@@ -1866,6 +1868,16 @@ function renderPricingCenter() {
   const container = $('#pricingCenterContainer');
   if (!container || !pricingCenterData) return;
   const { quality = {}, budget = {}, anomalies = {}, matches = {} } = pricingCenterData;
+  const backtest = pricingCenterData.backtest?.backtest || null;
+  // Partner licensing meter. PriceCharting's free-use permission ends at
+  // $1,000/month of app revenue AND is conditioned on prominent attribution with
+  // a direct product link, so both the meter and the link-coverage debt belong on
+  // the same card as the pricing numbers they constrain.
+  const revenue = adminHealth?.partner_revenue || null;
+  const attribution = backtest?.attribution || null;
+  const unlinkedPct = attribution?.sets_with_pc_signal
+    ? Math.round((Number(attribution.sets_without_link || 0) / attribution.sets_with_pc_signal) * 100)
+    : null;
   const states = quality.states || [];
   const valued = states.reduce((sum, row) => sum + Number(row.valued || 0), 0);
   const high = states.filter((row) => row.confidence === 'high').reduce((sum, row) => sum + Number(row.count || 0), 0);
@@ -1897,6 +1909,39 @@ function renderPricingCenter() {
       <strong>Recommended next action</strong>
       <span>${escapeHtml(quality.recommended_action || 'Continue valuation v3 shadow checks.')}</span>
     </div>
+    ${backtest || revenue ? `
+    <div class="admin-partner-panel">
+      <h4>Partner licensing</h4>
+      <div class="admin-pricing-metrics">
+        ${revenue ? pricingMetricHTML(
+          'App revenue (month)',
+          `$${formatCount(Math.round(Number(revenue.revenue_usd || 0)))}`,
+          `Commercial agreement triggers at $${formatCount(revenue.threshold_usd || 1000)}`,
+          revenue.exceeded ? 'danger' : 'ok',
+        ) : ''}
+        ${attribution ? pricingMetricHTML(
+          'PriceCharting direct links',
+          formatCount(Number(attribution.sets_with_pc_signal || 0) - Number(attribution.sets_without_link || 0)),
+          unlinkedPct == null
+            ? 'Sets with a numeric product id'
+            : `${formatCount(attribution.sets_without_link)} sets (${unlinkedPct}%) contribute with no link yet`,
+          unlinkedPct && unlinkedPct > 10 ? 'warn' : 'ok',
+        ) : ''}
+        ${attribution?.pending_legacy_mappings ? pricingMetricHTML(
+          'Pending legacy mappings',
+          formatCount(attribution.pending_legacy_mappings),
+          'Queued for the daily 14:00 link backfill',
+          'warn',
+        ) : ''}
+        ${backtest?.overlap?.n_compare ? pricingMetricHTML(
+          'PriceCharting vs eBay-sold',
+          `${Number(backtest.overlap.mean_ratio || 0).toFixed(3)}×`,
+          `${formatCount(backtest.overlap.within_band_pct || 0)}% within band on ${formatCount(backtest.overlap.n_compare)} sets`,
+          'neutral',
+        ) : ''}
+      </div>
+      ${revenue?.exceeded ? `<p class="admin-partner-warning">App revenue has passed the PriceCharting commercial-agreement threshold — the free-use permission no longer covers this level of revenue.</p>` : ''}
+    </div>` : ''}
     <div class="admin-pricing-metrics">
       ${pricingMetricHTML('v3 valued states', formatCount(valued), `${quality.model_version || 'v3 shadow'} records`, valued ? 'ok' : 'warn')}
       ${pricingMetricHTML('High confidence', formatCount(high), 'Verified independent sold families', high ? 'ok' : 'warn')}

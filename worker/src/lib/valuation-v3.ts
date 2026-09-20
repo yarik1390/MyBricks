@@ -298,7 +298,30 @@ export function valueSignalsV3(
     ? [...soldValues].sort((a, b) => a - b)[Math.floor((soldValues.length - 1) * 0.25)]
     : null;
   const liquidityHaircut = soldSampleCount >= 20 ? 0.05 : soldSampleCount >= 8 ? 0.10 : 0.15;
-  const liquidationValue = lowerSold == null ? null : roundMoney(lowerSold * (1 - 0.13 - liquidityHaircut));
+  // PriceCharting publishes a LOOSE figure (item only — no box, no instructions).
+  // It is not a used-complete comp, so it may never enter the used headline; but
+  // it is exactly the right anchor for "sell now", which is what a no-box sale
+  // actually realises. It can only CAP the sold-derived figure, never raise it,
+  // and it stays visible in `basis` so the contribution is auditable.
+  const looseFamilies = condition === 'used_complete'
+    ? collapseFamilies(input.filter(signal =>
+      signal.condition === 'loose'
+      && signal.currency === 'USD'
+      && positive(signal.value)
+      && (signal.match_status === 'verified' || signal.match_status === 'manual')
+      && (signal.signal_type !== 'sold'
+        || Number(signal.sample_count || signal.sales_volume || 0) >= minimumSample(signal)),
+    ), now)
+    : [];
+  const looseAnchor = looseFamilies.length
+    ? Math.min(...looseFamilies.map(f => f.value).filter(v => v > 0))
+    : null;
+  const liquidationValue = lowerSold == null
+    ? null
+    : roundMoney(Math.min(
+      lowerSold * (1 - 0.13 - liquidityHaircut),
+      looseAnchor ?? Number.POSITIVE_INFINITY,
+    ));
   const confidenceScore = confidence === 'high' ? 90 : confidence === 'medium' ? 70 : confidence === 'low' ? 40 : 20;
   const observedTimes = eligible
     .filter(signal => headlineFamilies.some(family => family.provider_family === signal.provider_family))
@@ -316,7 +339,7 @@ export function valueSignalsV3(
     confidence_score: Math.max(0, confidenceScore - flags.size * 5),
     sample_count: soldSampleCount,
     independent_family_count: headlineFamilies.length,
-    basis: families,
+    basis: [...families, ...looseFamilies],
     flags: [...flags],
     as_of: asOf,
     model_version: 'v3',

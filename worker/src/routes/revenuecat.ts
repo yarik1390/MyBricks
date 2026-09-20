@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { Env, Variables } from '../types';
+import { recordPartnerRevenueEvent } from '../lib/partner-revenue';
 
 // RevenueCat webhook — the authoritative source of truth for the supporter
 // entitlement. RevenueCat sends server-to-server events (Google Play / Apple
@@ -53,10 +54,38 @@ app.post('/webhook', async (c) => {
   }
 
   const body = await c.req
-    .json<{ event?: { type?: string; app_user_id?: string; aliases?: string[] } }>()
+    .json<{
+      event?: {
+        type?: string;
+        app_user_id?: string;
+        aliases?: string[];
+        id?: string;
+        product_id?: string;
+        price?: number;
+        currency?: string;
+        purchased_at_ms?: number;
+        transaction_id?: string;
+      };
+    }>()
     .catch(() => null);
   const ev = body?.event;
   if (!ev?.type || !ev.app_user_id) return c.json({ error: 'bad payload' }, 400);
+
+  // Licensing revenue meter (see lib/partner-revenue.ts): PriceCharting's free
+  // permission carries a $1,000/month commercial-agreement trigger, so purchase
+  // amounts are recorded alongside the entitlement flip. Best-effort — a meter
+  // failure must never reject a real purchase event.
+  const eventId = ev.id
+    || [ev.type, ev.app_user_id, ev.product_id, ev.purchased_at_ms ?? ev.transaction_id ?? ''].join(':');
+  await recordPartnerRevenueEvent(c.env.DB, {
+    eventId,
+    userId: ev.app_user_id,
+    eventType: ev.type,
+    productId: ev.product_id ?? null,
+    amount: ev.price ?? null,
+    currency: ev.currency ?? 'USD',
+    eventAt: ev.purchased_at_ms ? new Date(ev.purchased_at_ms).toISOString() : null,
+  });
 
   // app_user_id + aliases all reference the same person (Supabase user id).
   const userIds = [...new Set([ev.app_user_id, ...(ev.aliases || [])])].filter(Boolean);

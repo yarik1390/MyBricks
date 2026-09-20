@@ -510,6 +510,14 @@ export default {
       // Rebrickable's no-automation rule; Rebrickable-only per ToS.
       // Upcoming/coming-soon release feed (G2b): one LEGO.com listing scrape/day.
       case '0 14 * * *': await run('pricecharting-enrich', () => runPriceChartingEnrich(env, { limit: 100, concurrency: 5 })); break;
+      // Attribution debt: sets whose only PriceCharting identity is a synthetic
+      // `legacy:` mapping can contribute to the blend but cannot show the direct
+      // product link the licence is conditioned on. They are the low-value tail of
+      // the refresh queue, so they get their own value-ordered pass. 250 catalog
+      // calls/day (100 refresh + 150 backfill) stays inside the 500/day api_quota
+      // cap. Needs its own slot: the pricing cron-contract test asserts the literal
+      // `case '0 14 * * *': await run('pricecharting-enrich'` form.
+      case '45 14 * * *': await run('pricecharting-link-backfill', () => runPriceChartingEnrich(env, { limit: 150, concurrency: 5, linkBackfill: true })); break;
       case '0 15 * * *': await run('upcoming-refresh', () => runUpcomingRefresh(env)); break;
       case '0 16 * * *': await run('minifig-verify', () => runMinifigVerify(env)); break;
       case '0 17 * * *': await run('brickpicker-enrich', () => runBrickPickerEnrich(env, { limit: 50 })); break;

@@ -942,6 +942,24 @@ CREATE TABLE IF NOT EXISTS app_settings (
   updated_at TEXT
 );
 
+-- Partner licensing revenue meter. PriceCharting's free-use permission carries a
+-- $1,000/month commercial-agreement trigger, so store purchase events (RevenueCat
+-- webhook) so the threshold can be detected rather than discovered late.
+-- event_id is the RevenueCat event id when present, otherwise a deterministic
+-- composite, so a redelivered webhook cannot double-count revenue.
+CREATE TABLE IF NOT EXISTS partner_revenue_events (
+  event_id TEXT PRIMARY KEY,
+  user_id TEXT,
+  event_type TEXT NOT NULL,
+  product_id TEXT,
+  amount REAL,
+  currency TEXT,
+  event_at TEXT,
+  recorded_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_partner_revenue_month ON partner_revenue_events(event_at);
+
 -- Background-process run history. Every cron (via the run() wrapper in index.ts)
 -- records a row: running -> ok|failed, with a short result summary. Powers the
 -- admin "Activity" live view. Pruned to the last few rows per process name.

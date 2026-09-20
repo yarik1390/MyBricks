@@ -791,6 +791,18 @@
     ]
   },
   {
+    "text": "App revenue (month)",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "App revenue has passed the PriceCharting commercial-agreement threshold — the free-use permission no longer covers this level of revenue.",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "App tour",
     "files": [
       "views/me.js"
@@ -6926,6 +6938,12 @@
     ]
   },
   {
+    "text": "Partner licensing",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Parts and minifigs sold separately",
     "files": [
       "views/portfolio-detail-market.js"
@@ -6972,6 +6990,12 @@
     "files": [
       "views/portfolio-detail-market.js",
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Pending legacy mappings",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -7413,6 +7437,18 @@
     ]
   },
   {
+    "text": "PriceCharting direct links",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "PriceCharting vs eBay-sold",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Pricing",
     "files": [
       "views/me-admin-config.js",
@@ -7722,6 +7758,12 @@
     "text": "Questions or a price that looks wrong? Use",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "Queued for the daily 14:00 link backfill",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -8226,6 +8268,12 @@
     "text": "Resolve",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Resolve PriceCharting links",
+    "files": [
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -9227,6 +9275,12 @@
     ]
   },
   {
+    "text": "Sets with a numeric product id",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Sets with validated new/sealed sold comps.",
     "files": [
       "views/me-admin.js"
@@ -9740,6 +9794,12 @@
   },
   {
     "text": "Spends Firecrawl credits; runs synchronously and returns the result.",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Spends PriceCharting API quota (500/day cap); a daily 14:00 cron drains 150 sets on its own.",
     "files": [
       "views/me-admin-config.js"
     ]
@@ -10829,6 +10889,12 @@
   },
   {
     "text": "Up to ~60s for 5 sets",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Up to ~60s for 50 sets",
     "files": [
       "views/me-admin-config.js"
     ]

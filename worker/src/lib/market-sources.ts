@@ -44,6 +44,29 @@ function olderThanDays(value: unknown, days: number): boolean {
   return Date.now() - Date.parse(ts) > days * 24 * 3600 * 1000;
 }
 
+/**
+ * BrickLink's written permission (Carl Perry, 2026-09-17) allows a free app to
+ * display BrickLink price-guide content ONLY while the displayed item content
+ * and prices are no more than 24 hours older than what brickLink.com shows
+ * today. Our catalog-wide refresh cadence cannot meet that, so BrickLink guide
+ * figures are re-published (named source, value, min/max, lot counts) only
+ * inside the window. Outside it the row still informs OUR derived estimate —
+ * a blend result is our own number, not their guide — but BrickLink is not
+ * named, and none of its raw guide figures are emitted.
+ *
+ * This governs PRESENTATION only. It deliberately does not change blend inputs
+ * (see references/pricing-permissions.md) so display compliance cannot silently
+ * move prices; the counterfactual backtest in the same doc quantifies the
+ * modelling question separately.
+ */
+export const BRICKLINK_DISPLAY_MAX_AGE_HOURS = 24;
+
+export function bricklinkDisplayable(row: Record<string, unknown>, now = Date.now()): boolean {
+  const parsed = Date.parse(text(row.bl_cached_at) ?? '');
+  if (!Number.isFinite(parsed)) return false;
+  return now - parsed <= BRICKLINK_DISPLAY_MAX_AGE_HOURS * 3600 * 1000;
+}
+
 export function marketFreshness(row: Record<string, unknown>): MarketFreshness {
   if (!num(row.current_value)) return 'missing';
   if (isPast(row.valuation_expires_at)) return 'expired';
@@ -93,7 +116,12 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
     });
   }
 
-  if (method === 'market' && num(row.current_value) && !num(row.bl_new_value)) {
+  // BrickLink guide figures are emitted only inside the 24h display window
+  // (see bricklinkDisplayable). Outside it we neither name the source nor
+  // publish its value/min/max/lot counts.
+  const blDisplayable = bricklinkDisplayable(row);
+
+  if (blDisplayable && method === 'market' && num(row.current_value) && !num(row.bl_new_value)) {
     sources.push({
       id: 'bricklink_new',
       name: 'BrickLink',
@@ -107,7 +135,7 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
     });
   }
 
-  if (num(row.bl_new_value)) {
+  if (blDisplayable && num(row.bl_new_value)) {
     sources.push({
       id: 'bricklink_new',
       name: 'BrickLink',
@@ -121,7 +149,7 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
     });
   }
 
-  if (num(row.used_value)) {
+  if (blDisplayable && num(row.used_value)) {
     sources.push({
       id: 'bricklink_used',
       name: 'Used market',
@@ -283,7 +311,11 @@ export function marketConfidence(row: Record<string, unknown>, sources = buildMa
   if (method === 'ai') return fresh === 'fresh' ? 'low' : 'estimated';
 
   const hasEbay = sources.some(s => (s.id === 'ebay_sold_new' || s.id === 'ebay_sold_used' || s.id === 'ebay_legacy') && s.value);
-  const hasBrickLink = sources.some(s => s.id === 'bricklink_new' && s.value);
+  // Read from the RAW columns, not the display-gated source list: the 24h
+  // BrickLink display gate must not silently move confidence tiers. Whether we
+  // may re-publish the figures and how strong the evidence is are two separate
+  // questions.
+  const hasBrickLink = !!num(row.bl_new_value);
   const hasLots = Number(row.bl_new_qty || 0) >= 5 || Number(row.bl_used_qty || 0) >= 3;
   const isFresh = fresh === 'fresh';
 
@@ -303,7 +335,10 @@ export function marketConfidence(row: Record<string, unknown>, sources = buildMa
 export function primaryValueSource(row: Record<string, unknown>): string {
   switch (String(row.valuation_method || '')) {
     case 'brickeconomy': return 'brickeconomy';
-    case 'market': return 'bricklink_new';
+    // Naming BrickLink as the primary source is itself a display claim, so it
+    // follows the same 24h window as the source list. Outside it the value is
+    // reported as our own derived market estimate.
+    case 'market': return bricklinkDisplayable(row) ? 'bricklink_new' : 'derived_market';
     case 'ebay_rss': return 'ebay_legacy';
     case 'ebay_sold': return 'ebay_sold_new';
     case 'ai': return 'ai_estimate';
@@ -322,8 +357,17 @@ export function valuationExplanation(row: Record<string, unknown>, confidence: M
         ? 'Low confidence'
         : 'Estimated';
   const stale = freshness === 'expired' ? ' The value is due for refresh.' : freshness === 'stale' ? ' The value is older than 60 days.' : '';
-  if (method === 'brickeconomy') return `${prefix}: a modeled market guide is primary, with BrickLink/eBay used when available.${stale}`;
-  if (method === 'market') return `${prefix}: BrickLink sold data is primary, with eBay used as a cross-check.${stale}`;
+  const blNamed = bricklinkDisplayable(row);
+  if (method === 'brickeconomy') {
+    return blNamed
+      ? `${prefix}: a modeled market guide is primary, with BrickLink/eBay used when available.${stale}`
+      : `${prefix}: a modeled market guide is primary, with sold comps and marketplace guides used when available.${stale}`;
+  }
+  if (method === 'market') {
+    return blNamed
+      ? `${prefix}: BrickLink sold data is primary, with eBay used as a cross-check.${stale}`
+      : `${prefix}: our own blended market estimate from sold comps and marketplace guides.${stale}`;
+  }
   if (method === 'ebay_rss') return `${prefix}: legacy eBay completed-listing data is the current fallback source until sold comps refresh.${stale}`;
   if (method === 'ebay_sold') return `${prefix}: eBay US/USD sold comps are the current fallback source.${stale}`;
   if (method === 'ai') return `${prefix}: AI estimated this value because market sources were unavailable.${stale}`;
@@ -816,6 +860,16 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
   delete publicRow.__retail_offer;
   delete publicRow.__pricecharting_item_id;
   for (const key of Object.keys(publicRow)) if (key.startsWith('v3_')) delete publicRow[key];
+  // The 24h BrickLink display gate has to hold on the PAYLOAD, not just in
+  // market_sources: the detail endpoint SELECT *s the row, so the raw guide
+  // columns would reach the client and the frontend's fallback source list
+  // would re-render them anyway. Outside the window they are removed here.
+  if (!bricklinkDisplayable(row)) {
+    for (const key of ['bl_new_value', 'bl_new_min', 'bl_new_max', 'bl_new_qty',
+      'bl_used_min', 'bl_used_max', 'bl_used_qty', 'bl_cached_at']) {
+      delete publicRow[key];
+    }
+  }
   return {
     ...publicRow,
     market_sources: sources,

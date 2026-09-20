@@ -7609,6 +7609,31 @@ body.lightbox-open { overflow: hidden; }
 .admin-pricing-metric > span { display: block; color: var(--ink-mute); font: 700 9px var(--mono); text-transform: uppercase; }
 .admin-pricing-metric > strong { display: block; margin: 5px 0 2px; font-size: 20px; }
 .admin-pricing-metric > small { display: block; color: var(--ink-mute); font-size: 10px; line-height: 1.35; }
+/* Partner licensing block in the Pricing Center: the revenue threshold and the
+   PriceCharting link-coverage debt are compliance constraints on the numbers
+   above them, so they sit as their own titled panel, not a bare metric row. */
+.admin-partner-panel {
+  margin: 12px 0;
+  padding: 14px 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2, var(--surface));
+}
+.admin-partner-panel h4 {
+  margin: 0 0 10px;
+  font: 700 11px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.admin-partner-warning {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--down);
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.45;
+}
 .admin-pricing-subsection {
   padding: 15px;
   border: 1px solid var(--line-soft);

@@ -25,6 +25,8 @@ import { runCommunityComps } from '../jobs/community-comps';
 import { importBrickLinkMinifigs } from '../jobs/import-bricklink-minifigs';
 import { getFirecrawlKeyPoolStatus, resetFirecrawlKeyPool } from '../lib/firecrawl-keys';
 import { getBrightDataKeyPoolStatus, resetBrightDataKeyPool } from '../lib/brightdata-keys';
+import { partnerRevenueStatus } from '../lib/partner-revenue';
+import { runPriceChartingBacktest } from '../lib/pricing-backtest';
 import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG, applySourceConfig } from '../lib/source-config';
 import { getLlmRoutes, saveLlmRoutes, resolveRoute, providerConfigured, DEFAULT_LLM_ROUTES, LLM_PROVIDERS, LLM_WORKLOADS } from '../lib/llm-routing';
 import { OMNIROUTE_SCAN_COMBO } from '../lib/omniroute';
@@ -870,7 +872,7 @@ app.get('/activity', async (c) => {
 });
 
 app.get('/integrations', async (c) => {
-  const [integrations, coverage, quota, ai_usage, market_ext, firecrawl_pool, brightdata_pool] = await Promise.all([
+  const [integrations, coverage, quota, ai_usage, market_ext, firecrawl_pool, brightdata_pool, partner_revenue] = await Promise.all([
     getIntegrationDiagnostics(c.env),
     getDataCoverage(c.env),
     getQuotaUsage(c.env),
@@ -878,6 +880,7 @@ app.get('/integrations', async (c) => {
     getMarketExtCoverage(c.env),
     getFirecrawlKeyPoolStatus(c.env),
     getBrightDataKeyPoolStatus(c.env),
+    partnerRevenueStatus(c.env.DB),
   ]);
   const url = new URL(c.req.url);
   return c.json({
@@ -893,12 +896,22 @@ app.get('/integrations', async (c) => {
       last_bulk: market_ext.last_bulk,
     },
     amazon: amazonReadiness(c.env),
+    // Partner licensing revenue meter: PriceCharting's free permission carries a
+    // $1,000/month commercial-agreement trigger (see lib/partner-revenue.ts).
+    partner_revenue,
     api_routing: {
       worker_base_url: url.origin,
       config_endpoint: `${url.origin}/api/config`,
       pages_api_note: 'The Pages app uses window.WORKER_BASE for API calls.',
     },
   });
+});
+
+// Counterfactual backtest: PriceCharting-led vs eBay-sold-led, recomputed on
+// demand so a weighting change is argued from fresh numbers, not a stale report.
+app.get('/pricing/backtest', async (c) => {
+  const result = await runPriceChartingBacktest(c.env.DB);
+  return c.json({ ok: true, backtest: result });
 });
 
 // Pricing Center: compact operational views over the normalized v3 side tables.
@@ -931,6 +944,9 @@ app.get('/pricing/quality', async (c) => {
   // nobody can finish. Recommend review only when the source is actually gated
   // off and the quarantine is genuinely the blocker.
   const priceChartingEnabled = (await getSourceConfig(c.env)).pricecharting.enabled;
+  // PriceCharting's free permission ends at $1,000/month of app revenue, so a
+  // crossed threshold outranks ordinary pricing hygiene in the next-action list.
+  const partnerRevenue = await partnerRevenueStatus(c.env.DB);
   return c.json({
     model_version: 'v3-shadow',
     states: states.results || [],
@@ -942,11 +958,14 @@ app.get('/pricing/quality', async (c) => {
     minifig_identity_queue: (figQueue as any).results || [],
     scanner_slo: (scanMetrics as any).results || [],
     pricecharting_enabled: priceChartingEnabled,
-    recommended_action: openAnomalies > 0
-      ? `Resolve ${openAnomalies} open pricing anomalies.`
-      : !priceChartingEnabled && quarantined > 0
-        ? `Review ${quarantined} quarantined source matches before enabling PriceCharting.`
-        : 'Continue the v3 shadow rollout and compare fair values with legacy headlines.',
+    partner_revenue: partnerRevenue,
+    recommended_action: partnerRevenue.exceeded
+      ? `App revenue reached $${partnerRevenue.threshold_usd}/month — move PriceCharting to a commercial agreement.`
+      : openAnomalies > 0
+        ? `Resolve ${openAnomalies} open pricing anomalies.`
+        : !priceChartingEnabled && quarantined > 0
+          ? `Review ${quarantined} quarantined source matches before enabling PriceCharting.`
+          : 'Continue the v3 shadow rollout and compare fair values with legacy headlines.',
   });
 });
 
@@ -1118,6 +1137,11 @@ const JOB_LIMITS: Record<string, number> = {
   'brightdata-reset-pool': 1,
   'ebay-sold-scrape': 20,
   'pricecharting-enrich': 25,
+  // Attribution debt for sets stuck on a synthetic legacy: mapping. The default
+  // is deliberately small (a manual trigger must fit the request window) but the
+  // job self-caps at 200, and ?limit= up to the override below is the intended way
+  // to drain the 4,937-set backlog faster than one cron pass a day.
+  'pricecharting-link-backfill': 50,
   'brickpicker-enrich': 25,
   // Conservative: each Firecrawl(enhanced) StockX render is ~20s, so a small
   // default keeps a manual trigger inside the Worker request window. Advance the
@@ -1138,6 +1162,9 @@ const JOB_LIMITS: Record<string, number> = {
 const JOB_LIMIT_MAX = 150;
 const JOB_LIMIT_OVERRIDES: Record<string, number> = {
   'recompute-blends': 400,
+  // A 4,937-set attribution backlog cannot be drained 50 at a time; the job
+  // self-caps at 200 and the daily quota cap for PriceCharting is 500 calls.
+  'pricecharting-link-backfill': 200,
 };
 
 app.post('/jobs/:job', async (c) => {
@@ -1185,6 +1212,10 @@ app.post('/jobs/:job', async (c) => {
     } else if (job === 'pricecharting-enrich') {
       // On-demand PriceCharting per-set enrich (verified mappings + sold comps).
       result = await runPriceChartingEnrich(c.env, { limit, concurrency: 5 });
+    } else if (job === 'pricecharting-link-backfill') {
+      // On-demand resolution of real product ids for legacy:-mapped sets, so
+      // PriceCharting attribution can render its required direct product link.
+      result = await runPriceChartingEnrich(c.env, { limit, concurrency: 5, linkBackfill: true });
     } else if (job === 'brickpicker-enrich') {
       // On-demand BrickPicker batch enrich (modeled new/used set estimates).
       result = await runBrickPickerEnrich(c.env, { limit });

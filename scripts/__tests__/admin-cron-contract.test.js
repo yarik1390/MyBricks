@@ -18,9 +18,23 @@ test('every literal scheduled dispatcher case has a configured trigger', () => {
 });
 
 test('pricing process metadata agrees with scheduled execution', () => {
-  for (const [job, hour] of [['brickpicker-enrich', 17], ['pricecharting-enrich', 14]]) {
-    assert.ok(index.includes(`case '0 ${hour} * * *': await run('${job}'`));
+  // minute + hour, so a job can move off :00 without the assertion silently
+  // matching a different slot (the backfill deliberately runs at 14:45).
+  for (const [job, minute, hour] of [
+    ['brickpicker-enrich', 0, 17],
+    ['pricecharting-enrich', 0, 14],
+    ['pricecharting-link-backfill', 45, 14],
+  ]) {
+    const cron = `${minute} ${hour} * * *`;
+    assert.ok(
+      index.includes(`case '${cron}': await run('${job}'`),
+      `${job} has a literal dispatcher case for ${cron}`,
+    );
     const line = registry.split('\n').find(row => row.includes(`'${job}':`));
-    assert.ok(line?.includes(`Daily ${hour}:00 UTC`), `${job} displayed cadence matches`);
+    assert.ok(line, `${job} is listed in the process registry`);
+    assert.ok(
+      line.includes(`Daily ${hour}:${String(minute).padStart(2, '0')} UTC`),
+      `${job} displayed cadence matches its dispatcher`,
+    );
   }
 });
