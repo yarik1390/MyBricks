@@ -18,6 +18,13 @@ describe('admin usability controls', () => {
     assert.match(adminConfig, /brickpicker:\s*\{[\s\S]*?url: '\/api\/admin\/jobs\/brickpicker-enrich\?limit=10'/);
   });
 
+  it('keeps the pricing partner panel renderable and wired to the API fields', () => {
+    assert.match(adminView, /function formatCount\(value\)/);
+    assert.match(adminView, /Number\(revenue\?\.usd \|\| 0\)/);
+    assert.doesNotMatch(adminView, /revenue\.revenue_usd/);
+    assert.match(adminView, /renderCatalogQuality\(\);\s*renderPricingCenter\(\);/);
+  });
+
   it('links rendered guidance to real sections and subtabs', () => {
     assert.doesNotMatch(adminView, /(?:the |from |through |→ )Activity tab/i);
     assert.doesNotMatch(adminView, /(?:the |from |through |→ )Populate tab/i);

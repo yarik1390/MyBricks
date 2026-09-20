@@ -1034,6 +1034,7 @@ async function updateIntegrationsHealth() {
     renderAdminIssues();
     renderServices();
     renderCatalogQuality();
+    renderPricingCenter();
   } catch (err) {
     adminHealth = null;
     renderAdminIssues();
@@ -1874,6 +1875,11 @@ function renderPricingCenter() {
   // a direct product link, so both the meter and the link-coverage debt belong on
   // the same card as the pricing numbers they constrain.
   const revenue = adminHealth?.partner_revenue || null;
+  const publicRevenueUsd = Number(revenue?.usd || 0);
+  const revenueCount = (value) => {
+    const n = Number(value || 0);
+    return Number.isFinite(n) ? n.toLocaleString() : String(value || 0);
+  };
   const attribution = backtest?.attribution || null;
   const unlinkedPct = attribution?.sets_with_pc_signal
     ? Math.round((Number(attribution.sets_without_link || 0) / attribution.sets_with_pc_signal) * 100)
@@ -1915,7 +1921,7 @@ function renderPricingCenter() {
       <div class="admin-pricing-metrics">
         ${revenue ? pricingMetricHTML(
           'App revenue (month)',
-          `$${formatCount(Math.round(Number(revenue.revenue_usd || 0)))}`,
+          `$${revenueCount(Math.round(publicRevenueUsd))}`,
           `Commercial agreement triggers at $${formatCount(revenue.threshold_usd || 1000)}`,
           revenue.exceeded ? 'danger' : 'ok',
         ) : ''}

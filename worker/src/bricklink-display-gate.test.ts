@@ -66,9 +66,12 @@ describe('BrickLink 24h display gate', () => {
     // stripped from the payload or the client re-renders them from its fallback.
     const out = enrichSetRecord({ ...stale }) as Record<string, unknown>;
     for (const key of ['bl_new_value', 'bl_new_min', 'bl_new_max', 'bl_new_qty',
-      'bl_used_min', 'bl_used_max', 'bl_used_qty', 'bl_cached_at']) {
+      'bl_used_min', 'bl_used_max', 'bl_used_qty', 'bl_cached_at', 'used_value']) {
       expect(out[key], `${key} must not be published outside the 24h window`).toBeUndefined();
     }
+    const valuation = out.valuation as { new?: { basis?: Array<{ provider_family?: string }> }; used?: { basis?: Array<{ provider_family?: string }> } };
+    expect(valuation.new?.basis?.some(f => f.provider_family === 'bricklink')).toBe(false);
+    expect(valuation.used?.basis?.some(f => f.provider_family === 'bricklink')).toBe(false);
     // The value itself is ours, so the estimate is still published.
     expect(out.current_value).toBe(120);
     expect(out.market_value).toBeGreaterThan(0);

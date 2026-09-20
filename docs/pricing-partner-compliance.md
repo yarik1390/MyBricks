@@ -135,9 +135,10 @@ numeric id cannot lose its link for want of a mapping row.
 ## 5. Residual risk and open questions
 
 1. **Derived-blend reading of BrickLink's 24-hour term (unresolved).** We gate
-   *display and attribution* of BrickLink guide data, but a blended estimate may
-   still be partly derived from older guide rows. Whether the term reaches that
-   case is not stated in the permission we hold. Recommended: ask Carl Perry in
+   *display and attribution* of BrickLink guide data, and the public v3 basis is
+   also redacted outside the window, but a blended headline estimate may still
+   be partly derived from older guide rows. Whether the term reaches that case
+   is not stated in the permission we hold. Recommended: ask Carl Perry in
    writing. Until then no named BrickLink value or timestamp is published outside
    the window, and stale evidence is disclosed through the normal freshness/
    staleness path.

@@ -917,8 +917,10 @@ app.patch('/:setnum/parts/:partNumColor', requireMember, async (c) => {
 app.get('/:setnum/history', async (c) => {
   const setNum = c.req.param('setnum');
   const days = Math.min(parseInt(c.req.query('days') || '90', 10), 365);
+  // Histories contain our derived/current and eBay values only. BrickLink guide
+  // values are excluded at write time and must not be resurrected by this route.
   const { results } = await c.env.DB.prepare(`
-    SELECT snapshot_date, current_value, ebay_value, bl_value
+    SELECT snapshot_date, current_value, ebay_value
     FROM set_value_history
     WHERE set_num = ? AND snapshot_date >= DATE('now', ?)
     ORDER BY snapshot_date ASC

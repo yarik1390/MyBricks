@@ -50,6 +50,10 @@ export async function recordPartnerRevenueEvent(
 ): Promise<void> {
   const amount = Number(event.amount);
   const hasAmount = Number.isFinite(amount) && amount > 0;
+  const eventType = String(event.eventType || '').toUpperCase();
+  const signedAmount = eventType.includes('REFUND') || eventType.includes('CANCEL')
+    ? (hasAmount ? -amount : null)
+    : (hasAmount ? amount : null);
   await db
     .prepare(
       `INSERT OR IGNORE INTO partner_revenue_events
@@ -61,7 +65,7 @@ export async function recordPartnerRevenueEvent(
       event.userId ?? null,
       event.eventType,
       event.productId ?? null,
-      hasAmount ? amount : null,
+      signedAmount,
       event.currency ?? null,
       event.eventAt ?? null,
     )

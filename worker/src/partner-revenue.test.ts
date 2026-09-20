@@ -45,6 +45,17 @@ describe('partner revenue meter', () => {
     expect((await partnerRevenueStatus(db, month)).usd).toBe(100);
   });
 
+  it('subtracts refunds and deduplicates a redelivered refund', async () => {
+    const month = thisMonth();
+    await recordPartnerRevenueEvent(db, { eventId: 'buy-1', eventType: 'INITIAL_PURCHASE', amount: 100, currency: 'USD', eventAt: `${month}-03T09:00:00Z` });
+    const refund = { eventId: 'refund-1', eventType: 'REFUND' as const, amount: 40, currency: 'USD', eventAt: `${month}-03T10:00:00Z` };
+    await recordPartnerRevenueEvent(db, refund);
+    await recordPartnerRevenueEvent(db, refund);
+    const status = await partnerRevenueStatus(db, month);
+    expect(status.usd).toBe(60);
+    expect(status.events_counted).toBe(2);
+  });
+
   it('reports non-USD amounts separately instead of converting at a made-up rate', async () => {
     const month = thisMonth();
     await recordPartnerRevenueEvent(db, { eventId: 'fx1', eventType: 'RENEWAL', amount: 500, currency: 'EUR', eventAt: `${month}-04T10:00:00Z` });

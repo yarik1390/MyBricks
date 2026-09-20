@@ -131,14 +131,14 @@ export async function runSnapshotSetValues(env: Env) {
       `SELECT value FROM app_settings WHERE key = 'pricing_bl_history_purged'`,
     ).first<{ value: string }>().catch(() => null);
     if (marker?.value !== 'done') {
-      const upd = await env.DB.prepare(
-        `UPDATE set_value_history SET bl_value = NULL WHERE bl_value IS NOT NULL`,
-      ).run();
-      purgedGuideRows = (upd.meta.changes as number | undefined) ?? 0;
-      await env.DB.prepare(
-        `INSERT INTO app_settings (key, value, updated_at) VALUES ('pricing_bl_history_purged', 'done', datetime('now'))
-         ON CONFLICT(key) DO UPDATE SET value = 'done', updated_at = datetime('now')`,
-      ).run().catch(() => {});
+      const [, purge] = await env.DB.batch([
+        env.DB.prepare(
+          `INSERT INTO app_settings (key, value, updated_at) VALUES ('pricing_bl_history_purged', 'done', datetime('now'))
+           ON CONFLICT(key) DO UPDATE SET value = 'done', updated_at = datetime('now')`,
+        ),
+        env.DB.prepare(`UPDATE set_value_history SET bl_value = NULL WHERE bl_value IS NOT NULL`),
+      ]);
+      purgedGuideRows = Number(purge.meta.changes || 0);
     }
   } catch (e) {
     console.warn('[snapshot] bricklink history purge failed:', (e as Error).message);

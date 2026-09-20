@@ -815,18 +815,28 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
     newState.fair_value && (num(row.pc_new_value) || num(row.pc_complete_value))
   );
   const v3ReadEnabled = rolloutReadEnabled || quarantineOverride;
+  const publicBasis = (basis: ValuationStateV3['basis']) => bricklinkDisplayable(row)
+    ? basis
+    : basis.filter(family => family.provider_family !== 'bricklink');
+  const sourceBasis = publicBasis(newState.basis);
+  const publicNewState = bricklinkDisplayable(row)
+    ? newState
+    : { ...newState, basis: sourceBasis };
+  const publicUsedState = bricklinkDisplayable(row)
+    ? usedState
+    : { ...usedState, basis: publicBasis(usedState.basis) };
   const legacyValue = num(row.blended_value) || num(row.current_value);
   const legacyConfidence = String(row.blended_confidence || '') as MarketConfidence;
   const confidence = v3ReadEnabled && newState.fair_value
-    ? newState.confidence
+    ? publicNewState.confidence
     : legacyConfidence || marketConfidence(row, sources);
   const blend: BlendedValue = {
-    value: newState.fair_value,
-    low: newState.low,
-    high: newState.high,
-    confidence: newState.fair_value ? newState.confidence : null,
-    basis: newState.basis.map(family => ({ id: family.provider_family, name: family.provider_family, value: family.value, weight: family.signal_type === 'sold' ? 1 : 0.5 })),
-    note: newState.flags.includes('source_conflict') ? 'Market signals disagree materially; use the likely range rather than the headline alone.' : null,
+    value: publicNewState.fair_value,
+    low: publicNewState.low,
+    high: publicNewState.high,
+    confidence: publicNewState.fair_value ? publicNewState.confidence : null,
+    basis: publicNewState.basis.map(family => ({ id: family.provider_family, name: family.provider_family, value: family.value, weight: family.signal_type === 'sold' ? 1 : 0.5 })),
+    note: publicNewState.flags.includes('source_conflict') ? 'Market signals disagree materially; use the likely range rather than the headline alone.' : null,
   };
   const publicBlend: BlendedValue = v3ReadEnabled
     ? blend
@@ -866,7 +876,7 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
   // would re-render them anyway. Outside the window they are removed here.
   if (!bricklinkDisplayable(row)) {
     for (const key of ['bl_new_value', 'bl_new_min', 'bl_new_max', 'bl_new_qty',
-      'bl_used_min', 'bl_used_max', 'bl_used_qty', 'bl_cached_at']) {
+      'bl_used_min', 'bl_used_max', 'bl_used_qty', 'bl_cached_at', 'used_value']) {
       delete publicRow[key];
     }
   }
@@ -901,8 +911,8 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
       read_reason: quarantineOverride ? 'pricecharting_quarantine' : (rolloutReadEnabled ? 'rollout' : 'legacy'),
       rollout_percent: pricingV3ReadPercent,
       as_of: newState.as_of,
-      new: { ...newState, independent_families: newState.independent_family_count },
-      used: { ...usedState, independent_families: usedState.independent_family_count },
+      new: { ...publicNewState, independent_families: publicNewState.independent_family_count },
+      used: { ...publicUsedState, independent_families: publicUsedState.independent_family_count },
       forecast,
       acquisition: {
         market: String(retailOffer?.market || row.pa_market || 'FR').toUpperCase(),

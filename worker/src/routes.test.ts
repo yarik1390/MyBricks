@@ -1641,6 +1641,20 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
   });
 
   describe('Snapshot jobs', () => {
+    it('never returns the retired raw BrickLink history column', async () => {
+      await db.prepare(
+        `INSERT INTO set_value_history (set_num, snapshot_date, current_value, ebay_value, bl_value)
+         VALUES ('75192', DATE('now'), 850, 840, 845)`,
+      ).run();
+      const res = await app.fetch(new Request('http://localhost/api/sets/75192/history?days=90'), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.history).toHaveLength(1);
+      expect(data.history[0].current_value).toBe(850);
+      expect(data.history[0].ebay_value).toBe(840);
+      expect(data.history[0]).not.toHaveProperty('bl_value');
+    });
+
     it('snapshots each user portfolio at COALESCE(blended_value, current_value) x qty', async () => {
       const { runSnapshotPortfolios } = await import('./jobs/snapshot-portfolios');
       await db.prepare(
