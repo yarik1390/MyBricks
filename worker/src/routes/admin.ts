@@ -22,6 +22,7 @@ import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricech
 import { indexMissingAlts } from '../lib/build-alts';
 import { runMinifigVerify } from '../jobs/minifig-verify';
 import { runCommunityComps } from '../jobs/community-comps';
+import { runSnapshotSetValues } from '../jobs/snapshot-set-values';
 import { importBrickLinkMinifigs } from '../jobs/import-bricklink-minifigs';
 import { getFirecrawlKeyPoolStatus, resetFirecrawlKeyPool } from '../lib/firecrawl-keys';
 import { getBrightDataKeyPoolStatus, resetBrightDataKeyPool } from '../lib/brightdata-keys';
@@ -1150,6 +1151,10 @@ const JOB_LIMITS: Record<string, number> = {
   // Registry-visible jobs that previously had no Run button because they were
   // missing from this allowlist entirely.
   'minifig-verify': 40,
+  // Registry-visible but previously un-runnable. Also the only way to observe the
+  // one-time BrickLink-history purge (compliance debt: 61k rows held raw guide
+  // values) without waiting for the 03:00 cron.
+  'snapshot-set-values': 1,
   'community-comps': 1,
   'pricecharting-bulk-fetch': 1,
   'pricecharting-verify-drain': 400,
@@ -1229,6 +1234,11 @@ app.post('/jobs/:job', async (c) => {
     } else if (job === 'community-comps') {
       // First-party community comps publish (nightly 22:00 cron).
       result = await runCommunityComps(c.env);
+    } else if (job === 'snapshot-set-values') {
+      // Set value history snapshot (03:00 cron). Idempotent per day, so a manual
+      // run is safe and is the observable path for the one-time BrickLink-history
+      // purge recorded in app_settings.
+      result = await runSnapshotSetValues(c.env);
     } else if (job === 'pricecharting-bulk-fetch') {
       // Daily PriceCharting bulk CSV download (04:30 cron). Heavy single fetch —
       // no limit override applies; the job self-paces.
