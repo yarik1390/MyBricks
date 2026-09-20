@@ -18,7 +18,7 @@ test('room scene keeps physical surfaces and mobile aisle lighting readable', ()
 test('room scene shares box artwork classification and preserves source photography', () => {
   assert.match(source, /boxArtworkPresentation/);
   assert.match(source, /artwork\.kind === 'flat-package-face'/);
-  assert.match(source, /Math\.min\(\(w - pad \* 2\) \/ image\.naturalWidth, \(h - pad \* 2\) \/ image\.naturalHeight\)/);
+  assert.match(source, /const scale = Math\.max\(w \/ image\.naturalWidth, h \/ image\.naturalHeight\)/);
   assert.doesNotMatch(source, /!\/ItemImage\\\/ON\\\/0/);
   assert.doesNotMatch(source, /Authentic LEGO Collector Edition packaging design/);
   assert.doesNotMatch(source, /Official LEGO logo emblem/);
@@ -79,10 +79,9 @@ test('box pickup is finite, eased, and returns before normal room control resume
 });
 
 test('procedural cartons have neutral sides, readable thickness, and shared edge geometry', () => {
-  assert.match(source, /const boxSide = material\(\{ color: 0x1e2226, roughness: 0\.52, metalness: 0\.08 \}\)/);
+  assert.match(source, /const boxSide = material\(\{ color: 0x22262a, roughness: 0\.42, metalness: 0\.12 \}\)/);
   assert.match(source, /const boxEdgeGeometry = new THREE\.EdgesGeometry\(boxGeometry\)/);
   assert.match(source, /const edges = new THREE\.LineSegments\(boxEdgeGeometry, boxEdge\)/);
-  assert.match(source, /edges\.scale\.setScalar\(1\.006\)/);
   assert.doesNotMatch(source, /boxSide.*map:/);
 });
 

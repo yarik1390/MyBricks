@@ -64,12 +64,30 @@ function measuredDimensions(value) {
 }
 
 export function displayCartonDimensions(item) {
+  const quad = getBoxFrontQuad(item.set_num);
   const measured = measuredDimensions(item.brickset_dimensions);
   let aspectWidth;
   let aspectHeight;
   let aspectDepth;
   let basis;
-  if (measured) {
+
+  if (quad) {
+    // Exact calibrated packaging artwork quad geometry
+    const quadW = Math.hypot(quad[1][0] - quad[0][0], quad[1][1] - quad[0][1]);
+    const quadH = Math.hypot(quad[3][0] - quad[0][0], quad[3][1] - quad[0][1]);
+    const quadRatio = Math.max(0.6, Math.min(3.0, quadW / Math.max(0.001, quadH)));
+    if (measured) {
+      aspectHeight = measured.height;
+      aspectWidth = measured.height * quadRatio;
+      aspectDepth = measured.depth;
+      basis = 'measured';
+    } else {
+      aspectHeight = 1.0;
+      aspectWidth = quadRatio;
+      aspectDepth = 0.32;
+      basis = 'estimated';
+    }
+  } else if (measured) {
     aspectWidth = measured.width;
     aspectHeight = measured.height;
     aspectDepth = measured.depth;
@@ -124,6 +142,10 @@ const CALIBRATED_FRONT_QUADS = Object.freeze({
   '75258-1': [[0.0986, 0.1831], [0.7884, 0.0901], [0.9043, 0.8023], [0.213, 0.9012]],
   '10179-1': [[0.0449, 0.0508], [0.9551, 0.0938], [0.9551, 0.9414], [0.0449, 0.8945]],
   '4000020-1': [[0.0493, 0.0615], [0.9493, 0.0615], [0.9493, 0.9345], [0.0493, 0.9345]],
+  '10182-1': [[0.002, 0.002], [0.997, 0.002], [0.997, 0.998], [0.002, 0.998]],
+  '71016-1': [[0.0354, 0.0416], [0.9646, 0.0416], [0.9646, 0.4221], [0.0354, 0.4221]],
+  '72537-1': [[0.0385, 0.0290], [0.9634, 0.0290], [0.9634, 0.5072], [0.0385, 0.5072]],
+  '21061-1': [[0.001, 0.001], [0.999, 0.001], [0.999, 0.999], [0.001, 0.999]],
 });
 
 export function getBoxFrontQuad(setNum) {

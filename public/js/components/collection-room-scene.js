@@ -157,10 +157,11 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   const aisle = material({ color: 0x78838a, map: floorTexture, metalness: 0.16, roughness: 0.78 });
   const shelfSteel = material({ color: 0x5c686e, map: steelTexture, metalness: 0.62, roughness: 0.48 });
   const shelfEdge = material({ color: 0x3e474c, metalness: 0.66, roughness: 0.42 });
-  // Authentic coated packaging: sleek printed dark edges with subtle satin sheen
-  const boxSide = material({ color: 0x1e2226, roughness: 0.52, metalness: 0.08 });
-  const boxFront = material({ color: 0x16181b, roughness: 0.32, metalness: 0.06 });
-  const boxEdge = material({ color: 0x111315, roughness: 0.6 });
+  // Authentic coated packaging: cardboard tones with subtle specular sheen
+  const boxSide = material({ color: 0x22262a, roughness: 0.42, metalness: 0.12 });
+  const boxFront = material({ color: 0x1c1f24, roughness: 0.24, metalness: 0.08 });
+  const boxEdge = material({ color: 0x141618, roughness: 0.5 });
+  const shadowMaterial = material({ color: 0x0a0c0e, roughness: 0.95, metalness: 0.0, transparent: true, opacity: 0.45 });
   const accentMaterials = new Map();
   const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
   const boxEdgeGeometry = new THREE.EdgesGeometry(boxGeometry);
@@ -332,7 +333,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     const h = card.height;
 
     // Neutral backing for source artwork and unavailable-image labels.
-    context.fillStyle = '#14171a';
+    context.fillStyle = '#1e2226';
     context.fillRect(0, 0, w, h);
 
     if (image?.naturalWidth && image?.naturalHeight) {
@@ -345,16 +346,10 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       if (!unwarped) {
         const artwork = boxArtworkPresentation(box);
         if (artwork.kind === 'flat-package-face') {
-          const scale = Math.min(w / image.naturalWidth, h / image.naturalHeight);
-          const imgW = Math.round(image.naturalWidth * scale);
-          const imgH = Math.round(image.naturalHeight * scale);
-          context.drawImage(image, Math.round((w - imgW) / 2), Math.round((h - imgH) / 2), imgW, imgH);
+          context.drawImage(image, 0, 0, w, h);
         } else {
-          // Preserve catalog photography as photography. Without validated source
-          // corners, do not stretch an angled package or product image into a
-          // purported flat box face, and do not invent branded package artwork.
-          const pad = 18;
-          const scale = Math.min((w - pad * 2) / image.naturalWidth, (h - pad * 2) / image.naturalHeight);
+          // Fill edge to edge to avoid framed picture card effect
+          const scale = Math.max(w / image.naturalWidth, h / image.naturalHeight);
           const imgW = Math.round(image.naturalWidth * scale);
           const imgH = Math.round(image.naturalHeight * scale);
           const imgX = Math.round((w - imgW) / 2);
@@ -509,10 +504,16 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     body.userData.setNum = box.set_num;
     body.userData.dimensionBasis = box.dimensionBasis;
     const edges = new THREE.LineSegments(boxEdgeGeometry, boxEdge);
-    // Pull the seam fractionally off the faces to avoid z-fighting while
-    // retaining the coated-cardboard thickness cue on neutral package sides.
-    edges.scale.setScalar(1.006);
+    edges.scale.set(1.002, 1.002, 1.002);
     body.add(edges);
+
+    // Contact drop shadow anchoring box to the shelf surface
+    const shadowGeo = new THREE.PlaneGeometry(box.boxDepth * 1.08, box.boxWidth * 1.04);
+    const shadow = new THREE.Mesh(shadowGeo, shadowMaterial);
+    shadow.rotation.x = Math.PI / 2;
+    shadow.position.set(box.x, box.y - box.boxHeight / 2 + 0.005, box.z);
+    scene.add(shadow);
+
     scene.add(body);
     pickTargets.add(body);
     const record = { body, box, frontIndex, frontMaterial: null, image: null, texture: null };

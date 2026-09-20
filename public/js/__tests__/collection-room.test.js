@@ -98,6 +98,8 @@ test('homography unwarping solves linear systems and exposes calibrated packagin
   assert.ok(getBoxFrontQuad('75258-1'));
   assert.ok(getBoxFrontQuad('10179-1'));
   assert.ok(getBoxFrontQuad('4000020-1'));
+  assert.ok(getBoxFrontQuad('71016-1'));
+  assert.ok(getBoxFrontQuad('72537-1'));
   assert.equal(getBoxFrontQuad('99999-1'), null);
 
   // Identity mapping check on 8x8 linear system:
