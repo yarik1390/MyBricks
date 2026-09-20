@@ -153,6 +153,23 @@ numeric id cannot lose its link for want of a mapping row.
    at a guessed rate. App Store / Play revenue that never produces a webhook
    event — including the Patreon lane — is invisible to the meter, so the
    threshold check is a floor, not an exact figure.
+5. **BrickLink part-price cache TTL (7 days) — verified, not yet changed.**
+   `lib/bricklink.ts:257` caches part prices for `7 * 86400` while the set guide
+   caches for 6h (`:132`, `:196`). Under the display-only reading of the term both
+   are fine; under a retention reading the part cache exceeds 24h. Shortening it
+   is not free — part-out pricing is demand-driven per set and the BrickLink
+   budget is ~5k calls/day — so it waits for the same written answer as §5.1.
+6. **`pc_sales_volume` (liquidity badge).** The one PriceCharting-native figure
+   kept in the public payload, because the sell-signal reason consumes it. It is
+   attributed to PriceCharting in the detail page's partner block when
+   PriceCharting contributes, but the badge string itself names no source. Low
+   severity (a volume count, not an estimate); fold the credit into the badge
+   when the string is next localised.
+7. **Collection-total attribution.** Collection rows each carry
+   `pricecharting_item_id` after enrichment, so per-set credit and links are
+   available, but the portfolio total is presented as our own derived aggregate
+   with no per-source breakdown. Permitted today (collection totals are covered);
+   an explicit provenance block would make it auditable.
 
 ## 6. Re-running the evidence
 
