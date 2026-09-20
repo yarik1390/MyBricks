@@ -870,6 +870,14 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
       delete publicRow[key];
     }
   }
+  // Same boundary for the provider-native PriceCharting price columns. Its
+  // permission covers ATTRIBUTED estimates carrying a direct product link, and
+  // none of the frontend reads these — the blend reads them server-side before
+  // this point, and what ships instead is the attributed path
+  // (pricecharting_item_id + pricecharting_contributes + the market_sources entry).
+  for (const key of ['pc_new_value', 'pc_complete_value', 'pc_loose_value', 'pc_cached_at', 'pc_id']) {
+    delete publicRow[key];
+  }
   return {
     ...publicRow,
     market_sources: sources,

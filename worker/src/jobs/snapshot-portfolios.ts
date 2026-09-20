@@ -47,5 +47,20 @@ export async function runSnapshotPortfolios(env: Env) {
     await env.DB.batch(stmts.slice(i, i + 100));
   }
 
-  return { snapped: results.length };
+  // Retention. The history endpoints cap reads at 90 days (free) / 365 (Pro),
+  // but nothing deleted the rows, so portfolio totals were retained forever
+  // while the UI implied a one-year window. 400 days mirrors the
+  // set_value_history window: it covers the longest Pro read with slack, and a
+  // user's own rows are removed outright by account deletion, not by this.
+  let pruned = 0;
+  try {
+    const res = await env.DB.prepare(
+      `DELETE FROM portfolio_snapshots WHERE snapshot_date < date('now', '-400 days')`,
+    ).run();
+    pruned = res.meta.changes ?? 0;
+  } catch (e) {
+    console.warn('[snapshot-portfolios] retention prune failed:', (e as Error).message);
+  }
+
+  return { snapped: results.length, pruned };
 }

@@ -80,3 +80,33 @@ describe('BrickLink 24h display gate', () => {
     expect(marketConfidence(row(hoursAgo(2)))).toBe(marketConfidence(row(hoursAgo(30 * 24))));
   });
 });
+
+// PriceCharting's permission covers ATTRIBUTED estimates carrying a direct
+// product link. The provider-native price columns are read server-side by the
+// blend and must not ride along in a public payload where they could be shown
+// with no credit and no link. The one figure the UI does consume
+// (pc_sales_volume, the liquidity badge) is deliberately kept.
+describe('PriceCharting raw columns never reach a public payload', () => {
+  it('strips the provider-native price columns but keeps the attributed path', () => {
+    const out = enrichSetRecord({
+      set_num: 'PC-1',
+      valuation_method: 'market',
+      current_value: 120,
+      pc_new_value: 130,
+      pc_complete_value: 95,
+      pc_loose_value: 70,
+      pc_cached_at: '2026-09-20 04:31:00',
+      pc_sales_volume: 42,
+      pc_id: '7725504',
+      __pricecharting_item_id: '7725504',
+    }) as Record<string, unknown>;
+
+    for (const key of ['pc_new_value', 'pc_complete_value', 'pc_loose_value', 'pc_cached_at', 'pc_id']) {
+      expect(out[key], `${key} must not be published`).toBeUndefined();
+    }
+    // Kept: the liquidity badge's input and the attributed identity, which is
+    // what carries the credit + direct product link.
+    expect(out.pc_sales_volume).toBe(42);
+    expect(out.pricecharting_item_id).toBe('7725504');
+  });
+});

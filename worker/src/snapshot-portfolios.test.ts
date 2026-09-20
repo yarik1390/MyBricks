@@ -26,7 +26,7 @@ describe('runSnapshotPortfolios', () => {
     ]);
 
     const r = await runSnapshotPortfolios(env as any);
-    expect(r).toEqual({ snapped: 1 });
+    expect(r).toMatchObject({ snapped: 1 });
 
     const row = await db.prepare(`SELECT total_value, total_paid, set_count FROM portfolio_snapshots WHERE user_id='u1'`)
       .first<{ total_value: number; total_paid: number; set_count: number }>();
