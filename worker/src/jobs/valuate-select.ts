@@ -7,6 +7,9 @@ export interface DueSetRow {
   set_num: string; name: string; theme: string | null; year: number; pieces: number;
   minifigs: number; retired: number; retail_price: number | null; brickset_msrp: number | null;
   ebay_ask_value: number | null;
+  bl_new_value: number | null; bl_new_qty: number | null; used_value: number | null;
+  ebay_new_value: number | null; ebay_used_value: number | null;
+  pc_new_value: number | null; pc_complete_value: number | null;
   bl_nodata_at: string | null; be_value_new: number | null; be_value_used: number | null;
   be_forecast_2y: number | null; be_forecast_5y: number | null; be_retail: number | null;
   be_growth_12m: number | null; ask_stale: number;
@@ -51,6 +54,37 @@ export function blBackedOffAt(v: string | null | undefined): boolean {
   const ts = Date.parse(s.includes('T') ? s : s.replace(' ', 'T') + 'Z');
   return Number.isFinite(ts) && ts > Date.now() - 90 * 86400000;
 }
+
+/**
+ * Positive legacy values aimed at the sealed/new target. This deliberately does
+ * not call them "usable": publication still depends on source freshness and
+ * identity checks. Raw PriceCharting columns are also excluded because they can
+ * predate the verified/quarantined mapping split in pricing_signals.
+ */
+export function hasPositiveLegacySealedValue(row: Record<string, unknown>): boolean {
+  return [row.bl_new_value, row.be_value_new, row.ebay_new_value]
+    .some((value) => Number.isFinite(Number(value)) && Number(value) > 0);
+}
+
+/** Existing general valuation ordering. Keep this stable: prioritizeValue and
+ * formula-head callers rely on the older due/value behavior. */
+export const PRIORITY_ORDER_SQL = `
+  CASE WHEN ls.set_num IN (SELECT set_num FROM user_collection WHERE deleted_at IS NULL) THEN 0
+       WHEN ls.set_num IN (SELECT set_num FROM user_wishlist) THEN 1 ELSE 2 END,
+  CASE WHEN ls.valuation_expires_at IS NOT NULL
+             AND ls.valuation_expires_at < datetime('now', '-30 days') THEN 0 ELSE 1 END`;
+
+/**
+ * BrickLink-only refresh ordering. A row normally ranks by personal intent,
+ * value, then newest set. Once its guide is seven days old it crosses a bounded
+ * aging threshold and cannot be starved forever by newly eligible personal rows.
+ */
+export const BRICKLINK_REFRESH_ORDER_SQL = `
+  CASE WHEN ls.bl_cached_at IS NULL OR ls.bl_cached_at < datetime('now', '-7 days') THEN 0 ELSE 1 END,
+  CASE WHEN ls.set_num IN (SELECT set_num FROM user_collection WHERE deleted_at IS NULL) THEN 0
+       WHEN ls.set_num IN (SELECT set_num FROM user_wishlist) THEN 1 ELSE 2 END,
+  COALESCE(NULLIF(ls.blended_value, 0), ls.current_value, 0) DESC,
+  COALESCE(ls.year, 0) DESC`;
 
 export interface ValuationQuotaGrants {
   bricklink: number;
@@ -138,18 +172,15 @@ export async function selectDueSets(
   const minValueFloor = Number.isFinite(Number(options.minValue)) && Number(options.minValue) > 0
     ? Math.floor(Number(options.minValue))
     : 0;
-  // BrickLink-staleness refresh: target sets that ALREADY have a BrickLink value
-  // which has aged out of the blend's 14-day freshness window. This is the binding
-  // constraint on high-confidence valuations — of the sets carrying two independent
-  // sold families, 100% meet the sample-size bar and 78% agree within 1.4x, but only
-  // ~19% had BOTH sources fresh, because BrickLink goes stale while eBay stays fresh.
-  // The normal duePredicate misses them (a set can be well past its BrickLink refresh
-  // yet still inside valuation_expires_at), so they never re-enter the queue and the
-  // daily BrickLink budget is spent probing sets that have no BrickLink data at all.
   const blStale = options.blStale === true;
+  // Begin at 22h so rows selected by the hourly lane have execution headroom
+  // before BrickLink's 24h display gate. Selection alone makes no freshness
+  // promise: only a successful downstream fetch advances bl_cached_at.
   const valuePredicate = blStale
-    ? `AND ls.bl_new_value IS NOT NULL
-      AND (ls.bl_cached_at IS NULL OR ls.bl_cached_at < datetime('now', '-14 days'))`
+    ? includeBrickLink
+      ? `AND ls.bl_new_value IS NOT NULL
+        AND (ls.bl_cached_at IS NULL OR ls.bl_cached_at < datetime('now', '-22 hours'))`
+      : 'AND 0=1'
     : prioritizeValue
     ? `AND ls.valuation_method NOT IN ('formula_bulk', 'local')
       AND COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) >= ${minValueFloor}`
@@ -158,20 +189,21 @@ export async function selectDueSets(
       AND COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) >= ${minValueFloor}
       AND (ls.cached_at IS NULL OR ls.cached_at < datetime('now', '-3 days'))`
     : '';
-  // Sets that also carry a fresh eBay sold comp are ONE BrickLink refresh away from
-  // a two-fresh-family high-confidence blend, so they lead the queue; then by value.
-  const valueOrder = blStale
-    ? `CASE WHEN ls.ebay_new_value IS NOT NULL THEN 0 ELSE 1 END,
-      COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) DESC,`
-    : (prioritizeValue || formulaHead)
+  const valueOrder = (prioritizeValue || formulaHead)
     ? `COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) DESC,`
     : '';
+
+  // The dedicated BL lane has a distinct contract; do not alter the general
+  // prioritizeValue/formula-head order while tightening BL freshness.
+  const priorityOrder = blStale ? BRICKLINK_REFRESH_ORDER_SQL : PRIORITY_ORDER_SQL;
 
   // Prioritize overdue/formula rows first, then rotate through the oldest
   // cached valuations. With scope='all' this steadily covers the whole catalog.
   const { results } = await env.DB.prepare(`
     SELECT DISTINCT ls.set_num, ls.name, ls.theme, ls.year, ls.pieces, ls.minifigs, ls.retired,
-      ls.retail_price, ls.brickset_msrp, ls.ebay_ask_value, sme.bl_nodata_at,
+      ls.retail_price, ls.brickset_msrp, ls.ebay_ask_value,
+      ls.bl_new_value, ls.bl_new_qty, ls.used_value, ls.ebay_new_value, ls.ebay_used_value,
+      ls.pc_new_value, ls.pc_complete_value, sme.bl_nodata_at,
       ls.be_value_new, ls.be_value_used, ls.be_forecast_2y, ls.be_forecast_5y, ls.be_retail, ls.be_growth_12m,
       (ls.ebay_ask_cached_at IS NULL OR ls.ebay_ask_cached_at < datetime('now', '-7 days')) AS ask_stale
     FROM lego_sets ls
@@ -182,23 +214,12 @@ export async function selectDueSets(
       ${scopePredicate}
       ${PRICEABLE_PREDICATE}
     ORDER BY
-      CASE WHEN ls.set_num IN (SELECT set_num FROM user_collection WHERE deleted_at IS NULL)
-             OR ls.set_num IN (SELECT set_num FROM user_wishlist) THEN 0 ELSE 1 END,
-      -- SOURCELESS-AND-VALUABLE FIRST. 230 sets are worth >= $100 and have no
-      -- market evidence at all, so they sit on the formula with nothing to
-      -- corroborate it — the worst state a set can be in on a page that leads
-      -- with a price. They are overwhelmingly pre-1990 vintage (Town, Space,
-      -- Castle, Train, Pirates), which is BrickLink's strongest territory, and
-      -- they clear in a day or two inside the existing ~1,500/day of unused
-      -- BrickLink budget. This ranks above the generic due/value ordering so
-      -- they are not perpetually out-competed by fresher, higher-value rows.
-      CASE WHEN ls.bl_new_value IS NULL AND ls.used_value IS NULL
-                AND ls.be_value_new IS NULL AND ls.ebay_new_value IS NULL
-                AND ls.ebay_used_value IS NULL
-                -- PriceCharting counts as evidence too. Omitting it here would
-                -- pull in sets that already have a sold-comp source and inflate
-                -- the target cohort more than threefold (230 -> 814).
-                AND ls.pc_new_value IS NULL AND ls.pc_complete_value IS NULL
+      ${priorityOrder},
+      -- This legacy sealed-target heuristic intentionally excludes raw PC fields:
+      -- their identity may be quarantined and positive does not mean publishable.
+      CASE WHEN (ls.bl_new_value IS NULL OR ls.bl_new_value <= 0)
+                AND (ls.be_value_new IS NULL OR ls.be_value_new <= 0)
+                AND (ls.ebay_new_value IS NULL OR ls.ebay_new_value <= 0)
                 AND COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) >= 100
            THEN 0 ELSE 1 END,
       CASE WHEN ${duePredicate} THEN 0 ELSE 1 END,

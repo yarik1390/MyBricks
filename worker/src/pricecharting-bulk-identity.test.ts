@@ -12,8 +12,8 @@ vi.mock('./lib/market-sources', () => ({
 const db = (env as any).DB as D1Database;
 const enabledEnv = () => ({ ...env, PRICECHARTING_PRO: '1', PRICECHARTING_VERIFIED_ENABLED: '1' } as any);
 
-async function importRows(rows: string[]) {
-  const e = enabledEnv();
+async function importRows(rows: string[], envOverride?: any) {
+  const e = envOverride ?? enabledEnv();
   await saveSourceConfig(e, { pricecharting: { enabled: true, weight: 0 } } as any);
   clearSourceConfigCache();
   return runPriceChartingBulk(e, [
@@ -58,25 +58,25 @@ describe('PriceCharting bulk identity verification', () => {
   it('skips a conflicting observation for an existing manual mapping without touching prices, extension, signals, or recompute', async () => {
     await db.batch([
       db.prepare(`INSERT INTO lego_sets (set_num,name,category,pc_id,pc_new_value,pc_complete_value,pc_cached_at,blended_value,current_value)
-                  VALUES ('10001-1','Mapped Set','Normal','pc-x',11,22,'2026-01-01T00:00:00Z',33,44)`),
+                  VALUES ('10001-1','Mapped Set','Normal','12345',11,22,'2026-01-01T00:00:00Z',33,44)`),
       db.prepare(`INSERT INTO lego_sets (set_num,name,category,current_value) VALUES ('10002-1','Conflicting Set','Normal',55)`),
       db.prepare(`INSERT INTO set_market_ext (set_num,pc_loose_value,pc_sales_volume) VALUES ('10001-1',7,8)`),
       db.prepare(`INSERT INTO pricing_source_map
                   (source,source_item_id,set_num,source_title,variant_key,match_method,match_confidence,status,verified_at,updated_at)
-                  VALUES ('pricecharting','pc-x','10001-1','Reviewed title','10001-1','manual',1,'manual','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`),
+                  VALUES ('pricecharting','12345','10001-1','Reviewed title','10001-1','manual',1,'manual','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`),
       db.prepare(`INSERT INTO pricing_signals
                   (set_num,source,source_item_id,provider_family,condition,signal_type,currency,value,sample_count,sales_volume,source_observed_at,checked_at,match_status,flags_json,updated_at)
-                  VALUES ('10001-1','pricecharting','pc-x','ebay_market','new_sealed','sold','USD',11,8,8,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z','manual','[]','2026-01-01T00:00:00Z')`),
+                  VALUES ('10001-1','pricecharting','12345','ebay_market','new_sealed','sold','USD',11,8,8,'2026-01-01T00:00:00Z','2026-01-01T00:00:00Z','manual','[]','2026-01-01T00:00:00Z')`),
       db.prepare(`INSERT INTO user_collection (set_num,deleted_at) VALUES ('10001-1',NULL)`),
     ]);
 
-    const result = await importRows(['pc-x,LEGO Sets,,Conflicting observation #10002-1,$70,$80,$90,99']);
+    const result = await importRows(['12345,LEGO Sets,,Conflicting observation #10002-1,$70,$80,$90,99']);
 
-    expect(result).toMatchObject({ rows: 1, matched: 1, unmatched: 0, updated: 0 });
-    expect(await db.prepare(`SELECT set_num,status,source_title,variant_key FROM pricing_source_map WHERE source='pricecharting' AND source_item_id='pc-x'`).first<any>())
+    expect(result).toMatchObject({ rows: 1, matched: 0, unmatched: 1, updated: 0 });
+    expect(await db.prepare(`SELECT set_num,status,source_title,variant_key FROM pricing_source_map WHERE source='pricecharting' AND source_item_id='12345'`).first<any>())
       .toMatchObject({ set_num: '10001-1', status: 'manual', source_title: 'Reviewed title', variant_key: '10001-1' });
     const legacy = await db.prepare(`SELECT pc_id,pc_new_value,pc_complete_value,pc_cached_at,blended_value,current_value FROM lego_sets WHERE set_num='10001-1'`).first<any>();
-    expect(legacy.pc_id).toBe('pc-x');
+    expect(legacy.pc_id).toBe('12345');
     expect(legacy.pc_new_value).toBe(11);
     expect(legacy.pc_complete_value).toBe(22);
     expect(legacy.current_value).toBe(44);
@@ -84,8 +84,59 @@ describe('PriceCharting bulk identity verification', () => {
     expect(await db.prepare(`SELECT pc_loose_value,pc_sales_volume FROM set_market_ext WHERE set_num='10001-1'`).first<any>())
       .toMatchObject({ pc_loose_value: 7, pc_sales_volume: 8 });
     expect(await db.prepare(`SELECT source_item_id,value,sample_count,sales_volume,match_status FROM pricing_signals WHERE set_num='10001-1' AND source='pricecharting' AND condition='new_sealed'`).first<any>())
-      .toMatchObject({ source_item_id: 'pc-x', value: 11, sample_count: 8, sales_volume: 8, match_status: 'manual' });
+      .toMatchObject({ source_item_id: '12345', value: 11, sample_count: 8, sales_volume: 8, match_status: 'manual' });
     expect(vi.mocked(recomputeBlendedValues)).not.toHaveBeenCalled();
+  });
+
+  it('repairs equal-price synthetic identity from an exact full token', async () => {
+    const token = '#10001-1';
+    await db.prepare(`INSERT INTO lego_sets (set_num,category) VALUES ('10001-1','Normal')`).run();
+    await db.prepare(`INSERT INTO pricing_source_map (source,source_item_id,set_num,status)
+      VALUES ('pricecharting','legacy:10001-1','10001-1','verified')`).run();
+    await db.prepare(`INSERT INTO pricing_signals (set_num,source,source_item_id,condition,value,sample_count,match_status)
+      VALUES ('10001-1','pricecharting','legacy:10001-1','new_sealed',90,99,'verified')`).run();
+    expect(await importRows([`123,LEGO Sets,,Set ${token},$70,$80,$90,99`])).toMatchObject({matched:1});
+    expect(await db.prepare(`SELECT source_item_id,value FROM pricing_signals WHERE condition='new_sealed'`).first())
+      .toEqual({source_item_id:'123',value:90});
+    expect(await db.prepare(`SELECT status FROM pricing_source_map WHERE source_item_id='legacy:10001-1'`).first())
+      .toEqual({status:'quarantined'});
+  });
+
+  it.each([
+    ['Set #10001', 'LEGO Sets', '', true],
+    ['Set #10001-1 and #10002-1', 'LEGO Sets', '', false],
+    ['Set #10001-1 #10001-1', 'LEGO Sets', '', false],
+    ['Set #10001-1', 'Video Games', '', false],
+    ['Set #10001-1', 'LEGO Sets', '222', false],
+  ])('rejects ambiguous or conflicting evidence: %s %s %s', async (title,category,upc,variant) => {
+    await db.prepare(`INSERT INTO lego_sets (set_num,upc,category) VALUES ('10001-1','111','Normal'),('10002-1','222','Normal')`).run();
+    if (variant) await db.prepare(`INSERT INTO lego_sets (set_num,category) VALUES ('10001-2','Normal')`).run();
+    expect(await importRows([`123,${category},${upc},${title},$70,$80,$90,99`])).toMatchObject({matched:0});
+    expect(await db.prepare('SELECT count(*) AS n FROM pricing_signals').first()).toEqual({n:0});
+  });
+
+  it.each(['manual','rejected','quarantined'])('never steals an existing %s provider ID', async (status) => {
+    await db.prepare(`INSERT INTO lego_sets (set_num,category) VALUES ('10001-1','Normal'),('10002-1','Normal')`).run();
+    await db.prepare(`INSERT INTO pricing_source_map (source,source_item_id,set_num,status) VALUES ('pricecharting','123','10002-1',?)`).bind(status).run();
+    expect(await importRows(['123,LEGO Sets,,Set #10001-1,$70,$80,$90,99'])).toMatchObject({matched:0});
+    expect(await db.prepare(`SELECT set_num,status FROM pricing_source_map WHERE source_item_id='123'`).first()).toEqual({set_num:'10002-1',status});
+  });
+
+  it.each(['manual','rejected'])('preserves a %s synthetic mapping', async (status) => {
+    await db.prepare(`INSERT INTO lego_sets (set_num,category) VALUES ('10001-1','Normal')`).run();
+    await db.prepare(`INSERT INTO pricing_source_map (source,source_item_id,set_num,status) VALUES ('pricecharting','legacy:10001-1','10001-1',?)`).bind(status).run();
+    expect(await importRows(['123,LEGO Sets,,Set #10001-1,$70,$80,$90,99'])).toMatchObject({matched:0});
+    expect(await db.prepare(`SELECT status FROM pricing_source_map`).first()).toEqual({status});
+  });
+
+  it('isolates overlapping import stages', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num,category) VALUES ('10001-1','Normal'),('10002-1','Normal')`).run();
+    const results = await Promise.all([
+      importRows(['123,LEGO Sets,,Set #10001-1,$70,$80,$90,99']),
+      importRows(['456,LEGO Sets,,Set #10002-1,$71,$81,$91,99']),
+    ]);
+    expect(results.map((r) => r.matched)).toEqual([1,1]);
+    expect(await db.prepare(`SELECT count(*) AS n FROM pricing_signals`).first()).toEqual({n:6});
   });
 
   it('still imports a matching full token and recomputes a priority set', async () => {
@@ -93,15 +144,15 @@ describe('PriceCharting bulk identity verification', () => {
       db.prepare(`INSERT INTO lego_sets (set_num,name,category,current_value) VALUES ('10001-1','Mapped Set','Normal',44)`),
       db.prepare(`INSERT INTO pricing_source_map
                   (source,source_item_id,set_num,source_title,variant_key,match_method,match_confidence,status,verified_at,updated_at)
-                  VALUES ('pricecharting','pc-x','10001-1','Reviewed title','10001-1','manual',1,'manual','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`),
+                  VALUES ('pricecharting','12345','10001-1','Reviewed title','10001-1','manual',1,'manual','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`),
       db.prepare(`INSERT INTO user_wishlist (set_num) VALUES ('10001-1')`),
     ]);
 
-    const result = await importRows(['pc-x,LEGO Sets,,Matching observation #10001-1,$70,$80,$90,99']);
+    const result = await importRows(['12345,LEGO Sets,,Matching observation #10001-1,$70,$80,$90,99']);
 
     expect(result).toMatchObject({ rows: 1, matched: 1, unmatched: 0, updated: 1 });
     expect(await db.prepare(`SELECT pc_id,pc_new_value,pc_complete_value FROM lego_sets WHERE set_num='10001-1'`).first<any>())
-      .toMatchObject({ pc_id: 'pc-x', pc_new_value: 90, pc_complete_value: 80 });
+      .toMatchObject({ pc_id: '12345', pc_new_value: 90, pc_complete_value: 80 });
     expect(await db.prepare(`SELECT pc_loose_value,pc_sales_volume FROM set_market_ext WHERE set_num='10001-1'`).first<any>())
       .toMatchObject({ pc_loose_value: 70, pc_sales_volume: 99 });
     const signals = await db.prepare(`SELECT condition,value,sales_volume FROM pricing_signals WHERE set_num='10001-1' ORDER BY condition`).all<any>();
@@ -114,6 +165,139 @@ describe('PriceCharting bulk identity verification', () => {
     const [recomputeDb, recomputeSetNums] = vi.mocked(recomputeBlendedValues).mock.calls[0];
     expect(recomputeDb).toBe(db);
     expect(recomputeSetNums).toEqual(['10001-1']);
+  });
+
+  it.each([
+    ['same set and same prices', [
+      'dup,LEGO Sets,,Set #10001-1,$70,$80,$90,9',
+      'dup,LEGO Sets,,Set #10001-1,$70,$80,$90,9',
+    ]],
+    ['same set and different prices', [
+      'dup,LEGO Sets,,Set #10001-1,$70,$80,$90,9',
+      'dup,LEGO Sets,,Set #10001-1,$71,$81,$91,10',
+    ]],
+    ['different sets', [
+      'dup,LEGO Sets,,Set #10001-1,$70,$80,$90,9',
+      'dup,LEGO Sets,,Set #10002-1,$71,$81,$91,10',
+    ]],
+  ])('quarantines every occurrence of a duplicate provider ID: %s', async (_label, duplicateRows) => {
+    await db.prepare(`INSERT INTO lego_sets (set_num,category) VALUES ('10001-1','Normal'),('10002-1','Normal')`).run();
+    const result = await importRows(duplicateRows);
+    expect(result).toMatchObject({ rows: 2, matched: 0, unmatched: 2, updated: 0 });
+    expect(await db.prepare(`SELECT count(*) AS n FROM pricing_source_map WHERE source_item_id='dup'`).first()).toEqual({ n: 0 });
+    expect(await db.prepare(`SELECT count(*) AS n FROM pricing_signals WHERE source_item_id='dup'`).first()).toEqual({ n: 0 });
+  });
+
+  it('stages a real 13k-row CSV within a bounded query budget', async () => {
+    let prepareCount = 0;
+    const countedDb = new Proxy(db, {
+      get(target, property, receiver) {
+        if (property === 'prepare') return (sql: string) => {
+          prepareCount++;
+          return target.prepare(sql);
+        };
+        const value = Reflect.get(target, property, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const rows = Array.from({ length: 13_000 }, (_, i) =>
+      `${1_000_000 + i},LEGO Sets,,Set #${900_000 + i}-1,$7,$8,$9,1`);
+    const result = await importRows(rows, { ...enabledEnv(), DB: countedDb });
+    expect(result).toMatchObject({ rows: 13_000, matched: 0, unmatched: 13_000, updated: 0 });
+    // Includes source-config/progress and all import SQL, not just staging.
+    expect(prepareCount).toBeLessThan(100);
+  }, 60_000);
+
+  it('drops its unique staging table after an injected staging failure', async () => {
+    const failure = new Error('injected stage failure');
+    let injected = false;
+    const failingDb = new Proxy(db, {
+      get(target, property, receiver) {
+        if (property === 'prepare') return (sql: string) => {
+          const statement = target.prepare(sql);
+          if (!injected && /INSERT INTO _pc_bulk_/.test(sql)) {
+            injected = true;
+            return new Proxy(statement, {
+              get(stmt, key, stmtReceiver) {
+                if (key === 'bind') return (...args: unknown[]) => {
+                  const bound = stmt.bind(...args);
+                  return new Proxy(bound, { get(b, k, r) { return k === 'run' ? async () => { throw failure; } : Reflect.get(b, k, r); } });
+                };
+                return Reflect.get(stmt, key, stmtReceiver);
+              },
+            });
+          }
+          return statement;
+        };
+        const value = Reflect.get(target, property, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    await expect(importRows(['123,LEGO Sets,,Set #10001-1,$7,$8,$9,1'], { ...enabledEnv(), DB: failingDb }))
+      .rejects.toBe(failure);
+    expect((await db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '_pc_bulk_%'`).all()).results).toEqual([]);
+  });
+
+  it('drops its staging table after an injected post-stage import failure', async () => {
+    const failure = new Error('injected import failure');
+    const failingDb = new Proxy(db, {
+      get(target, property, receiver) {
+        if (property === 'prepare') return (sql: string) => {
+          if (/CREATE INDEX IF NOT EXISTS _pc_bulk_/.test(sql)) {
+            return { run: async () => { throw failure; }, bind() { return this; } } as any;
+          }
+          return target.prepare(sql);
+        };
+        const value = Reflect.get(target, property, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    await expect(importRows(['123,LEGO Sets,,Set #10001-1,$7,$8,$9,1'], { ...enabledEnv(), DB: failingDb }))
+      .rejects.toBe(failure);
+    expect((await db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '_pc_bulk_%'`).all()).results).toEqual([]);
+  });
+
+  it('preserves the import error when cleanup also fails', async () => {
+    const importFailure = new Error('primary import failure');
+    const cleanupFailure = new Error('secondary cleanup failure');
+    const failingDb = new Proxy(db, {
+      get(target, property, receiver) {
+        if (property === 'prepare') return (sql: string) => {
+          if (/CREATE INDEX IF NOT EXISTS _pc_bulk_/.test(sql)) {
+            return { run: async () => { throw importFailure; }, bind() { return this; } } as any;
+          }
+          if (/DROP TABLE IF EXISTS _pc_bulk_/.test(sql)) {
+            return { run: async () => { throw cleanupFailure; }, bind() { return this; } } as any;
+          }
+          return target.prepare(sql);
+        };
+        const value = Reflect.get(target, property, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    await expect(importRows(['123,LEGO Sets,,Set #10001-1,$7,$8,$9,1'], { ...enabledEnv(), DB: failingDb }))
+      .rejects.toBe(importFailure);
+    const orphan = await db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '_pc_bulk_%'`).first<{ name: string }>();
+    expect(orphan?.name).toMatch(/^_pc_bulk_/);
+    await db.prepare(`DROP TABLE ${orphan!.name}`).run();
+  });
+
+  it('surfaces cleanup failure after a successful import', async () => {
+    const cleanupFailure = new Error('injected cleanup failure');
+    const failingDb = new Proxy(db, {
+      get(target, property, receiver) {
+        if (property === 'prepare') return (sql: string) => {
+          if (/DROP TABLE IF EXISTS _pc_bulk_/.test(sql)) {
+            return { run: async () => { throw cleanupFailure; }, bind() { return this; } } as any;
+          }
+          return target.prepare(sql);
+        };
+        const value = Reflect.get(target, property, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    await expect(importRows(['123,LEGO Sets,,Set #10001-1,$7,$8,$9,1'], { ...enabledEnv(), DB: failingDb }))
+      .rejects.toBe(cleanupFailure);
   });
 
   it('accepts a unique provider UPC when the title has no conflicting explicit identity', async () => {

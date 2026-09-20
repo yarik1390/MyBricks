@@ -54,6 +54,7 @@ interface BulkRow {
   productTitle: string;
   setBase: string | null; // e.g. "10300" parsed from product-name
   explicitSetNum: string | null; // full provider token, e.g. "75188-2"
+  identitySafe: boolean;
   newValue: number | null;
   completeValue: number | null;
   looseValue: number | null;
@@ -84,13 +85,13 @@ export function parsePriceChartingCsv(text: string): BulkRow[] {
     if (!line.trim()) continue;
     const v = parseLine(line);
     const name = iName >= 0 ? v[iName] ?? '' : '';
-    // A full token is independent provider identity. A bare base is retained
-    // only as a review hint: quantities such as "3-in-1" must not become a
-    // variant token, so require at least three digits before the hyphen.
-    const fullMatch = name.match(/(?:^|[^0-9])#?(\d{3,7}-\d+)(?![0-9-])/i);
-    const baseMatch = name.match(/#(\d{3,7})(?![0-9-])/) || name.match(/\b(\d{4,6})\b/);
-    const explicitSetNum = fullMatch ? fullMatch[1] : null;
-    const setBase = explicitSetNum?.replace(/-\d+$/, '') ?? (baseMatch ? baseMatch[1] : null);
+    // Count every token, including repeated tokens: bundles must not silently
+    // become the first set in the title. Do not parse quantities like 3-in-1.
+    const tokens = [...name.matchAll(/(?:^|[^\w-])(#?\d{3,7}(?:-\d+)?)(?![\w-])/g)]
+      .map((m) => m[1]).filter((t) => t.startsWith('#') || t.includes('-') || /^\d{4,6}$/.test(t));
+    const token = tokens.length === 1 ? tokens[0].replace(/^#/, '') : null;
+    const explicitSetNum = token?.includes('-') ? token : null;
+    const setBase = token?.replace(/-\d+$/, '') ?? null;
     const vol = Number(iVol >= 0 ? v[iVol] : undefined);
     rows.push({
       pcId: iId >= 0 && v[iId] ? v[iId] : null,
@@ -99,6 +100,7 @@ export function parsePriceChartingCsv(text: string): BulkRow[] {
       productTitle: name,
       setBase,
       explicitSetNum,
+      identitySafe: tokens.length <= 1,
       newValue: gate(money(iNew >= 0 ? v[iNew] : undefined)),
       completeValue: gate(money(iCib >= 0 ? v[iCib] : undefined)),
       looseValue: gate(money(iLoose >= 0 ? v[iLoose] : undefined)),
@@ -192,17 +194,27 @@ export async function runPriceChartingBulkFetch(env: Env): Promise<BulkResult> {
   return result;
 }
 
-const STAGE = '_pc_bulk_stage';
-
 async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
+  // Isolate overlapping cron/admin imports; one run must never drop another's
+  // evidence. A failed run can leave an orphan stage, but cannot poison a peer.
+  const STAGE = `_pc_bulk_${crypto.randomUUID().replace(/-/g, '')}`;
   const rows = parsePriceChartingCsv(csvText);
+  const idCounts = new Map<string, number>();
+  for (const r of rows) if (r.pcId) idCounts.set(r.pcId, (idCounts.get(r.pcId) ?? 0) + 1);
+  // A provider ID is the durable source-map key. If the feed repeats it, none of
+  // its observations are trustworthy: choosing one based on CSV order would make
+  // same-set price disagreements and cross-set identity conflicts nondeterministic.
+  const stageRows = rows.filter((r) => r.pcId && idCounts.get(r.pcId) === 1
+    && (r.identitySafe || r.explicitSetNum !== null || r.setBase !== null));
   if (!rows.length) return persistBulk(env, { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: 'no rows parsed' });
 
+  let result: BulkResult | undefined;
+  let importError: unknown;
+  try {
   // Stage rows into a temp table and resolve matches with set-based JOINs. This
   // avoids D1's 100-bound-parameters-per-query limit (a 150-row chunk with three
   // IN(...) lists bound up to ~450 params and threw before any write — the reason
   // earlier runs left no trace) and keeps the whole import subrequest-lean.
-  await env.DB.prepare(`DROP TABLE IF EXISTS ${STAGE}`).run();
   await env.DB.prepare(
     `CREATE TABLE ${STAGE} (
       pcid TEXT, upc TEXT, provider_category TEXT, title TEXT, setbase TEXT, setnum TEXT,
@@ -210,31 +222,57 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     )`,
   ).run();
 
-  // Bulk-insert under D1's 100-bind limit.
-  const PER_STMT = 10;
-  const placeholders = Array.from({ length: PER_STMT }, () => '(?,?,?,?,?,?,?,?,?,?)').join(',');
-  let batch: D1PreparedStatement[] = [];
-  for (let i = 0; i < rows.length; i += PER_STMT) {
-    const slice = rows.slice(i, i + PER_STMT);
-    const ph = slice.length === PER_STMT ? placeholders : slice.map(() => '(?,?,?,?,?,?,?,?,?,?)').join(',');
-    const binds: unknown[] = [];
-    for (const r of slice) {
-      binds.push(r.pcId, r.upc, r.providerCategory, r.productTitle, r.setBase, r.explicitSetNum,
-        r.newValue, r.completeValue, r.looseValue, r.salesVolume);
+  // Bind one JSON array per statement and expand it in SQLite. This stays well
+  // below D1's 100 bind-parameter limit while the byte cap leaves headroom under
+  // the 100 KiB query-parameter limit. Chunk by UTF-8 bytes, not row count,
+  // because provider titles are unbounded CSV input.
+  const MAX_JSON_BYTES = 90 * 1024;
+  const encoder = new TextEncoder();
+  let jsonRows: unknown[][] = [];
+  let jsonBytes = 2; // []
+  const flushStageRows = async () => {
+    if (!jsonRows.length) return;
+    await env.DB.prepare(`
+      INSERT INTO ${STAGE} (pcid,upc,provider_category,title,setbase,setnum,newv,cibv,loosev,salesvol)
+      SELECT
+        json_extract(value,'$[0]'), json_extract(value,'$[1]'),
+        json_extract(value,'$[2]'), json_extract(value,'$[3]'),
+        json_extract(value,'$[4]'), json_extract(value,'$[5]'),
+        json_extract(value,'$[6]'), json_extract(value,'$[7]'),
+        json_extract(value,'$[8]'), json_extract(value,'$[9]')
+      FROM json_each(?1)
+    `).bind(JSON.stringify(jsonRows)).run();
+    jsonRows = [];
+    jsonBytes = 2;
+  };
+  for (const r of stageRows) {
+    const values = [r.pcId, r.upc, r.providerCategory, r.productTitle, r.setBase, r.explicitSetNum,
+      r.newValue, r.completeValue, r.looseValue, r.salesVolume];
+    const rowBytes = encoder.encode(JSON.stringify(values)).byteLength + (jsonRows.length ? 1 : 0);
+    if (rowBytes + 2 > MAX_JSON_BYTES) {
+      throw new Error(`PriceCharting staging row exceeds ${MAX_JSON_BYTES} byte safety cap`);
     }
-    batch.push(env.DB.prepare(`INSERT INTO ${STAGE} (pcid,upc,provider_category,title,setbase,setnum,newv,cibv,loosev,salesvol) VALUES ${ph}`).bind(...binds));
-    if (batch.length >= 80) { await env.DB.batch(batch); batch = []; }
+    if (jsonBytes + rowBytes > MAX_JSON_BYTES) await flushStageRows();
+    jsonRows.push(values);
+    jsonBytes += rowBytes;
   }
-  if (batch.length) await env.DB.batch(batch);
+  await flushStageRows();
 
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS ${STAGE}_pcid ON ${STAGE}(pcid)`).run();
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS ${STAGE}_upc ON ${STAGE}(upc)`).run();
 
-  const CATEGORY_COMPATIBLE = `(ls.category IS NULL OR ls.category='' OR lower(ls.category)='normal'
-    OR lower(s.provider_category) LIKE ('%' || lower(ls.category) || '%'))`;
-  const BY_SAFE_UPC = `s.upc = ls.upc AND s.upc IS NOT NULL AND s.upc <> ''
-    AND NOT EXISTS (SELECT 1 FROM lego_sets dup WHERE dup.upc=s.upc AND dup.set_num<>ls.set_num)
-    AND (s.setnum IS NULL OR s.setnum=ls.set_num) AND ${CATEGORY_COMPATIBLE}`;
+  const CATEGORY_COMPATIBLE = `(lower(s.provider_category) LIKE '%lego%'
+    AND (ls.category IS NULL OR ls.category='' OR lower(ls.category)='normal'
+      OR lower(s.provider_category) LIKE '%' || lower(ls.category) || '%'))`;
+  const TOKEN_COMPATIBLE = `(s.setnum=ls.set_num OR (s.setnum IS NULL AND
+    (s.setbase IS NULL OR (ls.set_num LIKE s.setbase || '-%' AND NOT EXISTS (
+      SELECT 1 FROM lego_sets variant WHERE variant.set_num LIKE s.setbase || '-%'
+        AND variant.set_num<>ls.set_num)))))`;
+  const UPC_COMPATIBLE = `(s.upc IS NULL OR s.upc='' OR (
+    (ls.upc IS NULL OR ls.upc='' OR ls.upc=s.upc)
+    AND NOT EXISTS (SELECT 1 FROM lego_sets dup WHERE dup.upc=s.upc AND dup.set_num<>ls.set_num)))`;
+  const BY_SAFE_UPC = `s.upc=ls.upc AND s.upc IS NOT NULL AND s.upc<>''
+    AND ${TOKEN_COMPATIBLE} AND ${UPC_COMPATIBLE} AND ${CATEGORY_COMPATIBLE}`;
 
   // Preserve every old pc_id as a review candidate, never as verified evidence.
   await env.DB.prepare(`
@@ -248,75 +286,68 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     ON CONFLICT(source, source_item_id) DO NOTHING
   `).run();
 
-  // Identity proof paths. A provider full token wins over UPC when present;
-  // UPC is valid only when unique and not contradicted by that explicit token.
+  // Resolve CSV evidence without trusting copied legacy IDs or price agreement.
+  // Existing provider IDs are never reassigned, including quarantined ones.
   await env.DB.prepare(`
     INSERT INTO pricing_source_map (
       source, source_item_id, set_num, source_title, upc, variant_key,
       match_method, match_confidence, status, verified_at, updated_at
     )
     SELECT 'pricecharting', s.pcid, ls.set_num, s.title, s.upc, ls.set_num,
-           CASE WHEN ${CATEGORY_COMPATIBLE} THEN 'set_token' ELSE 'set_token_conflict' END,
+           CASE WHEN s.setnum IS NOT NULL THEN 'set_token'
+                WHEN s.setbase IS NOT NULL AND s.upc IS NULL THEN 'base_candidate'
+                ELSE 'upc' END,
            CASE WHEN ${CATEGORY_COMPATIBLE} THEN 1.0 ELSE 0.1 END,
-           CASE WHEN ${CATEGORY_COMPATIBLE} THEN 'verified' ELSE 'quarantined' END,
-           CASE WHEN ${CATEGORY_COMPATIBLE} THEN datetime('now') ELSE NULL END,
-           datetime('now')
-    FROM ${STAGE} s JOIN lego_sets ls ON ls.set_num=s.setnum
-    WHERE s.pcid IS NOT NULL
+           CASE WHEN ${CATEGORY_COMPATIBLE} THEN 'verified' ELSE 'quarantined' END, datetime('now'), datetime('now')
+    FROM ${STAGE} s JOIN lego_sets ls ON
+      (s.setnum=ls.set_num OR (s.setbase IS NOT NULL AND ${TOKEN_COMPATIBLE}) OR (${BY_SAFE_UPC}))
+    WHERE ${CATEGORY_COMPATIBLE} AND ${TOKEN_COMPATIBLE} AND (s.setnum IS NOT NULL OR s.upc IS NOT NULL)
+      AND NOT EXISTS (SELECT 1 FROM ${STAGE} other WHERE other.pcid<>s.pcid
+        AND ((s.setbase IS NOT NULL AND other.setbase=s.setbase)
+          OR (s.upc IS NOT NULL AND s.upc<>'' AND other.upc=s.upc)))
+      AND NOT EXISTS (SELECT 1 FROM pricing_source_map protected
+        WHERE protected.source='pricecharting' AND protected.set_num=ls.set_num
+          AND protected.status IN ('manual','rejected'))
     ON CONFLICT(source, source_item_id) DO UPDATE SET
-      set_num=excluded.set_num, source_title=excluded.source_title,
-      upc=excluded.upc, variant_key=excluded.variant_key,
+      source_title=excluded.source_title, upc=excluded.upc, variant_key=excluded.variant_key,
       match_method=excluded.match_method, match_confidence=excluded.match_confidence,
-      status=excluded.status, verified_at=excluded.verified_at, updated_at=datetime('now')
-    WHERE pricing_source_map.status NOT IN ('verified','manual','rejected')
+      status=excluded.status, verified_at=excluded.verified_at, updated_at=excluded.updated_at
+    WHERE pricing_source_map.status NOT IN ('manual','rejected')
+      AND pricing_source_map.set_num=excluded.set_num
+      AND (pricing_source_map.status IS NOT excluded.status
+        OR pricing_source_map.match_method IS NOT excluded.match_method
+        OR pricing_source_map.source_title IS NOT excluded.source_title
+        OR pricing_source_map.upc IS NOT excluded.upc)
   `).run();
 
+  // Keep rejected identity evidence visible for review; never let it feed prices.
   await env.DB.prepare(`
-    INSERT INTO pricing_source_map (
-      source, source_item_id, set_num, source_title, upc, variant_key,
-      match_method, match_confidence, status, verified_at, updated_at
-    )
-    SELECT 'pricecharting', s.pcid, ls.set_num, s.title, s.upc, ls.set_num,
-           'upc', 1.0, 'verified', datetime('now'), datetime('now')
-    FROM ${STAGE} s JOIN lego_sets ls ON ${BY_SAFE_UPC}
+    INSERT INTO pricing_source_map
+      (source,source_item_id,set_num,source_title,upc,variant_key,match_method,match_confidence,status,updated_at)
+    SELECT 'pricecharting',s.pcid,ls.set_num,s.title,s.upc,ls.set_num,
+      CASE WHEN s.setnum=ls.set_num THEN 'set_token_conflict' ELSE 'base_candidate' END,
+      0.1,'quarantined',datetime('now')
+    FROM ${STAGE} s JOIN lego_sets ls ON
+      (s.setnum=ls.set_num OR (s.setbase IS NOT NULL AND ls.set_num LIKE s.setbase || '-%'))
     WHERE s.pcid IS NOT NULL
-    ON CONFLICT(source, source_item_id) DO UPDATE SET
-      set_num=excluded.set_num, source_title=excluded.source_title,
-      upc=excluded.upc, variant_key=excluded.variant_key,
-      match_method='upc', match_confidence=1.0, status='verified',
-      verified_at=datetime('now'), updated_at=datetime('now')
-    WHERE pricing_source_map.status NOT IN ('verified','manual','rejected')
+      AND (NOT ${CATEGORY_COMPATIBLE} OR NOT ${TOKEN_COMPATIBLE})
+      OR (s.setbase IS NOT NULL AND s.upc IS NULL AND NOT EXISTS (SELECT 1 FROM lego_sets v
+        WHERE v.set_num LIKE s.setbase || '-%' AND v.set_num<>ls.set_num))
+      AND NOT EXISTS (SELECT 1 FROM pricing_source_map pm
+        WHERE pm.source='pricecharting' AND pm.source_item_id=s.pcid)
+    ON CONFLICT(source,source_item_id) DO NOTHING
   `).run();
 
-  // Base-only candidates remain quarantine-only. Never overwrite an existing
-  // manual/rejected/verified review decision.
-  await env.DB.prepare(`
-    INSERT INTO pricing_source_map (
-      source, source_item_id, set_num, source_title, upc, variant_key,
-      match_method, match_confidence, status, updated_at
-    )
-    SELECT 'pricecharting', s.pcid, candidate.set_num, s.title, s.upc, s.setbase,
-           'base_candidate', 0.1, 'quarantined', datetime('now')
-    FROM ${STAGE} s
-    LEFT JOIN lego_sets candidate ON candidate.set_num=(s.setbase || '-1')
-    LEFT JOIN pricing_source_map pm ON pm.source='pricecharting' AND pm.source_item_id=s.pcid
-    WHERE s.pcid IS NOT NULL AND s.setnum IS NULL AND pm.source_item_id IS NULL
-    ON CONFLICT(source, source_item_id) DO NOTHING
-  `).run();
-
-  const matchedRow = await env.DB.prepare(`
-    SELECT COUNT(DISTINCT s.pcid) AS n FROM ${STAGE} s
-    JOIN pricing_source_map pm ON pm.source='pricecharting' AND pm.source_item_id=s.pcid
-      AND pm.status IN ('verified','manual')
-  `).first<{ n: number }>().catch(() => ({ n: 0 }));
-  const matched = Number(matchedRow?.n ?? 0);
-
-  const OBSERVATION_IDENTITY_COMPATIBLE = `(s.setnum IS NULL OR s.setnum=pm.set_num)`;
+  const OBSERVATION_IDENTITY_COMPATIBLE = `${CATEGORY_COMPATIBLE}
+    AND ${TOKEN_COMPATIBLE} AND ${UPC_COMPATIBLE}
+    AND NOT EXISTS (SELECT 1 FROM ${STAGE} other WHERE other.pcid<>s.pcid
+      AND ((s.setbase IS NOT NULL AND other.setbase=s.setbase)
+        OR (s.upc IS NOT NULL AND s.upc<>'' AND other.upc=s.upc)))`;
   const VERIFIED_JOIN = `${STAGE} s JOIN pricing_source_map pm
     ON pm.source='pricecharting' AND pm.source_item_id=s.pcid
    AND pm.status IN ('verified','manual')
-   AND ${OBSERVATION_IDENTITY_COMPATIBLE}
-    JOIN lego_sets ls ON ls.set_num=pm.set_num`;
+    JOIN lego_sets ls ON ls.set_num=pm.set_num
+   AND ${OBSERVATION_IDENTITY_COMPATIBLE}`;
 
   // Manual mappings can exist without a UPC. Dual-write the legacy columns for
   // rollback, but only normalized signals participate in pricing v3.
@@ -328,8 +359,8 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     FROM ${STAGE} s JOIN pricing_source_map pm
       ON pm.source='pricecharting' AND pm.source_item_id=s.pcid
      AND pm.status IN ('verified','manual')
-     AND (s.setnum IS NULL OR s.setnum=pm.set_num)
-    WHERE pm.set_num=ls.set_num AND (s.newv IS NOT NULL OR s.cibv IS NOT NULL)
+    WHERE pm.set_num=ls.set_num AND ${OBSERVATION_IDENTITY_COMPATIBLE}
+      AND (s.newv IS NOT NULL OR s.cibv IS NOT NULL)
       AND (ls.pc_new_value IS NOT COALESCE(s.newv, ls.pc_new_value)
         OR ls.pc_complete_value IS NOT COALESCE(s.cibv, ls.pc_complete_value)
         OR ls.pc_id IS NOT s.pcid)
@@ -364,13 +395,29 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     WHERE pricing_signals.value IS NOT excluded.value
        OR pricing_signals.sample_count IS NOT excluded.sample_count
        OR pricing_signals.match_status IS NOT excluded.match_status
+       OR pricing_signals.source_item_id IS NOT excluded.source_item_id
+  `);
+  // D1 batch is atomic: retire only a canonical synthetic key with a proven
+  // replacement and no remaining signals pointing at the old identity.
+  const retireSynthetic = env.DB.prepare(`
+    UPDATE pricing_source_map AS old SET status='quarantined', updated_at=datetime('now')
+    WHERE old.source='pricecharting' AND old.source_item_id='legacy:' || old.set_num
+      AND old.status='verified'
+      AND EXISTS (SELECT 1 FROM ${VERIFIED_JOIN} WHERE ls.set_num=old.set_num)
+      AND EXISTS (SELECT 1 FROM pricing_signals ps JOIN ${STAGE} s ON s.pcid=ps.source_item_id
+        WHERE ps.source='pricecharting' AND ps.set_num=old.set_num)
+      AND NOT EXISTS (SELECT 1 FROM pricing_signals ps WHERE ps.source='pricecharting'
+        AND ps.source_item_id=old.source_item_id)
   `);
   await env.DB.batch([
     signalInsert('new_sealed', 'newv'),
     signalInsert('used_complete', 'cibv'),
     signalInsert('loose', 'loosev'),
+    retireSynthetic,
   ]);
 
+  const matched = (await env.DB.prepare(`SELECT count(*) AS n FROM ${VERIFIED_JOIN}`)
+    .first<{ n: number }>())?.n ?? 0;
   const touchedSets = await env.DB.prepare(
     `SELECT DISTINCT ls.set_num FROM ${VERIFIED_JOIN}`,
   ).all<{ set_num: string }>();
@@ -390,12 +437,24 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     console.warn('[pc-bulk] priority recompute failed:', (e as Error).message);
   }
 
-  await env.DB.prepare(`DROP TABLE IF EXISTS ${STAGE}`).run().catch(() => {});
-
-  return persistBulk(env, {
+  result = {
     rows: rows.length,
     matched,
     unmatched: rows.length - matched,
     updated: touched.size,
-  });
+  };
+  } catch (e) {
+    importError = e;
+  } finally {
+    try {
+      await env.DB.prepare(`DROP TABLE IF EXISTS ${STAGE}`).run();
+    } catch (cleanupError) {
+      // The import failure is the primary diagnostic. Cleanup failure is fatal
+      // only when the import itself succeeded; otherwise preserve the original.
+      if (importError === undefined) throw cleanupError;
+      console.error('[pc-bulk] staging cleanup failed after import failure:', cleanupError);
+    }
+  }
+  if (importError !== undefined) throw importError;
+  return persistBulk(env, result!);
 }

@@ -142,6 +142,10 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       'DROP TABLE IF EXISTS set_value_history',
       'DROP TABLE IF EXISTS set_market_ext',
       'DROP TABLE IF EXISTS set_valuation_state',
+      'DROP TABLE IF EXISTS pricing_signals',
+      'DROP TABLE IF EXISTS pricing_source_map',
+      'DROP TABLE IF EXISTS pricing_write_ledger',
+      'DROP TABLE IF EXISTS app_settings',
       'DROP TABLE IF EXISTS upcoming_sets',
 
       `CREATE TABLE lego_sets (
@@ -186,10 +190,38 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         independent_family_count INTEGER, basis_json TEXT, flags_json TEXT, forecast_json TEXT,
         as_of TEXT, model_version TEXT, updated_at TEXT, PRIMARY KEY (set_num, condition)
       )`,
+      `CREATE TABLE pricing_source_map (
+        source TEXT NOT NULL, source_item_id TEXT NOT NULL, set_num TEXT,
+        source_title TEXT, upc TEXT, variant_key TEXT, match_method TEXT,
+        match_confidence REAL NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'quarantined',
+        verified_at TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (source, source_item_id)
+      )`,
+      `CREATE TABLE pricing_signals (
+        set_num TEXT NOT NULL, source TEXT NOT NULL, source_item_id TEXT,
+        provider_family TEXT NOT NULL, condition TEXT NOT NULL, signal_type TEXT NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'USD', value REAL NOT NULL, low REAL, high REAL,
+        sample_count INTEGER, sales_volume INTEGER, source_observed_at TEXT,
+        checked_at TEXT NOT NULL, match_status TEXT NOT NULL DEFAULT 'quarantined',
+        flags_json TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (set_num, source, condition)
+      )`,
       `CREATE TABLE set_value_history (
         set_num TEXT NOT NULL, snapshot_date TEXT NOT NULL,
         current_value REAL, ebay_value REAL, bl_value REAL,
         PRIMARY KEY (set_num, snapshot_date)
+      )`,
+      `CREATE TABLE pricing_write_ledger (
+        day TEXT NOT NULL,
+        job TEXT NOT NULL,
+        rows_written INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (day, job)
+      )`,
+      `CREATE TABLE app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TEXT
       )`,
       `CREATE TABLE upcoming_sets (
         set_num TEXT PRIMARY KEY, name TEXT NOT NULL, price_usd REAL,
