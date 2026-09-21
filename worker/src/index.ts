@@ -47,7 +47,6 @@ import { runDbHygiene } from './jobs/db-hygiene';
 import { runAmazonOffers } from './jobs/amazon-offers';
 import { runPriceChartingVerify } from './jobs/pricecharting-verify';
 import { runPriceChartingEnrich } from './jobs/pricecharting-enrich';
-import { runBrickPickerEnrich } from './jobs/brickpicker-enrich';
 import { runCommunityComps } from './jobs/community-comps';
 import { runMinifigVerify } from './jobs/minifig-verify';
 import { runPriceChartingBulkFetch } from './jobs/pricecharting-bulk';
@@ -520,7 +519,6 @@ export default {
       case '45 14 * * *': await run('pricecharting-link-backfill', () => runPriceChartingEnrich(env, { limit: 150, concurrency: 5, linkBackfill: true })); break;
       case '0 15 * * *': await run('upcoming-refresh', () => runUpcomingRefresh(env)); break;
       case '0 16 * * *': await run('minifig-verify', () => runMinifigVerify(env)); break;
-      case '0 17 * * *': await run('brickpicker-enrich', () => runBrickPickerEnrich(env, { limit: 50 })); break;
       // pricesAPI live-retail runs in 3 daily slots (~18 sets/day) now that the
       // key pool spreads the monthly budget; cold calls are 30–90s so each slot
       // stays small. The job prioritizes owned/wishlisted sets first.

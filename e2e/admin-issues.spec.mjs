@@ -64,7 +64,7 @@ async function mockAdmin(page, { integrations, integrationStatus = 200, flags = 
     if (path.includes('/admin/feature-flags')) {
       return json({ flags: Object.keys(flags), overrides: {}, effective: flags });
     }
-    if (path.includes('/admin/source-config')) return json({ config: { brickpicker: { enabled: false }, brickowl: { enabled: false }, bricklink: { enabled: true } } });
+    if (path.includes('/admin/source-config')) return json({ config: { brickowl: { enabled: false }, bricklink: { enabled: true } } });
     if (path.endsWith('/api/me')) return json(adminProfile);
     if (path.startsWith('/api/')) return json({});
     if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return route.continue();

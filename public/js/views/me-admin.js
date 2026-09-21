@@ -391,7 +391,7 @@ function wireAdminShell() {
     btn.addEventListener('click', () => {
       const tool = btn.getAttribute('data-admin-tool');
       // Synchronous jobs return their result inline (no run_id / progress polling).
-      if (['ebaySold', 'pricecharting', 'brickpicker'].includes(tool)) return triggerSyncJob(tool);
+      if (['ebaySold', 'pricecharting'].includes(tool)) return triggerSyncJob(tool);
       triggerImport(tool);
     });
   });
@@ -826,7 +826,6 @@ const PROCESS_TRIGGER = {
   'pricecharting-verify-drain': 'pricechartingVerify',
   'pricecharting-enrich': 'pricecharting',
   'pricecharting-link-backfill': 'pricechartingLinks',
-  'brickpicker-enrich': 'brickpicker',
   'ebay-sold-scrape': 'ebaySold',
 };
 
@@ -868,7 +867,7 @@ function runProcess(name, btn) {
     return;
   }
   if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
-  if (['ebaySold', 'pricecharting', 'brickpicker', 'pricechartingLinks'].includes(tool)) {
+  if (['ebaySold', 'pricecharting', 'pricechartingLinks'].includes(tool)) {
     triggerSyncJob(tool).finally(() => loadActivity());
   } else {
     triggerImport(tool);
@@ -2393,7 +2392,6 @@ function providerLabel(service) {
     brickeconomy: 'BrickEconomy',
     brickowl: 'BrickOwl',
     pricecharting: 'PriceCharting',
-    brickpicker: 'BrickPicker',
     firecrawl: 'Firecrawl',
     ebay: 'eBay',
     rebrickable: 'Rebrickable',
@@ -2416,7 +2414,6 @@ function jobTypeLabel(type = '') {
     barcode_backfill: 'Barcode backfill',
     populate_coverage: 'Populate coverage',
     valuation: 'Revalue prices',
-    brickpicker_enrich: 'BrickPicker enrich',
     populate_everything: 'Populate everything',
   };
   return labels[type] || String(type || 'Job').replace(/_/g, ' ');

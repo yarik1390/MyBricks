@@ -467,13 +467,16 @@ export function resetSourceWeightMultipliers(): void {
   for (const k of Object.keys(sourceWeightMultipliers)) delete sourceWeightMultipliers[k];
 }
 
+/** Providers retired from the pricing engine. Their signals are filtered out at
+ *  read time so residual rows can never influence a valuation. */
+export const RETIRED_PRICING_SOURCES: readonly string[] = ['brickpicker'];
+
 function sourceOwner(signal: PricingSignal): string {
   if (signal.source.startsWith('bricklink')) return 'bricklink';
   if (signal.source.startsWith('ebay')) return 'ebay';
   if (signal.source.startsWith('brickeconomy')) return 'brickeconomy';
   if (signal.source.startsWith('brickowl')) return 'brickowl';
   if (signal.source.startsWith('pricecharting')) return 'pricecharting';
-  if (signal.source.startsWith('brickpicker')) return 'brickpicker';
   if (signal.source.startsWith('stockx')) return 'stockx';
   return signal.source;
 }
@@ -1108,6 +1111,11 @@ async function loadNormalizedSignals(db: D1Database, setNums: string[]): Promise
   if (!setNums.length) return out;
   try {
     const placeholders = setNums.map(() => '?').join(',');
+    // Retired providers are excluded at READ time, not just at write time: rows
+    // may survive in pricing_signals from an earlier release, and a retired
+    // source must never influence a valuation even then.
+    const retiredPatterns = RETIRED_PRICING_SOURCES.map((s) => `${s}%`);
+    const retiredClause = retiredPatterns.map(() => 'source NOT LIKE ?').join(' AND ');
     const { results } = await db.prepare(`
       SELECT set_num, source, source_item_id, provider_family, condition, signal_type, currency,
              value, low, high, sample_count, sales_volume, source_observed_at,
@@ -1115,7 +1123,8 @@ async function loadNormalizedSignals(db: D1Database, setNums: string[]): Promise
       FROM pricing_signals
       WHERE set_num IN (${placeholders})
         AND match_status IN ('verified','manual')
-    `).bind(...setNums).all<Record<string, unknown>>();
+        AND ${retiredClause}
+    `).bind(...setNums, ...retiredPatterns).all<Record<string, unknown>>();
     for (const row of results) {
       const setNum = String(row.set_num);
       const signal: MarketPricingSignal = {

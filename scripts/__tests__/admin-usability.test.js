@@ -7,15 +7,13 @@ const adminView = read('public/js/views/me-admin.js');
 const adminConfig = read('public/js/views/me-admin-config.js');
 
 describe('admin usability controls', () => {
-  it('makes PriceCharting and BrickPicker process actions reachable', () => {
+  it('makes PriceCharting process actions reachable', () => {
     assert.match(adminView, /'pricecharting-verify': 'pricechartingVerify'/);
     assert.match(adminView, /'pricecharting-enrich': 'pricecharting'/);
-    assert.match(adminView, /'brickpicker-enrich': 'brickpicker'/);
     assert.match(adminView, /data-process-run=/);
 
     assert.match(adminConfig, /pricechartingVerify:\s*\{[\s\S]*?url: '\/api\/admin\/run-pricecharting-verify'/);
     assert.match(adminConfig, /pricecharting:\s*\{[\s\S]*?url: '\/api\/admin\/jobs\/pricecharting-enrich\?limit=10'/);
-    assert.match(adminConfig, /brickpicker:\s*\{[\s\S]*?url: '\/api\/admin\/jobs\/brickpicker-enrich\?limit=10'/);
   });
 
   it('keeps the pricing partner panel renderable and wired to the API fields', () => {

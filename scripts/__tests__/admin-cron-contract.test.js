@@ -21,7 +21,6 @@ test('pricing process metadata agrees with scheduled execution', () => {
   // minute + hour, so a job can move off :00 without the assertion silently
   // matching a different slot (the backfill deliberately runs at 14:45).
   for (const [job, minute, hour] of [
-    ['brickpicker-enrich', 0, 17],
     ['pricecharting-enrich', 0, 14],
     ['pricecharting-link-backfill', 45, 14],
   ]) {

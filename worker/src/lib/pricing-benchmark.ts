@@ -122,7 +122,9 @@ export async function runPricingBenchmark(db: D1Database, options: { afterSet?: 
        'signal_type',signal_type,'currency',currency,'value',value,'sample_count',sample_count,
        'source_observed_at',source_observed_at,'checked_at',checked_at,'match_status',match_status))
      FROM (SELECT source,condition,signal_type,currency,value,sample_count,source_observed_at,checked_at,match_status
-       FROM pricing_signals WHERE set_num=s.set_num ORDER BY source,condition LIMIT 25)) AS signals
+       FROM pricing_signals WHERE set_num=s.set_num
+         AND source NOT LIKE 'brickpicker%'
+       ORDER BY source,condition LIMIT 25)) AS signals
     FROM (SELECT set_num FROM lego_sets WHERE set_num > ? ORDER BY set_num LIMIT ?) s
     ORDER BY s.set_num`).bind(oldest, origin, oldest, origin, oldest, origin, oldest, origin,
       options.afterSet ?? '', limit + 1).all<Row>();

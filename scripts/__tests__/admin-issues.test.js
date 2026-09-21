@@ -26,11 +26,11 @@ describe('buildAdminIssues', () => {
   it('uses production-shaped source config when diagnostics omit enabled', () => {
     const issues = buildAdminIssues({
       diagnostics: [
-        diagnostic('brickpicker', { reachable: false, status: 'down', last_fail_at: fresh }),
+        diagnostic('pricecharting', { reachable: false, status: 'down', last_fail_at: fresh }),
         diagnostic('bricklink', { reachable: false, status: 'down', last_fail_at: fresh }),
       ],
       sourceConfig: {
-        brickpicker: { enabled: false, weight: 0.5, dailyCap: 900, refreshDays: 14 },
+        pricecharting: { enabled: false, weight: 1, dailyCap: 500, refreshDays: 14 },
         bricklink: { enabled: true, weight: 1, dailyCap: 4000, refreshDays: 14 },
       },
       now: NOW,
@@ -41,15 +41,19 @@ describe('buildAdminIssues', () => {
     ]);
   });
 
-  it('does not assume an opt-in tunable source is enabled while config is unknown', () => {
+  it('evaluates a tunable source whose config is unknown when no source is opt-in', () => {
+    // BrickPicker was the last default-off opt-in source; with none left, an
+    // unknown tuning snapshot must not silently suppress a failing source.
     const issues = buildAdminIssues({
       diagnostics: [
-        diagnostic('brickpicker', { reachable: false, status: 'down', last_fail_at: fresh }),
+        diagnostic('pricecharting', { reachable: false, status: 'down', last_fail_at: fresh }),
       ],
       now: NOW,
     });
 
-    assert.deepEqual(issues, []);
+    assert.deepEqual(issues.map(({ service, kind }) => ({ service, kind })), [
+      { service: 'pricecharting', kind: 'error' },
+    ]);
   });
 
   it('never reports an outage for an explicitly disabled status or feature flag', () => {

@@ -16,7 +16,6 @@ import { runBrickInsightsBackfill } from '../jobs/brickinsights';
 import { runBlendRecomputeBackfill } from '../jobs/recompute-blends';
 import { runEbaySoldScrape } from '../jobs/ebay-sold-scrape';
 import { runPriceChartingEnrich } from '../jobs/pricecharting-enrich';
-import { runBrickPickerEnrich } from '../jobs/brickpicker-enrich';
 import { runStockXEnrich } from '../jobs/stockx-enrich';
 import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricecharting-bulk';
 import { indexMissingAlts } from '../lib/build-alts';
@@ -1150,7 +1149,6 @@ const JOB_LIMITS: Record<string, number> = {
   // job self-caps at 200, and ?limit= up to the override below is the intended way
   // to drain the 4,937-set backlog faster than one cron pass a day.
   'pricecharting-link-backfill': 50,
-  'brickpicker-enrich': 25,
   // Conservative: each Firecrawl(enhanced) StockX render is ~20s, so a small
   // default keeps a manual trigger inside the Worker request window. Advance the
   // backfill with ?limit= (the job self-caps at 60).
@@ -1228,9 +1226,6 @@ app.post('/jobs/:job', async (c) => {
       // On-demand resolution of real product ids for legacy:-mapped sets, so
       // PriceCharting attribution can render its required direct product link.
       result = await runPriceChartingEnrich(c.env, { limit, concurrency: 5, linkBackfill: true });
-    } else if (job === 'brickpicker-enrich') {
-      // On-demand BrickPicker batch enrich (modeled new/used set estimates).
-      result = await runBrickPickerEnrich(c.env, { limit });
     } else if (job === 'stockx-enrich') {
       // On-demand StockX lowest-ask enrich (Firecrawl-preferred) for verification
       // + backfill advancement. Low concurrency: slow renders, self-metered credits.

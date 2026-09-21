@@ -25,7 +25,7 @@ export interface SourceTuning {
 
 export type SourceName =
   | 'bricklink' | 'ebay' | 'brickeconomy' | 'brickowl'
-  | 'pricecharting' | 'brickpicker' | 'firecrawl' | 'scrapingant' | 'brightdata' | 'apify' | 'amazon' | 'stockx';
+  | 'pricecharting' | 'firecrawl' | 'scrapingant' | 'brightdata' | 'apify' | 'amazon' | 'stockx';
 
 export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   bricklink:     { enabled: true,  weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
@@ -42,9 +42,11 @@ export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   // collapses into the ebay_market family, so it corroborates BrickLink without
   // double-counting as an extra independent family alongside real eBay comps.
   pricecharting: { enabled: true,  weight: 1.0,  dailyCap: 500,  refreshDays: 14 },
-  // Shadow by default. Activation is an explicit admin decision after the Worker
-  // secret is installed. Modeled guides share ebay_market family correlation.
-  brickpicker:   { enabled: false, weight: 0.5,  dailyCap: 900,  refreshDays: 14 },
+  // RETIRED: BrickPicker was removed (public-display terms never granted). Its
+  // absence from DEFAULT_SOURCE_CONFIG is deliberate — merge() only iterates
+  // these keys, so a stale `brickpicker` entry left in app_settings is ignored
+  // and can never be re-activated. Residual pricing_signals rows are filtered
+  // out at read time by RETIRED_PRICING_SOURCES in market-sources.ts.
   firecrawl:     { enabled: true,  weight: 1.0,  dailyCap: 2000, refreshDays: 14 },
   // ScrapingAnt free plan: first-choice raw HTML for the three plain sources.
   // browser=false + datacenter is enforced by the client; one request is one

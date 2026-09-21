@@ -1363,12 +1363,6 @@
     ]
   },
   {
-    "text": "BrickPicker enrich",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
     "text": "BricksVault Pro",
     "files": [
       "lib/revenuecat-native.js",
@@ -3162,12 +3156,6 @@
     "files": [
       "views/me-admin.js",
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Enriches owned/wishlisted and priority sets with BrickPicker modeled estimates.",
-    "files": [
-      "views/me-admin-config.js"
     ]
   },
   {
@@ -5727,12 +5715,6 @@
     "text": "Model URL not found (HTTP 404) — check the URL.",
     "files": [
       "lib/local-ai.js"
-    ]
-  },
-  {
-    "text": "Modeled new and used set guides from eBay market data. Demand-first scheduled enrichment; 1,000 calls/day hard cap.",
-    "files": [
-      "views/me-admin-config.js"
     ]
   },
   {
@@ -8616,12 +8598,6 @@
     ]
   },
   {
-    "text": "Run BrickPicker enrich",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
     "text": "Run Populate all safe sources and check provider access under Overview → Pricing before increasing source weights.",
     "files": [
       "views/me-admin.js"
@@ -9787,12 +9763,6 @@
     ]
   },
   {
-    "text": "Spends BrickPicker API quota (1,000/day hard limit).",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
     "text": "Spends Firecrawl credits; runs synchronously and returns the result.",
     "files": [
       "views/me-admin-config.js"
@@ -10873,12 +10843,6 @@
     "text": "Up to date",
     "files": [
       "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "Up to ~10s for 10 sets",
-    "files": [
-      "views/me-admin-config.js"
     ]
   },
   {
