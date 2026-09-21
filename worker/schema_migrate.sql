@@ -650,6 +650,8 @@ CREATE TABLE IF NOT EXISTS pricing_signals (set_num TEXT NOT NULL, source TEXT N
 CREATE INDEX IF NOT EXISTS idx_pricing_signals_refresh ON pricing_signals(condition, checked_at);
 CREATE INDEX IF NOT EXISTS idx_pricing_signals_family ON pricing_signals(set_num, condition, provider_family);
 CREATE TABLE IF NOT EXISTS set_valuation_state (set_num TEXT NOT NULL, condition TEXT NOT NULL CHECK(condition IN ('new_sealed','used_complete','loose')), fair_value REAL, low REAL, high REAL, liquidation_value REAL, confidence TEXT NOT NULL DEFAULT 'estimated', confidence_score INTEGER NOT NULL DEFAULT 0, sample_count INTEGER NOT NULL DEFAULT 0, independent_family_count INTEGER NOT NULL DEFAULT 0, basis_json TEXT NOT NULL DEFAULT '[]', flags_json TEXT NOT NULL DEFAULT '[]', forecast_json TEXT, as_of TEXT, model_version TEXT NOT NULL DEFAULT 'v3-shadow', updated_at TEXT DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (set_num, condition));
+ALTER TABLE set_valuation_state ADD COLUMN completeness TEXT NOT NULL DEFAULT 'unknown';
+ALTER TABLE set_valuation_state ADD COLUMN evidence_quality TEXT NOT NULL DEFAULT 'insufficient';
 CREATE INDEX IF NOT EXISTS idx_valuation_state_confidence ON set_valuation_state(condition, confidence, as_of);
 CREATE TABLE IF NOT EXISTS set_valuation_history_v2 (set_num TEXT NOT NULL, condition TEXT NOT NULL CHECK(condition IN ('new_sealed','used_complete','loose')), snapshot_date TEXT NOT NULL, fair_value REAL, low REAL, high REAL, confidence TEXT, model_version TEXT, PRIMARY KEY (set_num, condition, snapshot_date));
 CREATE INDEX IF NOT EXISTS idx_valuation_history_v2_date ON set_valuation_history_v2(snapshot_date);

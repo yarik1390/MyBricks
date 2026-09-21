@@ -150,7 +150,7 @@ export const TABLE_DDL: Record<string, string> = {
 )`,
 
   set_valuation_state: `CREATE TABLE IF NOT EXISTS set_valuation_state (
-  set_num TEXT NOT NULL, condition TEXT NOT NULL, fair_value REAL, low REAL, high REAL,
+  set_num TEXT NOT NULL, condition TEXT NOT NULL, completeness TEXT NOT NULL DEFAULT 'unknown', evidence_quality TEXT NOT NULL DEFAULT 'insufficient', fair_value REAL, low REAL, high REAL,
   liquidation_value REAL, confidence TEXT NOT NULL DEFAULT 'estimated',
   confidence_score INTEGER NOT NULL DEFAULT 0, sample_count INTEGER NOT NULL DEFAULT 0,
   independent_family_count INTEGER NOT NULL DEFAULT 0, basis_json TEXT NOT NULL DEFAULT '[]',

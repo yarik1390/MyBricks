@@ -478,7 +478,44 @@ function sourceOwner(signal: PricingSignal): string {
   return signal.source;
 }
 
-function effectiveSignals(row: Record<string, unknown>, extraSignals: PricingSignal[] = []): PricingSignal[] {
+/** Aggregate metadata only: source_item_id is a product/catalog ID, never a
+ * transaction ID. Callers scope signals to one set. We can remove exact repeated
+ * aggregates, not detect shared individual sales across providers or aggregates.
+ */
+export type MarketPricingSignal = PricingSignal & { source_item_id?: string | null };
+
+export function deduplicatePricingSignals(signals: MarketPricingSignal[]): MarketPricingSignal[] {
+  const unique = new Map<string, MarketPricingSignal>();
+  for (const signal of signals) {
+    // Preserve every eligibility/weight input, including completeness flags and
+    // checked_at (which affects freshness). Different products, observation dates,
+    // sources, sample sizes or bounds are not proven copies of an aggregate.
+    const key = JSON.stringify([
+      signal.provider_family, signal.condition, signal.signal_type,
+      signal.currency, signal.value, signal.low ?? null, signal.high ?? null,
+      signal.sample_count ?? null, signal.sales_volume ?? null,
+      signal.source_observed_at ?? null, signal.match_status,
+      [...(signal.flags || [])].sort(), signal.trust_multiplier ?? 1,
+    ]);
+    if (!unique.has(key)) unique.set(key, signal);
+  }
+  return [...unique.values()];
+}
+
+/** Preserve the existing valuation/bands, but do not publish pooled sample counts
+ * as independent evidence. Per-family sample counts remain available in basis;
+ * independent_family_count is the effective number of independent opinions.
+ */
+export function valueMarketSignals(
+  condition: PricingSignal['condition'],
+  signals: MarketPricingSignal[],
+  history?: BlendHistory,
+): ValuationStateV3 {
+  // Preserve sample_count; family independence has its own explicit field.
+  return valueSignalsV3(condition, deduplicatePricingSignals(signals), history);
+}
+
+function effectiveSignals(row: Record<string, unknown>, extraSignals: MarketPricingSignal[] = []): MarketPricingSignal[] {
   return [...legacySignalsFor(row), ...extraSignals]
     // weight 0 (or the enabled:false → 0 kill switch in applySourceConfig) is a
     // hard exclusion, not just a very small weight — a weighted median with a
@@ -502,7 +539,7 @@ function computeV3State(
   history?: BlendHistory,
   extraSignals: PricingSignal[] = [],
 ): ValuationStateV3 {
-  return valueSignalsV3(condition, effectiveSignals(row, extraSignals), history);
+  return valueMarketSignals(condition, effectiveSignals(row, extraSignals), history);
 }
 
 /**
@@ -1072,7 +1109,7 @@ async function loadNormalizedSignals(db: D1Database, setNums: string[]): Promise
   try {
     const placeholders = setNums.map(() => '?').join(',');
     const { results } = await db.prepare(`
-      SELECT set_num, source, provider_family, condition, signal_type, currency,
+      SELECT set_num, source, source_item_id, provider_family, condition, signal_type, currency,
              value, low, high, sample_count, sales_volume, source_observed_at,
              checked_at, match_status, flags_json
       FROM pricing_signals
@@ -1081,8 +1118,9 @@ async function loadNormalizedSignals(db: D1Database, setNums: string[]): Promise
     `).bind(...setNums).all<Record<string, unknown>>();
     for (const row of results) {
       const setNum = String(row.set_num);
-      const signal: PricingSignal = {
+      const signal: MarketPricingSignal = {
         source: String(row.source),
+        source_item_id: text(row.source_item_id),
         provider_family: String(row.provider_family),
         condition: row.condition as PricingSignal['condition'],
         signal_type: row.signal_type as PricingSignal['signal_type'],
@@ -1109,8 +1147,8 @@ const VALUATION_STATE_UPSERT_SQL = `
   INSERT INTO set_valuation_state (
     set_num, condition, fair_value, low, high, liquidation_value, confidence,
     confidence_score, sample_count, independent_family_count, basis_json,
-    flags_json, forecast_json, as_of, model_version, updated_at
-  ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 'v3-shadow', datetime('now'))
+    flags_json, forecast_json, as_of, model_version, completeness, evidence_quality, updated_at
+  ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 'v3-shadow', ?15, ?16, datetime('now'))
   ON CONFLICT(set_num, condition) DO UPDATE SET
     fair_value=excluded.fair_value, low=excluded.low, high=excluded.high,
     liquidation_value=excluded.liquidation_value, confidence=excluded.confidence,
@@ -1118,7 +1156,8 @@ const VALUATION_STATE_UPSERT_SQL = `
     independent_family_count=excluded.independent_family_count,
     basis_json=excluded.basis_json, flags_json=excluded.flags_json,
     forecast_json=excluded.forecast_json, as_of=excluded.as_of,
-    model_version=excluded.model_version, updated_at=datetime('now')
+    model_version=excluded.model_version, completeness=excluded.completeness,
+    evidence_quality=excluded.evidence_quality, updated_at=datetime('now')
   WHERE set_valuation_state.fair_value IS NOT excluded.fair_value
      OR set_valuation_state.low IS NOT excluded.low
      OR set_valuation_state.high IS NOT excluded.high
@@ -1129,7 +1168,9 @@ const VALUATION_STATE_UPSERT_SQL = `
      OR set_valuation_state.independent_family_count IS NOT excluded.independent_family_count
      OR set_valuation_state.basis_json IS NOT excluded.basis_json
      OR set_valuation_state.flags_json IS NOT excluded.flags_json
-     OR set_valuation_state.forecast_json IS NOT excluded.forecast_json`;
+     OR set_valuation_state.forecast_json IS NOT excluded.forecast_json
+     OR set_valuation_state.completeness IS NOT excluded.completeness
+     OR set_valuation_state.evidence_quality IS NOT excluded.evidence_quality`;
 
 function valuationStateStatement(
   db: D1Database,
@@ -1160,7 +1201,7 @@ function valuationStateStatement(
     JSON.stringify(state.basis),
     JSON.stringify(state.flags),
     forecast ? JSON.stringify(forecast) : null,
-    state.as_of,
+    state.as_of, state.completeness, state.evidence_quality,
   );
 }
 

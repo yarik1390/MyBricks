@@ -578,7 +578,7 @@ async function buildSharedSetDetail(
         'SELECT pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count, pa_market, stockx_ask, stockx_cached_at FROM set_market_ext WHERE set_num=?'
       ).bind(setNum).first<Record<string, unknown>>().catch(() => null),
       c.env.DB.prepare(`
-        SELECT condition, fair_value, low, high, liquidation_value, confidence,
+        SELECT condition, completeness, evidence_quality, fair_value, low, high, liquidation_value, confidence,
                confidence_score, sample_count, independent_family_count,
                basis_json, flags_json, forecast_json, as_of
         FROM set_valuation_state WHERE set_num=?
@@ -670,6 +670,8 @@ async function buildSharedSetDetail(
       };
       const state = {
         condition: valuationRow.condition,
+        completeness: valuationRow.completeness ?? 'unknown',
+        evidence_quality: valuationRow.evidence_quality ?? 'insufficient',
         fair_value: valuationRow.fair_value,
         low: valuationRow.low,
         high: valuationRow.high,

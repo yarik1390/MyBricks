@@ -53,6 +53,40 @@ describe('investment-grade valuation v3', () => {
     expect(result.sample_count).toBe(12);
   });
 
+  it('does not promote explicitly unknown completeness to complete', () => {
+    const result = valueSignalsV3('used_complete', [
+      { ...sold('bricklink_used', 'bricklink', 100, 5, 'used_complete'), flags: ['completeness_unknown'] },
+    ]);
+    expect(result.completeness).toBe('unknown');
+    expect(result.fair_value).toBeNull();
+    expect(result.evidence_quality).toBe('insufficient');
+  });
+
+  it('does not headline incomplete evidence as used complete', () => {
+    const result = valueSignalsV3('used_complete', [
+      { ...sold('bricklink_used', 'bricklink', 100, 5, 'used_complete'), flags: ['incomplete'] },
+    ]);
+    expect(result.completeness).toBe('incomplete');
+    expect(result.fair_value).toBeNull();
+    expect(result.evidence_quality).toBe('insufficient');
+  });
+
+  it('marks one correlated family thin, not sufficient', () => {
+    const result = valueSignalsV3('new_sealed', [
+      sold('ebay_sold_new', 'ebay_market', 100, 7),
+      sold('pricecharting', 'ebay_market', 104, 12),
+    ]);
+    expect(result.evidence_quality).toBe('thin');
+  });
+
+  it('marks multiple independent fresh verified families sufficient', () => {
+    const result = valueSignalsV3('new_sealed', [
+      sold('bricklink_new', 'bricklink', 100, 5),
+      sold('ebay_sold_new', 'ebay_market', 108, 3),
+    ]);
+    expect(result.evidence_quality).toBe('sufficient');
+  });
+
   it('keeps asking-only data out of fair and liquidation values', () => {
     const result = valueSignalsV3('new_sealed', [{
       ...sold('ebay_asking', 'ebay_market', 180, 12),

@@ -28,6 +28,7 @@ import { getFirecrawlKeyPoolStatus, resetFirecrawlKeyPool } from '../lib/firecra
 import { getBrightDataKeyPoolStatus, resetBrightDataKeyPool } from '../lib/brightdata-keys';
 import { partnerRevenueStatus } from '../lib/partner-revenue';
 import { runPriceChartingBacktest } from '../lib/pricing-backtest';
+import { runPricingBenchmark } from '../lib/pricing-benchmark';
 import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG, applySourceConfig } from '../lib/source-config';
 import { getLlmRoutes, saveLlmRoutes, resolveRoute, providerConfigured, DEFAULT_LLM_ROUTES, LLM_PROVIDERS, LLM_WORKLOADS } from '../lib/llm-routing';
 import { OMNIROUTE_SCAN_COMBO } from '../lib/omniroute';
@@ -913,6 +914,12 @@ app.get('/integrations', async (c) => {
 app.get('/pricing/backtest', async (c) => {
   const result = await runPriceChartingBacktest(c.env.DB);
   return c.json({ ok: true, backtest: result });
+});
+
+// Bounded, read-only time-forward observation proxy; global admin auth/no-store apply.
+app.get('/pricing/benchmark', async (c) => {
+  const result = await runPricingBenchmark(c.env.DB, { afterSet: c.req.query('after_set') });
+  return c.json({ ok: true, benchmark: result });
 });
 
 // Pricing Center: compact operational views over the normalized v3 side tables.

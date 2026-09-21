@@ -266,7 +266,7 @@ describe('BrickVault API Worker Tests', () => {
       )`,
 
       `CREATE TABLE set_valuation_state (
-        set_num TEXT NOT NULL, condition TEXT NOT NULL, fair_value REAL, low REAL, high REAL,
+        set_num TEXT NOT NULL, condition TEXT NOT NULL, completeness TEXT NOT NULL DEFAULT 'unknown', evidence_quality TEXT NOT NULL DEFAULT 'insufficient', fair_value REAL, low REAL, high REAL,
         liquidation_value REAL, confidence TEXT, confidence_score REAL, sample_count INTEGER,
         independent_family_count INTEGER, basis_json TEXT, flags_json TEXT, forecast_json TEXT,
         as_of TEXT, model_version TEXT, updated_at TEXT, PRIMARY KEY (set_num, condition)

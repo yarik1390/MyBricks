@@ -28,6 +28,46 @@ Not established: retention of **historical** BrickLink snapshots, and whether a
 derived blend counts as "display of price-guide data" when BrickLink is not
 named. Both are treated conservatively below (§5).
 
+### BrickPicker — API access held, public display NOT authorised
+The integration already exists in code (`lib/brickpicker.ts`,
+`jobs/brickpicker-enrich.ts` on the daily `0 17 * * *` cron, listed in
+`source_config`), but it ships **shadow-disabled** (`enabled: false`) and no
+BrickPicker data has ever been ingested: live D1 has **zero**
+`pricing_source_map` rows with `source='brickpicker'`, no `brickpicker` row in
+`integration_health`, and the live `app_settings.source_config` carries no
+`brickpicker` key at all — so the code default (`enabled:false`) is what runs.
+
+That default is the compliant posture, because the published API terms
+(effective 2024-12-31) forbid precisely what BrickVault does with a price feed:
+
+- §5.5.1 — the API may be used only for "your personal use or your own internal
+  business operations".
+- §5.5.3 — absent prior written authorisation under a separate commercial
+  agreement, you may not publish, syndicate, transmit or otherwise provide
+  BrickPicker Data **or a substantial derivative of it** to any third party,
+  make it available "through another API ... software product, hosted service",
+  or "create, train, operate, enhance, or support a competing or substitutive
+  price guide, valuation service, dataset, database, application, API, feed".
+- §5.5.4 — caching is limited to operating the authorised integration and "may
+  not be used to assemble a historical or current substitute for BrickPicker".
+- §5.5.5 — "API access does not by itself authorize public display or
+  third-party distribution of BrickPicker Data. Any external display requires
+  our prior written permission and must include the attribution, canonical
+  BrickPicker links, freshness information, and other notices we specify."
+
+BrickVault is a public PWA whose public API returns the blended value to any
+caller, so folding BrickPicker into the blend and publishing the result is the
+§5.5.3/§5.5.5 case almost verbatim. **Holding the API key is not the permission.**
+Enabling `source_config.brickpicker` requires BrickPicker's prior written
+permission — ideally naming derived/blended display, attribution, canonical
+links and freshness, the way PriceCharting's does. A separate commercial
+agreement (§5.5.7) is the only path to bulk or redistributive use.
+
+Also note the modelling consequence if it is ever enabled: BrickPicker ships
+`weight: 0.5` and is deliberately placed in the **`ebay_market`** family, not a
+new independent one, because its guides are modeled rather than independent sold
+comp data. Enabling it adds coverage, not independent corroboration.
+
 ## 2. What the code does today
 
 | Boundary | Rule | Where |

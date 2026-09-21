@@ -63,11 +63,14 @@ export const CATALOG_COLS =
   'ext.stockx_ask, ext.stockx_cached_at, ' +
   // Persisted v3 state keeps catalog cards and offline seed confidence aligned
   // with set detail, including history-based anomaly demotions.
+  // Pack quality with flags to preserve the wishlist 100-column D1 limit.
   'svn.fair_value AS v3_new_fair, svn.low AS v3_new_low, svn.high AS v3_new_high, ' +
   'svn.liquidation_value AS v3_new_liquidation, svn.confidence AS v3_new_confidence, ' +
   'svn.confidence_score AS v3_new_score, svn.sample_count AS v3_new_samples, ' +
   'svn.independent_family_count AS v3_new_families, svn.basis_json AS v3_new_basis, ' +
-  'svn.flags_json AS v3_new_flags, svn.forecast_json AS v3_new_forecast, svn.as_of AS v3_new_as_of, ' +
+  "json_object('new_completeness', svn.completeness, 'new_evidence_quality', svn.evidence_quality, " +
+  "'used_completeness', svu.completeness, 'used_evidence_quality', svu.evidence_quality, " +
+  "'flags', svn.flags_json) AS v3_new_flags, svn.forecast_json AS v3_new_forecast, svn.as_of AS v3_new_as_of, " +
   'svu.fair_value AS v3_used_fair, svu.low AS v3_used_low, svu.high AS v3_used_high, ' +
   'svu.liquidation_value AS v3_used_liquidation, svu.confidence AS v3_used_confidence, ' +
   'svu.confidence_score AS v3_used_score, svu.sample_count AS v3_used_samples, ' +
@@ -96,10 +99,14 @@ function parseJson(value: unknown, fallback: unknown) {
 }
 
 export function attachCatalogValuationState<T extends Record<string, unknown>>(row: T): T {
+  const packed = parseJson(row.v3_new_flags, {});
+  const quality = packed && !Array.isArray(packed) ? packed : {};
   const state = (prefix: 'v3_new' | 'v3_used', condition: 'new_sealed' | 'used_complete') => {
     if (row[`${prefix}_fair`] == null) return undefined;
     return {
       condition,
+      completeness: quality[`${prefix.slice(3)}_completeness`] || 'unknown',
+      evidence_quality: quality[`${prefix.slice(3)}_evidence_quality`] || 'insufficient',
       fair_value: row[`${prefix}_fair`],
       low: row[`${prefix}_low`],
       high: row[`${prefix}_high`],
@@ -109,7 +116,7 @@ export function attachCatalogValuationState<T extends Record<string, unknown>>(r
       sample_count: row[`${prefix}_samples`],
       independent_family_count: row[`${prefix}_families`],
       basis: parseJson(row[`${prefix}_basis`], []),
-      flags: parseJson(row[`${prefix}_flags`], []),
+      flags: prefix === 'v3_new' && !Array.isArray(packed) ? parseJson(quality.flags, []) : parseJson(row[`${prefix}_flags`], []),
       as_of: row[`${prefix}_as_of`],
       model_version: 'v3',
     };

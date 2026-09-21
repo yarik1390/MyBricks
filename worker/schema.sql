@@ -186,6 +186,8 @@ CREATE INDEX IF NOT EXISTS idx_pricing_signals_family ON pricing_signals(set_num
 CREATE TABLE IF NOT EXISTS set_valuation_state (
   set_num TEXT NOT NULL REFERENCES lego_sets(set_num),
   condition TEXT NOT NULL CHECK(condition IN ('new_sealed','used_complete','loose')),
+  completeness TEXT NOT NULL DEFAULT 'unknown' CHECK(completeness IN ('sealed','complete','incomplete','unknown')),
+  evidence_quality TEXT NOT NULL DEFAULT 'insufficient' CHECK(evidence_quality IN ('sufficient','thin','insufficient')),
   fair_value REAL,
   low REAL,
   high REAL,

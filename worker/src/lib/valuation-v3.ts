@@ -1,6 +1,8 @@
 import { independentRetailAnchor, isPlausibleMarketValue } from './valuation';
 
 export type PricingCondition = 'new_sealed' | 'used_complete' | 'loose';
+export type PricingCompleteness = 'sealed' | 'complete' | 'incomplete' | 'unknown';
+export type EvidenceQuality = 'sufficient' | 'thin' | 'insufficient';
 export type PricingSignalType = 'sold' | 'modeled' | 'asking' | 'estimate';
 export type PricingMatchStatus = 'verified' | 'manual' | 'quarantined' | 'rejected';
 export type PricingConfidence = 'high' | 'medium' | 'low' | 'estimated';
@@ -40,10 +42,13 @@ export interface ValuationBasis {
   /** Representative trust multiplier for the family (see PricingSignal), used
    *  to scale this family's influence in the cross-family fair-value blend. */
   trust_multiplier: number;
+  completeness: PricingCompleteness;
 }
 
 export interface ValuationStateV3 {
   condition: PricingCondition;
+  completeness: PricingCompleteness;
+  evidence_quality: EvidenceQuality;
   fair_value: number | null;
   low: number | null;
   high: number | null;
@@ -130,6 +135,36 @@ function signalWeight(signal: PricingSignal, now: number): number {
   return type * sampleFactor * freshness * trust;
 }
 
+/**
+ * Completeness is deliberately conservative: explicit incomplete/unknown flags
+ * win, and unknown is never promoted to complete. Legacy condition paths retain
+ * their established sealed/complete meaning when no contradictory flag exists.
+ */
+function signalCompleteness(signal: PricingSignal): PricingCompleteness {
+  const flags = new Set((signal.flags || []).map(flag => flag.toLowerCase()));
+  if ([...flags].some(flag => flag === 'incomplete' || flag.includes('missing'))) return 'incomplete';
+  if ([...flags].some(flag => flag === 'unknown' || flag.includes('completeness_unknown'))) return 'unknown';
+  if (flags.has('sealed') || signal.condition === 'new_sealed') return 'sealed';
+  if (flags.has('complete') || flags.has('used_complete') || signal.condition === 'used_complete') return 'complete';
+  return 'unknown';
+}
+
+function completenessFor(condition: PricingCondition, signals: PricingSignal[]): PricingCompleteness {
+  const values = signals.map(signalCompleteness);
+  if (condition === 'new_sealed' && values.includes('sealed')) return 'sealed';
+  if (condition === 'used_complete' && values.includes('complete')) return 'complete';
+  if (values.includes('incomplete')) return 'incomplete';
+  if (values.includes('unknown')) return 'unknown';
+  return condition === 'loose' ? 'incomplete' : 'unknown';
+}
+
+function getEvidenceQuality(headline: ValuationBasis[], soldSampleCount: number): EvidenceQuality {
+  const freshVerified = headline.length > 0 && headline.every(family => family.fresh && family.identity_verified);
+  if (headline.length >= 2 && freshVerified && soldSampleCount >= 8) return 'sufficient';
+  if (headline.length === 1 && freshVerified && headline[0].sample_count >= 3) return 'thin';
+  return 'insufficient';
+}
+
 function collapseFamilies(signals: PricingSignal[], now: number): ValuationBasis[] {
   const families = new Map<string, PricingSignal[]>();
   for (const signal of signals) {
@@ -170,6 +205,7 @@ function collapseFamilies(signals: PricingSignal[], now: number): ValuationBasis
       fresh,
       identity_verified: selected.every(s => s.match_status === 'verified' || s.match_status === 'manual'),
       trust_multiplier: trustMultiplier,
+      completeness: completenessFor(familySignals[0].condition, selected),
     };
   });
 }
@@ -190,6 +226,8 @@ export function valueSignalsV3(
 ): ValuationStateV3 {
   const flags = new Set<string>();
   const relevant = input.filter(signal => signal.condition === condition && signal.currency === 'USD' && positive(signal.value));
+  const accepted = relevant.filter(signal => signal.match_status === 'verified' || signal.match_status === 'manual');
+  const acceptedCompleteness = completenessFor(condition, accepted);
   for (const signal of relevant) {
     if (signal.match_status !== 'verified' && signal.match_status !== 'manual') flags.add('identity_unverified');
     if (signal.signal_type === 'sold' && Number(signal.sample_count || signal.sales_volume || 0) < minimumSample(signal)) {
@@ -199,10 +237,13 @@ export function valueSignalsV3(
     for (const flag of signal.flags || []) flags.add(flag);
   }
 
-  // Quarantined/rejected matches and undersized sold samples remain visible in
-  // diagnostics but cannot influence the fair-value headline.
+  // Identity/manual review is the first gate. Completeness is evaluated only
+  // after that gate so rejected/quarantined evidence cannot contaminate the
+  // reported state or suppress an accepted complete comp.
   const eligible = relevant.filter(signal => {
     if (signal.match_status !== 'verified' && signal.match_status !== 'manual') return false;
+    if (condition === 'new_sealed' && signalCompleteness(signal) !== 'sealed') return false;
+    if (condition === 'used_complete' && signalCompleteness(signal) !== 'complete') return false;
     if (signal.signal_type === 'sold') {
       return Number(signal.sample_count || signal.sales_volume || 0) >= minimumSample(signal);
     }
@@ -237,7 +278,7 @@ export function valueSignalsV3(
 
   if (!headlineFamilies.length) {
     return {
-      condition, fair_value: null, low: null, high: null, liquidation_value: null,
+      condition, completeness: acceptedCompleteness, evidence_quality: 'insufficient', fair_value: null, low: null, high: null, liquidation_value: null,
       confidence: 'estimated', confidence_score: 0, sample_count: 0,
       independent_family_count: 0, basis: families, flags: [...flags],
       as_of: new Date(now).toISOString(), model_version: 'v3',
@@ -331,6 +372,8 @@ export function valueSignalsV3(
 
   return {
     condition,
+    completeness: acceptedCompleteness,
+    evidence_quality: getEvidenceQuality(headlineFamilies, soldSampleCount),
     fair_value: fairValue,
     low: roundMoney(low),
     high: roundMoney(high),

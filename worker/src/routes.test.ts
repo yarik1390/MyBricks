@@ -185,6 +185,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         bl_nodata_at TEXT
       )`,
       `CREATE TABLE set_valuation_state (
+        completeness TEXT NOT NULL DEFAULT 'unknown', evidence_quality TEXT NOT NULL DEFAULT 'insufficient',
         set_num TEXT NOT NULL, condition TEXT NOT NULL, fair_value REAL, low REAL, high REAL,
         liquidation_value REAL, confidence TEXT, confidence_score REAL, sample_count INTEGER,
         independent_family_count INTEGER, basis_json TEXT, flags_json TEXT, forecast_json TEXT,
