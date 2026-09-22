@@ -1106,7 +1106,7 @@ function blendAndDealRow(row: Record<string, unknown>, history?: BlendHistory, e
   };
 }
 
-async function loadNormalizedSignals(db: D1Database, setNums: string[]): Promise<Map<string, PricingSignal[]>> {
+async function loadNormalizedSignals(db: D1Database, setNums: string[], strict = false): Promise<Map<string, PricingSignal[]>> {
   const out = new Map<string, PricingSignal[]>();
   if (!setNums.length) return out;
   try {
@@ -1146,7 +1146,8 @@ async function loadNormalizedSignals(db: D1Database, setNums: string[]): Promise
       };
       out.set(setNum, [...(out.get(setNum) || []), signal]);
     }
-  } catch {
+  } catch (error) {
+    if (strict) throw error;
     // Older/local schemas keep using legacy columns until migration lands.
   }
   return out;
@@ -1263,7 +1264,7 @@ export async function persistBlendedValue(db: D1Database, setNum: string): Promi
 // Recompute blended_value for many sets in one read + chunked batched writes
 // per chunk (subrequest-lean for the cron; D1 caps bound params and batch
 // size). Returns the number of rows written. Fails open.
-export async function recomputeBlendedValues(db: D1Database, setNums: string[]): Promise<number> {
+export async function recomputeBlendedValues(db: D1Database, setNums: string[], options: { strict?: boolean } = {}): Promise<number> {
   const ids = [...new Set(setNums.filter(Boolean))];
   if (!ids.length) return 0;
   let written = 0;
@@ -1279,8 +1280,11 @@ export async function recomputeBlendedValues(db: D1Database, setNums: string[]):
         `SELECT ls.set_num, ${BLEND_INPUT_COLUMNS}, ${BLEND_EXT_COLUMNS} FROM ${BLEND_FROM} WHERE ls.set_num IN (${placeholders})`,
       ).bind(...chunk).all<Record<string, unknown>>();
       // One history read per chunk feeds the anomaly guard (subrequest-lean).
-      const medians = await recentValueMedians(db, chunk).catch(() => new Map());
-      const signals = await loadNormalizedSignals(db, chunk);
+      const medians = await recentValueMedians(db, chunk).catch((error) => {
+        if (options.strict) throw error;
+        return new Map();
+      });
+      const signals = await loadNormalizedSignals(db, chunk, options.strict);
       const computed = results.map(row => {
         const r = blendAndDealRow(row, medians.get(row.set_num as string), signals.get(row.set_num as string) || []);
         // `row` is the pre-update state, so this compares old against new with no
@@ -1304,8 +1308,14 @@ export async function recomputeBlendedValues(db: D1Database, setNums: string[]):
       if (computed.length) {
         const newStates = computed.map(({ row, r, history }) => valuationStateStatement(db, row.set_num as string, r.newState, row, history));
         const usedStates = computed.map(({ row, r }) => valuationStateStatement(db, row.set_num as string, r.usedState, row));
-        const stateResults = await db.batch(newStates).catch(() => []);
-        const usedResults = await db.batch(usedStates).catch(() => []);
+        const stateResults = await db.batch(newStates).catch((error) => {
+          if (options.strict) throw error;
+          return [];
+        });
+        const usedResults = await db.batch(usedStates).catch((error) => {
+          if (options.strict) throw error;
+          return [];
+        });
         written += [...stateResults, ...usedResults].reduce((sum, result) => sum + Number(result.meta?.changes || 0), 0);
       }
     }
@@ -1319,6 +1329,7 @@ export async function recomputeBlendedValues(db: D1Database, setNums: string[]):
     return written;
   } catch (e) {
     console.warn('[blend] batch recompute failed:', (e as Error).message);
+    if (options.strict) throw e;
     return written;
   }
 }

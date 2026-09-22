@@ -471,9 +471,12 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
       `SELECT set_num FROM user_collection WHERE deleted_at IS NULL UNION SELECT set_num FROM user_wishlist`,
     ).all<{ set_num: string }>();
     const priority = results.map((r) => r.set_num).filter((setNum) => touched.has(setNum));
-    if (priority.length) await recomputeBlendedValues(env.DB, priority);
+    if (priority.length) await recomputeBlendedValues(env.DB, priority, { strict: true });
   } catch (e) {
     console.warn('[pc-bulk] priority recompute failed:', (e as Error).message);
+    // Imported evidence is durable, but user-facing persisted totals are not
+    // refreshed. Surface a failed run instead of recording a false success.
+    throw e;
   }
 
   result = {
@@ -502,11 +505,11 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     const msg = (importError as Error)?.message || String(importError);
     try {
       await recordIntegrationAttempt(env, 'pricecharting', false, `bulk import failed: ${msg}`);
-      await persistBulk(env, {
-        rows: rows.length, matched: 0, unmatched: rows.length, updated: 0,
-        skipped: `import failed: ${msg}`,
-      });
-    } catch { /* the import error is the primary diagnostic */ }
+    } catch { /* health storage must not prevent progress recording */ }
+    await persistBulk(env, {
+      rows: rows.length, matched: 0, unmatched: rows.length, updated: 0,
+      skipped: `import failed: ${msg}`,
+    });
     throw importError;
   }
   return persistBulk(env, result!);

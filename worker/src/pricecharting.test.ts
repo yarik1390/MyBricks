@@ -67,6 +67,10 @@ describe('fetchPriceChartingData (UPC + loose/sales)', () => {
 
 describe('runPriceChartingBulk', () => {
   beforeEach(async () => {
+    await db.prepare('DROP TABLE IF EXISTS user_collection').run();
+    await db.prepare('DROP TABLE IF EXISTS user_wishlist').run();
+    await db.prepare('CREATE TABLE user_collection (set_num TEXT, deleted_at TEXT)').run();
+    await db.prepare('CREATE TABLE user_wishlist (set_num TEXT)').run();
     await db.prepare('DROP TABLE IF EXISTS lego_sets').run();
     await db.prepare('DROP TABLE IF EXISTS set_market_ext').run();
     await db.prepare('DROP TABLE IF EXISTS app_settings').run();

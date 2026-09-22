@@ -79,6 +79,19 @@ describe('PriceCharting bulk re-confirmation', () => {
     await db.prepare(`CREATE TABLE user_wishlist (set_num TEXT)`).run();
   });
 
+  it('reports failure when imported prices cannot refresh a user-facing blend', async () => {
+    await seed('new_sealed');
+    await db.prepare(`INSERT INTO user_collection (set_num) VALUES ('10001-1')`).run();
+    vi.mocked(recomputeBlendedValues).mockRejectedValueOnce(new Error('blend refresh unavailable'));
+
+    await expect(importRows(['12345,LEGO Sets,,Mapped Set #10001,$40,$60,$50,12']))
+      .rejects.toThrow('blend refresh unavailable');
+    const stored = await db.prepare(`SELECT value FROM app_settings WHERE key='pc_bulk_last_result'`).first<{ value: string }>();
+    expect(JSON.parse(stored!.value).skipped).toContain('blend refresh unavailable');
+    expect(await db.prepare(`SELECT name FROM sqlite_master WHERE name LIKE '_pc_bulk_%'`).all())
+      .toMatchObject({ results: [] });
+  });
+
   it('advances checked_at for an unchanged price the sweep still publishes', async () => {
     await seed('new_sealed');
 
