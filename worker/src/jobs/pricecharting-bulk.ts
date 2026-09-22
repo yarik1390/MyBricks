@@ -32,6 +32,18 @@ import { sourceEnabled } from '../lib/source-config';
 
 const PROGRESS_KEY = 'pc_bulk_last_result';
 
+// Re-confirmation cadence + daily write budget for re-observed-but-unchanged
+// PriceCharting rows. The change-only upsert above deliberately skips writes
+// when a price is re-published unchanged, which leaves `checked_at` pinned to
+// the value's last CHANGE while the pricing engine (valuation-v3) reads
+// `checked_at` as "when we last confirmed this evidence" and demotes the
+// family to stale after 14 days. A price the daily full-catalog sweep keeps
+// re-publishing is current evidence, so it must be stamped as such — bounded so
+// the re-confirmation itself can never become a D1 rows-written problem.
+// 7 days refreshes the ~22k verified signals on a rolling basis inside the cap.
+const PC_RECONFIRM_DAYS = 7;
+const PC_RECONFIRM_BUDGET = 2500;
+
 function parseLine(line: string): string[] {
   const cols: string[] = [];
   let cur = '', inQ = false;
@@ -409,11 +421,38 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
       AND NOT EXISTS (SELECT 1 FROM pricing_signals ps WHERE ps.source='pricecharting'
         AND ps.source_item_id=old.source_item_id)
   `);
+  // Re-confirm, do not re-price. A row whose product is still published by this
+  // sweep at the same figure was re-observed, so `checked_at` advances even
+  // though the value (and therefore `source_observed_at`, the anchor the
+  // time-forward benchmark freezes against) does not. Guarded by the same
+  // identity join as every write above, and limited to rows whose specific
+  // figure for that condition is still present in the feed.
+  const reconfirmSeen = env.DB.prepare(`
+    UPDATE pricing_signals SET checked_at=datetime('now'), updated_at=datetime('now')
+    WHERE rowid IN (
+      SELECT ps.rowid
+      FROM ${STAGE} s
+      JOIN pricing_source_map pm
+        ON pm.source='pricecharting' AND pm.source_item_id=s.pcid
+       AND pm.status IN ('verified','manual')
+      JOIN lego_sets ls ON ls.set_num=pm.set_num AND ${OBSERVATION_IDENTITY_COMPATIBLE}
+      JOIN pricing_signals ps
+        ON ps.set_num=pm.set_num AND ps.source='pricecharting'
+       AND ps.source_item_id=s.pcid AND ps.match_status IN ('verified','manual')
+      WHERE ps.checked_at < datetime('now', '-${PC_RECONFIRM_DAYS} days')
+        AND ((ps.condition='new_sealed' AND s.newv IS NOT NULL)
+          OR (ps.condition='used_complete' AND s.cibv IS NOT NULL)
+          OR (ps.condition='loose' AND s.loosev IS NOT NULL))
+      ORDER BY ps.checked_at ASC
+      LIMIT ${PC_RECONFIRM_BUDGET}
+    )
+  `);
   await env.DB.batch([
     signalInsert('new_sealed', 'newv'),
     signalInsert('used_complete', 'cibv'),
     signalInsert('loose', 'loosev'),
     retireSynthetic,
+    reconfirmSeen,
   ]);
 
   const matched = (await env.DB.prepare(`SELECT count(*) AS n FROM ${VERIFIED_JOIN}`)
@@ -455,6 +494,20 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
       console.error('[pc-bulk] staging cleanup failed after import failure:', cleanupError);
     }
   }
-  if (importError !== undefined) throw importError;
+  if (importError !== undefined) {
+    // A mid-import failure (D1 error, CPU/subrequest limit) used to propagate
+    // with no health record and no progress key, so the run simply vanished from
+    // admin diagnostics — indistinguishable from the cron never firing. Record
+    // both before surfacing the original error.
+    const msg = (importError as Error)?.message || String(importError);
+    try {
+      await recordIntegrationAttempt(env, 'pricecharting', false, `bulk import failed: ${msg}`);
+      await persistBulk(env, {
+        rows: rows.length, matched: 0, unmatched: rows.length, updated: 0,
+        skipped: `import failed: ${msg}`,
+      });
+    } catch { /* the import error is the primary diagnostic */ }
+    throw importError;
+  }
   return persistBulk(env, result!);
 }

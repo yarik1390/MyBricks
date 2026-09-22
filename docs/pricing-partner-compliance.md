@@ -145,6 +145,19 @@ a price that is re-confirmed but unchanged keeps its original
 `source_observed_at`. An old timestamp on a bulk-reachable row therefore means
 "unchanged", not "unverified" — do not read it as staleness.
 
+**Closed 2026-09-22.** That convention was documented here but not enforced: the
+pricing engine reads a signal's `checked_at` as "when we last confirmed this
+evidence" and marks the family stale past 14 days, so a row re-published
+unchanged for two months was scored as if the provider had gone quiet. The bulk
+job now stamps `checked_at` on re-observation, bounded to 2,500 rows/day
+oldest-first (a rolling ~7-day cycle over the ~22k verified signals), and only
+when the row's product *and* that condition's figure are still published and its
+mapping is still verified. `source_observed_at` deliberately does NOT move — it
+is the freeze anchor the time-forward benchmark uses, and advancing it would let
+re-confirmed old sales masquerade as fresh observations. Measured before the
+change: 16,176 of 22,421 signals (5,875 sets) carried a `checked_at` older than
+14 days.
+
 ### Loose vs used-complete (same sets, 6,999)
 Mean ratio **0.522** — loose (no box/manual) trades at about half of used-complete
 on the same set. This is why loose may only ever cap the liquidation figure.
