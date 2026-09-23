@@ -272,6 +272,9 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
 
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS ${STAGE}_pcid ON ${STAGE}(pcid)`).run();
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS ${STAGE}_upc ON ${STAGE}(upc)`).run();
+  // Both branches of the duplicate-evidence OR must be indexed; otherwise
+  // its correlated anti-join scans the entire CSV once per candidate row.
+  await env.DB.prepare(`CREATE INDEX IF NOT EXISTS ${STAGE}_setbase ON ${STAGE}(setbase)`).run();
 
   const CATEGORY_COMPATIBLE = `(lower(s.provider_category) LIKE '%lego%'
     AND (ls.category IS NULL OR ls.category='' OR lower(ls.category)='normal'
