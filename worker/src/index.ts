@@ -298,6 +298,7 @@ app.route('/api/catalog', catalogSeedRoute);
 app.route('/api/themes', themesRoute);
 app.route('/api/minifigs', minifigsRoute);
 app.route('/api/subcollections', subcollectionsRoute);
+import { changesRoute } from './routes/changes'; app.route('/api/changes', changesRoute);
 app.route('/api/scan', scanRoute);
 app.route('/api/admin', adminRoute);
 app.route('/api/advisor', advisorRoute);
