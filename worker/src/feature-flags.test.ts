@@ -53,7 +53,8 @@ describe('feature-flags', () => {
     await saveFeatureFlags(baseEnv(), { ebay_sold_comps: true, brickinsights: false });
     await applyFeatureFlags(baseEnv());
     expect(flagOverride('ebay_sold_comps')).toBe(true);
-    expect(ebaySoldCompsEnabled(baseEnv())).toBe(true); // override turns it on
+    expect(ebaySoldCompsEnabled(baseEnv())).toBe(false); // unavailable scope stays inert
+    expect(ebaySoldCompsEnabled(baseEnv({ EBAY_SOLD_COMPS_ENABLED: '1' }))).toBe(false);
     expect(brickInsightsEnabled(baseEnv())).toBe(false); // override turns a default-on flag off
   });
 

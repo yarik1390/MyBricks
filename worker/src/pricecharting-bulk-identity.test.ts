@@ -88,6 +88,61 @@ describe('PriceCharting bulk identity verification', () => {
     expect(vi.mocked(recomputeBlendedValues)).not.toHaveBeenCalled();
   });
 
+  it('promotes a sole bare-base row with an exact normalized title', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num,name,category) VALUES ('75188-1','Resistance Bomber','Normal')`).run();
+
+    expect(await importRows(['pc-75188,LEGO Sets,,LEGO Resistance Bomber #75188,$70,$80,$90,9']))
+      .toMatchObject({ matched: 1, updated: 1 });
+    expect(await db.prepare(`SELECT match_method,status FROM pricing_source_map WHERE source_item_id='pc-75188'`).first())
+      .toEqual({ match_method: 'base_title', status: 'verified' });
+    expect(await db.prepare(`SELECT pc_id,pc_new_value FROM lego_sets WHERE set_num='75188-1'`).first())
+      .toEqual({ pc_id: 'pc-75188', pc_new_value: 90 });
+  });
+
+  it.each([
+    ['title mismatch / named variant', "'75188-1','Resistance Bomber','Normal',NULL", 'pc-a,LEGO Sets,,Finch Dallow Resistance Bomber #75188,$70,$80,$90,9'],
+    ['multiple catalog variants', "'75188-1','Resistance Bomber','Normal',NULL),('75188-2','Resistance Bomber','Normal',NULL", 'pc-b,LEGO Sets,,Resistance Bomber #75188,$70,$80,$90,9'],
+    ['category conflict', "'75188-1','Resistance Bomber','Technic',NULL", 'pc-c,LEGO Sets,,Resistance Bomber #75188,$70,$80,$90,9'],
+    ['UPC mismatch', "'75188-1','Resistance Bomber','Normal','111'", 'pc-d,LEGO Sets,222,Resistance Bomber #75188,$70,$80,$90,9'],
+  ])('does not promote bare-base evidence for %s', async (_reason, values, row) => {
+    await db.prepare(`INSERT INTO lego_sets (set_num,name,category,upc) VALUES (${values})`).run();
+    const result = await importRows([row]);
+    expect(result.updated).toBe(0);
+    expect((await db.prepare(`SELECT count(*) n FROM pricing_signals`).first<any>()).n).toBe(0);
+    expect(vi.mocked(recomputeBlendedValues)).not.toHaveBeenCalled();
+  });
+
+  it('blocks base-title promotion when the provider id or base evidence competes', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num,name,category) VALUES ('75188-1','Resistance Bomber','Normal')`).run();
+    const result = await importRows([
+      'dup,LEGO Sets,,Resistance Bomber #75188,$70,$80,$90,9',
+      'dup,LEGO Sets,,Resistance Bomber #75188,$71,$81,$91,10',
+      'other,LEGO Sets,,Resistance Bomber #75188,$72,$82,$92,11',
+    ]);
+    expect(result.updated).toBe(0);
+    expect((await db.prepare(`SELECT count(*) n FROM pricing_signals`).first<any>()).n).toBe(0);
+  });
+
+  it.each(['manual', 'rejected'])('preserves a %s mapping from base-title promotion', async (status) => {
+    await db.prepare(`INSERT INTO lego_sets (set_num,name,category) VALUES ('75188-1','Resistance Bomber','Normal')`).run();
+    await db.prepare(`INSERT INTO pricing_source_map (source,source_item_id,set_num,status,match_method)
+      VALUES ('pricecharting','protected','75188-1',?1,'manual')`).bind(status).run();
+    expect((await importRows(['new,LEGO Sets,,Resistance Bomber #75188,$70,$80,$90,9'])).updated).toBe(0);
+    expect(await db.prepare(`SELECT status FROM pricing_source_map WHERE source_item_id='protected'`).first()).toEqual({ status });
+  });
+
+  it('rechecks a base-title mapping against the current row before writing drifted evidence', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num,name,category) VALUES ('75188-1','Resistance Bomber','Normal')`).run();
+    await importRows(['pc,LEGO Sets,,Resistance Bomber #75188,$70,$80,$90,9']);
+    vi.mocked(recomputeBlendedValues).mockClear();
+
+    const result = await importRows(['pc,LEGO Sets,,Finch Dallow Resistance Bomber #75188,$71,$81,$91,10']);
+    expect(result.updated).toBe(0);
+    expect(await db.prepare(`SELECT pc_new_value FROM lego_sets WHERE set_num='75188-1'`).first()).toEqual({ pc_new_value: 90 });
+    expect(await db.prepare(`SELECT value FROM pricing_signals WHERE condition='new_sealed'`).first()).toEqual({ value: 90 });
+    expect(vi.mocked(recomputeBlendedValues)).not.toHaveBeenCalled();
+  });
+
   it('repairs equal-price synthetic identity from an exact full token', async () => {
     const token = '#10001-1';
     await db.prepare(`INSERT INTO lego_sets (set_num,category) VALUES ('10001-1','Normal')`).run();
@@ -319,7 +374,7 @@ describe('PriceCharting bulk identity verification', () => {
     expect((await db.prepare(`SELECT pc_id FROM lego_sets WHERE set_num='75188-1'`).first<any>()).pc_id).toBeNull();
   });
 
-  it('requires boundary-safe full tokens and leaves base-only ambiguity quarantined', async () => {
+  it('requires boundary-safe full tokens and promotes a uniquely exact bare-base title', async () => {
     await db.batch([
       db.prepare(`INSERT INTO lego_sets (set_num,name,category) VALUES ('1234-1','Short ID','Normal')`),
       db.prepare(`INSERT INTO lego_sets (set_num,name,category) VALUES ('12345-1','Long ID','Normal')`),
@@ -331,7 +386,7 @@ describe('PriceCharting bulk identity verification', () => {
     ]);
     const maps = await db.prepare(`SELECT source_item_id,set_num,status,match_method FROM pricing_source_map ORDER BY source_item_id`).all<any>();
     expect(maps.results).toEqual([
-      { source_item_id: 'base', set_num: '31058-1', status: 'quarantined', match_method: 'base_candidate' },
+      { source_item_id: 'base', set_num: '31058-1', status: 'verified', match_method: 'base_title' },
       { source_item_id: 'pfx', set_num: '12345-1', status: 'verified', match_method: 'set_token' },
     ]);
   });

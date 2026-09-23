@@ -22,9 +22,11 @@ function resolve(name: FeatureFlag, envDefaultOn: boolean): boolean {
   return typeof o === 'boolean' ? o : envDefaultOn;
 }
 
-export function ebaySoldCompsEnabled(env: Env): boolean {
-  // OFF by default; on after eBay Marketplace Insights approval (env "1" or override).
-  return resolve('ebay_sold_comps', flagOn(env.EBAY_SOLD_COMPS_ENABLED));
+export function ebaySoldCompsEnabled(_env: Env): boolean {
+  // Marketplace Insights is unavailable to this account. Keep legacy settings
+  // inert: enabling this scope poisons the shared eBay breaker for healthy
+  // Browse calls. Firecrawl/Apify sold-comps lanes are independent of this gate.
+  return false;
 }
 
 export function brickOwlEnabled(env: Env): boolean {
