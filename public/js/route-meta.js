@@ -1,11 +1,12 @@
 const ROUTES = [
   { match: (hash) => hash === "/room", key: "collection-room", nav: "/", title: "Collection room", fullscreen: true, fab: false },
   { match: (hash) => hash === "/collections", key: "collections", nav: "/", title: "Collections", fab: false },
-  { match: (hash) => hash === "/" || hash === "", key: "vault", nav: "/", title: "Vault", fab: true },
-  { match: (hash) => hash === "/add", key: "catalog", nav: "/add", title: "Catalog", fab: true },
+  { match: (hash) => hash === "/" || hash === "", key: "vault", nav: "/", title: "Vault", fab: true, scanFab: true },
+  { match: (hash) => hash === "/add", key: "catalog", nav: "/add", title: "Catalog", fab: true, scanFab: true },
   { match: (hash) => hash === "/pile", key: "scan", nav: "/pile", title: "Scan a set", fullscreen: true, fab: false },
-  { match: (hash) => hash === "/minifigs", key: "minifigs", nav: "/", title: "Minifigs", fab: true },
-  { match: (hash) => hash === "/build", key: "build", nav: "/add", title: "Build", fab: true },
+  { match: (hash) => hash === "/minifigs", key: "minifigs", nav: "/", title: "Minifigs", fab: true, scanFab: true },
+  // "What can I build" is a Vault section (Sets · Minifigs · Lists · Build).
+  { match: (hash) => hash === "/build", key: "build", nav: "/", title: "Build", fab: true },
   { match: (hash) => hash === "/wishlist", key: "wishlist", nav: "/wishlist", title: "Wishlist", fab: true },
   // Price game shows real market values — like all pricing surfaces, it stays
   // out of Kids Mode (not in KIDS_ALLOWED).
@@ -44,6 +45,6 @@ export function routeMetaFor(hash = "/") {
   const normalized = normalizeRouteHash(hash);
   const found = ROUTES.find(route => route.match(normalized));
   return found
-    ? { key: found.key, nav: found.nav, title: found.title, fullscreen: !!found.fullscreen, protected: !!found.protected, fab: found.fab !== false }
-    : { key: "unknown", nav: null, title: "BricksVault", fullscreen: false, protected: false, fab: true };
+    ? { key: found.key, nav: found.nav, title: found.title, fullscreen: !!found.fullscreen, protected: !!found.protected, fab: found.fab !== false, scanFab: !!found.scanFab, navOff: !!found.navOff }
+    : { key: "unknown", nav: null, title: "BricksVault", fullscreen: false, protected: false, fab: true, scanFab: false, navOff: false };
 }

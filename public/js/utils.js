@@ -72,34 +72,52 @@ export function publicOrigin() {
 
 export const ratesUnavailable = () => _ratesUnavailable;
 
-export async function fetchExchangeRates() {
+/** True when any exchange-rate snapshot (fresh or stale) is stored locally. */
+export function hasCachedExchangeRates() {
+  try {
+    const data = JSON.parse(localStorage.getItem("bv_exchange_rates") || "null");
+    return !!(data && data.rates && Object.keys(data.rates).length > 1);
+  } catch { return false; }
+}
+
+// Loads FX rates. A cache younger than 6h is used as-is. With `background`,
+// a stale cache is applied immediately and the network refresh resolves to
+// true only when the rates actually changed (so the caller can repaint).
+export async function fetchExchangeRates({ background = false } = {}) {
   const cached = localStorage.getItem("bv_exchange_rates");
+  let staleRates = null;
   if (cached) {
     try {
       const data = JSON.parse(cached);
       if (data && data.timestamp && (Date.now() - data.timestamp < 6 * 60 * 60 * 1000)) {
         exchangeRates = data.rates;
-        return;
+        return false;
       }
+      if (data?.rates) staleRates = data.rates;
     } catch {}
   }
+  if (background && staleRates) exchangeRates = staleRates;
   try {
     const res = await fetch((window.WORKER_BASE || '') + "/api/rates");
     const json = await res.json();
     if (json && json.rates) {
+      const changed = JSON.stringify(json.rates) !== JSON.stringify(exchangeRates);
       exchangeRates = json.rates;
       _ratesUnavailable = false;
       localStorage.setItem("bv_exchange_rates", JSON.stringify({
         timestamp: Date.now(),
         rates: json.rates
       }));
+      return changed;
     }
   } catch (e) {
     // Keep any previously-cached rates (even stale) over a silent 1:1; only
     // flag "unavailable" when we truly have nothing but the USD identity.
+    if (staleRates && Object.keys(exchangeRates).length <= 1) exchangeRates = staleRates;
     _ratesUnavailable = Object.keys(exchangeRates).length <= 1;
     console.error("Failed to fetch exchange rates, falling back to USD = 1", e);
   }
+  return false;
 }
 
 export function getExchangeRate(targetCurrency) {
@@ -231,8 +249,9 @@ function _renderNextToast() {
   const el = $("#toast");
   if (!el) { _toastQueue.length = 0; _toastShowing = false; return; }
   const next = _toastQueue.shift();
-  if (!next) { _toastShowing = false; return; }
+  if (!next) { _toastShowing = false; document.body.classList.remove("snackbar-open"); return; }
   _toastShowing = true;
+  document.body.classList.add("snackbar-open");
   const { msg, type } = next;
   el.className = "show " + (type || "info");
   el.innerHTML = `<span class="t-icon">${type === "success" ? I.check() : type === "error" ? I.close() : I.info()}</span><span>${escapeHtml(msg)}</span>`;
@@ -250,36 +269,53 @@ export function toast(msg, type) {
   if (!_toastShowing) _renderNextToast();
 }
 
-// Post-action Undo toast: shows `msg` with an UNDO button for 5s (longer than
-// a normal toast so a mis-tap after a confirm is still recoverable). Takes over
-// the shared toast element directly, then hands back to the queue.
-export function undoToast(msg, onUndo) {
+// Snackbar with up to two text actions ("Eiffel Tower added · Undo · Add
+// price"). Takes over the shared #toast element, then hands back to the queue.
+// Actions: [{ label, onClick }]; the snackbar closes before an action runs.
+export function snackbar(msg, { actions = [], type = 'info', duration = 5000 } = {}) {
   const el = $("#toast");
-  if (!el) return;
+  if (!el) return () => {};
   clearTimeout(toastTimer);
   _toastShowing = true;
-  el.className = "show info";
-  el.innerHTML = `<span class="t-icon">${I.check()}</span><span></span><button class="toast-undo-btn">Undo</button>`;
+  el.className = `show ${type}`;
+  const iconFor = type === "error" ? I.close() : I.check();
+  el.innerHTML = `<span class="t-icon">${iconFor}</span><span></span>`;
   el.children[1].textContent = msg;
   let done = false;
   const finish = () => {
     if (done) return;
     done = true;
     el.classList.remove("show");
+    document.body.classList.remove("snackbar-open");
     setTimeout(_renderNextToast, 180);
   };
-  el.querySelector(".toast-undo-btn").addEventListener("click", async () => {
-    const run = !done;
-    finish();
-    if (run) {
-      try { await onUndo(); }
-      catch (e) {
-        console.error("Undo failed", e);
-        toast("Undo failed — please try again", "error");
+  actions.slice(0, 2).forEach((action) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = action.kind === "undo" ? "toast-undo-btn" : "bv-snack-action";
+    b.textContent = action.label;
+    b.addEventListener("click", async () => {
+      const run = !done;
+      finish();
+      if (run) {
+        try { await action.onClick?.(); }
+        catch (e) {
+          console.error("Snackbar action failed", e);
+          toast(t("common.actionFailed"), "error");
+        }
       }
-    }
+    });
+    el.appendChild(b);
   });
-  toastTimer = setTimeout(finish, 5000);
+  document.body.classList.add("snackbar-open");
+  toastTimer = setTimeout(finish, duration);
+  return finish;
+}
+
+// Post-action Undo snackbar (5s — long enough that a mis-tap after a confirm
+// is still recoverable).
+export function undoToast(msg, onUndo) {
+  return snackbar(msg, { actions: [{ label: t("common.undo"), kind: "undo", onClick: onUndo }] });
 }
 
 // One debounce interval for every search box — consistent feel across screens.

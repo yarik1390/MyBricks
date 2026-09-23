@@ -1,9 +1,11 @@
 import { test, expect } from './fixtures.mjs';
 
 test.use({ viewport: { width: 390, height: 844 } });
-test('collector navigation, permanent search, manual add, and room entry', async ({ page }) => {
+test('collector navigation, permanent search, one-tap scan, and room entry', async ({ page }) => {
   await page.goto('/#/');
-  await expect(page.locator('#collectorAdd')).toBeVisible();
+  const fab = page.locator('#bvFab');
+  await expect(fab).toBeVisible();
+  await expect(fab).toHaveAccessibleName('Scan to add');
   await expect(page.locator('#nav .nav-tab:visible')).toHaveCount(4);
   await expect(page.locator('#nav [aria-current="page"]')).toHaveAttribute('data-route', '/');
   await expect(page.locator('#advisorFab')).toBeHidden();
@@ -15,26 +17,32 @@ test('collector navigation, permanent search, manual add, and room entry', async
   await page.locator('#clearVaultSearch').click();
   await expect(page.locator('#setList .set-list-card')).toHaveCount(1);
   await page.locator('#portfolioSearch').blur();
-  await page.locator('#collectorAdd').click();
-  await page.locator('#collectorManual').click();
-  await page.locator('#collectorSetNumber').fill('75192');
-  await page.locator('#collectorLookup button').click();
+  // One primary action, one tap: the FAB opens the camera directly.
+  await fab.click();
+  await expect(page.locator('#scanOverlay')).toHaveClass(/open/);
+  await expect(fab).toBeHidden();
+  await page.locator('#scanCloseBtn').click();
+  await expect(page.locator('#scanOverlay')).not.toHaveClass(/open/);
+  // Typing a set number still works (the scan page's lookup form).
+  await page.goto('/#/pile');
+  await page.locator('#pileManualInput').fill('75192');
+  await page.locator('#pileManualSubmit').click();
   await expect(page).toHaveURL(/#\/set\/75192-1$/);
-  await expect(page.locator('#collectorAdd')).toBeHidden();
+  await expect(fab).toBeHidden();
   await page.locator('#nav [data-route="/add"]').click();
   await expect(page.locator('#catalogSearch')).toBeVisible();
   await expect(page.locator('#nav [aria-current="page"]')).toHaveAttribute('data-route', '/add');
-  await expect(page.locator('#collectorAdd')).toBeVisible();
+  await expect(fab).toBeVisible();
   await page.locator('#nav [data-route="/me"]').click();
   await expect(page.locator('#nav [aria-current="page"]')).toHaveAttribute('data-route', '/me');
-  await expect(page.locator('#collectorAdd')).toBeVisible();
+  await expect(fab).toBeHidden();
   await page.locator('#nav [data-route="/"]').click();
   await expect(page.locator('#setList .set-list-card')).toBeVisible();
-  await expect(page.locator('#collectorAdd')).toBeVisible();
+  await expect(fab).toBeVisible();
   await page.screenshot({ path: 'audit/collector-vault-mobile.png' });
   await page.locator('[data-vault-view="room"]').click();
   await expect(page.locator('#roomStage')).toBeAttached();
-  await expect(page.locator('#collectorAdd')).toBeHidden();
+  await expect(fab).toBeHidden();
   await page.locator('[data-vault-view="grid"]').click();
   await expect(page.locator('#roomStage')).toHaveCount(0);
 });
@@ -59,7 +67,7 @@ test('pinned collection returns from Vault and filters retain their context', as
 test('dark theme and large text retain usable navigation', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('bv_theme', 'dark'));
   await page.goto('/#/');
-  await expect(page.locator('#collectorAdd')).toBeVisible();
+  await expect(page.locator('#bvFab')).toBeVisible();
   await expect(page.locator('#setList .set-list-card')).toBeVisible();
   await page.evaluate(() => { document.documentElement.style.fontSize = '24px'; });
   await expect(page.locator('#nav .nav-tab:visible')).toHaveCount(4);

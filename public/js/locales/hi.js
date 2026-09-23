@@ -1,5 +1,40 @@
 /** Hindi. Missing keys fall back to English (see lib/i18n.js). */
 export const hi = {
+  bvCommon: {
+    retired: 'बंद',
+    upPct: '{pct} प्रतिशत ऊपर',
+    downPct: '{pct} प्रतिशत नीचे',
+  },
+  // 2026 redesign · Vault screens (one group per area).
+  bvVault: {
+  },
+  // 2026 redesign · Set screens (one group per area).
+  bvSet: {
+  },
+  // 2026 redesign · Add screens (one group per area).
+  bvAdd: {
+  },
+  // 2026 redesign · Alerts screens (one group per area).
+  bvAlerts: {
+  },
+  // 2026 redesign · Account screens (one group per area).
+  bvAccount: {
+  },
+  // 2026 redesign · Community screens (one group per area).
+  bvCommunity: {
+  },
+  // 2026 redesign · First screens (one group per area).
+  bvFirst: {
+  },
+  shell: {
+    tabSets: 'सेट',
+    tabMinifigs: 'मिनीफ़िग',
+    tabLists: 'सूचियाँ',
+    tabBuild: 'बनाएँ',
+    scanToAdd: 'स्कैन करें',
+    alertsOne: '{count} अलर्ट',
+    alertsOther: '{count} अलर्ट',
+  },
   setup: {
     privacy: 'इस डिवाइस पर निजी रूप से शुरू करें — डेटा सिंक करना चाहें तो बाद में साइन इन करें।',
     letsGo: 'शुरू करें', investor: 'निवेशक',
@@ -86,6 +121,8 @@ export const hi = {
   },
   nav: { vault: 'संग्रह', catalog: 'कैटलॉग', scan: 'स्कैन', minifigs: 'मिनीफ़िगर', me: 'मैं', badges: 'बैज' },
   common: {
+    actionFailed: 'यह नहीं हो सका — कृपया फिर से कोशिश करें',
+    back: 'वापस',
     cancel: 'रद्द करें', save: 'सहेजें', close: 'बंद करें', retry: 'फिर कोशिश करें',
     delete: 'हटाएँ', edit: 'संपादित करें', done: 'हो गया', undo: 'पूर्ववत करें',
     loading: 'लोड हो रहा है…', search: 'खोजें', all: 'सभी', none: 'कोई नहीं',

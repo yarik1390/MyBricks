@@ -26,27 +26,29 @@ for (const language of ['en', 'uk']) for (const theme of ['light', 'dark']) {
         // View content can mount before the router restores the nav chrome.
         await expect(page.locator('#nav')).toBeVisible();
         const nav = await page.locator('#nav').boundingBox();
-        const add = page.locator('#collectorAdd');
-        if (await add.isVisible()) {
-          const bounds = await add.boundingBox();
-          expect(bounds.y).toBeGreaterThanOrEqual(nav.y);
-          expect(bounds.y + bounds.height).toBeLessThanOrEqual(nav.y + nav.height);
+        const fab = page.locator('#bvFab');
+        if (await fab.isVisible()) {
+          // The Scan FAB floats 16dp above the bar, right-aligned, 56dp tall.
+          const bounds = await fab.boundingBox();
+          expect(bounds.y + bounds.height).toBeLessThanOrEqual(nav.y);
+          expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
           expect(bounds.width).toBeGreaterThanOrEqual(48);
           expect(bounds.height).toBeGreaterThanOrEqual(48);
-          for (const tab of await page.locator('#nav .nav-tab:visible').all()) expect(overlaps(bounds, await tab.boundingBox())).toBe(false);
         }
         if (name === 'catalog') {
           const toggle = await page.locator('#catalogLayoutToggle').boundingBox();
           expect(toggle.x + toggle.width).toBeLessThanOrEqual(width);
           expect(toggle.height).toBeGreaterThanOrEqual(48);
         }
-        for (const position of [0.5, 1]) {
+        // Content may pass under the floating FAB while scrolling; at the end
+        // of the page nothing may remain covered by it.
+        for (const position of [1]) {
           await page.evaluate(position => window.scrollTo(0, (document.documentElement.scrollHeight - innerHeight) * position), position);
           const covered = await page.locator('#root').evaluate(root => [...root.querySelectorAll('a,button,summary')].filter(el => {
             const r = el.getBoundingClientRect();
             const y = r.top + r.height / 2, x = r.left + r.width / 2;
             const navTop = document.querySelector('#nav').getBoundingClientRect().top;
-            return r.width > 0 && r.height > 0 && y >= 0 && y < navTop && x >= 0 && x < innerWidth && document.elementFromPoint(x,y)?.closest('#collectorAdd');
+            return r.width > 0 && r.height > 0 && el.checkVisibility?.({ visibilityProperty: true }) !== false && y >= 0 && y < navTop && x >= 0 && x < innerWidth && document.elementFromPoint(x,y)?.closest('#bvFab');
           }).map(el => el.textContent));
           expect(covered).toEqual([]);
         }

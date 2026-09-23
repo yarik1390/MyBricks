@@ -1,4 +1,4 @@
-import { vaultNavigation, vaultViewSwitch, collectorTools, collectionSaveStatus, loadPinnedCollections } from '../components/collector-shell.js';
+import { vaultNavigation, vaultViewSwitch, collectorTools, collectionSaveStatus, loadPinnedCollections, setNavBadge } from '../components/collector-shell.js';
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, ratesUnavailable, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone, publicOrigin, celebrate } from '../utils.js';
 import { marketValueForCondition, computeSpreadSignals, estMark, displayValueOf } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
@@ -1330,6 +1330,8 @@ export function refreshNavBadge() {
   const spikes = alerts.filter(a => a.alert_type === 'spike').length;
   const drops = alerts.filter(a => a.alert_type === 'drop' || !a.alert_type).length;
   const total = spikes + drops;
+  // Bottom-bar Wishlist badge (2026 shell).
+  setNavBadge('/wishlist', total);
   
   const el = document.getElementById("wishlistBtn");
   if (!el) return;

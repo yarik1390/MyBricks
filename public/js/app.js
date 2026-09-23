@@ -1,8 +1,10 @@
-import { $, $$, haptic, toast, fetchExchangeRates, bvIDB, installImageFallback, track } from './utils.js';
+import { $, $$, haptic, toast, fetchExchangeRates, hasCachedExchangeRates, bvIDB, installImageFallback, track } from './utils.js';
 import { state, invalidatePortfolio } from './state.js';
 import { nextOfflineBannerState, shouldUseKeyboardShell } from './lib/pure-core.js';
 import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionUserId, snapshotGuestVault, migrateGuestVault, isGuestMode, backfillGuestVault } from './api.js';
 import { I } from './icons.js';
+import { icon as kitIcon } from './ui/kit.js';
+import { paintNavBadges } from './components/collector-shell.js';
 import { route } from './router.js';
 import { getThemePref, applyTheme, getModePref, applyMode } from './theme.js';
 import { initLocale, t as translate, tPlural, onLocaleChange, applyUiDictionary, startAutoTranslate } from './lib/i18n.js';
@@ -440,10 +442,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   };
   paintNavLabels();
-  onLocaleChange(paintNavLabels);
+  paintNavBadges();
+  onLocaleChange(() => { paintNavLabels(); paintNavBadges(); });
 
   // Wire nav icons using icon library
-  const icons = { "/": I.home, "/add": I.search, "/minifigs": I.figure, "/kids/badges": I.star, "/me": I.user, "/wishlist": I.heart };
+  const kit = (name) => () => kitIcon(name);
+  const icons = { "/": kit('vault'), "/add": kit('search'), "/minifigs": I.figure, "/kids/badges": I.star, "/me": kit('user'), "/wishlist": kit('heart') };
   $$("#nav .nav-tab").forEach(t => {
     const r = t.dataset.route;
     const iconFn = icons[r];
@@ -580,7 +584,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Hydrate in-memory state from IDB so first tab visit is instant.
   if (session) await hydrateFromIDB();
 
-  await fetchExchangeRates();
+  // Currency rates: a cached copy (even a stale one) is good enough for the
+  // first paint; refresh in the background and repaint only if they changed.
+  // Only a first-ever launch with no cached rates waits for the network.
+  if (hasCachedExchangeRates()) {
+    fetchExchangeRates({ background: true }).then(changed => {
+      // Repaint with the fresh rates unless the user is mid-task in an overlay.
+      const busy = ['sheet-open', 'scan-active', 'advisor-open', 'selection-mode'].some(c => document.body.classList.contains(c));
+      if (changed && !busy) route();
+    }).catch(() => {});
+  } else {
+    await fetchExchangeRates();
+  }
 
   // Initial route — after config and session are loaded.
   await route();

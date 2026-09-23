@@ -1,5 +1,42 @@
 /** Ukrainian. Missing keys fall back to English (see lib/i18n.js). */
 export const uk = {
+  bvCommon: {
+    retired: 'Знятий з виробництва',
+    upPct: 'зростання на {pct} відсотка',
+    downPct: 'падіння на {pct} відсотка',
+  },
+  // 2026 redesign · Vault screens (one group per area).
+  bvVault: {
+  },
+  // 2026 redesign · Set screens (one group per area).
+  bvSet: {
+  },
+  // 2026 redesign · Add screens (one group per area).
+  bvAdd: {
+  },
+  // 2026 redesign · Alerts screens (one group per area).
+  bvAlerts: {
+  },
+  // 2026 redesign · Account screens (one group per area).
+  bvAccount: {
+  },
+  // 2026 redesign · Community screens (one group per area).
+  bvCommunity: {
+  },
+  // 2026 redesign · First screens (one group per area).
+  bvFirst: {
+  },
+  shell: {
+    tabSets: 'Набори',
+    tabMinifigs: 'Мініфігурки',
+    tabLists: 'Списки',
+    tabBuild: 'Збірки',
+    scanToAdd: 'Сканувати й додати',
+    alertsOne: '{count} сповіщення',
+    alertsFew: '{count} сповіщення',
+    alertsMany: '{count} сповіщень',
+    alertsOther: '{count} сповіщення',
+  },
   setup: {
     privacy: 'Почніть приватно на цьому пристрої — увійдіть пізніше, якщо хочете синхронізувати дані.',
     letsGo: 'Почнімо',
@@ -52,6 +89,8 @@ export const uk = {
   },
   nav: { vault: 'Сховище', catalog: 'Каталог', scan: 'Сканувати', minifigs: 'Мініфігурки', me: 'Я', badges: 'Значки' },
   common: {
+    actionFailed: 'Не вдалося — спробуйте ще раз',
+    back: 'Назад',
     cancel: 'Скасувати', save: 'Зберегти', close: 'Закрити', retry: 'Спробувати ще',
     delete: 'Видалити', edit: 'Редагувати', done: 'Готово', undo: 'Повернути',
     loading: 'Завантаження…', search: 'Пошук', all: 'Усі', none: 'Немає',

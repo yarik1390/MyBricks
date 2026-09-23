@@ -1,4 +1,4 @@
-import { syncCollectorChrome, rememberCollectorScroll, restoreCollectorScroll } from './components/collector-shell.js';
+import { syncCollectorChrome, rememberCollectorScroll, restoreCollectorScroll, resetPageFab } from './components/collector-shell.js';
 import { $, $$, prefersReducedMotion, advisorEnabled, track } from './utils.js';
 import { state } from './state.js';
 import { api } from './api.js';
@@ -33,6 +33,7 @@ export async function route() {
 
 async function _routeImpl() {
   rememberCollectorScroll();
+  resetPageFab();
   hideSheet();
   closeScan();
   cancelActiveStream();
@@ -41,7 +42,7 @@ async function _routeImpl() {
   let hash = (location.hash.replace("#", "") || "/").split("?")[0];
   if (hash === "/blind") { location.hash = "#/minifigs"; return; }
   const meta = routeMetaFor(hash);
-  if (meta.key === 'minifigs' && new URLSearchParams(location.hash.split('?')[1] || '').get('owned') === '0') meta.nav = '/add';
+  if (meta.key === 'minifigs' && new URLSearchParams(location.hash.split('?')[1] || '').get('owned') === '0') { meta.nav = '/add'; meta.scanFab = false; }
   document.body.dataset.route = meta.key;
   $("#advisorDrawer")?.classList.remove("open");
   document.body.classList.remove("advisor-open");

@@ -1,5 +1,40 @@
 /** German. Missing keys fall back to English (see lib/i18n.js). */
 export const de = {
+  bvCommon: {
+    retired: 'Eingestellt',
+    upPct: 'plus {pct} Prozent',
+    downPct: 'minus {pct} Prozent',
+  },
+  // 2026 redesign · Vault screens (one group per area).
+  bvVault: {
+  },
+  // 2026 redesign · Set screens (one group per area).
+  bvSet: {
+  },
+  // 2026 redesign · Add screens (one group per area).
+  bvAdd: {
+  },
+  // 2026 redesign · Alerts screens (one group per area).
+  bvAlerts: {
+  },
+  // 2026 redesign · Account screens (one group per area).
+  bvAccount: {
+  },
+  // 2026 redesign · Community screens (one group per area).
+  bvCommunity: {
+  },
+  // 2026 redesign · First screens (one group per area).
+  bvFirst: {
+  },
+  shell: {
+    tabSets: 'Sets',
+    tabMinifigs: 'Minifiguren',
+    tabLists: 'Listen',
+    tabBuild: 'Bauen',
+    scanToAdd: 'Scannen',
+    alertsOne: '{count} Hinweis',
+    alertsOther: '{count} Hinweise',
+  },
   setup: {
     privacy: 'Starte privat auf diesem Gerät — melde dich später an, wenn du deine Daten synchronisieren möchtest.',
     letsGo: 'Los geht’s', investor: 'Investor',
@@ -86,6 +121,8 @@ export const de = {
   },
   nav: { vault: 'Tresor', catalog: 'Katalog', scan: 'Scannen', minifigs: 'Minifiguren', me: 'Ich', badges: 'Abzeichen' },
   common: {
+    actionFailed: 'Das hat nicht geklappt – bitte erneut versuchen',
+    back: 'Zurück',
     cancel: 'Abbrechen', save: 'Speichern', close: 'Schließen', retry: 'Erneut versuchen',
     delete: 'Löschen', edit: 'Bearbeiten', done: 'Fertig', undo: 'Rückgängig',
     loading: 'Wird geladen…', search: 'Suchen', all: 'Alle', none: 'Keine',

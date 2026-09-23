@@ -551,22 +551,31 @@ test('a single holding is visible from the entrance and has no more-results butt
   expect(display).toBe('none');
 });
 
-test('primary Add button in navigation does not cover clickable page content at midscroll or end', async ({ page }) => {
+test('Scan FAB floats above the navigation and never covers the last row', async ({ page }) => {
   await stubRoom(page);
   await page.setViewportSize({ width: 412, height: 915 });
   await page.goto('/#/');
-  const addBtn = page.locator('#collectorAdd');
-  await expect(addBtn).toBeVisible();
-  // Verify Add button is docked in #nav and doesn't overlap page links
+  const fab = page.locator('#bvFab');
+  await expect(fab).toBeVisible();
+  // The extended FAB sits 16dp above the bottom bar, right-aligned.
   const navBox = await page.locator('#nav').boundingBox();
-  const addBox = await addBtn.boundingBox();
-  expect(addBox.y).toBeGreaterThanOrEqual(navBox.y - 10);
-  // Element from point at mid-scroll content does not hit Add button
-  const hitTarget = await page.evaluate(() => {
-    const el = document.elementFromPoint(350, 450);
-    return el?.id || el?.className;
+  const fabBox = await fab.boundingBox();
+  expect(fabBox.y + fabBox.height).toBeLessThanOrEqual(navBox.y - 8);
+  expect(fabBox.height).toBeGreaterThanOrEqual(48);
+  // At the end of the page the last interactive element clears the FAB.
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const covered = await page.evaluate(() => {
+    const fabRect = document.getElementById('bvFab').getBoundingClientRect();
+    const items = [...document.querySelectorAll('#root a, #root button')].filter(el => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight;
+    });
+    return items.filter(el => {
+      const r = el.getBoundingClientRect();
+      return r.bottom > fabRect.top + 1 && r.top < fabRect.bottom && r.right > fabRect.left && r.left < fabRect.right;
+    }).map(el => el.id || el.className);
   });
-  expect(hitTarget).not.toContain('collector-add');
+  expect(covered).toEqual([]);
 });
 
 test('narrow Catalog toolbar view toggle stays on screen without badge letter wrap', async ({ page }) => {
