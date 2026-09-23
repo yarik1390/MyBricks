@@ -1,18 +1,21 @@
-import { vaultNavigation, vaultViewSwitch, collectorTools, collectionSaveStatus, loadPinnedCollections, setNavBadge } from '../components/collector-shell.js';
-import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, daysAgo, prefersReducedMotion, themeHue, THEME_COLORS, fmtShortDate, drawSparkline, slImgHTML, trendBadgeHTML, CURRENCY_SYMBOLS, getExchangeRate, ratesUnavailable, fmtMoneyShort, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone, publicOrigin, celebrate } from '../utils.js';
-import { marketValueForCondition, computeSpreadSignals, estMark, displayValueOf } from '../lib/pure.js';
+import { vaultNavigation, setNavBadge, setPageFab, resetPageFab, syncCollectorChrome } from '../components/collector-shell.js';
+import { routeMetaFor } from '../route-meta.js';
+import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, daysAgo, prefersReducedMotion, themeHue, getExchangeRate, CURRENCY_SYMBOLS, ratesUnavailable, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone, publicOrigin, celebrate, fmtPct, advisorEnabled, fmtDateUpdated, parseUTCDate } from '../utils.js';
+import { marketValueForCondition, displayValueOf } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
-import { api, getSessionUserId } from '../api.js';
+import { api, getSessionUserId, isGuestMode, getSessionOwnerSnapshot } from '../api.js';
 import { shareContent } from '../lib/native-share.js';
 import { I } from '../icons.js';
-import { showSheet, hideSheet, confirmSheet, promptSheet } from '../components/sheet.js';
+import { confirmSheet, promptSheet } from '../components/sheet.js';
 import { openLegalSheet } from '../components/legal-sheet.js';
-import { trustBadgeHTML } from '../components/trust.js';
-import { skelPage, skelHero, skelCardList } from '../components/skeleton.js';
 import { getModePref } from '../theme.js';
-import { t, tPlural } from '../lib/i18n.js';
-import { isNativeBilling } from '../lib/revenuecat-native.js';
+import { t, tPlural, getLocale } from '../lib/i18n.js';
 import { pricechartingSourceLinkLabel } from '../lib/partner-attribution.js';
+import { readCollectorPreferences, writeCollectorPreferences } from '../lib/collector-preferences.js';
+import { vaultTotals, changesWindowDays, changeSinceFromSnapshots, changeItems, clipHistory } from '../lib/vault-insights.js';
+import { icon, sparkline, delta as deltaChip, emptyState, btn, banner, skeletonRows, chip } from '../ui/kit.js';
+import { setTile, gainPct } from '../ui/set-ui.js';
+import { vaultTopbar, vaultSearchRow, sortButton, layoutSeg, vaultToolbar, openChoiceSheet, openActionSheet, vaultSetRow, moneyWhole, moneyWholeSigned } from '../ui/vault-ui.js';
 
 // Concise portfolio source credit: PriceCharting is named only when it
 // contributes to the blended portfolio; otherwise a generic source link.
@@ -23,49 +26,64 @@ function portfolioSourceLinkLabel(portfolio) {
   return pricechartingSourceLinkLabel(basis) || t('market.sourcesGeneric');
 }
 
-
 /* ============================================================
-   Portfolio screen
+   Vault · Sets (route #/)
    ============================================================ */
+const ownerKey = () => getSessionUserId() || 'guest';
+// The Vault opens sorted by value unless the collector chose another order.
+try { if (!localStorage.getItem('bv_sort')) state.filter.sort = 'value_desc'; } catch { /* storage blocked: keep the default */ }
+// Search is open while a query is active, so a remembered query is visible.
+let searchOpen = false;
+
 export async function renderPortfolio() {
   const servedFromCache = !!state.portfolio;
-  if (!state.portfolio) {
-    $("#root").innerHTML = skelPage(skelHero() + skelCardList(5));
-    // Fetch collection independently — if history or wishlist fail the vault
-    // still renders correctly (they were in one Promise.all before, causing any
-    // single failure to blank the whole vault while /api/me still showed the count).
-    try {
-      state.portfolio = await api("/api/collection");
-      bvIDB.set('portfolio', { data: state.portfolio, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
-    } catch (e) {
-      toast(t('portfolio.collectionLoadFailed', { error: e.message || e }), "error");
-      state.portfolio = { items: [], total_value: 0, total_paid: 0, count: 0 };
-    }
-    // History + wishlist are supplementary — fetch best-effort.
-    const [hist, wl] = await Promise.all([
-      api("/api/collection/history?days=365").catch(() => null),
-      api("/api/wishlist").catch(() => null),
-    ]);
-    state.portfolioHistory = hist ? (hist.snapshots || []) : (state.portfolioHistory || []);
-    // Server-declared tier for the history window (free = 90 days, Pro = 365).
-    // Drives the honest "1Y ⭐" pills + the Insights gate instead of silently
-    // truncating the chart. Falsy for guests (local vaults have no entitlement).
-    if (hist) state.historyPro = !!hist.pro;
-    if (wl) {
-      state.wishlist = wl.wishlist || [];
-      state.wishlistAlerts = wl.unread_alerts || [];
-    }
-    // Persist the supplementary data too, so a cold offline launch shows the
-    // full vault (chart + wishlist), not just the holdings list. Hydrated by
-    // hydrateFromIDB with the same userId + freshness guard as the portfolio.
-    const _uid = getSessionUserId();
-    if (hist) bvIDB.set('history', { data: state.portfolioHistory, ts: Date.now(), userId: _uid }).catch(() => {});
-    if (wl) bvIDB.set('wishlist', { data: { wishlist: state.wishlist, alerts: state.wishlistAlerts }, ts: Date.now(), userId: _uid }).catch(() => {});
-  }
+  if (!state.portfolio) $("#root").innerHTML = vaultSkeleton();
+  await loadPortfolioData();
+  if (!onVaultRoute()) return;
   paintPortfolio();
+  loadVaultChanges();
   // Stale-while-revalidate: when painted from in-memory cache, refresh in the
   // background so cron/valuation price updates surface without a manual reload.
   if (servedFromCache) _revalidatePortfolio();
+}
+
+/**
+ * Make sure the collection, its value history and the wishlist are in state
+ * (Vault, Insights and What changed all read them). No-op when already loaded.
+ */
+export async function loadPortfolioData() {
+  if (state.portfolio) return state.portfolio;
+  // Fetch collection independently — if history or wishlist fail the vault
+  // still renders correctly (they were in one Promise.all before, causing any
+  // single failure to blank the whole vault while /api/me still showed the count).
+  try {
+    state.portfolio = await api("/api/collection");
+    bvIDB.set('portfolio', { data: state.portfolio, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
+  } catch (e) {
+    toast(t('portfolio.collectionLoadFailed', { error: e.message || e }), "error");
+    state.portfolio = { items: [], total_value: 0, total_paid: 0, count: 0, _loadFailed: true };
+  }
+  // History + wishlist are supplementary — fetch best-effort.
+  const [hist, wl] = await Promise.all([
+    api("/api/collection/history?days=365").catch(() => null),
+    api("/api/wishlist").catch(() => null),
+  ]);
+  state.portfolioHistory = hist ? (hist.snapshots || []) : (state.portfolioHistory || []);
+  // Server-declared tier for the history window (free = 90 days, Pro = 365).
+  // Drives the Insights range gate instead of silently truncating the chart.
+  // Falsy for guests (local vaults have no entitlement).
+  if (hist) state.historyPro = !!hist.pro;
+  if (wl) {
+    state.wishlist = wl.wishlist || [];
+    state.wishlistAlerts = wl.unread_alerts || [];
+  }
+  // Persist the supplementary data too, so a cold offline launch shows the
+  // full vault (chart + wishlist), not just the holdings list. Hydrated by
+  // hydrateFromIDB with the same userId + freshness guard as the portfolio.
+  const _uid = getSessionUserId();
+  if (hist) bvIDB.set('history', { data: state.portfolioHistory, ts: Date.now(), userId: _uid }).catch(() => {});
+  if (wl) bvIDB.set('wishlist', { data: { wishlist: state.wishlist, alerts: state.wishlistAlerts }, ts: Date.now(), userId: _uid }).catch(() => {});
+  return state.portfolio;
 }
 
 let _revalidating = false;
@@ -82,8 +100,7 @@ async function _revalidatePortfolio() {
       || Math.abs((prev.total_value ?? 0) - (fresh.total_value ?? 0)) > 0.005;
     state.portfolio = fresh;
     bvIDB.set('portfolio', { data: fresh, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
-    const hash = location.hash.replace("#", "") || "/";
-    if (changed && (hash === "/" || hash === "")) paintPortfolio();
+    if (changed && onVaultRoute() && !state.selectionMode) paintPortfolio();
   } catch {
     // network / offline — keep stale data
   } finally {
@@ -91,19 +108,131 @@ async function _revalidatePortfolio() {
   }
 }
 
-// Portfolio value basis (Approach A): prefer the persisted blended market value
-// (valuation v2), falling back to the formula current_value. Keeps the vault
-// cards, value sort, and analytics consistent with the blended portfolio total
-// the server now returns.
-function pval(x) {
-  // Used holdings are worth their used-market price; new/sealed keep the v2
-  // blended fair value via the shared displayValueOf chain (market_value →
-  // blended_value → current_value) so vault, catalog and detail show ONE number.
+const onVaultRoute = () => { const hash = location.hash.replace("#", "").split("?")[0] || "/"; return hash === "/" || hash === ""; };
+
+// Portfolio value basis: used holdings are worth their used-market price;
+// new/sealed keep the blended fair value via the shared displayValueOf chain
+// (market_value → blended_value → current_value) so vault, catalog and detail
+// show ONE number.
+export function pval(x) {
   if (String(x?.condition || '').startsWith('used')) {
     return Number(marketValueForCondition(x, x.condition)) || displayValueOf(x);
   }
   return displayValueOf(x);
 }
+
+/* ---------------------------------------------------------------- "What changed" data */
+// The "Since …" card and the What changed screen share one read of
+// /api/changes per window. Guests (no server history) and offline sessions fall
+// back to the local daily snapshots; movers then stay hidden.
+const SEEN_KEY = 'bv_changes_seen_v1:';
+export function readChangesSeen(owner = ownerKey()) {
+  try {
+    const v = JSON.parse(localStorage.getItem(SEEN_KEY + owner) || 'null');
+    return v && typeof v === 'object' ? { at: v.at || null, retiring: Array.isArray(v.retiring) ? v.retiring : [] } : { at: null, retiring: [] };
+  } catch { return { at: null, retiring: [] }; }
+}
+export function markChangesSeen(retiring = [], owner = ownerKey()) {
+  try { localStorage.setItem(SEEN_KEY + owner, JSON.stringify({ at: new Date().toISOString(), retiring: retiring.slice(0, 200) })); } catch { /* storage full: the card simply stays */ }
+}
+export function changesWindow() {
+  return changesWindowDays(readChangesSeen().at);
+}
+
+/** Shared "What changed" read: `{ since, days, delta, pct, movers, realized, source }`. */
+export async function fetchVaultChanges(days = changesWindow(), { force = false } = {}) {
+  const owner = getSessionOwnerSnapshot();
+  const cached = state.vaultChanges;
+  if (!force && cached && cached.days === days && cached.owner === owner.userId && Date.now() - cached.ts < 5 * 60_000) return cached.data;
+  let data = null;
+  if (!isGuestMode()) {
+    try { data = { ...(await api(`/api/changes?days=${days}`)), source: 'server' }; } catch { data = null; }
+  }
+  const now = getSessionOwnerSnapshot();
+  if (now.userId !== owner.userId || now.generation !== owner.generation) return null;
+  if (!data) {
+    const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+    const local = changeSinceFromSnapshots(state.portfolioHistory || [], since, Number(state.portfolio?.total_value) || 0);
+    data = { since: local?.since || since, days, delta: local ? local.delta : null, pct: local ? local.pct : null, movers: [], realized: null, source: 'local' };
+  }
+  state.vaultChanges = { data, days, ts: Date.now(), owner: owner.userId };
+  return data;
+}
+
+async function loadVaultChanges() {
+  const data = await fetchVaultChanges().catch(() => null);
+  if (!data || !onVaultRoute()) return;
+  const hero = $('#vaultHeroSub');
+  if (hero) hero.innerHTML = heroSubHTML(vaultTotals(state.portfolio?.items || [], pval));
+  const slot = $('#vaultSinceSlot');
+  if (slot) slot.innerHTML = sinceCardHTML(data);
+}
+
+/** Retiring-soon holdings and wishlist sets (LEGO.com flag, not yet retired). */
+export function retiringSets() {
+  const flag = (r) => !(r.retired === 1 || r.retired === true) && (Number(r.lego_retiring_soon) === 1 || r.lego_retiring_soon === true);
+  const owned = new Map();
+  for (const r of state.portfolio?.items || []) if (flag(r) && !owned.has(r.set_num)) owned.set(r.set_num, r);
+  const ownedNums = new Set(owned.keys());
+  const wished = (state.wishlist || []).filter(r => flag(r) && !ownedNums.has(r.set_num));
+  return { owned: [...owned.values()], wished };
+}
+
+/** "Since Monday" / "Since yesterday" / "Since 12 Sep" for an ISO date. */
+export function sinceLabel(isoDate) {
+  const d = new Date(`${String(isoDate).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return t('bvVault.sinceYesterday');
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const days = Math.round((today - d) / 86400000);
+  if (days <= 1) return t('bvVault.sinceYesterday');
+  if (days < 7) return t(`bvVault.sinceWeekday${d.getDay()}`);
+  let date = String(isoDate);
+  try { date = d.toLocaleDateString(getLocale(), { day: 'numeric', month: 'short' }); } catch { /* keep ISO */ }
+  return t('bvVault.sinceDate', { date });
+}
+
+/** One short line per change for summaries ("Starry Night hit your target"). */
+export function changeLine(item) {
+  const name = item.name || item.set_num || '';
+  if (item.kind === 'drop') return t('bvVault.changeDrop', { name });
+  if (item.kind === 'sell_target') return t('bvVault.changeSellTarget', { name });
+  if (item.kind === 'spike') return t('bvVault.changeSpike', { name });
+  return t('bvVault.changeRetiring', { name });
+}
+
+function currentChangeItems() {
+  const { owned, wished } = retiringSets();
+  const seen = new Set(readChangesSeen().retiring);
+  return {
+    all: changeItems({ alerts: state.wishlistAlerts || [], retiringOwned: owned, retiringWished: wished }),
+    fresh: changeItems({ alerts: state.wishlistAlerts || [], retiringOwned: owned.filter(r => !seen.has(r.set_num)), retiringWished: wished.filter(r => !seen.has(r.set_num)) }),
+  };
+}
+
+function sinceCardHTML(data) {
+  const { fresh } = currentChangeItems();
+  const d = Number(data?.delta);
+  const moved = data && data.delta != null && Number.isFinite(d) && Math.abs(d) >= 1;
+  // Hide when nothing changed: no unread alerts, no new retirement news and no
+  // value movement worth a dollar.
+  if (!fresh.length && !moved) return '';
+  const since = sinceLabel(data?.since || new Date(Date.now() - 7 * 86400000).toISOString());
+  const title = moved ? t('bvVault.sinceWithAmount', { since, amount: moneyWholeSigned(d) }) : since;
+  const lines = fresh.slice(0, 2).map(changeLine);
+  if (fresh.length > 2) lines.push(tPlural('bvVault.changeMore', fresh.length - 2));
+  const sub = lines.length ? lines.join(' · ') : (data?.pct != null ? t('bvVault.sinceValueMoved', { pct: fmtPct(Number(data.pct) / 100) }) : '');
+  return `<a class="vault-since" href="#/changes" id="vaultSince">${icon('bell', { size: 20 })}<span class="vault-since__text"><span class="vault-since__title">${escapeHtml(title)}</span>${sub ? `<span class="vault-since__sub">${escapeHtml(sub)}</span>` : ''}</span>${icon('chev', { size: 20 })}</a>`;
+}
+
+/* ---------------------------------------------------------------- list state */
+const SORTS = [
+  { value: 'added_desc', key: 'sortRecent' },
+  { value: 'value_desc', key: 'sortValue' },
+  { value: 'roi_desc', key: 'sortGrowth' },
+  { value: 'az', key: 'sortAz' },
+];
+const sortKeyOf = (value) => (SORTS.find(s => s.value === value) || SORTS[0]).key;
 
 // Filter + sort the vault items according to current state.filter. Pure — no DOM.
 function sortedPortfolioItems() {
@@ -114,482 +243,406 @@ function sortedPortfolioItems() {
   const q = state.filter.q.toLowerCase().trim();
   if (q) items = items.filter(i => i.name?.toLowerCase().includes(q) || i.set_num?.toLowerCase().includes(q) || i.theme?.toLowerCase().includes(q));
   switch (state.filter.sort) {
-    case "added_desc": items.sort((a, b) => new Date(b.added_at) - new Date(a.added_at)); break;
+    case "added_desc": items.sort((a, b) => new Date(b.added_at || 0) - new Date(a.added_at || 0)); break;
     case "value_desc": items.sort((a, b) => pval(b) - pval(a)); break;
     case "roi_desc":   items.sort((a, b) => (b.annualized_roi ?? -1) - (a.annualized_roi ?? -1)); break;
-    case "az":         items.sort((a, b) => a.name?.localeCompare(b.name)); break;
+    case "az":         items.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))); break;
   }
   return items;
 }
 
-// Re-render ONLY the set list + wire its cards. Used by sort/search so the
-// hero, chart and topbar don't flash from a full-page re-render.
-let portfolioOffset = 20;
-function wireSortChips() {
-  $$(".filter-row .chip").forEach(c => c.addEventListener("click", () => {
-    state.filter.sort = c.dataset.sort; localStorage.setItem("bv_sort", c.dataset.sort); haptic("light");
-    $$(".filter-row .chip").forEach(x => x.classList.toggle("active", x.dataset.sort === state.filter.sort));
-    repaintSetList();
-  }));
+const currentLayout = () => (state.selectionMode ? 'list' : readCollectorPreferences(getSessionUserId()).layout);
+
+function rowHTML(item) {
+  const value = pval(item);
+  const qty = Number(item.quantity) || 1;
+  const known = item.purchase_price != null && item.purchase_price !== '' && Number(item.purchase_price) >= 0;
+  const pct = known ? gainPct(value, item.purchase_price) : null;
+  const ref = String(item.id || item.set_num);
+  return vaultSetRow(item, {
+    value, qty, id: ref,
+    deltaPct: pct,
+    hintHref: known ? null : `#/set/${encodeURIComponent(item.set_num)}/edit`,
+    selecting: state.selectionMode,
+    selected: state.selectedSets.has(ref),
+  });
 }
+
+function tileHTML(item) {
+  const qty = Number(item.quantity) || 1;
+  return setTile(item, { value: pval(item), tagHtml: qty > 1 ? `<span class="bv-pill bv-pill--ink">×${qty}</span>` : '' });
+}
+
+/* ---------------------------------------------------------------- list rendering */
+// Progressive mount: the first rows paint immediately, the rest in animation
+// frame slices, and further pages load as the sentinel nears the viewport.
+let portfolioOffset = 20;
+const PAGE = 20;
 
 function repaintSetList() {
   const list = $("#setList");
   if (!list) return;
   const items = sortedPortfolioItems();
-  
+  if (state._portfolioObserver) { state._portfolioObserver.disconnect(); state._portfolioObserver = null; }
   if (items.length === 0) {
-    list.innerHTML = state.portfolio?.items?.length
-      ? `<div class="collector-no-results"><p>${t('collector.noResults')}</p><button class="btn-secondary" id="clearVaultSearch">${t('collector.clearSearch')}</button></div>`
-      : emptyVaultHTML();
+    list.className = 'vault-list';
+    list.innerHTML = `<div class="collector-no-results">${emptyState({ icon: 'search', title: t('collector.noResults'), actionsHtml: btn(t('collector.clearSearch'), { kind: 'tonal', id: 'clearVaultSearch' }) })}</div>`;
     // Keep focus in search until activation: collapsing the mobile keyboard
     // during pointerdown can move this button before pointerup arrives.
     $('#clearVaultSearch')?.addEventListener('pointerdown', event => event.preventDefault());
     $('#clearVaultSearch')?.addEventListener('click', () => { state.filter.q = ''; if ($('#portfolioSearch')) $('#portfolioSearch').value = ''; repaintSetList(); });
-    wireEmptyVaultBrick3D();
-    if (state._portfolioObserver) {
-      state._portfolioObserver.disconnect();
-      state._portfolioObserver = null;
-    }
     return;
   }
-  
-  list.className = `set-list ${state.compactView ? 'compact-list' : ''}`;
-  
-  portfolioOffset = 20;
+  const grid = currentLayout() === 'grid';
+  list.className = grid ? 'vault-list bv-grid' : 'vault-list';
+  const render = grid ? tileHTML : rowHTML;
+  portfolioOffset = PAGE;
   const firstPage = items.slice(0, portfolioOffset);
   const SLICE = 8;
-  const tail = `
-    <div id="portfolioSentinel" style="height: 20px; display: flex; align-items: center; justify-content: center; margin-top: 10px;">
-      ${items.length > portfolioOffset ? `<div class="spinner"></div>` : ''}
-    </div>
-  `;
-  // Progressive mount: first 8 cards paint immediately, the rest in
-  // requestAnimationFrame slices — the vault render never blocks the main
-  // thread in one ~300ms task (cuts TBT, LCP paints earlier). Slices abort
-  // if the list was replaced mid-flight (navigation/re-render).
   const mountSlice = (start) => {
     if (!list.isConnected) return;
-    const chunk = firstPage.slice(start, start + SLICE).map(setListCardHTML).join("");
+    const chunk = firstPage.slice(start, start + SLICE).map(render).join("");
     if (start === 0) list.innerHTML = chunk;
     else list.insertAdjacentHTML("beforeend", chunk);
     const next = start + SLICE;
-    if (next < firstPage.length) {
-      requestAnimationFrame(() => mountSlice(next));
-    } else {
-      list.insertAdjacentHTML("beforeend", tail);
-      wirePortfolioCards();
-      setupPortfolioSentinel(items);
-    }
+    if (next < firstPage.length) requestAnimationFrame(() => mountSlice(next));
+    else setupPortfolioSentinel(items, render);
   };
   mountSlice(0);
 }
 
-function wirePortfolioCards() {
-  $$(".set-list-card").forEach(card => {
-    if (card.dataset.wired) return;
-    card.dataset.wired = "true";
-    
-    card.addEventListener("click", (e) => {
-      if (state.selectionMode) {
-        e.preventDefault();
-        e.stopPropagation();
-        const id = card.dataset.id;
-        const nowSelected = !state.selectedSets.has(id);
-        if (nowSelected) state.selectedSets.add(id); else state.selectedSets.delete(id);
-        haptic("light");
-        // Toggle THIS card's checkbox in place — a full repaintSetList() rebuilds
-        // every card's <img>, which makes the set photos blink on each tick.
-        const cb = card.querySelector(".card-checkbox");
-        if (cb) {
-          cb.classList.toggle("checked", nowSelected);
-          cb.style.background = nowSelected ? "var(--up)" : "transparent";
-          cb.innerHTML = nowSelected ? I.check({ w: 12, h: 12 }) : "";
-        }
-        card.classList.toggle("selected", nowSelected);
-        updateSelectionBar();
-      } else {
-        haptic("light");
-        location.hash = "#/set/" + encodeURIComponent(card.dataset.set);
-      }
-    });
-    
-    wireLongPress(card, () => {
-      if (!state.selectionMode) {
-        enterSelectionMode(card.dataset.id);
-      }
-    });
+function setupPortfolioSentinel(items, render) {
+  const list = $("#setList");
+  const sentinel = $("#portfolioSentinel");
+  if (!list || !sentinel) return;
+  if (state._portfolioObserver) state._portfolioObserver.disconnect();
+  sentinel.hidden = items.length <= portfolioOffset;
+  if (items.length <= portfolioOffset) return;
+  state._portfolioObserver = new IntersectionObserver((entries) => {
+    if (!entries[0].isIntersecting || items.length <= portfolioOffset) return;
+    const nextPage = items.slice(portfolioOffset, portfolioOffset + PAGE);
+    portfolioOffset += PAGE;
+    list.insertAdjacentHTML("beforeend", nextPage.map(render).join(""));
+    if (portfolioOffset >= items.length) {
+      sentinel.hidden = true;
+      state._portfolioObserver?.disconnect();
+    }
+  }, { rootMargin: "400px" });
+  state._portfolioObserver.observe(sentinel);
+}
+
+// One delegated handler for the list: selection toggles, long-press to select
+// (with the visible "Select sets" twin in More options).
+function wireSetList() {
+  const list = $("#setList");
+  if (!list || list._wired) return;
+  list._wired = true;
+  let longPressAt = 0;
+  list.addEventListener("click", (e) => {
+    const rowEl = e.target.closest('.vault-row, .bv-tile');
+    if (!rowEl) return;
+    if (!state.selectionMode) { haptic("light"); return; }
+    e.preventDefault();
+    // The click that ends a long-press must not immediately un-select the row.
+    if (Date.now() - longPressAt < 450) return;
+    const id = rowEl.dataset.id;
+    if (!id) return;
+    const nowSelected = !state.selectedSets.has(id);
+    if (nowSelected) state.selectedSets.add(id); else state.selectedSets.delete(id);
+    haptic("light");
+    rowEl.classList.toggle('is-selected', nowSelected);
+    rowEl.querySelector('[role="checkbox"]')?.setAttribute('aria-checked', String(nowSelected));
+    const mark = rowEl.querySelector('.vault-row__check');
+    if (mark) mark.innerHTML = nowSelected ? icon('check', { size: 16, stroke: 3 }) : '';
+    updateSelectionBar();
+  });
+  let timer = null;
+  const start = (e) => {
+    const rowEl = e.target.closest('.vault-row');
+    if (!rowEl || state.selectionMode) return;
+    timer = setTimeout(() => { timer = null; longPressAt = Date.now(); enterSelectionMode(rowEl.dataset.id); }, 600);
+  };
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  list.addEventListener("touchstart", start, { passive: true });
+  list.addEventListener("touchend", cancel, { passive: true });
+  list.addEventListener("touchmove", cancel, { passive: true });
+  list.addEventListener("contextmenu", (e) => {
+    const rowEl = e.target.closest('.vault-row');
+    if (!rowEl) return;
+    e.preventDefault();
+    if (!state.selectionMode) { longPressAt = Date.now(); enterSelectionMode(rowEl.dataset.id); }
   });
 }
 
-function wireLongPress(el, callback) {
-  let timer = null;
-  const start = () => {
-    timer = setTimeout(() => {
-      timer = null;
-      callback();
-    }, 700);
-  };
-  const cancel = () => {
-    if (timer) {
-      clearTimeout(timer);
-      timer = null;
-    }
-  };
-  el.addEventListener("touchstart", start, { passive: true });
-  el.addEventListener("touchend", cancel, { passive: true });
-  el.addEventListener("touchmove", cancel, { passive: true });
-  el.addEventListener("mousedown", start);
-  el.addEventListener("mouseup", cancel);
-  el.addEventListener("mouseleave", cancel);
+/* ---------------------------------------------------------------- page */
+function vaultSkeleton() {
+  return `<main class="bv-page has-fab vault-page" aria-busy="true">${vaultTopbar()}<div class="bv-card bv-hero vault-hero" aria-hidden="true"><span class="bv-skel" style="height:14px;width:40%"></span><span class="bv-skel" style="height:40px;width:60%"></span><span class="bv-skel" style="height:14px;width:75%"></span></div>${vaultNavigation('sets')}${skeletonRows(5)}</main>`;
 }
 
-function setupPortfolioSentinel(items) {
-  const sentinel = $("#portfolioSentinel");
-  const list = $("#setList");
-  if (!sentinel || !list) return;
-  if (state._portfolioObserver) state._portfolioObserver.disconnect();
-  if (items.length <= portfolioOffset) {
-    sentinel.style.display = "none";
-    return;
-  }
-  
-  state._portfolioObserver = new IntersectionObserver((entries) => {
-    if (entries[0].isIntersecting && items.length > portfolioOffset) {
-      const nextPage = items.slice(portfolioOffset, portfolioOffset + 20);
-      portfolioOffset += 20;
-      
-      sentinel.remove();
-      
-      const tempDiv = document.createElement("div");
-      tempDiv.innerHTML = nextPage.map(setListCardHTML).join("");
-      
-      while (tempDiv.firstChild) {
-        list.appendChild(tempDiv.firstChild);
-      }
-      
-      list.appendChild(sentinel);
-      wirePortfolioCards();
-      
-      if (portfolioOffset >= items.length) {
-        sentinel.style.display = "none";
-        state._portfolioObserver.disconnect();
-      }
-    }
-  }, { rootMargin: "200px" });
-  state._portfolioObserver.observe(sentinel);
+function heroValueText(n) {
+  if (n == null || Number.isNaN(Number(n))) return '—';
+  return moneyWhole(n);
+}
+
+function heroSubHTML(totals) {
+  const parts = [];
+  if (totals.paid > 0 || totals.pricedValue > 0) parts.push(t('bvVault.onPaper', { amount: moneyWholeSigned(totals.paperGain) }));
+  const realized = state.vaultChanges?.data?.realized || (state.portfolio?.realized_gain != null ? { gain: state.portfolio.realized_gain, sales: state.portfolio.realized_sales ?? 1 } : null);
+  if (realized && Number(realized.sales) > 0) parts.push(tPlural('bvVault.realizedFrom', Number(realized.sales), { amount: moneyWholeSigned(Number(realized.gain) || 0) }));
+  if (!parts.length) return escapeHtml(t('bvVault.addPricesForGain'));
+  return escapeHtml(parts.join(' · '));
+}
+
+function heroStatusHTML(p) {
+  const notes = [];
+  if (document.body.classList.contains('offline') || navigator.onLine === false) notes.push({ icon: 'cloudOff', text: t('bvVault.heroOffline') });
+  if (ratesUnavailable() && (state.me?.currency || "USD") !== "USD") notes.push({ icon: 'info', text: t('bvVault.heroUsd') });
+  if (p._loadFailed) notes.push({ icon: 'alert', text: t('bvVault.heroLoadFailed') });
+  return notes.map(n => `<span class="vault-hero__status">${icon(n.icon, { size: 14 })}<span>${escapeHtml(n.text)}</span></span>`).join('');
+}
+
+function heroHTML(p, totals) {
+  const hist = clipHistory(state.portfolioHistory || [], 90).map(s => Number(s.total_value)).filter(v => Number.isFinite(v));
+  const spark = sparkline(hist, { width: 340, height: 40 });
+  const chip = totals.gainPct != null
+    ? deltaChip(totals.gainPct, { srUp: t('bvCommon.upPct', { pct: Math.abs(totals.gainPct).toFixed(1) }), srDown: t('bvCommon.downPct', { pct: Math.abs(totals.gainPct).toFixed(1) }) })
+    : '';
+  const value = p.total_value ?? totals.value;
+  return `<a class="bv-card bv-hero vault-hero" href="#/insights" id="vaultHero">
+    <span class="vault-hero__head"><span class="vault-hero__label">${escapeHtml(t('bvVault.collectionValue'))}</span><span class="bv-card__link">${escapeHtml(t('bvVault.insights'))}${icon('chev', { size: 16 })}</span></span>
+    <span class="bv-hero__line"><span class="bv-hero__value" id="heroValue" aria-label="${escapeHtml(heroValueText(value))}" aria-live="off">${escapeHtml(heroValueText(value))}</span>${chip}</span>
+    <span class="vault-hero__sub" id="vaultHeroSub">${heroSubHTML(totals)}</span>
+    ${spark || (hist.length ? `<span class="vault-hero__note">${escapeHtml(t('bvVault.trendSoon'))}</span>` : '')}
+    ${heroStatusHTML(p)}
+  </a>`;
+}
+
+function saveStatusHTML() {
+  const pending = state.pendingCollectionOperationList || [];
+  if (!pending.length) return '';
+  const failed = pending.some(item => item.state === 'failed');
+  return banner({ icon: failed ? 'alert' : 'cloud', kind: failed ? 'loss' : 'neutral', text: t(failed ? 'collector.saveFailed' : 'collector.savePending'), id: 'vaultSaveStatus' });
+}
+
+// "values updated today 06:00" / "… yesterday 22:10" / "… 12 Sep".
+function updatedLabel(stamp) {
+  const d = parseUTCDate(stamp);
+  if (!d) return t('bvVault.footUpdatedDate', { date: fmtDateUpdated(stamp) });
+  const now = new Date();
+  const dayKey = (x) => `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
+  const yesterday = new Date(now.getTime() - 86400000);
+  let time = '';
+  try { time = d.toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' }); } catch { time = ''; }
+  if (dayKey(d) === dayKey(now)) return t('bvVault.footUpdatedToday', { time });
+  if (dayKey(d) === dayKey(yesterday)) return t('bvVault.footUpdatedYesterday', { time });
+  let date = '';
+  try { date = d.toLocaleDateString(getLocale(), { day: 'numeric', month: 'short' }); } catch { date = String(stamp).slice(0, 10); }
+  return t('bvVault.footUpdatedDate', { date });
+}
+
+function footHTML(p, totals) {
+  const stamps = (p.items || []).map(i => i.cached_at).filter(Boolean).sort();
+  const parts = [tPlural('bvVault.footSets', totals.sets), tPlural('bvVault.footPieces', totals.pieces, { count: totals.pieces.toLocaleString(getLocale()) })];
+  if (stamps.length) parts.push(updatedLabel(stamps.at(-1)));
+  const conf = p.pricing_confidence?.priced ? t('market.confidentlyPriced', { pct: p.pricing_confidence.pct }) : '';
+  return `<div class="bv-foot vault-foot"><p>${escapeHtml(parts.join(' · '))}</p>
+    <p>${conf ? `${escapeHtml(conf)} · ` : ''}${escapeHtml(t('market.estimatedNotRealized'))} · <button type="button" class="vault-foot__link" data-legal-sheet="partners">${escapeHtml(portfolioSourceLinkLabel(p))}</button></p></div>`;
+}
+
+async function loadPinnedLists() {
+  const host = $('#collectorPinned');
+  const owner = getSessionOwnerSnapshot();
+  const pins = readCollectorPreferences(owner.userId).pins;
+  if (!host || !pins.length) return;
+  try {
+    const { subcollectionRequest } = await import('../lib/subcollection-storage.js');
+    const result = await subcollectionRequest();
+    const now = getSessionOwnerSnapshot();
+    if (!host.isConnected || now.userId !== owner.userId || now.generation !== owner.generation) return;
+    const lists = (result.subcollections || []).filter(list => pins.includes(list.id));
+    if (!lists.length) return;
+    host.innerHTML = `<nav class="collector-pins bv-chips" aria-label="${escapeHtml(t('bvVault.pinnedLists'))}">${lists.map(list => chip(list.name, { icon: 'star', href: `#/collections?list=${encodeURIComponent(list.id)}` })).join('')}</nav>`;
+  } catch { /* Pins are optional shortcuts; a failed read never hides the vault. */ }
 }
 
 function paintPortfolio() {
   const p = state.portfolio;
-  // Full innerHTML repaints reset the scroll position — a state change while
-  // deep in a long vault list used to jump the user back to the top. Save and
-  // restore it (the list content is the same page, so the offset stays valid).
+  if (!p) return;
+  // Full repaints reset the scroll position — a state change while deep in a
+  // long vault list used to jump the user back to the top. Save and restore.
   const scrollYBefore = window.scrollY;
-  // Simple mode hides the Insights tab switcher, so never leave the user
-  // stranded on the (now-unreachable) insights panel.
-  if (getModePref() === "simple" && state.portfolioTab !== "items") state.portfolioTab = "items";
-  const hist = state.portfolioHistory || [];
-  const alertsCount = state.wishlistAlerts.length;
-  const gain = p.total_value - p.total_paid;
-  const gainPct = p.total_paid ? gain / p.total_paid : 0;
-  const totalVal = p.total_value_with_figs ?? p.total_value ?? 0;
+  const items = p.items || [];
+  const isEmptyVault = items.length === 0;
+  const totals = vaultTotals(items, pval);
   // Record the current totals as the milestone baseline so deleting sets lowers
   // it — re-crossing a threshold later celebrates again (uses total_value, the
   // same basis the add-flow milestone check reads from /api/collection).
-  recordPortfolioMilestone(p.count ?? p.items?.length ?? 0, p.total_value ?? 0);
-
-  let items = sortedPortfolioItems();
-  const isEmptyVault = (p.items || []).length === 0;
-
-  const ranges = { "1W": 7, "1M": 30, "3M": 90, "1Y": 365, "ALL": 999 };
-  const days = ranges[state.filter.range] || 30;
-  const clipped = hist.slice(-Math.min(days + 1, hist.length));
+  recordPortfolioMilestone(p.count ?? items.length, p.total_value ?? 0);
+  if (state.filter.q) searchOpen = true;
+  const showSearch = searchOpen && !isEmptyVault;
+  const layout = currentLayout();
+  const hasFigs = Number(p.fig_count) > 0;
 
   $("#root").innerHTML = `
-    <div class="page collector-vault">
-      <div class="topbar">
-        <div class="brand">
-          <img class="brand-mark" src="/brand-brick-transparent.png" alt="" width="36" height="36" aria-hidden="true">
-          <h1 class="brand-name">BricksVault</h1>
-        </div>
-        <div class="topbar-actions">
-          ${(state.me?.handle && state.me?.is_public) ? `<button class="icon-btn vault-extra-action" id="portfolioShareBtn" aria-label="Share Portfolio">${I.share()}</button>` : ""}
-          ${(state.portfolio?.items?.length) ? `<button class="icon-btn vault-extra-action" id="selectToggle" aria-label="Select sets">${I.check()}</button>` : ""}
-          <button class="icon-btn" id="layoutToggle" aria-label="Toggle Layout">${state.compactView ? I.grid() : I.list()}</button>
-          <button class="icon-btn" id="searchToggle" aria-label="Search">${I.search()}</button>
-          <a href="#/wishlist" class="icon-btn vault-wishlist-action" id="wishlistBtn" aria-label="Wishlist">
-            ${I.heart()}
-            ${state.wishlist.length > 0 ? `<span class="dot">${state.wishlist.length}</span>` : ""}
-          </a>
-          <button class="icon-btn vault-extra-action" id="alertsBtn" aria-label="Alerts">
-            ${I.bell()}
-            ${alertsCount > 0 ? `<span class="dot">${alertsCount}</span>` : ""}
-          </button>
-          <button class="icon-btn vault-overflow" id="vaultMoreBtn" aria-label="More vault actions">${I.more()}</button>
-        </div>
-      </div>
-      <header class="collector-heading"><div><h2>${t('collector.title')}</h2><p>${isEmptyVault ? t('collector.subtitle') : tPlural('collector.owned', p.items.length)}</p></div></header>
-      ${vaultViewSwitch()}
-      ${vaultNavigation()}
-      ${collectionSaveStatus()}
-      <div id="collectorPinned"></div>
-      ${isEmptyVault ? emptyVaultHTML() : `
-      <div class="search-wrap open" id="searchWrap">
-        <span class="s-icon">${I.search()}</span>
-        <input class="search-input" id="portfolioSearch" aria-label="${t('collector.search')}" placeholder="${t('collector.search')}" autocomplete="off" value="${escapeHtml(state.filter.q)}">
-      </div>
+    <main class="bv-page ${isEmptyVault ? '' : 'has-fab '}vault-page${state.selectionMode ? ' has-bar' : ''}" id="vaultPage">
+      ${vaultTopbar({ searchOpen: showSearch })}
+      ${showSearch ? vaultSearchRow({ id: 'portfolioSearch', name: 'vault_search', value: state.filter.q, placeholder: t('bvVault.searchPlaceholder'), label: t('collector.search') }) : ''}
+      ${saveStatusHTML()}
+      ${isEmptyVault ? `${emptyVaultHTML()}${hasFigs ? vaultNavigation('sets') : ''}` : `
+      ${showSearch ? '' : heroHTML(p, totals)}
+      ${showSearch ? '' : `<div id="vaultSinceSlot">${state.vaultChanges?.owner === getSessionUserId() ? sinceCardHTML(state.vaultChanges.data) : ''}</div>`}
+      ${showSearch ? '' : '<div id="collectorPinned"></div>'}
+      ${vaultNavigation('sets')}
+      ${vaultToolbar(sortButton(t(`bvVault.${sortKeyOf(state.filter.sort)}`)), layoutSeg(layout))}
+      <div id="setList" class="vault-list" aria-live="polite"></div>
+      <div id="portfolioSentinel" class="vault-sentinel" hidden><span class="bv-skel"></span></div>
+      ${footHTML(p, totals)}`}
+    </main>`;
 
-      <details class="collector-market"><summary>${I.chart ? I.chart() : I.info()}<span>${t('collector.insights')}</span>${I.chev()}</summary>
-      <div class="card hero" data-trend="${gain > 0 ? "up" : gain < 0 ? "down" : "flat"}">
-        <div class="hero-eyebrow"><span class="pulse"></span>Vault · LIVE</div>
-        <div class="u-row" style="flex-wrap:wrap;column-gap:12px;">
-          <div class="hero-value" id="heroValue" aria-label="${escapeHtml(fmtMoney(totalVal))}" aria-live="off">${heroValueHTML(totalVal)}</div>
-          <span class="delta ${gain >= 0 ? "up" : "down"}" role="img" aria-label="${gain >= 0 ? 'Up' : 'Down'} ${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(gainPct)})"><span class="arrow" aria-hidden="true">${gain >= 0 ? "▲" : "▼"}</span>${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(gainPct)})</span>
-        </div>
-        <div class="hero-meta u-mono-label" style="letter-spacing:0.06em;">
-          <span>${t("vault.investedAmount", { amount: fmtMoney(p.total_paid) })}</span>
-          ${p.fig_count > 0 ? `<span style="cursor:help;" title="Minifig collection value tracked separately">· Figs ${p.fig_count} (${fmtMoney(p.fig_value || 0)})</span>` : ""}
-          ${p.pricing_confidence?.priced ? `<span style="cursor:help;" title="Share of your sets priced from corroborated, fresh market data (high or medium confidence) rather than a thin or estimated value">· ${t('market.confidentlyPriced', { pct: p.pricing_confidence.pct })}</span>` : ""}
-          ${ratesUnavailable() && (state.me?.currency || "USD") !== "USD" ? `<span style="color:var(--bv-yellow);cursor:help;" title="Exchange rates couldn't be loaded — values are shown in USD until they refresh">· shown in USD</span>` : ""}
-          <span title="Portfolio values are market estimates from daily valuation snapshots — what a patient sale might bring, not money in hand.">${t('market.estimatedNotRealized')}</span>
-          <button type="button" class="legal-sheet-link hero-partner-link" data-legal-sheet="partners" style="color:inherit;text-decoration:underline;background:none;border:none;padding:0;font:inherit;cursor:pointer;">· ${portfolioSourceLinkLabel(p)}</button>
-        </div>
-        <div class="spark-wrap" id="heroChart">${clipped.length < 2 ? `
-          <div class="spark-empty">Your trend appears after the next daily valuation snapshot.</div>` : ""}</div>
-        <div class="range-pills" id="rangePills">
-          ${["1W","1M","3M","1Y","ALL"].map(r => {
-            const locked = !state.historyPro && (r === "1Y" || r === "ALL");
-            return `<button data-r="${r}" data-locked="${locked}" aria-pressed="${state.filter.range === r ? "true" : "false"}" class="${state.filter.range === r ? "active" : ""}">${r}${locked ? " ⭐" : ""}</button>`;
-          }).join("")}
-        </div>
-      </div>
-
-      </details>
-      ${collectorTools()}
-
-      ${p.items.length > 0 ? `
-        <div class="portfolio-tabs" role="tablist" aria-label="Portfolio views">
-          <button class="portfolio-tab ${state.portfolioTab === 'items' ? 'active' : ''}" data-tab="items" role="tab" aria-selected="${state.portfolioTab === 'items'}" aria-controls="portfolioTabContent">Your Sets</button>
-          <button class="portfolio-tab ${state.portfolioTab === 'insights' ? 'active' : ''}" data-tab="insights" role="tab" aria-selected="${state.portfolioTab === 'insights'}" aria-controls="portfolioTabContent">Insights${state.historyPro ? '' : ' ⭐'}</button>
-        </div>
-      ` : ''}
-
-      <div id="portfolioTabContent" role="tabpanel">
-        ${state.portfolioTab === "items" ? `
-          <div class="filter-row" style="margin-top: 8px;">
-            ${[["added_desc","Recent"],["value_desc","Value"],["roi_desc","Growth"],["az","A–Z"]]
-              .map(([k,l]) => `<button class="chip ${state.filter.sort === k ? "active" : ""}" data-sort="${k}">${l}</button>`).join("")}
-          </div>
-          <div class="set-list ${state.compactView ? 'compact-list' : ''}" id="setList">
-            ${items.length === 0 ? emptyVaultHTML() : ""}
-          </div>
-        ` : `
-          <div id="insightsPanelContent">
-            ${renderInsightsTab(p.items || [], state.historyPro)}
-          </div>
-        `}
-      </div>
-      `}
-    </div>`;
-
-  // Scroll restore moved below into the deferred render: the list must exist
-  // with its full height first, or the restore clamps to the hero-only page.
-
-  // Day-one vaults have snapshots but no movement yet — a bare flat line
-  // reads as "broken chart". Say what's actually happening.
-  const drawHeroChart = (points) => {
-    drawSparkline($("#heroChart"), points, { up: gain >= 0 });
-    const flatSoFar = points.length >= 2 && new Set(points.map(d => d.total_value ?? d.current_value ?? d)).size === 1;
-    if (flatSoFar) $("#heroChart")?.insertAdjacentHTML("beforeend", `<div class="spark-note">Tracking has begun — your curve builds with each daily snapshot</div>`);
-  };
-  setTimeout(() => {
-    drawHeroChart(clipped);
-    if (state.portfolioTab !== "items") {
-      const container = $("#insightsDoubleChart");
-      if (container) drawDoubleSparkline(container, clipped);
-    }
-  }, 40);
-  
-  animateHeroValue(totalVal);
-  $('.collector-market')?.addEventListener('toggle', event => {
-    if (event.currentTarget.open) { animateHeroValue(totalVal); drawHeroChart(clipped); }
-  });
-  loadPinnedCollections();
-  wireEmptyVaultBrick3D();
+  // The empty vault's actions ARE the primary actions: no Scan FAB there. A
+  // first add repaints into the populated vault, which gets the route's FAB back.
+  if (isEmptyVault) setPageFab(null);
+  else if (!document.getElementById('bvFab')?._bvFab) { resetPageFab(); syncCollectorChrome(routeMetaFor(location.hash.replace('#', '') || '/')); }
+  wireVaultChrome();
+  if (!isEmptyVault) {
+    wireSetList();
+    // Mount the first card slice synchronously. Deferring the *first* call left a
+    // data-populated vault visually blank when a guest added their first set and
+    // the browser throttled/dropped the scheduled frame.
+    repaintSetList();
+    if (!showSearch) { animateHeroValue(p.total_value ?? totals.value); loadPinnedLists(); }
+  } else {
+    wireEmptyVaultBrick3D();
+  }
+  if (state.selectionMode) showSelectionBar();
+  if (scrollYBefore > 0) requestAnimationFrame(() => window.scrollTo(0, scrollYBefore));
   // Mirror the fresh totals to the Android home-screen widget (no-op on web).
   import('../lib/native-widget.js').then(m => m.updateVaultWidget({
-    value: fmtMoney(totalVal, { cents: 0 }),
-    delta: `${gain >= 0 ? "▲" : "▼"} ${fmtMoney(Math.abs(gain), { cents: 0 })} (${fmtPct(Math.abs(gainPct))})`,
-    deltaUp: gain >= 0,
-    sets: p.set_count ?? (p.items ? p.items.length : 0),
+    value: fmtMoney(p.total_value ?? totals.value, { cents: 0 }),
+    delta: totals.gainPct == null ? '' : `${totals.paperGain >= 0 ? "▲" : "▼"} ${fmtMoney(Math.abs(totals.paperGain), { cents: 0 })} (${fmtPct(Math.abs(totals.gainPct) / 100)})`,
+    deltaUp: totals.paperGain >= 0,
+    sets: p.set_count ?? items.length,
     owner: getSessionUserId() || 'guest',
   })).catch(() => {});
-  if (state.portfolioTab === "insights") wireInsightsTab();
-
-  const switchPortfolioTab = (tab) => {
-    state.portfolioTab = tab;
-    $$(".portfolio-tab").forEach(x => {
-      const on = x.dataset.tab === tab;
-      x.classList.toggle("active", on);
-      x.setAttribute("aria-selected", on ? "true" : "false");
-    });
-    const panel = $("#portfolioTabContent");
-    if (!panel) return;
-    if (tab === "items") {
-      panel.innerHTML = `
-          <div class="filter-row" style="margin-top: 8px;">
-            ${[["added_desc","Recent"],["value_desc","Value"],["roi_desc","Growth"],["az","A\u2013Z"]]
-              .map(([k,l]) => `<button class="chip ${state.filter.sort === k ? "active" : ""}" data-sort="${k}">${l}</button>`).join("")}
-          </div>
-          <div class="set-list ${state.compactView ? 'compact-list' : ''}" id="setList">
-            ${items.length === 0 ? emptyVaultHTML() : items.map(setListCardHTML).join("")}
-          </div>`;
-      wireSortChips();
-      if (items.length) { wirePortfolioCards(); setupPortfolioSentinel(items); }
-    } else {
-      panel.innerHTML = `<div id="insightsPanelContent">${renderInsightsTab(p.items || [], state.historyPro)}</div>`;
-      wireInsightsTab();
-      setTimeout(() => { const c = $("#insightsDoubleChart"); if (c) drawDoubleSparkline(c, clipped); }, 40);
-    }
-  };
-  $$(".portfolio-tab").forEach(tabBtn => {
-    tabBtn.addEventListener("click", () => { haptic("light"); switchPortfolioTab(tabBtn.dataset.tab); });
-  });
-
-  $$("#rangePills button").forEach(b => b.addEventListener("click", () => {
-    if (b.dataset.locked === "true") {
-      haptic("light");
-      toast("History beyond 90 days is a Pro perk — showing your last 90 days.", "info");
-      return;
-    }
-    state.filter.range = b.dataset.r; haptic("light");
-    $$("#rangePills button").forEach(x => { x.classList.toggle("active", x.dataset.r === state.filter.range); x.setAttribute("aria-pressed", x.dataset.r === state.filter.range ? "true" : "false"); });
-    const d = ranges[state.filter.range] || 30;
-    const freshClipped = hist.slice(-Math.min(d + 1, hist.length));
-    drawHeroChart(freshClipped);
-    const container = $("#insightsDoubleChart");
-    if (container) drawDoubleSparkline(container, freshClipped);
-  }));
-
-  wireSortChips();
-
-  $("#layoutToggle")?.addEventListener("click", () => {
-    state.compactView = !state.compactView;
-    localStorage.setItem("bv_compact_view", state.compactView);
-    haptic("light");
-    const toggleBtn = $("#layoutToggle");
-    if (toggleBtn) toggleBtn.innerHTML = state.compactView ? I.grid() : I.list();
-    repaintSetList();
-  });
-
-  // Visible entry point for multi-select (long-press remains a shortcut).
-  $("#selectToggle")?.addEventListener("click", () => {
-    if (state.selectionMode) { exitSelectionMode(); return; }
-    enterSelectionMode();
-    if (!localStorage.getItem("bv_sel_hint")) {
-      localStorage.setItem("bv_sel_hint", "1");
-      toast("Tap sets to select them for bulk actions", "info");
-    }
-  });
-
-  $("#portfolioShareBtn")?.addEventListener("click", async () => {
-    const handle = state.me?.handle;
-    if (!handle) return;
-    haptic("light");
-    const shareUrl = `${publicOrigin()}/#/u/${encodeURIComponent(handle)}`;
-    const outcome = await shareContent({
-      title: t('share.portfolioTitle'),
-      text: t('share.portfolioText'),
-      url: shareUrl,
-      dialogTitle: t('share.portfolioDialogTitle'),
-    });
-    if (outcome === 'unsupported') {
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-        toast("Link copied to clipboard!", "success");
-      } catch {
-        toast("Sharing isn't available on this device", "error");
-      }
-    }
-  });
-
-  $("#searchToggle")?.addEventListener("click", () => {
-    const w = $("#searchWrap");
-    w?.classList.add("open");
-    $("#portfolioSearch")?.focus();
-  });
-
-  let portfolioSearchTimer = null;
-  $("#portfolioSearch")?.addEventListener("input", (e) => {
-    const input = e.target;
-    state.filter.q = input.value;
-    showSearchSpinner("#searchWrap", true);
-    clearTimeout(portfolioSearchTimer);
-    portfolioSearchTimer = setTimeout(() => {
-      if (!input.isConnected) return;
-      repaintSetList();
-      showSearchSpinner("#searchWrap", false);
-    }, SEARCH_DEBOUNCE_MS);
-  });
-
-  $("#alertsBtn")?.addEventListener("click", () => showAlertsSheet(state.wishlistAlerts));
-  $$("[data-legal-sheet]").forEach(link => link.addEventListener("click", () => {
-    openLegalSheet(link.dataset.legalSheet);
-  }));
-  $("#vaultMoreBtn")?.addEventListener("click", () => {
-    haptic("light");
-    showSheet(`
-      <h2 class="u-serif-h" style="margin:0 4px 12px;">Vault actions</h2>
-      ${(state.me?.handle && state.me?.is_public) ? `<button class="sheet-action" id="vaultMoreShare">${I.share()}<span>Share public profile</span></button>` : ""}
-      ${(state.portfolio?.items?.length) ? `<button class="sheet-action" id="vaultMoreSelect">${I.check()}<span>Select sets</span></button>` : ""}
-      <a class="sheet-action" href="#/wishlist" id="vaultMoreWishlist">${I.heart()}<span>Wishlist${state.wishlist.length ? ` (${state.wishlist.length})` : ""}</span></a>
-      <button class="sheet-action" id="vaultMoreAlerts">${I.bell()}<span>Alerts${alertsCount ? ` (${alertsCount})` : ""}</span></button>
-      ${gameTeaserHTML()}
-    `);
-    $("#vaultMoreShare")?.addEventListener("click", () => { hideSheet(); $("#portfolioShareBtn")?.click(); });
-    $("#vaultMoreSelect")?.addEventListener("click", () => { hideSheet(); $("#selectToggle")?.click(); });
-    $("#vaultMoreWishlist")?.addEventListener("click", () => hideSheet());
-    $("#vaultMoreAlerts")?.addEventListener("click", () => { hideSheet(); showAlertsSheet(state.wishlistAlerts); });
-  });
-  
-  // Mount the first card slice synchronously. Deferring the *first* call left a
-  // data-populated vault visually blank when a guest added their first set and
-  // the browser throttled/dropped the scheduled frame. repaintSetList already
-  // defers subsequent slices, so the shell still stays responsive.
-  repaintSetList();
-  if (scrollYBefore > 0) requestAnimationFrame(() => window.scrollTo(0, scrollYBefore));
-
-  if (state.portfolioTab === "items") {
-    wirePortfolioCards();
-    setupPortfolioSentinel(items);
-  }
-
   checkAnniversaries(items);
   refreshNavBadge();
 }
 
-// Daily price-game teaser: one slim row under the hero. Shows played/unplayed
-// state from the local result (the game itself lives at #/game).
-function gameTeaserHTML() {
+function wireVaultChrome() {
+  $("#vaultSearchBtn")?.addEventListener("click", () => {
+    haptic("light");
+    searchOpen = !searchOpen;
+    if (!searchOpen) state.filter.q = '';
+    paintPortfolio();
+    if (searchOpen) $("#portfolioSearch")?.focus();
+  });
+  let portfolioSearchTimer = null;
+  $("#portfolioSearch")?.addEventListener("input", (e) => {
+    const input = e.target;
+    state.filter.q = input.value;
+    clearTimeout(portfolioSearchTimer);
+    portfolioSearchTimer = setTimeout(() => { if (input.isConnected) repaintSetList(); }, SEARCH_DEBOUNCE_MS);
+  });
+  $("#portfolioSearch")?.addEventListener("keydown", (e) => { if (e.key === 'Escape' && !state.filter.q) { searchOpen = false; paintPortfolio(); } });
+  $("#vaultSortBtn")?.addEventListener("click", openSortSheet);
+  $$('#vaultPage [data-layout]').forEach(b => b.addEventListener('click', () => {
+    const layout = b.dataset.layout;
+    if (layout === currentLayout()) return;
+    haptic("light");
+    if (!writeCollectorPreferences(getSessionUserId(), { layout })) toast(t('collector.preferenceFailed'), 'error');
+    $$('#vaultPage [data-layout]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.layout === layout)));
+    repaintSetList();
+  }));
+  $("#vaultMoreBtn")?.addEventListener("click", openVaultMoreSheet);
+  $$("#vaultPage [data-legal-sheet]").forEach(link => link.addEventListener("click", () => openLegalSheet(link.dataset.legalSheet)));
+  $$("#vaultPage [data-empty-action]").forEach(b => b.addEventListener("click", async () => {
+    haptic("light");
+    const { openScan } = await import('../components/scanner-lazy.js');
+    if (b.dataset.emptyAction === 'shelf') openScan('image', { shelf: true });
+    else openScan('barcode');
+  }));
+}
+
+function openSortSheet() {
+  haptic("light");
+  const simple = getModePref() === 'simple';
+  openChoiceSheet({
+    title: t('bvVault.sortTitle'),
+    current: state.filter.sort,
+    options: SORTS.filter(s => !(simple && s.value === 'roi_desc')).map(s => ({ value: s.value, label: t(`bvVault.${s.key}`), sub: t(`bvVault.${s.key}Sub`) })),
+    onPick: (value) => {
+      if (value === state.filter.sort) return;
+      state.filter.sort = value;
+      try { localStorage.setItem("bv_sort", value); } catch { /* per-session only */ }
+      const btnEl = $("#vaultSortBtn");
+      if (btnEl) btnEl.outerHTML = sortButton(t(`bvVault.${sortKeyOf(value)}`));
+      $("#vaultSortBtn")?.addEventListener("click", openSortSheet);
+      repaintSetList();
+    },
+  });
+}
+
+// Daily price-game state for the More options row (the game lives at #/game).
+function gameTeaserSub() {
   let played = false;
   let score = 0;
   try {
     const r = JSON.parse(localStorage.getItem("bv_game_result") || "null");
     const today = new Date().toISOString().slice(0, 10);
     if (r?.day === today) { played = true; score = (r.results || []).filter(x => x.correct).length; }
-  } catch {}
+  } catch { /* no local game state */ }
   let streak = 0;
-  try { streak = JSON.parse(localStorage.getItem("bv_game_streak") || "null")?.streak || 0; } catch {}
-  return `
-    <a href="#/game" class="card" style="display:flex;align-items:center;gap:10px;padding:10px 14px;margin-top:10px;text-decoration:none;color:inherit;">
-      <span style="font-size:20px;">🎯</span>
-      <span style="flex:1;min-width:0;">
-        <span style="display:block;font-weight:700;font-size:13px;">Price It! — today's 5 sets</span>
-        <span style="display:block;font-size:11px;color:var(--ink-mute);">${played ? `Played · ${score}/5 today` : "Guess the market value, build your streak"}${streak > 1 ? ` · 🔥 ${streak}-day streak` : ""}</span>
-      </span>
-      ${I.chev()}
-    </a>`;
+  try { streak = JSON.parse(localStorage.getItem("bv_game_streak") || "null")?.streak || 0; } catch { /* none */ }
+  const base = played ? t('bvVault.gamePlayed', { score }) : t('bvVault.gameSub');
+  return streak > 1 ? `${base} · ${tPlural('bvVault.gameStreak', streak)}` : base;
+}
+
+export async function sharePortfolio() {
+  const handle = state.me?.handle;
+  if (!handle) return;
+  haptic("light");
+  const shareUrl = `${publicOrigin()}/#/u/${encodeURIComponent(handle)}`;
+  const outcome = await shareContent({
+    title: t('share.portfolioTitle'),
+    text: t('share.portfolioText'),
+    url: shareUrl,
+    dialogTitle: t('share.portfolioDialogTitle'),
+  });
+  if (outcome === 'unsupported') {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast(t('bvVault.linkCopied'), "success");
+    } catch {
+      toast(t('bvVault.shareUnavailable'), "error");
+    }
+  }
+}
+
+function openVaultMoreSheet() {
+  haptic("light");
+  const items = state.portfolio?.items || [];
+  const alertsCount = (state.wishlistAlerts || []).length;
+  const layout = currentLayout();
+  openActionSheet({
+    title: t('bvVault.moreOptions'),
+    groups: [
+      { rows: [
+        items.length ? { id: 'vaultMoreSelect', icon: 'check', label: t('bvVault.selectSets'), sub: t('bvVault.selectSetsSub'), onClick: () => enterSelectionMode() } : null,
+        { id: 'vaultMoreAlerts', icon: 'bell', label: t('bvVault.whatChanged'), sub: alertsCount ? tPlural('bvVault.unreadAlerts', alertsCount) : t('bvVault.whatChangedSub'), href: '#/changes' },
+        items.length ? { id: 'vaultMoreInsights', icon: 'pie', label: t('bvVault.insights'), sub: t('bvVault.insightsSub'), href: '#/insights' } : null,
+        items.length ? { id: 'vaultMoreLayout', icon: layout === 'grid' ? 'list' : 'grid', label: t(layout === 'grid' ? 'bvVault.showAsList' : 'bvVault.showAsGrid'), onClick: () => { $(`#vaultPage [data-layout="${layout === 'grid' ? 'list' : 'grid'}"]`)?.click(); } } : null,
+        { id: 'vaultMoreRoom', icon: 'room', label: t('bvVault.collectionRoom'), sub: t('bvVault.collectionRoomSub'), href: '#/room', },
+      ] },
+      { title: t('bvVault.moreGroupShare'), rows: [
+        { id: 'vaultMoreWishlist', icon: 'heart', label: t('collector.wishlist'), trail: state.wishlist.length ? String(state.wishlist.length) : '', href: '#/wishlist' },
+        items.length ? { id: 'vaultMoreExport', icon: 'download', label: t('bvVault.exportCollection'), sub: t('bvVault.exportCollectionSub'), href: '#/me/data' } : null,
+        (state.me?.handle && state.me?.is_public) ? { id: 'vaultMoreShare', icon: 'share', label: t('bvVault.sharePublicProfile'), onClick: sharePortfolio } : null,
+        { id: 'vaultMoreGame', icon: 'game', label: t('bvVault.priceGame'), sub: gameTeaserSub(), href: '#/game' },
+        advisorEnabled() ? { id: 'vaultMoreAdvisor', icon: 'chat', label: t('collector.advisor'), href: '#/advisor' } : null,
+        { id: 'vaultMoreSources', icon: 'info', label: t('bvVault.howWePrice'), onClick: () => openLegalSheet('partners') },
+      ] },
+    ],
+  });
 }
 
 // Set anniversaries: exactly N years to the day since a set was purchased →
@@ -618,32 +671,14 @@ function checkAnniversaries(items) {
   }
 }
 
-const showSearchSpinner = (containerSel, active) => {
-  const wrap = document.querySelector(containerSel);
-  if (!wrap) return;
-  const icon = wrap.querySelector(".s-icon");
-  if (!icon) return;
-  if (active) {
-    icon.innerHTML = `<span class="spin" style="display:inline-flex;animation:spin 0.8s linear infinite;">${I.refresh({w: 14, h: 14})}</span>`;
-  } else {
-    icon.innerHTML = I.search();
-  }
-};
-
 function heroValueHTML(n) {
-  if (n == null || isNaN(n)) return `<span>—</span>`;
+  if (n == null || isNaN(n)) return `—`;
   const userCurrency = state.me?.currency || "USD";
   const rate = getExchangeRate(userCurrency);
   const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
   const converted = n * rate;
-  // Round (not truncate) cents so the hero total matches fmtMoney-rendered
-  // card values and the INVESTED line for the same sum — truncation once made
-  // the header show .47 while every other surface showed .48.
-  const rounded = Math.round(Math.abs(converted) * 100) / 100;
-  const whole = Math.floor(rounded).toLocaleString("en-US");
-  const cents = Math.round((rounded - Math.floor(rounded)) * 100).toString().padStart(2, "0");
-  const sign = converted < 0 ? "-" : "";
-  return `${sign}${symbol}${whole}<span class="cents">.${cents}</span>`;
+  const whole = Math.round(Math.abs(converted)).toLocaleString("en-US");
+  return `${converted < 0 ? "-" : ""}${symbol}${whole}`;
 }
 
 let _lastHeroValue = 0;
@@ -655,16 +690,11 @@ function animateHeroValue(target) {
   cancelAnimationFrame(_heroAnimationFrame);
   // Keep the final amount in the accessibility tree while the visible digits
   // interpolate. Screen readers should not announce dozens of frame updates.
-  el.setAttribute("aria-label", fmtMoney(target));
+  el.setAttribute("aria-label", heroValueText(target));
   el.setAttribute("aria-live", "off");
-  if (el.closest('details') && !el.closest('details').open) {
-    el.style.removeProperty('min-width');
-    el.innerHTML = heroValueHTML(target);
-    return;
-  }
-  if (prefersReducedMotion()) { el.style.removeProperty("min-width"); el.innerHTML = heroValueHTML(target); _lastHeroValue = target; return; }
+  if (prefersReducedMotion() || _lastHeroValue === target) { el.style.removeProperty("min-width"); el.textContent = heroValueHTML(target); _lastHeroValue = target; return; }
   // The template initially contains the final value. Preserve that exact width
-  // while counting from the previous total so the neighbouring delta pill
+  // while counting from the previous total so the neighbouring delta chip
   // cannot re-wrap and vertically recenter the amount mid-animation.
   el.style.minWidth = `${el.getBoundingClientRect().width}px`;
   const dur = 750;
@@ -673,90 +703,18 @@ function animateHeroValue(target) {
   _lastHeroValue = target;
   const tick = (now) => {
     // A callback queued during an active frame can receive that frame's start
-    // timestamp, which is slightly earlier than performance.now() above. Clamp
-    // both ends so the first value cannot extrapolate below `from`, grow wider
-    // than the pinned target, and briefly wrap the neighbouring delta pill.
-    const t = Math.max(0, Math.min(1, (now - start) / dur));
-    const eased = 1 - Math.pow(1 - t, 3);
-    el.innerHTML = heroValueHTML(from + (target - from) * eased);
-    if (t < 1) _heroAnimationFrame = requestAnimationFrame(tick);
+    // timestamp, slightly earlier than performance.now() above. Clamp both ends
+    // so the first value cannot extrapolate below `from`.
+    const p = Math.max(0, Math.min(1, (now - start) / dur));
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = heroValueHTML(from + (target - from) * eased);
+    if (p < 1) _heroAnimationFrame = requestAnimationFrame(tick);
     else { _heroAnimationFrame = 0; el.style.removeProperty("min-width"); }
   };
   _heroAnimationFrame = requestAnimationFrame(tick);
 }
 
-function sourceCueHTML(item) { return trustBadgeHTML(item, { compact: true }); }
-
-function setListCardHTML(item) {
-  const dispVal = pval(item);
-  const delta = item.purchase_price ? (dispVal - item.purchase_price) / item.purchase_price : null;
-  const cls = delta == null ? "flat" : delta >= 0 ? "up" : "down";
-  const arrow = delta == null ? "" : delta >= 0 ? "▲" : "▼";
-  const dStr = delta == null ? "—" : (delta * 100).toFixed(1) + "%";
-  const newBadge = item.added_at && daysAgo(item.added_at) < 7;
-  const tc = THEME_COLORS[item.theme] || null;
-  const borderStyle = tc ? ` style="border-left-color:${tc};"` : "";
-  
-  const isSelected = state.selectedSets.has(String(item.id || item.set_num));
-  const checkboxHTML = state.selectionMode ? `
-    <div class="card-checkbox ${isSelected ? 'checked' : ''}" style="margin-right: 8px; display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 2px solid var(--line); border-radius: 4px; flex-shrink: 0; background: ${isSelected ? 'var(--up)' : 'transparent'}; color: white;">
-      ${isSelected ? I.check({w:12, h:12}) : ''}
-    </div>
-  ` : '';
-
-  const sourceCue = sourceCueHTML(item);
-
-  if (state.compactView) {
-    return `
-      <button class="set-list-card compact" data-set="${escapeHtml(item.set_num)}" data-id="${item.id || item.set_num}"${borderStyle}>
-        ${checkboxHTML}
-        ${slImgHTML(item, { newBadge, qtyBadge: item.quantity || 1 })}
-        <div class="sl-body" style="flex: 1; min-width: 0;">
-          <div class="sl-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left;">
-            ${(item.retirement_risk_score || 0) >= 70 ? '🔥 ' : ''}${escapeHtml(item.name)}
-          </div>
-          <div class="sl-meta" style="text-align: left;">
-            <span>${escapeHtml(item.set_num)}</span>
-            <span class="dot"></span>
-            <span>${escapeHtml(item.theme || "")}</span>
-            ${sourceCue}
-          </div>
-        </div>
-        <div class="sl-right-compact">
-          <div class="sl-value" style="display:flex;align-items:center;">
-            ${estMark(item)}${fmtMoney(dispVal)}
-            ${item.trend ? trendBadgeHTML(item.trend) : ""}
-          </div>
-          <div class="sl-delta ${cls}" ${delta != null ? `role="img" aria-label="${cls === 'up' ? 'Up' : 'Down'} ${dStr}"` : ''}><span aria-hidden="true">${arrow}</span>${dStr}</div>
-        </div>
-      </button>`;
-  }
-
-  return `
-    <button class="set-list-card" data-set="${escapeHtml(item.set_num)}" data-id="${item.id || item.set_num}"${borderStyle}>
-      ${checkboxHTML}
-      ${slImgHTML(item, { newBadge, qtyBadge: item.quantity || 1 })}
-      <div class="sl-body">
-        <div class="sl-name" style="text-align: left;">${(item.retirement_risk_score || 0) >= 70 ? '🔥 ' : ''}${escapeHtml(item.name)}</div>
-        <div class="sl-meta" style="text-align: left;">
-          <span>${escapeHtml(item.theme || "")}</span>
-          <span class="dot"></span>
-          <span>${escapeHtml(item.set_num)}</span>
-          ${sourceCue}
-        </div>
-      </div>
-      <div class="sl-right">
-        <div class="sl-value" style="display:flex;align-items:center;justify-content:flex-end;gap:4px;">
-          ${item.market_value_confidence ? `<span title="Market confidence: ${item.market_value_confidence}" style="display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;background:${item.market_value_confidence === 'high' ? 'var(--up)' : item.market_value_confidence === 'medium' ? 'var(--accent)' : 'var(--bv-yellow)'};"></span>` : ''}
-          ${estMark(item)}${fmtMoney(dispVal)}
-        </div>
-        <div class="sl-delta ${cls}" ${delta != null ? `role="img" aria-label="${cls === 'up' ? 'Up' : 'Down'} ${dStr}"` : ''}><span class="arrow" aria-hidden="true">${arrow}</span>${dStr}</div>
-        ${item.trend ? `<div class="sl-trend-row">${trendBadgeHTML(item.trend)}</div>` : ""}
-        ${item.forecast_2y && dispVal && item.forecast_2y > dispVal ? `<div class="sl-forecast" style="font-size:9px;color:var(--ink-mute);font-family:var(--mono);text-align:right;">→ ${t('card.forecast2y', { price: fmtMoneyShort(item.forecast_2y) })}</div>` : ''}
-      </div>
-    </button>`;
-}
-
+/* ---------------------------------------------------------------- empty vault */
 function wireEmptyVaultBrick3D() {
   const trigger = document.querySelector('.empty-vault-brick-3d-trigger');
   const stage = document.querySelector('.empty-vault-brick-stage');
@@ -773,6 +731,7 @@ function wireEmptyVaultBrick3D() {
     const status = stage.querySelector('.empty-vault-brick-3d-status');
     trigger.disabled = true;
     trigger.textContent = t('portfolio.loadingBrick3d');
+    stage.classList.add('is-crack-vault-open');
     try {
       const { startEmptyVaultBrick3D } = await import('../components/empty-vault-brick-3d.js');
       const controller = await startEmptyVaultBrick3D(stage, {
@@ -791,7 +750,7 @@ function wireEmptyVaultBrick3D() {
       stage.dataset.emptyVault3dError = 'true';
       stage.classList.remove('is-crack-vault-active');
       stage.querySelector('.empty-vault-brick-fallback')?.removeAttribute('hidden');
-      if (status) status.textContent = error instanceof Error ? error.message : '3D is unavailable right now';
+      if (status) status.textContent = error instanceof Error ? error.message : t('bvVault.brick3dUnavailable');
     } finally {
       trigger.disabled = false;
       trigger.textContent = activationLabel;
@@ -799,371 +758,38 @@ function wireEmptyVaultBrick3D() {
   });
 }
 
+// Empty vault (new collector, 0 sets): the shelf card, then the three ways in —
+// photograph a whole shelf, import an existing list, or scan one box. The
+// "Crack the Brickvault" 3D mini-game stays behind an explicit text button and
+// loads Three.js only when asked.
 function emptyVaultHTML() {
+  const action = ({ icon: name, title, sub, href, attr, primary = false }) => {
+    const tag = href ? 'a' : 'button';
+    return `<${tag} class="vault-empty-action${primary ? ' is-primary' : ''}" ${href ? `href="${href}"` : `type="button" ${attr}`}>${icon(name, { size: 26 })}<span class="vault-empty-action__text"><span class="vault-empty-action__title">${escapeHtml(title)}</span><span class="vault-empty-action__sub">${escapeHtml(sub)}</span></span>${icon('chev', { size: 20 })}</${tag}>`;
+  };
   return `
-    <div class="onboarding-empty" style="display:flex;flex-direction:column;gap:16px;margin: 16px 0;">
-      <div class="empty-cta-card" style="background:linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);border:2.5px dashed var(--line);border-radius:var(--r-3);padding:24px 20px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;box-shadow:var(--shadow-1);">
-        <div class="empty-vault-brick-stage">
-          <img class="empty-vault-brick-fallback" src="/brand-brick-transparent.png" alt="" width="144" height="144" aria-hidden="true">
-          <button type="button" class="empty-vault-brick-3d-trigger" aria-label="${t('portfolio.crackVaultLabel')}">${t('portfolio.crackVault')}</button>
-          <p class="empty-vault-brick-3d-status" role="status" aria-live="polite">${t('portfolio.crackVaultInstructions')}</p>
-        </div>
-        <h2 style="font-family:var(--font-heading);font-weight:600;font-size:18px;margin:0;">${t('collector.emptyTitle')}</h2>
-        <p style="font-size:13px;color:var(--ink-mute);margin:0;line-height:1.4;max-width:280px;">${t('collector.emptyHint')}</p>
-        <a href="#/add" class="btn-primary" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--r-2);font-weight:600;margin-top:8px;text-decoration:none;">
-          <span>Add your first set</span> ${I.arrowR({w:14, h:14})}
-        </a>
-        <a href="#/pile" class="btn-secondary" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--r-2);font-weight:600;text-decoration:none;">
-          ${I.scan({w:16, h:16})} <span>Scan a set</span>
-        </a>
+    <section class="bv-card vault-empty" aria-labelledby="vaultEmptyTitle">
+      <div class="empty-vault-brick-stage">
+        <div class="vault-empty__shelf" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="vault-empty__plank" aria-hidden="true"></div>
+        <img class="empty-vault-brick-fallback" src="/brand-brick-transparent.png" alt="" width="144" height="144" aria-hidden="true" hidden>
+        <p class="empty-vault-brick-3d-status bv-sr" role="status" aria-live="polite">${escapeHtml(t('portfolio.crackVaultInstructions'))}</p>
       </div>
-      
+      <h2 id="vaultEmptyTitle">${escapeHtml(t('bvVault.emptyTitle'))}</h2>
+      <p>${escapeHtml(t('bvVault.emptyBody'))}</p>
+      <button type="button" class="empty-vault-brick-3d-trigger bv-btn bv-btn--text bv-btn--sm" aria-label="${escapeHtml(t('portfolio.crackVaultLabel'))}">${escapeHtml(t('portfolio.crackVault'))}</button>
+    </section>
+    <div class="vault-empty-actions">
+      ${action({ icon: 'camera', title: t('bvVault.emptyShelfTitle'), sub: t('bvVault.emptyShelfSub'), attr: 'data-empty-action="shelf"', primary: true })}
+      ${action({ icon: 'box', title: t('bvVault.emptyImportTitle'), sub: t('bvVault.emptyImportSub'), href: '#/me/data' })}
+      ${action({ icon: 'scan', title: t('bvVault.emptyScanTitle'), sub: t('bvVault.emptyScanSub'), attr: 'data-empty-action="scan"' })}
+      <a class="vault-empty-link" href="#/add">${icon('search', { size: 20 })}<span>${escapeHtml(t('bvVault.emptyBrowse'))}</span></a>
     </div>`;
-}
-
-function showAlertsSheet(alerts) {
-  if (!alerts || !alerts.length) {
-    toast("No new alerts", "info");
-    return;
-  }
-  const spikeAlerts = alerts.filter(a => a.alert_type === "spike");
-  // Treat legacy null/undefined as drops; exclude spike and any future types.
-  const dropAlerts = alerts.filter(a => a.alert_type === "drop" || !a.alert_type);
-
-  showSheet(`
-    <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 14px;">Notifications</div>
-    <div class="scrollable" style="max-height: 50vh; overflow-y: auto; display:flex; flex-direction:column; gap:12px; padding:2px;">
-      ${spikeAlerts.map(a => spikeAlertCardHTML(a)).join("")}
-      ${dropAlerts.map(a => `
-        <div class="alert-card">
-          <div class="ah">${I.bell()}${tPlural('alerts.priceDrop', daysAgo(a.triggered_at))}</div>
-          <div style="font-weight:600;">${escapeHtml(a.set_name)}</div>
-          <div style="font-size:13px;margin-top:4px;">Now <strong>${fmtMoney(a.current_value)}</strong> ${t("alerts.targetWas", { price: fmtMoney(a.target_price) })}</div>
-        </div>
-      `).join("")}
-    </div>
-    <button class="btn-primary" id="alertsClose" style="margin-top:16px;">Dismiss</button>
-  `);
-  $("#alertsClose").addEventListener("click", hideSheet);
-  $$(".spike-alert").forEach(c => c.addEventListener("click", () => {
-    hideSheet();
-    location.hash = "#/set/" + encodeURIComponent(c.dataset.set);
-  }));
-  // Viewing IS reading: the badge exists to say "something new" — once the
-  // sheet has shown the alerts, clear it (any close path, not just the
-  // button). Offline we deliberately skip: the server never learned they were
-  // seen, so the badge honestly persists instead of silently un-clearing later.
-  if (navigator.onLine) {
-    const ids = alerts.map(a => a.id).filter(Boolean);
-    state.wishlistAlerts = [];
-    refreshNavBadge();
-    for (const id of ids) api(`/api/wishlist/${id}`, { method: "POST" }).catch(() => {});
-  }
 }
 
 /* ============================================================
-   Portfolio Insights Helpers
+   Alerts (shared with the Wishlist view)
    ============================================================ */
-// Free users see an honest teaser of what's inside instead of the toolkit.
-// This is product framing (the server already caps history depth and export
-// columns); the insights themselves are computed client-side from the user's
-// own collection, so the gate is a paywall card, not DRM.
-function insightsTeaserHTML() {
-  return `
-    <div style="padding:12px 16px;">
-      <div class="card" style="padding:18px 16px;text-align:center;" data-testid="insights-teaser">
-        <div style="font-size:28px;margin-bottom:6px;">📈</div>
-        <div style="font-weight:700;font-size:15px;margin-bottom:6px;">Investor insights — a Pro toolkit</div>
-        <ul class="support-perks" style="text-align:left;margin:10px auto;max-width:340px;">
-          <li>Sell &amp; buy signals across your holdings</li>
-          <li>Top movers and underperformers</li>
-          <li>Retirement radar &amp; part-out opportunities</li>
-          <li>S&amp;P 500 comparison + allocation by theme</li>
-          <li>Full 1-year portfolio history</li>
-        </ul>
-        <button class="btn-primary" id="insightsUpgradeBtn" style="margin-top:6px;">See Pro options</button>
-        <div style="font-size:11px;color:var(--ink-mute);margin-top:8px;">Tracking your vault stays free, forever.</div>
-      </div>
-    </div>`;
-}
-
-function renderInsightsTab(items, pro) {
-  if (!pro) return insightsTeaserHTML();
-  if (!items || !items.length) return `<p style="color:var(--ink-mute);font-size:14px;padding:16px;">Add sets to see insights.</p>`;
-
-  const withSlope = items.filter(item => item.slope_90d != null && !isNaN(item.slope_90d));
-  const rising = [...withSlope].sort((a, b) => b.slope_90d - a.slope_90d).slice(0, 3).filter(x => x.slope_90d > 0.05);
-  const falling = [...withSlope].sort((a, b) => a.slope_90d - b.slope_90d).slice(0, 3).filter(x => x.slope_90d < -0.05);
-  const radar = items.filter(item => !item.retired && (item.retirement_risk_score || 0) >= 70)
-                     .sort((a, b) => b.retirement_risk_score - a.retirement_risk_score);
-  const signals = computeSpreadSignals(items);
-  const signalRow = (s, hot) => `
-    <div class="signal-row insight-set-row" data-set="${escapeHtml(s.item.set_num)}">
-      ${slImgHTML(s.item)}
-      <div class="signal-row-main">
-        <div class="signal-row-name">${escapeHtml(s.item.name)}</div>
-        <div class="signal-row-sub">${t('portfolio.insightSignal', (() => {
-          const direction = hot ? '+' : '−';
-          const pct = Math.abs(s.spread * 100).toFixed(0);
-          const basis = s.item.bl_new_value ? t('portfolio.insightMarket') : t('portfolio.insightValue');
-          const quantity = s.item.quantity > 1 ? t('portfolio.insightQuantity', { count: s.item.quantity }) : '';
-          return { direction, pct, basis, quantity };
-        })())}</div>
-      </div>
-      <strong class="signal-row-gap" style="color:${hot ? "var(--up)" : "var(--bv-red)"};">${hot ? "+" : ""}${fmtMoney(s.gap)}</strong>
-    </div>`;
-  const signalsCard = (signals.hot.length || signals.cold.length) ? `
-      <h2 class="section-title" style="margin-top:0;">Market Signals</h2>
-      <div class="card signals-card" style="padding:12px 16px;margin-bottom:18px;">
-        ${signals.totalUpside > 0 ? `<div class="signals-headline">${tPlural('portfolio.insightHeadline', signals.hot.length, { value: fmtMoney(signals.totalUpside) })}</div>` : ""}
-        ${signals.hot.length ? `<div class="signals-group-label" style="color:var(--up);"><span aria-hidden="true">🔥</span> Sell signals — resale running hot</div>${signals.hot.slice(0, 3).map(s => signalRow(s, true)).join("")}` : ""}
-        ${signals.cold.length ? `<div class="signals-group-label" style="color:var(--bv-red);"><span aria-hidden="true">❄️</span> Buy windows — resale below market</div>${signals.cold.slice(0, 3).map(s => signalRow(s, false)).join("")}` : ""}
-      </div>` : "";
-
-  // Allocation by theme (diversification) — share of portfolio value per theme,
-  // valued the same way the rest of the Vault is (condition-aware × quantity).
-  const allocMap = new Map();
-  let allocTotal = 0;
-  for (const item of items) {
-    const v = marketValueForCondition(item) * (Number(item.quantity) || 1);
-    if (!(v > 0)) continue;
-    const theme = item.theme || 'Other';
-    allocMap.set(theme, (allocMap.get(theme) || 0) + v);
-    allocTotal += v;
-  }
-  const alloc = [...allocMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const allocCard = allocTotal > 0 ? `
-      <h2 class="section-title">Allocation by theme</h2>
-      <div class="card" style="padding:14px 16px;margin-bottom:18px;">
-        ${alloc.map(([theme, v]) => {
-          const share = v / allocTotal;
-          return `<div style="margin-bottom:10px;">
-            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;gap:8px;">
-              <span style="color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(theme)}</span>
-              <strong style="color:var(--ink);font-family:var(--mono);white-space:nowrap;">${fmtMoney(v)} · ${(share * 100).toFixed(0)}%</strong>
-            </div>
-            <div style="height:6px;background:var(--surface-3);border-radius:3px;overflow:hidden;"><div style="height:100%;width:${(share * 100).toFixed(1)}%;background:${THEME_COLORS[theme] || 'var(--accent)'};"></div></div>
-          </div>`;
-        }).join('')}
-        ${allocMap.size > alloc.length ? `<div style="font-size:11px;color:var(--ink-mute);margin-top:8px;">${tPlural('portfolio.moreThemes', allocMap.size - alloc.length)}</div>` : ''}
-      </div>` : '';
-
-  // Part-out opportunities (E1): holdings worth materially more sold as parts
-  // than sealed. part_out_value is only present when coverage is high (gated
-  // server-side), so this stays empty until the part-price data fills.
-  const baseVal = (it) => Number(it.market_value) || Number(it.blended_value) || Number(it.current_value) || 0;
-  const partOut = items
-    .map(it => ({ it, po: Number(it.part_out_value), mv: baseVal(it), cov: Number(it.part_out_coverage) }))
-    .filter(x => x.po > 0 && x.mv > 0 && x.po / x.mv >= 1.15)
-    .sort((a, b) => (b.po / b.mv) - (a.po / a.mv))
-    .slice(0, 3);
-  const partOutCard = partOut.length ? `
-      <h2 class="section-title">Part-out opportunities</h2>
-      <div class="card" style="padding:12px 16px;margin-bottom:18px;">
-        <div style="font-size:11px;color:var(--ink-mute);margin-bottom:8px;line-height:1.4;">Sets currently worth more sold as individual parts than sealed.</div>
-        ${partOut.map(({ it, po, mv, cov }) => {
-          const isApprox = cov >= 0.2 && cov < 0.4;
-          return `
-          <div class="insight-set-row" data-set="${escapeHtml(it.set_num)}" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft);cursor:pointer;">
-            <div style="min-width:0;margin-right:8px;">
-              <div style="font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(it.name)}</div>
-              <div style="font-size:11px;color:var(--ink-mute);">${t('portfolio.sealedParts', { sealed: fmtMoney(mv), approximate: isApprox ? '~' : '', parts: fmtMoney(po) })}${isApprox ? ' <span title="Estimate based on partial price coverage">ⓘ</span>' : ''}</div>
-            </div>
-            <strong style="color:var(--up);font-family:var(--mono);white-space:nowrap;">+${(((po / mv) - 1) * 100).toFixed(0)}%</strong>
-          </div>`;
-        }).join('')}
-      </div>` : '';
-
-  return `
-    <div style="padding:12px 16px;">
-      ${signalsCard}
-      <h2 class="section-title" ${signalsCard ? "" : 'style="margin-top:0;"'}>S&P 500 Performance Comparison</h2>
-      <div class="card" style="padding:14px 16px;margin-bottom:18px;">
-        <div style="font-size:12px;color:var(--ink-mute);line-height:1.4;margin-bottom:12px;">
-          Compare your LEGO portfolio growth (solid <span style="color:var(--up);font-weight:700;">green</span>) against S&P 500 compounding at 8%/year (dashed <span style="color:var(--ink-soft);font-weight:600;">gray</span>) using dollar-cost averaging.
-        </div>
-        <div class="spark-wrap" id="insightsDoubleChart" style="height:120px;margin-top:14px;"></div>
-      </div>
-
-      ${allocCard}
-
-      <h2 class="section-title">Top Movers (90-day Slope)</h2>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;">
-        <div class="card" style="padding:12px;">
-          <div class="u-row u-gap-1" style="font-size:12px;font-family:var(--mono);color:var(--up);margin-bottom:8px;font-weight:700;">${I.trend({w:13,h:13})} TOP RISING</div>
-          ${rising.length === 0 ? `<div style="font-size:12px;color:var(--ink-mute);">No significant gainers</div>` : rising.map(item => `
-            <div style="margin-bottom:6px;font-size:12px;display:flex;justify-content:space-between;align-items:center;">
-              <span class="insight-set-link" data-set="${escapeHtml(item.set_num)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;margin-right:8px;text-decoration:underline;cursor:pointer;">${escapeHtml(item.name)}</span>
-              <strong style="color:var(--up);font-family:var(--mono);">+${item.slope_90d.toFixed(1)}%/wk</strong>
-            </div>
-          `).join("")}
-        </div>
-        <div class="card" style="padding:12px;">
-          <div class="u-row u-gap-1" style="font-size:12px;font-family:var(--mono);color:var(--bv-red);margin-bottom:8px;font-weight:700;">${I.trendDown({w:13,h:13})} TOP FALLING</div>
-          ${falling.length === 0 ? `<div style="font-size:12px;color:var(--ink-mute);">No significant decliners</div>` : falling.map(item => `
-            <div style="margin-bottom:6px;font-size:12px;display:flex;justify-content:space-between;align-items:center;">
-              <span class="insight-set-link" data-set="${escapeHtml(item.set_num)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;margin-right:8px;text-decoration:underline;cursor:pointer;">${escapeHtml(item.name)}</span>
-              <strong style="color:var(--bv-red);font-family:var(--mono);">${item.slope_90d.toFixed(1)}%/wk</strong>
-            </div>
-          `).join("")}
-        </div>
-      </div>
-
-      ${partOutCard}
-
-      <h2 class="section-title">Retirement Radar</h2>
-      <div class="card" style="padding:12px 16px;">
-        ${radar.length === 0 ? `<div style="font-size:12px;color:var(--ink-mute);text-align:center;padding:12px 0;">No active high-risk sets (score ≥ 70)</div>` : radar.map(item => `
-          <div class="insight-set-row" data-set="${escapeHtml(item.set_num)}" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft);cursor:pointer;">
-            <div style="display:flex;flex-direction:column;gap:2px;">
-              <div style="font-size:13px;font-weight:600;color:var(--ink);">${escapeHtml(item.name)}</div>
-              <div style="font-size:11px;color:var(--ink-mute);">${escapeHtml(item.set_num)} · ${escapeHtml(item.theme)}</div>
-            </div>
-            <div style="text-align:right;">
-              <div style="font-size:11px;font-family:var(--mono);color:var(--bv-red);font-weight:700;">🔥 RISK ${item.retirement_risk_score}%</div>
-              <div style="font-size:11px;color:var(--ink-mute);">${item.year} Release</div>
-            </div>
-          </div>
-        `).join("")}
-      </div>
-    </div>`;
-}
-
-function wireInsightsTab() {
-  $$(".insight-set-link, .insight-set-row").forEach(el => {
-    el.addEventListener("click", () => {
-      if (!el.dataset.set) return;
-      haptic("light");
-      location.hash = "#/set/" + encodeURIComponent(el.dataset.set);
-    });
-  });
-  $("#insightsUpgradeBtn")?.addEventListener("click", () => {
-    haptic("light");
-    // A guest web profile intentionally has no billing card, so routing there
-    // made "See Pro options" look like a no-op. Keep native/account management
-    // on Profile, but give web guests an explicit, dismissible fallback.
-    if (isNativeBilling()) {
-      location.hash = "#/me";
-      return;
-    }
-    const signedIn = !!getSessionUserId();
-    const patreonUrl = state.config?.patreon_url;
-    showSheet(`
-      <h2 class="u-serif-h">BricksVault Pro</h2>
-      <p style="color:var(--ink-mute);line-height:1.5;margin:8px 0 14px;">Sign in to keep Pro access linked to your vault. Tracking your collection stays free.</p>
-      <ul class="support-perks" style="margin-bottom:16px;">
-        <li>Investor signals, movers, and retirement radar</li>
-        <li>Full 1-year portfolio history</li>
-        <li>Market value and ROI export columns</li>
-      </ul>
-      ${patreonUrl ? `<a class="btn-primary" href="${escapeHtml(patreonUrl)}" target="_blank" rel="noopener noreferrer" style="display:flex;justify-content:center;">See web support options</a>` : ''}
-      <button class="btn-secondary" id="proSignInBtn" style="width:100%;margin-top:10px;">${signedIn ? 'Open Pro settings' : 'Sign in or create an account'}</button>
-      <button class="btn-ghost" id="proOptionsClose" style="width:100%;margin-top:8px;">Not now</button>
-    `);
-    $("#proSignInBtn")?.addEventListener("click", () => { hideSheet(); location.hash = signedIn ? "#/me" : "#/login"; });
-    $("#proOptionsClose")?.addEventListener("click", hideSheet);
-  });
-}
-
-function drawDoubleSparkline(container, data) {
-  if (!container || !data || data.length < 2) return;
-  const W = container.clientWidth || 300;
-  const H = container.clientHeight || 120;
-  const vals = data.map(d => d.total_value ?? d.current_value ?? d);
-  const dates = data.map(d => (d && d.snapshot_date) || null);
-
-  // Calculate S&P 500 overlay values
-  const spVals = [];
-  let currentSP = data[0].total_paid ?? 0;
-  spVals.push(currentSP);
-  for (let i = 1; i < data.length; i++) {
-    const d1 = data[i-1].snapshot_date ? new Date(data[i-1].snapshot_date) : null;
-    const d2 = data[i].snapshot_date ? new Date(data[i].snapshot_date) : null;
-    const dt = d1 && d2 ? (d2.getTime() - d1.getTime()) / (365.25 * 24 * 3600 * 1000) : 1 / 365.25;
-    const paidDiff = (data[i].total_paid ?? 0) - (data[i-1].total_paid ?? 0);
-    currentSP = currentSP * Math.pow(1.08, dt) + paidDiff;
-    spVals.push(currentSP);
-  }
-
-  const mn = Math.min(...vals, ...spVals), mx = Math.max(...vals, ...spVals);
-  const pad = 6;
-  const xs = (i) => pad + (i / (data.length - 1)) * (W - pad * 2);
-  const ys = (v) => H - pad - ((v - mn) / ((mx - mn) || 1)) * (H - pad * 2);
-
-  let path1 = `M${xs(0).toFixed(1)} ${ys(vals[0]).toFixed(1)}`;
-  let path2 = `M${xs(0).toFixed(1)} ${ys(spVals[0]).toFixed(1)}`;
-  for (let i = 1; i < data.length; i++) {
-    path1 += ` L${xs(i).toFixed(1)} ${ys(vals[i]).toFixed(1)}`;
-    path2 += ` L${xs(i).toFixed(1)} ${ys(spVals[i]).toFixed(1)}`;
-  }
-
-  const area1 = path1 + ` L${xs(data.length - 1).toFixed(1)} ${H} L${xs(0).toFixed(1)} ${H} Z`;
-  const stroke1 = "var(--up)";
-  const stroke2 = "var(--ink-mute)";
-  const gid = "sgi" + Math.random().toString(36).slice(2, 8);
-
-  if (getComputedStyle(container).position === "static") container.style.position = "relative";
-  container.innerHTML = `
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="display:block;overflow:visible;">
-      <defs>
-        <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="${stroke1}" stop-opacity="0.15"/>
-          <stop offset="100%" stop-color="${stroke1}" stop-opacity="0"/>
-        </linearGradient>
-      </defs>
-      <path d="${area1}" fill="url(#${gid})" />
-      <path d="${path1}" fill="none" stroke="${stroke1}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="${path2}" fill="none" stroke="${stroke2}" stroke-width="1.5" stroke-dasharray="3 3" stroke-linecap="round" stroke-linejoin="round"/>
-      <line class="spark-guide" x1="0" y1="0" x2="0" y2="${H}" stroke="var(--line)" stroke-width="1" stroke-dasharray="3 3" opacity="0"/>
-      <circle class="spark-cursor-1" r="5" fill="${stroke1}" stroke="var(--bg)" stroke-width="2.5" opacity="0"/>
-      <circle class="spark-cursor-2" r="4" fill="${stroke2}" stroke="var(--bg)" stroke-width="2" opacity="0"/>
-    </svg>
-    <div class="spark-scrub" style="font-size:11px;pointer-events:none;"></div>`;
-
-  const guide = container.querySelector(".spark-guide");
-  const cursor1 = container.querySelector(".spark-cursor-1");
-  const cursor2 = container.querySelector(".spark-cursor-2");
-  const scrub = container.querySelector(".spark-scrub");
-
-  const onMove = (e) => {
-    const rect = container.getBoundingClientRect();
-    if (!rect.width) return;
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const i = Math.round(ratio * (data.length - 1));
-    const cx = xs(i), cy1 = ys(vals[i]), cy2 = ys(spVals[i]);
-
-    guide.setAttribute("x1", cx); guide.setAttribute("x2", cx); guide.setAttribute("opacity", "0.6");
-    cursor1.setAttribute("cx", cx); cursor1.setAttribute("cy", cy1); cursor1.setAttribute("opacity", "1");
-    cursor2.setAttribute("cx", cx); cursor2.setAttribute("cy", cy2); cursor2.setAttribute("opacity", "1");
-
-    scrub.style.left = (cx / W * rect.width) + "px";
-    scrub.style.top = (Math.min(cy1, cy2) / H * rect.height - 30) + "px";
-    scrub.innerHTML = `<span style="color:var(--up);font-weight:700;">Vault: ${fmtMoney(vals[i], { cents: 0 })}</span> <span style="color:var(--ink-soft);">S&P: ${fmtMoney(spVals[i], { cents: 0 })}</span>${dates[i] ? " · " + fmtShortDate(dates[i]) : ""}`;
-    scrub.classList.add("show");
-  };
-
-  const onLeave = () => {
-    guide.setAttribute("opacity", "0");
-    cursor1.setAttribute("opacity", "0");
-    cursor2.setAttribute("opacity", "0");
-    scrub.classList.remove("show");
-  };
-
-  if (container._sparkHandlers) {
-    const _h = container._sparkHandlers;
-    container.removeEventListener("pointermove", _h.move);
-    container.removeEventListener("pointerleave", _h.leave);
-    container.removeEventListener("touchmove", _h.move);
-    container.removeEventListener("touchend", _h.leave);
-  }
-  container._sparkHandlers = { move: onMove, leave: onLeave };
-  container.addEventListener("pointermove", onMove);
-  container.addEventListener("pointerleave", onLeave);
-  container.addEventListener("touchmove", onMove, { passive: true });
-  container.addEventListener("touchend", onLeave);
-}
-
 export function spikeAlertCardHTML(a, { dismiss = false } = {}) {
   const gain = a.purchase_price && a.current_value
     ? (a.current_value - (a.purchase_price || 0)) / (a.purchase_price || 1) : 0;
@@ -1180,151 +806,6 @@ export function spikeAlertCardHTML(a, { dismiss = false } = {}) {
     </div>`;
 }
 
-function cohortROIHTML(items) {
-  const withPurchaseDate = items.filter(i => i.purchased_at && (Number(i.purchase_price) > 0 || pval(i) > 0));
-  if (!withPurchaseDate.length) {
-    return `<p style="color:var(--ink-mute);font-size:12px;text-align:center;padding:16px 0;">No sets with purchase dates in vault.</p>`;
-  }
-  
-  const cohorts = {};
-  for (const item of withPurchaseDate) {
-    const year = new Date(item.purchased_at).getFullYear();
-    if (!cohorts[year]) {
-      cohorts[year] = { count: 0, totalPaid: 0, totalCurrent: 0 };
-    }
-    const qty = Number(item.quantity) || 1;
-    cohorts[year].count += qty;
-    cohorts[year].totalPaid += (Number(item.purchase_price) || 0) * qty;
-    cohorts[year].totalCurrent += pval(item) * qty;
-  }
-  
-  const sortedYears = Object.keys(cohorts).sort((a, b) => b - a);
-  let html = `<div class="insights-block" style="padding-top:8px;"><div class="insights-label">Cohort Performance by Purchase Year</div>`;
-  
-  sortedYears.forEach(year => {
-    const c = cohorts[year];
-    const gain = c.totalCurrent - c.totalPaid;
-    const roi = c.totalPaid > 0 ? (gain / c.totalPaid) * 100 : 0;
-    const roiColor = roi >= 0 ? 'var(--up)' : 'var(--bv-red)';
-    
-    const maxVal = Math.max(...Object.values(cohorts).map(x => x.totalCurrent));
-    const pct = maxVal > 0 ? (c.totalCurrent / maxVal * 100).toFixed(1) : 0;
-    
-    html += `
-      <div style="margin-bottom:12px;">
-        <div style="display:flex;justify-content:between;align-items:center;font-size:12px;margin-bottom:4px;">
-          <strong>Year ${year}</strong>
-          <span style="color:var(--ink-mute);font-size:11px;margin-left:auto;">${c.count} set${c.count > 1 ? 's' : ''} · Paid ${fmtMoney(c.totalPaid, { cents: 0 })}</span>
-        </div>
-        <div class="theme-bar-row" style="margin-bottom:2px;">
-          <div class="theme-bar-name" style="width:70px;">${fmtMoney(c.totalCurrent, { cents: 0 })}</div>
-          <div class="theme-bar-track" style="flex:1;"><div class="theme-bar-fill" style="width:${pct}%;background:var(--bv-yellow);"></div></div>
-          <div class="theme-bar-pct" style="color:${roiColor};font-weight:700;">${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%</div>
-        </div>
-      </div>`;
-  });
-  
-  html += `</div>`;
-  return html;
-}
-
-function insightsGeneralHTML(items) {
-  const themeMap = {};
-  for (const item of items) {
-    const t = item.theme || "Other";
-    themeMap[t] = (themeMap[t] || 0) + pval(item) * (item.quantity || 1);
-  }
-  const themeTotal = Object.values(themeMap).reduce((a, b) => a + b, 0);
-  const topThemes = Object.entries(themeMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
-
-  const withRoi = items.filter(i => i.annualized_roi != null);
-  const roiSorted = [...withRoi].sort((a, b) => b.annualized_roi - a.annualized_roi);
-  const leaders = roiSorted.slice(0, 3);
-  const losers = roiSorted.filter(i => i.annualized_roi < 0).slice(-3).reverse();
-
-  const riskSorted = items
-    .filter(i => !i.retired && (i.retirement_risk_score || 0) > 0)
-    .sort((a, b) => (b.retirement_risk_score || 0) - (a.retirement_risk_score || 0))
-    .slice(0, 5);
-
-  let html = "";
-  if (topThemes.length > 1) {
-    html += `<div class="insights-block"><div class="insights-label">Value by theme</div>`;
-    for (const [theme, val] of topThemes) {
-      const pct = themeTotal > 0 ? (val / themeTotal * 100).toFixed(1) : 0;
-      const tc = THEME_COLORS[theme] || `oklch(0.55 0.18 ${themeHue(theme)})`;
-      html += `<div class="theme-bar-row">
-        <div class="theme-bar-name">${escapeHtml(theme)}</div>
-        <div class="theme-bar-track"><div class="theme-bar-fill" style="width:${pct}%;background:${tc};"></div></div>
-        <div class="theme-bar-pct">${pct}%</div>
-      </div>`;
-    }
-    html += `</div>`;
-  }
-
-  if (leaders.length > 0) {
-    html += `<div class="insights-block"><div class="insights-label">Top performers (annualized ROI)</div>`;
-    for (const item of leaders) {
-      html += `<a href="#/set/${encodeURIComponent(item.set_num)}" class="insights-row">
-        <span class="ir-name">${escapeHtml(item.name)}</span>
-        <span class="ir-roi" style="color:var(--up);">+${(item.annualized_roi * 100).toFixed(1)}% / yr</span>
-      </a>`;
-    }
-    html += `</div>`;
-  }
-
-  if (losers.length > 0) {
-    html += `<div class="insights-block"><div class="insights-label">Underperformers</div>`;
-    for (const item of losers) {
-      html += `<a href="#/set/${encodeURIComponent(item.set_num)}" class="insights-row">
-        <span class="ir-name">${escapeHtml(item.name)}</span>
-        <span class="ir-roi" style="color:var(--down);">${(item.annualized_roi * 100).toFixed(1)}% / yr</span>
-      </a>`;
-    }
-    html += `</div>`;
-  }
-
-  if (riskSorted.length > 0) {
-    html += `<div class="insights-block"><div class="insights-label">Retirement risk — act now</div>`;
-    for (const item of riskSorted) {
-      const score = item.retirement_risk_score || 0;
-      const barWidth = Math.min(100, score);
-      const color = score >= 70 ? "var(--down)" : score >= 40 ? "var(--bv-yellow)" : "var(--up)";
-      html += `<a href="#/set/${encodeURIComponent(item.set_num)}" class="insights-row">
-        <span class="ir-name">${score >= 70 ? "🔥 " : ""}${escapeHtml(item.name)}</span>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <div style="width:60px;height:4px;border-radius:2px;background:var(--line);overflow:hidden;">
-            <div style="width:${barWidth}%;height:100%;background:${color};border-radius:2px;"></div>
-          </div>
-          <span class="ir-roi" style="color:${color};">${score}</span>
-        </div>
-      </a>`;
-    }
-    html += `</div>`;
-  }
-  return html;
-}
-
-function _wireInsightsTabs(items) {
-  const panel = $("#insightsPanel");
-  if (!panel) return;
-  panel.querySelectorAll(".insights-tab").forEach(tab => {
-    tab.addEventListener("click", () => {
-      haptic("light");
-      panel.querySelectorAll(".insights-tab").forEach(t => t.classList.toggle("active", t === tab));
-      const activeTab = tab.dataset.tab;
-      const contentEl = panel.querySelector("#insightsTabContent");
-      if (contentEl) {
-        if (activeTab === "general") {
-          contentEl.innerHTML = insightsGeneralHTML(items);
-        } else if (activeTab === "cohort") {
-          contentEl.innerHTML = cohortROIHTML(items);
-        }
-      }
-    });
-  });
-}
-
 export function refreshNavBadge() {
   const alerts = state.wishlistAlerts || [];
   const spikes = alerts.filter(a => a.alert_type === 'spike').length;
@@ -1332,10 +813,10 @@ export function refreshNavBadge() {
   const total = spikes + drops;
   // Bottom-bar Wishlist badge (2026 shell).
   setNavBadge('/wishlist', total);
-  
+
   const el = document.getElementById("wishlistBtn");
   if (!el) return;
-  
+
   let badge = el.querySelector(".dot");
   if (total > 0) {
     if (!badge) {
@@ -1357,29 +838,34 @@ export function refreshNavBadge() {
 }
 
 /* ============================================================
-   Selection & Bulk Actions Helpers
+   Selection & bulk actions
    ============================================================ */
-// A set card renders data-id="${item.id || item.set_num}" — so a selection key
-// can be a collection-row id OR (for legacy/imported items with no id) a
-// set_num. Bulk actions MUST resolve the selected items and address the API the
-// SAME way, otherwise a selected set matches nothing, gets skipped, and the
-// action still reports success (the "Sets removed but nothing deleted" bug).
+// A row renders data-id="${item.id || item.set_num}" — so a selection key can
+// be a collection-row id OR (for legacy/imported items with no id) a set_num.
+// Bulk actions MUST resolve the selected items and address the API the SAME
+// way, otherwise a selected set matches nothing, gets skipped, and the action
+// still reports success (the "Sets removed but nothing deleted" bug).
 const selRef = (item) => String(item.id || item.set_num);
 const apiRef = (item) => encodeURIComponent(item.id || item.set_num);
 
 function enterSelectionMode(firstId) {
+  if (state.selectionMode || !(state.portfolio?.items || []).length) return;
   state.selectionMode = true;
   state.selectedSets = new Set();
   if (firstId) state.selectedSets.add(String(firstId));
   haptic("medium");
-  // The class reserves scroll room under the list; without it a short vault's
-  // cards sit behind the floating toolbar with no way to scroll them clear.
+  // The class hides the bar and FAB and reserves room for the action bar.
   document.body.classList.add("selection-mode");
+  $("#vaultPage")?.classList.add("has-bar");
   repaintSetList();
   showSelectionBar();
+  if (!localStorage.getItem("bv_sel_hint")) {
+    try { localStorage.setItem("bv_sel_hint", "1"); } catch { /* hint shows again */ }
+    toast(t('bvVault.selectHint'), "info");
+  }
   if (firstId) {
-    const card = document.querySelector(`.set-list-card[data-id="${CSS.escape(String(firstId))}"]`);
-    card?.scrollIntoView({ block: "center", behavior: "smooth" });
+    const rowEl = document.querySelector(`.vault-row[data-id="${CSS.escape(String(firstId))}"]`);
+    rowEl?.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" });
   }
 }
 
@@ -1388,7 +874,8 @@ function showSelectionBar() {
   if (!bar) {
     bar = document.createElement("div");
     bar.id = "selectionBar";
-    bar.className = "selection-bar";
+    bar.className = "selection-bar vault-selection-bar";
+    bar.setAttribute('role', 'toolbar');
     document.body.appendChild(bar);
   }
   updateSelectionBar();
@@ -1399,18 +886,17 @@ function updateSelectionBar() {
   const bar = document.getElementById("selectionBar");
   if (!bar) return;
   const count = state.selectedSets.size;
+  bar.setAttribute('aria-label', tPlural('bvVault.selectedCount', count));
   bar.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-      <strong style="font-size:14px;color:var(--ink);">${count} set${count !== 1 ? 's' : ''} selected</strong>
-      <button class="icon-btn" id="selCancel" style="font-size:12px;color:var(--ink-mute);border:none;background:transparent;cursor:pointer;">Cancel</button>
+    <div class="vault-selection-bar__head">
+      <strong role="status">${escapeHtml(tPlural('bvVault.selectedCount', count))}</strong>
+      <button type="button" class="bv-btn bv-btn--text bv-btn--sm" id="selCancel">${escapeHtml(t('common.cancel'))}</button>
     </div>
-    <div style="display:flex;gap:8px;">
-      <button class="btn-primary compact-btn" id="selBulkLocation" style="flex:1;font-size:12px;" ${count === 0 ? 'disabled' : ''}>Location</button>
-      <button class="btn-secondary compact-btn" id="selBulkExport" style="flex:1;font-size:12px;" ${count === 0 ? 'disabled' : ''}>CSV</button>
-      <button class="btn-primary compact-btn btn-danger" id="selBulkDelete" style="flex:1;font-size:12px;" ${count === 0 ? 'disabled' : ''}>Delete</button>
-    </div>
-  `;
-
+    <div class="bv-btn-row">
+      ${btn(t('bvVault.bulkLocation'), { kind: 'tonal', id: 'selBulkLocation', disabled: count === 0, icon: 'box' })}
+      ${btn(t('bvVault.bulkCsv'), { kind: 'tonal', id: 'selBulkExport', disabled: count === 0, icon: 'download' })}
+      ${btn(t('common.delete'), { kind: 'danger-fill', id: 'selBulkDelete', disabled: count === 0, icon: 'trash' })}
+    </div>`;
   document.getElementById("selCancel").addEventListener("click", exitSelectionMode);
   document.getElementById("selBulkLocation")?.addEventListener("click", handleBulkLocation);
   document.getElementById("selBulkExport")?.addEventListener("click", handleBulkExport);
@@ -1421,6 +907,7 @@ function exitSelectionMode() {
   state.selectionMode = false;
   state.selectedSets = new Set();
   document.body.classList.remove("selection-mode");
+  $("#vaultPage")?.classList.remove("has-bar");
   const bar = document.getElementById("selectionBar");
   if (bar) {
     bar.classList.remove("show");
@@ -1432,18 +919,18 @@ function exitSelectionMode() {
 async function handleBulkLocation() {
   const ids = Array.from(state.selectedSets);
   if (!ids.length) return;
-  const loc = await promptSheet({ title: "Bulk Location", label: "Set storage location for selected sets", value: "", placeholder: "e.g. Closet A, Shelf 2" });
+  const loc = await promptSheet({ title: t('bvVault.bulkLocationTitle'), label: t('bvVault.bulkLocationLabel'), value: "", placeholder: t('bvVault.bulkLocationPlaceholder'), confirmLabel: t('common.save') });
   if (loc === null) return;
   const selectedItems = state.portfolio.items.filter(item => state.selectedSets.has(selRef(item)));
-  if (!selectedItems.length) { toast("No matching sets to update", "error"); return; }
-  toast("Updating locations...", "info");
+  if (!selectedItems.length) { toast(t('bvVault.bulkNoMatch'), "error"); return; }
+  toast(t('bvVault.bulkLocationUpdating'), "info");
   const results = await Promise.allSettled(selectedItems.map(item =>
     api("/api/collection/" + apiRef(item), { method: "PATCH", body: { storage_location: loc || null } })
   ));
   const failed = results.filter(r => r.status === "rejected").length;
   // Tear down selection UI BEFORE invalidating — exitSelectionMode repaints the
   // list and must read a valid state.portfolio, not the null invalidate leaves.
-  toast(failed === 0 ? "Storage locations updated"
+  toast(failed === 0 ? t('bvVault.bulkLocationDone')
     : tPlural('portfolio.bulkLocationPartial', failed, { updated: results.length - failed, total: results.length, failed }), failed ? "error" : "success");
   exitSelectionMode();
   invalidatePortfolio();
@@ -1454,15 +941,14 @@ async function handleBulkDelete() {
   const ids = Array.from(state.selectedSets);
   if (!ids.length) return;
   const confirmed = await confirmSheet({
-    title: "Bulk Delete",
-    message: `Are you sure you want to remove ${ids.length} set${ids.length !== 1 ? 's' : ''} from your vault?`,
-    confirmLabel: "Delete All",
-    danger: true
+    title: t('bvVault.bulkDeleteTitle'),
+    message: tPlural('bvVault.bulkDeleteMessage', ids.length),
+    confirmLabel: t('bvVault.bulkDeleteConfirm'),
+    danger: true,
   });
   if (!confirmed) return;
   const selectedItems = state.portfolio.items.filter(item => state.selectedSets.has(selRef(item)));
-  if (!selectedItems.length) { toast("No matching sets to remove", "error"); return; }
-  toast("Deleting sets...", "info");
+  if (!selectedItems.length) { toast(t('bvVault.bulkNoMatch'), "error"); return; }
   // allSettled + per-item accounting: with Promise.all one failure reported
   // "Failed to delete" even though earlier deletes already landed server-side.
   const results = await Promise.allSettled(selectedItems.map(item =>
@@ -1471,12 +957,9 @@ async function handleBulkDelete() {
   const removed = selectedItems.filter((_, i) => results[i].status === "fulfilled");
   const failed = selectedItems.length - removed.length;
   // Sync the client-side owned set + drop cached detail snapshots + force a
-  // catalog refetch, so the OWNED badge and set pages don't stay stale until
-  // a manual refresh.
+  // catalog refetch, so the OWNED badge and set pages don't stay stale.
   for (const item of removed) markSetOwned(item.set_num, false);
   state.catalog.items = [];
-  // Tear down selection UI BEFORE invalidating — exitSelectionMode repaints the
-  // list and must read a valid state.portfolio, not the null invalidate leaves.
   if (failed > 0) {
     toast(tPlural('portfolio.bulkRemovePartial', failed, { removed: removed.length, total: selectedItems.length, failed }), "error");
   } else if (removed.length) {
@@ -1486,14 +969,14 @@ async function handleBulkDelete() {
       condition: item.condition || undefined, purchase_price: item.purchase_price ?? undefined,
       purchased_at: item.purchased_at || undefined, notes: item.notes || undefined,
     }));
-    undoToast(`Removed ${removed.length} set${removed.length !== 1 ? "s" : ""}`, async () => {
+    undoToast(tPlural('bvVault.bulkRemoved', removed.length), async () => {
       const res = await Promise.allSettled(restorePayloads.map(b => api("/api/collection", { method: "POST", body: b })));
       const back = res.filter(r => r.status === "fulfilled").length;
       for (const p of restorePayloads) markSetOwned(p.set_num, true);
       state.catalog.items = [];
       invalidatePortfolio();
       await renderPortfolio();
-      toast(back === restorePayloads.length ? "Restored to vault" : tPlural('portfolio.restoredCount', back, { restored: back, total: restorePayloads.length }), back ? "success" : "error");
+      toast(back === restorePayloads.length ? t('bvVault.restored') : tPlural('portfolio.restoredCount', back, { restored: back, total: restorePayloads.length }), back ? "success" : "error");
     });
   }
   exitSelectionMode();
@@ -1504,32 +987,38 @@ async function handleBulkDelete() {
 function handleBulkExport() {
   const selectedItems = state.portfolio.items.filter(item => state.selectedSets.has(selRef(item)));
   if (!selectedItems.length) return;
-  
   let csvContent = "data:text/csv;charset=utf-8,";
   csvContent += "Set Number,Name,Theme,Year,Pieces,Quantity,Purchase Price,Current Value,Storage Location\n";
-  
   selectedItems.forEach(item => {
-    const row = [
+    const csvRow = [
       item.set_num,
       `"${(item.name || '').replace(/"/g, '""')}"`,
       `"${(item.theme || '').replace(/"/g, '""')}"`,
       item.year,
       item.pieces,
       item.quantity,
-      item.purchase_price || '',
+      item.purchase_price ?? '',
       item.current_value || '',
       `"${(item.storage_location || '').replace(/"/g, '""')}"`
     ].join(",");
-    csvContent += row + "\n";
+    csvContent += csvRow + "\n";
   });
-  
-  const encodedUri = encodeURI(csvContent);
   const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
+  link.setAttribute("href", encodeURI(csvContent));
   link.setAttribute("download", `brickvault_bulk_export_${Date.now()}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  toast("CSV exported", "success");
+  toast(t('bvVault.csvExported'), "success");
   exitSelectionMode();
 }
+
+// Leaving the Vault while selecting drops the selection (the router also
+// clears it); the action bar must not float over the next screen.
+window.addEventListener('bv:owner-changed', () => { state.vaultChanges = null; searchOpen = false; });
+window.addEventListener('hashchange', () => {
+  if (!onVaultRoute()) {
+    document.getElementById('selectionBar')?.remove();
+    searchOpen = !!state.filter.q;
+  }
+});
