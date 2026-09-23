@@ -123,28 +123,6 @@ const normalizeTitle = (value: string): string[] => String(value || '')
   .split(/\s+/)
   .filter(token => token.length > 2);
 
-/**
- * Conservative bulk-feed title compatibility. This deliberately differs from
- * the fuzzy API-discovery matcher below: a bare base token may be promoted only
- * when all meaningful title text is exactly the catalog title after removing
- * provider boilerplate and the set token.
- */
-export function isExactNormalizedPriceChartingTitle(
-  setName: string,
-  productTitle: string,
-): boolean {
-  const strictNormalize = (value: string) => String(value || '')
-    .normalize('NFKD')
-    .toLowerCase()
-    .replace(/\b(?:lego|set)\b/g, ' ')
-    .replace(/#?\d{3,7}(?:-\d+)?/g, ' ')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-    .replace(/\s+/g, ' ');
-  const expected = strictNormalize(setName);
-  return expected.length > 0 && strictNormalize(productTitle) === expected;
-}
-
 /** Strict title guard used by API discovery and the Finch Dallow regression. */
 export function isExactPriceChartingMatch(setNum: string, setName: string, productTitle: string): boolean {
   const base = setNum.replace(/-\d+$/, '');

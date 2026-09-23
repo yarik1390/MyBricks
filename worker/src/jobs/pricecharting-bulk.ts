@@ -4,7 +4,6 @@ import { recomputeBlendedValues } from '../lib/market-sources';
 import { isPlausibleMarketValue } from '../lib/valuation';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { sourceEnabled } from '../lib/source-config';
-import { isExactNormalizedPriceChartingTitle } from '../lib/pricecharting';
 
 // ---------------------------------------------------------------------------
 // PriceCharting bulk LEGO CSV import (Legendary tier).
@@ -213,15 +212,7 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   const STAGE = `_pc_bulk_${crypto.randomUUID().replace(/-/g, '')}`;
   const rows = parsePriceChartingCsv(csvText);
   const idCounts = new Map<string, number>();
-  const baseCounts = new Map<string, number>();
-  const baseByProviderId = new Map<string, string>();
-  for (const r of rows) {
-    if (r.pcId) {
-      idCounts.set(r.pcId, (idCounts.get(r.pcId) ?? 0) + 1);
-      if (r.setBase) baseByProviderId.set(r.pcId, r.setBase);
-    }
-    if (r.setBase) baseCounts.set(r.setBase, (baseCounts.get(r.setBase) ?? 0) + 1);
-  }
+  for (const r of rows) if (r.pcId) idCounts.set(r.pcId, (idCounts.get(r.pcId) ?? 0) + 1);
   // A provider ID is the durable source-map key. If the feed repeats it, none of
   // its observations are trustworthy: choosing one based on CSV order would make
   // same-set price disagreements and cross-set identity conflicts nondeterministic.
@@ -239,7 +230,6 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   await env.DB.prepare(
     `CREATE TABLE ${STAGE} (
       pcid TEXT, upc TEXT, provider_category TEXT, title TEXT, setbase TEXT, setnum TEXT,
-      titleok INTEGER NOT NULL DEFAULT 0,
       newv REAL, cibv REAL, loosev REAL, salesvol INTEGER
     )`,
   ).run();
@@ -255,11 +245,11 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   const flushStageRows = async () => {
     if (!jsonRows.length) return;
     await env.DB.prepare(`
-      INSERT INTO ${STAGE} (pcid,upc,provider_category,title,setbase,setnum,titleok,newv,cibv,loosev,salesvol)
+      INSERT INTO ${STAGE} (pcid,upc,provider_category,title,setbase,setnum,newv,cibv,loosev,salesvol)
       SELECT
         json_extract(value,'$[0]'), json_extract(value,'$[1]'),
         json_extract(value,'$[2]'), json_extract(value,'$[3]'),
-        json_extract(value,'$[4]'), json_extract(value,'$[5]'), 0,
+        json_extract(value,'$[4]'), json_extract(value,'$[5]'),
         json_extract(value,'$[6]'), json_extract(value,'$[7]'),
         json_extract(value,'$[8]'), json_extract(value,'$[9]')
       FROM json_each(?1)
@@ -286,27 +276,6 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   // its correlated anti-join scans the entire CSV once per candidate row.
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS ${STAGE}_setbase ON ${STAGE}(setbase)`).run();
 
-  // Title compatibility is intentionally computed in JS rather than approximated
-  // in SQL. Only current bare-base rows need it; explicit set tokens and UPCs keep
-  // their independent identity paths.
-  const baseCandidates = await env.DB.prepare(`
-    SELECT s.pcid, s.title, ls.name
-    FROM ${STAGE} s JOIN lego_sets ls ON ls.set_num LIKE s.setbase || '-%'
-    WHERE s.setnum IS NULL AND s.setbase IS NOT NULL
-      AND NOT EXISTS (SELECT 1 FROM lego_sets variant
-        WHERE variant.set_num LIKE s.setbase || '-%' AND variant.set_num<>ls.set_num)
-  `).all<{ pcid: string; title: string; name: string }>();
-  const titleCompatibleIds = baseCandidates.results
-    .filter((row) => baseCounts.get(baseByProviderId.get(row.pcid) ?? '') === 1)
-    .filter((row) => isExactNormalizedPriceChartingTitle(row.name, row.title))
-    .map((row) => row.pcid);
-  if (titleCompatibleIds.length) {
-    await env.DB.prepare(`
-      UPDATE ${STAGE} SET titleok=1
-      WHERE pcid IN (SELECT value FROM json_each(?1))
-    `).bind(JSON.stringify(titleCompatibleIds)).run();
-  }
-
   const CATEGORY_COMPATIBLE = `(lower(s.provider_category) LIKE '%lego%'
     AND (ls.category IS NULL OR ls.category='' OR lower(ls.category)='normal'
       OR lower(s.provider_category) LIKE '%' || lower(ls.category) || '%'))`;
@@ -317,9 +286,6 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   const UPC_COMPATIBLE = `(s.upc IS NULL OR s.upc='' OR (
     (ls.upc IS NULL OR ls.upc='' OR ls.upc=s.upc)
     AND NOT EXISTS (SELECT 1 FROM lego_sets dup WHERE dup.upc=s.upc AND dup.set_num<>ls.set_num)))`;
-  const BASE_TITLE_COMPATIBLE = `(s.setnum IS NULL AND s.setbase IS NOT NULL AND s.titleok=1
-    AND (s.upc IS NULL OR s.upc='' OR (ls.upc=s.upc AND NOT EXISTS (
-      SELECT 1 FROM lego_sets dup WHERE dup.upc=s.upc AND dup.set_num<>ls.set_num))))`;
   const BY_SAFE_UPC = `s.upc=ls.upc AND s.upc IS NOT NULL AND s.upc<>''
     AND ${TOKEN_COMPATIBLE} AND ${UPC_COMPATIBLE} AND ${CATEGORY_COMPATIBLE}`;
 
@@ -344,24 +310,19 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     )
     SELECT 'pricecharting', s.pcid, ls.set_num, s.title, s.upc, ls.set_num,
            CASE WHEN s.setnum IS NOT NULL THEN 'set_token'
-                WHEN s.setbase IS NOT NULL AND s.titleok=1 AND (s.upc IS NULL OR s.upc='') THEN 'base_title'
+                WHEN s.setbase IS NOT NULL AND s.upc IS NULL THEN 'base_candidate'
                 ELSE 'upc' END,
            CASE WHEN ${CATEGORY_COMPATIBLE} THEN 1.0 ELSE 0.1 END,
            CASE WHEN ${CATEGORY_COMPATIBLE} THEN 'verified' ELSE 'quarantined' END, datetime('now'), datetime('now')
     FROM ${STAGE} s JOIN lego_sets ls ON
-      (s.setnum=ls.set_num OR (${BASE_TITLE_COMPATIBLE} AND ${TOKEN_COMPATIBLE}) OR (${BY_SAFE_UPC}))
-    WHERE ${CATEGORY_COMPATIBLE} AND ${TOKEN_COMPATIBLE}
-      AND (s.setnum IS NOT NULL OR ${BASE_TITLE_COMPATIBLE} OR s.upc IS NOT NULL)
+      (s.setnum=ls.set_num OR (s.setbase IS NOT NULL AND ${TOKEN_COMPATIBLE}) OR (${BY_SAFE_UPC}))
+    WHERE ${CATEGORY_COMPATIBLE} AND ${TOKEN_COMPATIBLE} AND (s.setnum IS NOT NULL OR s.upc IS NOT NULL)
       AND NOT EXISTS (SELECT 1 FROM ${STAGE} other WHERE other.pcid<>s.pcid
         AND ((s.setbase IS NOT NULL AND other.setbase=s.setbase)
           OR (s.upc IS NOT NULL AND s.upc<>'' AND other.upc=s.upc)))
       AND NOT EXISTS (SELECT 1 FROM pricing_source_map protected
         WHERE protected.source='pricecharting' AND protected.set_num=ls.set_num
           AND protected.status IN ('manual','rejected'))
-      AND NOT EXISTS (SELECT 1 FROM pricing_source_map competing
-        WHERE competing.source='pricecharting' AND competing.set_num=ls.set_num
-          AND competing.source_item_id<>s.pcid AND competing.status IN ('verified','manual')
-          AND competing.source_item_id NOT LIKE 'legacy:%')
     ON CONFLICT(source, source_item_id) DO UPDATE SET
       source_title=excluded.source_title, upc=excluded.upc, variant_key=excluded.variant_key,
       match_method=excluded.match_method, match_confidence=excluded.match_confidence,
@@ -394,7 +355,6 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
 
   const OBSERVATION_IDENTITY_COMPATIBLE = `${CATEGORY_COMPATIBLE}
     AND ${TOKEN_COMPATIBLE} AND ${UPC_COMPATIBLE}
-    AND (pm.match_method<>'base_title' OR ${BASE_TITLE_COMPATIBLE})
     AND NOT EXISTS (SELECT 1 FROM ${STAGE} other WHERE other.pcid<>s.pcid
       AND ((s.setbase IS NOT NULL AND other.setbase=s.setbase)
         OR (s.upc IS NOT NULL AND s.upc<>'' AND other.upc=s.upc)))`;
