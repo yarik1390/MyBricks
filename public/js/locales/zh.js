@@ -1,6 +1,7 @@
 /** Chinese (Simplified). Missing keys fall back to English (see lib/i18n.js). */
 export const zh = {
   bvCommon: {
+    comingSoon: '即将推出',
     retired: '已停产',
     upPct: '上涨 {pct}%',
     downPct: '下跌 {pct}%',

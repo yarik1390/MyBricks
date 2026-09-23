@@ -117,6 +117,16 @@ async function _routeImpl() {
     else if (hash === "/room") await (await import('./views/collection-room.js')).renderCollectionRoom();
     else if (hash === "/collections") await (await import('./views/subcollections.js')).renderSubcollections();
     else if (hash === "/game") await (await import('./views/game.js')).renderGame();
+    // 2026 redesign screens.
+    else if (hash === "/changes") await (await import('./views/changes.js')).renderChanges();
+    else if (hash === "/insights") await (await import('./views/insights.js')).renderInsights();
+    else if (hash === "/retiring") await (await import('./views/retiring.js')).renderRetiring();
+    else if (hash === "/me/notifications") await (await import('./views/me-notifications.js')).renderMeNotifications();
+    else if (hash === "/me/insurance") await (await import('./views/me-insurance.js')).renderMeInsurance();
+    else if (hash === "/pro") await (await import('./views/pro.js')).renderPro();
+    else if (hash === "/wrapped") await (await import('./views/wrapped.js')).renderWrapped();
+    else if (hash === "/advisor") await (await import('./views/advisor-page.js')).renderAdvisorPage();
+    else if (hash === "/welcome" || hash.startsWith("/welcome/")) await (await import('./views/welcome.js')).renderWelcome(hash.split("/")[2] || "");
     else if (hash === "/leaderboard") await (await import('./views/portfolio-social.js')).renderLeaderboard();
     else if (hash.startsWith("/set/")) {
       const parts = hash.split("/");

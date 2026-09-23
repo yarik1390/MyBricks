@@ -1,6 +1,7 @@
 /** Dutch. Missing keys fall back to English (see lib/i18n.js). */
 export const nl = {
   bvCommon: {
+    comingSoon: 'Binnenkort',
     retired: 'Uit productie',
     upPct: '{pct} procent hoger',
     downPct: '{pct} procent lager',

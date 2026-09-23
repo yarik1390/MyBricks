@@ -1,6 +1,7 @@
 /** Ukrainian. Missing keys fall back to English (see lib/i18n.js). */
 export const uk = {
   bvCommon: {
+    comingSoon: 'Незабаром',
     retired: 'Знятий з виробництва',
     upPct: 'зростання на {pct} відсотка',
     downPct: 'падіння на {pct} відсотка',

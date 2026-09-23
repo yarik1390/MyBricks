@@ -10,6 +10,7 @@
  */
 export const en = {
   bvCommon: {
+    comingSoon: 'Coming soon',
     retired: 'Retired',
     upPct: 'up {pct} percent',
     downPct: 'down {pct} percent',

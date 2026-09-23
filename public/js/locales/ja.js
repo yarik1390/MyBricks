@@ -1,6 +1,7 @@
 /** Japanese. Missing keys fall back to English (see lib/i18n.js). */
 export const ja = {
   bvCommon: {
+    comingSoon: '近日公開',
     retired: '廃盤',
     upPct: '{pct}パーセント上昇',
     downPct: '{pct}パーセント下落',

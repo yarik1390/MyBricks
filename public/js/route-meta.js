@@ -1,4 +1,14 @@
 const ROUTES = [
+  // 2026 redesign routes (one line each; areas own their flags).
+  { match: (hash) => hash === "/changes", key: "changes", nav: "/", title: "What changed", fab: false, navOff: true },
+  { match: (hash) => hash === "/insights", key: "insights", nav: "/", title: "Insights", fab: false, navOff: true },
+  { match: (hash) => hash === "/retiring", key: "retiring", nav: "/add", title: "Retiring soon", fab: false },
+  { match: (hash) => hash === "/me/notifications", key: "notifications", nav: "/me", title: "Notifications", fab: false, navOff: true },
+  { match: (hash) => hash === "/me/insurance", key: "insurance", nav: "/me", title: "Insurance report", protected: true, fab: false, navOff: true },
+  { match: (hash) => hash === "/pro", key: "pro", nav: "/me", title: "BricksVault Pro", fab: false, navOff: true },
+  { match: (hash) => hash === "/wrapped", key: "wrapped", nav: "/me", title: "Brick Wrapped", fullscreen: true, fab: false },
+  { match: (hash) => hash === "/advisor", key: "advisor", nav: "/", title: "Advisor", fab: false, navOff: true },
+  { match: (hash) => hash === "/welcome" || hash.startsWith("/welcome/"), key: "welcome", nav: null, title: "Welcome", fullscreen: true, fab: false },
   { match: (hash) => hash === "/room", key: "collection-room", nav: "/", title: "Collection room", fullscreen: true, fab: false },
   { match: (hash) => hash === "/collections", key: "collections", nav: "/", title: "Collections", fab: false },
   { match: (hash) => hash === "/" || hash === "", key: "vault", nav: "/", title: "Vault", fab: true, scanFab: true },

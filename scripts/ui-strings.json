@@ -590,7 +590,8 @@
   {
     "text": "Advisor",
     "files": [
-      "components/advisor.js"
+      "components/advisor.js",
+      "route-meta.js"
     ]
   },
   {
@@ -1297,6 +1298,12 @@
     ]
   },
   {
+    "text": "Brick Wrapped",
+    "files": [
+      "route-meta.js"
+    ]
+  },
+  {
     "text": "BrickEconomy values",
     "files": [
       "views/me-admin.js"
@@ -1366,6 +1373,7 @@
     "text": "BricksVault Pro",
     "files": [
       "lib/revenuecat-native.js",
+      "route-meta.js",
       "views/me.js",
       "views/portfolio.js"
     ]
@@ -4685,6 +4693,7 @@
   {
     "text": "Insights",
     "files": [
+      "route-meta.js",
       "runtime-exact"
     ]
   },
@@ -4722,6 +4731,7 @@
   {
     "text": "Insurance report",
     "files": [
+      "route-meta.js",
       "views/me-data.js"
     ]
   },
@@ -6477,6 +6487,7 @@
   {
     "text": "Notifications",
     "files": [
+      "route-meta.js",
       "views/me-admin-config.js",
       "views/me.js",
       "views/portfolio.js"
@@ -8413,6 +8424,12 @@
     "text": "Retiring Soon",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Retiring soon",
+    "files": [
+      "route-meta.js"
     ]
   },
   {
@@ -11374,6 +11391,12 @@
     ]
   },
   {
+    "text": "Welcome",
+    "files": [
+      "route-meta.js"
+    ]
+  },
+  {
     "text": "Welcome to BricksVault",
     "files": [
       "components/onboarding.js"
@@ -11389,6 +11412,12 @@
     "text": "What Can I Build?",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "What changed",
+    "files": [
+      "route-meta.js"
     ]
   },
   {
@@ -11837,6 +11866,20 @@
     "text": "button in Background Activity & Jobs.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "bvCommon.comingSoon",
+    "files": [
+      "views/advisor-page.js",
+      "views/changes.js",
+      "views/insights.js",
+      "views/me-insurance.js",
+      "views/me-notifications.js",
+      "views/pro.js",
+      "views/retiring.js",
+      "views/welcome.js",
+      "views/wrapped.js"
     ]
   },
   {

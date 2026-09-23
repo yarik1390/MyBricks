@@ -1,6 +1,7 @@
 /** Hindi. Missing keys fall back to English (see lib/i18n.js). */
 export const hi = {
   bvCommon: {
+    comingSoon: 'जल्द आ रहा है',
     retired: 'बंद',
     upPct: '{pct} प्रतिशत ऊपर',
     downPct: '{pct} प्रतिशत नीचे',

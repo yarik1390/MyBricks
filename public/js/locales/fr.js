@@ -1,6 +1,7 @@
 /** French. Missing keys fall back to English (see lib/i18n.js). */
 export const fr = {
   bvCommon: {
+    comingSoon: 'Bientôt disponible',
     retired: 'Retiré',
     upPct: 'en hausse de {pct} pour cent',
     downPct: 'en baisse de {pct} pour cent',
