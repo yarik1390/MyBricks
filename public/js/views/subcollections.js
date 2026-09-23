@@ -86,7 +86,7 @@ export async function renderSubcollections() {
     const pinned = pins().includes(list.id);
     const label = tPlural('collections.progress', progress.total, { owned: progress.owned, total: progress.total });
     const right = progress.complete ? pill(t('collections.completed'), 'gain', { icon: 'check' }) : `<span class="bv-num vault-list-card__count" aria-hidden="true">${progress.owned}/${progress.total}</span>`;
-    return `<article class="vault-list-card collection-card" data-list-id="${esc(list.id)}">
+    return `<article class="vault-list-card" data-list-id="${esc(list.id)}">
       <div class="vault-list-card__head">
         <button type="button" class="vault-list-card__pin${pinned ? ' is-pinned' : ''}" data-pin="${esc(list.id)}" aria-pressed="${pinned}" aria-label="${esc(t(pinned ? 'collector.unpin' : 'collector.pin'))}">${icon('star', { size: 18 })}</button>
         <h2 class="vault-list-card__name"><button type="button" class="vault-list-card__open" data-open-list="${esc(list.id)}" aria-label="${esc(`${list.name}, ${label}`)}">${esc(list.name)}</button></h2>
@@ -111,12 +111,12 @@ export async function renderSubcollections() {
       ${notices}
       ${searchOpen ? '' : recordsCard()}
       ${vaultNavigation('collections')}
-      <p class="bv-foot vault-lists__storage">${esc(t(isGuestMode() ? 'collections.guestStorage' : 'collections.accountStorage'))}</p>
       <div id="collectionLists" class="vault-lists__list">${shown === null
         ? `<div class="bv-empty" role="alert"><p>${esc(t('collections.failed'))}</p>${btn(t('collections.retry'), { kind: 'tonal', id: 'collectionRetry' })}</div>`
         : shown.length ? shown.map(listHTML).join('')
         : lists.length ? `<p class="bv-foot">${esc(t('collector.noResults'))}</p>`
         : emptyState({ icon: 'list', title: t('bvVault.listsEmptyTitle'), body: t('collections.empty') })}</div>
+      <p class="bv-foot vault-lists__storage">${esc(t(isGuestMode() ? 'collections.guestStorage' : 'collections.accountStorage'))}</p>
     </main>`;
     wire();
   }

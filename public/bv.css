@@ -840,16 +840,16 @@ body.collector-ui.selection-mode #nav { display: none; }
 .vault-records__rows { display: flex; flex-direction: column; }
 .vault-lists__list { margin: 12px var(--bv-gutter) 0; display: flex; flex-direction: column; gap: 10px; }
 .vault-lists__list > .bv-empty, .vault-lists__list > .bv-foot { margin-left: 0; margin-right: 0; }
-.vault-lists__storage { margin-top: 10px; }
+.vault-lists__storage { margin-top: 14px; }
 .vault-list-card {
-  position: relative; display: flex; flex-direction: column; gap: 8px; padding: 10px 16px 14px 8px;
+  position: relative; display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 14px 8px;
   border-radius: 20px; background: var(--bv-s); border: 1px solid var(--bv-line); color: var(--bv-ink);
 }
 .vault-list-card > .bv-bar, .vault-list-card__sub { margin-left: 8px; }
 .vault-list-card[data-highlighted="true"] { border-color: var(--bv-acct); box-shadow: 0 0 0 2px var(--bv-acct); }
-.vault-list-card__head { display: flex; align-items: center; gap: 4px; min-height: 48px; }
+.vault-list-card__head { display: flex; align-items: center; gap: 4px; min-height: 28px; }
 .vault-list-card__pin {
-  position: relative; z-index: 1; width: 40px; height: 48px; min-height: 48px; flex-shrink: 0; margin: 0 -4px 0 0; padding: 0;
+  position: relative; z-index: 1; width: 40px; height: 48px; min-height: 48px; flex-shrink: 0; margin: -10px -6px -10px -2px; padding: 0;
   display: flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--bv-mute); cursor: pointer;
 }
 .vault-list-card__pin.is-pinned { color: var(--bv-acct); }
