@@ -179,7 +179,11 @@ export async function selectDueSets(
   const valuePredicate = blStale
     ? includeBrickLink
       ? `AND ls.bl_new_value IS NOT NULL
-        AND (ls.bl_cached_at IS NULL OR ls.bl_cached_at < datetime('now', '-22 hours'))`
+        AND (ls.bl_cached_at IS NULL OR ls.bl_cached_at < datetime('now', '-22 hours'))
+        -- Filter before LIMIT: backed-off rows cannot fetch a guide and would
+        -- otherwise repeatedly consume the dedicated refresh lane's slots.
+        AND (sme.bl_nodata_at IS NULL OR julianday(sme.bl_nodata_at) IS NULL
+             OR julianday(sme.bl_nodata_at) <= julianday('now', '-90 days'))`
       : 'AND 0=1'
     : prioritizeValue
     ? `AND ls.valuation_method NOT IN ('formula_bulk', 'local')

@@ -88,6 +88,25 @@ describe('dedicated BrickLink refresh selection', () => {
     expect(results[0]?.set_num).toBe('AGED');
   });
 
+  it('does not let backed-off oldest rows starve eligible refreshes at LIMIT', async () => {
+    await insertSet('BLOCKED', { ageHours: 24 * 100 });
+    await insertSet('ELIGIBLE', { ageHours: 23 });
+    await db.prepare(`INSERT INTO set_market_ext (set_num, bl_nodata_at)
+      VALUES ('BLOCKED', datetime('now', '-10 days'))`).run();
+    const selected = await selectBrickLink(1);
+    expect(selected.results.map((row) => row.set_num)).toEqual(['ELIGIBLE']);
+    expect(selected.grants.bricklink).toBe(2);
+  });
+
+  it('retries expired and malformed no-data markers', async () => {
+    for (const [id, stamp] of [['EXPIRED', '2000-01-01T00:00:00Z'], ['INVALID', 'invalid']]) {
+      await insertSet(id);
+      await db.prepare('INSERT INTO set_market_ext (set_num, bl_nodata_at) VALUES (?, ?)').bind(id, stamp).run();
+    }
+    const selected = await selectBrickLink();
+    expect(selected.results.map((row) => row.set_num).sort()).toEqual(['EXPIRED', 'INVALID']);
+  });
+
   it('keeps the 90-day BrickLink no-data backoff out of quota grants', async () => {
     await insertSet('BACKED-OFF');
     await db.prepare(`INSERT INTO set_market_ext (set_num, bl_nodata_at)
@@ -98,7 +117,7 @@ describe('dedicated BrickLink refresh selection', () => {
       includeSupplemental: false, includeBrickLink: true, includeEbay: false,
       includeEbaySold: false, includeAiFallback: false,
     });
-    expect(selected.results.map((row) => row.set_num)).toContain('BACKED-OFF');
+    expect(selected.results.map((row) => row.set_num)).not.toContain('BACKED-OFF');
     expect(selected.grants.bricklink).toBe(0);
   });
 });
