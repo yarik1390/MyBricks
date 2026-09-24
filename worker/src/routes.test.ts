@@ -252,6 +252,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       `CREATE TABLE user_wishlist (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL,
         target_price REAL, notes TEXT, added_at TEXT DEFAULT CURRENT_TIMESTAMP, alerted_at TEXT, acknowledged_at TEXT,
+        notify_target INTEGER NOT NULL DEFAULT 1, notify_retiring INTEGER NOT NULL DEFAULT 1, notify_stock INTEGER NOT NULL DEFAULT 1,
         UNIQUE(user_id, set_num)
       )`,
       `CREATE TABLE wishlist_alerts (
@@ -262,6 +263,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       `CREATE TABLE user_prefs (
         user_id TEXT PRIMARY KEY, handle TEXT, display_name TEXT, currency TEXT DEFAULT 'USD', retail_market TEXT DEFAULT 'FR',
         notify_price_drops INTEGER DEFAULT 1, notify_weekly_digest INTEGER DEFAULT 0, is_public INTEGER NOT NULL DEFAULT 0,
+        notify_sell_targets INTEGER, notify_big_moves INTEGER, notify_retiring INTEGER, notify_back_in_stock INTEGER,
+        quiet_hours INTEGER DEFAULT 0, quiet_start INTEGER DEFAULT 22, quiet_end INTEGER DEFAULT 8, timezone TEXT,
         expose_public_value INTEGER NOT NULL DEFAULT 1,
         google_refresh_token TEXT, google_spreadsheet_id TEXT,
         email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT,
@@ -765,6 +768,40 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       }), env);
       expect(res.status).toBe(409);
     });
+
+    it('alert categories inherit the master switch until set, and quiet hours round-trip', async () => {
+      await db.prepare(`INSERT INTO user_prefs (user_id, notify_price_drops) VALUES (?, 0)`).bind(userId).run();
+      let data = await (await app.fetch(new Request('http://localhost/api/me', { headers: auth() }), env)).json<any>();
+      expect(data.notify_price_drops).toBe(false);
+      expect(data.notify_sell_targets).toBe(false); // inherited
+      expect(data.quiet_hours).toBe(false);
+      expect(data.quiet_start).toBe(22);
+      expect(data.quiet_end).toBe(8);
+
+      const patch = await app.fetch(new Request('http://localhost/api/me', {
+        method: 'PATCH', headers: auth(),
+        body: JSON.stringify({ notify_sell_targets: true, notify_big_moves: false, quiet_hours: true, quiet_start: 23, quiet_end: 7, timezone: 'Europe/Kyiv' }),
+      }), env);
+      expect(patch.status).toBe(200);
+      data = await (await app.fetch(new Request('http://localhost/api/me', { headers: auth() }), env)).json<any>();
+      expect(data.notify_price_drops).toBe(false); // untouched
+      expect(data.notify_sell_targets).toBe(true);
+      expect(data.notify_big_moves).toBe(false);
+      expect(data.notify_retiring).toBe(false); // still inherited
+      expect(data.quiet_hours).toBe(true);
+      expect(data.quiet_start).toBe(23);
+      expect(data.quiet_end).toBe(7);
+      expect(data.timezone).toBe('Europe/Kyiv');
+    });
+
+    it('rejects malformed notification preferences', async () => {
+      for (const body of [{ notify_retiring: 'yes' }, { quiet_start: 25 }, { quiet_end: 1.5 }, { timezone: 'Mars/Olympus' }]) {
+        const res = await app.fetch(new Request('http://localhost/api/me', {
+          method: 'PATCH', headers: auth(), body: JSON.stringify(body),
+        }), env);
+        expect(res.status, JSON.stringify(body)).toBe(400);
+      }
+    });
   });
 
   describe('Wishlist', () => {
@@ -820,6 +857,48 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(item.upcoming_price).toBe(849.99);
       expect(item.coming_soon).toBe(true);
       expect(item.lego_availability).toBe('pre_order');
+    });
+
+    it('PATCH /:id saves the price alert sheet and re-arms the alert', async () => {
+      await db.prepare(`INSERT INTO user_wishlist (id, user_id, set_num, target_price, alerted_at, acknowledged_at)
+        VALUES (41, ?, '10300', 150, datetime('now'), datetime('now'))`).bind(userId).run();
+      const res = await app.fetch(new Request('http://localhost/api/wishlist/41', {
+        method: 'PATCH', headers: auth(),
+        body: JSON.stringify({ target_price: 120, notify_retiring: false, notify_stock: false }),
+      }), env);
+      expect(res.status).toBe(200);
+      const row = await db.prepare('SELECT * FROM user_wishlist WHERE id = 41').first<any>();
+      expect(row.target_price).toBe(120);
+      expect(row.alerted_at).toBeNull();
+      expect(row.acknowledged_at).toBeNull();
+      expect(row.notify_target).toBe(1);
+      expect(row.notify_retiring).toBe(0);
+      expect(row.notify_stock).toBe(0);
+
+      const list = await (await app.fetch(new Request('http://localhost/api/wishlist', { headers: auth() }), env)).json<any>();
+      expect(list.wishlist[0].notify_retiring).toBe(0);
+
+      // null clears the target; switches alone leave the target alone.
+      await app.fetch(new Request('http://localhost/api/wishlist/41', {
+        method: 'PATCH', headers: auth(), body: JSON.stringify({ target_price: null }),
+      }), env);
+      expect((await db.prepare('SELECT target_price FROM user_wishlist WHERE id = 41').first<any>()).target_price).toBeNull();
+    });
+
+    it('PATCH /:id validates and never touches another user\'s row', async () => {
+      await db.prepare(`INSERT INTO user_wishlist (id, user_id, set_num, target_price) VALUES (42, ?, '10300', 150)`).bind(otherUserId).run();
+      const other = await app.fetch(new Request('http://localhost/api/wishlist/42', {
+        method: 'PATCH', headers: auth(), body: JSON.stringify({ target_price: 10 }),
+      }), env);
+      expect(other.status).toBe(404);
+      expect((await db.prepare('SELECT target_price FROM user_wishlist WHERE id = 42').first<any>()).target_price).toBe(150);
+      await db.prepare(`INSERT INTO user_wishlist (id, user_id, set_num) VALUES (43, ?, '10300')`).bind(userId).run();
+      for (const body of [{}, { target_price: -5 }, { target_price: 'cheap' }, { notify_target: 1 }]) {
+        const res = await app.fetch(new Request('http://localhost/api/wishlist/43', {
+          method: 'PATCH', headers: auth(), body: JSON.stringify(body),
+        }), env);
+        expect(res.status, JSON.stringify(body)).toBe(400);
+      }
     });
 
     it('marks an alert as read via POST /:id', async () => {
@@ -2159,6 +2238,8 @@ describe('Kids PIN and XP', () => {
       `CREATE TABLE user_prefs (
         user_id TEXT PRIMARY KEY, handle TEXT, display_name TEXT, currency TEXT DEFAULT 'USD',
         notify_price_drops INTEGER DEFAULT 1, notify_weekly_digest INTEGER DEFAULT 0, is_public INTEGER NOT NULL DEFAULT 0,
+        notify_sell_targets INTEGER, notify_big_moves INTEGER, notify_retiring INTEGER, notify_back_in_stock INTEGER,
+        quiet_hours INTEGER DEFAULT 0, quiet_start INTEGER DEFAULT 22, quiet_end INTEGER DEFAULT 8, timezone TEXT,
         expose_public_value INTEGER NOT NULL DEFAULT 1,
         google_refresh_token TEXT, google_spreadsheet_id TEXT,
         email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT,

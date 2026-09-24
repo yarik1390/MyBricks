@@ -11,6 +11,7 @@ export interface NativePushPayload {
   title: string;
   body: string;
   url?: string;
+  tag?: string;
 }
 
 interface CachedAccessToken {
@@ -117,6 +118,8 @@ function decodePayload(payload: string): NativePushPayload | null {
       title: String(parsed.title).slice(0, 120),
       body: String(parsed.body).slice(0, 500),
       url: parsed.url ? String(parsed.url).slice(0, 500) : '#/',
+      // Same tag replaces the previous notification for that set instead of stacking.
+      ...(parsed.tag ? { tag: String(parsed.tag).slice(0, 64) } : {}),
     };
   } catch {
     return null;
@@ -166,7 +169,7 @@ export async function sendNativePushToUser(env: Env, userId: string, payloadJson
               token: row.token,
               notification: { title: payload.title, body: payload.body },
               data: { url: payload.url || '#/' },
-              android: { priority: 'high' },
+              android: { priority: 'high', ...(payload.tag ? { notification: { tag: payload.tag } } : {}) },
             },
           }),
           // Bounded per-message send; a stalled FCM call must not hang the batch.

@@ -12,7 +12,7 @@ app.use('*', requireMember);
 // GET /api/wishlist
 app.get('/', async (c) => {
   const userId = c.get('userId');
-  const [wl, alerts, hist, upcoming] = await Promise.all([
+  const [wl, alerts, hist, upcoming, switches] = await Promise.all([
     c.env.DB.prepare(`
       SELECT ${WISHLIST_COLS}
       FROM user_wishlist w
@@ -40,7 +40,13 @@ app.get('/', async (c) => {
       FROM upcoming_sets
       WHERE set_num IN (SELECT set_num FROM user_wishlist WHERE user_id = ?)
     `).bind(userId).all<{ set_num: string; price_usd: number | null; availability: string | null }>(),
+    // Per-set alert switches ride in a separate read: the catalog projection
+    // above already sits at D1's result-column limit.
+    c.env.DB.prepare(
+      'SELECT id, notify_target, notify_retiring, notify_stock FROM user_wishlist WHERE user_id = ?',
+    ).bind(userId).all<{ id: number; notify_target: number; notify_retiring: number; notify_stock: number }>(),
   ]);
+  const switchesById = new Map((switches.results || []).map(row => [row.id, row]));
 
   // Per-set 30-day slope (USD/week) so the client can show "buy window" hints
   // on wishlist targets. Requires >= 7 snapshots to avoid noise.
@@ -65,10 +71,14 @@ app.get('/', async (c) => {
       const announcedPrice = [upcomingSet?.price_usd, row.retail_price, row.be_retail]
         .map(Number)
         .find(value => Number.isFinite(value) && value > 0) ?? null;
+      const sw = switchesById.get(Number(row.id));
       const enriched: Record<string, unknown> = enrichSetRecord(attachCatalogValuationState({
         ...row,
         retired: !!row.retired,
         trend_weekly: trendWeekly[row.set_num as string] ?? null,
+        notify_target: sw ? Number(sw.notify_target) : 1,
+        notify_retiring: sw ? Number(sw.notify_retiring) : 1,
+        notify_stock: sw ? Number(sw.notify_stock) : 1,
       }));
       if (!comingSoon) return enriched;
       const availability = /pre/i.test(String(upcomingSet?.availability)) ? 'pre_order' : 'coming_soon';
@@ -112,6 +122,47 @@ app.post('/', async (c) => {
     'SELECT * FROM user_wishlist WHERE user_id=? AND set_num=?'
   ).bind(userId, set_num).first();
   return c.json({ item }, 201);
+});
+
+// PATCH /api/wishlist/:id — the price alert sheet: target price (null clears
+// it) and the per-set switches. Changing the target re-arms the alert so a
+// set already under the NEW target can fire on the next run.
+app.patch('/:id', async (c) => {
+  const userId = c.get('userId');
+  const id = parseInt(c.req.param('id'), 10);
+  if (!id) return c.json({ error: 'Invalid id' }, 400);
+  const body = await c.req.json<{
+    target_price?: number | null; notify_target?: boolean; notify_retiring?: boolean; notify_stock?: boolean; notes?: string | null;
+  }>().catch(() => null);
+  if (!body || typeof body !== 'object') return c.json({ error: 'JSON body required' }, 400);
+  const sets: string[] = [];
+  const binds: (number | string | null)[] = [];
+  if (body.target_price !== undefined) {
+    const tp = body.target_price;
+    if (tp !== null && (typeof tp !== 'number' || !Number.isFinite(tp) || tp <= 0 || tp > 1e7)) {
+      return c.json({ error: 'Target price must be a positive number or null' }, 400);
+    }
+    sets.push('target_price = ?', 'alerted_at = NULL', 'acknowledged_at = NULL');
+    binds.push(tp);
+  }
+  for (const col of ['notify_target', 'notify_retiring', 'notify_stock'] as const) {
+    const v = body[col];
+    if (v === undefined) continue;
+    if (typeof v !== 'boolean') return c.json({ error: `${col} must be a boolean` }, 400);
+    sets.push(`${col} = ?`);
+    binds.push(v ? 1 : 0);
+  }
+  if (body.notes !== undefined) {
+    sets.push('notes = ?');
+    binds.push(body.notes == null ? null : String(body.notes).slice(0, 500));
+  }
+  if (!sets.length) return c.json({ error: 'Nothing to update' }, 400);
+  const res = await c.env.DB.prepare(
+    `UPDATE user_wishlist SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`,
+  ).bind(...binds, id, userId).run();
+  if (res.meta.changes === 0) return c.json({ error: 'Not found' }, 404);
+  const item = await c.env.DB.prepare('SELECT * FROM user_wishlist WHERE id = ? AND user_id = ?').bind(id, userId).first();
+  return c.json({ item });
 });
 
 // DELETE /api/wishlist/:id

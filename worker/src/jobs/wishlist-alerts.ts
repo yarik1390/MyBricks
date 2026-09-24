@@ -23,7 +23,45 @@ export async function sendPushToUser(env: Env, userId: string, payload: string) 
   await sendNativePushToUser(env, userId, payload);
 }
 
-interface AlertPrefs { email: string | null; discord_webhook_url: string | null; notify_price_drops: number }
+interface AlertPrefs {
+  email: string | null; discord_webhook_url: string | null; notify_price_drops: number | null;
+  notify_sell_targets?: number | null; notify_big_moves?: number | null; notify_retiring?: number | null; notify_back_in_stock?: number | null;
+  quiet_hours?: number | null; quiet_start?: number | null; quiet_end?: number | null; timezone?: string | null;
+}
+
+// Alert categories map to the Notifications screen switches. The wishlist
+// leg keeps notify_price_drops (the original master switch); every other
+// category falls back to it while its own column is NULL, so users who never
+// opened the new screen keep exactly the behaviour they had.
+export type AlertCategory = 'wishlist' | 'sell' | 'moves' | 'retiring' | 'stock';
+const CATEGORY_COL: Record<Exclude<AlertCategory, 'wishlist'>, keyof AlertPrefs> = {
+  sell: 'notify_sell_targets', moves: 'notify_big_moves', retiring: 'notify_retiring', stock: 'notify_back_in_stock',
+};
+
+export function wantsAlert(prefs: AlertPrefs, category: AlertCategory): boolean {
+  const master = prefs.notify_price_drops != null && Number(prefs.notify_price_drops) !== 0;
+  if (category === 'wishlist') return master;
+  const own = prefs[CATEGORY_COL[category]];
+  return own == null ? master : Number(own) !== 0;
+}
+
+// Quiet hours hold back PUSH only; the alert row (in-app) and email still go
+// out. Hours are local to the user's IANA timezone (UTC when unknown); a
+// window may wrap midnight (22 → 8).
+export function inQuietHours(prefs: AlertPrefs, now: Date = new Date()): boolean {
+  if (Number(prefs.quiet_hours) !== 1) return false;
+  const start = Number.isInteger(prefs.quiet_start) ? Number(prefs.quiet_start) : 22;
+  const end = Number.isInteger(prefs.quiet_end) ? Number(prefs.quiet_end) : 8;
+  if (start === end) return false;
+  let hour = now.getUTCHours();
+  try {
+    hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: prefs.timezone || 'UTC', hour: 'numeric', hourCycle: 'h23' }).format(now)) % 24;
+  } catch { /* unknown zone → UTC */ }
+  return start < end ? hour >= start && hour < end : hour >= start || hour < end;
+}
+
+const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+const setLink = (setNum: string, tail = '') => `#/set/${encodeURIComponent(setNum)}${tail}`;
 
 // Workers Paid permits 1,000 D1 queries per invocation. The five alert legs
 // share one cron invocation and notification delivery performs additional D1
@@ -40,7 +78,10 @@ async function loadAlertPrefs(env: Env, userIds: string[]): Promise<Map<string, 
     if (!chunk.length) continue;
     const ph = chunk.map(() => '?').join(',');
     const { results } = await env.DB.prepare(
-      `SELECT user_id, email, discord_webhook_url, notify_price_drops FROM user_prefs WHERE user_id IN (${ph})`
+      `SELECT user_id, email, discord_webhook_url, notify_price_drops,
+              notify_sell_targets, notify_big_moves, notify_retiring, notify_back_in_stock,
+              quiet_hours, quiet_start, quiet_end, timezone
+       FROM user_prefs WHERE user_id IN (${ph})`
     ).bind(...chunk).all<AlertPrefs & { user_id: string }>();
     for (const r of results) byId.set(r.user_id, r);
   }
@@ -63,6 +104,7 @@ export async function runWishlistAlerts(env: Env) {
     JOIN lego_sets s ON s.set_num = w.set_num
     LEFT JOIN set_market_ext ext ON ext.set_num = w.set_num
     WHERE w.target_price IS NOT NULL
+      AND COALESCE(w.notify_target, 1) = 1
       AND (
         (
           COALESCE(NULLIF(s.blended_value, 0), s.current_value) <= w.target_price
@@ -128,7 +170,8 @@ export async function runWishlistAlerts(env: Env) {
   const prefsByUser = await loadAlertPrefs(env, [...byUser.keys()]);
   for (const [userId, rows] of byUser) {
     const prefs = prefsByUser.get(userId);
-    if (!prefs || !prefs.notify_price_drops) continue;
+    if (!prefs || !wantsAlert(prefs, 'wishlist')) continue;
+    const quiet = inQuietHours(prefs);
 
     for (const row of rows) {
       if (prefs.email && env.RESEND_API_KEY) {
@@ -147,10 +190,15 @@ export async function runWishlistAlerts(env: Env) {
           url: appLink(env, `#/set/${encodeURIComponent(row.set_num)}`),
         }).catch(() => {});
       }
-      sendPushToUser(env, row.user_id, JSON.stringify({
-        title: 'Price target reached',
-        body: `${row.set_name} is now $${row.current_value.toFixed(2)}${at} — at or below your target.`,
-        url: `#/set/${encodeURIComponent(row.set_num)}`,
+      if (!quiet) sendPushToUser(env, row.user_id, JSON.stringify({
+        title: `${row.set_name} dropped to ${money(row.current_value)}`,
+        body: `${row.current_value < row.target_price ? 'Below' : 'At'} your ${money(row.target_price)} target${at}.`,
+        url: `#/wishlist?alert=${encodeURIComponent(row.set_num)}`,
+        tag: `drop-${row.set_num}`,
+        actions: [
+          { action: 'offers', title: 'Offers', url: setLink(row.set_num) },
+          { action: 'alert', title: 'Price alert', url: `#/wishlist?alert=${encodeURIComponent(row.set_num)}` },
+        ],
       })).catch(() => {});
     }
   }
@@ -217,7 +265,8 @@ async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
   const prefsByUser = await loadAlertPrefs(env, [...byUser.keys()]);
   for (const [userId, rows] of byUser) {
     const prefs = prefsByUser.get(userId);
-    if (!prefs || !prefs.notify_price_drops) continue;
+    if (!prefs || !wantsAlert(prefs, 'moves')) continue;
+    const quiet = inQuietHours(prefs);
     for (const row of rows) {
       if (prefs.email && env.RESEND_API_KEY) {
         const html = wishlistAlertEmailHTML(row.set_name, row.set_num, row.purchase_price, row.current_value, 'spike', appBaseUrl(env));
@@ -236,10 +285,15 @@ async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
         }).catch(() => {});
       }
       const pct2 = ((row.current_value - row.purchase_price) / row.purchase_price * 100).toFixed(0);
-      sendPushToUser(env, row.user_id, JSON.stringify({
-        title: 'Value spike!',
-        body: `${row.set_name} is up +${pct2}% — now worth $${row.current_value.toFixed(2)}.`,
-        url: `#/set/${encodeURIComponent(row.set_num)}`,
+      if (!quiet) sendPushToUser(env, row.user_id, JSON.stringify({
+        title: `${row.set_name} is up ${pct2}%`,
+        body: `Now ${money(row.current_value)} — you paid ${money(row.purchase_price)}.`,
+        url: setLink(row.set_num),
+        tag: `spike-${row.set_num}`,
+        actions: [
+          { action: 'sell', title: 'Sell options', url: setLink(row.set_num, '/sell') },
+          { action: 'target', title: 'Set sell target', url: setLink(row.set_num, '/target') },
+        ],
       })).catch(() => {});
     }
   }
@@ -300,12 +354,13 @@ export async function runSellTargetAlerts(env: Env): Promise<{ fired: number }> 
   const prefsByUser = await loadAlertPrefs(env, users);
   for (const row of results) {
     const prefs = prefsByUser.get(row.user_id);
-    if (!prefs || !prefs.notify_price_drops) continue;
+    if (!prefs || !wantsAlert(prefs, 'sell') || inQuietHours(prefs)) continue;
     // Actions deep-link straight to the decision: sell options or a new target.
     sendPushToUser(env, row.user_id, JSON.stringify({
       title: `${row.set_name} reached your sell target`,
-      body: `Now $${row.current_value.toFixed(0)} — you set $${row.sell_target.toFixed(0)}.`,
+      body: `Now ${money(row.current_value)} — you set ${money(row.sell_target)}.`,
       url: `#/set/${encodeURIComponent(row.set_num)}/sell`,
+      tag: `sell-${row.set_num}`,
       actions: [
         { action: 'sell', title: 'Sell options', url: `#/set/${encodeURIComponent(row.set_num)}/sell` },
         { action: 'target', title: 'Raise target', url: `#/set/${encodeURIComponent(row.set_num)}/target` },
@@ -326,7 +381,7 @@ async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
     JOIN (
       SELECT user_id, set_num FROM user_collection WHERE deleted_at IS NULL
       UNION
-      SELECT user_id, set_num FROM user_wishlist
+      SELECT user_id, set_num FROM user_wishlist WHERE COALESCE(notify_retiring, 1) = 1
     ) u ON u.set_num = ls.set_num
     WHERE ls.retired = 0 AND ls.lego_retiring_soon = 1
       AND NOT EXISTS (
@@ -356,7 +411,8 @@ async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
   const prefsByUser = await loadAlertPrefs(env, [...byUser.keys()]);
   for (const [userId, rows] of byUser) {
     const prefs = prefsByUser.get(userId);
-    if (!prefs || !prefs.notify_price_drops) continue;
+    if (!prefs || !wantsAlert(prefs, 'retiring')) continue;
+    const quiet = inQuietHours(prefs);
     for (const row of rows) {
       const cv = Number(row.current_value) || 0;
       if (prefs.email && env.RESEND_API_KEY) {
@@ -373,10 +429,12 @@ async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
           url: appLink(env, `#/set/${encodeURIComponent(row.set_num)}`),
         }).catch(() => {});
       }
-      sendPushToUser(env, row.user_id, JSON.stringify({
-        title: 'Retiring soon',
-        body: `${row.set_name} is retiring soon — production is ending.`,
-        url: `#/set/${encodeURIComponent(row.set_num)}`,
+      if (!quiet) sendPushToUser(env, row.user_id, JSON.stringify({
+        title: `${row.set_name} is retiring soon`,
+        body: 'LEGO.com is ending production — a good moment to decide buy or hold.',
+        url: setLink(row.set_num),
+        tag: `retiring-${row.set_num}`,
+        actions: [{ action: 'retiring', title: 'Retiring soon', url: '#/retiring' }],
       })).catch(() => {});
     }
   }
@@ -396,6 +454,7 @@ async function runDealAlerts(env: Env): Promise<{ fired: number }> {
     FROM user_wishlist w
     JOIN lego_sets ls ON ls.set_num = w.set_num
     WHERE ls.deal_signal = 'buy'
+      AND COALESCE(w.notify_target, 1) = 1
       AND NOT EXISTS (
         SELECT 1 FROM wishlist_alerts wa
         WHERE wa.user_id = w.user_id AND wa.set_num = ls.set_num
@@ -423,7 +482,8 @@ async function runDealAlerts(env: Env): Promise<{ fired: number }> {
   const prefsByUser = await loadAlertPrefs(env, [...byUser.keys()]);
   for (const [userId, rows] of byUser) {
     const prefs = prefsByUser.get(userId);
-    if (!prefs || !prefs.notify_price_drops) continue;
+    if (!prefs || !wantsAlert(prefs, 'wishlist')) continue;
+    const quiet = inQuietHours(prefs);
     for (const row of rows) {
       const mv = Number(row.market_value) || 0;
       const pct = Number(row.deal_discount_pct);
@@ -442,10 +502,12 @@ async function runDealAlerts(env: Env): Promise<{ fired: number }> {
           url: appLink(env, `#/set/${encodeURIComponent(row.set_num)}`),
         }).catch(() => {});
       }
-      sendPushToUser(env, row.user_id, JSON.stringify({
-        title: 'Buy window',
-        body: `${row.set_name} is available ${pctStr}.`,
-        url: `#/set/${encodeURIComponent(row.set_num)}`,
+      if (!quiet) sendPushToUser(env, row.user_id, JSON.stringify({
+        title: `Buy window: ${row.set_name}`,
+        body: `Available ${pctStr} right now.`,
+        url: setLink(row.set_num),
+        tag: `deal-${row.set_num}`,
+        actions: [{ action: 'offers', title: 'Offers', url: setLink(row.set_num) }],
       })).catch(() => {});
     }
   }
@@ -463,6 +525,7 @@ async function runPreorderAlerts(env: Env): Promise<{ fired: number }> {
     FROM user_wishlist w
     JOIN lego_sets ls ON ls.set_num = w.set_num
     WHERE ls.lego_availability IN ('pre_order', 'coming_soon')
+      AND COALESCE(w.notify_stock, 1) = 1
       AND NOT EXISTS (
         SELECT 1 FROM wishlist_alerts wa
         WHERE wa.user_id = w.user_id AND wa.set_num = ls.set_num
@@ -490,7 +553,8 @@ async function runPreorderAlerts(env: Env): Promise<{ fired: number }> {
   const prefsByUser = await loadAlertPrefs(env, [...byUser.keys()]);
   for (const [userId, rows] of byUser) {
     const prefs = prefsByUser.get(userId);
-    if (!prefs || !prefs.notify_price_drops) continue;
+    if (!prefs || !wantsAlert(prefs, 'stock')) continue;
+    const quiet = inQuietHours(prefs);
     for (const row of rows) {
       const label = row.lego_availability === 'coming_soon' ? 'coming soon' : 'available to pre-order';
       if (prefs.email && env.RESEND_API_KEY) {
@@ -507,10 +571,11 @@ async function runPreorderAlerts(env: Env): Promise<{ fired: number }> {
           url: appLink(env, `#/set/${encodeURIComponent(row.set_num)}`),
         }).catch(() => {});
       }
-      sendPushToUser(env, row.user_id, JSON.stringify({
-        title: 'Available soon',
-        body: `${row.set_name} from your wishlist is now ${label}.`,
-        url: `#/set/${encodeURIComponent(row.set_num)}`,
+      if (!quiet) sendPushToUser(env, row.user_id, JSON.stringify({
+        title: `${row.set_name} is ${label}`,
+        body: 'From your wishlist · LEGO.com',
+        url: setLink(row.set_num),
+        tag: `stock-${row.set_num}`,
       })).catch(() => {});
     }
   }
